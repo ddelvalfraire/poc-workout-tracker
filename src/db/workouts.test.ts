@@ -4,6 +4,7 @@ import {
   createWorkout,
   listWorkoutSummaries,
   getWorkoutDetail,
+  deleteWorkout,
 } from './workouts'
 
 const USER = 'user_123'
@@ -31,6 +32,12 @@ describe('workouts repository (authorization boundary)', () => {
 
   it('scopes the detail query to the user as well as the id', () => {
     const { sql, params } = getWorkoutDetail(USER, WORKOUT_ID).toSQL()
+    expect(sql).toContain('"user_id"')
+    expect(params).toEqual(expect.arrayContaining([USER, WORKOUT_ID]))
+  })
+
+  it('scopes the delete to the user as well as the id', () => {
+    const { sql, params } = deleteWorkout(USER, WORKOUT_ID).toSQL()
     expect(sql).toContain('"user_id"')
     expect(params).toEqual(expect.arrayContaining([USER, WORKOUT_ID]))
   })

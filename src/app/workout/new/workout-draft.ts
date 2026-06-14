@@ -1,4 +1,5 @@
 import type { WorkoutInput } from '@/lib/workout-input'
+import type { WorkoutDetail } from '@/db/workouts'
 
 /**
  * Pure client-state logic for the in-progress workout, kept free of React/JSX so
@@ -143,4 +144,26 @@ export function draftToInput(draft: WorkoutDraft, name?: string): WorkoutInput {
   }))
 
   return trimmedName ? { name: trimmedName, exercises } : { exercises }
+}
+
+/**
+ * Seeds an editable draft from a persisted workout (the inverse of
+ * draftToInput). Numbers become input strings (`null` → `''`); the persisted
+ * row UUIDs are reused as the draft's client ids (stable React keys). `category`
+ * is not a persisted column, so it comes back empty. Pure (no `crypto`), so the
+ * edit Server Component can call it safely.
+ */
+export function detailToDraft(workout: WorkoutDetail): { draft: WorkoutDraft; name: string } {
+  const exercises = workout.exercises.map((exercise) => ({
+    id: exercise.id,
+    wgerExerciseId: exercise.wgerExerciseId,
+    name: exercise.name,
+    category: '',
+    sets: exercise.sets.map((set) => ({
+      id: set.id,
+      reps: set.reps?.toString() ?? '',
+      weight: set.weight?.toString() ?? '',
+    })),
+  }))
+  return { draft: { exercises }, name: workout.name ?? '' }
 }

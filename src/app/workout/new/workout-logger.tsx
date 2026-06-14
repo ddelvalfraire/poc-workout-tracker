@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { saveWorkoutAction } from '@/app/workout/actions'
+import { saveWorkoutAction, updateWorkoutAction } from '@/app/workout/actions'
 import { ExercisePicker } from './exercise-picker'
 import {
   workoutDraftReducer,
@@ -13,11 +13,23 @@ import {
   emptyDraft,
   newDraftExercise,
   newDraftSet,
+  type WorkoutDraft,
 } from './workout-draft'
 
-export function WorkoutLogger() {
-  const [draft, dispatch] = useReducer(workoutDraftReducer, emptyDraft)
-  const [name, setName] = useState('')
+interface WorkoutLoggerProps {
+  /** When set, the logger is in edit mode: Save updates this workout and returns to its detail page. */
+  workoutId?: string
+  initialDraft?: WorkoutDraft
+  initialName?: string
+}
+
+export function WorkoutLogger({
+  workoutId,
+  initialDraft = emptyDraft,
+  initialName = '',
+}: WorkoutLoggerProps) {
+  const [draft, dispatch] = useReducer(workoutDraftReducer, initialDraft)
+  const [name, setName] = useState(initialName)
   const [error, setError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
   const router = useRouter()
@@ -28,8 +40,13 @@ export function WorkoutLogger() {
     startTransition(async () => {
       try {
         setError(null)
-        await saveWorkoutAction(draftToInput(draft, name))
-        router.push('/')
+        if (workoutId) {
+          await updateWorkoutAction(workoutId, draftToInput(draft, name))
+          router.push(`/workout/${workoutId}`)
+        } else {
+          await saveWorkoutAction(draftToInput(draft, name))
+          router.push('/')
+        }
       } catch {
         setError('Could not save workout. Please try again.')
       }
@@ -56,7 +73,9 @@ export function WorkoutLogger() {
           <CardHeader>
             <CardTitle className="text-base">
               {exercise.name}
-              <span className="font-normal text-muted-foreground"> · {exercise.category}</span>
+              {exercise.category && (
+                <span className="font-normal text-muted-foreground"> · {exercise.category}</span>
+              )}
             </CardTitle>
             <Button
               size="sm"
@@ -130,7 +149,7 @@ export function WorkoutLogger() {
       {error && <p className="text-sm text-destructive">{error}</p>}
 
       <Button className="w-full" disabled={isEmpty || isPending} onClick={handleSave}>
-        {isPending ? 'Saving…' : 'Save workout'}
+        {isPending ? 'Saving…' : workoutId ? 'Save changes' : 'Save workout'}
       </Button>
     </div>
   )

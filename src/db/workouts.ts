@@ -69,6 +69,39 @@ export function createWorkout(userId: string, name?: string) {
   return db.insert(workouts).values({ userId, name }).returning()
 }
 
+/** The transaction handle, lifted from the callback signature (no internal import). */
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0]
+
+/** Inserts a workout's exercises + sets (shared by saveWorkout and updateWorkout). */
+async function insertWorkoutChildren(
+  tx: Tx,
+  workoutId: string,
+  exercises: WorkoutInput['exercises'],
+) {
+  for (const [position, exercise] of exercises.entries()) {
+    const [we] = await tx
+      .insert(workoutExercises)
+      .values({
+        workoutId,
+        wgerExerciseId: exercise.wgerExerciseId,
+        name: exercise.name,
+        position,
+      })
+      .returning({ id: workoutExercises.id })
+
+    if (exercise.sets.length > 0) {
+      await tx.insert(sets).values(
+        exercise.sets.map((s, i) => ({
+          workoutExerciseId: we.id,
+          setNumber: i + 1,
+          reps: s.reps,
+          weight: s.weight,
+        })),
+      )
+    }
+  }
+}
+
 /**
  * Persists a full workout — the `workouts` row plus its nested
  * `workout_exercises` and `sets` — for the given user, atomically.
@@ -90,29 +123,41 @@ export async function saveWorkout(userId: string, input: WorkoutInput): Promise<
       .values({ userId, name: input.name })
       .returning({ id: workouts.id })
 
-    for (const [position, exercise] of input.exercises.entries()) {
-      const [we] = await tx
-        .insert(workoutExercises)
-        .values({
-          workoutId: workout.id,
-          wgerExerciseId: exercise.wgerExerciseId,
-          name: exercise.name,
-          position,
-        })
-        .returning({ id: workoutExercises.id })
-
-      if (exercise.sets.length > 0) {
-        await tx.insert(sets).values(
-          exercise.sets.map((s, i) => ({
-            workoutExerciseId: we.id,
-            setNumber: i + 1,
-            reps: s.reps,
-            weight: s.weight,
-          })),
-        )
-      }
-    }
+    await insertWorkoutChildren(tx, workout.id, input.exercises)
 
     return { id: workout.id }
+  })
+}
+
+/** Deletes a workout (and its children, via FK cascade) only if owned by the user. */
+export function deleteWorkout(userId: string, id: string) {
+  return db
+    .delete(workouts)
+    .where(and(eq(workouts.id, id), eq(workouts.userId, userId)))
+    .returning({ id: workouts.id })
+}
+
+/**
+ * Replaces a workout's name + exercises/sets atomically, only if owned by the
+ * user. The `update ... returning` doubles as the ownership gate: if no row
+ * comes back the caller doesn't own it (or it's gone) and nothing is mutated.
+ * Children are deleted (cascade removes their sets) and re-inserted from input.
+ */
+export async function updateWorkout(
+  userId: string,
+  id: string,
+  input: WorkoutInput,
+): Promise<{ id: string } | null> {
+  return db.transaction(async (tx) => {
+    const [owned] = await tx
+      .update(workouts)
+      .set({ name: input.name ?? null })
+      .where(and(eq(workouts.id, id), eq(workouts.userId, userId)))
+      .returning({ id: workouts.id })
+    if (!owned) return null
+
+    await tx.delete(workoutExercises).where(eq(workoutExercises.workoutId, id))
+    await insertWorkoutChildren(tx, id, input.exercises)
+    return { id }
   })
 }

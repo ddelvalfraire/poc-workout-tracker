@@ -2,11 +2,13 @@ import { describe, it, expect } from 'vitest'
 import {
   workoutDraftReducer,
   draftToInput,
+  detailToDraft,
   emptyDraft,
   newDraftExercise,
   newDraftSet,
   type WorkoutDraft,
 } from './workout-draft'
+import type { WorkoutDetail } from '@/db/workouts'
 
 const SQUAT = { wgerExerciseId: 73, name: 'Squat', category: 'Legs' }
 
@@ -128,6 +130,60 @@ describe('draftToInput', () => {
     // Assert
     expect(named.name).toBe('Leg Day')
     expect(blank).not.toHaveProperty('name')
+  })
+})
+
+describe('detailToDraft', () => {
+  it('maps a saved workout to an editable draft (numbers→strings, null→"", ids reused)', () => {
+    // Arrange — a minimal persisted workout with a fractional and a blank set
+    const workout: WorkoutDetail = {
+      id: 'w1',
+      userId: 'user_123',
+      name: 'Leg Day',
+      startedAt: new Date(),
+      completedAt: null,
+      createdAt: new Date(),
+      exercises: [
+        {
+          id: 'ex1',
+          workoutId: 'w1',
+          wgerExerciseId: 73,
+          name: 'Squat',
+          position: 0,
+          sets: [
+            { id: 's1', workoutExerciseId: 'ex1', setNumber: 1, reps: 5, weight: 2.5, completed: false },
+            { id: 's2', workoutExerciseId: 'ex1', setNumber: 2, reps: null, weight: null, completed: false },
+          ],
+        },
+      ],
+    }
+
+    // Act
+    const { draft, name } = detailToDraft(workout)
+
+    // Assert
+    expect(name).toBe('Leg Day')
+    expect(draft.exercises[0]).toMatchObject({ id: 'ex1', wgerExerciseId: 73, name: 'Squat', category: '' })
+    expect(draft.exercises[0].sets).toEqual([
+      { id: 's1', reps: '5', weight: '2.5' },
+      { id: 's2', reps: '', weight: '' },
+    ])
+  })
+
+  it('falls back to an empty name when the workout has none', () => {
+    // Arrange
+    const workout: WorkoutDetail = {
+      id: 'w2',
+      userId: 'user_123',
+      name: null,
+      startedAt: new Date(),
+      completedAt: null,
+      createdAt: new Date(),
+      exercises: [],
+    }
+
+    // Act + Assert
+    expect(detailToDraft(workout).name).toBe('')
   })
 })
 

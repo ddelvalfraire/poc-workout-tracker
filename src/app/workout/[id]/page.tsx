@@ -6,6 +6,7 @@ import { formatWorkoutDate, formatSet } from "@/lib/format";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import { WorkoutActions } from "./workout-actions";
 
 export default async function WorkoutDetailPage({
   params,
@@ -55,6 +56,8 @@ export default async function WorkoutDetailPage({
           </Card>
         ))}
       </div>
+
+      <WorkoutActions id={workout.id} />
     </main>
   );
 }

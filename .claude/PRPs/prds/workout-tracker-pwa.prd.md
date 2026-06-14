@@ -147,7 +147,7 @@ Sign in (Clerk)
 | 2 | wger exercise proxy | Route handler to search/list exercises from wger, with caching + typed response | complete | with 3 | 1 | [plan](../plans/completed/wger-exercise-proxy.plan.md) · [report](../reports/wger-exercise-proxy-report.md) |
 | 3 | Core logging loop | Start workout, add exercises, log sets, save to Supabase (user-scoped) | in-progress | with 2 | 1 | [plan](../plans/core-logging-loop.plan.md) |
 | 4 | History & detail | List past workouts; view a session's exercises/sets | complete | - | 3 | [plan](../plans/completed/history-and-detail.plan.md) · [report](../reports/history-and-detail-report.md) |
-| 5 | Edit & delete | Mutate/delete a saved workout and its sets | pending | - | 4 | - |
+| 5 | Edit & delete | Mutate/delete a saved workout and its sets | complete | - | 4 | [plan](../plans/completed/edit-and-delete.plan.md) · [report](../reports/edit-and-delete-report.md) |
 | 6 | PWA + deploy | manifest, icons, service worker, installability; deploy to Vercel | pending | - | 3 | - |
 
 > Phase 1 verified: type-check, lint, unit test, and production build all green; `drizzle-kit push` applied the schema to Supabase (3 tables confirmed); unauthenticated `/` returns 307 → `/sign-in` (Clerk middleware active); sign-in/sign-up pages render the Clerk widget with valid keys. Only the interactive account-creation click-through remains as a manual browser check. See the [report](../reports/scaffold-and-infra-report.md).
@@ -180,6 +180,7 @@ Sign in (Clerk)
 - **Goal**: Correct or remove past logs.
 - **Scope**: Edit sets/exercises on an existing workout; delete a workout (cascade its children).
 - **Success signal**: Edits persist and re-render; delete removes it from history.
+- **Status**: Complete — see [`plans/completed/edit-and-delete.plan.md`](../plans/completed/edit-and-delete.plan.md) and [`reports/edit-and-delete-report.md`](../reports/edit-and-delete-report.md). Type-check, lint, unit tests (68), production build, and live e2e (3/3 against Clerk + Supabase) all green; the e2e asserts the edited set weight and the post-delete cascade directly in Postgres.
 
 **Phase 6: PWA + deploy**
 - **Goal**: Installable on a phone at a live URL.
