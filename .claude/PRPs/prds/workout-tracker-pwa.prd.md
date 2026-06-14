@@ -148,7 +148,7 @@ Sign in (Clerk)
 | 3 | Core logging loop | Start workout, add exercises, log sets, save to Supabase (user-scoped) | in-progress | with 2 | 1 | [plan](../plans/core-logging-loop.plan.md) |
 | 4 | History & detail | List past workouts; view a session's exercises/sets | complete | - | 3 | [plan](../plans/completed/history-and-detail.plan.md) · [report](../reports/history-and-detail-report.md) |
 | 5 | Edit & delete | Mutate/delete a saved workout and its sets | complete | - | 4 | [plan](../plans/completed/edit-and-delete.plan.md) · [report](../reports/edit-and-delete-report.md) |
-| 6 | PWA + deploy | manifest, icons, service worker, installability; deploy to Vercel | pending | - | 3 | - |
+| 6 | PWA + deploy | manifest, icons, service worker, installability; deploy to Vercel | complete | - | 3 | [plan](../plans/completed/pwa-and-deploy.plan.md) · [report](../reports/pwa-and-deploy-report.md) |
 
 > Phase 1 verified: type-check, lint, unit test, and production build all green; `drizzle-kit push` applied the schema to Supabase (3 tables confirmed); unauthenticated `/` returns 307 → `/sign-in` (Clerk middleware active); sign-in/sign-up pages render the Clerk widget with valid keys. Only the interactive account-creation click-through remains as a manual browser check. See the [report](../reports/scaffold-and-infra-report.md).
 
@@ -186,6 +186,7 @@ Sign in (Clerk)
 - **Goal**: Installable on a phone at a live URL.
 - **Scope**: `manifest.json` + icons + minimal service worker; deploy to Vercel with env vars.
 - **Success signal**: "Add to Home Screen" works; live URL serves the authed app.
+- **Status**: Complete — see [`plans/completed/pwa-and-deploy.plan.md`](../plans/completed/pwa-and-deploy.plan.md) and [`reports/pwa-and-deploy-report.md`](../reports/pwa-and-deploy-report.md). Manifest (`app/manifest.ts`), generated icons (`next/og`), and a minimal online-only service worker shipped with zero new dependencies; type-check, lint, unit (76), production build, and e2e (8/8) all green. Deployed to Vercel production at https://poc-workout-tracker.vercel.app — manifest/SW/icons verified public over HTTPS. Remaining manual signal: on-phone "Add to Home Screen" + full round-trip.
 
 ### Parallelism Notes
 
