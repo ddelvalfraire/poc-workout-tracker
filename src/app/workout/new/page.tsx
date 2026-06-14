@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { requireUserId } from '@/lib/auth'
 import { buttonVariants } from '@/components/ui/button'
+import { AppHeader } from '@/components/app-header'
 import { cn } from '@/lib/utils'
 import { WorkoutLogger } from './workout-logger'
 
@@ -8,14 +9,18 @@ export default async function NewWorkoutPage() {
   await requireUserId() // middleware also guards; defense-in-depth
 
   return (
-    <main className="mx-auto w-full max-w-md p-6">
-      <header className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold">New Workout</h1>
-        <Link href="/" className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }))}>
-          Cancel
-        </Link>
-      </header>
-      <WorkoutLogger />
-    </main>
+    <div className="flex min-h-[100dvh] flex-col">
+      <AppHeader
+        title="New Workout"
+        trailing={
+          <Link href="/" className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }))}>
+            Cancel
+          </Link>
+        }
+      />
+      <main className="mx-auto w-full max-w-md flex-1 px-5">
+        <WorkoutLogger />
+      </main>
+    </div>
   )
 }

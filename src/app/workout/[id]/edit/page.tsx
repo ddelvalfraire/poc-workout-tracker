@@ -4,6 +4,7 @@ import { requireUserId } from '@/lib/auth'
 import { getWorkoutDetail } from '@/db/workouts'
 import { detailToDraft } from '@/app/workout/new/workout-draft'
 import { WorkoutLogger } from '@/app/workout/new/workout-logger'
+import { AppHeader } from '@/components/app-header'
 import { buttonVariants } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
@@ -20,17 +21,21 @@ export default async function EditWorkoutPage({
   const { draft, name } = detailToDraft(workout)
 
   return (
-    <main className="mx-auto w-full max-w-md p-6">
-      <header className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Edit Workout</h1>
-        <Link
-          href={`/workout/${id}`}
-          className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }))}
-        >
-          Cancel
-        </Link>
-      </header>
-      <WorkoutLogger workoutId={id} initialDraft={draft} initialName={name} />
-    </main>
+    <div className="flex min-h-[100dvh] flex-col">
+      <AppHeader
+        title="Edit Workout"
+        trailing={
+          <Link
+            href={`/workout/${id}`}
+            className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }))}
+          >
+            Cancel
+          </Link>
+        }
+      />
+      <main className="mx-auto w-full max-w-md flex-1 px-5">
+        <WorkoutLogger workoutId={id} initialDraft={draft} initialName={name} />
+      </main>
+    </div>
   )
 }

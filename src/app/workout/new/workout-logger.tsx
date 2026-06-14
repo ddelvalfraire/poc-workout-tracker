@@ -54,7 +54,8 @@ export function WorkoutLogger({
   }
 
   return (
-    <div className="mt-6 space-y-4">
+    <>
+      <div className="space-y-4 py-6">
       <Input
         placeholder="Workout name (optional)"
         value={name}
@@ -147,10 +148,18 @@ export function WorkoutLogger({
       ))}
 
       {error && <p className="text-sm text-destructive">{error}</p>}
+      </div>
 
-      <Button className="w-full" disabled={isEmpty || isPending} onClick={handleSave}>
-        {isPending ? 'Saving…' : workoutId ? 'Save changes' : 'Save workout'}
-      </Button>
-    </div>
+      <div className="sticky bottom-0 z-10 -mx-5 border-t border-border bg-background/85 px-5 pt-3 pb-safe backdrop-blur-md">
+        <Button
+          size="lg"
+          className="w-full font-semibold uppercase tracking-wide"
+          disabled={isEmpty || isPending}
+          onClick={handleSave}
+        >
+          {isPending ? 'Saving…' : workoutId ? 'Save changes' : 'Save workout'}
+        </Button>
+      </div>
+    </>
   )
 }
