@@ -1,4 +1,4 @@
-import { and, desc, eq } from 'drizzle-orm'
+import { and, asc, count, countDistinct, desc, eq } from 'drizzle-orm'
 import type { WorkoutInput } from '@/lib/workout-input'
 import { db } from './index'
 import { workouts, workoutExercises, sets } from './schema'
@@ -21,14 +21,48 @@ export function listWorkouts(userId: string) {
     .orderBy(desc(workouts.startedAt))
 }
 
-/** Fetches a single workout, but only if it belongs to the given user. */
-export function getWorkout(userId: string, id: string) {
-  return db
-    .select()
-    .from(workouts)
-    .where(and(eq(workouts.id, id), eq(workouts.userId, userId)))
-    .limit(1)
+/** A history-list row: a workout plus aggregate counts of its exercises/sets. */
+export interface WorkoutSummary {
+  id: string
+  name: string | null
+  startedAt: Date
+  exerciseCount: number
+  setCount: number
 }
+
+/** Lists a user's workouts (most recent first) with exercise/set counts, in one query. */
+export function listWorkoutSummaries(userId: string) {
+  return db
+    .select({
+      id: workouts.id,
+      name: workouts.name,
+      startedAt: workouts.startedAt,
+      exerciseCount: countDistinct(workoutExercises.id),
+      setCount: count(sets.id),
+    })
+    .from(workouts)
+    .leftJoin(workoutExercises, eq(workoutExercises.workoutId, workouts.id))
+    .leftJoin(sets, eq(sets.workoutExerciseId, workoutExercises.id))
+    .where(eq(workouts.userId, userId))
+    .groupBy(workouts.id)
+    .orderBy(desc(workouts.startedAt))
+}
+
+/** Fetches a single workout with its exercises and sets, only if owned by the user. */
+export function getWorkoutDetail(userId: string, id: string) {
+  return db.query.workouts.findFirst({
+    where: and(eq(workouts.id, id), eq(workouts.userId, userId)),
+    with: {
+      exercises: {
+        orderBy: (e) => [asc(e.position)],
+        with: { sets: { orderBy: (s) => [asc(s.setNumber)] } },
+      },
+    },
+  })
+}
+
+/** The full nested shape returned by getWorkoutDetail (workout + exercises + sets). */
+export type WorkoutDetail = NonNullable<Awaited<ReturnType<typeof getWorkoutDetail>>>
 
 /** Creates a workout owned by the given user. */
 export function createWorkout(userId: string, name?: string) {

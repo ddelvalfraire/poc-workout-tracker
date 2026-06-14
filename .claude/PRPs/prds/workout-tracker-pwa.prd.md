@@ -146,7 +146,7 @@ Sign in (Clerk)
 | 1 | Scaffold & infra | Next.js + TS + Tailwind + shadcn, Clerk auth, Supabase+Drizzle schema/migration, env wiring | complete | - | - | [plan](../plans/completed/scaffold-and-infra.plan.md) · [report](../reports/scaffold-and-infra-report.md) |
 | 2 | wger exercise proxy | Route handler to search/list exercises from wger, with caching + typed response | complete | with 3 | 1 | [plan](../plans/completed/wger-exercise-proxy.plan.md) · [report](../reports/wger-exercise-proxy-report.md) |
 | 3 | Core logging loop | Start workout, add exercises, log sets, save to Supabase (user-scoped) | in-progress | with 2 | 1 | [plan](../plans/core-logging-loop.plan.md) |
-| 4 | History & detail | List past workouts; view a session's exercises/sets | pending | - | 3 | - |
+| 4 | History & detail | List past workouts; view a session's exercises/sets | complete | - | 3 | [plan](../plans/completed/history-and-detail.plan.md) · [report](../reports/history-and-detail-report.md) |
 | 5 | Edit & delete | Mutate/delete a saved workout and its sets | pending | - | 4 | - |
 | 6 | PWA + deploy | manifest, icons, service worker, installability; deploy to Vercel | pending | - | 3 | - |
 
@@ -174,6 +174,7 @@ Sign in (Clerk)
 - **Goal**: The "view history / view past workouts" half of the value.
 - **Scope**: History list (date, exercise/set count) and a session detail view, both `userId`-filtered.
 - **Success signal**: A saved session appears in history and its detail matches what was logged.
+- **Status**: Complete — see [`plans/completed/history-and-detail.plan.md`](../plans/completed/history-and-detail.plan.md) and [`reports/history-and-detail-report.md`](../reports/history-and-detail-report.md).
 
 **Phase 5: Edit & delete**
 - **Goal**: Correct or remove past logs.
