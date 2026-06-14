@@ -1,5 +1,5 @@
 import { fileURLToPath } from 'node:url'
-import { defineConfig } from 'vitest/config'
+import { defineConfig, configDefaults } from 'vitest/config'
 
 export default defineConfig({
   resolve: {
@@ -9,5 +9,7 @@ export default defineConfig({
   test: {
     environment: 'node',
     setupFiles: ['./vitest.setup.ts'],
+    // e2e/ is Playwright's; keep it out of the Vitest unit run.
+    exclude: [...configDefaults.exclude, 'e2e/**'],
   },
 })

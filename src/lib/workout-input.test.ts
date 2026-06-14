@@ -1,0 +1,132 @@
+import { describe, it, expect } from 'vitest'
+import { parseWorkoutInput, type WorkoutInput } from './workout-input'
+
+/** A minimal valid workout: one exercise, one fully-logged set. */
+const VALID: WorkoutInput = {
+  exercises: [{ wgerExerciseId: 73, name: 'Squat', sets: [{ reps: 5, weight: 100 }] }],
+}
+
+describe('parseWorkoutInput', () => {
+  it('accepts a minimal valid workout and returns a normalized object', () => {
+    // Act
+    const result = parseWorkoutInput(VALID)
+
+    // Assert
+    expect(result).toEqual(VALID)
+  })
+
+  it('keeps a provided, trimmed name', () => {
+    // Act
+    const result = parseWorkoutInput({ ...VALID, name: '  Leg Day  ' })
+
+    // Assert
+    expect(result.name).toBe('Leg Day')
+  })
+
+  it('omits a blank / whitespace-only name', () => {
+    // Act
+    const result = parseWorkoutInput({ ...VALID, name: '   ' })
+
+    // Assert
+    expect(result).not.toHaveProperty('name')
+  })
+
+  it('accepts null reps and weight', () => {
+    // Act
+    const result = parseWorkoutInput({
+      exercises: [{ wgerExerciseId: 1, name: 'Plank', sets: [{ reps: null, weight: null }] }],
+    })
+
+    // Assert
+    expect(result.exercises[0].sets[0]).toEqual({ reps: null, weight: null })
+  })
+
+  it('trims the exercise name and drops extra keys', () => {
+    // Act
+    const result = parseWorkoutInput({
+      exercises: [{ wgerExerciseId: 1, name: '  Bench  ', sets: [], extra: 'nope' }],
+    })
+
+    // Assert
+    expect(result.exercises[0]).toEqual({ wgerExerciseId: 1, name: 'Bench', sets: [] })
+  })
+
+  it('does not mutate the input', () => {
+    // Arrange
+    const input = { name: '  Leg Day  ', exercises: [{ wgerExerciseId: 1, name: ' x ', sets: [] }] }
+
+    // Act
+    parseWorkoutInput(input)
+
+    // Assert — original untouched
+    expect(input.name).toBe('  Leg Day  ')
+    expect(input.exercises[0].name).toBe(' x ')
+  })
+
+  it.each([
+    ['a non-object', 'not-an-object'],
+    ['null', null],
+    ['missing exercises', { name: 'x' }],
+    ['empty exercises', { exercises: [] }],
+  ])('throws when input is %s', (_label, input) => {
+    expect(() => parseWorkoutInput(input)).toThrow()
+  })
+
+  it('throws when exercises is empty', () => {
+    expect(() => parseWorkoutInput({ exercises: [] })).toThrow(/at least one exercise/i)
+  })
+
+  it('throws when an exercise is missing wgerExerciseId', () => {
+    expect(() => parseWorkoutInput({ exercises: [{ name: 'x', sets: [] }] })).toThrow(/wgerExerciseId/i)
+  })
+
+  it('throws when wgerExerciseId is not an integer', () => {
+    expect(() =>
+      parseWorkoutInput({ exercises: [{ wgerExerciseId: 'x', name: 'Squat', sets: [] }] }),
+    ).toThrow(/wgerExerciseId/i)
+  })
+
+  it('throws when an exercise name is empty', () => {
+    expect(() =>
+      parseWorkoutInput({ exercises: [{ wgerExerciseId: 1, name: '   ', sets: [] }] }),
+    ).toThrow(/name/i)
+  })
+
+  it('throws when reps is negative', () => {
+    expect(() =>
+      parseWorkoutInput({
+        exercises: [{ wgerExerciseId: 1, name: 'Squat', sets: [{ reps: -1, weight: null }] }],
+      }),
+    ).toThrow(/reps/i)
+  })
+
+  it('throws when reps exceeds the max', () => {
+    expect(() =>
+      parseWorkoutInput({
+        exercises: [{ wgerExerciseId: 1, name: 'Squat', sets: [{ reps: 10_001, weight: null }] }],
+      }),
+    ).toThrow(/reps/i)
+  })
+
+  it('throws when weight is non-finite', () => {
+    expect(() =>
+      parseWorkoutInput({
+        exercises: [{ wgerExerciseId: 1, name: 'Squat', sets: [{ reps: 5, weight: Infinity }] }],
+      }),
+    ).toThrow(/weight/i)
+  })
+
+  it('throws when weight exceeds the numeric(6,2) column ceiling', () => {
+    expect(() =>
+      parseWorkoutInput({
+        exercises: [{ wgerExerciseId: 1, name: 'Squat', sets: [{ reps: 5, weight: 10_000 }] }],
+      }),
+    ).toThrow(/weight/i)
+  })
+
+  it('throws when a set is not an object', () => {
+    expect(() =>
+      parseWorkoutInput({ exercises: [{ wgerExerciseId: 1, name: 'Squat', sets: ['bad'] }] }),
+    ).toThrow(/set/i)
+  })
+})
