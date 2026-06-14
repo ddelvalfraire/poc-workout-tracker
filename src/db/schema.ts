@@ -45,6 +45,12 @@ export const sets = pgTable('sets', {
   completed: boolean('completed').notNull().default(false),
 })
 
+export const userPreferences = pgTable('user_preferences', {
+  userId: text('user_id').primaryKey(), // Clerk user id; one row per user
+  unit: text('unit').notNull().default('lb'), // weight display unit: 'kg' | 'lb'; product default lb
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+})
+
 export const workoutsRelations = relations(workouts, ({ many }) => ({
   exercises: many(workoutExercises),
 }))

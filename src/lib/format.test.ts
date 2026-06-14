@@ -21,6 +21,18 @@ describe('formatSet', () => {
   it('preserves fractional plate weights', () => {
     expect(formatSet(8, 2.5)).toBe('8 × 2.5 kg')
   })
+
+  it('converts stored kg to lb when unit is lb', () => {
+    expect(formatSet(5, 100, 'lb')).toBe('5 × 220.5 lb')
+  })
+
+  it('converts a weight-only set to lb', () => {
+    expect(formatSet(null, 100, 'lb')).toBe('220.5 lb')
+  })
+
+  it('defaults to kg when no unit is given (back-compat)', () => {
+    expect(formatSet(5, 100)).toBe('5 × 100 kg')
+  })
 })
 
 describe('formatWorkoutDate', () => {

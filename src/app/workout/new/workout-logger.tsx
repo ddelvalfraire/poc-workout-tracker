@@ -14,18 +14,22 @@ import {
   newDraftSet,
   type WorkoutDraft,
 } from './workout-draft'
+import { type WeightUnit } from '@/lib/units'
 
 interface WorkoutLoggerProps {
   /** When set, the logger is in edit mode: Save updates this workout and returns to its detail page. */
   workoutId?: string
   initialDraft?: WorkoutDraft
   initialName?: string
+  /** Weight display/entry unit; weights are converted to kg at save time. */
+  unit?: WeightUnit
 }
 
 export function WorkoutLogger({
   workoutId,
   initialDraft = emptyDraft,
   initialName = '',
+  unit = 'kg',
 }: WorkoutLoggerProps) {
   const [draft, dispatch] = useReducer(workoutDraftReducer, initialDraft)
   const [name, setName] = useState(initialName)
@@ -40,10 +44,10 @@ export function WorkoutLogger({
       try {
         setError(null)
         if (workoutId) {
-          await updateWorkoutAction(workoutId, draftToInput(draft, name))
+          await updateWorkoutAction(workoutId, draftToInput(draft, name, unit))
           router.push(`/workout/${workoutId}`)
         } else {
-          await saveWorkoutAction(draftToInput(draft, name))
+          await saveWorkoutAction(draftToInput(draft, name, unit))
           router.push('/')
         }
       } catch {
@@ -114,7 +118,7 @@ export function WorkoutLogger({
               <div className="flex items-center gap-2 px-0.5 text-[0.7rem] font-semibold uppercase tracking-wider text-muted-foreground">
                 <span className="w-8 shrink-0" aria-hidden="true" />
                 <span className="flex-1 text-center">Reps</span>
-                <span className="flex-1 text-center">Kg</span>
+                <span className="flex-1 text-center">{unit}</span>
                 <span className="size-9 shrink-0" aria-hidden="true" />
               </div>
             )}
@@ -157,7 +161,7 @@ export function WorkoutLogger({
                         value: e.target.value,
                       })
                     }
-                    aria-label={`Set ${setIndex + 1} weight in kg`}
+                    aria-label={`Set ${setIndex + 1} weight in ${unit}`}
                     className="flex-1 text-center tnum"
                   />
                   <Button

@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { requireUserId } from '@/lib/auth'
 import { getWorkoutDetail } from '@/db/workouts'
+import { getWeightUnit } from '@/db/preferences'
 import { detailToDraft } from '@/app/workout/new/workout-draft'
 import { WorkoutLogger } from '@/app/workout/new/workout-logger'
 import { AppHeader } from '@/components/app-header'
@@ -15,10 +16,13 @@ export default async function EditWorkoutPage({
 }) {
   const userId = await requireUserId()
   const { id } = await params
-  const workout = await getWorkoutDetail(userId, id)
+  const [workout, unit] = await Promise.all([
+    getWorkoutDetail(userId, id),
+    getWeightUnit(userId),
+  ])
   if (!workout) notFound()
 
-  const { draft, name } = detailToDraft(workout)
+  const { draft, name } = detailToDraft(workout, unit)
 
   return (
     <div className="flex min-h-[100dvh] flex-col">
@@ -34,7 +38,7 @@ export default async function EditWorkoutPage({
         }
       />
       <main className="mx-auto w-full max-w-md flex-1 px-5">
-        <WorkoutLogger workoutId={id} initialDraft={draft} initialName={name} />
+        <WorkoutLogger workoutId={id} initialDraft={draft} initialName={name} unit={unit} />
       </main>
     </div>
   )

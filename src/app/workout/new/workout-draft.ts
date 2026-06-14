@@ -1,5 +1,6 @@
 import type { WorkoutInput } from '@/lib/workout-input'
 import type { WorkoutDetail } from '@/db/workouts'
+import { displayToKg, kgToDisplay, type WeightUnit } from '@/lib/units'
 
 /**
  * Pure client-state logic for the in-progress workout, kept free of React/JSX so
@@ -133,14 +134,22 @@ function toWeight(value: string): number | null {
 /**
  * Maps the string-based draft to the server contract. Lenient by design — the
  * Server Action re-validates via `parseWorkoutInput`; here `''` → `null` and
- * numeric strings become numbers. A blank workout name is dropped.
+ * numeric strings become numbers. Weights are entered in `unit` (default kg) and
+ * converted to canonical kg here. A blank workout name is dropped.
  */
-export function draftToInput(draft: WorkoutDraft, name?: string): WorkoutInput {
+export function draftToInput(
+  draft: WorkoutDraft,
+  name?: string,
+  unit: WeightUnit = 'kg',
+): WorkoutInput {
   const trimmedName = name?.trim()
   const exercises = draft.exercises.map((exercise) => ({
     wgerExerciseId: exercise.wgerExerciseId,
     name: exercise.name,
-    sets: exercise.sets.map((set) => ({ reps: toReps(set.reps), weight: toWeight(set.weight) })),
+    sets: exercise.sets.map((set) => {
+      const w = toWeight(set.weight)
+      return { reps: toReps(set.reps), weight: w === null ? null : displayToKg(w, unit) }
+    }),
   }))
 
   return trimmedName ? { name: trimmedName, exercises } : { exercises }
@@ -150,10 +159,14 @@ export function draftToInput(draft: WorkoutDraft, name?: string): WorkoutInput {
  * Seeds an editable draft from a persisted workout (the inverse of
  * draftToInput). Numbers become input strings (`null` → `''`); the persisted
  * row UUIDs are reused as the draft's client ids (stable React keys). `category`
- * is not a persisted column, so it comes back empty. Pure (no `crypto`), so the
- * edit Server Component can call it safely.
+ * is not a persisted column, so it comes back empty. Stored kg weights are
+ * converted to `unit` (default kg) for display. Pure (no `crypto`), so the edit
+ * Server Component can call it safely.
  */
-export function detailToDraft(workout: WorkoutDetail): { draft: WorkoutDraft; name: string } {
+export function detailToDraft(
+  workout: WorkoutDetail,
+  unit: WeightUnit = 'kg',
+): { draft: WorkoutDraft; name: string } {
   const exercises = workout.exercises.map((exercise) => ({
     id: exercise.id,
     wgerExerciseId: exercise.wgerExerciseId,
@@ -162,7 +175,7 @@ export function detailToDraft(workout: WorkoutDetail): { draft: WorkoutDraft; na
     sets: exercise.sets.map((set) => ({
       id: set.id,
       reps: set.reps?.toString() ?? '',
-      weight: set.weight?.toString() ?? '',
+      weight: set.weight === null ? '' : kgToDisplay(set.weight, unit).toString(),
     })),
   }))
   return { draft: { exercises }, name: workout.name ?? '' }
