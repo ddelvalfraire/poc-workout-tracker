@@ -2,20 +2,26 @@ import Link from "next/link";
 import { UserButton } from "@clerk/nextjs";
 import { requireUserId } from "@/lib/auth";
 import { listWorkoutSummaries } from "@/db/workouts";
+import { getWeightUnit } from "@/db/preferences";
 import { formatWorkoutDate } from "@/lib/format";
 import { buttonVariants } from "@/components/ui/button";
+import { UnitToggle } from "@/components/unit-toggle";
 import { cn } from "@/lib/utils";
 
 export default async function HomePage() {
   const userId = await requireUserId(); // middleware also guards; this is defense-in-depth
   const summaries = await listWorkoutSummaries(userId);
+  const unit = await getWeightUnit(userId);
 
   return (
     <div className="flex min-h-[100dvh] flex-col">
       <header className="sticky top-0 z-10 border-b border-border bg-background/80 px-safe pt-safe backdrop-blur-md">
         <div className="mx-auto flex w-full max-w-md items-center justify-between px-5 pb-3">
           <h1 className="text-2xl font-bold uppercase tracking-tight">Workout Tracker</h1>
-          <UserButton />
+          <div className="flex items-center gap-2">
+            <UnitToggle unit={unit} />
+            <UserButton />
+          </div>
         </div>
       </header>
 

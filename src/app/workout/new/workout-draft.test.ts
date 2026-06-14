@@ -131,6 +131,19 @@ describe('draftToInput', () => {
     expect(named.name).toBe('Leg Day')
     expect(blank).not.toHaveProperty('name')
   })
+
+  it('converts entered lb weights back to canonical kg', () => {
+    // Arrange — a single 100 lb set
+    const draft: WorkoutDraft = {
+      exercises: [{ id: 'ex1', ...SQUAT, sets: [{ id: 's1', reps: '5', weight: '100' }] }],
+    }
+
+    // Act
+    const input = draftToInput(draft, undefined, 'lb')
+
+    // Assert — 100 lb × 0.45359237 = 45.359… → 45.36 kg at column precision
+    expect(input.exercises[0].sets[0].weight).toBeCloseTo(45.36, 2)
+  })
 })
 
 describe('detailToDraft', () => {
@@ -168,6 +181,36 @@ describe('detailToDraft', () => {
       { id: 's1', reps: '5', weight: '2.5' },
       { id: 's2', reps: '', weight: '' },
     ])
+  })
+
+  it('converts stored kg weights to the display unit (lb)', () => {
+    // Arrange — a 100 kg set
+    const workout: WorkoutDetail = {
+      id: 'w1',
+      userId: 'user_123',
+      name: 'Leg Day',
+      startedAt: new Date(),
+      completedAt: null,
+      createdAt: new Date(),
+      exercises: [
+        {
+          id: 'ex1',
+          workoutId: 'w1',
+          wgerExerciseId: 73,
+          name: 'Squat',
+          position: 0,
+          sets: [
+            { id: 's1', workoutExerciseId: 'ex1', setNumber: 1, reps: 5, weight: 100, completed: false },
+          ],
+        },
+      ],
+    }
+
+    // Act — 100 kg → 220.46… → "220.5"
+    const { draft } = detailToDraft(workout, 'lb')
+
+    // Assert
+    expect(draft.exercises[0].sets[0].weight).toBe('220.5')
   })
 
   it('falls back to an empty name when the workout has none', () => {

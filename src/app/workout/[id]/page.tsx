@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireUserId } from "@/lib/auth";
 import { getWorkoutDetail } from "@/db/workouts";
+import { getWeightUnit } from "@/db/preferences";
 import { formatWorkoutDate, formatSet } from "@/lib/format";
 import { AppHeader } from "@/components/app-header";
 import { buttonVariants } from "@/components/ui/button";
@@ -15,7 +16,10 @@ export default async function WorkoutDetailPage({
 }) {
   const userId = await requireUserId();
   const { id } = await params;
-  const workout = await getWorkoutDetail(userId, id);
+  const [workout, unit] = await Promise.all([
+    getWorkoutDetail(userId, id),
+    getWeightUnit(userId),
+  ]);
   if (!workout) notFound();
 
   return (
@@ -66,7 +70,7 @@ export default async function WorkoutDetailPage({
                         Set {set.setNumber}
                       </span>
                       <span className="tnum font-medium">
-                        {formatSet(set.reps, set.weight)}
+                        {formatSet(set.reps, set.weight, unit)}
                       </span>
                     </div>
                   ))

@@ -73,7 +73,9 @@ function parseSet(raw: unknown): SetInput {
     weight !== null &&
     (!Number.isFinite(weight) || (weight as number) < 0 || (weight as number) > MAX_WEIGHT)
   ) {
-    throw new Error(`set weight must be a number between 0 and ${MAX_WEIGHT}, or null`)
+    // Weights are validated in canonical kg (entered lb is converted before this
+    // boundary), so the bound is stated in kg to avoid a misleading lb message.
+    throw new Error(`set weight must be a number between 0 and ${MAX_WEIGHT} kg, or null`)
   }
 
   return { reps: reps as number | null, weight: weight as number | null }
