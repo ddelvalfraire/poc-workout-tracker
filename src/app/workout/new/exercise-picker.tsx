@@ -1,7 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { useDebounce } from '@/hooks/use-debounce'
+import { useEffect, useMemo, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 
@@ -12,7 +11,6 @@ interface ExerciseResult {
   category: string
 }
 
-const MIN_QUERY_LENGTH = 2
 const RESULT_LIMIT = 20
 
 interface ExercisePickerProps {
@@ -21,32 +19,21 @@ interface ExercisePickerProps {
 
 export function ExercisePicker({ onAdd }: ExercisePickerProps) {
   const [query, setQuery] = useState('')
-  const [results, setResults] = useState<ExerciseResult[]>([])
-  const [loading, setLoading] = useState(false)
+  const [catalog, setCatalog] = useState<ExerciseResult[]>([])
+  const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const debounced = useDebounce(query)
-  const isActive = debounced.trim().length >= MIN_QUERY_LENGTH
 
+  // Load the full catalog ONCE. The list is small and changes rarely, so all
+  // filtering then happens in-process — every keystroke is instant, with no
+  // per-keystroke network round-trip.
   useEffect(() => {
-    const term = debounced.trim()
-    if (term.length < MIN_QUERY_LENGTH) return
-
     const controller = new AbortController()
 
-    // All state updates live in promise callbacks (never synchronously in the
-    // effect body) so React doesn't cascade-render on the search keystroke.
-    Promise.resolve()
-      .then(() => {
-        setLoading(true)
-        setError(null)
-        return fetch(`/api/exercises?search=${encodeURIComponent(term)}&limit=${RESULT_LIMIT}`, {
-          signal: controller.signal,
-        })
-      })
+    fetch('/api/exercises?all=1', { signal: controller.signal })
       .then(async (res) => {
         if (!res.ok) throw new Error(`request failed: ${res.status}`)
         const data: ExerciseResult[] = await res.json()
-        setResults(data)
+        setCatalog(data)
         setLoading(false)
       })
       .catch((err: unknown) => {
@@ -56,7 +43,17 @@ export function ExercisePicker({ onAdd }: ExercisePickerProps) {
       })
 
     return () => controller.abort()
-  }, [debounced])
+  }, [])
+
+  // Filter client-side. With no query, show the first page so the list is
+  // browsable immediately; otherwise match by case-insensitive name substring.
+  const matches = useMemo(() => {
+    const term = query.trim().toLowerCase()
+    const filtered = term
+      ? catalog.filter((exercise) => exercise.name.toLowerCase().includes(term))
+      : catalog
+    return filtered.slice(0, RESULT_LIMIT)
+  }, [query, catalog])
 
   return (
     <div className="space-y-2">
@@ -66,19 +63,18 @@ export function ExercisePicker({ onAdd }: ExercisePickerProps) {
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         aria-label="Search exercises"
+        disabled={loading || !!error}
       />
 
-      {/* Status/results gate on `isActive` so stale state never shows once the
-          query falls back under the minimum length. */}
-      {isActive && loading && <p className="text-sm text-muted-foreground">Searching…</p>}
-      {isActive && !loading && error && <p className="text-sm text-destructive">{error}</p>}
-      {isActive && !loading && !error && results.length === 0 && (
+      {loading && <p className="text-sm text-muted-foreground">Loading exercises…</p>}
+      {!loading && error && <p className="text-sm text-destructive">{error}</p>}
+      {!loading && !error && matches.length === 0 && (
         <p className="text-sm text-muted-foreground">No exercises found.</p>
       )}
 
-      {isActive && results.length > 0 && (
+      {!loading && !error && matches.length > 0 && (
         <ul className="divide-y rounded-lg border border-input">
-          {results.map((result) => (
+          {matches.map((result) => (
             <li key={result.id} className="flex items-center justify-between gap-2 px-2.5 py-1.5">
               <span className="min-w-0 truncate text-sm">
                 {result.name}
@@ -91,7 +87,6 @@ export function ExercisePicker({ onAdd }: ExercisePickerProps) {
                   onAdd({ wgerExerciseId: result.id, name: result.name, category: result.category })
                   // Clear the search so the picker is ready for the next exercise.
                   setQuery('')
-                  setResults([])
                 }}
               >
                 Add

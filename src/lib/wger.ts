@@ -18,6 +18,8 @@
  * `/api/exercises` over HTTP, not import this directly.
  */
 
+import { getRedis } from './redis'
+
 const WGER_BASE_URL = process.env.WGER_API_BASE_URL ?? 'https://wger.de/api/v2'
 const WGER_ENGLISH_LANGUAGE_ID = 2
 const WGER_PAGE_SIZE = 999 // wger's max page size (catalog ~1275 → 2 pages)
@@ -26,6 +28,11 @@ const MAX_PAGES = 20 // safety bound on the pagination loop
 const UPSTREAM_REVALIDATE_S = 86400 // Next.js Data Cache TTL for upstream pages
 const DEFAULT_LIMIT = 50
 const MAX_LIMIT = 100
+// Shared cross-instance cache of the mapped catalog. The raw wger payload is
+// ~4.6MB (too large for Next's 2MB Data Cache), but the mapped Exercise[] is
+// small, so we cache that in Redis. Bump the version suffix if Exercise changes.
+const REDIS_CATALOG_KEY = 'wger:exercise-catalog:v1'
+const REDIS_CATALOG_TTL_S = 86400
 
 /** A single exercise, mapped to the minimal shape this app surfaces. */
 export interface Exercise {
@@ -143,18 +150,64 @@ async function fetchAllExercises(): Promise<Exercise[]> {
 type CatalogCache = { data: Exercise[]; expiresAt: number }
 const globalForWger = globalThis as unknown as { exerciseCache?: CatalogCache }
 
+/** Reads the mapped catalog from Redis. Never throws — returns null on miss or error. */
+async function readCatalogFromRedis(): Promise<Exercise[] | null> {
+  const redis = getRedis()
+  if (!redis) return null
+  try {
+    const data = await redis.get<Exercise[]>(REDIS_CATALOG_KEY)
+    return Array.isArray(data) && data.length > 0 ? data : null
+  } catch (error: unknown) {
+    console.error('Redis read failed for exercise catalog', error)
+    return null
+  }
+}
+
+/** Writes the mapped catalog to Redis with a TTL. Never throws — caching is best-effort. */
+async function writeCatalogToRedis(data: Exercise[]): Promise<void> {
+  const redis = getRedis()
+  if (!redis) return
+  try {
+    await redis.set(REDIS_CATALOG_KEY, data, { ex: REDIS_CATALOG_TTL_S })
+  } catch (error: unknown) {
+    console.error('Redis write failed for exercise catalog', error)
+  }
+}
+
+/**
+ * Resolves the catalog through three cache layers, fastest first:
+ *   1. in-memory singleton (same warm instance),
+ *   2. Redis (shared across all instances — survives cold starts),
+ *   3. wger upstream (then backfills Redis + memory).
+ */
 async function getCatalog(): Promise<Exercise[]> {
   const cached = globalForWger.exerciseCache
   if (cached && cached.expiresAt > Date.now()) return cached.data
 
+  const fromRedis = await readCatalogFromRedis()
+  if (fromRedis) {
+    globalForWger.exerciseCache = { data: fromRedis, expiresAt: Date.now() + CACHE_TTL_MS }
+    return fromRedis
+  }
+
   const data = await fetchAllExercises()
   globalForWger.exerciseCache = { data, expiresAt: Date.now() + CACHE_TTL_MS }
+  await writeCatalogToRedis(data)
   return data
 }
 
 /** Clears the in-memory catalog cache. Exported for tests. */
 export function clearExerciseCache(): void {
   globalForWger.exerciseCache = undefined
+}
+
+/**
+ * Returns the entire mapped catalog (cached). Intended for clients that load
+ * the catalog once and filter in-process — far faster than a request per
+ * keystroke, since the list is small and changes rarely.
+ */
+export async function getAllExercises(): Promise<Exercise[]> {
+  return getCatalog()
 }
 
 /** Returns exercises from the cached catalog, filtered and capped. */

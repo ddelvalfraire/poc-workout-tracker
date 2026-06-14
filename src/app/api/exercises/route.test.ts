@@ -1,12 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { GET } from './route'
-import { searchExercises } from '@/lib/wger'
+import { searchExercises, getAllExercises } from '@/lib/wger'
 import { auth } from '@clerk/nextjs/server'
 
-vi.mock('@/lib/wger', () => ({ searchExercises: vi.fn() }))
+vi.mock('@/lib/wger', () => ({ searchExercises: vi.fn(), getAllExercises: vi.fn() }))
 vi.mock('@clerk/nextjs/server', () => ({ auth: vi.fn() }))
 
 const mockedSearch = vi.mocked(searchExercises)
+const mockedGetAll = vi.mocked(getAllExercises)
 const mockedAuth = vi.mocked(auth)
 
 /** Sets the Clerk auth result for the next request. */
@@ -48,6 +49,25 @@ describe('GET /api/exercises', () => {
     // Assert
     expect(res.status).toBe(401)
     expect(mockedSearch).not.toHaveBeenCalled()
+  })
+
+  it('returns the full catalog (cacheable) for ?all=1 without filtering', async () => {
+    // Arrange
+    const catalog = [
+      { id: 1, name: 'Bench Press', category: 'Chest' },
+      { id: 2, name: 'Deadlift', category: 'Legs' },
+    ]
+    mockedGetAll.mockResolvedValue(catalog)
+
+    // Act
+    const res = await get('?all=1')
+
+    // Assert
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual(catalog)
+    expect(mockedGetAll).toHaveBeenCalledTimes(1)
+    expect(mockedSearch).not.toHaveBeenCalled()
+    expect(res.headers.get('cache-control')).toContain('max-age=3600')
   })
 
   it('forwards search, category, and limit query params to the service', async () => {

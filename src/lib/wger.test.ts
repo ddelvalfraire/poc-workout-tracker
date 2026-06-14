@@ -1,6 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { searchExercises, clearExerciseCache, type Exercise } from './wger'
 
+// Control the Redis client per-test via a hoisted ref. Default `null` means
+// "Redis not configured", so the existing tests below exercise the pure
+// wger-fetch path exactly as before — and no test can ever reach real Upstash.
+const { redisRef } = vi.hoisted(() => ({
+  redisRef: { current: null as { get: ReturnType<typeof vi.fn>; set: ReturnType<typeof vi.fn> } | null },
+}))
+vi.mock('./redis', () => ({ getRedis: () => redisRef.current }))
+
 const ENGLISH = 2
 const GERMAN = 1
 
@@ -43,6 +51,7 @@ function mockFetchPages(pages: ReturnType<typeof makeInfo>[][]): ReturnType<type
 
 beforeEach(() => {
   clearExerciseCache()
+  redisRef.current = null
   vi.unstubAllGlobals()
   vi.restoreAllMocks()
 })
@@ -233,5 +242,53 @@ describe('searchExercises (wger proxy)', () => {
     // Act + Assert
     await expect(searchExercises()).rejects.toThrow(/unexpected host/)
     expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  describe('Redis catalog cache', () => {
+    it('serves from Redis without hitting wger on a cache hit', async () => {
+      // Arrange — Redis has the mapped catalog; wger must not be called.
+      const cached: Exercise[] = [{ id: 73, name: 'Bench Press', category: 'Chest' }]
+      redisRef.current = { get: vi.fn().mockResolvedValue(cached), set: vi.fn() }
+      const fetchMock = mockFetchPages([[makeInfo(1, 'Should Not Fetch', 'Chest', [])]])
+
+      // Act
+      const result = await searchExercises()
+
+      // Assert
+      expect(result).toEqual(cached)
+      expect(fetchMock).not.toHaveBeenCalled()
+    })
+
+    it('fetches from wger and backfills Redis on a cache miss', async () => {
+      // Arrange — Redis returns null (miss); wger serves one exercise.
+      const set = vi.fn().mockResolvedValue('OK')
+      redisRef.current = { get: vi.fn().mockResolvedValue(null), set }
+      mockFetchPages([[makeInfo(73, 'Bench Press', 'Chest', ['Barbell'])]])
+
+      // Act
+      const result = await searchExercises()
+
+      // Assert
+      expect(result).toEqual<Exercise[]>([
+        { id: 73, name: 'Bench Press', category: 'Chest', equipment: ['Barbell'] },
+      ])
+      expect(set).toHaveBeenCalledWith(
+        'wger:exercise-catalog:v1',
+        result,
+        expect.objectContaining({ ex: expect.any(Number) }),
+      )
+    })
+
+    it('falls back to wger when the Redis read throws', async () => {
+      // Arrange — Redis read errors; the app must still serve from wger.
+      redisRef.current = { get: vi.fn().mockRejectedValue(new Error('redis down')), set: vi.fn() }
+      mockFetchPages([[makeInfo(1, 'Deadlift', 'Legs', ['Barbell'])]])
+
+      // Act
+      const result = await searchExercises()
+
+      // Assert
+      expect(result.map((e) => e.name)).toEqual(['Deadlift'])
+    })
   })
 })
