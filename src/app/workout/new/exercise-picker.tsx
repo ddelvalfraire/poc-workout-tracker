@@ -45,56 +45,56 @@ export function ExercisePicker({ onAdd }: ExercisePickerProps) {
     return () => controller.abort()
   }, [])
 
-  // Filter client-side. With no query, show the first page so the list is
-  // browsable immediately; otherwise match by case-insensitive name substring.
+  const term = query.trim().toLowerCase()
+
+  // Results appear only while searching, so the field stays collapsed by
+  // default and never buries the exercises already added below it.
   const matches = useMemo(() => {
-    const term = query.trim().toLowerCase()
-    const filtered = term
-      ? catalog.filter((exercise) => exercise.name.toLowerCase().includes(term))
-      : catalog
-    return filtered.slice(0, RESULT_LIMIT)
-  }, [query, catalog])
+    if (!term) return []
+    return catalog
+      .filter((exercise) => exercise.name.toLowerCase().includes(term))
+      .slice(0, RESULT_LIMIT)
+  }, [term, catalog])
 
   return (
-    <div className="space-y-2">
+    <div className="relative space-y-2">
       <Input
         type="search"
-        placeholder="Search exercises…"
+        placeholder={loading ? 'Loading exercises…' : 'Add an exercise…'}
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         aria-label="Search exercises"
         disabled={loading || !!error}
       />
 
-      {loading && <p className="text-sm text-muted-foreground">Loading exercises…</p>}
-      {!loading && error && <p className="text-sm text-destructive">{error}</p>}
-      {!loading && !error && matches.length === 0 && (
-        <p className="text-sm text-muted-foreground">No exercises found.</p>
-      )}
+      {error && <p className="text-sm text-destructive">{error}</p>}
 
-      {!loading && !error && matches.length > 0 && (
-        <ul className="divide-y rounded-lg border border-input">
-          {matches.map((result) => (
-            <li key={result.id} className="flex items-center justify-between gap-2 px-2.5 py-1.5">
-              <span className="min-w-0 truncate text-sm">
-                {result.name}
-                <span className="text-muted-foreground"> · {result.category}</span>
-              </span>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => {
-                  onAdd({ wgerExerciseId: result.id, name: result.name, category: result.category })
-                  // Clear the search so the picker is ready for the next exercise.
-                  setQuery('')
-                }}
-              >
-                Add
-              </Button>
-            </li>
-          ))}
-        </ul>
-      )}
+      {term.length > 0 &&
+        (matches.length > 0 ? (
+          <ul className="max-h-72 divide-y divide-border overflow-y-auto overscroll-contain rounded-xl border border-border bg-card shadow-lg">
+            {matches.map((result) => (
+              <li key={result.id} className="flex items-center justify-between gap-2 px-3 py-2.5">
+                <span className="min-w-0 truncate text-sm">
+                  {result.name}
+                  <span className="text-muted-foreground"> · {result.category}</span>
+                </span>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    onAdd({ wgerExerciseId: result.id, name: result.name, category: result.category })
+                    // Clear the search so it collapses, ready for the next add.
+                    setQuery('')
+                  }}
+                >
+                  Add
+                </Button>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="px-1 text-sm text-muted-foreground">No exercises found.</p>
+        ))}
     </div>
   )
 }
