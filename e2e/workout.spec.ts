@@ -39,11 +39,15 @@ test.beforeAll(async () => {
 
   // Direct connection (session pooler, 5432) for assertions + cleanup.
   sql = postgres(process.env.DATABASE_URL_DIRECT!, { prepare: false })
+
+  // Pin this user to kg so the weight labels/values below stay kg (default is lb).
+  await sql`insert into user_preferences (user_id, unit) values (${userId}, 'kg')`
 })
 
 test.afterAll(async () => {
   if (sql && userId) {
     await sql`delete from workouts where user_id = ${userId}` // cascade removes children
+    await sql`delete from user_preferences where user_id = ${userId}`
     await sql.end()
   }
   if (userId) {
