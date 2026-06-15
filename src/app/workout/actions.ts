@@ -3,7 +3,13 @@
 import { revalidatePath } from 'next/cache'
 import { requireUserId } from '@/lib/auth'
 import { parseWorkoutInput } from '@/lib/workout-input'
-import { saveWorkout, updateWorkout, deleteWorkout } from '@/db/workouts'
+import {
+  saveWorkout,
+  updateWorkout,
+  deleteWorkout,
+  getLastPerformance,
+  type LastPerformance,
+} from '@/db/workouts'
 
 /**
  * Validates and persists a workout for the signed-in user, returning the new id.
@@ -50,4 +56,19 @@ export async function deleteWorkoutAction(id: string): Promise<void> {
   const [deleted] = await deleteWorkout(userId, id)
   if (!deleted) throw new Error('workout not found')
   revalidatePath('/')
+}
+
+/**
+ * The signed-in user's most recent prior performance of an exercise, or null.
+ * Read-only — no revalidate. `excludeWorkoutId` omits the workout being edited so
+ * it doesn't report itself. Used by the logger to seed per-set "last time" ghosts.
+ */
+export async function getLastPerformanceAction(
+  wgerExerciseId: unknown,
+  excludeWorkoutId?: unknown,
+): Promise<LastPerformance | null> {
+  const userId = await requireUserId()
+  if (!Number.isInteger(wgerExerciseId)) throw new Error('invalid exercise id')
+  const exclude = typeof excludeWorkoutId === 'string' ? excludeWorkoutId : undefined
+  return getLastPerformance(userId, wgerExerciseId as number, exclude)
 }

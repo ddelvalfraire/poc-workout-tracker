@@ -1,10 +1,14 @@
 'use client'
 
-import { useReducer, useState, useTransition } from 'react'
+import { useEffect, useReducer, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { saveWorkoutAction, updateWorkoutAction } from '@/app/workout/actions'
+import {
+  saveWorkoutAction,
+  updateWorkoutAction,
+  getLastPerformanceAction,
+} from '@/app/workout/actions'
 import { ExercisePicker } from './exercise-picker'
 import {
   workoutDraftReducer,
@@ -15,6 +19,8 @@ import {
   type WorkoutDraft,
 } from './workout-draft'
 import { type WeightUnit } from '@/lib/units'
+import { placeholderForSet } from '@/lib/format'
+import type { LastPerformance } from '@/db/workouts'
 
 interface WorkoutLoggerProps {
   /** When set, the logger is in edit mode: Save updates this workout and returns to its detail page. */
@@ -35,9 +41,39 @@ export function WorkoutLogger({
   const [name, setName] = useState(initialName)
   const [error, setError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
+  const [lastByExercise, setLastByExercise] = useState<Record<number, LastPerformance | null>>({})
+  // Tracks exercise ids already fetched/in-flight so the effect never refetches.
+  // A ref (not state) avoids a synchronous setState in the effect body.
+  const requestedRef = useRef<Set<number>>(new Set())
   const router = useRouter()
 
   const isEmpty = draft.exercises.length === 0
+
+  // Fetch prior performance once per distinct exercise (added now or pre-filled in
+  // edit mode), to seed per-set ghost placeholders.
+  useEffect(() => {
+    const missing = Array.from(new Set(draft.exercises.map((e) => e.wgerExerciseId))).filter(
+      (id) => !requestedRef.current.has(id),
+    )
+    if (missing.length === 0) return
+
+    let cancelled = false
+    for (const id of missing) requestedRef.current.add(id) // reserve before awaiting
+    ;(async () => {
+      for (const id of missing) {
+        try {
+          const result = await getLastPerformanceAction(id, workoutId)
+          if (!cancelled) setLastByExercise((prev) => ({ ...prev, [id]: result }))
+        } catch {
+          // Non-critical: drop the reservation so a later render can retry.
+          requestedRef.current.delete(id)
+        }
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [draft.exercises, workoutId])
 
   function handleSave() {
     startTransition(async () => {
@@ -124,7 +160,13 @@ export function WorkoutLogger({
             )}
 
             <div className="space-y-2">
-              {exercise.sets.map((set, setIndex) => (
+              {exercise.sets.map((set, setIndex) => {
+                const ghost = placeholderForSet(
+                  lastByExercise[exercise.wgerExerciseId] ?? null,
+                  setIndex,
+                  unit,
+                )
+                return (
                 <div key={set.id} className="flex items-center gap-2">
                   <span className="grid size-8 shrink-0 place-items-center rounded-full bg-muted text-sm font-semibold tnum text-muted-foreground">
                     {setIndex + 1}
@@ -133,6 +175,7 @@ export function WorkoutLogger({
                     type="number"
                     inputMode="numeric"
                     min={0}
+                    placeholder={ghost.reps}
                     value={set.reps}
                     onChange={(e) =>
                       dispatch({
@@ -151,6 +194,7 @@ export function WorkoutLogger({
                     inputMode="decimal"
                     min={0}
                     step="0.5"
+                    placeholder={ghost.weight}
                     value={set.weight}
                     onChange={(e) =>
                       dispatch({
@@ -174,7 +218,8 @@ export function WorkoutLogger({
                     ✕
                   </Button>
                 </div>
-              ))}
+                )
+              })}
             </div>
 
             <Button

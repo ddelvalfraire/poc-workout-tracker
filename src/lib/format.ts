@@ -23,3 +23,23 @@ export function formatSet(
   if (weight !== null) return weight
   return '—'
 }
+
+/**
+ * Ghost-input placeholders for set position `index`, from a prior performance
+ * (weights converted to the active unit). Returns `{}` when there's no history,
+ * no prior set at that index (more sets than last time), or a field was blank
+ * last time — so the caller can spread the result onto the inputs and any unset
+ * field renders no ghost (an `undefined` `placeholder` is omitted by React).
+ */
+export function placeholderForSet(
+  last: { sets: { reps: number | null; weight: number | null }[] } | null,
+  index: number,
+  unit: WeightUnit = 'kg',
+): { reps?: string; weight?: string } {
+  const prior = last?.sets[index]
+  if (!prior) return {}
+  return {
+    reps: prior.reps !== null ? String(prior.reps) : undefined,
+    weight: prior.weight !== null ? String(kgToDisplay(prior.weight, unit)) : undefined,
+  }
+}

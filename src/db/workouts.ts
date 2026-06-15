@@ -1,4 +1,4 @@
-import { and, asc, count, countDistinct, desc, eq } from 'drizzle-orm'
+import { and, asc, count, countDistinct, desc, eq, ne } from 'drizzle-orm'
 import type { WorkoutInput } from '@/lib/workout-input'
 import { db } from './index'
 import { workouts, workoutExercises, sets } from './schema'
@@ -46,6 +46,47 @@ export function listWorkoutSummaries(userId: string) {
     .where(eq(workouts.userId, userId))
     .groupBy(workouts.id)
     .orderBy(desc(workouts.startedAt))
+}
+
+/** A prior performance of an exercise: when it was done and its sets (weights in kg, set order). */
+export interface LastPerformance {
+  performedAt: Date
+  sets: { reps: number | null; weight: number | null }[]
+}
+
+/**
+ * Most recent prior performance of `wgerExerciseId` for the user, by workout
+ * startedAt. `excludeWorkoutId` omits the workout currently being edited so it
+ * doesn't report itself. Returns null when there's no history.
+ */
+export async function getLastPerformance(
+  userId: string,
+  wgerExerciseId: number,
+  excludeWorkoutId?: string,
+): Promise<LastPerformance | null> {
+  const [recent] = await db
+    .select({ exerciseId: workoutExercises.id, performedAt: workouts.startedAt })
+    .from(workoutExercises)
+    .innerJoin(workouts, eq(workouts.id, workoutExercises.workoutId))
+    .where(
+      and(
+        eq(workouts.userId, userId),
+        eq(workoutExercises.wgerExerciseId, wgerExerciseId),
+        excludeWorkoutId ? ne(workouts.id, excludeWorkoutId) : undefined,
+      ),
+    )
+    .orderBy(desc(workouts.startedAt))
+    .limit(1)
+
+  if (!recent) return null
+
+  const setRows = await db
+    .select({ reps: sets.reps, weight: sets.weight })
+    .from(sets)
+    .where(eq(sets.workoutExerciseId, recent.exerciseId))
+    .orderBy(asc(sets.setNumber))
+
+  return { performedAt: recent.performedAt, sets: setRows }
 }
 
 /** Fetches a single workout with its exercises and sets, only if owned by the user. */

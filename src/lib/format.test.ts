@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { formatWorkoutDate, formatSet } from './format'
+import { formatWorkoutDate, formatSet, placeholderForSet } from './format'
 
 describe('formatSet', () => {
   it('formats reps and weight together', () => {
@@ -32,6 +32,33 @@ describe('formatSet', () => {
 
   it('defaults to kg when no unit is given (back-compat)', () => {
     expect(formatSet(5, 100)).toBe('5 × 100 kg')
+  })
+})
+
+describe('placeholderForSet', () => {
+  const last = { sets: [{ reps: 5, weight: 100 }] }
+
+  it('returns the prior set as ghost strings (kg)', () => {
+    expect(placeholderForSet(last, 0)).toEqual({ reps: '5', weight: '100' })
+  })
+
+  it('converts the weight ghost to the active unit (lb)', () => {
+    expect(placeholderForSet(last, 0, 'lb')).toEqual({ reps: '5', weight: '220.5' })
+  })
+
+  it('returns {} when there is no history', () => {
+    expect(placeholderForSet(null, 0)).toEqual({})
+  })
+
+  it('returns {} when there are more sets than history', () => {
+    expect(placeholderForSet(last, 1)).toEqual({})
+  })
+
+  it('omits a field that was blank last time', () => {
+    expect(placeholderForSet({ sets: [{ reps: 5, weight: null }] }, 0)).toEqual({
+      reps: '5',
+      weight: undefined,
+    })
   })
 })
 
