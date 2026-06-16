@@ -32,6 +32,9 @@ export function WorkoutActions({ id }: { id: string }) {
 
   return (
     <div className="mt-6 space-y-2">
+      <Link href={`/workout/new?from=${id}`} className={cn(buttonVariants(), 'w-full')}>
+        ↻ Repeat workout
+      </Link>
       <div className="flex gap-2">
         <Link
           href={`/workout/${id}/edit`}

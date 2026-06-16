@@ -137,7 +137,7 @@ Critical path (returning lifter, day 2 of a routine):
 |---|-------|-------------|--------|----------|---------|----------|
 | 1 | Unit preference (kg/lb) | `user_preferences` storage + central kg↔lb util; all weight display/input respects unit | complete | - | - | [plan](../plans/completed/unit-preference-kg-lb.plan.md) · [report](../reports/unit-preference-kg-lb-report.md) |
 | 2 | "Last time" inline | `getLastPerformance` query + render prior performance in the logger | in-progress | with 3, 4 | 1 | [plan](../plans/last-time-inline.plan.md) |
-| 3 | Repeat last workout | Seed a new draft from a past workout's exercises + sets | pending | with 2, 4 | 1 | - |
+| 3 | Repeat last workout | Seed a new draft from a past workout's exercises + sets | complete | with 2, 4 | 1 | [plan](../plans/completed/repeat-last-workout.plan.md) · [report](../reports/repeat-last-workout-report.md) |
 | 4 | PRs + estimated 1RM | 1RM helper, best-set/PR detection, PR badge on save/detail | pending | with 2, 3 | 1 | - |
 
 ### Phase Details

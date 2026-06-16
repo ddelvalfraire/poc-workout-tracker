@@ -48,10 +48,10 @@ export default async function HomePage() {
         ) : (
           <ul className="divide-y divide-border overflow-hidden rounded-2xl border border-border bg-card">
             {summaries.map((w) => (
-              <li key={w.id}>
+              <li key={w.id} className="flex items-center">
                 <Link
                   href={`/workout/${w.id}`}
-                  className="flex items-center justify-between gap-3 px-4 py-4 transition-colors active:bg-muted/60"
+                  className="flex min-w-0 flex-1 items-center justify-between gap-3 px-4 py-4 transition-colors active:bg-muted/60"
                 >
                   <span className="min-w-0">
                     <span className="block truncate font-medium">{w.name ?? "Workout"}</span>
@@ -72,6 +72,28 @@ export default async function HomePage() {
                     strokeLinejoin="round"
                   >
                     <path d="m9 18 6-6-6-6" />
+                  </svg>
+                </Link>
+                <Link
+                  href={`/workout/new?from=${w.id}`}
+                  aria-label={`Repeat ${w.name ?? "Workout"}`}
+                  className={cn(
+                    buttonVariants({ variant: "ghost", size: "icon-sm" }),
+                    "mr-2 shrink-0 text-muted-foreground",
+                  )}
+                >
+                  <svg
+                    aria-hidden="true"
+                    viewBox="0 0 24 24"
+                    className="size-5"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M21 12a9 9 0 1 1-3-6.7L21 8" />
+                    <path d="M21 3v5h-5" />
                   </svg>
                 </Link>
               </li>
