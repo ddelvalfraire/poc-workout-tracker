@@ -1,4 +1,4 @@
-import { and, asc, count, countDistinct, desc, eq, ne } from 'drizzle-orm'
+import { and, asc, count, countDistinct, desc, eq, inArray, lt, ne } from 'drizzle-orm'
 import type { WorkoutInput } from '@/lib/workout-input'
 import { db } from './index'
 import { workouts, workoutExercises, sets } from './schema'
@@ -87,6 +87,33 @@ export async function getLastPerformance(
     .orderBy(asc(sets.setNumber))
 
   return { performedAt: recent.performedAt, sets: setRows }
+}
+
+/** Flat set rows (reps/weight in kg) for the given exercises across the user's
+ *  workouts STARTED BEFORE `before` — the corpus for prior-best/PR comparison.
+ *  Excludes the current workout naturally via the time bound. */
+export async function getExerciseHistoryBefore(
+  userId: string,
+  wgerExerciseIds: number[],
+  before: Date,
+): Promise<{ wgerExerciseId: number; reps: number | null; weight: number | null }[]> {
+  if (wgerExerciseIds.length === 0) return []
+  return db
+    .select({
+      wgerExerciseId: workoutExercises.wgerExerciseId,
+      reps: sets.reps,
+      weight: sets.weight,
+    })
+    .from(sets)
+    .innerJoin(workoutExercises, eq(workoutExercises.id, sets.workoutExerciseId))
+    .innerJoin(workouts, eq(workouts.id, workoutExercises.workoutId))
+    .where(
+      and(
+        eq(workouts.userId, userId),
+        inArray(workoutExercises.wgerExerciseId, wgerExerciseIds),
+        lt(workouts.startedAt, before),
+      ),
+    )
 }
 
 /** Fetches a single workout with its exercises and sets, only if owned by the user. */

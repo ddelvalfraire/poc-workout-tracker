@@ -25,6 +25,15 @@ export function formatSet(
 }
 
 /**
+ * Formats an estimated 1RM (stored-kg) for display in the active unit, e.g.
+ *   117 (kg) → "117 kg"      117 (lb) → "258 lb"
+ * Rounds via kgToDisplay (kg identity, lb to 1dp), matching formatSet.
+ */
+export function formatE1RM(e1rmKg: number, unit: WeightUnit = 'kg'): string {
+  return `${kgToDisplay(e1rmKg, unit)} ${unit}`
+}
+
+/**
  * Ghost-input placeholders for set position `index`, from a prior performance
  * (weights converted to the active unit). Returns `{}` when there's no history,
  * no prior set at that index (more sets than last time), or a field was blank

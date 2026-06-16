@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { formatWorkoutDate, formatSet, placeholderForSet } from './format'
+import { formatWorkoutDate, formatSet, formatE1RM, placeholderForSet } from './format'
 
 describe('formatSet', () => {
   it('formats reps and weight together', () => {
@@ -32,6 +32,20 @@ describe('formatSet', () => {
 
   it('defaults to kg when no unit is given (back-compat)', () => {
     expect(formatSet(5, 100)).toBe('5 × 100 kg')
+  })
+})
+
+describe('formatE1RM', () => {
+  it('formats a kg estimate with the kg unit (identity, no rounding)', () => {
+    expect(formatE1RM(117)).toBe('117 kg')
+  })
+
+  it('defaults to kg when no unit is given', () => {
+    expect(formatE1RM(117)).toBe('117 kg')
+  })
+
+  it('converts a kg estimate to lb, rounded to 1dp', () => {
+    expect(formatE1RM(100, 'lb')).toBe('220.5 lb')
   })
 })
 
