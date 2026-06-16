@@ -11,7 +11,7 @@ import { DEFAULT_WEIGHT_UNIT, isWeightUnit, type WeightUnit } from '@/lib/units'
  * `isWeightUnit` and fall back to the default rather than trusting stored data.
  */
 
-/** Returns the user's weight unit, defaulting to kg when unset or unrecognized. */
+/** Returns the user's weight unit, defaulting to the product default (lb) when unset or unrecognized. */
 export async function getWeightUnit(userId: string): Promise<WeightUnit> {
   const [row] = await db
     .select({ unit: userPreferences.unit })

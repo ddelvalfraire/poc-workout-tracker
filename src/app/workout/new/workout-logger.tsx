@@ -59,17 +59,18 @@ export function WorkoutLogger({
 
     let cancelled = false
     for (const id of missing) requestedRef.current.add(id) // reserve before awaiting
-    ;(async () => {
-      for (const id of missing) {
-        try {
-          const result = await getLastPerformanceAction(id, workoutId)
+    // Fetch all missing exercises concurrently — each call is independent and
+    // updates state as it resolves, so N exercises cost one round-trip, not N.
+    for (const id of missing) {
+      getLastPerformanceAction(id, workoutId)
+        .then((result) => {
           if (!cancelled) setLastByExercise((prev) => ({ ...prev, [id]: result }))
-        } catch {
+        })
+        .catch(() => {
           // Non-critical: drop the reservation so a later render can retry.
           requestedRef.current.delete(id)
-        }
-      }
-    })()
+        })
+    }
     return () => {
       cancelled = true
     }

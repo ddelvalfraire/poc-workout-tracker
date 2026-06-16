@@ -68,7 +68,9 @@ export async function getLastPerformanceAction(
   excludeWorkoutId?: unknown,
 ): Promise<LastPerformance | null> {
   const userId = await requireUserId()
-  if (!Number.isInteger(wgerExerciseId)) throw new Error('invalid exercise id')
+  if (!Number.isInteger(wgerExerciseId) || (wgerExerciseId as number) <= 0) {
+    throw new Error('invalid exercise id')
+  }
   const exclude = typeof excludeWorkoutId === 'string' ? excludeWorkoutId : undefined
   return getLastPerformance(userId, wgerExerciseId as number, exclude)
 }
