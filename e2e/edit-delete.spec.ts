@@ -80,8 +80,9 @@ test('signed-in user can edit a set and delete a workout', async ({ page }) => {
   await page.getByRole('button', { name: /save workout/i }).click()
   await expect(page).toHaveURL('http://localhost:3000/')
 
-  // Open it from History and capture its id.
-  await page.getByRole('link', { name: new RegExp(WORKOUT_NAME) }).click()
+  // Open it from History and capture its id. Anchor the name so it matches the
+  // workout link and not the sibling "Repeat {name}" link in the same row.
+  await page.getByRole('link', { name: new RegExp(`^${WORKOUT_NAME}`) }).click()
   await expect(page).toHaveURL(/\/workout\/[0-9a-f-]+$/)
   const detailUrl = page.url()
   const id = new URL(detailUrl).pathname.split('/').pop()!
