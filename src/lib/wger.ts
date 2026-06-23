@@ -148,7 +148,12 @@ async function fetchAllExercises(): Promise<Exercise[]> {
 // Cache the catalog across requests (and dev HMR reloads) via a globalThis
 // singleton, mirroring the DB client in src/db/index.ts.
 type CatalogCache = { data: Exercise[]; expiresAt: number }
-const globalForWger = globalThis as unknown as { exerciseCache?: CatalogCache }
+const globalForWger = globalThis as unknown as {
+  exerciseCache?: CatalogCache
+  // Shared promise for an in-progress load, so concurrent cold callers collapse
+  // into a single upstream fetch instead of each refetching the catalog.
+  catalogInflight?: Promise<Exercise[]>
+}
 
 /** Reads the mapped catalog from Redis. Never throws — returns null on miss or error. */
 async function readCatalogFromRedis(): Promise<Exercise[] | null> {
@@ -184,21 +189,30 @@ async function getCatalog(): Promise<Exercise[]> {
   const cached = globalForWger.exerciseCache
   if (cached && cached.expiresAt > Date.now()) return cached.data
 
-  const fromRedis = await readCatalogFromRedis()
-  if (fromRedis) {
-    globalForWger.exerciseCache = { data: fromRedis, expiresAt: Date.now() + CACHE_TTL_MS }
-    return fromRedis
-  }
+  // Collapse concurrent cold loads onto one shared promise.
+  if (globalForWger.catalogInflight) return globalForWger.catalogInflight
 
-  const data = await fetchAllExercises()
-  globalForWger.exerciseCache = { data, expiresAt: Date.now() + CACHE_TTL_MS }
-  await writeCatalogToRedis(data)
-  return data
+  const load = (async () => {
+    const fromRedis = await readCatalogFromRedis()
+    const data = fromRedis ?? (await fetchAllExercises())
+    globalForWger.exerciseCache = { data, expiresAt: Date.now() + CACHE_TTL_MS }
+    // Backfill Redis only when the data came from upstream, not from Redis.
+    if (!fromRedis) await writeCatalogToRedis(data)
+    return data
+  })()
+
+  globalForWger.catalogInflight = load
+  try {
+    return await load
+  } finally {
+    globalForWger.catalogInflight = undefined
+  }
 }
 
-/** Clears the in-memory catalog cache. Exported for tests. */
+/** Clears the in-memory catalog cache (and any in-flight load). Exported for tests. */
 export function clearExerciseCache(): void {
   globalForWger.exerciseCache = undefined
+  globalForWger.catalogInflight = undefined
 }
 
 /**

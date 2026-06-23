@@ -209,6 +209,22 @@ describe('searchExercises (wger proxy)', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
+  it('dedupes concurrent cold loads into a single upstream fetch', async () => {
+    // Arrange — empty cache; one always-resolving page response.
+    const fetchMock = mockFetchOnce({
+      next: null,
+      results: [makeInfo(1, 'Bench Press', 'Chest', ['Barbell'])],
+    })
+
+    // Act — two callers race before the catalog is populated.
+    const [a, b] = await Promise.all([searchExercises(), searchExercises({ search: 'bench' })])
+
+    // Assert — the in-flight load is shared, so wger is hit once, not twice.
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(a).toEqual([{ id: 1, name: 'Bench Press', category: 'Chest', equipment: ['Barbell'] }])
+    expect(b).toEqual(a)
+  })
+
   it('throws when wger responds non-ok', async () => {
     // Arrange
     vi.stubGlobal(

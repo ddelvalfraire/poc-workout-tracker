@@ -28,7 +28,7 @@ test('service worker is served as JavaScript', async ({ request }) => {
   expect(res.headers()['content-type']).toContain('javascript')
 })
 
-for (const icon of ['icon-192.png', 'icon-512.png', 'apple-touch-icon.png']) {
+for (const icon of ['icon-192.png', 'icon-512.png', 'icon-maskable-512.png', 'apple-touch-icon.png']) {
   test(`icon ${icon} is a public PNG`, async ({ request }) => {
     const res = await request.get(`/icons/${icon}`)
     expect(res.status()).toBe(200)

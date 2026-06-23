@@ -1,5 +1,5 @@
 import { renderPwaIcon } from '@/lib/pwa-icon'
 
 export function GET() {
-  return renderPwaIcon(512)
+  return renderPwaIcon(512, { maskable: true })
 }
