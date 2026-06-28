@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { resolveUserId } from './resolve-user'
 import { registerReadTools } from './read-tools'
 import { registerWriteTools } from './write-tools'
+import { registerResources } from './resources'
 
 /**
  * Registers the MCP tools on the given server.
@@ -10,8 +11,9 @@ import { registerWriteTools } from './write-tools'
  * Extracted from the route handler so the tool set and each tool's behavior are
  * unit-testable without standing up the Streamable HTTP `initialize` handshake.
  * This registers the Phase 1 connectivity/identity tools (ping, whoami) inline,
- * delegates the Phase 2 read tools to `registerReadTools`, and the Phase 3 write
- * tools to `registerWriteTools`; Phase 4 ergonomics build on top.
+ * delegates the Phase 2 read tools to `registerReadTools`, the Phase 3 write tools
+ * to `registerWriteTools`, and the Phase 4 `workout://{id}` resource to
+ * `registerResources`.
  */
 export function registerTools(server: McpServer): void {
   server.registerTool(
@@ -46,4 +48,5 @@ export function registerTools(server: McpServer): void {
 
   registerReadTools(server)
   registerWriteTools(server)
+  registerResources(server)
 }

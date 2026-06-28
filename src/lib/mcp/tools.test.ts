@@ -7,17 +7,26 @@ type ToolHandler = (args: Record<string, unknown>) => Promise<ToolResult>
 
 /**
  * Minimal stand-in for an McpServer that records registerTool(name, _config, handler)
- * calls, so a test can assert the registered tool set and invoke each handler directly
- * — exercising real tool logic without the Streamable HTTP initialize handshake.
+ * and registerResource(name, template, ...) calls, so a test can assert the registered
+ * tool/resource set and invoke each handler directly — exercising real registration
+ * logic without the Streamable HTTP initialize handshake.
  */
-function fakeServer(): { server: McpServer; tools: Map<string, ToolHandler> } {
+function fakeServer(): {
+  server: McpServer
+  tools: Map<string, ToolHandler>
+  resources: Map<string, unknown>
+} {
   const tools = new Map<string, ToolHandler>()
+  const resources = new Map<string, unknown>()
   const server = {
     registerTool: (name: string, _config: unknown, handler: ToolHandler) => {
       tools.set(name, handler)
     },
+    registerResource: (name: string, template: unknown) => {
+      resources.set(name, template)
+    },
   }
-  return { server: server as unknown as McpServer, tools }
+  return { server: server as unknown as McpServer, tools, resources }
 }
 
 describe('registerTools', () => {
@@ -49,6 +58,15 @@ describe('registerTools', () => {
       'update_workout',
       'whoami',
     ])
+  })
+
+  it('registers the workout resource', () => {
+    // Arrange + Act
+    const { server, resources } = fakeServer()
+    registerTools(server)
+
+    // Assert
+    expect([...resources.keys()]).toContain('workout')
   })
 
   it('ping returns "pong"', async () => {

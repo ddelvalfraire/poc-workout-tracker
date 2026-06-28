@@ -3,7 +3,12 @@ import { z } from 'zod'
 import { resolveUserId } from './resolve-user'
 import { jsonResult, errorResult } from './result'
 import { ToolError } from './errors'
-import { listWorkoutSummaries, getWorkoutDetail, getLastPerformance } from '@/db/workouts'
+import {
+  listWorkoutSummaries,
+  getWorkoutDetail,
+  getLastPerformance,
+  type WorkoutDetail,
+} from '@/db/workouts'
 import { getWeightUnit } from '@/db/preferences'
 import { searchExercises } from '@/lib/wger'
 import { kgToDisplay, type WeightUnit } from '@/lib/units'
@@ -61,28 +66,7 @@ export function registerReadTools(server: McpServer): void {
           return errorResult(new ToolError(`Workout ${id} not found for user ${resolved}`))
         }
         const unit = await getWeightUnit(resolved)
-        const exercises = workout.exercises.map((exercise) => ({
-          id: exercise.id,
-          wgerExerciseId: exercise.wgerExerciseId,
-          name: exercise.name,
-          position: exercise.position,
-          sets: exercise.sets.map((s) => ({
-            setNumber: s.setNumber,
-            reps: s.reps,
-            weight: s.weight === null ? null : kgToDisplay(s.weight, unit),
-          })),
-          estimated1RM: e1rmFor(exercise.sets, unit),
-        }))
-        return jsonResult({
-          userId: resolved,
-          unit,
-          workout: {
-            id: workout.id,
-            name: workout.name,
-            startedAt: workout.startedAt.toISOString(),
-            exercises,
-          },
-        })
+        return jsonResult(buildWorkoutPayload(workout, resolved, unit))
       } catch (error: unknown) {
         return errorResult(error)
       }
@@ -169,6 +153,63 @@ export function registerReadTools(server: McpServer): void {
       }
     },
   )
+}
+
+/**
+ * The agent-facing shape of a single workout — what the `get_workout` tool and
+ * the `workout://{id}` resource both return. Weights are in the user's display
+ * unit; `startedAt` is an ISO string.
+ */
+export interface WorkoutPayload {
+  userId: string
+  unit: WeightUnit
+  workout: {
+    id: string
+    name: string | null
+    startedAt: string
+    exercises: {
+      id: string
+      wgerExerciseId: number
+      name: string
+      position: number
+      sets: { setNumber: number; reps: number | null; weight: number | null }[]
+      estimated1RM: number | null
+    }[]
+  }
+}
+
+/**
+ * Projects a `WorkoutDetail` into the agent-facing payload: weights rendered in
+ * the user's unit, ISO `startedAt`, and a per-exercise estimated 1RM. Shared by
+ * the `get_workout` tool and the `workout://{id}` resource so both emit the exact
+ * same shape from one source of truth.
+ */
+export function buildWorkoutPayload(
+  workout: WorkoutDetail,
+  resolved: string,
+  unit: WeightUnit,
+): WorkoutPayload {
+  return {
+    userId: resolved,
+    unit,
+    workout: {
+      id: workout.id,
+      name: workout.name,
+      startedAt: workout.startedAt.toISOString(),
+      exercises: workout.exercises.map((exercise) => ({
+        id: exercise.id,
+        wgerExerciseId: exercise.wgerExerciseId,
+        name: exercise.name,
+        position: exercise.position,
+        sets: exercise.sets.map((s) => ({
+          setNumber: s.setNumber,
+          reps: s.reps,
+          weight: s.weight === null ? null : kgToDisplay(s.weight, unit),
+        })),
+        estimated1RM: e1rmFor(exercise.sets, unit),
+      })),
+    },
+  }
 }
 
 /** Best-set estimated 1RM for an exercise, in the user's unit (null when no scorable set). */
