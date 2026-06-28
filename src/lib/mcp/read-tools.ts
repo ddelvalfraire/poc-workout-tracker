@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { resolveUserId } from './resolve-user'
 import { jsonResult, errorResult } from './result'
 import { ToolError } from './errors'
+import { assertWorkoutIdShape } from './workout-id'
 import {
   listWorkoutSummaries,
   getWorkoutDetail,
@@ -59,6 +60,7 @@ export function registerReadTools(server: McpServer): void {
     async ({ id, userId }) => {
       try {
         const resolved = resolveUserId(userId)
+        assertWorkoutIdShape(id)
         // Resolve the workout first; only fetch the unit once we know it exists,
         // so the not-found path does no wasted query.
         const workout = await getWorkoutDetail(resolved, id)

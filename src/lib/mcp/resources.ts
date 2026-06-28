@@ -1,6 +1,7 @@
 import { McpServer, ResourceTemplate } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { resolveUserId } from './resolve-user'
 import { ToolError } from './errors'
+import { assertWorkoutIdShape } from './workout-id'
 import { buildWorkoutPayload } from './read-tools'
 import { getWorkoutDetail } from '@/db/workouts'
 import { getWeightUnit } from '@/db/preferences'
@@ -36,6 +37,7 @@ export function registerResources(server: McpServer): void {
       try {
         if (!id) throw new ToolError('workout id is required')
         const resolved = resolveUserId() // no arg → MCP_DEV_USER_ID
+        assertWorkoutIdShape(id)
         const workout = await getWorkoutDetail(resolved, id)
         if (!workout) {
           throw new ToolError(`Workout ${id} not found for user ${resolved}`)

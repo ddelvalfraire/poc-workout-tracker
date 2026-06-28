@@ -83,7 +83,7 @@ describe('registerReadTools', () => {
       const tools = setup()
       mockedList.mockResolvedValue([
         {
-          id: 'w1',
+          id: '11111111-1111-4111-8111-111111111111',
           name: 'Push Day',
           startedAt: new Date('2026-06-01T10:00:00.000Z'),
           exerciseCount: 3,
@@ -100,7 +100,7 @@ describe('registerReadTools', () => {
         userId: 'user_env',
         workouts: [
           {
-            id: 'w1',
+            id: '11111111-1111-4111-8111-111111111111',
             name: 'Push Day',
             startedAt: '2026-06-01T10:00:00.000Z',
             exerciseCount: 3,
@@ -157,7 +157,7 @@ describe('registerReadTools', () => {
     /** A one-exercise workout: one scorable set (5 reps @ 100 kg) and one blank set. */
     function detail() {
       return {
-        id: 'w1',
+        id: '11111111-1111-4111-8111-111111111111',
         name: 'Leg Day',
         startedAt: new Date('2026-06-02T08:00:00.000Z'),
         userId: 'user_env',
@@ -184,7 +184,7 @@ describe('registerReadTools', () => {
       )
 
       // Act
-      const result = await tools.get('get_workout')!({ id: 'w1' })
+      const result = await tools.get('get_workout')!({ id: '11111111-1111-4111-8111-111111111111' })
 
       // Assert
       const body = payload(result) as {
@@ -218,7 +218,7 @@ describe('registerReadTools', () => {
       )
 
       // Act
-      const result = await tools.get('get_workout')!({ id: 'w1' })
+      const result = await tools.get('get_workout')!({ id: '11111111-1111-4111-8111-111111111111' })
 
       // Assert
       const body = payload(result) as {
@@ -235,7 +235,7 @@ describe('registerReadTools', () => {
       mockedDetail.mockResolvedValue(undefined)
 
       // Act
-      const result = await tools.get('get_workout')!({ id: 'missing' })
+      const result = await tools.get('get_workout')!({ id: '22222222-2222-4222-8222-222222222222' })
 
       // Assert
       expect(result.isError).toBe(true)
@@ -248,7 +248,7 @@ describe('registerReadTools', () => {
       mockedDetail.mockResolvedValue(undefined)
 
       // Act
-      await tools.get('get_workout')!({ id: 'missing' })
+      await tools.get('get_workout')!({ id: '22222222-2222-4222-8222-222222222222' })
 
       // Assert — no wasted query on the not-found path
       expect(mockedUnit).not.toHaveBeenCalled()
@@ -308,11 +308,11 @@ describe('registerReadTools', () => {
       // Act
       const result = await tools.get('get_last_performance')!({
         wgerExerciseId: 73,
-        excludeWorkoutId: 'w1',
+        excludeWorkoutId: '11111111-1111-4111-8111-111111111111',
       })
 
       // Assert
-      expect(mockedLast).toHaveBeenCalledWith('user_env', 73, 'w1')
+      expect(mockedLast).toHaveBeenCalledWith('user_env', 73, '11111111-1111-4111-8111-111111111111')
       expect(payload(result)).toEqual({
         userId: 'user_env',
         unit: 'lb',
@@ -363,7 +363,7 @@ describe('registerReadTools', () => {
   // structure; cover the failure and no-user paths for each so the contract is explicit.
   describe('shared failure handling (remaining user-scoped tools)', () => {
     const cases = [
-      { name: 'get_workout', args: { id: 'w1' }, dep: mockedDetail as unknown as Mock },
+      { name: 'get_workout', args: { id: '11111111-1111-4111-8111-111111111111' }, dep: mockedDetail as unknown as Mock },
       { name: 'get_last_performance', args: { wgerExerciseId: 1 }, dep: mockedLast as unknown as Mock },
       { name: 'get_weight_unit', args: {}, dep: mockedUnit as unknown as Mock },
     ] as const

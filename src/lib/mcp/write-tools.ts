@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { resolveUserId } from './resolve-user'
 import { jsonResult, errorResult } from './result'
 import { ToolError } from './errors'
+import { assertWorkoutIdShape } from './workout-id'
 import { parseWorkoutInput, MAX_WEIGHT as MAX_WEIGHT_KG, type WorkoutInput } from '@/lib/workout-input'
 import { displayToKg, kgToDisplay, type WeightUnit } from '@/lib/units'
 import { saveWorkout, updateWorkout, deleteWorkout } from '@/db/workouts'
@@ -137,6 +138,7 @@ export function registerWriteTools(server: McpServer): void {
     async ({ id, name, exercises, unit, userId }) => {
       try {
         const resolved = resolveUserId(userId)
+        assertWorkoutIdShape(id)
         const basis = unit ?? (await getWeightUnit(resolved))
         const parsed = validate({ name, exercises }, basis)
         const result = await updateWorkout(resolved, id, parsed)
@@ -161,6 +163,7 @@ export function registerWriteTools(server: McpServer): void {
     async ({ id, userId }) => {
       try {
         const resolved = resolveUserId(userId)
+        assertWorkoutIdShape(id)
         const [deleted] = await deleteWorkout(resolved, id)
         if (!deleted) {
           throw new ToolError(`Workout ${id} not found for user ${resolved}`)
