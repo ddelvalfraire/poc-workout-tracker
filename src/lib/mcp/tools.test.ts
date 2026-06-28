@@ -30,19 +30,23 @@ describe('registerTools', () => {
     else process.env.MCP_DEV_USER_ID = original
   })
 
-  it('registers the connectivity and read tools', () => {
+  it('registers the connectivity, read, and write tools', () => {
     // Arrange + Act
     const { server, tools } = fakeServer()
     registerTools(server)
 
     // Assert
     expect([...tools.keys()].sort()).toEqual([
+      'create_workout',
+      'delete_workout',
       'get_last_performance',
       'get_weight_unit',
       'get_workout',
       'list_workouts',
       'ping',
       'search_exercises',
+      'set_weight_unit',
+      'update_workout',
       'whoami',
     ])
   })

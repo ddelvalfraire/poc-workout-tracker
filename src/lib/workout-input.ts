@@ -37,7 +37,7 @@ const MAX_NAME = 200
 // sets.weight is numeric(6,2) in the schema, so 9999.99 is the column ceiling.
 // Bounding here turns an out-of-range value into a clear validation error
 // instead of an opaque Postgres overflow inside the save transaction.
-const MAX_WEIGHT = 9999.99
+export const MAX_WEIGHT = 9999.99
 // A generous sanity cap for the integer `reps` column — no real set exceeds it.
 const MAX_REPS = 10_000
 
