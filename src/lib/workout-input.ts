@@ -31,6 +31,12 @@ export interface ExerciseInput {
 export interface WorkoutInput {
   name?: string
   exercises: ExerciseInput[]
+  /**
+   * When the session was performed. Optional so create defaults to the DB's
+   * `now()` and update preserves the existing value; set it to backdate a
+   * logged session. Must not be in the future.
+   */
+  startedAt?: Date
 }
 
 const MAX_NAME = 200
@@ -54,6 +60,23 @@ function parseName(raw: unknown): string | undefined {
   if (trimmed.length === 0) return undefined
   if (trimmed.length > MAX_NAME) throw new Error(`workout name must be ${MAX_NAME} characters or fewer`)
   return trimmed
+}
+
+/**
+ * Validates an optional `startedAt`: accepts a `Date` or an ISO/parseable date
+ * string and returns a `Date`; absent/blank → omitted. Rejects an unparseable
+ * value and a future date (a session can't have happened later than now).
+ */
+function parseStartedAt(raw: unknown): Date | undefined {
+  if (raw === undefined || raw === null) return undefined
+  if (typeof raw === 'string' && raw.trim().length === 0) return undefined
+  if (!(raw instanceof Date) && typeof raw !== 'string') {
+    throw new Error('workout startedAt must be a date or ISO date string')
+  }
+  const date = raw instanceof Date ? raw : new Date(raw)
+  if (Number.isNaN(date.getTime())) throw new Error('workout startedAt is not a valid date')
+  if (date.getTime() > Date.now()) throw new Error("workout date can't be in the future")
+  return date
 }
 
 /** Validates a single set: reps a non-negative integer or null, weight a non-negative finite number or null. */
@@ -116,6 +139,9 @@ export function parseWorkoutInput(input: unknown): WorkoutInput {
 
   const exercises = obj.exercises.map(parseExercise)
   const name = parseName(obj.name)
+  const startedAt = parseStartedAt(obj.startedAt)
 
-  return name === undefined ? { exercises } : { name, exercises }
+  return name === undefined
+    ? { exercises, ...(startedAt && { startedAt }) }
+    : { name, exercises, ...(startedAt && { startedAt }) }
 }

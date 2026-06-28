@@ -21,10 +21,15 @@ const exercisesSchema = z.array(
 /** Optional explicit unit override; absent → the user's stored unit. */
 const unitArg = z.enum(['kg', 'lb']).optional()
 
+/** Optional ISO-8601 backdate for create/update; parsed + future-checked downstream. */
+const startedAtArg = z.string().datetime().optional()
+
 /** The raw (display-unit) workout body before kg conversion. */
 type RawWorkout = {
   name?: string
   exercises: z.infer<typeof exercisesSchema>
+  /** ISO date string; `parseWorkoutInput` converts it to a Date and rejects the future. */
+  startedAt?: string
 }
 
 /**
@@ -35,6 +40,7 @@ type RawWorkout = {
 function toKgInput(raw: RawWorkout, unit: WeightUnit): RawWorkout {
   return {
     name: raw.name,
+    startedAt: raw.startedAt,
     exercises: raw.exercises.map((e) => ({
       wgerExerciseId: e.wgerExerciseId,
       name: e.name,
@@ -100,19 +106,20 @@ export function registerWriteTools(server: McpServer): void {
     {
       title: 'Create Workout',
       description:
-        "Logs a new workout for the user. Weights are given in the user's unit (or the `unit` arg) and stored as kg. Returns the new workoutId; call get_workout to confirm.",
+        "Logs a new workout for the user. Weights are given in the user's unit (or the `unit` arg) and stored as kg. Pass `startedAt` (ISO 8601) to backdate a past session; omit it to stamp now. Returns the new workoutId; call get_workout to confirm.",
       inputSchema: {
         name: z.string().optional(),
         exercises: exercisesSchema,
         unit: unitArg,
+        startedAt: startedAtArg,
         userId: z.string().optional(),
       },
     },
-    async ({ name, exercises, unit, userId }) => {
+    async ({ name, exercises, unit, startedAt, userId }) => {
       try {
         const resolved = resolveUserId(userId)
         const basis = unit ?? (await getWeightUnit(resolved))
-        const parsed = validate({ name, exercises }, basis)
+        const parsed = validate({ name, exercises, startedAt }, basis)
         const { id } = await saveWorkout(resolved, parsed)
         return jsonResult({ userId: resolved, unit: basis, workoutId: id })
       } catch (error: unknown) {
@@ -126,21 +133,22 @@ export function registerWriteTools(server: McpServer): void {
     {
       title: 'Update Workout',
       description:
-        'Replaces an existing workout (owned by the user) with the given exercises/sets. Full replace, not a partial edit. Errors if the workout is not found or not owned.',
+        'Replaces an existing workout (owned by the user) with the given exercises/sets. Full replace, not a partial edit. Pass `startedAt` (ISO 8601) to also change the session date; omit it to keep the existing one. Errors if the workout is not found or not owned.',
       inputSchema: {
         id: z.string(),
         name: z.string().optional(),
         exercises: exercisesSchema,
         unit: unitArg,
+        startedAt: startedAtArg,
         userId: z.string().optional(),
       },
     },
-    async ({ id, name, exercises, unit, userId }) => {
+    async ({ id, name, exercises, unit, startedAt, userId }) => {
       try {
         const resolved = resolveUserId(userId)
         assertWorkoutIdShape(id)
         const basis = unit ?? (await getWeightUnit(resolved))
-        const parsed = validate({ name, exercises }, basis)
+        const parsed = validate({ name, exercises, startedAt }, basis)
         const result = await updateWorkout(resolved, id, parsed)
         if (!result) {
           throw new ToolError(`Workout ${id} not found for user ${resolved}`)

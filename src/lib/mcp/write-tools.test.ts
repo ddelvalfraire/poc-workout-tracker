@@ -170,6 +170,36 @@ describe('registerWriteTools', () => {
       expect(mockedSave).not.toHaveBeenCalled()
     })
 
+    it('persists a backdated startedAt as a Date passed to saveWorkout', async () => {
+      // Arrange
+      const tools = setup()
+      mockedSave.mockResolvedValue({ id: 'w1' })
+      const when = '2026-01-02T00:00:00.000Z'
+
+      // Act
+      await tools.get('create_workout')!({ ...BODY, startedAt: when })
+
+      // Assert
+      expect(mockedSave).toHaveBeenCalledWith(
+        'user_env',
+        expect.objectContaining({ startedAt: new Date(when) }),
+      )
+    })
+
+    it('rejects a future startedAt with /future/ and never saves', async () => {
+      // Arrange
+      const tools = setup()
+      const future = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+
+      // Act
+      const result = await tools.get('create_workout')!({ ...BODY, startedAt: future })
+
+      // Assert
+      expect(result.isError).toBe(true)
+      expect(result.content[0]?.text).toMatch(/future/i)
+      expect(mockedSave).not.toHaveBeenCalled()
+    })
+
     it('rejects invalid input as a surfaced ToolError and never calls saveWorkout', async () => {
       // Arrange
       const tools = setup()

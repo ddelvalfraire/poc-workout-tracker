@@ -188,7 +188,8 @@ export async function saveWorkout(userId: string, input: WorkoutInput): Promise<
   return db.transaction(async (tx) => {
     const [workout] = await tx
       .insert(workouts)
-      .values({ userId, name: input.name })
+      // Omit startedAt when absent so the column default (now()) applies.
+      .values({ userId, name: input.name, ...(input.startedAt ? { startedAt: input.startedAt } : {}) })
       .returning({ id: workouts.id })
 
     await insertWorkoutChildren(tx, workout.id, input.exercises)
@@ -219,7 +220,8 @@ export async function updateWorkout(
   return db.transaction(async (tx) => {
     const [owned] = await tx
       .update(workouts)
-      .set({ name: input.name ?? null })
+      // Omit startedAt when absent so the existing value is preserved.
+      .set({ name: input.name ?? null, ...(input.startedAt ? { startedAt: input.startedAt } : {}) })
       .where(and(eq(workouts.id, id), eq(workouts.userId, userId)))
       .returning({ id: workouts.id })
     if (!owned) return null
