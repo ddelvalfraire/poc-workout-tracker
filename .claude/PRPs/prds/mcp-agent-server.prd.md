@@ -108,8 +108,8 @@ Connect MCP client to `https://<app>/api/mcp` → agent calls `search_exercises`
 | # | Phase | Description | Status | Parallel | Depends | PRP Plan |
 |---|-------|-------------|--------|----------|---------|----------|
 | 1 | MCP endpoint scaffold | `mcp-handler` route at `/api/mcp`, public-route exemption, a `ping`/`whoami` tool, connectable + tool listing | complete | - | - | [plan](../plans/completed/mcp-endpoint-scaffold.plan.md) · [report](../reports/mcp-endpoint-scaffold-report.md) |
-| 2 | Read tools | `list_workouts`, `get_workout`, `search_exercises`, `get_exercise_history`/`last_performance`, `get_weight_unit` | pending | with 3 | 1 | - |
-| 3 | Write tools | `create_workout` (validate + persist), `set_weight_unit`; then `update_workout`/`delete_workout` | pending | with 2 | 1 | - |
+| 2 | Read tools | `list_workouts`, `get_workout`, `search_exercises`, `get_exercise_history`/`last_performance`, `get_weight_unit` | complete | with 3 | 1 | [plan](../plans/completed/mcp-read-tools.plan.md) · [report](../reports/mcp-read-tools-report.md) |
+| 3 | Write tools | `create_workout` (validate + persist), `set_weight_unit`; then `update_workout`/`delete_workout` | complete | with 2 | 1 | [plan](../plans/completed/mcp-write-tools.plan.md) · [report](../reports/mcp-write-tools-report.md) |
 | 4 | Ergonomics + connection doc | `userId` env/arg resolution polish, structured tool errors, optional `workout://{id}` resource, README/skill on connecting an MCP client | pending | - | 2, 3 | - |
 
 ### Phase Details

@@ -1,0 +1,327 @@
+import { describe, it, expect, vi, beforeEach, afterEach, type Mock } from 'vitest'
+import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
+
+vi.mock('@/db/workouts', () => ({
+  saveWorkout: vi.fn(),
+  updateWorkout: vi.fn(),
+  deleteWorkout: vi.fn(),
+}))
+vi.mock('@/db/preferences', () => ({ getWeightUnit: vi.fn(), setWeightUnit: vi.fn() }))
+
+import { registerWriteTools } from './write-tools'
+import { saveWorkout, updateWorkout, deleteWorkout } from '@/db/workouts'
+import { getWeightUnit, setWeightUnit } from '@/db/preferences'
+import { displayToKg, kgToDisplay } from '@/lib/units'
+import { MAX_WEIGHT as MAX_WEIGHT_KG } from '@/lib/workout-input'
+
+const mockedSave = vi.mocked(saveWorkout)
+const mockedUpdate = vi.mocked(updateWorkout)
+const mockedDelete = vi.mocked(deleteWorkout)
+const mockedGetUnit = vi.mocked(getWeightUnit)
+const mockedSetUnit = vi.mocked(setWeightUnit)
+
+type ToolResult = { content: { type: string; text: string }[]; isError?: boolean }
+type ToolHandler = (args: Record<string, unknown>) => Promise<ToolResult>
+
+/**
+ * Minimal stand-in for an McpServer that records registerTool(name, _config, handler)
+ * calls, so a test can assert the registered tool set and invoke each handler directly.
+ */
+function fakeServer(): { server: McpServer; tools: Map<string, ToolHandler> } {
+  const tools = new Map<string, ToolHandler>()
+  const server = {
+    registerTool: (name: string, _config: unknown, handler: ToolHandler) => {
+      tools.set(name, handler)
+    },
+  }
+  return { server: server as unknown as McpServer, tools }
+}
+
+/** Registers the write tools on a fresh fake server and returns the handler map. */
+function setup(): Map<string, ToolHandler> {
+  const { server, tools } = fakeServer()
+  registerWriteTools(server)
+  return tools
+}
+
+/** Parses the JSON text payload of a (success) tool result. */
+function payload(result: ToolResult): Record<string, unknown> {
+  return JSON.parse(result.content[0]!.text)
+}
+
+/** A valid one-exercise body: one scorable set (220.5) and one blank set. */
+const BODY = {
+  exercises: [
+    { wgerExerciseId: 1, name: 'Bench', sets: [{ reps: 5, weight: 220.5 }, { reps: null, weight: null }] },
+  ],
+}
+
+describe('registerWriteTools', () => {
+  const original = process.env.MCP_DEV_USER_ID
+  beforeEach(() => {
+    vi.clearAllMocks()
+    process.env.MCP_DEV_USER_ID = 'user_env'
+    mockedGetUnit.mockResolvedValue('lb')
+  })
+  afterEach(() => {
+    if (original === undefined) delete process.env.MCP_DEV_USER_ID
+    else process.env.MCP_DEV_USER_ID = original
+  })
+
+  it('registers exactly the four write tools', () => {
+    // Arrange + Act
+    const tools = setup()
+
+    // Assert
+    expect([...tools.keys()].sort()).toEqual([
+      'create_workout',
+      'delete_workout',
+      'set_weight_unit',
+      'update_workout',
+    ])
+  })
+
+  describe('create_workout', () => {
+    it('converts display weights to kg with the stored unit and echoes userId/unit/workoutId', async () => {
+      // Arrange
+      const tools = setup()
+      mockedSave.mockResolvedValue({ id: 'w1' })
+
+      // Act
+      const result = await tools.get('create_workout')!(BODY)
+
+      // Assert
+      expect(mockedGetUnit).toHaveBeenCalledWith('user_env')
+      expect(mockedSave).toHaveBeenCalledWith(
+        'user_env',
+        expect.objectContaining({
+          exercises: [
+            expect.objectContaining({
+              sets: [
+                { reps: 5, weight: displayToKg(220.5, 'lb') },
+                { reps: null, weight: null },
+              ],
+            }),
+          ],
+        }),
+      )
+      expect(payload(result)).toEqual({ userId: 'user_env', unit: 'lb', workoutId: 'w1' })
+    })
+
+    it('uses an explicit unit:kg without converting and without reading the stored unit', async () => {
+      // Arrange
+      const tools = setup()
+      mockedSave.mockResolvedValue({ id: 'w1' })
+
+      // Act
+      const result = await tools.get('create_workout')!({ ...BODY, unit: 'kg' })
+
+      // Assert
+      expect(mockedGetUnit).not.toHaveBeenCalled()
+      expect(mockedSave).toHaveBeenCalledWith(
+        'user_env',
+        expect.objectContaining({
+          exercises: [
+            expect.objectContaining({
+              sets: [
+                { reps: 5, weight: 220.5 },
+                { reps: null, weight: null },
+              ],
+            }),
+          ],
+        }),
+      )
+      expect(payload(result)).toEqual({ userId: 'user_env', unit: 'kg', workoutId: 'w1' })
+    })
+
+    it('rejects an over-max weight with the bound stated in the agent unit (lb) and never saves', async () => {
+      // Arrange — stored unit is lb (beforeEach), so the basis is lb
+      const tools = setup()
+      const maxLb = kgToDisplay(MAX_WEIGHT_KG, 'lb')
+      const overMaxLb = maxLb + 1
+
+      // Act
+      const result = await tools.get('create_workout')!({
+        exercises: [{ wgerExerciseId: 1, name: 'Bench', sets: [{ reps: 1, weight: overMaxLb }] }],
+      })
+
+      // Assert — the message names the lb bound, not the canonical kg one
+      expect(result.isError).toBe(true)
+      expect(result.content[0]?.text).toContain(`${maxLb} lb`)
+      expect(result.content[0]?.text).not.toContain('kg')
+      expect(mockedSave).not.toHaveBeenCalled()
+    })
+
+    it('states the kg bound when the basis is kg', async () => {
+      // Arrange
+      const tools = setup()
+
+      // Act — explicit kg basis, weight just over the kg ceiling
+      const result = await tools.get('create_workout')!({
+        unit: 'kg',
+        exercises: [
+          { wgerExerciseId: 1, name: 'Bench', sets: [{ reps: 1, weight: MAX_WEIGHT_KG + 1 }] },
+        ],
+      })
+
+      // Assert
+      expect(result.isError).toBe(true)
+      expect(result.content[0]?.text).toContain(`${MAX_WEIGHT_KG} kg`)
+      expect(mockedSave).not.toHaveBeenCalled()
+    })
+
+    it('rejects invalid input as a surfaced ToolError and never calls saveWorkout', async () => {
+      // Arrange
+      const tools = setup()
+
+      // Act
+      const result = await tools.get('create_workout')!({ exercises: [] })
+
+      // Assert
+      expect(result.isError).toBe(true)
+      expect(result.content[0]?.text).toMatch(/at least one exercise/)
+      expect(mockedSave).not.toHaveBeenCalled()
+    })
+
+    it('returns a generic isError and logs (no internals leaked) when the db rejects', async () => {
+      // Arrange
+      const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
+      const tools = setup()
+      mockedSave.mockRejectedValue(new Error('db down: secret-host:5432'))
+
+      // Act
+      const result = await tools.get('create_workout')!(BODY)
+
+      // Assert
+      expect(result.isError).toBe(true)
+      expect(result.content[0]?.text).toBe('MCP tool failed')
+      expect(spy).toHaveBeenCalled()
+      spy.mockRestore()
+    })
+
+    it('returns isError matching /userId/ and never saves when no user resolves', async () => {
+      // Arrange
+      delete process.env.MCP_DEV_USER_ID
+      const tools = setup()
+
+      // Act
+      const result = await tools.get('create_workout')!(BODY)
+
+      // Assert
+      expect(result.isError).toBe(true)
+      expect(result.content[0]?.text).toMatch(/userId/)
+      expect(mockedSave).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('update_workout', () => {
+    it('converts and replaces the workout, echoing the affected workoutId', async () => {
+      // Arrange
+      const tools = setup()
+      mockedUpdate.mockResolvedValue({ id: 'w1' })
+
+      // Act
+      const result = await tools.get('update_workout')!({ id: 'w1', ...BODY })
+
+      // Assert
+      expect(mockedUpdate).toHaveBeenCalledWith(
+        'user_env',
+        'w1',
+        expect.objectContaining({
+          exercises: [
+            expect.objectContaining({
+              sets: [
+                { reps: 5, weight: displayToKg(220.5, 'lb') },
+                { reps: null, weight: null },
+              ],
+            }),
+          ],
+        }),
+      )
+      expect(payload(result)).toEqual({ userId: 'user_env', unit: 'lb', workoutId: 'w1' })
+    })
+
+    it('returns isError matching /not found/ when the workout is not owned', async () => {
+      // Arrange
+      const tools = setup()
+      mockedUpdate.mockResolvedValue(null)
+
+      // Act
+      const result = await tools.get('update_workout')!({ id: 'w1', ...BODY })
+
+      // Assert
+      expect(result.isError).toBe(true)
+      expect(result.content[0]?.text).toMatch(/not found/)
+    })
+  })
+
+  describe('delete_workout', () => {
+    it('deletes an owned workout and reports deleted:true', async () => {
+      // Arrange
+      const tools = setup()
+      mockedDelete.mockResolvedValue([{ id: 'w1' }])
+
+      // Act
+      const result = await tools.get('delete_workout')!({ id: 'w1' })
+
+      // Assert
+      expect(mockedDelete).toHaveBeenCalledWith('user_env', 'w1')
+      expect(payload(result)).toEqual({ userId: 'user_env', workoutId: 'w1', deleted: true })
+    })
+
+    it('returns isError matching /not found/ when nothing was deleted', async () => {
+      // Arrange
+      const tools = setup()
+      mockedDelete.mockResolvedValue([])
+
+      // Act
+      const result = await tools.get('delete_workout')!({ id: 'w1' })
+
+      // Assert
+      expect(result.isError).toBe(true)
+      expect(result.content[0]?.text).toMatch(/not found/)
+    })
+  })
+
+  describe('set_weight_unit', () => {
+    it('upserts the unit and echoes the resolved userId and unit', async () => {
+      // Arrange
+      const tools = setup()
+      mockedSetUnit.mockResolvedValue()
+
+      // Act
+      const result = await tools.get('set_weight_unit')!({ unit: 'kg' })
+
+      // Assert
+      expect(mockedSetUnit).toHaveBeenCalledWith('user_env', 'kg')
+      expect(payload(result)).toEqual({ userId: 'user_env', unit: 'kg' })
+    })
+  })
+
+  // Every write handler gates on a resolved user before touching the db; assert
+  // the no-user path for each so the authorization contract is explicit.
+  describe('no-user gate (all write tools)', () => {
+    const cases = [
+      { name: 'update_workout', args: { id: 'w1', ...BODY }, dep: mockedUpdate as unknown as Mock },
+      { name: 'delete_workout', args: { id: 'w1' }, dep: mockedDelete as unknown as Mock },
+      { name: 'set_weight_unit', args: { unit: 'kg' }, dep: mockedSetUnit as unknown as Mock },
+    ] as const
+
+    it.each(cases)(
+      '$name returns isError /userId/ and never touches the db when no user resolves',
+      async ({ name, args, dep }) => {
+        // Arrange — no arg, no env
+        delete process.env.MCP_DEV_USER_ID
+        const tools = setup()
+
+        // Act
+        const result = await tools.get(name)!(args)
+
+        // Assert
+        expect(result.isError).toBe(true)
+        expect(result.content[0]?.text).toMatch(/userId/)
+        expect(dep).not.toHaveBeenCalled()
+      },
+    )
+  })
+})

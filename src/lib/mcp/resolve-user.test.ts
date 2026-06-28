@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { resolveUserId } from './resolve-user'
+import { ToolError } from './errors'
 
 describe('resolveUserId', () => {
   const original = process.env.MCP_DEV_USER_ID
@@ -30,6 +31,11 @@ describe('resolveUserId', () => {
   it('throws a clear error when neither argument nor env is set', () => {
     // Act + Assert
     expect(() => resolveUserId()).toThrow(/userId/)
+  })
+
+  it('throws a user-facing ToolError (so the message survives genericization)', () => {
+    // Act + Assert
+    expect(() => resolveUserId()).toThrow(ToolError)
   })
 
   it('treats a whitespace-only argument as absent and falls back to env', () => {
