@@ -30,13 +30,21 @@ describe('registerTools', () => {
     else process.env.MCP_DEV_USER_ID = original
   })
 
-  it('registers the ping and whoami tools', () => {
+  it('registers the connectivity and read tools', () => {
     // Arrange + Act
     const { server, tools } = fakeServer()
     registerTools(server)
 
     // Assert
-    expect([...tools.keys()].sort()).toEqual(['ping', 'whoami'])
+    expect([...tools.keys()].sort()).toEqual([
+      'get_last_performance',
+      'get_weight_unit',
+      'get_workout',
+      'list_workouts',
+      'ping',
+      'search_exercises',
+      'whoami',
+    ])
   })
 
   it('ping returns "pong"', async () => {

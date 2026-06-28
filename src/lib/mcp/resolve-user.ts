@@ -1,3 +1,5 @@
+import { ToolError } from './errors'
+
 /**
  * Resolves the target userId for an MCP tool call (POC, unauthenticated endpoint).
  *
@@ -13,7 +15,9 @@ export function resolveUserId(argUserId?: string): string {
   if (fromArg) return fromArg
   const fromEnv = process.env.MCP_DEV_USER_ID?.trim()
   if (fromEnv) return fromEnv
-  throw new Error(
+  // ToolError (not a plain Error) so this actionable message survives
+  // errorResult's genericization and reaches the agent.
+  throw new ToolError(
     'No userId: pass a `userId` argument or set MCP_DEV_USER_ID in the environment.',
   )
 }

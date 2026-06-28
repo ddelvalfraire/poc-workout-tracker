@@ -1,14 +1,16 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
 import { resolveUserId } from './resolve-user'
+import { registerReadTools } from './read-tools'
 
 /**
- * Registers the Phase 1 MCP tools (ping, whoami) on the given server.
+ * Registers the MCP tools on the given server.
  *
  * Extracted from the route handler so the tool set and each tool's behavior are
  * unit-testable without standing up the Streamable HTTP `initialize` handshake.
- * Phase 1 exposes only connectivity/identity tools; the read and write tools land
- * in Phases 2 and 3 and will register here too.
+ * This registers the Phase 1 connectivity/identity tools (ping, whoami) inline
+ * and delegates the Phase 2 read tools to `registerReadTools`; the write tools
+ * land in Phase 3 and will register here too.
  */
 export function registerTools(server: McpServer): void {
   server.registerTool(
@@ -40,4 +42,6 @@ export function registerTools(server: McpServer): void {
       }
     },
   )
+
+  registerReadTools(server)
 }
