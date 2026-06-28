@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { resolveUserId } from './resolve-user'
 import { registerReadTools } from './read-tools'
 import { registerWriteTools } from './write-tools'
+import { registerPatchTools } from './patch-tools'
 import { registerResources } from './resources'
 
 /**
@@ -48,5 +49,6 @@ export function registerTools(server: McpServer): void {
 
   registerReadTools(server)
   registerWriteTools(server)
+  registerPatchTools(server)
   registerResources(server)
 }

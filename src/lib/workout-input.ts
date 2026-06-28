@@ -67,7 +67,7 @@ function parseName(raw: unknown): string | undefined {
  * string and returns a `Date`; absent/blank → omitted. Rejects an unparseable
  * value and a future date (a session can't have happened later than now).
  */
-function parseStartedAt(raw: unknown): Date | undefined {
+export function parseStartedAt(raw: unknown): Date | undefined {
   if (raw === undefined || raw === null) return undefined
   if (typeof raw === 'string' && raw.trim().length === 0) return undefined
   if (!(raw instanceof Date) && typeof raw !== 'string') {
