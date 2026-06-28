@@ -1,0 +1,3 @@
+# Agent tooling — PRP docs and git worktrees (full repo checkouts, hundreds of MB).
+# Never part of the app build; keep them out of the deploy upload.
+.claude
