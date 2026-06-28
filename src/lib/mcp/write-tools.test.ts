@@ -21,7 +21,9 @@ const mockedGetUnit = vi.mocked(getWeightUnit)
 const mockedSetUnit = vi.mocked(setWeightUnit)
 
 type ToolResult = { content: { type: string; text: string }[]; isError?: boolean }
-type ToolHandler = (args: Record<string, unknown>) => Promise<ToolResult>
+/** Auth context an MCP tool handler receives as its 2nd arg (the bits we read). */
+type Extra = { authInfo?: { extra?: { userId?: unknown } } }
+type ToolHandler = (args: Record<string, unknown>, extra?: Extra) => Promise<ToolResult>
 
 /**
  * Minimal stand-in for an McpServer that records registerTool(name, _config, handler)
@@ -106,6 +108,23 @@ describe('registerWriteTools', () => {
         }),
       )
       expect(payload(result)).toEqual({ userId: 'user_env', unit: 'lb', workoutId: '11111111-1111-4111-8111-111111111111' })
+    })
+
+    it('acts as the authenticated user, ignoring a conflicting userId arg (no impersonation)', async () => {
+      // Arrange — token user differs from the arg-supplied id and the env default
+      const tools = setup()
+      mockedSave.mockResolvedValue({ id: 'w1' })
+
+      // Act
+      const result = await tools.get('create_workout')!(
+        { ...BODY, userId: 'user_arg' },
+        { authInfo: { extra: { userId: 'user_token' } } },
+      )
+
+      // Assert — the token wins everywhere the resolved id surfaces
+      expect(mockedGetUnit).toHaveBeenCalledWith('user_token')
+      expect(mockedSave).toHaveBeenCalledWith('user_token', expect.anything())
+      expect(payload(result).userId).toBe('user_token')
     })
 
     it('uses an explicit unit:kg without converting and without reading the stored unit', async () => {

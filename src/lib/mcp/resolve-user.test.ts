@@ -1,6 +1,11 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { resolveUserId } from './resolve-user'
+import { resolveUserId, type AuthCtx } from './resolve-user'
 import { ToolError } from './errors'
+
+/** Builds a tool `extra` carrying an authenticated userId, as verifyToken stashes it. */
+function authed(userId: unknown): AuthCtx {
+  return { authInfo: { extra: { userId } } }
+}
 
 describe('resolveUserId', () => {
   const original = process.env.MCP_DEV_USER_ID
@@ -12,15 +17,38 @@ describe('resolveUserId', () => {
     else process.env.MCP_DEV_USER_ID = original
   })
 
-  it('prefers the explicit userId argument over the env default', () => {
+  it('prefers the authenticated id over both the arg and the env (no impersonation)', () => {
+    // Arrange — a token user, plus a conflicting arg and env
+    process.env.MCP_DEV_USER_ID = 'user_env'
+
+    // Act + Assert — the token always wins
+    expect(resolveUserId(authed('user_token'), 'user_arg')).toBe('user_token')
+  })
+
+  it('trims the authenticated id', () => {
+    // Act + Assert
+    expect(resolveUserId(authed('  user_token  '))).toBe('user_token')
+  })
+
+  it('ignores a whitespace-only authenticated id and falls back to the arg', () => {
+    // Act + Assert
+    expect(resolveUserId(authed('   '), 'user_arg')).toBe('user_arg')
+  })
+
+  it('ignores a non-string authenticated id and falls back to the arg', () => {
+    // Act + Assert
+    expect(resolveUserId(authed(123), 'user_arg')).toBe('user_arg')
+  })
+
+  it('prefers the explicit userId argument over the env default when unauthenticated', () => {
     // Arrange
     process.env.MCP_DEV_USER_ID = 'user_env'
 
     // Act + Assert
-    expect(resolveUserId('user_arg')).toBe('user_arg')
+    expect(resolveUserId(undefined, 'user_arg')).toBe('user_arg')
   })
 
-  it('falls back to MCP_DEV_USER_ID when no argument is given', () => {
+  it('falls back to MCP_DEV_USER_ID when neither auth nor arg is given', () => {
     // Arrange
     process.env.MCP_DEV_USER_ID = 'user_env'
 
@@ -28,14 +56,10 @@ describe('resolveUserId', () => {
     expect(resolveUserId()).toBe('user_env')
   })
 
-  it('throws a clear error when neither argument nor env is set', () => {
-    // Act + Assert
-    expect(() => resolveUserId()).toThrow(/userId/)
-  })
-
-  it('throws a user-facing ToolError (so the message survives genericization)', () => {
+  it('throws a clear ToolError when nothing resolves a user', () => {
     // Act + Assert
     expect(() => resolveUserId()).toThrow(ToolError)
+    expect(() => resolveUserId()).toThrow(/userId/)
   })
 
   it('treats a whitespace-only argument as absent and falls back to env', () => {
@@ -43,6 +67,6 @@ describe('resolveUserId', () => {
     process.env.MCP_DEV_USER_ID = 'user_env'
 
     // Act + Assert
-    expect(resolveUserId('   ')).toBe('user_env')
+    expect(resolveUserId(undefined, '   ')).toBe('user_env')
   })
 })

@@ -115,9 +115,9 @@ export function registerWriteTools(server: McpServer): void {
         userId: z.string().optional(),
       },
     },
-    async ({ name, exercises, unit, startedAt, userId }) => {
+    async ({ name, exercises, unit, startedAt, userId }, extra) => {
       try {
-        const resolved = resolveUserId(userId)
+        const resolved = resolveUserId(extra, userId)
         const basis = unit ?? (await getWeightUnit(resolved))
         const parsed = validate({ name, exercises, startedAt }, basis)
         const { id } = await saveWorkout(resolved, parsed)
@@ -143,9 +143,9 @@ export function registerWriteTools(server: McpServer): void {
         userId: z.string().optional(),
       },
     },
-    async ({ id, name, exercises, unit, startedAt, userId }) => {
+    async ({ id, name, exercises, unit, startedAt, userId }, extra) => {
       try {
-        const resolved = resolveUserId(userId)
+        const resolved = resolveUserId(extra, userId)
         assertWorkoutIdShape(id)
         const basis = unit ?? (await getWeightUnit(resolved))
         const parsed = validate({ name, exercises, startedAt }, basis)
@@ -168,9 +168,9 @@ export function registerWriteTools(server: McpServer): void {
         'Deletes a workout (owned by the user) and its sets. Errors if the workout is not found or not owned.',
       inputSchema: { id: z.string(), userId: z.string().optional() },
     },
-    async ({ id, userId }) => {
+    async ({ id, userId }, extra) => {
       try {
-        const resolved = resolveUserId(userId)
+        const resolved = resolveUserId(extra, userId)
         assertWorkoutIdShape(id)
         const [deleted] = await deleteWorkout(resolved, id)
         if (!deleted) {
@@ -191,9 +191,9 @@ export function registerWriteTools(server: McpServer): void {
         "Sets the user's stored weight unit ('kg' or 'lb'), the basis for weights the other tools read and write.",
       inputSchema: { unit: z.enum(['kg', 'lb']), userId: z.string().optional() },
     },
-    async ({ unit, userId }) => {
+    async ({ unit, userId }, extra) => {
       try {
-        const resolved = resolveUserId(userId)
+        const resolved = resolveUserId(extra, userId)
         await setWeightUnit(resolved, unit)
         return jsonResult({ userId: resolved, unit })
       } catch (error: unknown) {

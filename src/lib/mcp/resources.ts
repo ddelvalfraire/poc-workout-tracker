@@ -31,12 +31,15 @@ export function registerResources(server: McpServer): void {
         "A single workout (env-default user) with its exercises, sets in the user's unit, and a per-exercise estimated 1RM. Same shape as the get_workout tool.",
       mimeType: 'application/json',
     },
-    async (uri, variables) => {
+    async (uri, variables, extra) => {
       // URI template variables arrive as string | string[]; `{id}` is single.
       const id = Array.isArray(variables.id) ? variables.id[0] : variables.id
       try {
         if (!id) throw new ToolError('workout id is required')
-        const resolved = resolveUserId() // no arg → MCP_DEV_USER_ID
+        // A resource URI carries no userId arg, so the authenticated user (from
+        // the token, via extra) decides whose workout this is; dev falls back to
+        // MCP_DEV_USER_ID inside resolveUserId.
+        const resolved = resolveUserId(extra)
         assertWorkoutIdShape(id)
         const workout = await getWorkoutDetail(resolved, id)
         if (!workout) {

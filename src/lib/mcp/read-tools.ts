@@ -35,9 +35,9 @@ export function registerReadTools(server: McpServer): void {
         "Lists the user's workouts (most recent first) with exercise and set counts. Use to review recent training before drilling into one.",
       inputSchema: { userId: z.string().optional() },
     },
-    async ({ userId }) => {
+    async ({ userId }, extra) => {
       try {
-        const resolved = resolveUserId(userId)
+        const resolved = resolveUserId(extra, userId)
         const rows = await listWorkoutSummaries(resolved)
         return jsonResult({
           userId: resolved,
@@ -57,9 +57,9 @@ export function registerReadTools(server: McpServer): void {
         "Returns one workout (owned by the user) with its exercises and sets, weights in the user's unit, plus a per-exercise estimated 1RM.",
       inputSchema: { id: z.string(), userId: z.string().optional() },
     },
-    async ({ id, userId }) => {
+    async ({ id, userId }, extra) => {
       try {
-        const resolved = resolveUserId(userId)
+        const resolved = resolveUserId(extra, userId)
         assertWorkoutIdShape(id)
         // Resolve the workout first; only fetch the unit once we know it exists,
         // so the not-found path does no wasted query.
@@ -109,9 +109,9 @@ export function registerReadTools(server: McpServer): void {
         excludeWorkoutId: z.string().optional(),
       },
     },
-    async ({ wgerExerciseId, userId, excludeWorkoutId }) => {
+    async ({ wgerExerciseId, userId, excludeWorkoutId }, extra) => {
       try {
-        const resolved = resolveUserId(userId)
+        const resolved = resolveUserId(extra, userId)
         const [last, unit] = await Promise.all([
           getLastPerformance(resolved, wgerExerciseId, excludeWorkoutId),
           getWeightUnit(resolved),
@@ -145,9 +145,9 @@ export function registerReadTools(server: McpServer): void {
         "Returns the user's stored weight unit ('kg' or 'lb'). The basis for every weight the other tools return.",
       inputSchema: { userId: z.string().optional() },
     },
-    async ({ userId }) => {
+    async ({ userId }, extra) => {
       try {
-        const resolved = resolveUserId(userId)
+        const resolved = resolveUserId(extra, userId)
         const unit = await getWeightUnit(resolved)
         return jsonResult({ userId: resolved, unit })
       } catch (error: unknown) {
