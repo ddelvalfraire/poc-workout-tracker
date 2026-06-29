@@ -156,6 +156,8 @@ describe('detailToDraft', () => {
       startedAt: new Date(),
       completedAt: null,
       createdAt: new Date(),
+      programDayId: null,
+      programWeek: null,
       exercises: [
         {
           id: 'ex1',
@@ -164,8 +166,8 @@ describe('detailToDraft', () => {
           name: 'Squat',
           position: 0,
           sets: [
-            { id: 's1', workoutExerciseId: 'ex1', setNumber: 1, reps: 5, weight: 2.5, completed: false },
-            { id: 's2', workoutExerciseId: 'ex1', setNumber: 2, reps: null, weight: null, completed: false },
+            { id: 's1', workoutExerciseId: 'ex1', setNumber: 1, reps: 5, weight: 2.5, completed: false, metricMode: 'reps_weight', durationSec: null, distanceM: null },
+            { id: 's2', workoutExerciseId: 'ex1', setNumber: 2, reps: null, weight: null, completed: false, metricMode: 'reps_weight', durationSec: null, distanceM: null },
           ],
         },
       ],
@@ -192,6 +194,8 @@ describe('detailToDraft', () => {
       startedAt: new Date(),
       completedAt: null,
       createdAt: new Date(),
+      programDayId: null,
+      programWeek: null,
       exercises: [
         {
           id: 'ex1',
@@ -200,7 +204,7 @@ describe('detailToDraft', () => {
           name: 'Squat',
           position: 0,
           sets: [
-            { id: 's1', workoutExerciseId: 'ex1', setNumber: 1, reps: 5, weight: 100, completed: false },
+            { id: 's1', workoutExerciseId: 'ex1', setNumber: 1, reps: 5, weight: 100, completed: false, metricMode: 'reps_weight', durationSec: null, distanceM: null },
           ],
         },
       ],
@@ -222,6 +226,8 @@ describe('detailToDraft', () => {
       startedAt: new Date(),
       completedAt: null,
       createdAt: new Date(),
+      programDayId: null,
+      programWeek: null,
       exercises: [],
     }
 
