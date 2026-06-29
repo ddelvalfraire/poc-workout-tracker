@@ -35,12 +35,22 @@ const base = createMcpHandler(
 
 /**
  * Exchanges an OAuth bearer token for a Clerk user. `auth({ acceptsToken:
- * 'oauth_token' })` validates the token as an MCP OAuth access token;
- * `verifyClerkToken` shapes it into the SDK `AuthInfo` with the user id in
- * `extra.userId`. No token → undefined, which `withMcpAuth` turns into a spec 401.
+ * 'oauth_token' })` validates the token as an MCP OAuth access token from the
+ * request's Authorization header; `verifyClerkToken` cross-checks that against
+ * the same raw `token` and shapes it into the SDK `AuthInfo` with the user id in
+ * `extra.userId`. No token → undefined, which `withMcpAuth` turns into a spec 401
+ * (in prod). An expired/forged token also yields undefined.
  */
-const verifyToken = async (_req: Request, token?: string) =>
-  token ? verifyClerkToken(await auth({ acceptsToken: 'oauth_token' }), token) : undefined
+const verifyToken = async (_req: Request, token?: string) => {
+  if (!token) return undefined
+  const authInfo = verifyClerkToken(await auth({ acceptsToken: 'oauth_token' }), token)
+  // In dev (required:false) a failed verification falls through to MCP_DEV_USER_ID;
+  // surface it so a real token problem isn't silently masked by the dev fallback.
+  if (!authInfo && process.env.NODE_ENV !== 'production') {
+    console.warn('[mcp] bearer token present but Clerk verification failed; using dev fallback')
+  }
+  return authInfo
+}
 
 const handler = withMcpAuth(base, verifyToken, {
   // Require auth in prod; keep dev usable via MCP_DEV_USER_ID.

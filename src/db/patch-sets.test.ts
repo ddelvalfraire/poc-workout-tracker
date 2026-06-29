@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { getTableName, type Table } from 'drizzle-orm'
 
 /**
  * Chain-recording mock for the set-level ops, extending the update-workout idiom.
@@ -26,16 +27,19 @@ function selectChain() {
   return obj
 }
 
-function updateChain(target: 'set' | 'workout') {
+// Derive the real table name from the arg so a test asserts WHICH table an
+// update targeted (e.g. the renumber must hit `sets`, not `workouts`).
+function updateChain(table: unknown) {
+  const name = getTableName(table as Table)
   const obj = {
     set: (values: unknown) => {
-      records.push({ op: `update:${target}`, values })
+      records.push({ op: `update:${name}`, values })
       return obj
     },
     where: () => obj,
     returning: () => ({
       then: (resolve: Resolve) =>
-        Promise.resolve(target === 'workout' ? ownedWorkoutRows : updatedSetRows).then(resolve),
+        Promise.resolve(name === 'workouts' ? ownedWorkoutRows : updatedSetRows).then(resolve),
     }),
     // The renumber path awaits .where() directly (no .returning()).
     then: (resolve: Resolve) => Promise.resolve(undefined).then(resolve),
@@ -64,7 +68,7 @@ function insertChain() {
 function makeTx() {
   return {
     select: () => selectChain(),
-    update: () => updateChain('set'),
+    update: (table: unknown) => updateChain(table),
     delete: () => deleteChain(),
     insert: () => insertChain(),
   }
@@ -73,7 +77,7 @@ function makeTx() {
 vi.mock('./index', () => ({
   db: {
     transaction: (cb: (tx: ReturnType<typeof makeTx>) => unknown) => cb(makeTx()),
-    update: () => updateChain('workout'),
+    update: (table: unknown) => updateChain(table),
   },
 }))
 
@@ -99,7 +103,7 @@ describe('updateSet (user-scoped)', () => {
     const result = await updateSet(USER, WID, 0, 3, { reps: 5, weight: 100 })
 
     // Assert
-    expect(records).toEqual([{ op: 'update:set', values: { reps: 5, weight: 100 } }])
+    expect(records).toEqual([{ op: 'update:sets', values: { reps: 5, weight: 100 } }])
     expect(result).toEqual({ id: 's9' })
   })
 
@@ -173,8 +177,8 @@ describe('removeSet (user-scoped)', () => {
     // Act
     const result = await removeSet(USER, WID, 0, 2)
 
-    // Assert — delete first, then a renumber update
-    expect(records.map((r) => r.op)).toEqual(['delete', 'update:set'])
+    // Assert — delete first, then a renumber update against the sets table
+    expect(records.map((r) => r.op)).toEqual(['delete', 'update:sets'])
     expect(result).toEqual({ removed: true })
   })
 
@@ -214,7 +218,7 @@ describe('updateWorkoutMeta (user-scoped)', () => {
     const result = await updateWorkoutMeta(USER, WID, { name: 'Leg Day', startedAt: when })
 
     // Assert
-    expect(records).toEqual([{ op: 'update:workout', values: { name: 'Leg Day', startedAt: when } }])
+    expect(records).toEqual([{ op: 'update:workouts', values: { name: 'Leg Day', startedAt: when } }])
     expect(result).toEqual({ id: WID })
   })
 
