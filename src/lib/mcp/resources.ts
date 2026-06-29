@@ -2,8 +2,11 @@ import { McpServer, ResourceTemplate } from '@modelcontextprotocol/sdk/server/mc
 import { resolveUserId } from './resolve-user'
 import { ToolError } from './errors'
 import { assertWorkoutIdShape } from './workout-id'
+import { assertProgramIdShape } from './program-id'
 import { buildWorkoutPayload } from './read-tools'
+import { buildProgramPayload } from './program-tools'
 import { getWorkoutDetail } from '@/db/workouts'
+import { getProgramDetail } from '@/db/programs'
 import { getWeightUnit } from '@/db/preferences'
 
 /**
@@ -47,6 +50,39 @@ export function registerResources(server: McpServer): void {
         }
         const unit = await getWeightUnit(resolved)
         const payload = buildWorkoutPayload(workout, resolved, unit)
+        return {
+          contents: [{ uri: uri.href, mimeType: 'application/json', text: JSON.stringify(payload) }],
+        }
+      } catch (error: unknown) {
+        if (error instanceof ToolError) throw error // actionable message, safe to surface
+        console.error('MCP resource error:', error)
+        throw new Error('MCP resource read failed') // genericize internals
+      }
+    },
+  )
+
+  server.registerResource(
+    'program',
+    new ResourceTemplate('program://{id}', { list: undefined }),
+    {
+      title: 'Program',
+      description:
+        "A single training program (env-default user) with its days, exercises, and sets — suggested loads in the user's unit, technique/progression JSONB in kg. Same shape as the get_program tool.",
+      mimeType: 'application/json',
+    },
+    async (uri, variables, extra) => {
+      // URI template variables arrive as string | string[]; `{id}` is single.
+      const id = Array.isArray(variables.id) ? variables.id[0] : variables.id
+      try {
+        if (!id) throw new ToolError('program id is required')
+        const resolved = resolveUserId(extra)
+        assertProgramIdShape(id)
+        const program = await getProgramDetail(resolved, id)
+        if (!program) {
+          throw new ToolError(`Program ${id} not found for user ${resolved}`)
+        }
+        const unit = await getWeightUnit(resolved)
+        const payload = buildProgramPayload(program, resolved, unit)
         return {
           contents: [{ uri: uri.href, mimeType: 'application/json', text: JSON.stringify(payload) }],
         }
