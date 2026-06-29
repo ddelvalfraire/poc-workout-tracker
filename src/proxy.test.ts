@@ -66,7 +66,13 @@ describe('proxy middleware', () => {
     expect(result).toBeUndefined()
   })
 
-  it.each(['/sign-in', '/sign-up', '/api/mcp'])(
+  it.each([
+    '/sign-in',
+    '/sign-up',
+    '/api/mcp',
+    '/.well-known/oauth-protected-resource/mcp',
+    '/.well-known/oauth-authorization-server',
+  ])(
     'leaves the public route %s alone even when signed out',
     async (path) => {
       // Arrange

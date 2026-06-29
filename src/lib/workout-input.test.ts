@@ -129,4 +129,54 @@ describe('parseWorkoutInput', () => {
       parseWorkoutInput({ exercises: [{ wgerExerciseId: 1, name: 'Squat', sets: ['bad'] }] }),
     ).toThrow(/set/i)
   })
+
+  describe('startedAt', () => {
+    it('omits startedAt when absent', () => {
+      // Act
+      const result = parseWorkoutInput(VALID)
+
+      // Assert
+      expect(result).not.toHaveProperty('startedAt')
+    })
+
+    it('keeps a past ISO date string as a Date', () => {
+      // Act
+      const result = parseWorkoutInput({ ...VALID, startedAt: '2026-01-02T00:00:00.000Z' })
+
+      // Assert
+      expect(result.startedAt).toBeInstanceOf(Date)
+      expect(result.startedAt?.toISOString()).toBe('2026-01-02T00:00:00.000Z')
+    })
+
+    it('accepts a Date instance', () => {
+      // Arrange
+      const when = new Date('2025-12-25T12:00:00.000Z')
+
+      // Act
+      const result = parseWorkoutInput({ ...VALID, startedAt: when })
+
+      // Assert
+      expect(result.startedAt?.getTime()).toBe(when.getTime())
+    })
+
+    it('throws for a future date', () => {
+      // Arrange — one day ahead of now
+      const future = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+
+      // Act + Assert
+      expect(() => parseWorkoutInput({ ...VALID, startedAt: future })).toThrow(/future/i)
+    })
+
+    it('throws for an unparseable date string', () => {
+      expect(() => parseWorkoutInput({ ...VALID, startedAt: 'not-a-date' })).toThrow(/date/i)
+    })
+
+    it('omits a blank startedAt string', () => {
+      // Act
+      const result = parseWorkoutInput({ ...VALID, startedAt: '   ' })
+
+      // Assert
+      expect(result).not.toHaveProperty('startedAt')
+    })
+  })
 })

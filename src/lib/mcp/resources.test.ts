@@ -42,7 +42,7 @@ function setup(): Map<string, Registered> {
 /** A one-exercise workout: one scorable set (5 reps @ 100 kg) and one blank set. */
 function detail() {
   return {
-    id: 'w1',
+    id: '11111111-1111-4111-8111-111111111111',
     name: 'Leg Day',
     startedAt: new Date('2026-06-02T08:00:00.000Z'),
     userId: 'user_env',
@@ -62,7 +62,7 @@ function detail() {
 }
 
 /** Invokes the `workout` resource's read callback for a given id. */
-function readWorkout(resources: Map<string, Registered>, id = 'w1') {
+function readWorkout(resources: Map<string, Registered>, id = '11111111-1111-4111-8111-111111111111') {
   const { read } = resources.get('workout')!
   return read(new URL(`workout://${id}`), { id })
 }
@@ -99,9 +99,9 @@ describe('registerResources', () => {
     const result = await readWorkout(resources)
 
     // Assert
-    expect(mockedDetail).toHaveBeenCalledWith('user_env', 'w1')
+    expect(mockedDetail).toHaveBeenCalledWith('user_env', '11111111-1111-4111-8111-111111111111')
     const content = result.contents[0]!
-    expect(content.uri).toContain('w1')
+    expect(content.uri).toContain('11111111-1111-4111-8111-111111111111')
     expect(content.mimeType).toBe('application/json')
     const body = JSON.parse(content.text) as {
       userId: string
@@ -121,7 +121,7 @@ describe('registerResources', () => {
     mockedDetail.mockResolvedValue(undefined)
 
     // Act + Assert
-    await expect(readWorkout(resources, 'missing')).rejects.toThrow(/not found/)
+    await expect(readWorkout(resources, '22222222-2222-4222-8222-222222222222')).rejects.toThrow(/not found/)
   })
 
   it('rejects with /required/ and never queries when the URI carries no id', async () => {

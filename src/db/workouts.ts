@@ -1,4 +1,4 @@
-import { and, asc, count, countDistinct, desc, eq, inArray, lt, ne } from 'drizzle-orm'
+import { and, asc, count, countDistinct, desc, eq, gt, inArray, lt, max, ne, sql } from 'drizzle-orm'
 import type { WorkoutInput } from '@/lib/workout-input'
 import { db } from './index'
 import { workouts, workoutExercises, sets } from './schema'
@@ -188,7 +188,8 @@ export async function saveWorkout(userId: string, input: WorkoutInput): Promise<
   return db.transaction(async (tx) => {
     const [workout] = await tx
       .insert(workouts)
-      .values({ userId, name: input.name })
+      // Omit startedAt when absent so the column default (now()) applies.
+      .values({ userId, name: input.name, ...(input.startedAt !== undefined ? { startedAt: input.startedAt } : {}) })
       .returning({ id: workouts.id })
 
     await insertWorkoutChildren(tx, workout.id, input.exercises)
@@ -219,7 +220,8 @@ export async function updateWorkout(
   return db.transaction(async (tx) => {
     const [owned] = await tx
       .update(workouts)
-      .set({ name: input.name ?? null })
+      // Omit startedAt when absent so the existing value is preserved.
+      .set({ name: input.name ?? null, ...(input.startedAt !== undefined ? { startedAt: input.startedAt } : {}) })
       .where(and(eq(workouts.id, id), eq(workouts.userId, userId)))
       .returning({ id: workouts.id })
     if (!owned) return null
@@ -228,4 +230,151 @@ export async function updateWorkout(
     await insertWorkoutChildren(tx, id, input.exercises)
     return { id }
   })
+}
+
+/**
+ * Resolves a workout-exercise id only when the workout is owned by the user. The
+ * join to `workouts.userId` is the ownership gate for every set-level edit below:
+ * a caller can address a set only through an exercise that belongs to a workout
+ * they own. Returns null when the workout isn't owned or no exercise sits at that
+ * 0-based position.
+ */
+async function findOwnedExerciseId(
+  tx: Tx,
+  userId: string,
+  workoutId: string,
+  position: number,
+): Promise<string | null> {
+  const [we] = await tx
+    .select({ id: workoutExercises.id })
+    .from(workoutExercises)
+    .innerJoin(workouts, eq(workouts.id, workoutExercises.workoutId))
+    .where(
+      and(
+        eq(workoutExercises.workoutId, workoutId),
+        eq(workoutExercises.position, position),
+        eq(workouts.userId, userId),
+      ),
+    )
+    .limit(1)
+  return we?.id ?? null
+}
+
+/** A single-set edit. An omitted key is left unchanged; an explicit `null` clears it. */
+export interface SetPatch {
+  reps?: number | null
+  weight?: number | null // kg
+}
+
+/**
+ * Updates one set (reps and/or weight) of an owned workout's exercise, addressed
+ * by 0-based exercise `position` and 1-based `setNumber`. Returns null when the
+ * patch is empty, the workout isn't owned, the position is absent, or no such set
+ * exists — the tool layer turns that into a not-found.
+ */
+export async function updateSet(
+  userId: string,
+  workoutId: string,
+  exercisePosition: number,
+  setNumber: number,
+  patch: SetPatch,
+): Promise<{ id: string } | null> {
+  const values = {
+    ...(patch.reps !== undefined ? { reps: patch.reps } : {}),
+    ...(patch.weight !== undefined ? { weight: patch.weight } : {}),
+  }
+  if (Object.keys(values).length === 0) return null
+  return db.transaction(async (tx) => {
+    const exerciseId = await findOwnedExerciseId(tx, userId, workoutId, exercisePosition)
+    if (!exerciseId) return null
+    const [updated] = await tx
+      .update(sets)
+      .set(values)
+      .where(and(eq(sets.workoutExerciseId, exerciseId), eq(sets.setNumber, setNumber)))
+      .returning({ id: sets.id })
+    return updated ?? null
+  })
+}
+
+/**
+ * Appends a set to an owned exercise, numbered one past the current last set.
+ * Returns the new 1-based `setNumber`, or null when the workout isn't owned or
+ * the exercise position is absent.
+ */
+export async function addSet(
+  userId: string,
+  workoutId: string,
+  exercisePosition: number,
+  patch: SetPatch,
+): Promise<{ setNumber: number } | null> {
+  return db.transaction(async (tx) => {
+    const exerciseId = await findOwnedExerciseId(tx, userId, workoutId, exercisePosition)
+    if (!exerciseId) return null
+    const [{ value: lastNumber }] = await tx
+      .select({ value: max(sets.setNumber) })
+      .from(sets)
+      .where(eq(sets.workoutExerciseId, exerciseId))
+    const setNumber = (lastNumber ?? 0) + 1
+    await tx
+      .insert(sets)
+      .values({ workoutExerciseId: exerciseId, setNumber, reps: patch.reps ?? null, weight: patch.weight ?? null })
+    return { setNumber }
+  })
+}
+
+/**
+ * Removes one set from an owned exercise and renumbers the higher sets down by
+ * one, keeping `setNumber` 1-based and contiguous. Returns null when not owned,
+ * the position is absent, or no such set exists.
+ */
+export async function removeSet(
+  userId: string,
+  workoutId: string,
+  exercisePosition: number,
+  setNumber: number,
+): Promise<{ removed: true } | null> {
+  return db.transaction(async (tx) => {
+    const exerciseId = await findOwnedExerciseId(tx, userId, workoutId, exercisePosition)
+    if (!exerciseId) return null
+    const [deleted] = await tx
+      .delete(sets)
+      .where(and(eq(sets.workoutExerciseId, exerciseId), eq(sets.setNumber, setNumber)))
+      .returning({ id: sets.id })
+    if (!deleted) return null
+    // Close the gap the removal left so set order stays 1-based contiguous.
+    await tx
+      .update(sets)
+      .set({ setNumber: sql`${sets.setNumber} - 1` })
+      .where(and(eq(sets.workoutExerciseId, exerciseId), gt(sets.setNumber, setNumber)))
+    return { removed: true }
+  })
+}
+
+/** The metadata `updateWorkoutMeta` can change without touching exercises/sets. */
+export interface WorkoutMeta {
+  name?: string | null
+  startedAt?: Date
+}
+
+/**
+ * Updates only a workout's name and/or startedAt — no child changes — gated on
+ * ownership via the `update ... returning`. Returns null when the patch is empty
+ * or the user doesn't own the workout.
+ */
+export async function updateWorkoutMeta(
+  userId: string,
+  id: string,
+  meta: WorkoutMeta,
+): Promise<{ id: string } | null> {
+  const values = {
+    ...(meta.name !== undefined ? { name: meta.name } : {}),
+    ...(meta.startedAt !== undefined ? { startedAt: meta.startedAt } : {}),
+  }
+  if (Object.keys(values).length === 0) return null
+  const [owned] = await db
+    .update(workouts)
+    .set(values)
+    .where(and(eq(workouts.id, id), eq(workouts.userId, userId)))
+    .returning({ id: workouts.id })
+  return owned ?? null
 }

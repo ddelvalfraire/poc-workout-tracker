@@ -21,7 +21,9 @@ const mockedGetUnit = vi.mocked(getWeightUnit)
 const mockedSetUnit = vi.mocked(setWeightUnit)
 
 type ToolResult = { content: { type: string; text: string }[]; isError?: boolean }
-type ToolHandler = (args: Record<string, unknown>) => Promise<ToolResult>
+/** Auth context an MCP tool handler receives as its 2nd arg (the bits we read). */
+type Extra = { authInfo?: { extra?: { userId?: unknown } } }
+type ToolHandler = (args: Record<string, unknown>, extra?: Extra) => Promise<ToolResult>
 
 /**
  * Minimal stand-in for an McpServer that records registerTool(name, _config, handler)
@@ -85,7 +87,7 @@ describe('registerWriteTools', () => {
     it('converts display weights to kg with the stored unit and echoes userId/unit/workoutId', async () => {
       // Arrange
       const tools = setup()
-      mockedSave.mockResolvedValue({ id: 'w1' })
+      mockedSave.mockResolvedValue({ id: '11111111-1111-4111-8111-111111111111' })
 
       // Act
       const result = await tools.get('create_workout')!(BODY)
@@ -105,13 +107,30 @@ describe('registerWriteTools', () => {
           ],
         }),
       )
-      expect(payload(result)).toEqual({ userId: 'user_env', unit: 'lb', workoutId: 'w1' })
+      expect(payload(result)).toEqual({ userId: 'user_env', unit: 'lb', workoutId: '11111111-1111-4111-8111-111111111111' })
+    })
+
+    it('acts as the authenticated user, ignoring a conflicting userId arg (no impersonation)', async () => {
+      // Arrange — token user differs from the arg-supplied id and the env default
+      const tools = setup()
+      mockedSave.mockResolvedValue({ id: 'w1' })
+
+      // Act
+      const result = await tools.get('create_workout')!(
+        { ...BODY, userId: 'user_arg' },
+        { authInfo: { extra: { userId: 'user_token' } } },
+      )
+
+      // Assert — the token wins everywhere the resolved id surfaces
+      expect(mockedGetUnit).toHaveBeenCalledWith('user_token')
+      expect(mockedSave).toHaveBeenCalledWith('user_token', expect.anything())
+      expect(payload(result).userId).toBe('user_token')
     })
 
     it('uses an explicit unit:kg without converting and without reading the stored unit', async () => {
       // Arrange
       const tools = setup()
-      mockedSave.mockResolvedValue({ id: 'w1' })
+      mockedSave.mockResolvedValue({ id: '11111111-1111-4111-8111-111111111111' })
 
       // Act
       const result = await tools.get('create_workout')!({ ...BODY, unit: 'kg' })
@@ -131,7 +150,7 @@ describe('registerWriteTools', () => {
           ],
         }),
       )
-      expect(payload(result)).toEqual({ userId: 'user_env', unit: 'kg', workoutId: 'w1' })
+      expect(payload(result)).toEqual({ userId: 'user_env', unit: 'kg', workoutId: '11111111-1111-4111-8111-111111111111' })
     })
 
     it('rejects an over-max weight with the bound stated in the agent unit (lb) and never saves', async () => {
@@ -167,6 +186,36 @@ describe('registerWriteTools', () => {
       // Assert
       expect(result.isError).toBe(true)
       expect(result.content[0]?.text).toContain(`${MAX_WEIGHT_KG} kg`)
+      expect(mockedSave).not.toHaveBeenCalled()
+    })
+
+    it('persists a backdated startedAt as a Date passed to saveWorkout', async () => {
+      // Arrange
+      const tools = setup()
+      mockedSave.mockResolvedValue({ id: 'w1' })
+      const when = '2026-01-02T00:00:00.000Z'
+
+      // Act
+      await tools.get('create_workout')!({ ...BODY, startedAt: when })
+
+      // Assert
+      expect(mockedSave).toHaveBeenCalledWith(
+        'user_env',
+        expect.objectContaining({ startedAt: new Date(when) }),
+      )
+    })
+
+    it('rejects a future startedAt with /future/ and never saves', async () => {
+      // Arrange
+      const tools = setup()
+      const future = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+
+      // Act
+      const result = await tools.get('create_workout')!({ ...BODY, startedAt: future })
+
+      // Assert
+      expect(result.isError).toBe(true)
+      expect(result.content[0]?.text).toMatch(/future/i)
       expect(mockedSave).not.toHaveBeenCalled()
     })
 
@@ -218,15 +267,15 @@ describe('registerWriteTools', () => {
     it('converts and replaces the workout, echoing the affected workoutId', async () => {
       // Arrange
       const tools = setup()
-      mockedUpdate.mockResolvedValue({ id: 'w1' })
+      mockedUpdate.mockResolvedValue({ id: '11111111-1111-4111-8111-111111111111' })
 
       // Act
-      const result = await tools.get('update_workout')!({ id: 'w1', ...BODY })
+      const result = await tools.get('update_workout')!({ id: '11111111-1111-4111-8111-111111111111', ...BODY })
 
       // Assert
       expect(mockedUpdate).toHaveBeenCalledWith(
         'user_env',
-        'w1',
+        '11111111-1111-4111-8111-111111111111',
         expect.objectContaining({
           exercises: [
             expect.objectContaining({
@@ -238,7 +287,7 @@ describe('registerWriteTools', () => {
           ],
         }),
       )
-      expect(payload(result)).toEqual({ userId: 'user_env', unit: 'lb', workoutId: 'w1' })
+      expect(payload(result)).toEqual({ userId: 'user_env', unit: 'lb', workoutId: '11111111-1111-4111-8111-111111111111' })
     })
 
     it('returns isError matching /not found/ when the workout is not owned', async () => {
@@ -247,11 +296,24 @@ describe('registerWriteTools', () => {
       mockedUpdate.mockResolvedValue(null)
 
       // Act
-      const result = await tools.get('update_workout')!({ id: 'w1', ...BODY })
+      const result = await tools.get('update_workout')!({ id: '11111111-1111-4111-8111-111111111111', ...BODY })
 
       // Assert
       expect(result.isError).toBe(true)
       expect(result.content[0]?.text).toMatch(/not found/)
+    })
+
+    it('surfaces not-found for a malformed (non-UUID) id without hitting the db', async () => {
+      // Arrange
+      const tools = setup()
+
+      // Act
+      const result = await tools.get('update_workout')!({ id: 'not-a-uuid', ...BODY })
+
+      // Assert — the uuid-shape guard short-circuits before updateWorkout
+      expect(result.isError).toBe(true)
+      expect(result.content[0]?.text).toMatch(/not found/)
+      expect(mockedUpdate).not.toHaveBeenCalled()
     })
   })
 
@@ -259,14 +321,14 @@ describe('registerWriteTools', () => {
     it('deletes an owned workout and reports deleted:true', async () => {
       // Arrange
       const tools = setup()
-      mockedDelete.mockResolvedValue([{ id: 'w1' }])
+      mockedDelete.mockResolvedValue([{ id: '11111111-1111-4111-8111-111111111111' }])
 
       // Act
-      const result = await tools.get('delete_workout')!({ id: 'w1' })
+      const result = await tools.get('delete_workout')!({ id: '11111111-1111-4111-8111-111111111111' })
 
       // Assert
-      expect(mockedDelete).toHaveBeenCalledWith('user_env', 'w1')
-      expect(payload(result)).toEqual({ userId: 'user_env', workoutId: 'w1', deleted: true })
+      expect(mockedDelete).toHaveBeenCalledWith('user_env', '11111111-1111-4111-8111-111111111111')
+      expect(payload(result)).toEqual({ userId: 'user_env', workoutId: '11111111-1111-4111-8111-111111111111', deleted: true })
     })
 
     it('returns isError matching /not found/ when nothing was deleted', async () => {
@@ -275,11 +337,24 @@ describe('registerWriteTools', () => {
       mockedDelete.mockResolvedValue([])
 
       // Act
-      const result = await tools.get('delete_workout')!({ id: 'w1' })
+      const result = await tools.get('delete_workout')!({ id: '11111111-1111-4111-8111-111111111111' })
 
       // Assert
       expect(result.isError).toBe(true)
       expect(result.content[0]?.text).toMatch(/not found/)
+    })
+
+    it('surfaces not-found for a malformed (non-UUID) id without hitting the db', async () => {
+      // Arrange
+      const tools = setup()
+
+      // Act
+      const result = await tools.get('delete_workout')!({ id: 'not-a-uuid' })
+
+      // Assert — guard short-circuits before deleteWorkout
+      expect(result.isError).toBe(true)
+      expect(result.content[0]?.text).toMatch(/not found/)
+      expect(mockedDelete).not.toHaveBeenCalled()
     })
   })
 
@@ -302,8 +377,8 @@ describe('registerWriteTools', () => {
   // the no-user path for each so the authorization contract is explicit.
   describe('no-user gate (all write tools)', () => {
     const cases = [
-      { name: 'update_workout', args: { id: 'w1', ...BODY }, dep: mockedUpdate as unknown as Mock },
-      { name: 'delete_workout', args: { id: 'w1' }, dep: mockedDelete as unknown as Mock },
+      { name: 'update_workout', args: { id: '11111111-1111-4111-8111-111111111111', ...BODY }, dep: mockedUpdate as unknown as Mock },
+      { name: 'delete_workout', args: { id: '11111111-1111-4111-8111-111111111111' }, dep: mockedDelete as unknown as Mock },
       { name: 'set_weight_unit', args: { unit: 'kg' }, dep: mockedSetUnit as unknown as Mock },
     ] as const
 

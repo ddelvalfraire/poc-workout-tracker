@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { resolveUserId } from './resolve-user'
 import { registerReadTools } from './read-tools'
 import { registerWriteTools } from './write-tools'
+import { registerPatchTools } from './patch-tools'
 import { registerResources } from './resources'
 
 /**
@@ -32,12 +33,12 @@ export function registerTools(server: McpServer): void {
     {
       title: 'Who Am I',
       description:
-        'Returns the resolved target userId (the `userId` argument, else the MCP_DEV_USER_ID env default). Confirm this before any write.',
+        'Returns the resolved target userId — the authenticated OAuth user when signed in, else the `userId` argument or the MCP_DEV_USER_ID env default (dev). Confirm this before any write.',
       inputSchema: { userId: z.string().optional() },
     },
-    async ({ userId }) => {
+    async ({ userId }, extra) => {
       try {
-        const resolved = resolveUserId(userId)
+        const resolved = resolveUserId(extra, userId)
         return { content: [{ type: 'text', text: JSON.stringify({ userId: resolved }) }] }
       } catch (error: unknown) {
         const message = error instanceof Error ? error.message : 'Failed to resolve userId'
@@ -48,5 +49,6 @@ export function registerTools(server: McpServer): void {
 
   registerReadTools(server)
   registerWriteTools(server)
+  registerPatchTools(server)
   registerResources(server)
 }

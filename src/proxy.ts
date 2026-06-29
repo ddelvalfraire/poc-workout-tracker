@@ -1,6 +1,13 @@
 import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server'
 
-const isPublicRoute = createRouteMatcher(['/sign-in(.*)', '/sign-up(.*)', '/api/mcp(.*)'])
+// `/.well-known/*` carries the OAuth discovery metadata MCP clients fetch before
+// they have a token, so it must be reachable without sign-in alongside /api/mcp.
+const isPublicRoute = createRouteMatcher([
+  '/sign-in(.*)',
+  '/sign-up(.*)',
+  '/api/mcp(.*)',
+  '/.well-known/(.*)',
+])
 
 export default clerkMiddleware(async (auth, req) => {
   if (isPublicRoute(req)) return
