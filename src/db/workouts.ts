@@ -189,7 +189,7 @@ export async function saveWorkout(userId: string, input: WorkoutInput): Promise<
     const [workout] = await tx
       .insert(workouts)
       // Omit startedAt when absent so the column default (now()) applies.
-      .values({ userId, name: input.name, ...(input.startedAt ? { startedAt: input.startedAt } : {}) })
+      .values({ userId, name: input.name, ...(input.startedAt !== undefined ? { startedAt: input.startedAt } : {}) })
       .returning({ id: workouts.id })
 
     await insertWorkoutChildren(tx, workout.id, input.exercises)
@@ -221,7 +221,7 @@ export async function updateWorkout(
     const [owned] = await tx
       .update(workouts)
       // Omit startedAt when absent so the existing value is preserved.
-      .set({ name: input.name ?? null, ...(input.startedAt ? { startedAt: input.startedAt } : {}) })
+      .set({ name: input.name ?? null, ...(input.startedAt !== undefined ? { startedAt: input.startedAt } : {}) })
       .where(and(eq(workouts.id, id), eq(workouts.userId, userId)))
       .returning({ id: workouts.id })
     if (!owned) return null
@@ -368,7 +368,7 @@ export async function updateWorkoutMeta(
 ): Promise<{ id: string } | null> {
   const values = {
     ...(meta.name !== undefined ? { name: meta.name } : {}),
-    ...(meta.startedAt ? { startedAt: meta.startedAt } : {}),
+    ...(meta.startedAt !== undefined ? { startedAt: meta.startedAt } : {}),
   }
   if (Object.keys(values).length === 0) return null
   const [owned] = await db

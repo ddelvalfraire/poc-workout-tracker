@@ -70,11 +70,14 @@ export function registerPatchTools(server: McpServer): void {
         if (reps === undefined && weight === undefined) {
           throw new ToolError('update_set needs at least one of reps or weight')
         }
-        // Only resolve the unit when a weight needs converting.
-        const basis = weight === undefined ? undefined : (unit ?? (await getWeightUnit(resolved)))
-        const patch = {
-          ...(reps !== undefined ? { reps } : {}),
-          ...(weight !== undefined ? { weight: toKgWeight(weight, basis as WeightUnit) } : {}),
+        // Resolve the unit only when a weight needs converting — which also
+        // narrows `basis` to a real WeightUnit at the conversion site (no cast).
+        const patch: { reps?: number | null; weight?: number | null } = {}
+        if (reps !== undefined) patch.reps = reps
+        let basis: WeightUnit | undefined
+        if (weight !== undefined) {
+          basis = unit ?? (await getWeightUnit(resolved))
+          patch.weight = toKgWeight(weight, basis) ?? null
         }
         const result = await updateSet(resolved, workoutId, exercisePosition, setNumber, patch)
         if (!result) {
@@ -197,7 +200,7 @@ export function registerPatchTools(server: McpServer): void {
         }
         const meta = {
           ...(name !== undefined ? { name: name.trim() === '' ? null : name.trim() } : {}),
-          ...(parsedStartedAt ? { startedAt: parsedStartedAt } : {}),
+          ...(parsedStartedAt !== undefined ? { startedAt: parsedStartedAt } : {}),
         }
         const result = await updateWorkoutMeta(resolved, workoutId, meta)
         if (!result) {

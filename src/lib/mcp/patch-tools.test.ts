@@ -206,6 +206,20 @@ describe('registerPatchTools', () => {
       })
     })
 
+    it('omits the unit and does not read the stored unit for an explicit blank weight', async () => {
+      // Arrange
+      const tools = setup()
+      mockedAddSet.mockResolvedValue({ setNumber: 1 })
+
+      // Act
+      const result = await tools.get('add_set')!({ workoutId: WID, exercisePosition: 0, weight: null })
+
+      // Assert — null weight needs no conversion, so no unit lookup or echo
+      expect(mockedGetUnit).not.toHaveBeenCalled()
+      expect(mockedAddSet).toHaveBeenCalledWith('user_env', WID, 0, { reps: null, weight: null })
+      expect(payload(result)).not.toHaveProperty('unit')
+    })
+
     it('surfaces not-found when the exercise is not owned', async () => {
       // Arrange
       const tools = setup()
