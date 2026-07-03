@@ -6,7 +6,7 @@ import { assertProgramIdShape } from './program-id'
 import { buildWorkoutPayload } from './read-tools'
 import { buildProgramPayload } from './program-tools'
 import { getWorkoutDetail } from '@/db/workouts'
-import { getProgramDetail } from '@/db/programs'
+import { getProgramDetail, getProgramDayDetail } from '@/db/programs'
 import { getWeightUnit } from '@/db/preferences'
 
 /**
@@ -49,7 +49,11 @@ export function registerResources(server: McpServer): void {
           throw new ToolError(`Workout ${id} not found for user ${resolved}`)
         }
         const unit = await getWeightUnit(resolved)
-        const payload = buildWorkoutPayload(workout, resolved, unit)
+        // Overlay the program day prescription when this workout was instantiated.
+        const programDay = workout.programDayId
+          ? await getProgramDayDetail(resolved, workout.programDayId)
+          : null
+        const payload = buildWorkoutPayload(workout, resolved, unit, programDay ?? undefined)
         return {
           contents: [{ uri: uri.href, mimeType: 'application/json', text: JSON.stringify(payload) }],
         }

@@ -13,3 +13,8 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 export function assertProgramIdShape(id: string): void {
   if (!UUID_RE.test(id)) throw new ToolError(`Program ${id} not found`)
 }
+
+/** Guards a program *day* id — the same UUID-shape check with a day-scoped message. */
+export function assertProgramDayIdShape(id: string): void {
+  if (!UUID_RE.test(id)) throw new ToolError(`Program day ${id} not found`)
+}

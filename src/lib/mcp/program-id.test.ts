@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { assertProgramIdShape } from './program-id'
+import { assertProgramIdShape, assertProgramDayIdShape } from './program-id'
 import { ToolError } from './errors'
 
 describe('assertProgramIdShape', () => {
@@ -25,5 +25,16 @@ describe('assertProgramIdShape', () => {
     // Act + Assert
     expect(() => assertProgramIdShape(id)).toThrow(ToolError)
     expect(() => assertProgramIdShape(id)).toThrow(/not found/)
+  })
+})
+
+describe('assertProgramDayIdShape', () => {
+  it('does not throw for a well-formed UUID', () => {
+    expect(() => assertProgramDayIdShape('8c2f0cc9-1a2b-4c3d-8e4f-5a6b7c8d9e0f')).not.toThrow()
+  })
+
+  it('throws a ToolError with a day-scoped /not found/ message for a malformed id', () => {
+    expect(() => assertProgramDayIdShape('abc')).toThrow(ToolError)
+    expect(() => assertProgramDayIdShape('abc')).toThrow(/Program day .* not found/)
   })
 })

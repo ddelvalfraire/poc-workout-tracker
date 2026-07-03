@@ -54,6 +54,7 @@ describe('registerTools', () => {
       'get_program',
       'get_weight_unit',
       'get_workout',
+      'instantiate_program_day',
       'list_programs',
       'list_workouts',
       'ping',

@@ -10,10 +10,12 @@ import {
   getLastPerformance,
   type WorkoutDetail,
 } from '@/db/workouts'
+import { getProgramDayDetail, type ProgramDayDetail } from '@/db/programs'
 import { getWeightUnit } from '@/db/preferences'
 import { searchExercises } from '@/lib/wger'
 import { kgToDisplay, type WeightUnit } from '@/lib/units'
 import { bestSet } from '@/lib/one-rep-max'
+import { buildProgramDayView, type ProgramDayView } from './program-tools'
 
 /**
  * Registers the Phase 2 read tools — the agent's read-only window into a user's
@@ -68,7 +70,12 @@ export function registerReadTools(server: McpServer): void {
           return errorResult(new ToolError(`Workout ${id} not found for user ${resolved}`))
         }
         const unit = await getWeightUnit(resolved)
-        return jsonResult(buildWorkoutPayload(workout, resolved, unit))
+        // When the workout was instantiated from a program day, overlay that day's
+        // prescription (targets) — read from the program, never stored on the sets.
+        const programDay = workout.programDayId
+          ? await getProgramDayDetail(resolved, workout.programDayId)
+          : null
+        return jsonResult(buildWorkoutPayload(workout, resolved, unit, programDay ?? undefined))
       } catch (error: unknown) {
         return errorResult(error)
       }
@@ -169,6 +176,11 @@ export interface WorkoutPayload {
     id: string
     name: string | null
     startedAt: string
+    // Provenance: the program day this workout was instantiated from (null for
+    // ad-hoc workouts). `plan` carries that day's prescription as a read overlay.
+    programDayId: string | null
+    programWeek: number | null
+    plan?: ProgramDayView
     exercises: {
       id: string
       wgerExerciseId: number
@@ -190,6 +202,7 @@ export function buildWorkoutPayload(
   workout: WorkoutDetail,
   resolved: string,
   unit: WeightUnit,
+  programDay?: ProgramDayDetail,
 ): WorkoutPayload {
   return {
     userId: resolved,
@@ -198,6 +211,9 @@ export function buildWorkoutPayload(
       id: workout.id,
       name: workout.name,
       startedAt: workout.startedAt.toISOString(),
+      programDayId: workout.programDayId,
+      programWeek: workout.programWeek,
+      ...(programDay ? { plan: buildProgramDayView(programDay, unit) } : {}),
       exercises: workout.exercises.map((exercise) => ({
         id: exercise.id,
         wgerExerciseId: exercise.wgerExerciseId,

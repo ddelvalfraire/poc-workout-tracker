@@ -2,17 +2,18 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 
 vi.mock('@/db/workouts', () => ({ getWorkoutDetail: vi.fn() }))
-vi.mock('@/db/programs', () => ({ getProgramDetail: vi.fn() }))
+vi.mock('@/db/programs', () => ({ getProgramDetail: vi.fn(), getProgramDayDetail: vi.fn() }))
 vi.mock('@/db/preferences', () => ({ getWeightUnit: vi.fn() }))
 
 import { registerResources } from './resources'
 import { getWorkoutDetail } from '@/db/workouts'
-import { getProgramDetail } from '@/db/programs'
+import { getProgramDetail, getProgramDayDetail } from '@/db/programs'
 import { getWeightUnit } from '@/db/preferences'
 import { kgToDisplay } from '@/lib/units'
 
 const mockedDetail = vi.mocked(getWorkoutDetail)
 const mockedProgramDetail = vi.mocked(getProgramDetail)
+const mockedWorkoutProgramDay = vi.mocked(getProgramDayDetail)
 const mockedUnit = vi.mocked(getWeightUnit)
 
 type ResourceContents = { uri: string; mimeType?: string; text: string }
@@ -49,6 +50,8 @@ function detail() {
     name: 'Leg Day',
     startedAt: new Date('2026-06-02T08:00:00.000Z'),
     userId: 'user_env',
+    programDayId: null,
+    programWeek: null,
     exercises: [
       {
         id: 'we1',
@@ -157,6 +160,57 @@ describe('registerResources', () => {
     await expect(readWorkout(resources)).rejects.toThrow('MCP resource read failed')
     expect(spy).toHaveBeenCalled()
     spy.mockRestore()
+  })
+
+  it('overlays the program day plan when the workout was instantiated', async () => {
+    // Arrange — a workout with provenance + the program day it came from
+    const resources = setup()
+    mockedDetail.mockResolvedValue(
+      { ...detail(), programDayId: 'pd1', programWeek: 1 } as unknown as Awaited<ReturnType<typeof getWorkoutDetail>>,
+    )
+    mockedWorkoutProgramDay.mockResolvedValue(
+      {
+        id: 'pd1',
+        name: 'Push',
+        program: { userId: 'user_env' },
+        exercises: [
+          {
+            id: 'pe1',
+            wgerExerciseId: 73,
+            name: 'Squat',
+            position: 0,
+            progression: null,
+            sets: [
+              {
+                setNumber: 1,
+                setType: 'working',
+                metricMode: 'reps_weight',
+                repMin: 5,
+                repMax: 8,
+                rir: 2,
+                rpe: null,
+                suggestedLoadKg: 100,
+                tempo: null,
+                durationSec: null,
+                distanceM: null,
+                technique: null,
+              },
+            ],
+          },
+        ],
+      } as unknown as Awaited<ReturnType<typeof getProgramDayDetail>>,
+    )
+
+    // Act
+    const result = await readWorkout(resources)
+
+    // Assert — plan overlay rendered in the user's unit (lb)
+    expect(mockedWorkoutProgramDay).toHaveBeenCalledWith('user_env', 'pd1')
+    const body = JSON.parse(result.contents[0]!.text) as {
+      workout: { programDayId: string | null; plan?: { exercises: { sets: { suggestedLoad: number | null }[] }[] } }
+    }
+    expect(body.workout.programDayId).toBe('pd1')
+    expect(body.workout.plan!.exercises[0]!.sets[0]!.suggestedLoad).toBe(kgToDisplay(100, 'lb'))
   })
 
   describe('program resource', () => {

@@ -8,6 +8,7 @@ vi.mock('@/db/programs', () => ({
   setProgramStatus: vi.fn(),
   listPrograms: vi.fn(),
   getProgramDetail: vi.fn(),
+  instantiateProgramDay: vi.fn(),
 }))
 vi.mock('@/db/preferences', () => ({ getWeightUnit: vi.fn() }))
 
@@ -19,6 +20,7 @@ import {
   setProgramStatus,
   listPrograms,
   getProgramDetail,
+  instantiateProgramDay,
 } from '@/db/programs'
 import { getWeightUnit } from '@/db/preferences'
 import { displayToKg, kgToDisplay } from '@/lib/units'
@@ -30,6 +32,7 @@ const mockedDelete = vi.mocked(deleteProgram)
 const mockedSetStatus = vi.mocked(setProgramStatus)
 const mockedList = vi.mocked(listPrograms)
 const mockedDetail = vi.mocked(getProgramDetail)
+const mockedInstantiate = vi.mocked(instantiateProgramDay)
 const mockedGetUnit = vi.mocked(getWeightUnit)
 
 type ToolResult = { content: { type: string; text: string }[]; isError?: boolean }
@@ -138,11 +141,12 @@ describe('registerProgramTools', () => {
     else process.env.MCP_DEV_USER_ID = original
   })
 
-  it('registers exactly the five program tools', () => {
+  it('registers exactly the six program tools', () => {
     const tools = setup()
     expect([...tools.keys()].sort()).toEqual([
       'delete_program',
       'get_program',
+      'instantiate_program_day',
       'list_programs',
       'set_program_status',
       'upsert_program',
@@ -495,6 +499,65 @@ describe('registerProgramTools', () => {
     })
   })
 
+  describe('instantiate_program_day', () => {
+    it('instantiates a day into a dated workout, defaulting the week to 1', async () => {
+      // Arrange
+      const tools = setup()
+      mockedInstantiate.mockResolvedValue({ id: 'w1' })
+
+      // Act
+      const result = await tools.get('instantiate_program_day')!({ programDayId: PID })
+
+      // Assert
+      expect(mockedInstantiate).toHaveBeenCalledWith('user_env', PID, 1)
+      expect(payload(result)).toEqual({
+        userId: 'user_env',
+        workoutId: 'w1',
+        programDayId: PID,
+        programWeek: 1,
+      })
+    })
+
+    it('passes an explicit week through and echoes it', async () => {
+      // Arrange
+      const tools = setup()
+      mockedInstantiate.mockResolvedValue({ id: 'w1' })
+
+      // Act
+      const result = await tools.get('instantiate_program_day')!({ programDayId: PID, week: 3 })
+
+      // Assert
+      expect(mockedInstantiate).toHaveBeenCalledWith('user_env', PID, 3)
+      expect(payload(result).programWeek).toBe(3)
+    })
+
+    it('returns isError /not found/ when the program day is not found or owned', async () => {
+      // Arrange
+      const tools = setup()
+      mockedInstantiate.mockResolvedValue(null)
+
+      // Act
+      const result = await tools.get('instantiate_program_day')!({ programDayId: PID })
+
+      // Assert
+      expect(result.isError).toBe(true)
+      expect(result.content[0]?.text).toMatch(/not found/)
+    })
+
+    it('surfaces not-found for a malformed id without hitting the db', async () => {
+      // Arrange
+      const tools = setup()
+
+      // Act
+      const result = await tools.get('instantiate_program_day')!({ programDayId: 'not-a-uuid' })
+
+      // Assert
+      expect(result.isError).toBe(true)
+      expect(result.content[0]?.text).toMatch(/not found/)
+      expect(mockedInstantiate).not.toHaveBeenCalled()
+    })
+  })
+
   // Every program tool gates on a resolved user before touching the db.
   describe('no-user gate (all program tools)', () => {
     const cases = [
@@ -502,6 +565,7 @@ describe('registerProgramTools', () => {
       { name: 'list_programs', args: {}, dep: mockedList as unknown as Mock },
       { name: 'delete_program', args: { id: PID }, dep: mockedDelete as unknown as Mock },
       { name: 'set_program_status', args: { id: PID, status: 'active' }, dep: mockedSetStatus as unknown as Mock },
+      { name: 'instantiate_program_day', args: { programDayId: PID }, dep: mockedInstantiate as unknown as Mock },
     ] as const
 
     it.each(cases)(

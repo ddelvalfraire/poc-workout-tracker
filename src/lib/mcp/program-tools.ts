@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { resolveUserId } from './resolve-user'
 import { jsonResult, errorResult } from './result'
 import { ToolError } from './errors'
-import { assertProgramIdShape } from './program-id'
+import { assertProgramIdShape, assertProgramDayIdShape } from './program-id'
 import {
   metricModeSchema,
   setTypeSchema,
@@ -22,7 +22,9 @@ import {
   setProgramStatus,
   listPrograms,
   getProgramDetail,
+  instantiateProgramDay,
   type ProgramDetail,
+  type ProgramDayDetail,
 } from '@/db/programs'
 import { getWeightUnit } from '@/db/preferences'
 
@@ -201,6 +203,64 @@ export interface ProgramPayload {
   }
 }
 
+/** A program set row (all columns), as loaded by getProgramDetail/getProgramDayDetail. */
+type ProgramSetRow = ProgramDetail['days'][number]['exercises'][number]['sets'][number]
+
+/**
+ * Projects one planned set into display units: `suggestedLoadKg` → the user's
+ * unit, `technique` verbatim (kg), `distanceM` (meters) untouched. The single
+ * source of the per-set view shared by `buildProgramPayload` (get_program) and
+ * `buildProgramDayView` (the get_workout plan overlay), so the two never drift.
+ */
+function buildProgramSetView(s: ProgramSetRow, unit: WeightUnit) {
+  return {
+    setNumber: s.setNumber,
+    setType: s.setType,
+    metricMode: s.metricMode,
+    repMin: s.repMin,
+    repMax: s.repMax,
+    rir: s.rir,
+    rpe: s.rpe,
+    suggestedLoad: s.suggestedLoadKg === null ? null : kgToDisplay(s.suggestedLoadKg, unit),
+    tempo: s.tempo,
+    durationSec: s.durationSec,
+    distanceM: s.distanceM,
+    technique: s.technique,
+  }
+}
+
+/**
+ * The plan overlay for one program day — the prescription a `get_workout` (or the
+ * workout resource) attaches when the workout was instantiated from this day. The
+ * agent correlates it to the live sets by `position`/`setNumber`.
+ */
+export interface ProgramDayView {
+  programDayId: string
+  name: string
+  exercises: {
+    position: number
+    wgerExerciseId: number
+    name: string
+    progression: unknown | null
+    sets: ReturnType<typeof buildProgramSetView>[]
+  }[]
+}
+
+/** Projects a `ProgramDayDetail` into the plan overlay (loads in the user's unit). */
+export function buildProgramDayView(day: ProgramDayDetail, unit: WeightUnit): ProgramDayView {
+  return {
+    programDayId: day.id,
+    name: day.name,
+    exercises: day.exercises.map((e) => ({
+      position: e.position,
+      wgerExerciseId: e.wgerExerciseId,
+      name: e.name,
+      progression: e.progression,
+      sets: e.sets.map((s) => buildProgramSetView(s, unit)),
+    })),
+  }
+}
+
 /**
  * Projects a `ProgramDetail` into the agent-facing payload: loads rendered in the
  * user's unit, ISO dates, JSONB tail verbatim. Shared by the `get_program` tool
@@ -234,20 +294,7 @@ export function buildProgramPayload(
           name: exercise.name,
           position: exercise.position,
           progression: exercise.progression,
-          sets: exercise.sets.map((s) => ({
-            setNumber: s.setNumber,
-            setType: s.setType,
-            metricMode: s.metricMode,
-            repMin: s.repMin,
-            repMax: s.repMax,
-            rir: s.rir,
-            rpe: s.rpe,
-            suggestedLoad: s.suggestedLoadKg === null ? null : kgToDisplay(s.suggestedLoadKg, unit),
-            tempo: s.tempo,
-            durationSec: s.durationSec,
-            distanceM: s.distanceM,
-            technique: s.technique,
-          })),
+          sets: exercise.sets.map((s) => buildProgramSetView(s, unit)),
         })),
       })),
     },
@@ -393,6 +440,34 @@ export function registerProgramTools(server: McpServer): void {
         const result = await setProgramStatus(resolved, id, status)
         if (!result) throw new ToolError(`Program ${id} not found for user ${resolved}`)
         return jsonResult({ userId: resolved, programId: result.id, status })
+      } catch (error: unknown) {
+        return errorResult(error)
+      }
+    },
+  )
+
+  server.registerTool(
+    'instantiate_program_day',
+    {
+      title: 'Instantiate Program Day',
+      description:
+        "Starts a dated workout from a program day: seeds each set with its suggested load (reps/durations left blank for you to log) and stamps the program and week. Pass `week` (default 1). Returns the new workoutId — log it with update_set/add_set, then read it with get_workout to see the plan targets. Errors if the program day isn't found or owned.",
+      inputSchema: {
+        programDayId: z.string(),
+        week: z.number().int().positive().optional(),
+        userId: z.string().optional(),
+      },
+    },
+    async ({ programDayId, week, userId }, extra) => {
+      try {
+        const resolved = resolveUserId(extra, userId)
+        assertProgramDayIdShape(programDayId)
+        const programWeek = week ?? 1
+        const result = await instantiateProgramDay(resolved, programDayId, programWeek)
+        if (!result) {
+          throw new ToolError(`Program day ${programDayId} not found for user ${resolved}`)
+        }
+        return jsonResult({ userId: resolved, workoutId: result.id, programDayId, programWeek })
       } catch (error: unknown) {
         return errorResult(error)
       }
