@@ -39,7 +39,7 @@ describe('registerTools', () => {
     else process.env.MCP_DEV_USER_ID = original
   })
 
-  it('registers the connectivity, read, write, and patch tools', () => {
+  it('registers the connectivity, read, write, patch, and program tools', () => {
     // Arrange + Act
     const { server, tools } = fakeServer()
     registerTools(server)
@@ -48,29 +48,36 @@ describe('registerTools', () => {
     expect([...tools.keys()].sort()).toEqual([
       'add_set',
       'create_workout',
+      'delete_program',
       'delete_workout',
       'get_last_performance',
+      'get_program',
       'get_weight_unit',
       'get_workout',
+      'instantiate_program_day',
+      'list_programs',
       'list_workouts',
       'ping',
       'remove_set',
       'search_exercises',
+      'set_program_status',
       'set_weight_unit',
       'set_workout_meta',
       'update_set',
       'update_workout',
+      'upsert_program',
       'whoami',
     ])
   })
 
-  it('registers the workout resource', () => {
+  it('registers the workout and program resources', () => {
     // Arrange + Act
     const { server, resources } = fakeServer()
     registerTools(server)
 
     // Assert
     expect([...resources.keys()]).toContain('workout')
+    expect([...resources.keys()]).toContain('program')
   })
 
   it('ping returns "pong"', async () => {

@@ -6,11 +6,13 @@ vi.mock('@/db/workouts', () => ({
   getWorkoutDetail: vi.fn(),
   getLastPerformance: vi.fn(),
 }))
+vi.mock('@/db/programs', () => ({ getProgramDayDetail: vi.fn() }))
 vi.mock('@/db/preferences', () => ({ getWeightUnit: vi.fn() }))
 vi.mock('@/lib/wger', () => ({ searchExercises: vi.fn() }))
 
 import { registerReadTools } from './read-tools'
 import { listWorkoutSummaries, getWorkoutDetail, getLastPerformance } from '@/db/workouts'
+import { getProgramDayDetail } from '@/db/programs'
 import { getWeightUnit } from '@/db/preferences'
 import { searchExercises } from '@/lib/wger'
 import { kgToDisplay } from '@/lib/units'
@@ -19,6 +21,7 @@ import { estimate1RM } from '@/lib/one-rep-max'
 const mockedList = vi.mocked(listWorkoutSummaries)
 const mockedDetail = vi.mocked(getWorkoutDetail)
 const mockedLast = vi.mocked(getLastPerformance)
+const mockedProgramDay = vi.mocked(getProgramDayDetail)
 const mockedUnit = vi.mocked(getWeightUnit)
 const mockedSearch = vi.mocked(searchExercises)
 
@@ -161,6 +164,8 @@ describe('registerReadTools', () => {
         name: 'Leg Day',
         startedAt: new Date('2026-06-02T08:00:00.000Z'),
         userId: 'user_env',
+        programDayId: null,
+        programWeek: null,
         exercises: [
           {
             id: 'we1',
@@ -252,6 +257,86 @@ describe('registerReadTools', () => {
 
       // Assert — no wasted query on the not-found path
       expect(mockedUnit).not.toHaveBeenCalled()
+    })
+
+    /** A program day prescription (kg) the overlay renders. */
+    function programDay() {
+      return {
+        id: 'pd1',
+        name: 'Push',
+        program: { userId: 'user_env' },
+        exercises: [
+          {
+            id: 'pe1',
+            wgerExerciseId: 73,
+            name: 'Squat',
+            position: 0,
+            progression: null,
+            sets: [
+              {
+                setNumber: 1,
+                setType: 'working',
+                metricMode: 'reps_weight',
+                repMin: 5,
+                repMax: 8,
+                rir: 2,
+                rpe: null,
+                suggestedLoadKg: 100,
+                tempo: null,
+                durationSec: null,
+                distanceM: null,
+                technique: null,
+              },
+            ],
+          },
+        ],
+      }
+    }
+
+    it('overlays the program day plan when the workout was instantiated', async () => {
+      // Arrange — a workout with provenance, plus the program day it came from
+      const tools = setup()
+      mockedDetail.mockResolvedValue(
+        { ...detail(), programDayId: 'pd1', programWeek: 2 } as unknown as Awaited<ReturnType<typeof getWorkoutDetail>>,
+      )
+      mockedProgramDay.mockResolvedValue(
+        programDay() as unknown as Awaited<ReturnType<typeof getProgramDayDetail>>,
+      )
+
+      // Act
+      const result = await tools.get('get_workout')!({ id: '11111111-1111-4111-8111-111111111111' })
+
+      // Assert — provenance echoed, plan overlay rendered in the user's unit (lb)
+      expect(mockedProgramDay).toHaveBeenCalledWith('user_env', 'pd1')
+      const body = payload(result) as {
+        workout: {
+          programDayId: string | null
+          programWeek: number | null
+          plan?: { exercises: { sets: { repMin: number | null; suggestedLoad: number | null }[] }[] }
+        }
+      }
+      expect(body.workout.programDayId).toBe('pd1')
+      expect(body.workout.programWeek).toBe(2)
+      const planSet = body.workout.plan!.exercises[0]!.sets[0]!
+      expect(planSet.repMin).toBe(5)
+      expect(planSet.suggestedLoad).toBe(kgToDisplay(100, 'lb'))
+    })
+
+    it('omits the plan and never queries the program for an ad-hoc workout', async () => {
+      // Arrange — detail() has programDayId null
+      const tools = setup()
+      mockedDetail.mockResolvedValue(
+        detail() as unknown as Awaited<ReturnType<typeof getWorkoutDetail>>,
+      )
+
+      // Act
+      const result = await tools.get('get_workout')!({ id: '11111111-1111-4111-8111-111111111111' })
+
+      // Assert
+      expect(mockedProgramDay).not.toHaveBeenCalled()
+      const body = payload(result) as { workout: { plan?: unknown; programDayId: string | null } }
+      expect(body.workout.programDayId).toBeNull()
+      expect(body.workout.plan).toBeUndefined()
     })
   })
 

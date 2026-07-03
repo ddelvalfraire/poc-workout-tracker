@@ -4,6 +4,7 @@ import { resolveUserId } from './resolve-user'
 import { registerReadTools } from './read-tools'
 import { registerWriteTools } from './write-tools'
 import { registerPatchTools } from './patch-tools'
+import { registerProgramTools } from './program-tools'
 import { registerResources } from './resources'
 
 /**
@@ -13,8 +14,9 @@ import { registerResources } from './resources'
  * unit-testable without standing up the Streamable HTTP `initialize` handshake.
  * This registers the Phase 1 connectivity/identity tools (ping, whoami) inline,
  * delegates the Phase 2 read tools to `registerReadTools`, the Phase 3 write tools
- * to `registerWriteTools`, and the Phase 4 `workout://{id}` resource to
- * `registerResources`.
+ * to `registerWriteTools`, the partial-edit tools to `registerPatchTools`, the
+ * program authoring/read tools to `registerProgramTools`, and the
+ * `workout://{id}` / `program://{id}` resources to `registerResources`.
  */
 export function registerTools(server: McpServer): void {
   server.registerTool(
@@ -50,5 +52,6 @@ export function registerTools(server: McpServer): void {
   registerReadTools(server)
   registerWriteTools(server)
   registerPatchTools(server)
+  registerProgramTools(server)
   registerResources(server)
 }
