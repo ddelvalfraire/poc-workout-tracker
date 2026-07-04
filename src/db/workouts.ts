@@ -197,10 +197,14 @@ export async function saveWorkout(userId: string, input: WorkoutInput): Promise<
       // Omit startedAt when absent so the column default (now()) applies.
       // Saving a manual log IS completing the session, so completedAt is
       // stamped here (instantiated program workouts get theirs on first edit).
+      // A backdated save (explicit startedAt, e.g. MCP create_workout logging
+      // last week's session) completes at that same moment — a wall-clock
+      // completedAt would contradict the session's actual date and corrupt
+      // anything keyed on completion time.
       .values({
         userId,
         name: input.name,
-        completedAt: new Date(),
+        completedAt: input.completedAt ?? input.startedAt ?? new Date(),
         ...(input.startedAt !== undefined ? { startedAt: input.startedAt } : {}),
       })
       .returning({ id: workouts.id })
@@ -236,9 +240,16 @@ export async function updateWorkout(
       // Omit startedAt when absent so the existing value is preserved.
       // First edit completes a not-yet-completed workout (instantiated program
       // days are logged through the edit flow); later edits keep the original.
+      // As in saveWorkout, an explicit startedAt (backdated edit) is also the
+      // completion moment — never stamp wall-clock time onto a past session.
       .set({
         name: input.name ?? null,
-        completedAt: sql`coalesce(${workouts.completedAt}, now())`,
+        completedAt: (() => {
+          const explicit = input.completedAt ?? input.startedAt
+          return explicit !== undefined
+            ? sql`coalesce(${workouts.completedAt}, ${explicit})`
+            : sql`coalesce(${workouts.completedAt}, now())`
+        })(),
         ...(input.startedAt !== undefined ? { startedAt: input.startedAt } : {}),
       })
       .where(and(eq(workouts.id, id), eq(workouts.userId, userId)))

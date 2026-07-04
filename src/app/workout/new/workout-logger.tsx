@@ -94,7 +94,11 @@ export function WorkoutLogger({
         } else {
           await saveWorkoutAction({
             ...draftToInput(draft, name, unit),
+            // Live session bounds: opened → saved. Without the explicit
+            // completedAt the DB layer would fall back to startedAt (the
+            // backdating default) and every live log would read as 0 min.
             startedAt: openedAtRef.current,
+            completedAt: new Date(),
           })
           router.push('/')
         }
