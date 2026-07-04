@@ -163,6 +163,7 @@ describe('detailToDraft', () => {
           id: 'ex1',
           workoutId: 'w1',
           wgerExerciseId: 73,
+          source: 'wger',
           name: 'Squat',
           position: 0,
           sets: [
@@ -201,6 +202,7 @@ describe('detailToDraft', () => {
           id: 'ex1',
           workoutId: 'w1',
           wgerExerciseId: 73,
+          source: 'wger',
           name: 'Squat',
           position: 0,
           sets: [

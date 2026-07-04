@@ -312,6 +312,7 @@ describe('detailToProgramDraft', () => {
             id: 'ex1',
             programDayId: 'd1',
             wgerExerciseId: 1,
+            source: 'wger',
             name: 'Bench Press',
             position: 0,
             supersetGroup: null,

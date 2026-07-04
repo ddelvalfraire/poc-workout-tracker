@@ -9,9 +9,11 @@ import {
   jsonb,
   index,
   unique,
+  check,
 } from 'drizzle-orm/pg-core'
-import { relations } from 'drizzle-orm'
+import { relations, sql } from 'drizzle-orm'
 import type { Technique, Progression, SetType, MetricMode } from '@/lib/program-input'
+import type { ExerciseSource, ExerciseCategory } from '@/lib/custom-exercise-input'
 
 export const workouts = pgTable(
   'workouts',
@@ -33,15 +35,26 @@ export const workouts = pgTable(
   (t) => [index('workouts_user_id_idx').on(t.userId)],
 )
 
-export const workoutExercises = pgTable('workout_exercises', {
-  id: uuid('id').defaultRandom().primaryKey(),
-  workoutId: uuid('workout_id')
-    .notNull()
-    .references(() => workouts.id, { onDelete: 'cascade' }),
-  wgerExerciseId: integer('wger_exercise_id').notNull(),
-  name: text('name').notNull(), // denormalized from wger
-  position: integer('position').notNull().default(0),
-})
+export const workoutExercises = pgTable(
+  'workout_exercises',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    workoutId: uuid('workout_id')
+      .notNull()
+      .references(() => workouts.id, { onDelete: 'cascade' }),
+    // Exercise ref, always positive (CHECK). Holds a custom_exercises.id when
+    // source = 'custom' — the column name is historical; kept to avoid a rename
+    // across every query site.
+    wgerExerciseId: integer('wger_exercise_id').notNull(),
+    // 'wger' | 'custom' — exercise identity is the composite (source, id).
+    source: text('source').$type<ExerciseSource>().notNull().default('wger'),
+    name: text('name').notNull(), // denormalized from wger
+    position: integer('position').notNull().default(0),
+  },
+  // The durable kill for the spike's negative-ID stopgap: customs live in
+  // custom_exercises with the source discriminator, never as sign-bit tricks.
+  (t) => [check('workout_exercises_wger_id_positive', sql`${t.wgerExerciseId} > 0`)],
+)
 
 export const sets = pgTable(
   'sets',
@@ -73,6 +86,35 @@ export const userPreferences = pgTable('user_preferences', {
   unit: text('unit').notNull().default('lb'), // weight display unit: 'kg' | 'lb'; product default lb
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 })
+
+/**
+ * Per-user custom exercise catalog — movements wger lacks, with app-side wger
+ * parity (the `Exercise` shape in `lib/wger.ts`). Integer identity PK because
+ * the exercise ref columns are integers; identity is the composite
+ * (source, id), so numeric collision with wger ids is fine. Muscles/equipment
+ * are text[] (not child rows) because this is catalog/definition data nothing
+ * aggregates over — contrast with `program_exercise_muscles`, which stays the
+ * aggregation surface and is fed FROM these arrays at author time (Phase 3).
+ */
+export const customExercises = pgTable(
+  'custom_exercises',
+  {
+    id: integer('id').primaryKey().generatedAlwaysAsIdentity(),
+    userId: text('user_id').notNull(), // Clerk user id — ownership root, like `workouts`/`programs`
+    name: text('name').notNull(),
+    category: text('category').$type<ExerciseCategory>().notNull(), // wger's fixed 8-category set, enforced at the input boundary
+    equipment: text('equipment').array(),
+    muscles: text('muscles').array(), // primary muscles, wger English names
+    musclesSecondary: text('muscles_secondary').array(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [
+    index('custom_exercises_user_id_idx').on(t.userId),
+    // Guards accidental duplicates from repeated create calls. Exact-match only.
+    unique('custom_exercises_user_name_unique').on(t.userId, t.name),
+  ],
+)
 
 export const workoutsRelations = relations(workouts, ({ many }) => ({
   exercises: many(workoutExercises),
@@ -140,7 +182,12 @@ export const programExercises = pgTable(
     programDayId: uuid('program_day_id')
       .notNull()
       .references(() => programDays.id, { onDelete: 'cascade' }),
+    // Exercise ref, always positive (CHECK). Holds a custom_exercises.id when
+    // source = 'custom' — the column name is historical; kept to avoid a rename
+    // across every query site.
     wgerExerciseId: integer('wger_exercise_id').notNull(),
+    // 'wger' | 'custom' — exercise identity is the composite (source, id).
+    source: text('source').$type<ExerciseSource>().notNull().default('wger'),
     name: text('name').notNull(), // denormalized from wger
     position: integer('position').notNull().default(0),
     // Same non-null value within a day = perform those exercises as a superset.
@@ -150,7 +197,11 @@ export const programExercises = pgTable(
     progression: jsonb('progression').$type<Progression>(),
   },
   // Same rationale (and deferral) as program_days' position unique above.
-  (t) => [unique('program_exercises_day_position_unique').on(t.programDayId, t.position)],
+  (t) => [
+    unique('program_exercises_day_position_unique').on(t.programDayId, t.position),
+    // Same negative-ID kill as workout_exercises.
+    check('program_exercises_wger_id_positive', sql`${t.wgerExerciseId} > 0`),
+  ],
 )
 
 export const programSets = pgTable(
