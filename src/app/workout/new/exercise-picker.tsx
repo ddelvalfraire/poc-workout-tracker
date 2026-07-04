@@ -12,6 +12,10 @@ interface ExerciseResult {
 }
 
 const RESULT_LIMIT = 20
+// A 401 right after returning to a backgrounded tab usually means the Clerk
+// session token expired while the tab was hidden; Clerk refreshes it moments
+// after the tab becomes visible, so one delayed retry normally recovers.
+const AUTH_RETRY_DELAY_MS = 1500
 const LISTBOX_ID = 'exercise-search-results'
 const optionId = (id: number) => `exercise-option-${id}`
 
@@ -25,28 +29,41 @@ export function ExercisePicker({ onAdd }: ExercisePickerProps) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [activeIndex, setActiveIndex] = useState(0)
+  // Bumped by the Retry button to re-run the catalog load after a failure.
+  const [loadAttempt, setLoadAttempt] = useState(0)
 
-  // Load the full catalog ONCE. The list is small and changes rarely, so all
-  // filtering then happens in-process — every keystroke is instant, with no
-  // per-keystroke network round-trip.
+  // Load the full catalog once per attempt. The list is small and changes
+  // rarely, so all filtering then happens in-process — every keystroke is
+  // instant, with no per-keystroke network round-trip.
   useEffect(() => {
     const controller = new AbortController()
+    let retryTimer: number | undefined
 
-    fetch('/api/exercises?all=1', { signal: controller.signal })
-      .then(async (res) => {
+    async function load(isAuthRetry: boolean) {
+      try {
+        const res = await fetch('/api/exercises?all=1', { signal: controller.signal })
+        if (res.status === 401 && !isAuthRetry) {
+          retryTimer = window.setTimeout(() => load(true), AUTH_RETRY_DELAY_MS)
+          return
+        }
         if (!res.ok) throw new Error(`request failed: ${res.status}`)
         const data: ExerciseResult[] = await res.json()
         setCatalog(data)
         setLoading(false)
-      })
-      .catch((err: unknown) => {
+      } catch (err: unknown) {
         if (err instanceof DOMException && err.name === 'AbortError') return
-        setError('Could not load exercises. Please try again.')
+        setError('Could not load exercises.')
         setLoading(false)
-      })
+      }
+    }
 
-    return () => controller.abort()
-  }, [])
+    load(false)
+
+    return () => {
+      controller.abort()
+      if (retryTimer !== undefined) window.clearTimeout(retryTimer)
+    }
+  }, [loadAttempt])
 
   const term = query.trim().toLowerCase()
 
@@ -115,7 +132,22 @@ export function ExercisePicker({ onAdd }: ExercisePickerProps) {
         disabled={loading || !!error}
       />
 
-      {error && <p className="text-sm text-destructive">{error}</p>}
+      {error && (
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-sm text-destructive">{error}</p>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              setLoading(true)
+              setError(null)
+              setLoadAttempt((n) => n + 1)
+            }}
+          >
+            Retry
+          </Button>
+        </div>
+      )}
 
       {term.length > 0 &&
         (matches.length > 0 ? (
