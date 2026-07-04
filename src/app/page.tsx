@@ -36,6 +36,16 @@ export default async function HomePage() {
           + Start Workout
         </Link>
 
+        <Link
+          href="/programs"
+          className={cn(
+            buttonVariants({ variant: "outline", size: "lg" }),
+            "mt-3 w-full text-base font-semibold uppercase tracking-wide",
+          )}
+        >
+          Programs
+        </Link>
+
         <h2 className="mt-10 mb-3 text-lg">History</h2>
 
         {summaries.length === 0 ? (
