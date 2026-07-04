@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest'
-import { parseProgramInput, programSetIntegrityViolation } from './program-input'
+import {
+  parseProgramInput,
+  programSetIntegrityViolation,
+  progressionSchema,
+  setOverrideSchema,
+} from './program-input'
 
 /** A minimal valid program: one day, one exercise, one bare set. */
 const VALID = {
@@ -356,5 +361,57 @@ describe('programSetIntegrityViolation', () => {
     expect(() => parseProgramInput(withSets([{ repMin: 10, repMax: 5 }]))).toThrow(
       /repMin must be less than or equal to repMax/,
     )
+  })
+})
+
+describe('progressionSchema bounds (Phase 5 tightening)', () => {
+  it('accepts every scheme with sane params (regression)', () => {
+    const valid = [
+      { scheme: 'linear', incrementKg: 2.5 },
+      { scheme: 'double-progression', repMin: 8, repMax: 12, incrementKg: 2.5 },
+      { scheme: 'percent-1rm', trainingMaxKg: 200, weekPercents: [0.7, 0.75, 0.8] },
+      { scheme: 'rpe-target', targetRpe: 8 },
+      { scheme: 'weekly-volume', mevSets: 8, mrvSets: 14 },
+    ]
+    for (const p of valid) expect(() => progressionSchema.parse(p)).not.toThrow()
+  })
+
+  it('rejects out-of-bound params per scheme', () => {
+    const invalid = [
+      { scheme: 'linear', incrementKg: -1 },
+      { scheme: 'percent-1rm', trainingMaxKg: -5, weekPercents: [0.7] },
+      { scheme: 'percent-1rm', trainingMaxKg: 200, weekPercents: [] },
+      { scheme: 'percent-1rm', trainingMaxKg: 200, weekPercents: [2.5] },
+      { scheme: 'rpe-target', targetRpe: 11 },
+      { scheme: 'weekly-volume', mevSets: -1, mrvSets: 10 },
+    ]
+    for (const p of invalid) expect(() => progressionSchema.parse(p), JSON.stringify(p)).toThrow()
+  })
+
+  it('rejects cross-field violations (repMin>repMax, mev>mrv)', () => {
+    expect(() =>
+      progressionSchema.parse({ scheme: 'double-progression', repMin: 12, repMax: 8, incrementKg: 2.5 }),
+    ).toThrow(/repMin/)
+    expect(() =>
+      progressionSchema.parse({ scheme: 'weekly-volume', mevSets: 14, mrvSets: 8 }),
+    ).toThrow(/mevSets/)
+  })
+})
+
+describe('setOverrideSchema', () => {
+  it('accepts a partial override of target fields', () => {
+    expect(() =>
+      setOverrideSchema.parse({ suggestedLoadKg: 95, repMin: 5, repMax: 5 }),
+    ).not.toThrow()
+  })
+
+  it('rejects shape-changing fields (setType/metricMode are edits, not overrides)', () => {
+    expect(() => setOverrideSchema.parse({ setType: 'amrap' })).toThrow()
+    expect(() => setOverrideSchema.parse({ metricMode: 'duration' })).toThrow()
+  })
+
+  it('applies the same bounds as programSetSchema', () => {
+    expect(() => setOverrideSchema.parse({ rpe: 11 })).toThrow()
+    expect(() => setOverrideSchema.parse({ suggestedLoadKg: -1 })).toThrow()
   })
 })

@@ -39,7 +39,7 @@ function mockFetchOnce(body: unknown): ReturnType<typeof vi.fn> {
  * Stubs `global.fetch` to return the given pages in order. Every page but the
  * last carries a non-null (same-host) `next` so the pagination loop keeps going.
  */
-function mockFetchPages(pages: ReturnType<typeof makeInfo>[][]): ReturnType<typeof vi.fn> {
+function mockFetchPages(pages: unknown[][]): ReturnType<typeof vi.fn> {
   const fetchMock = vi.fn()
   pages.forEach((results, index) => {
     const next = index < pages.length - 1 ? `https://wger.de/next?page=${index + 1}` : null
@@ -68,6 +68,63 @@ describe('searchExercises (wger proxy)', () => {
     expect(result).toEqual<Exercise[]>([
       { id: 73, name: 'Bench Press', category: 'Chest', equipment: ['Barbell'] },
     ])
+  })
+
+  it('maps primary and secondary muscles, preferring name_en', async () => {
+    // Arrange
+    mockFetchPages([
+      [
+        {
+          ...makeInfo(73, 'Bench Press', 'Chest', []),
+          muscles: [
+            { id: 4, name: 'Pectoralis major', name_en: 'Chest', is_front: true },
+            { id: 5, name: 'Triceps brachii', name_en: '', is_front: false }, // empty name_en → fallback
+          ],
+          muscles_secondary: [{ id: 2, name: 'Deltoid', name_en: 'Shoulders', is_front: true }],
+        },
+      ],
+    ])
+
+    // Act
+    const result = await searchExercises()
+
+    // Assert
+    expect(result[0].muscles).toEqual(['Chest', 'Triceps brachii'])
+    expect(result[0].musclesSecondary).toEqual(['Shoulders'])
+  })
+
+  it('omits muscle keys entirely when wger has none (like equipment)', async () => {
+    // Arrange — makeInfo carries no muscles arrays at all
+    mockFetchPages([[makeInfo(73, 'Bench Press', 'Chest', [])]])
+
+    // Act
+    const result = await searchExercises()
+
+    // Assert
+    expect(result[0]).not.toHaveProperty('muscles')
+    expect(result[0]).not.toHaveProperty('musclesSecondary')
+  })
+
+  it('drops malformed muscle entries but keeps the rest', async () => {
+    // Arrange
+    mockFetchPages([
+      [
+        {
+          ...makeInfo(73, 'Bench Press', 'Chest', []),
+          muscles: [
+            { id: 4, name: 'Pectoralis major', name_en: 'Chest', is_front: true },
+            { id: 9 }, // no usable name
+            'garbage',
+          ],
+        },
+      ],
+    ])
+
+    // Act
+    const result = await searchExercises()
+
+    // Assert
+    expect(result[0].muscles).toEqual(['Chest'])
   })
 
   it('omits equipment when the wger exercise has none', async () => {

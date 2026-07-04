@@ -19,6 +19,8 @@ vi.mock('@/db/program-patches', () => {
     updateProgramSet: vi.fn(),
     removeProgramSet: vi.fn(),
     moveProgramSet: vi.fn(),
+    setProgramSetOverride: vi.fn(),
+    removeProgramSetOverride: vi.fn(),
   }
 })
 vi.mock('@/db/preferences', () => ({ getWeightUnit: vi.fn() }))
@@ -38,6 +40,8 @@ import {
   updateProgramSet,
   removeProgramSet,
   moveProgramSet,
+  setProgramSetOverride,
+  removeProgramSetOverride,
 } from '@/db/program-patches'
 import { getWeightUnit } from '@/db/preferences'
 import { displayToKg } from '@/lib/units'
@@ -54,6 +58,8 @@ const mockedAddSet = vi.mocked(addProgramSet)
 const mockedUpdateSet = vi.mocked(updateProgramSet)
 const mockedRemoveSet = vi.mocked(removeProgramSet)
 const mockedMoveSet = vi.mocked(moveProgramSet)
+const mockedSetOverride = vi.mocked(setProgramSetOverride)
+const mockedRemoveOverride = vi.mocked(removeProgramSetOverride)
 const mockedGetUnit = vi.mocked(getWeightUnit)
 
 type ToolResult = { content: { type: string; text: string }[]; isError?: boolean }
@@ -95,7 +101,7 @@ describe('registerProgramPatchTools', () => {
     else process.env.MCP_DEV_USER_ID = original
   })
 
-  it('registers exactly the twelve program patch tools', () => {
+  it('registers exactly the fourteen program patch tools', () => {
     expect([...setup().keys()].sort()).toEqual([
       'add_program_day',
       'add_program_exercise',
@@ -106,6 +112,8 @@ describe('registerProgramPatchTools', () => {
       'remove_program_day',
       'remove_program_exercise',
       'remove_program_set',
+      'remove_program_set_override',
+      'set_program_set_override',
       'update_program_day',
       'update_program_exercise',
       'update_program_set',
@@ -543,5 +551,176 @@ describe('registerProgramPatchTools', () => {
         expect(result.content[0]?.text).toMatch(/userId/)
       },
     )
+  })
+
+  describe('override tools (Phase 5)', () => {
+    it('set_program_set_override converts the load lazily and echoes the pin', async () => {
+      // Arrange
+      const tools = setup()
+      mockedGetUnit.mockResolvedValue('lb')
+      mockedSetOverride.mockResolvedValue({ week: 3, cleared: false })
+
+      // Act
+      const result = await tools.get('set_program_set_override')!({
+        programId: PID,
+        dayPosition: 0,
+        exercisePosition: 1,
+        setNumber: 2,
+        week: 3,
+        suggestedLoad: 225,
+        repMin: 3,
+      })
+
+      // Assert — display lb → canonical kg; unit echoed
+      expect(mockedSetOverride).toHaveBeenCalledWith('user_env', PID, 0, 1, 2, 3, {
+        suggestedLoadKg: displayToKg(225, 'lb'),
+        repMin: 3,
+      })
+      expect(payload(result)).toEqual({
+        userId: 'user_env',
+        unit: 'lb',
+        programId: PID,
+        dayPosition: 0,
+        exercisePosition: 1,
+        setNumber: 2,
+        week: 3,
+        cleared: false,
+      })
+    })
+
+    it('set_program_set_override skips the unit read when no load is pinned', async () => {
+      // Arrange
+      const tools = setup()
+      mockedSetOverride.mockResolvedValue({ week: 2, cleared: false })
+
+      // Act
+      const result = await tools.get('set_program_set_override')!({
+        programId: PID,
+        dayPosition: 0,
+        exercisePosition: 0,
+        setNumber: 1,
+        week: 2,
+        rir: 1,
+      })
+
+      // Assert
+      expect(mockedGetUnit).not.toHaveBeenCalled()
+      expect(payload(result).unit).toBeUndefined()
+      expect(mockedSetOverride).toHaveBeenCalledWith('user_env', PID, 0, 0, 1, 2, { rir: 1 })
+    })
+
+    it('set_program_set_override rejects an all-undefined patch before any db call', async () => {
+      // Arrange
+      const tools = setup()
+
+      // Act
+      const result = await tools.get('set_program_set_override')!({
+        programId: PID,
+        dayPosition: 0,
+        exercisePosition: 0,
+        setNumber: 1,
+        week: 2,
+      })
+
+      // Assert
+      expect(result.isError).toBe(true)
+      expect(result.content[0]?.text).toMatch(/at least one field/)
+      expect(mockedSetOverride).not.toHaveBeenCalled()
+    })
+
+    it('set_program_set_override surfaces a ProgramPatchError message verbatim', async () => {
+      // Arrange — merge broke the cross-field rules
+      const tools = setup()
+      mockedSetOverride.mockRejectedValue(
+        new ProgramPatchError('repMin must be less than or equal to repMax'),
+      )
+
+      // Act
+      const result = await tools.get('set_program_set_override')!({
+        programId: PID,
+        dayPosition: 0,
+        exercisePosition: 0,
+        setNumber: 1,
+        week: 2,
+        repMin: 20,
+      })
+
+      // Assert
+      expect(result.isError).toBe(true)
+      expect(result.content[0]?.text).toMatch(/repMin must be less than or equal to repMax/)
+    })
+
+    it('remove_program_set_override deletes the pin and echoes the week', async () => {
+      // Arrange
+      const tools = setup()
+      mockedRemoveOverride.mockResolvedValue({ removed: true })
+
+      // Act
+      const result = await tools.get('remove_program_set_override')!({
+        programId: PID,
+        dayPosition: 0,
+        exercisePosition: 1,
+        setNumber: 2,
+        week: 3,
+      })
+
+      // Assert
+      expect(mockedRemoveOverride).toHaveBeenCalledWith('user_env', PID, 0, 1, 2, 3)
+      expect(payload(result)).toEqual({
+        userId: 'user_env',
+        programId: PID,
+        dayPosition: 0,
+        exercisePosition: 1,
+        setNumber: 2,
+        removedWeek: 3,
+      })
+    })
+
+    it('remove_program_set_override reports not-found when no override exists', async () => {
+      // Arrange
+      const tools = setup()
+      mockedRemoveOverride.mockResolvedValue(null)
+
+      // Act
+      const result = await tools.get('remove_program_set_override')!({
+        programId: PID,
+        dayPosition: 0,
+        exercisePosition: 1,
+        setNumber: 2,
+        week: 3,
+      })
+
+      // Assert
+      expect(result.isError).toBe(true)
+      expect(result.content[0]?.text).toMatch(/override/)
+    })
+
+    it('update_program_exercise accepts a lone supersetGroup patch', async () => {
+      // Arrange
+      const tools = setup()
+      mockedUpdateExercise.mockResolvedValue({ id: 'pe1' })
+
+      // Act
+      const result = await tools.get('update_program_exercise')!({
+        programId: PID,
+        dayPosition: 0,
+        exercisePosition: 1,
+        supersetGroup: 2,
+      })
+
+      // Assert
+      expect(mockedUpdateExercise).toHaveBeenCalledWith('user_env', PID, 0, 1, {
+        wgerExerciseId: undefined,
+        name: undefined,
+        progression: undefined,
+        supersetGroup: 2,
+      })
+      expect(payload(result)).toEqual({
+        userId: 'user_env',
+        programId: PID,
+        dayPosition: 0,
+        exercisePosition: 1,
+      })
+    })
   })
 })

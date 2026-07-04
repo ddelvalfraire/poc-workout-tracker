@@ -10,14 +10,23 @@ import {
   type Progression,
 } from '@/lib/program-input'
 import { db } from './index'
-import { programs, programDays, programExercises, programSets } from './schema'
+import { loadExerciseCatalog, muscleRowsFor, type ExerciseCatalog } from './programs'
+import {
+  programs,
+  programDays,
+  programExercises,
+  programExerciseMuscles,
+  programSets,
+  programSetOverrides,
+} from './schema'
 
 /**
  * Granular patch ops for the program tree — the program twin of the set-level
  * ops in `db/workouts.ts`. Each op addresses one node by `programId` + 0-based
- * positions (+ 1-based `setNumber` at the leaf), runs in one `db.transaction`,
- * and is user-scoped: ownership is enforced through the join chain up to
- * `programs.user_id`, so a caller can never touch another user's program.
+ * positions (+ 1-based `setNumber` at the leaf; + `week` for the Phase-5
+ * per-week override ops), runs in one `db.transaction`, and is user-scoped:
+ * ownership is enforced through the join chain up to `programs.user_id`, so a
+ * caller can never touch another user's program.
  *
  * Two distinct failure channels:
  * - `null` — the addressed node isn't owned or doesn't exist (tool → not-found)
@@ -308,11 +317,30 @@ export async function moveProgramDay(
 // Exercise ops
 // ---------------------------------------------------------------------------
 
-/** An exercise edit. An omitted key is left unchanged; `progression: null` clears the JSONB. */
+/**
+ * An exercise edit. An omitted key is left unchanged; `progression: null`
+ * clears the JSONB, `supersetGroup: null` ungroups the exercise. Changing
+ * `wgerExerciseId` re-derives the muscle tags from the wger catalog.
+ */
 export interface ProgramExercisePatch {
   wgerExerciseId?: number
   name?: string
   progression?: Progression | null
+  supersetGroup?: number | null
+}
+
+/** Replaces an exercise's muscle tags from the catalog (delete + re-insert). */
+async function retagExerciseMuscles(
+  tx: Tx,
+  programExerciseId: string,
+  wgerExerciseId: number,
+  catalog: ExerciseCatalog | null,
+): Promise<void> {
+  await tx
+    .delete(programExerciseMuscles)
+    .where(eq(programExerciseMuscles.programExerciseId, programExerciseId))
+  const rows = muscleRowsFor(programExerciseId, wgerExerciseId, catalog)
+  if (rows.length > 0) await tx.insert(programExerciseMuscles).values(rows)
 }
 
 /**
@@ -330,6 +358,7 @@ export async function addProgramExercise(
   exercise: { wgerExerciseId: number; name: string; progression?: Progression | null },
 ): Promise<{ position: number } | null> {
   const progression = exercise.progression == null ? null : parseProgression(exercise.progression)
+  const catalog = await loadExerciseCatalog() // network read stays outside the tx
   return db.transaction(async (tx) => {
     const dayId = await findOwnedDayId(tx, userId, programId, dayPosition)
     if (!dayId) return null
@@ -364,6 +393,9 @@ export async function addProgramExercise(
       distanceM: null,
       technique: null,
     })
+    // A brand-new exercise has no stale tags to clear — insert-only tagging.
+    const muscles = muscleRowsFor(pe.id, exercise.wgerExerciseId, catalog)
+    if (muscles.length > 0) await tx.insert(programExerciseMuscles).values(muscles)
     await bumpUpdatedAt(tx, programId)
     return { position }
   })
@@ -385,6 +417,8 @@ export async function updateProgramExercise(
   const values = definedFields(patch)
   if (Object.keys(values).length === 0) return null
   if (values.progression != null) values.progression = parseProgression(values.progression)
+  // A movement swap re-derives the muscle tags; fetch the catalog outside the tx.
+  const catalog = values.wgerExerciseId !== undefined ? await loadExerciseCatalog() : null
   return db.transaction(async (tx) => {
     const found = await findOwnedExercise(tx, userId, programId, dayPosition, exercisePosition)
     if (!found) return null
@@ -394,6 +428,9 @@ export async function updateProgramExercise(
       .where(eq(programExercises.id, found.exerciseId))
       .returning({ id: programExercises.id })
     if (!updated) return null
+    if (values.wgerExerciseId !== undefined) {
+      await retagExerciseMuscles(tx, found.exerciseId, values.wgerExerciseId, catalog)
+    }
     await bumpUpdatedAt(tx, programId)
     return updated
   })
@@ -725,5 +762,165 @@ export async function moveProgramSet(
     await tx.update(programSets).set({ setNumber: to }).where(eq(programSets.id, moved.id))
     await bumpUpdatedAt(tx, programId)
     return { moved: true }
+  })
+}
+
+// ---------------------------------------------------------------------------
+// Per-week override ops (Phase 5)
+// ---------------------------------------------------------------------------
+
+/**
+ * A per-week override edit. An omitted key leaves that override field as it
+ * was; an explicit `null` CLEARS the override for that field (reverting the
+ * week to the engine-derived value — overrides can't pin "no value").
+ */
+export interface ProgramSetOverridePatch {
+  repMin?: number | null
+  repMax?: number | null
+  rir?: number | null
+  rpe?: number | null
+  suggestedLoadKg?: number | null
+  tempo?: string | null
+  durationSec?: number | null
+  distanceM?: number | null
+  technique?: Technique | null
+}
+
+const OVERRIDE_FIELDS = [
+  'repMin',
+  'repMax',
+  'rir',
+  'rpe',
+  'suggestedLoadKg',
+  'tempo',
+  'durationSec',
+  'distanceM',
+  'technique',
+] as const
+
+/**
+ * Upserts the (set, week) override row: the defined patch fields are merged
+ * over any existing override, and the EFFECTIVE row (base set with the merged
+ * override's non-null fields on top — exactly what instantiation will seed) is
+ * revalidated against the Phase-1 cross-field rules. A merge that clears every
+ * field deletes the row. An override wins over the progression engine AND the
+ * deload modifier for that week. Returns null when the node isn't owned/found.
+ * Reads, in order: owned-exercise → current set row → existing override.
+ */
+export async function setProgramSetOverride(
+  userId: string,
+  programId: string,
+  dayPosition: number,
+  exercisePosition: number,
+  setNumber: number,
+  week: number,
+  patch: ProgramSetOverridePatch,
+): Promise<{ week: number; cleared: boolean } | null> {
+  const values = definedFields(patch)
+  if (Object.keys(values).length === 0) return null
+  if (values.technique != null) values.technique = parseTechnique(values.technique)
+  return db.transaction(async (tx) => {
+    const found = await findOwnedExercise(tx, userId, programId, dayPosition, exercisePosition)
+    if (!found) return null
+    const [current] = await tx
+      .select({
+        id: programSets.id,
+        metricMode: programSets.metricMode,
+        repMin: programSets.repMin,
+        repMax: programSets.repMax,
+        durationSec: programSets.durationSec,
+      })
+      .from(programSets)
+      .where(
+        and(
+          eq(programSets.programExerciseId, found.exerciseId),
+          eq(programSets.setNumber, setNumber),
+        ),
+      )
+      .limit(1)
+    if (!current) return null
+
+    const [existing] = await tx
+      .select({
+        id: programSetOverrides.id,
+        repMin: programSetOverrides.repMin,
+        repMax: programSetOverrides.repMax,
+        rir: programSetOverrides.rir,
+        rpe: programSetOverrides.rpe,
+        suggestedLoadKg: programSetOverrides.suggestedLoadKg,
+        tempo: programSetOverrides.tempo,
+        durationSec: programSetOverrides.durationSec,
+        distanceM: programSetOverrides.distanceM,
+        technique: programSetOverrides.technique,
+      })
+      .from(programSetOverrides)
+      .where(
+        and(eq(programSetOverrides.programSetId, current.id), eq(programSetOverrides.week, week)),
+      )
+      .limit(1)
+
+    const merged: Record<string, unknown> = {}
+    for (const field of OVERRIDE_FIELDS) {
+      merged[field] = values[field] !== undefined ? values[field] : (existing?.[field] ?? null)
+    }
+
+    // Validate the week's EFFECTIVE prescription: base overlaid by non-null overrides.
+    assertSetRowIntegrity({
+      metricMode: current.metricMode,
+      durationSec: (merged.durationSec as number | null) ?? current.durationSec,
+      repMin: (merged.repMin as number | null) ?? current.repMin,
+      repMax: (merged.repMax as number | null) ?? current.repMax,
+    })
+
+    const cleared = OVERRIDE_FIELDS.every((field) => merged[field] === null)
+    if (cleared) {
+      if (existing) {
+        await tx.delete(programSetOverrides).where(eq(programSetOverrides.id, existing.id))
+      }
+    } else if (existing) {
+      await tx.update(programSetOverrides).set(merged).where(eq(programSetOverrides.id, existing.id))
+    } else {
+      await tx.insert(programSetOverrides).values({ programSetId: current.id, week, ...merged })
+    }
+    await bumpUpdatedAt(tx, programId)
+    return { week, cleared }
+  })
+}
+
+/**
+ * Removes the (set, week) override row entirely, reverting that week to the
+ * engine-derived prescription. Returns null when the exercise/set isn't
+ * owned/found or no override exists for that week.
+ * Reads, in order: owned-exercise → set-id-at-setNumber.
+ */
+export async function removeProgramSetOverride(
+  userId: string,
+  programId: string,
+  dayPosition: number,
+  exercisePosition: number,
+  setNumber: number,
+  week: number,
+): Promise<{ removed: true } | null> {
+  return db.transaction(async (tx) => {
+    const found = await findOwnedExercise(tx, userId, programId, dayPosition, exercisePosition)
+    if (!found) return null
+    const [set] = await tx
+      .select({ id: programSets.id })
+      .from(programSets)
+      .where(
+        and(
+          eq(programSets.programExerciseId, found.exerciseId),
+          eq(programSets.setNumber, setNumber),
+        ),
+      )
+      .limit(1)
+    if (!set) return null
+    const [deleted] = await tx
+      .delete(programSetOverrides)
+      .where(and(eq(programSetOverrides.programSetId, set.id), eq(programSetOverrides.week, week)))
+      .returning({ id: programSetOverrides.id })
+    if (!deleted) return null
+    await bumpUpdatedAt(tx, programId)
+    return { removed: true }
   })
 }

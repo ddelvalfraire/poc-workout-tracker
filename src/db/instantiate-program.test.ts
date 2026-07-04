@@ -1,20 +1,39 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { DELOAD_LOAD_FACTOR } from '@/lib/progression'
 
 /**
- * Recording stub for instantiateProgramDay. `db.query.programDays.findFirst`
- * returns the fixture day (the ownership read); `db.transaction(cb)` runs
- * `cb(tx)` where `tx.insert(table).values(v).returning()` records `v` and
- * resolves a deterministic id — so the test asserts the seed (provenance on the
- * workout row, suggested load on reps_weight sets, blank achievement fields)
- * without a real database. The sets insert has no `.returning()`.
+ * Recording stub for the engine-driven instantiateProgramDay.
+ * `db.query.programDays.findFirst` returns the fixture day (ownership read);
+ * `db.select(...)` chains feed `nextProgramWeek`'s aggregates from
+ * `selectQueue` in call order; `db.transaction(cb)` runs `cb(tx)` where
+ * `tx.insert(table).values(v).returning()` records `v` and resolves a
+ * deterministic id. History reads (`getLastPerformance`,
+ * `getExerciseHistoryBefore`) are module-mocked — the engine's history inputs
+ * are asserted through the derived seeds.
  *
  * Returned ids by call order: workout → w1, exercise → e1.
  */
-const { findFirst } = vi.hoisted(() => ({ findFirst: vi.fn() }))
+const { findFirst, lastPerformance, historyBefore } = vi.hoisted(() => ({
+  findFirst: vi.fn(),
+  lastPerformance: vi.fn(),
+  historyBefore: vi.fn(),
+}))
 
 const records: { values: unknown }[] = []
 let idCounter = 0
 const ID_SEQUENCE = ['w1', 'e1']
+let selectQueue: unknown[][] = []
+
+function selectChain() {
+  const rows = selectQueue.shift() ?? []
+  const obj = {
+    from: () => obj,
+    innerJoin: () => obj,
+    where: () => obj,
+    then: (resolve: (value: unknown) => unknown) => Promise.resolve(rows).then(resolve),
+  }
+  return obj
+}
 
 function makeTx() {
   return {
@@ -30,95 +49,266 @@ function makeTx() {
 vi.mock('./index', () => ({
   db: {
     query: { programDays: { findFirst } },
+    select: () => selectChain(),
     transaction: (cb: (tx: ReturnType<typeof makeTx>) => unknown) => cb(makeTx()),
   },
 }))
 
-import { instantiateProgramDay } from './programs'
+vi.mock('./workouts', () => ({
+  getLastPerformance: lastPerformance,
+  getExerciseHistoryBefore: historyBefore,
+}))
+
+import { instantiateProgramDay, nextProgramWeek } from './programs'
 
 const USER = 'user_123'
 
-/** A program day owned by USER: one exercise with a reps_weight set and a duration set. */
-function dayFixture() {
+interface FixtureSet {
+  setNumber: number
+  setType?: string
+  metricMode?: string
+  repMin?: number | null
+  repMax?: number | null
+  suggestedLoadKg?: number | null
+  overrides?: { week: number; [key: string]: unknown }[]
+}
+
+/** A one-exercise day under a program with the given geometry. */
+function dayFixture(options: {
+  mesocycleWeeks?: number
+  deloadWeek?: number | null
+  progression?: unknown
+  sets: FixtureSet[]
+}) {
   return {
     id: 'd1',
     name: 'Push',
-    program: { userId: USER },
+    program: {
+      id: 'p1',
+      userId: USER,
+      mesocycleWeeks: options.mesocycleWeeks ?? 4,
+      deloadWeek: options.deloadWeek ?? null,
+    },
     exercises: [
       {
         id: 'pe1',
         wgerExerciseId: 1,
         name: 'Bench',
         position: 0,
-        sets: [
-          { setNumber: 1, metricMode: 'reps_weight', suggestedLoadKg: 100 },
-          { setNumber: 2, metricMode: 'duration', suggestedLoadKg: null },
-        ],
+        progression: options.progression ?? null,
+        sets: options.sets.map((s) => ({
+          setType: 'working',
+          metricMode: 'reps_weight',
+          repMin: null,
+          repMax: null,
+          rir: null,
+          rpe: null,
+          suggestedLoadKg: null,
+          tempo: null,
+          durationSec: null,
+          distanceM: null,
+          technique: null,
+          overrides: [],
+          ...s,
+        })),
       },
     ],
   }
 }
 
+/** The seeded live-set rows (the last recorded insert). */
+function seededSets(): { setNumber: number; weight: number | null; metricMode: string }[] {
+  return records[records.length - 1].values as never
+}
+
 beforeEach(() => {
   records.length = 0
   idCounter = 0
+  selectQueue = []
   vi.clearAllMocks()
+  historyBefore.mockResolvedValue([])
+  lastPerformance.mockResolvedValue(null)
 })
 
-describe('instantiateProgramDay', () => {
-  it('seeds a dated workout with provenance and per-metric suggested loads', async () => {
-    // Arrange
-    findFirst.mockResolvedValue(dayFixture())
+describe('instantiateProgramDay (engine-driven)', () => {
+  it('seeds provenance and week-N progressed loads (linear, explicit week)', async () => {
+    // Arrange — linear +2.5/week, week 3 → 100 + 2×2.5 = 105
+    findFirst.mockResolvedValue(
+      dayFixture({
+        progression: { scheme: 'linear', incrementKg: 2.5 },
+        sets: [
+          { setNumber: 1, suggestedLoadKg: 100 },
+          { setNumber: 2, metricMode: 'duration', suggestedLoadKg: null },
+        ],
+      }),
+    )
 
     // Act
-    const result = await instantiateProgramDay(USER, 'd1', 2)
+    const result = await instantiateProgramDay(USER, 'd1', 3)
 
-    // Assert — provenance on the workout row
+    // Assert — provenance stamps the explicit week
     expect(records[0].values).toEqual({
       userId: USER,
       name: 'Push',
       programDayId: 'd1',
-      programWeek: 2,
+      programWeek: 3,
     })
-    // Exercise stamped with its 0-based position, linked to the new workout
-    expect(records[1].values).toEqual({
-      workoutId: 'w1',
-      wgerExerciseId: 1,
-      name: 'Bench',
-      position: 0,
-    })
-    // reps_weight set seeds the load into weight; duration set seeds no weight.
-    // Both leave the achievement fields (reps/duration/distance) blank.
-    expect(records[2].values).toEqual([
-      {
-        workoutExerciseId: 'e1',
-        setNumber: 1,
-        reps: null,
-        weight: 100,
-        metricMode: 'reps_weight',
-        durationSec: null,
-        distanceM: null,
-        completed: false,
-      },
-      {
-        workoutExerciseId: 'e1',
-        setNumber: 2,
-        reps: null,
-        weight: null,
-        metricMode: 'duration',
-        durationSec: null,
-        distanceM: null,
-        completed: false,
-      },
+    // reps_weight set carries the DERIVED load; duration set seeds no weight.
+    expect(seededSets()).toEqual([
+      expect.objectContaining({ setNumber: 1, weight: 105, metricMode: 'reps_weight' }),
+      expect.objectContaining({ setNumber: 2, weight: null, metricMode: 'duration' }),
     ])
+    expect(result).toEqual({ id: 'w1', week: 3, weekDerived: false })
+  })
 
-    // Resolves to the new workout id
-    expect(result).toEqual({ id: 'w1' })
+  it('halves the working sets and scales the load on the deload week', async () => {
+    // Arrange — 4 working sets @100, deload week 4
+    findFirst.mockResolvedValue(
+      dayFixture({
+        deloadWeek: 4,
+        sets: [1, 2, 3, 4].map((n) => ({ setNumber: n, suggestedLoadKg: 100 })),
+      }),
+    )
+
+    // Act
+    await instantiateProgramDay(USER, 'd1', 4)
+
+    // Assert
+    const seeded = seededSets()
+    expect(seeded).toHaveLength(2)
+    expect(seeded[0].weight).toBeCloseTo(100 * DELOAD_LOAD_FACTOR, 5)
+  })
+
+  it('lets a per-week override pin the seeded load over the scheme', async () => {
+    // Arrange — linear would give 105 at week 3; override pins 95
+    findFirst.mockResolvedValue(
+      dayFixture({
+        progression: { scheme: 'linear', incrementKg: 2.5 },
+        sets: [
+          {
+            setNumber: 1,
+            suggestedLoadKg: 100,
+            overrides: [
+              {
+                week: 3,
+                repMin: null,
+                repMax: null,
+                rir: null,
+                rpe: null,
+                suggestedLoadKg: 95,
+                tempo: null,
+                durationSec: null,
+                distanceM: null,
+                technique: null,
+              },
+            ],
+          },
+        ],
+      }),
+    )
+
+    // Act
+    await instantiateProgramDay(USER, 'd1', 3)
+
+    // Assert
+    expect(seededSets()[0].weight).toBe(95)
+  })
+
+  it('seeds a null weight for rpe-target with no history', async () => {
+    // Arrange
+    findFirst.mockResolvedValue(
+      dayFixture({
+        progression: { scheme: 'rpe-target', targetRpe: 8 },
+        sets: [{ setNumber: 1, repMax: 5, suggestedLoadKg: 100 }],
+      }),
+    )
+
+    // Act
+    await instantiateProgramDay(USER, 'd1', 1)
+
+    // Assert — no e1RM history → no derived load (base is NOT used for rpe-target)
+    expect(seededSets()[0].weight).toBeNull()
+  })
+
+  it('derives the rpe-target load from batched history e1RM', async () => {
+    // Arrange — best set 100×5 → e1RM 116.67; 5 @ RPE 8 = 81.1%
+    historyBefore.mockResolvedValue([{ wgerExerciseId: 1, reps: 5, weight: 100 }])
+    findFirst.mockResolvedValue(
+      dayFixture({
+        progression: { scheme: 'rpe-target', targetRpe: 8 },
+        sets: [{ setNumber: 1, repMax: 5 }],
+      }),
+    )
+
+    // Act
+    await instantiateProgramDay(USER, 'd1', 1)
+
+    // Assert
+    expect(seededSets()[0].weight).toBeCloseTo(100 * (1 + 5 / 30) * 0.811, 3)
+  })
+
+  it('grows the seeded set count for weekly-volume', async () => {
+    // Arrange — mev 2 → mrv 4 over 3 non-deload weeks; week 3 = 4 sets
+    findFirst.mockResolvedValue(
+      dayFixture({
+        mesocycleWeeks: 3,
+        progression: { scheme: 'weekly-volume', mevSets: 2, mrvSets: 4 },
+        sets: [
+          { setNumber: 1, suggestedLoadKg: 100 },
+          { setNumber: 2, suggestedLoadKg: 100 },
+        ],
+      }),
+    )
+
+    // Act
+    await instantiateProgramDay(USER, 'd1', 3)
+
+    // Assert
+    expect(seededSets()).toHaveLength(4)
+    expect(seededSets().map((s) => s.setNumber)).toEqual([1, 2, 3, 4])
+  })
+
+  it('consults double-progression history via getLastPerformance', async () => {
+    // Arrange — last session hit 12s across the board → advance to 102.5
+    lastPerformance.mockResolvedValue({
+      performedAt: new Date(0),
+      sets: [
+        { reps: 12, weight: 100 },
+        { reps: 12, weight: 100 },
+      ],
+    })
+    findFirst.mockResolvedValue(
+      dayFixture({
+        progression: { scheme: 'double-progression', repMin: 8, repMax: 12, incrementKg: 2.5 },
+        sets: [{ setNumber: 1, suggestedLoadKg: 100 }],
+      }),
+    )
+
+    // Act
+    await instantiateProgramDay(USER, 'd1', 2)
+
+    // Assert
+    expect(lastPerformance).toHaveBeenCalledWith(USER, 1)
+    expect(seededSets()[0].weight).toBe(102.5)
+  })
+
+  it('auto-derives the week from history when omitted', async () => {
+    // Arrange — max(programWeek)=2; cycle complete (1 of 1 days done) → week 3
+    findFirst.mockResolvedValue(dayFixture({ sets: [{ setNumber: 1, suggestedLoadKg: 100 }] }))
+    selectQueue = [[{ current: 2 }], [{ value: 1 }], [{ value: 1 }]]
+
+    // Act
+    const result = await instantiateProgramDay(USER, 'd1', null)
+
+    // Assert
+    expect(result).toEqual({ id: 'w1', week: 3, weekDerived: true })
+    expect(records[0].values).toMatchObject({ programWeek: 3 })
   })
 
   it('returns null and seeds nothing when the day is not owned', async () => {
-    // Arrange — day belongs to another user's program
-    findFirst.mockResolvedValue({ ...dayFixture(), program: { userId: 'someone_else' } })
+    // Arrange
+    const day = dayFixture({ sets: [{ setNumber: 1 }] })
+    findFirst.mockResolvedValue({ ...day, program: { ...day.program, userId: 'someone_else' } })
 
     // Act
     const result = await instantiateProgramDay(USER, 'd1', 1)
@@ -138,5 +328,23 @@ describe('instantiateProgramDay', () => {
     // Assert
     expect(result).toBeNull()
     expect(records).toHaveLength(0)
+  })
+})
+
+describe('nextProgramWeek', () => {
+  it('returns 1 for a program with no instantiated workouts', async () => {
+    selectQueue = [[{ current: null }]]
+    expect(await nextProgramWeek(USER, 'p1', 4)).toBe(1)
+  })
+
+  it('stays on the current week while the cycle is incomplete', async () => {
+    // current=2, 3 days total, only 1 instantiated at week 2
+    selectQueue = [[{ current: 2 }], [{ value: 3 }], [{ value: 1 }]]
+    expect(await nextProgramWeek(USER, 'p1', 4)).toBe(2)
+  })
+
+  it('advances (clamped to the mesocycle) when every day is done', async () => {
+    selectQueue = [[{ current: 4 }], [{ value: 2 }], [{ value: 2 }]]
+    expect(await nextProgramWeek(USER, 'p1', 4)).toBe(4) // clamp: already at the last week
   })
 })

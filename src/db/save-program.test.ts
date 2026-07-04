@@ -33,6 +33,11 @@ vi.mock('./index', () => ({
   },
 }))
 
+// The wger catalog backs author-time muscle tagging; default = empty catalog
+// (no tag inserts) so the pre-Phase-5 write-order assertions stay untouched.
+const { getAllExercises } = vi.hoisted(() => ({ getAllExercises: vi.fn() }))
+vi.mock('@/lib/wger', () => ({ getAllExercises }))
+
 import { saveProgram } from './programs'
 
 const USER = 'user_123'
@@ -40,6 +45,7 @@ const USER = 'user_123'
 beforeEach(() => {
   records.length = 0
   idCounter = 0
+  getAllExercises.mockResolvedValue([])
 })
 
 describe('saveProgram (transactional, user-scoped)', () => {
@@ -153,5 +159,59 @@ describe('saveProgram (transactional, user-scoped)', () => {
       suggestedLoadKg: 30,
       technique: { version: 1, kind: 'drop-set', stages: [{ loadKg: 20, reps: 10 }] },
     })
+  })
+})
+
+describe('saveProgram muscle tagging (Phase 5)', () => {
+  const INPUT = parseProgramInput({
+    name: 'PPL',
+    days: [
+      { name: 'Push', exercises: [{ wgerExerciseId: 73, name: 'Bench', sets: [{}] }] },
+    ],
+  })
+
+  it('tags each exercise from the wger catalog (primary + secondary roles)', async () => {
+    // Arrange
+    getAllExercises.mockResolvedValue([
+      {
+        id: 73,
+        name: 'Bench Press',
+        category: 'Chest',
+        muscles: ['Chest'],
+        musclesSecondary: ['Shoulders', 'Chest'], // duplicate collapses into primary
+      },
+    ])
+
+    // Act
+    await saveProgram(USER, INPUT)
+
+    // Assert — muscle rows recorded after the exercise's sets
+    expect(records[4].values).toEqual([
+      { programExerciseId: 'e1', muscle: 'Chest', role: 'primary' },
+      { programExerciseId: 'e1', muscle: 'Shoulders', role: 'secondary' },
+    ])
+  })
+
+  it('saves untagged when the exercise is not in the catalog', async () => {
+    // Arrange — catalog loaded but this id is unknown
+    getAllExercises.mockResolvedValue([{ id: 999, name: 'Other', category: 'Legs' }])
+
+    // Act
+    await saveProgram(USER, INPUT)
+
+    // Assert — program, day, exercise, sets: no muscle insert
+    expect(records).toHaveLength(4)
+  })
+
+  it('saves untagged (not failing) when the catalog fetch throws', async () => {
+    // Arrange
+    getAllExercises.mockRejectedValue(new Error('wger down'))
+
+    // Act
+    const result = await saveProgram(USER, INPUT)
+
+    // Assert
+    expect(result).toEqual({ id: 'p1' })
+    expect(records).toHaveLength(4)
   })
 })

@@ -286,6 +286,7 @@ describe('registerReadTools', () => {
                 durationSec: null,
                 distanceM: null,
                 technique: null,
+                overrides: [],
               },
             ],
           },
