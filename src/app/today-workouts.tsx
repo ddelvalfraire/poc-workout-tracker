@@ -21,7 +21,9 @@ const useMounted = () =>
     () => false,
   )
 
-const timeFormat = new Intl.DateTimeFormat(undefined, { timeStyle: 'short' })
+// en-US to match formatWorkoutDate — the app commits to one locale for all
+// date/time display rather than mixing US dates with browser-locale times.
+const timeFormat = new Intl.DateTimeFormat('en-US', { timeStyle: 'short' })
 
 function isToday(date: Date, now: Date): boolean {
   return (

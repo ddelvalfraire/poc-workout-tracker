@@ -5,6 +5,7 @@ import { listWorkoutSummaries } from "@/db/workouts";
 import { getNextProgramDay } from "@/db/programs";
 import { getWeightUnit } from "@/db/preferences";
 import { formatWorkoutDate, formatVolume, formatWorkoutDuration } from "@/lib/format";
+import { startedWithinLastHours } from "@/lib/recent-window";
 import { buttonVariants } from "@/components/ui/button";
 import { UnitToggle } from "@/components/unit-toggle";
 import { cn } from "@/lib/utils";
@@ -82,7 +83,10 @@ export default async function HomePage() {
         )}
 
         <TodayWorkouts
-          workouts={summaries.slice(0, 10).map((w) => ({
+          // A 48h window (not a row cap) so "today" can never be crowded out
+          // by backdated entries, while any client timezone's calendar day is
+          // still fully covered; the exact local-day filter runs client-side.
+          workouts={startedWithinLastHours(summaries, 48).map((w) => ({
             id: w.id,
             name: w.name,
             startedAt: w.startedAt,
