@@ -88,7 +88,49 @@ export interface DerivedSet {
   durationSec: number | null
   distanceM: number | null
   technique: Technique | null
-  derivedFrom: 'template' | 'scheme' | 'deload'
+  derivedFrom: 'template' | 'scheme' | 'deload' | 'override'
+  /** Index into the input `sets` array this row derives from — clones inherit
+   *  their source's index. Callers use it to match per-set overrides after
+   *  resizing/renumbering has broken the setNumber correspondence. */
+  sourceIndex: number
+}
+
+/** The target columns of a `program_set_overrides` row (null = not overridden). */
+export interface SetOverrideLike {
+  repMin: number | null
+  repMax: number | null
+  rir: number | null
+  rpe: number | null
+  suggestedLoadKg: number | null
+  tempo: string | null
+  durationSec: number | null
+  distanceM: number | null
+  technique: Technique | null
+}
+
+/**
+ * Merges a per-week override onto a derived set: every NON-NULL override field
+ * wins (over the scheme AND the deload modifier — the top of the precedence
+ * chain). A missing or all-null override leaves the set untouched. Pure and
+ * shared so instantiation and `preview_program_week` can never disagree.
+ */
+export function applyOverride(
+  set: DerivedSet,
+  override: SetOverrideLike | undefined | null,
+): DerivedSet {
+  if (!override) return set
+  const overridden: Partial<DerivedSet> = {}
+  if (override.repMin !== null) overridden.repMin = override.repMin
+  if (override.repMax !== null) overridden.repMax = override.repMax
+  if (override.rir !== null) overridden.rir = override.rir
+  if (override.rpe !== null) overridden.rpe = override.rpe
+  if (override.suggestedLoadKg !== null) overridden.loadKg = override.suggestedLoadKg
+  if (override.tempo !== null) overridden.tempo = override.tempo
+  if (override.durationSec !== null) overridden.durationSec = override.durationSec
+  if (override.distanceM !== null) overridden.distanceM = override.distanceM
+  if (override.technique !== null) overridden.technique = override.technique
+  if (Object.keys(overridden).length === 0) return set
+  return { ...set, ...overridden, derivedFrom: 'override' }
 }
 
 /** Weeks 1..mesocycleWeeks with the deload week removed, in order. */
@@ -214,7 +256,7 @@ export function deriveWeekSets(args: {
   const weeks = nonDeloadWeeks(Math.max(1, mesocycleWeeks), deloadWeek)
   const isDeload = deloadWeek !== null && week === deloadWeek
 
-  let derived: DerivedSet[] = sets.map((set) => {
+  let derived: DerivedSet[] = sets.map((set, sourceIndex) => {
     const applies = progression !== null && isProgressed(set.setType)
     const { loadKg, rpe } = applies
       ? schemeLoad(set, progression, week, weeks, history)
@@ -233,6 +275,7 @@ export function deriveWeekSets(args: {
       distanceM: set.distanceM,
       technique: set.technique,
       derivedFrom: applies ? 'scheme' : 'template',
+      sourceIndex,
     }
   })
 

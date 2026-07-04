@@ -451,7 +451,7 @@ export function registerProgramTools(server: McpServer): void {
     {
       title: 'Instantiate Program Day',
       description:
-        "Starts a dated workout from a program day: seeds each set with its suggested load (reps/durations left blank for you to log) and stamps the program and week. Pass `week` (default 1). Returns the new workoutId — log it with update_set/add_set, then read it with get_workout to see the plan targets. Errors if the program day isn't found or owned.",
+        "Starts a dated workout from a program day: seeds each set with its week-N engine-derived target load (progression scheme + deload + per-week overrides; reps/durations left blank for you to log) and stamps the program and week. Omit `week` to auto-detect it from the program's own history (advances when a full cycle of days is logged); pass it to override. Returns the new workoutId and the week used — log it with update_set/add_set, then read it with get_workout to see the plan targets. Errors if the program day isn't found or owned.",
       inputSchema: {
         programDayId: z.string(),
         week: z.number().int().positive().optional(),
@@ -462,12 +462,17 @@ export function registerProgramTools(server: McpServer): void {
       try {
         const resolved = resolveUserId(extra, userId)
         assertProgramDayIdShape(programDayId)
-        const programWeek = week ?? 1
-        const result = await instantiateProgramDay(resolved, programDayId, programWeek)
+        const result = await instantiateProgramDay(resolved, programDayId, week ?? null)
         if (!result) {
           throw new ToolError(`Program day ${programDayId} not found for user ${resolved}`)
         }
-        return jsonResult({ userId: resolved, workoutId: result.id, programDayId, programWeek })
+        return jsonResult({
+          userId: resolved,
+          workoutId: result.id,
+          programDayId,
+          programWeek: result.week,
+          weekDerived: result.weekDerived,
+        })
       } catch (error: unknown) {
         return errorResult(error)
       }

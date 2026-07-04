@@ -204,8 +204,11 @@ export const programInputSchema = z
     path: ['deloadWeek'],
   })
 
+export type SetType = z.infer<typeof setTypeSchema>
+export type MetricMode = z.infer<typeof metricModeSchema>
 export type Technique = z.infer<typeof techniqueSchema>
 export type Progression = z.infer<typeof progressionSchema>
+export type SetOverrideInput = z.infer<typeof setOverrideSchema>
 export type ProgramSetInput = z.infer<typeof programSetSchema>
 export type ProgramExerciseInput = z.infer<typeof programExerciseSchema>
 export type ProgramDayInput = z.infer<typeof programDaySchema>

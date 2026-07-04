@@ -500,28 +500,29 @@ describe('registerProgramTools', () => {
   })
 
   describe('instantiate_program_day', () => {
-    it('instantiates a day into a dated workout, defaulting the week to 1', async () => {
-      // Arrange
+    it('auto-derives the week when omitted and echoes the derivation', async () => {
+      // Arrange — the db layer derives week 2 from the program's history
       const tools = setup()
-      mockedInstantiate.mockResolvedValue({ id: 'w1' })
+      mockedInstantiate.mockResolvedValue({ id: 'w1', week: 2, weekDerived: true })
 
       // Act
       const result = await tools.get('instantiate_program_day')!({ programDayId: PID })
 
-      // Assert
-      expect(mockedInstantiate).toHaveBeenCalledWith('user_env', PID, 1)
+      // Assert — week passes through as null (derivation lives in the db layer)
+      expect(mockedInstantiate).toHaveBeenCalledWith('user_env', PID, null)
       expect(payload(result)).toEqual({
         userId: 'user_env',
         workoutId: 'w1',
         programDayId: PID,
-        programWeek: 1,
+        programWeek: 2,
+        weekDerived: true,
       })
     })
 
     it('passes an explicit week through and echoes it', async () => {
       // Arrange
       const tools = setup()
-      mockedInstantiate.mockResolvedValue({ id: 'w1' })
+      mockedInstantiate.mockResolvedValue({ id: 'w1', week: 3, weekDerived: false })
 
       // Act
       const result = await tools.get('instantiate_program_day')!({ programDayId: PID, week: 3 })
@@ -529,6 +530,7 @@ describe('registerProgramTools', () => {
       // Assert
       expect(mockedInstantiate).toHaveBeenCalledWith('user_env', PID, 3)
       expect(payload(result).programWeek).toBe(3)
+      expect(payload(result).weekDerived).toBe(false)
     })
 
     it('returns isError /not found/ when the program day is not found or owned', async () => {

@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   percentOf1RM,
   deriveWeekSets,
+  applyOverride,
   DELOAD_LOAD_FACTOR,
   DELOAD_SET_FACTOR,
   type ProgramSetRowLike,
@@ -373,5 +374,41 @@ describe('deriveWeekSets', () => {
       history: NO_HISTORY,
     })
     expect(derived[0].loadKg).toBe(0)
+  })
+})
+
+describe('applyOverride', () => {
+  const base = {
+    setNumber: 1,
+    setType: 'working',
+    metricMode: 'reps_weight',
+    repMin: 8,
+    repMax: 12,
+    rir: null,
+    rpe: null,
+    loadKg: 102.5,
+    tempo: null,
+    durationSec: null,
+    distanceM: null,
+    technique: null,
+    derivedFrom: 'scheme',
+    sourceIndex: 0,
+  } as const
+
+  it('lets a non-null override field win over the derived value', () => {
+    const result = applyOverride(base, { suggestedLoadKg: 95, repMin: null, repMax: null, rir: null, rpe: null, tempo: null, durationSec: null, distanceM: null, technique: null })
+    expect(result.loadKg).toBe(95)
+    expect(result.repMin).toBe(8) // null override field = not overridden
+    expect(result.derivedFrom).toBe('override')
+  })
+
+  it('returns the set untouched when there is no override row', () => {
+    expect(applyOverride(base, undefined)).toBe(base)
+  })
+
+  it('returns the set untouched when the override row is all-null', () => {
+    const result = applyOverride(base, { suggestedLoadKg: null, repMin: null, repMax: null, rir: null, rpe: null, tempo: null, durationSec: null, distanceM: null, technique: null })
+    expect(result).toEqual(base)
+    expect(result.derivedFrom).toBe('scheme')
   })
 })

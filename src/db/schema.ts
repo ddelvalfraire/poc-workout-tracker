@@ -11,7 +11,7 @@ import {
   unique,
 } from 'drizzle-orm/pg-core'
 import { relations } from 'drizzle-orm'
-import type { Technique, Progression } from '@/lib/program-input'
+import type { Technique, Progression, SetType, MetricMode } from '@/lib/program-input'
 
 export const workouts = pgTable(
   'workouts',
@@ -161,8 +161,8 @@ export const programSets = pgTable(
       .notNull()
       .references(() => programExercises.id, { onDelete: 'cascade' }),
     setNumber: integer('set_number').notNull(), // 1-based
-    setType: text('set_type').notNull().default('working'), // warmup|working|backoff|amrap
-    metricMode: text('metric_mode').notNull().default('reps_weight'), // reps_weight|duration|duration_distance
+    setType: text('set_type').$type<SetType>().notNull().default('working'), // warmup|working|backoff|amrap
+    metricMode: text('metric_mode').$type<MetricMode>().notNull().default('reps_weight'), // reps_weight|duration|duration_distance
     repMin: integer('rep_min'),
     repMax: integer('rep_max'),
     rir: integer('rir'), // reps in reserve

@@ -1,10 +1,20 @@
-import { and, asc, desc, eq } from 'drizzle-orm'
+import { and, asc, count, countDistinct, desc, eq, max } from 'drizzle-orm'
 import type { ProgramInput } from '@/lib/program-input'
+import { getAllExercises, type Exercise } from '@/lib/wger'
+import {
+  deriveWeekSets,
+  applyOverride,
+  type DerivedSet,
+  type ExerciseHistoryInput,
+} from '@/lib/progression'
+import { bestSet } from '@/lib/one-rep-max'
 import { db } from './index'
+import { getLastPerformance, getExerciseHistoryBefore } from './workouts'
 import {
   programs,
   programDays,
   programExercises,
+  programExerciseMuscles,
   programSets,
   workouts,
   workoutExercises,
@@ -55,12 +65,56 @@ export type ProgramDetail = NonNullable<Awaited<ReturnType<typeof getProgramDeta
 /** The transaction handle, lifted from the callback signature (no internal import). */
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0]
 
+/** The wger catalog keyed by exercise id; null = catalog unavailable. */
+export type ExerciseCatalog = Map<number, Exercise>
+
+/**
+ * Fetches the (in-memory cached) wger catalog for author-time muscle tagging.
+ * Never called inside a transaction, and failure-tolerant: muscle tags are
+ * enrichment, not integrity, so a save without the catalog proceeds untagged.
+ */
+export async function loadExerciseCatalog(): Promise<ExerciseCatalog | null> {
+  try {
+    const all = await getAllExercises()
+    return new Map(all.map((e) => [e.id, e]))
+  } catch {
+    return null
+  }
+}
+
+/**
+ * The `program_exercise_muscles` rows for one exercise slot, from the catalog.
+ * Primary names win when wger lists a muscle on both sides (the unique is per
+ * (exercise, muscle)); an unknown id or missing catalog yields no rows.
+ */
+export function muscleRowsFor(
+  programExerciseId: string,
+  wgerExerciseId: number,
+  catalog: ExerciseCatalog | null,
+): { programExerciseId: string; muscle: string; role: 'primary' | 'secondary' }[] {
+  const entry = catalog?.get(wgerExerciseId)
+  if (!entry) return []
+  const primary = entry.muscles ?? []
+  const secondary = (entry.musclesSecondary ?? []).filter((m) => !primary.includes(m))
+  return [
+    ...primary.map((muscle) => ({ programExerciseId, muscle, role: 'primary' as const })),
+    ...secondary.map((muscle) => ({ programExerciseId, muscle, role: 'secondary' as const })),
+  ]
+}
+
 /**
  * Inserts a program's days → exercises → sets (shared by saveProgram and
  * updateProgram). `position` is the 0-based order within its parent; `setNumber`
- * is 1-based within its exercise — mirroring `insertWorkoutChildren`.
+ * is 1-based within its exercise — mirroring `insertWorkoutChildren`. Each
+ * exercise is muscle-tagged from the pre-fetched catalog (after its sets, so
+ * the long-standing program→day→exercise→sets write order stays put).
  */
-async function insertProgramChildren(tx: Tx, programId: string, days: ProgramInput['days']) {
+async function insertProgramChildren(
+  tx: Tx,
+  programId: string,
+  days: ProgramInput['days'],
+  catalog: ExerciseCatalog | null,
+) {
   for (const [dayPosition, day] of days.entries()) {
     const [pd] = await tx
       .insert(programDays)
@@ -98,6 +152,11 @@ async function insertProgramChildren(tx: Tx, programId: string, days: ProgramInp
           })),
         )
       }
+
+      const muscles = muscleRowsFor(pe.id, exercise.wgerExerciseId, catalog)
+      if (muscles.length > 0) {
+        await tx.insert(programExerciseMuscles).values(muscles)
+      }
     }
   }
 }
@@ -109,6 +168,7 @@ async function insertProgramChildren(tx: Tx, programId: string, days: ProgramInp
  * with `userId`; the children inherit ownership through the FK chain.
  */
 export async function saveProgram(userId: string, input: ProgramInput): Promise<{ id: string }> {
+  const catalog = await loadExerciseCatalog() // network read stays outside the tx
   return db.transaction(async (tx) => {
     const [program] = await tx
       .insert(programs)
@@ -122,7 +182,7 @@ export async function saveProgram(userId: string, input: ProgramInput): Promise<
       })
       .returning({ id: programs.id })
 
-    await insertProgramChildren(tx, program.id, input.days)
+    await insertProgramChildren(tx, program.id, input.days, catalog)
 
     return { id: program.id }
   })
@@ -139,6 +199,7 @@ export async function updateProgram(
   id: string,
   input: ProgramInput,
 ): Promise<{ id: string } | null> {
+  const catalog = await loadExerciseCatalog() // network read stays outside the tx
   return db.transaction(async (tx) => {
     const [owned] = await tx
       .update(programs)
@@ -155,7 +216,7 @@ export async function updateProgram(
     if (!owned) return null
 
     await tx.delete(programDays).where(eq(programDays.programId, id))
-    await insertProgramChildren(tx, id, input.days)
+    await insertProgramChildren(tx, id, input.days, catalog)
     return { id }
   })
 }
@@ -196,10 +257,14 @@ export async function getProgramDayDetail(userId: string, programDayId: string) 
   const day = await db.query.programDays.findFirst({
     where: eq(programDays.id, programDayId),
     with: {
-      program: { columns: { userId: true } },
+      program: {
+        columns: { id: true, userId: true, mesocycleWeeks: true, deloadWeek: true },
+      },
       exercises: {
         orderBy: (e) => [asc(e.position)],
-        with: { sets: { orderBy: (s) => [asc(s.setNumber)] } },
+        with: {
+          sets: { orderBy: (s) => [asc(s.setNumber)], with: { overrides: true } },
+        },
       },
     },
   })
@@ -211,25 +276,135 @@ export async function getProgramDayDetail(userId: string, programDayId: string) 
 export type ProgramDayDetail = NonNullable<Awaited<ReturnType<typeof getProgramDayDetail>>>
 
 /**
+ * The week `instantiate_program_day` should default to, derived from the
+ * program's own workout history (no stored counter to drift): the highest
+ * `programWeek` already instantiated is the current week; once every day of
+ * the program has a workout at that week, the cycle is complete and the next
+ * week begins — clamped to `mesocycleWeeks` so a finished meso re-runs its
+ * last week rather than extrapolating. No history → week 1.
+ */
+export async function nextProgramWeek(
+  userId: string,
+  programId: string,
+  mesocycleWeeks: number,
+): Promise<number> {
+  const [agg] = await db
+    .select({ current: max(workouts.programWeek) })
+    .from(workouts)
+    .innerJoin(programDays, eq(programDays.id, workouts.programDayId))
+    .where(and(eq(programDays.programId, programId), eq(workouts.userId, userId)))
+  const current = agg?.current ?? null
+  if (current === null) return 1
+
+  const [dayTotal] = await db
+    .select({ value: count(programDays.id) })
+    .from(programDays)
+    .where(eq(programDays.programId, programId))
+  const [daysDone] = await db
+    .select({ value: countDistinct(workouts.programDayId) })
+    .from(workouts)
+    .innerJoin(programDays, eq(programDays.id, workouts.programDayId))
+    .where(
+      and(
+        eq(programDays.programId, programId),
+        eq(workouts.userId, userId),
+        eq(workouts.programWeek, current),
+      ),
+    )
+
+  const cycleComplete = daysDone.value >= dayTotal.value
+  return cycleComplete ? Math.min(current + 1, Math.max(1, mesocycleWeeks)) : current
+}
+
+/**
+ * The engine-derived week-N prescription for every exercise of a loaded day,
+ * in exercise order: history reads (batched all-time rows for e1RM; last
+ * performance only for double-progression exercises), `deriveWeekSets`, then
+ * per-set overrides merged on top (override > deload > scheme > template).
+ * Shared by `instantiateProgramDay` and `preview_program_week` so what the
+ * preview shows is exactly what instantiation seeds.
+ */
+export async function deriveDayPrescription(
+  userId: string,
+  day: ProgramDayDetail,
+  week: number,
+): Promise<DerivedSet[][]> {
+  const ids = [...new Set(day.exercises.map((e) => e.wgerExerciseId))]
+  const historyRows = ids.length > 0 ? await getExerciseHistoryBefore(userId, ids, new Date()) : []
+
+  const e1rmById = new Map<number, number | null>()
+  for (const id of ids) {
+    const rows = historyRows.filter((r) => r.wgerExerciseId === id)
+    e1rmById.set(id, bestSet(rows)?.e1rm ?? null)
+  }
+
+  // Only double-progression needs the LAST session's sets specifically.
+  const lastSetsById = new Map<number, ExerciseHistoryInput['lastSets']>()
+  for (const exercise of day.exercises) {
+    if (
+      exercise.progression?.scheme === 'double-progression' &&
+      !lastSetsById.has(exercise.wgerExerciseId)
+    ) {
+      const perf = await getLastPerformance(userId, exercise.wgerExerciseId)
+      lastSetsById.set(
+        exercise.wgerExerciseId,
+        perf?.sets.map((s) => ({ reps: s.reps, weightKg: s.weight })) ?? null,
+      )
+    }
+  }
+
+  return day.exercises.map((exercise) => {
+    const history: ExerciseHistoryInput = {
+      e1rmKg: e1rmById.get(exercise.wgerExerciseId) ?? null,
+      lastSets: lastSetsById.get(exercise.wgerExerciseId) ?? null,
+    }
+    const derived = deriveWeekSets({
+      sets: exercise.sets,
+      progression: exercise.progression,
+      week,
+      mesocycleWeeks: day.program.mesocycleWeeks,
+      deloadWeek: day.program.deloadWeek,
+      history,
+    })
+    // Overrides key on the TEMPLATE set (sourceIndex survives resizing/renumbering).
+    return derived.map((s) =>
+      applyOverride(
+        s,
+        exercise.sets[s.sourceIndex]?.overrides.find((o) => o.week === week),
+      ),
+    )
+  })
+}
+
+/**
  * Instantiates a program day into a new dated workout for the user — the
  * author→log bridge. The workout is stamped with provenance (`programDayId`,
- * `programWeek`) and its sets are seeded from `program_sets`: the prescribed load
- * goes into `weight` (only for `reps_weight` sets), while reps/duration/distance
- * are left blank for the user to log. The planned targets (rep range, RIR, set
- * type, technique) are NOT copied — they stay on the program and are read back
- * via the `get_workout` plan overlay.
+ * `programWeek`) and its sets are seeded from the ENGINE-DERIVED week-N
+ * prescription (`deriveDayPrescription`), not the raw template: the derived
+ * load goes into `weight` (only for `reps_weight` sets), while reps/duration/
+ * distance are left blank for the user to log. Planned targets stay on the
+ * program and are read back via the `get_workout` plan overlay.
  *
- * Returns the new workout id, or null when the program day isn't found or owned.
- * The day is read first (ownership), then the whole tree is seeded in one
+ * `week` omitted/null → auto-derived via `nextProgramWeek` (`weekDerived: true`
+ * in the result). Returns null when the day isn't found or owned.
+ * The day + history are read first, then the whole tree is seeded in one
  * transaction, mirroring `saveWorkout`.
  */
 export async function instantiateProgramDay(
   userId: string,
   programDayId: string,
-  week: number,
-): Promise<{ id: string } | null> {
+  week?: number | null,
+): Promise<{ id: string; week: number; weekDerived: boolean } | null> {
   const day = await getProgramDayDetail(userId, programDayId)
   if (!day) return null
+
+  const weekDerived = week == null
+  const targetWeek = weekDerived
+    ? await nextProgramWeek(userId, day.program.id, day.program.mesocycleWeeks)
+    : week
+
+  const prescription = await deriveDayPrescription(userId, day, targetWeek)
+
   // Read-then-seed: the ownership read is outside the transaction. In the narrow
   // window before the insert, a concurrent delete_program would make the workout
   // insert fail the program_day_id FK (surfacing as a generic error, not a clean
@@ -238,7 +413,7 @@ export async function instantiateProgramDay(
   return db.transaction(async (tx) => {
     const [workout] = await tx
       .insert(workouts)
-      .values({ userId, name: day.name, programDayId, programWeek: week })
+      .values({ userId, name: day.name, programDayId, programWeek: targetWeek })
       .returning({ id: workouts.id })
 
     for (const [position, exercise] of day.exercises.entries()) {
@@ -252,15 +427,16 @@ export async function instantiateProgramDay(
         })
         .returning({ id: workoutExercises.id })
 
-      if (exercise.sets.length > 0) {
+      const derived = prescription[position]
+      if (derived.length > 0) {
         await tx.insert(sets).values(
-          exercise.sets.map((s, i) => ({
+          derived.map((s) => ({
             workoutExerciseId: we.id,
-            setNumber: i + 1,
+            setNumber: s.setNumber,
             reps: null,
-            // Prescribed load is a mutable starting suggestion; only reps_weight
+            // Derived load is a mutable starting suggestion; only reps_weight
             // sets carry a load. The achievement fields stay blank until logged.
-            weight: s.metricMode === 'reps_weight' ? s.suggestedLoadKg : null,
+            weight: s.metricMode === 'reps_weight' ? s.loadKg : null,
             metricMode: s.metricMode,
             durationSec: null,
             distanceM: null,
@@ -270,6 +446,6 @@ export async function instantiateProgramDay(
       }
     }
 
-    return { id: workout.id }
+    return { id: workout.id, week: targetWeek, weekDerived }
   })
 }
