@@ -11,6 +11,7 @@ import {
   programSets,
   programExerciseMuscles,
   programSetOverrides,
+  customExercises,
 } from './schema'
 
 describe('schema', () => {
@@ -115,5 +116,52 @@ describe('schema', () => {
     expect(cols.setType.hasDefault).toBe(true)
     expect(cols.metricMode.notNull).toBe(true)
     expect(cols.metricMode.hasDefault).toBe(true)
+  })
+
+  it('defines the custom exercise catalog with snake_case name', () => {
+    expect(getTableName(customExercises)).toBe('custom_exercises')
+  })
+
+  it('gives custom_exercises an integer identity id', () => {
+    const id = getTableColumns(customExercises).id
+    expect(id.dataType).toBe('number')
+    // Identity (not a computed column): drizzle exposes it as generatedIdentity.
+    expect(id.generatedIdentity).toMatchObject({ type: 'always' })
+  })
+
+  it('requires ownership and definition fields on custom_exercises', () => {
+    const cols = getTableColumns(customExercises)
+    expect(cols.userId.notNull).toBe(true)
+    expect(cols.name.notNull).toBe(true)
+    expect(cols.category.notNull).toBe(true)
+    // Parity arrays stay nullable — a definition without tags is valid.
+    expect(cols.equipment.notNull).toBe(false)
+    expect(cols.muscles.notNull).toBe(false)
+    expect(cols.musclesSecondary.notNull).toBe(false)
+  })
+
+  it('keys custom exercises uniquely per (user, name)', () => {
+    const uniques = getTableConfig(customExercises).uniqueConstraints
+    expect(uniques.map((u) => u.columns.map((c) => c.name).sort())).toContainEqual([
+      'name',
+      'user_id',
+    ])
+  })
+
+  it('makes the source discriminator additive on both exercise ref tables (non-null, defaulted)', () => {
+    for (const table of [workoutExercises, programExercises]) {
+      const source = getTableColumns(table).source
+      expect(source.notNull).toBe(true)
+      expect(source.hasDefault).toBe(true)
+    }
+  })
+
+  it('forbids the negative-ID stopgap via check constraints on both ref tables', () => {
+    expect(getTableConfig(workoutExercises).checks.map((c) => c.name)).toContain(
+      'workout_exercises_wger_id_positive',
+    )
+    expect(getTableConfig(programExercises).checks.map((c) => c.name)).toContain(
+      'program_exercises_wger_id_positive',
+    )
   })
 })
