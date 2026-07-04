@@ -140,7 +140,7 @@ Phase 1 + 2 + 3: the schema (incl. timed metric + provenance), Zod, the coarse M
 | 3 | Instantiation | `instantiate_program_day` → dated workout (seed sets, week derivation), `get_workout` plan overlay | complete | - | 2 | [plan](../plans/completed/programs-and-routines-phase-3-instantiation.plan.md) · [report](../reports/programs-and-routines-phase-3-instantiation-report.md) |
 | 4 | Granular patch tools | add/update/remove/reorder day·exercise·set; `update_program_exercise`/`_set` (named scalar args) | complete | with 6 | 2 | [plan](../plans/completed/programs-and-routines-phase-4-patch-tools.plan.md) · [report](../reports/programs-and-routines-phase-4-patch-tools-report.md) |
 | 5 | Progression engine + techniques | linear/double/%1RM/RPE/volume schemes, deload, multi-week derivation, technique `stages[]`, supersets, muscle-group tagging | complete | - | 3 | [plan](../plans/completed/programs-and-routines-phase-5-progression-engine.plan.md) · [report](../reports/programs-and-routines-phase-5-progression-engine-report.md) |
-| 6 | Web UI | program builder, browse, "start today's day" | pending | with 2,4 | 1 | - |
+| 6 | Web UI | program builder, browse, "start today's day" | complete | with 2,4 | 1 | [plan](../plans/completed/programs-and-routines-phase-6-web-ui.plan.md) · [report](../reports/programs-and-routines-phase-6-web-ui-report.md) |
 
 ### Phase Details
 
