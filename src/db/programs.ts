@@ -1,11 +1,13 @@
 import { and, asc, count, countDistinct, desc, eq, max } from 'drizzle-orm'
-import type { ProgramInput } from '@/lib/program-input'
+import type { ProgramInput, Progression } from '@/lib/program-input'
 import { getAllExercises, type Exercise } from '@/lib/wger'
 import {
   deriveWeekSets,
   applyOverride,
   type DerivedSet,
   type ExerciseHistoryInput,
+  type ProgramSetRowLike,
+  type SetOverrideLike,
 } from '@/lib/progression'
 import { bestSet } from '@/lib/one-rep-max'
 import { db } from './index'
@@ -41,7 +43,8 @@ export function listPrograms(userId: string) {
     .orderBy(desc(programs.updatedAt))
 }
 
-/** Fetches a single program with its days/exercises/sets, only if owned by the user. */
+/** Fetches a single program with its days/exercises (incl. muscle tags)/sets
+ *  (incl. per-week overrides), only if owned by the user. */
 export function getProgramDetail(userId: string, id: string) {
   return db.query.programs.findFirst({
     where: and(eq(programs.id, id), eq(programs.userId, userId)),
@@ -51,7 +54,10 @@ export function getProgramDetail(userId: string, id: string) {
         with: {
           exercises: {
             orderBy: (e) => [asc(e.position)],
-            with: { sets: { orderBy: (s) => [asc(s.setNumber)] } },
+            with: {
+              muscles: true,
+              sets: { orderBy: (s) => [asc(s.setNumber)], with: { overrides: true } },
+            },
           },
         },
       },
@@ -324,9 +330,21 @@ export async function nextProgramWeek(
  * Shared by `instantiateProgramDay` and `preview_program_week` so what the
  * preview shows is exactly what instantiation seeds.
  */
+/** The slice of a loaded day the prescription derivation needs — satisfied by
+ *  both `getProgramDayDetail` (instantiation) and a `getProgramDetail` day
+ *  paired with its program row (preview). */
+export interface DayForDerivation {
+  exercises: {
+    wgerExerciseId: number
+    progression: Progression | null
+    sets: (ProgramSetRowLike & { overrides: (SetOverrideLike & { week: number })[] })[]
+  }[]
+  program: { mesocycleWeeks: number; deloadWeek: number | null }
+}
+
 export async function deriveDayPrescription(
   userId: string,
-  day: ProgramDayDetail,
+  day: DayForDerivation,
   week: number,
 ): Promise<DerivedSet[][]> {
   const ids = [...new Set(day.exercises.map((e) => e.wgerExerciseId))]

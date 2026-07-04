@@ -9,6 +9,8 @@ vi.mock('@/db/programs', () => ({
   listPrograms: vi.fn(),
   getProgramDetail: vi.fn(),
   instantiateProgramDay: vi.fn(),
+  nextProgramWeek: vi.fn(),
+  deriveDayPrescription: vi.fn(),
 }))
 vi.mock('@/db/preferences', () => ({ getWeightUnit: vi.fn() }))
 
@@ -21,6 +23,8 @@ import {
   listPrograms,
   getProgramDetail,
   instantiateProgramDay,
+  nextProgramWeek,
+  deriveDayPrescription,
 } from '@/db/programs'
 import { getWeightUnit } from '@/db/preferences'
 import { displayToKg, kgToDisplay } from '@/lib/units'
@@ -33,6 +37,8 @@ const mockedSetStatus = vi.mocked(setProgramStatus)
 const mockedList = vi.mocked(listPrograms)
 const mockedDetail = vi.mocked(getProgramDetail)
 const mockedInstantiate = vi.mocked(instantiateProgramDay)
+const mockedNextWeek = vi.mocked(nextProgramWeek)
+const mockedDerive = vi.mocked(deriveDayPrescription)
 const mockedGetUnit = vi.mocked(getWeightUnit)
 
 type ToolResult = { content: { type: string; text: string }[]; isError?: boolean }
@@ -102,6 +108,11 @@ function programDetail() {
             name: 'Bench',
             position: 0,
             progression: { scheme: 'linear', incrementKg: 2.5 },
+            supersetGroup: 1,
+            muscles: [
+              { id: 'm1', programExerciseId: 'e1', muscle: 'Chest', role: 'primary' },
+              { id: 'm2', programExerciseId: 'e1', muscle: 'Shoulders', role: 'secondary' },
+            ],
             sets: [
               {
                 id: 's1',
@@ -118,6 +129,22 @@ function programDetail() {
                 durationSec: null,
                 distanceM: null,
                 technique: { version: 1, kind: 'drop-set', stages: [{ loadKg: 20, reps: 10 }] },
+                overrides: [
+                  {
+                    id: 'ov1',
+                    programSetId: 's1',
+                    week: 3,
+                    repMin: null,
+                    repMax: null,
+                    rir: null,
+                    rpe: null,
+                    suggestedLoadKg: 95,
+                    tempo: null,
+                    durationSec: null,
+                    distanceM: null,
+                    technique: null,
+                  },
+                ],
               },
             ],
           },
@@ -141,13 +168,14 @@ describe('registerProgramTools', () => {
     else process.env.MCP_DEV_USER_ID = original
   })
 
-  it('registers exactly the six program tools', () => {
+  it('registers exactly the seven program tools', () => {
     const tools = setup()
     expect([...tools.keys()].sort()).toEqual([
       'delete_program',
       'get_program',
       'instantiate_program_day',
       'list_programs',
+      'preview_program_week',
       'set_program_status',
       'upsert_program',
     ])
@@ -373,9 +401,26 @@ describe('registerProgramTools', () => {
       }
       expect(body.unit).toBe('lb')
       expect(body.program.createdAt).toBe('2026-06-01T00:00:00.000Z')
-      const set = body.program.days[0]!.exercises[0]!.sets[0]!
+      const exercise = (
+        body.program.days[0]!.exercises as unknown as {
+          supersetGroup: number | null
+          muscles: { primary: string[]; secondary: string[] }
+          sets: {
+            suggestedLoad: number | null
+            technique: unknown
+            overrides: { week: number; suggestedLoad: number | null }[]
+          }[]
+        }[]
+      )[0]!
+      expect(exercise.supersetGroup).toBe(1)
+      expect(exercise.muscles).toEqual({ primary: ['Chest'], secondary: ['Shoulders'] })
+      const set = exercise.sets[0]!
       expect(set.suggestedLoad).toBe(kgToDisplay(100, 'lb'))
       expect(set.technique).toEqual({ version: 1, kind: 'drop-set', stages: [{ loadKg: 20, reps: 10 }] })
+      // Per-week overrides ride along, loads converted the same way.
+      expect(set.overrides).toEqual([
+        expect.objectContaining({ week: 3, suggestedLoad: kgToDisplay(95, 'lb') }),
+      ])
     })
 
     it('returns isError /not found/ when the program does not exist', async () => {
@@ -496,6 +541,90 @@ describe('registerProgramTools', () => {
       // Assert
       expect(result.isError).toBe(true)
       expect(result.content[0]?.text).toMatch(/not found/)
+    })
+  })
+
+  describe('preview_program_week', () => {
+    /** One derived working set the mocked engine returns. */
+    const DERIVED = [
+      [
+        {
+          setNumber: 1,
+          setType: 'working',
+          metricMode: 'reps_weight',
+          repMin: 8,
+          repMax: 12,
+          rir: 2,
+          rpe: null,
+          loadKg: 105,
+          tempo: null,
+          durationSec: null,
+          distanceM: null,
+          technique: null,
+          derivedFrom: 'scheme',
+          sourceIndex: 0,
+        },
+      ],
+    ]
+
+    it('returns derived targets in display units with volume per primary muscle', async () => {
+      // Arrange
+      const tools = setup()
+      mockedDetail.mockResolvedValue(programDetail() as unknown as Detail)
+      mockedDerive.mockResolvedValue(DERIVED as never)
+
+      // Act — explicit week: no nextProgramWeek read
+      const result = await tools.get('preview_program_week')!({ programId: PID, week: 2 })
+
+      // Assert
+      expect(mockedNextWeek).not.toHaveBeenCalled()
+      expect(mockedDerive).toHaveBeenCalledWith(
+        'user_env',
+        expect.objectContaining({ program: expect.objectContaining({ mesocycleWeeks: 4 }) }),
+        2,
+      )
+      const body = payload(result) as {
+        week: number
+        weekDerived: boolean
+        volume: Record<string, number>
+        days: { exercises: { sets: { suggestedLoad: number | null; derivedFrom: string }[] }[] }[]
+      }
+      expect(body.week).toBe(2)
+      expect(body.weekDerived).toBe(false)
+      const set = body.days[0]!.exercises[0]!.sets[0]!
+      expect(set.suggestedLoad).toBe(kgToDisplay(105, 'lb'))
+      expect(set.derivedFrom).toBe('scheme')
+      // 1 working set attributed to the exercise's primary muscle
+      expect(body.volume).toEqual({ Chest: 1 })
+    })
+
+    it('defaults the week via nextProgramWeek and flags the derivation', async () => {
+      // Arrange
+      const tools = setup()
+      mockedDetail.mockResolvedValue(programDetail() as unknown as Detail)
+      mockedDerive.mockResolvedValue(DERIVED as never)
+      mockedNextWeek.mockResolvedValue(3)
+
+      // Act
+      const result = await tools.get('preview_program_week')!({ programId: PID })
+
+      // Assert
+      expect(mockedNextWeek).toHaveBeenCalledWith('user_env', PID, 4)
+      expect(payload(result)).toMatchObject({ week: 3, weekDerived: true })
+    })
+
+    it('returns isError /not found/ for a missing program without deriving', async () => {
+      // Arrange
+      const tools = setup()
+      mockedDetail.mockResolvedValue(undefined as unknown as Detail)
+
+      // Act
+      const result = await tools.get('preview_program_week')!({ programId: PID })
+
+      // Assert
+      expect(result.isError).toBe(true)
+      expect(result.content[0]?.text).toMatch(/not found/)
+      expect(mockedDerive).not.toHaveBeenCalled()
     })
   })
 

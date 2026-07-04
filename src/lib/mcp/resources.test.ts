@@ -194,6 +194,7 @@ describe('registerResources', () => {
                 durationSec: null,
                 distanceM: null,
                 technique: null,
+                overrides: [],
               },
             ],
           },
@@ -241,6 +242,8 @@ describe('registerResources', () => {
                 name: 'Bench',
                 position: 0,
                 progression: null,
+                supersetGroup: null,
+                muscles: [],
                 sets: [
                   {
                     id: 's1',
@@ -257,6 +260,7 @@ describe('registerResources', () => {
                     durationSec: null,
                     distanceM: null,
                     technique: null,
+                    overrides: [],
                   },
                 ],
               },

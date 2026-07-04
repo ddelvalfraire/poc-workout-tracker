@@ -23,6 +23,8 @@ import {
   listPrograms,
   getProgramDetail,
   instantiateProgramDay,
+  nextProgramWeek,
+  deriveDayPrescription,
   type ProgramDetail,
   type ProgramDayDetail,
 } from '@/db/programs'
@@ -184,6 +186,8 @@ export interface ProgramPayload {
         name: string
         position: number
         progression: unknown | null
+        supersetGroup: number | null
+        muscles: { primary: string[]; secondary: string[] }
         sets: {
           setNumber: number
           setType: string
@@ -197,9 +201,32 @@ export interface ProgramPayload {
           durationSec: number | null
           distanceM: number | null
           technique: unknown | null
+          overrides: {
+            week: number
+            repMin: number | null
+            repMax: number | null
+            rir: number | null
+            rpe: number | null
+            suggestedLoad: number | null
+            tempo: string | null
+            durationSec: number | null
+            distanceM: number | null
+            technique: unknown | null
+          }[]
         }[]
       }[]
     }[]
+  }
+}
+
+/** Muscle tag rows → the {primary, secondary} name lists the payload exposes. */
+function buildMuscleView(muscles: { muscle: string; role: string }[]): {
+  primary: string[]
+  secondary: string[]
+} {
+  return {
+    primary: muscles.filter((m) => m.role === 'primary').map((m) => m.muscle),
+    secondary: muscles.filter((m) => m.role === 'secondary').map((m) => m.muscle),
   }
 }
 
@@ -226,6 +253,19 @@ function buildProgramSetView(s: ProgramSetRow, unit: WeightUnit) {
     durationSec: s.durationSec,
     distanceM: s.distanceM,
     technique: s.technique,
+    // Per-week explicit targets (Phase 5); loads in the same display unit.
+    overrides: s.overrides.map((o) => ({
+      week: o.week,
+      repMin: o.repMin,
+      repMax: o.repMax,
+      rir: o.rir,
+      rpe: o.rpe,
+      suggestedLoad: o.suggestedLoadKg === null ? null : kgToDisplay(o.suggestedLoadKg, unit),
+      tempo: o.tempo,
+      durationSec: o.durationSec,
+      distanceM: o.distanceM,
+      technique: o.technique,
+    })),
   }
 }
 
@@ -294,6 +334,8 @@ export function buildProgramPayload(
           name: exercise.name,
           position: exercise.position,
           progression: exercise.progression,
+          supersetGroup: exercise.supersetGroup,
+          muscles: buildMuscleView(exercise.muscles),
           sets: exercise.sets.map((s) => buildProgramSetView(s, unit)),
         })),
       })),
@@ -472,6 +514,93 @@ export function registerProgramTools(server: McpServer): void {
           programDayId,
           programWeek: result.week,
           weekDerived: result.weekDerived,
+        })
+      } catch (error: unknown) {
+        return errorResult(error)
+      }
+    },
+  )
+
+  server.registerTool(
+    'preview_program_week',
+    {
+      title: 'Preview Program Week',
+      description:
+        "Dry-run: the exact targets instantiate_program_day would seed for every day of a program at week N — engine-derived (progression scheme, deload, per-week overrides; each set's `derivedFrom` says which won: override > deload > scheme > template) — plus working-set volume per primary muscle. Nothing is written. Omit `week` to preview the auto-detected current week. Loads in the user's unit (or the `unit` arg).",
+      inputSchema: {
+        programId: z.string(),
+        week: z.number().int().positive().optional(),
+        unit: unitArg,
+        userId: z.string().optional(),
+      },
+    },
+    async ({ programId, week, unit, userId }, extra) => {
+      try {
+        const resolved = resolveUserId(extra, userId)
+        assertProgramIdShape(programId)
+        const program = await getProgramDetail(resolved, programId)
+        if (!program) {
+          throw new ToolError(`Program ${programId} not found for user ${resolved}`)
+        }
+        const displayUnit = unit ?? (await getWeightUnit(resolved))
+        const weekDerived = week == null
+        const targetWeek =
+          week ?? (await nextProgramWeek(resolved, program.id, program.mesocycleWeeks))
+
+        const volume: Record<string, number> = {}
+        const days = []
+        for (const day of program.days) {
+          const prescription = await deriveDayPrescription(
+            resolved,
+            { exercises: day.exercises, program },
+            targetWeek,
+          )
+          days.push({
+            programDayId: day.id,
+            position: day.position,
+            name: day.name,
+            exercises: day.exercises.map((exercise, index) => {
+              const derived = prescription[index]
+              const muscles = buildMuscleView(exercise.muscles)
+              const workingSets = derived.filter((s) => s.setType === 'working').length
+              for (const muscle of muscles.primary) {
+                volume[muscle] = (volume[muscle] ?? 0) + workingSets
+              }
+              return {
+                position: exercise.position,
+                wgerExerciseId: exercise.wgerExerciseId,
+                name: exercise.name,
+                supersetGroup: exercise.supersetGroup,
+                muscles,
+                sets: derived.map((s) => ({
+                  setNumber: s.setNumber,
+                  setType: s.setType,
+                  metricMode: s.metricMode,
+                  repMin: s.repMin,
+                  repMax: s.repMax,
+                  rir: s.rir,
+                  rpe: s.rpe,
+                  suggestedLoad: s.loadKg === null ? null : kgToDisplay(s.loadKg, displayUnit),
+                  tempo: s.tempo,
+                  durationSec: s.durationSec,
+                  distanceM: s.distanceM,
+                  technique: s.technique,
+                  derivedFrom: s.derivedFrom,
+                })),
+              }
+            }),
+          })
+        }
+
+        return jsonResult({
+          userId: resolved,
+          unit: displayUnit,
+          programId,
+          week: targetWeek,
+          weekDerived,
+          deloadWeek: program.deloadWeek,
+          days,
+          volume,
         })
       } catch (error: unknown) {
         return errorResult(error)

@@ -23,9 +23,10 @@ import {
 /**
  * Granular patch ops for the program tree — the program twin of the set-level
  * ops in `db/workouts.ts`. Each op addresses one node by `programId` + 0-based
- * positions (+ 1-based `setNumber` at the leaf), runs in one `db.transaction`,
- * and is user-scoped: ownership is enforced through the join chain up to
- * `programs.user_id`, so a caller can never touch another user's program.
+ * positions (+ 1-based `setNumber` at the leaf; + `week` for the Phase-5
+ * per-week override ops), runs in one `db.transaction`, and is user-scoped:
+ * ownership is enforced through the join chain up to `programs.user_id`, so a
+ * caller can never touch another user's program.
  *
  * Two distinct failure channels:
  * - `null` — the addressed node isn't owned or doesn't exist (tool → not-found)

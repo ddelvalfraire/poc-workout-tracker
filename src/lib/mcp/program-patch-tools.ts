@@ -6,6 +6,8 @@ import { ToolError } from './errors'
 import { assertProgramIdShape } from './program-id'
 import {
   ProgramPatchError,
+  setProgramSetOverride,
+  removeProgramSetOverride,
   addProgramDay,
   updateProgramDay,
   removeProgramDay,
@@ -19,6 +21,7 @@ import {
   removeProgramSet,
   moveProgramSet,
   type ProgramSetPatch,
+  type ProgramSetOverridePatch,
 } from '@/db/program-patches'
 import { getWeightUnit } from '@/db/preferences'
 import { displayToKg, kgToDisplay, type WeightUnit } from '@/lib/units'
@@ -49,6 +52,8 @@ const loadArg = z.number().nullable().optional()
 const positionArg = z.number().int().min(0)
 /** 1-based set numbers (matches get_program's `setNumber`). */
 const setNumberArg = z.number().int().min(1)
+/** 1-based mesocycle week an override pins. */
+const weekArg = z.number().int().min(1)
 
 /** The shared planned-set target args (add_program_set + update_program_set). */
 const setPatchArgs = {
@@ -338,7 +343,7 @@ export function registerProgramPatchTools(server: McpServer): void {
     {
       title: 'Update Program Exercise',
       description:
-        "Updates an exercise's wgerExerciseId, name, and/or progression (by programId + 0-based dayPosition + 0-based exercisePosition) — e.g. swap the movement without touching its sets. Only the named fields change; pass progression: null to clear it (`progression` JSONB is in kg). Errors if the exercise isn't found or owned.",
+        "Updates an exercise's wgerExerciseId, name, progression, and/or supersetGroup (by programId + 0-based dayPosition + 0-based exercisePosition) — e.g. swap the movement without touching its sets (a swap re-derives the muscle tags). Only the named fields change; pass progression: null to clear it (`progression` JSONB is in kg) or supersetGroup: null to ungroup (same non-null group within a day = superset). Errors if the exercise isn't found or owned.",
       inputSchema: {
         programId: z.string(),
         dayPosition: positionArg,
@@ -346,19 +351,29 @@ export function registerProgramPatchTools(server: McpServer): void {
         wgerExerciseId: z.number().int().optional(),
         name: nameArg.optional(),
         progression: progressionSchema.nullable().optional(),
+        supersetGroup: z.number().int().min(0).nullable().optional(),
         userId: z.string().optional(),
       },
     },
     async (
-      { programId, dayPosition, exercisePosition, wgerExerciseId, name, progression, userId },
+      {
+        programId,
+        dayPosition,
+        exercisePosition,
+        wgerExerciseId,
+        name,
+        progression,
+        supersetGroup,
+        userId,
+      },
       extra,
     ) => {
       try {
         const resolved = resolveUserId(extra, userId)
         assertProgramIdShape(programId)
-        if (isEmptyPatch({ wgerExerciseId, name, progression })) {
+        if (isEmptyPatch({ wgerExerciseId, name, progression, supersetGroup })) {
           throw new ToolError(
-            'update_program_exercise needs at least one of wgerExerciseId, name, or progression',
+            'update_program_exercise needs at least one of wgerExerciseId, name, progression, or supersetGroup',
           )
         }
         const result = await runOp(() =>
@@ -366,6 +381,7 @@ export function registerProgramPatchTools(server: McpServer): void {
             wgerExerciseId,
             name,
             progression,
+            supersetGroup,
           }),
         )
         if (!result) {
@@ -619,6 +635,142 @@ export function registerProgramPatchTools(server: McpServer): void {
           )
         }
         return jsonResult({ userId: resolved, programId, dayPosition, exercisePosition, from, to })
+      } catch (error: unknown) {
+        return errorResult(error)
+      }
+    },
+  )
+
+  // -------------------------------------------------------------------------
+  // Per-week override tools (Phase 5)
+  // -------------------------------------------------------------------------
+
+  server.registerTool(
+    'set_program_set_override',
+    {
+      title: 'Set Program Set Override',
+      description:
+        "Pins explicit targets for ONE planned set on ONE mesocycle week (by programId + 0-based dayPosition/exercisePosition + 1-based setNumber + week) — the escape hatch for block/undulating weeks the progression engine can't derive. A pinned field wins over the engine AND the deload modifier for that week; other weeks are untouched (use update_program_set to change the set itself). Repeat calls merge; pass null to unpin a field (reverting it to the engine); unpinning every field removes the override. `suggestedLoad` is in the user's unit (or the `unit` arg), `technique` JSONB in kg. Errors if the set isn't found or owned.",
+      inputSchema: {
+        programId: z.string(),
+        dayPosition: positionArg,
+        exercisePosition: positionArg,
+        setNumber: setNumberArg,
+        week: weekArg,
+        repMin: repArg,
+        repMax: repArg,
+        rir: rirArg,
+        rpe: rpeArg,
+        suggestedLoad: loadArg,
+        tempo: tempoArg,
+        durationSec: durationArg,
+        distanceM: distanceArg,
+        technique: techniqueSchema.nullable().optional(), // kg, passthrough
+        unit: unitArg,
+        userId: z.string().optional(),
+      },
+    },
+    async (
+      { programId, dayPosition, exercisePosition, setNumber, week, unit, userId, ...targets },
+      extra,
+    ) => {
+      try {
+        const resolved = resolveUserId(extra, userId)
+        assertProgramIdShape(programId)
+        // Reject an all-undefined patch BEFORE resolving the unit.
+        if (isEmptyPatch(targets)) {
+          throw new ToolError('set_program_set_override needs at least one field to pin (or null to unpin)')
+        }
+        const patch: ProgramSetOverridePatch = {}
+        if (targets.repMin !== undefined) patch.repMin = targets.repMin
+        if (targets.repMax !== undefined) patch.repMax = targets.repMax
+        if (targets.rir !== undefined) patch.rir = targets.rir
+        if (targets.rpe !== undefined) patch.rpe = targets.rpe
+        if (targets.tempo !== undefined) patch.tempo = targets.tempo
+        if (targets.durationSec !== undefined) patch.durationSec = targets.durationSec
+        if (targets.distanceM !== undefined) patch.distanceM = targets.distanceM
+        if (targets.technique !== undefined) patch.technique = targets.technique
+        let basis: WeightUnit | undefined
+        if (targets.suggestedLoad !== undefined) {
+          if (targets.suggestedLoad === null) {
+            patch.suggestedLoadKg = null
+          } else {
+            basis = unit ?? (await getWeightUnit(resolved))
+            patch.suggestedLoadKg = toKgLoad(targets.suggestedLoad, basis)
+          }
+        }
+        const result = await runOp(() =>
+          setProgramSetOverride(
+            resolved,
+            programId,
+            dayPosition,
+            exercisePosition,
+            setNumber,
+            week,
+            patch,
+          ),
+        )
+        if (!result) {
+          throw new ToolError(
+            `Set ${setNumber} of exercise ${exercisePosition} (day ${dayPosition}) in program ${programId} not found for user ${resolved}`,
+          )
+        }
+        return jsonResult({
+          userId: resolved,
+          ...(basis ? { unit: basis } : {}),
+          programId,
+          dayPosition,
+          exercisePosition,
+          setNumber,
+          week,
+          cleared: result.cleared,
+        })
+      } catch (error: unknown) {
+        return errorResult(error)
+      }
+    },
+  )
+
+  server.registerTool(
+    'remove_program_set_override',
+    {
+      title: 'Remove Program Set Override',
+      description:
+        'Removes the per-week override for one planned set (by programId + 0-based dayPosition/exercisePosition + 1-based setNumber + week), reverting that week to the engine-derived targets. Errors if no override exists there or the set isn\'t found or owned.',
+      inputSchema: {
+        programId: z.string(),
+        dayPosition: positionArg,
+        exercisePosition: positionArg,
+        setNumber: setNumberArg,
+        week: weekArg,
+        userId: z.string().optional(),
+      },
+    },
+    async ({ programId, dayPosition, exercisePosition, setNumber, week, userId }, extra) => {
+      try {
+        const resolved = resolveUserId(extra, userId)
+        assertProgramIdShape(programId)
+        const result = await removeProgramSetOverride(
+          resolved,
+          programId,
+          dayPosition,
+          exercisePosition,
+          setNumber,
+          week,
+        )
+        if (!result) {
+          throw new ToolError(
+            `No week-${week} override on set ${setNumber} of exercise ${exercisePosition} (day ${dayPosition}) in program ${programId} for user ${resolved}`,
+          )
+        }
+        return jsonResult({
+          userId: resolved,
+          programId,
+          dayPosition,
+          exercisePosition,
+          setNumber,
+          removedWeek: week,
+        })
       } catch (error: unknown) {
         return errorResult(error)
       }
