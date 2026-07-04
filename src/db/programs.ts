@@ -303,21 +303,24 @@ export async function nextProgramWeek(
   const current = agg?.current ?? null
   if (current === null) return 1
 
-  const [dayTotal] = await db
-    .select({ value: count(programDays.id) })
-    .from(programDays)
-    .where(eq(programDays.programId, programId))
-  const [daysDone] = await db
-    .select({ value: countDistinct(workouts.programDayId) })
-    .from(workouts)
-    .innerJoin(programDays, eq(programDays.id, workouts.programDayId))
-    .where(
-      and(
-        eq(programDays.programId, programId),
-        eq(workouts.userId, userId),
-        eq(workouts.programWeek, current),
+  // Independent reads — one round-trip of latency instead of two.
+  const [[dayTotal], [daysDone]] = await Promise.all([
+    db
+      .select({ value: count(programDays.id) })
+      .from(programDays)
+      .where(eq(programDays.programId, programId)),
+    db
+      .select({ value: countDistinct(workouts.programDayId) })
+      .from(workouts)
+      .innerJoin(programDays, eq(programDays.id, workouts.programDayId))
+      .where(
+        and(
+          eq(programDays.programId, programId),
+          eq(workouts.userId, userId),
+          eq(workouts.programWeek, current),
+        ),
       ),
-    )
+  ])
 
   const cycleComplete = daysDone.value >= dayTotal.value
   return cycleComplete ? Math.min(current + 1, Math.max(1, mesocycleWeeks)) : current
@@ -357,13 +360,16 @@ export async function getNextProgramDay(userId: string): Promise<NextProgramDay 
     .limit(1)
   if (!program) return null
 
-  const days = await db
-    .select({ id: programDays.id, name: programDays.name, position: programDays.position })
-    .from(programDays)
-    .where(eq(programDays.programId, program.id))
-    .orderBy(asc(programDays.position))
-
-  const week = await nextProgramWeek(userId, program.id, program.mesocycleWeeks)
+  // The day list and the current week don't depend on each other — fetch them
+  // concurrently (this runs on every home-page load).
+  const [days, week] = await Promise.all([
+    db
+      .select({ id: programDays.id, name: programDays.name, position: programDays.position })
+      .from(programDays)
+      .where(eq(programDays.programId, program.id))
+      .orderBy(asc(programDays.position)),
+    nextProgramWeek(userId, program.id, program.mesocycleWeeks),
+  ])
 
   const logged = await db
     .selectDistinct({ dayId: workouts.programDayId })
