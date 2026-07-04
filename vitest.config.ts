@@ -9,7 +9,8 @@ export default defineConfig({
   test: {
     environment: 'node',
     setupFiles: ['./vitest.setup.ts'],
-    // e2e/ is Playwright's; keep it out of the Vitest unit run.
-    exclude: [...configDefaults.exclude, 'e2e/**'],
+    // e2e/ is Playwright's; .claude/ holds tooling artifacts (incl. stale git
+    // worktrees whose copied tests break). Keep both out of the Vitest unit run.
+    exclude: [...configDefaults.exclude, 'e2e/**', '.claude/**'],
   },
 })

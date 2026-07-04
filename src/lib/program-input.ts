@@ -79,6 +79,33 @@ export const progressionSchema = z.discriminatedUnion('scheme', [
 ])
 
 /**
+ * The cross-field rules a planned-set row must satisfy, shared verbatim by
+ * `programSetSchema`'s refinement and the patch layer's merge revalidation
+ * (`db/program-patches.ts`), which checks rows assembled outside Zod's reach.
+ * Returns the first violation (message + the field to blame), or null when the
+ * row is coherent.
+ */
+export function programSetIntegrityViolation(row: {
+  metricMode: string
+  durationSec?: number | null
+  repMin?: number | null
+  repMax?: number | null
+}): { path: 'durationSec' | 'repMin'; message: string } | null {
+  // metric_mode integrity: a timed set needs a planned duration to be meaningful.
+  if (row.metricMode !== 'reps_weight' && row.durationSec == null) {
+    return {
+      path: 'durationSec',
+      message: 'durationSec is required when metricMode is duration or duration_distance',
+    }
+  }
+  // A rep range must be ordered.
+  if (row.repMin != null && row.repMax != null && row.repMin > row.repMax) {
+    return { path: 'repMin', message: 'repMin must be less than or equal to repMax' }
+  }
+  return null
+}
+
+/**
  * A single planned set. Targets are typed columns (the planned-vs-actual core);
  * only `technique` is JSONB. Timed sets (`duration`/`duration_distance`) must
  * carry a planned `durationSec`.
@@ -97,15 +124,11 @@ export const programSetSchema = z
     distanceM: z.number().min(0).max(MAX_DISTANCE_M).nullable().optional(),
     technique: techniqueSchema.nullable().optional(),
   })
-  // metric_mode integrity: a timed set needs a planned duration to be meaningful.
-  .refine((s) => s.metricMode === 'reps_weight' || s.durationSec != null, {
-    message: 'durationSec is required when metricMode is duration or duration_distance',
-    path: ['durationSec'],
-  })
-  // A rep range must be ordered.
-  .refine((s) => s.repMin == null || s.repMax == null || s.repMin <= s.repMax, {
-    message: 'repMin must be less than or equal to repMax',
-    path: ['repMin'],
+  .superRefine((s, ctx) => {
+    const violation = programSetIntegrityViolation(s)
+    if (violation) {
+      ctx.addIssue({ code: 'custom', message: violation.message, path: [violation.path] })
+    }
   })
 
 /** One exercise slot within a program day, with its planned sets + progression. */
