@@ -115,28 +115,41 @@ export const programs = pgTable(
   (t) => [index('programs_user_id_idx').on(t.userId)],
 )
 
-export const programDays = pgTable('program_days', {
-  id: uuid('id').defaultRandom().primaryKey(),
-  programId: uuid('program_id')
-    .notNull()
-    .references(() => programs.id, { onDelete: 'cascade' }),
-  name: text('name').notNull(),
-  position: integer('position').notNull().default(0), // 0-based order
-  notes: text('notes'),
-})
+export const programDays = pgTable(
+  'program_days',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    programId: uuid('program_id')
+      .notNull()
+      .references(() => programs.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    position: integer('position').notNull().default(0), // 0-based order
+    notes: text('notes'),
+  },
+  // 0-based contiguous per program — guards the read-max-then-insert append and
+  // the position-addressed patch ops against racing duplicates. DEFERRABLE
+  // INITIALLY DEFERRED (hand-edited migration, same as program_sets) so the
+  // Phase-4 move splice-renumber, which transiently collides, still commits.
+  (t) => [unique('program_days_program_position_unique').on(t.programId, t.position)],
+)
 
-export const programExercises = pgTable('program_exercises', {
-  id: uuid('id').defaultRandom().primaryKey(),
-  programDayId: uuid('program_day_id')
-    .notNull()
-    .references(() => programDays.id, { onDelete: 'cascade' }),
-  wgerExerciseId: integer('wger_exercise_id').notNull(),
-  name: text('name').notNull(), // denormalized from wger
-  position: integer('position').notNull().default(0),
-  // Narrow JSONB tail: per-exercise progression scheme params (Phase 5 engine
-  // consumes it). Validated/typed by `progressionSchema` at the boundary.
-  progression: jsonb('progression').$type<Progression>(),
-})
+export const programExercises = pgTable(
+  'program_exercises',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    programDayId: uuid('program_day_id')
+      .notNull()
+      .references(() => programDays.id, { onDelete: 'cascade' }),
+    wgerExerciseId: integer('wger_exercise_id').notNull(),
+    name: text('name').notNull(), // denormalized from wger
+    position: integer('position').notNull().default(0),
+    // Narrow JSONB tail: per-exercise progression scheme params (Phase 5 engine
+    // consumes it). Validated/typed by `progressionSchema` at the boundary.
+    progression: jsonb('progression').$type<Progression>(),
+  },
+  // Same rationale (and deferral) as program_days' position unique above.
+  (t) => [unique('program_exercises_day_position_unique').on(t.programDayId, t.position)],
+)
 
 export const programSets = pgTable(
   'program_sets',

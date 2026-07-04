@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { getTableName, getTableColumns } from 'drizzle-orm'
+import { getTableConfig } from 'drizzle-orm/pg-core'
 import {
   workouts,
   workoutExercises,
@@ -40,6 +41,29 @@ describe('schema', () => {
     const cols = getTableColumns(workouts)
     expect(cols.programDayId.notNull).toBe(false)
     expect(cols.programWeek.notNull).toBe(false)
+  })
+
+  it('guards ordering uniqueness on every position-addressed program table', () => {
+    // Concurrent appends read max(position) then insert; without these unique
+    // constraints two racers could land at the same position and make the
+    // position-addressed patch ops ambiguous.
+    const dayUniques = getTableConfig(programDays).uniqueConstraints
+    expect(dayUniques.map((u) => u.columns.map((c) => c.name).sort())).toContainEqual([
+      'position',
+      'program_id',
+    ])
+
+    const exerciseUniques = getTableConfig(programExercises).uniqueConstraints
+    expect(exerciseUniques.map((u) => u.columns.map((c) => c.name).sort())).toContainEqual([
+      'position',
+      'program_day_id',
+    ])
+
+    const setUniques = getTableConfig(programSets).uniqueConstraints
+    expect(setUniques.map((u) => u.columns.map((c) => c.name).sort())).toContainEqual([
+      'program_exercise_id',
+      'set_number',
+    ])
   })
 
   it('defaults program_sets.set_type and metric_mode (non-null)', () => {

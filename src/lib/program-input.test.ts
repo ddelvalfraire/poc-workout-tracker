@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parseProgramInput } from './program-input'
+import { parseProgramInput, programSetIntegrityViolation } from './program-input'
 
 /** A minimal valid program: one day, one exercise, one bare set. */
 const VALID = {
@@ -278,5 +278,83 @@ describe('parseProgramInput', () => {
         ],
       }),
     ).toThrow()
+  })
+})
+
+describe('programSetIntegrityViolation', () => {
+  // The single source of the cross-field set rules — the schema refines and the
+  // patch layer's merge revalidation must both flag exactly these shapes.
+
+  it('flags a timed set without a planned duration', () => {
+    // Arrange
+    const row = { metricMode: 'duration', durationSec: null, repMin: null, repMax: null }
+
+    // Act
+    const violation = programSetIntegrityViolation(row)
+
+    // Assert
+    expect(violation).toEqual({
+      path: 'durationSec',
+      message: 'durationSec is required when metricMode is duration or duration_distance',
+    })
+  })
+
+  it('flags duration_distance without a planned duration', () => {
+    const violation = programSetIntegrityViolation({
+      metricMode: 'duration_distance',
+      durationSec: null,
+      repMin: null,
+      repMax: null,
+    })
+    expect(violation?.path).toBe('durationSec')
+  })
+
+  it('accepts a reps_weight set without a duration', () => {
+    expect(
+      programSetIntegrityViolation({
+        metricMode: 'reps_weight',
+        durationSec: null,
+        repMin: 5,
+        repMax: 8,
+      }),
+    ).toBeNull()
+  })
+
+  it('flags an inverted rep range', () => {
+    // Arrange
+    const row = { metricMode: 'reps_weight', durationSec: null, repMin: 10, repMax: 5 }
+
+    // Act
+    const violation = programSetIntegrityViolation(row)
+
+    // Assert
+    expect(violation).toEqual({
+      path: 'repMin',
+      message: 'repMin must be less than or equal to repMax',
+    })
+  })
+
+  it('accepts a half-open rep range (only one bound set)', () => {
+    expect(
+      programSetIntegrityViolation({
+        metricMode: 'reps_weight',
+        durationSec: null,
+        repMin: 10,
+        repMax: null,
+      }),
+    ).toBeNull()
+  })
+
+  it('backs the schema refines — parse rejects the same shapes with the same messages', () => {
+    const withSets = (sets: unknown[]) => ({
+      name: 'x',
+      days: [{ name: 'Push', exercises: [{ wgerExerciseId: 1, name: 'Bench', sets }] }],
+    })
+    expect(() => parseProgramInput(withSets([{ metricMode: 'duration' }]))).toThrow(
+      /durationSec is required/,
+    )
+    expect(() => parseProgramInput(withSets([{ repMin: 10, repMax: 5 }]))).toThrow(
+      /repMin must be less than or equal to repMax/,
+    )
   })
 })
