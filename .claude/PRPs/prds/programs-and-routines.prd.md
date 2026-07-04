@@ -40,10 +40,10 @@ We'll know we're right when a user can author their full split via the agent in 
 
 ## Open Questions
 
-- [ ] Muscle-group taxonomy source: derive from wger `category`/muscles at author time and denormalize onto `program_exercises`, or maintain our own mapping? (Needed for MEV→MRV volume + like-for-like substitutions.)
-- [ ] Multi-week storage: confirm "week 1 is the template, weeks 2–N derived from progression at instantiation" holds for block/undulating models, or whether some programs need explicit per-week overrides (a `program_week_overrides` escape hatch).
-- [ ] e1RM with RIR/RPE: adopt an RPE→%1RM table (RTS-style) for the `%1RM` and `rpe-target` schemes, or keep Epley-from-top-set only?
-- [ ] Does `instantiate_program_day` auto-advance the week counter, or is week an explicit arg each time? (Affects how "where am I in the meso" is tracked.)
+- [x] Muscle-group taxonomy source: **RESOLVED (Phase 5 planning)** — derive from wger's `muscles`/`muscles_secondary` arrays at author time, denormalized onto a `program_exercise_muscles` relation.
+- [x] Multi-week storage: **RESOLVED (Phase 5 planning)** — derived weeks PLUS a `program_set_overrides` (set × week) escape hatch; an override wins over the engine.
+- [x] e1RM with RIR/RPE: **RESOLVED (Phase 5 planning)** — adopt an RTS-style RPE→%1RM table as a pure function; Epley stays for logged-history e1RM.
+- [x] Week tracking: **RESOLVED (Phase 5 planning)** — `instantiate_program_day` auto-derives the week from the program's workout history; explicit `week` arg overrides. No stored counter.
 
 ---
 
@@ -139,7 +139,7 @@ Phase 1 + 2 + 3: the schema (incl. timed metric + provenance), Zod, the coarse M
 | 2 | MCP coarse authoring + read | `upsert_program`, `get_program`, `list_programs`, `delete_program`, `set_program_status`, `program://{id}` | complete | with 6 | 1 | [plan](../plans/completed/programs-and-routines-phase-2-mcp-authoring.plan.md) · [report](../reports/programs-and-routines-phase-2-mcp-authoring-report.md) |
 | 3 | Instantiation | `instantiate_program_day` → dated workout (seed sets, week derivation), `get_workout` plan overlay | complete | - | 2 | [plan](../plans/completed/programs-and-routines-phase-3-instantiation.plan.md) · [report](../reports/programs-and-routines-phase-3-instantiation-report.md) |
 | 4 | Granular patch tools | add/update/remove/reorder day·exercise·set; `update_program_exercise`/`_set` (named scalar args) | complete | with 6 | 2 | [plan](../plans/completed/programs-and-routines-phase-4-patch-tools.plan.md) · [report](../reports/programs-and-routines-phase-4-patch-tools-report.md) |
-| 5 | Progression engine + techniques | linear/double/%1RM/RPE/volume schemes, deload, multi-week derivation, technique `stages[]`, supersets, muscle-group tagging | pending | - | 3 | - |
+| 5 | Progression engine + techniques | linear/double/%1RM/RPE/volume schemes, deload, multi-week derivation, technique `stages[]`, supersets, muscle-group tagging | complete | - | 3 | [plan](../plans/completed/programs-and-routines-phase-5-progression-engine.plan.md) · [report](../reports/programs-and-routines-phase-5-progression-engine-report.md) |
 | 6 | Web UI | program builder, browse, "start today's day" | pending | with 2,4 | 1 | - |
 
 ### Phase Details
