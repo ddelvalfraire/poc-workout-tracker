@@ -4,7 +4,7 @@ import { requireUserId } from "@/lib/auth";
 import { listWorkoutSummaries } from "@/db/workouts";
 import { getNextProgramDay } from "@/db/programs";
 import { getWeightUnit } from "@/db/preferences";
-import { formatWorkoutDate } from "@/lib/format";
+import { formatWorkoutDate, formatVolume, formatWorkoutDuration } from "@/lib/format";
 import { buttonVariants } from "@/components/ui/button";
 import { UnitToggle } from "@/components/unit-toggle";
 import { cn } from "@/lib/utils";
@@ -108,10 +108,15 @@ export default async function HomePage() {
                 >
                   <span className="min-w-0">
                     <span className="block truncate font-medium">{w.name ?? "Workout"}</span>
-                    <span className="mt-0.5 block text-sm text-muted-foreground">
-                      {formatWorkoutDate(w.startedAt)} · {w.exerciseCount} exercise
-                      {w.exerciseCount === 1 ? "" : "s"} · {w.setCount} set
-                      {w.setCount === 1 ? "" : "s"}
+                    <span className="mt-0.5 block truncate text-sm text-muted-foreground">
+                      {[
+                        formatWorkoutDate(w.startedAt),
+                        formatWorkoutDuration(w.startedAt, w.completedAt),
+                        `${w.setCount} set${w.setCount === 1 ? "" : "s"}`,
+                        w.volumeKg > 0 ? formatVolume(w.volumeKg, unit) : null,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
                     </span>
                   </span>
                   <svg

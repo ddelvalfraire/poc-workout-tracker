@@ -89,8 +89,10 @@ describe('registerReadTools', () => {
           id: '11111111-1111-4111-8111-111111111111',
           name: 'Push Day',
           startedAt: new Date('2026-06-01T10:00:00.000Z'),
+          completedAt: null,
           exerciseCount: 3,
           setCount: 9,
+          volumeKg: 0,
         },
       ])
 
@@ -106,8 +108,10 @@ describe('registerReadTools', () => {
             id: '11111111-1111-4111-8111-111111111111',
             name: 'Push Day',
             startedAt: '2026-06-01T10:00:00.000Z',
+            completedAt: null,
             exerciseCount: 3,
             setCount: 9,
+            volumeKg: 0,
           },
         ],
       })

@@ -49,6 +49,10 @@ export function WorkoutLogger({
   // Tracks exercise ids already fetched/in-flight so the effect never refetches.
   // A ref (not state) avoids a synchronous setState in the effect body.
   const requestedRef = useRef<Set<number>>(new Set())
+  // When the user opened the logger — saved as startedAt for NEW workouts so
+  // startedAt→completedAt reflects the real session length, not the save
+  // instant. Edits keep the workout's existing startedAt.
+  const openedAtRef = useRef<Date>(new Date())
   const router = useRouter()
 
   const isEmpty = draft.exercises.length === 0
@@ -88,7 +92,10 @@ export function WorkoutLogger({
           await updateWorkoutAction(workoutId, draftToInput(draft, name, unit))
           router.push(`/workout/${workoutId}`)
         } else {
-          await saveWorkoutAction(draftToInput(draft, name, unit))
+          await saveWorkoutAction({
+            ...draftToInput(draft, name, unit),
+            startedAt: openedAtRef.current,
+          })
           router.push('/')
         }
       } catch {

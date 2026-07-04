@@ -24,6 +24,78 @@ export function formatSet(
   return '—'
 }
 
+/** The set fields the metric-aware formatter reads (matches the `sets` rows). */
+export interface LoggedSetLike {
+  reps: number | null
+  weight: number | null // kg
+  metricMode: string // 'reps_weight' | 'duration' | 'duration_distance'
+  durationSec: number | null
+  distanceM: number | null
+}
+
+/** Seconds as a clock: 45 → "0:45", 90 → "1:30", 3900 → "1:05:00". */
+function formatClock(totalSec: number): string {
+  const h = Math.floor(totalSec / 3600)
+  const m = Math.floor((totalSec % 3600) / 60)
+  const s = Math.floor(totalSec % 60)
+  const ss = String(s).padStart(2, '0')
+  return h > 0 ? `${h}:${String(m).padStart(2, '0')}:${ss}` : `${m}:${ss}`
+}
+
+/** Meters for display: below 1 km in m, at/above in km (trailing zeros trimmed). */
+function formatDistance(meters: number): string {
+  if (meters < 1000) return `${meters} m`
+  const km = meters / 1000
+  return `${Number(km.toFixed(2))} km`
+}
+
+/**
+ * Formats a logged set according to its metric mode — the metric-aware
+ * superset of `formatSet`. Timed sets render as a clock ("1:30"), cardio sets
+ * as clock + distance ("12:30 · 2.5 km"); unlogged fields drop out and a set
+ * with nothing logged renders "—", matching `formatSet`'s contract.
+ */
+export function formatLoggedSet(set: LoggedSetLike, unit: WeightUnit = 'kg'): string {
+  if (set.metricMode === 'duration') {
+    return set.durationSec !== null ? formatClock(set.durationSec) : '—'
+  }
+  if (set.metricMode === 'duration_distance') {
+    const parts = [
+      set.durationSec !== null ? formatClock(set.durationSec) : null,
+      set.distanceM !== null ? formatDistance(set.distanceM) : null,
+    ].filter((p): p is string => p !== null)
+    return parts.length > 0 ? parts.join(' · ') : '—'
+  }
+  return formatSet(set.reps, set.weight, unit)
+}
+
+/**
+ * Formats a workout's total volume (Σ reps × weight, stored kg) in the active
+ * unit, rounded to whole units with digit grouping: 5200.4 → "5,200 kg".
+ */
+export function formatVolume(volumeKg: number, unit: WeightUnit = 'kg'): string {
+  const value = Math.round(kgToDisplay(volumeKg, unit))
+  return `${value.toLocaleString('en-US')} ${unit}`
+}
+
+const MIN_PLAUSIBLE_DURATION_MS = 60_000 // instant saves carry no signal
+const MAX_PLAUSIBLE_DURATION_MS = 6 * 60 * 60_000 // backdated/forgotten sessions
+
+/**
+ * A workout's session length as "42 min" / "1 h 5 min", or null when it can't
+ * be shown: never completed, or an implausible span (completed at save-time in
+ * the same instant, or a backdated startedAt) that would only mislead.
+ */
+export function formatWorkoutDuration(startedAt: Date, completedAt: Date | null): string | null {
+  if (!completedAt) return null
+  const ms = completedAt.getTime() - startedAt.getTime()
+  if (ms < MIN_PLAUSIBLE_DURATION_MS || ms > MAX_PLAUSIBLE_DURATION_MS) return null
+  const totalMin = Math.floor(ms / 60_000) // elapsed time floors: 42:30 is "42 min"
+  const h = Math.floor(totalMin / 60)
+  const m = totalMin % 60
+  return h > 0 ? `${h} h ${m} min` : `${m} min`
+}
+
 /**
  * Formats an estimated 1RM (stored-kg) for display in the active unit, e.g.
  *   117 (kg) → "117 kg"      117 (lb) → "258 lb"

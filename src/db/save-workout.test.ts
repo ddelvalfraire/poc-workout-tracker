@@ -58,7 +58,12 @@ describe('saveWorkout (transactional, user-scoped)', () => {
     })
 
     // Assert — recorded inserts in call order
-    expect(records[0].values).toEqual({ userId: USER, name: 'Leg Day' })
+    // Saving a manual log IS completing it — completedAt is stamped at save.
+    expect(records[0].values).toEqual({
+      userId: USER,
+      name: 'Leg Day',
+      completedAt: expect.any(Date),
+    })
     expect(records[1].values).toEqual({
       workoutId: 'w1',
       wgerExerciseId: 73,

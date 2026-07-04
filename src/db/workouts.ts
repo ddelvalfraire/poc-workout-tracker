@@ -26,19 +26,25 @@ export interface WorkoutSummary {
   id: string
   name: string | null
   startedAt: Date
+  completedAt: Date | null
   exerciseCount: number
   setCount: number
+  volumeKg: number
 }
 
-/** Lists a user's workouts (most recent first) with exercise/set counts, in one query. */
+/** Lists a user's workouts (most recent first) with exercise/set counts and
+ *  total volume (Σ reps × weight kg; duration/distance sets contribute 0), in
+ *  one query. */
 export function listWorkoutSummaries(userId: string) {
   return db
     .select({
       id: workouts.id,
       name: workouts.name,
       startedAt: workouts.startedAt,
+      completedAt: workouts.completedAt,
       exerciseCount: countDistinct(workoutExercises.id),
       setCount: count(sets.id),
+      volumeKg: sql<number>`coalesce(sum(${sets.reps} * ${sets.weight}), 0)`.mapWith(Number),
     })
     .from(workouts)
     .leftJoin(workoutExercises, eq(workoutExercises.workoutId, workouts.id))
@@ -189,7 +195,14 @@ export async function saveWorkout(userId: string, input: WorkoutInput): Promise<
     const [workout] = await tx
       .insert(workouts)
       // Omit startedAt when absent so the column default (now()) applies.
-      .values({ userId, name: input.name, ...(input.startedAt !== undefined ? { startedAt: input.startedAt } : {}) })
+      // Saving a manual log IS completing the session, so completedAt is
+      // stamped here (instantiated program workouts get theirs on first edit).
+      .values({
+        userId,
+        name: input.name,
+        completedAt: new Date(),
+        ...(input.startedAt !== undefined ? { startedAt: input.startedAt } : {}),
+      })
       .returning({ id: workouts.id })
 
     await insertWorkoutChildren(tx, workout.id, input.exercises)
@@ -221,7 +234,13 @@ export async function updateWorkout(
     const [owned] = await tx
       .update(workouts)
       // Omit startedAt when absent so the existing value is preserved.
-      .set({ name: input.name ?? null, ...(input.startedAt !== undefined ? { startedAt: input.startedAt } : {}) })
+      // First edit completes a not-yet-completed workout (instantiated program
+      // days are logged through the edit flow); later edits keep the original.
+      .set({
+        name: input.name ?? null,
+        completedAt: sql`coalesce(${workouts.completedAt}, now())`,
+        ...(input.startedAt !== undefined ? { startedAt: input.startedAt } : {}),
+      })
       .where(and(eq(workouts.id, id), eq(workouts.userId, userId)))
       .returning({ id: workouts.id })
     if (!owned) return null
