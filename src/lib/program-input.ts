@@ -57,26 +57,46 @@ export const techniqueSchema = z
  * `scheme` discriminator names the rule; params are minimal here — Phase 5's
  * engine tightens each variant and computes week-N targets from them.
  */
-export const progressionSchema = z.discriminatedUnion('scheme', [
-  z.object({ scheme: z.literal('linear'), incrementKg: z.number() }),
-  z.object({
-    scheme: z.literal('double-progression'),
-    repMin: z.number().int(),
-    repMax: z.number().int(),
-    incrementKg: z.number(),
-  }),
-  z.object({
-    scheme: z.literal('percent-1rm'),
-    trainingMaxKg: z.number(),
-    weekPercents: z.array(z.number()),
-  }),
-  z.object({ scheme: z.literal('rpe-target'), targetRpe: z.number() }),
-  z.object({
-    scheme: z.literal('weekly-volume'),
-    mevSets: z.number().int(),
-    mrvSets: z.number().int(),
-  }),
-])
+export const progressionSchema = z
+  .discriminatedUnion('scheme', [
+    z.object({ scheme: z.literal('linear'), incrementKg: z.number().min(0).max(MAX_WEIGHT) }),
+    z.object({
+      scheme: z.literal('double-progression'),
+      repMin: z.number().int().min(0).max(MAX_REPS),
+      repMax: z.number().int().min(0).max(MAX_REPS),
+      incrementKg: z.number().min(0).max(MAX_WEIGHT),
+    }),
+    z.object({
+      scheme: z.literal('percent-1rm'),
+      trainingMaxKg: z.number().min(0).max(MAX_WEIGHT),
+      // Fractions of the training max (2 allows planned overreach singles).
+      weekPercents: z.array(z.number().min(0).max(2)).min(1).max(52),
+    }),
+    z.object({ scheme: z.literal('rpe-target'), targetRpe: z.number().min(0).max(10) }),
+    z.object({
+      scheme: z.literal('weekly-volume'),
+      mevSets: z.number().int().min(0).max(100),
+      mrvSets: z.number().int().min(0).max(100),
+    }),
+  ])
+  // Cross-field rules live at the union level: discriminatedUnion members must
+  // stay plain ZodObjects, so per-member .refine isn't an option.
+  .superRefine((p, ctx) => {
+    if (p.scheme === 'double-progression' && p.repMin > p.repMax) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'repMin must be less than or equal to repMax',
+        path: ['repMin'],
+      })
+    }
+    if (p.scheme === 'weekly-volume' && p.mevSets > p.mrvSets) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'mevSets must be less than or equal to mrvSets',
+        path: ['mevSets'],
+      })
+    }
+  })
 
 /**
  * The cross-field rules a planned-set row must satisfy, shared verbatim by
@@ -130,6 +150,28 @@ export const programSetSchema = z
       ctx.addIssue({ code: 'custom', message: violation.message, path: [violation.path] })
     }
   })
+
+/**
+ * A per-week override of one planned set's TARGET fields (Phase 5's escape
+ * hatch for block/undulating models). Strict and shape-preserving: no
+ * `setType`/`metricMode` — changing a set's shape is an edit, not an override.
+ * Explicit null clears an overridden field; omitted = not overridden. The
+ * cross-field rules run against the MERGED (base ⊕ override) row in the DB
+ * layer, which is the only place both halves are visible.
+ */
+export const setOverrideSchema = z
+  .object({
+    repMin: z.number().int().min(0).max(MAX_REPS).nullable().optional(),
+    repMax: z.number().int().min(0).max(MAX_REPS).nullable().optional(),
+    rir: z.number().int().min(0).max(20).nullable().optional(),
+    rpe: z.number().min(0).max(10).nullable().optional(),
+    suggestedLoadKg: z.number().min(0).max(MAX_WEIGHT).nullable().optional(),
+    tempo: z.string().max(20).nullable().optional(),
+    durationSec: z.number().int().min(0).nullable().optional(),
+    distanceM: z.number().min(0).max(MAX_DISTANCE_M).nullable().optional(),
+    technique: techniqueSchema.nullable().optional(),
+  })
+  .strict()
 
 /** One exercise slot within a program day, with its planned sets + progression. */
 export const programExerciseSchema = z.object({

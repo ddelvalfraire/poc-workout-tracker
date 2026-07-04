@@ -143,6 +143,8 @@ export const programExercises = pgTable(
     wgerExerciseId: integer('wger_exercise_id').notNull(),
     name: text('name').notNull(), // denormalized from wger
     position: integer('position').notNull().default(0),
+    // Same non-null value within a day = perform those exercises as a superset.
+    supersetGroup: integer('superset_group'),
     // Narrow JSONB tail: per-exercise progression scheme params (Phase 5 engine
     // consumes it). Validated/typed by `progressionSchema` at the boundary.
     progression: jsonb('progression').$type<Progression>(),
@@ -178,6 +180,58 @@ export const programSets = pgTable(
   (t) => [unique('program_sets_exercise_set_number_unique').on(t.programExerciseId, t.setNumber)],
 )
 
+/**
+ * Muscles an exercise slot trains, denormalized from wger's muscles arrays at
+ * author time (Phase 5). A relation — not JSONB — because weekly volume
+ * aggregates over it (the PRD's column-vs-JSON boundary rule). `muscle` is
+ * wger's English name; `role` is 'primary' | 'secondary' (text + app-level
+ * enum, like set_type). Tag rows are enrichment: a save without catalog access
+ * simply leaves an exercise untagged.
+ */
+export const programExerciseMuscles = pgTable(
+  'program_exercise_muscles',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    programExerciseId: uuid('program_exercise_id')
+      .notNull()
+      .references(() => programExercises.id, { onDelete: 'cascade' }),
+    muscle: text('muscle').notNull(),
+    role: text('role').notNull(), // 'primary' | 'secondary'
+  },
+  (t) => [
+    unique('program_exercise_muscles_unique').on(t.programExerciseId, t.muscle),
+    index('program_exercise_muscles_exercise_idx').on(t.programExerciseId),
+  ],
+)
+
+/**
+ * Per-week explicit targets for one planned set — the escape hatch for block/
+ * undulating models the derived-progression engine can't express. A non-null
+ * column here WINS over the engine (and the deload modifier) for that week;
+ * null means "not overridden". `setType`/`metricMode` are deliberately absent:
+ * changing a set's shape is an edit, not a week override.
+ */
+export const programSetOverrides = pgTable(
+  'program_set_overrides',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    programSetId: uuid('program_set_id')
+      .notNull()
+      .references(() => programSets.id, { onDelete: 'cascade' }),
+    week: integer('week').notNull(), // 1-based week within the mesocycle
+    repMin: integer('rep_min'),
+    repMax: integer('rep_max'),
+    rir: integer('rir'),
+    rpe: numeric('rpe', { precision: 3, scale: 1, mode: 'number' }),
+    suggestedLoadKg: numeric('suggested_load_kg', { precision: 6, scale: 2, mode: 'number' }), // kg
+    tempo: text('tempo'),
+    durationSec: integer('duration_sec'),
+    distanceM: numeric('distance_m', { precision: 9, scale: 2, mode: 'number' }), // meters
+    technique: jsonb('technique').$type<Technique>(),
+  },
+  (t) => [unique('program_set_overrides_set_week_unique').on(t.programSetId, t.week)],
+)
+
 export const programsRelations = relations(programs, ({ many }) => ({
   days: many(programDays),
 }))
@@ -196,11 +250,27 @@ export const programExercisesRelations = relations(programExercises, ({ one, man
     references: [programDays.id],
   }),
   sets: many(programSets),
+  muscles: many(programExerciseMuscles),
 }))
 
-export const programSetsRelations = relations(programSets, ({ one }) => ({
+export const programExerciseMusclesRelations = relations(programExerciseMuscles, ({ one }) => ({
+  exercise: one(programExercises, {
+    fields: [programExerciseMuscles.programExerciseId],
+    references: [programExercises.id],
+  }),
+}))
+
+export const programSetOverridesRelations = relations(programSetOverrides, ({ one }) => ({
+  set: one(programSets, {
+    fields: [programSetOverrides.programSetId],
+    references: [programSets.id],
+  }),
+}))
+
+export const programSetsRelations = relations(programSets, ({ one, many }) => ({
   exercise: one(programExercises, {
     fields: [programSets.programExerciseId],
     references: [programExercises.id],
   }),
+  overrides: many(programSetOverrides),
 }))

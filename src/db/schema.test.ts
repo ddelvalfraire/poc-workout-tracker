@@ -9,6 +9,8 @@ import {
   programDays,
   programExercises,
   programSets,
+  programExerciseMuscles,
+  programSetOverrides,
 } from './schema'
 
 describe('schema', () => {
@@ -64,6 +66,47 @@ describe('schema', () => {
       'program_exercise_id',
       'set_number',
     ])
+  })
+
+  it('defines the Phase-5 tables with snake_case names', () => {
+    expect(getTableName(programExerciseMuscles)).toBe('program_exercise_muscles')
+    expect(getTableName(programSetOverrides)).toBe('program_set_overrides')
+  })
+
+  it('keys muscle rows and overrides uniquely per parent', () => {
+    const muscleUniques = getTableConfig(programExerciseMuscles).uniqueConstraints
+    expect(muscleUniques.map((u) => u.columns.map((c) => c.name).sort())).toContainEqual([
+      'muscle',
+      'program_exercise_id',
+    ])
+
+    const overrideUniques = getTableConfig(programSetOverrides).uniqueConstraints
+    expect(overrideUniques.map((u) => u.columns.map((c) => c.name).sort())).toContainEqual([
+      'program_set_id',
+      'week',
+    ])
+  })
+
+  it('keeps every override target column nullable (null = not overridden)', () => {
+    const cols = getTableColumns(programSetOverrides)
+    for (const key of [
+      'repMin',
+      'repMax',
+      'rir',
+      'rpe',
+      'suggestedLoadKg',
+      'tempo',
+      'durationSec',
+      'distanceM',
+      'technique',
+    ] as const) {
+      expect(cols[key].notNull).toBe(false)
+    }
+    expect(cols.week.notNull).toBe(true)
+  })
+
+  it('makes superset grouping optional on program exercises', () => {
+    expect(getTableColumns(programExercises).supersetGroup.notNull).toBe(false)
   })
 
   it('defaults program_sets.set_type and metric_mode (non-null)', () => {

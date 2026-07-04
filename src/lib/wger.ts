@@ -40,6 +40,10 @@ export interface Exercise {
   name: string
   category: string
   equipment?: string[]
+  /** Primary muscles (wger English names). Omitted when wger lists none. */
+  muscles?: string[]
+  /** Secondary muscles (wger English names). Omitted when wger lists none. */
+  musclesSecondary?: string[]
 }
 
 /** Filters applied in-process against the cached catalog. */
@@ -56,11 +60,38 @@ interface WgerTranslation {
   language: number
 }
 
+interface WgerMuscle {
+  id: number
+  name: string
+  name_en: string
+  is_front: boolean
+}
+
 interface WgerExerciseInfo {
   id: number
   category: { id: number; name: string } | null
   equipment: { id: number; name: string }[]
+  muscles: WgerMuscle[]
+  muscles_secondary: WgerMuscle[]
   translations: WgerTranslation[]
+}
+
+/**
+ * Maps a wger muscles array to English display names — non-empty `name_en`
+ * preferred, anatomical `name` as the fallback (wger often leaves `name_en`
+ * blank). Malformed entries are dropped, mirroring the record-level policy.
+ */
+function mapMuscleNames(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return []
+  return raw
+    .map((m) => {
+      if (!m || typeof m !== 'object') return undefined
+      const muscle = m as Partial<WgerMuscle>
+      if (typeof muscle.name_en === 'string' && muscle.name_en.length > 0) return muscle.name_en
+      if (typeof muscle.name === 'string' && muscle.name.length > 0) return muscle.name
+      return undefined
+    })
+    .filter((name): name is string => typeof name === 'string')
 }
 
 /**
@@ -110,6 +141,11 @@ function mapExercise(raw: unknown): Exercise | null {
   const exercise: Exercise = { id: info.id, name, category: info.category.name }
   // Keep `equipment` truly optional: omit the key entirely when there is none.
   if (equipment.length > 0) exercise.equipment = equipment
+  // Same convention for the muscle arrays (Phase 5 tagging input).
+  const muscles = mapMuscleNames(info.muscles)
+  if (muscles.length > 0) exercise.muscles = muscles
+  const musclesSecondary = mapMuscleNames(info.muscles_secondary)
+  if (musclesSecondary.length > 0) exercise.musclesSecondary = musclesSecondary
   return exercise
 }
 
