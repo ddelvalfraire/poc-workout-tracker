@@ -115,6 +115,35 @@
   }
 }
 
+/* Route-change animation for the PageTransition boundary in the root layout
+   (React <ViewTransition default="page">). Outgoing content fades up and out,
+   incoming fades up and in — quick enough to read as responsiveness, not
+   decoration. Browsers without the View Transitions API ignore all of this. */
+@keyframes page-exit {
+  to {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+@keyframes page-enter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+::view-transition-old(.page) {
+  animation: page-exit 140ms ease-in both;
+}
+::view-transition-new(.page) {
+  animation: page-enter 200ms ease-out both;
+}
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(.page),
+  ::view-transition-new(.page) {
+    animation: none;
+  }
+}
+
 @layer utilities {
   /* Safe-area helpers for standalone/notched devices. */
   .pt-safe {

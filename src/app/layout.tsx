@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Inter, Oswald } from "next/font/google";
 import { ClerkProvider } from "@clerk/nextjs";
 import { ServiceWorkerRegister } from "@/components/pwa/service-worker-register";
+import { PageTransition } from "@/components/page-transition";
 import "./globals.css";
 
 // Body / UI / data — humanist sans, product-grade workhorse.
@@ -59,7 +60,7 @@ export default function RootLayout({
         className={`dark ${inter.variable} ${oswald.variable} h-full antialiased`}
       >
         <body className="bg-background text-foreground min-h-[100dvh] flex flex-col">
-          {children}
+          <PageTransition>{children}</PageTransition>
           <ServiceWorkerRegister />
         </body>
       </html>
