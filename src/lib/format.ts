@@ -52,3 +52,38 @@ export function placeholderForSet(
     weight: prior.weight !== null ? String(kgToDisplay(prior.weight, unit)) : undefined,
   }
 }
+
+/** A planned set's ghostable targets, in stored kg (from the program's
+ *  engine-derived prescription for the workout's week). */
+export interface PlanSetTarget {
+  repMin: number | null
+  repMax: number | null
+  loadKg: number | null
+}
+
+/**
+ * Ghost-input placeholders for set position `index` from the day's PLAN — the
+ * fallback when there's no prior performance to ghost from (e.g. a machine
+ * lift's first session). Rep ranges render as "8–12" (placeholders are display
+ * text, not values, so a number input accepts the en dash). Same `{}` /
+ * `undefined` contract as `placeholderForSet`.
+ */
+export function planPlaceholderForSet(
+  targets: readonly PlanSetTarget[] | undefined,
+  index: number,
+  unit: WeightUnit = 'kg',
+): { reps?: string; weight?: string } {
+  const target = targets?.[index]
+  if (!target) return {}
+  let reps: string | undefined
+  if (target.repMin !== null && target.repMax !== null) {
+    reps = target.repMin === target.repMax ? String(target.repMin) : `${target.repMin}–${target.repMax}`
+  } else {
+    const single = target.repMin ?? target.repMax
+    reps = single !== null ? String(single) : undefined
+  }
+  return {
+    reps,
+    weight: target.loadKg !== null ? String(kgToDisplay(target.loadKg, unit)) : undefined,
+  }
+}

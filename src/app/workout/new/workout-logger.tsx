@@ -19,7 +19,7 @@ import {
   type WorkoutDraft,
 } from './workout-draft'
 import { type WeightUnit } from '@/lib/units'
-import { placeholderForSet } from '@/lib/format'
+import { placeholderForSet, planPlaceholderForSet, type PlanSetTarget } from '@/lib/format'
 import type { LastPerformance } from '@/db/workouts'
 
 interface WorkoutLoggerProps {
@@ -29,6 +29,9 @@ interface WorkoutLoggerProps {
   initialName?: string
   /** Weight display/entry unit; weights are converted to kg at save time. */
   unit?: WeightUnit
+  /** Per-exercise planned targets (by wgerExerciseId) for program workouts —
+   *  the ghost fallback when an exercise has no prior history. */
+  planTargets?: Record<number, PlanSetTarget[]>
 }
 
 export function WorkoutLogger({
@@ -36,6 +39,7 @@ export function WorkoutLogger({
   initialDraft = emptyDraft,
   initialName = '',
   unit = 'kg',
+  planTargets,
 }: WorkoutLoggerProps) {
   const [draft, dispatch] = useReducer(workoutDraftReducer, initialDraft)
   const [name, setName] = useState(initialName)
@@ -162,11 +166,23 @@ export function WorkoutLogger({
 
             <div className="space-y-2">
               {exercise.sets.map((set, setIndex) => {
-                const ghost = placeholderForSet(
+                // History ghost ("what you did last time") wins; the plan's
+                // week-N target fills in when there's no history — e.g. a
+                // machine lift's first session, where nothing else renders.
+                const history = placeholderForSet(
                   lastByExercise[exercise.wgerExerciseId] ?? null,
                   setIndex,
                   unit,
                 )
+                const plan = planPlaceholderForSet(
+                  planTargets?.[exercise.wgerExerciseId],
+                  setIndex,
+                  unit,
+                )
+                const ghost = {
+                  reps: history.reps ?? plan.reps,
+                  weight: history.weight ?? plan.weight,
+                }
                 return (
                 <div key={set.id} className="flex items-center gap-2">
                   <span className="grid size-8 shrink-0 place-items-center rounded-full bg-muted text-sm font-semibold tnum text-muted-foreground">

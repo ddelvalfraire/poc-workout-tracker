@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest'
-import { formatWorkoutDate, formatSet, formatE1RM, placeholderForSet } from './format'
+import {
+  formatWorkoutDate,
+  formatSet,
+  formatE1RM,
+  placeholderForSet,
+  planPlaceholderForSet,
+} from './format'
 
 describe('formatSet', () => {
   it('formats reps and weight together', () => {
@@ -71,6 +77,49 @@ describe('placeholderForSet', () => {
   it('omits a field that was blank last time', () => {
     expect(placeholderForSet({ sets: [{ reps: 5, weight: null }] }, 0)).toEqual({
       reps: '5',
+      weight: undefined,
+    })
+  })
+})
+
+describe('planPlaceholderForSet', () => {
+  it('ghosts a fixed rep target and derived load (kg)', () => {
+    const targets = [{ repMin: 8, repMax: 8, loadKg: 100 }]
+    expect(planPlaceholderForSet(targets, 0)).toEqual({ reps: '8', weight: '100' })
+  })
+
+  it('renders a rep range as min–max', () => {
+    const targets = [{ repMin: 8, repMax: 12, loadKg: null }]
+    expect(planPlaceholderForSet(targets, 0)).toEqual({ reps: '8–12', weight: undefined })
+  })
+
+  it('uses the single bound when only one is set', () => {
+    expect(planPlaceholderForSet([{ repMin: 10, repMax: null, loadKg: null }], 0)).toEqual({
+      reps: '10',
+      weight: undefined,
+    })
+    expect(planPlaceholderForSet([{ repMin: null, repMax: 12, loadKg: null }], 0)).toEqual({
+      reps: '12',
+      weight: undefined,
+    })
+  })
+
+  it('converts the load ghost to the active unit (lb)', () => {
+    const targets = [{ repMin: 5, repMax: 5, loadKg: 100 }]
+    expect(planPlaceholderForSet(targets, 0, 'lb')).toEqual({ reps: '5', weight: '220.5' })
+  })
+
+  it('returns {} when there is no plan', () => {
+    expect(planPlaceholderForSet(undefined, 0)).toEqual({})
+  })
+
+  it('returns {} for a set index beyond the plan (user-added set)', () => {
+    expect(planPlaceholderForSet([{ repMin: 8, repMax: 8, loadKg: null }], 1)).toEqual({})
+  })
+
+  it('omits both fields when the planned set has no targets', () => {
+    expect(planPlaceholderForSet([{ repMin: null, repMax: null, loadKg: null }], 0)).toEqual({
+      reps: undefined,
       weight: undefined,
     })
   })
