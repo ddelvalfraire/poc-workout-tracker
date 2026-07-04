@@ -42,6 +42,12 @@ yarn-error.log*
 # vercel
 .vercel
 
+# local MCP server config (may hold URLs/tokens)
+.mcp.json
+
+# claude local worktrees
+.claude/worktrees/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
