@@ -41,6 +41,38 @@ describe('parseWorkoutInput', () => {
     expect(result.exercises[0].sets[0]).toEqual({ reps: null, weight: null })
   })
 
+  it('passes a boolean completed through and omits it when absent', () => {
+    // Act
+    const result = parseWorkoutInput({
+      exercises: [
+        {
+          wgerExerciseId: 1,
+          name: 'Bench',
+          sets: [
+            { reps: 5, weight: 100, completed: true },
+            { reps: 5, weight: 100, completed: false },
+            { reps: 5, weight: 100 },
+          ],
+        },
+      ],
+    })
+
+    // Assert
+    expect(result.exercises[0].sets[0]).toEqual({ reps: 5, weight: 100, completed: true })
+    expect(result.exercises[0].sets[1]).toEqual({ reps: 5, weight: 100, completed: false })
+    expect(result.exercises[0].sets[2]).not.toHaveProperty('completed')
+  })
+
+  it('throws when completed is not a boolean', () => {
+    for (const completed of ['yes', 1, {}]) {
+      expect(() =>
+        parseWorkoutInput({
+          exercises: [{ wgerExerciseId: 1, name: 'Bench', sets: [{ reps: 5, weight: 100, completed }] }],
+        }),
+      ).toThrow('set completed must be a boolean')
+    }
+  })
+
   it('trims the exercise name and drops extra keys', () => {
     // Act
     const result = parseWorkoutInput({

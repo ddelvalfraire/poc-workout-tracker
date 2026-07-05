@@ -19,6 +19,7 @@ import {
   type WorkoutDraft,
 } from './workout-draft'
 import { type WeightUnit } from '@/lib/units'
+import { cn } from '@/lib/utils'
 import { placeholderForSet, planPlaceholderForSet, type PlanSetTarget } from '@/lib/format'
 import type { LastPerformance } from '@/db/workouts'
 
@@ -196,9 +197,40 @@ export function WorkoutLogger({
                 }
                 return (
                 <div key={set.id} className="flex items-center gap-2">
-                  <span className="grid size-8 shrink-0 place-items-center rounded-full bg-muted text-sm font-semibold tnum text-muted-foreground">
-                    {setIndex + 1}
-                  </span>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      dispatch({ type: 'TOGGLE_SET_COMPLETED', exerciseIndex, setIndex })
+                    }
+                    aria-pressed={set.completed}
+                    aria-label={`Mark set ${setIndex + 1} complete`}
+                    className={cn(
+                      'relative grid size-8 shrink-0 place-items-center rounded-full text-sm font-semibold tnum transition-colors',
+                      // Invisible inset expands the tap target toward HIG size
+                      // without growing the visual circle or shifting the row.
+                      'before:absolute before:-inset-1.5 before:content-[""]',
+                      set.completed
+                        ? 'bg-primary text-primary-foreground'
+                        : 'bg-muted text-muted-foreground',
+                    )}
+                  >
+                    {set.completed ? (
+                      <svg
+                        aria-hidden="true"
+                        viewBox="0 0 24 24"
+                        className="size-4"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="3"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <path d="M20 6 9 17l-5-5" />
+                      </svg>
+                    ) : (
+                      setIndex + 1
+                    )}
+                  </button>
                   <Input
                     type="number"
                     inputMode="numeric"

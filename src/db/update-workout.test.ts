@@ -74,7 +74,7 @@ describe('updateWorkout (transactional, user-scoped)', () => {
     })
     expect(records[3]).toEqual({
       op: 'insert',
-      values: [{ workoutExerciseId: 'e1', setNumber: 1, reps: 5, weight: 100 }],
+      values: [{ workoutExerciseId: 'e1', setNumber: 1, reps: 5, weight: 100, completed: false }],
     })
     expect(result).toEqual({ id: ID })
   })

@@ -18,6 +18,8 @@ export interface DraftSet {
   id: string
   reps: string
   weight: string
+  /** In-session check-off state; required here (fully controlled), optional on the wire. */
+  completed: boolean
 }
 
 /** An exercise in the draft, seeded with at least one empty set. */
@@ -46,6 +48,9 @@ export type DraftAction =
       value: string
     }
   | { type: 'REMOVE_SET'; exerciseIndex: number; setIndex: number }
+  | { type: 'TOGGLE_SET_COMPLETED'; exerciseIndex: number; setIndex: number }
+  /** Mount-time restore from the localStorage snapshot — replaces the whole draft. */
+  | { type: 'RESTORE_DRAFT'; draft: WorkoutDraft }
 
 export const emptyDraft: WorkoutDraft = { exercises: [] }
 
@@ -55,7 +60,7 @@ export const emptyDraft: WorkoutDraft = { exercises: [] }
  * it, so the reducer stays pure and deterministic for unit tests.
  */
 export function newDraftSet(): DraftSet {
-  return { id: crypto.randomUUID(), reps: '', weight: '' }
+  return { id: crypto.randomUUID(), reps: '', weight: '', completed: false }
 }
 
 /** Builds a draft exercise from a picked exercise, seeded with one empty set. */
@@ -110,6 +115,19 @@ export function workoutDraftReducer(state: WorkoutDraft, action: DraftAction): W
         })),
       }
 
+    case 'TOGGLE_SET_COMPLETED':
+      return {
+        exercises: mapExerciseAt(state.exercises, action.exerciseIndex, (exercise) => ({
+          ...exercise,
+          sets: exercise.sets.map((set, i) =>
+            i === action.setIndex ? { ...set, completed: !set.completed } : set,
+          ),
+        })),
+      }
+
+    case 'RESTORE_DRAFT':
+      return action.draft
+
     default:
       return state
   }
@@ -148,7 +166,13 @@ export function draftToInput(
     name: exercise.name,
     sets: exercise.sets.map((set) => {
       const w = toWeight(set.weight)
-      return { reps: toReps(set.reps), weight: w === null ? null : displayToKg(w, unit) }
+      return {
+        reps: toReps(set.reps),
+        weight: w === null ? null : displayToKg(w, unit),
+        // Omit when unchecked so the wire payload (and every MCP/save test
+        // fixture that predates check-off) keeps its minimal shape.
+        ...(set.completed && { completed: true }),
+      }
     }),
   }))
 
@@ -162,10 +186,15 @@ export function draftToInput(
  * is not a persisted column, so it comes back empty. Stored kg weights are
  * converted to `unit` (default kg) for display. Pure (no `crypto`), so the edit
  * Server Component can call it safely.
+ *
+ * `resetCompleted` clears the check-off state — the repeat flow (`?from=`)
+ * seeds a NEW session from an old workout, and yesterday's checks aren't
+ * today's; edit mode keeps them (default).
  */
 export function detailToDraft(
   workout: WorkoutDetail,
   unit: WeightUnit = 'kg',
+  options: { resetCompleted?: boolean } = {},
 ): { draft: WorkoutDraft; name: string } {
   const exercises = workout.exercises.map((exercise) => ({
     id: exercise.id,
@@ -176,6 +205,7 @@ export function detailToDraft(
       id: set.id,
       reps: set.reps?.toString() ?? '',
       weight: set.weight === null ? '' : kgToDisplay(set.weight, unit).toString(),
+      completed: options.resetCompleted ? false : set.completed,
     })),
   }))
   return { draft: { exercises }, name: workout.name ?? '' }

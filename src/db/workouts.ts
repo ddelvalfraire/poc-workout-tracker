@@ -170,6 +170,7 @@ async function insertWorkoutChildren(
           setNumber: i + 1,
           reps: s.reps,
           weight: s.weight,
+          completed: s.completed ?? false,
         })),
       )
     }
