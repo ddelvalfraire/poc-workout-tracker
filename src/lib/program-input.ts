@@ -89,6 +89,26 @@ export const progressionSchema = z
       maxReps: z.number().int().min(1).max(MAX_REPS).nullable().optional(),
       maxSec: z.number().int().min(1).max(86_400).nullable().optional(),
     }),
+    // 5/3/1-style wave cycling: `wave[weekIdx][setIdx]` is the fraction of the
+    // training max for that set, the wave repeats as weeks advance, and the TM
+    // grows by `incrementKg` once per completed wave (classic Wendler bumps
+    // unconditionally; resetting a stalled TM is a deliberate edit, not
+    // engine magic). Optional `waveReps` prescribes per-week reps the same
+    // way (5/5/5 → 3/3/3 → 5/3/1). `incrementKg: 0` gives static wave loading.
+    z.object({
+      scheme: z.literal('amrap-cycle'),
+      trainingMaxKg: z.number().min(0).max(MAX_WEIGHT),
+      incrementKg: z.number().min(0).max(MAX_WEIGHT),
+      wave: z
+        .array(z.array(z.number().min(0).max(2)).min(1).max(20))
+        .min(1)
+        .max(12),
+      waveReps: z
+        .array(z.array(z.number().int().min(0).max(MAX_REPS)).min(1).max(20))
+        .min(1)
+        .max(12)
+        .optional(),
+    }),
   ])
   // Cross-field rules live at the union level: discriminatedUnion members must
   // stay plain ZodObjects, so per-member .refine isn't an option.
@@ -112,6 +132,13 @@ export const progressionSchema = z
         code: 'custom',
         message: 'rep-progression needs incrementReps or incrementSec greater than 0',
         path: ['incrementReps'],
+      })
+    }
+    if (p.scheme === 'amrap-cycle' && p.waveReps && p.waveReps.length !== p.wave.length) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'waveReps must have one row per wave week',
+        path: ['waveReps'],
       })
     }
   })
