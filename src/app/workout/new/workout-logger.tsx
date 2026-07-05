@@ -60,10 +60,11 @@ export function WorkoutLogger({
   // instant. Edits keep the workout's existing startedAt. State (not a ref)
   // because a restored snapshot rewinds it to the original session start.
   const [openedAt, setOpenedAt] = useState<Date>(() => startedAt ?? new Date())
-  // Blocks the persist effect until the mount-time restore has read storage —
-  // otherwise the first render's (server-seeded) draft overwrites the snapshot
-  // before it can be restored.
-  const restoredRef = useRef(false)
+  // Makes the persist effect skip its mount run: that run still sees the first
+  // render's (server-seeded) draft and would overwrite the snapshot before the
+  // restored state re-renders. Nothing user-entered exists yet, so there is
+  // nothing to persist until a change (or the restore) re-fires the effect.
+  const skipPersistRef = useRef(true)
   const storageKey = draftStorageKey(workoutId)
   const router = useRouter()
 
@@ -85,14 +86,16 @@ export function WorkoutLogger({
       setName(restored.name)
       setOpenedAt(restored.openedAt)
     }
-    restoredRef.current = true
     // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only: storageKey/unit are stable per page load
   }, [])
 
   // Snapshot every change so nothing is lost mid-session. A failed write
   // (Safari private mode, quota) is non-critical — logging must keep working.
   useEffect(() => {
-    if (!restoredRef.current) return
+    if (skipPersistRef.current) {
+      skipPersistRef.current = false
+      return
+    }
     try {
       if (draft.exercises.length === 0 && !name.trim()) {
         localStorage.removeItem(storageKey)
@@ -262,8 +265,9 @@ export function WorkoutLogger({
                     className={cn(
                       'relative grid size-8 shrink-0 place-items-center rounded-full text-sm font-semibold tnum transition-colors',
                       // Invisible inset expands the tap target toward HIG size
-                      // without growing the visual circle or shifting the row.
-                      'before:absolute before:-inset-1.5 before:content-[""]',
+                      // without growing the visual circle or shifting the row
+                      // (Tailwind v4 injects content on before: automatically).
+                      'before:absolute before:-inset-1.5',
                       set.completed
                         ? 'bg-primary text-primary-foreground'
                         : 'bg-muted text-muted-foreground',
