@@ -6,6 +6,7 @@ import {
   formatLoggedSet,
   formatVolume,
   formatWorkoutDuration,
+  formatElapsed,
   placeholderForSet,
   planPlaceholderForSet,
 } from './format'
@@ -200,6 +201,28 @@ describe('formatWorkoutDuration', () => {
   it('returns null for implausible durations (instant saves, backdated logs)', () => {
     expect(formatWorkoutDuration(start, new Date('2026-07-04T10:00:30Z'))).toBeNull()
     expect(formatWorkoutDuration(start, new Date('2026-07-04T17:01:00Z'))).toBeNull()
+  })
+})
+
+describe('formatElapsed', () => {
+  it('formats sub-hour spans as M:SS', () => {
+    expect(formatElapsed(0)).toBe('0:00')
+    expect(formatElapsed(65_000)).toBe('1:05')
+    expect(formatElapsed(42 * 60_000 + 30_000)).toBe('42:30')
+  })
+
+  it('formats hour-plus spans as H:MM:SS with padded minutes', () => {
+    expect(formatElapsed(3_661_000)).toBe('1:01:01')
+    expect(formatElapsed(2 * 3_600_000 + 5_000)).toBe('2:00:05')
+  })
+
+  it('floors partial seconds', () => {
+    expect(formatElapsed(1_999)).toBe('0:01')
+  })
+
+  it('returns null for negative (clock skew) and implausible spans', () => {
+    expect(formatElapsed(-1)).toBeNull()
+    expect(formatElapsed(7 * 3_600_000)).toBeNull()
   })
 })
 

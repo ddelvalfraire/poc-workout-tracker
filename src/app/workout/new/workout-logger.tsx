@@ -19,6 +19,7 @@ import {
   type WorkoutDraft,
 } from './workout-draft'
 import { draftStorageKey, serializeDraft, deserializeDraft } from './draft-storage'
+import { SessionClock } from './session-clock'
 import { type WeightUnit } from '@/lib/units'
 import { cn } from '@/lib/utils'
 import { placeholderForSet, planPlaceholderForSet, type PlanSetTarget } from '@/lib/format'
@@ -34,6 +35,8 @@ interface WorkoutLoggerProps {
   /** Per-exercise planned targets (by wgerExerciseId) for program workouts —
    *  the ghost fallback when an exercise has no prior history. */
   planTargets?: Record<number, PlanSetTarget[]>
+  /** The persisted session start, for edit mode; new sessions clock from open time. */
+  startedAt?: Date
 }
 
 export function WorkoutLogger({
@@ -42,6 +45,7 @@ export function WorkoutLogger({
   initialName = '',
   unit = 'kg',
   planTargets,
+  startedAt,
 }: WorkoutLoggerProps) {
   const [draft, dispatch] = useReducer(workoutDraftReducer, initialDraft)
   const [name, setName] = useState(initialName)
@@ -55,7 +59,7 @@ export function WorkoutLogger({
   // startedAt→completedAt reflects the real session length, not the save
   // instant. Edits keep the workout's existing startedAt. State (not a ref)
   // because a restored snapshot rewinds it to the original session start.
-  const [openedAt, setOpenedAt] = useState<Date>(() => new Date())
+  const [openedAt, setOpenedAt] = useState<Date>(() => startedAt ?? new Date())
   // Blocks the persist effect until the mount-time restore has read storage —
   // otherwise the first render's (server-seeded) draft overwrites the snapshot
   // before it can be restored.
@@ -167,6 +171,8 @@ export function WorkoutLogger({
           onChange={(e) => setName(e.target.value)}
           aria-label="Workout name"
         />
+
+        <SessionClock startedAt={openedAt} />
 
         <ExercisePicker
           onAdd={(exercise) =>
