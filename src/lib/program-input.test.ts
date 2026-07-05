@@ -375,6 +375,19 @@ describe('progressionSchema bounds (Phase 5 tightening)', () => {
       { scheme: 'rep-progression', incrementReps: 1 },
       { scheme: 'rep-progression', incrementSec: 15, maxSec: 180 },
       { scheme: 'rep-progression', incrementReps: 2, maxReps: 20 },
+      {
+        scheme: 'amrap-cycle',
+        trainingMaxKg: 100,
+        incrementKg: 2.5,
+        wave: [[0.65, 0.75, 0.85], [0.7, 0.8, 0.9]],
+      },
+      {
+        scheme: 'amrap-cycle',
+        trainingMaxKg: 100,
+        incrementKg: 0, // static TM = pure wave loading
+        wave: [[0.7], [0.8]],
+        waveReps: [[5], [3]],
+      },
     ]
     for (const p of valid) expect(() => progressionSchema.parse(p)).not.toThrow()
   })
@@ -398,8 +411,24 @@ describe('progressionSchema bounds (Phase 5 tightening)', () => {
       { scheme: 'rep-progression', incrementReps: -1 },
       { scheme: 'rep-progression', incrementReps: 1.5 },
       { scheme: 'rep-progression', incrementSec: 601 },
+      { scheme: 'amrap-cycle', trainingMaxKg: -1, incrementKg: 2.5, wave: [[0.7]] },
+      { scheme: 'amrap-cycle', trainingMaxKg: 100, incrementKg: 2.5, wave: [] },
+      { scheme: 'amrap-cycle', trainingMaxKg: 100, incrementKg: 2.5, wave: [[]] },
+      { scheme: 'amrap-cycle', trainingMaxKg: 100, incrementKg: 2.5, wave: [[2.5]] },
     ]
     for (const p of invalid) expect(() => progressionSchema.parse(p), JSON.stringify(p)).toThrow()
+  })
+
+  it('rejects an amrap-cycle whose waveReps shape diverges from its wave', () => {
+    expect(() =>
+      progressionSchema.parse({
+        scheme: 'amrap-cycle',
+        trainingMaxKg: 100,
+        incrementKg: 2.5,
+        wave: [[0.65, 0.75], [0.7, 0.8]],
+        waveReps: [[5, 5]], // one row for a two-row wave
+      }),
+    ).toThrow(/waveReps/)
   })
 
   it('rejects a no-op rep-progression (both increments zero)', () => {

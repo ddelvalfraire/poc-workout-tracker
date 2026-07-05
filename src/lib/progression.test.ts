@@ -446,6 +446,100 @@ describe('deriveWeekSets', () => {
     })
   })
 
+  describe('amrap-cycle', () => {
+    // Classic 5/3/1 wave: percents of the training max per set, per wave week.
+    const p531 = {
+      scheme: 'amrap-cycle' as const,
+      trainingMaxKg: 100,
+      incrementKg: 5,
+      wave: [
+        [0.65, 0.75, 0.85],
+        [0.7, 0.8, 0.9],
+        [0.75, 0.85, 0.95],
+      ],
+      waveReps: [
+        [5, 5, 5],
+        [3, 3, 3],
+        [5, 3, 1],
+      ],
+    }
+    /** Two working sets + a final AMRAP set, no template loads. */
+    const sets531 = (): ProgramSetRowLike[] => [
+      workingSet({ setNumber: 1 }),
+      workingSet({ setNumber: 2 }),
+      workingSet({ setNumber: 3, setType: 'amrap' }),
+    ]
+    const base = { mesocycleWeeks: 7, deloadWeek: 7, history: NO_HISTORY }
+
+    it('derives per-set loads and reps from the wave row for the week', () => {
+      const derived = deriveWeekSets({ sets: sets531(), progression: p531, week: 1, ...base })
+      expect(derived.map((s) => s.loadKg)).toEqual([65, 75, 85])
+      expect(derived.map((s) => s.repMin)).toEqual([5, 5, 5])
+      expect(derived.every((s) => s.derivedFrom === 'scheme')).toBe(true)
+    })
+
+    it('advances to the next wave row each non-deload week', () => {
+      const derived = deriveWeekSets({ sets: sets531(), progression: p531, week: 2, ...base })
+      expect(derived.map((s) => s.loadKg)).toEqual([70, 80, 90])
+      expect(derived.map((s) => s.repMin)).toEqual([3, 3, 3])
+    })
+
+    it('bumps the training max once per completed wave and restarts the wave', () => {
+      // Week 4 = wave week 1 of cycle 2: TM 105.
+      const derived = deriveWeekSets({ sets: sets531(), progression: p531, week: 4, ...base })
+      expect(derived.map((s) => s.loadKg)).toEqual([68.25, 78.75, 89.25])
+      expect(derived.map((s) => s.repMin)).toEqual([5, 5, 5])
+    })
+
+    it('clamps to the last percent when a day has more sets than the wave row', () => {
+      const derived = deriveWeekSets({
+        sets: [...sets531(), workingSet({ setNumber: 4 })],
+        progression: p531,
+        week: 1,
+        ...base,
+      })
+      expect(derived[3].loadKg).toBe(85)
+    })
+
+    it('keeps template reps when waveReps is omitted', () => {
+      const noReps = { scheme: p531.scheme, trainingMaxKg: 100, incrementKg: 5, wave: p531.wave }
+      const derived = deriveWeekSets({
+        sets: [workingSet({ setNumber: 1, repMin: 8, repMax: 10 })],
+        progression: noReps,
+        week: 1,
+        ...base,
+      })
+      expect(derived[0].repMin).toBe(8)
+      expect(derived[0].repMax).toBe(10)
+      expect(derived[0].loadKg).toBe(65)
+    })
+
+    it('indexes percents among progressed sets only (warmups pass through)', () => {
+      const derived = deriveWeekSets({
+        sets: [
+          workingSet({ setNumber: 1, setType: 'warmup', suggestedLoadKg: 40, repMin: 10 }),
+          workingSet({ setNumber: 2 }),
+          workingSet({ setNumber: 3 }),
+        ],
+        progression: p531,
+        week: 1,
+        ...base,
+      })
+      expect(derived[0].loadKg).toBe(40) // warmup untouched
+      expect(derived[0].repMin).toBe(10)
+      expect(derived[1].loadKg).toBe(65) // first PROGRESSED set gets the first percent
+      expect(derived[2].loadKg).toBe(75)
+    })
+
+    it('applies the standard deload on top of the wave-derived loads', () => {
+      const derived = deriveWeekSets({ sets: sets531(), progression: p531, week: 7, ...base })
+      // Week 7: 6 prior non-deload weeks = 2 complete waves → TM 110, wave row 0.
+      expect(derived.filter((s) => s.setType === 'working')).toHaveLength(1) // ceil(2×0.5)
+      expect(derived[0].loadKg).toBeCloseTo(110 * 0.65 * DELOAD_LOAD_FACTOR, 5)
+      expect(derived[0].derivedFrom).toBe('deload')
+    })
+  })
+
   it('never emits a negative load', () => {
     const derived = deriveWeekSets({
       sets: workingSets(1, 1),

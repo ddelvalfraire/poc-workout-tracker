@@ -198,6 +198,36 @@ function schemeLoad(
     case 'rep-progression':
       // Rep progression changes TARGETS (handled by the caller), not loads.
       return { loadKg: base, rpe: set.rpe }
+    case 'amrap-cycle':
+      // Wave cycling derives per-set loads (handled by the caller).
+      return { loadKg: base, rpe: set.rpe }
+  }
+}
+
+/** The amrap-cycle prescription for one progressed set: load = effective TM
+ *  (base + one increment per completed wave) × this set's percent in the
+ *  current wave row; reps come from the matching `waveReps` cell when the
+ *  scheme prescribes them, else the template. Rows shorter than the day's
+ *  set count clamp to their last entry. */
+function amrapCycleTargets(
+  set: ProgramSetRowLike,
+  progressedIdx: number,
+  progression: Extract<Progression, { scheme: 'amrap-cycle' }>,
+  week: number,
+  weeks: number[],
+): { repMin: number | null; repMax: number | null; loadKg: number | null } {
+  const steps = weeks.filter((w) => w < week).length
+  const waveIdx = steps % progression.wave.length
+  const completedWaves = Math.floor(steps / progression.wave.length)
+  const percents = progression.wave[waveIdx]
+  const percent = percents[Math.min(progressedIdx, percents.length - 1)]
+  const trainingMax = progression.trainingMaxKg + progression.incrementKg * completedWaves
+  const reps = progression.waveReps?.[waveIdx]
+  const rep = reps ? reps[Math.min(progressedIdx, reps.length - 1)] : null
+  return {
+    loadKg: trainingMax * percent,
+    repMin: rep ?? set.repMin,
+    repMax: rep !== null ? null : set.repMax,
   }
 }
 
@@ -283,18 +313,32 @@ export function deriveWeekSets(args: {
   const weeks = nonDeloadWeeks(Math.max(1, mesocycleWeeks), deloadWeek)
   const isDeload = deloadWeek !== null && week === deloadWeek
 
+  // The 0-based index of each set among the PROGRESSED sets — amrap-cycle
+  // percents address working/backoff/amrap sets in order, skipping warmups.
+  let progressedCount = 0
+  const progressedIdx = sets.map((s) => (isProgressed(s.setType) ? progressedCount++ : -1))
+
   let derived: DerivedSet[] = sets.map((set, sourceIndex) => {
     const applies = progression !== null && isProgressed(set.setType)
-    const { loadKg, rpe } = applies
+    const { loadKg: schemeLoadKg, rpe } = applies
       ? schemeLoad(set, progression, week, weeks, history)
       : { loadKg: set.suggestedLoadKg, rpe: set.rpe }
     // Rep progression bumps targets on non-deload weeks; the deload reverts to
     // template reps/duration (halved sets at inflated targets would fight the
-    // deload's whole point).
+    // deload's whole point). Amrap-cycle derives per-set loads AND reps from
+    // its wave (the deload factor then applies on top like any scheme load).
+    const cycle =
+      applies && progression.scheme === 'amrap-cycle'
+        ? amrapCycleTargets(set, progressedIdx[sourceIndex], progression, week, weeks)
+        : null
     const targets =
       applies && progression.scheme === 'rep-progression' && !isDeload
         ? schemeTargets(set, progression, week, weeks)
-        : { repMin: set.repMin, repMax: set.repMax, durationSec: set.durationSec }
+        : {
+            repMin: cycle ? cycle.repMin : set.repMin,
+            repMax: cycle ? cycle.repMax : set.repMax,
+            durationSec: set.durationSec,
+          }
     return {
       setNumber: set.setNumber,
       setType: set.setType,
@@ -303,7 +347,7 @@ export function deriveWeekSets(args: {
       repMax: targets.repMax,
       rir: set.rir,
       rpe,
-      loadKg: clampLoad(loadKg),
+      loadKg: clampLoad(cycle ? cycle.loadKg : schemeLoadKg),
       tempo: set.tempo,
       durationSec: targets.durationSec,
       distanceM: set.distanceM,
