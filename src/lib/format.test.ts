@@ -224,6 +224,11 @@ describe('formatElapsed', () => {
     expect(formatElapsed(-1)).toBeNull()
     expect(formatElapsed(7 * 3_600_000)).toBeNull()
   })
+
+  it('treats the 6 h plausibility ceiling as inclusive', () => {
+    expect(formatElapsed(6 * 3_600_000)).toBe('6:00:00')
+    expect(formatElapsed(6 * 3_600_000 + 1)).toBeNull()
+  })
 })
 
 describe('formatWorkoutDate', () => {

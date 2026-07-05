@@ -1,13 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import {
+  saveWorkoutAction,
   updateWorkoutAction,
   deleteWorkoutAction,
+  getLastPerformanceAction,
   getWorkoutDraftAction,
   putWorkoutDraftAction,
   deleteWorkoutDraftAction,
 } from './actions'
 import { requireUserId } from '@/lib/auth'
-import { updateWorkout, deleteWorkout } from '@/db/workouts'
+import { saveWorkout, updateWorkout, deleteWorkout, getLastPerformance } from '@/db/workouts'
 import { getWorkoutDraft, putWorkoutDraft, deleteWorkoutDraft } from '@/db/workout-drafts'
 import { DRAFT_TTL_MS } from '@/app/workout/new/draft-payload'
 import { revalidatePath } from 'next/cache'
@@ -21,7 +23,12 @@ import { revalidatePath } from 'next/cache'
  */
 
 vi.mock('@/lib/auth', () => ({ requireUserId: vi.fn() }))
-vi.mock('@/db/workouts', () => ({ updateWorkout: vi.fn(), deleteWorkout: vi.fn() }))
+vi.mock('@/db/workouts', () => ({
+  saveWorkout: vi.fn(),
+  updateWorkout: vi.fn(),
+  deleteWorkout: vi.fn(),
+  getLastPerformance: vi.fn(),
+}))
 vi.mock('@/db/workout-drafts', () => ({
   getWorkoutDraft: vi.fn(),
   putWorkoutDraft: vi.fn(),
@@ -30,7 +37,9 @@ vi.mock('@/db/workout-drafts', () => ({
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
 
 const mockedRequireUserId = vi.mocked(requireUserId)
+const mockedSave = vi.mocked(saveWorkout)
 const mockedUpdate = vi.mocked(updateWorkout)
+const mockedGetLast = vi.mocked(getLastPerformance)
 const mockedDelete = vi.mocked(deleteWorkout)
 const mockedGetDraft = vi.mocked(getWorkoutDraft)
 const mockedPutDraft = vi.mocked(putWorkoutDraft)
@@ -44,6 +53,58 @@ const VALID_INPUT = { exercises: [{ wgerExerciseId: 1, name: 'Plank', sets: [] }
 beforeEach(() => {
   vi.clearAllMocks()
   mockedRequireUserId.mockResolvedValue(USER)
+})
+
+describe('saveWorkoutAction', () => {
+  it('returns the id, deletes the new-surface draft, and revalidates home', async () => {
+    // Arrange
+    mockedSave.mockResolvedValue({ id: ID })
+
+    // Act
+    const result = await saveWorkoutAction(VALID_INPUT)
+
+    // Assert
+    expect(result).toEqual({ id: ID })
+    expect(mockedSave).toHaveBeenCalledWith(USER, expect.objectContaining({ exercises: expect.any(Array) }))
+    // The saved workout supersedes the /workout/new draft on every device.
+    expect(mockedDeleteDraft).toHaveBeenCalledWith(USER, 'new')
+    expect(mockedRevalidate).toHaveBeenCalledWith('/')
+  })
+
+  it('rejects malformed input before touching the database', async () => {
+    // Act + Assert — no exercises fails parseWorkoutInput
+    await expect(saveWorkoutAction({ exercises: [] })).rejects.toThrow()
+    expect(mockedSave).not.toHaveBeenCalled()
+    expect(mockedDeleteDraft).not.toHaveBeenCalled()
+  })
+})
+
+describe('getLastPerformanceAction', () => {
+  it('passes a valid exercise id through, dropping a non-string exclude', async () => {
+    // Arrange
+    mockedGetLast.mockResolvedValue(null)
+
+    // Act
+    await getLastPerformanceAction(73, 42 /* not a string → dropped */)
+
+    // Assert
+    expect(mockedGetLast).toHaveBeenCalledWith(USER, 73, undefined)
+  })
+
+  it('forwards a string exclude id (edit mode must not report itself)', async () => {
+    mockedGetLast.mockResolvedValue(null)
+
+    await getLastPerformanceAction(73, ID)
+
+    expect(mockedGetLast).toHaveBeenCalledWith(USER, 73, ID)
+  })
+
+  it('rejects a non-integer or non-positive exercise id before touching the database', async () => {
+    for (const bad of ['73', 0, -1, 1.5]) {
+      await expect(getLastPerformanceAction(bad)).rejects.toThrow('invalid exercise id')
+    }
+    expect(mockedGetLast).not.toHaveBeenCalled()
+  })
 })
 
 describe('updateWorkoutAction', () => {
@@ -165,6 +226,11 @@ describe('putWorkoutDraftAction', () => {
       'invalid draft payload',
     )
     expect(mockedPutDraft).not.toHaveBeenCalled()
+  })
+
+  it('normalizes key case before storing', async () => {
+    await putWorkoutDraftAction('NEW', DRAFT_PAYLOAD)
+    expect(mockedPutDraft).toHaveBeenCalledWith(USER, 'new', DRAFT_PAYLOAD)
   })
 
   it('rejects an oversized payload', async () => {

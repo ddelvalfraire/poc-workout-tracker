@@ -100,12 +100,22 @@ export function isDraftPayload(value: unknown): value is DraftPayload {
  * Parses a stored payload into restorable state, or `null` when it can't be
  * trusted or doesn't match the active weight unit. TTL is NOT checked here —
  * the server enforces it against the row's authoritative `updated_at`.
+ *
+ * `openedAt` is clamped to `now`: a draft written by a device with a fast
+ * clock would otherwise restore a future session start, which the eventual
+ * save sends as `startedAt` and parseWorkoutInput rejects (no future dates) —
+ * turning cross-device clock skew into an opaque save error.
  */
 export function parseDraftPayload(
   value: unknown,
-  opts: { unit: WeightUnit },
+  opts: { unit: WeightUnit; now: Date },
 ): { draft: WorkoutDraft; name: string; openedAt: Date } | null {
   if (!isDraftPayload(value)) return null
   if (value.unit !== opts.unit) return null
-  return { draft: value.draft, name: value.name, openedAt: new Date(value.openedAt) }
+  const openedAt = new Date(value.openedAt)
+  return {
+    draft: value.draft,
+    name: value.name,
+    openedAt: openedAt.getTime() > opts.now.getTime() ? opts.now : openedAt,
+  }
 }

@@ -92,15 +92,12 @@ export function WorkoutLogger({
     getWorkoutDraftAction(key)
       .then((payload) => {
         if (cancelled || dirtyRef.current) return
-        const restored = parseDraftPayload(payload, { unit })
+        // parseDraftPayload also clamps a future openedAt (clock skew) to now.
+        const restored = parseDraftPayload(payload, { unit, now: new Date() })
         if (!restored) return
         dispatch({ type: 'RESTORE_DRAFT', draft: restored.draft })
         setName(restored.name)
-        // Clamp to now: a draft written by a device with a fast clock could
-        // carry a future openedAt, and parseWorkoutInput rejects future
-        // startedAt at save — turning clock skew into an opaque save error.
-        const openedAt = restored.openedAt.getTime() > Date.now() ? new Date() : restored.openedAt
-        setOpenedAt(openedAt)
+        setOpenedAt(restored.openedAt)
       })
       .catch(() => {
         // Non-critical: restore is best-effort; the logger works without it.

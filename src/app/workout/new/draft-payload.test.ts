@@ -9,6 +9,7 @@ import {
 import type { WorkoutDraft } from './workout-draft'
 
 const OPENED = new Date('2026-07-05T11:40:00.000Z')
+const NOW = new Date('2026-07-05T12:00:00.000Z')
 
 /** A draft mid-session: one checked set, one still blank. */
 const DRAFT: WorkoutDraft = {
@@ -43,7 +44,7 @@ describe('build → parse round-trip', () => {
     const stored = JSON.parse(JSON.stringify(payload()))
 
     // Act
-    const restored = parseDraftPayload(stored, { unit: 'kg' })
+    const restored = parseDraftPayload(stored, { unit: 'kg', now: NOW })
 
     // Assert
     expect(restored).not.toBeNull()
@@ -51,13 +52,26 @@ describe('build → parse round-trip', () => {
     expect(restored!.name).toBe('Leg Day')
     expect(restored!.openedAt).toEqual(OPENED)
   })
+
+  it('clamps a future openedAt to now (cross-device clock skew)', () => {
+    // Arrange — a draft written by a device whose clock runs 5 min fast
+    const skewed = payload({ openedAt: new Date(NOW.getTime() + 5 * 60_000).toISOString() })
+
+    // Act
+    const restored = parseDraftPayload(skewed, { unit: 'kg', now: NOW })
+
+    // Assert — a future session start would make the eventual save's
+    // startedAt fail parseWorkoutInput's no-future-dates rule
+    expect(restored).not.toBeNull()
+    expect(restored!.openedAt).toEqual(NOW)
+  })
 })
 
 describe('isDraftPayload / parseDraftPayload rejection', () => {
   it('rejects non-objects', () => {
     expect(isDraftPayload(null)).toBe(false)
     expect(isDraftPayload('a string')).toBe(false)
-    expect(parseDraftPayload(undefined, { unit: 'kg' })).toBeNull()
+    expect(parseDraftPayload(undefined, { unit: 'kg', now: NOW })).toBeNull()
   })
 
   it('rejects a different payload version', () => {
@@ -74,7 +88,7 @@ describe('isDraftPayload / parseDraftPayload rejection', () => {
 
     // Assert — valid shape, but not restorable under kg
     expect(isDraftPayload(lb)).toBe(true)
-    expect(parseDraftPayload(lb, { unit: 'kg' })).toBeNull()
+    expect(parseDraftPayload(lb, { unit: 'kg', now: NOW })).toBeNull()
   })
 
   it('rejects an invalid openedAt', () => {

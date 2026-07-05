@@ -79,6 +79,21 @@ describe('updateWorkout (transactional, user-scoped)', () => {
     expect(result).toEqual({ id: ID })
   })
 
+  it('round-trips a checked-off set through the re-insert path', async () => {
+    // Act — edit mode replaces children; the check-off must survive
+    await updateWorkout(USER, ID, {
+      exercises: [
+        { wgerExerciseId: 73, name: 'Squat', sets: [{ reps: 5, weight: 100, completed: true }] },
+      ],
+    })
+
+    // Assert — the re-inserted set keeps completed: true
+    expect(records[3]).toEqual({
+      op: 'insert',
+      values: [{ workoutExerciseId: 'e1', setNumber: 1, reps: 5, weight: 100, completed: true }],
+    })
+  })
+
   it('never embeds a raw Date in the completedAt SQL fragment (driver rejects it)', async () => {
     // Regression: params inside a raw sql`` fragment bypass the column's
     // Date→string mapping, and postgres.js throws ERR_INVALID_ARG_TYPE on a
