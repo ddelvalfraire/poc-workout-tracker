@@ -79,6 +79,31 @@ describe('updateWorkout (transactional, user-scoped)', () => {
     expect(result).toEqual({ id: ID })
   })
 
+  it('never embeds a raw Date in the completedAt SQL fragment (driver rejects it)', async () => {
+    // Regression: params inside a raw sql`` fragment bypass the column's
+    // Date→string mapping, and postgres.js throws ERR_INVALID_ARG_TYPE on a
+    // Date instance — every backdated edit failed in prod. The explicit
+    // date must be serialized before interpolation.
+    const containsDate = (value: unknown, seen = new Set<object>()): boolean => {
+      if (value instanceof Date) return true
+      if (!value || typeof value !== 'object') return false
+      if (seen.has(value)) return false
+      seen.add(value)
+      return Object.values(value).some((v) => containsDate(v, seen))
+    }
+
+    // Act — explicit startedAt takes the backdated-completion branch
+    await updateWorkout(USER, ID, {
+      startedAt: new Date('2026-07-04T20:43:20.856Z'),
+      exercises: [{ wgerExerciseId: 1, name: 'Plank', sets: [] }],
+    })
+
+    // Assert
+    const completedAt = (records[0].values as Record<string, unknown>).completedAt
+    expect(completedAt).toBeDefined()
+    expect(containsDate(completedAt)).toBe(false)
+  })
+
   it('clears the name to null when input has none', async () => {
     // Act
     await updateWorkout(USER, ID, { exercises: [{ wgerExerciseId: 1, name: 'Plank', sets: [] }] })

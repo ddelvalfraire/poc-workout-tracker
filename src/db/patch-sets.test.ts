@@ -95,16 +95,31 @@ beforeEach(() => {
 })
 
 describe('updateSet (user-scoped)', () => {
-  it('updates only the addressed set when the workout is owned', async () => {
+  it('updates the addressed set, then stamps workout completion', async () => {
     // Arrange — ownership lookup resolves an exercise
     selectQueue = [[{ id: 'ex1' }]]
 
     // Act
     const result = await updateSet(USER, WID, 0, 3, { reps: 5, weight: 100 })
 
-    // Assert
-    expect(records).toEqual([{ op: 'update:sets', values: { reps: 5, weight: 100 } }])
+    // Assert — set write first, then the coalescing completedAt stamp
+    expect(records.map((r) => r.op)).toEqual(['update:sets', 'update:workouts'])
+    expect(records[0].values).toEqual({ reps: 5, weight: 100 })
+    expect(Object.keys(records[1].values as object)).toEqual(['completedAt'])
     expect(result).toEqual({ id: 's9' })
+  })
+
+  it('does not stamp completion when no such set exists', async () => {
+    // Arrange — owned, but the update matches no row
+    selectQueue = [[{ id: 'ex1' }]]
+    updatedSetRows = []
+
+    // Act
+    const result = await updateSet(USER, WID, 0, 9, { reps: 5 })
+
+    // Assert — the failed set write must not mark the workout completed
+    expect(result).toBeNull()
+    expect(records.map((r) => r.op)).toEqual(['update:sets'])
   })
 
   it('returns null and writes nothing when the workout is not owned', async () => {
@@ -130,7 +145,7 @@ describe('updateSet (user-scoped)', () => {
 })
 
 describe('addSet (user-scoped)', () => {
-  it('numbers the new set one past the current max', async () => {
+  it('numbers the new set one past the current max and stamps completion', async () => {
     // Arrange — owned, current max setNumber is 3
     selectQueue = [[{ id: 'ex1' }], [{ value: 3 }]]
 
@@ -138,9 +153,13 @@ describe('addSet (user-scoped)', () => {
     const result = await addSet(USER, WID, 0, { reps: 8, weight: 60 })
 
     // Assert
-    expect(records).toEqual([
-      { op: 'insert', values: { workoutExerciseId: 'ex1', setNumber: 4, reps: 8, weight: 60 } },
-    ])
+    expect(records.map((r) => r.op)).toEqual(['insert', 'update:workouts'])
+    expect(records[0].values).toEqual({
+      workoutExerciseId: 'ex1',
+      setNumber: 4,
+      reps: 8,
+      weight: 60,
+    })
     expect(result).toEqual({ setNumber: 4 })
   })
 
@@ -154,6 +173,19 @@ describe('addSet (user-scoped)', () => {
     // Assert
     expect(result).toEqual({ setNumber: 1 })
     expect(records[0]).toMatchObject({ op: 'insert', values: { setNumber: 1 } })
+  })
+
+  it('preserves an existing completedAt via coalesce (stamp is not a plain overwrite)', async () => {
+    // Arrange
+    selectQueue = [[{ id: 'ex1' }], [{ value: 1 }]]
+
+    // Act
+    await addSet(USER, WID, 0, { reps: 5, weight: 100 })
+
+    // Assert — the stamp must be a SQL coalesce expression, not a raw Date
+    const stamp = (records[1].values as { completedAt: unknown }).completedAt
+    expect(stamp).not.toBeInstanceOf(Date)
+    expect(stamp).toBeTruthy()
   })
 
   it('returns null and inserts nothing when not owned', async () => {
@@ -170,15 +202,15 @@ describe('addSet (user-scoped)', () => {
 })
 
 describe('removeSet (user-scoped)', () => {
-  it('deletes the set then renumbers the higher sets down by one', async () => {
+  it('deletes the set, renumbers the rest, and stamps completion', async () => {
     // Arrange — owned, a set was deleted
     selectQueue = [[{ id: 'ex1' }]]
 
     // Act
     const result = await removeSet(USER, WID, 0, 2)
 
-    // Assert — delete first, then a renumber update against the sets table
-    expect(records.map((r) => r.op)).toEqual(['delete', 'update:sets'])
+    // Assert — delete, renumber against sets, then the workout completion stamp
+    expect(records.map((r) => r.op)).toEqual(['delete', 'update:sets', 'update:workouts'])
     expect(result).toEqual({ removed: true })
   })
 

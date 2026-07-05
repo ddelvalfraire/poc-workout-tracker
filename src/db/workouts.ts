@@ -246,8 +246,11 @@ export async function updateWorkout(
         name: input.name ?? null,
         completedAt: (() => {
           const explicit = input.completedAt ?? input.startedAt
+          // Serialize to ISO here: a param inside a raw sql`` fragment skips
+          // the column's Date→string mapping, and postgres.js rejects a raw
+          // Date instance (ERR_INVALID_ARG_TYPE).
           return explicit !== undefined
-            ? sql`coalesce(${workouts.completedAt}, ${explicit})`
+            ? sql`coalesce(${workouts.completedAt}, ${explicit.toISOString()})`
             : sql`coalesce(${workouts.completedAt}, now())`
         })(),
         ...(input.startedAt !== undefined ? { startedAt: input.startedAt } : {}),
@@ -297,6 +300,21 @@ export interface SetPatch {
 }
 
 /**
+ * Marks an owned workout completed if it isn't already. Set-level edits are how
+ * instantiated program workouts get logged (the MCP patch tools), so a
+ * successful set write doubles as the completion signal — mirroring
+ * `updateWorkout`, where the web logger's first edit stamps `completedAt`. The
+ * coalesce keeps an existing completion time untouched. Ownership is already
+ * proven by `findOwnedExerciseId` before any caller reaches this.
+ */
+async function stampWorkoutCompleted(tx: Tx, workoutId: string): Promise<void> {
+  await tx
+    .update(workouts)
+    .set({ completedAt: sql`coalesce(${workouts.completedAt}, now())` })
+    .where(eq(workouts.id, workoutId))
+}
+
+/**
  * Updates one set (reps and/or weight) of an owned workout's exercise, addressed
  * by 0-based exercise `position` and 1-based `setNumber`. Returns null when the
  * patch is empty, the workout isn't owned, the position is absent, or no such set
@@ -322,7 +340,9 @@ export async function updateSet(
       .set(values)
       .where(and(eq(sets.workoutExerciseId, exerciseId), eq(sets.setNumber, setNumber)))
       .returning({ id: sets.id })
-    return updated ?? null
+    if (!updated) return null
+    await stampWorkoutCompleted(tx, workoutId)
+    return updated
   })
 }
 
@@ -348,6 +368,7 @@ export async function addSet(
     await tx
       .insert(sets)
       .values({ workoutExerciseId: exerciseId, setNumber, reps: patch.reps ?? null, weight: patch.weight ?? null })
+    await stampWorkoutCompleted(tx, workoutId)
     return { setNumber }
   })
 }
@@ -376,6 +397,7 @@ export async function removeSet(
       .update(sets)
       .set({ setNumber: sql`${sets.setNumber} - 1` })
       .where(and(eq(sets.workoutExerciseId, exerciseId), gt(sets.setNumber, setNumber)))
+    await stampWorkoutCompleted(tx, workoutId)
     return { removed: true }
   })
 }
