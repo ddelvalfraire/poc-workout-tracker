@@ -1,4 +1,4 @@
-import { and, eq } from 'drizzle-orm'
+import { and, desc, eq, inArray } from 'drizzle-orm'
 import { db } from './index'
 import { workoutDrafts } from './schema'
 
@@ -27,7 +27,15 @@ export async function getWorkoutDraft(
   return row
 }
 
-/** Upserts the draft for a logging surface (last writer wins across devices). */
+// A user legitimately has at most a handful of surfaces (one 'new' + open
+// edits); the cap only exists to stop a hostile client from minting unbounded
+// rows under arbitrary uuid keys.
+const MAX_DRAFTS_PER_USER = 20
+
+/**
+ * Upserts the draft for a logging surface (last writer wins across devices),
+ * then prunes the user's oldest drafts beyond the per-user cap.
+ */
 export async function putWorkoutDraft(userId: string, key: string, payload: unknown): Promise<void> {
   await db
     .insert(workoutDrafts)
@@ -36,6 +44,18 @@ export async function putWorkoutDraft(userId: string, key: string, payload: unkn
       target: [workoutDrafts.userId, workoutDrafts.key],
       set: { payload, updatedAt: new Date() },
     })
+
+  const rows = await db
+    .select({ key: workoutDrafts.key })
+    .from(workoutDrafts)
+    .where(eq(workoutDrafts.userId, userId))
+    .orderBy(desc(workoutDrafts.updatedAt))
+  const excess = rows.slice(MAX_DRAFTS_PER_USER).map((row) => row.key)
+  if (excess.length > 0) {
+    await db
+      .delete(workoutDrafts)
+      .where(and(eq(workoutDrafts.userId, userId), inArray(workoutDrafts.key, excess)))
+  }
 }
 
 /** Deletes the draft for a logging surface (after save, on clear, or TTL expiry). */

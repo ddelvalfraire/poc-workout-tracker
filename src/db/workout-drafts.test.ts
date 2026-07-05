@@ -8,6 +8,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
  * Deletes: `db.delete().where()` records the call.
  */
 let selectRows: { payload: unknown; updatedAt: Date }[] = []
+let selectKeyRows: { key: string }[] = []
 const upserts: { values: unknown; conflict: unknown }[] = []
 let deletes = 0
 
@@ -16,6 +17,8 @@ function makeSelectBuilder() {
     from: () => builder,
     where: () => builder,
     limit: () => Promise.resolve(selectRows),
+    // Terminal for putWorkoutDraft's prune query (no .limit()).
+    orderBy: () => Promise.resolve(selectKeyRows),
   }
   return builder
 }
@@ -55,6 +58,7 @@ const PAYLOAD = { v: 1, unit: 'kg', name: '', openedAt: '2026-07-05T11:40:00.000
 
 beforeEach(() => {
   selectRows = []
+  selectKeyRows = []
   upserts.length = 0
   deletes = 0
 })
@@ -79,6 +83,28 @@ describe('putWorkoutDraft', () => {
     expect(upserts).toHaveLength(1)
     expect(upserts[0].values).toMatchObject({ userId: USER, key: 'new', payload: PAYLOAD })
     expect(upserts[0].conflict).toMatchObject({ set: { payload: PAYLOAD, updatedAt: expect.any(Date) } })
+  })
+
+  it('keeps rows within the per-user cap without pruning', async () => {
+    // Arrange — two surfaces, well under the cap
+    selectKeyRows = [{ key: 'new' }, { key: 'w1' }]
+
+    // Act
+    await putWorkoutDraft(USER, 'new', PAYLOAD)
+
+    // Assert — no delete issued
+    expect(deletes).toBe(0)
+  })
+
+  it('prunes the oldest drafts beyond the per-user cap', async () => {
+    // Arrange — 21 rows, newest first (the prune query orders by updated_at desc)
+    selectKeyRows = Array.from({ length: 21 }, (_, i) => ({ key: `key-${i}` }))
+
+    // Act
+    await putWorkoutDraft(USER, 'new', PAYLOAD)
+
+    // Assert — one scoped delete for the overflow
+    expect(deletes).toBe(1)
   })
 })
 

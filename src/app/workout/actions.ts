@@ -87,15 +87,19 @@ export async function getLastPerformanceAction(
 // wire (isDraftPayload here, parseDraftPayload on restore).
 
 // 'new' (the /workout/new surface) or a workout uuid (edit surfaces). Guarding
-// the shape keeps arbitrary strings out of the key column.
-const DRAFT_KEY_RE = /^(new|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i
+// the shape keeps arbitrary strings out of the key column; keys are
+// lower-cased first so 'NEW' or an uppercase-uuid URL can't mint a second
+// surface for the same session.
+const DRAFT_KEY_RE = /^(new|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/
 
 // Generous ceiling for one session's draft; blocks abuse of the jsonb column.
 const MAX_DRAFT_PAYLOAD_BYTES = 32_768
 
 function parseDraftKey(raw: unknown): string {
-  if (typeof raw !== 'string' || !DRAFT_KEY_RE.test(raw)) throw new Error('invalid draft key')
-  return raw
+  if (typeof raw !== 'string') throw new Error('invalid draft key')
+  const key = raw.toLowerCase()
+  if (!DRAFT_KEY_RE.test(key)) throw new Error('invalid draft key')
+  return key
 }
 
 /**

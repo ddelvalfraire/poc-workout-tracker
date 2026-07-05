@@ -183,6 +183,11 @@ describe('deleteWorkoutDraftAction', () => {
     expect(mockedDeleteDraft).toHaveBeenCalledWith(USER, ID)
   })
 
+  it('normalizes key case so one session cannot mint two surfaces', async () => {
+    await deleteWorkoutDraftAction(ID.toUpperCase())
+    expect(mockedDeleteDraft).toHaveBeenCalledWith(USER, ID)
+  })
+
   it('rejects a malformed key', async () => {
     await expect(deleteWorkoutDraftAction('nope!')).rejects.toThrow('invalid draft key')
     expect(mockedDeleteDraft).not.toHaveBeenCalled()

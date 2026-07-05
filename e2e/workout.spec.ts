@@ -90,12 +90,16 @@ test('signed-in user can start, log, and save a workout', async ({ page }) => {
   await page.getByLabel('Set 2 weight in kg').fill('102.5')
 
   // Cross-device draft sync: the logger autosaves (debounced) to the server.
-  // Wait for the draft row, then reload — the session must come back intact
-  // (same restore path another device would take).
+  // Wait until the draft payload contains the LAST value typed — an earlier
+  // debounce flush may have synced a partial draft — then reload: the session
+  // must come back intact (same restore path another device would take).
   await expect
     .poll(
       async () => {
-        const rows = await sql`select key from workout_drafts where user_id = ${userId}`
+        const rows = await sql`
+          select 1 from workout_drafts
+          where user_id = ${userId} and payload::text like '%102.5%'
+        `
         return rows.length
       },
       { timeout: 10_000 },
