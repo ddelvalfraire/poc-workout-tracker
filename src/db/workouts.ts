@@ -298,6 +298,8 @@ async function findOwnedExerciseId(
 export interface SetPatch {
   reps?: number | null
   weight?: number | null // kg
+  /** In-session check-off state; boolean only (the column is NOT NULL). */
+  completed?: boolean
 }
 
 /**
@@ -331,6 +333,7 @@ export async function updateSet(
   const values = {
     ...(patch.reps !== undefined ? { reps: patch.reps } : {}),
     ...(patch.weight !== undefined ? { weight: patch.weight } : {}),
+    ...(patch.completed !== undefined ? { completed: patch.completed } : {}),
   }
   if (Object.keys(values).length === 0) return null
   return db.transaction(async (tx) => {
@@ -366,9 +369,13 @@ export async function addSet(
       .from(sets)
       .where(eq(sets.workoutExerciseId, exerciseId))
     const setNumber = (lastNumber ?? 0) + 1
-    await tx
-      .insert(sets)
-      .values({ workoutExerciseId: exerciseId, setNumber, reps: patch.reps ?? null, weight: patch.weight ?? null })
+    await tx.insert(sets).values({
+      workoutExerciseId: exerciseId,
+      setNumber,
+      reps: patch.reps ?? null,
+      weight: patch.weight ?? null,
+      completed: patch.completed ?? false,
+    })
     await stampWorkoutCompleted(tx, workoutId)
     return { setNumber }
   })

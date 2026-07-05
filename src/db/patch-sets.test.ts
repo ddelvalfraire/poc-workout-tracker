@@ -109,6 +109,18 @@ describe('updateSet (user-scoped)', () => {
     expect(result).toEqual({ id: 's9' })
   })
 
+  it('patches the completed flag alone (a check-off is a valid single-field edit)', async () => {
+    // Arrange
+    selectQueue = [[{ id: 'ex1' }]]
+
+    // Act
+    const result = await updateSet(USER, WID, 0, 3, { completed: true })
+
+    // Assert — only the flag written, and it still counts as a non-empty patch
+    expect(records[0].values).toEqual({ completed: true })
+    expect(result).toEqual({ id: 's9' })
+  })
+
   it('does not stamp completion when no such set exists', async () => {
     // Arrange — owned, but the update matches no row
     selectQueue = [[{ id: 'ex1' }]]
@@ -159,8 +171,20 @@ describe('addSet (user-scoped)', () => {
       setNumber: 4,
       reps: 8,
       weight: 60,
+      completed: false,
     })
     expect(result).toEqual({ setNumber: 4 })
+  })
+
+  it('inserts a checked-off set when the patch says completed', async () => {
+    // Arrange
+    selectQueue = [[{ id: 'ex1' }], [{ value: 0 }]]
+
+    // Act
+    await addSet(USER, WID, 0, { reps: 8, weight: 60, completed: true })
+
+    // Assert
+    expect(records[0].values).toMatchObject({ setNumber: 1, completed: true })
   })
 
   it('numbers the first set 1 when the exercise has none', async () => {
