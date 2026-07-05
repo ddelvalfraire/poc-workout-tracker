@@ -78,9 +78,10 @@ test('signed-in user can start, log, and save a workout', async ({ page }) => {
   await expect(addButton).toBeVisible({ timeout: 20_000 })
   await addButton.click()
 
-  // Log set 1.
+  // Log set 1 and check it off in-session.
   await page.getByLabel('Set 1 reps').fill('5')
   await page.getByLabel('Set 1 weight in kg').fill('100')
+  await page.getByRole('button', { name: 'Mark set 1 complete' }).click()
 
   // Add and log a second set.
   await page.getByRole('button', { name: /add set/i }).click()
@@ -105,4 +106,18 @@ test('signed-in user can start, log, and save a workout', async ({ page }) => {
   expect(rows).toHaveLength(1)
   expect(rows[0].exercise_count).toBe(1)
   expect(rows[0].set_count).toBe(2)
+
+  // Assert the in-session check-off persisted: set 1 completed, set 2 not.
+  const setRows = await sql<{ set_number: number; completed: boolean }[]>`
+    select s.set_number, s.completed
+    from sets s
+    join workout_exercises we on we.id = s.workout_exercise_id
+    join workouts w on w.id = we.workout_id
+    where w.user_id = ${userId}
+    order by s.set_number
+  `
+  expect(setRows).toEqual([
+    { set_number: 1, completed: true },
+    { set_number: 2, completed: false },
+  ])
 })
