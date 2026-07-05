@@ -160,6 +160,24 @@ describe('registerPatchTools', () => {
       expect(mockedUpdateSet).not.toHaveBeenCalled()
     })
 
+    it('accepts a completed-only patch (checking a set off is a valid edit)', async () => {
+      // Arrange
+      const tools = setup()
+      mockedUpdateSet.mockResolvedValue({ id: 's1' })
+
+      // Act
+      const result = await tools.get('update_set')!({
+        workoutId: WID,
+        exercisePosition: 0,
+        setNumber: 1,
+        completed: true,
+      })
+
+      // Assert — flag passed through, no unit resolution needed
+      expect(result.isError).toBeUndefined()
+      expect(mockedUpdateSet).toHaveBeenCalledWith(expect.any(String), WID, 0, 1, { completed: true })
+    })
+
     it('acts as the authenticated user, ignoring a conflicting userId arg', async () => {
       // Arrange
       const tools = setup()

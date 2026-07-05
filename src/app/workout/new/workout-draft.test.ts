@@ -19,8 +19,8 @@ const NESTED: WorkoutDraft = {
       id: 'ex1',
       ...SQUAT,
       sets: [
-        { id: 's1', reps: '5', weight: '100' },
-        { id: 's2', reps: '5', weight: '100' },
+        { id: 's1', reps: '5', weight: '100', completed: false },
+        { id: 's2', reps: '5', weight: '100', completed: false },
       ],
     },
   ],
@@ -29,7 +29,7 @@ const NESTED: WorkoutDraft = {
 describe('workoutDraftReducer', () => {
   it('ADD_EXERCISE appends the provided exercise verbatim', () => {
     // Arrange — the component builds the full exercise (with ids) before dispatch
-    const exercise = { id: 'ex1', ...SQUAT, sets: [{ id: 's1', reps: '', weight: '' }] }
+    const exercise = { id: 'ex1', ...SQUAT, sets: [{ id: 's1', reps: '', weight: '', completed: false }] }
 
     // Act
     const next = workoutDraftReducer(emptyDraft, { type: 'ADD_EXERCISE', exercise })
@@ -40,7 +40,7 @@ describe('workoutDraftReducer', () => {
 
   it('ADD_SET appends the provided set to the targeted exercise', () => {
     // Arrange
-    const set = { id: 's3', reps: '', weight: '' }
+    const set = { id: 's3', reps: '', weight: '', completed: false }
 
     // Act
     const next = workoutDraftReducer(NESTED, { type: 'ADD_SET', exerciseIndex: 0, set })
@@ -61,8 +61,8 @@ describe('workoutDraftReducer', () => {
     })
 
     // Assert — target updated, sibling untouched
-    expect(next.exercises[0].sets[1]).toEqual({ id: 's2', reps: '8', weight: '100' })
-    expect(next.exercises[0].sets[0]).toEqual({ id: 's1', reps: '5', weight: '100' })
+    expect(next.exercises[0].sets[1]).toEqual({ id: 's2', reps: '8', weight: '100', completed: false })
+    expect(next.exercises[0].sets[0]).toEqual({ id: 's1', reps: '5', weight: '100', completed: false })
 
     // Assert — immutability by reference
     expect(next).not.toBe(NESTED)
@@ -75,7 +75,39 @@ describe('workoutDraftReducer', () => {
 
     // Assert
     expect(next.exercises[0].sets).toHaveLength(1)
-    expect(next.exercises[0].sets[0]).toEqual({ id: 's2', reps: '5', weight: '100' })
+    expect(next.exercises[0].sets[0]).toEqual({ id: 's2', reps: '5', weight: '100', completed: false })
+  })
+
+  it('TOGGLE_SET_COMPLETED flips only the targeted set and does not mutate prev', () => {
+    // Act — check off set 2
+    const next = workoutDraftReducer(NESTED, {
+      type: 'TOGGLE_SET_COMPLETED',
+      exerciseIndex: 0,
+      setIndex: 1,
+    })
+
+    // Assert — target flipped, sibling untouched, prev unmutated
+    expect(next.exercises[0].sets[1].completed).toBe(true)
+    expect(next.exercises[0].sets[0].completed).toBe(false)
+    expect(NESTED.exercises[0].sets[1].completed).toBe(false)
+
+    // Act — toggling again unchecks
+    const back = workoutDraftReducer(next, {
+      type: 'TOGGLE_SET_COMPLETED',
+      exerciseIndex: 0,
+      setIndex: 1,
+    })
+
+    // Assert
+    expect(back.exercises[0].sets[1].completed).toBe(false)
+  })
+
+  it('RESTORE_DRAFT replaces the whole state with the provided draft', () => {
+    // Act
+    const next = workoutDraftReducer(emptyDraft, { type: 'RESTORE_DRAFT', draft: NESTED })
+
+    // Assert
+    expect(next).toBe(NESTED)
   })
 
   it('REMOVE_EXERCISE drops the targeted exercise', () => {
@@ -105,8 +137,8 @@ describe('draftToInput', () => {
           id: 'ex1',
           ...SQUAT,
           sets: [
-            { id: 's1', reps: '', weight: '' },
-            { id: 's2', reps: '5', weight: '2.5' },
+            { id: 's1', reps: '', weight: '', completed: false },
+            { id: 's2', reps: '5', weight: '2.5', completed: false },
           ],
         },
       ],
@@ -122,6 +154,29 @@ describe('draftToInput', () => {
     ])
   })
 
+  it('includes completed: true only for checked-off sets', () => {
+    // Arrange — one checked, one unchecked
+    const draft: WorkoutDraft = {
+      exercises: [
+        {
+          id: 'ex1',
+          ...SQUAT,
+          sets: [
+            { id: 's1', reps: '5', weight: '100', completed: true },
+            { id: 's2', reps: '5', weight: '100', completed: false },
+          ],
+        },
+      ],
+    }
+
+    // Act
+    const input = draftToInput(draft)
+
+    // Assert — unchecked sets omit the key entirely (minimal wire shape)
+    expect(input.exercises[0].sets[0]).toEqual({ reps: 5, weight: 100, completed: true })
+    expect(input.exercises[0].sets[1]).toEqual({ reps: 5, weight: 100 })
+  })
+
   it('keeps a trimmed name and drops a blank one', () => {
     // Act
     const named = draftToInput(emptyDraft, '  Leg Day  ')
@@ -135,7 +190,7 @@ describe('draftToInput', () => {
   it('converts entered lb weights back to canonical kg', () => {
     // Arrange — a single 100 lb set
     const draft: WorkoutDraft = {
-      exercises: [{ id: 'ex1', ...SQUAT, sets: [{ id: 's1', reps: '5', weight: '100' }] }],
+      exercises: [{ id: 'ex1', ...SQUAT, sets: [{ id: 's1', reps: '5', weight: '100', completed: false }] }],
     }
 
     // Act
@@ -181,9 +236,42 @@ describe('detailToDraft', () => {
     expect(name).toBe('Leg Day')
     expect(draft.exercises[0]).toMatchObject({ id: 'ex1', wgerExerciseId: 73, name: 'Squat', category: '' })
     expect(draft.exercises[0].sets).toEqual([
-      { id: 's1', reps: '5', weight: '2.5' },
-      { id: 's2', reps: '', weight: '' },
+      { id: 's1', reps: '5', weight: '2.5', completed: false },
+      { id: 's2', reps: '', weight: '', completed: false },
     ])
+  })
+
+  it('keeps persisted completed flags by default and clears them with resetCompleted', () => {
+    // Arrange — a persisted workout with one checked-off set
+    const workout: WorkoutDetail = {
+      id: 'w1',
+      userId: 'user_123',
+      name: null,
+      startedAt: new Date(),
+      completedAt: null,
+      createdAt: new Date(),
+      programDayId: null,
+      programWeek: null,
+      exercises: [
+        {
+          id: 'ex1',
+          workoutId: 'w1',
+          wgerExerciseId: 73,
+          source: 'wger',
+          name: 'Squat',
+          position: 0,
+          sets: [
+            { id: 's1', workoutExerciseId: 'ex1', setNumber: 1, reps: 5, weight: 100, completed: true, metricMode: 'reps_weight', durationSec: null, distanceM: null },
+          ],
+        },
+      ],
+    }
+
+    // Act + Assert — edit mode keeps the check; repeat mode starts fresh
+    expect(detailToDraft(workout).draft.exercises[0].sets[0].completed).toBe(true)
+    expect(
+      detailToDraft(workout, 'kg', { resetCompleted: true }).draft.exercises[0].sets[0].completed,
+    ).toBe(false)
   })
 
   it('converts stored kg weights to the display unit (lb)', () => {

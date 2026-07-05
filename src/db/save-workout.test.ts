@@ -71,12 +71,31 @@ describe('saveWorkout (transactional, user-scoped)', () => {
       position: 0,
     })
     expect(records[2].values).toEqual([
-      { workoutExerciseId: 'e1', setNumber: 1, reps: 5, weight: 100 },
-      { workoutExerciseId: 'e1', setNumber: 2, reps: 5, weight: 100 },
+      { workoutExerciseId: 'e1', setNumber: 1, reps: 5, weight: 100, completed: false },
+      { workoutExerciseId: 'e1', setNumber: 2, reps: 5, weight: 100, completed: false },
     ])
 
     // Assert — resolves to the new workout id
     expect(result).toEqual({ id: 'w1' })
+  })
+
+  it('persists a checked-off set as completed, defaulting the rest to false', async () => {
+    // Act — set 1 checked in-session, set 2 left unchecked (flag absent)
+    await saveWorkout(USER, {
+      exercises: [
+        {
+          wgerExerciseId: 73,
+          name: 'Squat',
+          sets: [{ reps: 5, weight: 100, completed: true }, { reps: 5, weight: 100 }],
+        },
+      ],
+    })
+
+    // Assert
+    expect(records[2].values).toEqual([
+      { workoutExerciseId: 'e1', setNumber: 1, reps: 5, weight: 100, completed: true },
+      { workoutExerciseId: 'e1', setNumber: 2, reps: 5, weight: 100, completed: false },
+    ])
   })
 
   it('stamps completedAt from startedAt for backdated saves, not wall-clock now', async () => {

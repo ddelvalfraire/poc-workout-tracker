@@ -74,9 +74,24 @@ describe('updateWorkout (transactional, user-scoped)', () => {
     })
     expect(records[3]).toEqual({
       op: 'insert',
-      values: [{ workoutExerciseId: 'e1', setNumber: 1, reps: 5, weight: 100 }],
+      values: [{ workoutExerciseId: 'e1', setNumber: 1, reps: 5, weight: 100, completed: false }],
     })
     expect(result).toEqual({ id: ID })
+  })
+
+  it('round-trips a checked-off set through the re-insert path', async () => {
+    // Act — edit mode replaces children; the check-off must survive
+    await updateWorkout(USER, ID, {
+      exercises: [
+        { wgerExerciseId: 73, name: 'Squat', sets: [{ reps: 5, weight: 100, completed: true }] },
+      ],
+    })
+
+    // Assert — the re-inserted set keeps completed: true
+    expect(records[3]).toEqual({
+      op: 'insert',
+      values: [{ workoutExerciseId: 'e1', setNumber: 1, reps: 5, weight: 100, completed: true }],
+    })
   })
 
   it('never embeds a raw Date in the completedAt SQL fragment (driver rejects it)', async () => {

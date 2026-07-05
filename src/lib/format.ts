@@ -97,6 +97,22 @@ export function formatWorkoutDuration(startedAt: Date, completedAt: Date | null)
 }
 
 /**
+ * A live session's elapsed time as "12:05" / "1:02:07" (seconds always padded,
+ * minutes padded only under an hour prefix), or null when it would mislead:
+ * negative (clock skew) or past the same 6 h plausibility ceiling as
+ * formatWorkoutDuration — an edit of a backdated session isn't a live clock.
+ */
+export function formatElapsed(ms: number): string | null {
+  if (ms < 0 || ms > MAX_PLAUSIBLE_DURATION_MS) return null
+  const totalSec = Math.floor(ms / 1_000)
+  const h = Math.floor(totalSec / 3_600)
+  const m = Math.floor((totalSec % 3_600) / 60)
+  const s = totalSec % 60
+  const pad = (n: number) => n.toString().padStart(2, '0')
+  return h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${m}:${pad(s)}`
+}
+
+/**
  * Formats an estimated 1RM (stored-kg) for display in the active unit, e.g.
  *   117 (kg) → "117 kg"      117 (lb) → "258 lb"
  * Rounds via kgToDisplay (kg identity, lb to 1dp), matching formatSet.

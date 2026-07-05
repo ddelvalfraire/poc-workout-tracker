@@ -52,28 +52,30 @@ export function registerPatchTools(server: McpServer): void {
     {
       title: 'Update Set',
       description:
-        "Updates one set's reps and/or weight, addressed by workoutId, 0-based exercise position, and 1-based set number. Weights are in the user's unit (or the `unit` arg). Only the named fields change; pass null to blank one. Errors if the workout/exercise/set isn't found or owned.",
+        "Updates one set's reps, weight, and/or completed flag, addressed by workoutId, 0-based exercise position, and 1-based set number. Weights are in the user's unit (or the `unit` arg). Only the named fields change; pass null to blank reps/weight. `completed: true` checks the set off (what the web logger's in-session toggle does). Errors if the workout/exercise/set isn't found or owned.",
       inputSchema: {
         workoutId: z.string(),
         exercisePosition: z.number().int().min(0),
         setNumber: z.number().int().min(1),
         reps: repsArg,
         weight: weightArg,
+        completed: z.boolean().optional(),
         unit: unitArg,
         userId: z.string().optional(),
       },
     },
-    async ({ workoutId, exercisePosition, setNumber, reps, weight, unit, userId }, extra) => {
+    async ({ workoutId, exercisePosition, setNumber, reps, weight, completed, unit, userId }, extra) => {
       try {
         const resolved = resolveUserId(extra, userId)
         assertWorkoutIdShape(workoutId)
-        if (reps === undefined && weight === undefined) {
-          throw new ToolError('update_set needs at least one of reps or weight')
+        if (reps === undefined && weight === undefined && completed === undefined) {
+          throw new ToolError('update_set needs at least one of reps, weight, or completed')
         }
         // Resolve the unit only when a weight needs converting — which also
         // narrows `basis` to a real WeightUnit at the conversion site (no cast).
-        const patch: { reps?: number | null; weight?: number | null } = {}
+        const patch: { reps?: number | null; weight?: number | null; completed?: boolean } = {}
         if (reps !== undefined) patch.reps = reps
+        if (completed !== undefined) patch.completed = completed
         let basis: WeightUnit | undefined
         if (weight !== undefined) {
           basis = unit ?? (await getWeightUnit(resolved))
@@ -103,17 +105,18 @@ export function registerPatchTools(server: McpServer): void {
     {
       title: 'Add Set',
       description:
-        "Appends a set to an exercise (by workoutId + 0-based position), numbered after the current last set. reps/weight default to blank; weight is in the user's unit (or the `unit` arg). Returns the new set number. Errors if the workout/exercise isn't found or owned.",
+        "Appends a set to an exercise (by workoutId + 0-based position), numbered after the current last set. reps/weight default to blank; weight is in the user's unit (or the `unit` arg). Pass `completed: true` to check the new set off as done. Returns the new set number. Errors if the workout/exercise isn't found or owned.",
       inputSchema: {
         workoutId: z.string(),
         exercisePosition: z.number().int().min(0),
         reps: repsArg,
         weight: weightArg,
+        completed: z.boolean().optional(),
         unit: unitArg,
         userId: z.string().optional(),
       },
     },
-    async ({ workoutId, exercisePosition, reps, weight, unit, userId }, extra) => {
+    async ({ workoutId, exercisePosition, reps, weight, completed, unit, userId }, extra) => {
       try {
         const resolved = resolveUserId(extra, userId)
         assertWorkoutIdShape(workoutId)
@@ -123,6 +126,7 @@ export function registerPatchTools(server: McpServer): void {
         const result = await addSet(resolved, workoutId, exercisePosition, {
           reps: reps ?? null,
           weight: kgWeight ?? null,
+          ...(completed !== undefined && { completed }),
         })
         if (!result) {
           throw new ToolError(`Exercise ${exercisePosition} in workout ${workoutId} not found`)

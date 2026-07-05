@@ -8,6 +8,9 @@ import {
   saveWorkoutAction,
   updateWorkoutAction,
   getLastPerformanceAction,
+  getWorkoutDraftAction,
+  putWorkoutDraftAction,
+  deleteWorkoutDraftAction,
 } from '@/app/workout/actions'
 import { ExercisePicker } from './exercise-picker'
 import {
@@ -18,9 +21,16 @@ import {
   newDraftSet,
   type WorkoutDraft,
 } from './workout-draft'
+import { draftKey, buildDraftPayload, parseDraftPayload } from './draft-payload'
+import { SessionClock } from './session-clock'
 import { type WeightUnit } from '@/lib/units'
+import { cn } from '@/lib/utils'
 import { placeholderForSet, planPlaceholderForSet, type PlanSetTarget } from '@/lib/format'
 import type { LastPerformance } from '@/db/workouts'
+
+// One server write per pause in activity; long enough to coalesce a burst of
+// keystrokes, short enough that little is lost to a sudden tab close.
+const DRAFT_SYNC_DEBOUNCE_MS = 800
 
 interface WorkoutLoggerProps {
   /** When set, the logger is in edit mode: Save updates this workout and returns to its detail page. */
@@ -32,6 +42,8 @@ interface WorkoutLoggerProps {
   /** Per-exercise planned targets (by wgerExerciseId) for program workouts —
    *  the ghost fallback when an exercise has no prior history. */
   planTargets?: Record<number, PlanSetTarget[]>
+  /** The persisted session start, for edit mode; new sessions clock from open time. */
+  startedAt?: Date
 }
 
 export function WorkoutLogger({
@@ -40,6 +52,7 @@ export function WorkoutLogger({
   initialName = '',
   unit = 'kg',
   planTargets,
+  startedAt,
 }: WorkoutLoggerProps) {
   const [draft, dispatch] = useReducer(workoutDraftReducer, initialDraft)
   const [name, setName] = useState(initialName)
@@ -51,9 +64,69 @@ export function WorkoutLogger({
   const requestedRef = useRef<Set<number>>(new Set())
   // When the user opened the logger — saved as startedAt for NEW workouts so
   // startedAt→completedAt reflects the real session length, not the save
-  // instant. Edits keep the workout's existing startedAt.
-  const openedAtRef = useRef<Date>(new Date())
+  // instant. Edits keep the workout's existing startedAt. State (not a ref)
+  // because a restored snapshot rewinds it to the original session start.
+  const [openedAt, setOpenedAt] = useState<Date>(() => startedAt ?? new Date())
+  // Makes the autosave effect skip its mount run: that run still sees the
+  // first render's (server-seeded) draft and would overwrite the server draft
+  // before the restore resolves. Nothing user-entered exists yet, so there is
+  // nothing to sync until a change (or the restore) re-fires the effect.
+  const skipPersistRef = useRef(true)
+  // Set once the user changes anything. The async restore checks it before
+  // applying, so a draft fetched over the network never clobbers input typed
+  // while the request was in flight.
+  const dirtyRef = useRef(false)
+  // Set when a save starts. A pending debounce could otherwise fire mid-save
+  // and re-put the draft the save action just deleted, resurrecting it as a
+  // stale restore next session. Reset only if the save fails.
+  const savingRef = useRef(false)
+  const key = draftKey(workoutId)
   const router = useRouter()
+
+  // Restore an interrupted session from the server draft (cross-device: a
+  // session started on the phone resumes on the laptop). In edit mode this
+  // intentionally wins over the server-seeded workout rows: a live draft is
+  // newer than the row it was seeded from. Last writer wins across devices.
+  useEffect(() => {
+    let cancelled = false
+    getWorkoutDraftAction(key)
+      .then((payload) => {
+        if (cancelled || dirtyRef.current) return
+        // parseDraftPayload also clamps a future openedAt (clock skew) to now.
+        const restored = parseDraftPayload(payload, { unit, now: new Date() })
+        if (!restored) return
+        dispatch({ type: 'RESTORE_DRAFT', draft: restored.draft })
+        setName(restored.name)
+        setOpenedAt(restored.openedAt)
+      })
+      .catch(() => {
+        // Non-critical: restore is best-effort; the logger works without it.
+      })
+    return () => {
+      cancelled = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only: key/unit are stable per page load
+  }, [])
+
+  // Autosave every change to the server draft (debounced — one write per
+  // pause, not per keystroke). Failures are swallowed: sync is best-effort
+  // and logging must keep working offline-ish until Save.
+  useEffect(() => {
+    if (skipPersistRef.current) {
+      skipPersistRef.current = false
+      return
+    }
+    dirtyRef.current = true
+    const timer = setTimeout(() => {
+      if (savingRef.current) return
+      const isEmptyDraft = draft.exercises.length === 0 && !name.trim()
+      const sync = isEmptyDraft
+        ? deleteWorkoutDraftAction(key) // cleared out — drop the draft everywhere
+        : putWorkoutDraftAction(key, buildDraftPayload({ draft, name, unit, openedAt }))
+      sync.catch(() => {})
+    }, DRAFT_SYNC_DEBOUNCE_MS)
+    return () => clearTimeout(timer)
+  }, [draft, name, unit, openedAt, key])
 
   const isEmpty = draft.exercises.length === 0
 
@@ -88,6 +161,9 @@ export function WorkoutLogger({
     startTransition(async () => {
       try {
         setError(null)
+        savingRef.current = true // freeze autosave: the save deletes the draft
+        // The save actions delete this surface's server draft themselves —
+        // the saved workout supersedes it on every device.
         if (workoutId) {
           await updateWorkoutAction(workoutId, draftToInput(draft, name, unit))
           router.push(`/workout/${workoutId}`)
@@ -97,12 +173,13 @@ export function WorkoutLogger({
             // Live session bounds: opened → saved. Without the explicit
             // completedAt the DB layer would fall back to startedAt (the
             // backdating default) and every live log would read as 0 min.
-            startedAt: openedAtRef.current,
+            startedAt: openedAt,
             completedAt: new Date(),
           })
           router.push('/')
         }
       } catch {
+        savingRef.current = false // save failed — resume autosave
         setError('Could not save workout. Please try again.')
       }
     })
@@ -117,6 +194,8 @@ export function WorkoutLogger({
           onChange={(e) => setName(e.target.value)}
           aria-label="Workout name"
         />
+
+        <SessionClock startedAt={openedAt} />
 
         <ExercisePicker
           onAdd={(exercise) =>
@@ -196,9 +275,41 @@ export function WorkoutLogger({
                 }
                 return (
                 <div key={set.id} className="flex items-center gap-2">
-                  <span className="grid size-8 shrink-0 place-items-center rounded-full bg-muted text-sm font-semibold tnum text-muted-foreground">
-                    {setIndex + 1}
-                  </span>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      dispatch({ type: 'TOGGLE_SET_COMPLETED', exerciseIndex, setIndex })
+                    }
+                    aria-pressed={set.completed}
+                    aria-label={`Mark set ${setIndex + 1} complete`}
+                    className={cn(
+                      'relative grid size-8 shrink-0 place-items-center rounded-full text-sm font-semibold tnum transition-colors',
+                      // Invisible inset expands the tap target toward HIG size
+                      // without growing the visual circle or shifting the row
+                      // (Tailwind v4 injects content on before: automatically).
+                      'before:absolute before:-inset-1.5',
+                      set.completed
+                        ? 'bg-primary text-primary-foreground'
+                        : 'bg-muted text-muted-foreground',
+                    )}
+                  >
+                    {set.completed ? (
+                      <svg
+                        aria-hidden="true"
+                        viewBox="0 0 24 24"
+                        className="size-4"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="3"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <path d="M20 6 9 17l-5-5" />
+                      </svg>
+                    ) : (
+                      setIndex + 1
+                    )}
+                  </button>
                   <Input
                     type="number"
                     inputMode="numeric"

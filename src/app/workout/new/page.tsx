@@ -26,7 +26,9 @@ export default async function NewWorkoutPage({
     getWeightUnit(userId),
     fromId ? getWorkoutDetail(userId, fromId) : Promise.resolve(undefined),
   ])
-  const seed = source ? detailToDraft(source, unit) : undefined
+  // resetCompleted: repeating an old workout starts a fresh session — no
+  // checked-off sets carried over from the source.
+  const seed = source ? detailToDraft(source, unit, { resetCompleted: true }) : undefined
 
   return (
     <div className="flex min-h-[100dvh] flex-col">

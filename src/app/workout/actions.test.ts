@@ -1,7 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { updateWorkoutAction, deleteWorkoutAction } from './actions'
+import {
+  saveWorkoutAction,
+  updateWorkoutAction,
+  deleteWorkoutAction,
+  getLastPerformanceAction,
+  getWorkoutDraftAction,
+  putWorkoutDraftAction,
+  deleteWorkoutDraftAction,
+} from './actions'
 import { requireUserId } from '@/lib/auth'
-import { updateWorkout, deleteWorkout } from '@/db/workouts'
+import { saveWorkout, updateWorkout, deleteWorkout, getLastPerformance } from '@/db/workouts'
+import { getWorkoutDraft, putWorkoutDraft, deleteWorkoutDraft } from '@/db/workout-drafts'
+import { DRAFT_TTL_MS } from '@/app/workout/new/draft-payload'
 import { revalidatePath } from 'next/cache'
 
 /**
@@ -13,12 +23,27 @@ import { revalidatePath } from 'next/cache'
  */
 
 vi.mock('@/lib/auth', () => ({ requireUserId: vi.fn() }))
-vi.mock('@/db/workouts', () => ({ updateWorkout: vi.fn(), deleteWorkout: vi.fn() }))
+vi.mock('@/db/workouts', () => ({
+  saveWorkout: vi.fn(),
+  updateWorkout: vi.fn(),
+  deleteWorkout: vi.fn(),
+  getLastPerformance: vi.fn(),
+}))
+vi.mock('@/db/workout-drafts', () => ({
+  getWorkoutDraft: vi.fn(),
+  putWorkoutDraft: vi.fn(),
+  deleteWorkoutDraft: vi.fn(),
+}))
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
 
 const mockedRequireUserId = vi.mocked(requireUserId)
+const mockedSave = vi.mocked(saveWorkout)
 const mockedUpdate = vi.mocked(updateWorkout)
+const mockedGetLast = vi.mocked(getLastPerformance)
 const mockedDelete = vi.mocked(deleteWorkout)
+const mockedGetDraft = vi.mocked(getWorkoutDraft)
+const mockedPutDraft = vi.mocked(putWorkoutDraft)
+const mockedDeleteDraft = vi.mocked(deleteWorkoutDraft)
 const mockedRevalidate = vi.mocked(revalidatePath)
 
 const USER = 'user_123'
@@ -28,6 +53,58 @@ const VALID_INPUT = { exercises: [{ wgerExerciseId: 1, name: 'Plank', sets: [] }
 beforeEach(() => {
   vi.clearAllMocks()
   mockedRequireUserId.mockResolvedValue(USER)
+})
+
+describe('saveWorkoutAction', () => {
+  it('returns the id, deletes the new-surface draft, and revalidates home', async () => {
+    // Arrange
+    mockedSave.mockResolvedValue({ id: ID })
+
+    // Act
+    const result = await saveWorkoutAction(VALID_INPUT)
+
+    // Assert
+    expect(result).toEqual({ id: ID })
+    expect(mockedSave).toHaveBeenCalledWith(USER, expect.objectContaining({ exercises: expect.any(Array) }))
+    // The saved workout supersedes the /workout/new draft on every device.
+    expect(mockedDeleteDraft).toHaveBeenCalledWith(USER, 'new')
+    expect(mockedRevalidate).toHaveBeenCalledWith('/')
+  })
+
+  it('rejects malformed input before touching the database', async () => {
+    // Act + Assert — no exercises fails parseWorkoutInput
+    await expect(saveWorkoutAction({ exercises: [] })).rejects.toThrow()
+    expect(mockedSave).not.toHaveBeenCalled()
+    expect(mockedDeleteDraft).not.toHaveBeenCalled()
+  })
+})
+
+describe('getLastPerformanceAction', () => {
+  it('passes a valid exercise id through, dropping a non-string exclude', async () => {
+    // Arrange
+    mockedGetLast.mockResolvedValue(null)
+
+    // Act
+    await getLastPerformanceAction(73, 42 /* not a string → dropped */)
+
+    // Assert
+    expect(mockedGetLast).toHaveBeenCalledWith(USER, 73, undefined)
+  })
+
+  it('forwards a string exclude id (edit mode must not report itself)', async () => {
+    mockedGetLast.mockResolvedValue(null)
+
+    await getLastPerformanceAction(73, ID)
+
+    expect(mockedGetLast).toHaveBeenCalledWith(USER, 73, ID)
+  })
+
+  it('rejects a non-integer or non-positive exercise id before touching the database', async () => {
+    for (const bad of ['73', 0, -1, 1.5]) {
+      await expect(getLastPerformanceAction(bad)).rejects.toThrow('invalid exercise id')
+    }
+    expect(mockedGetLast).not.toHaveBeenCalled()
+  })
 })
 
 describe('updateWorkoutAction', () => {
@@ -41,6 +118,8 @@ describe('updateWorkoutAction', () => {
     // Assert
     expect(result).toEqual({ id: ID })
     expect(mockedUpdate).toHaveBeenCalledWith(USER, ID, expect.objectContaining({ exercises: expect.any(Array) }))
+    // The saved edit supersedes this workout's cross-device draft.
+    expect(mockedDeleteDraft).toHaveBeenCalledWith(USER, ID)
     expect(mockedRevalidate).toHaveBeenCalledWith('/')
     expect(mockedRevalidate).toHaveBeenCalledWith(`/workout/${ID}`)
   })
@@ -81,5 +160,102 @@ describe('deleteWorkoutAction', () => {
     // Act + Assert
     await expect(deleteWorkoutAction(ID)).rejects.toThrow('workout not found')
     expect(mockedRevalidate).not.toHaveBeenCalled()
+  })
+})
+
+/** A structurally valid draft payload (one exercise, one set). */
+const DRAFT_PAYLOAD = {
+  v: 1,
+  unit: 'kg',
+  name: 'Leg Day',
+  openedAt: '2026-07-05T11:40:00.000Z',
+  draft: {
+    exercises: [
+      {
+        id: 'ex1',
+        wgerExerciseId: 73,
+        name: 'Squat',
+        category: 'Legs',
+        sets: [{ id: 's1', reps: '5', weight: '100', completed: false }],
+      },
+    ],
+  },
+}
+
+describe('getWorkoutDraftAction', () => {
+  it('returns the stored payload for a fresh draft', async () => {
+    mockedGetDraft.mockResolvedValue({ payload: DRAFT_PAYLOAD, updatedAt: new Date() })
+
+    expect(await getWorkoutDraftAction('new')).toEqual(DRAFT_PAYLOAD)
+    expect(mockedGetDraft).toHaveBeenCalledWith(USER, 'new')
+  })
+
+  it('returns null when no draft exists', async () => {
+    mockedGetDraft.mockResolvedValue(undefined)
+
+    expect(await getWorkoutDraftAction(ID)).toBeNull()
+  })
+
+  it('lazily deletes and nulls an expired draft (TTL vs updated_at)', async () => {
+    // Arrange — last touched just past the TTL
+    mockedGetDraft.mockResolvedValue({
+      payload: DRAFT_PAYLOAD,
+      updatedAt: new Date(Date.now() - DRAFT_TTL_MS - 1_000),
+    })
+
+    // Act + Assert
+    expect(await getWorkoutDraftAction('new')).toBeNull()
+    expect(mockedDeleteDraft).toHaveBeenCalledWith(USER, 'new')
+  })
+
+  it('rejects a malformed key before touching the database', async () => {
+    await expect(getWorkoutDraftAction('../etc')).rejects.toThrow('invalid draft key')
+    expect(mockedGetDraft).not.toHaveBeenCalled()
+  })
+})
+
+describe('putWorkoutDraftAction', () => {
+  it('upserts a structurally valid payload', async () => {
+    await putWorkoutDraftAction('new', DRAFT_PAYLOAD)
+
+    expect(mockedPutDraft).toHaveBeenCalledWith(USER, 'new', DRAFT_PAYLOAD)
+  })
+
+  it('rejects an invalid payload before touching the database', async () => {
+    await expect(putWorkoutDraftAction('new', { v: 1, junk: true })).rejects.toThrow(
+      'invalid draft payload',
+    )
+    expect(mockedPutDraft).not.toHaveBeenCalled()
+  })
+
+  it('normalizes key case before storing', async () => {
+    await putWorkoutDraftAction('NEW', DRAFT_PAYLOAD)
+    expect(mockedPutDraft).toHaveBeenCalledWith(USER, 'new', DRAFT_PAYLOAD)
+  })
+
+  it('rejects an oversized payload', async () => {
+    // Arrange — inflate the name past the 32 KB serialized cap
+    const oversized = { ...DRAFT_PAYLOAD, name: 'x'.repeat(40_000) }
+
+    // Act + Assert
+    await expect(putWorkoutDraftAction('new', oversized)).rejects.toThrow('draft payload too large')
+    expect(mockedPutDraft).not.toHaveBeenCalled()
+  })
+})
+
+describe('deleteWorkoutDraftAction', () => {
+  it('deletes by validated key', async () => {
+    await deleteWorkoutDraftAction(ID)
+    expect(mockedDeleteDraft).toHaveBeenCalledWith(USER, ID)
+  })
+
+  it('normalizes key case so one session cannot mint two surfaces', async () => {
+    await deleteWorkoutDraftAction(ID.toUpperCase())
+    expect(mockedDeleteDraft).toHaveBeenCalledWith(USER, ID)
+  })
+
+  it('rejects a malformed key', async () => {
+    await expect(deleteWorkoutDraftAction('nope!')).rejects.toThrow('invalid draft key')
+    expect(mockedDeleteDraft).not.toHaveBeenCalled()
   })
 })

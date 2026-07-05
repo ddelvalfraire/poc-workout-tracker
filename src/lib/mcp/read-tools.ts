@@ -190,7 +190,7 @@ export interface WorkoutPayload {
       wgerExerciseId: number
       name: string
       position: number
-      sets: { setNumber: number; reps: number | null; weight: number | null }[]
+      sets: { setNumber: number; reps: number | null; weight: number | null; completed: boolean }[]
       estimated1RM: number | null
     }[]
   }
@@ -227,6 +227,7 @@ export function buildWorkoutPayload(
           setNumber: s.setNumber,
           reps: s.reps,
           weight: s.weight === null ? null : kgToDisplay(s.weight, unit),
+          completed: s.completed,
         })),
         estimated1RM: e1rmFor(exercise.sets, unit),
       })),

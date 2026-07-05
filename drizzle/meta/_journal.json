@@ -50,6 +50,13 @@
       "when": 1783200333658,
       "tag": "0006_cynical_mephisto",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1783287382236,
+      "tag": "0007_skinny_jimmy_woo",
+      "breakpoints": true
     }
   ]
 }

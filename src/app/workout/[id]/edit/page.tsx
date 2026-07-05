@@ -77,6 +77,7 @@ export default async function EditWorkoutPage({
           initialName={name}
           unit={unit}
           planTargets={planTargets}
+          startedAt={workout.startedAt}
         />
       </main>
     </div>

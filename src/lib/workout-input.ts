@@ -18,6 +18,8 @@
 export interface SetInput {
   reps: number | null
   weight: number | null
+  /** True when the lifter checked the set off in-session; absent = false. */
+  completed?: boolean
 }
 
 /** One exercise within a workout, with its logged sets. */
@@ -113,7 +115,16 @@ function parseSet(raw: unknown): SetInput {
     throw new Error(`set weight must be a number between 0 and ${MAX_WEIGHT} kg, or null`)
   }
 
-  return { reps: reps as number | null, weight: weight as number | null }
+  const { completed } = obj
+  if (completed !== undefined && completed !== null && typeof completed !== 'boolean') {
+    throw new Error('set completed must be a boolean')
+  }
+
+  return {
+    reps: reps as number | null,
+    weight: weight as number | null,
+    ...(typeof completed === 'boolean' && { completed }),
+  }
 }
 
 /** Validates a single exercise and its sets. */

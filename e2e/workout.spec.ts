@@ -47,6 +47,7 @@ test.beforeAll(async () => {
 test.afterAll(async () => {
   if (sql && userId) {
     await sql`delete from workouts where user_id = ${userId}` // cascade removes children
+    await sql`delete from workout_drafts where user_id = ${userId}`
     await sql`delete from user_preferences where user_id = ${userId}`
     await sql.end()
   }
@@ -78,14 +79,39 @@ test('signed-in user can start, log, and save a workout', async ({ page }) => {
   await expect(addButton).toBeVisible({ timeout: 20_000 })
   await addButton.click()
 
-  // Log set 1.
+  // Log set 1 and check it off in-session.
   await page.getByLabel('Set 1 reps').fill('5')
   await page.getByLabel('Set 1 weight in kg').fill('100')
+  await page.getByRole('button', { name: 'Mark set 1 complete' }).click()
 
   // Add and log a second set.
   await page.getByRole('button', { name: /add set/i }).click()
   await page.getByLabel('Set 2 reps').fill('5')
   await page.getByLabel('Set 2 weight in kg').fill('102.5')
+
+  // Cross-device draft sync: the logger autosaves (debounced) to the server.
+  // Wait until the draft payload contains the LAST value typed — an earlier
+  // debounce flush may have synced a partial draft — then reload: the session
+  // must come back intact (same restore path another device would take).
+  await expect
+    .poll(
+      async () => {
+        const rows = await sql`
+          select 1 from workout_drafts
+          where user_id = ${userId} and payload::text like '%102.5%'
+        `
+        return rows.length
+      },
+      { timeout: 10_000 },
+    )
+    .toBe(1)
+  await page.reload()
+  await expect(page.getByLabel('Set 2 weight in kg')).toHaveValue('102.5', { timeout: 15_000 })
+  await expect(page.getByLabel('Set 1 reps')).toHaveValue('5')
+  await expect(page.getByRole('button', { name: 'Mark set 1 complete' })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  )
 
   // Save -> redirected home.
   await page.getByRole('button', { name: /save workout/i }).click()
@@ -105,4 +131,22 @@ test('signed-in user can start, log, and save a workout', async ({ page }) => {
   expect(rows).toHaveLength(1)
   expect(rows[0].exercise_count).toBe(1)
   expect(rows[0].set_count).toBe(2)
+
+  // Assert the in-session check-off persisted: set 1 completed, set 2 not.
+  const setRows = await sql<{ set_number: number; completed: boolean }[]>`
+    select s.set_number, s.completed
+    from sets s
+    join workout_exercises we on we.id = s.workout_exercise_id
+    join workouts w on w.id = we.workout_id
+    where w.user_id = ${userId}
+    order by s.set_number
+  `
+  expect(setRows).toEqual([
+    { set_number: 1, completed: true },
+    { set_number: 2, completed: false },
+  ])
+
+  // The save supersedes the draft — the server row must be gone.
+  const draftRows = await sql`select key from workout_drafts where user_id = ${userId}`
+  expect(draftRows).toHaveLength(0)
 })
