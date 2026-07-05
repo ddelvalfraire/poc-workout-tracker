@@ -372,8 +372,19 @@ describe('progressionSchema bounds (Phase 5 tightening)', () => {
       { scheme: 'percent-1rm', trainingMaxKg: 200, weekPercents: [0.7, 0.75, 0.8] },
       { scheme: 'rpe-target', targetRpe: 8 },
       { scheme: 'weekly-volume', mevSets: 8, mrvSets: 14 },
+      { scheme: 'rep-progression', incrementReps: 1 },
+      { scheme: 'rep-progression', incrementSec: 15, maxSec: 180 },
+      { scheme: 'rep-progression', incrementReps: 2, maxReps: 20 },
     ]
     for (const p of valid) expect(() => progressionSchema.parse(p)).not.toThrow()
+  })
+
+  it('applies rep-progression increment defaults of 0', () => {
+    expect(progressionSchema.parse({ scheme: 'rep-progression', incrementReps: 1 })).toEqual({
+      scheme: 'rep-progression',
+      incrementReps: 1,
+      incrementSec: 0,
+    })
   })
 
   it('rejects out-of-bound params per scheme', () => {
@@ -384,8 +395,18 @@ describe('progressionSchema bounds (Phase 5 tightening)', () => {
       { scheme: 'percent-1rm', trainingMaxKg: 200, weekPercents: [2.5] },
       { scheme: 'rpe-target', targetRpe: 11 },
       { scheme: 'weekly-volume', mevSets: -1, mrvSets: 10 },
+      { scheme: 'rep-progression', incrementReps: -1 },
+      { scheme: 'rep-progression', incrementReps: 1.5 },
+      { scheme: 'rep-progression', incrementSec: 601 },
     ]
     for (const p of invalid) expect(() => progressionSchema.parse(p), JSON.stringify(p)).toThrow()
+  })
+
+  it('rejects a no-op rep-progression (both increments zero)', () => {
+    expect(() => progressionSchema.parse({ scheme: 'rep-progression' })).toThrow(/increment/)
+    expect(() =>
+      progressionSchema.parse({ scheme: 'rep-progression', incrementReps: 0, incrementSec: 0 }),
+    ).toThrow(/increment/)
   })
 
   it('rejects cross-field violations (repMin>repMax, mev>mrv)', () => {

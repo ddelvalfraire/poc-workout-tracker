@@ -195,6 +195,33 @@ function schemeLoad(
     case 'weekly-volume':
       // Volume changes set COUNT (handled by the caller), not loads.
       return { loadKg: base, rpe: set.rpe }
+    case 'rep-progression':
+      // Rep progression changes TARGETS (handled by the caller), not loads.
+      return { loadKg: base, rpe: set.rpe }
+  }
+}
+
+/** The rep-progression targets for one set: reps/duration bumped once per
+ *  prior non-deload week, clamped to the optional caps. Null targets stay
+ *  null — there is nothing to progress. */
+function schemeTargets(
+  set: ProgramSetRowLike,
+  progression: Extract<Progression, { scheme: 'rep-progression' }>,
+  week: number,
+  weeks: number[],
+): { repMin: number | null; repMax: number | null; durationSec: number | null } {
+  const steps = weeks.filter((w) => w < week).length
+  const bump = (value: number | null, increment: number, cap: number | null | undefined) => {
+    if (value === null || increment <= 0) return value
+    const raised = value + increment * steps
+    // The cap halts the climb; it must never shrink a template target below
+    // its starting value (a cap under the template would otherwise do so).
+    return cap != null ? Math.min(raised, Math.max(cap, value)) : raised
+  }
+  return {
+    repMin: bump(set.repMin, progression.incrementReps, progression.maxReps),
+    repMax: bump(set.repMax, progression.incrementReps, progression.maxReps),
+    durationSec: bump(set.durationSec, progression.incrementSec, progression.maxSec),
   }
 }
 
@@ -261,17 +288,24 @@ export function deriveWeekSets(args: {
     const { loadKg, rpe } = applies
       ? schemeLoad(set, progression, week, weeks, history)
       : { loadKg: set.suggestedLoadKg, rpe: set.rpe }
+    // Rep progression bumps targets on non-deload weeks; the deload reverts to
+    // template reps/duration (halved sets at inflated targets would fight the
+    // deload's whole point).
+    const targets =
+      applies && progression.scheme === 'rep-progression' && !isDeload
+        ? schemeTargets(set, progression, week, weeks)
+        : { repMin: set.repMin, repMax: set.repMax, durationSec: set.durationSec }
     return {
       setNumber: set.setNumber,
       setType: set.setType,
       metricMode: set.metricMode,
-      repMin: set.repMin,
-      repMax: set.repMax,
+      repMin: targets.repMin,
+      repMax: targets.repMax,
       rir: set.rir,
       rpe,
       loadKg: clampLoad(loadKg),
       tempo: set.tempo,
-      durationSec: set.durationSec,
+      durationSec: targets.durationSec,
       distanceM: set.distanceM,
       technique: set.technique,
       derivedFrom: applies ? 'scheme' : 'template',

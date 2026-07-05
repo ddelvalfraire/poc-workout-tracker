@@ -364,6 +364,88 @@ describe('deriveWeekSets', () => {
     })
   })
 
+  describe('rep-progression', () => {
+    const base = { mesocycleWeeks: 7, deloadWeek: 7, history: NO_HISTORY }
+
+    it('adds incrementReps per prior non-deload week to repMin and repMax, load untouched', () => {
+      const derived = deriveWeekSets({
+        sets: [workingSet({ repMin: 12, repMax: 15, suggestedLoadKg: 20 })],
+        progression: { scheme: 'rep-progression', incrementReps: 1, incrementSec: 0 },
+        week: 4,
+        ...base,
+      })
+      expect(derived[0].repMin).toBe(15) // 12 + 1×3 prior weeks
+      expect(derived[0].repMax).toBe(18)
+      expect(derived[0].loadKg).toBe(20)
+      expect(derived[0].derivedFrom).toBe('scheme')
+    })
+
+    it('clamps reps at maxReps', () => {
+      const derived = deriveWeekSets({
+        sets: [workingSet({ repMin: 12 })],
+        progression: { scheme: 'rep-progression', incrementReps: 2, incrementSec: 0, maxReps: 15 },
+        week: 6,
+        ...base,
+      })
+      expect(derived[0].repMin).toBe(15)
+    })
+
+    it('never lowers a template target when the cap sits below it', () => {
+      const derived = deriveWeekSets({
+        sets: [workingSet({ repMin: 12 })],
+        progression: { scheme: 'rep-progression', incrementReps: 1, incrementSec: 0, maxReps: 10 },
+        week: 3,
+        ...base,
+      })
+      expect(derived[0].repMin).toBe(12) // cap halts the climb; it must not shrink the template
+    })
+
+    it('progresses durationSec on timed sets, clamped at maxSec', () => {
+      const timed = workingSet({ metricMode: 'duration', durationSec: 60 })
+      const progression = {
+        scheme: 'rep-progression',
+        incrementReps: 0,
+        incrementSec: 15,
+        maxSec: 100,
+      } as const
+      const week3 = deriveWeekSets({ sets: [timed], progression, week: 3, ...base })
+      expect(week3[0].durationSec).toBe(90) // 60 + 15×2
+      const week6 = deriveWeekSets({ sets: [timed], progression, week: 6, ...base })
+      expect(week6[0].durationSec).toBe(100) // capped, not 135
+    })
+
+    it('reverts to template reps on the deload week (sets still halve)', () => {
+      const derived = deriveWeekSets({
+        sets: [
+          workingSet({ setNumber: 1, repMin: 12 }),
+          workingSet({ setNumber: 2, repMin: 12 }),
+          workingSet({ setNumber: 3, repMin: 12 }),
+        ],
+        progression: { scheme: 'rep-progression', incrementReps: 1, incrementSec: 0 },
+        week: 7,
+        ...base,
+      })
+      expect(derived.every((s) => s.repMin === 12)).toBe(true)
+      expect(derived.filter((s) => s.setType === 'working')).toHaveLength(2) // ceil(3×0.5)
+    })
+
+    it('leaves warmups and null fields untouched', () => {
+      const derived = deriveWeekSets({
+        sets: [
+          workingSet({ setNumber: 1, setType: 'warmup', repMin: 10 }),
+          workingSet({ setNumber: 2, repMin: 12, repMax: null, durationSec: null }),
+        ],
+        progression: { scheme: 'rep-progression', incrementReps: 1, incrementSec: 10 },
+        week: 3,
+        ...base,
+      })
+      expect(derived[0].repMin).toBe(10) // warmup passes through
+      expect(derived[1].repMin).toBe(14)
+      expect(derived[1].repMax).toBeNull()
+      expect(derived[1].durationSec).toBeNull()
+    })
+  })
+
   it('never emits a negative load', () => {
     const derived = deriveWeekSets({
       sets: workingSets(1, 1),
