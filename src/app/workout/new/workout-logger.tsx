@@ -18,6 +18,7 @@ import {
   newDraftSet,
   type WorkoutDraft,
 } from './workout-draft'
+import { draftStorageKey, serializeDraft, deserializeDraft } from './draft-storage'
 import { type WeightUnit } from '@/lib/units'
 import { cn } from '@/lib/utils'
 import { placeholderForSet, planPlaceholderForSet, type PlanSetTarget } from '@/lib/format'
@@ -52,9 +53,55 @@ export function WorkoutLogger({
   const requestedRef = useRef<Set<number>>(new Set())
   // When the user opened the logger — saved as startedAt for NEW workouts so
   // startedAt→completedAt reflects the real session length, not the save
-  // instant. Edits keep the workout's existing startedAt.
-  const openedAtRef = useRef<Date>(new Date())
+  // instant. Edits keep the workout's existing startedAt. State (not a ref)
+  // because a restored snapshot rewinds it to the original session start.
+  const [openedAt, setOpenedAt] = useState<Date>(() => new Date())
+  // Blocks the persist effect until the mount-time restore has read storage —
+  // otherwise the first render's (server-seeded) draft overwrites the snapshot
+  // before it can be restored.
+  const restoredRef = useRef(false)
+  const storageKey = draftStorageKey(workoutId)
   const router = useRouter()
+
+  // Restore an interrupted session (refresh, tab close, PWA suspend) from
+  // localStorage. Browser-only, so it lives in an effect, never in render.
+  // In edit mode this intentionally wins over the server-seeded draft: an
+  // interrupted live session is newer than the row it was seeded from (a
+  // snapshot from another device could be stale — accepted single-phone risk).
+  useEffect(() => {
+    const restored = deserializeDraft(localStorage.getItem(storageKey), {
+      unit,
+      now: new Date(),
+    })
+    if (restored) {
+      dispatch({ type: 'RESTORE_DRAFT', draft: restored.draft })
+      // One-shot hydration from an external store (localStorage is unreadable
+      // during SSR/render); runs once on mount, so no cascading-render risk.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setName(restored.name)
+      setOpenedAt(restored.openedAt)
+    }
+    restoredRef.current = true
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only: storageKey/unit are stable per page load
+  }, [])
+
+  // Snapshot every change so nothing is lost mid-session. A failed write
+  // (Safari private mode, quota) is non-critical — logging must keep working.
+  useEffect(() => {
+    if (!restoredRef.current) return
+    try {
+      if (draft.exercises.length === 0 && !name.trim()) {
+        localStorage.removeItem(storageKey)
+      } else {
+        localStorage.setItem(
+          storageKey,
+          serializeDraft({ draft, name, unit, openedAt, now: new Date() }),
+        )
+      }
+    } catch {
+      // Non-critical: persist is best-effort.
+    }
+  }, [draft, name, unit, openedAt, storageKey])
 
   const isEmpty = draft.exercises.length === 0
 
@@ -91,6 +138,7 @@ export function WorkoutLogger({
         setError(null)
         if (workoutId) {
           await updateWorkoutAction(workoutId, draftToInput(draft, name, unit))
+          localStorage.removeItem(storageKey) // saved — the snapshot is obsolete
           router.push(`/workout/${workoutId}`)
         } else {
           await saveWorkoutAction({
@@ -98,9 +146,10 @@ export function WorkoutLogger({
             // Live session bounds: opened → saved. Without the explicit
             // completedAt the DB layer would fall back to startedAt (the
             // backdating default) and every live log would read as 0 min.
-            startedAt: openedAtRef.current,
+            startedAt: openedAt,
             completedAt: new Date(),
           })
+          localStorage.removeItem(storageKey) // saved — the snapshot is obsolete
           router.push('/')
         }
       } catch {
