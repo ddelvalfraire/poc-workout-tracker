@@ -344,8 +344,8 @@ export interface NextProgramDay {
  *
  * "Active" is the most recently updated program with status 'active' (nothing
  * enforces a single active program; recency is the tiebreak). The week comes
- * from `nextProgramWeek`; the day is the lowest-position day without a workout
- * logged at that week (`pickNextProgramDay`).
+ * from `nextProgramWeek`; the day rotates forward from the last day trained at
+ * that week, wrapping to make up skipped days (`pickNextProgramDay`).
  */
 export async function getNextProgramDay(userId: string): Promise<NextProgramDay | null> {
   const [program] = await db
