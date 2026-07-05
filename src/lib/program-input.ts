@@ -78,6 +78,17 @@ export const progressionSchema = z
       mevSets: z.number().int().min(0).max(100),
       mrvSets: z.number().int().min(0).max(100),
     }),
+    // Progresses the TARGETS instead of the load: reps for rep_weight sets,
+    // seconds for timed sets. The engine adds the increment once per prior
+    // non-deload week (like `linear`), clamped to the optional caps; loads
+    // pass through untouched. Built for bodyweight and timed movements.
+    z.object({
+      scheme: z.literal('rep-progression'),
+      incrementReps: z.number().int().min(0).max(50).default(0),
+      incrementSec: z.number().int().min(0).max(600).default(0),
+      maxReps: z.number().int().min(1).max(MAX_REPS).nullable().optional(),
+      maxSec: z.number().int().min(1).max(86_400).nullable().optional(),
+    }),
   ])
   // Cross-field rules live at the union level: discriminatedUnion members must
   // stay plain ZodObjects, so per-member .refine isn't an option.
@@ -94,6 +105,13 @@ export const progressionSchema = z
         code: 'custom',
         message: 'mevSets must be less than or equal to mrvSets',
         path: ['mevSets'],
+      })
+    }
+    if (p.scheme === 'rep-progression' && p.incrementReps === 0 && p.incrementSec === 0) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'rep-progression needs incrementReps or incrementSec greater than 0',
+        path: ['incrementReps'],
       })
     }
   })
