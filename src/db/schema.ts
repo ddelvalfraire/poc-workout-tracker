@@ -10,6 +10,7 @@ import {
   index,
   unique,
   check,
+  primaryKey,
 } from 'drizzle-orm/pg-core'
 import { relations, sql } from 'drizzle-orm'
 import type { Technique, Progression, SetType, MetricMode } from '@/lib/program-input'
@@ -86,6 +87,27 @@ export const userPreferences = pgTable('user_preferences', {
   unit: text('unit').notNull().default('lb'), // weight display unit: 'kg' | 'lb'; product default lb
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 })
+
+/**
+ * In-progress workout drafts, synced across devices — the logger autosaves
+ * here and restores on mount, so a session started on one device can be
+ * finished on another. One row per logging surface: `key` is 'new' for
+ * /workout/new or the workout uuid for edit mode (plain text, not a FK — the
+ * 'new' sentinel shares the column, and a draft must never block workout
+ * deletion). `payload` is the client draft snapshot ({ v, unit, name,
+ * openedAt, draft }); it is untrusted and re-validated by the client codec on
+ * read. Rows are short-lived: deleted on save, expired by TTL on read.
+ */
+export const workoutDrafts = pgTable(
+  'workout_drafts',
+  {
+    userId: text('user_id').notNull(), // Clerk user id — ownership root
+    key: text('key').notNull(), // 'new' | workout uuid
+    payload: jsonb('payload').notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.key] })],
+)
 
 /**
  * Per-user custom exercise catalog — movements wger lacks, with app-side wger

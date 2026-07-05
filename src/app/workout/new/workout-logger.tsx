@@ -8,6 +8,9 @@ import {
   saveWorkoutAction,
   updateWorkoutAction,
   getLastPerformanceAction,
+  getWorkoutDraftAction,
+  putWorkoutDraftAction,
+  deleteWorkoutDraftAction,
 } from '@/app/workout/actions'
 import { ExercisePicker } from './exercise-picker'
 import {
@@ -18,12 +21,16 @@ import {
   newDraftSet,
   type WorkoutDraft,
 } from './workout-draft'
-import { draftStorageKey, serializeDraft, deserializeDraft } from './draft-storage'
+import { draftKey, buildDraftPayload, parseDraftPayload } from './draft-payload'
 import { SessionClock } from './session-clock'
 import { type WeightUnit } from '@/lib/units'
 import { cn } from '@/lib/utils'
 import { placeholderForSet, planPlaceholderForSet, type PlanSetTarget } from '@/lib/format'
 import type { LastPerformance } from '@/db/workouts'
+
+// One server write per pause in activity; long enough to coalesce a burst of
+// keystrokes, short enough that little is lost to a sudden tab close.
+const DRAFT_SYNC_DEBOUNCE_MS = 800
 
 interface WorkoutLoggerProps {
   /** When set, the logger is in edit mode: Save updates this workout and returns to its detail page. */
@@ -60,55 +67,65 @@ export function WorkoutLogger({
   // instant. Edits keep the workout's existing startedAt. State (not a ref)
   // because a restored snapshot rewinds it to the original session start.
   const [openedAt, setOpenedAt] = useState<Date>(() => startedAt ?? new Date())
-  // Makes the persist effect skip its mount run: that run still sees the first
-  // render's (server-seeded) draft and would overwrite the snapshot before the
-  // restored state re-renders. Nothing user-entered exists yet, so there is
-  // nothing to persist until a change (or the restore) re-fires the effect.
+  // Makes the autosave effect skip its mount run: that run still sees the
+  // first render's (server-seeded) draft and would overwrite the server draft
+  // before the restore resolves. Nothing user-entered exists yet, so there is
+  // nothing to sync until a change (or the restore) re-fires the effect.
   const skipPersistRef = useRef(true)
-  const storageKey = draftStorageKey(workoutId)
+  // Set once the user changes anything. The async restore checks it before
+  // applying, so a draft fetched over the network never clobbers input typed
+  // while the request was in flight.
+  const dirtyRef = useRef(false)
+  // Set when a save starts. A pending debounce could otherwise fire mid-save
+  // and re-put the draft the save action just deleted, resurrecting it as a
+  // stale restore next session. Reset only if the save fails.
+  const savingRef = useRef(false)
+  const key = draftKey(workoutId)
   const router = useRouter()
 
-  // Restore an interrupted session (refresh, tab close, PWA suspend) from
-  // localStorage. Browser-only, so it lives in an effect, never in render.
-  // In edit mode this intentionally wins over the server-seeded draft: an
-  // interrupted live session is newer than the row it was seeded from (a
-  // snapshot from another device could be stale — accepted single-phone risk).
+  // Restore an interrupted session from the server draft (cross-device: a
+  // session started on the phone resumes on the laptop). In edit mode this
+  // intentionally wins over the server-seeded workout rows: a live draft is
+  // newer than the row it was seeded from. Last writer wins across devices.
   useEffect(() => {
-    const restored = deserializeDraft(localStorage.getItem(storageKey), {
-      unit,
-      now: new Date(),
-    })
-    if (restored) {
-      dispatch({ type: 'RESTORE_DRAFT', draft: restored.draft })
-      // One-shot hydration from an external store (localStorage is unreadable
-      // during SSR/render); runs once on mount, so no cascading-render risk.
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setName(restored.name)
-      setOpenedAt(restored.openedAt)
+    let cancelled = false
+    getWorkoutDraftAction(key)
+      .then((payload) => {
+        if (cancelled || dirtyRef.current) return
+        const restored = parseDraftPayload(payload, { unit })
+        if (!restored) return
+        dispatch({ type: 'RESTORE_DRAFT', draft: restored.draft })
+        setName(restored.name)
+        setOpenedAt(restored.openedAt)
+      })
+      .catch(() => {
+        // Non-critical: restore is best-effort; the logger works without it.
+      })
+    return () => {
+      cancelled = true
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only: storageKey/unit are stable per page load
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only: key/unit are stable per page load
   }, [])
 
-  // Snapshot every change so nothing is lost mid-session. A failed write
-  // (Safari private mode, quota) is non-critical — logging must keep working.
+  // Autosave every change to the server draft (debounced — one write per
+  // pause, not per keystroke). Failures are swallowed: sync is best-effort
+  // and logging must keep working offline-ish until Save.
   useEffect(() => {
     if (skipPersistRef.current) {
       skipPersistRef.current = false
       return
     }
-    try {
-      if (draft.exercises.length === 0 && !name.trim()) {
-        localStorage.removeItem(storageKey)
-      } else {
-        localStorage.setItem(
-          storageKey,
-          serializeDraft({ draft, name, unit, openedAt, now: new Date() }),
-        )
-      }
-    } catch {
-      // Non-critical: persist is best-effort.
-    }
-  }, [draft, name, unit, openedAt, storageKey])
+    dirtyRef.current = true
+    const timer = setTimeout(() => {
+      if (savingRef.current) return
+      const isEmptyDraft = draft.exercises.length === 0 && !name.trim()
+      const sync = isEmptyDraft
+        ? deleteWorkoutDraftAction(key) // cleared out — drop the draft everywhere
+        : putWorkoutDraftAction(key, buildDraftPayload({ draft, name, unit, openedAt }))
+      sync.catch(() => {})
+    }, DRAFT_SYNC_DEBOUNCE_MS)
+    return () => clearTimeout(timer)
+  }, [draft, name, unit, openedAt, key])
 
   const isEmpty = draft.exercises.length === 0
 
@@ -143,9 +160,11 @@ export function WorkoutLogger({
     startTransition(async () => {
       try {
         setError(null)
+        savingRef.current = true // freeze autosave: the save deletes the draft
+        // The save actions delete this surface's server draft themselves —
+        // the saved workout supersedes it on every device.
         if (workoutId) {
           await updateWorkoutAction(workoutId, draftToInput(draft, name, unit))
-          localStorage.removeItem(storageKey) // saved — the snapshot is obsolete
           router.push(`/workout/${workoutId}`)
         } else {
           await saveWorkoutAction({
@@ -156,10 +175,10 @@ export function WorkoutLogger({
             startedAt: openedAt,
             completedAt: new Date(),
           })
-          localStorage.removeItem(storageKey) // saved — the snapshot is obsolete
           router.push('/')
         }
       } catch {
+        savingRef.current = false // save failed — resume autosave
         setError('Could not save workout. Please try again.')
       }
     })

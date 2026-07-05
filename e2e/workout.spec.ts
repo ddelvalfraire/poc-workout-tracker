@@ -47,6 +47,7 @@ test.beforeAll(async () => {
 test.afterAll(async () => {
   if (sql && userId) {
     await sql`delete from workouts where user_id = ${userId}` // cascade removes children
+    await sql`delete from workout_drafts where user_id = ${userId}`
     await sql`delete from user_preferences where user_id = ${userId}`
     await sql.end()
   }
@@ -88,6 +89,26 @@ test('signed-in user can start, log, and save a workout', async ({ page }) => {
   await page.getByLabel('Set 2 reps').fill('5')
   await page.getByLabel('Set 2 weight in kg').fill('102.5')
 
+  // Cross-device draft sync: the logger autosaves (debounced) to the server.
+  // Wait for the draft row, then reload — the session must come back intact
+  // (same restore path another device would take).
+  await expect
+    .poll(
+      async () => {
+        const rows = await sql`select key from workout_drafts where user_id = ${userId}`
+        return rows.length
+      },
+      { timeout: 10_000 },
+    )
+    .toBe(1)
+  await page.reload()
+  await expect(page.getByLabel('Set 2 weight in kg')).toHaveValue('102.5', { timeout: 15_000 })
+  await expect(page.getByLabel('Set 1 reps')).toHaveValue('5')
+  await expect(page.getByRole('button', { name: 'Mark set 1 complete' })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  )
+
   // Save -> redirected home.
   await page.getByRole('button', { name: /save workout/i }).click()
   await expect(page).toHaveURL('http://localhost:3000/')
@@ -120,4 +141,8 @@ test('signed-in user can start, log, and save a workout', async ({ page }) => {
     { set_number: 1, completed: true },
     { set_number: 2, completed: false },
   ])
+
+  // The save supersedes the draft — the server row must be gone.
+  const draftRows = await sql`select key from workout_drafts where user_id = ${userId}`
+  expect(draftRows).toHaveLength(0)
 })
