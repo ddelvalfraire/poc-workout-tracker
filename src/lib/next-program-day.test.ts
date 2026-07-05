@@ -21,10 +21,23 @@ describe('pickNextProgramDay', () => {
     expect(pickNextProgramDay(days, new Set(['a', 'b']))?.id).toBe('c')
   })
 
-  it('fills gaps first: an unlogged earlier day comes before a later one', () => {
+  it('rotates forward: the day after the last-trained day comes before earlier skipped ones', () => {
     const days = [day('a', 0), day('b', 1), day('c', 2)]
 
-    expect(pickNextProgramDay(days, new Set(['b']))?.id).toBe('a')
+    expect(pickNextProgramDay(days, new Set(['b']))?.id).toBe('c')
+  })
+
+  it('wraps to the earliest unlogged day once past the last position', () => {
+    const days = [day('a', 0), day('b', 1), day('c', 2)]
+
+    expect(pickNextProgramDay(days, new Set(['c']))?.id).toBe('a')
+    expect(pickNextProgramDay(days, new Set(['b', 'c']))?.id).toBe('a')
+  })
+
+  it('skips logged days when wrapping to make up earlier gaps', () => {
+    const days = [day('a', 0), day('b', 1), day('c', 2)]
+
+    expect(pickNextProgramDay(days, new Set(['a', 'c']))?.id).toBe('b')
   })
 
   it('wraps to the first day when every day is logged (finished cycle re-runs)', () => {
