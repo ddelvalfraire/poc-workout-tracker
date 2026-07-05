@@ -179,4 +179,57 @@ describe('parseWorkoutInput', () => {
       expect(result).not.toHaveProperty('startedAt')
     })
   })
+
+  describe('completedAt', () => {
+    it('omits completedAt when absent', () => {
+      // Act
+      const result = parseWorkoutInput(VALID)
+
+      // Assert
+      expect(result).not.toHaveProperty('completedAt')
+    })
+
+    it('keeps a past ISO date string as a Date', () => {
+      // Act
+      const result = parseWorkoutInput({ ...VALID, completedAt: '2026-01-02T00:45:00.000Z' })
+
+      // Assert
+      expect(result.completedAt).toBeInstanceOf(Date)
+      expect(result.completedAt?.toISOString()).toBe('2026-01-02T00:45:00.000Z')
+    })
+
+    it('throws for a future date', () => {
+      // Arrange — one day ahead of now
+      const future = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+
+      // Act + Assert
+      expect(() => parseWorkoutInput({ ...VALID, completedAt: future })).toThrow(/future/i)
+    })
+
+    it('throws for an unparseable date string', () => {
+      expect(() => parseWorkoutInput({ ...VALID, completedAt: 'not-a-date' })).toThrow(/date/i)
+    })
+
+    it('throws when completedAt is before startedAt', () => {
+      expect(() =>
+        parseWorkoutInput({
+          ...VALID,
+          startedAt: '2026-01-02T10:00:00.000Z',
+          completedAt: '2026-01-02T09:00:00.000Z',
+        }),
+      ).toThrow(/before/i)
+    })
+
+    it('accepts completedAt equal to startedAt (instant backdated log)', () => {
+      // Act
+      const result = parseWorkoutInput({
+        ...VALID,
+        startedAt: '2026-01-02T10:00:00.000Z',
+        completedAt: '2026-01-02T10:00:00.000Z',
+      })
+
+      // Assert
+      expect(result.completedAt?.toISOString()).toBe('2026-01-02T10:00:00.000Z')
+    })
+  })
 })

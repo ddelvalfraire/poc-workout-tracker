@@ -1,6 +1,10 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  experimental: {
+    // Enables React's <ViewTransition> for animated route changes.
+    viewTransition: true,
+  },
   async headers() {
     return [
       {

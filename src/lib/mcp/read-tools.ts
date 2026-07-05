@@ -43,7 +43,11 @@ export function registerReadTools(server: McpServer): void {
         const rows = await listWorkoutSummaries(resolved)
         return jsonResult({
           userId: resolved,
-          workouts: rows.map((r) => ({ ...r, startedAt: r.startedAt.toISOString() })),
+          workouts: rows.map((r) => ({
+            ...r,
+            startedAt: r.startedAt.toISOString(),
+            completedAt: r.completedAt?.toISOString() ?? null,
+          })),
         })
       } catch (error: unknown) {
         return errorResult(error)

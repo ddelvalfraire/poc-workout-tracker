@@ -3,7 +3,13 @@ import { notFound } from "next/navigation";
 import { requireUserId } from "@/lib/auth";
 import { getWorkoutDetail, getExerciseHistoryBefore } from "@/db/workouts";
 import { getWeightUnit } from "@/db/preferences";
-import { formatWorkoutDate, formatSet, formatE1RM } from "@/lib/format";
+import {
+  formatWorkoutDate,
+  formatLoggedSet,
+  formatE1RM,
+  formatVolume,
+  formatWorkoutDuration,
+} from "@/lib/format";
 import { bestSet } from "@/lib/one-rep-max";
 import { AppHeader } from "@/components/app-header";
 import { buttonVariants } from "@/components/ui/button";
@@ -65,6 +71,13 @@ export default async function WorkoutDetailPage({
     }
   }
 
+  const totalSets = workout.exercises.reduce((n, e) => n + e.sets.length, 0);
+  const volumeKg = workout.exercises.reduce(
+    (sum, e) => sum + e.sets.reduce((s, set) => s + (set.reps ?? 0) * (set.weight ?? 0), 0),
+    0,
+  );
+  const duration = formatWorkoutDuration(workout.startedAt, workout.completedAt);
+
   return (
     <div className="flex min-h-[100dvh] flex-col">
       <AppHeader
@@ -92,9 +105,28 @@ export default async function WorkoutDetailPage({
       />
 
       <main className="mx-auto w-full max-w-md flex-1 px-5 pb-safe">
-        <p className="mt-4 text-sm text-muted-foreground">
-          {formatWorkoutDate(workout.startedAt)}
-        </p>
+        <div className="mt-4 flex items-center gap-2">
+          <p className="text-sm text-muted-foreground">
+            {formatWorkoutDate(workout.startedAt)}
+          </p>
+          {workout.programWeek !== null && (
+            <span className="rounded-full border border-primary/40 bg-primary/10 px-2 py-0.5 text-xs font-semibold uppercase tracking-wide text-primary">
+              Week {workout.programWeek}
+            </span>
+          )}
+        </div>
+
+        <dl className="mt-3 grid grid-cols-3 overflow-hidden rounded-2xl border border-border bg-card">
+          <Stat label="Duration" value={duration ?? "—"} />
+          <Stat
+            label="Volume"
+            value={volumeKg > 0 ? formatVolume(volumeKg, unit) : "—"}
+          />
+          <Stat
+            label={totalSets === 1 ? "Set" : "Sets"}
+            value={String(totalSets)}
+          />
+        </dl>
 
         <div className="mt-4 space-y-3">
           {workout.exercises.map((exercise) => {
@@ -127,7 +159,7 @@ export default async function WorkoutDetailPage({
                           Set {set.setNumber}
                         </span>
                         <span className="tnum font-medium">
-                          {formatSet(set.reps, set.weight, unit)}
+                          {formatLoggedSet(set, unit)}
                         </span>
                       </div>
                     ))
@@ -149,6 +181,18 @@ export default async function WorkoutDetailPage({
 
         <WorkoutActions id={workout.id} />
       </main>
+    </div>
+  );
+}
+
+/** One tile of the session stat row: big tabular value over a small label. */
+function Stat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="border-l border-border px-4 py-3 first:border-l-0">
+      <dd className="tnum text-xl font-semibold">{value}</dd>
+      <dt className="mt-0.5 text-[11px] font-medium uppercase tracking-widest text-muted-foreground">
+        {label}
+      </dt>
     </div>
   );
 }

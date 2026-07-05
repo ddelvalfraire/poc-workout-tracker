@@ -61,8 +61,12 @@ describe('updateWorkout (transactional, user-scoped)', () => {
       exercises: [{ wgerExerciseId: 73, name: 'Squat', sets: [{ reps: 5, weight: 100 }] }],
     })
 
-    // Assert — ownership gate runs first, then delete, then ordered re-insert
-    expect(records[0]).toEqual({ op: 'update', values: { name: 'New name' } })
+    // Assert — ownership gate runs first, then delete, then ordered re-insert.
+    // completedAt is a coalesce-to-now() SQL expression (first edit completes
+    // an instantiated workout); assert presence, not its opaque shape.
+    expect(records[0].op).toBe('update')
+    expect(records[0].values).toMatchObject({ name: 'New name' })
+    expect((records[0].values as Record<string, unknown>).completedAt).toBeDefined()
     expect(records[1].op).toBe('delete')
     expect(records[2]).toMatchObject({
       op: 'insert',
@@ -80,7 +84,8 @@ describe('updateWorkout (transactional, user-scoped)', () => {
     await updateWorkout(USER, ID, { exercises: [{ wgerExerciseId: 1, name: 'Plank', sets: [] }] })
 
     // Assert
-    expect(records[0]).toEqual({ op: 'update', values: { name: null } })
+    expect(records[0].op).toBe('update')
+    expect(records[0].values).toMatchObject({ name: null })
   })
 
   it('returns null and mutates nothing when the user does not own the workout', async () => {
@@ -94,6 +99,8 @@ describe('updateWorkout (transactional, user-scoped)', () => {
 
     // Assert — early return before any delete/insert (security-critical)
     expect(result).toBeNull()
-    expect(records).toEqual([{ op: 'update', values: { name: null } }])
+    expect(records).toHaveLength(1)
+    expect(records[0].op).toBe('update')
+    expect(records[0].values).toMatchObject({ name: null })
   })
 })

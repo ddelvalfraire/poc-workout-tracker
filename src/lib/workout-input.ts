@@ -37,6 +37,12 @@ export interface WorkoutInput {
    * logged session. Must not be in the future.
    */
   startedAt?: Date
+  /**
+   * When the session ended. Optional: the DB layer falls back to `startedAt`
+   * (a backdated log completes at its own moment, not save time) and then to
+   * now. Must not be in the future or before `startedAt`.
+   */
+  completedAt?: Date
 }
 
 const MAX_NAME = 200
@@ -63,20 +69,26 @@ function parseName(raw: unknown): string | undefined {
 }
 
 /**
- * Validates an optional `startedAt`: accepts a `Date` or an ISO/parseable date
- * string and returns a `Date`; absent/blank → omitted. Rejects an unparseable
- * value and a future date (a session can't have happened later than now).
+ * Validates an optional past-or-present date field: accepts a `Date` or an
+ * ISO/parseable date string and returns a `Date`; absent/blank → omitted.
+ * Rejects an unparseable value and a future date (a session can't have
+ * happened later than now).
  */
-export function parseStartedAt(raw: unknown): Date | undefined {
+function parsePastDate(raw: unknown, field: string): Date | undefined {
   if (raw === undefined || raw === null) return undefined
   if (typeof raw === 'string' && raw.trim().length === 0) return undefined
   if (!(raw instanceof Date) && typeof raw !== 'string') {
-    throw new Error('workout startedAt must be a date or ISO date string')
+    throw new Error(`workout ${field} must be a date or ISO date string`)
   }
   const date = raw instanceof Date ? raw : new Date(raw)
-  if (Number.isNaN(date.getTime())) throw new Error('workout startedAt is not a valid date')
+  if (Number.isNaN(date.getTime())) throw new Error(`workout ${field} is not a valid date`)
   if (date.getTime() > Date.now()) throw new Error("workout date can't be in the future")
   return date
+}
+
+/** Validates an optional `startedAt` (see parsePastDate). */
+export function parseStartedAt(raw: unknown): Date | undefined {
+  return parsePastDate(raw, 'startedAt')
 }
 
 /** Validates a single set: reps a non-negative integer or null, weight a non-negative finite number or null. */
@@ -140,8 +152,15 @@ export function parseWorkoutInput(input: unknown): WorkoutInput {
   const exercises = obj.exercises.map(parseExercise)
   const name = parseName(obj.name)
   const startedAt = parseStartedAt(obj.startedAt)
+  const completedAt = parsePastDate(obj.completedAt, 'completedAt')
+  if (startedAt && completedAt && completedAt.getTime() < startedAt.getTime()) {
+    throw new Error("workout completedAt can't be before startedAt")
+  }
 
-  return name === undefined
-    ? { exercises, ...(startedAt && { startedAt }) }
-    : { name, exercises, ...(startedAt && { startedAt }) }
+  return {
+    ...(name !== undefined && { name }),
+    exercises,
+    ...(startedAt && { startedAt }),
+    ...(completedAt && { completedAt }),
+  }
 }

@@ -2,16 +2,23 @@ import Link from "next/link";
 import { UserButton } from "@clerk/nextjs";
 import { requireUserId } from "@/lib/auth";
 import { listWorkoutSummaries } from "@/db/workouts";
+import { getNextProgramDay } from "@/db/programs";
 import { getWeightUnit } from "@/db/preferences";
-import { formatWorkoutDate } from "@/lib/format";
+import { formatWorkoutDate, formatVolume, formatWorkoutDuration } from "@/lib/format";
+import { startedWithinLastHours } from "@/lib/recent-window";
 import { buttonVariants } from "@/components/ui/button";
 import { UnitToggle } from "@/components/unit-toggle";
 import { cn } from "@/lib/utils";
+import { NextWorkoutCard } from "./next-workout-card";
+import { TodayWorkouts } from "./today-workouts";
 
 export default async function HomePage() {
   const userId = await requireUserId(); // middleware also guards; this is defense-in-depth
-  const summaries = await listWorkoutSummaries(userId);
-  const unit = await getWeightUnit(userId);
+  const [summaries, unit, nextDay] = await Promise.all([
+    listWorkoutSummaries(userId),
+    getWeightUnit(userId),
+    getNextProgramDay(userId),
+  ]);
 
   return (
     <div className="flex min-h-[100dvh] flex-col">
@@ -26,25 +33,65 @@ export default async function HomePage() {
       </header>
 
       <main className="mx-auto w-full max-w-md flex-1 px-5 pb-safe">
-        <Link
-          href="/workout/new"
-          className={cn(
-            buttonVariants({ size: "lg" }),
-            "mt-6 w-full text-base font-semibold uppercase tracking-wide",
-          )}
-        >
-          + Start Workout
-        </Link>
+        {nextDay && <NextWorkoutCard next={nextDay} />}
 
-        <Link
-          href="/programs"
-          className={cn(
-            buttonVariants({ variant: "outline", size: "lg" }),
-            "mt-3 w-full text-base font-semibold uppercase tracking-wide",
-          )}
-        >
-          Programs
-        </Link>
+        {/* With a program driving the day, freestyle logging demotes to a
+            secondary action; without one it stays the primary CTA. */}
+        {nextDay ? (
+          <div className="mt-3 grid grid-cols-2 gap-3">
+            <Link
+              href="/workout/new"
+              className={cn(
+                buttonVariants({ variant: "outline" }),
+                "font-semibold uppercase tracking-wide",
+              )}
+            >
+              Quick Log
+            </Link>
+            <Link
+              href="/programs"
+              className={cn(
+                buttonVariants({ variant: "outline" }),
+                "font-semibold uppercase tracking-wide",
+              )}
+            >
+              Programs
+            </Link>
+          </div>
+        ) : (
+          <>
+            <Link
+              href="/workout/new"
+              className={cn(
+                buttonVariants({ size: "lg" }),
+                "mt-6 w-full text-base font-semibold uppercase tracking-wide",
+              )}
+            >
+              + Start Workout
+            </Link>
+
+            <Link
+              href="/programs"
+              className={cn(
+                buttonVariants({ variant: "outline", size: "lg" }),
+                "mt-3 w-full text-base font-semibold uppercase tracking-wide",
+              )}
+            >
+              Programs
+            </Link>
+          </>
+        )}
+
+        <TodayWorkouts
+          // A 48h window (not a row cap) so "today" can never be crowded out
+          // by backdated entries, while any client timezone's calendar day is
+          // still fully covered; the exact local-day filter runs client-side.
+          workouts={startedWithinLastHours(summaries, 48).map((w) => ({
+            id: w.id,
+            name: w.name,
+            startedAt: w.startedAt,
+          }))}
+        />
 
         <h2 className="mt-10 mb-3 text-lg">History</h2>
 
@@ -65,10 +112,15 @@ export default async function HomePage() {
                 >
                   <span className="min-w-0">
                     <span className="block truncate font-medium">{w.name ?? "Workout"}</span>
-                    <span className="mt-0.5 block text-sm text-muted-foreground">
-                      {formatWorkoutDate(w.startedAt)} · {w.exerciseCount} exercise
-                      {w.exerciseCount === 1 ? "" : "s"} · {w.setCount} set
-                      {w.setCount === 1 ? "" : "s"}
+                    <span className="mt-0.5 block truncate text-sm text-muted-foreground">
+                      {[
+                        formatWorkoutDate(w.startedAt),
+                        formatWorkoutDuration(w.startedAt, w.completedAt),
+                        `${w.setCount} set${w.setCount === 1 ? "" : "s"}`,
+                        w.volumeKg > 0 ? formatVolume(w.volumeKg, unit) : null,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
                     </span>
                   </span>
                   <svg

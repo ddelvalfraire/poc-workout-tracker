@@ -10,6 +10,7 @@ import {
   type SetOverrideLike,
 } from '@/lib/progression'
 import { bestSet } from '@/lib/one-rep-max'
+import { pickNextProgramDay } from '@/lib/next-program-day'
 import { db } from './index'
 import { getLastPerformance, getExerciseHistoryBefore } from './workouts'
 import {
@@ -302,24 +303,106 @@ export async function nextProgramWeek(
   const current = agg?.current ?? null
   if (current === null) return 1
 
-  const [dayTotal] = await db
-    .select({ value: count(programDays.id) })
-    .from(programDays)
-    .where(eq(programDays.programId, programId))
-  const [daysDone] = await db
-    .select({ value: countDistinct(workouts.programDayId) })
+  // Independent reads — one round-trip of latency instead of two.
+  const [[dayTotal], [daysDone]] = await Promise.all([
+    db
+      .select({ value: count(programDays.id) })
+      .from(programDays)
+      .where(eq(programDays.programId, programId)),
+    db
+      .select({ value: countDistinct(workouts.programDayId) })
+      .from(workouts)
+      .innerJoin(programDays, eq(programDays.id, workouts.programDayId))
+      .where(
+        and(
+          eq(programDays.programId, programId),
+          eq(workouts.userId, userId),
+          eq(workouts.programWeek, current),
+        ),
+      ),
+  ])
+
+  const cycleComplete = daysDone.value >= dayTotal.value
+  return cycleComplete ? Math.min(current + 1, Math.max(1, mesocycleWeeks)) : current
+}
+
+/** What the home screen's "up next" card renders: the day a user should train
+ *  next in their active program, plus enough context to preview it. */
+export interface NextProgramDay {
+  programId: string
+  programName: string
+  dayId: string
+  dayName: string
+  week: number
+  exerciseNames: string[]
+}
+
+/**
+ * The next day to train in the user's active program — the composition the
+ * home screen widget needs, or null when there's nothing to suggest (no
+ * active program, or an active program with no days).
+ *
+ * "Active" is the most recently updated program with status 'active' (nothing
+ * enforces a single active program; recency is the tiebreak). The week comes
+ * from `nextProgramWeek`; the day is the lowest-position day without a workout
+ * logged at that week (`pickNextProgramDay`).
+ */
+export async function getNextProgramDay(userId: string): Promise<NextProgramDay | null> {
+  const [program] = await db
+    .select({
+      id: programs.id,
+      name: programs.name,
+      mesocycleWeeks: programs.mesocycleWeeks,
+    })
+    .from(programs)
+    .where(and(eq(programs.userId, userId), eq(programs.status, 'active')))
+    .orderBy(desc(programs.updatedAt))
+    .limit(1)
+  if (!program) return null
+
+  // The day list and the current week don't depend on each other — fetch them
+  // concurrently (this runs on every home-page load).
+  const [days, week] = await Promise.all([
+    db
+      .select({ id: programDays.id, name: programDays.name, position: programDays.position })
+      .from(programDays)
+      .where(eq(programDays.programId, program.id))
+      .orderBy(asc(programDays.position)),
+    nextProgramWeek(userId, program.id, program.mesocycleWeeks),
+  ])
+
+  const logged = await db
+    .selectDistinct({ dayId: workouts.programDayId })
     .from(workouts)
     .innerJoin(programDays, eq(programDays.id, workouts.programDayId))
     .where(
       and(
-        eq(programDays.programId, programId),
+        eq(programDays.programId, program.id),
         eq(workouts.userId, userId),
-        eq(workouts.programWeek, current),
+        eq(workouts.programWeek, week),
       ),
     )
 
-  const cycleComplete = daysDone.value >= dayTotal.value
-  return cycleComplete ? Math.min(current + 1, Math.max(1, mesocycleWeeks)) : current
+  const next = pickNextProgramDay(
+    days,
+    new Set(logged.map((r) => r.dayId).filter((id): id is string => id !== null)),
+  )
+  if (!next) return null
+
+  const exerciseRows = await db
+    .select({ name: programExercises.name })
+    .from(programExercises)
+    .where(eq(programExercises.programDayId, next.id))
+    .orderBy(asc(programExercises.position))
+
+  return {
+    programId: program.id,
+    programName: program.name,
+    dayId: next.id,
+    dayName: next.name,
+    week,
+    exerciseNames: exerciseRows.map((r) => r.name),
+  }
 }
 
 /**

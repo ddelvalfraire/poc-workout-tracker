@@ -1,16 +1,20 @@
-const CACHE = 'workout-tracker-v1'
+const CACHE = 'workout-tracker-v2'
 const OFFLINE_URL = '/'
 
 self.addEventListener('install', (event) => {
   // Best-effort precache of the app shell so the offline navigation fallback
   // has something to serve. A failed precache (e.g. auth redirect) must never
   // block installation — installability is the whole point of this worker.
+  //
+  // No skipWaiting(): a new worker taking over a live page can serve HTML
+  // whose hashed /_next chunks no longer exist, and a forced reload would
+  // destroy the in-memory workout draft. New versions activate once all tabs
+  // from the old version are closed.
   event.waitUntil(
     caches
       .open(CACHE)
       .then((cache) => cache.add(OFFLINE_URL))
-      .catch(() => {})
-      .then(() => self.skipWaiting()),
+      .catch(() => {}),
   )
 })
 

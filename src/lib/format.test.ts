@@ -3,6 +3,9 @@ import {
   formatWorkoutDate,
   formatSet,
   formatE1RM,
+  formatLoggedSet,
+  formatVolume,
+  formatWorkoutDuration,
   placeholderForSet,
   planPlaceholderForSet,
 } from './format'
@@ -122,6 +125,81 @@ describe('planPlaceholderForSet', () => {
       reps: undefined,
       weight: undefined,
     })
+  })
+})
+
+const loggedSet = (over: Partial<Parameters<typeof formatLoggedSet>[0]> = {}) => ({
+  reps: null,
+  weight: null,
+  metricMode: 'reps_weight',
+  durationSec: null,
+  distanceM: null,
+  ...over,
+})
+
+describe('formatLoggedSet', () => {
+  it('formats reps_weight sets like formatSet', () => {
+    expect(formatLoggedSet(loggedSet({ reps: 5, weight: 100 }))).toBe('5 × 100 kg')
+    expect(formatLoggedSet(loggedSet({ reps: 5, weight: 100 }), 'lb')).toBe('5 × 220.5 lb')
+    expect(formatLoggedSet(loggedSet())).toBe('—')
+  })
+
+  it('formats duration sets as a clock', () => {
+    expect(formatLoggedSet(loggedSet({ metricMode: 'duration', durationSec: 90 }))).toBe('1:30')
+    expect(formatLoggedSet(loggedSet({ metricMode: 'duration', durationSec: 45 }))).toBe('0:45')
+    expect(formatLoggedSet(loggedSet({ metricMode: 'duration', durationSec: 3900 }))).toBe(
+      '1:05:00',
+    )
+  })
+
+  it('renders — for a duration set with nothing logged', () => {
+    expect(formatLoggedSet(loggedSet({ metricMode: 'duration' }))).toBe('—')
+  })
+
+  it('formats duration_distance sets with both metrics', () => {
+    expect(
+      formatLoggedSet(loggedSet({ metricMode: 'duration_distance', durationSec: 750, distanceM: 2500 })),
+    ).toBe('12:30 · 2.5 km')
+  })
+
+  it('formats distance alone, in m below 1 km and km above', () => {
+    expect(formatLoggedSet(loggedSet({ metricMode: 'duration_distance', distanceM: 800 }))).toBe(
+      '800 m',
+    )
+    expect(formatLoggedSet(loggedSet({ metricMode: 'duration_distance', distanceM: 1000 }))).toBe(
+      '1 km',
+    )
+  })
+})
+
+describe('formatVolume', () => {
+  it('formats kg volume with grouping', () => {
+    expect(formatVolume(5200.4)).toBe('5,200 kg')
+  })
+
+  it('converts to lb and rounds', () => {
+    expect(formatVolume(1000, 'lb')).toBe('2,205 lb')
+  })
+})
+
+describe('formatWorkoutDuration', () => {
+  const start = new Date('2026-07-04T10:00:00Z')
+
+  it('formats minutes', () => {
+    expect(formatWorkoutDuration(start, new Date('2026-07-04T10:42:30Z'))).toBe('42 min')
+  })
+
+  it('formats hours + minutes past the hour', () => {
+    expect(formatWorkoutDuration(start, new Date('2026-07-04T11:05:00Z'))).toBe('1 h 5 min')
+  })
+
+  it('returns null when there is no completion time', () => {
+    expect(formatWorkoutDuration(start, null)).toBeNull()
+  })
+
+  it('returns null for implausible durations (instant saves, backdated logs)', () => {
+    expect(formatWorkoutDuration(start, new Date('2026-07-04T10:00:30Z'))).toBeNull()
+    expect(formatWorkoutDuration(start, new Date('2026-07-04T17:01:00Z'))).toBeNull()
   })
 })
 

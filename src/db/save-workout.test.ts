@@ -58,7 +58,12 @@ describe('saveWorkout (transactional, user-scoped)', () => {
     })
 
     // Assert — recorded inserts in call order
-    expect(records[0].values).toEqual({ userId: USER, name: 'Leg Day' })
+    // Saving a manual log IS completing it — completedAt is stamped at save.
+    expect(records[0].values).toEqual({
+      userId: USER,
+      name: 'Leg Day',
+      completedAt: expect.any(Date),
+    })
     expect(records[1].values).toEqual({
       workoutId: 'w1',
       wgerExerciseId: 73,
@@ -72,6 +77,39 @@ describe('saveWorkout (transactional, user-scoped)', () => {
 
     // Assert — resolves to the new workout id
     expect(result).toEqual({ id: 'w1' })
+  })
+
+  it('stamps completedAt from startedAt for backdated saves, not wall-clock now', async () => {
+    // Arrange — a log backdated a week (MCP create_workout documents this)
+    const startedAt = new Date('2026-06-01T10:00:00.000Z')
+
+    // Act
+    await saveWorkout(USER, { name: 'Backdated', startedAt, exercises: [] })
+
+    // Assert — the session completed when it happened, not when it was saved
+    expect(records[0].values).toEqual({
+      userId: USER,
+      name: 'Backdated',
+      startedAt,
+      completedAt: startedAt,
+    })
+  })
+
+  it('prefers an explicit completedAt over the startedAt fallback', async () => {
+    // Arrange — a live session: opened at 10:00, saved at 10:42
+    const startedAt = new Date('2026-06-01T10:00:00.000Z')
+    const completedAt = new Date('2026-06-01T10:42:00.000Z')
+
+    // Act
+    await saveWorkout(USER, { name: 'Live', startedAt, completedAt, exercises: [] })
+
+    // Assert
+    expect(records[0].values).toEqual({
+      userId: USER,
+      name: 'Live',
+      startedAt,
+      completedAt,
+    })
   })
 
   it('stamps each exercise with its 0-based position', async () => {
