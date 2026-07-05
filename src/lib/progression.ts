@@ -214,7 +214,9 @@ function schemeTargets(
   const bump = (value: number | null, increment: number, cap: number | null | undefined) => {
     if (value === null || increment <= 0) return value
     const raised = value + increment * steps
-    return cap != null ? Math.min(raised, cap) : raised
+    // The cap halts the climb; it must never shrink a template target below
+    // its starting value (a cap under the template would otherwise do so).
+    return cap != null ? Math.min(raised, Math.max(cap, value)) : raised
   }
   return {
     repMin: bump(set.repMin, progression.incrementReps, progression.maxReps),

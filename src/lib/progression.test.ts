@@ -390,6 +390,16 @@ describe('deriveWeekSets', () => {
       expect(derived[0].repMin).toBe(15)
     })
 
+    it('never lowers a template target when the cap sits below it', () => {
+      const derived = deriveWeekSets({
+        sets: [workingSet({ repMin: 12 })],
+        progression: { scheme: 'rep-progression', incrementReps: 1, incrementSec: 0, maxReps: 10 },
+        week: 3,
+        ...base,
+      })
+      expect(derived[0].repMin).toBe(12) // cap halts the climb; it must not shrink the template
+    })
+
     it('progresses durationSec on timed sets, clamped at maxSec', () => {
       const timed = workingSet({ metricMode: 'duration', durationSec: 60 })
       const progression = {
