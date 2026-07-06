@@ -86,7 +86,7 @@ describe('debounce and success path', () => {
 })
 
 describe('failure and retry', () => {
-  it('reports failed on rejection and retries after retryMs until it lands', async () => {
+  it('retries with exponential backoff (base, 2x, ...) until it lands', async () => {
     // Arrange — two failures, then success
     const send = vi
       .fn()
@@ -100,14 +100,67 @@ describe('failure and retry', () => {
     await tick(DEBOUNCE)
     expect(statuses.at(-1)).toBe('failed')
 
-    // First retry also fails
+    // First retry fires after the base interval and also fails
     await tick(RETRY)
     expect(send).toHaveBeenCalledTimes(2)
     expect(statuses.at(-1)).toBe('failed')
 
-    // Second retry lands
+    // Second retry backs off to 2x base: nothing at 1x...
+    await tick(RETRY)
+    expect(send).toHaveBeenCalledTimes(2)
+
+    // ...fires at 2x, and lands
     await tick(RETRY)
     expect(send).toHaveBeenCalledTimes(3)
+    expect(statuses.at(-1)).toBe('synced')
+  })
+
+  it('caps the backoff at retryMaxMs', async () => {
+    // Arrange — always failing, cap at 2x base
+    const send = vi.fn().mockRejectedValue(new Error('offline'))
+    const remove = vi.fn().mockResolvedValue(undefined)
+    const queue = createDraftSyncQueue({
+      send,
+      remove,
+      onStatus: (s) => statuses.push(s),
+      debounceMs: DEBOUNCE,
+      retryMs: RETRY,
+      retryMaxMs: RETRY * 2,
+    })
+
+    // Act — fail through several rounds: base, 2x, then capped at 2x forever
+    queue.enqueue(PAYLOAD_A)
+    await tick(DEBOUNCE) // attempt 1
+    await tick(RETRY) // attempt 2 (base)
+    await tick(RETRY * 2) // attempt 3 (2x)
+    await tick(RETRY * 2) // attempt 4 (capped, NOT 4x)
+
+    // Assert
+    expect(send).toHaveBeenCalledTimes(4)
+  })
+
+  it('resets the backoff after a success', async () => {
+    // Arrange — fail, succeed, fail again: the second failure retries at base
+    const send = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('offline'))
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new Error('offline'))
+      .mockResolvedValue(undefined)
+    const { queue } = makeQueue({ send })
+
+    queue.enqueue(PAYLOAD_A)
+    await tick(DEBOUNCE) // fail #1
+    await tick(RETRY) // success — backoff resets
+    expect(statuses.at(-1)).toBe('synced')
+
+    // Act — a new change fails once more
+    queue.enqueue(PAYLOAD_B)
+    await tick(DEBOUNCE) // fail #2
+    await tick(RETRY) // must retry at BASE again, not 2x
+
+    // Assert
+    expect(send).toHaveBeenCalledTimes(4)
     expect(statuses.at(-1)).toBe('synced')
   })
 
@@ -187,5 +240,62 @@ describe('pause / resume (save in flight)', () => {
     queue.resume()
     await tick(0)
     expect(send).toHaveBeenCalledWith(PAYLOAD_A)
+  })
+})
+
+describe('settle (save-time barrier)', () => {
+  it('pauses and resolves only after the in-flight attempt lands', async () => {
+    // Arrange — a slow send we control
+    let resolveSend!: () => void
+    const send = vi
+      .fn()
+      .mockImplementationOnce(() => new Promise<void>((resolve) => { resolveSend = resolve }))
+    const { queue } = makeQueue({ send })
+
+    // A put goes in flight
+    queue.enqueue(PAYLOAD_A)
+    await tick(DEBOUNCE)
+    expect(send).toHaveBeenCalledTimes(1)
+
+    // Act — save wants to start; settle must not resolve while on the wire
+    let settled = false
+    const settling = queue.settle().then(() => { settled = true })
+    await tick(0)
+    expect(settled).toBe(false)
+
+    // The wire call lands → settle resolves, and nothing new is sent (paused)
+    resolveSend()
+    await settling
+    await tick(DEBOUNCE * 2)
+    expect(send).toHaveBeenCalledTimes(1)
+  })
+
+  it('resolves immediately when nothing is in flight', async () => {
+    const { queue, send } = makeQueue()
+
+    await queue.settle()
+
+    expect(send).not.toHaveBeenCalled()
+  })
+
+  it('resolves even when the in-flight attempt fails, without scheduling a retry', async () => {
+    // Arrange — a slow failing send
+    let rejectSend!: (e: Error) => void
+    const send = vi
+      .fn()
+      .mockImplementationOnce(() => new Promise<void>((_, reject) => { rejectSend = reject }))
+    const { queue } = makeQueue({ send })
+
+    queue.enqueue(PAYLOAD_A)
+    await tick(DEBOUNCE)
+
+    // Act
+    const settling = queue.settle()
+    rejectSend(new Error('offline'))
+    await settling
+
+    // Assert — paused: the failure must not re-arm the retry timer
+    await tick(RETRY * 4)
+    expect(send).toHaveBeenCalledTimes(1)
   })
 })

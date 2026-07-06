@@ -177,7 +177,10 @@ export function WorkoutLogger({
     startTransition(async () => {
       try {
         setError(null)
-        queue.pause() // freeze autosave: the save deletes the draft itself
+        // Save-time barrier: pause autosave AND wait out any put already on
+        // the wire, so nothing can land after the save action deletes the
+        // draft and resurrect it.
+        await queue.settle()
         // The save actions delete this surface's server draft themselves —
         // the saved workout supersedes it on every device.
         if (workoutId) {

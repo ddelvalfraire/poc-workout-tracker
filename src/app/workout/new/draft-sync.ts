@@ -24,6 +24,12 @@ export interface DraftSyncQueue {
   pause(): void
   /** Undo pause (the save failed); re-attempts the latest unsent value, if any. */
   resume(): void
+  /**
+   * Pause AND wait for any attempt already on the wire to finish (either way).
+   * The save-time barrier: after this resolves, no put can land behind the
+   * save action's draft delete and resurrect the row.
+   */
+  settle(): Promise<void>
 }
 
 export function createDraftSyncQueue(opts: {
@@ -32,14 +38,20 @@ export function createDraftSyncQueue(opts: {
   onStatus: (status: DraftSyncStatus) => void
   debounceMs?: number
   retryMs?: number
+  retryMaxMs?: number
 }): DraftSyncQueue {
   const debounceMs = opts.debounceMs ?? 800
   const retryMs = opts.retryMs ?? 5_000
+  const retryMaxMs = opts.retryMaxMs ?? 60_000
 
   // `latest` is the newest enqueued value not yet confirmed sent; `undefined`
   // means nothing is owed to the server ('null' is a real value: delete).
   let latest: DraftPayload | null | undefined
-  let inFlight = false
+  // The current attempt's fully-handled promise (never rejects) — what
+  // settle() awaits. Null when nothing is on the wire.
+  let inFlight: Promise<void> | null = null
+  // Consecutive failures since the last success, driving the backoff.
+  let failures = 0
   let paused = false
   let timer: ReturnType<typeof setTimeout> | undefined
 
@@ -61,13 +73,13 @@ export function createDraftSyncQueue(opts: {
 
   function attempt() {
     clearTimer()
-    if (paused || inFlight || latest === undefined) return
+    if (paused || inFlight !== null || latest === undefined) return
     const value = latest
-    inFlight = true
     const work = value === null ? opts.remove() : opts.send(value)
-    work
+    inFlight = work
       .then(() => {
-        inFlight = false
+        inFlight = null
+        failures = 0
         if (latest === value) {
           // Nothing newer arrived while on the wire — all caught up.
           latest = undefined
@@ -78,9 +90,12 @@ export function createDraftSyncQueue(opts: {
         }
       })
       .catch(() => {
-        inFlight = false
+        inFlight = null
+        failures += 1
         setStatus('failed')
-        if (!paused) schedule(retryMs)
+        // Exponential backoff: base, 2x, 4x… capped. The `online` event
+        // bypasses the wait entirely via flush().
+        if (!paused) schedule(Math.min(retryMs * 2 ** (failures - 1), retryMaxMs))
       })
   }
 
@@ -100,6 +115,11 @@ export function createDraftSyncQueue(opts: {
     resume() {
       paused = false
       attempt()
+    },
+    settle() {
+      paused = true
+      clearTimer()
+      return inFlight ?? Promise.resolve()
     },
   }
 }
