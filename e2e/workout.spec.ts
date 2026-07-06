@@ -113,6 +113,27 @@ test('signed-in user can start, log, and save a workout', async ({ page }) => {
     'true',
   )
 
+  // Offline resilience: kill the network and keep logging — the offline hint
+  // appears once a sync fails; coming back online flushes the queued snapshot
+  // (the `online` event, no page interaction needed).
+  await page.context().setOffline(true)
+  await page.getByLabel('Set 2 reps').fill('6')
+  await expect(page.getByText(/offline — changes will sync/i)).toBeVisible({ timeout: 15_000 })
+  await page.context().setOffline(false)
+  await expect
+    .poll(
+      async () => {
+        const rows = await sql`
+          select 1 from workout_drafts
+          where user_id = ${userId}
+            and payload #>> '{draft,exercises,0,sets,1,reps}' = '6'
+        `
+        return rows.length
+      },
+      { timeout: 15_000 },
+    )
+    .toBe(1)
+
   // Save -> redirected home.
   await page.getByRole('button', { name: /save workout/i }).click()
   await expect(page).toHaveURL('http://localhost:3000/')
