@@ -105,7 +105,13 @@ test('signed-in user can start, log, and save a workout', async ({ page }) => {
       { timeout: 10_000 },
     )
     .toBe(1)
-  await page.reload()
+  // The active session surfaces on home as the resume banner; tapping it
+  // returns to the logger with the draft restored (the cross-device path).
+  await page.goto('/')
+  await expect(page.getByText('Workout in progress')).toBeVisible({ timeout: 15_000 })
+  await expect(page.getByText('1 exercise · 1 of 2 sets done')).toBeVisible()
+  await page.getByRole('link', { name: /resume workout/i }).click()
+  await expect(page).toHaveURL(/\/workout\/new$/)
   await expect(page.getByLabel('Set 2 weight in kg')).toHaveValue('102.5', { timeout: 15_000 })
   await expect(page.getByLabel('Set 1 reps')).toHaveValue('5')
   await expect(page.getByRole('button', { name: 'Mark set 1 complete' })).toHaveAttribute(

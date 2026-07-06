@@ -2,23 +2,30 @@ import Link from "next/link";
 import { UserButton } from "@clerk/nextjs";
 import { requireUserId } from "@/lib/auth";
 import { listWorkoutSummaries } from "@/db/workouts";
+import { listWorkoutDrafts } from "@/db/workout-drafts";
 import { getNextProgramDay } from "@/db/programs";
 import { getWeightUnit } from "@/db/preferences";
+import { pickActiveSession } from "@/lib/active-session";
 import { formatWorkoutDate, formatVolume, formatWorkoutDuration } from "@/lib/format";
 import { startedWithinLastHours } from "@/lib/recent-window";
 import { buttonVariants } from "@/components/ui/button";
 import { UnitToggle } from "@/components/unit-toggle";
 import { cn } from "@/lib/utils";
 import { NextWorkoutCard } from "./next-workout-card";
+import { ResumeSessionCard } from "./resume-session-card";
 import { TodayWorkouts } from "./today-workouts";
 
 export default async function HomePage() {
   const userId = await requireUserId(); // middleware also guards; this is defense-in-depth
-  const [summaries, unit, nextDay] = await Promise.all([
+  const [summaries, unit, nextDay, drafts] = await Promise.all([
     listWorkoutSummaries(userId),
     getWeightUnit(userId),
     getNextProgramDay(userId),
+    listWorkoutDrafts(userId),
   ]);
+  // A fresh draft IS an in-progress session (the logger autosaves one on
+  // every change; saving deletes it) — surface it as the resume banner.
+  const activeSession = pickActiveSession(drafts, new Date());
 
   return (
     <div className="flex min-h-[100dvh] flex-col">
@@ -33,6 +40,8 @@ export default async function HomePage() {
       </header>
 
       <main className="mx-auto w-full max-w-md flex-1 px-5 pb-safe">
+        {activeSession && <ResumeSessionCard session={activeSession} />}
+
         {nextDay && <NextWorkoutCard next={nextDay} />}
 
         {/* With a program driving the day, freestyle logging demotes to a
