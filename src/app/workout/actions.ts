@@ -61,6 +61,9 @@ export async function deleteWorkoutAction(id: string): Promise<void> {
   const userId = await requireUserId()
   const [deleted] = await deleteWorkout(userId, id)
   if (!deleted) throw new Error('workout not found')
+  // Drop any draft keyed to this workout — an orphaned draft keeps the home
+  // "workout in progress" banner alive with a Resume that 404s.
+  await deleteWorkoutDraft(userId, draftKey(id))
   revalidatePath('/')
 }
 
