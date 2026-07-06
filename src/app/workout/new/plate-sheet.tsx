@@ -103,7 +103,9 @@ export function PlateSheet({
         onClick={onClose}
       />
 
-      <div className="relative w-full max-w-md rounded-t-2xl border-t border-x border-border bg-card px-5 pt-5 pb-safe">
+      {/* max-h + scroll: many weights + the ramp + the gear editor can exceed
+          a phone viewport, and content above the fold would be unreachable. */}
+      <div className="relative max-h-[85dvh] w-full max-w-md overflow-y-auto rounded-t-2xl border-t border-x border-border bg-card px-5 pt-5 pb-safe">
         <div className="flex items-start justify-between gap-3 pb-1">
           <div>
             <p className="text-xs font-semibold uppercase tracking-widest text-primary">Bar &amp; plates</p>
