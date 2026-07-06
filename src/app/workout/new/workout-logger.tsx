@@ -22,15 +22,12 @@ import {
   type WorkoutDraft,
 } from './workout-draft'
 import { draftKey, buildDraftPayload, parseDraftPayload } from './draft-payload'
+import { createDraftSyncQueue, type DraftSyncQueue, type DraftSyncStatus } from './draft-sync'
 import { SessionClock } from './session-clock'
 import { type WeightUnit } from '@/lib/units'
 import { cn } from '@/lib/utils'
 import { placeholderForSet, planPlaceholderForSet, type PlanSetTarget } from '@/lib/format'
 import type { LastPerformance } from '@/db/workouts'
-
-// One server write per pause in activity; long enough to coalesce a burst of
-// keystrokes, short enough that little is lost to a sudden tab close.
-const DRAFT_SYNC_DEBOUNCE_MS = 800
 
 interface WorkoutLoggerProps {
   /** When set, the logger is in edit mode: Save updates this workout and returns to its detail page. */
@@ -76,11 +73,21 @@ export function WorkoutLogger({
   // applying, so a draft fetched over the network never clobbers input typed
   // while the request was in flight.
   const dirtyRef = useRef(false)
-  // Set when a save starts. A pending debounce could otherwise fire mid-save
-  // and re-put the draft the save action just deleted, resurrecting it as a
-  // stale restore next session. Reset only if the save fails.
-  const savingRef = useRef(false)
   const key = draftKey(workoutId)
+  // Sync-failure signal for the offline hint; 'pending' is the constant
+  // typing state and stays invisible.
+  const [syncStatus, setSyncStatus] = useState<DraftSyncStatus>('synced')
+  // The write-behind queue owns debounce + offline retry + the save-time
+  // pause (a paused queue can't re-put the draft the save action deletes —
+  // the resurrection race). Created once via the state initializer (never
+  // re-set); `key` is stable per mount.
+  const [queue] = useState<DraftSyncQueue>(() =>
+    createDraftSyncQueue({
+      send: (payload) => putWorkoutDraftAction(key, payload),
+      remove: () => deleteWorkoutDraftAction(key),
+      onStatus: setSyncStatus,
+    }),
+  )
   const router = useRouter()
 
   // Restore an interrupted session from the server draft (cross-device: a
@@ -108,25 +115,34 @@ export function WorkoutLogger({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only: key/unit are stable per page load
   }, [])
 
-  // Autosave every change to the server draft (debounced — one write per
-  // pause, not per keystroke). Failures are swallowed: sync is best-effort
-  // and logging must keep working offline-ish until Save.
+  // Autosave every change to the server draft. The queue debounces bursts,
+  // sends only the latest snapshot, and retries failures on an interval —
+  // a gym dead zone delays the sync instead of silently dropping it.
   useEffect(() => {
     if (skipPersistRef.current) {
       skipPersistRef.current = false
       return
     }
     dirtyRef.current = true
-    const timer = setTimeout(() => {
-      if (savingRef.current) return
-      const isEmptyDraft = draft.exercises.length === 0 && !name.trim()
-      const sync = isEmptyDraft
-        ? deleteWorkoutDraftAction(key) // cleared out — drop the draft everywhere
-        : putWorkoutDraftAction(key, buildDraftPayload({ draft, name, unit, openedAt }))
-      sync.catch(() => {})
-    }, DRAFT_SYNC_DEBOUNCE_MS)
-    return () => clearTimeout(timer)
-  }, [draft, name, unit, openedAt, key])
+    const isEmptyDraft = draft.exercises.length === 0 && !name.trim()
+    queue.enqueue(
+      isEmptyDraft ? null : buildDraftPayload({ draft, name, unit, openedAt }),
+    )
+  }, [draft, name, unit, openedAt, queue])
+
+  // Reconnect signal: retry a failed sync the moment the network is back,
+  // instead of waiting out the retry interval. Unmount stops the queue;
+  // setup resumes it so the pair is symmetric — StrictMode's dev-time
+  // mount→cleanup→mount would otherwise leave the queue paused forever.
+  useEffect(() => {
+    queue.resume()
+    const onOnline = () => queue.flush()
+    window.addEventListener('online', onOnline)
+    return () => {
+      window.removeEventListener('online', onOnline)
+      queue.pause()
+    }
+  }, [queue])
 
   const isEmpty = draft.exercises.length === 0
 
@@ -161,7 +177,10 @@ export function WorkoutLogger({
     startTransition(async () => {
       try {
         setError(null)
-        savingRef.current = true // freeze autosave: the save deletes the draft
+        // Save-time barrier: pause autosave AND wait out any put already on
+        // the wire, so nothing can land after the save action deletes the
+        // draft and resurrect it.
+        await queue.settle()
         // The save actions delete this surface's server draft themselves —
         // the saved workout supersedes it on every device.
         if (workoutId) {
@@ -179,7 +198,7 @@ export function WorkoutLogger({
           router.push('/')
         }
       } catch {
-        savingRef.current = false // save failed — resume autosave
+        queue.resume() // save failed — autosave picks the latest back up
         setError('Could not save workout. Please try again.')
       }
     })
@@ -196,6 +215,12 @@ export function WorkoutLogger({
         />
 
         <SessionClock startedAt={openedAt} />
+
+        {syncStatus === 'failed' && (
+          <p className="px-1 text-sm text-amber-500" role="status">
+            Offline — changes will sync when you&apos;re back.
+          </p>
+        )}
 
         <ExercisePicker
           onAdd={(exercise) =>
