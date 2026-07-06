@@ -85,6 +85,9 @@ export const sets = pgTable(
 export const userPreferences = pgTable('user_preferences', {
   userId: text('user_id').primaryKey(), // Clerk user id; one row per user
   unit: text('unit').notNull().default('lb'), // weight display unit: 'kg' | 'lb'; product default lb
+  // Plate-calculator gear ({ unit, bars, plates } — see lib/equipment.ts).
+  // Nullable: readers default per unit; stored unit-native, never converted.
+  equipment: jsonb('equipment'),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 })
 
