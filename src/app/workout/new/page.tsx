@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { requireUserId } from '@/lib/auth'
-import { getWeightUnit } from '@/db/preferences'
+import { getWeightUnit, getEquipment } from '@/db/preferences'
 import { getWorkoutDetail } from '@/db/workouts'
 import { buttonVariants } from '@/components/ui/button'
 import { AppHeader } from '@/components/app-header'
@@ -26,6 +26,7 @@ export default async function NewWorkoutPage({
     getWeightUnit(userId),
     fromId ? getWorkoutDetail(userId, fromId) : Promise.resolve(undefined),
   ])
+  const equipment = await getEquipment(userId, unit)
   // resetCompleted: repeating an old workout starts a fresh session — no
   // checked-off sets carried over from the source.
   const seed = source ? detailToDraft(source, unit, { resetCompleted: true }) : undefined
@@ -41,7 +42,12 @@ export default async function NewWorkoutPage({
         }
       />
       <main className="mx-auto w-full max-w-md flex-1 px-5">
-        <WorkoutLogger unit={unit} initialDraft={seed?.draft} initialName={seed?.name} />
+        <WorkoutLogger
+          unit={unit}
+          initialDraft={seed?.draft}
+          initialName={seed?.name}
+          equipment={equipment}
+        />
       </main>
     </div>
   )

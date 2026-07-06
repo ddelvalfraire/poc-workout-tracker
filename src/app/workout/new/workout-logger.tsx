@@ -3,6 +3,7 @@
 import { useEffect, useReducer, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { useQueries, useQueryClient } from '@tanstack/react-query'
+import { Dumbbell } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -25,6 +26,8 @@ import {
 import { draftKey, buildDraftPayload, parseDraftPayload } from './draft-payload'
 import { createDraftSyncQueue, type DraftSyncQueue, type DraftSyncStatus } from './draft-sync'
 import { SessionClock } from './session-clock'
+import { PlateSheet } from './plate-sheet'
+import { DEFAULT_EQUIPMENT, type Equipment } from '@/lib/equipment'
 import { type WeightUnit } from '@/lib/units'
 import { cn } from '@/lib/utils'
 import { placeholderForSet, planPlaceholderForSet, type PlanSetTarget } from '@/lib/format'
@@ -42,6 +45,8 @@ interface WorkoutLoggerProps {
   planTargets?: Record<number, PlanSetTarget[]>
   /** The persisted session start, for edit mode; new sessions clock from open time. */
   startedAt?: Date
+  /** The user's bars + plate denominations for the plate calculator (display unit). */
+  equipment?: Equipment
 }
 
 export function WorkoutLogger({
@@ -51,6 +56,7 @@ export function WorkoutLogger({
   unit = 'kg',
   planTargets,
   startedAt,
+  equipment,
 }: WorkoutLoggerProps) {
   const [draft, dispatch] = useReducer(workoutDraftReducer, initialDraft)
   const [name, setName] = useState(initialName)
@@ -105,6 +111,11 @@ export function WorkoutLogger({
   )
   const router = useRouter()
   const queryClient = useQueryClient()
+  // Gear is server-passed but user-editable inside the sheet; local state so a
+  // save reflects immediately without a round-trip re-render.
+  const [gear, setGear] = useState<Equipment>(equipment ?? DEFAULT_EQUIPMENT[unit])
+  // Which exercise's plate sheet is open (by index), if any.
+  const [plateSheetFor, setPlateSheetFor] = useState<number | null>(null)
 
   // Restore an interrupted session from the server draft (cross-device: a
   // session started on the phone resumes on the laptop). In edit mode this
@@ -242,6 +253,15 @@ export function WorkoutLogger({
                   </span>
                 )}
               </h3>
+              <Button
+                size="icon-sm"
+                variant="ghost"
+                className="shrink-0 text-muted-foreground"
+                onClick={() => setPlateSheetFor(exerciseIndex)}
+                aria-label={`Plates for ${exercise.name}`}
+              >
+                <Dumbbell aria-hidden="true" className="size-4" />
+              </Button>
               <Button
                 size="icon-sm"
                 variant="ghost"
@@ -404,6 +424,23 @@ export function WorkoutLogger({
           {isPending ? 'Saving…' : workoutId ? 'Save changes' : 'Save workout'}
         </Button>
       </div>
+
+      {plateSheetFor !== null && draft.exercises[plateSheetFor] && (
+        <PlateSheet
+          exerciseName={draft.exercises[plateSheetFor].name}
+          weights={Array.from(
+            new Set(
+              draft.exercises[plateSheetFor].sets
+                .map((set) => parseFloat(set.weight))
+                .filter((weight) => Number.isFinite(weight) && weight > 0),
+            ),
+          ).sort((a, b) => b - a)}
+          unit={unit}
+          equipment={gear}
+          onClose={() => setPlateSheetFor(null)}
+          onEquipmentSaved={setGear}
+        />
+      )}
     </>
   )
 }

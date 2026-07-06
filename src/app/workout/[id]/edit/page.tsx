@@ -2,7 +2,7 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { requireUserId } from '@/lib/auth'
 import { getWorkoutDetail, type WorkoutDetail } from '@/db/workouts'
-import { getWeightUnit } from '@/db/preferences'
+import { getWeightUnit, getEquipment } from '@/db/preferences'
 import { getProgramDayDetail, deriveDayPrescription } from '@/db/programs'
 import type { PlanSetTarget } from '@/lib/format'
 import { detailToDraft } from '@/app/workout/new/workout-draft'
@@ -54,7 +54,10 @@ export default async function EditWorkoutPage({
   ])
   if (!workout) notFound()
 
-  const planTargets = await loadPlanTargets(userId, workout)
+  const [planTargets, equipment] = await Promise.all([
+    loadPlanTargets(userId, workout),
+    getEquipment(userId, unit),
+  ])
   const { draft, name } = detailToDraft(workout, unit)
 
   return (
@@ -78,6 +81,7 @@ export default async function EditWorkoutPage({
           unit={unit}
           planTargets={planTargets}
           startedAt={workout.startedAt}
+          equipment={equipment}
         />
       </main>
     </div>

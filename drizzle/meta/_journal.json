@@ -57,6 +57,13 @@
       "when": 1783287382236,
       "tag": "0007_skinny_jimmy_woo",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1783322921957,
+      "tag": "0008_red_hitman",
+      "breakpoints": true
     }
   ]
 }

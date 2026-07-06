@@ -84,6 +84,14 @@ test('signed-in user can start, log, and save a workout', async ({ page }) => {
   await page.getByLabel('Set 1 weight in kg').fill('100')
   await page.getByRole('button', { name: 'Mark set 1 complete' }).click()
 
+  // Plate calculator: 100 kg on the default 20 kg bar = 25 + 15 per side,
+  // and the warm-up ramp toward the top set renders alongside.
+  await page.getByRole('button', { name: /^plates for/i }).click()
+  await expect(page.getByText('25 + 15 / side')).toBeVisible()
+  await expect(page.getByText(/warm-up · toward 100 kg/i)).toBeVisible()
+  await page.getByRole('button', { name: 'Close', exact: true }).click()
+  await expect(page.getByText('25 + 15 / side')).not.toBeVisible()
+
   // Add and log a second set.
   await page.getByRole('button', { name: /add set/i }).click()
   await page.getByLabel('Set 2 reps').fill('5')
