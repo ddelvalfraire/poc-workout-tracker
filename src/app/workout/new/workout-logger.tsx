@@ -2,6 +2,7 @@
 
 import { useEffect, useReducer, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
+import { useQueries, useQueryClient } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -55,10 +56,22 @@ export function WorkoutLogger({
   const [name, setName] = useState(initialName)
   const [error, setError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
-  const [lastByExercise, setLastByExercise] = useState<Record<number, LastPerformance | null>>({})
-  // Tracks exercise ids already fetched/in-flight so the effect never refetches.
-  // A ref (not state) avoids a synchronous setState in the effect body.
-  const requestedRef = useRef<Set<number>>(new Set())
+  // Prior performance per distinct exercise, for the per-set ghost
+  // placeholders. TanStack Query owns dedupe/caching/retry (this replaced a
+  // hand-rolled requestedRef cache); provider defaults keep ghosts fresh per
+  // session and a tab refocus picks up sets logged elsewhere (e.g. via MCP).
+  const exerciseIds = Array.from(new Set(draft.exercises.map((e) => e.wgerExerciseId)))
+  const lastPerformanceQueries = useQueries({
+    queries: exerciseIds.map((id) => ({
+      queryKey: ['last-performance', id, workoutId ?? null],
+      queryFn: () => getLastPerformanceAction(id, workoutId),
+    })),
+  })
+  const lastByExercise: Record<number, LastPerformance | null> = {}
+  exerciseIds.forEach((id, i) => {
+    const result = lastPerformanceQueries[i].data
+    if (result !== undefined) lastByExercise[id] = result
+  })
   // When the user opened the logger — saved as startedAt for NEW workouts so
   // startedAt→completedAt reflects the real session length, not the save
   // instant. Edits keep the workout's existing startedAt. State (not a ref)
@@ -89,6 +102,7 @@ export function WorkoutLogger({
     }),
   )
   const router = useRouter()
+  const queryClient = useQueryClient()
 
   // Restore an interrupted session from the server draft (cross-device: a
   // session started on the phone resumes on the laptop). In edit mode this
@@ -146,33 +160,6 @@ export function WorkoutLogger({
 
   const isEmpty = draft.exercises.length === 0
 
-  // Fetch prior performance once per distinct exercise (added now or pre-filled in
-  // edit mode), to seed per-set ghost placeholders.
-  useEffect(() => {
-    const missing = Array.from(new Set(draft.exercises.map((e) => e.wgerExerciseId))).filter(
-      (id) => !requestedRef.current.has(id),
-    )
-    if (missing.length === 0) return
-
-    let cancelled = false
-    for (const id of missing) requestedRef.current.add(id) // reserve before awaiting
-    // Fetch all missing exercises concurrently — each call is independent and
-    // updates state as it resolves, so N exercises cost one round-trip, not N.
-    for (const id of missing) {
-      getLastPerformanceAction(id, workoutId)
-        .then((result) => {
-          if (!cancelled) setLastByExercise((prev) => ({ ...prev, [id]: result }))
-        })
-        .catch(() => {
-          // Non-critical: drop the reservation so a later render can retry.
-          requestedRef.current.delete(id)
-        })
-    }
-    return () => {
-      cancelled = true
-    }
-  }, [draft.exercises, workoutId])
-
   function handleSave() {
     startTransition(async () => {
       try {
@@ -185,6 +172,9 @@ export function WorkoutLogger({
         // the saved workout supersedes it on every device.
         if (workoutId) {
           await updateWorkoutAction(workoutId, draftToInput(draft, name, unit))
+          // History changed: the browser QueryClient outlives this page, so
+          // cached ghosts would otherwise show pre-save data next session.
+          queryClient.invalidateQueries({ queryKey: ['last-performance'], refetchType: 'none' })
           router.push(`/workout/${workoutId}`)
         } else {
           await saveWorkoutAction({
@@ -195,6 +185,7 @@ export function WorkoutLogger({
             startedAt: openedAt,
             completedAt: new Date(),
           })
+          queryClient.invalidateQueries({ queryKey: ['last-performance'], refetchType: 'none' })
           router.push('/')
         }
       } catch {
