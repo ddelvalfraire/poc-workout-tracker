@@ -148,8 +148,10 @@ describe('deleteWorkoutAction', () => {
     // Act
     await deleteWorkoutAction(ID)
 
-    // Assert
+    // Assert — the workout's draft goes with it, or the home banner would
+    // keep advertising a session whose Resume 404s
     expect(mockedDelete).toHaveBeenCalledWith(USER, ID)
+    expect(mockedDeleteDraft).toHaveBeenCalledWith(USER, ID)
     expect(mockedRevalidate).toHaveBeenCalledWith('/')
   })
 
@@ -157,8 +159,9 @@ describe('deleteWorkoutAction', () => {
     // Arrange — empty result means not owned (or already gone)
     mockedDelete.mockResolvedValue([] as Awaited<ReturnType<typeof deleteWorkout>>)
 
-    // Act + Assert
+    // Act + Assert — no draft cleanup either: ownership failed
     await expect(deleteWorkoutAction(ID)).rejects.toThrow('workout not found')
+    expect(mockedDeleteDraft).not.toHaveBeenCalled()
     expect(mockedRevalidate).not.toHaveBeenCalled()
   })
 })
