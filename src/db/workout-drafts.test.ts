@@ -51,7 +51,7 @@ vi.mock('./index', () => ({
   },
 }))
 
-import { getWorkoutDraft, putWorkoutDraft, deleteWorkoutDraft } from './workout-drafts'
+import { getWorkoutDraft, putWorkoutDraft, deleteWorkoutDraft, listWorkoutDrafts } from './workout-drafts'
 
 const USER = 'user_123'
 const PAYLOAD = { v: 1, unit: 'kg', name: '', openedAt: '2026-07-05T11:40:00.000Z', draft: { exercises: [] } }
@@ -105,6 +105,17 @@ describe('putWorkoutDraft', () => {
 
     // Assert — one scoped delete for the overflow
     expect(deletes).toBe(1)
+  })
+})
+
+describe('listWorkoutDrafts', () => {
+  it('returns the user-scoped rows from the newest-first query', async () => {
+    // Arrange — the orderBy-terminal select resolves these rows
+    const rows = [{ key: 'new', payload: PAYLOAD, updatedAt: new Date('2026-07-05T12:00:00.000Z') }]
+    selectKeyRows = rows as unknown as typeof selectKeyRows
+
+    // Act + Assert
+    expect(await listWorkoutDrafts(USER)).toEqual(rows)
   })
 })
 

@@ -77,11 +77,13 @@ export function WorkoutLogger({
   // instant. Edits keep the workout's existing startedAt. State (not a ref)
   // because a restored snapshot rewinds it to the original session start.
   const [openedAt, setOpenedAt] = useState<Date>(() => startedAt ?? new Date())
-  // Makes the autosave effect skip its mount run: that run still sees the
-  // first render's (server-seeded) draft and would overwrite the server draft
-  // before the restore resolves. Nothing user-entered exists yet, so there is
-  // nothing to sync until a change (or the restore) re-fires the effect.
-  const skipPersistRef = useRef(true)
+  // Value-based change detection for the autosave effect. Run-counting
+  // ("skip the first run") breaks under StrictMode, which re-runs effects
+  // with UNCHANGED deps: the mount re-run slipped past the consumed skip
+  // flag, enqueued an empty-draft delete, and its dirty flag blocked the
+  // restore — resuming a session from the home banner wiped the draft in
+  // dev. Comparing snapshots is immune to double-runs by construction.
+  const lastSnapshotRef = useRef<string | null>(null)
   // Set once the user changes anything. The async restore checks it before
   // applying, so a draft fetched over the network never clobbers input typed
   // while the request was in flight.
@@ -133,10 +135,11 @@ export function WorkoutLogger({
   // sends only the latest snapshot, and retries failures on an interval —
   // a gym dead zone delays the sync instead of silently dropping it.
   useEffect(() => {
-    if (skipPersistRef.current) {
-      skipPersistRef.current = false
-      return
-    }
+    const snapshot = JSON.stringify({ name, exercises: draft.exercises })
+    if (lastSnapshotRef.current === snapshot) return // StrictMode re-run or no real change
+    const isMount = lastSnapshotRef.current === null
+    lastSnapshotRef.current = snapshot
+    if (isMount) return // the server-seeded first render — nothing user-entered yet
     dirtyRef.current = true
     const isEmptyDraft = draft.exercises.length === 0 && !name.trim()
     queue.enqueue(
