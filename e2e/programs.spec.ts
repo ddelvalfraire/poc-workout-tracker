@@ -117,10 +117,11 @@ test('signed-in user can build a program, browse targets, and start a day', asyn
   expect(programRows[0].day_count).toBe(1)
   expect(programRows[0].set_count).toBe(1)
 
-  // Start the day → lands on the new workout, titled after the day, load seeded.
+  // Start the day → lands straight in the logger for the new workout,
+  // titled after the day, load seeded.
   await page.getByRole('button', { name: /start this day/i }).click()
-  await expect(page).toHaveURL(/\/workout\/[0-9a-f-]{36}$/, { timeout: 15_000 })
-  await expect(page.getByRole('heading', { name: 'Push' })).toBeVisible()
+  await expect(page).toHaveURL(/\/workout\/[0-9a-f-]{36}\/edit$/, { timeout: 15_000 })
+  await expect(page.getByLabel('Workout name')).toHaveValue('Push')
 
   const workoutRows = await sql<{ name: string; program_week: number; weight: number }[]>`
     select w.name, w.program_week, s.weight::float as weight
@@ -134,13 +135,19 @@ test('signed-in user can build a program, browse targets, and start a day', asyn
   expect(workoutRows[0].program_week).toBe(1)
   expect(workoutRows[0].weight).toBe(100)
 
-  // Cleanup through the UI: delete the workout, then the program.
-  page.on('dialog', (dialog) => dialog.accept())
+  // Cleanup through the UI: delete the workout, then the program. Deletes
+  // confirm inline (two-step), not via a native dialog. The Delete button
+  // lives on the detail page — drop the /edit suffix from the logger URL.
+  await page.goto(page.url().replace(/\/edit$/, ''))
+  await page.getByRole('button', { name: /^delete$/i }).click()
+  await expect(page.getByText('Delete this workout?')).toBeVisible()
   await page.getByRole('button', { name: /^delete$/i }).click()
   await expect(page).toHaveURL('http://localhost:3000/', { timeout: 15_000 })
 
   await page.goto(`/programs`)
   await page.getByRole('link', { name: /e2e push day program/i }).click()
+  await page.getByRole('button', { name: /^delete$/i }).click()
+  await expect(page.getByText('Delete this program?')).toBeVisible()
   await page.getByRole('button', { name: /^delete$/i }).click()
   await expect(page).toHaveURL(/\/programs$/, { timeout: 15_000 })
   await expect(page.getByText('No programs yet')).toBeVisible()

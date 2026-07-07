@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -59,6 +59,51 @@ export function PlateSheet({
   const [platesText, setPlatesText] = useState(equipment.plates.map(fmt).join(', '))
   const [editError, setEditError] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
+  const dialogRef = useRef<HTMLDivElement>(null)
+  const closeButtonRef = useRef<HTMLButtonElement>(null)
+
+  // Modal dialog contract the div can't provide on its own: initial focus,
+  // Escape-to-close, a Tab trap, a body scroll lock, and focus restore —
+  // without these, keyboard/screen-reader users tab straight behind the sheet.
+  useEffect(() => {
+    const previouslyFocused = document.activeElement as HTMLElement | null
+    closeButtonRef.current?.focus()
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        event.stopPropagation()
+        onClose()
+        return
+      }
+      if (event.key !== 'Tab' || !dialogRef.current) return
+      const focusables = Array.from(
+        dialogRef.current.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), input:not([disabled]), [href], [tabindex]:not([tabindex="-1"])',
+        ),
+      )
+      if (focusables.length === 0) return
+      const first = focusables[0]
+      const last = focusables[focusables.length - 1]
+      const active = document.activeElement
+      if (event.shiftKey && (active === first || !dialogRef.current.contains(active))) {
+        event.preventDefault()
+        last.focus()
+      } else if (!event.shiftKey && active === last) {
+        event.preventDefault()
+        first.focus()
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown)
+      document.body.style.overflow = previousOverflow
+      previouslyFocused?.focus()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only dialog lifecycle; onClose is stable per open
+  }, [])
 
   const ramp = weights.length > 0 ? warmupRamp(weights[0], bar, equipment.plates) : []
 
@@ -90,6 +135,7 @@ export function PlateSheet({
 
   return (
     <div
+      ref={dialogRef}
       className="fixed inset-0 z-30 flex items-end justify-center"
       role="dialog"
       aria-modal="true"
@@ -112,6 +158,7 @@ export function PlateSheet({
             <h3 className="mt-0.5 text-lg leading-tight">{exerciseName}</h3>
           </div>
           <Button
+            ref={closeButtonRef}
             size="icon-sm"
             variant="ghost"
             className="-mr-1 text-muted-foreground"

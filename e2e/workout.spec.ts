@@ -122,7 +122,7 @@ test('signed-in user can start, log, and save a workout', async ({ page }) => {
   await expect(page).toHaveURL(/\/workout\/new$/)
   await expect(page.getByLabel('Set 2 weight in kg')).toHaveValue('102.5', { timeout: 15_000 })
   await expect(page.getByLabel('Set 1 reps')).toHaveValue('5')
-  await expect(page.getByRole('button', { name: 'Mark set 1 complete' })).toHaveAttribute(
+  await expect(page.getByRole('button', { name: 'Mark set 1 incomplete' })).toHaveAttribute(
     'aria-pressed',
     'true',
   )
@@ -148,9 +148,9 @@ test('signed-in user can start, log, and save a workout', async ({ page }) => {
     )
     .toBe(1)
 
-  // Save -> redirected home.
+  // Save -> lands on the session summary (detail page).
   await page.getByRole('button', { name: /save workout/i }).click()
-  await expect(page).toHaveURL('http://localhost:3000/')
+  await expect(page).toHaveURL(/\/workout\/[0-9a-f-]+$/)
 
   // Assert the persisted row tree for this user.
   const rows = await sql<{ name: string | null; exercise_count: number; set_count: number }[]>`

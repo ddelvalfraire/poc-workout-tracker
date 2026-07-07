@@ -39,6 +39,8 @@ export interface WorkoutDraft {
 export type DraftAction =
   | { type: 'ADD_EXERCISE'; exercise: DraftExercise }
   | { type: 'REMOVE_EXERCISE'; index: number }
+  /** Undo for REMOVE_EXERCISE: re-inserts at the original position (clamped). */
+  | { type: 'INSERT_EXERCISE'; index: number; exercise: DraftExercise }
   | { type: 'ADD_SET'; exerciseIndex: number; set: DraftSet }
   | {
       type: 'UPDATE_SET'
@@ -48,7 +50,14 @@ export type DraftAction =
       value: string
     }
   | { type: 'REMOVE_SET'; exerciseIndex: number; setIndex: number }
-  | { type: 'TOGGLE_SET_COMPLETED'; exerciseIndex: number; setIndex: number }
+  /** `fill` (tap-to-accept ghost values) applies only to EMPTY fields, and only
+   *  when checking off — never on uncheck, never over typed input. */
+  | {
+      type: 'TOGGLE_SET_COMPLETED'
+      exerciseIndex: number
+      setIndex: number
+      fill?: { reps?: string; weight?: string }
+    }
   /** Mount-time restore from the localStorage snapshot — replaces the whole draft. */
   | { type: 'RESTORE_DRAFT'; draft: WorkoutDraft }
 
@@ -89,6 +98,17 @@ export function workoutDraftReducer(state: WorkoutDraft, action: DraftAction): W
     case 'REMOVE_EXERCISE':
       return { exercises: state.exercises.filter((_, i) => i !== action.index) }
 
+    case 'INSERT_EXERCISE': {
+      const index = Math.min(action.index, state.exercises.length)
+      return {
+        exercises: [
+          ...state.exercises.slice(0, index),
+          action.exercise,
+          ...state.exercises.slice(index),
+        ],
+      }
+    }
+
     case 'ADD_SET':
       return {
         exercises: mapExerciseAt(state.exercises, action.exerciseIndex, (exercise) => ({
@@ -119,9 +139,17 @@ export function workoutDraftReducer(state: WorkoutDraft, action: DraftAction): W
       return {
         exercises: mapExerciseAt(state.exercises, action.exerciseIndex, (exercise) => ({
           ...exercise,
-          sets: exercise.sets.map((set, i) =>
-            i === action.setIndex ? { ...set, completed: !set.completed } : set,
-          ),
+          sets: exercise.sets.map((set, i) => {
+            if (i !== action.setIndex) return set
+            const checkingOff = !set.completed
+            const fill = checkingOff ? action.fill : undefined
+            return {
+              ...set,
+              reps: set.reps === '' && fill?.reps ? fill.reps : set.reps,
+              weight: set.weight === '' && fill?.weight ? fill.weight : set.weight,
+              completed: checkingOff,
+            }
+          }),
         })),
       }
 

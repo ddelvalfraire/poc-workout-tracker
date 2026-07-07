@@ -78,13 +78,16 @@ test('repeats a logged workout, seeding its values, and saves a distinct new wor
   await page.getByLabel('Set 2 reps').fill('8')
   await page.getByLabel('Set 2 weight in kg').fill('60')
   await page.getByRole('button', { name: /save workout/i }).click()
-  await expect(page).toHaveURL('http://localhost:3000/')
+  // Save lands on the session summary (detail page); return home.
+  await expect(page).toHaveURL(/\/workout\/[0-9a-f-]+$/)
+  await page.goto('/')
 
   // A Repeat icon-link sits on the home history row.
   await expect(page.getByRole('link', { name: /^Repeat/i })).toHaveCount(1)
 
-  // --- Repeat from the detail page. ---
-  await page.getByText('Workout', { exact: true }).click()
+  // --- Repeat from the detail page. Match the History row link (its name
+  // carries the " · " meta separator), not the Done-Today link. ---
+  await page.getByRole('link', { name: /^Workout .*·/ }).click()
   await expect(page).toHaveURL(/\/workout\/[0-9a-f-]+$/)
   await page.getByRole('link', { name: /repeat workout/i }).click()
   await expect(page).toHaveURL(/\/workout\/new\?from=/)
@@ -98,7 +101,8 @@ test('repeats a logged workout, seeding its values, and saves a distinct new wor
   // --- Edit one field and save → a distinct second workout. ---
   await page.getByLabel('Set 1 weight in kg').fill('102.5')
   await page.getByRole('button', { name: /save workout/i }).click()
-  await expect(page).toHaveURL('http://localhost:3000/')
+  await expect(page).toHaveURL(/\/workout\/[0-9a-f-]+$/)
+  await page.goto('/')
 
   // Two history rows now exist (source untouched + the repeated save).
   await expect(page.getByRole('link', { name: /^Repeat/i })).toHaveCount(2)
