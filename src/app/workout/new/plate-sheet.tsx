@@ -59,7 +59,10 @@ export function PlateSheet({
   const [platesText, setPlatesText] = useState(equipment.plates.map(fmt).join(', '))
   const [editError, setEditError] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
-  const dialogRef = useRef<HTMLDivElement>(null)
+  // Trap scope is the visible panel, NOT the outer wrapper: the full-screen
+  // backdrop button would otherwise be the first tab stop — an invisible
+  // control keyboard users wrap onto before the visible ×.
+  const panelRef = useRef<HTMLDivElement>(null)
   const closeButtonRef = useRef<HTMLButtonElement>(null)
 
   // Modal dialog contract the div can't provide on its own: initial focus,
@@ -77,9 +80,9 @@ export function PlateSheet({
         onClose()
         return
       }
-      if (event.key !== 'Tab' || !dialogRef.current) return
+      if (event.key !== 'Tab' || !panelRef.current) return
       const focusables = Array.from(
-        dialogRef.current.querySelectorAll<HTMLElement>(
+        panelRef.current.querySelectorAll<HTMLElement>(
           'button:not([disabled]), input:not([disabled]), [href], [tabindex]:not([tabindex="-1"])',
         ),
       )
@@ -87,7 +90,7 @@ export function PlateSheet({
       const first = focusables[0]
       const last = focusables[focusables.length - 1]
       const active = document.activeElement
-      if (event.shiftKey && (active === first || !dialogRef.current.contains(active))) {
+      if (event.shiftKey && (active === first || !panelRef.current.contains(active))) {
         event.preventDefault()
         last.focus()
       } else if (!event.shiftKey && active === last) {
@@ -135,7 +138,6 @@ export function PlateSheet({
 
   return (
     <div
-      ref={dialogRef}
       className="fixed inset-0 z-30 flex items-end justify-center"
       role="dialog"
       aria-modal="true"
@@ -151,7 +153,10 @@ export function PlateSheet({
 
       {/* max-h + scroll: many weights + the ramp + the gear editor can exceed
           a phone viewport, and content above the fold would be unreachable. */}
-      <div className="relative max-h-[85dvh] w-full max-w-md overflow-y-auto rounded-t-2xl border-t border-x border-border bg-card px-5 pt-5 pb-safe">
+      <div
+        ref={panelRef}
+        className="relative max-h-[85dvh] w-full max-w-md overflow-y-auto rounded-t-2xl border-t border-x border-border bg-card px-5 pt-5 pb-safe"
+      >
         <div className="flex items-start justify-between gap-3 pb-1">
           <div>
             <p className="text-xs font-semibold uppercase tracking-widest text-primary">Bar &amp; plates</p>

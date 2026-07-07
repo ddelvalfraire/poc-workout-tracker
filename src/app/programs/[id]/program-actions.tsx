@@ -57,8 +57,10 @@ export function ProgramActions({
   return (
     <div className="mt-6 space-y-2">
       {isConfirming ? (
+        // Inline (non-modal) confirm — role=group, not alertdialog, since
+        // there's deliberately no focus trap: the page stays interactive.
         <div
-          role="alertdialog"
+          role="group"
           aria-label="Confirm program deletion"
           className="rounded-2xl border border-destructive/40 bg-card p-4"
         >

@@ -40,8 +40,10 @@ export function WorkoutActions({ id }: { id: string }) {
         Repeat workout
       </Link>
       {isConfirming ? (
+        // Inline (non-modal) confirm — role=group, not alertdialog, since
+        // there's deliberately no focus trap: the page stays interactive.
         <div
-          role="alertdialog"
+          role="group"
           aria-label="Confirm workout deletion"
           className="rounded-2xl border border-destructive/40 bg-card p-4"
         >
@@ -77,7 +79,12 @@ export function WorkoutActions({ id }: { id: string }) {
           >
             Edit
           </Link>
-          <Button variant="destructive" className="flex-1" onClick={() => setIsConfirming(true)}>
+          <Button
+            variant="destructive"
+            className="flex-1"
+            disabled={isPending}
+            onClick={() => setIsConfirming(true)}
+          >
             Delete
           </Button>
         </div>

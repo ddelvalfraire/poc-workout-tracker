@@ -126,25 +126,29 @@ export function WorkoutLogger({
   const [gear, setGear] = useState<Equipment>(equipment ?? DEFAULT_EQUIPMENT[unit])
   // Which exercise's plate sheet is open (by index), if any.
   const [plateSheetFor, setPlateSheetFor] = useState<number | null>(null)
-  // Just-removed exercise, held for the inline Undo window. Removing an
-  // exercise mid-workout is the app's most destructive slip (logged sets gone,
-  // autosave persists the loss within the debounce), so it must be reversible.
-  const [removed, setRemoved] = useState<{ exercise: DraftExercise; index: number } | null>(null)
+  // Just-removed exercises, held as a stack for the inline Undo window.
+  // Removing an exercise mid-workout is the app's most destructive slip
+  // (logged sets gone, autosave persists the loss within the debounce), so it
+  // must be reversible — a stack (not a single slot) so a rapid double-remove
+  // can't silently drop the first exercise's undo. Each removal restarts the
+  // shared window; Undo restores last-removed-first.
+  const [removed, setRemoved] = useState<{ exercise: DraftExercise; index: number }[]>([])
   const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   function handleRemoveExercise(index: number) {
     const exercise = draft.exercises[index]
     dispatch({ type: 'REMOVE_EXERCISE', index })
-    setRemoved({ exercise, index })
+    setRemoved((prev) => [...prev, { exercise, index }])
     if (undoTimerRef.current) clearTimeout(undoTimerRef.current)
-    undoTimerRef.current = setTimeout(() => setRemoved(null), UNDO_WINDOW_MS)
+    undoTimerRef.current = setTimeout(() => setRemoved([]), UNDO_WINDOW_MS)
   }
 
   function handleUndoRemove() {
-    if (!removed) return
-    dispatch({ type: 'INSERT_EXERCISE', index: removed.index, exercise: removed.exercise })
-    setRemoved(null)
-    if (undoTimerRef.current) clearTimeout(undoTimerRef.current)
+    const last = removed[removed.length - 1]
+    if (!last) return
+    dispatch({ type: 'INSERT_EXERCISE', index: last.index, exercise: last.exercise })
+    setRemoved((prev) => prev.slice(0, -1))
+    if (removed.length === 1 && undoTimerRef.current) clearTimeout(undoTimerRef.current)
   }
 
   useEffect(() => {
@@ -443,16 +447,19 @@ export function WorkoutLogger({
       </div>
 
       <div className="sticky bottom-0 z-10 -mx-5 border-t border-border bg-background/85 px-5 pt-3 pb-safe backdrop-blur-md">
-        {removed && (
+        {removed.length > 0 && (
           <div
             role="status"
             className="mb-3 flex items-center justify-between gap-3 rounded-xl border border-border bg-card px-4 py-2.5"
           >
             <p className="min-w-0 truncate text-sm">
-              Removed <span className="font-medium">{removed.exercise.name}</span>
+              Removed{' '}
+              <span className="font-medium">
+                {removed[removed.length - 1].exercise.name}
+              </span>
             </p>
             <Button size="sm" variant="outline" className="shrink-0" onClick={handleUndoRemove}>
-              Undo
+              {removed.length > 1 ? `Undo (${removed.length})` : 'Undo'}
             </Button>
           </div>
         )}

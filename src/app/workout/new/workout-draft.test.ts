@@ -143,6 +143,23 @@ describe('workoutDraftReducer', () => {
     expect(after.exercises).toHaveLength(1)
   })
 
+  it('INSERT_EXERCISE keeps the numeric index when the list grew meanwhile', () => {
+    // Arrange — removed from position 0, then two exercises were added
+    const removed = { id: 'ex1', ...SQUAT, sets: [] }
+    const grown: WorkoutDraft = {
+      exercises: [
+        { id: 'ex2', wgerExerciseId: 1, name: 'Bench', category: 'Chest', sets: [] },
+        { id: 'ex3', wgerExerciseId: 2, name: 'Row', category: 'Back', sets: [] },
+      ],
+    }
+
+    // Act
+    const next = workoutDraftReducer(grown, { type: 'INSERT_EXERCISE', index: 0, exercise: removed })
+
+    // Assert — original numeric position, later arrivals shift down (documented tradeoff)
+    expect(next.exercises.map((e) => e.name)).toEqual(['Squat', 'Bench', 'Row'])
+  })
+
   it('INSERT_EXERCISE clamps an out-of-range index to the end', () => {
     // Arrange — the list shrank below the original index while the undo was pending
     const removed = { id: 'ex1', ...SQUAT, sets: [] }

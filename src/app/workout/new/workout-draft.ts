@@ -39,7 +39,10 @@ export interface WorkoutDraft {
 export type DraftAction =
   | { type: 'ADD_EXERCISE'; exercise: DraftExercise }
   | { type: 'REMOVE_EXERCISE'; index: number }
-  /** Undo for REMOVE_EXERCISE: re-inserts at the original position (clamped). */
+  /** Undo for REMOVE_EXERCISE: re-inserts at the original numeric position
+   *  (clamped to the current length). If the list changed meanwhile the
+   *  exercise may land at a shifted spot — accepted tradeoff: order is
+   *  cosmetic here, the sets themselves are what the undo protects. */
   | { type: 'INSERT_EXERCISE'; index: number; exercise: DraftExercise }
   | { type: 'ADD_SET'; exerciseIndex: number; set: DraftSet }
   | {
