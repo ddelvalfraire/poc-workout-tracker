@@ -126,6 +126,104 @@ describe('workoutDraftReducer', () => {
     expect(next.exercises).toHaveLength(1)
     expect(next.exercises[0].name).toBe('Bench')
   })
+
+  it('INSERT_EXERCISE restores an exercise at its original position (undo)', () => {
+    // Arrange — ex1 was just removed from position 0
+    const removed = { id: 'ex1', ...SQUAT, sets: [{ id: 's1', reps: '5', weight: '100', completed: true }] }
+    const after: WorkoutDraft = {
+      exercises: [{ id: 'ex2', wgerExerciseId: 1, name: 'Bench', category: 'Chest', sets: [] }],
+    }
+
+    // Act
+    const next = workoutDraftReducer(after, { type: 'INSERT_EXERCISE', index: 0, exercise: removed })
+
+    // Assert — back at position 0, sets intact, prev unmutated
+    expect(next.exercises.map((e) => e.name)).toEqual(['Squat', 'Bench'])
+    expect(next.exercises[0].sets[0].completed).toBe(true)
+    expect(after.exercises).toHaveLength(1)
+  })
+
+  it('INSERT_EXERCISE keeps the numeric index when the list grew meanwhile', () => {
+    // Arrange — removed from position 0, then two exercises were added
+    const removed = { id: 'ex1', ...SQUAT, sets: [] }
+    const grown: WorkoutDraft = {
+      exercises: [
+        { id: 'ex2', wgerExerciseId: 1, name: 'Bench', category: 'Chest', sets: [] },
+        { id: 'ex3', wgerExerciseId: 2, name: 'Row', category: 'Back', sets: [] },
+      ],
+    }
+
+    // Act
+    const next = workoutDraftReducer(grown, { type: 'INSERT_EXERCISE', index: 0, exercise: removed })
+
+    // Assert — original numeric position, later arrivals shift down (documented tradeoff)
+    expect(next.exercises.map((e) => e.name)).toEqual(['Squat', 'Bench', 'Row'])
+  })
+
+  it('INSERT_EXERCISE clamps an out-of-range index to the end', () => {
+    // Arrange — the list shrank below the original index while the undo was pending
+    const removed = { id: 'ex1', ...SQUAT, sets: [] }
+
+    // Act
+    const next = workoutDraftReducer(emptyDraft, { type: 'INSERT_EXERCISE', index: 3, exercise: removed })
+
+    // Assert
+    expect(next.exercises).toEqual([removed])
+  })
+
+  it('TOGGLE_SET_COMPLETED adopts fill values for empty fields when checking off', () => {
+    // Arrange — an untouched set with ghost values available
+    const blank: WorkoutDraft = {
+      exercises: [{ id: 'ex1', ...SQUAT, sets: [{ id: 's1', reps: '', weight: '', completed: false }] }],
+    }
+
+    // Act — tap-to-accept: complete the set with the ghost's values
+    const next = workoutDraftReducer(blank, {
+      type: 'TOGGLE_SET_COMPLETED',
+      exerciseIndex: 0,
+      setIndex: 0,
+      fill: { reps: '8', weight: '100' },
+    })
+
+    // Assert
+    expect(next.exercises[0].sets[0]).toEqual({ id: 's1', reps: '8', weight: '100', completed: true })
+  })
+
+  it('TOGGLE_SET_COMPLETED fill never overwrites typed values', () => {
+    // Arrange — reps typed, weight empty
+    const partial: WorkoutDraft = {
+      exercises: [{ id: 'ex1', ...SQUAT, sets: [{ id: 's1', reps: '6', weight: '', completed: false }] }],
+    }
+
+    // Act
+    const next = workoutDraftReducer(partial, {
+      type: 'TOGGLE_SET_COMPLETED',
+      exerciseIndex: 0,
+      setIndex: 0,
+      fill: { reps: '8', weight: '100' },
+    })
+
+    // Assert — typed reps kept, empty weight adopted
+    expect(next.exercises[0].sets[0]).toEqual({ id: 's1', reps: '6', weight: '100', completed: true })
+  })
+
+  it('TOGGLE_SET_COMPLETED ignores fill when unchecking', () => {
+    // Arrange — a completed set being unchecked must not have values injected
+    const done: WorkoutDraft = {
+      exercises: [{ id: 'ex1', ...SQUAT, sets: [{ id: 's1', reps: '', weight: '', completed: true }] }],
+    }
+
+    // Act
+    const next = workoutDraftReducer(done, {
+      type: 'TOGGLE_SET_COMPLETED',
+      exerciseIndex: 0,
+      setIndex: 0,
+      fill: { reps: '8', weight: '100' },
+    })
+
+    // Assert
+    expect(next.exercises[0].sets[0]).toEqual({ id: 's1', reps: '', weight: '', completed: false })
+  })
 })
 
 describe('draftToInput', () => {

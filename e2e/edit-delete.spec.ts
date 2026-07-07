@@ -78,11 +78,14 @@ test('signed-in user can edit a set and delete a workout', async ({ page }) => {
   await page.getByLabel('Set 1 reps').fill('5')
   await page.getByLabel('Set 1 weight in kg').fill('100')
   await page.getByRole('button', { name: /save workout/i }).click()
-  await expect(page).toHaveURL('http://localhost:3000/')
+  // Save lands on the session summary (detail page); go home for History.
+  await expect(page).toHaveURL(/\/workout\/[0-9a-f-]+$/)
+  await page.goto('/')
 
-  // Open it from History and capture its id. Anchor the name so it matches the
-  // workout link and not the sibling "Repeat {name}" link in the same row.
-  await page.getByRole('link', { name: new RegExp(`^${WORKOUT_NAME}`) }).click()
+  // Open it from History and capture its id. Anchor the name AND require the
+  // " · " meta separator so it matches the History row link — not the sibling
+  // "Repeat {name}" link or the Done-Today link (whose name ends in a time).
+  await page.getByRole('link', { name: new RegExp(`^${WORKOUT_NAME}.*·`) }).click()
   await expect(page).toHaveURL(/\/workout\/[0-9a-f-]+$/)
   const detailUrl = page.url()
   const id = new URL(detailUrl).pathname.split('/').pop()!
@@ -105,8 +108,9 @@ test('signed-in user can edit a set and delete a workout', async ({ page }) => {
   expect(sets).toHaveLength(1)
   expect(sets[0].weight).toBe(105)
 
-  // Delete: accept the confirm dialog, click Delete, land home.
-  page.on('dialog', (d) => d.accept())
+  // Delete: two-step inline confirm (no native dialog), land home.
+  await page.getByRole('button', { name: /^delete$/i }).click()
+  await expect(page.getByText('Delete this workout?')).toBeVisible()
   await page.getByRole('button', { name: /^delete$/i }).click()
   await expect(page).toHaveURL('http://localhost:3000/')
 

@@ -77,7 +77,9 @@ test('logs a workout, then shows it as per-set ghost placeholders next time', as
   await page.getByLabel('Set 1 reps').fill('5')
   await page.getByLabel('Set 1 weight in kg').fill('100')
   await page.getByRole('button', { name: /save workout/i }).click()
-  await expect(page).toHaveURL('http://localhost:3000/')
+  // Save lands on the session summary (detail page); return home.
+  await expect(page).toHaveURL(/\/workout\/[0-9a-f-]+$/)
+  await page.goto('/')
 
   // --- Workout 2: same exercise → set 1 inputs ghost last time's values. ---
   await page.getByRole('link', { name: /start workout/i }).click()
@@ -101,5 +103,5 @@ test('logs a workout, then shows it as per-set ghost placeholders next time', as
   await page.getByLabel('Set 1 reps').fill('5')
   await page.getByLabel('Set 1 weight in kg').fill('102.5')
   await page.getByRole('button', { name: /save workout/i }).click()
-  await expect(page).toHaveURL('http://localhost:3000/')
+  await expect(page).toHaveURL(/\/workout\/[0-9a-f-]+$/)
 })

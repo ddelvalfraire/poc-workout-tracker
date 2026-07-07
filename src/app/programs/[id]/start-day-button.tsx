@@ -14,12 +14,15 @@ interface StartDayButtonProps {
   programDayId: string
   size?: 'sm' | 'default' | 'lg'
   label?: string
+  /** Demotes the button when another CTA owns the screen (e.g. a resume banner). */
+  variant?: 'default' | 'outline'
 }
 
 export function StartDayButton({
   programDayId,
   size = 'sm',
   label = 'Start this day',
+  variant = 'default',
 }: StartDayButtonProps) {
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
@@ -30,7 +33,9 @@ export function StartDayButton({
       try {
         setError(null)
         const { workoutId } = await startProgramDayAction(programDayId)
-        router.push(`/workout/${workoutId}`)
+        // Straight into the logger: the intent behind "Start" is to log, not
+        // to review — the read-only detail page is the post-session view.
+        router.push(`/workout/${workoutId}/edit`)
       } catch {
         setError('Could not start this day. Please try again.')
       }
@@ -39,7 +44,7 @@ export function StartDayButton({
 
   return (
     <div className="space-y-2">
-      <Button size={size} className="w-full" disabled={isPending} onClick={handleStart}>
+      <Button size={size} variant={variant} className="w-full" disabled={isPending} onClick={handleStart}>
         {isPending ? 'Starting…' : label}
       </Button>
       {error && <p className="text-sm text-destructive">{error}</p>}

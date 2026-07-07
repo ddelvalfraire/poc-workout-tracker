@@ -2,6 +2,7 @@
 
 import { useReducer, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
+import { Trash2, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ExercisePicker } from '@/app/workout/new/exercise-picker'
@@ -72,30 +73,32 @@ export function ProgramBuilder({
 
         <div className="flex gap-2">
           <Input
-            type="number"
+            type="text"
             inputMode="numeric"
-            min={1}
             placeholder="Weeks (default 1)"
             value={draft.mesocycleWeeks}
             onChange={(e) =>
               dispatch({ type: 'SET_META', field: 'mesocycleWeeks', value: e.target.value })
             }
-            aria-label="Mesocycle weeks"
+            aria-label="Program length in weeks"
             className="flex-1 tnum"
           />
           <Input
-            type="number"
+            type="text"
             inputMode="numeric"
-            min={1}
-            placeholder="Deload wk (none)"
+            placeholder="Deload week (optional)"
             value={draft.deloadWeek}
             onChange={(e) =>
               dispatch({ type: 'SET_META', field: 'deloadWeek', value: e.target.value })
             }
             aria-label="Deload week"
+            aria-describedby="deload-hint"
             className="flex-1 tnum"
           />
         </div>
+        <p id="deload-hint" className="px-1 text-sm text-muted-foreground">
+          A deload week eases the load partway through so you recover before the next block.
+        </p>
 
         {draft.days.length === 0 && (
           <p className="px-1 py-6 text-center text-sm text-muted-foreground">
@@ -122,18 +125,7 @@ export function ProgramBuilder({
                 onClick={() => dispatch({ type: 'REMOVE_DAY', index: dayIndex })}
                 aria-label={`Remove day ${dayIndex + 1}`}
               >
-                <svg
-                  aria-hidden="true"
-                  viewBox="0 0 24 24"
-                  className="size-4"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m2 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
-                </svg>
+                <Trash2 aria-hidden="true" className="size-4" />
               </Button>
             </div>
 
@@ -173,7 +165,7 @@ export function ProgramBuilder({
                     }
                     aria-label={`Remove ${exercise.name}`}
                   >
-                    ✕
+                    <X aria-hidden="true" className="size-4" />
                   </Button>
                 </div>
 
@@ -209,10 +201,8 @@ export function ProgramBuilder({
                       ).map(({ field, label, mode, value }) => (
                         <Input
                           key={field}
-                          type="number"
+                          type="text"
                           inputMode={mode}
-                          min={0}
-                          step={mode === 'decimal' ? '0.5' : undefined}
                           value={value}
                           onChange={(e) =>
                             dispatch({
@@ -239,7 +229,7 @@ export function ProgramBuilder({
                         }
                         aria-label={`Remove ${exercise.name} set ${setIndex + 1}`}
                       >
-                        ✕
+                        <X aria-hidden="true" className="size-4" />
                       </Button>
                     </div>
                   ))}

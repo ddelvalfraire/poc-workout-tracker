@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ChevronRight, RotateCcw } from "lucide-react";
 import { UserButton } from "@clerk/nextjs";
 import { requireUserId } from "@/lib/auth";
 import { listWorkoutSummaries } from "@/db/workouts";
@@ -42,7 +43,9 @@ export default async function HomePage() {
       <main className="mx-auto w-full max-w-md flex-1 px-5 pb-safe">
         {activeSession && <ResumeSessionCard session={activeSession} />}
 
-        {nextDay && <NextWorkoutCard next={nextDay} />}
+        {/* One volt CTA per screen: with a live session above, the next-day
+            card's start button demotes to outline. */}
+        {nextDay && <NextWorkoutCard next={nextDay} demoted={Boolean(activeSession)} />}
 
         {/* With a program driving the day, freestyle logging demotes to a
             secondary action; without one it stays the primary CTA. */}
@@ -132,18 +135,10 @@ export default async function HomePage() {
                         .join(" · ")}
                     </span>
                   </span>
-                  <svg
+                  <ChevronRight
                     aria-hidden="true"
-                    viewBox="0 0 24 24"
                     className="size-5 shrink-0 text-muted-foreground"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="m9 18 6-6-6-6" />
-                  </svg>
+                  />
                 </Link>
                 <Link
                   href={`/workout/new?from=${w.id}`}
@@ -153,19 +148,7 @@ export default async function HomePage() {
                     "mr-2 shrink-0 text-muted-foreground",
                   )}
                 >
-                  <svg
-                    aria-hidden="true"
-                    viewBox="0 0 24 24"
-                    className="size-5"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="M21 12a9 9 0 1 1-3-6.7L21 8" />
-                    <path d="M21 3v5h-5" />
-                  </svg>
+                  <RotateCcw aria-hidden="true" className="size-5" />
                 </Link>
               </li>
             ))}

@@ -2,6 +2,7 @@
 
 import { useSyncExternalStore } from 'react'
 import Link from 'next/link'
+import { Check } from 'lucide-react'
 
 interface TodayWorkout {
   id: string
@@ -49,18 +50,11 @@ export function TodayWorkouts({ workouts }: { workouts: TodayWorkout[] }) {
         {today.map((w) => (
           <li key={w.id}>
             <Link href={`/workout/${w.id}`} className="flex items-center gap-2 text-sm">
-              <svg
+              <Check
                 aria-hidden="true"
-                viewBox="0 0 24 24"
+                strokeWidth={2.5}
                 className="size-4 shrink-0 text-primary"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M20 6 9 17l-5-5" />
-              </svg>
+              />
               <span className="min-w-0 truncate font-medium">{w.name ?? 'Workout'}</span>
               <span className="ml-auto shrink-0 text-muted-foreground tnum">
                 {timeFormat.format(new Date(w.startedAt))}

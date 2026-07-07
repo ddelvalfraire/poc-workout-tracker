@@ -3,7 +3,7 @@
 import { useEffect, useReducer, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { useQueries, useQueryClient } from '@tanstack/react-query'
-import { Dumbbell } from 'lucide-react'
+import { Check, Dumbbell, Trash2, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -21,6 +21,7 @@ import {
   emptyDraft,
   newDraftExercise,
   newDraftSet,
+  type DraftExercise,
   type WorkoutDraft,
 } from './workout-draft'
 import { draftKey, buildDraftPayload, parseDraftPayload } from './draft-payload'
@@ -32,6 +33,15 @@ import { type WeightUnit } from '@/lib/units'
 import { cn } from '@/lib/utils'
 import { placeholderForSet, planPlaceholderForSet, type PlanSetTarget } from '@/lib/format'
 import type { LastPerformance } from '@/db/workouts'
+
+/** How long the inline "Removed — Undo" affordance stays actionable. */
+const UNDO_WINDOW_MS = 5000
+
+/** A ghost string the inputs can adopt as a real value ("8", "102.5") —
+ *  excludes display-only ghosts like the plan's "8–12" rep range. */
+function adoptable(ghost?: string): string | undefined {
+  return ghost && /^\d+(\.\d+)?$/.test(ghost) ? ghost : undefined
+}
 
 interface WorkoutLoggerProps {
   /** When set, the logger is in edit mode: Save updates this workout and returns to its detail page. */
@@ -116,6 +126,36 @@ export function WorkoutLogger({
   const [gear, setGear] = useState<Equipment>(equipment ?? DEFAULT_EQUIPMENT[unit])
   // Which exercise's plate sheet is open (by index), if any.
   const [plateSheetFor, setPlateSheetFor] = useState<number | null>(null)
+  // Just-removed exercises, held as a stack for the inline Undo window.
+  // Removing an exercise mid-workout is the app's most destructive slip
+  // (logged sets gone, autosave persists the loss within the debounce), so it
+  // must be reversible — a stack (not a single slot) so a rapid double-remove
+  // can't silently drop the first exercise's undo. Each removal restarts the
+  // shared window; Undo restores last-removed-first.
+  const [removed, setRemoved] = useState<{ exercise: DraftExercise; index: number }[]>([])
+  const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  function handleRemoveExercise(index: number) {
+    const exercise = draft.exercises[index]
+    dispatch({ type: 'REMOVE_EXERCISE', index })
+    setRemoved((prev) => [...prev, { exercise, index }])
+    if (undoTimerRef.current) clearTimeout(undoTimerRef.current)
+    undoTimerRef.current = setTimeout(() => setRemoved([]), UNDO_WINDOW_MS)
+  }
+
+  function handleUndoRemove() {
+    const last = removed[removed.length - 1]
+    if (!last) return
+    dispatch({ type: 'INSERT_EXERCISE', index: last.index, exercise: last.exercise })
+    setRemoved((prev) => prev.slice(0, -1))
+    if (removed.length === 1 && undoTimerRef.current) clearTimeout(undoTimerRef.current)
+  }
+
+  useEffect(() => {
+    return () => {
+      if (undoTimerRef.current) clearTimeout(undoTimerRef.current)
+    }
+  }, [])
 
   // Restore an interrupted session from the server draft (cross-device: a
   // session started on the phone resumes on the laptop). In edit mode this
@@ -191,7 +231,7 @@ export function WorkoutLogger({
           queryClient.invalidateQueries({ queryKey: ['last-performance'], refetchType: 'none' })
           router.push(`/workout/${workoutId}`)
         } else {
-          await saveWorkoutAction({
+          const { id } = await saveWorkoutAction({
             ...draftToInput(draft, name, unit),
             // Live session bounds: opened → saved. Without the explicit
             // completedAt the DB layer would fall back to startedAt (the
@@ -200,7 +240,9 @@ export function WorkoutLogger({
             completedAt: new Date(),
           })
           queryClient.invalidateQueries({ queryKey: ['last-performance'], refetchType: 'none' })
-          router.push('/')
+          // Land on the session summary (duration, volume, PR badges) — the
+          // finish deserves a readout, not a home-screen redirect.
+          router.push(`/workout/${id}`)
         }
       } catch {
         queue.resume() // save failed — autosave picks the latest back up
@@ -262,25 +304,17 @@ export function WorkoutLogger({
               >
                 <Dumbbell aria-hidden="true" className="size-4" />
               </Button>
+              {/* Hairline gap between the everyday utility (plates) and the
+                  destructive remove — adjacency invites mid-set slips. */}
+              <span aria-hidden="true" className="h-5 w-px shrink-0 self-center bg-border" />
               <Button
                 size="icon-sm"
                 variant="ghost"
                 className="-mr-1 shrink-0 text-muted-foreground"
-                onClick={() => dispatch({ type: 'REMOVE_EXERCISE', index: exerciseIndex })}
+                onClick={() => handleRemoveExercise(exerciseIndex)}
                 aria-label={`Remove ${exercise.name}`}
               >
-                <svg
-                  aria-hidden="true"
-                  viewBox="0 0 24 24"
-                  className="size-4"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m2 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
-                </svg>
+                <Trash2 aria-hidden="true" className="size-4" />
               </Button>
             </div>
 
@@ -317,10 +351,22 @@ export function WorkoutLogger({
                   <button
                     type="button"
                     onClick={() =>
-                      dispatch({ type: 'TOGGLE_SET_COMPLETED', exerciseIndex, setIndex })
+                      dispatch({
+                        type: 'TOGGLE_SET_COMPLETED',
+                        exerciseIndex,
+                        setIndex,
+                        // Tap-to-accept: checking off an untouched set adopts
+                        // the ghost ("do what I did last time" in one tap).
+                        // Range ghosts like "8–12" stay display-only.
+                        fill: { reps: adoptable(ghost.reps), weight: adoptable(ghost.weight) },
+                      })
                     }
                     aria-pressed={set.completed}
-                    aria-label={`Mark set ${setIndex + 1} complete`}
+                    aria-label={
+                      set.completed
+                        ? `Mark set ${setIndex + 1} incomplete`
+                        : `Mark set ${setIndex + 1} complete`
+                    }
                     className={cn(
                       'relative grid size-8 shrink-0 place-items-center rounded-full text-sm font-semibold tnum transition-colors',
                       // Invisible inset expands the tap target toward HIG size
@@ -333,26 +379,14 @@ export function WorkoutLogger({
                     )}
                   >
                     {set.completed ? (
-                      <svg
-                        aria-hidden="true"
-                        viewBox="0 0 24 24"
-                        className="size-4"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="3"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      >
-                        <path d="M20 6 9 17l-5-5" />
-                      </svg>
+                      <Check aria-hidden="true" strokeWidth={3} className="size-4" />
                     ) : (
                       setIndex + 1
                     )}
                   </button>
                   <Input
-                    type="number"
+                    type="text"
                     inputMode="numeric"
-                    min={0}
                     placeholder={ghost.reps}
                     value={set.reps}
                     onChange={(e) =>
@@ -368,10 +402,8 @@ export function WorkoutLogger({
                     className="flex-1 text-center tnum"
                   />
                   <Input
-                    type="number"
+                    type="text"
                     inputMode="decimal"
-                    min={0}
-                    step="0.5"
                     placeholder={ghost.weight}
                     value={set.weight}
                     onChange={(e) =>
@@ -393,7 +425,7 @@ export function WorkoutLogger({
                     onClick={() => dispatch({ type: 'REMOVE_SET', exerciseIndex, setIndex })}
                     aria-label={`Remove set ${setIndex + 1}`}
                   >
-                    ✕
+                    <X aria-hidden="true" className="size-4" />
                   </Button>
                 </div>
                 )
@@ -415,6 +447,22 @@ export function WorkoutLogger({
       </div>
 
       <div className="sticky bottom-0 z-10 -mx-5 border-t border-border bg-background/85 px-5 pt-3 pb-safe backdrop-blur-md">
+        {removed.length > 0 && (
+          <div
+            role="status"
+            className="mb-3 flex items-center justify-between gap-3 rounded-xl border border-border bg-card px-4 py-2.5"
+          >
+            <p className="min-w-0 truncate text-sm">
+              Removed{' '}
+              <span className="font-medium">
+                {removed[removed.length - 1].exercise.name}
+              </span>
+            </p>
+            <Button size="sm" variant="outline" className="shrink-0" onClick={handleUndoRemove}>
+              {removed.length > 1 ? `Undo (${removed.length})` : 'Undo'}
+            </Button>
+          </div>
+        )}
         <Button
           size="lg"
           className="w-full font-semibold uppercase tracking-wide"

@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { requireUserId } from '@/lib/auth'
 import { listPrograms } from '@/db/programs'
 import { AppHeader } from '@/components/app-header'
@@ -19,18 +20,7 @@ export default async function ProgramsPage() {
             aria-label="Back"
             className={cn(buttonVariants({ variant: 'ghost', size: 'icon-sm' }), '-ml-2')}
           >
-            <svg
-              aria-hidden="true"
-              viewBox="0 0 24 24"
-              className="size-5"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="m15 18-6-6 6-6" />
-            </svg>
+            <ChevronLeft aria-hidden="true" className="size-5" />
           </Link>
         }
       />
@@ -77,18 +67,10 @@ export default async function ProgramsPage() {
                       · {program.mesocycleWeeks}-wk cycle
                     </span>
                   </span>
-                  <svg
+                  <ChevronRight
                     aria-hidden="true"
-                    viewBox="0 0 24 24"
                     className="size-5 shrink-0 text-muted-foreground"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="m9 18 6-6-6-6" />
-                  </svg>
+                  />
                 </Link>
               </li>
             ))}
