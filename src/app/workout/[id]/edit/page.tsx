@@ -62,6 +62,8 @@ export default async function EditWorkoutPage({
 
   return (
     <div className="flex min-h-[100dvh] flex-col">
+      {/* Header action says "Close", not "Cancel": the autosaved draft
+          survives and resumes from the home banner — nothing is cancelled. */}
       <AppHeader
         title="Edit Workout"
         trailing={
@@ -69,7 +71,7 @@ export default async function EditWorkoutPage({
             href={`/workout/${id}`}
             className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }))}
           >
-            Cancel
+            Close
           </Link>
         }
       />

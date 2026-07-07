@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
+import { ChevronLeft } from 'lucide-react'
 import { requireUserId } from '@/lib/auth'
 import { getProgramDetail, nextProgramWeek, deriveDayPrescription } from '@/db/programs'
 import { getWeightUnit } from '@/db/preferences'
@@ -49,18 +50,7 @@ export default async function ProgramDetailPage({
             aria-label="Back"
             className={cn(buttonVariants({ variant: 'ghost', size: 'icon-sm' }), '-ml-2')}
           >
-            <svg
-              aria-hidden="true"
-              viewBox="0 0 24 24"
-              className="size-5"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="m15 18-6-6 6-6" />
-            </svg>
+            <ChevronLeft aria-hidden="true" className="size-5" />
           </Link>
         }
         trailing={

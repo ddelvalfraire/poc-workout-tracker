@@ -22,7 +22,7 @@ export function ResumeSessionCard({ session }: { session: ActiveSession }) {
         {/* Pulsing dot: the one place motion earns its keep on this screen —
             "live right now", not decoration. */}
         <span aria-hidden="true" className="relative flex size-2">
-          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-60" />
+          <span className="absolute inline-flex h-full w-full motion-safe:animate-ping rounded-full bg-primary opacity-60" />
           <span className="relative inline-flex size-2 rounded-full bg-primary" />
         </span>
         Workout in progress

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { ChevronLeft } from "lucide-react";
 import { requireUserId } from "@/lib/auth";
 import { getWorkoutDetail, getExerciseHistoryBefore } from "@/db/workouts";
 import { getWeightUnit } from "@/db/preferences";
@@ -88,18 +89,7 @@ export default async function WorkoutDetailPage({
             aria-label="Back"
             className={cn(buttonVariants({ variant: "ghost", size: "icon-sm" }), "-ml-2")}
           >
-            <svg
-              aria-hidden="true"
-              viewBox="0 0 24 24"
-              className="size-5"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="m15 18-6-6 6-6" />
-            </svg>
+            <ChevronLeft aria-hidden="true" className="size-5" />
           </Link>
         }
       />
@@ -185,14 +175,15 @@ export default async function WorkoutDetailPage({
   );
 }
 
-/** One tile of the session stat row: big tabular value over a small label. */
+/** One tile of the session stat row: big tabular value over a small label.
+ *  DOM keeps the valid dt→dd order; flex-col-reverse renders value on top. */
 function Stat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="border-l border-border px-4 py-3 first:border-l-0">
-      <dd className="tnum text-xl font-semibold">{value}</dd>
+    <div className="flex flex-col-reverse border-l border-border px-4 py-3 first:border-l-0">
       <dt className="mt-0.5 text-[11px] font-medium uppercase tracking-widest text-muted-foreground">
         {label}
       </dt>
+      <dd className="tnum text-3xl font-semibold tracking-tight">{value}</dd>
     </div>
   );
 }

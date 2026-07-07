@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { Timer } from 'lucide-react'
 import { formatElapsed } from '@/lib/format'
 
 /**
@@ -26,19 +27,7 @@ export function SessionClock({ startedAt }: { startedAt: Date }) {
 
   return (
     <p className="flex items-center gap-1.5 px-1 text-sm font-semibold tnum text-muted-foreground">
-      <svg
-        aria-hidden="true"
-        viewBox="0 0 24 24"
-        className="size-3.5"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      >
-        <circle cx="12" cy="13" r="8" />
-        <path d="M12 9v4l2.5 2.5M9 2h6" />
-      </svg>
+      <Timer aria-hidden="true" className="size-3.5" />
       <span aria-label="Session time">{label}</span>
     </p>
   )
