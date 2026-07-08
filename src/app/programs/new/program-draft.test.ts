@@ -7,6 +7,9 @@ import {
   newDraftProgramDay,
   newDraftProgramExercise,
   newDraftProgramSet,
+  buildStoredProgramDraft,
+  parseStoredProgramDraft,
+  STORED_PROGRAM_DRAFT_TTL_MS,
   type DraftProgramSet,
   type ProgramDraft,
 } from './program-draft'
@@ -144,6 +147,73 @@ describe('programDraftReducer', () => {
     expect(next.deloadWeek).toBe('')
     expect(next.name).toBe('PPL')
     expect(next.days).toBe(NESTED.days)
+  })
+})
+
+describe('programDraftReducer RESTORE_DRAFT', () => {
+  it('replaces the whole state with the provided draft', () => {
+    const next = programDraftReducer(emptyProgramDraft, { type: 'RESTORE_DRAFT', draft: NESTED })
+    expect(next).toBe(NESTED)
+  })
+})
+
+describe('stored program draft (localStorage persistence)', () => {
+  const NOW = new Date('2026-07-08T10:00:00Z')
+
+  it('round-trips a draft through build → parse', () => {
+    // Act
+    const raw = buildStoredProgramDraft(NESTED, NOW)
+    const restored = parseStoredProgramDraft(raw, NOW)
+
+    // Assert — full fidelity, pass-through fields included
+    expect(restored).toEqual(NESTED)
+  })
+
+  it('rejects an expired draft', () => {
+    // Arrange — saved just past the TTL
+    const raw = buildStoredProgramDraft(NESTED, NOW)
+    const later = new Date(NOW.getTime() + STORED_PROGRAM_DRAFT_TTL_MS + 1)
+
+    // Act / Assert
+    expect(parseStoredProgramDraft(raw, later)).toBeNull()
+  })
+
+  it('rejects malformed JSON and wrong shapes', () => {
+    expect(parseStoredProgramDraft('not json', NOW)).toBeNull()
+    expect(parseStoredProgramDraft('{}', NOW)).toBeNull()
+    expect(parseStoredProgramDraft(JSON.stringify({ v: 99, savedAt: NOW.toISOString(), draft: NESTED }), NOW)).toBeNull()
+    expect(
+      parseStoredProgramDraft(
+        JSON.stringify({ v: 1, savedAt: NOW.toISOString(), draft: { name: 5, days: 'nope' } }),
+        NOW,
+      ),
+    ).toBeNull()
+  })
+
+  it('rejects a draft whose nested rows are malformed', () => {
+    // Arrange — a set with a numeric repMin (must be an input string)
+    const bad = {
+      ...NESTED,
+      days: [
+        {
+          ...NESTED.days[0],
+          exercises: [
+            {
+              ...NESTED.days[0].exercises[0],
+              sets: [{ ...draftSet('s1'), repMin: 5 }],
+            },
+          ],
+        },
+      ],
+    }
+
+    // Act / Assert
+    expect(
+      parseStoredProgramDraft(
+        JSON.stringify({ v: 1, savedAt: NOW.toISOString(), draft: bad }),
+        NOW,
+      ),
+    ).toBeNull()
   })
 })
 

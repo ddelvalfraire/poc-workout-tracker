@@ -16,7 +16,7 @@ export default async function NewProgramPage() {
         title="New Program"
         trailing={
           <Link href="/programs" className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }))}>
-            Cancel
+            Close
           </Link>
         }
       />
