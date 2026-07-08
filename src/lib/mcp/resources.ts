@@ -7,7 +7,7 @@ import { buildWorkoutPayload } from './read-tools'
 import { buildProgramPayload } from './program-tools'
 import { getWorkoutDetail } from '@/db/workouts'
 import { getProgramDetail, getProgramDayDetail } from '@/db/programs'
-import { getWeightUnit } from '@/db/preferences'
+import { getWeightUnit, getBodyweightKg } from '@/db/preferences'
 
 /**
  * Registers read-only MCP resources — the addressable, URI-referenced surface of
@@ -48,12 +48,23 @@ export function registerResources(server: McpServer): void {
         if (!workout) {
           throw new ToolError(`Workout ${id} not found for user ${resolved}`)
         }
-        const unit = await getWeightUnit(resolved)
+        // Bodyweight fetched once per request, like the unit — the load basis
+        // for bodyweight-type exercises' estimated 1RM (same as get_workout).
+        const [unit, bodyweightKg] = await Promise.all([
+          getWeightUnit(resolved),
+          getBodyweightKg(resolved),
+        ])
         // Overlay the program day prescription when this workout was instantiated.
         const programDay = workout.programDayId
           ? await getProgramDayDetail(resolved, workout.programDayId)
           : null
-        const payload = buildWorkoutPayload(workout, resolved, unit, programDay ?? undefined)
+        const payload = buildWorkoutPayload(
+          workout,
+          resolved,
+          unit,
+          bodyweightKg,
+          programDay ?? undefined,
+        )
         return {
           contents: [{ uri: uri.href, mimeType: 'application/json', text: JSON.stringify(payload) }],
         }

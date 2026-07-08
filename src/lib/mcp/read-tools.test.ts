@@ -7,13 +7,13 @@ vi.mock('@/db/workouts', () => ({
   getLastPerformance: vi.fn(),
 }))
 vi.mock('@/db/programs', () => ({ getProgramDayDetail: vi.fn() }))
-vi.mock('@/db/preferences', () => ({ getWeightUnit: vi.fn() }))
+vi.mock('@/db/preferences', () => ({ getWeightUnit: vi.fn(), getBodyweightKg: vi.fn() }))
 vi.mock('@/lib/wger', () => ({ searchExercises: vi.fn() }))
 
 import { registerReadTools } from './read-tools'
 import { listWorkoutSummaries, getWorkoutDetail, getLastPerformance } from '@/db/workouts'
 import { getProgramDayDetail } from '@/db/programs'
-import { getWeightUnit } from '@/db/preferences'
+import { getWeightUnit, getBodyweightKg } from '@/db/preferences'
 import { searchExercises } from '@/lib/wger'
 import { kgToDisplay } from '@/lib/units'
 import { estimate1RM } from '@/lib/one-rep-max'
@@ -23,6 +23,7 @@ const mockedDetail = vi.mocked(getWorkoutDetail)
 const mockedLast = vi.mocked(getLastPerformance)
 const mockedProgramDay = vi.mocked(getProgramDayDetail)
 const mockedUnit = vi.mocked(getWeightUnit)
+const mockedBodyweight = vi.mocked(getBodyweightKg)
 const mockedSearch = vi.mocked(searchExercises)
 
 type ToolResult = { content: { type: string; text: string }[]; isError?: boolean }
@@ -60,6 +61,7 @@ describe('registerReadTools', () => {
     vi.clearAllMocks()
     process.env.MCP_DEV_USER_ID = 'user_env'
     mockedUnit.mockResolvedValue('lb')
+    mockedBodyweight.mockResolvedValue(null) // no stored bodyweight by default
   })
   afterEach(() => {
     if (original === undefined) delete process.env.MCP_DEV_USER_ID
@@ -176,6 +178,7 @@ describe('registerReadTools', () => {
             wgerExerciseId: 73,
             name: 'Squat',
             position: 0,
+            loggingType: 'weight_reps',
             sets: [
               { setNumber: 1, reps: 5, weight: 100 },
               { setNumber: 2, reps: null, weight: null },
@@ -216,6 +219,72 @@ describe('registerReadTools', () => {
       expect(ex.sets[1]!.weight).toBeNull()
       expect(ex.sets[1]!.reps).toBeNull()
       expect(ex.estimated1RM).toBe(kgToDisplay(estimate1RM(5, 100)!, 'lb'))
+    })
+
+    it('surfaces loggingType and falls back to bestReps for an unscoreable BW exercise', async () => {
+      // Arrange — a pull-up logged by reps only, with NO stored bodyweight
+      const tools = setup()
+      mockedDetail.mockResolvedValue({
+        ...detail(),
+        exercises: [
+          {
+            id: 'we1',
+            wgerExerciseId: 181,
+            name: 'Pull-up',
+            position: 0,
+            loggingType: 'bodyweight_reps',
+            sets: [
+              { setNumber: 1, reps: 8, weight: null },
+              { setNumber: 2, reps: 12, weight: null },
+            ],
+          },
+        ],
+      } as unknown as Awaited<ReturnType<typeof getWorkoutDetail>>)
+
+      // Act
+      const result = await tools.get('get_workout')!({ id: '11111111-1111-4111-8111-111111111111' })
+
+      // Assert — no load to estimate from, but the top set still surfaces
+      const body = payload(result) as {
+        workout: {
+          exercises: { loggingType: string; estimated1RM: number | null; bestReps?: number }[]
+        }
+      }
+      const ex = body.workout.exercises[0]!
+      expect(ex.loggingType).toBe('bodyweight_reps')
+      expect(ex.estimated1RM).toBeNull()
+      expect(ex.bestReps).toBe(12)
+    })
+
+    it('scores a BW exercise over the effective load when bodyweight is stored', async () => {
+      // Arrange — same pull-up, but the user weighs 80 kg
+      const tools = setup()
+      mockedBodyweight.mockResolvedValue(80)
+      mockedDetail.mockResolvedValue({
+        ...detail(),
+        exercises: [
+          {
+            id: 'we1',
+            wgerExerciseId: 181,
+            name: 'Pull-up',
+            position: 0,
+            loggingType: 'bodyweight_reps',
+            sets: [{ setNumber: 1, reps: 8, weight: null }],
+          },
+        ],
+      } as unknown as Awaited<ReturnType<typeof getWorkoutDetail>>)
+
+      // Act
+      const result = await tools.get('get_workout')!({ id: '11111111-1111-4111-8111-111111111111' })
+
+      // Assert — 8 reps at 80 kg effective, rendered in lb
+      const body = payload(result) as {
+        workout: { exercises: { estimated1RM: number | null; bestReps?: number }[] }
+      }
+      expect(body.workout.exercises[0]!.estimated1RM).toBe(
+        kgToDisplay(estimate1RM(8, 80)!, 'lb'),
+      )
+      expect(body.workout.exercises[0]!.bestReps).toBeUndefined()
     })
 
     it('returns weights verbatim when the unit is kg', async () => {

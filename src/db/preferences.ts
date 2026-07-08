@@ -54,3 +54,30 @@ export async function setEquipment(userId: string, equipment: StoredEquipment): 
       set: { equipment, updatedAt: new Date() },
     })
 }
+
+/**
+ * The user's bodyweight in canonical kg, or null when never set. The column is
+ * numeric but stored data is still guarded: a non-finite or non-positive value
+ * reads as null, so bodyweight scoring degrades to the rep fallback instead of
+ * producing a nonsense estimated 1RM.
+ */
+export async function getBodyweightKg(userId: string): Promise<number | null> {
+  const [row] = await db
+    .select({ bodyweightKg: userPreferences.bodyweightKg })
+    .from(userPreferences)
+    .where(eq(userPreferences.userId, userId))
+    .limit(1)
+  const value = row?.bodyweightKg ?? null
+  return value !== null && Number.isFinite(value) && value > 0 ? value : null
+}
+
+/** Upserts the user's bodyweight in kg (validated by setBodyweightAction). */
+export async function setBodyweight(userId: string, bodyweightKg: number): Promise<void> {
+  await db
+    .insert(userPreferences)
+    .values({ userId, bodyweightKg })
+    .onConflictDoUpdate({
+      target: userPreferences.userId,
+      set: { bodyweightKg, updatedAt: new Date() },
+    })
+}

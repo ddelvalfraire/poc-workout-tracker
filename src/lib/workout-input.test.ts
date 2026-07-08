@@ -156,6 +156,45 @@ describe('parseWorkoutInput', () => {
     ).toThrow(/weight/i)
   })
 
+  describe('loggingType', () => {
+    it('omits loggingType when absent (legacy payloads default at the column)', () => {
+      // Act
+      const result = parseWorkoutInput(VALID)
+
+      // Assert
+      expect(result.exercises[0]).not.toHaveProperty('loggingType')
+    })
+
+    it.each(['weight_reps', 'bodyweight_reps', 'weighted_bodyweight', 'assisted_bodyweight'])(
+      'keeps a whitelisted loggingType (%s)',
+      (loggingType) => {
+        // Act
+        const result = parseWorkoutInput({
+          exercises: [{ wgerExerciseId: 1, name: 'Pull-up', loggingType, sets: [] }],
+        })
+
+        // Assert
+        expect(result.exercises[0].loggingType).toBe(loggingType)
+      },
+    )
+
+    it('throws for a non-whitelisted loggingType', () => {
+      expect(() =>
+        parseWorkoutInput({
+          exercises: [{ wgerExerciseId: 1, name: 'Pull-up', loggingType: 'machine', sets: [] }],
+        }),
+      ).toThrow(/loggingType must be one of/i)
+    })
+
+    it('throws for a non-string loggingType', () => {
+      expect(() =>
+        parseWorkoutInput({
+          exercises: [{ wgerExerciseId: 1, name: 'Pull-up', loggingType: 3, sets: [] }],
+        }),
+      ).toThrow(/loggingType/i)
+    })
+  })
+
   it('throws when a set is not an object', () => {
     expect(() =>
       parseWorkoutInput({ exercises: [{ wgerExerciseId: 1, name: 'Squat', sets: ['bad'] }] }),

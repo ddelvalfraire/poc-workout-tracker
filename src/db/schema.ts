@@ -15,6 +15,7 @@ import {
 import { relations, sql } from 'drizzle-orm'
 import type { Technique, Progression, SetType, MetricMode } from '@/lib/program-input'
 import type { ExerciseSource, ExerciseCategory } from '@/lib/custom-exercise-input'
+import type { LoggingType } from '@/lib/workout-input'
 
 export const workouts = pgTable(
   'workouts',
@@ -51,6 +52,11 @@ export const workoutExercises = pgTable(
     source: text('source').$type<ExerciseSource>().notNull().default('wger'),
     name: text('name').notNull(), // denormalized from wger
     position: integer('position').notNull().default(0),
+    // How this exercise's sets read their `weight` column (Hevy-style):
+    // total load / ignored / added to bodyweight / subtracted assistance.
+    // Additive + defaulted so every existing row stays a plain weight×reps
+    // exercise. Text + app-level enum, like `source` and `set_type`.
+    loggingType: text('logging_type').$type<LoggingType>().notNull().default('weight_reps'),
   },
   // The durable kill for the spike's negative-ID stopgap: customs live in
   // custom_exercises with the source discriminator, never as sign-bit tricks.
@@ -88,6 +94,11 @@ export const userPreferences = pgTable('user_preferences', {
   // Plate-calculator gear ({ unit, bars, plates } — see lib/equipment.ts).
   // Nullable: readers default per unit; stored unit-native, never converted.
   equipment: jsonb('equipment'),
+  // The user's bodyweight in canonical kg — the load basis for bodyweight
+  // logging types. Nullable: unset means bodyweight exercises score by reps
+  // instead of estimated 1RM. numeric(5,2) caps at 999.99 kg; the action
+  // boundary enforces a tighter 500 kg sanity ceiling.
+  bodyweightKg: numeric('bodyweight_kg', { precision: 5, scale: 2, mode: 'number' }),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 })
 

@@ -232,7 +232,9 @@ describe('instantiateProgramDay (engine-driven)', () => {
 
   it('derives the rpe-target load from batched history e1RM', async () => {
     // Arrange — best set 100×5 → e1RM 116.67; 5 @ RPE 8 = 81.1%
-    historyBefore.mockResolvedValue([{ wgerExerciseId: 1, reps: 5, weight: 100 }])
+    historyBefore.mockResolvedValue([
+      { wgerExerciseId: 1, reps: 5, weight: 100, loggingType: 'weight_reps' },
+    ])
     findFirst.mockResolvedValue(
       dayFixture({
         progression: { scheme: 'rpe-target', targetRpe: 8 },
@@ -245,6 +247,26 @@ describe('instantiateProgramDay (engine-driven)', () => {
 
     // Assert
     expect(seededSets()[0].weight).toBeCloseTo(100 * (1 + 5 / 30) * 0.811, 3)
+  })
+
+  it('excludes bodyweight-type history rows from the e1RM derivation', async () => {
+    // Arrange — the only history is weighted-BW: its `weight` (25) is ADDED
+    // load, not total, so it must not anchor an absolute-load prescription.
+    historyBefore.mockResolvedValue([
+      { wgerExerciseId: 1, reps: 8, weight: 25, loggingType: 'weighted_bodyweight' },
+    ])
+    findFirst.mockResolvedValue(
+      dayFixture({
+        progression: { scheme: 'rpe-target', targetRpe: 8 },
+        sets: [{ setNumber: 1, repMax: 5 }],
+      }),
+    )
+
+    // Act
+    await instantiateProgramDay(USER, 'd1', 1)
+
+    // Assert — no admissible history → no derived load
+    expect(seededSets()[0].weight).toBeNull()
   })
 
   it('grows the seeded set count for weekly-volume', async () => {

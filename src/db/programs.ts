@@ -435,7 +435,13 @@ export async function deriveDayPrescription(
 
   const e1rmById = new Map<number, number | null>()
   for (const id of ids) {
-    const rows = historyRows.filter((r) => r.wgerExerciseId === id)
+    // weight_reps rows only: for BW-type rows `weight` is added/assisted
+    // load, not total — feeding it to bestSet would deflate the e1RM the
+    // prescription math anchors on. Program prescriptions are absolute
+    // loads, so only absolute-load history is admissible.
+    const rows = historyRows.filter(
+      (r) => r.wgerExerciseId === id && r.loggingType === 'weight_reps',
+    )
     e1rmById.set(id, bestSet(rows)?.e1rm ?? null)
   }
 

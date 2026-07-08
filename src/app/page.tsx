@@ -5,12 +5,14 @@ import { requireUserId } from "@/lib/auth";
 import { listWorkoutSummaries } from "@/db/workouts";
 import { listWorkoutDrafts } from "@/db/workout-drafts";
 import { getNextProgramDay } from "@/db/programs";
-import { getWeightUnit } from "@/db/preferences";
+import { getWeightUnit, getBodyweightKg } from "@/db/preferences";
+import { kgToDisplay } from "@/lib/units";
 import { pickActiveSession } from "@/lib/active-session";
 import { formatWorkoutDate, formatVolume, formatWorkoutDuration } from "@/lib/format";
 import { startedWithinLastHours } from "@/lib/recent-window";
 import { buttonVariants } from "@/components/ui/button";
 import { UnitToggle } from "@/components/unit-toggle";
+import { BodyweightEditor } from "@/components/bodyweight-editor";
 import { cn } from "@/lib/utils";
 import { NextWorkoutCard } from "./next-workout-card";
 import { ResumeSessionCard } from "./resume-session-card";
@@ -18,9 +20,10 @@ import { TodayWorkouts } from "./today-workouts";
 
 export default async function HomePage() {
   const userId = await requireUserId(); // middleware also guards; this is defense-in-depth
-  const [summaries, unit, nextDay, drafts] = await Promise.all([
+  const [summaries, unit, bodyweightKg, nextDay, drafts] = await Promise.all([
     listWorkoutSummaries(userId),
     getWeightUnit(userId),
+    getBodyweightKg(userId),
     getNextProgramDay(userId),
     listWorkoutDrafts(userId),
   ]);
@@ -34,6 +37,13 @@ export default async function HomePage() {
         <div className="mx-auto flex w-full max-w-md items-center justify-between px-5 pb-3">
           <h1 className="text-2xl font-bold uppercase tracking-tight">Workout Tracker</h1>
           <div className="flex items-center gap-2">
+            {/* Bodyweight sits with the unit toggle: both are the same kind of
+                lightweight measurement preference, and BW-type exercises need
+                it before they can score an estimated 1RM. */}
+            <BodyweightEditor
+              bodyweightDisplay={bodyweightKg !== null ? kgToDisplay(bodyweightKg, unit) : null}
+              unit={unit}
+            />
             <UnitToggle unit={unit} />
             <UserButton />
           </div>

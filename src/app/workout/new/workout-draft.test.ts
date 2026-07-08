@@ -10,7 +10,7 @@ import {
 } from './workout-draft'
 import type { WorkoutDetail } from '@/db/workouts'
 
-const SQUAT = { wgerExerciseId: 73, name: 'Squat', category: 'Legs' }
+const SQUAT = { wgerExerciseId: 73, name: 'Squat', category: 'Legs', loggingType: 'weight_reps' as const }
 
 /** A draft with one exercise and two sets, for nested-update assertions. */
 const NESTED: WorkoutDraft = {
@@ -102,6 +102,38 @@ describe('workoutDraftReducer', () => {
     expect(back.exercises[0].sets[1].completed).toBe(false)
   })
 
+  it('SET_LOGGING_TYPE switches the targeted exercise and clears its typed weights', () => {
+    // Act
+    const next = workoutDraftReducer(NESTED, {
+      type: 'SET_LOGGING_TYPE',
+      exerciseIndex: 0,
+      loggingType: 'weighted_bodyweight',
+    })
+
+    // Assert — type switched; weights cleared (a number typed as total load
+    // must not be silently re-read as added/assisted load); reps and
+    // completion kept; prev unmutated
+    expect(next.exercises[0].loggingType).toBe('weighted_bodyweight')
+    for (const [i, set] of next.exercises[0].sets.entries()) {
+      expect(set.weight).toBe('')
+      expect(set.reps).toBe(NESTED.exercises[0].sets[i].reps)
+      expect(set.completed).toBe(NESTED.exercises[0].sets[i].completed)
+    }
+    expect(NESTED.exercises[0].loggingType).toBe('weight_reps')
+  })
+
+  it('SET_LOGGING_TYPE leaves other exercises untouched', () => {
+    // Act
+    const next = workoutDraftReducer(NESTED, {
+      type: 'SET_LOGGING_TYPE',
+      exerciseIndex: 0,
+      loggingType: 'bodyweight_reps',
+    })
+
+    // Assert
+    expect(next.exercises.slice(1)).toEqual(NESTED.exercises.slice(1))
+  })
+
   it('RESTORE_DRAFT replaces the whole state with the provided draft', () => {
     // Act
     const next = workoutDraftReducer(emptyDraft, { type: 'RESTORE_DRAFT', draft: NESTED })
@@ -115,7 +147,7 @@ describe('workoutDraftReducer', () => {
     const two: WorkoutDraft = {
       exercises: [
         { id: 'ex1', ...SQUAT, sets: [] },
-        { id: 'ex2', wgerExerciseId: 1, name: 'Bench', category: 'Chest', sets: [] },
+        { id: 'ex2', wgerExerciseId: 1, name: 'Bench', category: 'Chest', loggingType: 'weight_reps', sets: [] },
       ],
     }
 
@@ -131,7 +163,7 @@ describe('workoutDraftReducer', () => {
     // Arrange — ex1 was just removed from position 0
     const removed = { id: 'ex1', ...SQUAT, sets: [{ id: 's1', reps: '5', weight: '100', completed: true }] }
     const after: WorkoutDraft = {
-      exercises: [{ id: 'ex2', wgerExerciseId: 1, name: 'Bench', category: 'Chest', sets: [] }],
+      exercises: [{ id: 'ex2', wgerExerciseId: 1, name: 'Bench', category: 'Chest', loggingType: 'weight_reps', sets: [] }],
     }
 
     // Act
@@ -148,8 +180,8 @@ describe('workoutDraftReducer', () => {
     const removed = { id: 'ex1', ...SQUAT, sets: [] }
     const grown: WorkoutDraft = {
       exercises: [
-        { id: 'ex2', wgerExerciseId: 1, name: 'Bench', category: 'Chest', sets: [] },
-        { id: 'ex3', wgerExerciseId: 2, name: 'Row', category: 'Back', sets: [] },
+        { id: 'ex2', wgerExerciseId: 1, name: 'Bench', category: 'Chest', loggingType: 'weight_reps', sets: [] },
+        { id: 'ex3', wgerExerciseId: 2, name: 'Row', category: 'Back', loggingType: 'weight_reps', sets: [] },
       ],
     }
 
@@ -330,6 +362,30 @@ describe('draftToInput', () => {
     expect(input.exercises[0].sets[1]).toEqual({ reps: 5, weight: 100 })
   })
 
+  it('emits each exercise\'s loggingType on the wire', () => {
+    // Arrange — a bodyweight exercise alongside the default
+    const draft: WorkoutDraft = {
+      exercises: [
+        { id: 'ex1', ...SQUAT, sets: [] },
+        {
+          id: 'ex2',
+          wgerExerciseId: 1,
+          name: 'Pull-up',
+          category: 'Back',
+          loggingType: 'bodyweight_reps',
+          sets: [],
+        },
+      ],
+    }
+
+    // Act
+    const input = draftToInput(draft)
+
+    // Assert
+    expect(input.exercises[0].loggingType).toBe('weight_reps')
+    expect(input.exercises[1].loggingType).toBe('bodyweight_reps')
+  })
+
   it('keeps a trimmed name and drops a blank one', () => {
     // Act
     const named = draftToInput(emptyDraft, '  Leg Day  ')
@@ -374,6 +430,7 @@ describe('detailToDraft', () => {
           source: 'wger',
           name: 'Squat',
           position: 0,
+          loggingType: 'weight_reps',
           sets: [
             { id: 's1', workoutExerciseId: 'ex1', setNumber: 1, reps: 5, weight: 2.5, completed: false, metricMode: 'reps_weight', durationSec: null, distanceM: null },
             { id: 's2', workoutExerciseId: 'ex1', setNumber: 2, reps: null, weight: null, completed: false, metricMode: 'reps_weight', durationSec: null, distanceM: null },
@@ -387,7 +444,14 @@ describe('detailToDraft', () => {
 
     // Assert
     expect(name).toBe('Leg Day')
-    expect(draft.exercises[0]).toMatchObject({ id: 'ex1', wgerExerciseId: 73, name: 'Squat', category: '' })
+    // The persisted logging type rides along so edit mode renders the right inputs.
+    expect(draft.exercises[0]).toMatchObject({
+      id: 'ex1',
+      wgerExerciseId: 73,
+      name: 'Squat',
+      category: '',
+      loggingType: 'weight_reps',
+    })
     expect(draft.exercises[0].sets).toEqual([
       { id: 's1', reps: '5', weight: '2.5', completed: false },
       { id: 's2', reps: '', weight: '', completed: false },
@@ -413,6 +477,7 @@ describe('detailToDraft', () => {
           source: 'wger',
           name: 'Squat',
           position: 0,
+          loggingType: 'weight_reps',
           sets: [
             { id: 's1', workoutExerciseId: 'ex1', setNumber: 1, reps: 5, weight: 100, completed: true, metricMode: 'reps_weight', durationSec: null, distanceM: null },
           ],
@@ -446,6 +511,7 @@ describe('detailToDraft', () => {
           source: 'wger',
           name: 'Squat',
           position: 0,
+          loggingType: 'weight_reps',
           sets: [
             { id: 's1', workoutExerciseId: 'ex1', setNumber: 1, reps: 5, weight: 100, completed: false, metricMode: 'reps_weight', durationSec: null, distanceM: null },
           ],
@@ -484,7 +550,9 @@ describe('id factories', () => {
     // Act
     const exercise = newDraftExercise(SQUAT)
 
-    // Assert — picked fields preserved, one empty set, ids present and unique
+    // Assert — picked fields preserved, weight_reps default, one empty set,
+    // ids present and unique
+    expect(exercise.loggingType).toBe('weight_reps')
     expect(exercise).toMatchObject({ ...SQUAT, sets: [{ reps: '', weight: '' }] })
     expect(exercise.id).toBeTruthy()
     expect(exercise.sets[0].id).toBeTruthy()

@@ -1,5 +1,5 @@
 import { and, asc, count, countDistinct, desc, eq, gt, inArray, lt, max, ne, sql } from 'drizzle-orm'
-import type { WorkoutInput } from '@/lib/workout-input'
+import type { WorkoutInput, LoggingType } from '@/lib/workout-input'
 import { db } from './index'
 import { workouts, workoutExercises, sets } from './schema'
 
@@ -102,13 +102,18 @@ export async function getExerciseHistoryBefore(
   userId: string,
   wgerExerciseIds: number[],
   before: Date,
-): Promise<{ wgerExerciseId: number; reps: number | null; weight: number | null }[]> {
+): Promise<
+  { wgerExerciseId: number; reps: number | null; weight: number | null; loggingType: LoggingType }[]
+> {
   if (wgerExerciseIds.length === 0) return []
   return db
     .select({
       wgerExerciseId: workoutExercises.wgerExerciseId,
       reps: sets.reps,
       weight: sets.weight,
+      // The row's OWN logging type: `weight` is only a total load for
+      // weight_reps rows — scorers must not read BW-type rows raw.
+      loggingType: workoutExercises.loggingType,
     })
     .from(sets)
     .innerJoin(workoutExercises, eq(workoutExercises.id, sets.workoutExerciseId))
@@ -160,6 +165,9 @@ async function insertWorkoutChildren(
         wgerExerciseId: exercise.wgerExerciseId,
         name: exercise.name,
         position,
+        // Omit when absent so the column default ('weight_reps') applies —
+        // pre-logging-type callers (older MCP clients) keep their shape.
+        ...(exercise.loggingType !== undefined ? { loggingType: exercise.loggingType } : {}),
       })
       .returning({ id: workoutExercises.id })
 

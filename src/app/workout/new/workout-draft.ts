@@ -1,4 +1,4 @@
-import type { WorkoutInput } from '@/lib/workout-input'
+import type { LoggingType, WorkoutInput } from '@/lib/workout-input'
 import type { WorkoutDetail } from '@/db/workouts'
 import { displayToKg, kgToDisplay, type WeightUnit } from '@/lib/units'
 
@@ -29,6 +29,9 @@ export interface DraftExercise {
   wgerExerciseId: number
   name: string
   category: string
+  /** How the weight fields read (Hevy-style); 'weight_reps' unless the user
+   *  switches it. Required here (fully controlled), optional on the wire. */
+  loggingType: LoggingType
   sets: DraftSet[]
 }
 
@@ -53,6 +56,9 @@ export type DraftAction =
       value: string
     }
   | { type: 'REMOVE_SET'; exerciseIndex: number; setIndex: number }
+  /** Switches how an exercise's weights read (BW / +weight / −assist). Values
+   *  already typed are left alone — they re-read under the new type. */
+  | { type: 'SET_LOGGING_TYPE'; exerciseIndex: number; loggingType: LoggingType }
   /** Undo for REMOVE_SET: re-inserts at the original position (clamped). A
    *  no-op when the exercise itself is gone — there's nothing to restore into. */
   | { type: 'INSERT_SET'; exerciseIndex: number; setIndex: number; set: DraftSet }
@@ -84,7 +90,7 @@ export function newDraftExercise(picked: {
   name: string
   category: string
 }): DraftExercise {
-  return { id: crypto.randomUUID(), ...picked, sets: [newDraftSet()] }
+  return { id: crypto.randomUUID(), ...picked, loggingType: 'weight_reps', sets: [newDraftSet()] }
 }
 
 /** Replaces the exercise at `index` via `update`, returning a new exercises array. */
@@ -130,6 +136,19 @@ export function workoutDraftReducer(state: WorkoutDraft, action: DraftAction): W
           sets: exercise.sets.map((set, i) =>
             i === action.setIndex ? { ...set, [action.field]: action.value } : set,
           ),
+        })),
+      }
+
+    case 'SET_LOGGING_TYPE':
+      return {
+        exercises: mapExerciseAt(state.exercises, action.exerciseIndex, (exercise) => ({
+          ...exercise,
+          loggingType: action.loggingType,
+          // Clear typed weights: the column's MEANING changes with the type
+          // (total load vs added vs assistance), so a value entered under the
+          // old type would be silently re-read as something else — an
+          // inflated e1RM and a phantom PR. Reps and completion survive.
+          sets: exercise.sets.map((set) => ({ ...set, weight: '' })),
         })),
       }
 
@@ -211,6 +230,7 @@ export function draftToInput(
   const exercises = draft.exercises.map((exercise) => ({
     wgerExerciseId: exercise.wgerExerciseId,
     name: exercise.name,
+    loggingType: exercise.loggingType,
     sets: exercise.sets.map((set) => {
       const w = toWeight(set.weight)
       return {
@@ -248,6 +268,7 @@ export function detailToDraft(
     wgerExerciseId: exercise.wgerExerciseId,
     name: exercise.name,
     category: '',
+    loggingType: exercise.loggingType,
     sets: exercise.sets.map((set) => ({
       id: set.id,
       reps: set.reps?.toString() ?? '',

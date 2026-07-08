@@ -3,18 +3,19 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 
 vi.mock('@/db/workouts', () => ({ getWorkoutDetail: vi.fn() }))
 vi.mock('@/db/programs', () => ({ getProgramDetail: vi.fn(), getProgramDayDetail: vi.fn() }))
-vi.mock('@/db/preferences', () => ({ getWeightUnit: vi.fn() }))
+vi.mock('@/db/preferences', () => ({ getWeightUnit: vi.fn(), getBodyweightKg: vi.fn() }))
 
 import { registerResources } from './resources'
 import { getWorkoutDetail } from '@/db/workouts'
 import { getProgramDetail, getProgramDayDetail } from '@/db/programs'
-import { getWeightUnit } from '@/db/preferences'
+import { getWeightUnit, getBodyweightKg } from '@/db/preferences'
 import { kgToDisplay } from '@/lib/units'
 
 const mockedDetail = vi.mocked(getWorkoutDetail)
 const mockedProgramDetail = vi.mocked(getProgramDetail)
 const mockedWorkoutProgramDay = vi.mocked(getProgramDayDetail)
 const mockedUnit = vi.mocked(getWeightUnit)
+const mockedBodyweight = vi.mocked(getBodyweightKg)
 
 type ResourceContents = { uri: string; mimeType?: string; text: string }
 type ResourceResult = { contents: ResourceContents[] }
@@ -58,6 +59,7 @@ function detail() {
         wgerExerciseId: 73,
         name: 'Squat',
         position: 0,
+        loggingType: 'weight_reps',
         sets: [
           { setNumber: 1, reps: 5, weight: 100 },
           { setNumber: 2, reps: null, weight: null },
@@ -79,6 +81,7 @@ describe('registerResources', () => {
     vi.clearAllMocks()
     process.env.MCP_DEV_USER_ID = 'user_env'
     mockedUnit.mockResolvedValue('lb')
+    mockedBodyweight.mockResolvedValue(null) // no stored bodyweight by default
   })
   afterEach(() => {
     if (original === undefined) delete process.env.MCP_DEV_USER_ID
