@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useState, useTransition } from 'react'
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { RotateCcw } from 'lucide-react'
 import { Button, buttonVariants } from '@/components/ui/button'
@@ -15,22 +15,25 @@ import { deleteWorkoutAction } from '@/app/workout/actions'
  * Server Component.
  */
 export function WorkoutActions({ id }: { id: string }) {
-  const [isPending, startTransition] = useTransition()
+  const [isPending, setIsPending] = useState(false)
   const [isConfirming, setIsConfirming] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const router = useRouter()
 
-  function handleDelete() {
-    startTransition(async () => {
-      try {
-        setError(null)
-        await deleteWorkoutAction(id)
-        router.push('/')
-      } catch {
-        setIsConfirming(false)
-        setError('Could not delete workout. Please try again.')
-      }
-    })
+  // Not startTransition: navigating inside an async transition lets the
+  // app-wide <ViewTransition> strand the old screen's snapshot over the
+  // destination (see workout-logger handleSave). Await, then navigate.
+  async function handleDelete() {
+    setIsPending(true)
+    try {
+      setError(null)
+      await deleteWorkoutAction(id)
+      router.push('/')
+    } catch {
+      setIsPending(false)
+      setIsConfirming(false)
+      setError('Could not delete workout. Please try again.')
+    }
   }
 
   return (

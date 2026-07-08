@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { startProgramDayAction } from '@/app/programs/actions'
@@ -24,22 +24,25 @@ export function StartDayButton({
   label = 'Start this day',
   variant = 'default',
 }: StartDayButtonProps) {
-  const [isPending, startTransition] = useTransition()
+  const [isPending, setIsPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const router = useRouter()
 
-  function handleStart() {
-    startTransition(async () => {
-      try {
-        setError(null)
-        const { workoutId } = await startProgramDayAction(programDayId)
-        // Straight into the logger: the intent behind "Start" is to log, not
-        // to review — the read-only detail page is the post-session view.
-        router.push(`/workout/${workoutId}/edit`)
-      } catch {
-        setError('Could not start this day. Please try again.')
-      }
-    })
+  // Not startTransition: navigating inside an async transition lets the
+  // app-wide <ViewTransition> strand the old screen's snapshot over the
+  // destination (see workout-logger handleSave). Await, then navigate.
+  async function handleStart() {
+    setIsPending(true)
+    try {
+      setError(null)
+      const { workoutId } = await startProgramDayAction(programDayId)
+      // Straight into the logger: the intent behind "Start" is to log, not
+      // to review — the read-only detail page is the post-session view.
+      router.push(`/workout/${workoutId}/edit`)
+    } catch {
+      setIsPending(false)
+      setError('Could not start this day. Please try again.')
+    }
   }
 
   return (

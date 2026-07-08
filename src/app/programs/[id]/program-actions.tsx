@@ -21,7 +21,7 @@ export function ProgramActions({
   id: string
   status: 'draft' | 'active' | 'archived'
 }) {
-  const [isPending, startTransition] = useTransition()
+  const [isPending, setIsPending] = useState(false)
   const [isConfirming, setIsConfirming] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const router = useRouter()
@@ -29,29 +29,34 @@ export function ProgramActions({
   const nextStatus = status === 'active' ? 'archived' : 'active'
   const statusLabel = status === 'active' ? 'Archive' : 'Activate'
 
-  function handleStatusToggle() {
-    startTransition(async () => {
-      try {
-        setError(null)
-        await setProgramStatusAction(id, nextStatus)
-        router.refresh()
-      } catch {
-        setError('Could not update program status. Please try again.')
-      }
-    })
+  // Not startTransition: navigating inside an async transition lets the
+  // app-wide <ViewTransition> strand the old screen's snapshot over the
+  // destination (see workout-logger handleSave). Await, then navigate.
+  async function handleStatusToggle() {
+    setIsPending(true)
+    try {
+      setError(null)
+      await setProgramStatusAction(id, nextStatus)
+      router.refresh()
+    } catch {
+      setError('Could not update program status. Please try again.')
+    } finally {
+      // This handler stays mounted (refresh, not push) — always re-enable.
+      setIsPending(false)
+    }
   }
 
-  function handleDelete() {
-    startTransition(async () => {
-      try {
-        setError(null)
-        await deleteProgramAction(id)
-        router.push('/programs')
-      } catch {
-        setIsConfirming(false)
-        setError('Could not delete program. Please try again.')
-      }
-    })
+  async function handleDelete() {
+    setIsPending(true)
+    try {
+      setError(null)
+      await deleteProgramAction(id)
+      router.push('/programs')
+    } catch {
+      setIsPending(false)
+      setIsConfirming(false)
+      setError('Could not delete program. Please try again.')
+    }
   }
 
   return (
