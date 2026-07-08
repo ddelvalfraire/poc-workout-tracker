@@ -52,12 +52,10 @@ export function UnitToggle({ unit }: UnitToggleProps) {
         </Button>
       ))}
       {hasError && (
-        <span
-          role="alert"
-          title="Couldn’t save unit. Tap to retry."
-          className="text-xs font-medium text-destructive"
-        >
-          !
+        // Visible words, not a "!" with a title tooltip: title is unreachable
+        // on touch and a bare glyph is meaningless to a screen reader.
+        <span role="alert" className="text-xs font-medium text-destructive">
+          Didn&rsquo;t save — tap again
         </span>
       )}
     </div>
