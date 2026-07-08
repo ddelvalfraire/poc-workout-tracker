@@ -29,10 +29,14 @@ export function NextWorkoutCard({
         </Link>
       </div>
 
-      <h2 className="mt-1.5 text-2xl">{next.dayName}</h2>
+      {/* Poster type: this is the session the lifter came to do — it reads
+          like a gym card, not a list row. */}
+      <h2 className="mt-2 font-display text-3xl uppercase leading-none tracking-wide">
+        {next.dayName}
+      </h2>
 
       {next.exerciseNames.length > 0 && (
-        <p className="mt-1 truncate text-sm text-muted-foreground">
+        <p className="mt-2 line-clamp-2 text-sm leading-relaxed text-muted-foreground">
           {next.exerciseNames.join(' · ')}
         </p>
       )}

@@ -36,12 +36,29 @@ function perSideLabel(perSide: number[]): string {
   return perSide.length === 0 ? 'bar only' : `${perSide.map(fmt).join(' + ')} / side`
 }
 
-/** Parses "45, 35, 2.5" into numbers; returns null when anything isn't numeric. */
-function parseWeightList(text: string): number[] | null {
-  const parts = text.split(/[,\s]+/).filter(Boolean)
-  if (parts.length === 0) return null
-  const values = parts.map(Number)
-  return values.every((v) => Number.isFinite(v) && v > 0) ? values : null
+/** The denominations most gyms actually rack, per unit — the pill defaults.
+ *  A user's own saved values always appear as pills too, so nothing owned
+ *  ever disappears behind the "custom" input. Deliberate consequence: a
+ *  custom value that gets toggled OFF leaves the list (selected = owned);
+ *  re-adding is a retype, not a hunt through ghost pills. */
+export const COMMON_GEAR: Record<WeightUnit, { bars: number[]; plates: number[] }> = {
+  lb: { bars: [45, 35, 25, 15], plates: [55, 45, 35, 25, 10, 5, 2.5] },
+  kg: { bars: [20, 15, 10], plates: [25, 20, 15, 10, 5, 2.5, 1.25] },
+}
+
+/** Union of common denominations and the user's own, heaviest first. */
+export function pillOptions(common: number[], owned: number[]): number[] {
+  return Array.from(new Set([...common, ...owned])).sort((a, b) => b - a)
+}
+
+/** "2.5" → 2.5; null for anything non-numeric or non-positive. */
+export function parseCustomWeight(text: string): number | null {
+  const value = Number(text.trim())
+  return Number.isFinite(value) && value > 0 ? value : null
+}
+
+export function toggleValue(values: number[], value: number): number[] {
+  return values.includes(value) ? values.filter((v) => v !== value) : [...values, value]
 }
 
 export function PlateSheet({
@@ -55,8 +72,12 @@ export function PlateSheet({
   // Bar options: the user's bars plus the UI-level "no bar" (plate-loaded).
   const [bar, setBar] = useState<number>(equipment.bars[0] ?? 0)
   const [isEditing, setIsEditing] = useState(false)
-  const [barsText, setBarsText] = useState(equipment.bars.map(fmt).join(', '))
-  const [platesText, setPlatesText] = useState(equipment.plates.map(fmt).join(', '))
+  // Gear selection as toggled pills (not comma text): tapping denominations
+  // is one-thumb work; typing "45, 35, 2.5" mid-session never was.
+  const [selectedBars, setSelectedBars] = useState<number[]>(equipment.bars)
+  const [selectedPlates, setSelectedPlates] = useState<number[]>(equipment.plates)
+  const [customBarText, setCustomBarText] = useState('')
+  const [customPlateText, setCustomPlateText] = useState('')
   const [editError, setEditError] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
   const dialogRef = useRef<HTMLDialogElement>(null)
@@ -94,21 +115,47 @@ export function PlateSheet({
 
   const ramp = weights.length > 0 ? warmupRamp(weights[0], bar, equipment.plates) : []
 
+  function handleStartEditing() {
+    // Re-seed from the saved gear each time: a cancelled edit must not leak
+    // half-toggled pills into the next open.
+    setSelectedBars(equipment.bars)
+    setSelectedPlates(equipment.plates)
+    setCustomBarText('')
+    setCustomPlateText('')
+    setEditError(null)
+    setIsEditing(true)
+  }
+
+  function handleAddCustom(kind: 'bar' | 'plate') {
+    const text = kind === 'bar' ? customBarText : customPlateText
+    const value = parseCustomWeight(text)
+    if (value === null) {
+      setEditError('Custom weight must be a positive number.')
+      return
+    }
+    setEditError(null)
+    if (kind === 'bar') {
+      setSelectedBars((prev) => (prev.includes(value) ? prev : [...prev, value]))
+      setCustomBarText('')
+    } else {
+      setSelectedPlates((prev) => (prev.includes(value) ? prev : [...prev, value]))
+      setCustomPlateText('')
+    }
+  }
+
   async function handleSaveGear() {
-    const bars = parseWeightList(barsText)
-    const plates = parseWeightList(platesText)
-    if (!bars || !plates) {
-      setEditError('Weights must be positive numbers, separated by commas.')
+    if (selectedBars.length === 0 || selectedPlates.length === 0) {
+      setEditError('Pick at least one bar and one plate.')
       return
     }
     try {
       setIsSaving(true)
       setEditError(null)
-      await setEquipmentAction({ unit, bars, plates })
+      await setEquipmentAction({ unit, bars: selectedBars, plates: selectedPlates })
       // Mirror the server's normalization (dedupe, heaviest first) locally.
       const normalized = {
-        bars: Array.from(new Set(bars)).sort((a, b) => b - a),
-        plates: Array.from(new Set(plates)).sort((a, b) => b - a),
+        bars: Array.from(new Set(selectedBars)).sort((a, b) => b - a),
+        plates: Array.from(new Set(selectedPlates)).sort((a, b) => b - a),
       }
       onEquipmentSaved(normalized)
       setBar(normalized.bars[0] ?? 0)
@@ -174,7 +221,8 @@ export function PlateSheet({
               onClick={() => setBar(weight)}
               aria-pressed={bar === weight}
               className={cn(
-                'rounded-full border px-3 py-1.5 text-sm font-semibold tnum transition-colors',
+                // Same 44px pill as the gear editor below — one vocabulary.
+                'min-h-11 rounded-full border px-4 text-sm font-semibold tnum transition-colors',
                 bar === weight
                   ? 'border-primary bg-primary text-primary-foreground'
                   : 'border-border bg-muted text-muted-foreground',
@@ -188,7 +236,7 @@ export function PlateSheet({
             onClick={() => setBar(0)}
             aria-pressed={bar === 0}
             className={cn(
-              'rounded-full border px-3 py-1.5 text-sm font-semibold transition-colors',
+              'min-h-11 rounded-full border px-4 text-sm font-semibold transition-colors',
               bar === 0
                 ? 'border-primary bg-primary text-primary-foreground'
                 : 'border-border bg-muted text-muted-foreground',
@@ -241,23 +289,29 @@ export function PlateSheet({
           </div>
         )}
 
-        {/* Gear editor */}
+        {/* Gear editor: the same tap-a-pill vocabulary as the bar picker
+            above — selected = owned. Customs land as a selected pill so odd
+            plates (1.5s, change plates) are first-class, not a text hack. */}
         <div className="mt-5 border-t border-border pt-4 pb-4">
           {isEditing ? (
-            <div className="space-y-2">
-              <Input
-                value={barsText}
-                onChange={(e) => setBarsText(e.target.value)}
-                aria-label={`Your bars in ${unit}`}
-                placeholder="45, 35"
-                inputMode="decimal"
+            <div className="space-y-4">
+              <GearPillGroup
+                label={`Bars (${unit})`}
+                options={pillOptions(COMMON_GEAR[unit].bars, selectedBars)}
+                selected={selectedBars}
+                onToggle={(value) => setSelectedBars((prev) => toggleValue(prev, value))}
+                customText={customBarText}
+                onCustomChange={setCustomBarText}
+                onCustomAdd={() => handleAddCustom('bar')}
               />
-              <Input
-                value={platesText}
-                onChange={(e) => setPlatesText(e.target.value)}
-                aria-label={`Your plates in ${unit}`}
-                placeholder="45, 35, 25, 10, 5, 2.5"
-                inputMode="decimal"
+              <GearPillGroup
+                label={`Plates (${unit})`}
+                options={pillOptions(COMMON_GEAR[unit].plates, selectedPlates)}
+                selected={selectedPlates}
+                onToggle={(value) => setSelectedPlates((prev) => toggleValue(prev, value))}
+                customText={customPlateText}
+                onCustomChange={setCustomPlateText}
+                onCustomAdd={() => handleAddCustom('plate')}
               />
               {editError && <p className="text-sm text-destructive">{editError}</p>}
               <div className="grid grid-cols-2 gap-2">
@@ -272,7 +326,7 @@ export function PlateSheet({
           ) : (
             <button
               type="button"
-              onClick={() => setIsEditing(true)}
+              onClick={handleStartEditing}
               className="text-sm text-muted-foreground underline-offset-2 active:underline"
             >
               Edit your bars &amp; plates ({unit})
@@ -280,5 +334,79 @@ export function PlateSheet({
           )}
         </div>
     </dialog>
+  )
+}
+
+interface GearPillGroupProps {
+  label: string
+  /** All pills to render, heaviest first (common ∪ owned). */
+  options: number[]
+  selected: number[]
+  onToggle: (value: number) => void
+  customText: string
+  onCustomChange: (text: string) => void
+  onCustomAdd: () => void
+}
+
+/** One toggleable denomination row of the gear editor + its custom-add slot. */
+function GearPillGroup({
+  label,
+  options,
+  selected,
+  onToggle,
+  customText,
+  onCustomChange,
+  onCustomAdd,
+}: GearPillGroupProps) {
+  return (
+    <fieldset>
+      <legend className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+        {label}
+      </legend>
+      <div className="mt-2 flex flex-wrap gap-2">
+        {options.map((value) => {
+          const isSelected = selected.includes(value)
+          return (
+            <button
+              key={value}
+              type="button"
+              onClick={() => onToggle(value)}
+              aria-pressed={isSelected}
+              className={cn(
+                // min-h-11: these pills ARE the gear editor — a mid-session,
+                // one-thumb surface, so they get the full 44px HIG target.
+                'min-h-11 rounded-full border px-4 text-sm font-semibold tnum transition-colors',
+                isSelected
+                  ? 'border-primary bg-primary text-primary-foreground'
+                  : 'border-border bg-muted text-muted-foreground',
+              )}
+            >
+              {fmt(value)}
+            </button>
+          )
+        })}
+        {/* Custom slot rides in the same wrap row: an input sized like a pill
+            plus Add, submitting on Enter — no second form to find. */}
+        <span className="flex items-center gap-1.5">
+          <Input
+            value={customText}
+            onChange={(e) => onCustomChange(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault()
+                onCustomAdd()
+              }
+            }}
+            aria-label={`Add a custom weight to ${label}`}
+            placeholder="Custom"
+            inputMode="decimal"
+            className="h-11 w-24 rounded-full text-center text-sm"
+          />
+          <Button variant="outline" className="rounded-full" onClick={onCustomAdd}>
+            Add
+          </Button>
+        </span>
+      </div>
+    </fieldset>
   )
 }

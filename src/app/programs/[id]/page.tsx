@@ -88,8 +88,15 @@ export default async function ProgramDetailPage({
         <div className="mt-4 space-y-3">
           {program.days.map((day, dayIndex) => (
             <section key={day.id} className="rounded-2xl border border-border bg-card p-4">
-              <h2 className="min-w-0 text-base">
-                Day {dayIndex + 1} · {day.name}
+              {/* Day ordinal as the quiet anchor, day name in display type —
+                  same voice as the summary cards and program cards. */}
+              <h2 className="flex min-w-0 items-baseline gap-2">
+                <span className="shrink-0 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground tnum">
+                  Day {dayIndex + 1}
+                </span>
+                <span className="min-w-0 truncate font-display text-lg uppercase leading-tight tracking-wide">
+                  {day.name}
+                </span>
               </h2>
 
               <div className="mt-3 space-y-3">

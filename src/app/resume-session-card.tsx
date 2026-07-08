@@ -28,8 +28,28 @@ export function ResumeSessionCard({ session }: { session: ActiveSession }) {
         Workout in progress
       </p>
 
-      <h2 className="mt-1.5 text-2xl">{session.name ?? 'Unnamed session'}</h2>
-      <p className="mt-1 text-sm text-muted-foreground">{summary}</p>
+      <h2 className="mt-2 font-display text-3xl uppercase leading-none tracking-wide">
+        {session.name ?? 'Unnamed session'}
+      </h2>
+      <p className="mt-2 text-sm text-muted-foreground tnum">{summary}</p>
+
+      {/* Set-completion bar: state, not decoration — how deep into the
+          session the last device got, readable before deciding to resume. */}
+      {session.setCount > 0 && (
+        <div
+          role="progressbar"
+          aria-label="Sets completed"
+          aria-valuemin={0}
+          aria-valuemax={session.setCount}
+          aria-valuenow={session.completedSetCount}
+          className="mt-3 h-1 overflow-hidden rounded-full bg-muted"
+        >
+          <div
+            className="h-full rounded-full bg-primary transition-[width] duration-200"
+            style={{ width: `${(session.completedSetCount / session.setCount) * 100}%` }}
+          />
+        </div>
+      )}
 
       <Link
         href={href}
