@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { ChevronLeft } from "lucide-react";
 import { requireUserId } from "@/lib/auth";
 import { getWorkoutDetail, getExerciseHistoryBefore } from "@/db/workouts";
-import { getWeightUnit } from "@/db/preferences";
+import { getWeightUnit, getBodyweightKg } from "@/db/preferences";
 import {
   formatWorkoutDate,
   formatLoggedSet,
@@ -11,7 +11,7 @@ import {
   formatVolume,
   formatWorkoutDuration,
 } from "@/lib/format";
-import { bestSet, estimate1RM } from "@/lib/one-rep-max";
+import { bestScoredSet } from "@/lib/one-rep-max";
 import { AppHeader } from "@/components/app-header";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -24,9 +24,12 @@ export default async function WorkoutDetailPage({
 }) {
   const userId = await requireUserId();
   const { id } = await params;
-  const [workout, unit] = await Promise.all([
+  // Bodyweight rides along with the unit: it's the load basis for any
+  // bodyweight-type exercise's top-set/PR scoring below (null = rep fallback).
+  const [workout, unit, bodyweightKg] = await Promise.all([
     getWorkoutDetail(userId, id),
     getWeightUnit(userId),
+    getBodyweightKg(userId),
   ]);
   if (!workout) notFound();
 
@@ -65,9 +68,27 @@ export default async function WorkoutDetailPage({
   for (const ex of workout.exercises) {
     if (decidedExercises.has(ex.wgerExerciseId)) continue;
     decidedExercises.add(ex.wgerExerciseId);
-    const cur = bestSet(currentByExercise.get(ex.wgerExerciseId) ?? []);
-    const pri = bestSet(priorByExercise.get(ex.wgerExerciseId) ?? []);
-    if (cur !== null && pri !== null && cur.e1rm > pri.e1rm) {
+    // Prior sets are scored under the exercise's CURRENT logging type — the
+    // history rows carry no type of their own, and comparing a pull-up's past
+    // under today's reading is the comparison the lifter actually means.
+    const cur = bestScoredSet(
+      currentByExercise.get(ex.wgerExerciseId) ?? [],
+      ex.loggingType,
+      bodyweightKg,
+    );
+    const pri = bestScoredSet(
+      priorByExercise.get(ex.wgerExerciseId) ?? [],
+      ex.loggingType,
+      bodyweightKg,
+    );
+    if (cur === null || pri === null) continue;
+    // Like beats like: an e1rm PR needs a prior e1rm, a rep PR a prior rep
+    // count. Mixed kinds (bodyweight set after weighted history) don't badge —
+    // there's no honest axis to compare on.
+    if (
+      (cur.kind === "e1rm" && pri.kind === "e1rm" && cur.e1rm > pri.e1rm) ||
+      (cur.kind === "reps" && pri.kind === "reps" && cur.reps > pri.reps)
+    ) {
       prBadgeRowIds.add(ex.id);
     }
   }
@@ -120,15 +141,19 @@ export default async function WorkoutDetailPage({
 
         <div className="mt-4 space-y-3">
           {workout.exercises.map((exercise) => {
-            const current = bestSet(exercise.sets);
-            // The top set (highest e1rm) gets marked — but only when there's a
-            // comparison to make; a lone set being "best" is noise.
+            // Scored under the exercise's logging type: highest e1rm over the
+            // EFFECTIVE load, or the most-reps fallback when no set is
+            // load-scorable (bodyweight work without a stored bodyweight, or
+            // sets logged with no weight — "top set" must still resolve).
+            const current = bestScoredSet(
+              exercise.sets,
+              exercise.loggingType,
+              bodyweightKg,
+            );
+            // The top set gets marked — but only when there's a comparison to
+            // make; a lone set being "best" is noise.
             const bestIndex =
-              current && exercise.sets.length > 1
-                ? exercise.sets.findIndex(
-                    (s) => estimate1RM(s.reps, s.weight) === current.e1rm,
-                  )
-                : -1;
+              current && exercise.sets.length > 1 ? current.index : -1;
             const isPR = prBadgeRowIds.has(exercise.id);
 
             return (
@@ -170,7 +195,7 @@ export default async function WorkoutDetailPage({
                               : "font-medium text-foreground/80",
                           )}
                         >
-                          {formatLoggedSet(set, unit)}
+                          {formatLoggedSet(set, unit, exercise.loggingType)}
                         </span>
                         {setIndex === bestIndex && (
                           <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
@@ -184,14 +209,22 @@ export default async function WorkoutDetailPage({
                 {current && (
                   <div className="mt-3 flex items-baseline justify-between gap-3 border-t border-border pt-3">
                     <span className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
-                      Est. 1RM
+                      {current.kind === "e1rm" ? "Est. 1RM" : "Top set"}
                     </span>
-                    <span className="font-display text-2xl leading-none tnum">
-                      <span aria-hidden="true" className="text-muted-foreground">
-                        ~
+                    {current.kind === "e1rm" ? (
+                      <span className="font-display text-2xl leading-none tnum">
+                        <span aria-hidden="true" className="text-muted-foreground">
+                          ~
+                        </span>
+                        {formatE1RM(current.e1rm, unit)}
                       </span>
-                      {formatE1RM(current.e1rm, unit)}
-                    </span>
+                    ) : (
+                      // Rep fallback: no load to estimate from, but the best
+                      // effort still deserves its readout — not a blank card.
+                      <span className="font-display text-2xl leading-none tnum">
+                        {current.reps} reps
+                      </span>
+                    )}
                   </div>
                 )}
               </section>

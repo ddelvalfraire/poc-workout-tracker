@@ -1,5 +1,6 @@
 import type { WorkoutDraft, DraftExercise, DraftSet } from './workout-draft'
 import { isWeightUnit, type WeightUnit } from '@/lib/units'
+import { isLoggingType } from '@/lib/workout-input'
 
 /**
  * Pure build/parse for the cross-device draft snapshot the logger autosaves to
@@ -69,6 +70,10 @@ function isDraftExercise(value: unknown): value is DraftExercise {
     typeof exercise.wgerExerciseId === 'number' &&
     typeof exercise.name === 'string' &&
     typeof exercise.category === 'string' &&
+    // Absent = a payload persisted before logging types; parseDraftPayload
+    // defaults it on restore. Present-but-unrecognized is rejected like any
+    // other malformed field.
+    (exercise.loggingType === undefined || isLoggingType(exercise.loggingType)) &&
     Array.isArray(exercise.sets) &&
     exercise.sets.every(isDraftSet)
   )
@@ -114,7 +119,14 @@ export function parseDraftPayload(
   if (value.unit !== opts.unit) return null
   const openedAt = new Date(value.openedAt)
   return {
-    draft: value.draft,
+    draft: {
+      // The guard accepts a pre-logging-type payload (no loggingType field);
+      // the restored state is fully controlled, so default it here.
+      exercises: value.draft.exercises.map((exercise) => ({
+        ...exercise,
+        loggingType: exercise.loggingType ?? 'weight_reps',
+      })),
+    },
     name: value.name,
     openedAt: openedAt.getTime() > opts.now.getTime() ? opts.now : openedAt,
   }

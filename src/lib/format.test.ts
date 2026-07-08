@@ -44,6 +44,32 @@ describe('formatSet', () => {
   it('defaults to kg when no unit is given (back-compat)', () => {
     expect(formatSet(5, 100)).toBe('5 × 100 kg')
   })
+
+  describe('bodyweight logging types (load-first, no unit suffix)', () => {
+    it('renders a bodyweight set as BW × reps, ignoring any stored weight', () => {
+      expect(formatSet(12, null, 'kg', 'bodyweight_reps')).toBe('BW × 12')
+      expect(formatSet(12, 100, 'kg', 'bodyweight_reps')).toBe('BW × 12')
+    })
+
+    it('renders added load as BW+weight in the display unit', () => {
+      expect(formatSet(8, 25, 'kg', 'weighted_bodyweight')).toBe('BW+25 × 8')
+      // 25 kg → 55.1 lb
+      expect(formatSet(8, 25, 'lb', 'weighted_bodyweight')).toBe('BW+55.1 × 8')
+    })
+
+    it('renders assistance as BW−weight', () => {
+      expect(formatSet(6, 20, 'kg', 'assisted_bodyweight')).toBe('BW−20 × 6')
+    })
+
+    it('renders a blank added/assist weight as plain BW × reps', () => {
+      expect(formatSet(8, null, 'kg', 'weighted_bodyweight')).toBe('BW × 8')
+      expect(formatSet(6, null, 'kg', 'assisted_bodyweight')).toBe('BW × 6')
+    })
+
+    it('falls back to a dash when reps are blank and nothing else is loggable', () => {
+      expect(formatSet(null, null, 'kg', 'bodyweight_reps')).toBe('—')
+    })
+  })
 })
 
 describe('formatE1RM', () => {
@@ -167,6 +193,13 @@ describe('formatLoggedSet', () => {
     expect(formatLoggedSet(loggedSet({ reps: 5, weight: 100 }))).toBe('5 × 100 kg')
     expect(formatLoggedSet(loggedSet({ reps: 5, weight: 100 }), 'lb')).toBe('5 × 220.5 lb')
     expect(formatLoggedSet(loggedSet())).toBe('—')
+  })
+
+  it('passes the exercise loggingType through to formatSet', () => {
+    expect(formatLoggedSet(loggedSet({ reps: 12 }), 'kg', 'bodyweight_reps')).toBe('BW × 12')
+    expect(formatLoggedSet(loggedSet({ reps: 8, weight: 25 }), 'kg', 'weighted_bodyweight')).toBe(
+      'BW+25 × 8',
+    )
   })
 
   it('formats duration sets as a clock', () => {

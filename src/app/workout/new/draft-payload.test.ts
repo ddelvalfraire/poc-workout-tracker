@@ -19,6 +19,7 @@ const DRAFT: WorkoutDraft = {
       wgerExerciseId: 73,
       name: 'Squat',
       category: 'Legs',
+      loggingType: 'weight_reps',
       sets: [
         { id: 's1', reps: '5', weight: '100', completed: true },
         { id: 's2', reps: '', weight: '', completed: false },
@@ -51,6 +52,23 @@ describe('build → parse round-trip', () => {
     expect(restored!.draft).toEqual(DRAFT)
     expect(restored!.name).toBe('Leg Day')
     expect(restored!.openedAt).toEqual(OPENED)
+  })
+
+  it('accepts a legacy payload without loggingType and defaults it to weight_reps', () => {
+    // Arrange — a payload persisted before logging types existed
+    const legacyExercise = { ...DRAFT.exercises[0] } as Record<string, unknown>
+    delete legacyExercise.loggingType
+    const legacy = payload({ draft: { exercises: [legacyExercise] } })
+
+    // Act
+    const restored = parseDraftPayload(JSON.parse(JSON.stringify(legacy)), {
+      unit: 'kg',
+      now: NOW,
+    })
+
+    // Assert — restorable, and fully controlled state gets the default
+    expect(restored).not.toBeNull()
+    expect(restored!.draft.exercises[0].loggingType).toBe('weight_reps')
   })
 
   it('clamps a future openedAt to now (cross-device clock skew)', () => {
@@ -89,6 +107,13 @@ describe('isDraftPayload / parseDraftPayload rejection', () => {
     // Assert — valid shape, but not restorable under kg
     expect(isDraftPayload(lb)).toBe(true)
     expect(parseDraftPayload(lb, { unit: 'kg', now: NOW })).toBeNull()
+  })
+
+  it('rejects an unrecognized loggingType (present but not whitelisted)', () => {
+    const badType = {
+      exercises: [{ ...DRAFT.exercises[0], loggingType: 'machine' }],
+    }
+    expect(isDraftPayload(payload({ draft: badType }))).toBe(false)
   })
 
   it('rejects an invalid openedAt', () => {

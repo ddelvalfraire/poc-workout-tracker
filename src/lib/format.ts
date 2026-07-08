@@ -4,6 +4,7 @@ export function formatWorkoutDate(date: Date): string {
 }
 
 import { kgToDisplay, type WeightUnit } from './units'
+import type { LoggingType } from './workout-input'
 
 /**
  * Formats a logged set's reps/weight for display. Weight is stored in kg and
@@ -11,12 +12,28 @@ import { kgToDisplay, type WeightUnit } from './units'
  * left blank when logging.
  *   (5, 100) → "5 × 100 kg"           (5, null) → "5 reps"
  *   (5, 100, 'lb') → "5 × 220.5 lb"   (null, null) → "—"
+ *
+ * `loggingType` (default 'weight_reps', so every existing call site keeps its
+ * output) re-reads the weight for bodyweight exercises, load-first:
+ *   bodyweight_reps      → "BW × 12"
+ *   weighted_bodyweight  → "BW+25 × 8"   (added load, display unit)
+ *   assisted_bodyweight  → "BW−20 × 6"   (assistance, display unit)
+ * A blank added/assist weight renders plain "BW × n"; a set with no reps at
+ * all falls back to "—", matching the weight_reps contract.
  */
 export function formatSet(
   reps: number | null,
   weightKg: number | null,
   unit: WeightUnit = 'kg',
+  loggingType: LoggingType = 'weight_reps',
 ): string {
+  if (loggingType !== 'weight_reps') {
+    const load =
+      loggingType === 'bodyweight_reps' || weightKg === null || weightKg === 0
+        ? 'BW'
+        : `BW${loggingType === 'assisted_bodyweight' ? '−' : '+'}${kgToDisplay(weightKg, unit)}`
+    return reps !== null ? `${load} × ${reps}` : load === 'BW' ? '—' : load
+  }
   const weight = weightKg !== null ? `${kgToDisplay(weightKg, unit)} ${unit}` : null
   if (reps !== null && weight !== null) return `${reps} × ${weight}`
   if (reps !== null) return `${reps} reps`
@@ -55,7 +72,11 @@ function formatDistance(meters: number): string {
  * as clock + distance ("12:30 · 2.5 km"); unlogged fields drop out and a set
  * with nothing logged renders "—", matching `formatSet`'s contract.
  */
-export function formatLoggedSet(set: LoggedSetLike, unit: WeightUnit = 'kg'): string {
+export function formatLoggedSet(
+  set: LoggedSetLike,
+  unit: WeightUnit = 'kg',
+  loggingType: LoggingType = 'weight_reps',
+): string {
   if (set.metricMode === 'duration') {
     return set.durationSec !== null ? formatClock(set.durationSec) : '—'
   }
@@ -66,7 +87,8 @@ export function formatLoggedSet(set: LoggedSetLike, unit: WeightUnit = 'kg'): st
     ].filter((p): p is string => p !== null)
     return parts.length > 0 ? parts.join(' · ') : '—'
   }
-  return formatSet(set.reps, set.weight, unit)
+  // loggingType lives on the exercise, not the set — the caller passes it down.
+  return formatSet(set.reps, set.weight, unit, loggingType)
 }
 
 /**

@@ -11,10 +11,11 @@ import {
   type WorkoutDetail,
 } from '@/db/workouts'
 import { getProgramDayDetail, type ProgramDayDetail } from '@/db/programs'
-import { getWeightUnit } from '@/db/preferences'
+import { getWeightUnit, getBodyweightKg } from '@/db/preferences'
 import { searchExercises } from '@/lib/wger'
 import { kgToDisplay, type WeightUnit } from '@/lib/units'
-import { bestSet } from '@/lib/one-rep-max'
+import { bestScoredSet } from '@/lib/one-rep-max'
+import type { LoggingType } from '@/lib/workout-input'
 import { buildProgramDayView, type ProgramDayView } from './program-tools'
 
 /**
@@ -73,13 +74,20 @@ export function registerReadTools(server: McpServer): void {
         if (!workout) {
           return errorResult(new ToolError(`Workout ${id} not found for user ${resolved}`))
         }
-        const unit = await getWeightUnit(resolved)
+        // Bodyweight is fetched once per request, like the unit — it's the
+        // load basis for any bodyweight-type exercise's estimated 1RM.
+        const [unit, bodyweightKg] = await Promise.all([
+          getWeightUnit(resolved),
+          getBodyweightKg(resolved),
+        ])
         // When the workout was instantiated from a program day, overlay that day's
         // prescription (targets) — read from the program, never stored on the sets.
         const programDay = workout.programDayId
           ? await getProgramDayDetail(resolved, workout.programDayId)
           : null
-        return jsonResult(buildWorkoutPayload(workout, resolved, unit, programDay ?? undefined))
+        return jsonResult(
+          buildWorkoutPayload(workout, resolved, unit, bodyweightKg, programDay ?? undefined),
+        )
       } catch (error: unknown) {
         return errorResult(error)
       }
@@ -190,8 +198,14 @@ export interface WorkoutPayload {
       wgerExerciseId: number
       name: string
       position: number
+      // How the sets' weights read (total / ignored / added / assistance).
+      loggingType: LoggingType
       sets: { setNumber: number; reps: number | null; weight: number | null; completed: boolean }[]
       estimated1RM: number | null
+      // Additive rep-fallback readout: the best set's rep count when nothing
+      // is load-scorable (BW type without a stored bodyweight, or no weights
+      // logged) — estimated1RM stays null in that case.
+      bestReps?: number
     }[]
   }
 }
@@ -206,6 +220,7 @@ export function buildWorkoutPayload(
   workout: WorkoutDetail,
   resolved: string,
   unit: WeightUnit,
+  bodyweightKg: number | null,
   programDay?: ProgramDayDetail,
 ): WorkoutPayload {
   return {
@@ -223,23 +238,33 @@ export function buildWorkoutPayload(
         wgerExerciseId: exercise.wgerExerciseId,
         name: exercise.name,
         position: exercise.position,
+        loggingType: exercise.loggingType,
         sets: exercise.sets.map((s) => ({
           setNumber: s.setNumber,
           reps: s.reps,
           weight: s.weight === null ? null : kgToDisplay(s.weight, unit),
           completed: s.completed,
         })),
-        estimated1RM: e1rmFor(exercise.sets, unit),
+        ...scoreExercise(exercise.sets, exercise.loggingType, bodyweightKg, unit),
       })),
     },
   }
 }
 
-/** Best-set estimated 1RM for an exercise, in the user's unit (null when no scorable set). */
-function e1rmFor(
+/**
+ * Best-set scoring for one exercise, in the user's unit. e1rm winners keep the
+ * historical shape (`estimated1RM`, null otherwise); the rep fallback — no
+ * load-scorable set — adds `bestReps` so the agent still sees a top set.
+ */
+function scoreExercise(
   sets: readonly { reps: number | null; weight: number | null }[],
+  loggingType: LoggingType,
+  bodyweightKg: number | null,
   unit: WeightUnit,
-): number | null {
-  const best = bestSet(sets)
-  return best === null ? null : kgToDisplay(best.e1rm, unit)
+): { estimated1RM: number | null; bestReps?: number } {
+  const best = bestScoredSet(sets, loggingType, bodyweightKg)
+  if (best === null) return { estimated1RM: null }
+  return best.kind === 'e1rm'
+    ? { estimated1RM: kgToDisplay(best.e1rm, unit) }
+    : { estimated1RM: null, bestReps: best.reps }
 }

@@ -160,6 +160,9 @@ async function insertWorkoutChildren(
         wgerExerciseId: exercise.wgerExerciseId,
         name: exercise.name,
         position,
+        // Omit when absent so the column default ('weight_reps') applies —
+        // pre-logging-type callers (older MCP clients) keep their shape.
+        ...(exercise.loggingType !== undefined ? { loggingType: exercise.loggingType } : {}),
       })
       .returning({ id: workoutExercises.id })
 

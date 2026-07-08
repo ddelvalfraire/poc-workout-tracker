@@ -146,6 +146,21 @@ describe('saveWorkout (transactional, user-scoped)', () => {
     expect(records[2].values).toMatchObject({ position: 1, wgerExerciseId: 2 })
   })
 
+  it('persists a provided loggingType and omits it when absent (column default)', async () => {
+    // Act — a weighted pull-up alongside a legacy-shaped exercise
+    await saveWorkout(USER, {
+      exercises: [
+        { wgerExerciseId: 1, name: 'Pull-up', loggingType: 'weighted_bodyweight', sets: [] },
+        { wgerExerciseId: 2, name: 'Bench', sets: [] },
+      ],
+    })
+
+    // Assert — the provided type is written; the absent one leaves the key off
+    // entirely so the DB default ('weight_reps') applies.
+    expect(records[1].values).toMatchObject({ loggingType: 'weighted_bodyweight' })
+    expect(records[2].values).not.toHaveProperty('loggingType')
+  })
+
   it('skips the sets insert when an exercise has no sets', async () => {
     // Act
     await saveWorkout(USER, {

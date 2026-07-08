@@ -30,6 +30,7 @@ import { createDraftSyncQueue, type DraftSyncQueue, type DraftSyncStatus } from 
 import { SessionStatus } from './session-clock'
 import { PlateSheet } from './plate-sheet'
 import { DEFAULT_EQUIPMENT, type Equipment } from '@/lib/equipment'
+import { LOGGING_TYPES, isLoggingType, type LoggingType } from '@/lib/workout-input'
 import { type WeightUnit } from '@/lib/units'
 import { cn } from '@/lib/utils'
 import {
@@ -42,6 +43,14 @@ import type { LastPerformance } from '@/db/workouts'
 
 /** How long the inline "Removed — Undo" affordance stays actionable. */
 const UNDO_WINDOW_MS = 5000
+
+/** Compact labels for the per-exercise logging-type select (Hevy-style). */
+const LOGGING_TYPE_LABELS: Record<LoggingType, string> = {
+  weight_reps: 'Weight × reps',
+  bodyweight_reps: 'Bodyweight',
+  weighted_bodyweight: 'BW + weight',
+  assisted_bodyweight: 'BW − assist',
+}
 
 /** One reversible removal. Sets capture their exercise by STABLE id, not
  *  index — the exercise list can shift (or the exercise itself vanish and be
@@ -335,16 +344,46 @@ export function WorkoutLogger({
                   </span>
                 )}
               </h3>
-              <Button
-                size="icon-sm"
-                variant="ghost"
-                className="shrink-0 text-muted-foreground"
-                onClick={() => setPlateSheetFor(exerciseIndex)}
-                aria-label={`Plates for ${exercise.name}`}
+              {/* How this exercise logs (Hevy-style). A native select — four
+                  options don't justify a custom menu, and the OS picker is the
+                  best small-screen affordance. Styled to sit with the ghost
+                  icon buttons beside it. */}
+              <select
+                value={exercise.loggingType}
+                onChange={(e) => {
+                  // The DOM only offers whitelisted options; the guard keeps
+                  // the reducer payload typed without an `as` cast.
+                  if (isLoggingType(e.target.value)) {
+                    dispatch({
+                      type: 'SET_LOGGING_TYPE',
+                      exerciseIndex,
+                      loggingType: e.target.value,
+                    })
+                  }
+                }}
+                aria-label={`Logging type for ${exercise.name}`}
+                className="h-8 shrink-0 rounded-lg border border-border bg-muted px-2 text-sm text-foreground outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
               >
-                <Dumbbell aria-hidden="true" className="size-4" />
-              </Button>
-              {/* Hairline gap between the everyday utility (plates) and the
+                {LOGGING_TYPES.map((type) => (
+                  <option key={type} value={type}>
+                    {LOGGING_TYPE_LABELS[type]}
+                  </option>
+                ))}
+              </select>
+              {/* Plates only make sense for a barbell-style total load — a
+                  bodyweight movement has nothing to rack. */}
+              {exercise.loggingType === 'weight_reps' && (
+                <Button
+                  size="icon-sm"
+                  variant="ghost"
+                  className="shrink-0 text-muted-foreground"
+                  onClick={() => setPlateSheetFor(exerciseIndex)}
+                  aria-label={`Plates for ${exercise.name}`}
+                >
+                  <Dumbbell aria-hidden="true" className="size-4" />
+                </Button>
+              )}
+              {/* Hairline gap between the everyday utilities and the
                   destructive remove — adjacency invites mid-set slips. */}
               <span aria-hidden="true" className="h-5 w-px shrink-0 self-center bg-border" />
               <Button
@@ -384,7 +423,12 @@ export function WorkoutLogger({
                 )
                 const ghost = {
                   reps: history.reps ?? plan.reps,
-                  weight: history.weight ?? plan.weight,
+                  // Weight ghosts assume "weight = total load" — meaningless
+                  // under a BW reading, so BW types keep the reps ghost only.
+                  weight:
+                    exercise.loggingType === 'weight_reps'
+                      ? (history.weight ?? plan.weight)
+                      : undefined,
                 }
                 return (
                 <div key={set.id} className="flex items-center gap-2">
@@ -400,7 +444,12 @@ export function WorkoutLogger({
                         // A "8–12" plan range adopts its floor.
                         fill: {
                           reps: adoptableGhostValue(ghost.reps),
-                          weight: adoptableGhostValue(ghost.weight),
+                          // A bodyweight set HAS no weight value to adopt —
+                          // filling one would persist a phantom load.
+                          weight:
+                            exercise.loggingType === 'bodyweight_reps'
+                              ? undefined
+                              : adoptableGhostValue(ghost.weight),
                         },
                       })
                       // Checking off starts the rest count-up; unchecking is a
@@ -447,23 +496,52 @@ export function WorkoutLogger({
                     aria-label={`Set ${setIndex + 1} reps`}
                     className="flex-1 text-center tnum"
                   />
-                  <Input
-                    type="text"
-                    inputMode="decimal"
-                    placeholder={ghost.weight}
-                    value={set.weight}
-                    onChange={(e) =>
-                      dispatch({
-                        type: 'UPDATE_SET',
-                        exerciseIndex,
-                        setIndex,
-                        field: 'weight',
-                        value: e.target.value,
-                      })
-                    }
-                    aria-label={`Set ${setIndex + 1} weight in ${unit}`}
-                    className="flex-1 text-center tnum"
-                  />
+                  {exercise.loggingType === 'bodyweight_reps' ? (
+                    // The lifter IS the load: a non-editable pill holds the
+                    // weight input's footprint so rows never jump on switch.
+                    <span
+                      aria-label={`Set ${setIndex + 1} uses bodyweight`}
+                      className="flex h-11 flex-1 items-center justify-center rounded-lg border border-border bg-muted text-base font-medium text-muted-foreground"
+                    >
+                      BW
+                    </span>
+                  ) : (
+                    <div className="relative flex-1">
+                      {exercise.loggingType !== 'weight_reps' && (
+                        // Sign prefix inside the field: this number is added
+                        // to (+) or subtracted from (−) bodyweight, not total.
+                        <span
+                          aria-hidden="true"
+                          className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-base text-muted-foreground"
+                        >
+                          {exercise.loggingType === 'assisted_bodyweight' ? '−' : '+'}
+                        </span>
+                      )}
+                      <Input
+                        type="text"
+                        inputMode="decimal"
+                        placeholder={ghost.weight}
+                        value={set.weight}
+                        onChange={(e) =>
+                          dispatch({
+                            type: 'UPDATE_SET',
+                            exerciseIndex,
+                            setIndex,
+                            field: 'weight',
+                            value: e.target.value,
+                          })
+                        }
+                        aria-label={
+                          exercise.loggingType === 'weighted_bodyweight'
+                            ? `Set ${setIndex + 1} added weight in ${unit}`
+                            : exercise.loggingType === 'assisted_bodyweight'
+                              ? `Set ${setIndex + 1} assistance in ${unit}`
+                              : `Set ${setIndex + 1} weight in ${unit}`
+                        }
+                        className="w-full text-center tnum"
+                      />
+                    </div>
+                  )}
                   <Button
                     size="icon-sm"
                     variant="ghost"
@@ -530,7 +608,11 @@ export function WorkoutLogger({
         </Button>
       </div>
 
-      {plateSheetFor !== null && draft.exercises[plateSheetFor] && (
+      {/* Guarded on loggingType too: the open button only renders for
+          weight_reps, but the type can switch while the sheet is up. */}
+      {plateSheetFor !== null &&
+        draft.exercises[plateSheetFor] &&
+        draft.exercises[plateSheetFor].loggingType === 'weight_reps' && (
         <PlateSheet
           exerciseName={draft.exercises[plateSheetFor].name}
           weights={Array.from(

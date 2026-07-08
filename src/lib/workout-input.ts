@@ -14,6 +14,28 @@
  * similar) schema while keeping the same signature.
  */
 
+/**
+ * How an exercise's sets are logged and how their `weight` column reads
+ * (Hevy-style). The type lives on the EXERCISE (not the set) — a movement is
+ * bodyweight or it isn't; per-set drift would make history incomparable.
+ *   weight_reps          → weight is the total load
+ *   bodyweight_reps      → weight is ignored (null); the lifter IS the load
+ *   weighted_bodyweight  → weight is ADDED load on top of bodyweight
+ *   assisted_bodyweight  → weight is ASSISTANCE subtracted from bodyweight
+ */
+export const LOGGING_TYPES = [
+  'weight_reps',
+  'bodyweight_reps',
+  'weighted_bodyweight',
+  'assisted_bodyweight',
+] as const
+export type LoggingType = (typeof LOGGING_TYPES)[number]
+
+/** Narrows untrusted input (action payloads, DB text) to a LoggingType. */
+export function isLoggingType(value: unknown): value is LoggingType {
+  return (LOGGING_TYPES as readonly unknown[]).includes(value)
+}
+
 /** A single logged set. `null` means the field was left blank. */
 export interface SetInput {
   reps: number | null
@@ -26,6 +48,8 @@ export interface SetInput {
 export interface ExerciseInput {
   wgerExerciseId: number
   name: string
+  /** How the sets' weights read; absent = 'weight_reps' (the column default). */
+  loggingType?: LoggingType
   sets: SetInput[]
 }
 
@@ -142,10 +166,23 @@ function parseExercise(raw: unknown): ExerciseInput {
   if (trimmedName.length === 0) throw new Error('exercise name must not be empty')
   if (trimmedName.length > MAX_NAME) throw new Error(`exercise name must be ${MAX_NAME} characters or fewer`)
 
+  // Missing/null means the caller predates logging types (or doesn't care):
+  // accept and let the column default ('weight_reps') apply. Anything present
+  // must be on the whitelist — a typo'd type would silently mis-score history.
+  const { loggingType } = obj
+  if (loggingType !== undefined && loggingType !== null && !isLoggingType(loggingType)) {
+    throw new Error(`exercise loggingType must be one of ${LOGGING_TYPES.join(', ')}`)
+  }
+
   if (!Array.isArray(obj.sets)) throw new Error('exercise sets must be an array')
   const sets = obj.sets.map(parseSet)
 
-  return { wgerExerciseId: wgerExerciseId as number, name: trimmedName, sets }
+  return {
+    wgerExerciseId: wgerExerciseId as number,
+    name: trimmedName,
+    ...(isLoggingType(loggingType) && { loggingType }),
+    sets,
+  }
 }
 
 /**

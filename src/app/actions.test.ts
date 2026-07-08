@@ -9,11 +9,13 @@ vi.mock('@/lib/auth', () => ({ requireUserId: vi.fn(async () => 'user_123') }))
 vi.mock('@/db/preferences', () => ({
   setWeightUnit: vi.fn(async () => {}),
   setEquipment: vi.fn(async () => {}),
+  setBodyweight: vi.fn(async () => {}),
+  getWeightUnit: vi.fn(async () => 'lb'),
 }))
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
 
-import { setWeightUnitAction, setEquipmentAction } from './actions'
-import { setWeightUnit, setEquipment } from '@/db/preferences'
+import { setWeightUnitAction, setEquipmentAction, setBodyweightAction } from './actions'
+import { setWeightUnit, setEquipment, setBodyweight, getWeightUnit } from '@/db/preferences'
 import { revalidatePath } from 'next/cache'
 
 beforeEach(() => {
@@ -53,6 +55,35 @@ describe('setEquipmentAction', () => {
       bars: [45, 35],
       plates: [45, 25, 2.5],
     })
+    expect(revalidatePath).toHaveBeenCalledWith('/', 'layout')
+  })
+})
+
+describe('setBodyweightAction', () => {
+  it.each([
+    ['a non-number', '180'],
+    ['zero', 0],
+    ['a negative value', -80],
+    ['a non-finite value', Infinity],
+  ])('rejects %s without writing or revalidating', async (_label, value) => {
+    await expect(setBodyweightAction(value)).rejects.toThrow('positive number')
+    expect(setBodyweight).not.toHaveBeenCalled()
+    expect(revalidatePath).not.toHaveBeenCalled()
+  })
+
+  it('rejects a value over the 500 kg sanity ceiling', async () => {
+    // 1200 lb ≈ 544 kg — plausible column-wise, absurd human-wise
+    await expect(setBodyweightAction(1200)).rejects.toThrow('between 0 and 500 kg')
+    expect(setBodyweight).not.toHaveBeenCalled()
+  })
+
+  it('converts the display-unit input to kg using the STORED unit and revalidates', async () => {
+    // Act — user's stored unit is lb (mocked); 181.5 lb → 82.33 kg (2dp)
+    await setBodyweightAction(181.5)
+
+    // Assert
+    expect(getWeightUnit).toHaveBeenCalledWith('user_123')
+    expect(setBodyweight).toHaveBeenCalledWith('user_123', 82.33)
     expect(revalidatePath).toHaveBeenCalledWith('/', 'layout')
   })
 })
