@@ -38,24 +38,26 @@ function perSideLabel(perSide: number[]): string {
 
 /** The denominations most gyms actually rack, per unit — the pill defaults.
  *  A user's own saved values always appear as pills too, so nothing owned
- *  ever disappears behind the "custom" input. */
-const COMMON_GEAR: Record<WeightUnit, { bars: number[]; plates: number[] }> = {
+ *  ever disappears behind the "custom" input. Deliberate consequence: a
+ *  custom value that gets toggled OFF leaves the list (selected = owned);
+ *  re-adding is a retype, not a hunt through ghost pills. */
+export const COMMON_GEAR: Record<WeightUnit, { bars: number[]; plates: number[] }> = {
   lb: { bars: [45, 35, 25, 15], plates: [55, 45, 35, 25, 10, 5, 2.5] },
   kg: { bars: [20, 15, 10], plates: [25, 20, 15, 10, 5, 2.5, 1.25] },
 }
 
 /** Union of common denominations and the user's own, heaviest first. */
-function pillOptions(common: number[], owned: number[]): number[] {
+export function pillOptions(common: number[], owned: number[]): number[] {
   return Array.from(new Set([...common, ...owned])).sort((a, b) => b - a)
 }
 
 /** "2.5" → 2.5; null for anything non-numeric or non-positive. */
-function parseCustomWeight(text: string): number | null {
+export function parseCustomWeight(text: string): number | null {
   const value = Number(text.trim())
   return Number.isFinite(value) && value > 0 ? value : null
 }
 
-function toggleValue(values: number[], value: number): number[] {
+export function toggleValue(values: number[], value: number): number[] {
   return values.includes(value) ? values.filter((v) => v !== value) : [...values, value]
 }
 
@@ -219,7 +221,8 @@ export function PlateSheet({
               onClick={() => setBar(weight)}
               aria-pressed={bar === weight}
               className={cn(
-                'rounded-full border px-3 py-1.5 text-sm font-semibold tnum transition-colors',
+                // Same 44px pill as the gear editor below — one vocabulary.
+                'min-h-11 rounded-full border px-4 text-sm font-semibold tnum transition-colors',
                 bar === weight
                   ? 'border-primary bg-primary text-primary-foreground'
                   : 'border-border bg-muted text-muted-foreground',
@@ -233,7 +236,7 @@ export function PlateSheet({
             onClick={() => setBar(0)}
             aria-pressed={bar === 0}
             className={cn(
-              'rounded-full border px-3 py-1.5 text-sm font-semibold transition-colors',
+              'min-h-11 rounded-full border px-4 text-sm font-semibold transition-colors',
               bar === 0
                 ? 'border-primary bg-primary text-primary-foreground'
                 : 'border-border bg-muted text-muted-foreground',
@@ -370,7 +373,9 @@ function GearPillGroup({
               onClick={() => onToggle(value)}
               aria-pressed={isSelected}
               className={cn(
-                'rounded-full border px-3 py-1.5 text-sm font-semibold tnum transition-colors',
+                // min-h-11: these pills ARE the gear editor — a mid-session,
+                // one-thumb surface, so they get the full 44px HIG target.
+                'min-h-11 rounded-full border px-4 text-sm font-semibold tnum transition-colors',
                 isSelected
                   ? 'border-primary bg-primary text-primary-foreground'
                   : 'border-border bg-muted text-muted-foreground',
@@ -395,9 +400,9 @@ function GearPillGroup({
             aria-label={`Add a custom weight to ${label}`}
             placeholder="Custom"
             inputMode="decimal"
-            className="h-9 w-24 rounded-full text-center text-sm"
+            className="h-11 w-24 rounded-full text-center text-sm"
           />
-          <Button size="sm" variant="outline" className="rounded-full" onClick={onCustomAdd}>
+          <Button variant="outline" className="rounded-full" onClick={onCustomAdd}>
             Add
           </Button>
         </span>
