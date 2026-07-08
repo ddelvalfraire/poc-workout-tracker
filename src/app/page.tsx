@@ -117,7 +117,9 @@ export default async function HomePage() {
         ) : (
           <ul className="divide-y divide-border overflow-hidden rounded-2xl border border-border bg-card">
             {summaries.map((w) => (
-              <li key={w.id} className="flex items-center">
+              // gap-1 gives the Repeat link's expanded hit inset dead space
+              // to land in — without it the inset overlaps the row link.
+              <li key={w.id} className="flex items-center gap-1">
                 <Link
                   href={`/workout/${w.id}`}
                   className="flex min-w-0 flex-1 items-center justify-between gap-3 px-4 py-4 transition-colors active:bg-muted/60"

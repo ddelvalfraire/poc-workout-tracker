@@ -97,6 +97,9 @@ describe('adoptableGhostValue', () => {
     // A "8–12" plan ghost must not be silently dropped — that left one-tap
     // completion recording weight with NO reps.
     expect(adoptableGhostValue('8–12')).toBe('8')
+    // Guard against upstream formatting drift: a degenerate "8–8" range
+    // (today collapsed to "8" by planPlaceholderForSet) must still adopt.
+    expect(adoptableGhostValue('8–8')).toBe('8')
   })
 
   it('rejects non-numeric and absent ghosts', () => {
