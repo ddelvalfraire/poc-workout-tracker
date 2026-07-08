@@ -145,7 +145,9 @@ export default async function HomePage() {
                   aria-label={`Repeat ${w.name ?? "Workout"}`}
                   className={cn(
                     buttonVariants({ variant: "ghost", size: "icon-sm" }),
-                    "mr-2 shrink-0 text-muted-foreground",
+                    // Invisible inset lifts the 36px visual button toward the
+                    // 44px HIG target without growing the row.
+                    "relative mr-2 shrink-0 text-muted-foreground before:absolute before:-inset-1",
                   )}
                 >
                   <RotateCcw aria-hidden="true" className="size-5" />

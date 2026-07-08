@@ -149,7 +149,7 @@ test('signed-in user can start, log, and save a workout', async ({ page }) => {
     .toBe(1)
 
   // Save -> lands on the session summary (detail page).
-  await page.getByRole('button', { name: /save workout/i }).click()
+  await page.getByRole('button', { name: /finish workout/i }).click()
   await expect(page).toHaveURL(/\/workout\/[0-9a-f-]+$/)
 
   // Assert the persisted row tree for this user.

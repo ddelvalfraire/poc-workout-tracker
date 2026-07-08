@@ -141,6 +141,19 @@ export function placeholderForSet(
   }
 }
 
+/**
+ * The input value a ghost placeholder can be adopted as (tap-to-accept in the
+ * logger). Plain numerics adopt verbatim; a rep-range ghost like "8–12"
+ * adopts its FLOOR (the plan minimum) — dropping it entirely left one-tap
+ * completion recording a weight with no reps. Anything else is display-only.
+ */
+export function adoptableGhostValue(ghost?: string): string | undefined {
+  if (!ghost) return undefined
+  if (/^\d+(\.\d+)?$/.test(ghost)) return ghost
+  const range = ghost.match(/^(\d+)–\d+$/)
+  return range ? range[1] : undefined
+}
+
 /** A planned set's ghostable targets, in stored kg (from the program's
  *  engine-derived prescription for the workout's week). */
 export interface PlanSetTarget {

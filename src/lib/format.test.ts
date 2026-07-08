@@ -9,6 +9,7 @@ import {
   formatElapsed,
   placeholderForSet,
   planPlaceholderForSet,
+  adoptableGhostValue,
 } from './format'
 
 describe('formatSet', () => {
@@ -83,6 +84,26 @@ describe('placeholderForSet', () => {
       reps: '5',
       weight: undefined,
     })
+  })
+})
+
+describe('adoptableGhostValue', () => {
+  it('adopts plain numeric ghosts verbatim', () => {
+    expect(adoptableGhostValue('8')).toBe('8')
+    expect(adoptableGhostValue('102.5')).toBe('102.5')
+  })
+
+  it('adopts the floor of a rep-range ghost (the plan minimum)', () => {
+    // A "8–12" plan ghost must not be silently dropped — that left one-tap
+    // completion recording weight with NO reps.
+    expect(adoptableGhostValue('8–12')).toBe('8')
+  })
+
+  it('rejects non-numeric and absent ghosts', () => {
+    expect(adoptableGhostValue(undefined)).toBeUndefined()
+    expect(adoptableGhostValue('')).toBeUndefined()
+    expect(adoptableGhostValue('abc')).toBeUndefined()
+    expect(adoptableGhostValue('8-12x')).toBeUndefined()
   })
 })
 

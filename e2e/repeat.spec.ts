@@ -77,7 +77,7 @@ test('repeats a logged workout, seeding its values, and saves a distinct new wor
   await page.getByRole('button', { name: /add set/i }).click()
   await page.getByLabel('Set 2 reps').fill('8')
   await page.getByLabel('Set 2 weight in kg').fill('60')
-  await page.getByRole('button', { name: /save workout/i }).click()
+  await page.getByRole('button', { name: /finish workout/i }).click()
   // Save lands on the session summary (detail page); return home.
   await expect(page).toHaveURL(/\/workout\/[0-9a-f-]+$/)
   await page.goto('/')
@@ -100,7 +100,7 @@ test('repeats a logged workout, seeding its values, and saves a distinct new wor
 
   // --- Edit one field and save → a distinct second workout. ---
   await page.getByLabel('Set 1 weight in kg').fill('102.5')
-  await page.getByRole('button', { name: /save workout/i }).click()
+  await page.getByRole('button', { name: /finish workout/i }).click()
   await expect(page).toHaveURL(/\/workout\/[0-9a-f-]+$/)
   await page.goto('/')
 
