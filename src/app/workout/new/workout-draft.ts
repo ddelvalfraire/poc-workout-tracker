@@ -144,6 +144,11 @@ export function workoutDraftReducer(state: WorkoutDraft, action: DraftAction): W
         exercises: mapExerciseAt(state.exercises, action.exerciseIndex, (exercise) => ({
           ...exercise,
           loggingType: action.loggingType,
+          // Clear typed weights: the column's MEANING changes with the type
+          // (total load vs added vs assistance), so a value entered under the
+          // old type would be silently re-read as something else — an
+          // inflated e1RM and a phantom PR. Reps and completion survive.
+          sets: exercise.sets.map((set) => ({ ...set, weight: '' })),
         })),
       }
 

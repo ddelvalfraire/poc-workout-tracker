@@ -102,7 +102,7 @@ describe('workoutDraftReducer', () => {
     expect(back.exercises[0].sets[1].completed).toBe(false)
   })
 
-  it('SET_LOGGING_TYPE switches only the targeted exercise and does not mutate prev', () => {
+  it('SET_LOGGING_TYPE switches the targeted exercise and clears its typed weights', () => {
     // Act
     const next = workoutDraftReducer(NESTED, {
       type: 'SET_LOGGING_TYPE',
@@ -110,10 +110,28 @@ describe('workoutDraftReducer', () => {
       loggingType: 'weighted_bodyweight',
     })
 
-    // Assert — type switched, sets (typed values) untouched, prev unmutated
+    // Assert — type switched; weights cleared (a number typed as total load
+    // must not be silently re-read as added/assisted load); reps and
+    // completion kept; prev unmutated
     expect(next.exercises[0].loggingType).toBe('weighted_bodyweight')
-    expect(next.exercises[0].sets).toEqual(NESTED.exercises[0].sets)
+    for (const [i, set] of next.exercises[0].sets.entries()) {
+      expect(set.weight).toBe('')
+      expect(set.reps).toBe(NESTED.exercises[0].sets[i].reps)
+      expect(set.completed).toBe(NESTED.exercises[0].sets[i].completed)
+    }
     expect(NESTED.exercises[0].loggingType).toBe('weight_reps')
+  })
+
+  it('SET_LOGGING_TYPE leaves other exercises untouched', () => {
+    // Act
+    const next = workoutDraftReducer(NESTED, {
+      type: 'SET_LOGGING_TYPE',
+      exerciseIndex: 0,
+      loggingType: 'bodyweight_reps',
+    })
+
+    // Assert
+    expect(next.exercises.slice(1)).toEqual(NESTED.exercises.slice(1))
   })
 
   it('RESTORE_DRAFT replaces the whole state with the provided draft', () => {
