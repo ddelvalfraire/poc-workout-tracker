@@ -66,8 +66,7 @@ export function PlateSheet({
   // the page behind genuinely inert — a screen reader's virtual cursor can't
   // walk behind the sheet, which a hand-rolled Tab trap never guarantees.
   // We keep manual body scroll lock (dialog doesn't lock it), initial focus
-  // on the visible ×, and focus restore on unmount (we unmount instead of
-  // calling close(), so the native restore doesn't fire).
+  // on the visible ×, and focus restore on unmount.
   useEffect(() => {
     const dialog = dialogRef.current
     // Restore target: only an element OUTSIDE the dialog (on a StrictMode
@@ -82,6 +81,12 @@ export function PlateSheet({
     const previousOverflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
     return () => {
+      // Explicitly release the top layer: unmounting a modal dialog without
+      // close() can strand its ::backdrop over the incoming page when the
+      // unmount happens mid-navigation, eating every tap afterwards. The
+      // manual focus restore stays as the fallback for targets close()'s
+      // native restore doesn't cover.
+      if (dialog?.open) dialog.close()
       document.body.style.overflow = previousOverflow
       previouslyFocused?.focus()
     }

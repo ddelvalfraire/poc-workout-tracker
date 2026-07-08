@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useReducer, useRef, useState, useTransition } from 'react'
+import { useEffect, useReducer, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useQueries, useQueryClient } from '@tanstack/react-query'
 import { Check, Dumbbell, Trash2, X } from 'lucide-react'
@@ -78,7 +78,7 @@ export function WorkoutLogger({
   const [draft, dispatch] = useReducer(workoutDraftReducer, initialDraft)
   const [name, setName] = useState(initialName)
   const [error, setError] = useState<string | null>(null)
-  const [isPending, startTransition] = useTransition()
+  const [isSaving, setIsSaving] = useState(false)
   // Prior performance per distinct exercise, for the per-set ghost
   // placeholders. TanStack Query owns dedupe/caching/retry (this replaced a
   // hand-rolled requestedRef cache); provider defaults keep ghosts fresh per
@@ -254,41 +254,49 @@ export function WorkoutLogger({
 
   const isEmpty = draft.exercises.length === 0
 
-  function handleSave() {
-    startTransition(async () => {
-      try {
-        setError(null)
-        // Save-time barrier: pause autosave AND wait out any put already on
-        // the wire, so nothing can land after the save action deletes the
-        // draft and resurrect it.
-        await queue.settle()
-        // The save actions delete this surface's server draft themselves —
-        // the saved workout supersedes it on every device.
-        if (workoutId) {
-          await updateWorkoutAction(workoutId, draftToInput(draft, name, unit))
-          // History changed: the browser QueryClient outlives this page, so
-          // cached ghosts would otherwise show pre-save data next session.
-          queryClient.invalidateQueries({ queryKey: ['last-performance'], refetchType: 'none' })
-          router.push(`/workout/${workoutId}`)
-        } else {
-          const { id } = await saveWorkoutAction({
-            ...draftToInput(draft, name, unit),
-            // Live session bounds: opened → saved. Without the explicit
-            // completedAt the DB layer would fall back to startedAt (the
-            // backdating default) and every live log would read as 0 min.
-            startedAt: openedAt,
-            completedAt: new Date(),
-          })
-          queryClient.invalidateQueries({ queryKey: ['last-performance'], refetchType: 'none' })
-          // Land on the session summary (duration, volume, PR badges) — the
-          // finish deserves a readout, not a home-screen redirect.
-          router.push(`/workout/${id}`)
-        }
-      } catch {
-        queue.resume() // save failed — autosave picks the latest back up
-        setError('Could not save workout. Please try again.')
+  // Deliberately NOT wrapped in startTransition: tying router.push to an async
+  // transition made the experimental <ViewTransition> capture race the
+  // destination page's suspended data reads, which could strand the old
+  // screen's snapshot over the new page (taps landed on a frozen picture).
+  // Await everything first, then navigate outside any transition scope.
+  async function handleSave() {
+    setPlateSheetFor(null) // a live showModal() dialog must not cross navigation
+    setIsSaving(true)
+    try {
+      setError(null)
+      // Save-time barrier: pause autosave AND wait out any put already on
+      // the wire, so nothing can land after the save action deletes the
+      // draft and resurrect it.
+      await queue.settle()
+      // The save actions delete this surface's server draft themselves —
+      // the saved workout supersedes it on every device.
+      if (workoutId) {
+        await updateWorkoutAction(workoutId, draftToInput(draft, name, unit))
+        // History changed: the browser QueryClient outlives this page, so
+        // cached ghosts would otherwise show pre-save data next session.
+        queryClient.invalidateQueries({ queryKey: ['last-performance'], refetchType: 'none' })
+        router.push(`/workout/${workoutId}`)
+      } else {
+        const { id } = await saveWorkoutAction({
+          ...draftToInput(draft, name, unit),
+          // Live session bounds: opened → saved. Without the explicit
+          // completedAt the DB layer would fall back to startedAt (the
+          // backdating default) and every live log would read as 0 min.
+          startedAt: openedAt,
+          completedAt: new Date(),
+        })
+        queryClient.invalidateQueries({ queryKey: ['last-performance'], refetchType: 'none' })
+        // Land on the session summary (duration, volume, PR badges) — the
+        // finish deserves a readout, not a home-screen redirect.
+        router.push(`/workout/${id}`)
       }
-    })
+      // isSaving intentionally stays true on success: the button reads
+      // "Saving…" until the navigation unmounts this screen.
+    } catch {
+      queue.resume() // save failed — autosave picks the latest back up
+      setIsSaving(false)
+      setError('Could not save workout. Please try again.')
+    }
   }
 
   return (
@@ -520,13 +528,13 @@ export function WorkoutLogger({
         <Button
           size="lg"
           className="w-full font-semibold uppercase tracking-wide"
-          disabled={isEmpty || isPending}
+          disabled={isEmpty || isSaving}
           onClick={handleSave}
         >
           {/* "Finish", not "Save": ending a session is the product's peak
               moment, not filing paperwork. Edit mode keeps "Save changes" —
               that IS paperwork. */}
-          {isPending ? 'Saving…' : workoutId ? 'Save changes' : 'Finish workout'}
+          {isSaving ? 'Saving…' : workoutId ? 'Save changes' : 'Finish workout'}
         </Button>
       </div>
 

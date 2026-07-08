@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useReducer, useRef, useState, useTransition } from 'react'
+import { useEffect, useReducer, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Trash2, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -35,7 +35,7 @@ export function ProgramBuilder({
 }: ProgramBuilderProps) {
   const [draft, dispatch] = useReducer(programDraftReducer, initialDraft)
   const [error, setError] = useState<string | null>(null)
-  const [isPending, startTransition] = useTransition()
+  const [isPending, setIsPending] = useState(false)
   const router = useRouter()
   // Local draft persistence: the builder is a long phone form with no server
   // draft (unlike the logger) — a backgrounded-tab kill would otherwise
@@ -111,23 +111,26 @@ export function ProgramBuilder({
       (day) => day.exercises.length === 0 || day.exercises.some((e) => e.sets.length === 0),
     )
 
-  function handleSave() {
-    startTransition(async () => {
-      try {
-        setError(null)
-        if (programId) {
-          await updateProgramAction(programId, draftToProgramInput(draft, unit))
-          clearStoredDraft() // the saved program supersedes the local draft
-          router.push(`/programs/${programId}`)
-        } else {
-          const { id } = await saveProgramAction(draftToProgramInput(draft, unit))
-          clearStoredDraft()
-          router.push(`/programs/${id}`)
-        }
-      } catch {
-        setError('Could not save program. Please try again.')
+  // Not startTransition: navigating inside an async transition lets the
+  // app-wide <ViewTransition> strand the old screen's snapshot over the
+  // destination (see workout-logger handleSave). Await, then navigate.
+  async function handleSave() {
+    setIsPending(true)
+    try {
+      setError(null)
+      if (programId) {
+        await updateProgramAction(programId, draftToProgramInput(draft, unit))
+        clearStoredDraft() // the saved program supersedes the local draft
+        router.push(`/programs/${programId}`)
+      } else {
+        const { id } = await saveProgramAction(draftToProgramInput(draft, unit))
+        clearStoredDraft()
+        router.push(`/programs/${id}`)
       }
-    })
+    } catch {
+      setIsPending(false)
+      setError('Could not save program. Please try again.')
+    }
   }
 
   return (
