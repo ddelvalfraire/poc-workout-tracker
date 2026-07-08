@@ -1,10 +1,11 @@
-const CACHE = 'workout-tracker-v2'
-const OFFLINE_URL = '/'
+const CACHE = 'workout-tracker-v3'
+const OFFLINE_URL = '/offline.html'
 
 self.addEventListener('install', (event) => {
-  // Best-effort precache of the app shell so the offline navigation fallback
-  // has something to serve. A failed precache (e.g. auth redirect) must never
-  // block installation — installability is the whole point of this worker.
+  // Precache ONLY the static offline page. Never precache or runtime-cache
+  // real app HTML: a cached shell references hashed /_next chunks that stop
+  // existing after the next deploy, and serving it on a flaky resume is how
+  // the app white-screened (stale shell → dead chunks → React never boots).
   //
   // No skipWaiting(): a new worker taking over a live page can serve HTML
   // whose hashed /_next chunks no longer exist, and a forced reload would
@@ -19,7 +20,8 @@ self.addEventListener('install', (event) => {
 })
 
 self.addEventListener('activate', (event) => {
-  // Drop caches from previous versions before taking control.
+  // Drop caches from previous versions (including v2's stale HTML shells)
+  // before taking control.
   event.waitUntil(
     caches
       .keys()
@@ -33,18 +35,7 @@ self.addEventListener('fetch', (event) => {
   if (request.method !== 'GET') return
   if (request.mode !== 'navigate') return
 
-  // Network-first for navigations; fall back to the cached shell if offline.
-  event.respondWith(
-    fetch(request)
-      .then((res) => {
-        // Cache only successful, same-origin responses — never errors,
-        // redirects, or opaque cross-origin responses.
-        if (res.ok && res.type === 'basic') {
-          const copy = res.clone()
-          caches.open(CACHE).then((cache) => cache.put(request, copy))
-        }
-        return res
-      })
-      .catch(() => caches.match(request).then((r) => r || caches.match(OFFLINE_URL))),
-  )
+  // Network-first for navigations; when truly offline, serve the chunk-free
+  // offline page instead of a stale app shell that can never boot.
+  event.respondWith(fetch(request).catch(() => caches.match(OFFLINE_URL)))
 })

@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Offline — Workout Tracker</title>
+    <!--
+      Served by the service worker when a navigation fails (no network).
+      Deliberately self-contained: no /_next chunks, no external assets, so it
+      can never break when a deploy rotates hashed filenames.
+    -->
+    <style>
+      :root {
+        color-scheme: dark;
+      }
+      body {
+        margin: 0;
+        min-height: 100dvh;
+        display: grid;
+        place-items: center;
+        background: #0a0a0a;
+        color: #f7f7f7;
+        font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
+        text-align: center;
+        padding: env(safe-area-inset-top) 24px env(safe-area-inset-bottom);
+      }
+      main {
+        max-width: 22rem;
+      }
+      h1 {
+        font-size: 1.375rem;
+        line-height: 1.2;
+        margin: 0 0 0.5rem;
+        letter-spacing: -0.01em;
+      }
+      p {
+        margin: 0 0 1.5rem;
+        color: #b8b8b8;
+        font-size: 0.9375rem;
+        line-height: 1.5;
+      }
+      button {
+        appearance: none;
+        border: 0;
+        border-radius: 9999px;
+        padding: 0.75rem 2rem;
+        font: inherit;
+        font-weight: 600;
+        background: #c8f542;
+        color: #1a2405;
+        cursor: pointer;
+      }
+      button:active {
+        opacity: 0.8;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>You&rsquo;re offline</h1>
+      <p>Workout Tracker needs a connection to load. Your in-progress draft is safe and will sync when you&rsquo;re back.</p>
+      <button type="button" onclick="location.reload()">Try again</button>
+    </main>
+  </body>
+</html>
