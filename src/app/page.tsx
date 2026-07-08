@@ -5,25 +5,25 @@ import { requireUserId } from "@/lib/auth";
 import { listWorkoutSummaries } from "@/db/workouts";
 import { listWorkoutDrafts } from "@/db/workout-drafts";
 import { getNextProgramDay } from "@/db/programs";
-import { getWeightUnit, getBodyweightKg } from "@/db/preferences";
-import { kgToDisplay } from "@/lib/units";
+import { getWeightUnit } from "@/db/preferences";
 import { pickActiveSession } from "@/lib/active-session";
-import { formatWorkoutDate, formatVolume, formatWorkoutDuration } from "@/lib/format";
+import { formatVolume, formatWorkoutDuration } from "@/lib/format";
 import { startedWithinLastHours } from "@/lib/recent-window";
 import { buttonVariants } from "@/components/ui/button";
 import { UnitToggle } from "@/components/unit-toggle";
-import { BodyweightEditor } from "@/components/bodyweight-editor";
 import { cn } from "@/lib/utils";
 import { NextWorkoutCard } from "./next-workout-card";
 import { ResumeSessionCard } from "./resume-session-card";
 import { TodayWorkouts } from "./today-workouts";
 
+// en-US matches formatWorkoutDate — one locale for all date display.
+const monthFormat = new Intl.DateTimeFormat("en-US", { month: "short" });
+
 export default async function HomePage() {
   const userId = await requireUserId(); // middleware also guards; this is defense-in-depth
-  const [summaries, unit, bodyweightKg, nextDay, drafts] = await Promise.all([
+  const [summaries, unit, nextDay, drafts] = await Promise.all([
     listWorkoutSummaries(userId),
     getWeightUnit(userId),
-    getBodyweightKg(userId),
     getNextProgramDay(userId),
     listWorkoutDrafts(userId),
   ]);
@@ -37,13 +37,9 @@ export default async function HomePage() {
         <div className="mx-auto flex w-full max-w-md items-center justify-between px-5 pb-3">
           <h1 className="text-2xl font-bold uppercase tracking-tight">Workout Tracker</h1>
           <div className="flex items-center gap-2">
-            {/* Bodyweight sits with the unit toggle: both are the same kind of
-                lightweight measurement preference, and BW-type exercises need
-                it before they can score an estimated 1RM. */}
-            <BodyweightEditor
-              bodyweightDisplay={bodyweightKg !== null ? kgToDisplay(bodyweightKg, unit) : null}
-              unit={unit}
-            />
+            {/* BodyweightEditor deliberately absent: bodyweight tracking gets
+                its own surface later — it is a measurement, not a header
+                preference. The component stays for that future home. */}
             <UnitToggle unit={unit} />
             <UserButton />
           </div>
@@ -132,13 +128,23 @@ export default async function HomePage() {
               <li key={w.id} className="flex items-center gap-1">
                 <Link
                   href={`/workout/${w.id}`}
-                  className="flex min-w-0 flex-1 items-center justify-between gap-3 px-4 py-4 transition-colors active:bg-muted/60"
+                  className="flex min-w-0 flex-1 items-center gap-4 px-4 py-3.5 transition-colors active:bg-muted/60"
                 >
-                  <span className="min-w-0">
+                  {/* Stacked calendar block: scanning history is a date
+                      lookup first — give the eye a fixed tabular anchor
+                      instead of burying the date mid-sentence. */}
+                  <span className="flex w-9 shrink-0 flex-col items-center">
+                    <span className="font-display text-xl leading-none tnum">
+                      {w.startedAt.getDate()}
+                    </span>
+                    <span className="mt-0.5 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+                      {monthFormat.format(w.startedAt)}
+                    </span>
+                  </span>
+                  <span className="min-w-0 flex-1">
                     <span className="block truncate font-medium">{w.name ?? "Workout"}</span>
-                    <span className="mt-0.5 block truncate text-sm text-muted-foreground">
+                    <span className="mt-0.5 block truncate text-sm text-muted-foreground tnum">
                       {[
-                        formatWorkoutDate(w.startedAt),
                         formatWorkoutDuration(w.startedAt, w.completedAt),
                         `${w.setCount} set${w.setCount === 1 ? "" : "s"}`,
                         w.volumeKg > 0 ? formatVolume(w.volumeKg, unit) : null,

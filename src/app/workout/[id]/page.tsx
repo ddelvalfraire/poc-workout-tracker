@@ -162,7 +162,11 @@ export default async function WorkoutDetailPage({
                 className="rounded-2xl border border-border bg-card p-4"
               >
                 <div className="flex items-center justify-between gap-2">
-                  <h2 className="min-w-0 text-base">{exercise.name}</h2>
+                  {/* Display type on the movement name: the card is a record
+                      of work done under a bar — let it read like one. */}
+                  <h2 className="min-w-0 truncate font-display text-lg uppercase leading-tight tracking-wide">
+                    {exercise.name}
+                  </h2>
                   {isPR && (
                     <span
                       aria-label="Personal record"
@@ -198,7 +202,7 @@ export default async function WorkoutDetailPage({
                           {formatLoggedSet(set, unit, exercise.loggingType)}
                         </span>
                         {setIndex === bestIndex && (
-                          <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+                          <span className="rounded-full border border-border px-1.5 py-px text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
                             Top set
                           </span>
                         )}
@@ -212,7 +216,7 @@ export default async function WorkoutDetailPage({
                       {current.kind === "e1rm" ? "Est. 1RM" : "Top set"}
                     </span>
                     {current.kind === "e1rm" ? (
-                      <span className="font-display text-2xl leading-none tnum">
+                      <span className="font-display text-3xl leading-none tnum">
                         <span aria-hidden="true" className="text-muted-foreground">
                           ~
                         </span>
@@ -221,7 +225,7 @@ export default async function WorkoutDetailPage({
                     ) : (
                       // Rep fallback: no load to estimate from, but the best
                       // effort still deserves its readout — not a blank card.
-                      <span className="font-display text-2xl leading-none tnum">
+                      <span className="font-display text-3xl leading-none tnum">
                         {current.reps} reps
                       </span>
                     )}
