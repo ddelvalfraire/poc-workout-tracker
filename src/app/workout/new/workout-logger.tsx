@@ -32,7 +32,12 @@ import { PlateSheet } from './plate-sheet'
 import { DEFAULT_EQUIPMENT, type Equipment } from '@/lib/equipment'
 import { type WeightUnit } from '@/lib/units'
 import { cn } from '@/lib/utils'
-import { placeholderForSet, planPlaceholderForSet, type PlanSetTarget } from '@/lib/format'
+import {
+  placeholderForSet,
+  planPlaceholderForSet,
+  adoptableGhostValue,
+  type PlanSetTarget,
+} from '@/lib/format'
 import type { LastPerformance } from '@/db/workouts'
 
 /** How long the inline "Removed — Undo" affordance stays actionable. */
@@ -44,12 +49,6 @@ const UNDO_WINDOW_MS = 5000
 type RemovedEntry =
   | { kind: 'exercise'; exercise: DraftExercise; index: number }
   | { kind: 'set'; exerciseId: string; exerciseName: string; setIndex: number; set: DraftSet }
-
-/** A ghost string the inputs can adopt as a real value ("8", "102.5") —
- *  excludes display-only ghosts like the plan's "8–12" rep range. */
-function adoptable(ghost?: string): string | undefined {
-  return ghost && /^\d+(\.\d+)?$/.test(ghost) ? ghost : undefined
-}
 
 interface WorkoutLoggerProps {
   /** When set, the logger is in edit mode: Save updates this workout and returns to its detail page. */
@@ -305,7 +304,7 @@ export function WorkoutLogger({
         <SessionStatus startedAt={openedAt} restStartedAt={restStartedAt} />
 
         {syncStatus === 'failed' && (
-          <p className="px-1 text-sm text-amber-500" role="status">
+          <p className="px-1 text-sm text-warning" role="status">
             Offline — changes will sync when you&apos;re back.
           </p>
         )}
@@ -398,8 +397,11 @@ export function WorkoutLogger({
                         setIndex,
                         // Tap-to-accept: checking off an untouched set adopts
                         // the ghost ("do what I did last time" in one tap).
-                        // Range ghosts like "8–12" stay display-only.
-                        fill: { reps: adoptable(ghost.reps), weight: adoptable(ghost.weight) },
+                        // A "8–12" plan range adopts its floor.
+                        fill: {
+                          reps: adoptableGhostValue(ghost.reps),
+                          weight: adoptableGhostValue(ghost.weight),
+                        },
                       })
                       // Checking off starts the rest count-up; unchecking is a
                       // correction, not a new rest period.
@@ -465,7 +467,10 @@ export function WorkoutLogger({
                   <Button
                     size="icon-sm"
                     variant="ghost"
-                    className="shrink-0 text-muted-foreground"
+                    // Invisible inset lifts the 36px visual button toward the
+                    // 44px HIG target without shifting the row (same trick as
+                    // the set-complete circle).
+                    className="relative shrink-0 text-muted-foreground before:absolute before:-inset-1"
                     onClick={() => handleRemoveSet(exerciseIndex, setIndex)}
                     aria-label={`Remove set ${setIndex + 1}`}
                   >
@@ -518,7 +523,10 @@ export function WorkoutLogger({
           disabled={isEmpty || isPending}
           onClick={handleSave}
         >
-          {isPending ? 'Saving…' : workoutId ? 'Save changes' : 'Save workout'}
+          {/* "Finish", not "Save": ending a session is the product's peak
+              moment, not filing paperwork. Edit mode keeps "Save changes" —
+              that IS paperwork. */}
+          {isPending ? 'Saving…' : workoutId ? 'Save changes' : 'Finish workout'}
         </Button>
       </div>
 

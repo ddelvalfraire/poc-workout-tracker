@@ -117,7 +117,9 @@ export default async function HomePage() {
         ) : (
           <ul className="divide-y divide-border overflow-hidden rounded-2xl border border-border bg-card">
             {summaries.map((w) => (
-              <li key={w.id} className="flex items-center">
+              // gap-1 gives the Repeat link's expanded hit inset dead space
+              // to land in — without it the inset overlaps the row link.
+              <li key={w.id} className="flex items-center gap-1">
                 <Link
                   href={`/workout/${w.id}`}
                   className="flex min-w-0 flex-1 items-center justify-between gap-3 px-4 py-4 transition-colors active:bg-muted/60"
@@ -145,7 +147,9 @@ export default async function HomePage() {
                   aria-label={`Repeat ${w.name ?? "Workout"}`}
                   className={cn(
                     buttonVariants({ variant: "ghost", size: "icon-sm" }),
-                    "mr-2 shrink-0 text-muted-foreground",
+                    // Invisible inset lifts the 36px visual button toward the
+                    // 44px HIG target without growing the row.
+                    "relative mr-2 shrink-0 text-muted-foreground before:absolute before:-inset-1",
                   )}
                 >
                   <RotateCcw aria-hidden="true" className="size-5" />

@@ -2,7 +2,12 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { ChevronLeft } from 'lucide-react'
 import { requireUserId } from '@/lib/auth'
-import { getProgramDetail, nextProgramWeek, deriveDayPrescription } from '@/db/programs'
+import {
+  getProgramDetail,
+  nextProgramWeek,
+  deriveDayPrescription,
+  getNextProgramDay,
+} from '@/db/programs'
 import { getWeightUnit } from '@/db/preferences'
 import { AppHeader } from '@/components/app-header'
 import { buttonVariants } from '@/components/ui/button'
@@ -21,7 +26,14 @@ export default async function ProgramDetailPage({
   const [program, unit] = await Promise.all([getProgramDetail(userId, id), getWeightUnit(userId)])
   if (!program) notFound()
 
-  const week = await nextProgramWeek(userId, program.id, program.mesocycleWeeks)
+  const [week, nextDay] = await Promise.all([
+    nextProgramWeek(userId, program.id, program.mesocycleWeeks),
+    getNextProgramDay(userId),
+  ])
+  // One volt CTA per screen (the design system's spine): only the day the
+  // user would actually train next keeps the primary variant; the rest
+  // demote to outline. A non-active program has no "next", so all demote.
+  const nextDayId = nextDay?.programId === program.id ? nextDay.dayId : null
   // getProgramDetail days carry no back-ref to the program row, so the
   // DayForDerivation `program` slice is attached inline per day.
   const prescriptions = await Promise.all(
@@ -113,7 +125,10 @@ export default async function ProgramDetailPage({
               </div>
 
               <div className="mt-4">
-                <StartDayButton programDayId={day.id} />
+                <StartDayButton
+                  programDayId={day.id}
+                  variant={day.id === nextDayId ? 'default' : 'outline'}
+                />
               </div>
             </section>
           ))}

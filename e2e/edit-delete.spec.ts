@@ -77,7 +77,7 @@ test('signed-in user can edit a set and delete a workout', async ({ page }) => {
   await addButton.click()
   await page.getByLabel('Set 1 reps').fill('5')
   await page.getByLabel('Set 1 weight in kg').fill('100')
-  await page.getByRole('button', { name: /save workout/i }).click()
+  await page.getByRole('button', { name: /finish workout/i }).click()
   // Save lands on the session summary (detail page); go home for History.
   await expect(page).toHaveURL(/\/workout\/[0-9a-f-]+$/)
   await page.goto('/')

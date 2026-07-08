@@ -251,7 +251,9 @@ export function ProgramBuilder({
                     }
                     aria-label={`Remove ${exercise.name}`}
                   >
-                    <X aria-hidden="true" className="size-4" />
+                    {/* Trash2 = container (day, exercise); X = single row
+                        (set) — one glyph per meaning, matching the logger. */}
+                    <Trash2 aria-hidden="true" className="size-4" />
                   </Button>
                 </div>
 

@@ -68,7 +68,7 @@ async function logBench(page: Page, weight: string) {
 
   await page.getByLabel('Set 1 reps').fill('5')
   await page.getByLabel('Set 1 weight in kg').fill(weight)
-  await page.getByRole('button', { name: /save workout/i }).click()
+  await page.getByRole('button', { name: /finish workout/i }).click()
   // Save lands on the session summary (detail page); return home.
   await expect(page).toHaveURL(/\/workout\/[0-9a-f-]+$/)
   await page.goto('/')
