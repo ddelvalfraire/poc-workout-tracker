@@ -2,29 +2,9 @@
 
 import { useEffect } from 'react'
 
-// One-shot per session so a persistent failure (e.g. genuinely offline) can't
-// put the page in a reload loop.
-const CHUNK_RELOAD_FLAG = 'sw-chunk-reload'
-
-function isStaleChunkError(event: Event | PromiseRejectionEvent): boolean {
-  if ('reason' in event) {
-    const name = (event.reason as { name?: string } | null)?.name
-    return name === 'ChunkLoadError'
-  }
-  const target = event.target
-  return target instanceof HTMLScriptElement && target.src.includes('/_next/')
-}
-
-function reloadOnceForStaleChunks(event: Event | PromiseRejectionEvent) {
-  if (!isStaleChunkError(event)) return
-  if (sessionStorage.getItem(CHUNK_RELOAD_FLAG)) return
-  sessionStorage.setItem(CHUNK_RELOAD_FLAG, '1')
-  // Chunks referenced by this document no longer exist on the server (the app
-  // was redeployed, or the SW served a stale cached shell). The page is
-  // already broken, so a full reload to fetch fresh HTML is the only recovery.
-  window.location.reload()
-}
-
+// Registration only. Stale-chunk recovery lives in ChunkRecoveryScript (an
+// inline pre-boot script in the root layout): when the entry chunks
+// themselves 404, this component never mounts, so recovery cannot live here.
 export function ServiceWorkerRegister() {
   useEffect(() => {
     if (process.env.NODE_ENV !== 'production') return
@@ -43,14 +23,8 @@ export function ServiceWorkerRegister() {
     }
 
     document.addEventListener('visibilitychange', onVisible)
-    // Resource errors don't bubble — they only reach window in capture phase.
-    window.addEventListener('error', reloadOnceForStaleChunks, true)
-    window.addEventListener('unhandledrejection', reloadOnceForStaleChunks)
-
     return () => {
       document.removeEventListener('visibilitychange', onVisible)
-      window.removeEventListener('error', reloadOnceForStaleChunks, true)
-      window.removeEventListener('unhandledrejection', reloadOnceForStaleChunks)
     }
   }, [])
 

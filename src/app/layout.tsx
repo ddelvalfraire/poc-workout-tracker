@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Inter, Oswald } from "next/font/google";
 import { ClerkProvider } from "@clerk/nextjs";
 import { ServiceWorkerRegister } from "@/components/pwa/service-worker-register";
+import { ChunkRecoveryScript } from "@/components/pwa/chunk-recovery-script";
 import { PageTransition } from "@/components/page-transition";
 import { Providers } from "./providers";
 import "./globals.css";
@@ -61,6 +62,9 @@ export default function RootLayout({
         className={`dark ${inter.variable} ${oswald.variable} h-full antialiased`}
       >
         <body className="bg-background text-foreground min-h-[100dvh] flex flex-col">
+          {/* Must be first in <body>: attaches chunk-failure listeners before
+              any /_next script can 404 (stale deploy), when React never boots. */}
+          <ChunkRecoveryScript />
           <Providers>
             <PageTransition>{children}</PageTransition>
           </Providers>
