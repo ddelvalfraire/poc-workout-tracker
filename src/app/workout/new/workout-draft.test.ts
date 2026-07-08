@@ -171,6 +171,61 @@ describe('workoutDraftReducer', () => {
     expect(next.exercises).toEqual([removed])
   })
 
+  it('INSERT_SET restores a set at its original position (undo)', () => {
+    // Arrange — s1 was just removed from position 0
+    const removedSet = { id: 's1', reps: '5', weight: '100', completed: true }
+    const after: WorkoutDraft = {
+      exercises: [
+        { id: 'ex1', ...SQUAT, sets: [{ id: 's2', reps: '5', weight: '100', completed: false }] },
+      ],
+    }
+
+    // Act
+    const next = workoutDraftReducer(after, {
+      type: 'INSERT_SET',
+      exerciseIndex: 0,
+      setIndex: 0,
+      set: removedSet,
+    })
+
+    // Assert — back at position 0, sibling intact, prev unmutated
+    expect(next.exercises[0].sets.map((s) => s.id)).toEqual(['s1', 's2'])
+    expect(next.exercises[0].sets[0].completed).toBe(true)
+    expect(after.exercises[0].sets).toHaveLength(1)
+  })
+
+  it('INSERT_SET clamps an out-of-range set index to the end', () => {
+    // Arrange — the exercise's set list shrank below the original index
+    const removedSet = { id: 's9', reps: '8', weight: '60', completed: false }
+
+    // Act
+    const next = workoutDraftReducer(NESTED, {
+      type: 'INSERT_SET',
+      exerciseIndex: 0,
+      setIndex: 7,
+      set: removedSet,
+    })
+
+    // Assert
+    expect(next.exercises[0].sets.map((s) => s.id)).toEqual(['s1', 's2', 's9'])
+  })
+
+  it('INSERT_SET is a no-op when the exercise is gone', () => {
+    // Arrange — the whole exercise was removed while the set undo was pending
+    const removedSet = { id: 's9', reps: '8', weight: '60', completed: false }
+
+    // Act
+    const next = workoutDraftReducer(emptyDraft, {
+      type: 'INSERT_SET',
+      exerciseIndex: 0,
+      setIndex: 0,
+      set: removedSet,
+    })
+
+    // Assert — nothing to restore into; state unchanged
+    expect(next).toEqual(emptyDraft)
+  })
+
   it('TOGGLE_SET_COMPLETED adopts fill values for empty fields when checking off', () => {
     // Arrange — an untouched set with ghost values available
     const blank: WorkoutDraft = {

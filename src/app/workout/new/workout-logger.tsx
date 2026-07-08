@@ -22,11 +22,12 @@ import {
   newDraftExercise,
   newDraftSet,
   type DraftExercise,
+  type DraftSet,
   type WorkoutDraft,
 } from './workout-draft'
 import { draftKey, buildDraftPayload, parseDraftPayload } from './draft-payload'
 import { createDraftSyncQueue, type DraftSyncQueue, type DraftSyncStatus } from './draft-sync'
-import { SessionClock } from './session-clock'
+import { SessionStatus } from './session-clock'
 import { PlateSheet } from './plate-sheet'
 import { DEFAULT_EQUIPMENT, type Equipment } from '@/lib/equipment'
 import { type WeightUnit } from '@/lib/units'
@@ -36,6 +37,13 @@ import type { LastPerformance } from '@/db/workouts'
 
 /** How long the inline "Removed — Undo" affordance stays actionable. */
 const UNDO_WINDOW_MS = 5000
+
+/** One reversible removal. Sets capture their exercise by STABLE id, not
+ *  index — the exercise list can shift (or the exercise itself vanish and be
+ *  undone back) before the user taps Undo. */
+type RemovedEntry =
+  | { kind: 'exercise'; exercise: DraftExercise; index: number }
+  | { kind: 'set'; exerciseId: string; exerciseName: string; setIndex: number; set: DraftSet }
 
 /** A ghost string the inputs can adopt as a real value ("8", "102.5") —
  *  excludes display-only ghosts like the plan's "8–12" rep range. */
@@ -126,27 +134,57 @@ export function WorkoutLogger({
   const [gear, setGear] = useState<Equipment>(equipment ?? DEFAULT_EQUIPMENT[unit])
   // Which exercise's plate sheet is open (by index), if any.
   const [plateSheetFor, setPlateSheetFor] = useState<number | null>(null)
-  // Just-removed exercises, held as a stack for the inline Undo window.
-  // Removing an exercise mid-workout is the app's most destructive slip
-  // (logged sets gone, autosave persists the loss within the debounce), so it
-  // must be reversible — a stack (not a single slot) so a rapid double-remove
-  // can't silently drop the first exercise's undo. Each removal restarts the
-  // shared window; Undo restores last-removed-first.
-  const [removed, setRemoved] = useState<{ exercise: DraftExercise; index: number }[]>([])
+  // Just-removed exercises AND sets, held as a stack for the inline Undo
+  // window. Any removal mid-workout is a destructive slip (values gone,
+  // autosave persists the loss within the debounce), so both levels must be
+  // reversible — a stack (not a single slot) so rapid removals can't silently
+  // drop an earlier undo. Each removal restarts the shared window; Undo
+  // restores last-removed-first.
+  const [removed, setRemoved] = useState<RemovedEntry[]>([])
   const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // When the user last checked off a set — starts the between-sets rest
+  // count-up. In-session only by design: a restored draft can't know how long
+  // ago the interrupted session's last set really was.
+  const [restStartedAt, setRestStartedAt] = useState<Date | null>(null)
+
+  function pushRemoved(entry: RemovedEntry) {
+    setRemoved((prev) => [...prev, entry])
+    if (undoTimerRef.current) clearTimeout(undoTimerRef.current)
+    undoTimerRef.current = setTimeout(() => setRemoved([]), UNDO_WINDOW_MS)
+  }
 
   function handleRemoveExercise(index: number) {
     const exercise = draft.exercises[index]
     dispatch({ type: 'REMOVE_EXERCISE', index })
-    setRemoved((prev) => [...prev, { exercise, index }])
-    if (undoTimerRef.current) clearTimeout(undoTimerRef.current)
-    undoTimerRef.current = setTimeout(() => setRemoved([]), UNDO_WINDOW_MS)
+    pushRemoved({ kind: 'exercise', exercise, index })
+  }
+
+  function handleRemoveSet(exerciseIndex: number, setIndex: number) {
+    const exercise = draft.exercises[exerciseIndex]
+    const set = exercise.sets[setIndex]
+    dispatch({ type: 'REMOVE_SET', exerciseIndex, setIndex })
+    pushRemoved({
+      kind: 'set',
+      exerciseId: exercise.id,
+      exerciseName: exercise.name,
+      setIndex,
+      set,
+    })
   }
 
   function handleUndoRemove() {
     const last = removed[removed.length - 1]
     if (!last) return
-    dispatch({ type: 'INSERT_EXERCISE', index: last.index, exercise: last.exercise })
+    if (last.kind === 'exercise') {
+      dispatch({ type: 'INSERT_EXERCISE', index: last.index, exercise: last.exercise })
+    } else {
+      // Resolve the exercise's CURRENT index by id; if its own removal is
+      // deeper in the stack, undoing that first brings this set's home back.
+      const exerciseIndex = draft.exercises.findIndex((e) => e.id === last.exerciseId)
+      if (exerciseIndex !== -1) {
+        dispatch({ type: 'INSERT_SET', exerciseIndex, setIndex: last.setIndex, set: last.set })
+      }
+    }
     setRemoved((prev) => prev.slice(0, -1))
     if (removed.length === 1 && undoTimerRef.current) clearTimeout(undoTimerRef.current)
   }
@@ -261,7 +299,7 @@ export function WorkoutLogger({
           aria-label="Workout name"
         />
 
-        <SessionClock startedAt={openedAt} />
+        <SessionStatus startedAt={openedAt} restStartedAt={restStartedAt} />
 
         {syncStatus === 'failed' && (
           <p className="px-1 text-sm text-amber-500" role="status">
@@ -350,7 +388,7 @@ export function WorkoutLogger({
                 <div key={set.id} className="flex items-center gap-2">
                   <button
                     type="button"
-                    onClick={() =>
+                    onClick={() => {
                       dispatch({
                         type: 'TOGGLE_SET_COMPLETED',
                         exerciseIndex,
@@ -360,7 +398,10 @@ export function WorkoutLogger({
                         // Range ghosts like "8–12" stay display-only.
                         fill: { reps: adoptable(ghost.reps), weight: adoptable(ghost.weight) },
                       })
-                    }
+                      // Checking off starts the rest count-up; unchecking is a
+                      // correction, not a new rest period.
+                      if (!set.completed) setRestStartedAt(new Date())
+                    }}
                     aria-pressed={set.completed}
                     aria-label={
                       set.completed
@@ -422,7 +463,7 @@ export function WorkoutLogger({
                     size="icon-sm"
                     variant="ghost"
                     className="shrink-0 text-muted-foreground"
-                    onClick={() => dispatch({ type: 'REMOVE_SET', exerciseIndex, setIndex })}
+                    onClick={() => handleRemoveSet(exerciseIndex, setIndex)}
                     aria-label={`Remove set ${setIndex + 1}`}
                   >
                     <X aria-hidden="true" className="size-4" />
@@ -455,7 +496,12 @@ export function WorkoutLogger({
             <p className="min-w-0 truncate text-sm">
               Removed{' '}
               <span className="font-medium">
-                {removed[removed.length - 1].exercise.name}
+                {(() => {
+                  const last = removed[removed.length - 1]
+                  return last.kind === 'exercise'
+                    ? last.exercise.name
+                    : `set ${last.setIndex + 1} · ${last.exerciseName}`
+                })()}
               </span>
             </p>
             <Button size="sm" variant="outline" className="shrink-0" onClick={handleUndoRemove}>
