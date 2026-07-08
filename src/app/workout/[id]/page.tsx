@@ -11,7 +11,7 @@ import {
   formatVolume,
   formatWorkoutDuration,
 } from "@/lib/format";
-import { bestSet } from "@/lib/one-rep-max";
+import { bestSet, estimate1RM } from "@/lib/one-rep-max";
 import { AppHeader } from "@/components/app-header";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -121,6 +121,14 @@ export default async function WorkoutDetailPage({
         <div className="mt-4 space-y-3">
           {workout.exercises.map((exercise) => {
             const current = bestSet(exercise.sets);
+            // The top set (highest e1rm) gets marked — but only when there's a
+            // comparison to make; a lone set being "best" is noise.
+            const bestIndex =
+              current && exercise.sets.length > 1
+                ? exercise.sets.findIndex(
+                    (s) => estimate1RM(s.reps, s.weight) === current.e1rm,
+                  )
+                : -1;
             const isPR = prBadgeRowIds.has(exercise.id);
 
             return (
@@ -139,30 +147,52 @@ export default async function WorkoutDetailPage({
                     </span>
                   )}
                 </div>
-                <div className="mt-3 space-y-1.5">
+                {/* Set rows echo the logger's number circles (log → review
+                    continuity) and run the values at glanceable scale; the top
+                    set reads heavier than the rest. */}
+                <div className="mt-3 space-y-2">
                   {exercise.sets.length === 0 ? (
                     <p className="text-sm text-muted-foreground">No sets logged.</p>
                   ) : (
-                    exercise.sets.map((set) => (
-                      <div key={set.id} className="flex items-baseline gap-3 text-sm">
-                        <span className="w-12 shrink-0 text-muted-foreground">
-                          Set {set.setNumber}
+                    exercise.sets.map((set, setIndex) => (
+                      <div key={set.id} className="flex items-center gap-3">
+                        <span
+                          aria-label={`Set ${set.setNumber}`}
+                          className="grid size-6 shrink-0 place-items-center rounded-full bg-muted text-xs font-semibold tnum text-muted-foreground"
+                        >
+                          {set.setNumber}
                         </span>
-                        <span className="tnum font-medium">
+                        <span
+                          className={cn(
+                            "tnum text-base",
+                            setIndex === bestIndex
+                              ? "font-semibold"
+                              : "font-medium text-foreground/80",
+                          )}
+                        >
                           {formatLoggedSet(set, unit)}
                         </span>
+                        {setIndex === bestIndex && (
+                          <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+                            Top set
+                          </span>
+                        )}
                       </div>
                     ))
                   )}
                 </div>
                 {current && (
-                  <p className="mt-2 text-sm text-muted-foreground">
-                    Est. 1RM{" "}
-                    <span className="tnum font-medium text-foreground">
-                      <span aria-hidden="true">~</span>
+                  <div className="mt-3 flex items-baseline justify-between gap-3 border-t border-border pt-3">
+                    <span className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
+                      Est. 1RM
+                    </span>
+                    <span className="font-display text-2xl leading-none tnum">
+                      <span aria-hidden="true" className="text-muted-foreground">
+                        ~
+                      </span>
                       {formatE1RM(current.e1rm, unit)}
                     </span>
-                  </p>
+                  </div>
                 )}
               </section>
             );

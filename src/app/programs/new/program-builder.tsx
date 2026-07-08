@@ -1,6 +1,6 @@
 'use client'
 
-import { useReducer, useState, useTransition } from 'react'
+import { useEffect, useReducer, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Trash2, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -14,6 +14,8 @@ import {
   newDraftProgramDay,
   newDraftProgramExercise,
   newDraftProgramSet,
+  buildStoredProgramDraft,
+  parseStoredProgramDraft,
   type ProgramDraft,
 } from './program-draft'
 import { type WeightUnit } from '@/lib/units'
@@ -35,6 +37,71 @@ export function ProgramBuilder({
   const [error, setError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
   const router = useRouter()
+  // Local draft persistence: the builder is a long phone form with no server
+  // draft (unlike the logger) — a backgrounded-tab kill would otherwise
+  // destroy a 30-set program mid-build. Keyed per surface; a live local draft
+  // wins over the server-seeded rows it was forked from (logger rationale).
+  const storageKey = `program-draft:${programId ?? 'new'}`
+  // Value-based change detection, immune to StrictMode double-runs (same
+  // pattern as the logger's autosave): mount snapshot skips the seeded render.
+  const lastSnapshotRef = useRef<string | null>(null)
+
+  // Whether this render is showing a restored local draft. Restore must be
+  // VISIBLE: `/programs/new` shares one storage slot, so without a banner an
+  // abandoned Program A would silently seed an unrelated Program B, and in
+  // edit mode a stale local draft would silently beat newer server rows.
+  const [wasRestored, setWasRestored] = useState(false)
+
+  // Restore an interrupted build. localStorage is sync, so this lands before
+  // the user can type; parse validates shape, version, and TTL.
+  useEffect(() => {
+    let stored: string | null = null
+    try {
+      stored = window.localStorage.getItem(storageKey)
+    } catch {
+      return // storage unavailable (private mode) — the builder works without it
+    }
+    if (!stored) return
+    const restored = parseStoredProgramDraft(stored, new Date())
+    if (restored) {
+      dispatch({ type: 'RESTORE_DRAFT', draft: restored })
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- one-shot mount sync from localStorage (external system)
+      setWasRestored(true)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only: storageKey is stable per page load
+  }, [])
+
+  function handleDiscardRestored() {
+    clearStoredDraft()
+    // Pre-seed the snapshot ref so the persist effect sees "no change" and
+    // doesn't immediately re-write the discarded draft back to storage.
+    lastSnapshotRef.current = JSON.stringify(initialDraft)
+    dispatch({ type: 'RESTORE_DRAFT', draft: initialDraft })
+    setWasRestored(false)
+  }
+
+  // Persist every change. Drafts are small (the server caps programs long
+  // before localStorage limits matter), so no debounce.
+  useEffect(() => {
+    const snapshot = JSON.stringify(draft)
+    if (lastSnapshotRef.current === snapshot) return
+    const isMount = lastSnapshotRef.current === null
+    lastSnapshotRef.current = snapshot
+    if (isMount) return // seeded first render — nothing user-entered yet
+    try {
+      window.localStorage.setItem(storageKey, buildStoredProgramDraft(draft, new Date()))
+    } catch {
+      // Quota/private mode: persistence is best-effort, never blocks editing.
+    }
+  }, [draft, storageKey])
+
+  function clearStoredDraft() {
+    try {
+      window.localStorage.removeItem(storageKey)
+    } catch {
+      // Best-effort; an orphaned draft expires via TTL anyway.
+    }
+  }
 
   // Mirror the server's Zod minimums (≥1 day, ≥1 exercise per day, ≥1 set per
   // exercise) so Save is disabled instead of guaranteed to fail.
@@ -50,9 +117,11 @@ export function ProgramBuilder({
         setError(null)
         if (programId) {
           await updateProgramAction(programId, draftToProgramInput(draft, unit))
+          clearStoredDraft() // the saved program supersedes the local draft
           router.push(`/programs/${programId}`)
         } else {
           const { id } = await saveProgramAction(draftToProgramInput(draft, unit))
+          clearStoredDraft()
           router.push(`/programs/${id}`)
         }
       } catch {
@@ -64,6 +133,23 @@ export function ProgramBuilder({
   return (
     <>
       <div className="space-y-4 py-5">
+        {wasRestored && (
+          <div
+            role="status"
+            className="flex items-center justify-between gap-3 rounded-xl border border-border bg-card px-4 py-2.5"
+          >
+            <p className="min-w-0 text-sm">Restored your unsaved draft.</p>
+            <div className="flex shrink-0 gap-2">
+              <Button size="sm" variant="outline" onClick={handleDiscardRestored}>
+                Discard
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => setWasRestored(false)}>
+                Keep
+              </Button>
+            </div>
+          </div>
+        )}
+
         <Input
           placeholder="Program name"
           value={draft.name}

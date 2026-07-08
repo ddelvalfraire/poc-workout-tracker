@@ -59,53 +59,32 @@ export function PlateSheet({
   const [platesText, setPlatesText] = useState(equipment.plates.map(fmt).join(', '))
   const [editError, setEditError] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
-  // Trap scope is the visible panel, NOT the outer wrapper: the full-screen
-  // backdrop button would otherwise be the first tab stop — an invisible
-  // control keyboard users wrap onto before the visible ×.
-  const panelRef = useRef<HTMLDivElement>(null)
+  const dialogRef = useRef<HTMLDialogElement>(null)
   const closeButtonRef = useRef<HTMLButtonElement>(null)
 
-  // Modal dialog contract the div can't provide on its own: initial focus,
-  // Escape-to-close, a Tab trap, a body scroll lock, and focus restore —
-  // without these, keyboard/screen-reader users tab straight behind the sheet.
+  // Native <dialog> + showModal(): the browser owns the focus trap AND makes
+  // the page behind genuinely inert — a screen reader's virtual cursor can't
+  // walk behind the sheet, which a hand-rolled Tab trap never guarantees.
+  // We keep manual body scroll lock (dialog doesn't lock it), initial focus
+  // on the visible ×, and focus restore on unmount (we unmount instead of
+  // calling close(), so the native restore doesn't fire).
   useEffect(() => {
-    const previouslyFocused = document.activeElement as HTMLElement | null
+    const dialog = dialogRef.current
+    // Restore target: only an element OUTSIDE the dialog (on a StrictMode
+    // re-run the active element is our own close button).
+    const active = document.activeElement
+    const previouslyFocused =
+      active instanceof HTMLElement && !dialog?.contains(active) ? active : null
+    // StrictMode re-runs effects against the SAME node; showModal() on an
+    // already-open dialog throws InvalidStateError.
+    if (dialog && !dialog.open) dialog.showModal()
     closeButtonRef.current?.focus()
     const previousOverflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
-
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape') {
-        event.stopPropagation()
-        onClose()
-        return
-      }
-      if (event.key !== 'Tab' || !panelRef.current) return
-      const focusables = Array.from(
-        panelRef.current.querySelectorAll<HTMLElement>(
-          'button:not([disabled]), input:not([disabled]), [href], [tabindex]:not([tabindex="-1"])',
-        ),
-      )
-      if (focusables.length === 0) return
-      const first = focusables[0]
-      const last = focusables[focusables.length - 1]
-      const active = document.activeElement
-      if (event.shiftKey && (active === first || !panelRef.current.contains(active))) {
-        event.preventDefault()
-        last.focus()
-      } else if (!event.shiftKey && active === last) {
-        event.preventDefault()
-        first.focus()
-      }
-    }
-
-    document.addEventListener('keydown', handleKeyDown)
     return () => {
-      document.removeEventListener('keydown', handleKeyDown)
       document.body.style.overflow = previousOverflow
       previouslyFocused?.focus()
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only dialog lifecycle; onClose is stable per open
   }, [])
 
   const ramp = weights.length > 0 ? warmupRamp(weights[0], bar, equipment.plates) : []
@@ -137,26 +116,33 @@ export function PlateSheet({
   }
 
   return (
-    <div
-      className="fixed inset-0 z-30 flex items-end justify-center"
-      role="dialog"
-      aria-modal="true"
+    // Top-layer bottom sheet: margins pin it to the bottom edge, centered.
+    // A click whose target is the <dialog> itself landed on ::backdrop
+    // (children swallow their own clicks) — the standard light-dismiss trick.
+    // max-h + scroll: many weights + the ramp + the gear editor can exceed a
+    // phone viewport, and content above the fold would be unreachable.
+    <dialog
+      ref={dialogRef}
       aria-label={`Bar and plates for ${exerciseName}`}
+      onCancel={(e) => {
+        e.preventDefault() // keep open/closed state owned by React
+        onClose()
+      }}
+      onClick={(e) => {
+        // Geometric backdrop test, NOT `target === dialog`: taps in the
+        // sheet's own padding and inter-section margin gaps also target the
+        // dialog element and must not dismiss it.
+        const rect = dialogRef.current?.getBoundingClientRect()
+        if (!rect) return
+        const inside =
+          e.clientX >= rect.left &&
+          e.clientX <= rect.right &&
+          e.clientY >= rect.top &&
+          e.clientY <= rect.bottom
+        if (!inside) onClose()
+      }}
+      className="mx-auto mt-auto mb-0 max-h-[85dvh] w-full max-w-md overflow-y-auto overscroll-contain rounded-t-2xl border-t border-x border-border bg-card px-5 pt-5 pb-safe text-foreground backdrop:bg-black/60"
     >
-      {/* Backdrop */}
-      <button
-        type="button"
-        aria-label="Close plate calculator"
-        className="absolute inset-0 bg-black/60"
-        onClick={onClose}
-      />
-
-      {/* max-h + scroll: many weights + the ramp + the gear editor can exceed
-          a phone viewport, and content above the fold would be unreachable. */}
-      <div
-        ref={panelRef}
-        className="relative max-h-[85dvh] w-full max-w-md overflow-y-auto rounded-t-2xl border-t border-x border-border bg-card px-5 pt-5 pb-safe"
-      >
         <div className="flex items-start justify-between gap-3 pb-1">
           <div>
             <p className="text-xs font-semibold uppercase tracking-widest text-primary">Bar &amp; plates</p>
@@ -288,7 +274,6 @@ export function PlateSheet({
             </button>
           )}
         </div>
-      </div>
-    </div>
+    </dialog>
   )
 }

@@ -89,7 +89,7 @@ export function ProgramActions({
           </div>
         </div>
       ) : (
-        <div className="flex gap-2">
+        <div className="flex items-center gap-2">
           <Link
             href={`/programs/${id}/edit`}
             className={cn(buttonVariants({ variant: 'outline' }), 'flex-1')}
@@ -104,9 +104,11 @@ export function ProgramActions({
           >
             {statusLabel}
           </Button>
+          {/* Demoted on purpose: a destructive action should never carry the
+              same visual weight as the everyday ones beside it. */}
           <Button
-            variant="destructive"
-            className="flex-1"
+            variant="ghost"
+            className="shrink-0 text-destructive"
             disabled={isPending}
             onClick={() => setIsConfirming(true)}
           >

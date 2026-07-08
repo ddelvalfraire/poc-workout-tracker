@@ -53,6 +53,9 @@ export type DraftAction =
       value: string
     }
   | { type: 'REMOVE_SET'; exerciseIndex: number; setIndex: number }
+  /** Undo for REMOVE_SET: re-inserts at the original position (clamped). A
+   *  no-op when the exercise itself is gone — there's nothing to restore into. */
+  | { type: 'INSERT_SET'; exerciseIndex: number; setIndex: number; set: DraftSet }
   /** `fill` (tap-to-accept ghost values) applies only to EMPTY fields, and only
    *  when checking off — never on uncheck, never over typed input. */
   | {
@@ -137,6 +140,19 @@ export function workoutDraftReducer(state: WorkoutDraft, action: DraftAction): W
           sets: exercise.sets.filter((_, i) => i !== action.setIndex),
         })),
       }
+
+    case 'INSERT_SET': {
+      if (action.exerciseIndex >= state.exercises.length) return state
+      return {
+        exercises: mapExerciseAt(state.exercises, action.exerciseIndex, (exercise) => {
+          const index = Math.min(action.setIndex, exercise.sets.length)
+          return {
+            ...exercise,
+            sets: [...exercise.sets.slice(0, index), action.set, ...exercise.sets.slice(index)],
+          }
+        }),
+      }
+    }
 
     case 'TOGGLE_SET_COMPLETED':
       return {

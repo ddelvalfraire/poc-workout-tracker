@@ -94,6 +94,8 @@ export type ProgramDraftAction =
       value: string
     }
   | { type: 'REMOVE_SET'; dayIndex: number; exerciseIndex: number; setIndex: number }
+  /** Mount-time restore from the localStorage snapshot — replaces the whole draft. */
+  | { type: 'RESTORE_DRAFT'; draft: ProgramDraft }
 
 export const emptyProgramDraft: ProgramDraft = {
   name: '',
@@ -234,9 +236,119 @@ export function programDraftReducer(
         })),
       }
 
+    case 'RESTORE_DRAFT':
+      return action.draft
+
     default:
       return state
   }
+}
+
+// ---------------------------------------------------------------------------
+// localStorage persistence. The builder is a long phone form with no server
+// draft (unlike the logger); a backgrounded-tab kill would otherwise destroy
+// a 30-set program mid-build. Envelope is versioned + TTL'd, and the parser
+// validates structure — storage is external data and is never trusted.
+
+/** How long a stored builder draft stays restorable. Mirrors the intent of the
+ *  logger's server-draft TTL: yesterday's abandoned form shouldn't hijack a
+ *  fresh build next week. */
+export const STORED_PROGRAM_DRAFT_TTL_MS = 24 * 60 * 60 * 1000
+
+const STORED_PROGRAM_DRAFT_VERSION = 1
+
+/** Serializes the draft into the versioned, timestamped storage envelope. */
+export function buildStoredProgramDraft(draft: ProgramDraft, now: Date): string {
+  return JSON.stringify({
+    v: STORED_PROGRAM_DRAFT_VERSION,
+    savedAt: now.toISOString(),
+    draft,
+  })
+}
+
+const isString = (v: unknown): v is string => typeof v === 'string'
+const isNumberOrNull = (v: unknown): v is number | null => v === null || typeof v === 'number'
+const isStringOrNull = (v: unknown): v is string | null => v === null || typeof v === 'string'
+
+function isDraftProgramSet(v: unknown): v is DraftProgramSet {
+  if (typeof v !== 'object' || v === null) return false
+  const s = v as Record<string, unknown>
+  return (
+    isString(s.id) &&
+    isString(s.repMin) &&
+    isString(s.repMax) &&
+    isString(s.load) &&
+    isString(s.rpe) &&
+    isString(s.setType) &&
+    isString(s.metricMode) &&
+    isNumberOrNull(s.rir) &&
+    isStringOrNull(s.tempo) &&
+    isNumberOrNull(s.durationSec) &&
+    isNumberOrNull(s.distanceM) &&
+    isStringOrNull(s.technique)
+  )
+}
+
+function isDraftProgramExercise(v: unknown): v is DraftProgramExercise {
+  if (typeof v !== 'object' || v === null) return false
+  const e = v as Record<string, unknown>
+  return (
+    isString(e.id) &&
+    typeof e.wgerExerciseId === 'number' &&
+    isString(e.name) &&
+    isString(e.category) &&
+    Array.isArray(e.sets) &&
+    e.sets.every(isDraftProgramSet)
+  )
+}
+
+function isDraftProgramDay(v: unknown): v is DraftProgramDay {
+  if (typeof v !== 'object' || v === null) return false
+  const d = v as Record<string, unknown>
+  return (
+    isString(d.id) &&
+    isString(d.name) &&
+    isStringOrNull(d.notes) &&
+    Array.isArray(d.exercises) &&
+    d.exercises.every(isDraftProgramExercise)
+  )
+}
+
+function isProgramDraft(v: unknown): v is ProgramDraft {
+  if (typeof v !== 'object' || v === null) return false
+  const d = v as Record<string, unknown>
+  return (
+    isString(d.name) &&
+    isString(d.mesocycleWeeks) &&
+    isString(d.deloadWeek) &&
+    isString(d.status) &&
+    isStringOrNull(d.notes) &&
+    Array.isArray(d.days) &&
+    d.days.every(isDraftProgramDay)
+  )
+}
+
+/**
+ * Parses a stored envelope back into a draft, or null when the payload is
+ * malformed, from a different envelope version, or older than the TTL. The
+ * pass-through unions (setType, technique, …) are validated as strings only —
+ * the server's Zod schema re-validates them at save time, mirroring how
+ * `draftToProgramInput` is lenient by design.
+ */
+export function parseStoredProgramDraft(raw: string, now: Date): ProgramDraft | null {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(raw)
+  } catch {
+    return null
+  }
+  if (typeof parsed !== 'object' || parsed === null) return null
+  const envelope = parsed as Record<string, unknown>
+  if (envelope.v !== STORED_PROGRAM_DRAFT_VERSION) return null
+  if (!isString(envelope.savedAt)) return null
+  const savedAt = Date.parse(envelope.savedAt)
+  if (Number.isNaN(savedAt) || now.getTime() - savedAt > STORED_PROGRAM_DRAFT_TTL_MS) return null
+  return isProgramDraft(envelope.draft) ? envelope.draft : null
 }
 
 /** Parses an int string to a non-negative integer, or null when blank/invalid. */

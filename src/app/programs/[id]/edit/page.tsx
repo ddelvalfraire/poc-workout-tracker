@@ -32,7 +32,7 @@ export default async function EditProgramPage({
             href={`/programs/${id}`}
             className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }))}
           >
-            Cancel
+            Close
           </Link>
         }
       />
