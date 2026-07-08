@@ -210,6 +210,9 @@ export function WorkoutLogger({
         dispatch({ type: 'RESTORE_DRAFT', draft: restored.draft })
         setName(restored.name)
         setOpenedAt(restored.openedAt)
+        // A whole-draft replace orphans any pending undo entries; drop them
+        // so the Undo button can't promise a restore it can no longer make.
+        setRemoved([])
       })
       .catch(() => {
         // Non-critical: restore is best-effort; the logger works without it.

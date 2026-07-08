@@ -69,8 +69,15 @@ export function PlateSheet({
   // on the visible ×, and focus restore on unmount (we unmount instead of
   // calling close(), so the native restore doesn't fire).
   useEffect(() => {
-    const previouslyFocused = document.activeElement as HTMLElement | null
-    dialogRef.current?.showModal()
+    const dialog = dialogRef.current
+    // Restore target: only an element OUTSIDE the dialog (on a StrictMode
+    // re-run the active element is our own close button).
+    const active = document.activeElement
+    const previouslyFocused =
+      active instanceof HTMLElement && !dialog?.contains(active) ? active : null
+    // StrictMode re-runs effects against the SAME node; showModal() on an
+    // already-open dialog throws InvalidStateError.
+    if (dialog && !dialog.open) dialog.showModal()
     closeButtonRef.current?.focus()
     const previousOverflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
@@ -122,9 +129,19 @@ export function PlateSheet({
         onClose()
       }}
       onClick={(e) => {
-        if (e.target === dialogRef.current) onClose()
+        // Geometric backdrop test, NOT `target === dialog`: taps in the
+        // sheet's own padding and inter-section margin gaps also target the
+        // dialog element and must not dismiss it.
+        const rect = dialogRef.current?.getBoundingClientRect()
+        if (!rect) return
+        const inside =
+          e.clientX >= rect.left &&
+          e.clientX <= rect.right &&
+          e.clientY >= rect.top &&
+          e.clientY <= rect.bottom
+        if (!inside) onClose()
       }}
-      className="mx-auto mt-auto mb-0 max-h-[85dvh] w-full max-w-md overflow-y-auto rounded-t-2xl border-t border-x border-border bg-card px-5 pt-5 pb-safe text-foreground backdrop:bg-black/60"
+      className="mx-auto mt-auto mb-0 max-h-[85dvh] w-full max-w-md overflow-y-auto overscroll-contain rounded-t-2xl border-t border-x border-border bg-card px-5 pt-5 pb-safe text-foreground backdrop:bg-black/60"
     >
         <div className="flex items-start justify-between gap-3 pb-1">
           <div>
