@@ -64,6 +64,9 @@ export interface ProgramSetRowLike {
   tempo: string | null
   durationSec: number | null
   distanceM: number | null
+  /** Prescribed rest AFTER this set, seconds (between-set; the technique
+   *  JSONB's restSec is intra-set and never flows through here). */
+  restSec: number | null
   technique: Technique | null
 }
 
@@ -87,6 +90,10 @@ export interface DerivedSet {
   tempo: string | null
   durationSec: number | null
   distanceM: number | null
+  /** Rest after this set, seconds — template passthrough. No scheme or deload
+   *  modifier touches it: rest isn't load-periodized here; only a per-week
+   *  override can change a week's rest. */
+  restSec: number | null
   technique: Technique | null
   derivedFrom: 'template' | 'scheme' | 'deload' | 'override'
   /** Index into the input `sets` array this row derives from — clones inherit
@@ -105,6 +112,7 @@ export interface SetOverrideLike {
   tempo: string | null
   durationSec: number | null
   distanceM: number | null
+  restSec: number | null
   technique: Technique | null
 }
 
@@ -128,6 +136,7 @@ export function applyOverride(
   if (override.tempo !== null) overridden.tempo = override.tempo
   if (override.durationSec !== null) overridden.durationSec = override.durationSec
   if (override.distanceM !== null) overridden.distanceM = override.distanceM
+  if (override.restSec !== null) overridden.restSec = override.restSec
   if (override.technique !== null) overridden.technique = override.technique
   if (Object.keys(overridden).length === 0) return set
   return { ...set, ...overridden, derivedFrom: 'override' }
@@ -351,6 +360,7 @@ export function deriveWeekSets(args: {
       tempo: set.tempo,
       durationSec: targets.durationSec,
       distanceM: set.distanceM,
+      restSec: set.restSec,
       technique: set.technique,
       derivedFrom: applies ? 'scheme' : 'template',
       sourceIndex,

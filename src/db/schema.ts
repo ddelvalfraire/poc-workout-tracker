@@ -99,6 +99,11 @@ export const userPreferences = pgTable('user_preferences', {
   // instead of estimated 1RM. numeric(5,2) caps at 999.99 kg; the action
   // boundary enforces a tighter 500 kg sanity ceiling.
   bodyweightKg: numeric('bodyweight_kg', { precision: 5, scale: 2, mode: 'number' }),
+  // The user's fallback rest target in seconds — what the logger counts down
+  // for ad-hoc sets and for program sets with no per-set restSec. Nullable:
+  // null means no target, so the rest readout stays a plain count-up. The
+  // action boundary enforces the 0..3600 range; reads still guard stored data.
+  defaultRestSec: integer('default_rest_sec'),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 })
 
@@ -258,6 +263,12 @@ export const programSets = pgTable(
     tempo: text('tempo'),
     durationSec: integer('duration_sec'),
     distanceM: numeric('distance_m', { precision: 9, scale: 2, mode: 'number' }), // meters
+    // Seconds of rest AFTER this set — per-set granularity, the finest the
+    // tree offers ("per exercise per set"). Distinct concern from the
+    // technique JSONB's restSec, which is INTRA-set pause between stages.
+    // Nullable: null = no prescribed target (the logger falls back to the
+    // user's session default, then to a plain count-up).
+    restSec: integer('rest_sec'),
     // Narrow JSONB tail: unified intensity-technique stages (drop/rest-pause/myo/cluster).
     technique: jsonb('technique').$type<Technique>(),
   },
@@ -314,6 +325,9 @@ export const programSetOverrides = pgTable(
     tempo: text('tempo'),
     durationSec: integer('duration_sec'),
     distanceM: numeric('distance_m', { precision: 9, scale: 2, mode: 'number' }), // meters
+    // Per-week rest-after-set override: non-null WINS over the base set's
+    // restSec for that week, mirroring every other override column here.
+    restSec: integer('rest_sec'),
     technique: jsonb('technique').$type<Technique>(),
   },
   (t) => [unique('program_set_overrides_set_week_unique').on(t.programSetId, t.week)],

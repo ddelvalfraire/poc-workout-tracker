@@ -155,6 +155,7 @@ async function insertProgramChildren(
             tempo: s.tempo ?? null,
             durationSec: s.durationSec ?? null,
             distanceM: s.distanceM ?? null,
+            restSec: s.restSec ?? null,
             technique: s.technique ?? null,
           })),
         )

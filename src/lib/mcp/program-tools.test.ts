@@ -128,6 +128,7 @@ function programDetail() {
                 tempo: null,
                 durationSec: null,
                 distanceM: null,
+                restSec: 90,
                 technique: { version: 1, kind: 'drop-set', stages: [{ loadKg: 20, reps: 10 }] },
                 overrides: [
                   {
@@ -142,6 +143,7 @@ function programDetail() {
                     tempo: null,
                     durationSec: null,
                     distanceM: null,
+                    restSec: 150,
                     technique: null,
                   },
                 ],
@@ -407,8 +409,9 @@ describe('registerProgramTools', () => {
           muscles: { primary: string[]; secondary: string[] }
           sets: {
             suggestedLoad: number | null
+            restSec: number | null
             technique: unknown
-            overrides: { week: number; suggestedLoad: number | null }[]
+            overrides: { week: number; suggestedLoad: number | null; restSec: number | null }[]
           }[]
         }[]
       )[0]!
@@ -416,10 +419,11 @@ describe('registerProgramTools', () => {
       expect(exercise.muscles).toEqual({ primary: ['Chest'], secondary: ['Shoulders'] })
       const set = exercise.sets[0]!
       expect(set.suggestedLoad).toBe(kgToDisplay(100, 'lb'))
+      expect(set.restSec).toBe(90) // seconds — surfaced verbatim, never unit-converted
       expect(set.technique).toEqual({ version: 1, kind: 'drop-set', stages: [{ loadKg: 20, reps: 10 }] })
       // Per-week overrides ride along, loads converted the same way.
       expect(set.overrides).toEqual([
-        expect.objectContaining({ week: 3, suggestedLoad: kgToDisplay(95, 'lb') }),
+        expect.objectContaining({ week: 3, suggestedLoad: kgToDisplay(95, 'lb'), restSec: 150 }),
       ])
     })
 
@@ -560,6 +564,7 @@ describe('registerProgramTools', () => {
           tempo: null,
           durationSec: null,
           distanceM: null,
+          restSec: 90,
           technique: null,
           derivedFrom: 'scheme',
           sourceIndex: 0,
@@ -587,12 +592,17 @@ describe('registerProgramTools', () => {
         week: number
         weekDerived: boolean
         volume: Record<string, number>
-        days: { exercises: { sets: { suggestedLoad: number | null; derivedFrom: string }[] }[] }[]
+        days: {
+          exercises: {
+            sets: { suggestedLoad: number | null; restSec: number | null; derivedFrom: string }[]
+          }[]
+        }[]
       }
       expect(body.week).toBe(2)
       expect(body.weekDerived).toBe(false)
       const set = body.days[0]!.exercises[0]!.sets[0]!
       expect(set.suggestedLoad).toBe(kgToDisplay(105, 'lb'))
+      expect(set.restSec).toBe(90) // derived rest rides the preview verbatim
       expect(set.derivedFrom).toBe('scheme')
       // 1 working set attributed to the exercise's primary muscle
       expect(body.volume).toEqual({ Chest: 1 })

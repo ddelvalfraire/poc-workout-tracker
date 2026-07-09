@@ -71,6 +71,13 @@
       "when": 1783542663256,
       "tag": "0009_messy_jubilee",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1783566562809,
+      "tag": "0010_lyrical_surge",
+      "breakpoints": true
     }
   ]
 }

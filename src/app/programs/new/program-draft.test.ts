@@ -24,6 +24,7 @@ function draftSet(id: string, overrides: Partial<DraftProgramSet> = {}): DraftPr
     repMax: '5',
     load: '100',
     rpe: '',
+    restSec: '',
     setType: 'working',
     metricMode: 'reps_weight',
     rir: null,
@@ -190,6 +191,53 @@ describe('stored program draft (localStorage persistence)', () => {
     ).toBeNull()
   })
 
+  it('round-trips a set restSec through build → parse', () => {
+    // Arrange
+    const withRest = {
+      ...NESTED,
+      days: [
+        {
+          ...NESTED.days[0],
+          exercises: [
+            {
+              ...NESTED.days[0].exercises[0],
+              sets: [draftSet('s1', { restSec: '90' })],
+            },
+          ],
+        },
+      ],
+    }
+
+    // Act
+    const restored = parseStoredProgramDraft(buildStoredProgramDraft(withRest, NOW), NOW)
+
+    // Assert
+    expect(restored?.days[0].exercises[0].sets[0].restSec).toBe('90')
+  })
+
+  it("restores a LEGACY draft (stored before restSec existed) with restSec defaulted to ''", () => {
+    // Arrange — strip restSec from every set, as a pre-feature envelope stored it
+    const legacySet: Record<string, unknown> = { ...draftSet('s1') }
+    delete legacySet.restSec
+    const legacy = {
+      ...NESTED,
+      days: [
+        {
+          ...NESTED.days[0],
+          exercises: [{ ...NESTED.days[0].exercises[0], sets: [legacySet] }],
+        },
+      ],
+    }
+    const raw = JSON.stringify({ v: 1, savedAt: NOW.toISOString(), draft: legacy })
+
+    // Act
+    const restored = parseStoredProgramDraft(raw, NOW)
+
+    // Assert — the day-old 30-set build survives, rest simply unset
+    expect(restored).not.toBeNull()
+    expect(restored?.days[0].exercises[0].sets[0].restSec).toBe('')
+  })
+
   it('rejects a draft whose nested rows are malformed', () => {
     // Arrange — a set with a numeric repMin (must be an input string)
     const bad = {
@@ -259,7 +307,7 @@ describe('draftToProgramInput', () => {
               id: 'ex1',
               ...BENCH,
               progression: null,
-              sets: [draftSet('s1', { repMin: '', repMax: '', load: '', rpe: '' })],
+              sets: [draftSet('s1', { repMin: '', repMax: '', load: '', rpe: '', restSec: '' })],
             },
           ],
         },
@@ -278,7 +326,32 @@ describe('draftToProgramInput', () => {
       repMax: null,
       suggestedLoadKg: null,
       rpe: null,
+      restSec: null,
     })
+  })
+
+  it('emits restSec as a plain number — seconds are unit-less, never converted', () => {
+    // Arrange
+    const draft: ProgramDraft = {
+      ...NESTED,
+      days: [
+        {
+          ...NESTED.days[0],
+          exercises: [
+            {
+              ...NESTED.days[0].exercises[0],
+              sets: [draftSet('s1', { restSec: '150' })],
+            },
+          ],
+        },
+      ],
+    }
+
+    // Act — lb unit converts loads; restSec must be untouched by it
+    const input = draftToProgramInput(draft, 'lb')
+
+    // Assert
+    expect(input.days[0].exercises[0].sets[0].restSec).toBe(150)
   })
 
   it('parses targets and keeps a trimmed name', () => {
@@ -403,6 +476,7 @@ describe('detailToProgramDraft', () => {
                 tempo: '3-1-1',
                 durationSec: null,
                 distanceM: null,
+                restSec: 90,
                 technique: null,
                 overrides: [],
               },
@@ -443,6 +517,7 @@ describe('detailToProgramDraft', () => {
       rpe: '8',
       rir: 2,
       tempo: '3-1-1',
+      restSec: '90', // stored seconds → input string, like the other targets
     })
   })
 

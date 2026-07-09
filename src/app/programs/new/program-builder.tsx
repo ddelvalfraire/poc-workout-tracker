@@ -267,6 +267,7 @@ export function ProgramBuilder({
                     <span className="flex-1 text-center">Rep max</span>
                     <span className="flex-[1.4] text-center">{unit}</span>
                     <span className="flex-1 text-center">RPE</span>
+                    <span className="flex-1 text-center">Rest s</span>
                     <span className="size-9 shrink-0" aria-hidden="true" />
                   </div>
                 )}
@@ -288,12 +289,24 @@ export function ProgramBuilder({
                             value: set.load,
                           },
                           { field: 'rpe', label: 'RPE', mode: 'decimal', value: set.rpe },
+                          // Per-set rest target in seconds — the granularity
+                          // the product asked for ("per exercise per set").
+                          // Rides the same UPDATE_SET path as its siblings.
+                          {
+                            field: 'restSec',
+                            label: 'rest in seconds',
+                            mode: 'numeric',
+                            value: set.restSec,
+                          },
                         ] as const
                       ).map(({ field, label, mode, value }) => (
                         <Input
                           key={field}
                           type="text"
                           inputMode={mode}
+                          // Rest is the one optional-feeling column; the ghost
+                          // hint says what the blank means without a legend.
+                          placeholder={field === 'restSec' ? 'Rest s' : undefined}
                           value={value}
                           onChange={(e) =>
                             dispatch({

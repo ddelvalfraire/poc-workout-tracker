@@ -2,9 +2,16 @@
 
 import { revalidatePath } from 'next/cache'
 import { requireUserId } from '@/lib/auth'
-import { setWeightUnit, setEquipment, setBodyweight, getWeightUnit } from '@/db/preferences'
+import {
+  setWeightUnit,
+  setEquipment,
+  setBodyweight,
+  setDefaultRestSec,
+  getWeightUnit,
+} from '@/db/preferences'
 import { isWeightUnit, displayToKg } from '@/lib/units'
 import { parseEquipmentInput } from '@/lib/equipment'
+import { MAX_REST_SEC } from '@/lib/program-input'
 
 // Sanity ceiling for a stored bodyweight, in canonical kg. Well under the
 // numeric(5,2) column max (999.99) so a typo'd extra digit becomes a clear
@@ -56,5 +63,22 @@ export async function setBodyweightAction(value: unknown): Promise<void> {
     throw new Error(`bodyweight must be between 0 and ${MAX_BODYWEIGHT_KG} kg`)
   }
   await setBodyweight(userId, bodyweightKg)
+  revalidatePath('/', 'layout')
+}
+
+/**
+ * Persists the signed-in user's default rest target in seconds — the fallback
+ * the logger counts down when the completed set has no per-set plan restSec.
+ * `null` clears the target (count-up only). Validated at the boundary: null or
+ * an integer 0..3600, the same MAX_REST_SEC bound the program schema enforces,
+ * so a plan rest and the session default can never disagree on validity.
+ * Revalidates the layout so the logger pages' server-passed prop is fresh.
+ */
+export async function setDefaultRestSecAction(sec: unknown): Promise<void> {
+  const userId = await requireUserId()
+  if (sec !== null && (typeof sec !== 'number' || !Number.isInteger(sec) || sec < 0 || sec > MAX_REST_SEC)) {
+    throw new Error(`rest target must be null or an integer between 0 and ${MAX_REST_SEC} seconds`)
+  }
+  await setDefaultRestSec(userId, sec)
   revalidatePath('/', 'layout')
 }

@@ -50,6 +50,7 @@ const toolSetSchema = z.object({
   tempo: z.string().nullable().optional(),
   durationSec: z.number().int().nullable().optional(),
   distanceM: z.number().nullable().optional(), // meters, not weight — never converted
+  restSec: z.number().int().nullable().optional(), // seconds, unit-less — never converted
   technique: techniqueSchema.nullable().optional(), // kg, passthrough
 })
 const toolExerciseSchema = z.object({
@@ -126,6 +127,7 @@ function toKgProgram(raw: RawProgram, unit: WeightUnit): unknown {
           tempo: s.tempo,
           durationSec: s.durationSec,
           distanceM: s.distanceM,
+          restSec: s.restSec,
           technique: s.technique,
         })),
       })),
@@ -200,6 +202,7 @@ export interface ProgramPayload {
           tempo: string | null
           durationSec: number | null
           distanceM: number | null
+          restSec: number | null
           technique: unknown | null
           overrides: {
             week: number
@@ -211,6 +214,7 @@ export interface ProgramPayload {
             tempo: string | null
             durationSec: number | null
             distanceM: number | null
+            restSec: number | null
             technique: unknown | null
           }[]
         }[]
@@ -252,6 +256,7 @@ function buildProgramSetView(s: ProgramSetRow, unit: WeightUnit) {
     tempo: s.tempo,
     durationSec: s.durationSec,
     distanceM: s.distanceM,
+    restSec: s.restSec, // seconds, unit-less — surfaced verbatim
     technique: s.technique,
     // Per-week explicit targets (Phase 5); loads in the same display unit.
     overrides: s.overrides.map((o) => ({
@@ -264,6 +269,7 @@ function buildProgramSetView(s: ProgramSetRow, unit: WeightUnit) {
       tempo: o.tempo,
       durationSec: o.durationSec,
       distanceM: o.distanceM,
+      restSec: o.restSec,
       technique: o.technique,
     })),
   }
@@ -584,6 +590,7 @@ export function registerProgramTools(server: McpServer): void {
                   tempo: s.tempo,
                   durationSec: s.durationSec,
                   distanceM: s.distanceM,
+                  restSec: s.restSec, // seconds — override > template, like every field here
                   technique: s.technique,
                   derivedFrom: s.derivedFrom,
                 })),

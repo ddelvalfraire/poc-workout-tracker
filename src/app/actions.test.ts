@@ -10,12 +10,24 @@ vi.mock('@/db/preferences', () => ({
   setWeightUnit: vi.fn(async () => {}),
   setEquipment: vi.fn(async () => {}),
   setBodyweight: vi.fn(async () => {}),
+  setDefaultRestSec: vi.fn(async () => {}),
   getWeightUnit: vi.fn(async () => 'lb'),
 }))
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
 
-import { setWeightUnitAction, setEquipmentAction, setBodyweightAction } from './actions'
-import { setWeightUnit, setEquipment, setBodyweight, getWeightUnit } from '@/db/preferences'
+import {
+  setWeightUnitAction,
+  setEquipmentAction,
+  setBodyweightAction,
+  setDefaultRestSecAction,
+} from './actions'
+import {
+  setWeightUnit,
+  setEquipment,
+  setBodyweight,
+  setDefaultRestSec,
+  getWeightUnit,
+} from '@/db/preferences'
 import { revalidatePath } from 'next/cache'
 
 beforeEach(() => {
@@ -85,5 +97,47 @@ describe('setBodyweightAction', () => {
     expect(getWeightUnit).toHaveBeenCalledWith('user_123')
     expect(setBodyweight).toHaveBeenCalledWith('user_123', 82.33)
     expect(revalidatePath).toHaveBeenCalledWith('/', 'layout')
+  })
+})
+
+describe('setDefaultRestSecAction', () => {
+  it.each([
+    ['a non-number', '90'],
+    ['a negative value', -1],
+    ['a value over the 3600 ceiling', 3601],
+    ['a non-integer', 90.5],
+    ['undefined (only explicit null clears)', undefined],
+  ])('rejects %s without writing or revalidating', async (_label, value) => {
+    await expect(setDefaultRestSecAction(value)).rejects.toThrow('between 0 and 3600')
+    expect(setDefaultRestSec).not.toHaveBeenCalled()
+    expect(revalidatePath).not.toHaveBeenCalled()
+  })
+
+  it('persists a valid rest target for the user and revalidates the layout', async () => {
+    // Act
+    await setDefaultRestSecAction(90)
+
+    // Assert
+    expect(setDefaultRestSec).toHaveBeenCalledWith('user_123', 90)
+    expect(revalidatePath).toHaveBeenCalledWith('/', 'layout')
+  })
+
+  it('persists null to clear the target (count-up only)', async () => {
+    // Act
+    await setDefaultRestSecAction(null)
+
+    // Assert
+    expect(setDefaultRestSec).toHaveBeenCalledWith('user_123', null)
+    expect(revalidatePath).toHaveBeenCalledWith('/', 'layout')
+  })
+
+  it('accepts the 0 and 3600 boundary values', async () => {
+    // Act
+    await setDefaultRestSecAction(0)
+    await setDefaultRestSecAction(3600)
+
+    // Assert
+    expect(setDefaultRestSec).toHaveBeenNthCalledWith(1, 'user_123', 0)
+    expect(setDefaultRestSec).toHaveBeenNthCalledWith(2, 'user_123', 3600)
   })
 })

@@ -45,6 +45,9 @@ const rpeArg = z.number().min(0).max(10).nullable().optional()
 const tempoArg = z.string().max(20).nullable().optional()
 const durationArg = z.number().int().min(0).nullable().optional()
 const distanceArg = z.number().min(0).max(9_999_999.99).nullable().optional() // meters, never converted
+/** Rest AFTER the set, seconds (0..3600, mirrors programSetSchema) — unit-less,
+ *  never converted; null clears. Distinct from the technique JSONB's intra-set restSec. */
+const restArg = z.number().int().min(0).max(3600).nullable().optional()
 /** suggestedLoad in the display unit; bounded in kg after conversion. */
 const loadArg = z.number().nullable().optional()
 
@@ -67,6 +70,7 @@ const setPatchArgs = {
   tempo: tempoArg,
   durationSec: durationArg,
   distanceM: distanceArg,
+  restSec: restArg,
   technique: techniqueSchema.nullable().optional(), // kg, passthrough (Phase-2 policy)
 }
 interface SetPatchArgs {
@@ -80,6 +84,7 @@ interface SetPatchArgs {
   tempo?: string | null
   durationSec?: number | null
   distanceM?: number | null
+  restSec?: number | null
   technique?: z.infer<typeof techniqueSchema> | null
 }
 
@@ -134,6 +139,7 @@ async function buildSetPatch(
   if (args.tempo !== undefined) patch.tempo = args.tempo
   if (args.durationSec !== undefined) patch.durationSec = args.durationSec
   if (args.distanceM !== undefined) patch.distanceM = args.distanceM
+  if (args.restSec !== undefined) patch.restSec = args.restSec
   if (args.technique !== undefined) patch.technique = args.technique
   let basis: WeightUnit | undefined
   if (args.suggestedLoad !== undefined) {
@@ -665,6 +671,7 @@ export function registerProgramPatchTools(server: McpServer): void {
         tempo: tempoArg,
         durationSec: durationArg,
         distanceM: distanceArg,
+        restSec: restArg,
         technique: techniqueSchema.nullable().optional(), // kg, passthrough
         unit: unitArg,
         userId: z.string().optional(),
@@ -689,6 +696,7 @@ export function registerProgramPatchTools(server: McpServer): void {
         if (targets.tempo !== undefined) patch.tempo = targets.tempo
         if (targets.durationSec !== undefined) patch.durationSec = targets.durationSec
         if (targets.distanceM !== undefined) patch.distanceM = targets.distanceM
+        if (targets.restSec !== undefined) patch.restSec = targets.restSec
         if (targets.technique !== undefined) patch.technique = targets.technique
         let basis: WeightUnit | undefined
         if (targets.suggestedLoad !== undefined) {

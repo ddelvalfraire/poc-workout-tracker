@@ -33,6 +33,10 @@ export interface DraftProgramSet {
   /** Suggested load in the display unit; converted to kg at save time. */
   load: string
   rpe: string
+  /** Rest after this set in seconds ('' = no prescribed target) — per-set,
+   *  the finest granularity the tree offers. Editable (not pass-through):
+   *  rest is a first-class builder target alongside reps/load/RPE. */
+  restSec: string
   // Pass-through fields (never edited by the builder; re-emitted verbatim).
   setType: SetType
   metricMode: MetricMode
@@ -90,7 +94,7 @@ export type ProgramDraftAction =
       dayIndex: number
       exerciseIndex: number
       setIndex: number
-      field: 'repMin' | 'repMax' | 'load' | 'rpe'
+      field: 'repMin' | 'repMax' | 'load' | 'rpe' | 'restSec'
       value: string
     }
   | { type: 'REMOVE_SET'; dayIndex: number; exerciseIndex: number; setIndex: number }
@@ -118,6 +122,7 @@ export function newDraftProgramSet(): DraftProgramSet {
     repMax: '',
     load: '',
     rpe: '',
+    restSec: '',
     setType: 'working',
     metricMode: 'reps_weight',
     rir: null,
@@ -279,6 +284,9 @@ function isDraftProgramSet(v: unknown): v is DraftProgramSet {
     isString(s.repMax) &&
     isString(s.load) &&
     isString(s.rpe) &&
+    // Tolerate a missing restSec: envelopes stored before the rest-timer
+    // feature predate the field; parseStoredProgramDraft normalizes to ''.
+    (s.restSec === undefined || isString(s.restSec)) &&
     isString(s.setType) &&
     isString(s.metricMode) &&
     isNumberOrNull(s.rir) &&
@@ -348,7 +356,20 @@ export function parseStoredProgramDraft(raw: string, now: Date): ProgramDraft | 
   if (!isString(envelope.savedAt)) return null
   const savedAt = Date.parse(envelope.savedAt)
   if (Number.isNaN(savedAt) || now.getTime() - savedAt > STORED_PROGRAM_DRAFT_TTL_MS) return null
-  return isProgramDraft(envelope.draft) ? envelope.draft : null
+  if (!isProgramDraft(envelope.draft)) return null
+  // Backfill fields newer than the stored draft (same envelope version — the
+  // shape only GREW): a pre-rest-timer draft restores with restSec unset
+  // instead of being discarded a day into a 30-set build.
+  return {
+    ...envelope.draft,
+    days: envelope.draft.days.map((day) => ({
+      ...day,
+      exercises: day.exercises.map((exercise) => ({
+        ...exercise,
+        sets: exercise.sets.map((set) => ({ ...set, restSec: set.restSec ?? '' })),
+      })),
+    })),
+  }
 }
 
 /** Parses an int string to a non-negative integer, or null when blank/invalid. */
@@ -408,6 +429,10 @@ export function draftToProgramInput(
           tempo: set.tempo,
           durationSec: set.durationSec,
           distanceM: set.distanceM,
+          // Seconds are unit-less — no display conversion, unlike load. An
+          // out-of-range value passes through for the server's 0..3600
+          // bound to reject visibly (lenient-mapper policy above).
+          restSec: toInt(set.restSec),
           technique: set.technique,
         }
       }),
@@ -467,6 +492,7 @@ export function detailToProgramDraft(
           load:
             set.suggestedLoadKg === null ? '' : kgToDisplay(set.suggestedLoadKg, unit).toString(),
           rpe: set.rpe?.toString() ?? '',
+          restSec: set.restSec?.toString() ?? '',
           setType: set.setType,
           metricMode: set.metricMode,
           rir: set.rir,

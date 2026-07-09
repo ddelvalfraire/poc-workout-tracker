@@ -42,7 +42,14 @@ vi.mock('./index', () => ({
   },
 }))
 
-import { getWeightUnit, setWeightUnit, getBodyweightKg, setBodyweight } from './preferences'
+import {
+  getWeightUnit,
+  setWeightUnit,
+  getBodyweightKg,
+  setBodyweight,
+  getDefaultRestSec,
+  setDefaultRestSec,
+} from './preferences'
 
 const USER = 'user_123'
 
@@ -107,5 +114,54 @@ describe('setBodyweight', () => {
     expect(upserts).toHaveLength(1)
     expect(upserts[0].values).toMatchObject({ userId: USER, bodyweightKg: 82.5 })
     expect(upserts[0].conflict).toMatchObject({ set: { bodyweightKg: 82.5 } })
+  })
+})
+
+describe('getDefaultRestSec', () => {
+  it('returns null when no row exists', async () => {
+    selectRows = []
+    expect(await getDefaultRestSec(USER)).toBe(null)
+  })
+
+  it('returns null when the column was never set', async () => {
+    selectRows = [{ defaultRestSec: null }]
+    expect(await getDefaultRestSec(USER)).toBe(null)
+  })
+
+  it('returns the stored rest target in seconds', async () => {
+    selectRows = [{ defaultRestSec: 90 }]
+    expect(await getDefaultRestSec(USER)).toBe(90)
+  })
+
+  it('reads 0 as a real target (explicit "no rest"), not as unset', async () => {
+    selectRows = [{ defaultRestSec: 0 }]
+    expect(await getDefaultRestSec(USER)).toBe(0)
+  })
+
+  it.each([
+    ['a negative value', -30],
+    ['a value over the 3600 ceiling', 3601],
+    ['a non-integer', 90.5],
+  ])('reads a corrupt stored value (%s) as null', async (_label, stored) => {
+    selectRows = [{ defaultRestSec: stored }]
+    expect(await getDefaultRestSec(USER)).toBe(null)
+  })
+})
+
+describe('setDefaultRestSec', () => {
+  it('upserts the rest target (seconds) by user id', async () => {
+    await setDefaultRestSec(USER, 120)
+
+    expect(upserts).toHaveLength(1)
+    expect(upserts[0].values).toMatchObject({ userId: USER, defaultRestSec: 120 })
+    expect(upserts[0].conflict).toMatchObject({ set: { defaultRestSec: 120 } })
+  })
+
+  it('upserts null to clear the target (count-up only)', async () => {
+    await setDefaultRestSec(USER, null)
+
+    expect(upserts).toHaveLength(1)
+    expect(upserts[0].values).toMatchObject({ userId: USER, defaultRestSec: null })
+    expect(upserts[0].conflict).toMatchObject({ set: { defaultRestSec: null } })
   })
 })
