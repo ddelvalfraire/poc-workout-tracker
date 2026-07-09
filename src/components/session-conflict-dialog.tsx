@@ -6,6 +6,7 @@ import { X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { deleteWorkoutDraftAction, deleteWorkoutAction } from '@/app/workout/actions'
 import { activeSessionHref } from '@/lib/active-session'
+import { discardSession } from '@/lib/discard-session'
 
 /**
  * Bottom sheet shown when starting a NEW workout would collide with a live
@@ -80,8 +81,11 @@ export function SessionConflictDialog({ session, onClose, onProceed }: SessionCo
   }, [])
 
   function handleContinue() {
-    // Close first, then navigate: unmounting runs the cleanup's close(), so
-    // the top layer is released before the route change instead of racing it.
+    // Release the top layer IMPERATIVELY before navigating: onClose only
+    // schedules the parent's state update, and relying on unmount cleanup to
+    // run before router.push races React's flush — the stranded-::backdrop
+    // failure mode #25 fixed. close() here is idempotent with the cleanup's.
+    dialogRef.current?.close()
     onClose()
     router.push(activeSessionHref(session.key))
   }
@@ -90,12 +94,14 @@ export function SessionConflictDialog({ session, onClose, onProceed }: SessionCo
     setIsPending(true)
     try {
       setError(null)
-      // The draft row IS the live session state — delete it first so a
-      // failure on the workout row can't leave a headless draft resurrecting
-      // the banner. For edit-mode sessions the started workout row must go
-      // too, or it re-projects as active (activeSessionFromWorkouts).
-      await deleteWorkoutDraftAction(session.key)
-      if (session.key !== 'new') await deleteWorkoutAction(session.key)
+      // Shared, unit-tested destructive ordering (lib/discard-session): ONE
+      // delete per surface — the draft for a quick-log session, the workout
+      // for an edit-mode session (its action clears the keyed draft in the
+      // same server call, so there's a single user-visible failure point).
+      await discardSession(session.key, {
+        deleteDraft: deleteWorkoutDraftAction,
+        deleteWorkout: deleteWorkoutAction,
+      })
       // Only now the original intent (navigate / instantiate-then-navigate).
       // Not startTransition: navigating inside an async transition lets the
       // app-wide <ViewTransition> strand the old screen's snapshot over the
@@ -105,7 +111,10 @@ export function SessionConflictDialog({ session, onClose, onProceed }: SessionCo
       // buttons here would flash an interactive dialog mid-transition.
     } catch {
       setIsPending(false)
-      setError('Could not discard the session. Nothing was changed — try again.')
+      // No "nothing was changed" claim: the discard is one server call per
+      // surface, but onProceed can also fail after a successful discard —
+      // the copy must stay honest for both.
+      setError('Could not finish discarding. Try again.')
     }
   }
 
