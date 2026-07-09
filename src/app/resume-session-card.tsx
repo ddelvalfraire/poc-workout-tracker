@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import type { ActiveSession } from '@/lib/active-session'
+import { activeSessionHref, type ActiveSession } from '@/lib/active-session'
 import { buttonVariants } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
@@ -10,7 +10,7 @@ import { cn } from '@/lib/utils'
  * a Server Component and the server's timezone would lie about local time.
  */
 export function ResumeSessionCard({ session }: { session: ActiveSession }) {
-  const href = session.key === 'new' ? '/workout/new' : `/workout/${session.key}/edit`
+  const href = activeSessionHref(session.key)
   const summary = [
     `${session.exerciseCount} exercise${session.exerciseCount === 1 ? '' : 's'}`,
     `${session.completedSetCount} of ${session.setCount} set${session.setCount === 1 ? '' : 's'} done`,

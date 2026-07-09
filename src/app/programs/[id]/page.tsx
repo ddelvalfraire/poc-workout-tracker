@@ -9,6 +9,9 @@ import {
   getNextProgramDay,
 } from '@/db/programs'
 import { getWeightUnit } from '@/db/preferences'
+import { listWorkoutSummaries } from '@/db/workouts'
+import { listWorkoutDrafts } from '@/db/workout-drafts'
+import { resolveActiveSession } from '@/lib/active-session'
 import { AppHeader } from '@/components/app-header'
 import { buttonVariants } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -26,10 +29,23 @@ export default async function ProgramDetailPage({
   const [program, unit] = await Promise.all([getProgramDetail(userId, id), getWeightUnit(userId)])
   if (!program) notFound()
 
-  const [week, nextDay] = await Promise.all([
+  const [week, nextDay, summaries, drafts] = await Promise.all([
     nextProgramWeek(userId, program.id, program.mesocycleWeeks),
     getNextProgramDay(userId),
+    listWorkoutSummaries(userId),
+    listWorkoutDrafts(userId),
   ])
+  // Same active-session projection as the home page: starting a day here
+  // creates a real workout row immediately, so with a session already live
+  // every Start button must raise the continue-or-discard dialog instead of
+  // silently minting a second session.
+  const activeSession = resolveActiveSession(drafts, summaries, new Date())
+  const guardSession = activeSession && {
+    key: activeSession.key,
+    name: activeSession.name,
+    setCount: activeSession.setCount,
+    completedSetCount: activeSession.completedSetCount,
+  }
   // One volt CTA per screen (the design system's spine): only the day the
   // user would actually train next keeps the primary variant; the rest
   // demote to outline. A non-active program has no "next", so all demote.
@@ -135,6 +151,7 @@ export default async function ProgramDetailPage({
                 <StartDayButton
                   programDayId={day.id}
                   variant={day.id === nextDayId ? 'default' : 'outline'}
+                  activeSession={guardSession}
                 />
               </div>
             </section>

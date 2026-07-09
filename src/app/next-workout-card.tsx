@@ -36,7 +36,10 @@ export function NextWorkoutCard({ next }: { next: NextProgramDay }) {
 
       <div className="mt-4">
         {/* Always the volt CTA: the card only renders when no session is
-            live and nothing was completed today, so it owns the screen. */}
+            live and nothing was completed today, so it owns the screen.
+            No activeSession guard needed for the same reason — this card and
+            a live session are mutually exclusive by construction (home only
+            renders it when resolveActiveSession returned null). */}
         <StartDayButton programDayId={next.dayId} size="lg" label={`Start ${next.dayName}`} />
       </div>
     </section>

@@ -3,6 +3,7 @@ import {
   pickActiveSession,
   activeSessionFromWorkouts,
   resolveActiveSession,
+  activeSessionHref,
   type WorkoutSessionRow,
 } from './active-session'
 import { DRAFT_TTL_MS } from '@/app/workout/new/draft-payload'
@@ -153,6 +154,18 @@ describe('activeSessionFromWorkouts', () => {
   it('nulls a blank name for the card fallback label', () => {
     expect(activeSessionFromWorkouts([workoutRow(60_000, { name: null })], NOW)?.name).toBeNull()
     expect(activeSessionFromWorkouts([workoutRow(60_000, { name: '  ' })], NOW)?.name).toBeNull()
+  })
+})
+
+describe('activeSessionHref', () => {
+  it("routes the quick-log surface ('new') to /workout/new", () => {
+    expect(activeSessionHref('new')).toBe('/workout/new')
+  })
+
+  it('routes a workout uuid to its edit route', () => {
+    expect(activeSessionHref('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa')).toBe(
+      '/workout/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/edit',
+    )
   })
 })
 
