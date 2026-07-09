@@ -94,6 +94,7 @@ describe('registerReadTools', () => {
           completedAt: null,
           exerciseCount: 3,
           setCount: 9,
+          completedSetCount: 0,
           volumeKg: 0,
         },
       ])
@@ -113,6 +114,7 @@ describe('registerReadTools', () => {
             completedAt: null,
             exerciseCount: 3,
             setCount: 9,
+            completedSetCount: 0,
             volumeKg: 0,
           },
         ],

@@ -63,12 +63,16 @@ export default async function EditWorkoutPage({
   return (
     <div className="flex min-h-[100dvh] flex-col">
       {/* Header action says "Close", not "Cancel": the autosaved draft
-          survives and resumes from the home banner — nothing is cancelled. */}
+          survives and resumes from the home banner — nothing is cancelled.
+          Where Close lands depends on what this session IS: editing a
+          finished workout came from its summary, so Close returns there; a
+          live (unfinished) session goes home, where the in-progress banner
+          owns it — its read-only summary would present it as completed. */}
       <AppHeader
-        title="Edit Workout"
+        title={workout.completedAt === null ? 'Log Workout' : 'Edit Workout'}
         trailing={
           <Link
-            href={`/workout/${id}`}
+            href={workout.completedAt === null ? '/' : `/workout/${id}`}
             className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }))}
           >
             Close

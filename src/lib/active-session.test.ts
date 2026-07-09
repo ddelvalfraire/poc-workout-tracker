@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest'
-import { pickActiveSession } from './active-session'
+import {
+  pickActiveSession,
+  activeSessionFromWorkouts,
+  resolveActiveSession,
+  type WorkoutSessionRow,
+} from './active-session'
 import { DRAFT_TTL_MS } from '@/app/workout/new/draft-payload'
 
 const NOW = new Date('2026-07-05T12:00:00.000Z')
@@ -92,5 +97,85 @@ describe('pickActiveSession', () => {
     ]
 
     expect(pickActiveSession(rows, NOW)?.key).toBe('22222222-2222-2222-2222-222222222222')
+  })
+})
+
+/** A started-but-unfinished workout row, `ageMs` old. */
+function workoutRow(ageMs: number, overrides: Partial<WorkoutSessionRow> = {}): WorkoutSessionRow {
+  return {
+    id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+    name: 'Push',
+    startedAt: new Date(NOW.getTime() - ageMs),
+    completedAt: null,
+    exerciseCount: 6,
+    setCount: 20,
+    completedSetCount: 3,
+    ...overrides,
+  }
+}
+
+describe('activeSessionFromWorkouts', () => {
+  it('projects a fresh in-progress workout into banner data', () => {
+    // Act
+    const session = activeSessionFromWorkouts([workoutRow(60_000)], NOW)
+
+    // Assert — key is the workout id so the banner resumes into edit mode
+    expect(session).toEqual({
+      key: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+      name: 'Push',
+      exerciseCount: 6,
+      setCount: 20,
+      completedSetCount: 3,
+      openedAt: workoutRow(60_000).startedAt,
+    })
+  })
+
+  it('ignores completed workouts', () => {
+    const completed = workoutRow(60_000, { completedAt: new Date(NOW.getTime() - 30_000) })
+
+    expect(activeSessionFromWorkouts([completed], NOW)).toBeNull()
+  })
+
+  it('ignores stale starts past the session window', () => {
+    expect(activeSessionFromWorkouts([workoutRow(DRAFT_TTL_MS + 1_000)], NOW)).toBeNull()
+  })
+
+  it('picks the freshest of several in-progress workouts', () => {
+    const rows = [
+      workoutRow(3_600_000, { id: '11111111-1111-1111-1111-111111111111', name: 'Older' }),
+      workoutRow(60_000, { id: '22222222-2222-2222-2222-222222222222', name: 'Fresh' }),
+    ]
+
+    expect(activeSessionFromWorkouts(rows, NOW)?.name).toBe('Fresh')
+    expect(activeSessionFromWorkouts([...rows].reverse(), NOW)?.name).toBe('Fresh')
+  })
+
+  it('nulls a blank name for the card fallback label', () => {
+    expect(activeSessionFromWorkouts([workoutRow(60_000, { name: null })], NOW)?.name).toBeNull()
+    expect(activeSessionFromWorkouts([workoutRow(60_000, { name: '  ' })], NOW)?.name).toBeNull()
+  })
+})
+
+describe('resolveActiveSession', () => {
+  it('prefers the draft session — it carries unsaved sets', () => {
+    // Arrange — a draft AND an untouched in-progress workout exist
+    const drafts = [row('new', 60_000)]
+    const workouts = [workoutRow(30_000)]
+
+    // Act
+    const session = resolveActiveSession(drafts, workouts, NOW)
+
+    // Assert
+    expect(session?.key).toBe('new')
+  })
+
+  it('falls back to the in-progress workout when no draft exists', () => {
+    expect(resolveActiveSession([], [workoutRow(60_000)], NOW)?.key).toBe(
+      'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+    )
+  })
+
+  it('returns null when nothing is in progress', () => {
+    expect(resolveActiveSession([], [], NOW)).toBeNull()
   })
 })
