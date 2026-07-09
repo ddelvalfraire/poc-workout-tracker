@@ -380,6 +380,57 @@ describe('instantiateProgramDay (engine-driven)', () => {
   })
 })
 
+describe('instantiateProgramDay (resume semantics)', () => {
+  it('resumes an existing unfinished instantiation for the same day and week', async () => {
+    // Arrange — a stale abandoned row for (d1, week 3) already exists
+    findFirst.mockResolvedValue(
+      dayFixture({ sets: [{ setNumber: 1, suggestedLoadKg: 100 }] }),
+    )
+    selectQueue = [[{ id: 'w-old' }]]
+
+    // Act
+    const result = await instantiateProgramDay(USER, 'd1', 3)
+
+    // Assert — the existing row comes back and NOTHING is inserted
+    expect(result).toEqual({ id: 'w-old', week: 3, weekDerived: false })
+    expect(records).toHaveLength(0)
+    // The lookup must target UNFINISHED rows only — a completed instantiation
+    // for the week is history, not a session to resume.
+    expect(predicateMentionsColumn(capturedWheres[0], 'completed_at')).toBe(true)
+  })
+
+  it('creates a fresh instantiation when no unfinished row exists', async () => {
+    findFirst.mockResolvedValue(
+      dayFixture({ sets: [{ setNumber: 1, suggestedLoadKg: 100 }] }),
+    )
+    selectQueue = [[]]
+
+    const result = await instantiateProgramDay(USER, 'd1', 3)
+
+    expect(result).toEqual({ id: 'w1', week: 3, weekDerived: false })
+    expect(records.length).toBeGreaterThan(0)
+  })
+
+  it('resumes on the DERIVED-week path too (lookup runs after nextProgramWeek)', async () => {
+    // Arrange — week omitted: nextProgramWeek consumes selects 0-2
+    // (current=2, 3 days, 1 done → stays week 2); the resume lookup is the
+    // 4th select and finds a stale unfinished row for (d1, week 2).
+    findFirst.mockResolvedValue(
+      dayFixture({ sets: [{ setNumber: 1, suggestedLoadKg: 100 }] }),
+    )
+    selectQueue = [[{ current: 2 }], [{ value: 3 }], [{ value: 1 }], [{ id: 'w-old' }]]
+
+    // Act
+    const result = await instantiateProgramDay(USER, 'd1', null)
+
+    // Assert — resumed at the derived week, nothing inserted, and the
+    // lookup predicate still requires completion state
+    expect(result).toEqual({ id: 'w-old', week: 2, weekDerived: true })
+    expect(records).toHaveLength(0)
+    expect(predicateMentionsColumn(capturedWheres[3], 'completed_at')).toBe(true)
+  })
+})
+
 describe('nextProgramWeek', () => {
   it('returns 1 for a program with no instantiated workouts', async () => {
     selectQueue = [[{ current: null }]]

@@ -1,4 +1,4 @@
-import { and, asc, count, countDistinct, desc, eq, isNotNull, max } from 'drizzle-orm'
+import { and, asc, count, countDistinct, desc, eq, isNotNull, isNull, max } from 'drizzle-orm'
 import type { ProgramInput, Progression } from '@/lib/program-input'
 import { getAllExercises, type Exercise } from '@/lib/wger'
 import {
@@ -517,6 +517,27 @@ export async function instantiateProgramDay(
   const targetWeek = weekDerived
     ? await nextProgramWeek(userId, day.program.id, day.program.mesocycleWeeks)
     : week
+
+  // One live instantiation per (day, week). A stale abandoned session (past
+  // the banner TTL, so the conflict dialog no longer intercepts) would
+  // otherwise let the hero re-offer the day and mint a duplicate row.
+  // Provenance is a fact, not an editable opinion — resuming the existing
+  // row keeps it exact; a fresh start is one explicit Discard away in the
+  // logger. Freshest first in case historical duplicates already exist.
+  const [existing] = await db
+    .select({ id: workouts.id })
+    .from(workouts)
+    .where(
+      and(
+        eq(workouts.userId, userId),
+        eq(workouts.programDayId, programDayId),
+        eq(workouts.programWeek, targetWeek),
+        isNull(workouts.completedAt),
+      ),
+    )
+    .orderBy(desc(workouts.startedAt))
+    .limit(1)
+  if (existing) return { id: existing.id, week: targetWeek, weekDerived }
 
   const prescription = await deriveDayPrescription(userId, day, targetWeek)
 
