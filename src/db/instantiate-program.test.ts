@@ -24,15 +24,40 @@ let idCounter = 0
 const ID_SEQUENCE = ['w1', 'e1']
 let selectQueue: unknown[][] = []
 
+// Where-predicates captured per select, in call order — the harness must be
+// able to tell "filters by completedAt" from "doesn't", or a dropped
+// isNotNull ships silently (exactly how the merely-started-counts-as-done
+// bug got out originally).
+let capturedWheres: unknown[] = []
+
 function selectChain() {
   const rows = selectQueue.shift() ?? []
   const obj = {
     from: () => obj,
     innerJoin: () => obj,
-    where: () => obj,
+    where: (predicate: unknown) => {
+      capturedWheres.push(predicate)
+      return obj
+    },
+    orderBy: () => obj,
+    limit: () => obj,
     then: (resolve: (value: unknown) => unknown) => Promise.resolve(rows).then(resolve),
   }
   return obj
+}
+
+/** True when a drizzle condition tree references the given column name.
+ *  Walks ONLY queryChunks (columns are leaves): descending into a column's
+ *  own properties would reach its table's full column list and make every
+ *  workouts predicate "mention" every workouts column. */
+function predicateMentionsColumn(predicate: unknown, column: string): boolean {
+  if (predicate === null || typeof predicate !== 'object') return false
+  const p = predicate as { name?: unknown; queryChunks?: unknown[] }
+  if (p.name === column) return true
+  if (Array.isArray(p.queryChunks)) {
+    return p.queryChunks.some((chunk) => predicateMentionsColumn(chunk, column))
+  }
+  return false
 }
 
 function makeTx() {
@@ -50,6 +75,7 @@ vi.mock('./index', () => ({
   db: {
     query: { programDays: { findFirst } },
     select: () => selectChain(),
+    selectDistinct: () => selectChain(),
     transaction: (cb: (tx: ReturnType<typeof makeTx>) => unknown) => cb(makeTx()),
   },
 }))
@@ -59,7 +85,7 @@ vi.mock('./workouts', () => ({
   getExerciseHistoryBefore: historyBefore,
 }))
 
-import { instantiateProgramDay, nextProgramWeek } from './programs'
+import { instantiateProgramDay, nextProgramWeek, getNextProgramDay } from './programs'
 
 const USER = 'user_123'
 
@@ -125,6 +151,7 @@ beforeEach(() => {
   records.length = 0
   idCounter = 0
   selectQueue = []
+  capturedWheres = []
   vi.clearAllMocks()
   historyBefore.mockResolvedValue([])
   lastPerformance.mockResolvedValue(null)
@@ -360,13 +387,55 @@ describe('nextProgramWeek', () => {
   })
 
   it('stays on the current week while the cycle is incomplete', async () => {
-    // current=2, 3 days total, only 1 instantiated at week 2
+    // current=2, 3 days total, only 1 COMPLETED at week 2
     selectQueue = [[{ current: 2 }], [{ value: 3 }], [{ value: 1 }]]
     expect(await nextProgramWeek(USER, 'p1', 4)).toBe(2)
+  })
+
+  it('counts only COMPLETED days toward advancing the week', async () => {
+    // Regression net for the merely-started-counts-as-done bug: the harness
+    // must catch a dropped isNotNull(completedAt), which canned rows can't.
+    selectQueue = [[{ current: 2 }], [{ value: 3 }], [{ value: 1 }]]
+
+    await nextProgramWeek(USER, 'p1', 4)
+
+    // Select order: current(0) · dayTotal(1) · daysDone(2)
+    expect(predicateMentionsColumn(capturedWheres[2], 'completed_at')).toBe(true)
+    // current deliberately counts ANY row: an in-progress instantiation must
+    // still pin the week so the hero can't jump ahead mid-session.
+    expect(predicateMentionsColumn(capturedWheres[0], 'completed_at')).toBe(false)
   })
 
   it('advances (clamped to the mesocycle) when every day is done', async () => {
     selectQueue = [[{ current: 4 }], [{ value: 2 }], [{ value: 2 }]]
     expect(await nextProgramWeek(USER, 'p1', 4)).toBe(4) // clamp: already at the last week
+  })
+})
+
+describe('getNextProgramDay', () => {
+  it('rotates past a COMPLETED day only (logged query filters on completedAt)', async () => {
+    // Select order: program(0) · days(1) · week: current(2)/dayTotal(3)/
+    // daysDone(4) · logged(5) · exercises of the picked day(6)
+    selectQueue = [
+      [{ id: 'p1', name: 'Plan', mesocycleWeeks: 4 }],
+      [
+        { id: 'd1', name: 'Upper', position: 0 },
+        { id: 'd2', name: 'Lower', position: 1 },
+      ],
+      [{ current: 1 }],
+      [{ value: 2 }],
+      [{ value: 1 }],
+      [{ dayId: 'd1' }],
+      [{ name: 'Squat' }],
+    ]
+
+    // Act
+    const next = await getNextProgramDay(USER)
+
+    // Assert — d1 done → d2 next, and the "done" set REQUIRED completion
+    expect(next?.dayName).toBe('Lower')
+    expect(next?.week).toBe(1)
+    expect(next?.exerciseNames).toEqual(['Squat'])
+    expect(predicateMentionsColumn(capturedWheres[5], 'completed_at')).toBe(true)
   })
 })
