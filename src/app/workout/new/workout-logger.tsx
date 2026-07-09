@@ -8,6 +8,7 @@ import { Check, ChevronDown, Dumbbell, Trash2, X } from 'lucide-react'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { AppHeader } from '@/components/app-header'
+import { ConfirmDialog } from '@/components/confirm-dialog'
 import {
   saveWorkoutAction,
   updateWorkoutAction,
@@ -113,11 +114,18 @@ export function WorkoutLogger({
   const [name, setName] = useState(initialName)
   const [error, setError] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
-  // Discard flow (live sessions only): two-step inline confirm + pending
-  // flag. Separate from isSaving so each button can disable the other —
-  // finishing and discarding the same session must be mutually exclusive.
+  // Discard flow (live sessions only): two-step — the trigger opens a
+  // centered ConfirmDialog — plus a pending flag. Separate from isSaving so
+  // each button can disable the other — finishing and discarding the same
+  // session must be mutually exclusive. Discard failures get their own error
+  // state: they render INSIDE the dialog (retry in place), while `error`
+  // stays the page-level save surface.
   const [isDiscarding, setIsDiscarding] = useState(false)
-  const [isConfirmingDiscard, setIsConfirmingDiscard] = useState(false)
+  const [isDiscardModalOpen, setIsDiscardModalOpen] = useState(false)
+  const [discardError, setDiscardError] = useState<string | null>(null)
+  // ConfirmDialog populates this with an imperative close; the success path
+  // calls it BEFORE router.push (the #25 stranded-::backdrop race).
+  const closeDiscardDialogRef = useRef<(() => void) | null>(null)
   // Prior performance per distinct exercise, for the per-set ghost
   // placeholders. TanStack Query owns dedupe/caching/retry (this replaced a
   // hand-rolled requestedRef cache); provider defaults keep ghosts fresh per
@@ -383,7 +391,7 @@ export function WorkoutLogger({
     setIsRestSheetOpen(false)
     setIsDiscarding(true)
     try {
-      setError(null)
+      setDiscardError(null)
       // Shared, unit-tested destructive ordering (lib/discard-session):
       // settle the autosave queue, then ONE delete — the draft for a
       // quick-log surface, or the workout for an edit-mode session (its
@@ -394,14 +402,19 @@ export function WorkoutLogger({
         deleteDraft: deleteWorkoutDraftAction,
         deleteWorkout: deleteWorkoutAction,
       })
+      // Release the confirm dialog's top layer imperatively before
+      // navigating: relying on unmount cleanup to close() races React's
+      // flush against router.push (the #25 stranded-::backdrop race).
+      closeDiscardDialogRef.current?.()
+      setIsDiscardModalOpen(false)
       router.push('/')
       // isDiscarding stays true on success: buttons hold their disabled
       // state until the navigation unmounts this screen.
     } catch {
       queue.resume() // discard failed — autosave picks the draft back up
       setIsDiscarding(false)
-      setIsConfirmingDiscard(false)
-      setError('Could not discard. Please try again.')
+      // The dialog stays open: the error renders inside it, retry in place.
+      setDiscardError('Could not discard. Please try again.')
     }
   }
 
@@ -740,55 +753,28 @@ export function WorkoutLogger({
         {/* Discard lives at the END of the scrolling content, not in the
             sticky bar: a destructive exit must be sought out, never sit one
             mis-tap from Finish. Live sessions only — editing a completed
-            workout deletes from its summary page, not here. Two-step inline
-            confirm, same non-modal pattern as workout-actions.tsx (role=group,
-            no focus trap — the page stays interactive). */}
-        {isLive &&
-          (isConfirmingDiscard ? (
-            <div
-              role="group"
-              aria-label="Confirm workout discard"
-              className="rounded-2xl border border-destructive/40 bg-card p-4"
+            workout deletes from its summary page, not here. The trigger opens
+            a centered ConfirmDialog (a true modal — same treatment as the
+            delete flows in workout-actions.tsx / program-actions.tsx),
+            rendered near the other top-layer surfaces below. */}
+        {isLive && (
+          <div className="flex justify-center pt-2">
+            {/* Demoted on purpose (ghost + destructive text): it should
+                read as an escape hatch, not an action competing with the
+                volt Finish below. */}
+            <Button
+              variant="ghost"
+              className="text-destructive"
+              disabled={isSaving || isDiscarding}
+              onClick={() => {
+                setDiscardError(null) // a stale failure must not reopen with the dialog
+                setIsDiscardModalOpen(true)
+              }}
             >
-              <p className="text-sm font-medium">Discard this workout?</p>
-              <p className="mt-0.5 text-sm text-muted-foreground">
-                Logged sets and the session go with it. This cannot be undone.
-              </p>
-              <div className="mt-3 flex gap-2">
-                <Button
-                  variant="outline"
-                  className="flex-1"
-                  disabled={isDiscarding}
-                  onClick={() => setIsConfirmingDiscard(false)}
-                  autoFocus
-                >
-                  Keep it
-                </Button>
-                <Button
-                  variant="destructive"
-                  className="flex-1"
-                  disabled={isDiscarding || isSaving}
-                  onClick={handleDiscard}
-                >
-                  {isDiscarding ? 'Discarding…' : 'Discard'}
-                </Button>
-              </div>
-            </div>
-          ) : (
-            <div className="flex justify-center pt-2">
-              {/* Demoted on purpose (ghost + destructive text): it should
-                  read as an escape hatch, not an action competing with the
-                  volt Finish below. */}
-              <Button
-                variant="ghost"
-                className="text-destructive"
-                disabled={isSaving || isDiscarding}
-                onClick={() => setIsConfirmingDiscard(true)}
-              >
-                Discard workout
-              </Button>
-            </div>
-          ))}
+              Discard workout
+            </Button>
+          </div>
+        )}
 
         {error && <p className="text-sm text-destructive">{error}</p>}
       </div>
@@ -885,6 +871,20 @@ export function WorkoutLogger({
           equipment={gear}
           onClose={() => setPlateSheetFor(null)}
           onEquipmentSaved={setGear}
+        />
+      )}
+
+      {isDiscardModalOpen && (
+        <ConfirmDialog
+          title="Discard this workout?"
+          body="Logged sets and the session go with it. This cannot be undone."
+          confirmLabel="Discard"
+          pendingLabel="Discarding…"
+          error={discardError}
+          isPending={isDiscarding}
+          onConfirm={handleDiscard}
+          onClose={() => setIsDiscardModalOpen(false)}
+          closeRef={closeDiscardDialogRef}
         />
       )}
 

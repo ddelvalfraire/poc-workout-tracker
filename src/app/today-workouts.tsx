@@ -3,6 +3,7 @@
 import { useSyncExternalStore } from 'react'
 import Link from 'next/link'
 import { Check } from 'lucide-react'
+import { isSameLocalDay } from '@/lib/local-day'
 
 interface TodayWorkout {
   id: string
@@ -26,21 +27,13 @@ const useMounted = () =>
 // date/time display rather than mixing US dates with browser-locale times.
 const timeFormat = new Intl.DateTimeFormat('en-US', { timeStyle: 'short' })
 
-function isToday(date: Date, now: Date): boolean {
-  return (
-    date.getFullYear() === now.getFullYear() &&
-    date.getMonth() === now.getMonth() &&
-    date.getDate() === now.getDate()
-  )
-}
-
 /** The sessions already logged today, as a compact "done" strip above history. */
 export function TodayWorkouts({ workouts }: { workouts: TodayWorkout[] }) {
   const mounted = useMounted()
   if (!mounted) return null
 
   const now = new Date()
-  const today = workouts.filter((w) => isToday(new Date(w.startedAt), now))
+  const today = workouts.filter((w) => isSameLocalDay(new Date(w.startedAt), now))
   if (today.length === 0) return null
 
   return (
