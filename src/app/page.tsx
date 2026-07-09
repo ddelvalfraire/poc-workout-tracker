@@ -53,9 +53,14 @@ export default async function HomePage() {
   const showNextDay = Boolean(nextDay) && !activeSession;
   // What the client gate needs: completion instants from the last 48h (same
   // window rationale as TodayWorkouts below — covers any timezone's "today"
-  // without a row cap), as epoch ms for stable RSC serialization.
-  const recentCompletedAtTimes = startedWithinLastHours(summaries, 48).flatMap((w) =>
-    w.completedAt !== null ? [w.completedAt.getTime()] : [],
+  // without a row cap), as epoch ms for stable RSC serialization. The window
+  // filters on COMPLETION time, not start time: a weeks-old Unfinished
+  // session resumed and finished today must still count as trained-today.
+  const GATE_WINDOW_MS = 48 * 60 * 60 * 1000;
+  const recentCompletedAtTimes = summaries.flatMap((w) =>
+    w.completedAt !== null && now.getTime() - w.completedAt.getTime() <= GATE_WINDOW_MS
+      ? [w.completedAt.getTime()]
+      : [],
   );
   // History is a record of finished sessions — an unfinished row wearing an
   // "In progress" chip there contradicts the definition (and duplicated the
