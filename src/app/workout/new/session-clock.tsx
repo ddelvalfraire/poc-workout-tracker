@@ -28,9 +28,14 @@ export function HeaderClock({ startedAt }: { startedAt: Date }) {
 
   return (
     // Visually just the digits — the header has no room for a label, and the
-    // ticking format already reads as "session time" at a glance.
-    <span aria-label="Session time" className="font-display text-xl leading-none tnum">
-      {elapsed}
+    // ticking format already reads as "session time" at a glance. The label
+    // must INCLUDE the value: a bare "Session time" aria-label would replace
+    // the digits as the accessible name and hide the time from AT entirely.
+    <span
+      aria-label={`Session time ${elapsed}`}
+      className="font-display text-xl leading-none tnum"
+    >
+      <span aria-hidden="true">{elapsed}</span>
     </span>
   )
 }

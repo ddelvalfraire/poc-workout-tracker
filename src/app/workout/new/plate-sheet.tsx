@@ -406,7 +406,14 @@ function GearPillGroup({
             inputMode="decimal"
             className="h-9 w-24 rounded-full text-center text-sm"
           />
-          <Button size="sm" variant="outline" className="rounded-full" onClick={onCustomAdd}>
+          <Button
+            size="sm"
+            variant="outline"
+            // Same invisible inset as the pills beside it: 36px visual,
+            // ~44px effective target.
+            className="relative rounded-full before:absolute before:-inset-1"
+            onClick={onCustomAdd}
+          >
             Add
           </Button>
         </span>
