@@ -29,7 +29,7 @@ import {
 } from './workout-draft'
 import { draftKey, buildDraftPayload, parseDraftPayload } from './draft-payload'
 import { createDraftSyncQueue, type DraftSyncQueue, type DraftSyncStatus } from './draft-sync'
-import { HeaderClock, SessionStatus } from './session-clock'
+import { HeaderClock } from './session-clock'
 import { PlateSheet } from './plate-sheet'
 import { DEFAULT_EQUIPMENT, type Equipment } from '@/lib/equipment'
 import { LOGGING_TYPES, isLoggingType, type LoggingType } from '@/lib/workout-input'
@@ -278,6 +278,13 @@ export function WorkoutLogger({
   }, [queue])
 
   const isEmpty = draft.exercises.length === 0
+  // Every exercise has sets and every set is checked off — the moment the
+  // Finish button starts nudging (and the last card outline turns volt).
+  const isSessionDone =
+    !isEmpty &&
+    draft.exercises.every(
+      (exercise) => exercise.sets.length > 0 && exercise.sets.every((set) => set.completed),
+    )
 
   // Deliberately NOT wrapped in startTransition: tying router.push to an async
   // transition made the experimental <ViewTransition> capture race the
@@ -339,7 +346,7 @@ export function WorkoutLogger({
             {/* Clock only for a live session — a finished workout's edit
                 has no running time to show. openedAt (not a prop clock):
                 a restored draft rewinds it to the original session start. */}
-            {isLive && <HeaderClock startedAt={openedAt} />}
+            {isLive && <HeaderClock startedAt={openedAt} restStartedAt={restStartedAt} />}
             <Link href={closeHref} className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }))}>
               Close
             </Link>
@@ -371,8 +378,6 @@ export function WorkoutLogger({
           />
         </div>
 
-        <SessionStatus restStartedAt={restStartedAt} />
-
         {syncStatus === 'failed' && (
           <p className="px-1 text-sm text-warning" role="status">
             Offline — changes will sync when you&apos;re back.
@@ -388,7 +393,15 @@ export function WorkoutLogger({
         {draft.exercises.map((exercise, exerciseIndex) => (
           <section
             key={exercise.id}
-            className="space-y-3 rounded-2xl border border-border bg-card p-4"
+            className={cn(
+              'space-y-3 rounded-2xl border bg-card p-4 transition-colors',
+              // Every set checked off = this movement is done: the volt
+              // outline is the same "live/complete" state marker the resume
+              // banner and rest readout use.
+              exercise.sets.length > 0 && exercise.sets.every((set) => set.completed)
+                ? 'border-primary/50'
+                : 'border-border',
+            )}
           >
             <div className="flex items-start justify-between gap-2">
               <h3 className="min-w-0 text-base leading-tight">
@@ -679,7 +692,14 @@ export function WorkoutLogger({
             // moment, not filing paperwork. Correcting a finished workout
             // keeps an outline "Save changes" — that IS paperwork.
             variant={isLive ? 'default' : 'outline'}
-            className="flex-[1.6] font-semibold uppercase tracking-wide"
+            className={cn(
+              'flex-[1.6] font-semibold uppercase tracking-wide',
+              // Every planned set is done: a gentle scale nudge says "wrap it
+              // up" — motion as state (session complete), not decoration.
+              // Reduced-motion users get the same information from the volt
+              // card outlines above.
+              isLive && isSessionDone && !isSaving && 'motion-safe:animate-finish-nudge',
+            )}
             disabled={isEmpty || isSaving}
             onClick={handleSave}
           >

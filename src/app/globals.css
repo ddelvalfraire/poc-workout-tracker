@@ -146,6 +146,24 @@
   }
 }
 
+/* "All sets done — wrap it up" nudge on the Finish button. Transform-only
+   (compositor-friendly), gentle amplitude, applied via motion-safe: so
+   reduced-motion users never see it. */
+@keyframes finish-nudge {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.02);
+  }
+}
+@layer utilities {
+  .animate-finish-nudge {
+    animation: finish-nudge 1.6s ease-in-out infinite;
+  }
+}
+
 @layer utilities {
   /* Safe-area helpers for standalone/notched devices. */
   .pt-safe {
