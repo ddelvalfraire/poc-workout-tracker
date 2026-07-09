@@ -8,13 +8,14 @@ import { getNextProgramDay } from "@/db/programs";
 import { getWeightUnit } from "@/db/preferences";
 import { resolveActiveSession } from "@/lib/active-session";
 import { formatVolume, formatWorkoutDuration } from "@/lib/format";
-import { startedWithinLastHours, completedWithinLastHours } from "@/lib/recent-window";
+import { startedWithinLastHours } from "@/lib/recent-window";
 import { buttonVariants } from "@/components/ui/button";
 import { GuardedStartLink } from "@/components/guarded-start-link";
 import { cn } from "@/lib/utils";
 import { NextWorkoutCard } from "./next-workout-card";
 import { ResumeSessionCard } from "./resume-session-card";
 import { TodayWorkouts } from "./today-workouts";
+import { TrainedTodayGate } from "./trained-today-gate";
 
 // en-US matches formatWorkoutDate — one locale for all date display.
 const monthFormat = new Intl.DateTimeFormat("en-US", { month: "short" });
@@ -42,12 +43,25 @@ export default async function HomePage() {
     setCount: activeSession.setCount,
     completedSetCount: activeSession.completedSetCount,
   };
-  // "Already trained today" (12h completion window, same rhythm as the
-  // session TTL): once a session is finished — or one is live — the day's
-  // marching orders are done and the Up-next hero stands down; the Quick Log
-  // and Programs shortcuts below stay.
-  const showNextDay =
-    Boolean(nextDay) && !activeSession && !completedWithinLastHours(summaries, 12, now);
+  // "Already trained today" is a LOCAL-calendar-day question the server
+  // can't answer, so it moved client-side into <TrainedTodayGate> below. The
+  // old 12h rolling window here suppressed the hero all morning after an
+  // evening session — and discarding an in-progress workout didn't restore
+  // it ("Right now it's cooked there is no hero card on my app"). The server
+  // keeps only what it truly knows: a program day exists and no session is
+  // live.
+  const showNextDay = Boolean(nextDay) && !activeSession;
+  // What the client gate needs: completion instants from the last 48h (same
+  // window rationale as TodayWorkouts below — covers any timezone's "today"
+  // without a row cap), as epoch ms for stable RSC serialization. The window
+  // filters on COMPLETION time, not start time: a weeks-old Unfinished
+  // session resumed and finished today must still count as trained-today.
+  const GATE_WINDOW_MS = 48 * 60 * 60 * 1000;
+  const recentCompletedAtTimes = summaries.flatMap((w) =>
+    w.completedAt !== null && now.getTime() - w.completedAt.getTime() <= GATE_WINDOW_MS
+      ? [w.completedAt.getTime()]
+      : [],
+  );
   // History is a record of finished sessions — an unfinished row wearing an
   // "In progress" chip there contradicts the definition (and duplicated the
   // live banner above). Unfinished rows get their own quiet section instead:
@@ -81,7 +95,16 @@ export default async function HomePage() {
       <main className="mx-auto w-full max-w-md flex-1 px-5 pb-safe">
         {activeSession && <ResumeSessionCard session={activeSession} />}
 
-        {showNextDay && nextDay && <NextWorkoutCard next={nextDay} />}
+        {/* The gate hides the hero client-side when a completion falls on the
+            user's local today. Layout note: the two-button shortcut row below
+            branches on nextDay only and is server-rendered regardless, so it
+            still reads sensibly when the gate removes the hero — the grid
+            simply becomes the top of the main column. */}
+        {showNextDay && nextDay && (
+          <TrainedTodayGate completedAtTimes={recentCompletedAtTimes}>
+            <NextWorkoutCard next={nextDay} />
+          </TrainedTodayGate>
+        )}
 
         {/* With a program driving the day, freestyle logging demotes to a
             secondary action; without one it stays the primary CTA. */}

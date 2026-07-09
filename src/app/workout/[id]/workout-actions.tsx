@@ -1,23 +1,29 @@
 'use client'
 
 import Link from 'next/link'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { RotateCcw } from 'lucide-react'
 import { Button, buttonVariants } from '@/components/ui/button'
+import { ConfirmDialog } from '@/components/confirm-dialog'
 import { cn } from '@/lib/utils'
 import { deleteWorkoutAction } from '@/app/workout/actions'
 
 /**
- * Detail-page action island: an Edit link to the edit route and a Delete button
- * that confirms inline (two-step, in-brand — no window.confirm), deletes
- * (cascade), then navigates home. Kept small so the detail page itself stays a
- * Server Component.
+ * Detail-page action island: an Edit link to the edit route and a Delete
+ * button that confirms in a centered modal (ConfirmDialog — a true <dialog>,
+ * replacing the old inline card the user read as "shows up near the bottom of
+ * the phone"), deletes (cascade), then navigates home. Kept small so the
+ * detail page itself stays a Server Component.
  */
 export function WorkoutActions({ id }: { id: string }) {
   const [isPending, setIsPending] = useState(false)
-  const [isConfirming, setIsConfirming] = useState(false)
+  const [isModalOpen, setIsModalOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // ConfirmDialog populates this with an imperative close; the success path
+  // calls it BEFORE router.push (see the dialog's contract — the #25
+  // stranded-::backdrop race).
+  const closeDialogRef = useRef<(() => void) | null>(null)
   const router = useRouter()
 
   // Not startTransition: navigating inside an async transition lets the
@@ -28,10 +34,15 @@ export function WorkoutActions({ id }: { id: string }) {
     try {
       setError(null)
       await deleteWorkoutAction(id)
+      // Release the top layer imperatively before navigating: relying on
+      // unmount cleanup to close() races React's flush against router.push.
+      closeDialogRef.current?.()
+      setIsModalOpen(false)
       router.push('/')
+      // isPending stays true on success: navigation unmounts this screen.
     } catch {
       setIsPending(false)
-      setIsConfirming(false)
+      // The dialog stays open: the error renders inside it, retry in place.
       setError('Could not delete workout. Please try again.')
     }
   }
@@ -42,59 +53,40 @@ export function WorkoutActions({ id }: { id: string }) {
         <RotateCcw aria-hidden="true" className="size-4" />
         Repeat workout
       </Link>
-      {isConfirming ? (
-        // Inline (non-modal) confirm — role=group, not alertdialog, since
-        // there's deliberately no focus trap: the page stays interactive.
-        <div
-          role="group"
-          aria-label="Confirm workout deletion"
-          className="rounded-2xl border border-destructive/40 bg-card p-4"
+      <div className="flex items-center gap-2">
+        <Link
+          href={`/workout/${id}/edit`}
+          className={cn(buttonVariants({ variant: 'outline' }), 'flex-1')}
         >
-          <p className="text-sm font-medium">Delete this workout?</p>
-          <p className="mt-0.5 text-sm text-muted-foreground">
-            Every logged set goes with it. This cannot be undone.
-          </p>
-          <div className="mt-3 flex gap-2">
-            <Button
-              variant="outline"
-              className="flex-1"
-              disabled={isPending}
-              onClick={() => setIsConfirming(false)}
-              autoFocus
-            >
-              Keep it
-            </Button>
-            <Button
-              variant="destructive"
-              className="flex-1"
-              disabled={isPending}
-              onClick={handleDelete}
-            >
-              {isPending ? 'Deleting…' : 'Delete'}
-            </Button>
-          </div>
-        </div>
-      ) : (
-        <div className="flex items-center gap-2">
-          <Link
-            href={`/workout/${id}/edit`}
-            className={cn(buttonVariants({ variant: 'outline' }), 'flex-1')}
-          >
-            Edit
-          </Link>
-          {/* Demoted on purpose: a destructive action should never carry the
-              same visual weight as the everyday one beside it. */}
-          <Button
-            variant="ghost"
-            className="shrink-0 text-destructive"
-            disabled={isPending}
-            onClick={() => setIsConfirming(true)}
-          >
-            Delete
-          </Button>
-        </div>
+          Edit
+        </Link>
+        {/* Demoted on purpose: a destructive action should never carry the
+            same visual weight as the everyday one beside it. */}
+        <Button
+          variant="ghost"
+          className="shrink-0 text-destructive"
+          disabled={isPending}
+          onClick={() => {
+            setError(null) // a stale failure from a prior attempt must not reopen with it
+            setIsModalOpen(true)
+          }}
+        >
+          Delete
+        </Button>
+      </div>
+      {isModalOpen && (
+        <ConfirmDialog
+          title="Delete this workout?"
+          body="Every logged set goes with it. This cannot be undone."
+          confirmLabel="Delete"
+          pendingLabel="Deleting…"
+          error={error}
+          isPending={isPending}
+          onConfirm={handleDelete}
+          onClose={() => setIsModalOpen(false)}
+          closeRef={closeDialogRef}
+        />
       )}
-      {error && <p className="text-sm text-destructive">{error}</p>}
     </div>
   )
 }
