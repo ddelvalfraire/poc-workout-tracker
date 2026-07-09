@@ -63,28 +63,32 @@ export default async function ProgramDetailPage({
   // user would actually train next keeps the primary variant; the rest
   // demote to outline. A non-active program has no "next", so all demote.
   const nextDayId = nextDay?.programId === program.id ? nextDay.dayId : null
-  // getProgramDetail days carry no back-ref to the program row, so the
-  // DayForDerivation `program` slice is attached inline per day. Targets are
-  // derived for the SELECTED week — the whole point of the week switcher —
-  // and one derivation per day is acceptable latency on a detail page.
-  const prescriptions = await Promise.all(
-    program.days.map((day) =>
-      deriveDayPrescription(
-        userId,
-        {
-          exercises: day.exercises,
-          program: { mesocycleWeeks: program.mesocycleWeeks, deloadWeek: program.deloadWeek },
-        },
-        selectedWeek,
-      ),
-    ),
-  )
   // Each day's fate for the selected week, from the program's workout rows
   // bucketed by (day, week). resolveDayState arbitrates historical duplicates:
-  // completed beats in-progress, freshest wins within a state.
+  // completed beats in-progress, freshest wins within a state. Computed
+  // BEFORE prescriptions so derivation can skip resolved days.
   const dayStates = program.days.map((day) =>
     resolveDayState(
       programWorkouts.filter((w) => w.programDayId === day.id && w.programWeek === selectedWeek),
+    ),
+  )
+  // getProgramDetail days carry no back-ref to the program row, so the
+  // DayForDerivation `program` slice is attached inline per day. Targets are
+  // derived for the SELECTED week — the whole point of the week switcher —
+  // but ONLY for untouched days: Done and In-progress cards never render
+  // targets, and each derivation costs real history reads per exercise.
+  const prescriptions = await Promise.all(
+    program.days.map((day, i) =>
+      dayStates[i]
+        ? Promise.resolve([])
+        : deriveDayPrescription(
+            userId,
+            {
+              exercises: day.exercises,
+              program: { mesocycleWeeks: program.mesocycleWeeks, deloadWeek: program.deloadWeek },
+            },
+            selectedWeek,
+          ),
     ),
   )
   // Which weeks carry at least one finished session — feeds the tiny progress
