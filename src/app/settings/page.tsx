@@ -62,7 +62,11 @@ export default async function SettingsPage() {
           </SettingRow>
           <SettingRow
             label="Default rest"
-            hint="Countdown target after each set. Program sets with their own rest override this."
+            hint={
+              restTimerEnabled
+                ? "Countdown target after each set. Program sets with their own rest override this."
+                : "Inactive while the rest timer is off — the value is kept for when it returns."
+            }
           >
             <RestDefaultSetting defaultRestSec={defaultRestSec} />
           </SettingRow>
