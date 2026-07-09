@@ -38,6 +38,7 @@ import { DEFAULT_EQUIPMENT, type Equipment } from '@/lib/equipment'
 import { LOGGING_TYPES, isLoggingType, type LoggingType } from '@/lib/workout-input'
 import { type WeightUnit } from '@/lib/units'
 import { cn } from '@/lib/utils'
+import { discardSession } from '@/lib/discard-session'
 import {
   placeholderForSet,
   planPlaceholderForSet,
@@ -383,12 +384,16 @@ export function WorkoutLogger({
     setIsDiscarding(true)
     try {
       setError(null)
-      await queue.settle()
-      await deleteWorkoutDraftAction(key)
-      // Ownership is enforced server-side (deleteWorkoutAction scopes by
-      // userId and cascades children) — the same action the summary page's
-      // Delete uses.
-      if (workoutId) await deleteWorkoutAction(workoutId)
+      // Shared, unit-tested destructive ordering (lib/discard-session):
+      // settle the autosave queue, then ONE delete — the draft for a
+      // quick-log surface, or the workout for an edit-mode session (its
+      // action is ownership-scoped, cascades children, and clears the
+      // draft keyed by the same id — no separate draft round-trip).
+      await discardSession(key, {
+        settle: () => queue.settle(),
+        deleteDraft: deleteWorkoutDraftAction,
+        deleteWorkout: deleteWorkoutAction,
+      })
       router.push('/')
       // isDiscarding stays true on success: buttons hold their disabled
       // state until the navigation unmounts this screen.

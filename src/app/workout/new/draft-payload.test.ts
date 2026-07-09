@@ -1,10 +1,12 @@
 import { describe, it, expect } from 'vitest'
 import {
   DRAFT_PAYLOAD_VERSION,
+  DRAFT_TTL_MS,
   draftKey,
   buildDraftPayload,
   isDraftPayload,
   parseDraftPayload,
+  resolveDraftSeed,
 } from './draft-payload'
 import type { WorkoutDraft } from './workout-draft'
 
@@ -133,5 +135,35 @@ describe('isDraftPayload / parseDraftPayload rejection', () => {
     expect(isDraftPayload(payload({ draft: badSet }))).toBe(false)
     expect(isDraftPayload(payload({ draft: badExercise }))).toBe(false)
     expect(isDraftPayload(payload({ draft: null }))).toBe(false)
+  })
+})
+
+describe('resolveDraftSeed', () => {
+  const row = (ageMs: number, p: unknown = payload()) => ({
+    payload: p,
+    updatedAt: new Date(NOW.getTime() - ageMs),
+  })
+
+  it('parses a fresh row', () => {
+    const seed = resolveDraftSeed(row(60_000), { unit: 'kg', now: NOW })
+
+    expect(seed?.name).toBe('Leg Day')
+    expect(seed?.openedAt).toEqual(OPENED)
+  })
+
+  it('keeps a row exactly at the TTL boundary (<= is inclusive)', () => {
+    expect(resolveDraftSeed(row(DRAFT_TTL_MS), { unit: 'kg', now: NOW })).not.toBeNull()
+  })
+
+  it('skips a row just past the TTL', () => {
+    expect(resolveDraftSeed(row(DRAFT_TTL_MS + 1), { unit: 'kg', now: NOW })).toBeNull()
+  })
+
+  it('returns null for a missing row', () => {
+    expect(resolveDraftSeed(undefined, { unit: 'kg', now: NOW })).toBeNull()
+  })
+
+  it('returns null for a malformed payload (storage is untrusted)', () => {
+    expect(resolveDraftSeed(row(60_000, { junk: true }), { unit: 'kg', now: NOW })).toBeNull()
   })
 })

@@ -4,7 +4,7 @@ import { getWorkoutDetail } from '@/db/workouts'
 import { getWorkoutDraft } from '@/db/workout-drafts'
 import { WorkoutLogger } from './workout-logger'
 import { detailToDraft } from './workout-draft'
-import { parseDraftPayload, draftKey, DRAFT_TTL_MS } from './draft-payload'
+import { resolveDraftSeed, draftKey } from './draft-payload'
 
 // Guards a malformed `?from` value from hitting the uuid column (Postgres would
 // throw `invalid input syntax for type uuid` and 500 the page).
@@ -20,13 +20,14 @@ export default async function NewWorkoutPage({
   const userId = await requireUserId() // middleware also guards; defense-in-depth
   const { from } = await searchParams
   const fromId = typeof from === 'string' && UUID_RE.test(from) ? from : undefined
-  // An explicit `?from` wins over any stored 'new' draft: the user just asked
-  // to repeat that workout, so an abandoned freestyle session must not hijack
-  // the seed. We skip the draft read entirely rather than merging.
+  // Both reads always run: an explicit `?from` that RESOLVES wins over any
+  // stored 'new' draft (the user just asked to repeat that workout), but a
+  // stale or deleted `from` id falls back to the stored draft rather than
+  // presenting an empty logger while a live draft exists.
   const [unit, source, draftRow] = await Promise.all([
     getWeightUnit(userId),
     fromId ? getWorkoutDetail(userId, fromId) : Promise.resolve(undefined),
-    fromId ? Promise.resolve(undefined) : getWorkoutDraft(userId, draftKey()),
+    getWorkoutDraft(userId, draftKey()),
   ])
   // Equipment and the rest default are independent preference reads — one
   // round-trip of latency instead of two.
@@ -40,15 +41,9 @@ export default async function NewWorkoutPage({
   const seed = source ? detailToDraft(source, unit, { resetCompleted: true }) : undefined
   // Server-side draft seeding: resolving the interrupted session HERE kills
   // the mount-time content swap (empty logger flashes, then the restore
-  // effect replaces it). Same codec as the client restore, so both agree on
-  // what "valid" means; the client effect stays as the cross-device race net.
-  // TTL mirrors getWorkoutDraftAction but only SKIPS a stale row — a page
-  // render is a GET and shouldn't mutate; the client action lazily deletes.
-  const now = new Date()
-  const restored =
-    draftRow && now.getTime() - draftRow.updatedAt.getTime() <= DRAFT_TTL_MS
-      ? parseDraftPayload(draftRow.payload, { unit, now })
-      : null
+  // effect replaces it). Shared TTL+codec helper — same rules as the client
+  // restore, which stays as the cross-device race net.
+  const restored = source ? null : resolveDraftSeed(draftRow, { unit, now: new Date() })
 
   return (
     <div className="flex min-h-[100dvh] flex-col">

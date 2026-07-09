@@ -7,7 +7,7 @@ import { getWorkoutDraft } from '@/db/workout-drafts'
 import type { PlanSetTarget } from '@/lib/format'
 import { detailToDraft } from '@/app/workout/new/workout-draft'
 import { WorkoutLogger } from '@/app/workout/new/workout-logger'
-import { parseDraftPayload, DRAFT_TTL_MS } from '@/app/workout/new/draft-payload'
+import { resolveDraftSeed } from '@/app/workout/new/draft-payload'
 
 /**
  * Per-exercise plan targets (keyed by wgerExerciseId) for a program-instantiated
@@ -67,15 +67,9 @@ export default async function EditWorkoutPage({
   // Server-side draft seeding: a live draft is newer than the workout rows it
   // was seeded from, so it wins over detailToDraft — resolved HERE to kill the
   // mount-time content swap (rows render, then the restore effect swaps in the
-  // draft). Same codec as the client restore; that effect stays as the
-  // cross-device race net. TTL mirrors getWorkoutDraftAction but only SKIPS a
-  // stale row — a page render is a GET and shouldn't mutate; the client
-  // action lazily deletes.
-  const now = new Date()
-  const restored =
-    draftRow && now.getTime() - draftRow.updatedAt.getTime() <= DRAFT_TTL_MS
-      ? parseDraftPayload(draftRow.payload, { unit, now })
-      : null
+  // draft). Shared TTL+codec helper; the client restore effect stays as the
+  // cross-device race net.
+  const restored = resolveDraftSeed(draftRow, { unit, now: new Date() })
   const { draft, name } = restored ?? detailToDraft(workout, unit)
 
   return (
