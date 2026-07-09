@@ -88,6 +88,9 @@ interface WorkoutLoggerProps {
   /** The user's stored default rest target (seconds) — seeds the session
    *  default the countdown falls back to when a set has no plan restSec. */
   defaultRestSec?: number | null
+  /** Feature switch: false suppresses the whole rest surface — no readout,
+   *  no countdown, plan targets ignored. The elapsed clock is unaffected. */
+  restTimerEnabled?: boolean
 }
 
 export function WorkoutLogger({
@@ -102,6 +105,7 @@ export function WorkoutLogger({
   startedAt,
   equipment,
   defaultRestSec = null,
+  restTimerEnabled = true,
 }: WorkoutLoggerProps) {
   const [draft, dispatch] = useReducer(workoutDraftReducer, initialDraft)
   const [name, setName] = useState(initialName)
@@ -562,7 +566,10 @@ export function WorkoutLogger({
                       // (session default deliberately not merged here — see
                       // restPlanSec above); ad-hoc exercises have no plan
                       // targets and resolve to null → the session default.
-                      if (!set.completed) {
+                      // Feature switch first: with the rest timer off, no
+                      // rest state ever starts, so the readout/sheet never
+                      // render — the surface disappears, not just the target.
+                      if (restTimerEnabled && !set.completed) {
                         setRestStartedAt(new Date())
                         setRestPlanSec(
                           resolveRestTarget(planTargets?.[exercise.wgerExerciseId], setIndex, null),

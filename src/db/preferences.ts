@@ -116,3 +116,29 @@ export async function setDefaultRestSec(userId: string, sec: number | null): Pro
       set: { defaultRestSec: sec, updatedAt: new Date() },
     })
 }
+
+/**
+ * Whether the rest-timer surface is enabled at all (readout + targets).
+ * Defaults to true — the timer is the feature's normal state — and only a
+ * literal stored `false` disables it, so a missing row or corrupt value can
+ * never silently kill the feature.
+ */
+export async function getRestTimerEnabled(userId: string): Promise<boolean> {
+  const [row] = await db
+    .select({ restTimerEnabled: userPreferences.restTimerEnabled })
+    .from(userPreferences)
+    .where(eq(userPreferences.userId, userId))
+    .limit(1)
+  return row?.restTimerEnabled !== false
+}
+
+/** Upserts the rest-timer feature switch (validated by setRestTimerEnabledAction). */
+export async function setRestTimerEnabled(userId: string, enabled: boolean): Promise<void> {
+  await db
+    .insert(userPreferences)
+    .values({ userId, restTimerEnabled: enabled })
+    .onConflictDoUpdate({
+      target: userPreferences.userId,
+      set: { restTimerEnabled: enabled, updatedAt: new Date() },
+    })
+}

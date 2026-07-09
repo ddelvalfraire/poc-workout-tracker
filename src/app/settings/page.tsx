@@ -1,7 +1,12 @@
 import Link from 'next/link'
 import { ChevronLeft } from 'lucide-react'
 import { requireUserId } from '@/lib/auth'
-import { getWeightUnit, getBodyweightKg, getDefaultRestSec } from '@/db/preferences'
+import {
+  getWeightUnit,
+  getBodyweightKg,
+  getDefaultRestSec,
+  getRestTimerEnabled,
+} from '@/db/preferences'
 import { kgToDisplay } from '@/lib/units'
 import { AppHeader } from '@/components/app-header'
 import { UnitToggle } from '@/components/unit-toggle'
@@ -9,6 +14,7 @@ import { BodyweightEditor } from '@/components/bodyweight-editor'
 import { buttonVariants } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { RestDefaultSetting } from './rest-default-setting'
+import { RestTimerToggle } from './rest-timer-toggle'
 
 /**
  * The preferences surface: everything that tunes how the app behaves for
@@ -18,10 +24,11 @@ import { RestDefaultSetting } from './rest-default-setting'
  */
 export default async function SettingsPage() {
   const userId = await requireUserId()
-  const [unit, bodyweightKg, defaultRestSec] = await Promise.all([
+  const [unit, bodyweightKg, defaultRestSec, restTimerEnabled] = await Promise.all([
     getWeightUnit(userId),
     getBodyweightKg(userId),
     getDefaultRestSec(userId),
+    getRestTimerEnabled(userId),
   ])
 
   return (
@@ -48,8 +55,18 @@ export default async function SettingsPage() {
             <UnitToggle unit={unit} />
           </SettingRow>
           <SettingRow
+            label="Rest timer"
+            hint="Countdown and rest readout after each set. Off hides the whole surface."
+          >
+            <RestTimerToggle enabled={restTimerEnabled} />
+          </SettingRow>
+          <SettingRow
             label="Default rest"
-            hint="Countdown target after each set. Program sets with their own rest override this."
+            hint={
+              restTimerEnabled
+                ? "Countdown target after each set. Program sets with their own rest override this."
+                : "Inactive while the rest timer is off — the value is kept for when it returns."
+            }
           >
             <RestDefaultSetting defaultRestSec={defaultRestSec} />
           </SettingRow>
