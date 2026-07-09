@@ -410,6 +410,25 @@ describe('instantiateProgramDay (resume semantics)', () => {
     expect(result).toEqual({ id: 'w1', week: 3, weekDerived: false })
     expect(records.length).toBeGreaterThan(0)
   })
+
+  it('resumes on the DERIVED-week path too (lookup runs after nextProgramWeek)', async () => {
+    // Arrange — week omitted: nextProgramWeek consumes selects 0-2
+    // (current=2, 3 days, 1 done → stays week 2); the resume lookup is the
+    // 4th select and finds a stale unfinished row for (d1, week 2).
+    findFirst.mockResolvedValue(
+      dayFixture({ sets: [{ setNumber: 1, suggestedLoadKg: 100 }] }),
+    )
+    selectQueue = [[{ current: 2 }], [{ value: 3 }], [{ value: 1 }], [{ id: 'w-old' }]]
+
+    // Act
+    const result = await instantiateProgramDay(USER, 'd1', null)
+
+    // Assert — resumed at the derived week, nothing inserted, and the
+    // lookup predicate still requires completion state
+    expect(result).toEqual({ id: 'w-old', week: 2, weekDerived: true })
+    expect(records).toHaveLength(0)
+    expect(predicateMentionsColumn(capturedWheres[3], 'completed_at')).toBe(true)
+  })
 })
 
 describe('nextProgramWeek', () => {
