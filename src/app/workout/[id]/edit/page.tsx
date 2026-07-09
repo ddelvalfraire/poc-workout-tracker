@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation'
 import { requireUserId } from '@/lib/auth'
 import { getWorkoutDetail, type WorkoutDetail } from '@/db/workouts'
-import { getWeightUnit, getEquipment, getDefaultRestSec } from '@/db/preferences'
+import { getWeightUnit, getEquipment, getDefaultRestSec, getRestTimerEnabled } from '@/db/preferences'
 import { getProgramDayDetail, deriveDayPrescription } from '@/db/programs'
 import type { PlanSetTarget } from '@/lib/format'
 import { detailToDraft } from '@/app/workout/new/workout-draft'
@@ -53,10 +53,11 @@ export default async function EditWorkoutPage({
   ])
   if (!workout) notFound()
 
-  const [planTargets, equipment, defaultRestSec] = await Promise.all([
+  const [planTargets, equipment, defaultRestSec, restTimerEnabled] = await Promise.all([
     loadPlanTargets(userId, workout),
     getEquipment(userId, unit),
     getDefaultRestSec(userId),
+    getRestTimerEnabled(userId),
   ])
   const { draft, name } = detailToDraft(workout, unit)
 
@@ -84,6 +85,7 @@ export default async function EditWorkoutPage({
         startedAt={workout.startedAt}
         equipment={equipment}
         defaultRestSec={defaultRestSec}
+        restTimerEnabled={restTimerEnabled}
       />
     </div>
   )

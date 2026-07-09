@@ -11,6 +11,7 @@ vi.mock('@/db/preferences', () => ({
   setEquipment: vi.fn(async () => {}),
   setBodyweight: vi.fn(async () => {}),
   setDefaultRestSec: vi.fn(async () => {}),
+  setRestTimerEnabled: vi.fn(async () => {}),
   getWeightUnit: vi.fn(async () => 'lb'),
 }))
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
@@ -20,12 +21,14 @@ import {
   setEquipmentAction,
   setBodyweightAction,
   setDefaultRestSecAction,
+  setRestTimerEnabledAction,
 } from './actions'
 import {
   setWeightUnit,
   setEquipment,
   setBodyweight,
   setDefaultRestSec,
+  setRestTimerEnabled,
   getWeightUnit,
 } from '@/db/preferences'
 import { revalidatePath } from 'next/cache'
@@ -140,4 +143,29 @@ describe('setDefaultRestSecAction', () => {
     expect(setDefaultRestSec).toHaveBeenNthCalledWith(1, 'user_123', 0)
     expect(setDefaultRestSec).toHaveBeenNthCalledWith(2, 'user_123', 3600)
   })
+})
+
+describe('setRestTimerEnabledAction', () => {
+  it.each([
+    ['a string', 'true'],
+    ['a number', 1],
+    ['null', null],
+    ['undefined', undefined],
+  ])('rejects %s without writing or revalidating', async (_label, value) => {
+    await expect(setRestTimerEnabledAction(value)).rejects.toThrow('must be a boolean')
+    expect(setRestTimerEnabled).not.toHaveBeenCalled()
+    expect(revalidatePath).not.toHaveBeenCalled()
+  })
+
+  it.each([[true], [false]])(
+    'persists %s for the user and revalidates the layout',
+    async (flag) => {
+      // Act
+      await setRestTimerEnabledAction(flag)
+
+      // Assert
+      expect(setRestTimerEnabled).toHaveBeenCalledWith('user_123', flag)
+      expect(revalidatePath).toHaveBeenCalledWith('/', 'layout')
+    },
+  )
 })

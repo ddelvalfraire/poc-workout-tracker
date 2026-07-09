@@ -7,6 +7,7 @@ import {
   setEquipment,
   setBodyweight,
   setDefaultRestSec,
+  setRestTimerEnabled,
   getWeightUnit,
 } from '@/db/preferences'
 import { isWeightUnit, displayToKg } from '@/lib/units'
@@ -80,5 +81,15 @@ export async function setDefaultRestSecAction(sec: unknown): Promise<void> {
     throw new Error(`rest target must be null or an integer between 0 and ${MAX_REST_SEC} seconds`)
   }
   await setDefaultRestSec(userId, sec)
+  revalidatePath('/', 'layout')
+}
+
+/** Flips the whole rest-timer surface on/off (settings toggle). */
+export async function setRestTimerEnabledAction(enabled: unknown): Promise<void> {
+  const userId = await requireUserId()
+  if (typeof enabled !== 'boolean') {
+    throw new Error('rest timer flag must be a boolean')
+  }
+  await setRestTimerEnabled(userId, enabled)
   revalidatePath('/', 'layout')
 }

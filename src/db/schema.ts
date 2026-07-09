@@ -104,6 +104,11 @@ export const userPreferences = pgTable('user_preferences', {
   // null means no target, so the rest readout stays a plain count-up. The
   // action boundary enforces the 0..3600 range; reads still guard stored data.
   defaultRestSec: integer('default_rest_sec'),
+  // Feature switch for the whole rest-timer surface: off means no rest
+  // readout at all (no countdown, no count-up) and per-set plan targets are
+  // ignored. Default ON — the timer is the feature's normal state; the
+  // switch exists for lifters who find any clock a distraction.
+  restTimerEnabled: boolean('rest_timer_enabled').notNull().default(true),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 })
 

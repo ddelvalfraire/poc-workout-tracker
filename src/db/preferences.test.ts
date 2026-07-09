@@ -49,6 +49,7 @@ import {
   setBodyweight,
   getDefaultRestSec,
   setDefaultRestSec,
+  getRestTimerEnabled,
 } from './preferences'
 
 const USER = 'user_123'
@@ -145,6 +146,23 @@ describe('getDefaultRestSec', () => {
   ])('reads a corrupt stored value (%s) as null', async (_label, stored) => {
     selectRows = [{ defaultRestSec: stored }]
     expect(await getDefaultRestSec(USER)).toBe(null)
+  })
+})
+
+describe('getRestTimerEnabled', () => {
+  it('defaults to enabled when no row exists', async () => {
+    selectRows = []
+    expect(await getRestTimerEnabled(USER)).toBe(true)
+  })
+
+  it('returns the stored flag', async () => {
+    selectRows = [{ restTimerEnabled: false }]
+    expect(await getRestTimerEnabled(USER)).toBe(false)
+  })
+
+  it('treats anything but a literal false as enabled (corrupt data must not kill the feature)', async () => {
+    selectRows = [{ restTimerEnabled: null }]
+    expect(await getRestTimerEnabled(USER)).toBe(true)
   })
 })
 
