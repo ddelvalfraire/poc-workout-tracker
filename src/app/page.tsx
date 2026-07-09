@@ -8,7 +8,7 @@ import { getNextProgramDay } from "@/db/programs";
 import { getWeightUnit } from "@/db/preferences";
 import { resolveActiveSession } from "@/lib/active-session";
 import { formatVolume, formatWorkoutDuration } from "@/lib/format";
-import { startedWithinLastHours } from "@/lib/recent-window";
+import { startedWithinLastHours, completedWithinLastHours } from "@/lib/recent-window";
 import { buttonVariants } from "@/components/ui/button";
 import { UnitToggle } from "@/components/unit-toggle";
 import { cn } from "@/lib/utils";
@@ -31,7 +31,14 @@ export default async function HomePage() {
   // every change; saving deletes it) — and a started-but-unfinished workout
   // is one too, even before its first edit (starting a program day creates
   // the row immediately). Drafts win: they carry unsaved sets.
-  const activeSession = resolveActiveSession(drafts, summaries, new Date());
+  const now = new Date();
+  const activeSession = resolveActiveSession(drafts, summaries, now);
+  // "Already trained today" (12h completion window, same rhythm as the
+  // session TTL): once a session is finished — or one is live — the day's
+  // marching orders are done and the Up-next hero stands down; the Quick Log
+  // and Programs shortcuts below stay.
+  const showNextDay =
+    Boolean(nextDay) && !activeSession && !completedWithinLastHours(summaries, 12, now);
 
   return (
     <div className="flex min-h-[100dvh] flex-col">
@@ -51,9 +58,7 @@ export default async function HomePage() {
       <main className="mx-auto w-full max-w-md flex-1 px-5 pb-safe">
         {activeSession && <ResumeSessionCard session={activeSession} />}
 
-        {/* One volt CTA per screen: with a live session above, the next-day
-            card's start button demotes to outline. */}
-        {nextDay && <NextWorkoutCard next={nextDay} demoted={Boolean(activeSession)} />}
+        {showNextDay && nextDay && <NextWorkoutCard next={nextDay} />}
 
         {/* With a program driving the day, freestyle logging demotes to a
             secondary action; without one it stays the primary CTA. */}

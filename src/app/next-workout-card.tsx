@@ -7,14 +7,7 @@ import { StartDayButton } from '@/app/programs/[id]/start-day-button'
  * startable in one tap. Replaces the 4-tap Programs → program → day → start
  * path for the common case of "just give me today's session".
  */
-export function NextWorkoutCard({
-  next,
-  demoted = false,
-}: {
-  next: NextProgramDay
-  /** True when a resume banner owns the screen's primary CTA. */
-  demoted?: boolean
-}) {
+export function NextWorkoutCard({ next }: { next: NextProgramDay }) {
   return (
     <section className="mt-6 rounded-2xl border border-border bg-card p-5">
       <div className="flex items-baseline justify-between gap-3">
@@ -42,12 +35,9 @@ export function NextWorkoutCard({
       )}
 
       <div className="mt-4">
-        <StartDayButton
-          programDayId={next.dayId}
-          size="lg"
-          label={`Start ${next.dayName}`}
-          variant={demoted ? 'outline' : 'default'}
-        />
+        {/* Always the volt CTA: the card only renders when no session is
+            live and nothing was completed today, so it owns the screen. */}
+        <StartDayButton programDayId={next.dayId} size="lg" label={`Start ${next.dayName}`} />
       </div>
     </section>
   )

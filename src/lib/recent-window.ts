@@ -17,3 +17,19 @@ export function startedWithinLastHours<T extends { startedAt: Date }>(
   const cutoff = now.getTime() - hours * 60 * 60 * 1000
   return rows.filter((r) => r.startedAt.getTime() >= cutoff)
 }
+
+/**
+ * Whether any row FINISHED within the trailing `hours` window — the home
+ * page's "already trained today" approximation (the server can't know the
+ * user's calendar day), which stands the Up-next hero down. In-progress rows
+ * (null completedAt) never count: a live session is the banner's business.
+ * Future-dated completions count (clock-skew symmetry with the filter above).
+ */
+export function completedWithinLastHours(
+  rows: readonly { completedAt: Date | null }[],
+  hours: number,
+  now: Date = new Date(),
+): boolean {
+  const cutoff = now.getTime() - hours * 60 * 60 * 1000
+  return rows.some((r) => r.completedAt !== null && r.completedAt.getTime() >= cutoff)
+}
