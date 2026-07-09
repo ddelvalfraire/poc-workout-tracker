@@ -448,6 +448,40 @@ describe('progressionSchema bounds (Phase 5 tightening)', () => {
   })
 })
 
+describe('restSec bounds', () => {
+  /** VALID with the single set replaced by the given one. */
+  const withSet = (set: Record<string, unknown>) => ({
+    ...VALID,
+    days: [{ name: 'Push', exercises: [{ wgerExerciseId: 73, name: 'Bench', sets: [set] }] }],
+  })
+
+  it('accepts an in-range restSec and stores it as given', () => {
+    // Act
+    const result = parseProgramInput(withSet({ restSec: 90 }))
+
+    // Assert — seconds pass through unconverted
+    expect(result.days[0].exercises[0].sets[0].restSec).toBe(90)
+  })
+
+  it('accepts the 0 and 3600 boundary values and explicit null', () => {
+    expect(parseProgramInput(withSet({ restSec: 0 })).days[0].exercises[0].sets[0].restSec).toBe(0)
+    expect(
+      parseProgramInput(withSet({ restSec: 3600 })).days[0].exercises[0].sets[0].restSec,
+    ).toBe(3600)
+    expect(
+      parseProgramInput(withSet({ restSec: null })).days[0].exercises[0].sets[0].restSec,
+    ).toBeNull()
+  })
+
+  it.each([
+    ['negative', -1],
+    ['over the 3600 ceiling', 3601],
+    ['non-integer', 90.5],
+  ])('rejects a %s restSec', (_label, restSec) => {
+    expect(() => parseProgramInput(withSet({ restSec }))).toThrow()
+  })
+})
+
 describe('setOverrideSchema', () => {
   it('accepts a partial override of target fields', () => {
     expect(() =>
@@ -463,5 +497,14 @@ describe('setOverrideSchema', () => {
   it('applies the same bounds as programSetSchema', () => {
     expect(() => setOverrideSchema.parse({ rpe: 11 })).toThrow()
     expect(() => setOverrideSchema.parse({ suggestedLoadKg: -1 })).toThrow()
+  })
+
+  it('accepts an overridable restSec and rejects out-of-range values', () => {
+    // Act + Assert — same 0..3600 integer bound as the base set schema
+    expect(() => setOverrideSchema.parse({ restSec: 120 })).not.toThrow()
+    expect(() => setOverrideSchema.parse({ restSec: null })).not.toThrow()
+    expect(() => setOverrideSchema.parse({ restSec: -1 })).toThrow()
+    expect(() => setOverrideSchema.parse({ restSec: 3601 })).toThrow()
+    expect(() => setOverrideSchema.parse({ restSec: 90.5 })).toThrow()
   })
 })

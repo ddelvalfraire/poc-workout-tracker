@@ -16,6 +16,7 @@ function derivedSet(overrides: Partial<DerivedSet> = {}): DerivedSet {
     tempo: null,
     durationSec: null,
     distanceM: null,
+    restSec: null,
     technique: null,
     derivedFrom: 'template',
     sourceIndex: 0,

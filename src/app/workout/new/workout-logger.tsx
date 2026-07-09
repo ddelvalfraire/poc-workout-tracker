@@ -31,6 +31,8 @@ import { draftKey, buildDraftPayload, parseDraftPayload } from './draft-payload'
 import { createDraftSyncQueue, type DraftSyncQueue, type DraftSyncStatus } from './draft-sync'
 import { HeaderClock } from './session-clock'
 import { PlateSheet } from './plate-sheet'
+import { RestSheet } from './rest-sheet'
+import { resolveRestTarget } from '@/lib/rest-target'
 import { DEFAULT_EQUIPMENT, type Equipment } from '@/lib/equipment'
 import { LOGGING_TYPES, isLoggingType, type LoggingType } from '@/lib/workout-input'
 import { type WeightUnit } from '@/lib/units'
@@ -83,6 +85,9 @@ interface WorkoutLoggerProps {
   startedAt?: Date
   /** The user's bars + plate denominations for the plate calculator (display unit). */
   equipment?: Equipment
+  /** The user's stored default rest target (seconds) — seeds the session
+   *  default the countdown falls back to when a set has no plan restSec. */
+  defaultRestSec?: number | null
 }
 
 export function WorkoutLogger({
@@ -96,6 +101,7 @@ export function WorkoutLogger({
   planTargets,
   startedAt,
   equipment,
+  defaultRestSec = null,
 }: WorkoutLoggerProps) {
   const [draft, dispatch] = useReducer(workoutDraftReducer, initialDraft)
   const [name, setName] = useState(initialName)
@@ -170,6 +176,21 @@ export function WorkoutLogger({
   // count-up. In-session only by design: a restored draft can't know how long
   // ago the interrupted session's last set really was.
   const [restStartedAt, setRestStartedAt] = useState<Date | null>(null)
+  // The CURRENT rest period's plan-prescribed target (the completed set's
+  // restSec), captured at check-off time. Kept separate from the session
+  // default instead of pre-merged so the two stay independently live: editing
+  // the default mid-rest retargets a default-driven countdown instantly but
+  // never overwrites a plan prescription. The effective target below is the
+  // same value resolveRestTarget(plan, setIndex, sessionRestSec) yields.
+  const [restPlanSec, setRestPlanSec] = useState<number | null>(null)
+  // The session's fallback rest target — server-seeded, sheet-editable
+  // (optimistic local state; the server persist is best-effort). Same
+  // local-first pattern as `gear`.
+  const [sessionRestSec, setSessionRestSec] = useState<number | null>(defaultRestSec)
+  // Whether the rest-target sheet is up (opened by tapping the header's rest
+  // readout).
+  const [isRestSheetOpen, setIsRestSheetOpen] = useState(false)
+  const restTargetSec = restPlanSec ?? sessionRestSec
 
   function pushRemoved(entry: RemovedEntry) {
     setRemoved((prev) => [...prev, entry])
@@ -294,6 +315,7 @@ export function WorkoutLogger({
   async function handleSave() {
     setPlateSheetFor(null) // a live showModal() dialog must not cross navigation
     setIsPickerOpen(false) // same top-layer invariant for the exercise sheet
+    setIsRestSheetOpen(false) // and for the rest-target sheet
     setIsSaving(true)
     try {
       setError(null)
@@ -346,7 +368,14 @@ export function WorkoutLogger({
             {/* Clock only for a live session — a finished workout's edit
                 has no running time to show. openedAt (not a prop clock):
                 a restored draft rewinds it to the original session start. */}
-            {isLive && <HeaderClock startedAt={openedAt} restStartedAt={restStartedAt} />}
+            {isLive && (
+              <HeaderClock
+                startedAt={openedAt}
+                restStartedAt={restStartedAt}
+                restTargetSec={restTargetSec}
+                onRestClick={() => setIsRestSheetOpen(true)}
+              />
+            )}
             <Link href={closeHref} className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }))}>
               Close
             </Link>
@@ -527,9 +556,18 @@ export function WorkoutLogger({
                               : adoptableGhostValue(ghost.weight),
                         },
                       })
-                      // Checking off starts the rest count-up; unchecking is a
-                      // correction, not a new rest period.
-                      if (!set.completed) setRestStartedAt(new Date())
+                      // Checking off starts the rest clock; unchecking is a
+                      // correction, not a new rest period. The plan component
+                      // of the target is resolved from THIS set's slot
+                      // (session default deliberately not merged here — see
+                      // restPlanSec above); ad-hoc exercises have no plan
+                      // targets and resolve to null → the session default.
+                      if (!set.completed) {
+                        setRestStartedAt(new Date())
+                        setRestPlanSec(
+                          resolveRestTarget(planTargets?.[exercise.wgerExerciseId], setIndex, null),
+                        )
+                      }
                     }}
                     aria-pressed={set.completed}
                     aria-label={
@@ -736,6 +774,17 @@ export function WorkoutLogger({
           equipment={gear}
           onClose={() => setPlateSheetFor(null)}
           onEquipmentSaved={setGear}
+        />
+      )}
+
+      {isRestSheetOpen && (
+        <RestSheet
+          currentSec={sessionRestSec}
+          onClose={() => setIsRestSheetOpen(false)}
+          // Optimistic: the session default (and any default-driven countdown
+          // running right now) adopts the value immediately; the sheet owns
+          // the best-effort server persist and its error text.
+          onSaved={setSessionRestSec}
         />
       )}
     </>

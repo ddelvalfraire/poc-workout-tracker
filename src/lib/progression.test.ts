@@ -22,6 +22,7 @@ function workingSet(overrides: Partial<ProgramSetRowLike> = {}): ProgramSetRowLi
     tempo: null,
     durationSec: null,
     distanceM: null,
+    restSec: null,
     technique: null,
     ...overrides,
   }
@@ -553,6 +554,66 @@ describe('deriveWeekSets', () => {
   })
 })
 
+describe('restSec passthrough', () => {
+  it('carries the template restSec through untouched on a normal week', () => {
+    // Arrange — rest is not load-periodized: no scheme may alter it
+    const sets = [workingSet({ restSec: 90 }), workingSet({ setNumber: 2, restSec: null })]
+
+    // Act
+    const derived = deriveWeekSets({
+      sets,
+      progression: { scheme: 'linear', incrementKg: 2.5 },
+      week: 3,
+      mesocycleWeeks: 4,
+      deloadWeek: null,
+      history: NO_HISTORY,
+    })
+
+    // Assert — scheme changed loads, never rest
+    expect(derived.map((s) => s.restSec)).toEqual([90, null])
+  })
+
+  it('leaves restSec untouched on the deload week (loads scale, rest does not)', () => {
+    // Arrange
+    const sets = [workingSet({ suggestedLoadKg: 100, restSec: 120 })]
+
+    // Act
+    const derived = deriveWeekSets({
+      sets,
+      progression: null,
+      week: 4,
+      mesocycleWeeks: 4,
+      deloadWeek: 4,
+      history: NO_HISTORY,
+    })
+
+    // Assert
+    expect(derived[0].loadKg).toBeCloseTo(100 * DELOAD_LOAD_FACTOR, 5)
+    expect(derived[0].restSec).toBe(120)
+  })
+
+  it('clones inherit their source set’s restSec when weekly-volume grows the day', () => {
+    // Arrange — 2 working sets growing toward 4 by the last week
+    const sets = [
+      workingSet({ setNumber: 1, restSec: 60 }),
+      workingSet({ setNumber: 2, restSec: 180 }),
+    ]
+
+    // Act
+    const derived = deriveWeekSets({
+      sets,
+      progression: { scheme: 'weekly-volume', mevSets: 2, mrvSets: 4 },
+      week: 3,
+      mesocycleWeeks: 3,
+      deloadWeek: null,
+      history: NO_HISTORY,
+    })
+
+    // Assert — grown sets are clones of the LAST working set, rest included
+    expect(derived.map((s) => s.restSec)).toEqual([60, 180, 180, 180])
+  })
+})
+
 describe('applyOverride', () => {
   const base = {
     setNumber: 1,
@@ -566,15 +627,28 @@ describe('applyOverride', () => {
     tempo: null,
     durationSec: null,
     distanceM: null,
+    restSec: null,
     technique: null,
     derivedFrom: 'scheme',
     sourceIndex: 0,
   } as const
 
   it('lets a non-null override field win over the derived value', () => {
-    const result = applyOverride(base, { suggestedLoadKg: 95, repMin: null, repMax: null, rir: null, rpe: null, tempo: null, durationSec: null, distanceM: null, technique: null })
+    const result = applyOverride(base, { suggestedLoadKg: 95, repMin: null, repMax: null, rir: null, rpe: null, tempo: null, durationSec: null, distanceM: null, restSec: null, technique: null })
     expect(result.loadKg).toBe(95)
     expect(result.repMin).toBe(8) // null override field = not overridden
+    expect(result.derivedFrom).toBe('override')
+  })
+
+  it('lets a non-null override restSec win over the template rest', () => {
+    // Arrange — base carries no rest; the week pins 150 s
+    const override = { suggestedLoadKg: null, repMin: null, repMax: null, rir: null, rpe: null, tempo: null, durationSec: null, distanceM: null, restSec: 150, technique: null }
+
+    // Act
+    const result = applyOverride(base, override)
+
+    // Assert — restSec is overridable like every other target field
+    expect(result.restSec).toBe(150)
     expect(result.derivedFrom).toBe('override')
   })
 
@@ -583,7 +657,7 @@ describe('applyOverride', () => {
   })
 
   it('returns the set untouched when the override row is all-null', () => {
-    const result = applyOverride(base, { suggestedLoadKg: null, repMin: null, repMax: null, rir: null, rpe: null, tempo: null, durationSec: null, distanceM: null, technique: null })
+    const result = applyOverride(base, { suggestedLoadKg: null, repMin: null, repMax: null, rir: null, rpe: null, tempo: null, durationSec: null, distanceM: null, restSec: null, technique: null })
     expect(result).toEqual(base)
     expect(result.derivedFrom).toBe('scheme')
   })

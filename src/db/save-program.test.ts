@@ -141,6 +141,7 @@ describe('saveProgram (transactional, user-scoped)', () => {
               sets: [
                 {
                   suggestedLoadKg: 30,
+                  restSec: 45,
                   technique: { kind: 'drop-set', stages: [{ loadKg: 20, reps: 10 }] },
                 },
               ],
@@ -157,6 +158,7 @@ describe('saveProgram (transactional, user-scoped)', () => {
     expect(records[2].values).toMatchObject({ progression: { scheme: 'linear', incrementKg: 2.5 } })
     expect((records[3].values as unknown[])[0]).toMatchObject({
       suggestedLoadKg: 30,
+      restSec: 45, // between-set rest persists as its own column, not JSONB
       technique: { version: 1, kind: 'drop-set', stages: [{ loadKg: 20, reps: 10 }] },
     })
   })

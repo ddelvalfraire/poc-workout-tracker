@@ -365,6 +365,51 @@ describe('registerProgramPatchTools', () => {
       })
     })
 
+    it('add_program_set forwards restSec verbatim — seconds are unit-less, no unit fetch', async () => {
+      // Arrange
+      const tools = setup()
+      mockedAddSet.mockResolvedValue({ setNumber: 2 })
+
+      // Act
+      await tools.get('add_program_set')!({
+        programId: PID,
+        dayPosition: 0,
+        exercisePosition: 0,
+        restSec: 90,
+      })
+
+      // Assert
+      expect(mockedGetUnit).not.toHaveBeenCalled()
+      expect(mockedAddSet).toHaveBeenCalledWith('user_env', PID, 0, 0, { restSec: 90 })
+    })
+
+    it('update_program_set passes restSec through, and null clears it', async () => {
+      // Arrange
+      const tools = setup()
+      mockedUpdateSet.mockResolvedValue({ id: 'ps1' })
+
+      // Act — set, then clear
+      await tools.get('update_program_set')!({
+        programId: PID,
+        dayPosition: 0,
+        exercisePosition: 0,
+        setNumber: 1,
+        restSec: 120,
+      })
+      await tools.get('update_program_set')!({
+        programId: PID,
+        dayPosition: 0,
+        exercisePosition: 0,
+        setNumber: 1,
+        restSec: null,
+      })
+
+      // Assert
+      expect(mockedGetUnit).not.toHaveBeenCalled()
+      expect(mockedUpdateSet).toHaveBeenNthCalledWith(1, 'user_env', PID, 0, 0, 1, { restSec: 120 })
+      expect(mockedUpdateSet).toHaveBeenNthCalledWith(2, 'user_env', PID, 0, 0, 1, { restSec: null })
+    })
+
     it('update_program_set errors on an empty patch before any unit fetch or op', async () => {
       const tools = setup()
 
@@ -607,6 +652,39 @@ describe('registerProgramPatchTools', () => {
       expect(mockedGetUnit).not.toHaveBeenCalled()
       expect(payload(result).unit).toBeUndefined()
       expect(mockedSetOverride).toHaveBeenCalledWith('user_env', PID, 0, 0, 1, 2, { rir: 1 })
+    })
+
+    it('set_program_set_override pins restSec for a week and null unpins it', async () => {
+      // Arrange
+      const tools = setup()
+      mockedSetOverride.mockResolvedValue({ week: 2, cleared: false })
+
+      // Act — pin, then unpin
+      await tools.get('set_program_set_override')!({
+        programId: PID,
+        dayPosition: 0,
+        exercisePosition: 0,
+        setNumber: 1,
+        week: 2,
+        restSec: 150,
+      })
+      await tools.get('set_program_set_override')!({
+        programId: PID,
+        dayPosition: 0,
+        exercisePosition: 0,
+        setNumber: 1,
+        week: 2,
+        restSec: null,
+      })
+
+      // Assert — unit never read: rest is seconds, not weight
+      expect(mockedGetUnit).not.toHaveBeenCalled()
+      expect(mockedSetOverride).toHaveBeenNthCalledWith(1, 'user_env', PID, 0, 0, 1, 2, {
+        restSec: 150,
+      })
+      expect(mockedSetOverride).toHaveBeenNthCalledWith(2, 'user_env', PID, 0, 0, 1, 2, {
+        restSec: null,
+      })
     })
 
     it('set_program_set_override rejects an all-undefined patch before any db call', async () => {

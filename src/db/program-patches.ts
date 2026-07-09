@@ -538,6 +538,7 @@ export interface ProgramSetPatch {
   tempo?: string | null
   durationSec?: number | null
   distanceM?: number | null
+  restSec?: number | null
   technique?: Technique | null
 }
 
@@ -553,6 +554,7 @@ const SET_DEFAULTS = {
   tempo: null,
   durationSec: null,
   distanceM: null,
+  restSec: null,
   technique: null,
 }
 
@@ -622,6 +624,7 @@ export async function updateProgramSet(
         tempo: programSets.tempo,
         durationSec: programSets.durationSec,
         distanceM: programSets.distanceM,
+        restSec: programSets.restSec,
         technique: programSets.technique,
       })
       .from(programSets)
@@ -783,6 +786,7 @@ export interface ProgramSetOverridePatch {
   tempo?: string | null
   durationSec?: number | null
   distanceM?: number | null
+  restSec?: number | null
   technique?: Technique | null
 }
 
@@ -795,6 +799,7 @@ const OVERRIDE_FIELDS = [
   'tempo',
   'durationSec',
   'distanceM',
+  'restSec',
   'technique',
 ] as const
 
@@ -851,6 +856,7 @@ export async function setProgramSetOverride(
         tempo: programSetOverrides.tempo,
         durationSec: programSetOverrides.durationSec,
         distanceM: programSetOverrides.distanceM,
+        restSec: programSetOverrides.restSec,
         technique: programSetOverrides.technique,
       })
       .from(programSetOverrides)

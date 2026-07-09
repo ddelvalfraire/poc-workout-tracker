@@ -182,6 +182,9 @@ export interface PlanSetTarget {
   repMin: number | null
   repMax: number | null
   loadKg: number | null
+  /** Prescribed rest AFTER this set, seconds — feeds the logger's rest
+   *  countdown (resolveRestTarget), not the ghost placeholders. */
+  restSec: number | null
 }
 
 /**

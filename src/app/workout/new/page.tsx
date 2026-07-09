@@ -1,5 +1,5 @@
 import { requireUserId } from '@/lib/auth'
-import { getWeightUnit, getEquipment } from '@/db/preferences'
+import { getWeightUnit, getEquipment, getDefaultRestSec } from '@/db/preferences'
 import { getWorkoutDetail } from '@/db/workouts'
 import { WorkoutLogger } from './workout-logger'
 import { detailToDraft } from './workout-draft'
@@ -22,7 +22,12 @@ export default async function NewWorkoutPage({
     getWeightUnit(userId),
     fromId ? getWorkoutDetail(userId, fromId) : Promise.resolve(undefined),
   ])
-  const equipment = await getEquipment(userId, unit)
+  // Equipment and the rest default are independent preference reads — one
+  // round-trip of latency instead of two.
+  const [equipment, defaultRestSec] = await Promise.all([
+    getEquipment(userId, unit),
+    getDefaultRestSec(userId),
+  ])
   // resetCompleted: repeating an old workout starts a fresh session — no
   // checked-off sets carried over from the source.
   const seed = source ? detailToDraft(source, unit, { resetCompleted: true }) : undefined
@@ -39,6 +44,7 @@ export default async function NewWorkoutPage({
         initialDraft={seed?.draft}
         initialName={seed?.name}
         equipment={equipment}
+        defaultRestSec={defaultRestSec}
       />
     </div>
   )

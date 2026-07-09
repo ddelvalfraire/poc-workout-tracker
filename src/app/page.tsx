@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ChevronRight, RotateCcw } from "lucide-react";
+import { ChevronRight, RotateCcw, Settings } from "lucide-react";
 import { UserButton } from "@clerk/nextjs";
 import { requireUserId } from "@/lib/auth";
 import { listWorkoutSummaries } from "@/db/workouts";
@@ -10,7 +10,6 @@ import { resolveActiveSession } from "@/lib/active-session";
 import { formatVolume, formatWorkoutDuration } from "@/lib/format";
 import { startedWithinLastHours, completedWithinLastHours } from "@/lib/recent-window";
 import { buttonVariants } from "@/components/ui/button";
-import { UnitToggle } from "@/components/unit-toggle";
 import { cn } from "@/lib/utils";
 import { NextWorkoutCard } from "./next-workout-card";
 import { ResumeSessionCard } from "./resume-session-card";
@@ -46,10 +45,18 @@ export default async function HomePage() {
         <div className="mx-auto flex w-full max-w-md items-center justify-between px-5 pb-3">
           <h1 className="text-2xl font-bold uppercase tracking-tight">Workout Tracker</h1>
           <div className="flex items-center gap-2">
-            {/* BodyweightEditor deliberately absent: bodyweight tracking gets
-                its own surface later — it is a measurement, not a header
-                preference. The component stays for that future home. */}
-            <UnitToggle unit={unit} />
+            {/* Preferences live on /settings now — the header keeps only
+                identity and the door to them. */}
+            <Link
+              href="/settings"
+              aria-label="Settings"
+              className={cn(
+                buttonVariants({ variant: "ghost", size: "icon-sm" }),
+                "relative text-muted-foreground before:absolute before:-inset-1",
+              )}
+            >
+              <Settings aria-hidden="true" className="size-5" />
+            </Link>
             <UserButton />
           </div>
         </div>

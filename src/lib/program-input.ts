@@ -23,6 +23,10 @@ const MAX_NAME = 200
 const MAX_REPS = 10_000
 // distance_m is numeric(9,2) in the schema → 9_999_999.99 column ceiling.
 const MAX_DISTANCE_M = 9_999_999.99
+// Between-set rest ceiling: an hour of rest after one set is already absurd;
+// anything past it is a typo, not a prescription. Shared with the preferences
+// action so the plan and the session default agree on what "valid" means.
+export const MAX_REST_SEC = 3600
 
 /** Set classification within a prescription. */
 export const setTypeSchema = z.enum(['warmup', 'working', 'backoff', 'amrap'])
@@ -187,6 +191,10 @@ export const programSetSchema = z
     tempo: z.string().max(20).nullable().optional(),
     durationSec: z.number().int().min(0).nullable().optional(),
     distanceM: z.number().min(0).max(MAX_DISTANCE_M).nullable().optional(),
+    // Rest AFTER this set, seconds — per-set granularity (the requested
+    // finest grain). Stored as given; between-set only (intra-set rest lives
+    // in the technique stages).
+    restSec: z.number().int().min(0).max(MAX_REST_SEC).nullable().optional(),
     technique: techniqueSchema.nullable().optional(),
   })
   .superRefine((s, ctx) => {
@@ -214,6 +222,8 @@ export const setOverrideSchema = z
     tempo: z.string().max(20).nullable().optional(),
     durationSec: z.number().int().min(0).nullable().optional(),
     distanceM: z.number().min(0).max(MAX_DISTANCE_M).nullable().optional(),
+    // A non-null override rest wins for that week, like every field above.
+    restSec: z.number().int().min(0).max(MAX_REST_SEC).nullable().optional(),
     technique: techniqueSchema.nullable().optional(),
   })
   .strict()

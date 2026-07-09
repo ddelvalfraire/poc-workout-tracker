@@ -81,3 +81,38 @@ export async function setBodyweight(userId: string, bodyweightKg: number): Promi
       set: { bodyweightKg, updatedAt: new Date() },
     })
 }
+
+/** Widest rest target the app accepts, in seconds — mirrors MAX_REST_SEC in
+ *  `lib/program-input.ts` (not imported: db reads must not depend on the input
+ *  boundary; the duplication is one number with tests on both sides). */
+const MAX_STORED_REST_SEC = 3600
+
+/**
+ * The user's default rest target in seconds, or null when never set. Stored
+ * data is guarded like `getBodyweightKg`: a non-integer or out-of-range
+ * (0..3600) value reads as null, so a corrupt row degrades the rest readout
+ * to a plain count-up instead of a nonsense countdown.
+ */
+export async function getDefaultRestSec(userId: string): Promise<number | null> {
+  const [row] = await db
+    .select({ defaultRestSec: userPreferences.defaultRestSec })
+    .from(userPreferences)
+    .where(eq(userPreferences.userId, userId))
+    .limit(1)
+  const value = row?.defaultRestSec ?? null
+  return value !== null && Number.isInteger(value) && value >= 0 && value <= MAX_STORED_REST_SEC
+    ? value
+    : null
+}
+
+/** Upserts the user's default rest target (validated by setDefaultRestSecAction);
+ *  null clears it, reverting the logger to a count-up-only readout. */
+export async function setDefaultRestSec(userId: string, sec: number | null): Promise<void> {
+  await db
+    .insert(userPreferences)
+    .values({ userId, defaultRestSec: sec })
+    .onConflictDoUpdate({
+      target: userPreferences.userId,
+      set: { defaultRestSec: sec, updatedAt: new Date() },
+    })
+}
