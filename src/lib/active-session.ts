@@ -49,6 +49,17 @@ export function pickActiveSession(
   }
 }
 
+/**
+ * The logger URL an active session resumes into. `'new'` is the quick-log
+ * surface (/workout/new restores its own draft); any other key is a workout
+ * uuid whose live edit lives on the edit route. One function so the resume
+ * banner and the session-conflict dialog can never disagree about where
+ * "continue" goes.
+ */
+export function activeSessionHref(key: string): string {
+  return key === 'new' ? '/workout/new' : `/workout/${key}/edit`
+}
+
 /** A workout summary row, as the session projection needs it. */
 export interface WorkoutSessionRow {
   id: string

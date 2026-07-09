@@ -10,6 +10,7 @@ import { resolveActiveSession } from "@/lib/active-session";
 import { formatVolume, formatWorkoutDuration } from "@/lib/format";
 import { startedWithinLastHours, completedWithinLastHours } from "@/lib/recent-window";
 import { buttonVariants } from "@/components/ui/button";
+import { GuardedStartLink } from "@/components/guarded-start-link";
 import { cn } from "@/lib/utils";
 import { NextWorkoutCard } from "./next-workout-card";
 import { ResumeSessionCard } from "./resume-session-card";
@@ -32,6 +33,15 @@ export default async function HomePage() {
   // the row immediately). Drafts win: they carry unsaved sets.
   const now = new Date();
   const activeSession = resolveActiveSession(drafts, summaries, now);
+  // Single-active-session guard: every "start something new" tap below gets
+  // the live session (as the dialog's slim summary) so it can ask
+  // continue-or-discard instead of silently stacking a second session.
+  const guardSession = activeSession && {
+    key: activeSession.key,
+    name: activeSession.name,
+    setCount: activeSession.setCount,
+    completedSetCount: activeSession.completedSetCount,
+  };
   // "Already trained today" (12h completion window, same rhythm as the
   // session TTL): once a session is finished — or one is live — the day's
   // marching orders are done and the Up-next hero stands down; the Quick Log
@@ -77,15 +87,16 @@ export default async function HomePage() {
             secondary action; without one it stays the primary CTA. */}
         {nextDay ? (
           <div className="mt-3 grid grid-cols-2 gap-3">
-            <Link
+            <GuardedStartLink
               href="/workout/new"
+              session={guardSession}
               className={cn(
                 buttonVariants({ variant: "outline" }),
                 "font-semibold uppercase tracking-wide",
               )}
             >
               Quick Log
-            </Link>
+            </GuardedStartLink>
             <Link
               href="/programs"
               className={cn(
@@ -98,15 +109,16 @@ export default async function HomePage() {
           </div>
         ) : (
           <>
-            <Link
+            <GuardedStartLink
               href="/workout/new"
+              session={guardSession}
               className={cn(
                 buttonVariants({ size: "lg" }),
                 "mt-6 w-full text-base font-semibold uppercase tracking-wide",
               )}
             >
               + Start Workout
-            </Link>
+            </GuardedStartLink>
 
             <Link
               href="/programs"
@@ -230,8 +242,11 @@ export default async function HomePage() {
                     className="size-5 shrink-0 text-muted-foreground"
                   />
                 </Link>
-                <Link
+                {/* Repeat starts a NEW session seeded from this one — so it
+                    goes through the same guard as the other start CTAs. */}
+                <GuardedStartLink
                   href={`/workout/new?from=${w.id}`}
+                  session={guardSession}
                   aria-label={`Repeat ${w.name ?? "Workout"}`}
                   className={cn(
                     buttonVariants({ variant: "ghost", size: "icon-sm" }),
@@ -241,7 +256,7 @@ export default async function HomePage() {
                   )}
                 >
                   <RotateCcw aria-hidden="true" className="size-5" />
-                </Link>
+                </GuardedStartLink>
               </li>
             ))}
           </ul>
