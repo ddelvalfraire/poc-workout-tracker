@@ -1,4 +1,4 @@
-import { and, asc, count, countDistinct, desc, eq, max } from 'drizzle-orm'
+import { and, asc, count, countDistinct, desc, eq, isNotNull, max } from 'drizzle-orm'
 import type { ProgramInput, Progression } from '@/lib/program-input'
 import { getAllExercises, type Exercise } from '@/lib/wger'
 import {
@@ -319,6 +319,9 @@ export async function nextProgramWeek(
           eq(programDays.programId, programId),
           eq(workouts.userId, userId),
           eq(workouts.programWeek, current),
+          // COMPLETED days only: a started-but-unfinished (or later-
+          // discarded) session must not advance the mesocycle week.
+          isNotNull(workouts.completedAt),
         ),
       ),
   ])
@@ -381,6 +384,10 @@ export async function getNextProgramDay(userId: string): Promise<NextProgramDay 
         eq(programDays.programId, program.id),
         eq(workouts.userId, userId),
         eq(workouts.programWeek, week),
+        // COMPLETED days only. Merely STARTING a day used to consume it for
+        // the week — an accidental start (or an in-progress session) rotated
+        // the hero to the next day as if the work had been done.
+        isNotNull(workouts.completedAt),
       ),
     )
 
