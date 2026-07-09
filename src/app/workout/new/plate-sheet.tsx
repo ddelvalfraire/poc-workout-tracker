@@ -221,8 +221,10 @@ export function PlateSheet({
               onClick={() => setBar(weight)}
               aria-pressed={bar === weight}
               className={cn(
-                // Same 44px pill as the gear editor below — one vocabulary.
-                'min-h-11 rounded-full border px-4 text-sm font-semibold tnum transition-colors',
+                // Same compact pill as the gear editor below — one vocabulary.
+                // 36px visual + invisible inset = full HIG target without the
+                // chunk (same trick as the history Repeat button).
+                'relative h-9 rounded-full border px-3.5 text-sm font-semibold tnum transition-colors before:absolute before:-inset-1',
                 bar === weight
                   ? 'border-primary bg-primary text-primary-foreground'
                   : 'border-border bg-muted text-muted-foreground',
@@ -236,7 +238,7 @@ export function PlateSheet({
             onClick={() => setBar(0)}
             aria-pressed={bar === 0}
             className={cn(
-              'min-h-11 rounded-full border px-4 text-sm font-semibold transition-colors',
+              'relative h-9 rounded-full border px-3.5 text-sm font-semibold transition-colors before:absolute before:-inset-1',
               bar === 0
                 ? 'border-primary bg-primary text-primary-foreground'
                 : 'border-border bg-muted text-muted-foreground',
@@ -373,9 +375,11 @@ function GearPillGroup({
               onClick={() => onToggle(value)}
               aria-pressed={isSelected}
               className={cn(
-                // min-h-11: these pills ARE the gear editor — a mid-session,
-                // one-thumb surface, so they get the full 44px HIG target.
-                'min-h-11 rounded-full border px-4 text-sm font-semibold tnum transition-colors',
+                // Compact 36px pill + invisible inset = the full ~44px HIG
+                // target these mid-session, one-thumb pills need, without a
+                // wall of chunky pills (same trick as the history Repeat
+                // button).
+                'relative h-9 rounded-full border px-3.5 text-sm font-semibold tnum transition-colors before:absolute before:-inset-1',
                 isSelected
                   ? 'border-primary bg-primary text-primary-foreground'
                   : 'border-border bg-muted text-muted-foreground',
@@ -400,9 +404,16 @@ function GearPillGroup({
             aria-label={`Add a custom weight to ${label}`}
             placeholder="Custom"
             inputMode="decimal"
-            className="h-11 w-24 rounded-full text-center text-sm"
+            className="h-9 w-24 rounded-full text-center text-sm"
           />
-          <Button variant="outline" className="rounded-full" onClick={onCustomAdd}>
+          <Button
+            size="sm"
+            variant="outline"
+            // Same invisible inset as the pills beside it: 36px visual,
+            // ~44px effective target.
+            className="relative rounded-full before:absolute before:-inset-1"
+            onClick={onCustomAdd}
+          >
             Add
           </Button>
         </span>

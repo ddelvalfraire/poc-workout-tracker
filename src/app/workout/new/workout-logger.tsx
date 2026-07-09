@@ -1,11 +1,13 @@
 'use client'
 
 import { useEffect, useReducer, useRef, useState } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useQueries, useQueryClient } from '@tanstack/react-query'
 import { Check, Dumbbell, Trash2, X } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { Button, buttonVariants } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { AppHeader } from '@/components/app-header'
 import {
   saveWorkoutAction,
   updateWorkoutAction,
@@ -14,7 +16,7 @@ import {
   putWorkoutDraftAction,
   deleteWorkoutDraftAction,
 } from '@/app/workout/actions'
-import { ExercisePicker } from './exercise-picker'
+import { ExerciseSheet } from './exercise-sheet'
 import {
   workoutDraftReducer,
   draftToInput,
@@ -27,7 +29,7 @@ import {
 } from './workout-draft'
 import { draftKey, buildDraftPayload, parseDraftPayload } from './draft-payload'
 import { createDraftSyncQueue, type DraftSyncQueue, type DraftSyncStatus } from './draft-sync'
-import { SessionStatus } from './session-clock'
+import { HeaderClock, SessionStatus } from './session-clock'
 import { PlateSheet } from './plate-sheet'
 import { DEFAULT_EQUIPMENT, type Equipment } from '@/lib/equipment'
 import { LOGGING_TYPES, isLoggingType, type LoggingType } from '@/lib/workout-input'
@@ -62,6 +64,14 @@ type RemovedEntry =
 interface WorkoutLoggerProps {
   /** When set, the logger is in edit mode: Save updates this workout and returns to its detail page. */
   workoutId?: string
+  /** Live session being logged now (Finish + running clock) vs correcting a
+   *  finished workout (Save changes). NOT the same as !workoutId: a program
+   *  session started from home is edit-mode WITH a workoutId, yet live. */
+  isLive?: boolean
+  /** Header title — the logger owns the app bar so the clock can live in it. */
+  title: string
+  /** Where the header's Close lands (the page decides; see the pages' comments). */
+  closeHref: string
   initialDraft?: WorkoutDraft
   initialName?: string
   /** Weight display/entry unit; weights are converted to kg at save time. */
@@ -77,6 +87,9 @@ interface WorkoutLoggerProps {
 
 export function WorkoutLogger({
   workoutId,
+  isLive = true,
+  title,
+  closeHref,
   initialDraft = emptyDraft,
   initialName = '',
   unit = 'kg',
@@ -142,6 +155,9 @@ export function WorkoutLogger({
   const [gear, setGear] = useState<Equipment>(equipment ?? DEFAULT_EQUIPMENT[unit])
   // Which exercise's plate sheet is open (by index), if any.
   const [plateSheetFor, setPlateSheetFor] = useState<number | null>(null)
+  // Whether the add-exercise sheet is up — opened from the sticky bar, so
+  // adding stays one thumb-reach away however deep the workout scrolls.
+  const [isPickerOpen, setIsPickerOpen] = useState(false)
   // Just-removed exercises AND sets, held as a stack for the inline Undo
   // window. Any removal mid-workout is a destructive slip (values gone,
   // autosave persists the loss within the debounce), so both levels must be
@@ -270,6 +286,7 @@ export function WorkoutLogger({
   // Await everything first, then navigate outside any transition scope.
   async function handleSave() {
     setPlateSheetFor(null) // a live showModal() dialog must not cross navigation
+    setIsPickerOpen(false) // same top-layer invariant for the exercise sheet
     setIsSaving(true)
     try {
       setError(null)
@@ -310,6 +327,30 @@ export function WorkoutLogger({
 
   return (
     <>
+      {/* The logger owns the app bar: the session clock belongs up there
+          (glanceable without scrolling, out of the workout body), and only
+          the logger knows the session's openedAt. Header action says
+          "Close", not "Cancel": the autosaved draft survives and resumes
+          from the home banner — nothing is cancelled. */}
+      <AppHeader
+        title={title}
+        trailing={
+          <>
+            {/* Clock only for a live session — a finished workout's edit
+                has no running time to show. openedAt (not a prop clock):
+                a restored draft rewinds it to the original session start. */}
+            {isLive && <HeaderClock startedAt={openedAt} />}
+            <Link href={closeHref} className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }))}>
+              Close
+            </Link>
+          </>
+        }
+      />
+      {/* The width wrapper moved in from the pages alongside the header:
+          the sticky bar's -mx-5 bleed is calibrated against this px-5, so
+          the pair must live in the same component. Pages keep the outer
+          min-h flex column. */}
+      <main className="mx-auto w-full max-w-md flex-1 px-5">
       <div className="space-y-4 py-5">
         <Input
           placeholder="Workout name (optional)"
@@ -318,7 +359,7 @@ export function WorkoutLogger({
           aria-label="Workout name"
         />
 
-        <SessionStatus startedAt={openedAt} restStartedAt={restStartedAt} />
+        <SessionStatus restStartedAt={restStartedAt} />
 
         {syncStatus === 'failed' && (
           <p className="px-1 text-sm text-warning" role="status">
@@ -326,15 +367,9 @@ export function WorkoutLogger({
           </p>
         )}
 
-        <ExercisePicker
-          onAdd={(exercise) =>
-            dispatch({ type: 'ADD_EXERCISE', exercise: newDraftExercise(exercise) })
-          }
-        />
-
         {isEmpty && (
           <p className="px-1 py-6 text-center text-sm text-muted-foreground">
-            Search above to add your first exercise.
+            Tap + Exercise to add your first movement.
           </p>
         )}
 
@@ -603,18 +638,46 @@ export function WorkoutLogger({
             </Button>
           </div>
         )}
-        <Button
-          size="lg"
-          className="w-full font-semibold uppercase tracking-wide"
-          disabled={isEmpty || isSaving}
-          onClick={handleSave}
-        >
-          {/* "Finish", not "Save": ending a session is the product's peak
-              moment, not filing paperwork. Edit mode keeps "Save changes" —
-              that IS paperwork. */}
-          {isSaving ? 'Saving…' : workoutId ? 'Save changes' : 'Finish workout'}
-        </Button>
+        <div className="flex gap-3">
+          {/* Adding an exercise is the second-most-frequent act mid-session,
+              so it earns a permanent slot in the thumb bar — outline, so the
+              volt Finish stays the unmistakable primary. Disabled while
+              saving: the draft is frozen once the save barrier engages. */}
+          <Button
+            size="lg"
+            variant="outline"
+            className="flex-1"
+            disabled={isSaving}
+            onClick={() => setIsPickerOpen(true)}
+          >
+            + Exercise
+          </Button>
+          <Button
+            size="lg"
+            // Keyed off isLive, NOT workoutId: a live program session is
+            // edit-mode with a workoutId but still ends with a volt Finish.
+            // "Finish", not "Save": ending a session is the product's peak
+            // moment, not filing paperwork. Correcting a finished workout
+            // keeps an outline "Save changes" — that IS paperwork.
+            variant={isLive ? 'default' : 'outline'}
+            className="flex-[1.6] font-semibold uppercase tracking-wide"
+            disabled={isEmpty || isSaving}
+            onClick={handleSave}
+          >
+            {isSaving ? 'Saving…' : isLive ? 'Finish workout' : 'Save changes'}
+          </Button>
+        </div>
       </div>
+      </main>
+
+      {isPickerOpen && (
+        <ExerciseSheet
+          onAdd={(exercise) =>
+            dispatch({ type: 'ADD_EXERCISE', exercise: newDraftExercise(exercise) })
+          }
+          onClose={() => setIsPickerOpen(false)}
+        />
+      )}
 
       {/* Guarded on loggingType too: the open button only renders for
           weight_reps, but the type can switch while the sheet is up. */}

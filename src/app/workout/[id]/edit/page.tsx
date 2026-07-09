@@ -1,4 +1,3 @@
-import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { requireUserId } from '@/lib/auth'
 import { getWorkoutDetail, type WorkoutDetail } from '@/db/workouts'
@@ -7,9 +6,6 @@ import { getProgramDayDetail, deriveDayPrescription } from '@/db/programs'
 import type { PlanSetTarget } from '@/lib/format'
 import { detailToDraft } from '@/app/workout/new/workout-draft'
 import { WorkoutLogger } from '@/app/workout/new/workout-logger'
-import { AppHeader } from '@/components/app-header'
-import { buttonVariants } from '@/components/ui/button'
-import { cn } from '@/lib/utils'
 
 /**
  * Per-exercise plan targets (keyed by wgerExerciseId) for a program-instantiated
@@ -62,34 +58,28 @@ export default async function EditWorkoutPage({
 
   return (
     <div className="flex min-h-[100dvh] flex-col">
-      {/* Header action says "Close", not "Cancel": the autosaved draft
-          survives and resumes from the home banner — nothing is cancelled.
-          Where Close lands depends on what this session IS: editing a
-          finished workout came from its summary, so Close returns there; a
-          live (unfinished) session goes home, where the in-progress banner
-          owns it — its read-only summary would present it as completed. */}
-      <AppHeader
+      {/* The logger renders the app bar itself (the session clock lives in
+          it); this page only decides the words and the exit. Header action
+          says "Close", not "Cancel": the autosaved draft survives and
+          resumes from the home banner — nothing is cancelled. Where Close
+          lands depends on what this session IS: editing a finished workout
+          came from its summary, so Close returns there; a live (unfinished)
+          session goes home, where the in-progress banner owns it — its
+          read-only summary would present it as completed. isLive follows the
+          same split: an unfinished workout is a session being logged now
+          (volt Finish), a finished one is a correction (Save changes). */}
+      <WorkoutLogger
+        workoutId={id}
+        isLive={workout.completedAt === null}
         title={workout.completedAt === null ? 'Log Workout' : 'Edit Workout'}
-        trailing={
-          <Link
-            href={workout.completedAt === null ? '/' : `/workout/${id}`}
-            className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }))}
-          >
-            Close
-          </Link>
-        }
+        closeHref={workout.completedAt === null ? '/' : `/workout/${id}`}
+        initialDraft={draft}
+        initialName={name}
+        unit={unit}
+        planTargets={planTargets}
+        startedAt={workout.startedAt}
+        equipment={equipment}
       />
-      <main className="mx-auto w-full max-w-md flex-1 px-5">
-        <WorkoutLogger
-          workoutId={id}
-          initialDraft={draft}
-          initialName={name}
-          unit={unit}
-          planTargets={planTargets}
-          startedAt={workout.startedAt}
-          equipment={equipment}
-        />
-      </main>
     </div>
   )
 }
