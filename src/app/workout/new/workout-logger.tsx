@@ -11,6 +11,7 @@ import { AppHeader } from '@/components/app-header'
 import {
   saveWorkoutAction,
   updateWorkoutAction,
+  deleteWorkoutAction,
   getLastPerformanceAction,
   getWorkoutDraftAction,
   putWorkoutDraftAction,
@@ -111,6 +112,11 @@ export function WorkoutLogger({
   const [name, setName] = useState(initialName)
   const [error, setError] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
+  // Discard flow (live sessions only): two-step inline confirm + pending
+  // flag. Separate from isSaving so each button can disable the other —
+  // finishing and discarding the same session must be mutually exclusive.
+  const [isDiscarding, setIsDiscarding] = useState(false)
+  const [isConfirmingDiscard, setIsConfirmingDiscard] = useState(false)
   // Prior performance per distinct exercise, for the per-set ghost
   // placeholders. TanStack Query owns dedupe/caching/retry (this replaced a
   // hand-rolled requestedRef cache); provider defaults keep ghosts fresh per
@@ -248,6 +254,11 @@ export function WorkoutLogger({
   // session started on the phone resumes on the laptop). In edit mode this
   // intentionally wins over the server-seeded workout rows: a live draft is
   // newer than the row it was seeded from. Last writer wins across devices.
+  // The PAGES now pre-seed this same draft server-side (no content swap on
+  // mount); this fetch remains as the cross-device race net — a draft
+  // written after the page rendered still lands here. When both saw the same
+  // draft, the RESTORE_DRAFT dispatch is a same-values no-op for the
+  // autosave snapshot; dirtyRef keeps it from clobbering in-flight typing.
   useEffect(() => {
     let cancelled = false
     getWorkoutDraftAction(key)
@@ -355,6 +366,37 @@ export function WorkoutLogger({
       queue.resume() // save failed — autosave picks the latest back up
       setIsSaving(false)
       setError('Could not save workout. Please try again.')
+    }
+  }
+
+  // Discard a LIVE session: the draft goes, and (for a program session
+  // started from home) so does the already-created workout row — otherwise
+  // the abandoned row lingers in Unfinished forever. Same shape as
+  // handleSave: settle() is the save-time barrier (a paused queue can't
+  // re-put the draft the delete just removed — the resurrection race), and
+  // navigation happens OUTSIDE any startTransition (see handleSave's
+  // comment on the <ViewTransition> strand).
+  async function handleDiscard() {
+    setPlateSheetFor(null) // a live showModal() dialog must not cross navigation
+    setIsPickerOpen(false)
+    setIsRestSheetOpen(false)
+    setIsDiscarding(true)
+    try {
+      setError(null)
+      await queue.settle()
+      await deleteWorkoutDraftAction(key)
+      // Ownership is enforced server-side (deleteWorkoutAction scopes by
+      // userId and cascades children) — the same action the summary page's
+      // Delete uses.
+      if (workoutId) await deleteWorkoutAction(workoutId)
+      router.push('/')
+      // isDiscarding stays true on success: buttons hold their disabled
+      // state until the navigation unmounts this screen.
+    } catch {
+      queue.resume() // discard failed — autosave picks the draft back up
+      setIsDiscarding(false)
+      setIsConfirmingDiscard(false)
+      setError('Could not discard. Please try again.')
     }
   }
 
@@ -690,6 +732,59 @@ export function WorkoutLogger({
           </section>
         ))}
 
+        {/* Discard lives at the END of the scrolling content, not in the
+            sticky bar: a destructive exit must be sought out, never sit one
+            mis-tap from Finish. Live sessions only — editing a completed
+            workout deletes from its summary page, not here. Two-step inline
+            confirm, same non-modal pattern as workout-actions.tsx (role=group,
+            no focus trap — the page stays interactive). */}
+        {isLive &&
+          (isConfirmingDiscard ? (
+            <div
+              role="group"
+              aria-label="Confirm workout discard"
+              className="rounded-2xl border border-destructive/40 bg-card p-4"
+            >
+              <p className="text-sm font-medium">Discard this workout?</p>
+              <p className="mt-0.5 text-sm text-muted-foreground">
+                Logged sets and the session go with it. This cannot be undone.
+              </p>
+              <div className="mt-3 flex gap-2">
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  disabled={isDiscarding}
+                  onClick={() => setIsConfirmingDiscard(false)}
+                  autoFocus
+                >
+                  Keep it
+                </Button>
+                <Button
+                  variant="destructive"
+                  className="flex-1"
+                  disabled={isDiscarding || isSaving}
+                  onClick={handleDiscard}
+                >
+                  {isDiscarding ? 'Discarding…' : 'Discard'}
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex justify-center pt-2">
+              {/* Demoted on purpose (ghost + destructive text): it should
+                  read as an escape hatch, not an action competing with the
+                  volt Finish below. */}
+              <Button
+                variant="ghost"
+                className="text-destructive"
+                disabled={isSaving || isDiscarding}
+                onClick={() => setIsConfirmingDiscard(true)}
+              >
+                Discard workout
+              </Button>
+            </div>
+          ))}
+
         {error && <p className="text-sm text-destructive">{error}</p>}
       </div>
 
@@ -724,7 +819,9 @@ export function WorkoutLogger({
             size="lg"
             variant="outline"
             className="flex-1"
-            disabled={isSaving}
+            // Also frozen while discarding: the settle barrier has engaged
+            // and the draft is on its way out — no more edits.
+            disabled={isSaving || isDiscarding}
             onClick={() => setIsPickerOpen(true)}
           >
             + Exercise
@@ -745,7 +842,9 @@ export function WorkoutLogger({
               // card outlines above.
               isLive && isSessionDone && !isSaving && 'motion-safe:animate-finish-nudge',
             )}
-            disabled={isEmpty || isSaving}
+            // isDiscarding too: finishing a session that's mid-discard would
+            // race the delete — the two exits are mutually exclusive.
+            disabled={isEmpty || isSaving || isDiscarding}
             onClick={handleSave}
           >
             {isSaving ? 'Saving…' : isLive ? 'Finish workout' : 'Save changes'}

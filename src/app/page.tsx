@@ -38,6 +38,12 @@ export default async function HomePage() {
   // and Programs shortcuts below stay.
   const showNextDay =
     Boolean(nextDay) && !activeSession && !completedWithinLastHours(summaries, 12, now);
+  // History is a record of finished sessions — an unfinished row wearing an
+  // "In progress" chip there contradicts the definition (and duplicated the
+  // live banner above). Unfinished rows get their own quiet section instead:
+  // stale abandonments the user can resume or finish, not live state.
+  const completed = summaries.filter((w) => w.completedAt !== null);
+  const unfinished = summaries.filter((w) => w.completedAt === null);
 
   return (
     <div className="flex min-h-[100dvh] flex-col">
@@ -129,9 +135,55 @@ export default async function HomePage() {
             }))}
         />
 
+        {/* Unfinished sits ABOVE History: these rows still need an action
+            (resume or finish), while History is done. Deliberately quiet —
+            no volt chip, muted throughout: the live session already owns the
+            banner up top; anything here is a stale abandonment, not live
+            state. Rows reopen the logger, never the read-only summary (which
+            would present them as completed). */}
+        {unfinished.length > 0 && (
+          <>
+            <h2 className="mt-10 mb-3 text-lg">Unfinished</h2>
+            <ul className="divide-y divide-border overflow-hidden rounded-2xl border border-border bg-card">
+              {unfinished.map((w) => (
+                <li key={w.id}>
+                  <Link
+                    href={`/workout/${w.id}/edit`}
+                    className="flex min-w-0 items-center gap-4 px-4 py-3.5 transition-colors active:bg-muted/60"
+                  >
+                    {/* Same calendar anchor as History for scan continuity,
+                        but muted — these dates mark where a session stalled,
+                        not an achievement. */}
+                    <span className="flex w-9 shrink-0 flex-col items-center text-muted-foreground">
+                      <span className="font-display text-xl leading-none tnum">
+                        {w.startedAt.getDate()}
+                      </span>
+                      <span className="mt-0.5 text-[10px] font-semibold uppercase tracking-widest">
+                        {monthFormat.format(w.startedAt)}
+                      </span>
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate font-medium">{w.name ?? "Workout"}</span>
+                      <span className="mt-0.5 block truncate text-sm text-muted-foreground tnum">
+                        {`started · ${w.completedSetCount} set${w.completedSetCount === 1 ? "" : "s"} logged`}
+                      </span>
+                    </span>
+                    {/* A quiet word instead of the chevron: "resume" says what
+                        tapping does; a bare chevron would read like a detail
+                        disclosure. */}
+                    <span className="shrink-0 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+                      Resume
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
+
         <h2 className="mt-10 mb-3 text-lg">History</h2>
 
-        {summaries.length === 0 ? (
+        {completed.length === 0 ? (
           <div className="rounded-2xl border border-border bg-card px-5 py-12 text-center">
             <p className="font-medium">No workouts yet</p>
             <p className="mt-1 text-sm text-muted-foreground">
@@ -140,14 +192,14 @@ export default async function HomePage() {
           </div>
         ) : (
           <ul className="divide-y divide-border overflow-hidden rounded-2xl border border-border bg-card">
-            {summaries.map((w) => (
+            {completed.map((w) => (
               // gap-1 gives the Repeat link's expanded hit inset dead space
               // to land in — without it the inset overlaps the row link.
               <li key={w.id} className="flex items-center gap-1">
                 <Link
-                  // An unfinished session reopens the logger — the read-only
-                  // summary would present it as a completed workout.
-                  href={w.completedAt === null ? `/workout/${w.id}/edit` : `/workout/${w.id}`}
+                  // Completed only in this list, so every row goes to its
+                  // summary; unfinished rows live in the section above.
+                  href={`/workout/${w.id}`}
                   className="flex min-w-0 flex-1 items-center gap-4 px-4 py-3.5 transition-colors active:bg-muted/60"
                 >
                   {/* Stacked calendar block: scanning history is a date
@@ -162,14 +214,7 @@ export default async function HomePage() {
                     </span>
                   </span>
                   <span className="min-w-0 flex-1">
-                    <span className="flex min-w-0 items-center gap-2">
-                      <span className="min-w-0 truncate font-medium">{w.name ?? "Workout"}</span>
-                      {w.completedAt === null && (
-                        <span className="shrink-0 rounded-full border border-primary/40 bg-primary/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-widest text-primary">
-                          In progress
-                        </span>
-                      )}
-                    </span>
+                    <span className="block truncate font-medium">{w.name ?? "Workout"}</span>
                     <span className="mt-0.5 block truncate text-sm text-muted-foreground tnum">
                       {[
                         formatWorkoutDuration(w.startedAt, w.completedAt),
