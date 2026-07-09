@@ -31,7 +31,19 @@ export default async function HomePage() {
   // every change; saving deletes it) — and a started-but-unfinished workout
   // is one too, even before its first edit (starting a program day creates
   // the row immediately). Drafts win: they carry unsaved sets.
-  const activeSession = resolveActiveSession(drafts, summaries, new Date());
+  const now = new Date();
+  const activeSession = resolveActiveSession(drafts, summaries, now);
+  // "Already trained today": the server can't know the user's calendar day,
+  // so approximate with a 12h completion window (same rhythm as the session
+  // TTL). Once a session is finished — or one is live — the day's marching
+  // orders are done and the Up-next hero stands down; the Quick Log and
+  // Programs shortcuts below stay.
+  const TRAINED_WINDOW_MS = 12 * 60 * 60 * 1000;
+  const trainedRecently = summaries.some(
+    (w) =>
+      w.completedAt !== null && now.getTime() - w.completedAt.getTime() <= TRAINED_WINDOW_MS,
+  );
+  const showNextDay = Boolean(nextDay) && !activeSession && !trainedRecently;
 
   return (
     <div className="flex min-h-[100dvh] flex-col">
@@ -51,9 +63,7 @@ export default async function HomePage() {
       <main className="mx-auto w-full max-w-md flex-1 px-5 pb-safe">
         {activeSession && <ResumeSessionCard session={activeSession} />}
 
-        {/* One volt CTA per screen: with a live session above, the next-day
-            card's start button demotes to outline. */}
-        {nextDay && <NextWorkoutCard next={nextDay} demoted={Boolean(activeSession)} />}
+        {showNextDay && nextDay && <NextWorkoutCard next={nextDay} />}
 
         {/* With a program driving the day, freestyle logging demotes to a
             secondary action; without one it stays the primary CTA. */}
