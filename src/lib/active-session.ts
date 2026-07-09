@@ -48,3 +48,66 @@ export function pickActiveSession(
     openedAt: new Date(openedAt),
   }
 }
+
+/** A workout summary row, as the session projection needs it. */
+export interface WorkoutSessionRow {
+  id: string
+  name: string | null
+  startedAt: Date
+  completedAt: Date | null
+  exerciseCount: number
+  setCount: number
+  completedSetCount: number
+}
+
+/**
+ * The freshest started-but-unfinished workout projected into banner data, or
+ * null. Covers the draft blind spot: starting a program day creates a real
+ * workout row immediately, but the logger only autosaves a draft on the first
+ * EDIT — an untouched session has no draft and would otherwise be invisible
+ * to the banner (while wrongly reading as done elsewhere). Shares the draft
+ * TTL so an abandoned start ages out of the banner on the same clock.
+ */
+export function activeSessionFromWorkouts(
+  rows: WorkoutSessionRow[],
+  now: Date,
+): ActiveSession | null {
+  const freshest = rows
+    .filter((row) => row.completedAt === null)
+    .filter((row) => now.getTime() - row.startedAt.getTime() <= DRAFT_TTL_MS)
+    .sort((a, b) => b.startedAt.getTime() - a.startedAt.getTime())[0]
+  if (!freshest) return null
+
+  return {
+    key: freshest.id,
+    name: freshest.name?.trim() || null,
+    exerciseCount: freshest.exerciseCount,
+    setCount: freshest.setCount,
+    completedSetCount: freshest.completedSetCount,
+    openedAt: freshest.startedAt,
+  }
+}
+
+/**
+ * The home banner's single source of truth. When a draft and a workout are
+ * the SAME session (draft keyed by that workout's id), the draft wins — it
+ * carries the unsaved sets. When they are unrelated sessions (an abandoned
+ * quick-log draft vs a freshly started program day), recency wins: the
+ * banner must surface what the lifter is doing NOW, compared on the draft's
+ * last touch vs the workout's start.
+ */
+export function resolveActiveSession(
+  draftRows: { key: string; payload: unknown; updatedAt: Date }[],
+  workoutRows: WorkoutSessionRow[],
+  now: Date,
+): ActiveSession | null {
+  const draftSession = pickActiveSession(draftRows, now)
+  const workoutSession = activeSessionFromWorkouts(workoutRows, now)
+  if (!draftSession || !workoutSession) return draftSession ?? workoutSession
+  if (draftSession.key === workoutSession.key) return draftSession
+
+  const draftTouchedAt = draftRows.find((row) => row.key === draftSession.key)?.updatedAt
+  return draftTouchedAt && draftTouchedAt.getTime() >= workoutSession.openedAt.getTime()
+    ? draftSession
+    : workoutSession
+}

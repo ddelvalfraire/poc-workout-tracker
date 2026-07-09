@@ -6,7 +6,7 @@ import { listWorkoutSummaries } from "@/db/workouts";
 import { listWorkoutDrafts } from "@/db/workout-drafts";
 import { getNextProgramDay } from "@/db/programs";
 import { getWeightUnit } from "@/db/preferences";
-import { pickActiveSession } from "@/lib/active-session";
+import { resolveActiveSession } from "@/lib/active-session";
 import { formatVolume, formatWorkoutDuration } from "@/lib/format";
 import { startedWithinLastHours } from "@/lib/recent-window";
 import { buttonVariants } from "@/components/ui/button";
@@ -28,8 +28,10 @@ export default async function HomePage() {
     listWorkoutDrafts(userId),
   ]);
   // A fresh draft IS an in-progress session (the logger autosaves one on
-  // every change; saving deletes it) — surface it as the resume banner.
-  const activeSession = pickActiveSession(drafts, new Date());
+  // every change; saving deletes it) — and a started-but-unfinished workout
+  // is one too, even before its first edit (starting a program day creates
+  // the row immediately). Drafts win: they carry unsaved sets.
+  const activeSession = resolveActiveSession(drafts, summaries, new Date());
 
   return (
     <div className="flex min-h-[100dvh] flex-col">
@@ -104,11 +106,15 @@ export default async function HomePage() {
           // A 48h window (not a row cap) so "today" can never be crowded out
           // by backdated entries, while any client timezone's calendar day is
           // still fully covered; the exact local-day filter runs client-side.
-          workouts={startedWithinLastHours(summaries, 48).map((w) => ({
-            id: w.id,
-            name: w.name,
-            startedAt: w.startedAt,
-          }))}
+          // Completed only: a freshly-started session must never wear the
+          // "Done today" checkmark — it's the live banner's job above.
+          workouts={startedWithinLastHours(summaries, 48)
+            .filter((w) => w.completedAt !== null)
+            .map((w) => ({
+              id: w.id,
+              name: w.name,
+              startedAt: w.startedAt,
+            }))}
         />
 
         <h2 className="mt-10 mb-3 text-lg">History</h2>
@@ -127,7 +133,9 @@ export default async function HomePage() {
               // to land in — without it the inset overlaps the row link.
               <li key={w.id} className="flex items-center gap-1">
                 <Link
-                  href={`/workout/${w.id}`}
+                  // An unfinished session reopens the logger — the read-only
+                  // summary would present it as a completed workout.
+                  href={w.completedAt === null ? `/workout/${w.id}/edit` : `/workout/${w.id}`}
                   className="flex min-w-0 flex-1 items-center gap-4 px-4 py-3.5 transition-colors active:bg-muted/60"
                 >
                   {/* Stacked calendar block: scanning history is a date
@@ -142,7 +150,14 @@ export default async function HomePage() {
                     </span>
                   </span>
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate font-medium">{w.name ?? "Workout"}</span>
+                    <span className="flex min-w-0 items-center gap-2">
+                      <span className="min-w-0 truncate font-medium">{w.name ?? "Workout"}</span>
+                      {w.completedAt === null && (
+                        <span className="shrink-0 rounded-full border border-primary/40 bg-primary/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-widest text-primary">
+                          In progress
+                        </span>
+                      )}
+                    </span>
                     <span className="mt-0.5 block truncate text-sm text-muted-foreground tnum">
                       {[
                         formatWorkoutDuration(w.startedAt, w.completedAt),

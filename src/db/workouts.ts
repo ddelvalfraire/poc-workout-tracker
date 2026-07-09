@@ -29,6 +29,7 @@ export interface WorkoutSummary {
   completedAt: Date | null
   exerciseCount: number
   setCount: number
+  completedSetCount: number
   volumeKg: number
 }
 
@@ -44,6 +45,9 @@ export function listWorkoutSummaries(userId: string) {
       completedAt: workouts.completedAt,
       exerciseCount: countDistinct(workoutExercises.id),
       setCount: count(sets.id),
+      // For the in-progress session banner: how far into the session the
+      // last device got, from the saved rows.
+      completedSetCount: sql<number>`coalesce(sum(case when ${sets.completed} then 1 else 0 end), 0)`.mapWith(Number),
       volumeKg: sql<number>`coalesce(sum(${sets.reps} * ${sets.weight}), 0)`.mapWith(Number),
     })
     .from(workouts)
