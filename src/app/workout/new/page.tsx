@@ -1,10 +1,6 @@
-import Link from 'next/link'
 import { requireUserId } from '@/lib/auth'
 import { getWeightUnit, getEquipment } from '@/db/preferences'
 import { getWorkoutDetail } from '@/db/workouts'
-import { buttonVariants } from '@/components/ui/button'
-import { AppHeader } from '@/components/app-header'
-import { cn } from '@/lib/utils'
 import { WorkoutLogger } from './workout-logger'
 import { detailToDraft } from './workout-draft'
 
@@ -33,24 +29,17 @@ export default async function NewWorkoutPage({
 
   return (
     <div className="flex min-h-[100dvh] flex-col">
-      {/* Header action says "Close", not "Cancel": the autosaved draft
-          survives and resumes from the home banner — nothing is cancelled. */}
-      <AppHeader
+      {/* The logger renders the app bar itself (the session clock lives in
+          it) and the width-constrained main. Close still lands home — the
+          autosaved draft survives and resumes from the home banner. */}
+      <WorkoutLogger
         title="New Workout"
-        trailing={
-          <Link href="/" className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }))}>
-            Close
-          </Link>
-        }
+        closeHref="/"
+        unit={unit}
+        initialDraft={seed?.draft}
+        initialName={seed?.name}
+        equipment={equipment}
       />
-      <main className="mx-auto w-full max-w-md flex-1 px-5">
-        <WorkoutLogger
-          unit={unit}
-          initialDraft={seed?.draft}
-          initialName={seed?.name}
-          equipment={equipment}
-        />
-      </main>
     </div>
   )
 }
