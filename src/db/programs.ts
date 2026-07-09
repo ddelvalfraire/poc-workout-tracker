@@ -1,4 +1,4 @@
-import { and, asc, count, countDistinct, desc, eq, isNotNull, isNull, max } from 'drizzle-orm'
+import { and, asc, count, countDistinct, desc, eq, isNotNull, isNull, max, sql } from 'drizzle-orm'
 import type { ProgramInput, Progression } from '@/lib/program-input'
 import { getAllExercises, type Exercise } from '@/lib/wger'
 import {
@@ -328,6 +328,53 @@ export async function nextProgramWeek(
 
   const cycleComplete = daysDone.value >= dayTotal.value
   return cycleComplete ? Math.min(current + 1, Math.max(1, mesocycleWeeks)) : current
+}
+
+/** A program-scoped workout row for the week view: provenance (which day,
+ *  which week) plus the summary aggregates a day card renders. */
+export interface ProgramWorkout {
+  id: string
+  programDayId: string | null
+  programWeek: number | null
+  startedAt: Date
+  completedAt: Date | null
+  setCount: number
+  completedSetCount: number
+  volumeKg: number
+}
+
+/**
+ * Every workout instantiated from this program's days, freshest first, with
+ * the same per-workout aggregates as `listWorkoutSummaries` (set counts +
+ * Σ reps × weight volume via leftJoins, so a set-less workout still lists).
+ * Double-gated per the module convention: `workouts.userId` is the
+ * authorization boundary and `programDays.programId` scopes to the program —
+ * the innerJoin through `program_days` is what ties a workout to the program
+ * (workouts carry `programDayId`, not `programId`). The page buckets these
+ * rows by (programDayId, programWeek) to resolve each day card's state.
+ */
+export function listProgramWorkouts(userId: string, programId: string) {
+  return db
+    .select({
+      id: workouts.id,
+      programDayId: workouts.programDayId,
+      programWeek: workouts.programWeek,
+      startedAt: workouts.startedAt,
+      completedAt: workouts.completedAt,
+      setCount: count(sets.id),
+      completedSetCount:
+        sql<number>`coalesce(sum(case when ${sets.completed} then 1 else 0 end), 0)`.mapWith(
+          Number,
+        ),
+      volumeKg: sql<number>`coalesce(sum(${sets.reps} * ${sets.weight}), 0)`.mapWith(Number),
+    })
+    .from(workouts)
+    .innerJoin(programDays, eq(programDays.id, workouts.programDayId))
+    .leftJoin(workoutExercises, eq(workoutExercises.workoutId, workouts.id))
+    .leftJoin(sets, eq(sets.workoutExerciseId, workoutExercises.id))
+    .where(and(eq(workouts.userId, userId), eq(programDays.programId, programId)))
+    .groupBy(workouts.id)
+    .orderBy(desc(workouts.startedAt))
 }
 
 /** What the home screen's "up next" card renders: the day a user should train
