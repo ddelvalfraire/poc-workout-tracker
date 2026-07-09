@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { ChevronLeft } from "lucide-react";
 import { requireUserId } from "@/lib/auth";
 import { getWorkoutDetail, getExerciseHistoryBefore } from "@/db/workouts";
@@ -32,6 +32,11 @@ export default async function WorkoutDetailPage({
     getBodyweightKg(userId),
   ]);
   if (!workout) notFound();
+  // Guard at the source, not just at every link site: this read-only summary
+  // presents a workout as DONE (duration, PR badges, top sets). An unfinished
+  // session reaching it by URL — bookmark, back/forward cache, hand-edited
+  // path — belongs in the logger instead.
+  if (workout.completedAt === null) redirect(`/workout/${id}/edit`);
 
   const exerciseIds = [
     ...new Set(workout.exercises.map((e) => e.wgerExerciseId)),

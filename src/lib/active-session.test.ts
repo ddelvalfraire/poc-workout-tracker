@@ -157,16 +157,43 @@ describe('activeSessionFromWorkouts', () => {
 })
 
 describe('resolveActiveSession', () => {
-  it('prefers the draft session — it carries unsaved sets', () => {
-    // Arrange — a draft AND an untouched in-progress workout exist
+  it('prefers a draft touched more recently than an unrelated workout start', () => {
+    // Arrange — the draft was edited AFTER the other workout was started
     const drafts = [row('new', 60_000)]
-    const workouts = [workoutRow(30_000)]
+    const workouts = [workoutRow(30 * 60_000)]
 
     // Act
     const session = resolveActiveSession(drafts, workouts, NOW)
 
     // Assert
     expect(session?.key).toBe('new')
+  })
+
+  it('prefers a workout started after an unrelated draft was last touched', () => {
+    // Arrange — a stale quick-log draft (still within TTL) vs a day the
+    // lifter just started: the banner must surface what they are doing NOW
+    const drafts = [row('new', 2 * 60 * 60_000)]
+    const workouts = [workoutRow(30_000)]
+
+    // Act
+    const session = resolveActiveSession(drafts, workouts, NOW)
+
+    // Assert
+    expect(session?.key).toBe('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa')
+  })
+
+  it('prefers the draft when it IS the workout (same key), regardless of recency', () => {
+    // Arrange — the draft is that workout's live edit: one session, and the
+    // draft carries unsaved sets the row does not have yet
+    const drafts = [row('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 2 * 60 * 60_000)]
+    const workouts = [workoutRow(30_000)]
+
+    // Act
+    const session = resolveActiveSession(drafts, workouts, NOW)
+
+    // Assert — the draft's projection wins (3 sets, not the row's 20)
+    expect(session?.key).toBe('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa')
+    expect(session?.setCount).toBe(3)
   })
 
   it('falls back to the in-progress workout when no draft exists', () => {

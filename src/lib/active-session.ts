@@ -89,14 +89,25 @@ export function activeSessionFromWorkouts(
 }
 
 /**
- * The home banner's single source of truth. A draft wins when both exist —
- * it carries unsaved sets the workout row doesn't have yet, and a draft keyed
- * by a workout id IS that workout's live edit, so draft-first also dedupes.
+ * The home banner's single source of truth. When a draft and a workout are
+ * the SAME session (draft keyed by that workout's id), the draft wins — it
+ * carries the unsaved sets. When they are unrelated sessions (an abandoned
+ * quick-log draft vs a freshly started program day), recency wins: the
+ * banner must surface what the lifter is doing NOW, compared on the draft's
+ * last touch vs the workout's start.
  */
 export function resolveActiveSession(
   draftRows: { key: string; payload: unknown; updatedAt: Date }[],
   workoutRows: WorkoutSessionRow[],
   now: Date,
 ): ActiveSession | null {
-  return pickActiveSession(draftRows, now) ?? activeSessionFromWorkouts(workoutRows, now)
+  const draftSession = pickActiveSession(draftRows, now)
+  const workoutSession = activeSessionFromWorkouts(workoutRows, now)
+  if (!draftSession || !workoutSession) return draftSession ?? workoutSession
+  if (draftSession.key === workoutSession.key) return draftSession
+
+  const draftTouchedAt = draftRows.find((row) => row.key === draftSession.key)?.updatedAt
+  return draftTouchedAt && draftTouchedAt.getTime() >= workoutSession.openedAt.getTime()
+    ? draftSession
+    : workoutSession
 }
