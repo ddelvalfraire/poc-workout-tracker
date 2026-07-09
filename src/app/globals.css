@@ -158,10 +158,11 @@
     transform: scale(1.02);
   }
 }
-@layer utilities {
-  .animate-finish-nudge {
-    animation: finish-nudge 1.6s ease-in-out infinite;
-  }
+/* @utility (not a raw class in @layer utilities): Tailwind v4 only applies
+   variants like motion-safe: to registered utilities — a plain class would
+   make motion-safe:animate-finish-nudge compile to NOTHING. */
+@utility animate-finish-nudge {
+  animation: finish-nudge 1.6s ease-in-out infinite;
 }
 
 @layer utilities {

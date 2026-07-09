@@ -8,7 +8,7 @@ import { getNextProgramDay } from "@/db/programs";
 import { getWeightUnit } from "@/db/preferences";
 import { resolveActiveSession } from "@/lib/active-session";
 import { formatVolume, formatWorkoutDuration } from "@/lib/format";
-import { startedWithinLastHours } from "@/lib/recent-window";
+import { startedWithinLastHours, completedWithinLastHours } from "@/lib/recent-window";
 import { buttonVariants } from "@/components/ui/button";
 import { UnitToggle } from "@/components/unit-toggle";
 import { cn } from "@/lib/utils";
@@ -33,17 +33,12 @@ export default async function HomePage() {
   // the row immediately). Drafts win: they carry unsaved sets.
   const now = new Date();
   const activeSession = resolveActiveSession(drafts, summaries, now);
-  // "Already trained today": the server can't know the user's calendar day,
-  // so approximate with a 12h completion window (same rhythm as the session
-  // TTL). Once a session is finished — or one is live — the day's marching
-  // orders are done and the Up-next hero stands down; the Quick Log and
-  // Programs shortcuts below stay.
-  const TRAINED_WINDOW_MS = 12 * 60 * 60 * 1000;
-  const trainedRecently = summaries.some(
-    (w) =>
-      w.completedAt !== null && now.getTime() - w.completedAt.getTime() <= TRAINED_WINDOW_MS,
-  );
-  const showNextDay = Boolean(nextDay) && !activeSession && !trainedRecently;
+  // "Already trained today" (12h completion window, same rhythm as the
+  // session TTL): once a session is finished — or one is live — the day's
+  // marching orders are done and the Up-next hero stands down; the Quick Log
+  // and Programs shortcuts below stay.
+  const showNextDay =
+    Boolean(nextDay) && !activeSession && !completedWithinLastHours(summaries, 12, now);
 
   return (
     <div className="flex min-h-[100dvh] flex-col">
