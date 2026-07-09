@@ -131,3 +131,19 @@ export function parseDraftPayload(
     openedAt: openedAt.getTime() > opts.now.getTime() ? opts.now : openedAt,
   }
 }
+
+/**
+ * Server-side draft seeding, shared by both logger pages: a stored draft row
+ * projected into logger seed values, or null when there is nothing usable.
+ * TTL mirrors getWorkoutDraftAction (inclusive <=) but only SKIPS a stale
+ * row — a page render is a GET and must not mutate; the client action still
+ * lazily deletes expired rows.
+ */
+export function resolveDraftSeed(
+  row: { payload: unknown; updatedAt: Date } | undefined | null,
+  opts: { unit: WeightUnit; now: Date },
+): { draft: WorkoutDraft; name: string; openedAt: Date } | null {
+  if (!row) return null
+  if (opts.now.getTime() - row.updatedAt.getTime() > DRAFT_TTL_MS) return null
+  return parseDraftPayload(row.payload, opts)
+}

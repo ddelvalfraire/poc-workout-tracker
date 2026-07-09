@@ -3,9 +3,11 @@ import { requireUserId } from '@/lib/auth'
 import { getWorkoutDetail, type WorkoutDetail } from '@/db/workouts'
 import { getWeightUnit, getEquipment, getDefaultRestSec, getRestTimerEnabled } from '@/db/preferences'
 import { getProgramDayDetail, deriveDayPrescription } from '@/db/programs'
+import { getWorkoutDraft } from '@/db/workout-drafts'
 import type { PlanSetTarget } from '@/lib/format'
 import { detailToDraft } from '@/app/workout/new/workout-draft'
 import { WorkoutLogger } from '@/app/workout/new/workout-logger'
+import { resolveDraftSeed } from '@/app/workout/new/draft-payload'
 
 /**
  * Per-exercise plan targets (keyed by wgerExerciseId) for a program-instantiated
@@ -53,13 +55,22 @@ export default async function EditWorkoutPage({
   ])
   if (!workout) notFound()
 
-  const [planTargets, equipment, defaultRestSec, restTimerEnabled] = await Promise.all([
+  const [planTargets, equipment, defaultRestSec, restTimerEnabled, draftRow] = await Promise.all([
     loadPlanTargets(userId, workout),
     getEquipment(userId, unit),
     getDefaultRestSec(userId),
     getRestTimerEnabled(userId),
+    // The logger's autosave key for this surface is the workout id; the write
+    // path lower-cases keys at the action boundary, so read the same form.
+    getWorkoutDraft(userId, id.toLowerCase()),
   ])
-  const { draft, name } = detailToDraft(workout, unit)
+  // Server-side draft seeding: a live draft is newer than the workout rows it
+  // was seeded from, so it wins over detailToDraft — resolved HERE to kill the
+  // mount-time content swap (rows render, then the restore effect swaps in the
+  // draft). Shared TTL+codec helper; the client restore effect stays as the
+  // cross-device race net.
+  const restored = resolveDraftSeed(draftRow, { unit, now: new Date() })
+  const { draft, name } = restored ?? detailToDraft(workout, unit)
 
   return (
     <div className="flex min-h-[100dvh] flex-col">
@@ -82,7 +93,10 @@ export default async function EditWorkoutPage({
         initialName={name}
         unit={unit}
         planTargets={planTargets}
-        startedAt={workout.startedAt}
+        // When the draft seeds the session, its openedAt must also seed the
+        // clock — the draft can predate the row's startedAt semantics (a
+        // restored snapshot rewinds to the original session start).
+        startedAt={restored?.openedAt ?? workout.startedAt}
         equipment={equipment}
         defaultRestSec={defaultRestSec}
         restTimerEnabled={restTimerEnabled}
