@@ -46,7 +46,6 @@ import {
   getWeightUnit,
   setWeightUnit,
   getBodyweightKg,
-  setBodyweight,
   getDefaultRestSec,
   setDefaultRestSec,
   getRestTimerEnabled,
@@ -105,16 +104,6 @@ describe('getBodyweightKg', () => {
   it('reads a corrupt (non-positive) stored value as null', async () => {
     selectRows = [{ bodyweightKg: 0 }]
     expect(await getBodyweightKg(USER)).toBe(null)
-  })
-})
-
-describe('setBodyweight', () => {
-  it('upserts the bodyweight (kg) by user id', async () => {
-    await setBodyweight(USER, 82.5)
-
-    expect(upserts).toHaveLength(1)
-    expect(upserts[0].values).toMatchObject({ userId: USER, bodyweightKg: 82.5 })
-    expect(upserts[0].conflict).toMatchObject({ set: { bodyweightKg: 82.5 } })
   })
 })
 

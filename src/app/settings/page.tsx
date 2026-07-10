@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { ChevronLeft } from 'lucide-react'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { requireUserId } from '@/lib/auth'
 import {
   getWeightUnit,
@@ -10,7 +10,6 @@ import {
 import { kgToDisplay } from '@/lib/units'
 import { AppHeader } from '@/components/app-header'
 import { UnitToggle } from '@/components/unit-toggle'
-import { BodyweightEditor } from '@/components/bodyweight-editor'
 import { buttonVariants } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { RestDefaultSetting } from './rest-default-setting'
@@ -70,15 +69,28 @@ export default async function SettingsPage() {
           >
             <RestDefaultSetting defaultRestSec={defaultRestSec} />
           </SettingRow>
-          <SettingRow
-            label="Bodyweight"
-            hint="Feeds est. 1RM for bodyweight-type exercises."
-          >
-            <BodyweightEditor
-              bodyweightDisplay={bodyweightKg !== null ? kgToDisplay(bodyweightKg, unit) : null}
-              unit={unit}
-            />
-          </SettingRow>
+          {/* Link row, not an inline editor: bodyweight grew its own surface
+              (history + trend at /bodyweight); settings only shows the
+              current value scoring reads and hands off. */}
+          <li>
+            <Link
+              href="/bodyweight"
+              className="flex items-center justify-between gap-4 px-4 py-4 transition-colors outline-none hover:bg-muted/50 focus-visible:bg-muted/50"
+            >
+              <div className="min-w-0">
+                <p className="font-medium">Bodyweight</p>
+                <p className="mt-0.5 text-sm text-muted-foreground">
+                  Feeds est. 1RM for bodyweight-type exercises.
+                </p>
+              </div>
+              <div className="flex shrink-0 items-center gap-1 text-muted-foreground">
+                <span className="text-sm tnum">
+                  {bodyweightKg !== null ? `${kgToDisplay(bodyweightKg, unit)} ${unit}` : 'Not set'}
+                </span>
+                <ChevronRight aria-hidden="true" className="size-4" />
+              </div>
+            </Link>
+          </li>
         </ul>
       </main>
     </div>

@@ -71,17 +71,6 @@ export async function getBodyweightKg(userId: string): Promise<number | null> {
   return value !== null && Number.isFinite(value) && value > 0 ? value : null
 }
 
-/** Upserts the user's bodyweight in kg (validated by setBodyweightAction). */
-export async function setBodyweight(userId: string, bodyweightKg: number): Promise<void> {
-  await db
-    .insert(userPreferences)
-    .values({ userId, bodyweightKg })
-    .onConflictDoUpdate({
-      target: userPreferences.userId,
-      set: { bodyweightKg, updatedAt: new Date() },
-    })
-}
-
 /** Widest rest target the app accepts, in seconds — mirrors MAX_REST_SEC in
  *  `lib/program-input.ts` (not imported: db reads must not depend on the input
  *  boundary; the duplication is one number with tests on both sides). */

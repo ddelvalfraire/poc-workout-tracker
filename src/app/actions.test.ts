@@ -9,10 +9,13 @@ vi.mock('@/lib/auth', () => ({ requireUserId: vi.fn(async () => 'user_123') }))
 vi.mock('@/db/preferences', () => ({
   setWeightUnit: vi.fn(async () => {}),
   setEquipment: vi.fn(async () => {}),
-  setBodyweight: vi.fn(async () => {}),
   setDefaultRestSec: vi.fn(async () => {}),
   setRestTimerEnabled: vi.fn(async () => {}),
   getWeightUnit: vi.fn(async () => 'lb'),
+}))
+vi.mock('@/db/bodyweight', () => ({
+  logBodyweight: vi.fn(async () => ({ id: 'bw1' })),
+  deleteBodyweightLog: vi.fn(async () => ({ id: 'bw1' })),
 }))
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
 
@@ -20,17 +23,18 @@ import {
   setWeightUnitAction,
   setEquipmentAction,
   setBodyweightAction,
+  deleteBodyweightLogAction,
   setDefaultRestSecAction,
   setRestTimerEnabledAction,
 } from './actions'
 import {
   setWeightUnit,
   setEquipment,
-  setBodyweight,
   setDefaultRestSec,
   setRestTimerEnabled,
   getWeightUnit,
 } from '@/db/preferences'
+import { logBodyweight, deleteBodyweightLog } from '@/db/bodyweight'
 import { revalidatePath } from 'next/cache'
 
 beforeEach(() => {
@@ -82,24 +86,65 @@ describe('setBodyweightAction', () => {
     ['a non-finite value', Infinity],
   ])('rejects %s without writing or revalidating', async (_label, value) => {
     await expect(setBodyweightAction(value)).rejects.toThrow('positive number')
-    expect(setBodyweight).not.toHaveBeenCalled()
+    expect(logBodyweight).not.toHaveBeenCalled()
     expect(revalidatePath).not.toHaveBeenCalled()
   })
 
   it('rejects a value over the 500 kg sanity ceiling', async () => {
     // 1200 lb ≈ 544 kg — plausible column-wise, absurd human-wise
-    await expect(setBodyweightAction(1200)).rejects.toThrow('between 0 and 500 kg')
-    expect(setBodyweight).not.toHaveBeenCalled()
+    await expect(setBodyweightAction(1200)).rejects.toThrow('between 0.01 and 500 kg')
+    expect(logBodyweight).not.toHaveBeenCalled()
   })
 
-  it('converts the display-unit input to kg using the STORED unit and revalidates', async () => {
+  it('rejects a sub-precision value that would round to a stored 0.00 kg', async () => {
+    // 0.01 lb ≈ 0.0045 kg — positive, but under the numeric(5,2) step;
+    // without the floor it would store as 0.00 and scoring would read zero
+    await expect(setBodyweightAction(0.01)).rejects.toThrow('between 0.01 and 500 kg')
+    expect(logBodyweight).not.toHaveBeenCalled()
+    expect(revalidatePath).not.toHaveBeenCalled()
+  })
+
+  it('converts the display-unit input to kg using the STORED unit and logs a weigh-in', async () => {
     // Act — user's stored unit is lb (mocked); 181.5 lb → 82.33 kg (2dp)
     await setBodyweightAction(181.5)
 
-    // Assert
+    // Assert — the settings edit and the /bodyweight quick log share this
+    // write path: a history row is appended, prefs sync in the data layer.
     expect(getWeightUnit).toHaveBeenCalledWith('user_123')
-    expect(setBodyweight).toHaveBeenCalledWith('user_123', 82.33)
+    expect(logBodyweight).toHaveBeenCalledWith('user_123', 82.33)
     expect(revalidatePath).toHaveBeenCalledWith('/', 'layout')
+  })
+})
+
+describe('deleteBodyweightLogAction', () => {
+  const LOG_ID = '2f0a4c1e-1111-4222-8333-444455556666'
+
+  it.each([
+    ['a non-string', 42],
+    ['a non-uuid string', 'not-a-uuid'],
+    ['an uppercase uuid (our pages send lowercase)', '2F0A4C1E-1111-4222-8333-444455556666'],
+  ])('rejects %s without deleting or revalidating', async (_label, value) => {
+    await expect(deleteBodyweightLogAction(value)).rejects.toThrow('invalid bodyweight log id')
+    expect(deleteBodyweightLog).not.toHaveBeenCalled()
+    expect(revalidatePath).not.toHaveBeenCalled()
+  })
+
+  it('deletes an owned entry and revalidates the layout', async () => {
+    // Act
+    await deleteBodyweightLogAction(LOG_ID)
+
+    // Assert
+    expect(deleteBodyweightLog).toHaveBeenCalledWith('user_123', LOG_ID)
+    expect(revalidatePath).toHaveBeenCalledWith('/', 'layout')
+  })
+
+  it('throws (no revalidate) when the entry is not owned or already gone', async () => {
+    // Arrange — the ownership-scoped delete matched nothing
+    vi.mocked(deleteBodyweightLog).mockResolvedValueOnce(null)
+
+    // Act / Assert
+    await expect(deleteBodyweightLogAction(LOG_ID)).rejects.toThrow('not found')
+    expect(revalidatePath).not.toHaveBeenCalled()
   })
 })
 

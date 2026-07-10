@@ -113,6 +113,30 @@ export const userPreferences = pgTable('user_preferences', {
 })
 
 /**
+ * Bodyweight measurement history — one row per weigh-in. This table is the
+ * record; `user_preferences.bodyweight_kg` stays the CURRENT value that
+ * scoring reads (denormalized on purpose: e1RM for bodyweight-type exercises
+ * keeps its single read path, and the data layer resyncs it to the freshest
+ * log row on every log write/delete). `weighed_at` is when the measurement
+ * was taken (defaults to now; backdated entries are allowed and must not
+ * clobber the current value — see db/bodyweight.ts).
+ */
+export const bodyweightLogs = pgTable(
+  'bodyweight_logs',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    userId: text('user_id').notNull(), // Clerk user id — ownership root
+    weighedAt: timestamp('weighed_at', { withTimezone: true }).defaultNow().notNull(),
+    // Canonical kg, same precision as user_preferences.bodyweight_kg so the
+    // synced current value is always exactly one log row's value.
+    weightKg: numeric('weight_kg', { precision: 5, scale: 2, mode: 'number' }).notNull(),
+  },
+  // Composite: both access paths (history list, freshest-row resync) filter
+  // by user AND order by weighed_at desc — the index serves the sort too.
+  (t) => [index('bodyweight_logs_user_id_weighed_at_idx').on(t.userId, t.weighedAt.desc())],
+)
+
+/**
  * In-progress workout drafts, synced across devices — the logger autosaves
  * here and restores on mount, so a session started on one device can be
  * finished on another. One row per logging surface: `key` is 'new' for
