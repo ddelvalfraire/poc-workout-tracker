@@ -5,11 +5,11 @@ import { requireUserId } from '@/lib/auth'
 import {
   setWeightUnit,
   setEquipment,
-  setBodyweight,
   setDefaultRestSec,
   setRestTimerEnabled,
   getWeightUnit,
 } from '@/db/preferences'
+import { logBodyweight, deleteBodyweightLog } from '@/db/bodyweight'
 import { isWeightUnit, displayToKg } from '@/lib/units'
 import { parseEquipmentInput } from '@/lib/equipment'
 import { MAX_REST_SEC } from '@/lib/program-input'
@@ -52,6 +52,11 @@ export async function setEquipmentAction(input: unknown): Promise<void> {
  * stale client can't convert against the wrong unit. Stored in canonical kg,
  * like set weights. Validated at the boundary: finite, positive, and under a
  * 500 kg sanity ceiling.
+ *
+ * Every set is a weigh-in: it appends a `bodyweight_logs` row (history) and
+ * the data layer syncs `user_preferences.bodyweight_kg` (the current value
+ * scoring reads) to the freshest log — so a settings edit and a /bodyweight
+ * quick log are the same write path.
  */
 export async function setBodyweightAction(value: unknown): Promise<void> {
   const userId = await requireUserId()
@@ -63,7 +68,28 @@ export async function setBodyweightAction(value: unknown): Promise<void> {
   if (bodyweightKg <= 0 || bodyweightKg > MAX_BODYWEIGHT_KG) {
     throw new Error(`bodyweight must be between 0 and ${MAX_BODYWEIGHT_KG} kg`)
   }
-  await setBodyweight(userId, bodyweightKg)
+  await logBodyweight(userId, bodyweightKg)
+  revalidatePath('/', 'layout')
+}
+
+// Lowercase-uuid shape for a log row id — same guard style as the workout
+// draft keys: keeps arbitrary strings out of the delete path before it ever
+// reaches SQL (uuids from our own pages arrive lowercase already).
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
+
+/**
+ * Deletes one owned weigh-in. The data layer resyncs the current bodyweight
+ * to the freshest remaining entry (or clears it when none are left). A
+ * missing result means the row isn't owned or is already gone — throw so the
+ * client shows the failure instead of refreshing as if it worked.
+ */
+export async function deleteBodyweightLogAction(id: unknown): Promise<void> {
+  const userId = await requireUserId()
+  if (typeof id !== 'string' || !UUID_RE.test(id)) {
+    throw new Error('invalid bodyweight log id')
+  }
+  const deleted = await deleteBodyweightLog(userId, id)
+  if (!deleted) throw new Error('bodyweight entry not found')
   revalidatePath('/', 'layout')
 }
 
