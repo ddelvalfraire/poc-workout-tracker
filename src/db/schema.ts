@@ -131,7 +131,9 @@ export const bodyweightLogs = pgTable(
     // synced current value is always exactly one log row's value.
     weightKg: numeric('weight_kg', { precision: 5, scale: 2, mode: 'number' }).notNull(),
   },
-  (t) => [index('bodyweight_logs_user_id_idx').on(t.userId)],
+  // Composite: both access paths (history list, freshest-row resync) filter
+  // by user AND order by weighed_at desc — the index serves the sort too.
+  (t) => [index('bodyweight_logs_user_id_weighed_at_idx').on(t.userId, t.weighedAt.desc())],
 )
 
 /**

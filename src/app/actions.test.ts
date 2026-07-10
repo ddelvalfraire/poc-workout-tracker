@@ -92,8 +92,16 @@ describe('setBodyweightAction', () => {
 
   it('rejects a value over the 500 kg sanity ceiling', async () => {
     // 1200 lb ≈ 544 kg — plausible column-wise, absurd human-wise
-    await expect(setBodyweightAction(1200)).rejects.toThrow('between 0 and 500 kg')
+    await expect(setBodyweightAction(1200)).rejects.toThrow('between 0.01 and 500 kg')
     expect(logBodyweight).not.toHaveBeenCalled()
+  })
+
+  it('rejects a sub-precision value that would round to a stored 0.00 kg', async () => {
+    // 0.01 lb ≈ 0.0045 kg — positive, but under the numeric(5,2) step;
+    // without the floor it would store as 0.00 and scoring would read zero
+    await expect(setBodyweightAction(0.01)).rejects.toThrow('between 0.01 and 500 kg')
+    expect(logBodyweight).not.toHaveBeenCalled()
+    expect(revalidatePath).not.toHaveBeenCalled()
   })
 
   it('converts the display-unit input to kg using the STORED unit and logs a weigh-in', async () => {

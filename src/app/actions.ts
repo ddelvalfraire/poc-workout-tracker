@@ -14,9 +14,12 @@ import { isWeightUnit, displayToKg } from '@/lib/units'
 import { parseEquipmentInput } from '@/lib/equipment'
 import { MAX_REST_SEC } from '@/lib/program-input'
 
-// Sanity ceiling for a stored bodyweight, in canonical kg. Well under the
-// numeric(5,2) column max (999.99) so a typo'd extra digit becomes a clear
-// validation error instead of a stored absurdity.
+// Sanity bounds for a stored bodyweight, in canonical kg. The ceiling sits
+// well under the numeric(5,2) column max (999.99) so a typo'd extra digit
+// becomes a clear validation error instead of a stored absurdity. The floor
+// is the column's own precision step: anything smaller would round to 0.00
+// on write and scoring would read a zero bodyweight.
+const MIN_BODYWEIGHT_KG = 0.01
 const MAX_BODYWEIGHT_KG = 500
 
 /**
@@ -65,8 +68,10 @@ export async function setBodyweightAction(value: unknown): Promise<void> {
   }
   const unit = await getWeightUnit(userId)
   const bodyweightKg = displayToKg(value, unit)
-  if (bodyweightKg <= 0 || bodyweightKg > MAX_BODYWEIGHT_KG) {
-    throw new Error(`bodyweight must be between 0 and ${MAX_BODYWEIGHT_KG} kg`)
+  if (bodyweightKg < MIN_BODYWEIGHT_KG || bodyweightKg > MAX_BODYWEIGHT_KG) {
+    throw new Error(
+      `bodyweight must be between ${MIN_BODYWEIGHT_KG} and ${MAX_BODYWEIGHT_KG} kg`,
+    )
   }
   await logBodyweight(userId, bodyweightKg)
   revalidatePath('/', 'layout')
