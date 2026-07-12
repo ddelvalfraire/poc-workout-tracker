@@ -80,20 +80,26 @@ export async function setProgramStatusAction(id: string, status: unknown): Promi
 }
 
 /**
- * Instantiates a program day into a new workout with engine-derived targets,
- * auto-deriving the week from the program's own history (explicit weeks stay
- * MCP-only). Returns the new workout id — the client navigates to it; no
- * redirect() here for the same try/catch reason as above. Null means the day
- * isn't found or its program isn't owned.
+ * Instantiates a program day into a new workout with engine-derived targets.
+ * `week` stamps the workout's provenance explicitly — the program page passes
+ * its selected week so any week's day is startable (a skipped day no longer
+ * pins the block); omitting it auto-derives from the program's own history
+ * (the home hero's path). Returns the new workout id — the client navigates
+ * to it; no redirect() here for the same try/catch reason as above. Null
+ * means the day isn't found or its program isn't owned.
  */
 export async function startProgramDayAction(
   programDayId: unknown,
+  week?: unknown,
 ): Promise<{ workoutId: string; week: number }> {
   const userId = await requireUserId()
   if (typeof programDayId !== 'string' || programDayId.length === 0) {
     throw new Error('invalid program day id')
   }
-  const result = await instantiateProgramDay(userId, programDayId)
+  if (week !== undefined && (typeof week !== 'number' || !Number.isInteger(week) || week < 1)) {
+    throw new Error('invalid week')
+  }
+  const result = await instantiateProgramDay(userId, programDayId, week ?? null)
   if (!result) throw new Error('program day not found')
   revalidatePath('/') // the new workout appears in the home history list
   return { workoutId: result.id, week: result.week }

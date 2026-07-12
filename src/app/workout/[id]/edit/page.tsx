@@ -21,7 +21,7 @@ import { resolveDraftSeed } from '@/app/workout/new/draft-payload'
 async function loadPlanTargets(
   userId: string,
   workout: WorkoutDetail,
-): Promise<Record<number, PlanSetTarget[]> | undefined> {
+): Promise<{ targets: Record<number, PlanSetTarget[]>; dayName: string } | undefined> {
   if (!workout.programDayId || !workout.programWeek) return undefined
   const day = await getProgramDayDetail(userId, workout.programDayId)
   if (!day) return undefined
@@ -39,7 +39,10 @@ async function loadPlanTargets(
       restSec: s.restSec,
     }))
   })
-  return targets
+  // The day name rides along so the logger can say which (day, week) this
+  // session is stamped to — provenance is fixed at start, so it must be
+  // VISIBLE before 20 sets land in the wrong day.
+  return { targets, dayName: day.name }
 }
 
 export default async function EditWorkoutPage({
@@ -55,7 +58,7 @@ export default async function EditWorkoutPage({
   ])
   if (!workout) notFound()
 
-  const [planTargets, equipment, defaultRestSec, restTimerEnabled, draftRow] = await Promise.all([
+  const [plan, equipment, defaultRestSec, restTimerEnabled, draftRow] = await Promise.all([
     loadPlanTargets(userId, workout),
     getEquipment(userId, unit),
     getDefaultRestSec(userId),
@@ -92,7 +95,14 @@ export default async function EditWorkoutPage({
         initialDraft={draft}
         initialName={name}
         unit={unit}
-        planTargets={planTargets}
+        planTargets={plan?.targets}
+        // Which (day, week) this session is stamped to — provenance is fixed
+        // at start, so the logger surfaces it instead of hiding it.
+        programContext={
+          plan && workout.programWeek !== null
+            ? `${plan.dayName} · Week ${workout.programWeek}`
+            : undefined
+        }
         // When the draft seeds the session, its openedAt must also seed the
         // clock — the draft can predate the row's startedAt semantics (a
         // restored snapshot rewinds to the original session start).

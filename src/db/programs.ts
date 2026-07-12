@@ -560,6 +560,16 @@ export async function instantiateProgramDay(
   const day = await getProgramDayDetail(userId, programDayId)
   if (!day) return null
 
+  // An explicit week must live on the block's axis: callers are the program
+  // page's selected week and the MCP tool's argument, both caller-supplied
+  // POST data. Without this backstop a forged week (999999) becomes permanent
+  // provenance and poisons nextProgramWeek's max(programWeek) read.
+  if (week != null && (week < 1 || week > Math.max(1, day.program.mesocycleWeeks))) {
+    throw new Error(
+      `week ${week} is out of range for a ${day.program.mesocycleWeeks}-week program`,
+    )
+  }
+
   const weekDerived = week == null
   const targetWeek = weekDerived
     ? await nextProgramWeek(userId, day.program.id, day.program.mesocycleWeeks)
