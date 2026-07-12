@@ -44,6 +44,11 @@ vi.mock('./index', () => ({
 vi.mock('./programs', () => ({
   nextProgramWeek: vi.fn(async () => 2),
 }))
+// getBodyweightKg reads its own table; mocked so the select queue above stays
+// the module's three reads and the test controls the scoring bodyweight.
+vi.mock('./preferences', () => ({
+  getBodyweightKg: vi.fn(async () => null),
+}))
 
 import {
   aggregateProgramStats,
@@ -52,6 +57,7 @@ import {
   type ProgramStats,
 } from './program-stats'
 import { nextProgramWeek } from './programs'
+import { getBodyweightKg } from './preferences'
 
 const USER = 'user_123'
 
@@ -73,6 +79,7 @@ function row(over: Partial<ProgramStatsRow> = {}): ProgramStatsRow {
     wgerExerciseId: null,
     source: over.wgerExerciseId != null ? 'wger' : null,
     exerciseName: null,
+    loggingType: null,
     reps: null,
     weight: null,
     completed: null,
@@ -88,6 +95,8 @@ beforeEach(() => {
   selectCount = 0
   whereArgs.length = 0
   vi.mocked(nextProgramWeek).mockClear()
+  vi.mocked(getBodyweightKg).mockClear()
+  vi.mocked(getBodyweightKg).mockResolvedValue(null)
 })
 
 describe('aggregateProgramStats', () => {
@@ -145,15 +154,18 @@ describe('aggregateProgramStats', () => {
     expect(bench.wgerExerciseId).toBe(73)
     expect(bench.weeks).toHaveLength(2)
     expect(bench.weeks[0]).toMatchObject({ week: 1, completedSets: 1 })
-    expect(bench.weeks[0].best).toMatchObject({ reps: 8, weightKg: 100 })
-    expect(bench.weeks[1].best).toMatchObject({ reps: 8, weightKg: 102.5 })
+    expect(bench.weeks[0].best).toMatchObject({ kind: 'e1rm', reps: 8, weightKg: 100 })
+    expect(bench.weeks[1].best).toMatchObject({ kind: 'e1rm', reps: 8, weightKg: 102.5 })
     // Rising e1RM, full precision (Epley: w × (1 + reps/30)) — no rounding here
-    expect(bench.weeks[0].best?.e1rm).toBeCloseTo(100 * (1 + 8 / 30), 10)
-    expect(bench.weeks[1].best!.e1rm).toBeGreaterThan(bench.weeks[0].best!.e1rm)
+    const [wk1, wk2] = [bench.weeks[0].best, bench.weeks[1].best]
+    if (wk1?.kind !== 'e1rm' || wk2?.kind !== 'e1rm') throw new Error('expected e1rm bests')
+    expect(wk1.e1rm).toBeCloseTo(100 * (1 + 8 / 30), 10)
+    expect(wk2.e1rm).toBeGreaterThan(wk1.e1rm)
   })
 
-  it('counts null-weight machine sets in completedSets but not tonnage, with null best', () => {
-    // Maxed stack machine: reps logged, weight unknowable → null
+  it('counts null-weight machine sets in completedSets but not tonnage, with a reps-fallback best', () => {
+    // Maxed stack machine: reps logged, weight unknowable → no load to score,
+    // but the effort still reads as a top set (bestScoredSet's rep fallback).
     const rows = [
       row({ completedAt: DONE, wgerExerciseId: 555, exerciseName: 'Leg Press', reps: 8, weight: null, completed: true, metricMode: 'reps_weight' }),
     ]
@@ -162,7 +174,13 @@ describe('aggregateProgramStats', () => {
 
     expect(stats.weeks[0].completedSets).toBe(1)
     expect(stats.weeks[0].tonnageKg).toBe(0)
-    expect(stats.exercises[0].weeks[0]).toEqual({ week: 1, best: null, completedSets: 1 })
+    expect(stats.exercises[0].weeks[0]).toEqual({
+      week: 1,
+      best: { kind: 'reps', index: 0, reps: 8 },
+      completedSets: 1,
+    })
+    // No e1rm-scorable week → no PR entry for this exercise
+    expect(stats.exercises[0].pr).toBeNull()
   })
 
   it('ignores uncompleted seeded sets everywhere (instantiated but never logged)', () => {
@@ -265,6 +283,129 @@ describe('aggregateProgramStats', () => {
   })
 })
 
+describe('aggregateProgramStats (loggingType-aware scoring)', () => {
+  /** A completed bodyweight-type set row. */
+  function bwRow(over: Partial<ProgramStatsRow> = {}): ProgramStatsRow {
+    return row({
+      completedAt: DONE,
+      wgerExerciseId: 800,
+      exerciseName: 'Pull-up',
+      loggingType: 'bodyweight_reps',
+      reps: 8,
+      weight: null,
+      completed: true,
+      metricMode: 'reps_weight',
+      ...over,
+    })
+  }
+
+  it('scores bodyweight_reps off the stored bodyweight (effective load)', () => {
+    const stats = aggregateProgramStats(PROGRAM, 5, 1, [bwRow()], 80)
+
+    const best = stats.exercises[0].weeks[0].best
+    expect(best).toMatchObject({ kind: 'e1rm', reps: 8, weightKg: 80 })
+    if (best?.kind !== 'e1rm') throw new Error('expected e1rm best')
+    expect(best.e1rm).toBeCloseTo(80 * (1 + 8 / 30), 10)
+    expect(stats.exercises[0].loggingType).toBe('bodyweight_reps')
+  })
+
+  it('falls back to reps for a bodyweight exercise with no stored bodyweight', () => {
+    const stats = aggregateProgramStats(PROGRAM, 5, 1, [bwRow()], null)
+
+    expect(stats.exercises[0].weeks[0].best).toEqual({ kind: 'reps', index: 0, reps: 8 })
+    expect(stats.exercises[0].pr).toBeNull()
+  })
+
+  it('adds the stored weight as extra load for weighted_bodyweight', () => {
+    const rows = [bwRow({ loggingType: 'weighted_bodyweight', weight: 25 })]
+
+    const stats = aggregateProgramStats(PROGRAM, 5, 1, rows, 80)
+
+    const best = stats.exercises[0].weeks[0].best
+    if (best?.kind !== 'e1rm') throw new Error('expected e1rm best')
+    expect(best.e1rm).toBeCloseTo(105 * (1 + 8 / 30), 10)
+  })
+
+  it('keeps weight_reps scoring on the raw weight even with a bodyweight stored', () => {
+    const rows = [
+      row({ completedAt: DONE, wgerExerciseId: 73, exerciseName: 'Bench Press', loggingType: 'weight_reps', reps: 8, weight: 100, completed: true, metricMode: 'reps_weight' }),
+    ]
+
+    const stats = aggregateProgramStats(PROGRAM, 5, 1, rows, 80)
+
+    const best = stats.exercises[0].weeks[0].best
+    expect(best).toMatchObject({ kind: 'e1rm', weightKg: 100 })
+  })
+
+  it('lets the latest non-null loggingType win, like the denormalized name', () => {
+    const rows = [
+      bwRow({ workoutId: 'w1', programWeek: 1, loggingType: null }),
+      bwRow({ workoutId: 'w2', programWeek: 2, loggingType: 'bodyweight_reps' }),
+    ]
+
+    const stats = aggregateProgramStats(PROGRAM, 5, 2, rows, 80)
+
+    expect(stats.exercises[0].loggingType).toBe('bodyweight_reps')
+  })
+})
+
+describe('aggregateProgramStats (program PRs)', () => {
+  function benchRow(week: number, weight: number, over: Partial<ProgramStatsRow> = {}): ProgramStatsRow {
+    return row({
+      workoutId: `w${week}`,
+      programWeek: week,
+      completedAt: DONE,
+      wgerExerciseId: 73,
+      exerciseName: 'Bench Press',
+      loggingType: 'weight_reps',
+      reps: 8,
+      weight,
+      completed: true,
+      metricMode: 'reps_weight',
+      ...over,
+    })
+  }
+
+  it('derives baseline (first e1rm week) and best (highest e1rm) per exercise', () => {
+    const rows = [benchRow(1, 100), benchRow(3, 110)]
+
+    const stats = aggregateProgramStats(PROGRAM, 5, 3, rows, null)
+
+    const pr = stats.exercises[0].pr
+    expect(pr).not.toBeNull()
+    expect(pr!.baseline).toMatchObject({ week: 1, reps: 8 })
+    expect(pr!.baseline.e1rm).toBeCloseTo(100 * (1 + 8 / 30), 10)
+    expect(pr!.best).toMatchObject({ week: 3, reps: 8 })
+    expect(pr!.best.e1rm).toBeCloseTo(110 * (1 + 8 / 30), 10)
+  })
+
+  it('collapses to baseline === best for a single scored week', () => {
+    const stats = aggregateProgramStats(PROGRAM, 5, 1, [benchRow(1, 100)], null)
+
+    const pr = stats.exercises[0].pr!
+    expect(pr.baseline).toEqual(pr.best)
+    expect(pr.baseline.week).toBe(1)
+  })
+
+  it('keeps the earliest week on a best-e1rm tie (strictly-greater policy)', () => {
+    const rows = [benchRow(2, 100), benchRow(4, 100)]
+
+    const stats = aggregateProgramStats(PROGRAM, 5, 4, rows, null)
+
+    expect(stats.exercises[0].pr!.best.week).toBe(2)
+  })
+
+  it('a regressed later week keeps the earlier best but the first week as baseline', () => {
+    const rows = [benchRow(1, 100), benchRow(2, 110), benchRow(3, 95)]
+
+    const stats = aggregateProgramStats(PROGRAM, 5, 3, rows, null)
+
+    const pr = stats.exercises[0].pr!
+    expect(pr.baseline.week).toBe(1)
+    expect(pr.best.week).toBe(2)
+  })
+})
+
 describe('getProgramStats (mocked db)', () => {
   const PROGRAM_ROW = {
     id: 'p1',
@@ -302,6 +443,23 @@ describe('getProgramStats (mocked db)', () => {
     expect(result!.weeks).toHaveLength(7)
     expect(result!.weeks[0]).toMatchObject({ daysStarted: 1, daysCompleted: 1, plannedDays: 4, completedSets: 1, tonnageKg: 800 })
     expect(result!.exercises).toHaveLength(1)
+  })
+
+  it('feeds the stored bodyweight into exercise scoring', async () => {
+    vi.mocked(getBodyweightKg).mockResolvedValue(80)
+    selectResults = [
+      [PROGRAM_ROW],
+      [{ value: 4 }],
+      [
+        row({ completedAt: DONE, wgerExerciseId: 800, exerciseName: 'Pull-up', loggingType: 'bodyweight_reps', reps: 8, weight: null, completed: true, metricMode: 'reps_weight' }),
+      ],
+    ]
+
+    const result = await getProgramStats(USER, 'p1')
+
+    expect(getBodyweightKg).toHaveBeenCalledWith(USER)
+    const best = result!.exercises[0].weeks[0].best
+    expect(best).toMatchObject({ kind: 'e1rm', weightKg: 80 })
   })
 
   it('scopes the ownership read and the flat-rows read by user and program', async () => {

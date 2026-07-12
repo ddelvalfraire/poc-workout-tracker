@@ -1,7 +1,9 @@
 import { and, asc, count, eq } from 'drizzle-orm'
 import type { ExerciseSource } from '@/lib/custom-exercise-input'
-import { bestSet, type BestSet } from '@/lib/one-rep-max'
+import { bestScoredSet, type ScoredBestSet } from '@/lib/one-rep-max'
+import type { LoggingType } from '@/lib/workout-input'
 import { db } from './index'
+import { getBodyweightKg } from './preferences'
 import { nextProgramWeek } from './programs'
 import { programs, programDays, workouts, workoutExercises, sets } from './schema'
 
@@ -22,7 +24,7 @@ import { programs, programDays, workouts, workoutExercises, sets } from './schem
  * weights stay canonical kg — display converts, this module never does.
  */
 
-export type { BestSet } from '@/lib/one-rep-max'
+export type { ScoredBestSet } from '@/lib/one-rep-max'
 
 /** One week's adherence and volume within the block. */
 export interface ProgramWeekStats {
@@ -45,9 +47,25 @@ export interface ProgramWeekStats {
 /** One exercise's showing in one week. */
 export interface ExerciseWeekPoint {
   week: number
-  /** Highest-e1RM completed set this week (null = nothing loggable that week). */
-  best: BestSet | null
+  /** Best completed set this week, scored under the exercise's loggingType
+   *  ('e1rm' over the EFFECTIVE load, or the 'reps' fallback when nothing is
+   *  load-scorable). Null = nothing loggable that week. */
+  best: ScoredBestSet | null
   completedSets: number
+}
+
+/** One endpoint of an exercise's block PR (kg, full precision). */
+export interface ProgramExercisePRPoint {
+  week: number
+  reps: number
+  e1rm: number
+}
+
+/** "Did the block work" for one exercise: first scored week vs. the best.
+ *  A single scored week collapses to baseline === best. */
+export interface ProgramExercisePR {
+  baseline: ProgramExercisePRPoint
+  best: ProgramExercisePRPoint
 }
 
 /** An exercise's week-by-week trend within the block. */
@@ -58,8 +76,14 @@ export interface ProgramExerciseProgression {
   source: ExerciseSource
   /** Denormalized name from workout_exercises — latest occurrence wins. */
   name: string
+  /** How this exercise's weights read — drives scoring here and set display
+   *  downstream. Latest occurrence wins, same rule as `name`. */
+  loggingType: LoggingType
   /** Sparse: only weeks the exercise appeared in, ascending. */
   weeks: ExerciseWeekPoint[]
+  /** Baseline → best e1RM within the block; null when no week is e1rm-scorable
+   *  (rep-fallback-only exercises have no load PR to claim). */
+  pr: ProgramExercisePR | null
 }
 
 export interface ProgramStats {
@@ -90,6 +114,7 @@ export interface ProgramStatsRow {
   wgerExerciseId: number | null
   source: ExerciseSource | null
   exerciseName: string | null
+  loggingType: LoggingType | null
   reps: number | null
   weight: number | null // kg
   completed: boolean | null
@@ -105,6 +130,10 @@ export function aggregateProgramStats(
   plannedDays: number,
   currentWeek: number,
   rows: readonly ProgramStatsRow[],
+  // The load basis for bodyweight-type scoring. The CURRENT stored bodyweight
+  // scores ALL weeks — accepted drift (same trade-off as the workout summary);
+  // per-week bodyweight history is deliberately not modeled.
+  bodyweightKg: number | null = null,
 ): ProgramStats {
   // Defensive guard: instantiation always stamps programWeek alongside
   // programDayId, but the columns are independently nullable — a null-week
@@ -151,18 +180,20 @@ export function aggregateProgramStats(
     }
   })
 
-  return { program, currentWeek, weeks, exercises: aggregateExercises(valid) }
+  return { program, currentWeek, weeks, exercises: aggregateExercises(valid, bodyweightKg) }
 }
 
 /** Groups exercise rows by id into sparse week-by-week progressions, ordered
  *  by first appearance (rows arrive in startedAt/position/setNumber order). */
 function aggregateExercises(
   rows: readonly (ProgramStatsRow & { programWeek: number })[],
+  bodyweightKg: number | null,
 ): ProgramExerciseProgression[] {
   interface ExerciseAcc {
     wgerExerciseId: number
     source: ExerciseSource
     name: string
+    loggingType: LoggingType
     firstWeek: number
     firstIndex: number
     byWeek: Map<number, (ProgramStatsRow & { programWeek: number })[]>
@@ -182,13 +213,16 @@ function aggregateExercises(
       wgerExerciseId: row.wgerExerciseId,
       source,
       name: row.exerciseName ?? '',
+      loggingType: 'weight_reps',
       firstWeek: row.programWeek,
       firstIndex: index,
       byWeek: new Map(),
     }
     if (!existing) byExercise.set(key, acc)
-    // Latest non-null denormalized name wins (renames mid-block converge).
+    // Latest non-null denormalized name wins (renames mid-block converge);
+    // loggingType follows the same rule so scoring tracks the current setting.
     if (row.exerciseName !== null) acc.name = row.exerciseName
+    if (row.loggingType !== null) acc.loggingType = row.loggingType
     // A later row can lower the first week (startedAt order doesn't guarantee
     // week order) — the index must move with it so in-week ties stay honest.
     if (row.programWeek < acc.firstWeek) {
@@ -201,11 +235,8 @@ function aggregateExercises(
 
   return [...byExercise.values()]
     .sort((a, b) => a.firstWeek - b.firstWeek || a.firstIndex - b.firstIndex)
-    .map((acc) => ({
-      wgerExerciseId: acc.wgerExerciseId,
-      source: acc.source,
-      name: acc.name,
-      weeks: [...acc.byWeek.entries()]
+    .map((acc) => {
+      const weeks = [...acc.byWeek.entries()]
         .sort(([a], [b]) => a - b)
         .map(([week, weekRows]) => {
           // Completed sets only: seeded-but-unlogged sets carry weight with
@@ -213,11 +244,37 @@ function aggregateExercises(
           const completedRows = weekRows.filter((r) => r.completed === true)
           return {
             week,
-            best: bestSet(completedRows),
+            best: bestScoredSet(completedRows, acc.loggingType, bodyweightKg),
             completedSets: completedRows.length,
           }
-        }),
-    }))
+        })
+      return {
+        wgerExerciseId: acc.wgerExerciseId,
+        source: acc.source,
+        name: acc.name,
+        loggingType: acc.loggingType,
+        weeks,
+        pr: derivePR(weeks),
+      }
+    })
+}
+
+/**
+ * Baseline (first e1rm-scorable week) vs. best (highest e1rm; strictly-greater
+ * keeps ties on the earliest week, matching bestScoredSet's own policy) over
+ * an exercise's week points. Null when no week is e1rm-scorable — rep-fallback
+ * weeks carry no load estimate to claim a PR from.
+ */
+function derivePR(weeks: readonly ExerciseWeekPoint[]): ProgramExercisePR | null {
+  let baseline: ProgramExercisePRPoint | null = null
+  let best: ProgramExercisePRPoint | null = null
+  for (const point of weeks) {
+    if (point.best?.kind !== 'e1rm') continue
+    const candidate = { week: point.week, reps: point.best.reps, e1rm: point.best.e1rm }
+    if (baseline === null) baseline = candidate
+    if (best === null || candidate.e1rm > best.e1rm) best = candidate
+  }
+  return baseline !== null && best !== null ? { baseline, best } : null
 }
 
 /**
@@ -241,13 +298,16 @@ export async function getProgramStats(
     .where(and(eq(programs.id, programId), eq(programs.userId, userId)))
   if (!program) return null
 
-  // Independent reads — one round-trip of latency instead of three.
-  const [[dayCount], currentWeek, rows] = await Promise.all([
+  // Independent reads — one round-trip of latency instead of four. Bodyweight
+  // is the load basis for bodyweight-type exercise scoring (see
+  // aggregateProgramStats' bodyweightKg note on the current-value trade-off).
+  const [[dayCount], currentWeek, bodyweightKg, rows] = await Promise.all([
     db
       .select({ value: count(programDays.id) })
       .from(programDays)
       .where(eq(programDays.programId, programId)),
     nextProgramWeek(userId, programId, program.mesocycleWeeks),
+    getBodyweightKg(userId),
     // The inner join through program_days is the provenance filter — and its
     // known blind spot: workouts orphaned by a day deletion or a full-replace
     // program edit (programDayId SET NULL) drop out of stats silently.
@@ -263,6 +323,7 @@ export async function getProgramStats(
         wgerExerciseId: workoutExercises.wgerExerciseId,
         source: workoutExercises.source,
         exerciseName: workoutExercises.name,
+        loggingType: workoutExercises.loggingType,
         reps: sets.reps,
         weight: sets.weight,
         completed: sets.completed,
@@ -283,5 +344,5 @@ export async function getProgramStats(
   const statsRows = rows.filter((r): r is (typeof rows)[number] & { programDayId: string } =>
     r.programDayId !== null,
   )
-  return aggregateProgramStats(program, dayCount?.value ?? 0, currentWeek, statsRows)
+  return aggregateProgramStats(program, dayCount?.value ?? 0, currentWeek, statsRows, bodyweightKg)
 }
