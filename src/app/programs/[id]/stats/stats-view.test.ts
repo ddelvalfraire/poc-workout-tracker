@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
-import type { ProgramWeekStats } from '@/db/program-stats'
-import { visibleWeeks, volumeBarWidthPct, hasAnyTraining } from './stats-view'
+import { MAX_RELIABLE_REPS } from '@/lib/one-rep-max'
+import type { ProgramWeekStats, ProgramExercisePRPoint } from '@/db/program-stats'
+import { visibleWeeks, volumeBarWidthPct, hasAnyTraining, prDeltaKg, isHighRepEstimate } from './stats-view'
 
 function week(over: Partial<ProgramWeekStats> = {}): ProgramWeekStats {
   return {
@@ -74,6 +75,34 @@ describe('volumeBarWidthPct', () => {
   it('scales proportionally, rounded to a whole percent', () => {
     expect(volumeBarWidthPct(500, 1000)).toBe(50)
     expect(volumeBarWidthPct(333, 1000)).toBe(33)
+  })
+})
+
+describe('prDeltaKg', () => {
+  const point = (over: Partial<ProgramExercisePRPoint> = {}): ProgramExercisePRPoint => ({
+    week: 1,
+    reps: 8,
+    e1rm: 113,
+    ...over,
+  })
+
+  it('is the best-minus-baseline e1rm gain', () => {
+    const pr = { baseline: point({ e1rm: 113 }), best: point({ week: 3, e1rm: 130 }) }
+
+    expect(prDeltaKg(pr)).toBe(17)
+  })
+
+  it('is 0 when baseline and best are the same single week', () => {
+    const only = point()
+
+    expect(prDeltaKg({ baseline: only, best: only })).toBe(0)
+  })
+})
+
+describe('isHighRepEstimate', () => {
+  it('is false at exactly MAX_RELIABLE_REPS and true just past it', () => {
+    expect(isHighRepEstimate({ week: 1, reps: MAX_RELIABLE_REPS, e1rm: 100 })).toBe(false)
+    expect(isHighRepEstimate({ week: 1, reps: MAX_RELIABLE_REPS + 1, e1rm: 100 })).toBe(true)
   })
 })
 

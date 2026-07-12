@@ -1,4 +1,9 @@
-import type { ProgramWeekStats } from '@/db/program-stats'
+import { MAX_RELIABLE_REPS } from '@/lib/one-rep-max'
+import type {
+  ProgramWeekStats,
+  ProgramExercisePR,
+  ProgramExercisePRPoint,
+} from '@/db/program-stats'
 
 /**
  * Pure view logic for the program stats page — kept free of JSX so it
@@ -42,4 +47,17 @@ export function volumeBarWidthPct(tonnageKg: number, maxTonnageKg: number): numb
  *  teach empty state. Started days count even before any set completes. */
 export function hasAnyTraining(weeks: readonly ProgramWeekStats[]): boolean {
   return weeks.some((w) => !isZeroWeek(w))
+}
+
+/** The block's e1RM gain for one exercise, kg (0 for a single scored week —
+ *  baseline and best are the same point). Never negative: best ≥ baseline
+ *  by construction. */
+export function prDeltaKg(pr: ProgramExercisePR): number {
+  return pr.best.e1rm - pr.baseline.e1rm
+}
+
+/** Whether a PR endpoint's estimate came from a rep count past the reliable
+ *  Epley range — the UI flags these rather than presenting them as solid. */
+export function isHighRepEstimate(point: ProgramExercisePRPoint): boolean {
+  return point.reps > MAX_RELIABLE_REPS
 }

@@ -4,6 +4,7 @@ import { resolveUserId } from './resolve-user'
 import { jsonResult, errorResult } from './result'
 import { ToolError } from './errors'
 import { assertWorkoutIdShape } from './workout-id'
+import { assertProgramIdShape } from './program-id'
 import {
   listWorkoutSummaries,
   getWorkoutDetail,
@@ -11,6 +12,7 @@ import {
   type WorkoutDetail,
 } from '@/db/workouts'
 import { getProgramDayDetail, type ProgramDayDetail } from '@/db/programs'
+import { getProgramStats, type ProgramStats } from '@/db/program-stats'
 import { getWeightUnit, getBodyweightKg } from '@/db/preferences'
 import { searchExercises } from '@/lib/wger'
 import { kgToDisplay, type WeightUnit } from '@/lib/units'
@@ -19,8 +21,8 @@ import type { LoggingType } from '@/lib/workout-input'
 import { buildProgramDayView, type ProgramDayView } from './program-tools'
 
 /**
- * Registers the Phase 2 read tools — the agent's read-only window into a user's
- * training and the exercise catalog.
+ * Registers the read tools — the agent's read-only window into a user's
+ * training, program stats, and the exercise catalog.
  *
  * Each user-scoped tool funnels its `userId` through `resolveUserId` (the MCP
  * authorization boundary) and echoes the resolved id back so the agent can
@@ -157,6 +159,32 @@ export function registerReadTools(server: McpServer): void {
   )
 
   server.registerTool(
+    'get_program_stats',
+    {
+      title: 'Get Program Stats',
+      description:
+        "Per-week adherence (started/completed days vs planned), volume (completed sets + tonnage), and per-exercise progression and PRs (first-week baseline vs best est. 1RM) for one program — the same numbers the app's stats page shows. Weights are in the user's unit. Only workouts started from the program's days count. Use to answer \"how's my program going?\".",
+      inputSchema: { programId: z.string(), userId: z.string().optional() },
+    },
+    async ({ programId, userId }, extra) => {
+      try {
+        const resolved = resolveUserId(extra, userId)
+        assertProgramIdShape(programId)
+        // Resolve the stats first; only fetch the unit once we know the
+        // program exists, matching get_workout's not-found economy.
+        const stats = await getProgramStats(resolved, programId)
+        if (!stats) {
+          return errorResult(new ToolError(`Program ${programId} not found for user ${resolved}`))
+        }
+        const unit = await getWeightUnit(resolved)
+        return jsonResult(buildProgramStatsPayload(stats, resolved, unit))
+      } catch (error: unknown) {
+        return errorResult(error)
+      }
+    },
+  )
+
+  server.registerTool(
     'get_weight_unit',
     {
       title: 'Get Weight Unit',
@@ -174,6 +202,62 @@ export function registerReadTools(server: McpServer): void {
       }
     },
   )
+}
+
+/**
+ * Projects `ProgramStats` (kg-domain) into the agent-facing payload: every
+ * weight through `kgToDisplay`, counts/weeks/reps verbatim. `tonnageKg` is
+ * renamed `tonnage` because the value is no longer kg for lb users, and the
+ * per-set `index` inside ScoredBestSet is dropped — it addresses an internal
+ * list the agent never sees.
+ */
+function buildProgramStatsPayload(stats: ProgramStats, resolved: string, unit: WeightUnit) {
+  return {
+    userId: resolved,
+    unit,
+    program: stats.program,
+    currentWeek: stats.currentWeek,
+    weeks: stats.weeks.map(({ tonnageKg, ...week }) => ({
+      ...week,
+      tonnage: kgToDisplay(tonnageKg, unit),
+    })),
+    exercises: stats.exercises.map((exercise) => ({
+      wgerExerciseId: exercise.wgerExerciseId,
+      source: exercise.source,
+      name: exercise.name,
+      loggingType: exercise.loggingType,
+      weeks: exercise.weeks.map((point) => ({
+        week: point.week,
+        completedSets: point.completedSets,
+        best:
+          point.best === null
+            ? null
+            : point.best.kind === 'e1rm'
+              ? {
+                  kind: 'e1rm' as const,
+                  reps: point.best.reps,
+                  // The EFFECTIVE load (bodyweight-aware), not the stored column.
+                  weight: kgToDisplay(point.best.weightKg, unit),
+                  e1rm: kgToDisplay(point.best.e1rm, unit),
+                }
+              : { kind: 'reps' as const, reps: point.best.reps },
+      })),
+      pr:
+        exercise.pr === null
+          ? null
+          : {
+              baseline: convertPRPoint(exercise.pr.baseline, unit),
+              best: convertPRPoint(exercise.pr.best, unit),
+            },
+    })),
+  }
+}
+
+function convertPRPoint(
+  point: { week: number; reps: number; e1rm: number },
+  unit: WeightUnit,
+): { week: number; reps: number; e1rm: number } {
+  return { week: point.week, reps: point.reps, e1rm: kgToDisplay(point.e1rm, unit) }
 }
 
 /**

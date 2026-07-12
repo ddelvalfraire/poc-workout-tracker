@@ -2,13 +2,19 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { ChevronLeft } from 'lucide-react'
 import { requireUserId } from '@/lib/auth'
-import { getProgramStats } from '@/db/program-stats'
+import { getProgramStats, type ProgramExercisePR } from '@/db/program-stats'
 import { getWeightUnit } from '@/db/preferences'
 import { formatSet, formatVolume, formatE1RM } from '@/lib/format'
 import { AppHeader } from '@/components/app-header'
 import { buttonVariants } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
-import { visibleWeeks, volumeBarWidthPct, hasAnyTraining } from './stats-view'
+import {
+  visibleWeeks,
+  volumeBarWidthPct,
+  hasAnyTraining,
+  prDeltaKg,
+  isHighRepEstimate,
+} from './stats-view'
 
 /**
  * The one-screen block check-in: week position + adherence, per-week volume,
@@ -31,6 +37,12 @@ export default async function ProgramStatsPage({
   const trained = hasAnyTraining(stats.weeks)
   const weeks = visibleWeeks(stats.weeks, stats.currentWeek)
   const maxTonnage = weeks.reduce((max, w) => Math.max(max, w.tonnageKg), 0)
+  // Only exercises with a load-scorable week claim a PR row — rep-fallback
+  // lifts have no e1RM to compare, and an empty PRs table teaches nothing.
+  // Type predicate so the render below needs no non-null assertion.
+  const prExercises = stats.exercises.filter(
+    (e): e is (typeof stats.exercises)[number] & { pr: ProgramExercisePR } => e.pr !== null,
+  )
   // Weeks are 1-based in a 0-based array: previous week = index currentWeek - 2.
   // "Previous" per nextProgramWeek's position math, NOT guaranteed complete —
   // the row shows its own daysCompleted/planned, so a partial week reads honestly.
@@ -146,6 +158,73 @@ export default async function ProgramStatsPage({
               </ul>
             </section>
 
+            {prExercises.length > 0 && (
+              <section aria-label="PRs" className="mt-8">
+                <h3 className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
+                  PRs
+                </h3>
+                <ul className="mt-2 space-y-2.5">
+                  {prExercises.map((exercise) => {
+                    const pr = exercise.pr
+                    const delta = prDeltaKg(pr)
+                    const isSingleWeek = pr.baseline.week === pr.best.week
+                    // Either endpoint estimated past the reliable rep range
+                    // gets flagged — the flag names the shakier rep count.
+                    const highRepPoint = isHighRepEstimate(pr.best)
+                      ? pr.best
+                      : isHighRepEstimate(pr.baseline)
+                        ? pr.baseline
+                        : null
+                    return (
+                      <li key={`${exercise.source}:${exercise.wgerExerciseId}`}>
+                        <div className="flex items-baseline justify-between gap-3">
+                          <p className="min-w-0 truncate text-sm font-medium">{exercise.name}</p>
+                          <p className="shrink-0 text-sm tnum">
+                            {isSingleWeek ? (
+                              <>
+                                <span aria-hidden="true" className="text-muted-foreground">
+                                  ~
+                                </span>
+                                {formatE1RM(pr.baseline.e1rm, unit)}
+                                <span className="text-muted-foreground"> · wk {pr.baseline.week}</span>
+                              </>
+                            ) : (
+                              <>
+                                <span aria-hidden="true" className="text-muted-foreground">
+                                  ~
+                                </span>
+                                {formatE1RM(pr.baseline.e1rm, unit)}
+                                <span aria-hidden="true" className="text-muted-foreground">
+                                  {' → '}
+                                </span>
+                                <span className="sr-only"> to </span>
+                                <span aria-hidden="true" className="text-muted-foreground">
+                                  ~
+                                </span>
+                                {formatE1RM(pr.best.e1rm, unit)}
+                              </>
+                            )}
+                          </p>
+                        </div>
+                        {/* The verdict line: gain in the display unit. Volt is
+                            earned here — a PR is the page's one celebration. */}
+                        {!isSingleWeek && delta > 0 && (
+                          <p className="mt-0.5 text-right text-sm font-semibold text-primary tnum">
+                            +{formatE1RM(delta, unit)}
+                          </p>
+                        )}
+                        {highRepPoint && (
+                          <p className="mt-0.5 text-right text-xs text-muted-foreground tnum">
+                            est. from {highRepPoint.reps} reps
+                          </p>
+                        )}
+                      </li>
+                    )
+                  })}
+                </ul>
+              </section>
+            )}
+
             {stats.exercises.length > 0 && (
               <section aria-label="Progression" className="mt-8">
                 <h3 className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
@@ -161,19 +240,30 @@ export default async function ProgramStatsPage({
                             <span className="w-11 shrink-0 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground tnum">
                               Wk {point.week}
                             </span>
-                            {point.best ? (
+                            {point.best?.kind === 'e1rm' ? (
                               <>
                                 <span className="tnum">
-                                  {formatSet(point.best.reps, point.best.weightKg, unit)}
+                                  {/* ScoredBestSet.weightKg is the EFFECTIVE
+                                      load — for BW types that's bodyweight ±
+                                      assist, which must not read as a barbell
+                                      line; the rep count is the honest fact. */}
+                                  {exercise.loggingType === 'weight_reps'
+                                    ? formatSet(point.best.reps, point.best.weightKg, unit)
+                                    : `${point.best.reps} reps`}
                                 </span>
                                 <span className="text-muted-foreground tnum">
                                   <span aria-hidden="true">~</span>
                                   {formatE1RM(point.best.e1rm, unit)}
                                 </span>
                               </>
+                            ) : point.best ? (
+                              // Rep fallback: nothing load-scorable (maxed
+                              // stack, BW lift without a stored bodyweight) —
+                              // the best effort still gets its readout.
+                              <span className="tnum">{point.best.reps} reps</span>
                             ) : (
-                              // Null best ≠ nothing happened: null-weight
-                              // machine weeks still show the effort.
+                              // Null best ≠ nothing happened: a week of
+                              // unloggable sets still shows the effort.
                               <span className="text-muted-foreground tnum">
                                 {point.completedSets} set{point.completedSets === 1 ? '' : 's'}
                               </span>
