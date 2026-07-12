@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { ChevronLeft } from 'lucide-react'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { requireUserId } from '@/lib/auth'
 import {
   getProgramDetail,
@@ -137,10 +137,19 @@ export default async function ProgramDetailPage({
       <main className="mx-auto w-full max-w-md flex-1 px-5 pb-safe">
         {/* "You are here" stays anchored to the CURRENT week even while browsing
             another one — the pills say what's selected, this says what's real. */}
-        <p className="mt-4 text-sm text-muted-foreground">
-          Week {currentWeek} of {program.mesocycleWeeks}
-          {program.deloadWeek !== null && ` · deload wk ${program.deloadWeek}`}
-        </p>
+        <div className="mt-4 flex items-baseline justify-between gap-3">
+          <p className="min-w-0 truncate text-sm text-muted-foreground">
+            Week {currentWeek} of {program.mesocycleWeeks}
+            {program.deloadWeek !== null && ` · deload wk ${program.deloadWeek}`}
+          </p>
+          <Link
+            href={`/programs/${program.id}/stats`}
+            className="flex shrink-0 items-center gap-0.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
+          >
+            Stats
+            <ChevronRight aria-hidden="true" className="size-4" />
+          </Link>
+        </div>
 
         {/* Week selector: plain links so the browser owns the state (share,
             back button, reload all just work). Sits tight under the header
