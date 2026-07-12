@@ -16,6 +16,9 @@ import {
  */
 interface StartDayButtonProps {
   programDayId: string
+  /** Explicit mesocycle week to stamp on the workout (the program page's
+   *  selected week). Omitted → auto-derived from history (home hero). */
+  week?: number
   size?: 'sm' | 'default' | 'lg'
   label?: string
   /** Demotes the button when another CTA owns the screen (e.g. a resume banner). */
@@ -32,6 +35,7 @@ interface StartDayButtonProps {
 
 export function StartDayButton({
   programDayId,
+  week,
   size = 'sm',
   label = 'Start this day',
   variant = 'default',
@@ -49,7 +53,7 @@ export function StartDayButton({
   // inline error; the dialog path lets SessionConflictDialog catch so the
   // error text lands inside the sheet and nothing navigates.
   async function instantiateAndGo() {
-    const { workoutId } = await startProgramDayAction(programDayId)
+    const { workoutId } = await startProgramDayAction(programDayId, week)
     // Straight into the logger: the intent behind "Start" is to log, not
     // to review — the read-only detail page is the post-session view.
     router.push(`/workout/${workoutId}/edit`)

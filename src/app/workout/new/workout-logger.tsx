@@ -84,6 +84,11 @@ interface WorkoutLoggerProps {
   /** Per-exercise planned targets (by wgerExerciseId) for program workouts —
    *  the ghost fallback when an exercise has no prior history. */
   planTargets?: Record<number, PlanSetTarget[]>
+  /** Which program (day · week) this session is stamped to, e.g. "Legs ·
+   *  Week 1". Provenance is fixed at start and can't be edited — surfacing
+   *  it here is what keeps a wrong-day start from absorbing a full session
+   *  unnoticed. Absent for ad-hoc workouts. */
+  programContext?: string
   /** The persisted session start, for edit mode; new sessions clock from open time. */
   startedAt?: Date
   /** The user's bars + plate denominations for the plate calculator (display unit). */
@@ -105,6 +110,7 @@ export function WorkoutLogger({
   initialName = '',
   unit = 'kg',
   planTargets,
+  programContext,
   startedAt,
   equipment,
   defaultRestSec = null,
@@ -456,12 +462,20 @@ export function WorkoutLogger({
           {/* A real label, not placeholder-as-label: the placeholder vanishes
               the moment typing starts, and an unlabeled box at the top of the
               screen reads as a mystery field. */}
-          <label
-            htmlFor="workout-name"
-            className="px-1 text-xs font-semibold uppercase tracking-widest text-muted-foreground"
-          >
-            Workout name
-          </label>
+          <div className="flex items-baseline justify-between gap-3 px-1">
+            <label
+              htmlFor="workout-name"
+              className="text-xs font-semibold uppercase tracking-widest text-muted-foreground"
+            >
+              Workout name
+            </label>
+            {/* The session's fixed (day · week) stamp: renaming or swapping
+                exercises never moves a workout to another day, so the stamp
+                stays visible while logging. */}
+            {programContext && (
+              <span className="shrink-0 text-xs text-muted-foreground tnum">{programContext}</span>
+            )}
+          </div>
           <Input
             id="workout-name"
             placeholder="Optional — e.g. Lower"

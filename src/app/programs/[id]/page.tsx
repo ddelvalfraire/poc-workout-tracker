@@ -98,10 +98,6 @@ export default async function ProgramDetailPage({
       .filter((w) => w.completedAt !== null && w.programWeek !== null)
       .map((w) => w.programWeek as number),
   )
-  // A past week nobody touched collapses to one quiet line — a stack of
-  // per-day "Skipped" cards would shout about absence.
-  const isFullySkippedWeek = isPastWeek && dayStates.every((state) => state === null)
-
   const status = (
     program.status === 'active' || program.status === 'archived' ? program.status : 'draft'
   ) as 'draft' | 'active' | 'archived'
@@ -230,14 +226,7 @@ export default async function ProgramDetailPage({
           )}
         </div>
 
-        {isFullySkippedWeek ? (
-          // One quiet line for a week that never happened: the fact ("nothing
-          // trained") once, day names dot-joined — not a card per absence.
-          <p className="mt-3 text-sm text-muted-foreground">
-            Nothing trained this week — {program.days.map((d) => d.name).join(' · ')} skipped.
-          </p>
-        ) : (
-          <div className="mt-3 space-y-3">
+        <div className="mt-3 space-y-3">
             {program.days.map((day, dayIndex) => {
               const dayState = dayStates[dayIndex]
               const workout = dayState?.workout ?? null
@@ -349,22 +338,6 @@ export default async function ProgramDetailPage({
                 )
               }
 
-              if (isPastWeek) {
-                // Skipped is a non-event: one quiet line per day, no target
-                // list — the quietest thing on the page by design.
-                return (
-                  <section
-                    key={day.id}
-                    className="flex min-w-0 items-baseline justify-between gap-3 rounded-2xl border border-border bg-card px-4 py-3"
-                  >
-                    {header}
-                    <span className="shrink-0 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-                      Skipped
-                    </span>
-                  </section>
-                )
-              }
-
               return (
                 <section
                   key={day.id}
@@ -375,7 +348,17 @@ export default async function ProgramDetailPage({
                     isNextUp ? 'border-primary/40' : 'border-border',
                   )}
                 >
-                  {header}
+                  <div className="flex min-w-0 items-baseline justify-between gap-3">
+                    {header}
+                    {/* A past-week untouched day is still a fact ("Skipped"),
+                        but no longer a dead end — it keeps its targets and
+                        Start so missed days can be made up. */}
+                    {isPastWeek && (
+                      <span className="shrink-0 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                        Skipped
+                      </span>
+                    )}
+                  </div>
 
                   <div className="mt-3 space-y-3">
                     {day.exercises.map((exercise, exerciseIndex) => (
@@ -409,26 +392,24 @@ export default async function ProgramDetailPage({
                     ))}
                   </div>
 
-                  {/* Start only exists on the CURRENT week: sessions belong to
-                      the week the user is in (provenance is stamped at
-                      instantiation), so starting a future week from here
-                      would forge history. Future weeks are a preview, and
-                      the CTA's absence is what says so. */}
-                  {isCurrentWeek && (
-                    <div className="mt-4">
-                      <StartDayButton
-                        programDayId={day.id}
-                        size={isNextUp ? 'default' : 'sm'}
-                        variant={isNextUp ? 'default' : 'outline'}
-                        activeSession={guardSession}
-                      />
-                    </div>
-                  )}
+                  {/* Any untouched day of the SELECTED week is startable — the
+                      workout is stamped with that exact (day, week), so
+                      provenance stays the user's explicit choice and a skipped
+                      day can't pin the block. Only the current week's next-up
+                      day earns the volt treatment. */}
+                  <div className="mt-4">
+                    <StartDayButton
+                      programDayId={day.id}
+                      week={selectedWeek}
+                      size={isNextUp ? 'default' : 'sm'}
+                      variant={isNextUp ? 'default' : 'outline'}
+                      activeSession={guardSession}
+                    />
+                  </div>
                 </section>
               )
             })}
-          </div>
-        )}
+        </div>
 
         <ProgramActions id={program.id} status={status} />
       </main>

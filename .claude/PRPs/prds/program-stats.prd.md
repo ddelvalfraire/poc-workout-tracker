@@ -124,8 +124,8 @@ Programs → open active program → Stats tab → see: "Week 2 of 7 · 4/5 days
 |---|-------|-------------|--------|----------|---------|----------|
 | 1 | Stats data layer | `src/db/program-stats.ts`: aggregate program-linked workouts into per-week adherence, volume, and per-exercise progression (TDD, kg-domain) | complete | - | - | [plan](../plans/completed/program-stats-data-layer.plan.md) · [report](../reports/program-stats-data-layer-report.md) |
 | 2 | Stats UI | Stats tab/section on program detail page: adherence header, weekly volume strip, progression table; empty states | complete | - | 1 | [plan](../plans/completed/program-stats-ui.plan.md) · [report](../reports/program-stats-ui-report.md) |
-| 3 | Program PRs | Baseline vs. best e1RM per exercise within block, added to data layer + UI | pending | with 4 | 1, 2 | - |
-| 4 | MCP `get_program_stats` | Read tool exposing the phase-1 aggregate; resolve open question first | pending | with 3 | 1 | - |
+| 3 | Program PRs | Baseline vs. best e1RM per exercise within block, added to data layer + UI | complete | with 4 | 1, 2 | [plan](../plans/completed/program-stats-prs-and-mcp.plan.md) · [report](../reports/program-stats-prs-and-mcp-report.md) |
+| 4 | MCP `get_program_stats` | Read tool exposing the phase-1 aggregate; open question resolved YES (2026-07-11) | complete | with 3 | 1 | [plan](../plans/completed/program-stats-prs-and-mcp.plan.md) · [report](../reports/program-stats-prs-and-mcp-report.md) |
 
 ### Phase Details
 

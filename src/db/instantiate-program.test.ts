@@ -411,6 +411,28 @@ describe('instantiateProgramDay (resume semantics)', () => {
     expect(records.length).toBeGreaterThan(0)
   })
 
+  it('rejects an explicit week past the mesocycle (no garbage provenance)', async () => {
+    // Arrange — 4-week program; week 5 has no home on the block's axis. The
+    // web action and MCP tool both accept caller-supplied weeks, so the data
+    // layer is the backstop against a forged/stale week poisoning
+    // nextProgramWeek's max(programWeek) read.
+    findFirst.mockResolvedValue(
+      dayFixture({ mesocycleWeeks: 4, sets: [{ setNumber: 1, suggestedLoadKg: 100 }] }),
+    )
+
+    await expect(instantiateProgramDay(USER, 'd1', 5)).rejects.toThrow(/week/)
+    expect(records).toHaveLength(0)
+  })
+
+  it('rejects an explicit week below 1', async () => {
+    findFirst.mockResolvedValue(
+      dayFixture({ mesocycleWeeks: 4, sets: [{ setNumber: 1, suggestedLoadKg: 100 }] }),
+    )
+
+    await expect(instantiateProgramDay(USER, 'd1', 0)).rejects.toThrow(/week/)
+    expect(records).toHaveLength(0)
+  })
+
   it('resumes on the DERIVED-week path too (lookup runs after nextProgramWeek)', async () => {
     // Arrange — week omitted: nextProgramWeek consumes selects 0-2
     // (current=2, 3 days, 1 done → stays week 2); the resume lookup is the

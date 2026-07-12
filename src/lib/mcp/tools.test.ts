@@ -55,6 +55,7 @@ describe('registerTools', () => {
       'delete_workout',
       'get_last_performance',
       'get_program',
+      'get_program_stats',
       'get_weight_unit',
       'get_workout',
       'instantiate_program_day',

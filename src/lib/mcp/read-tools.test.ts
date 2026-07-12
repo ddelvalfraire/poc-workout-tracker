@@ -7,12 +7,14 @@ vi.mock('@/db/workouts', () => ({
   getLastPerformance: vi.fn(),
 }))
 vi.mock('@/db/programs', () => ({ getProgramDayDetail: vi.fn() }))
+vi.mock('@/db/program-stats', () => ({ getProgramStats: vi.fn() }))
 vi.mock('@/db/preferences', () => ({ getWeightUnit: vi.fn(), getBodyweightKg: vi.fn() }))
 vi.mock('@/lib/wger', () => ({ searchExercises: vi.fn() }))
 
 import { registerReadTools } from './read-tools'
 import { listWorkoutSummaries, getWorkoutDetail, getLastPerformance } from '@/db/workouts'
 import { getProgramDayDetail } from '@/db/programs'
+import { getProgramStats, type ProgramStats } from '@/db/program-stats'
 import { getWeightUnit, getBodyweightKg } from '@/db/preferences'
 import { searchExercises } from '@/lib/wger'
 import { kgToDisplay } from '@/lib/units'
@@ -22,6 +24,7 @@ const mockedList = vi.mocked(listWorkoutSummaries)
 const mockedDetail = vi.mocked(getWorkoutDetail)
 const mockedLast = vi.mocked(getLastPerformance)
 const mockedProgramDay = vi.mocked(getProgramDayDetail)
+const mockedProgramStats = vi.mocked(getProgramStats)
 const mockedUnit = vi.mocked(getWeightUnit)
 const mockedBodyweight = vi.mocked(getBodyweightKg)
 const mockedSearch = vi.mocked(searchExercises)
@@ -68,13 +71,14 @@ describe('registerReadTools', () => {
     else process.env.MCP_DEV_USER_ID = original
   })
 
-  it('registers exactly the five read tools', () => {
+  it('registers exactly the six read tools', () => {
     // Arrange + Act
     const tools = setup()
 
     // Assert
     expect([...tools.keys()].sort()).toEqual([
       'get_last_performance',
+      'get_program_stats',
       'get_weight_unit',
       'get_workout',
       'list_workouts',
@@ -520,6 +524,100 @@ describe('registerReadTools', () => {
     })
   })
 
+  describe('get_program_stats', () => {
+    const PID = '22222222-2222-4222-8222-222222222222'
+
+    /** A two-week block with an e1rm week, a rep-fallback week, and a PR. */
+    const STATS: ProgramStats = {
+      program: { id: PID, name: 'PPL', status: 'active', mesocycleWeeks: 4, deloadWeek: null },
+      currentWeek: 2,
+      weeks: [
+        { week: 1, daysStarted: 2, daysCompleted: 2, plannedDays: 3, completedSets: 10, tonnageKg: 1000 },
+        { week: 2, daysStarted: 1, daysCompleted: 0, plannedDays: 3, completedSets: 2, tonnageKg: 0 },
+      ],
+      exercises: [
+        {
+          wgerExerciseId: 73,
+          source: 'wger',
+          name: 'Bench Press',
+          loggingType: 'weight_reps',
+          weeks: [
+            { week: 1, best: { kind: 'e1rm', index: 0, reps: 8, weightKg: 100, e1rm: 120 }, completedSets: 3 },
+            { week: 2, best: { kind: 'reps', index: 0, reps: 12 }, completedSets: 2 },
+          ],
+          pr: { baseline: { week: 1, reps: 8, e1rm: 120 }, best: { week: 1, reps: 8, e1rm: 120 } },
+        },
+      ],
+    }
+
+    it('converts weights to the user unit and preserves counts, kinds, and PR weeks', async () => {
+      // Arrange — lb user (beforeEach); every kg value must convert, nothing else
+      const tools = setup()
+      mockedProgramStats.mockResolvedValue(STATS)
+
+      // Act
+      const result = await tools.get('get_program_stats')!({ programId: PID })
+
+      // Assert
+      expect(mockedProgramStats).toHaveBeenCalledWith('user_env', PID)
+      expect(payload(result)).toEqual({
+        userId: 'user_env',
+        unit: 'lb',
+        program: { id: PID, name: 'PPL', status: 'active', mesocycleWeeks: 4, deloadWeek: null },
+        currentWeek: 2,
+        weeks: [
+          { week: 1, daysStarted: 2, daysCompleted: 2, plannedDays: 3, completedSets: 10, tonnage: kgToDisplay(1000, 'lb') },
+          { week: 2, daysStarted: 1, daysCompleted: 0, plannedDays: 3, completedSets: 2, tonnage: 0 },
+        ],
+        exercises: [
+          {
+            wgerExerciseId: 73,
+            source: 'wger',
+            name: 'Bench Press',
+            loggingType: 'weight_reps',
+            weeks: [
+              {
+                week: 1,
+                completedSets: 3,
+                best: { kind: 'e1rm', reps: 8, weight: kgToDisplay(100, 'lb'), e1rm: kgToDisplay(120, 'lb') },
+              },
+              { week: 2, completedSets: 2, best: { kind: 'reps', reps: 12 } },
+            ],
+            pr: {
+              baseline: { week: 1, reps: 8, e1rm: kgToDisplay(120, 'lb') },
+              best: { week: 1, reps: 8, e1rm: kgToDisplay(120, 'lb') },
+            },
+          },
+        ],
+      })
+    })
+
+    it('returns isError /not found/ when the program is missing or not owned', async () => {
+      // Arrange
+      const tools = setup()
+      mockedProgramStats.mockResolvedValue(null)
+
+      // Act
+      const result = await tools.get('get_program_stats')!({ programId: PID })
+
+      // Assert
+      expect(result.isError).toBe(true)
+      expect(result.content[0]?.text).toMatch(/not found/)
+    })
+
+    it('surfaces not-found for a malformed (non-UUID) id without hitting the db', async () => {
+      // Arrange
+      const tools = setup()
+
+      // Act
+      const result = await tools.get('get_program_stats')!({ programId: 'nope' })
+
+      // Assert
+      expect(result.isError).toBe(true)
+      expect(mockedProgramStats).not.toHaveBeenCalled()
+    })
+  })
+
   // The remaining user-scoped handlers share list_workouts' try/catch + resolveUserId
   // structure; cover the failure and no-user paths for each so the contract is explicit.
   describe('shared failure handling (remaining user-scoped tools)', () => {
@@ -527,6 +625,7 @@ describe('registerReadTools', () => {
       { name: 'get_workout', args: { id: '11111111-1111-4111-8111-111111111111' }, dep: mockedDetail as unknown as Mock },
       { name: 'get_last_performance', args: { wgerExerciseId: 1 }, dep: mockedLast as unknown as Mock },
       { name: 'get_weight_unit', args: {}, dep: mockedUnit as unknown as Mock },
+      { name: 'get_program_stats', args: { programId: '22222222-2222-4222-8222-222222222222' }, dep: mockedProgramStats as unknown as Mock },
     ] as const
 
     it.each(cases)(
