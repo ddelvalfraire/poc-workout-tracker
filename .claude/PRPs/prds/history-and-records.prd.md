@@ -226,7 +226,7 @@ table; zero required migrations for the MVP.
 
 | # | Phase | Description | Status | Parallel | Depends | PRP Plan |
 |---|-------|-------------|--------|----------|---------|----------|
-| 1 | Records lib (extract) | `src/lib/records.ts`: move best-set/PR detection out of `workout/[id]/page.tsx`, keyed on `(source,id)`; detail page consumes it; behavior-preserving + tests | pending | - | - | - |
+| 1 | Records lib (extract) | `src/lib/records.ts`: move best-set/PR detection out of `workout/[id]/page.tsx`, keyed on `(source,id)`; detail page consumes it; behavior-preserving + tests | complete | - | - | - |
 | 2 | Global exercise history | `/exercises/[source]/[id]` page + `src/db/exercise-history.ts` per-session aggregate; e1RM sparkline, last-time, session list; entry links | pending | with 3 | 1 | - |
 | 3 | Streak + calendar | Home-screen streak count + local-day month heatmap; client bucket component over completion instants | pending | with 2 | - | - |
 | 4 | Live PR badge | Logger fires volt badge + haptic on a PR set completion via `lib/records.ts`; reduced-motion fallback | pending | - | 1 | - |

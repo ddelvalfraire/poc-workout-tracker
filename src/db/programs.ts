@@ -10,6 +10,8 @@ import {
   type SetOverrideLike,
 } from '@/lib/progression'
 import { bestSet } from '@/lib/one-rep-max'
+import { exerciseKey } from '@/lib/records'
+import type { ExerciseSource } from '@/lib/custom-exercise-input'
 import { pickNextProgramDay } from '@/lib/next-program-day'
 import { db } from './index'
 import { getLastPerformance, getExerciseHistoryBefore } from './workouts'
@@ -473,6 +475,7 @@ export async function getNextProgramDay(userId: string): Promise<NextProgramDay 
  *  paired with its program row (preview). */
 export interface DayForDerivation {
   exercises: {
+    source: ExerciseSource
     wgerExerciseId: number
     progression: Progression | null
     sets: (ProgramSetRowLike & { overrides: (SetOverrideLike & { week: number })[] })[]
@@ -485,40 +488,45 @@ export async function deriveDayPrescription(
   day: DayForDerivation,
   week: number,
 ): Promise<DerivedSet[][]> {
-  const ids = [...new Set(day.exercises.map((e) => e.wgerExerciseId))]
-  const historyRows = ids.length > 0 ? await getExerciseHistoryBefore(userId, ids, new Date()) : []
+  // History reads key on the (source, id) composite so a custom exercise never
+  // borrows a wger exercise's e1RM when their numeric ids collide.
+  const refs = Array.from(
+    new Map(day.exercises.map((e) => [exerciseKey(e.source, e.wgerExerciseId), e])).values(),
+  ).map((e) => ({ source: e.source, wgerExerciseId: e.wgerExerciseId }))
+  const historyRows = refs.length > 0 ? await getExerciseHistoryBefore(userId, refs, new Date()) : []
 
-  const e1rmById = new Map<number, number | null>()
-  for (const id of ids) {
+  const e1rmByKey = new Map<string, number | null>()
+  for (const ref of refs) {
     // weight_reps rows only: for BW-type rows `weight` is added/assisted
     // load, not total — feeding it to bestSet would deflate the e1RM the
     // prescription math anchors on. Program prescriptions are absolute
     // loads, so only absolute-load history is admissible.
     const rows = historyRows.filter(
-      (r) => r.wgerExerciseId === id && r.loggingType === 'weight_reps',
+      (r) =>
+        r.source === ref.source &&
+        r.wgerExerciseId === ref.wgerExerciseId &&
+        r.loggingType === 'weight_reps',
     )
-    e1rmById.set(id, bestSet(rows)?.e1rm ?? null)
+    e1rmByKey.set(exerciseKey(ref.source, ref.wgerExerciseId), bestSet(rows)?.e1rm ?? null)
   }
 
   // Only double-progression needs the LAST session's sets specifically.
-  const lastSetsById = new Map<number, ExerciseHistoryInput['lastSets']>()
+  // (getLastPerformance is still id-keyed — a pre-existing source-blind read;
+  // keying this map by composite keeps it consistent with the e1RM path above.)
+  const lastSetsByKey = new Map<string, ExerciseHistoryInput['lastSets']>()
   for (const exercise of day.exercises) {
-    if (
-      exercise.progression?.scheme === 'double-progression' &&
-      !lastSetsById.has(exercise.wgerExerciseId)
-    ) {
+    const key = exerciseKey(exercise.source, exercise.wgerExerciseId)
+    if (exercise.progression?.scheme === 'double-progression' && !lastSetsByKey.has(key)) {
       const perf = await getLastPerformance(userId, exercise.wgerExerciseId)
-      lastSetsById.set(
-        exercise.wgerExerciseId,
-        perf?.sets.map((s) => ({ reps: s.reps, weightKg: s.weight })) ?? null,
-      )
+      lastSetsByKey.set(key, perf?.sets.map((s) => ({ reps: s.reps, weightKg: s.weight })) ?? null)
     }
   }
 
   return day.exercises.map((exercise) => {
+    const key = exerciseKey(exercise.source, exercise.wgerExerciseId)
     const history: ExerciseHistoryInput = {
-      e1rmKg: e1rmById.get(exercise.wgerExerciseId) ?? null,
-      lastSets: lastSetsById.get(exercise.wgerExerciseId) ?? null,
+      e1rmKg: e1rmByKey.get(key) ?? null,
+      lastSets: lastSetsByKey.get(key) ?? null,
     }
     const derived = deriveWeekSets({
       sets: exercise.sets,

@@ -1,5 +1,6 @@
-import { and, asc, count, countDistinct, desc, eq, gt, inArray, lt, max, ne, sql } from 'drizzle-orm'
+import { and, asc, count, countDistinct, desc, eq, gt, lt, max, ne, or, sql } from 'drizzle-orm'
 import type { WorkoutInput, LoggingType } from '@/lib/workout-input'
+import type { ExerciseSource } from '@/lib/custom-exercise-input'
 import { db } from './index'
 import { workouts, workoutExercises, sets } from './schema'
 
@@ -99,19 +100,35 @@ export async function getLastPerformance(
   return { performedAt: recent.performedAt, sets: setRows }
 }
 
+/** An exercise's composite identity — `source` disambiguates a custom id from
+ *  a wger one that shares the same integer. */
+export interface ExerciseRef {
+  source: ExerciseSource
+  wgerExerciseId: number
+}
+
 /** Flat set rows (reps/weight in kg) for the given exercises across the user's
  *  workouts STARTED BEFORE `before` — the corpus for prior-best/PR comparison.
- *  Excludes the current workout naturally via the time bound. */
+ *  Excludes the current workout naturally via the time bound. Matches on the
+ *  full `(source, id)` composite so a custom exercise never borrows a wger
+ *  exercise's history (or vice-versa). Each row echoes its own `source`. */
 export async function getExerciseHistoryBefore(
   userId: string,
-  wgerExerciseIds: number[],
+  exercises: ExerciseRef[],
   before: Date,
 ): Promise<
-  { wgerExerciseId: number; reps: number | null; weight: number | null; loggingType: LoggingType }[]
+  {
+    source: ExerciseSource
+    wgerExerciseId: number
+    reps: number | null
+    weight: number | null
+    loggingType: LoggingType
+  }[]
 > {
-  if (wgerExerciseIds.length === 0) return []
+  if (exercises.length === 0) return []
   return db
     .select({
+      source: workoutExercises.source,
       wgerExerciseId: workoutExercises.wgerExerciseId,
       reps: sets.reps,
       weight: sets.weight,
@@ -125,7 +142,16 @@ export async function getExerciseHistoryBefore(
     .where(
       and(
         eq(workouts.userId, userId),
-        inArray(workoutExercises.wgerExerciseId, wgerExerciseIds),
+        // OR of (source AND id) pairs: the composite match that keeps custom
+        // and wger exercises with a shared numeric id from bleeding together.
+        or(
+          ...exercises.map((e) =>
+            and(
+              eq(workoutExercises.source, e.source),
+              eq(workoutExercises.wgerExerciseId, e.wgerExerciseId),
+            ),
+          ),
+        ),
         lt(workouts.startedAt, before),
       ),
     )

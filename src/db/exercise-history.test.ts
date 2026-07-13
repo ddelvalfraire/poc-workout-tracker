@@ -47,40 +47,56 @@ beforeEach(() => {
 })
 
 describe('getExerciseHistoryBefore', () => {
-  it('returns [] without querying when no exercise ids are given', async () => {
+  it('returns [] without querying when no exercises are given', async () => {
     const result = await getExerciseHistoryBefore(USER, [], BEFORE)
 
     expect(result).toEqual([])
-    expect(selectCount).toBe(0) // the empty-id guard avoids inArray([]) invalid SQL
+    expect(selectCount).toBe(0) // the empty guard avoids an empty OR (invalid SQL)
   })
 
   it('returns the flat set rows from the query', async () => {
     selectResults = [
       [
-        { wgerExerciseId: 73, reps: 5, weight: 100 },
-        { wgerExerciseId: 73, reps: 3, weight: 110 },
-        { wgerExerciseId: 91, reps: null, weight: null },
+        { source: 'wger', wgerExerciseId: 73, reps: 5, weight: 100 },
+        { source: 'wger', wgerExerciseId: 73, reps: 3, weight: 110 },
+        { source: 'custom', wgerExerciseId: 91, reps: null, weight: null },
       ],
     ]
 
-    const result = await getExerciseHistoryBefore(USER, [73, 91], BEFORE)
+    const result = await getExerciseHistoryBefore(
+      USER,
+      [
+        { source: 'wger', wgerExerciseId: 73 },
+        { source: 'custom', wgerExerciseId: 91 },
+      ],
+      BEFORE,
+    )
 
     expect(result).toEqual([
-      { wgerExerciseId: 73, reps: 5, weight: 100 },
-      { wgerExerciseId: 73, reps: 3, weight: 110 },
-      { wgerExerciseId: 91, reps: null, weight: null },
+      { source: 'wger', wgerExerciseId: 73, reps: 5, weight: 100 },
+      { source: 'wger', wgerExerciseId: 73, reps: 3, weight: 110 },
+      { source: 'custom', wgerExerciseId: 91, reps: null, weight: null },
     ])
   })
 
-  it('scopes the query by user, the exercise ids, and the time bound', async () => {
+  it('scopes the query by user, the (source, id) composites, and the time bound', async () => {
     selectResults = [[]]
 
-    await getExerciseHistoryBefore(USER, [73, 91], BEFORE)
+    await getExerciseHistoryBefore(
+      USER,
+      [
+        { source: 'wger', wgerExerciseId: 73 },
+        { source: 'custom', wgerExerciseId: 91 },
+      ],
+      BEFORE,
+    )
 
     const { params } = new PgDialect().sqlToQuery(whereArgs[0] as SQL)
     expect(params).toContain(USER) // user-scoping (no cross-user leak)
-    expect(params).toContain(73) // inArray ids
+    expect(params).toContain(73) // composite ids...
     expect(params).toContain(91)
+    expect(params).toContain('wger') // ...matched WITH their source
+    expect(params).toContain('custom')
     // The `startedAt < before` bound carries the cutoff (Date or its serialization).
     expect(
       params.some((p) => p === BEFORE || p === BEFORE.toISOString() || p === BEFORE.toUTCString()),

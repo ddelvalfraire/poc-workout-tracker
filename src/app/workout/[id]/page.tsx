@@ -12,6 +12,7 @@ import {
   formatWorkoutDuration,
 } from "@/lib/format";
 import { bestScoredSet } from "@/lib/one-rep-max";
+import { detectPrBadges, exerciseKey } from "@/lib/records";
 import { AppHeader } from "@/components/app-header";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -38,65 +39,29 @@ export default async function WorkoutDetailPage({
   // path — belongs in the logger instead.
   if (workout.completedAt === null) redirect(`/workout/${id}/edit`);
 
-  const exerciseIds = [
-    ...new Set(workout.exercises.map((e) => e.wgerExerciseId)),
-  ];
+  // The prior-best corpus is fetched on the exercises' full (source, id)
+  // identities, de-duped so an exercise logged in multiple cards asks once.
+  const exerciseRefs = Array.from(
+    new Map(
+      workout.exercises.map((e) => [
+        exerciseKey(e.source, e.wgerExerciseId),
+        { source: e.source, wgerExerciseId: e.wgerExerciseId },
+      ]),
+    ).values(),
+  );
   const history = await getExerciseHistoryBefore(
     userId,
-    exerciseIds,
+    exerciseRefs,
     workout.startedAt,
   );
-  const priorByExercise = new Map<
-    number,
-    { reps: number | null; weight: number | null }[]
-  >();
-  for (const row of history) {
-    const list = priorByExercise.get(row.wgerExerciseId) ?? [];
-    list.push({ reps: row.reps, weight: row.weight });
-    priorByExercise.set(row.wgerExerciseId, list);
-  }
-
-  // A PR is a property of the exercise + workout, not a single card: an exercise
-  // logged in more than one card is judged by its best set across the whole
-  // workout, and the badge renders once — on the first card for that exercise.
-  const currentByExercise = new Map<
-    number,
-    { reps: number | null; weight: number | null }[]
-  >();
-  for (const ex of workout.exercises) {
-    const list = currentByExercise.get(ex.wgerExerciseId) ?? [];
-    for (const s of ex.sets) list.push({ reps: s.reps, weight: s.weight });
-    currentByExercise.set(ex.wgerExerciseId, list);
-  }
-  const prBadgeRowIds = new Set<string>();
-  const decidedExercises = new Set<number>();
-  for (const ex of workout.exercises) {
-    if (decidedExercises.has(ex.wgerExerciseId)) continue;
-    decidedExercises.add(ex.wgerExerciseId);
-    // Prior sets are scored under the exercise's CURRENT logging type — the
-    // history rows carry no type of their own, and comparing a pull-up's past
-    // under today's reading is the comparison the lifter actually means.
-    const cur = bestScoredSet(
-      currentByExercise.get(ex.wgerExerciseId) ?? [],
-      ex.loggingType,
-      bodyweightKg,
-    );
-    const pri = bestScoredSet(
-      priorByExercise.get(ex.wgerExerciseId) ?? [],
-      ex.loggingType,
-      bodyweightKg,
-    );
-    if (cur === null || pri === null) continue;
-    // Like beats like: an e1rm PR needs a prior e1rm, a rep PR a prior rep
-    // count. Mixed kinds (bodyweight set after weighted history) don't badge —
-    // there's no honest axis to compare on.
-    if (
-      (cur.kind === "e1rm" && pri.kind === "e1rm" && cur.e1rm > pri.e1rm) ||
-      (cur.kind === "reps" && pri.kind === "reps" && cur.reps > pri.reps)
-    ) {
-      prBadgeRowIds.add(ex.id);
-    }
-  }
+  // PR detection (best-set-beats-prior, scored under the current logging type,
+  // badged once on the first card) lives in lib/records — shared with the live
+  // logger badge and the records surface.
+  const prBadgeRowIds = detectPrBadges(
+    workout.exercises,
+    history,
+    bodyweightKg,
+  );
 
   const totalSets = workout.exercises.reduce((n, e) => n + e.sets.length, 0);
   const volumeKg = workout.exercises.reduce(
