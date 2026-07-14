@@ -3,6 +3,7 @@ import { Inter, Oswald } from "next/font/google";
 import { ClerkProvider } from "@clerk/nextjs";
 import { ServiceWorkerRegister } from "@/components/pwa/service-worker-register";
 import { ChunkRecoveryScript } from "@/components/pwa/chunk-recovery-script";
+import { UpdateOnResume } from "@/components/pwa/update-on-resume";
 import { PageTransition } from "@/components/page-transition";
 import { Providers } from "./providers";
 import "./globals.css";
@@ -69,6 +70,9 @@ export default function RootLayout({
             <PageTransition>{children}</PageTransition>
           </Providers>
           <ServiceWorkerRegister />
+          {/* Proactive stale-build reload on resume — the counterpart to the
+              reactive ChunkRecoveryScript above. */}
+          <UpdateOnResume />
         </body>
       </html>
     </ClerkProvider>
