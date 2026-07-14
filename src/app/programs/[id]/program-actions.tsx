@@ -7,6 +7,7 @@ import { Button, buttonVariants } from '@/components/ui/button'
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import { cn } from '@/lib/utils'
 import { deleteProgramAction, setProgramStatusAction } from '@/app/programs/actions'
+import { RestartProgramButton } from './restart-program-button'
 
 /**
  * Detail-page action island: an Edit link to the builder in edit mode, a status
@@ -127,6 +128,10 @@ export function ProgramActions({
         >
           {isActive ? 'Leave program' : 'Activate'}
         </Button>
+        {/* Restart REPLACES the block (clone + archive) where Leave merely
+            archives — different questions, so both stay. Never for drafts:
+            an unstarted plan has nothing to roll over. */}
+        {status !== 'draft' && <RestartProgramButton id={id} className="flex-1" />}
         {/* Demoted on purpose: a destructive action should never carry the
             same visual weight as the everyday ones beside it. */}
         <Button
