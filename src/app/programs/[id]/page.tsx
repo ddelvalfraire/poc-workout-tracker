@@ -411,7 +411,12 @@ export default async function ProgramDetailPage({
             })}
         </div>
 
-        <ProgramActions id={program.id} status={status} />
+        <ProgramActions
+          id={program.id}
+          status={status}
+          currentWeek={currentWeek}
+          mesocycleWeeks={program.mesocycleWeeks}
+        />
       </main>
     </div>
   )

@@ -1,4 +1,4 @@
-import { and, asc, count, countDistinct, desc, eq, isNotNull, isNull, max, sql } from 'drizzle-orm'
+import { and, asc, count, countDistinct, desc, eq, isNotNull, isNull, max, ne, sql } from 'drizzle-orm'
 import type { ProgramInput, Progression } from '@/lib/program-input'
 import { getAllExercises, type Exercise } from '@/lib/wger'
 import {
@@ -240,6 +240,8 @@ export function deleteProgram(userId: string, id: string) {
 /**
  * Updates only a program's lifecycle status, gated on ownership via the
  * `update ... returning`. Returns null when the user doesn't own the program.
+ * Activating also archives the user's other active programs — the home hero
+ * must never tiebreak between two actives by recency (one active at a time).
  */
 export async function setProgramStatus(
   userId: string,
@@ -251,6 +253,15 @@ export async function setProgramStatus(
     .set({ status, updatedAt: new Date() })
     .where(and(eq(programs.id, id), eq(programs.userId, userId)))
     .returning({ id: programs.id })
+  // Sibling sweep AFTER the ownership gate: a not-owned activate must never
+  // archive anything. No transaction — a sweep failure just preserves the
+  // pre-existing two-active state, which self-heals on the next activate.
+  if (status === 'active' && owned) {
+    await db
+      .update(programs)
+      .set({ status: 'archived', updatedAt: new Date() })
+      .where(and(eq(programs.userId, userId), eq(programs.status, 'active'), ne(programs.id, id)))
+  }
   return owned ?? null
 }
 

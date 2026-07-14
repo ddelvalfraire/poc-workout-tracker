@@ -478,7 +478,7 @@ export function registerProgramTools(server: McpServer): void {
     {
       title: 'Set Program Status',
       description:
-        "Sets a program's lifecycle status ('draft', 'active', or 'archived') without touching its days/exercises/sets. Errors if not found or not owned.",
+        "Sets a program's lifecycle status ('draft', 'active', or 'archived') without touching its days/exercises/sets. Activating a program archives any other active program (one active at a time). Errors if not found or not owned.",
       inputSchema: { id: z.string(), status: statusSchema, userId: z.string().optional() },
     },
     async ({ id, status, userId }, extra) => {
