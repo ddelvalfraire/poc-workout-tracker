@@ -121,7 +121,7 @@ Finish last day of week 7 → program page (and home hero) show "Block complete 
 | 1 | Single-active + Leave UX | Activate archives previous active; archive button becomes "Leave program" with confirm + honest copy | complete | - | - | [plan](../plans/completed/program-lifecycle-single-active.plan.md) · [report](../reports/program-lifecycle-single-active-report.md) |
 | 2 | Block completion state | Derive+expose completion; completion card on program page + home hero with PR summary and Restart/Archive slots | complete | - | 1 | [plan](../plans/completed/program-lifecycle-block-completion.plan.md) · [report](../reports/program-lifecycle-block-completion-report.md) |
 | 3 | Restart-as-clone | Faithful clone mapping (TDD), `restartProgramAction` (clone → archive → activate), entry points: completion card, program actions, archived page | complete | - | 2 | [plan](../plans/completed/program-lifecycle-restart-clone.plan.md) · [report](../reports/program-lifecycle-restart-clone-report.md) |
-| 4 | MCP `restart_program` | Tool wrapping the same clone logic; parity tests | pending | - | 3 | - |
+| 4 | MCP `restart_program` | Tool wrapping the same clone logic; parity tests | complete | - | 3 | [plan](../plans/completed/program-lifecycle-mcp-restart.plan.md) · [report](../reports/program-lifecycle-mcp-restart-report.md) |
 
 ### Phase Details
 

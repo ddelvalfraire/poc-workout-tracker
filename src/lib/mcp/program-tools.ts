@@ -20,6 +20,7 @@ import {
   updateProgram,
   deleteProgram,
   setProgramStatus,
+  cloneProgram,
   listPrograms,
   getProgramDetail,
   instantiateProgramDay,
@@ -488,6 +489,39 @@ export function registerProgramTools(server: McpServer): void {
         const result = await setProgramStatus(resolved, id, status)
         if (!result) throw new ToolError(`Program ${id} not found for user ${resolved}`)
         return jsonResult({ userId: resolved, programId: result.id, status })
+      } catch (error: unknown) {
+        return errorResult(error)
+      }
+    },
+  )
+
+  server.registerTool(
+    'restart_program',
+    {
+      title: 'Restart Program',
+      description:
+        "Rolls a block over: clones the program row-for-row (days, exercises incl. supersets/custom exercises/progression, sets, per-week overrides, muscle tags) as 'Name — Block k' and activates the clone — archiving any other active program (one active at a time; an already-archived source just stays archived). The clone starts fresh at week 1; the source keeps its history and stats. Returns the new programId. Errors if the program isn't found or owned.",
+      inputSchema: { id: z.string(), userId: z.string().optional() },
+    },
+    async ({ id, userId }, extra) => {
+      try {
+        const resolved = resolveUserId(extra, userId)
+        assertProgramIdShape(id)
+        // Same two-step path as the UI's restartProgramAction: the clone
+        // commits before activation, so a failed activate leaves only a
+        // harmless draft copy (retry-safe).
+        const clone = await cloneProgram(resolved, id)
+        if (!clone) throw new ToolError(`Program ${id} not found for user ${resolved}`)
+        const activated = await setProgramStatus(resolved, clone.id, 'active')
+        if (!activated) {
+          throw new ToolError(`Could not activate program ${clone.id} for user ${resolved}`)
+        }
+        return jsonResult({
+          userId: resolved,
+          programId: clone.id,
+          sourceProgramId: id,
+          status: 'active',
+        })
       } catch (error: unknown) {
         return errorResult(error)
       }

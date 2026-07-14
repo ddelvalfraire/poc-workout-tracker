@@ -6,6 +6,7 @@ vi.mock('@/db/programs', () => ({
   updateProgram: vi.fn(),
   deleteProgram: vi.fn(),
   setProgramStatus: vi.fn(),
+  cloneProgram: vi.fn(),
   listPrograms: vi.fn(),
   getProgramDetail: vi.fn(),
   instantiateProgramDay: vi.fn(),
@@ -20,6 +21,7 @@ import {
   updateProgram,
   deleteProgram,
   setProgramStatus,
+  cloneProgram,
   listPrograms,
   getProgramDetail,
   instantiateProgramDay,
@@ -34,6 +36,7 @@ const mockedSave = vi.mocked(saveProgram)
 const mockedUpdate = vi.mocked(updateProgram)
 const mockedDelete = vi.mocked(deleteProgram)
 const mockedSetStatus = vi.mocked(setProgramStatus)
+const mockedClone = vi.mocked(cloneProgram)
 const mockedList = vi.mocked(listPrograms)
 const mockedDetail = vi.mocked(getProgramDetail)
 const mockedInstantiate = vi.mocked(instantiateProgramDay)
@@ -170,7 +173,7 @@ describe('registerProgramTools', () => {
     else process.env.MCP_DEV_USER_ID = original
   })
 
-  it('registers exactly the seven program tools', () => {
+  it('registers exactly the eight program tools', () => {
     const tools = setup()
     expect([...tools.keys()].sort()).toEqual([
       'delete_program',
@@ -178,6 +181,7 @@ describe('registerProgramTools', () => {
       'instantiate_program_day',
       'list_programs',
       'preview_program_week',
+      'restart_program',
       'set_program_status',
       'upsert_program',
     ])
@@ -548,6 +552,69 @@ describe('registerProgramTools', () => {
     })
   })
 
+  describe('restart_program', () => {
+    it('clones the program then activates the clone, echoing the new id', async () => {
+      // Arrange
+      const tools = setup()
+      mockedClone.mockResolvedValue({ id: 'p-clone' })
+      mockedSetStatus.mockResolvedValue({ id: 'p-clone' })
+
+      // Act
+      const result = await tools.get('restart_program')!({ id: PID })
+
+      // Assert — same two-step path as the UI's restartProgramAction
+      expect(mockedClone).toHaveBeenCalledWith('user_env', PID)
+      expect(mockedSetStatus).toHaveBeenCalledWith('user_env', 'p-clone', 'active')
+      expect(payload(result)).toEqual({
+        userId: 'user_env',
+        programId: 'p-clone',
+        sourceProgramId: PID,
+        status: 'active',
+      })
+    })
+
+    it('returns isError /not found/ and activates nothing when the source is not owned', async () => {
+      // Arrange
+      const tools = setup()
+      mockedClone.mockResolvedValue(null)
+
+      // Act
+      const result = await tools.get('restart_program')!({ id: PID })
+
+      // Assert
+      expect(result.isError).toBe(true)
+      expect(result.content[0]?.text).toMatch(/not found/)
+      expect(mockedSetStatus).not.toHaveBeenCalled()
+    })
+
+    it('returns isError when activation fails after the clone committed', async () => {
+      // Arrange — the draft clone remains (documented retry-safe seam)
+      const tools = setup()
+      mockedClone.mockResolvedValue({ id: 'p-clone' })
+      mockedSetStatus.mockResolvedValue(null)
+
+      // Act
+      const result = await tools.get('restart_program')!({ id: PID })
+
+      // Assert
+      expect(result.isError).toBe(true)
+      expect(result.content[0]?.text).toMatch(/activate/)
+    })
+
+    it('surfaces not-found for a malformed id without hitting the db', async () => {
+      // Arrange
+      const tools = setup()
+
+      // Act
+      const result = await tools.get('restart_program')!({ id: 'not-a-uuid' })
+
+      // Assert
+      expect(result.isError).toBe(true)
+      expect(result.content[0]?.text).toMatch(/not found/)
+      expect(mockedClone).not.toHaveBeenCalled()
+    })
+  })
+
   describe('preview_program_week', () => {
     /** One derived working set the mocked engine returns. */
     const DERIVED = [
@@ -706,6 +773,7 @@ describe('registerProgramTools', () => {
       { name: 'list_programs', args: {}, dep: mockedList as unknown as Mock },
       { name: 'delete_program', args: { id: PID }, dep: mockedDelete as unknown as Mock },
       { name: 'set_program_status', args: { id: PID, status: 'active' }, dep: mockedSetStatus as unknown as Mock },
+      { name: 'restart_program', args: { id: PID }, dep: mockedClone as unknown as Mock },
       { name: 'instantiate_program_day', args: { programDayId: PID }, dep: mockedInstantiate as unknown as Mock },
     ] as const
 
