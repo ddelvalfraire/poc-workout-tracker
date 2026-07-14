@@ -8,6 +8,7 @@ import {
   updateProgram,
   deleteProgram,
   setProgramStatus,
+  cloneProgram,
   instantiateProgramDay,
 } from '@/db/programs'
 
@@ -77,6 +78,30 @@ export async function setProgramStatusAction(id: string, status: unknown): Promi
   revalidatePath('/programs')
   revalidatePath(`/programs/${id}`)
   return result
+}
+
+/**
+ * Rolls a block over: clone the program (full row fidelity, week-1 fresh) and
+ * activate the clone — setProgramStatus's single-active sweep archives an
+ * active source automatically; an already-archived source stays archived.
+ * The clone commits BEFORE activation, so a failed activate leaves only a
+ * harmless draft copy (retry-safe, deletable). Returns the NEW program id —
+ * the client navigates to it; no redirect() here, as the client's try/catch
+ * would mistake NEXT_REDIRECT for a failure.
+ */
+export async function restartProgramAction(id: unknown): Promise<{ id: string }> {
+  const userId = await requireUserId()
+  if (typeof id !== 'string' || id.length === 0) {
+    throw new Error('invalid program id')
+  }
+  const clone = await cloneProgram(userId, id)
+  if (!clone) throw new Error('program not found')
+  const activated = await setProgramStatus(userId, clone.id, 'active')
+  if (!activated) throw new Error('could not activate the new block')
+  revalidatePath('/') // the home hero now points at the clone
+  revalidatePath('/programs')
+  revalidatePath(`/programs/${id}`)
+  return { id: clone.id }
 }
 
 /**

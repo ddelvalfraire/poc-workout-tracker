@@ -11,6 +11,7 @@ import {
 } from '@/lib/progression'
 import { bestSet } from '@/lib/one-rep-max'
 import { pickNextProgramDay } from '@/lib/next-program-day'
+import { nextBlockName } from '@/lib/block-name'
 import { db } from './index'
 import { getLastPerformance, getExerciseHistoryBefore } from './workouts'
 import {
@@ -19,6 +20,7 @@ import {
   programExercises,
   programExerciseMuscles,
   programSets,
+  programSetOverrides,
   workouts,
   workoutExercises,
   sets,
@@ -263,6 +265,119 @@ export async function setProgramStatus(
       .where(and(eq(programs.userId, userId), eq(programs.status, 'active'), ne(programs.id, id)))
   }
   return owned ?? null
+}
+
+/**
+ * Clones a program's ENTIRE tree row-for-row — days, exercises (superset
+ * groups, custom-exercise source, progression), sets (technique, per-set
+ * rest), per-week set overrides, and muscle tags — as a fresh DRAFT named by
+ * `nextBlockName` ("PPL" → "PPL — Block 2"). Row copy, NOT a ProgramInput
+ * round-trip: the input schema cannot express supersetGroup/source/overrides
+ * (the update path's documented loss), and copying muscle rows verbatim skips
+ * the catalog fetch — no network in this path. Positions/setNumbers are copied
+ * from the source rows. Returns null when the source isn't owned; the caller
+ * decides activation (restart activates, which archives an active source via
+ * the single-active sweep).
+ */
+export async function cloneProgram(
+  userId: string,
+  sourceId: string,
+): Promise<{ id: string } | null> {
+  const source = await getProgramDetail(userId, sourceId) // ownership gate
+  if (!source) return null
+  return db.transaction(async (tx) => {
+    const [program] = await tx
+      .insert(programs)
+      .values({
+        userId,
+        name: nextBlockName(source.name),
+        status: 'draft',
+        mesocycleWeeks: source.mesocycleWeeks,
+        deloadWeek: source.deloadWeek,
+        notes: source.notes,
+      })
+      .returning({ id: programs.id })
+
+    for (const day of source.days) {
+      const [pd] = await tx
+        .insert(programDays)
+        .values({ programId: program.id, name: day.name, position: day.position, notes: day.notes })
+        .returning({ id: programDays.id })
+
+      for (const exercise of day.exercises) {
+        const [pe] = await tx
+          .insert(programExercises)
+          .values({
+            programDayId: pd.id,
+            wgerExerciseId: exercise.wgerExerciseId,
+            source: exercise.source,
+            name: exercise.name,
+            position: exercise.position,
+            supersetGroup: exercise.supersetGroup,
+            progression: exercise.progression,
+          })
+          .returning({ id: programExercises.id })
+
+        if (exercise.sets.length > 0) {
+          // Postgres returns batch-insert RETURNING rows in VALUES order —
+          // the index zip below relies on it to remap overrides.
+          const newSets = await tx
+            .insert(programSets)
+            .values(
+              exercise.sets.map((s) => ({
+                programExerciseId: pe.id,
+                setNumber: s.setNumber,
+                setType: s.setType,
+                metricMode: s.metricMode,
+                repMin: s.repMin,
+                repMax: s.repMax,
+                rir: s.rir,
+                rpe: s.rpe,
+                suggestedLoadKg: s.suggestedLoadKg,
+                tempo: s.tempo,
+                durationSec: s.durationSec,
+                distanceM: s.distanceM,
+                restSec: s.restSec,
+                technique: s.technique,
+              })),
+            )
+            .returning({ id: programSets.id })
+
+          const overrideRows = exercise.sets.flatMap((s, i) =>
+            s.overrides.map((o) => ({
+              programSetId: newSets[i].id,
+              week: o.week,
+              repMin: o.repMin,
+              repMax: o.repMax,
+              rir: o.rir,
+              rpe: o.rpe,
+              suggestedLoadKg: o.suggestedLoadKg,
+              tempo: o.tempo,
+              durationSec: o.durationSec,
+              distanceM: o.distanceM,
+              restSec: o.restSec,
+              technique: o.technique,
+            })),
+          )
+          if (overrideRows.length > 0) {
+            await tx.insert(programSetOverrides).values(overrideRows)
+          }
+        }
+
+        if (exercise.muscles.length > 0) {
+          await tx.insert(programExerciseMuscles).values(
+            exercise.muscles.map((m) => ({
+              programExerciseId: pe.id,
+              muscle: m.muscle,
+              role: m.role,
+            })),
+          )
+        }
+      }
+    }
+
+    return { id: program.id }
+  })
 }
 
 /**

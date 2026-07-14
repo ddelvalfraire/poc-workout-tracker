@@ -23,6 +23,7 @@ import { parseWeekParam, resolveDayState } from './week-view'
 import { topPRs } from './stats/stats-view'
 import { StartDayButton } from './start-day-button'
 import { ProgramActions } from './program-actions'
+import { RestartProgramButton } from './restart-program-button'
 
 export default async function ProgramDetailPage({
   params,
@@ -260,14 +261,21 @@ export default async function ProgramDetailPage({
                 ))}
               </ul>
             )}
-            {/* Zero gains still gets the card — the state IS the message. */}
-            <Link
-              href={`/programs/${program.id}/stats`}
-              className="mt-3 flex items-center gap-0.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
-            >
-              Stats
-              <ChevronRight aria-hidden="true" className="size-4" />
-            </Link>
+            {/* Zero gains still gets the card — the state IS the message.
+                The action row Phase 2's layout reserved: quiet Stats link
+                left, outline Restart right (one-volt rule — Start below
+                keeps the page's volt CTA). Restart matches ProgramActions'
+                gate: never for drafts, even a fully-trained one. */}
+            <div className="mt-3 flex items-center justify-between gap-3">
+              <Link
+                href={`/programs/${program.id}/stats`}
+                className="flex items-center gap-0.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
+              >
+                Stats
+                <ChevronRight aria-hidden="true" className="size-4" />
+              </Link>
+              {status !== 'draft' && <RestartProgramButton id={program.id} size="sm" />}
+            </div>
           </section>
         )}
 

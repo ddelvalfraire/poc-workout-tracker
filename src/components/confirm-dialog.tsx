@@ -34,6 +34,9 @@ interface ConfirmDialogProps {
   pendingLabel: string
   error?: string | null
   isPending: boolean
+  /** Affirmative confirms (e.g. Restart block) use 'default' (volt);
+   *  destructive stays the default so existing callers are untouched. */
+  confirmVariant?: 'destructive' | 'default'
   onConfirm: () => void
   onClose: () => void
   /** Populated with an imperative close; call it before navigating on success. */
@@ -47,6 +50,7 @@ export function ConfirmDialog({
   pendingLabel,
   error,
   isPending,
+  confirmVariant = 'destructive',
   onConfirm,
   onClose,
   closeRef,
@@ -128,7 +132,9 @@ export function ConfirmDialog({
       <p className="font-medium">{title}</p>
       <p className="mt-1 text-sm text-muted-foreground">{body}</p>
       {/* Two-button row, both size-default: ≥44px targets. "Keep it" is the
-          outline safe exit; the destructive confirm never wears volt. */}
+          outline safe exit; a DESTRUCTIVE confirm never wears volt — an
+          affirmative confirm (confirmVariant="default") may, and is then the
+          dialog's one volt CTA. */}
       <div className="mt-4 flex gap-2">
         <Button
           ref={keepButtonRef}
@@ -141,7 +147,7 @@ export function ConfirmDialog({
           Keep it
         </Button>
         <Button
-          variant="destructive"
+          variant={confirmVariant}
           className="flex-1"
           disabled={isPending}
           onClick={onConfirm}
