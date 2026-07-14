@@ -13,6 +13,13 @@ class FakeScriptElement {
   }
 }
 
+class FakeLinkElement {
+  href: string
+  constructor(href: string) {
+    this.href = href
+  }
+}
+
 interface Harness {
   fire: (type: 'error' | 'unhandledrejection', event: object) => void
   reloads: () => number
@@ -23,6 +30,7 @@ interface Harness {
 function runScript(opts?: {
   getThrows?: boolean
   setThrows?: boolean
+  offline?: boolean
 }): Harness {
   const listeners: Record<string, ((event: object) => void)[]> = {}
   let reloadCount = 0
@@ -46,6 +54,7 @@ function runScript(opts?: {
   }
   const locationStub = { reload: () => reloadCount++ }
   const dateStub = { now: () => now }
+  const navigatorStub = { onLine: !opts?.offline }
 
   new Function(
     'window',
@@ -53,8 +62,18 @@ function runScript(opts?: {
     'location',
     'Date',
     'HTMLScriptElement',
+    'HTMLLinkElement',
+    'navigator',
     RECOVERY_SCRIPT,
-  )(windowStub, sessionStorageStub, locationStub, dateStub, FakeScriptElement)
+  )(
+    windowStub,
+    sessionStorageStub,
+    locationStub,
+    dateStub,
+    FakeScriptElement,
+    FakeLinkElement,
+    navigatorStub,
+  )
 
   return {
     fire: (type, event) => (listeners[type] ?? []).forEach((fn) => fn(event)),
@@ -112,21 +131,74 @@ describe('RECOVERY_SCRIPT', () => {
     expect(h.reloads()).toBe(2)
   })
 
-  test('fails CLOSED when sessionStorage reads throw — no reload storm', () => {
-    const h = runScript({ getThrows: true })
+  test('reloads for a failed /_next stylesheet link', () => {
+    const h = runScript()
 
-    h.fire('error', staleScriptError)
+    h.fire('error', {
+      target: new FakeLinkElement('https://app.example/_next/static/css/abc.css'),
+    })
+
+    expect(h.reloads()).toBe(1)
+  })
+
+  test('ignores non-/_next link failures', () => {
+    const h = runScript()
+
+    h.fire('error', { target: new FakeLinkElement('https://cdn.example/font.css') })
+
+    expect(h.reloads()).toBe(0)
+  })
+
+  test('reloads for native dynamic-import failure messages (Safari/Firefox wording)', () => {
+    // Safari rejects native import() with a TypeError, never ChunkLoadError.
+    const h = runScript()
+
+    h.fire('unhandledrejection', {
+      reason: { name: 'TypeError', message: 'Importing a module script failed.' },
+    })
+    h.advance(30_001)
+    h.fire('unhandledrejection', {
+      reason: { name: 'TypeError', message: 'error loading dynamically imported module' },
+    })
+
+    expect(h.reloads()).toBe(2)
+  })
+
+  test('does NOT reload for generic failed fetches (offline API calls are not skew)', () => {
+    const h = runScript()
+
+    h.fire('unhandledrejection', {
+      reason: { name: 'TypeError', message: 'Failed to fetch' },
+    })
+
+    expect(h.reloads()).toBe(0)
+  })
+
+  test('never reloads while offline — the reload would land on the offline page', () => {
+    const h = runScript({ offline: true })
+
     h.fire('error', staleScriptError)
 
     expect(h.reloads()).toBe(0)
   })
 
-  test('fails CLOSED when sessionStorage writes throw — no reload without a stamp', () => {
+  test('reloads ONCE per page lifetime when sessionStorage reads throw', () => {
+    // No storage → no cross-reload rate limit; the in-memory flag still
+    // guarantees a single recovery attempt per page instead of none.
+    const h = runScript({ getThrows: true })
+
+    h.fire('error', staleScriptError)
+    h.fire('error', staleScriptError)
+
+    expect(h.reloads()).toBe(1)
+  })
+
+  test('reloads ONCE per page lifetime when sessionStorage writes throw', () => {
     const h = runScript({ setThrows: true })
 
     h.fire('error', staleScriptError)
     h.fire('error', staleScriptError)
 
-    expect(h.reloads()).toBe(0)
+    expect(h.reloads()).toBe(1)
   })
 })

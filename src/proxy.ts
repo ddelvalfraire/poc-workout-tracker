@@ -7,6 +7,9 @@ const isPublicRoute = createRouteMatcher([
   '/sign-up(.*)',
   '/api/mcp(.*)',
   '/.well-known/(.*)',
+  // Build-id probe for update-on-resume: no user data, and the stale-client
+  // check must work regardless of auth state (a redirect would blind it).
+  '/api/version',
 ])
 
 export default clerkMiddleware(async (auth, req) => {
