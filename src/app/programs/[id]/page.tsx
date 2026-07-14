@@ -4,11 +4,12 @@ import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { requireUserId } from '@/lib/auth'
 import {
   getProgramDetail,
-  nextProgramWeek,
+  programWeekState,
   deriveDayPrescription,
   getNextProgramDay,
   listProgramWorkouts,
 } from '@/db/programs'
+import { getProgramStats } from '@/db/program-stats'
 import { getWeightUnit } from '@/db/preferences'
 import { listWorkoutSummaries } from '@/db/workouts'
 import { listWorkoutDrafts } from '@/db/workout-drafts'
@@ -16,9 +17,10 @@ import { resolveActiveSession } from '@/lib/active-session'
 import { AppHeader } from '@/components/app-header'
 import { buttonVariants } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
-import { formatVolume, formatWorkoutDate, formatWorkoutDuration } from '@/lib/format'
+import { formatE1RM, formatVolume, formatWorkoutDate, formatWorkoutDuration } from '@/lib/format'
 import { formatTargetLine, groupDerivedSets } from './derived-format'
 import { parseWeekParam, resolveDayState } from './week-view'
+import { topPRs } from './stats/stats-view'
 import { StartDayButton } from './start-day-button'
 import { ProgramActions } from './program-actions'
 
@@ -34,13 +36,18 @@ export default async function ProgramDetailPage({
   const [program, unit] = await Promise.all([getProgramDetail(userId, id), getWeightUnit(userId)])
   if (!program) notFound()
 
-  const [currentWeek, nextDay, summaries, drafts, programWorkouts] = await Promise.all([
-    nextProgramWeek(userId, program.id, program.mesocycleWeeks),
-    getNextProgramDay(userId),
-    listWorkoutSummaries(userId),
-    listWorkoutDrafts(userId),
-    listProgramWorkouts(userId, program.id),
-  ])
+  const [{ currentWeek, blockComplete }, nextDay, summaries, drafts, programWorkouts] =
+    await Promise.all([
+      programWeekState(userId, program.id, program.mesocycleWeeks),
+      getNextProgramDay(userId),
+      listWorkoutSummaries(userId),
+      listWorkoutDrafts(userId),
+      listProgramWorkouts(userId, program.id),
+    ])
+  // The payoff moment costs an extra read, so only complete blocks pay it —
+  // an incomplete block's page issues exactly the queries it always has.
+  const stats = blockComplete ? await getProgramStats(userId, program.id) : null
+  const prs = stats ? topPRs(stats.exercises, 3) : []
   // Week is URL state (`?week=N`) so a specific week is linkable/back-buttonable;
   // the default is the week the user is actually in, and garbage clamps/falls
   // back rather than erroring — see parseWeekParam.
@@ -212,6 +219,57 @@ export default async function ProgramDetailPage({
             })}
           </div>
         </nav>
+
+        {/* The block's payoff moment: the advancement rule fired at the final
+            week, so say so — with the biggest e1RM wins as evidence. Volt is
+            confined to TEXT (label) and the done-card border treatment; the
+            page's one volt BUTTON stays with Start below. Phase 3's Restart
+            action lands in this card. */}
+        {blockComplete && (
+          <section
+            aria-label="Block complete"
+            className="mt-8 rounded-2xl border border-primary/50 bg-card p-4"
+          >
+            <p className="text-[11px] font-semibold uppercase tracking-widest text-primary tnum">
+              Block complete · {program.mesocycleWeeks} week
+              {program.mesocycleWeeks === 1 ? '' : 's'}
+            </p>
+            {prs.length > 0 && (
+              <ul className="mt-2 space-y-1.5">
+                {prs.map((exercise) => (
+                  <li
+                    key={`${exercise.source}:${exercise.wgerExerciseId}`}
+                    className="flex items-baseline justify-between gap-3 text-sm"
+                  >
+                    <span className="min-w-0 truncate font-medium">{exercise.name}</span>
+                    <span className="shrink-0 tnum">
+                      <span aria-hidden="true" className="text-muted-foreground">
+                        ~
+                      </span>
+                      {formatE1RM(exercise.pr.baseline.e1rm, unit)}
+                      <span aria-hidden="true" className="text-muted-foreground">
+                        {' → '}
+                      </span>
+                      <span className="sr-only"> to </span>
+                      <span aria-hidden="true" className="text-muted-foreground">
+                        ~
+                      </span>
+                      {formatE1RM(exercise.pr.best.e1rm, unit)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {/* Zero gains still gets the card — the state IS the message. */}
+            <Link
+              href={`/programs/${program.id}/stats`}
+              className="mt-3 flex items-center gap-0.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
+            >
+              Stats
+              <ChevronRight aria-hidden="true" className="size-4" />
+            </Link>
+          </section>
+        )}
 
         {/* Breathing room before the week's content — the selector belongs to
             the header, the heading opens the body. Deliberately non-uniform. */}

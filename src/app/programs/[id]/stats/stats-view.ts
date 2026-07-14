@@ -3,6 +3,7 @@ import type {
   ProgramWeekStats,
   ProgramExercisePR,
   ProgramExercisePRPoint,
+  ProgramExerciseProgression,
 } from '@/db/program-stats'
 
 /**
@@ -60,4 +61,23 @@ export function prDeltaKg(pr: ProgramExercisePR): number {
  *  Epley range — the UI flags these rather than presenting them as solid. */
 export function isHighRepEstimate(point: ProgramExercisePRPoint): boolean {
   return point.reps > MAX_RELIABLE_REPS
+}
+
+/**
+ * The block's biggest wins: exercises with a real e1RM gain (pr present AND
+ * delta > 0 — a single-week baseline is not a gain), sorted by gain
+ * descending, capped at `count`. Feeds the completion card, which needs the
+ * exercise name plus both PR endpoints — hence full rows, not bare deltas.
+ */
+export function topPRs(
+  exercises: readonly ProgramExerciseProgression[],
+  count: number,
+): (ProgramExerciseProgression & { pr: ProgramExercisePR })[] {
+  return exercises
+    .filter(
+      (e): e is ProgramExerciseProgression & { pr: ProgramExercisePR } =>
+        e.pr !== null && prDeltaKg(e.pr) > 0,
+    )
+    .sort((a, b) => prDeltaKg(b.pr) - prDeltaKg(a.pr))
+    .slice(0, count)
 }

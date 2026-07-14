@@ -294,6 +294,18 @@ export async function getProgramDayDetail(userId: string, programDayId: string) 
 /** The nested shape returned by getProgramDayDetail (day + exercises + sets). */
 export type ProgramDayDetail = NonNullable<Awaited<ReturnType<typeof getProgramDayDetail>>>
 
+/** Where the program's history places the user in the mesocycle. */
+export interface ProgramWeekState {
+  /** Same value `nextProgramWeek` has always returned (clamped). */
+  currentWeek: number
+  /**
+   * The advancement rule fired AT the final week: every day of week
+   * `mesocycleWeeks` has a completed session. Earlier skipped weeks don't
+   * block completion — the same policy that lets the week advance past them.
+   */
+  blockComplete: boolean
+}
+
 /**
  * The week `instantiate_program_day` should default to, derived from the
  * program's own workout history (no stored counter to drift): the highest
@@ -301,19 +313,26 @@ export type ProgramDayDetail = NonNullable<Awaited<ReturnType<typeof getProgramD
  * the program has a workout at that week, the cycle is complete and the next
  * week begins — clamped to `mesocycleWeeks` so a finished meso re-runs its
  * last week rather than extrapolating. No history → week 1.
+ *
+ * `blockComplete` is that same rule firing AT the boundary: the observed week
+ * is at (or past) `mesocycleWeeks` and every day of it is done. Accepted
+ * edge: a manually overshot week (`current > mesocycleWeeks`) computes
+ * completion against the OVERSHOT week, so a finished final week followed by
+ * a partial overshoot reads incomplete — manual overshoot is already a
+ * documented anomaly path.
  */
-export async function nextProgramWeek(
+export async function programWeekState(
   userId: string,
   programId: string,
   mesocycleWeeks: number,
-): Promise<number> {
+): Promise<ProgramWeekState> {
   const [agg] = await db
     .select({ current: max(workouts.programWeek) })
     .from(workouts)
     .innerJoin(programDays, eq(programDays.id, workouts.programDayId))
     .where(and(eq(programDays.programId, programId), eq(workouts.userId, userId)))
   const current = agg?.current ?? null
-  if (current === null) return 1
+  if (current === null) return { currentWeek: 1, blockComplete: false }
 
   // Independent reads — one round-trip of latency instead of two.
   const [[dayTotal], [daysDone]] = await Promise.all([
@@ -338,7 +357,19 @@ export async function nextProgramWeek(
   ])
 
   const cycleComplete = daysDone.value >= dayTotal.value
-  return cycleComplete ? Math.min(current + 1, Math.max(1, mesocycleWeeks)) : current
+  return {
+    currentWeek: cycleComplete ? Math.min(current + 1, Math.max(1, mesocycleWeeks)) : current,
+    blockComplete: cycleComplete && current >= mesocycleWeeks,
+  }
+}
+
+/** Thin wrapper: the number every existing caller reads. See `programWeekState`. */
+export async function nextProgramWeek(
+  userId: string,
+  programId: string,
+  mesocycleWeeks: number,
+): Promise<number> {
+  return (await programWeekState(userId, programId, mesocycleWeeks)).currentWeek
 }
 
 /** A program-scoped workout row for the week view: provenance (which day,
@@ -397,6 +428,11 @@ export interface NextProgramDay {
   dayName: string
   week: number
   exerciseNames: string[]
+  /** The block finished its final week — the hero swaps its Start CTA for a
+   *  completion banner. The final week stays re-runnable on the program page. */
+  blockComplete: boolean
+  /** Block length for the completion banner's "N weeks" line. */
+  mesocycleWeeks: number
 }
 
 /**
@@ -424,14 +460,15 @@ export async function getNextProgramDay(userId: string): Promise<NextProgramDay 
 
   // The day list and the current week don't depend on each other — fetch them
   // concurrently (this runs on every home-page load).
-  const [days, week] = await Promise.all([
+  const [days, weekState] = await Promise.all([
     db
       .select({ id: programDays.id, name: programDays.name, position: programDays.position })
       .from(programDays)
       .where(eq(programDays.programId, program.id))
       .orderBy(asc(programDays.position)),
-    nextProgramWeek(userId, program.id, program.mesocycleWeeks),
+    programWeekState(userId, program.id, program.mesocycleWeeks),
   ])
+  const week = weekState.currentWeek
 
   const logged = await db
     .selectDistinct({ dayId: workouts.programDayId })
@@ -468,6 +505,8 @@ export async function getNextProgramDay(userId: string): Promise<NextProgramDay 
     dayName: next.name,
     week,
     exerciseNames: exerciseRows.map((r) => r.name),
+    blockComplete: weekState.blockComplete,
+    mesocycleWeeks: program.mesocycleWeeks,
   }
 }
 

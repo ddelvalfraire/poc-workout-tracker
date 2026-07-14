@@ -1,7 +1,18 @@
 import { describe, it, expect } from 'vitest'
 import { MAX_RELIABLE_REPS } from '@/lib/one-rep-max'
-import type { ProgramWeekStats, ProgramExercisePRPoint } from '@/db/program-stats'
-import { visibleWeeks, volumeBarWidthPct, hasAnyTraining, prDeltaKg, isHighRepEstimate } from './stats-view'
+import type {
+  ProgramWeekStats,
+  ProgramExercisePRPoint,
+  ProgramExerciseProgression,
+} from '@/db/program-stats'
+import {
+  visibleWeeks,
+  volumeBarWidthPct,
+  hasAnyTraining,
+  prDeltaKg,
+  isHighRepEstimate,
+  topPRs,
+} from './stats-view'
 
 function week(over: Partial<ProgramWeekStats> = {}): ProgramWeekStats {
   return {
@@ -103,6 +114,60 @@ describe('isHighRepEstimate', () => {
   it('is false at exactly MAX_RELIABLE_REPS and true just past it', () => {
     expect(isHighRepEstimate({ week: 1, reps: MAX_RELIABLE_REPS, e1rm: 100 })).toBe(false)
     expect(isHighRepEstimate({ week: 1, reps: MAX_RELIABLE_REPS + 1, e1rm: 100 })).toBe(true)
+  })
+})
+
+describe('topPRs', () => {
+  function exercise(
+    name: string,
+    pr: { baselineE1rm: number; bestE1rm: number } | null,
+  ): ProgramExerciseProgression {
+    return {
+      wgerExerciseId: name.length, // synthetic, uniqueness irrelevant here
+      source: 'wger',
+      name,
+      loggingType: 'weight_reps',
+      weeks: [],
+      pr:
+        pr === null
+          ? null
+          : {
+              baseline: { week: 1, reps: 8, e1rm: pr.baselineE1rm },
+              best: { week: 3, reps: 5, e1rm: pr.bestE1rm },
+            },
+    }
+  }
+
+  it('sorts gains descending by delta', () => {
+    const list = [
+      exercise('Row', { baselineE1rm: 80, bestE1rm: 85 }), // +5
+      exercise('Bench', { baselineE1rm: 113, bestE1rm: 130 }), // +17
+      exercise('Squat', { baselineE1rm: 140, bestE1rm: 149 }), // +9
+    ]
+
+    expect(topPRs(list, 3).map((e) => e.name)).toEqual(['Bench', 'Squat', 'Row'])
+  })
+
+  it('filters out null-pr and zero-delta exercises (only real gains rank)', () => {
+    const list = [
+      exercise('Curl', null),
+      exercise('Press', { baselineE1rm: 60, bestE1rm: 60 }), // single-week baseline, delta 0
+      exercise('Deadlift', { baselineE1rm: 180, bestE1rm: 190 }),
+    ]
+
+    expect(topPRs(list, 3).map((e) => e.name)).toEqual(['Deadlift'])
+  })
+
+  it('respects the count cap', () => {
+    const list = Array.from({ length: 5 }, (_, i) =>
+      exercise(`Lift ${i}`, { baselineE1rm: 100, bestE1rm: 101 + i }),
+    )
+
+    expect(topPRs(list, 3)).toHaveLength(3)
+  })
+
+  it('returns empty for empty input', () => {
+    expect(topPRs([], 3)).toEqual([])
   })
 })
 
