@@ -10,17 +10,24 @@ import { deleteProgramAction, setProgramStatusAction } from '@/app/programs/acti
 
 /**
  * Detail-page action island: an Edit link to the builder in edit mode, a status
- * toggle (draft/archived → active, active → archived), and a Delete button that
- * confirms in a centered modal (ConfirmDialog — a true <dialog>, replacing the
- * old inline card that sat low on the page), deletes (cascade), then navigates
- * to the list. Kept small so the detail page itself stays a Server Component.
+ * control (draft/archived → direct "Activate"; active → "Leave program" behind
+ * a ConfirmDialog — leaving deserves a pause and the reassurance that history
+ * stays, activation doesn't), and a Delete button that confirms in a centered
+ * modal, deletes (cascade), then navigates to the list. Kept small so the
+ * detail page itself stays a Server Component.
  */
 export function ProgramActions({
   id,
   status,
+  currentWeek,
+  mesocycleWeeks,
 }: {
   id: string
   status: 'draft' | 'active' | 'archived'
+  /** Where the user is in the block — the leave confirm names it so
+   *  mid-block leaving is an informed choice, not a mystery tap. */
+  currentWeek: number
+  mesocycleWeeks: number
 }) {
   const [isPending, setIsPending] = useState(false)
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -30,29 +37,51 @@ export function ProgramActions({
   // delete error twice, in the dialog and behind it.
   const [statusError, setStatusError] = useState<string | null>(null)
   const [deleteError, setDeleteError] = useState<string | null>(null)
+  // Leave gets its own dialog state + error (renders inside its dialog),
+  // never shared with delete's — same two-surface rationale as above.
+  const [isLeaveModalOpen, setIsLeaveModalOpen] = useState(false)
+  const [leaveError, setLeaveError] = useState<string | null>(null)
+  const closeLeaveDialogRef = useRef<(() => void) | null>(null)
   // ConfirmDialog populates this with an imperative close; the success path
   // calls it BEFORE router.push (see the dialog's contract — the #25
   // stranded-::backdrop race).
   const closeDialogRef = useRef<(() => void) | null>(null)
   const router = useRouter()
 
-  const nextStatus = status === 'active' ? 'archived' : 'active'
-  const statusLabel = status === 'active' ? 'Archive' : 'Activate'
+  const isActive = status === 'active'
 
   // Not startTransition: navigating inside an async transition lets the
   // app-wide <ViewTransition> strand the old screen's snapshot over the
   // destination (see workout-logger handleSave). Await, then navigate.
-  async function handleStatusToggle() {
+  async function handleActivate() {
     setIsPending(true)
     try {
       setStatusError(null)
-      await setProgramStatusAction(id, nextStatus)
+      await setProgramStatusAction(id, 'active')
       router.refresh()
     } catch {
       setStatusError('Could not update program status. Please try again.')
     } finally {
       // This handler stays mounted (refresh, not push) — always re-enable.
       setIsPending(false)
+    }
+  }
+
+  async function handleLeave() {
+    setIsPending(true)
+    try {
+      setLeaveError(null)
+      await setProgramStatusAction(id, 'archived')
+      // Release the top layer imperatively before the refresh flush — same
+      // #25 stranded-::backdrop discipline as the delete path.
+      closeLeaveDialogRef.current?.()
+      setIsLeaveModalOpen(false)
+      router.refresh()
+      setIsPending(false) // island stays mounted — always re-enable
+    } catch {
+      setIsPending(false)
+      // The dialog stays open: the error renders inside it, retry in place.
+      setLeaveError('Could not leave this program. Please try again.')
     }
   }
 
@@ -87,9 +116,16 @@ export function ProgramActions({
           variant="outline"
           className="flex-1"
           disabled={isPending}
-          onClick={handleStatusToggle}
+          onClick={
+            isActive
+              ? () => {
+                  setLeaveError(null) // a stale failure must not reopen with the dialog
+                  setIsLeaveModalOpen(true)
+                }
+              : handleActivate
+          }
         >
-          {statusLabel}
+          {isActive ? 'Leave program' : 'Activate'}
         </Button>
         {/* Demoted on purpose: a destructive action should never carry the
             same visual weight as the everyday ones beside it. */}
@@ -106,6 +142,19 @@ export function ProgramActions({
         </Button>
       </div>
       {statusError && <p className="text-sm text-destructive">{statusError}</p>}
+      {isLeaveModalOpen && (
+        <ConfirmDialog
+          title="Leave this program?"
+          body={`Your workouts and stats are kept. You're in week ${currentWeek} of ${mesocycleWeeks} — you can reactivate it any time from Programs.`}
+          confirmLabel="Leave program"
+          pendingLabel="Leaving…"
+          error={leaveError}
+          isPending={isPending}
+          onConfirm={handleLeave}
+          onClose={() => setIsLeaveModalOpen(false)}
+          closeRef={closeLeaveDialogRef}
+        />
+      )}
       {isModalOpen && (
         <ConfirmDialog
           title="Delete this program?"
