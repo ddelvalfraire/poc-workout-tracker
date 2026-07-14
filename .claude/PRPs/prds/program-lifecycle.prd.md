@@ -40,7 +40,7 @@ We'll know we're right when the live block, on finishing week 7, shows the compl
 ## Open Questions
 
 - [ ] Clone naming: auto "— Block 2" suffix with collision-aware increment — editable at restart time or only via the builder afterward? (v1 lean: auto-suffix, edit later in builder)
-- [ ] Home hero at completion: full completion card vs compact "Block complete — see results" banner? (decide at design time in the UI phase)
+- [x] Home hero at completion: full completion card vs compact "Block complete — see results" banner? → Decided in Phase 2: compact banner on home (program name + weeks + "See results" link), full card with PR deltas on the program page.
 
 ---
 
@@ -119,7 +119,7 @@ Finish last day of week 7 → program page (and home hero) show "Block complete 
 | # | Phase | Description | Status | Parallel | Depends | PRP Plan |
 |---|-------|-------------|--------|----------|---------|----------|
 | 1 | Single-active + Leave UX | Activate archives previous active; archive button becomes "Leave program" with confirm + honest copy | complete | - | - | [plan](../plans/completed/program-lifecycle-single-active.plan.md) · [report](../reports/program-lifecycle-single-active-report.md) |
-| 2 | Block completion state | Derive+expose completion; completion card on program page + home hero with PR summary and Restart/Archive slots | pending | - | 1 | - |
+| 2 | Block completion state | Derive+expose completion; completion card on program page + home hero with PR summary and Restart/Archive slots | complete | - | 1 | [plan](../plans/completed/program-lifecycle-block-completion.plan.md) · [report](../reports/program-lifecycle-block-completion-report.md) |
 | 3 | Restart-as-clone | Faithful clone mapping (TDD), `restartProgramAction` (clone → archive → activate), entry points: completion card, program actions, archived page | pending | - | 2 | - |
 | 4 | MCP `restart_program` | Tool wrapping the same clone logic; parity tests | pending | - | 3 | - |
 

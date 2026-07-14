@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { ChevronRight } from 'lucide-react'
 import type { NextProgramDay } from '@/db/programs'
 import { StartDayButton } from '@/app/programs/[id]/start-day-button'
 
@@ -6,8 +7,42 @@ import { StartDayButton } from '@/app/programs/[id]/start-day-button'
  * The home screen's hero: the next day to train in the user's active program,
  * startable in one tap. Replaces the 4-tap Programs → program → day → start
  * path for the common case of "just give me today's session".
+ *
+ * A finished block swaps the Start CTA for a compact completion banner — the
+ * full payoff (PR deltas, restart) lives on the program page and stats; the
+ * hero only announces it. Re-running the final week stays possible from the
+ * program page's day cards, so no StartDayButton in that variant.
  */
 export function NextWorkoutCard({ next }: { next: NextProgramDay }) {
+  if (next.blockComplete) {
+    return (
+      <section className="mt-6 rounded-2xl border border-primary/50 bg-card p-5">
+        <p className="text-xs font-semibold uppercase tracking-widest text-primary">
+          Block complete
+        </p>
+
+        {/* Same poster type as the day variant, but the achievement is the
+            PROGRAM — the block is the thing that finished. */}
+        <h2 className="mt-2 font-display text-3xl uppercase leading-none tracking-wide">
+          {next.programName}
+        </h2>
+
+        <div className="mt-3 flex items-baseline justify-between gap-3">
+          <p className="text-sm text-muted-foreground tnum">
+            {next.mesocycleWeeks} week{next.mesocycleWeeks === 1 ? '' : 's'}
+          </p>
+          <Link
+            href={`/programs/${next.programId}/stats`}
+            className="flex shrink-0 items-center gap-0.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
+          >
+            See results
+            <ChevronRight aria-hidden="true" className="size-4" />
+          </Link>
+        </div>
+      </section>
+    )
+  }
+
   return (
     <section className="mt-6 rounded-2xl border border-border bg-card p-5">
       <div className="flex items-baseline justify-between gap-3">

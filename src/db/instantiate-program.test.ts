@@ -85,7 +85,12 @@ vi.mock('./workouts', () => ({
   getExerciseHistoryBefore: historyBefore,
 }))
 
-import { instantiateProgramDay, nextProgramWeek, getNextProgramDay } from './programs'
+import {
+  instantiateProgramDay,
+  nextProgramWeek,
+  programWeekState,
+  getNextProgramDay,
+} from './programs'
 
 const USER = 'user_123'
 
@@ -483,6 +488,65 @@ describe('nextProgramWeek', () => {
     selectQueue = [[{ current: 4 }], [{ value: 2 }], [{ value: 2 }]]
     expect(await nextProgramWeek(USER, 'p1', 4)).toBe(4) // clamp: already at the last week
   })
+
+  describe('programWeekState', () => {
+    it('reports blockComplete when every day of the final week is done', async () => {
+      // current=4 of meso 4, 3 days planned, 3 COMPLETED → the advancement
+      // rule fires AT the last week: the block is finished (week clamps).
+      selectQueue = [[{ current: 4 }], [{ value: 3 }], [{ value: 3 }]]
+
+      expect(await programWeekState(USER, 'p1', 4)).toEqual({
+        currentWeek: 4,
+        blockComplete: true,
+      })
+    })
+
+    it('is not complete while the final week is partial', async () => {
+      // current=4 of meso 4, only 1 of 3 days COMPLETED
+      selectQueue = [[{ current: 4 }], [{ value: 3 }], [{ value: 1 }]]
+
+      expect(await programWeekState(USER, 'p1', 4)).toEqual({
+        currentWeek: 4,
+        blockComplete: false,
+      })
+    })
+
+    it('advances a finished mid-block week without claiming completion', async () => {
+      // current=2 of meso 4, all 3 days done → next week, still mid-block
+      selectQueue = [[{ current: 2 }], [{ value: 3 }], [{ value: 3 }]]
+
+      expect(await programWeekState(USER, 'p1', 4)).toEqual({
+        currentWeek: 3,
+        blockComplete: false,
+      })
+    })
+
+    it('starts at week 1, incomplete, for an empty program history', async () => {
+      // current null short-circuits before the day-count reads
+      selectQueue = [[]]
+
+      expect(await programWeekState(USER, 'p1', 4)).toEqual({
+        currentWeek: 1,
+        blockComplete: false,
+      })
+    })
+
+    it('nextProgramWeek stays a byte-compatible wrapper over the same cases', async () => {
+      // Same fixtures as above — the number every existing caller sees
+      // must not move.
+      selectQueue = [[{ current: 4 }], [{ value: 3 }], [{ value: 3 }]]
+      expect(await nextProgramWeek(USER, 'p1', 4)).toBe(4)
+
+      selectQueue = [[{ current: 4 }], [{ value: 3 }], [{ value: 1 }]]
+      expect(await nextProgramWeek(USER, 'p1', 4)).toBe(4)
+
+      selectQueue = [[{ current: 2 }], [{ value: 3 }], [{ value: 3 }]]
+      expect(await nextProgramWeek(USER, 'p1', 4)).toBe(3)
+
+      selectQueue = [[]]
+      expect(await nextProgramWeek(USER, 'p1', 4)).toBe(1)
+    })
+  })
 })
 
 describe('getNextProgramDay', () => {
@@ -509,6 +573,34 @@ describe('getNextProgramDay', () => {
     expect(next?.dayName).toBe('Lower')
     expect(next?.week).toBe(1)
     expect(next?.exerciseNames).toEqual(['Squat'])
+    // Mid-block: the completion flag must stay down.
+    expect(next?.blockComplete).toBe(false)
+    expect(next?.mesocycleWeeks).toBe(4)
     expect(predicateMentionsColumn(capturedWheres[5], 'completed_at')).toBe(true)
+  })
+
+  it('carries blockComplete through when the final week is fully done', async () => {
+    // current=4 of meso 4, both days COMPLETED → block complete; every day
+    // logged at week 4 makes the picker wrap to the first day (re-run path),
+    // so the hero still gets a non-null payload carrying the flag.
+    selectQueue = [
+      [{ id: 'p1', name: 'Plan', mesocycleWeeks: 4 }],
+      [
+        { id: 'd1', name: 'Upper', position: 0 },
+        { id: 'd2', name: 'Lower', position: 1 },
+      ],
+      [{ current: 4 }],
+      [{ value: 2 }],
+      [{ value: 2 }],
+      [{ dayId: 'd1' }, { dayId: 'd2' }],
+      [{ name: 'Bench' }],
+    ]
+
+    const next = await getNextProgramDay(USER)
+
+    expect(next?.blockComplete).toBe(true)
+    expect(next?.mesocycleWeeks).toBe(4)
+    expect(next?.week).toBe(4) // clamped at the final week
+    expect(next?.dayName).toBe('Upper') // wrap to the first day
   })
 })
