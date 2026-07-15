@@ -128,6 +128,22 @@ export async function getExerciseSheetAction(
 }
 
 /**
+ * The exercise's all-time best estimated 1RM in kg, or null when no
+ * e1rm-scorable history — the lean baseline for the logger's live PR watch.
+ * A live session can't be its own baseline: its workout has completedAt null,
+ * so the completed-only stats query excludes it by construction. Same wger
+ * identity limitation as the sheet action.
+ */
+export async function getExerciseBestAction(wgerExerciseId: unknown): Promise<number | null> {
+  const userId = await requireUserId()
+  if (!Number.isInteger(wgerExerciseId) || (wgerExerciseId as number) <= 0) {
+    throw new Error('invalid exercise id')
+  }
+  const stats = await getExerciseStats(userId, 'wger', wgerExerciseId as number)
+  return stats?.records.bestE1rm?.e1rm ?? null
+}
+
+/**
  * Week-N plan targets for a MID-SESSION substitute: the original slot's
  * scheme re-derived for the replacement exercise (loads from the substitute's
  * own history where the scheme supports it; original-movement absolutes
