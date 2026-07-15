@@ -306,3 +306,47 @@ export function detailToDraft(
   }))
   return { draft: { exercises }, name: workout.name ?? '' }
 }
+
+/** Plain positive-integer reps ("5", never "5.9"/"0"/"5e1") — the bar a set
+ *  must clear to be auto-completed at finish. Stricter than toReps (which
+ *  truncates fractions for persistence): auto-completion only claims sets
+ *  whose "I did this" reading is unambiguous. */
+const PERFORMED_REPS_PATTERN = /^\d+$/
+
+function hasPerformedReps(reps: string): boolean {
+  const trimmed = reps.trim()
+  return PERFORMED_REPS_PATTERN.test(trimmed) && parseInt(trimmed, 10) >= 1
+}
+
+/**
+ * The finish-time completion pass: every unchecked set with reps logged gets
+ * checked off (typing the reps IS the "I did it" — forgetting the circle
+ * must not erase the set from scoring), and whatever remains unchecked is
+ * counted so the finish flow can warn before saving it as skipped. Weight
+ * stays irrelevant here — null-weight machine sets are legitimate, and
+ * bodyweight sets never carry one. Pure: builds a fresh draft, counts both
+ * outcomes, never mutates its input.
+ */
+export function completeFilledSets(draft: WorkoutDraft): {
+  draft: WorkoutDraft
+  /** Unchecked sets flipped to completed (reps present). */
+  autoCompleted: number
+  /** Unchecked sets left as-is (no usable reps) — the warning names these. */
+  skipped: number
+} {
+  let autoCompleted = 0
+  let skipped = 0
+  const exercises = draft.exercises.map((exercise) => ({
+    ...exercise,
+    sets: exercise.sets.map((set) => {
+      if (set.completed) return set
+      if (hasPerformedReps(set.reps)) {
+        autoCompleted += 1
+        return { ...set, completed: true }
+      }
+      skipped += 1
+      return set
+    }),
+  }))
+  return { draft: { exercises }, autoCompleted, skipped }
+}

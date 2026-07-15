@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   workoutDraftReducer,
+  completeFilledSets,
   draftToInput,
   detailToDraft,
   emptyDraft,
@@ -639,5 +640,74 @@ describe('id factories', () => {
   it('newDraftSet returns a unique id per call', () => {
     // Assert
     expect(newDraftSet().id).not.toBe(newDraftSet().id)
+  })
+})
+
+describe('completeFilledSets', () => {
+  function draftWith(
+    sets: { reps: string; weight?: string; completed?: boolean }[],
+  ): WorkoutDraft {
+    return {
+      exercises: [
+        {
+          id: 'ex1',
+          ...SQUAT,
+          sets: sets.map((s, i) => ({
+            id: `s${i + 1}`,
+            reps: s.reps,
+            weight: s.weight ?? '',
+            completed: s.completed ?? false,
+          })),
+        },
+      ],
+    }
+  }
+
+  it('checks off unchecked sets that have reps logged', () => {
+    const result = completeFilledSets(draftWith([{ reps: '5', weight: '100' }, { reps: '8' }]))
+
+    expect(result.autoCompleted).toBe(2)
+    expect(result.skipped).toBe(0)
+    expect(result.draft.exercises[0].sets.every((s) => s.completed)).toBe(true)
+  })
+
+  it('leaves already-completed sets alone and does not count them', () => {
+    const result = completeFilledSets(draftWith([{ reps: '5', completed: true }]))
+
+    expect(result.autoCompleted).toBe(0)
+    expect(result.skipped).toBe(0)
+  })
+
+  it('counts unchecked sets without usable reps as skipped, unflipped', () => {
+    const result = completeFilledSets(
+      draftWith([
+        { reps: '' }, // untouched seeded set
+        { reps: '0' }, // zero reps is not a performed set
+        { reps: '5.9' }, // fractional — ambiguous, save truncates; not claimed
+        { reps: 'abc' },
+        { reps: '5' }, // the one real set
+      ]),
+    )
+
+    expect(result.autoCompleted).toBe(1)
+    expect(result.skipped).toBe(4)
+    const completed = result.draft.exercises[0].sets.map((s) => s.completed)
+    expect(completed).toEqual([false, false, false, false, true])
+  })
+
+  it('needs no weight — null-load machine and bodyweight sets complete on reps alone', () => {
+    const result = completeFilledSets(draftWith([{ reps: '12', weight: '' }]))
+
+    expect(result.autoCompleted).toBe(1)
+    expect(result.draft.exercises[0].sets[0].completed).toBe(true)
+  })
+
+  it('does not mutate its input draft', () => {
+    const input = draftWith([{ reps: '5' }])
+    const snapshot = structuredClone(input)
+
+    completeFilledSets(input)
+
+    expect(input).toEqual(snapshot)
   })
 })
