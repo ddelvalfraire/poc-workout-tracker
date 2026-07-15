@@ -59,6 +59,13 @@ describe('allTimePRIndex', () => {
       set({ reps: '5', weight: '12abc' }),
       set({ reps: '0', weight: '100' }),
       set({ reps: '5', weight: '-10' }),
+      // Fractional reps: the save path truncates '5.9' → 5, so scoring 5.9
+      // live would flag a phantom — rejected outright.
+      set({ reps: '5.9', weight: '1000' }),
+      // Hex sneaks through bare Number() ('0x12' → 18) but not the save path.
+      set({ reps: '0x12', weight: '100' }),
+      set({ reps: '5', weight: '0x99' }),
+      set({ reps: '5e1', weight: '100' }),
     ]
 
     expect(allTimePRIndex(sets, 'weight_reps', 'kg', 1)).toBeNull()

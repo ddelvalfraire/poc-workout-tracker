@@ -36,9 +36,9 @@ We believe an always-reachable per-exercise stats view will replace out-of-app h
 
 ## Open Questions
 
-- [ ] Trend chart granularity on the detail page: per-session points vs. weekly best (per-session proposed; sparkline downsamples).
-- [ ] Does the `/exercises` library list every catalog exercise or only exercises with logged history? (Proposed: history-first list with search over the full catalog.)
-- [ ] PR detection tie-breaking: strictly-greater e1RM only (matches `derivePR`'s strictly-greater rule) — confirm same rule for heaviest-weight and rep records.
+- [x] Trend chart granularity: per-session points (Phase 2).
+- [x] Library scope: history-first list with client-side name filter; full-catalog search deferred — the logger's picker covers discovery (Phase 2 decision).
+- [x] Tie-breaking: strictly-greater everywhere, for all record types; plus a 0.1 kg epsilon in LIVE detection to absorb lb display-rounding (Phase 4).
 
 ---
 
@@ -117,7 +117,7 @@ Phases 1–4 below, in order. The hypothesis is testable after Phase 3 (both ent
 | 1 | Data layer | Exercise-stats query, records/trend derive functions, index migration (scorer already shared in `lib/one-rep-max.ts`) | complete | - | - | [plan](../plans/completed/exercise-stats-data-layer.plan.md) · [report](../reports/exercise-stats-data-layer-report.md) |
 | 2 | Library + detail page | `/exercises` search list and `/exercises/[source]/[id]` full stats page | complete | with 3 | 1 | [plan](../plans/completed/exercise-stats-pages.plan.md) · [report](../reports/exercise-stats-pages-report.md) |
 | 3 | Logger sheet | Tap-name → History/Records sheet with link-out | complete | with 2 | 1 | [plan](../plans/completed/exercise-stats-logger-sheet.plan.md) · [report](../reports/exercise-stats-logger-sheet-report.md) |
-| 4 | PR detection | Inline all-time-PR flag on set completion | in-progress | - | 1, 3 | [plan](../plans/exercise-stats-pr-detection.plan.md) |
+| 4 | PR detection | Inline all-time-PR flag on set completion | complete | - | 1, 3 | [plan](../plans/completed/exercise-stats-pr-detection.plan.md) · [report](../reports/exercise-stats-pr-detection-report.md) |
 
 ### Phase Details
 

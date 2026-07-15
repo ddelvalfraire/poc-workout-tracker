@@ -37,6 +37,15 @@ export interface PRCandidateSet {
  */
 const E1RM_EPSILON_KG = 0.1
 
+/** Plain decimal digits only ("5", "102.5") — no sign, hex, exponent, or
+ *  trailing junk. */
+const DECIMAL_PATTERN = /^\d+(\.\d+)?$/
+
+function parseDecimal(text: string): number | null {
+  const trimmed = text.trim()
+  return DECIMAL_PATTERN.test(trimmed) ? Number(trimmed) : null
+}
+
 export function allTimePRIndex(
   sets: readonly PRCandidateSet[],
   loggingType: LoggingType,
@@ -50,11 +59,16 @@ export function allTimePRIndex(
   let winnerE1rm = -Infinity
   for (const [index, set] of sets.entries()) {
     if (!set.completed) continue
-    // Number, not parseFloat: '12abc' must be rejected, not read as 12.
-    // Blank strings are forced to NaN first (Number('') is 0, not blank).
-    const reps = set.reps.trim() === '' ? NaN : Number(set.reps)
-    const weight = set.weight.trim() === '' ? NaN : Number(set.weight)
-    const e1rm = estimate1RM(reps, Number.isFinite(weight) ? displayToKg(weight, unit) : null)
+    // Strict decimal parse, stricter than BOTH Number() (which accepts hex —
+    // Number('0x12') is 18) and the save path's parseInt/parseFloat (which
+    // prefix-parse '12abc' as 12): the detector must never score more than
+    // what will persist. Reps must be a whole number for the same reason —
+    // the save path truncates '5.9' to 5, and a flag earned on 5.9 would be
+    // a phantom once saved.
+    const reps = parseDecimal(set.reps)
+    if (reps === null || !Number.isInteger(reps)) continue
+    const weight = parseDecimal(set.weight)
+    const e1rm = estimate1RM(reps, weight !== null ? displayToKg(weight, unit) : null)
     if (e1rm === null) continue
     if (e1rm > winnerE1rm) {
       winnerE1rm = e1rm
