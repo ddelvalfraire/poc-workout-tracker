@@ -15,6 +15,7 @@ import {
   deleteWorkoutAction,
   getLastPerformanceAction,
   substitutePlanTargetsAction,
+  rememberSwapAction,
   getWorkoutDraftAction,
   putWorkoutDraftAction,
   deleteWorkoutDraftAction,
@@ -235,6 +236,21 @@ export function WorkoutLogger({
   // seeded planTargets (which stays keyed to the plan's ORIGINAL exercises).
   // In-memory only: a reload falls back to history ghosts (accepted).
   const [planOverrides, setPlanOverrides] = useState<Record<number, PlanSetTarget[]>>({})
+  // Post-swap "use for the block?" prompt — one at a time, newest swap wins.
+  // Snooze is per ORIGINAL exercise, in-memory for this workout only (a
+  // fresh swap next session re-asks once — that repeat IS the signal the
+  // question deserves re-asking; no persistent snooze store by design).
+  const [pendingRemember, setPendingRemember] = useState<{
+    originalId: number
+    originalName: string
+    substituteId: number
+    substituteName: string
+    replacementId: string
+  } | null>(null)
+  const [rememberSnoozed, setRememberSnoozed] = useState<Set<number>>(new Set())
+  // Renders INSIDE the prompt row so the user retries in place.
+  const [rememberError, setRememberError] = useState<string | null>(null)
+  const [isRemembering, setIsRemembering] = useState(false)
   // Substitute overlay first, then the server-seeded plan — both ghost
   // placeholders and the rest countdown must see the same answer.
   const planFor = (id: number) => planOverrides[id] ?? planTargets?.[id]
@@ -249,6 +265,11 @@ export function WorkoutLogger({
     const exercise = draft.exercises[index]
     dispatch({ type: 'REMOVE_EXERCISE', index })
     pushRemoved({ kind: 'exercise', exercise, index })
+    // Trashing the substitute withdraws its remember question — the prompt
+    // must never offer to persist an exercise no longer in the session.
+    if (pendingRemember?.replacementId === exercise.id) {
+      setPendingRemember(null)
+    }
   }
 
   function performReplace(
@@ -274,6 +295,49 @@ export function WorkoutLogger({
         .catch(() => {
           // Non-critical: the swap already stands on history ghosts.
         })
+    }
+    // Offer to make it permanent — only for PLAN exercises (planTargets is
+    // keyed by exactly the plan's ids, NOT the overlay: ad-hoc sessions,
+    // hand-added exercises, and re-swapped substitutes never qualify) and
+    // not while snoozed for this workout.
+    if (
+      workoutId &&
+      planTargets?.[previous.wgerExerciseId] !== undefined &&
+      !rememberSnoozed.has(previous.wgerExerciseId)
+    ) {
+      setRememberError(null)
+      setPendingRemember({
+        originalId: previous.wgerExerciseId,
+        originalName: previous.name,
+        substituteId: picked.wgerExerciseId,
+        substituteName: picked.name,
+        replacementId: replacement.id,
+      })
+    }
+  }
+
+  function handleRememberJustToday() {
+    if (!pendingRemember) return
+    // Copy-then-add: never mutate state in place.
+    setRememberSnoozed((prev) => new Set(prev).add(pendingRemember.originalId))
+    setPendingRemember(null)
+  }
+
+  async function handleRememberForBlock() {
+    if (!pendingRemember || !workoutId) return
+    setIsRemembering(true)
+    try {
+      setRememberError(null)
+      await rememberSwapAction(workoutId, pendingRemember.originalId, {
+        wgerExerciseId: pendingRemember.substituteId,
+        name: pendingRemember.substituteName,
+      })
+      setPendingRemember(null)
+    } catch {
+      // The prompt stays: the error renders inside it, retry in place.
+      setRememberError('Could not update the program. Please try again.')
+    } finally {
+      setIsRemembering(false)
     }
   }
 
@@ -316,6 +380,10 @@ export function WorkoutLogger({
       const index = draft.exercises.findIndex((e) => e.id === last.replacementId)
       if (index !== -1) {
         dispatch({ type: 'REPLACE_EXERCISE', index, exercise: last.previous })
+      }
+      // Undoing the swap withdraws its remember question.
+      if (pendingRemember?.replacementId === last.replacementId) {
+        setPendingRemember(null)
       }
     } else {
       // Resolve the exercise's CURRENT index by id; if its own removal is
@@ -362,6 +430,8 @@ export function WorkoutLogger({
         // silently retarget under the restored draft — cancel, don't retarget.
         setReplaceTargetIndex(null)
         setPendingReplace(null)
+        // And the remember prompt: its swap may not exist in the restored draft.
+        setPendingRemember(null)
       })
       .catch(() => {
         // Non-critical: restore is best-effort; the logger works without it.
@@ -422,6 +492,7 @@ export function WorkoutLogger({
     setIsRestSheetOpen(false) // and for the rest-target sheet
     setReplaceTargetIndex(null) // and for the replace sheet + its guard dialog
     setPendingReplace(null)
+    setPendingRemember(null) // an unanswered remember prompt dies with the session
     setIsSaving(true)
     try {
       setError(null)
@@ -473,6 +544,7 @@ export function WorkoutLogger({
     setIsRestSheetOpen(false)
     setReplaceTargetIndex(null)
     setPendingReplace(null)
+    setPendingRemember(null)
     setIsDiscarding(true)
     try {
       setDiscardError(null)
@@ -886,6 +958,43 @@ export function WorkoutLogger({
       </div>
 
       <div className="sticky bottom-0 z-10 -mx-5 border-t border-border bg-background/85 px-5 pt-3 pb-safe backdrop-blur-md">
+        {/* Post-swap remember prompt: a quiet follow-up, never a modal — the
+            decision that mattered (the swap) is already made; this must not
+            block logging. Sits above the undo toast (it outlives undo's 5s).
+            One-volt rule: ghost/outline pair, Finish keeps the bar's volt. */}
+        {pendingRemember && (
+          <div
+            role="status"
+            className="mb-3 rounded-xl border border-border bg-card px-4 py-2.5"
+          >
+            <p className="min-w-0 text-sm">
+              Use <span className="font-medium">{pendingRemember.substituteName}</span> for the
+              rest of the block?
+            </p>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              Replaces {pendingRemember.originalName} in the plan — your history stays.
+            </p>
+            <div className="mt-2 flex justify-end gap-2">
+              <Button
+                size="sm"
+                variant="ghost"
+                disabled={isRemembering}
+                onClick={handleRememberJustToday}
+              >
+                Just today
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={isRemembering}
+                onClick={handleRememberForBlock}
+              >
+                {isRemembering ? 'Saving…' : 'Use for block'}
+              </Button>
+            </div>
+            {rememberError && <p className="mt-1.5 text-sm text-destructive">{rememberError}</p>}
+          </div>
+        )}
         {removed.length > 0 && (
           <div
             role="status"
@@ -948,7 +1057,10 @@ export function WorkoutLogger({
             )}
             // isDiscarding too: finishing a session that's mid-discard would
             // race the delete — the two exits are mutually exclusive.
-            disabled={isEmpty || isSaving || isDiscarding}
+            // isRemembering too: finishing mid program-patch would navigate
+            // away from an in-flight plan edit — let the momentary action
+            // settle (it resolves in one round-trip).
+            disabled={isEmpty || isSaving || isDiscarding || isRemembering}
             onClick={handleSave}
           >
             {isSaving ? 'Saving…' : isLive ? 'Finish workout' : 'Save changes'}

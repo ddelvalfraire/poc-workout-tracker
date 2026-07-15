@@ -12,6 +12,7 @@ import {
   type LastPerformance,
 } from '@/db/workouts'
 import { getProgramDayDetail, deriveDayPrescription } from '@/db/programs'
+import { updateProgramExercise } from '@/db/program-patches'
 import { substituteSlot } from '@/lib/substitute-slot'
 import type { PlanSetTarget } from '@/lib/format'
 import { getWorkoutDraft, putWorkoutDraft, deleteWorkoutDraft } from '@/db/workout-drafts'
@@ -137,6 +138,56 @@ export async function substitutePlanTargetsAction(
     loadKg: s.loadKg,
     restSec: s.restSec,
   }))
+}
+
+/**
+ * Persists a mid-session swap into the PROGRAM: the slot that prescribed the
+ * original exercise is re-pointed at the substitute via the narrow
+ * updateProgramExercise patch — sets and per-week overrides untouched, muscle
+ * tags re-derived. Position addresses are resolved server-side from the
+ * workout's provenance AT ACCEPT TIME (a program edited elsewhere meanwhile
+ * throws on the vanished original instead of patching the wrong slot).
+ * Throws (not null) on any broken link: the client offered the prompt
+ * because the plan link existed moments ago, so a failure is surfaced for
+ * retry rather than swallowed.
+ */
+export async function rememberSwapAction(
+  workoutId: unknown,
+  originalWgerExerciseId: unknown,
+  substitute: { wgerExerciseId: unknown; name: unknown },
+): Promise<void> {
+  const userId = await requireUserId()
+  if (typeof workoutId !== 'string' || workoutId.length === 0) {
+    throw new Error('invalid workout id')
+  }
+  if (!Number.isInteger(originalWgerExerciseId) || (originalWgerExerciseId as number) <= 0) {
+    throw new Error('invalid exercise id')
+  }
+  if (!Number.isInteger(substitute.wgerExerciseId) || (substitute.wgerExerciseId as number) <= 0) {
+    throw new Error('invalid exercise id')
+  }
+  if (typeof substitute.name !== 'string' || substitute.name.trim().length === 0) {
+    throw new Error('invalid exercise name')
+  }
+  const workout = await getWorkoutDetail(userId, workoutId)
+  if (!workout?.programDayId) throw new Error('workout has no program')
+  const day = await getProgramDayDetail(userId, workout.programDayId)
+  if (!day) throw new Error('program day not found')
+  // This is a WRITE, so first-match isn't good enough: a day listing the
+  // same exercise twice would silently patch the slot the user never
+  // touched. Ambiguity throws instead — no silent wrong-slot mutations.
+  const matches = day.exercises.filter((e) => e.wgerExerciseId === originalWgerExerciseId)
+  if (matches.length === 0) throw new Error('exercise not found in program')
+  if (matches.length > 1) throw new Error('exercise appears more than once in this day')
+  const slot = matches[0]
+
+  const updated = await updateProgramExercise(userId, day.program.id, day.position, slot.position, {
+    wgerExerciseId: substitute.wgerExerciseId as number,
+    name: substitute.name.trim(),
+  })
+  if (!updated) throw new Error('could not update the program')
+  revalidatePath('/programs')
+  revalidatePath(`/programs/${day.program.id}`)
 }
 
 // ---------------------------------------------------------------------------
