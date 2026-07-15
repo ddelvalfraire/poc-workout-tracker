@@ -81,9 +81,17 @@ export function ExerciseSheet({ onAdd, onClose, heading = 'Add exercise' }: Exer
           e.clientY <= rect.bottom
         if (!inside) onClose()
       }}
-      className="mx-auto mt-auto mb-0 max-h-[85dvh] w-full max-w-md overflow-y-auto overscroll-contain rounded-t-2xl border-t border-x border-border bg-card px-5 pt-5 pb-safe text-foreground backdrop:bg-black/60"
+      // Full-height search takeover (the Hevy/Strong pattern), NOT a
+      // content-sized sheet: a FIXED height means the sheet never lurches as
+      // results appear/disappear per keystroke, and pinning the header +
+      // search input at the TOP keeps typing usable when the iOS keyboard
+      // overlays the bottom half (Safari never resizes the viewport; Android
+      // does via interactiveWidget + dvh, see layout.tsx). Only the result
+      // list scrolls — the input can't be scrolled out of view. The 8dvh
+      // sliver of backdrop keeps it reading as a dismissible sheet.
+      className="mx-auto mt-auto mb-0 flex h-[92dvh] w-full max-w-md flex-col rounded-t-2xl border-t border-x border-border bg-card px-5 pt-5 text-foreground backdrop:bg-black/60"
     >
-      <div className="flex items-start justify-between gap-3 pb-3">
+      <div className="flex shrink-0 items-start justify-between gap-3 pb-3">
         <p className="min-w-0 truncate text-xs font-semibold uppercase tracking-widest text-primary">
           {heading}
         </p>
@@ -101,9 +109,11 @@ export function ExerciseSheet({ onAdd, onClose, heading = 'Add exercise' }: Exer
 
       {/* Single-add flow: the sheet closes on add so the freshly appended
           card is immediately visible where it landed — adding two in a row
-          is two taps of the same always-there bar button. */}
-      <div className="pb-4">
+          is two taps of the same always-there bar button. min-h-0 lets the
+          picker's result list own the scroll instead of the dialog. */}
+      <div className="flex min-h-0 flex-1 flex-col pb-safe">
         <ExercisePicker
+          fill
           onAdd={(exercise) => {
             onAdd(exercise)
             onClose()
