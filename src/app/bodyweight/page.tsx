@@ -56,12 +56,14 @@ export default async function BodyweightPage() {
           {current ? (
             <>
               <p className="text-sm text-muted-foreground">Current</p>
-              <p className="mt-1 font-display text-4xl leading-none tnum">
+              {/* Proportional figures at display size — tabular is for columns
+                  (set tables, ticks), where digits must align vertically. */}
+              <p className="mt-1 font-display text-4xl leading-none">
                 {kgToDisplay(current.weightKg, unit)}
                 <span className="ml-1.5 text-xl text-muted-foreground">{unit}</span>
               </p>
               {deltaKg !== null && (
-                <p className="mt-1.5 text-sm text-muted-foreground tnum">
+                <p className="mt-1.5 text-sm text-muted-foreground">
                   {formatDelta(deltaKg, unit)} / {DELTA_DAYS}d
                 </p>
               )}
