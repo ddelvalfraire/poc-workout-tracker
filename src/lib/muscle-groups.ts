@@ -50,3 +50,8 @@ const NAME_TO_GROUP: Record<string, MuscleGroup> = {
 export function muscleGroupFor(name: string): MuscleGroup | null {
   return NAME_TO_GROUP[name] ?? null
 }
+
+/** Every catalog muscle name the app understands — the vocabulary custom
+ *  exercises tag with so their sets feed muscle-volume and the replacement
+ *  suggestions exactly like wger entries. */
+export const CATALOG_MUSCLE_NAMES = Object.keys(NAME_TO_GROUP)

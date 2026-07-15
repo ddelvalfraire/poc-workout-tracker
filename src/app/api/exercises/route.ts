@@ -1,6 +1,7 @@
 import { auth } from '@clerk/nextjs/server'
 import { NextResponse } from 'next/server'
 import { searchExercises, getAllExercises } from '@/lib/wger'
+import { listCustomExercises } from '@/db/custom-exercises'
 
 // Exercise data is public reference data that changes rarely, so the browser
 // may cache the full catalog for the session (instant repeat opens).
@@ -22,6 +23,32 @@ export async function GET(request: Request): Promise<NextResponse> {
   }
 
   const { searchParams } = new URL(request.url)
+
+  // The user's custom exercises, source-labeled, as a SEPARATE uncached
+  // fetch: the shared wger catalog stays browser-cacheable while customs —
+  // per-user and changed by the create flow — are always fresh.
+  if (searchParams.get('custom') === '1') {
+    try {
+      const customs = await listCustomExercises(userId)
+      return NextResponse.json(
+        customs.map((c) => ({
+          id: c.id,
+          source: 'custom' as const,
+          name: c.name,
+          category: c.category,
+          ...(c.equipment && c.equipment.length > 0 ? { equipment: c.equipment } : {}),
+          ...(c.muscles && c.muscles.length > 0 ? { muscles: c.muscles } : {}),
+          ...(c.musclesSecondary && c.musclesSecondary.length > 0
+            ? { musclesSecondary: c.musclesSecondary }
+            : {}),
+        })),
+        { headers: { 'Cache-Control': 'no-store' } },
+      )
+    } catch (error: unknown) {
+      console.error('GET /api/exercises?custom=1 failed', error)
+      return NextResponse.json({ error: 'Failed to fetch custom exercises' }, { status: 502 })
+    }
+  }
 
   try {
     if (searchParams.get('all') === '1') {

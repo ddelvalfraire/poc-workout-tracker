@@ -3,7 +3,7 @@
 import { useEffect, useRef } from 'react'
 import { X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { ExercisePicker } from './exercise-picker'
+import { ExercisePicker, type PickedExercise } from './exercise-picker'
 
 /**
  * Bottom sheet wrapping the exercise search — the picker moved out of the
@@ -14,8 +14,8 @@ import { ExercisePicker } from './exercise-picker'
  */
 
 interface ExerciseSheetProps {
-  /** Same shape the inline picker dispatched — the caller builds the draft exercise. */
-  onAdd: (exercise: { wgerExerciseId: number; name: string; category: string }) => void
+  /** Same shape the picker emits — the caller builds the draft exercise. */
+  onAdd: (exercise: PickedExercise) => void
   onClose: () => void
   /** Sheet title — replace mode retitles the same sheet ("Replace Bench
    *  Press"); chrome only, the picker is untouched. */
@@ -122,6 +122,10 @@ export function ExerciseSheet({
       <div className="flex min-h-0 flex-1 flex-col pb-safe">
         <ExercisePicker
           fill
+          // The logger is the create surface: customs merge into search and
+          // the "Create …" escape hatch renders. (The program builder keeps
+          // the default OFF until its save path can express source.)
+          includeCustom
           suggestFor={suggestFor}
           onAdd={(exercise) => {
             onAdd(exercise)
