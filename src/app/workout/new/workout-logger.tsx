@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useReducer, useRef, useState } from 'react'
+import { Fragment, useEffect, useReducer, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useQueries, useQueryClient } from '@tanstack/react-query'
@@ -14,6 +14,7 @@ import {
   updateWorkoutAction,
   deleteWorkoutAction,
   getLastPerformanceAction,
+  getExerciseBestAction,
   substitutePlanTargetsAction,
   rememberSwapAction,
   getWorkoutDraftAction,
@@ -40,6 +41,7 @@ import { PlateSheet } from './plate-sheet'
 import { RestSheet } from './rest-sheet'
 import { StatsSheet } from './stats-sheet'
 import { resolveRestTarget } from '@/lib/rest-target'
+import { allTimePRIndex } from '@/lib/pr-detection'
 import { DEFAULT_EQUIPMENT, type Equipment } from '@/lib/equipment'
 import { LOGGING_TYPES, isLoggingType, type LoggingType } from '@/lib/workout-input'
 import { type WeightUnit } from '@/lib/units'
@@ -157,6 +159,37 @@ export function WorkoutLogger({
     const result = lastPerformanceQueries[i].data
     if (result !== undefined) lastByExercise[id] = result
   })
+  // All-time best e1RM per exercise — the baseline the live PR flag compares
+  // against. LIVE sessions only (correcting a finished workout is not "the
+  // moment it happens"), and deliberately frozen for the session
+  // (staleTime: Infinity): the record you walked in with is the one you beat.
+  const bestExerciseIds = isLive ? exerciseIds : []
+  const bestQueries = useQueries({
+    queries: bestExerciseIds.map((id) => ({
+      queryKey: ['exercise-best', id],
+      queryFn: () => getExerciseBestAction(id),
+      staleTime: Infinity,
+      retry: 1,
+    })),
+  })
+  const bestByExercise: Record<number, number | null> = {}
+  bestExerciseIds.forEach((id, i) => {
+    const result = bestQueries[i].data
+    if (result !== undefined) bestByExercise[id] = result
+  })
+  // Which set (if any) currently claims the all-time-PR caption, per exercise
+  // position. Pure recompute per render — unchecking or editing a set moves
+  // or clears the flag honestly.
+  const prIndexByExercise = draft.exercises.map((exercise) =>
+    isLive
+      ? allTimePRIndex(
+          exercise.sets,
+          exercise.loggingType,
+          unit,
+          bestByExercise[exercise.wgerExerciseId] ?? null,
+        )
+      : null,
+  )
   // When the user opened the logger — saved as startedAt for NEW workouts so
   // startedAt→completedAt reflects the real session length, not the save
   // instant. Edits keep the workout's existing startedAt. State (not a ref)
@@ -799,7 +832,8 @@ export function WorkoutLogger({
                       : undefined,
                 }
                 return (
-                <div key={set.id} className="flex items-center gap-2">
+                <Fragment key={set.id}>
+                <div className="flex items-center gap-2">
                   <button
                     type="button"
                     onClick={() => {
@@ -935,6 +969,15 @@ export function WorkoutLogger({
                     <X aria-hidden="true" className="size-4" />
                   </Button>
                 </div>
+                {/* The record moment, recognized as it happens: this set's
+                    e1RM strictly beats the all-time best the session opened
+                    with. Presentation-only — nothing is stored. */}
+                {setIndex === prIndexByExercise[exerciseIndex] && (
+                  <p className="pl-10 text-[0.7rem] font-semibold uppercase tracking-widest text-primary">
+                    All-time PR
+                  </p>
+                )}
+                </Fragment>
                 )
               })}
             </div>

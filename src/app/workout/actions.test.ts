@@ -5,6 +5,7 @@ import {
   deleteWorkoutAction,
   getLastPerformanceAction,
   getExerciseSheetAction,
+  getExerciseBestAction,
   getWorkoutDraftAction,
   putWorkoutDraftAction,
   deleteWorkoutDraftAction,
@@ -151,6 +152,34 @@ describe('getExerciseSheetAction', () => {
     }
     expect(mockedGetStats).not.toHaveBeenCalled()
     expect(mockedGetSessions).not.toHaveBeenCalled()
+  })
+})
+
+describe('getExerciseBestAction', () => {
+  it('returns the all-time best e1RM under the wger identity', async () => {
+    mockedGetStats.mockResolvedValue({
+      records: { bestE1rm: { e1rm: 122.5 } },
+    } as unknown as Awaited<ReturnType<typeof getExerciseStats>>)
+
+    expect(await getExerciseBestAction(73)).toBe(122.5)
+    expect(mockedGetStats).toHaveBeenCalledWith(USER, 'wger', 73)
+  })
+
+  it('returns null when there is no history or no e1rm-scorable record', async () => {
+    mockedGetStats.mockResolvedValue(null)
+    expect(await getExerciseBestAction(73)).toBeNull()
+
+    mockedGetStats.mockResolvedValue({
+      records: { bestE1rm: null },
+    } as unknown as Awaited<ReturnType<typeof getExerciseStats>>)
+    expect(await getExerciseBestAction(73)).toBeNull()
+  })
+
+  it('rejects a non-integer or non-positive exercise id before touching the database', async () => {
+    for (const bad of ['73', 0, -1, 1.5, null]) {
+      await expect(getExerciseBestAction(bad)).rejects.toThrow('invalid exercise id')
+    }
+    expect(mockedGetStats).not.toHaveBeenCalled()
   })
 })
 
