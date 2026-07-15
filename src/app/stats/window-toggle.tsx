@@ -1,5 +1,6 @@
 'use client'
 
+import { useSyncExternalStore } from 'react'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
 import type { VolumeWindowMode } from '@/lib/volume-window'
@@ -16,13 +17,26 @@ interface WindowToggleProps {
   mode: VolumeWindowMode
 }
 
+/** The offset never changes mid-session — no store to subscribe to. */
+function subscribeNever(): () => void {
+  return () => {}
+}
+
 export function WindowToggle({ mode }: WindowToggleProps) {
-  // Read at render: the offset is stable for the session, and a stale value
-  // only shifts week boundaries the way a real timezone change would.
-  const tz = new Date().getTimezoneOffset()
+  // Client-only value, hydration-safe: the server snapshot is null (href
+  // omits tz; the page defaults it to 0), the client snapshot reads the real
+  // offset. useSyncExternalStore is the sanctioned shape for this — reading
+  // getTimezoneOffset during plain render would make the server-rendered
+  // href mismatch the client's at hydration.
+  const tz = useSyncExternalStore(
+    subscribeNever,
+    () => new Date().getTimezoneOffset(),
+    () => null,
+  )
+  const calendarHref = tz === null ? '/stats?window=calendar' : `/stats?window=calendar&tz=${tz}`
   const options: { label: string; href: string; value: VolumeWindowMode }[] = [
     { label: 'Rolling 7d', href: '/stats', value: 'rolling' },
-    { label: 'Calendar wk', href: `/stats?window=calendar&tz=${tz}`, value: 'calendar' },
+    { label: 'Calendar wk', href: calendarHref, value: 'calendar' },
   ]
 
   return (

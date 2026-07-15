@@ -36,9 +36,9 @@ We believe a per-muscle weekly volume view will replace guesswork about training
 
 ## Open Questions
 
-- [ ] Week boundary timezone: server components don't know the client TZ — reuse the `lib/local-day` / recent-window convention (decide at plan time; likely pass the client offset the way existing surfaces do, or accept UTC weeks as POC drift with a comment).
-- [ ] Unmapped exercises (catalog gaps, custom without muscles): shown as an "Unmapped" row vs silently dropped? (Proposed: explicit "Unmapped" row — silent drops misstate volume.)
-- [ ] Do duration-mode sets count toward muscle sets? (Proposed: no — reps_weight-mode completed sets only, consistent with records.)
+- [x] Week boundary timezone: the calendar toggle carries the client's `getTimezoneOffset()` in URL state (hydration-safe via useSyncExternalStore); rolling mode is tz-free with an open upper edge for clock skew.
+- [x] Unmapped exercises/names: explicit 'Other' bucket, never dropped (Phase 1).
+- [x] Duration-mode sets: excluded — reps_weight completed sets only, consistent with records (Phase 1).
 
 ---
 
@@ -107,8 +107,8 @@ Home → "This week" teaser → `/stats`: bar per muscle group (this week vs las
 
 | # | Phase | Description | Status | Parallel | Depends | PRP Plan |
 |---|-------|-------------|--------|----------|---------|----------|
-| 1 | Muscle mapping + aggregation | `lib/muscle-groups.ts`, `db/muscle-volume.ts`, week-window math, tests | in-progress | - | - | [plan](../plans/muscle-volume-data-layer.plan.md) |
-| 2 | /stats surface + home teaser | Page (bars, tiles, flags, window toggle), teaser card, nav | pending | - | 1 | - |
+| 1 | Muscle mapping + aggregation | `lib/muscle-groups.ts`, `db/muscle-volume.ts`, week-window math, tests | complete | - | - | [plan](../plans/completed/muscle-volume-data-layer.plan.md) · [review](../reviews/muscle-volume-data-layer-review.md) |
+| 2 | /stats surface + home teaser | Page (bars, tiles, flags, window toggle), teaser card, nav | complete | - | 1 | [plan](../plans/completed/muscle-volume-surface.plan.md) · [review](../reviews/muscle-volume-surface-review.md) |
 
 ### Phase Details
 

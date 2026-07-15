@@ -149,6 +149,30 @@ export async function buildMuscleResolver(userId: string): Promise<MuscleResolve
   }
 }
 
+/** The shared flat-rows fetch: completed sets in completed workouts from the
+ *  previous window's start onward (one fetch covers both windows). */
+function fetchVolumeRows(userId: string, windows: VolumeWindows) {
+  return db
+    .select({
+      workoutId: workouts.id,
+      startedAt: workouts.startedAt,
+      wgerExerciseId: workoutExercises.wgerExerciseId,
+      source: workoutExercises.source,
+      metricMode: sets.metricMode,
+    })
+    .from(sets)
+    .innerJoin(workoutExercises, eq(workoutExercises.id, sets.workoutExerciseId))
+    .innerJoin(workouts, eq(workouts.id, workoutExercises.workoutId))
+    .where(
+      and(
+        eq(workouts.userId, userId),
+        isNotNull(workouts.completedAt),
+        eq(sets.completed, true),
+        gte(workouts.startedAt, windows.previous.start),
+      ),
+    )
+}
+
 /** Weekly muscle volume for the given windows (current + previous). */
 export async function getMuscleVolume(
   userId: string,
@@ -156,26 +180,21 @@ export async function getMuscleVolume(
 ): Promise<MuscleVolume> {
   const [resolver, rows] = await Promise.all([
     buildMuscleResolver(userId),
-    db
-      .select({
-        workoutId: workouts.id,
-        startedAt: workouts.startedAt,
-        wgerExerciseId: workoutExercises.wgerExerciseId,
-        source: workoutExercises.source,
-        metricMode: sets.metricMode,
-      })
-      .from(sets)
-      .innerJoin(workoutExercises, eq(workoutExercises.id, sets.workoutExerciseId))
-      .innerJoin(workouts, eq(workouts.id, workoutExercises.workoutId))
-      .where(
-        and(
-          eq(workouts.userId, userId),
-          isNotNull(workouts.completedAt),
-          eq(sets.completed, true),
-          // One fetch covers both windows; the pure split assigns rows.
-          gte(workouts.startedAt, windows.previous.start),
-        ),
-      ),
+    fetchVolumeRows(userId, windows),
   ])
   return aggregateMuscleVolume(rows, resolver, windows)
+}
+
+/**
+ * Totals only — no muscle resolution, so no catalog/Redis dependency. The
+ * home teaser's read: it must never put the wger catalog on the home page's
+ * critical path (the /stats page owns the full per-group picture).
+ */
+export async function getVolumeTotals(
+  userId: string,
+  windows: VolumeWindows,
+): Promise<MuscleVolume['totals']> {
+  const rows = await fetchVolumeRows(userId, windows)
+  const emptyResolver: MuscleResolver = () => ({ primary: [], secondary: [] })
+  return aggregateMuscleVolume(rows, emptyResolver, windows).totals
 }
