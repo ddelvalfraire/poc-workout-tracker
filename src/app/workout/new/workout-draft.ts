@@ -47,6 +47,10 @@ export type DraftAction =
    *  exercise may land at a shifted spot — accepted tradeoff: order is
    *  cosmetic here, the sets themselves are what the undo protects. */
   | { type: 'INSERT_EXERCISE'; index: number; exercise: DraftExercise }
+  /** Swaps the exercise at `index` for a replacement built by the caller
+   *  (replacementDraftExercise) — the machine-is-taken swap. Verbatim
+   *  placement like ADD_EXERCISE; a stale index past the end is a no-op. */
+  | { type: 'REPLACE_EXERCISE'; index: number; exercise: DraftExercise }
   | { type: 'ADD_SET'; exerciseIndex: number; set: DraftSet }
   | {
       type: 'UPDATE_SET'
@@ -93,6 +97,25 @@ export function newDraftExercise(picked: {
   return { id: crypto.randomUUID(), ...picked, loggingType: 'weight_reps', sets: [newDraftSet()] }
 }
 
+/**
+ * Builds the swap replacement: the picked identity with the OLD slot's set
+ * COUNT (the scheme survives) but fresh empty sets and the default
+ * loggingType — typed values and a BW/assist reading belong to the old
+ * movement (same meaning-change rule as SET_LOGGING_TYPE's weight clear).
+ * Ghosts re-fill from the substitute's own history.
+ */
+export function replacementDraftExercise(
+  picked: { wgerExerciseId: number; name: string; category: string },
+  setCount: number,
+): DraftExercise {
+  return {
+    id: crypto.randomUUID(),
+    ...picked,
+    loggingType: 'weight_reps',
+    sets: Array.from({ length: Math.max(1, setCount) }, () => newDraftSet()),
+  }
+}
+
 /** Replaces the exercise at `index` via `update`, returning a new exercises array. */
 function mapExerciseAt(
   exercises: DraftExercise[],
@@ -119,6 +142,11 @@ export function workoutDraftReducer(state: WorkoutDraft, action: DraftAction): W
           ...state.exercises.slice(index),
         ],
       }
+    }
+
+    case 'REPLACE_EXERCISE': {
+      if (action.index >= state.exercises.length) return state
+      return { exercises: mapExerciseAt(state.exercises, action.index, () => action.exercise) }
     }
 
     case 'ADD_SET':

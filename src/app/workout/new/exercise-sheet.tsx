@@ -17,9 +17,12 @@ interface ExerciseSheetProps {
   /** Same shape the inline picker dispatched — the caller builds the draft exercise. */
   onAdd: (exercise: { wgerExerciseId: number; name: string; category: string }) => void
   onClose: () => void
+  /** Sheet title — replace mode retitles the same sheet ("Replace Bench
+   *  Press"); chrome only, the picker is untouched. */
+  heading?: string
 }
 
-export function ExerciseSheet({ onAdd, onClose }: ExerciseSheetProps) {
+export function ExerciseSheet({ onAdd, onClose, heading = 'Add exercise' }: ExerciseSheetProps) {
   const dialogRef = useRef<HTMLDialogElement>(null)
   const closeButtonRef = useRef<HTMLButtonElement>(null)
 
@@ -60,7 +63,7 @@ export function ExerciseSheet({ onAdd, onClose }: ExerciseSheetProps) {
     // max-h + scroll: the search results list can exceed a phone viewport.
     <dialog
       ref={dialogRef}
-      aria-label="Add exercise"
+      aria-label={heading}
       onCancel={(e) => {
         e.preventDefault() // keep open/closed state owned by React
         onClose()
@@ -81,8 +84,8 @@ export function ExerciseSheet({ onAdd, onClose }: ExerciseSheetProps) {
       className="mx-auto mt-auto mb-0 max-h-[85dvh] w-full max-w-md overflow-y-auto overscroll-contain rounded-t-2xl border-t border-x border-border bg-card px-5 pt-5 pb-safe text-foreground backdrop:bg-black/60"
     >
       <div className="flex items-start justify-between gap-3 pb-3">
-        <p className="text-xs font-semibold uppercase tracking-widest text-primary">
-          Add exercise
+        <p className="min-w-0 truncate text-xs font-semibold uppercase tracking-widest text-primary">
+          {heading}
         </p>
         <Button
           ref={closeButtonRef}

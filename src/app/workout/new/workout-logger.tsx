@@ -4,7 +4,7 @@ import { useEffect, useReducer, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useQueries, useQueryClient } from '@tanstack/react-query'
-import { Check, ChevronDown, Dumbbell, Trash2, X } from 'lucide-react'
+import { ArrowLeftRight, Check, ChevronDown, Dumbbell, Trash2, X } from 'lucide-react'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { AppHeader } from '@/components/app-header'
@@ -19,12 +19,14 @@ import {
   deleteWorkoutDraftAction,
 } from '@/app/workout/actions'
 import { ExerciseSheet } from './exercise-sheet'
+import { ReplaceConfirmDialog } from './replace-confirm-dialog'
 import {
   workoutDraftReducer,
   draftToInput,
   emptyDraft,
   newDraftExercise,
   newDraftSet,
+  replacementDraftExercise,
   type DraftExercise,
   type DraftSet,
   type WorkoutDraft,
@@ -65,6 +67,10 @@ const LOGGING_TYPE_LABELS: Record<LoggingType, string> = {
 type RemovedEntry =
   | { kind: 'exercise'; exercise: DraftExercise; index: number }
   | { kind: 'set'; exerciseId: string; exerciseName: string; setIndex: number; set: DraftSet }
+  /** Undo for REPLACE_EXERCISE: restores the ORIGINAL exercise (logged
+   *  values included) over the replacement, resolved by the replacement's
+   *  stable id — the list can shift before Undo. */
+  | { kind: 'replace'; previous: DraftExercise; replacementId: string }
 
 interface WorkoutLoggerProps {
   /** When set, the logger is in edit mode: Save updates this workout and returns to its detail page. */
@@ -217,6 +223,14 @@ export function WorkoutLogger({
   const [isRestSheetOpen, setIsRestSheetOpen] = useState(false)
   const restTargetSec = restPlanSec ?? sessionRestSec
 
+  // Replace-exercise flow: which exercise the sheet is replacing (null = the
+  // sheet is in plain add mode), and a pick paused at the logged-work guard.
+  const [replaceTargetIndex, setReplaceTargetIndex] = useState<number | null>(null)
+  const [pendingReplace, setPendingReplace] = useState<{
+    index: number
+    picked: { wgerExerciseId: number; name: string; category: string }
+  } | null>(null)
+
   function pushRemoved(entry: RemovedEntry) {
     setRemoved((prev) => [...prev, entry])
     if (undoTimerRef.current) clearTimeout(undoTimerRef.current)
@@ -227,6 +241,32 @@ export function WorkoutLogger({
     const exercise = draft.exercises[index]
     dispatch({ type: 'REMOVE_EXERCISE', index })
     pushRemoved({ kind: 'exercise', exercise, index })
+  }
+
+  function performReplace(
+    index: number,
+    picked: { wgerExerciseId: number; name: string; category: string },
+  ) {
+    const previous = draft.exercises[index]
+    if (!previous) return // list shifted while the sheet was up — nothing to replace
+    const replacement = replacementDraftExercise(picked, previous.sets.length)
+    dispatch({ type: 'REPLACE_EXERCISE', index, exercise: replacement })
+    pushRemoved({ kind: 'replace', previous, replacementId: replacement.id })
+  }
+
+  function handleReplacePick(picked: { wgerExerciseId: number; name: string; category: string }) {
+    const index = replaceTargetIndex
+    setReplaceTargetIndex(null) // the sheet closes itself; clear replace mode
+    if (index === null) return
+    const target = draft.exercises[index]
+    if (!target) return
+    // Logged work deserves a pause: warn + offer Add-instead instead of
+    // silently discarding checked-off sets.
+    if (target.sets.some((set) => set.completed)) {
+      setPendingReplace({ index, picked })
+      return
+    }
+    performReplace(index, picked)
   }
 
   function handleRemoveSet(exerciseIndex: number, setIndex: number) {
@@ -247,6 +287,13 @@ export function WorkoutLogger({
     if (!last) return
     if (last.kind === 'exercise') {
       dispatch({ type: 'INSERT_EXERCISE', index: last.index, exercise: last.exercise })
+    } else if (last.kind === 'replace') {
+      // Swap the ORIGINAL back over the replacement, wherever it sits now;
+      // a vanished replacement (removed meanwhile) leaves nothing to undo into.
+      const index = draft.exercises.findIndex((e) => e.id === last.replacementId)
+      if (index !== -1) {
+        dispatch({ type: 'REPLACE_EXERCISE', index, exercise: last.previous })
+      }
     } else {
       // Resolve the exercise's CURRENT index by id; if its own removal is
       // deeper in the stack, undoing that first brings this set's home back.
@@ -288,6 +335,10 @@ export function WorkoutLogger({
         // A whole-draft replace orphans any pending undo entries; drop them
         // so the Undo button can't promise a restore it can no longer make.
         setRemoved([])
+        // Same rationale for an in-flight replace: its numeric index would
+        // silently retarget under the restored draft — cancel, don't retarget.
+        setReplaceTargetIndex(null)
+        setPendingReplace(null)
       })
       .catch(() => {
         // Non-critical: restore is best-effort; the logger works without it.
@@ -346,6 +397,8 @@ export function WorkoutLogger({
     setPlateSheetFor(null) // a live showModal() dialog must not cross navigation
     setIsPickerOpen(false) // same top-layer invariant for the exercise sheet
     setIsRestSheetOpen(false) // and for the rest-target sheet
+    setReplaceTargetIndex(null) // and for the replace sheet + its guard dialog
+    setPendingReplace(null)
     setIsSaving(true)
     try {
       setError(null)
@@ -395,6 +448,8 @@ export function WorkoutLogger({
     setPlateSheetFor(null) // a live showModal() dialog must not cross navigation
     setIsPickerOpen(false)
     setIsRestSheetOpen(false)
+    setReplaceTargetIndex(null)
+    setPendingReplace(null)
     setIsDiscarding(true)
     try {
       setDiscardError(null)
@@ -565,6 +620,20 @@ export function WorkoutLogger({
                   <Dumbbell aria-hidden="true" className="size-4" />
                 </Button>
               )}
+              {/* Machine taken? Swap the movement, keep the slot. Renders for
+                  EVERY loggingType (unlike plates) — equipment conflicts
+                  aren't barbell-specific. Frozen with the other draft
+                  mutations once a save/discard barrier engages. */}
+              <Button
+                size="icon-sm"
+                variant="ghost"
+                className="shrink-0 text-muted-foreground"
+                disabled={isSaving || isDiscarding}
+                onClick={() => setReplaceTargetIndex(exerciseIndex)}
+                aria-label={`Replace ${exercise.name}`}
+              >
+                <ArrowLeftRight aria-hidden="true" className="size-4" />
+              </Button>
               {/* Hairline gap between the everyday utilities and the
                   destructive remove — adjacency invites mid-set slips. */}
               <span aria-hidden="true" className="h-5 w-px shrink-0 self-center bg-border" />
@@ -800,15 +869,22 @@ export function WorkoutLogger({
             className="mb-3 flex items-center justify-between gap-3 rounded-xl border border-border bg-card px-4 py-2.5"
           >
             <p className="min-w-0 truncate text-sm">
-              Removed{' '}
-              <span className="font-medium">
-                {(() => {
-                  const last = removed[removed.length - 1]
-                  return last.kind === 'exercise'
-                    ? last.exercise.name
-                    : `set ${last.setIndex + 1} · ${last.exerciseName}`
-                })()}
-              </span>
+              {(() => {
+                // Sentence per kind — "Removed X" / "Replaced X" — with the
+                // name carrying the emphasis in both.
+                const last = removed[removed.length - 1]
+                const [verb, subject] =
+                  last.kind === 'exercise'
+                    ? ['Removed', last.exercise.name]
+                    : last.kind === 'replace'
+                      ? ['Replaced', last.previous.name]
+                      : ['Removed', `set ${last.setIndex + 1} · ${last.exerciseName}`]
+                return (
+                  <>
+                    {verb} <span className="font-medium">{subject}</span>
+                  </>
+                )
+              })()}
             </p>
             <Button size="sm" variant="outline" className="shrink-0" onClick={handleUndoRemove}>
               {removed.length > 1 ? `Undo (${removed.length})` : 'Undo'}
@@ -858,12 +934,42 @@ export function WorkoutLogger({
       </div>
       </main>
 
-      {isPickerOpen && (
+      {/* One sheet, two modes: the sticky bar opens it in add mode, the ⇄
+          header button in replace mode (retitled; the pick routes through the
+          logged-work guard instead of appending). */}
+      {(isPickerOpen || replaceTargetIndex !== null) && (
         <ExerciseSheet
-          onAdd={(exercise) =>
-            dispatch({ type: 'ADD_EXERCISE', exercise: newDraftExercise(exercise) })
+          heading={
+            replaceTargetIndex !== null
+              ? `Replace ${draft.exercises[replaceTargetIndex]?.name ?? 'exercise'}`
+              : undefined
           }
-          onClose={() => setIsPickerOpen(false)}
+          onAdd={(exercise) =>
+            replaceTargetIndex !== null
+              ? handleReplacePick(exercise)
+              : dispatch({ type: 'ADD_EXERCISE', exercise: newDraftExercise(exercise) })
+          }
+          onClose={() => {
+            setIsPickerOpen(false)
+            setReplaceTargetIndex(null)
+          }}
+        />
+      )}
+
+      {pendingReplace && draft.exercises[pendingReplace.index] && (
+        <ReplaceConfirmDialog
+          oldName={draft.exercises[pendingReplace.index].name}
+          newName={pendingReplace.picked.name}
+          hasAllCompleted={draft.exercises[pendingReplace.index].sets.every((s) => s.completed)}
+          onReplace={() => {
+            performReplace(pendingReplace.index, pendingReplace.picked)
+            setPendingReplace(null)
+          }}
+          onAddInstead={() => {
+            dispatch({ type: 'ADD_EXERCISE', exercise: newDraftExercise(pendingReplace.picked) })
+            setPendingReplace(null)
+          }}
+          onClose={() => setPendingReplace(null)}
         />
       )}
 
