@@ -117,7 +117,7 @@ Logger → exercise header → Replace → sheet opens (suggestions on top, sear
 | # | Phase | Description | Status | Parallel | Depends | PRP Plan |
 |---|-------|-------------|--------|----------|---------|----------|
 | 1 | Logger swap (search-based, one-off) | REPLACE_EXERCISE reducer case, header Replace control, ExerciseSheet reuse, undo; history ghosts follow automatically | complete | - | - | [plan](../plans/completed/exercise-replacement-logger-swap.plan.md) · [report](../reports/exercise-replacement-logger-swap-report.md) |
-| 2 | Muscle-matched suggestions | Pure ranking helper over the cached catalog (primary-muscle overlap, category, equipment signal); suggestions rail in the swap sheet | pending | with 3 | 1 | - |
+| 2 | Muscle-matched suggestions | Pure ranking helper over the cached catalog (primary-muscle overlap, category, equipment signal); suggestions rail in the swap sheet | complete | with 3 | 1 | [plan](../plans/completed/exercise-replacement-suggestions.plan.md) · [report](../reports/exercise-replacement-suggestions-report.md) |
 | 3 | Substitute targets | Single-exercise prescription wrapper; re-key planTargets so plan ghosts survive the swap | pending | with 2 | 1 | - |
 | 4 | Ask-to-remember | Post-swap prompt persisting the swap for the block via updateProgramExercise (wger-only; keeps overrides, re-tags muscles) | pending | - | 1 | - |
 

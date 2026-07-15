@@ -20,9 +20,17 @@ interface ExerciseSheetProps {
   /** Sheet title — replace mode retitles the same sheet ("Replace Bench
    *  Press"); chrome only, the picker is untouched. */
   heading?: string
+  /** Forwarded to the picker: the exercise being replaced, whose muscle-matched
+   *  alternatives fill the rail. Present only in replace mode. */
+  suggestFor?: number
 }
 
-export function ExerciseSheet({ onAdd, onClose, heading = 'Add exercise' }: ExerciseSheetProps) {
+export function ExerciseSheet({
+  onAdd,
+  onClose,
+  heading = 'Add exercise',
+  suggestFor,
+}: ExerciseSheetProps) {
   const dialogRef = useRef<HTMLDialogElement>(null)
   const closeButtonRef = useRef<HTMLButtonElement>(null)
 
@@ -114,6 +122,7 @@ export function ExerciseSheet({ onAdd, onClose, heading = 'Add exercise' }: Exer
       <div className="flex min-h-0 flex-1 flex-col pb-safe">
         <ExercisePicker
           fill
+          suggestFor={suggestFor}
           onAdd={(exercise) => {
             onAdd(exercise)
             onClose()
