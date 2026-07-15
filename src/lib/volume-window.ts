@@ -26,6 +26,9 @@ const WEEK_MS = 7 * 24 * 60 * 60 * 1000
 const MINUTE_MS = 60 * 1000
 const DAY_MS = 24 * 60 * 60 * 1000
 
+/** ECMAScript max Date — the rolling window's open upper edge. */
+const FAR_FUTURE = new Date(8640000000000000)
+
 /**
  * Current + previous comparison windows. `tzOffsetMinutes` follows JS
  * `Date.prototype.getTimezoneOffset` semantics (UTC = local + offset) and is
@@ -37,10 +40,12 @@ export function volumeWindows(
   tzOffsetMinutes = 0,
 ): VolumeWindows {
   if (mode === 'rolling') {
-    const end = now
+    // Open-ended upper edge: client/server clock skew must never hide a
+    // just-logged session (recent-window.ts's rule) — a startedAt minutes in
+    // the future is CURRENT training, not no-window data.
     const start = new Date(now.getTime() - WEEK_MS)
     return {
-      current: { start, end },
+      current: { start, end: FAR_FUTURE },
       previous: { start: new Date(start.getTime() - WEEK_MS), end: start },
     }
   }

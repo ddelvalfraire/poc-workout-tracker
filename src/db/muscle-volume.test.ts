@@ -45,6 +45,9 @@ vi.mock('@/lib/wger', () => ({
 vi.mock('./custom-exercises', () => ({
   listCustomExercises: vi.fn(async () => [
     { id: 1, name: 'My Row', muscles: ['Lats'], musclesSecondary: ['Biceps'] },
+    // DB default: nullable text arrays — the resolver must read these as
+    // empty, not unknown.
+    { id: 2, name: 'Bare Custom', muscles: null, musclesSecondary: null },
   ]),
 }))
 
@@ -139,6 +142,17 @@ describe('aggregateMuscleVolume', () => {
     expect(volume.groups.find((g) => g.group === 'Biceps')!.currentSets).toBe(0.5)
   })
 
+  it('counts a clock-skewed future startedAt as current, never dropped', () => {
+    // Client/server skew: a just-logged session can carry a startedAt a few
+    // minutes past the server's now (recent-window.ts documents this).
+    const skewed = new Date(NOW.getTime() + 5 * 60 * 1000)
+
+    const volume = aggregateMuscleVolume([row({ startedAt: skewed })], BENCH_RESOLVER, WINDOWS)
+
+    expect(volume.totals.currentSets).toBe(1)
+    expect(volume.groups.find((g) => g.group === 'Chest')!.currentSets).toBe(1)
+  })
+
   it('never counts duration-mode rows', () => {
     const volume = aggregateMuscleVolume(
       [row({ metricMode: 'duration' })],
@@ -192,6 +206,8 @@ describe('buildMuscleResolver', () => {
     const resolver = await buildMuscleResolver(USER)
 
     expect(resolver('wger', 2)).toEqual({ primary: [], secondary: [] })
+    // Customs store nullable arrays — same empty-not-unknown reading.
+    expect(resolver('custom', 2)).toEqual({ primary: [], secondary: [] })
   })
 })
 
