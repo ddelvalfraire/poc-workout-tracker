@@ -39,11 +39,13 @@ const SHARED_EQUIPMENT_PENALTY = 1
  * deterministic. Unknown id or a current without muscle data → [] — the
  * sheet falls back to search-only (exactly Phase 1 behavior).
  */
-export function rankAlternatives(
+// Generic pass-through: callers get their own item type back (the picker's
+// results carry `source` on top of the candidate fields).
+export function rankAlternatives<T extends AlternativeCandidate>(
   currentId: number,
-  catalog: readonly AlternativeCandidate[],
+  catalog: readonly T[],
   count = 5,
-): AlternativeCandidate[] {
+): T[] {
   const current = catalog.find((e) => e.id === currentId)
   const currentPrimaries = current?.muscles ?? []
   if (!current || currentPrimaries.length === 0) return []

@@ -9,6 +9,8 @@ import { kgToDisplay } from '@/lib/units'
 import { MAX_RELIABLE_REPS } from '@/lib/one-rep-max'
 import { TrendChart } from '@/components/charts/trend-chart'
 import { StatTile, type StatDelta } from '@/components/stat-tile'
+import { listCustomExercises } from '@/db/custom-exercises'
+import { CustomExerciseEditor } from '../../custom-exercise-editor'
 import { AppHeader } from '@/components/app-header'
 import { buttonVariants } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -54,6 +56,13 @@ export default async function ExerciseStatsPage({
   ])
   if (!stats) notFound()
 
+  // A custom exercise's definition is the user's to edit — fetch it only for
+  // custom refs (the list is tiny; a dedicated get can come with real scale).
+  const customDef =
+    ref.source === 'custom'
+      ? ((await listCustomExercises(userId)).find((c) => c.id === ref.wgerExerciseId) ?? null)
+      : null
+
   const { records, trend } = stats
   const hasLoadRecords = records.bestE1rm !== null || records.heaviestLoadKg !== null
   // Chart points built server-side: dates pre-formatted, kg → display unit.
@@ -87,6 +96,16 @@ export default async function ExerciseStatsPage({
       />
 
       <main className="mx-auto w-full max-w-md flex-1 space-y-6 px-5 pb-safe pt-6">
+        {customDef && (
+          <CustomExerciseEditor
+            id={customDef.id}
+            name={customDef.name}
+            category={customDef.category}
+            muscles={customDef.muscles ?? []}
+            musclesSecondary={customDef.musclesSecondary ?? []}
+          />
+        )}
+
         {/* All-time records. reps_weight-only by design — duration work shows
             in history below but claims no records until the cardio feature. */}
         <section aria-label="All-time records">
