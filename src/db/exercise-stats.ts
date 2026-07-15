@@ -338,3 +338,86 @@ export async function getExerciseSessions(
       })),
   }))
 }
+
+/** One occurrence of an exercise in a completed workout — the flat row the
+ *  library list aggregates over. */
+export interface LoggedExerciseRow {
+  wgerExerciseId: number
+  source: ExerciseSource
+  name: string
+  workoutId: string
+  startedAt: Date
+}
+
+/** One library entry. `sessionCount` counts completed workouts CONTAINING the
+ *  exercise (occurrence-level) — it can differ from `totalSessions` (which
+ *  requires ≥1 COMPLETED set). The list is navigation, not scoring; the
+ *  cheaper no-sets query is deliberate. */
+export interface LoggedExercise {
+  wgerExerciseId: number
+  source: ExerciseSource
+  name: string
+  sessionCount: number
+  lastPerformedAt: Date
+}
+
+/**
+ * Pure aggregation over occurrence rows — exported for tests. Groups by the
+ * composite identity, latest name wins, newest-trained first. Builds fresh
+ * structures; never mutates its inputs. Rows must arrive ascending by
+ * session start (the query's orderBy) so "latest name" is honest.
+ */
+export function aggregateLoggedExercises(rows: readonly LoggedExerciseRow[]): LoggedExercise[] {
+  interface Acc {
+    wgerExerciseId: number
+    source: ExerciseSource
+    name: string
+    workoutIds: Set<string>
+    lastPerformedAt: Date
+  }
+  // Keyed by the composite identity: a custom exercise's identity id can
+  // collide with a wger id, and the two must never merge into one entry.
+  const byExercise = new Map<string, Acc>()
+  for (const row of rows) {
+    const key = `${row.source}:${row.wgerExerciseId}`
+    const existing = byExercise.get(key)
+    const acc: Acc = existing ?? {
+      wgerExerciseId: row.wgerExerciseId,
+      source: row.source,
+      name: row.name,
+      workoutIds: new Set(),
+      lastPerformedAt: row.startedAt,
+    }
+    if (!existing) byExercise.set(key, acc)
+    acc.name = row.name // ascending input order → last write is the latest
+    acc.workoutIds.add(row.workoutId)
+    if (row.startedAt > acc.lastPerformedAt) acc.lastPerformedAt = row.startedAt
+  }
+  return [...byExercise.values()]
+    .map((acc) => ({
+      wgerExerciseId: acc.wgerExerciseId,
+      source: acc.source,
+      name: acc.name,
+      sessionCount: acc.workoutIds.size,
+      lastPerformedAt: acc.lastPerformedAt,
+    }))
+    .sort((a, b) => b.lastPerformedAt.getTime() - a.lastPerformedAt.getTime())
+}
+
+/** Every exercise the user has trained in a completed workout, newest first —
+ *  the /exercises library list. Same authz scoping as the rest of the module. */
+export async function listLoggedExercises(userId: string): Promise<LoggedExercise[]> {
+  const rows = await db
+    .select({
+      wgerExerciseId: workoutExercises.wgerExerciseId,
+      source: workoutExercises.source,
+      name: workoutExercises.name,
+      workoutId: workoutExercises.workoutId,
+      startedAt: workouts.startedAt,
+    })
+    .from(workoutExercises)
+    .innerJoin(workouts, eq(workouts.id, workoutExercises.workoutId))
+    .where(and(eq(workouts.userId, userId), isNotNull(workouts.completedAt)))
+    .orderBy(asc(workouts.startedAt))
+  return aggregateLoggedExercises(rows)
+}
