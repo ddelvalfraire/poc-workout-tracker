@@ -44,6 +44,13 @@ self.addEventListener('activate', (event) => {
   )
 })
 
+// One second-chance for a failed navigation fetch. The post-deploy reload
+// (chunk recovery / update-on-resume) races the just-woken iOS network stack
+// by milliseconds — a single retry after a beat turns "offline page on every
+// redeploy" back into a normal load. Genuinely-offline users wait ~1s longer
+// for the fallback, which is the right trade.
+const NAV_RETRY_DELAY_MS = 1200
+
 self.addEventListener('fetch', (event) => {
   const { request } = event
   if (request.method !== 'GET') return
@@ -54,6 +61,12 @@ self.addEventListener('fetch', (event) => {
   // navigations double as backfill opportunities for a missed precache.
   event.respondWith(
     fetch(request)
+      .catch(
+        () =>
+          new Promise((resolve) => setTimeout(resolve, NAV_RETRY_DELAY_MS)).then(() =>
+            fetch(request),
+          ),
+      )
       .then((res) => {
         event.waitUntil(ensureOfflinePageCached())
         return res
