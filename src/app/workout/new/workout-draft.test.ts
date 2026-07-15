@@ -6,6 +6,7 @@ import {
   emptyDraft,
   newDraftExercise,
   newDraftSet,
+  replacementDraftExercise,
   type WorkoutDraft,
 } from './workout-draft'
 import type { WorkoutDetail } from '@/db/workouts'
@@ -48,6 +49,52 @@ describe('workoutDraftReducer', () => {
     // Assert
     expect(next.exercises[0].sets).toHaveLength(3)
     expect(next.exercises[0].sets[2]).toEqual(set)
+  })
+
+  it('REPLACE_EXERCISE replaces the exercise at index verbatim, keeping siblings', () => {
+    // Arrange — two exercises; the component builds the replacement (with ids)
+    const two: WorkoutDraft = {
+      exercises: [
+        NESTED.exercises[0],
+        {
+          id: 'ex2',
+          wgerExerciseId: 9,
+          name: 'Bench',
+          category: 'Chest',
+          loggingType: 'weight_reps',
+          sets: [{ id: 's3', reps: '', weight: '', completed: false }],
+        },
+      ],
+    }
+    const replacement = {
+      id: 'ex-new',
+      wgerExerciseId: 42,
+      name: 'Leg Press',
+      category: 'Legs',
+      loggingType: 'weight_reps' as const,
+      sets: [{ id: 's-new', reps: '', weight: '', completed: false }],
+    }
+
+    // Act
+    const next = workoutDraftReducer(two, { type: 'REPLACE_EXERCISE', index: 0, exercise: replacement })
+
+    // Assert — swapped in place, sibling untouched, prev unmutated
+    expect(next.exercises[0]).toEqual(replacement)
+    expect(next.exercises[1]).toEqual(two.exercises[1])
+    expect(next).not.toBe(two)
+    expect(two.exercises[0].name).toBe('Squat')
+  })
+
+  it('REPLACE_EXERCISE past the end is a no-op', () => {
+    // Act — stale index (list shifted before the dispatch landed)
+    const next = workoutDraftReducer(NESTED, {
+      type: 'REPLACE_EXERCISE',
+      index: 5,
+      exercise: newDraftExercise({ wgerExerciseId: 42, name: 'Leg Press', category: 'Legs' }),
+    })
+
+    // Assert — same state reference back
+    expect(next).toBe(NESTED)
   })
 
   it('UPDATE_SET changes only the targeted field and does not mutate prev', () => {
@@ -310,6 +357,36 @@ describe('workoutDraftReducer', () => {
 
     // Assert
     expect(next.exercises[0].sets[0]).toEqual({ id: 's1', reps: '', weight: '', completed: false })
+  })
+})
+
+describe('replacementDraftExercise', () => {
+  const PICKED = { wgerExerciseId: 42, name: 'Leg Press', category: 'Legs' }
+
+  it('keeps the set count with fresh empty sets and unique ids', () => {
+    // Act
+    const result = replacementDraftExercise(PICKED, 3)
+
+    // Assert — the scheme survives, the values don't
+    expect(result.sets).toHaveLength(3)
+    for (const set of result.sets) {
+      expect(set).toMatchObject({ reps: '', weight: '', completed: false })
+    }
+    expect(new Set(result.sets.map((s) => s.id)).size).toBe(3)
+  })
+
+  it('floors at one set (same seeded-with-one invariant as newDraftExercise)', () => {
+    expect(replacementDraftExercise(PICKED, 0).sets).toHaveLength(1)
+  })
+
+  it('carries the picked identity with the default loggingType and a new id', () => {
+    // Act
+    const result = replacementDraftExercise(PICKED, 2)
+
+    // Assert — old movement's BW/assist reading must not stick to the substitute
+    expect(result).toMatchObject({ ...PICKED, loggingType: 'weight_reps' })
+    expect(typeof result.id).toBe('string')
+    expect(result.id.length).toBeGreaterThan(0)
   })
 })
 
