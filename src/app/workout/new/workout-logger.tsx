@@ -25,6 +25,7 @@ import { ExerciseSheet } from './exercise-sheet'
 import { ReplaceConfirmDialog } from './replace-confirm-dialog'
 import {
   workoutDraftReducer,
+  completeFilledSets,
   draftToInput,
   emptyDraft,
   newDraftExercise,
@@ -140,6 +141,15 @@ export function WorkoutLogger({
   const [isDiscarding, setIsDiscarding] = useState(false)
   const [isDiscardModalOpen, setIsDiscardModalOpen] = useState(false)
   const [discardError, setDiscardError] = useState<string | null>(null)
+  // Finish flow (live sessions): the completion pass runs first — sets with
+  // reps logged get checked off (typing the reps IS "I did it"); if anything
+  // is left unchecked, this holds the transformed draft while a ConfirmDialog
+  // warns those sets will save as skipped. Null = no warning pending.
+  const [pendingFinish, setPendingFinish] = useState<{
+    draft: WorkoutDraft
+    skipped: number
+  } | null>(null)
+  const closeFinishDialogRef = useRef<(() => void) | null>(null)
   // ConfirmDialog populates this with an imperative close; the success path
   // calls it BEFORE router.push (the #25 stranded-::backdrop race).
   const closeDiscardDialogRef = useRef<(() => void) | null>(null)
@@ -473,6 +483,8 @@ export function WorkoutLogger({
         // restore is async and can.)
         setPlateSheetFor(null)
         setStatsSheetFor(null)
+        // And a held finish warning: its snapshot draft predates the restore.
+        setPendingFinish(null)
         // And the remember prompt: its swap may not exist in the restored draft.
         setPendingRemember(null)
       })
@@ -529,7 +541,34 @@ export function WorkoutLogger({
   // destination page's suspended data reads, which could strand the old
   // screen's snapshot over the new page (taps landed on a frozen picture).
   // Await everything first, then navigate outside any transition scope.
-  async function handleSave() {
+  /**
+   * Live Finish entry point: run the completion pass, then either save
+   * straight through or hold for the skipped-sets warning. Edit mode
+   * ("Save changes") bypasses this — corrections must never silently flip
+   * completion states the lifter didn't touch.
+   */
+  function handleFinishClick() {
+    if (!isLive) {
+      handleSave()
+      return
+    }
+    const result = completeFilledSets(draft)
+    if (result.skipped > 0) {
+      setPendingFinish(result)
+      return
+    }
+    finishWith(result.draft)
+  }
+
+  /** Adopt the completion-pass draft into state (so autosave and a failed
+   *  save agree with what's persisted) and save it. */
+  function finishWith(finalDraft: WorkoutDraft) {
+    dispatch({ type: 'RESTORE_DRAFT', draft: finalDraft })
+    handleSave(finalDraft)
+  }
+
+  async function handleSave(finalDraft: WorkoutDraft = draft) {
+    setPendingFinish(null) // warning resolved (or bypassed) — never both dialogs
     setPlateSheetFor(null) // a live showModal() dialog must not cross navigation
     setStatsSheetFor(null) // same for the stats sheet
     setIsPickerOpen(false) // same top-layer invariant for the exercise sheet
@@ -547,14 +586,14 @@ export function WorkoutLogger({
       // The save actions delete this surface's server draft themselves —
       // the saved workout supersedes it on every device.
       if (workoutId) {
-        await updateWorkoutAction(workoutId, draftToInput(draft, name, unit))
+        await updateWorkoutAction(workoutId, draftToInput(finalDraft, name, unit))
         // History changed: the browser QueryClient outlives this page, so
         // cached ghosts would otherwise show pre-save data next session.
         queryClient.invalidateQueries({ queryKey: ['last-performance'], refetchType: 'none' })
         router.push(`/workout/${workoutId}`)
       } else {
         const { id } = await saveWorkoutAction({
-          ...draftToInput(draft, name, unit),
+          ...draftToInput(finalDraft, name, unit),
           // Live session bounds: opened → saved. Without the explicit
           // completedAt the DB layer would fall back to startedAt (the
           // backdating default) and every live log would read as 0 min.
@@ -583,6 +622,7 @@ export function WorkoutLogger({
   // navigation happens OUTSIDE any startTransition (see handleSave's
   // comment on the <ViewTransition> strand).
   async function handleDiscard() {
+    setPendingFinish(null) // finishing and discarding are mutually exclusive
     setPlateSheetFor(null) // a live showModal() dialog must not cross navigation
     setStatsSheetFor(null)
     setIsPickerOpen(false)
@@ -1126,7 +1166,7 @@ export function WorkoutLogger({
             // away from an in-flight plan edit — let the momentary action
             // settle (it resolves in one round-trip).
             disabled={isEmpty || isSaving || isDiscarding || isRemembering}
-            onClick={handleSave}
+            onClick={handleFinishClick}
           >
             {isSaving ? 'Saving…' : isLive ? 'Finish workout' : 'Save changes'}
           </Button>
@@ -1219,6 +1259,29 @@ export function WorkoutLogger({
           onConfirm={handleDiscard}
           onClose={() => setIsDiscardModalOpen(false)}
           closeRef={closeDiscardDialogRef}
+        />
+      )}
+
+      {/* Skipped-sets warning: sets with reps were checked off by the
+          completion pass; whatever's left saves as not-completed and scores
+          nothing — worth one look before it's history. Volt confirm: finishing
+          is affirmative, not destructive. */}
+      {pendingFinish && (
+        <ConfirmDialog
+          title="Finish workout?"
+          body={`${pendingFinish.skipped} ${pendingFinish.skipped === 1 ? 'set has' : 'sets have'} no reps logged and will save as skipped. Sets with reps are checked off for you.`}
+          confirmLabel="Finish"
+          pendingLabel="Finishing…"
+          isPending={isSaving}
+          confirmVariant="default"
+          closeRef={closeFinishDialogRef}
+          onConfirm={() => {
+            // Close BEFORE the save's router.push — the stranded-::backdrop
+            // race the discard dialog already guards against.
+            closeFinishDialogRef.current?.()
+            finishWith(pendingFinish.draft)
+          }}
+          onClose={() => setPendingFinish(null)}
         />
       )}
 
