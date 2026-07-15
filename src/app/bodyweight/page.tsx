@@ -5,7 +5,7 @@ import { getWeightUnit } from '@/db/preferences'
 import { listBodyweightLogs } from '@/db/bodyweight'
 import { kgToDisplay, type WeightUnit } from '@/lib/units'
 import { bodyweightDeltaKg } from '@/lib/bodyweight-trend'
-import { sparklinePoints } from '@/lib/sparkline'
+import { TrendChart } from '@/components/charts/trend-chart'
 import { formatWorkoutDate } from '@/lib/format'
 import { AppHeader } from '@/components/app-header'
 import { buttonVariants } from '@/components/ui/button'
@@ -16,16 +16,9 @@ import { BodyweightEntryRow } from './entry-row'
 // The delta window the hero reports against ("+1.2 lb / 30d").
 const DELTA_DAYS = 30
 
-// Sparkline geometry: viewBox units, stretched to full width by the svg.
-// Height 64 (~the app's h-16 rhythm); the polyline runs in a 60-unit band
-// with a 2-unit inset top and bottom so the 2px stroke never clips.
-const SPARK_W = 320
-const SPARK_H = 64
-const SPARK_INSET = 2
-
 /**
  * The bodyweight tracking surface: current weight (the value e1RM scoring
- * reads), a quick log, the trend sparkline, and the weigh-in history.
+ * reads), a quick log, the trend chart, and the weigh-in history.
  * Reached from Settings → Bodyweight. Server component — the interactive
  * bits (log form, per-entry delete) are small client islands.
  */
@@ -35,9 +28,12 @@ export default async function BodyweightPage() {
 
   const current = logs[0] ?? null
   const deltaKg = bodyweightDeltaKg(logs, DELTA_DAYS)
-  // Sparkline reads chronologically, oldest → newest (logs arrive freshest first).
-  const chronological = [...logs].reverse()
-  const values = chronological.map((log) => log.weightKg)
+  // Chart reads chronologically, oldest → newest (logs arrive freshest first);
+  // dates pre-formatted and kg → display unit here, server-side.
+  const trendPoints = [...logs].reverse().map((log) => ({
+    label: formatWorkoutDate(log.weighedAt),
+    value: kgToDisplay(log.weightKg, unit),
+  }))
 
   return (
     <div className="flex min-h-[100dvh] flex-col">
@@ -82,36 +78,17 @@ export default async function BodyweightPage() {
           <BodyweightLogForm unit={unit} />
         </div>
 
-        {/* Trend sparkline — needs at least two points to be a line. */}
-        {values.length >= 2 && (
+        {/* Trend — needs at least two points to be a line. Real axes and a
+            crosshair tooltip replaced the range-label sparkline: "when was
+            that?" is now answerable on the chart itself. */}
+        {trendPoints.length >= 2 && (
           <section aria-label="Trend" className="mt-6">
-            <div className="relative">
-              <svg
-                role="img"
-                aria-label={`Bodyweight trend, ${kgToDisplay(values[0], unit)} to ${kgToDisplay(values[values.length - 1], unit)} ${unit} over ${values.length} entries`}
-                viewBox={`0 0 ${SPARK_W} ${SPARK_H}`}
-                preserveAspectRatio="none"
-                className="h-16 w-full"
-              >
-                <polyline
-                  points={sparklinePoints(values, SPARK_W, SPARK_H - SPARK_INSET * 2)}
-                  transform={`translate(0 ${SPARK_INSET})`}
-                  fill="none"
-                  stroke="var(--primary)"
-                  strokeWidth="2"
-                  strokeLinejoin="round"
-                  strokeLinecap="round"
-                  vectorEffect="non-scaling-stroke"
-                />
-              </svg>
-              {/* Range labels only — sparkline discipline: no axes, no grid. */}
-              <span className="absolute right-0 top-0 text-[10px] leading-none text-muted-foreground tnum">
-                {kgToDisplay(Math.max(...values), unit)}
-              </span>
-              <span className="absolute bottom-0 right-0 text-[10px] leading-none text-muted-foreground tnum">
-                {kgToDisplay(Math.min(...values), unit)}
-              </span>
-            </div>
+            <TrendChart
+              points={trendPoints}
+              unit={unit}
+              valueLabel="Bodyweight"
+              ariaLabel={`Bodyweight trend, ${trendPoints[0].value} to ${trendPoints[trendPoints.length - 1].value} ${unit} over ${trendPoints.length} entries`}
+            />
           </section>
         )}
 
