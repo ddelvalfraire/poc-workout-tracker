@@ -561,14 +561,16 @@ export function WorkoutLogger({
   }
 
   /** Adopt the completion-pass draft into state (so autosave and a failed
-   *  save agree with what's persisted) and save it. */
+   *  save agree with what's persisted) and save it. The dispatch MUST stay
+   *  before handleSave's first await: queue.settle() pauses autosave
+   *  synchronously, so the re-render's enqueue can never land after the
+   *  save deletes the server draft (the resurrection race). */
   function finishWith(finalDraft: WorkoutDraft) {
     dispatch({ type: 'RESTORE_DRAFT', draft: finalDraft })
     handleSave(finalDraft)
   }
 
   async function handleSave(finalDraft: WorkoutDraft = draft) {
-    setPendingFinish(null) // warning resolved (or bypassed) — never both dialogs
     setPlateSheetFor(null) // a live showModal() dialog must not cross navigation
     setStatsSheetFor(null) // same for the stats sheet
     setIsPickerOpen(false) // same top-layer invariant for the exercise sheet
@@ -590,6 +592,10 @@ export function WorkoutLogger({
         // History changed: the browser QueryClient outlives this page, so
         // cached ghosts would otherwise show pre-save data next session.
         queryClient.invalidateQueries({ queryKey: ['last-performance'], refetchType: 'none' })
+        // Success: close the finish warning (if open) BEFORE navigating —
+        // the same stranded-::backdrop race the discard dialog guards.
+        closeFinishDialogRef.current?.()
+        setPendingFinish(null)
         router.push(`/workout/${workoutId}`)
       } else {
         const { id } = await saveWorkoutAction({
@@ -601,6 +607,9 @@ export function WorkoutLogger({
           completedAt: new Date(),
         })
         queryClient.invalidateQueries({ queryKey: ['last-performance'], refetchType: 'none' })
+        // Same success-path close-before-push as the update branch above.
+        closeFinishDialogRef.current?.()
+        setPendingFinish(null)
         // Land on the session summary (duration, volume, PR badges) — the
         // finish deserves a readout, not a home-screen redirect.
         router.push(`/workout/${id}`)
@@ -1272,15 +1281,14 @@ export function WorkoutLogger({
           body={`${pendingFinish.skipped} ${pendingFinish.skipped === 1 ? 'set has' : 'sets have'} no reps logged and will save as skipped. Sets with reps are checked off for you.`}
           confirmLabel="Finish"
           pendingLabel="Finishing…"
+          error={error}
           isPending={isSaving}
           confirmVariant="default"
           closeRef={closeFinishDialogRef}
-          onConfirm={() => {
-            // Close BEFORE the save's router.push — the stranded-::backdrop
-            // race the discard dialog already guards against.
-            closeFinishDialogRef.current?.()
-            finishWith(pendingFinish.draft)
-          }}
+          // ConfirmDialog contract: stay open while the save runs (retry in
+          // place on failure); the success path closes via closeRef before
+          // router.push inside handleSave.
+          onConfirm={() => finishWith(pendingFinish.draft)}
           onClose={() => setPendingFinish(null)}
         />
       )}
