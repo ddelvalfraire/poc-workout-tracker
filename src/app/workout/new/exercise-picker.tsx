@@ -21,9 +21,14 @@ const optionId = (id: number) => `exercise-option-${id}`
 
 interface ExercisePickerProps {
   onAdd: (exercise: { wgerExerciseId: number; name: string; category: string }) => void
+  /** Fill the parent column: the result list grows to the available space
+   *  (instead of the inline max-h cap) so it — not the surrounding dialog —
+   *  owns the scroll. Used by the full-height exercise sheet; the program
+   *  builder keeps the inline default. */
+  fill?: boolean
 }
 
-export function ExercisePicker({ onAdd }: ExercisePickerProps) {
+export function ExercisePicker({ onAdd, fill = false }: ExercisePickerProps) {
   const [query, setQuery] = useState('')
   const [catalog, setCatalog] = useState<ExerciseResult[]>([])
   const [loading, setLoading] = useState(true)
@@ -113,7 +118,7 @@ export function ExercisePicker({ onAdd }: ExercisePickerProps) {
   }
 
   return (
-    <div className="relative space-y-2">
+    <div className={fill ? 'flex min-h-0 flex-1 flex-col gap-2' : 'relative space-y-2'}>
       <Input
         type="search"
         role="combobox"
@@ -155,7 +160,11 @@ export function ExercisePicker({ onAdd }: ExercisePickerProps) {
             id={LISTBOX_ID}
             role="listbox"
             aria-label="Exercise results"
-            className="max-h-72 divide-y divide-border overflow-y-auto overscroll-contain rounded-xl border border-border bg-card shadow-lg"
+            // In fill mode the list takes all remaining sheet height and owns
+            // the scroll (the input above stays pinned); inline keeps the cap.
+            className={`divide-y divide-border overflow-y-auto overscroll-contain rounded-xl border border-border bg-card shadow-lg ${
+              fill ? 'min-h-0 flex-1' : 'max-h-72'
+            }`}
           >
             {matches.map((result, index) => (
               <li

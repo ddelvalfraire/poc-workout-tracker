@@ -36,6 +36,11 @@ export const viewport: Viewport = {
   themeColor: BRAND,
   // Cover the notch/home-indicator in standalone mode; env(safe-area-*) handles insets.
   viewportFit: "cover",
+  // Android/Chromium: the software keyboard RESIZES the viewport instead of
+  // overlaying it, so dvh-sized surfaces (the exercise sheet) track the
+  // keyboard. Safari ignores this — there the sheet's top-pinned search
+  // input is what keeps typing usable (see exercise-sheet.tsx).
+  interactiveWidget: "resizes-content",
 };
 
 export default function RootLayout({
