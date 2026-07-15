@@ -8,6 +8,7 @@ import { formatE1RM, formatLoggedSet, formatVolume, formatWorkoutDate } from '@/
 import { kgToDisplay } from '@/lib/units'
 import { MAX_RELIABLE_REPS } from '@/lib/one-rep-max'
 import { TrendChart } from '@/components/charts/trend-chart'
+import { StatTile, type StatDelta } from '@/components/stat-tile'
 import { AppHeader } from '@/components/app-header'
 import { buttonVariants } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -60,6 +61,15 @@ export default async function ExerciseStatsPage({
     label: formatWorkoutDate(p.performedAt),
     value: kgToDisplay(p.e1rm, unit),
   }))
+  // Progress context for the headline record: best vs the FIRST e1rm-scorable
+  // session. Shown only when there are ≥2 points and a real gain — a flat or
+  // single-session history has no story to tell.
+  const e1rmGainKg =
+    records.bestE1rm && trend.length >= 2 ? records.bestE1rm.e1rm - trend[0].e1rm : 0
+  const e1rmDelta: StatDelta | undefined =
+    e1rmGainKg > 0
+      ? { text: `+${kgToDisplay(e1rmGainKg, unit)} ${unit} vs first session`, tone: 'positive' }
+      : undefined
 
   return (
     <div className="flex min-h-[100dvh] flex-col">
@@ -84,60 +94,46 @@ export default async function ExerciseStatsPage({
             All-time records
           </h2>
           {hasLoadRecords || records.mostReps !== null ? (
-            <dl className="mt-2 grid grid-cols-2 gap-3">
+            <div className="mt-2 grid grid-cols-2 gap-3">
               {records.bestE1rm && (
-                <div className="rounded-2xl border border-border bg-card p-4">
-                  <dt className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-                    Best est. 1RM
-                  </dt>
-                  <dd className="mt-1 text-2xl font-semibold tnum">
-                    {formatE1RM(records.bestE1rm.e1rm, unit)}
-                  </dd>
-                  <dd className="mt-0.5 text-xs text-muted-foreground">
-                    {records.bestE1rm.reps > MAX_RELIABLE_REPS && 'High-rep est. · '}
-                    {formatWorkoutDate(records.bestE1rm.performedAt)}
-                  </dd>
-                </div>
+                <StatTile
+                  label="Best est. 1RM"
+                  value={String(kgToDisplay(records.bestE1rm.e1rm, unit))}
+                  unit={unit}
+                  delta={e1rmDelta}
+                  caption={
+                    (records.bestE1rm.reps > MAX_RELIABLE_REPS ? 'High-rep est. · ' : '') +
+                    formatWorkoutDate(records.bestE1rm.performedAt)
+                  }
+                />
               )}
               {records.heaviestLoadKg && (
-                <div className="rounded-2xl border border-border bg-card p-4">
-                  <dt className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-                    Heaviest load
-                  </dt>
-                  <dd className="mt-1 text-2xl font-semibold tnum">
-                    {kgToDisplay(records.heaviestLoadKg.weightKg, unit)} {unit}
-                  </dd>
-                  <dd className="mt-0.5 text-xs text-muted-foreground">
-                    ×{records.heaviestLoadKg.reps} ·{' '}
-                    {formatWorkoutDate(records.heaviestLoadKg.performedAt)}
-                  </dd>
-                </div>
+                <StatTile
+                  label="Heaviest load"
+                  value={String(kgToDisplay(records.heaviestLoadKg.weightKg, unit))}
+                  unit={unit}
+                  caption={`×${records.heaviestLoadKg.reps} · ${formatWorkoutDate(records.heaviestLoadKg.performedAt)}`}
+                />
               )}
               {records.mostReps && (
-                <div className="rounded-2xl border border-border bg-card p-4">
-                  <dt className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-                    Most reps
-                  </dt>
-                  <dd className="mt-1 text-2xl font-semibold tnum">{records.mostReps.reps}</dd>
-                  <dd className="mt-0.5 text-xs text-muted-foreground">
-                    {formatWorkoutDate(records.mostReps.performedAt)}
-                  </dd>
-                </div>
+                <StatTile
+                  label="Most reps"
+                  value={String(records.mostReps.reps)}
+                  caption={formatWorkoutDate(records.mostReps.performedAt)}
+                />
               )}
               {records.bestSessionVolumeKg && (
-                <div className="rounded-2xl border border-border bg-card p-4">
-                  <dt className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-                    Best session volume
-                  </dt>
-                  <dd className="mt-1 text-2xl font-semibold tnum">
-                    {formatVolume(records.bestSessionVolumeKg.volumeKg, unit)}
-                  </dd>
-                  <dd className="mt-0.5 text-xs text-muted-foreground">
-                    {formatWorkoutDate(records.bestSessionVolumeKg.performedAt)}
-                  </dd>
-                </div>
+                <StatTile
+                  label="Best session volume"
+                  value={formatVolume(records.bestSessionVolumeKg.volumeKg, unit).replace(
+                    ` ${unit}`,
+                    '',
+                  )}
+                  unit={unit}
+                  caption={formatWorkoutDate(records.bestSessionVolumeKg.performedAt)}
+                />
               )}
-            </dl>
+            </div>
           ) : (
             <p className="mt-2 rounded-2xl border border-border bg-card px-5 py-8 text-center text-sm text-muted-foreground">
               No load records yet — log weight (or set your bodyweight in Settings for bodyweight
