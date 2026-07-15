@@ -3,12 +3,19 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { rankAlternatives } from '@/lib/exercise-alternatives'
 
-/** The subset of the `/api/exercises` result this picker surfaces. */
+/** The subset of the `/api/exercises` result this picker surfaces. The
+ *  optional muscle/equipment fields are already present in the payload
+ *  (the route returns full wger Exercise objects) and feed the
+ *  replace-mode suggestions rail. */
 interface ExerciseResult {
   id: number
   name: string
   category: string
+  equipment?: string[]
+  muscles?: string[]
+  musclesSecondary?: string[]
 }
 
 const RESULT_LIMIT = 20
@@ -26,9 +33,13 @@ interface ExercisePickerProps {
    *  owns the scroll. Used by the full-height exercise sheet; the program
    *  builder keeps the inline default. */
   fill?: boolean
+  /** The exercise being REPLACED (wger id) — its presence is what makes this
+   *  a replace-mode picker: muscle-matched alternatives rank against it from
+   *  the same loaded catalog and render as a rail while the query is empty. */
+  suggestFor?: number
 }
 
-export function ExercisePicker({ onAdd, fill = false }: ExercisePickerProps) {
+export function ExercisePicker({ onAdd, fill = false, suggestFor }: ExercisePickerProps) {
   const [query, setQuery] = useState('')
   const [catalog, setCatalog] = useState<ExerciseResult[]>([])
   const [loading, setLoading] = useState(true)
@@ -80,6 +91,15 @@ export function ExercisePicker({ onAdd, fill = false }: ExercisePickerProps) {
       .filter((exercise) => exercise.name.toLowerCase().includes(term))
       .slice(0, RESULT_LIMIT)
   }, [term, catalog])
+
+  // Replace mode's zero-typing path: alternatives to the outgoing exercise,
+  // shown only while the query is empty — typing anything collapses to plain
+  // search. Empty when the current id is unknown or has no muscle data (the
+  // sheet then degrades to Phase-1 search-only, by design).
+  const suggestions = useMemo(
+    () => (suggestFor === undefined || term ? [] : rankAlternatives(suggestFor, catalog)),
+    [suggestFor, term, catalog],
+  )
 
   const isOpen = matches.length > 0
   // Clamp so the highlight stays valid as the result set shrinks.
@@ -151,6 +171,37 @@ export function ExercisePicker({ onAdd, fill = false }: ExercisePickerProps) {
           >
             Retry
           </Button>
+        </div>
+      )}
+
+      {/* Muscle-matched alternatives to the exercise being replaced — a plain
+          labeled list, deliberately OUTSIDE the search combobox's a11y model
+          (no role=option, no aria-activedescendant coupling): arrows/Enter
+          keep driving the search listbox only. Same row anatomy as results. */}
+      {!loading && !error && suggestions.length > 0 && (
+        <div>
+          <p className="px-1 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
+            Suggested
+          </p>
+          <ul
+            aria-label="Suggested replacements"
+            className="mt-1 divide-y divide-border overflow-hidden rounded-xl border border-border bg-card"
+          >
+            {suggestions.map((result) => (
+              <li
+                key={result.id}
+                className="flex items-center justify-between gap-2 px-3 py-2.5"
+              >
+                <span className="min-w-0 truncate text-sm">
+                  {result.name}
+                  <span className="text-muted-foreground"> · {result.category}</span>
+                </span>
+                <Button size="sm" variant="outline" onClick={() => addExercise(result)}>
+                  Add
+                </Button>
+              </li>
+            ))}
+          </ul>
         </div>
       )}
 

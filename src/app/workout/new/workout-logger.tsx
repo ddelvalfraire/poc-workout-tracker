@@ -944,6 +944,11 @@ export function WorkoutLogger({
               ? `Replace ${draft.exercises[replaceTargetIndex]?.name ?? 'exercise'}`
               : undefined
           }
+          suggestFor={
+            replaceTargetIndex !== null
+              ? draft.exercises[replaceTargetIndex]?.wgerExerciseId
+              : undefined
+          }
           onAdd={(exercise) =>
             replaceTargetIndex !== null
               ? handleReplacePick(exercise)
