@@ -1,4 +1,5 @@
 import type { LoggingType, WorkoutInput } from '@/lib/workout-input'
+import type { ExerciseSource } from '@/lib/custom-exercise-input'
 import type { WorkoutDetail } from '@/db/workouts'
 import { displayToKg, kgToDisplay, type WeightUnit } from '@/lib/units'
 
@@ -27,6 +28,10 @@ export interface DraftExercise {
   /** Stable client id, used only for React keys — never persisted. */
   id: string
   wgerExerciseId: number
+  /** Exercise identity is the composite (source, id) — a custom exercise's
+   *  id can collide with a wger id. Required here (fully controlled),
+   *  optional on the wire ('wger' default), same treatment as loggingType. */
+  source: ExerciseSource
   name: string
   category: string
   /** How the weight fields read (Hevy-style); 'weight_reps' unless the user
@@ -88,13 +93,22 @@ export function newDraftSet(): DraftSet {
   return { id: crypto.randomUUID(), reps: '', weight: '', completed: false }
 }
 
-/** Builds a draft exercise from a picked exercise, seeded with one empty set. */
+/** Builds a draft exercise from a picked exercise, seeded with one empty set.
+ *  `source` defaults to 'wger' — the picker only offers catalog entries until
+ *  the merged-catalog phase labels its results. */
 export function newDraftExercise(picked: {
   wgerExerciseId: number
+  source?: ExerciseSource
   name: string
   category: string
 }): DraftExercise {
-  return { id: crypto.randomUUID(), ...picked, loggingType: 'weight_reps', sets: [newDraftSet()] }
+  return {
+    id: crypto.randomUUID(),
+    ...picked,
+    source: picked.source ?? 'wger',
+    loggingType: 'weight_reps',
+    sets: [newDraftSet()],
+  }
 }
 
 /**
@@ -105,12 +119,13 @@ export function newDraftExercise(picked: {
  * Ghosts re-fill from the substitute's own history.
  */
 export function replacementDraftExercise(
-  picked: { wgerExerciseId: number; name: string; category: string },
+  picked: { wgerExerciseId: number; source?: ExerciseSource; name: string; category: string },
   setCount: number,
 ): DraftExercise {
   return {
     id: crypto.randomUUID(),
     ...picked,
+    source: picked.source ?? 'wger',
     loggingType: 'weight_reps',
     sets: Array.from({ length: Math.max(1, setCount) }, () => newDraftSet()),
   }
@@ -257,6 +272,7 @@ export function draftToInput(
   const trimmedName = name?.trim()
   const exercises = draft.exercises.map((exercise) => ({
     wgerExerciseId: exercise.wgerExerciseId,
+    source: exercise.source,
     name: exercise.name,
     loggingType: exercise.loggingType,
     sets: exercise.sets.map((set) => {
@@ -294,6 +310,7 @@ export function detailToDraft(
   const exercises = workout.exercises.map((exercise) => ({
     id: exercise.id,
     wgerExerciseId: exercise.wgerExerciseId,
+    source: exercise.source,
     name: exercise.name,
     category: '',
     loggingType: exercise.loggingType,

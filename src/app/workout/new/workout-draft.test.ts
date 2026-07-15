@@ -12,7 +12,13 @@ import {
 } from './workout-draft'
 import type { WorkoutDetail } from '@/db/workouts'
 
-const SQUAT = { wgerExerciseId: 73, name: 'Squat', category: 'Legs', loggingType: 'weight_reps' as const }
+const SQUAT = {
+  wgerExerciseId: 73,
+  source: 'wger' as const,
+  name: 'Squat',
+  category: 'Legs',
+  loggingType: 'weight_reps' as const,
+}
 
 /** A draft with one exercise and two sets, for nested-update assertions. */
 const NESTED: WorkoutDraft = {
@@ -60,6 +66,7 @@ describe('workoutDraftReducer', () => {
         {
           id: 'ex2',
           wgerExerciseId: 9,
+          source: 'wger',
           name: 'Bench',
           category: 'Chest',
           loggingType: 'weight_reps',
@@ -70,6 +77,7 @@ describe('workoutDraftReducer', () => {
     const replacement = {
       id: 'ex-new',
       wgerExerciseId: 42,
+      source: 'wger' as const,
       name: 'Leg Press',
       category: 'Legs',
       loggingType: 'weight_reps' as const,
@@ -195,7 +203,7 @@ describe('workoutDraftReducer', () => {
     const two: WorkoutDraft = {
       exercises: [
         { id: 'ex1', ...SQUAT, sets: [] },
-        { id: 'ex2', wgerExerciseId: 1, name: 'Bench', category: 'Chest', loggingType: 'weight_reps', sets: [] },
+        { id: 'ex2', wgerExerciseId: 1, source: 'wger', name: 'Bench', category: 'Chest', loggingType: 'weight_reps', sets: [] },
       ],
     }
 
@@ -211,7 +219,7 @@ describe('workoutDraftReducer', () => {
     // Arrange — ex1 was just removed from position 0
     const removed = { id: 'ex1', ...SQUAT, sets: [{ id: 's1', reps: '5', weight: '100', completed: true }] }
     const after: WorkoutDraft = {
-      exercises: [{ id: 'ex2', wgerExerciseId: 1, name: 'Bench', category: 'Chest', loggingType: 'weight_reps', sets: [] }],
+      exercises: [{ id: 'ex2', wgerExerciseId: 1, source: 'wger', name: 'Bench', category: 'Chest', loggingType: 'weight_reps', sets: [] }],
     }
 
     // Act
@@ -228,8 +236,8 @@ describe('workoutDraftReducer', () => {
     const removed = { id: 'ex1', ...SQUAT, sets: [] }
     const grown: WorkoutDraft = {
       exercises: [
-        { id: 'ex2', wgerExerciseId: 1, name: 'Bench', category: 'Chest', loggingType: 'weight_reps', sets: [] },
-        { id: 'ex3', wgerExerciseId: 2, name: 'Row', category: 'Back', loggingType: 'weight_reps', sets: [] },
+        { id: 'ex2', wgerExerciseId: 1, source: 'wger', name: 'Bench', category: 'Chest', loggingType: 'weight_reps', sets: [] },
+        { id: 'ex3', wgerExerciseId: 2, source: 'wger', name: 'Row', category: 'Back', loggingType: 'weight_reps', sets: [] },
       ],
     }
 
@@ -448,6 +456,7 @@ describe('draftToInput', () => {
         {
           id: 'ex2',
           wgerExerciseId: 1,
+          source: 'wger',
           name: 'Pull-up',
           category: 'Back',
           loggingType: 'bodyweight_reps',
@@ -526,6 +535,7 @@ describe('detailToDraft', () => {
     expect(draft.exercises[0]).toMatchObject({
       id: 'ex1',
       wgerExerciseId: 73,
+      source: 'wger',
       name: 'Squat',
       category: '',
       loggingType: 'weight_reps',

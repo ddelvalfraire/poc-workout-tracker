@@ -47,6 +47,9 @@ export interface SetInput {
 /** One exercise within a workout, with its logged sets. */
 export interface ExerciseInput {
   wgerExerciseId: number
+  /** Exercise identity is the composite (source, id); absent = 'wger'
+   *  (the column default) so pre-discriminator callers keep their shape. */
+  source?: 'wger' | 'custom'
   name: string
   /** How the sets' weights read; absent = 'weight_reps' (the column default). */
   loggingType?: LoggingType
@@ -174,6 +177,13 @@ function parseExercise(raw: unknown): ExerciseInput {
     throw new Error(`exercise loggingType must be one of ${LOGGING_TYPES.join(', ')}`)
   }
 
+  // Same whitelist rule as loggingType: absent/null → column default ('wger');
+  // a typo'd source would silently fork an exercise's identity.
+  const { source } = obj
+  if (source !== undefined && source !== null && source !== 'wger' && source !== 'custom') {
+    throw new Error("exercise source must be 'wger' or 'custom'")
+  }
+
   if (!Array.isArray(obj.sets)) throw new Error('exercise sets must be an array')
   const sets = obj.sets.map(parseSet)
 
@@ -181,6 +191,7 @@ function parseExercise(raw: unknown): ExerciseInput {
     wgerExerciseId: wgerExerciseId as number,
     name: trimmedName,
     ...(isLoggingType(loggingType) && { loggingType }),
+    ...((source === 'wger' || source === 'custom') && { source }),
     sets,
   }
 }

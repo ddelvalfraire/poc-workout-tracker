@@ -86,13 +86,23 @@ export async function deleteWorkoutAction(id: string): Promise<void> {
 export async function getLastPerformanceAction(
   wgerExerciseId: unknown,
   excludeWorkoutId?: unknown,
+  source?: unknown,
 ): Promise<LastPerformance | null> {
   const userId = await requireUserId()
   if (!Number.isInteger(wgerExerciseId) || (wgerExerciseId as number) <= 0) {
     throw new Error('invalid exercise id')
   }
   const exclude = typeof excludeWorkoutId === 'string' ? excludeWorkoutId : undefined
-  return getLastPerformance(userId, wgerExerciseId as number, exclude)
+  return getLastPerformance(userId, parseSourceParam(source), wgerExerciseId as number, exclude)
+}
+
+/** Trailing-optional source param shared by the read actions: absent defaults
+ *  to 'wger' (pre-discriminator callers keep their shape); anything else must
+ *  be on the whitelist — a typo'd source would read the wrong history. */
+function parseSourceParam(source: unknown): 'wger' | 'custom' {
+  if (source === undefined || source === null || source === 'wger') return 'wger'
+  if (source === 'custom') return 'custom'
+  throw new Error("invalid exercise source: must be 'wger' or 'custom'")
 }
 
 /** Sessions the stats sheet lists under "Recent". */
@@ -113,15 +123,17 @@ export interface ExerciseSheetData {
  */
 export async function getExerciseSheetAction(
   wgerExerciseId: unknown,
+  source?: unknown,
 ): Promise<ExerciseSheetData | null> {
   const userId = await requireUserId()
   if (!Number.isInteger(wgerExerciseId) || (wgerExerciseId as number) <= 0) {
     throw new Error('invalid exercise id')
   }
   const id = wgerExerciseId as number
+  const exerciseSource = parseSourceParam(source)
   const [stats, recent] = await Promise.all([
-    getExerciseStats(userId, 'wger', id),
-    getExerciseSessions(userId, 'wger', id, { limit: RECENT_SESSIONS, offset: 0 }),
+    getExerciseStats(userId, exerciseSource, id),
+    getExerciseSessions(userId, exerciseSource, id, { limit: RECENT_SESSIONS, offset: 0 }),
   ])
   if (!stats) return null
   return { stats, recent }
@@ -134,12 +146,15 @@ export async function getExerciseSheetAction(
  * so the completed-only stats query excludes it by construction. Same wger
  * identity limitation as the sheet action.
  */
-export async function getExerciseBestAction(wgerExerciseId: unknown): Promise<number | null> {
+export async function getExerciseBestAction(
+  wgerExerciseId: unknown,
+  source?: unknown,
+): Promise<number | null> {
   const userId = await requireUserId()
   if (!Number.isInteger(wgerExerciseId) || (wgerExerciseId as number) <= 0) {
     throw new Error('invalid exercise id')
   }
-  const stats = await getExerciseStats(userId, 'wger', wgerExerciseId as number)
+  const stats = await getExerciseStats(userId, parseSourceParam(source), wgerExerciseId as number)
   return stats?.records.bestE1rm?.e1rm ?? null
 }
 

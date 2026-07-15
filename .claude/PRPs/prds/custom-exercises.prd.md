@@ -12,7 +12,9 @@ The app's exercise identity is an integer `wgerExerciseId` pointing at wger's pu
 
 ## Proposed Solution
 
-First-class custom exercises: a per-user `custom_exercises` table with full app-side wger parity (name, category, equipment, primary/secondary muscles — the `Exercise` shape in `src/lib/wger.ts:38-47`; wger's descriptions/images are never surfaced by this app), plus a `source: 'wger' | 'custom'` discriminator column on `workout_exercises` and `program_exercises`. Exercise identity becomes the composite `(source, id)`. Customs merge into the existing in-memory catalog so search, muscle tagging, history, progression, and program stats treat them identically to wger entries. MCP-first: create/edit tools ship in v1; web picker integration is deferred.
+First-class custom exercises: a per-user `custom_exercises` table with full app-side wger parity (name, category, equipment, primary/secondary muscles — the `Exercise` shape in `src/lib/wger.ts:38-47`; wger's descriptions/images are never surfaced by this app), plus a `source: 'wger' | 'custom'` discriminator column on `workout_exercises` and `program_exercises`. Exercise identity becomes the composite `(source, id)`. Customs merge into the existing in-memory catalog so search, muscle tagging, history, progression, and program stats treat them identically to wger entries.
+
+**Revised 2026-07-15 (post-stats):** the surface order flips to **web-UI-first** — creation lives inside the logger's picker as the "none of these match" escape hatch at the bottom of search results (dedup at the source: you create only after staring at the catalog's best matches), editing lives on the custom's `/exercises/custom/[id]` page, and the logger draft learns `source` so the five wger-hardcoded call sites become composite-correct. **Ownership stays strictly per-user; no global/shared catalog** — wger IS the shared catalog, and cross-user sharing is an entity-resolution/moderation problem (fifty spellings of "V-Bar Cable Row") that corrupts strangers' stats when merged wrong. If a custom ever deserves promotion, that's a future curation action, not automatic sharing. MCP tools ship as the final parity phase.
 
 ## Key Hypothesis
 
@@ -21,11 +23,11 @@ We'll know we're right when the two known nearest-match slots (Face Pulls, Cable
 
 ## What We're NOT Building
 
-- **Web UI picker integration** — the app is MCP-first in practice; picker search/create is a later follow-up, not a v1 phase.
+- **Global/shared custom catalog (all users)** — decided 2026-07-15: per-user ownership only. Dedup happens at creation (the picker shows catalog matches before the create option), not by merging users' customs after the fact. Promote-to-catalog curation is the future path if ever needed.
 - **Delete for custom exercises** — create + edit only in v1; deletion semantics (orphaned history) deferred until there's a real need.
 - **Upstreaming to wger** — no wger account integration/contribution flow; customs are local to this user.
-- **Sharing/multi-user catalogs** — single-user POC; customs are scoped to their owner.
 - **Free-text categories** — custom exercises use wger's fixed category set so merged filtering stays coherent.
+- **Required muscle tagging** — category is required (drives grouping); muscles optional-but-encouraged (they feed muscle-volume and replacement suggestions; untagged customs land in the volume page's 'Other' row).
 
 ## Success Metrics
 
@@ -120,10 +122,10 @@ Phases 1–4 below: schema + entity, composite identity, merged catalog, MCP too
 | # | Phase | Description | Status | Parallel | Depends | PRP Plan |
 |---|-------|-------------|--------|----------|---------|----------|
 | 1 | Entity + schema | `custom_exercises` table, `source` columns (default 'wger'), negative-ID backfill migration, `src/db/custom-exercises.ts` CRUD (create/update/list, no delete) | complete | - | - | `.claude/PRPs/plans/completed/custom-exercises-entity-schema.plan.md` |
-| 2 | Composite identity | Widen every exercise-identity query/grouping to `(source, id)`: history, last-performance, progression derivation, instantiation, program-stats | pending | with 3 | 1 | - |
-| 3 | Merged catalog | Per-user overlay in `searchExercises` + `loadExerciseCatalog` (source-labeled results), muscle tagging from custom definitions | pending | with 2 | 1 | - |
+| 2 | Source-aware drafts + identity plumbing | `DraftExercise`/payload codec learn `source` (versioned, old drafts parse); save/edit paths persist it; fix the five wger-hardcoded sites (`getLastPerformance(+Action)`, `getExerciseHistoryBefore`, `getExerciseSheetAction`, `getExerciseBestAction`); audit remaining scalar-key sites (progression derivation, instantiation, muscleRowsFor) — exercise-stats/program-stats/muscle-volume are already composite | pending | - | 1 | - |
+| 3 | Merged catalog + create/edit UI | Per-user overlay in search (`/api/exercises` + picker, source-labeled); picker "Create '<query>'…" flow (name + required category + optional muscles/equipment); Edit on `/exercises/custom/[id]` | pending | - | 2 | - |
 | 4 | MCP surface | `create/update/list_custom_exercise` tools; `source` args on exercise-referencing tools + `upsert_program` input; merged `search_exercises` output | pending | - | 2, 3 | - |
-| 5 | Dogfood swap | Create Cable Face Pull + Kneeling Cable Crunch customs; swap the two live-program slots; verify parity end-to-end | pending | - | 4 | - |
+| 5 | Dogfood swap | Create Cable Face Pull + Kneeling Cable Crunch customs (via the new UI); swap the two live-program slots; verify parity end-to-end incl. stats/sheet/PR/muscle-volume | pending | - | 4 | - |
 
 ### Phase Details
 
@@ -174,6 +176,10 @@ This feature starts only after the program-stats phases complete (their success 
 | Categories | wger's fixed set, enforced | Free text | Merged category filtering stays coherent |
 | Stopgap rows | Migrate to `custom_exercises` | Freeze; forbid | Seamless history; currently zero rows so near-free |
 | Dogfooding | Final phase swaps Face Pulls + Cable Crunch | Leave block alone | It's the hypothesis test; user accepted the small history detach |
+| Ownership (2026-07-15) | Strictly per-user; no all-users catalog | Global shared customs with dedup/moderation | User raised it; dedup-at-source (picker steers to catalog matches before create) beats after-the-fact entity resolution; promote-to-catalog is the future curation path |
+| Surface order (2026-07-15) | Web-UI-first (picker create, detail-page edit), MCP last | MCP-first (original) | Post-stats the UI is the daily surface; five hardcoded sites now carry correctness risk |
+| Create form (2026-07-15) | Name + required category, optional muscles/equipment | Name-only; everything required | Category drives grouping; optional muscles keep gym-floor friction low while feeding volume/replacement when provided |
+| Management (2026-07-15) | Edit on /exercises/custom/[id]; no delete | Create-only; full manage page + delete | The stats detail page already exists per custom; delete still dodged (orphaned history) |
 
 ---
 

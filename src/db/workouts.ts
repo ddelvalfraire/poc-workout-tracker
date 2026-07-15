@@ -1,5 +1,6 @@
 import { and, asc, count, countDistinct, desc, eq, gt, inArray, lt, max, ne, sql } from 'drizzle-orm'
 import type { WorkoutInput, LoggingType } from '@/lib/workout-input'
+import type { ExerciseSource } from '@/lib/custom-exercise-input'
 import { db } from './index'
 import { workouts, workoutExercises, sets } from './schema'
 
@@ -65,12 +66,15 @@ export interface LastPerformance {
 }
 
 /**
- * Most recent prior performance of `wgerExerciseId` for the user, by workout
- * startedAt. `excludeWorkoutId` omits the workout currently being edited so it
- * doesn't report itself. Returns null when there's no history.
+ * Most recent prior performance of the exercise for the user, by workout
+ * startedAt. Identity is the composite (source, id) — a custom exercise's id
+ * can collide with a wger id and the two must never share ghosts.
+ * `excludeWorkoutId` omits the workout currently being edited so it doesn't
+ * report itself. Returns null when there's no history.
  */
 export async function getLastPerformance(
   userId: string,
+  source: ExerciseSource,
   wgerExerciseId: number,
   excludeWorkoutId?: string,
 ): Promise<LastPerformance | null> {
@@ -82,6 +86,7 @@ export async function getLastPerformance(
       and(
         eq(workouts.userId, userId),
         eq(workoutExercises.wgerExerciseId, wgerExerciseId),
+        eq(workoutExercises.source, source),
         excludeWorkoutId ? ne(workouts.id, excludeWorkoutId) : undefined,
       ),
     )
@@ -107,12 +112,21 @@ export async function getExerciseHistoryBefore(
   wgerExerciseIds: number[],
   before: Date,
 ): Promise<
-  { wgerExerciseId: number; reps: number | null; weight: number | null; loggingType: LoggingType }[]
+  {
+    wgerExerciseId: number
+    source: ExerciseSource
+    reps: number | null
+    weight: number | null
+    loggingType: LoggingType
+  }[]
 > {
   if (wgerExerciseIds.length === 0) return []
   return db
     .select({
       wgerExerciseId: workoutExercises.wgerExerciseId,
+      // The query stays id-based (an IN over composite pairs buys nothing at
+      // this corpus size); callers MUST match rows on (source, id).
+      source: workoutExercises.source,
       reps: sets.reps,
       weight: sets.weight,
       // The row's OWN logging type: `weight` is only a total load for
@@ -172,6 +186,8 @@ async function insertWorkoutChildren(
         // Omit when absent so the column default ('weight_reps') applies —
         // pre-logging-type callers (older MCP clients) keep their shape.
         ...(exercise.loggingType !== undefined ? { loggingType: exercise.loggingType } : {}),
+        // Same rule for the identity discriminator (default 'wger').
+        ...(exercise.source !== undefined ? { source: exercise.source } : {}),
       })
       .returning({ id: workoutExercises.id })
 

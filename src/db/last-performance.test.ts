@@ -61,7 +61,7 @@ describe('getLastPerformance', () => {
       ],
     ]
 
-    const result = await getLastPerformance(USER, 73)
+    const result = await getLastPerformance(USER, 'wger', 73)
 
     expect(result).toEqual({
       performedAt: PERFORMED_AT,
@@ -75,7 +75,7 @@ describe('getLastPerformance', () => {
   it('returns null and does not query sets when there is no history', async () => {
     selectResults = [[]] // no matching exercise
 
-    const result = await getLastPerformance(USER, 73)
+    const result = await getLastPerformance(USER, 'wger', 73)
 
     expect(result).toBeNull()
     expect(selectCount).toBe(1) // second (sets) query never ran
@@ -84,10 +84,21 @@ describe('getLastPerformance', () => {
   it('applies the exclude-workout filter when excludeWorkoutId is given', async () => {
     selectResults = [[{ exerciseId: 'e1', performedAt: PERFORMED_AT }], []]
 
-    await getLastPerformance(USER, 73, 'w-latest')
+    await getLastPerformance(USER, 'wger', 73, 'w-latest')
 
     // The first query's WHERE must carry the excluded workout id as a param (ne filter).
     const { params } = new PgDialect().sqlToQuery(whereArgs[0] as SQL)
     expect(params).toContain('w-latest')
+  })
+
+  it('filters by the composite identity — a custom lookup carries its source', async () => {
+    selectResults = [[]]
+
+    await getLastPerformance(USER, 'custom', 73)
+
+    // A custom exercise with id 73 must never read wger #73's ghosts.
+    const { params } = new PgDialect().sqlToQuery(whereArgs[0] as SQL)
+    expect(params).toContain('custom')
+    expect(params).toContain(73)
   })
 })

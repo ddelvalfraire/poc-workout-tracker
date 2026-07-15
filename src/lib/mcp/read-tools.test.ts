@@ -477,7 +477,7 @@ describe('registerReadTools', () => {
       })
 
       // Assert
-      expect(mockedLast).toHaveBeenCalledWith('user_env', 73, '11111111-1111-4111-8111-111111111111')
+      expect(mockedLast).toHaveBeenCalledWith('user_env', 'wger', 73, '11111111-1111-4111-8111-111111111111')
       expect(payload(result)).toEqual({
         userId: 'user_env',
         unit: 'lb',

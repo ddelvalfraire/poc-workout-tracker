@@ -19,6 +19,7 @@ const DRAFT: WorkoutDraft = {
     {
       id: 'ex1',
       wgerExerciseId: 73,
+      source: 'wger',
       name: 'Squat',
       category: 'Legs',
       loggingType: 'weight_reps',
@@ -71,6 +72,30 @@ describe('build → parse round-trip', () => {
     // Assert — restorable, and fully controlled state gets the default
     expect(restored).not.toBeNull()
     expect(restored!.draft.exercises[0].loggingType).toBe('weight_reps')
+  })
+
+  it('accepts a pre-discriminator payload without source and defaults it to wger', () => {
+    // Arrange — a payload persisted before custom exercises existed
+    const legacyExercise = { ...DRAFT.exercises[0] } as Record<string, unknown>
+    delete legacyExercise.source
+    const legacy = payload({ draft: { exercises: [legacyExercise] } })
+
+    // Act
+    const restored = parseDraftPayload(JSON.parse(JSON.stringify(legacy)), {
+      unit: 'kg',
+      now: NOW,
+    })
+
+    // Assert — restorable, and the identity default is explicit
+    expect(restored).not.toBeNull()
+    expect(restored!.draft.exercises[0].source).toBe('wger')
+  })
+
+  it('rejects a payload whose source is not on the whitelist', () => {
+    const forged = { ...DRAFT.exercises[0], source: 'homemade' }
+    const bad = payload({ draft: { exercises: [forged] } })
+
+    expect(parseDraftPayload(JSON.parse(JSON.stringify(bad)), { unit: 'kg', now: NOW })).toBeNull()
   })
 
   it('clamps a future openedAt to now (cross-device clock skew)', () => {

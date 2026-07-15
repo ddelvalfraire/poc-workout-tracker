@@ -74,6 +74,8 @@ function isDraftExercise(value: unknown): value is DraftExercise {
     // defaults it on restore. Present-but-unrecognized is rejected like any
     // other malformed field.
     (exercise.loggingType === undefined || isLoggingType(exercise.loggingType)) &&
+    // Same optional-on-the-wire treatment for the source discriminator.
+    (exercise.source === undefined || exercise.source === 'wger' || exercise.source === 'custom') &&
     Array.isArray(exercise.sets) &&
     exercise.sets.every(isDraftSet)
   )
@@ -125,6 +127,8 @@ export function parseDraftPayload(
       exercises: value.draft.exercises.map((exercise) => ({
         ...exercise,
         loggingType: exercise.loggingType ?? 'weight_reps',
+        // Pre-discriminator payloads predate custom exercises entirely.
+        source: exercise.source ?? 'wger',
       })),
     },
     name: value.name,

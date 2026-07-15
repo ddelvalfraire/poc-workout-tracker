@@ -195,6 +195,29 @@ describe('parseWorkoutInput', () => {
     })
   })
 
+  describe('exercise source', () => {
+    it('passes through a whitelisted source and omits an absent one', () => {
+      const result = parseWorkoutInput({
+        exercises: [
+          { wgerExerciseId: 1, source: 'custom', name: 'My Row', sets: [] },
+          { wgerExerciseId: 1, name: 'Squat', sets: [] },
+        ],
+      })
+
+      expect(result.exercises[0].source).toBe('custom')
+      // Absent stays absent — the column default ('wger') applies at insert.
+      expect('source' in result.exercises[1]).toBe(false)
+    })
+
+    it('throws for a non-whitelisted source', () => {
+      expect(() =>
+        parseWorkoutInput({
+          exercises: [{ wgerExerciseId: 1, source: 'homemade', name: 'X', sets: [] }],
+        }),
+      ).toThrow(/source must be 'wger' or 'custom'/i)
+    })
+  })
+
   it('throws when a set is not an object', () => {
     expect(() =>
       parseWorkoutInput({ exercises: [{ wgerExerciseId: 1, name: 'Squat', sets: ['bad'] }] }),

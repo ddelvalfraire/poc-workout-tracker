@@ -265,7 +265,9 @@ describe('instantiateProgramDay (engine-driven)', () => {
   it('derives the rpe-target load from batched history e1RM', async () => {
     // Arrange — best set 100×5 → e1RM 116.67; 5 @ RPE 8 = 81.1%
     historyBefore.mockResolvedValue([
-      { wgerExerciseId: 1, reps: 5, weight: 100, loggingType: 'weight_reps' },
+      { wgerExerciseId: 1, source: 'wger', reps: 5, weight: 100, loggingType: 'weight_reps' },
+      // Composite guard: a CUSTOM exercise sharing id 1 must not feed this anchor.
+      { wgerExerciseId: 1, source: 'custom', reps: 5, weight: 500, loggingType: 'weight_reps' },
     ])
     findFirst.mockResolvedValue(
       dayFixture({
@@ -285,7 +287,7 @@ describe('instantiateProgramDay (engine-driven)', () => {
     // Arrange — the only history is weighted-BW: its `weight` (25) is ADDED
     // load, not total, so it must not anchor an absolute-load prescription.
     historyBefore.mockResolvedValue([
-      { wgerExerciseId: 1, reps: 8, weight: 25, loggingType: 'weighted_bodyweight' },
+      { wgerExerciseId: 1, source: 'wger', reps: 8, weight: 25, loggingType: 'weighted_bodyweight' },
     ])
     findFirst.mockResolvedValue(
       dayFixture({
@@ -342,7 +344,7 @@ describe('instantiateProgramDay (engine-driven)', () => {
     await instantiateProgramDay(USER, 'd1', 2)
 
     // Assert
-    expect(lastPerformance).toHaveBeenCalledWith(USER, 1)
+    expect(lastPerformance).toHaveBeenCalledWith(USER, 'wger', 1)
     expect(seededSets()[0].weight).toBe(102.5)
   })
 
