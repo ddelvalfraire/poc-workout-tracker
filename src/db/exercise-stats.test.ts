@@ -57,9 +57,12 @@ vi.mock('./preferences', () => ({
 
 import {
   aggregateExerciseStats,
+  aggregateLoggedExercises,
   getExerciseStats,
   getExerciseSessions,
+  listLoggedExercises,
   type ExerciseStatsRow,
+  type LoggedExerciseRow,
 } from './exercise-stats'
 import { getBodyweightKg } from './preferences'
 
@@ -453,5 +456,92 @@ describe('getExerciseSessions', () => {
 
     expect(sessions).toEqual([])
     expect(selectCount).toBe(1)
+  })
+})
+
+describe('aggregateLoggedExercises', () => {
+  /** One occurrence row; overrides on top of a wger default. */
+  function occ(over: Partial<LoggedExerciseRow> = {}): LoggedExerciseRow {
+    return {
+      wgerExerciseId: 42,
+      source: 'wger',
+      name: 'Bench Press',
+      workoutId: 'w1',
+      startedAt: S1,
+      ...over,
+    }
+  }
+
+  it('keeps a custom exercise separate from a wger exercise with the same id', () => {
+    const rows = [
+      occ({ source: 'wger', name: 'Bench Press' }),
+      occ({ source: 'custom', name: 'My Bench', workoutId: 'w2', startedAt: S2 }),
+    ]
+
+    const entries = aggregateLoggedExercises(rows)
+
+    expect(entries).toHaveLength(2)
+    expect(entries.map((e) => `${e.source}:${e.wgerExerciseId}`).sort()).toEqual([
+      'custom:42',
+      'wger:42',
+    ])
+  })
+
+  it('lets the latest denormalized name win and counts distinct sessions', () => {
+    const rows = [
+      occ({ workoutId: 'w1', startedAt: S1, name: 'Bench Press' }),
+      // Same exercise twice within one workout (two slots) — one session.
+      occ({ workoutId: 'w1', startedAt: S1, name: 'Bench Press' }),
+      occ({ workoutId: 'w2', startedAt: S2, name: 'Comp Bench' }),
+    ]
+
+    const entries = aggregateLoggedExercises(rows)
+
+    expect(entries).toHaveLength(1)
+    expect(entries[0]).toMatchObject({
+      name: 'Comp Bench',
+      sessionCount: 2,
+      lastPerformedAt: S2,
+    })
+  })
+
+  it('orders entries newest-trained first', () => {
+    const rows = [
+      occ({ wgerExerciseId: 1, name: 'Squat', workoutId: 'w1', startedAt: S1 }),
+      occ({ wgerExerciseId: 2, name: 'Deadlift', workoutId: 'w3', startedAt: S3 }),
+      occ({ wgerExerciseId: 3, name: 'Row', workoutId: 'w2', startedAt: S2 }),
+    ]
+
+    const entries = aggregateLoggedExercises(rows)
+
+    expect(entries.map((e) => e.name)).toEqual(['Deadlift', 'Row', 'Squat'])
+  })
+
+  it('returns an empty list for no history', () => {
+    expect(aggregateLoggedExercises([])).toEqual([])
+  })
+})
+
+describe('listLoggedExercises', () => {
+  it('scopes the query to the user and completed workouts', async () => {
+    selectResults = [
+      [
+        {
+          wgerExerciseId: 42,
+          source: 'wger',
+          name: 'Bench Press',
+          workoutId: 'w1',
+          startedAt: S1,
+        },
+      ],
+    ]
+
+    const entries = await listLoggedExercises(USER)
+
+    expect(entries).toHaveLength(1)
+    expect(entries[0]).toMatchObject({ wgerExerciseId: 42, sessionCount: 1 })
+    const where = new PgDialect().sqlToQuery(whereArgs[0] as SQL)
+    expect(where.params).toContain(USER)
+    expect(where.sql).toContain('"completed_at" is not null')
   })
 })

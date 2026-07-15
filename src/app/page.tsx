@@ -109,13 +109,15 @@ export default async function HomePage() {
         {/* With a program driving the day, freestyle logging demotes to a
             secondary action; without one it stays the primary CTA. */}
         {nextDay ? (
-          <div className="mt-3 grid grid-cols-2 gap-3">
+          // Three-up row: tighter type/padding than the old two-up so the
+          // uppercase nowrap labels still fit a 320px viewport.
+          <div className="mt-3 grid grid-cols-3 gap-2">
             <GuardedStartLink
               href="/workout/new"
               session={guardSession}
               className={cn(
                 buttonVariants({ variant: "outline" }),
-                "font-semibold uppercase tracking-wide",
+                "px-1 text-xs font-semibold uppercase",
               )}
             >
               Quick Log
@@ -124,10 +126,19 @@ export default async function HomePage() {
               href="/programs"
               className={cn(
                 buttonVariants({ variant: "outline" }),
-                "font-semibold uppercase tracking-wide",
+                "px-1 text-xs font-semibold uppercase",
               )}
             >
               Programs
+            </Link>
+            <Link
+              href="/exercises"
+              className={cn(
+                buttonVariants({ variant: "outline" }),
+                "px-1 text-xs font-semibold uppercase",
+              )}
+            >
+              Exercises
             </Link>
           </div>
         ) : (
@@ -151,6 +162,16 @@ export default async function HomePage() {
               )}
             >
               Programs
+            </Link>
+
+            <Link
+              href="/exercises"
+              className={cn(
+                buttonVariants({ variant: "outline", size: "lg" }),
+                "mt-3 w-full text-base font-semibold uppercase tracking-wide",
+              )}
+            >
+              Exercises
             </Link>
           </>
         )}

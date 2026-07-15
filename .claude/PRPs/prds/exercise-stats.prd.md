@@ -115,7 +115,7 @@ Phases 1–4 below, in order. The hypothesis is testable after Phase 3 (both ent
 | # | Phase | Description | Status | Parallel | Depends | PRP Plan |
 |---|-------|-------------|--------|----------|---------|----------|
 | 1 | Data layer | Exercise-stats query, records/trend derive functions, index migration (scorer already shared in `lib/one-rep-max.ts`) | complete | - | - | [plan](../plans/completed/exercise-stats-data-layer.plan.md) · [report](../reports/exercise-stats-data-layer-report.md) |
-| 2 | Library + detail page | `/exercises` search list and `/exercises/[source]/[id]` full stats page | pending | with 3 | 1 | - |
+| 2 | Library + detail page | `/exercises` search list and `/exercises/[source]/[id]` full stats page | complete | with 3 | 1 | [plan](../plans/completed/exercise-stats-pages.plan.md) · [report](../reports/exercise-stats-pages-report.md) |
 | 3 | Logger sheet | Tap-name → History/Records sheet with link-out | pending | with 2 | 1 | - |
 | 4 | PR detection | Inline all-time-PR flag on set completion | pending | - | 1, 3 | - |
 
