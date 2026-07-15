@@ -434,6 +434,12 @@ export function WorkoutLogger({
         // silently retarget under the restored draft — cancel, don't retarget.
         setReplaceTargetIndex(null)
         setPendingReplace(null)
+        // Index-addressed sheets too: a restore landing while one is open
+        // would silently point it at a different exercise. (Remove/replace
+        // can't race these — the modal dialog makes the page inert — but the
+        // restore is async and can.)
+        setPlateSheetFor(null)
+        setStatsSheetFor(null)
         // And the remember prompt: its swap may not exist in the restored draft.
         setPendingRemember(null)
       })
@@ -675,7 +681,7 @@ export function WorkoutLogger({
                   type="button"
                   onClick={() => setStatsSheetFor(exerciseIndex)}
                   aria-label={`Stats for ${exercise.name}`}
-                  className="text-left underline-offset-4 active:underline"
+                  className="-my-1.5 py-1.5 text-left underline-offset-4 active:underline"
                 >
                   {exercise.name}
                 </button>
