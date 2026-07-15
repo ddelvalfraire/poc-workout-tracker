@@ -14,6 +14,7 @@ import {
   updateWorkoutAction,
   deleteWorkoutAction,
   getLastPerformanceAction,
+  substitutePlanTargetsAction,
   getWorkoutDraftAction,
   putWorkoutDraftAction,
   deleteWorkoutDraftAction,
@@ -230,6 +231,13 @@ export function WorkoutLogger({
     index: number
     picked: { wgerExerciseId: number; name: string; category: string }
   } | null>(null)
+  // Substitute plan targets fetched after a swap, overlaying the server-
+  // seeded planTargets (which stays keyed to the plan's ORIGINAL exercises).
+  // In-memory only: a reload falls back to history ghosts (accepted).
+  const [planOverrides, setPlanOverrides] = useState<Record<number, PlanSetTarget[]>>({})
+  // Substitute overlay first, then the server-seeded plan — both ghost
+  // placeholders and the rest countdown must see the same answer.
+  const planFor = (id: number) => planOverrides[id] ?? planTargets?.[id]
 
   function pushRemoved(entry: RemovedEntry) {
     setRemoved((prev) => [...prev, entry])
@@ -252,6 +260,21 @@ export function WorkoutLogger({
     const replacement = replacementDraftExercise(picked, previous.sets.length)
     dispatch({ type: 'REPLACE_EXERCISE', index, exercise: replacement })
     pushRemoved({ kind: 'replace', previous, replacementId: replacement.id })
+    // Re-derive the slot's plan targets for the substitute (loads from ITS
+    // history, original-movement absolutes stripped server-side) — best-effort
+    // enhancement: ghosts stay history-only if this fails or the workout is
+    // ad-hoc (the action nulls quietly for non-program sessions).
+    if (workoutId) {
+      substitutePlanTargetsAction(workoutId, previous.wgerExerciseId, picked.wgerExerciseId)
+        .then((targets) => {
+          if (targets) {
+            setPlanOverrides((prev) => ({ ...prev, [picked.wgerExerciseId]: targets }))
+          }
+        })
+        .catch(() => {
+          // Non-critical: the swap already stands on history ghosts.
+        })
+    }
   }
 
   function handleReplacePick(picked: { wgerExerciseId: number; name: string; category: string }) {
@@ -668,7 +691,7 @@ export function WorkoutLogger({
                   unit,
                 )
                 const plan = planPlaceholderForSet(
-                  planTargets?.[exercise.wgerExerciseId],
+                  planFor(exercise.wgerExerciseId),
                   setIndex,
                   unit,
                 )
@@ -715,7 +738,7 @@ export function WorkoutLogger({
                       if (restTimerEnabled && !set.completed) {
                         setRestStartedAt(new Date())
                         setRestPlanSec(
-                          resolveRestTarget(planTargets?.[exercise.wgerExerciseId], setIndex, null),
+                          resolveRestTarget(planFor(exercise.wgerExerciseId), setIndex, null),
                         )
                       }
                     }}

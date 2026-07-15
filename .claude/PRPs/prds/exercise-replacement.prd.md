@@ -118,7 +118,7 @@ Logger → exercise header → Replace → sheet opens (suggestions on top, sear
 |---|-------|-------------|--------|----------|---------|----------|
 | 1 | Logger swap (search-based, one-off) | REPLACE_EXERCISE reducer case, header Replace control, ExerciseSheet reuse, undo; history ghosts follow automatically | complete | - | - | [plan](../plans/completed/exercise-replacement-logger-swap.plan.md) · [report](../reports/exercise-replacement-logger-swap-report.md) |
 | 2 | Muscle-matched suggestions | Pure ranking helper over the cached catalog (primary-muscle overlap, category, equipment signal); suggestions rail in the swap sheet | complete | with 3 | 1 | [plan](../plans/completed/exercise-replacement-suggestions.plan.md) · [report](../reports/exercise-replacement-suggestions-report.md) |
-| 3 | Substitute targets | Single-exercise prescription wrapper; re-key planTargets so plan ghosts survive the swap | pending | with 2 | 1 | - |
+| 3 | Substitute targets | Single-exercise prescription wrapper; re-key planTargets so plan ghosts survive the swap | complete | with 2 | 1 | [plan](../plans/completed/exercise-replacement-substitute-targets.plan.md) · [report](../reports/exercise-replacement-substitute-targets-report.md) |
 | 4 | Ask-to-remember | Post-swap prompt persisting the swap for the block via updateProgramExercise (wger-only; keeps overrides, re-tags muscles) | pending | - | 1 | - |
 
 ### Phase Details
