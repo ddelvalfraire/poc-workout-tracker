@@ -15,6 +15,12 @@ import { getProgramDayDetail, deriveDayPrescription } from '@/db/programs'
 import { updateProgramExercise } from '@/db/program-patches'
 import { substituteSlot } from '@/lib/substitute-slot'
 import type { PlanSetTarget } from '@/lib/format'
+import {
+  getExerciseStats,
+  getExerciseSessions,
+  type ExerciseAllTimeStats,
+  type ExerciseSession,
+} from '@/db/exercise-stats'
 import { getWorkoutDraft, putWorkoutDraft, deleteWorkoutDraft } from '@/db/workout-drafts'
 import { isDraftPayload, DRAFT_TTL_MS, draftKey } from '@/app/workout/new/draft-payload'
 
@@ -87,6 +93,38 @@ export async function getLastPerformanceAction(
   }
   const exclude = typeof excludeWorkoutId === 'string' ? excludeWorkoutId : undefined
   return getLastPerformance(userId, wgerExerciseId as number, exclude)
+}
+
+/** Sessions the stats sheet lists under "Recent". */
+const RECENT_SESSIONS = 3
+
+/** Everything the logger's stats sheet renders, in one round trip. */
+export interface ExerciseSheetData {
+  stats: ExerciseAllTimeStats
+  recent: ExerciseSession[]
+}
+
+/**
+ * All-time records + the last few sessions of an exercise, for the logger's
+ * stats sheet. Null = no completed history (the sheet shows an empty state).
+ * Read-only — no revalidate. Draft exercises carry no `source` (see
+ * DraftExercise), so this reads the 'wger' identity — the same limitation as
+ * getLastPerformanceAction; custom exercises join when drafts learn source.
+ */
+export async function getExerciseSheetAction(
+  wgerExerciseId: unknown,
+): Promise<ExerciseSheetData | null> {
+  const userId = await requireUserId()
+  if (!Number.isInteger(wgerExerciseId) || (wgerExerciseId as number) <= 0) {
+    throw new Error('invalid exercise id')
+  }
+  const id = wgerExerciseId as number
+  const [stats, recent] = await Promise.all([
+    getExerciseStats(userId, 'wger', id),
+    getExerciseSessions(userId, 'wger', id, { limit: RECENT_SESSIONS, offset: 0 }),
+  ])
+  if (!stats) return null
+  return { stats, recent }
 }
 
 /**
