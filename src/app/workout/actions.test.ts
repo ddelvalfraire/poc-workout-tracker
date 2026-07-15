@@ -4,12 +4,14 @@ import {
   updateWorkoutAction,
   deleteWorkoutAction,
   getLastPerformanceAction,
+  getExerciseSheetAction,
   getWorkoutDraftAction,
   putWorkoutDraftAction,
   deleteWorkoutDraftAction,
 } from './actions'
 import { requireUserId } from '@/lib/auth'
 import { saveWorkout, updateWorkout, deleteWorkout, getLastPerformance } from '@/db/workouts'
+import { getExerciseStats, getExerciseSessions } from '@/db/exercise-stats'
 import { getWorkoutDraft, putWorkoutDraft, deleteWorkoutDraft } from '@/db/workout-drafts'
 import { DRAFT_TTL_MS } from '@/app/workout/new/draft-payload'
 import { revalidatePath } from 'next/cache'
@@ -29,6 +31,10 @@ vi.mock('@/db/workouts', () => ({
   deleteWorkout: vi.fn(),
   getLastPerformance: vi.fn(),
 }))
+vi.mock('@/db/exercise-stats', () => ({
+  getExerciseStats: vi.fn(),
+  getExerciseSessions: vi.fn(),
+}))
 vi.mock('@/db/workout-drafts', () => ({
   getWorkoutDraft: vi.fn(),
   putWorkoutDraft: vi.fn(),
@@ -40,6 +46,8 @@ const mockedRequireUserId = vi.mocked(requireUserId)
 const mockedSave = vi.mocked(saveWorkout)
 const mockedUpdate = vi.mocked(updateWorkout)
 const mockedGetLast = vi.mocked(getLastPerformance)
+const mockedGetStats = vi.mocked(getExerciseStats)
+const mockedGetSessions = vi.mocked(getExerciseSessions)
 const mockedDelete = vi.mocked(deleteWorkout)
 const mockedGetDraft = vi.mocked(getWorkoutDraft)
 const mockedPutDraft = vi.mocked(putWorkoutDraft)
@@ -104,6 +112,45 @@ describe('getLastPerformanceAction', () => {
       await expect(getLastPerformanceAction(bad)).rejects.toThrow('invalid exercise id')
     }
     expect(mockedGetLast).not.toHaveBeenCalled()
+  })
+})
+
+describe('getExerciseSheetAction', () => {
+  const STATS = {
+    exercise: { wgerExerciseId: 73, source: 'wger', name: 'Bench', loggingType: 'weight_reps' },
+    totalSessions: 1,
+    totalCompletedSets: 1,
+    records: { bestE1rm: null, heaviestLoadKg: null, mostReps: null, bestSessionVolumeKg: null },
+    trend: [],
+  } as unknown as Awaited<ReturnType<typeof getExerciseStats>>
+
+  it('reads stats and the recent sessions under the wger identity', async () => {
+    // Arrange
+    mockedGetStats.mockResolvedValue(STATS)
+    mockedGetSessions.mockResolvedValue([])
+
+    // Act
+    const result = await getExerciseSheetAction(73)
+
+    // Assert
+    expect(mockedGetStats).toHaveBeenCalledWith(USER, 'wger', 73)
+    expect(mockedGetSessions).toHaveBeenCalledWith(USER, 'wger', 73, { limit: 3, offset: 0 })
+    expect(result).toEqual({ stats: STATS, recent: [] })
+  })
+
+  it('returns null when the exercise has no completed history', async () => {
+    mockedGetStats.mockResolvedValue(null)
+    mockedGetSessions.mockResolvedValue([])
+
+    expect(await getExerciseSheetAction(73)).toBeNull()
+  })
+
+  it('rejects a non-integer or non-positive exercise id before touching the database', async () => {
+    for (const bad of ['73', 0, -1, 1.5, null]) {
+      await expect(getExerciseSheetAction(bad)).rejects.toThrow('invalid exercise id')
+    }
+    expect(mockedGetStats).not.toHaveBeenCalled()
+    expect(mockedGetSessions).not.toHaveBeenCalled()
   })
 })
 

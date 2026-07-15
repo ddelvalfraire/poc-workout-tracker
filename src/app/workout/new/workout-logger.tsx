@@ -38,6 +38,7 @@ import { createDraftSyncQueue, type DraftSyncQueue, type DraftSyncStatus } from 
 import { HeaderClock } from './session-clock'
 import { PlateSheet } from './plate-sheet'
 import { RestSheet } from './rest-sheet'
+import { StatsSheet } from './stats-sheet'
 import { resolveRestTarget } from '@/lib/rest-target'
 import { DEFAULT_EQUIPMENT, type Equipment } from '@/lib/equipment'
 import { LOGGING_TYPES, isLoggingType, type LoggingType } from '@/lib/workout-input'
@@ -194,6 +195,9 @@ export function WorkoutLogger({
   const [gear, setGear] = useState<Equipment>(equipment ?? DEFAULT_EQUIPMENT[unit])
   // Which exercise's plate sheet is open (by index), if any.
   const [plateSheetFor, setPlateSheetFor] = useState<number | null>(null)
+  // Which exercise's all-time stats sheet is open (by index), if any —
+  // opened by tapping the exercise's name.
+  const [statsSheetFor, setStatsSheetFor] = useState<number | null>(null)
   // Whether the add-exercise sheet is up — opened from the sticky bar, so
   // adding stays one thumb-reach away however deep the workout scrolls.
   const [isPickerOpen, setIsPickerOpen] = useState(false)
@@ -488,6 +492,7 @@ export function WorkoutLogger({
   // Await everything first, then navigate outside any transition scope.
   async function handleSave() {
     setPlateSheetFor(null) // a live showModal() dialog must not cross navigation
+    setStatsSheetFor(null) // same for the stats sheet
     setIsPickerOpen(false) // same top-layer invariant for the exercise sheet
     setIsRestSheetOpen(false) // and for the rest-target sheet
     setReplaceTargetIndex(null) // and for the replace sheet + its guard dialog
@@ -540,6 +545,7 @@ export function WorkoutLogger({
   // comment on the <ViewTransition> strand).
   async function handleDiscard() {
     setPlateSheetFor(null) // a live showModal() dialog must not cross navigation
+    setStatsSheetFor(null)
     setIsPickerOpen(false)
     setIsRestSheetOpen(false)
     setReplaceTargetIndex(null)
@@ -662,7 +668,17 @@ export function WorkoutLogger({
           >
             <div className="flex items-start justify-between gap-2">
               <h3 className="min-w-0 text-base leading-tight">
-                {exercise.name}
+                {/* The name IS the stats entry point (Strong/Hevy convention):
+                    zero added chrome. Read-only, so unlike replace it never
+                    freezes behind the save/discard barriers. */}
+                <button
+                  type="button"
+                  onClick={() => setStatsSheetFor(exerciseIndex)}
+                  aria-label={`Stats for ${exercise.name}`}
+                  className="text-left underline-offset-4 active:underline"
+                >
+                  {exercise.name}
+                </button>
                 {exercise.category && (
                   <span className="mt-0.5 block text-sm font-normal tracking-normal text-muted-foreground">
                     {exercise.category}
@@ -1110,6 +1126,15 @@ export function WorkoutLogger({
             setPendingReplace(null)
           }}
           onClose={() => setPendingReplace(null)}
+        />
+      )}
+
+      {statsSheetFor !== null && draft.exercises[statsSheetFor] && (
+        <StatsSheet
+          wgerExerciseId={draft.exercises[statsSheetFor].wgerExerciseId}
+          name={draft.exercises[statsSheetFor].name}
+          unit={unit}
+          onClose={() => setStatsSheetFor(null)}
         />
       )}
 
