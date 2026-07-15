@@ -19,7 +19,7 @@ interface BodyweightEntryRowProps {
  * (the list itself stays server-rendered): delete confirms in the shared
  * ConfirmDialog — removing an entry can silently change the current weight
  * scoring uses, so it earns a real confirm — then refreshes the route so the
- * hero/sparkline/prefs-derived readouts resync. Mirrors WorkoutActions'
+ * hero/trend-chart/prefs-derived readouts resync. Mirrors WorkoutActions'
  * dialog lifecycle (imperative close before any state that unmounts it).
  */
 export function BodyweightEntryRow({ id, dateLabel, weightLabel }: BodyweightEntryRowProps) {

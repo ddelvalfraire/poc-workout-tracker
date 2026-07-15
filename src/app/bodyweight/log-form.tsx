@@ -12,7 +12,7 @@ import type { WeightUnit } from '@/lib/units'
  * display unit + the page's single volt action. Persists through
  * setBodyweightAction (the same write path as the old settings editor — a
  * log row plus the synced current value), then router.refresh() so the
- * server-rendered hero, sparkline, and history pick the entry up. Error
+ * server-rendered hero, trend chart, and history pick the entry up. Error
  * handling follows UnitToggle: visible words, value kept in the input so the
  * user just taps again.
  */

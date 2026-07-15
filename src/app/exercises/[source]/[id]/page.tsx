@@ -7,7 +7,7 @@ import { getWeightUnit } from '@/db/preferences'
 import { formatE1RM, formatLoggedSet, formatVolume, formatWorkoutDate } from '@/lib/format'
 import { kgToDisplay } from '@/lib/units'
 import { MAX_RELIABLE_REPS } from '@/lib/one-rep-max'
-import { sparklinePoints } from '@/lib/sparkline'
+import { TrendChart } from '@/components/charts/trend-chart'
 import { AppHeader } from '@/components/app-header'
 import { buttonVariants } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -17,11 +17,6 @@ import { parseExerciseRef } from '../../exercise-ref'
  *  at an exact multiple that shows one empty final page; accepted POC trade-off
  *  over a count query per view. */
 const HISTORY_PAGE = 10
-
-// Sparkline geometry — same viewBox recipe as the bodyweight trend.
-const SPARK_W = 320
-const SPARK_H = 64
-const SPARK_INSET = 2
 
 /**
  * One exercise's all-time story: records, per-session e1RM trend, and the
@@ -60,7 +55,11 @@ export default async function ExerciseStatsPage({
 
   const { records, trend } = stats
   const hasLoadRecords = records.bestE1rm !== null || records.heaviestLoadKg !== null
-  const trendValues = trend.map((p) => p.e1rm)
+  // Chart points built server-side: dates pre-formatted, kg → display unit.
+  const trendPoints = trend.map((p) => ({
+    label: formatWorkoutDate(p.performedAt),
+    value: kgToDisplay(p.e1rm, unit),
+  }))
 
   return (
     <div className="flex min-h-[100dvh] flex-col">
@@ -148,29 +147,18 @@ export default async function ExerciseStatsPage({
         </section>
 
         {/* Trend — needs at least two points to be a line. */}
-        {trendValues.length >= 2 && (
+        {trendPoints.length >= 2 && (
           <section aria-label="Estimated 1RM trend">
             <h2 className="px-1 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
               Est. 1RM trend · {trend.length} sessions
             </h2>
             <div className="mt-2 rounded-2xl border border-border bg-card p-4">
-              <svg
-                viewBox={`0 0 ${SPARK_W} ${SPARK_H}`}
-                className="h-16 w-full"
-                preserveAspectRatio="none"
-                role="img"
-                aria-label={`Estimated 1RM across ${trend.length} sessions, currently ${formatE1RM(trendValues[trendValues.length - 1], unit)}`}
-              >
-                <polyline
-                  points={sparklinePoints(trendValues, SPARK_W, SPARK_H - SPARK_INSET * 2)}
-                  transform={`translate(0 ${SPARK_INSET})`}
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  className="text-primary"
-                  vectorEffect="non-scaling-stroke"
-                />
-              </svg>
+              <TrendChart
+                points={trendPoints}
+                unit={unit}
+                valueLabel="Est. 1RM"
+                ariaLabel={`Estimated 1RM across ${trend.length} sessions, currently ${formatE1RM(trend[trend.length - 1].e1rm, unit)}`}
+              />
             </div>
           </section>
         )}
