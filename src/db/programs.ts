@@ -660,7 +660,11 @@ export async function deriveDayPrescription(
     // prescription math anchors on. Program prescriptions are absolute
     // loads, so only absolute-load history is admissible.
     const rows = historyRows.filter(
-      (r) => r.wgerExerciseId === id && r.loggingType === 'weight_reps',
+      // 'wger' pinned: DayForDerivation can't express source until program
+      // inputs learn it (custom-exercises Phase 4) — but the composite match
+      // must exist NOW so a custom exercise sharing this id can't pollute
+      // the prescription's e1RM anchor.
+      (r) => r.wgerExerciseId === id && r.source === 'wger' && r.loggingType === 'weight_reps',
     )
     e1rmById.set(id, bestSet(rows)?.e1rm ?? null)
   }
