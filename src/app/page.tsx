@@ -5,6 +5,8 @@ import { requireUserId } from "@/lib/auth";
 import { listWorkoutSummaries } from "@/db/workouts";
 import { listWorkoutDrafts } from "@/db/workout-drafts";
 import { getNextProgramDay } from "@/db/programs";
+import { getMuscleVolume } from "@/db/muscle-volume";
+import { volumeWindows } from "@/lib/volume-window";
 import { getWeightUnit } from "@/db/preferences";
 import { resolveActiveSession } from "@/lib/active-session";
 import { formatVolume, formatWorkoutDuration } from "@/lib/format";
@@ -22,11 +24,14 @@ const monthFormat = new Intl.DateTimeFormat("en-US", { month: "short" });
 
 export default async function HomePage() {
   const userId = await requireUserId(); // middleware also guards; this is defense-in-depth
-  const [summaries, unit, nextDay, drafts] = await Promise.all([
+  const [summaries, unit, nextDay, drafts, weekVolume] = await Promise.all([
     listWorkoutSummaries(userId),
     getWeightUnit(userId),
     getNextProgramDay(userId),
     listWorkoutDrafts(userId),
+    // Teaser numbers only (rolling window — tz-free, so the server can
+    // compute it); the /stats page owns the full picture and the toggle.
+    getMuscleVolume(userId, volumeWindows("rolling", new Date())),
   ]);
   // A fresh draft IS an in-progress session (the logger autosaves one on
   // every change; saving deletes it) — and a started-but-unfinished workout
@@ -174,6 +179,27 @@ export default async function HomePage() {
               Exercises
             </Link>
           </>
+        )}
+
+        {/* Weekly-balance teaser: headline numbers only, the page has the
+            chart. Hidden until there's any volume — an empty stats pitch is
+            noise on day one. */}
+        {weekVolume.totals.currentSets > 0 && (
+          <Link
+            href="/stats"
+            className="mt-3 flex items-center justify-between gap-3 rounded-2xl border border-border bg-card p-4 transition-colors active:bg-muted/60"
+          >
+            <span className="min-w-0">
+              <span className="block text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                This week
+              </span>
+              <span className="mt-0.5 block text-sm">
+                {weekVolume.totals.currentSets} sets · {weekVolume.totals.currentSessions}{" "}
+                {weekVolume.totals.currentSessions === 1 ? "session" : "sessions"}
+              </span>
+            </span>
+            <ChevronRight aria-hidden="true" className="size-5 shrink-0 text-muted-foreground" />
+          </Link>
         )}
 
         <TodayWorkouts
