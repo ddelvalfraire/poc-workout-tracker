@@ -1,8 +1,9 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { ZodError } from 'zod'
 import { requireUserId } from '@/lib/auth'
-import { customExerciseInputSchema } from '@/lib/custom-exercise-input'
+import { customExerciseInputSchema, type CustomExerciseInput } from '@/lib/custom-exercise-input'
 import { createCustomExercise, updateCustomExercise } from '@/db/custom-exercises'
 
 /**
@@ -30,9 +31,24 @@ function translateDuplicateName(error: unknown): never {
   throw error instanceof Error ? error : new Error('saving the custom exercise failed')
 }
 
+/** Schema parse whose failure reads like a sentence, not serialized issues —
+ *  the picker/editor render err.message directly. */
+function parseCustomExerciseInput(input: unknown): CustomExerciseInput {
+  try {
+    return customExerciseInputSchema.parse(input)
+  } catch (error: unknown) {
+    if (error instanceof ZodError) {
+      const issue = error.issues[0]
+      const where = issue?.path.join('.') || 'input'
+      throw new Error(`Invalid ${where}: ${issue?.message ?? 'check the fields and try again'}`)
+    }
+    throw error
+  }
+}
+
 export async function createCustomExerciseAction(input: unknown): Promise<CustomExerciseResult> {
   const userId = await requireUserId()
-  const parsed = customExerciseInputSchema.parse(input)
+  const parsed = parseCustomExerciseInput(input)
   try {
     const row = await createCustomExercise(userId, parsed)
     revalidatePath('/exercises')
@@ -61,20 +77,23 @@ export async function updateCustomExerciseAction(
   if (!Number.isInteger(id) || (id as number) <= 0) {
     throw new Error('invalid exercise id')
   }
-  const parsed = customExerciseInputSchema.parse(input)
+  const parsed = parseCustomExerciseInput(input)
+  let row: Awaited<ReturnType<typeof updateCustomExercise>>
   try {
-    const row = await updateCustomExercise(userId, id as number, parsed)
-    if (!row) throw new Error('custom exercise not found')
-    revalidatePath('/exercises')
-    revalidatePath(`/exercises/custom/${id}`)
-    return {
-      id: row.id,
-      name: row.name,
-      category: row.category,
-      muscles: row.muscles ?? [],
-      musclesSecondary: row.musclesSecondary ?? [],
-    }
+    row = await updateCustomExercise(userId, id as number, parsed)
   } catch (error: unknown) {
     translateDuplicateName(error)
+  }
+  // Outside the try: not-found is ownership, not a name collision — it must
+  // never ride through the duplicate-name translator.
+  if (!row) throw new Error('custom exercise not found')
+  revalidatePath('/exercises')
+  revalidatePath(`/exercises/custom/${id}`)
+  return {
+    id: row.id,
+    name: row.name,
+    category: row.category,
+    muscles: row.muscles ?? [],
+    musclesSecondary: row.musclesSecondary ?? [],
   }
 }

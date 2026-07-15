@@ -310,7 +310,11 @@ export function WorkoutLogger({
   const [isRemembering, setIsRemembering] = useState(false)
   // Substitute overlay first, then the server-seeded plan — both ghost
   // placeholders and the rest countdown must see the same answer.
-  const planFor = (id: number) => planOverrides[id] ?? planTargets?.[id]
+  // Plan targets are keyed by the PLAN's wger ids — a custom exercise whose
+  // serial id collides with one must never wear that plan's ghosts or rest
+  // targets (same guard the swap path applies at its source checks).
+  const planFor = (source: ExerciseSource, id: number) =>
+    source === 'wger' ? (planOverrides[id] ?? planTargets?.[id]) : undefined
 
   function pushRemoved(entry: RemovedEntry) {
     setRemoved((prev) => [...prev, entry])
@@ -881,7 +885,7 @@ export function WorkoutLogger({
                   unit,
                 )
                 const plan = planPlaceholderForSet(
-                  planFor(exercise.wgerExerciseId),
+                  planFor(exercise.source, exercise.wgerExerciseId),
                   setIndex,
                   unit,
                 )
@@ -929,7 +933,7 @@ export function WorkoutLogger({
                       if (restTimerEnabled && !set.completed) {
                         setRestStartedAt(new Date())
                         setRestPlanSec(
-                          resolveRestTarget(planFor(exercise.wgerExerciseId), setIndex, null),
+                          resolveRestTarget(planFor(exercise.source, exercise.wgerExerciseId), setIndex, null),
                         )
                       }
                     }}
