@@ -46,43 +46,48 @@ export default async function WorkoutDetailPage({
     exerciseIds,
     workout.startedAt,
   );
+  // Keyed by the composite identity: a custom exercise's id can collide with
+  // a wger id, and the two must never share a PR baseline.
   const priorByExercise = new Map<
-    number,
+    string,
     { reps: number | null; weight: number | null }[]
   >();
   for (const row of history) {
-    const list = priorByExercise.get(row.wgerExerciseId) ?? [];
+    const key = `${row.source}:${row.wgerExerciseId}`;
+    const list = priorByExercise.get(key) ?? [];
     list.push({ reps: row.reps, weight: row.weight });
-    priorByExercise.set(row.wgerExerciseId, list);
+    priorByExercise.set(key, list);
   }
 
   // A PR is a property of the exercise + workout, not a single card: an exercise
   // logged in more than one card is judged by its best set across the whole
   // workout, and the badge renders once — on the first card for that exercise.
   const currentByExercise = new Map<
-    number,
+    string,
     { reps: number | null; weight: number | null }[]
   >();
   for (const ex of workout.exercises) {
-    const list = currentByExercise.get(ex.wgerExerciseId) ?? [];
+    const key = `${ex.source}:${ex.wgerExerciseId}`;
+    const list = currentByExercise.get(key) ?? [];
     for (const s of ex.sets) list.push({ reps: s.reps, weight: s.weight });
-    currentByExercise.set(ex.wgerExerciseId, list);
+    currentByExercise.set(key, list);
   }
   const prBadgeRowIds = new Set<string>();
-  const decidedExercises = new Set<number>();
+  const decidedExercises = new Set<string>();
   for (const ex of workout.exercises) {
-    if (decidedExercises.has(ex.wgerExerciseId)) continue;
-    decidedExercises.add(ex.wgerExerciseId);
+    const exKey = `${ex.source}:${ex.wgerExerciseId}`;
+    if (decidedExercises.has(exKey)) continue;
+    decidedExercises.add(exKey);
     // Prior sets are scored under the exercise's CURRENT logging type — the
     // history rows carry no type of their own, and comparing a pull-up's past
     // under today's reading is the comparison the lifter actually means.
     const cur = bestScoredSet(
-      currentByExercise.get(ex.wgerExerciseId) ?? [],
+      currentByExercise.get(exKey) ?? [],
       ex.loggingType,
       bodyweightKg,
     );
     const pri = bestScoredSet(
-      priorByExercise.get(ex.wgerExerciseId) ?? [],
+      priorByExercise.get(exKey) ?? [],
       ex.loggingType,
       bodyweightKg,
     );

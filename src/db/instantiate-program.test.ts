@@ -342,7 +342,7 @@ describe('instantiateProgramDay (engine-driven)', () => {
     await instantiateProgramDay(USER, 'd1', 2)
 
     // Assert
-    expect(lastPerformance).toHaveBeenCalledWith(USER, 1)
+    expect(lastPerformance).toHaveBeenCalledWith(USER, 'wger', 1)
     expect(seededSets()[0].weight).toBe(102.5)
   })
 

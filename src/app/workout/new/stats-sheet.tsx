@@ -9,6 +9,7 @@ import { getExerciseSheetAction } from '@/app/workout/actions'
 import { exerciseHref } from '@/app/exercises/exercise-ref'
 import { formatE1RM, formatLoggedSet, formatVolume, formatWorkoutDate } from '@/lib/format'
 import { kgToDisplay, type WeightUnit } from '@/lib/units'
+import type { ExerciseSource } from '@/lib/custom-exercise-input'
 import { cn } from '@/lib/utils'
 
 /**
@@ -25,21 +26,23 @@ import { cn } from '@/lib/utils'
 
 interface StatsSheetProps {
   wgerExerciseId: number
+  /** Composite-identity half: a custom exercise's id can equal a wger id. */
+  source: ExerciseSource
   /** Display name from the draft — the sheet's title while data loads. */
   name: string
   unit: WeightUnit
   onClose: () => void
 }
 
-export function StatsSheet({ wgerExerciseId, name, unit, onClose }: StatsSheetProps) {
+export function StatsSheet({ wgerExerciseId, source, name, unit, onClose }: StatsSheetProps) {
   const dialogRef = useRef<HTMLDialogElement>(null)
   const closeButtonRef = useRef<HTMLButtonElement>(null)
 
   // Cached per exercise: reopening mid-session is instant. Records changing
   // DURING the session (a PR being set) is Phase 4's concern, not the sheet's.
   const { data, isPending, isError } = useQuery({
-    queryKey: ['exercise-sheet', wgerExerciseId],
-    queryFn: () => getExerciseSheetAction(wgerExerciseId),
+    queryKey: ['exercise-sheet', source, wgerExerciseId],
+    queryFn: () => getExerciseSheetAction(wgerExerciseId, source),
     staleTime: 60_000,
   })
 
@@ -203,7 +206,7 @@ export function StatsSheet({ wgerExerciseId, name, unit, onClose }: StatsSheetPr
 
       <div className="mt-5 pb-4">
         <Link
-          href={exerciseHref({ source: 'wger', wgerExerciseId })}
+          href={exerciseHref({ source, wgerExerciseId })}
           className={cn(buttonVariants({ variant: 'outline' }), 'w-full font-semibold uppercase')}
         >
           View full stats

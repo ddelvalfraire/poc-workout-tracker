@@ -672,7 +672,8 @@ export async function deriveDayPrescription(
       exercise.progression?.scheme === 'double-progression' &&
       !lastSetsById.has(exercise.wgerExerciseId)
     ) {
-      const perf = await getLastPerformance(userId, exercise.wgerExerciseId)
+      // Same 'wger' pin as the e1RM filter above (Phase-4 unlock).
+      const perf = await getLastPerformance(userId, 'wger', exercise.wgerExerciseId)
       lastSetsById.set(
         exercise.wgerExerciseId,
         perf?.sets.map((s) => ({ reps: s.reps, weightKg: s.weight })) ?? null,

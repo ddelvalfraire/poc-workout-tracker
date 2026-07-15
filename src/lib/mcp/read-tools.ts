@@ -134,7 +134,9 @@ export function registerReadTools(server: McpServer): void {
       try {
         const resolved = resolveUserId(extra, userId)
         const [last, unit] = await Promise.all([
-          getLastPerformance(resolved, wgerExerciseId, excludeWorkoutId),
+          // 'wger' pinned until the tool grows a source arg (custom-exercises
+          // Phase 4) — MCP callers can't reference customs here yet anyway.
+          getLastPerformance(resolved, 'wger', wgerExerciseId, excludeWorkoutId),
           getWeightUnit(resolved),
         ])
         return jsonResult({

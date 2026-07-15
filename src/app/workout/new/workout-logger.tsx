@@ -157,35 +157,44 @@ export function WorkoutLogger({
   // placeholders. TanStack Query owns dedupe/caching/retry (this replaced a
   // hand-rolled requestedRef cache); provider defaults keep ghosts fresh per
   // session and a tab refocus picks up sets logged elsewhere (e.g. via MCP).
-  const exerciseIds = Array.from(new Set(draft.exercises.map((e) => e.wgerExerciseId)))
+  // Deduped by the COMPOSITE identity — a custom exercise's id can collide
+  // with a wger id, and the two must never share ghosts, bests, or caches.
+  const exerciseRefs = Array.from(
+    new Map(
+      draft.exercises.map((e) => [
+        `${e.source}:${e.wgerExerciseId}`,
+        { source: e.source, wgerExerciseId: e.wgerExerciseId },
+      ]),
+    ).values(),
+  )
   const lastPerformanceQueries = useQueries({
-    queries: exerciseIds.map((id) => ({
-      queryKey: ['last-performance', id, workoutId ?? null],
-      queryFn: () => getLastPerformanceAction(id, workoutId),
+    queries: exerciseRefs.map((ref) => ({
+      queryKey: ['last-performance', ref.source, ref.wgerExerciseId, workoutId ?? null],
+      queryFn: () => getLastPerformanceAction(ref.wgerExerciseId, workoutId, ref.source),
     })),
   })
-  const lastByExercise: Record<number, LastPerformance | null> = {}
-  exerciseIds.forEach((id, i) => {
+  const lastByExercise: Record<string, LastPerformance | null> = {}
+  exerciseRefs.forEach((ref, i) => {
     const result = lastPerformanceQueries[i].data
-    if (result !== undefined) lastByExercise[id] = result
+    if (result !== undefined) lastByExercise[`${ref.source}:${ref.wgerExerciseId}`] = result
   })
   // All-time best e1RM per exercise — the baseline the live PR flag compares
   // against. LIVE sessions only (correcting a finished workout is not "the
   // moment it happens"), and deliberately frozen for the session
   // (staleTime: Infinity): the record you walked in with is the one you beat.
-  const bestExerciseIds = isLive ? exerciseIds : []
+  const bestExerciseRefs = isLive ? exerciseRefs : []
   const bestQueries = useQueries({
-    queries: bestExerciseIds.map((id) => ({
-      queryKey: ['exercise-best', id],
-      queryFn: () => getExerciseBestAction(id),
+    queries: bestExerciseRefs.map((ref) => ({
+      queryKey: ['exercise-best', ref.source, ref.wgerExerciseId],
+      queryFn: () => getExerciseBestAction(ref.wgerExerciseId, ref.source),
       staleTime: Infinity,
       retry: 1,
     })),
   })
-  const bestByExercise: Record<number, number | null> = {}
-  bestExerciseIds.forEach((id, i) => {
+  const bestByExercise: Record<string, number | null> = {}
+  bestExerciseRefs.forEach((ref, i) => {
     const result = bestQueries[i].data
-    if (result !== undefined) bestByExercise[id] = result
+    if (result !== undefined) bestByExercise[`${ref.source}:${ref.wgerExerciseId}`] = result
   })
   // Which set (if any) currently claims the all-time-PR caption, per exercise
   // position. Pure recompute per render — unchecking or editing a set moves
@@ -196,7 +205,7 @@ export function WorkoutLogger({
           exercise.sets,
           exercise.loggingType,
           unit,
-          bestByExercise[exercise.wgerExerciseId] ?? null,
+          bestByExercise[`${exercise.source}:${exercise.wgerExerciseId}`] ?? null,
         )
       : null,
   )
@@ -862,7 +871,7 @@ export function WorkoutLogger({
                 // week-N target fills in when there's no history — e.g. a
                 // machine lift's first session, where nothing else renders.
                 const history = placeholderForSet(
-                  lastByExercise[exercise.wgerExerciseId] ?? null,
+                  lastByExercise[`${exercise.source}:${exercise.wgerExerciseId}`] ?? null,
                   setIndex,
                   unit,
                 )
@@ -1230,6 +1239,7 @@ export function WorkoutLogger({
       {statsSheetFor !== null && draft.exercises[statsSheetFor] && (
         <StatsSheet
           wgerExerciseId={draft.exercises[statsSheetFor].wgerExerciseId}
+          source={draft.exercises[statsSheetFor].source}
           name={draft.exercises[statsSheetFor].name}
           unit={unit}
           onClose={() => setStatsSheetFor(null)}

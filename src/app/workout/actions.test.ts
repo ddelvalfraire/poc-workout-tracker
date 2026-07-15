@@ -97,7 +97,7 @@ describe('getLastPerformanceAction', () => {
     await getLastPerformanceAction(73, 42 /* not a string → dropped */)
 
     // Assert
-    expect(mockedGetLast).toHaveBeenCalledWith(USER, 73, undefined)
+    expect(mockedGetLast).toHaveBeenCalledWith(USER, 'wger', 73, undefined)
   })
 
   it('forwards a string exclude id (edit mode must not report itself)', async () => {
@@ -105,7 +105,7 @@ describe('getLastPerformanceAction', () => {
 
     await getLastPerformanceAction(73, ID)
 
-    expect(mockedGetLast).toHaveBeenCalledWith(USER, 73, ID)
+    expect(mockedGetLast).toHaveBeenCalledWith(USER, 'wger', 73, ID)
   })
 
   it('rejects a non-integer or non-positive exercise id before touching the database', async () => {
@@ -113,6 +113,17 @@ describe('getLastPerformanceAction', () => {
       await expect(getLastPerformanceAction(bad)).rejects.toThrow('invalid exercise id')
     }
     expect(mockedGetLast).not.toHaveBeenCalled()
+  })
+
+  it('forwards a custom source and rejects junk sources', async () => {
+    mockedGetLast.mockResolvedValue(null)
+
+    await getLastPerformanceAction(73, undefined, 'custom')
+    expect(mockedGetLast).toHaveBeenCalledWith(USER, 'custom', 73, undefined)
+
+    await expect(getLastPerformanceAction(73, undefined, 'homemade')).rejects.toThrow(
+      /invalid exercise source/,
+    )
   })
 })
 
