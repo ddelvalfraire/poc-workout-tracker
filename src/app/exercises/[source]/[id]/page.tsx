@@ -4,7 +4,7 @@ import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { requireUserId } from '@/lib/auth'
 import { getExerciseStats, getExerciseSessions } from '@/db/exercise-stats'
 import { getWeightUnit } from '@/db/preferences'
-import { formatE1RM, formatLoggedSet, formatVolume, formatWorkoutDate } from '@/lib/format'
+import { formatE1RM, formatLoggedSet, formatWorkoutDate } from '@/lib/format'
 import { kgToDisplay } from '@/lib/units'
 import { MAX_RELIABLE_REPS } from '@/lib/one-rep-max'
 import { TrendChart } from '@/components/charts/trend-chart'
@@ -94,7 +94,7 @@ export default async function ExerciseStatsPage({
             All-time records
           </h2>
           {hasLoadRecords || records.mostReps !== null ? (
-            <div className="mt-2 grid grid-cols-2 gap-3">
+            <dl className="mt-2 grid grid-cols-2 gap-3">
               {records.bestE1rm && (
                 <StatTile
                   label="Best est. 1RM"
@@ -125,15 +125,16 @@ export default async function ExerciseStatsPage({
               {records.bestSessionVolumeKg && (
                 <StatTile
                   label="Best session volume"
-                  value={formatVolume(records.bestSessionVolumeKg.volumeKg, unit).replace(
-                    ` ${unit}`,
-                    '',
-                  )}
+                  // Same rounding + grouping as formatVolume, minus the unit
+                  // suffix — StatTile renders the unit slot itself.
+                  value={Math.round(
+                    kgToDisplay(records.bestSessionVolumeKg.volumeKg, unit),
+                  ).toLocaleString('en-US')}
                   unit={unit}
                   caption={formatWorkoutDate(records.bestSessionVolumeKg.performedAt)}
                 />
               )}
-            </div>
+            </dl>
           ) : (
             <p className="mt-2 rounded-2xl border border-border bg-card px-5 py-8 text-center text-sm text-muted-foreground">
               No load records yet — log weight (or set your bodyweight in Settings for bodyweight

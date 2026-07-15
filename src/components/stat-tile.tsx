@@ -36,26 +36,29 @@ interface StatTileProps {
 }
 
 export function StatTile({ label, value, unit, delta, caption, className }: StatTileProps) {
+  // dt/dd internals so a grid of tiles stays a real description list — wrap
+  // the grid in <dl> (a div-wrapped dt/dd group is valid dl content), the
+  // same semantics the workout summary and stats sheet grids already use.
   return (
     <div className={cn('rounded-2xl border border-border bg-card p-4', className)}>
-      <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+      <dt className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
         {label}
-      </p>
-      <p className="mt-1 text-2xl font-semibold leading-none">
+      </dt>
+      <dd className="mt-1 text-2xl font-semibold leading-none">
         {value}
         {unit && <span className="ml-1 text-base font-normal text-muted-foreground">{unit}</span>}
-      </p>
+      </dd>
       {delta && (
-        <p
+        <dd
           className={cn(
             'mt-1.5 text-sm font-medium',
             delta.tone === 'positive' ? 'text-primary' : 'text-muted-foreground',
           )}
         >
           {delta.text}
-        </p>
+        </dd>
       )}
-      {caption && <p className="mt-1 text-xs text-muted-foreground">{caption}</p>}
+      {caption && <dd className="mt-1 text-xs text-muted-foreground">{caption}</dd>}
     </div>
   )
 }
