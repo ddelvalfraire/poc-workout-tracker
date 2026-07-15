@@ -34,15 +34,17 @@ export default async function ExerciseStatsPage({
   searchParams,
 }: {
   params: Promise<{ source: string; id: string }>
-  searchParams: Promise<{ page?: string }>
+  searchParams: Promise<{ page?: string | string[] }>
 }) {
   const userId = await requireUserId()
-  const [{ source, id }, { page: pageParam }] = await Promise.all([params, searchParams])
+  const [{ source, id }, { page: rawPage }] = await Promise.all([params, searchParams])
   const ref = parseExerciseRef(source, id)
   if (!ref) notFound()
 
   // Bad ?page= silently reads as page 1 — a mistyped query string shouldn't 404
   // a page that exists; the path params above are the identity and DO 404.
+  // Repeated keys arrive as an array (house rule: first one wins).
+  const pageParam = Array.isArray(rawPage) ? rawPage[0] : rawPage
   const page =
     /^\d+$/.test(pageParam ?? '') && parseInt(pageParam!, 10) >= 1 ? parseInt(pageParam!, 10) : 1
 
