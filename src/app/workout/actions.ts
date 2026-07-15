@@ -8,8 +8,12 @@ import {
   updateWorkout,
   deleteWorkout,
   getLastPerformance,
+  getWorkoutDetail,
   type LastPerformance,
 } from '@/db/workouts'
+import { getProgramDayDetail, deriveDayPrescription } from '@/db/programs'
+import { substituteSlot } from '@/lib/substitute-slot'
+import type { PlanSetTarget } from '@/lib/format'
 import { getWorkoutDraft, putWorkoutDraft, deleteWorkoutDraft } from '@/db/workout-drafts'
 import { isDraftPayload, DRAFT_TTL_MS, draftKey } from '@/app/workout/new/draft-payload'
 
@@ -82,6 +86,57 @@ export async function getLastPerformanceAction(
   }
   const exclude = typeof excludeWorkoutId === 'string' ? excludeWorkoutId : undefined
   return getLastPerformance(userId, wgerExerciseId as number, exclude)
+}
+
+/**
+ * Week-N plan targets for a MID-SESSION substitute: the original slot's
+ * scheme re-derived for the replacement exercise (loads from the substitute's
+ * own history where the scheme supports it; original-movement absolutes
+ * stripped — see lib/substitute-slot). Null (not a throw) when the workout is
+ * ad-hoc, provenance is gone, or the original isn't in the day — the logger
+ * just keeps history-only ghosts.
+ */
+export async function substitutePlanTargetsAction(
+  workoutId: unknown,
+  originalWgerExerciseId: unknown,
+  substituteWgerExerciseId: unknown,
+): Promise<PlanSetTarget[] | null> {
+  const userId = await requireUserId()
+  if (typeof workoutId !== 'string' || workoutId.length === 0) {
+    throw new Error('invalid workout id')
+  }
+  if (!Number.isInteger(originalWgerExerciseId) || (originalWgerExerciseId as number) <= 0) {
+    throw new Error('invalid exercise id')
+  }
+  if (!Number.isInteger(substituteWgerExerciseId) || (substituteWgerExerciseId as number) <= 0) {
+    throw new Error('invalid exercise id')
+  }
+  const workout = await getWorkoutDetail(userId, workoutId)
+  if (!workout?.programDayId || !workout.programWeek) return null
+  const day = await getProgramDayDetail(userId, workout.programDayId)
+  if (!day) return null
+  // First match mirrors loadPlanTargets' first-slot-wins convention.
+  const slot = day.exercises.find((e) => e.wgerExerciseId === originalWgerExerciseId)
+  if (!slot) return null
+
+  // One-exercise synthetic day: the engine's history reads key on the
+  // exercise id, so re-pointing the slot derives SUBSTITUTE-scale loads.
+  const [derived] = await deriveDayPrescription(
+    userId,
+    {
+      exercises: [substituteSlot(slot, substituteWgerExerciseId as number)],
+      program: day.program,
+    },
+    workout.programWeek,
+  )
+  // Field-for-field the same mapping as the edit page's loadPlanTargets —
+  // the substitute's ghosts must speak the same dialect as everyone else's.
+  return derived.map((s) => ({
+    repMin: s.repMin,
+    repMax: s.repMax,
+    loadKg: s.loadKg,
+    restSec: s.restSec,
+  }))
 }
 
 // ---------------------------------------------------------------------------
