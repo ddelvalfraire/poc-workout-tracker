@@ -60,7 +60,12 @@ export const workoutExercises = pgTable(
   },
   // The durable kill for the spike's negative-ID stopgap: customs live in
   // custom_exercises with the source discriminator, never as sign-bit tricks.
-  (t) => [check('workout_exercises_wger_id_positive', sql`${t.wgerExerciseId} > 0`)],
+  (t) => [
+    check('workout_exercises_wger_id_positive', sql`${t.wgerExerciseId} > 0`),
+    // Exercise-first access path (all-time exercise stats): the other queries
+    // reach this table workout-first via the workouts.user_id index.
+    index('workout_exercises_exercise_idx').on(t.wgerExerciseId, t.source),
+  ],
 )
 
 export const sets = pgTable(
