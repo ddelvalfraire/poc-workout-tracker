@@ -55,8 +55,10 @@ import {
   aggregateMuscleVolume,
   buildMuscleResolver,
   getMuscleVolume,
+  getVolumeTotals,
   type MuscleVolumeRow,
 } from './muscle-volume'
+import { getAllExercises } from '@/lib/wger'
 
 const USER = 'user_123'
 const NOW = new Date('2026-07-15T18:00:00Z')
@@ -208,6 +210,19 @@ describe('buildMuscleResolver', () => {
     expect(resolver('wger', 2)).toEqual({ primary: [], secondary: [] })
     // Customs store nullable arrays — same empty-not-unknown reading.
     expect(resolver('custom', 2)).toEqual({ primary: [], secondary: [] })
+  })
+})
+
+describe('getVolumeTotals', () => {
+  it('returns totals without ever touching the catalog', async () => {
+    selectResults = [[row(), row({ workoutId: 'w2', startedAt: IN_PREVIOUS })]]
+    vi.mocked(getAllExercises).mockClear()
+
+    const totals = await getVolumeTotals(USER, WINDOWS)
+
+    expect(totals).toEqual({ currentSets: 1, previousSets: 1, currentSessions: 1 })
+    // The home teaser's guarantee: no wger catalog on its critical path.
+    expect(getAllExercises).not.toHaveBeenCalled()
   })
 })
 
