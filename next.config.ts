@@ -19,17 +19,9 @@ const nextConfig: NextConfig = {
     // Enables React's <ViewTransition> for animated route changes.
     viewTransition: true,
   },
-  async headers() {
-    return [
-      {
-        source: "/sw.js",
-        headers: [
-          { key: "Cache-Control", value: "no-cache, no-store, must-revalidate" },
-          { key: "Service-Worker-Allowed", value: "/" },
-        ],
-      },
-    ];
-  },
+  // No SW headers entry needed anymore: the worker is served by the
+  // /serwist/[path] route, which sets Service-Worker-Allowed: / itself, and
+  // browsers bypass the HTTP cache for service-worker scripts by spec.
 };
 
 // Serwist (spike): enables the /serwist/[path] route that compiles app/sw.ts

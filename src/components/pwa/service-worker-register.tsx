@@ -10,7 +10,13 @@ export function ServiceWorkerRegister() {
     if (process.env.NODE_ENV !== 'production') return
     if (!('serviceWorker' in navigator)) return
 
-    navigator.serviceWorker.register('/sw.js').catch(() => {
+    // The Serwist-compiled worker (src/app/sw.ts, served by /serwist/[path]
+    // with the precache manifest injected). Explicit root scope: the script
+    // lives under /serwist/, and the route serves Service-Worker-Allowed: /
+    // to permit it. Same-scope registration supersedes the legacy /sw.js
+    // worker on existing installs; no skipWaiting, so the swap lands when
+    // the old tabs close.
+    navigator.serviceWorker.register('/serwist/sw.js', { scope: '/' }).catch(() => {
       // Registration failures are non-fatal; the app works without the SW.
     })
 
