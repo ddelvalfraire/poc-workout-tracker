@@ -15,6 +15,7 @@ import { getProgramDayDetail, type ProgramDayDetail } from '@/db/programs'
 import { getProgramStats, type ProgramStats } from '@/db/program-stats'
 import { getWeightUnit, getBodyweightKg } from '@/db/preferences'
 import { searchExercises } from '@/lib/wger'
+import { listCustomExercises } from '@/db/custom-exercises'
 import { kgToDisplay, type WeightUnit } from '@/lib/units'
 import { bestScoredSet } from '@/lib/one-rep-max'
 import type { LoggingType } from '@/lib/workout-input'
@@ -101,16 +102,45 @@ export function registerReadTools(server: McpServer): void {
     {
       title: 'Search Exercises',
       description:
-        'Searches the public exercise catalog by name and/or category. Use to resolve an exercise name to its wgerExerciseId. No userId needed.',
+        "Searches the merged exercise catalog — the public wger catalog plus the user's custom exercises — by name and/or category. Every result carries `source` ('wger' | 'custom'): exercise identity is the composite (source, wgerExerciseId), so pass BOTH through to other tools.",
       inputSchema: {
         search: z.string().optional(),
         category: z.string().optional(),
         limit: z.number().int().positive().optional(),
+        userId: z.string().optional(),
       },
     },
-    async ({ search, category, limit }) => {
+    async ({ search, category, limit, userId }, extra) => {
       try {
-        const exercises = await searchExercises({ search, category, limit })
+        const catalog = await searchExercises({ search, category, limit })
+        // Customs merge best-effort: an unresolvable user (no auth context,
+        // no arg) degrades to the public catalog — search must never fail
+        // because identity couldn't be established.
+        let customs: object[] = []
+        try {
+          const resolved = resolveUserId(extra, userId)
+          const term = search?.trim().toLowerCase()
+          customs = (await listCustomExercises(resolved))
+            .filter(
+              (c) =>
+                (!term || c.name.toLowerCase().includes(term)) &&
+                (!category || c.category === category),
+            )
+            .map((c) => ({
+              id: c.id,
+              source: 'custom' as const,
+              name: c.name,
+              category: c.category,
+              ...(c.muscles && c.muscles.length > 0 ? { muscles: c.muscles } : {}),
+              ...(c.musclesSecondary && c.musclesSecondary.length > 0
+                ? { musclesSecondary: c.musclesSecondary }
+                : {}),
+            }))
+        } catch {
+          // Catalog-only fallback — pre-composite behavior, unchanged.
+        }
+        const labeled = catalog.map((e) => ({ ...e, source: 'wger' as const }))
+        const exercises = [...customs, ...labeled]
         return jsonResult({ count: exercises.length, exercises })
       } catch (error: unknown) {
         return errorResult(error)
@@ -123,20 +153,19 @@ export function registerReadTools(server: McpServer): void {
     {
       title: 'Get Last Performance',
       description:
-        "Returns the user's most recent prior performance of an exercise (by wgerExerciseId) — when and the sets done, weights in the user's unit. Use to answer \"what did I do last time?\".",
+        "Returns the user's most recent prior performance of an exercise — when and the sets done, weights in the user's unit. Identity is the composite (source, wgerExerciseId); `source` defaults to 'wger', pass 'custom' for custom exercises. Use to answer \"what did I do last time?\".",
       inputSchema: {
         wgerExerciseId: z.number().int(),
+        source: z.enum(['wger', 'custom']).optional(),
         userId: z.string().optional(),
         excludeWorkoutId: z.string().optional(),
       },
     },
-    async ({ wgerExerciseId, userId, excludeWorkoutId }, extra) => {
+    async ({ wgerExerciseId, source, userId, excludeWorkoutId }, extra) => {
       try {
         const resolved = resolveUserId(extra, userId)
         const [last, unit] = await Promise.all([
-          // 'wger' pinned until the tool grows a source arg (custom-exercises
-          // Phase 4) — MCP callers can't reference customs here yet anyway.
-          getLastPerformance(resolved, 'wger', wgerExerciseId, excludeWorkoutId),
+          getLastPerformance(resolved, source ?? 'wger', wgerExerciseId, excludeWorkoutId),
           getWeightUnit(resolved),
         ])
         return jsonResult({
