@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { withSerwist } from "@serwist/turbopack";
 
 // Baked into BOTH bundles at build time: the client compares its copy against
 // /api/version (answered by the newest deployment) to detect a stale build —
@@ -31,4 +32,8 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+// Serwist (spike): enables the /serwist/[path] route that compiles app/sw.ts
+// with the precache manifest injected. INERT until registration points at it
+// (service-worker-register.tsx still registers /public/sw.js) — the wrapper
+// only wires the build-asset manifest plumbing.
+export default withSerwist(nextConfig);
