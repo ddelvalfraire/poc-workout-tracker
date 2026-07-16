@@ -46,6 +46,15 @@ const serwist = new Serwist({
   runtimeCaching: [],
 })
 
+// The hand-rolled predecessor's cache (it precached only offline.html).
+// Serwist cleans up its OWN old precaches; the legacy one it doesn't know
+// about must go explicitly or it lingers forever.
+const LEGACY_CACHE = 'workout-tracker-v3'
+
+self.addEventListener('activate', (event) => {
+  event.waitUntil(caches.delete(LEGACY_CACHE).catch(() => {}))
+})
+
 // One second-chance for a failed navigation fetch (PR #68): the post-deploy
 // recovery reload races the just-woken radio by milliseconds — retry once
 // before falling back to the self-healing offline page.
