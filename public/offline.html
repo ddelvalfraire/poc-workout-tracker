@@ -58,8 +58,34 @@
   <body>
     <main>
       <h1>You&rsquo;re offline</h1>
-      <p>Workout Tracker needs a connection to load. Your in-progress draft is safe and will sync when you&rsquo;re back.</p>
-      <button type="button" onclick="location.reload()">Try again</button>
+      <p>Workout Tracker will reconnect automatically. Your in-progress draft is safe and will sync when you&rsquo;re back.</p>
+      <button type="button" onclick="location.reload()">Try again now</button>
     </main>
+    <script>
+      // Self-heal: this page is often shown WRONGLY — a post-deploy reload
+      // racing a just-woken radio, not a real outage — so it must recover by
+      // itself. Probe the app (no-store, so the SW's navigation handler and
+      // caches stay out of it) immediately, on connectivity return, and on a
+      // slow poll; first success replaces this page with a real load.
+      ;(function () {
+        var probing = false
+        function probe() {
+          if (probing) return
+          probing = true
+          fetch('/', { method: 'HEAD', cache: 'no-store' })
+            .then(function (res) {
+              if (res.ok || res.type === 'opaqueredirect') location.replace('/')
+              else probing = false
+            })
+            .catch(function () {
+              probing = false
+            })
+        }
+        window.addEventListener('online', probe)
+        setInterval(probe, 3000)
+        // The failed navigation usually lost the race by milliseconds.
+        setTimeout(probe, 800)
+      })()
+    </script>
   </body>
 </html>
