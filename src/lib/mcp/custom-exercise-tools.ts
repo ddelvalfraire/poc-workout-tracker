@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { resolveUserId } from './resolve-user'
 import { jsonResult, errorResult } from './result'
 import { ToolError } from './errors'
-import { EXERCISE_CATEGORIES } from '@/lib/custom-exercise-input'
+import { customExerciseInputSchema } from '@/lib/custom-exercise-input'
 import {
   createCustomExercise,
   listCustomExercises,
@@ -18,9 +18,15 @@ import {
  * enforced by the db layer's user-scoped writes.
  */
 
-const nameArg = z.string().trim().min(1).max(80)
-const categoryArg = z.enum(EXERCISE_CATEGORIES)
-const namesArg = z.array(z.string().trim().min(1).max(100)).max(20).optional()
+// Reuse the app boundary's OWN field validators (name/category bounds,
+// equipment max 10 vs muscles max 20) so the MCP and web validation paths
+// cannot drift — the db layer trusts already-parsed input and never
+// re-checks.
+const nameArg = customExerciseInputSchema.shape.name
+const categoryArg = customExerciseInputSchema.shape.category
+const equipmentArg = customExerciseInputSchema.shape.equipment
+const musclesArg = customExerciseInputSchema.shape.muscles
+const musclesSecondaryArg = customExerciseInputSchema.shape.musclesSecondary
 
 /** The response subset agents act on. */
 function toResult(row: CustomExerciseRow) {
@@ -54,9 +60,9 @@ export function registerCustomExerciseTools(server: McpServer): void {
       inputSchema: {
         name: nameArg,
         category: categoryArg,
-        equipment: namesArg,
-        muscles: namesArg,
-        musclesSecondary: namesArg,
+        equipment: equipmentArg,
+        muscles: musclesArg,
+        musclesSecondary: musclesSecondaryArg,
         userId: z.string().optional(),
       },
     },
@@ -87,9 +93,9 @@ export function registerCustomExerciseTools(server: McpServer): void {
         wgerExerciseId: z.number().int().positive(),
         name: nameArg,
         category: categoryArg,
-        equipment: namesArg,
-        muscles: namesArg,
-        musclesSecondary: namesArg,
+        equipment: equipmentArg,
+        muscles: musclesArg,
+        musclesSecondary: musclesSecondaryArg,
         userId: z.string().optional(),
       },
     },

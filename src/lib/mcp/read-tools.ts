@@ -113,34 +113,46 @@ export function registerReadTools(server: McpServer): void {
     async ({ search, category, limit, userId }, extra) => {
       try {
         const catalog = await searchExercises({ search, category, limit })
-        // Customs merge best-effort: an unresolvable user (no auth context,
-        // no arg) degrades to the public catalog — search must never fail
-        // because identity couldn't be established.
+        // Customs merge best-effort. Two distinct degrade paths, deliberately
+        // separated: an unresolvable USER (no auth context, no arg) is normal
+        // and silent — search must not fail because identity couldn't be
+        // established — but a db failure fetching a RESOLVED user's customs
+        // is an error and gets logged before degrading.
         let customs: object[] = []
+        let resolved: string | null = null
         try {
-          const resolved = resolveUserId(extra, userId)
-          const term = search?.trim().toLowerCase()
-          customs = (await listCustomExercises(resolved))
-            .filter(
-              (c) =>
-                (!term || c.name.toLowerCase().includes(term)) &&
-                (!category || c.category === category),
-            )
-            .map((c) => ({
-              id: c.id,
-              source: 'custom' as const,
-              name: c.name,
-              category: c.category,
-              ...(c.muscles && c.muscles.length > 0 ? { muscles: c.muscles } : {}),
-              ...(c.musclesSecondary && c.musclesSecondary.length > 0
-                ? { musclesSecondary: c.musclesSecondary }
-                : {}),
-            }))
+          resolved = resolveUserId(extra, userId)
         } catch {
-          // Catalog-only fallback — pre-composite behavior, unchanged.
+          // No user in scope — public catalog only (pre-composite behavior).
+        }
+        if (resolved !== null) {
+          try {
+            const term = search?.trim().toLowerCase()
+            customs = (await listCustomExercises(resolved))
+              .filter(
+                (c) =>
+                  (!term || c.name.toLowerCase().includes(term)) &&
+                  (!category || c.category === category),
+              )
+              .map((c) => ({
+                id: c.id,
+                source: 'custom' as const,
+                name: c.name,
+                category: c.category,
+                ...(c.muscles && c.muscles.length > 0 ? { muscles: c.muscles } : {}),
+                ...(c.musclesSecondary && c.musclesSecondary.length > 0
+                  ? { musclesSecondary: c.musclesSecondary }
+                  : {}),
+              }))
+          } catch (error: unknown) {
+            console.error('search_exercises: customs merge failed', error)
+          }
         }
         const labeled = catalog.map((e) => ({ ...e, source: 'wger' as const }))
-        const exercises = [...customs, ...labeled]
+        // Customs first (the user's own movements outrank catalog homonyms);
+        // the caller's limit bounds the MERGED list, not just the wger leg.
+        const merged = [...customs, ...labeled]
+        const exercises = limit !== undefined ? merged.slice(0, limit) : merged
         return jsonResult({ count: exercises.length, exercises })
       } catch (error: unknown) {
         return errorResult(error)

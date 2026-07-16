@@ -504,6 +504,19 @@ describe('registerReadTools', () => {
   })
 
   describe('get_last_performance', () => {
+    it("forwards source: 'custom' to the composite lookup", async () => {
+      // Arrange
+      process.env.MCP_DEV_USER_ID = 'user_env'
+      const tools = setup()
+      mockedLast.mockResolvedValue(null)
+
+      // Act
+      await tools.get('get_last_performance')!({ wgerExerciseId: 73, source: 'custom' })
+
+      // Assert — a custom exercise's id must never read wger #id's history.
+      expect(mockedLast).toHaveBeenCalledWith('user_env', 'custom', 73, undefined)
+    })
+
     it('maps sets into the unit, ISO-formats performedAt, and forwards excludeWorkoutId', async () => {
       // Arrange
       const tools = setup()
