@@ -49,7 +49,7 @@ We believe precaching versioned build assets will eliminate dead-chunk failures 
 | # | Phase | Description | Status | Parallel | Depends | PRP Plan |
 |---|-------|-------------|--------|----------|---------|----------|
 | 1 | Spike: manifest injection | PROVEN 2026-07-16 on Next 16.2/Turbopack: `serwist`/`@serwist/turbopack` pinned **9.5.11** (stable — the injection bug was a 10.0 preview); build reports "52 precache entries (2293.79 KiB)"; emitted worker verified: manifest = `/_next/static/**` + offline.html ONLY, `skipWaiting:false` compiled in; route prerenders static; inert (nothing registers /serwist/sw.js yet) | complete | - | - | - |
-| 2 | Precache-only SW swap | Port `public/sw.js` to `app/sw.ts` (Serwist class): precache = static assets + offline.html, filtered manifest (assert no HTML/RSC); nav handling identical to today (network-first, 1.2s retry, offline fallback); skipWaiting/clientsClaim OFF; registration swap; recovery belt untouched | pending | - | 1 | - |
+| 2 | Precache-only SW swap | SHIPPED 2026-07-16 (PR #70): registration → /serwist/sw.js (root scope; route serves Service-Worker-Allowed), public/sw.js retired, legacy cache cleaned on activate; middleware ungated (matcher skips *.js); nav semantics identical (#68); recovery belt untouched; verified live on prod | complete | - | 1 | - |
 | 3 | Offline UX + cleanup | Define/ship the honest offline-boot experience; measure precache footprint; retire only provably-dead recovery code; document the layer | pending | - | 2 | - |
 
 ### Phase Details
