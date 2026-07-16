@@ -6,6 +6,7 @@ import { registerWriteTools } from './write-tools'
 import { registerPatchTools } from './patch-tools'
 import { registerProgramTools } from './program-tools'
 import { registerProgramPatchTools } from './program-patch-tools'
+import { registerCustomExerciseTools } from './custom-exercise-tools'
 import { registerResources } from './resources'
 
 /**
@@ -56,5 +57,6 @@ export function registerTools(server: McpServer): void {
   registerPatchTools(server)
   registerProgramTools(server)
   registerProgramPatchTools(server)
+  registerCustomExerciseTools(server)
   registerResources(server)
 }

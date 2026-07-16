@@ -10,6 +10,7 @@ vi.mock('@/db/programs', () => ({ getProgramDayDetail: vi.fn() }))
 vi.mock('@/db/program-stats', () => ({ getProgramStats: vi.fn() }))
 vi.mock('@/db/preferences', () => ({ getWeightUnit: vi.fn(), getBodyweightKg: vi.fn() }))
 vi.mock('@/lib/wger', () => ({ searchExercises: vi.fn() }))
+vi.mock('@/db/custom-exercises', () => ({ listCustomExercises: vi.fn(async () => []) }))
 
 import { registerReadTools } from './read-tools'
 import { listWorkoutSummaries, getWorkoutDetail, getLastPerformance } from '@/db/workouts'
@@ -431,14 +432,58 @@ describe('registerReadTools', () => {
       // Act
       const result = await tools.get('search_exercises')!({ search: 'bench' })
 
-      // Assert
+      // Assert — no user resolvable → catalog-only, wger-labeled
       expect(result.isError).toBeFalsy()
       expect(mockedSearch).toHaveBeenCalledWith({
         search: 'bench',
         category: undefined,
         limit: undefined,
       })
-      expect(payload(result)).toEqual({ count: 1, exercises })
+      expect(payload(result)).toEqual({
+        count: 1,
+        exercises: [{ id: 1, name: 'Bench Press', category: 'Chest', source: 'wger' }],
+      })
+    })
+
+    it('merges the resolved user’s customs first, filtered by the search term', async () => {
+      // Arrange
+      process.env.MCP_DEV_USER_ID = 'user_env'
+      const tools = setup()
+      mockedSearch.mockResolvedValue([{ id: 1, name: 'Bench Press', category: 'Chest' }])
+      const { listCustomExercises } = await import('@/db/custom-exercises')
+      vi.mocked(listCustomExercises).mockResolvedValue([
+        {
+          id: 1,
+          userId: 'user_env',
+          name: 'My Bench Machine',
+          category: 'Chest',
+          equipment: null,
+          muscles: ['Chest'],
+          musclesSecondary: null,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+        {
+          id: 2,
+          userId: 'user_env',
+          name: 'Rope Crunch',
+          category: 'Abs',
+          equipment: null,
+          muscles: null,
+          musclesSecondary: null,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      ] as Awaited<ReturnType<typeof listCustomExercises>>)
+
+      // Act
+      const result = await tools.get('search_exercises')!({ search: 'bench' })
+
+      // Assert — the matching custom leads, labeled; the non-match is filtered
+      const body = payload(result) as { count: number; exercises: { name: string; source: string }[] }
+      expect(body.count).toBe(2)
+      expect(body.exercises[0]).toMatchObject({ name: 'My Bench Machine', source: 'custom' })
+      expect(body.exercises[1]).toMatchObject({ name: 'Bench Press', source: 'wger' })
     })
 
     it('returns a generic isError and logs when the catalog lookup rejects', async () => {
@@ -459,6 +504,19 @@ describe('registerReadTools', () => {
   })
 
   describe('get_last_performance', () => {
+    it("forwards source: 'custom' to the composite lookup", async () => {
+      // Arrange
+      process.env.MCP_DEV_USER_ID = 'user_env'
+      const tools = setup()
+      mockedLast.mockResolvedValue(null)
+
+      // Act
+      await tools.get('get_last_performance')!({ wgerExerciseId: 73, source: 'custom' })
+
+      // Assert — a custom exercise's id must never read wger #id's history.
+      expect(mockedLast).toHaveBeenCalledWith('user_env', 'custom', 73, undefined)
+    })
+
     it('maps sets into the unit, ISO-formats performedAt, and forwards excludeWorkoutId', async () => {
       // Arrange
       const tools = setup()

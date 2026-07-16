@@ -13,6 +13,9 @@ import { getWeightUnit, setWeightUnit } from '@/db/preferences'
 const exercisesSchema = z.array(
   z.object({
     wgerExerciseId: z.number().int(),
+    // Composite identity: absent = 'wger' (the column default), so
+    // pre-discriminator callers keep their shape.
+    source: z.enum(['wger', 'custom']).optional(),
     name: z.string(),
     sets: z.array(z.object({ reps: z.number().int().nullable(), weight: z.number().nullable() })),
   }),
@@ -43,6 +46,7 @@ function toKgInput(raw: RawWorkout, unit: WeightUnit): RawWorkout {
     startedAt: raw.startedAt,
     exercises: raw.exercises.map((e) => ({
       wgerExerciseId: e.wgerExerciseId,
+      ...(e.source !== undefined ? { source: e.source } : {}),
       name: e.name,
       sets: e.sets.map((s) => ({
         reps: s.reps,
