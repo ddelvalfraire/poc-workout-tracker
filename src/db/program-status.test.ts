@@ -8,7 +8,8 @@ import { PgDialect } from 'drizzle-orm/pg-core'
  * where-condition so scoping is assertable via PgDialect param introspection.
  * `ownedRows` toggles the ownership-gated activate's `.returning()` outcome;
  * the sibling-archive sweep has no `.returning()` and resolves via the
- * builder's thenable.
+ * builder's thenable. `db.insert` records the change-log event write
+ * (`insert:program_events`) — the one mutator that logs on the root handle.
  */
 const records: { op: string; values?: unknown }[] = []
 const whereArgs: unknown[] = []
@@ -36,8 +37,21 @@ function updateChain(table: unknown) {
   return obj
 }
 
+function insertChain(table: unknown) {
+  const name = getTableName(table as Table)
+  return {
+    values: (values: unknown) => {
+      records.push({ op: `insert:${name}`, values })
+      return { then: (resolve: Resolve) => Promise.resolve(undefined).then(resolve) }
+    },
+  }
+}
+
 vi.mock('./index', () => ({
-  db: { update: (table: unknown) => updateChain(table) },
+  db: {
+    update: (table: unknown) => updateChain(table),
+    insert: (table: unknown) => insertChain(table),
+  },
 }))
 
 import { setProgramStatus } from './programs'
@@ -57,12 +71,23 @@ beforeEach(() => {
 describe('setProgramStatus (single-active invariant)', () => {
   it('activating an owned program archives its sibling actives', async () => {
     // Act
-    const result = await setProgramStatus(USER, 'p1', 'active')
+    const result = await setProgramStatus(USER, 'p1', 'active', 'ui')
 
-    // Assert — gated activate first, then the sweep, both on programs
+    // Assert — gated activate first, then the sweep, then the change-log event
     expect(result).toEqual({ id: 'p1' })
-    expect(records.map((r) => r.op)).toEqual(['update:programs', 'update:programs'])
+    expect(records.map((r) => r.op)).toEqual([
+      'update:programs',
+      'update:programs',
+      'insert:program_events',
+    ])
     expect(records[1].values).toMatchObject({ status: 'archived' })
+    expect(records[2].values).toMatchObject({
+      programId: 'p1',
+      userId: USER,
+      actor: 'ui',
+      action: 'set_program_status',
+      summary: 'Status → active',
+    })
     // Sweep scoping: this user's ACTIVE programs, excluding the one just
     // activated — all three identifiers must appear in the condition.
     const sweep = whereParams(1)
@@ -76,7 +101,7 @@ describe('setProgramStatus (single-active invariant)', () => {
     ownedRows = []
 
     // Act
-    const result = await setProgramStatus(USER, 'p1', 'active')
+    const result = await setProgramStatus(USER, 'p1', 'active', 'ui')
 
     // Assert — null result and no second update: an unowned id must never
     // archive anything
@@ -84,23 +109,23 @@ describe('setProgramStatus (single-active invariant)', () => {
     expect(records).toHaveLength(1)
   })
 
-  it('archiving is a single update (no sweep)', async () => {
-    const result = await setProgramStatus(USER, 'p1', 'archived')
+  it('archiving is a single update (no sweep) plus its event', async () => {
+    const result = await setProgramStatus(USER, 'p1', 'archived', 'ui')
 
     expect(result).toEqual({ id: 'p1' })
-    expect(records).toHaveLength(1)
+    expect(records.map((r) => r.op)).toEqual(['update:programs', 'insert:program_events'])
     expect(records[0].values).toMatchObject({ status: 'archived' })
   })
 
-  it('setting draft is a single update (no sweep)', async () => {
-    const result = await setProgramStatus(USER, 'p1', 'draft')
+  it('setting draft is a single update (no sweep) plus its event', async () => {
+    const result = await setProgramStatus(USER, 'p1', 'draft', 'ui')
 
     expect(result).toEqual({ id: 'p1' })
-    expect(records).toHaveLength(1)
+    expect(records.map((r) => r.op)).toEqual(['update:programs', 'insert:program_events'])
   })
 
   it('scopes the gated update by user and program id', async () => {
-    await setProgramStatus(USER, 'p1', 'archived')
+    await setProgramStatus(USER, 'p1', 'archived', 'ui')
 
     const gate = whereParams(0)
     expect(gate).toContain(USER)

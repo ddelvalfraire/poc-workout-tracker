@@ -118,7 +118,7 @@ import {
 const USER = 'user_123'
 const PID = '22222222-2222-4222-8222-222222222222'
 const OWNED_DAY = [{ id: 'pd1' }]
-const OWNED_EXERCISE = [{ exerciseId: 'pe1', dayId: 'pd1', wgerExerciseId: 73, source: 'wger' }]
+const OWNED_EXERCISE = [{ exerciseId: 'pe1', dayId: 'pd1', wgerExerciseId: 73, source: 'wger', name: 'Bench' }]
 /** A stored reps_weight set row, as updateProgramSet's current-row read returns it. */
 const CURRENT_SET = {
   setType: 'working',
@@ -149,9 +149,9 @@ describe('day ops (user-scoped)', () => {
     // Reads: owned-program → max(position)
     selectQueue = [[{ id: PID }], [{ value: 1 }]]
 
-    const result = await addProgramDay(USER, PID, { name: 'Pull', notes: null })
+    const result = await addProgramDay(USER, PID, { name: 'Pull', notes: null }, 'mcp')
 
-    expect(records.map((r) => r.op)).toEqual(['insert:program_days', 'update:programs'])
+    expect(records.map((r) => r.op)).toEqual(['insert:program_days', 'update:programs', 'insert:program_events'])
     expect(records[0]!.values).toMatchObject({ programId: PID, name: 'Pull', position: 2 })
     expect(result).toEqual({ position: 2 })
   })
@@ -160,7 +160,7 @@ describe('day ops (user-scoped)', () => {
     // Reads: owned-program → max(position) (null = empty)
     selectQueue = [[{ id: PID }], [{ value: null }]]
 
-    const result = await addProgramDay(USER, PID, { name: 'Push' })
+    const result = await addProgramDay(USER, PID, { name: 'Push' }, 'mcp')
 
     expect(result).toEqual({ position: 0 })
     expect(records[0]).toMatchObject({ op: 'insert:program_days', values: { position: 0 } })
@@ -169,7 +169,7 @@ describe('day ops (user-scoped)', () => {
   it('addProgramDay returns null and writes nothing when the program is not owned', async () => {
     selectQueue = [[]]
 
-    const result = await addProgramDay(USER, PID, { name: 'Push' })
+    const result = await addProgramDay(USER, PID, { name: 'Push' }, 'mcp')
 
     expect(result).toBeNull()
     expect(records).toEqual([])
@@ -179,15 +179,15 @@ describe('day ops (user-scoped)', () => {
     // Reads: owned-day
     selectQueue = [OWNED_DAY]
 
-    const result = await updateProgramDay(USER, PID, 0, { name: 'Legs' })
+    const result = await updateProgramDay(USER, PID, 0, { name: 'Legs' }, 'mcp')
 
-    expect(records.map((r) => r.op)).toEqual(['update:program_days', 'update:programs'])
+    expect(records.map((r) => r.op)).toEqual(['update:program_days', 'update:programs', 'insert:program_events'])
     expect(records[0]!.values).toEqual({ name: 'Legs' })
     expect(result).toEqual({ id: 'row1' })
   })
 
   it('updateProgramDay returns null for an empty patch without querying', async () => {
-    const result = await updateProgramDay(USER, PID, 0, {})
+    const result = await updateProgramDay(USER, PID, 0, {}, 'mcp')
 
     expect(result).toBeNull()
     expect(records).toEqual([])
@@ -196,7 +196,7 @@ describe('day ops (user-scoped)', () => {
   it('updateProgramDay returns null and writes nothing when not owned', async () => {
     selectQueue = [[]]
 
-    const result = await updateProgramDay(USER, PID, 0, { name: 'Legs' })
+    const result = await updateProgramDay(USER, PID, 0, { name: 'Legs' }, 'mcp')
 
     expect(result).toBeNull()
     expect(records).toEqual([])
@@ -206,12 +206,13 @@ describe('day ops (user-scoped)', () => {
     // Reads: owned-day
     selectQueue = [OWNED_DAY]
 
-    const result = await removeProgramDay(USER, PID, 1)
+    const result = await removeProgramDay(USER, PID, 1, 'mcp')
 
     expect(records.map((r) => r.op)).toEqual([
       'delete:program_days',
       'update:program_days',
       'update:programs',
+      'insert:program_events',
     ])
     expect(result).toEqual({ removed: true })
   })
@@ -220,13 +221,14 @@ describe('day ops (user-scoped)', () => {
     // Reads: owned-day-at-from → day-exists-at-to
     selectQueue = [[{ id: 'pd3' }], [{ id: 'pd1' }]]
 
-    const result = await moveProgramDay(USER, PID, 2, 0)
+    const result = await moveProgramDay(USER, PID, 2, 0, 'mcp')
 
     // Shift [0,2) up by one, then drop the moved day at 0, then bump.
     expect(records.map((r) => r.op)).toEqual([
       'update:program_days',
       'update:program_days',
       'update:programs',
+      'insert:program_events',
     ])
     expect(records[1]!.values).toEqual({ position: 0 })
     expect(result).toEqual({ moved: true })
@@ -236,7 +238,7 @@ describe('day ops (user-scoped)', () => {
     // Reads: owned-day-at-from only
     selectQueue = [OWNED_DAY]
 
-    const result = await moveProgramDay(USER, PID, 1, 1)
+    const result = await moveProgramDay(USER, PID, 1, 1, 'mcp')
 
     expect(result).toEqual({ moved: true })
     expect(records).toEqual([])
@@ -246,7 +248,7 @@ describe('day ops (user-scoped)', () => {
     // Reads: owned-day-at-from → (empty) day-exists-at-to
     selectQueue = [OWNED_DAY, []]
 
-    const result = await moveProgramDay(USER, PID, 0, 9)
+    const result = await moveProgramDay(USER, PID, 0, 9, 'mcp')
 
     expect(result).toBeNull()
     expect(records).toEqual([])
@@ -261,12 +263,13 @@ describe('exercise ops (user-scoped)', () => {
     const result = await addProgramExercise(USER, PID, 0, {
       wgerExerciseId: 73,
       name: 'Flat Bench',
-    })
+    }, 'mcp')
 
     expect(records.map((r) => r.op)).toEqual([
       'insert:program_exercises',
       'insert:program_sets',
       'update:programs',
+      'insert:program_events',
     ])
     expect(records[0]!.values).toMatchObject({
       programDayId: 'pd1',
@@ -289,7 +292,7 @@ describe('exercise ops (user-scoped)', () => {
         name: 'Bench',
         // @ts-expect-error — deliberately malformed scheme
         progression: { scheme: 'bogus' },
-      }),
+      }, 'mcp'),
     ).rejects.toBeInstanceOf(ProgramPatchError)
     expect(records).toEqual([])
   })
@@ -297,7 +300,7 @@ describe('exercise ops (user-scoped)', () => {
   it('addProgramExercise returns null and writes nothing when the day is not owned', async () => {
     selectQueue = [[]]
 
-    const result = await addProgramExercise(USER, PID, 0, { wgerExerciseId: 73, name: 'Bench' })
+    const result = await addProgramExercise(USER, PID, 0, { wgerExerciseId: 73, name: 'Bench' }, 'mcp')
 
     expect(result).toBeNull()
     expect(records).toEqual([])
@@ -310,13 +313,14 @@ describe('exercise ops (user-scoped)', () => {
     const result = await updateProgramExercise(USER, PID, 1, 0, {
       wgerExerciseId: 99,
       name: 'Incline Press',
-    })
+    }, 'mcp')
 
     // The movement swap clears the old muscle tags (no catalog here → no re-insert).
     expect(records.map((r) => r.op)).toEqual([
       'update:program_exercises',
       'delete:program_exercise_muscles',
       'update:programs',
+      'insert:program_events',
     ])
     expect(records[0]!.values).toEqual({ wgerExerciseId: 99, name: 'Incline Press' })
     expect(result).toEqual({ id: 'row1' })
@@ -326,7 +330,7 @@ describe('exercise ops (user-scoped)', () => {
     // Reads: owned-exercise
     selectQueue = [OWNED_EXERCISE]
 
-    await updateProgramExercise(USER, PID, 0, 0, { progression: null })
+    await updateProgramExercise(USER, PID, 0, 0, { progression: null }, 'mcp')
 
     expect(records[0]!.values).toEqual({ progression: null })
   })
@@ -334,7 +338,7 @@ describe('exercise ops (user-scoped)', () => {
   it('updateProgramExercise returns null and writes nothing when not owned', async () => {
     selectQueue = [[]]
 
-    const result = await updateProgramExercise(USER, PID, 0, 0, { name: 'X' })
+    const result = await updateProgramExercise(USER, PID, 0, 0, { name: 'X' }, 'mcp')
 
     expect(result).toBeNull()
     expect(records).toEqual([])
@@ -344,12 +348,13 @@ describe('exercise ops (user-scoped)', () => {
     // Reads: owned-exercise
     selectQueue = [OWNED_EXERCISE]
 
-    const result = await removeProgramExercise(USER, PID, 0, 1)
+    const result = await removeProgramExercise(USER, PID, 0, 1, 'mcp')
 
     expect(records.map((r) => r.op)).toEqual([
       'delete:program_exercises',
       'update:program_exercises',
       'update:programs',
+      'insert:program_events',
     ])
     expect(result).toEqual({ removed: true })
   })
@@ -358,13 +363,14 @@ describe('exercise ops (user-scoped)', () => {
     // Reads: owned-exercise-at-from → exercise-exists-at-to
     selectQueue = [OWNED_EXERCISE, [{ id: 'pe2' }]]
 
-    const result = await moveProgramExercise(USER, PID, 0, 0, 2)
+    const result = await moveProgramExercise(USER, PID, 0, 0, 2, 'mcp')
 
     // Shift (0,2] down by one, then drop the moved exercise at 2, then bump.
     expect(records.map((r) => r.op)).toEqual([
       'update:program_exercises',
       'update:program_exercises',
       'update:programs',
+      'insert:program_events',
     ])
     expect(records[1]!.values).toEqual({ position: 2 })
     expect(result).toEqual({ moved: true })
@@ -376,9 +382,9 @@ describe('set ops (user-scoped)', () => {
     // Reads: owned-exercise → max(setNumber)
     selectQueue = [OWNED_EXERCISE, [{ value: 3 }]]
 
-    const result = await addProgramSet(USER, PID, 0, 0, { repMin: 8, repMax: 10 })
+    const result = await addProgramSet(USER, PID, 0, 0, { repMin: 8, repMax: 10 }, 'mcp')
 
-    expect(records.map((r) => r.op)).toEqual(['insert:program_sets', 'update:programs'])
+    expect(records.map((r) => r.op)).toEqual(['insert:program_sets', 'update:programs', 'insert:program_events'])
     expect(records[0]!.values).toMatchObject({
       programExerciseId: 'pe1',
       setNumber: 4,
@@ -391,7 +397,7 @@ describe('set ops (user-scoped)', () => {
   })
 
   it('addProgramSet rejects a timed set without durationSec before any read', async () => {
-    await expect(addProgramSet(USER, PID, 0, 0, { metricMode: 'duration' })).rejects.toThrow(
+    await expect(addProgramSet(USER, PID, 0, 0, { metricMode: 'duration' }, 'mcp')).rejects.toThrow(
       /durationSec/,
     )
     expect(records).toEqual([])
@@ -401,9 +407,9 @@ describe('set ops (user-scoped)', () => {
     // Reads: owned-exercise → current set row
     selectQueue = [OWNED_EXERCISE, [CURRENT_SET]]
 
-    const result = await updateProgramSet(USER, PID, 0, 0, 3, { repMin: 8 })
+    const result = await updateProgramSet(USER, PID, 0, 0, 3, { repMin: 8 }, 'mcp')
 
-    expect(records.map((r) => r.op)).toEqual(['update:program_sets', 'update:programs'])
+    expect(records.map((r) => r.op)).toEqual(['update:program_sets', 'update:programs', 'insert:program_events'])
     expect(records[0]!.values).toEqual({ repMin: 8 })
     expect(result).toEqual({ id: 'row1' })
   })
@@ -412,7 +418,7 @@ describe('set ops (user-scoped)', () => {
     // Reads: owned-exercise → current set row (a reps_weight row, durationSec null)
     selectQueue = [OWNED_EXERCISE, [CURRENT_SET]]
 
-    await expect(updateProgramSet(USER, PID, 0, 0, 1, { metricMode: 'duration' })).rejects.toThrow(
+    await expect(updateProgramSet(USER, PID, 0, 0, 1, { metricMode: 'duration' }, 'mcp')).rejects.toThrow(
       /durationSec is required/,
     )
     expect(records).toEqual([])
@@ -422,7 +428,7 @@ describe('set ops (user-scoped)', () => {
     // Reads: owned-exercise → current set row (repMax 12)
     selectQueue = [OWNED_EXERCISE, [CURRENT_SET]]
 
-    await expect(updateProgramSet(USER, PID, 0, 0, 1, { repMin: 15 })).rejects.toThrow(
+    await expect(updateProgramSet(USER, PID, 0, 0, 1, { repMin: 15 }, 'mcp')).rejects.toThrow(
       /repMin must be less than or equal to repMax/,
     )
     expect(records).toEqual([])
@@ -433,13 +439,13 @@ describe('set ops (user-scoped)', () => {
       updateProgramSet(USER, PID, 0, 0, 1, {
         // @ts-expect-error — deliberately malformed kind
         technique: { kind: 'bogus', stages: [{ reps: 5 }] },
-      }),
+      }, 'mcp'),
     ).rejects.toBeInstanceOf(ProgramPatchError)
     expect(records).toEqual([])
   })
 
   it('updateProgramSet returns null for an empty patch without querying', async () => {
-    const result = await updateProgramSet(USER, PID, 0, 0, 1, {})
+    const result = await updateProgramSet(USER, PID, 0, 0, 1, {}, 'mcp')
 
     expect(result).toBeNull()
     expect(records).toEqual([])
@@ -448,7 +454,7 @@ describe('set ops (user-scoped)', () => {
   it('updateProgramSet returns null and writes nothing when not owned', async () => {
     selectQueue = [[]]
 
-    const result = await updateProgramSet(USER, PID, 0, 0, 1, { repMin: 8 })
+    const result = await updateProgramSet(USER, PID, 0, 0, 1, { repMin: 8 }, 'mcp')
 
     expect(result).toBeNull()
     expect(records).toEqual([])
@@ -458,12 +464,13 @@ describe('set ops (user-scoped)', () => {
     // Reads: owned-exercise → count(sets) (4 sets, removing #2)
     selectQueue = [OWNED_EXERCISE, [{ value: 4 }]]
 
-    const result = await removeProgramSet(USER, PID, 0, 0, 2)
+    const result = await removeProgramSet(USER, PID, 0, 0, 2, 'mcp')
 
     expect(records.map((r) => r.op)).toEqual([
       'delete:program_sets',
       'update:program_sets',
       'update:programs',
+      'insert:program_events',
     ])
     expect(result).toEqual({ removed: true })
   })
@@ -472,7 +479,7 @@ describe('set ops (user-scoped)', () => {
     // Reads: owned-exercise → count(sets) (only one set)
     selectQueue = [OWNED_EXERCISE, [{ value: 1 }]]
 
-    await expect(removeProgramSet(USER, PID, 0, 0, 1)).rejects.toThrow(/at least one set/)
+    await expect(removeProgramSet(USER, PID, 0, 0, 1, 'mcp')).rejects.toThrow(/at least one set/)
     expect(records).toEqual([])
   })
 
@@ -480,7 +487,7 @@ describe('set ops (user-scoped)', () => {
     // Reads: owned-exercise → count(sets)
     selectQueue = [OWNED_EXERCISE, [{ value: 2 }]]
 
-    const result = await removeProgramSet(USER, PID, 0, 0, 9)
+    const result = await removeProgramSet(USER, PID, 0, 0, 9, 'mcp')
 
     expect(result).toBeNull()
     expect(records).toEqual([])
@@ -490,13 +497,14 @@ describe('set ops (user-scoped)', () => {
     // Reads: owned-exercise → set-id-at-from → set-exists-at-to
     selectQueue = [OWNED_EXERCISE, [{ id: 'ps1' }], [{ id: 'ps3' }]]
 
-    const result = await moveProgramSet(USER, PID, 0, 0, 1, 3)
+    const result = await moveProgramSet(USER, PID, 0, 0, 1, 3, 'mcp')
 
     // Shift (1,3] down by one, then drop the moved set at 3, then bump.
     expect(records.map((r) => r.op)).toEqual([
       'update:program_sets',
       'update:program_sets',
       'update:programs',
+      'insert:program_events',
     ])
     expect(records[1]!.values).toEqual({ setNumber: 3 })
     expect(result).toEqual({ moved: true })
@@ -505,7 +513,7 @@ describe('set ops (user-scoped)', () => {
   it('moveProgramSet returns null and writes nothing when not owned', async () => {
     selectQueue = [[]]
 
-    const result = await moveProgramSet(USER, PID, 0, 0, 1, 2)
+    const result = await moveProgramSet(USER, PID, 0, 0, 1, 2, 'mcp')
 
     expect(result).toBeNull()
     expect(records).toEqual([])
@@ -518,12 +526,12 @@ describe('supersetGroup + muscle retagging (Phase 5)', () => {
     selectQueue = [OWNED_EXERCISE]
 
     // Act
-    const result = await updateProgramExercise(USER, PID, 0, 1, { supersetGroup: 2 })
+    const result = await updateProgramExercise(USER, PID, 0, 1, { supersetGroup: 2 }, 'mcp')
 
     // Assert — no wgerExerciseId change → no catalog fetch, no retag writes
     expect(result).toEqual({ id: 'row1' })
     expect(catalogMock).not.toHaveBeenCalled()
-    expect(records.map((r) => r.op)).toEqual(['update:program_exercises', 'update:programs'])
+    expect(records.map((r) => r.op)).toEqual(['update:program_exercises', 'update:programs', 'insert:program_events'])
     expect(records[0].values).toEqual({ supersetGroup: 2 })
   })
 
@@ -535,7 +543,7 @@ describe('supersetGroup + muscle retagging (Phase 5)', () => {
     selectQueue = [OWNED_EXERCISE]
 
     // Act
-    await updateProgramExercise(USER, PID, 0, 1, { wgerExerciseId: 42 })
+    await updateProgramExercise(USER, PID, 0, 1, { wgerExerciseId: 42 }, 'mcp')
 
     // Assert — old tags deleted, new tags inserted, then the bump
     expect(records.map((r) => r.op)).toEqual([
@@ -543,6 +551,7 @@ describe('supersetGroup + muscle retagging (Phase 5)', () => {
       'delete:program_exercise_muscles',
       'insert:program_exercise_muscles',
       'update:programs',
+      'insert:program_events',
     ])
     expect(records[2].values).toEqual([
       { programExerciseId: 'pe1', muscle: 'Chest', role: 'primary' },
@@ -557,7 +566,7 @@ describe('supersetGroup + muscle retagging (Phase 5)', () => {
     selectQueue = [OWNED_DAY, [{ value: null }]]
 
     // Act
-    const result = await addProgramExercise(USER, PID, 0, { wgerExerciseId: 42, name: 'Fly' })
+    const result = await addProgramExercise(USER, PID, 0, { wgerExerciseId: 42, name: 'Fly' }, 'mcp')
 
     // Assert
     expect(result).toEqual({ position: 0 })
@@ -576,7 +585,7 @@ describe('supersetGroup + muscle retagging (Phase 5)', () => {
       wgerExerciseId: 42,
       source: 'custom',
       name: 'Cable Y-Raise',
-    })
+    }, 'mcp')
 
     // Assert — insert carries source; tags come from the custom entry
     expect(result).toEqual({ position: 0 })
@@ -596,7 +605,7 @@ describe('supersetGroup + muscle retagging (Phase 5)', () => {
     selectQueue = [OWNED_EXERCISE]
 
     // Act
-    await updateProgramExercise(USER, PID, 0, 1, { source: 'custom' })
+    await updateProgramExercise(USER, PID, 0, 1, { source: 'custom' }, 'mcp')
 
     // Assert — a source-only flip is an identity change: retag fires and the
     // effective (custom, stored 73) resolves the custom catalog entry
@@ -605,6 +614,7 @@ describe('supersetGroup + muscle retagging (Phase 5)', () => {
       'delete:program_exercise_muscles',
       'insert:program_exercise_muscles',
       'update:programs',
+      'insert:program_events',
     ])
     expect(records[2].values).toEqual([
       { programExerciseId: 'pe1', muscle: 'Chest', role: 'primary' },
@@ -635,11 +645,11 @@ describe('setProgramSetOverride', () => {
     selectQueue = [OWNED_EXERCISE, SET_ROW, NO_EXISTING]
 
     // Act
-    const result = await setProgramSetOverride(USER, PID, 0, 1, 2, 3, { suggestedLoadKg: 95 })
+    const result = await setProgramSetOverride(USER, PID, 0, 1, 2, 3, { suggestedLoadKg: 95 }, 'mcp')
 
     // Assert
     expect(result).toEqual({ week: 3, cleared: false })
-    expect(records.map((r) => r.op)).toEqual(['insert:program_set_overrides', 'update:programs'])
+    expect(records.map((r) => r.op)).toEqual(['insert:program_set_overrides', 'update:programs', 'insert:program_events'])
     expect(records[0].values).toMatchObject({ programSetId: 'ps1', week: 3, suggestedLoadKg: 95 })
   })
 
@@ -648,11 +658,11 @@ describe('setProgramSetOverride', () => {
     selectQueue = [OWNED_EXERCISE, SET_ROW, EXISTING]
 
     // Act
-    const result = await setProgramSetOverride(USER, PID, 0, 1, 2, 3, { repMin: 3, repMax: 5 })
+    const result = await setProgramSetOverride(USER, PID, 0, 1, 2, 3, { repMin: 3, repMax: 5 }, 'mcp')
 
     // Assert
     expect(result).toEqual({ week: 3, cleared: false })
-    expect(records.map((r) => r.op)).toEqual(['update:program_set_overrides', 'update:programs'])
+    expect(records.map((r) => r.op)).toEqual(['update:program_set_overrides', 'update:programs', 'insert:program_events'])
     expect(records[0].values).toMatchObject({ repMin: 3, repMax: 5, suggestedLoadKg: 90 })
   })
 
@@ -661,11 +671,11 @@ describe('setProgramSetOverride', () => {
     selectQueue = [OWNED_EXERCISE, SET_ROW, EXISTING]
 
     // Act
-    const result = await setProgramSetOverride(USER, PID, 0, 1, 2, 3, { suggestedLoadKg: null })
+    const result = await setProgramSetOverride(USER, PID, 0, 1, 2, 3, { suggestedLoadKg: null }, 'mcp')
 
     // Assert
     expect(result).toEqual({ week: 3, cleared: true })
-    expect(records.map((r) => r.op)).toEqual(['delete:program_set_overrides', 'update:programs'])
+    expect(records.map((r) => r.op)).toEqual(['delete:program_set_overrides', 'update:programs', 'insert:program_events'])
   })
 
   it('rejects a merge whose effective row breaks the cross-field rules', async () => {
@@ -674,18 +684,18 @@ describe('setProgramSetOverride', () => {
 
     // Act + Assert
     await expect(
-      setProgramSetOverride(USER, PID, 0, 1, 2, 3, { repMin: 20 }),
+      setProgramSetOverride(USER, PID, 0, 1, 2, 3, { repMin: 20 }, 'mcp'),
     ).rejects.toBeInstanceOf(ProgramPatchError)
   })
 
   it('returns null for an empty patch without opening reads', async () => {
-    expect(await setProgramSetOverride(USER, PID, 0, 1, 2, 3, {})).toBeNull()
+    expect(await setProgramSetOverride(USER, PID, 0, 1, 2, 3, {}, 'mcp')).toBeNull()
     expect(records).toHaveLength(0)
   })
 
   it('returns null when the set does not exist at that number', async () => {
     selectQueue = [OWNED_EXERCISE, []]
-    expect(await setProgramSetOverride(USER, PID, 0, 1, 9, 3, { rir: 1 })).toBeNull()
+    expect(await setProgramSetOverride(USER, PID, 0, 1, 9, 3, { rir: 1 }, 'mcp')).toBeNull()
     expect(records).toHaveLength(0)
   })
 })
@@ -696,11 +706,11 @@ describe('removeProgramSetOverride', () => {
     selectQueue = [OWNED_EXERCISE, [{ id: 'ps1' }]]
 
     // Act
-    const result = await removeProgramSetOverride(USER, PID, 0, 1, 2, 3)
+    const result = await removeProgramSetOverride(USER, PID, 0, 1, 2, 3, 'mcp')
 
     // Assert
     expect(result).toEqual({ removed: true })
-    expect(records.map((r) => r.op)).toEqual(['delete:program_set_overrides', 'update:programs'])
+    expect(records.map((r) => r.op)).toEqual(['delete:program_set_overrides', 'update:programs', 'insert:program_events'])
   })
 
   it('returns null when no override exists for that week', async () => {
@@ -709,6 +719,6 @@ describe('removeProgramSetOverride', () => {
     deletedRows = []
 
     // Act + Assert
-    expect(await removeProgramSetOverride(USER, PID, 0, 1, 2, 3)).toBeNull()
+    expect(await removeProgramSetOverride(USER, PID, 0, 1, 2, 3, 'mcp')).toBeNull()
   })
 })

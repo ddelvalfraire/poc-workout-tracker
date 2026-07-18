@@ -127,7 +127,7 @@ describe('registerProgramPatchTools', () => {
 
       const result = await tools.get('add_program_day')!({ programId: PID, name: 'Pull' })
 
-      expect(mockedAddDay).toHaveBeenCalledWith('user_env', PID, { name: 'Pull', notes: undefined })
+      expect(mockedAddDay).toHaveBeenCalledWith('user_env', PID, { name: 'Pull', notes: undefined }, 'mcp')
       expect(payload(result)).toEqual({ userId: 'user_env', programId: PID, dayPosition: 2 })
     })
 
@@ -154,7 +154,7 @@ describe('registerProgramPatchTools', () => {
       expect(mockedUpdateDay).toHaveBeenCalledWith('user_env', PID, 1, {
         name: 'Legs',
         notes: undefined,
-      })
+      }, 'mcp')
       expect(payload(result)).toEqual({ userId: 'user_env', programId: PID, dayPosition: 1 })
     })
 
@@ -174,7 +174,7 @@ describe('registerProgramPatchTools', () => {
 
       const result = await tools.get('move_program_day')!({ programId: PID, from: 2, to: 0 })
 
-      expect(mockedMoveDay).toHaveBeenCalledWith('user_env', PID, 2, 0)
+      expect(mockedMoveDay).toHaveBeenCalledWith('user_env', PID, 2, 0, 'mcp')
       expect(payload(result)).toEqual({ userId: 'user_env', programId: PID, from: 2, to: 0 })
     })
   })
@@ -195,7 +195,7 @@ describe('registerProgramPatchTools', () => {
         wgerExerciseId: 73,
         name: 'Flat Bench',
         progression: undefined,
-      })
+      }, 'mcp')
       expect(payload(result)).toEqual({
         userId: 'user_env',
         programId: PID,
@@ -220,7 +220,7 @@ describe('registerProgramPatchTools', () => {
         'user_env',
         PID,
         0,
-        expect.objectContaining({ wgerExerciseId: 9, source: 'custom' }),
+        expect.objectContaining({ wgerExerciseId: 9, source: 'custom' }), 'mcp'
       )
     })
 
@@ -240,7 +240,7 @@ describe('registerProgramPatchTools', () => {
         PID,
         0,
         1,
-        expect.objectContaining({ source: 'custom' }),
+        expect.objectContaining({ source: 'custom' }), 'mcp'
       )
     })
 
@@ -260,7 +260,7 @@ describe('registerProgramPatchTools', () => {
         wgerExerciseId: 99,
         name: 'Incline Press',
         progression: undefined,
-      })
+      }, 'mcp')
       expect(payload(result)).toEqual({
         userId: 'user_env',
         programId: PID,
@@ -293,7 +293,7 @@ describe('registerProgramPatchTools', () => {
         exercisePosition: 2,
       })
 
-      expect(mockedRemoveExercise).toHaveBeenCalledWith('user_env', PID, 0, 2)
+      expect(mockedRemoveExercise).toHaveBeenCalledWith('user_env', PID, 0, 2, 'mcp')
       expect(payload(result)).toEqual({
         userId: 'user_env',
         programId: PID,
@@ -336,7 +336,7 @@ describe('registerProgramPatchTools', () => {
         repMin: 8,
         repMax: 10,
         suggestedLoadKg: displayToKg(225, 'lb'),
-      })
+      }, 'mcp')
       expect(payload(result)).toEqual({
         userId: 'user_env',
         unit: 'lb',
@@ -364,7 +364,7 @@ describe('registerProgramPatchTools', () => {
       expect(mockedUpdateSet).toHaveBeenCalledWith('user_env', PID, 0, 1, 3, {
         repMin: 8,
         repMax: 10,
-      })
+      }, 'mcp')
       expect(payload(result)).not.toHaveProperty('unit')
     })
 
@@ -383,7 +383,7 @@ describe('registerProgramPatchTools', () => {
       expect(mockedGetUnit).not.toHaveBeenCalled()
       expect(mockedUpdateSet).toHaveBeenCalledWith('user_env', PID, 0, 0, 1, {
         suggestedLoadKg: null,
-      })
+      }, 'mcp')
     })
 
     it('update_program_set with an explicit unit skips the stored-unit lookup', async () => {
@@ -402,7 +402,7 @@ describe('registerProgramPatchTools', () => {
       expect(mockedGetUnit).not.toHaveBeenCalled()
       expect(mockedUpdateSet).toHaveBeenCalledWith('user_env', PID, 0, 0, 1, {
         suggestedLoadKg: 100,
-      })
+      }, 'mcp')
     })
 
     it('add_program_set forwards restSec verbatim — seconds are unit-less, no unit fetch', async () => {
@@ -420,7 +420,7 @@ describe('registerProgramPatchTools', () => {
 
       // Assert
       expect(mockedGetUnit).not.toHaveBeenCalled()
-      expect(mockedAddSet).toHaveBeenCalledWith('user_env', PID, 0, 0, { restSec: 90 })
+      expect(mockedAddSet).toHaveBeenCalledWith('user_env', PID, 0, 0, { restSec: 90 }, 'mcp')
     })
 
     it('update_program_set passes restSec through, and null clears it', async () => {
@@ -446,8 +446,8 @@ describe('registerProgramPatchTools', () => {
 
       // Assert
       expect(mockedGetUnit).not.toHaveBeenCalled()
-      expect(mockedUpdateSet).toHaveBeenNthCalledWith(1, 'user_env', PID, 0, 0, 1, { restSec: 120 })
-      expect(mockedUpdateSet).toHaveBeenNthCalledWith(2, 'user_env', PID, 0, 0, 1, { restSec: null })
+      expect(mockedUpdateSet).toHaveBeenNthCalledWith(1, 'user_env', PID, 0, 0, 1, { restSec: 120 }, 'mcp')
+      expect(mockedUpdateSet).toHaveBeenNthCalledWith(2, 'user_env', PID, 0, 0, 1, { restSec: null }, 'mcp')
     })
 
     it('update_program_set errors on an empty patch before any unit fetch or op', async () => {
@@ -512,7 +512,7 @@ describe('registerProgramPatchTools', () => {
         setNumber: 2,
       })
 
-      expect(mockedRemoveSet).toHaveBeenCalledWith('user_env', PID, 0, 0, 2)
+      expect(mockedRemoveSet).toHaveBeenCalledWith('user_env', PID, 0, 0, 2, 'mcp')
       expect(payload(result)).toEqual({
         userId: 'user_env',
         programId: PID,
@@ -534,7 +534,7 @@ describe('registerProgramPatchTools', () => {
         to: 3,
       })
 
-      expect(mockedMoveSet).toHaveBeenCalledWith('user_env', PID, 0, 0, 1, 3)
+      expect(mockedMoveSet).toHaveBeenCalledWith('user_env', PID, 0, 0, 1, 3, 'mcp')
       expect(payload(result)).toEqual({
         userId: 'user_env',
         programId: PID,
@@ -660,7 +660,7 @@ describe('registerProgramPatchTools', () => {
       expect(mockedSetOverride).toHaveBeenCalledWith('user_env', PID, 0, 1, 2, 3, {
         suggestedLoadKg: displayToKg(225, 'lb'),
         repMin: 3,
-      })
+      }, 'mcp')
       expect(payload(result)).toEqual({
         userId: 'user_env',
         unit: 'lb',
@@ -691,7 +691,7 @@ describe('registerProgramPatchTools', () => {
       // Assert
       expect(mockedGetUnit).not.toHaveBeenCalled()
       expect(payload(result).unit).toBeUndefined()
-      expect(mockedSetOverride).toHaveBeenCalledWith('user_env', PID, 0, 0, 1, 2, { rir: 1 })
+      expect(mockedSetOverride).toHaveBeenCalledWith('user_env', PID, 0, 0, 1, 2, { rir: 1 }, 'mcp')
     })
 
     it('set_program_set_override pins restSec for a week and null unpins it', async () => {
@@ -719,12 +719,8 @@ describe('registerProgramPatchTools', () => {
 
       // Assert — unit never read: rest is seconds, not weight
       expect(mockedGetUnit).not.toHaveBeenCalled()
-      expect(mockedSetOverride).toHaveBeenNthCalledWith(1, 'user_env', PID, 0, 0, 1, 2, {
-        restSec: 150,
-      })
-      expect(mockedSetOverride).toHaveBeenNthCalledWith(2, 'user_env', PID, 0, 0, 1, 2, {
-        restSec: null,
-      })
+      expect(mockedSetOverride).toHaveBeenNthCalledWith(1, 'user_env', PID, 0, 0, 1, 2, { restSec: 150 }, 'mcp')
+      expect(mockedSetOverride).toHaveBeenNthCalledWith(2, 'user_env', PID, 0, 0, 1, 2, { restSec: null }, 'mcp')
     })
 
     it('set_program_set_override rejects an all-undefined patch before any db call', async () => {
@@ -783,7 +779,7 @@ describe('registerProgramPatchTools', () => {
       })
 
       // Assert
-      expect(mockedRemoveOverride).toHaveBeenCalledWith('user_env', PID, 0, 1, 2, 3)
+      expect(mockedRemoveOverride).toHaveBeenCalledWith('user_env', PID, 0, 1, 2, 3, 'mcp')
       expect(payload(result)).toEqual({
         userId: 'user_env',
         programId: PID,
@@ -832,7 +828,7 @@ describe('registerProgramPatchTools', () => {
         name: undefined,
         progression: undefined,
         supersetGroup: 2,
-      })
+      }, 'mcp')
       expect(payload(result)).toEqual({
         userId: 'user_env',
         programId: PID,

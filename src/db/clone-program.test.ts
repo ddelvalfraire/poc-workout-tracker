@@ -204,7 +204,7 @@ beforeEach(() => {
 describe('cloneProgram (row-for-row fidelity)', () => {
   it('writes the clone as a fresh draft with the derived block name', async () => {
     // Act
-    const result = await cloneProgram(USER, 'src1')
+    const result = await cloneProgram(USER, 'src1', 'mcp')
 
     // Assert — meso geometry and notes copied; status draft regardless of
     // the source's; timestamps left to column defaults
@@ -221,7 +221,7 @@ describe('cloneProgram (row-for-row fidelity)', () => {
 
   it('copies what the ProgramInput path drops: supersets, custom source, overrides', async () => {
     // Act
-    await cloneProgram(USER, 'src1')
+    await cloneProgram(USER, 'src1', 'mcp')
 
     // Assert — record order: program(0) · Push(1) · Bench(2) · its sets(3) ·
     // overrides(4) · muscles(5) · Cable Fly(6) · its sets(7) · Legs(8) ·
@@ -254,7 +254,7 @@ describe('cloneProgram (row-for-row fidelity)', () => {
 
   it('copies every set column and keeps stored setNumber/position values', async () => {
     // Act
-    await cloneProgram(USER, 'src1')
+    await cloneProgram(USER, 'src1', 'mcp')
 
     // Assert — Bench's batch carries the full column set, remapped parent id
     const benchSets = records[3].values as Record<string, unknown>[]
@@ -282,8 +282,9 @@ describe('cloneProgram (row-for-row fidelity)', () => {
     expect(records[10].values).toEqual([
       expect.objectContaining({ programExerciseId: 'eC', setNumber: 1, suggestedLoadKg: 140 }),
     ])
-    // Exactly the expected writes: no empty-array override/muscle inserts
-    expect(records).toHaveLength(11)
+    // Exactly the expected writes (incl. the restart change-log event): no
+    // empty-array override/muscle inserts
+    expect(records).toHaveLength(12)
   })
 
   it('returns null and inserts nothing when the source is not owned', async () => {
@@ -291,7 +292,7 @@ describe('cloneProgram (row-for-row fidelity)', () => {
     findFirst.mockResolvedValue(undefined)
 
     // Act
-    const result = await cloneProgram(USER, 'src1')
+    const result = await cloneProgram(USER, 'src1', 'mcp')
 
     // Assert
     expect(result).toBeNull()
@@ -300,7 +301,7 @@ describe('cloneProgram (row-for-row fidelity)', () => {
 
   it('never touches the wger catalog (offline-safe, tags copied not rederived)', async () => {
     // Act
-    await cloneProgram(USER, 'src1')
+    await cloneProgram(USER, 'src1', 'mcp')
 
     // Assert
     expect(getAllExercises).not.toHaveBeenCalled()

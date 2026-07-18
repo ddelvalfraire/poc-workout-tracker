@@ -1,11 +1,24 @@
 import { ToolError } from './errors'
+import type { ProgramEventActor } from '@/db/program-events'
 
 /**
  * The slice of an MCP tool/resource `extra` we read: the authenticated identity
- * the route's `verifyToken` stashed in `AuthInfo.extra.userId`. Kept minimal (not
- * the SDK's full `RequestHandlerExtra`) so tests can pass a plain object.
+ * the route's `verifyToken` stashed in `AuthInfo.extra.userId`, plus the
+ * `clientId` the coach's in-memory bridge stamps (`'coach-chat'`). Kept minimal
+ * (not the SDK's full `RequestHandlerExtra`) so tests can pass a plain object.
  */
-export type AuthCtx = { authInfo?: { extra?: Record<string, unknown> } }
+export type AuthCtx = { authInfo?: { clientId?: string; extra?: Record<string, unknown> } }
+
+/**
+ * WHO is editing, for the program change log. The coach's in-process bridge is
+ * the only path that stamps `clientId: 'coach-chat'` (mcp-bridge.ts); every
+ * other route into the MCP tools — HTTP transport, dev userId arg/env — is a
+ * plain agent, so 'mcp' is the safe default. 'ui' never originates here:
+ * server actions pass it directly.
+ */
+export function resolveActor(extra?: AuthCtx): Exclude<ProgramEventActor, 'ui'> {
+  return extra?.authInfo?.clientId === 'coach-chat' ? 'coach' : 'mcp'
+}
 
 /**
  * Resolves the target userId for an MCP tool/resource call. This is the *only*

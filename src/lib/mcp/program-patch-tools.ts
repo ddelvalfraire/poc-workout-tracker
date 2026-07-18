@@ -1,6 +1,6 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
-import { resolveUserId } from './resolve-user'
+import { resolveUserId, resolveActor } from './resolve-user'
 import { jsonResult, errorResult } from './result'
 import { ToolError } from './errors'
 import { assertProgramIdShape } from './program-id'
@@ -195,7 +195,7 @@ export function registerProgramPatchTools(server: McpServer): void {
       try {
         const resolved = resolveUserId(extra, userId)
         assertProgramIdShape(programId)
-        const result = await addProgramDay(resolved, programId, { name, notes })
+        const result = await addProgramDay(resolved, programId, { name, notes }, resolveActor(extra))
         if (!result) throw new ToolError(`Program ${programId} not found for user ${resolved}`)
         return jsonResult({ userId: resolved, programId, dayPosition: result.position })
       } catch (error: unknown) {
@@ -225,7 +225,13 @@ export function registerProgramPatchTools(server: McpServer): void {
         if (isEmptyPatch({ name, notes })) {
           throw new ToolError('update_program_day needs at least one of name or notes')
         }
-        const result = await updateProgramDay(resolved, programId, dayPosition, { name, notes })
+        const result = await updateProgramDay(
+          resolved,
+          programId,
+          dayPosition,
+          { name, notes },
+          resolveActor(extra),
+        )
         if (!result) {
           throw new ToolError(
             `Day ${dayPosition} of program ${programId} not found for user ${resolved}`,
@@ -254,7 +260,7 @@ export function registerProgramPatchTools(server: McpServer): void {
       try {
         const resolved = resolveUserId(extra, userId)
         assertProgramIdShape(programId)
-        const result = await removeProgramDay(resolved, programId, dayPosition)
+        const result = await removeProgramDay(resolved, programId, dayPosition, resolveActor(extra))
         if (!result) {
           throw new ToolError(
             `Day ${dayPosition} of program ${programId} not found for user ${resolved}`,
@@ -284,7 +290,7 @@ export function registerProgramPatchTools(server: McpServer): void {
       try {
         const resolved = resolveUserId(extra, userId)
         assertProgramIdShape(programId)
-        const result = await moveProgramDay(resolved, programId, from, to)
+        const result = await moveProgramDay(resolved, programId, from, to, resolveActor(extra))
         if (!result) {
           throw new ToolError(
             `Day ${from} or ${to} of program ${programId} not found for user ${resolved}`,
@@ -323,12 +329,13 @@ export function registerProgramPatchTools(server: McpServer): void {
         const resolved = resolveUserId(extra, userId)
         assertProgramIdShape(programId)
         const result = await runOp(() =>
-          addProgramExercise(resolved, programId, dayPosition, {
-            wgerExerciseId,
-            source,
-            name,
-            progression,
-          }),
+          addProgramExercise(
+            resolved,
+            programId,
+            dayPosition,
+            { wgerExerciseId, source, name, progression },
+            resolveActor(extra),
+          ),
         )
         if (!result) {
           throw new ToolError(
@@ -390,13 +397,14 @@ export function registerProgramPatchTools(server: McpServer): void {
           )
         }
         const result = await runOp(() =>
-          updateProgramExercise(resolved, programId, dayPosition, exercisePosition, {
-            wgerExerciseId,
-            source,
-            name,
-            progression,
-            supersetGroup,
-          }),
+          updateProgramExercise(
+            resolved,
+            programId,
+            dayPosition,
+            exercisePosition,
+            { wgerExerciseId, source, name, progression, supersetGroup },
+            resolveActor(extra),
+          ),
         )
         if (!result) {
           throw new ToolError(
@@ -432,6 +440,7 @@ export function registerProgramPatchTools(server: McpServer): void {
           programId,
           dayPosition,
           exercisePosition,
+          resolveActor(extra),
         )
         if (!result) {
           throw new ToolError(
@@ -468,7 +477,14 @@ export function registerProgramPatchTools(server: McpServer): void {
       try {
         const resolved = resolveUserId(extra, userId)
         assertProgramIdShape(programId)
-        const result = await moveProgramExercise(resolved, programId, dayPosition, from, to)
+        const result = await moveProgramExercise(
+          resolved,
+          programId,
+          dayPosition,
+          from,
+          to,
+          resolveActor(extra),
+        )
         if (!result) {
           throw new ToolError(
             `Exercise ${from} or ${to} of day ${dayPosition} in program ${programId} not found for user ${resolved}`,
@@ -506,7 +522,7 @@ export function registerProgramPatchTools(server: McpServer): void {
         assertProgramIdShape(programId)
         const { patch, basis } = await buildSetPatch(targets, resolved, unit)
         const result = await runOp(() =>
-          addProgramSet(resolved, programId, dayPosition, exercisePosition, patch),
+          addProgramSet(resolved, programId, dayPosition, exercisePosition, patch, resolveActor(extra)),
         )
         if (!result) {
           throw new ToolError(
@@ -556,7 +572,15 @@ export function registerProgramPatchTools(server: McpServer): void {
         }
         const { patch, basis } = await buildSetPatch(targets, resolved, unit)
         const result = await runOp(() =>
-          updateProgramSet(resolved, programId, dayPosition, exercisePosition, setNumber, patch),
+          updateProgramSet(
+            resolved,
+            programId,
+            dayPosition,
+            exercisePosition,
+            setNumber,
+            patch,
+            resolveActor(extra),
+          ),
         )
         if (!result) {
           throw new ToolError(
@@ -596,7 +620,14 @@ export function registerProgramPatchTools(server: McpServer): void {
         const resolved = resolveUserId(extra, userId)
         assertProgramIdShape(programId)
         const result = await runOp(() =>
-          removeProgramSet(resolved, programId, dayPosition, exercisePosition, setNumber),
+          removeProgramSet(
+            resolved,
+            programId,
+            dayPosition,
+            exercisePosition,
+            setNumber,
+            resolveActor(extra),
+          ),
         )
         if (!result) {
           throw new ToolError(
@@ -642,6 +673,7 @@ export function registerProgramPatchTools(server: McpServer): void {
           exercisePosition,
           from,
           to,
+          resolveActor(extra),
         )
         if (!result) {
           throw new ToolError(
@@ -724,6 +756,7 @@ export function registerProgramPatchTools(server: McpServer): void {
             setNumber,
             week,
             patch,
+            resolveActor(extra),
           ),
         )
         if (!result) {
@@ -773,6 +806,7 @@ export function registerProgramPatchTools(server: McpServer): void {
           exercisePosition,
           setNumber,
           week,
+          resolveActor(extra),
         )
         if (!result) {
           throw new ToolError(

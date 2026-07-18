@@ -11,6 +11,7 @@ import {
   listProgramWorkouts,
 } from '@/db/programs'
 import { getProgramStats } from '@/db/program-stats'
+import { listProgramEvents, type ProgramEventActor } from '@/db/program-events'
 import { getWeightUnit } from '@/db/preferences'
 import { listWorkoutSummaries } from '@/db/workouts'
 import { listWorkoutDrafts } from '@/db/workout-drafts'
@@ -26,6 +27,17 @@ import { StartDayButton } from './start-day-button'
 import { ProgramActions } from './program-actions'
 import { RestartProgramButton } from './restart-program-button'
 
+/** Chip labels for the change log — WHO edited, in the user's own terms. */
+const ACTOR_LABELS: Record<ProgramEventActor, string> = {
+  ui: 'You',
+  mcp: 'Claude',
+  coach: 'Coach',
+}
+
+/** v1 cap: no pagination UI — older history stays reachable via the MCP
+ *  tool's `before` cursor (list_program_changes). */
+const CHANGE_LOG_LIMIT = 10
+
 export default async function ProgramDetailPage({
   params,
   searchParams,
@@ -38,13 +50,14 @@ export default async function ProgramDetailPage({
   const [program, unit] = await Promise.all([getProgramDetail(userId, id), getWeightUnit(userId)])
   if (!program) notFound()
 
-  const [{ currentWeek, blockComplete }, nextDay, summaries, drafts, programWorkouts] =
+  const [{ currentWeek, blockComplete }, nextDay, summaries, drafts, programWorkouts, changeEvents] =
     await Promise.all([
       programWeekState(userId, program.id, program.mesocycleWeeks),
       getNextProgramDay(userId),
       listWorkoutSummaries(userId),
       listWorkoutDrafts(userId),
       listProgramWorkouts(userId, program.id),
+      listProgramEvents(userId, program.id, { limit: CHANGE_LOG_LIMIT }),
     ])
   // The payoff moment costs an extra read, so only complete blocks pay it —
   // an incomplete block's page issues exactly the queries it always has.
@@ -491,6 +504,29 @@ export default async function ProgramDetailPage({
               )
             })}
         </div>
+
+        {/* The plan's paper trail: who changed what, newest first. Same rows
+            the coach reads via list_program_changes — one shared read path.
+            Absent entirely for untouched programs (no empty-state filler);
+            capped at CHANGE_LOG_LIMIT with no pager in v1. */}
+        {changeEvents.length > 0 && (
+          <section aria-label="Changes" className="mt-10">
+            <h2 className="font-display text-xl uppercase leading-none tracking-wide">Changes</h2>
+            <ul className="mt-3 space-y-2.5">
+              {changeEvents.map((event) => (
+                <li key={event.id} className="flex items-baseline gap-2">
+                  <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+                    {ACTOR_LABELS[event.actor]}
+                  </span>
+                  <span className="min-w-0 flex-1 truncate text-sm">{event.summary}</span>
+                  <span className="shrink-0 text-xs text-muted-foreground tnum">
+                    {formatWorkoutDate(event.occurredAt)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
 
         <ProgramActions
           id={program.id}

@@ -61,6 +61,7 @@ describe('registerTools', () => {
       'get_workout',
       'instantiate_program_day',
       'list_custom_exercises',
+      'list_program_changes',
       'list_programs',
       'list_workouts',
       'move_program_day',

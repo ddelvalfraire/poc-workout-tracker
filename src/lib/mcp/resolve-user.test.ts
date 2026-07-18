@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { resolveUserId, type AuthCtx } from './resolve-user'
+import { resolveUserId, resolveActor, type AuthCtx } from './resolve-user'
 import { ToolError } from './errors'
 
 /** Builds a tool `extra` carrying an authenticated userId, as verifyToken stashes it. */
@@ -68,5 +68,29 @@ describe('resolveUserId', () => {
 
     // Act + Assert
     expect(resolveUserId(undefined, '   ')).toBe('user_env')
+  })
+})
+
+describe('resolveActor', () => {
+  it("labels the coach bridge's stamped clientId as 'coach'", () => {
+    // Arrange — exactly what mcp-bridge.ts stamps on every message
+    const extra: AuthCtx = { authInfo: { clientId: 'coach-chat', extra: { userId: 'user_1' } } }
+
+    // Act + Assert
+    expect(resolveActor(extra)).toBe('coach')
+  })
+
+  it("labels any other clientId as 'mcp'", () => {
+    // Arrange — the HTTP transport's OAuth client
+    const extra: AuthCtx = { authInfo: { clientId: 'claude-desktop', extra: { userId: 'user_1' } } }
+
+    // Act + Assert
+    expect(resolveActor(extra)).toBe('mcp')
+  })
+
+  it("labels the unauthenticated dev path (no authInfo at all) as 'mcp'", () => {
+    // Act + Assert
+    expect(resolveActor(undefined)).toBe('mcp')
+    expect(resolveActor({})).toBe('mcp')
   })
 })

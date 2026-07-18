@@ -11,6 +11,7 @@ import {
 } from '@/lib/program-input'
 import type { ExerciseSource } from '@/lib/custom-exercise-input'
 import { db } from './index'
+import { recordProgramEvent, type ProgramEventActor } from './program-events'
 import { loadExerciseCatalog, muscleRowsFor, type ExerciseCatalog } from './programs'
 import {
   programs,
@@ -34,8 +35,11 @@ import {
  * - `ProgramPatchError` — the edit itself is invalid (last-set removal, a merge
  *   that breaks the Phase-1 cross-field rules, malformed technique/progression)
  *
- * Every successful op bumps `programs.updatedAt` (the list sort key) inside the
- * same transaction. Positions stay 0-based contiguous and setNumbers 1-based
+ * Every successful op bumps `programs.updatedAt` (the list sort key) AND
+ * appends exactly one `program_events` row (the change log — see
+ * program-events.ts) inside the same transaction; the required `actor` param
+ * says who edited, threaded from the boundary so no call site can forget it.
+ * Positions stay 0-based contiguous and setNumbers 1-based
  * contiguous: removes close the gap, moves splice-renumber. All three levels
  * carry a per-parent unique on their ordering column; the splice-renumbers
  * transiently collide with it — safe because the migrations made each one
@@ -158,6 +162,7 @@ async function findOwnedExercise(
   dayId: string
   wgerExerciseId: number
   source: ExerciseSource
+  name: string
 } | null> {
   const [pe] = await tx
     .select({
@@ -167,6 +172,8 @@ async function findOwnedExercise(
       // the effective (source, id) — patch value ?? stored value.
       wgerExerciseId: programExercises.wgerExerciseId,
       source: programExercises.source,
+      // Current name, so event summaries can say WHAT changed without a re-read.
+      name: programExercises.name,
     })
     .from(programExercises)
     .innerJoin(programDays, eq(programDays.id, programExercises.programDayId))
@@ -209,6 +216,7 @@ export async function addProgramDay(
   userId: string,
   programId: string,
   day: { name: string; notes?: string | null },
+  actor: ProgramEventActor,
 ): Promise<{ position: number } | null> {
   return db.transaction(async (tx) => {
     const owned = await findOwnedProgramId(tx, userId, programId)
@@ -222,6 +230,14 @@ export async function addProgramDay(
       .insert(programDays)
       .values({ programId, name: day.name, position, notes: day.notes ?? null })
     await bumpUpdatedAt(tx, programId)
+    await recordProgramEvent(tx, {
+      programId,
+      userId,
+      actor,
+      action: 'add_program_day',
+      summary: `Add day "${day.name}" (Day ${position + 1})`,
+      payload: { after: { name: day.name, notes: day.notes ?? null, position } },
+    })
     return { position }
   })
 }
@@ -236,6 +252,7 @@ export async function updateProgramDay(
   programId: string,
   dayPosition: number,
   patch: ProgramDayPatch,
+  actor: ProgramEventActor,
 ): Promise<{ id: string } | null> {
   const values = definedFields(patch)
   if (Object.keys(values).length === 0) return null
@@ -249,6 +266,17 @@ export async function updateProgramDay(
       .returning({ id: programDays.id })
     if (!updated) return null
     await bumpUpdatedAt(tx, programId)
+    await recordProgramEvent(tx, {
+      programId,
+      userId,
+      actor,
+      action: 'update_program_day',
+      summary:
+        values.name !== undefined
+          ? `Rename Day ${dayPosition + 1} → "${values.name}"`
+          : `Update Day ${dayPosition + 1} notes`,
+      payload: { dayPosition, after: values },
+    })
     return updated
   })
 }
@@ -261,6 +289,7 @@ export async function removeProgramDay(
   userId: string,
   programId: string,
   dayPosition: number,
+  actor: ProgramEventActor,
 ): Promise<{ removed: true } | null> {
   return db.transaction(async (tx) => {
     const dayId = await findOwnedDayId(tx, userId, programId, dayPosition)
@@ -271,6 +300,14 @@ export async function removeProgramDay(
       .set({ position: sql`${programDays.position} - 1` })
       .where(and(eq(programDays.programId, programId), gt(programDays.position, dayPosition)))
     await bumpUpdatedAt(tx, programId)
+    await recordProgramEvent(tx, {
+      programId,
+      userId,
+      actor,
+      action: 'remove_program_day',
+      summary: `Remove Day ${dayPosition + 1}`,
+      payload: { dayPosition },
+    })
     return { removed: true }
   })
 }
@@ -286,6 +323,7 @@ export async function moveProgramDay(
   programId: string,
   from: number,
   to: number,
+  actor: ProgramEventActor,
 ): Promise<{ moved: true } | null> {
   return db.transaction(async (tx) => {
     const movedId = await findOwnedDayId(tx, userId, programId, from)
@@ -322,6 +360,14 @@ export async function moveProgramDay(
     }
     await tx.update(programDays).set({ position: to }).where(eq(programDays.id, movedId))
     await bumpUpdatedAt(tx, programId)
+    await recordProgramEvent(tx, {
+      programId,
+      userId,
+      actor,
+      action: 'move_program_day',
+      summary: `Move Day ${from + 1} → Day ${to + 1}`,
+      payload: { from, to },
+    })
     return { moved: true }
   })
 }
@@ -377,6 +423,7 @@ export async function addProgramExercise(
     name: string
     progression?: Progression | null
   },
+  actor: ProgramEventActor,
 ): Promise<{ position: number } | null> {
   const source = exercise.source ?? 'wger'
   const progression = exercise.progression == null ? null : parseProgression(exercise.progression)
@@ -420,6 +467,16 @@ export async function addProgramExercise(
     const muscles = muscleRowsFor(pe.id, source, exercise.wgerExerciseId, catalog)
     if (muscles.length > 0) await tx.insert(programExerciseMuscles).values(muscles)
     await bumpUpdatedAt(tx, programId)
+    await recordProgramEvent(tx, {
+      programId,
+      userId,
+      actor,
+      action: 'add_program_exercise',
+      summary: `Add ${exercise.name} (Day ${dayPosition + 1})`,
+      payload: {
+        after: { wgerExerciseId: exercise.wgerExerciseId, source, name: exercise.name, position },
+      },
+    })
     return { position }
   })
 }
@@ -437,6 +494,7 @@ export async function updateProgramExercise(
   dayPosition: number,
   exercisePosition: number,
   patch: ProgramExercisePatch,
+  actor: ProgramEventActor,
 ): Promise<{ id: string } | null> {
   const values = definedFields(patch)
   if (Object.keys(values).length === 0) return null
@@ -465,6 +523,22 @@ export async function updateProgramExercise(
       )
     }
     await bumpUpdatedAt(tx, programId)
+    await recordProgramEvent(tx, {
+      programId,
+      userId,
+      actor,
+      action: 'update_program_exercise',
+      // A rename (the usual shape of a movement swap) reads as a replace;
+      // everything else names the touched fields.
+      summary:
+        values.name !== undefined && values.name !== found.name
+          ? `Replace ${found.name} → ${values.name} (Day ${dayPosition + 1})`
+          : `Update ${found.name} (${Object.keys(values).join(', ')}) (Day ${dayPosition + 1})`,
+      payload: {
+        before: { wgerExerciseId: found.wgerExerciseId, source: found.source, name: found.name },
+        after: values,
+      },
+    })
     return updated
   })
 }
@@ -479,6 +553,7 @@ export async function removeProgramExercise(
   programId: string,
   dayPosition: number,
   exercisePosition: number,
+  actor: ProgramEventActor,
 ): Promise<{ removed: true } | null> {
   return db.transaction(async (tx) => {
     const found = await findOwnedExercise(tx, userId, programId, dayPosition, exercisePosition)
@@ -494,6 +569,14 @@ export async function removeProgramExercise(
         ),
       )
     await bumpUpdatedAt(tx, programId)
+    await recordProgramEvent(tx, {
+      programId,
+      userId,
+      actor,
+      action: 'remove_program_exercise',
+      summary: `Remove ${found.name} (Day ${dayPosition + 1})`,
+      payload: { before: { name: found.name }, dayPosition, exercisePosition },
+    })
     return { removed: true }
   })
 }
@@ -509,6 +592,7 @@ export async function moveProgramExercise(
   dayPosition: number,
   from: number,
   to: number,
+  actor: ProgramEventActor,
 ): Promise<{ moved: true } | null> {
   return db.transaction(async (tx) => {
     const found = await findOwnedExercise(tx, userId, programId, dayPosition, from)
@@ -548,6 +632,14 @@ export async function moveProgramExercise(
       .set({ position: to })
       .where(eq(programExercises.id, found.exerciseId))
     await bumpUpdatedAt(tx, programId)
+    await recordProgramEvent(tx, {
+      programId,
+      userId,
+      actor,
+      action: 'move_program_exercise',
+      summary: `Move ${found.name} to position ${to + 1} (Day ${dayPosition + 1})`,
+      payload: { from, to },
+    })
     return { moved: true }
   })
 }
@@ -604,6 +696,7 @@ export async function addProgramSet(
   dayPosition: number,
   exercisePosition: number,
   patch: ProgramSetPatch,
+  actor: ProgramEventActor,
 ): Promise<{ setNumber: number } | null> {
   const values = definedFields(patch)
   if (values.technique != null) values.technique = parseTechnique(values.technique)
@@ -619,6 +712,14 @@ export async function addProgramSet(
     const setNumber = (lastNumber ?? 0) + 1
     await tx.insert(programSets).values({ programExerciseId: found.exerciseId, setNumber, ...row })
     await bumpUpdatedAt(tx, programId)
+    await recordProgramEvent(tx, {
+      programId,
+      userId,
+      actor,
+      action: 'add_program_set',
+      summary: `Add set ${setNumber} to ${found.name} (Day ${dayPosition + 1})`,
+      payload: { setNumber, after: values },
+    })
     return { setNumber }
   })
 }
@@ -638,6 +739,7 @@ export async function updateProgramSet(
   exercisePosition: number,
   setNumber: number,
   patch: ProgramSetPatch,
+  actor: ProgramEventActor,
 ): Promise<{ id: string } | null> {
   const values = definedFields(patch)
   if (Object.keys(values).length === 0) return null
@@ -682,6 +784,21 @@ export async function updateProgramSet(
       .returning({ id: programSets.id })
     if (!updated) return null
     await bumpUpdatedAt(tx, programId)
+    await recordProgramEvent(tx, {
+      programId,
+      userId,
+      actor,
+      action: 'update_program_set',
+      summary: `Update set ${setNumber} of ${found.name} (${Object.keys(values).join(', ')}) (Day ${dayPosition + 1})`,
+      payload: {
+        setNumber,
+        // Before = the stored values of exactly the touched fields.
+        before: Object.fromEntries(
+          Object.keys(values).map((key) => [key, current[key as keyof typeof current] ?? null]),
+        ),
+        after: values,
+      },
+    })
     return updated
   })
 }
@@ -699,6 +816,7 @@ export async function removeProgramSet(
   dayPosition: number,
   exercisePosition: number,
   setNumber: number,
+  actor: ProgramEventActor,
 ): Promise<{ removed: true } | null> {
   return db.transaction(async (tx) => {
     const found = await findOwnedExercise(tx, userId, programId, dayPosition, exercisePosition)
@@ -734,6 +852,14 @@ export async function removeProgramSet(
         ),
       )
     await bumpUpdatedAt(tx, programId)
+    await recordProgramEvent(tx, {
+      programId,
+      userId,
+      actor,
+      action: 'remove_program_set',
+      summary: `Remove set ${setNumber} of ${found.name} (Day ${dayPosition + 1})`,
+      payload: { setNumber },
+    })
     return { removed: true }
   })
 }
@@ -751,6 +877,7 @@ export async function moveProgramSet(
   exercisePosition: number,
   from: number,
   to: number,
+  actor: ProgramEventActor,
 ): Promise<{ moved: true } | null> {
   return db.transaction(async (tx) => {
     const found = await findOwnedExercise(tx, userId, programId, dayPosition, exercisePosition)
@@ -797,6 +924,14 @@ export async function moveProgramSet(
     }
     await tx.update(programSets).set({ setNumber: to }).where(eq(programSets.id, moved.id))
     await bumpUpdatedAt(tx, programId)
+    await recordProgramEvent(tx, {
+      programId,
+      userId,
+      actor,
+      action: 'move_program_set',
+      summary: `Move set ${from} → ${to} of ${found.name} (Day ${dayPosition + 1})`,
+      payload: { from, to },
+    })
     return { moved: true }
   })
 }
@@ -853,6 +988,7 @@ export async function setProgramSetOverride(
   setNumber: number,
   week: number,
   patch: ProgramSetOverridePatch,
+  actor: ProgramEventActor,
 ): Promise<{ week: number; cleared: boolean } | null> {
   const values = definedFields(patch)
   if (Object.keys(values).length === 0) return null
@@ -922,6 +1058,16 @@ export async function setProgramSetOverride(
       await tx.insert(programSetOverrides).values({ programSetId: current.id, week, ...merged })
     }
     await bumpUpdatedAt(tx, programId)
+    await recordProgramEvent(tx, {
+      programId,
+      userId,
+      actor,
+      action: 'set_program_set_override',
+      summary: cleared
+        ? `Clear week ${week} override on set ${setNumber} of ${found.name} (Day ${dayPosition + 1})`
+        : `Pin week ${week} targets on set ${setNumber} of ${found.name} (Day ${dayPosition + 1})`,
+      payload: { week, setNumber, after: values, cleared },
+    })
     return { week, cleared }
   })
 }
@@ -939,6 +1085,7 @@ export async function removeProgramSetOverride(
   exercisePosition: number,
   setNumber: number,
   week: number,
+  actor: ProgramEventActor,
 ): Promise<{ removed: true } | null> {
   return db.transaction(async (tx) => {
     const found = await findOwnedExercise(tx, userId, programId, dayPosition, exercisePosition)
@@ -960,6 +1107,14 @@ export async function removeProgramSetOverride(
       .returning({ id: programSetOverrides.id })
     if (!deleted) return null
     await bumpUpdatedAt(tx, programId)
+    await recordProgramEvent(tx, {
+      programId,
+      userId,
+      actor,
+      action: 'remove_program_set_override',
+      summary: `Remove week ${week} override on set ${setNumber} of ${found.name} (Day ${dayPosition + 1})`,
+      payload: { week, setNumber },
+    })
     return { removed: true }
   })
 }

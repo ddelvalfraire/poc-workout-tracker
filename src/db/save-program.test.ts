@@ -81,7 +81,7 @@ describe('saveProgram (transactional, user-scoped)', () => {
     })
 
     // Act
-    const result = await saveProgram(USER, input)
+    const result = await saveProgram(USER, input, 'ui')
 
     // Assert — recorded inserts in call order
     expect(records[0].values).toMatchObject({
@@ -129,7 +129,7 @@ describe('saveProgram (transactional, user-scoped)', () => {
     })
 
     // Act
-    await saveProgram(USER, input)
+    await saveProgram(USER, input, 'ui')
 
     // Assert — records: program(0), day(1), ex1(2), sets1(3), ex2(4), sets2(5)
     expect(records[2].values).toMatchObject({ position: 0, wgerExerciseId: 1 })
@@ -162,7 +162,7 @@ describe('saveProgram (transactional, user-scoped)', () => {
     })
 
     // Act
-    await saveProgram(USER, input)
+    await saveProgram(USER, input, 'ui')
 
     // Assert — progression on the exercise, typed target + technique on the set
     expect(records[2].values).toMatchObject({ progression: { scheme: 'linear', incrementKg: 2.5 } })
@@ -189,7 +189,7 @@ describe('saveProgram (transactional, user-scoped)', () => {
     })
 
     // Act
-    await saveProgram(USER, input)
+    await saveProgram(USER, input, 'ui')
 
     // Assert — identity + grouping land on the insert; absent source defaults to wger
     expect(records[2].values).toMatchObject({
@@ -220,7 +220,7 @@ describe('saveProgram (transactional, user-scoped)', () => {
     })
 
     // Act
-    const result = await updateProgram(USER, 'p1', input)
+    const result = await updateProgram(USER, 'p1', input, 'ui')
 
     // Assert — day insert first, then the exercise carrying both fields
     expect(result).toEqual({ id: 'p1' })
@@ -256,7 +256,7 @@ describe('saveProgram muscle tagging (Phase 5)', () => {
     ])
 
     // Act
-    await saveProgram(USER, INPUT)
+    await saveProgram(USER, INPUT, 'ui')
 
     // Assert — muscle rows recorded after the exercise's sets
     expect(records[4].values).toEqual([
@@ -270,10 +270,10 @@ describe('saveProgram muscle tagging (Phase 5)', () => {
     getAllExercises.mockResolvedValue([{ id: 999, name: 'Other', category: 'Legs' }])
 
     // Act
-    await saveProgram(USER, INPUT)
+    await saveProgram(USER, INPUT, 'ui')
 
-    // Assert — program, day, exercise, sets: no muscle insert
-    expect(records).toHaveLength(4)
+    // Assert — program, day, exercise, sets, change-log event: no muscle insert
+    expect(records).toHaveLength(5)
   })
 
   it('saves untagged (not failing) when the catalog fetch throws', async () => {
@@ -282,11 +282,11 @@ describe('saveProgram muscle tagging (Phase 5)', () => {
     listCustomExercises.mockRejectedValue(new Error('db down'))
 
     // Act
-    const result = await saveProgram(USER, INPUT)
+    const result = await saveProgram(USER, INPUT, 'ui')
 
     // Assert
     expect(result).toEqual({ id: 'p1' })
-    expect(records).toHaveLength(4)
+    expect(records).toHaveLength(5)
   })
 
   const CUSTOM_INPUT = parseProgramInput({
@@ -314,7 +314,7 @@ describe('saveProgram muscle tagging (Phase 5)', () => {
     ])
 
     // Act
-    await saveProgram(USER, CUSTOM_INPUT)
+    await saveProgram(USER, CUSTOM_INPUT, 'ui')
 
     // Assert — composite lookup resolves the custom, not the colliding wger row
     expect(records[4].values).toEqual([
@@ -331,7 +331,7 @@ describe('saveProgram muscle tagging (Phase 5)', () => {
     ])
 
     // Act
-    const result = await saveProgram(USER, CUSTOM_INPUT)
+    const result = await saveProgram(USER, CUSTOM_INPUT, 'ui')
 
     // Assert
     expect(result).toEqual({ id: 'p1' })

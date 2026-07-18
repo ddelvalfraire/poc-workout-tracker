@@ -371,6 +371,36 @@ export const programSetOverrides = pgTable(
   (t) => [unique('program_set_overrides_set_week_unique').on(t.programSetId, t.week)],
 )
 
+/**
+ * Append-only change log for the program tree — one row per mutating call at
+ * the db seam (program-patches.ts + programs.ts), written inside the same
+ * transaction as the change: a failed patch logs nothing, a logged event
+ * implies the change committed. Facts about plan changes (record, never
+ * rewrite) — no update path exists. `actor` is WHO edited ('ui' | 'mcp' |
+ * 'coach'); `action` is the patch/tool name; `summary` is one compact human
+ * line; `payload` is a minimal before/after of the touched fields, not a
+ * snapshot (restart-as-clone remains the coarse rollback). Cascade delete:
+ * a program's change history dies with the program.
+ */
+export const programEvents = pgTable(
+  'program_events',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    programId: uuid('program_id')
+      .notNull()
+      .references(() => programs.id, { onDelete: 'cascade' }),
+    userId: text('user_id').notNull(), // Clerk user id — ownership root, like `programs`
+    occurredAt: timestamp('occurred_at', { withTimezone: true }).defaultNow().notNull(),
+    actor: text('actor').$type<'ui' | 'mcp' | 'coach'>().notNull(),
+    action: text('action').notNull(),
+    summary: text('summary').notNull(),
+    payload: jsonb('payload'),
+  },
+  // The only read path (program timeline + list_program_changes) filters by
+  // program and orders newest-first — the composite serves the sort too.
+  (t) => [index('program_events_program_occurred_idx').on(t.programId, t.occurredAt.desc())],
+)
+
 export const programsRelations = relations(programs, ({ many }) => ({
   days: many(programDays),
 }))
