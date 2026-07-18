@@ -901,7 +901,7 @@ export function WorkoutLogger({
                 })
               }
               aria-expanded={false}
-              aria-label={`Expand ${exercise.name} — completed, ${completedSetsSummary(exercise.sets, exercise.loggingType)}${hasPR ? ', new PR' : ''}`}
+              aria-label={`Expand ${exercise.name} — completed, ${completedSetsSummary(exercise.sets, exercise.loggingType)}${hasPR ? ', new PR' : ''}${supersetLabel !== undefined ? `, superset ${supersetLabel}` : ''}`}
               className="flex w-full items-baseline justify-between gap-3 p-4 text-left"
             >
               <span className="flex min-w-0 items-baseline gap-2">

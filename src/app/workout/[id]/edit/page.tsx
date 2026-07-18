@@ -40,7 +40,13 @@ async function loadPlanTargets(
   const supersets: Record<string, number> = {}
   day.exercises.forEach((exercise, i) => {
     const key = `${exercise.source}:${exercise.wgerExerciseId}`
-    if (key in targets) return
+    if (key in targets) {
+      // A repeated exercise whose LATER slot carries a different grouping is
+      // ambiguous under identity keying — drop the pairing entirely rather
+      // than paint one slot's group onto both cards.
+      if ((supersets[key] ?? null) !== exercise.supersetGroup) delete supersets[key]
+      return
+    }
     if (exercise.supersetGroup !== null) supersets[key] = exercise.supersetGroup
     targets[key] = derived[i].map((s) => ({
       repMin: s.repMin,
