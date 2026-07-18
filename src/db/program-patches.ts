@@ -198,6 +198,42 @@ function definedFields<T extends object>(patch: T): Partial<T> {
 }
 
 // ---------------------------------------------------------------------------
+// Program ops
+// ---------------------------------------------------------------------------
+
+/**
+ * Flips the program-level auto-regulation switch (see programs.autoregulation:
+ * false skips the Layer 1 stall rules at derive time). A narrow patch op — not
+ * upsert_program — because the full-replace path wipes supersets/overrides, and
+ * flipping a boolean must never cost plan structure. Returns null when the
+ * program isn't owned. Reads, in order: owned-program.
+ */
+export async function setProgramAutoregulation(
+  userId: string,
+  programId: string,
+  enabled: boolean,
+  actor: ProgramEventActor,
+): Promise<{ id: string } | null> {
+  return db.transaction(async (tx) => {
+    const owned = await findOwnedProgramId(tx, userId, programId)
+    if (!owned) return null
+    await tx
+      .update(programs)
+      .set({ autoregulation: enabled, updatedAt: new Date() })
+      .where(eq(programs.id, programId))
+    await recordProgramEvent(tx, {
+      programId,
+      userId,
+      actor,
+      action: 'set_program_autoregulation',
+      summary: `Auto-regulation ${enabled ? 'on' : 'off'}`,
+      payload: { after: { autoregulation: enabled } },
+    })
+    return { id: programId }
+  })
+}
+
+// ---------------------------------------------------------------------------
 // Day ops
 // ---------------------------------------------------------------------------
 

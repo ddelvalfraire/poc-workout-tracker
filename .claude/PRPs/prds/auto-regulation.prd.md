@@ -9,7 +9,7 @@ The progression engine derives week-N prescriptions from static rules plus histo
 - Engine reality: `src/lib/progression.ts` derives loads from scheme + trainingMax/e1RM; no scheme consults prescribed-vs-actual reps or logged RPE. `rpe-target` uses best-recent e1RM, so a bad week *raises* nothing but also lowers nothing.
 - Market scan (2026-07-17 research): progression automation is a top-3 demand signal; Liftosaur owns scriptable progression but intimidates mainstream users; Fitbod/Alpha Progression adjust but can't explain why ("black box" is the recurring criticism). Transparent, inspectable adjustment has no owner.
 - AI-sentiment finding from the same research: adjustments grounded in *logged performance* earn trust; vibes-based AI coaching triggers skepticism. Layer 1 needs zero new user input.
-- The data already exists: prescribed targets (plan ghosts), actual reps, and per-set RPE are all logged today.
+- The data mostly exists: prescribed targets (plan ghosts) and actual reps are logged today. **Correction (2026-07-19): actual per-set RPE is NOT logged** — `rpe` lives only on program prescriptions (`program_sets`/`program_set_overrides`), never on logged `sets`. RPE-based rules are blocked on an optional per-set RPE input; v1 ships rep-based rules only.
 
 ## Proposed Solution
 
@@ -17,7 +17,7 @@ A pure `autoregulate` module layered between scheme derivation and overrides (be
 
 **Layer 1 — performance-reactive rules (this PRD's scope):**
 - *Missed reps* on linear/double schemes → repeat the load instead of incrementing; decrement after two consecutive stalls.
-- *RPE overshoot* (logged ≥1.5 over target across working sets) → hold the next increment; *undershoot* (≥1.5 under) → allow a double increment.
+- *RPE overshoot* (logged ≥1.5 over target across working sets) → hold the next increment; *undershoot* (≥1.5 under) → allow a double increment. **[Deferred: blocked on actual-RPE capture — see Evidence correction.]**
 - *Early-deload suggestion*: two consecutive sessions of overshoot/misses on an exercise surfaces "pull the deload forward?" — suggestion only, never automatic.
 - `rpe-target` derives from a rolling-window e1RM (last N sessions) instead of best-recent, so a bad week actually lowers next week's loads.
 
@@ -51,3 +51,15 @@ We believe performance-reactive, visibly-reasoned target adjustments will replac
 - [ ] Rolling-window size for `rpe-target` e1RM (3 sessions? time-boxed 21 days?) — decide during implementation against real history.
 - [ ] Where the "use plan as written" choice lives (per-exercise vs per-session) — prototype both in the logger.
 - [ ] Whether accepted proposals should stamp provenance on the workout (`derivedFrom` per set in the saved data) for later analysis — leaning yes if it stays additive.
+
+## v1.1 — adversarial revision (2026-07-19)
+
+Three adversarial reviews (math-executed, training-domain, data/integration) hardened the v1 rules:
+
+- **Snapshots are the facts.** "No new schema" is retracted: instantiation now stamps each set with `prescribed_load_kg`/`prescribed_rep_min` (plus its true `set_type`), and stall verdicts score actuals against those immutable snapshots — never a re-derivation of today's editable plan. Pre-snapshot history is unscorable, so the engine stays silent until post-migration sessions accrue (cold start by design). The snapshots survive every edit path, including the logger's full-replace save.
+- **Pairing by setNumber.** Prescribed and actual sets match on `setNumber`, not filtered position — a skipped AMRAP row or an extra ad-hoc set can no longer shift the scoring frame. Unpaired entries are ignored.
+- **Per-set caps.** Evidence names the heaviest missed set, and each next-week set is capped against its *own* prescribed-at-stall load: a top set that passed at 100 kg is never slashed because a 90 kg volume set failed. Backoff/AMRAP sets are frozen (and scaled on decrement) so volume work cannot ratchet past a frozen top set; the verdict itself stays working-sets-only.
+- **Three-stall escalation.** One or two consecutive stalls repeat the load; the decrement (~10%, increment-snapped, capped at 25% of the load) and the early-deload suggestion now require *three* consecutive stalls — StrongLifts' cited rule. History window is 3 sessions.
+- **Evidence hygiene.** Only completed, trained workouts testify (no live-session evidence on preview paths); sessions order by startedAt with id tiebreak; evidence expires after 45 days; one session per calendar day; any deload-week session resets stall memory (only sessions after it count).
+- **Linear only.** v1 scope narrows to the `linear` scheme. Double-progression already holds until repMax (a stall there is the scheme working); percent-1rm is *not* self-correcting (static trainingMax — future work); amrap-cycle bumps unconditionally (future work); rpe-target self-corrects via e1RM.
+- **Toggle integrity.** The program-level switch no longer materializes a default on parse: an upsert that omits it preserves the stored value; only creation defaults to ON.

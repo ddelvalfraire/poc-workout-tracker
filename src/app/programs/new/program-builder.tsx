@@ -189,6 +189,25 @@ export function ProgramBuilder({
           A deload week eases the load partway through so you recover before the next block.
         </p>
 
+        {/* Program-level auto-regulation switch. A native checkbox — one
+            boolean doesn't justify custom chrome, and the adjusted targets
+            always arrive as proposals with a per-exercise escape. */}
+        <label className="flex items-start gap-2.5 px-1">
+          <input
+            type="checkbox"
+            checked={draft.autoregulation}
+            onChange={(e) => dispatch({ type: 'SET_AUTOREGULATION', value: e.target.checked })}
+            className="mt-0.5 size-4 shrink-0 accent-primary"
+          />
+          <span className="text-sm">
+            Auto-regulate loads
+            <span className="mt-0.5 block text-muted-foreground">
+              After missed reps, sessions propose repeating the load (or backing off ~10% after two
+              stalls) with the reason shown — you can always use the plan as written.
+            </span>
+          </span>
+        </label>
+
         {draft.days.length === 0 && (
           <p className="px-1 py-6 text-center text-sm text-muted-foreground">
             Add a training day to start building your program.

@@ -73,6 +73,23 @@ describe('parseProgramInput', () => {
     expect(() => parseProgramInput(withExercise({ supersetGroup: -1 }))).toThrow()
   })
 
+  it('round-trips an explicit autoregulation opt-out', () => {
+    // Act
+    const result = parseProgramInput({ ...VALID, autoregulation: false })
+
+    // Assert
+    expect(result.autoregulation).toBe(false)
+  })
+
+  it('keeps an omitted autoregulation genuinely absent (no materialized default)', () => {
+    // A parse-time .default(true) would ride the full-replace update path and
+    // silently flip a stored OFF back ON — the omission must survive parsing
+    // so updateProgram can preserve the stored value.
+    const result = parseProgramInput(VALID)
+    expect(result.autoregulation).toBeUndefined()
+    expect('autoregulation' in result).toBe(false)
+  })
+
   it('keeps provided status and mesocycleWeeks', () => {
     // Act
     const result = parseProgramInput({ ...VALID, status: 'active', mesocycleWeeks: 6 })

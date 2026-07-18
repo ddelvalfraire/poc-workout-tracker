@@ -195,6 +195,41 @@ describe('instantiateProgramDay (engine-driven)', () => {
     expect(result).toEqual({ id: 'w1', week: 3, weekDerived: false })
   })
 
+  it('seeds setType and the prescribed_* snapshot on every set (immutable autoreg facts)', async () => {
+    // Arrange — a warmup + working pair; linear +2.5/week at week 2 → 102.5
+    findFirst.mockResolvedValue(
+      dayFixture({
+        progression: { scheme: 'linear', incrementKg: 2.5 },
+        sets: [
+          { setNumber: 1, setType: 'warmup', repMin: 5, suggestedLoadKg: 60 },
+          { setNumber: 2, repMin: 8, suggestedLoadKg: 100 },
+        ],
+      }),
+    )
+
+    // Act
+    await instantiateProgramDay(USER, 'd1', 2)
+
+    // Assert — the prescription's role and derived facts travel with the row
+    // (the DB default 'working' must never erase a warmup/backoff/amrap, and
+    // the snapshot is what the stall rules later score actuals against).
+    expect(seededSets()).toEqual([
+      expect.objectContaining({
+        setNumber: 1,
+        setType: 'warmup',
+        prescribedLoadKg: 60, // warmups pass through unprogressed
+        prescribedRepMin: 5,
+      }),
+      expect.objectContaining({
+        setNumber: 2,
+        setType: 'working',
+        weight: 102.5,
+        prescribedLoadKg: 102.5,
+        prescribedRepMin: 8,
+      }),
+    ])
+  })
+
   it('stamps the workout exercise with the slot source (custom keeps custom history)', async () => {
     // Arrange — a custom slot
     findFirst.mockResolvedValue(

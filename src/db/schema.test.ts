@@ -26,6 +26,12 @@ describe('schema', () => {
     expect(getTableColumns(sets).completed.notNull).toBe(true)
   })
 
+  it('makes the autoregulation switch additive on programs (non-null, default true)', () => {
+    const cols = getTableColumns(programs)
+    expect(cols.autoregulation.notNull).toBe(true)
+    expect(cols.autoregulation.hasDefault).toBe(true)
+  })
+
   it('defines the four program tables with snake_case names', () => {
     expect(getTableName(programs)).toBe('programs')
     expect(getTableName(programDays)).toBe('program_days')
@@ -45,6 +51,15 @@ describe('schema', () => {
     const setType = getTableColumns(sets).setType
     expect(setType.notNull).toBe(true)
     expect(setType.hasDefault).toBe(true)
+  })
+
+  it('makes the prescribed-at-instantiation snapshot additive on live sets (nullable, no default)', () => {
+    const cols = getTableColumns(sets)
+    expect(cols.prescribedLoadKg.notNull).toBe(false)
+    expect(cols.prescribedRepMin.notNull).toBe(false)
+    // No default: pre-snapshot rows stay null forever (unscorable by design).
+    expect(cols.prescribedLoadKg.hasDefault).toBe(false)
+    expect(cols.prescribedRepMin.hasDefault).toBe(false)
   })
 
   it('makes workout provenance columns nullable', () => {

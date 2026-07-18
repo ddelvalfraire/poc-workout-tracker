@@ -15,6 +15,7 @@ import {
 } from '@/lib/program-input'
 import { MAX_WEIGHT as MAX_WEIGHT_KG } from '@/lib/workout-input'
 import { displayToKg, kgToDisplay, type WeightUnit } from '@/lib/units'
+import { autoregReason } from '@/lib/autoregulate'
 import {
   saveProgram,
   updateProgram,
@@ -78,6 +79,8 @@ const rawProgramSchema = z.object({
   status: statusSchema.optional(),
   mesocycleWeeks: z.number().int().optional(),
   deloadWeek: z.number().int().nullable().optional(),
+  // Program-level auto-regulation switch; omitted → the schema default (on).
+  autoregulation: z.boolean().optional(),
   notes: z.string().nullable().optional(),
   days: z.array(toolDaySchema),
 })
@@ -115,6 +118,7 @@ function toKgProgram(raw: RawProgram, unit: WeightUnit): unknown {
     status: raw.status,
     mesocycleWeeks: raw.mesocycleWeeks,
     deloadWeek: raw.deloadWeek,
+    autoregulation: raw.autoregulation,
     notes: raw.notes,
     days: raw.days.map((d) => ({
       name: d.name,
@@ -183,6 +187,7 @@ export interface ProgramPayload {
     status: string
     mesocycleWeeks: number
     deloadWeek: number | null
+    autoregulation: boolean
     notes: string | null
     createdAt: string
     updatedAt: string
@@ -338,6 +343,7 @@ export function buildProgramPayload(
       status: program.status,
       mesocycleWeeks: program.mesocycleWeeks,
       deloadWeek: program.deloadWeek,
+      autoregulation: program.autoregulation,
       notes: program.notes,
       createdAt: program.createdAt.toISOString(),
       updatedAt: program.updatedAt.toISOString(),
@@ -386,7 +392,10 @@ export function registerProgramTools(server: McpServer): void {
         userId: z.string().optional(),
       },
     },
-    async ({ id, name, status, mesocycleWeeks, deloadWeek, notes, days, unit, userId }, extra) => {
+    async (
+      { id, name, status, mesocycleWeeks, deloadWeek, autoregulation, notes, days, unit, userId },
+      extra,
+    ) => {
       try {
         const resolved = resolveUserId(extra, userId)
         // Guard the id shape before any DB call or body validation (mirrors
@@ -395,7 +404,7 @@ export function registerProgramTools(server: McpServer): void {
         if (id !== undefined) assertProgramIdShape(id)
         const basis = unit ?? (await getWeightUnit(resolved))
         const parsed = validateProgram(
-          { name, status, mesocycleWeeks, deloadWeek, notes, days },
+          { name, status, mesocycleWeeks, deloadWeek, autoregulation, notes, days },
           basis,
         )
         if (id !== undefined) {
@@ -578,7 +587,7 @@ export function registerProgramTools(server: McpServer): void {
     {
       title: 'Preview Program Week',
       description:
-        "Dry-run: the exact targets instantiate_program_day would seed for every day of a program at week N — engine-derived (progression scheme, deload, per-week overrides; each set's `derivedFrom` says which won: override > deload > scheme > template) — plus working-set volume per primary muscle. Nothing is written. Omit `week` to preview the auto-detected current week. Loads in the user's unit (or the `unit` arg).",
+        "Dry-run: the exact targets instantiate_program_day would seed for every day of a program at week N — engine-derived (progression scheme, deload, per-week overrides; each set's `derivedFrom` says which won: override > deload > autoreg > scheme > template) — plus working-set volume per primary muscle. Auto-regulated exercises carry `autoreg: { reason, suggestEarlyDeload }` explaining the adjustment. Nothing is written. Omit `week` to preview the auto-detected current week. Loads in the user's unit (or the `unit` arg).",
       inputSchema: {
         programId: z.string(),
         week: z.number().int().positive().optional(),
@@ -612,7 +621,8 @@ export function registerProgramTools(server: McpServer): void {
             position: day.position,
             name: day.name,
             exercises: day.exercises.map((exercise, index) => {
-              const derived = prescription[index]
+              const derived = prescription[index].sets
+              const adjustment = prescription[index].autoreg
               const muscles = buildMuscleView(exercise.muscles)
               const workingSets = derived.filter((s) => s.setType === 'working').length
               for (const muscle of muscles.primary) {
@@ -624,6 +634,14 @@ export function registerProgramTools(server: McpServer): void {
                 name: exercise.name,
                 supersetGroup: exercise.supersetGroup,
                 muscles,
+                // Layer 1 verdict, reason formatted in the display unit — the
+                // transparency contract: no adjustment without a reason.
+                autoreg: adjustment
+                  ? {
+                      reason: autoregReason(adjustment, displayUnit),
+                      suggestEarlyDeload: adjustment.suggestEarlyDeload,
+                    }
+                  : null,
                 sets: derived.map((s) => ({
                   setNumber: s.setNumber,
                   setType: s.setType,

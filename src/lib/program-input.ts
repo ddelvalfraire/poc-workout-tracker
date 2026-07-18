@@ -257,6 +257,12 @@ export const programInputSchema = z
     status: statusSchema.default('draft'),
     mesocycleWeeks: z.number().int().min(1).max(52).default(1),
     deloadWeek: z.number().int().min(1).nullable().optional(),
+    // Auto-regulation switch (programs.autoregulation). Genuinely OPTIONAL —
+    // no .default(true): a materialized default would ride the full-replace
+    // update path and silently flip a user's stored OFF back ON whenever an
+    // upsert omits the field. saveProgram defaults omitted-on-create to ON;
+    // updateProgram preserves the stored value when omitted.
+    autoregulation: z.boolean().optional(),
     notes: z.string().max(2000).nullable().optional(),
     days: z.array(programDaySchema).min(1),
   })

@@ -80,10 +80,17 @@ export const sets = pgTable(
     // numeric (not float) so fractional plate weights (e.g. 2.5 kg) stay exact
     weight: numeric('weight', { precision: 6, scale: 2, mode: 'number' }), // kg
     completed: boolean('completed').notNull().default(false),
-    // Warm-up tag (Hevy-style). Additive + defaulted so every existing row
-    // stays a working set. Text + app-level enum, like program_sets.set_type —
-    // but only the logged subset: backoff/amrap are prescriptions, not facts.
-    setType: text('set_type').$type<'working' | 'warmup'>().notNull().default('working'),
+    // Set-role tag. Additive + defaulted so every existing row stays a working
+    // set. Full program_sets.set_type range: instantiation forwards the
+    // prescription's type so backoff/amrap rows never masquerade as working
+    // sets to the auto-regulation stall rules.
+    setType: text('set_type').$type<SetType>().notNull().default('working'),
+    // Prescribed-at-instantiation snapshot (immutable facts — no edit path may
+    // update them): the derived load and rep floor this set was seeded with.
+    // Null on ad-hoc sets and all pre-snapshot history; such sets are
+    // unscorable by the auto-regulation engine, by design.
+    prescribedLoadKg: numeric('prescribed_load_kg', { precision: 6, scale: 2, mode: 'number' }),
+    prescribedRepMin: integer('prescribed_rep_min'),
     // Metric model (timed exercises). Additive + defaulted so existing rows and
     // the reps_weight logging path are unaffected; e1RM applies only to reps_weight.
     metricMode: text('metric_mode').notNull().default('reps_weight'),
@@ -229,6 +236,10 @@ export const programs = pgTable(
     status: text('status').notNull().default('draft'), // 'draft' | 'active' | 'archived'
     mesocycleWeeks: integer('mesocycle_weeks').notNull().default(1),
     deloadWeek: integer('deload_week'), // 1-based week that deloads; null = none
+    // Auto-regulation switch, default ON: propose-don't-impose delivery plus
+    // the per-exercise "use plan as written" escape soften the default; false
+    // skips the stall rules (and their history reads) entirely at derive time.
+    autoregulation: boolean('autoregulation').notNull().default(true),
     notes: text('notes'),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),

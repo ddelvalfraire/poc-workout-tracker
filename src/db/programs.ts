@@ -11,6 +11,13 @@ import {
   type SetOverrideLike,
 } from '@/lib/progression'
 import { bestSet } from '@/lib/one-rep-max'
+import {
+  autoregulate,
+  applyAutoregToSets,
+  type AutoregAdjustment,
+  type AutoregSession,
+} from '@/lib/autoregulate'
+import { getRecentTrainedSessions } from './autoreg-history'
 import { pickNextProgramDay } from '@/lib/next-program-day'
 import { nextBlockName } from '@/lib/block-name'
 import { db } from './index'
@@ -225,6 +232,9 @@ export async function saveProgram(
         status: input.status,
         mesocycleWeeks: input.mesocycleWeeks,
         deloadWeek: input.deloadWeek ?? null,
+        // Omitted on create = ON: propose-don't-impose delivery is the
+        // softener, not an opt-in gate.
+        autoregulation: input.autoregulation ?? true,
         notes: input.notes ?? null,
       })
       .returning({ id: programs.id })
@@ -266,6 +276,9 @@ export async function updateProgram(
         status: input.status,
         mesocycleWeeks: input.mesocycleWeeks,
         deloadWeek: input.deloadWeek ?? null,
+        // Omitted on update = PRESERVE the stored switch: an upsert that
+        // doesn't mention the field must never flip a user's OFF back ON.
+        ...(input.autoregulation !== undefined ? { autoregulation: input.autoregulation } : {}),
         notes: input.notes ?? null,
         updatedAt: new Date(),
       })
@@ -367,6 +380,7 @@ export async function cloneProgram(
         status: 'draft',
         mesocycleWeeks: source.mesocycleWeeks,
         deloadWeek: source.deloadWeek,
+        autoregulation: source.autoregulation,
         notes: source.notes,
       })
       .returning({ id: programs.id })
@@ -476,7 +490,7 @@ export async function getProgramDayDetail(userId: string, programDayId: string) 
     where: eq(programDays.id, programDayId),
     with: {
       program: {
-        columns: { id: true, userId: true, mesocycleWeeks: true, deloadWeek: true },
+        columns: { id: true, userId: true, mesocycleWeeks: true, deloadWeek: true, autoregulation: true },
       },
       exercises: {
         orderBy: (e) => [asc(e.position)],
@@ -742,14 +756,37 @@ export interface DayForDerivation {
     progression: Progression | null
     sets: (ProgramSetRowLike & { overrides: (SetOverrideLike & { week: number })[] })[]
   }[]
-  program: { mesocycleWeeks: number; deloadWeek: number | null }
+  program: {
+    id: string
+    mesocycleWeeks: number
+    deloadWeek: number | null
+    /** Program-level switch: false skips the stall rules (and their history
+     *  reads) entirely — schemes derive exactly as before autoreg existed. */
+    autoregulation: boolean
+  }
+}
+
+/** One exercise's week-N prescription plus its Layer 1 verdict (null = no
+ *  adjustment). The adjustment is structured — surfaces format the reason
+ *  line themselves via `autoregReason` in the user's display unit. */
+export interface ExercisePrescription {
+  sets: DerivedSet[]
+  autoreg: AutoregAdjustment | null
+}
+
+/** The progression scheme the Layer 1 rep-based rules act on: `linear` only
+ *  — the one that blindly adds weight every week (see lib/autoregulate.ts's
+ *  scope note for why double-progression and the rest are out for v1). */
+function autoregIncrementKg(progression: Progression | null): number | null {
+  return progression?.scheme === 'linear' ? progression.incrementKg : null
 }
 
 export async function deriveDayPrescription(
   userId: string,
   day: DayForDerivation,
   week: number,
-): Promise<DerivedSet[][]> {
+  options?: { excludeWorkoutId?: string },
+): Promise<ExercisePrescription[]> {
   // The history query stays id-based (see getExerciseHistoryBefore); rows are
   // matched back onto the composite (source, id) below.
   const ids = [...new Set(day.exercises.map((e) => e.wgerExerciseId))]
@@ -778,13 +815,70 @@ export async function deriveDayPrescription(
     }
   }
 
-  return day.exercises.map((exercise) => {
+  // The deload check mirrors deriveWeekSets' internal clamp so an out-of-range
+  // caller week lands on the same verdict the derivation itself will use.
+  const clampedWeek = Math.min(Math.max(1, week), Math.max(1, day.program.mesocycleWeeks))
+  const isDeloadWeek = day.program.deloadWeek !== null && clampedWeek === day.program.deloadWeek
+
+  const results: ExercisePrescription[] = []
+  // Autoreg verdict cache: a day that repeats an exercise derives ONCE per
+  // composite key (first slot) and reuses it — no re-query, and slot-1
+  // actuals are never scored against a later slot's templates.
+  const adjustmentByKey = new Map<string, AutoregAdjustment | null>()
+  for (const exercise of day.exercises) {
     const key = catalogKey(exercise.source, exercise.wgerExerciseId)
     const history: ExerciseHistoryInput = {
       e1rmKg: e1rmByKey.get(key) ?? null,
       lastSets: lastSetsByKey.get(key) ?? null,
     }
-    const derived = deriveWeekSets({
+
+    // Layer 1 auto-regulation (program-gated, linear scheme only, never on
+    // the deload week — its whole point is the planned back-off).
+    const incrementKg = day.program.autoregulation ? autoregIncrementKg(exercise.progression) : null
+    let adjustment: AutoregAdjustment | null = null
+    if (incrementKg !== null && !isDeloadWeek) {
+      if (adjustmentByKey.has(key)) {
+        adjustment = adjustmentByKey.get(key) ?? null
+      } else {
+        const trained = await getRecentTrainedSessions(
+          userId,
+          day.program.id,
+          exercise.source,
+          exercise.wgerExerciseId,
+          {
+            excludeWorkoutId: options?.excludeWorkoutId,
+            deloadWeek: day.program.deloadWeek,
+          },
+        )
+        // Prescribed targets come from the per-set snapshots stamped at
+        // instantiation (prescribed_load_kg/prescribed_rep_min) — immutable
+        // facts, never a re-derivation of today's (editable) plan. Rows
+        // without snapshots (all pre-snapshot history, ad-hoc adds) carry
+        // nulls and are unscorable: the engine stays silent until enough
+        // post-snapshot sessions accrue — the cold start is by design.
+        const sessions: AutoregSession[] = trained.map((s) => ({
+          prescribed: s.sets.map((r) => ({
+            setNumber: r.setNumber,
+            repMin: r.prescribedRepMin,
+            loadKg: r.prescribedLoadKg,
+            setType: r.setType,
+          })),
+          actual: s.sets.map((r) => ({
+            setNumber: r.setNumber,
+            reps: r.reps,
+            weightKg: r.weightKg,
+            completed: r.completed,
+            setType: r.setType,
+          })),
+        }))
+        adjustment = autoregulate(incrementKg, sessions)
+        adjustmentByKey.set(key, adjustment)
+      }
+    }
+
+    // Precedence: scheme → autoreg (BEFORE overrides) → override on top, so
+    // an explicit per-week override always outranks the adjustment.
+    const scheme = deriveWeekSets({
       sets: exercise.sets,
       progression: exercise.progression,
       week,
@@ -792,14 +886,18 @@ export async function deriveDayPrescription(
       deloadWeek: day.program.deloadWeek,
       history,
     })
-    // Overrides key on the TEMPLATE set (sourceIndex survives resizing/renumbering).
-    return derived.map((s) =>
-      applyOverride(
-        s,
-        exercise.sets[s.sourceIndex]?.overrides.find((o) => o.week === week),
+    const adjusted = adjustment ? applyAutoregToSets(scheme, adjustment) : scheme
+    results.push({
+      sets: adjusted.map((s) =>
+        applyOverride(
+          s,
+          exercise.sets[s.sourceIndex]?.overrides.find((o) => o.week === week),
+        ),
       ),
-    )
-  })
+      autoreg: adjustment,
+    })
+  }
+  return results
 }
 
 /**
@@ -887,7 +985,7 @@ export async function instantiateProgramDay(
         })
         .returning({ id: workoutExercises.id })
 
-      const derived = prescription[position]
+      const derived = prescription[position].sets
       if (derived.length > 0) {
         await tx.insert(sets).values(
           derived.map((s) => ({
@@ -897,6 +995,15 @@ export async function instantiateProgramDay(
             // Derived load is a mutable starting suggestion; only reps_weight
             // sets carry a load. The achievement fields stay blank until logged.
             weight: s.metricMode === 'reps_weight' ? s.loadKg : null,
+            // The prescription's set role travels with the row — a backoff or
+            // amrap set must never masquerade as 'working' (the DB default)
+            // to the auto-regulation stall rules.
+            setType: s.setType,
+            // Prescribed-at-instantiation snapshot: the immutable facts the
+            // autoreg engine later scores actuals against. No edit path may
+            // ever update these two columns.
+            prescribedLoadKg: s.metricMode === 'reps_weight' ? s.loadKg : null,
+            prescribedRepMin: s.repMin,
             metricMode: s.metricMode,
             durationSec: null,
             distanceM: null,

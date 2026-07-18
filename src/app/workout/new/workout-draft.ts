@@ -362,7 +362,10 @@ export function detailToDraft(
       reps: set.reps?.toString() ?? '',
       weight: set.weight === null ? '' : kgToDisplay(set.weight, unit).toString(),
       completed: options.resetCompleted ? false : set.completed,
-      tag: set.setType,
+      // The draft UI only speaks working/warmup; backoff/amrap render as
+      // working here and their true type survives the save via
+      // updateWorkout's prior-facts preservation (never through the wire).
+      tag: set.setType === 'warmup' ? ('warmup' as const) : ('working' as const),
     })),
   }))
   return { draft: { exercises }, name: workout.name ?? '' }

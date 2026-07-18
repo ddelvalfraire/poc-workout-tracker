@@ -565,8 +565,8 @@ describe('detailToDraft', () => {
           position: 0,
           loggingType: 'weight_reps',
           sets: [
-            { id: 's1', workoutExerciseId: 'ex1', setNumber: 1, reps: 5, weight: 2.5, completed: false, setType: 'working', metricMode: 'reps_weight', durationSec: null, distanceM: null },
-            { id: 's2', workoutExerciseId: 'ex1', setNumber: 2, reps: null, weight: null, completed: false, setType: 'working', metricMode: 'reps_weight', durationSec: null, distanceM: null },
+            { id: 's1', workoutExerciseId: 'ex1', setNumber: 1, reps: 5, weight: 2.5, completed: false, setType: 'working', metricMode: 'reps_weight', durationSec: null, distanceM: null, prescribedLoadKg: null, prescribedRepMin: null },
+            { id: 's2', workoutExerciseId: 'ex1', setNumber: 2, reps: null, weight: null, completed: false, setType: 'working', metricMode: 'reps_weight', durationSec: null, distanceM: null, prescribedLoadKg: null, prescribedRepMin: null },
           ],
         },
       ],
@@ -613,8 +613,8 @@ describe('detailToDraft', () => {
           position: 0,
           loggingType: 'weight_reps',
           sets: [
-            { id: 's1', workoutExerciseId: 'ex1', setNumber: 1, reps: 5, weight: 60, completed: true, setType: 'warmup', metricMode: 'reps_weight', durationSec: null, distanceM: null },
-            { id: 's2', workoutExerciseId: 'ex1', setNumber: 2, reps: 5, weight: 100, completed: true, setType: 'working', metricMode: 'reps_weight', durationSec: null, distanceM: null },
+            { id: 's1', workoutExerciseId: 'ex1', setNumber: 1, reps: 5, weight: 60, completed: true, setType: 'warmup', metricMode: 'reps_weight', durationSec: null, distanceM: null, prescribedLoadKg: null, prescribedRepMin: null },
+            { id: 's2', workoutExerciseId: 'ex1', setNumber: 2, reps: 5, weight: 100, completed: true, setType: 'working', metricMode: 'reps_weight', durationSec: null, distanceM: null, prescribedLoadKg: null, prescribedRepMin: null },
           ],
         },
       ],
@@ -651,7 +651,7 @@ describe('detailToDraft', () => {
           position: 0,
           loggingType: 'weight_reps',
           sets: [
-            { id: 's1', workoutExerciseId: 'ex1', setNumber: 1, reps: 5, weight: 100, completed: true, setType: 'working', metricMode: 'reps_weight', durationSec: null, distanceM: null },
+            { id: 's1', workoutExerciseId: 'ex1', setNumber: 1, reps: 5, weight: 100, completed: true, setType: 'working', metricMode: 'reps_weight', durationSec: null, distanceM: null, prescribedLoadKg: null, prescribedRepMin: null },
           ],
         },
       ],
@@ -685,7 +685,7 @@ describe('detailToDraft', () => {
           position: 0,
           loggingType: 'weight_reps',
           sets: [
-            { id: 's1', workoutExerciseId: 'ex1', setNumber: 1, reps: 5, weight: 100, completed: false, setType: 'working', metricMode: 'reps_weight', durationSec: null, distanceM: null },
+            { id: 's1', workoutExerciseId: 'ex1', setNumber: 1, reps: 5, weight: 100, completed: false, setType: 'working', metricMode: 'reps_weight', durationSec: null, distanceM: null, prescribedLoadKg: null, prescribedRepMin: null },
           ],
         },
       ],

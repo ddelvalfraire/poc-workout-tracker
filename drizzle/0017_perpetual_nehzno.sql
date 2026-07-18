@@ -1,0 +1,1 @@
+ALTER TABLE "programs" ADD COLUMN "autoregulation" boolean DEFAULT true NOT NULL;

@@ -11,6 +11,7 @@ import { parseProgramInput } from '@/lib/program-input'
  * Returned ids by call order: program → p1, day → d1, exercise → e1, e2, ...
  */
 const records: { values: unknown }[] = []
+const updateSets: unknown[] = []
 let idCounter = 0
 const ID_SEQUENCE = ['p1', 'd1', 'e1', 'e2', 'd2', 'e3']
 
@@ -24,9 +25,14 @@ function makeTx() {
         }
       },
     }),
-    // updateProgram's ownership-gated metadata update + child wipe.
+    // updateProgram's ownership-gated metadata update + child wipe. The set
+    // payload is captured so omission semantics (a field NOT in the update)
+    // are assertable.
     update: () => ({
-      set: () => ({ where: () => ({ returning: () => Promise.resolve([{ id: 'p1' }]) }) }),
+      set: (v: unknown) => {
+        updateSets.push(v)
+        return { where: () => ({ returning: () => Promise.resolve([{ id: 'p1' }]) }) }
+      },
     }),
     delete: () => ({ where: () => Promise.resolve(undefined) }),
   }
@@ -53,6 +59,7 @@ const USER = 'user_123'
 
 beforeEach(() => {
   records.length = 0
+  updateSets.length = 0
   idCounter = 0
   getAllExercises.mockResolvedValue([])
   listCustomExercises.mockResolvedValue([])
@@ -232,6 +239,42 @@ describe('saveProgram (transactional, user-scoped)', () => {
       source: 'custom',
       supersetGroup: 1,
     })
+  })
+})
+
+describe('autoregulation toggle integrity', () => {
+  const MINIMAL = {
+    name: 'P',
+    days: [{ name: 'D', exercises: [{ wgerExerciseId: 1, name: 'X', sets: [{}] }] }],
+  }
+
+  it('saveProgram defaults an omitted toggle to ON at create', async () => {
+    // Act
+    await saveProgram(USER, parseProgramInput(MINIMAL), 'ui')
+
+    // Assert
+    expect(records[0].values).toMatchObject({ autoregulation: true })
+  })
+
+  it('updateProgram PRESERVES the stored toggle when the input omits it (omit ≠ ON)', async () => {
+    // Arrange — an MCP upsert that never mentions autoregulation: a user's
+    // stored OFF must survive the round trip.
+    const input = parseProgramInput(MINIMAL)
+
+    // Act
+    await updateProgram(USER, 'p1', input, 'mcp')
+
+    // Assert — the update payload does not touch the column at all
+    expect(updateSets).toHaveLength(1)
+    expect('autoregulation' in (updateSets[0] as Record<string, unknown>)).toBe(false)
+  })
+
+  it('updateProgram writes an explicit toggle through', async () => {
+    // Act
+    await updateProgram(USER, 'p1', parseProgramInput({ ...MINIMAL, autoregulation: false }), 'ui')
+
+    // Assert
+    expect(updateSets[0]).toMatchObject({ autoregulation: false })
   })
 })
 

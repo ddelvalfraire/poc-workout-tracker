@@ -8,6 +8,7 @@ import {
   ProgramPatchError,
   setProgramSetOverride,
   removeProgramSetOverride,
+  setProgramAutoregulation,
   addProgramDay,
   updateProgramDay,
   removeProgramDay,
@@ -174,6 +175,40 @@ function isEmptyPatch(values: Record<string, unknown>): boolean {
  * re-thrown with its message verbatim.
  */
 export function registerProgramPatchTools(server: McpServer): void {
+  // -------------------------------------------------------------------------
+  // Program tools
+  // -------------------------------------------------------------------------
+
+  server.registerTool(
+    'set_program_autoregulation',
+    {
+      title: 'Set Program Auto-Regulation',
+      description:
+        "Turns a program's auto-regulation on or off without touching its days/exercises/sets. When on (the default), week previews and instantiated sessions propose stall-reactive load adjustments (repeat after one stalled session, ~10% back-off after two) with a visible reason; explicit per-week overrides always win. Errors if the program isn't found or owned.",
+      inputSchema: {
+        programId: z.string(),
+        enabled: z.boolean(),
+        userId: z.string().optional(),
+      },
+    },
+    async ({ programId, enabled, userId }, extra) => {
+      try {
+        const resolved = resolveUserId(extra, userId)
+        assertProgramIdShape(programId)
+        const result = await setProgramAutoregulation(
+          resolved,
+          programId,
+          enabled,
+          resolveActor(extra),
+        )
+        if (!result) throw new ToolError(`Program ${programId} not found for user ${resolved}`)
+        return jsonResult({ userId: resolved, programId, autoregulation: enabled })
+      } catch (error: unknown) {
+        return errorResult(error)
+      }
+    },
+  )
+
   // -------------------------------------------------------------------------
   // Day tools
   // -------------------------------------------------------------------------
