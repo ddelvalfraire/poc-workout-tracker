@@ -311,6 +311,10 @@ function isDraftProgramSet(v: unknown): v is DraftProgramSet {
   )
 }
 
+// `source`/`supersetGroup` are DELIBERATELY not checked here: pre-4b snapshots
+// lack them, and the restore backfill defaults 'wger'/null. Adding the check
+// would discard every legacy draft; malformed present values are the server
+// Zod schema's problem (lenient-mapper policy).
 function isDraftProgramExercise(v: unknown): v is DraftProgramExercise {
   if (typeof v !== 'object' || v === null) return false
   const e = v as Record<string, unknown>
