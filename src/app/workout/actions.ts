@@ -205,13 +205,17 @@ export async function substitutePlanTargetsAction(
       program: day.program,
     },
     workout.programWeek,
+    { excludeWorkoutId: workout.id },
   )
   // Field-for-field the same mapping as the edit page's loadPlanTargets —
   // the substitute's ghosts must speak the same dialect as everyone else's.
-  return derived.map((s) => ({
+  return derived.sets.map((s) => ({
     repMin: s.repMin,
     repMax: s.repMax,
     loadKg: s.loadKg,
+    ...(s.derivedFrom === 'autoreg' && s.schemeLoadKg !== undefined
+      ? { planLoadKg: s.schemeLoadKg }
+      : {}),
     restSec: s.restSec,
   }))
 }

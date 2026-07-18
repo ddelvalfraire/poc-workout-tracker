@@ -2,9 +2,11 @@ import { describe, it, expect } from 'vitest'
 import {
   autoregulate,
   autoregReason,
+  applyAutoregToSets,
   sessionStall,
   type AutoregSession,
 } from './autoregulate'
+import type { DerivedSet } from './progression'
 
 /** 3 working sets prescribed at 100 kg × 8-rep floor. */
 const prescribed = () => [
@@ -119,5 +121,87 @@ describe('autoregReason', () => {
     expect(autoregReason(adjustment, 'kg')).toBe(
       'Second straight stall at 100 kg — backing off 10 kg (~10%)',
     )
+  })
+})
+
+describe('applyAutoregToSets', () => {
+  /** A scheme-derived working set at the given load. */
+  const derivedSet = (overrides: Partial<DerivedSet> = {}): DerivedSet => ({
+    setNumber: 1,
+    setType: 'working',
+    metricMode: 'reps_weight',
+    repMin: 8,
+    repMax: 12,
+    rir: null,
+    rpe: null,
+    loadKg: 102.5,
+    tempo: null,
+    durationSec: null,
+    distanceM: null,
+    restSec: null,
+    technique: null,
+    derivedFrom: 'scheme',
+    sourceIndex: 0,
+    ...overrides,
+  })
+
+  it('caps working scheme sets at the stalled load on repeat (keeps the pre-autoreg value)', () => {
+    // Arrange — linear would prescribe 102.5; the lifter stalled at 100
+    const adjustment = autoregulate(2.5, [session([6, 5, 8])])!
+
+    // Act
+    const result = applyAutoregToSets([derivedSet()], adjustment)
+
+    // Assert
+    expect(result[0]).toMatchObject({ loadKg: 100, derivedFrom: 'autoreg', schemeLoadKg: 102.5 })
+  })
+
+  it('backs the target off the stalled load after two stalls', () => {
+    // Arrange — second straight stall at 100 → target 90
+    const adjustment = autoregulate(2.5, [session([6, 5, 8]), session([6, 6, 6])])!
+
+    // Act
+    const result = applyAutoregToSets([derivedSet()], adjustment)
+
+    // Assert
+    expect(result[0]).toMatchObject({ loadKg: 90, derivedFrom: 'autoreg' })
+  })
+
+  it('never raises a set already below the target (double-progression holds its base)', () => {
+    // Arrange — the scheme already holds 100 (no top-of-range advance)
+    const adjustment = autoregulate(2.5, [session([6, 5, 8])])!
+
+    // Act
+    const result = applyAutoregToSets([derivedSet({ loadKg: 100 })], adjustment)
+
+    // Assert — repeat leaves 100 at 100, still stamped with the reason
+    expect(result[0]).toMatchObject({ loadKg: 100, derivedFrom: 'autoreg' })
+  })
+
+  it('leaves warmups, template passthroughs, and load-less sets untouched', () => {
+    // Arrange
+    const adjustment = autoregulate(2.5, [session([6, 5, 8])])!
+    const warmup = derivedSet({ setType: 'warmup', derivedFrom: 'template', loadKg: 60 })
+    const template = derivedSet({ derivedFrom: 'template' })
+    const loadless = derivedSet({ loadKg: null })
+
+    // Act
+    const result = applyAutoregToSets([warmup, template, loadless], adjustment)
+
+    // Assert — byte-identical rows, no autoreg stamps
+    expect(result).toEqual([warmup, template, loadless])
+  })
+
+  it('does not mutate the input sets', () => {
+    // Arrange
+    const adjustment = autoregulate(2.5, [session([6, 5, 8])])!
+    const input = derivedSet()
+
+    // Act
+    applyAutoregToSets([input], adjustment)
+
+    // Assert
+    expect(input.loadKg).toBe(102.5)
+    expect(input.derivedFrom).toBe('scheme')
   })
 })

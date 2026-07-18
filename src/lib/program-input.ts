@@ -257,6 +257,9 @@ export const programInputSchema = z
     status: statusSchema.default('draft'),
     mesocycleWeeks: z.number().int().min(1).max(52).default(1),
     deloadWeek: z.number().int().min(1).nullable().optional(),
+    // Auto-regulation switch (programs.autoregulation): default ON — the
+    // propose-don't-impose delivery is the softener, not an opt-in gate.
+    autoregulation: z.boolean().default(true),
     notes: z.string().max(2000).nullable().optional(),
     days: z.array(programDaySchema).min(1),
   })

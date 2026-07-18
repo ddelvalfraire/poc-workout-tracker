@@ -229,6 +229,10 @@ export const programs = pgTable(
     status: text('status').notNull().default('draft'), // 'draft' | 'active' | 'archived'
     mesocycleWeeks: integer('mesocycle_weeks').notNull().default(1),
     deloadWeek: integer('deload_week'), // 1-based week that deloads; null = none
+    // Auto-regulation switch, default ON: propose-don't-impose delivery plus
+    // the per-exercise "use plan as written" escape soften the default; false
+    // skips the stall rules (and their history reads) entirely at derive time.
+    autoregulation: boolean('autoregulation').notNull().default(true),
     notes: text('notes'),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),

@@ -93,6 +93,7 @@ function programDetail() {
     status: 'active',
     mesocycleWeeks: 4,
     deloadWeek: 4,
+    autoregulation: true,
     notes: null,
     createdAt: new Date('2026-06-01T00:00:00.000Z'),
     updatedAt: new Date('2026-06-02T00:00:00.000Z'),
@@ -663,7 +664,9 @@ describe('registerProgramTools', () => {
   describe('preview_program_week', () => {
     /** One derived working set the mocked engine returns. */
     const DERIVED = [
-      [
+      {
+        autoreg: null,
+        sets: [
         {
           setNumber: 1,
           setType: 'working',
@@ -681,7 +684,8 @@ describe('registerProgramTools', () => {
           derivedFrom: 'scheme',
           sourceIndex: 0,
         },
-      ],
+        ],
+      },
     ]
 
     it('returns derived targets in display units with volume per primary muscle', async () => {
@@ -733,6 +737,43 @@ describe('registerProgramTools', () => {
       // Assert
       expect(mockedNextWeek).toHaveBeenCalledWith('user_env', PID, 4)
       expect(payload(result)).toMatchObject({ week: 3, weekDerived: true })
+    })
+
+    it('surfaces the autoreg adjustment as a formatted reason with the derivedFrom stamp', async () => {
+      // Arrange — the engine repeated a stalled 100 kg (stored kg; unit is lb)
+      const tools = setup()
+      mockedDetail.mockResolvedValue(programDetail() as unknown as Detail)
+      mockedDerive.mockResolvedValue([
+        {
+          autoreg: {
+            action: 'repeat',
+            deltaKg: 0,
+            suggestEarlyDeload: false,
+            evidence: { missedSets: 2, scorableSets: 3, repFloor: 8, loadKg: 100 },
+          },
+          sets: [{ ...DERIVED[0].sets[0], loadKg: 100, derivedFrom: 'autoreg' }],
+        },
+      ] as never)
+
+      // Act
+      const result = await tools.get('preview_program_week')!({ programId: PID, week: 2 })
+
+      // Assert — the reason speaks the display unit (lb), per the PRD's
+      // transparency contract; the set carries the autoreg stamp.
+      const body = payload(result) as {
+        days: {
+          exercises: {
+            autoreg: { reason: string; suggestEarlyDeload: boolean } | null
+            sets: { derivedFrom: string }[]
+          }[]
+        }[]
+      }
+      const exercise = body.days[0]!.exercises[0]!
+      expect(exercise.autoreg).toEqual({
+        reason: 'Missed 8 reps on 2 of 3 sets at 220.5 lb — repeating the load',
+        suggestEarlyDeload: false,
+      })
+      expect(exercise.sets[0]!.derivedFrom).toBe('autoreg')
     })
 
     it('returns isError /not found/ for a missing program without deriving', async () => {

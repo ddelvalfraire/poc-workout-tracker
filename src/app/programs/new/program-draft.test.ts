@@ -43,6 +43,7 @@ const NESTED: ProgramDraft = {
   name: 'PPL',
   mesocycleWeeks: '6',
   deloadWeek: '6',
+  autoregulation: true,
   status: 'draft',
   notes: null,
   days: [
@@ -160,6 +161,16 @@ describe('programDraftReducer RESTORE_DRAFT', () => {
 
 describe('stored program draft (localStorage persistence)', () => {
   const NOW = new Date('2026-07-08T10:00:00Z')
+
+  it('SET_AUTOREGULATION flips the switch without touching other meta', () => {
+    // Act
+    const next = programDraftReducer(NESTED, { type: 'SET_AUTOREGULATION', value: false })
+
+    // Assert
+    expect(next.autoregulation).toBe(false)
+    expect(next.name).toBe(NESTED.name)
+    expect(NESTED.autoregulation).toBe(true) // input untouched
+  })
 
   it('round-trips a draft through build → parse', () => {
     // Act
@@ -322,6 +333,7 @@ describe('draftToProgramInput', () => {
       name: '   ',
       mesocycleWeeks: '',
       deloadWeek: '',
+      autoregulation: true,
       status: 'draft',
       notes: null,
       days: [
@@ -467,6 +479,7 @@ describe('detailToProgramDraft', () => {
     userId: 'user_123',
     name: 'PPL',
     status: 'active',
+    autoregulation: true,
     mesocycleWeeks: 6,
     deloadWeek: 6,
     notes: 'agent notes',

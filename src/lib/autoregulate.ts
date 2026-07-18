@@ -1,4 +1,5 @@
 import { kgToDisplay, type WeightUnit } from './units'
+import type { DerivedSet } from './progression'
 
 /**
  * Auto-regulation Layer 1: performance-reactive adjustments derived ONLY from
@@ -39,7 +40,8 @@ export interface AutoregSession {
 
 export interface AutoregAdjustment {
   action: 'repeat' | 'decrement'
-  /** Applied to the scheme-derived load: 0 (repeat) or −incrementKg. */
+  /** Relative to the STALLED load (`evidence.loadKg`): 0 (repeat it) or
+   *  −backoffKg (escalated back-off) — see `applyAutoregToSets`. */
   deltaKg: number
   /** Two consecutive stalls: worth pulling the deload forward. */
   suggestEarlyDeload: boolean
@@ -129,6 +131,33 @@ export function autoregulate(
         evidence: latestStall,
       }
     : { action: 'repeat', deltaKg: 0, suggestEarlyDeload: false, evidence: latestStall }
+}
+
+/**
+ * Applies a Layer 1 adjustment to a week's scheme-derived sets, BEFORE
+ * overrides (override > autoreg — the caller merges overrides on top and they
+ * replace both the load and the stamp). `deltaKg` is relative to the STALLED
+ * load, so the target is `evidence.loadKg + deltaKg`; each working set is
+ * capped at that target — never raised (autoreg only holds or backs off; a
+ * scheme already below the target, e.g. double-progression holding its base,
+ * keeps its own load). Warmups and non-scheme passthroughs are untouched.
+ * Adjusted sets keep their pre-autoreg value in `schemeLoadKg` so surfaces
+ * can offer "use plan as written".
+ */
+export function applyAutoregToSets(
+  sets: readonly DerivedSet[],
+  adjustment: AutoregAdjustment,
+): DerivedSet[] {
+  const targetKg = Math.max(0, adjustment.evidence.loadKg + adjustment.deltaKg)
+  return sets.map((set) => {
+    if (set.setType !== 'working' || set.derivedFrom !== 'scheme' || set.loadKg === null) return set
+    return {
+      ...set,
+      loadKg: Math.min(set.loadKg, targetKg),
+      derivedFrom: 'autoreg',
+      schemeLoadKg: set.loadKg,
+    }
+  })
 }
 
 /**

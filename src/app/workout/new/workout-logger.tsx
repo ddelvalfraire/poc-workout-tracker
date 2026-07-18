@@ -113,6 +113,10 @@ interface WorkoutLoggerProps {
   /** Plan-declared superset groups keyed `source:id` — display-only pairing
    *  labels; the logger never creates or edits groupings. */
   planSupersets?: Record<string, number>
+  /** Per-exercise auto-regulation reasons keyed `source:id` (reason already in
+   *  the display unit). Display-only + one optional escape: the ghosts arrive
+   *  pre-adjusted in planTargets; "Use plan as written" reverts them. */
+  planAutoreg?: Record<string, { reason: string; suggestEarlyDeload: boolean }>
   /** Which program (day · week) this session is stamped to, e.g. "Legs ·
    *  Week 1". Provenance is fixed at start and can't be edited — surfacing
    *  it here is what keeps a wrong-day start from absorbing a full session
@@ -140,6 +144,7 @@ export function WorkoutLogger({
   unit = 'kg',
   planTargets,
   planSupersets,
+  planAutoreg,
   programContext,
   startedAt,
   equipment,
@@ -381,12 +386,23 @@ export function WorkoutLogger({
   // Renders INSIDE the prompt row so the user retries in place.
   const [rememberError, setRememberError] = useState<string | null>(null)
   const [isRemembering, setIsRemembering] = useState(false)
+  // "Use plan as written" per exercise (ephemeral, this session only): the
+  // exercise's ghost targets revert from the autoreg-adjusted loads to the
+  // unadjusted scheme values carried alongside as planLoadKg. Zero taps added
+  // to logging — the escape is opt-in, the adjusted ghosts are the default.
+  const [autoregReverted, setAutoregReverted] = useState<Set<string>>(new Set())
   // Substitute overlay first, then the server-seeded plan — both ghost
   // placeholders and the rest countdown must see the same answer. Everything
   // keys on the composite `source:id`, so a custom whose serial id collides
   // with a wger plan slot can never wear that slot's ghosts or rest targets.
-  const planFor = (source: ExerciseSource, id: number) =>
-    planOverrides[`${source}:${id}`] ?? planTargets?.[`${source}:${id}`]
+  const planFor = (source: ExerciseSource, id: number) => {
+    const key = `${source}:${id}`
+    const targets = planOverrides[key] ?? planTargets?.[key]
+    if (!targets || !autoregReverted.has(key)) return targets
+    return targets.map((t) =>
+      t.planLoadKg !== undefined ? { ...t, loadKg: t.planLoadKg } : t,
+    )
+  }
 
   // "Next up" for the sticky bar: the first incomplete set in workout order,
   // labeled from typed values first, ghost targets as fallback — the
@@ -1026,6 +1042,45 @@ export function WorkoutLogger({
                 <Trash2 aria-hidden="true" className="size-4" />
               </Button>
             </div>
+
+            {/* Layer 1 auto-regulation, propose-don't-impose: the adjusted
+                targets already ride the ghosts; this line is the REASON (the
+                transparency contract) plus the one-tap per-exercise escape.
+                Muted on purpose — guidance, never a gate on logging. */}
+            {(() => {
+              const autoregKey = `${exercise.source}:${exercise.wgerExerciseId}`
+              const autoregInfo = planAutoreg?.[autoregKey]
+              if (!autoregInfo) return null
+              if (autoregReverted.has(autoregKey)) {
+                return (
+                  <p className="px-0.5 text-xs text-muted-foreground">
+                    Using plan as written.
+                  </p>
+                )
+              }
+              return (
+                <div className="space-y-0.5 px-0.5">
+                  <p className="text-xs text-muted-foreground">
+                    <span aria-hidden="true">⟳ </span>
+                    {autoregInfo.reason}
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setAutoregReverted((prev) => new Set(prev).add(autoregKey))
+                      }
+                      className="ml-2 underline underline-offset-2"
+                    >
+                      Use plan as written
+                    </button>
+                  </p>
+                  {autoregInfo.suggestEarlyDeload && (
+                    <p className="text-xs text-muted-foreground">
+                      Consider pulling the deload forward.
+                    </p>
+                  )}
+                </div>
+              )
+            })()}
 
             {exercise.sets.length > 0 && (
               <div className="flex items-center gap-2 px-0.5 text-[0.7rem] font-semibold uppercase tracking-wider text-muted-foreground">

@@ -5,6 +5,8 @@ import { getWeightUnit, getEquipment, getDefaultRestSec, getRestTimerEnabled } f
 import { getProgramDayDetail, deriveDayPrescription } from '@/db/programs'
 import { getWorkoutDraft } from '@/db/workout-drafts'
 import type { PlanSetTarget } from '@/lib/format'
+import type { WeightUnit } from '@/lib/units'
+import { autoregReason } from '@/lib/autoregulate'
 import { detailToDraft } from '@/app/workout/new/workout-draft'
 import { WorkoutLogger } from '@/app/workout/new/workout-logger'
 import { resolveDraftSeed } from '@/app/workout/new/draft-payload'
@@ -21,11 +23,13 @@ import { resolveDraftSeed } from '@/app/workout/new/draft-payload'
 async function loadPlanTargets(
   userId: string,
   workout: WorkoutDetail,
+  unit: WeightUnit,
 ): Promise<
   | {
       targets: Record<string, PlanSetTarget[]>
       supersets: Record<string, number>
       dayName: string
+      autoreg: Record<string, { reason: string; suggestEarlyDeload: boolean }>
     }
   | undefined
 > {
@@ -33,8 +37,15 @@ async function loadPlanTargets(
   const day = await getProgramDayDetail(userId, workout.programDayId)
   if (!day) return undefined
 
-  const derived = await deriveDayPrescription(userId, day, workout.programWeek)
+  // This workout is excluded from its own autoreg history — a half-logged
+  // session must never testify to its own stall.
+  const derived = await deriveDayPrescription(userId, day, workout.programWeek, {
+    excludeWorkoutId: workout.id,
+  })
   const targets: Record<string, PlanSetTarget[]> = {}
+  // Per-exercise Layer 1 reasons (display unit applied here, not in the db
+  // layer), same first-slot-wins keying as the targets.
+  const autoreg: Record<string, { reason: string; suggestEarlyDeload: boolean }> = {}
   // Plan-declared superset pairings (display-only in the logger): same
   // first-slot-wins keying as the targets so the two maps stay congruent.
   const supersets: Record<string, number> = {}
@@ -48,10 +59,22 @@ async function loadPlanTargets(
       return
     }
     if (exercise.supersetGroup !== null) supersets[key] = exercise.supersetGroup
-    targets[key] = derived[i].map((s) => ({
+    const adjustment = derived[i].autoreg
+    if (adjustment) {
+      autoreg[key] = {
+        reason: autoregReason(adjustment, unit),
+        suggestEarlyDeload: adjustment.suggestEarlyDeload,
+      }
+    }
+    targets[key] = derived[i].sets.map((s) => ({
       repMin: s.repMin,
       repMax: s.repMax,
       loadKg: s.loadKg,
+      // The unadjusted scheme value, only where autoreg won — the logger's
+      // "Use plan as written" escape reverts THIS exercise's ghosts to it.
+      ...(s.derivedFrom === 'autoreg' && s.schemeLoadKg !== undefined
+        ? { planLoadKg: s.schemeLoadKg }
+        : {}),
       // Per-set rest prescription — drives the logger's rest countdown
       // (override > template, via the same derivation as the load ghosts).
       restSec: s.restSec,
@@ -60,7 +83,7 @@ async function loadPlanTargets(
   // The day name rides along so the logger can say which (day, week) this
   // session is stamped to — provenance is fixed at start, so it must be
   // VISIBLE before 20 sets land in the wrong day.
-  return { targets, supersets, dayName: day.name }
+  return { targets, supersets, dayName: day.name, autoreg }
 }
 
 export default async function EditWorkoutPage({
@@ -77,7 +100,7 @@ export default async function EditWorkoutPage({
   if (!workout) notFound()
 
   const [plan, equipment, defaultRestSec, restTimerEnabled, draftRow] = await Promise.all([
-    loadPlanTargets(userId, workout),
+    loadPlanTargets(userId, workout, unit),
     getEquipment(userId, unit),
     getDefaultRestSec(userId),
     getRestTimerEnabled(userId),
@@ -115,6 +138,7 @@ export default async function EditWorkoutPage({
         unit={unit}
         planTargets={plan?.targets}
         planSupersets={plan?.supersets}
+        planAutoreg={plan?.autoreg}
         // Which (day, week) this session is stamped to — provenance is fixed
         // at start, so the logger surfaces it instead of hiding it.
         programContext={

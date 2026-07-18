@@ -26,6 +26,12 @@ describe('schema', () => {
     expect(getTableColumns(sets).completed.notNull).toBe(true)
   })
 
+  it('makes the autoregulation switch additive on programs (non-null, default true)', () => {
+    const cols = getTableColumns(programs)
+    expect(cols.autoregulation.notNull).toBe(true)
+    expect(cols.autoregulation.hasDefault).toBe(true)
+  })
+
   it('defines the four program tables with snake_case names', () => {
     expect(getTableName(programs)).toBe('programs')
     expect(getTableName(programDays)).toBe('program_days')

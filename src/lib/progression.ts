@@ -95,7 +95,10 @@ export interface DerivedSet {
    *  override can change a week's rest. */
   restSec: number | null
   technique: Technique | null
-  derivedFrom: 'template' | 'scheme' | 'deload' | 'override'
+  derivedFrom: 'template' | 'scheme' | 'deload' | 'override' | 'autoreg'
+  /** The pre-autoreg scheme load, stamped only on autoreg-adjusted sets so
+   *  surfaces can offer "use plan as written" (the unadjusted value). */
+  schemeLoadKg?: number | null
   /** Index into the input `sets` array this row derives from — clones inherit
    *  their source's index. Callers use it to match per-set overrides after
    *  resizing/renumbering has broken the setNumber correspondence. */

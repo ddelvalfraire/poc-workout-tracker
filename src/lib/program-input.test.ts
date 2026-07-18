@@ -22,6 +22,7 @@ describe('parseProgramInput', () => {
       name: 'PPL',
       status: 'draft',
       mesocycleWeeks: 1,
+      autoregulation: true,
       days: [
         {
           name: 'Push',
@@ -71,6 +72,14 @@ describe('parseProgramInput', () => {
     })
     expect(() => parseProgramInput(withExercise({ source: 'hevy' }))).toThrow()
     expect(() => parseProgramInput(withExercise({ supersetGroup: -1 }))).toThrow()
+  })
+
+  it('round-trips an explicit autoregulation opt-out', () => {
+    // Act
+    const result = parseProgramInput({ ...VALID, autoregulation: false })
+
+    // Assert
+    expect(result.autoregulation).toBe(false)
   })
 
   it('keeps provided status and mesocycleWeeks', () => {

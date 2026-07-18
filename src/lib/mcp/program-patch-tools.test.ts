@@ -21,6 +21,7 @@ vi.mock('@/db/program-patches', () => {
     moveProgramSet: vi.fn(),
     setProgramSetOverride: vi.fn(),
     removeProgramSetOverride: vi.fn(),
+    setProgramAutoregulation: vi.fn(),
   }
 })
 vi.mock('@/db/preferences', () => ({ getWeightUnit: vi.fn() }))
@@ -42,6 +43,7 @@ import {
   moveProgramSet,
   setProgramSetOverride,
   removeProgramSetOverride,
+  setProgramAutoregulation,
 } from '@/db/program-patches'
 import { getWeightUnit } from '@/db/preferences'
 import { displayToKg } from '@/lib/units'
@@ -58,6 +60,7 @@ const mockedAddSet = vi.mocked(addProgramSet)
 const mockedUpdateSet = vi.mocked(updateProgramSet)
 const mockedRemoveSet = vi.mocked(removeProgramSet)
 const mockedMoveSet = vi.mocked(moveProgramSet)
+const mockedSetAutoreg = vi.mocked(setProgramAutoregulation)
 const mockedSetOverride = vi.mocked(setProgramSetOverride)
 const mockedRemoveOverride = vi.mocked(removeProgramSetOverride)
 const mockedGetUnit = vi.mocked(getWeightUnit)
@@ -101,7 +104,7 @@ describe('registerProgramPatchTools', () => {
     else process.env.MCP_DEV_USER_ID = original
   })
 
-  it('registers exactly the fourteen program patch tools', () => {
+  it('registers exactly the fifteen program patch tools', () => {
     expect([...setup().keys()].sort()).toEqual([
       'add_program_day',
       'add_program_exercise',
@@ -113,11 +116,50 @@ describe('registerProgramPatchTools', () => {
       'remove_program_exercise',
       'remove_program_set',
       'remove_program_set_override',
+      'set_program_autoregulation',
       'set_program_set_override',
       'update_program_day',
       'update_program_exercise',
       'update_program_set',
     ])
+  })
+
+  describe('program tools', () => {
+    it('set_program_autoregulation flips the switch and echoes it', async () => {
+      // Arrange
+      const tools = setup()
+      mockedSetAutoreg.mockResolvedValue({ id: PID })
+
+      // Act
+      const result = await tools.get('set_program_autoregulation')!({
+        programId: PID,
+        enabled: false,
+      })
+
+      // Assert
+      expect(mockedSetAutoreg).toHaveBeenCalledWith('user_env', PID, false, 'mcp')
+      expect(payload(result)).toEqual({
+        userId: 'user_env',
+        programId: PID,
+        autoregulation: false,
+      })
+    })
+
+    it('set_program_autoregulation surfaces not-owned as isError /not found/', async () => {
+      // Arrange
+      const tools = setup()
+      mockedSetAutoreg.mockResolvedValue(null)
+
+      // Act
+      const result = await tools.get('set_program_autoregulation')!({
+        programId: PID,
+        enabled: true,
+      })
+
+      // Assert
+      expect(result.isError).toBe(true)
+      expect(result.content[0]?.text).toMatch(/not found/)
+    })
   })
 
   describe('day tools', () => {

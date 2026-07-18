@@ -82,6 +82,8 @@ export interface ProgramDraft {
   mesocycleWeeks: string
   /** Deload week as an input string; blank means no deload. */
   deloadWeek: string
+  /** Program-level auto-regulation switch (see programs.autoregulation). */
+  autoregulation: boolean
   days: DraftProgramDay[]
   // Pass-through fields (lifecycle/notes aren't edited by the builder).
   status: ProgramInput['status']
@@ -90,6 +92,7 @@ export interface ProgramDraft {
 
 export type ProgramDraftAction =
   | { type: 'SET_META'; field: 'name' | 'mesocycleWeeks' | 'deloadWeek'; value: string }
+  | { type: 'SET_AUTOREGULATION'; value: boolean }
   | { type: 'ADD_DAY'; day: DraftProgramDay }
   | { type: 'REMOVE_DAY'; index: number }
   | { type: 'RENAME_DAY'; index: number; name: string }
@@ -112,6 +115,7 @@ export const emptyProgramDraft: ProgramDraft = {
   name: '',
   mesocycleWeeks: '',
   deloadWeek: '',
+  autoregulation: true,
   days: [],
   status: 'draft',
   notes: null,
@@ -186,6 +190,9 @@ export function programDraftReducer(
   switch (action.type) {
     case 'SET_META':
       return { ...state, [action.field]: action.value }
+
+    case 'SET_AUTOREGULATION':
+      return { ...state, autoregulation: action.value }
 
     case 'ADD_DAY':
       return { ...state, days: [...state.days, action.day] }
@@ -347,6 +354,7 @@ function isProgramDraft(v: unknown): v is ProgramDraft {
     isString(d.name) &&
     isString(d.mesocycleWeeks) &&
     isString(d.deloadWeek) &&
+    typeof d.autoregulation === 'boolean' &&
     isString(d.status) &&
     isStringOrNull(d.notes) &&
     Array.isArray(d.days) &&
@@ -468,6 +476,7 @@ export function draftToProgramInput(
     // "0" passes through so the server's min(1) rejects it visibly.
     mesocycleWeeks: toInt(draft.mesocycleWeeks) ?? 1,
     deloadWeek: toInt(draft.deloadWeek),
+    autoregulation: draft.autoregulation,
     notes: draft.notes,
     days,
   }
@@ -496,6 +505,7 @@ export function detailToProgramDraft(
     name: detail.name,
     mesocycleWeeks: detail.mesocycleWeeks.toString(),
     deloadWeek: detail.deloadWeek?.toString() ?? '',
+    autoregulation: detail.autoregulation,
     status: toStatus(detail.status),
     notes: detail.notes,
     days: detail.days.map((day) => ({

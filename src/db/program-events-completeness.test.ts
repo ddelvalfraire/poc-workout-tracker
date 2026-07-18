@@ -118,6 +118,10 @@ const OVERRIDE_SET_ROW = [
 /** One committing happy path per mutating export: the read queue it needs
  *  plus the call itself. Keys are asserted against the module's exports. */
 const INVOCATIONS: Record<string, { selects: unknown[][]; run: () => Promise<unknown> }> = {
+  setProgramAutoregulation: {
+    selects: [OWNED_PROGRAM],
+    run: () => patches.setProgramAutoregulation(USER, PID, false, 'mcp'),
+  },
   addProgramDay: {
     selects: [OWNED_PROGRAM, [{ value: 0 }]],
     run: () => patches.addProgramDay(USER, PID, { name: 'Pull' }, 'mcp'),

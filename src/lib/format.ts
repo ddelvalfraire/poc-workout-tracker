@@ -258,6 +258,9 @@ export interface PlanSetTarget {
   repMin: number | null
   repMax: number | null
   loadKg: number | null
+  /** The unadjusted scheme load when autoreg touched this set — the value the
+   *  logger's "Use plan as written" escape reverts to. Absent otherwise. */
+  planLoadKg?: number | null
   /** Prescribed rest AFTER this set, seconds — feeds the logger's rest
    *  countdown (resolveRestTarget), not the ghost placeholders. */
   restSec: number | null

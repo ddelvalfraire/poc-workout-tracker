@@ -107,7 +107,12 @@ export default async function ProgramDetailPage({
             userId,
             {
               exercises: day.exercises,
-              program: { mesocycleWeeks: program.mesocycleWeeks, deloadWeek: program.deloadWeek },
+              program: {
+                id: program.id,
+                mesocycleWeeks: program.mesocycleWeeks,
+                deloadWeek: program.deloadWeek,
+                autoregulation: program.autoregulation,
+              },
             },
             selectedWeek,
           ),
@@ -459,7 +464,7 @@ export default async function ProgramDetailPage({
                       <div key={exercise.id}>
                         <p className="text-sm font-medium">{exercise.name}</p>
                         <div className="mt-1 space-y-0.5">
-                          {groupDerivedSets(prescriptions[dayIndex][exerciseIndex]).map(
+                          {groupDerivedSets(prescriptions[dayIndex][exerciseIndex]?.sets ?? []).map(
                             (group, groupIndex) => (
                               <p
                                 key={groupIndex}
