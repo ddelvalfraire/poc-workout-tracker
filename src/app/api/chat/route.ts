@@ -2,6 +2,7 @@ import { auth } from '@clerk/nextjs/server'
 import { NextResponse } from 'next/server'
 import { convertToModelMessages, stepCountIs, streamText, type UIMessage } from 'ai'
 import { getWeightUnit } from '@/db/preferences'
+import { COACH_MODEL_SETUP_HINT, resolveCoachModel } from '@/lib/coach/model'
 import { createCoachMcpClient } from '@/lib/coach/mcp-bridge'
 import { checkCoachRateLimit } from '@/lib/coach/rate-limit'
 import { filterCoachTools, requiresApproval } from '@/lib/coach/tool-policy'
@@ -9,8 +10,6 @@ import { filterCoachTools, requiresApproval } from '@/lib/coach/tool-policy'
 // Tool loops (up to 10 steps, each a model round trip) need more than the
 // default function budget.
 export const maxDuration = 60
-
-const DEFAULT_MODEL = 'anthropic/claude-sonnet-4.5'
 
 // Bound the optional client-supplied context so it can't balloon the prompt.
 const MAX_CONTEXT_LENGTH = 500
@@ -49,13 +48,12 @@ export async function POST(request: Request): Promise<Response> {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  // Vercel provides OIDC gateway auth; elsewhere the key must be set. Checked
-  // at request time so a misconfigured deploy fails loudly, not mid-stream.
-  if (!process.env.AI_GATEWAY_API_KEY && !process.env.VERCEL_OIDC_TOKEN) {
-    return NextResponse.json(
-      { error: 'AI gateway is not configured. Set AI_GATEWAY_API_KEY.' },
-      { status: 503 },
-    )
+  // Provider selection lives entirely in @/lib/coach/model — this route does
+  // not know or care which vendor serves the tokens. Checked at request time
+  // so a misconfigured deploy fails loudly, not mid-stream.
+  const coachModel = resolveCoachModel()
+  if (!coachModel) {
+    return NextResponse.json({ error: COACH_MODEL_SETUP_HINT }, { status: 503 })
   }
 
   const rate = await checkCoachRateLimit(userId)
@@ -99,7 +97,7 @@ export async function POST(request: Request): Promise<Response> {
     const tools = filterCoachTools(await client.tools())
 
     const result = streamText({
-      model: process.env.COACH_MODEL?.trim() || DEFAULT_MODEL,
+      model: coachModel.model,
       system: buildSystemPrompt(weightUnit, context),
       messages: await convertToModelMessages(messages, { tools }),
       tools,
