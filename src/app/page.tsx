@@ -14,6 +14,7 @@ import { startedWithinLastHours } from "@/lib/recent-window";
 import { buttonVariants } from "@/components/ui/button";
 import { GuardedStartLink } from "@/components/guarded-start-link";
 import { cn } from "@/lib/utils";
+import { isCoachUser } from "@/lib/coach/access";
 import { NextWorkoutCard } from "./next-workout-card";
 import { ResumeSessionCard } from "./resume-session-card";
 import { TodayWorkouts } from "./today-workouts";
@@ -183,7 +184,10 @@ export default async function HomePage() {
         )}
 
         {/* Coach entry: same quiet teaser-card idiom as This week below —
-            a row, not a hero, so it reads as a door rather than a pitch. */}
+            a row, not a hero, so it reads as a door rather than a pitch.
+            Dev-gated: hidden unless this account is on the coach allowlist
+            (the route and page 403/404 regardless — this is just the door). */}
+        {isCoachUser(userId) && (
         <Link
           href="/coach"
           className="mt-3 flex items-center justify-between gap-3 rounded-2xl border border-border bg-card p-4 transition-colors active:bg-muted/60"
@@ -199,6 +203,7 @@ export default async function HomePage() {
           </span>
           <ChevronRight aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
         </Link>
+        )}
 
         {/* Weekly-balance teaser: headline numbers only, the page has the
             chart. Hidden until there's any volume — an empty stats pitch is

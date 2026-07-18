@@ -2,7 +2,9 @@ import { auth } from '@clerk/nextjs/server'
 import { NextResponse } from 'next/server'
 import { convertToModelMessages, stepCountIs, streamText } from 'ai'
 import { getWeightUnit } from '@/db/preferences'
+import { isCoachUser } from '@/lib/coach/access'
 import { MAX_BODY_BYTES, parseChatMessages } from '@/lib/coach/chat-request'
+import { saveCoachChat } from '@/lib/coach/chat-store'
 import { COACH_MODEL_SETUP_HINT, resolveCoachModel } from '@/lib/coach/model'
 import { createCoachMcpClient } from '@/lib/coach/mcp-bridge'
 import { checkCoachRateLimit } from '@/lib/coach/rate-limit'
@@ -41,6 +43,11 @@ export async function POST(request: Request): Promise<Response> {
   const { userId } = await auth()
   if (!userId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+  // Dev gate: the coach is allowlist-only while in development. Server-side
+  // like every other guard — hiding the UI entry points is cosmetics.
+  if (!isCoachUser(userId)) {
+    return NextResponse.json({ error: 'The coach is not enabled for this account.' }, { status: 403 })
   }
 
   // Provider selection lives entirely in @/lib/coach/model — this route does
@@ -110,7 +117,14 @@ export async function POST(request: Request): Promise<Response> {
       },
     })
 
-    return result.toUIMessageStreamResponse()
+    // Persist the completed turn (original messages + the assistant's reply)
+    // so /coach can reload the thread; fire-and-forget, fails soft in-store.
+    return result.toUIMessageStreamResponse({
+      originalMessages: messages,
+      onFinish: ({ messages: finalMessages }) => {
+        void saveCoachChat(userId, finalMessages)
+      },
+    })
   } catch (error: unknown) {
     await closeClient()
     console.error('POST /api/chat failed', error)

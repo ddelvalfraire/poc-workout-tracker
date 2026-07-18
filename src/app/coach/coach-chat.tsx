@@ -7,11 +7,13 @@ import {
   lastAssistantMessageIsCompleteWithApprovalResponses,
   type DynamicToolUIPart,
   type ToolUIPart,
+  type UIMessage,
   type UIMessagePart,
   type UIDataTypes,
   type UITools,
 } from 'ai'
-import { ArrowUp } from 'lucide-react'
+import { ArrowUp, RotateCcw } from 'lucide-react'
+import { Streamdown } from 'streamdown'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import {
@@ -168,9 +170,13 @@ function ToolPartView({
 interface CoachChatProps {
   /** Optional app context (e.g. "program:<id>") forwarded in the POST body. */
   context?: string
+  /** The persisted thread, loaded server-side — seeds the chat on mount. */
+  initialMessages?: UIMessage[]
+  /** Server action dropping the persisted thread ("New chat"). */
+  clearAction?: () => Promise<void>
 }
 
-export function CoachChat({ context }: CoachChatProps) {
+export function CoachChat({ context, initialMessages, clearAction }: CoachChatProps) {
   const [input, setInput] = useState('')
   const online = useOnline()
   const bottomRef = useRef<HTMLDivElement>(null)
@@ -184,8 +190,12 @@ export function CoachChat({ context }: CoachChatProps) {
     [context],
   )
 
-  const { messages, sendMessage, status, error, addToolApprovalResponse, clearError } = useChat({
+  const { messages, setMessages, sendMessage, status, error, addToolApprovalResponse, clearError } =
+    useChat({
     transport,
+    // The persisted thread (server-loaded) — mount-time seed only; the hook
+    // owns the array from here.
+    messages: initialMessages,
     // Continue the turn automatically once every pending approval is
     // answered — without this the stream would just sit after Apply/Cancel.
     sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithApprovalResponses,
@@ -249,6 +259,24 @@ export function CoachChat({ context }: CoachChatProps) {
           </div>
         ) : (
           <div className="space-y-4 py-4">
+            {clearAction && (
+              <div className="flex justify-end">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="text-muted-foreground"
+                  disabled={busy}
+                  onClick={async () => {
+                    clearError()
+                    await clearAction()
+                    setMessages([])
+                  }}
+                >
+                  <RotateCcw aria-hidden="true" className="size-3.5" />
+                  New chat
+                </Button>
+              </div>
+            )}
             {messages.map((message) => (
               <div key={message.id} className="space-y-2">
                 {message.parts.map((part, index) => {
@@ -264,9 +292,12 @@ export function CoachChat({ context }: CoachChatProps) {
                     ) : (
                       <div
                         key={index}
-                        className="w-fit max-w-[92%] rounded-2xl rounded-bl-md border border-border bg-card px-4 py-2.5 text-sm whitespace-pre-wrap"
+                        className="w-fit max-w-[92%] rounded-2xl rounded-bl-md border border-border bg-card px-4 py-2.5 text-sm"
                       >
-                        {part.text}
+                        {/* Streaming-aware markdown (tables, lists, code) —
+                            the coach quotes numbers and set schemes, and raw
+                            asterisks read as bugs. */}
+                        <Streamdown>{part.text}</Streamdown>
                       </div>
                     )
                   }
