@@ -53,6 +53,16 @@ export function loadBar(target: number, bar: number, plates: number[]): PlateLoa
   }
 }
 
+/**
+ * Total weight from plates counted on ONE side: bar + 2 × side sum. The
+ * inverse of `loadBar`, for the "what am I looking at" direction — count the
+ * plates already on the bar and get the number to type into the set.
+ */
+export function totalFromPlates(perSide: number[], bar: number): number {
+  const sideCents = perSide.reduce((sum, plate) => sum + toCents(plate), 0)
+  return (toCents(bar) + 2 * sideCents) / 100
+}
+
 export interface WarmupStep {
   weight: number
   reps: number

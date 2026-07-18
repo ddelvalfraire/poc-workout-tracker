@@ -8,6 +8,8 @@ import {
   newDraftExercise,
   newDraftSet,
   replacementDraftExercise,
+  resolveTargetSetIndex,
+  type DraftSet,
   type WorkoutDraft,
 } from './workout-draft'
 import type { WorkoutDetail } from '@/db/workouts'
@@ -719,5 +721,21 @@ describe('completeFilledSets', () => {
     completeFilledSets(input)
 
     expect(input).toEqual(snapshot)
+  })
+})
+
+describe('resolveTargetSetIndex', () => {
+  const set = (completed: boolean): DraftSet => ({ ...newDraftSet(), completed })
+
+  it('picks the first incomplete set', () => {
+    expect(resolveTargetSetIndex([set(true), set(false), set(false)])).toBe(1)
+  })
+
+  it('falls back to the last set when everything is complete', () => {
+    expect(resolveTargetSetIndex([set(true), set(true), set(true)])).toBe(2)
+  })
+
+  it('returns -1 for no sets so callers can no-op', () => {
+    expect(resolveTargetSetIndex([])).toBe(-1)
   })
 })
