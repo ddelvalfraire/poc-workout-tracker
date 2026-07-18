@@ -219,6 +219,7 @@ export function ProgramBuilder({
             </div>
 
             <ExercisePicker
+              includeCustom
               onAdd={(exercise) =>
                 dispatch({
                   type: 'ADD_EXERCISE',

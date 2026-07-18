@@ -95,9 +95,10 @@ interface WorkoutLoggerProps {
   initialName?: string
   /** Weight display/entry unit; weights are converted to kg at save time. */
   unit?: WeightUnit
-  /** Per-exercise planned targets (by wgerExerciseId) for program workouts —
-   *  the ghost fallback when an exercise has no prior history. */
-  planTargets?: Record<number, PlanSetTarget[]>
+  /** Per-exercise planned targets for program workouts — the ghost fallback
+   *  when an exercise has no prior history. Keyed by the composite
+   *  `source:wgerExerciseId` (plan slots can be custom exercises). */
+  planTargets?: Record<string, PlanSetTarget[]>
   /** Which program (day · week) this session is stamped to, e.g. "Legs ·
    *  Week 1". Provenance is fixed at start and can't be edited — surfacing
    *  it here is what keeps a wrong-day start from absorbing a full session
@@ -293,29 +294,31 @@ export function WorkoutLogger({
   // Substitute plan targets fetched after a swap, overlaying the server-
   // seeded planTargets (which stays keyed to the plan's ORIGINAL exercises).
   // In-memory only: a reload falls back to history ghosts (accepted).
-  const [planOverrides, setPlanOverrides] = useState<Record<number, PlanSetTarget[]>>({})
+  const [planOverrides, setPlanOverrides] = useState<Record<string, PlanSetTarget[]>>({})
   // Post-swap "use for the block?" prompt — one at a time, newest swap wins.
   // Snooze is per ORIGINAL exercise, in-memory for this workout only (a
   // fresh swap next session re-asks once — that repeat IS the signal the
   // question deserves re-asking; no persistent snooze store by design).
   const [pendingRemember, setPendingRemember] = useState<{
     originalId: number
+    originalSource: ExerciseSource
     originalName: string
     substituteId: number
+    substituteSource: ExerciseSource
     substituteName: string
     replacementId: string
   } | null>(null)
-  const [rememberSnoozed, setRememberSnoozed] = useState<Set<number>>(new Set())
+  // Snooze is per ORIGINAL slot, keyed by the composite `source:id`.
+  const [rememberSnoozed, setRememberSnoozed] = useState<Set<string>>(new Set())
   // Renders INSIDE the prompt row so the user retries in place.
   const [rememberError, setRememberError] = useState<string | null>(null)
   const [isRemembering, setIsRemembering] = useState(false)
   // Substitute overlay first, then the server-seeded plan — both ghost
-  // placeholders and the rest countdown must see the same answer.
-  // Plan targets are keyed by the PLAN's wger ids — a custom exercise whose
-  // serial id collides with one must never wear that plan's ghosts or rest
-  // targets (same guard the swap path applies at its source checks).
+  // placeholders and the rest countdown must see the same answer. Everything
+  // keys on the composite `source:id`, so a custom whose serial id collides
+  // with a wger plan slot can never wear that slot's ghosts or rest targets.
   const planFor = (source: ExerciseSource, id: number) =>
-    source === 'wger' ? (planOverrides[id] ?? planTargets?.[id]) : undefined
+    planOverrides[`${source}:${id}`] ?? planTargets?.[`${source}:${id}`]
 
   function pushRemoved(entry: RemovedEntry) {
     setRemoved((prev) => [...prev, entry])
@@ -343,15 +346,22 @@ export function WorkoutLogger({
     // Re-derive the slot's plan targets for the substitute (loads from ITS
     // history, original-movement absolutes stripped server-side) — best-effort
     // enhancement: ghosts stay history-only if this fails or the workout is
-    // ad-hoc (the action nulls quietly for non-program sessions).
-    // Custom substitutes skip the plan-target derivation: the action's
-    // engine reads wger identity only until program inputs learn source
-    // (custom-exercises Phase 4) — history-only ghosts are the honest state.
-    if (workoutId && picked.source === 'wger') {
-      substitutePlanTargetsAction(workoutId, previous.wgerExerciseId, picked.wgerExerciseId)
+    // ad-hoc (the action nulls quietly for non-program sessions). Identity is
+    // the composite (source, id) on both ends, customs included.
+    if (workoutId) {
+      substitutePlanTargetsAction(
+        workoutId,
+        previous.wgerExerciseId,
+        picked.wgerExerciseId,
+        previous.source,
+        picked.source,
+      )
         .then((targets) => {
           if (targets) {
-            setPlanOverrides((prev) => ({ ...prev, [picked.wgerExerciseId]: targets }))
+            setPlanOverrides((prev) => ({
+              ...prev,
+              [`${picked.source}:${picked.wgerExerciseId}`]: targets,
+            }))
           }
         })
         .catch(() => {
@@ -359,23 +369,18 @@ export function WorkoutLogger({
         })
     }
     // Offer to make it permanent — only for PLAN exercises (planTargets is
-    // keyed by exactly the plan's ids, NOT the overlay: ad-hoc sessions,
+    // keyed by exactly the plan's slots, NOT the overlay: ad-hoc sessions,
     // hand-added exercises, and re-swapped substitutes never qualify) and
     // not while snoozed for this workout.
-    if (
-      workoutId &&
-      // A custom substitute can't be remembered into the plan yet — the
-      // program patch tools write wger ids only (Phase-4 unlock); offering
-      // would corrupt the slot with a colliding wger reference.
-      picked.source === 'wger' &&
-      planTargets?.[previous.wgerExerciseId] !== undefined &&
-      !rememberSnoozed.has(previous.wgerExerciseId)
-    ) {
+    const previousKey = `${previous.source}:${previous.wgerExerciseId}`
+    if (workoutId && planTargets?.[previousKey] !== undefined && !rememberSnoozed.has(previousKey)) {
       setRememberError(null)
       setPendingRemember({
         originalId: previous.wgerExerciseId,
+        originalSource: previous.source,
         originalName: previous.name,
         substituteId: picked.wgerExerciseId,
+        substituteSource: picked.source,
         substituteName: picked.name,
         replacementId: replacement.id,
       })
@@ -385,7 +390,9 @@ export function WorkoutLogger({
   function handleRememberJustToday() {
     if (!pendingRemember) return
     // Copy-then-add: never mutate state in place.
-    setRememberSnoozed((prev) => new Set(prev).add(pendingRemember.originalId))
+    setRememberSnoozed((prev) =>
+      new Set(prev).add(`${pendingRemember.originalSource}:${pendingRemember.originalId}`),
+    )
     setPendingRemember(null)
   }
 
@@ -394,10 +401,16 @@ export function WorkoutLogger({
     setIsRemembering(true)
     try {
       setRememberError(null)
-      await rememberSwapAction(workoutId, pendingRemember.originalId, {
-        wgerExerciseId: pendingRemember.substituteId,
-        name: pendingRemember.substituteName,
-      })
+      await rememberSwapAction(
+        workoutId,
+        pendingRemember.originalId,
+        {
+          wgerExerciseId: pendingRemember.substituteId,
+          source: pendingRemember.substituteSource,
+          name: pendingRemember.substituteName,
+        },
+        pendingRemember.originalSource,
+      )
       setPendingRemember(null)
     } catch {
       // The prompt stays: the error renders inside it, retry in place.
