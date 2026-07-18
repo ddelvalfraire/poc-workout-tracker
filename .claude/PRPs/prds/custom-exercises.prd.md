@@ -125,7 +125,7 @@ Phases 1–4 below: schema + entity, composite identity, merged catalog, MCP too
 | 2 | Source-aware drafts + identity plumbing | `DraftExercise`/payload codec learn `source` (versioned, old drafts parse); save/edit paths persist it; fix the five wger-hardcoded sites (`getLastPerformance(+Action)`, `getExerciseHistoryBefore`, `getExerciseSheetAction`, `getExerciseBestAction`); audit remaining scalar-key sites — exercise-stats/program-stats/muscle-volume are already composite | complete | - | 1 | [plan](../plans/completed/custom-exercises-source-aware-drafts.plan.md) · [review](../reviews/custom-exercises-source-drafts-review.md) |
 | 3 | Merged catalog + create/edit UI | Per-user overlay in search (`/api/exercises` + picker, source-labeled); picker "Create '<query>'…" flow (name + required category + optional muscles); Edit on `/exercises/custom/[id]` | complete | - | 2 | [plan](../plans/completed/custom-exercises-create-ui.plan.md) · [review](../reviews/custom-exercises-create-ui-review.md) |
 | 4 | MCP surface | **4a complete (PR #71)**: `create/update/list_custom_exercise` tools; `source` on `get_last_performance` + workout write tools; merged `search_exercises` output. **4b complete (PRs #72–#73)** ([plan](../plans/custom-exercises-source-aware-program-writes.plan.md) · [review 72](../reviews/pr-72-review.md) · [review 73](../reviews/pr-73-review.md)): `source` on `upsert_program` + program patch tool inputs; custom-aware `muscleRowsFor`; unpin the 'wger' derives in `programs.ts`; unlock program-builder/substitute flows | complete | - | 2, 3 | [review](../reviews/custom-exercises-mcp-review.md) |
-| 5 | Dogfood swap | Create Cable Face Pull + Kneeling Cable Crunch customs (via the new UI); swap the two live-program slots; verify parity end-to-end incl. stats/sheet/PR/muscle-volume | pending | - | 4 | - |
+| 5 | Dogfood swap | **Complete (2026-07-17, via MCP)**: created Cable Face Pull `(custom, 1)` + Kneeling Cable Crunch `(custom, 2)` with wger-named muscle tags; `update_program_exercise` swapped Upper·5 and Legs·6 on the live block (granular, sets untouched); verified `get_program` source + retagged muscles, `preview_program_week` derives both, and muscle volume counts them (Shoulders 3 / Abs 3). Known accepted detach: prior stand-in history (wger 1639/1648) stays under those ids | complete | - | 4 | - |
 
 ### Phase Details
 
@@ -194,4 +194,4 @@ Spike (2026-07-04, this session) validated every code path is sign/id-agnostic: 
 ---
 
 *Generated: 2026-07-04*
-*Status: DRAFT - needs validation*
+*Status: COMPLETE — all phases shipped (PRs #66, #65, #71, #72, #73); dogfooded on the live block 2026-07-17*
