@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "@ai-sdk/mcp": "^2.0.15",
+    "@ai-sdk/react": "^4.0.34",
     "@base-ui/react": "^1.5.0",
     "@clerk/mcp-tools": "^0.5.0",
     "@clerk/nextjs": "^7.5.2",
