@@ -33,6 +33,8 @@ export interface ExerciseStatsRow {
   weight: number | null // kg
   completed: boolean
   metricMode: string
+  /** 'working' | 'warmup' — warm-ups are display truth, never scoring truth. */
+  setType: string
 }
 
 /** One record-holding set (kg, full precision; round only at display). */
@@ -98,7 +100,11 @@ export function aggregateExerciseStats(
   // scores ALL history — accepted drift, same trade-off as program-stats.
   bodyweightKg: number | null = null,
 ): Pick<ExerciseAllTimeStats, 'totalSessions' | 'totalCompletedSets' | 'records' | 'trend'> {
-  const completedRows = rows.filter((row) => row.completed)
+  // Warm-ups are excluded from ALL scoring (records, trend, tonnage, counts)
+  // — same rule as live PR detection, so the stats page and the in-session
+  // banner can never disagree. History rendering is a separate query and
+  // still shows them.
+  const completedRows = rows.filter((row) => row.completed && row.setType !== 'warmup')
 
   // Group by session, preserving input (session-start) order.
   const bySession = new Map<string, { performedAt: Date; rows: ExerciseStatsRow[] }>()
@@ -200,6 +206,7 @@ export async function getExerciseStats(
         weight: sets.weight,
         completed: sets.completed,
         metricMode: sets.metricMode,
+        setType: sets.setType,
       })
       .from(sets)
       .innerJoin(workoutExercises, eq(workoutExercises.id, sets.workoutExerciseId))
