@@ -22,7 +22,6 @@ describe('parseProgramInput', () => {
       name: 'PPL',
       status: 'draft',
       mesocycleWeeks: 1,
-      autoregulation: true,
       days: [
         {
           name: 'Push',
@@ -80,6 +79,15 @@ describe('parseProgramInput', () => {
 
     // Assert
     expect(result.autoregulation).toBe(false)
+  })
+
+  it('keeps an omitted autoregulation genuinely absent (no materialized default)', () => {
+    // A parse-time .default(true) would ride the full-replace update path and
+    // silently flip a stored OFF back ON — the omission must survive parsing
+    // so updateProgram can preserve the stored value.
+    const result = parseProgramInput(VALID)
+    expect(result.autoregulation).toBeUndefined()
+    expect('autoregulation' in result).toBe(false)
   })
 
   it('keeps provided status and mesocycleWeeks', () => {

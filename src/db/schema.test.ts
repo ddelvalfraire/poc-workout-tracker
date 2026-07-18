@@ -53,6 +53,15 @@ describe('schema', () => {
     expect(setType.hasDefault).toBe(true)
   })
 
+  it('makes the prescribed-at-instantiation snapshot additive on live sets (nullable, no default)', () => {
+    const cols = getTableColumns(sets)
+    expect(cols.prescribedLoadKg.notNull).toBe(false)
+    expect(cols.prescribedRepMin.notNull).toBe(false)
+    // No default: pre-snapshot rows stay null forever (unscorable by design).
+    expect(cols.prescribedLoadKg.hasDefault).toBe(false)
+    expect(cols.prescribedRepMin.hasDefault).toBe(false)
+  })
+
   it('makes workout provenance columns nullable', () => {
     const cols = getTableColumns(workouts)
     expect(cols.programDayId.notNull).toBe(false)

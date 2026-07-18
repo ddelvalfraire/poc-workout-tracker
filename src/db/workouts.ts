@@ -169,11 +169,30 @@ export function createWorkout(userId: string, name?: string) {
 /** The transaction handle, lifted from the callback signature (no internal import). */
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0]
 
-/** Inserts a workout's exercises + sets (shared by saveWorkout and updateWorkout). */
+/** The set-level facts that must survive updateWorkout's full replace: the
+ *  prescribed-at-instantiation snapshot (immutable — input can never carry
+ *  it) and any backoff/amrap typing the logger UI can't express. Keyed by
+ *  (source, exerciseId, setNumber) — see priorFactKey. */
+interface PriorSetFacts {
+  setType: 'working' | 'warmup' | 'backoff' | 'amrap'
+  prescribedLoadKg: number | null
+  prescribedRepMin: number | null
+}
+
+function priorFactKey(source: string, wgerExerciseId: number, setNumber: number): string {
+  return `${source}:${wgerExerciseId}:${setNumber}`
+}
+
+/** Inserts a workout's exercises + sets (shared by saveWorkout and
+ *  updateWorkout). `priorFacts` re-stamps replace-surviving facts onto the
+ *  re-inserted rows (updateWorkout only): snapshots always; setType only for
+ *  backoff/amrap, which the draft UI can't express — working↔warmup retags
+ *  from the input win. */
 async function insertWorkoutChildren(
   tx: Tx,
   workoutId: string,
   exercises: WorkoutInput['exercises'],
+  priorFacts?: Map<string, PriorSetFacts>,
 ) {
   for (const [position, exercise] of exercises.entries()) {
     const [we] = await tx
@@ -193,16 +212,31 @@ async function insertWorkoutChildren(
 
     if (exercise.sets.length > 0) {
       await tx.insert(sets).values(
-        exercise.sets.map((s, i) => ({
-          workoutExerciseId: we.id,
-          setNumber: i + 1,
-          reps: s.reps,
-          weight: s.weight,
-          completed: s.completed ?? false,
-          // Omit when absent so the column default ('working') applies —
-          // same additive rule as loggingType above.
-          ...(s.setType !== undefined ? { setType: s.setType } : {}),
-        })),
+        exercise.sets.map((s, i) => {
+          const fact = priorFacts?.get(
+            priorFactKey(exercise.source ?? 'wger', exercise.wgerExerciseId, i + 1),
+          )
+          const keepPriorType =
+            s.setType === undefined &&
+            (fact?.setType === 'backoff' || fact?.setType === 'amrap')
+          return {
+            workoutExerciseId: we.id,
+            setNumber: i + 1,
+            reps: s.reps,
+            weight: s.weight,
+            completed: s.completed ?? false,
+            // Omit when absent so the column default ('working') applies —
+            // same additive rule as loggingType above.
+            ...(s.setType !== undefined ? { setType: s.setType } : {}),
+            ...(keepPriorType && fact ? { setType: fact.setType } : {}),
+            ...(fact
+              ? {
+                  prescribedLoadKg: fact.prescribedLoadKg,
+                  prescribedRepMin: fact.prescribedRepMin,
+                }
+              : {}),
+          }
+        }),
       )
     }
   }
@@ -291,8 +325,38 @@ export async function updateWorkout(
       .returning({ id: workouts.id })
     if (!owned) return null
 
+    // Capture the replace-surviving facts BEFORE the delete: the prescribed_*
+    // snapshot is immutable provenance the wire input can never carry, and
+    // backoff/amrap typing has no draft-UI representation — a full replace
+    // must not silently erase either. First slot wins on a duplicated
+    // exercise (position order), mirroring the logger's keying.
+    const priorRows = await tx
+      .select({
+        wgerExerciseId: workoutExercises.wgerExerciseId,
+        source: workoutExercises.source,
+        setNumber: sets.setNumber,
+        setType: sets.setType,
+        prescribedLoadKg: sets.prescribedLoadKg,
+        prescribedRepMin: sets.prescribedRepMin,
+      })
+      .from(sets)
+      .innerJoin(workoutExercises, eq(workoutExercises.id, sets.workoutExerciseId))
+      .where(eq(workoutExercises.workoutId, id))
+      .orderBy(asc(workoutExercises.position), asc(sets.setNumber))
+    const priorFacts = new Map<string, PriorSetFacts>()
+    for (const row of priorRows) {
+      const key = priorFactKey(row.source, row.wgerExerciseId, row.setNumber)
+      if (!priorFacts.has(key)) {
+        priorFacts.set(key, {
+          setType: row.setType,
+          prescribedLoadKg: row.prescribedLoadKg,
+          prescribedRepMin: row.prescribedRepMin,
+        })
+      }
+    }
+
     await tx.delete(workoutExercises).where(eq(workoutExercises.workoutId, id))
-    await insertWorkoutChildren(tx, id, input.exercises)
+    await insertWorkoutChildren(tx, id, input.exercises, priorFacts)
     return { id }
   })
 }
@@ -390,7 +454,11 @@ export async function addSet(
   userId: string,
   workoutId: string,
   exercisePosition: number,
-  patch: SetPatch,
+  // Callers that know the set's role forward it; without one the DB default
+  // 'working' stands (the MCP add_set path). Ad-hoc adds carry NO
+  // prescribed_* snapshot — they were never prescribed, so the autoreg
+  // engine treats them as unscorable.
+  patch: SetPatch & { setType?: 'working' | 'warmup' | 'backoff' | 'amrap' },
 ): Promise<{ setNumber: number } | null> {
   return db.transaction(async (tx) => {
     const exerciseId = await findOwnedExerciseId(tx, userId, workoutId, exercisePosition)
@@ -406,6 +474,7 @@ export async function addSet(
       reps: patch.reps ?? null,
       weight: patch.weight ?? null,
       completed: patch.completed ?? false,
+      ...(patch.setType !== undefined ? { setType: patch.setType } : {}),
     })
     await stampWorkoutCompleted(tx, workoutId)
     return { setNumber }
