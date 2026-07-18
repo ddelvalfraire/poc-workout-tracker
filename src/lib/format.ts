@@ -189,23 +189,41 @@ export function previousChipLabel(ghost: { reps?: string; weight?: string }): st
 
 /**
  * One-line summary for a collapsed, fully-completed logger card:
- * "4 sets · top 100×8" (heaviest parsed weight wins; its reps ride along),
- * or "3 sets · top ×12" when no set carries a weight (BW / null-weight
- * machines — the highest rep count stands in for "top").
+ * "4 sets · top 100×8", or "3 sets · top ×12" when no set carries a weight
+ * (BW / null-weight machines — the highest rep count stands in for "top").
+ *
+ * `weight`'s meaning varies by logging type, so "top" must too: total load
+ * (weight_reps, max wins, bare number), added load (weighted_bodyweight, max
+ * wins, "BW+45×5"), or assistance (assisted_bodyweight, MIN wins — less help
+ * is the harder set — "BW−20×8"). bodyweight_reps is reps-only by definition.
  */
-export function completedSetsSummary(sets: readonly { reps: string; weight: string }[]): string {
+export function completedSetsSummary(
+  sets: readonly { reps: string; weight: string }[],
+  loggingType: LoggingType,
+): string {
   const count = `${sets.length} ${sets.length === 1 ? 'set' : 'sets'}`
-  let top: { weight: number; label: string } | null = null
+  let top: { weight: number; reps: string } | null = null
   let topReps = 0
   for (const set of sets) {
     const weight = Number.parseFloat(set.weight)
-    if (Number.isFinite(weight) && (top === null || weight > top.weight)) {
-      top = { weight, label: set.reps ? `${set.weight}×${set.reps}` : set.weight }
+    if (loggingType !== 'bodyweight_reps' && Number.isFinite(weight)) {
+      const beats =
+        top === null ||
+        (loggingType === 'assisted_bodyweight' ? weight < top.weight : weight > top.weight)
+      if (beats) top = { weight, reps: set.reps }
     }
     const reps = Number.parseInt(set.reps, 10)
     if (Number.isFinite(reps) && reps > topReps) topReps = reps
   }
-  if (top) return `${count} · top ${top.label}`
+  if (top) {
+    const load =
+      loggingType === 'weighted_bodyweight'
+        ? `BW+${top.weight}`
+        : loggingType === 'assisted_bodyweight'
+          ? `BW−${top.weight}`
+          : String(top.weight)
+    return `${count} · top ${top.reps ? `${load}×${top.reps}` : load}`
+  }
   if (topReps > 0) return `${count} · top ×${topReps}`
   return count
 }

@@ -861,7 +861,7 @@ export function WorkoutLogger({
                 })
               }
               aria-expanded={false}
-              aria-label={`Expand ${exercise.name} — completed, ${completedSetsSummary(exercise.sets)}`}
+              aria-label={`Expand ${exercise.name} — completed, ${completedSetsSummary(exercise.sets, exercise.loggingType)}${hasPR ? ', new PR' : ''}`}
               className="flex w-full items-baseline justify-between gap-3 p-4 text-left"
             >
               <span className="flex min-w-0 items-baseline gap-2">
@@ -869,7 +869,7 @@ export function WorkoutLogger({
                 <span className="truncate text-base leading-tight">{exercise.name}</span>
               </span>
               <span className="shrink-0 text-sm text-muted-foreground tnum">
-                {completedSetsSummary(exercise.sets)}
+                {completedSetsSummary(exercise.sets, exercise.loggingType)}
                 {hasPR && <span className="ml-1.5 font-semibold text-primary">PR</span>}
               </span>
             </button>

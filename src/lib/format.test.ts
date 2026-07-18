@@ -321,24 +321,66 @@ describe('previousChipLabel', () => {
 describe('completedSetsSummary', () => {
   it('summarizes with the heaviest set and its reps', () => {
     expect(
-      completedSetsSummary([
-        { reps: '8', weight: '100' },
-        { reps: '10', weight: '90' },
-      ]),
+      completedSetsSummary(
+        [
+          { reps: '8', weight: '100' },
+          { reps: '10', weight: '90' },
+        ],
+        'weight_reps',
+      ),
     ).toBe('2 sets · top 100×8')
   })
 
   it('falls back to the highest rep count when no set has weight', () => {
     expect(
-      completedSetsSummary([
-        { reps: '12', weight: '' },
-        { reps: '15', weight: '' },
-      ]),
+      completedSetsSummary(
+        [
+          { reps: '12', weight: '' },
+          { reps: '15', weight: '' },
+        ],
+        'weight_reps',
+      ),
     ).toBe('2 sets · top ×15')
   })
 
   it('singularizes one set and survives empty fields', () => {
-    expect(completedSetsSummary([{ reps: '', weight: '' }])).toBe('1 set')
+    expect(completedSetsSummary([{ reps: '', weight: '' }], 'weight_reps')).toBe('1 set')
+  })
+
+  it('labels added load and keeps max-wins for weighted bodyweight', () => {
+    expect(
+      completedSetsSummary(
+        [
+          { reps: '5', weight: '45' },
+          { reps: '8', weight: '25' },
+        ],
+        'weighted_bodyweight',
+      ),
+    ).toBe('2 sets · top BW+45×5')
+  })
+
+  it('treats LESS assistance as the top set for assisted bodyweight', () => {
+    expect(
+      completedSetsSummary(
+        [
+          { reps: '8', weight: '20' },
+          { reps: '5', weight: '40' },
+        ],
+        'assisted_bodyweight',
+      ),
+    ).toBe('2 sets · top BW−20×8')
+  })
+
+  it('is reps-only for bodyweight sets even if a weight string leaks in', () => {
+    expect(
+      completedSetsSummary(
+        [
+          { reps: '12', weight: '10' },
+          { reps: '15', weight: '' },
+        ],
+        'bodyweight_reps',
+      ),
+    ).toBe('2 sets · top ×15')
   })
 })
 
