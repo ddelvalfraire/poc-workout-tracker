@@ -37,6 +37,42 @@ describe('parseProgramInput', () => {
     })
   })
 
+  it('defaults source to wger and accepts an explicit custom + supersetGroup', () => {
+    // Act — one slot omits identity extras, one carries both
+    const result = parseProgramInput({
+      name: 'P',
+      days: [
+        {
+          name: 'Upper',
+          exercises: [
+            { wgerExerciseId: 73, name: 'Bench', sets: [{}] },
+            {
+              wgerExerciseId: 9,
+              source: 'custom',
+              name: 'Cable Face Pull',
+              supersetGroup: 1,
+              sets: [{}],
+            },
+          ],
+        },
+      ],
+    })
+
+    // Assert — absent source normalizes to 'wger'; both fields survive the parse
+    expect(result.days[0].exercises[0]).toMatchObject({ source: 'wger' })
+    expect(result.days[0].exercises[0].supersetGroup).toBeUndefined()
+    expect(result.days[0].exercises[1]).toMatchObject({ source: 'custom', supersetGroup: 1 })
+  })
+
+  it('rejects an unknown source and a negative supersetGroup', () => {
+    const withExercise = (exercise: object) => ({
+      name: 'P',
+      days: [{ name: 'D', exercises: [{ wgerExerciseId: 1, name: 'X', sets: [{}], ...exercise }] }],
+    })
+    expect(() => parseProgramInput(withExercise({ source: 'hevy' }))).toThrow()
+    expect(() => parseProgramInput(withExercise({ supersetGroup: -1 }))).toThrow()
+  })
+
   it('keeps provided status and mesocycleWeeks', () => {
     // Act
     const result = parseProgramInput({ ...VALID, status: 'active', mesocycleWeeks: 6 })

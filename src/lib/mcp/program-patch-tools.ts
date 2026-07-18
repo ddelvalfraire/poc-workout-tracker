@@ -306,23 +306,26 @@ export function registerProgramPatchTools(server: McpServer): void {
     {
       title: 'Add Program Exercise',
       description:
-        "Appends an exercise to a program day (by programId + 0-based dayPosition), seeded with one blank working set — flesh it out with update_program_set/add_program_set. `progression` JSONB is in kg. Returns the new 0-based exercisePosition. Errors if the day isn't found or owned.",
+        "Appends an exercise to a program day (by programId + 0-based dayPosition), seeded with one blank working set. Exercise identity is the composite (source, wgerExerciseId); `source` defaults to 'wger', pass 'custom' for custom exercises — flesh it out with update_program_set/add_program_set. `progression` JSONB is in kg. Returns the new 0-based exercisePosition. Errors if the day isn't found or owned.",
       inputSchema: {
         programId: z.string(),
         dayPosition: positionArg,
         wgerExerciseId: z.number().int(),
+        // Composite identity: absent = 'wger', pass 'custom' for custom exercises.
+        source: z.enum(['wger', 'custom']).optional(),
         name: nameArg,
         progression: progressionSchema.nullable().optional(),
         userId: z.string().optional(),
       },
     },
-    async ({ programId, dayPosition, wgerExerciseId, name, progression, userId }, extra) => {
+    async ({ programId, dayPosition, wgerExerciseId, source, name, progression, userId }, extra) => {
       try {
         const resolved = resolveUserId(extra, userId)
         assertProgramIdShape(programId)
         const result = await runOp(() =>
           addProgramExercise(resolved, programId, dayPosition, {
             wgerExerciseId,
+            source,
             name,
             progression,
           }),
@@ -349,12 +352,15 @@ export function registerProgramPatchTools(server: McpServer): void {
     {
       title: 'Update Program Exercise',
       description:
-        "Updates an exercise's wgerExerciseId, name, progression, and/or supersetGroup (by programId + 0-based dayPosition + 0-based exercisePosition) — e.g. swap the movement without touching its sets (a swap re-derives the muscle tags). Only the named fields change; pass progression: null to clear it (`progression` JSONB is in kg) or supersetGroup: null to ungroup (same non-null group within a day = superset). Errors if the exercise isn't found or owned.",
+        "Updates an exercise's identity (wgerExerciseId and/or source — the composite key; changing either re-derives muscle tags), name, progression, and/or supersetGroup (by programId + 0-based dayPosition + 0-based exercisePosition) — e.g. swap the movement without touching its sets (a swap re-derives the muscle tags). Only the named fields change; pass progression: null to clear it (`progression` JSONB is in kg) or supersetGroup: null to ungroup (same non-null group within a day = superset). Errors if the exercise isn't found or owned.",
       inputSchema: {
         programId: z.string(),
         dayPosition: positionArg,
         exercisePosition: positionArg,
         wgerExerciseId: z.number().int().optional(),
+        // The other identity half; changing either re-derives the muscle tags
+        // from the effective (source, id).
+        source: z.enum(['wger', 'custom']).optional(),
         name: nameArg.optional(),
         progression: progressionSchema.nullable().optional(),
         supersetGroup: z.number().int().min(0).nullable().optional(),
@@ -367,6 +373,7 @@ export function registerProgramPatchTools(server: McpServer): void {
         dayPosition,
         exercisePosition,
         wgerExerciseId,
+        source,
         name,
         progression,
         supersetGroup,
@@ -377,14 +384,15 @@ export function registerProgramPatchTools(server: McpServer): void {
       try {
         const resolved = resolveUserId(extra, userId)
         assertProgramIdShape(programId)
-        if (isEmptyPatch({ wgerExerciseId, name, progression, supersetGroup })) {
+        if (isEmptyPatch({ wgerExerciseId, source, name, progression, supersetGroup })) {
           throw new ToolError(
-            'update_program_exercise needs at least one of wgerExerciseId, name, progression, or supersetGroup',
+            'update_program_exercise needs at least one of wgerExerciseId, source, name, progression, or supersetGroup',
           )
         }
         const result = await runOp(() =>
           updateProgramExercise(resolved, programId, dayPosition, exercisePosition, {
             wgerExerciseId,
+            source,
             name,
             progression,
             supersetGroup,

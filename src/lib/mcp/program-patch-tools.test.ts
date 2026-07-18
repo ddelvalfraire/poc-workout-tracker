@@ -204,6 +204,46 @@ describe('registerProgramPatchTools', () => {
       })
     })
 
+    it('add_program_exercise passes source through (composite identity)', async () => {
+      const tools = setup()
+      mockedAddExercise.mockResolvedValue({ position: 0 })
+
+      await tools.get('add_program_exercise')!({
+        programId: PID,
+        dayPosition: 0,
+        wgerExerciseId: 9,
+        source: 'custom',
+        name: 'Cable Face Pull',
+      })
+
+      expect(mockedAddExercise).toHaveBeenCalledWith(
+        'user_env',
+        PID,
+        0,
+        expect.objectContaining({ wgerExerciseId: 9, source: 'custom' }),
+      )
+    })
+
+    it('update_program_exercise passes a source-only patch (flip re-tags server-side)', async () => {
+      const tools = setup()
+      mockedUpdateExercise.mockResolvedValue({ id: 'pe1' })
+
+      await tools.get('update_program_exercise')!({
+        programId: PID,
+        dayPosition: 0,
+        exercisePosition: 1,
+        source: 'custom',
+      })
+
+      expect(mockedUpdateExercise).toHaveBeenCalledWith(
+        'user_env',
+        PID,
+        0,
+        1,
+        expect.objectContaining({ source: 'custom' }),
+      )
+    })
+
     it('update_program_exercise swaps the movement without touching sets', async () => {
       const tools = setup()
       mockedUpdateExercise.mockResolvedValue({ id: 'pe1' })

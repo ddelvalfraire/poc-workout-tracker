@@ -1,4 +1,5 @@
 import type { Progression } from './program-input'
+import type { ExerciseSource } from './custom-exercise-input'
 import type { ProgramSetRowLike, SetOverrideLike } from './progression'
 
 /**
@@ -11,6 +12,7 @@ import type { ProgramSetRowLike, SetOverrideLike } from './progression'
  *  exercise element (db/programs.ts). */
 export interface SlotForSubstitution {
   wgerExerciseId: number
+  source: ExerciseSource
   progression: Progression | null
   sets: (ProgramSetRowLike & { overrides: (SetOverrideLike & { week: number })[] })[]
 }
@@ -32,10 +34,12 @@ const TM_BASED_SCHEMES = new Set<Progression['scheme']>(['percent-1rm', 'amrap-c
  */
 export function substituteSlot(
   slot: SlotForSubstitution,
+  substituteSource: ExerciseSource,
   substituteId: number,
 ): SlotForSubstitution {
   return {
     wgerExerciseId: substituteId,
+    source: substituteSource,
     progression:
       slot.progression && TM_BASED_SCHEMES.has(slot.progression.scheme) ? null : slot.progression,
     sets: slot.sets.map((set) => ({

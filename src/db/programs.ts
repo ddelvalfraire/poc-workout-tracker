@@ -1,5 +1,6 @@
 import { and, asc, count, countDistinct, desc, eq, isNotNull, isNull, max, ne, sql } from 'drizzle-orm'
 import type { ProgramInput, Progression } from '@/lib/program-input'
+import type { ExerciseSource } from '@/lib/custom-exercise-input'
 import { getAllExercises, type Exercise } from '@/lib/wger'
 import {
   deriveWeekSets,
@@ -14,6 +15,7 @@ import { pickNextProgramDay } from '@/lib/next-program-day'
 import { nextBlockName } from '@/lib/block-name'
 import { db } from './index'
 import { getLastPerformance, getExerciseHistoryBefore } from './workouts'
+import { listCustomExercises } from './custom-exercises'
 import {
   programs,
   programDays,
@@ -74,34 +76,62 @@ export type ProgramDetail = NonNullable<Awaited<ReturnType<typeof getProgramDeta
 /** The transaction handle, lifted from the callback signature (no internal import). */
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0]
 
-/** The wger catalog keyed by exercise id; null = catalog unavailable. */
-export type ExerciseCatalog = Map<number, Exercise>
+/** The merged (wger + the user's customs) catalog keyed by the composite
+ *  `${source}:${id}`; null = neither source available. */
+export type ExerciseCatalog = Map<string, Exercise>
 
-/**
- * Fetches the (in-memory cached) wger catalog for author-time muscle tagging.
- * Never called inside a transaction, and failure-tolerant: muscle tags are
- * enrichment, not integrity, so a save without the catalog proceeds untagged.
- */
-export async function loadExerciseCatalog(): Promise<ExerciseCatalog | null> {
-  try {
-    const all = await getAllExercises()
-    return new Map(all.map((e) => [e.id, e]))
-  } catch {
-    return null
-  }
+/** The composite catalog key — exercise identity is (source, id). */
+function catalogKey(source: ExerciseSource, exerciseId: number): string {
+  return `${source}:${exerciseId}`
 }
 
 /**
- * The `program_exercise_muscles` rows for one exercise slot, from the catalog.
- * Primary names win when wger lists a muscle on both sides (the unique is per
- * (exercise, muscle)); an unknown id or missing catalog yields no rows.
+ * Fetches the merged exercise catalog — the (in-memory cached) wger catalog
+ * plus the user's custom exercises — for author-time muscle tagging. Never
+ * called inside a transaction, and failure-tolerant PER SOURCE: muscle tags
+ * are enrichment, not integrity, so a wger outage still tags custom slots (and
+ * vice versa); both failing yields null and the save proceeds untagged.
+ */
+export async function loadExerciseCatalog(userId: string): Promise<ExerciseCatalog | null> {
+  // Async wrappers so even a synchronous throw lands as a rejection.
+  const [wger, customs] = await Promise.allSettled([
+    (async () => getAllExercises())(),
+    (async () => listCustomExercises(userId))(),
+  ])
+  if (wger.status === 'rejected' && customs.status === 'rejected') return null
+  const catalog: ExerciseCatalog = new Map()
+  if (wger.status === 'fulfilled') {
+    for (const e of wger.value) catalog.set(catalogKey('wger', e.id), e)
+  }
+  if (customs.status === 'fulfilled') {
+    for (const c of customs.value) {
+      catalog.set(catalogKey('custom', c.id), {
+        id: c.id,
+        name: c.name,
+        category: c.category,
+        ...(c.muscles && c.muscles.length > 0 ? { muscles: c.muscles } : {}),
+        ...(c.musclesSecondary && c.musclesSecondary.length > 0
+          ? { musclesSecondary: c.musclesSecondary }
+          : {}),
+      })
+    }
+  }
+  return catalog
+}
+
+/**
+ * The `program_exercise_muscles` rows for one exercise slot, from the merged
+ * catalog. Primary names win when a muscle is listed on both sides (the unique
+ * is per (exercise, muscle)); an unknown (source, id) or missing catalog
+ * yields no rows.
  */
 export function muscleRowsFor(
   programExerciseId: string,
-  wgerExerciseId: number,
+  source: ExerciseSource,
+  exerciseId: number,
   catalog: ExerciseCatalog | null,
 ): { programExerciseId: string; muscle: string; role: 'primary' | 'secondary' }[] {
-  const entry = catalog?.get(wgerExerciseId)
+  const entry = catalog?.get(catalogKey(source, exerciseId))
   if (!entry) return []
   const primary = entry.muscles ?? []
   const secondary = (entry.musclesSecondary ?? []).filter((m) => !primary.includes(m))
@@ -136,8 +166,10 @@ async function insertProgramChildren(
         .values({
           programDayId: pd.id,
           wgerExerciseId: exercise.wgerExerciseId,
+          source: exercise.source,
           name: exercise.name,
           position: exPosition,
+          supersetGroup: exercise.supersetGroup ?? null,
           progression: exercise.progression ?? null,
         })
         .returning({ id: programExercises.id })
@@ -163,7 +195,7 @@ async function insertProgramChildren(
         )
       }
 
-      const muscles = muscleRowsFor(pe.id, exercise.wgerExerciseId, catalog)
+      const muscles = muscleRowsFor(pe.id, exercise.source, exercise.wgerExerciseId, catalog)
       if (muscles.length > 0) {
         await tx.insert(programExerciseMuscles).values(muscles)
       }
@@ -178,7 +210,7 @@ async function insertProgramChildren(
  * with `userId`; the children inherit ownership through the FK chain.
  */
 export async function saveProgram(userId: string, input: ProgramInput): Promise<{ id: string }> {
-  const catalog = await loadExerciseCatalog() // network read stays outside the tx
+  const catalog = await loadExerciseCatalog(userId) // network read stays outside the tx
   return db.transaction(async (tx) => {
     const [program] = await tx
       .insert(programs)
@@ -209,7 +241,7 @@ export async function updateProgram(
   id: string,
   input: ProgramInput,
 ): Promise<{ id: string } | null> {
-  const catalog = await loadExerciseCatalog() // network read stays outside the tx
+  const catalog = await loadExerciseCatalog(userId) // network read stays outside the tx
   return db.transaction(async (tx) => {
     const [owned] = await tx
       .update(programs)
@@ -639,6 +671,7 @@ export async function getNextProgramDay(userId: string): Promise<NextProgramDay 
 export interface DayForDerivation {
   exercises: {
     wgerExerciseId: number
+    source: ExerciseSource
     progression: Progression | null
     sets: (ProgramSetRowLike & { overrides: (SetOverrideLike & { week: number })[] })[]
   }[]
@@ -650,45 +683,39 @@ export async function deriveDayPrescription(
   day: DayForDerivation,
   week: number,
 ): Promise<DerivedSet[][]> {
+  // The history query stays id-based (see getExerciseHistoryBefore); rows are
+  // matched back onto the composite (source, id) below.
   const ids = [...new Set(day.exercises.map((e) => e.wgerExerciseId))]
   const historyRows = ids.length > 0 ? await getExerciseHistoryBefore(userId, ids, new Date()) : []
 
-  const e1rmById = new Map<number, number | null>()
-  for (const id of ids) {
+  const keys = [...new Set(day.exercises.map((e) => catalogKey(e.source, e.wgerExerciseId)))]
+  const e1rmByKey = new Map<string, number | null>()
+  for (const key of keys) {
     // weight_reps rows only: for BW-type rows `weight` is added/assisted
     // load, not total — feeding it to bestSet would deflate the e1RM the
     // prescription math anchors on. Program prescriptions are absolute
     // loads, so only absolute-load history is admissible.
     const rows = historyRows.filter(
-      // 'wger' pinned: DayForDerivation can't express source until program
-      // inputs learn it (custom-exercises Phase 4) — but the composite match
-      // must exist NOW so a custom exercise sharing this id can't pollute
-      // the prescription's e1RM anchor.
-      (r) => r.wgerExerciseId === id && r.source === 'wger' && r.loggingType === 'weight_reps',
+      (r) => catalogKey(r.source, r.wgerExerciseId) === key && r.loggingType === 'weight_reps',
     )
-    e1rmById.set(id, bestSet(rows)?.e1rm ?? null)
+    e1rmByKey.set(key, bestSet(rows)?.e1rm ?? null)
   }
 
   // Only double-progression needs the LAST session's sets specifically.
-  const lastSetsById = new Map<number, ExerciseHistoryInput['lastSets']>()
+  const lastSetsByKey = new Map<string, ExerciseHistoryInput['lastSets']>()
   for (const exercise of day.exercises) {
-    if (
-      exercise.progression?.scheme === 'double-progression' &&
-      !lastSetsById.has(exercise.wgerExerciseId)
-    ) {
-      // Same 'wger' pin as the e1RM filter above (Phase-4 unlock).
-      const perf = await getLastPerformance(userId, 'wger', exercise.wgerExerciseId)
-      lastSetsById.set(
-        exercise.wgerExerciseId,
-        perf?.sets.map((s) => ({ reps: s.reps, weightKg: s.weight })) ?? null,
-      )
+    const key = catalogKey(exercise.source, exercise.wgerExerciseId)
+    if (exercise.progression?.scheme === 'double-progression' && !lastSetsByKey.has(key)) {
+      const perf = await getLastPerformance(userId, exercise.source, exercise.wgerExerciseId)
+      lastSetsByKey.set(key, perf?.sets.map((s) => ({ reps: s.reps, weightKg: s.weight })) ?? null)
     }
   }
 
   return day.exercises.map((exercise) => {
+    const key = catalogKey(exercise.source, exercise.wgerExerciseId)
     const history: ExerciseHistoryInput = {
-      e1rmKg: e1rmById.get(exercise.wgerExerciseId) ?? null,
-      lastSets: lastSetsById.get(exercise.wgerExerciseId) ?? null,
+      e1rmKg: e1rmByKey.get(key) ?? null,
+      lastSets: lastSetsByKey.get(key) ?? null,
     }
     const derived = deriveWeekSets({
       sets: exercise.sets,
@@ -785,6 +812,9 @@ export async function instantiateProgramDay(
         .values({
           workoutId: workout.id,
           wgerExerciseId: exercise.wgerExerciseId,
+          // Identity is (source, id): a programmed custom must accrue history
+          // under 'custom', not the column default.
+          source: exercise.source,
           name: exercise.name,
           position,
         })

@@ -44,17 +44,23 @@ function fullSet(over: Partial<SlotSet> = {}): SlotSet {
 }
 
 function slot(over: Partial<SlotForSubstitution> = {}): SlotForSubstitution {
-  return { wgerExerciseId: 73, progression: null, sets: [fullSet()], ...over }
+  return { wgerExerciseId: 73, source: 'wger', progression: null, sets: [fullSet()], ...over }
 }
 
 describe('substituteSlot', () => {
   it('re-points the slot at the substitute id', () => {
-    expect(substituteSlot(slot(), 42).wgerExerciseId).toBe(42)
+    expect(substituteSlot(slot(), 'wger', 42).wgerExerciseId).toBe(42)
+  })
+
+  it('re-points the slot at the substitute source (composite identity)', () => {
+    const result = substituteSlot(slot(), 'custom', 42)
+    expect(result.source).toBe('custom')
+    expect(result.wgerExerciseId).toBe(42)
   })
 
   it('strips template loads and preserves every other set field verbatim', () => {
     // Act
-    const result = substituteSlot(slot(), 42)
+    const result = substituteSlot(slot(), 'wger', 42)
 
     // Assert — the load belonged to the original movement; the scheme didn't
     expect(result.sets[0]).toEqual({
@@ -82,7 +88,7 @@ describe('substituteSlot', () => {
     })
 
     // Act
-    const result = substituteSlot(input, 42)
+    const result = substituteSlot(input, 'wger', 42)
 
     // Assert
     expect(result.sets[0].overrides[0]).toMatchObject({
@@ -96,8 +102,8 @@ describe('substituteSlot', () => {
     const percent: Progression = { scheme: 'percent-1rm', trainingMaxKg: 140, weekPercents: [0.7, 0.8] }
     const amrap: Progression = { scheme: 'amrap-cycle', trainingMaxKg: 140, incrementKg: 2.5, wave: [[0.65, 0.75]] }
 
-    expect(substituteSlot(slot({ progression: percent }), 42).progression).toBeNull()
-    expect(substituteSlot(slot({ progression: amrap }), 42).progression).toBeNull()
+    expect(substituteSlot(slot({ progression: percent }), 'wger', 42).progression).toBeNull()
+    expect(substituteSlot(slot({ progression: amrap }), 'wger', 42).progression).toBeNull()
   })
 
   it('keeps history- and structure-anchored schemes unchanged', () => {
@@ -109,9 +115,9 @@ describe('substituteSlot', () => {
       { scheme: 'double-progression', repMin: 8, repMax: 12, incrementKg: 2.5 },
     ]
     for (const progression of keep) {
-      expect(substituteSlot(slot({ progression }), 42).progression).toEqual(progression)
+      expect(substituteSlot(slot({ progression }), 'wger', 42).progression).toEqual(progression)
     }
-    expect(substituteSlot(slot({ progression: null }), 42).progression).toBeNull()
+    expect(substituteSlot(slot({ progression: null }), 'wger', 42).progression).toBeNull()
   })
 
   it('does not mutate the input slot', () => {
@@ -121,7 +127,7 @@ describe('substituteSlot', () => {
     })
 
     // Act
-    substituteSlot(input, 42)
+    substituteSlot(input, 'wger', 42)
 
     // Assert — deep: loads survive on the original
     expect(input.wgerExerciseId).toBe(73)
