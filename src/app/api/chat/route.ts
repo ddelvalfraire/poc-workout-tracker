@@ -1,7 +1,8 @@
 import { auth } from '@clerk/nextjs/server'
 import { NextResponse } from 'next/server'
-import { convertToModelMessages, stepCountIs, streamText, type UIMessage } from 'ai'
+import { convertToModelMessages, stepCountIs, streamText } from 'ai'
 import { getWeightUnit } from '@/db/preferences'
+import { MAX_BODY_BYTES, parseChatMessages } from '@/lib/coach/chat-request'
 import { COACH_MODEL_SETUP_HINT, resolveCoachModel } from '@/lib/coach/model'
 import { createCoachMcpClient } from '@/lib/coach/mcp-bridge'
 import { checkCoachRateLimit } from '@/lib/coach/rate-limit'
@@ -13,12 +14,6 @@ export const maxDuration = 60
 
 // Bound the optional client-supplied context so it can't balloon the prompt.
 const MAX_CONTEXT_LENGTH = 500
-
-// Payload bounds: the step cap limits loop iterations, not input volume —
-// without these, the daily request cap still admits 40 arbitrarily large
-// gateway calls per user. Sized generously above real chat usage.
-const MAX_MESSAGES = 60
-const MAX_MESSAGES_BYTES = 120_000
 
 function buildSystemPrompt(weightUnit: string, context?: string): string {
   const lines = [
@@ -56,6 +51,29 @@ export async function POST(request: Request): Promise<Response> {
     return NextResponse.json({ error: COACH_MODEL_SETUP_HINT }, { status: 503 })
   }
 
+  // Bound the raw UTF-8 body BEFORE parsing: request.json() would buffer an
+  // arbitrarily large payload first, and a characters-only check undercounts
+  // multi-byte Unicode and ignores fields outside `messages`.
+  const raw = await request.text()
+  if (Buffer.byteLength(raw, 'utf8') > MAX_BODY_BYTES) {
+    return NextResponse.json({ error: 'Request payload too large' }, { status: 413 })
+  }
+  let body: { messages?: unknown; context?: unknown }
+  try {
+    const parsed: unknown = JSON.parse(raw)
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) throw new Error()
+    body = parsed as { messages?: unknown; context?: unknown }
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
+  }
+  const parsedMessages = parseChatMessages(body.messages)
+  if (!parsedMessages.ok) {
+    return NextResponse.json({ error: parsedMessages.error }, { status: 400 })
+  }
+  const messages = parsedMessages.messages
+
+  // Quota is charged LAST among the guards: a rejected request must never
+  // consume the user's daily allowance.
   const rate = await checkCoachRateLimit(userId)
   if (!rate.allowed) {
     return NextResponse.json(
@@ -63,26 +81,6 @@ export async function POST(request: Request): Promise<Response> {
       { status: 429 },
     )
   }
-
-  let body: { messages?: unknown; context?: unknown }
-  try {
-    body = await request.json()
-  } catch {
-    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
-  }
-  if (!Array.isArray(body.messages) || body.messages.length === 0) {
-    return NextResponse.json({ error: '`messages` must be a non-empty array' }, { status: 400 })
-  }
-  if (body.messages.length > MAX_MESSAGES) {
-    return NextResponse.json(
-      { error: `Conversation too long — send at most the last ${MAX_MESSAGES} messages` },
-      { status: 400 },
-    )
-  }
-  if (JSON.stringify(body.messages).length > MAX_MESSAGES_BYTES) {
-    return NextResponse.json({ error: 'Message payload too large' }, { status: 413 })
-  }
-  const messages = body.messages as UIMessage[]
   const context =
     typeof body.context === 'string' && body.context.trim()
       ? body.context.replace(/[\u0000-\u001F\u007F]+/g, " ").trim().slice(0, MAX_CONTEXT_LENGTH)
