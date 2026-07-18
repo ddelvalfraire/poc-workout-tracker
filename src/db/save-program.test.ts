@@ -24,6 +24,11 @@ function makeTx() {
         }
       },
     }),
+    // updateProgram's ownership-gated metadata update + child wipe.
+    update: () => ({
+      set: () => ({ where: () => ({ returning: () => Promise.resolve([{ id: 'p1' }]) }) }),
+    }),
+    delete: () => ({ where: () => Promise.resolve(undefined) }),
   }
 }
 
@@ -42,7 +47,7 @@ vi.mock('@/lib/wger', () => ({ getAllExercises }))
 const { listCustomExercises } = vi.hoisted(() => ({ listCustomExercises: vi.fn() }))
 vi.mock('./custom-exercises', () => ({ listCustomExercises }))
 
-import { saveProgram } from './programs'
+import { saveProgram, updateProgram } from './programs'
 
 const USER = 'user_123'
 
@@ -195,6 +200,36 @@ describe('saveProgram (transactional, user-scoped)', () => {
     expect(records[4].values).toMatchObject({
       wgerExerciseId: 2,
       source: 'wger',
+      supersetGroup: 1,
+    })
+  })
+
+  it('updateProgram (full replace) re-inserts children with source and supersetGroup intact', async () => {
+    // Arrange — the id-present replace branch shares insertProgramChildren,
+    // but pin it directly: a replace must never reset customs or ungroup.
+    const input = parseProgramInput({
+      name: 'P',
+      days: [
+        {
+          name: 'Upper',
+          exercises: [
+            { wgerExerciseId: 9, source: 'custom', name: 'Cable Face Pull', supersetGroup: 1, sets: [{}] },
+          ],
+        },
+      ],
+    })
+
+    // Act
+    const result = await updateProgram(USER, 'p1', input)
+
+    // Assert — day insert first, then the exercise carrying both fields
+    expect(result).toEqual({ id: 'p1' })
+    const exerciseInsert = records.find(
+      (r) => (r.values as { wgerExerciseId?: number }).wgerExerciseId !== undefined,
+    )
+    expect(exerciseInsert?.values).toMatchObject({
+      wgerExerciseId: 9,
+      source: 'custom',
       supersetGroup: 1,
     })
   })
