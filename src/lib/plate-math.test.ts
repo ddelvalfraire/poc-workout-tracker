@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { loadBar, warmupRamp } from './plate-math'
+import { loadBar, totalFromPlates, warmupRamp } from './plate-math'
 
 /** Standard lb gym: 45 bar, common plate denominations. */
 const LB_PLATES = [45, 35, 25, 10, 5, 2.5]
@@ -93,5 +93,32 @@ describe('warmupRamp', () => {
 
   it('returns empty for a working weight below the bar', () => {
     expect(warmupRamp(40, 45, LB_PLATES)).toEqual([])
+  })
+})
+
+describe('totalFromPlates', () => {
+  it('doubles the per-side sum and adds the bar', () => {
+    // Arrange: two 45s + a 25 on one side of a 45 bar
+    // Act + Assert: 45 + 2 × 115 = 275
+    expect(totalFromPlates([45, 45, 25], 45)).toBe(275)
+  })
+
+  it('returns just the bar for an empty count', () => {
+    expect(totalFromPlates([], 45)).toBe(45)
+  })
+
+  it('handles bar = 0 for plate-loaded machines', () => {
+    expect(totalFromPlates([45], 0)).toBe(90)
+  })
+
+  it('sums fractional plates without float drift', () => {
+    // 20 + 2 × (1.25 + 2.5) = 27.5 — naive float math lands on 27.499…
+    expect(totalFromPlates([1.25, 2.5], 20)).toBe(27.5)
+  })
+
+  it('round-trips loadBar output back to the achieved weight', () => {
+    const load = loadBar(185, 45, LB_PLATES)
+    expect(load).not.toBeNull()
+    expect(totalFromPlates(load!.perSide, 45)).toBe(load!.achieved)
   })
 })

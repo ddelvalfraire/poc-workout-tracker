@@ -5,7 +5,7 @@ import { X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { setEquipmentAction } from '@/app/actions'
-import { loadBar, warmupRamp } from '@/lib/plate-math'
+import { loadBar, totalFromPlates, warmupRamp } from '@/lib/plate-math'
 import type { Equipment } from '@/lib/equipment'
 import type { WeightUnit } from '@/lib/units'
 import { cn } from '@/lib/utils'
@@ -27,6 +27,9 @@ interface PlateSheetProps {
   onClose: () => void
   /** Fired after a successful gear save so the logger can refresh its copy. */
   onEquipmentSaved: (equipment: Equipment) => void
+  /** Count mode's "Use this weight": writes the counted total into the
+   *  current set. Absent = count mode is display-only. */
+  onUseWeight?: (weight: number) => void
 }
 
 /** 2.5 → "2.5", 45 → "45" — JS number formatting is already what lifters write. */
@@ -68,9 +71,17 @@ export function PlateSheet({
   equipment,
   onClose,
   onEquipmentSaved,
+  onUseWeight,
 }: PlateSheetProps) {
   // Bar options: the user's bars plus the UI-level "no bar" (plate-loaded).
   const [bar, setBar] = useState<number>(equipment.bars[0] ?? 0)
+  // Which direction the math runs: weight → plates, or count plates → weight.
+  const [mode, setMode] = useState<'build' | 'count'>('build')
+  // Count mode: plates tapped so far — ONE side of the bar, in tap order.
+  const [counted, setCounted] = useState<number[]>([])
+  // Warm-up target override — ephemeral and display-only ('' follows the top
+  // filled set). Never written back to the draft or the program.
+  const [warmupTargetText, setWarmupTargetText] = useState('')
   const [isEditing, setIsEditing] = useState(false)
   // Gear selection as toggled pills (not comma text): tapping denominations
   // is one-thumb work; typing "45, 35, 2.5" mid-session never was.
@@ -113,7 +124,10 @@ export function PlateSheet({
     }
   }, [])
 
-  const ramp = weights.length > 0 ? warmupRamp(weights[0], bar, equipment.plates) : []
+  const warmupOverride = parseCustomWeight(warmupTargetText)
+  const warmupTarget = warmupOverride ?? weights[0] ?? null
+  const ramp = warmupTarget !== null ? warmupRamp(warmupTarget, bar, equipment.plates) : []
+  const countedTotal = totalFromPlates(counted, bar)
 
   function handleStartEditing() {
     // Re-seed from the saved gear each time: a cancelled edit must not leak
@@ -248,46 +262,169 @@ export function PlateSheet({
           </button>
         </div>
 
-        {/* Plate breakdown per distinct working weight */}
-        <div className="mt-4 space-y-1.5">
-          {weights.length === 0 && (
-            <p className="text-sm text-muted-foreground">Enter a weight on a set to see the plate math.</p>
-          )}
-          {weights.map((weight) => {
-            const load = loadBar(weight, bar, equipment.plates)
-            return (
-              <p key={weight} className="flex items-baseline justify-between gap-3 text-sm">
-                <span className="font-semibold tnum">
-                  {fmt(weight)} {unit}
-                </span>
-                <span className="text-right text-muted-foreground tnum">
-                  {load === null
-                    ? 'below the bar'
-                    : load.exact
-                      ? perSideLabel(load.perSide)
-                      : `closest ${fmt(load.achieved)} — ${perSideLabel(load.perSide)}`}
-                </span>
-              </p>
-            )
-          })}
+        {/* Direction toggle: same pill vocabulary as everything else here. */}
+        <div className="mt-4 flex gap-2">
+          {(
+            [
+              { value: 'build', label: 'Load bar' },
+              { value: 'count', label: 'Count plates' },
+            ] as const
+          ).map(({ value, label }) => (
+            <button
+              key={value}
+              type="button"
+              onClick={() => setMode(value)}
+              aria-pressed={mode === value}
+              className={cn(
+                'relative h-9 flex-1 rounded-full border text-sm font-semibold transition-colors before:absolute before:-inset-1',
+                mode === value
+                  ? 'border-primary bg-primary text-primary-foreground'
+                  : 'border-border bg-muted text-muted-foreground',
+              )}
+            >
+              {label}
+            </button>
+          ))}
         </div>
 
-        {/* Warm-up ramp toward the top working weight */}
-        {ramp.length > 0 && (
-          <div className="mt-5">
-            <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-              Warm-up · toward {fmt(weights[0])} {unit}
-            </p>
-            <div className="mt-2 space-y-1.5">
-              {ramp.map((step) => (
-                <p key={step.weight} className="flex items-baseline justify-between gap-3 text-sm">
+        {/* Plate breakdown per distinct working weight */}
+        {mode === 'build' && (
+          <div className="mt-4 space-y-1.5">
+            {weights.length === 0 && (
+              <p className="text-sm text-muted-foreground">Enter a weight on a set to see the plate math.</p>
+            )}
+            {weights.map((weight) => {
+              const load = loadBar(weight, bar, equipment.plates)
+              return (
+                <p key={weight} className="flex items-baseline justify-between gap-3 text-sm">
                   <span className="font-semibold tnum">
-                    {fmt(step.weight)} × {step.reps}
+                    {fmt(weight)} {unit}
                   </span>
-                  <span className="text-right text-muted-foreground tnum">{perSideLabel(step.perSide)}</span>
+                  <span className="text-right text-muted-foreground tnum">
+                    {load === null
+                      ? 'below the bar'
+                      : load.exact
+                        ? perSideLabel(load.perSide)
+                        : `closest ${fmt(load.achieved)} — ${perSideLabel(load.perSide)}`}
+                  </span>
                 </p>
+              )
+            })}
+          </div>
+        )}
+
+        {/* Count mode: tap what's racked on ONE side; we double it + the bar. */}
+        {mode === 'count' && (
+          <div className="mt-4">
+            <p className="text-sm text-muted-foreground">Tap the plates on one side of the bar.</p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {equipment.plates.map((plate) => (
+                <button
+                  key={plate}
+                  type="button"
+                  onClick={() => setCounted((prev) => [...prev, plate])}
+                  aria-label={`Add a ${fmt(plate)} ${unit} plate`}
+                  className="relative h-9 rounded-full border border-border bg-muted px-3.5 text-sm font-semibold tnum transition-colors before:absolute before:-inset-1 active:border-primary"
+                >
+                  {fmt(plate)}
+                </button>
               ))}
             </div>
+            {counted.length > 0 && (
+              <div className="mt-3 flex flex-wrap gap-1.5">
+                {counted.map((plate, index) => (
+                  <button
+                    key={`${plate}-${index}`}
+                    type="button"
+                    onClick={() => setCounted((prev) => prev.filter((_, i) => i !== index))}
+                    aria-label={`Remove the ${fmt(plate)} ${unit} plate`}
+                    className="relative h-8 rounded-full border border-primary/50 bg-primary/10 px-3 text-sm font-semibold tnum before:absolute before:-inset-1"
+                  >
+                    {fmt(plate)} ×
+                  </button>
+                ))}
+              </div>
+            )}
+            <div className="mt-4 flex items-baseline justify-between gap-3">
+              <span className="text-2xl font-semibold tnum">
+                {fmt(countedTotal)} {unit}
+              </span>
+              <span className="text-right text-sm text-muted-foreground tnum">
+                {perSideLabel([...counted].sort((a, b) => b - a))}
+              </span>
+            </div>
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setCounted([])}
+                disabled={counted.length === 0}
+              >
+                Clear
+              </Button>
+              {onUseWeight && (
+                <Button
+                  size="sm"
+                  onClick={() => onUseWeight(countedTotal)}
+                  disabled={countedTotal <= 0}
+                >
+                  Use {fmt(countedTotal)} {unit}
+                </Button>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Warm-up ramp — target editable in place (preview-only: changing it
+            never touches the set, the ghost, or the program). */}
+        {mode === 'build' && (
+          <div className="mt-5">
+            <div className="flex items-center justify-between gap-3">
+              <label
+                htmlFor="warmup-target"
+                className="text-xs font-semibold uppercase tracking-widest text-muted-foreground"
+              >
+                Warm-up · toward
+              </label>
+              <span className="flex items-center gap-1.5">
+                <Input
+                  id="warmup-target"
+                  value={warmupTargetText}
+                  onChange={(e) => setWarmupTargetText(e.target.value)}
+                  inputMode="decimal"
+                  placeholder={weights[0] !== undefined ? fmt(weights[0]) : '0'}
+                  className="h-8 w-20 text-center text-sm tnum"
+                />
+                <span className="text-sm text-muted-foreground">{unit}</span>
+              </span>
+            </div>
+            {warmupOverride !== null && weights[0] !== undefined && warmupOverride !== weights[0] && (
+              <button
+                type="button"
+                onClick={() => setWarmupTargetText('')}
+                className="mt-1.5 text-xs text-muted-foreground underline-offset-2 active:underline"
+              >
+                Back to your top set ({fmt(weights[0])} {unit})
+              </button>
+            )}
+            {ramp.length > 0 ? (
+              <div className="mt-2 space-y-1.5">
+                {ramp.map((step) => (
+                  <p key={step.weight} className="flex items-baseline justify-between gap-3 text-sm">
+                    <span className="font-semibold tnum">
+                      {fmt(step.weight)} × {step.reps}
+                    </span>
+                    <span className="text-right text-muted-foreground tnum">{perSideLabel(step.perSide)}</span>
+                  </p>
+                ))}
+              </div>
+            ) : (
+              warmupTarget === null && (
+                <p className="mt-2 text-sm text-muted-foreground">
+                  Type a target weight to preview the ramp.
+                </p>
+              )
+            )}
           </div>
         )}
 

@@ -1275,6 +1275,9 @@ export function WorkoutLogger({
         draft.exercises[plateSheetFor] &&
         draft.exercises[plateSheetFor].loggingType === 'weight_reps' && (
         <PlateSheet
+          // Remount per exercise: bar choice, count-mode taps, and the
+          // warm-up override are all per-open state by design.
+          key={plateSheetFor}
           exerciseName={draft.exercises[plateSheetFor].name}
           weights={Array.from(
             new Set(
@@ -1287,6 +1290,23 @@ export function WorkoutLogger({
           equipment={gear}
           onClose={() => setPlateSheetFor(null)}
           onEquipmentSaved={setGear}
+          onUseWeight={(weight) => {
+            const exercise = draft.exercises[plateSheetFor]
+            // Counted weight lands on the set being worked: the first
+            // incomplete one, else the last (all done = correcting the top).
+            const firstIncomplete = exercise.sets.findIndex((set) => !set.completed)
+            const setIndex = firstIncomplete === -1 ? exercise.sets.length - 1 : firstIncomplete
+            if (setIndex >= 0) {
+              dispatch({
+                type: 'UPDATE_SET',
+                exerciseIndex: plateSheetFor,
+                setIndex,
+                field: 'weight',
+                value: String(weight),
+              })
+            }
+            setPlateSheetFor(null)
+          }}
         />
       )}
 
