@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ChevronRight, RotateCcw, Settings } from "lucide-react";
+import { ChevronRight, MessageCircle, RotateCcw, Settings } from "lucide-react";
 import { UserButton } from "@clerk/nextjs";
 import { requireUserId } from "@/lib/auth";
 import { listWorkoutSummaries } from "@/db/workouts";
@@ -14,6 +14,7 @@ import { startedWithinLastHours } from "@/lib/recent-window";
 import { buttonVariants } from "@/components/ui/button";
 import { GuardedStartLink } from "@/components/guarded-start-link";
 import { cn } from "@/lib/utils";
+import { isCoachUser } from "@/lib/coach/access";
 import { NextWorkoutCard } from "./next-workout-card";
 import { ResumeSessionCard } from "./resume-session-card";
 import { TodayWorkouts } from "./today-workouts";
@@ -180,6 +181,28 @@ export default async function HomePage() {
               Exercises
             </Link>
           </>
+        )}
+
+        {/* Coach entry: same quiet teaser-card idiom as This week below —
+            a row, not a hero, so it reads as a door rather than a pitch.
+            Dev-gated: hidden unless this account is on the coach allowlist
+            (the route and page 403/404 regardless — this is just the door). */}
+        {isCoachUser(userId) && (
+        <Link
+          href="/coach"
+          className="mt-3 flex items-center justify-between gap-3 rounded-2xl border border-border bg-card p-4 transition-colors active:bg-muted/60"
+        >
+          <span className="flex min-w-0 items-center gap-3">
+            <MessageCircle aria-hidden="true" className="size-5 shrink-0 text-muted-foreground" />
+            <span className="min-w-0">
+              <span className="block text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                Coach
+              </span>
+              <span className="mt-0.5 block truncate text-sm">Ask about your training</span>
+            </span>
+          </span>
+          <ChevronRight aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
+        </Link>
         )}
 
         {/* Weekly-balance teaser: headline numbers only, the page has the

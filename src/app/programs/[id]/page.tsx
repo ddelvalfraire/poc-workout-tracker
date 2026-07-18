@@ -1,7 +1,8 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { ChevronLeft, ChevronRight, MessageCircle } from 'lucide-react'
 import { requireUserId } from '@/lib/auth'
+import { isCoachUser } from '@/lib/coach/access'
 import {
   getProgramDetail,
   programWeekState,
@@ -146,13 +147,27 @@ export default async function ProgramDetailPage({
             Week {currentWeek} of {program.mesocycleWeeks}
             {program.deloadWeek !== null && ` · deload wk ${program.deloadWeek}`}
           </p>
-          <Link
-            href={`/programs/${program.id}/stats`}
-            className="flex shrink-0 items-center gap-0.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
-          >
-            Stats
-            <ChevronRight aria-hidden="true" className="size-4" />
-          </Link>
+          <div className="flex shrink-0 items-center gap-4">
+            {/* Coach opens with this program as context, so "swap tomorrow's
+                pressing" needs no preamble about which program is meant.
+                Dev-gated: allowlist accounts only (server enforces too). */}
+            {isCoachUser(userId) && (
+              <Link
+                href={`/coach?context=${encodeURIComponent(`program:${program.id}`)}`}
+                className="flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground"
+              >
+                <MessageCircle aria-hidden="true" className="size-4" />
+                Coach
+              </Link>
+            )}
+            <Link
+              href={`/programs/${program.id}/stats`}
+              className="flex items-center gap-0.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
+            >
+              Stats
+              <ChevronRight aria-hidden="true" className="size-4" />
+            </Link>
+          </div>
         </div>
 
         {/* Week selector: plain links so the browser owns the state (share,
