@@ -346,7 +346,9 @@ export function PlateSheet({
               </div>
             )}
             <div className="mt-4 flex items-baseline justify-between gap-3">
-              <span className="text-2xl font-semibold tnum">
+              {/* Live region: each plate tap announces the new total, so the
+                  count is followable without re-navigating to this node. */}
+              <span aria-live="polite" aria-atomic="true" className="text-2xl font-semibold tnum">
                 {fmt(countedTotal)} {unit}
               </span>
               <span className="text-right text-sm text-muted-foreground tnum">
@@ -406,6 +408,14 @@ export function PlateSheet({
               >
                 Back to your top set ({fmt(weights[0])} {unit})
               </button>
+            )}
+            {/* A typo'd target must not read as an applied override: name the
+                fallback instead of silently ramping to the top set. */}
+            {warmupTargetText.trim() !== '' && warmupOverride === null && (
+              <p className="mt-1.5 text-xs text-muted-foreground">
+                Not a weight — showing{' '}
+                {weights[0] !== undefined ? `your top set (${fmt(weights[0])} ${unit})` : 'no ramp'}.
+              </p>
             )}
             {ramp.length > 0 ? (
               <div className="mt-2 space-y-1.5">

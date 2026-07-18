@@ -367,3 +367,14 @@ export function completeFilledSets(draft: WorkoutDraft): {
   }))
   return { draft: { exercises }, autoCompleted, skipped }
 }
+
+/**
+ * The set an out-of-band weight (the plate sheet's counted total) should land
+ * on: the first incomplete set — the one being worked — else the last set
+ * (everything checked = the lifter is correcting the top). −1 for no sets;
+ * callers must no-op on that.
+ */
+export function resolveTargetSetIndex(sets: DraftSet[]): number {
+  const firstIncomplete = sets.findIndex((set) => !set.completed)
+  return firstIncomplete === -1 ? sets.length - 1 : firstIncomplete
+}

@@ -32,6 +32,7 @@ import {
   newDraftExercise,
   newDraftSet,
   replacementDraftExercise,
+  resolveTargetSetIndex,
   type DraftExercise,
   type DraftSet,
   type WorkoutDraft,
@@ -1292,10 +1293,7 @@ export function WorkoutLogger({
           onEquipmentSaved={setGear}
           onUseWeight={(weight) => {
             const exercise = draft.exercises[plateSheetFor]
-            // Counted weight lands on the set being worked: the first
-            // incomplete one, else the last (all done = correcting the top).
-            const firstIncomplete = exercise.sets.findIndex((set) => !set.completed)
-            const setIndex = firstIncomplete === -1 ? exercise.sets.length - 1 : firstIncomplete
+            const setIndex = resolveTargetSetIndex(exercise.sets)
             if (setIndex >= 0) {
               dispatch({
                 type: 'UPDATE_SET',
