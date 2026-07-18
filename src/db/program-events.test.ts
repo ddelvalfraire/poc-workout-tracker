@@ -142,6 +142,20 @@ describe('listProgramEvents', () => {
     expect(whereParams(0)).toContain('2026-07-18T10:00:00.000Z')
   })
 
+  it('pages same-timestamp ties via the compound (before, beforeId) cursor', async () => {
+    // Arrange — beforeId is the last row of the prior page; without the
+    // compound form, unreturned rows TIED on this timestamp would be skipped.
+    const before = new Date('2026-07-18T10:00:00Z')
+
+    // Act
+    await listProgramEvents(USER, PID, { before, beforeId: 'ev-last' })
+
+    // Assert — both cursor components reach the predicate
+    const params = whereParams(0)
+    expect(params).toContain('2026-07-18T10:00:00.000Z')
+    expect(params).toContain('ev-last')
+  })
+
   it('resolves the rows the query returns', async () => {
     // Arrange
     rows = [{ id: 'ev1' }]

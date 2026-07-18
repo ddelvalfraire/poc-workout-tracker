@@ -1,4 +1,4 @@
-import { and, desc, eq, lt } from 'drizzle-orm'
+import { and, desc, eq, lt, or } from 'drizzle-orm'
 import { db } from './index'
 import { programEvents } from './schema'
 
@@ -56,14 +56,30 @@ export const PROGRAM_EVENTS_MAX_LIMIT = 100
 export function listProgramEvents(
   userId: string,
   programId: string,
-  options: { limit?: number; before?: Date } = {},
+  options: { limit?: number; before?: Date; beforeId?: string } = {},
 ) {
   const limit = Math.min(
     Math.max(Math.trunc(options.limit ?? PROGRAM_EVENTS_DEFAULT_LIMIT), 1),
     PROGRAM_EVENTS_MAX_LIMIT,
   )
   const conditions = [eq(programEvents.userId, userId), eq(programEvents.programId, programId)]
-  if (options.before !== undefined) conditions.push(lt(programEvents.occurredAt, options.before))
+  if (options.before !== undefined) {
+    // Compound cursor matching the (occurredAt, id) sort: a timestamp-only
+    // cursor would skip unreturned rows TIED on the last page's timestamp.
+    // `beforeId` is the last row's id from the prior page; without it the
+    // timestamp-only form stands (first page, or a caller with only a date).
+    conditions.push(
+      options.beforeId !== undefined
+        ? or(
+            lt(programEvents.occurredAt, options.before),
+            and(
+              eq(programEvents.occurredAt, options.before),
+              lt(programEvents.id, options.beforeId),
+            ),
+          )!
+        : lt(programEvents.occurredAt, options.before),
+    )
+  }
   return db
     .select()
     .from(programEvents)
