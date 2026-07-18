@@ -106,7 +106,10 @@ export function formatToolInput(input: unknown): string {
  */
 export function parseContextParam(value: string | string[] | undefined): string | undefined {
   const single = Array.isArray(value) ? value[0] : value
-  const trimmed = single?.trim()
+  // Control characters collapse to spaces: ?context= is a shareable URL, and
+  // embedded newlines in a crafted link could fabricate extra lines inside
+  // the system prompt. (The server strips them too — this is not the boundary.)
+  const trimmed = single?.replace(/[\u0000-\u001F\u007F]+/g, " ").trim()
   if (!trimmed) return undefined
   return trimmed.slice(0, MAX_CONTEXT_LENGTH)
 }

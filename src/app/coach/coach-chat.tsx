@@ -191,7 +191,18 @@ export function CoachChat({ context }: CoachChatProps) {
     sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithApprovalResponses,
   })
 
-  const busy = status === 'submitted' || status === 'streaming'
+  // An unanswered (human) approval also counts as busy: the stream parks at
+  // approval-requested with status back at 'ready', and sending a fresh
+  // message then would strand an assistant tool call with no response —
+  // exactly the transcript shape the model round-trip rejects. Also keeps
+  // the one-volt rule honest: Apply owns the volt while a card is up.
+  const pendingApproval = messages.some((message) =>
+    message.parts.some(
+      (part) =>
+        isToolPart(part) && part.state === 'approval-requested' && !part.approval?.isAutomatic,
+    ),
+  )
+  const busy = status === 'submitted' || status === 'streaming' || pendingApproval
 
   // Keep the newest content in view as it streams.
   useEffect(() => {
