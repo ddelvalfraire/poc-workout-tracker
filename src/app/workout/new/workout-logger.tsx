@@ -39,6 +39,7 @@ import {
 } from './workout-draft'
 import { draftKey, buildDraftPayload, parseDraftPayload } from './draft-payload'
 import { createDraftSyncQueue, type DraftSyncQueue, type DraftSyncStatus } from './draft-sync'
+import { SwipeToDelete } from './swipe-to-delete'
 import { HeaderClock } from './session-clock'
 import { PlateSheet } from './plate-sheet'
 import { RestSheet } from './rest-sheet'
@@ -1019,6 +1020,10 @@ export function WorkoutLogger({
                   (set.weight === '' && !!chipFill.weight)
                 return (
                 <Fragment key={set.id}>
+                {/* Swipe is the fast touch path; the row's X stays for
+                    mouse/keyboard/screen-reader users — additive, not a
+                    replacement. Undo (not a confirm) catches mistakes. */}
+                <SwipeToDelete onDelete={() => handleRemoveSet(exerciseIndex, setIndex)}>
                 <div className="flex items-center gap-2" id={`set-row-${set.id}`}>
                   <button
                     type="button"
@@ -1176,6 +1181,7 @@ export function WorkoutLogger({
                     <X aria-hidden="true" className="size-4" />
                   </Button>
                 </div>
+                </SwipeToDelete>
                 {/* Steppers ride under the focused weight row only. One plate
                     a side per tap; pointerdown preventDefault keeps the input
                     focused so the row (and keyboard) don't dismiss mid-tap. */}
