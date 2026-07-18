@@ -105,6 +105,9 @@ interface WorkoutLoggerProps {
    *  when an exercise has no prior history. Keyed by the composite
    *  `source:wgerExerciseId` (plan slots can be custom exercises). */
   planTargets?: Record<string, PlanSetTarget[]>
+  /** Plan-declared superset groups keyed `source:id` — display-only pairing
+   *  labels; the logger never creates or edits groupings. */
+  planSupersets?: Record<string, number>
   /** Which program (day · week) this session is stamped to, e.g. "Legs ·
    *  Week 1". Provenance is fixed at start and can't be edited — surfacing
    *  it here is what keeps a wrong-day start from absorbing a full session
@@ -131,6 +134,7 @@ export function WorkoutLogger({
   initialName = '',
   unit = 'kg',
   planTargets,
+  planSupersets,
   programContext,
   startedAt,
   equipment,
@@ -218,6 +222,21 @@ export function WorkoutLogger({
         )
       : null,
   )
+  // Superset letters (A, B…) assigned to plan groups in draft order — group
+  // NUMBERS are plan-internal; letters are what a lifter reads mid-set.
+  const supersetLetters = (() => {
+    const letters: Record<number, string> = {}
+    if (!planSupersets) return letters
+    let next = 0
+    for (const exercise of draft.exercises) {
+      const group = planSupersets[`${exercise.source}:${exercise.wgerExerciseId}`]
+      if (group !== undefined && letters[group] === undefined) {
+        letters[group] = String.fromCharCode(65 + next++)
+      }
+    }
+    return letters
+  })()
+
   // When the user opened the logger — saved as startedAt for NEW workouts so
   // startedAt→completedAt reflects the real session length, not the save
   // instant. Edits keep the workout's existing startedAt. State (not a ref)
@@ -839,6 +858,17 @@ export function WorkoutLogger({
           const hasPR =
             typeof prIndexByExercise[exerciseIndex] === 'number' &&
             (prIndexByExercise[exerciseIndex] as number) >= 0
+          // Plan superset pairing, display-only. Adjacent same-group cards
+          // pull together and share a rail so the pair reads as one block.
+          const supersetGroup =
+            planSupersets?.[`${exercise.source}:${exercise.wgerExerciseId}`]
+          const supersetLabel =
+            supersetGroup !== undefined ? supersetLetters[supersetGroup] : undefined
+          const previous = draft.exercises[exerciseIndex - 1]
+          const continuesSuperset =
+            supersetGroup !== undefined &&
+            previous !== undefined &&
+            planSupersets?.[`${previous.source}:${previous.wgerExerciseId}`] === supersetGroup
           return (
           <section
             key={exercise.id}
@@ -849,8 +879,17 @@ export function WorkoutLogger({
               // outline is the same "live/complete" state marker the resume
               // banner and rest readout use.
               isDone ? 'border-primary/50' : 'border-border',
+              // Muted rail, not volt (one-volt rule): grouping is structure,
+              // not a live state.
+              supersetLabel !== undefined && 'border-l-2 border-l-muted-foreground/40',
+              continuesSuperset && '-mt-2',
             )}
           >
+            {supersetLabel !== undefined && !isCollapsed && (
+              <p className="text-[0.65rem] font-semibold uppercase tracking-widest text-muted-foreground">
+                Superset {supersetLabel}
+              </p>
+            )}
           {isCollapsed ? (
             <button
               type="button"
