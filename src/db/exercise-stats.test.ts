@@ -80,6 +80,7 @@ function row(over: Partial<ExerciseStatsRow> = {}): ExerciseStatsRow {
     weight: 100,
     completed: true,
     metricMode: 'reps_weight',
+    setType: 'working',
     ...over,
   }
 }
@@ -241,6 +242,25 @@ describe('aggregateExerciseStats', () => {
     expect(stats.totalCompletedSets).toBe(1)
     expect(stats.records.bestE1rm).toMatchObject({ weightKg: 100 })
     expect(stats.records.heaviestLoadKg).toMatchObject({ weightKg: 100 })
+  })
+
+  it('never scores warm-up sets — records, counts, tonnage, or sessions', () => {
+    const rows = [
+      row({ workoutId: 'w1', reps: 5, weight: 100 }),
+      // Heavier warm-up single (plate-math quirk day) — must not become the
+      // record, count as a set, or add tonnage.
+      row({ workoutId: 'w1', reps: 1, weight: 120, setType: 'warmup' }),
+      // A warm-up-only session must not count as a session at all.
+      row({ workoutId: 'w2', startedAt: S2, reps: 10, weight: 60, setType: 'warmup' }),
+    ]
+
+    const stats = aggregateExerciseStats(rows, 'weight_reps')
+
+    expect(stats.totalSessions).toBe(1)
+    expect(stats.totalCompletedSets).toBe(1)
+    expect(stats.records.heaviestLoadKg).toMatchObject({ weightKg: 100 })
+    expect(stats.records.bestSessionVolumeKg).toMatchObject({ volumeKg: 500 })
+    expect(stats.trend).toHaveLength(1)
   })
 
   it('picks the highest-volume session across sessions', () => {
