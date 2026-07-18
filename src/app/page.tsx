@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ChevronRight, RotateCcw, Settings } from "lucide-react";
+import { ChevronRight, MessageCircle, RotateCcw, Settings } from "lucide-react";
 import { UserButton } from "@clerk/nextjs";
 import { requireUserId } from "@/lib/auth";
 import { listWorkoutSummaries } from "@/db/workouts";
@@ -181,6 +181,24 @@ export default async function HomePage() {
             </Link>
           </>
         )}
+
+        {/* Coach entry: same quiet teaser-card idiom as This week below —
+            a row, not a hero, so it reads as a door rather than a pitch. */}
+        <Link
+          href="/coach"
+          className="mt-3 flex items-center justify-between gap-3 rounded-2xl border border-border bg-card p-4 transition-colors active:bg-muted/60"
+        >
+          <span className="flex min-w-0 items-center gap-3">
+            <MessageCircle aria-hidden="true" className="size-5 shrink-0 text-muted-foreground" />
+            <span className="min-w-0">
+              <span className="block text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                Coach
+              </span>
+              <span className="mt-0.5 block truncate text-sm">Ask about your training</span>
+            </span>
+          </span>
+          <ChevronRight aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
+        </Link>
 
         {/* Weekly-balance teaser: headline numbers only, the page has the
             chart. Hidden until there's any volume — an empty stats pitch is

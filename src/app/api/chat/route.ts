@@ -87,7 +87,7 @@ export async function POST(request: Request): Promise<Response> {
   const messages = body.messages as UIMessage[]
   const context =
     typeof body.context === 'string' && body.context.trim()
-      ? body.context.trim().slice(0, MAX_CONTEXT_LENGTH)
+      ? body.context.replace(/[\u0000-\u001F\u007F]+/g, " ").trim().slice(0, MAX_CONTEXT_LENGTH)
       : undefined
 
   const weightUnit = await getWeightUnit(userId)
