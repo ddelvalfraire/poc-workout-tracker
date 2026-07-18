@@ -487,18 +487,25 @@ describe('nextProgramWeek', () => {
     expect(await nextProgramWeek(USER, 'p1', 4)).toBe(2)
   })
 
-  it('counts only COMPLETED days toward advancing the week', async () => {
-    // Regression net for the merely-started-counts-as-done bug: the harness
-    // must catch a dropped isNotNull(completedAt), which canned rows can't.
+  it('counts only TRAINED days toward the week axis (both reads)', async () => {
+    // Regression net for two shipped bugs: the merely-started-counts-as-done
+    // bug (dropped isNotNull(completedAt)) and the cooked-block incident
+    // (2026-07-19: ghost workouts with completedAt but ZERO completed sets
+    // raised the observed week and advanced the cycle). The harness must
+    // catch either predicate being dropped, which canned rows can't.
     selectQueue = [[{ current: 2 }], [{ value: 3 }], [{ value: 1 }]]
 
     await nextProgramWeek(USER, 'p1', 4)
 
     // Select order: current(0) · dayTotal(1) · daysDone(2)
     expect(predicateMentionsColumn(capturedWheres[2], 'completed_at')).toBe(true)
-    // current deliberately counts ANY row: an in-progress instantiation must
-    // still pin the week so the hero can't jump ahead mid-session.
+    expect(predicateMentionsColumn(capturedWheres[2], 'completed')).toBe(true)
+    // The observed-week read requires trained (≥1 completed set) but NOT
+    // completedAt: an in-progress final-day session still derives the same
+    // week from the prior cycle (complete → current+1), so the hero can't
+    // jump ahead mid-session — while never-trained ghosts stop pinning.
     expect(predicateMentionsColumn(capturedWheres[0], 'completed_at')).toBe(false)
+    expect(predicateMentionsColumn(capturedWheres[0], 'completed')).toBe(true)
   })
 
   it('advances (clamped to the mesocycle) when every day is done', async () => {

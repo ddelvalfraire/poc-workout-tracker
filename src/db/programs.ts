@@ -473,11 +473,23 @@ export async function programWeekState(
   programId: string,
   mesocycleWeeks: number,
 ): Promise<ProgramWeekState> {
+  // A workout counts toward the week axis only when it was actually TRAINED:
+  // ≥1 completed set. `completedAt` alone is a weak proxy — MCP-created and
+  // legacy rows can carry completedAt with zero completed sets, and such
+  // ghosts both raised the observed week and advanced the cycle (the
+  // cooked-block incident, 2026-07-19). Raw sql (not db.select) so the
+  // predicate stays a plain introspectable expression.
+  const trainedWorkout = sql`exists (
+    select 1 from ${workoutExercises}
+    inner join ${sets} on ${sets.workoutExerciseId} = ${workoutExercises.id}
+    where ${workoutExercises.workoutId} = ${workouts.id} and ${sets.completed}
+  )`
+
   const [agg] = await db
     .select({ current: max(workouts.programWeek) })
     .from(workouts)
     .innerJoin(programDays, eq(programDays.id, workouts.programDayId))
-    .where(and(eq(programDays.programId, programId), eq(workouts.userId, userId)))
+    .where(and(eq(programDays.programId, programId), eq(workouts.userId, userId), trainedWorkout))
   const current = agg?.current ?? null
   if (current === null) return { currentWeek: 1, blockComplete: false }
 
@@ -497,8 +509,11 @@ export async function programWeekState(
           eq(workouts.userId, userId),
           eq(workouts.programWeek, current),
           // COMPLETED days only: a started-but-unfinished (or later-
-          // discarded) session must not advance the mesocycle week.
+          // discarded) session must not advance the mesocycle week — and
+          // "completed" means trained (≥1 completed set), not just a
+          // completedAt stamp (see trainedWorkout above).
           isNotNull(workouts.completedAt),
+          trainedWorkout,
         ),
       ),
   ])
