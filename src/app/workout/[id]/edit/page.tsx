@@ -21,16 +21,33 @@ import { resolveDraftSeed } from '@/app/workout/new/draft-payload'
 async function loadPlanTargets(
   userId: string,
   workout: WorkoutDetail,
-): Promise<{ targets: Record<string, PlanSetTarget[]>; dayName: string } | undefined> {
+): Promise<
+  | {
+      targets: Record<string, PlanSetTarget[]>
+      supersets: Record<string, number>
+      dayName: string
+    }
+  | undefined
+> {
   if (!workout.programDayId || !workout.programWeek) return undefined
   const day = await getProgramDayDetail(userId, workout.programDayId)
   if (!day) return undefined
 
   const derived = await deriveDayPrescription(userId, day, workout.programWeek)
   const targets: Record<string, PlanSetTarget[]> = {}
+  // Plan-declared superset pairings (display-only in the logger): same
+  // first-slot-wins keying as the targets so the two maps stay congruent.
+  const supersets: Record<string, number> = {}
   day.exercises.forEach((exercise, i) => {
     const key = `${exercise.source}:${exercise.wgerExerciseId}`
-    if (key in targets) return
+    if (key in targets) {
+      // A repeated exercise whose LATER slot carries a different grouping is
+      // ambiguous under identity keying — drop the pairing entirely rather
+      // than paint one slot's group onto both cards.
+      if ((supersets[key] ?? null) !== exercise.supersetGroup) delete supersets[key]
+      return
+    }
+    if (exercise.supersetGroup !== null) supersets[key] = exercise.supersetGroup
     targets[key] = derived[i].map((s) => ({
       repMin: s.repMin,
       repMax: s.repMax,
@@ -43,7 +60,7 @@ async function loadPlanTargets(
   // The day name rides along so the logger can say which (day, week) this
   // session is stamped to — provenance is fixed at start, so it must be
   // VISIBLE before 20 sets land in the wrong day.
-  return { targets, dayName: day.name }
+  return { targets, supersets, dayName: day.name }
 }
 
 export default async function EditWorkoutPage({
@@ -97,6 +114,7 @@ export default async function EditWorkoutPage({
         initialName={name}
         unit={unit}
         planTargets={plan?.targets}
+        planSupersets={plan?.supersets}
         // Which (day, week) this session is stamped to — provenance is fixed
         // at start, so the logger surfaces it instead of hiding it.
         programContext={

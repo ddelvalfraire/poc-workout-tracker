@@ -199,6 +199,9 @@ async function insertWorkoutChildren(
           reps: s.reps,
           weight: s.weight,
           completed: s.completed ?? false,
+          // Omit when absent so the column default ('working') applies —
+          // same additive rule as loggingType above.
+          ...(s.setType !== undefined ? { setType: s.setType } : {}),
         })),
       )
     }

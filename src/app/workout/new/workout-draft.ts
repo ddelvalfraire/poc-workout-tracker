@@ -1,4 +1,4 @@
-import type { LoggingType, WorkoutInput } from '@/lib/workout-input'
+import type { LoggingType, WorkoutInput, WorkoutSetType } from '@/lib/workout-input'
 import type { ExerciseSource } from '@/lib/custom-exercise-input'
 import type { WorkoutDetail } from '@/db/workouts'
 import { displayToKg, kgToDisplay, type WeightUnit } from '@/lib/units'
@@ -21,6 +21,9 @@ export interface DraftSet {
   weight: string
   /** In-session check-off state; required here (fully controlled), optional on the wire. */
   completed: boolean
+  /** Warm-up tag; required here (fully controlled), optional on the wire
+   *  ('working' default) — same treatment as completed. */
+  tag: WorkoutSetType
 }
 
 /** An exercise in the draft, seeded with at least one empty set. */
@@ -65,6 +68,18 @@ export type DraftAction =
       value: string
     }
   | { type: 'REMOVE_SET'; exerciseIndex: number; setIndex: number }
+  /** Retags one set (working ↔ warmup) — the long-press toggle. Values and
+   *  completion survive: the tag changes how the set SCORES, not what it says. */
+  | { type: 'TAG_SET'; exerciseIndex: number; setIndex: number; tag: WorkoutSetType }
+  /** The Previous-chip tap: adopt ghost values into EMPTY fields only, without
+   *  touching completion — same fill semantics as TOGGLE_SET_COMPLETED minus
+   *  the check. Typed input always wins over the chip. */
+  | {
+      type: 'FILL_SET'
+      exerciseIndex: number
+      setIndex: number
+      fill: { reps?: string; weight?: string }
+    }
   /** Switches how an exercise's weights read (BW / +weight / −assist). Values
    *  already typed are left alone — they re-read under the new type. */
   | { type: 'SET_LOGGING_TYPE'; exerciseIndex: number; loggingType: LoggingType }
@@ -90,7 +105,7 @@ export const emptyDraft: WorkoutDraft = { exercises: [] }
  * it, so the reducer stays pure and deterministic for unit tests.
  */
 export function newDraftSet(): DraftSet {
-  return { id: crypto.randomUUID(), reps: '', weight: '', completed: false }
+  return { id: crypto.randomUUID(), reps: '', weight: '', completed: false, tag: 'working' }
 }
 
 /** Builds a draft exercise from a picked exercise, seeded with one empty set.
@@ -182,6 +197,16 @@ export function workoutDraftReducer(state: WorkoutDraft, action: DraftAction): W
         })),
       }
 
+    case 'TAG_SET':
+      return {
+        exercises: mapExerciseAt(state.exercises, action.exerciseIndex, (exercise) => ({
+          ...exercise,
+          sets: exercise.sets.map((set, i) =>
+            i === action.setIndex ? { ...set, tag: action.tag } : set,
+          ),
+        })),
+      }
+
     case 'SET_LOGGING_TYPE':
       return {
         exercises: mapExerciseAt(state.exercises, action.exerciseIndex, (exercise) => ({
@@ -215,6 +240,22 @@ export function workoutDraftReducer(state: WorkoutDraft, action: DraftAction): W
         }),
       }
     }
+
+    case 'FILL_SET':
+      return {
+        exercises: mapExerciseAt(state.exercises, action.exerciseIndex, (exercise) => ({
+          ...exercise,
+          sets: exercise.sets.map((set, i) =>
+            i === action.setIndex
+              ? {
+                  ...set,
+                  reps: set.reps === '' && action.fill.reps ? action.fill.reps : set.reps,
+                  weight: set.weight === '' && action.fill.weight ? action.fill.weight : set.weight,
+                }
+              : set,
+          ),
+        })),
+      }
 
     case 'TOGGLE_SET_COMPLETED':
       return {
@@ -283,6 +324,8 @@ export function draftToInput(
         // Omit when unchecked so the wire payload (and every MCP/save test
         // fixture that predates check-off) keeps its minimal shape.
         ...(set.completed && { completed: true }),
+        // Same minimal-shape rule: 'working' is the column default.
+        ...(set.tag === 'warmup' && { setType: 'warmup' as const }),
       }
     }),
   }))
@@ -319,6 +362,7 @@ export function detailToDraft(
       reps: set.reps?.toString() ?? '',
       weight: set.weight === null ? '' : kgToDisplay(set.weight, unit).toString(),
       completed: options.resetCompleted ? false : set.completed,
+      tag: set.setType,
     })),
   }))
   return { draft: { exercises }, name: workout.name ?? '' }

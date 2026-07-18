@@ -32,6 +32,13 @@ describe('allTimePRIndex', () => {
     }
   })
 
+  it('never flags warm-up-tagged sets — they are preparation, not attempts', () => {
+    // A warm-up that would otherwise beat the record must not claim the flag
+    const sets = [set({ weight: '105', tag: 'warmup' }), set({ tag: 'working' })]
+
+    expect(allTimePRIndex(sets, 'weight_reps', 'kg', 120)).toBeNull()
+  })
+
   it('ignores uncompleted sets entirely', () => {
     const sets = [set({ weight: '90' }), set({ weight: '200', completed: false })]
 

@@ -39,6 +39,7 @@ import {
 } from './workout-draft'
 import { draftKey, buildDraftPayload, parseDraftPayload } from './draft-payload'
 import { createDraftSyncQueue, type DraftSyncQueue, type DraftSyncStatus } from './draft-sync'
+import { SwipeToDelete } from './swipe-to-delete'
 import { HeaderClock } from './session-clock'
 import { PlateSheet } from './plate-sheet'
 import { RestSheet } from './rest-sheet'
@@ -55,12 +56,21 @@ import {
   placeholderForSet,
   planPlaceholderForSet,
   adoptableGhostValue,
+  previousChipLabel,
+  completedSetsSummary,
+  stepWeightValue,
+  WEIGHT_STEP,
   type PlanSetTarget,
 } from '@/lib/format'
 import type { LastPerformance } from '@/db/workouts'
 
 /** How long the inline "Removed — Undo" affordance stays actionable. */
 const UNDO_WINDOW_MS = 5000
+
+/** Hold a set circle this long to toggle its warm-up tag. */
+const LONG_PRESS_MS = 500
+/** Pointer travel past this cancels the hold — it's a scroll, not a press. */
+const LONG_PRESS_SLOP_PX = 8
 
 /** Compact labels for the per-exercise logging-type select (Hevy-style). */
 const LOGGING_TYPE_LABELS: Record<LoggingType, string> = {
@@ -100,6 +110,9 @@ interface WorkoutLoggerProps {
    *  when an exercise has no prior history. Keyed by the composite
    *  `source:wgerExerciseId` (plan slots can be custom exercises). */
   planTargets?: Record<string, PlanSetTarget[]>
+  /** Plan-declared superset groups keyed `source:id` — display-only pairing
+   *  labels; the logger never creates or edits groupings. */
+  planSupersets?: Record<string, number>
   /** Which program (day · week) this session is stamped to, e.g. "Legs ·
    *  Week 1". Provenance is fixed at start and can't be edited — surfacing
    *  it here is what keeps a wrong-day start from absorbing a full session
@@ -126,6 +139,7 @@ export function WorkoutLogger({
   initialName = '',
   unit = 'kg',
   planTargets,
+  planSupersets,
   programContext,
   startedAt,
   equipment,
@@ -213,6 +227,21 @@ export function WorkoutLogger({
         )
       : null,
   )
+  // Superset letters (A, B…) assigned to plan groups in draft order — group
+  // NUMBERS are plan-internal; letters are what a lifter reads mid-set.
+  const supersetLetters = (() => {
+    const letters: Record<number, string> = {}
+    if (!planSupersets) return letters
+    let next = 0
+    for (const exercise of draft.exercises) {
+      const group = planSupersets[`${exercise.source}:${exercise.wgerExerciseId}`]
+      if (group !== undefined && letters[group] === undefined) {
+        letters[group] = String.fromCharCode(65 + next++)
+      }
+    }
+    return letters
+  })()
+
   // When the user opened the logger — saved as startedAt for NEW workouts so
   // startedAt→completedAt reflects the real session length, not the save
   // instant. Edits keep the workout's existing startedAt. State (not a ref)
@@ -251,6 +280,44 @@ export function WorkoutLogger({
   const [gear, setGear] = useState<Equipment>(equipment ?? DEFAULT_EQUIPMENT[unit])
   // Which exercise's plate sheet is open (by index), if any.
   const [plateSheetFor, setPlateSheetFor] = useState<number | null>(null)
+  // Previous-chip feedback: the set whose inputs briefly flash after a fill —
+  // "accepted from history", not an error, hence a highlight (never a shake).
+  const [flashSetId, setFlashSetId] = useState<string | null>(null)
+  const flashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Weight steppers show ONLY for the row whose weight input has focus —
+  // zero ambient chrome for lifters who never use them.
+  const [stepperSetId, setStepperSetId] = useState<string | null>(null)
+  // Long-press on a set circle toggles its warm-up tag. One primary pointer
+  // at a time, so component-level refs suffice — no per-row state. The fired
+  // flag suppresses the press's own click (the completion toggle).
+  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const longPressFiredRef = useRef(false)
+  const pressOriginRef = useRef<{ x: number; y: number } | null>(null)
+
+  function cancelLongPress() {
+    if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current)
+    longPressTimerRef.current = null
+    pressOriginRef.current = null
+  }
+
+  useEffect(() => cancelLongPress, [])
+  // Fully-completed cards collapse to a one-line summary; this holds the ids
+  // the lifter re-expanded (to correct a set). Never pruned — stale ids are
+  // harmless once an exercise stops being complete.
+  const [expandedDone, setExpandedDone] = useState<Set<string>>(new Set())
+
+  useEffect(
+    () => () => {
+      if (flashTimerRef.current) clearTimeout(flashTimerRef.current)
+    },
+    [],
+  )
+
+  function flashFilledSet(setId: string) {
+    if (flashTimerRef.current) clearTimeout(flashTimerRef.current)
+    setFlashSetId(setId)
+    flashTimerRef.current = setTimeout(() => setFlashSetId(null), 700)
+  }
   // Which exercise's all-time stats sheet is open (by index), if any —
   // opened by tapping the exercise's name.
   const [statsSheetFor, setStatsSheetFor] = useState<number | null>(null)
@@ -320,6 +387,33 @@ export function WorkoutLogger({
   // with a wger plan slot can never wear that slot's ghosts or rest targets.
   const planFor = (source: ExerciseSource, id: number) =>
     planOverrides[`${source}:${id}`] ?? planTargets?.[`${source}:${id}`]
+
+  // "Next up" for the sticky bar: the first incomplete set in workout order,
+  // labeled from typed values first, ghost targets as fallback — the
+  // thumb-zone glance that replaces scroll-hunting between sets.
+  const nextUp = (() => {
+    for (let exerciseIndex = 0; exerciseIndex < draft.exercises.length; exerciseIndex++) {
+      const exercise = draft.exercises[exerciseIndex]
+      const setIndex = exercise.sets.findIndex((set) => !set.completed)
+      if (setIndex === -1) continue
+      const set = exercise.sets[setIndex]
+      const history = placeholderForSet(
+        lastByExercise[`${exercise.source}:${exercise.wgerExerciseId}`] ?? null,
+        setIndex,
+        unit,
+      )
+      const plan = planPlaceholderForSet(planFor(exercise.source, exercise.wgerExerciseId), setIndex, unit)
+      const label = previousChipLabel({
+        reps: set.reps || (history.reps ?? plan.reps),
+        weight:
+          exercise.loggingType === 'weight_reps'
+            ? set.weight || (history.weight ?? plan.weight)
+            : set.weight || undefined,
+      })
+      return { exercise, setIndex, label }
+    }
+    return null
+  })()
 
   function pushRemoved(entry: RemovedEntry) {
     setRemoved((prev) => [...prev, entry])
@@ -774,19 +868,72 @@ export function WorkoutLogger({
           </p>
         )}
 
-        {draft.exercises.map((exercise, exerciseIndex) => (
+        {draft.exercises.map((exercise, exerciseIndex) => {
+          const isDone = exercise.sets.length > 0 && exercise.sets.every((set) => set.completed)
+          // Done cards fold to one line so mid-session the scroll shows the
+          // current and upcoming work, not rows of dead inputs. Re-expand is
+          // one tap (corrections); auto-collapse costs the log path nothing.
+          const isCollapsed = isDone && !expandedDone.has(exercise.id)
+          const hasPR =
+            typeof prIndexByExercise[exerciseIndex] === 'number' &&
+            (prIndexByExercise[exerciseIndex] as number) >= 0
+          // Plan superset pairing, display-only. Adjacent same-group cards
+          // pull together and share a rail so the pair reads as one block.
+          const supersetGroup =
+            planSupersets?.[`${exercise.source}:${exercise.wgerExerciseId}`]
+          const supersetLabel =
+            supersetGroup !== undefined ? supersetLetters[supersetGroup] : undefined
+          const previous = draft.exercises[exerciseIndex - 1]
+          const continuesSuperset =
+            supersetGroup !== undefined &&
+            previous !== undefined &&
+            planSupersets?.[`${previous.source}:${previous.wgerExerciseId}`] === supersetGroup
+          return (
           <section
             key={exercise.id}
             className={cn(
-              'space-y-3 rounded-2xl border bg-card p-4 transition-colors',
+              'rounded-2xl border bg-card transition-colors',
+              isCollapsed ? '' : 'space-y-3 p-4',
               // Every set checked off = this movement is done: the volt
               // outline is the same "live/complete" state marker the resume
               // banner and rest readout use.
-              exercise.sets.length > 0 && exercise.sets.every((set) => set.completed)
-                ? 'border-primary/50'
-                : 'border-border',
+              isDone ? 'border-primary/50' : 'border-border',
+              // Muted rail, not volt (one-volt rule): grouping is structure,
+              // not a live state.
+              supersetLabel !== undefined && 'border-l-2 border-l-muted-foreground/40',
+              continuesSuperset && '-mt-2',
             )}
           >
+            {supersetLabel !== undefined && !isCollapsed && (
+              <p className="text-[0.65rem] font-semibold uppercase tracking-widest text-muted-foreground">
+                Superset {supersetLabel}
+              </p>
+            )}
+          {isCollapsed ? (
+            <button
+              type="button"
+              onClick={() =>
+                setExpandedDone((prev) => {
+                  const next = new Set(prev)
+                  next.add(exercise.id)
+                  return next
+                })
+              }
+              aria-expanded={false}
+              aria-label={`Expand ${exercise.name} — completed, ${completedSetsSummary(exercise.sets, exercise.loggingType)}${hasPR ? ', new PR' : ''}${supersetLabel !== undefined ? `, superset ${supersetLabel}` : ''}`}
+              className="flex w-full items-baseline justify-between gap-3 p-4 text-left"
+            >
+              <span className="flex min-w-0 items-baseline gap-2">
+                <Check aria-hidden="true" strokeWidth={3} className="size-4 shrink-0 self-center text-primary" />
+                <span className="truncate text-base leading-tight">{exercise.name}</span>
+              </span>
+              <span className="shrink-0 text-sm text-muted-foreground tnum">
+                {completedSetsSummary(exercise.sets, exercise.loggingType)}
+                {hasPR && <span className="ml-1.5 font-semibold text-primary">PR</span>}
+              </span>
+            </button>
+          ) : (
+          <>
             <div className="flex items-start justify-between gap-2">
               <h3 className="min-w-0 text-base leading-tight">
                 {/* The name IS the stats entry point (Strong/Hevy convention):
@@ -883,6 +1030,7 @@ export function WorkoutLogger({
             {exercise.sets.length > 0 && (
               <div className="flex items-center gap-2 px-0.5 text-[0.7rem] font-semibold uppercase tracking-wider text-muted-foreground">
                 <span className="w-8 shrink-0" aria-hidden="true" />
+                <span className="w-10 shrink-0 text-center">Prev</span>
                 <span className="flex-1 text-center">Reps</span>
                 <span className="flex-1 text-center">{unit}</span>
                 <span className="size-9 shrink-0" aria-hidden="true" />
@@ -913,12 +1061,73 @@ export function WorkoutLogger({
                       ? (history.weight ?? plan.weight)
                       : undefined,
                 }
+                const prevLabel = previousChipLabel(ghost)
+                // Same adopt rules as tap-to-complete: BW sets never fill a
+                // phantom weight; rep ranges adopt their floor.
+                const chipFill = {
+                  reps: adoptableGhostValue(ghost.reps),
+                  weight:
+                    exercise.loggingType === 'bodyweight_reps'
+                      ? undefined
+                      : adoptableGhostValue(ghost.weight),
+                }
+                // Enabled only when a tap would actually change something —
+                // otherwise the flash would confirm a fill that never happened.
+                const chipCanFill =
+                  (set.reps === '' && !!chipFill.reps) ||
+                  (set.weight === '' && !!chipFill.weight)
+                // Row identity for assistive tech: a warm-up row must SAY so —
+                // the 'W' glyph alone is visual-only.
+                const setLabel =
+                  set.tag === 'warmup' ? `warm-up set ${setIndex + 1}` : `set ${setIndex + 1}`
                 return (
                 <Fragment key={set.id}>
-                <div className="flex items-center gap-2">
+                {/* Swipe is the fast touch path; the row's X stays for
+                    mouse/keyboard/screen-reader users — additive, not a
+                    replacement. Undo (not a confirm) catches mistakes. */}
+                <SwipeToDelete onDelete={() => handleRemoveSet(exerciseIndex, setIndex)}>
+                <div className="flex items-center gap-2" id={`set-row-${set.id}`}>
                   <button
                     type="button"
+                    // Hold-to-tag: the timer fires TAG_SET and arms the flag
+                    // that swallows the press's own click below. Movement past
+                    // the slop reads as scrolling and cancels the hold.
+                    onPointerDown={(e) => {
+                      longPressFiredRef.current = false
+                      pressOriginRef.current = { x: e.clientX, y: e.clientY }
+                      if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current)
+                      longPressTimerRef.current = setTimeout(() => {
+                        longPressFiredRef.current = true
+                        dispatch({
+                          type: 'TAG_SET',
+                          exerciseIndex,
+                          setIndex,
+                          tag: set.tag === 'warmup' ? 'working' : 'warmup',
+                        })
+                      }, LONG_PRESS_MS)
+                    }}
+                    onPointerUp={cancelLongPress}
+                    onPointerLeave={cancelLongPress}
+                    // A scroll taking over the touch fires pointercancel (no
+                    // pointerup, no click) — without this the armed timer
+                    // would still retag ~500ms into the scroll.
+                    onPointerCancel={cancelLongPress}
+                    onPointerMove={(e) => {
+                      const origin = pressOriginRef.current
+                      if (
+                        origin &&
+                        Math.hypot(e.clientX - origin.x, e.clientY - origin.y) > LONG_PRESS_SLOP_PX
+                      ) {
+                        cancelLongPress()
+                      }
+                    }}
                     onClick={() => {
+                      // A hold that already retagged must not ALSO toggle
+                      // completion when the finger lifts.
+                      if (longPressFiredRef.current) {
+                        longPressFiredRef.current = false
+                        return
+                      }
                       dispatch({
                         type: 'TOGGLE_SET_COMPLETED',
                         exerciseIndex,
@@ -955,8 +1164,8 @@ export function WorkoutLogger({
                     aria-pressed={set.completed}
                     aria-label={
                       set.completed
-                        ? `Mark set ${setIndex + 1} incomplete`
-                        : `Mark set ${setIndex + 1} complete`
+                        ? `Mark ${setLabel} incomplete`
+                        : `Mark ${setLabel} complete`
                     }
                     className={cn(
                       'relative grid size-8 shrink-0 place-items-center rounded-full text-sm font-semibold tnum transition-colors',
@@ -971,9 +1180,27 @@ export function WorkoutLogger({
                   >
                     {set.completed ? (
                       <Check aria-hidden="true" strokeWidth={3} className="size-4" />
+                    ) : set.tag === 'warmup' ? (
+                      'W'
                     ) : (
                       setIndex + 1
                     )}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!prevLabel || !chipCanFill}
+                    onClick={() => {
+                      dispatch({ type: 'FILL_SET', exerciseIndex, setIndex, fill: chipFill })
+                      flashFilledSet(set.id)
+                    }}
+                    aria-label={
+                      prevLabel
+                        ? `Fill ${setLabel} from previous: ${prevLabel}`
+                        : `No previous performance for ${setLabel}`
+                    }
+                    className="relative w-10 shrink-0 truncate text-center text-xs font-medium tnum text-muted-foreground before:absolute before:-inset-1.5 disabled:opacity-40"
+                  >
+                    {prevLabel ?? '—'}
                   </button>
                   <Input
                     type="text"
@@ -990,7 +1217,7 @@ export function WorkoutLogger({
                       })
                     }
                     aria-label={`Set ${setIndex + 1} reps`}
-                    className="flex-1 text-center tnum"
+                    className={cn('flex-1 text-center tnum', flashSetId === set.id && 'fill-flash')}
                   />
                   {exercise.loggingType === 'bodyweight_reps' ? (
                     // The lifter IS the load: a non-editable pill holds the
@@ -1027,6 +1254,8 @@ export function WorkoutLogger({
                             value: e.target.value,
                           })
                         }
+                        onFocus={() => setStepperSetId(set.id)}
+                        onBlur={() => setStepperSetId(null)}
                         aria-label={
                           exercise.loggingType === 'weighted_bodyweight'
                             ? `Set ${setIndex + 1} added weight in ${unit}`
@@ -1034,7 +1263,10 @@ export function WorkoutLogger({
                               ? `Set ${setIndex + 1} assistance in ${unit}`
                               : `Set ${setIndex + 1} weight in ${unit}`
                         }
-                        className="w-full text-center tnum"
+                        className={cn(
+                          'w-full text-center tnum',
+                          flashSetId === set.id && 'fill-flash',
+                        )}
                       />
                     </div>
                   )}
@@ -1046,11 +1278,53 @@ export function WorkoutLogger({
                     // the set-complete circle).
                     className="relative shrink-0 text-muted-foreground before:absolute before:-inset-1"
                     onClick={() => handleRemoveSet(exerciseIndex, setIndex)}
-                    aria-label={`Remove set ${setIndex + 1}`}
+                    aria-label={`Remove ${setLabel}`}
                   >
                     <X aria-hidden="true" className="size-4" />
                   </Button>
                 </div>
+                </SwipeToDelete>
+                {/* Steppers ride under the focused weight row only. One plate
+                    a side per tap; pointerdown preventDefault keeps the input
+                    focused so the row (and keyboard) don't dismiss mid-tap. */}
+                {stepperSetId === set.id && (
+                  <div className="flex justify-end gap-2 pl-10">
+                    {([-1, 1] as const).map((direction) => (
+                      <Button
+                        key={direction}
+                        size="sm"
+                        variant="outline"
+                        className="min-w-20 tnum"
+                        onPointerDown={(e) => e.preventDefault()}
+                        onClick={() => {
+                          // ghost.weight is undefined for BW-relative types by
+                          // design (a total-load ghost would be a phantom), so
+                          // their steppers step the typed value or from zero.
+                          const next = stepWeightValue(set.weight, ghost.weight, direction, unit)
+                          if (next !== null) {
+                            dispatch({
+                              type: 'UPDATE_SET',
+                              exerciseIndex,
+                              setIndex,
+                              field: 'weight',
+                              value: next,
+                            })
+                          }
+                        }}
+                        aria-label={`${direction === 1 ? 'Increase' : 'Decrease'} set ${setIndex + 1} ${
+                          exercise.loggingType === 'weighted_bodyweight'
+                            ? 'added weight'
+                            : exercise.loggingType === 'assisted_bodyweight'
+                              ? 'assistance'
+                              : 'weight'
+                        } by ${WEIGHT_STEP[unit]} ${unit}`}
+                      >
+                        {direction === 1 ? '+' : '−'}
+                        {WEIGHT_STEP[unit]}
+                      </Button>
+                    ))}
+                  </div>
+                )}
                 {/* The record moment, recognized as it happens: this set's
                     e1RM strictly beats the all-time best the session opened
                     with. Presentation-only — nothing is stored. */}
@@ -1072,8 +1346,11 @@ export function WorkoutLogger({
             >
               + Add set
             </Button>
+          </>
+          )}
           </section>
-        ))}
+          )
+        })}
 
         {/* Discard lives at the END of the scrolling content, not in the
             sticky bar: a destructive exit must be sought out, never sit one
@@ -1105,6 +1382,30 @@ export function WorkoutLogger({
       </div>
 
       <div className="sticky bottom-0 z-10 -mx-5 border-t border-border bg-background/85 px-5 pt-3 pb-safe backdrop-blur-md">
+        {/* Next-up glance: where the session continues after rest — the
+            PWA-legal cousin of a lock-screen Live Activity, living in the
+            thumb zone the sticky bar already owns. Rendered only while a
+            rest is running (restStartedAt set, cleared on finish/discard);
+            tap scrolls the row into view instead of hunting. */}
+        {isLive && restTimerEnabled && restStartedAt !== null && nextUp && (
+          <button
+            type="button"
+            onClick={() =>
+              document
+                .getElementById(`set-row-${nextUp.exercise.sets[nextUp.setIndex].id}`)
+                ?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+            }
+            className="mb-2 flex w-full items-baseline justify-between gap-3 text-left"
+          >
+            <span className="min-w-0 truncate text-sm text-muted-foreground">
+              Next: <span className="text-foreground">{nextUp.exercise.name}</span> — set{' '}
+              {nextUp.setIndex + 1}
+            </span>
+            {nextUp.label && (
+              <span className="shrink-0 text-sm font-medium tnum">{nextUp.label}</span>
+            )}
+          </button>
+        )}
         {/* Post-swap remember prompt: a quiet follow-up, never a modal — the
             decision that mattered (the swap) is already made; this must not
             block logging. Sits above the undo toast (it outlives undo's 5s).

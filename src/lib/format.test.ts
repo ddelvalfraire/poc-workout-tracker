@@ -10,6 +10,9 @@ import {
   placeholderForSet,
   planPlaceholderForSet,
   adoptableGhostValue,
+  previousChipLabel,
+  completedSetsSummary,
+  stepWeightValue,
 } from './format'
 
 describe('formatSet', () => {
@@ -293,5 +296,115 @@ describe('formatWorkoutDate', () => {
     // Midday UTC so the date can't roll to the prior day in negative offsets.
     const result = formatWorkoutDate(new Date('2026-06-14T12:00:00Z'))
     expect(result).toContain('2026')
+  })
+})
+
+describe('previousChipLabel', () => {
+  it('joins weight and reps compactly', () => {
+    expect(previousChipLabel({ reps: '8', weight: '60' })).toBe('60×8')
+  })
+
+  it('renders reps-only sets with a leading ×', () => {
+    expect(previousChipLabel({ reps: '12' })).toBe('×12')
+  })
+
+  it('renders weight-only and empty ghosts', () => {
+    expect(previousChipLabel({ weight: '60' })).toBe('60')
+    expect(previousChipLabel({})).toBeNull()
+  })
+
+  it('keeps plan rep ranges verbatim', () => {
+    expect(previousChipLabel({ reps: '8–12', weight: '60' })).toBe('60×8–12')
+  })
+})
+
+describe('completedSetsSummary', () => {
+  it('summarizes with the heaviest set and its reps', () => {
+    expect(
+      completedSetsSummary(
+        [
+          { reps: '8', weight: '100' },
+          { reps: '10', weight: '90' },
+        ],
+        'weight_reps',
+      ),
+    ).toBe('2 sets · top 100×8')
+  })
+
+  it('falls back to the highest rep count when no set has weight', () => {
+    expect(
+      completedSetsSummary(
+        [
+          { reps: '12', weight: '' },
+          { reps: '15', weight: '' },
+        ],
+        'weight_reps',
+      ),
+    ).toBe('2 sets · top ×15')
+  })
+
+  it('singularizes one set and survives empty fields', () => {
+    expect(completedSetsSummary([{ reps: '', weight: '' }], 'weight_reps')).toBe('1 set')
+  })
+
+  it('labels added load and keeps max-wins for weighted bodyweight', () => {
+    expect(
+      completedSetsSummary(
+        [
+          { reps: '5', weight: '45' },
+          { reps: '8', weight: '25' },
+        ],
+        'weighted_bodyweight',
+      ),
+    ).toBe('2 sets · top BW+45×5')
+  })
+
+  it('treats LESS assistance as the top set for assisted bodyweight', () => {
+    expect(
+      completedSetsSummary(
+        [
+          { reps: '8', weight: '20' },
+          { reps: '5', weight: '40' },
+        ],
+        'assisted_bodyweight',
+      ),
+    ).toBe('2 sets · top BW−20×8')
+  })
+
+  it('is reps-only for bodyweight sets even if a weight string leaks in', () => {
+    expect(
+      completedSetsSummary(
+        [
+          { reps: '12', weight: '10' },
+          { reps: '15', weight: '' },
+        ],
+        'bodyweight_reps',
+      ),
+    ).toBe('2 sets · top ×15')
+  })
+})
+
+describe('stepWeightValue', () => {
+  it('steps a typed value by the unit jump', () => {
+    expect(stepWeightValue('60', undefined, 1, 'kg')).toBe('62.5')
+    expect(stepWeightValue('60', undefined, -1, 'kg')).toBe('57.5')
+    expect(stepWeightValue('135', undefined, 1, 'lb')).toBe('140')
+  })
+
+  it('adopts the ghost first when the field is empty', () => {
+    expect(stepWeightValue('', '100', 1, 'kg')).toBe('102.5')
+  })
+
+  it('steps from zero with no ghost and floors at zero', () => {
+    expect(stepWeightValue('', undefined, 1, 'kg')).toBe('2.5')
+    expect(stepWeightValue('1', undefined, -1, 'kg')).toBe('0')
+  })
+
+  it('avoids float drift across fractional steps', () => {
+    expect(stepWeightValue('0.1', undefined, 1, 'kg')).toBe('2.6')
+  })
+
+  it('refuses to step non-numeric input', () => {
+    expect(stepWeightValue('heavy', undefined, 1, 'kg')).toBeNull()
   })
 })

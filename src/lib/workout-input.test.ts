@@ -73,6 +73,38 @@ describe('parseWorkoutInput', () => {
     }
   })
 
+  it('passes a whitelisted setType through and omits it when absent', () => {
+    // Act
+    const result = parseWorkoutInput({
+      exercises: [
+        {
+          wgerExerciseId: 1,
+          name: 'Bench',
+          sets: [
+            { reps: 5, weight: 60, setType: 'warmup' },
+            { reps: 5, weight: 100, setType: 'working' },
+            { reps: 5, weight: 100 },
+          ],
+        },
+      ],
+    })
+
+    // Assert — absent → omitted so the column default ('working') applies
+    expect(result.exercises[0].sets[0].setType).toBe('warmup')
+    expect(result.exercises[0].sets[1].setType).toBe('working')
+    expect(result.exercises[0].sets[2]).not.toHaveProperty('setType')
+  })
+
+  it('throws when setType is not on the whitelist', () => {
+    for (const setType of ['backoff', 'amrap', 1, {}]) {
+      expect(() =>
+        parseWorkoutInput({
+          exercises: [{ wgerExerciseId: 1, name: 'Bench', sets: [{ reps: 5, weight: 100, setType }] }],
+        }),
+      ).toThrow('set setType must be one of working, warmup')
+    }
+  })
+
   it('trims the exercise name and drops extra keys', () => {
     // Act
     const result = parseWorkoutInput({

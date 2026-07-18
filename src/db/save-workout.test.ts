@@ -98,6 +98,25 @@ describe('saveWorkout (transactional, user-scoped)', () => {
     ])
   })
 
+  it('persists a warm-up setType, defaulting untagged sets via the column', async () => {
+    // Act — set 1 tagged warm-up, set 2 untagged (column default applies)
+    await saveWorkout(USER, {
+      exercises: [
+        {
+          wgerExerciseId: 73,
+          name: 'Squat',
+          sets: [{ reps: 5, weight: 60, setType: 'warmup' }, { reps: 5, weight: 100 }],
+        },
+      ],
+    })
+
+    // Assert
+    expect(records[2].values).toEqual([
+      { workoutExerciseId: 'e1', setNumber: 1, reps: 5, weight: 60, completed: false, setType: 'warmup' },
+      { workoutExerciseId: 'e1', setNumber: 2, reps: 5, weight: 100, completed: false },
+    ])
+  })
+
   it('stamps completedAt from startedAt for backdated saves, not wall-clock now', async () => {
     // Arrange — a log backdated a week (MCP create_workout documents this)
     const startedAt = new Date('2026-06-01T10:00:00.000Z')
