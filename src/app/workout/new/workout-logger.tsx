@@ -1108,6 +1108,10 @@ export function WorkoutLogger({
                     }}
                     onPointerUp={cancelLongPress}
                     onPointerLeave={cancelLongPress}
+                    // A scroll taking over the touch fires pointercancel (no
+                    // pointerup, no click) — without this the armed timer
+                    // would still retag ~500ms into the scroll.
+                    onPointerCancel={cancelLongPress}
                     onPointerMove={(e) => {
                       const origin = pressOriginRef.current
                       if (
