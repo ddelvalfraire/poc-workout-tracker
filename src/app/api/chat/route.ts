@@ -15,6 +15,12 @@ const DEFAULT_MODEL = 'anthropic/claude-sonnet-4.5'
 // Bound the optional client-supplied context so it can't balloon the prompt.
 const MAX_CONTEXT_LENGTH = 500
 
+// Payload bounds: the step cap limits loop iterations, not input volume —
+// without these, the daily request cap still admits 40 arbitrarily large
+// gateway calls per user. Sized generously above real chat usage.
+const MAX_MESSAGES = 60
+const MAX_MESSAGES_BYTES = 120_000
+
 function buildSystemPrompt(weightUnit: string, context?: string): string {
   const lines = [
     'You are the in-app strength coach for this workout tracker.',
@@ -68,6 +74,15 @@ export async function POST(request: Request): Promise<Response> {
   }
   if (!Array.isArray(body.messages) || body.messages.length === 0) {
     return NextResponse.json({ error: '`messages` must be a non-empty array' }, { status: 400 })
+  }
+  if (body.messages.length > MAX_MESSAGES) {
+    return NextResponse.json(
+      { error: `Conversation too long — send at most the last ${MAX_MESSAGES} messages` },
+      { status: 400 },
+    )
+  }
+  if (JSON.stringify(body.messages).length > MAX_MESSAGES_BYTES) {
+    return NextResponse.json({ error: 'Message payload too large' }, { status: 413 })
   }
   const messages = body.messages as UIMessage[]
   const context =
