@@ -67,6 +67,11 @@ import type { LastPerformance } from '@/db/workouts'
 /** How long the inline "Removed — Undo" affordance stays actionable. */
 const UNDO_WINDOW_MS = 5000
 
+/** Hold a set circle this long to toggle its warm-up tag. */
+const LONG_PRESS_MS = 500
+/** Pointer travel past this cancels the hold — it's a scroll, not a press. */
+const LONG_PRESS_SLOP_PX = 8
+
 /** Compact labels for the per-exercise logging-type select (Hevy-style). */
 const LOGGING_TYPE_LABELS: Record<LoggingType, string> = {
   weight_reps: 'Weight × reps',
@@ -282,6 +287,20 @@ export function WorkoutLogger({
   // Weight steppers show ONLY for the row whose weight input has focus —
   // zero ambient chrome for lifters who never use them.
   const [stepperSetId, setStepperSetId] = useState<string | null>(null)
+  // Long-press on a set circle toggles its warm-up tag. One primary pointer
+  // at a time, so component-level refs suffice — no per-row state. The fired
+  // flag suppresses the press's own click (the completion toggle).
+  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const longPressFiredRef = useRef(false)
+  const pressOriginRef = useRef<{ x: number; y: number } | null>(null)
+
+  function cancelLongPress() {
+    if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current)
+    longPressTimerRef.current = null
+    pressOriginRef.current = null
+  }
+
+  useEffect(() => cancelLongPress, [])
   // Fully-completed cards collapse to a one-line summary; this holds the ids
   // the lifter re-expanded (to correct a set). Never pruned — stale ids are
   // harmless once an exercise stops being complete.
@@ -1057,6 +1076,10 @@ export function WorkoutLogger({
                 const chipCanFill =
                   (set.reps === '' && !!chipFill.reps) ||
                   (set.weight === '' && !!chipFill.weight)
+                // Row identity for assistive tech: a warm-up row must SAY so —
+                // the 'W' glyph alone is visual-only.
+                const setLabel =
+                  set.tag === 'warmup' ? `warm-up set ${setIndex + 1}` : `set ${setIndex + 1}`
                 return (
                 <Fragment key={set.id}>
                 {/* Swipe is the fast touch path; the row's X stays for
@@ -1066,7 +1089,41 @@ export function WorkoutLogger({
                 <div className="flex items-center gap-2" id={`set-row-${set.id}`}>
                   <button
                     type="button"
+                    // Hold-to-tag: the timer fires TAG_SET and arms the flag
+                    // that swallows the press's own click below. Movement past
+                    // the slop reads as scrolling and cancels the hold.
+                    onPointerDown={(e) => {
+                      longPressFiredRef.current = false
+                      pressOriginRef.current = { x: e.clientX, y: e.clientY }
+                      if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current)
+                      longPressTimerRef.current = setTimeout(() => {
+                        longPressFiredRef.current = true
+                        dispatch({
+                          type: 'TAG_SET',
+                          exerciseIndex,
+                          setIndex,
+                          tag: set.tag === 'warmup' ? 'working' : 'warmup',
+                        })
+                      }, LONG_PRESS_MS)
+                    }}
+                    onPointerUp={cancelLongPress}
+                    onPointerLeave={cancelLongPress}
+                    onPointerMove={(e) => {
+                      const origin = pressOriginRef.current
+                      if (
+                        origin &&
+                        Math.hypot(e.clientX - origin.x, e.clientY - origin.y) > LONG_PRESS_SLOP_PX
+                      ) {
+                        cancelLongPress()
+                      }
+                    }}
                     onClick={() => {
+                      // A hold that already retagged must not ALSO toggle
+                      // completion when the finger lifts.
+                      if (longPressFiredRef.current) {
+                        longPressFiredRef.current = false
+                        return
+                      }
                       dispatch({
                         type: 'TOGGLE_SET_COMPLETED',
                         exerciseIndex,
@@ -1103,8 +1160,8 @@ export function WorkoutLogger({
                     aria-pressed={set.completed}
                     aria-label={
                       set.completed
-                        ? `Mark set ${setIndex + 1} incomplete`
-                        : `Mark set ${setIndex + 1} complete`
+                        ? `Mark ${setLabel} incomplete`
+                        : `Mark ${setLabel} complete`
                     }
                     className={cn(
                       'relative grid size-8 shrink-0 place-items-center rounded-full text-sm font-semibold tnum transition-colors',
@@ -1119,6 +1176,8 @@ export function WorkoutLogger({
                   >
                     {set.completed ? (
                       <Check aria-hidden="true" strokeWidth={3} className="size-4" />
+                    ) : set.tag === 'warmup' ? (
+                      'W'
                     ) : (
                       setIndex + 1
                     )}
@@ -1132,8 +1191,8 @@ export function WorkoutLogger({
                     }}
                     aria-label={
                       prevLabel
-                        ? `Fill set ${setIndex + 1} from previous: ${prevLabel}`
-                        : `No previous performance for set ${setIndex + 1}`
+                        ? `Fill ${setLabel} from previous: ${prevLabel}`
+                        : `No previous performance for ${setLabel}`
                     }
                     className="relative w-10 shrink-0 truncate text-center text-xs font-medium tnum text-muted-foreground before:absolute before:-inset-1.5 disabled:opacity-40"
                   >
@@ -1215,7 +1274,7 @@ export function WorkoutLogger({
                     // the set-complete circle).
                     className="relative shrink-0 text-muted-foreground before:absolute before:-inset-1"
                     onClick={() => handleRemoveSet(exerciseIndex, setIndex)}
-                    aria-label={`Remove set ${setIndex + 1}`}
+                    aria-label={`Remove ${setLabel}`}
                   >
                     <X aria-hidden="true" className="size-4" />
                   </Button>

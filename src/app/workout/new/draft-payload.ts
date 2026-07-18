@@ -1,6 +1,6 @@
 import type { WorkoutDraft, DraftExercise, DraftSet } from './workout-draft'
 import { isWeightUnit, type WeightUnit } from '@/lib/units'
-import { isLoggingType } from '@/lib/workout-input'
+import { isLoggingType, isWorkoutSetType } from '@/lib/workout-input'
 
 /**
  * Pure build/parse for the cross-device draft snapshot the logger autosaves to
@@ -58,7 +58,10 @@ function isDraftSet(value: unknown): value is DraftSet {
     typeof set.id === 'string' &&
     typeof set.reps === 'string' &&
     typeof set.weight === 'string' &&
-    typeof set.completed === 'boolean'
+    typeof set.completed === 'boolean' &&
+    // Absent = a payload persisted before warm-up tags; parseDraftPayload
+    // defaults it on restore. Present-but-unrecognized is rejected.
+    (set.tag === undefined || isWorkoutSetType(set.tag))
   )
 }
 
@@ -129,6 +132,8 @@ export function parseDraftPayload(
         loggingType: exercise.loggingType ?? 'weight_reps',
         // Pre-discriminator payloads predate custom exercises entirely.
         source: exercise.source ?? 'wger',
+        // Pre-tag payloads hold working sets only (the tag didn't exist).
+        sets: exercise.sets.map((set) => ({ ...set, tag: set.tag ?? 'working' })),
       })),
     },
     name: value.name,

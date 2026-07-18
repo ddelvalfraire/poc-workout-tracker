@@ -40,6 +40,12 @@ describe('schema', () => {
     expect(cols.distanceM.notNull).toBe(false)
   })
 
+  it('makes the warm-up tag additive on live sets (non-null, defaulted)', () => {
+    const setType = getTableColumns(sets).setType
+    expect(setType.notNull).toBe(true)
+    expect(setType.hasDefault).toBe(true)
+  })
+
   it('makes workout provenance columns nullable', () => {
     const cols = getTableColumns(workouts)
     expect(cols.programDayId.notNull).toBe(false)

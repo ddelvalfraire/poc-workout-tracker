@@ -80,6 +80,10 @@ export const sets = pgTable(
     // numeric (not float) so fractional plate weights (e.g. 2.5 kg) stay exact
     weight: numeric('weight', { precision: 6, scale: 2, mode: 'number' }), // kg
     completed: boolean('completed').notNull().default(false),
+    // Warm-up tag (Hevy-style). Additive + defaulted so every existing row
+    // stays a working set. Text + app-level enum, like program_sets.set_type —
+    // but only the logged subset: backoff/amrap are prescriptions, not facts.
+    setType: text('set_type').$type<'working' | 'warmup'>().notNull().default('working'),
     // Metric model (timed exercises). Additive + defaulted so existing rows and
     // the reps_weight logging path are unaffected; e1RM applies only to reps_weight.
     metricMode: text('metric_mode').notNull().default('reps_weight'),

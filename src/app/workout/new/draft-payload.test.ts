@@ -24,8 +24,8 @@ const DRAFT: WorkoutDraft = {
       category: 'Legs',
       loggingType: 'weight_reps',
       sets: [
-        { id: 's1', reps: '5', weight: '100', completed: true },
-        { id: 's2', reps: '', weight: '', completed: false },
+        { id: 's1', reps: '5', weight: '100', completed: true, tag: 'working' as const },
+        { id: 's2', reps: '', weight: '', completed: false, tag: 'working' as const },
       ],
     },
   ],
@@ -72,6 +72,31 @@ describe('build → parse round-trip', () => {
     // Assert — restorable, and fully controlled state gets the default
     expect(restored).not.toBeNull()
     expect(restored!.draft.exercises[0].loggingType).toBe('weight_reps')
+  })
+
+  it('round-trips the warm-up tag and defaults it on pre-tag payloads', () => {
+    // Arrange — a payload whose first set is tagged, plus a legacy set without
+    // a tag. Cloned: payload() shares the module DRAFT by reference.
+    const raw = structuredClone(payload())
+    const draft = raw.draft as { exercises: { sets: Record<string, unknown>[] }[] }
+    draft.exercises[0].sets[0].tag = 'warmup'
+    delete draft.exercises[0].sets[1].tag
+
+    // Act
+    const restored = parseDraftPayload(raw, { unit: 'kg', now: NOW })
+
+    // Assert
+    expect(restored?.draft.exercises[0].sets.map((s) => s.tag)).toEqual(['warmup', 'working'])
+  })
+
+  it('rejects a payload whose set tag is not on the whitelist', () => {
+    // Arrange — cloned for the same shared-reference reason as above
+    const raw = structuredClone(payload())
+    const draft = raw.draft as { exercises: { sets: Record<string, unknown>[] }[] }
+    draft.exercises[0].sets[0].tag = 'backoff'
+
+    // Assert
+    expect(isDraftPayload(raw)).toBe(false)
   })
 
   it('accepts a pre-discriminator payload without source and defaults it to wger', () => {
@@ -153,7 +178,7 @@ describe('isDraftPayload / parseDraftPayload rejection', () => {
 
   it('rejects malformed exercises and sets (payload is untrusted)', () => {
     const badSet = {
-      exercises: [{ ...DRAFT.exercises[0], sets: [{ id: 's1', reps: 5, weight: '100', completed: false }] }],
+      exercises: [{ ...DRAFT.exercises[0], sets: [{ id: 's1', reps: 5, weight: '100', completed: false, tag: 'working' as const }] }],
     }
     const badExercise = { exercises: [{ id: 'ex1', name: 'Squat' }] }
 

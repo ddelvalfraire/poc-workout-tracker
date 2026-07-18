@@ -36,12 +36,25 @@ export function isLoggingType(value: unknown): value is LoggingType {
   return (LOGGING_TYPES as readonly unknown[]).includes(value)
 }
 
+/** The logged set-type tags — the subset of program_sets' set_type that is a
+ *  performed fact, not a prescription (backoff/amrap stay plan-side). */
+export const SET_TYPES = ['working', 'warmup'] as const
+export type WorkoutSetType = (typeof SET_TYPES)[number]
+
+/** Narrows untrusted input (action payloads, DB text) to a WorkoutSetType. */
+export function isWorkoutSetType(value: unknown): value is WorkoutSetType {
+  return (SET_TYPES as readonly unknown[]).includes(value)
+}
+
 /** A single logged set. `null` means the field was left blank. */
 export interface SetInput {
   reps: number | null
   weight: number | null
   /** True when the lifter checked the set off in-session; absent = false. */
   completed?: boolean
+  /** Warm-up tag; absent = 'working' (the column default). Warm-ups are
+   *  preparation, not record attempts — scorers must skip them. */
+  setType?: WorkoutSetType
 }
 
 /** One exercise within a workout, with its logged sets. */
@@ -147,10 +160,18 @@ function parseSet(raw: unknown): SetInput {
     throw new Error('set completed must be a boolean')
   }
 
+  // Same whitelist rule as loggingType: absent/null → column default
+  // ('working'); a typo'd tag would silently mis-score records.
+  const { setType } = obj
+  if (setType !== undefined && setType !== null && !isWorkoutSetType(setType)) {
+    throw new Error(`set setType must be one of ${SET_TYPES.join(', ')}`)
+  }
+
   return {
     reps: reps as number | null,
     weight: weight as number | null,
     ...(typeof completed === 'boolean' && { completed }),
+    ...(isWorkoutSetType(setType) && { setType }),
   }
 }
 

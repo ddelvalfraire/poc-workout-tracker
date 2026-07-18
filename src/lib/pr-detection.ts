@@ -1,6 +1,6 @@
 import { estimate1RM } from './one-rep-max'
 import { displayToKg, type WeightUnit } from './units'
-import type { LoggingType } from './workout-input'
+import type { LoggingType, WorkoutSetType } from './workout-input'
 
 /**
  * Live all-time-PR detection for the logger. Pure: the caller supplies the
@@ -16,6 +16,8 @@ export interface PRCandidateSet {
   reps: string
   weight: string
   completed: boolean
+  /** Warm-up tag; absent = working (pre-tag callers keep their shape). */
+  tag?: WorkoutSetType
 }
 
 /**
@@ -59,6 +61,8 @@ export function allTimePRIndex(
   let winnerE1rm = -Infinity
   for (const [index, set] of sets.entries()) {
     if (!set.completed) continue
+    // Warm-ups are preparation, not record attempts — never PR candidates.
+    if (set.tag === 'warmup') continue
     // Strict decimal parse, stricter than BOTH Number() (which accepts hex —
     // Number('0x12') is 18) and the save path's parseInt/parseFloat (which
     // prefix-parse '12abc' as 12): the detector must never score more than

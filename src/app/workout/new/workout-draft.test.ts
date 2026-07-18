@@ -29,8 +29,8 @@ const NESTED: WorkoutDraft = {
       id: 'ex1',
       ...SQUAT,
       sets: [
-        { id: 's1', reps: '5', weight: '100', completed: false },
-        { id: 's2', reps: '5', weight: '100', completed: false },
+        { id: 's1', reps: '5', weight: '100', completed: false, tag: 'working' as const },
+        { id: 's2', reps: '5', weight: '100', completed: false, tag: 'working' as const },
       ],
     },
   ],
@@ -39,7 +39,7 @@ const NESTED: WorkoutDraft = {
 describe('workoutDraftReducer', () => {
   it('ADD_EXERCISE appends the provided exercise verbatim', () => {
     // Arrange — the component builds the full exercise (with ids) before dispatch
-    const exercise = { id: 'ex1', ...SQUAT, sets: [{ id: 's1', reps: '', weight: '', completed: false }] }
+    const exercise = { id: 'ex1', ...SQUAT, sets: [{ id: 's1', reps: '', weight: '', completed: false, tag: 'working' as const }] }
 
     // Act
     const next = workoutDraftReducer(emptyDraft, { type: 'ADD_EXERCISE', exercise })
@@ -50,7 +50,7 @@ describe('workoutDraftReducer', () => {
 
   it('ADD_SET appends the provided set to the targeted exercise', () => {
     // Arrange
-    const set = { id: 's3', reps: '', weight: '', completed: false }
+    const set = { id: 's3', reps: '', weight: '', completed: false, tag: 'working' as const }
 
     // Act
     const next = workoutDraftReducer(NESTED, { type: 'ADD_SET', exerciseIndex: 0, set })
@@ -72,7 +72,7 @@ describe('workoutDraftReducer', () => {
           name: 'Bench',
           category: 'Chest',
           loggingType: 'weight_reps',
-          sets: [{ id: 's3', reps: '', weight: '', completed: false }],
+          sets: [{ id: 's3', reps: '', weight: '', completed: false, tag: 'working' as const }],
         },
       ],
     }
@@ -83,7 +83,7 @@ describe('workoutDraftReducer', () => {
       name: 'Leg Press',
       category: 'Legs',
       loggingType: 'weight_reps' as const,
-      sets: [{ id: 's-new', reps: '', weight: '', completed: false }],
+      sets: [{ id: 's-new', reps: '', weight: '', completed: false, tag: 'working' as const }],
     }
 
     // Act
@@ -119,8 +119,8 @@ describe('workoutDraftReducer', () => {
     })
 
     // Assert — target updated, sibling untouched
-    expect(next.exercises[0].sets[1]).toEqual({ id: 's2', reps: '8', weight: '100', completed: false })
-    expect(next.exercises[0].sets[0]).toEqual({ id: 's1', reps: '5', weight: '100', completed: false })
+    expect(next.exercises[0].sets[1]).toEqual({ id: 's2', reps: '8', weight: '100', completed: false, tag: 'working' as const })
+    expect(next.exercises[0].sets[0]).toEqual({ id: 's1', reps: '5', weight: '100', completed: false, tag: 'working' as const })
 
     // Assert — immutability by reference
     expect(next).not.toBe(NESTED)
@@ -133,7 +133,28 @@ describe('workoutDraftReducer', () => {
 
     // Assert
     expect(next.exercises[0].sets).toHaveLength(1)
-    expect(next.exercises[0].sets[0]).toEqual({ id: 's2', reps: '5', weight: '100', completed: false })
+    expect(next.exercises[0].sets[0]).toEqual({ id: 's2', reps: '5', weight: '100', completed: false, tag: 'working' as const })
+  })
+
+  it('TAG_SET retags only the targeted set and does not mutate prev', () => {
+    // Act — tag set 2 as a warm-up
+    const next = workoutDraftReducer(NESTED, { type: 'TAG_SET', exerciseIndex: 0, setIndex: 1, tag: 'warmup' })
+
+    // Assert — values and completion survive; only the tag changes
+    expect(next.exercises[0].sets[0].tag).toBe('working')
+    expect(next.exercises[0].sets[1]).toEqual({ id: 's2', reps: '5', weight: '100', completed: false, tag: 'warmup' })
+    expect(NESTED.exercises[0].sets[1].tag).toBe('working')
+  })
+
+  it('TAG_SET back to working undoes the warm-up tag', () => {
+    // Arrange
+    const tagged = workoutDraftReducer(NESTED, { type: 'TAG_SET', exerciseIndex: 0, setIndex: 0, tag: 'warmup' })
+
+    // Act
+    const next = workoutDraftReducer(tagged, { type: 'TAG_SET', exerciseIndex: 0, setIndex: 0, tag: 'working' })
+
+    // Assert
+    expect(next.exercises[0].sets[0].tag).toBe('working')
   })
 
   it('TOGGLE_SET_COMPLETED flips only the targeted set and does not mutate prev', () => {
@@ -219,7 +240,7 @@ describe('workoutDraftReducer', () => {
 
   it('INSERT_EXERCISE restores an exercise at its original position (undo)', () => {
     // Arrange — ex1 was just removed from position 0
-    const removed = { id: 'ex1', ...SQUAT, sets: [{ id: 's1', reps: '5', weight: '100', completed: true }] }
+    const removed = { id: 'ex1', ...SQUAT, sets: [{ id: 's1', reps: '5', weight: '100', completed: true, tag: 'working' as const }] }
     const after: WorkoutDraft = {
       exercises: [{ id: 'ex2', wgerExerciseId: 1, source: 'wger', name: 'Bench', category: 'Chest', loggingType: 'weight_reps', sets: [] }],
     }
@@ -263,10 +284,10 @@ describe('workoutDraftReducer', () => {
 
   it('INSERT_SET restores a set at its original position (undo)', () => {
     // Arrange — s1 was just removed from position 0
-    const removedSet = { id: 's1', reps: '5', weight: '100', completed: true }
+    const removedSet = { id: 's1', reps: '5', weight: '100', completed: true, tag: 'working' as const }
     const after: WorkoutDraft = {
       exercises: [
-        { id: 'ex1', ...SQUAT, sets: [{ id: 's2', reps: '5', weight: '100', completed: false }] },
+        { id: 'ex1', ...SQUAT, sets: [{ id: 's2', reps: '5', weight: '100', completed: false, tag: 'working' as const }] },
       ],
     }
 
@@ -286,7 +307,7 @@ describe('workoutDraftReducer', () => {
 
   it('INSERT_SET clamps an out-of-range set index to the end', () => {
     // Arrange — the exercise's set list shrank below the original index
-    const removedSet = { id: 's9', reps: '8', weight: '60', completed: false }
+    const removedSet = { id: 's9', reps: '8', weight: '60', completed: false, tag: 'working' as const }
 
     // Act
     const next = workoutDraftReducer(NESTED, {
@@ -302,7 +323,7 @@ describe('workoutDraftReducer', () => {
 
   it('INSERT_SET is a no-op when the exercise is gone', () => {
     // Arrange — the whole exercise was removed while the set undo was pending
-    const removedSet = { id: 's9', reps: '8', weight: '60', completed: false }
+    const removedSet = { id: 's9', reps: '8', weight: '60', completed: false, tag: 'working' as const }
 
     // Act
     const next = workoutDraftReducer(emptyDraft, {
@@ -319,7 +340,7 @@ describe('workoutDraftReducer', () => {
   it('TOGGLE_SET_COMPLETED adopts fill values for empty fields when checking off', () => {
     // Arrange — an untouched set with ghost values available
     const blank: WorkoutDraft = {
-      exercises: [{ id: 'ex1', ...SQUAT, sets: [{ id: 's1', reps: '', weight: '', completed: false }] }],
+      exercises: [{ id: 'ex1', ...SQUAT, sets: [{ id: 's1', reps: '', weight: '', completed: false, tag: 'working' as const }] }],
     }
 
     // Act — tap-to-accept: complete the set with the ghost's values
@@ -331,13 +352,13 @@ describe('workoutDraftReducer', () => {
     })
 
     // Assert
-    expect(next.exercises[0].sets[0]).toEqual({ id: 's1', reps: '8', weight: '100', completed: true })
+    expect(next.exercises[0].sets[0]).toEqual({ id: 's1', reps: '8', weight: '100', completed: true, tag: 'working' as const })
   })
 
   it('TOGGLE_SET_COMPLETED fill never overwrites typed values', () => {
     // Arrange — reps typed, weight empty
     const partial: WorkoutDraft = {
-      exercises: [{ id: 'ex1', ...SQUAT, sets: [{ id: 's1', reps: '6', weight: '', completed: false }] }],
+      exercises: [{ id: 'ex1', ...SQUAT, sets: [{ id: 's1', reps: '6', weight: '', completed: false, tag: 'working' as const }] }],
     }
 
     // Act
@@ -349,13 +370,13 @@ describe('workoutDraftReducer', () => {
     })
 
     // Assert — typed reps kept, empty weight adopted
-    expect(next.exercises[0].sets[0]).toEqual({ id: 's1', reps: '6', weight: '100', completed: true })
+    expect(next.exercises[0].sets[0]).toEqual({ id: 's1', reps: '6', weight: '100', completed: true, tag: 'working' as const })
   })
 
   it('TOGGLE_SET_COMPLETED ignores fill when unchecking', () => {
     // Arrange — a completed set being unchecked must not have values injected
     const done: WorkoutDraft = {
-      exercises: [{ id: 'ex1', ...SQUAT, sets: [{ id: 's1', reps: '', weight: '', completed: true }] }],
+      exercises: [{ id: 'ex1', ...SQUAT, sets: [{ id: 's1', reps: '', weight: '', completed: true, tag: 'working' as const }] }],
     }
 
     // Act
@@ -367,7 +388,7 @@ describe('workoutDraftReducer', () => {
     })
 
     // Assert
-    expect(next.exercises[0].sets[0]).toEqual({ id: 's1', reps: '', weight: '', completed: false })
+    expect(next.exercises[0].sets[0]).toEqual({ id: 's1', reps: '', weight: '', completed: false, tag: 'working' as const })
   })
 })
 
@@ -381,7 +402,7 @@ describe('replacementDraftExercise', () => {
     // Assert — the scheme survives, the values don't
     expect(result.sets).toHaveLength(3)
     for (const set of result.sets) {
-      expect(set).toMatchObject({ reps: '', weight: '', completed: false })
+      expect(set).toMatchObject({ reps: '', weight: '', completed: false, tag: 'working' as const })
     }
     expect(new Set(result.sets.map((s) => s.id)).size).toBe(3)
   })
@@ -410,8 +431,8 @@ describe('draftToInput', () => {
           id: 'ex1',
           ...SQUAT,
           sets: [
-            { id: 's1', reps: '', weight: '', completed: false },
-            { id: 's2', reps: '5', weight: '2.5', completed: false },
+            { id: 's1', reps: '', weight: '', completed: false, tag: 'working' as const },
+            { id: 's2', reps: '5', weight: '2.5', completed: false, tag: 'working' as const },
           ],
         },
       ],
@@ -435,8 +456,8 @@ describe('draftToInput', () => {
           id: 'ex1',
           ...SQUAT,
           sets: [
-            { id: 's1', reps: '5', weight: '100', completed: true },
-            { id: 's2', reps: '5', weight: '100', completed: false },
+            { id: 's1', reps: '5', weight: '100', completed: true, tag: 'working' as const },
+            { id: 's2', reps: '5', weight: '100', completed: false, tag: 'working' as const },
           ],
         },
       ],
@@ -475,6 +496,29 @@ describe('draftToInput', () => {
     expect(input.exercises[1].loggingType).toBe('bodyweight_reps')
   })
 
+  it('emits setType only for warm-up sets (working is the column default)', () => {
+    // Arrange
+    const draft: WorkoutDraft = {
+      exercises: [
+        {
+          id: 'ex1',
+          ...SQUAT,
+          sets: [
+            { id: 's1', reps: '5', weight: '60', completed: true, tag: 'warmup' },
+            { id: 's2', reps: '5', weight: '100', completed: true, tag: 'working' },
+          ],
+        },
+      ],
+    }
+
+    // Act
+    const input = draftToInput(draft)
+
+    // Assert — minimal wire shape, same rule as completed
+    expect(input.exercises[0].sets[0]).toEqual({ reps: 5, weight: 60, completed: true, setType: 'warmup' })
+    expect(input.exercises[0].sets[1]).not.toHaveProperty('setType')
+  })
+
   it('keeps a trimmed name and drops a blank one', () => {
     // Act
     const named = draftToInput(emptyDraft, '  Leg Day  ')
@@ -488,7 +532,7 @@ describe('draftToInput', () => {
   it('converts entered lb weights back to canonical kg', () => {
     // Arrange — a single 100 lb set
     const draft: WorkoutDraft = {
-      exercises: [{ id: 'ex1', ...SQUAT, sets: [{ id: 's1', reps: '5', weight: '100', completed: false }] }],
+      exercises: [{ id: 'ex1', ...SQUAT, sets: [{ id: 's1', reps: '5', weight: '100', completed: false, tag: 'working' as const }] }],
     }
 
     // Act
@@ -521,8 +565,8 @@ describe('detailToDraft', () => {
           position: 0,
           loggingType: 'weight_reps',
           sets: [
-            { id: 's1', workoutExerciseId: 'ex1', setNumber: 1, reps: 5, weight: 2.5, completed: false, metricMode: 'reps_weight', durationSec: null, distanceM: null },
-            { id: 's2', workoutExerciseId: 'ex1', setNumber: 2, reps: null, weight: null, completed: false, metricMode: 'reps_weight', durationSec: null, distanceM: null },
+            { id: 's1', workoutExerciseId: 'ex1', setNumber: 1, reps: 5, weight: 2.5, completed: false, setType: 'working', metricMode: 'reps_weight', durationSec: null, distanceM: null },
+            { id: 's2', workoutExerciseId: 'ex1', setNumber: 2, reps: null, weight: null, completed: false, setType: 'working', metricMode: 'reps_weight', durationSec: null, distanceM: null },
           ],
         },
       ],
@@ -543,9 +587,47 @@ describe('detailToDraft', () => {
       loggingType: 'weight_reps',
     })
     expect(draft.exercises[0].sets).toEqual([
-      { id: 's1', reps: '5', weight: '2.5', completed: false },
-      { id: 's2', reps: '', weight: '', completed: false },
+      { id: 's1', reps: '5', weight: '2.5', completed: false, tag: 'working' as const },
+      { id: 's2', reps: '', weight: '', completed: false, tag: 'working' as const },
     ])
+  })
+
+  it('maps a persisted warm-up setType into the draft tag (round-trip with draftToInput)', () => {
+    // Arrange — one warm-up, one working set
+    const workout = {
+      id: 'w1',
+      userId: 'user_123',
+      name: null,
+      startedAt: new Date(),
+      completedAt: null,
+      createdAt: new Date(),
+      programDayId: null,
+      programWeek: null,
+      exercises: [
+        {
+          id: 'ex1',
+          workoutId: 'w1',
+          wgerExerciseId: 73,
+          source: 'wger',
+          name: 'Squat',
+          position: 0,
+          loggingType: 'weight_reps',
+          sets: [
+            { id: 's1', workoutExerciseId: 'ex1', setNumber: 1, reps: 5, weight: 60, completed: true, setType: 'warmup', metricMode: 'reps_weight', durationSec: null, distanceM: null },
+            { id: 's2', workoutExerciseId: 'ex1', setNumber: 2, reps: 5, weight: 100, completed: true, setType: 'working', metricMode: 'reps_weight', durationSec: null, distanceM: null },
+          ],
+        },
+      ],
+    } satisfies WorkoutDetail
+
+    // Act
+    const { draft } = detailToDraft(workout)
+
+    // Assert — the tag survives the edit round-trip back to the wire
+    expect(draft.exercises[0].sets.map((s) => s.tag)).toEqual(['warmup', 'working'])
+    const sets = draftToInput(draft).exercises[0].sets
+    expect(sets[0].setType).toBe('warmup')
+    expect(sets[1]).not.toHaveProperty('setType')
   })
 
   it('keeps persisted completed flags by default and clears them with resetCompleted', () => {
@@ -569,7 +651,7 @@ describe('detailToDraft', () => {
           position: 0,
           loggingType: 'weight_reps',
           sets: [
-            { id: 's1', workoutExerciseId: 'ex1', setNumber: 1, reps: 5, weight: 100, completed: true, metricMode: 'reps_weight', durationSec: null, distanceM: null },
+            { id: 's1', workoutExerciseId: 'ex1', setNumber: 1, reps: 5, weight: 100, completed: true, setType: 'working', metricMode: 'reps_weight', durationSec: null, distanceM: null },
           ],
         },
       ],
@@ -603,7 +685,7 @@ describe('detailToDraft', () => {
           position: 0,
           loggingType: 'weight_reps',
           sets: [
-            { id: 's1', workoutExerciseId: 'ex1', setNumber: 1, reps: 5, weight: 100, completed: false, metricMode: 'reps_weight', durationSec: null, distanceM: null },
+            { id: 's1', workoutExerciseId: 'ex1', setNumber: 1, reps: 5, weight: 100, completed: false, setType: 'working', metricMode: 'reps_weight', durationSec: null, distanceM: null },
           ],
         },
       ],
@@ -669,6 +751,7 @@ describe('completeFilledSets', () => {
             reps: s.reps,
             weight: s.weight ?? '',
             completed: s.completed ?? false,
+            tag: 'working' as const,
           })),
         },
       ],
@@ -740,7 +823,7 @@ describe('FILL_SET', () => {
     })
 
     // Assert
-    expect(next.exercises[0].sets[0]).toMatchObject({ reps: '8', weight: '60', completed: false })
+    expect(next.exercises[0].sets[0]).toMatchObject({ reps: '8', weight: '60', completed: false, tag: 'working' as const })
   })
 
   it('never overwrites typed input', () => {
