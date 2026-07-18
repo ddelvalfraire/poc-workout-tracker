@@ -23,7 +23,7 @@ import {
 export async function saveProgramAction(input: unknown): Promise<{ id: string }> {
   const userId = await requireUserId()
   const parsed = parseProgramInput(input)
-  const result = await saveProgram(userId, parsed)
+  const result = await saveProgram(userId, parsed, 'ui')
   revalidatePath('/programs')
   return result
 }
@@ -42,7 +42,7 @@ export async function saveProgramAction(input: unknown): Promise<{ id: string }>
 export async function updateProgramAction(id: string, input: unknown): Promise<{ id: string }> {
   const userId = await requireUserId()
   const parsed = parseProgramInput(input)
-  const result = await updateProgram(userId, id, parsed)
+  const result = await updateProgram(userId, id, parsed, 'ui')
   if (!result) throw new Error('program not found')
   revalidatePath('/programs')
   revalidatePath(`/programs/${id}`)
@@ -73,7 +73,7 @@ export async function deleteProgramAction(id: string): Promise<void> {
 export async function setProgramStatusAction(id: string, status: unknown): Promise<{ id: string }> {
   const userId = await requireUserId()
   const parsed = statusSchema.parse(status)
-  const result = await setProgramStatus(userId, id, parsed)
+  const result = await setProgramStatus(userId, id, parsed, 'ui')
   if (!result) throw new Error('program not found')
   revalidatePath('/programs')
   revalidatePath(`/programs/${id}`)
@@ -94,9 +94,9 @@ export async function restartProgramAction(id: unknown): Promise<{ id: string }>
   if (typeof id !== 'string' || id.length === 0) {
     throw new Error('invalid program id')
   }
-  const clone = await cloneProgram(userId, id)
+  const clone = await cloneProgram(userId, id, 'ui')
   if (!clone) throw new Error('program not found')
-  const activated = await setProgramStatus(userId, clone.id, 'active')
+  const activated = await setProgramStatus(userId, clone.id, 'active', 'ui')
   if (!activated) throw new Error('could not activate the new block')
   revalidatePath('/') // the home hero now points at the clone
   revalidatePath('/programs')

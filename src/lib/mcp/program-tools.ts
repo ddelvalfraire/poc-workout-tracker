@@ -1,6 +1,6 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
-import { resolveUserId } from './resolve-user'
+import { resolveUserId, resolveActor } from './resolve-user'
 import { jsonResult, errorResult } from './result'
 import { ToolError } from './errors'
 import { assertProgramIdShape, assertProgramDayIdShape } from './program-id'
@@ -399,11 +399,11 @@ export function registerProgramTools(server: McpServer): void {
           basis,
         )
         if (id !== undefined) {
-          const result = await updateProgram(resolved, id, parsed)
+          const result = await updateProgram(resolved, id, parsed, resolveActor(extra))
           if (!result) throw new ToolError(`Program ${id} not found for user ${resolved}`)
           return jsonResult({ userId: resolved, unit: basis, programId: result.id })
         }
-        const { id: newId } = await saveProgram(resolved, parsed)
+        const { id: newId } = await saveProgram(resolved, parsed, resolveActor(extra))
         return jsonResult({ userId: resolved, unit: basis, programId: newId })
       } catch (error: unknown) {
         return errorResult(error)
@@ -498,7 +498,7 @@ export function registerProgramTools(server: McpServer): void {
       try {
         const resolved = resolveUserId(extra, userId)
         assertProgramIdShape(id)
-        const result = await setProgramStatus(resolved, id, status)
+        const result = await setProgramStatus(resolved, id, status, resolveActor(extra))
         if (!result) throw new ToolError(`Program ${id} not found for user ${resolved}`)
         return jsonResult({ userId: resolved, programId: result.id, status })
       } catch (error: unknown) {
@@ -522,9 +522,9 @@ export function registerProgramTools(server: McpServer): void {
         // Same two-step path as the UI's restartProgramAction: the clone
         // commits before activation, so a failed activate leaves only a
         // harmless draft copy (retry-safe).
-        const clone = await cloneProgram(resolved, id)
+        const clone = await cloneProgram(resolved, id, resolveActor(extra))
         if (!clone) throw new ToolError(`Program ${id} not found for user ${resolved}`)
-        const activated = await setProgramStatus(resolved, clone.id, 'active')
+        const activated = await setProgramStatus(resolved, clone.id, 'active', resolveActor(extra))
         if (!activated) {
           throw new ToolError(`Could not activate program ${clone.id} for user ${resolved}`)
         }

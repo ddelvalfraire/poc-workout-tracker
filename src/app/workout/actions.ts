@@ -262,11 +262,19 @@ export async function rememberSwapAction(
   if (matches.length > 1) throw new Error('exercise appears more than once in this day')
   const slot = matches[0]
 
-  const updated = await updateProgramExercise(userId, day.program.id, day.position, slot.position, {
-    wgerExerciseId: substitute.wgerExerciseId as number,
-    source: toSource,
-    name: substitute.name.trim(),
-  })
+  const updated = await updateProgramExercise(
+    userId,
+    day.program.id,
+    day.position,
+    slot.position,
+    {
+      wgerExerciseId: substitute.wgerExerciseId as number,
+      source: toSource,
+      name: substitute.name.trim(),
+    },
+    // The swap sheet is a UI surface even though it edits mid-session.
+    'ui',
+  )
   if (!updated) throw new Error('could not update the program')
   revalidatePath('/programs')
   revalidatePath(`/programs/${day.program.id}`)

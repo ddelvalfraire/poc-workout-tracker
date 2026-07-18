@@ -11,6 +11,10 @@ vi.mock('@/db/program-stats', () => ({ getProgramStats: vi.fn() }))
 vi.mock('@/db/preferences', () => ({ getWeightUnit: vi.fn(), getBodyweightKg: vi.fn() }))
 vi.mock('@/lib/wger', () => ({ searchExercises: vi.fn() }))
 vi.mock('@/db/custom-exercises', () => ({ listCustomExercises: vi.fn(async () => []) }))
+vi.mock('@/db/program-events', () => ({
+  listProgramEvents: vi.fn(),
+  PROGRAM_EVENTS_MAX_LIMIT: 100,
+}))
 
 import { registerReadTools } from './read-tools'
 import { listWorkoutSummaries, getWorkoutDetail, getLastPerformance } from '@/db/workouts'
@@ -18,6 +22,7 @@ import { getProgramDayDetail } from '@/db/programs'
 import { getProgramStats, type ProgramStats } from '@/db/program-stats'
 import { getWeightUnit, getBodyweightKg } from '@/db/preferences'
 import { searchExercises } from '@/lib/wger'
+import { listProgramEvents } from '@/db/program-events'
 import { kgToDisplay } from '@/lib/units'
 import { estimate1RM } from '@/lib/one-rep-max'
 
@@ -29,6 +34,7 @@ const mockedProgramStats = vi.mocked(getProgramStats)
 const mockedUnit = vi.mocked(getWeightUnit)
 const mockedBodyweight = vi.mocked(getBodyweightKg)
 const mockedSearch = vi.mocked(searchExercises)
+const mockedEvents = vi.mocked(listProgramEvents)
 
 type ToolResult = { content: { type: string; text: string }[]; isError?: boolean }
 type ToolHandler = (args: Record<string, unknown>) => Promise<ToolResult>
@@ -72,7 +78,7 @@ describe('registerReadTools', () => {
     else process.env.MCP_DEV_USER_ID = original
   })
 
-  it('registers exactly the six read tools', () => {
+  it('registers exactly the seven read tools', () => {
     // Arrange + Act
     const tools = setup()
 
@@ -82,6 +88,7 @@ describe('registerReadTools', () => {
       'get_program_stats',
       'get_weight_unit',
       'get_workout',
+      'list_program_changes',
       'list_workouts',
       'search_exercises',
     ])
@@ -678,12 +685,87 @@ describe('registerReadTools', () => {
 
   // The remaining user-scoped handlers share list_workouts' try/catch + resolveUserId
   // structure; cover the failure and no-user paths for each so the contract is explicit.
+  describe('list_program_changes', () => {
+    const PID = '22222222-2222-4222-8222-222222222222'
+    const EVENT = {
+      id: 'ev1',
+      programId: PID,
+      userId: 'user_env',
+      occurredAt: new Date('2026-07-18T10:00:00Z'),
+      actor: 'coach' as const,
+      action: 'update_program_exercise',
+      summary: 'Replace Incline DB Press → Larsen Press (Day 2)',
+      payload: { before: { wgerExerciseId: 123 }, after: { wgerExerciseId: 456 } },
+    }
+
+    it('maps events with ISO occurredAt and echoes userId/programId', async () => {
+      // Arrange
+      const tools = setup()
+      mockedEvents.mockResolvedValue([EVENT])
+
+      // Act
+      const result = await tools.get('list_program_changes')!({ programId: PID })
+
+      // Assert — the row is projected, not passed through (Date → ISO string)
+      expect(mockedEvents).toHaveBeenCalledWith('user_env', PID, {
+        limit: undefined,
+        before: undefined,
+      })
+      expect(payload(result)).toEqual({
+        userId: 'user_env',
+        programId: PID,
+        events: [
+          {
+            id: 'ev1',
+            occurredAt: '2026-07-18T10:00:00.000Z',
+            actor: 'coach',
+            action: 'update_program_exercise',
+            summary: 'Replace Incline DB Press → Larsen Press (Day 2)',
+            payload: { before: { wgerExerciseId: 123 }, after: { wgerExerciseId: 456 } },
+          },
+        ],
+      })
+    })
+
+    it('parses the before cursor into a Date and forwards the limit', async () => {
+      // Arrange
+      const tools = setup()
+      mockedEvents.mockResolvedValue([])
+
+      // Act
+      await tools.get('list_program_changes')!({
+        programId: PID,
+        limit: 5,
+        before: '2026-07-18T10:00:00.000Z',
+      })
+
+      // Assert
+      expect(mockedEvents).toHaveBeenCalledWith('user_env', PID, {
+        limit: 5,
+        before: new Date('2026-07-18T10:00:00.000Z'),
+      })
+    })
+
+    it('rejects a malformed programId before any query', async () => {
+      // Arrange
+      const tools = setup()
+
+      // Act
+      const result = await tools.get('list_program_changes')!({ programId: 'not-a-uuid' })
+
+      // Assert
+      expect(result.isError).toBe(true)
+      expect(mockedEvents).not.toHaveBeenCalled()
+    })
+  })
+
   describe('shared failure handling (remaining user-scoped tools)', () => {
     const cases = [
       { name: 'get_workout', args: { id: '11111111-1111-4111-8111-111111111111' }, dep: mockedDetail as unknown as Mock },
       { name: 'get_last_performance', args: { wgerExerciseId: 1 }, dep: mockedLast as unknown as Mock },
       { name: 'get_weight_unit', args: {}, dep: mockedUnit as unknown as Mock },
       { name: 'get_program_stats', args: { programId: '22222222-2222-4222-8222-222222222222' }, dep: mockedProgramStats as unknown as Mock },
+      { name: 'list_program_changes', args: { programId: '22222222-2222-4222-8222-222222222222' }, dep: mockedEvents as unknown as Mock },
     ] as const
 
     it.each(cases)(

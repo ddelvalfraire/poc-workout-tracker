@@ -223,7 +223,7 @@ describe('registerProgramTools', () => {
               ],
             }),
           ],
-        }),
+        }), 'mcp'
       )
       expect(payload(result)).toEqual({ userId: 'user_env', unit: 'lb', programId: PID })
     })
@@ -266,7 +266,7 @@ describe('registerProgramTools', () => {
               ],
             }),
           ],
-        }),
+        }), 'mcp'
       )
     })
 
@@ -282,7 +282,7 @@ describe('registerProgramTools', () => {
       )
 
       // Assert
-      expect(mockedSave).toHaveBeenCalledWith('user_token', expect.anything())
+      expect(mockedSave).toHaveBeenCalledWith('user_token', expect.anything(), 'mcp')
       expect(payload(result).userId).toBe('user_token')
     })
 
@@ -306,7 +306,7 @@ describe('registerProgramTools', () => {
               ],
             }),
           ],
-        }),
+        }), 'mcp'
       )
       expect(payload(result).unit).toBe('kg')
     })
@@ -398,7 +398,7 @@ describe('registerProgramTools', () => {
       const result = await tools.get('upsert_program')!({ id: PID, ...BODY })
 
       // Assert
-      expect(mockedUpdate).toHaveBeenCalledWith('user_env', PID, expect.anything())
+      expect(mockedUpdate).toHaveBeenCalledWith('user_env', PID, expect.anything(), 'mcp')
       expect(mockedSave).not.toHaveBeenCalled()
       expect(payload(result)).toEqual({ userId: 'user_env', unit: 'lb', programId: PID })
     })
@@ -579,7 +579,7 @@ describe('registerProgramTools', () => {
       const result = await tools.get('set_program_status')!({ id: PID, status: 'active' })
 
       // Assert
-      expect(mockedSetStatus).toHaveBeenCalledWith('user_env', PID, 'active')
+      expect(mockedSetStatus).toHaveBeenCalledWith('user_env', PID, 'active', 'mcp')
       expect(payload(result)).toEqual({ userId: 'user_env', programId: PID, status: 'active' })
     })
 
@@ -608,8 +608,8 @@ describe('registerProgramTools', () => {
       const result = await tools.get('restart_program')!({ id: PID })
 
       // Assert — same two-step path as the UI's restartProgramAction
-      expect(mockedClone).toHaveBeenCalledWith('user_env', PID)
-      expect(mockedSetStatus).toHaveBeenCalledWith('user_env', 'p-clone', 'active')
+      expect(mockedClone).toHaveBeenCalledWith('user_env', PID, 'mcp')
+      expect(mockedSetStatus).toHaveBeenCalledWith('user_env', 'p-clone', 'active', 'mcp')
       expect(payload(result)).toEqual({
         userId: 'user_env',
         programId: 'p-clone',

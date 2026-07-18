@@ -27,6 +27,9 @@ export const COACH_READ_TOOLS = [
   'get_program_stats',
   'list_custom_exercises',
   'preview_program_week',
+  // Read-only by construction (the log has no write tool): the coach can
+  // answer "what changed on my program?" without any approval gate.
+  'list_program_changes',
 ] as const
 
 /** Granular program patch tools — allowed, but gated behind user approval. */

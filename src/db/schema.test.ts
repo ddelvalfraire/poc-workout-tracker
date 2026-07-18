@@ -12,6 +12,7 @@ import {
   programExerciseMuscles,
   programSetOverrides,
   customExercises,
+  programEvents,
 } from './schema'
 
 describe('schema', () => {
@@ -169,5 +170,28 @@ describe('schema', () => {
     expect(getTableConfig(programExercises).checks.map((c) => c.name)).toContain(
       'program_exercises_wger_id_positive',
     )
+  })
+
+  it('defines the program change log with snake_case name', () => {
+    expect(getTableName(programEvents)).toBe('program_events')
+  })
+
+  it('requires every fact column on program_events (payload alone is optional)', () => {
+    const cols = getTableColumns(programEvents)
+    expect(cols.programId.notNull).toBe(true)
+    expect(cols.userId.notNull).toBe(true)
+    expect(cols.occurredAt.notNull).toBe(true)
+    expect(cols.occurredAt.hasDefault).toBe(true)
+    expect(cols.actor.notNull).toBe(true)
+    expect(cols.action.notNull).toBe(true)
+    expect(cols.summary.notNull).toBe(true)
+    expect(cols.payload.notNull).toBe(false)
+  })
+
+  it('indexes program_events on (program_id, occurred_at) — the only read path', () => {
+    const indexes = getTableConfig(programEvents).indexes
+    expect(
+      indexes.map((i) => i.config.columns.map((c) => ('name' in c ? c.name : ''))),
+    ).toContainEqual(['program_id', 'occurred_at'])
   })
 })

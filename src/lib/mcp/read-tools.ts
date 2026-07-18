@@ -13,6 +13,7 @@ import {
 } from '@/db/workouts'
 import { getProgramDayDetail, type ProgramDayDetail } from '@/db/programs'
 import { getProgramStats, type ProgramStats } from '@/db/program-stats'
+import { listProgramEvents, PROGRAM_EVENTS_MAX_LIMIT } from '@/db/program-events'
 import { getWeightUnit, getBodyweightKg } from '@/db/preferences'
 import { searchExercises } from '@/lib/wger'
 import { listCustomExercises } from '@/db/custom-exercises'
@@ -221,6 +222,47 @@ export function registerReadTools(server: McpServer): void {
         }
         const unit = await getWeightUnit(resolved)
         return jsonResult(buildProgramStatsPayload(stats, resolved, unit))
+      } catch (error: unknown) {
+        return errorResult(error)
+      }
+    },
+  )
+
+  server.registerTool(
+    'list_program_changes',
+    {
+      title: 'List Program Changes',
+      description:
+        'The append-only change log for one program — every plan edit (from the app UI, an MCP agent, or the coach), newest first, each with the actor, action, a one-line summary, and a minimal before/after payload. To page older events pass the LAST row\'s occurredAt as `before` AND its id as `beforeId` (the compound cursor pages same-timestamp ties losslessly). Use to answer "what changed on my program, and who changed it?".',
+      inputSchema: {
+        programId: z.string(),
+        limit: z.number().int().min(1).max(PROGRAM_EVENTS_MAX_LIMIT).optional(),
+        before: z.string().datetime().optional(),
+        beforeId: z.string().uuid().optional(),
+        userId: z.string().optional(),
+      },
+    },
+    async ({ programId, limit, before, beforeId, userId }, extra) => {
+      try {
+        const resolved = resolveUserId(extra, userId)
+        assertProgramIdShape(programId)
+        const events = await listProgramEvents(resolved, programId, {
+          limit,
+          before: before === undefined ? undefined : new Date(before),
+          beforeId,
+        })
+        return jsonResult({
+          userId: resolved,
+          programId,
+          events: events.map((event) => ({
+            id: event.id,
+            occurredAt: event.occurredAt.toISOString(),
+            actor: event.actor,
+            action: event.action,
+            summary: event.summary,
+            payload: event.payload,
+          })),
+        })
       } catch (error: unknown) {
         return errorResult(error)
       }

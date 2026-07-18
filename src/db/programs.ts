@@ -14,6 +14,7 @@ import { bestSet } from '@/lib/one-rep-max'
 import { pickNextProgramDay } from '@/lib/next-program-day'
 import { nextBlockName } from '@/lib/block-name'
 import { db } from './index'
+import { recordProgramEvent, type ProgramEventActor } from './program-events'
 import { getLastPerformance, getExerciseHistoryBefore } from './workouts'
 import { listCustomExercises } from './custom-exercises'
 import {
@@ -209,7 +210,11 @@ async function insertProgramChildren(
  * `db.transaction`, so a partial save can never happen. The program is stamped
  * with `userId`; the children inherit ownership through the FK chain.
  */
-export async function saveProgram(userId: string, input: ProgramInput): Promise<{ id: string }> {
+export async function saveProgram(
+  userId: string,
+  input: ProgramInput,
+  actor: ProgramEventActor,
+): Promise<{ id: string }> {
   const catalog = await loadExerciseCatalog(userId) // network read stays outside the tx
   return db.transaction(async (tx) => {
     const [program] = await tx
@@ -226,6 +231,16 @@ export async function saveProgram(userId: string, input: ProgramInput): Promise<
 
     await insertProgramChildren(tx, program.id, input.days, catalog)
 
+    // One coarse event — the timeline's opening line, not a per-slot diff.
+    await recordProgramEvent(tx, {
+      programId: program.id,
+      userId,
+      actor,
+      action: 'upsert_program',
+      summary: `Program created ("${input.name}")`,
+      payload: { after: { name: input.name, status: input.status } },
+    })
+
     return { id: program.id }
   })
 }
@@ -240,6 +255,7 @@ export async function updateProgram(
   userId: string,
   id: string,
   input: ProgramInput,
+  actor: ProgramEventActor,
 ): Promise<{ id: string } | null> {
   const catalog = await loadExerciseCatalog(userId) // network read stays outside the tx
   return db.transaction(async (tx) => {
@@ -259,6 +275,16 @@ export async function updateProgram(
 
     await tx.delete(programDays).where(eq(programDays.programId, id))
     await insertProgramChildren(tx, id, input.days, catalog)
+    // Full-replace is deliberately ONE coarse event, not a per-slot diff —
+    // the granular story lives on the patch ops.
+    await recordProgramEvent(tx, {
+      programId: id,
+      userId,
+      actor,
+      action: 'upsert_program',
+      summary: 'Program replaced',
+      payload: { after: { name: input.name, status: input.status } },
+    })
     return { id }
   })
 }
@@ -281,6 +307,7 @@ export async function setProgramStatus(
   userId: string,
   id: string,
   status: ProgramInput['status'],
+  actor: ProgramEventActor,
 ): Promise<{ id: string } | null> {
   const [owned] = await db
     .update(programs)
@@ -295,6 +322,19 @@ export async function setProgramStatus(
       .update(programs)
       .set({ status: 'archived', updatedAt: new Date() })
       .where(and(eq(programs.userId, userId), eq(programs.status, 'active'), ne(programs.id, id)))
+  }
+  // Event only after the gated update matched — a not-owned call logs nothing.
+  // No transaction here (see above), so the event rides the root handle; the
+  // archived SIBLINGS get no event of their own — the activation is the fact.
+  if (owned) {
+    await recordProgramEvent(db, {
+      programId: id,
+      userId,
+      actor,
+      action: 'set_program_status',
+      summary: `Status → ${status}`,
+      payload: { after: { status } },
+    })
   }
   return owned ?? null
 }
@@ -314,6 +354,7 @@ export async function setProgramStatus(
 export async function cloneProgram(
   userId: string,
   sourceId: string,
+  actor: ProgramEventActor,
 ): Promise<{ id: string } | null> {
   const source = await getProgramDetail(userId, sourceId) // ownership gate
   if (!source) return null
@@ -408,6 +449,17 @@ export async function cloneProgram(
       }
     }
 
+    // Logged on the NEW program: its timeline opens with where it came from
+    // (the source keeps its own history — clone rows cascade with the clone).
+    await recordProgramEvent(tx, {
+      programId: program.id,
+      userId,
+      actor,
+      action: 'restart_program',
+      summary: `Block restarted from "${source.name}"`,
+      payload: { sourceProgramId: sourceId },
+    })
+
     return { id: program.id }
   })
 }
@@ -473,11 +525,23 @@ export async function programWeekState(
   programId: string,
   mesocycleWeeks: number,
 ): Promise<ProgramWeekState> {
+  // A workout counts toward the week axis only when it was actually TRAINED:
+  // ≥1 completed set. `completedAt` alone is a weak proxy — MCP-created and
+  // legacy rows can carry completedAt with zero completed sets, and such
+  // ghosts both raised the observed week and advanced the cycle (the
+  // cooked-block incident, 2026-07-19). Raw sql (not db.select) so the
+  // predicate stays a plain introspectable expression.
+  const trainedWorkout = sql`exists (
+    select 1 from ${workoutExercises}
+    inner join ${sets} on ${sets.workoutExerciseId} = ${workoutExercises.id}
+    where ${workoutExercises.workoutId} = ${workouts.id} and ${sets.completed}
+  )`
+
   const [agg] = await db
     .select({ current: max(workouts.programWeek) })
     .from(workouts)
     .innerJoin(programDays, eq(programDays.id, workouts.programDayId))
-    .where(and(eq(programDays.programId, programId), eq(workouts.userId, userId)))
+    .where(and(eq(programDays.programId, programId), eq(workouts.userId, userId), trainedWorkout))
   const current = agg?.current ?? null
   if (current === null) return { currentWeek: 1, blockComplete: false }
 
@@ -497,8 +561,11 @@ export async function programWeekState(
           eq(workouts.userId, userId),
           eq(workouts.programWeek, current),
           // COMPLETED days only: a started-but-unfinished (or later-
-          // discarded) session must not advance the mesocycle week.
+          // discarded) session must not advance the mesocycle week — and
+          // "completed" means trained (≥1 completed set), not just a
+          // completedAt stamp (see trainedWorkout above).
           isNotNull(workouts.completedAt),
+          trainedWorkout,
         ),
       ),
   ])
