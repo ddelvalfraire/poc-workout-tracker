@@ -11,6 +11,7 @@ import {
   planPlaceholderForSet,
   adoptableGhostValue,
   previousChipLabel,
+  completedSetsSummary,
   stepWeightValue,
 } from './format'
 
@@ -314,6 +315,30 @@ describe('previousChipLabel', () => {
 
   it('keeps plan rep ranges verbatim', () => {
     expect(previousChipLabel({ reps: '8–12', weight: '60' })).toBe('60×8–12')
+  })
+})
+
+describe('completedSetsSummary', () => {
+  it('summarizes with the heaviest set and its reps', () => {
+    expect(
+      completedSetsSummary([
+        { reps: '8', weight: '100' },
+        { reps: '10', weight: '90' },
+      ]),
+    ).toBe('2 sets · top 100×8')
+  })
+
+  it('falls back to the highest rep count when no set has weight', () => {
+    expect(
+      completedSetsSummary([
+        { reps: '12', weight: '' },
+        { reps: '15', weight: '' },
+      ]),
+    ).toBe('2 sets · top ×15')
+  })
+
+  it('singularizes one set and survives empty fields', () => {
+    expect(completedSetsSummary([{ reps: '', weight: '' }])).toBe('1 set')
   })
 })
 

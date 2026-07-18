@@ -187,6 +187,29 @@ export function previousChipLabel(ghost: { reps?: string; weight?: string }): st
   return ghost.weight ?? null
 }
 
+/**
+ * One-line summary for a collapsed, fully-completed logger card:
+ * "4 sets · top 100×8" (heaviest parsed weight wins; its reps ride along),
+ * or "3 sets · top ×12" when no set carries a weight (BW / null-weight
+ * machines — the highest rep count stands in for "top").
+ */
+export function completedSetsSummary(sets: readonly { reps: string; weight: string }[]): string {
+  const count = `${sets.length} ${sets.length === 1 ? 'set' : 'sets'}`
+  let top: { weight: number; label: string } | null = null
+  let topReps = 0
+  for (const set of sets) {
+    const weight = Number.parseFloat(set.weight)
+    if (Number.isFinite(weight) && (top === null || weight > top.weight)) {
+      top = { weight, label: set.reps ? `${set.weight}×${set.reps}` : set.weight }
+    }
+    const reps = Number.parseInt(set.reps, 10)
+    if (Number.isFinite(reps) && reps > topReps) topReps = reps
+  }
+  if (top) return `${count} · top ${top.label}`
+  if (topReps > 0) return `${count} · top ×${topReps}`
+  return count
+}
+
 /** Weight-stepper jump per display unit — the smallest common plate added on
  *  BOTH sides (2×1.25 kg / 2×2.5 lb). */
 export const WEIGHT_STEP: Record<WeightUnit, number> = { kg: 2.5, lb: 5 }

@@ -56,6 +56,7 @@ import {
   planPlaceholderForSet,
   adoptableGhostValue,
   previousChipLabel,
+  completedSetsSummary,
   stepWeightValue,
   WEIGHT_STEP,
   type PlanSetTarget,
@@ -261,6 +262,10 @@ export function WorkoutLogger({
   // Weight steppers show ONLY for the row whose weight input has focus —
   // zero ambient chrome for lifters who never use them.
   const [stepperSetId, setStepperSetId] = useState<string | null>(null)
+  // Fully-completed cards collapse to a one-line summary; this holds the ids
+  // the lifter re-expanded (to correct a set). Never pruned — stale ids are
+  // harmless once an exercise stops being complete.
+  const [expandedDone, setExpandedDone] = useState<Set<string>>(new Set())
 
   useEffect(
     () => () => {
@@ -343,6 +348,33 @@ export function WorkoutLogger({
   // with a wger plan slot can never wear that slot's ghosts or rest targets.
   const planFor = (source: ExerciseSource, id: number) =>
     planOverrides[`${source}:${id}`] ?? planTargets?.[`${source}:${id}`]
+
+  // "Next up" for the sticky bar: the first incomplete set in workout order,
+  // labeled from typed values first, ghost targets as fallback — the
+  // thumb-zone glance that replaces scroll-hunting between sets.
+  const nextUp = (() => {
+    for (let exerciseIndex = 0; exerciseIndex < draft.exercises.length; exerciseIndex++) {
+      const exercise = draft.exercises[exerciseIndex]
+      const setIndex = exercise.sets.findIndex((set) => !set.completed)
+      if (setIndex === -1) continue
+      const set = exercise.sets[setIndex]
+      const history = placeholderForSet(
+        lastByExercise[`${exercise.source}:${exercise.wgerExerciseId}`] ?? null,
+        setIndex,
+        unit,
+      )
+      const plan = planPlaceholderForSet(planFor(exercise.source, exercise.wgerExerciseId), setIndex, unit)
+      const label = previousChipLabel({
+        reps: set.reps || (history.reps ?? plan.reps),
+        weight:
+          exercise.loggingType === 'weight_reps'
+            ? set.weight || (history.weight ?? plan.weight)
+            : set.weight || undefined,
+      })
+      return { exercise, setIndex, label }
+    }
+    return null
+  })()
 
   function pushRemoved(entry: RemovedEntry) {
     setRemoved((prev) => [...prev, entry])
@@ -797,19 +829,52 @@ export function WorkoutLogger({
           </p>
         )}
 
-        {draft.exercises.map((exercise, exerciseIndex) => (
+        {draft.exercises.map((exercise, exerciseIndex) => {
+          const isDone = exercise.sets.length > 0 && exercise.sets.every((set) => set.completed)
+          // Done cards fold to one line so mid-session the scroll shows the
+          // current and upcoming work, not rows of dead inputs. Re-expand is
+          // one tap (corrections); auto-collapse costs the log path nothing.
+          const isCollapsed = isDone && !expandedDone.has(exercise.id)
+          const hasPR =
+            typeof prIndexByExercise[exerciseIndex] === 'number' &&
+            (prIndexByExercise[exerciseIndex] as number) >= 0
+          return (
           <section
             key={exercise.id}
             className={cn(
-              'space-y-3 rounded-2xl border bg-card p-4 transition-colors',
+              'rounded-2xl border bg-card transition-colors',
+              isCollapsed ? '' : 'space-y-3 p-4',
               // Every set checked off = this movement is done: the volt
               // outline is the same "live/complete" state marker the resume
               // banner and rest readout use.
-              exercise.sets.length > 0 && exercise.sets.every((set) => set.completed)
-                ? 'border-primary/50'
-                : 'border-border',
+              isDone ? 'border-primary/50' : 'border-border',
             )}
           >
+          {isCollapsed ? (
+            <button
+              type="button"
+              onClick={() =>
+                setExpandedDone((prev) => {
+                  const next = new Set(prev)
+                  next.add(exercise.id)
+                  return next
+                })
+              }
+              aria-expanded={false}
+              aria-label={`Expand ${exercise.name} — completed, ${completedSetsSummary(exercise.sets)}`}
+              className="flex w-full items-baseline justify-between gap-3 p-4 text-left"
+            >
+              <span className="flex min-w-0 items-baseline gap-2">
+                <Check aria-hidden="true" strokeWidth={3} className="size-4 shrink-0 self-center text-primary" />
+                <span className="truncate text-base leading-tight">{exercise.name}</span>
+              </span>
+              <span className="shrink-0 text-sm text-muted-foreground tnum">
+                {completedSetsSummary(exercise.sets)}
+                {hasPR && <span className="ml-1.5 font-semibold text-primary">PR</span>}
+              </span>
+            </button>
+          ) : (
+          <>
             <div className="flex items-start justify-between gap-2">
               <h3 className="min-w-0 text-base leading-tight">
                 {/* The name IS the stats entry point (Strong/Hevy convention):
@@ -954,7 +1019,7 @@ export function WorkoutLogger({
                   (set.weight === '' && !!chipFill.weight)
                 return (
                 <Fragment key={set.id}>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2" id={`set-row-${set.id}`}>
                   <button
                     type="button"
                     onClick={() => {
@@ -1173,8 +1238,11 @@ export function WorkoutLogger({
             >
               + Add set
             </Button>
+          </>
+          )}
           </section>
-        ))}
+          )
+        })}
 
         {/* Discard lives at the END of the scrolling content, not in the
             sticky bar: a destructive exit must be sought out, never sit one
@@ -1206,6 +1274,30 @@ export function WorkoutLogger({
       </div>
 
       <div className="sticky bottom-0 z-10 -mx-5 border-t border-border bg-background/85 px-5 pt-3 pb-safe backdrop-blur-md">
+        {/* Next-up glance: where the session continues after rest — the
+            PWA-legal cousin of a lock-screen Live Activity, living in the
+            thumb zone the sticky bar already owns. Rendered only while a
+            rest is running (restStartedAt set, cleared on finish/discard);
+            tap scrolls the row into view instead of hunting. */}
+        {isLive && restTimerEnabled && restStartedAt !== null && nextUp && (
+          <button
+            type="button"
+            onClick={() =>
+              document
+                .getElementById(`set-row-${nextUp.exercise.sets[nextUp.setIndex].id}`)
+                ?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+            }
+            className="mb-2 flex w-full items-baseline justify-between gap-3 text-left"
+          >
+            <span className="min-w-0 truncate text-sm text-muted-foreground">
+              Next: <span className="text-foreground">{nextUp.exercise.name}</span> — set{' '}
+              {nextUp.setIndex + 1}
+            </span>
+            {nextUp.label && (
+              <span className="shrink-0 text-sm font-medium tnum">{nextUp.label}</span>
+            )}
+          </button>
+        )}
         {/* Post-swap remember prompt: a quiet follow-up, never a modal — the
             decision that mattered (the swap) is already made; this must not
             block logging. Sits above the undo toast (it outlives undo's 5s).
