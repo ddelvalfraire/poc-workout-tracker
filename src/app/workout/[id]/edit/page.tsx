@@ -10,8 +10,8 @@ import { WorkoutLogger } from '@/app/workout/new/workout-logger'
 import { resolveDraftSeed } from '@/app/workout/new/draft-payload'
 
 /**
- * Per-exercise plan targets (keyed by wgerExerciseId) for a program-instantiated
- * workout — the ghost-placeholder fallback when an exercise has no prior
+ * Per-exercise plan targets (keyed by the composite `source:wgerExerciseId`)
+ * for a program-instantiated workout — the ghost-placeholder fallback when an exercise has no prior
  * history. Derives the same week-N prescription instantiation seeded from, so
  * the ghosts match what the program page promised. Returns undefined for
  * ad-hoc workouts and when provenance is gone (day deleted/replaced — the
@@ -21,16 +21,17 @@ import { resolveDraftSeed } from '@/app/workout/new/draft-payload'
 async function loadPlanTargets(
   userId: string,
   workout: WorkoutDetail,
-): Promise<{ targets: Record<number, PlanSetTarget[]>; dayName: string } | undefined> {
+): Promise<{ targets: Record<string, PlanSetTarget[]>; dayName: string } | undefined> {
   if (!workout.programDayId || !workout.programWeek) return undefined
   const day = await getProgramDayDetail(userId, workout.programDayId)
   if (!day) return undefined
 
   const derived = await deriveDayPrescription(userId, day, workout.programWeek)
-  const targets: Record<number, PlanSetTarget[]> = {}
+  const targets: Record<string, PlanSetTarget[]> = {}
   day.exercises.forEach((exercise, i) => {
-    if (exercise.wgerExerciseId in targets) return
-    targets[exercise.wgerExerciseId] = derived[i].map((s) => ({
+    const key = `${exercise.source}:${exercise.wgerExerciseId}`
+    if (key in targets) return
+    targets[key] = derived[i].map((s) => ({
       repMin: s.repMin,
       repMax: s.repMax,
       loadKg: s.loadKg,

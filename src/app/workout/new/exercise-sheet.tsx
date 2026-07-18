@@ -122,9 +122,8 @@ export function ExerciseSheet({
       <div className="flex min-h-0 flex-1 flex-col pb-safe">
         <ExercisePicker
           fill
-          // The logger is the create surface: customs merge into search and
-          // the "Create …" escape hatch renders. (The program builder keeps
-          // the default OFF until its save path can express source.)
+          // Customs merge into search and the "Create …" escape hatch
+          // renders (the program builder opts in the same way).
           includeCustom
           suggestFor={suggestFor}
           onAdd={(exercise) => {

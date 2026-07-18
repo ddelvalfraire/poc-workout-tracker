@@ -36,7 +36,7 @@ function draftSet(id: string, overrides: Partial<DraftProgramSet> = {}): DraftPr
   }
 }
 
-const BENCH = { wgerExerciseId: 1, name: 'Bench Press', category: 'Chest' }
+const BENCH = { wgerExerciseId: 1, source: 'wger' as const, name: 'Bench Press', category: 'Chest' }
 
 /** A draft with two days (one exercise, two sets on day 0) for nested updates. */
 const NESTED: ProgramDraft = {
@@ -51,7 +51,7 @@ const NESTED: ProgramDraft = {
       name: 'Push',
       notes: null,
       exercises: [
-        { id: 'ex1', ...BENCH, progression: null, sets: [draftSet('s1'), draftSet('s2')] },
+        { id: 'ex1', ...BENCH, progression: null, supersetGroup: null, sets: [draftSet('s1'), draftSet('s2')] },
       ],
     },
     { id: 'd2', name: 'Pull', notes: null, exercises: [] },
@@ -84,7 +84,7 @@ describe('programDraftReducer', () => {
 
   it('ADD_EXERCISE and REMOVE_EXERCISE are day-scoped', () => {
     // Arrange
-    const exercise = { id: 'ex2', ...BENCH, progression: null, sets: [] }
+    const exercise = { id: 'ex2', ...BENCH, progression: null, supersetGroup: null, sets: [] }
 
     // Act
     const added = programDraftReducer(NESTED, { type: 'ADD_EXERCISE', dayIndex: 1, exercise })
@@ -265,6 +265,33 @@ describe('stored program draft (localStorage persistence)', () => {
   })
 })
 
+describe('legacy stored drafts (pre-composite-identity)', () => {
+  const NOW = new Date('2026-07-08T10:00:00Z')
+
+  it("restores a draft stored before source/supersetGroup existed with 'wger'/null defaults", () => {
+    // Arrange — strip the identity fields, as a pre-4b envelope stored them
+    const legacyExercise: Record<string, unknown> = {
+      ...NESTED.days[0].exercises[0],
+    }
+    delete legacyExercise.source
+    delete legacyExercise.supersetGroup
+    const legacyDraft = {
+      ...NESTED,
+      days: [{ ...NESTED.days[0], exercises: [legacyExercise] }],
+    }
+    const raw = JSON.stringify({ v: 1, savedAt: NOW.toISOString(), draft: legacyDraft })
+
+    // Act
+    const restored = parseStoredProgramDraft(raw, NOW)
+
+    // Assert — restores (not discarded) with backfilled identity defaults
+    expect(restored?.days[0].exercises[0]).toMatchObject({
+      source: 'wger',
+      supersetGroup: null,
+    })
+  })
+})
+
 describe('draftToProgramInput', () => {
   it('converts entered lb loads back to canonical kg', () => {
     // Arrange — a single 220.5 lb set
@@ -276,7 +303,7 @@ describe('draftToProgramInput', () => {
           name: 'Push',
           notes: null,
           exercises: [
-            { id: 'ex1', ...BENCH, progression: null, sets: [draftSet('s1', { load: '220.5' })] },
+            { id: 'ex1', ...BENCH, progression: null, supersetGroup: null, sets: [draftSet('s1', { load: '220.5' })] },
           ],
         },
       ],
@@ -307,6 +334,7 @@ describe('draftToProgramInput', () => {
               id: 'ex1',
               ...BENCH,
               progression: null,
+              supersetGroup: null,
               sets: [draftSet('s1', { repMin: '', repMax: '', load: '', rpe: '', restSec: '' })],
             },
           ],
@@ -395,6 +423,7 @@ describe('draftToProgramInput', () => {
               id: 'ex1',
               ...BENCH,
               progression,
+              supersetGroup: null,
               sets: [
                 draftSet('s1', {
                   setType: 'amrap',
@@ -543,6 +572,77 @@ describe('detailToProgramDraft', () => {
       rpe: 8,
       rir: 2,
       tempo: '3-1-1',
+    })
+  })
+})
+
+describe('composite identity round-trip (detail → draft → input)', () => {
+  it('preserves source and supersetGroup through an edit round-trip', () => {
+    // Arrange — a persisted custom slot in a superset
+    const detail = {
+      id: 'p1',
+      userId: 'user_123',
+      name: 'P',
+      status: 'active',
+      mesocycleWeeks: 4,
+      deloadWeek: null,
+      notes: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      days: [
+        {
+          id: 'd1',
+          programId: 'p1',
+          name: 'Upper',
+          position: 0,
+          notes: null,
+          exercises: [
+            {
+              id: 'ex1',
+              programDayId: 'd1',
+              wgerExerciseId: 9,
+              source: 'custom',
+              name: 'Cable Face Pull',
+              position: 0,
+              supersetGroup: 1,
+              progression: null,
+              muscles: [],
+              sets: [
+                {
+                  id: 's1',
+                  programExerciseId: 'ex1',
+                  setNumber: 1,
+                  setType: 'working',
+                  metricMode: 'reps_weight',
+                  repMin: 12,
+                  repMax: 15,
+                  rir: null,
+                  rpe: null,
+                  suggestedLoadKg: 25,
+                  tempo: null,
+                  durationSec: null,
+                  distanceM: null,
+                  restSec: null,
+                  technique: null,
+                  overrides: [],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    } as unknown as ProgramDetail
+
+    // Act — hydrate for edit, then map back to the save payload
+    const draft = detailToProgramDraft(detail)
+    const payload = draftToProgramInput(draft)
+
+    // Assert — the full-replace save re-emits the composite identity intact
+    expect(draft.days[0].exercises[0]).toMatchObject({ source: 'custom', supersetGroup: 1 })
+    expect(payload.days[0].exercises[0]).toMatchObject({
+      wgerExerciseId: 9,
+      source: 'custom',
+      supersetGroup: 1,
     })
   })
 })

@@ -7,6 +7,7 @@ import type {
   Technique,
 } from '@/lib/program-input'
 import type { ProgramDetail } from '@/db/programs'
+import type { ExerciseSource } from '@/lib/custom-exercise-input'
 import { displayToKg, kgToDisplay, type WeightUnit } from '@/lib/units'
 
 /**
@@ -53,10 +54,15 @@ export interface DraftProgramExercise {
   /** Stable client id, used only for React keys — never persisted. */
   id: string
   wgerExerciseId: number
+  /** Identity is the composite (source, wgerExerciseId). */
+  source: ExerciseSource
   name: string
   category: string
   /** Pass-through: agent-authored progression scheme, re-emitted verbatim. */
   progression: Progression | null
+  /** Pass-through: superset grouping isn't edited by the builder, but must
+   *  survive the edit round-trip (a save is a full replace). */
+  supersetGroup: number | null
   sets: DraftProgramSet[]
 }
 
@@ -137,10 +143,17 @@ export function newDraftProgramSet(): DraftProgramSet {
 /** Builds a draft exercise from a picked exercise, seeded with one empty set. */
 export function newDraftProgramExercise(picked: {
   wgerExerciseId: number
+  source: ExerciseSource
   name: string
   category: string
 }): DraftProgramExercise {
-  return { id: crypto.randomUUID(), ...picked, progression: null, sets: [newDraftProgramSet()] }
+  return {
+    id: crypto.randomUUID(),
+    ...picked,
+    progression: null,
+    supersetGroup: null,
+    sets: [newDraftProgramSet()],
+  }
 }
 
 /** Builds an empty draft day with the given name. */
@@ -298,6 +311,10 @@ function isDraftProgramSet(v: unknown): v is DraftProgramSet {
   )
 }
 
+// `source`/`supersetGroup` are DELIBERATELY not checked here: pre-4b snapshots
+// lack them, and the restore backfill defaults 'wger'/null. Adding the check
+// would discard every legacy draft; malformed present values are the server
+// Zod schema's problem (lenient-mapper policy).
 function isDraftProgramExercise(v: unknown): v is DraftProgramExercise {
   if (typeof v !== 'object' || v === null) return false
   const e = v as Record<string, unknown>
@@ -367,6 +384,9 @@ export function parseStoredProgramDraft(raw: string, now: Date): ProgramDraft | 
       ...day,
       exercises: day.exercises.map((exercise) => ({
         ...exercise,
+        // Pre-composite-identity drafts restore as plain wger, ungrouped.
+        source: exercise.source ?? 'wger',
+        supersetGroup: exercise.supersetGroup ?? null,
         sets: exercise.sets.map((set) => ({ ...set, restSec: set.restSec ?? '' })),
       })),
     })),
@@ -415,8 +435,10 @@ export function draftToProgramInput(
     notes: day.notes,
     exercises: day.exercises.map((exercise) => ({
       wgerExerciseId: exercise.wgerExerciseId,
+      source: exercise.source,
       name: exercise.name,
       progression: exercise.progression,
+      supersetGroup: exercise.supersetGroup,
       sets: exercise.sets.map((set) => {
         const load = toDecimal(set.load)
         return {
@@ -483,9 +505,11 @@ export function detailToProgramDraft(
       exercises: day.exercises.map((exercise) => ({
         id: exercise.id,
         wgerExerciseId: exercise.wgerExerciseId,
+        source: exercise.source,
         name: exercise.name,
         category: '',
         progression: exercise.progression,
+        supersetGroup: exercise.supersetGroup,
         sets: exercise.sets.map((set) => ({
           id: set.id,
           repMin: set.repMin?.toString() ?? '',

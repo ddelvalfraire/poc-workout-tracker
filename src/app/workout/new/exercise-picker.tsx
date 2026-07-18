@@ -58,9 +58,8 @@ interface ExercisePickerProps {
    *  the same loaded catalog and render as a rail while the query is empty. */
   suggestFor?: number
   /** Merge the user's custom exercises into search AND offer the "Create …"
-   *  escape hatch at the bottom of results. OFF by default: the program
-   *  builder's save path can't express source until custom-exercises
-   *  Phase 4, so customs must not be pickable there. */
+   *  escape hatch at the bottom of results. OFF by default so read-only or
+   *  wger-scoped hosts opt in explicitly. */
   includeCustom?: boolean
 }
 
