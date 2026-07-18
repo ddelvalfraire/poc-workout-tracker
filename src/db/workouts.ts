@@ -187,12 +187,24 @@ function priorFactKey(source: string, wgerExerciseId: number, setNumber: number)
  *  updateWorkout). `priorFacts` re-stamps replace-surviving facts onto the
  *  re-inserted rows (updateWorkout only): snapshots always; setType only for
  *  backoff/amrap, which the draft UI can't express — working↔warmup retags
- *  from the input win. */
+ *  from the input win.
+ *
+ *  Facts match by POSITION, so they carry forward only while positions can
+ *  still align (`priorSetCounts` gate): a SHRUNK set list proves a removal
+ *  shifted later positions, and positionally re-stamped snapshots would
+ *  attribute one set's prescription to another — evidence corruption. A
+ *  shrunk exercise drops its facts instead (unscorable → the autoreg engine
+ *  stays silent; silence over corruption). Appends keep positions 1..n
+ *  aligned, so same-or-grown lists carry facts — the common add-a-set flow
+ *  must not shed evidence. Residual: a remove+add that nets to same-or-more
+ *  sets still matches positionally — accepted, bounded by the engine's
+ *  load-floor screening and 3-stall rule. */
 async function insertWorkoutChildren(
   tx: Tx,
   workoutId: string,
   exercises: WorkoutInput['exercises'],
   priorFacts?: Map<string, PriorSetFacts>,
+  priorSetCounts?: Map<string, number>,
 ) {
   for (const [position, exercise] of exercises.entries()) {
     const [we] = await tx
@@ -211,11 +223,16 @@ async function insertWorkoutChildren(
       .returning({ id: workoutExercises.id })
 
     if (exercise.sets.length > 0) {
+      const exerciseKey = `${exercise.source ?? 'wger'}:${exercise.wgerExerciseId}`
+      const priorCount = priorSetCounts?.get(exerciseKey)
+      const positionsAlign = priorCount !== undefined && exercise.sets.length >= priorCount
       await tx.insert(sets).values(
         exercise.sets.map((s, i) => {
-          const fact = priorFacts?.get(
-            priorFactKey(exercise.source ?? 'wger', exercise.wgerExerciseId, i + 1),
-          )
+          const fact = positionsAlign
+            ? priorFacts?.get(
+                priorFactKey(exercise.source ?? 'wger', exercise.wgerExerciseId, i + 1),
+              )
+            : undefined
           const keepPriorType =
             s.setType === undefined &&
             (fact?.setType === 'backoff' || fact?.setType === 'amrap')
@@ -344,6 +361,9 @@ export async function updateWorkout(
       .where(eq(workoutExercises.workoutId, id))
       .orderBy(asc(workoutExercises.position), asc(sets.setNumber))
     const priorFacts = new Map<string, PriorSetFacts>()
+    // Sets captured per exercise (first slot) — the structure-unchanged gate
+    // in insertWorkoutChildren compares against the incoming set count.
+    const priorSetCounts = new Map<string, number>()
     for (const row of priorRows) {
       const key = priorFactKey(row.source, row.wgerExerciseId, row.setNumber)
       if (!priorFacts.has(key)) {
@@ -352,11 +372,13 @@ export async function updateWorkout(
           prescribedLoadKg: row.prescribedLoadKg,
           prescribedRepMin: row.prescribedRepMin,
         })
+        const exerciseKey = `${row.source}:${row.wgerExerciseId}`
+        priorSetCounts.set(exerciseKey, (priorSetCounts.get(exerciseKey) ?? 0) + 1)
       }
     }
 
     await tx.delete(workoutExercises).where(eq(workoutExercises.workoutId, id))
-    await insertWorkoutChildren(tx, id, input.exercises, priorFacts)
+    await insertWorkoutChildren(tx, id, input.exercises, priorFacts, priorSetCounts)
     return { id }
   })
 }

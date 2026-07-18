@@ -207,6 +207,39 @@ describe('updateWorkout (transactional, user-scoped)', () => {
     expect(values[1]).toMatchObject({ setType: 'warmup', prescribedLoadKg: 100 })
   })
 
+  it('drops ALL facts for an exercise whose set structure changed (silence over corruption)', async () => {
+    // Arrange — three prior sets with snapshots; the save arrives with TWO
+    // (a mid-session set delete). Positional matching would hand set 2's
+    // facts to what used to be set 3 — so the gate must drop them all.
+    priorFactRows = [
+      { wgerExerciseId: 73, source: 'wger', setNumber: 1, setType: 'working', prescribedLoadKg: 100, prescribedRepMin: 5 },
+      { wgerExerciseId: 73, source: 'wger', setNumber: 2, setType: 'backoff', prescribedLoadKg: 80, prescribedRepMin: 8 },
+      { wgerExerciseId: 73, source: 'wger', setNumber: 3, setType: 'backoff', prescribedLoadKg: 80, prescribedRepMin: 8 },
+    ]
+
+    // Act — set 1 was deleted; former sets 2/3 shift up
+    await updateWorkout(USER, ID, {
+      exercises: [
+        {
+          wgerExerciseId: 73,
+          name: 'Squat',
+          sets: [
+            { reps: 8, weight: 80 },
+            { reps: 8, weight: 80 },
+          ],
+        },
+      ],
+    })
+
+    // Assert — no snapshot, no inherited backoff typing on either row
+    const inserted = records[3].values as Record<string, unknown>[]
+    expect(inserted).toHaveLength(2)
+    for (const row of inserted) {
+      expect(row).not.toHaveProperty('prescribedLoadKg')
+      expect(row).not.toHaveProperty('setType')
+    }
+  })
+
   it('leaves brand-new sets fact-less (no snapshot invented for ad-hoc rows)', async () => {
     // Arrange — only set 1 existed before the replace
     priorFactRows = [
