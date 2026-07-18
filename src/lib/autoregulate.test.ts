@@ -73,13 +73,24 @@ describe('autoregulate', () => {
     expect(adjustment).toMatchObject({ action: 'repeat', deltaKg: 0, suggestEarlyDeload: false })
   })
 
-  it('decrements and suggests an early deload after two consecutive stalls', () => {
+  it('decrements ~10% (snapped to increments) after two consecutive stalls', () => {
     const adjustment = autoregulate(2.5, [session([6, 5, 8]), session([7, 6, 6])])
+    // 10% of 100 kg = 10 kg, already a multiple of 2.5 — the StrongLifts-
+    // style deload, not a one-increment micro-step.
     expect(adjustment).toMatchObject({
       action: 'decrement',
-      deltaKg: -2.5,
+      deltaKg: -10,
       suggestEarlyDeload: true,
     })
+  })
+
+  it('backs off at least one increment on light lifts', () => {
+    const light: AutoregSession = {
+      prescribed: [{ repMin: 12, loadKg: 10 }],
+      actual: [{ reps: 8, weightKg: 10, completed: true }],
+    }
+    const adjustment = autoregulate(2.5, [light, light])
+    expect(adjustment?.deltaKg).toBe(-2.5)
   })
 
   it('a clean previous session keeps a fresh stall at repeat, not decrement', () => {
@@ -103,10 +114,10 @@ describe('autoregReason', () => {
     expect(autoregReason(adjustment, 'lb')).toContain('220.5 lb')
   })
 
-  it('describes the back-off distinctly', () => {
+  it('describes the back-off with its magnitude', () => {
     const adjustment = autoregulate(2.5, [session([6, 5, 8]), session([6, 6, 6])])!
     expect(autoregReason(adjustment, 'kg')).toBe(
-      'Second straight stall at 100 kg — backing off one increment',
+      'Second straight stall at 100 kg — backing off 10 kg (~10%)',
     )
   })
 })

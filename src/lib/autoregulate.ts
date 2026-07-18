@@ -55,6 +55,17 @@ export interface AutoregAdjustment {
 /** Attempted-at-load tolerance: micro-loading noise must not hide a stall. */
 const LOAD_EPSILON_KG = 0.011
 
+/** Escalated back-off fraction — the field standard (StrongLifts deloads 10%
+ *  after repeated fails; GZCLP resets to 85–90%), not a micro-increment: one
+ *  2.5 kg step off a stalled 100 kg lift would re-prescribe the same grind. */
+const BACKOFF_FRACTION = 0.1
+
+/** ~10% of the stalled load, snapped to loadable increments (≥ one). */
+export function backoffKg(loadKg: number, incrementKg: number): number {
+  if (incrementKg <= 0) return 0
+  return Math.max(incrementKg, Math.round((loadKg * BACKOFF_FRACTION) / incrementKg) * incrementKg)
+}
+
 /**
  * A session stalled when, on at least half of its scorable working sets
  * (prescribed floor + load, actually attempted at ≥ that load), the lifter
@@ -113,7 +124,7 @@ export function autoregulate(
   return consecutive
     ? {
         action: 'decrement',
-        deltaKg: -incrementKg,
+        deltaKg: -backoffKg(latestStall.loadKg, incrementKg),
         suggestEarlyDeload: true,
         evidence: latestStall,
       }
@@ -124,12 +135,13 @@ export function autoregulate(
  * The lifter-facing reason line — every adjustment ships one (the PRD's
  * transparency contract). Display unit applied here, not in the engine.
  *   "Missed 8 reps on 2 of 3 sets at 100 kg — repeating the load"
- *   "Second straight stall at 100 kg — backing off one increment"
+ *   "Second straight stall at 100 kg — backing off 10 kg (~10%)"
  */
 export function autoregReason(adjustment: AutoregAdjustment, unit: WeightUnit): string {
   const load = `${kgToDisplay(adjustment.evidence.loadKg, unit)} ${unit}`
   if (adjustment.action === 'decrement') {
-    return `Second straight stall at ${load} — backing off one increment`
+    const backoff = `${kgToDisplay(-adjustment.deltaKg, unit)} ${unit}`
+    return `Second straight stall at ${load} — backing off ${backoff} (~10%)`
   }
   const { missedSets, scorableSets, repFloor } = adjustment.evidence
   return `Missed ${repFloor} reps on ${missedSets} of ${scorableSets} sets at ${load} — repeating the load`
