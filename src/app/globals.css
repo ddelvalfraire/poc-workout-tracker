@@ -165,7 +165,24 @@
   animation: finish-nudge 1.6s ease-in-out infinite;
 }
 
+/* Previous-chip adopt feedback: a brief volt wash on the filled inputs.
+   Confirmation, not error — a highlight, never a shake. Color-only and
+   700ms one-shot, so it stays calm under reduced motion too. */
+@keyframes fill-flash {
+  0% {
+    border-color: var(--color-primary);
+    background-color: color-mix(in oklch, var(--color-primary) 18%, transparent);
+  }
+  100% {
+    border-color: var(--color-border);
+    background-color: transparent;
+  }
+}
+
 @layer utilities {
+  .fill-flash {
+    animation: fill-flash 700ms ease-out;
+  }
   /* Safe-area helpers for standalone/notched devices. */
   .pt-safe {
     padding-top: max(env(safe-area-inset-top), 0.75rem);

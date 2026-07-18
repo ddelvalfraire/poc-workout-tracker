@@ -55,6 +55,9 @@ import {
   placeholderForSet,
   planPlaceholderForSet,
   adoptableGhostValue,
+  previousChipLabel,
+  stepWeightValue,
+  WEIGHT_STEP,
   type PlanSetTarget,
 } from '@/lib/format'
 import type { LastPerformance } from '@/db/workouts'
@@ -251,6 +254,26 @@ export function WorkoutLogger({
   const [gear, setGear] = useState<Equipment>(equipment ?? DEFAULT_EQUIPMENT[unit])
   // Which exercise's plate sheet is open (by index), if any.
   const [plateSheetFor, setPlateSheetFor] = useState<number | null>(null)
+  // Previous-chip feedback: the set whose inputs briefly flash after a fill —
+  // "accepted from history", not an error, hence a highlight (never a shake).
+  const [flashSetId, setFlashSetId] = useState<string | null>(null)
+  const flashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Weight steppers show ONLY for the row whose weight input has focus —
+  // zero ambient chrome for lifters who never use them.
+  const [stepperSetId, setStepperSetId] = useState<string | null>(null)
+
+  useEffect(
+    () => () => {
+      if (flashTimerRef.current) clearTimeout(flashTimerRef.current)
+    },
+    [],
+  )
+
+  function flashFilledSet(setId: string) {
+    if (flashTimerRef.current) clearTimeout(flashTimerRef.current)
+    setFlashSetId(setId)
+    flashTimerRef.current = setTimeout(() => setFlashSetId(null), 700)
+  }
   // Which exercise's all-time stats sheet is open (by index), if any —
   // opened by tapping the exercise's name.
   const [statsSheetFor, setStatsSheetFor] = useState<number | null>(null)
@@ -883,6 +906,7 @@ export function WorkoutLogger({
             {exercise.sets.length > 0 && (
               <div className="flex items-center gap-2 px-0.5 text-[0.7rem] font-semibold uppercase tracking-wider text-muted-foreground">
                 <span className="w-8 shrink-0" aria-hidden="true" />
+                <span className="w-12 shrink-0 text-center">Prev</span>
                 <span className="flex-1 text-center">Reps</span>
                 <span className="flex-1 text-center">{unit}</span>
                 <span className="size-9 shrink-0" aria-hidden="true" />
@@ -912,6 +936,16 @@ export function WorkoutLogger({
                     exercise.loggingType === 'weight_reps'
                       ? (history.weight ?? plan.weight)
                       : undefined,
+                }
+                const prevLabel = previousChipLabel(ghost)
+                // Same adopt rules as tap-to-complete: BW sets never fill a
+                // phantom weight; rep ranges adopt their floor.
+                const chipFill = {
+                  reps: adoptableGhostValue(ghost.reps),
+                  weight:
+                    exercise.loggingType === 'bodyweight_reps'
+                      ? undefined
+                      : adoptableGhostValue(ghost.weight),
                 }
                 return (
                 <Fragment key={set.id}>
@@ -975,6 +1009,22 @@ export function WorkoutLogger({
                       setIndex + 1
                     )}
                   </button>
+                  <button
+                    type="button"
+                    disabled={!prevLabel || (!chipFill.reps && !chipFill.weight)}
+                    onClick={() => {
+                      dispatch({ type: 'FILL_SET', exerciseIndex, setIndex, fill: chipFill })
+                      flashFilledSet(set.id)
+                    }}
+                    aria-label={
+                      prevLabel
+                        ? `Fill set ${setIndex + 1} from previous: ${prevLabel}`
+                        : `No previous performance for set ${setIndex + 1}`
+                    }
+                    className="relative w-12 shrink-0 truncate text-center text-xs font-medium tnum text-muted-foreground before:absolute before:-inset-1.5 disabled:opacity-40"
+                  >
+                    {prevLabel ?? '—'}
+                  </button>
                   <Input
                     type="text"
                     inputMode="numeric"
@@ -990,7 +1040,7 @@ export function WorkoutLogger({
                       })
                     }
                     aria-label={`Set ${setIndex + 1} reps`}
-                    className="flex-1 text-center tnum"
+                    className={cn('flex-1 text-center tnum', flashSetId === set.id && 'fill-flash')}
                   />
                   {exercise.loggingType === 'bodyweight_reps' ? (
                     // The lifter IS the load: a non-editable pill holds the
@@ -1027,6 +1077,8 @@ export function WorkoutLogger({
                             value: e.target.value,
                           })
                         }
+                        onFocus={() => setStepperSetId(set.id)}
+                        onBlur={() => setStepperSetId(null)}
                         aria-label={
                           exercise.loggingType === 'weighted_bodyweight'
                             ? `Set ${setIndex + 1} added weight in ${unit}`
@@ -1034,7 +1086,10 @@ export function WorkoutLogger({
                               ? `Set ${setIndex + 1} assistance in ${unit}`
                               : `Set ${setIndex + 1} weight in ${unit}`
                         }
-                        className="w-full text-center tnum"
+                        className={cn(
+                          'w-full text-center tnum',
+                          flashSetId === set.id && 'fill-flash',
+                        )}
                       />
                     </div>
                   )}
@@ -1051,6 +1106,38 @@ export function WorkoutLogger({
                     <X aria-hidden="true" className="size-4" />
                   </Button>
                 </div>
+                {/* Steppers ride under the focused weight row only. One plate
+                    a side per tap; pointerdown preventDefault keeps the input
+                    focused so the row (and keyboard) don't dismiss mid-tap. */}
+                {stepperSetId === set.id && (
+                  <div className="flex justify-end gap-2 pl-10">
+                    {([-1, 1] as const).map((direction) => (
+                      <Button
+                        key={direction}
+                        size="sm"
+                        variant="outline"
+                        className="min-w-20 tnum"
+                        onPointerDown={(e) => e.preventDefault()}
+                        onClick={() => {
+                          const next = stepWeightValue(set.weight, ghost.weight, direction, unit)
+                          if (next !== null) {
+                            dispatch({
+                              type: 'UPDATE_SET',
+                              exerciseIndex,
+                              setIndex,
+                              field: 'weight',
+                              value: next,
+                            })
+                          }
+                        }}
+                        aria-label={`${direction === 1 ? 'Increase' : 'Decrease'} set ${setIndex + 1} weight by ${WEIGHT_STEP[unit]} ${unit}`}
+                      >
+                        {direction === 1 ? '+' : '−'}
+                        {WEIGHT_STEP[unit]}
+                      </Button>
+                    ))}
+                  </div>
+                )}
                 {/* The record moment, recognized as it happens: this set's
                     e1RM strictly beats the all-time best the session opened
                     with. Presentation-only — nothing is stored. */}

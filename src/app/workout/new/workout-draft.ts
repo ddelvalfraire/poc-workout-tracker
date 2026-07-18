@@ -65,6 +65,15 @@ export type DraftAction =
       value: string
     }
   | { type: 'REMOVE_SET'; exerciseIndex: number; setIndex: number }
+  /** The Previous-chip tap: adopt ghost values into EMPTY fields only, without
+   *  touching completion — same fill semantics as TOGGLE_SET_COMPLETED minus
+   *  the check. Typed input always wins over the chip. */
+  | {
+      type: 'FILL_SET'
+      exerciseIndex: number
+      setIndex: number
+      fill: { reps?: string; weight?: string }
+    }
   /** Switches how an exercise's weights read (BW / +weight / −assist). Values
    *  already typed are left alone — they re-read under the new type. */
   | { type: 'SET_LOGGING_TYPE'; exerciseIndex: number; loggingType: LoggingType }
@@ -215,6 +224,22 @@ export function workoutDraftReducer(state: WorkoutDraft, action: DraftAction): W
         }),
       }
     }
+
+    case 'FILL_SET':
+      return {
+        exercises: mapExerciseAt(state.exercises, action.exerciseIndex, (exercise) => ({
+          ...exercise,
+          sets: exercise.sets.map((set, i) =>
+            i === action.setIndex
+              ? {
+                  ...set,
+                  reps: set.reps === '' && action.fill.reps ? action.fill.reps : set.reps,
+                  weight: set.weight === '' && action.fill.weight ? action.fill.weight : set.weight,
+                }
+              : set,
+          ),
+        })),
+      }
 
     case 'TOGGLE_SET_COMPLETED':
       return {

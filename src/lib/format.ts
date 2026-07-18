@@ -176,6 +176,41 @@ export function adoptableGhostValue(ghost?: string): string | undefined {
   return range ? range[1] : undefined
 }
 
+/**
+ * Compact label for the logger's Previous column: "60×8" (both), "×8" (reps
+ * only — null-weight machine sets), "60" (weight only), null when there's
+ * nothing to show (the chip renders an em dash, disabled).
+ */
+export function previousChipLabel(ghost: { reps?: string; weight?: string }): string | null {
+  if (ghost.weight && ghost.reps) return `${ghost.weight}×${ghost.reps}`
+  if (ghost.reps) return `×${ghost.reps}`
+  return ghost.weight ?? null
+}
+
+/** Weight-stepper jump per display unit — the smallest common plate added on
+ *  BOTH sides (2×1.25 kg / 2×2.5 lb). */
+export const WEIGHT_STEP: Record<WeightUnit, number> = { kg: 2.5, lb: 5 }
+
+/**
+ * Next weight-input value for a ± stepper tap. A typed value steps in place;
+ * an empty field adopts the ghost first and steps from there (tapping + on an
+ * untouched set means "more than last time"); no ghost steps from zero.
+ * Integer-cents math so 2.5 jumps never accumulate float drift; floors at 0.
+ * Null when the field holds something non-numeric — the stepper no-ops rather
+ * than clobbering text the lifter typed.
+ */
+export function stepWeightValue(
+  current: string,
+  ghost: string | undefined,
+  direction: 1 | -1,
+  unit: WeightUnit,
+): string | null {
+  const base = current.trim() !== '' ? current.trim() : (adoptableGhostValue(ghost) ?? '0')
+  if (!/^\d+(\.\d+)?$/.test(base)) return null
+  const cents = Math.round(Number(base) * 100) + direction * WEIGHT_STEP[unit] * 100
+  return String(Math.max(0, cents) / 100)
+}
+
 /** A planned set's ghostable targets, in stored kg (from the program's
  *  engine-derived prescription for the workout's week). */
 export interface PlanSetTarget {

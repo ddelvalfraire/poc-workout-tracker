@@ -724,6 +724,48 @@ describe('completeFilledSets', () => {
   })
 })
 
+describe('FILL_SET', () => {
+  it('adopts fill values into empty fields without completing', () => {
+    // Arrange
+    const draft: WorkoutDraft = {
+      exercises: [{ ...newDraftExercise({ wgerExerciseId: 1, name: 'Bench', category: 'Chest' }) }],
+    }
+
+    // Act
+    const next = workoutDraftReducer(draft, {
+      type: 'FILL_SET',
+      exerciseIndex: 0,
+      setIndex: 0,
+      fill: { reps: '8', weight: '60' },
+    })
+
+    // Assert
+    expect(next.exercises[0].sets[0]).toMatchObject({ reps: '8', weight: '60', completed: false })
+  })
+
+  it('never overwrites typed input', () => {
+    const base: WorkoutDraft = {
+      exercises: [{ ...newDraftExercise({ wgerExerciseId: 1, name: 'Bench', category: 'Chest' }) }],
+    }
+    const typed = workoutDraftReducer(base, {
+      type: 'UPDATE_SET',
+      exerciseIndex: 0,
+      setIndex: 0,
+      field: 'weight',
+      value: '62.5',
+    })
+
+    const next = workoutDraftReducer(typed, {
+      type: 'FILL_SET',
+      exerciseIndex: 0,
+      setIndex: 0,
+      fill: { reps: '8', weight: '60' },
+    })
+
+    expect(next.exercises[0].sets[0]).toMatchObject({ reps: '8', weight: '62.5' })
+  })
+})
+
 describe('resolveTargetSetIndex', () => {
   const set = (completed: boolean): DraftSet => ({ ...newDraftSet(), completed })
 
