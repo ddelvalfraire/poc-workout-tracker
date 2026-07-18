@@ -9,6 +9,7 @@ import {
   type Technique,
   type Progression,
 } from '@/lib/program-input'
+import type { ExerciseSource } from '@/lib/custom-exercise-input'
 import { db } from './index'
 import { loadExerciseCatalog, muscleRowsFor, type ExerciseCatalog } from './programs'
 import {
@@ -152,9 +153,21 @@ async function findOwnedExercise(
   programId: string,
   dayPosition: number,
   exercisePosition: number,
-): Promise<{ exerciseId: string; dayId: string } | null> {
+): Promise<{
+  exerciseId: string
+  dayId: string
+  wgerExerciseId: number
+  source: ExerciseSource
+} | null> {
   const [pe] = await tx
-    .select({ exerciseId: programExercises.id, dayId: programDays.id })
+    .select({
+      exerciseId: programExercises.id,
+      dayId: programDays.id,
+      // Current identity halves, so a partial identity patch can retag with
+      // the effective (source, id) — patch value ?? stored value.
+      wgerExerciseId: programExercises.wgerExerciseId,
+      source: programExercises.source,
+    })
     .from(programExercises)
     .innerJoin(programDays, eq(programDays.id, programExercises.programDayId))
     .innerJoin(programs, eq(programs.id, programDays.programId))
@@ -320,10 +333,12 @@ export async function moveProgramDay(
 /**
  * An exercise edit. An omitted key is left unchanged; `progression: null`
  * clears the JSONB, `supersetGroup: null` ungroups the exercise. Changing
- * `wgerExerciseId` re-derives the muscle tags from the wger catalog.
+ * either identity half — `wgerExerciseId` or `source` — re-derives the muscle
+ * tags from the merged catalog using the effective (source, id).
  */
 export interface ProgramExercisePatch {
   wgerExerciseId?: number
+  source?: ExerciseSource
   name?: string
   progression?: Progression | null
   supersetGroup?: number | null
@@ -333,13 +348,14 @@ export interface ProgramExercisePatch {
 async function retagExerciseMuscles(
   tx: Tx,
   programExerciseId: string,
-  wgerExerciseId: number,
+  source: ExerciseSource,
+  exerciseId: number,
   catalog: ExerciseCatalog | null,
 ): Promise<void> {
   await tx
     .delete(programExerciseMuscles)
     .where(eq(programExerciseMuscles.programExerciseId, programExerciseId))
-  const rows = muscleRowsFor(programExerciseId, wgerExerciseId, catalog)
+  const rows = muscleRowsFor(programExerciseId, source, exerciseId, catalog)
   if (rows.length > 0) await tx.insert(programExerciseMuscles).values(rows)
 }
 
@@ -355,10 +371,16 @@ export async function addProgramExercise(
   userId: string,
   programId: string,
   dayPosition: number,
-  exercise: { wgerExerciseId: number; name: string; progression?: Progression | null },
+  exercise: {
+    wgerExerciseId: number
+    source?: ExerciseSource
+    name: string
+    progression?: Progression | null
+  },
 ): Promise<{ position: number } | null> {
+  const source = exercise.source ?? 'wger'
   const progression = exercise.progression == null ? null : parseProgression(exercise.progression)
-  const catalog = await loadExerciseCatalog() // network read stays outside the tx
+  const catalog = await loadExerciseCatalog(userId) // network read stays outside the tx
   return db.transaction(async (tx) => {
     const dayId = await findOwnedDayId(tx, userId, programId, dayPosition)
     if (!dayId) return null
@@ -372,6 +394,7 @@ export async function addProgramExercise(
       .values({
         programDayId: dayId,
         wgerExerciseId: exercise.wgerExerciseId,
+        source,
         name: exercise.name,
         position,
         progression,
@@ -394,7 +417,7 @@ export async function addProgramExercise(
       technique: null,
     })
     // A brand-new exercise has no stale tags to clear — insert-only tagging.
-    const muscles = muscleRowsFor(pe.id, exercise.wgerExerciseId, catalog)
+    const muscles = muscleRowsFor(pe.id, source, exercise.wgerExerciseId, catalog)
     if (muscles.length > 0) await tx.insert(programExerciseMuscles).values(muscles)
     await bumpUpdatedAt(tx, programId)
     return { position }
@@ -402,9 +425,10 @@ export async function addProgramExercise(
 }
 
 /**
- * Updates an exercise's wger id, name, and/or progression. A non-null
- * `progression` is re-parsed (`ProgramPatchError` on mismatch); `null` clears it.
- * Returns null when the patch is empty or the node isn't owned/found.
+ * Updates an exercise's identity (`wgerExerciseId`/`source`), name, and/or
+ * progression. A non-null `progression` is re-parsed (`ProgramPatchError` on
+ * mismatch); `null` clears it. Returns null when the patch is empty or the
+ * node isn't owned/found.
  * Reads, in order: owned-exercise.
  */
 export async function updateProgramExercise(
@@ -417,8 +441,10 @@ export async function updateProgramExercise(
   const values = definedFields(patch)
   if (Object.keys(values).length === 0) return null
   if (values.progression != null) values.progression = parseProgression(values.progression)
-  // A movement swap re-derives the muscle tags; fetch the catalog outside the tx.
-  const catalog = values.wgerExerciseId !== undefined ? await loadExerciseCatalog() : null
+  // A change to either identity half re-derives the muscle tags; fetch the
+  // catalog outside the tx.
+  const identityChanged = values.wgerExerciseId !== undefined || values.source !== undefined
+  const catalog = identityChanged ? await loadExerciseCatalog(userId) : null
   return db.transaction(async (tx) => {
     const found = await findOwnedExercise(tx, userId, programId, dayPosition, exercisePosition)
     if (!found) return null
@@ -428,8 +454,15 @@ export async function updateProgramExercise(
       .where(eq(programExercises.id, found.exerciseId))
       .returning({ id: programExercises.id })
     if (!updated) return null
-    if (values.wgerExerciseId !== undefined) {
-      await retagExerciseMuscles(tx, found.exerciseId, values.wgerExerciseId, catalog)
+    if (identityChanged) {
+      // Effective identity: the patched half wins, the stored half fills in.
+      await retagExerciseMuscles(
+        tx,
+        found.exerciseId,
+        values.source ?? found.source,
+        values.wgerExerciseId ?? found.wgerExerciseId,
+        catalog,
+      )
     }
     await bumpUpdatedAt(tx, programId)
     return updated

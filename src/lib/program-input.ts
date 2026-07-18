@@ -17,6 +17,7 @@
  */
 import { z } from 'zod'
 import { MAX_WEIGHT } from './workout-input'
+import { exerciseSourceSchema } from './custom-exercise-input'
 
 // Mirror the bounds in `workout-input.ts` (they aren't exported there).
 const MAX_NAME = 200
@@ -231,8 +232,14 @@ export const setOverrideSchema = z
 /** One exercise slot within a program day, with its planned sets + progression. */
 export const programExerciseSchema = z.object({
   wgerExerciseId: z.number().int(),
+  // Exercise identity is the composite (source, wgerExerciseId); defaulted so
+  // every pre-existing caller keeps meaning the wger catalog.
+  source: exerciseSourceSchema.default('wger'),
   name: z.string().trim().min(1).max(MAX_NAME),
   progression: progressionSchema.nullable().optional(),
+  // Same non-null value within a day = perform as a superset. Carried through
+  // the full-replace path so groupings survive upsert/edit round-trips.
+  supersetGroup: z.number().int().min(0).nullable().optional(),
   sets: z.array(programSetSchema).min(1),
 })
 
@@ -268,6 +275,9 @@ export type ProgramSetInput = z.infer<typeof programSetSchema>
 export type ProgramExerciseInput = z.infer<typeof programExerciseSchema>
 export type ProgramDayInput = z.infer<typeof programDaySchema>
 export type ProgramInput = z.infer<typeof programInputSchema>
+/** The PRE-parse shape (defaults like `source` not yet applied) — what lenient
+ *  client mappers emit; `parseProgramInput` normalizes it server-side. */
+export type ProgramInputUnparsed = z.input<typeof programInputSchema>
 
 /**
  * Validates untrusted input into a normalized `ProgramInput`, throwing a

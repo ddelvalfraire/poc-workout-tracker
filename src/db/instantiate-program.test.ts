@@ -109,6 +109,7 @@ function dayFixture(options: {
   mesocycleWeeks?: number
   deloadWeek?: number | null
   progression?: unknown
+  source?: 'wger' | 'custom'
   sets: FixtureSet[]
 }) {
   return {
@@ -124,6 +125,7 @@ function dayFixture(options: {
       {
         id: 'pe1',
         wgerExerciseId: 1,
+        source: options.source ?? 'wger',
         name: 'Bench',
         position: 0,
         progression: options.progression ?? null,
@@ -191,6 +193,19 @@ describe('instantiateProgramDay (engine-driven)', () => {
       expect.objectContaining({ setNumber: 2, weight: null, metricMode: 'duration' }),
     ])
     expect(result).toEqual({ id: 'w1', week: 3, weekDerived: false })
+  })
+
+  it('stamps the workout exercise with the slot source (custom keeps custom history)', async () => {
+    // Arrange — a custom slot
+    findFirst.mockResolvedValue(
+      dayFixture({ source: 'custom', sets: [{ setNumber: 1, suggestedLoadKg: 40 }] }),
+    )
+
+    // Act
+    await instantiateProgramDay(USER, 'd1', 1)
+
+    // Assert — the seeded workout exercise carries the composite identity
+    expect(records[1].values).toMatchObject({ wgerExerciseId: 1, source: 'custom' })
   })
 
   it('halves the working sets and scales the load on the deload week', async () => {

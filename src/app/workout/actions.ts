@@ -170,6 +170,8 @@ export async function substitutePlanTargetsAction(
   workoutId: unknown,
   originalWgerExerciseId: unknown,
   substituteWgerExerciseId: unknown,
+  originalSource?: unknown,
+  substituteSource?: unknown,
 ): Promise<PlanSetTarget[] | null> {
   const userId = await requireUserId()
   if (typeof workoutId !== 'string' || workoutId.length === 0) {
@@ -181,20 +183,25 @@ export async function substitutePlanTargetsAction(
   if (!Number.isInteger(substituteWgerExerciseId) || (substituteWgerExerciseId as number) <= 0) {
     throw new Error('invalid exercise id')
   }
+  const fromSource = parseSourceParam(originalSource)
+  const toSource = parseSourceParam(substituteSource)
   const workout = await getWorkoutDetail(userId, workoutId)
   if (!workout?.programDayId || !workout.programWeek) return null
   const day = await getProgramDayDetail(userId, workout.programDayId)
   if (!day) return null
-  // First match mirrors loadPlanTargets' first-slot-wins convention.
-  const slot = day.exercises.find((e) => e.wgerExerciseId === originalWgerExerciseId)
+  // First match mirrors loadPlanTargets' first-slot-wins convention; identity
+  // is the composite (source, id).
+  const slot = day.exercises.find(
+    (e) => e.wgerExerciseId === originalWgerExerciseId && e.source === fromSource,
+  )
   if (!slot) return null
 
   // One-exercise synthetic day: the engine's history reads key on the
-  // exercise id, so re-pointing the slot derives SUBSTITUTE-scale loads.
+  // exercise identity, so re-pointing the slot derives SUBSTITUTE-scale loads.
   const [derived] = await deriveDayPrescription(
     userId,
     {
-      exercises: [substituteSlot(slot, substituteWgerExerciseId as number)],
+      exercises: [substituteSlot(slot, toSource, substituteWgerExerciseId as number)],
       program: day.program,
     },
     workout.programWeek,
@@ -223,7 +230,8 @@ export async function substitutePlanTargetsAction(
 export async function rememberSwapAction(
   workoutId: unknown,
   originalWgerExerciseId: unknown,
-  substitute: { wgerExerciseId: unknown; name: unknown },
+  substitute: { wgerExerciseId: unknown; name: unknown; source?: unknown },
+  originalSource?: unknown,
 ): Promise<void> {
   const userId = await requireUserId()
   if (typeof workoutId !== 'string' || workoutId.length === 0) {
@@ -238,6 +246,8 @@ export async function rememberSwapAction(
   if (typeof substitute.name !== 'string' || substitute.name.trim().length === 0) {
     throw new Error('invalid exercise name')
   }
+  const fromSource = parseSourceParam(originalSource)
+  const toSource = parseSourceParam(substitute.source)
   const workout = await getWorkoutDetail(userId, workoutId)
   if (!workout?.programDayId) throw new Error('workout has no program')
   const day = await getProgramDayDetail(userId, workout.programDayId)
@@ -245,13 +255,16 @@ export async function rememberSwapAction(
   // This is a WRITE, so first-match isn't good enough: a day listing the
   // same exercise twice would silently patch the slot the user never
   // touched. Ambiguity throws instead — no silent wrong-slot mutations.
-  const matches = day.exercises.filter((e) => e.wgerExerciseId === originalWgerExerciseId)
+  const matches = day.exercises.filter(
+    (e) => e.wgerExerciseId === originalWgerExerciseId && e.source === fromSource,
+  )
   if (matches.length === 0) throw new Error('exercise not found in program')
   if (matches.length > 1) throw new Error('exercise appears more than once in this day')
   const slot = matches[0]
 
   const updated = await updateProgramExercise(userId, day.program.id, day.position, slot.position, {
     wgerExerciseId: substitute.wgerExerciseId as number,
+    source: toSource,
     name: substitute.name.trim(),
   })
   if (!updated) throw new Error('could not update the program')

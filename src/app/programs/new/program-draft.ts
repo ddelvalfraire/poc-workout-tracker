@@ -1,6 +1,7 @@
 import type {
   MetricMode,
   ProgramInput,
+  ProgramInputUnparsed,
   Progression,
   SetType,
   Technique,
@@ -393,7 +394,7 @@ function toDecimal(value: string): number | null {
  * dropped (mirroring `draftToInput`) so the server's Zod `min(1)` rejects it
  * with a clear error instead of the mapper inventing one.
  */
-export type ProgramInputPayload = Omit<ProgramInput, 'name'> & { name?: string }
+export type ProgramInputPayload = Omit<ProgramInputUnparsed, 'name'> & { name?: string }
 
 /**
  * Maps the string-based draft to the server contract. Lenient by design — the

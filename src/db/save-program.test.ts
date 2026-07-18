@@ -24,6 +24,11 @@ function makeTx() {
         }
       },
     }),
+    // updateProgram's ownership-gated metadata update + child wipe.
+    update: () => ({
+      set: () => ({ where: () => ({ returning: () => Promise.resolve([{ id: 'p1' }]) }) }),
+    }),
+    delete: () => ({ where: () => Promise.resolve(undefined) }),
   }
 }
 
@@ -38,7 +43,11 @@ vi.mock('./index', () => ({
 const { getAllExercises } = vi.hoisted(() => ({ getAllExercises: vi.fn() }))
 vi.mock('@/lib/wger', () => ({ getAllExercises }))
 
-import { saveProgram } from './programs'
+// The user's customs feed the merged catalog's 'custom:' side.
+const { listCustomExercises } = vi.hoisted(() => ({ listCustomExercises: vi.fn() }))
+vi.mock('./custom-exercises', () => ({ listCustomExercises }))
+
+import { saveProgram, updateProgram } from './programs'
 
 const USER = 'user_123'
 
@@ -46,6 +55,7 @@ beforeEach(() => {
   records.length = 0
   idCounter = 0
   getAllExercises.mockResolvedValue([])
+  listCustomExercises.mockResolvedValue([])
 })
 
 describe('saveProgram (transactional, user-scoped)', () => {
@@ -162,6 +172,67 @@ describe('saveProgram (transactional, user-scoped)', () => {
       technique: { version: 1, kind: 'drop-set', stages: [{ loadKg: 20, reps: 10 }] },
     })
   })
+
+  it('persists source and supersetGroup on each exercise (full replace must not wipe them)', async () => {
+    // Arrange — a custom slot supersetted with a wger slot
+    const input = parseProgramInput({
+      name: 'P',
+      days: [
+        {
+          name: 'Upper',
+          exercises: [
+            { wgerExerciseId: 9, source: 'custom', name: 'Cable Face Pull', supersetGroup: 1, sets: [{}] },
+            { wgerExerciseId: 2, name: 'Row', supersetGroup: 1, sets: [{}] },
+          ],
+        },
+      ],
+    })
+
+    // Act
+    await saveProgram(USER, input)
+
+    // Assert — identity + grouping land on the insert; absent source defaults to wger
+    expect(records[2].values).toMatchObject({
+      wgerExerciseId: 9,
+      source: 'custom',
+      supersetGroup: 1,
+    })
+    expect(records[4].values).toMatchObject({
+      wgerExerciseId: 2,
+      source: 'wger',
+      supersetGroup: 1,
+    })
+  })
+
+  it('updateProgram (full replace) re-inserts children with source and supersetGroup intact', async () => {
+    // Arrange — the id-present replace branch shares insertProgramChildren,
+    // but pin it directly: a replace must never reset customs or ungroup.
+    const input = parseProgramInput({
+      name: 'P',
+      days: [
+        {
+          name: 'Upper',
+          exercises: [
+            { wgerExerciseId: 9, source: 'custom', name: 'Cable Face Pull', supersetGroup: 1, sets: [{}] },
+          ],
+        },
+      ],
+    })
+
+    // Act
+    const result = await updateProgram(USER, 'p1', input)
+
+    // Assert — day insert first, then the exercise carrying both fields
+    expect(result).toEqual({ id: 'p1' })
+    const exerciseInsert = records.find(
+      (r) => (r.values as { wgerExerciseId?: number }).wgerExerciseId !== undefined,
+    )
+    expect(exerciseInsert?.values).toMatchObject({
+      wgerExerciseId: 9,
+      source: 'custom',
+      supersetGroup: 1,
+    })
+  })
 })
 
 describe('saveProgram muscle tagging (Phase 5)', () => {
@@ -208,6 +279,7 @@ describe('saveProgram muscle tagging (Phase 5)', () => {
   it('saves untagged (not failing) when the catalog fetch throws', async () => {
     // Arrange
     getAllExercises.mockRejectedValue(new Error('wger down'))
+    listCustomExercises.mockRejectedValue(new Error('db down'))
 
     // Act
     const result = await saveProgram(USER, INPUT)
@@ -215,5 +287,56 @@ describe('saveProgram muscle tagging (Phase 5)', () => {
     // Assert
     expect(result).toEqual({ id: 'p1' })
     expect(records).toHaveLength(4)
+  })
+
+  const CUSTOM_INPUT = parseProgramInput({
+    name: 'P',
+    days: [
+      {
+        name: 'Upper',
+        exercises: [{ wgerExerciseId: 73, source: 'custom', name: 'Face Pull', sets: [{}] }],
+      },
+    ],
+  })
+
+  it('tags a custom slot from the custom exercise muscle arrays', async () => {
+    // Arrange — a wger exercise shares the integer id; the custom entry must win
+    getAllExercises.mockResolvedValue([{ id: 73, name: 'Bench', category: 'Chest', muscles: ['Chest'] }])
+    listCustomExercises.mockResolvedValue([
+      {
+        id: 73,
+        name: 'Face Pull',
+        category: 'Shoulders',
+        muscles: ['Shoulders'],
+        musclesSecondary: ['Upper Back'],
+        equipment: null,
+      },
+    ])
+
+    // Act
+    await saveProgram(USER, CUSTOM_INPUT)
+
+    // Assert — composite lookup resolves the custom, not the colliding wger row
+    expect(records[4].values).toEqual([
+      { programExerciseId: 'e1', muscle: 'Shoulders', role: 'primary' },
+      { programExerciseId: 'e1', muscle: 'Upper Back', role: 'secondary' },
+    ])
+  })
+
+  it('still tags custom slots when the wger fetch fails (per-source degrade)', async () => {
+    // Arrange
+    getAllExercises.mockRejectedValue(new Error('wger down'))
+    listCustomExercises.mockResolvedValue([
+      { id: 73, name: 'Face Pull', category: 'Shoulders', muscles: ['Shoulders'], musclesSecondary: null, equipment: null },
+    ])
+
+    // Act
+    const result = await saveProgram(USER, CUSTOM_INPUT)
+
+    // Assert
+    expect(result).toEqual({ id: 'p1' })
+    expect(records[4].values).toEqual([
+      { programExerciseId: 'e1', muscle: 'Shoulders', role: 'primary' },
+    ])
   })
 })

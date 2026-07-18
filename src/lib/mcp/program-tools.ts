@@ -56,8 +56,14 @@ const toolSetSchema = z.object({
 })
 const toolExerciseSchema = z.object({
   wgerExerciseId: z.number().int(),
+  // Composite identity: absent = 'wger' (the schema default), so every
+  // existing caller keeps working unchanged.
+  source: z.enum(['wger', 'custom']).optional(),
   name: z.string(),
   progression: progressionSchema.nullable().optional(), // kg, passthrough
+  // Same non-null value within a day = superset; passed through so a full
+  // replace round-trips groupings instead of wiping them.
+  supersetGroup: z.number().int().min(0).nullable().optional(),
   sets: z.array(toolSetSchema),
 })
 const toolDaySchema = z.object({
@@ -115,8 +121,10 @@ function toKgProgram(raw: RawProgram, unit: WeightUnit): unknown {
       notes: d.notes,
       exercises: d.exercises.map((e) => ({
         wgerExerciseId: e.wgerExerciseId,
+        source: e.source,
         name: e.name,
         progression: e.progression,
+        supersetGroup: e.supersetGroup,
         sets: e.sets.map((s) => ({
           setType: s.setType,
           metricMode: s.metricMode,
@@ -186,6 +194,7 @@ export interface ProgramPayload {
       exercises: {
         id: string
         wgerExerciseId: number
+        source: 'wger' | 'custom'
         name: string
         position: number
         progression: unknown | null
@@ -287,6 +296,7 @@ export interface ProgramDayView {
   exercises: {
     position: number
     wgerExerciseId: number
+    source: 'wger' | 'custom'
     name: string
     progression: unknown | null
     sets: ReturnType<typeof buildProgramSetView>[]
@@ -301,6 +311,7 @@ export function buildProgramDayView(day: ProgramDayDetail, unit: WeightUnit): Pr
     exercises: day.exercises.map((e) => ({
       position: e.position,
       wgerExerciseId: e.wgerExerciseId,
+      source: e.source,
       name: e.name,
       progression: e.progression,
       sets: e.sets.map((s) => buildProgramSetView(s, unit)),
@@ -338,6 +349,7 @@ export function buildProgramPayload(
         exercises: day.exercises.map((exercise) => ({
           id: exercise.id,
           wgerExerciseId: exercise.wgerExerciseId,
+          source: exercise.source,
           name: exercise.name,
           position: exercise.position,
           progression: exercise.progression,
@@ -366,7 +378,7 @@ export function registerProgramTools(server: McpServer): void {
     {
       title: 'Upsert Program',
       description:
-        "Creates a training program, or fully replaces one when `id` is given (coarse create/replace, not a partial edit). `suggestedLoad` is in the user's unit (or the `unit` arg) and stored as kg; `technique`/`progression` JSONB are in kg. Returns the programId. Errors if a given id isn't found or owned.",
+        "Creates a training program, or fully replaces one when `id` is given (coarse create/replace, not a partial edit). Exercise identity is the composite (source, wgerExerciseId); `source` defaults to 'wger', pass 'custom' for custom exercises. `supersetGroup` (same non-null value within a day) survives replace. `suggestedLoad` is in the user's unit (or the `unit` arg) and stored as kg; `technique`/`progression` JSONB are in kg. Returns the programId. Errors if a given id isn't found or owned.",
       inputSchema: {
         id: z.string().optional(),
         ...rawProgramSchema.shape,

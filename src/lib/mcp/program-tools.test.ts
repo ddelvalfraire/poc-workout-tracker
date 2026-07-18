@@ -108,6 +108,7 @@ function programDetail() {
             id: 'e1',
             programDayId: 'd1',
             wgerExerciseId: 1,
+            source: 'custom',
             name: 'Bench',
             position: 0,
             progression: { scheme: 'linear', incrementKg: 2.5 },
@@ -225,6 +226,48 @@ describe('registerProgramTools', () => {
         }),
       )
       expect(payload(result)).toEqual({ userId: 'user_env', unit: 'lb', programId: PID })
+    })
+
+    it('passes composite identity and supersetGroup through to the persist', async () => {
+      // Arrange
+      const tools = setup()
+      mockedSave.mockResolvedValue({ id: PID })
+      const body = {
+        name: 'PPL',
+        days: [
+          {
+            name: 'Upper',
+            exercises: [
+              {
+                wgerExerciseId: 9,
+                source: 'custom',
+                name: 'Cable Face Pull',
+                supersetGroup: 2,
+                sets: [{}],
+              },
+              { wgerExerciseId: 2, name: 'Row', sets: [{}] },
+            ],
+          },
+        ],
+      }
+
+      // Act
+      await tools.get('upsert_program')!(body)
+
+      // Assert — source survives; absence defaults to wger post-parse
+      expect(mockedSave).toHaveBeenCalledWith(
+        'user_env',
+        expect.objectContaining({
+          days: [
+            expect.objectContaining({
+              exercises: [
+                expect.objectContaining({ wgerExerciseId: 9, source: 'custom', supersetGroup: 2 }),
+                expect.objectContaining({ wgerExerciseId: 2, source: 'wger' }),
+              ],
+            }),
+          ],
+        }),
+      )
     })
 
     it('acts as the authenticated user, ignoring a conflicting userId arg (no impersonation)', async () => {
@@ -409,6 +452,7 @@ describe('registerProgramTools', () => {
       expect(body.program.createdAt).toBe('2026-06-01T00:00:00.000Z')
       const exercise = (
         body.program.days[0]!.exercises as unknown as {
+          source: string
           supersetGroup: number | null
           muscles: { primary: string[]; secondary: string[] }
           sets: {
@@ -419,6 +463,7 @@ describe('registerProgramTools', () => {
           }[]
         }[]
       )[0]!
+      expect(exercise.source).toBe('custom') // composite identity surfaces on reads
       expect(exercise.supersetGroup).toBe(1)
       expect(exercise.muscles).toEqual({ primary: ['Chest'], secondary: ['Shoulders'] })
       const set = exercise.sets[0]!

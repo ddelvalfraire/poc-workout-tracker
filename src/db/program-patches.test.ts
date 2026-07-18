@@ -118,7 +118,7 @@ import {
 const USER = 'user_123'
 const PID = '22222222-2222-4222-8222-222222222222'
 const OWNED_DAY = [{ id: 'pd1' }]
-const OWNED_EXERCISE = [{ exerciseId: 'pe1', dayId: 'pd1' }]
+const OWNED_EXERCISE = [{ exerciseId: 'pe1', dayId: 'pd1', wgerExerciseId: 73, source: 'wger' }]
 /** A stored reps_weight set row, as updateProgramSet's current-row read returns it. */
 const CURRENT_SET = {
   setType: 'working',
@@ -530,7 +530,7 @@ describe('supersetGroup + muscle retagging (Phase 5)', () => {
   it('re-derives muscle tags when wgerExerciseId changes', async () => {
     // Arrange — catalog knows the new movement
     catalogMock.mockResolvedValue(
-      new Map([[42, { id: 42, name: 'Fly', category: 'Chest', muscles: ['Chest'] }]]),
+      new Map([['wger:42', { id: 42, name: 'Fly', category: 'Chest', muscles: ['Chest'] }]]),
     )
     selectQueue = [OWNED_EXERCISE]
 
@@ -552,7 +552,7 @@ describe('supersetGroup + muscle retagging (Phase 5)', () => {
   it('tags a newly added exercise from the catalog', async () => {
     // Arrange
     catalogMock.mockResolvedValue(
-      new Map([[42, { id: 42, name: 'Fly', category: 'Chest', muscles: ['Chest'] }]]),
+      new Map([['wger:42', { id: 42, name: 'Fly', category: 'Chest', muscles: ['Chest'] }]]),
     )
     selectQueue = [OWNED_DAY, [{ value: null }]]
 
@@ -562,6 +562,53 @@ describe('supersetGroup + muscle retagging (Phase 5)', () => {
     // Assert
     expect(result).toEqual({ position: 0 })
     expect(records.map((r) => r.op)).toContain('insert:program_exercise_muscles')
+  })
+
+  it('adds a custom exercise with source persisted and tags from the custom catalog side', async () => {
+    // Arrange — the merged catalog carries the custom under its composite key
+    catalogMock.mockResolvedValue(
+      new Map([['custom:42', { id: 42, name: 'Cable Y-Raise', category: 'Shoulders', muscles: ['Shoulders'] }]]),
+    )
+    selectQueue = [OWNED_DAY, [{ value: null }]]
+
+    // Act
+    const result = await addProgramExercise(USER, PID, 0, {
+      wgerExerciseId: 42,
+      source: 'custom',
+      name: 'Cable Y-Raise',
+    })
+
+    // Assert — insert carries source; tags come from the custom entry
+    expect(result).toEqual({ position: 0 })
+    const exerciseInsert = records.find((r) => r.op === 'insert:program_exercises')
+    expect(exerciseInsert?.values).toMatchObject({ wgerExerciseId: 42, source: 'custom' })
+    const muscleInsert = records.find((r) => r.op === 'insert:program_exercise_muscles')
+    expect(muscleInsert?.values).toEqual([
+      { programExerciseId: 'pe-new', muscle: 'Shoulders', role: 'primary' },
+    ])
+  })
+
+  it('re-derives muscle tags when only source changes (identity is composite)', async () => {
+    // Arrange — same integer id on both sides; only the custom entry matches
+    catalogMock.mockResolvedValue(
+      new Map([['custom:73', { id: 73, name: 'My Bench', category: 'Chest', muscles: ['Chest'] }]]),
+    )
+    selectQueue = [OWNED_EXERCISE]
+
+    // Act
+    await updateProgramExercise(USER, PID, 0, 1, { source: 'custom' })
+
+    // Assert — a source-only flip is an identity change: retag fires and the
+    // effective (custom, stored 73) resolves the custom catalog entry
+    expect(records.map((r) => r.op)).toEqual([
+      'update:program_exercises',
+      'delete:program_exercise_muscles',
+      'insert:program_exercise_muscles',
+      'update:programs',
+    ])
+    expect(records[2].values).toEqual([
+      { programExerciseId: 'pe1', muscle: 'Chest', role: 'primary' },
+    ])
   })
 })
 
