@@ -906,7 +906,7 @@ export function WorkoutLogger({
             {exercise.sets.length > 0 && (
               <div className="flex items-center gap-2 px-0.5 text-[0.7rem] font-semibold uppercase tracking-wider text-muted-foreground">
                 <span className="w-8 shrink-0" aria-hidden="true" />
-                <span className="w-12 shrink-0 text-center">Prev</span>
+                <span className="w-10 shrink-0 text-center">Prev</span>
                 <span className="flex-1 text-center">Reps</span>
                 <span className="flex-1 text-center">{unit}</span>
                 <span className="size-9 shrink-0" aria-hidden="true" />
@@ -947,6 +947,11 @@ export function WorkoutLogger({
                       ? undefined
                       : adoptableGhostValue(ghost.weight),
                 }
+                // Enabled only when a tap would actually change something —
+                // otherwise the flash would confirm a fill that never happened.
+                const chipCanFill =
+                  (set.reps === '' && !!chipFill.reps) ||
+                  (set.weight === '' && !!chipFill.weight)
                 return (
                 <Fragment key={set.id}>
                 <div className="flex items-center gap-2">
@@ -1011,7 +1016,7 @@ export function WorkoutLogger({
                   </button>
                   <button
                     type="button"
-                    disabled={!prevLabel || (!chipFill.reps && !chipFill.weight)}
+                    disabled={!prevLabel || !chipCanFill}
                     onClick={() => {
                       dispatch({ type: 'FILL_SET', exerciseIndex, setIndex, fill: chipFill })
                       flashFilledSet(set.id)
@@ -1021,7 +1026,7 @@ export function WorkoutLogger({
                         ? `Fill set ${setIndex + 1} from previous: ${prevLabel}`
                         : `No previous performance for set ${setIndex + 1}`
                     }
-                    className="relative w-12 shrink-0 truncate text-center text-xs font-medium tnum text-muted-foreground before:absolute before:-inset-1.5 disabled:opacity-40"
+                    className="relative w-10 shrink-0 truncate text-center text-xs font-medium tnum text-muted-foreground before:absolute before:-inset-1.5 disabled:opacity-40"
                   >
                     {prevLabel ?? '—'}
                   </button>
@@ -1119,6 +1124,9 @@ export function WorkoutLogger({
                         className="min-w-20 tnum"
                         onPointerDown={(e) => e.preventDefault()}
                         onClick={() => {
+                          // ghost.weight is undefined for BW-relative types by
+                          // design (a total-load ghost would be a phantom), so
+                          // their steppers step the typed value or from zero.
                           const next = stepWeightValue(set.weight, ghost.weight, direction, unit)
                           if (next !== null) {
                             dispatch({
@@ -1130,7 +1138,13 @@ export function WorkoutLogger({
                             })
                           }
                         }}
-                        aria-label={`${direction === 1 ? 'Increase' : 'Decrease'} set ${setIndex + 1} weight by ${WEIGHT_STEP[unit]} ${unit}`}
+                        aria-label={`${direction === 1 ? 'Increase' : 'Decrease'} set ${setIndex + 1} ${
+                          exercise.loggingType === 'weighted_bodyweight'
+                            ? 'added weight'
+                            : exercise.loggingType === 'assisted_bodyweight'
+                              ? 'assistance'
+                              : 'weight'
+                        } by ${WEIGHT_STEP[unit]} ${unit}`}
                       >
                         {direction === 1 ? '+' : '−'}
                         {WEIGHT_STEP[unit]}
