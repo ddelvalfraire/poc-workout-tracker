@@ -13,6 +13,8 @@ import {
   programSetOverrides,
   customExercises,
   programEvents,
+  workoutTemplates,
+  workoutTemplateExercises,
 } from './schema'
 
 describe('schema', () => {
@@ -201,6 +203,39 @@ describe('schema', () => {
     expect(cols.action.notNull).toBe(true)
     expect(cols.summary.notNull).toBe(true)
     expect(cols.payload.notNull).toBe(false)
+  })
+
+  it('defines the standalone template tables with snake_case names', () => {
+    expect(getTableName(workoutTemplates)).toBe('workout_templates')
+    expect(getTableName(workoutTemplateExercises)).toBe('workout_template_exercises')
+  })
+
+  it('keeps templates sharing-ready but owner-authored by default', () => {
+    const cols = getTableColumns(workoutTemplates)
+    expect(cols.userId.notNull).toBe(true)
+    expect(cols.name.notNull).toBe(true)
+    // Open value space for future sharing (a user id, a group id) — data,
+    // not schema; today every row defaults to 'owner'.
+    expect(cols.authorActor.notNull).toBe(true)
+    expect(cols.authorActor.hasDefault).toBe(true)
+    // Presentation fields stay nullable.
+    expect(cols.description.notNull).toBe(false)
+    expect(cols.icon.notNull).toBe(false)
+  })
+
+  it('gives template exercises a compact set plan (no per-set child table)', () => {
+    const cols = getTableColumns(workoutTemplateExercises)
+    expect(cols.plannedSets.notNull).toBe(true)
+    expect(cols.plannedSets.hasDefault).toBe(true)
+    expect(cols.repMin.notNull).toBe(false)
+    expect(cols.repMax.notNull).toBe(false)
+    expect(cols.restSec.notNull).toBe(false)
+    // Same additive discriminator + positive-id rules as the live tables.
+    expect(cols.source.notNull).toBe(true)
+    expect(cols.source.hasDefault).toBe(true)
+    expect(getTableConfig(workoutTemplateExercises).checks.map((c) => c.name)).toContain(
+      'workout_template_exercises_wger_id_positive',
+    )
   })
 
   it('indexes program_events on (program_id, occurred_at) — the only read path', () => {

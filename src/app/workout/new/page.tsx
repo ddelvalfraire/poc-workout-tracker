@@ -1,7 +1,9 @@
 import { requireUserId } from '@/lib/auth'
 import { getWeightUnit, getEquipment, getDefaultRestSec, getRestTimerEnabled } from '@/db/preferences'
 import { getWorkoutDetail } from '@/db/workouts'
+import { getWorkoutTemplateDetail } from '@/db/workout-templates'
 import { getWorkoutDraft } from '@/db/workout-drafts'
+import { templateToDraft } from '@/lib/workout-template'
 import { WorkoutLogger } from './workout-logger'
 import { detailToDraft } from './workout-draft'
 import { resolveDraftSeed, draftKey } from './draft-payload'
@@ -15,18 +17,21 @@ export default async function NewWorkoutPage({
 }: {
   // A repeated `?from=a&from=b` arrives as an array at runtime, so the type must
   // allow it; only a single uuid string is treated as a valid source.
-  searchParams: Promise<{ from?: string | string[] }>
+  searchParams: Promise<{ from?: string | string[]; template?: string | string[] }>
 }) {
   const userId = await requireUserId() // middleware also guards; defense-in-depth
-  const { from } = await searchParams
+  const { from, template } = await searchParams
   const fromId = typeof from === 'string' && UUID_RE.test(from) ? from : undefined
-  // Both reads always run: an explicit `?from` that RESOLVES wins over any
-  // stored 'new' draft (the user just asked to repeat that workout), but a
-  // stale or deleted `from` id falls back to the stored draft rather than
-  // presenting an empty logger while a live draft exists.
-  const [unit, source, draftRow] = await Promise.all([
+  const templateId = typeof template === 'string' && UUID_RE.test(template) ? template : undefined
+  // All reads always run: an explicit `?from`/`?template` that RESOLVES wins
+  // over any stored 'new' draft (the user just asked for that seed), but a
+  // stale or deleted id falls back to the stored draft rather than presenting
+  // an empty logger while a live draft exists. `from` outranks `template` —
+  // repeating a concrete session is the more specific intent.
+  const [unit, source, templateSource, draftRow] = await Promise.all([
     getWeightUnit(userId),
     fromId ? getWorkoutDetail(userId, fromId) : Promise.resolve(undefined),
+    templateId ? getWorkoutTemplateDetail(userId, templateId) : Promise.resolve(undefined),
     getWorkoutDraft(userId, draftKey()),
   ])
   // Equipment and the rest default are independent preference reads — one
@@ -37,13 +42,19 @@ export default async function NewWorkoutPage({
     getRestTimerEnabled(userId),
   ])
   // resetCompleted: repeating an old workout starts a fresh session — no
-  // checked-off sets carried over from the source.
-  const seed = source ? detailToDraft(source, unit, { resetCompleted: true }) : undefined
+  // checked-off sets carried over from the source. A template seeds
+  // plannedSets empty sets per exercise instead (no values to carry — ghosts
+  // come from history at log time, like any fresh session).
+  const seed = source
+    ? detailToDraft(source, unit, { resetCompleted: true })
+    : templateSource
+      ? templateToDraft(templateSource)
+      : undefined
   // Server-side draft seeding: resolving the interrupted session HERE kills
   // the mount-time content swap (empty logger flashes, then the restore
   // effect replaces it). Shared TTL+codec helper — same rules as the client
   // restore, which stays as the cross-device race net.
-  const restored = source ? null : resolveDraftSeed(draftRow, { unit, now: new Date() })
+  const restored = seed ? null : resolveDraftSeed(draftRow, { unit, now: new Date() })
 
   return (
     <div className="flex min-h-[100dvh] flex-col">

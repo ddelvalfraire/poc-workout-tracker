@@ -119,9 +119,9 @@ export default async function HomePage() {
         {/* With a program driving the day, freestyle logging demotes to a
             secondary action; without one it stays the primary CTA. */}
         {nextDay ? (
-          // Three-up row: tighter type/padding than the old two-up so the
-          // uppercase nowrap labels still fit a 320px viewport.
-          <div className="mt-3 grid grid-cols-3 gap-2">
+          // 2×2 shortcut grid (was three-up until Templates joined): two
+          // columns keep the uppercase nowrap labels comfortable at 320px.
+          <div className="mt-3 grid grid-cols-2 gap-2">
             <GuardedStartLink
               href="/workout/new"
               session={guardSession}
@@ -149,6 +149,15 @@ export default async function HomePage() {
               )}
             >
               Exercises
+            </Link>
+            <Link
+              href="/templates"
+              className={cn(
+                buttonVariants({ variant: "outline" }),
+                "px-1 text-xs font-semibold uppercase",
+              )}
+            >
+              Templates
             </Link>
           </div>
         ) : (
@@ -189,6 +198,16 @@ export default async function HomePage() {
               )}
             >
               Exercises
+            </Link>
+
+            <Link
+              href="/templates"
+              className={cn(
+                buttonVariants({ variant: "outline", size: "lg" }),
+                "mt-3 w-full text-base font-semibold uppercase tracking-wide",
+              )}
+            >
+              Templates
             </Link>
           </>
         )}
