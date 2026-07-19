@@ -6,6 +6,7 @@ import {
   getBodyweightKg,
   getDefaultRestSec,
   getRestTimerEnabled,
+  getProgramReminderDismissed,
 } from '@/db/preferences'
 import { kgToDisplay } from '@/lib/units'
 import { AppHeader } from '@/components/app-header'
@@ -14,6 +15,7 @@ import { buttonVariants } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { RestDefaultSetting } from './rest-default-setting'
 import { RestTimerToggle } from './rest-timer-toggle'
+import { ProgramReminderToggle } from './program-reminder-toggle'
 
 /**
  * The preferences surface: everything that tunes how the app behaves for
@@ -23,12 +25,14 @@ import { RestTimerToggle } from './rest-timer-toggle'
  */
 export default async function SettingsPage() {
   const userId = await requireUserId()
-  const [unit, bodyweightKg, defaultRestSec, restTimerEnabled] = await Promise.all([
-    getWeightUnit(userId),
-    getBodyweightKg(userId),
-    getDefaultRestSec(userId),
-    getRestTimerEnabled(userId),
-  ])
+  const [unit, bodyweightKg, defaultRestSec, restTimerEnabled, programReminderDismissed] =
+    await Promise.all([
+      getWeightUnit(userId),
+      getBodyweightKg(userId),
+      getDefaultRestSec(userId),
+      getRestTimerEnabled(userId),
+      getProgramReminderDismissed(userId),
+    ])
 
   return (
     <div className="flex min-h-[100dvh] flex-col">
@@ -58,6 +62,15 @@ export default async function SettingsPage() {
             hint="Countdown and rest readout after each set. Off hides the whole surface."
           >
             <RestTimerToggle enabled={restTimerEnabled} />
+          </SettingRow>
+          {/* The switch speaks "show", the column stores "dismissed" — the
+              inversion lives in the toggle so a card dismissal reads here as
+              the switch simply being off, ready to flip back on. */}
+          <SettingRow
+            label="Program reminder"
+            hint="Home-page nudge to start a program while you don't have one."
+          >
+            <ProgramReminderToggle enabled={!programReminderDismissed} />
           </SettingRow>
           <SettingRow
             label="Default rest"

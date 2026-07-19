@@ -7,8 +7,9 @@ import { listWorkoutDrafts } from "@/db/workout-drafts";
 import { getNextProgramDay } from "@/db/programs";
 import { getVolumeTotals } from "@/db/muscle-volume";
 import { volumeWindows } from "@/lib/volume-window";
-import { getWeightUnit } from "@/db/preferences";
+import { getWeightUnit, getProgramReminderDismissed } from "@/db/preferences";
 import { resolveActiveSession } from "@/lib/active-session";
+import { shouldShowProgramReminder } from "@/lib/program-reminder";
 import { formatVolume, formatWorkoutDuration } from "@/lib/format";
 import { startedWithinLastHours } from "@/lib/recent-window";
 import { buttonVariants } from "@/components/ui/button";
@@ -16,6 +17,7 @@ import { GuardedStartLink } from "@/components/guarded-start-link";
 import { cn } from "@/lib/utils";
 import { isCoachUser } from "@/lib/coach/access";
 import { NextWorkoutCard } from "./next-workout-card";
+import { ProgramReminderCard } from "./program-reminder-card";
 import { ResumeSessionCard } from "./resume-session-card";
 import { TodayWorkouts } from "./today-workouts";
 import { TrainedTodayGate } from "./trained-today-gate";
@@ -25,11 +27,12 @@ const monthFormat = new Intl.DateTimeFormat("en-US", { month: "short" });
 
 export default async function HomePage() {
   const userId = await requireUserId(); // middleware also guards; this is defense-in-depth
-  const [summaries, unit, nextDay, drafts, weekTotals] = await Promise.all([
+  const [summaries, unit, nextDay, drafts, programReminderDismissed, weekTotals] = await Promise.all([
     listWorkoutSummaries(userId),
     getWeightUnit(userId),
     getNextProgramDay(userId),
     listWorkoutDrafts(userId),
+    getProgramReminderDismissed(userId),
     // Totals only (rolling window — tz-free, so the server can compute it):
     // getVolumeTotals skips muscle resolution, keeping the wger catalog off
     // the home page's critical path. /stats owns the full picture.
@@ -150,6 +153,13 @@ export default async function HomePage() {
           </div>
         ) : (
           <>
+            {/* Soft "get a program" nudge for the fresh state only — the
+                hero's absence (no nextDay) IS the signal; no extra query
+                beyond the dismissal preference. Muted on purpose: it's a
+                suggestion, and Start Workout below stays the primary CTA. */}
+            {shouldShowProgramReminder(Boolean(nextDay), programReminderDismissed) && (
+              <ProgramReminderCard />
+            )}
             <GuardedStartLink
               href="/workout/new"
               session={guardSession}

@@ -1,0 +1,1 @@
+ALTER TABLE "user_preferences" ADD COLUMN "program_reminder_dismissed" boolean DEFAULT false NOT NULL;

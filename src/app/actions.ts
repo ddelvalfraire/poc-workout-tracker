@@ -7,6 +7,7 @@ import {
   setEquipment,
   setDefaultRestSec,
   setRestTimerEnabled,
+  setProgramReminderDismissed,
   getWeightUnit,
 } from '@/db/preferences'
 import { logBodyweight, deleteBodyweightLog } from '@/db/bodyweight'
@@ -122,5 +123,19 @@ export async function setRestTimerEnabledAction(enabled: unknown): Promise<void>
     throw new Error('rest timer flag must be a boolean')
   }
   await setRestTimerEnabled(userId, enabled)
+  revalidatePath('/', 'layout')
+}
+
+/**
+ * Sets whether the home page's program reminder is dismissed. Two callers,
+ * one write path: the card's "Don't show again" sends true, the settings
+ * toggle sends either direction — so re-enabling is always possible.
+ */
+export async function setProgramReminderDismissedAction(dismissed: unknown): Promise<void> {
+  const userId = await requireUserId()
+  if (typeof dismissed !== 'boolean') {
+    throw new Error('program reminder flag must be a boolean')
+  }
+  await setProgramReminderDismissed(userId, dismissed)
   revalidatePath('/', 'layout')
 }
