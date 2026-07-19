@@ -13,6 +13,7 @@ import {
 } from "@/lib/format";
 import { bestScoredSet } from "@/lib/one-rep-max";
 import { AppHeader } from "@/components/app-header";
+import { PrBadge } from "@/components/pr-badge";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { WorkoutActions } from "./workout-actions";
@@ -177,14 +178,7 @@ export default async function WorkoutDetailPage({
                   <h2 className="min-w-0 truncate font-display text-lg uppercase leading-tight tracking-wide">
                     {exercise.name}
                   </h2>
-                  {isPR && (
-                    <span
-                      aria-label="Personal record"
-                      className="shrink-0 rounded-full bg-primary px-2 py-0.5 text-xs font-semibold uppercase tracking-wide text-primary-foreground"
-                    >
-                      PR
-                    </span>
-                  )}
+                  {isPR && <PrBadge />}
                 </div>
                 {/* Set rows echo the logger's number circles (log → review
                     continuity) and run the values at glanceable scale; the top
