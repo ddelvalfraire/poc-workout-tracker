@@ -244,9 +244,15 @@ export async function saveProgram(
         autoregulation: input.autoregulation ?? true,
         notes: input.notes ?? null,
         // Article metadata rides create like notes: omitted = null.
-        // authorActor mirrors the drafting policy above; every non-coach
-        // caller of saveProgram is an owner path (the column default).
-        ...(actor === 'coach' ? { authorActor: 'coach' } : {}),
+        // authorActor mirrors the drafting policy above; a wger import is
+        // attributed to 'wger' (open value space) but lands as the input's
+        // status ('draft' — the user asked for it, no forced confirm) and
+        // every other non-coach caller is an owner path (the column default).
+        ...(actor === 'coach'
+          ? { authorActor: 'coach' }
+          : actor === 'wger'
+            ? { authorActor: 'wger' }
+            : {}),
         description: input.description ?? null,
         icon: input.icon ?? null,
         heroImageUrl: input.heroImageUrl ?? null,

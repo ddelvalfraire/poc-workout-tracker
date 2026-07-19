@@ -36,6 +36,15 @@ export default async function ProgramsPage() {
           + New Program
         </Link>
 
+        {/* Secondary path: start from a wger community template instead of a
+            blank builder. Outline — the volt CTA above stays the primary. */}
+        <Link
+          href="/programs/templates"
+          className={cn(buttonVariants({ variant: 'outline', size: 'lg' }), 'mt-3 w-full')}
+        >
+          Browse templates
+        </Link>
+
         <h2 className="mt-10 mb-3 text-lg">Your Programs</h2>
 
         {programs.length === 0 ? (

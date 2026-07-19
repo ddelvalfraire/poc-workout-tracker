@@ -33,6 +33,7 @@ const ACTOR_LABELS: Record<ProgramEventActor, string> = {
   ui: 'You',
   mcp: 'Claude',
   coach: 'Coach',
+  wger: 'wger',
 }
 
 /** v1 cap: no pagination UI — older history stays reachable via the MCP
