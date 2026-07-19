@@ -36,8 +36,9 @@ export async function saveProgramAction(input: unknown): Promise<{ id: string }>
  * `updateProgram` deletes and re-inserts the whole day/exercise/set tree, so the
  * builder's draft must round-trip EVERYTHING (progression/technique JSONB
  * included — `detailToProgramDraft`/`draftToProgramInput` carry them through).
- * One documented loss: per-week set OVERRIDES live on the replaced set rows and
- * are not re-inserted, so an edit here drops them (they remain MCP-only).
+ * Per-week set OVERRIDES are preserved by `updateProgram` itself (re-keyed to
+ * the recreated rows at the same day/exercise/setNumber address); overrides on
+ * slots the edit removed die with them.
  */
 export async function updateProgramAction(id: string, input: unknown): Promise<{ id: string }> {
   const userId = await requireUserId()

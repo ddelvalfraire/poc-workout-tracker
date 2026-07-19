@@ -15,6 +15,27 @@ const updateSets: unknown[] = []
 let idCounter = 0
 const ID_SEQUENCE = ['p1', 'd1', 'e1', 'e2', 'd2', 'e3']
 
+// updateProgram's override preservation reads: queued row sets are consumed
+// one per tx.select() call (snapshot first, then the recreated set rows).
+// Empty queue → [] — the no-overrides fast path, which existing tests hit.
+const selectQueue: unknown[][] = []
+let selectCalls = 0
+
+interface SelectBuilder {
+  from: () => SelectBuilder
+  innerJoin: () => SelectBuilder
+  where: () => Promise<unknown[]>
+}
+
+function makeSelectBuilder(rows: unknown[]): SelectBuilder {
+  const builder: SelectBuilder = {
+    from: () => builder,
+    innerJoin: () => builder,
+    where: () => Promise.resolve(rows),
+  }
+  return builder
+}
+
 function makeTx() {
   return {
     insert: () => ({
@@ -25,6 +46,10 @@ function makeTx() {
         }
       },
     }),
+    select: () => {
+      selectCalls += 1
+      return makeSelectBuilder(selectQueue.shift() ?? [])
+    },
     // updateProgram's ownership-gated metadata update + child wipe. The set
     // payload is captured so omission semantics (a field NOT in the update)
     // are assertable.
@@ -60,6 +85,8 @@ const USER = 'user_123'
 beforeEach(() => {
   records.length = 0
   updateSets.length = 0
+  selectQueue.length = 0
+  selectCalls = 0
   idCounter = 0
   getAllExercises.mockResolvedValue([])
   listCustomExercises.mockResolvedValue([])
@@ -239,6 +266,102 @@ describe('saveProgram (transactional, user-scoped)', () => {
       source: 'custom',
       supersetGroup: 1,
     })
+  })
+})
+
+describe('updateProgram per-week override preservation', () => {
+  const REPLACE_INPUT = parseProgramInput({
+    name: 'P',
+    days: [
+      { name: 'D', exercises: [{ wgerExerciseId: 1, name: 'X', sets: [{}, {}] }] },
+    ],
+  })
+
+  /** A snapshot row as snapshotSetOverrides selects it; target columns null
+   *  unless overridden. */
+  function snapshotRow(over: Record<string, unknown>) {
+    return {
+      dayPosition: 0,
+      exercisePosition: 0,
+      setNumber: 1,
+      week: 1,
+      repMin: null,
+      repMax: null,
+      rir: null,
+      rpe: null,
+      suggestedLoadKg: null,
+      tempo: null,
+      durationSec: null,
+      distanceM: null,
+      restSec: null,
+      technique: null,
+      ...over,
+    }
+  }
+
+  /** The overrides insert is the only batch whose rows carry programSetId. */
+  function findOverrideInsert() {
+    return records.find(
+      (r) =>
+        Array.isArray(r.values) &&
+        (r.values[0] as { programSetId?: string }).programSetId !== undefined,
+    )
+  }
+
+  it('re-attaches overrides to the recreated set at the same address', async () => {
+    // Arrange — first select: the pre-wipe snapshot; second: the new set rows
+    selectQueue.push([
+      snapshotRow({ setNumber: 1, week: 3, repMin: 5, repMax: 5, suggestedLoadKg: 100 }),
+      snapshotRow({ setNumber: 2, week: 4, rir: 0 }),
+    ])
+    selectQueue.push([
+      { id: 'new-s1', dayPosition: 0, exercisePosition: 0, setNumber: 1 },
+      { id: 'new-s2', dayPosition: 0, exercisePosition: 0, setNumber: 2 },
+    ])
+
+    // Act
+    await updateProgram(USER, 'p1', REPLACE_INPUT, 'ui')
+
+    // Assert — both overrides land on the recreated rows, all columns carried
+    expect(findOverrideInsert()?.values).toEqual([
+      expect.objectContaining({
+        programSetId: 'new-s1',
+        week: 3,
+        repMin: 5,
+        repMax: 5,
+        suggestedLoadKg: 100,
+      }),
+      expect.objectContaining({ programSetId: 'new-s2', week: 4, rir: 0 }),
+    ])
+  })
+
+  it('drops overrides whose slot no longer exists (removed slot dies with them)', async () => {
+    // Arrange — one override survives (set 1), one addressed a removed set 3
+    selectQueue.push([
+      snapshotRow({ setNumber: 1, week: 2, suggestedLoadKg: 80 }),
+      snapshotRow({ setNumber: 3, week: 2, suggestedLoadKg: 90 }),
+    ])
+    selectQueue.push([
+      { id: 'new-s1', dayPosition: 0, exercisePosition: 0, setNumber: 1 },
+      { id: 'new-s2', dayPosition: 0, exercisePosition: 0, setNumber: 2 },
+    ])
+
+    // Act
+    await updateProgram(USER, 'p1', REPLACE_INPUT, 'ui')
+
+    // Assert — only the same-address override is re-inserted
+    expect(findOverrideInsert()?.values).toEqual([
+      expect.objectContaining({ programSetId: 'new-s1', week: 2, suggestedLoadKg: 80 }),
+    ])
+  })
+
+  it('skips the re-key read and insert entirely when the program had no overrides', async () => {
+    // Act — empty selectQueue: the snapshot read returns []
+    await updateProgram(USER, 'p1', REPLACE_INPUT, 'ui')
+
+    // Assert — only the snapshot select ran; nothing override-shaped inserted
+    expect(selectCalls).toBe(1)
+    expect(findOverrideInsert()).toBeUndefined()
   })
 })
 
