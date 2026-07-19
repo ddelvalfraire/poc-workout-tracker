@@ -97,7 +97,7 @@ export function ExerciseSheet({
       // does via interactiveWidget + dvh, see layout.tsx). Only the result
       // list scrolls — the input can't be scrolled out of view. The 8dvh
       // sliver of backdrop keeps it reading as a dismissible sheet.
-      className="mx-auto mt-auto mb-0 flex h-[92dvh] w-full max-w-md flex-col rounded-t-2xl border-t border-x border-border bg-card px-5 pt-5 text-foreground backdrop:bg-black/60"
+      className="mx-auto mt-auto mb-0 flex h-[92dvh] w-full max-w-md flex-col rounded-t-2xl border-t border-x border-border bg-card px-5 pt-5 text-foreground backdrop:bg-black/60 motion-safe:animate-sheet-up"
     >
       <div className="flex shrink-0 items-start justify-between gap-3 pb-3">
         <p className="min-w-0 truncate text-xs font-semibold uppercase tracking-widest text-primary">
