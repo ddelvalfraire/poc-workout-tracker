@@ -25,6 +25,7 @@ import { parseWeekParam, resolveDayState } from './week-view'
 import { topPRs } from './stats/stats-view'
 import { StartDayButton } from './start-day-button'
 import { ProgramActions } from './program-actions'
+import { ProposalActions } from './proposal-actions'
 import { RestartProgramButton } from './restart-program-button'
 
 /** Chip labels for the change log — WHO edited, in the user's own terms. */
@@ -125,10 +126,16 @@ export default async function ProgramDetailPage({
       .filter((w) => w.completedAt !== null && w.programWeek !== null)
       .map((w) => w.programWeek as number),
   )
+  // Proposed branches BEFORE the draft-default narrowing: a proposal must
+  // never masquerade as a draft (which would surface Activate/Edit/Restart —
+  // exactly the paths the forced confirm exists to block).
+  const isProposed = program.status === 'proposed'
   const status = (
     program.status === 'active' || program.status === 'archived' ? program.status : 'draft'
   ) as 'draft' | 'active' | 'archived'
   const weeks = Array.from({ length: Math.max(1, program.mesocycleWeeks) }, (_, i) => i + 1)
+  const hasArticleHeader =
+    program.heroImageUrl !== null || program.icon !== null || program.description !== null
 
   return (
     <div className="flex min-h-[100dvh] flex-col">
@@ -147,17 +154,104 @@ export default async function ProgramDetailPage({
           <span
             className={cn(
               'shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold uppercase tracking-wide',
-              status === 'active'
-                ? 'bg-primary text-primary-foreground'
-                : 'bg-muted text-muted-foreground',
+              isProposed
+                ? 'border border-primary/50 bg-transparent text-primary'
+                : status === 'active'
+                  ? 'bg-primary text-primary-foreground'
+                  : 'bg-muted text-muted-foreground',
             )}
           >
-            {status}
+            {isProposed ? 'proposed' : status}
           </span>
         }
       />
 
       <main className="mx-auto w-full max-w-md flex-1 px-5 pb-safe">
+        {/* Article READ surface (PRD §3): hero + icon/title + description
+            lead. Renders ONLY when metadata exists — an unadorned program's
+            page is byte-identical to the pre-article layout. */}
+        {hasArticleHeader && (
+          <header className="mt-4">
+            {program.heroImageUrl !== null && (
+              <div className="relative -mx-5 h-44 overflow-hidden sm:mx-0 sm:rounded-2xl">
+                {/* Plain <img>: remote hosts aren't in the next/image
+                    allowlist, and the URL is validated http(s) at the input
+                    boundary. Decorative — the title below carries the name. */}
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={program.heroImageUrl}
+                  alt=""
+                  className="absolute inset-0 size-full object-cover"
+                />
+                {/* Bottom-weighted scrim so the overlaid title keeps contrast
+                    on any image. */}
+                <div
+                  aria-hidden="true"
+                  className="absolute inset-0 bg-gradient-to-t from-background via-background/40 to-transparent"
+                />
+                <p className="absolute inset-x-5 bottom-3 flex items-baseline gap-2 sm:inset-x-4">
+                  {program.icon !== null && (
+                    <span aria-hidden="true" className="text-2xl leading-none">
+                      {program.icon}
+                    </span>
+                  )}
+                  <span className="min-w-0 truncate font-display text-3xl uppercase leading-none tracking-wide">
+                    {program.name}
+                  </span>
+                </p>
+              </div>
+            )}
+            {program.heroImageUrl === null && program.icon !== null && (
+              <p className="flex items-baseline gap-2">
+                <span aria-hidden="true" className="text-2xl leading-none">
+                  {program.icon}
+                </span>
+                <span className="min-w-0 truncate font-display text-3xl uppercase leading-none tracking-wide">
+                  {program.name}
+                </span>
+              </p>
+            )}
+            {program.description !== null && (
+              <p className="mt-3 whitespace-pre-line text-sm leading-relaxed text-muted-foreground">
+                {program.description}
+              </p>
+            )}
+            {program.sourceUrl !== null && (
+              <p className="mt-2 text-xs text-muted-foreground">
+                {/* Attribution is a licensing requirement for imported
+                    templates, not decoration — always rendered when present. */}
+                <a
+                  href={program.sourceUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline underline-offset-2 transition-colors hover:text-foreground"
+                >
+                  Source
+                </a>
+              </p>
+            )}
+          </header>
+        )}
+
+        {/* The forced confirm: a proposal page leads with WHO drafted it and
+            the owner's three explicit choices. Everything below stays a
+            read-only preview until adopted. */}
+        {isProposed && (
+          <section
+            aria-label="Proposed program"
+            className="mt-4 rounded-2xl border border-primary/50 bg-card p-4"
+          >
+            <p className="text-[11px] font-semibold uppercase tracking-widest text-primary">
+              {program.authorActor === 'coach' ? 'Proposed by your coach' : 'Proposed for you'}
+            </p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Review the plan below, then adopt it as a draft, start it right away, or decline.
+              Nothing trains until you confirm.
+            </p>
+            <ProposalActions id={program.id} />
+          </section>
+        )}
+
         {/* "You are here" stays anchored to the CURRENT week even while browsing
             another one — the pills say what's selected, this says what's real. */}
         <div className="mt-4 flex items-baseline justify-between gap-3">
@@ -495,16 +589,21 @@ export default async function ProgramDetailPage({
                       workout is stamped with that exact (day, week), so
                       provenance stays the user's explicit choice and a skipped
                       day can't pin the block. Only the current week's next-up
-                      day earns the volt treatment. */}
-                  <div className="mt-4">
-                    <StartDayButton
-                      programDayId={day.id}
-                      week={selectedWeek}
-                      size={isNextUp ? 'default' : 'sm'}
-                      variant={isNextUp ? 'default' : 'outline'}
-                      activeSession={guardSession}
-                    />
-                  </div>
+                      day earns the volt treatment. A PROPOSED plan offers no
+                      Start at all: it instantiates nothing until adopted (the
+                      db layer refuses regardless — this just keeps the UI
+                      honest about it). */}
+                  {!isProposed && (
+                    <div className="mt-4">
+                      <StartDayButton
+                        programDayId={day.id}
+                        week={selectedWeek}
+                        size={isNextUp ? 'default' : 'sm'}
+                        variant={isNextUp ? 'default' : 'outline'}
+                        activeSession={guardSession}
+                      />
+                    </div>
+                  )}
                 </section>
               )
             })}
@@ -533,12 +632,16 @@ export default async function ProgramDetailPage({
           </section>
         )}
 
-        <ProgramActions
-          id={program.id}
-          status={status}
-          currentWeek={currentWeek}
-          mesocycleWeeks={program.mesocycleWeeks}
-        />
+        {/* A proposal's only actions are the banner's Adopt/Decline above —
+            Edit/Activate/Restart/Delete stay off until the owner confirms. */}
+        {!isProposed && (
+          <ProgramActions
+            id={program.id}
+            status={status}
+            currentWeek={currentWeek}
+            mesocycleWeeks={program.mesocycleWeeks}
+          />
+        )}
       </main>
     </div>
   )

@@ -561,3 +561,65 @@ describe('setOverrideSchema', () => {
     expect(() => setOverrideSchema.parse({ restSec: 90.5 })).toThrow()
   })
 })
+
+describe('article metadata (description/icon/heroImageUrl/sourceUrl)', () => {
+  it('trims values and collapses blank strings to null', () => {
+    // Act
+    const result = parseProgramInput({
+      ...VALID,
+      description: '  A solid PPL block.  ',
+      icon: '   ',
+      heroImageUrl: '',
+      sourceUrl: '  https://example.com/plan  ',
+    })
+
+    // Assert — trimmed, blank → null, valid URL kept
+    expect(result.description).toBe('A solid PPL block.')
+    expect(result.icon).toBeNull()
+    expect(result.heroImageUrl).toBeNull()
+    expect(result.sourceUrl).toBe('https://example.com/plan')
+  })
+
+  it('leaves omitted fields absent and passes explicit null through', () => {
+    const omitted = parseProgramInput(VALID)
+    expect(omitted.description).toBeUndefined()
+
+    const explicit = parseProgramInput({ ...VALID, description: null, heroImageUrl: null })
+    expect(explicit.description).toBeNull()
+    expect(explicit.heroImageUrl).toBeNull()
+  })
+
+  it('enforces the caps (description 4000, others 500)', () => {
+    expect(() =>
+      parseProgramInput({ ...VALID, description: 'x'.repeat(4001) }),
+    ).toThrow()
+    expect(() => parseProgramInput({ ...VALID, icon: 'x'.repeat(501) })).toThrow()
+    expect(() =>
+      parseProgramInput({ ...VALID, sourceUrl: `https://example.com/${'x'.repeat(500)}` }),
+    ).toThrow()
+    expect(() =>
+      parseProgramInput({ ...VALID, description: 'x'.repeat(4000) }),
+    ).not.toThrow()
+  })
+
+  it.each([
+    ['not a URL at all', 'just words'],
+    ['a javascript: URL', 'javascript:alert(1)'],
+    ['a data: URL', 'data:text/html,hi'],
+    ['a protocol-relative fragment', '//example.com/x'],
+  ])('rejects %s for heroImageUrl and sourceUrl', (_label, value) => {
+    // The two URL fields render as an <img src> and an <a href> — only
+    // http(s) may ever reach those sinks.
+    expect(() => parseProgramInput({ ...VALID, heroImageUrl: value })).toThrow()
+    expect(() => parseProgramInput({ ...VALID, sourceUrl: value })).toThrow()
+  })
+
+  it('accepts http and https URLs', () => {
+    expect(() =>
+      parseProgramInput({ ...VALID, heroImageUrl: 'http://example.com/hero.jpg' }),
+    ).not.toThrow()
+    expect(() =>
+      parseProgramInput({ ...VALID, sourceUrl: 'https://wger.de/en/routine/1' }),
+    ).not.toThrow()
+  })
+})

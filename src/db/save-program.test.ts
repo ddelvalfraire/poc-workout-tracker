@@ -12,6 +12,7 @@ import { parseProgramInput } from '@/lib/program-input'
  */
 const records: { values: unknown }[] = []
 const updateSets: unknown[] = []
+let updateReturning: unknown[] = [{ id: 'p1' }]
 let idCounter = 0
 const ID_SEQUENCE = ['p1', 'd1', 'e1', 'e2', 'd2', 'e3']
 
@@ -52,11 +53,12 @@ function makeTx() {
     },
     // updateProgram's ownership-gated metadata update + child wipe. The set
     // payload is captured so omission semantics (a field NOT in the update)
-    // are assertable.
+    // are assertable. `updateReturning` toggles the gate outcome so the
+    // proposed-refusal branch (returning []) is reachable.
     update: () => ({
       set: (v: unknown) => {
         updateSets.push(v)
-        return { where: () => ({ returning: () => Promise.resolve([{ id: 'p1' }]) }) }
+        return { where: () => ({ returning: () => Promise.resolve(updateReturning) }) }
       },
     }),
     delete: () => ({ where: () => Promise.resolve(undefined) }),
@@ -79,12 +81,14 @@ const { listCustomExercises } = vi.hoisted(() => ({ listCustomExercises: vi.fn()
 vi.mock('./custom-exercises', () => ({ listCustomExercises }))
 
 import { saveProgram, updateProgram } from './programs'
+import { ProposedProgramError } from './program-errors'
 
 const USER = 'user_123'
 
 beforeEach(() => {
   records.length = 0
   updateSets.length = 0
+  updateReturning = [{ id: 'p1' }]
   selectQueue.length = 0
   selectCalls = 0
   idCounter = 0
@@ -266,6 +270,90 @@ describe('saveProgram (transactional, user-scoped)', () => {
       source: 'custom',
       supersetGroup: 1,
     })
+  })
+})
+
+describe('article metadata round-trip (PRD §3)', () => {
+  const META = {
+    description: 'A push/pull/legs block.',
+    icon: '🏋️',
+    heroImageUrl: 'https://example.com/hero.jpg',
+    sourceUrl: 'https://wger.de/en/routine/1',
+  }
+  const WITH_META = {
+    name: 'PPL',
+    ...META,
+    days: [{ name: 'Push', exercises: [{ wgerExerciseId: 1, name: 'Bench', sets: [{}] }] }],
+  }
+
+  it('saveProgram persists all four fields (and defaults omitted ones to null)', async () => {
+    // Act
+    await saveProgram(USER, parseProgramInput(WITH_META), 'ui')
+
+    // Assert — the programs insert carries the metadata verbatim
+    expect(records[0].values).toMatchObject(META)
+
+    // And an input without them writes explicit nulls (not undefined)
+    records.length = 0
+    idCounter = 0
+    await saveProgram(
+      USER,
+      parseProgramInput({ name: 'P', days: WITH_META.days }),
+      'ui',
+    )
+    expect(records[0].values).toMatchObject({
+      description: null,
+      icon: null,
+      heroImageUrl: null,
+      sourceUrl: null,
+    })
+  })
+
+  it('updateProgram (full replace) writes the fields through — and clears omitted ones', async () => {
+    // Act — replace carrying metadata
+    await updateProgram(USER, 'p1', parseProgramInput(WITH_META), 'ui')
+    expect(updateSets[0]).toMatchObject(META)
+
+    // Act — replace omitting metadata clears it (full-replace semantics,
+    // same as notes)
+    await updateProgram(USER, 'p1', parseProgramInput({ name: 'P', days: WITH_META.days }), 'ui')
+    expect(updateSets[1]).toMatchObject({
+      description: null,
+      icon: null,
+      heroImageUrl: null,
+      sourceUrl: null,
+    })
+  })
+})
+
+describe('updateProgram promotion guard (proposed rows)', () => {
+  const INPUT = parseProgramInput({
+    name: 'P',
+    days: [{ name: 'D', exercises: [{ wgerExerciseId: 1, name: 'X', sets: [{}] }] }],
+  })
+
+  it('refuses a full replace of a proposed program with ProposedProgramError', async () => {
+    // Arrange — the ne(status,'proposed') gate matches nothing; the follow-up
+    // existence read reveals the row IS a proposal
+    updateReturning = []
+    selectQueue.push([{ status: 'proposed' }])
+
+    // Act + Assert — clear refusal, and NO child wipe/re-insert happened
+    await expect(updateProgram(USER, 'p1', INPUT, 'ui')).rejects.toThrow(ProposedProgramError)
+    expect(records).toHaveLength(0)
+  })
+
+  it('still returns null (plain not-found) when the row is missing or unowned', async () => {
+    // Arrange — gate matches nothing and the existence read finds nothing
+    updateReturning = []
+    selectQueue.push([])
+
+    // Act
+    const result = await updateProgram(USER, 'p1', INPUT, 'ui')
+
+    // Assert
+    expect(result).toBeNull()
+    expect(records).toHaveLength(0)
   })
 })
 

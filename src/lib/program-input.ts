@@ -33,8 +33,52 @@ export const MAX_REST_SEC = 3600
 export const setTypeSchema = z.enum(['warmup', 'working', 'backoff', 'amrap'])
 /** How a set is measured/logged. `estimated1RM` applies only to `reps_weight`. */
 export const metricModeSchema = z.enum(['reps_weight', 'duration', 'duration_distance'])
-/** Program lifecycle state. */
+/** Program lifecycle state SETTABLE through input. 'proposed' is deliberately
+ *  absent: owner-authored rows never enter it, and nothing may promote INTO it
+ *  through upsert/set_program_status — proposals are minted only by the coach
+ *  bridge (Phase 2) and exit only via adoptProgram/declineProgram. */
 export const statusSchema = z.enum(['draft', 'active', 'archived'])
+
+// Article-metadata caps (PRD §3): the description is an article lead, the
+// rest are short tokens/URLs.
+export const MAX_DESCRIPTION = 4000
+export const MAX_METADATA_TEXT = 500
+
+/** Trimmed optional text: blank collapses to null (absent stays absent so the
+ *  db layer's `?? null` keeps create/replace semantics identical to `notes`). */
+function trimmedText(max: number) {
+  return z
+    .string()
+    .trim()
+    .max(max)
+    .transform((s) => (s === '' ? null : s))
+    .nullable()
+    .optional()
+}
+
+/** Trimmed optional text that must additionally parse as an http(s) URL. */
+function httpUrlText(max: number) {
+  return z
+    .string()
+    .trim()
+    .max(max)
+    .transform((s) => (s === '' ? null : s))
+    .superRefine((value, ctx) => {
+      if (value === null) return
+      let parsed: URL
+      try {
+        parsed = new URL(value)
+      } catch {
+        ctx.addIssue({ code: 'custom', message: 'must be a valid http(s) URL' })
+        return
+      }
+      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+        ctx.addIssue({ code: 'custom', message: 'must be a valid http(s) URL' })
+      }
+    })
+    .nullable()
+    .optional()
+}
 
 /**
  * Intensity-technique tail (narrow JSONB on `program_sets`). One unified
@@ -264,6 +308,14 @@ export const programInputSchema = z
     // updateProgram preserves the stored value when omitted.
     autoregulation: z.boolean().optional(),
     notes: z.string().max(2000).nullable().optional(),
+    // Article metadata (PRD §3) — presentation only, all optional; blank
+    // strings collapse to null so "cleared in a form" and "absent" persist
+    // identically. URLs must be http(s) — they render as a hero image src
+    // and an attribution href.
+    description: trimmedText(MAX_DESCRIPTION),
+    icon: trimmedText(MAX_METADATA_TEXT),
+    heroImageUrl: httpUrlText(MAX_METADATA_TEXT),
+    sourceUrl: httpUrlText(MAX_METADATA_TEXT),
     days: z.array(programDaySchema).min(1),
   })
   // A deload can only fall within the mesocycle (defaults applied before this runs).

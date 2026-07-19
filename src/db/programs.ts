@@ -21,6 +21,7 @@ import { getRecentTrainedSessions } from './autoreg-history'
 import { pickNextProgramDay } from '@/lib/next-program-day'
 import { nextBlockName } from '@/lib/block-name'
 import { db } from './index'
+import { ProposedProgramError } from './program-errors'
 import { recordProgramEvent, type ProgramEventActor } from './program-events'
 import { getLastPerformance, getExerciseHistoryBefore } from './workouts'
 import { listCustomExercises } from './custom-exercises'
@@ -236,6 +237,13 @@ export async function saveProgram(
         // softener, not an opt-in gate.
         autoregulation: input.autoregulation ?? true,
         notes: input.notes ?? null,
+        // Article metadata rides create like notes: omitted = null.
+        // authorActor is NOT set here — every caller of saveProgram is an
+        // owner path, so the column default 'owner' is the fact.
+        description: input.description ?? null,
+        icon: input.icon ?? null,
+        heroImageUrl: input.heroImageUrl ?? null,
+        sourceUrl: input.sourceUrl ?? null,
       })
       .returning({ id: programs.id })
 
@@ -372,11 +380,28 @@ export async function updateProgram(
         // doesn't mention the field must never flip a user's OFF back ON.
         ...(input.autoregulation !== undefined ? { autoregulation: input.autoregulation } : {}),
         notes: input.notes ?? null,
+        description: input.description ?? null,
+        icon: input.icon ?? null,
+        heroImageUrl: input.heroImageUrl ?? null,
+        sourceUrl: input.sourceUrl ?? null,
         updatedAt: new Date(),
       })
-      .where(and(eq(programs.id, id), eq(programs.userId, userId)))
+      // ne('proposed'): a full replace sets status, so it is a promotion path
+      // and must never move a proposal — only adoptProgram/declineProgram may.
+      .where(
+        and(eq(programs.id, id), eq(programs.userId, userId), ne(programs.status, 'proposed')),
+      )
       .returning({ id: programs.id })
-    if (!owned) return null
+    if (!owned) {
+      // Distinguish "not owned/missing" (null, like before) from "refused
+      // because proposed" (a clear, actionable error for the caller).
+      const [existing] = await tx
+        .select({ status: programs.status })
+        .from(programs)
+        .where(and(eq(programs.id, id), eq(programs.userId, userId)))
+      if (existing?.status === 'proposed') throw new ProposedProgramError(id)
+      return null
+    }
 
     // Snapshot → wipe → re-attach: overrides can't ride ProgramInput, so
     // they'd otherwise cascade away with the deleted set rows.
@@ -411,6 +436,10 @@ export function deleteProgram(userId: string, id: string) {
  * `update ... returning`. Returns null when the user doesn't own the program.
  * Activating also archives the user's other active programs — the home hero
  * must never tiebreak between two actives by recency (one active at a time).
+ *
+ * Promotion guard: a 'proposed' row is refused (ProposedProgramError) — its
+ * only exits are adoptProgram/declineProgram. The refusal check runs only
+ * when the gated update matched nothing, so the happy path stays one write.
  */
 export async function setProgramStatus(
   userId: string,
@@ -421,10 +450,20 @@ export async function setProgramStatus(
   const [owned] = await db
     .update(programs)
     .set({ status, updatedAt: new Date() })
-    .where(and(eq(programs.id, id), eq(programs.userId, userId)))
+    .where(and(eq(programs.id, id), eq(programs.userId, userId), ne(programs.status, 'proposed')))
     .returning({ id: programs.id })
+  if (!owned) {
+    const [existing] = await db
+      .select({ status: programs.status })
+      .from(programs)
+      .where(and(eq(programs.id, id), eq(programs.userId, userId)))
+    if (existing?.status === 'proposed') throw new ProposedProgramError(id)
+    return null
+  }
   // Sibling sweep AFTER the ownership gate: a not-owned activate must never
-  // archive anything. No transaction — a sweep failure just preserves the
+  // archive anything. eq(status,'active') keeps 'proposed' rows out of the
+  // sweep by construction — a proposal is never "the other active".
+  // No transaction — a sweep failure just preserves the
   // pre-existing two-active state, which self-heals on the next activate.
   if (status === 'active' && owned) {
     await db
@@ -449,6 +488,93 @@ export async function setProgramStatus(
 }
 
 /**
+ * The forced confirm's accept path — the ONLY way a 'proposed' program leaves
+ * that status upward. Owner-only by construction (userId gate + the UI server
+ * action is the sole caller), hence the hardcoded 'ui' actor. `activate: true`
+ * goes straight to 'active' and runs the same single-active sweep as
+ * setProgramStatus; false lands on 'draft'. Returns null when the row isn't
+ * owned or isn't a proposal (adopt is meaningless elsewhere — no side effects).
+ */
+export async function adoptProgram(
+  userId: string,
+  programId: string,
+  activate: boolean,
+): Promise<{ id: string } | null> {
+  const status = activate ? 'active' : 'draft'
+  const [owned] = await db
+    .update(programs)
+    .set({ status, updatedAt: new Date() })
+    .where(
+      and(
+        eq(programs.id, programId),
+        eq(programs.userId, userId),
+        eq(programs.status, 'proposed'),
+      ),
+    )
+    .returning({ id: programs.id })
+  if (!owned) return null
+  // Same sweep discipline as setProgramStatus: gate first, no transaction (a
+  // sweep failure self-heals on the next activate).
+  if (activate) {
+    await db
+      .update(programs)
+      .set({ status: 'archived', updatedAt: new Date() })
+      .where(
+        and(eq(programs.userId, userId), eq(programs.status, 'active'), ne(programs.id, programId)),
+      )
+  }
+  // The adoption is an OWNER fact — the audit line the PRD's attribution
+  // metric asserts on ("adoption logs an owner event").
+  await recordProgramEvent(db, {
+    programId,
+    userId,
+    actor: 'ui',
+    action: 'adopt_program',
+    summary: `Proposal adopted → ${status}`,
+    payload: { after: { status } },
+  })
+  return owned
+}
+
+/**
+ * The forced confirm's reject path: hard delete (PRD open question resolved —
+ * hard-delete v1; restart-as-clone never applied, a proposal has no history).
+ * Gated on ownership AND 'proposed' so this can never delete an adopted or
+ * owner-authored program. The decline event is recorded in the same
+ * transaction BEFORE the delete (FK order); it cascades away with the row —
+ * accepted for v1, and it becomes a durable trail the day decline turns into
+ * a soft status instead of a delete.
+ */
+export async function declineProgram(
+  userId: string,
+  programId: string,
+): Promise<{ id: string } | null> {
+  return db.transaction(async (tx) => {
+    const [owned] = await tx
+      .select({ id: programs.id })
+      .from(programs)
+      .where(
+        and(
+          eq(programs.id, programId),
+          eq(programs.userId, userId),
+          eq(programs.status, 'proposed'),
+        ),
+      )
+    if (!owned) return null
+    await recordProgramEvent(tx, {
+      programId,
+      userId,
+      actor: 'ui',
+      action: 'decline_program',
+      summary: 'Proposal declined',
+      payload: { after: { deleted: true } },
+    })
+    await tx.delete(programs).where(eq(programs.id, programId))
+    return { id: owned.id }
+  })
+}
+
+/**
  * Clones a program's ENTIRE tree row-for-row — days, exercises (superset
  * groups, custom-exercise source, progression), sets (technique, per-set
  * rest), per-week set overrides, and muscle tags — as a fresh DRAFT named by
@@ -468,6 +594,10 @@ export async function cloneProgram(
 ): Promise<{ id: string } | null> {
   const source = await getProgramDetail(userId, sourceId) // ownership gate
   if (!source) return null
+  // A proposal must not be laundered into an adopted plan through clone/
+  // restart — cloning would mint an owner-authored draft twin with no adopt
+  // event. Adopt or decline first; the clone paths stay owner-only.
+  if (source.status === 'proposed') throw new ProposedProgramError(sourceId)
   return db.transaction(async (tx) => {
     const [program] = await tx
       .insert(programs)
@@ -479,6 +609,13 @@ export async function cloneProgram(
         deloadWeek: source.deloadWeek,
         autoregulation: source.autoregulation,
         notes: source.notes,
+        // Article metadata travels with the block; authorActor deliberately
+        // does NOT — the owner initiated the clone, so the copy is
+        // owner-authored (column default).
+        description: source.description,
+        icon: source.icon,
+        heroImageUrl: source.heroImageUrl,
+        sourceUrl: source.sourceUrl,
       })
       .returning({ id: programs.id })
 
@@ -587,7 +724,9 @@ export async function getProgramDayDetail(userId: string, programDayId: string) 
     where: eq(programDays.id, programDayId),
     with: {
       program: {
-        columns: { id: true, userId: true, mesocycleWeeks: true, deloadWeek: true, autoregulation: true },
+        // status rides along so instantiation can refuse proposals — a
+        // 'proposed' plan instantiates nothing until the owner adopts it.
+        columns: { id: true, userId: true, status: true, mesocycleWeeks: true, deloadWeek: true, autoregulation: true },
       },
       exercises: {
         orderBy: (e) => [asc(e.position)],
@@ -778,6 +917,9 @@ export async function getNextProgramDay(userId: string): Promise<NextProgramDay 
       mesocycleWeeks: programs.mesocycleWeeks,
     })
     .from(programs)
+    // eq(status,'active') is also the proposal exclusion: a 'proposed' row can
+    // never become 'active' outside adoptProgram, so next-day derivation
+    // structurally cannot pick one.
     .where(and(eq(programs.userId, userId), eq(programs.status, 'active')))
     .orderBy(desc(programs.updatedAt))
     .limit(1)
@@ -1018,6 +1160,10 @@ export async function instantiateProgramDay(
 ): Promise<{ id: string; week: number; weekDerived: boolean } | null> {
   const day = await getProgramDayDetail(userId, programDayId)
   if (!day) return null
+
+  // Forced-confirm guard: a 'proposed' program derives and instantiates
+  // NOTHING — no code path may train a plan the owner hasn't adopted.
+  if (day.program.status === 'proposed') throw new ProposedProgramError(day.program.id)
 
   // An explicit week must live on the block's axis: callers are the program
   // page's selected week and the MCP tool's argument, both caller-supplied

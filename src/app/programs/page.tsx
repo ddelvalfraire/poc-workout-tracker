@@ -53,31 +53,53 @@ export default async function ProgramsPage() {
           <ul className="space-y-3">
             {programs.map((program) => {
               const isActive = program.status === 'active'
+              // A proposal is visible in the list (the owner must find it to
+              // confirm it) but visually distinct: dashed volt border + a
+              // "Proposed" chip instead of the plain status word.
+              const isProposed = program.status === 'proposed'
               return (
                 <li key={program.id}>
                   <Link
                     href={`/programs/${program.id}`}
                     className={cn(
                       'flex min-w-0 items-stretch justify-between gap-4 rounded-2xl border bg-card p-5 transition-colors active:bg-muted/60',
-                      isActive ? 'border-primary/40' : 'border-border',
+                      isActive
+                        ? 'border-primary/40'
+                        : isProposed
+                          ? 'border-dashed border-primary/50'
+                          : 'border-border',
                     )}
                   >
                     <span className="flex min-w-0 flex-col justify-between gap-3">
                       <span className="min-w-0">
-                        <span className="block truncate font-display text-xl uppercase leading-tight tracking-wide">
-                          {program.name}
-                        </span>
-                        <span
-                          className={cn(
-                            'mt-1.5 inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-widest',
-                            isActive ? 'text-primary' : 'text-muted-foreground',
+                        <span className="flex min-w-0 items-baseline gap-2 font-display text-xl uppercase leading-tight tracking-wide">
+                          {program.icon !== null && (
+                            <span aria-hidden="true" className="shrink-0 text-lg leading-none">
+                              {program.icon}
+                            </span>
                           )}
-                        >
-                          {isActive && (
-                            <span aria-hidden="true" className="size-1.5 rounded-full bg-primary" />
-                          )}
-                          {program.status}
+                          <span className="min-w-0 truncate">{program.name}</span>
                         </span>
+                        {isProposed ? (
+                          <span className="mt-1.5 inline-flex items-center rounded-full border border-primary/50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-widest text-primary">
+                            Proposed
+                          </span>
+                        ) : (
+                          <span
+                            className={cn(
+                              'mt-1.5 inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-widest',
+                              isActive ? 'text-primary' : 'text-muted-foreground',
+                            )}
+                          >
+                            {isActive && (
+                              <span
+                                aria-hidden="true"
+                                className="size-1.5 rounded-full bg-primary"
+                              />
+                            )}
+                            {program.status}
+                          </span>
+                        )}
                       </span>
                       {program.deloadWeek !== null && (
                         <span className="text-sm text-muted-foreground">

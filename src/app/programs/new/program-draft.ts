@@ -88,6 +88,13 @@ export interface ProgramDraft {
   // Pass-through fields (lifecycle/notes aren't edited by the builder).
   status: ProgramInput['status']
   notes: string | null
+  // Pass-through article metadata (PRD §3): authored by the coach/import
+  // paths, not the builder — but a UI edit is a full replace, so dropping
+  // them here would silently wipe a program's article surface.
+  description: string | null
+  icon: string | null
+  heroImageUrl: string | null
+  sourceUrl: string | null
 }
 
 export type ProgramDraftAction =
@@ -119,6 +126,10 @@ export const emptyProgramDraft: ProgramDraft = {
   days: [],
   status: 'draft',
   notes: null,
+  description: null,
+  icon: null,
+  heroImageUrl: null,
+  sourceUrl: null,
 }
 
 /**
@@ -388,6 +399,11 @@ export function parseStoredProgramDraft(raw: string, now: Date): ProgramDraft | 
   // instead of being discarded a day into a 30-set build.
   return {
     ...envelope.draft,
+    // Pre-article-metadata snapshots restore with the fields absent → null.
+    description: envelope.draft.description ?? null,
+    icon: envelope.draft.icon ?? null,
+    heroImageUrl: envelope.draft.heroImageUrl ?? null,
+    sourceUrl: envelope.draft.sourceUrl ?? null,
     days: envelope.draft.days.map((day) => ({
       ...day,
       exercises: day.exercises.map((exercise) => ({
@@ -478,6 +494,10 @@ export function draftToProgramInput(
     deloadWeek: toInt(draft.deloadWeek),
     autoregulation: draft.autoregulation,
     notes: draft.notes,
+    description: draft.description,
+    icon: draft.icon,
+    heroImageUrl: draft.heroImageUrl,
+    sourceUrl: draft.sourceUrl,
     days,
   }
   return trimmedName ? { name: trimmedName, ...base } : base
@@ -508,6 +528,10 @@ export function detailToProgramDraft(
     autoregulation: detail.autoregulation,
     status: toStatus(detail.status),
     notes: detail.notes,
+    description: detail.description,
+    icon: detail.icon,
+    heroImageUrl: detail.heroImageUrl,
+    sourceUrl: detail.sourceUrl,
     days: detail.days.map((day) => ({
       id: day.id,
       name: day.name,
