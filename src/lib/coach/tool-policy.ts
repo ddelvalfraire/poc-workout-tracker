@@ -69,6 +69,7 @@ export const COACH_EXCLUDED_TOOLS = [
   'update_workout',
   'delete_workout',
   'set_workout_meta',
+  'set_exercise_meta',
   'update_set',
   'add_set',
   'remove_set',

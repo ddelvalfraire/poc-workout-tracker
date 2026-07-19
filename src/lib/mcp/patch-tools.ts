@@ -4,10 +4,10 @@ import { resolveUserId } from './resolve-user'
 import { jsonResult, errorResult } from './result'
 import { ToolError } from './errors'
 import { assertWorkoutIdShape } from './workout-id'
-import { updateSet, addSet, removeSet, updateWorkoutMeta } from '@/db/workouts'
+import { updateSet, addSet, removeSet, updateWorkoutMeta, updateExerciseMeta } from '@/db/workouts'
 import { getWeightUnit } from '@/db/preferences'
 import { displayToKg, kgToDisplay, type WeightUnit } from '@/lib/units'
-import { MAX_WEIGHT as MAX_WEIGHT_KG, parseStartedAt } from '@/lib/workout-input'
+import { MAX_WEIGHT as MAX_WEIGHT_KG, parseStartedAt, parseNotes } from '@/lib/workout-input'
 
 /** Optional explicit unit override; absent → the user's stored unit. */
 const unitArg = z.enum(['kg', 'lb']).optional()
@@ -40,8 +40,9 @@ function toKgWeight(
  * `update_workout` still exists for wholesale changes).
  *
  * `update_set` / `add_set` / `remove_set` address a set by `workoutId` + 0-based
- * exercise `position` + 1-based `setNumber`; `set_workout_meta` renames and/or
- * backdates. Like the other tools each handler funnels its user through
+ * exercise `position` + 1-based `setNumber`; `set_workout_meta` renames,
+ * backdates, and/or annotates; `set_exercise_meta` notes/skips one exercise.
+ * Like the other tools each handler funnels its user through
  * `resolveUserId` (the authorization boundary), guards the id shape, converts
  * display weights to kg, and surfaces not-owned/not-found as a `ToolError`. The
  * DB ops are themselves user-scoped, so ownership is enforced at two layers.
@@ -179,38 +180,87 @@ export function registerPatchTools(server: McpServer): void {
     {
       title: 'Set Workout Meta',
       description:
-        "Renames and/or backdates a workout without touching its exercises/sets. Pass `name` (empty string clears it) and/or `startedAt` (ISO 8601, not in the future). Errors if the workout isn't found or owned.",
+        "Renames, backdates, and/or annotates a workout without touching its exercises/sets. Pass `name` (empty string clears it), `startedAt` (ISO 8601, not in the future), and/or `notes` (free-form session note, empty string clears it). Errors if the workout isn't found or owned.",
       inputSchema: {
         workoutId: z.string(),
         name: z.string().optional(),
         startedAt: z.string().datetime().optional(),
+        notes: z.string().optional(),
         userId: z.string().optional(),
       },
     },
-    async ({ workoutId, name, startedAt, userId }, extra) => {
+    async ({ workoutId, name, startedAt, notes, userId }, extra) => {
       try {
         const resolved = resolveUserId(extra, userId)
         assertWorkoutIdShape(workoutId)
-        if (name === undefined && startedAt === undefined) {
-          throw new ToolError('set_workout_meta needs at least one of name or startedAt')
+        if (name === undefined && startedAt === undefined && notes === undefined) {
+          throw new ToolError('set_workout_meta needs at least one of name, startedAt, or notes')
         }
-        // parseStartedAt throws a plain Error on a future/invalid date; re-throw as
+        // parseStartedAt/parseNotes throw a plain Error on a bad value; re-throw as
         // a ToolError so the real message reaches the agent instead of being genericized.
         let parsedStartedAt: Date | undefined
+        let parsedNotes: string | null | undefined
         try {
           parsedStartedAt = parseStartedAt(startedAt)
+          // parseNotes trims and bounds; blank → undefined, which here means CLEAR
+          // (the arg was given), so it maps to null — same rule as name above.
+          if (notes !== undefined) parsedNotes = parseNotes(notes, 'workout') ?? null
         } catch (error: unknown) {
-          throw new ToolError(error instanceof Error ? error.message : 'invalid startedAt')
+          throw new ToolError(error instanceof Error ? error.message : 'invalid workout meta')
         }
         const meta = {
           ...(name !== undefined ? { name: name.trim() === '' ? null : name.trim() } : {}),
           ...(parsedStartedAt !== undefined ? { startedAt: parsedStartedAt } : {}),
+          ...(parsedNotes !== undefined ? { notes: parsedNotes } : {}),
         }
         const result = await updateWorkoutMeta(resolved, workoutId, meta)
         if (!result) {
           throw new ToolError(`Workout ${workoutId} not found for user ${resolved}`)
         }
         return jsonResult({ userId: resolved, workoutId })
+      } catch (error: unknown) {
+        return errorResult(error)
+      }
+    },
+  )
+
+  server.registerTool(
+    'set_exercise_meta',
+    {
+      title: 'Set Exercise Meta',
+      description:
+        "Sets one workout exercise's note and/or skipped flag (by workoutId + 0-based position) without touching its sets. `notes` is a free-form note (empty string clears it); `skipped: true` means the lifter didn't do this exercise that day — the sets stay as logged (uncompleted), never completed or deleted. Errors if the workout/exercise isn't found or owned.",
+      inputSchema: {
+        workoutId: z.string(),
+        exercisePosition: z.number().int().min(0),
+        notes: z.string().optional(),
+        skipped: z.boolean().optional(),
+        userId: z.string().optional(),
+      },
+    },
+    async ({ workoutId, exercisePosition, notes, skipped, userId }, extra) => {
+      try {
+        const resolved = resolveUserId(extra, userId)
+        assertWorkoutIdShape(workoutId)
+        if (notes === undefined && skipped === undefined) {
+          throw new ToolError('set_exercise_meta needs at least one of notes or skipped')
+        }
+        // Same clear-on-blank rule as set_workout_meta's notes; parseNotes throws
+        // a plain Error over the cap — re-throw as ToolError to keep the message.
+        let parsedNotes: string | null | undefined
+        try {
+          if (notes !== undefined) parsedNotes = parseNotes(notes, 'exercise') ?? null
+        } catch (error: unknown) {
+          throw new ToolError(error instanceof Error ? error.message : 'invalid exercise notes')
+        }
+        const result = await updateExerciseMeta(resolved, workoutId, exercisePosition, {
+          ...(parsedNotes !== undefined ? { notes: parsedNotes } : {}),
+          ...(skipped !== undefined ? { skipped } : {}),
+        })
+        if (!result) {
+          throw new ToolError(`Exercise ${exercisePosition} in workout ${workoutId} not found`)
+        }
+        return jsonResult({ userId: resolved, workoutId, exercisePosition })
       } catch (error: unknown) {
         return errorResult(error)
       }

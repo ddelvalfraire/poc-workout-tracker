@@ -301,6 +301,59 @@ describe('registerReadTools', () => {
       expect(body.workout.exercises[0]!.bestReps).toBeUndefined()
     })
 
+    it('round-trips the session notes and per-exercise notes/skipped', async () => {
+      // Arrange — a session note, plus a skipped exercise carrying its own note
+      const tools = setup()
+      mockedDetail.mockResolvedValue({
+        ...detail(),
+        notes: 'left knee felt off',
+        exercises: [
+          {
+            id: 'we1',
+            wgerExerciseId: 73,
+            name: 'Squat',
+            position: 0,
+            loggingType: 'weight_reps',
+            notes: 'skipped: knee pain',
+            skipped: true,
+            sets: [{ setNumber: 1, reps: null, weight: null, completed: false }],
+          },
+        ],
+      } as unknown as Awaited<ReturnType<typeof getWorkoutDetail>>)
+
+      // Act
+      const result = await tools.get('get_workout')!({ id: '11111111-1111-4111-8111-111111111111' })
+
+      // Assert — both levels surface verbatim
+      const body = payload(result) as {
+        workout: { notes: string | null; exercises: { notes: string | null; skipped: boolean }[] }
+      }
+      expect(body.workout.notes).toBe('left knee felt off')
+      expect(body.workout.exercises[0]!.notes).toBe('skipped: knee pain')
+      expect(body.workout.exercises[0]!.skipped).toBe(true)
+    })
+
+    it('emits null notes and skipped:false for an unannotated exercise', async () => {
+      // Arrange — DB defaults: notes null (both levels), skipped false
+      const tools = setup()
+      mockedDetail.mockResolvedValue({
+        ...detail(),
+        notes: null,
+        exercises: detail().exercises.map((e) => ({ ...e, notes: null, skipped: false })),
+      } as unknown as Awaited<ReturnType<typeof getWorkoutDetail>>)
+
+      // Act
+      const result = await tools.get('get_workout')!({ id: '11111111-1111-4111-8111-111111111111' })
+
+      // Assert — nulls emitted (not omitted), matching the surrounding serializer style
+      const body = payload(result) as {
+        workout: { notes: string | null; exercises: { notes: string | null; skipped: boolean }[] }
+      }
+      expect(body.workout.notes).toBeNull()
+      expect(body.workout.exercises[0]!.notes).toBeNull()
+      expect(body.workout.exercises[0]!.skipped).toBe(false)
+    })
+
     it('returns weights verbatim when the unit is kg', async () => {
       // Arrange
       const tools = setup()

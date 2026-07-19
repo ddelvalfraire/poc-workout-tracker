@@ -76,6 +76,7 @@ describe('registerTools', () => {
       'remove_set',
       'restart_program',
       'search_exercises',
+      'set_exercise_meta',
       'set_program_autoregulation',
       'set_program_set_override',
       'set_program_status',

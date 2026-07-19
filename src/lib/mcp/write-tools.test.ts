@@ -189,6 +189,67 @@ describe('registerWriteTools', () => {
       expect(mockedSave).not.toHaveBeenCalled()
     })
 
+    it('passes workout notes and per-exercise notes/skipped through to saveWorkout', async () => {
+      // Arrange
+      const tools = setup()
+      mockedSave.mockResolvedValue({ id: 'w1' })
+
+      // Act
+      await tools.get('create_workout')!({
+        notes: '  great session  ',
+        exercises: [
+          {
+            wgerExerciseId: 1,
+            name: 'Bench',
+            notes: 'shoulder twinge on set 1',
+            skipped: true,
+            sets: [{ reps: null, weight: null }],
+          },
+        ],
+      })
+
+      // Assert — validated through parseWorkoutInput: notes trimmed, skipped verbatim
+      expect(mockedSave).toHaveBeenCalledWith(
+        'user_env',
+        expect.objectContaining({
+          notes: 'great session',
+          exercises: [
+            expect.objectContaining({ notes: 'shoulder twinge on set 1', skipped: true }),
+          ],
+        }),
+      )
+    })
+
+    it('rejects over-long workout notes (>2000 chars) and never saves', async () => {
+      // Arrange
+      const tools = setup()
+
+      // Act
+      const result = await tools.get('create_workout')!({ ...BODY, notes: 'x'.repeat(2001) })
+
+      // Assert — parseWorkoutInput's reject-don't-truncate rule surfaces verbatim
+      expect(result.isError).toBe(true)
+      expect(result.content[0]?.text).toMatch(/2000 characters or fewer/)
+      expect(mockedSave).not.toHaveBeenCalled()
+    })
+
+    it('rejects a non-boolean skipped (a truthy string must not mark work skipped)', async () => {
+      // Arrange
+      const tools = setup()
+
+      // Act
+      const result = await tools.get('create_workout')!({
+        exercises: [
+          { wgerExerciseId: 1, name: 'Bench', skipped: 'yes', sets: [{ reps: null, weight: null }] },
+        ],
+      })
+
+      // Assert
+      expect(result.isError).toBe(true)
+      expect(result.content[0]?.text).toMatch(/skipped must be a boolean/)
+      expect(mockedSave).not.toHaveBeenCalled()
+    })
+
     it('persists a backdated startedAt as a Date passed to saveWorkout', async () => {
       // Arrange
       const tools = setup()

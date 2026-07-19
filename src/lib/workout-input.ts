@@ -121,8 +121,9 @@ function parseName(raw: unknown): string | undefined {
 }
 
 /** Validates an optional free-text note: must be a string; blank/whitespace →
- *  omitted; over the cap → rejected (same reject-don't-truncate rule as name). */
-function parseNotes(raw: unknown, field: string): string | undefined {
+ *  omitted; over the cap → rejected (same reject-don't-truncate rule as name).
+ *  Exported so the MCP meta tools validate notes through this exact rule. */
+export function parseNotes(raw: unknown, field: string): string | undefined {
   if (raw === undefined || raw === null) return undefined
   if (typeof raw !== 'string') throw new Error(`${field} notes must be a string`)
   const trimmed = raw.trim()
