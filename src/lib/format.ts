@@ -177,6 +177,24 @@ export function adoptableGhostValue(ghost?: string): string | undefined {
 }
 
 /**
+ * The set row's grey input ghost: the PLAN's week-N target, nothing else.
+ * History lives in the Prev column — ghosting it in the inputs too put the
+ * same numbers on screen twice with different meanings (and partial history
+ * produced mixed-source fragments). A plan target may be legitimately
+ * partial (a rep range without a prescribed load is a real prescription);
+ * BW-relative types never ghost a weight — theirs isn't a total load.
+ */
+export function planSetGhost(
+  plan: { reps?: string; weight?: string },
+  loggingType: LoggingType,
+): { reps?: string; weight?: string } {
+  return {
+    reps: plan.reps,
+    weight: loggingType === 'weight_reps' ? plan.weight : undefined,
+  }
+}
+
+/**
  * Compact label for the logger's Previous column: "60×8", or null when there's
  * nothing to show (the chip renders an em dash, disabled).
  *

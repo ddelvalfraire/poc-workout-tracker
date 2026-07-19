@@ -10,6 +10,7 @@ import {
   placeholderForSet,
   planPlaceholderForSet,
   adoptableGhostValue,
+  planSetGhost,
   previousChipLabel,
   completedSetsSummary,
   stepWeightValue,
@@ -296,6 +297,30 @@ describe('formatWorkoutDate', () => {
     // Midday UTC so the date can't roll to the prior day in negative offsets.
     const result = formatWorkoutDate(new Date('2026-06-14T12:00:00Z'))
     expect(result).toContain('2026')
+  })
+})
+
+describe('planSetGhost', () => {
+  it('passes the plan pair through for weight_reps', () => {
+    expect(planSetGhost({ reps: '8–12', weight: '60' }, 'weight_reps')).toEqual({
+      reps: '8–12',
+      weight: '60',
+    })
+  })
+
+  it('allows a legitimately partial plan target (rep range, no load)', () => {
+    expect(planSetGhost({ reps: '8–12' }, 'weight_reps')).toEqual({
+      reps: '8–12',
+      weight: undefined,
+    })
+  })
+
+  it('never ghosts a weight for BW-relative types', () => {
+    expect(planSetGhost({ reps: '8', weight: '20' }, 'weighted_bodyweight')).toEqual({
+      reps: '8',
+      weight: undefined,
+    })
+    expect(planSetGhost({}, 'bodyweight_reps')).toEqual({ reps: undefined, weight: undefined })
   })
 })
 
