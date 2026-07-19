@@ -66,12 +66,19 @@ export interface ExerciseInput {
   name: string
   /** How the sets' weights read; absent = 'weight_reps' (the column default). */
   loggingType?: LoggingType
+  /** Free-form per-exercise note; absent = none (the column stores null). */
+  notes?: string
+  /** Skipped in-session; absent = false (the column default). Skipping never
+   *  completes or deletes the sets — they save uncompleted. */
+  skipped?: boolean
   sets: SetInput[]
 }
 
 /** A full workout ready to persist. */
 export interface WorkoutInput {
   name?: string
+  /** Free-form session note; absent = none (the column stores null). */
+  notes?: string
   exercises: ExerciseInput[]
   /**
    * When the session was performed. Optional so create defaults to the DB's
@@ -88,6 +95,9 @@ export interface WorkoutInput {
 }
 
 const MAX_NAME = 200
+// Generous free-text ceiling for notes — long enough for a paragraph of
+// session context, short enough to keep a hostile payload out of the row.
+const MAX_NOTES = 2000
 // sets.weight is numeric(6,2) in the schema, so 9999.99 is the column ceiling.
 // Bounding here turns an out-of-range value into a clear validation error
 // instead of an opaque Postgres overflow inside the save transaction.
@@ -107,6 +117,17 @@ function parseName(raw: unknown): string | undefined {
   const trimmed = raw.trim()
   if (trimmed.length === 0) return undefined
   if (trimmed.length > MAX_NAME) throw new Error(`workout name must be ${MAX_NAME} characters or fewer`)
+  return trimmed
+}
+
+/** Validates an optional free-text note: must be a string; blank/whitespace →
+ *  omitted; over the cap → rejected (same reject-don't-truncate rule as name). */
+function parseNotes(raw: unknown, field: string): string | undefined {
+  if (raw === undefined || raw === null) return undefined
+  if (typeof raw !== 'string') throw new Error(`${field} notes must be a string`)
+  const trimmed = raw.trim()
+  if (trimmed.length === 0) return undefined
+  if (trimmed.length > MAX_NOTES) throw new Error(`${field} notes must be ${MAX_NOTES} characters or fewer`)
   return trimmed
 }
 
@@ -205,6 +226,15 @@ function parseExercise(raw: unknown): ExerciseInput {
     throw new Error("exercise source must be 'wger' or 'custom'")
   }
 
+  const notes = parseNotes(obj.notes, 'exercise')
+
+  // Absent/null → omitted so the column default (false) applies; anything
+  // else must be a real boolean — a truthy string must not mark work skipped.
+  const { skipped } = obj
+  if (skipped !== undefined && skipped !== null && typeof skipped !== 'boolean') {
+    throw new Error('exercise skipped must be a boolean')
+  }
+
   if (!Array.isArray(obj.sets)) throw new Error('exercise sets must be an array')
   const sets = obj.sets.map(parseSet)
 
@@ -213,6 +243,8 @@ function parseExercise(raw: unknown): ExerciseInput {
     name: trimmedName,
     ...(isLoggingType(loggingType) && { loggingType }),
     ...((source === 'wger' || source === 'custom') && { source }),
+    ...(notes !== undefined && { notes }),
+    ...(typeof skipped === 'boolean' && { skipped }),
     sets,
   }
 }
@@ -231,6 +263,7 @@ export function parseWorkoutInput(input: unknown): WorkoutInput {
 
   const exercises = obj.exercises.map(parseExercise)
   const name = parseName(obj.name)
+  const notes = parseNotes(obj.notes, 'workout')
   const startedAt = parseStartedAt(obj.startedAt)
   const completedAt = parsePastDate(obj.completedAt, 'completedAt')
   if (startedAt && completedAt && completedAt.getTime() < startedAt.getTime()) {
@@ -239,6 +272,7 @@ export function parseWorkoutInput(input: unknown): WorkoutInput {
 
   return {
     ...(name !== undefined && { name }),
+    ...(notes !== undefined && { notes }),
     exercises,
     ...(startedAt && { startedAt }),
     ...(completedAt && { completedAt }),

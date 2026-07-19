@@ -150,17 +150,24 @@ export default async function WorkoutDetailPage({
           />
         </dl>
 
+        {/* Session note under the stats — context for the numbers above. */}
+        {workout.notes !== null && (
+          <p className="mt-3 whitespace-pre-wrap rounded-2xl border border-border bg-card p-4 text-sm text-muted-foreground">
+            {workout.notes}
+          </p>
+        )}
+
         <div className="mt-4 space-y-3">
           {workout.exercises.map((exercise) => {
             // Scored under the exercise's logging type: highest e1rm over the
             // EFFECTIVE load, or the most-reps fallback when no set is
             // load-scorable (bodyweight work without a stored bodyweight, or
             // sets logged with no weight — "top set" must still resolve).
-            const current = bestScoredSet(
-              exercise.sets,
-              exercise.loggingType,
-              bodyweightKg,
-            );
+            // A skipped exercise earns no top-set/e1RM emphasis — nothing
+            // was attempted, so there is nothing to celebrate.
+            const current = exercise.skipped
+              ? null
+              : bestScoredSet(exercise.sets, exercise.loggingType, bodyweightKg);
             // The top set gets marked — but only when there's a comparison to
             // make; a lone set being "best" is noise.
             const bestIndex =
@@ -175,10 +182,21 @@ export default async function WorkoutDetailPage({
                 <div className="flex items-center justify-between gap-2">
                   {/* Display type on the movement name: the card is a record
                       of work done under a bar — let it read like one. */}
-                  <h2 className="min-w-0 truncate font-display text-lg uppercase leading-tight tracking-wide">
+                  <h2
+                    className={cn(
+                      "min-w-0 truncate font-display text-lg uppercase leading-tight tracking-wide",
+                      exercise.skipped && "text-muted-foreground",
+                    )}
+                  >
                     {exercise.name}
                   </h2>
-                  {isPR && <PrBadge />}
+                  {exercise.skipped ? (
+                    <span className="rounded-full border border-border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+                      Skipped
+                    </span>
+                  ) : (
+                    isPR && <PrBadge />
+                  )}
                 </div>
                 {/* Set rows echo the logger's number circles (log → review
                     continuity) and run the values at glanceable scale; the top
@@ -214,6 +232,13 @@ export default async function WorkoutDetailPage({
                     ))
                   )}
                 </div>
+                {/* Per-exercise note under the set rows — the "why" behind
+                    the numbers (or behind the skip). */}
+                {exercise.notes !== null && (
+                  <p className="mt-3 whitespace-pre-wrap text-sm text-muted-foreground">
+                    {exercise.notes}
+                  </p>
+                )}
                 {current && (
                   <div className="mt-3 flex items-baseline justify-between gap-3 border-t border-border pt-3">
                     <span className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">

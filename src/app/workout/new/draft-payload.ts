@@ -79,6 +79,10 @@ function isDraftExercise(value: unknown): value is DraftExercise {
     (exercise.loggingType === undefined || isLoggingType(exercise.loggingType)) &&
     // Same optional-on-the-wire treatment for the source discriminator.
     (exercise.source === undefined || exercise.source === 'wger' || exercise.source === 'custom') &&
+    // Absent = a payload persisted before notes/skip existed; parseDraftPayload
+    // defaults both on restore. Present-but-wrong-typed is rejected.
+    (exercise.notes === undefined || typeof exercise.notes === 'string') &&
+    (exercise.skipped === undefined || typeof exercise.skipped === 'boolean') &&
     Array.isArray(exercise.sets) &&
     exercise.sets.every(isDraftSet)
   )
@@ -103,6 +107,8 @@ export function isDraftPayload(value: unknown): value is DraftPayload {
   const draft = payload.draft as Record<string, unknown> | null
   if (!draft || typeof draft !== 'object' || !Array.isArray(draft.exercises)) return false
   if (draft.exercises.length === 0) return false
+  // Optional for pre-notes payloads; parseDraftPayload defaults it on restore.
+  if (draft.notes !== undefined && typeof draft.notes !== 'string') return false
   return draft.exercises.every(isDraftExercise)
 }
 
@@ -132,9 +138,14 @@ export function parseDraftPayload(
         loggingType: exercise.loggingType ?? 'weight_reps',
         // Pre-discriminator payloads predate custom exercises entirely.
         source: exercise.source ?? 'wger',
+        // Pre-notes/skip payloads: no note, nothing skipped.
+        notes: exercise.notes ?? '',
+        skipped: exercise.skipped ?? false,
         // Pre-tag payloads hold working sets only (the tag didn't exist).
         sets: exercise.sets.map((set) => ({ ...set, tag: set.tag ?? 'working' })),
       })),
+      // Same pre-notes default at the workout level.
+      notes: value.draft.notes ?? '',
     },
     name: value.name,
     openedAt: openedAt.getTime() > opts.now.getTime() ? opts.now : openedAt,

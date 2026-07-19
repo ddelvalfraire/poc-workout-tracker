@@ -33,6 +33,8 @@ export const workouts = pgTable(
     }),
     // 1-based week within the program's mesocycle this session belongs to.
     programWeek: integer('program_week'),
+    // Free-form session note. Nullable: null = no note, same as programs.notes.
+    notes: text('notes'),
   },
   (t) => [index('workouts_user_id_idx').on(t.userId)],
 )
@@ -57,6 +59,13 @@ export const workoutExercises = pgTable(
     // Additive + defaulted so every existing row stays a plain weight×reps
     // exercise. Text + app-level enum, like `source` and `set_type`.
     loggingType: text('logging_type').$type<LoggingType>().notNull().default('weight_reps'),
+    // Free-form per-exercise note. Nullable: null = no note.
+    notes: text('notes'),
+    // Marked skipped in-session ("couldn't do this today"). Additive +
+    // defaulted so every existing row stays a performed exercise. Skipping
+    // never touches the sets — they stay uncompleted, and completed-only
+    // counting already keeps them out of stats.
+    skipped: boolean('skipped').notNull().default(false),
   },
   // The durable kill for the spike's negative-ID stopgap: customs live in
   // custom_exercises with the source discriminator, never as sign-bit tricks.

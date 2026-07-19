@@ -219,6 +219,10 @@ async function insertWorkoutChildren(
         ...(exercise.loggingType !== undefined ? { loggingType: exercise.loggingType } : {}),
         // Same rule for the identity discriminator (default 'wger').
         ...(exercise.source !== undefined ? { source: exercise.source } : {}),
+        // Notes/skipped: absent → column defaults (null / false). A full
+        // replace without them therefore clears both — the input IS the state.
+        ...(exercise.notes !== undefined ? { notes: exercise.notes } : {}),
+        ...(exercise.skipped !== undefined ? { skipped: exercise.skipped } : {}),
       })
       .returning({ id: workoutExercises.id })
 
@@ -287,6 +291,7 @@ export async function saveWorkout(userId: string, input: WorkoutInput): Promise<
       .values({
         userId,
         name: input.name,
+        notes: input.notes,
         completedAt: input.completedAt ?? input.startedAt ?? new Date(),
         ...(input.startedAt !== undefined ? { startedAt: input.startedAt } : {}),
       })
@@ -327,6 +332,8 @@ export async function updateWorkout(
       // completion moment — never stamp wall-clock time onto a past session.
       .set({
         name: input.name ?? null,
+        // Same full-replace rule as name: an input without notes clears them.
+        notes: input.notes ?? null,
         completedAt: (() => {
           const explicit = input.completedAt ?? input.startedAt
           // Serialize to ISO here: a param inside a raw sql`` fragment skips
