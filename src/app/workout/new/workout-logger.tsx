@@ -65,7 +65,7 @@ import { type WeightUnit } from '@/lib/units'
 import { cn } from '@/lib/utils'
 import { discardSession } from '@/lib/discard-session'
 import {
-  mergeSetGhost,
+  planSetGhost,
   placeholderForSet,
   planPlaceholderForSet,
   adoptableGhostValue,
@@ -434,15 +434,10 @@ export function WorkoutLogger({
       const setIndex = exercise.sets.findIndex((set) => !set.completed)
       if (setIndex === -1) continue
       const set = exercise.sets[setIndex]
-      const history = placeholderForSet(
-        lastByExercise[`${exercise.source}:${exercise.wgerExerciseId}`] ?? null,
-        setIndex,
-        unit,
-      )
       const plan = planPlaceholderForSet(planFor(exercise.source, exercise.wgerExerciseId), setIndex, unit)
-      // Typed values win per field; the fallback ghost is sourced atomically
-      // (same mergeSetGhost rule as the set rows).
-      const ghost = mergeSetGhost(history, plan, exercise.loggingType)
+      // Typed values win per field; the fallback ghost is the plan target
+      // (same planSetGhost rule as the set rows).
+      const ghost = planSetGhost(plan, exercise.loggingType)
       const label = previousChipLabel(
         {
           reps: set.reps || ghost.reps,
@@ -1242,9 +1237,9 @@ export function WorkoutLogger({
 
             <div className="space-y-2">
               {exercise.sets.map((set, setIndex) => {
-                // The grey input ghost, sourced atomically (history as a
-                // complete pair, else the plan's week-N target — never a
-                // per-field mix of the two).
+                // Two surfaces, two meanings: the grey input ghost is the
+                // PLAN's week-N target; the Prev chip is last performance.
+                // Neither borrows from the other.
                 const history = placeholderForSet(
                   lastByExercise[`${exercise.source}:${exercise.wgerExerciseId}`] ?? null,
                   setIndex,
@@ -1255,7 +1250,7 @@ export function WorkoutLogger({
                   setIndex,
                   unit,
                 )
-                const ghost = mergeSetGhost(history, plan, exercise.loggingType)
+                const ghost = planSetGhost(plan, exercise.loggingType)
                 // Prev is previous PERFORMANCE only: plan targets ghost the
                 // inputs above but never masquerade as history in this column.
                 const prevLabel = previousChipLabel(history, exercise.loggingType)

@@ -10,7 +10,7 @@ import {
   placeholderForSet,
   planPlaceholderForSet,
   adoptableGhostValue,
-  mergeSetGhost,
+  planSetGhost,
   previousChipLabel,
   completedSetsSummary,
   stepWeightValue,
@@ -300,38 +300,27 @@ describe('formatWorkoutDate', () => {
   })
 })
 
-describe('mergeSetGhost', () => {
-  it('uses a complete history pair verbatim for weight_reps', () => {
-    expect(
-      mergeSetGhost({ reps: '8', weight: '100' }, { reps: '5', weight: '90' }, 'weight_reps'),
-    ).toEqual({ reps: '8', weight: '100' })
-  })
-
-  it('falls through to the plan WHOLESALE when weight_reps history is partial', () => {
-    expect(
-      mergeSetGhost({ reps: '10' }, { reps: '8–12', weight: '60' }, 'weight_reps'),
-    ).toEqual({ reps: '8–12', weight: '60' })
-    expect(mergeSetGhost({ weight: '60' }, {}, 'weight_reps')).toEqual({
-      reps: undefined,
-      weight: undefined,
+describe('planSetGhost', () => {
+  it('passes the plan pair through for weight_reps', () => {
+    expect(planSetGhost({ reps: '8–12', weight: '60' }, 'weight_reps')).toEqual({
+      reps: '8–12',
+      weight: '60',
     })
   })
 
   it('allows a legitimately partial plan target (rep range, no load)', () => {
-    expect(mergeSetGhost({}, { reps: '8–12' }, 'weight_reps')).toEqual({
+    expect(planSetGhost({ reps: '8–12' }, 'weight_reps')).toEqual({
       reps: '8–12',
       weight: undefined,
     })
   })
 
-  it('keeps reps-only sourcing and never ghosts a weight for BW types', () => {
-    expect(
-      mergeSetGhost({ reps: '12', weight: '20' }, { reps: '8' }, 'weighted_bodyweight'),
-    ).toEqual({ reps: '12', weight: undefined })
-    expect(mergeSetGhost({}, { reps: '8' }, 'bodyweight_reps')).toEqual({
+  it('never ghosts a weight for BW-relative types', () => {
+    expect(planSetGhost({ reps: '8', weight: '20' }, 'weighted_bodyweight')).toEqual({
       reps: '8',
       weight: undefined,
     })
+    expect(planSetGhost({}, 'bodyweight_reps')).toEqual({ reps: undefined, weight: undefined })
   })
 })
 
