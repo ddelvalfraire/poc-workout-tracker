@@ -765,7 +765,11 @@ export function WorkoutLogger({
         // the same stranded-::backdrop race the discard dialog guards.
         closeFinishDialogRef.current?.()
         setPendingFinish(null)
-        router.push(`/workout/${workoutId}`)
+        // `finished=1` is presentation-only: the summary swaps its plain
+        // header for the completion moment. Gated on isLive because this
+        // update branch is shared with edit-mode "Save changes" — a
+        // correction to an old workout is not a finish.
+        router.push(isLive ? `/workout/${workoutId}?finished=1` : `/workout/${workoutId}`)
       } else {
         const { id } = await saveWorkoutAction({
           ...draftToInput(finalDraft, name, unit),
@@ -780,8 +784,10 @@ export function WorkoutLogger({
         closeFinishDialogRef.current?.()
         setPendingFinish(null)
         // Land on the session summary (duration, volume, PR badges) — the
-        // finish deserves a readout, not a home-screen redirect.
-        router.push(`/workout/${id}`)
+        // finish deserves a readout, not a home-screen redirect. This create
+        // branch only exists for live sessions, but the isLive gate keeps the
+        // finished=1 contract in one shape with the update branch above.
+        router.push(isLive ? `/workout/${id}?finished=1` : `/workout/${id}`)
       }
       // isSaving intentionally stays true on success: the button reads
       // "Saving…" until the navigation unmounts this screen.

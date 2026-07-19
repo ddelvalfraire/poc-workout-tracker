@@ -3,7 +3,9 @@ import { notFound, redirect } from "next/navigation";
 import { ChevronLeft } from "lucide-react";
 import { requireUserId } from "@/lib/auth";
 import { getWorkoutDetail, getExerciseHistoryBefore } from "@/db/workouts";
+import { getNextProgramDay } from "@/db/programs";
 import { getWeightUnit, getBodyweightKg } from "@/db/preferences";
+import { resolveFinishUpNext } from "@/lib/finish-up-next";
 import {
   formatWorkoutDate,
   formatLoggedSet,
@@ -17,14 +19,21 @@ import { PrBadge } from "@/components/pr-badge";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { WorkoutActions } from "./workout-actions";
+import { FinishUpNextCard } from "./finish-up-next-card";
 
 export default async function WorkoutDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ finished?: string }>;
 }) {
   const userId = await requireUserId();
-  const { id } = await params;
+  const [{ id }, { finished }] = await Promise.all([params, searchParams]);
+  // Presentation-only flag set by the logger's finish push: it dresses the
+  // page as the completion moment, nothing more. Shared/bookmarked URLs
+  // without it get the plain summary; refreshing with it is harmless.
+  const justFinished = finished === "1";
   // Bodyweight rides along with the unit: it's the load basis for any
   // bodyweight-type exercise's top-set/PR scoring below (null = rep fallback).
   const [workout, unit, bodyweightKg] = await Promise.all([
@@ -42,11 +51,16 @@ export default async function WorkoutDetailPage({
   const exerciseIds = [
     ...new Set(workout.exercises.map((e) => e.wgerExerciseId)),
   ];
-  const history = await getExerciseHistoryBefore(
-    userId,
-    exerciseIds,
-    workout.startedAt,
-  );
+  // Up-next only matters at the finish moment, and only for a program
+  // session — a quick log has no rotation to advance. Fetched alongside the
+  // PR history read (independent queries).
+  const [history, nextDay] = await Promise.all([
+    getExerciseHistoryBefore(userId, exerciseIds, workout.startedAt),
+    justFinished && workout.programDayId !== null
+      ? getNextProgramDay(userId)
+      : null,
+  ]);
+  const upNext = resolveFinishUpNext(workout.programDayId, nextDay);
   // Keyed by the composite identity: a custom exercise's id can collide with
   // a wger id, and the two must never share a PR baseline.
   const priorByExercise = new Map<
@@ -127,6 +141,41 @@ export default async function WorkoutDetailPage({
       />
 
       <main className="mx-auto w-full max-w-md flex-1 px-5 pb-safe">
+        {/* The completion moment: poster type over the stat row it crowns.
+            The headline numbers stay in the dl below — one source, the
+            heading just reframes them as the payoff. Volt rides the eyebrow
+            and the PR chip (markers, not CTAs — the one-volt button rule
+            is about actions and stays with WorkoutActions). */}
+        {justFinished && (
+          <section
+            aria-label="Workout complete"
+            className="mt-6 motion-safe:animate-rise-in"
+          >
+            <p className="text-xs font-semibold uppercase tracking-widest text-primary">
+              Session logged
+            </p>
+            <h2 className="mt-1 font-display text-4xl uppercase leading-none tracking-wide">
+              Workout complete
+            </h2>
+            {prBadgeRowIds.size > 0 && (
+              <div className="mt-3 flex items-center gap-2">
+                <PrBadge
+                  label={
+                    prBadgeRowIds.size === 1
+                      ? "PR"
+                      : `${prBadgeRowIds.size} PRs`
+                  }
+                />
+                <p className="text-sm text-muted-foreground">
+                  {prBadgeRowIds.size === 1
+                    ? "New personal record this session"
+                    : "New personal records this session"}
+                </p>
+              </div>
+            )}
+          </section>
+        )}
+
         <div className="mt-4 flex items-center gap-2">
           <p className="text-sm text-muted-foreground">
             {formatWorkoutDate(workout.startedAt)}
@@ -155,6 +204,13 @@ export default async function WorkoutDetailPage({
           <p className="mt-3 whitespace-pre-wrap rounded-2xl border border-border bg-card p-4 text-sm text-muted-foreground">
             {workout.notes}
           </p>
+        )}
+
+        {/* What comes after the finish: the next program day, or the block-
+            complete banner when this session closed the mesocycle. Quick
+            logs (upNext 'none') get just the celebration above. */}
+        {justFinished && upNext.kind !== "none" && (
+          <FinishUpNextCard state={upNext} />
         )}
 
         <div className="mt-4 space-y-3">
