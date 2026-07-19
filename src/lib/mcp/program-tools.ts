@@ -30,7 +30,7 @@ import {
   type ProgramDetail,
   type ProgramDayDetail,
 } from '@/db/programs'
-import { ProposedProgramError } from '@/db/program-errors'
+import { NotCoachProposalError, ProposedProgramError } from '@/db/program-errors'
 import { getWeightUnit } from '@/db/preferences'
 
 /** Optional explicit unit override; absent → the user's stored unit. */
@@ -161,13 +161,17 @@ function toKgProgram(raw: RawProgram, unit: WeightUnit): unknown {
 }
 
 /**
- * The db layer's promotion guard (a 'proposed' program refused a lifecycle
- * move) is an EXPECTED, actionable condition: surface its message verbatim to
- * the agent instead of letting errorResult genericize it — the message points
- * at the owner's adopt/decline confirm.
+ * The db layer's authoring guards — a 'proposed' program refused a lifecycle
+ * move, or the coach bridge refused outside its own drafts — are EXPECTED,
+ * actionable conditions: surface their messages verbatim to the agent instead
+ * of letting errorResult genericize them — each message points at the right
+ * next move (the owner's adopt/decline confirm, or the approval-gated patch
+ * tools).
  */
 function surfaceProposalGuard(error: unknown): unknown {
-  return error instanceof ProposedProgramError ? new ToolError(error.message) : error
+  return error instanceof ProposedProgramError || error instanceof NotCoachProposalError
+    ? new ToolError(error.message)
+    : error
 }
 
 /** A ZodError → a concise, agent-readable ToolError (first issue, path-prefixed). */
@@ -416,7 +420,7 @@ export function registerProgramTools(server: McpServer): void {
     {
       title: 'Upsert Program',
       description:
-        "Creates a training program, or fully replaces one when `id` is given (coarse create/replace, not a partial edit). Exercise identity is the composite (source, wgerExerciseId); `source` defaults to 'wger', pass 'custom' for custom exercises. `supersetGroup` (same non-null value within a day) survives replace. Per-week set overrides survive replace for sets that keep the same day/exercise/setNumber position; overrides on removed slots are dropped. `suggestedLoad` is in the user's unit (or the `unit` arg) and stored as kg; `technique`/`progression` JSONB are in kg. Returns the programId. Errors if a given id isn't found or owned.",
+        "Creates a training program, or fully replaces one when `id` is given (coarse create/replace, not a partial edit). Exercise identity is the composite (source, wgerExerciseId); `source` defaults to 'wger', pass 'custom' for custom exercises. `supersetGroup` (same non-null value within a day) survives replace. Per-week set overrides survive replace for sets that keep the same day/exercise/setNumber position; overrides on removed slots are dropped. `suggestedLoad` is in the user's unit (or the `unit` arg) and stored as kg; `technique`/`progression` JSONB are in kg. When called by the in-app coach, the program is ALWAYS saved as a 'proposed' draft (whatever `status` says) that only the owner can adopt or decline, and a replace may target only the coach's own still-proposed drafts. Returns the programId and effective status. Errors if a given id isn't found or owned.",
       inputSchema: {
         id: z.string().optional(),
         ...rawProgramSchema.shape,
@@ -445,6 +449,12 @@ export function registerProgramTools(server: McpServer): void {
     ) => {
       try {
         const resolved = resolveUserId(extra, userId)
+        // WHO is writing decides the drafting policy: the coach bridge's
+        // clientId (stamped in mcp-bridge.ts, never model-supplied) makes the
+        // db layer force status='proposed' + authorActor='coach' on create and
+        // scope replaces to the coach's own drafts. Echoed as `status` so the
+        // model (and the chat proposal card) sees what was actually saved.
+        const actor = resolveActor(extra)
         // Guard the id shape before any DB call or body validation (mirrors
         // update_workout): a malformed id can't own anything, so fail fast with a
         // clean not-found instead of querying the unit and validating the body first.
@@ -466,13 +476,19 @@ export function registerProgramTools(server: McpServer): void {
           },
           basis,
         )
+        const effectiveStatus = actor === 'coach' ? 'proposed' : parsed.status
         if (id !== undefined) {
-          const result = await updateProgram(resolved, id, parsed, resolveActor(extra))
+          const result = await updateProgram(resolved, id, parsed, actor)
           if (!result) throw new ToolError(`Program ${id} not found for user ${resolved}`)
-          return jsonResult({ userId: resolved, unit: basis, programId: result.id })
+          return jsonResult({
+            userId: resolved,
+            unit: basis,
+            programId: result.id,
+            status: effectiveStatus,
+          })
         }
-        const { id: newId } = await saveProgram(resolved, parsed, resolveActor(extra))
-        return jsonResult({ userId: resolved, unit: basis, programId: newId })
+        const { id: newId } = await saveProgram(resolved, parsed, actor)
+        return jsonResult({ userId: resolved, unit: basis, programId: newId, status: effectiveStatus })
       } catch (error: unknown) {
         return errorResult(surfaceProposalGuard(error))
       }

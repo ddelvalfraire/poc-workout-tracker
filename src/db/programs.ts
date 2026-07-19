@@ -21,7 +21,7 @@ import { getRecentTrainedSessions } from './autoreg-history'
 import { pickNextProgramDay } from '@/lib/next-program-day'
 import { nextBlockName } from '@/lib/block-name'
 import { db } from './index'
-import { ProposedProgramError } from './program-errors'
+import { NotCoachProposalError, ProposedProgramError } from './program-errors'
 import { recordProgramEvent, type ProgramEventActor } from './program-events'
 import { getLastPerformance, getExerciseHistoryBefore } from './workouts'
 import { listCustomExercises } from './custom-exercises'
@@ -217,12 +217,18 @@ async function insertProgramChildren(
  * sets — for the given user, atomically. Everything runs inside one
  * `db.transaction`, so a partial save can never happen. The program is stamped
  * with `userId`; the children inherit ownership through the FK chain.
+ *
+ * Coach drafting policy (enforced HERE, not in the prompt or tool schema): a
+ * 'coach' actor always creates `status = 'proposed'` + `authorActor = 'coach'`,
+ * whatever status the input carries — the only exits from 'proposed' are the
+ * owner's adoptProgram/declineProgram ("we always force the user to confirm").
  */
 export async function saveProgram(
   userId: string,
   input: ProgramInput,
   actor: ProgramEventActor,
 ): Promise<{ id: string }> {
+  const status = actor === 'coach' ? 'proposed' : input.status
   const catalog = await loadExerciseCatalog(userId) // network read stays outside the tx
   return db.transaction(async (tx) => {
     const [program] = await tx
@@ -230,7 +236,7 @@ export async function saveProgram(
       .values({
         userId,
         name: input.name,
-        status: input.status,
+        status,
         mesocycleWeeks: input.mesocycleWeeks,
         deloadWeek: input.deloadWeek ?? null,
         // Omitted on create = ON: propose-don't-impose delivery is the
@@ -238,8 +244,9 @@ export async function saveProgram(
         autoregulation: input.autoregulation ?? true,
         notes: input.notes ?? null,
         // Article metadata rides create like notes: omitted = null.
-        // authorActor is NOT set here — every caller of saveProgram is an
-        // owner path, so the column default 'owner' is the fact.
+        // authorActor mirrors the drafting policy above; every non-coach
+        // caller of saveProgram is an owner path (the column default).
+        ...(actor === 'coach' ? { authorActor: 'coach' } : {}),
         description: input.description ?? null,
         icon: input.icon ?? null,
         heroImageUrl: input.heroImageUrl ?? null,
@@ -256,7 +263,7 @@ export async function saveProgram(
       actor,
       action: 'upsert_program',
       summary: `Program created ("${input.name}")`,
-      payload: { after: { name: input.name, status: input.status } },
+      payload: { after: { name: input.name, status } },
     })
 
     return { id: program.id }
@@ -360,6 +367,13 @@ async function reattachSetOverrides(
  * Per-week set overrides — inexpressible in `ProgramInput` — are preserved by
  * re-keying onto the recreated rows at the same (day, exercise, setNumber)
  * address; overrides on removed slots die with them.
+ *
+ * Coach drafting policy (the write-side twin of saveProgram's): a 'coach'
+ * actor may replace ONLY its own still-unadopted drafts — rows with
+ * `status = 'proposed'` AND `authorActor = 'coach'` — and the row stays
+ * 'proposed' (never a promotion path). Anything else owned by the user is
+ * refused with NotCoachProposalError; adopted/owner programs are reachable
+ * for the coach only through the approval-gated patch tools.
  */
 export async function updateProgram(
   userId: string,
@@ -367,13 +381,15 @@ export async function updateProgram(
   input: ProgramInput,
   actor: ProgramEventActor,
 ): Promise<{ id: string } | null> {
+  const isCoach = actor === 'coach'
+  const status = isCoach ? 'proposed' : input.status
   const catalog = await loadExerciseCatalog(userId) // network read stays outside the tx
   return db.transaction(async (tx) => {
     const [owned] = await tx
       .update(programs)
       .set({
         name: input.name,
-        status: input.status,
+        status,
         mesocycleWeeks: input.mesocycleWeeks,
         deloadWeek: input.deloadWeek ?? null,
         // Omitted on update = PRESERVE the stored switch: an upsert that
@@ -386,20 +402,32 @@ export async function updateProgram(
         sourceUrl: input.sourceUrl ?? null,
         updatedAt: new Date(),
       })
-      // ne('proposed'): a full replace sets status, so it is a promotion path
-      // and must never move a proposal — only adoptProgram/declineProgram may.
+      // Owner path — ne('proposed'): a full replace sets status, so it is a
+      // promotion path and must never move a proposal — only adoptProgram/
+      // declineProgram may. Coach path — the inverse gate: ONLY its own
+      // proposal rows match, so the coach can never touch an owner-authored
+      // or adopted program through this write.
       .where(
-        and(eq(programs.id, id), eq(programs.userId, userId), ne(programs.status, 'proposed')),
+        isCoach
+          ? and(
+              eq(programs.id, id),
+              eq(programs.userId, userId),
+              eq(programs.status, 'proposed'),
+              eq(programs.authorActor, 'coach'),
+            )
+          : and(eq(programs.id, id), eq(programs.userId, userId), ne(programs.status, 'proposed')),
       )
       .returning({ id: programs.id })
     if (!owned) {
       // Distinguish "not owned/missing" (null, like before) from "refused
-      // because proposed" (a clear, actionable error for the caller).
+      // by policy" (a clear, actionable error for the caller).
       const [existing] = await tx
         .select({ status: programs.status })
         .from(programs)
         .where(and(eq(programs.id, id), eq(programs.userId, userId)))
-      if (existing?.status === 'proposed') throw new ProposedProgramError(id)
+      if (!existing) return null
+      if (isCoach) throw new NotCoachProposalError(id)
+      if (existing.status === 'proposed') throw new ProposedProgramError(id)
       return null
     }
 
@@ -417,7 +445,7 @@ export async function updateProgram(
       actor,
       action: 'upsert_program',
       summary: 'Program replaced',
-      payload: { after: { name: input.name, status: input.status } },
+      payload: { after: { name: input.name, status } },
     })
     return { id }
   })

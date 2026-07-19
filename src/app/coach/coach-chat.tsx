@@ -12,15 +12,18 @@ import {
   type UIDataTypes,
   type UITools,
 } from 'ai'
+import Link from 'next/link'
 import { ArrowUp, RotateCcw } from 'lucide-react'
 import { Streamdown } from 'streamdown'
-import { Button } from '@/components/ui/button'
+import { Button, buttonVariants } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import {
+  extractProgramProposal,
   formatToolInput,
   humanizeToolName,
   parseCoachError,
   toolStatusLabel,
+  type ProgramProposal,
 } from '@/lib/coach/chat-ui'
 
 const EXAMPLE_PROMPTS = [
@@ -133,6 +136,44 @@ function ApprovalCard({
   )
 }
 
+/**
+ * Result card for a coach-drafted program proposal: the drafting tool ran
+ * (no chat approval — creation lands as 'proposed'), so the card's only job
+ * is routing the user to the program page where the REAL confirm (Adopt /
+ * Decline, owner-only) lives.
+ */
+function ProposalCard({ proposal }: { proposal: ProgramProposal }) {
+  const meta = [
+    `${proposal.dayCount} ${proposal.dayCount === 1 ? 'day' : 'days'}/week`,
+    proposal.weekCount !== null
+      ? `${proposal.weekCount} ${proposal.weekCount === 1 ? 'week' : 'weeks'}`
+      : null,
+  ]
+    .filter(Boolean)
+    .join(' · ')
+  return (
+    <div className="rounded-2xl border border-primary/40 bg-card p-4">
+      <p className="text-[11px] font-semibold uppercase tracking-widest text-primary">
+        Proposed program
+      </p>
+      <p className="mt-1 font-display text-lg uppercase leading-tight tracking-wide">
+        {proposal.icon ? `${proposal.icon} ` : ''}
+        {proposal.name}
+      </p>
+      <p className="mt-0.5 text-xs text-muted-foreground">{meta}</p>
+      {proposal.description && (
+        <p className="mt-2 line-clamp-2 text-sm text-muted-foreground">{proposal.description}</p>
+      )}
+      <Link
+        href={`/programs/${proposal.programId}`}
+        className={cn(buttonVariants({ size: 'sm' }), 'mt-3 w-full rounded-xl')}
+      >
+        Review &amp; adopt
+      </Link>
+    </div>
+  )
+}
+
 /** A tool part in any state → chip, approval card, or outcome line. */
 function ToolPartView({
   part,
@@ -162,6 +203,15 @@ function ToolPartView({
       )
     case 'output-denied':
       return <p className="text-xs text-muted-foreground">{humanizeToolName(name)} — cancelled</p>
+    case 'output-available': {
+      // A completed draft (create OR revision of a still-proposed draft)
+      // becomes the proposal card; anything unverifiable degrades to the chip.
+      if (name === 'upsert_program') {
+        const proposal = extractProgramProposal(part.input, part.output)
+        if (proposal) return <ProposalCard proposal={proposal} />
+      }
+      return <ToolChip part={part} />
+    }
     default:
       return <ToolChip part={part} />
   }

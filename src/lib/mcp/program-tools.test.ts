@@ -29,9 +29,9 @@ import {
   deriveDayPrescription,
 } from '@/db/programs'
 import { getWeightUnit } from '@/db/preferences'
-// Real class (module NOT mocked): the instanceof in surfaceProposalGuard must
-// see the same identity the db layer throws.
-import { ProposedProgramError } from '@/db/program-errors'
+// Real classes (module NOT mocked): the instanceof in surfaceProposalGuard must
+// see the same identities the db layer throws.
+import { NotCoachProposalError, ProposedProgramError } from '@/db/program-errors'
 import { displayToKg, kgToDisplay } from '@/lib/units'
 import { MAX_WEIGHT as MAX_WEIGHT_KG } from '@/lib/workout-input'
 
@@ -48,7 +48,7 @@ const mockedDerive = vi.mocked(deriveDayPrescription)
 const mockedGetUnit = vi.mocked(getWeightUnit)
 
 type ToolResult = { content: { type: string; text: string }[]; isError?: boolean }
-type Extra = { authInfo?: { extra?: { userId?: unknown } } }
+type Extra = { authInfo?: { clientId?: string; extra?: { userId?: unknown } } }
 type ToolHandler = (args: Record<string, unknown>, extra?: Extra) => Promise<ToolResult>
 
 /** Minimal stand-in for an McpServer recording registerTool(name, _config, handler). */
@@ -234,7 +234,12 @@ describe('registerProgramTools', () => {
           ],
         }), 'mcp'
       )
-      expect(payload(result)).toEqual({ userId: 'user_env', unit: 'lb', programId: PID })
+      expect(payload(result)).toEqual({
+        userId: 'user_env',
+        unit: 'lb',
+        programId: PID,
+        status: 'draft',
+      })
     })
 
     it('passes composite identity and supersetGroup through to the persist', async () => {
@@ -409,7 +414,12 @@ describe('registerProgramTools', () => {
       // Assert
       expect(mockedUpdate).toHaveBeenCalledWith('user_env', PID, expect.anything(), 'mcp')
       expect(mockedSave).not.toHaveBeenCalled()
-      expect(payload(result)).toEqual({ userId: 'user_env', unit: 'lb', programId: PID })
+      expect(payload(result)).toEqual({
+        userId: 'user_env',
+        unit: 'lb',
+        programId: PID,
+        status: 'draft',
+      })
     })
 
     it('returns isError /not found/ when the program is not owned', async () => {
@@ -437,6 +447,61 @@ describe('registerProgramTools', () => {
       expect(result.content[0]?.text).toMatch(/not found/)
       expect(mockedUpdate).not.toHaveBeenCalled()
       expect(mockedGetUnit).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('upsert_program coach drafting policy (bridge clientId → coach actor)', () => {
+    // Exactly what mcp-bridge.ts stamps: clientId 'coach-chat' + the session
+    // user. The model cannot fabricate this — authInfo rides the transport.
+    const COACH: Extra = { authInfo: { clientId: 'coach-chat', extra: { userId: 'user_token' } } }
+
+    it("threads the coach actor into saveProgram and echoes status 'proposed' even when the model asks for active", async () => {
+      // Arrange
+      const tools = setup()
+      mockedSave.mockResolvedValue({ id: PID })
+
+      // Act — the model tries to create straight to 'active'
+      const result = await tools.get('upsert_program')!({ ...BODY, status: 'active' }, COACH)
+
+      // Assert — the db layer receives the 'coach' actor (which forces
+      // proposed/coach-authored at persist); the echo says what was saved.
+      expect(mockedSave).toHaveBeenCalledWith(
+        'user_token',
+        expect.objectContaining({ name: 'PPL' }),
+        'coach',
+      )
+      expect(payload(result)).toEqual({
+        userId: 'user_token',
+        unit: 'lb',
+        programId: PID,
+        status: 'proposed',
+      })
+    })
+
+    it("threads the coach actor into updateProgram on replace and echoes 'proposed'", async () => {
+      // Arrange
+      const tools = setup()
+      mockedUpdate.mockResolvedValue({ id: PID })
+
+      // Act
+      const result = await tools.get('upsert_program')!({ id: PID, ...BODY }, COACH)
+
+      // Assert
+      expect(mockedUpdate).toHaveBeenCalledWith('user_token', PID, expect.anything(), 'coach')
+      expect(payload(result).status).toBe('proposed')
+    })
+
+    it('surfaces the NotCoachProposalError verbatim when the coach targets an owner/adopted program', async () => {
+      // Arrange — the db guard refused: the row is not a coach proposal
+      const tools = setup()
+      mockedUpdate.mockRejectedValue(new NotCoachProposalError(PID))
+
+      // Act
+      const result = await tools.get('upsert_program')!({ id: PID, ...BODY }, COACH)
+
+      // Assert — actionable refusal reaches the agent, not a generic failure
+      expect(result.isError).toBe(true)
+      expect(result.content[0]?.text).toMatch(/not a coach-drafted proposal/)
     })
   })
 
