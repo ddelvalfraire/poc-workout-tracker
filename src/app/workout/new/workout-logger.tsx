@@ -65,6 +65,7 @@ import { type WeightUnit } from '@/lib/units'
 import { cn } from '@/lib/utils'
 import { discardSession } from '@/lib/discard-session'
 import {
+  mergeSetGhost,
   placeholderForSet,
   planPlaceholderForSet,
   adoptableGhostValue,
@@ -439,12 +440,15 @@ export function WorkoutLogger({
         unit,
       )
       const plan = planPlaceholderForSet(planFor(exercise.source, exercise.wgerExerciseId), setIndex, unit)
+      // Typed values win per field; the fallback ghost is sourced atomically
+      // (same mergeSetGhost rule as the set rows).
+      const ghost = mergeSetGhost(history, plan, exercise.loggingType)
       const label = previousChipLabel(
         {
-          reps: set.reps || (history.reps ?? plan.reps),
+          reps: set.reps || ghost.reps,
           weight:
             exercise.loggingType === 'weight_reps'
-              ? set.weight || (history.weight ?? plan.weight)
+              ? set.weight || ghost.weight
               : set.weight || undefined,
         },
         exercise.loggingType,
@@ -1238,9 +1242,9 @@ export function WorkoutLogger({
 
             <div className="space-y-2">
               {exercise.sets.map((set, setIndex) => {
-                // History ghost ("what you did last time") wins; the plan's
-                // week-N target fills in when there's no history — e.g. a
-                // machine lift's first session, where nothing else renders.
+                // The grey input ghost, sourced atomically (history as a
+                // complete pair, else the plan's week-N target — never a
+                // per-field mix of the two).
                 const history = placeholderForSet(
                   lastByExercise[`${exercise.source}:${exercise.wgerExerciseId}`] ?? null,
                   setIndex,
@@ -1251,24 +1255,18 @@ export function WorkoutLogger({
                   setIndex,
                   unit,
                 )
-                const ghost = {
-                  reps: history.reps ?? plan.reps,
-                  // Weight ghosts assume "weight = total load" — meaningless
-                  // under a BW reading, so BW types keep the reps ghost only.
+                const ghost = mergeSetGhost(history, plan, exercise.loggingType)
+                // Prev is previous PERFORMANCE only: plan targets ghost the
+                // inputs above but never masquerade as history in this column.
+                const prevLabel = previousChipLabel(history, exercise.loggingType)
+                // Chip fills from history (what the chip shows); BW-relative
+                // types never fill a weight — theirs isn't a total load.
+                const chipFill = {
+                  reps: adoptableGhostValue(history.reps),
                   weight:
                     exercise.loggingType === 'weight_reps'
-                      ? (history.weight ?? plan.weight)
+                      ? adoptableGhostValue(history.weight)
                       : undefined,
-                }
-                const prevLabel = previousChipLabel(ghost, exercise.loggingType)
-                // Same adopt rules as tap-to-complete: BW sets never fill a
-                // phantom weight; rep ranges adopt their floor.
-                const chipFill = {
-                  reps: adoptableGhostValue(ghost.reps),
-                  weight:
-                    exercise.loggingType === 'bodyweight_reps'
-                      ? undefined
-                      : adoptableGhostValue(ghost.weight),
                 }
                 // Enabled only when a tap would actually change something —
                 // otherwise the flash would confirm a fill that never happened.

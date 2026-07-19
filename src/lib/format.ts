@@ -177,6 +177,28 @@ export function adoptableGhostValue(ghost?: string): string | undefined {
 }
 
 /**
+ * The set row's grey input ghost, sourced ATOMICALLY: what you did last time,
+ * or — when history can't tell the whole story — the plan's week-N target.
+ * For weight_reps, history contributes only as a complete reps+weight pair:
+ * mixing a history rep count with a plan load (or floating a lone fragment)
+ * reads as one coherent suggestion when it's neither. Plan targets may be
+ * legitimately partial — a rep range without a prescribed load is a real
+ * prescription. BW-relative types never ghost a weight (no total load to
+ * suggest), so their reps-only history is already the whole story.
+ */
+export function mergeSetGhost(
+  history: { reps?: string; weight?: string },
+  plan: { reps?: string; weight?: string },
+  loggingType: LoggingType,
+): { reps?: string; weight?: string } {
+  if (loggingType !== 'weight_reps') {
+    return { reps: history.reps ?? plan.reps, weight: undefined }
+  }
+  if (history.reps && history.weight) return { reps: history.reps, weight: history.weight }
+  return { reps: plan.reps, weight: plan.weight }
+}
+
+/**
  * Compact label for the logger's Previous column: "60×8", or null when there's
  * nothing to show (the chip renders an em dash, disabled).
  *
