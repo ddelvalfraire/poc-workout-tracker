@@ -62,10 +62,13 @@ describe('createCoachMcpClient', () => {
       // Act
       const tools = filterCoachTools(await client.tools())
 
-      // Assert — smoke: reads present, excluded writes absent.
+      // Assert — smoke: reads + drafting present, excluded writes absent.
       expect(tools).toHaveProperty('list_workouts')
       expect(tools).toHaveProperty('add_program_set')
-      expect(tools).not.toHaveProperty('upsert_program')
+      // Phase 2: upsert_program is coach-drafting now — the db layer forces
+      // coach creates to proposed/coach-authored, so it survives the filter.
+      expect(tools).toHaveProperty('upsert_program')
+      expect(tools).not.toHaveProperty('delete_program')
       expect(tools).not.toHaveProperty('delete_workout')
     } finally {
       await client.close()

@@ -81,7 +81,7 @@ const { listCustomExercises } = vi.hoisted(() => ({ listCustomExercises: vi.fn()
 vi.mock('./custom-exercises', () => ({ listCustomExercises }))
 
 import { saveProgram, updateProgram } from './programs'
-import { ProposedProgramError } from './program-errors'
+import { NotCoachProposalError, ProposedProgramError } from './program-errors'
 
 const USER = 'user_123'
 
@@ -350,6 +350,81 @@ describe('updateProgram promotion guard (proposed rows)', () => {
 
     // Act
     const result = await updateProgram(USER, 'p1', INPUT, 'ui')
+
+    // Assert
+    expect(result).toBeNull()
+    expect(records).toHaveLength(0)
+  })
+})
+
+describe('coach drafting policy (actor = coach)', () => {
+  const INPUT = parseProgramInput({
+    name: 'Coach Plan',
+    status: 'active', // the model's ask — must never survive the coach path
+    days: [{ name: 'D', exercises: [{ wgerExerciseId: 1, name: 'X', sets: [{}] }] }],
+  })
+
+  it("saveProgram forces status 'proposed' + authorActor 'coach' regardless of input status", async () => {
+    // Act
+    await saveProgram(USER, INPUT, 'coach')
+
+    // Assert — the programs insert carries the forced pair
+    expect(records[0].values).toMatchObject({
+      userId: USER,
+      name: 'Coach Plan',
+      status: 'proposed',
+      authorActor: 'coach',
+    })
+    // …and the change-log event is stamped with the coach actor + the
+    // EFFECTIVE status, not the requested one.
+    const event = records
+      .map((r) => r.values as Record<string, unknown>)
+      .find((v) => v.action === 'upsert_program')
+    expect(event).toMatchObject({
+      actor: 'coach',
+      payload: { after: { name: 'Coach Plan', status: 'proposed' } },
+    })
+  })
+
+  it('saveProgram for a non-coach actor leaves authorActor to the column default (owner)', async () => {
+    // Act
+    await saveProgram(USER, INPUT, 'ui')
+
+    // Assert — status honored, no authorActor override in the insert
+    expect(records[0].values).toMatchObject({ status: 'active' })
+    expect(records[0].values).not.toHaveProperty('authorActor')
+  })
+
+  it("updateProgram keeps a coach replace at status 'proposed' (never a promotion path)", async () => {
+    // Arrange — the coach-scoped gate matched (its own proposal)
+    updateReturning = [{ id: 'p1' }]
+
+    // Act
+    const result = await updateProgram(USER, 'p1', INPUT, 'coach')
+
+    // Assert — the metadata update writes 'proposed', not the input's 'active'
+    expect(result).toEqual({ id: 'p1' })
+    expect(updateSets[0]).toMatchObject({ status: 'proposed' })
+  })
+
+  it('updateProgram refuses a coach replace of an owner-authored/adopted row with NotCoachProposalError', async () => {
+    // Arrange — the coach gate matched nothing; the row exists but is the
+    // owner's active program
+    updateReturning = []
+    selectQueue.push([{ status: 'active', authorActor: 'owner' }])
+
+    // Act + Assert — clear refusal, and NO child wipe/re-insert happened
+    await expect(updateProgram(USER, 'p1', INPUT, 'coach')).rejects.toThrow(NotCoachProposalError)
+    expect(records).toHaveLength(0)
+  })
+
+  it('updateProgram still returns null for the coach when the row is missing or unowned', async () => {
+    // Arrange
+    updateReturning = []
+    selectQueue.push([])
+
+    // Act
+    const result = await updateProgram(USER, 'p1', INPUT, 'coach')
 
     // Assert
     expect(result).toBeNull()

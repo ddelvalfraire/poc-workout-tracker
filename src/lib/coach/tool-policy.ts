@@ -6,11 +6,16 @@
  * model and the write surface. Filtering happens server-side, before the tool
  * set is handed to the model — an excluded tool is never even visible to it.
  *
- * Three tiers:
+ * Four tiers:
  *  - reads: auto-execute, no approval;
  *  - program patch tools: allowed, but every call requires explicit user
  *    approval via the AI SDK approval flow;
- *  - everything else (bulk program writes, workout writes, settings,
+ *  - drafting tools: auto-execute WITHOUT chat approval, because the db layer
+ *    forces every coach-bridge create into a 'proposed' program the owner must
+ *    explicitly Adopt/Decline on the program page — that banner IS the forced
+ *    confirm ("we always force the user to confirm"), and an in-chat approval
+ *    on top would be a double confirm;
+ *  - everything else (workout writes, deletes, lifecycle moves, settings,
  *    custom-exercise writes): excluded entirely.
  */
 
@@ -52,15 +57,24 @@ export const COACH_APPROVAL_TOOLS = [
 ] as const
 
 /**
+ * Program-drafting tools — allowed WITHOUT the chat approval gate. Safe by
+ * construction, not by trust: when the caller is the coach bridge (clientId
+ * 'coach-chat'), the db layer forces creates to status='proposed' +
+ * authorActor='coach' and scopes replaces to the coach's own still-proposed
+ * drafts (src/db/programs.ts). Adoption stays owner-only on the program page.
+ */
+export const COACH_DRAFT_TOOLS = ['upsert_program'] as const
+
+/**
  * Tools the coach must never see. Kept as an explicit list (not just "whatever
  * isn't allowed") so the policy test can assert every one of these is excluded
  * by `filterCoachTools` and absent from the allowlists. A tool added to the
  * MCP registry later is excluded by default either way, because filtering is
- * allowlist-based.
+ * allowlist-based. Adopt/decline are deliberately not even MCP tools — they
+ * are owner-only server actions, so there is nothing here to exclude.
  */
 export const COACH_EXCLUDED_TOOLS = [
   'ping',
-  'upsert_program',
   'delete_program',
   'restart_program',
   'set_program_status',
@@ -81,6 +95,7 @@ export const COACH_EXCLUDED_TOOLS = [
 export const COACH_ALLOWED_TOOLS: ReadonlySet<string> = new Set([
   ...COACH_READ_TOOLS,
   ...COACH_APPROVAL_TOOLS,
+  ...COACH_DRAFT_TOOLS,
 ])
 
 const APPROVAL_SET: ReadonlySet<string> = new Set(COACH_APPROVAL_TOOLS)

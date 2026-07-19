@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest'
 import {
+  extractProgramProposal,
   formatToolInput,
   humanizeToolName,
   parseCoachError,
@@ -31,6 +32,66 @@ describe('toolStatusLabel', () => {
 
   test('falls back to the humanized name for unknown tools', () => {
     expect(toolStatusLabel('add_program_set')).toBe('Add program set')
+  })
+
+  test('labels the drafting tool', () => {
+    expect(toolStatusLabel('upsert_program')).toBe('Drafting your program')
+  })
+})
+
+describe('extractProgramProposal', () => {
+  const PID = '11111111-1111-4111-8111-111111111111'
+  const INPUT = {
+    name: 'Push Pull Legs',
+    icon: '🏋️',
+    description: 'A four-week strength block for intermediate lifters.',
+    mesocycleWeeks: 4,
+    days: [{ name: 'Push' }, { name: 'Pull' }, { name: 'Legs' }],
+  }
+  const PAYLOAD = { userId: 'u1', unit: 'lb', programId: PID, status: 'proposed' }
+  /** The raw MCP CallToolResult envelope the bridge returns. */
+  const ENVELOPE = { content: [{ type: 'text', text: JSON.stringify(PAYLOAD) }] }
+
+  test('builds the card from the MCP envelope output + the drafted input', () => {
+    expect(extractProgramProposal(INPUT, ENVELOPE)).toEqual({
+      programId: PID,
+      name: 'Push Pull Legs',
+      icon: '🏋️',
+      description: 'A four-week strength block for intermediate lifters.',
+      dayCount: 3,
+      weekCount: 4,
+    })
+  })
+
+  test('accepts an already-parsed payload object and a bare JSON string', () => {
+    expect(extractProgramProposal(INPUT, PAYLOAD)?.programId).toBe(PID)
+    expect(extractProgramProposal(INPUT, JSON.stringify(PAYLOAD))?.programId).toBe(PID)
+  })
+
+  test('returns null for error results, non-proposed statuses, and junk output', () => {
+    expect(extractProgramProposal(INPUT, { ...ENVELOPE, isError: true })).toBeNull()
+    expect(extractProgramProposal(INPUT, { ...PAYLOAD, status: 'draft' })).toBeNull()
+    expect(extractProgramProposal(INPUT, undefined)).toBeNull()
+    expect(extractProgramProposal(INPUT, 'not json')).toBeNull()
+    expect(extractProgramProposal(INPUT, { content: [{ type: 'text', text: 'oops' }] })).toBeNull()
+  })
+
+  test('rejects a programId that is not UUID-shaped (no href smuggling)', () => {
+    expect(
+      extractProgramProposal(INPUT, { ...PAYLOAD, programId: '../settings?x=1' }),
+    ).toBeNull()
+  })
+
+  test('degrades missing presentation fields instead of failing', () => {
+    const proposal = extractProgramProposal({ days: 'nope' }, PAYLOAD)
+    expect(proposal).toEqual({
+      programId: PID,
+      name: 'New program',
+      icon: null,
+      description: null,
+      dayCount: 0,
+      weekCount: null,
+    })
   })
 })
 

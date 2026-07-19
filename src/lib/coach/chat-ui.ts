@@ -18,12 +18,12 @@ export function humanizeToolName(toolName: string): string {
 }
 
 /**
- * Friendly present-progressive labels for the auto-running read tools, keyed
- * by MCP tool name. Anything unknown falls back to the humanized name so a
- * newly allowlisted tool degrades gracefully instead of rendering raw
- * snake_case.
+ * Friendly present-progressive labels for the auto-running tools (reads plus
+ * the drafting tool), keyed by MCP tool name. Anything unknown falls back to
+ * the humanized name so a newly allowlisted tool degrades gracefully instead
+ * of rendering raw snake_case.
  */
-const READ_TOOL_LABELS: Record<string, string> = {
+const AUTO_TOOL_LABELS: Record<string, string> = {
   whoami: 'Checking your account',
   list_workouts: 'Looking through your workouts',
   get_workout: 'Reading a workout',
@@ -35,11 +35,12 @@ const READ_TOOL_LABELS: Record<string, string> = {
   get_program_stats: 'Crunching program stats',
   list_custom_exercises: 'Checking your custom exercises',
   preview_program_week: 'Previewing the week',
+  upsert_program: 'Drafting your program',
 }
 
 /** One-line status chip text for a tool call ("Reading your program…"). */
 export function toolStatusLabel(toolName: string): string {
-  return READ_TOOL_LABELS[toolName] ?? humanizeToolName(toolName)
+  return AUTO_TOOL_LABELS[toolName] ?? humanizeToolName(toolName)
 }
 
 export interface CoachError {
@@ -97,6 +98,84 @@ export function formatToolInput(input: unknown): string {
   return Object.entries(input as Record<string, unknown>)
     .map(([key, value]) => `${key}: ${typeof value === 'string' ? value : JSON.stringify(value)}`)
     .join('\n')
+}
+
+/** What the chat proposal card renders for a coach-drafted program. */
+export interface ProgramProposal {
+  programId: string
+  name: string
+  icon: string | null
+  description: string | null
+  dayCount: number
+  weekCount: number | null
+}
+
+/** Same UUID shape assertProgramIdShape guards server-side — duplicated here
+ *  (client bundle) so tool output can never smuggle an arbitrary string into
+ *  the card's /programs/{id} href. */
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null
+}
+
+function tryParseJson(text: string): Record<string, unknown> | null {
+  try {
+    return asRecord(JSON.parse(text))
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Digs the tool's JSON payload out of whatever shape the transport delivered:
+ * the raw MCP CallToolResult envelope (`{ content: [{ type:'text', text }] }`),
+ * an already-parsed payload object, or a bare JSON string. `isError` results
+ * and anything unrecognizable collapse to null — the caller degrades to the
+ * plain status chip.
+ */
+function parseToolOutputPayload(output: unknown): Record<string, unknown> | null {
+  if (typeof output === 'string') return tryParseJson(output)
+  const record = asRecord(output)
+  if (!record || record.isError === true) return null
+  if (Array.isArray(record.content)) {
+    const text = record.content.map(asRecord).find((item) => item?.type === 'text')?.text
+    return typeof text === 'string' ? tryParseJson(text) : null
+  }
+  return record
+}
+
+/**
+ * Builds the chat proposal card's data from a completed `upsert_program` tool
+ * part: identity (programId, status 'proposed') from the tool OUTPUT — the
+ * server's word on what was actually saved — and presentation (name, icon,
+ * description, day/week counts) from the tool INPUT the model drafted.
+ * Null for anything that isn't a verified proposal (owner-path upserts,
+ * errors, malformed output), which falls back to the generic tool chip.
+ */
+export function extractProgramProposal(input: unknown, output: unknown): ProgramProposal | null {
+  const payload = parseToolOutputPayload(output)
+  if (!payload || payload.status !== 'proposed') return null
+  const { programId } = payload
+  if (typeof programId !== 'string' || !UUID_RE.test(programId)) return null
+
+  const args = asRecord(input) ?? {}
+  const name = typeof args.name === 'string' && args.name.trim() ? args.name.trim() : 'New program'
+  const icon = typeof args.icon === 'string' && args.icon.trim() ? args.icon.trim() : null
+  const description =
+    typeof args.description === 'string' && args.description.trim()
+      ? args.description.trim()
+      : null
+  const dayCount = Array.isArray(args.days) ? args.days.length : 0
+  const weekCount =
+    typeof args.mesocycleWeeks === 'number' &&
+    Number.isInteger(args.mesocycleWeeks) &&
+    args.mesocycleWeeks > 0
+      ? args.mesocycleWeeks
+      : null
+  return { programId, name, icon, description, dayCount, weekCount }
 }
 
 /**

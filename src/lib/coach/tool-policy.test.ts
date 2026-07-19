@@ -4,6 +4,7 @@ import { registerTools } from '@/lib/mcp/tools'
 import {
   COACH_READ_TOOLS,
   COACH_APPROVAL_TOOLS,
+  COACH_DRAFT_TOOLS,
   COACH_EXCLUDED_TOOLS,
   COACH_ALLOWED_TOOLS,
   filterCoachTools,
@@ -50,11 +51,23 @@ describe('coach tool policy', () => {
     for (const name of COACH_EXCLUDED_TOOLS) {
       expect(filtered, `${name} must be filtered out`).not.toHaveProperty(name)
     }
-    // Spot-check the highest-risk exclusions explicitly.
-    expect(filtered).not.toHaveProperty('upsert_program')
+    // Spot-check the highest-risk exclusions explicitly. upsert_program moved
+    // to COACH_DRAFT_TOOLS deliberately (Phase 2): the db layer forces coach
+    // creates to proposed/coach-authored, so it is no longer excluded.
+    expect(filtered).toHaveProperty('upsert_program')
     expect(filtered).not.toHaveProperty('delete_program')
+    expect(filtered).not.toHaveProperty('set_program_status')
+    expect(filtered).not.toHaveProperty('restart_program')
     expect(filtered).not.toHaveProperty('delete_workout')
     expect(filtered).not.toHaveProperty('set_weight_unit')
+  })
+
+  it('keeps the owner-only confirm out of the registry entirely: no adopt/decline tools exist', () => {
+    // Adopt/decline are server actions, never MCP tools — the coach (or any
+    // MCP client) must have NO tool-shaped path to resolve a proposal.
+    const registry = registeredToolNames()
+    expect(registry).not.toContain('adopt_program')
+    expect(registry).not.toContain('decline_program')
   })
 
   it('retains all allowed tools and drops unknown ones', () => {
@@ -72,12 +85,18 @@ describe('coach tool policy', () => {
     expect(Object.keys(filtered).sort()).toEqual(['add_program_set', 'list_workouts'])
   })
 
-  it('requires approval for every mutating allowed tool and none of the reads', () => {
+  it('requires approval for every patch tool and none of the reads or draft tools', () => {
     for (const name of COACH_APPROVAL_TOOLS) {
       expect(requiresApproval(name), `${name} must require approval`).toBe(true)
     }
     for (const name of COACH_READ_TOOLS) {
       expect(requiresApproval(name), `${name} must not require approval`).toBe(false)
+    }
+    // Draft tools auto-execute: the owner's Adopt/Decline on the program page
+    // is the forced confirm, not an in-chat approval card.
+    for (const name of COACH_DRAFT_TOOLS) {
+      expect(requiresApproval(name), `${name} must not require approval`).toBe(false)
+      expect(COACH_ALLOWED_TOOLS.has(name), `${name} must be allowed`).toBe(true)
     }
   })
 })

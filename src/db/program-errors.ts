@@ -16,3 +16,20 @@ export class ProposedProgramError extends Error {
     this.name = 'ProposedProgramError'
   }
 }
+
+/**
+ * The coach bridge tried to full-replace a program that is not its own
+ * still-unadopted draft. Coach mutations through `upsert_program` are scoped
+ * to rows with `authorActor = 'coach'` AND `status = 'proposed'` — owner
+ * programs and adopted plans are reachable only through the approval-gated
+ * patch tools ("we always force the user to confirm"). Same module/identity
+ * rationale as ProposedProgramError above.
+ */
+export class NotCoachProposalError extends Error {
+  constructor(programId: string) {
+    super(
+      `Program ${programId} is not a coach-drafted proposal — the coach may only replace its own still-proposed drafts; use the granular program patch tools (user-approved) for adopted or owner-authored programs`,
+    )
+    this.name = 'NotCoachProposalError'
+  }
+}
