@@ -12,6 +12,7 @@ import { formatLoggedSet, formatVolume, formatWorkoutDate } from '@/lib/format'
 import { sessionBestSet } from '@/lib/session-best-set'
 import { kgToDisplay, type WeightUnit } from '@/lib/units'
 import type { ExerciseSource } from '@/lib/custom-exercise-input'
+import { useAnimatedSheetClose } from '@/components/use-animated-sheet-close'
 import { cn } from '@/lib/utils'
 
 /**
@@ -39,6 +40,7 @@ interface StatsSheetProps {
 export function StatsSheet({ wgerExerciseId, source, name, unit, onClose }: StatsSheetProps) {
   const dialogRef = useRef<HTMLDialogElement>(null)
   const closeButtonRef = useRef<HTMLButtonElement>(null)
+  const requestClose = useAnimatedSheetClose(dialogRef, onClose)
   // Carried as ?from= so the full-stats page's back arrow returns HERE (the
   // live session), not to the exercises list it assumes by default.
   const pathname = usePathname()
@@ -84,7 +86,7 @@ export function StatsSheet({ wgerExerciseId, source, name, unit, onClose }: Stat
       aria-label={`Stats for ${name}`}
       onCancel={(e) => {
         e.preventDefault() // keep open/closed state owned by React
-        onClose()
+        requestClose()
       }}
       onClick={(e) => {
         // Geometric backdrop test, NOT `target === dialog`: taps in the
@@ -97,7 +99,7 @@ export function StatsSheet({ wgerExerciseId, source, name, unit, onClose }: Stat
           e.clientX <= rect.right &&
           e.clientY >= rect.top &&
           e.clientY <= rect.bottom
-        if (!inside) onClose()
+        if (!inside) requestClose()
       }}
       className="mx-auto mt-auto mb-0 max-h-[85dvh] w-full max-w-md overflow-y-auto overscroll-contain rounded-t-2xl border-t border-x border-border bg-card px-5 pt-5 pb-safe text-foreground backdrop:bg-black/60 motion-safe:animate-sheet-up"
     >
@@ -113,7 +115,7 @@ export function StatsSheet({ wgerExerciseId, source, name, unit, onClose }: Stat
           size="icon-sm"
           variant="ghost"
           className="-mr-1 text-muted-foreground"
-          onClick={onClose}
+          onClick={requestClose}
           aria-label="Close"
         >
           <X aria-hidden="true" className="size-4" />

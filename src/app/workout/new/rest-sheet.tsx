@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { setDefaultRestSecAction } from '@/app/actions'
 import { MAX_REST_SEC } from '@/lib/program-input'
+import { useAnimatedSheetClose } from '@/components/use-animated-sheet-close'
 import { cn } from '@/lib/utils'
 
 /**
@@ -49,6 +50,7 @@ export function RestSheet({ currentSec, onClose, onSaved }: RestSheetProps) {
   const [isSaving, setIsSaving] = useState(false)
   const dialogRef = useRef<HTMLDialogElement>(null)
   const closeButtonRef = useRef<HTMLButtonElement>(null)
+  const requestClose = useAnimatedSheetClose(dialogRef, onClose)
 
   // Native <dialog> + showModal(): the browser owns the focus trap AND makes
   // the page behind genuinely inert — a screen reader's virtual cursor can't
@@ -99,7 +101,7 @@ export function RestSheet({ currentSec, onClose, onSaved }: RestSheetProps) {
     onSaved(value)
     try {
       await setDefaultRestSecAction(value)
-      onClose()
+      requestClose()
     } catch {
       // Session state already applied — only the cross-session default failed.
       setError('Set for this session, but saving your default failed. Try again.')
@@ -118,7 +120,7 @@ export function RestSheet({ currentSec, onClose, onSaved }: RestSheetProps) {
       aria-label="Rest target"
       onCancel={(e) => {
         e.preventDefault() // keep open/closed state owned by React
-        onClose()
+        requestClose()
       }}
       onClick={(e) => {
         // Geometric backdrop test, NOT `target === dialog`: taps in the
@@ -131,7 +133,7 @@ export function RestSheet({ currentSec, onClose, onSaved }: RestSheetProps) {
           e.clientX <= rect.right &&
           e.clientY >= rect.top &&
           e.clientY <= rect.bottom
-        if (!inside) onClose()
+        if (!inside) requestClose()
       }}
       className="mx-auto mt-auto mb-0 max-h-[85dvh] w-full max-w-md overflow-y-auto overscroll-contain rounded-t-2xl border-t border-x border-border bg-card px-5 pt-5 pb-safe text-foreground backdrop:bg-black/60 motion-safe:animate-sheet-up"
     >
@@ -147,7 +149,7 @@ export function RestSheet({ currentSec, onClose, onSaved }: RestSheetProps) {
           size="icon-sm"
           variant="ghost"
           className="-mr-1 text-muted-foreground"
-          onClick={onClose}
+          onClick={requestClose}
           aria-label="Close"
         >
           <X aria-hidden="true" className="size-4" />
