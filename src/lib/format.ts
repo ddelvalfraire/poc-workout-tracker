@@ -177,12 +177,20 @@ export function adoptableGhostValue(ghost?: string): string | undefined {
 }
 
 /**
- * Compact label for the logger's Previous column: "60×8" (both), "×8" (reps
- * only — null-weight machine sets), "60" (weight only), null when there's
+ * Compact label for the logger's Previous column: "60×8", or null when there's
  * nothing to show (the chip renders an em dash, disabled).
+ *
+ * weight_reps (the default) requires BOTH fields — a null-weight history set
+ * would otherwise render fragments like "×10" that read as broken data, not
+ * history. Bodyweight types keep reps-only labels ("×8"): their weight ghost
+ * is stripped by design, so reps ARE the complete story.
  */
-export function previousChipLabel(ghost: { reps?: string; weight?: string }): string | null {
+export function previousChipLabel(
+  ghost: { reps?: string; weight?: string },
+  loggingType: LoggingType = 'weight_reps',
+): string | null {
   if (ghost.weight && ghost.reps) return `${ghost.weight}×${ghost.reps}`
+  if (loggingType === 'weight_reps') return null
   if (ghost.reps) return `×${ghost.reps}`
   return ghost.weight ?? null
 }

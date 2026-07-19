@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from 'react'
 import Link from 'next/link'
+import { usePathname } from 'next/navigation'
 import { X } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { Button, buttonVariants } from '@/components/ui/button'
@@ -37,6 +38,9 @@ interface StatsSheetProps {
 export function StatsSheet({ wgerExerciseId, source, name, unit, onClose }: StatsSheetProps) {
   const dialogRef = useRef<HTMLDialogElement>(null)
   const closeButtonRef = useRef<HTMLButtonElement>(null)
+  // Carried as ?from= so the full-stats page's back arrow returns HERE (the
+  // live session), not to the exercises list it assumes by default.
+  const pathname = usePathname()
 
   // Cached per exercise: reopening mid-session is instant. Records changing
   // DURING the session (a PR being set) is Phase 4's concern, not the sheet's.
@@ -206,7 +210,7 @@ export function StatsSheet({ wgerExerciseId, source, name, unit, onClose }: Stat
 
       <div className="mt-5 pb-4">
         <Link
-          href={exerciseHref({ source, wgerExerciseId })}
+          href={`${exerciseHref({ source, wgerExerciseId })}?from=${encodeURIComponent(pathname)}`}
           className={cn(buttonVariants({ variant: 'outline' }), 'w-full font-semibold uppercase')}
         >
           View full stats

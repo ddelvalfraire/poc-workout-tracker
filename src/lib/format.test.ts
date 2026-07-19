@@ -304,12 +304,20 @@ describe('previousChipLabel', () => {
     expect(previousChipLabel({ reps: '8', weight: '60' })).toBe('60×8')
   })
 
-  it('renders reps-only sets with a leading ×', () => {
-    expect(previousChipLabel({ reps: '12' })).toBe('×12')
+  it('hides partial history for weighted exercises (dash beats a "×10" fragment)', () => {
+    expect(previousChipLabel({ reps: '12' })).toBeNull()
+    expect(previousChipLabel({ weight: '60' })).toBeNull()
+    expect(previousChipLabel({ reps: '12' }, 'weight_reps')).toBeNull()
   })
 
-  it('renders weight-only and empty ghosts', () => {
-    expect(previousChipLabel({ weight: '60' })).toBe('60')
+  it('keeps reps-only labels for bodyweight types, where reps are the whole story', () => {
+    expect(previousChipLabel({ reps: '12' }, 'bodyweight_reps')).toBe('×12')
+    expect(previousChipLabel({ reps: '8' }, 'weighted_bodyweight')).toBe('×8')
+    expect(previousChipLabel({ reps: '6' }, 'assisted_bodyweight')).toBe('×6')
+  })
+
+  it('renders empty ghosts as null', () => {
+    expect(previousChipLabel({}, 'bodyweight_reps')).toBeNull()
     expect(previousChipLabel({})).toBeNull()
   })
 
