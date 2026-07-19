@@ -14,7 +14,7 @@ const OPENED = new Date('2026-07-05T11:40:00.000Z')
 const NOW = new Date('2026-07-05T12:00:00.000Z')
 
 /** A draft mid-session: one checked set, one still blank. */
-const DRAFT: WorkoutDraft = {
+const DRAFT: WorkoutDraft = { notes: '',
   exercises: [
     {
       id: 'ex1',
@@ -23,6 +23,8 @@ const DRAFT: WorkoutDraft = {
       name: 'Squat',
       category: 'Legs',
       loggingType: 'weight_reps',
+      notes: '',
+      skipped: false,
       sets: [
         { id: 's1', reps: '5', weight: '100', completed: true, tag: 'working' as const },
         { id: 's2', reps: '', weight: '', completed: false, tag: 'working' as const },
@@ -121,6 +123,53 @@ describe('build → parse round-trip', () => {
     const bad = payload({ draft: { exercises: [forged] } })
 
     expect(parseDraftPayload(JSON.parse(JSON.stringify(bad)), { unit: 'kg', now: NOW })).toBeNull()
+  })
+
+  it('round-trips notes and skip state intact (offline resume keeps both)', () => {
+    // Arrange — a noted workout with a skipped, noted exercise
+    const raw = structuredClone(payload())
+    const draft = raw.draft as {
+      notes: string
+      exercises: Record<string, unknown>[]
+    }
+    draft.notes = 'cut short'
+    draft.exercises[0].notes = 'machine busy'
+    draft.exercises[0].skipped = true
+
+    // Act
+    const restored = parseDraftPayload(JSON.parse(JSON.stringify(raw)), { unit: 'kg', now: NOW })
+
+    // Assert
+    expect(restored?.draft.notes).toBe('cut short')
+    expect(restored?.draft.exercises[0]).toMatchObject({ notes: 'machine busy', skipped: true })
+  })
+
+  it('accepts a pre-notes payload and defaults notes/skipped on restore', () => {
+    // Arrange — a payload persisted before notes/skip existed
+    const raw = structuredClone(payload()) as Record<string, unknown>
+    const draft = raw.draft as { notes?: string; exercises: Record<string, unknown>[] }
+    delete draft.notes
+    delete draft.exercises[0].notes
+    delete draft.exercises[0].skipped
+
+    // Act
+    const restored = parseDraftPayload(JSON.parse(JSON.stringify(raw)), { unit: 'kg', now: NOW })
+
+    // Assert — restorable, controlled state gets the defaults
+    expect(restored).not.toBeNull()
+    expect(restored!.draft.notes).toBe('')
+    expect(restored!.draft.exercises[0]).toMatchObject({ notes: '', skipped: false })
+  })
+
+  it('rejects wrong-typed notes and skipped (payload is untrusted)', () => {
+    const badWorkoutNotes = structuredClone(payload()) as Record<string, unknown>
+    ;(badWorkoutNotes.draft as Record<string, unknown>).notes = 42
+    expect(isDraftPayload(badWorkoutNotes)).toBe(false)
+
+    const badExercise = structuredClone(payload())
+    const draft = badExercise.draft as { exercises: Record<string, unknown>[] }
+    draft.exercises[0].skipped = 'yes'
+    expect(isDraftPayload(badExercise)).toBe(false)
   })
 
   it('clamps a future openedAt to now (cross-device clock skew)', () => {

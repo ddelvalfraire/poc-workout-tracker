@@ -20,10 +20,12 @@ const SQUAT = {
   name: 'Squat',
   category: 'Legs',
   loggingType: 'weight_reps' as const,
+  notes: '',
+  skipped: false,
 }
 
 /** A draft with one exercise and two sets, for nested-update assertions. */
-const NESTED: WorkoutDraft = {
+const NESTED: WorkoutDraft = { notes: '',
   exercises: [
     {
       id: 'ex1',
@@ -62,7 +64,7 @@ describe('workoutDraftReducer', () => {
 
   it('REPLACE_EXERCISE replaces the exercise at index verbatim, keeping siblings', () => {
     // Arrange — two exercises; the component builds the replacement (with ids)
-    const two: WorkoutDraft = {
+    const two: WorkoutDraft = { notes: '',
       exercises: [
         NESTED.exercises[0],
         {
@@ -72,6 +74,8 @@ describe('workoutDraftReducer', () => {
           name: 'Bench',
           category: 'Chest',
           loggingType: 'weight_reps',
+          notes: '',
+          skipped: false,
           sets: [{ id: 's3', reps: '', weight: '', completed: false, tag: 'working' as const }],
         },
       ],
@@ -83,6 +87,8 @@ describe('workoutDraftReducer', () => {
       name: 'Leg Press',
       category: 'Legs',
       loggingType: 'weight_reps' as const,
+      notes: '',
+      skipped: false,
       sets: [{ id: 's-new', reps: '', weight: '', completed: false, tag: 'working' as const }],
     }
 
@@ -223,10 +229,10 @@ describe('workoutDraftReducer', () => {
 
   it('REMOVE_EXERCISE drops the targeted exercise', () => {
     // Arrange
-    const two: WorkoutDraft = {
+    const two: WorkoutDraft = { notes: '',
       exercises: [
         { id: 'ex1', ...SQUAT, sets: [] },
-        { id: 'ex2', wgerExerciseId: 1, source: 'wger', name: 'Bench', category: 'Chest', loggingType: 'weight_reps', sets: [] },
+        { id: 'ex2', wgerExerciseId: 1, source: 'wger', name: 'Bench', category: 'Chest', loggingType: 'weight_reps', notes: '', skipped: false, sets: [] },
       ],
     }
 
@@ -241,8 +247,8 @@ describe('workoutDraftReducer', () => {
   it('INSERT_EXERCISE restores an exercise at its original position (undo)', () => {
     // Arrange — ex1 was just removed from position 0
     const removed = { id: 'ex1', ...SQUAT, sets: [{ id: 's1', reps: '5', weight: '100', completed: true, tag: 'working' as const }] }
-    const after: WorkoutDraft = {
-      exercises: [{ id: 'ex2', wgerExerciseId: 1, source: 'wger', name: 'Bench', category: 'Chest', loggingType: 'weight_reps', sets: [] }],
+    const after: WorkoutDraft = { notes: '',
+      exercises: [{ id: 'ex2', wgerExerciseId: 1, source: 'wger', name: 'Bench', category: 'Chest', loggingType: 'weight_reps', notes: '', skipped: false, sets: [] }],
     }
 
     // Act
@@ -257,10 +263,10 @@ describe('workoutDraftReducer', () => {
   it('INSERT_EXERCISE keeps the numeric index when the list grew meanwhile', () => {
     // Arrange — removed from position 0, then two exercises were added
     const removed = { id: 'ex1', ...SQUAT, sets: [] }
-    const grown: WorkoutDraft = {
+    const grown: WorkoutDraft = { notes: '',
       exercises: [
-        { id: 'ex2', wgerExerciseId: 1, source: 'wger', name: 'Bench', category: 'Chest', loggingType: 'weight_reps', sets: [] },
-        { id: 'ex3', wgerExerciseId: 2, source: 'wger', name: 'Row', category: 'Back', loggingType: 'weight_reps', sets: [] },
+        { id: 'ex2', wgerExerciseId: 1, source: 'wger', name: 'Bench', category: 'Chest', loggingType: 'weight_reps', notes: '', skipped: false, sets: [] },
+        { id: 'ex3', wgerExerciseId: 2, source: 'wger', name: 'Row', category: 'Back', loggingType: 'weight_reps', notes: '', skipped: false, sets: [] },
       ],
     }
 
@@ -285,7 +291,7 @@ describe('workoutDraftReducer', () => {
   it('INSERT_SET restores a set at its original position (undo)', () => {
     // Arrange — s1 was just removed from position 0
     const removedSet = { id: 's1', reps: '5', weight: '100', completed: true, tag: 'working' as const }
-    const after: WorkoutDraft = {
+    const after: WorkoutDraft = { notes: '',
       exercises: [
         { id: 'ex1', ...SQUAT, sets: [{ id: 's2', reps: '5', weight: '100', completed: false, tag: 'working' as const }] },
       ],
@@ -339,7 +345,7 @@ describe('workoutDraftReducer', () => {
 
   it('TOGGLE_SET_COMPLETED adopts fill values for empty fields when checking off', () => {
     // Arrange — an untouched set with ghost values available
-    const blank: WorkoutDraft = {
+    const blank: WorkoutDraft = { notes: '',
       exercises: [{ id: 'ex1', ...SQUAT, sets: [{ id: 's1', reps: '', weight: '', completed: false, tag: 'working' as const }] }],
     }
 
@@ -357,7 +363,7 @@ describe('workoutDraftReducer', () => {
 
   it('TOGGLE_SET_COMPLETED fill never overwrites typed values', () => {
     // Arrange — reps typed, weight empty
-    const partial: WorkoutDraft = {
+    const partial: WorkoutDraft = { notes: '',
       exercises: [{ id: 'ex1', ...SQUAT, sets: [{ id: 's1', reps: '6', weight: '', completed: false, tag: 'working' as const }] }],
     }
 
@@ -375,7 +381,7 @@ describe('workoutDraftReducer', () => {
 
   it('TOGGLE_SET_COMPLETED ignores fill when unchecking', () => {
     // Arrange — a completed set being unchecked must not have values injected
-    const done: WorkoutDraft = {
+    const done: WorkoutDraft = { notes: '',
       exercises: [{ id: 'ex1', ...SQUAT, sets: [{ id: 's1', reps: '', weight: '', completed: true, tag: 'working' as const }] }],
     }
 
@@ -389,6 +395,65 @@ describe('workoutDraftReducer', () => {
 
     // Assert
     expect(next.exercises[0].sets[0]).toEqual({ id: 's1', reps: '', weight: '', completed: false, tag: 'working' as const })
+  })
+})
+
+describe('notes and skip actions', () => {
+  it('SET_WORKOUT_NOTES replaces the workout note and does not mutate prev', () => {
+    // Act
+    const next = workoutDraftReducer(NESTED, { type: 'SET_WORKOUT_NOTES', value: 'cut short' })
+
+    // Assert — exercises untouched, prev unmutated
+    expect(next.notes).toBe('cut short')
+    expect(next.exercises).toBe(NESTED.exercises)
+    expect(NESTED.notes).toBe('')
+  })
+
+  it('SET_EXERCISE_NOTES targets one exercise and does not mutate prev', () => {
+    // Act
+    const next = workoutDraftReducer(NESTED, {
+      type: 'SET_EXERCISE_NOTES',
+      exerciseIndex: 0,
+      value: 'belt on top set',
+    })
+
+    // Assert — sets untouched, prev unmutated
+    expect(next.exercises[0].notes).toBe('belt on top set')
+    expect(next.exercises[0].sets).toBe(NESTED.exercises[0].sets)
+    expect(NESTED.exercises[0].notes).toBe('')
+  })
+
+  it('TOGGLE_SKIP_EXERCISE flips the flag without touching sets, and back', () => {
+    // Act — skip
+    const skipped = workoutDraftReducer(NESTED, { type: 'TOGGLE_SKIP_EXERCISE', exerciseIndex: 0 })
+
+    // Assert — sets stay exactly as logged (uncompleted); prev unmutated
+    expect(skipped.exercises[0].skipped).toBe(true)
+    expect(skipped.exercises[0].sets).toEqual(NESTED.exercises[0].sets)
+    expect(NESTED.exercises[0].skipped).toBe(false)
+
+    // Act — unskip
+    const back = workoutDraftReducer(skipped, { type: 'TOGGLE_SKIP_EXERCISE', exerciseIndex: 0 })
+
+    // Assert
+    expect(back.exercises[0].skipped).toBe(false)
+  })
+
+  it('other actions preserve the workout note (state spread, not rebuild)', () => {
+    // Arrange
+    const noted = workoutDraftReducer(NESTED, { type: 'SET_WORKOUT_NOTES', value: 'keep me' })
+
+    // Act — a set-level edit must not drop the top-level note
+    const next = workoutDraftReducer(noted, {
+      type: 'UPDATE_SET',
+      exerciseIndex: 0,
+      setIndex: 0,
+      field: 'reps',
+      value: '8',
+    })
+
+    // Assert
+    expect(next.notes).toBe('keep me')
   })
 })
 
@@ -425,7 +490,7 @@ describe('replacementDraftExercise', () => {
 describe('draftToInput', () => {
   it('coerces set strings: blank → null, integers and decimals → numbers', () => {
     // Arrange
-    const draft: WorkoutDraft = {
+    const draft: WorkoutDraft = { notes: '',
       exercises: [
         {
           id: 'ex1',
@@ -450,7 +515,7 @@ describe('draftToInput', () => {
 
   it('includes completed: true only for checked-off sets', () => {
     // Arrange — one checked, one unchecked
-    const draft: WorkoutDraft = {
+    const draft: WorkoutDraft = { notes: '',
       exercises: [
         {
           id: 'ex1',
@@ -473,7 +538,7 @@ describe('draftToInput', () => {
 
   it('emits each exercise\'s loggingType on the wire', () => {
     // Arrange — a bodyweight exercise alongside the default
-    const draft: WorkoutDraft = {
+    const draft: WorkoutDraft = { notes: '',
       exercises: [
         { id: 'ex1', ...SQUAT, sets: [] },
         {
@@ -483,6 +548,8 @@ describe('draftToInput', () => {
           name: 'Pull-up',
           category: 'Back',
           loggingType: 'bodyweight_reps',
+          notes: '',
+          skipped: false,
           sets: [],
         },
       ],
@@ -498,7 +565,7 @@ describe('draftToInput', () => {
 
   it('emits setType only for warm-up sets (working is the column default)', () => {
     // Arrange
-    const draft: WorkoutDraft = {
+    const draft: WorkoutDraft = { notes: '',
       exercises: [
         {
           id: 'ex1',
@@ -529,9 +596,34 @@ describe('draftToInput', () => {
     expect(blank).not.toHaveProperty('name')
   })
 
+  it('emits trimmed notes and skipped, omitting empty notes and false skipped', () => {
+    // Arrange — one noted+skipped exercise, one untouched
+    const draft: WorkoutDraft = {
+      notes: '  cut short  ',
+      exercises: [
+        { id: 'ex1', ...SQUAT, notes: '  machine busy  ', skipped: true, sets: [] },
+        { id: 'ex2', ...SQUAT, sets: [] },
+      ],
+    }
+
+    // Act
+    const input = draftToInput(draft)
+
+    // Assert — empty notes/false skipped stay off the wire (minimal shape)
+    expect(input.notes).toBe('cut short')
+    expect(input.exercises[0].notes).toBe('machine busy')
+    expect(input.exercises[0].skipped).toBe(true)
+    expect(input.exercises[1]).not.toHaveProperty('notes')
+    expect(input.exercises[1]).not.toHaveProperty('skipped')
+  })
+
+  it('omits an empty workout note', () => {
+    expect(draftToInput(emptyDraft)).not.toHaveProperty('notes')
+  })
+
   it('converts entered lb weights back to canonical kg', () => {
     // Arrange — a single 100 lb set
-    const draft: WorkoutDraft = {
+    const draft: WorkoutDraft = { notes: '',
       exercises: [{ id: 'ex1', ...SQUAT, sets: [{ id: 's1', reps: '5', weight: '100', completed: false, tag: 'working' as const }] }],
     }
 
@@ -555,6 +647,7 @@ describe('detailToDraft', () => {
       createdAt: new Date(),
       programDayId: null,
       programWeek: null,
+      notes: null,
       exercises: [
         {
           id: 'ex1',
@@ -564,6 +657,8 @@ describe('detailToDraft', () => {
           name: 'Squat',
           position: 0,
           loggingType: 'weight_reps',
+          notes: null,
+          skipped: false,
           sets: [
             { id: 's1', workoutExerciseId: 'ex1', setNumber: 1, reps: 5, weight: 2.5, completed: false, setType: 'working', metricMode: 'reps_weight', durationSec: null, distanceM: null, prescribedLoadKg: null, prescribedRepMin: null },
             { id: 's2', workoutExerciseId: 'ex1', setNumber: 2, reps: null, weight: null, completed: false, setType: 'working', metricMode: 'reps_weight', durationSec: null, distanceM: null, prescribedLoadKg: null, prescribedRepMin: null },
@@ -585,6 +680,8 @@ describe('detailToDraft', () => {
       name: 'Squat',
       category: '',
       loggingType: 'weight_reps',
+      notes: '',
+      skipped: false,
     })
     expect(draft.exercises[0].sets).toEqual([
       { id: 's1', reps: '5', weight: '2.5', completed: false, tag: 'working' as const },
@@ -603,6 +700,7 @@ describe('detailToDraft', () => {
       createdAt: new Date(),
       programDayId: null,
       programWeek: null,
+      notes: null,
       exercises: [
         {
           id: 'ex1',
@@ -612,6 +710,8 @@ describe('detailToDraft', () => {
           name: 'Squat',
           position: 0,
           loggingType: 'weight_reps',
+          notes: null,
+          skipped: false,
           sets: [
             { id: 's1', workoutExerciseId: 'ex1', setNumber: 1, reps: 5, weight: 60, completed: true, setType: 'warmup', metricMode: 'reps_weight', durationSec: null, distanceM: null, prescribedLoadKg: null, prescribedRepMin: null },
             { id: 's2', workoutExerciseId: 'ex1', setNumber: 2, reps: 5, weight: 100, completed: true, setType: 'working', metricMode: 'reps_weight', durationSec: null, distanceM: null, prescribedLoadKg: null, prescribedRepMin: null },
@@ -630,6 +730,62 @@ describe('detailToDraft', () => {
     expect(sets[1]).not.toHaveProperty('setType')
   })
 
+  it('round-trips notes and skipped back to the wire (null → "" / false → omitted)', () => {
+    // Arrange — a noted workout with one skipped+noted exercise
+    const workout = {
+      id: 'w1',
+      userId: 'user_123',
+      name: null,
+      startedAt: new Date(),
+      completedAt: null,
+      createdAt: new Date(),
+      programDayId: null,
+      programWeek: null,
+      notes: 'cut short',
+      exercises: [
+        {
+          id: 'ex1',
+          workoutId: 'w1',
+          wgerExerciseId: 73,
+          source: 'wger',
+          name: 'Squat',
+          position: 0,
+          loggingType: 'weight_reps',
+          notes: 'machine busy',
+          skipped: true,
+          sets: [],
+        },
+        {
+          id: 'ex2',
+          workoutId: 'w1',
+          wgerExerciseId: 9,
+          source: 'wger',
+          name: 'Bench',
+          position: 1,
+          loggingType: 'weight_reps',
+          notes: null,
+          skipped: false,
+          sets: [],
+        },
+      ],
+    } satisfies WorkoutDetail
+
+    // Act
+    const { draft } = detailToDraft(workout)
+
+    // Assert — DB nulls become controlled-input defaults
+    expect(draft.notes).toBe('cut short')
+    expect(draft.exercises[0]).toMatchObject({ notes: 'machine busy', skipped: true })
+    expect(draft.exercises[1]).toMatchObject({ notes: '', skipped: false })
+
+    // Assert — and survive the edit round-trip back to the wire
+    const input = draftToInput(draft)
+    expect(input.notes).toBe('cut short')
+    expect(input.exercises[0]).toMatchObject({ notes: 'machine busy', skipped: true })
+    expect(input.exercises[1]).not.toHaveProperty('notes')
+    expect(input.exercises[1]).not.toHaveProperty('skipped')
+  })
+
   it('keeps persisted completed flags by default and clears them with resetCompleted', () => {
     // Arrange — a persisted workout with one checked-off set
     const workout: WorkoutDetail = {
@@ -641,6 +797,7 @@ describe('detailToDraft', () => {
       createdAt: new Date(),
       programDayId: null,
       programWeek: null,
+      notes: null,
       exercises: [
         {
           id: 'ex1',
@@ -650,6 +807,8 @@ describe('detailToDraft', () => {
           name: 'Squat',
           position: 0,
           loggingType: 'weight_reps',
+          notes: null,
+          skipped: false,
           sets: [
             { id: 's1', workoutExerciseId: 'ex1', setNumber: 1, reps: 5, weight: 100, completed: true, setType: 'working', metricMode: 'reps_weight', durationSec: null, distanceM: null, prescribedLoadKg: null, prescribedRepMin: null },
           ],
@@ -675,6 +834,7 @@ describe('detailToDraft', () => {
       createdAt: new Date(),
       programDayId: null,
       programWeek: null,
+      notes: null,
       exercises: [
         {
           id: 'ex1',
@@ -684,6 +844,8 @@ describe('detailToDraft', () => {
           name: 'Squat',
           position: 0,
           loggingType: 'weight_reps',
+          notes: null,
+          skipped: false,
           sets: [
             { id: 's1', workoutExerciseId: 'ex1', setNumber: 1, reps: 5, weight: 100, completed: false, setType: 'working', metricMode: 'reps_weight', durationSec: null, distanceM: null, prescribedLoadKg: null, prescribedRepMin: null },
           ],
@@ -709,6 +871,7 @@ describe('detailToDraft', () => {
       createdAt: new Date(),
       programDayId: null,
       programWeek: null,
+      notes: null,
       exercises: [],
     }
 
@@ -742,6 +905,7 @@ describe('completeFilledSets', () => {
     sets: { reps: string; weight?: string; completed?: boolean }[],
   ): WorkoutDraft {
     return {
+      notes: '',
       exercises: [
         {
           id: 'ex1',
@@ -797,6 +961,33 @@ describe('completeFilledSets', () => {
     expect(result.draft.exercises[0].sets[0].completed).toBe(true)
   })
 
+  it('ignores skipped exercises entirely — no auto-complete, no warning count', () => {
+    // Arrange — a skipped exercise with reps typed AND an empty set: neither
+    // may be claimed or warned about; the sibling still runs the pass.
+    const base = draftWith([{ reps: '5' }, { reps: '' }])
+    const draft: WorkoutDraft = {
+      ...base,
+      exercises: [
+        { ...base.exercises[0], skipped: true },
+        { ...base.exercises[0], id: 'ex2', skipped: false },
+      ],
+    }
+
+    // Act
+    const result = completeFilledSets(draft)
+
+    // Assert — skipped exercise untouched; only the live sibling counts
+    expect(result.draft.exercises[0]).toBe(draft.exercises[0])
+    expect(result.autoCompleted).toBe(1)
+    expect(result.skipped).toBe(1)
+  })
+
+  it('preserves the workout note on the transformed draft', () => {
+    const input = { ...draftWith([{ reps: '5' }]), notes: 'keep me' }
+
+    expect(completeFilledSets(input).draft.notes).toBe('keep me')
+  })
+
   it('does not mutate its input draft', () => {
     const input = draftWith([{ reps: '5' }])
     const snapshot = structuredClone(input)
@@ -810,7 +1001,7 @@ describe('completeFilledSets', () => {
 describe('FILL_SET', () => {
   it('adopts fill values into empty fields without completing', () => {
     // Arrange
-    const draft: WorkoutDraft = {
+    const draft: WorkoutDraft = { notes: '',
       exercises: [{ ...newDraftExercise({ wgerExerciseId: 1, name: 'Bench', category: 'Chest' }) }],
     }
 
@@ -827,7 +1018,7 @@ describe('FILL_SET', () => {
   })
 
   it('never overwrites typed input', () => {
-    const base: WorkoutDraft = {
+    const base: WorkoutDraft = { notes: '',
       exercises: [{ ...newDraftExercise({ wgerExerciseId: 1, name: 'Bench', category: 'Chest' }) }],
     }
     const typed = workoutDraftReducer(base, {

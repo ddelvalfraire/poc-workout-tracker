@@ -40,11 +40,19 @@ export interface DraftExercise {
   /** How the weight fields read (Hevy-style); 'weight_reps' unless the user
    *  switches it. Required here (fully controlled), optional on the wire. */
   loggingType: LoggingType
+  /** Free-form per-exercise note; '' = none. Required here (controlled
+   *  textarea), optional on the wire — same treatment as loggingType. */
+  notes: string
+  /** Skipped in-session. Skipping never completes or deletes the sets — they
+   *  stay uncompleted (completed-only counting keeps them out of stats). */
+  skipped: boolean
   sets: DraftSet[]
 }
 
 export interface WorkoutDraft {
   exercises: DraftExercise[]
+  /** Free-form session note; '' = none (controlled textarea). */
+  notes: string
 }
 
 export type DraftAction =
@@ -94,10 +102,17 @@ export type DraftAction =
       setIndex: number
       fill?: { reps?: string; weight?: string }
     }
+  /** Controlled workout-level notes textarea. */
+  | { type: 'SET_WORKOUT_NOTES'; value: string }
+  /** Controlled per-exercise notes textarea. */
+  | { type: 'SET_EXERCISE_NOTES'; exerciseIndex: number; value: string }
+  /** Flips an exercise's skipped flag. Sets are untouched either way —
+   *  skipping records "didn't do this", it never rewrites what WAS done. */
+  | { type: 'TOGGLE_SKIP_EXERCISE'; exerciseIndex: number }
   /** Mount-time restore from the localStorage snapshot — replaces the whole draft. */
   | { type: 'RESTORE_DRAFT'; draft: WorkoutDraft }
 
-export const emptyDraft: WorkoutDraft = { exercises: [] }
+export const emptyDraft: WorkoutDraft = { exercises: [], notes: '' }
 
 /**
  * Factories that mint stable client ids. Impure (id generation) and therefore
@@ -122,6 +137,8 @@ export function newDraftExercise(picked: {
     ...picked,
     source: picked.source ?? 'wger',
     loggingType: 'weight_reps',
+    notes: '',
+    skipped: false,
     sets: [newDraftSet()],
   }
 }
@@ -142,6 +159,9 @@ export function replacementDraftExercise(
     ...picked,
     source: picked.source ?? 'wger',
     loggingType: 'weight_reps',
+    // Fresh note and skip state: both belonged to the old movement.
+    notes: '',
+    skipped: false,
     sets: Array.from({ length: Math.max(1, setCount) }, () => newDraftSet()),
   }
 }
@@ -158,14 +178,15 @@ function mapExerciseAt(
 export function workoutDraftReducer(state: WorkoutDraft, action: DraftAction): WorkoutDraft {
   switch (action.type) {
     case 'ADD_EXERCISE':
-      return { exercises: [...state.exercises, action.exercise] }
+      return { ...state, exercises: [...state.exercises, action.exercise] }
 
     case 'REMOVE_EXERCISE':
-      return { exercises: state.exercises.filter((_, i) => i !== action.index) }
+      return { ...state, exercises: state.exercises.filter((_, i) => i !== action.index) }
 
     case 'INSERT_EXERCISE': {
       const index = Math.min(action.index, state.exercises.length)
       return {
+        ...state,
         exercises: [
           ...state.exercises.slice(0, index),
           action.exercise,
@@ -176,11 +197,12 @@ export function workoutDraftReducer(state: WorkoutDraft, action: DraftAction): W
 
     case 'REPLACE_EXERCISE': {
       if (action.index >= state.exercises.length) return state
-      return { exercises: mapExerciseAt(state.exercises, action.index, () => action.exercise) }
+      return { ...state, exercises: mapExerciseAt(state.exercises, action.index, () => action.exercise) }
     }
 
     case 'ADD_SET':
       return {
+        ...state,
         exercises: mapExerciseAt(state.exercises, action.exerciseIndex, (exercise) => ({
           ...exercise,
           sets: [...exercise.sets, action.set],
@@ -189,6 +211,7 @@ export function workoutDraftReducer(state: WorkoutDraft, action: DraftAction): W
 
     case 'UPDATE_SET':
       return {
+        ...state,
         exercises: mapExerciseAt(state.exercises, action.exerciseIndex, (exercise) => ({
           ...exercise,
           sets: exercise.sets.map((set, i) =>
@@ -199,6 +222,7 @@ export function workoutDraftReducer(state: WorkoutDraft, action: DraftAction): W
 
     case 'TAG_SET':
       return {
+        ...state,
         exercises: mapExerciseAt(state.exercises, action.exerciseIndex, (exercise) => ({
           ...exercise,
           sets: exercise.sets.map((set, i) =>
@@ -209,6 +233,7 @@ export function workoutDraftReducer(state: WorkoutDraft, action: DraftAction): W
 
     case 'SET_LOGGING_TYPE':
       return {
+        ...state,
         exercises: mapExerciseAt(state.exercises, action.exerciseIndex, (exercise) => ({
           ...exercise,
           loggingType: action.loggingType,
@@ -222,6 +247,7 @@ export function workoutDraftReducer(state: WorkoutDraft, action: DraftAction): W
 
     case 'REMOVE_SET':
       return {
+        ...state,
         exercises: mapExerciseAt(state.exercises, action.exerciseIndex, (exercise) => ({
           ...exercise,
           sets: exercise.sets.filter((_, i) => i !== action.setIndex),
@@ -231,6 +257,7 @@ export function workoutDraftReducer(state: WorkoutDraft, action: DraftAction): W
     case 'INSERT_SET': {
       if (action.exerciseIndex >= state.exercises.length) return state
       return {
+        ...state,
         exercises: mapExerciseAt(state.exercises, action.exerciseIndex, (exercise) => {
           const index = Math.min(action.setIndex, exercise.sets.length)
           return {
@@ -243,6 +270,7 @@ export function workoutDraftReducer(state: WorkoutDraft, action: DraftAction): W
 
     case 'FILL_SET':
       return {
+        ...state,
         exercises: mapExerciseAt(state.exercises, action.exerciseIndex, (exercise) => ({
           ...exercise,
           sets: exercise.sets.map((set, i) =>
@@ -259,6 +287,7 @@ export function workoutDraftReducer(state: WorkoutDraft, action: DraftAction): W
 
     case 'TOGGLE_SET_COMPLETED':
       return {
+        ...state,
         exercises: mapExerciseAt(state.exercises, action.exerciseIndex, (exercise) => ({
           ...exercise,
           sets: exercise.sets.map((set, i) => {
@@ -272,6 +301,27 @@ export function workoutDraftReducer(state: WorkoutDraft, action: DraftAction): W
               completed: checkingOff,
             }
           }),
+        })),
+      }
+
+    case 'SET_WORKOUT_NOTES':
+      return { ...state, notes: action.value }
+
+    case 'SET_EXERCISE_NOTES':
+      return {
+        ...state,
+        exercises: mapExerciseAt(state.exercises, action.exerciseIndex, (exercise) => ({
+          ...exercise,
+          notes: action.value,
+        })),
+      }
+
+    case 'TOGGLE_SKIP_EXERCISE':
+      return {
+        ...state,
+        exercises: mapExerciseAt(state.exercises, action.exerciseIndex, (exercise) => ({
+          ...exercise,
+          skipped: !exercise.skipped,
         })),
       }
 
@@ -311,26 +361,38 @@ export function draftToInput(
   unit: WeightUnit = 'kg',
 ): WorkoutInput {
   const trimmedName = name?.trim()
-  const exercises = draft.exercises.map((exercise) => ({
-    wgerExerciseId: exercise.wgerExerciseId,
-    source: exercise.source,
-    name: exercise.name,
-    loggingType: exercise.loggingType,
-    sets: exercise.sets.map((set) => {
-      const w = toWeight(set.weight)
-      return {
-        reps: toReps(set.reps),
-        weight: w === null ? null : displayToKg(w, unit),
-        // Omit when unchecked so the wire payload (and every MCP/save test
-        // fixture that predates check-off) keeps its minimal shape.
-        ...(set.completed && { completed: true }),
-        // Same minimal-shape rule: 'working' is the column default.
-        ...(set.tag === 'warmup' && { setType: 'warmup' as const }),
-      }
-    }),
-  }))
+  const trimmedNotes = draft.notes.trim()
+  const exercises = draft.exercises.map((exercise) => {
+    const exerciseNotes = exercise.notes.trim()
+    return {
+      wgerExerciseId: exercise.wgerExerciseId,
+      source: exercise.source,
+      name: exercise.name,
+      loggingType: exercise.loggingType,
+      // Empty notes → omitted (the column stores null); skipped only when true
+      // — same minimal wire shape as completed/setType below.
+      ...(exerciseNotes !== '' && { notes: exerciseNotes }),
+      ...(exercise.skipped && { skipped: true }),
+      sets: exercise.sets.map((set) => {
+        const w = toWeight(set.weight)
+        return {
+          reps: toReps(set.reps),
+          weight: w === null ? null : displayToKg(w, unit),
+          // Omit when unchecked so the wire payload (and every MCP/save test
+          // fixture that predates check-off) keeps its minimal shape.
+          ...(set.completed && { completed: true }),
+          // Same minimal-shape rule: 'working' is the column default.
+          ...(set.tag === 'warmup' && { setType: 'warmup' as const }),
+        }
+      }),
+    }
+  })
 
-  return trimmedName ? { name: trimmedName, exercises } : { exercises }
+  return {
+    ...(trimmedName && { name: trimmedName }),
+    ...(trimmedNotes !== '' && { notes: trimmedNotes }),
+    exercises,
+  }
 }
 
 /**
@@ -357,6 +419,8 @@ export function detailToDraft(
     name: exercise.name,
     category: '',
     loggingType: exercise.loggingType,
+    notes: exercise.notes ?? '',
+    skipped: exercise.skipped,
     sets: exercise.sets.map((set) => ({
       id: set.id,
       reps: set.reps?.toString() ?? '',
@@ -368,7 +432,7 @@ export function detailToDraft(
       tag: set.setType === 'warmup' ? ('warmup' as const) : ('working' as const),
     })),
   }))
-  return { draft: { exercises }, name: workout.name ?? '' }
+  return { draft: { exercises, notes: workout.notes ?? '' }, name: workout.name ?? '' }
 }
 
 /** Plain positive-integer reps ("5", never "5.9"/"0"/"5e1") — the bar a set
@@ -400,19 +464,24 @@ export function completeFilledSets(draft: WorkoutDraft): {
 } {
   let autoCompleted = 0
   let skipped = 0
-  const exercises = draft.exercises.map((exercise) => ({
-    ...exercise,
-    sets: exercise.sets.map((set) => {
-      if (set.completed) return set
-      if (hasPerformedReps(set.reps)) {
-        autoCompleted += 1
-        return { ...set, completed: true }
-      }
-      skipped += 1
-      return set
-    }),
-  }))
-  return { draft: { exercises }, autoCompleted, skipped }
+  const exercises = draft.exercises.map((exercise) => {
+    // A skipped exercise opted out of the session: its sets stay uncompleted
+    // by design, and warning about them would nag over a decision already made.
+    if (exercise.skipped) return exercise
+    return {
+      ...exercise,
+      sets: exercise.sets.map((set) => {
+        if (set.completed) return set
+        if (hasPerformedReps(set.reps)) {
+          autoCompleted += 1
+          return { ...set, completed: true }
+        }
+        skipped += 1
+        return set
+      }),
+    }
+  })
+  return { draft: { ...draft, exercises }, autoCompleted, skipped }
 }
 
 /**

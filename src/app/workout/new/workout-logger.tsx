@@ -4,9 +4,20 @@ import { Fragment, useEffect, useReducer, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useQueries, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeftRight, Check, ChevronDown, ChevronUp, Dumbbell, Trash2, X } from 'lucide-react'
+import {
+  ArrowLeftRight,
+  Check,
+  ChevronDown,
+  ChevronUp,
+  CircleSlash,
+  Dumbbell,
+  NotebookPen,
+  Trash2,
+  X,
+} from 'lucide-react'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import { AppHeader } from '@/components/app-header'
 import { PrBadge } from '@/components/pr-badge'
 import { ConfirmDialog } from '@/components/confirm-dialog'
@@ -311,6 +322,13 @@ export function WorkoutLogger({
   // the lifter re-expanded (to correct a set). Never pruned — stale ids are
   // harmless once an exercise stops being complete.
   const [expandedDone, setExpandedDone] = useState<Set<string>>(new Set())
+  // Per-exercise notes textareas the lifter opened. Visibility is
+  // open-OR-has-notes: a card with a note always shows it (a hidden note is
+  // a lost note), so stale ids are harmless here too.
+  const [notesOpen, setNotesOpen] = useState<Set<string>>(new Set())
+  // Whether the workout-level notes textarea is open (same open-OR-has-notes
+  // visibility rule as the per-exercise ones).
+  const [isWorkoutNotesOpen, setIsWorkoutNotesOpen] = useState(false)
 
   useEffect(
     () => () => {
@@ -411,6 +429,7 @@ export function WorkoutLogger({
   const nextUp = (() => {
     for (let exerciseIndex = 0; exerciseIndex < draft.exercises.length; exerciseIndex++) {
       const exercise = draft.exercises[exerciseIndex]
+      if (exercise.skipped) continue // opted out — never "next"
       const setIndex = exercise.sets.findIndex((set) => !set.completed)
       if (setIndex === -1) continue
       const set = exercise.sets[setIndex]
@@ -648,7 +667,7 @@ export function WorkoutLogger({
   // sends only the latest snapshot, and retries failures on an interval —
   // a gym dead zone delays the sync instead of silently dropping it.
   useEffect(() => {
-    const snapshot = JSON.stringify({ name, exercises: draft.exercises })
+    const snapshot = JSON.stringify({ name, notes: draft.notes, exercises: draft.exercises })
     if (lastSnapshotRef.current === snapshot) return // StrictMode re-run or no real change
     const isMount = lastSnapshotRef.current === null
     lastSnapshotRef.current = snapshot
@@ -677,10 +696,13 @@ export function WorkoutLogger({
   const isEmpty = draft.exercises.length === 0
   // Every exercise has sets and every set is checked off — the moment the
   // Finish button starts nudging (and the last card outline turns volt).
+  // Skipped exercises are opted out — they must not hold the nudge hostage.
   const isSessionDone =
     !isEmpty &&
     draft.exercises.every(
-      (exercise) => exercise.sets.length > 0 && exercise.sets.every((set) => set.completed),
+      (exercise) =>
+        exercise.skipped ||
+        (exercise.sets.length > 0 && exercise.sets.every((set) => set.completed)),
     )
 
   // Deliberately NOT wrapped in startTransition: tying router.push to an async
@@ -913,23 +935,56 @@ export function WorkoutLogger({
             key={exercise.id}
             className={cn(
               'rounded-2xl border bg-card transition-colors motion-safe:animate-rise-in',
-              isCollapsed ? '' : 'p-4',
+              isCollapsed || exercise.skipped ? '' : 'p-4',
               // Every set checked off = this movement is done: the volt
               // outline is the same "live/complete" state marker the resume
-              // banner and rest readout use.
-              isDone ? 'border-primary/50' : 'border-border',
+              // banner and rest readout use. Skipped stays muted — opting
+              // out is not a live state (one-volt rule).
+              isDone && !exercise.skipped ? 'border-primary/50' : 'border-border',
               // Muted rail, not volt (one-volt rule): grouping is structure,
               // not a live state.
               supersetLabel !== undefined && 'border-l-2 border-l-muted-foreground/40',
               continuesSuperset && '-mt-2',
             )}
           >
-            {supersetLabel !== undefined && !isCollapsed && (
+            {supersetLabel !== undefined && !isCollapsed && !exercise.skipped && (
               <p className="mb-3 text-[0.65rem] font-semibold uppercase tracking-widest text-muted-foreground">
                 Superset {supersetLabel}
               </p>
             )}
-          {isCollapsed ? (
+          {exercise.skipped ? (
+            /* Skipped fold: same one-line row pattern as the done-collapse
+               below, but muted throughout — opting out is quiet, not volt.
+               The whole row is the Unskip affordance (one tap back in). */
+            <button
+              type="button"
+              onClick={() => dispatch({ type: 'TOGGLE_SKIP_EXERCISE', exerciseIndex })}
+              aria-label={`Unskip ${exercise.name}`}
+              className="flex w-full items-center justify-between gap-3 p-4 text-left motion-safe:animate-rise-in"
+            >
+              <span className="flex min-w-0 items-center gap-2.5">
+                <span
+                  aria-hidden="true"
+                  className="grid size-6 shrink-0 place-items-center rounded-full bg-muted text-muted-foreground"
+                >
+                  <CircleSlash className="size-3.5" />
+                </span>
+                <span className="min-w-0">
+                  <span className="block truncate text-base leading-tight text-muted-foreground line-through">
+                    {exercise.name}
+                  </span>
+                  {exercise.notes.trim() !== '' && (
+                    <span className="mt-0.5 block truncate text-sm text-muted-foreground">
+                      {exercise.notes}
+                    </span>
+                  )}
+                </span>
+              </span>
+              <span className="shrink-0 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                Skipped
+              </span>
+            </button>
+          ) : isCollapsed ? (
             <button
               type="button"
               onClick={() =>
@@ -1067,9 +1122,39 @@ export function WorkoutLogger({
               >
                 <ArrowLeftRight aria-hidden="true" className="size-4" />
               </Button>
+              {/* Notes toggle: open-OR-has-notes visibility (see notesOpen)
+                  — the button opens the textarea; a non-empty note keeps it
+                  shown regardless. */}
+              <Button
+                size="icon-sm"
+                variant="ghost"
+                className="shrink-0 text-muted-foreground"
+                onClick={() =>
+                  setNotesOpen((prev) => {
+                    const next = new Set(prev)
+                    if (next.has(exercise.id)) next.delete(exercise.id)
+                    else next.add(exercise.id)
+                    return next
+                  })
+                }
+                aria-label={`Notes for ${exercise.name}`}
+              >
+                <NotebookPen aria-hidden="true" className="size-4" />
+              </Button>
               {/* Hairline gap between the everyday utilities and the
                   destructive remove — adjacency invites mid-set slips. */}
               <span aria-hidden="true" className="h-5 w-px shrink-0 self-center bg-border" />
+              {/* Skip sits with remove past the divider: both are "opt out"
+                  actions, though skip is reversible (the folded row unskips). */}
+              <Button
+                size="icon-sm"
+                variant="ghost"
+                className="shrink-0 text-muted-foreground"
+                onClick={() => dispatch({ type: 'TOGGLE_SKIP_EXERCISE', exerciseIndex })}
+                aria-label={`Skip ${exercise.name}`}
+              >
+                <CircleSlash aria-hidden="true" className="size-4" />
+              </Button>
               <Button
                 size="icon-sm"
                 variant="ghost"
@@ -1081,6 +1166,20 @@ export function WorkoutLogger({
               </Button>
               </div>
             </div>
+
+            {/* Auto-shown while a note exists: a hidden note is a lost note. */}
+            {(notesOpen.has(exercise.id) || exercise.notes !== '') && (
+              <Textarea
+                rows={2}
+                placeholder="Add note…"
+                value={exercise.notes}
+                onChange={(e) =>
+                  dispatch({ type: 'SET_EXERCISE_NOTES', exerciseIndex, value: e.target.value })
+                }
+                aria-label={`Notes for ${exercise.name}`}
+                className="motion-safe:animate-rise-in"
+              />
+            )}
 
             {/* Layer 1 auto-regulation, propose-don't-impose: the adjusted
                 targets already ride the ghosts; this line is the REASON (the
@@ -1470,6 +1569,30 @@ export function WorkoutLogger({
           </section>
           )
         })}
+
+        {/* Workout-level note, above the destructive tail: session context
+            ("cut short — gym closing") belongs to the whole workout, not one
+            card. Same open-OR-has-notes visibility as the per-exercise ones. */}
+        {!isEmpty &&
+          (isWorkoutNotesOpen || draft.notes !== '' ? (
+            <Textarea
+              rows={2}
+              placeholder="Add note…"
+              value={draft.notes}
+              onChange={(e) => dispatch({ type: 'SET_WORKOUT_NOTES', value: e.target.value })}
+              aria-label="Workout notes"
+              className="motion-safe:animate-rise-in"
+            />
+          ) : (
+            <Button
+              variant="ghost"
+              className="w-full text-muted-foreground"
+              onClick={() => setIsWorkoutNotesOpen(true)}
+            >
+              <NotebookPen aria-hidden="true" className="size-4" />
+              Add workout note
+            </Button>
+          ))}
 
         {/* Discard lives at the END of the scrolling content, not in the
             sticky bar: a destructive exit must be sought out, never sit one

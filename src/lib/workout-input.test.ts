@@ -250,6 +250,83 @@ describe('parseWorkoutInput', () => {
     })
   })
 
+  describe('notes', () => {
+    it('keeps trimmed workout and exercise notes', () => {
+      // Act
+      const result = parseWorkoutInput({
+        ...VALID,
+        notes: '  cut short — gym closing  ',
+        exercises: [{ ...VALID.exercises[0], notes: '  belt on top set  ' }],
+      })
+
+      // Assert
+      expect(result.notes).toBe('cut short — gym closing')
+      expect(result.exercises[0].notes).toBe('belt on top set')
+    })
+
+    it('omits absent and blank notes at both levels', () => {
+      // Act
+      const absent = parseWorkoutInput(VALID)
+      const blank = parseWorkoutInput({
+        ...VALID,
+        notes: '   ',
+        exercises: [{ ...VALID.exercises[0], notes: '   ' }],
+      })
+
+      // Assert
+      expect(absent).not.toHaveProperty('notes')
+      expect(absent.exercises[0]).not.toHaveProperty('notes')
+      expect(blank).not.toHaveProperty('notes')
+      expect(blank.exercises[0]).not.toHaveProperty('notes')
+    })
+
+    it('throws when notes is not a string', () => {
+      expect(() => parseWorkoutInput({ ...VALID, notes: 42 })).toThrow('workout notes must be a string')
+      expect(() =>
+        parseWorkoutInput({ exercises: [{ ...VALID.exercises[0], notes: {} }] }),
+      ).toThrow('exercise notes must be a string')
+    })
+
+    it('throws when notes exceeds the 2000-character cap', () => {
+      const long = 'x'.repeat(2001)
+      expect(() => parseWorkoutInput({ ...VALID, notes: long })).toThrow(/2000 characters or fewer/)
+      expect(() =>
+        parseWorkoutInput({ exercises: [{ ...VALID.exercises[0], notes: long }] }),
+      ).toThrow(/2000 characters or fewer/)
+    })
+
+    it('accepts notes exactly at the cap', () => {
+      const max = 'x'.repeat(2000)
+      expect(parseWorkoutInput({ ...VALID, notes: max }).notes).toBe(max)
+    })
+  })
+
+  describe('exercise skipped', () => {
+    it('passes a boolean skipped through and omits it when absent', () => {
+      // Act
+      const result = parseWorkoutInput({
+        exercises: [
+          { ...VALID.exercises[0], skipped: true },
+          { ...VALID.exercises[0], skipped: false },
+          { ...VALID.exercises[0] },
+        ],
+      })
+
+      // Assert — absent → omitted so the column default (false) applies
+      expect(result.exercises[0].skipped).toBe(true)
+      expect(result.exercises[1].skipped).toBe(false)
+      expect(result.exercises[2]).not.toHaveProperty('skipped')
+    })
+
+    it('throws when skipped is not a boolean', () => {
+      for (const skipped of ['yes', 1, {}]) {
+        expect(() =>
+          parseWorkoutInput({ exercises: [{ ...VALID.exercises[0], skipped }] }),
+        ).toThrow('exercise skipped must be a boolean')
+      }
+    })
+  })
+
   it('throws when a set is not an object', () => {
     expect(() =>
       parseWorkoutInput({ exercises: [{ wgerExerciseId: 1, name: 'Squat', sets: ['bad'] }] }),
