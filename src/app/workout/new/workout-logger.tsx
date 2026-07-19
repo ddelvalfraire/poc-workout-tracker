@@ -8,6 +8,7 @@ import { ArrowLeftRight, Check, ChevronDown, ChevronUp, Dumbbell, Trash2, X } fr
 import { Button, buttonVariants } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { AppHeader } from '@/components/app-header'
+import { PrBadge } from '@/components/pr-badge'
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import {
   saveWorkoutAction,
@@ -940,20 +941,30 @@ export function WorkoutLogger({
               }
               aria-expanded={false}
               aria-label={`Expand ${exercise.name} — completed, ${completedSetsSummary(exercise.sets, exercise.loggingType)}${hasPR ? ', new PR' : ''}${supersetLabel !== undefined ? `, superset ${supersetLabel}` : ''}`}
-              className="flex w-full items-baseline justify-between gap-3 p-4 text-left"
+              className="flex w-full items-center justify-between gap-3 p-4 text-left"
             >
-              <span className="flex min-w-0 items-baseline gap-2">
-                <Check aria-hidden="true" strokeWidth={3} className="size-4 shrink-0 self-center text-primary" />
+              <span className="flex min-w-0 items-center gap-2.5">
+                {/* Tinted volt disc echoes the completed set circle — the
+                    log → collapse continuity, quieter than a solid fill. */}
+                <span
+                  aria-hidden="true"
+                  className="grid size-6 shrink-0 place-items-center rounded-full bg-primary/15 text-primary"
+                >
+                  <Check strokeWidth={3} className="size-3.5" />
+                </span>
                 <span className="truncate text-base leading-tight">{exercise.name}</span>
               </span>
-              <span className="shrink-0 text-sm text-muted-foreground tnum">
+              <span className="flex shrink-0 items-center gap-2 text-sm text-muted-foreground tnum">
                 {completedSetsSummary(exercise.sets, exercise.loggingType)}
-                {hasPR && <span className="ml-1.5 font-semibold text-primary">PR</span>}
+                {hasPR && <PrBadge />}
               </span>
             </button>
           ) : (
           <>
-            <div className="flex items-start justify-between gap-2">
+            {/* Layered header: the movement name owns the top line at full
+                width; the utility rail sits beneath it, so controls never
+                crowd or truncate the title. */}
+            <div>
               <h3 className="min-w-0 text-base leading-tight">
                 {/* The name IS the stats entry point (Strong/Hevy convention):
                     zero added chrome. Read-only, so unlike replace it never
@@ -972,6 +983,7 @@ export function WorkoutLogger({
                   </span>
                 )}
               </h3>
+              <div className="mt-2 flex items-center gap-1">
               {/* How this exercise logs (Hevy-style). A native select — four
                   options don't justify a custom menu, and the OS picker is the
                   best small-screen affordance. Ghost-quiet on purpose: it's a
@@ -1005,6 +1017,7 @@ export function WorkoutLogger({
                   className="pointer-events-none absolute right-0.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground"
                 />
               </span>
+              <span aria-hidden="true" className="flex-1" />
               {/* A done card auto-collapses; once re-expanded for corrections
                   this is the way back down — same expandedDone set, inverse
                   edge. Only rendered when done: an unfinished card collapsing
@@ -1066,6 +1079,7 @@ export function WorkoutLogger({
               >
                 <Trash2 aria-hidden="true" className="size-4" />
               </Button>
+              </div>
             </div>
 
             {/* Layer 1 auto-regulation, propose-don't-impose: the adjusted
@@ -1423,8 +1437,8 @@ export function WorkoutLogger({
                     e1RM strictly beats the all-time best the session opened
                     with. Presentation-only — nothing is stored. */}
                 {setIndex === prIndexByExercise[exerciseIndex] && (
-                  <p className="pl-10 text-[0.7rem] font-semibold uppercase tracking-widest text-primary">
-                    All-time PR
+                  <p className="pl-10">
+                    <PrBadge label="All-time PR" />
                   </p>
                 )}
                 </Fragment>
@@ -1454,19 +1468,22 @@ export function WorkoutLogger({
             delete flows in workout-actions.tsx / program-actions.tsx),
             rendered near the other top-layer surfaces below. */}
         {isLive && (
-          <div className="flex justify-center pt-2">
-            {/* Demoted on purpose (ghost + destructive text): it should
-                read as an escape hatch, not an action competing with the
-                volt Finish below. */}
+          <div className="pt-2">
+            {/* Demoted on purpose (tinted outline, never volt): a designed
+                escape hatch rather than a bare text link, but still nothing
+                that competes with the volt Finish below. Full-width matches
+                the card rhythm of the page; the ConfirmDialog stays the
+                actual guard. */}
             <Button
-              variant="ghost"
-              className="text-destructive"
+              variant="outline"
+              className="w-full border-destructive/30 bg-destructive/5 text-destructive"
               disabled={isSaving || isDiscarding}
               onClick={() => {
                 setDiscardError(null) // a stale failure must not reopen with the dialog
                 setIsDiscardModalOpen(true)
               }}
             >
+              <Trash2 aria-hidden="true" className="size-4" />
               Discard workout
             </Button>
           </div>
