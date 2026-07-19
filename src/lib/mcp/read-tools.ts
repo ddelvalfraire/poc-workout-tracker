@@ -65,7 +65,7 @@ export function registerReadTools(server: McpServer): void {
     {
       title: 'Get Workout',
       description:
-        "Returns one workout (owned by the user) with its exercises and sets, weights in the user's unit, plus a per-exercise estimated 1RM.",
+        "Returns one workout (owned by the user) with its exercises and sets, weights in the user's unit, plus a per-exercise estimated 1RM. Includes the session `notes` and, per exercise, `notes` and `skipped` (skipped = the lifter didn't do this exercise that day; its sets stay uncompleted).",
       inputSchema: { id: z.string(), userId: z.string().optional() },
     },
     async ({ id, userId }, extra) => {
@@ -356,6 +356,8 @@ export interface WorkoutPayload {
   workout: {
     id: string
     name: string | null
+    // Free-form session note (null = none), emitted like the other nullable fields.
+    notes: string | null
     startedAt: string
     // Provenance: the program day this workout was instantiated from (null for
     // ad-hoc workouts). `plan` carries that day's prescription as a read overlay.
@@ -369,6 +371,10 @@ export interface WorkoutPayload {
       position: number
       // How the sets' weights read (total / ignored / added / assistance).
       loggingType: LoggingType
+      // Free-form per-exercise note (null = none).
+      notes: string | null
+      // Marked skipped in-session ("didn't do this today"); the sets stay uncompleted.
+      skipped: boolean
       sets: { setNumber: number; reps: number | null; weight: number | null; completed: boolean }[]
       estimated1RM: number | null
       // Additive rep-fallback readout: the best set's rep count when nothing
@@ -398,6 +404,7 @@ export function buildWorkoutPayload(
     workout: {
       id: workout.id,
       name: workout.name,
+      notes: workout.notes,
       startedAt: workout.startedAt.toISOString(),
       programDayId: workout.programDayId,
       programWeek: workout.programWeek,
@@ -408,6 +415,8 @@ export function buildWorkoutPayload(
         name: exercise.name,
         position: exercise.position,
         loggingType: exercise.loggingType,
+        notes: exercise.notes,
+        skipped: exercise.skipped,
         sets: exercise.sets.map((s) => ({
           setNumber: s.setNumber,
           reps: s.reps,

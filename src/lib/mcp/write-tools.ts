@@ -17,6 +17,10 @@ const exercisesSchema = z.array(
     // pre-discriminator callers keep their shape.
     source: z.enum(['wger', 'custom']).optional(),
     name: z.string(),
+    // Free-form per-exercise note; length/trim rules live in parseWorkoutInput.
+    notes: z.string().optional(),
+    // Skipped in-session ("didn't do this"); the sets save uncompleted either way.
+    skipped: z.boolean().optional(),
     sets: z.array(z.object({ reps: z.number().int().nullable(), weight: z.number().nullable() })),
   }),
 )
@@ -30,6 +34,8 @@ const startedAtArg = z.string().datetime().optional()
 /** The raw (display-unit) workout body before kg conversion. */
 type RawWorkout = {
   name?: string
+  /** Free-form session note; trimmed/bounded by `parseWorkoutInput`. */
+  notes?: string
   exercises: z.infer<typeof exercisesSchema>
   /** ISO date string; `parseWorkoutInput` converts it to a Date and rejects the future. */
   startedAt?: string
@@ -43,11 +49,14 @@ type RawWorkout = {
 function toKgInput(raw: RawWorkout, unit: WeightUnit): RawWorkout {
   return {
     name: raw.name,
+    notes: raw.notes,
     startedAt: raw.startedAt,
     exercises: raw.exercises.map((e) => ({
       wgerExerciseId: e.wgerExerciseId,
       ...(e.source !== undefined ? { source: e.source } : {}),
       name: e.name,
+      ...(e.notes !== undefined ? { notes: e.notes } : {}),
+      ...(e.skipped !== undefined ? { skipped: e.skipped } : {}),
       sets: e.sets.map((s) => ({
         reps: s.reps,
         weight: s.weight === null ? null : displayToKg(s.weight, unit),
@@ -110,20 +119,21 @@ export function registerWriteTools(server: McpServer): void {
     {
       title: 'Create Workout',
       description:
-        "Logs a new workout for the user. Weights are given in the user's unit (or the `unit` arg) and stored as kg. Pass `startedAt` (ISO 8601) to backdate a past session; omit it to stamp now. Returns the new workoutId; call get_workout to confirm.",
+        "Logs a new workout for the user. Weights are given in the user's unit (or the `unit` arg) and stored as kg. Pass `startedAt` (ISO 8601) to backdate a past session; omit it to stamp now. Optional `notes` (session-level) and per-exercise `notes`/`skipped` are stored too — `skipped: true` means the lifter didn't do that exercise; its sets stay uncompleted. Returns the new workoutId; call get_workout to confirm.",
       inputSchema: {
         name: z.string().optional(),
+        notes: z.string().optional(),
         exercises: exercisesSchema,
         unit: unitArg,
         startedAt: startedAtArg,
         userId: z.string().optional(),
       },
     },
-    async ({ name, exercises, unit, startedAt, userId }, extra) => {
+    async ({ name, notes, exercises, unit, startedAt, userId }, extra) => {
       try {
         const resolved = resolveUserId(extra, userId)
         const basis = unit ?? (await getWeightUnit(resolved))
-        const parsed = validate({ name, exercises, startedAt }, basis)
+        const parsed = validate({ name, notes, exercises, startedAt }, basis)
         const { id } = await saveWorkout(resolved, parsed)
         return jsonResult({ userId: resolved, unit: basis, workoutId: id })
       } catch (error: unknown) {
@@ -137,22 +147,23 @@ export function registerWriteTools(server: McpServer): void {
     {
       title: 'Update Workout',
       description:
-        'Replaces an existing workout (owned by the user) with the given exercises/sets. Full replace, not a partial edit. Pass `startedAt` (ISO 8601) to also change the session date; omit it to keep the existing one. Errors if the workout is not found or not owned.',
+        'Replaces an existing workout (owned by the user) with the given exercises/sets. Full replace, not a partial edit — session `notes` and per-exercise `notes`/`skipped` follow the same rule: omitting them clears them (to set/clear only workout notes, prefer set_workout_meta; for one exercise, set_exercise_meta). Pass `startedAt` (ISO 8601) to also change the session date; omit it to keep the existing one. Errors if the workout is not found or not owned.',
       inputSchema: {
         id: z.string(),
         name: z.string().optional(),
+        notes: z.string().optional(),
         exercises: exercisesSchema,
         unit: unitArg,
         startedAt: startedAtArg,
         userId: z.string().optional(),
       },
     },
-    async ({ id, name, exercises, unit, startedAt, userId }, extra) => {
+    async ({ id, name, notes, exercises, unit, startedAt, userId }, extra) => {
       try {
         const resolved = resolveUserId(extra, userId)
         assertWorkoutIdShape(id)
         const basis = unit ?? (await getWeightUnit(resolved))
-        const parsed = validate({ name, exercises, startedAt }, basis)
+        const parsed = validate({ name, notes, exercises, startedAt }, basis)
         const result = await updateWorkout(resolved, id, parsed)
         if (!result) {
           throw new ToolError(`Workout ${id} not found for user ${resolved}`)

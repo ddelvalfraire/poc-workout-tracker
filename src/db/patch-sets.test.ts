@@ -81,7 +81,7 @@ vi.mock('./index', () => ({
   },
 }))
 
-import { updateSet, addSet, removeSet, updateWorkoutMeta } from './workouts'
+import { updateSet, addSet, removeSet, updateWorkoutMeta, updateExerciseMeta } from './workouts'
 
 const USER = 'user_123'
 const WID = '11111111-1111-1111-1111-111111111111'
@@ -296,5 +296,68 @@ describe('updateWorkoutMeta (user-scoped)', () => {
 
     // Assert
     expect(result).toBeNull()
+  })
+
+  it('sets and clears the session notes', async () => {
+    // Arrange
+    ownedWorkoutRows = [{ id: WID }]
+
+    // Act — set, then clear (null)
+    await updateWorkoutMeta(USER, WID, { notes: 'felt strong' })
+    await updateWorkoutMeta(USER, WID, { notes: null })
+
+    // Assert
+    expect(records).toEqual([
+      { op: 'update:workouts', values: { notes: 'felt strong' } },
+      { op: 'update:workouts', values: { notes: null } },
+    ])
+  })
+})
+
+describe('updateExerciseMeta (user-scoped)', () => {
+  it('updates notes and skipped on the owned exercise, with no completion stamp', async () => {
+    // Arrange — ownership lookup resolves an exercise
+    selectQueue = [[{ id: 'ex1' }]]
+
+    // Act
+    const result = await updateExerciseMeta(USER, WID, 0, { notes: 'knee pain', skipped: true })
+
+    // Assert — one targeted write to workout_exercises; workouts untouched
+    expect(records).toEqual([
+      { op: 'update:workout_exercises', values: { notes: 'knee pain', skipped: true } },
+    ])
+    expect(result).toEqual({ id: 's9' })
+  })
+
+  it('clears notes with an explicit null', async () => {
+    // Arrange
+    selectQueue = [[{ id: 'ex1' }]]
+
+    // Act
+    await updateExerciseMeta(USER, WID, 0, { notes: null })
+
+    // Assert
+    expect(records[0]).toEqual({ op: 'update:workout_exercises', values: { notes: null } })
+  })
+
+  it('returns null for an empty patch without querying', async () => {
+    // Act
+    const result = await updateExerciseMeta(USER, WID, 0, {})
+
+    // Assert
+    expect(result).toBeNull()
+    expect(records).toEqual([])
+  })
+
+  it('returns null and writes nothing when the workout is not owned', async () => {
+    // Arrange — ownership lookup finds nothing
+    selectQueue = [[]]
+
+    // Act
+    const result = await updateExerciseMeta(USER, WID, 0, { skipped: true })
+
+    // Assert — security-critical: no update issued
+    expect(result).toBeNull()
+    expect(records).toEqual([])
   })
 })

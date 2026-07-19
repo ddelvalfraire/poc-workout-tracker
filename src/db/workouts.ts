@@ -543,6 +543,8 @@ export async function removeSet(
 export interface WorkoutMeta {
   name?: string | null
   startedAt?: Date
+  /** Session note; `null` clears it, omitted leaves it unchanged. */
+  notes?: string | null
 }
 
 /**
@@ -558,6 +560,7 @@ export async function updateWorkoutMeta(
   const values = {
     ...(meta.name !== undefined ? { name: meta.name } : {}),
     ...(meta.startedAt !== undefined ? { startedAt: meta.startedAt } : {}),
+    ...(meta.notes !== undefined ? { notes: meta.notes } : {}),
   }
   if (Object.keys(values).length === 0) return null
   const [owned] = await db
@@ -566,4 +569,41 @@ export async function updateWorkoutMeta(
     .where(and(eq(workouts.id, id), eq(workouts.userId, userId)))
     .returning({ id: workouts.id })
   return owned ?? null
+}
+
+/** The per-exercise facts `updateExerciseMeta` can change without touching sets. */
+export interface ExerciseMeta {
+  /** Exercise note; `null` clears it, omitted leaves it unchanged. */
+  notes?: string | null
+  /** Skipped in-session. Never completes or deletes the sets — they stay as logged. */
+  skipped?: boolean
+}
+
+/**
+ * Updates only one workout exercise's notes and/or skipped flag, addressed by
+ * 0-based `position` — no set changes, no completion stamp (a skip/note is a
+ * meta fact, not a logging signal). Returns null when the patch is empty, the
+ * workout isn't owned, or the position is absent.
+ */
+export async function updateExerciseMeta(
+  userId: string,
+  workoutId: string,
+  exercisePosition: number,
+  meta: ExerciseMeta,
+): Promise<{ id: string } | null> {
+  const values = {
+    ...(meta.notes !== undefined ? { notes: meta.notes } : {}),
+    ...(meta.skipped !== undefined ? { skipped: meta.skipped } : {}),
+  }
+  if (Object.keys(values).length === 0) return null
+  return db.transaction(async (tx) => {
+    const exerciseId = await findOwnedExerciseId(tx, userId, workoutId, exercisePosition)
+    if (!exerciseId) return null
+    const [updated] = await tx
+      .update(workoutExercises)
+      .set(values)
+      .where(eq(workoutExercises.id, exerciseId))
+      .returning({ id: workoutExercises.id })
+    return updated ?? null
+  })
 }

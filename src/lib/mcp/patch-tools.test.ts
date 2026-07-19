@@ -6,11 +6,12 @@ vi.mock('@/db/workouts', () => ({
   addSet: vi.fn(),
   removeSet: vi.fn(),
   updateWorkoutMeta: vi.fn(),
+  updateExerciseMeta: vi.fn(),
 }))
 vi.mock('@/db/preferences', () => ({ getWeightUnit: vi.fn() }))
 
 import { registerPatchTools } from './patch-tools'
-import { updateSet, addSet, removeSet, updateWorkoutMeta } from '@/db/workouts'
+import { updateSet, addSet, removeSet, updateWorkoutMeta, updateExerciseMeta } from '@/db/workouts'
 import { getWeightUnit } from '@/db/preferences'
 import { displayToKg } from '@/lib/units'
 
@@ -18,6 +19,7 @@ const mockedUpdateSet = vi.mocked(updateSet)
 const mockedAddSet = vi.mocked(addSet)
 const mockedRemoveSet = vi.mocked(removeSet)
 const mockedUpdateMeta = vi.mocked(updateWorkoutMeta)
+const mockedExerciseMeta = vi.mocked(updateExerciseMeta)
 const mockedGetUnit = vi.mocked(getWeightUnit)
 
 type ToolResult = { content: { type: string; text: string }[]; isError?: boolean }
@@ -59,8 +61,14 @@ describe('registerPatchTools', () => {
     else process.env.MCP_DEV_USER_ID = original
   })
 
-  it('registers exactly the four patch tools', () => {
-    expect([...setup().keys()].sort()).toEqual(['add_set', 'remove_set', 'set_workout_meta', 'update_set'])
+  it('registers exactly the five patch tools', () => {
+    expect([...setup().keys()].sort()).toEqual([
+      'add_set',
+      'remove_set',
+      'set_exercise_meta',
+      'set_workout_meta',
+      'update_set',
+    ])
   })
 
   describe('update_set', () => {
@@ -326,7 +334,7 @@ describe('registerPatchTools', () => {
       expect(mockedUpdateMeta).not.toHaveBeenCalled()
     })
 
-    it('errors when neither name nor startedAt is given', async () => {
+    it('errors when none of name, startedAt, or notes is given', async () => {
       // Arrange
       const tools = setup()
 
@@ -336,6 +344,44 @@ describe('registerPatchTools', () => {
       // Assert
       expect(result.isError).toBe(true)
       expect(result.content[0]?.text).toMatch(/at least one/i)
+      expect(mockedUpdateMeta).not.toHaveBeenCalled()
+    })
+
+    it('sets a trimmed session note', async () => {
+      // Arrange
+      const tools = setup()
+      mockedUpdateMeta.mockResolvedValue({ id: WID })
+
+      // Act
+      const result = await tools.get('set_workout_meta')!({ workoutId: WID, notes: '  felt strong  ' })
+
+      // Assert — validated through parseNotes: trimmed, name untouched
+      expect(mockedUpdateMeta).toHaveBeenCalledWith('user_env', WID, { notes: 'felt strong' })
+      expect(payload(result)).toEqual({ userId: 'user_env', workoutId: WID })
+    })
+
+    it('clears the session note with an empty string', async () => {
+      // Arrange
+      const tools = setup()
+      mockedUpdateMeta.mockResolvedValue({ id: WID })
+
+      // Act
+      await tools.get('set_workout_meta')!({ workoutId: WID, notes: '' })
+
+      // Assert — blank means clear, so null reaches the db (same rule as name)
+      expect(mockedUpdateMeta).toHaveBeenCalledWith('user_env', WID, { notes: null })
+    })
+
+    it('rejects over-long notes (>2000 chars) without touching the db', async () => {
+      // Arrange
+      const tools = setup()
+
+      // Act
+      const result = await tools.get('set_workout_meta')!({ workoutId: WID, notes: 'x'.repeat(2001) })
+
+      // Assert
+      expect(result.isError).toBe(true)
+      expect(result.content[0]?.text).toMatch(/2000 characters or fewer/)
       expect(mockedUpdateMeta).not.toHaveBeenCalled()
     })
 
@@ -353,6 +399,86 @@ describe('registerPatchTools', () => {
     })
   })
 
+  describe('set_exercise_meta', () => {
+    it('marks an exercise skipped without touching its sets', async () => {
+      // Arrange
+      const tools = setup()
+      mockedExerciseMeta.mockResolvedValue({ id: 'we1' })
+
+      // Act
+      const result = await tools.get('set_exercise_meta')!({
+        workoutId: WID,
+        exercisePosition: 1,
+        skipped: true,
+      })
+
+      // Assert
+      expect(mockedExerciseMeta).toHaveBeenCalledWith('user_env', WID, 1, { skipped: true })
+      expect(payload(result)).toEqual({ userId: 'user_env', workoutId: WID, exercisePosition: 1 })
+    })
+
+    it('sets a trimmed note and clears one with an empty string', async () => {
+      // Arrange
+      const tools = setup()
+      mockedExerciseMeta.mockResolvedValue({ id: 'we1' })
+
+      // Act — set, then clear
+      await tools.get('set_exercise_meta')!({ workoutId: WID, exercisePosition: 0, notes: '  knee pain  ' })
+      await tools.get('set_exercise_meta')!({ workoutId: WID, exercisePosition: 0, notes: '' })
+
+      // Assert — parseNotes trims; blank means clear → null
+      expect(mockedExerciseMeta).toHaveBeenNthCalledWith(1, 'user_env', WID, 0, { notes: 'knee pain' })
+      expect(mockedExerciseMeta).toHaveBeenNthCalledWith(2, 'user_env', WID, 0, { notes: null })
+    })
+
+    it('rejects over-long notes (>2000 chars) without touching the db', async () => {
+      // Arrange
+      const tools = setup()
+
+      // Act
+      const result = await tools.get('set_exercise_meta')!({
+        workoutId: WID,
+        exercisePosition: 0,
+        notes: 'x'.repeat(2001),
+      })
+
+      // Assert
+      expect(result.isError).toBe(true)
+      expect(result.content[0]?.text).toMatch(/2000 characters or fewer/)
+      expect(mockedExerciseMeta).not.toHaveBeenCalled()
+    })
+
+    it('errors when neither notes nor skipped is given', async () => {
+      // Arrange
+      const tools = setup()
+
+      // Act
+      const result = await tools.get('set_exercise_meta')!({ workoutId: WID, exercisePosition: 0 })
+
+      // Assert
+      expect(result.isError).toBe(true)
+      expect(result.content[0]?.text).toMatch(/at least one/i)
+      expect(mockedExerciseMeta).not.toHaveBeenCalled()
+    })
+
+    it('surfaces not-found when the exercise is not owned', async () => {
+      // Arrange
+      const tools = setup()
+      mockedExerciseMeta.mockResolvedValue(null)
+
+      // Act
+      const result = await tools.get('set_exercise_meta')!({
+        workoutId: WID,
+        exercisePosition: 9,
+        skipped: true,
+      })
+
+      // Assert
+      expect(result.isError).toBe(true)
+      expect(result.content[0]?.text).toMatch(/not found/)
+    })
+  })
+
   // Each patch tool gates on a resolved user before touching the db.
   describe('no-user gate', () => {
     const cases = [
@@ -360,6 +486,7 @@ describe('registerPatchTools', () => {
       { name: 'add_set', args: { workoutId: WID, exercisePosition: 0 } },
       { name: 'remove_set', args: { workoutId: WID, exercisePosition: 0, setNumber: 1 } },
       { name: 'set_workout_meta', args: { workoutId: WID, name: 'X' } },
+      { name: 'set_exercise_meta', args: { workoutId: WID, exercisePosition: 0, skipped: true } },
     ] as const
 
     it.each(cases)('$name returns isError /userId/ when no user resolves', async ({ name, args }) => {
