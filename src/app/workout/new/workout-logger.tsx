@@ -912,8 +912,8 @@ export function WorkoutLogger({
           <section
             key={exercise.id}
             className={cn(
-              'rounded-2xl border bg-card transition-colors',
-              isCollapsed ? '' : 'space-y-3 p-4',
+              'rounded-2xl border bg-card transition-colors motion-safe:animate-rise-in',
+              isCollapsed ? '' : 'p-4',
               // Every set checked off = this movement is done: the volt
               // outline is the same "live/complete" state marker the resume
               // banner and rest readout use.
@@ -925,7 +925,7 @@ export function WorkoutLogger({
             )}
           >
             {supersetLabel !== undefined && !isCollapsed && (
-              <p className="text-[0.65rem] font-semibold uppercase tracking-widest text-muted-foreground">
+              <p className="mb-3 text-[0.65rem] font-semibold uppercase tracking-widest text-muted-foreground">
                 Superset {supersetLabel}
               </p>
             )}
@@ -941,7 +941,7 @@ export function WorkoutLogger({
               }
               aria-expanded={false}
               aria-label={`Expand ${exercise.name} — completed, ${completedSetsSummary(exercise.sets, exercise.loggingType)}${hasPR ? ', new PR' : ''}${supersetLabel !== undefined ? `, superset ${supersetLabel}` : ''}`}
-              className="flex w-full items-center justify-between gap-3 p-4 text-left"
+              className="flex w-full items-center justify-between gap-3 p-4 text-left motion-safe:animate-rise-in"
             >
               <span className="flex min-w-0 items-center gap-2.5">
                 {/* Tinted volt disc echoes the completed set circle — the
@@ -960,7 +960,7 @@ export function WorkoutLogger({
               </span>
             </button>
           ) : (
-          <>
+          <div className="space-y-3 motion-safe:animate-rise-in">
             {/* Layered header: the movement name owns the top line at full
                 width; the utility rail sits beneath it, so controls never
                 crowd or truncate the title. */}
@@ -1180,7 +1180,10 @@ export function WorkoutLogger({
                     mouse/keyboard/screen-reader users — additive, not a
                     replacement. Undo (not a confirm) catches mistakes. */}
                 <SwipeToDelete onDelete={() => handleRemoveSet(exerciseIndex, setIndex)}>
-                <div className="flex items-center gap-2" id={`set-row-${set.id}`}>
+                <div
+                  className="flex items-center gap-2 motion-safe:animate-rise-in"
+                  id={`set-row-${set.id}`}
+                >
                   <button
                     type="button"
                     // Hold-to-tag: the timer fires TAG_SET and arms the flag
@@ -1399,7 +1402,7 @@ export function WorkoutLogger({
                   // Connected segmented pair aligned to the input columns
                   // (left inset = circle + prev + gaps, right = the row's X):
                   // one control, not two orphaned buttons floating right.
-                  <div className="flex pl-22 pr-11">
+                  <div className="flex pl-22 pr-11 motion-safe:animate-rise-in">
                     <div className="flex w-full overflow-hidden rounded-lg border border-border bg-card">
                     {([-1, 1] as const).map((direction) => (
                       <Button
@@ -1462,7 +1465,7 @@ export function WorkoutLogger({
             >
               + Add set
             </Button>
-          </>
+          </div>
           )}
           </section>
           )
@@ -1532,7 +1535,7 @@ export function WorkoutLogger({
         {pendingRemember && (
           <div
             role="status"
-            className="mb-3 rounded-xl border border-border bg-card px-4 py-2.5"
+            className="mb-3 rounded-xl border border-border bg-card px-4 py-2.5 motion-safe:animate-rise-in"
           >
             <p className="min-w-0 text-sm">
               Use <span className="font-medium">{pendingRemember.substituteName}</span> for the
@@ -1565,7 +1568,7 @@ export function WorkoutLogger({
         {removed.length > 0 && (
           <div
             role="status"
-            className="mb-3 flex items-center justify-between gap-3 rounded-xl border border-border bg-card px-4 py-2.5"
+            className="mb-3 flex items-center justify-between gap-3 rounded-xl border border-border bg-card px-4 py-2.5 motion-safe:animate-rise-in"
           >
             <p className="min-w-0 truncate text-sm">
               {(() => {

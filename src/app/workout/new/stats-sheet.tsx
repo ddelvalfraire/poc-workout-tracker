@@ -98,7 +98,7 @@ export function StatsSheet({ wgerExerciseId, source, name, unit, onClose }: Stat
           e.clientY <= rect.bottom
         if (!inside) onClose()
       }}
-      className="mx-auto mt-auto mb-0 max-h-[85dvh] w-full max-w-md overflow-y-auto overscroll-contain rounded-t-2xl border-t border-x border-border bg-card px-5 pt-5 pb-safe text-foreground backdrop:bg-black/60"
+      className="mx-auto mt-auto mb-0 max-h-[85dvh] w-full max-w-md overflow-y-auto overscroll-contain rounded-t-2xl border-t border-x border-border bg-card px-5 pt-5 pb-safe text-foreground backdrop:bg-black/60 motion-safe:animate-sheet-up"
     >
       <div className="flex items-start justify-between gap-3 pb-1">
         <div className="min-w-0">

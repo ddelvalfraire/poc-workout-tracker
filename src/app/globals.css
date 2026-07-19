@@ -165,6 +165,32 @@
   animation: finish-nudge 1.6s ease-in-out infinite;
 }
 
+/* In-session mount motion (cards, set rows, steppers, toasts): a short fade
+   + rise so state changes arrive instead of popping into place. Transform/
+   opacity only (compositor-friendly); always applied via motion-safe: so
+   reduced-motion users keep the instant swap. */
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+@utility animate-rise-in {
+  animation: rise-in 180ms ease-out;
+}
+
+/* Bottom sheets slide up from the edge they live on instead of appearing
+   fully-formed. Same motion-safe contract as rise-in. */
+@keyframes sheet-up {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+}
+@utility animate-sheet-up {
+  animation: sheet-up 240ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
 /* Previous-chip adopt feedback: a brief volt wash on the filled inputs.
    Confirmation, not error — a highlight, never a shake. Color-only and
    700ms one-shot, so it stays calm under reduced motion too. */
