@@ -96,18 +96,25 @@ beforeEach(() => {
 })
 
 describe('getRecentTrainedSessions', () => {
-  it('returns the three most recent sessions with snapshot-bearing set rows, freshest first', async () => {
-    // Arrange — four prior sessions; only the first three should be consulted
+  it('returns the four most recent sessions with snapshot-bearing set rows, freshest first', async () => {
+    // Arrange — five prior sessions; only the first four should be consulted
+    // (range mode's 3-stall streak spans 4 sessions — AUTOREG_HISTORY_LIMIT)
     selectQueue = [
-      [slot('w4', 4, 'we4'), slot('w3', 3, 'we3'), slot('w2', 2, 'we2'), slot('w1', 1, 'we1')],
-      [setRow('we4', 6, 100), setRow('we3', 8, 100), setRow('we2', 8, 97.5)],
+      [
+        slot('w5', 5, 'we5'),
+        slot('w4', 4, 'we4'),
+        slot('w3', 3, 'we3'),
+        slot('w2', 2, 'we2'),
+        slot('w1', 1, 'we1'),
+      ],
+      [setRow('we5', 6, 100), setRow('we4', 8, 100), setRow('we3', 8, 97.5), setRow('we2', 8, 95)],
     ]
 
     // Act
     const sessions = await getRecentTrainedSessions(USER, PID, 'wger', 1)
 
-    // Assert — window of 3, and each set row carries its prescribed snapshot
-    expect(sessions.map((s) => s.workoutId)).toEqual(['w4', 'w3', 'w2'])
+    // Assert — window of 4, and each set row carries its prescribed snapshot
+    expect(sessions.map((s) => s.workoutId)).toEqual(['w5', 'w4', 'w3', 'w2'])
     expect(sessions[0].sets).toEqual([
       {
         setNumber: 1,

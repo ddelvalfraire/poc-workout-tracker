@@ -13,7 +13,9 @@ import {
 import { bestSet } from '@/lib/one-rep-max'
 import {
   autoregulate,
+  autoregulateRange,
   applyAutoregToSets,
+  AUTOREG_DEFAULT_STEP_KG,
   type AutoregAdjustment,
   type AutoregSession,
 } from '@/lib/autoregulate'
@@ -1047,11 +1049,67 @@ export interface ExercisePrescription {
   autoreg: AutoregAdjustment | null
 }
 
-/** The progression scheme the Layer 1 rep-based rules act on: `linear` only
- *  — the one that blindly adds weight every week (see lib/autoregulate.ts's
- *  scope note for why double-progression and the rest are out for v1). */
-function autoregIncrementKg(progression: Progression | null): number | null {
-  return progression?.scheme === 'linear' ? progression.incrementKg : null
+/** Which Layer 1 rule set an exercise gets (see lib/autoregulate.ts's scope
+ *  note): FIXED (v1 stall rules) or RANGE (v2 double progression). */
+type AutoregPlan =
+  | { mode: 'fixed'; incrementKg: number }
+  | { mode: 'range'; stepKg: number; rangeTopBySetNumber: Record<number, number> }
+
+/** The current plan's range top per DERIVED setNumber (template order, 1-based
+ *  — exactly `deriveWeekSets`' renumbering for the schemes admitted here,
+ *  which never resize sets outside the deload week). Null unless EVERY
+ *  working set carries a real range (repMin < repMax): fixed-rep and
+ *  mixed-shape days keep v1 semantics — an ambiguous shape must not half-run
+ *  the range rules.
+ *
+ *  SNAPSHOT NOTE (why there is no prescribed_rep_max column): the range top
+ *  is the goal the lifter is climbing toward — a plan PARAMETER read at
+ *  derive time, like the increment v1 already reads live — not a fact about
+ *  what happened. The facts a verdict scores (prescribed loads, logged reps)
+ *  stay snapshot-only; editing repMax today legitimately moves the goalposts
+ *  for the NEXT verdict, exactly as editing incrementKg always has. */
+function workingRangeTops(
+  sets: DayForDerivation['exercises'][number]['sets'],
+): Record<number, number> | null {
+  const tops: Record<number, number> = {}
+  let workingSets = 0
+  for (const [index, set] of sets.entries()) {
+    if (set.setType !== 'working') continue
+    workingSets += 1
+    if (set.repMin === null || set.repMax === null || set.repMax <= set.repMin) return null
+    tops[index + 1] = set.repMax
+  }
+  return workingSets > 0 ? tops : null
+}
+
+function autoregPlan(exercise: DayForDerivation['exercises'][number]): AutoregPlan | null {
+  const progression = exercise.progression
+  if (progression?.scheme === 'linear') {
+    const tops = workingRangeTops(exercise.sets)
+    if (tops === null) return { mode: 'fixed', incrementKg: progression.incrementKg }
+    return {
+      mode: 'range',
+      // A configured increment is reused as the step; a zero increment falls
+      // back to the smallest sensible total-load step (WEIGHT_STEP's 2.5 kg).
+      stepKg: progression.incrementKg > 0 ? progression.incrementKg : AUTOREG_DEFAULT_STEP_KG,
+      rangeTopBySetNumber: tops,
+    }
+  }
+  if (progression?.scheme === 'double-progression') {
+    // The scheme's own exercise-level repMax IS the range top for every
+    // working set — that is the contract its advancement already uses.
+    const tops: Record<number, number> = {}
+    for (const [index, set] of exercise.sets.entries()) {
+      if (set.setType === 'working') tops[index + 1] = progression.repMax
+    }
+    if (Object.keys(tops).length === 0) return null
+    return {
+      mode: 'range',
+      stepKg: progression.incrementKg > 0 ? progression.incrementKg : AUTOREG_DEFAULT_STEP_KG,
+      rangeTopBySetNumber: tops,
+    }
+  }
+  return null
 }
 
 export async function deriveDayPrescription(
@@ -1105,11 +1163,13 @@ export async function deriveDayPrescription(
       lastSets: lastSetsByKey.get(key) ?? null,
     }
 
-    // Layer 1 auto-regulation (program-gated, linear scheme only, never on
-    // the deload week — its whole point is the planned back-off).
-    const incrementKg = day.program.autoregulation ? autoregIncrementKg(exercise.progression) : null
+    // Layer 1 auto-regulation (program-gated; fixed-rep linear gets the v1
+    // stall rules, ranged linear + double-progression the v2 double-
+    // progression rules; never on the deload week — its whole point is the
+    // planned back-off).
+    const plan = day.program.autoregulation ? autoregPlan(exercise) : null
     let adjustment: AutoregAdjustment | null = null
-    if (incrementKg !== null && !isDeloadWeek) {
+    if (plan !== null && !isDeloadWeek) {
       if (adjustmentByKey.has(key)) {
         adjustment = adjustmentByKey.get(key) ?? null
       } else {
@@ -1144,7 +1204,10 @@ export async function deriveDayPrescription(
             setType: r.setType,
           })),
         }))
-        adjustment = autoregulate(incrementKg, sessions)
+        adjustment =
+          plan.mode === 'fixed'
+            ? autoregulate(plan.incrementKg, sessions)
+            : autoregulateRange(plan.stepKg, sessions, plan.rangeTopBySetNumber)
         adjustmentByKey.set(key, adjustment)
       }
     }
