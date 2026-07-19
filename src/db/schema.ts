@@ -431,7 +431,7 @@ export const programEvents = pgTable(
       .references(() => programs.id, { onDelete: 'cascade' }),
     userId: text('user_id').notNull(), // Clerk user id — ownership root, like `programs`
     occurredAt: timestamp('occurred_at', { withTimezone: true }).defaultNow().notNull(),
-    actor: text('actor').$type<'ui' | 'mcp' | 'coach'>().notNull(),
+    actor: text('actor').$type<'ui' | 'mcp' | 'coach' | 'wger'>().notNull(),
     action: text('action').notNull(),
     summary: text('summary').notNull(),
     payload: jsonb('payload'),

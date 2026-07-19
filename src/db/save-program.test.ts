@@ -395,6 +395,26 @@ describe('coach drafting policy (actor = coach)', () => {
     expect(records[0].values).not.toHaveProperty('authorActor')
   })
 
+  it("saveProgram stamps a wger import with authorActor 'wger' but honors the input status", async () => {
+    // Arrange — imports always arrive as drafts (the user asked for the add;
+    // no forced confirm), attributed to the template source.
+    const imported = parseProgramInput({
+      name: 'wger Template',
+      status: 'draft',
+      days: [{ name: 'D', exercises: [{ wgerExerciseId: 1, name: 'X', sets: [{}] }] }],
+    })
+
+    // Act
+    await saveProgram(USER, imported, 'wger')
+
+    // Assert — attributed, NOT proposed (unlike the coach path)
+    expect(records[0].values).toMatchObject({ status: 'draft', authorActor: 'wger' })
+    const event = records
+      .map((r) => r.values as Record<string, unknown>)
+      .find((v) => v.action === 'upsert_program')
+    expect(event).toMatchObject({ actor: 'wger' })
+  })
+
   it("updateProgram keeps a coach replace at status 'proposed' (never a promotion path)", async () => {
     // Arrange — the coach-scoped gate matched (its own proposal)
     updateReturning = [{ id: 'p1' }]

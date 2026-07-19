@@ -11,8 +11,9 @@ import { programEvents } from './schema'
  */
 
 /** WHO made a plan change. Derived at the boundary: server actions pass 'ui';
- *  the MCP layer distinguishes 'coach' (in-memory bridge) from 'mcp' (HTTP). */
-export type ProgramEventActor = 'ui' | 'mcp' | 'coach'
+ *  the MCP layer distinguishes 'coach' (in-memory bridge) from 'mcp' (HTTP);
+ *  'wger' marks a template imported from wger's public catalog. */
+export type ProgramEventActor = 'ui' | 'mcp' | 'coach' | 'wger'
 
 /** Any handle that can run the insert — a transaction (the normal case, so
  *  the event commits or rolls back with its change) or the root `db` for the
