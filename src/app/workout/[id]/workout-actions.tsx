@@ -3,11 +3,12 @@
 import Link from 'next/link'
 import { useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { RotateCcw } from 'lucide-react'
+import { BookmarkPlus, RotateCcw } from 'lucide-react'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import { cn } from '@/lib/utils'
 import { deleteWorkoutAction } from '@/app/workout/actions'
+import { saveWorkoutAsTemplateAction } from '@/app/templates/actions'
 
 /**
  * Detail-page action island: an Edit link to the edit route and a Delete
@@ -20,6 +21,8 @@ export function WorkoutActions({ id }: { id: string }) {
   const [isPending, setIsPending] = useState(false)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [isTemplatePending, setIsTemplatePending] = useState(false)
+  const [templateError, setTemplateError] = useState<string | null>(null)
   // ConfirmDialog populates this with an imperative close; the success path
   // calls it BEFORE router.push (see the dialog's contract — the #25
   // stranded-::backdrop race).
@@ -47,12 +50,40 @@ export function WorkoutActions({ id }: { id: string }) {
     }
   }
 
+  // Same await-then-navigate rule as handleDelete: the new template's id only
+  // exists after the action resolves, so a transition would strand the old
+  // screen's snapshot over /templates/[id].
+  async function handleSaveAsTemplate() {
+    setIsTemplatePending(true)
+    setTemplateError(null)
+    try {
+      const { id: templateId } = await saveWorkoutAsTemplateAction(id)
+      router.push(`/templates/${templateId}`)
+      // isTemplatePending stays true on success: navigation unmounts this screen.
+    } catch {
+      setIsTemplatePending(false)
+      setTemplateError('Could not save the template. Please try again.')
+    }
+  }
+
   return (
     <div className="mt-6 space-y-2">
       <Link href={`/workout/new?from=${id}`} className={cn(buttonVariants(), 'w-full gap-2')}>
         <RotateCcw aria-hidden="true" className="size-4" />
         Repeat workout
       </Link>
+      {/* Save the session's shape for reuse OUTSIDE any program — lands on
+          the new template's page. Outline: Repeat above keeps the one volt. */}
+      <Button
+        variant="outline"
+        className="w-full gap-2"
+        disabled={isTemplatePending}
+        onClick={handleSaveAsTemplate}
+      >
+        <BookmarkPlus aria-hidden="true" className="size-4" />
+        {isTemplatePending ? 'Saving template…' : 'Save as template'}
+      </Button>
+      {templateError && <p className="text-sm text-destructive">{templateError}</p>}
       <div className="flex items-center gap-2">
         <Link
           href={`/workout/${id}/edit`}

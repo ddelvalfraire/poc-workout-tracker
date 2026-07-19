@@ -215,6 +215,80 @@ export const customExercises = pgTable(
   ],
 )
 
+/**
+ * Standalone workout templates — a reusable session SKETCH that lives outside
+ * any program ("users can save workout templates outside of programs"). One
+ * level flatter than the program tree on purpose: a template records which
+ * movements and roughly how much (a compact per-exercise set plan), not
+ * per-set prescriptions — programs remain the precision tool for progression,
+ * overrides, and week-by-week targets. Starting from a template seeds a live
+ * draft; the resulting workout records NO template provenance (a workout is a
+ * workout).
+ */
+export const workoutTemplates = pgTable(
+  'workout_templates',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    userId: text('user_id').notNull(), // Clerk user id — ownership root, like `workouts`
+    name: text('name').notNull(),
+    description: text('description'),
+    // Emoji/short token for list rows, same convention as programs.icon.
+    icon: text('icon'),
+    // Who authored this template — 'owner' today; open value space (another
+    // user id, a group id) so future sharing needs data, not schema. Mirrors
+    // programs.author_actor. No sharing/ACLs exist yet.
+    authorActor: text('author_actor').notNull().default('owner'),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [index('workout_templates_user_id_idx').on(t.userId)],
+)
+
+export const workoutTemplateExercises = pgTable(
+  'workout_template_exercises',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    templateId: uuid('template_id')
+      .notNull()
+      .references(() => workoutTemplates.id, { onDelete: 'cascade' }),
+    // Exercise ref, always positive (CHECK). Holds a custom_exercises.id when
+    // source = 'custom' — the column name matches workout_exercises.
+    wgerExerciseId: integer('wger_exercise_id').notNull(),
+    // 'wger' | 'custom' — exercise identity is the composite (source, id).
+    source: text('source').$type<ExerciseSource>().notNull().default('wger'),
+    name: text('name').notNull(), // denormalized from wger
+    position: integer('position').notNull().default(0),
+    // Seeded onto the draft exercise when the template is started.
+    loggingType: text('logging_type').$type<LoggingType>().notNull().default('weight_reps'),
+    notes: text('notes'),
+    // The compact set plan — deliberately NOT a per-set child table: a
+    // template is a sketch ("3×8–12, rest 90s"), not a program. Anything
+    // finer-grained (per-set loads, RIR, techniques, overrides) belongs in
+    // the program tree.
+    plannedSets: integer('planned_sets').notNull().default(3),
+    repMin: integer('rep_min'),
+    repMax: integer('rep_max'),
+    restSec: integer('rest_sec'),
+  },
+  (t) => [
+    // Same negative-ID kill as workout_exercises.
+    check('workout_template_exercises_wger_id_positive', sql`${t.wgerExerciseId} > 0`),
+    // Templates are always read tree-root-first (list/detail/start).
+    index('workout_template_exercises_template_idx').on(t.templateId),
+  ],
+)
+
+export const workoutTemplatesRelations = relations(workoutTemplates, ({ many }) => ({
+  exercises: many(workoutTemplateExercises),
+}))
+
+export const workoutTemplateExercisesRelations = relations(workoutTemplateExercises, ({ one }) => ({
+  template: one(workoutTemplates, {
+    fields: [workoutTemplateExercises.templateId],
+    references: [workoutTemplates.id],
+  }),
+}))
+
 export const workoutsRelations = relations(workouts, ({ many }) => ({
   exercises: many(workoutExercises),
 }))
