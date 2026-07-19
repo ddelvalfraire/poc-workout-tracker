@@ -1396,13 +1396,20 @@ export function WorkoutLogger({
                     a side per tap; pointerdown preventDefault keeps the input
                     focused so the row (and keyboard) don't dismiss mid-tap. */}
                 {stepperSetId === set.id && (
-                  <div className="flex justify-end gap-2 pl-10">
+                  // Connected segmented pair aligned to the input columns
+                  // (left inset = circle + prev + gaps, right = the row's X):
+                  // one control, not two orphaned buttons floating right.
+                  <div className="flex pl-22 pr-11">
+                    <div className="flex w-full overflow-hidden rounded-lg border border-border bg-card">
                     {([-1, 1] as const).map((direction) => (
                       <Button
                         key={direction}
                         size="sm"
-                        variant="outline"
-                        className="min-w-20 tnum"
+                        variant="ghost"
+                        className={cn(
+                          'h-9 flex-1 rounded-none text-sm font-semibold tnum',
+                          direction === 1 && 'border-l border-border',
+                        )}
                         onPointerDown={(e) => e.preventDefault()}
                         onClick={() => {
                           // ghost.weight is undefined for BW-relative types by
@@ -1431,6 +1438,7 @@ export function WorkoutLogger({
                         {WEIGHT_STEP[unit]}
                       </Button>
                     ))}
+                    </div>
                   </div>
                 )}
                 {/* The record moment, recognized as it happens: this set's
