@@ -8,7 +8,8 @@ import { useQuery } from '@tanstack/react-query'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { getExerciseSheetAction } from '@/app/workout/actions'
 import { exerciseHref } from '@/app/exercises/exercise-ref'
-import { formatE1RM, formatLoggedSet, formatVolume, formatWorkoutDate } from '@/lib/format'
+import { formatLoggedSet, formatVolume, formatWorkoutDate } from '@/lib/format'
+import { sessionBestSet } from '@/lib/session-best-set'
 import { kgToDisplay, type WeightUnit } from '@/lib/units'
 import type { ExerciseSource } from '@/lib/custom-exercise-input'
 import { cn } from '@/lib/utils'
@@ -138,70 +139,107 @@ export function StatsSheet({ wgerExerciseId, source, name, unit, onClose }: Stat
 
       {data && records && (
         <>
-          {/* Records — compact rows, not the detail page's grid: the sheet is
-              a glance, the page is the report. */}
-          <dl className="mt-2 space-y-2">
-            {records.bestE1rm && (
-              <div className="flex items-baseline justify-between gap-3">
-                <dt className="text-sm text-muted-foreground">Best est. 1RM</dt>
-                <dd className="text-sm font-semibold tnum">
-                  {formatE1RM(records.bestE1rm.e1rm, unit)} ×{records.bestE1rm.reps}
-                  <span className="ml-2 font-normal text-muted-foreground">
-                    {formatWorkoutDate(records.bestE1rm.performedAt)}
-                  </span>
-                </dd>
-              </div>
-            )}
-            {records.heaviestLoadKg && (
-              <div className="flex items-baseline justify-between gap-3">
-                <dt className="text-sm text-muted-foreground">Heaviest load</dt>
-                <dd className="text-sm font-semibold tnum">
-                  {kgToDisplay(records.heaviestLoadKg.weightKg, unit)} {unit} ×
-                  {records.heaviestLoadKg.reps}
-                </dd>
-              </div>
-            )}
-            {records.mostReps && (
-              <div className="flex items-baseline justify-between gap-3">
-                <dt className="text-sm text-muted-foreground">Most reps</dt>
-                <dd className="text-sm font-semibold tnum">{records.mostReps.reps}</dd>
-              </div>
-            )}
-            {records.bestSessionVolumeKg && (
-              <div className="flex items-baseline justify-between gap-3">
-                <dt className="text-sm text-muted-foreground">Best session volume</dt>
-                <dd className="text-sm font-semibold tnum">
-                  {formatVolume(records.bestSessionVolumeKg.volumeKg, unit)}
-                </dd>
-              </div>
-            )}
-            {!records.bestE1rm && !records.heaviestLoadKg && !records.mostReps && (
-              <p className="text-sm text-muted-foreground">
+          {/* The headline record leads as a poster moment (font-display,
+              proportional figures — tnum is for columns, not display type);
+              the remaining records compress into a 3-up glance row. */}
+          {records.bestE1rm ? (
+            <div className="mt-3">
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+                Best est. 1RM
+              </p>
+              <p className="mt-1 font-display text-5xl leading-none tracking-tight">
+                {kgToDisplay(records.bestE1rm.e1rm, unit)}
+                <span className="ml-1.5 text-lg text-muted-foreground">{unit}</span>
+              </p>
+              <p className="mt-1.5 text-xs text-muted-foreground tnum">
+                {kgToDisplay(records.bestE1rm.weightKg, unit)} {unit} × {records.bestE1rm.reps} ·{' '}
+                {formatWorkoutDate(records.bestE1rm.performedAt)}
+              </p>
+            </div>
+          ) : (
+            !records.heaviestLoadKg &&
+            !records.mostReps && (
+              <p className="mt-2 text-sm text-muted-foreground">
                 No load records yet — log weight and PRs land here.
               </p>
-            )}
-          </dl>
+            )
+          )}
 
-          {/* Recent sessions — completed sets only, one line each. */}
+          {(records.heaviestLoadKg || records.mostReps || records.bestSessionVolumeKg) && (
+            <dl className="mt-4 grid grid-cols-3 gap-2">
+              {records.heaviestLoadKg && (
+                <div className="rounded-xl border border-border px-2.5 py-2">
+                  <dt className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+                    Heaviest
+                  </dt>
+                  <dd className="mt-0.5 text-sm font-semibold tnum">
+                    {kgToDisplay(records.heaviestLoadKg.weightKg, unit)} {unit}
+                    <span className="ml-1 font-normal text-muted-foreground">
+                      ×{records.heaviestLoadKg.reps}
+                    </span>
+                  </dd>
+                </div>
+              )}
+              {records.mostReps && (
+                <div className="rounded-xl border border-border px-2.5 py-2">
+                  <dt className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+                    Most reps
+                  </dt>
+                  <dd className="mt-0.5 text-sm font-semibold tnum">{records.mostReps.reps}</dd>
+                </div>
+              )}
+              {records.bestSessionVolumeKg && (
+                <div className="rounded-xl border border-border px-2.5 py-2">
+                  <dt className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+                    Top volume
+                  </dt>
+                  <dd className="mt-0.5 text-sm font-semibold tnum">
+                    {formatVolume(records.bestSessionVolumeKg.volumeKg, unit)}
+                  </dd>
+                </div>
+              )}
+            </dl>
+          )}
+
+          {/* Recent sessions — completed sets only, one line each; the
+              session's best set (same picker as the stats page) reads bold so
+              the line scans instead of blurring. */}
           {data.recent.length > 0 && (
-            <div className="mt-4">
+            <div className="mt-5">
               <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
                 Recent
               </p>
               <ul className="mt-2 space-y-2">
-                {data.recent.map((session) => (
-                  <li key={session.workoutId} className="text-sm">
-                    <span className="text-muted-foreground">
-                      {formatWorkoutDate(session.performedAt)}
-                    </span>
-                    <span className="ml-2 tnum">
-                      {session.sets
-                        .filter((set) => set.completed)
-                        .map((set) => formatLoggedSet(set, unit, data.stats.exercise.loggingType))
-                        .join(', ') || '—'}
-                    </span>
-                  </li>
-                ))}
+                {data.recent.map((session) => {
+                  const best = sessionBestSet(session.sets, data.stats.exercise.loggingType)
+                  const shown = session.sets
+                    .map((set, index) => ({ set, index }))
+                    .filter(({ set }) => set.completed)
+                  return (
+                    <li
+                      key={session.workoutId}
+                      className="flex items-baseline gap-3 text-sm"
+                    >
+                      <span className="w-24 shrink-0 text-xs text-muted-foreground">
+                        {formatWorkoutDate(session.performedAt)}
+                      </span>
+                      <span className="min-w-0 tnum">
+                        {shown.length === 0
+                          ? '—'
+                          : shown.map(({ set, index }, position) => (
+                              <span key={index}>
+                                {position > 0 && ', '}
+                                <span
+                                  className={cn(index === best?.index && 'font-semibold')}
+                                >
+                                  {formatLoggedSet(set, unit, data.stats.exercise.loggingType)}
+                                </span>
+                              </span>
+                            ))}
+                      </span>
+                    </li>
+                  )
+                })}
               </ul>
             </div>
           )}

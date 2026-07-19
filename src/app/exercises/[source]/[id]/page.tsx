@@ -7,6 +7,7 @@ import { getWeightUnit } from '@/db/preferences'
 import { formatE1RM, formatLoggedSet, formatWorkoutDate } from '@/lib/format'
 import { kgToDisplay } from '@/lib/units'
 import { MAX_RELIABLE_REPS } from '@/lib/one-rep-max'
+import { sessionBestSet } from '@/lib/session-best-set'
 import { TrendChart } from '@/components/charts/trend-chart'
 import { StatTile, type StatDelta } from '@/components/stat-tile'
 import { listCustomExercises } from '@/db/custom-exercises'
@@ -129,17 +130,34 @@ export default async function ExerciseStatsPage({
           </h2>
           {hasLoadRecords || records.mostReps !== null ? (
             <dl className="mt-2 grid grid-cols-2 gap-3">
+              {/* The headline record leads full-width in poster type — the
+                  grid below is context, this is the number the page is for.
+                  Proportional figures on the value (tnum is for columns). */}
               {records.bestE1rm && (
-                <StatTile
-                  label="Best est. 1RM"
-                  value={String(kgToDisplay(records.bestE1rm.e1rm, unit))}
-                  unit={unit}
-                  delta={e1rmDelta}
-                  caption={
-                    (records.bestE1rm.reps > MAX_RELIABLE_REPS ? 'High-rep est. · ' : '') +
-                    formatWorkoutDate(records.bestE1rm.performedAt)
-                  }
-                />
+                <div className="col-span-2 rounded-2xl border border-border bg-card p-5 motion-safe:animate-rise-in">
+                  <dt className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                    Best est. 1RM
+                  </dt>
+                  <dd className="mt-2 font-display text-6xl leading-none tracking-tight">
+                    {kgToDisplay(records.bestE1rm.e1rm, unit)}
+                    <span className="ml-2 text-xl text-muted-foreground">{unit}</span>
+                  </dd>
+                  {e1rmDelta && (
+                    <dd
+                      className={cn(
+                        'mt-2 text-sm font-medium',
+                        e1rmDelta.tone === 'positive' ? 'text-primary' : 'text-muted-foreground',
+                      )}
+                    >
+                      {e1rmDelta.text}
+                    </dd>
+                  )}
+                  <dd className="mt-1 text-xs text-muted-foreground tnum">
+                    {(records.bestE1rm.reps > MAX_RELIABLE_REPS ? 'High-rep est. · ' : '') +
+                      `${kgToDisplay(records.bestE1rm.weightKg, unit)} ${unit} × ${records.bestE1rm.reps} · ` +
+                      formatWorkoutDate(records.bestE1rm.performedAt)}
+                  </dd>
+                </div>
               )}
               {records.heaviestLoadKg && (
                 <StatTile
@@ -206,43 +224,61 @@ export default async function ExerciseStatsPage({
             </p>
           ) : (
             <ul className="mt-2 space-y-3">
-              {sessions.map((session) => (
-                <li key={session.workoutId}>
-                  <Link
-                    href={`/workout/${session.workoutId}`}
-                    className="block rounded-2xl border border-border bg-card p-4 transition-colors active:bg-muted/60"
-                  >
-                    <div className="flex items-baseline justify-between gap-3">
-                      <span className="text-sm font-semibold">
-                        {formatWorkoutDate(session.performedAt)}
-                      </span>
-                      {session.workoutName && (
-                        <span className="min-w-0 truncate text-xs text-muted-foreground">
+              {sessions.map((session) => {
+                // Same picker as the logger's stats sheet — the two surfaces
+                // must agree on which set was the session's best.
+                const best = sessionBestSet(session.sets, stats.exercise.loggingType)
+                return (
+                  <li key={session.workoutId}>
+                    <Link
+                      href={`/workout/${session.workoutId}`}
+                      className="block rounded-2xl border border-border bg-card p-4 transition-colors active:bg-muted/60"
+                    >
+                      <div className="flex items-baseline gap-3">
+                        <span className="shrink-0 text-sm font-semibold">
+                          {formatWorkoutDate(session.performedAt)}
+                        </span>
+                        <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
                           {session.workoutName}
                         </span>
-                      )}
-                    </div>
-                    <ul className="mt-2 space-y-1">
-                      {session.sets.map((set) => (
-                        <li
-                          key={set.setNumber}
-                          className={cn(
-                            'flex items-baseline gap-2 text-sm tnum',
-                            set.completed
-                              ? 'text-foreground'
-                              : 'text-muted-foreground line-through',
-                          )}
-                        >
-                          <span className="w-6 shrink-0 text-xs text-muted-foreground">
-                            {set.setNumber}
+                        {best !== null && best.e1rmKg !== null && (
+                          <span className="shrink-0 text-xs font-semibold text-primary tnum">
+                            {formatE1RM(best.e1rmKg, unit)} e1RM
                           </span>
-                          {formatLoggedSet(set, unit, stats.exercise.loggingType)}
-                        </li>
-                      ))}
-                    </ul>
-                  </Link>
-                </li>
-              ))}
+                        )}
+                      </div>
+                      <ul className="mt-2 space-y-1">
+                        {session.sets.map((set, index) => (
+                          <li
+                            key={set.setNumber}
+                            className={cn(
+                              'flex items-baseline gap-2 text-sm tnum',
+                              set.completed
+                                ? 'text-foreground'
+                                : 'text-muted-foreground line-through',
+                              index === best?.index && 'font-semibold',
+                            )}
+                          >
+                            <span className="w-6 shrink-0 text-xs font-normal text-muted-foreground">
+                              {set.setNumber}
+                            </span>
+                            {formatLoggedSet(set, unit, stats.exercise.loggingType)}
+                            {index === best?.index && (
+                              <>
+                                <span
+                                  aria-hidden="true"
+                                  className="size-1.5 shrink-0 self-center rounded-full bg-primary"
+                                />
+                                <span className="sr-only">Best set</span>
+                              </>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    </Link>
+                  </li>
+                )
+              })}
             </ul>
           )}
 
