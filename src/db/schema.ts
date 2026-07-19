@@ -134,6 +134,10 @@ export const userPreferences = pgTable('user_preferences', {
   // ignored. Default ON — the timer is the feature's normal state; the
   // switch exists for lifters who find any clock a distraction.
   restTimerEnabled: boolean('rest_timer_enabled').notNull().default(true),
+  // Home-page "train with a plan" nudge, dismissed. Stored as DISMISSED (not
+  // "enabled") so the false default means every user starts with the reminder
+  // visible; only an explicit dismissal — card or settings toggle — hides it.
+  programReminderDismissed: boolean('program_reminder_dismissed').notNull().default(false),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 })
 

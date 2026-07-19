@@ -131,3 +131,33 @@ export async function setRestTimerEnabled(userId: string, enabled: boolean): Pro
       set: { restTimerEnabled: enabled, updatedAt: new Date() },
     })
 }
+
+/**
+ * Whether the home page's "train with a plan" nudge has been dismissed.
+ * Defaults to false — the reminder is the fresh-user default — and only a
+ * literal stored `true` hides it, so a missing row can never suppress the
+ * nudge for a user who hasn't asked it to go away.
+ */
+export async function getProgramReminderDismissed(userId: string): Promise<boolean> {
+  const [row] = await db
+    .select({ programReminderDismissed: userPreferences.programReminderDismissed })
+    .from(userPreferences)
+    .where(eq(userPreferences.userId, userId))
+    .limit(1)
+  return row?.programReminderDismissed === true
+}
+
+/** Upserts the program-reminder dismissal (validated by setProgramReminderDismissedAction);
+ *  false re-enables the nudge from the settings escape hatch. */
+export async function setProgramReminderDismissed(
+  userId: string,
+  dismissed: boolean,
+): Promise<void> {
+  await db
+    .insert(userPreferences)
+    .values({ userId, programReminderDismissed: dismissed })
+    .onConflictDoUpdate({
+      target: userPreferences.userId,
+      set: { programReminderDismissed: dismissed, updatedAt: new Date() },
+    })
+}

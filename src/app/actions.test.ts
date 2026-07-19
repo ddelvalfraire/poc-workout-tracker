@@ -11,6 +11,7 @@ vi.mock('@/db/preferences', () => ({
   setEquipment: vi.fn(async () => {}),
   setDefaultRestSec: vi.fn(async () => {}),
   setRestTimerEnabled: vi.fn(async () => {}),
+  setProgramReminderDismissed: vi.fn(async () => {}),
   getWeightUnit: vi.fn(async () => 'lb'),
 }))
 vi.mock('@/db/bodyweight', () => ({
@@ -26,12 +27,14 @@ import {
   deleteBodyweightLogAction,
   setDefaultRestSecAction,
   setRestTimerEnabledAction,
+  setProgramReminderDismissedAction,
 } from './actions'
 import {
   setWeightUnit,
   setEquipment,
   setDefaultRestSec,
   setRestTimerEnabled,
+  setProgramReminderDismissed,
   getWeightUnit,
 } from '@/db/preferences'
 import { logBodyweight, deleteBodyweightLog } from '@/db/bodyweight'
@@ -210,6 +213,31 @@ describe('setRestTimerEnabledAction', () => {
 
       // Assert
       expect(setRestTimerEnabled).toHaveBeenCalledWith('user_123', flag)
+      expect(revalidatePath).toHaveBeenCalledWith('/', 'layout')
+    },
+  )
+})
+
+describe('setProgramReminderDismissedAction', () => {
+  it.each([
+    ['a string', 'true'],
+    ['a number', 1],
+    ['null', null],
+    ['undefined', undefined],
+  ])('rejects %s without writing or revalidating', async (_label, value) => {
+    await expect(setProgramReminderDismissedAction(value)).rejects.toThrow('must be a boolean')
+    expect(setProgramReminderDismissed).not.toHaveBeenCalled()
+    expect(revalidatePath).not.toHaveBeenCalled()
+  })
+
+  it.each([[true], [false]])(
+    'persists %s for the user and revalidates the layout',
+    async (flag) => {
+      // Act — true is the card's "Don't show again", false the settings re-enable
+      await setProgramReminderDismissedAction(flag)
+
+      // Assert
+      expect(setProgramReminderDismissed).toHaveBeenCalledWith('user_123', flag)
       expect(revalidatePath).toHaveBeenCalledWith('/', 'layout')
     },
   )
