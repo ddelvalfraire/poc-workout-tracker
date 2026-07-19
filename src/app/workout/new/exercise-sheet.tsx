@@ -3,6 +3,7 @@
 import { useEffect, useRef } from 'react'
 import { X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { useAnimatedSheetClose } from '@/components/use-animated-sheet-close'
 import { ExercisePicker, type PickedExercise } from './exercise-picker'
 
 /**
@@ -33,6 +34,7 @@ export function ExerciseSheet({
 }: ExerciseSheetProps) {
   const dialogRef = useRef<HTMLDialogElement>(null)
   const closeButtonRef = useRef<HTMLButtonElement>(null)
+  const requestClose = useAnimatedSheetClose(dialogRef, onClose)
 
   // Native <dialog> + showModal(): the browser owns the focus trap AND makes
   // the page behind genuinely inert — a screen reader's virtual cursor can't
@@ -74,7 +76,7 @@ export function ExerciseSheet({
       aria-label={heading}
       onCancel={(e) => {
         e.preventDefault() // keep open/closed state owned by React
-        onClose()
+        requestClose()
       }}
       onClick={(e) => {
         // Geometric backdrop test, NOT `target === dialog`: taps in the
@@ -87,7 +89,7 @@ export function ExerciseSheet({
           e.clientX <= rect.right &&
           e.clientY >= rect.top &&
           e.clientY <= rect.bottom
-        if (!inside) onClose()
+        if (!inside) requestClose()
       }}
       // Full-height search takeover (the Hevy/Strong pattern), NOT a
       // content-sized sheet: a FIXED height means the sheet never lurches as
@@ -108,7 +110,7 @@ export function ExerciseSheet({
           size="icon-sm"
           variant="ghost"
           className="-mr-1 text-muted-foreground"
-          onClick={onClose}
+          onClick={requestClose}
           aria-label="Close"
         >
           <X aria-hidden="true" className="size-4" />
@@ -128,7 +130,7 @@ export function ExerciseSheet({
           suggestFor={suggestFor}
           onAdd={(exercise) => {
             onAdd(exercise)
-            onClose()
+            requestClose()
           }}
         />
       </div>

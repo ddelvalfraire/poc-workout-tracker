@@ -191,6 +191,22 @@
   animation: sheet-up 240ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
+/* Sheet dismissal (useAnimatedSheetClose adds this class, then unmounts on
+   animationend). !important: the element still carries animate-sheet-up at
+   equal specificity, and the exit must win regardless of rule order. Never
+   applied under reduced motion — the hook closes immediately instead. */
+@keyframes sheet-down {
+  to {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+}
+@layer utilities {
+  .sheet-exit {
+    animation: sheet-down 160ms ease-in both !important;
+  }
+}
+
 /* Previous-chip adopt feedback: a brief volt wash on the filled inputs.
    Confirmation, not error — a highlight, never a shake. Color-only and
    700ms one-shot, so it stays calm under reduced motion too. */

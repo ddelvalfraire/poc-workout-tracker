@@ -331,6 +331,14 @@ export function WorkoutLogger({
   // visibility rule as the per-exercise ones).
   const [isWorkoutNotesOpen, setIsWorkoutNotesOpen] = useState(false)
 
+  // Mount-time content must not animate as a wall; only cards/rows appearing
+  // AFTER the session settles (adds, restores, swaps) ease in.
+  const [riseInArmed, setRiseInArmed] = useState(false)
+  useEffect(() => {
+    const t = setTimeout(() => setRiseInArmed(true), 400)
+    return () => clearTimeout(t)
+  }, [])
+
   useEffect(
     () => () => {
       if (flashTimerRef.current) clearTimeout(flashTimerRef.current)
@@ -939,7 +947,8 @@ export function WorkoutLogger({
           <section
             key={exercise.id}
             className={cn(
-              'rounded-2xl border bg-card transition-colors motion-safe:animate-rise-in',
+              'rounded-2xl border bg-card transition-colors',
+              riseInArmed && 'motion-safe:animate-rise-in',
               isCollapsed || exercise.skipped ? '' : 'p-4',
               // Every set checked off = this movement is done: the volt
               // outline is the same "live/complete" state marker the resume
@@ -965,7 +974,10 @@ export function WorkoutLogger({
               type="button"
               onClick={() => dispatch({ type: 'TOGGLE_SKIP_EXERCISE', exerciseIndex })}
               aria-label={`Unskip ${exercise.name}`}
-              className="flex w-full items-center justify-between gap-3 p-4 text-left motion-safe:animate-rise-in"
+              className={cn(
+                'flex w-full items-center justify-between gap-3 p-4 text-left',
+                riseInArmed && 'motion-safe:animate-rise-in',
+              )}
             >
               <span className="flex min-w-0 items-center gap-2.5">
                 <span
@@ -1001,7 +1013,10 @@ export function WorkoutLogger({
               }
               aria-expanded={false}
               aria-label={`Expand ${exercise.name} — completed, ${completedSetsSummary(exercise.sets, exercise.loggingType)}${hasPR ? ', new PR' : ''}${supersetLabel !== undefined ? `, superset ${supersetLabel}` : ''}`}
-              className="flex w-full items-center justify-between gap-3 p-4 text-left motion-safe:animate-rise-in"
+              className={cn(
+                'flex w-full items-center justify-between gap-3 p-4 text-left',
+                riseInArmed && 'motion-safe:animate-rise-in',
+              )}
             >
               <span className="flex min-w-0 items-center gap-2.5">
                 {/* Tinted volt disc echoes the completed set circle — the
@@ -1020,7 +1035,7 @@ export function WorkoutLogger({
               </span>
             </button>
           ) : (
-          <div className="space-y-3 motion-safe:animate-rise-in">
+          <div className={cn('space-y-3', riseInArmed && 'motion-safe:animate-rise-in')}>
             {/* Layered header: the movement name owns the top line at full
                 width; the utility rail sits beneath it, so controls never
                 crowd or truncate the title. */}
@@ -1279,7 +1294,10 @@ export function WorkoutLogger({
                     replacement. Undo (not a confirm) catches mistakes. */}
                 <SwipeToDelete onDelete={() => handleRemoveSet(exerciseIndex, setIndex)}>
                 <div
-                  className="flex items-center gap-2 motion-safe:animate-rise-in"
+                  className={cn(
+                    'flex items-center gap-2',
+                    riseInArmed && 'motion-safe:animate-rise-in',
+                  )}
                   id={`set-row-${set.id}`}
                 >
                   <button

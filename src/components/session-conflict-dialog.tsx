@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { deleteWorkoutDraftAction, deleteWorkoutAction } from '@/app/workout/actions'
 import { activeSessionHref } from '@/lib/active-session'
 import { discardSession } from '@/lib/discard-session'
+import { useAnimatedSheetClose } from '@/components/use-animated-sheet-close'
 
 /**
  * Bottom sheet shown when starting a NEW workout would collide with a live
@@ -47,6 +48,7 @@ export function SessionConflictDialog({ session, onClose, onProceed }: SessionCo
   const [error, setError] = useState<string | null>(null)
   const dialogRef = useRef<HTMLDialogElement>(null)
   const closeButtonRef = useRef<HTMLButtonElement>(null)
+  const requestClose = useAnimatedSheetClose(dialogRef, onClose)
   const router = useRouter()
 
   // Native <dialog> + showModal(): the browser owns the focus trap AND makes
@@ -134,7 +136,7 @@ export function SessionConflictDialog({ session, onClose, onProceed }: SessionCo
         e.preventDefault() // keep open/closed state owned by React
         // Mid-discard, Esc must not dismiss: the actions are already fired
         // and closing would hide the error/pending state they resolve into.
-        if (!isPending) onClose()
+        if (!isPending) requestClose()
       }}
       onClick={(e) => {
         // Geometric backdrop test, NOT `target === dialog`: taps in the
@@ -147,7 +149,7 @@ export function SessionConflictDialog({ session, onClose, onProceed }: SessionCo
           e.clientX <= rect.right &&
           e.clientY >= rect.top &&
           e.clientY <= rect.bottom
-        if (!inside && !isPending) onClose()
+        if (!inside && !isPending) requestClose()
       }}
       className="mx-auto mt-auto mb-0 max-h-[85dvh] w-full max-w-md overflow-y-auto overscroll-contain rounded-t-2xl border-t border-x border-border bg-card px-5 pt-5 pb-safe text-foreground backdrop:bg-black/60 motion-safe:animate-sheet-up"
     >
@@ -172,7 +174,7 @@ export function SessionConflictDialog({ session, onClose, onProceed }: SessionCo
           size="icon-sm"
           variant="ghost"
           className="-mr-1 shrink-0 text-muted-foreground"
-          onClick={onClose}
+          onClick={requestClose}
           disabled={isPending}
           aria-label="Close"
         >
@@ -202,7 +204,7 @@ export function SessionConflictDialog({ session, onClose, onProceed }: SessionCo
         >
           {isPending ? 'Discarding…' : 'Discard & start new'}
         </Button>
-        <Button variant="ghost" className="w-full" disabled={isPending} onClick={onClose}>
+        <Button variant="ghost" className="w-full" disabled={isPending} onClick={requestClose}>
           Cancel
         </Button>
         {error && <p className="text-sm text-destructive">{error}</p>}
