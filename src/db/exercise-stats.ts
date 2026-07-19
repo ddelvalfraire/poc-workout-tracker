@@ -252,6 +252,9 @@ export interface ExerciseSession {
     weight: number | null // kg
     completed: boolean
     metricMode: string
+    /** 'working' | 'warmup' — lets display surfaces keep the "warm-ups never
+     *  score" invariant when marking a session's best set. */
+    setType: string
     durationSec: number | null
     distanceM: number | null
   }[]
@@ -309,6 +312,7 @@ export async function getExerciseSessions(
       weight: sets.weight,
       completed: sets.completed,
       metricMode: sets.metricMode,
+      setType: sets.setType,
       durationSec: sets.durationSec,
       distanceM: sets.distanceM,
     })
@@ -340,6 +344,7 @@ export async function getExerciseSessions(
         weight: s.weight,
         completed: s.completed,
         metricMode: s.metricMode,
+        setType: s.setType,
         durationSec: s.durationSec,
         distanceM: s.distanceM,
       })),
