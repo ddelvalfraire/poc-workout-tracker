@@ -1297,8 +1297,13 @@ export function WorkoutLogger({
                       })
                     }
                     // Select-all on focus: tapping a filled field means
-                    // "replace this", not "append a digit to it".
-                    onFocus={(e) => e.currentTarget.select()}
+                    // "replace this", not "append a digit to it". Deferred a
+                    // frame — WebKit's mouseup after a pointer-initiated focus
+                    // collapses a synchronous selection back to a caret.
+                    onFocus={(e) => {
+                      const input = e.currentTarget
+                      requestAnimationFrame(() => input.select())
+                    }}
                     aria-label={`Set ${setIndex + 1} reps`}
                     className={cn('flex-1 text-center tnum', flashSetId === set.id && 'fill-flash')}
                   />
@@ -1338,9 +1343,10 @@ export function WorkoutLogger({
                           })
                         }
                         onFocus={(e) => {
-                          // Select-all first (type-over, same as reps), then
-                          // arm this row's ± steppers.
-                          e.currentTarget.select()
+                          // Select-all (type-over, same rAF-deferred WebKit
+                          // dance as reps), then arm this row's ± steppers.
+                          const input = e.currentTarget
+                          requestAnimationFrame(() => input.select())
                           setStepperSetId(set.id)
                         }}
                         onBlur={() => setStepperSetId(null)}
