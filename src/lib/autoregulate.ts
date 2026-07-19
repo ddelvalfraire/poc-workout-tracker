@@ -13,17 +13,22 @@ import type { DerivedSet } from './progression'
  * but blocked on data: logged sets carry no actual RPE (only prescriptions
  * do), so they wait for an optional per-set RPE input.
  *
- * Scope: the `linear` scheme ONLY — the one that blindly adds weight every
- * week. Explicitly out for v1:
- * - double-progression already holds its load until repMax is hit on every
- *   set; a stall there is the scheme working, not failing.
- * - percent-1rm is NOT self-correcting (its trainingMax is static) — a
- *   future candidate once trainingMax adjustment exists.
- * - amrap-cycle bumps its trainingMax unconditionally per completed wave —
- *   also future work.
- * - rpe-target derives from e1RM and genuinely self-corrects.
- * Overrides always outrank autoreg (applied later in the precedence chain,
- * same as scheme loads).
+ * Scope — two progression models:
+ * - FIXED (v1, `autoregulate`): the `linear` scheme with fixed-rep
+ *   prescriptions. Stall = missing the rep floor; repeat, then back off after
+ *   three consecutive stalls.
+ * - RANGE (v2, `autoregulateRange`): double progression for rep-range
+ *   prescriptions (repMin < repMax) — the `linear` scheme with ranged sets
+ *   and the `double-progression` scheme. Add reps at the same load until
+ *   every working set fills the range top, then step the load; a stall is a
+ *   session failing to ADD total reps vs the previous session at the same
+ *   prescribed load (NOT missing repMin — under a range, low reps early in
+ *   the climb are the model working).
+ * Explicitly out (future work): percent-1rm is NOT self-correcting (its
+ * trainingMax is static); amrap-cycle bumps its trainingMax unconditionally
+ * per completed wave; rpe-target derives from e1RM and genuinely
+ * self-corrects. Overrides always outrank autoreg (applied later in the
+ * precedence chain, same as scheme loads).
  */
 
 export interface AutoregPrescribedSet {
@@ -53,9 +58,10 @@ export interface AutoregSession {
 }
 
 export interface AutoregAdjustment {
-  action: 'repeat' | 'decrement'
-  /** Relative to the STALLED evidence load (`evidence.loadKg`): 0 (repeat) or
-   *  −backoffKg (escalated back-off) — see `applyAutoregToSets`. */
+  action: 'repeat' | 'decrement' | 'step'
+  /** Relative to the STALLED evidence load (`evidence.loadKg`): 0 (repeat),
+   *  −backoffKg (escalated back-off), or +stepKg (range filled — the ONLY
+   *  positive delta) — see `applyAutoregToSets`. */
   deltaKg: number
   /** Three consecutive stalls: worth pulling the deload forward. */
   suggestEarlyDeload: boolean
@@ -66,12 +72,24 @@ export interface AutoregAdjustment {
    *  climb past a frozen top set. */
   stalledLoadBySetNumber: Readonly<Record<number, number>>
   /** Structured evidence for the reason line — formatting is display-side.
-   *  `repFloor`/`loadKg` name the HEAVIEST missed set. */
+   *  Fixed mode: `repFloor`/`loadKg` name the HEAVIEST missed set. Range
+   *  mode: `loadKg` is the heaviest scorable prescribed load, `repFloor` the
+   *  range top governing that set (0 when the current plan carries no top for
+   *  it), `missedSets` the sets still under their tops. */
   evidence: {
     missedSets: number
     scorableSets: number
     repFloor: number
     loadKg: number
+  }
+  /** Present ONLY on range-mode (double progression) verdicts. Totals sum
+   *  at-load working reps over sets paired with the prior comparable session
+   *  (`prevTotalReps` null when no comparable prior session exists). */
+  range?: {
+    totalReps: number
+    prevTotalReps: number | null
+    /** Consecutive no-rep-gain sessions ending at the latest one. */
+    stalls: number
   }
 }
 
@@ -85,8 +103,19 @@ const LOAD_EPSILON_KG = 0.05
  *  (StrongLifts' cited rule: deload after the THIRD failed session). */
 const STALLS_BEFORE_DECREMENT = 3
 
-/** How many prior sessions the rules consult — the escalation window. */
+/** How many prior sessions the FIXED-mode rules consult — the escalation
+ *  window. */
 export const AUTOREG_SESSION_WINDOW = STALLS_BEFORE_DECREMENT
+
+/** RANGE mode needs one more session than the stall count: a stall is a
+ *  PAIR of sessions (no rep gain vs the previous one), so three consecutive
+ *  stalls span four sessions. */
+export const AUTOREG_RANGE_SESSION_WINDOW = STALLS_BEFORE_DECREMENT + 1
+
+/** Step applied when the range fills and the exercise's progression carries
+ *  no usable increment (incrementKg 0) — the smallest sensible total-load
+ *  step, matching WEIGHT_STEP's kg semantics (2.5 kg / 5 lb). */
+export const AUTOREG_DEFAULT_STEP_KG = 2.5
 
 /** Escalated back-off fraction — the field standard (StrongLifts deloads 10%
  *  after repeated fails; GZCLP resets to 85–90%), not a micro-increment: one
@@ -123,6 +152,36 @@ function isWorking(setType?: string): boolean {
   return setType === undefined || setType === 'working'
 }
 
+/** One scorable prescribed↔actual working pair (the shared evidence-quality
+ *  rules): paired by setNumber, snapshot carries a load, the actual is
+ *  completed with reps+weight, and the weight is ≥ the prescribed load −
+ *  epsilon (attempted lighter = self-regulation already happened). `repMin`
+ *  rides along nullable — FIXED mode additionally requires it. */
+interface ScorablePair {
+  setNumber: number
+  loadKg: number
+  repMin: number | null
+  reps: number
+}
+
+function scorablePairs(session: AutoregSession): ScorablePair[] {
+  const actualByNumber = bySetNumber(session.actual.filter((set) => isWorking(set.setType)))
+  const pairs: ScorablePair[] = []
+  for (const plan of bySetNumber(session.prescribed.filter((s) => isWorking(s.setType))).values()) {
+    if (plan.loadKg === null) continue
+    const done = actualByNumber.get(plan.setNumber)
+    if (!done?.completed || done.reps === null || done.weightKg === null) continue
+    if (done.weightKg < plan.loadKg - LOAD_EPSILON_KG) continue
+    pairs.push({
+      setNumber: plan.setNumber,
+      loadKg: plan.loadKg,
+      repMin: plan.repMin,
+      reps: done.reps,
+    })
+  }
+  return pairs
+}
+
 /**
  * A session stalled when, on at least half of its scorable working sets, the
  * lifter finished under the rep floor. Prescribed and actual sets pair BY
@@ -137,29 +196,25 @@ function isWorking(setType?: string): boolean {
 export function sessionStall(
   session: AutoregSession,
 ): { missedSets: number; scorableSets: number; repFloor: number; loadKg: number } | null {
-  const actualByNumber = bySetNumber(session.actual.filter((set) => isWorking(set.setType)))
+  // FIXED mode also demands a rep floor on the snapshot — no floor, no verdict.
+  const pairs = scorablePairs(session).filter(
+    (p): p is ScorablePair & { repMin: number } => p.repMin !== null,
+  )
 
-  let scorable = 0
   let missed = 0
   let heaviestMissed: { repFloor: number; loadKg: number } | null = null
-
-  for (const plan of bySetNumber(session.prescribed.filter((s) => isWorking(s.setType))).values()) {
-    if (plan.repMin === null || plan.loadKg === null) continue
-    const done = actualByNumber.get(plan.setNumber)
-    if (!done?.completed || done.reps === null || done.weightKg === null) continue
-    if (done.weightKg < plan.loadKg - LOAD_EPSILON_KG) continue
-    scorable += 1
-    if (done.reps < plan.repMin) {
+  for (const pair of pairs) {
+    if (pair.reps < pair.repMin) {
       missed += 1
-      if (heaviestMissed === null || plan.loadKg > heaviestMissed.loadKg) {
-        heaviestMissed = { repFloor: plan.repMin, loadKg: plan.loadKg }
+      if (heaviestMissed === null || pair.loadKg > heaviestMissed.loadKg) {
+        heaviestMissed = { repFloor: pair.repMin, loadKg: pair.loadKg }
       }
     }
   }
 
-  if (scorable === 0 || heaviestMissed === null) return null
-  return missed * 2 >= scorable
-    ? { missedSets: missed, scorableSets: scorable, ...heaviestMissed }
+  if (pairs.length === 0 || heaviestMissed === null) return null
+  return missed * 2 >= pairs.length
+    ? { missedSets: missed, scorableSets: pairs.length, ...heaviestMissed }
     : null
 }
 
@@ -214,6 +269,114 @@ export function autoregulate(
 }
 
 /**
+ * Total at-load working reps of two adjacent sessions over their SHARED
+ * frame: pairs matched by setNumber, both scorable in their own session.
+ * Null (not comparable — a rep-gain verdict would be noise, so the stall
+ * streak resets) when no setNumber is scorable in both, or when ANY matched
+ * pair's prescribed loads differ beyond epsilon: "failing to add reps" is
+ * only meaningful AT THE SAME PRESCRIBED LOAD.
+ */
+function comparableTotals(
+  current: AutoregSession,
+  previous: AutoregSession,
+): { totalReps: number; prevTotalReps: number } | null {
+  const prevByNumber = new Map(scorablePairs(previous).map((p) => [p.setNumber, p]))
+  let matched = 0
+  let totalReps = 0
+  let prevTotalReps = 0
+  for (const pair of scorablePairs(current)) {
+    const prev = prevByNumber.get(pair.setNumber)
+    if (!prev) continue
+    if (Math.abs(pair.loadKg - prev.loadKg) > LOAD_EPSILON_KG) return null
+    matched += 1
+    totalReps += pair.reps
+    prevTotalReps += prev.reps
+  }
+  return matched === 0 ? null : { totalReps, prevTotalReps }
+}
+
+/**
+ * The RANGE-mode (double progression) verdict for one exercise. Same HARD
+ * PRECONDITION as `autoregulate`: `sessions` newest-first; only the first
+ * `AUTOREG_RANGE_SESSION_WINDOW` are consulted.
+ *
+ * `rangeTopBySetNumber` is the CURRENT plan's range top per derived
+ * setNumber — deliberately a plan PARAMETER, not a snapshotted fact: the top
+ * defines the goal the lifter is climbing toward (like `stepKg`, which v1
+ * already reads live), while the evidence scored against it (prescribed
+ * loads, logged reps) stays snapshot-only. See the snapshot note in
+ * db/programs.ts.
+ *
+ * Verdict order:
+ * 1. FILL — every scorable working set of the latest session hit its range
+ *    top at the prescribed load → step: +stepKg onto each prescribed-at-fill
+ *    load, rep target back to repMin (the range floor is already the derived
+ *    prescription's repMin — nothing to adjust there).
+ * 2. STALL ×3 — three consecutive session pairs with no total-rep gain at
+ *    the same prescribed load → the v1 back-off (+ early-deload suggestion).
+ * 3. Otherwise HOLD — the range model's default: add reps at the same load,
+ *    so the prescription is capped at the latest prescribed loads (this is
+ *    what stops a `linear` scheme's weekly increment mid-range).
+ * Null when nothing is scorable — silence over corruption, as ever.
+ */
+export function autoregulateRange(
+  stepKg: number,
+  sessions: readonly AutoregSession[],
+  rangeTopBySetNumber: Readonly<Record<number, number>>,
+): AutoregAdjustment | null {
+  const window = sessions.slice(0, AUTOREG_RANGE_SESSION_WINDOW)
+  const latest = window[0]
+  if (!latest) return null
+  const pairs = scorablePairs(latest)
+  if (pairs.length === 0) return null
+
+  const heaviest = pairs.reduce((a, b) => (b.loadKg > a.loadKg ? b : a))
+  const knownTops = pairs.filter((p) => rangeTopBySetNumber[p.setNumber] !== undefined)
+  const evidence = {
+    missedSets: knownTops.filter((p) => p.reps < rangeTopBySetNumber[p.setNumber]).length,
+    scorableSets: pairs.length,
+    repFloor: rangeTopBySetNumber[heaviest.setNumber] ?? 0,
+    loadKg: heaviest.loadKg,
+  }
+
+  // A fill must be CONFIRMABLE on every scorable set: a set whose number has
+  // no top in today's plan (renumbered/resized template) can't testify to one.
+  const filled =
+    knownTops.length === pairs.length &&
+    pairs.every((p) => p.reps >= rangeTopBySetNumber[p.setNumber])
+
+  let stalls = 0
+  for (let i = 0; i + 1 < window.length; i++) {
+    const totals = comparableTotals(window[i], window[i + 1])
+    if (totals === null || totals.totalReps > totals.prevTotalReps) break
+    stalls += 1
+  }
+
+  const latestTotals = comparableTotals(latest, window[1] ?? { prescribed: [], actual: [] })
+  const shared = {
+    stalledLoadBySetNumber: stalledLoads(latest),
+    evidence,
+    range: {
+      totalReps: latestTotals?.totalReps ?? pairs.reduce((sum, p) => sum + p.reps, 0),
+      prevTotalReps: latestTotals?.prevTotalReps ?? null,
+      stalls,
+    },
+  }
+  if (filled) {
+    return { action: 'step', deltaKg: stepKg, suggestEarlyDeload: false, ...shared }
+  }
+  if (stalls >= STALLS_BEFORE_DECREMENT) {
+    return {
+      action: 'decrement',
+      deltaKg: -backoffKg(evidence.loadKg, stepKg),
+      suggestEarlyDeload: true,
+      ...shared,
+    }
+  }
+  return { action: 'repeat', deltaKg: 0, suggestEarlyDeload: false, ...shared }
+}
+
+/**
  * Applies a Layer 1 adjustment to a week's scheme-derived sets, BEFORE
  * overrides (override > autoreg — the caller merges overrides on top and they
  * replace both the load and the stamp). Each non-warmup scheme set is capped
@@ -221,11 +384,17 @@ export function autoregulate(
  * global cap, so a set that passed at 100 kg is not slashed because a 90 kg
  * volume set failed. On decrement every cap scales by the evidence set's
  * back-off fraction. Sets with no stalled-session counterpart, warmups, and
- * non-scheme passthroughs are untouched; loads are never raised (a scheme
- * already below its cap keeps its own load). Adjusted sets keep their
+ * non-scheme passthroughs are untouched. On repeat/decrement loads are never
+ * raised (a scheme already below its cap keeps its own load); a range-mode
+ * STEP is the one deliberate exception — the prescription becomes exactly
+ * prescribed-at-fill + stepKg per set (a `double-progression` scheme still
+ * holding its base is RAISED to the earned next load; a `linear` scheme that
+ * ran ahead is pulled back to one honest step). Adjusted sets keep their
  * pre-autoreg value in `schemeLoadKg` so surfaces can offer "use plan as
  * written". Scoring (the verdict) remains working-sets-only — backoff/amrap
- * sets are only FROZEN here so volume work can't climb past a frozen top set.
+ * sets are only FROZEN here (or stepped uniformly, mirroring how a linear
+ * increment lands on every non-warmup set) so volume work can't climb past a
+ * frozen top set.
  */
 export function applyAutoregToSets(
   sets: readonly DerivedSet[],
@@ -239,10 +408,15 @@ export function applyAutoregToSets(
     if (set.setType === 'warmup' || set.derivedFrom !== 'scheme' || set.loadKg === null) return set
     const stalledLoadKg = adjustment.stalledLoadBySetNumber[set.setNumber]
     if (stalledLoadKg === undefined) return set
-    const targetKg = Math.max(0, stalledLoadKg * fraction)
+    // Decrement scales each cap proportionally (the evidence set's back-off
+    // fraction); a step adds the absolute increment, like the scheme would.
+    const targetKg = Math.max(
+      0,
+      adjustment.action === 'step' ? stalledLoadKg + adjustment.deltaKg : stalledLoadKg * fraction,
+    )
     return {
       ...set,
-      loadKg: Math.min(set.loadKg, targetKg),
+      loadKg: adjustment.action === 'step' ? targetKg : Math.min(set.loadKg, targetKg),
       derivedFrom: 'autoreg',
       schemeLoadKg: set.loadKg,
     }
@@ -252,11 +426,29 @@ export function applyAutoregToSets(
 /**
  * The lifter-facing reason line — every adjustment ships one (the PRD's
  * transparency contract). Display unit applied here, not in the engine.
- *   "Missed 8 reps on 2 of 3 sets at 100 kg — repeating the load"
- *   "Third straight stall at 100 kg — backing off 10 kg (~10%)"
+ *   Fixed:  "Missed 8 reps on 2 of 3 sets at 100 kg — repeating the load"
+ *           "Third straight stall at 100 kg — backing off 10 kg (~10%)"
+ *   Range:  "Range filled at 100 kg last session — stepping to 102.5 kg"
+ *           "Range not filled at 100 kg — adding reps before the load steps"
+ *           "No new reps at 100 kg (24 vs 24) — holding the load"
+ *           "No new reps at 100 kg for 3 straight sessions — backing off ..."
  */
 export function autoregReason(adjustment: AutoregAdjustment, unit: WeightUnit): string {
   const load = `${kgToDisplay(adjustment.evidence.loadKg, unit)} ${unit}`
+  if (adjustment.action === 'step') {
+    const next = `${kgToDisplay(adjustment.evidence.loadKg + adjustment.deltaKg, unit)} ${unit}`
+    return `Range filled at ${load} last session — stepping to ${next}`
+  }
+  if (adjustment.range) {
+    const { totalReps, prevTotalReps, stalls } = adjustment.range
+    if (adjustment.action === 'decrement') {
+      const backoff = `${kgToDisplay(-adjustment.deltaKg, unit)} ${unit}`
+      return `No new reps at ${load} for ${stalls} straight sessions — backing off ${backoff} (~10%)`
+    }
+    return stalls > 0 && prevTotalReps !== null
+      ? `No new reps at ${load} (${totalReps} vs ${prevTotalReps}) — holding the load`
+      : `Range not filled at ${load} — adding reps before the load steps`
+  }
   if (adjustment.action === 'decrement') {
     const backoff = `${kgToDisplay(-adjustment.deltaKg, unit)} ${unit}`
     return `Third straight stall at ${load} — backing off ${backoff} (~10%)`

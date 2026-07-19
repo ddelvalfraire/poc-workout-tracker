@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   autoregulate,
+  autoregulateRange,
   autoregReason,
   applyAutoregToSets,
   backoffKg,
@@ -422,5 +423,264 @@ describe('applyAutoregToSets', () => {
     // Assert
     expect(input.loadKg).toBe(102.5)
     expect(input.derivedFrom).toBe('scheme')
+  })
+})
+
+/** 3 working sets prescribed 8–12 at `loadKg` with at-load actuals — the
+ *  range-mode (double progression) fixture. Range tops ride separately (a
+ *  plan parameter, not a snapshot). */
+const ranged = (reps: number[], loadKg = 100): AutoregSession => ({
+  prescribed: reps.map((_, i) => ({ setNumber: i + 1, repMin: 8, loadKg })),
+  actual: reps.map((r, i) => ({
+    setNumber: i + 1,
+    reps: r,
+    weightKg: loadKg,
+    completed: true,
+  })),
+})
+
+const TOPS = { 1: 12, 2: 12, 3: 12 }
+
+describe('autoregulateRange', () => {
+  it('returns null with no history or nothing scorable', () => {
+    expect(autoregulateRange(2.5, [], TOPS)).toBeNull()
+    expect(autoregulateRange(2.5, [{ prescribed: [], actual: [] }], TOPS)).toBeNull()
+  })
+
+  it('stays silent on snapshot-less history (cold start by design)', () => {
+    const preSnapshot: AutoregSession = {
+      prescribed: [1, 2, 3].map((n) => ({ setNumber: n, repMin: null, loadKg: null })),
+      actual: [1, 2, 3].map((n) => ({ setNumber: n, reps: 12, weightKg: 100, completed: true })),
+    }
+    expect(autoregulateRange(2.5, [preSnapshot], TOPS)).toBeNull()
+  })
+
+  it('proposes a step when every working set fills the range top at the prescribed load', () => {
+    const adjustment = autoregulateRange(2.5, [ranged([12, 12, 12])], TOPS)
+    expect(adjustment).toMatchObject({
+      action: 'step',
+      deltaKg: 2.5,
+      suggestEarlyDeload: false,
+      evidence: { loadKg: 100, repFloor: 12, missedSets: 0, scorableSets: 3 },
+    })
+  })
+
+  it('one set under the top is NOT a fill — hold, and no stall from a first session', () => {
+    const adjustment = autoregulateRange(2.5, [ranged([12, 12, 11])], TOPS)
+    expect(adjustment).toMatchObject({
+      action: 'repeat',
+      deltaKg: 0,
+      range: { stalls: 0, prevTotalReps: null },
+    })
+  })
+
+  it('adding reps below the top holds the load without a stall (progress-by-reps)', () => {
+    const adjustment = autoregulateRange(2.5, [ranged([10, 10, 10]), ranged([9, 9, 9])], TOPS)
+    expect(adjustment).toMatchObject({
+      action: 'repeat',
+      suggestEarlyDeload: false,
+      range: { stalls: 0, totalReps: 30, prevTotalReps: 27 },
+    })
+  })
+
+  it('a fill wins over a stall (a repeated max-rep session steps again, not holds)', () => {
+    const adjustment = autoregulateRange(2.5, [ranged([12, 12, 12]), ranged([12, 12, 12])], TOPS)
+    expect(adjustment).toMatchObject({ action: 'step', deltaKg: 2.5 })
+  })
+
+  it('no total-rep gain at the same load is a stall — one or two only hold', () => {
+    const flat = () => ranged([9, 9, 9])
+    expect(autoregulateRange(2.5, [flat(), flat()], TOPS)).toMatchObject({
+      action: 'repeat',
+      range: { stalls: 1, totalReps: 27, prevTotalReps: 27 },
+    })
+    expect(autoregulateRange(2.5, [flat(), flat(), flat()], TOPS)).toMatchObject({
+      action: 'repeat',
+      suggestEarlyDeload: false,
+      range: { stalls: 2 },
+    })
+  })
+
+  it('rep redistribution without a total gain is still a stall', () => {
+    // 8+10+9 = 27 vs 9+9+9 = 27 — moving reps between sets earned nothing.
+    const adjustment = autoregulateRange(2.5, [ranged([8, 10, 9]), ranged([9, 9, 9])], TOPS)
+    expect(adjustment).toMatchObject({ action: 'repeat', range: { stalls: 1 } })
+  })
+
+  it('three consecutive stalls (four flat sessions) back off ~10% and suggest the deload', () => {
+    const flat = () => ranged([9, 9, 9])
+    const adjustment = autoregulateRange(2.5, [flat(), flat(), flat(), flat()], TOPS)
+    expect(adjustment).toMatchObject({
+      action: 'decrement',
+      deltaKg: -10,
+      suggestEarlyDeload: true,
+      range: { stalls: 3 },
+    })
+  })
+
+  it('a load change between sessions resets the streak (not comparable at different loads)', () => {
+    // Latest at 102.5, older flat sessions at 100 — the step already
+    // happened, so "no rep gain" against the lighter frame is meaningless.
+    const adjustment = autoregulateRange(
+      2.5,
+      [ranged([8, 8, 8], 102.5), ranged([9, 9, 9]), ranged([9, 9, 9]), ranged([9, 9, 9])],
+      TOPS,
+    )
+    expect(adjustment).toMatchObject({ action: 'repeat', range: { stalls: 0 } })
+  })
+
+  it('warm-ups and unpaired amrap rows never score a fill or a total', () => {
+    const s: AutoregSession = {
+      prescribed: [
+        { setNumber: 1, repMin: 5, loadKg: 60, setType: 'warmup' },
+        { setNumber: 2, repMin: 8, loadKg: 100 },
+        { setNumber: 3, repMin: 8, loadKg: 100 },
+      ],
+      actual: [
+        { setNumber: 1, reps: 3, weightKg: 60, completed: true, setType: 'warmup' },
+        { setNumber: 2, reps: 12, weightKg: 100, completed: true },
+        { setNumber: 3, reps: 12, weightKg: 100, completed: true },
+      ],
+    }
+    expect(autoregulateRange(2.5, [s], { 2: 12, 3: 12 })).toMatchObject({ action: 'step' })
+  })
+
+  it('a scorable set with no current range top makes the fill unconfirmable (hold)', () => {
+    // Today's plan only knows tops for sets 1–2; set 3 hit 12 but can't
+    // testify to a top the plan no longer names.
+    const adjustment = autoregulateRange(2.5, [ranged([12, 12, 12])], { 1: 12, 2: 12 })
+    expect(adjustment).toMatchObject({ action: 'repeat' })
+  })
+
+  it('sets attempted lighter than prescribed are excluded (self-regulation, not evidence)', () => {
+    const s: AutoregSession = {
+      prescribed: [1, 2, 3].map((n) => ({ setNumber: n, repMin: 8, loadKg: 100 })),
+      actual: [
+        { setNumber: 1, reps: 12, weightKg: 100, completed: true },
+        { setNumber: 2, reps: 12, weightKg: 100, completed: true },
+        // Dropped to 80 kg and maxed reps — never counted toward the fill.
+        { setNumber: 3, reps: 12, weightKg: 80, completed: true },
+      ],
+    }
+    const adjustment = autoregulateRange(2.5, [s], TOPS)
+    expect(adjustment).toMatchObject({ action: 'step', evidence: { scorableSets: 2 } })
+  })
+
+  it('a null snapshot repMin is still scorable in range mode (the top is the target)', () => {
+    const s: AutoregSession = {
+      prescribed: [1, 2, 3].map((n) => ({ setNumber: n, repMin: null, loadKg: 100 })),
+      actual: [1, 2, 3].map((n) => ({ setNumber: n, reps: 12, weightKg: 100, completed: true })),
+    }
+    expect(autoregulateRange(2.5, [s], TOPS)).toMatchObject({ action: 'step' })
+  })
+
+  it('consults only four sessions — a stall streak beyond the window cannot deepen', () => {
+    const flat = () => ranged([9, 9, 9])
+    // Five flat sessions: still 3 stalls (window 4), verdict identical.
+    const adjustment = autoregulateRange(2.5, [flat(), flat(), flat(), flat(), flat()], TOPS)
+    expect(adjustment).toMatchObject({ action: 'decrement', range: { stalls: 3 } })
+  })
+})
+
+describe('applyAutoregToSets — range step', () => {
+  const derivedSet = (overrides: Partial<DerivedSet> = {}): DerivedSet => ({
+    setNumber: 1,
+    setType: 'working',
+    metricMode: 'reps_weight',
+    repMin: 8,
+    repMax: 12,
+    rir: null,
+    rpe: null,
+    loadKg: 100,
+    tempo: null,
+    durationSec: null,
+    distanceM: null,
+    restSec: null,
+    technique: null,
+    derivedFrom: 'scheme',
+    sourceIndex: 0,
+    ...overrides,
+  })
+
+  it('raises a still-held double-progression base to the earned next load', () => {
+    // Arrange — the range filled at 100; the DP scheme still derives 100.
+    const adjustment = autoregulateRange(2.5, [ranged([12, 12, 12])], TOPS)!
+
+    // Act
+    const result = applyAutoregToSets([derivedSet()], adjustment)
+
+    // Assert — the ONE case autoreg may raise: prescribed-at-fill + step.
+    expect(result[0]).toMatchObject({ loadKg: 102.5, derivedFrom: 'autoreg', schemeLoadKg: 100 })
+  })
+
+  it('pulls a linear scheme that ran ahead back to one honest step', () => {
+    const adjustment = autoregulateRange(2.5, [ranged([12, 12, 12])], TOPS)!
+    const result = applyAutoregToSets([derivedSet({ loadKg: 107.5 })], adjustment)
+    expect(result[0]).toMatchObject({ loadKg: 102.5, schemeLoadKg: 107.5 })
+  })
+
+  it('steps each set from ITS OWN prescribed-at-fill load, warmups untouched', () => {
+    const s: AutoregSession = {
+      prescribed: [
+        { setNumber: 1, repMin: 5, loadKg: 60, setType: 'warmup' },
+        { setNumber: 2, repMin: 8, loadKg: 100 },
+        { setNumber: 3, repMin: 8, loadKg: 90 },
+      ],
+      actual: [
+        { setNumber: 2, reps: 12, weightKg: 100, completed: true },
+        { setNumber: 3, reps: 12, weightKg: 90, completed: true },
+      ],
+    }
+    const adjustment = autoregulateRange(2.5, [s], { 2: 12, 3: 12 })!
+    const warmup = derivedSet({ setNumber: 1, setType: 'warmup', loadKg: 60 })
+    const result = applyAutoregToSets(
+      [warmup, derivedSet({ setNumber: 2 }), derivedSet({ setNumber: 3, loadKg: 90 })],
+      adjustment,
+    )
+    expect(result.map((set) => set.loadKg)).toEqual([60, 102.5, 92.5])
+    expect(result[0]).toEqual(warmup)
+  })
+
+  it('hold (repeat) still caps at the last prescribed load and never raises', () => {
+    // Arrange — below the top: the model says add reps at 100, so a linear
+    // scheme's 102.5 is pulled back to the held load.
+    const adjustment = autoregulateRange(2.5, [ranged([9, 9, 9])], TOPS)!
+
+    // Act
+    const result = applyAutoregToSets([derivedSet({ loadKg: 102.5 })], adjustment)
+
+    // Assert
+    expect(result[0]).toMatchObject({ loadKg: 100, derivedFrom: 'autoreg', schemeLoadKg: 102.5 })
+  })
+})
+
+describe('autoregReason — range mode', () => {
+  it('names the step and its target load', () => {
+    const adjustment = autoregulateRange(2.5, [ranged([12, 12, 12])], TOPS)!
+    expect(autoregReason(adjustment, 'kg')).toBe(
+      'Range filled at 100 kg last session — stepping to 102.5 kg',
+    )
+  })
+
+  it('explains a first-evidence hold without claiming a stall', () => {
+    const adjustment = autoregulateRange(2.5, [ranged([9, 9, 9])], TOPS)!
+    expect(autoregReason(adjustment, 'kg')).toBe(
+      'Range not filled at 100 kg — adding reps before the load steps',
+    )
+  })
+
+  it('shows the flat totals on a rep stall', () => {
+    const adjustment = autoregulateRange(2.5, [ranged([9, 9, 9]), ranged([9, 9, 9])], TOPS)!
+    expect(autoregReason(adjustment, 'kg')).toBe(
+      'No new reps at 100 kg (27 vs 27) — holding the load',
+    )
+  })
+
+  it('describes the three-session back-off with its magnitude', () => {
+    const flat = () => ranged([9, 9, 9])
+    const adjustment = autoregulateRange(2.5, [flat(), flat(), flat(), flat()], TOPS)!
+    expect(autoregReason(adjustment, 'kg')).toBe(
+      'No new reps at 100 kg for 3 straight sessions — backing off 10 kg (~10%)',
+    )
   })
 })

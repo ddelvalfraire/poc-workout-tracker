@@ -27,14 +27,18 @@ import { deriveDayPrescription, type DayForDerivation } from './programs'
 
 const USER = 'user_123'
 
-/** A one-exercise day: 3×(8-12) working sets, base 100 kg, 4-week block.
- *  `duplicateSlot` lists the same exercise a second time (repeat-slot day). */
+/** A one-exercise day: 3 working sets at a fixed 8-rep floor (v1 shape) or,
+ *  with `repRange`, an 8–12 range (v2 double-progression shape); base 100 kg,
+ *  4-week block. `mixedShape` leaves set 2 fixed among ranged sets (ambiguous
+ *  → v1 rules). `duplicateSlot` lists the same exercise twice. */
 function day(options: {
   progression?: unknown
   autoregulation?: boolean
   deloadWeek?: number | null
   overrides?: { week: number; [key: string]: unknown }[]
   duplicateSlot?: boolean
+  repRange?: boolean
+  mixedShape?: boolean
 }): DayForDerivation {
   const exercise = {
     wgerExerciseId: 1,
@@ -48,7 +52,10 @@ function day(options: {
       setType: 'working' as const,
       metricMode: 'reps_weight' as const,
       repMin: 8,
-      repMax: 12,
+      repMax:
+        (options.repRange || options.mixedShape) && !(options.mixedShape && setNumber === 2)
+          ? 12
+          : null,
       rir: null,
       rpe: null,
       suggestedLoadKg: 100,
@@ -272,24 +279,17 @@ describe('deriveDayPrescription auto-regulation', () => {
     expect(exercise.sets.every((s) => s.derivedFrom !== 'autoreg')).toBe(true)
   })
 
-  it('leaves double-progression exercises alone — linear only in v1', async () => {
-    // Arrange — DP already holds its base until repMax; a stall there is the
-    // scheme working, not failing.
-    trainedSessions.mockResolvedValue([trained('w1', 1, [5, 5, 5])])
+  it('mixed fixed/ranged working sets fall back to the v1 fixed rules (ambiguous shape)', async () => {
+    // Arrange — set 2 has no repMax among 8–12 sets; the fixed floor governs.
+    trainedSessions.mockResolvedValue([trained('w1', 1, [8, 6, 5])])
 
     // Act
-    const [exercise] = await deriveDayPrescription(
-      USER,
-      day({
-        progression: { scheme: 'double-progression', repMin: 8, repMax: 12, incrementKg: 2.5 },
-      }),
-      2,
-    )
+    const [exercise] = await deriveDayPrescription(USER, day({ mixedShape: true }), 2)
 
-    // Assert
-    expect(exercise.autoreg).toBeNull()
-    expect(trainedSessions).not.toHaveBeenCalled()
-    expect(exercise.sets.every((s) => s.derivedFrom !== 'autoreg')).toBe(true)
+    // Assert — a v1 verdict: no range evidence, floor-miss repeat at 100.
+    expect(exercise.autoreg).toMatchObject({ action: 'repeat' })
+    expect(exercise.autoreg?.range).toBeUndefined()
+    expect(exercise.sets.map((s) => s.loadKg)).toEqual([100, 100, 100])
   })
 
   it('the program-level switch off skips the rules (and their history reads) entirely', async () => {

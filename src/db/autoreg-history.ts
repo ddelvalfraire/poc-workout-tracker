@@ -1,6 +1,6 @@
 import { and, asc, desc, eq, gte, inArray, isNotNull, ne, sql } from 'drizzle-orm'
 import type { ExerciseSource } from '@/lib/custom-exercise-input'
-import { AUTOREG_SESSION_WINDOW } from '@/lib/autoregulate'
+import { AUTOREG_RANGE_SESSION_WINDOW } from '@/lib/autoregulate'
 import { db } from './index'
 import { workouts, workoutExercises, sets, programDays } from './schema'
 
@@ -38,8 +38,10 @@ export interface AutoregHistorySession {
   }[]
 }
 
-/** How many prior sessions the Layer 1 rules consult (the 3-stall window). */
-export const AUTOREG_HISTORY_LIMIT = AUTOREG_SESSION_WINDOW
+/** How many prior sessions the Layer 1 rules consult — the widest window any
+ *  mode needs (range mode counts stalls between session PAIRS, so its 3-stall
+ *  streak spans 4 sessions; fixed mode just ignores the extra one). */
+export const AUTOREG_HISTORY_LIMIT = AUTOREG_RANGE_SESSION_WINDOW
 
 /** Sessions older than this never testify — stale evidence (an injury break,
  *  a long trip) must not carry a stall streak into a rehab return. */
