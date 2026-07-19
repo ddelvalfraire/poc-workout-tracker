@@ -4,7 +4,7 @@ import { Fragment, useEffect, useReducer, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useQueries, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeftRight, Check, ChevronDown, Dumbbell, Trash2, X } from 'lucide-react'
+import { ArrowLeftRight, Check, ChevronDown, ChevronUp, Dumbbell, Trash2, X } from 'lucide-react'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { AppHeader } from '@/components/app-header'
@@ -419,13 +419,16 @@ export function WorkoutLogger({
         unit,
       )
       const plan = planPlaceholderForSet(planFor(exercise.source, exercise.wgerExerciseId), setIndex, unit)
-      const label = previousChipLabel({
-        reps: set.reps || (history.reps ?? plan.reps),
-        weight:
-          exercise.loggingType === 'weight_reps'
-            ? set.weight || (history.weight ?? plan.weight)
-            : set.weight || undefined,
-      })
+      const label = previousChipLabel(
+        {
+          reps: set.reps || (history.reps ?? plan.reps),
+          weight:
+            exercise.loggingType === 'weight_reps'
+              ? set.weight || (history.weight ?? plan.weight)
+              : set.weight || undefined,
+        },
+        exercise.loggingType,
+      )
       return { exercise, setIndex, label }
     }
     return null
@@ -1002,6 +1005,28 @@ export function WorkoutLogger({
                   className="pointer-events-none absolute right-0.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground"
                 />
               </span>
+              {/* A done card auto-collapses; once re-expanded for corrections
+                  this is the way back down — same expandedDone set, inverse
+                  edge. Only rendered when done: an unfinished card collapsing
+                  would hide live inputs. */}
+              {isDone && (
+                <Button
+                  size="icon-sm"
+                  variant="ghost"
+                  className="shrink-0 text-muted-foreground"
+                  onClick={() =>
+                    setExpandedDone((prev) => {
+                      const next = new Set(prev)
+                      next.delete(exercise.id)
+                      return next
+                    })
+                  }
+                  aria-expanded={true}
+                  aria-label={`Collapse ${exercise.name}`}
+                >
+                  <ChevronUp aria-hidden="true" className="size-4" />
+                </Button>
+              )}
               {/* Plates only make sense for a barbell-style total load — a
                   bodyweight movement has nothing to rack. */}
               {exercise.loggingType === 'weight_reps' && (
@@ -1116,7 +1141,7 @@ export function WorkoutLogger({
                       ? (history.weight ?? plan.weight)
                       : undefined,
                 }
-                const prevLabel = previousChipLabel(ghost)
+                const prevLabel = previousChipLabel(ghost, exercise.loggingType)
                 // Same adopt rules as tap-to-complete: BW sets never fill a
                 // phantom weight; rep ranges adopt their floor.
                 const chipFill = {
@@ -1271,6 +1296,9 @@ export function WorkoutLogger({
                         value: e.target.value,
                       })
                     }
+                    // Select-all on focus: tapping a filled field means
+                    // "replace this", not "append a digit to it".
+                    onFocus={(e) => e.currentTarget.select()}
                     aria-label={`Set ${setIndex + 1} reps`}
                     className={cn('flex-1 text-center tnum', flashSetId === set.id && 'fill-flash')}
                   />
@@ -1309,7 +1337,12 @@ export function WorkoutLogger({
                             value: e.target.value,
                           })
                         }
-                        onFocus={() => setStepperSetId(set.id)}
+                        onFocus={(e) => {
+                          // Select-all first (type-over, same as reps), then
+                          // arm this row's ± steppers.
+                          e.currentTarget.select()
+                          setStepperSetId(set.id)
+                        }}
                         onBlur={() => setStepperSetId(null)}
                         aria-label={
                           exercise.loggingType === 'weighted_bodyweight'

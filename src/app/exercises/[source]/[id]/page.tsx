@@ -32,12 +32,27 @@ export default async function ExerciseStatsPage({
   searchParams,
 }: {
   params: Promise<{ source: string; id: string }>
-  searchParams: Promise<{ page?: string | string[] }>
+  searchParams: Promise<{ page?: string | string[]; from?: string | string[] }>
 }) {
   const userId = await requireUserId()
-  const [{ source, id }, { page: rawPage }] = await Promise.all([params, searchParams])
+  const [{ source, id }, { page: rawPage, from: rawFrom }] = await Promise.all([
+    params,
+    searchParams,
+  ])
   const ref = parseExerciseRef(source, id)
   if (!ref) notFound()
+
+  // Return address for the back arrow: the live logger's stats sheet links
+  // here with ?from=<its path> so Back resumes the session instead of dumping
+  // the lifter on the exercises list. Whitelisted to in-app workout paths —
+  // an arbitrary query value must never become a navigation target.
+  const fromParam = Array.isArray(rawFrom) ? rawFrom[0] : rawFrom
+  const backHref =
+    fromParam !== undefined && /^\/workout\/[\w-]+(\/edit)?$/.test(fromParam)
+      ? fromParam
+      : '/exercises'
+  const withFrom = (page: number) =>
+    `?page=${page}${backHref !== '/exercises' ? `&from=${encodeURIComponent(backHref)}` : ''}`
 
   // Bad ?page= silently reads as page 1 — a mistyped query string shouldn't 404
   // a page that exists; the path params above are the identity and DO 404.
@@ -86,7 +101,7 @@ export default async function ExerciseStatsPage({
         title={stats.exercise.name}
         leading={
           <Link
-            href="/exercises"
+            href={backHref}
             aria-label="Back"
             className={cn(buttonVariants({ variant: 'ghost', size: 'icon-sm' }), '-ml-2')}
           >
@@ -235,7 +250,7 @@ export default async function ExerciseStatsPage({
           <div className="mt-3 flex items-center justify-between">
             {page > 1 ? (
               <Link
-                href={`?page=${page - 1}`}
+                href={withFrom(page - 1)}
                 className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }), '-ml-2')}
               >
                 <ChevronLeft aria-hidden="true" className="size-4" />
@@ -246,7 +261,7 @@ export default async function ExerciseStatsPage({
             )}
             {sessions.length === HISTORY_PAGE && (
               <Link
-                href={`?page=${page + 1}`}
+                href={withFrom(page + 1)}
                 className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }), '-mr-2')}
               >
                 Older
