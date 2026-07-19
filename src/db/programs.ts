@@ -255,11 +255,103 @@ export async function saveProgram(
   })
 }
 
+/** Structural address of one planned set within a program tree. Row ids die
+ *  in a full replace; this address is the identity a preserved override
+ *  re-keys on. */
+function setAddress(dayPosition: number, exercisePosition: number, setNumber: number): string {
+  return `${dayPosition}:${exercisePosition}:${setNumber}`
+}
+
+/**
+ * Snapshots a program's per-week set overrides, each addressed by
+ * (day position, exercise position, setNumber). Must run BEFORE the child
+ * wipe: `ProgramInput` cannot express overrides, so without this snapshot a
+ * full replace cascades them away with the old set rows.
+ */
+function snapshotSetOverrides(tx: Tx, programId: string) {
+  return tx
+    .select({
+      dayPosition: programDays.position,
+      exercisePosition: programExercises.position,
+      setNumber: programSets.setNumber,
+      week: programSetOverrides.week,
+      repMin: programSetOverrides.repMin,
+      repMax: programSetOverrides.repMax,
+      rir: programSetOverrides.rir,
+      rpe: programSetOverrides.rpe,
+      suggestedLoadKg: programSetOverrides.suggestedLoadKg,
+      tempo: programSetOverrides.tempo,
+      durationSec: programSetOverrides.durationSec,
+      distanceM: programSetOverrides.distanceM,
+      restSec: programSetOverrides.restSec,
+      technique: programSetOverrides.technique,
+    })
+    .from(programSetOverrides)
+    .innerJoin(programSets, eq(programSets.id, programSetOverrides.programSetId))
+    .innerJoin(programExercises, eq(programExercises.id, programSets.programExerciseId))
+    .innerJoin(programDays, eq(programDays.id, programExercises.programDayId))
+    .where(eq(programDays.programId, programId))
+}
+
+type OverrideSnapshot = Awaited<ReturnType<typeof snapshotSetOverrides>>
+
+/**
+ * Re-attaches snapshotted overrides to the RECREATED set rows at the same
+ * structural address (same-position semantics). An address the new tree no
+ * longer has — a removed day/exercise/set — takes its overrides with it, by
+ * design: an override without its slot has nothing to override.
+ */
+async function reattachSetOverrides(
+  tx: Tx,
+  programId: string,
+  snapshot: OverrideSnapshot,
+): Promise<void> {
+  if (snapshot.length === 0) return
+  const newSets = await tx
+    .select({
+      id: programSets.id,
+      dayPosition: programDays.position,
+      exercisePosition: programExercises.position,
+      setNumber: programSets.setNumber,
+    })
+    .from(programSets)
+    .innerJoin(programExercises, eq(programExercises.id, programSets.programExerciseId))
+    .innerJoin(programDays, eq(programDays.id, programExercises.programDayId))
+    .where(eq(programDays.programId, programId))
+  const idByAddress = new Map(
+    newSets.map((s) => [setAddress(s.dayPosition, s.exercisePosition, s.setNumber), s.id]),
+  )
+  const rows = snapshot.flatMap((o) => {
+    const programSetId = idByAddress.get(setAddress(o.dayPosition, o.exercisePosition, o.setNumber))
+    if (!programSetId) return []
+    return [
+      {
+        programSetId,
+        week: o.week,
+        repMin: o.repMin,
+        repMax: o.repMax,
+        rir: o.rir,
+        rpe: o.rpe,
+        suggestedLoadKg: o.suggestedLoadKg,
+        tempo: o.tempo,
+        durationSec: o.durationSec,
+        distanceM: o.distanceM,
+        restSec: o.restSec,
+        technique: o.technique,
+      },
+    ]
+  })
+  if (rows.length > 0) await tx.insert(programSetOverrides).values(rows)
+}
+
 /**
  * Replaces a program's metadata + days/exercises/sets atomically, only if owned
  * by the user. The `update ... returning` doubles as the ownership gate: no row
  * back means the caller doesn't own it (or it's gone) and nothing is mutated.
  * Children are deleted (cascade removes their descendants) and re-inserted.
+ * Per-week set overrides — inexpressible in `ProgramInput` — are preserved by
+ * re-keying onto the recreated rows at the same (day, exercise, setNumber)
+ * address; overrides on removed slots die with them.
  */
 export async function updateProgram(
   userId: string,
@@ -286,8 +378,12 @@ export async function updateProgram(
       .returning({ id: programs.id })
     if (!owned) return null
 
+    // Snapshot → wipe → re-attach: overrides can't ride ProgramInput, so
+    // they'd otherwise cascade away with the deleted set rows.
+    const overrides = await snapshotSetOverrides(tx, id)
     await tx.delete(programDays).where(eq(programDays.programId, id))
     await insertProgramChildren(tx, id, input.days, catalog)
+    await reattachSetOverrides(tx, id, overrides)
     // Full-replace is deliberately ONE coarse event, not a per-slot diff —
     // the granular story lives on the patch ops.
     await recordProgramEvent(tx, {
@@ -357,9 +453,10 @@ export async function setProgramStatus(
  * groups, custom-exercise source, progression), sets (technique, per-set
  * rest), per-week set overrides, and muscle tags — as a fresh DRAFT named by
  * `nextBlockName` ("PPL" → "PPL — Block 2"). Row copy, NOT a ProgramInput
- * round-trip: the input schema cannot express supersetGroup/source/overrides
- * (the update path's documented loss), and copying muscle rows verbatim skips
- * the catalog fetch — no network in this path. Positions/setNumbers are copied
+ * round-trip: the input schema cannot express per-week overrides (the update
+ * path preserves them by re-keying; the clone copies them row-for-row with no
+ * address remap), and copying muscle rows verbatim skips the catalog fetch —
+ * no network in this path. Positions/setNumbers are copied
  * from the source rows. Returns null when the source isn't owned; the caller
  * decides activation (restart activates, which archives an active source via
  * the single-active sweep).

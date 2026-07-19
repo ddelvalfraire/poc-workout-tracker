@@ -103,7 +103,8 @@ function overrideRow(over: Record<string, unknown> = {}) {
 /**
  * Maximal fixture: supersets (two exercises sharing group 1), a custom-source
  * exercise, progression + technique JSONB, per-week overrides, muscle tags,
- * and a second day — everything the ProgramInput path is known to drop.
+ * and a second day — the full tree a row copy must carry without a catalog
+ * fetch or an address remap.
  */
 function maximalDetail() {
   return {
@@ -219,7 +220,7 @@ describe('cloneProgram (row-for-row fidelity)', () => {
     })
   })
 
-  it('copies what the ProgramInput path drops: supersets, custom source, overrides', async () => {
+  it('copies supersets, custom source, and per-week overrides row-for-row', async () => {
     // Act
     await cloneProgram(USER, 'src1', 'mcp')
 
