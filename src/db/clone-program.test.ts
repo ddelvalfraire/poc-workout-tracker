@@ -115,6 +115,10 @@ function maximalDetail() {
     mesocycleWeeks: 6,
     deloadWeek: 4,
     notes: 'block notes',
+    description: 'A six-week PPL block.',
+    icon: '🏋️',
+    heroImageUrl: 'https://example.com/hero.jpg',
+    sourceUrl: 'https://wger.de/en/routine/1',
     days: [
       {
         id: 'src-d1',
@@ -217,7 +221,25 @@ describe('cloneProgram (row-for-row fidelity)', () => {
       mesocycleWeeks: 6,
       deloadWeek: 4,
       notes: 'block notes',
+      // Article metadata travels with the block (PRD §3); authorActor is
+      // deliberately absent — the owner-initiated copy takes the column
+      // default 'owner'.
+      description: 'A six-week PPL block.',
+      icon: '🏋️',
+      heroImageUrl: 'https://example.com/hero.jpg',
+      sourceUrl: 'https://wger.de/en/routine/1',
     })
+    expect(records[0].values).not.toHaveProperty('authorActor')
+  })
+
+  it('refuses to clone a proposed program (no adopt-by-clone laundering)', async () => {
+    // Arrange — a proposal: cloning it would mint an owner-authored twin
+    // with no adopt event, bypassing the forced confirm
+    findFirst.mockResolvedValue({ ...maximalDetail(), status: 'proposed' })
+
+    // Act + Assert
+    await expect(cloneProgram(USER, 'src1', 'mcp')).rejects.toThrow(/adopt/)
+    expect(records).toHaveLength(0)
   })
 
   it('copies supersets, custom source, and per-week overrides row-for-row', async () => {

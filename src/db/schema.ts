@@ -246,7 +246,23 @@ export const programs = pgTable(
     id: uuid('id').defaultRandom().primaryKey(),
     userId: text('user_id').notNull(), // Clerk user id
     name: text('name').notNull(),
-    status: text('status').notNull().default('draft'), // 'draft' | 'active' | 'archived'
+    // 'draft' | 'active' | 'archived' | 'proposed'. A 'proposed' row is a
+    // coach-drafted plan behind the forced owner confirm: it derives nothing,
+    // instantiates nothing, never joins the single-active sweep, and exits
+    // ONLY via adoptProgram/declineProgram (db/programs.ts).
+    status: text('status').notNull().default('draft'),
+    // Who drafted this row — 'owner' | 'coach' today; open value space (a
+    // human coach's user id, a group id) so future actors need data, not
+    // schema. Mirrors program_events.actor's philosophy.
+    authorActor: text('author_actor').notNull().default('owner'),
+    // Article metadata (all nullable, additive): what the plan is/for whom,
+    // an emoji/short token for lists, the article header image, and the
+    // attribution link for imported templates (CC attribution is a
+    // requirement, not decoration).
+    description: text('description'),
+    icon: text('icon'),
+    heroImageUrl: text('hero_image_url'),
+    sourceUrl: text('source_url'),
     mesocycleWeeks: integer('mesocycle_weeks').notNull().default(1),
     deloadWeek: integer('deload_week'), // 1-based week that deloads; null = none
     // Auto-regulation switch, default ON: propose-don't-impose delivery plus

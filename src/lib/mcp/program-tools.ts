@@ -30,6 +30,7 @@ import {
   type ProgramDetail,
   type ProgramDayDetail,
 } from '@/db/programs'
+import { ProposedProgramError } from '@/db/program-errors'
 import { getWeightUnit } from '@/db/preferences'
 
 /** Optional explicit unit override; absent → the user's stored unit. */
@@ -82,6 +83,13 @@ const rawProgramSchema = z.object({
   // Program-level auto-regulation switch; omitted → the schema default (on).
   autoregulation: z.boolean().optional(),
   notes: z.string().nullable().optional(),
+  // Article metadata (PRD §3) — permissive here like every other field; the
+  // real validation (trim, blank→null, caps, http(s) URL parse) is
+  // parseProgramInput's, shared with the web actions.
+  description: z.string().nullable().optional(),
+  icon: z.string().nullable().optional(),
+  heroImageUrl: z.string().nullable().optional(),
+  sourceUrl: z.string().nullable().optional(),
   days: z.array(toolDaySchema),
 })
 type RawProgram = z.infer<typeof rawProgramSchema>
@@ -120,6 +128,10 @@ function toKgProgram(raw: RawProgram, unit: WeightUnit): unknown {
     deloadWeek: raw.deloadWeek,
     autoregulation: raw.autoregulation,
     notes: raw.notes,
+    description: raw.description,
+    icon: raw.icon,
+    heroImageUrl: raw.heroImageUrl,
+    sourceUrl: raw.sourceUrl,
     days: raw.days.map((d) => ({
       name: d.name,
       notes: d.notes,
@@ -146,6 +158,16 @@ function toKgProgram(raw: RawProgram, unit: WeightUnit): unknown {
       })),
     })),
   }
+}
+
+/**
+ * The db layer's promotion guard (a 'proposed' program refused a lifecycle
+ * move) is an EXPECTED, actionable condition: surface its message verbatim to
+ * the agent instead of letting errorResult genericize it — the message points
+ * at the owner's adopt/decline confirm.
+ */
+function surfaceProposalGuard(error: unknown): unknown {
+  return error instanceof ProposedProgramError ? new ToolError(error.message) : error
 }
 
 /** A ZodError → a concise, agent-readable ToolError (first issue, path-prefixed). */
@@ -185,10 +207,15 @@ export interface ProgramPayload {
     id: string
     name: string
     status: string
+    authorActor: string
     mesocycleWeeks: number
     deloadWeek: number | null
     autoregulation: boolean
     notes: string | null
+    description: string | null
+    icon: string | null
+    heroImageUrl: string | null
+    sourceUrl: string | null
     createdAt: string
     updatedAt: string
     days: {
@@ -341,10 +368,15 @@ export function buildProgramPayload(
       id: program.id,
       name: program.name,
       status: program.status,
+      authorActor: program.authorActor,
       mesocycleWeeks: program.mesocycleWeeks,
       deloadWeek: program.deloadWeek,
       autoregulation: program.autoregulation,
       notes: program.notes,
+      description: program.description,
+      icon: program.icon,
+      heroImageUrl: program.heroImageUrl,
+      sourceUrl: program.sourceUrl,
       createdAt: program.createdAt.toISOString(),
       updatedAt: program.updatedAt.toISOString(),
       days: program.days.map((day) => ({
@@ -393,7 +425,22 @@ export function registerProgramTools(server: McpServer): void {
       },
     },
     async (
-      { id, name, status, mesocycleWeeks, deloadWeek, autoregulation, notes, days, unit, userId },
+      {
+        id,
+        name,
+        status,
+        mesocycleWeeks,
+        deloadWeek,
+        autoregulation,
+        notes,
+        description,
+        icon,
+        heroImageUrl,
+        sourceUrl,
+        days,
+        unit,
+        userId,
+      },
       extra,
     ) => {
       try {
@@ -404,7 +451,19 @@ export function registerProgramTools(server: McpServer): void {
         if (id !== undefined) assertProgramIdShape(id)
         const basis = unit ?? (await getWeightUnit(resolved))
         const parsed = validateProgram(
-          { name, status, mesocycleWeeks, deloadWeek, autoregulation, notes, days },
+          {
+            name,
+            status,
+            mesocycleWeeks,
+            deloadWeek,
+            autoregulation,
+            notes,
+            description,
+            icon,
+            heroImageUrl,
+            sourceUrl,
+            days,
+          },
           basis,
         )
         if (id !== undefined) {
@@ -415,7 +474,7 @@ export function registerProgramTools(server: McpServer): void {
         const { id: newId } = await saveProgram(resolved, parsed, resolveActor(extra))
         return jsonResult({ userId: resolved, unit: basis, programId: newId })
       } catch (error: unknown) {
-        return errorResult(error)
+        return errorResult(surfaceProposalGuard(error))
       }
     },
   )
@@ -500,7 +559,7 @@ export function registerProgramTools(server: McpServer): void {
     {
       title: 'Set Program Status',
       description:
-        "Sets a program's lifecycle status ('draft', 'active', or 'archived') without touching its days/exercises/sets. Activating a program archives any other active program (one active at a time). Errors if not found or not owned.",
+        "Sets a program's lifecycle status ('draft', 'active', or 'archived') without touching its days/exercises/sets. Activating a program archives any other active program (one active at a time). A 'proposed' program is refused: only the owner's explicit adopt/decline (in the app UI) can move it. Errors if not found or not owned.",
       inputSchema: { id: z.string(), status: statusSchema, userId: z.string().optional() },
     },
     async ({ id, status, userId }, extra) => {
@@ -511,7 +570,7 @@ export function registerProgramTools(server: McpServer): void {
         if (!result) throw new ToolError(`Program ${id} not found for user ${resolved}`)
         return jsonResult({ userId: resolved, programId: result.id, status })
       } catch (error: unknown) {
-        return errorResult(error)
+        return errorResult(surfaceProposalGuard(error))
       }
     },
   )
@@ -544,7 +603,7 @@ export function registerProgramTools(server: McpServer): void {
           status: 'active',
         })
       } catch (error: unknown) {
-        return errorResult(error)
+        return errorResult(surfaceProposalGuard(error))
       }
     },
   )
@@ -577,7 +636,7 @@ export function registerProgramTools(server: McpServer): void {
           weekDerived: result.weekDerived,
         })
       } catch (error: unknown) {
-        return errorResult(error)
+        return errorResult(surfaceProposalGuard(error))
       }
     },
   )

@@ -1,4 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import type { SQL } from 'drizzle-orm'
+import { PgDialect } from 'drizzle-orm/pg-core'
 import { DELOAD_LOAD_FACTOR } from '@/lib/progression'
 
 /**
@@ -110,6 +112,7 @@ function dayFixture(options: {
   deloadWeek?: number | null
   progression?: unknown
   source?: 'wger' | 'custom'
+  status?: string
   sets: FixtureSet[]
 }) {
   return {
@@ -118,6 +121,7 @@ function dayFixture(options: {
     program: {
       id: 'p1',
       userId: USER,
+      status: options.status ?? 'active',
       mesocycleWeeks: options.mesocycleWeeks ?? 4,
       deloadWeek: options.deloadWeek ?? null,
     },
@@ -424,6 +428,17 @@ describe('instantiateProgramDay (engine-driven)', () => {
     expect(records).toHaveLength(0)
   })
 
+  it('refuses a PROPOSED program day and seeds nothing (forced confirm)', async () => {
+    // Arrange — a coach-drafted proposal: nothing may train it pre-adopt
+    findFirst.mockResolvedValue(
+      dayFixture({ status: 'proposed', sets: [{ setNumber: 1, suggestedLoadKg: 100 }] }),
+    )
+
+    // Act + Assert — clear refusal pointing at adopt/decline, no writes
+    await expect(instantiateProgramDay(USER, 'd1', 1)).rejects.toThrow(/adopt/)
+    expect(records).toHaveLength(0)
+  })
+
   it('returns null and seeds nothing when the day does not exist', async () => {
     // Arrange
     findFirst.mockResolvedValue(undefined)
@@ -636,6 +651,11 @@ describe('getNextProgramDay', () => {
     expect(next?.blockComplete).toBe(false)
     expect(next?.mesocycleWeeks).toBe(4)
     expect(predicateMentionsColumn(capturedWheres[5], 'completed_at')).toBe(true)
+    // The program pick binds status='active' — the structural exclusion of
+    // 'proposed' rows from next-day derivation (a proposal can only become
+    // active through the owner's adopt).
+    expect(predicateMentionsColumn(capturedWheres[0], 'status')).toBe(true)
+    expect(new PgDialect().sqlToQuery(capturedWheres[0] as SQL).params).toContain('active')
   })
 
   it('carries blockComplete through when the final week is fully done', async () => {

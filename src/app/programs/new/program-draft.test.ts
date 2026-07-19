@@ -46,6 +46,10 @@ const NESTED: ProgramDraft = {
   autoregulation: true,
   status: 'draft',
   notes: null,
+  description: null,
+  icon: null,
+  heroImageUrl: null,
+  sourceUrl: null,
   days: [
     {
       id: 'd1',
@@ -336,6 +340,10 @@ describe('draftToProgramInput', () => {
       autoregulation: true,
       status: 'draft',
       notes: null,
+      description: null,
+      icon: null,
+      heroImageUrl: null,
+      sourceUrl: null,
       days: [
         {
           id: 'd1',
@@ -479,10 +487,15 @@ describe('detailToProgramDraft', () => {
     userId: 'user_123',
     name: 'PPL',
     status: 'active',
+    authorActor: 'coach',
     autoregulation: true,
     mesocycleWeeks: 6,
     deloadWeek: 6,
     notes: 'agent notes',
+    description: 'A push/pull/legs block for intermediates.',
+    icon: '🏋️',
+    heroImageUrl: 'https://example.com/hero.jpg',
+    sourceUrl: 'https://example.com/source',
     createdAt: new Date(),
     updatedAt: new Date(),
     days: [
@@ -540,6 +553,22 @@ describe('detailToProgramDraft', () => {
       deloadWeek: '6',
       status: 'active',
       notes: 'agent notes',
+    })
+
+    // Article metadata is pass-through: a UI edit is a full replace, so the
+    // draft must carry all four fields verbatim AND re-emit them server-bound
+    // — otherwise editing a coach/import-authored program wipes its article.
+    expect(draft).toMatchObject({
+      description: 'A push/pull/legs block for intermediates.',
+      icon: '🏋️',
+      heroImageUrl: 'https://example.com/hero.jpg',
+      sourceUrl: 'https://example.com/source',
+    })
+    expect(draftToProgramInput(draft)).toMatchObject({
+      description: 'A push/pull/legs block for intermediates.',
+      icon: '🏋️',
+      heroImageUrl: 'https://example.com/hero.jpg',
+      sourceUrl: 'https://example.com/source',
     })
 
     // Assert — row UUIDs reused as client ids; category not persisted → ''

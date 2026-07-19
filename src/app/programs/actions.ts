@@ -10,6 +10,8 @@ import {
   setProgramStatus,
   cloneProgram,
   instantiateProgramDay,
+  adoptProgram,
+  declineProgram,
 } from '@/db/programs'
 
 /**
@@ -79,6 +81,42 @@ export async function setProgramStatusAction(id: string, status: unknown): Promi
   revalidatePath('/programs')
   revalidatePath(`/programs/${id}`)
   return result
+}
+
+/**
+ * The owner's explicit confirm on a coach-drafted proposal ("we always force
+ * the user to confirm"): promotes a 'proposed' program to 'draft', or straight
+ * to 'active' (running the single-active sweep) when `activate` is true. The
+ * db layer is the guard — this is the ONLY path off 'proposed'. A null result
+ * means not owned or not a proposal; throw for the client's try/catch.
+ */
+export async function adoptProgramAction(
+  id: unknown,
+  activate: unknown,
+): Promise<{ id: string }> {
+  const userId = await requireUserId()
+  if (typeof id !== 'string' || id.length === 0) throw new Error('invalid program id')
+  if (typeof activate !== 'boolean') throw new Error('invalid activate flag')
+  const result = await adoptProgram(userId, id, activate)
+  if (!result) throw new Error('proposal not found')
+  revalidatePath('/') // activating repoints the home hero
+  revalidatePath('/programs')
+  revalidatePath(`/programs/${id}`)
+  return result
+}
+
+/**
+ * The owner's explicit reject: hard-deletes a 'proposed' program (children
+ * cascade). Returns void — the client navigates to the list after; no
+ * redirect() here (the client's try/catch would mistake NEXT_REDIRECT for a
+ * failure, same as deleteProgramAction).
+ */
+export async function declineProgramAction(id: unknown): Promise<void> {
+  const userId = await requireUserId()
+  if (typeof id !== 'string' || id.length === 0) throw new Error('invalid program id')
+  const result = await declineProgram(userId, id)
+  if (!result) throw new Error('proposal not found')
+  revalidatePath('/programs')
 }
 
 /**

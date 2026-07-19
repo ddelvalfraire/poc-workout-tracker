@@ -14,6 +14,9 @@ import { PgDialect } from 'drizzle-orm/pg-core'
 const records: { op: string; values?: unknown }[] = []
 const whereArgs: unknown[] = []
 let ownedRows: { id: string }[] = [{ id: 'p1' }]
+// Rows for the promotion-guard's refusal-path existence read (db.select):
+// [{ status: 'proposed' }] makes the guard throw; [] means plain not-found.
+let selectRows: { status: string }[] = []
 
 type Resolve = (value: unknown) => unknown
 
@@ -47,14 +50,25 @@ function insertChain(table: unknown) {
   }
 }
 
+function selectChain() {
+  const obj = {
+    from: () => obj,
+    where: () => obj,
+    then: (resolve: Resolve) => Promise.resolve(selectRows).then(resolve),
+  }
+  return obj
+}
+
 vi.mock('./index', () => ({
   db: {
     update: (table: unknown) => updateChain(table),
     insert: (table: unknown) => insertChain(table),
+    select: () => selectChain(),
   },
 }))
 
 import { setProgramStatus } from './programs'
+import { ProposedProgramError } from './program-errors'
 
 const USER = 'user_123'
 
@@ -66,6 +80,7 @@ beforeEach(() => {
   records.length = 0
   whereArgs.length = 0
   ownedRows = [{ id: 'p1' }]
+  selectRows = []
 })
 
 describe('setProgramStatus (single-active invariant)', () => {
@@ -130,5 +145,45 @@ describe('setProgramStatus (single-active invariant)', () => {
     const gate = whereParams(0)
     expect(gate).toContain(USER)
     expect(gate).toContain('p1')
+  })
+
+  it('excludes proposed rows in the gate itself (ne status proposed)', async () => {
+    await setProgramStatus(USER, 'p1', 'active', 'ui')
+
+    // The gated update must carry the 'proposed' exclusion as a parameter —
+    // the guard is part of the WHERE, not an afterthought check.
+    expect(whereParams(0)).toContain('proposed')
+  })
+})
+
+describe('setProgramStatus promotion guard (proposed rows)', () => {
+  it('refuses to move a proposed program (only adopt/decline may)', async () => {
+    // Arrange — the gate matches nothing; the existence read says: proposal
+    ownedRows = []
+    selectRows = [{ status: 'proposed' }]
+
+    // Act + Assert — clear refusal naming the adopt/decline path, and
+    // NEITHER a sweep nor an event was written (only the no-op gate update)
+    await expect(setProgramStatus(USER, 'p1', 'active', 'ui')).rejects.toThrow(
+      ProposedProgramError,
+    )
+    await expect(
+      setProgramStatus(USER, 'p1', 'draft', 'ui'),
+    ).rejects.toThrow(/adopt/)
+    expect(records.every((r) => r.op === 'update:programs')).toBe(true)
+    expect(records.filter((r) => r.op === 'insert:program_events')).toHaveLength(0)
+  })
+
+  it('still returns null (not a throw) for a missing/unowned program', async () => {
+    // Arrange — gate matches nothing and the existence read finds nothing
+    ownedRows = []
+    selectRows = []
+
+    // Act
+    const result = await setProgramStatus(USER, 'p1', 'active', 'ui')
+
+    // Assert — the pre-guard contract holds: null, no sweep, no event
+    expect(result).toBeNull()
+    expect(records).toHaveLength(1)
   })
 })

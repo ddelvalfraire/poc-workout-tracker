@@ -29,6 +29,9 @@ import {
   deriveDayPrescription,
 } from '@/db/programs'
 import { getWeightUnit } from '@/db/preferences'
+// Real class (module NOT mocked): the instanceof in surfaceProposalGuard must
+// see the same identity the db layer throws.
+import { ProposedProgramError } from '@/db/program-errors'
 import { displayToKg, kgToDisplay } from '@/lib/units'
 import { MAX_WEIGHT as MAX_WEIGHT_KG } from '@/lib/workout-input'
 
@@ -91,10 +94,15 @@ function programDetail() {
     userId: 'user_env',
     name: 'PPL',
     status: 'active',
+    authorActor: 'coach',
     mesocycleWeeks: 4,
     deloadWeek: 4,
     autoregulation: true,
     notes: null,
+    description: 'A four-week block.',
+    icon: '🏋️',
+    heroImageUrl: 'https://example.com/hero.jpg',
+    sourceUrl: 'https://wger.de/en/routine/1',
     createdAt: new Date('2026-06-01T00:00:00.000Z'),
     updatedAt: new Date('2026-06-02T00:00:00.000Z'),
     days: [
@@ -451,6 +459,15 @@ describe('registerProgramTools', () => {
       }
       expect(body.unit).toBe('lb')
       expect(body.program.createdAt).toBe('2026-06-01T00:00:00.000Z')
+      // Author + article metadata surface on reads — the agent needs them to
+      // round-trip an upsert without wiping the article fields.
+      expect(body.program).toMatchObject({
+        authorActor: 'coach',
+        description: 'A four-week block.',
+        icon: '🏋️',
+        heroImageUrl: 'https://example.com/hero.jpg',
+        sourceUrl: 'https://wger.de/en/routine/1',
+      })
       const exercise = (
         body.program.days[0]!.exercises as unknown as {
           source: string
@@ -595,6 +612,66 @@ describe('registerProgramTools', () => {
       // Assert
       expect(result.isError).toBe(true)
       expect(result.content[0]?.text).toMatch(/not found/)
+    })
+
+    it("surfaces the db promotion guard verbatim for a 'proposed' program", async () => {
+      // Arrange — the db layer refuses: only adopt/decline may move a proposal
+      const tools = setup()
+      mockedSetStatus.mockRejectedValue(new ProposedProgramError(PID))
+
+      // Act
+      const result = await tools.get('set_program_status')!({ id: PID, status: 'active' })
+
+      // Assert — NOT the generic 'MCP tool failed': the agent gets the
+      // actionable message pointing at the owner's adopt/decline confirm.
+      expect(result.isError).toBe(true)
+      expect(result.content[0]?.text).toMatch(/proposal/)
+      expect(result.content[0]?.text).toMatch(/adopt/)
+    })
+  })
+
+  describe('upsert_program article metadata', () => {
+    it('passes the four fields through validation to saveProgram', async () => {
+      // Arrange
+      const tools = setup()
+      mockedSave.mockResolvedValue({ id: PID })
+
+      // Act — trimmed values, one blank (→ null after validation)
+      await tools.get('upsert_program')!({
+        ...BODY,
+        description: '  A four-week block.  ',
+        icon: '🏋️',
+        heroImageUrl: 'https://example.com/hero.jpg',
+        sourceUrl: '   ',
+      })
+
+      // Assert — parseProgramInput normalized them before persist
+      expect(mockedSave).toHaveBeenCalledWith(
+        'user_env',
+        expect.objectContaining({
+          description: 'A four-week block.',
+          icon: '🏋️',
+          heroImageUrl: 'https://example.com/hero.jpg',
+          sourceUrl: null,
+        }),
+        'mcp',
+      )
+    })
+
+    it('rejects a non-http(s) heroImageUrl without persisting', async () => {
+      // Arrange
+      const tools = setup()
+
+      // Act
+      const result = await tools.get('upsert_program')!({
+        ...BODY,
+        heroImageUrl: 'javascript:alert(1)',
+      })
+
+      // Assert — the Zod message reaches the agent; nothing was saved
+      expect(result.isError).toBe(true)
+      expect(result.content[0]?.text).toMatch(/http/)
+      expect(mockedSave).not.toHaveBeenCalled()
     })
   })
 
