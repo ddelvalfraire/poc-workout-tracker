@@ -21,7 +21,9 @@ import {
   extractProgramProposal,
   formatToolInput,
   humanizeToolName,
+  isPinnedToBottom,
   parseCoachError,
+  toolInputDetail,
   toolStatusLabel,
   type ProgramProposal,
 } from '@/lib/coach/chat-ui'
@@ -59,11 +61,18 @@ function useOnline(): boolean {
   )
 }
 
-/** Compact one-line status chip for auto-running (read) tool calls. */
+/** Compact one-line "the coach did X" status line for auto-running tool
+ *  calls — deliberately not a bubble: quiet dot + text, no border/card. */
 function ToolChip({ part }: { part: AnyToolPart }) {
   const name = toolPartName(part)
-  const running = part.state === 'input-streaming' || part.state === 'input-available'
+  // Auto-approved calls (approval-requested with isAutomatic) are still
+  // in-flight from the user's perspective, so they read as running too.
+  const running =
+    part.state === 'input-streaming' ||
+    part.state === 'input-available' ||
+    part.state === 'approval-requested'
   const failed = part.state === 'output-error'
+  const detail = toolInputDetail(name, part.input)
   return (
     <p
       className={cn(
@@ -82,8 +91,12 @@ function ToolChip({ part }: { part: AnyToolPart }) {
               : 'bg-muted-foreground/50',
         )}
       />
-      {toolStatusLabel(name)}
-      {running ? '…' : failed ? ' — failed' : ''}
+      <span className="min-w-0 truncate">
+        {toolStatusLabel(name, failed ? 'failed' : running ? 'running' : 'done')}
+        {running ? '…' : ''}
+        {detail && <span className="text-muted-foreground/70"> · ‘{detail}’</span>}
+        {failed ? ' — failed' : ''}
+      </span>
     </p>
   )
 }
@@ -233,9 +246,19 @@ export function CoachChat({ context, initialMessages, clearAction }: CoachChatPr
 
   const transport = useMemo(
     () =>
-      new DefaultChatTransport({
+      new DefaultChatTransport<UIMessage>({
         api: '/api/chat',
-        body: context ? { context } : undefined,
+        // Server-authoritative thread: POST only the tail message (the fresh
+        // user message, or the assistant message updated with approval
+        // responses). The full array carries every tool input/output and
+        // outgrows the request caps after tool-heavy turns; the server
+        // reconciles the tail against its stored copy instead.
+        prepareSendMessagesRequest: ({ messages: outgoing }) => ({
+          body: {
+            message: outgoing[outgoing.length - 1],
+            ...(context ? { context } : {}),
+          },
+        }),
       }),
     [context],
   )
@@ -264,9 +287,32 @@ export function CoachChat({ context, initialMessages, clearAction }: CoachChatPr
   )
   const busy = status === 'submitted' || status === 'streaming' || pendingApproval
 
-  // Keep the newest content in view as it streams.
+  // Whether the user is currently at (or near) the bottom of the page.
+  // A window scroll listener rather than an IntersectionObserver on the
+  // sentinel: pinned-ness must only change when scrolling happens — content
+  // growth moves the sentinel out of view WITHOUT a scroll event, and an
+  // observer would race the follow-scroll below and unpin mid-stream.
+  // A ref, not state: pinned-ness must not trigger renders.
+  const pinnedRef = useRef(true)
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ block: 'end' })
+    const onScroll = () => {
+      pinnedRef.current = isPinnedToBottom(
+        document.documentElement.scrollHeight,
+        window.innerHeight,
+        window.scrollY,
+      )
+    }
+    onScroll()
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => window.removeEventListener('scroll', onScroll)
+  }, [])
+
+  // Follow the stream only while pinned — a user who scrolled up to re-read
+  // stays put (this was the "screen jumps up and down" bug: every chunk and
+  // tool-part height change yanked the viewport back down). Instant, not
+  // smooth: per-token smooth scrolling is its own jank.
+  useEffect(() => {
+    if (pinnedRef.current) bottomRef.current?.scrollIntoView({ block: 'end' })
   }, [messages, status])
 
   const coachError = error ? parseCoachError(error) : null
@@ -276,8 +322,11 @@ export function CoachChat({ context, initialMessages, clearAction }: CoachChatPr
     const trimmed = text.trim()
     if (!trimmed || busy || offline) return
     clearError()
+    // Sending always re-pins: the user asked a question, show the answer.
+    pinnedRef.current = true
     void sendMessage({ text: trimmed })
     setInput('')
+    bottomRef.current?.scrollIntoView({ block: 'end' })
   }
 
   return (

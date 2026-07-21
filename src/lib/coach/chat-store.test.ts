@@ -39,6 +39,12 @@ describe('loadCoachChat', () => {
     expect(loaded).toHaveLength(1)
   })
 
+  it('tolerates a stored thread longer than the request-path cap', async () => {
+    const long = Array.from({ length: MAX_MESSAGES + 5 }, (_, i) => message(String(i)))
+    mockRedis({ get: vi.fn().mockResolvedValue(long) })
+    expect(await loadCoachChat('user_a')).toHaveLength(MAX_MESSAGES + 5)
+  })
+
   it('resets to empty on a corrupt blob instead of crashing chat', async () => {
     mockRedis({ get: vi.fn().mockResolvedValue([{ nope: true }]) })
     expect(await loadCoachChat('user_a')).toEqual([])

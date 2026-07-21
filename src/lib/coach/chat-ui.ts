@@ -18,29 +18,74 @@ export function humanizeToolName(toolName: string): string {
 }
 
 /**
- * Friendly present-progressive labels for the auto-running tools (reads plus
- * the drafting tool), keyed by MCP tool name. Anything unknown falls back to
+ * Friendly labels for the auto-running tools (reads plus the drafting tool),
+ * keyed by MCP tool name: present-progressive while the call runs, past
+ * tense once it lands ("the coach did X"). Anything unknown falls back to
  * the humanized name so a newly allowlisted tool degrades gracefully instead
  * of rendering raw snake_case.
  */
-const AUTO_TOOL_LABELS: Record<string, string> = {
-  whoami: 'Checking your account',
-  list_workouts: 'Looking through your workouts',
-  get_workout: 'Reading a workout',
-  search_exercises: 'Searching exercises',
-  get_last_performance: 'Checking your last numbers',
-  get_weight_unit: 'Checking your units',
-  get_program: 'Reading your program',
-  list_programs: 'Listing your programs',
-  get_program_stats: 'Crunching program stats',
-  list_custom_exercises: 'Checking your custom exercises',
-  preview_program_week: 'Previewing the week',
-  upsert_program: 'Drafting your program',
+const AUTO_TOOL_LABELS: Record<string, { running: string; done: string }> = {
+  whoami: { running: 'Checking your account', done: 'Checked your account' },
+  list_workouts: { running: 'Looking through your workouts', done: 'Looked through your workouts' },
+  get_workout: { running: 'Reading a workout', done: 'Read a workout' },
+  search_exercises: { running: 'Searching exercises', done: 'Searched exercises' },
+  get_last_performance: { running: 'Checking your last numbers', done: 'Checked your last numbers' },
+  get_weight_unit: { running: 'Checking your units', done: 'Checked your units' },
+  get_program: { running: 'Reading your program', done: 'Read your program' },
+  list_programs: { running: 'Listing your programs', done: 'Listed your programs' },
+  get_program_stats: { running: 'Crunching program stats', done: 'Crunched program stats' },
+  list_custom_exercises: {
+    running: 'Checking your custom exercises',
+    done: 'Checked your custom exercises',
+  },
+  preview_program_week: { running: 'Previewing the week', done: 'Previewed the week' },
+  upsert_program: { running: 'Drafting your program', done: 'Drafted a program' },
 }
 
-/** One-line status chip text for a tool call ("Reading your program…"). */
-export function toolStatusLabel(toolName: string): string {
-  return AUTO_TOOL_LABELS[toolName] ?? humanizeToolName(toolName)
+export type ToolPhase = 'running' | 'done' | 'failed'
+
+/** One-line status chip text for a tool call ("Reading your program…" while
+ *  running, "Read your program" once done). Failed calls use the neutral
+ *  humanized name — "Searching exercises — failed" reads wrong in either
+ *  tense. */
+export function toolStatusLabel(toolName: string, phase: ToolPhase = 'running'): string {
+  if (phase === 'failed') return humanizeToolName(toolName)
+  return AUTO_TOOL_LABELS[toolName]?.[phase] ?? humanizeToolName(toolName)
+}
+
+/** Longest input detail worth appending to a one-line chip. */
+const DETAIL_MAX_LENGTH = 40
+
+/**
+ * Compact, safe input detail for the status chip ("Searched exercises ·
+ * 'incline press'"). Only whitelisted string fields ever surface — tool
+ * inputs are model-authored, so nothing is rendered wholesale.
+ */
+export function toolInputDetail(toolName: string, input: unknown): string | null {
+  if (typeof input !== 'object' || input === null || Array.isArray(input)) return null
+  const args = input as Record<string, unknown>
+  const value =
+    toolName === 'search_exercises' ? args.search : toolName === 'upsert_program' ? args.name : null
+  if (typeof value !== 'string') return null
+  const trimmed = value.trim()
+  if (!trimmed) return null
+  return trimmed.length > DETAIL_MAX_LENGTH ? `${trimmed.slice(0, DETAIL_MAX_LENGTH - 1)}…` : trimmed
+}
+
+/** How close to the bottom (px) still counts as "following the stream". */
+export const PIN_THRESHOLD_PX = 120
+
+/**
+ * Whether a scroll position is pinned to the bottom of the page — the chat
+ * auto-scrolls on new content only while pinned, so a user who scrolled up
+ * to re-read is never yanked back down.
+ */
+export function isPinnedToBottom(
+  scrollHeight: number,
+  viewportHeight: number,
+  scrollY: number,
+): boolean {
+  return scrollHeight - viewportHeight - scrollY <= PIN_THRESHOLD_PX
 }
 
 export interface CoachError {

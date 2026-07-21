@@ -1,10 +1,16 @@
 import { auth } from '@clerk/nextjs/server'
 import { NextResponse } from 'next/server'
-import { convertToModelMessages, stepCountIs, streamText } from 'ai'
+import { convertToModelMessages, stepCountIs, streamText, type UIMessage } from 'ai'
 import { getWeightUnit } from '@/db/preferences'
 import { isCoachUser } from '@/lib/coach/access'
-import { MAX_BODY_BYTES, parseChatMessages } from '@/lib/coach/chat-request'
-import { saveCoachChat } from '@/lib/coach/chat-store'
+import {
+  MAX_BODY_BYTES,
+  MAX_MESSAGES,
+  parseChatMessage,
+  parseChatMessages,
+} from '@/lib/coach/chat-request'
+import { reconcileThread } from '@/lib/coach/chat-thread'
+import { loadCoachChat, saveCoachChat } from '@/lib/coach/chat-store'
 import { COACH_MODEL_SETUP_HINT, resolveCoachModel } from '@/lib/coach/model'
 import { createCoachMcpClient } from '@/lib/coach/mcp-bridge'
 import { checkCoachRateLimit } from '@/lib/coach/rate-limit'
@@ -67,19 +73,40 @@ export async function POST(request: Request): Promise<Response> {
   if (Buffer.byteLength(raw, 'utf8') > MAX_BODY_BYTES) {
     return NextResponse.json({ error: 'Request payload too large' }, { status: 413 })
   }
-  let body: { messages?: unknown; context?: unknown }
+  let body: { messages?: unknown; message?: unknown; context?: unknown }
   try {
     const parsed: unknown = JSON.parse(raw)
     if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) throw new Error()
-    body = parsed as { messages?: unknown; context?: unknown }
+    body = parsed as { messages?: unknown; message?: unknown; context?: unknown }
   } catch {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
   }
-  const parsedMessages = parseChatMessages(body.messages)
-  if (!parsedMessages.ok) {
-    return NextResponse.json({ error: parsedMessages.error }, { status: 400 })
+
+  // Two accepted payload shapes:
+  // - `{ message }` (current): the client sends only the tail message and the
+  //   server reconciles it against the stored thread — full threads carry
+  //   every tool input/output and outgrow the body caps after tool-heavy turns.
+  // - `{ messages }` (DEPRECATED): the full-thread payload of pre-deploy
+  //   clients (an open tab from before the change); validated and used as-is.
+  //   Remove once those tabs have cycled.
+  let messages: UIMessage[]
+  if (Array.isArray(body.messages)) {
+    const parsedMessages = parseChatMessages(body.messages)
+    if (!parsedMessages.ok) {
+      return NextResponse.json({ error: parsedMessages.error }, { status: 400 })
+    }
+    messages = parsedMessages.messages
+  } else {
+    const parsedTail = parseChatMessage(body.message)
+    if (!parsedTail.ok) {
+      return NextResponse.json({ error: parsedTail.error }, { status: 400 })
+    }
+    const reconciled = reconcileThread(await loadCoachChat(userId), parsedTail.message)
+    if (!reconciled.ok) {
+      return NextResponse.json({ error: reconciled.error }, { status: 400 })
+    }
+    messages = reconciled.messages
   }
-  const messages = parsedMessages.messages
 
   // Quota is charged LAST among the guards: a rejected request must never
   // consume the user's daily allowance.
@@ -106,7 +133,9 @@ export async function POST(request: Request): Promise<Response> {
     const result = streamText({
       model: coachModel.model,
       system: buildSystemPrompt(weightUnit, context),
-      messages: await convertToModelMessages(messages, { tools }),
+      // Model window: clamp by slicing, not rejecting — the thread is the
+      // server's own store plus one message, so "too long" is not user error.
+      messages: await convertToModelMessages(messages.slice(-MAX_MESSAGES), { tools }),
       tools,
       toolApproval: ({ toolCall }) =>
         requiresApproval(toolCall.toolName) ? 'user-approval' : undefined,
