@@ -3,8 +3,10 @@ import {
   extractProgramProposal,
   formatToolInput,
   humanizeToolName,
+  isPinnedToBottom,
   parseCoachError,
   parseContextParam,
+  toolInputDetail,
   toolStatusLabel,
 } from './chat-ui'
 
@@ -36,6 +38,64 @@ describe('toolStatusLabel', () => {
 
   test('labels the drafting tool', () => {
     expect(toolStatusLabel('upsert_program')).toBe('Drafting your program')
+  })
+
+  test('uses past tense once the call is done', () => {
+    expect(toolStatusLabel('search_exercises', 'done')).toBe('Searched exercises')
+    expect(toolStatusLabel('get_program', 'done')).toBe('Read your program')
+    expect(toolStatusLabel('upsert_program', 'done')).toBe('Drafted a program')
+  })
+
+  test('failed calls fall back to the neutral humanized name', () => {
+    expect(toolStatusLabel('search_exercises', 'failed')).toBe('Search exercises')
+  })
+
+  test('unknown tools keep the humanized name in every phase', () => {
+    expect(toolStatusLabel('add_program_set', 'running')).toBe('Add program set')
+    expect(toolStatusLabel('add_program_set', 'done')).toBe('Add program set')
+    expect(toolStatusLabel('add_program_set', 'failed')).toBe('Add program set')
+  })
+})
+
+describe('toolInputDetail', () => {
+  test('surfaces the search term for search_exercises', () => {
+    expect(toolInputDetail('search_exercises', { search: ' incline press ' })).toBe(
+      'incline press',
+    )
+  })
+
+  test('surfaces the drafted program name for upsert_program', () => {
+    expect(toolInputDetail('upsert_program', { name: 'Push Pull Legs' })).toBe('Push Pull Legs')
+  })
+
+  test('returns null for non-whitelisted tools and non-string fields', () => {
+    expect(toolInputDetail('get_program', { programId: 'abc' })).toBeNull()
+    expect(toolInputDetail('search_exercises', { search: 42 })).toBeNull()
+    expect(toolInputDetail('search_exercises', undefined)).toBeNull()
+    expect(toolInputDetail('search_exercises', 'raw')).toBeNull()
+    expect(toolInputDetail('search_exercises', { search: '   ' })).toBeNull()
+  })
+
+  test('truncates long values with an ellipsis', () => {
+    const detail = toolInputDetail('search_exercises', { search: 'x'.repeat(100) })
+    expect(detail).toHaveLength(40)
+    expect(detail?.endsWith('…')).toBe(true)
+  })
+})
+
+describe('isPinnedToBottom', () => {
+  test('is pinned at the exact bottom and within the threshold', () => {
+    expect(isPinnedToBottom(2000, 800, 1200)).toBe(true)
+    expect(isPinnedToBottom(2000, 800, 1100)).toBe(true)
+  })
+
+  test('is not pinned once scrolled past the threshold', () => {
+    expect(isPinnedToBottom(2000, 800, 1000)).toBe(false)
+    expect(isPinnedToBottom(2000, 800, 0)).toBe(false)
+  })
+
+  test('is pinned when content fits the viewport', () => {
+    expect(isPinnedToBottom(600, 800, 0)).toBe(true)
   })
 })
 

@@ -1,6 +1,6 @@
 import type { UIMessage } from 'ai'
 import { getRedis } from '@/lib/redis'
-import { MAX_MESSAGES, parseChatMessages } from './chat-request'
+import { MAX_MESSAGES, parseStoredChatMessages } from './chat-request'
 
 /**
  * Redis-backed coach conversation persistence — one thread per user, saved
@@ -25,9 +25,10 @@ export async function loadCoachChat(userId: string): Promise<UIMessage[]> {
     if (!stored) return []
     // Upstash auto-deserializes JSON values; tolerate a raw string anyway.
     const value: unknown = typeof stored === 'string' ? JSON.parse(stored) : stored
-    // Same structural validation as the request path: a corrupt or
-    // stale-format blob resets to an empty thread instead of crashing chat.
-    const parsed = parseChatMessages(value)
+    // Shape-only validation (no request caps): loading must accept anything
+    // saving wrote — a corrupt or stale-format blob resets to an empty
+    // thread instead of crashing chat, but a big-but-valid thread loads.
+    const parsed = parseStoredChatMessages(value)
     return parsed.ok ? parsed.messages : []
   } catch (error: unknown) {
     console.error('[coach] chat load failed', error)
