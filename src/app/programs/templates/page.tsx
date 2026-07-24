@@ -1,13 +1,14 @@
 import Link from 'next/link'
-import { ChevronLeft, ExternalLink } from 'lucide-react'
+import { ChevronLeft, ChevronRight, ExternalLink } from 'lucide-react'
 import { requireUserId } from '@/lib/auth'
 import { getAllExercises } from '@/lib/wger'
-import { listPublicTemplates, type TemplatesUnavailableReason } from '@/lib/wger-templates'
+import { listPublicTemplates } from '@/lib/wger-templates'
 import { mapWgerRoutineToProgram, type MappedTemplate } from '@/lib/wger-template-map'
 import { AppHeader } from '@/components/app-header'
 import { buttonVariants } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { ImportTemplateButton } from './import-button'
+import { TemplatesUnavailableCard } from './unavailable'
 
 /** One browse card's data: the wger id plus what the import would create. */
 interface TemplateCard {
@@ -15,24 +16,13 @@ interface TemplateCard {
   mapped: MappedTemplate
 }
 
-const UNAVAILABLE_COPY: Record<TemplatesUnavailableReason, { title: string; body: string }> = {
-  unconfigured: {
-    title: 'Template browsing is not configured',
-    body: 'Connecting to the wger template catalog needs a WGER_API_KEY. Add one and reload.',
-  },
-  unavailable: {
-    title: 'wger is not answering right now',
-    body: 'The template catalog could not be loaded. Try again in a minute.',
-  },
-}
-
 /**
  * Browse wger's public routine templates and add them to your own programs.
  * Cards show exactly what the import would create (the mapper runs here, so
  * the shown day count can never disagree with the imported plan); templates
- * with nothing mappable are hidden. Detail lives on wger — the attribution
- * link — not on a template page of ours: importing lands on the program page,
- * which already reads like an article and is where edit/activate live.
+ * with nothing mappable are hidden. Each card body links to the in-app
+ * detail (`/programs/templates/[id]`) so the full plan is readable without
+ * navigating to wger, while Add stays one tap away on the card itself.
  * Upstream calls ride the fetch layer's 1-day Data Cache; the page itself is
  * dynamic (requireUserId), which is fine — wger is not re-hit per view.
  */
@@ -72,12 +62,7 @@ export default async function TemplatesPage() {
         </p>
 
         {!result.ok ? (
-          <div className="mt-6 rounded-2xl border border-border bg-card px-5 py-12 text-center">
-            <p className="font-medium">{UNAVAILABLE_COPY[result.reason].title}</p>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {UNAVAILABLE_COPY[result.reason].body}
-            </p>
-          </div>
+          <TemplatesUnavailableCard reason={result.reason} />
         ) : cards.length === 0 ? (
           <div className="mt-6 rounded-2xl border border-border bg-card px-5 py-12 text-center">
             <p className="font-medium">No templates to show</p>
@@ -92,23 +77,37 @@ export default async function TemplatesPage() {
               const dayCount = input.days.length
               return (
                 <li key={wgerId} className="rounded-2xl border border-border bg-card p-5">
-                  <div className="flex items-baseline gap-2 font-display text-xl uppercase leading-tight tracking-wide">
-                    {typeof input.icon === 'string' && (
-                      <span aria-hidden="true" className="shrink-0 text-lg leading-none">
-                        {input.icon}
+                  {/* The card body IS the link (programs-list convention:
+                      content + trailing chevron); the action row below stays
+                      outside it so Add doesn't nest inside an anchor. */}
+                  <Link
+                    href={`/programs/templates/${wgerId}`}
+                    className="group flex min-w-0 items-start justify-between gap-3"
+                  >
+                    <span className="min-w-0">
+                      <span className="flex items-baseline gap-2 font-display text-xl uppercase leading-tight tracking-wide">
+                        {typeof input.icon === 'string' && (
+                          <span aria-hidden="true" className="shrink-0 text-lg leading-none">
+                            {input.icon}
+                          </span>
+                        )}
+                        <span className="min-w-0 truncate">{input.name}</span>
                       </span>
-                    )}
-                    <span className="min-w-0 truncate">{input.name}</span>
-                  </div>
-                  <p className="mt-1 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-                    {dayCount} {dayCount === 1 ? 'day' : 'days'} · {input.mesocycleWeeks}{' '}
-                    {input.mesocycleWeeks === 1 ? 'week' : 'weeks'}
-                  </p>
-                  {typeof input.description === 'string' && (
-                    <p className="mt-3 line-clamp-3 text-sm text-muted-foreground">
-                      {input.description}
-                    </p>
-                  )}
+                      <span className="mt-1 block text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                        {dayCount} {dayCount === 1 ? 'day' : 'days'} · {input.mesocycleWeeks}{' '}
+                        {input.mesocycleWeeks === 1 ? 'week' : 'weeks'}
+                      </span>
+                      {typeof input.description === 'string' && (
+                        <span className="mt-3 line-clamp-3 block text-sm text-muted-foreground">
+                          {input.description}
+                        </span>
+                      )}
+                    </span>
+                    <ChevronRight
+                      aria-hidden="true"
+                      className="mt-1 size-5 shrink-0 text-muted-foreground transition-colors group-hover:text-foreground"
+                    />
+                  </Link>
                   <div className="mt-4 flex items-center justify-between gap-3">
                     <ImportTemplateButton templateId={wgerId} />
                     {typeof input.sourceUrl === 'string' && (

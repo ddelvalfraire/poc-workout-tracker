@@ -8,7 +8,8 @@ import { importWgerTemplateAction } from './actions'
 /**
  * "Add to my programs" — imports one wger template as the user's own draft
  * and navigates to its program page (article header + edit/activate live
- * there; there is no separate template detail page). Await-then-navigate, not
+ * there; the template detail page is a read-only preview). Await-then-navigate,
+ * not
  * startTransition: navigating inside an async transition lets the app-wide
  * <ViewTransition> strand the old screen's snapshot (restart-program-button's
  * rationale). isPending stays true on success — navigation unmounts this card.
