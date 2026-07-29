@@ -9,6 +9,7 @@ import {
   setProgramSetOverride,
   removeProgramSetOverride,
   setProgramAutoregulation,
+  setProgramPlanSync,
   addProgramDay,
   updateProgramDay,
   removeProgramDay,
@@ -203,6 +204,31 @@ export function registerProgramPatchTools(server: McpServer): void {
         )
         if (!result) throw new ToolError(`Program ${programId} not found for user ${resolved}`)
         return jsonResult({ userId: resolved, programId, autoregulation: enabled })
+      } catch (error: unknown) {
+        return errorResult(error)
+      }
+    },
+  )
+
+  server.registerTool(
+    'set_program_plan_sync',
+    {
+      title: 'Set Program Plan Sync',
+      description:
+        "Turns a program's performance→plan auto-sync on or off without touching its days/exercises/sets. When on (the default), finishing a session that outperformed the plan's suggested loads writes the performed loads back into the plan (each change appears in the program change log). Turn off for deliberate-percentage programs (5/3/1-style waves) where lifting past the listed number is by design. Errors if the program isn't found or owned.",
+      inputSchema: {
+        programId: z.string(),
+        enabled: z.boolean(),
+        userId: z.string().optional(),
+      },
+    },
+    async ({ programId, enabled, userId }, extra) => {
+      try {
+        const resolved = resolveUserId(extra, userId)
+        assertProgramIdShape(programId)
+        const result = await setProgramPlanSync(resolved, programId, enabled, resolveActor(extra))
+        if (!result) throw new ToolError(`Program ${programId} not found for user ${resolved}`)
+        return jsonResult({ userId: resolved, programId, planSync: enabled })
       } catch (error: unknown) {
         return errorResult(error)
       }

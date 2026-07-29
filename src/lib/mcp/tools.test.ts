@@ -78,6 +78,7 @@ describe('registerTools', () => {
       'search_exercises',
       'set_exercise_meta',
       'set_program_autoregulation',
+      'set_program_plan_sync',
       'set_program_set_override',
       'set_program_status',
       'set_weight_unit',
