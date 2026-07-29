@@ -14,6 +14,7 @@ import { bestSet } from '@/lib/one-rep-max'
 import {
   autoregulate,
   autoregulateRange,
+  autoregulateAnchor,
   applyAutoregToSets,
   AUTOREG_DEFAULT_STEP_KG,
   type AutoregAdjustment,
@@ -1050,10 +1051,13 @@ export interface ExercisePrescription {
 }
 
 /** Which Layer 1 rule set an exercise gets (see lib/autoregulate.ts's scope
- *  note): FIXED (v1 stall rules) or RANGE (v2 double progression). */
+ *  note): FIXED (v1 stall rules), RANGE (v2 double progression), or ANCHOR
+ *  (performed-load anchoring only, for schemes that can prescribe load-less
+ *  sets). */
 type AutoregPlan =
   | { mode: 'fixed'; incrementKg: number }
   | { mode: 'range'; stepKg: number; rangeTopBySetNumber: Record<number, number> }
+  | { mode: 'anchor' }
 
 /** The current plan's range top per DERIVED setNumber (template order, 1-based
  *  — exactly `deriveWeekSets`' renumbering for the schemes admitted here,
@@ -1108,6 +1112,19 @@ function autoregPlan(exercise: DayForDerivation['exercises'][number]): AutoregPl
       stepKg: progression.incrementKg > 0 ? progression.incrementKg : AUTOREG_DEFAULT_STEP_KG,
       rangeTopBySetNumber: tops,
     }
+  }
+  // Schemes that can legitimately prescribe LOAD-LESS sets (rpe-target before
+  // an e1RM exists; weekly-volume / rep-progression with a null base) get the
+  // anchor-only rules: a completed working load on a null-load prescription
+  // becomes the next prescription — the weight ghost those exercises never
+  // had. percent-1rm and amrap-cycle always derive a load (nothing to
+  // anchor), and their stall behavior stays explicitly out of scope.
+  if (
+    progression?.scheme === 'rpe-target' ||
+    progression?.scheme === 'weekly-volume' ||
+    progression?.scheme === 'rep-progression'
+  ) {
+    return { mode: 'anchor' }
   }
   return null
 }
@@ -1165,8 +1182,8 @@ export async function deriveDayPrescription(
 
     // Layer 1 auto-regulation (program-gated; fixed-rep linear gets the v1
     // stall rules, ranged linear + double-progression the v2 double-
-    // progression rules; never on the deload week — its whole point is the
-    // planned back-off).
+    // progression rules, load-less-capable schemes the anchor-only rules;
+    // never on the deload week — its whole point is the planned back-off).
     const plan = day.program.autoregulation ? autoregPlan(exercise) : null
     let adjustment: AutoregAdjustment | null = null
     if (plan !== null && !isDeloadWeek) {
@@ -1207,7 +1224,9 @@ export async function deriveDayPrescription(
         adjustment =
           plan.mode === 'fixed'
             ? autoregulate(plan.incrementKg, sessions)
-            : autoregulateRange(plan.stepKg, sessions, plan.rangeTopBySetNumber)
+            : plan.mode === 'range'
+              ? autoregulateRange(plan.stepKg, sessions, plan.rangeTopBySetNumber)
+              : autoregulateAnchor(sessions)
         adjustmentByKey.set(key, adjustment)
       }
     }

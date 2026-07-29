@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   autoregulate,
   autoregulateRange,
+  autoregulateAnchor,
   autoregReason,
   applyAutoregToSets,
   backoffKg,
@@ -681,6 +682,343 @@ describe('autoregReason — range mode', () => {
     const adjustment = autoregulateRange(2.5, [flat(), flat(), flat(), flat()], TOPS)!
     expect(autoregReason(adjustment, 'kg')).toBe(
       'No new reps at 100 kg for 3 straight sessions — backing off 10 kg (~10%)',
+    )
+  })
+})
+
+/** One null-load prescribed working set (repMin proves the snapshot exists)
+ *  with a single actual — the anchor rule's minimal fixture. */
+const nullLoadSession = (
+  actual: { reps: number | null; weightKg: number | null; completed?: boolean; setType?: string },
+  repMin: number | null = 8,
+): AutoregSession => ({
+  prescribed: [{ setNumber: 1, repMin, loadKg: null }],
+  actual: [{ setNumber: 1, completed: true, ...actual }],
+})
+
+describe('autoregulate — outperform anchoring', () => {
+  it('anchors at the performed load when EVERY set beats the plan by ≥5% at the floor', () => {
+    // The motivating case: prescribed 100×8, performed 120×8 across the board.
+    const adjustment = autoregulate(2.5, [session([8, 8, 8], 120)])
+    expect(adjustment).toMatchObject({
+      action: 'anchor',
+      deltaKg: 20,
+      suggestEarlyDeload: false,
+      anchor: { fromLoadKg: 100, toLoadKg: 120 },
+      anchorLoadBySetNumber: { 1: 120, 2: 120, 3: 120 },
+      evidence: { missedSets: 0, scorableSets: 3, repFloor: 8, loadKg: 100 },
+    })
+  })
+
+  it('exactly 5% over anchors; 4.9% does not (epsilon-tolerant boundary)', () => {
+    expect(autoregulate(2.5, [session([8, 8, 8], 105)])).toMatchObject({ action: 'anchor' })
+    expect(autoregulate(2.5, [session([8, 8, 8], 104.9)])).toBeNull()
+  })
+
+  it('outperforming load while missing the floor is NOT an outperform', () => {
+    // One set under the floor blocks the anchor (and 1 of 3 is not a stall).
+    expect(autoregulate(2.5, [session([8, 8, 7], 120)])).toBeNull()
+    // Half under the floor at the heavier load is a plain stall verdict.
+    expect(autoregulate(2.5, [session([6, 6, 8], 120)])).toMatchObject({ action: 'repeat' })
+  })
+
+  it('one set at plan blocks the whole exercise (all-or-nothing testimony)', () => {
+    const s: AutoregSession = {
+      prescribed: prescribed(),
+      actual: [
+        { setNumber: 1, reps: 8, weightKg: 120, completed: true },
+        { setNumber: 2, reps: 8, weightKg: 120, completed: true },
+        { setNumber: 3, reps: 8, weightKg: 100, completed: true },
+      ],
+    }
+    expect(autoregulate(2.5, [s])).toBeNull()
+  })
+
+  it('anchors each set at ITS OWN performed load, evidence naming the heaviest prescription', () => {
+    const s: AutoregSession = {
+      prescribed: [
+        { setNumber: 1, repMin: 5, loadKg: 100 },
+        { setNumber: 2, repMin: 8, loadKg: 90 },
+      ],
+      actual: [
+        { setNumber: 1, reps: 5, weightKg: 110, completed: true },
+        { setNumber: 2, reps: 8, weightKg: 100, completed: true },
+      ],
+    }
+    expect(autoregulate(2.5, [s])).toMatchObject({
+      action: 'anchor',
+      deltaKg: 10,
+      anchor: { fromLoadKg: 100, toLoadKg: 110 },
+      anchorLoadBySetNumber: { 1: 110, 2: 100 },
+    })
+  })
+
+  it('a pair with no snapshot floor is ambiguous — no anchor (silence over corruption)', () => {
+    const s: AutoregSession = {
+      prescribed: [
+        { setNumber: 1, repMin: 8, loadKg: 100 },
+        { setNumber: 2, repMin: null, loadKg: 100 },
+      ],
+      actual: [1, 2].map((n) => ({ setNumber: n, reps: 8, weightKg: 120, completed: true })),
+    }
+    expect(autoregulate(2.5, [s])).toBeNull()
+  })
+
+  it('warm-up and amrap rows never testify to an outperform', () => {
+    const s: AutoregSession = {
+      prescribed: [
+        { setNumber: 1, repMin: 5, loadKg: 60, setType: 'warmup' },
+        { setNumber: 2, repMin: 8, loadKg: 100 },
+        { setNumber: 3, repMin: 1, loadKg: 90, setType: 'amrap' },
+      ],
+      actual: [
+        // A heavy warm-up and a heavy amrap around an at-plan working set.
+        { setNumber: 1, reps: 5, weightKg: 120, completed: true, setType: 'warmup' },
+        { setNumber: 2, reps: 8, weightKg: 100, completed: true },
+        { setNumber: 3, reps: 10, weightKg: 120, completed: true, setType: 'amrap' },
+      ],
+    }
+    expect(autoregulate(2.5, [s])).toBeNull()
+  })
+
+  it('stays silent on empty history', () => {
+    expect(autoregulate(2.5, [])).toBeNull()
+    expect(autoregulateAnchor([])).toBeNull()
+  })
+})
+
+describe('null-load prescription anchoring', () => {
+  it('autoregulateAnchor anchors a load-less prescription at the completed working load', () => {
+    const adjustment = autoregulateAnchor([nullLoadSession({ reps: 10, weightKg: 60 })])
+    expect(adjustment).toMatchObject({
+      action: 'anchor',
+      deltaKg: 0,
+      suggestEarlyDeload: false,
+      anchor: { fromLoadKg: null, toLoadKg: 60 },
+      anchorLoadBySetNumber: { 1: 60 },
+    })
+  })
+
+  it('a missing snapshot (null repMin AND null load) is cold-start silence, not an anchor', () => {
+    expect(autoregulateAnchor([nullLoadSession({ reps: 10, weightKg: 60 }, null)])).toBeNull()
+  })
+
+  it('incomplete, rep-less, weight-less, or zero-weight sets never anchor', () => {
+    expect(
+      autoregulateAnchor([nullLoadSession({ reps: 10, weightKg: 60, completed: false })]),
+    ).toBeNull()
+    expect(autoregulateAnchor([nullLoadSession({ reps: null, weightKg: 60 })])).toBeNull()
+    expect(autoregulateAnchor([nullLoadSession({ reps: 10, weightKg: null })])).toBeNull()
+    expect(autoregulateAnchor([nullLoadSession({ reps: 10, weightKg: 0 })])).toBeNull()
+  })
+
+  it('warm-up rows never anchor', () => {
+    expect(
+      autoregulateAnchor([nullLoadSession({ reps: 5, weightKg: 60, setType: 'warmup' })]),
+    ).toBeNull()
+  })
+
+  it('mixed evidence: an at-plan loaded day still anchors ONLY its load-less set', () => {
+    const s: AutoregSession = {
+      prescribed: [
+        { setNumber: 1, repMin: 8, loadKg: 100 },
+        { setNumber: 2, repMin: 8, loadKg: null },
+      ],
+      actual: [
+        { setNumber: 1, reps: 8, weightKg: 100, completed: true },
+        { setNumber: 2, reps: 10, weightKg: 60, completed: true },
+      ],
+    }
+    const adjustment = autoregulate(2.5, [s])
+    expect(adjustment).toMatchObject({
+      action: 'anchor',
+      anchor: { fromLoadKg: null, toLoadKg: 60 },
+      anchorLoadBySetNumber: { 2: 60 },
+    })
+  })
+
+  it('mixed evidence: a stall verdict still carries the load-less set anchors', () => {
+    const s: AutoregSession = {
+      prescribed: [
+        { setNumber: 1, repMin: 8, loadKg: 100 },
+        { setNumber: 2, repMin: 8, loadKg: null },
+      ],
+      actual: [
+        { setNumber: 1, reps: 5, weightKg: 100, completed: true },
+        { setNumber: 2, reps: 10, weightKg: 60, completed: true },
+      ],
+    }
+    const adjustment = autoregulate(2.5, [s])
+    expect(adjustment).toMatchObject({
+      action: 'repeat',
+      anchorLoadBySetNumber: { 2: 60 },
+    })
+    expect(adjustment?.anchor).toBeUndefined()
+  })
+
+  it('range mode anchors load-less sets when nothing else is scorable', () => {
+    const adjustment = autoregulateRange(2.5, [nullLoadSession({ reps: 10, weightKg: 60 })], TOPS)
+    expect(adjustment).toMatchObject({ action: 'anchor', anchorLoadBySetNumber: { 1: 60 } })
+  })
+})
+
+describe('autoregulateRange — outperform anchoring and fill composition', () => {
+  /** 3 sets prescribed 8–12 at `prescribedKg`, performed `reps` at `performedKg`. */
+  const rangedAt = (reps: number[], prescribedKg: number, performedKg: number): AutoregSession => ({
+    prescribed: reps.map((_, i) => ({ setNumber: i + 1, repMin: 8, loadKg: prescribedKg })),
+    actual: reps.map((r, i) => ({
+      setNumber: i + 1,
+      reps: r,
+      weightKg: performedKg,
+      completed: true,
+    })),
+  })
+
+  it('outperforming within the range (below the top) anchors at the performed load', () => {
+    const adjustment = autoregulateRange(2.5, [rangedAt([9, 9, 9], 100, 110)], TOPS)
+    expect(adjustment).toMatchObject({
+      action: 'anchor',
+      anchor: { fromLoadKg: 100, toLoadKg: 110 },
+      anchorLoadBySetNumber: { 1: 110, 2: 110, 3: 110 },
+      range: { stalls: 0 },
+    })
+  })
+
+  it('outperforming while under the range floor is NOT an outperform (hold rules apply)', () => {
+    const adjustment = autoregulateRange(2.5, [rangedAt([7, 9, 9], 100, 110)], TOPS)
+    expect(adjustment).toMatchObject({ action: 'repeat' })
+    expect(adjustment?.anchorLoadBySetNumber).toBeUndefined()
+  })
+
+  it('an outperformed FILL steps from the PERFORMED load (composition, not competition)', () => {
+    const adjustment = autoregulateRange(2.5, [rangedAt([12, 12, 12], 100, 110)], TOPS)
+    expect(adjustment).toMatchObject({
+      action: 'step',
+      deltaKg: 2.5,
+      anchor: { fromLoadKg: 100, toLoadKg: 110 },
+      anchorLoadBySetNumber: { 1: 110, 2: 110, 3: 110 },
+    })
+  })
+
+  it('a fill under the outperform margin steps from the prescribed load as before', () => {
+    const adjustment = autoregulateRange(2.5, [rangedAt([12, 12, 12], 100, 104.9)], TOPS)!
+    expect(adjustment).toMatchObject({ action: 'step', deltaKg: 2.5 })
+    expect(adjustment.anchor).toBeUndefined()
+    expect(adjustment.anchorLoadBySetNumber).toBeUndefined()
+  })
+})
+
+describe('applyAutoregToSets — anchor', () => {
+  const derivedSet = (overrides: Partial<DerivedSet> = {}): DerivedSet => ({
+    setNumber: 1,
+    setType: 'working',
+    metricMode: 'reps_weight',
+    repMin: 8,
+    repMax: 12,
+    rir: null,
+    rpe: null,
+    loadKg: 102.5,
+    tempo: null,
+    durationSec: null,
+    distanceM: null,
+    restSec: null,
+    technique: null,
+    derivedFrom: 'scheme',
+    sourceIndex: 0,
+    ...overrides,
+  })
+
+  it('prescribes exactly the performed load, keeping the scheme value for the escape', () => {
+    const adjustment = autoregulate(2.5, [session([8, 8, 8], 120)])!
+    const result = applyAutoregToSets(
+      [derivedSet(), derivedSet({ setNumber: 2, sourceIndex: 1 })],
+      adjustment,
+    )
+    // "Use plan as written" reverts to 102.5 via schemeLoadKg.
+    expect(result[0]).toMatchObject({ loadKg: 120, derivedFrom: 'autoreg', schemeLoadKg: 102.5 })
+    expect(result[1]).toMatchObject({ loadKg: 120, schemeLoadKg: 102.5 })
+  })
+
+  it('stamps the performed load onto a LOAD-LESS scheme set (the rpe-target weight ghost)', () => {
+    const adjustment = autoregulateAnchor([nullLoadSession({ reps: 10, weightKg: 60 })])!
+    const result = applyAutoregToSets([derivedSet({ loadKg: null })], adjustment)
+    // Escape revert: schemeLoadKg preserves the plan's "no load".
+    expect(result[0]).toMatchObject({ loadKg: 60, derivedFrom: 'autoreg', schemeLoadKg: null })
+  })
+
+  it('leaves unanchored sets, warm-ups, and non-scheme passthroughs untouched', () => {
+    const adjustment = autoregulateAnchor([nullLoadSession({ reps: 10, weightKg: 60 })])!
+    const unanchored = derivedSet({ setNumber: 2, sourceIndex: 1 })
+    const warmup = derivedSet({ setType: 'warmup', loadKg: 60 })
+    const template = derivedSet({ derivedFrom: 'template', loadKg: null })
+    expect(applyAutoregToSets([unanchored, warmup, template], adjustment)).toEqual([
+      unanchored,
+      warmup,
+      template,
+    ])
+  })
+
+  it('an outperformed fill lands each set at performed + step', () => {
+    const filled: AutoregSession = {
+      prescribed: [1, 2, 3].map((n) => ({ setNumber: n, repMin: 8, loadKg: 100 })),
+      actual: [1, 2, 3].map((n) => ({ setNumber: n, reps: 12, weightKg: 110, completed: true })),
+    }
+    const adjustment = autoregulateRange(2.5, [filled], TOPS)!
+    const result = applyAutoregToSets(
+      [1, 2, 3].map((n) => derivedSet({ setNumber: n, loadKg: 100, sourceIndex: n - 1 })),
+      adjustment,
+    )
+    expect(result.map((s) => s.loadKg)).toEqual([112.5, 112.5, 112.5])
+    expect(result.every((s) => s.derivedFrom === 'autoreg')).toBe(true)
+  })
+
+  it('a stall verdict with a load-less rider caps the loaded set AND anchors the load-less one', () => {
+    const s: AutoregSession = {
+      prescribed: [
+        { setNumber: 1, repMin: 8, loadKg: 100 },
+        { setNumber: 2, repMin: 8, loadKg: null },
+      ],
+      actual: [
+        { setNumber: 1, reps: 5, weightKg: 100, completed: true },
+        { setNumber: 2, reps: 10, weightKg: 60, completed: true },
+      ],
+    }
+    const adjustment = autoregulate(2.5, [s])!
+    const result = applyAutoregToSets(
+      [derivedSet(), derivedSet({ setNumber: 2, loadKg: null, sourceIndex: 1 })],
+      adjustment,
+    )
+    expect(result[0]).toMatchObject({ loadKg: 100, schemeLoadKg: 102.5 })
+    expect(result[1]).toMatchObject({ loadKg: 60, schemeLoadKg: null })
+  })
+
+  it('does not mutate the input sets', () => {
+    const adjustment = autoregulate(2.5, [session([8, 8, 8], 120)])!
+    const input = derivedSet()
+    applyAutoregToSets([input], adjustment)
+    expect(input).toMatchObject({ loadKg: 102.5, derivedFrom: 'scheme' })
+  })
+})
+
+describe('autoregReason — anchor', () => {
+  it('names the outperform in the display unit', () => {
+    const adjustment = autoregulate(2.5, [session([8, 8, 8], 120)])!
+    expect(autoregReason(adjustment, 'kg')).toBe('Did 120 kg vs 100 kg planned — anchoring at 120 kg')
+  })
+
+  it('names a null-prescription anchor from the last session', () => {
+    const adjustment = autoregulateAnchor([nullLoadSession({ reps: 10, weightKg: 60 })])!
+    expect(autoregReason(adjustment, 'kg')).toBe('Last session: 60 kg — anchoring')
+  })
+
+  it('speaks the composed step from the performed load', () => {
+    const filled: AutoregSession = {
+      prescribed: [1, 2, 3].map((n) => ({ setNumber: n, repMin: 8, loadKg: 100 })),
+      actual: [1, 2, 3].map((n) => ({ setNumber: n, reps: 12, weightKg: 110, completed: true })),
+    }
+    const adjustment = autoregulateRange(2.5, [filled], TOPS)!
+    expect(autoregReason(adjustment, 'kg')).toBe(
+      'Range filled at 110 kg last session — stepping to 112.5 kg',
     )
   })
 })

@@ -262,8 +262,9 @@ describe('deriveDayPrescription auto-regulation', () => {
     })
   })
 
-  it('leaves rpe-target exercises alone (no history fetch, no adjustment)', async () => {
-    // Arrange
+  it('never stall-adjusts rpe-target (loaded snapshots are left to the self-correcting scheme)', async () => {
+    // Arrange — low reps at loaded snapshots: a fixed-mode engine would call
+    // this a stall; anchor mode must not.
     trainedSessions.mockResolvedValue([trained('w1', 1, [5, 5, 5])])
 
     // Act
@@ -275,8 +276,60 @@ describe('deriveDayPrescription auto-regulation', () => {
 
     // Assert
     expect(exercise.autoreg).toBeNull()
-    expect(trainedSessions).not.toHaveBeenCalled()
     expect(exercise.sets.every((s) => s.derivedFrom !== 'autoreg')).toBe(true)
+  })
+
+  it('anchors rpe-target null-load snapshots at the performed load (the weight ghost)', async () => {
+    // Arrange — no e1RM yet (empty history) so the scheme derives no load;
+    // the last session's snapshots prescribed no load either, but the lifter
+    // worked at 60.
+    trainedSessions.mockResolvedValue([
+      {
+        workoutId: 'w1',
+        programWeek: 1,
+        sets: [1, 2, 3].map((setNumber) => ({
+          setNumber,
+          reps: 10,
+          weightKg: 60,
+          completed: true,
+          setType: 'working' as const,
+          prescribedLoadKg: null,
+          prescribedRepMin: 8,
+        })),
+      },
+    ])
+
+    // Act
+    const [exercise] = await deriveDayPrescription(
+      USER,
+      day({ progression: { scheme: 'rpe-target', targetRpe: 8 } }),
+      2,
+    )
+
+    // Assert — every set anchored at 60, escape value (null plan load) kept.
+    expect(exercise.autoreg).toMatchObject({ action: 'anchor', suggestEarlyDeload: false })
+    expect(exercise.sets.map((s) => s.loadKg)).toEqual([60, 60, 60])
+    expect(exercise.sets.every((s) => s.derivedFrom === 'autoreg')).toBe(true)
+    expect(exercise.sets.every((s) => s.schemeLoadKg === null)).toBe(true)
+  })
+
+  it('an outperformed last session anchors the fixed-mode prescription at the performed loads', async () => {
+    // Arrange — prescribed 100×8 floor, performed 120×8 on every set (≥5%
+    // over): the program follows the lifter up instead of marching 102.5.
+    trainedSessions.mockResolvedValue([trained('w1', 1, [8, 8, 8], 120, 100)])
+
+    // Act
+    const [exercise] = await deriveDayPrescription(USER, day({}), 2)
+
+    // Assert
+    expect(exercise.autoreg).toMatchObject({
+      action: 'anchor',
+      deltaKg: 20,
+      anchor: { fromLoadKg: 100, toLoadKg: 120 },
+    })
+    expect(exercise.sets.map((s) => s.loadKg)).toEqual([120, 120, 120])
+    expect(exercise.sets.every((s) => s.derivedFrom === 'autoreg')).toBe(true)
+    expect(exercise.sets[0].schemeLoadKg).toBe(102.5)
   })
 
   it('mixed fixed/ranged working sets fall back to the v1 fixed rules (ambiguous shape)', async () => {
