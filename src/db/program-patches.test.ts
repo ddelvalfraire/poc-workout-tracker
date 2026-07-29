@@ -111,6 +111,7 @@ import {
   updateProgramSet,
   removeProgramSet,
   moveProgramSet,
+  syncProgramExerciseLoads,
   setProgramSetOverride,
   removeProgramSetOverride,
 } from './program-patches'
@@ -696,6 +697,129 @@ describe('setProgramSetOverride', () => {
   it('returns null when the set does not exist at that number', async () => {
     selectQueue = [OWNED_EXERCISE, []]
     expect(await setProgramSetOverride(USER, PID, 0, 1, 9, 3, { rir: 1 }, 'mcp')).toBeNull()
+    expect(records).toHaveLength(0)
+  })
+})
+
+describe('syncProgramExerciseLoads', () => {
+  it('writes each changed load, bumps the program, and logs ONE event for the exercise', async () => {
+    // Reads: owned-exercise → current loads for the addressed setNumbers
+    selectQueue = [
+      OWNED_EXERCISE,
+      [
+        { setNumber: 1, suggestedLoadKg: 80 },
+        { setNumber: 2, suggestedLoadKg: 80 },
+      ],
+    ]
+
+    const result = await syncProgramExerciseLoads(
+      USER,
+      PID,
+      0,
+      1,
+      [
+        { setNumber: 1, suggestedLoadKg: 120 },
+        { setNumber: 2, suggestedLoadKg: 118.5 },
+      ],
+      'ui',
+      'Bench: 80 → 120 kg (synced to performance)',
+    )
+
+    expect(result).toEqual({ updated: 2 })
+    expect(records.map((r) => r.op)).toEqual([
+      'update:program_sets',
+      'update:program_sets',
+      'update:programs',
+      'insert:program_events',
+    ])
+    expect(records[0]!.values).toEqual({ suggestedLoadKg: 120 })
+    expect(records[1]!.values).toEqual({ suggestedLoadKg: 118.5 })
+    // The one event carries the per-set before/after audit and the actor.
+    expect(records[3]!.values).toMatchObject({
+      actor: 'ui',
+      action: 'sync_plan_to_performance',
+      summary: 'Bench: 80 → 120 kg (synced to performance)',
+      payload: {
+        dayPosition: 0,
+        exercisePosition: 1,
+        sets: [
+          { setNumber: 1, before: 80, after: 120 },
+          { setNumber: 2, before: 80, after: 118.5 },
+        ],
+      },
+    })
+  })
+
+  it('returns null and writes nothing when the exercise is not owned', async () => {
+    selectQueue = [[]]
+
+    const result = await syncProgramExerciseLoads(
+      USER,
+      PID,
+      0,
+      1,
+      [{ setNumber: 1, suggestedLoadKg: 120 }],
+      'ui',
+      'x',
+    )
+
+    expect(result).toBeNull()
+    expect(records).toHaveLength(0)
+  })
+
+  it('skips already-equal values and vanished setNumbers; nothing changed → no bump, no event', async () => {
+    // Set 1 already synced, set 3 no longer exists — idempotent no-op.
+    selectQueue = [OWNED_EXERCISE, [{ setNumber: 1, suggestedLoadKg: 120 }]]
+
+    const result = await syncProgramExerciseLoads(
+      USER,
+      PID,
+      0,
+      1,
+      [
+        { setNumber: 1, suggestedLoadKg: 120 },
+        { setNumber: 3, suggestedLoadKg: 100 },
+      ],
+      'ui',
+      'x',
+    )
+
+    expect(result).toEqual({ updated: 0 })
+    expect(records).toHaveLength(0)
+  })
+
+  it('applies only the sets that actually change alongside equal ones', async () => {
+    selectQueue = [
+      OWNED_EXERCISE,
+      [
+        { setNumber: 1, suggestedLoadKg: 120 },
+        { setNumber: 2, suggestedLoadKg: 80 },
+      ],
+    ]
+
+    const result = await syncProgramExerciseLoads(
+      USER,
+      PID,
+      0,
+      1,
+      [
+        { setNumber: 1, suggestedLoadKg: 120 },
+        { setNumber: 2, suggestedLoadKg: 120 },
+      ],
+      'ui',
+      'x',
+    )
+
+    expect(result).toEqual({ updated: 1 })
+    expect(records.map((r) => r.op)).toEqual([
+      'update:program_sets',
+      'update:programs',
+      'insert:program_events',
+    ])
+  })
+
+  it('returns {updated: 0} for an empty load list without opening reads', async () => {
+    expect(await syncProgramExerciseLoads(USER, PID, 0, 1, [], 'ui', 'x')).toEqual({ updated: 0 })
     expect(records).toHaveLength(0)
   })
 })

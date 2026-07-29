@@ -353,6 +353,22 @@ function anchorVerdict(
   }
 }
 
+/**
+ * The per-set anchor loads ONE session testifies to, independent of any stall
+ * verdict: the outperform rule's performed loads (every scorable set ≥
+ * prescribed × (1 + OUTPERFORM_FRACTION) with the rep floor met — all-or-
+ * nothing) merged with the null-load-prescription anchors. This is exactly the
+ * set-level evidence the engine's verdicts anchor on, exported so the plan-sync
+ * detector (lib/plan-sync.ts) and the derive engine can never disagree about
+ * what counts as outperformed — one implementation, one margin, one epsilon.
+ */
+export function sessionAnchorLoads(session: AutoregSession): Record<number, number> {
+  return {
+    ...nullLoadAnchors(session),
+    ...(outperformAnchors(scorablePairs(session))?.bySetNumber ?? {}),
+  }
+}
+
 /** Null-load anchors riding a NON-anchor verdict (stall/hold/fill): the
  *  loaded sets' verdict stands, but load-less sets with evidence still get
  *  their performed-load ghost — mixed evidence anchors only the sets that

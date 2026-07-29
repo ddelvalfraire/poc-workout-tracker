@@ -1,4 +1,18 @@
-import { and, asc, count, countDistinct, desc, eq, gt, inArray, lt, max, ne, sql } from 'drizzle-orm'
+import {
+  and,
+  asc,
+  count,
+  countDistinct,
+  desc,
+  eq,
+  gt,
+  inArray,
+  isNotNull,
+  lt,
+  max,
+  ne,
+  sql,
+} from 'drizzle-orm'
 import type { WorkoutInput, LoggingType } from '@/lib/workout-input'
 import type { ExerciseSource } from '@/lib/custom-exercise-input'
 import { db } from './index'
@@ -160,6 +174,28 @@ export function getWorkoutDetail(userId: string, id: string) {
 
 /** The full nested shape returned by getWorkoutDetail (workout + exercises + sets). */
 export type WorkoutDetail = NonNullable<Awaited<ReturnType<typeof getWorkoutDetail>>>
+
+/**
+ * The user's most recent COMPLETED workout for one program day (id only,
+ * newest by startedAt with id as the midnight-collision tiebreak — the
+ * autoreg-history ordering convention). The plan-sync guard: only this
+ * workout may offer to sync the plan to its performance, so a stale summary
+ * revisited later can never propose regressing the plan to old numbers.
+ */
+export function latestCompletedWorkoutForDay(userId: string, programDayId: string) {
+  return db
+    .select({ id: workouts.id })
+    .from(workouts)
+    .where(
+      and(
+        eq(workouts.userId, userId),
+        eq(workouts.programDayId, programDayId),
+        isNotNull(workouts.completedAt),
+      ),
+    )
+    .orderBy(desc(workouts.startedAt), desc(workouts.id))
+    .limit(1)
+}
 
 /** Creates a workout owned by the given user. */
 export function createWorkout(userId: string, name?: string) {
