@@ -2,13 +2,8 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { ChevronLeft } from "lucide-react";
 import { requireUserId } from "@/lib/auth";
-import {
-  getWorkoutDetail,
-  getExerciseHistoryBefore,
-  latestCompletedWorkoutForDay,
-} from "@/db/workouts";
-import { getNextProgramDay, getProgramDayDetail } from "@/db/programs";
-import { detectPlanSyncCandidates, type PlanSyncCandidate } from "@/lib/plan-sync";
+import { getWorkoutDetail, getExerciseHistoryBefore } from "@/db/workouts";
+import { getNextProgramDay } from "@/db/programs";
 import { getWeightUnit, getBodyweightKg } from "@/db/preferences";
 import { resolveFinishUpNext } from "@/lib/finish-up-next";
 import {
@@ -25,7 +20,6 @@ import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { WorkoutActions } from "./workout-actions";
 import { FinishUpNextCard } from "./finish-up-next-card";
-import { PlanSyncCard } from "./plan-sync-card";
 
 export default async function WorkoutDetailPage({
   params,
@@ -68,22 +62,6 @@ export default async function WorkoutDetailPage({
   ]);
   const upNext = resolveFinishUpNext(workout.programDayId, nextDay);
 
-  // Plan-sync offer (see lib/plan-sync.ts): renders whenever candidates exist
-  // — not only at the finish moment, a later visit still deserves the durable
-  // fix — but ONLY on the LATEST completed session of this program day. An
-  // older summary revisited must never offer to regress the plan to stale
-  // loads; the action re-checks the same guard at confirm time.
-  let planSync: PlanSyncCandidate[] = [];
-  if (workout.programDayId !== null) {
-    const [latest] = await latestCompletedWorkoutForDay(
-      userId,
-      workout.programDayId,
-    );
-    if (latest?.id === workout.id) {
-      const day = await getProgramDayDetail(userId, workout.programDayId);
-      if (day) planSync = detectPlanSyncCandidates(workout.exercises, day.exercises);
-    }
-  }
   // Keyed by the composite identity: a custom exercise's id can collide with
   // a wger id, and the two must never share a PR baseline.
   const priorByExercise = new Map<
@@ -234,13 +212,6 @@ export default async function WorkoutDetailPage({
             logs (upNext 'none') get just the celebration above. */}
         {justFinished && upNext.kind !== "none" && (
           <FinishUpNextCard state={upNext} />
-        )}
-
-        {/* "Did 120 vs 80 planned" made durable: offer to write the performed
-            loads into the plan itself. Confirm-only — the button calls the
-            server action, which recomputes everything. */}
-        {planSync.length > 0 && (
-          <PlanSyncCard workoutId={workout.id} unit={unit} candidates={planSync} />
         )}
 
         <div className="mt-4 space-y-3">
