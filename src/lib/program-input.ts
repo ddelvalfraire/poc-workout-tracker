@@ -307,6 +307,11 @@ export const programInputSchema = z
     // upsert omits the field. saveProgram defaults omitted-on-create to ON;
     // updateProgram preserves the stored value when omitted.
     autoregulation: z.boolean().optional(),
+    // Performance→plan auto-sync switch (programs.planSync). Same preserve-on-
+    // omit discipline as autoregulation above: no .default(true), or an upsert
+    // that omits the field would flip a stored OFF back ON. saveProgram
+    // defaults omitted-on-create to ON; updateProgram preserves when omitted.
+    planSync: z.boolean().optional(),
     notes: z.string().max(2000).nullable().optional(),
     // Article metadata (PRD §3) — presentation only, all optional; blank
     // strings collapse to null so "cleared in a form" and "absent" persist

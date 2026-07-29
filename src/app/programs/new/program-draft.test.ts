@@ -44,6 +44,7 @@ const NESTED: ProgramDraft = {
   mesocycleWeeks: '6',
   deloadWeek: '6',
   autoregulation: true,
+  planSync: true,
   status: 'draft',
   notes: null,
   description: null,
@@ -174,6 +175,16 @@ describe('stored program draft (localStorage persistence)', () => {
     expect(next.autoregulation).toBe(false)
     expect(next.name).toBe(NESTED.name)
     expect(NESTED.autoregulation).toBe(true) // input untouched
+  })
+
+  it('SET_PLAN_SYNC flips the switch without touching other meta', () => {
+    // Act
+    const next = programDraftReducer(NESTED, { type: 'SET_PLAN_SYNC', value: false })
+
+    // Assert
+    expect(next.planSync).toBe(false)
+    expect(next.autoregulation).toBe(NESTED.autoregulation)
+    expect(NESTED.planSync).toBe(true) // input untouched
   })
 
   it('round-trips a draft through build → parse', () => {
@@ -338,6 +349,7 @@ describe('draftToProgramInput', () => {
       mesocycleWeeks: '',
       deloadWeek: '',
       autoregulation: true,
+      planSync: true,
       status: 'draft',
       notes: null,
       description: null,
@@ -489,6 +501,7 @@ describe('detailToProgramDraft', () => {
     status: 'active',
     authorActor: 'coach',
     autoregulation: true,
+    planSync: false,
     mesocycleWeeks: 6,
     deloadWeek: 6,
     notes: 'agent notes',
@@ -553,6 +566,9 @@ describe('detailToProgramDraft', () => {
       deloadWeek: '6',
       status: 'active',
       notes: 'agent notes',
+      // A stored OFF must seed the editor OFF — not the emptyProgramDraft
+      // default — or saving the edit would flip the switch back ON.
+      planSync: false,
     })
 
     // Article metadata is pass-through: a UI edit is a full replace, so the
@@ -604,8 +620,14 @@ describe('detailToProgramDraft', () => {
     // Act — the exact path the edit page takes: detail → draft → server payload
     const input = draftToProgramInput(detailToProgramDraft(DETAIL))
 
-    // Assert — status, progression, and targets all intact
-    expect(input).toMatchObject({ name: 'PPL', status: 'active', mesocycleWeeks: 6, deloadWeek: 6 })
+    // Assert — status, progression, targets, and the plan-sync opt-out all intact
+    expect(input).toMatchObject({
+      name: 'PPL',
+      status: 'active',
+      mesocycleWeeks: 6,
+      deloadWeek: 6,
+      planSync: false,
+    })
     expect(input.days[0].exercises[0].progression).toEqual({ scheme: 'linear', incrementKg: 2.5 })
     expect(input.days[0].exercises[0].sets[0]).toMatchObject({
       repMin: 5,

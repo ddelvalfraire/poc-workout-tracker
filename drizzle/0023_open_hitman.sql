@@ -1,0 +1,1 @@
+ALTER TABLE "programs" ADD COLUMN "plan_sync" boolean DEFAULT true NOT NULL;
