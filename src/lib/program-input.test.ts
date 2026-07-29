@@ -90,6 +90,22 @@ describe('parseProgramInput', () => {
     expect('autoregulation' in result).toBe(false)
   })
 
+  it('round-trips an explicit planSync opt-out', () => {
+    // Act
+    const result = parseProgramInput({ ...VALID, planSync: false })
+
+    // Assert
+    expect(result.planSync).toBe(false)
+  })
+
+  it('keeps an omitted planSync genuinely absent (no materialized default)', () => {
+    // Same bug class as autoregulation above: a parse-time default would let a
+    // sync-omitting upsert flip a stored OFF back ON.
+    const result = parseProgramInput(VALID)
+    expect(result.planSync).toBeUndefined()
+    expect('planSync' in result).toBe(false)
+  })
+
   it('keeps provided status and mesocycleWeeks', () => {
     // Act
     const result = parseProgramInput({ ...VALID, status: 'active', mesocycleWeeks: 6 })

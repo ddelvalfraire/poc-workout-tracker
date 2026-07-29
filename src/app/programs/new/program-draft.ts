@@ -84,6 +84,8 @@ export interface ProgramDraft {
   deloadWeek: string
   /** Program-level auto-regulation switch (see programs.autoregulation). */
   autoregulation: boolean
+  /** Performance→plan auto-sync switch (see programs.planSync). */
+  planSync: boolean
   days: DraftProgramDay[]
   // Pass-through fields (lifecycle/notes aren't edited by the builder).
   status: ProgramInput['status']
@@ -100,6 +102,7 @@ export interface ProgramDraft {
 export type ProgramDraftAction =
   | { type: 'SET_META'; field: 'name' | 'mesocycleWeeks' | 'deloadWeek'; value: string }
   | { type: 'SET_AUTOREGULATION'; value: boolean }
+  | { type: 'SET_PLAN_SYNC'; value: boolean }
   | { type: 'ADD_DAY'; day: DraftProgramDay }
   | { type: 'REMOVE_DAY'; index: number }
   | { type: 'RENAME_DAY'; index: number; name: string }
@@ -123,6 +126,7 @@ export const emptyProgramDraft: ProgramDraft = {
   mesocycleWeeks: '',
   deloadWeek: '',
   autoregulation: true,
+  planSync: true,
   days: [],
   status: 'draft',
   notes: null,
@@ -204,6 +208,9 @@ export function programDraftReducer(
 
     case 'SET_AUTOREGULATION':
       return { ...state, autoregulation: action.value }
+
+    case 'SET_PLAN_SYNC':
+      return { ...state, planSync: action.value }
 
     case 'ADD_DAY':
       return { ...state, days: [...state.days, action.day] }
@@ -366,6 +373,7 @@ function isProgramDraft(v: unknown): v is ProgramDraft {
     isString(d.mesocycleWeeks) &&
     isString(d.deloadWeek) &&
     typeof d.autoregulation === 'boolean' &&
+    typeof d.planSync === 'boolean' &&
     isString(d.status) &&
     isStringOrNull(d.notes) &&
     Array.isArray(d.days) &&
@@ -493,6 +501,7 @@ export function draftToProgramInput(
     mesocycleWeeks: toInt(draft.mesocycleWeeks) ?? 1,
     deloadWeek: toInt(draft.deloadWeek),
     autoregulation: draft.autoregulation,
+    planSync: draft.planSync,
     notes: draft.notes,
     description: draft.description,
     icon: draft.icon,
@@ -526,6 +535,7 @@ export function detailToProgramDraft(
     mesocycleWeeks: detail.mesocycleWeeks.toString(),
     deloadWeek: detail.deloadWeek?.toString() ?? '',
     autoregulation: detail.autoregulation,
+    planSync: detail.planSync,
     status: toStatus(detail.status),
     notes: detail.notes,
     description: detail.description,

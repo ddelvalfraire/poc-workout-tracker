@@ -33,6 +33,10 @@ export async function autoSyncPlanToPerformance(userId: string, workoutId: strin
     if (latest?.id !== workout.id) return
     const day = await getProgramDayDetail(userId, workout.programDayId)
     if (!day) return
+    // Per-program opt-out (programs.planSync, default ON): deliberate-
+    // percentage programs (5/3/1-style waves) prescribe less than the lifter
+    // performs BY DESIGN — the flag rides the same day read, no extra query.
+    if (!day.program.planSync) return
 
     const candidates = detectPlanSyncCandidates(workout.exercises, day.exercises)
     if (candidates.length === 0) return

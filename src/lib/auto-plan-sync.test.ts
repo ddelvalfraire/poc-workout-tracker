@@ -55,7 +55,7 @@ const WORKOUT = {
 
 const DAY = {
   position: 2,
-  program: { id: 'pid-1' },
+  program: { id: 'pid-1', planSync: true },
   exercises: [
     {
       position: 0,
@@ -157,6 +157,19 @@ describe('autoSyncPlanToPerformance', () => {
 
     expect(mockedGetDayDetail).not.toHaveBeenCalled()
     expect(mockedSyncLoads).not.toHaveBeenCalled()
+  })
+
+  it('no-ops when the program opted out (planSync false) — deliberate-percentage plans stay put', async () => {
+    arrangeHappyPath()
+    mockedGetDayDetail.mockResolvedValue({
+      ...(DAY as object),
+      program: { id: 'pid-1', planSync: false },
+    } as typeof DAY)
+
+    await autoSyncPlanToPerformance(USER, ID)
+
+    expect(mockedSyncLoads).not.toHaveBeenCalled()
+    expect(mockedRevalidate).not.toHaveBeenCalled()
   })
 
   it('no-ops when the program day no longer exists', async () => {

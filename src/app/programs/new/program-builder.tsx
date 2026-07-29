@@ -208,6 +208,27 @@ export function ProgramBuilder({
           </span>
         </label>
 
+        {/* Performance→plan auto-sync switch: same native-checkbox row as
+            auto-regulation above. Off is for deliberate-percentage programs
+            (5/3/1-style waves) where lifting past the listed load is by
+            design, not a stale plan. */}
+        <label className="flex items-start gap-2.5 px-1">
+          <input
+            type="checkbox"
+            checked={draft.planSync}
+            onChange={(e) => dispatch({ type: 'SET_PLAN_SYNC', value: e.target.checked })}
+            className="mt-0.5 size-4 shrink-0 accent-primary"
+          />
+          <span className="text-sm">
+            Sync plan to performance
+            <span className="mt-0.5 block text-muted-foreground">
+              When you finish a session lifting more than the plan calls for, the plan adopts your
+              loads (logged in the change log). Turn off for percentage-wave programs where lifting
+              past the listed number is intentional.
+            </span>
+          </span>
+        </label>
+
         {draft.days.length === 0 && (
           <p className="px-1 py-6 text-center text-sm text-muted-foreground">
             Add a training day to start building your program.

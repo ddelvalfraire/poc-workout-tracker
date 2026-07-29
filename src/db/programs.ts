@@ -245,6 +245,9 @@ export async function saveProgram(
         // Omitted on create = ON: propose-don't-impose delivery is the
         // softener, not an opt-in gate.
         autoregulation: input.autoregulation ?? true,
+        // Same omitted-on-create = ON rule: default-on keeps fresh users'
+        // plans tracking what they actually lift.
+        planSync: input.planSync ?? true,
         notes: input.notes ?? null,
         // Article metadata rides create like notes: omitted = null.
         // authorActor mirrors the drafting policy above; a wger import is
@@ -404,6 +407,7 @@ export async function updateProgram(
         // Omitted on update = PRESERVE the stored switch: an upsert that
         // doesn't mention the field must never flip a user's OFF back ON.
         ...(input.autoregulation !== undefined ? { autoregulation: input.autoregulation } : {}),
+        ...(input.planSync !== undefined ? { planSync: input.planSync } : {}),
         notes: input.notes ?? null,
         description: input.description ?? null,
         icon: input.icon ?? null,
@@ -645,6 +649,7 @@ export async function cloneProgram(
         mesocycleWeeks: source.mesocycleWeeks,
         deloadWeek: source.deloadWeek,
         autoregulation: source.autoregulation,
+        planSync: source.planSync,
         notes: source.notes,
         // Article metadata travels with the block; authorActor deliberately
         // does NOT — the owner initiated the clone, so the copy is
@@ -763,7 +768,9 @@ export async function getProgramDayDetail(userId: string, programDayId: string) 
       program: {
         // status rides along so instantiation can refuse proposals — a
         // 'proposed' plan instantiates nothing until the owner adopts it.
-        columns: { id: true, userId: true, status: true, mesocycleWeeks: true, deloadWeek: true, autoregulation: true },
+        // planSync rides along for the post-finish auto-sync gate
+        // (lib/auto-plan-sync) — same read, no extra round-trip.
+        columns: { id: true, userId: true, status: true, mesocycleWeeks: true, deloadWeek: true, autoregulation: true, planSync: true },
       },
       exercises: {
         orderBy: (e) => [asc(e.position)],

@@ -34,6 +34,12 @@ describe('schema', () => {
     expect(cols.autoregulation.hasDefault).toBe(true)
   })
 
+  it('makes the plan-sync switch additive on programs (non-null, default true)', () => {
+    const cols = getTableColumns(programs)
+    expect(cols.planSync.notNull).toBe(true)
+    expect(cols.planSync.hasDefault).toBe(true)
+  })
+
   it('defines the four program tables with snake_case names', () => {
     expect(getTableName(programs)).toBe('programs')
     expect(getTableName(programDays)).toBe('program_days')

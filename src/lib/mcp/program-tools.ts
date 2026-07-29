@@ -82,6 +82,9 @@ const rawProgramSchema = z.object({
   deloadWeek: z.number().int().nullable().optional(),
   // Program-level auto-regulation switch; omitted → the schema default (on).
   autoregulation: z.boolean().optional(),
+  // Performance→plan auto-sync switch; omitted → default on at create,
+  // PRESERVED on replace (no .default — see lib/program-input.ts).
+  planSync: z.boolean().optional(),
   notes: z.string().nullable().optional(),
   // Article metadata (PRD §3) — permissive here like every other field; the
   // real validation (trim, blank→null, caps, http(s) URL parse) is
@@ -127,6 +130,7 @@ function toKgProgram(raw: RawProgram, unit: WeightUnit): unknown {
     mesocycleWeeks: raw.mesocycleWeeks,
     deloadWeek: raw.deloadWeek,
     autoregulation: raw.autoregulation,
+    planSync: raw.planSync,
     notes: raw.notes,
     description: raw.description,
     icon: raw.icon,
@@ -215,6 +219,7 @@ export interface ProgramPayload {
     mesocycleWeeks: number
     deloadWeek: number | null
     autoregulation: boolean
+    planSync: boolean
     notes: string | null
     description: string | null
     icon: string | null
@@ -376,6 +381,7 @@ export function buildProgramPayload(
       mesocycleWeeks: program.mesocycleWeeks,
       deloadWeek: program.deloadWeek,
       autoregulation: program.autoregulation,
+      planSync: program.planSync,
       notes: program.notes,
       description: program.description,
       icon: program.icon,
@@ -420,7 +426,7 @@ export function registerProgramTools(server: McpServer): void {
     {
       title: 'Upsert Program',
       description:
-        "Creates a training program, or fully replaces one when `id` is given (coarse create/replace, not a partial edit). Exercise identity is the composite (source, wgerExerciseId); `source` defaults to 'wger', pass 'custom' for custom exercises. `supersetGroup` (same non-null value within a day) survives replace. Per-week set overrides survive replace for sets that keep the same day/exercise/setNumber position; overrides on removed slots are dropped. `suggestedLoad` is in the user's unit (or the `unit` arg) and stored as kg; `technique`/`progression` JSONB are in kg. When called by the in-app coach, the program is ALWAYS saved as a 'proposed' draft (whatever `status` says) that only the owner can adopt or decline, and a replace may target only the coach's own still-proposed drafts. Returns the programId and effective status. Errors if a given id isn't found or owned.",
+        "Creates a training program, or fully replaces one when `id` is given (coarse create/replace, not a partial edit). Exercise identity is the composite (source, wgerExerciseId); `source` defaults to 'wger', pass 'custom' for custom exercises. `supersetGroup` (same non-null value within a day) survives replace. Per-week set overrides survive replace for sets that keep the same day/exercise/setNumber position; overrides on removed slots are dropped. `suggestedLoad` is in the user's unit (or the `unit` arg) and stored as kg; `technique`/`progression` JSONB are in kg. When called by the in-app coach, the program is ALWAYS saved as a 'proposed' draft (whatever `status` says) that only the owner can adopt or decline, and a replace may target only the coach's own still-proposed drafts. `planSync` (default true) auto-updates the plan's suggested loads to what the lifter actually performed after each finished session; set false for deliberate-percentage programs (5/3/1-style waves). Omitting `planSync` or `autoregulation` on a replace PRESERVES the stored value. Returns the programId and effective status. Errors if a given id isn't found or owned.",
       inputSchema: {
         id: z.string().optional(),
         ...rawProgramSchema.shape,
@@ -436,6 +442,7 @@ export function registerProgramTools(server: McpServer): void {
         mesocycleWeeks,
         deloadWeek,
         autoregulation,
+        planSync,
         notes,
         description,
         icon,
@@ -467,6 +474,7 @@ export function registerProgramTools(server: McpServer): void {
             mesocycleWeeks,
             deloadWeek,
             autoregulation,
+            planSync,
             notes,
             description,
             icon,

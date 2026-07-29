@@ -584,6 +584,42 @@ describe('autoregulation toggle integrity', () => {
   })
 })
 
+describe('planSync toggle integrity', () => {
+  const MINIMAL = {
+    name: 'P',
+    days: [{ name: 'D', exercises: [{ wgerExerciseId: 1, name: 'X', sets: [{}] }] }],
+  }
+
+  it('saveProgram defaults an omitted toggle to ON at create', async () => {
+    // Act
+    await saveProgram(USER, parseProgramInput(MINIMAL), 'ui')
+
+    // Assert
+    expect(records[0].values).toMatchObject({ planSync: true })
+  })
+
+  it('updateProgram PRESERVES the stored toggle when the input omits it (omit ≠ ON)', async () => {
+    // Arrange — an upsert that never mentions planSync: a user's stored OFF
+    // (deliberate-percentage program) must survive the round trip.
+    const input = parseProgramInput(MINIMAL)
+
+    // Act
+    await updateProgram(USER, 'p1', input, 'mcp')
+
+    // Assert — the update payload does not touch the column at all
+    expect(updateSets).toHaveLength(1)
+    expect('planSync' in (updateSets[0] as Record<string, unknown>)).toBe(false)
+  })
+
+  it('updateProgram writes an explicit toggle through', async () => {
+    // Act
+    await updateProgram(USER, 'p1', parseProgramInput({ ...MINIMAL, planSync: false }), 'ui')
+
+    // Assert
+    expect(updateSets[0]).toMatchObject({ planSync: false })
+  })
+})
+
 describe('saveProgram muscle tagging (Phase 5)', () => {
   const INPUT = parseProgramInput({
     name: 'PPL',
