@@ -54,6 +54,7 @@ export const COACH_APPROVAL_TOOLS = [
   'set_program_set_override',
   'remove_program_set_override',
   'set_program_autoregulation',
+  'set_program_plan_sync',
 ] as const
 
 /**

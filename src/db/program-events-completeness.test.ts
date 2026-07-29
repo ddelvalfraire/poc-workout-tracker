@@ -122,6 +122,10 @@ const INVOCATIONS: Record<string, { selects: unknown[][]; run: () => Promise<unk
     selects: [OWNED_PROGRAM],
     run: () => patches.setProgramAutoregulation(USER, PID, false, 'mcp'),
   },
+  setProgramPlanSync: {
+    selects: [OWNED_PROGRAM],
+    run: () => patches.setProgramPlanSync(USER, PID, false, 'mcp'),
+  },
   addProgramDay: {
     selects: [OWNED_PROGRAM, [{ value: 0 }]],
     run: () => patches.addProgramDay(USER, PID, { name: 'Pull' }, 'mcp'),

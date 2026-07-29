@@ -22,6 +22,7 @@ vi.mock('@/db/program-patches', () => {
     setProgramSetOverride: vi.fn(),
     removeProgramSetOverride: vi.fn(),
     setProgramAutoregulation: vi.fn(),
+    setProgramPlanSync: vi.fn(),
   }
 })
 vi.mock('@/db/preferences', () => ({ getWeightUnit: vi.fn() }))
@@ -44,6 +45,7 @@ import {
   setProgramSetOverride,
   removeProgramSetOverride,
   setProgramAutoregulation,
+  setProgramPlanSync,
 } from '@/db/program-patches'
 import { getWeightUnit } from '@/db/preferences'
 import { displayToKg } from '@/lib/units'
@@ -61,6 +63,7 @@ const mockedUpdateSet = vi.mocked(updateProgramSet)
 const mockedRemoveSet = vi.mocked(removeProgramSet)
 const mockedMoveSet = vi.mocked(moveProgramSet)
 const mockedSetAutoreg = vi.mocked(setProgramAutoregulation)
+const mockedSetPlanSync = vi.mocked(setProgramPlanSync)
 const mockedSetOverride = vi.mocked(setProgramSetOverride)
 const mockedRemoveOverride = vi.mocked(removeProgramSetOverride)
 const mockedGetUnit = vi.mocked(getWeightUnit)
@@ -104,7 +107,7 @@ describe('registerProgramPatchTools', () => {
     else process.env.MCP_DEV_USER_ID = original
   })
 
-  it('registers exactly the fifteen program patch tools', () => {
+  it('registers exactly the sixteen program patch tools', () => {
     expect([...setup().keys()].sort()).toEqual([
       'add_program_day',
       'add_program_exercise',
@@ -117,6 +120,7 @@ describe('registerProgramPatchTools', () => {
       'remove_program_set',
       'remove_program_set_override',
       'set_program_autoregulation',
+      'set_program_plan_sync',
       'set_program_set_override',
       'update_program_day',
       'update_program_exercise',
@@ -152,6 +156,42 @@ describe('registerProgramPatchTools', () => {
 
       // Act
       const result = await tools.get('set_program_autoregulation')!({
+        programId: PID,
+        enabled: true,
+      })
+
+      // Assert
+      expect(result.isError).toBe(true)
+      expect(result.content[0]?.text).toMatch(/not found/)
+    })
+
+    it('set_program_plan_sync flips the switch and echoes it', async () => {
+      // Arrange
+      const tools = setup()
+      mockedSetPlanSync.mockResolvedValue({ id: PID })
+
+      // Act
+      const result = await tools.get('set_program_plan_sync')!({
+        programId: PID,
+        enabled: false,
+      })
+
+      // Assert
+      expect(mockedSetPlanSync).toHaveBeenCalledWith('user_env', PID, false, 'mcp')
+      expect(payload(result)).toEqual({
+        userId: 'user_env',
+        programId: PID,
+        planSync: false,
+      })
+    })
+
+    it('set_program_plan_sync surfaces not-owned as isError /not found/', async () => {
+      // Arrange
+      const tools = setup()
+      mockedSetPlanSync.mockResolvedValue(null)
+
+      // Act
+      const result = await tools.get('set_program_plan_sync')!({
         programId: PID,
         enabled: true,
       })

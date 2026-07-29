@@ -233,6 +233,39 @@ export async function setProgramAutoregulation(
   })
 }
 
+/**
+ * Flips the program-level plan-sync switch (see programs.planSync: false stops
+ * finished sessions from writing their performed loads back into the plan —
+ * the deliberate-percentage escape). Same narrow-op rationale, ownership gate,
+ * and event discipline as setProgramAutoregulation above — including the
+ * sibling's unconditional write (no unchanged-value short-circuit). Returns
+ * null when the program isn't owned. Reads, in order: owned-program.
+ */
+export async function setProgramPlanSync(
+  userId: string,
+  programId: string,
+  enabled: boolean,
+  actor: ProgramEventActor,
+): Promise<{ id: string } | null> {
+  return db.transaction(async (tx) => {
+    const owned = await findOwnedProgramId(tx, userId, programId)
+    if (!owned) return null
+    await tx
+      .update(programs)
+      .set({ planSync: enabled, updatedAt: new Date() })
+      .where(eq(programs.id, programId))
+    await recordProgramEvent(tx, {
+      programId,
+      userId,
+      actor,
+      action: 'set_program_plan_sync',
+      summary: `Plan sync ${enabled ? 'on' : 'off'}`,
+      payload: { after: { planSync: enabled } },
+    })
+    return { id: programId }
+  })
+}
+
 // ---------------------------------------------------------------------------
 // Day ops
 // ---------------------------------------------------------------------------
