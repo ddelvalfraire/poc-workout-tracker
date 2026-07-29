@@ -9,13 +9,11 @@ import {
   deleteWorkout,
   getLastPerformance,
   getWorkoutDetail,
-  latestCompletedWorkoutForDay,
   type LastPerformance,
 } from '@/db/workouts'
 import { getProgramDayDetail, deriveDayPrescription } from '@/db/programs'
-import { updateProgramExercise, syncProgramExerciseLoads } from '@/db/program-patches'
-import { getWeightUnit } from '@/db/preferences'
-import { detectPlanSyncCandidates, planSyncEventSummary } from '@/lib/plan-sync'
+import { updateProgramExercise } from '@/db/program-patches'
+import { autoSyncPlanToPerformance } from '@/lib/auto-plan-sync'
 import { substituteSlot } from '@/lib/substitute-slot'
 import type { PlanSetTarget } from '@/lib/format'
 import {
@@ -41,6 +39,10 @@ export async function saveWorkoutAction(input: unknown): Promise<{ id: string }>
   const result = await saveWorkout(userId, parsed)
   // The saved workout supersedes the /workout/new draft on every device.
   await deleteWorkoutDraft(userId, draftKey())
+  // Quick logs carry no program provenance today, so this is a guaranteed
+  // no-op — kept symmetric with updateWorkoutAction so a future provenance-
+  // carrying save path can't silently miss the sync. Fails soft inside.
+  await autoSyncPlanToPerformance(userId, result.id)
   revalidatePath('/') // keep the (future) home history list fresh
   return result
 }
@@ -57,6 +59,12 @@ export async function updateWorkoutAction(id: string, input: unknown): Promise<{
   if (!result) throw new Error('workout not found')
   // The saved edit supersedes this workout's draft on every device.
   await deleteWorkoutDraft(userId, draftKey(id))
+  // Live program finishes land here (updateWorkout stamps completedAt), so the
+  // plan silently adopts outperformed loads — the program change-log is the
+  // audit surface. Edits to an OLDER workout no-op inside the helper (its
+  // latest-for-day guard); a thrown sync never fails the save (fails soft
+  // inside the helper).
+  await autoSyncPlanToPerformance(userId, id)
   revalidatePath('/')
   revalidatePath(`/workout/${id}`)
   return result
@@ -285,63 +293,6 @@ export async function rememberSwapAction(
   if (!updated) throw new Error('could not update the program')
   revalidatePath('/programs')
   revalidatePath(`/programs/${day.program.id}`)
-}
-
-/**
- * Applies the confirmed plan-sync: the plan's suggested loads become the
- * loads this workout actually performed (see lib/plan-sync.ts for the
- * detection rules and the interplay with the autoreg anchor). Candidates are
- * recomputed HERE from the stored workout and the CURRENT plan — the client's
- * card is display-only and its numbers are never trusted.
- *
- * Guards, in order: auth → ownership (getWorkoutDetail is user-scoped) →
- * program provenance → completed → LATEST completed session of the day (an
- * older summary revisited later must never regress the plan to stale loads).
- * Guard failures throw — the card only renders when they held moments ago,
- * so a failure is surfaced rather than swallowed. Idempotent end to end:
- * already-synced values produce no candidates, no writes, and no events.
- */
-export async function syncPlanToPerformanceAction(
-  workoutId: unknown,
-): Promise<{ syncedExercises: number }> {
-  const userId = await requireUserId()
-  if (typeof workoutId !== 'string' || workoutId.length === 0) {
-    throw new Error('invalid workout id')
-  }
-  const workout = await getWorkoutDetail(userId, workoutId)
-  if (!workout) throw new Error('workout not found')
-  if (!workout.programDayId) throw new Error('workout has no program')
-  if (workout.completedAt === null) throw new Error('workout is not finished')
-  const [latest] = await latestCompletedWorkoutForDay(userId, workout.programDayId)
-  if (latest?.id !== workout.id) throw new Error('a newer session exists for this day')
-  const day = await getProgramDayDetail(userId, workout.programDayId)
-  if (!day) throw new Error('program day not found')
-
-  const candidates = detectPlanSyncCandidates(workout.exercises, day.exercises)
-  if (candidates.length === 0) return { syncedExercises: 0 }
-
-  const unit = await getWeightUnit(userId)
-  let syncedExercises = 0
-  for (const candidate of candidates) {
-    // One narrow patch per exercise: per-set load writes + ONE change-log
-    // event, inside the op's own transaction. A slot that vanished between
-    // render and confirm (concurrent edit) returns null/0 and is skipped —
-    // the remaining exercises still sync.
-    const result = await syncProgramExerciseLoads(
-      userId,
-      day.program.id,
-      day.position,
-      candidate.exercisePosition,
-      candidate.changes.map((c) => ({ setNumber: c.setNumber, suggestedLoadKg: c.proposedLoadKg })),
-      'ui',
-      planSyncEventSummary(candidate, unit),
-    )
-    if (result !== null && result.updated > 0) syncedExercises += 1
-  }
-  revalidatePath('/programs')
-  revalidatePath(`/programs/${day.program.id}`)
-  revalidatePath(`/workout/${workout.id}`)
-  return { syncedExercises }
 }
 
 // ---------------------------------------------------------------------------
