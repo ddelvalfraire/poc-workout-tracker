@@ -24,11 +24,21 @@ import type { DerivedSet } from './progression'
  *   session failing to ADD total reps vs the previous session at the same
  *   prescribed load (NOT missing repMin — under a range, low reps early in
  *   the climb are the model working).
- * Explicitly out (future work): percent-1rm is NOT self-correcting (its
- * trainingMax is static); amrap-cycle bumps its trainingMax unconditionally
- * per completed wave; rpe-target derives from e1RM and genuinely
- * self-corrects. Overrides always outrank autoreg (applied later in the
- * precedence chain, same as scheme loads).
+ * Both modes additionally run the OUTPERFORM rule (`'anchor'`): when the
+ * latest session was performed meaningfully ABOVE its prescribed loads on
+ * every scorable working set (floor met), the next derive anchors each set at
+ * its performed load — the program follows the lifter up, not just down.
+ * Load-less prescriptions (`autoregulateAnchor` for rpe-target etc., and
+ * null-load sets inside either mode) anchor at the performed load with no
+ * margin: any completed working load is more signal than no prescription.
+ *
+ * Explicitly out (future work): percent-1rm's stall behavior is NOT
+ * self-correcting (its trainingMax is static); amrap-cycle bumps its
+ * trainingMax unconditionally per completed wave; rpe-target derives from
+ * e1RM and genuinely self-corrects once an e1RM exists (which is why its
+ * LOADED sets are left to the scheme — only its load-less sets anchor).
+ * Overrides always outrank autoreg (applied later in the precedence chain,
+ * same as scheme loads).
  */
 
 export interface AutoregPrescribedSet {
@@ -58,10 +68,11 @@ export interface AutoregSession {
 }
 
 export interface AutoregAdjustment {
-  action: 'repeat' | 'decrement' | 'step'
-  /** Relative to the STALLED evidence load (`evidence.loadKg`): 0 (repeat),
-   *  −backoffKg (escalated back-off), or +stepKg (range filled — the ONLY
-   *  positive delta) — see `applyAutoregToSets`. */
+  action: 'repeat' | 'decrement' | 'step' | 'anchor'
+  /** Relative to the evidence load (`evidence.loadKg`): 0 (repeat),
+   *  −backoffKg (escalated back-off), +stepKg (range filled), or the
+   *  heaviest set's performed-minus-prescribed margin (anchor; per-set
+   *  deltas live in `anchorLoadBySetNumber`) — see `applyAutoregToSets`. */
   deltaKg: number
   /** Three consecutive stalls: worth pulling the deload forward. */
   suggestEarlyDeload: boolean
@@ -71,6 +82,22 @@ export interface AutoregAdjustment {
    *  volume set failed), and backoff/amrap volume work is frozen so it can't
    *  climb past a frozen top set. */
   stalledLoadBySetNumber: Readonly<Record<number, number>>
+  /** Performed-load anchors per setNumber from the LATEST session: outperform
+   *  evidence (every scorable set ≥ prescribed × 1.05, floor met) and/or
+   *  null-load-prescription sets with a completed working load. Anchored sets
+   *  are prescribed EXACTLY this load next derive; on a `step` verdict the
+   *  step composes ON TOP of an anchored set's performed load (an outperformed
+   *  fill steps from what the lifter actually lifted, not the out-run plan).
+   *  Sets absent here anchor nothing — silence over corruption, per set. */
+  anchorLoadBySetNumber?: Readonly<Record<number, number>>
+  /** Reason-line evidence for anchors, present only when an outperform anchor
+   *  rides the verdict (`fromLoadKg` = heaviest set's prescribed load) or the
+   *  verdict IS a pure anchor (`fromLoadKg` null = the heaviest anchored set
+   *  had no prescribed load at all). */
+  anchor?: {
+    fromLoadKg: number | null
+    toLoadKg: number
+  }
   /** Structured evidence for the reason line — formatting is display-side.
    *  Fixed mode: `repFloor`/`loadKg` name the HEAVIEST missed set. Range
    *  mode: `loadKg` is the heaviest scorable prescribed load, `repFloor` the
@@ -98,6 +125,12 @@ export interface AutoregAdjustment {
  *  0.011 excluded ~17% of legitimate at-load attempts) while micro-loading
  *  noise still can't hide a stall. */
 const LOAD_EPSILON_KG = 0.05
+
+/** Outperform margin: performed must beat prescribed by ≥5% on EVERY scorable
+ *  set before the program follows the lifter up — micro-loading past the plan
+ *  is the scheme's job, a deliberate jump (120 done vs 80 planned) is not.
+ *  The comparison keeps the same epsilon discipline as at-load pairing. */
+const OUTPERFORM_FRACTION = 0.05
 
 /** Consecutive stalled sessions required before the load is decremented
  *  (StrongLifts' cited rule: deload after the THIRD failed session). */
@@ -162,6 +195,8 @@ interface ScorablePair {
   loadKg: number
   repMin: number | null
   reps: number
+  /** Performed load — the outperform rule's anchor candidate. */
+  weightKg: number
 }
 
 function scorablePairs(session: AutoregSession): ScorablePair[] {
@@ -177,9 +212,64 @@ function scorablePairs(session: AutoregSession): ScorablePair[] {
       loadKg: plan.loadKg,
       repMin: plan.repMin,
       reps: done.reps,
+      weightKg: done.weightKg,
     })
   }
   return pairs
+}
+
+/** Performed-load anchors for the session's NULL-load prescriptions: a
+ *  prescribed working set whose snapshot carries no load, paired (by
+ *  setNumber) with a completed working actual holding reps + a positive
+ *  weight, anchors at that weight. Same evidence-quality rules as
+ *  `scorablePairs` minus the load comparison (there is nothing to compare —
+ *  which is exactly why the performed load becomes the prescription).
+ *  A null `repMin` alongside the null load means NO snapshot at all
+ *  (pre-migration history, ad-hoc adds) rather than a snapshot that says
+ *  "no load" — cold-start silence, never an anchor from a missing fact. */
+function nullLoadAnchors(session: AutoregSession): Record<number, number> {
+  const actualByNumber = bySetNumber(session.actual.filter((set) => isWorking(set.setType)))
+  const anchors: Record<number, number> = {}
+  for (const plan of bySetNumber(session.prescribed.filter((s) => isWorking(s.setType))).values()) {
+    if (plan.loadKg !== null || plan.repMin === null) continue
+    const done = actualByNumber.get(plan.setNumber)
+    if (!done?.completed || done.reps === null || done.weightKg === null) continue
+    if (done.weightKg <= 0) continue
+    anchors[plan.setNumber] = done.weightKg
+  }
+  return anchors
+}
+
+interface OutperformEvidence {
+  /** Performed load per outperforming setNumber. */
+  bySetNumber: Record<number, number>
+  /** Heaviest-set (by prescribed load) evidence, per the engine's convention. */
+  fromLoadKg: number
+  toLoadKg: number
+  repFloor: number
+}
+
+/** The outperform verdict for one session's scorable pairs: EVERY pair must
+ *  carry a positive prescribed load, a known rep floor the lifter met, and a
+ *  performed load ≥ prescribed × 1.05 (epsilon-tolerant). All-or-nothing by
+ *  design — one set at plan (or one ambiguous snapshot) means the session
+ *  does not testify to a deliberate jump, and outperforming load while
+ *  missing reps is NOT an outperform. Null = no anchor. */
+function outperformAnchors(pairs: readonly ScorablePair[]): OutperformEvidence | null {
+  if (pairs.length === 0) return null
+  const bySetNumber: Record<number, number> = {}
+  for (const pair of pairs) {
+    if (pair.loadKg <= 0 || pair.repMin === null || pair.reps < pair.repMin) return null
+    if (pair.weightKg < pair.loadKg * (1 + OUTPERFORM_FRACTION) - LOAD_EPSILON_KG) return null
+    bySetNumber[pair.setNumber] = pair.weightKg
+  }
+  const heaviest = pairs.reduce((a, b) => (b.loadKg > a.loadKg ? b : a))
+  return {
+    bySetNumber,
+    fromLoadKg: heaviest.loadKg,
+    toLoadKg: heaviest.weightKg,
+    repFloor: heaviest.repMin ?? 0,
+  }
 }
 
 /**
@@ -229,14 +319,62 @@ function stalledLoads(session: AutoregSession): Record<number, number> {
   return loads
 }
 
+/** Builds the `'anchor'` verdict from outperform and/or null-load evidence.
+ *  Null when nothing anchored. `scorableSets` is the loaded-pair count (the
+ *  anchored-set count is `anchorLoadBySetNumber`'s size); `evidence.loadKg`
+ *  names the heaviest PRESCRIBED load when one exists, else the heaviest
+ *  anchored performed load; anchors never suggest the early deload. */
+function anchorVerdict(
+  latest: AutoregSession,
+  outperform: OutperformEvidence | null,
+  nullAnchors: Record<number, number>,
+  scorableSets: number,
+  range?: AutoregAdjustment['range'],
+): AutoregAdjustment | null {
+  const bySetNumber = { ...nullAnchors, ...(outperform?.bySetNumber ?? {}) }
+  if (Object.keys(bySetNumber).length === 0) return null
+  const anchor = outperform
+    ? { fromLoadKg: outperform.fromLoadKg, toLoadKg: outperform.toLoadKg }
+    : { fromLoadKg: null, toLoadKg: Math.max(...Object.values(nullAnchors)) }
+  return {
+    action: 'anchor',
+    deltaKg: anchor.fromLoadKg === null ? 0 : anchor.toLoadKg - anchor.fromLoadKg,
+    suggestEarlyDeload: false,
+    stalledLoadBySetNumber: stalledLoads(latest),
+    anchorLoadBySetNumber: bySetNumber,
+    anchor,
+    evidence: {
+      missedSets: 0,
+      scorableSets,
+      repFloor: outperform?.repFloor ?? 0,
+      loadKg: anchor.fromLoadKg ?? anchor.toLoadKg,
+    },
+    ...(range ? { range } : {}),
+  }
+}
+
+/** Null-load anchors riding a NON-anchor verdict (stall/hold/fill): the
+ *  loaded sets' verdict stands, but load-less sets with evidence still get
+ *  their performed-load ghost — mixed evidence anchors only the sets that
+ *  testified. Spread into the adjustment; empty evidence adds nothing. */
+function anchorRider(
+  nullAnchors: Record<number, number>,
+): Pick<AutoregAdjustment, 'anchorLoadBySetNumber'> | Record<string, never> {
+  return Object.keys(nullAnchors).length > 0 ? { anchorLoadBySetNumber: nullAnchors } : {}
+}
+
 /**
  * The Layer 1 verdict for one exercise from its prior sessions. HARD
  * PRECONDITION: `sessions` is newest-first (callers order by startedAt desc,
  * id desc); a mis-ordered array would count the wrong streak. Only the first
- * `AUTOREG_SESSION_WINDOW` sessions are consulted (extras ignored). One or
- * two consecutive stalls → repeat the load; three consecutive → back off
- * ~10% and suggest pulling the deload forward. Null = no adjustment (schemes
- * proceed untouched).
+ * `AUTOREG_SESSION_WINDOW` sessions are consulted (extras ignored). Verdict
+ * order: OUTPERFORM (every scorable set ≥ prescribed × 1.05 at/above the
+ * floor → anchor at the performed loads; mutually exclusive with a stall by
+ * construction, but the precedence is stated, not assumed) → stall rules
+ * (one or two consecutive stalls repeat the load; three back off ~10% and
+ * suggest pulling the deload forward). Null-load sets with completed working
+ * loads anchor regardless of the loaded verdict. Null = no adjustment
+ * (schemes proceed untouched).
  */
 export function autoregulate(
   incrementKg: number,
@@ -245,8 +383,12 @@ export function autoregulate(
   const window = sessions.slice(0, AUTOREG_SESSION_WINDOW)
   const latest = window[0]
   if (!latest) return null
+  const nullAnchors = nullLoadAnchors(latest)
+  const pairs = scorablePairs(latest)
+  const outperform = outperformAnchors(pairs)
+  if (outperform) return anchorVerdict(latest, outperform, nullAnchors, pairs.length)
   const latestStall = sessionStall(latest)
-  if (!latestStall) return null
+  if (!latestStall) return anchorVerdict(latest, null, nullAnchors, pairs.length)
 
   let consecutive = 1
   for (const session of window.slice(1)) {
@@ -256,6 +398,7 @@ export function autoregulate(
 
   const shared = {
     stalledLoadBySetNumber: stalledLoads(latest),
+    ...anchorRider(nullAnchors),
     evidence: latestStall,
   }
   return consecutive >= STALLS_BEFORE_DECREMENT
@@ -311,13 +454,21 @@ function comparableTotals(
  * 1. FILL — every scorable working set of the latest session hit its range
  *    top at the prescribed load → step: +stepKg onto each prescribed-at-fill
  *    load, rep target back to repMin (the range floor is already the derived
- *    prescription's repMin — nothing to adjust there).
- * 2. STALL ×3 — three consecutive session pairs with no total-rep gain at
+ *    prescription's repMin — nothing to adjust there). When the fill was also
+ *    an OUTPERFORM (every set ≥ prescribed × 1.05, floor met), the step
+ *    COMPOSES with the anchor: the +stepKg lands on each set's PERFORMED
+ *    load, not the out-run plan's (`applyAutoregToSets` reads the anchors).
+ * 2. OUTPERFORM without a fill → anchor at the performed loads and keep
+ *    climbing reps there (reps must be within the range — at/above repMin —
+ *    for a set to testify).
+ * 3. STALL ×3 — three consecutive session pairs with no total-rep gain at
  *    the same prescribed load → the v1 back-off (+ early-deload suggestion).
- * 3. Otherwise HOLD — the range model's default: add reps at the same load,
+ * 4. Otherwise HOLD — the range model's default: add reps at the same load,
  *    so the prescription is capped at the latest prescribed loads (this is
  *    what stops a `linear` scheme's weekly increment mid-range).
- * Null when nothing is scorable — silence over corruption, as ever.
+ * Null-load sets with completed working loads anchor regardless of the
+ * loaded verdict. Null when nothing is scorable and nothing anchors —
+ * silence over corruption, as ever.
  */
 export function autoregulateRange(
   stepKg: number,
@@ -327,8 +478,9 @@ export function autoregulateRange(
   const window = sessions.slice(0, AUTOREG_RANGE_SESSION_WINDOW)
   const latest = window[0]
   if (!latest) return null
+  const nullAnchors = nullLoadAnchors(latest)
   const pairs = scorablePairs(latest)
-  if (pairs.length === 0) return null
+  if (pairs.length === 0) return anchorVerdict(latest, null, nullAnchors, 0)
 
   const heaviest = pairs.reduce((a, b) => (b.loadKg > a.loadKg ? b : a))
   const knownTops = pairs.filter((p) => rangeTopBySetNumber[p.setNumber] !== undefined)
@@ -353,18 +505,36 @@ export function autoregulateRange(
   }
 
   const latestTotals = comparableTotals(latest, window[1] ?? { prescribed: [], actual: [] })
+  const range = {
+    totalReps: latestTotals?.totalReps ?? pairs.reduce((sum, p) => sum + p.reps, 0),
+    prevTotalReps: latestTotals?.prevTotalReps ?? null,
+    stalls,
+  }
+  const outperform = outperformAnchors(pairs)
   const shared = {
     stalledLoadBySetNumber: stalledLoads(latest),
+    ...anchorRider(nullAnchors),
     evidence,
-    range: {
-      totalReps: latestTotals?.totalReps ?? pairs.reduce((sum, p) => sum + p.reps, 0),
-      prevTotalReps: latestTotals?.prevTotalReps ?? null,
-      stalls,
-    },
+    range,
   }
   if (filled) {
-    return { action: 'step', deltaKg: stepKg, suggestEarlyDeload: false, ...shared }
+    return {
+      action: 'step',
+      deltaKg: stepKg,
+      suggestEarlyDeload: false,
+      ...shared,
+      // An outperformed fill steps FROM the performed loads: the anchors ride
+      // the step (composition, not competition) and the reason line names the
+      // performed load as the fill load.
+      ...(outperform
+        ? {
+            anchorLoadBySetNumber: { ...nullAnchors, ...outperform.bySetNumber },
+            anchor: { fromLoadKg: outperform.fromLoadKg, toLoadKg: outperform.toLoadKg },
+          }
+        : {}),
+    }
   }
+  if (outperform) return anchorVerdict(latest, outperform, nullAnchors, pairs.length, range)
   if (stalls >= STALLS_BEFORE_DECREMENT) {
     return {
       action: 'decrement',
@@ -374,6 +544,21 @@ export function autoregulateRange(
     }
   }
   return { action: 'repeat', deltaKg: 0, suggestEarlyDeload: false, ...shared }
+}
+
+/**
+ * The ANCHOR-only rule set for schemes whose prescriptions can carry no load
+ * (rpe-target before an e1RM exists, null-base weekly-volume /
+ * rep-progression): the latest session's null-load working sets with
+ * completed loads anchor at the performed load — the weight ghost those
+ * exercises never had. LOADED sets are deliberately left to their scheme
+ * (rpe-target self-corrects through the e1RM; stall rules for the rest are
+ * out of scope). Same newest-first precondition as the other entry points.
+ */
+export function autoregulateAnchor(sessions: readonly AutoregSession[]): AutoregAdjustment | null {
+  const latest = sessions[0]
+  if (!latest) return null
+  return anchorVerdict(latest, null, nullLoadAnchors(latest), 0)
 }
 
 /**
@@ -389,9 +574,12 @@ export function autoregulateRange(
  * STEP is the one deliberate exception — the prescription becomes exactly
  * prescribed-at-fill + stepKg per set (a `double-progression` scheme still
  * holding its base is RAISED to the earned next load; a `linear` scheme that
- * ran ahead is pulled back to one honest step). Adjusted sets keep their
- * pre-autoreg value in `schemeLoadKg` so surfaces can offer "use plan as
- * written". Scoring (the verdict) remains working-sets-only — backoff/amrap
+ * ran ahead is pulled back to one honest step). Anchored sets (see
+ * `anchorLoadBySetNumber`) are prescribed exactly their performed load — the
+ * one path that may write a load onto a load-less scheme set — with a fill's
+ * step composing on top for outperformed sets. Adjusted sets keep their
+ * pre-autoreg value in `schemeLoadKg` (null for load-less sets) so surfaces
+ * can offer "use plan as written". Scoring (the verdict) remains working-sets-only — backoff/amrap
  * sets are only FROZEN here (or stepped uniformly, mirroring how a linear
  * increment lands on every non-warmup set) so volume work can't climb past a
  * frozen top set.
@@ -405,7 +593,29 @@ export function applyAutoregToSets(
       ? (adjustment.evidence.loadKg + adjustment.deltaKg) / adjustment.evidence.loadKg
       : 1
   return sets.map((set) => {
-    if (set.setType === 'warmup' || set.derivedFrom !== 'scheme' || set.loadKg === null) return set
+    if (set.setType === 'warmup' || set.derivedFrom !== 'scheme') return set
+    const anchorKg = adjustment.anchorLoadBySetNumber?.[set.setNumber]
+    if (anchorKg !== undefined) {
+      // Anchored: the performed load IS the prescription — exactly, up or
+      // down — and the ONE path allowed to stamp a load onto a load-less
+      // scheme set. A `step` composes on top when the set also has a
+      // prescribed-at-fill counterpart (outperformed fill): the earned
+      // increment lands on the performed load, not the out-run plan's.
+      const stepsFromAnchor =
+        adjustment.action === 'step' &&
+        adjustment.stalledLoadBySetNumber[set.setNumber] !== undefined
+      return {
+        ...set,
+        loadKg: stepsFromAnchor ? anchorKg + adjustment.deltaKg : anchorKg,
+        derivedFrom: 'autoreg' as const,
+        schemeLoadKg: set.loadKg,
+      }
+    }
+    // An anchor verdict adjusts ONLY its anchored sets: unanchored
+    // counterparts (skipped, incomplete, attempted-at-plan sets on a loaded
+    // day) carry no evidence and stay exactly as the scheme derived them.
+    if (adjustment.action === 'anchor') return set
+    if (set.loadKg === null) return set
     const stalledLoadKg = adjustment.stalledLoadBySetNumber[set.setNumber]
     if (stalledLoadKg === undefined) return set
     // Decrement scales each cap proportionally (the evidence set's back-off
@@ -432,12 +642,24 @@ export function applyAutoregToSets(
  *           "Range not filled at 100 kg — adding reps before the load steps"
  *           "No new reps at 100 kg (24 vs 24) — holding the load"
  *           "No new reps at 100 kg for 3 straight sessions — backing off ..."
+ *   Anchor: "Did 120 kg vs 80 kg planned — anchoring at 120 kg"
+ *           "Last session: 120 kg — anchoring"
+ * An outperformed fill's step line speaks from the PERFORMED load (the
+ * anchor), matching where `applyAutoregToSets` actually lands the step.
  */
 export function autoregReason(adjustment: AutoregAdjustment, unit: WeightUnit): string {
   const load = `${kgToDisplay(adjustment.evidence.loadKg, unit)} ${unit}`
+  if (adjustment.action === 'anchor' && adjustment.anchor) {
+    const to = `${kgToDisplay(adjustment.anchor.toLoadKg, unit)} ${unit}`
+    if (adjustment.anchor.fromLoadKg === null) return `Last session: ${to} — anchoring`
+    const from = `${kgToDisplay(adjustment.anchor.fromLoadKg, unit)} ${unit}`
+    return `Did ${to} vs ${from} planned — anchoring at ${to}`
+  }
   if (adjustment.action === 'step') {
-    const next = `${kgToDisplay(adjustment.evidence.loadKg + adjustment.deltaKg, unit)} ${unit}`
-    return `Range filled at ${load} last session — stepping to ${next}`
+    const fillKg = adjustment.anchor?.toLoadKg ?? adjustment.evidence.loadKg
+    const fill = `${kgToDisplay(fillKg, unit)} ${unit}`
+    const next = `${kgToDisplay(fillKg + adjustment.deltaKg, unit)} ${unit}`
+    return `Range filled at ${fill} last session — stepping to ${next}`
   }
   if (adjustment.range) {
     const { totalReps, prevTotalReps, stalls } = adjustment.range
