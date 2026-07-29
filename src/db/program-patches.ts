@@ -1,4 +1,4 @@
-import { and, count, eq, gt, gte, lt, lte, max, sql } from 'drizzle-orm'
+import { and, count, eq, gt, gte, inArray, lt, lte, max, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import {
   setTypeSchema,
@@ -969,6 +969,78 @@ export async function moveProgramSet(
       payload: { from, to },
     })
     return { moved: true }
+  })
+}
+
+/**
+ * Syncs one exercise's suggested loads to performed loads (the confirmed
+ * plan-sync flow — see lib/plan-sync.ts): each addressed set's
+ * `suggestedLoadKg` becomes the given canonical-kg value, in ONE transaction
+ * with ONE `program_events` row for the whole exercise (action
+ * 'sync_plan_to_performance'; `summary` is built by the caller, which holds
+ * the display unit). Narrow by design — only the load column moves, so the
+ * Phase-1 cross-field rules (metricMode/duration/reps) can't be violated and
+ * no re-validation is needed.
+ *
+ * Idempotent at this seam too, not just in the detector: a set whose stored
+ * load already equals the target (or whose setNumber vanished since
+ * detection) is skipped, and when nothing changes there is no write, no
+ * updatedAt bump, and no event. Returns the changed-set count, or null when
+ * the exercise isn't owned/found.
+ * Reads, in order: owned-exercise → current loads for the addressed sets.
+ */
+export async function syncProgramExerciseLoads(
+  userId: string,
+  programId: string,
+  dayPosition: number,
+  exercisePosition: number,
+  loads: readonly { setNumber: number; suggestedLoadKg: number }[],
+  actor: ProgramEventActor,
+  summary: string,
+): Promise<{ updated: number } | null> {
+  if (loads.length === 0) return { updated: 0 }
+  return db.transaction(async (tx) => {
+    const found = await findOwnedExercise(tx, userId, programId, dayPosition, exercisePosition)
+    if (!found) return null
+    const current = await tx
+      .select({ setNumber: programSets.setNumber, suggestedLoadKg: programSets.suggestedLoadKg })
+      .from(programSets)
+      .where(
+        and(
+          eq(programSets.programExerciseId, found.exerciseId),
+          inArray(
+            programSets.setNumber,
+            loads.map((l) => l.setNumber),
+          ),
+        ),
+      )
+    const currentByNumber = new Map(current.map((row) => [row.setNumber, row.suggestedLoadKg]))
+    const applied: { setNumber: number; before: number | null; after: number }[] = []
+    for (const load of loads) {
+      const before = currentByNumber.get(load.setNumber)
+      if (before === undefined || before === load.suggestedLoadKg) continue
+      await tx
+        .update(programSets)
+        .set({ suggestedLoadKg: load.suggestedLoadKg })
+        .where(
+          and(
+            eq(programSets.programExerciseId, found.exerciseId),
+            eq(programSets.setNumber, load.setNumber),
+          ),
+        )
+      applied.push({ setNumber: load.setNumber, before, after: load.suggestedLoadKg })
+    }
+    if (applied.length === 0) return { updated: 0 }
+    await bumpUpdatedAt(tx, programId)
+    await recordProgramEvent(tx, {
+      programId,
+      userId,
+      actor,
+      action: 'sync_plan_to_performance',
+      summary,
+      payload: { dayPosition, exercisePosition, sets: applied },
+    })
+    return { updated: applied.length }
   })
 }
 

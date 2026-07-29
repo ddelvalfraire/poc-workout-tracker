@@ -170,6 +170,20 @@ const INVOCATIONS: Record<string, { selects: unknown[][]; run: () => Promise<unk
     selects: [OWNED_EXERCISE, [{ id: 'ps1' }], [{ id: 'ps2' }]],
     run: () => patches.moveProgramSet(USER, PID, 0, 0, 1, 2, 'mcp'),
   },
+  syncProgramExerciseLoads: {
+    // Reads: owned-exercise → current loads (80 kg, syncing to 120 changes it).
+    selects: [OWNED_EXERCISE, [{ setNumber: 1, suggestedLoadKg: 80 }]],
+    run: () =>
+      patches.syncProgramExerciseLoads(
+        USER,
+        PID,
+        0,
+        0,
+        [{ setNumber: 1, suggestedLoadKg: 120 }],
+        'mcp',
+        'Bench: 80 → 120 kg (synced to performance)',
+      ),
+  },
   setProgramSetOverride: {
     selects: [OWNED_EXERCISE, OVERRIDE_SET_ROW, []],
     run: () => patches.setProgramSetOverride(USER, PID, 0, 0, 1, 2, { rir: 1 }, 'mcp'),

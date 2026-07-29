@@ -10,8 +10,19 @@ import {
   putWorkoutDraftAction,
   deleteWorkoutDraftAction,
 } from './actions'
+import { syncPlanToPerformanceAction } from './actions'
 import { requireUserId } from '@/lib/auth'
-import { saveWorkout, updateWorkout, deleteWorkout, getLastPerformance } from '@/db/workouts'
+import {
+  saveWorkout,
+  updateWorkout,
+  deleteWorkout,
+  getLastPerformance,
+  getWorkoutDetail,
+  latestCompletedWorkoutForDay,
+} from '@/db/workouts'
+import { getProgramDayDetail } from '@/db/programs'
+import { syncProgramExerciseLoads } from '@/db/program-patches'
+import { getWeightUnit } from '@/db/preferences'
 import { getExerciseStats, getExerciseSessions } from '@/db/exercise-stats'
 import { getWorkoutDraft, putWorkoutDraft, deleteWorkoutDraft } from '@/db/workout-drafts'
 import { DRAFT_TTL_MS } from '@/app/workout/new/draft-payload'
@@ -31,7 +42,18 @@ vi.mock('@/db/workouts', () => ({
   updateWorkout: vi.fn(),
   deleteWorkout: vi.fn(),
   getLastPerformance: vi.fn(),
+  getWorkoutDetail: vi.fn(),
+  latestCompletedWorkoutForDay: vi.fn(),
 }))
+vi.mock('@/db/programs', () => ({
+  getProgramDayDetail: vi.fn(),
+  deriveDayPrescription: vi.fn(),
+}))
+vi.mock('@/db/program-patches', () => ({
+  updateProgramExercise: vi.fn(),
+  syncProgramExerciseLoads: vi.fn(),
+}))
+vi.mock('@/db/preferences', () => ({ getWeightUnit: vi.fn() }))
 vi.mock('@/db/exercise-stats', () => ({
   getExerciseStats: vi.fn(),
   getExerciseSessions: vi.fn(),
@@ -54,6 +76,11 @@ const mockedGetDraft = vi.mocked(getWorkoutDraft)
 const mockedPutDraft = vi.mocked(putWorkoutDraft)
 const mockedDeleteDraft = vi.mocked(deleteWorkoutDraft)
 const mockedRevalidate = vi.mocked(revalidatePath)
+const mockedGetWorkoutDetail = vi.mocked(getWorkoutDetail)
+const mockedLatestForDay = vi.mocked(latestCompletedWorkoutForDay)
+const mockedGetDayDetail = vi.mocked(getProgramDayDetail)
+const mockedSyncLoads = vi.mocked(syncProgramExerciseLoads)
+const mockedGetUnit = vi.mocked(getWeightUnit)
 
 const USER = 'user_123'
 const ID = '11111111-1111-1111-1111-111111111111'
@@ -347,5 +374,170 @@ describe('deleteWorkoutDraftAction', () => {
   it('rejects a malformed key', async () => {
     await expect(deleteWorkoutDraftAction('nope!')).rejects.toThrow('invalid draft key')
     expect(mockedDeleteDraft).not.toHaveBeenCalled()
+  })
+})
+
+describe('syncPlanToPerformanceAction', () => {
+  // A completed program workout that beat the plan (80 → 120 on both sets).
+  const WORKOUT = {
+    id: ID,
+    programDayId: 'pd1',
+    completedAt: new Date('2026-07-01T11:00:00Z'),
+    exercises: [
+      {
+        wgerExerciseId: 73,
+        source: 'wger',
+        loggingType: 'weight_reps',
+        skipped: false,
+        sets: [
+          { setNumber: 1, reps: 12, weight: 120, completed: true, setType: 'working' },
+          { setNumber: 2, reps: 12, weight: 120, completed: true, setType: 'working' },
+        ],
+      },
+    ],
+  } as unknown as Awaited<ReturnType<typeof getWorkoutDetail>>
+
+  const DAY = {
+    position: 2,
+    program: { id: 'pid-1' },
+    exercises: [
+      {
+        position: 0,
+        wgerExerciseId: 73,
+        source: 'wger',
+        name: 'Leg Extension',
+        sets: [
+          { setNumber: 1, setType: 'working', metricMode: 'reps_weight', repMin: 12, suggestedLoadKg: 80 },
+          { setNumber: 2, setType: 'working', metricMode: 'reps_weight', repMin: 12, suggestedLoadKg: 80 },
+        ],
+      },
+    ],
+  } as unknown as Awaited<ReturnType<typeof getProgramDayDetail>>
+
+  function arrangeHappyPath() {
+    mockedGetWorkoutDetail.mockResolvedValue(WORKOUT)
+    mockedLatestForDay.mockReturnValue(
+      Promise.resolve([{ id: ID }]) as unknown as ReturnType<typeof latestCompletedWorkoutForDay>,
+    )
+    mockedGetDayDetail.mockResolvedValue(DAY)
+    mockedGetUnit.mockResolvedValue('kg')
+    mockedSyncLoads.mockResolvedValue({ updated: 2 })
+  }
+
+  it('recomputes candidates server-side and applies one narrow patch per exercise', async () => {
+    // Arrange
+    arrangeHappyPath()
+
+    // Act
+    const result = await syncPlanToPerformanceAction(ID)
+
+    // Assert — the patch got the SERVER-computed loads, actor 'ui', unit-aware summary.
+    expect(result).toEqual({ syncedExercises: 1 })
+    expect(mockedSyncLoads).toHaveBeenCalledTimes(1)
+    expect(mockedSyncLoads).toHaveBeenCalledWith(
+      USER,
+      'pid-1',
+      2,
+      0,
+      [
+        { setNumber: 1, suggestedLoadKg: 120 },
+        { setNumber: 2, suggestedLoadKg: 120 },
+      ],
+      'ui',
+      'Leg Extension: 80 → 120 kg (synced to performance)',
+    )
+    expect(mockedRevalidate).toHaveBeenCalledWith('/programs')
+    expect(mockedRevalidate).toHaveBeenCalledWith('/programs/pid-1')
+    expect(mockedRevalidate).toHaveBeenCalledWith(`/workout/${ID}`)
+  })
+
+  it('rejects a malformed workout id before touching the database', async () => {
+    await expect(syncPlanToPerformanceAction(42)).rejects.toThrow('invalid workout id')
+    expect(mockedGetWorkoutDetail).not.toHaveBeenCalled()
+  })
+
+  it('throws when the workout is not owned/found', async () => {
+    mockedGetWorkoutDetail.mockResolvedValue(undefined)
+
+    await expect(syncPlanToPerformanceAction(ID)).rejects.toThrow('workout not found')
+    expect(mockedSyncLoads).not.toHaveBeenCalled()
+  })
+
+  it('throws when the workout has no program provenance', async () => {
+    mockedGetWorkoutDetail.mockResolvedValue({
+      ...(WORKOUT as object),
+      programDayId: null,
+    } as typeof WORKOUT)
+
+    await expect(syncPlanToPerformanceAction(ID)).rejects.toThrow('workout has no program')
+    expect(mockedSyncLoads).not.toHaveBeenCalled()
+  })
+
+  it('throws when the workout is not finished', async () => {
+    mockedGetWorkoutDetail.mockResolvedValue({
+      ...(WORKOUT as object),
+      completedAt: null,
+    } as typeof WORKOUT)
+
+    await expect(syncPlanToPerformanceAction(ID)).rejects.toThrow('workout is not finished')
+    expect(mockedSyncLoads).not.toHaveBeenCalled()
+  })
+
+  it('throws when a newer completed session exists for the day (stale summaries must not regress the plan)', async () => {
+    mockedGetWorkoutDetail.mockResolvedValue(WORKOUT)
+    mockedLatestForDay.mockReturnValue(
+      Promise.resolve([{ id: 'newer-workout' }]) as unknown as ReturnType<
+        typeof latestCompletedWorkoutForDay
+      >,
+    )
+
+    await expect(syncPlanToPerformanceAction(ID)).rejects.toThrow(
+      'a newer session exists for this day',
+    )
+    expect(mockedSyncLoads).not.toHaveBeenCalled()
+  })
+
+  it('throws when the program day no longer exists', async () => {
+    mockedGetWorkoutDetail.mockResolvedValue(WORKOUT)
+    mockedLatestForDay.mockReturnValue(
+      Promise.resolve([{ id: ID }]) as unknown as ReturnType<typeof latestCompletedWorkoutForDay>,
+    )
+    mockedGetDayDetail.mockResolvedValue(null)
+
+    await expect(syncPlanToPerformanceAction(ID)).rejects.toThrow('program day not found')
+    expect(mockedSyncLoads).not.toHaveBeenCalled()
+  })
+
+  it('is a no-op (no patch, no revalidate) when the plan already matches — idempotent re-run', async () => {
+    arrangeHappyPath()
+    // The plan already carries the performed loads: nothing to sync.
+    mockedGetDayDetail.mockResolvedValue({
+      ...(DAY as object),
+      exercises: [
+        {
+          ...(DAY as unknown as { exercises: { sets: unknown[] }[] }).exercises[0],
+          sets: [
+            { setNumber: 1, setType: 'working', metricMode: 'reps_weight', repMin: 12, suggestedLoadKg: 120 },
+            { setNumber: 2, setType: 'working', metricMode: 'reps_weight', repMin: 12, suggestedLoadKg: 120 },
+          ],
+        },
+      ],
+    } as typeof DAY)
+
+    const result = await syncPlanToPerformanceAction(ID)
+
+    expect(result).toEqual({ syncedExercises: 0 })
+    expect(mockedSyncLoads).not.toHaveBeenCalled()
+    expect(mockedRevalidate).not.toHaveBeenCalled()
+  })
+
+  it('counts only exercises whose patch actually changed rows', async () => {
+    arrangeHappyPath()
+    // The slot vanished between render and confirm: patch reports not-found.
+    mockedSyncLoads.mockResolvedValue(null)
+
+    const result = await syncPlanToPerformanceAction(ID)
+
+    expect(result).toEqual({ syncedExercises: 0 })
   })
 })

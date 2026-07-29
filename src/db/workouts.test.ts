@@ -5,6 +5,7 @@ import {
   listWorkoutSummaries,
   getWorkoutDetail,
   deleteWorkout,
+  latestCompletedWorkoutForDay,
 } from './workouts'
 
 const USER = 'user_123'
@@ -34,6 +35,16 @@ describe('workouts repository (authorization boundary)', () => {
     const { sql, params } = getWorkoutDetail(USER, WORKOUT_ID).toSQL()
     expect(sql).toContain('"user_id"')
     expect(params).toEqual(expect.arrayContaining([USER, WORKOUT_ID]))
+  })
+
+  it('scopes the latest-completed-for-day query to the user, completed only, newest first', () => {
+    const { sql, params } = latestCompletedWorkoutForDay(USER, 'pd-1').toSQL()
+    expect(sql).toContain('"user_id"')
+    expect(sql).toContain('"program_day_id"')
+    expect(sql).toMatch(/"completed_at" is not null/i)
+    expect(sql).toMatch(/order by .* desc/i)
+    expect(sql).toMatch(/limit/i)
+    expect(params).toEqual(expect.arrayContaining([USER, 'pd-1']))
   })
 
   it('scopes the delete to the user as well as the id', () => {
