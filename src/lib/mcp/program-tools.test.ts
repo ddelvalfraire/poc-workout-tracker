@@ -112,6 +112,7 @@ function programDetail() {
         name: 'Push',
         position: 0,
         notes: null,
+        weekdays: [1, 3, 5],
         exercises: [
           {
             id: 'e1',
@@ -281,6 +282,34 @@ describe('registerProgramTools', () => {
             }),
           ],
         }), 'mcp'
+      )
+    })
+
+    it('passes day weekdays through to the persist, normalized by the shared parse', async () => {
+      // Arrange
+      const tools = setup()
+      mockedSave.mockResolvedValue({ id: PID })
+      const body = {
+        name: 'PPL',
+        days: [
+          {
+            name: 'Push',
+            weekdays: [5, 1, 1], // unsorted + duplicate: parse dedupes/sorts
+            exercises: [{ wgerExerciseId: 1, name: 'Bench', sets: [{}] }],
+          },
+        ],
+      }
+
+      // Act
+      await tools.get('upsert_program')!(body)
+
+      // Assert
+      expect(mockedSave).toHaveBeenCalledWith(
+        'user_env',
+        expect.objectContaining({
+          days: [expect.objectContaining({ name: 'Push', weekdays: [1, 5] })],
+        }),
+        'mcp',
       )
     })
 
@@ -546,6 +575,9 @@ describe('registerProgramTools', () => {
           }[]
         }[]
       )[0]!
+      // The day schedule surfaces on reads so an agent can round-trip an
+      // upsert without silently unscheduling the day (full-replace field).
+      expect(body.program.days[0]).toMatchObject({ weekdays: [1, 3, 5] })
       expect(exercise.source).toBe('custom') // composite identity surfaces on reads
       expect(exercise.supersetGroup).toBe(1)
       expect(exercise.muscles).toEqual({ primary: ['Chest'], secondary: ['Shoulders'] })

@@ -630,8 +630,8 @@ describe('getNextProgramDay', () => {
     selectQueue = [
       [{ id: 'p1', name: 'Plan', mesocycleWeeks: 4 }],
       [
-        { id: 'd1', name: 'Upper', position: 0 },
-        { id: 'd2', name: 'Lower', position: 1 },
+        { id: 'd1', name: 'Upper', position: 0, weekdays: [] },
+        { id: 'd2', name: 'Lower', position: 1, weekdays: [1, 3, 5] },
       ],
       [{ current: 1 }],
       [{ value: 2 }],
@@ -647,6 +647,9 @@ describe('getNextProgramDay', () => {
     expect(next?.dayName).toBe('Lower')
     expect(next?.week).toBe(1)
     expect(next?.exerciseNames).toEqual(['Squat'])
+    // The picked day's schedule rides along — the hero's client-side anchor
+    // ("Today"/"Tomorrow") is computed from it.
+    expect(next?.weekdays).toEqual([1, 3, 5])
     // Mid-block: the completion flag must stay down.
     expect(next?.blockComplete).toBe(false)
     expect(next?.mesocycleWeeks).toBe(4)
@@ -665,8 +668,8 @@ describe('getNextProgramDay', () => {
     selectQueue = [
       [{ id: 'p1', name: 'Plan', mesocycleWeeks: 4 }],
       [
-        { id: 'd1', name: 'Upper', position: 0 },
-        { id: 'd2', name: 'Lower', position: 1 },
+        { id: 'd1', name: 'Upper', position: 0, weekdays: [] },
+        { id: 'd2', name: 'Lower', position: 1, weekdays: [] },
       ],
       [{ current: 4 }],
       [{ value: 2 }],

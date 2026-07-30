@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { ChevronRight } from 'lucide-react'
 import type { NextProgramDay } from '@/db/programs'
 import type { FinishUpNext } from '@/lib/finish-up-next'
+import { UpNextAnchor } from '@/app/up-next-anchor'
 import { buttonVariants } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
@@ -56,7 +57,13 @@ export function FinishUpNextCard({
   return (
     <section className="mt-4 rounded-2xl border border-border bg-card p-5 motion-safe:animate-rise-in">
       <p className="text-xs font-semibold uppercase tracking-widest text-primary">
-        Up next · Week {next.week}
+        {/* Same schedule anchor as the home hero (up-next-anchor.tsx): the two
+            surfaces restate one answer, so they must agree on its wording. */}
+        {next.weekdays.length > 0 ? (
+          <UpNextAnchor weekdays={next.weekdays} week={next.week} />
+        ) : (
+          <>Up next · Week {next.week}</>
+        )}
       </p>
 
       <h2 className="mt-2 font-display text-3xl uppercase leading-none tracking-wide">

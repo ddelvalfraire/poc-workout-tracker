@@ -169,6 +169,13 @@
       "when": 1785351051352,
       "tag": "0023_open_hitman",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1785431443421,
+      "tag": "0024_yielding_expediter",
+      "breakpoints": true
     }
   ]
 }

@@ -71,6 +71,10 @@ const toolExerciseSchema = z.object({
 const toolDaySchema = z.object({
   name: z.string(),
   notes: z.string().nullable().optional(),
+  // Weekday schedule (0–6, Sunday-first); permissive here — the dedupe/sort
+  // normalization and the 0–6 bound are parseProgramInput's, shared with the
+  // web actions. Full-replace like `name`: omitted = unscheduled.
+  weekdays: z.array(z.number().int()).optional(),
   exercises: z.array(toolExerciseSchema),
 })
 
@@ -139,6 +143,7 @@ function toKgProgram(raw: RawProgram, unit: WeightUnit): unknown {
     days: raw.days.map((d) => ({
       name: d.name,
       notes: d.notes,
+      weekdays: d.weekdays,
       exercises: d.exercises.map((e) => ({
         wgerExerciseId: e.wgerExerciseId,
         source: e.source,
@@ -232,6 +237,8 @@ export interface ProgramPayload {
       name: string
       position: number
       notes: string | null
+      /** Weekday schedule (0–6, Sunday-first); empty = unscheduled. */
+      weekdays: number[]
       exercises: {
         id: string
         wgerExerciseId: number
@@ -394,6 +401,7 @@ export function buildProgramPayload(
         name: day.name,
         position: day.position,
         notes: day.notes,
+        weekdays: day.weekdays,
         exercises: day.exercises.map((exercise) => ({
           id: exercise.id,
           wgerExerciseId: exercise.wgerExerciseId,
@@ -426,7 +434,7 @@ export function registerProgramTools(server: McpServer): void {
     {
       title: 'Upsert Program',
       description:
-        "Creates a training program, or fully replaces one when `id` is given (coarse create/replace, not a partial edit). Exercise identity is the composite (source, wgerExerciseId); `source` defaults to 'wger', pass 'custom' for custom exercises. `supersetGroup` (same non-null value within a day) survives replace. Per-week set overrides survive replace for sets that keep the same day/exercise/setNumber position; overrides on removed slots are dropped. `suggestedLoad` is in the user's unit (or the `unit` arg) and stored as kg; `technique`/`progression` JSONB are in kg. When called by the in-app coach, the program is ALWAYS saved as a 'proposed' draft (whatever `status` says) that only the owner can adopt or decline, and a replace may target only the coach's own still-proposed drafts. `planSync` (default true) auto-updates the plan's suggested loads to what the lifter actually performed after each finished session; set false for deliberate-percentage programs (5/3/1-style waves). Omitting `planSync` or `autoregulation` on a replace PRESERVES the stored value. Returns the programId and effective status. Errors if a given id isn't found or owned.",
+        "Creates a training program, or fully replaces one when `id` is given (coarse create/replace, not a partial edit). Exercise identity is the composite (source, wgerExerciseId); `source` defaults to 'wger', pass 'custom' for custom exercises. `supersetGroup` (same non-null value within a day) survives replace. Each day may carry `weekdays` (integers 0–6, Sunday-first) scheduling it on those weekdays — the home screen then anchors it in time (Today/Tomorrow); omitted or empty = unscheduled, and like the rest of the day tree it is full-replace (an upsert that omits it unschedules the day). Per-week set overrides survive replace for sets that keep the same day/exercise/setNumber position; overrides on removed slots are dropped. `suggestedLoad` is in the user's unit (or the `unit` arg) and stored as kg; `technique`/`progression` JSONB are in kg. When called by the in-app coach, the program is ALWAYS saved as a 'proposed' draft (whatever `status` says) that only the owner can adopt or decline, and a replace may target only the coach's own still-proposed drafts. `planSync` (default true) auto-updates the plan's suggested loads to what the lifter actually performed after each finished session; set false for deliberate-percentage programs (5/3/1-style waves). Omitting `planSync` or `autoregulation` on a replace PRESERVES the stored value. Returns the programId and effective status. Errors if a given id isn't found or owned.",
       inputSchema: {
         id: z.string().optional(),
         ...rawProgramSchema.shape,
@@ -508,7 +516,7 @@ export function registerProgramTools(server: McpServer): void {
     {
       title: 'Get Program',
       description:
-        "Returns one program (owned by the user) with its days, exercises, and sets — suggested loads in the user's unit, technique/progression JSONB in kg.",
+        "Returns one program (owned by the user) with its days (incl. `weekdays` schedule, 0–6 Sunday-first), exercises, and sets — suggested loads in the user's unit, technique/progression JSONB in kg.",
       inputSchema: { id: z.string(), userId: z.string().optional() },
     },
     async ({ id, userId }, extra) => {

@@ -9,6 +9,7 @@ import {
   newDraftProgramSet,
   buildStoredProgramDraft,
   parseStoredProgramDraft,
+  toggleWeekday,
   STORED_PROGRAM_DRAFT_TTL_MS,
   type DraftProgramSet,
   type ProgramDraft,
@@ -56,18 +57,19 @@ const NESTED: ProgramDraft = {
       id: 'd1',
       name: 'Push',
       notes: null,
+      weekdays: [1, 3, 5],
       exercises: [
         { id: 'ex1', ...BENCH, progression: null, supersetGroup: null, sets: [draftSet('s1'), draftSet('s2')] },
       ],
     },
-    { id: 'd2', name: 'Pull', notes: null, exercises: [] },
+    { id: 'd2', name: 'Pull', notes: null, weekdays: [], exercises: [] },
   ],
 }
 
 describe('programDraftReducer', () => {
   it('ADD_DAY appends and REMOVE_DAY drops the targeted day, preserving order', () => {
     // Arrange
-    const day = { id: 'd3', name: 'Legs', notes: null, exercises: [] }
+    const day = { id: 'd3', name: 'Legs', notes: null, weekdays: [], exercises: [] }
 
     // Act
     const added = programDraftReducer(NESTED, { type: 'ADD_DAY', day })
@@ -86,6 +88,28 @@ describe('programDraftReducer', () => {
     // Assert
     expect(next.days[1].name).toBe('Upper')
     expect(next.days[0]).toBe(NESTED.days[0]) // untouched sibling by reference
+  })
+
+  it('SET_DAY_WEEKDAYS replaces only the targeted day schedule', () => {
+    // Act
+    const next = programDraftReducer(NESTED, {
+      type: 'SET_DAY_WEEKDAYS',
+      index: 1,
+      weekdays: [0, 6],
+    })
+
+    // Assert
+    expect(next.days[1].weekdays).toEqual([0, 6])
+    expect(next.days[0]).toBe(NESTED.days[0]) // untouched sibling by reference
+    expect(NESTED.days[1].weekdays).toEqual([]) // no mutation
+  })
+
+  it('toggleWeekday adds sorted and removes without mutating', () => {
+    const base = [1, 5]
+
+    expect(toggleWeekday(base, 3)).toEqual([1, 3, 5]) // insert keeps ascending order
+    expect(toggleWeekday(base, 5)).toEqual([1]) // second tap removes
+    expect(base).toEqual([1, 5]) // input untouched
   })
 
   it('ADD_EXERCISE and REMOVE_EXERCISE are day-scoped', () => {
@@ -316,6 +340,20 @@ describe('legacy stored drafts (pre-composite-identity)', () => {
       supersetGroup: null,
     })
   })
+
+  it('restores a pre-schedule draft (no day weekdays) as unscheduled', () => {
+    // Arrange — a day stored before the weekdays field existed
+    const legacyDay: Record<string, unknown> = { ...NESTED.days[1] }
+    delete legacyDay.weekdays
+    const legacyDraft = { ...NESTED, days: [legacyDay] }
+    const raw = JSON.stringify({ v: 1, savedAt: NOW.toISOString(), draft: legacyDraft })
+
+    // Act
+    const restored = parseStoredProgramDraft(raw, NOW)
+
+    // Assert — restored (not discarded), backfilled to unscheduled
+    expect(restored?.days[0].weekdays).toEqual([])
+  })
 })
 
 describe('draftToProgramInput', () => {
@@ -328,6 +366,7 @@ describe('draftToProgramInput', () => {
           id: 'd1',
           name: 'Push',
           notes: null,
+          weekdays: [],
           exercises: [
             { id: 'ex1', ...BENCH, progression: null, supersetGroup: null, sets: [draftSet('s1', { load: '220.5' })] },
           ],
@@ -361,6 +400,7 @@ describe('draftToProgramInput', () => {
           id: 'd1',
           name: 'Push',
           notes: null,
+          weekdays: [],
           exercises: [
             {
               id: 'ex1',
@@ -414,6 +454,15 @@ describe('draftToProgramInput', () => {
     expect(input.days[0].exercises[0].sets[0].restSec).toBe(150)
   })
 
+  it('emits each day schedule verbatim (edit round-trip must not wipe it)', () => {
+    // Act — NESTED's day 0 is scheduled Mon/Wed/Fri, day 1 unscheduled
+    const input = draftToProgramInput(NESTED)
+
+    // Assert
+    expect(input.days[0].weekdays).toEqual([1, 3, 5])
+    expect(input.days[1].weekdays).toEqual([])
+  })
+
   it('parses targets and keeps a trimmed name', () => {
     // Arrange
     const draft: ProgramDraft = { ...NESTED, name: '  PPL Hypertrophy  ' }
@@ -450,6 +499,7 @@ describe('draftToProgramInput', () => {
           id: 'd1',
           name: 'Push',
           notes: 'day notes',
+          weekdays: [],
           exercises: [
             {
               id: 'ex1',
@@ -518,6 +568,7 @@ describe('detailToProgramDraft', () => {
         name: 'Push',
         position: 0,
         notes: 'day notes',
+        weekdays: [1, 3, 5],
         exercises: [
           {
             id: 'ex1',
@@ -586,6 +637,11 @@ describe('detailToProgramDraft', () => {
       heroImageUrl: 'https://example.com/hero.jpg',
       sourceUrl: 'https://example.com/source',
     })
+
+    // The day schedule must survive the same edit round-trip: detail → draft
+    // carries it, draft → input re-emits it (a save is a full replace).
+    expect(draft.days[0].weekdays).toEqual([1, 3, 5])
+    expect(draftToProgramInput(draft).days[0].weekdays).toEqual([1, 3, 5])
 
     // Assert — row UUIDs reused as client ids; category not persisted → ''
     expect(draft.days[0].id).toBe('d1')

@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { ChevronRight } from 'lucide-react'
 import type { NextProgramDay } from '@/db/programs'
 import { StartDayButton } from '@/app/programs/[id]/start-day-button'
+import { UpNextAnchor } from '@/app/up-next-anchor'
 
 /**
  * The home screen's hero: the next day to train in the user's active program,
@@ -47,7 +48,14 @@ export function NextWorkoutCard({ next }: { next: NextProgramDay }) {
     <section className="mt-6 rounded-2xl border border-border bg-card p-5">
       <div className="flex items-baseline justify-between gap-3">
         <p className="shrink-0 text-xs font-semibold uppercase tracking-widest text-primary">
-          Up next · Week {next.week}
+          {/* Scheduled days get a client-computed local-day anchor ("Today").
+              Unscheduled keeps the server-rendered literal — byte-identical
+              to the pre-schedule card, no client component mounted. */}
+          {next.weekdays.length > 0 ? (
+            <UpNextAnchor weekdays={next.weekdays} week={next.week} />
+          ) : (
+            <>Up next · Week {next.week}</>
+          )}
         </p>
         <Link
           href={`/programs/${next.programId}`}

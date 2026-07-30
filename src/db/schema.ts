@@ -364,6 +364,10 @@ export const programDays = pgTable(
     name: text('name').notNull(),
     position: integer('position').notNull().default(0), // 0-based order
     notes: text('notes'),
+    // Weekday schedule (0–6, Sunday-first). Empty = unscheduled — the
+    // pre-schedule behavior, so every existing row keeps meaning "no anchor".
+    // Deduped/sorted at the validation boundary (program-input.ts).
+    weekdays: integer('weekdays').array().notNull().default(sql`'{}'::integer[]`),
   },
   // 0-based contiguous per program — guards the read-max-then-insert append and
   // the position-addressed patch ops against racing duplicates. DEFERRABLE
