@@ -309,6 +309,30 @@ export const setsRelations = relations(sets, ({ one }) => ({
 }))
 
 /**
+ * Web-push subscriptions — one row per browser endpoint; a user may hold
+ * several (phone + desktop). `endpoint` is globally unique (it IS the
+ * subscription's identity at the push service), so re-subscribing upserts on
+ * it — including across users on a shared device, where the newest sign-in
+ * takes the endpoint over. p256dh/auth are the client's encryption keys,
+ * opaque base64url strings. Rows die on 404/410 from the push service
+ * (pruned by lib/push.ts) or on an explicit unsubscribe.
+ */
+export const pushSubscriptions = pgTable(
+  'push_subscriptions',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    userId: text('user_id').notNull(), // Clerk user id — ownership root
+    endpoint: text('endpoint').notNull().unique(),
+    p256dh: text('p256dh').notNull(),
+    auth: text('auth').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    // Bumped on every re-subscribe upsert — a liveness hint, not a fact reads depend on.
+    lastSeenAt: timestamp('last_seen_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [index('push_subscriptions_user_id_idx').on(t.userId)],
+)
+
+/**
  * Programs — a first-class, reusable training plan. This tree
  * (programs → program_days → program_exercises → program_sets) is a structural
  * twin of the workout tree so instantiation (Phase 3) is a near 1:1 row copy.
