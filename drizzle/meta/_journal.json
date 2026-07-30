@@ -176,6 +176,13 @@
       "when": 1785431443421,
       "tag": "0024_yielding_expediter",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1785432470571,
+      "tag": "0025_rich_nightshade",
+      "breakpoints": true
     }
   ]
 }

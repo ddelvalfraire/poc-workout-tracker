@@ -2,6 +2,7 @@
 /// <reference lib="webworker" />
 import type { PrecacheEntry, SerwistGlobalConfig } from 'serwist'
 import { Serwist } from 'serwist'
+import { parsePushPayload } from '@/lib/push-payload'
 
 /**
  * The Serwist worker source (compiled + manifest-injected by the
@@ -77,6 +78,44 @@ self.addEventListener('fetch', (event) => {
         const cached = await caches.match(OFFLINE_URL)
         return cached ?? Response.error()
       }),
+  )
+})
+
+// Workout reminders (PR: push plumbing). Payloads are guarded — a malformed
+// message shows nothing rather than a broken notification.
+self.addEventListener('push', (event) => {
+  let data: unknown
+  try {
+    data = event.data?.json()
+  } catch {
+    return
+  }
+  const payload = parsePushPayload(data)
+  if (!payload) return
+  event.waitUntil(
+    self.registration.showNotification(payload.title, {
+      body: payload.body,
+      icon: '/icons/icon-192.png',
+      data: { url: payload.url },
+    }),
+  )
+})
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close()
+  const raw: unknown = event.notification.data
+  const url =
+    typeof raw === 'object' && raw !== null && typeof (raw as { url?: unknown }).url === 'string'
+      ? (raw as { url: string }).url
+      : '/'
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
+      const existing = clients.find((c) => 'focus' in c)
+      if (existing) {
+        return existing.navigate(url).then((c) => c?.focus())
+      }
+      return self.clients.openWindow(url)
+    }),
   )
 })
 

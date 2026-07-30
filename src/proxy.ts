@@ -10,6 +10,9 @@ const isPublicRoute = createRouteMatcher([
   // Build-id probe for update-on-resume: no user data, and the stale-client
   // check must work regardless of auth state (a redirect would blind it).
   '/api/version',
+  // Vercel cron caller — a robot with no Clerk session; the route gates
+  // itself with the CRON_SECRET bearer token instead.
+  '/api/cron/reminders',
 ])
 
 export default clerkMiddleware(async (auth, req) => {

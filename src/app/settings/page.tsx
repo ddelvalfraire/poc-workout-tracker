@@ -16,6 +16,7 @@ import { cn } from '@/lib/utils'
 import { RestDefaultSetting } from './rest-default-setting'
 import { RestTimerToggle } from './rest-timer-toggle'
 import { ProgramReminderToggle } from './program-reminder-toggle'
+import { WorkoutRemindersToggle } from './workout-reminders-toggle'
 
 /**
  * The preferences surface: everything that tunes how the app behaves for
@@ -71,6 +72,15 @@ export default async function SettingsPage() {
             hint="Home-page nudge to start a program while you don't have one."
           >
             <ProgramReminderToggle enabled={!programReminderDismissed} />
+          </SettingRow>
+          {/* The switch's truth is the BROWSER's push subscription (probed on
+              mount), not a server flag — and the permission prompt only ever
+              fires from the toggle gesture (iOS grants it exactly once). */}
+          <SettingRow
+            label="Workout reminders"
+            hint="A morning notification on days your program schedules. iPhone asks for permission once — choose carefully."
+          >
+            <WorkoutRemindersToggle />
           </SettingRow>
           <SettingRow
             label="Default rest"
