@@ -128,7 +128,8 @@ describe('saveProgram (transactional, user-scoped)', () => {
       status: 'draft',
       mesocycleWeeks: 1,
     })
-    expect(records[1].values).toMatchObject({ programId: 'p1', name: 'Push', position: 0 })
+    // weekdays omitted on input → persisted unscheduled ('{}'), never undefined
+    expect(records[1].values).toMatchObject({ programId: 'p1', name: 'Push', position: 0, weekdays: [] })
     expect(records[2].values).toMatchObject({
       programDayId: 'd1',
       wgerExerciseId: 73,
@@ -149,6 +150,26 @@ describe('saveProgram (transactional, user-scoped)', () => {
 
     // Assert — resolves to the new program id
     expect(result).toEqual({ id: 'p1' })
+  })
+
+  it('persists a day weekday schedule (normalized by parse) on the day row', async () => {
+    // Arrange — unsorted with a duplicate; parseProgramInput normalizes
+    const input = parseProgramInput({
+      name: 'PPL',
+      days: [
+        {
+          name: 'Push',
+          weekdays: [4, 2, 2],
+          exercises: [{ wgerExerciseId: 73, name: 'Bench', sets: [{}] }],
+        },
+      ],
+    })
+
+    // Act
+    await saveProgram(USER, input, 'ui')
+
+    // Assert — the day insert carries the deduped, sorted schedule
+    expect(records[1].values).toMatchObject({ name: 'Push', weekdays: [2, 4] })
   })
 
   it('stamps each exercise with its 0-based position', async () => {

@@ -73,6 +73,9 @@ export interface DraftProgramDay {
   name: string
   /** Pass-through: day notes aren't edited by the builder. */
   notes: string | null
+  /** Weekday schedule (0–6, Sunday-first), edited by the 7-chip picker;
+   *  empty = unscheduled. Kept sorted by toggleWeekday. */
+  weekdays: number[]
   exercises: DraftProgramExercise[]
 }
 
@@ -106,6 +109,7 @@ export type ProgramDraftAction =
   | { type: 'ADD_DAY'; day: DraftProgramDay }
   | { type: 'REMOVE_DAY'; index: number }
   | { type: 'RENAME_DAY'; index: number; name: string }
+  | { type: 'SET_DAY_WEEKDAYS'; index: number; weekdays: number[] }
   | { type: 'ADD_EXERCISE'; dayIndex: number; exercise: DraftProgramExercise }
   | { type: 'REMOVE_EXERCISE'; dayIndex: number; index: number }
   | { type: 'ADD_SET'; dayIndex: number; exerciseIndex: number; set: DraftProgramSet }
@@ -177,7 +181,18 @@ export function newDraftProgramExercise(picked: {
 
 /** Builds an empty draft day with the given name. */
 export function newDraftProgramDay(name: string): DraftProgramDay {
-  return { id: crypto.randomUUID(), name, notes: null, exercises: [] }
+  return { id: crypto.randomUUID(), name, notes: null, weekdays: [], exercises: [] }
+}
+
+/**
+ * Toggles one weekday (0–6) in a schedule, returning a fresh sorted array —
+ * the chip picker's single state transition, kept here so it unit-tests as a
+ * plain function and the draft's sorted invariant has one owner.
+ */
+export function toggleWeekday(weekdays: readonly number[], weekday: number): number[] {
+  return weekdays.includes(weekday)
+    ? weekdays.filter((w) => w !== weekday)
+    : [...weekdays, weekday].sort((a, b) => a - b)
 }
 
 /** Replaces the day at `index` via `update`, returning a new days array. */
@@ -222,6 +237,12 @@ export function programDraftReducer(
       return {
         ...state,
         days: mapDayAt(state.days, action.index, (day) => ({ ...day, name: action.name })),
+      }
+
+    case 'SET_DAY_WEEKDAYS':
+      return {
+        ...state,
+        days: mapDayAt(state.days, action.index, (day) => ({ ...day, weekdays: action.weekdays })),
       }
 
     case 'ADD_EXERCISE':
@@ -360,6 +381,10 @@ function isDraftProgramDay(v: unknown): v is DraftProgramDay {
     isString(d.id) &&
     isString(d.name) &&
     isStringOrNull(d.notes) &&
+    // Tolerate a missing weekdays: pre-schedule envelopes predate the field;
+    // parseStoredProgramDraft backfills [] (same policy as restSec).
+    (d.weekdays === undefined ||
+      (Array.isArray(d.weekdays) && d.weekdays.every((w) => typeof w === 'number'))) &&
     Array.isArray(d.exercises) &&
     d.exercises.every(isDraftProgramExercise)
   )
@@ -414,6 +439,8 @@ export function parseStoredProgramDraft(raw: string, now: Date): ProgramDraft | 
     sourceUrl: envelope.draft.sourceUrl ?? null,
     days: envelope.draft.days.map((day) => ({
       ...day,
+      // Pre-schedule snapshots restore unscheduled, not discarded.
+      weekdays: day.weekdays ?? [],
       exercises: day.exercises.map((exercise) => ({
         ...exercise,
         // Pre-composite-identity drafts restore as plain wger, ungrouped.
@@ -465,6 +492,7 @@ export function draftToProgramInput(
   const days = draft.days.map((day) => ({
     name: day.name,
     notes: day.notes,
+    weekdays: day.weekdays,
     exercises: day.exercises.map((exercise) => ({
       wgerExerciseId: exercise.wgerExerciseId,
       source: exercise.source,
@@ -546,6 +574,7 @@ export function detailToProgramDraft(
       id: day.id,
       name: day.name,
       notes: day.notes,
+      weekdays: day.weekdays,
       exercises: day.exercises.map((exercise) => ({
         id: exercise.id,
         wgerExerciseId: exercise.wgerExerciseId,

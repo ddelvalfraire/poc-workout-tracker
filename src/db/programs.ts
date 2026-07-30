@@ -169,7 +169,14 @@ async function insertProgramChildren(
   for (const [dayPosition, day] of days.entries()) {
     const [pd] = await tx
       .insert(programDays)
-      .values({ programId, name: day.name, position: dayPosition, notes: day.notes ?? null })
+      .values({
+        programId,
+        name: day.name,
+        position: dayPosition,
+        notes: day.notes ?? null,
+        // Full-replace like `name`: omitted = unscheduled, not preserved.
+        weekdays: day.weekdays ?? [],
+      })
       .returning({ id: programDays.id })
 
     for (const [exPosition, exercise] of day.exercises.entries()) {
@@ -664,7 +671,15 @@ export async function cloneProgram(
     for (const day of source.days) {
       const [pd] = await tx
         .insert(programDays)
-        .values({ programId: program.id, name: day.name, position: day.position, notes: day.notes })
+        .values({
+          programId: program.id,
+          name: day.name,
+          position: day.position,
+          notes: day.notes,
+          // The schedule is part of the day, so the next block trains on the
+          // same weekdays until the owner edits it.
+          weekdays: day.weekdays,
+        })
         .returning({ id: programDays.id })
 
       for (const exercise of day.exercises) {
@@ -936,6 +951,10 @@ export interface NextProgramDay {
   dayName: string
   week: number
   exerciseNames: string[]
+  /** The day's weekday schedule (0–6, Sunday-first); empty = unscheduled. The
+   *  hero's time anchor ("Today"/"Tomorrow"/weekday) is computed CLIENT-side
+   *  from this — the server's calendar day is not the user's (local-day.ts). */
+  weekdays: number[]
   /** The block finished its final week — the hero swaps its Start CTA for a
    *  completion banner. The final week stays re-runnable on the program page. */
   blockComplete: boolean
@@ -973,7 +992,12 @@ export async function getNextProgramDay(userId: string): Promise<NextProgramDay 
   // concurrently (this runs on every home-page load).
   const [days, weekState] = await Promise.all([
     db
-      .select({ id: programDays.id, name: programDays.name, position: programDays.position })
+      .select({
+        id: programDays.id,
+        name: programDays.name,
+        position: programDays.position,
+        weekdays: programDays.weekdays,
+      })
       .from(programDays)
       .where(eq(programDays.programId, program.id))
       .orderBy(asc(programDays.position)),
@@ -1016,6 +1040,7 @@ export async function getNextProgramDay(userId: string): Promise<NextProgramDay 
     dayName: next.name,
     week,
     exerciseNames: exerciseRows.map((r) => r.name),
+    weekdays: next.weekdays,
     blockComplete: weekState.blockComplete,
     mesocycleWeeks: program.mesocycleWeeks,
   }

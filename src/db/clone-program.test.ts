@@ -129,6 +129,7 @@ function maximalDetail() {
         name: 'Push',
         position: 0,
         notes: null,
+        weekdays: [1, 3, 5],
         exercises: [
           {
             id: 'src-e1',
@@ -183,6 +184,7 @@ function maximalDetail() {
         name: 'Legs',
         position: 1,
         notes: 'legs note',
+        weekdays: [],
         exercises: [
           {
             id: 'src-e3',
@@ -305,8 +307,11 @@ describe('cloneProgram (row-for-row fidelity)', () => {
     })
     expect(benchSets[1]).toMatchObject({ programExerciseId: 'eA', setNumber: 2 })
     // Day and exercise positions come from the SOURCE rows
-    expect(records[1].values).toMatchObject({ programId: 'p2', name: 'Push', position: 0, notes: null })
-    expect(records[8].values).toMatchObject({ programId: 'p2', name: 'Legs', position: 1, notes: 'legs note' })
+    // The weekday schedule is a day column: the next block trains on the same
+    // days (or stays unscheduled) — a clone that dropped it would silently
+    // unschedule every restarted program.
+    expect(records[1].values).toMatchObject({ programId: 'p2', name: 'Push', position: 0, notes: null, weekdays: [1, 3, 5] })
+    expect(records[8].values).toMatchObject({ programId: 'p2', name: 'Legs', position: 1, notes: 'legs note', weekdays: [] })
     expect(records[9].values).toMatchObject({ programDayId: 'dB', name: 'Squat', position: 0 })
     expect(records[10].values).toEqual([
       expect.objectContaining({ programExerciseId: 'eC', setNumber: 1, suggestedLoadKg: 140 }),

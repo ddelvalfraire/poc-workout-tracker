@@ -37,6 +37,39 @@ describe('parseProgramInput', () => {
     })
   })
 
+  it('normalizes day weekdays: deduped, ascending, absent stays absent', () => {
+    // Act — unsorted with a duplicate; a second day omits the field entirely
+    const result = parseProgramInput({
+      name: 'PPL',
+      days: [
+        { ...VALID.days[0], weekdays: [5, 1, 1, 3] },
+        { ...VALID.days[0], name: 'Pull' },
+      ],
+    })
+
+    // Assert — dedupe + sort; omitted = unscheduled (db layer inserts '{}')
+    expect(result.days[0].weekdays).toEqual([1, 3, 5])
+    expect(result.days[1].weekdays).toBeUndefined()
+  })
+
+  it('rejects out-of-range, non-integer, and over-length weekdays', () => {
+    const dayWith = (weekdays: unknown) => ({
+      name: 'PPL',
+      days: [{ ...VALID.days[0], weekdays }],
+    })
+
+    // 0–6 only, integers only, raw length capped at 7 (pre-dedupe)
+    expect(() => parseProgramInput(dayWith([7]))).toThrow()
+    expect(() => parseProgramInput(dayWith([-1]))).toThrow()
+    expect(() => parseProgramInput(dayWith([1.5]))).toThrow()
+    expect(() => parseProgramInput(dayWith([0, 0, 1, 1, 2, 2, 3, 3]))).toThrow()
+
+    // The full week is the boundary case that must pass.
+    expect(parseProgramInput(dayWith([6, 5, 4, 3, 2, 1, 0])).days[0].weekdays).toEqual([
+      0, 1, 2, 3, 4, 5, 6,
+    ])
+  })
+
   it('defaults source to wger and accepts an explicit custom + supersetGroup', () => {
     // Act — one slot omits identity extras, one carries both
     const result = parseProgramInput({

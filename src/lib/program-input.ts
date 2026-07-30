@@ -291,6 +291,15 @@ export const programExerciseSchema = z.object({
 export const programDaySchema = z.object({
   name: z.string().trim().min(1).max(MAX_NAME),
   notes: z.string().max(2000).nullable().optional(),
+  // Weekday schedule (0–6, Sunday-first), normalized to a deduped ascending
+  // list. Part of the day tree, so it full-replaces like `name` — omitted or
+  // empty persists as unscheduled ('{}', the column default). The raw cap of 7
+  // rejects padded input before dedupe can hide it.
+  weekdays: z
+    .array(z.number().int().min(0).max(6))
+    .max(7)
+    .transform((ws) => [...new Set(ws)].sort((a, b) => a - b))
+    .optional(),
   exercises: z.array(programExerciseSchema).min(1),
 })
 

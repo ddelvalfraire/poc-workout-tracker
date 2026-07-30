@@ -16,9 +16,11 @@ import {
   newDraftProgramSet,
   buildStoredProgramDraft,
   parseStoredProgramDraft,
+  toggleWeekday,
   type ProgramDraft,
 } from './program-draft'
 import { type WeightUnit } from '@/lib/units'
+import { WEEKDAY_NAMES } from '@/lib/schedule-anchor'
 
 interface ProgramBuilderProps {
   /** When set, the builder is in edit mode: Save updates this program and returns to its detail page. */
@@ -256,6 +258,43 @@ export function ProgramBuilder({
               >
                 <Trash2 aria-hidden="true" className="size-4" />
               </Button>
+            </div>
+
+            {/* Weekday schedule: 7 toggle chips, Sunday-first to match the
+                stored 0–6 indices. Optional — no selection = unscheduled, and
+                the home hero renders exactly as before. aria-pressed carries
+                the on/off state; the label carries the full weekday name the
+                single letter can't. */}
+            <div
+              role="group"
+              aria-label={`${day.name || `Day ${dayIndex + 1}`} schedule`}
+              className="flex gap-1.5 px-0.5"
+            >
+              {WEEKDAY_NAMES.map((weekdayName, weekday) => {
+                const isSelected = day.weekdays.includes(weekday)
+                return (
+                  <button
+                    key={weekdayName}
+                    type="button"
+                    aria-pressed={isSelected}
+                    aria-label={weekdayName}
+                    onClick={() =>
+                      dispatch({
+                        type: 'SET_DAY_WEEKDAYS',
+                        index: dayIndex,
+                        weekdays: toggleWeekday(day.weekdays, weekday),
+                      })
+                    }
+                    className={`grid size-8 shrink-0 place-items-center rounded-full text-xs font-semibold transition-colors ${
+                      isSelected
+                        ? 'bg-primary text-primary-foreground'
+                        : 'bg-muted text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    {weekdayName[0]}
+                  </button>
+                )
+              })}
             </div>
 
             <ExercisePicker
