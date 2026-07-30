@@ -12,7 +12,7 @@ export const dynamic = 'force-dynamic'
  * (vercel.json). Bearer-gated by CRON_SECRET (Vercel attaches it when the env
  * var exists); public in the Clerk middleware because the caller is a robot.
  *
- * The schedule fires hourly but the route self-gates to the morning window
+ * The schedule fires once daily at 13:30 UTC (Hobby plan allows daily crons only); the route still self-gates to the window
  * (13:00–14:59 UTC ≈ 8–10am ET — v1 fixed window, per-user timezones are the
  * noted follow-up). Within the window, each subscribed user whose active
  * program's next day is scheduled TODAY (UTC weekday) gets at most ONE
