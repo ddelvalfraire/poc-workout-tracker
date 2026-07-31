@@ -77,8 +77,10 @@ measuredAt, site (enum: chest/waist/hips/thigh/arm/calf/neck/shoulders),
 valueCm numeric. Same page pattern: log form, per-site trend charts,
 history. Pure pattern echo. Effort: S–M.
 
-**Progress photos**: needs storage — **Vercel Blob, private access** (first
-storage dependency; ~$0 at POC scale). `progress_photos`: id, userId,
+**Progress photos**: needs storage — **Supabase Storage, private bucket**
+(the db IS Supabase — same project, no new vendor, per the explicit
+no-Vercel-lock-in call; server-signed expiring URLs; ~$0 at POC scale).
+`progress_photos`: id, userId,
 takenAt, blobKey, pose (front/side/back, optional), note. Auth-gated
 download route (never public URLs), EXIF stripped server-side, hard delete
 removes the blob. Photos render in a timeline strip + side-by-side compare
@@ -112,6 +114,11 @@ sharing surface at all.
 3. **Arc 2** (goals + streak) — biggest single migration; lands best after
    check-ins exist (a consistency goal and a check-in cadence share the
    "adherence" muscle).
+
+## Decisions since v1 (2026-07-31)
+
+- Storage: **Supabase Storage** (db is already Supabase; explicit no-Vercel-lock-in call), private bucket + server-signed expiring URLs.
+- Volume target unit: **hard sets** (field standard: set-based dose-response literature and MEV/MRV frameworks; programs prescribe sets so planned-vs-performed derives cleanly). Per-muscle tonnage as an optional secondary display later — session tonnage already exists on summaries.
 
 ## Open questions (decide before building)
 
