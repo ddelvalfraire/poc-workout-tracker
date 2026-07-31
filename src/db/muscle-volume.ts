@@ -60,10 +60,36 @@ export interface MuscleVolume {
 }
 
 /**
+ * The credit rule ONE set earns, shared by performed volume (here) and planned
+ * volume (db/planned-volume.ts) so planned-vs-performed is apples-to-apples:
+ * each PRIMARY muscle's group gets 1.0, each secondary's 0.5, and a group hit
+ * by both roles (e.g. Chest primary + Serratus secondary — same bucket) counts
+ * once at 1.0. Null (exercise unknown) and an empty muscle list both credit
+ * 'Other' 1.0 — the set happened / is planned; it's never dropped.
+ */
+export function creditSetMuscles(
+  muscles: { primary: readonly string[]; secondary: readonly string[] } | null,
+): Map<VolumeGroup, number> {
+  const credits = new Map<VolumeGroup, number>()
+  if (muscles === null) {
+    credits.set('Other', 1)
+    return credits
+  }
+  for (const name of muscles.primary) {
+    credits.set(muscleGroupFor(name) ?? 'Other', 1)
+  }
+  for (const name of muscles.secondary) {
+    const group = muscleGroupFor(name) ?? 'Other'
+    if (!credits.has(group)) credits.set(group, 0.5)
+  }
+  // A catalog entry with no muscles at all still did SOMETHING.
+  if (credits.size === 0) credits.set('Other', 1)
+  return credits
+}
+
+/**
  * Pure aggregation — exported for tests. Builds fresh structures; never
- * mutates inputs. Credit per set: each PRIMARY muscle's group gets 1.0, each
- * secondary's 0.5, and a group hit by both (e.g. a lift listing Chest primary
- * + Serratus secondary — same bucket) counts once at 1.0. Duration-mode rows
+ * mutates inputs. Credit per set: `creditSetMuscles`. Duration-mode rows
  * never count (consistent with records: reps_weight is the set-volume unit).
  */
 export function aggregateMuscleVolume(
@@ -91,21 +117,7 @@ export function aggregateMuscleVolume(
     }
 
     // Per-set group credits: primary wins over secondary within one set.
-    const muscles = resolver(row.source, row.wgerExerciseId)
-    const credits = new Map<VolumeGroup, number>()
-    if (muscles === null) {
-      credits.set('Other', 1)
-    } else {
-      for (const name of muscles.primary) {
-        credits.set(muscleGroupFor(name) ?? 'Other', 1)
-      }
-      for (const name of muscles.secondary) {
-        const group = muscleGroupFor(name) ?? 'Other'
-        if (!credits.has(group)) credits.set(group, 0.5)
-      }
-      // A catalog entry with no muscles at all still did SOMETHING.
-      if (credits.size === 0) credits.set('Other', 1)
-    }
+    const credits = creditSetMuscles(resolver(row.source, row.wgerExerciseId))
     for (const [group, credit] of credits) {
       bucket.set(group, (bucket.get(group) ?? 0) + credit)
     }
@@ -150,7 +162,10 @@ export async function buildMuscleResolver(userId: string): Promise<MuscleResolve
 }
 
 /** The shared flat-rows fetch: completed sets in completed workouts from the
- *  previous window's start onward (one fetch covers both windows). */
+ *  previous window's start onward (one fetch covers both windows).
+ *  Deliberately no set_type filter: a completed warm-up is work performed.
+ *  The set-type rule and its planned-side asymmetry are documented in
+ *  db/planned-volume.ts. */
 function fetchVolumeRows(userId: string, windows: VolumeWindows) {
   return db
     .select({
