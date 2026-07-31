@@ -14,24 +14,28 @@ import type { MuscleGroupVolume } from '@/db/muscle-volume'
 /**
  * Weekly sets per muscle group: horizontal paired bars — this week in volt,
  * last week in the muted ink — one row per group so ten groups fit a phone
- * without label rotation. Two series → the legend is mandatory (identity is
- * never color-alone); exact values live in the tooltip, not painted on bars.
+ * without label rotation. Multiple series → the legend is mandatory (identity
+ * is never color-alone); exact values live in the tooltip, not painted on
+ * bars. When rows carry `plannedSets` (active program), a third thin bar
+ * marks the weekly target; without it the render is identical to before.
  * Client island: recharts renders client-side; the page passes plain rows.
  */
 
 const chartConfig = {
   currentSets: { label: 'This week', color: 'var(--primary)' },
   previousSets: { label: 'Last week', color: 'var(--muted-foreground)' },
+  plannedSets: { label: 'Planned / week', color: 'var(--foreground)' },
 } satisfies ChartConfig
 
-/** Vertical rhythm per group row — two thin bars plus breathing room. */
+/** Vertical rhythm per group row — the thin bars plus breathing room. */
 const ROW_HEIGHT = 44
 
 interface VolumeBarChartProps {
-  groups: MuscleGroupVolume[]
+  groups: (MuscleGroupVolume & { plannedSets?: number })[]
 }
 
 export function VolumeBarChart({ groups }: VolumeBarChartProps) {
+  const hasPlanned = groups.some((g) => g.plannedSets !== undefined)
   return (
     <ChartContainer
       config={chartConfig}
@@ -61,6 +65,15 @@ export function VolumeBarChart({ groups }: VolumeBarChartProps) {
           radius={4}
           barSize={10}
         />
+        {hasPlanned && (
+          <Bar
+            dataKey="plannedSets"
+            fill="var(--color-plannedSets)"
+            fillOpacity={0.3}
+            radius={4}
+            barSize={4}
+          />
+        )}
       </BarChart>
     </ChartContainer>
   )
