@@ -81,9 +81,16 @@ history. Pure pattern echo. Effort: S–M.
 (the db IS Supabase — same project, no new vendor, per the explicit
 no-Vercel-lock-in call; server-signed expiring URLs; ~$0 at POC scale).
 `progress_photos`: id, userId,
-takenAt, blobKey, pose (front/side/back, optional), note. Auth-gated
-download route (never public URLs), EXIF stripped server-side, hard delete
-removes the blob. Photos render in a timeline strip + side-by-side compare
+takenAt, blobKeyDisplay, blobKeyThumb, thumbHash, pose (front/side/back,
+optional), note. **Image pipeline (Instagram-style, decided 2026-07-31)**:
+one sharp pass at upload — strip EXIF, re-encode display (max 1080px WebP)
++ thumb (320px WebP), compute a ThumbHash (~25 bytes) stored ON the row,
+discard the multi-MB original. The timeline renders instant fuzzy
+placeholders from the DB query alone (ThumbHash decodes client-side, zero
+network), thumbs lazy-load over them, compare view pulls display size via
+signed URLs. Own derivatives (not Supabase image transforms — Pro-plan
+feature, and vendor-portable this way). Auth-gated signed URLs (never
+public), hard delete removes both blobs. Photos render in a timeline strip + side-by-side compare
 view (date A vs date B — the retention moment). Effort: M (storage
 plumbing + compare UI). Privacy is the review gate: private-only in v1, no
 sharing surface at all.
