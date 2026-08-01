@@ -183,6 +183,13 @@
       "when": 1785432470571,
       "tag": "0025_rich_nightshade",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1785541993258,
+      "tag": "0026_needy_photon",
+      "breakpoints": true
     }
   ]
 }

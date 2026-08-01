@@ -11,7 +11,9 @@ import {
   getWeightUnit,
 } from '@/db/preferences'
 import { logBodyweight, deleteBodyweightLog } from '@/db/bodyweight'
-import { isWeightUnit, displayToKg } from '@/lib/units'
+import { logMeasurement, deleteMeasurement } from '@/db/body-measurements'
+import { isMeasurementSite } from '@/lib/measurement-sites'
+import { isWeightUnit, displayToKg, displayToCm, lengthUnitFor } from '@/lib/units'
 import { parseEquipmentInput } from '@/lib/equipment'
 import { MAX_REST_SEC } from '@/lib/program-input'
 
@@ -59,7 +61,7 @@ export async function setEquipmentAction(input: unknown): Promise<void> {
  *
  * Every set is a weigh-in: it appends a `bodyweight_logs` row (history) and
  * the data layer syncs `user_preferences.bodyweight_kg` (the current value
- * scoring reads) to the freshest log — so a settings edit and a /bodyweight
+ * scoring reads) to the freshest log — so a settings edit and a /body
  * quick log are the same write path.
  */
 export async function setBodyweightAction(value: unknown): Promise<void> {
@@ -97,6 +99,41 @@ export async function deleteBodyweightLogAction(id: unknown): Promise<void> {
   const deleted = await deleteBodyweightLog(userId, id)
   if (!deleted) throw new Error('bodyweight entry not found')
   revalidatePath('/', 'layout')
+}
+
+/**
+ * Logs one tape measurement from the /body page. The value arrives in the
+ * user's DISPLAY length unit — inferred server-side from the stored weight
+ * unit (lb → in, kg → cm; one preference governs both), so a stale client
+ * can't convert against the wrong unit. Stored in canonical cm. The site
+ * whitelist and the 10–300 cm plausibility band are enforced in the data
+ * layer; this boundary guards the shape (a finite positive number, a string
+ * site) so the db error messages stay about semantics, not types.
+ */
+export async function logMeasurementAction(site: unknown, value: unknown): Promise<void> {
+  const userId = await requireUserId()
+  if (!isMeasurementSite(site)) throw new Error('invalid measurement site')
+  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) {
+    throw new Error('measurement must be a positive number')
+  }
+  const unit = lengthUnitFor(await getWeightUnit(userId))
+  await logMeasurement(userId, site, displayToCm(value, unit))
+  revalidatePath('/body')
+}
+
+/**
+ * Deletes one owned measurement. A missing result means the row isn't owned
+ * or is already gone — throw so the client shows the failure instead of
+ * refreshing as if it worked. Same uuid guard as the bodyweight delete.
+ */
+export async function deleteMeasurementAction(id: unknown): Promise<void> {
+  const userId = await requireUserId()
+  if (typeof id !== 'string' || !UUID_RE.test(id)) {
+    throw new Error('invalid measurement id')
+  }
+  const deleted = await deleteMeasurement(userId, id)
+  if (!deleted) throw new Error('measurement not found')
+  revalidatePath('/body')
 }
 
 /**
