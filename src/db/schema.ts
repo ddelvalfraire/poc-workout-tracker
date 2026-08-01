@@ -16,6 +16,7 @@ import { relations, sql } from 'drizzle-orm'
 import type { Technique, Progression, SetType, MetricMode } from '@/lib/program-input'
 import type { ExerciseSource, ExerciseCategory } from '@/lib/custom-exercise-input'
 import type { LoggingType } from '@/lib/workout-input'
+import type { MeasurementSite } from '@/lib/measurement-sites'
 
 export const workouts = pgTable(
   'workouts',
@@ -163,6 +164,30 @@ export const bodyweightLogs = pgTable(
   // Composite: both access paths (history list, freshest-row resync) filter
   // by user AND order by weighed_at desc — the index serves the sort too.
   (t) => [index('bodyweight_logs_user_id_weighed_at_idx').on(t.userId, t.weighedAt.desc())],
+)
+
+/**
+ * Tape-measurement history — one row per site reading, echoing bodyweight_logs
+ * (same ownership root, same backdatable timestamp, same canonical-metric
+ * column). No denormalized current value: nothing scores off a girth, so the
+ * freshest row per site is derived at read time. `site` is the app-level enum
+ * in lib/measurement-sites.ts (text + $type, like `source`/`set_type`);
+ * `value_cm` is canonical cm — inches are a display concern (lib/units.ts).
+ */
+export const bodyMeasurements = pgTable(
+  'body_measurements',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    userId: text('user_id').notNull(), // Clerk user id — ownership root
+    measuredAt: timestamp('measured_at', { withTimezone: true }).defaultNow().notNull(),
+    site: text('site').$type<MeasurementSite>().notNull(),
+    // Canonical cm. numeric(5,2) caps at 999.99; the data layer enforces the
+    // tighter 10–300 cm human-plausibility band.
+    valueCm: numeric('value_cm', { precision: 5, scale: 2, mode: 'number' }).notNull(),
+  },
+  // Same shape as bodyweight_logs' index: the history read filters by user and
+  // orders by measured_at desc (site filtering narrows in-plan).
+  (t) => [index('body_measurements_user_id_measured_at_idx').on(t.userId, t.measuredAt.desc())],
 )
 
 /**

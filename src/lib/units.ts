@@ -31,3 +31,35 @@ export function displayToKg(value: number, unit: WeightUnit): number {
   const kg = unit === 'lb' ? value * KG_PER_LB : value
   return Math.round(kg * 100) / 100 // sets.weight is numeric(6,2)
 }
+
+// ── Lengths (body measurements) ──────────────────────────────────────────────
+// Same canonical-unit discipline as weights: cm stored, display unit derived.
+
+export type LengthUnit = 'cm' | 'in'
+
+// 1 in = 2.54 cm (exact, by definition).
+const CM_PER_IN = 2.54
+
+/**
+ * The length display unit is INFERRED from the weight unit preference — one
+ * preference governs both (lb users measure in inches, kg users in cm).
+ * There is deliberately no separate length-unit setting.
+ */
+export function lengthUnitFor(weightUnit: WeightUnit): LengthUnit {
+  return weightUnit === 'lb' ? 'in' : 'cm'
+}
+
+/**
+ * Converts a stored cm length into the display unit. cm is canonical, so it's
+ * returned verbatim (full precision); only the inch conversion is rounded to
+ * 1dp for display — mirroring kgToDisplay.
+ */
+export function cmToDisplay(valueCm: number, unit: LengthUnit): number {
+  return unit === 'in' ? Math.round((valueCm / CM_PER_IN) * 10) / 10 : valueCm
+}
+
+/** Converts a value entered in the display unit back to cm, at column precision (2dp). */
+export function displayToCm(value: number, unit: LengthUnit): number {
+  const cm = unit === 'in' ? value * CM_PER_IN : value
+  return Math.round(cm * 100) / 100 // body_measurements.value_cm is numeric(5,2)
+}

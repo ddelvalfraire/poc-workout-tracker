@@ -92,18 +92,18 @@ export default async function SettingsPage() {
           >
             <RestDefaultSetting defaultRestSec={defaultRestSec} />
           </SettingRow>
-          {/* Link row, not an inline editor: bodyweight grew its own surface
-              (history + trend at /bodyweight); settings only shows the
-              current value scoring reads and hands off. */}
+          {/* Link row, not an inline editor: body tracking grew its own surface
+              (weight + tape history and trends at /body); settings only shows
+              the current weight scoring reads and hands off. */}
           <li>
             <Link
-              href="/bodyweight"
+              href="/body"
               className="flex items-center justify-between gap-4 px-4 py-4 transition-colors outline-none hover:bg-muted/50 focus-visible:bg-muted/50"
             >
               <div className="min-w-0">
-                <p className="font-medium">Bodyweight</p>
+                <p className="font-medium">Body</p>
                 <p className="mt-0.5 text-sm text-muted-foreground">
-                  Feeds est. 1RM for bodyweight-type exercises.
+                  Bodyweight and tape measurements. Weight feeds est. 1RM.
                 </p>
               </div>
               <div className="flex shrink-0 items-center gap-1 text-muted-foreground">

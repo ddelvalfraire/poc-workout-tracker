@@ -18,6 +18,10 @@ vi.mock('@/db/bodyweight', () => ({
   logBodyweight: vi.fn(async () => ({ id: 'bw1' })),
   deleteBodyweightLog: vi.fn(async () => ({ id: 'bw1' })),
 }))
+vi.mock('@/db/body-measurements', () => ({
+  logMeasurement: vi.fn(async () => ({ id: 'bm1' })),
+  deleteMeasurement: vi.fn(async () => ({ id: 'bm1' })),
+}))
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
 
 import {
@@ -25,6 +29,8 @@ import {
   setEquipmentAction,
   setBodyweightAction,
   deleteBodyweightLogAction,
+  logMeasurementAction,
+  deleteMeasurementAction,
   setDefaultRestSecAction,
   setRestTimerEnabledAction,
   setProgramReminderDismissedAction,
@@ -38,6 +44,7 @@ import {
   getWeightUnit,
 } from '@/db/preferences'
 import { logBodyweight, deleteBodyweightLog } from '@/db/bodyweight'
+import { logMeasurement, deleteMeasurement } from '@/db/body-measurements'
 import { revalidatePath } from 'next/cache'
 
 beforeEach(() => {
@@ -111,7 +118,7 @@ describe('setBodyweightAction', () => {
     // Act — user's stored unit is lb (mocked); 181.5 lb → 82.33 kg (2dp)
     await setBodyweightAction(181.5)
 
-    // Assert — the settings edit and the /bodyweight quick log share this
+    // Assert — the settings edit and the /body quick log share this
     // write path: a history row is appended, prefs sync in the data layer.
     expect(getWeightUnit).toHaveBeenCalledWith('user_123')
     expect(logBodyweight).toHaveBeenCalledWith('user_123', 82.33)
@@ -147,6 +154,79 @@ describe('deleteBodyweightLogAction', () => {
 
     // Act / Assert
     await expect(deleteBodyweightLogAction(LOG_ID)).rejects.toThrow('not found')
+    expect(revalidatePath).not.toHaveBeenCalled()
+  })
+})
+
+describe('logMeasurementAction', () => {
+  it('rejects a site outside the whitelist without writing or revalidating', async () => {
+    await expect(logMeasurementAction('forearm', 30)).rejects.toThrow(
+      'invalid measurement site',
+    )
+    expect(logMeasurement).not.toHaveBeenCalled()
+    expect(revalidatePath).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['a non-number', '33.5'],
+    ['zero', 0],
+    ['a negative value', -30],
+    ['a non-finite value', Infinity],
+  ])('rejects %s without writing or revalidating', async (_label, value) => {
+    await expect(logMeasurementAction('waist', value)).rejects.toThrow('positive number')
+    expect(logMeasurement).not.toHaveBeenCalled()
+    expect(revalidatePath).not.toHaveBeenCalled()
+  })
+
+  it('converts the display-unit input to cm using the STORED weight unit', async () => {
+    // Act — stored unit is lb (mocked) → length unit inches; 33.5 in → 85.09 cm
+    await logMeasurementAction('waist', 33.5)
+
+    // Assert
+    expect(getWeightUnit).toHaveBeenCalledWith('user_123')
+    expect(logMeasurement).toHaveBeenCalledWith('user_123', 'waist', 85.09)
+    expect(revalidatePath).toHaveBeenCalledWith('/body')
+  })
+
+  it('stores a cm entry verbatim when the stored unit is kg', async () => {
+    // Arrange — kg user → cm entry, no conversion
+    vi.mocked(getWeightUnit).mockResolvedValueOnce('kg')
+
+    // Act
+    await logMeasurementAction('chest', 101.25)
+
+    // Assert
+    expect(logMeasurement).toHaveBeenCalledWith('user_123', 'chest', 101.25)
+  })
+})
+
+describe('deleteMeasurementAction', () => {
+  const MEASUREMENT_ID = '2f0a4c1e-1111-4222-8333-444455556666'
+
+  it.each([
+    ['a non-string', 42],
+    ['a non-uuid string', 'not-a-uuid'],
+  ])('rejects %s without deleting or revalidating', async (_label, value) => {
+    await expect(deleteMeasurementAction(value)).rejects.toThrow('invalid measurement id')
+    expect(deleteMeasurement).not.toHaveBeenCalled()
+    expect(revalidatePath).not.toHaveBeenCalled()
+  })
+
+  it('deletes an owned entry and revalidates /body', async () => {
+    // Act
+    await deleteMeasurementAction(MEASUREMENT_ID)
+
+    // Assert
+    expect(deleteMeasurement).toHaveBeenCalledWith('user_123', MEASUREMENT_ID)
+    expect(revalidatePath).toHaveBeenCalledWith('/body')
+  })
+
+  it('throws (no revalidate) when the entry is not owned or already gone', async () => {
+    // Arrange — the ownership-scoped delete matched nothing
+    vi.mocked(deleteMeasurement).mockResolvedValueOnce(null)
+
+    // Act / Assert
+    await expect(deleteMeasurementAction(MEASUREMENT_ID)).rejects.toThrow('not found')
     expect(revalidatePath).not.toHaveBeenCalled()
   })
 })

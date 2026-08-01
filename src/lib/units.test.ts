@@ -1,5 +1,13 @@
 import { describe, it, expect } from 'vitest'
-import { kgToDisplay, displayToKg, isWeightUnit, DEFAULT_WEIGHT_UNIT } from './units'
+import {
+  kgToDisplay,
+  displayToKg,
+  isWeightUnit,
+  DEFAULT_WEIGHT_UNIT,
+  lengthUnitFor,
+  cmToDisplay,
+  displayToCm,
+} from './units'
 
 describe('DEFAULT_WEIGHT_UNIT', () => {
   it('is lb (product default for unconfigured users)', () => {
@@ -33,6 +41,47 @@ describe('displayToKg', () => {
   it('converts lb back to kg at 2dp', () => {
     // 220.5 lb × 0.45359237 = 100.017… → 100.02 at column precision
     expect(displayToKg(220.5, 'lb')).toBeCloseTo(100.02, 2)
+  })
+})
+
+describe('lengthUnitFor', () => {
+  it('infers inches from the lb weight preference (one preference governs both)', () => {
+    expect(lengthUnitFor('lb')).toBe('in')
+  })
+
+  it('infers cm from the kg weight preference', () => {
+    expect(lengthUnitFor('kg')).toBe('cm')
+  })
+})
+
+describe('cmToDisplay', () => {
+  it('is the identity for cm (canonical unit, full precision preserved)', () => {
+    expect(cmToDisplay(85.25, 'cm')).toBe(85.25)
+  })
+
+  it('converts cm to inches, rounded to 1dp', () => {
+    // 85 / 2.54 = 33.464… → 33.5
+    expect(cmToDisplay(85, 'in')).toBe(33.5)
+  })
+
+  it('rounds the inch conversion down when the fraction falls under .05', () => {
+    // 84 / 2.54 = 33.070… → 33.1
+    expect(cmToDisplay(84, 'in')).toBe(33.1)
+  })
+})
+
+describe('displayToCm', () => {
+  it('rounds the cm identity path to column precision (2dp)', () => {
+    expect(displayToCm(85.256, 'cm')).toBe(85.26)
+  })
+
+  it('converts inches back to cm at 2dp', () => {
+    // 33.5 in × 2.54 = 85.09 exactly
+    expect(displayToCm(33.5, 'in')).toBe(85.09)
+  })
+
+  it('round-trips a typical inch entry within display rounding', () => {
+    expect(cmToDisplay(displayToCm(33.5, 'in'), 'in')).toBe(33.5)
   })
 })
 
