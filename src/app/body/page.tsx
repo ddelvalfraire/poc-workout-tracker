@@ -4,6 +4,8 @@ import { requireUserId } from '@/lib/auth'
 import { getWeightUnit } from '@/db/preferences'
 import { listBodyweightLogs } from '@/db/bodyweight'
 import { listMeasurements } from '@/db/body-measurements'
+import { listProgressPhotos, type ProgressPhoto } from '@/db/progress-photos'
+import { createSignedUrls } from '@/lib/supabase-storage'
 import { kgToDisplay, cmToDisplay, lengthUnitFor, type WeightUnit } from '@/lib/units'
 import { bodyweightDeltaKg } from '@/lib/bodyweight-trend'
 import { TrendChart } from '@/components/charts/trend-chart'
@@ -14,6 +16,8 @@ import { cn } from '@/lib/utils'
 import { BodyweightLogForm } from './log-form'
 import { BodyweightEntryRow } from './entry-row'
 import { MeasurementsSection } from './measurements-section'
+import { PhotosSection } from './photos-section'
+import type { PhotoEntry } from './photo-cell'
 
 // The delta window the bodyweight hero reports against ("+1.2 lb / 30d").
 const DELTA_DAYS = 30
@@ -27,11 +31,13 @@ const DELTA_DAYS = 30
  */
 export default async function BodyPage() {
   const userId = await requireUserId()
-  const [unit, logs, measurements] = await Promise.all([
+  const [unit, logs, measurements, photos] = await Promise.all([
     getWeightUnit(userId),
     listBodyweightLogs(userId),
     listMeasurements(userId),
+    listProgressPhotos(userId),
   ])
+  const photoEntries = await buildPhotoEntries(photos)
   const lengthUnit = lengthUnitFor(unit)
 
   const current = logs[0] ?? null
@@ -142,9 +148,47 @@ export default async function BodyPage() {
             <MeasurementsSection unit={lengthUnit} entries={measurementEntries} />
           </div>
         </section>
+
+        {/* ── Photos ─────────────────────────────────────────────────── */}
+        <section aria-label="Progress photos" className="mt-10">
+          <h2 className="px-1 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+            Progress photos
+          </h2>
+          <div className="mt-3">
+            <PhotosSection entries={photoEntries} />
+          </div>
+        </section>
       </main>
     </div>
   )
+}
+
+/**
+ * Rows → island entries: dates pre-formatted, thumb AND display URLs signed
+ * in ONE bulk storage call at render (the RSC is the signer — no list API).
+ * If signing fails, the timeline still renders from ThumbHashes alone
+ * (urls null) instead of the whole page erroring.
+ */
+async function buildPhotoEntries(photos: ProgressPhoto[]): Promise<PhotoEntry[]> {
+  let signed = new Map<string, string>()
+  if (photos.length > 0) {
+    try {
+      signed = await createSignedUrls(
+        photos.flatMap((p) => [p.blobKeyThumb, p.blobKeyDisplay]),
+      )
+    } catch (error: unknown) {
+      console.error('progress-photo URL signing failed', error)
+    }
+  }
+  return photos.map((p) => ({
+    id: p.id,
+    dateLabel: formatWorkoutDate(p.takenAt),
+    pose: p.pose,
+    note: p.note,
+    thumbHash: p.thumbHash,
+    thumbUrl: signed.get(p.blobKeyThumb) ?? null,
+    displayUrl: signed.get(p.blobKeyDisplay) ?? null,
+  }))
 }
 
 /** "+1.2 lb" / "−0.8 kg" — signed, 1dp, in the display unit. */

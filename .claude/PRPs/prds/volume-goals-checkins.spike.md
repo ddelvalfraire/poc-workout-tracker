@@ -125,13 +125,14 @@ sharing surface at all.
 ## Decisions since v1 (2026-07-31)
 
 - Storage: **Supabase Storage** (db is already Supabase; explicit no-Vercel-lock-in call), private bucket + server-signed expiring URLs.
+- Photo image pipeline runs **in the browser** (canvas: display/thumb derivatives + ThumbHash before upload); the server stores blobs verbatim. This is the deliberate E2EE escape hatch — full E2EE itself is not being built: "I guess it's not worth doing now. because pwas are flaky, and dont always work as expected."
 - Volume target unit: **hard sets** (field standard: set-based dose-response literature and MEV/MRV frameworks; programs prescribe sets so planned-vs-performed derives cleanly). Per-muscle tonnage as an optional secondary display later — session tonnage already exists on summaries.
 
 ## Open questions (decide before building)
 
 - [ ] Streak grace rule: strict consecutive vs one-miss-per-week allowed.
 - [ ] Measurements units: cm canonical with in display (mirror kg/lb) — yes?
-- [ ] Photos in v1 of the check-in sheet, or measurements-only first?
+- [x] Photos in v1 of the check-in sheet? Resolved: photos ship first (Arc 3b, before check-ins/3c) — the check-in sheet can include them from day one.
 - [ ] Does /bodyweight fold into one /body page (weight + tape + photos) or
   stay separate? Lean: fold — one check-in destination.
-- [ ] Blob spend guard: cap stored photos per user (e.g. 200) in v1?
+- [x] Blob spend guard: resolved — cap of 200 stored photos per user, enforced server-side at upload (PHOTO_CAP).
