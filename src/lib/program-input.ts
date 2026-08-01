@@ -321,6 +321,13 @@ export const programInputSchema = z
     // that omits the field would flip a stored OFF back ON. saveProgram
     // defaults omitted-on-create to ON; updateProgram preserves when omitted.
     planSync: z.boolean().optional(),
+    // Program-suggested body check-in cadence, days (programs.checkInEveryDays).
+    // Null = no suggestion; when set, 3–90 (under 3 is nagging, over 90 isn't a
+    // cadence). Same preserve-on-omit discipline as the switches above: no
+    // default, or an upsert that omits the field would wipe a stored cadence.
+    // saveProgram treats omitted-on-create as null; updateProgram preserves
+    // when omitted, and an explicit null clears the suggestion.
+    checkInEveryDays: z.number().int().min(3).max(90).nullable().optional(),
     notes: z.string().max(2000).nullable().optional(),
     // Article metadata (PRD §3) — presentation only, all optional; blank
     // strings collapse to null so "cleared in a form" and "absent" persist

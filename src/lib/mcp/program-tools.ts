@@ -89,6 +89,10 @@ const rawProgramSchema = z.object({
   // Performance→plan auto-sync switch; omitted → default on at create,
   // PRESERVED on replace (no .default — see lib/program-input.ts).
   planSync: z.boolean().optional(),
+  // Suggested body check-in cadence in days (3–90 enforced by
+  // parseProgramInput); null = no suggestion. Omitted → null at create,
+  // PRESERVED on replace — same discipline as the switches above.
+  checkInEveryDays: z.number().int().nullable().optional(),
   notes: z.string().nullable().optional(),
   // Article metadata (PRD §3) — permissive here like every other field; the
   // real validation (trim, blank→null, caps, http(s) URL parse) is
@@ -135,6 +139,7 @@ function toKgProgram(raw: RawProgram, unit: WeightUnit): unknown {
     deloadWeek: raw.deloadWeek,
     autoregulation: raw.autoregulation,
     planSync: raw.planSync,
+    checkInEveryDays: raw.checkInEveryDays,
     notes: raw.notes,
     description: raw.description,
     icon: raw.icon,
@@ -225,6 +230,8 @@ export interface ProgramPayload {
     deloadWeek: number | null
     autoregulation: boolean
     planSync: boolean
+    /** Suggested body check-in cadence in days; null = no suggestion. */
+    checkInEveryDays: number | null
     notes: string | null
     description: string | null
     icon: string | null
@@ -389,6 +396,7 @@ export function buildProgramPayload(
       deloadWeek: program.deloadWeek,
       autoregulation: program.autoregulation,
       planSync: program.planSync,
+      checkInEveryDays: program.checkInEveryDays,
       notes: program.notes,
       description: program.description,
       icon: program.icon,
@@ -434,7 +442,7 @@ export function registerProgramTools(server: McpServer): void {
     {
       title: 'Upsert Program',
       description:
-        "Creates a training program, or fully replaces one when `id` is given (coarse create/replace, not a partial edit). Exercise identity is the composite (source, wgerExerciseId); `source` defaults to 'wger', pass 'custom' for custom exercises. `supersetGroup` (same non-null value within a day) survives replace. Each day may carry `weekdays` (integers 0–6, Sunday-first) scheduling it on those weekdays — the home screen then anchors it in time (Today/Tomorrow); omitted or empty = unscheduled, and like the rest of the day tree it is full-replace (an upsert that omits it unschedules the day). Per-week set overrides survive replace for sets that keep the same day/exercise/setNumber position; overrides on removed slots are dropped. `suggestedLoad` is in the user's unit (or the `unit` arg) and stored as kg; `technique`/`progression` JSONB are in kg. When called by the in-app coach, the program is ALWAYS saved as a 'proposed' draft (whatever `status` says) that only the owner can adopt or decline, and a replace may target only the coach's own still-proposed drafts. `planSync` (default true) auto-updates the plan's suggested loads to what the lifter actually performed after each finished session; set false for deliberate-percentage programs (5/3/1-style waves). Omitting `planSync` or `autoregulation` on a replace PRESERVES the stored value. Returns the programId and effective status. Errors if a given id isn't found or owned.",
+        "Creates a training program, or fully replaces one when `id` is given (coarse create/replace, not a partial edit). Exercise identity is the composite (source, wgerExerciseId); `source` defaults to 'wger', pass 'custom' for custom exercises. `supersetGroup` (same non-null value within a day) survives replace. Each day may carry `weekdays` (integers 0–6, Sunday-first) scheduling it on those weekdays — the home screen then anchors it in time (Today/Tomorrow); omitted or empty = unscheduled, and like the rest of the day tree it is full-replace (an upsert that omits it unschedules the day). Per-week set overrides survive replace for sets that keep the same day/exercise/setNumber position; overrides on removed slots are dropped. `suggestedLoad` is in the user's unit (or the `unit` arg) and stored as kg; `technique`/`progression` JSONB are in kg. When called by the in-app coach, the program is ALWAYS saved as a 'proposed' draft (whatever `status` says) that only the owner can adopt or decline, and a replace may target only the coach's own still-proposed drafts. `planSync` (default true) auto-updates the plan's suggested loads to what the lifter actually performed after each finished session; set false for deliberate-percentage programs (5/3/1-style waves). `checkInEveryDays` (3–90, or null) makes the program suggest a body check-in (weigh-in/tape/photo, the /body page) every N days — a due check-in shows a home card and rides the daily reminder push. Omitting `planSync`, `autoregulation`, or `checkInEveryDays` on a replace PRESERVES the stored value. Returns the programId and effective status. Errors if a given id isn't found or owned.",
       inputSchema: {
         id: z.string().optional(),
         ...rawProgramSchema.shape,
@@ -451,6 +459,7 @@ export function registerProgramTools(server: McpServer): void {
         deloadWeek,
         autoregulation,
         planSync,
+        checkInEveryDays,
         notes,
         description,
         icon,
@@ -483,6 +492,7 @@ export function registerProgramTools(server: McpServer): void {
             deloadWeek,
             autoregulation,
             planSync,
+            checkInEveryDays,
             notes,
             description,
             icon,

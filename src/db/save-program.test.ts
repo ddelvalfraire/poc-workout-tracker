@@ -641,6 +641,60 @@ describe('planSync toggle integrity', () => {
   })
 })
 
+describe('checkInEveryDays cadence integrity', () => {
+  const MINIMAL = {
+    name: 'P',
+    days: [{ name: 'D', exercises: [{ wgerExerciseId: 1, name: 'X', sets: [{}] }] }],
+  }
+
+  it('saveProgram defaults an omitted cadence to null at create (no suggestion)', async () => {
+    // Act
+    await saveProgram(USER, parseProgramInput(MINIMAL), 'ui')
+
+    // Assert
+    expect(records[0].values).toMatchObject({ checkInEveryDays: null })
+  })
+
+  it('updateProgram PRESERVES the stored cadence when the input omits it (omit ≠ clear)', async () => {
+    // Arrange — an upsert that never mentions checkInEveryDays: a program's
+    // stored 14-day suggestion must survive the round trip.
+    const input = parseProgramInput(MINIMAL)
+
+    // Act
+    await updateProgram(USER, 'p1', input, 'mcp')
+
+    // Assert — the update payload does not touch the column at all
+    expect(updateSets).toHaveLength(1)
+    expect('checkInEveryDays' in (updateSets[0] as Record<string, unknown>)).toBe(false)
+  })
+
+  it('updateProgram writes an explicit cadence through', async () => {
+    // Act
+    await updateProgram(
+      USER,
+      'p1',
+      parseProgramInput({ ...MINIMAL, checkInEveryDays: 14 }),
+      'ui',
+    )
+
+    // Assert
+    expect(updateSets[0]).toMatchObject({ checkInEveryDays: 14 })
+  })
+
+  it('updateProgram clears the cadence on an explicit null (null ≠ omitted)', async () => {
+    // Act
+    await updateProgram(
+      USER,
+      'p1',
+      parseProgramInput({ ...MINIMAL, checkInEveryDays: null }),
+      'ui',
+    )
+
+    // Assert
+    expect(updateSets[0]).toMatchObject({ checkInEveryDays: null })
+  })
+})
+
 describe('saveProgram muscle tagging (Phase 5)', () => {
   const INPUT = parseProgramInput({
     name: 'PPL',

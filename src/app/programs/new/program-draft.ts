@@ -89,6 +89,9 @@ export interface ProgramDraft {
   autoregulation: boolean
   /** Performance→plan auto-sync switch (see programs.planSync). */
   planSync: boolean
+  /** Suggested body check-in cadence in days as an input string; blank = no
+   *  suggestion (see programs.checkInEveryDays). */
+  checkInEveryDays: string
   days: DraftProgramDay[]
   // Pass-through fields (lifecycle/notes aren't edited by the builder).
   status: ProgramInput['status']
@@ -103,7 +106,11 @@ export interface ProgramDraft {
 }
 
 export type ProgramDraftAction =
-  | { type: 'SET_META'; field: 'name' | 'mesocycleWeeks' | 'deloadWeek'; value: string }
+  | {
+      type: 'SET_META'
+      field: 'name' | 'mesocycleWeeks' | 'deloadWeek' | 'checkInEveryDays'
+      value: string
+    }
   | { type: 'SET_AUTOREGULATION'; value: boolean }
   | { type: 'SET_PLAN_SYNC'; value: boolean }
   | { type: 'ADD_DAY'; day: DraftProgramDay }
@@ -131,6 +138,7 @@ export const emptyProgramDraft: ProgramDraft = {
   deloadWeek: '',
   autoregulation: true,
   planSync: true,
+  checkInEveryDays: '',
   days: [],
   status: 'draft',
   notes: null,
@@ -399,6 +407,9 @@ function isProgramDraft(v: unknown): v is ProgramDraft {
     isString(d.deloadWeek) &&
     typeof d.autoregulation === 'boolean' &&
     typeof d.planSync === 'boolean' &&
+    // Tolerate a missing checkInEveryDays: pre-cadence envelopes predate the
+    // field; parseStoredProgramDraft backfills '' (same policy as weekdays).
+    (d.checkInEveryDays === undefined || isString(d.checkInEveryDays)) &&
     isString(d.status) &&
     isStringOrNull(d.notes) &&
     Array.isArray(d.days) &&
@@ -432,6 +443,8 @@ export function parseStoredProgramDraft(raw: string, now: Date): ProgramDraft | 
   // instead of being discarded a day into a 30-set build.
   return {
     ...envelope.draft,
+    // Pre-cadence snapshots restore with no suggestion, not discarded.
+    checkInEveryDays: envelope.draft.checkInEveryDays ?? '',
     // Pre-article-metadata snapshots restore with the fields absent → null.
     description: envelope.draft.description ?? null,
     icon: envelope.draft.icon ?? null,
@@ -530,6 +543,11 @@ export function draftToProgramInput(
     deloadWeek: toInt(draft.deloadWeek),
     autoregulation: draft.autoregulation,
     planSync: draft.planSync,
+    // Blank = clear the suggestion (explicit null — the builder always shows
+    // the stored value, so a full replace saying null MEANS off). An
+    // out-of-range value passes through for the server's 3–90 bound to
+    // reject visibly (lenient-mapper policy).
+    checkInEveryDays: toInt(draft.checkInEveryDays),
     notes: draft.notes,
     description: draft.description,
     icon: draft.icon,
@@ -564,6 +582,7 @@ export function detailToProgramDraft(
     deloadWeek: detail.deloadWeek?.toString() ?? '',
     autoregulation: detail.autoregulation,
     planSync: detail.planSync,
+    checkInEveryDays: detail.checkInEveryDays?.toString() ?? '',
     status: toStatus(detail.status),
     notes: detail.notes,
     description: detail.description,

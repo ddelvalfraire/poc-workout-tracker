@@ -9,6 +9,7 @@ import { getVolumeTotals } from "@/db/muscle-volume";
 import { volumeWindows } from "@/lib/volume-window";
 import { getWeightUnit, getProgramReminderDismissed } from "@/db/preferences";
 import { resolveActiveSession } from "@/lib/active-session";
+import { getCheckInStatus } from "@/lib/check-in";
 import { shouldShowProgramReminder } from "@/lib/program-reminder";
 import { formatVolume, formatWorkoutDuration } from "@/lib/format";
 import { startedWithinLastHours } from "@/lib/recent-window";
@@ -16,6 +17,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { GuardedStartLink } from "@/components/guarded-start-link";
 import { cn } from "@/lib/utils";
 import { isCoachUser } from "@/lib/coach/access";
+import { CheckInCard } from "./check-in-card";
 import { NextWorkoutCard } from "./next-workout-card";
 import { ProgramReminderCard } from "./program-reminder-card";
 import { ResumeSessionCard } from "./resume-session-card";
@@ -27,12 +29,15 @@ const monthFormat = new Intl.DateTimeFormat("en-US", { month: "short" });
 
 export default async function HomePage() {
   const userId = await requireUserId(); // middleware also guards; this is defense-in-depth
-  const [summaries, unit, nextDay, drafts, programReminderDismissed, weekTotals] = await Promise.all([
+  const [summaries, unit, nextDay, drafts, programReminderDismissed, checkIn, weekTotals] = await Promise.all([
     listWorkoutSummaries(userId),
     getWeightUnit(userId),
     getNextProgramDay(userId),
     listWorkoutDrafts(userId),
     getProgramReminderDismissed(userId),
+    // Null when the active program suggests no cadence — the card is gated on
+    // `due`, so the common case renders nothing and costs one indexed read.
+    getCheckInStatus(userId),
     // Totals only (rolling window — tz-free, so the server can compute it):
     // getVolumeTotals skips muscle resolution, keeping the wger catalog off
     // the home page's critical path. /stats owns the full picture.
@@ -211,6 +216,12 @@ export default async function HomePage() {
             </Link>
           </>
         )}
+
+        {/* Body check-in nudge — server-gated on `due` (never renders without
+            an active-program cadence), so push-less users still get the
+            suggestion; the card itself handles dismiss-for-today. Outside the
+            nextDay branch: due-ness doesn't care whether today has a workout. */}
+        {checkIn?.due && <CheckInCard daysSinceLast={checkIn.daysSinceLast} />}
 
         {/* Coach entry: same quiet teaser-card idiom as This week below —
             a row, not a hero, so it reads as a door rather than a pitch.

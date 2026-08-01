@@ -231,6 +231,33 @@ export function ProgramBuilder({
           </span>
         </label>
 
+        {/* Program-suggested body check-in cadence: a small number input, not
+            a toggle — blank IS the off state (programs.checkInEveryDays null),
+            so there's no second control to keep in sync. */}
+        <div className="space-y-1 px-1">
+          <label className="flex items-center gap-2.5 text-sm" htmlFor="check-in-every-days">
+            <span className="flex-1">Suggest a body check-in every</span>
+            <Input
+              id="check-in-every-days"
+              type="text"
+              inputMode="numeric"
+              placeholder="—"
+              value={draft.checkInEveryDays}
+              onChange={(e) =>
+                dispatch({ type: 'SET_META', field: 'checkInEveryDays', value: e.target.value })
+              }
+              aria-label="Suggested days between body check-ins"
+              aria-describedby="check-in-hint"
+              className="w-16 shrink-0 text-center tnum"
+            />
+            <span className="shrink-0">days</span>
+          </label>
+          <p id="check-in-hint" className="text-sm text-muted-foreground">
+            Nudges a weigh-in, tape, or progress photo on that cadence (3–90 days). Leave blank for
+            no suggestion.
+          </p>
+        </div>
+
         {draft.days.length === 0 && (
           <p className="px-1 py-6 text-center text-sm text-muted-foreground">
             Add a training day to start building your program.

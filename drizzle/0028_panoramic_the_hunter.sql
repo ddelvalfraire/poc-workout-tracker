@@ -1,0 +1,1 @@
+ALTER TABLE "programs" ADD COLUMN "check_in_every_days" integer;
