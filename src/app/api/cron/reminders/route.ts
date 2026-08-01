@@ -47,6 +47,23 @@ export function checkInMarkerKey(userId: string, now: Date): string {
   return `checkin:${userId}:${now.toISOString().slice(0, 10)}`
 }
 
+/**
+ * Dead-man heartbeat: GET the pinger URL (healthchecks.io or any vendor) after
+ * a fully-successful run so a silently-dead cron raises an alert. Unset env →
+ * skip; ping failure → console.error only, never a cron failure. Early-return
+ * paths (out-of-window, no Redis, thrown error) deliberately do NOT ping —
+ * a degraded run should look dead to the pinger.
+ */
+async function pingHeartbeat(): Promise<void> {
+  const url = process.env.HEALTHCHECK_PING_URL
+  if (!url) return
+  try {
+    await fetch(url, { cache: 'no-store' })
+  } catch (error: unknown) {
+    console.error('[reminders] heartbeat ping failed', error)
+  }
+}
+
 export async function GET(request: Request): Promise<NextResponse> {
   const secret = process.env.CRON_SECRET
   // Fail closed: no configured secret means nobody is authorized.
@@ -147,5 +164,6 @@ export async function GET(request: Request): Promise<NextResponse> {
     return NextResponse.json({ error: 'Reminder run failed' }, { status: 500 })
   }
 
+  await pingHeartbeat()
   return NextResponse.json({ sent, skipped, pruned, checkinSent, checkinSkipped, window: true })
 }

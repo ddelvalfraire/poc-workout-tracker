@@ -14,6 +14,12 @@ export default function GlobalError({
 }) {
   useEffect(() => {
     console.error(error)
+    // Report to Sentry when configured (Sentry's documented global-error
+    // pattern, lazy so the SDK stays out of this boundary's chunk). The catch
+    // swallows deliberately: reporting must never break the crash screen.
+    if (process.env.NEXT_PUBLIC_SENTRY_DSN) {
+      import('@sentry/nextjs').then((Sentry) => Sentry.captureException(error)).catch(() => {})
+    }
   }, [error])
 
   return (

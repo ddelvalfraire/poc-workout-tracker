@@ -68,6 +68,8 @@ function nextDay(overrides: Partial<NonNullable<Awaited<ReturnType<typeof getNex
 beforeEach(() => {
   vi.clearAllMocks()
   vi.stubEnv('CRON_SECRET', SECRET)
+  // Default: heartbeat unconfigured, so pre-existing assertions see no fetch.
+  vi.stubEnv('HEALTHCHECK_PING_URL', '')
   vi.useFakeTimers()
   vi.setSystemTime(IN_WINDOW)
   mockedUsers.mockResolvedValue(['user_123'])
@@ -366,6 +368,78 @@ describe('GET /api/cron/reminders check-in rider', () => {
     })
     expect(mockedSend).toHaveBeenCalledTimes(1)
     expect(mockedSend).toHaveBeenCalledWith('user_123', expect.objectContaining({ url: '/' }))
+  })
+})
+
+describe('GET /api/cron/reminders heartbeat', () => {
+  const PING_URL = 'https://hc-ping.com/test-uuid'
+
+  function stubFetch(impl: () => Promise<Response>) {
+    const fetchMock = vi.fn(impl)
+    vi.stubGlobal('fetch', fetchMock)
+    return fetchMock
+  }
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('pings HEALTHCHECK_PING_URL after a fully-successful run', async () => {
+    // Arrange
+    vi.stubEnv('HEALTHCHECK_PING_URL', PING_URL)
+    const fetchMock = stubFetch(() => Promise.resolve(new Response('OK')))
+    makeRedisSet('OK')
+    mockedNext.mockResolvedValue(nextDay())
+
+    // Act
+    const res = await GET(request())
+
+    // Assert
+    expect(res.status).toBe(200)
+    expect(fetchMock).toHaveBeenCalledExactlyOnceWith(PING_URL, { cache: 'no-store' })
+  })
+
+  it('skips the ping when HEALTHCHECK_PING_URL is absent', async () => {
+    const fetchMock = stubFetch(() => Promise.resolve(new Response('OK')))
+    makeRedisSet('OK')
+    mockedNext.mockResolvedValue(nextDay())
+
+    const res = await GET(request())
+
+    expect(res.status).toBe(200)
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('fails soft: a rejected ping never fails the cron response', async () => {
+    // Arrange
+    vi.stubEnv('HEALTHCHECK_PING_URL', PING_URL)
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    stubFetch(() => Promise.reject(new Error('pinger down')))
+    makeRedisSet('OK')
+    mockedNext.mockResolvedValue(nextDay())
+
+    // Act
+    const res = await GET(request())
+
+    // Assert — the run's counts still come back 200
+    expect(res.status).toBe(200)
+    expect(await res.json()).toMatchObject({ sent: 1, window: true })
+    expect(errorSpy).toHaveBeenCalledWith('[reminders] heartbeat ping failed', expect.any(Error))
+    errorSpy.mockRestore()
+  })
+
+  it('does not ping when the run throws (a failed run must look dead)', async () => {
+    vi.stubEnv('HEALTHCHECK_PING_URL', PING_URL)
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const fetchMock = stubFetch(() => Promise.resolve(new Response('OK')))
+    makeRedisSet('OK')
+    mockedUsers.mockRejectedValue(new Error('db down'))
+
+    const res = await GET(request())
+
+    expect(res.status).toBe(500)
+    expect(fetchMock).not.toHaveBeenCalled()
+    errorSpy.mockRestore()
   })
 })
 
