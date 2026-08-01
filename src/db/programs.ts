@@ -255,6 +255,9 @@ export async function saveProgram(
         // Same omitted-on-create = ON rule: default-on keeps fresh users'
         // plans tracking what they actually lift.
         planSync: input.planSync ?? true,
+        // Omitted on create = no suggestion (null IS the off state — a
+        // cadence is opt-in, unlike the default-on switches above).
+        checkInEveryDays: input.checkInEveryDays ?? null,
         notes: input.notes ?? null,
         // Article metadata rides create like notes: omitted = null.
         // authorActor mirrors the drafting policy above; a wger import is
@@ -415,6 +418,10 @@ export async function updateProgram(
         // doesn't mention the field must never flip a user's OFF back ON.
         ...(input.autoregulation !== undefined ? { autoregulation: input.autoregulation } : {}),
         ...(input.planSync !== undefined ? { planSync: input.planSync } : {}),
+        // Same preserve rule for the check-in cadence; explicit null clears it.
+        ...(input.checkInEveryDays !== undefined
+          ? { checkInEveryDays: input.checkInEveryDays }
+          : {}),
         notes: input.notes ?? null,
         description: input.description ?? null,
         icon: input.icon ?? null,
@@ -657,6 +664,7 @@ export async function cloneProgram(
         deloadWeek: source.deloadWeek,
         autoregulation: source.autoregulation,
         planSync: source.planSync,
+        checkInEveryDays: source.checkInEveryDays,
         notes: source.notes,
         // Article metadata travels with the block; authorActor deliberately
         // does NOT — the owner initiated the clone, so the copy is

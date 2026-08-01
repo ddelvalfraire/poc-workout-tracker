@@ -117,6 +117,9 @@ function maximalDetail() {
     // Non-default on purpose: the clone must copy the stored opt-out, not
     // re-take the column default.
     planSync: false,
+    // Non-null on purpose: the suggested check-in cadence travels with the
+    // block like the switches above.
+    checkInEveryDays: 21,
     notes: 'block notes',
     description: 'A six-week PPL block.',
     icon: '🏋️',
@@ -228,6 +231,9 @@ describe('cloneProgram (row-for-row fidelity)', () => {
       // The plan-sync opt-out travels with the block — a percentage program's
       // clone must not silently start rewriting its own loads.
       planSync: false,
+      // The suggested check-in cadence travels too — the next block keeps
+      // nudging on the same rhythm until the owner edits it.
+      checkInEveryDays: 21,
       notes: 'block notes',
       // Article metadata travels with the block (PRD §3); authorActor is
       // deliberately absent — the owner-initiated copy takes the column

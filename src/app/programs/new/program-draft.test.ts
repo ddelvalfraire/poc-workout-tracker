@@ -46,6 +46,7 @@ const NESTED: ProgramDraft = {
   deloadWeek: '6',
   autoregulation: true,
   planSync: true,
+  checkInEveryDays: '',
   status: 'draft',
   notes: null,
   description: null,
@@ -389,6 +390,7 @@ describe('draftToProgramInput', () => {
       deloadWeek: '',
       autoregulation: true,
       planSync: true,
+      checkInEveryDays: '',
       status: 'draft',
       notes: null,
       description: null,
@@ -552,6 +554,7 @@ describe('detailToProgramDraft', () => {
     authorActor: 'coach',
     autoregulation: true,
     planSync: false,
+    checkInEveryDays: 14,
     mesocycleWeeks: 6,
     deloadWeek: 6,
     notes: 'agent notes',
@@ -620,6 +623,8 @@ describe('detailToProgramDraft', () => {
       // A stored OFF must seed the editor OFF — not the emptyProgramDraft
       // default — or saving the edit would flip the switch back ON.
       planSync: false,
+      // A stored cadence must seed the input, or saving the edit clears it.
+      checkInEveryDays: '14',
     })
 
     // Article metadata is pass-through: a UI edit is a full replace, so the
@@ -683,6 +688,7 @@ describe('detailToProgramDraft', () => {
       mesocycleWeeks: 6,
       deloadWeek: 6,
       planSync: false,
+      checkInEveryDays: 14,
     })
     expect(input.days[0].exercises[0].progression).toEqual({ scheme: 'linear', incrementKg: 2.5 })
     expect(input.days[0].exercises[0].sets[0]).toMatchObject({

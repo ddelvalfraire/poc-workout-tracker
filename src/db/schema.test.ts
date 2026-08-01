@@ -40,6 +40,12 @@ describe('schema', () => {
     expect(cols.planSync.hasDefault).toBe(true)
   })
 
+  it('makes the check-in cadence additive on programs (nullable, no default — null IS off)', () => {
+    const cols = getTableColumns(programs)
+    expect(cols.checkInEveryDays.notNull).toBe(false)
+    expect(cols.checkInEveryDays.hasDefault).toBe(false)
+  })
+
   it('defines the four program tables with snake_case names', () => {
     expect(getTableName(programs)).toBe('programs')
     expect(getTableName(programDays)).toBe('program_days')

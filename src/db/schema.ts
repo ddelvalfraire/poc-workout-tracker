@@ -425,6 +425,11 @@ export const programs = pgTable(
     // stale plans; off for deliberate-percentage programs (5/3/1-style waves)
     // where performed > listed is by design.
     planSync: boolean('plan_sync').notNull().default(true),
+    // Program-suggested body check-in cadence, in days ("this program suggests
+    // a check-in every 14 days"). Null = no suggestion — nullable, unlike the
+    // switches above, because absence IS the off state. App-validated 3–90 at
+    // the input boundary (program-input.ts); no DB default on purpose.
+    checkInEveryDays: integer('check_in_every_days'),
     notes: text('notes'),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),

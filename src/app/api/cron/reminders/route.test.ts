@@ -2,18 +2,21 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 vi.mock('@/db/programs', () => ({ getNextProgramDay: vi.fn() }))
 vi.mock('@/db/push-subscriptions', () => ({ listPushSubscribedUserIds: vi.fn() }))
+vi.mock('@/lib/check-in', () => ({ getCheckInStatus: vi.fn() }))
 vi.mock('@/lib/push', () => ({ sendPushToUser: vi.fn() }))
 vi.mock('@/lib/redis', () => ({ getRedis: vi.fn() }))
 
-import { GET, reminderMarkerKey } from './route'
+import { GET, checkInMarkerKey, reminderMarkerKey } from './route'
 import { getNextProgramDay } from '@/db/programs'
 import { listPushSubscribedUserIds } from '@/db/push-subscriptions'
+import { getCheckInStatus } from '@/lib/check-in'
 import { sendPushToUser } from '@/lib/push'
 import { getRedis } from '@/lib/redis'
 import type { Redis } from '@upstash/redis'
 
 const mockedNext = vi.mocked(getNextProgramDay)
 const mockedUsers = vi.mocked(listPushSubscribedUserIds)
+const mockedCheckIn = vi.mocked(getCheckInStatus)
 const mockedSend = vi.mocked(sendPushToUser)
 const mockedRedis = vi.mocked(getRedis)
 
@@ -32,6 +35,19 @@ function request(secret: string | null = SECRET): Request {
   return new Request('http://localhost/api/cron/reminders', {
     headers: secret === null ? {} : { authorization: `Bearer ${secret}` },
   })
+}
+
+function checkInStatus(
+  overrides: Partial<NonNullable<Awaited<ReturnType<typeof getCheckInStatus>>>> = {},
+) {
+  return {
+    due: true,
+    programName: 'PPL',
+    cadenceDays: 14,
+    lastCheckInAt: new Date(Date.UTC(2026, 6, 14, 8, 0)),
+    daysSinceLast: 16,
+    ...overrides,
+  }
 }
 
 function nextDay(overrides: Partial<NonNullable<Awaited<ReturnType<typeof getNextProgramDay>>>> = {}) {
@@ -56,6 +72,9 @@ beforeEach(() => {
   vi.setSystemTime(IN_WINDOW)
   mockedUsers.mockResolvedValue(['user_123'])
   mockedSend.mockResolvedValue({ configured: true, sent: 1, pruned: 0, failed: 0 })
+  // Default: no active-program cadence — the rider is silent and the
+  // pre-existing workout-reminder assertions run unchanged.
+  mockedCheckIn.mockResolvedValue(null)
 })
 
 afterEach(() => {
@@ -92,7 +111,14 @@ describe('GET /api/cron/reminders window', () => {
 
     // Assert
     expect(res.status).toBe(200)
-    expect(await res.json()).toEqual({ sent: 0, skipped: 0, pruned: 0, window: false })
+    expect(await res.json()).toEqual({
+      sent: 0,
+      skipped: 0,
+      pruned: 0,
+      checkinSent: 0,
+      checkinSkipped: 0,
+      window: false,
+    })
     expect(mockedUsers).not.toHaveBeenCalled()
   })
 
@@ -102,7 +128,14 @@ describe('GET /api/cron/reminders window', () => {
 
     const res = await GET(request())
 
-    expect(await res.json()).toEqual({ sent: 0, skipped: 0, pruned: 0, window: true })
+    expect(await res.json()).toEqual({
+      sent: 0,
+      skipped: 0,
+      pruned: 0,
+      checkinSent: 0,
+      checkinSkipped: 0,
+      window: true,
+    })
     expect(mockedSend).not.toHaveBeenCalled()
     errorSpy.mockRestore()
   })
@@ -118,7 +151,14 @@ describe('GET /api/cron/reminders sends', () => {
     const res = await GET(request())
 
     // Assert
-    expect(await res.json()).toEqual({ sent: 1, skipped: 0, pruned: 0, window: true })
+    expect(await res.json()).toEqual({
+      sent: 1,
+      skipped: 0,
+      pruned: 0,
+      checkinSent: 0,
+      checkinSkipped: 1,
+      window: true,
+    })
     expect(set).toHaveBeenCalledWith('reminder:user_123:2026-07-30', '1', {
       nx: true,
       ex: 26 * 60 * 60,
@@ -136,7 +176,14 @@ describe('GET /api/cron/reminders sends', () => {
 
     const res = await GET(request())
 
-    expect(await res.json()).toEqual({ sent: 0, skipped: 1, pruned: 0, window: true })
+    expect(await res.json()).toEqual({
+      sent: 0,
+      skipped: 1,
+      pruned: 0,
+      checkinSent: 0,
+      checkinSkipped: 1,
+      window: true,
+    })
     expect(mockedSend).not.toHaveBeenCalled()
   })
 
@@ -146,7 +193,14 @@ describe('GET /api/cron/reminders sends', () => {
 
     const res = await GET(request())
 
-    expect(await res.json()).toEqual({ sent: 0, skipped: 1, pruned: 0, window: true })
+    expect(await res.json()).toEqual({
+      sent: 0,
+      skipped: 1,
+      pruned: 0,
+      checkinSent: 0,
+      checkinSkipped: 1,
+      window: true,
+    })
     expect(set).not.toHaveBeenCalled()
     expect(mockedSend).not.toHaveBeenCalled()
   })
@@ -161,7 +215,14 @@ describe('GET /api/cron/reminders sends', () => {
 
     const res = await GET(request())
 
-    expect(await res.json()).toEqual({ sent: 0, skipped: 3, pruned: 0, window: true })
+    expect(await res.json()).toEqual({
+      sent: 0,
+      skipped: 3,
+      pruned: 0,
+      checkinSent: 0,
+      checkinSkipped: 3,
+      window: true,
+    })
     expect(mockedSend).not.toHaveBeenCalled()
   })
 
@@ -172,12 +233,151 @@ describe('GET /api/cron/reminders sends', () => {
 
     const res = await GET(request())
 
-    expect(await res.json()).toEqual({ sent: 1, skipped: 0, pruned: 1, window: true })
+    expect(await res.json()).toEqual({
+      sent: 1,
+      skipped: 0,
+      pruned: 1,
+      checkinSent: 0,
+      checkinSkipped: 1,
+      window: true,
+    })
+  })
+})
+
+describe('GET /api/cron/reminders check-in rider', () => {
+  it('sends a due check-in under its OWN marker, alongside the workout reminder', async () => {
+    // Arrange — both nudges fire today: independent claims, one user
+    const set = makeRedisSet('OK')
+    mockedNext.mockResolvedValue(nextDay())
+    mockedCheckIn.mockResolvedValue(checkInStatus())
+
+    // Act
+    const res = await GET(request())
+
+    // Assert — both counters advance; each send claimed its own key first
+    expect(await res.json()).toEqual({
+      sent: 1,
+      skipped: 0,
+      pruned: 0,
+      checkinSent: 1,
+      checkinSkipped: 0,
+      window: true,
+    })
+    expect(set).toHaveBeenCalledWith('checkin:user_123:2026-07-30', '1', {
+      nx: true,
+      ex: 26 * 60 * 60,
+    })
+    expect(mockedSend).toHaveBeenCalledWith('user_123', {
+      title: 'Body check-in',
+      body: 'PPL suggests one every 14 days',
+      url: '/body',
+    })
+  })
+
+  it('sends the check-in even when there is no workout to remind about', async () => {
+    // Arrange — no next day (skipped), but the check-in is due
+    makeRedisSet('OK')
+    mockedNext.mockResolvedValue(null)
+    mockedCheckIn.mockResolvedValue(checkInStatus())
+
+    // Act
+    const res = await GET(request())
+
+    // Assert — the old `continue` would have starved the rider
+    expect(await res.json()).toEqual({
+      sent: 0,
+      skipped: 1,
+      pruned: 0,
+      checkinSent: 1,
+      checkinSkipped: 0,
+      window: true,
+    })
+    expect(mockedSend).toHaveBeenCalledTimes(1)
+    expect(mockedSend).toHaveBeenCalledWith('user_123', {
+      title: 'Body check-in',
+      body: 'PPL suggests one every 14 days',
+      url: '/body',
+    })
+  })
+
+  it('skips a not-yet-due check-in without touching Redis or push', async () => {
+    // Arrange
+    const set = makeRedisSet('OK')
+    mockedNext.mockResolvedValue(null)
+    mockedCheckIn.mockResolvedValue(checkInStatus({ due: false }))
+
+    // Act
+    const res = await GET(request())
+
+    // Assert
+    expect(await res.json()).toEqual({
+      sent: 0,
+      skipped: 1,
+      pruned: 0,
+      checkinSent: 0,
+      checkinSkipped: 1,
+      window: true,
+    })
+    expect(set).not.toHaveBeenCalled()
+    expect(mockedSend).not.toHaveBeenCalled()
+  })
+
+  it('skips when the check-in marker is already claimed, leaving the workout send intact', async () => {
+    // Arrange — per-key behavior: workout claim wins, check-in claim loses
+    const set = vi
+      .fn()
+      .mockImplementation((key: string) => Promise.resolve(key.startsWith('checkin:') ? null : 'OK'))
+    mockedRedis.mockReturnValue({ set } as unknown as Redis)
+    mockedNext.mockResolvedValue(nextDay())
+    mockedCheckIn.mockResolvedValue(checkInStatus())
+
+    // Act
+    const res = await GET(request())
+
+    // Assert — the workout reminder went out; the check-in did not double-send
+    expect(await res.json()).toEqual({
+      sent: 1,
+      skipped: 0,
+      pruned: 0,
+      checkinSent: 0,
+      checkinSkipped: 1,
+      window: true,
+    })
+    expect(mockedSend).toHaveBeenCalledTimes(1)
+    expect(mockedSend).toHaveBeenCalledWith('user_123', expect.objectContaining({ url: '/' }))
+  })
+
+  it('leaves the workout path fully untouched when no program suggests a cadence', async () => {
+    // Arrange — the pre-cadence world: getCheckInStatus null (default mock)
+    makeRedisSet('OK')
+    mockedNext.mockResolvedValue(nextDay())
+
+    // Act
+    const res = await GET(request())
+
+    // Assert — identical workout behavior; the rider only counts a skip
+    expect(await res.json()).toEqual({
+      sent: 1,
+      skipped: 0,
+      pruned: 0,
+      checkinSent: 0,
+      checkinSkipped: 1,
+      window: true,
+    })
+    expect(mockedSend).toHaveBeenCalledTimes(1)
+    expect(mockedSend).toHaveBeenCalledWith('user_123', expect.objectContaining({ url: '/' }))
   })
 })
 
 describe('reminderMarkerKey', () => {
   it('keys by user and UTC day', () => {
     expect(reminderMarkerKey('user_9', IN_WINDOW)).toBe('reminder:user_9:2026-07-30')
+  })
+})
+
+describe('checkInMarkerKey', () => {
+  it('keys by user and UTC day, distinct from the workout marker', () => {
+    expect(checkInMarkerKey('user_9', IN_WINDOW)).toBe('checkin:user_9:2026-07-30')
+    expect(checkInMarkerKey('user_9', IN_WINDOW)).not.toBe(reminderMarkerKey('user_9', IN_WINDOW))
   })
 })
