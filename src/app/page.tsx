@@ -10,6 +10,9 @@ import { volumeWindows } from "@/lib/volume-window";
 import { getWeightUnit, getProgramReminderDismissed } from "@/db/preferences";
 import { resolveActiveSession } from "@/lib/active-session";
 import { getCheckInStatus } from "@/lib/check-in";
+import { getGoalsHomeSummary } from "@/lib/goals";
+import { goalLabel } from "@/lib/goal-progress";
+import { StreakChip } from "@/components/streak-chip";
 import { shouldShowProgramReminder } from "@/lib/program-reminder";
 import { formatVolume, formatWorkoutDuration } from "@/lib/format";
 import { startedWithinLastHours } from "@/lib/recent-window";
@@ -29,7 +32,7 @@ const monthFormat = new Intl.DateTimeFormat("en-US", { month: "short" });
 
 export default async function HomePage() {
   const userId = await requireUserId(); // middleware also guards; this is defense-in-depth
-  const [summaries, unit, nextDay, drafts, programReminderDismissed, checkIn, weekTotals] = await Promise.all([
+  const [summaries, unit, nextDay, drafts, programReminderDismissed, checkIn, weekTotals, goalsSummary] = await Promise.all([
     listWorkoutSummaries(userId),
     getWeightUnit(userId),
     getNextProgramDay(userId),
@@ -42,6 +45,9 @@ export default async function HomePage() {
     // getVolumeTotals skips muscle resolution, keeping the wger catalog off
     // the home page's critical path. /stats owns the full picture.
     getVolumeTotals(userId, volumeWindows("rolling", new Date())),
+    // Null when the user has no active goals — the goals row costs one
+    // indexed read then, and renders nothing.
+    getGoalsHomeSummary(userId),
   ]);
   // A fresh draft IS an in-progress session (the logger autosaves one on
   // every change; saving deletes it) — and a started-but-unfinished workout
@@ -222,6 +228,38 @@ export default async function HomePage() {
             suggestion; the card itself handles dismiss-for-today. Outside the
             nextDay branch: due-ness doesn't care whether today has a workout. */}
         {checkIn?.due && <CheckInCard daysSinceLast={checkIn.daysSinceLast} />}
+
+        {/* Goals teaser — the honest-gamification home surface: the top
+            active goal's one-liner plus the streak flame (client-computed;
+            only rendered when a consistency goal exists). Same quiet row
+            idiom as the This week / Coach teasers. */}
+        {goalsSummary?.topGoal && (
+          <Link
+            href="/goals"
+            className="mt-3 flex items-center justify-between gap-3 rounded-2xl border border-border bg-card p-4 transition-colors active:bg-muted/60"
+          >
+            <span className="min-w-0">
+              <span className="block text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                {goalsSummary.activeCount === 1
+                  ? "Goal"
+                  : `Goals · ${goalsSummary.activeCount}`}
+              </span>
+              <span className="mt-0.5 block truncate text-sm">
+                {goalLabel(goalsSummary.topGoal, unit)}
+              </span>
+            </span>
+            <span className="flex shrink-0 items-center gap-2">
+              {goalsSummary.streak && (
+                <StreakChip
+                  completedAtTimes={goalsSummary.streak.completedAtTimes}
+                  scheduledWeekdays={goalsSummary.streak.scheduledWeekdays}
+                  allowedMissesPerWeek={goalsSummary.streak.allowedMissesPerWeek}
+                />
+              )}
+              <ChevronRight aria-hidden="true" className="size-5 text-muted-foreground" />
+            </span>
+          </Link>
+        )}
 
         {/* Coach entry: same quiet teaser-card idiom as This week below —
             a row, not a hero, so it reads as a door rather than a pitch.

@@ -35,6 +35,9 @@ export const COACH_READ_TOOLS = [
   // Read-only by construction (the log has no write tool): the coach can
   // answer "what changed on my program?" without any approval gate.
   'list_program_changes',
+  // Read-only by construction too — goals have no MCP write tools in v1, so
+  // the coach can reference targets/streaks freely, never set them.
+  'list_goals',
 ] as const
 
 /** Granular program patch tools — allowed, but gated behind user approval. */

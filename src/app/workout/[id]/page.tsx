@@ -5,6 +5,8 @@ import { requireUserId } from "@/lib/auth";
 import { getWorkoutDetail, getExerciseHistoryBefore } from "@/db/workouts";
 import { getNextProgramDay } from "@/db/programs";
 import { getWeightUnit, getBodyweightKg } from "@/db/preferences";
+import { goalsAchievedSince, listActiveGoals, type GoalRow } from "@/db/goals";
+import { goalLabel, strengthPercent } from "@/lib/goal-progress";
 import { resolveFinishUpNext } from "@/lib/finish-up-next";
 import {
   formatWorkoutDate,
@@ -54,11 +56,17 @@ export default async function WorkoutDetailPage({
   // Up-next only matters at the finish moment, and only for a program
   // session — a quick log has no rotation to advance. Fetched alongside the
   // PR history read (independent queries).
-  const [history, nextDay] = await Promise.all([
+  const [history, nextDay, achievedGoals, activeGoals] = await Promise.all([
     getExerciseHistoryBefore(userId, exerciseIds, workout.startedAt),
     justFinished && workout.programDayId !== null
       ? getNextProgramDay(userId)
       : null,
+    // "Achieved by THIS workout" = achievedAt inside the session's window
+    // (start → now): the post-finish seam stamps achievedAt moments before
+    // this page renders, so the window is the honest, race-free link between
+    // session and achievement — no threading state through the redirect.
+    justFinished ? goalsAchievedSince(userId, workout.startedAt) : [],
+    justFinished ? listActiveGoals(userId) : [],
   ]);
   const upNext = resolveFinishUpNext(workout.programDayId, nextDay);
 
@@ -118,6 +126,34 @@ export default async function WorkoutDetailPage({
       prBadgeRowIds.add(ex.id);
     }
   }
+
+  // Strength goals TOUCHED by this workout (composite identity), minus the
+  // just-achieved ones (they get the celebration block, not a percent line):
+  // this session's best e1RM vs the target — progress the lifter just bought.
+  const achievedGoalIds = new Set(achievedGoals.map((g) => g.id));
+  const touchedStrengthGoals = activeGoals.flatMap(
+    (goal): { goal: GoalRow; sessionE1rmKg: number; targetE1rmKg: number; percent: number }[] => {
+      if (goal.kind !== "strength" || !("e1rmKg" in goal.target)) return [];
+      if (achievedGoalIds.has(goal.id)) return [];
+      const key = `${goal.source}:${goal.wgerExerciseId}`;
+      const sets = currentByExercise.get(key);
+      if (!sets) return [];
+      const loggingType = workout.exercises.find(
+        (e) => e.source === goal.source && e.wgerExerciseId === goal.wgerExerciseId,
+      )?.loggingType;
+      if (loggingType === undefined) return [];
+      const best = bestScoredSet(sets, loggingType, bodyweightKg);
+      if (best === null || best.kind !== "e1rm") return [];
+      return [
+        {
+          goal,
+          sessionE1rmKg: best.e1rm,
+          targetE1rmKg: goal.target.e1rmKg,
+          percent: strengthPercent(best.e1rm, goal.target.e1rmKg),
+        },
+      ];
+    },
+  );
 
   const totalSets = workout.exercises.reduce((n, e) => n + e.sets.length, 0);
   const volumeKg = workout.exercises.reduce(
@@ -210,6 +246,60 @@ export default async function WorkoutDetailPage({
         {/* What comes after the finish: the next program day, or the block-
             complete banner when this session closed the mesocycle. Quick
             logs (upNext 'none') get just the celebration above. */}
+        {/* Goal moments, honest ones only: a volt celebration for goals whose
+            achievedAt landed inside THIS session's window, and quiet percent
+            lines for strength targets this workout moved but didn't finish. */}
+        {justFinished && achievedGoals.length > 0 && (
+          <section
+            aria-label="Goals reached"
+            className="mt-4 rounded-2xl border border-primary/50 bg-card p-5 motion-safe:animate-rise-in"
+          >
+            <p className="text-xs font-semibold uppercase tracking-widest text-primary">
+              {achievedGoals.length === 1 ? "Goal reached" : "Goals reached"}
+            </p>
+            <ul className="mt-2 space-y-1">
+              {achievedGoals.map((goal) => (
+                <li
+                  key={goal.id}
+                  className="font-display text-3xl uppercase leading-none tracking-wide"
+                >
+                  {goalLabel(goal, unit)}
+                </li>
+              ))}
+            </ul>
+            <Link
+              href="/goals"
+              className="mt-3 inline-block text-sm text-muted-foreground transition-colors hover:text-foreground"
+            >
+              See your goals
+            </Link>
+          </section>
+        )}
+        {justFinished && touchedStrengthGoals.length > 0 && (
+          <section
+            aria-label="Goal progress"
+            className="mt-4 rounded-2xl border border-border bg-card p-4"
+          >
+            <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+              Goal progress
+            </p>
+            <ul className="mt-2 space-y-1.5">
+              {touchedStrengthGoals.map(({ goal, sessionE1rmKg, targetE1rmKg, percent }) => (
+                <li
+                  key={goal.id}
+                  className="flex items-baseline justify-between gap-3 text-sm tnum"
+                >
+                  <span className="min-w-0 truncate">
+                    {goal.exerciseName} · {formatE1RM(sessionE1rmKg, unit)} of{" "}
+                    {formatE1RM(targetE1rmKg, unit)}
+                  </span>
+                  <span className="shrink-0 font-semibold text-primary">{percent}%</span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+
         {justFinished && upNext.kind !== "none" && (
           <FinishUpNextCard state={upNext} />
         )}

@@ -1,6 +1,6 @@
 'use client'
 
-import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from 'recharts'
+import { Area, AreaChart, CartesianGrid, ReferenceLine, XAxis, YAxis } from 'recharts'
 import {
   ChartContainer,
   ChartTooltip,
@@ -34,9 +34,22 @@ interface TrendChartProps {
   /** What the number IS — the tooltip's series name ("Est. 1RM", "Bodyweight"). */
   valueLabel: string
   ariaLabel: string
+  /** Optional horizontal reference (display unit) — e.g. a strength goal's
+   *  target e1RM. Extends the y-domain when above the data, so a far-off
+   *  target stays visible instead of clipping. */
+  targetValue?: number
+  /** Short label painted at the reference line ("Target"). */
+  targetLabel?: string
 }
 
-export function TrendChart({ points, unit, valueLabel, ariaLabel }: TrendChartProps) {
+export function TrendChart({
+  points,
+  unit,
+  valueLabel,
+  ariaLabel,
+  targetValue,
+  targetLabel,
+}: TrendChartProps) {
   const config: ChartConfig = {
     value: { label: valueLabel, color: 'var(--primary)' },
   }
@@ -75,6 +88,21 @@ export function TrendChart({ points, unit, valueLabel, ariaLabel }: TrendChartPr
             />
           }
         />
+        {targetValue !== undefined && (
+          <ReferenceLine
+            y={targetValue}
+            ifOverflow="extendDomain"
+            stroke="var(--color-value)"
+            strokeDasharray="4 4"
+            strokeOpacity={0.6}
+            label={{
+              value: targetLabel ?? 'Target',
+              position: 'insideTopRight',
+              fill: 'var(--muted-foreground)',
+              fontSize: 10,
+            }}
+          />
+        )}
         <Area
           dataKey="value"
           type="monotone"
