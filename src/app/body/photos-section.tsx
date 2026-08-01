@@ -1,0 +1,204 @@
+'use client'
+
+import { useRef, useState, type ChangeEvent } from 'react'
+import { useRouter } from 'next/navigation'
+import { Camera, Columns2 } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { preparePhoto } from '@/lib/photo-pipeline'
+import {
+  PHOTO_NOTE_MAX_LENGTH,
+  PHOTO_POSES,
+  photoPoseLabel,
+  type PhotoPose,
+} from '@/lib/photo-input'
+import { cn } from '@/lib/utils'
+import { PhotoCell, type PhotoEntry } from './photo-cell'
+import { PhotoOverlay } from './photo-overlay'
+import { PhotoCompare } from './photo-compare'
+
+/**
+ * The photos third of /body: upload (pose + note optional), the 3-up timeline
+ * grid, the detail overlay, and compare mode (pick two → side-by-side).
+ * Derivatives + ThumbHash are computed here in the browser (photo-pipeline);
+ * the server stores them verbatim. The file input carries no `capture`
+ * attribute on purpose — progress photos are usually mirror selfies, so the
+ * OS chooser (camera OR library) beats forcing the rear camera.
+ */
+export function PhotosSection({ entries }: { entries: PhotoEntry[] }) {
+  const [pose, setPose] = useState<PhotoPose | null>(null)
+  const [note, setNote] = useState('')
+  const [isUploading, setIsUploading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [openId, setOpenId] = useState<string | null>(null)
+  const [isCompareMode, setIsCompareMode] = useState(false)
+  const [compareIds, setCompareIds] = useState<string[]>([])
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const router = useRouter()
+
+  const openEntry = entries.find((e) => e.id === openId) ?? null
+  const compareEntries = compareIds
+    .map((id) => entries.find((e) => e.id === id))
+    .filter((e): e is PhotoEntry => e !== undefined)
+
+  async function handleFile(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    e.target.value = '' // re-picking the same file must fire change again
+    if (!file) return
+    setIsUploading(true)
+    setError(null)
+    try {
+      const prepared = await preparePhoto(file)
+      const form = new FormData()
+      form.set('display', prepared.display)
+      form.set('thumb', prepared.thumb)
+      form.set('thumbHash', prepared.thumbHash)
+      if (pose !== null) form.set('pose', pose)
+      const trimmedNote = note.trim()
+      if (trimmedNote !== '') form.set('note', trimmedNote)
+      const res = await fetch('/api/photos', { method: 'POST', body: form })
+      if (!res.ok) {
+        const body = (await res.json().catch(() => null)) as { error?: string } | null
+        throw new Error(body?.error ?? 'Upload failed')
+      }
+      setNote('')
+      setPose(null)
+      router.refresh()
+    } catch (err: unknown) {
+      // Pipeline and route errors are written for users — surface verbatim.
+      setError(err instanceof Error ? err.message : 'Didn’t upload. Try again.')
+    } finally {
+      setIsUploading(false)
+    }
+  }
+
+  function handleCellSelect(id: string) {
+    if (!isCompareMode) {
+      setOpenId(id)
+      return
+    }
+    setCompareIds((current) =>
+      current.includes(id)
+        ? current.filter((c) => c !== id)
+        : // Third pick replaces the older selection — compare is always a pair.
+          [...current, id].slice(-2),
+    )
+  }
+
+  return (
+    <div>
+      {/* Upload controls: optional pose pills + note, then THE action. */}
+      <div
+        role="radiogroup"
+        aria-label="Pose (optional)"
+        className="-mx-5 flex gap-2 overflow-x-auto px-5 pb-1"
+      >
+        {PHOTO_POSES.map((p) => (
+          <button
+            key={p}
+            type="button"
+            role="radio"
+            aria-checked={pose === p}
+            onClick={() => setPose((current) => (current === p ? null : p))}
+            className={cn(
+              'shrink-0 rounded-full border px-3.5 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
+              pose === p
+                ? 'border-primary bg-primary text-primary-foreground'
+                : 'border-border bg-card text-muted-foreground hover:text-foreground',
+            )}
+          >
+            {photoPoseLabel(p)}
+          </button>
+        ))}
+      </div>
+
+      <div className="mt-3 flex gap-2">
+        <Input
+          type="text"
+          value={note}
+          maxLength={PHOTO_NOTE_MAX_LENGTH}
+          onChange={(e) => setNote(e.target.value)}
+          placeholder="Note (optional)"
+          aria-label="Photo note"
+          autoComplete="off"
+        />
+        <Button
+          type="button"
+          disabled={isUploading}
+          onClick={() => fileInputRef.current?.click()}
+          className="shrink-0"
+        >
+          <Camera aria-hidden="true" className="size-4" />
+          {isUploading ? 'Uploading…' : 'Add photo'}
+        </Button>
+      </div>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        onChange={handleFile}
+        className="hidden"
+        aria-hidden="true"
+        tabIndex={-1}
+      />
+      {error && (
+        <p role="alert" className="mt-1.5 text-sm font-medium text-destructive">
+          {error}
+        </p>
+      )}
+
+      {entries.length >= 2 && (
+        <div className="mt-4 flex items-center justify-between">
+          <Button
+            type="button"
+            variant={isCompareMode ? 'secondary' : 'ghost'}
+            size="sm"
+            aria-pressed={isCompareMode}
+            onClick={() => {
+              setIsCompareMode((on) => !on)
+              setCompareIds([])
+            }}
+          >
+            <Columns2 aria-hidden="true" className="size-4" />
+            {isCompareMode ? 'Done comparing' : 'Compare'}
+          </Button>
+          {isCompareMode && compareEntries.length < 2 && (
+            <p className="text-sm text-muted-foreground">
+              Pick {compareEntries.length === 0 ? 'two photos' : 'one more'}
+            </p>
+          )}
+        </div>
+      )}
+
+      {isCompareMode && compareEntries.length === 2 && (
+        <div className="mt-4">
+          <PhotoCompare left={compareEntries[0]} right={compareEntries[1]} />
+        </div>
+      )}
+
+      {entries.length > 0 ? (
+        <div role="list" aria-label="Photo timeline" className="mt-4 grid grid-cols-3 gap-1.5">
+          {entries.map((entry) => (
+            <PhotoCell
+              key={entry.id}
+              entry={entry}
+              onSelect={handleCellSelect}
+              isCompareMode={isCompareMode}
+              isSelected={compareIds.includes(entry.id)}
+            />
+          ))}
+        </div>
+      ) : (
+        // Honest empty state — the privacy promise is the pitch.
+        <p className="mt-4 text-sm text-muted-foreground">
+          No photos yet. Progress photos live only in your account — never public. The scale
+          misses what a monthly photo catches.
+        </p>
+      )}
+
+      {openEntry && !isCompareMode && (
+        <PhotoOverlay entry={openEntry} onClose={() => setOpenId(null)} />
+      )}
+    </div>
+  )
+}

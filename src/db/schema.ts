@@ -17,6 +17,7 @@ import type { Technique, Progression, SetType, MetricMode } from '@/lib/program-
 import type { ExerciseSource, ExerciseCategory } from '@/lib/custom-exercise-input'
 import type { LoggingType } from '@/lib/workout-input'
 import type { MeasurementSite } from '@/lib/measurement-sites'
+import type { PhotoPose } from '@/lib/photo-input'
 
 export const workouts = pgTable(
   'workouts',
@@ -188,6 +189,34 @@ export const bodyMeasurements = pgTable(
   // Same shape as bodyweight_logs' index: the history read filters by user and
   // orders by measured_at desc (site filtering narrows in-plan).
   (t) => [index('body_measurements_user_id_measured_at_idx').on(t.userId, t.measuredAt.desc())],
+)
+
+/**
+ * Progress-photo metadata — the blobs themselves live in the private Supabase
+ * Storage bucket `progress-photos` under {userId}/{photoId}/. Derivatives
+ * (display + thumb + ThumbHash) are computed IN THE BROWSER before upload;
+ * the server only stores what it receives — the deliberate E2EE escape hatch.
+ * `thumb_hash` is the disclosed plaintext leak: a ~25-byte base64 blur that
+ * lets the timeline render placeholders from this table alone, zero network.
+ * `taken_at` is backdatable, like measured_at/weighed_at.
+ */
+export const progressPhotos = pgTable(
+  'progress_photos',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    userId: text('user_id').notNull(), // Clerk user id — ownership root
+    takenAt: timestamp('taken_at', { withTimezone: true }).defaultNow().notNull(),
+    // Bucket object keys, stored (not derived) so a delete removes exactly
+    // what was uploaded even if the key scheme ever changes.
+    blobKeyDisplay: text('blob_key_display').notNull(),
+    blobKeyThumb: text('blob_key_thumb').notNull(),
+    thumbHash: text('thumb_hash').notNull(),
+    pose: text('pose').$type<PhotoPose>(), // nullable — pose tagging is optional
+    note: text('note'), // nullable; data layer caps at PHOTO_NOTE_MAX_LENGTH
+  },
+  // Same shape as bodyweight_logs' index: timeline reads filter by user and
+  // order by taken_at desc.
+  (t) => [index('progress_photos_user_id_taken_at_idx').on(t.userId, t.takenAt.desc())],
 )
 
 /**
