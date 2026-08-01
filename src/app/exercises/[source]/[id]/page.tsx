@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { requireUserId } from '@/lib/auth'
 import { getExerciseStats, getExerciseSessions } from '@/db/exercise-stats'
+import { activeStrengthGoalForExercise } from '@/db/goals'
 import { getWeightUnit } from '@/db/preferences'
 import { formatE1RM, formatLoggedSet, formatWorkoutDate } from '@/lib/format'
 import { kgToDisplay } from '@/lib/units'
@@ -62,15 +63,19 @@ export default async function ExerciseStatsPage({
   const page =
     /^\d+$/.test(pageParam ?? '') && parseInt(pageParam!, 10) >= 1 ? parseInt(pageParam!, 10) : 1
 
-  const [stats, sessions, unit] = await Promise.all([
+  const [stats, sessions, unit, strengthGoal] = await Promise.all([
     getExerciseStats(userId, ref.source, ref.wgerExerciseId),
     getExerciseSessions(userId, ref.source, ref.wgerExerciseId, {
       limit: HISTORY_PAGE,
       offset: (page - 1) * HISTORY_PAGE,
     }),
     getWeightUnit(userId),
+    // Active strength goal for THIS exercise → the trend gains a target line.
+    activeStrengthGoalForExercise(userId, ref.source, ref.wgerExerciseId),
   ])
   if (!stats) notFound()
+  const goalTargetKg =
+    strengthGoal !== null && 'e1rmKg' in strengthGoal.target ? strengthGoal.target.e1rmKg : null
 
   // A custom exercise's definition is the user's to edit — fetch it only for
   // custom refs (the list is tiny; a dedicated get can come with real scale).
@@ -200,6 +205,7 @@ export default async function ExerciseStatsPage({
           <section aria-label="Estimated 1RM trend">
             <h2 className="px-1 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
               Est. 1RM trend · {trend.length} sessions
+              {goalTargetKg !== null && ` · target ${kgToDisplay(goalTargetKg, unit)} ${unit}`}
             </h2>
             <div className="mt-2 rounded-2xl border border-border bg-card p-4">
               <TrendChart
@@ -207,6 +213,9 @@ export default async function ExerciseStatsPage({
                 unit={unit}
                 valueLabel="Est. 1RM"
                 ariaLabel={`Estimated 1RM across ${trend.length} sessions, currently ${formatE1RM(trend[trend.length - 1].e1rm, unit)}`}
+                {...(goalTargetKg !== null
+                  ? { targetValue: kgToDisplay(goalTargetKg, unit), targetLabel: 'Target' }
+                  : {})}
               />
             </div>
           </section>

@@ -130,7 +130,10 @@ sharing surface at all.
 
 ## Open questions (decide before building)
 
-- [ ] Streak grace rule: strict consecutive vs one-miss-per-week allowed.
+- [x] Streak grace rule: resolved — a per-goal USER SETTING ("user should be
+  able to setup streak grace"): consistency goals carry
+  allowedMissesPerWeek 0|1|2, default 1 (forgiving default, strict
+  available). Shipped with Arc 2.
 - [ ] Measurements units: cm canonical with in display (mirror kg/lb) — yes?
 - [x] Photos in v1 of the check-in sheet? Resolved: photos ship first (Arc 3b, before check-ins/3c) — the check-in sheet can include them from day one.
 - [ ] Does /bodyweight fold into one /body page (weight + tape + photos) or

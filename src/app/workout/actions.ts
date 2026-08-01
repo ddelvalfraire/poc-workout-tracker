@@ -14,6 +14,7 @@ import {
 import { getProgramDayDetail, deriveDayPrescription } from '@/db/programs'
 import { updateProgramExercise } from '@/db/program-patches'
 import { autoSyncPlanToPerformance } from '@/lib/auto-plan-sync'
+import { checkGoalAchievements } from '@/lib/goals'
 import { substituteSlot } from '@/lib/substitute-slot'
 import type { PlanSetTarget } from '@/lib/format'
 import {
@@ -43,6 +44,9 @@ export async function saveWorkoutAction(input: unknown): Promise<{ id: string }>
   // no-op — kept symmetric with updateWorkoutAction so a future provenance-
   // carrying save path can't silently miss the sync. Fails soft inside.
   await autoSyncPlanToPerformance(userId, result.id)
+  // Post-save goal check (same seam as the plan sync, fails soft inside):
+  // a finished session can complete a strength target or extend a streak.
+  await checkGoalAchievements(userId, ['strength', 'consistency'])
   revalidatePath('/') // keep the (future) home history list fresh
   return result
 }
@@ -65,6 +69,9 @@ export async function updateWorkoutAction(id: string, input: unknown): Promise<{
   // latest-for-day guard); a thrown sync never fails the save (fails soft
   // inside the helper).
   await autoSyncPlanToPerformance(userId, id)
+  // Live program finishes land here too — the goal check rides the same
+  // post-save seam as the plan sync (fails soft inside; never fails the save).
+  await checkGoalAchievements(userId, ['strength', 'consistency'])
   revalidatePath('/')
   revalidatePath(`/workout/${id}`)
   return result

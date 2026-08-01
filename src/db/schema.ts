@@ -7,6 +7,7 @@ import {
   boolean,
   timestamp,
   jsonb,
+  date,
   index,
   unique,
   check,
@@ -18,6 +19,7 @@ import type { ExerciseSource, ExerciseCategory } from '@/lib/custom-exercise-inp
 import type { LoggingType } from '@/lib/workout-input'
 import type { MeasurementSite } from '@/lib/measurement-sites'
 import type { PhotoPose } from '@/lib/photo-input'
+import type { GoalKind, GoalTarget } from '@/lib/goal-input'
 
 export const workouts = pgTable(
   'workouts',
@@ -217,6 +219,41 @@ export const progressPhotos = pgTable(
   // Same shape as bodyweight_logs' index: timeline reads filter by user and
   // order by taken_at desc.
   (t) => [index('progress_photos_user_id_taken_at_idx').on(t.userId, t.takenAt.desc())],
+)
+
+/**
+ * User goals — FACTS ABOUT TARGETS, never a parallel stats system: a row
+ * stores what the user is aiming at (`target` jsonb, discriminated by `kind`
+ * — see lib/goal-input.ts) and progress is always DERIVED from truths the app
+ * already computes (exercise-stats e1RM records, the denormalized current
+ * bodyweight, schedule adherence from completed workouts vs programDays.
+ * weekdays). The exercise ref columns are populated for 'strength' only;
+ * identity is the composite (source, wgerExerciseId) like everywhere else,
+ * with the name denormalized for labels. `achievedAt` is set ONCE by the
+ * fails-soft achievement seam (lib/goals.ts) — a recorded fact, never
+ * re-derived or cleared. `archivedAt` is the soft hide; delete is the hard
+ * one. No program_events-style audit table: goals aren't programs.
+ */
+export const goals = pgTable(
+  'goals',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    userId: text('user_id').notNull(), // Clerk user id — ownership root
+    kind: text('kind').$type<GoalKind>().notNull(),
+    // Narrow, kind-discriminated jsonb (validated at the boundary): nothing
+    // aggregates over target fields, so the column-vs-JSON rule allows it.
+    target: jsonb('target').$type<GoalTarget>().notNull(),
+    // Strength-only exercise ref; null for the other kinds by construction.
+    wgerExerciseId: integer('wger_exercise_id'),
+    source: text('source').$type<ExerciseSource>(),
+    exerciseName: text('exercise_name'), // denormalized for labels, like workout_exercises.name
+    // Optional aspiration date (display only — nothing enforces it).
+    deadline: date('deadline'),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    achievedAt: timestamp('achieved_at', { withTimezone: true }),
+    archivedAt: timestamp('archived_at', { withTimezone: true }),
+  },
+  (t) => [index('goals_user_id_idx').on(t.userId)],
 )
 
 /**

@@ -11,6 +11,7 @@ import {
   getWeightUnit,
 } from '@/db/preferences'
 import { logBodyweight, deleteBodyweightLog } from '@/db/bodyweight'
+import { checkGoalAchievements } from '@/lib/goals'
 import { logMeasurement, deleteMeasurement } from '@/db/body-measurements'
 import { isMeasurementSite } from '@/lib/measurement-sites'
 import { isWeightUnit, displayToKg, displayToCm, lengthUnitFor } from '@/lib/units'
@@ -77,6 +78,9 @@ export async function setBodyweightAction(value: unknown): Promise<void> {
     )
   }
   await logBodyweight(userId, bodyweightKg)
+  // A weigh-in can complete a bodyweight goal — checked on the same seam as
+  // the write, fails soft inside (never fails the log).
+  await checkGoalAchievements(userId, ['bodyweight'])
   revalidatePath('/', 'layout')
 }
 
