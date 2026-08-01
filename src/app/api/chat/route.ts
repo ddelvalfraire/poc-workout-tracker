@@ -1,5 +1,5 @@
 import { auth } from '@clerk/nextjs/server'
-import { NextResponse } from 'next/server'
+import { NextResponse, after } from 'next/server'
 import { convertToModelMessages, stepCountIs, streamText, type UIMessage } from 'ai'
 import { getWeightUnit } from '@/db/preferences'
 import { isCoachUser } from '@/lib/coach/access'
@@ -14,6 +14,7 @@ import { loadCoachChat, saveCoachChat } from '@/lib/coach/chat-store'
 import { COACH_MODEL_SETUP_HINT, resolveCoachModel } from '@/lib/coach/model'
 import { createCoachMcpClient } from '@/lib/coach/mcp-bridge'
 import { checkCoachRateLimit } from '@/lib/coach/rate-limit'
+import { coachTelemetry, flushCoachTelemetry } from '@/lib/coach/telemetry'
 import { filterCoachTools, requiresApproval } from '@/lib/coach/tool-policy'
 
 // Tool loops (up to 10 steps, each a model round trip) need more than the
@@ -130,7 +131,17 @@ export async function POST(request: Request): Promise<Response> {
   try {
     const tools = filterCoachTools(await client.tools())
 
+    // Langfuse tracing (model/token/cost per turn) — undefined when the
+    // LANGFUSE_* env is absent, and then no integration is registered either
+    // (src/instrumentation.ts), so telemetry is a true no-op.
+    const telemetry = coachTelemetry()
+    if (telemetry) {
+      // Vercel freezes the function after the response; flush spans post-stream.
+      after(flushCoachTelemetry)
+    }
+
     const result = streamText({
+      experimental_telemetry: telemetry,
       model: coachModel.model,
       system: buildSystemPrompt(weightUnit, context),
       // Model window: clamp by slicing, not rejecting — the thread is the
