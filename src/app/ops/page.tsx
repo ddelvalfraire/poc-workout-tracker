@@ -3,7 +3,7 @@ import { notFound } from 'next/navigation'
 import { ChevronLeft } from 'lucide-react'
 import { requireUserId } from '@/lib/auth'
 import { isOpsUser } from '@/lib/ops/access'
-import { getSentryIssues, type SentryPeriod, type SentrySnapshot } from '@/lib/ops/sentry'
+import { getSentryIssues, type SentrySnapshot } from '@/lib/ops/sentry'
 import { getHealthchecks, type HealthchecksSnapshot } from '@/lib/ops/healthchecks'
 import { getLangfuseDaily, getLangfuseTraces, type LangfuseSnapshot } from '@/lib/ops/langfuse'
 import { getVercelDeployments, type VercelSnapshot } from '@/lib/ops/vercel'
@@ -33,15 +33,12 @@ import { cn } from '@/lib/utils'
  *
  * Always live: force-dynamic + every source fetched fresh per render (each
  * with its own 5s timeout and soft-fail). A source going dark degrades ITS
- * panel only — the board never blanks. `?errors=14d` widens the Sentry
- * window (the only searchParam; fixed windows everywhere else, by design).
+ * panel only — the board never blanks. BOTH Sentry windows (24h and 14d)
+ * are fetched up front so the errors toggle is pure client state — flipping
+ * it must never re-render the page and re-hit all five vendors (fixed
+ * windows everywhere else, by design).
  */
 export const dynamic = 'force-dynamic'
-
-/** Narrows the ?errors= searchParam to a period Sentry accepts. */
-function parsePeriod(value: string | string[] | undefined): SentryPeriod {
-  return value === '14d' ? '14d' : '24h'
-}
 
 /** Levels that turn the errors pill red rather than amber. */
 const LOUD_LEVELS = new Set(['error', 'fatal'])
@@ -103,26 +100,24 @@ function buildPills(
   return [deployPill, cronPill, errorsPill, coachPill, usersPill]
 }
 
-export default async function OpsPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ errors?: string | string[] }>
-}) {
+export default async function OpsPage() {
   const userId = await requireUserId()
   // Internal surface: 404 for everyone off the allowlist (never a 403).
   if (!isOpsUser(userId)) notFound()
 
-  const period = parsePeriod((await searchParams).errors)
-
   // Every source in parallel — no waterfalls. Each already fails soft.
-  const [sentry, healthchecks, langfuse, langfuseTraces, vercel, vitals] = await Promise.all([
-    getSentryIssues(period),
-    getHealthchecks(),
-    getLangfuseDaily(),
-    getLangfuseTraces(),
-    getVercelDeployments(),
-    getAppVitals(),
-  ])
+  // Both Sentry windows ride the same batch (one extra top-10 read) so the
+  // panel's toggle stays client-local.
+  const [sentry, sentry14d, healthchecks, langfuse, langfuseTraces, vercel, vitals] =
+    await Promise.all([
+      getSentryIssues('24h'),
+      getSentryIssues('14d'),
+      getHealthchecks(),
+      getLangfuseDaily(),
+      getLangfuseTraces(),
+      getVercelDeployments(),
+      getAppVitals(),
+    ])
 
   const sentryOrg = process.env.SENTRY_ORG_SLUG
   const sentryProject = process.env.SENTRY_PROJECT_SLUG
@@ -154,8 +149,7 @@ export default async function OpsPage({
 
         <div className="mt-5 grid grid-cols-1 gap-4 pb-8 xl:grid-cols-12">
           <ErrorsPanel
-            result={sentry}
-            period={period}
+            results={{ '24h': sentry, '14d': sentry14d }}
             sentryUrl={sentryUrl}
             className="xl:col-span-7"
           />
