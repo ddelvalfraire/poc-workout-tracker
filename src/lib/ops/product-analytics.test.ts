@@ -6,27 +6,81 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
  * queued result in call order (the Promise.all array order in
  * getProductAnalytics). `shouldThrow` forces the unavailable path.
  */
-const state = vi.hoisted(() => ({ queue: [] as unknown[][], shouldThrow: false }))
+const state = vi.hoisted(() => ({
+  queue: [] as unknown[][],
+  shouldThrow: false,
+  // Everything handed to the builder (projections + where/order/group args),
+  // recorded so tests can inspect the SQL fragments' bind parameters.
+  captured: [] as unknown[],
+}))
 
 vi.mock('@/db', () => {
   const makeChain = () => {
     if (state.shouldThrow) throw new Error('db down')
     const obj: Record<string, unknown> = {}
     for (const method of ['from', 'where', 'orderBy', 'limit', 'groupBy', 'leftJoin']) {
-      obj[method] = () => obj
+      obj[method] = (...args: unknown[]) => {
+        state.captured.push(...args)
+        return obj
+      }
     }
     obj.then = (resolve: (value: unknown) => unknown) =>
       Promise.resolve(state.queue.shift() ?? []).then(resolve)
     return obj
   }
-  return { db: { select: () => makeChain() } }
+  return {
+    db: {
+      select: (projection?: unknown) => {
+        if (projection) state.captured.push(projection)
+        return makeChain()
+      },
+    },
+  }
 })
 
+import { Column, Param, SQL, StringChunk } from 'drizzle-orm'
 import { getActiveUsers7d, getProductAnalytics } from './product-analytics'
+
+/**
+ * Simulates the driver's Bind step: drizzle maps each Param through its
+ * encoder (sql/sql.js), and postgres.js then requires a string/number/Buffer.
+ * A Date surviving mapToDriverValue is exactly the production crash
+ * (ERR_INVALID_ARG_TYPE): raw sql`` fragments carry the noop encoder, so
+ * date cutoffs must be interpolated as ISO strings.
+ */
+function collectDriverParams(value: unknown, out: unknown[]): void {
+  if (value instanceof Param) {
+    out.push(value.encoder.mapToDriverValue(value.value))
+    return
+  }
+  if (value instanceof SQL) {
+    for (const chunk of value.queryChunks) {
+      // Structural chunks are SQL text/identifiers, not bind params.
+      if (chunk instanceof StringChunk || chunk instanceof Column) continue
+      // Raw interpolated values (drizzle's `else` branch) bind as-is —
+      // exactly where a bare Date would crash the driver.
+      if (chunk instanceof SQL || chunk instanceof Param) collectDriverParams(chunk, out)
+      else out.push(chunk)
+    }
+    return
+  }
+  if (value instanceof SQL.Aliased) {
+    collectDriverParams(value.sql, out)
+    return
+  }
+  if (Array.isArray(value)) {
+    for (const entry of value) collectDriverParams(entry, out)
+    return
+  }
+  if (value !== null && typeof value === 'object' && value.constructor === Object) {
+    for (const entry of Object.values(value)) collectDriverParams(entry, out)
+  }
+}
 
 beforeEach(() => {
   state.queue = []
   state.shouldThrow = false
+  state.captured = []
   vi.spyOn(console, 'error').mockImplementation(() => undefined)
   vi.useFakeTimers()
   vi.setSystemTime(new Date('2026-08-01T12:00:00Z'))
@@ -150,6 +204,25 @@ describe('getProductAnalytics', () => {
     state.shouldThrow = true
     expect(await getProductAnalytics()).toEqual({ ok: false, reason: 'unavailable' })
   })
+
+  it('never binds a raw Date param — every driver value is postgres.js-safe', async () => {
+    state.queue = Array.from({ length: 18 }, () => [])
+    await getProductAnalytics()
+
+    const driverParams: unknown[] = []
+    collectDriverParams(state.captured, driverParams)
+
+    // The window cutoffs must be present, and as ISO strings (raw fragments)
+    // or encoder-serialized values (typed gte) — never a live Date instance,
+    // which crashes postgres.js's Bind (the /ops/product "Unavailable" bug).
+    expect(driverParams.length).toBeGreaterThan(0)
+    expect(driverParams.filter((p) => p instanceof Date)).toEqual([])
+    const isoParams = driverParams.filter(
+      (p): p is string => typeof p === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(p),
+    )
+    expect(isoParams).toContain(new Date('2026-07-25T12:00:00Z').toISOString())
+    expect(isoParams).toContain(new Date('2026-07-02T12:00:00Z').toISOString())
+  })
 })
 
 describe('getActiveUsers7d', () => {
@@ -166,5 +239,13 @@ describe('getActiveUsers7d', () => {
   it("returns 'unavailable' when the database throws", async () => {
     state.shouldThrow = true
     expect(await getActiveUsers7d()).toEqual({ ok: false, reason: 'unavailable' })
+  })
+
+  it('never binds a raw Date param', async () => {
+    state.queue = [[]]
+    await getActiveUsers7d()
+    const driverParams: unknown[] = []
+    collectDriverParams(state.captured, driverParams)
+    expect(driverParams.filter((p) => p instanceof Date)).toEqual([])
   })
 })

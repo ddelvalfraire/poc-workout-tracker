@@ -90,15 +90,26 @@ function windowStart(days: number): Date {
   return new Date(Date.now() - days * 24 * 60 * 60 * 1000)
 }
 
-/** `count(*) filter (where col >= since)` — one scan serves many windows. */
+/**
+ * `count(*) filter (where col >= since)` — one scan serves many windows.
+ * The cutoff MUST cross the wire as an ISO string: a raw sql`` fragment gets
+ * no column encoder (drizzle's noop encoder passes the value through), and
+ * postgres.js cannot bind a JS Date (ERR_INVALID_ARG_TYPE in Bind). Same
+ * rule as workouts.ts's `explicit.toISOString()`; typed operators like
+ * gte(col, date) keep Dates because the column encoder serializes them.
+ */
 function countSince(column: unknown, since: Date) {
-  return sql<number>`count(*) filter (where ${column} >= ${since})`.mapWith(Number)
+  return sql<number>`count(*) filter (where ${column} >= ${since.toISOString()})`.mapWith(Number)
 }
 
 export async function getProductAnalytics(): Promise<OpsResult<ProductAnalytics>> {
   try {
     const since7 = windowStart(KPI_WINDOW_DAYS)
     const since30 = windowStart(SERIES_WINDOW_DAYS)
+    // Raw-fragment cutoffs: ISO strings only (see countSince). since7/since30
+    // Dates remain for typed gte() comparisons.
+    const since7Iso = since7.toISOString()
+    const since30Iso = since30.toISOString()
     // UTC calendar-day buckets — must match fillDailySeries' "YYYY-MM-DD" keys.
     const completedDay = sql<string>`to_char(${workouts.completedAt} at time zone 'utc', 'YYYY-MM-DD')`
     const achievedDay = sql<string>`to_char(${goals.achievedAt} at time zone 'utc', 'YYYY-MM-DD')`
@@ -127,7 +138,7 @@ export async function getProductAnalytics(): Promise<OpsResult<ProductAnalytics>
         .select({
           workouts7d: countSince(workouts.completedAt, since7),
           workouts30d: countSince(workouts.completedAt, since30),
-          activeUsers7d: sql<number>`count(distinct ${workouts.userId}) filter (where ${workouts.completedAt} >= ${since7})`.mapWith(
+          activeUsers7d: sql<number>`count(distinct ${workouts.userId}) filter (where ${workouts.completedAt} >= ${since7Iso})`.mapWith(
             Number,
           ),
         })
@@ -155,10 +166,10 @@ export async function getProductAnalytics(): Promise<OpsResult<ProductAnalytics>
           proposed: sql<number>`count(*) filter (where ${programs.status} = 'proposed')`.mapWith(
             Number,
           ),
-          wger7d: sql<number>`count(*) filter (where ${programs.authorActor} = 'wger' and ${programs.createdAt} >= ${since7})`.mapWith(
+          wger7d: sql<number>`count(*) filter (where ${programs.authorActor} = 'wger' and ${programs.createdAt} >= ${since7Iso})`.mapWith(
             Number,
           ),
-          wger30d: sql<number>`count(*) filter (where ${programs.authorActor} = 'wger' and ${programs.createdAt} >= ${since30})`.mapWith(
+          wger30d: sql<number>`count(*) filter (where ${programs.authorActor} = 'wger' and ${programs.createdAt} >= ${since30Iso})`.mapWith(
             Number,
           ),
           wgerAll: sql<number>`count(*) filter (where ${programs.authorActor} = 'wger')`.mapWith(
@@ -196,19 +207,19 @@ export async function getProductAnalytics(): Promise<OpsResult<ProductAnalytics>
         .from(workoutTemplates),
       db
         .select({
-          proposed7d: sql<number>`count(*) filter (where ${programEvents.action} = 'upsert_program' and ${programEvents.actor} = 'coach' and ${programEvents.occurredAt} >= ${since7})`.mapWith(
+          proposed7d: sql<number>`count(*) filter (where ${programEvents.action} = 'upsert_program' and ${programEvents.actor} = 'coach' and ${programEvents.occurredAt} >= ${since7Iso})`.mapWith(
             Number,
           ),
-          proposed30d: sql<number>`count(*) filter (where ${programEvents.action} = 'upsert_program' and ${programEvents.actor} = 'coach' and ${programEvents.occurredAt} >= ${since30})`.mapWith(
+          proposed30d: sql<number>`count(*) filter (where ${programEvents.action} = 'upsert_program' and ${programEvents.actor} = 'coach' and ${programEvents.occurredAt} >= ${since30Iso})`.mapWith(
             Number,
           ),
           proposedAll: sql<number>`count(*) filter (where ${programEvents.action} = 'upsert_program' and ${programEvents.actor} = 'coach')`.mapWith(
             Number,
           ),
-          adopted7d: sql<number>`count(*) filter (where ${programEvents.action} = 'adopt_program' and ${programEvents.occurredAt} >= ${since7})`.mapWith(
+          adopted7d: sql<number>`count(*) filter (where ${programEvents.action} = 'adopt_program' and ${programEvents.occurredAt} >= ${since7Iso})`.mapWith(
             Number,
           ),
-          adopted30d: sql<number>`count(*) filter (where ${programEvents.action} = 'adopt_program' and ${programEvents.occurredAt} >= ${since30})`.mapWith(
+          adopted30d: sql<number>`count(*) filter (where ${programEvents.action} = 'adopt_program' and ${programEvents.occurredAt} >= ${since30Iso})`.mapWith(
             Number,
           ),
           adoptedAll: sql<number>`count(*) filter (where ${programEvents.action} = 'adopt_program')`.mapWith(
