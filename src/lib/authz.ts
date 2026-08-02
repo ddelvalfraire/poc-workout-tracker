@@ -1,3 +1,11 @@
+import {
+  AbilityBuilder,
+  createMongoAbility,
+  subject,
+  type ForcedSubject,
+  type MongoAbility,
+  type MongoQuery,
+} from '@casl/ability'
 import type { ProgramVisibility } from './program-input'
 
 /**
@@ -6,12 +14,13 @@ import type { ProgramVisibility } from './program-input'
  * checks; ownership-scoped SQL stays underneath as defense-in-depth, but the
  * DECISION lives here.
  *
- * CASL graduation intent: the signature is deliberately CASL's
- * `can(actor, action, subject)` shape so tiers 2–3 (crews, roles, human
- * coaches) can swap these hand-rolled internals for a CASL ability built from
- * the same vocabulary — callers never change. Until then the internals stay
- * a pure, exhaustively-tested truth table: no schema, no db, no imports
- * beyond the visibility type.
+ * CASL from day one (the graduation happened AT tier 1, per "Let's bring
+ * casl"): the internals are a CASL MongoAbility built per actor and answered
+ * through `ability.can`. The exported vocabulary — `can(actor, action,
+ * resource)` over plain-object resources — is unchanged, so callers never see
+ * CASL. Tiers 2–3 (crews, roles, human coaches) now land as NEW CASL RULES in
+ * this one module: a crew-scoped share becomes another `allow(...)` line with
+ * its own conditions, not a rearchitecture.
  *
  * v1 vocabulary:
  * - actor: `{ userId: string | null }` — null is an anonymous visitor.
@@ -40,32 +49,63 @@ export interface ProgramResource {
   share?: { revokedAt: Date | null } | null
 }
 
-/** A live-share read: visibility must be outbound (link|public), the program
- *  must not be a pending proposal (the forced confirm gates artifacts INTO an
- *  account; visibility gates content OUT — a proposal is neither), and the
- *  token's share row must exist un-revoked. */
-function hasLiveShareAccess(resource: ProgramResource): boolean {
-  if (resource.visibility !== 'link' && resource.visibility !== 'public') return false
-  if (resource.status === 'proposed') return false
-  return resource.share != null && resource.share.revokedAt === null
+/** The CASL subject: the plain resource, tagged 'Program' via `subject()` at
+ *  query time (plain objects carry no class for detectSubjectType). */
+type ProgramSubject = ProgramResource & ForcedSubject<'Program'>
+
+type AppAbility = MongoAbility<[AuthzAction, 'Program' | ProgramSubject]>
+
+/**
+ * A live-share read as CASL conditions: visibility must be outbound
+ * (link|public), the program must not be a pending proposal (the forced
+ * confirm gates artifacts INTO an account; visibility gates content OUT — a
+ * proposal is neither), and the token's share row must exist un-revoked.
+ * `share: { $exists, $ne: null }` is load-bearing: mongo `$eq null` alone
+ * also matches an ABSENT field, and no token in hand must grant nothing.
+ */
+const LIVE_SHARE_CONDITIONS: MongoQuery = {
+  visibility: { $in: ['link', 'public'] },
+  status: { $ne: 'proposed' },
+  share: { $exists: true, $ne: null },
+  'share.revokedAt': { $eq: null },
 }
 
-/** May `actor` perform `action` on `resource`? Pure — no I/O, no throw. */
-export function can(actor: AuthzActor, action: AuthzAction, resource: ProgramResource): boolean {
-  const isOwner = actor.userId !== null && actor.userId === resource.userId
-  switch (action) {
-    case 'manage':
-      // Owner-only, and never on a proposal: a pending proposal can't be made
-      // sharable (its only exits are adopt/decline).
-      return isOwner && resource.status !== 'proposed'
-    case 'view':
-      // Owners always read their own programs (any status — the proposal page
-      // IS a read); everyone else needs a live share.
-      return isOwner || hasLiveShareAccess(resource)
-    case 'adopt':
-      // Signed-in non-owners only — adopting your own program would mint a
-      // proposal attributed to yourself — and re-validated against the live
-      // share at CLONE time, not render time.
-      return actor.userId !== null && !isOwner && hasLiveShareAccess(resource)
+/** Builds the actor's ability — the full v1 rule set. Rules referencing the
+ *  actor's own id exist only for signed-in actors, so an anonymous ability is
+ *  exactly the live-share read floor. */
+function abilityFor(actor: AuthzActor): AppAbility {
+  const { can: allow, build } = new AbilityBuilder<AppAbility>(createMongoAbility)
+
+  // Anyone a live share admits may read — the anonymous floor.
+  allow('view', 'Program', LIVE_SHARE_CONDITIONS)
+
+  if (actor.userId !== null) {
+    // Owners always read their own programs (any status — the proposal page
+    // IS a read)…
+    allow('view', 'Program', { userId: actor.userId })
+    // …and manage them, but never a proposal: a pending proposal can't be
+    // made sharable (its only exits are adopt/decline).
+    allow('manage', 'Program', { userId: actor.userId, status: { $ne: 'proposed' } })
+    // Adopt: signed-in non-owners only — adopting your own program would
+    // mint a proposal attributed to yourself — and re-validated against the
+    // live share at CLONE time, not render time.
+    allow('adopt', 'Program', {
+      ...LIVE_SHARE_CONDITIONS,
+      userId: { $ne: actor.userId },
+    })
   }
+
+  // `anyAction` remapped off the default: CASL reserves 'manage' as its
+  // "every action" wildcard, which would make the owner's manage rule grant
+  // adopt (self-adopt) and anything else. Our 'manage' is a REAL action
+  // (visibility changes, share mint/revoke), so the wildcard keyword is moved
+  // to a token no rule ever uses.
+  return build({ anyAction: '__all__' })
+}
+
+/** May `actor` perform `action` on `resource`? Pure — no I/O, no throw. The
+ *  resource is spread before tagging so callers' objects are never mutated
+ *  (`subject()` stamps its type marker on the instance it receives). */
+export function can(actor: AuthzActor, action: AuthzAction, resource: ProgramResource): boolean {
+  return abilityFor(actor).can(action, subject('Program', { ...resource }))
 }
