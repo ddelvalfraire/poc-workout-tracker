@@ -101,3 +101,56 @@ degrade-per-card, no new deps (plain fetch), fail-closed access (404, not
 no historical charts (deep links cover it), no alert routing from the
 dashboard (vendors' email alerts remain the pager), Vercel card dormant
 until a token exists.
+
+---
+
+## v2 REDESIGN (2026-08-01) — desktop-first, data-dense
+
+User verdict on v1: "not at all useful… just 4 cards is useless… not enough
+data, doesnt fit a usecase I still have to go to all three websites." v1
+stopped at the overview layer; v2 applies the full pattern — RED-method
+framing + Shneiderman (overview first, zoom/filter, details on demand).
+
+### Use cases v2 must serve WITHOUT leaving the page
+1. "Is prod healthy right now?" — 2-second status strip.
+2. "What broke, how often, who's affected?" — errors TABLE with counts,
+   users affected, first/last seen, level — not a count and a link.
+3. "What is the coach doing and costing?" — daily cost/trace chart + a
+   recent-traces table (time, latency, tokens, cost, model).
+4. "Did delivery work?" — deploy table (state, commit, age, duration) +
+   cron checks with last ping and recent status flips.
+5. "Is the product being used?" — workouts/day + active-users charts (14d),
+   totals, recent program-events and workouts feeds.
+
+### Layout (desktop-first)
+- Full-width (max-w-screen-2xl), 12-col CSS grid; sections stack on mobile
+  but the design target is >=1280px.
+- Row 1: STATUS STRIP — five compact pills: prod deploy state · cron
+  status/last ping · unresolved errors 24h · coach cost 7d · active users
+  7d. Red/amber/green dots; each pill anchors to its panel below.
+- Row 2: ERRORS (7 cols) — unresolved issues table (level dot, title,
+  culprit, count, userCount, firstSeen/lastSeen relative), 24h/7d toggle via
+  searchParam; DELIVERY (5 cols) — deploys table + checks with flips.
+- Row 3: COACH (7 cols) — 14d stacked bar (traces + cost line) + recent
+  traces table; PRODUCT (5 cols) — workouts/day sparkbars 14d, totals,
+  events feed (10), recent workouts (5).
+- Auto-refresh: client toggle, 60s router.refresh interval, off by default.
+- Everything keeps v1's degrade-per-panel + named-env-var contract.
+
+### Per-source data depth (additions to the adapters)
+- Sentry: issues already return count/userCount/level/culprit/firstSeen —
+  render them all; add statsPeriod searchParam (24h|7d). Optional later:
+  stats_v2 series.
+- Langfuse: daily metrics (exists) + traces list endpoint for the recent
+  table — use the CURRENT documented endpoint (the v3 list is deprecated;
+  verify v2 observations/traces path live before building).
+- Vercel: deployments already carry meta (sha, commit message, duration
+  via ready-createdAt) — render the table, highlight ERROR states.
+- healthchecks: add flips/ endpoint per check for the recent-transitions
+  line.
+- App vitals: add day-bucketed series (workouts/day, active users/day 14d,
+  indexed date_trunc queries), longer events feed, recent workouts.
+
+### Non-goals v2
+Global time-range selector (fixed windows per panel), alert routing, log
+search, multi-user RBAC (allowlist stands), realtime websockets.
