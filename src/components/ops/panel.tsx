@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { ArrowUpRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { OpsResult } from '@/lib/ops/types'
+import { timeAgo } from '@/lib/ops/time'
 
 /**
  * One panel on the v2 ops board — the desktop-scale successor to v1's
@@ -33,6 +34,8 @@ interface OpsPanelProps {
   link?: { href: string; label: string }
   /** The env var to set — shown only when unconfigured. */
   envVar?: string
+  /** ISO time of the cached copy when the vendor is down (OpsResult.staleAt). */
+  staleAt?: string
   /** Grid-span override (col-span-*). */
   className?: string
   children?: ReactNode
@@ -50,7 +53,16 @@ const STATUS_LABEL: Record<OpsPanelStatus, string> = {
   unconfigured: 'Not configured',
 }
 
-export function OpsPanel({ id, title, status, link, envVar, className, children }: OpsPanelProps) {
+export function OpsPanel({
+  id,
+  title,
+  status,
+  link,
+  envVar,
+  staleAt,
+  className,
+  children,
+}: OpsPanelProps) {
   return (
     <section
       id={id}
@@ -65,6 +77,10 @@ export function OpsPanel({ id, title, status, link, envVar, className, children 
           </h2>
         </div>
         <div className="flex items-center gap-3">
+          {/* Stale-serve note: the vendor is down, a cached copy is shown. */}
+          {staleAt && (
+            <span className="text-xs text-muted-foreground">as of {timeAgo(staleAt)}</span>
+          )}
           <span className="text-xs text-muted-foreground">{STATUS_LABEL[status]}</span>
           {link && (
             <a

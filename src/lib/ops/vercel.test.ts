@@ -1,6 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { getVercelDeployments } from './vercel'
 
+// Pin the ops cache to passthrough: these tests assert vendor fetch
+// behavior, not caching (cache.test.ts covers that).
+vi.mock('@/lib/redis', () => ({ getRedis: () => null }))
+
 function mockFetchSequence(
   responses: { ok: boolean; status?: number; body?: unknown }[],
 ): ReturnType<typeof vi.fn> {
