@@ -9,6 +9,7 @@ import {
   getProgramReminderDismissed,
 } from '@/db/preferences'
 import { kgToDisplay } from '@/lib/units'
+import { isOpsUser } from '@/lib/ops/access'
 import { AppHeader } from '@/components/app-header'
 import { UnitToggle } from '@/components/unit-toggle'
 import { buttonVariants } from '@/components/ui/button'
@@ -34,6 +35,11 @@ export default async function SettingsPage() {
       getRestTimerEnabled(userId),
       getProgramReminderDismissed(userId),
     ])
+
+  // Internal ops board — the link only renders for allowlisted users, the
+  // same dev-gate visibility idiom the coach entry points use. The /ops route
+  // enforces the gate itself (404s otherwise); this just hides the entry.
+  const showOps = isOpsUser(userId)
 
   return (
     <div className="flex min-h-[100dvh] flex-col">
@@ -114,6 +120,24 @@ export default async function SettingsPage() {
               </div>
             </Link>
           </li>
+          {/* Internal-only: rendered solely for allowlisted operators. The
+              route 404s for everyone else, so a leaked link reveals nothing. */}
+          {showOps && (
+            <li>
+              <Link
+                href="/ops"
+                className="flex items-center justify-between gap-4 px-4 py-4 transition-colors outline-none hover:bg-muted/50 focus-visible:bg-muted/50"
+              >
+                <div className="min-w-0">
+                  <p className="font-medium">Ops</p>
+                  <p className="mt-0.5 text-sm text-muted-foreground">
+                    Internal board: Sentry, Healthchecks, Langfuse, Vercel, and app vitals.
+                  </p>
+                </div>
+                <ChevronRight aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
+              </Link>
+            </li>
+          )}
         </ul>
       </main>
     </div>
