@@ -1,4 +1,6 @@
-import Link from 'next/link'
+'use client'
+
+import { useState } from 'react'
 import { cn } from '@/lib/utils'
 import type { OpsResult } from '@/lib/ops/types'
 import type { SentryPeriod, SentrySnapshot } from '@/lib/ops/sentry'
@@ -8,9 +10,11 @@ import { OpsPanel, statusOf } from './panel'
 /**
  * Errors panel: the full Sentry triage table — level, title (deep-linked),
  * culprit, event count, users affected, first/last seen — with a 24h/14d
- * window toggle. The toggle is a plain Link searchParam (?errors=14d) so the
- * page stays a server component; Sentry's issues API only accepts 24h/14d
- * (7d is a 400 — verified live).
+ * window toggle. BOTH windows arrive server-fetched, so the toggle is pure
+ * client state: flipping it swaps in-memory data and must never navigate
+ * (a searchParam here re-rendered the whole board and re-hit all five
+ * vendors). Sentry's issues API only accepts 24h/14d (7d is a 400 —
+ * verified live).
  */
 
 const LEVEL_DOT: Record<string, string> = {
@@ -23,14 +27,16 @@ const LEVEL_DOT: Record<string, string> = {
 const PERIODS: SentryPeriod[] = ['24h', '14d']
 
 interface ErrorsPanelProps {
-  result: OpsResult<SentrySnapshot>
-  period: SentryPeriod
+  /** Both windows, fetched in the page's parallel batch. */
+  results: Record<SentryPeriod, OpsResult<SentrySnapshot>>
   /** Vendor dashboard deep link (org/project resolved by the page). */
   sentryUrl: string
   className?: string
 }
 
-export function ErrorsPanel({ result, period, sentryUrl, className }: ErrorsPanelProps) {
+export function ErrorsPanel({ results, sentryUrl, className }: ErrorsPanelProps) {
+  const [period, setPeriod] = useState<SentryPeriod>('24h')
+  const result = results[period]
   return (
     <OpsPanel
       id="errors"
@@ -51,12 +57,11 @@ export function ErrorsPanel({ result, period, sentryUrl, className }: ErrorsPane
             </p>
             <div className="flex gap-1" role="group" aria-label="Errors window">
               {PERIODS.map((p) => (
-                <Link
+                <button
                   key={p}
-                  href={p === '24h' ? '/ops' : `/ops?errors=${p}`}
-                  replace
-                  scroll={false}
-                  aria-current={p === period ? 'true' : undefined}
+                  type="button"
+                  onClick={() => setPeriod(p)}
+                  aria-pressed={p === period}
                   className={cn(
                     'rounded-full px-2.5 py-1 text-xs font-medium outline-none transition-colors focus-visible:underline',
                     p === period
@@ -65,7 +70,7 @@ export function ErrorsPanel({ result, period, sentryUrl, className }: ErrorsPane
                   )}
                 >
                   {p}
-                </Link>
+                </button>
               ))}
             </div>
           </div>
