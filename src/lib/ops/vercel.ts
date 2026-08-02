@@ -1,8 +1,12 @@
 /**
  * Vercel production-deployment snapshot for the ops board. Reads the latest
- * few production deployments so the card shows the current state (READY /
- * ERROR / BUILDING) and when it shipped, without opening the Vercel
- * dashboard.
+ * eight production deployments — state, commit sha/message, age, build
+ * duration — so the delivery panel answers "did the deploy work?" without
+ * opening the Vercel dashboard.
+ *
+ * Live-verified 2026-08-01 against v6: commit info rides in `meta`
+ * (githubCommitSha / githubCommitMessage) and `ready`/`createdAt` are epoch
+ * ms, so build duration = ready - createdAt.
  *
  * Needs VERCEL_API_TOKEN + VERCEL_PROJECT_ID; either absent => 'unconfigured',
  * no network call. VERCEL_TEAM_ID is optional (required only for team-scoped
@@ -13,12 +17,24 @@
 import { fetchJson } from './fetch'
 import type { OpsResult } from './types'
 
-/** One production deployment, trimmed to what the card renders. */
+/** Deployment states that mean the deploy did NOT ship. */
+const FAILED_STATES = new Set(['ERROR', 'CANCELED'])
+const SHA_SHORT_LENGTH = 7
+
+/** One production deployment, trimmed to what the delivery table renders. */
 export interface VercelDeployment {
   /** Deployment readyState, e.g. 'READY' | 'ERROR' | 'BUILDING' (display only). */
   state: string
-  /** Creation time as epoch milliseconds (Vercel returns a number). */
-  created: number
+  /** True for ERROR/CANCELED — the row the table must make loud. */
+  isFailed: boolean
+  /** Short commit sha ('' when the deploy didn't come from git). */
+  sha7: string
+  /** Commit message first line ('' when absent). */
+  commitMessage: string
+  /** Creation time as epoch milliseconds. */
+  createdAt: number
+  /** Build wall-clock ms (ready - createdAt), or null while building/failed. */
+  durationMs: number | null
   /** Hostname without scheme, e.g. "poc-workout-tracker-abc123.vercel.app". */
   url: string
 }
@@ -27,7 +43,7 @@ export interface VercelSnapshot {
   deployments: VercelDeployment[]
 }
 
-const LIMIT = 3
+const LIMIT = 8
 
 /** Narrows one raw deployment, or null when required fields are missing. */
 function parseDeployment(raw: unknown): VercelDeployment | null {
@@ -36,10 +52,27 @@ function parseDeployment(raw: unknown): VercelDeployment | null {
   // Vercel exposes readiness as `state` on v6; older shapes used `readyState`.
   const state = typeof obj.state === 'string' ? obj.state : obj.readyState
   if (typeof state !== 'string') return null
-  if (typeof obj.created !== 'number') return null
+  const createdAt =
+    typeof obj.createdAt === 'number'
+      ? obj.createdAt
+      : typeof obj.created === 'number'
+        ? obj.created
+        : null
+  if (createdAt === null) return null
+
+  const meta =
+    obj.meta && typeof obj.meta === 'object' ? (obj.meta as Record<string, unknown>) : {}
+  const sha = typeof meta.githubCommitSha === 'string' ? meta.githubCommitSha : ''
+  const message = typeof meta.githubCommitMessage === 'string' ? meta.githubCommitMessage : ''
+  const ready = typeof obj.ready === 'number' ? obj.ready : null
+
   return {
     state,
-    created: obj.created,
+    isFailed: FAILED_STATES.has(state),
+    sha7: sha.slice(0, SHA_SHORT_LENGTH),
+    commitMessage: message.split('\n')[0],
+    createdAt,
+    durationMs: ready !== null && ready >= createdAt ? ready - createdAt : null,
     url: typeof obj.url === 'string' ? obj.url : '',
   }
 }

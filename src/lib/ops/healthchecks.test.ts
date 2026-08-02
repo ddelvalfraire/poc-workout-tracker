@@ -16,12 +16,15 @@ function mockFetchSequence(
   return fetchMock
 }
 
-const check = (name: string, status: string) => ({
+const check = (name: string, status: string, uniqueKey = `uk-${name}`) => ({
   name,
   status,
   last_ping: '2026-08-01T09:00:00Z',
   next_ping: '2026-08-02T09:00:00Z',
+  unique_key: uniqueKey,
 })
+
+const flip = (timestamp: string, up: 0 | 1) => ({ timestamp, up })
 
 beforeEach(() => {
   vi.stubEnv('HEALTHCHECKS_API_KEY', 'hc-key')
@@ -42,9 +45,11 @@ describe('getHealthchecks', () => {
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
-  it('maps checks, counts non-up as down, and sends X-Api-Key', async () => {
+  it('maps checks with flips, counts non-up as down, and sends X-Api-Key', async () => {
     const fetchMock = mockFetchSequence([
       { ok: true, body: { checks: [check('cron', 'up'), check('backup', 'down')] } },
+      { ok: true, body: { flips: [flip('2026-07-30T01:00:00Z', 1), flip('2026-07-29T23:00:00Z', 0)] } },
+      { ok: true, body: { flips: [] } },
     ])
 
     const result = await getHealthchecks()
@@ -54,14 +59,51 @@ describe('getHealthchecks', () => {
       expect(result.data.checks).toHaveLength(2)
       expect(result.data.downCount).toBe(1)
       expect(result.data.checks[0]).toMatchObject({ name: 'cron', status: 'up' })
+      expect(result.data.checks[0].flips).toEqual([
+        { timestamp: '2026-07-30T01:00:00Z', up: true },
+        { timestamp: '2026-07-29T23:00:00Z', up: false },
+      ])
+      expect(result.data.checks[1].flips).toEqual([])
     }
-    const [url, init] = fetchMock.mock.calls[0]
-    expect(String(url)).toBe('https://healthchecks.io/api/v3/checks/')
-    expect(init.headers).toMatchObject({ 'X-Api-Key': 'hc-key' })
+    const [listUrl, listInit] = fetchMock.mock.calls[0]
+    expect(String(listUrl)).toBe('https://healthchecks.io/api/v3/checks/')
+    expect(listInit.headers).toMatchObject({ 'X-Api-Key': 'hc-key' })
+    // Flips are fetched per check via the read-only key's unique_key.
+    expect(String(fetchMock.mock.calls[1][0])).toBe(
+      'https://healthchecks.io/api/v3/checks/uk-cron/flips/',
+    )
+    expect(String(fetchMock.mock.calls[2][0])).toBe(
+      'https://healthchecks.io/api/v3/checks/uk-backup/flips/',
+    )
+  })
+
+  it('caps flips at the last five transitions', async () => {
+    const manyFlips = Array.from({ length: 8 }, (_, i) =>
+      flip(`2026-07-2${i}T00:00:00Z`, (i % 2) as 0 | 1),
+    )
+    mockFetchSequence([
+      { ok: true, body: { checks: [check('cron', 'up')] } },
+      { ok: true, body: { flips: manyFlips } },
+    ])
+    const result = await getHealthchecks()
+    expect(result.ok && result.data.checks[0].flips).toHaveLength(5)
+  })
+
+  it('keeps the check with empty flips when its flips call fails', async () => {
+    mockFetchSequence([
+      { ok: true, body: { checks: [check('cron', 'up')] } },
+      { ok: false, status: 500 },
+    ])
+    const result = await getHealthchecks()
+    expect(result.ok).toBe(true)
+    expect(result.ok && result.data.checks[0].flips).toEqual([])
   })
 
   it("treats 'new' checks as not-down", async () => {
-    mockFetchSequence([{ ok: true, body: { checks: [check('fresh', 'new')] } }])
+    mockFetchSequence([
+      { ok: true, body: { checks: [check('fresh', 'new')] } },
+      { ok: true, body: { flips: [] } },
+    ])
     const result = await getHealthchecks()
     expect(result.ok && result.data.downCount).toBe(0)
   })

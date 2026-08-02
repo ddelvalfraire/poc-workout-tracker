@@ -16,12 +16,19 @@ function mockFetchSequence(
   return fetchMock
 }
 
-const deployment = (state: string, created: number) => ({
-  uid: `dpl_${created}`,
+const deployment = (state: string, createdAt: number, extra: Record<string, unknown> = {}) => ({
+  uid: `dpl_${createdAt}`,
   name: 'poc-workout-tracker',
-  url: `poc-workout-tracker-${created}.vercel.app`,
+  url: `poc-workout-tracker-${createdAt}.vercel.app`,
   state,
-  created,
+  created: createdAt,
+  createdAt,
+  ready: createdAt + 45_000,
+  meta: {
+    githubCommitSha: 'abcdef1234567890',
+    githubCommitMessage: 'feat: ship the thing\n\nlong body',
+  },
+  ...extra,
 })
 
 beforeEach(() => {
@@ -45,7 +52,7 @@ describe('getVercelDeployments', () => {
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
-  it('maps deployments and queries production with Bearer auth', async () => {
+  it('maps commit sha/message/duration and queries 8 production deploys with Bearer auth', async () => {
     const fetchMock = mockFetchSequence([
       { ok: true, body: { deployments: [deployment('READY', 1000), deployment('ERROR', 900)] } },
     ])
@@ -55,14 +62,39 @@ describe('getVercelDeployments', () => {
     expect(result.ok).toBe(true)
     if (result.ok) {
       expect(result.data.deployments).toHaveLength(2)
-      expect(result.data.deployments[0]).toMatchObject({ state: 'READY', created: 1000 })
-      expect(result.data.deployments[0].url).toBe('poc-workout-tracker-1000.vercel.app')
+      expect(result.data.deployments[0]).toEqual({
+        state: 'READY',
+        isFailed: false,
+        sha7: 'abcdef1',
+        commitMessage: 'feat: ship the thing',
+        createdAt: 1000,
+        durationMs: 45_000,
+        url: 'poc-workout-tracker-1000.vercel.app',
+      })
+      expect(result.data.deployments[1].isFailed).toBe(true)
     }
     const [url, init] = fetchMock.mock.calls[0]
     expect(String(url)).toContain('projectId=prj_123')
     expect(String(url)).toContain('target=production')
+    expect(String(url)).toContain('limit=8')
     expect(String(url)).not.toContain('teamId')
     expect(init.headers).toMatchObject({ Authorization: 'Bearer vtok' })
+  })
+
+  it('flags CANCELED as failed and leaves duration null without a ready timestamp', async () => {
+    mockFetchSequence([
+      {
+        ok: true,
+        body: { deployments: [deployment('CANCELED', 500, { ready: undefined, meta: {} })] },
+      },
+    ])
+    const result = await getVercelDeployments()
+    expect(result.ok && result.data.deployments[0]).toMatchObject({
+      isFailed: true,
+      durationMs: null,
+      sha7: '',
+      commitMessage: '',
+    })
   })
 
   it('adds teamId when VERCEL_TEAM_ID is set', async () => {
@@ -72,12 +104,16 @@ describe('getVercelDeployments', () => {
     expect(String(fetchMock.mock.calls[0][0])).toContain('teamId=team_9')
   })
 
-  it('falls back to readyState when state is absent', async () => {
+  it('falls back to readyState/created for older payload shapes', async () => {
     mockFetchSequence([
       { ok: true, body: { deployments: [{ readyState: 'BUILDING', created: 1, url: 'x' }] } },
     ])
     const result = await getVercelDeployments()
-    expect(result.ok && result.data.deployments[0].state).toBe('BUILDING')
+    expect(result.ok && result.data.deployments[0]).toMatchObject({
+      state: 'BUILDING',
+      createdAt: 1,
+      durationMs: null,
+    })
   })
 
   it("returns 'unavailable' on a non-200", async () => {
