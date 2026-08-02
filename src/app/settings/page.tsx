@@ -120,6 +120,22 @@ export default async function SettingsPage() {
               </div>
             </Link>
           </li>
+          {/* Link row, like Body: the import flow (upload → preview → confirm
+              → undo) grew its own surface at /settings/import. */}
+          <li>
+            <Link
+              href="/settings/import"
+              className="flex items-center justify-between gap-4 px-4 py-4 transition-colors outline-none hover:bg-muted/50 focus-visible:bg-muted/50"
+            >
+              <div className="min-w-0">
+                <p className="font-medium">Import history</p>
+                <p className="mt-0.5 text-sm text-muted-foreground">
+                  Bring past workouts in from a Strong or Hevy CSV export.
+                </p>
+              </div>
+              <ChevronRight aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
+            </Link>
+          </li>
           {/* Internal-only: rendered solely for allowlisted operators. The
               route 404s for everyone else, so a leaked link reveals nothing. */}
           {showOps && (

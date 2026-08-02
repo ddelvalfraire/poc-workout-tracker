@@ -52,6 +52,7 @@ function makeWorkout(overrides: Partial<WorkoutDetail> = {}): WorkoutDetail {
     createdAt: new Date(),
     programDayId: null,
     programWeek: null,
+    importBatchId: null,
     notes: null,
     exercises: [makeExercise()],
     ...overrides,
