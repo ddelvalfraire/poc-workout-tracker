@@ -15,6 +15,7 @@
  * Server-only: never import from a Client Component.
  */
 import { fetchJson } from './fetch'
+import { cachedOpsFetch } from './cache'
 import type { OpsResult } from './types'
 
 /** Deployment states that mean the deploy did NOT ship. */
@@ -77,11 +78,21 @@ function parseDeployment(raw: unknown): VercelDeployment | null {
   }
 }
 
+// Deploy state is the freshest signal the board carries — short TTL.
+const TTL_SECONDS = 120
+
 export async function getVercelDeployments(): Promise<OpsResult<VercelSnapshot>> {
   const token = process.env.VERCEL_API_TOKEN
   const projectId = process.env.VERCEL_PROJECT_ID
+  // Unconfigured stays uncached: name the env var, never serve stale data.
   if (!token || !projectId) return { ok: false, reason: 'unconfigured' }
+  return cachedOpsFetch('vercel', TTL_SECONDS, () => fetchDeployments(token, projectId))
+}
 
+async function fetchDeployments(
+  token: string,
+  projectId: string,
+): Promise<OpsResult<VercelSnapshot>> {
   const params = new URLSearchParams({
     projectId,
     target: 'production',

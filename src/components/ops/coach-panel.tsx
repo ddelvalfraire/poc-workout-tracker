@@ -48,6 +48,7 @@ export function CoachPanel({ daily, traces, className }: CoachPanelProps) {
       id="coach"
       title="Coach"
       status={statusOf(daily)}
+      staleAt={daily.ok ? daily.staleAt : undefined}
       envVar="LANGFUSE_PUBLIC_KEY"
       link={{ href: 'https://cloud.langfuse.com/', label: 'Langfuse' }}
       className={className}

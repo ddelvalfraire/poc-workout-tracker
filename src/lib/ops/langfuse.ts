@@ -25,12 +25,17 @@
  * Server-only: never import from a Client Component.
  */
 import { fetchJson } from './fetch'
+import { cachedOpsFetch } from './cache'
 import type { OpsResult } from './types'
 
 const DEFAULT_BASE_URL = 'https://cloud.langfuse.com'
 const DAYS = 14
 const PILL_WINDOW_DAYS = 7
 const TRACES_LIMIT = 15
+// Langfuse free tier rate-limits /metrics/daily to 10 requests per window
+// (429 verified live) — 3h keeps us at 8/day. Traces are cheaper: 15min.
+const DAILY_TTL_SECONDS = 10_800
+const TRACES_TTL_SECONDS = 900
 
 /** One day's rolled-up coach telemetry. */
 export interface LangfuseDay {
@@ -110,8 +115,12 @@ function parseDay(raw: unknown): LangfuseDay | null {
 
 export async function getLangfuseDaily(): Promise<OpsResult<LangfuseSnapshot>> {
   const auth = resolveAuth()
+  // Unconfigured stays uncached: name the env var, never serve stale data.
   if (!auth) return { ok: false, reason: 'unconfigured' }
+  return cachedOpsFetch('langfuse:daily', DAILY_TTL_SECONDS, () => fetchDaily(auth))
+}
 
+async function fetchDaily(auth: LangfuseAuth): Promise<OpsResult<LangfuseSnapshot>> {
   const data = await fetchJson(`${auth.baseUrl}/api/public/metrics/daily?limit=${DAYS}`, {
     headers: { Authorization: auth.header },
   })
@@ -156,7 +165,10 @@ function parseObservation(raw: unknown): LangfuseTrace | null {
 export async function getLangfuseTraces(): Promise<OpsResult<LangfuseTracesSnapshot>> {
   const auth = resolveAuth()
   if (!auth) return { ok: false, reason: 'unconfigured' }
+  return cachedOpsFetch('langfuse:traces', TRACES_TTL_SECONDS, () => fetchTraces(auth))
+}
 
+async function fetchTraces(auth: LangfuseAuth): Promise<OpsResult<LangfuseTracesSnapshot>> {
   const params = new URLSearchParams({
     limit: String(TRACES_LIMIT),
     type: 'GENERATION',

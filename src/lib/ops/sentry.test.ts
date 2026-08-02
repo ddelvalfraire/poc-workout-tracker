@@ -1,6 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { getSentryIssues } from './sentry'
 
+// Pin the ops cache to passthrough: these tests assert vendor fetch
+// behavior, not caching (cache.test.ts covers that).
+vi.mock('@/lib/redis', () => ({ getRedis: () => null }))
+
 /** Queues fetch responses in call order; each is `{ ok, status, body }`. */
 function mockFetchSequence(
   responses: { ok: boolean; status?: number; body?: unknown }[],

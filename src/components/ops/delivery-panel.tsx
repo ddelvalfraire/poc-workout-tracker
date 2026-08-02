@@ -51,6 +51,11 @@ export function DeliveryPanel({ vercel, healthchecks, className }: DeliveryPanel
       id="delivery"
       title="Delivery"
       status={combinedStatus(vercel, healthchecks)}
+      // Two sources share this panel; surface whichever is served stale.
+      staleAt={
+        (vercel.ok ? vercel.staleAt : undefined) ??
+        (healthchecks.ok ? healthchecks.staleAt : undefined)
+      }
       envVar="VERCEL_API_TOKEN"
       link={{ href: 'https://vercel.com/dashboard', label: 'Vercel' }}
       className={className}

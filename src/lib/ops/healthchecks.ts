@@ -18,6 +18,7 @@
  * Server-only: never import from a Client Component.
  */
 import { fetchJson } from './fetch'
+import { cachedOpsFetch } from './cache'
 import type { OpsResult } from './types'
 
 const FLIPS_LIMIT = 5
@@ -95,10 +96,17 @@ async function fetchFlips(uniqueKey: string, apiKey: string): Promise<CheckFlip[
     .slice(0, FLIPS_LIMIT)
 }
 
+// Cron state moves slowly; 5min keeps the checks+flips fan-out off every render.
+const TTL_SECONDS = 300
+
 export async function getHealthchecks(): Promise<OpsResult<HealthchecksSnapshot>> {
   const apiKey = process.env.HEALTHCHECKS_API_KEY
+  // Unconfigured stays uncached: name the env var, never serve stale data.
   if (!apiKey) return { ok: false, reason: 'unconfigured' }
+  return cachedOpsFetch('healthchecks', TTL_SECONDS, () => fetchChecks(apiKey))
+}
 
+async function fetchChecks(apiKey: string): Promise<OpsResult<HealthchecksSnapshot>> {
   const data = await fetchJson('https://healthchecks.io/api/v3/checks/', {
     headers: { 'X-Api-Key': apiKey },
   })

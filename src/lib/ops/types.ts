@@ -14,4 +14,15 @@
 
 export type OpsUnavailableReason = 'unconfigured' | 'unavailable'
 
-export type OpsResult<T> = { ok: true; data: T } | { ok: false; reason: OpsUnavailableReason }
+export type OpsResult<T> =
+  | {
+      ok: true
+      data: T
+      /**
+       * Present only when the vendor was down and this data is the cache's
+       * long-lived stale copy (ops/cache.ts): the ISO-8601 time it was
+       * originally fetched. Panels render a quiet "as of Nh ago" note.
+       */
+      staleAt?: string
+    }
+  | { ok: false; reason: OpsUnavailableReason }

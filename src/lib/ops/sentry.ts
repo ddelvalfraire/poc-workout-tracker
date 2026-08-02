@@ -17,6 +17,7 @@
  * Server-only: never import from a Client Component.
  */
 import { fetchJson } from './fetch'
+import { cachedOpsFetch } from './cache'
 import type { OpsResult } from './types'
 
 /** Sentry stats windows the issues endpoint actually accepts. */
@@ -68,14 +69,28 @@ function parseIssue(raw: unknown): SentryIssue | null {
   }
 }
 
+// Both windows ride each render, so 2min still means at most ~1 req/min/window.
+const TTL_SECONDS = 120
+
 export async function getSentryIssues(
   period: SentryPeriod = '24h',
 ): Promise<OpsResult<SentrySnapshot>> {
   const token = process.env.SENTRY_API_TOKEN
   const org = process.env.SENTRY_ORG_SLUG
   const project = process.env.SENTRY_PROJECT_SLUG
+  // Unconfigured stays uncached: name the env var, never serve stale data.
   if (!token || !org || !project) return { ok: false, reason: 'unconfigured' }
+  return cachedOpsFetch(`sentry:${period}`, TTL_SECONDS, () =>
+    fetchIssues(period, token, org, project),
+  )
+}
 
+async function fetchIssues(
+  period: SentryPeriod,
+  token: string,
+  org: string,
+  project: string,
+): Promise<OpsResult<SentrySnapshot>> {
   const url = `https://sentry.io/api/0/projects/${encodeURIComponent(org)}/${encodeURIComponent(
     project,
   )}/issues/?query=${encodeURIComponent('is:unresolved')}&statsPeriod=${period}`

@@ -42,6 +42,7 @@ export function ErrorsPanel({ results, sentryUrl, className }: ErrorsPanelProps)
       id="errors"
       title="Errors"
       status={statusOf(result)}
+      staleAt={result.ok ? result.staleAt : undefined}
       envVar="SENTRY_API_TOKEN"
       link={{ href: sentryUrl, label: 'Sentry' }}
       className={className}
