@@ -19,8 +19,12 @@ function mockFetchSequence(
 
 const issue = (n: number) => ({
   title: `Error ${n}`,
+  level: 'warning',
+  culprit: `app/api/route-${n}`,
   count: String(n),
+  userCount: n,
   permalink: `https://sentry.io/issues/${n}/`,
+  firstSeen: '2026-07-25T12:00:00Z',
   lastSeen: '2026-08-01T12:00:00Z',
 })
 
@@ -53,21 +57,53 @@ describe('getSentryIssues', () => {
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
-  it('counts issues, caps the top list at five, and sends Bearer auth', async () => {
-    const fetchMock = mockFetchSequence([{ ok: true, body: [1, 2, 3, 4, 5, 6, 7].map(issue) }])
+  it('maps triage fields, caps the top list at ten, and sends Bearer auth', async () => {
+    const issues = Array.from({ length: 12 }, (_, i) => issue(i + 1))
+    const fetchMock = mockFetchSequence([{ ok: true, body: issues }])
 
     const result = await getSentryIssues()
 
     expect(result.ok).toBe(true)
     if (result.ok) {
-      expect(result.data.unresolvedCount).toBe(7)
-      expect(result.data.topIssues).toHaveLength(5)
-      expect(result.data.topIssues[0].permalink).toBe('https://sentry.io/issues/1/')
+      expect(result.data.unresolvedCount).toBe(12)
+      expect(result.data.topIssues).toHaveLength(10)
+      expect(result.data.period).toBe('24h')
+      expect(result.data.topIssues[0]).toEqual({
+        title: 'Error 1',
+        level: 'warning',
+        culprit: 'app/api/route-1',
+        count: '1',
+        userCount: 1,
+        permalink: 'https://sentry.io/issues/1/',
+        firstSeen: '2026-07-25T12:00:00Z',
+        lastSeen: '2026-08-01T12:00:00Z',
+      })
     }
     const [url, init] = fetchMock.mock.calls[0]
     expect(String(url)).toContain('/projects/david-1k/poc-workout-tracker/issues/')
     expect(String(url)).toContain('is%3Aunresolved')
+    expect(String(url)).toContain('statsPeriod=24h')
     expect(init.headers).toMatchObject({ Authorization: 'Bearer tok' })
+  })
+
+  it("queries statsPeriod=14d when the period is '14d'", async () => {
+    const fetchMock = mockFetchSequence([{ ok: true, body: [issue(1)] }])
+    const result = await getSentryIssues('14d')
+    expect(String(fetchMock.mock.calls[0][0])).toContain('statsPeriod=14d')
+    expect(result.ok && result.data.period).toBe('14d')
+  })
+
+  it('defaults level/culprit/userCount when absent', async () => {
+    mockFetchSequence([
+      { ok: true, body: [{ title: 'Bare', permalink: 'https://sentry.io/issues/9/' }] },
+    ])
+    const result = await getSentryIssues()
+    expect(result.ok && result.data.topIssues[0]).toMatchObject({
+      level: 'error',
+      culprit: '',
+      userCount: 0,
+      firstSeen: '',
+    })
   })
 
   it("returns 'unavailable' on a non-200", async () => {
