@@ -555,6 +555,7 @@ describe('detailToProgramDraft', () => {
     autoregulation: true,
     planSync: false,
     checkInEveryDays: 14,
+    visibility: 'private',
     mesocycleWeeks: 6,
     deloadWeek: 6,
     notes: 'agent notes',

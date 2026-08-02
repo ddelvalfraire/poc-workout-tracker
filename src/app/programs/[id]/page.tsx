@@ -11,6 +11,7 @@ import {
   listProgramWorkouts,
 } from '@/db/programs'
 import { getProgramStats } from '@/db/program-stats'
+import { getActiveShare } from '@/db/program-shares'
 import { listProgramEvents, type ProgramEventActor } from '@/db/program-events'
 import { getWeightUnit } from '@/db/preferences'
 import { listWorkoutSummaries } from '@/db/workouts'
@@ -26,6 +27,7 @@ import { topPRs } from './stats/stats-view'
 import { StartDayButton } from './start-day-button'
 import { ProgramActions } from './program-actions'
 import { ProposalActions } from './proposal-actions'
+import { SharingSection } from './sharing-section'
 import { RestartProgramButton } from './restart-program-button'
 
 /** Chip labels for the change log — WHO edited, in the user's own terms. */
@@ -52,15 +54,24 @@ export default async function ProgramDetailPage({
   const [program, unit] = await Promise.all([getProgramDetail(userId, id), getWeightUnit(userId)])
   if (!program) notFound()
 
-  const [{ currentWeek, blockComplete }, nextDay, summaries, drafts, programWorkouts, changeEvents] =
-    await Promise.all([
-      programWeekState(userId, program.id, program.mesocycleWeeks),
-      getNextProgramDay(userId),
-      listWorkoutSummaries(userId),
-      listWorkoutDrafts(userId),
-      listProgramWorkouts(userId, program.id),
-      listProgramEvents(userId, program.id, { limit: CHANGE_LOG_LIMIT }),
-    ])
+  const [
+    { currentWeek, blockComplete },
+    nextDay,
+    summaries,
+    drafts,
+    programWorkouts,
+    changeEvents,
+    activeShare,
+  ] = await Promise.all([
+    programWeekState(userId, program.id, program.mesocycleWeeks),
+    getNextProgramDay(userId),
+    listWorkoutSummaries(userId),
+    listWorkoutDrafts(userId),
+    listProgramWorkouts(userId, program.id),
+    listProgramEvents(userId, program.id, { limit: CHANGE_LOG_LIMIT }),
+    // The live share token for the sharing UI's copy-link (null until minted).
+    getActiveShare(userId, program.id),
+  ])
   // The payoff moment costs an extra read, so only complete blocks pay it —
   // an incomplete block's page issues exactly the queries it always has.
   const stats = blockComplete ? await getProgramStats(userId, program.id) : null
@@ -243,7 +254,15 @@ export default async function ProgramDetailPage({
             className="mt-4 rounded-2xl border border-primary/50 bg-card p-4"
           >
             <p className="text-[11px] font-semibold uppercase tracking-widest text-primary">
-              {program.authorActor === 'coach' ? 'Proposed by your coach' : 'Proposed for you'}
+              {/* authorActor is an OPEN value space: 'coach' and 'owner' get
+                  their labels; anything else is a sharer's userId (adopted
+                  via a share link) and reads "Shared program" — no Clerk
+                  display-name lookup in v1. */}
+              {program.authorActor === 'coach'
+                ? 'Proposed by your coach'
+                : program.authorActor === 'owner'
+                  ? 'Proposed for you'
+                  : 'Shared program'}
             </p>
             <p className="mt-1 text-sm text-muted-foreground">
               Review the plan below, then adopt it as a draft, start it right away, or decline.
@@ -631,6 +650,17 @@ export default async function ProgramDetailPage({
               ))}
             </ul>
           </section>
+        )}
+
+        {/* Sharing is an OWNER control and never appears on a proposal — a
+            pending proposal can't be made sharable (adopt or decline first;
+            the db layer refuses regardless, this keeps the UI honest). */}
+        {!isProposed && (
+          <SharingSection
+            programId={program.id}
+            visibility={program.visibility}
+            shareToken={activeShare?.token ?? null}
+          />
         )}
 
         {/* A proposal's only actions are the banner's Adopt/Decline above —

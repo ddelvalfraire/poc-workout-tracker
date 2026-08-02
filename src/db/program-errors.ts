@@ -33,3 +33,31 @@ export class NotCoachProposalError extends Error {
     this.name = 'NotCoachProposalError'
   }
 }
+
+/**
+ * A share link was requested for a program whose visibility is 'private'.
+ * Minting is gated on visibility link|public so a private program can never
+ * hold a live token — flipping visibility is the explicit first step. Same
+ * module/identity rationale as ProposedProgramError above.
+ */
+export class NotSharableProgramError extends Error {
+  constructor(programId: string) {
+    super(
+      `Program ${programId} is private — set its visibility to 'link' or 'public' before creating a share link`,
+    )
+    this.name = 'NotSharableProgramError'
+  }
+}
+
+/**
+ * A signed-in owner tried to adopt their own share link. Adopting your own
+ * program would mint a proposal attributed to yourself — meaningless, and a
+ * duplicate factory. The public page shows owners a "this is your program"
+ * note instead; this error is the server-side backstop.
+ */
+export class OwnSharedProgramError extends Error {
+  constructor() {
+    super('This share link points at your own program — there is nothing to adopt')
+    this.name = 'OwnSharedProgramError'
+  }
+}

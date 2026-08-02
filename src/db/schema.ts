@@ -14,7 +14,13 @@ import {
   primaryKey,
 } from 'drizzle-orm/pg-core'
 import { relations, sql } from 'drizzle-orm'
-import type { Technique, Progression, SetType, MetricMode } from '@/lib/program-input'
+import type {
+  Technique,
+  Progression,
+  SetType,
+  MetricMode,
+  ProgramVisibility,
+} from '@/lib/program-input'
 import type { ExerciseSource, ExerciseCategory } from '@/lib/custom-exercise-input'
 import type { LoggingType } from '@/lib/workout-input'
 import type { MeasurementSite } from '@/lib/measurement-sites'
@@ -496,6 +502,13 @@ export const programs = pgTable(
     // switches above, because absence IS the off state. App-validated 3–90 at
     // the input boundary (program-input.ts); no DB default on purpose.
     checkInEveryDays: integer('check_in_every_days'),
+    // Sharing visibility (tier 1 of the social ladder): 'private' (owner
+    // only — the default forever) | 'link' (readable via a live share URL) |
+    // 'public' (link behavior + eligibility for a future browse surface; the
+    // value is stored now so tier 2+ needs data, not schema). Text + app-level
+    // enum like `status`; resolution additionally requires a live
+    // program_shares row and status != 'proposed' (db/program-shares.ts).
+    visibility: text('visibility').$type<ProgramVisibility>().notNull().default('private'),
     notes: text('notes'),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
@@ -640,6 +653,32 @@ export const programSetOverrides = pgTable(
     technique: jsonb('technique').$type<Technique>(),
   },
   (t) => [unique('program_set_overrides_set_week_unique').on(t.programSetId, t.week)],
+)
+
+/**
+ * Share links for programs with visibility 'link' | 'public' — a separate
+ * table, not a column, so rotation, multiple live links, and future rows
+ * carrying scope (crewId, expiresAt) need new ROWS, not schema surgery.
+ * `token` is the capability: 24 bytes of crypto randomness (192-bit entropy,
+ * base64url), globally unique. Revocation sets `revokedAt` (the row is kept
+ * as a fact); a replacement link is a NEW row with a fresh token. Resolution
+ * (db/program-shares.ts) requires revokedAt IS NULL plus the program-side
+ * gates; anything else 404s without acknowledging existence.
+ */
+export const programShares = pgTable(
+  'program_shares',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    programId: uuid('program_id')
+      .notNull()
+      .references(() => programs.id, { onDelete: 'cascade' }),
+    token: text('token').notNull().unique(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+  },
+  // Owner-side reads (active link for the sharing UI, revoke sweep) are
+  // program-first; token lookups ride the unique index.
+  (t) => [index('program_shares_program_id_idx').on(t.programId)],
 )
 
 /**

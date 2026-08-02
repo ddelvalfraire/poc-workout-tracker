@@ -258,6 +258,10 @@ export async function saveProgram(
         // Omitted on create = no suggestion (null IS the off state — a
         // cadence is opt-in, unlike the default-on switches above).
         checkInEveryDays: input.checkInEveryDays ?? null,
+        // Omitted on create = the column default ('private' — the default
+        // forever); an explicit value writes through. No `?? 'private'`
+        // materialization — same no-default discipline as the switches above.
+        ...(input.visibility !== undefined ? { visibility: input.visibility } : {}),
         notes: input.notes ?? null,
         // Article metadata rides create like notes: omitted = null.
         // authorActor mirrors the drafting policy above; a wger import is
@@ -422,6 +426,9 @@ export async function updateProgram(
         ...(input.checkInEveryDays !== undefined
           ? { checkInEveryDays: input.checkInEveryDays }
           : {}),
+        // Same preserve rule for sharing visibility: an upsert that omits the
+        // field must never flip a shared program back to private.
+        ...(input.visibility !== undefined ? { visibility: input.visibility } : {}),
         notes: input.notes ?? null,
         description: input.description ?? null,
         icon: input.icon ?? null,
@@ -668,7 +675,10 @@ export async function cloneProgram(
         notes: source.notes,
         // Article metadata travels with the block; authorActor deliberately
         // does NOT — the owner initiated the clone, so the copy is
-        // owner-authored (column default).
+        // owner-authored (column default). `visibility` deliberately does NOT
+        // travel either (a deliberate divergence from the metadata carry): a
+        // clone is a NEW private thing, so omitting the column lands it on
+        // the 'private' default instead of inheriting a shared source's reach.
         description: source.description,
         icon: source.icon,
         heroImageUrl: source.heroImageUrl,
@@ -676,91 +686,7 @@ export async function cloneProgram(
       })
       .returning({ id: programs.id })
 
-    for (const day of source.days) {
-      const [pd] = await tx
-        .insert(programDays)
-        .values({
-          programId: program.id,
-          name: day.name,
-          position: day.position,
-          notes: day.notes,
-          // The schedule is part of the day, so the next block trains on the
-          // same weekdays until the owner edits it.
-          weekdays: day.weekdays,
-        })
-        .returning({ id: programDays.id })
-
-      for (const exercise of day.exercises) {
-        const [pe] = await tx
-          .insert(programExercises)
-          .values({
-            programDayId: pd.id,
-            wgerExerciseId: exercise.wgerExerciseId,
-            source: exercise.source,
-            name: exercise.name,
-            position: exercise.position,
-            supersetGroup: exercise.supersetGroup,
-            progression: exercise.progression,
-          })
-          .returning({ id: programExercises.id })
-
-        if (exercise.sets.length > 0) {
-          // Postgres returns batch-insert RETURNING rows in VALUES order —
-          // the index zip below relies on it to remap overrides.
-          const newSets = await tx
-            .insert(programSets)
-            .values(
-              exercise.sets.map((s) => ({
-                programExerciseId: pe.id,
-                setNumber: s.setNumber,
-                setType: s.setType,
-                metricMode: s.metricMode,
-                repMin: s.repMin,
-                repMax: s.repMax,
-                rir: s.rir,
-                rpe: s.rpe,
-                suggestedLoadKg: s.suggestedLoadKg,
-                tempo: s.tempo,
-                durationSec: s.durationSec,
-                distanceM: s.distanceM,
-                restSec: s.restSec,
-                technique: s.technique,
-              })),
-            )
-            .returning({ id: programSets.id })
-
-          const overrideRows = exercise.sets.flatMap((s, i) =>
-            s.overrides.map((o) => ({
-              programSetId: newSets[i].id,
-              week: o.week,
-              repMin: o.repMin,
-              repMax: o.repMax,
-              rir: o.rir,
-              rpe: o.rpe,
-              suggestedLoadKg: o.suggestedLoadKg,
-              tempo: o.tempo,
-              durationSec: o.durationSec,
-              distanceM: o.distanceM,
-              restSec: o.restSec,
-              technique: o.technique,
-            })),
-          )
-          if (overrideRows.length > 0) {
-            await tx.insert(programSetOverrides).values(overrideRows)
-          }
-        }
-
-        if (exercise.muscles.length > 0) {
-          await tx.insert(programExerciseMuscles).values(
-            exercise.muscles.map((m) => ({
-              programExerciseId: pe.id,
-              muscle: m.muscle,
-              role: m.role,
-            })),
-          )
-        }
-      }
-    }
+    await copyProgramTree(tx, source.days, program.id)
 
     // Logged on the NEW program: its timeline opens with where it came from
     // (the source keeps its own history — clone rows cascade with the clone).
@@ -775,6 +701,106 @@ export async function cloneProgram(
 
     return { id: program.id }
   })
+}
+
+/**
+ * Row-for-row copy of a program's day → exercise → set (+ per-week overrides)
+ * → muscle-tag tree onto an already-inserted `programs` row. Extracted from
+ * cloneProgram (which established the copy semantics) so adoptShared
+ * (db/program-shares.ts) reuses the exact same fidelity for cross-account
+ * clones. Positions/setNumbers copy verbatim; no catalog fetch — muscle rows
+ * copy as stored. Runs on the CALLER's transaction handle.
+ */
+export async function copyProgramTree(
+  tx: Tx,
+  days: ProgramDetail['days'],
+  programId: string,
+): Promise<void> {
+  for (const day of days) {
+    const [pd] = await tx
+      .insert(programDays)
+      .values({
+        programId,
+        name: day.name,
+        position: day.position,
+        notes: day.notes,
+        // The schedule is part of the day, so the next block trains on the
+        // same weekdays until the owner edits it.
+        weekdays: day.weekdays,
+      })
+      .returning({ id: programDays.id })
+
+    for (const exercise of day.exercises) {
+      const [pe] = await tx
+        .insert(programExercises)
+        .values({
+          programDayId: pd.id,
+          wgerExerciseId: exercise.wgerExerciseId,
+          source: exercise.source,
+          name: exercise.name,
+          position: exercise.position,
+          supersetGroup: exercise.supersetGroup,
+          progression: exercise.progression,
+        })
+        .returning({ id: programExercises.id })
+
+      if (exercise.sets.length > 0) {
+        // Postgres returns batch-insert RETURNING rows in VALUES order —
+        // the index zip below relies on it to remap overrides.
+        const newSets = await tx
+          .insert(programSets)
+          .values(
+            exercise.sets.map((s) => ({
+              programExerciseId: pe.id,
+              setNumber: s.setNumber,
+              setType: s.setType,
+              metricMode: s.metricMode,
+              repMin: s.repMin,
+              repMax: s.repMax,
+              rir: s.rir,
+              rpe: s.rpe,
+              suggestedLoadKg: s.suggestedLoadKg,
+              tempo: s.tempo,
+              durationSec: s.durationSec,
+              distanceM: s.distanceM,
+              restSec: s.restSec,
+              technique: s.technique,
+            })),
+          )
+          .returning({ id: programSets.id })
+
+        const overrideRows = exercise.sets.flatMap((s, i) =>
+          s.overrides.map((o) => ({
+            programSetId: newSets[i].id,
+            week: o.week,
+            repMin: o.repMin,
+            repMax: o.repMax,
+            rir: o.rir,
+            rpe: o.rpe,
+            suggestedLoadKg: o.suggestedLoadKg,
+            tempo: o.tempo,
+            durationSec: o.durationSec,
+            distanceM: o.distanceM,
+            restSec: o.restSec,
+            technique: o.technique,
+          })),
+        )
+        if (overrideRows.length > 0) {
+          await tx.insert(programSetOverrides).values(overrideRows)
+        }
+      }
+
+      if (exercise.muscles.length > 0) {
+        await tx.insert(programExerciseMuscles).values(
+          exercise.muscles.map((m) => ({
+            programExerciseId: pe.id,
+            muscle: m.muscle,
+            role: m.role,
+          })),
+        )
+      }
+    }
+  }
 }
 
 /**

@@ -695,6 +695,50 @@ describe('checkInEveryDays cadence integrity', () => {
   })
 })
 
+describe('visibility threading integrity (shared programs tier 1)', () => {
+  const MINIMAL = {
+    name: 'P',
+    days: [{ name: 'D', exercises: [{ wgerExerciseId: 1, name: 'X', sets: [{}] }] }],
+  }
+
+  it('saveProgram omits the column entirely at create (the db default is the fact)', async () => {
+    // Act
+    await saveProgram(USER, parseProgramInput(MINIMAL), 'ui')
+
+    // Assert — no materialized 'private': the column default carries it
+    expect('visibility' in (records[0].values as Record<string, unknown>)).toBe(false)
+  })
+
+  it('saveProgram writes an explicit visibility through at create', async () => {
+    // Act
+    await saveProgram(USER, parseProgramInput({ ...MINIMAL, visibility: 'link' }), 'ui')
+
+    // Assert
+    expect(records[0].values).toMatchObject({ visibility: 'link' })
+  })
+
+  it('updateProgram PRESERVES stored visibility when the input omits it (omit ≠ private)', async () => {
+    // Arrange — an upsert that never mentions visibility: a program shared
+    // via link must not flip back to private on an unrelated edit.
+    const input = parseProgramInput(MINIMAL)
+
+    // Act
+    await updateProgram(USER, 'p1', input, 'mcp')
+
+    // Assert — the update payload does not touch the column at all
+    expect(updateSets).toHaveLength(1)
+    expect('visibility' in (updateSets[0] as Record<string, unknown>)).toBe(false)
+  })
+
+  it('updateProgram writes an explicit visibility through', async () => {
+    // Act
+    await updateProgram(USER, 'p1', parseProgramInput({ ...MINIMAL, visibility: 'public' }), 'ui')
+
+    // Assert
+    expect(updateSets[0]).toMatchObject({ visibility: 'public' })
+  })
+})
+
 describe('saveProgram muscle tagging (Phase 5)', () => {
   const INPUT = parseProgramInput({
     name: 'PPL',
