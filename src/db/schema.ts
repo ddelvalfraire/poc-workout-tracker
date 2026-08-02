@@ -39,8 +39,37 @@ export const workouts = pgTable(
     programWeek: integer('program_week'),
     // Free-form session note. Nullable: null = no note, same as programs.notes.
     notes: text('notes'),
+    // Provenance: which history import created this workout. SET NULL (not
+    // cascade) mirrors programDayId — undo deletes the batch's workouts
+    // EXPLICITLY (db/import.ts) and then the batch row; a dangling batch
+    // delete must never destroy history on its own.
+    importBatchId: uuid('import_batch_id').references(() => importBatches.id, {
+      onDelete: 'set null',
+    }),
   },
   (t) => [index('workouts_user_id_idx').on(t.userId)],
+)
+
+/**
+ * One row per confirmed history import (Strong/Hevy CSV). The batch is the
+ * undo handle: "Remove this import" deletes the workouts stamped with this
+ * id, then this row. Counts are the COMMITTED numbers (duplicates already
+ * skipped) — facts about what landed, recorded once, never re-derived.
+ * Custom exercises created by an import are deliberately NOT tracked here:
+ * undo leaves them in place (deleting could orphan re-logged history).
+ */
+export const importBatches = pgTable(
+  'import_batches',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    userId: text('user_id').notNull(), // Clerk user id — ownership root
+    source: text('source').$type<'strong' | 'hevy'>().notNull(),
+    fileName: text('file_name'), // nullable — uploads may carry no name
+    workoutCount: integer('workout_count').notNull(),
+    setCount: integer('set_count').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [index('import_batches_user_id_idx').on(t.userId)],
 )
 
 export const workoutExercises = pgTable(

@@ -647,6 +647,7 @@ describe('detailToDraft', () => {
       createdAt: new Date(),
       programDayId: null,
       programWeek: null,
+      importBatchId: null,
       notes: null,
       exercises: [
         {
@@ -700,6 +701,7 @@ describe('detailToDraft', () => {
       createdAt: new Date(),
       programDayId: null,
       programWeek: null,
+      importBatchId: null,
       notes: null,
       exercises: [
         {
@@ -741,6 +743,7 @@ describe('detailToDraft', () => {
       createdAt: new Date(),
       programDayId: null,
       programWeek: null,
+      importBatchId: null,
       notes: 'cut short',
       exercises: [
         {
@@ -797,6 +800,7 @@ describe('detailToDraft', () => {
       createdAt: new Date(),
       programDayId: null,
       programWeek: null,
+      importBatchId: null,
       notes: null,
       exercises: [
         {
@@ -834,6 +838,7 @@ describe('detailToDraft', () => {
       createdAt: new Date(),
       programDayId: null,
       programWeek: null,
+      importBatchId: null,
       notes: null,
       exercises: [
         {
@@ -871,6 +876,7 @@ describe('detailToDraft', () => {
       createdAt: new Date(),
       programDayId: null,
       programWeek: null,
+      importBatchId: null,
       notes: null,
       exercises: [],
     }

@@ -211,6 +211,13 @@
       "when": 1785546152893,
       "tag": "0029_foamy_zarda",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1785656260969,
+      "tag": "0030_sour_mongu",
+      "breakpoints": true
     }
   ]
 }
