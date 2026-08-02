@@ -2,7 +2,12 @@
 
 import { revalidatePath } from 'next/cache'
 import { requireUserId } from '@/lib/auth'
-import { parseProgramInput, statusSchema } from '@/lib/program-input'
+import {
+  parseProgramInput,
+  statusSchema,
+  visibilitySchema,
+  type ProgramVisibility,
+} from '@/lib/program-input'
 import {
   saveProgram,
   updateProgram,
@@ -13,6 +18,7 @@ import {
   adoptProgram,
   declineProgram,
 } from '@/db/programs'
+import { setProgramVisibility, createShare, revokeShare } from '@/db/program-shares'
 
 /**
  * Validates and persists a new program for the signed-in user, returning its id.
@@ -167,4 +173,51 @@ export async function startProgramDayAction(
   if (!result) throw new Error('program day not found')
   revalidatePath('/') // the new workout appears in the home history list
   return { workoutId: result.id, week: result.week }
+}
+
+/**
+ * Flips a program's sharing visibility, minting a share link lazily on the
+ * first switch away from 'private' (createShare is idempotent for a live
+ * link, so re-selecting Shared/Public reuses the token — a NEW token comes
+ * only from the explicit revoke-and-rotate below). Switching to 'private'
+ * leaves share rows in place: visibility itself gates resolution, and the
+ * same link resumes if the owner flips back. The db layer (via authz's
+ * `can`) refuses proposals and non-owners; throws surface to the client's
+ * try/catch.
+ */
+export async function setProgramVisibilityAction(
+  id: unknown,
+  visibility: unknown,
+): Promise<{ visibility: ProgramVisibility; token: string | null }> {
+  const userId = await requireUserId()
+  if (typeof id !== 'string' || id.length === 0) throw new Error('invalid program id')
+  const parsed = visibilitySchema.parse(visibility)
+  const result = await setProgramVisibility(userId, id, parsed)
+  if (!result) throw new Error('program not found')
+  let token: string | null = null
+  if (parsed !== 'private') {
+    const share = await createShare(userId, id)
+    if (!share) throw new Error('program not found')
+    token = share.token
+  }
+  revalidatePath(`/programs/${id}`)
+  return { visibility: parsed, token }
+}
+
+/**
+ * Revoke-and-rotate: kills every live link (revokedAt — old URLs 404
+ * immediately) and mints a fresh token in its place. Only offered by the UI
+ * when visibility is already link|public, so createShare's private-refusal
+ * is unreachable here in practice; if raced, the throw surfaces like any
+ * other action failure.
+ */
+export async function rotateProgramShareAction(id: unknown): Promise<{ token: string }> {
+  const userId = await requireUserId()
+  if (typeof id !== 'string' || id.length === 0) throw new Error('invalid program id')
+  const revoked = await revokeShare(userId, id)
+  if (!revoked) throw new Error('program not found')
+  const share = await createShare(userId, id)
+  if (!share) throw new Error('program not found')
+  revalidatePath(`/programs/${id}`)
+  return { token: share.token }
 }

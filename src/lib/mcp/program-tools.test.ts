@@ -98,6 +98,7 @@ function programDetail() {
     mesocycleWeeks: 4,
     deloadWeek: 4,
     autoregulation: true,
+    visibility: 'link',
     notes: null,
     description: 'A four-week block.',
     icon: '🏋️',
@@ -557,6 +558,9 @@ describe('registerProgramTools', () => {
       // round-trip an upsert without wiping the article fields.
       expect(body.program).toMatchObject({
         authorActor: 'coach',
+        // Sharing state surfaces on reads so the agent can round-trip an
+        // upsert without flipping a shared program back to private.
+        visibility: 'link',
         description: 'A four-week block.',
         icon: '🏋️',
         heroImageUrl: 'https://example.com/hero.jpg',
@@ -769,6 +773,52 @@ describe('registerProgramTools', () => {
       expect(result.isError).toBe(true)
       expect(result.content[0]?.text).toMatch(/http/)
       expect(mockedSave).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('upsert_program visibility threading', () => {
+    it('passes an explicit visibility through to saveProgram', async () => {
+      // Arrange
+      const tools = setup()
+      mockedSave.mockResolvedValue({ id: PID })
+
+      // Act
+      await tools.get('upsert_program')!({ ...BODY, visibility: 'public' })
+
+      // Assert
+      expect(mockedSave).toHaveBeenCalledWith(
+        'user_env',
+        expect.objectContaining({ visibility: 'public' }),
+        'mcp',
+      )
+    })
+
+    it('omits the field entirely when absent (preserve-on-omit reaches the db layer)', async () => {
+      // Arrange
+      const tools = setup()
+      mockedUpdate.mockResolvedValue({ id: PID })
+
+      // Act — a replace that never mentions visibility
+      await tools.get('upsert_program')!({ id: PID, ...BODY })
+
+      // Assert — the parsed input carries undefined (the boundary shape never
+      // materializes a default), so updateProgram's `!== undefined` preserve
+      // rule keeps the stored value (a shared program stays shared).
+      const parsed = mockedUpdate.mock.calls[0][2] as Record<string, unknown>
+      expect(parsed.visibility).toBeUndefined()
+    })
+
+    it('rejects a value outside the enum without persisting', async () => {
+      // Arrange
+      const tools = setup()
+
+      // Act
+      const result = await tools.get('upsert_program')!({ ...BODY, visibility: 'everyone' })
+
+      // Assert — whitelist-only: nothing outside the enum reaches the column
+      expect(result.isError).toBe(true)
+      expect(mockedSave).not.toHaveBeenCalled()
+      expect(mockedUpdate).not.toHaveBeenCalled()
     })
   })
 

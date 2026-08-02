@@ -13,6 +13,10 @@ const isPublicRoute = createRouteMatcher([
   // Vercel cron caller — a robot with no Clerk session; the route gates
   // itself with the CRON_SECRET bearer token instead.
   '/api/cron/reminders',
+  // Public program share pages: self-gating (resolveShare 404s anything but a
+  // live token on a link|public, non-proposed program), and signed-out
+  // visitors are the point — this is the acquisition surface.
+  '/p/(.*)',
 ])
 
 export default clerkMiddleware(async (auth, req) => {

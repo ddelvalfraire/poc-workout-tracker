@@ -120,6 +120,9 @@ function maximalDetail() {
     // Non-null on purpose: the suggested check-in cadence travels with the
     // block like the switches above.
     checkInEveryDays: 21,
+    // Non-default on purpose: the SOURCE is shared, and the clone must still
+    // land private (the insert omits the column — asserted below).
+    visibility: 'link',
     notes: 'block notes',
     description: 'A six-week PPL block.',
     icon: '🏋️',
@@ -244,6 +247,10 @@ describe('cloneProgram (row-for-row fidelity)', () => {
       sourceUrl: 'https://wger.de/en/routine/1',
     })
     expect(records[0].values).not.toHaveProperty('authorActor')
+    // Visibility deliberately does NOT travel: a clone is a new PRIVATE
+    // thing — the absent key lands the column default, even when the source
+    // was shared (the fixture's visibility never reaches the insert).
+    expect(records[0].values).not.toHaveProperty('visibility')
   })
 
   it('refuses to clone a proposed program (no adopt-by-clone laundering)', async () => {

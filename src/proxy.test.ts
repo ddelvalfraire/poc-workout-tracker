@@ -72,6 +72,9 @@ describe('proxy middleware', () => {
     '/api/mcp',
     '/.well-known/oauth-protected-resource/mcp',
     '/.well-known/oauth-authorization-server',
+    // Public program share page — self-gating (resolveShare 404s dead tokens);
+    // a redirect-to-sign-in here would kill the acquisition surface.
+    '/p/tok_abcdefghijklmnopqrstuvwxyz012345',
   ])(
     'leaves the public route %s alone even when signed out',
     async (path) => {

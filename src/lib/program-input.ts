@@ -38,6 +38,11 @@ export const metricModeSchema = z.enum(['reps_weight', 'duration', 'duration_dis
  *  through upsert/set_program_status — proposals are minted only by the coach
  *  bridge (Phase 2) and exit only via adoptProgram/declineProgram. */
 export const statusSchema = z.enum(['draft', 'active', 'archived'])
+/** Who can see a program from outside the owner's account (tier 1 of the
+ *  social ladder): 'private' = owner only (the default forever), 'link' =
+ *  read-only via a live share URL, 'public' = link behavior plus eligibility
+ *  for a future browse surface (the field is the seam; no directory yet). */
+export const visibilitySchema = z.enum(['private', 'link', 'public'])
 
 // Article-metadata caps (PRD §3): the description is an article lead, the
 // rest are short tokens/URLs.
@@ -328,6 +333,14 @@ export const programInputSchema = z
     // saveProgram treats omitted-on-create as null; updateProgram preserves
     // when omitted, and an explicit null clears the suggestion.
     checkInEveryDays: z.number().int().min(3).max(90).nullable().optional(),
+    // Sharing visibility (programs.visibility). Same preserve-on-omit
+    // discipline as the switches above: no .default('private'), or an upsert
+    // that omits the field would flip a shared program back to private (or a
+    // materialized default would ride the update path). saveProgram treats
+    // omitted-on-create as the column default ('private' — the default
+    // forever); updateProgram preserves when omitted. Whitelist-only: nothing
+    // outside the enum can ever reach the column.
+    visibility: visibilitySchema.optional(),
     notes: z.string().max(2000).nullable().optional(),
     // Article metadata (PRD §3) — presentation only, all optional; blank
     // strings collapse to null so "cleared in a form" and "absent" persist
@@ -346,6 +359,7 @@ export const programInputSchema = z
   })
 
 export type SetType = z.infer<typeof setTypeSchema>
+export type ProgramVisibility = z.infer<typeof visibilitySchema>
 export type MetricMode = z.infer<typeof metricModeSchema>
 export type Technique = z.infer<typeof techniqueSchema>
 export type Progression = z.infer<typeof progressionSchema>
