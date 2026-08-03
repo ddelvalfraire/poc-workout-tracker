@@ -59,7 +59,9 @@ export function GuardedStartLink({
           onClose={() => setIsDialogOpen(false)}
           // The original intent, deferred: the dialog awaits this after a
           // successful discard (await-then-navigate — never inside a
-          // transition; see workout-actions.tsx).
+          // transition; see workout-actions.tsx). PUSH kept deliberately
+          // (spike §3d audit): forward travel from a page the user is on —
+          // the origin entry must remain for back/edge-swipe. Not a redirect.
           onProceed={() => router.push(href)}
         />
       )}

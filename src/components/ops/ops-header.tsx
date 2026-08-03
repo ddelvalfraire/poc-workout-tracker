@@ -1,6 +1,5 @@
 import Link from 'next/link'
-import { ChevronLeft } from 'lucide-react'
-import { buttonVariants } from '@/components/ui/button'
+import { BackLink } from '@/components/back-link'
 import { cn } from '@/lib/utils'
 import { AutoRefreshToggle } from './auto-refresh-toggle'
 import { OpsRefreshButton } from './refresh-button'
@@ -26,13 +25,7 @@ export function OpsHeader({ active }: { active: OpsTab }) {
   return (
     <header className="sticky top-0 z-10 border-b border-border bg-background/80 px-safe pt-safe backdrop-blur-md">
       <div className="mx-auto flex h-14 w-full max-w-screen-2xl items-center gap-2 px-5">
-        <Link
-          href="/"
-          aria-label="Back"
-          className={cn(buttonVariants({ variant: 'ghost', size: 'icon-sm' }), '-ml-2')}
-        >
-          <ChevronLeft aria-hidden="true" className="size-5" />
-        </Link>
+        <BackLink fallback="/" />
         <h1 className="min-w-0 truncate text-xl uppercase tracking-tight">Ops</h1>
         <nav aria-label="Ops sections" className="ml-3 flex min-w-0 flex-1 items-center gap-1">
           {TABS.map(({ tab, href, label }) => (

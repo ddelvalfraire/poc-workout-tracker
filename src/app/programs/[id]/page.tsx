@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { ChevronLeft, ChevronRight, MessageCircle } from 'lucide-react'
+import { ChevronRight, MessageCircle } from 'lucide-react'
 import { requireUserId } from '@/lib/auth'
 import { isCoachUser } from '@/lib/coach/access'
 import {
@@ -18,7 +18,7 @@ import { listWorkoutSummaries } from '@/db/workouts'
 import { listWorkoutDrafts } from '@/db/workout-drafts'
 import { resolveActiveSession } from '@/lib/active-session'
 import { AppHeader } from '@/components/app-header'
-import { buttonVariants } from '@/components/ui/button'
+import { BackLink } from '@/components/back-link'
 import { cn } from '@/lib/utils'
 import { formatE1RM, formatVolume, formatWorkoutDate, formatWorkoutDuration } from '@/lib/format'
 import { formatTargetLine, groupDerivedSets } from './derived-format'
@@ -154,13 +154,7 @@ export default async function ProgramDetailPage({
       <AppHeader
         title={program.name}
         leading={
-          <Link
-            href="/programs"
-            aria-label="Back"
-            className={cn(buttonVariants({ variant: 'ghost', size: 'icon-sm' }), '-ml-2')}
-          >
-            <ChevronLeft aria-hidden="true" className="size-5" />
-          </Link>
+          <BackLink fallback="/programs" />
         }
         trailing={
           <span

@@ -89,6 +89,10 @@ export function SessionConflictDialog({ session, onClose, onProceed }: SessionCo
     // failure mode #25 fixed. close() here is idempotent with the cleanup's.
     dialogRef.current?.close()
     onClose()
+    // PUSH kept deliberately (spike §3d audit): this is forward travel into
+    // the live session from a page the user chose — the origin entry must
+    // remain so back/edge-swipe returns there. Only true redirects (origin
+    // must NOT remain, e.g. logger finish → summary) replace.
     router.push(activeSessionHref(session.key))
   }
 

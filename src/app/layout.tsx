@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Inter, Oswald } from "next/font/google";
 import { ClerkProvider } from "@clerk/nextjs";
+import { NavigationTracker } from "@/components/navigation-tracker";
 import { ServiceWorkerRegister } from "@/components/pwa/service-worker-register";
 import { ChunkRecoveryScript } from "@/components/pwa/chunk-recovery-script";
 import { UpdateOnResume } from "@/components/pwa/update-on-resume";
@@ -71,6 +72,9 @@ export default function RootLayout({
           {/* Must be first in <body>: attaches chunk-failure listeners before
               any /_next script can 404 (stale deploy), when React never boots. */}
           <ChunkRecoveryScript />
+          {/* Once, app-wide: the in-app history stack every BackLink reads
+              (pop vs fallback-replace) — see lib/back-navigation. */}
+          <NavigationTracker />
           <Providers>
             <PageTransition>{children}</PageTransition>
           </Providers>

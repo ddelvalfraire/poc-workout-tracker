@@ -1,14 +1,11 @@
-import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { ChevronLeft } from 'lucide-react'
 import { requireUserId } from '@/lib/auth'
 import { getWorkoutTemplateDetail } from '@/db/workout-templates'
 import { listWorkoutSummaries } from '@/db/workouts'
 import { listWorkoutDrafts } from '@/db/workout-drafts'
 import { resolveActiveSession } from '@/lib/active-session'
 import { AppHeader } from '@/components/app-header'
-import { buttonVariants } from '@/components/ui/button'
-import { cn } from '@/lib/utils'
+import { BackLink } from '@/components/back-link'
 import { TemplateActions } from './template-actions'
 
 // Same guard as /workout/new's `?from`: a malformed path id must not reach
@@ -62,13 +59,7 @@ export default async function TemplateDetailPage({
       <AppHeader
         title="Template"
         leading={
-          <Link
-            href="/templates"
-            aria-label="Back"
-            className={cn(buttonVariants({ variant: 'ghost', size: 'icon-sm' }), '-ml-2')}
-          >
-            <ChevronLeft aria-hidden="true" className="size-5" />
-          </Link>
+          <BackLink fallback="/templates" />
         }
       />
 

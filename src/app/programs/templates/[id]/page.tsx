@@ -1,6 +1,5 @@
-import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { ChevronLeft, ExternalLink } from 'lucide-react'
+import { ExternalLink } from 'lucide-react'
 import { requireUserId } from '@/lib/auth'
 import { getAllExercises } from '@/lib/wger'
 import { listPublicTemplates } from '@/lib/wger-templates'
@@ -8,7 +7,7 @@ import { mapWgerRoutineToProgram } from '@/lib/wger-template-map'
 import { formatPlannedScheme, groupPlannedSets, plannedSetChips } from '@/lib/planned-set-format'
 import { getWeightUnit } from '@/db/preferences'
 import { AppHeader } from '@/components/app-header'
-import { buttonVariants } from '@/components/ui/button'
+import { BackLink } from '@/components/back-link'
 import { cn } from '@/lib/utils'
 import { ImportTemplateButton } from '../import-button'
 import { TemplatesUnavailableCard } from '../unavailable'
@@ -43,13 +42,7 @@ export default async function TemplateDetailPage({
         <AppHeader
           title="Template"
           leading={
-            <Link
-              href="/programs/templates"
-              aria-label="Back"
-              className={cn(buttonVariants({ variant: 'ghost', size: 'icon-sm' }), '-ml-2')}
-            >
-              <ChevronLeft aria-hidden="true" className="size-5" />
-            </Link>
+            <BackLink fallback="/programs/templates" />
           }
         />
         <main className="mx-auto w-full max-w-md flex-1 px-5 pb-safe">
@@ -88,13 +81,7 @@ export default async function TemplateDetailPage({
       <AppHeader
         title={input.name}
         leading={
-          <Link
-            href="/programs/templates"
-            aria-label="Back"
-            className={cn(buttonVariants({ variant: 'ghost', size: 'icon-sm' }), '-ml-2')}
-          >
-            <ChevronLeft aria-hidden="true" className="size-5" />
-          </Link>
+          <BackLink fallback="/programs/templates" />
         }
       />
 

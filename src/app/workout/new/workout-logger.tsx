@@ -1,7 +1,6 @@
 'use client'
 
 import { Fragment, useEffect, useReducer, useRef, useState } from 'react'
-import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useQueries, useQueryClient } from '@tanstack/react-query'
 import {
@@ -63,6 +62,7 @@ import { LOGGING_TYPES, isLoggingType, type LoggingType } from '@/lib/workout-in
 import type { ExerciseSource } from '@/lib/custom-exercise-input'
 import { type WeightUnit } from '@/lib/units'
 import { cn } from '@/lib/utils'
+import { markReplace, navigateBack } from '@/lib/back-navigation'
 import { discardSession } from '@/lib/discard-session'
 import {
   planSetGhost,
@@ -776,7 +776,12 @@ export function WorkoutLogger({
         // header for the completion moment. Gated on isLive because this
         // update branch is shared with edit-mode "Save changes" — a
         // correction to an old workout is not a finish.
-        router.push(isLive ? `/workout/${workoutId}?finished=1` : `/workout/${workoutId}`)
+        // REPLACE, never push (stack hygiene, spike §3d): the post-save
+        // logger entry must not survive — swiping back from the summary
+        // must never resurrect a finished session. markReplace keeps the
+        // NavigationTracker stack agreeing with the real history.
+        markReplace()
+        router.replace(isLive ? `/workout/${workoutId}?finished=1` : `/workout/${workoutId}`)
       } else {
         const { id } = await saveWorkoutAction({
           ...draftToInput(finalDraft, name, unit),
@@ -794,7 +799,9 @@ export function WorkoutLogger({
         // finish deserves a readout, not a home-screen redirect. This create
         // branch only exists for live sessions, but the isLive gate keeps the
         // finished=1 contract in one shape with the update branch above.
-        router.push(isLive ? `/workout/${id}?finished=1` : `/workout/${id}`)
+        // Same replace-not-push contract as the update branch above.
+        markReplace()
+        router.replace(isLive ? `/workout/${id}?finished=1` : `/workout/${id}`)
       }
       // isSaving intentionally stays true on success: the button reads
       // "Saving…" until the navigation unmounts this screen.
@@ -839,7 +846,13 @@ export function WorkoutLogger({
       // flush against router.push (the #25 stranded-::backdrop race).
       closeDiscardDialogRef.current?.()
       setIsDiscardModalOpen(false)
-      router.push('/')
+      // REPLACE to home, never push and never pop (spike §3d Q2): the
+      // discarded logger entry must not survive, and a pop is unsafe here —
+      // in edit mode the origin can be the just-DELETED workout's detail
+      // page, which would notFound on return. The origin entry beneath the
+      // replace is a known, accepted remainder.
+      markReplace()
+      router.replace('/')
       // isDiscarding stays true on success: buttons hold their disabled
       // state until the navigation unmounts this screen.
     } catch {
@@ -872,9 +885,16 @@ export function WorkoutLogger({
                 onRestClick={() => setIsRestSheetOpen(true)}
               />
             )}
-            <Link href={closeHref} className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }))}>
+            {/* Back affordance, so it must pop-or-replace, never push
+                (spike §3d): closeHref demotes from destination to cold-entry
+                fallback. The draft still survives — Close ≠ Cancel. */}
+            <button
+              type="button"
+              onClick={() => navigateBack(router, closeHref)}
+              className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }))}
+            >
               Close
-            </Link>
+            </button>
           </>
         }
       />

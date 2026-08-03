@@ -17,6 +17,7 @@ import {
   Trophy,
 } from 'lucide-react'
 import { startProgramDayAction } from '@/app/programs/actions'
+import { useHistoryDismissable } from '@/lib/use-history-dismissable'
 import { activeSessionHref } from '@/lib/active-session'
 import { scheduleAnchor } from '@/lib/schedule-anchor'
 import {
@@ -88,11 +89,32 @@ export function NavDrawer() {
   const pathname = usePathname()
   const router = useRouter()
 
+  // The drawer is a history entry (spike §3d-bis): open pushes a same-URL
+  // state entry, so the iOS edge-swipe / system back CLOSES the drawer
+  // instead of leaving the page; tap-close and swipe-dismiss consume the
+  // entry via the hook's programmatic path.
+  const { dismissForNavigation } = useHistoryDismissable(isOpen, () => setIsOpen(false))
+
   // Navigation to a NEW route unmounts this instance (each page renders its
   // own header trigger); the eager close covers same-route taps and makes
   // cross-route exits feel immediate. Links stay plain <Link>s so prefetch
   // and long-press previews keep working.
-  function closeOnNavigate(): void {
+  //
+  // Two history duties on the way out (spike §3d): a tap on the CURRENT
+  // page must close the drawer WITHOUT minting a duplicate entry, and a
+  // cross-page tap must strip the drawer's history entry BEFORE the Link's
+  // push lands (dismissForNavigation — a history.back() here would race
+  // the router's own pushState).
+  function closeOnNavigate(event: React.MouseEvent<HTMLAnchorElement>): void {
+    // The anchor's own resolved URL, so every call site stays a plain
+    // onClick={closeOnNavigate} — no per-link href plumbing to drift.
+    const targetPathname = new URL(event.currentTarget.href, window.location.href).pathname
+    if (targetPathname === pathname) {
+      event.preventDefault() // duplicate same-page entry: the one push the drawer must block
+      setIsOpen(false) // programmatic close → the hook pops the drawer's own entry
+      return
+    }
+    dismissForNavigation()
     setIsOpen(false)
   }
 
@@ -119,6 +141,10 @@ export function NavDrawer() {
     setStartError(null)
     try {
       const { workoutId } = await startProgramDayAction(dayId)
+      // Same strip-before-push contract as closeOnNavigate: the drawer's
+      // history entry must not linger beneath the logger's entry.
+      dismissForNavigation()
+      setIsOpen(false)
       router.push(`/workout/${workoutId}/edit`)
     } catch {
       setStartError('Could not start — try again.')
