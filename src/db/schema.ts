@@ -708,6 +708,29 @@ export const programShares = pgTable(
 )
 
 /**
+ * Share links for COMPLETED workouts — program_shares' shape, verbatim, for
+ * the same reasons (rotation and future scope live in new ROWS). Workouts
+ * carry no visibility column: a live row here IS the grant (create refuses
+ * unfinished sessions — db/workout-shares.ts), so revoking every row returns
+ * the workout to private. Cascade delete: a deleted workout takes its links.
+ */
+export const workoutShares = pgTable(
+  'workout_shares',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    workoutId: uuid('workout_id')
+      .notNull()
+      .references(() => workouts.id, { onDelete: 'cascade' }),
+    token: text('token').notNull().unique(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+  },
+  // Same access paths as program_shares: owner reads workout-first, token
+  // lookups ride the unique index.
+  (t) => [index('workout_shares_workout_id_idx').on(t.workoutId)],
+)
+
+/**
  * Append-only change log for the program tree — one row per mutating call at
  * the db seam (program-patches.ts + programs.ts), written inside the same
  * transaction as the change: a failed patch logs nothing, a logged event

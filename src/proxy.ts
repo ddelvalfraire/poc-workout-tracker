@@ -17,6 +17,10 @@ const isPublicRoute = createRouteMatcher([
   // live token on a link|public, non-proposed program), and signed-out
   // visitors are the point — this is the acquisition surface.
   '/p/(.*)',
+  // Public workout share pages: same self-gating idiom (resolveWorkoutShare
+  // 404s anything but a live token on a completed workout) and the same
+  // signed-out acquisition purpose.
+  '/w/(.*)',
 ])
 
 export default clerkMiddleware(async (auth, req) => {

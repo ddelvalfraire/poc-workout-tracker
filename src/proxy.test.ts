@@ -75,6 +75,8 @@ describe('proxy middleware', () => {
     // Public program share page — self-gating (resolveShare 404s dead tokens);
     // a redirect-to-sign-in here would kill the acquisition surface.
     '/p/tok_abcdefghijklmnopqrstuvwxyz012345',
+    // Public workout share page — same self-gating rationale as /p above.
+    '/w/tok_abcdefghijklmnopqrstuvwxyz012345',
   ])(
     'leaves the public route %s alone even when signed out',
     async (path) => {
