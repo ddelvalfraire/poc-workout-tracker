@@ -1,11 +1,8 @@
-import Link from 'next/link'
-import { ChevronLeft } from 'lucide-react'
 import { requireUserId } from '@/lib/auth'
 import { listLoggedExercises } from '@/db/exercise-stats'
 import { formatWorkoutDate } from '@/lib/format'
 import { AppHeader } from '@/components/app-header'
-import { buttonVariants } from '@/components/ui/button'
-import { cn } from '@/lib/utils'
+import { NavDrawer } from '@/components/nav/nav-drawer'
 import { LibraryFilter, type LibraryEntry } from './library-filter'
 
 /**
@@ -32,15 +29,7 @@ export default async function ExercisesPage() {
     <div className="flex min-h-[100dvh] flex-col">
       <AppHeader
         title="Exercises"
-        leading={
-          <Link
-            href="/"
-            aria-label="Back"
-            className={cn(buttonVariants({ variant: 'ghost', size: 'icon-sm' }), '-ml-2')}
-          >
-            <ChevronLeft aria-hidden="true" className="size-5" />
-          </Link>
-        }
+        leading={<NavDrawer />}
       />
 
       <main className="mx-auto w-full max-w-md flex-1 px-5 pb-safe pt-6">

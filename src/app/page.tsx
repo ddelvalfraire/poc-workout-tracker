@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ChevronRight, MessageCircle, RotateCcw, Settings } from "lucide-react";
+import { ChevronRight, RotateCcw, Settings } from "lucide-react";
 import { UserButton } from "@clerk/nextjs";
 import { requireUserId } from "@/lib/auth";
 import { listWorkoutSummaries } from "@/db/workouts";
@@ -19,7 +19,7 @@ import { startedWithinLastHours } from "@/lib/recent-window";
 import { buttonVariants } from "@/components/ui/button";
 import { GuardedStartLink } from "@/components/guarded-start-link";
 import { cn } from "@/lib/utils";
-import { isCoachUser } from "@/lib/coach/access";
+import { NavDrawer } from "@/components/nav/nav-drawer";
 import { CheckInCard } from "./check-in-card";
 import { NextWorkoutCard } from "./next-workout-card";
 import { ProgramReminderCard } from "./program-reminder-card";
@@ -94,7 +94,12 @@ export default async function HomePage() {
     <div className="flex min-h-[100dvh] flex-col">
       <header className="sticky top-0 z-10 border-b border-border bg-background/80 px-safe pt-safe backdrop-blur-md">
         <div className="mx-auto flex w-full max-w-md items-center justify-between px-5 pb-3">
-          <h1 className="text-2xl font-bold uppercase tracking-tight">Workout Tracker</h1>
+          <div className="flex min-w-0 items-center gap-2">
+            {/* The drawer trigger leads — home is the shell's root surface,
+                and the drawer is now the app's navigation (spike §7). */}
+            <NavDrawer />
+            <h1 className="truncate text-2xl font-bold uppercase tracking-tight">Workout Tracker</h1>
+          </div>
           <div className="flex items-center gap-2">
             {/* Preferences live on /settings now — the header keeps only
                 identity and the door to them. */}
@@ -127,51 +132,10 @@ export default async function HomePage() {
           </TrainedTodayGate>
         )}
 
-        {/* With a program driving the day, freestyle logging demotes to a
-            secondary action; without one it stays the primary CTA. */}
-        {nextDay ? (
-          // 2×2 shortcut grid (was three-up until Templates joined): two
-          // columns keep the uppercase nowrap labels comfortable at 320px.
-          <div className="mt-3 grid grid-cols-2 gap-2">
-            <GuardedStartLink
-              href="/workout/new"
-              session={guardSession}
-              className={cn(
-                buttonVariants({ variant: "outline" }),
-                "px-1 text-xs font-semibold uppercase",
-              )}
-            >
-              Quick Log
-            </GuardedStartLink>
-            <Link
-              href="/programs"
-              className={cn(
-                buttonVariants({ variant: "outline" }),
-                "px-1 text-xs font-semibold uppercase",
-              )}
-            >
-              Programs
-            </Link>
-            <Link
-              href="/exercises"
-              className={cn(
-                buttonVariants({ variant: "outline" }),
-                "px-1 text-xs font-semibold uppercase",
-              )}
-            >
-              Exercises
-            </Link>
-            <Link
-              href="/templates"
-              className={cn(
-                buttonVariants({ variant: "outline" }),
-                "px-1 text-xs font-semibold uppercase",
-              )}
-            >
-              Templates
-            </Link>
-          </div>
-        ) : (
+        {/* The 2×2 shortcut grid and the fresh-state link stack are GONE —
+            the nav drawer replaces content-as-navigation (spike §7). The
+            fresh state keeps its big Start CTA: day one's job is one tap. */}
+        {!nextDay && (
           <>
             {/* Soft "get a program" nudge for the fresh state only — the
                 hero's absence (no nextDay) IS the signal; no extra query
@@ -190,36 +154,6 @@ export default async function HomePage() {
             >
               + Start Workout
             </GuardedStartLink>
-
-            <Link
-              href="/programs"
-              className={cn(
-                buttonVariants({ variant: "outline", size: "lg" }),
-                "mt-3 w-full text-base font-semibold uppercase tracking-wide",
-              )}
-            >
-              Programs
-            </Link>
-
-            <Link
-              href="/exercises"
-              className={cn(
-                buttonVariants({ variant: "outline", size: "lg" }),
-                "mt-3 w-full text-base font-semibold uppercase tracking-wide",
-              )}
-            >
-              Exercises
-            </Link>
-
-            <Link
-              href="/templates"
-              className={cn(
-                buttonVariants({ variant: "outline", size: "lg" }),
-                "mt-3 w-full text-base font-semibold uppercase tracking-wide",
-              )}
-            >
-              Templates
-            </Link>
           </>
         )}
 
@@ -261,27 +195,8 @@ export default async function HomePage() {
           </Link>
         )}
 
-        {/* Coach entry: same quiet teaser-card idiom as This week below —
-            a row, not a hero, so it reads as a door rather than a pitch.
-            Dev-gated: hidden unless this account is on the coach allowlist
-            (the route and page 403/404 regardless — this is just the door). */}
-        {isCoachUser(userId) && (
-        <Link
-          href="/coach"
-          className="mt-3 flex items-center justify-between gap-3 rounded-2xl border border-border bg-card p-4 transition-colors active:bg-muted/60"
-        >
-          <span className="flex min-w-0 items-center gap-3">
-            <MessageCircle aria-hidden="true" className="size-5 shrink-0 text-muted-foreground" />
-            <span className="min-w-0">
-              <span className="block text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-                Coach
-              </span>
-              <span className="mt-0.5 block truncate text-sm">Ask about your training</span>
-            </span>
-          </span>
-          <ChevronRight aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
-        </Link>
-        )}
+        {/* The coach teaser card moved into the drawer (its gated row) —
+            home slims to training state, not doors (spike §7's home diet). */}
 
         {/* Weekly-balance teaser: headline numbers only, the page has the
             chart. Hidden until there's any volume — an empty stats pitch is

@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { ChevronLeft, Play } from 'lucide-react'
+import { Play } from 'lucide-react'
 import { requireUserId } from '@/lib/auth'
 import { listWorkoutTemplates } from '@/db/workout-templates'
 import { listWorkoutSummaries } from '@/db/workouts'
@@ -7,6 +7,7 @@ import { listWorkoutDrafts } from '@/db/workout-drafts'
 import { resolveActiveSession } from '@/lib/active-session'
 import { AppHeader } from '@/components/app-header'
 import { GuardedStartLink } from '@/components/guarded-start-link'
+import { NavDrawer } from '@/components/nav/nav-drawer'
 import { buttonVariants } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
@@ -39,15 +40,7 @@ export default async function TemplatesPage() {
     <div className="flex min-h-[100dvh] flex-col">
       <AppHeader
         title="Templates"
-        leading={
-          <Link
-            href="/"
-            aria-label="Back"
-            className={cn(buttonVariants({ variant: 'ghost', size: 'icon-sm' }), '-ml-2')}
-          >
-            <ChevronLeft aria-hidden="true" className="size-5" />
-          </Link>
-        }
+        leading={<NavDrawer />}
       />
 
       <main className="mx-auto w-full max-w-md flex-1 px-5 pb-safe">
