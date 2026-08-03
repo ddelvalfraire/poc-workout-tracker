@@ -219,6 +219,40 @@
   }
 }
 
+/* Set-completion pop: the checked circle scales up and settles — the tap
+   answered in the body, not just in state. The BIG variant marks the set
+   that completes its exercise (it feeds the card collapse that follows).
+   Transform-only and registered via @utility so motion-safe: applies —
+   reduced-motion users get the color/check swap alone. */
+@keyframes set-pop {
+  0% {
+    transform: scale(1);
+  }
+  45% {
+    transform: scale(1.22);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+@utility animate-set-pop {
+  animation: set-pop 260ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes set-pop-big {
+  0% {
+    transform: scale(1);
+  }
+  45% {
+    transform: scale(1.38);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+@utility animate-set-pop-big {
+  animation: set-pop-big 340ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
 /* Previous-chip adopt feedback: a brief volt wash on the filled inputs.
    Confirmation, not error — a highlight, never a shake. Color-only and
    700ms one-shot, so it stays calm under reduced motion too. */

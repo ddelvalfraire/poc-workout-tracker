@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { setDefaultRestSecAction } from '@/app/actions'
 import { MAX_REST_SEC } from '@/lib/program-input'
+import { isRestChimeEnabled, setRestChimeEnabled, unlockRestChime } from './rest-chime'
 import { useAnimatedSheetClose } from '@/components/use-animated-sheet-close'
 import { cn } from '@/lib/utils'
 
@@ -46,6 +47,10 @@ export function RestSheet({ currentSec, onClose, onSaved }: RestSheetProps) {
   // editor, a cancelled sheet must not leak a half-picked target.
   const [selected, setSelected] = useState<number | null>(currentSec)
   const [customText, setCustomText] = useState('')
+  // Device pref, not a saved target: applied on tap (no Save round-trip),
+  // stored client-side by rest-chime. Sheet mounts are user-initiated, so
+  // reading localStorage in the initializer never runs during hydration.
+  const [chimeOn, setChimeOn] = useState(isRestChimeEnabled)
   const [error, setError] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
   const dialogRef = useRef<HTMLDialogElement>(null)
@@ -201,6 +206,38 @@ export function RestSheet({ currentSec, onClose, onSaved }: RestSheetProps) {
       </div>
 
       {error && <p className="pb-4 text-sm text-destructive">{error}</p>}
+
+      {/* End-of-rest chirp: a device preference (this phone, all sessions),
+          deliberately OUTSIDE the Save flow — sound is not a rest target.
+          The enabling tap doubles as the AudioContext unlock gesture, so the
+          first rest-over after enabling can actually sound. */}
+      <div className="flex items-center justify-between gap-3 border-t border-border pt-4 pb-4">
+        <div className="min-w-0">
+          <p className="text-sm">End-of-rest chirp</p>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            A short beep when the countdown hits zero. Vibration stays on either way.
+          </p>
+        </div>
+        <button
+          type="button"
+          aria-pressed={chimeOn}
+          onClick={() => {
+            const next = !chimeOn
+            setChimeOn(next)
+            setRestChimeEnabled(next)
+            // This tap IS the user gesture the autoplay policy wants.
+            if (next) unlockRestChime()
+          }}
+          className={cn(
+            'relative h-9 shrink-0 rounded-full border px-3.5 text-sm font-semibold transition-colors before:absolute before:-inset-1',
+            chimeOn
+              ? 'border-primary bg-primary text-primary-foreground'
+              : 'border-border bg-muted text-muted-foreground',
+          )}
+        >
+          {chimeOn ? 'On' : 'Off'}
+        </button>
+      </div>
     </dialog>
   )
 }

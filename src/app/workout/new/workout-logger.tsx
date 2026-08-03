@@ -55,7 +55,15 @@ import { HeaderClock } from './session-clock'
 import { PlateSheet } from './plate-sheet'
 import { RestSheet } from './rest-sheet'
 import { StatsSheet } from './stats-sheet'
+import { RestAdjustStrip } from './rest-adjust-strip'
+import { fireRestOverAlert } from './rest-over-alert'
+import { unlockRestChime } from './rest-chime'
+import { EXERCISE_COMPLETE_VIBRATION, SET_COMPLETE_VIBRATION, vibrate } from './haptics'
 import { resolveRestTarget } from '@/lib/rest-target'
+import { adjustedRestTarget } from '@/lib/rest-alert'
+import { sessionPulse, shouldShowNextUp } from '@/lib/session-pulse'
+import { targetCaption } from '@/lib/target-caption'
+import { plateChipLabel } from '@/lib/plate-chip'
 import { allTimePRIndex } from '@/lib/pr-detection'
 import { DEFAULT_EQUIPMENT, type Equipment } from '@/lib/equipment'
 import { LOGGING_TYPES, isLoggingType, type LoggingType } from '@/lib/workout-input'
@@ -84,6 +92,9 @@ const UNDO_WINDOW_MS = 5000
 const LONG_PRESS_MS = 500
 /** Pointer travel past this cancels the hold — it's a scroll, not a press. */
 const LONG_PRESS_SLOP_PX = 8
+
+/** One-time hint flag: set after the user's first-ever warm-up tag. */
+const WARMUP_HINT_KEY = 'logger:warmup-hint-seen'
 
 /** Compact labels for the per-exercise logging-type select (Hevy-style). */
 const LOGGING_TYPE_LABELS: Record<LoggingType, string> = {
@@ -305,6 +316,30 @@ export function WorkoutLogger({
   // Weight steppers show ONLY for the row whose weight input has focus —
   // zero ambient chrome for lifters who never use them.
   const [stepperSetId, setStepperSetId] = useState<string | null>(null)
+  // Completion pop: which circle animates, and whether the tap finished the
+  // whole exercise (bigger pop, feeds the collapse). No timer needed — the
+  // one-shot animation replays only when the class re-attaches (uncheck →
+  // recheck flips `completed`, which drops and re-adds it).
+  const [completionPop, setCompletionPop] = useState<{ setId: string; big: boolean } | null>(null)
+  // One-time warm-up gesture hint: shown until the user tags their first-ever
+  // warm-up set (localStorage flag, read post-mount — SSR can't know it).
+  const [showWarmupHint, setShowWarmupHint] = useState(false)
+  useEffect(() => {
+    try {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- one-shot mount sync from localStorage (external system)
+      setShowWarmupHint(window.localStorage.getItem(WARMUP_HINT_KEY) !== '1')
+    } catch {
+      // Storage blocked: keep the hint hidden rather than nag forever.
+    }
+  }, [])
+  function dismissWarmupHint() {
+    setShowWarmupHint(false)
+    try {
+      window.localStorage.setItem(WARMUP_HINT_KEY, '1')
+    } catch {
+      // Best-effort: the hint just reappears next session.
+    }
+  }
   // Long-press on a set circle toggles its warm-up tag. One primary pointer
   // at a time, so component-level refs suffice — no per-row state. The fired
   // flag suppresses the press's own click (the completion toggle).
@@ -383,7 +418,21 @@ export function WorkoutLogger({
   // Whether the rest-target sheet is up (opened by tapping the header's rest
   // readout).
   const [isRestSheetOpen, setIsRestSheetOpen] = useState(false)
-  const restTargetSec = restPlanSec ?? sessionRestSec
+  // Quick-adjust (−15/+15) offset for the CURRENT rest period ONLY. Scope is
+  // a settled constraint: it never writes into sessionRestSec (the session
+  // default) or any plan restSec — the next check-off resets it to 0 and
+  // that period starts clean at its own target.
+  const [restOffsetSec, setRestOffsetSec] = useState(0)
+  const restTargetSec = adjustedRestTarget(restPlanSec ?? sessionRestSec, restOffsetSec)
+
+  /** Skip ends the CURRENT rest period outright — restStartedAt clears (the
+   *  readout and strip disappear, no overage counts up), the plan capture
+   *  and offset go with it. Defaults and plan values are untouched. */
+  function handleSkipRest() {
+    setRestStartedAt(null)
+    setRestPlanSec(null)
+    setRestOffsetSec(0)
+  }
 
   // Replace-exercise flow: which exercise the sheet is replacing (null = the
   // sheet is in plain add mode), and a pick paused at the logged-work guard.
@@ -460,6 +509,11 @@ export function WorkoutLogger({
     }
     return null
   })()
+
+  // Session pulse: completed/total working sets, derived per render from the
+  // draft (zero queries) — feeds the header count and the sticky bar's
+  // progress fill.
+  const pulse = sessionPulse(draft.exercises)
 
   function pushRemoved(entry: RemovedEntry) {
     setRemoved((prev) => [...prev, entry])
@@ -877,12 +931,29 @@ export function WorkoutLogger({
             {/* Clock only for a live session — a finished workout's edit
                 has no running time to show. openedAt (not a prop clock):
                 a restored draft rewinds it to the original session start. */}
+            {isLive && pulse.total > 0 && (
+              // Session pulse: completed/total working sets (warm-ups and
+              // skipped exercises excluded — scoring semantics). Muted, not
+              // volt: the live rest readout beside it keeps the one-volt slot.
+              <span
+                aria-label={`${pulse.completed} of ${pulse.total} working sets done`}
+                className="text-sm text-muted-foreground tnum"
+              >
+                <span aria-hidden="true">
+                  {pulse.completed}/{pulse.total}
+                </span>
+              </span>
+            )}
             {isLive && (
               <HeaderClock
                 startedAt={openedAt}
                 restStartedAt={restStartedAt}
                 restTargetSec={restTargetSec}
                 onRestClick={() => setIsRestSheetOpen(true)}
+                // Module function = stable reference (the tick effect
+                // depends on it). Fires vibrate + optional chirp + title
+                // flash, at most once per rest period.
+                onRestOver={fireRestOverAlert}
               />
             )}
             {/* Back affordance, so it must pop-or-replace, never push
@@ -937,10 +1008,17 @@ export function WorkoutLogger({
           </p>
         )}
 
+        {/* Empty state as invitation, in the editorial voice: a font-display
+            verdict + one plain sentence pointing at the thumb-bar CTA. */}
         {isEmpty && (
-          <p className="px-1 py-6 text-center text-sm text-muted-foreground">
-            Tap + Exercise to add your first movement.
-          </p>
+          <div className="px-1 py-8 text-center">
+            <p className="font-display text-2xl font-semibold uppercase tracking-wide">
+              Empty bar.
+            </p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Tap + Exercise below to add your first movement.
+            </p>
+          </div>
         )}
 
         {draft.exercises.map((exercise, exerciseIndex) => {
@@ -1269,6 +1347,14 @@ export function WorkoutLogger({
                 <span className="size-9 shrink-0" aria-hidden="true" />
               </div>
             )}
+            {/* One-time warm-up gesture hint (first card only — a teaching
+                caption, not chrome): retired forever after the first real
+                warm-up tag, via the localStorage flag. */}
+            {showWarmupHint && exerciseIndex === 0 && exercise.sets.length > 0 && (
+              <p className="px-0.5 text-xs text-muted-foreground">
+                Hold a set&apos;s number to tag it a warm-up — warm-ups never score.
+              </p>
+            )}
 
             <div className="space-y-2">
               {exercise.sets.map((set, setIndex) => {
@@ -1331,6 +1417,9 @@ export function WorkoutLogger({
                       if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current)
                       longPressTimerRef.current = setTimeout(() => {
                         longPressFiredRef.current = true
+                        // The gesture just proved itself learned — retire the
+                        // one-time hint for good.
+                        if (set.tag !== 'warmup') dismissWarmupHint()
                         dispatch({
                           type: 'TAG_SET',
                           exerciseIndex,
@@ -1378,6 +1467,22 @@ export function WorkoutLogger({
                               : adoptableGhostValue(ghost.weight),
                         },
                       })
+                      if (!set.completed) {
+                        // Sensory answer to the check-off: a haptic tick and
+                        // a scale pop on the circle — stronger when this tap
+                        // completes the whole exercise (the collapse follows).
+                        // Unchecking is a correction and stays silent.
+                        const completesExercise = exercise.sets.every(
+                          (s, i) => i === setIndex || s.completed,
+                        )
+                        vibrate(
+                          completesExercise ? EXERCISE_COMPLETE_VIBRATION : SET_COMPLETE_VIBRATION,
+                        )
+                        setCompletionPop({ setId: set.id, big: completesExercise })
+                        // This tap is also the lazy AudioContext unlock for
+                        // the optional rest chirp (gesture-gated autoplay).
+                        unlockRestChime()
+                      }
                       // Checking off starts the rest clock; unchecking is a
                       // correction, not a new rest period. The plan component
                       // of the target is resolved from THIS set's slot
@@ -1392,6 +1497,9 @@ export function WorkoutLogger({
                         setRestPlanSec(
                           resolveRestTarget(planFor(exercise.source, exercise.wgerExerciseId), setIndex, null),
                         )
+                        // New period, clean slate: quick-adjust taps belong
+                        // to ONE rest period only, never the next.
+                        setRestOffsetSec(0)
                       }
                     }}
                     aria-pressed={set.completed}
@@ -1409,6 +1517,13 @@ export function WorkoutLogger({
                       set.completed
                         ? 'bg-primary text-primary-foreground'
                         : 'bg-muted text-muted-foreground',
+                      // One-shot pop on completion (motion-safe: reduced
+                      // motion keeps the instant color/check swap).
+                      set.completed &&
+                        completionPop?.setId === set.id &&
+                        (completionPop.big
+                          ? 'motion-safe:animate-set-pop-big'
+                          : 'motion-safe:animate-set-pop'),
                     )}
                   >
                     {set.completed ? (
@@ -1457,6 +1572,20 @@ export function WorkoutLogger({
                       const input = e.currentTarget
                       requestAnimationFrame(() => input.select())
                     }}
+                    // Keyboard flow: reps hands off to the row's weight input
+                    // ("next"); a bodyweight row has no weight, so reps is
+                    // the last stop ("done" → dismiss the keyboard). Blur
+                    // only — Enter must never complete the set for you.
+                    enterKeyHint={exercise.loggingType === 'bodyweight_reps' ? 'done' : 'next'}
+                    onKeyDown={(e) => {
+                      if (e.key !== 'Enter') return
+                      e.preventDefault()
+                      if (exercise.loggingType === 'bodyweight_reps') {
+                        e.currentTarget.blur()
+                        return
+                      }
+                      document.getElementById(`weight-input-${set.id}`)?.focus()
+                    }}
                     aria-label={`Set ${setIndex + 1} reps`}
                     className={cn('flex-1 text-center tnum', flashSetId === set.id && 'fill-flash')}
                   />
@@ -1484,6 +1613,8 @@ export function WorkoutLogger({
                       <Input
                         type="text"
                         inputMode="decimal"
+                        // Target for the reps input's Enter-to-next hop.
+                        id={`weight-input-${set.id}`}
                         placeholder={ghost.weight}
                         value={set.weight}
                         onChange={(e) =>
@@ -1495,6 +1626,14 @@ export function WorkoutLogger({
                             value: e.target.value,
                           })
                         }
+                        // End of the row's keyboard flow: dismiss, don't
+                        // auto-complete — checking off stays a deliberate tap.
+                        enterKeyHint="done"
+                        onKeyDown={(e) => {
+                          if (e.key !== 'Enter') return
+                          e.preventDefault()
+                          e.currentTarget.blur()
+                        }}
                         onFocus={(e) => {
                           // Select-all (type-over, same rAF-deferred WebKit
                           // dance as reps), then arm this row's ± steppers.
@@ -1531,6 +1670,16 @@ export function WorkoutLogger({
                   </Button>
                 </div>
                 </SwipeToDelete>
+                {/* Micro target caption: typing hides the plan ghost, so the
+                    target it replaced stays readable here — plan restated,
+                    never adopted (ghost and Prev semantics untouched). Only
+                    when a typed value actually DIFFERS from the plan; muted,
+                    aligned under the inputs. */}
+                {(() => {
+                  const caption = targetCaption({ reps: set.reps, weight: set.weight }, ghost)
+                  if (!caption) return null
+                  return <p className="pl-22 pr-11 text-xs text-muted-foreground tnum">{caption}</p>
+                })()}
                 {/* Steppers ride under the focused weight row only. One plate
                     a side per tap; pointerdown preventDefault keeps the input
                     focused so the row (and keyboard) don't dismiss mid-tap. */}
@@ -1538,7 +1687,7 @@ export function WorkoutLogger({
                   // Connected segmented pair aligned to the input columns
                   // (left inset = circle + prev + gaps, right = the row's X):
                   // one control, not two orphaned buttons floating right.
-                  <div className="flex pl-22 pr-11 motion-safe:animate-rise-in">
+                  <div className="flex flex-col gap-1.5 pl-22 pr-11 motion-safe:animate-rise-in">
                     <div className="flex w-full overflow-hidden rounded-lg border border-border bg-card">
                     {([-1, 1] as const).map((direction) => (
                       <Button
@@ -1578,6 +1727,29 @@ export function WorkoutLogger({
                       </Button>
                     ))}
                     </div>
+                    {/* Per-side plate chip: the racked answer for the focused
+                        weight, against the default (heaviest) bar — barbell
+                        totals only, and only when the field parses to a
+                        rackable number. Tap opens the full plate sheet.
+                        pointerdown preventDefault keeps the input focused
+                        (same trick as the steppers) so the strip doesn't
+                        unmount before the click lands. */}
+                    {exercise.loggingType === 'weight_reps' &&
+                      (() => {
+                        const chip = plateChipLabel(set.weight, gear.bars[0] ?? 0, gear.plates)
+                        if (!chip) return null
+                        return (
+                          <button
+                            type="button"
+                            onPointerDown={(e) => e.preventDefault()}
+                            onClick={() => setPlateSheetFor(exerciseIndex)}
+                            aria-label={`Plates for this weight: ${chip}. Open plate calculator`}
+                            className="self-start text-xs text-muted-foreground tnum underline-offset-2 active:underline"
+                          >
+                            {chip}
+                          </button>
+                        )
+                      })()}
                   </div>
                 )}
                 {/* The record moment, recognized as it happens: this set's
@@ -1664,12 +1836,34 @@ export function WorkoutLogger({
       </div>
 
       <div className="sticky bottom-0 z-10 -mx-5 border-t border-border bg-background/85 px-5 pt-3 pb-safe backdrop-blur-md">
+        {/* Session-pulse fill riding the bar's top border: 2px of volt that
+            grows with completed working sets. Live-progress semantics, same
+            one-volt family as the rest readout; scaleX (not width) keeps the
+            motion compositor-only. Decorative — the header count carries the
+            accessible numbers. */}
+        {isLive && pulse.total > 0 && (
+          <div aria-hidden="true" className="absolute inset-x-0 top-[-1px] h-0.5 overflow-hidden">
+            <div
+              className="h-full origin-left bg-primary transition-transform duration-500 ease-out"
+              style={{ transform: `scaleX(${pulse.completed / pulse.total})` }}
+            />
+          </div>
+        )}
+        {/* The session's closing verdict, in the drawer/home editorial voice:
+            every planned set is in. Sits with the Finish button it's nudging
+            toward; the volt stays on the button (one-volt rule). */}
+        {isLive && isSessionDone && (
+          <p className="mb-2 font-display text-lg font-semibold uppercase leading-none tracking-wide motion-safe:animate-rise-in">
+            All sets done.
+          </p>
+        )}
         {/* Next-up glance: where the session continues after rest — the
             PWA-legal cousin of a lock-screen Live Activity, living in the
-            thumb zone the sticky bar already owns. Rendered only while a
-            rest is running (restStartedAt set, cleared on finish/discard);
-            tap scrolls the row into view instead of hunting. */}
-        {isLive && restTimerEnabled && restStartedAt !== null && nextUp && (
+            thumb zone the sticky bar already owns. Ungated from rest: it
+            shows once the session is underway (≥1 completed set) or there's
+            more than one exercise to hop between — resting is not the only
+            time a lifter loses their place. Tap scrolls the row into view. */}
+        {isLive && nextUp && shouldShowNextUp(draft.exercises) && (
           <button
             type="button"
             onClick={() =>
@@ -1687,6 +1881,16 @@ export function WorkoutLogger({
               <span className="shrink-0 text-sm font-medium tnum">{nextUp.label}</span>
             )}
           </button>
+        )}
+        {/* Mid-rest quick adjust, only while a period is actually running.
+            Adjust taps accumulate into restOffsetSec (this period ONLY —
+            see its constraint comment); Skip ends the period. */}
+        {isLive && restTimerEnabled && restStartedAt !== null && (
+          <RestAdjustStrip
+            hasTarget={restTargetSec !== null}
+            onAdjust={(deltaSec) => setRestOffsetSec((prev) => prev + deltaSec)}
+            onSkip={handleSkipRest}
+          />
         )}
         {/* Post-swap remember prompt: a quiet follow-up, never a modal — the
             decision that mattered (the swap) is already made; this must not
