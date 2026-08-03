@@ -10,6 +10,7 @@ import {
   type ExerciseResolution,
 } from '@/lib/import/match'
 import type { ImportSource, ParsedImport, ParsedSet, SkippedRow } from '@/lib/import/types'
+import { checkTrophies } from '@/lib/trophies'
 import { db } from './index'
 import { customExercises, importBatches, sets, workoutExercises, workouts } from './schema'
 import { listCustomExercises } from './custom-exercises'
@@ -258,6 +259,11 @@ export async function commitImport(
       }
     })
   }
+
+  // Imported history can complete trophies retroactively — trigger 'import'
+  // stamps them QUIETLY (trophy page only; no push, no celebration flood).
+  // Fails soft inside: a trophy hiccup never fails a committed import.
+  await checkTrophies(userId, { kind: 'import' })
 
   return {
     batchId: batch.id,

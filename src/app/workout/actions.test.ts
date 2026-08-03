@@ -18,6 +18,7 @@ import {
   getLastPerformance,
 } from '@/db/workouts'
 import { autoSyncPlanToPerformance } from '@/lib/auto-plan-sync'
+import { checkTrophies } from '@/lib/trophies'
 import { getExerciseStats, getExerciseSessions } from '@/db/exercise-stats'
 import { getWorkoutDraft, putWorkoutDraft, deleteWorkoutDraft } from '@/db/workout-drafts'
 import { DRAFT_TTL_MS } from '@/app/workout/new/draft-payload'
@@ -49,6 +50,9 @@ vi.mock('@/db/program-patches', () => ({
 // The auto-sync helper is unit-tested in lib/auto-plan-sync.test.ts; here we
 // only assert the actions invoke it at the right seam.
 vi.mock('@/lib/auto-plan-sync', () => ({ autoSyncPlanToPerformance: vi.fn() }))
+// Same treatment for the trophy seam (unit-tested in lib/trophies.test.ts):
+// assert only that the actions fire it with the live-finish trigger.
+vi.mock('@/lib/trophies', () => ({ checkTrophies: vi.fn(async () => []) }))
 vi.mock('@/db/exercise-stats', () => ({
   getExerciseStats: vi.fn(),
   getExerciseSessions: vi.fn(),
@@ -72,6 +76,7 @@ const mockedPutDraft = vi.mocked(putWorkoutDraft)
 const mockedDeleteDraft = vi.mocked(deleteWorkoutDraft)
 const mockedRevalidate = vi.mocked(revalidatePath)
 const mockedAutoSync = vi.mocked(autoSyncPlanToPerformance)
+const mockedCheckTrophies = vi.mocked(checkTrophies)
 
 const USER = 'user_123'
 const ID = '11111111-1111-1111-1111-111111111111'
@@ -98,6 +103,9 @@ describe('saveWorkoutAction', () => {
     // Auto plan-sync runs against the saved workout (a no-op for quick logs —
     // the helper's provenance guard — but the seam must always fire).
     expect(mockedAutoSync).toHaveBeenCalledWith(USER, ID)
+    // The trophy seam rides the same post-save moment with the live-finish
+    // trigger (attribution + retroactive-quiet live inside the helper).
+    expect(mockedCheckTrophies).toHaveBeenCalledWith(USER, { kind: 'finish', workoutId: ID })
     expect(mockedRevalidate).toHaveBeenCalledWith('/')
   })
 
@@ -231,6 +239,9 @@ describe('updateWorkoutAction', () => {
     // The finish path: a live program session completes through this action,
     // and the plan silently adopts outperformed loads right here.
     expect(mockedAutoSync).toHaveBeenCalledWith(USER, ID)
+    // Live program finishes celebrate through this path — same trigger shape
+    // as the save action.
+    expect(mockedCheckTrophies).toHaveBeenCalledWith(USER, { kind: 'finish', workoutId: ID })
     expect(mockedRevalidate).toHaveBeenCalledWith('/')
     expect(mockedRevalidate).toHaveBeenCalledWith(`/workout/${ID}`)
   })
@@ -242,6 +253,7 @@ describe('updateWorkoutAction', () => {
     // Act + Assert — no auto-sync either: nothing was written
     await expect(updateWorkoutAction(ID, VALID_INPUT)).rejects.toThrow('workout not found')
     expect(mockedAutoSync).not.toHaveBeenCalled()
+    expect(mockedCheckTrophies).not.toHaveBeenCalled()
     expect(mockedRevalidate).not.toHaveBeenCalled()
   })
 

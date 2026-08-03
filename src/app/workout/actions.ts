@@ -15,6 +15,7 @@ import { getProgramDayDetail, deriveDayPrescription } from '@/db/programs'
 import { updateProgramExercise } from '@/db/program-patches'
 import { autoSyncPlanToPerformance } from '@/lib/auto-plan-sync'
 import { checkGoalAchievements } from '@/lib/goals'
+import { checkTrophies } from '@/lib/trophies'
 import { substituteSlot } from '@/lib/substitute-slot'
 import type { PlanSetTarget } from '@/lib/format'
 import {
@@ -47,6 +48,10 @@ export async function saveWorkoutAction(input: unknown): Promise<{ id: string }>
   // Post-save goal check (same seam as the plan sync, fails soft inside):
   // a finished session can complete a strength target or extend a streak.
   await checkGoalAchievements(userId, ['strength', 'consistency'])
+  // Trophy check AFTER the goal check, same seam, fails soft inside: a live
+  // finish may celebrate + push; anything not attributable to this workout
+  // stamps quietly (the retroactive rule).
+  await checkTrophies(userId, { kind: 'finish', workoutId: result.id })
   revalidatePath('/') // keep the (future) home history list fresh
   return result
 }
@@ -72,6 +77,9 @@ export async function updateWorkoutAction(id: string, input: unknown): Promise<{
   // Live program finishes land here too — the goal check rides the same
   // post-save seam as the plan sync (fails soft inside; never fails the save).
   await checkGoalAchievements(userId, ['strength', 'consistency'])
+  // Live program finishes celebrate here too — same trophy seam as the save
+  // path (fails soft inside; never fails the save).
+  await checkTrophies(userId, { kind: 'finish', workoutId: id })
   revalidatePath('/')
   revalidatePath(`/workout/${id}`)
   return result

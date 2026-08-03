@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { ChevronLeft, Dumbbell, Flame, Scale } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Dumbbell, Flame, Scale, Trophy } from 'lucide-react'
 import { requireUserId } from '@/lib/auth'
 import { getWeightUnit } from '@/db/preferences'
 import { listArchivedGoals } from '@/db/goals'
@@ -72,6 +72,17 @@ export default async function GoalsPage() {
             ))}
           </section>
         )}
+
+        {/* The trophy case's one entry point — goals are the achievement
+            family, so the link lives here (home already carries its stack). */}
+        <Link
+          href="/trophies"
+          className="flex items-center gap-2.5 rounded-2xl border border-border bg-card p-4 transition-colors hover:border-primary/40"
+        >
+          <Trophy aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
+          <span className="min-w-0 flex-1 truncate text-sm font-medium">Trophies</span>
+          <ChevronRight aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
+        </Link>
 
         {archived.length > 0 && (
           <section aria-label="Archived goals">

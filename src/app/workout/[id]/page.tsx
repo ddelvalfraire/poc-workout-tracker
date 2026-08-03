@@ -6,7 +6,9 @@ import { getWorkoutDetail, getExerciseHistoryBefore } from "@/db/workouts";
 import { getNextProgramDay } from "@/db/programs";
 import { getWeightUnit, getBodyweightKg } from "@/db/preferences";
 import { goalsAchievedSince, listActiveGoals, type GoalRow } from "@/db/goals";
+import { trophiesAchievedSince } from "@/db/trophies";
 import { goalLabel, strengthPercent } from "@/lib/goal-progress";
+import { trophyLabel } from "@/lib/trophies";
 import { resolveFinishUpNext } from "@/lib/finish-up-next";
 import {
   formatWorkoutDate,
@@ -56,7 +58,7 @@ export default async function WorkoutDetailPage({
   // Up-next only matters at the finish moment, and only for a program
   // session — a quick log has no rotation to advance. Fetched alongside the
   // PR history read (independent queries).
-  const [history, nextDay, achievedGoals, activeGoals] = await Promise.all([
+  const [history, nextDay, achievedGoals, activeGoals, sessionTrophies] = await Promise.all([
     getExerciseHistoryBefore(userId, exerciseIds, workout.startedAt),
     justFinished && workout.programDayId !== null
       ? getNextProgramDay(userId)
@@ -67,7 +69,14 @@ export default async function WorkoutDetailPage({
     // session and achievement — no threading state through the redirect.
     justFinished ? goalsAchievedSince(userId, workout.startedAt) : [],
     justFinished ? listActiveGoals(userId) : [],
+    justFinished ? trophiesAchievedSince(userId, workout.startedAt) : [],
   ]);
+  // Same session-window honesty as the goals block, PLUS the attribution
+  // mark: only trophies whose stored context names THIS workout celebrate —
+  // an import that stamped mid-session stays quiet by construction.
+  const earnedTrophies = sessionTrophies.filter(
+    (t) => t.context.workoutId === workout.id,
+  );
   const upNext = resolveFinishUpNext(workout.programDayId, nextDay);
 
   // Keyed by the composite identity: a custom exercise's id can collide with
@@ -272,6 +281,34 @@ export default async function WorkoutDetailPage({
               className="mt-3 inline-block text-sm text-muted-foreground transition-colors hover:text-foreground"
             >
               See your goals
+            </Link>
+          </section>
+        )}
+        {/* Trophy moments ride beside the goal ones — same volt treatment,
+            same honesty rule (see earnedTrophies above). */}
+        {justFinished && earnedTrophies.length > 0 && (
+          <section
+            aria-label="Trophies earned"
+            className="mt-4 rounded-2xl border border-primary/50 bg-card p-5 motion-safe:animate-rise-in"
+          >
+            <p className="text-xs font-semibold uppercase tracking-widest text-primary">
+              {earnedTrophies.length === 1 ? "Trophy earned" : "Trophies earned"}
+            </p>
+            <ul className="mt-2 space-y-1">
+              {earnedTrophies.map((trophy) => (
+                <li
+                  key={trophy.id}
+                  className="font-display text-3xl uppercase leading-none tracking-wide"
+                >
+                  {trophyLabel(trophy.kind)}
+                </li>
+              ))}
+            </ul>
+            <Link
+              href="/trophies"
+              className="mt-3 inline-block text-sm text-muted-foreground transition-colors hover:text-foreground"
+            >
+              See your trophies
             </Link>
           </section>
         )}
