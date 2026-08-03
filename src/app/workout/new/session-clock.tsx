@@ -1,7 +1,8 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { formatElapsed } from '@/lib/format'
+import { createRestEdgeDetector } from '@/lib/rest-alert'
 
 /**
  * Compact session clocks for the app header — elapsed time and, once a set
@@ -30,6 +31,7 @@ export function HeaderClock({
   restStartedAt,
   restTargetSec,
   onRestClick,
+  onRestOver,
 }: {
   startedAt: Date
   /** Set when the user checks off a set; null before the first completion. */
@@ -38,8 +40,17 @@ export function HeaderClock({
   restTargetSec: number | null
   /** Tap on the rest readout — the logger opens the rest-target sheet. */
   onRestClick: () => void
+  /** The countdown's >0 → ≤0 edge, at most once per rest period (the logger
+   *  fires vibration/chirp/title flash). Pass a STABLE reference — the tick
+   *  effect depends on it. */
+  onRestOver?: () => void
 }) {
   const [now, setNow] = useState<Date | null>(null)
+  // The once-per-period latch lives in lib/rest-alert (unit-tested there):
+  // it needs to have SEEN the period counting down before it may fire, so a
+  // re-mounted clock mid-overage — or StrictMode's double effect run — stays
+  // silent instead of re-alerting.
+  const restEdgeRef = useRef(createRestEdgeDetector())
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- one-shot mount sync; interval drives later updates
@@ -47,6 +58,17 @@ export function HeaderClock({
     const id = setInterval(() => setNow(new Date()), 1_000)
     return () => clearInterval(id)
   }, [])
+
+  // Edge detection rides the same 1 s tick as the readout (`now` state), in
+  // an effect — firing side effects from render would double under
+  // StrictMode and re-run on unrelated parent renders.
+  useEffect(() => {
+    if (!now || !restStartedAt || restTargetSec === null) return
+    const remainingSec = restTargetSec - Math.floor((now.getTime() - restStartedAt.getTime()) / 1_000)
+    if (restEdgeRef.current.observe(restStartedAt.getTime(), remainingSec)) {
+      onRestOver?.()
+    }
+  }, [now, restStartedAt, restTargetSec, onRestOver])
 
   if (!now) return null
   const elapsed = formatElapsed(now.getTime() - startedAt.getTime())
