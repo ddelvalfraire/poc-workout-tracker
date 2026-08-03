@@ -58,11 +58,13 @@ export async function GET(): Promise<NextResponse> {
       orNull(getNextProgramDay(userId), 'program'),
       orNull(getWeightUnit(userId), 'unit'),
       orNull(getVolumeTotals(userId, volumeWindows('rolling', now)), 'volume'),
-      orNull(getGoalsHomeSummary(userId, now), 'goals'),
+      // Epoch ms, not Date: the memoized readers key on primitives (a Date
+      // object per call would defeat the request memo).
+      orNull(getGoalsHomeSummary(userId, now.getTime()), 'goals'),
       orNull(listTrophies(userId), 'trophies'),
       orNull(listLoggedExercises(userId), 'exercises'),
       orNull(listBodyweightLogs(userId), 'bodyweight'),
-      orNull(getCheckInStatus(userId, now), 'check-in'),
+      orNull(getCheckInStatus(userId, now.getTime()), 'check-in'),
     ])
 
   const unit = unitRead ?? DEFAULT_WEIGHT_UNIT

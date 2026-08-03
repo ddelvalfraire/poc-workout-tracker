@@ -1,5 +1,11 @@
 import Link from 'next/link'
 import { ChevronRight } from 'lucide-react'
+import { listWorkoutSummaries } from '@/db/workouts'
+import { getWeightUnit } from '@/db/preferences'
+import { getRollingVolumeTotals } from '@/db/muscle-volume'
+import { getGoalsHomeSummary } from '@/lib/goals'
+import { goalLabel } from '@/lib/goal-progress'
+import { bucketDaySets } from '@/lib/drawer-status'
 import { momentumSessionsLine } from '@/lib/home-status'
 import { Sparkbar } from '@/components/sparkbar'
 import { StreakChip } from '@/components/streak-chip'
@@ -11,29 +17,45 @@ import { StreakChip } from '@/components/streak-chip'
  * sparkbar is the drawer's, the goal line + streak flame carry honest
  * gamification. Top block links to /stats, the goal line to /goals.
  *
- * Server component: everything here is tz-free (rolling windows) or already
- * client-delegated (StreakChip computes its weeks after mount). The page
- * skips the panel entirely only on true day one — the fresh StatusHero
- * already invites, and two stacked invitations would compete.
+ * Self-fetching server section: every reader below is request-memoized
+ * (React cache — per-request only), so summaries/unit/goals dedupe against
+ * the page's own reads; only the rolling totals read belongs to this panel.
+ * Net queries per request are identical to when the page fanned everything
+ * out itself. Everything here is tz-free (rolling windows) or already
+ * client-delegated (StreakChip computes its weeks after mount).
  */
 export interface MomentumPanelProps {
-  weekSets: number
-  weekSessions: number
-  /** Seven rolling 24h buckets, oldest first (bucketDaySets). */
-  daySets: number[]
-  /** The top active goal's line, pre-formatted server-side (goalLabel). */
-  goal: {
-    activeCount: number
-    label: string
-    streak: {
-      completedAtTimes: number[]
-      scheduledWeekdays: number[]
-      allowedMissesPerWeek: number
-    } | null
-  } | null
+  userId: string
+  /** The page's request "now" (epoch ms — serializable, and one instant for
+   *  the whole surface) so the sparkbar buckets match the history sections. */
+  nowMs: number
 }
 
-export function MomentumPanel({ weekSets, weekSessions, daySets, goal }: MomentumPanelProps) {
+export async function MomentumPanel({ userId, nowMs }: MomentumPanelProps) {
+  const [summaries, unit, goalsSummary, weekTotals] = await Promise.all([
+    listWorkoutSummaries(userId),
+    getWeightUnit(userId),
+    getGoalsHomeSummary(userId),
+    getRollingVolumeTotals(userId),
+  ])
+
+  // True day one — nothing completed and no goals: skip the panel entirely
+  // (moved verbatim from the page). The fresh StatusHero already invites, and
+  // two stacked invitations would compete.
+  const completed = summaries.filter((w) => w.completedAt !== null)
+  if (completed.length === 0 && goalsSummary === null) return null
+
+  const weekSets = weekTotals.currentSets
+  const weekSessions = weekTotals.currentSessions
+  const daySets = bucketDaySets(summaries, new Date(nowMs))
+  const goal = goalsSummary?.topGoal
+    ? {
+        activeCount: goalsSummary.activeCount,
+        label: goalLabel(goalsSummary.topGoal, unit),
+        streak: goalsSummary.streak,
+      }
+    : null
+
   return (
     <section
       aria-label="This week"

@@ -1,4 +1,5 @@
 import { eq } from 'drizzle-orm'
+import { cache } from 'react'
 import { db } from './index'
 import { userPreferences } from './schema'
 import { DEFAULT_WEIGHT_UNIT, isWeightUnit, type WeightUnit } from '@/lib/units'
@@ -12,15 +13,17 @@ import { equipmentForUnit, type Equipment, type StoredEquipment } from '@/lib/eq
  * `isWeightUnit` and fall back to the default rather than trusting stored data.
  */
 
-/** Returns the user's weight unit, defaulting to the product default (lb) when unset or unrecognized. */
-export async function getWeightUnit(userId: string): Promise<WeightUnit> {
+/** Returns the user's weight unit, defaulting to the product default (lb) when
+ *  unset or unrecognized. Request-memoized (React cache — per-request only,
+ *  never cross-request). CONSTRAINT: args must stay cache-key-safe primitives. */
+export const getWeightUnit = cache(async (userId: string): Promise<WeightUnit> => {
   const [row] = await db
     .select({ unit: userPreferences.unit })
     .from(userPreferences)
     .where(eq(userPreferences.userId, userId))
     .limit(1)
   return row && isWeightUnit(row.unit) ? row.unit : DEFAULT_WEIGHT_UNIT
-}
+})
 
 /** Upserts the user's weight unit. */
 export async function setWeightUnit(userId: string, unit: WeightUnit): Promise<void> {

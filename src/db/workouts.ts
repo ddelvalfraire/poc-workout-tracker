@@ -13,6 +13,7 @@ import {
   ne,
   sql,
 } from 'drizzle-orm'
+import { cache } from 'react'
 import type { WorkoutInput, LoggingType } from '@/lib/workout-input'
 import type { ExerciseSource } from '@/lib/custom-exercise-input'
 import { db } from './index'
@@ -48,10 +49,10 @@ export interface WorkoutSummary {
   volumeKg: number
 }
 
-/** Lists a user's workouts (most recent first) with exercise/set counts and
- *  total volume (Σ reps × weight kg; duration/distance sets contribute 0), in
- *  one query. */
-export function listWorkoutSummaries(userId: string) {
+/** The summary query builder, exported for SQL-shape tests (`.toSQL()`).
+ *  App callers use `listWorkoutSummaries` — a drizzle builder re-executes SQL
+ *  on every await, so the request memo must wrap an awaited result, not this. */
+export function workoutSummariesQuery(userId: string) {
   return db
     .select({
       id: workouts.id,
@@ -72,6 +73,16 @@ export function listWorkoutSummaries(userId: string) {
     .groupBy(workouts.id)
     .orderBy(desc(workouts.startedAt))
 }
+
+/** Lists a user's workouts (most recent first) with exercise/set counts and
+ *  total volume (Σ reps × weight kg; duration/distance sets contribute 0), in
+ *  one query. Request-memoized (React cache — per-request only, never
+ *  cross-request): repeated calls with the same userId inside one server
+ *  render/request run the query once. CONSTRAINT: args must stay cache-key-
+ *  safe primitives (cache keys by Object.is per arg). */
+export const listWorkoutSummaries = cache(
+  async (userId: string): Promise<WorkoutSummary[]> => workoutSummariesQuery(userId),
+)
 
 /** A prior performance of an exercise: when it was done and its sets (weights in kg, set order). */
 export interface LastPerformance {

@@ -75,12 +75,12 @@ describe('daysSinceCheckIn', () => {
 describe('getCheckInStatus', () => {
   it('returns null when no active program suggests a cadence', async () => {
     mockedFacts.mockResolvedValue(null)
-    expect(await getCheckInStatus('user_1', NOW)).toBeNull()
+    expect(await getCheckInStatus('user_1', NOW.getTime())).toBeNull()
   })
 
   it('is due with no history at all (the first check-in is immediately due)', async () => {
     mockedFacts.mockResolvedValue(facts())
-    expect(await getCheckInStatus('user_1', NOW)).toEqual({
+    expect(await getCheckInStatus('user_1', NOW.getTime())).toEqual({
       due: true,
       programName: 'PPL',
       cadenceDays: 14,
@@ -100,7 +100,7 @@ describe('getCheckInStatus', () => {
     )
 
     // Act
-    const status = await getCheckInStatus('user_1', NOW)
+    const status = await getCheckInStatus('user_1', NOW.getTime())
 
     // Assert — 16 days > 14-day cadence → due, recency from the photo
     expect(status).toEqual({
@@ -122,7 +122,7 @@ describe('getCheckInStatus', () => {
     )
 
     // Act
-    const status = await getCheckInStatus('user_1', NOW)
+    const status = await getCheckInStatus('user_1', NOW.getTime())
 
     // Assert
     expect(status?.due).toBe(false)

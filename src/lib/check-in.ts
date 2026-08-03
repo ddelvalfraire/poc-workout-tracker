@@ -1,3 +1,4 @@
+import { cache } from 'react'
 import { getCheckInFacts } from '@/db/check-ins'
 
 /**
@@ -53,11 +54,18 @@ export interface CheckInStatus {
  * The user's check-in status, or null when no active program suggests a
  * cadence (the feature is entirely silent then — no card, no push). Thin: one
  * facts read + the pure rules above.
+ *
+ * Request-memoized (React cache — per-request only, never cross-request).
+ * CONSTRAINT: `nowMs` is epoch ms, NOT a Date — cache keys args by Object.is,
+ * and a fresh Date object per call would defeat memoization. Callers sharing
+ * one request should omit it (key = userId alone; "now" resolves once, on
+ * cache miss) or pass the same primitive.
  */
-export async function getCheckInStatus(
+export const getCheckInStatus = cache(async (
   userId: string,
-  now: Date = new Date(),
-): Promise<CheckInStatus | null> {
+  nowMs?: number,
+): Promise<CheckInStatus | null> => {
+  const now = nowMs === undefined ? new Date() : new Date(nowMs)
   const facts = await getCheckInFacts(userId)
   if (!facts) return null
   const last = latestCheckInAt([
@@ -72,4 +80,4 @@ export async function getCheckInStatus(
     lastCheckInAt: last,
     daysSinceLast: last === null ? null : daysSinceCheckIn(last, now),
   }
-}
+})

@@ -1,3 +1,4 @@
+import { cache } from 'react'
 import {
   activeScheduledWeekdays,
   completedWorkoutTimes,
@@ -233,11 +234,18 @@ export interface GoalsHomeSummary {
  * The home page's one goals read: active goals plus, when a consistency goal
  * exists, the streak evidence for the CLIENT-side chip ("today"/weeks are the
  * user's calendar, not the server's — the local-day.ts principle).
+ *
+ * Request-memoized (React cache — per-request only, never cross-request).
+ * CONSTRAINT: `nowMs` is epoch ms, NOT a Date — cache keys args by Object.is,
+ * and a fresh Date object per call would defeat memoization. Callers sharing
+ * one request should omit it (key = userId alone; "now" resolves once, on
+ * cache miss) or pass the same primitive.
  */
-export async function getGoalsHomeSummary(
+export const getGoalsHomeSummary = cache(async (
   userId: string,
-  now: Date = new Date(),
-): Promise<GoalsHomeSummary | null> {
+  nowMs?: number,
+): Promise<GoalsHomeSummary | null> => {
+  const now = nowMs === undefined ? new Date() : new Date(nowMs)
   const goals = await listActiveGoals(userId)
   if (goals.length === 0) return null
   const consistency = goals.find((g) => g.kind === 'consistency')
@@ -254,4 +262,4 @@ export async function getGoalsHomeSummary(
     topGoal: goals.find((g) => g.achievedAt === null) ?? goals[0] ?? null,
     streak,
   }
-}
+})

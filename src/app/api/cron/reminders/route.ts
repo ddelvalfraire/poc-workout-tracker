@@ -138,7 +138,8 @@ export async function GET(request: Request): Promise<NextResponse> {
       // Check-in rider: null status (no active program suggesting a cadence)
       // or not-yet-due both count as skips; the workout path above is never
       // affected either way. Same claim-before-send idiom, own marker.
-      const checkIn = await getCheckInStatus(userId, now)
+      // Epoch ms: the memoized reader keys on primitives, not Date objects.
+      const checkIn = await getCheckInStatus(userId, now.getTime())
       if (!checkIn?.due) {
         checkinSkipped += 1
         continue
