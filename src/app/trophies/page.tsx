@@ -1,7 +1,5 @@
-import Link from 'next/link'
 import {
   CalendarCheck,
-  ChevronLeft,
   Dumbbell,
   Flag,
   Flame,
@@ -15,9 +13,8 @@ import { evaluateTrophies, trophyContextLine, trophyHint, trophyLabel } from '@/
 import { TROPHY_DEFS, type TrophyDef } from '@/lib/trophy-kinds'
 import { formatWorkoutDate } from '@/lib/format'
 import { AppHeader } from '@/components/app-header'
+import { NavDrawer } from '@/components/nav/nav-drawer'
 import { ShareCardButton } from '@/components/share-card-button'
-import { buttonVariants } from '@/components/ui/button'
-import { cn } from '@/lib/utils'
 
 /**
  * /trophies — fact-derived milestones only (the honesty brand): earned grid
@@ -36,15 +33,7 @@ export default async function TrophiesPage() {
     <div className="flex min-h-[100dvh] flex-col">
       <AppHeader
         title="Trophies"
-        leading={
-          <Link
-            href="/"
-            aria-label="Back"
-            className={cn(buttonVariants({ variant: 'ghost', size: 'icon-sm' }), '-ml-2')}
-          >
-            <ChevronLeft aria-hidden="true" className="size-5" />
-          </Link>
-        }
+        leading={<NavDrawer />}
       />
 
       <main className="mx-auto w-full max-w-md flex-1 space-y-6 px-5 pb-safe pt-6">

@@ -1,10 +1,11 @@
 import Link from 'next/link'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { ChevronRight } from 'lucide-react'
 import { requireUserId } from '@/lib/auth'
 import { listPrograms } from '@/db/programs'
 import { AppHeader } from '@/components/app-header'
 import { buttonVariants } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import { NavDrawer } from '@/components/nav/nav-drawer'
 
 export default async function ProgramsPage() {
   const userId = await requireUserId() // middleware also guards; defense-in-depth
@@ -14,15 +15,7 @@ export default async function ProgramsPage() {
     <div className="flex min-h-[100dvh] flex-col">
       <AppHeader
         title="Programs"
-        leading={
-          <Link
-            href="/"
-            aria-label="Back"
-            className={cn(buttonVariants({ variant: 'ghost', size: 'icon-sm' }), '-ml-2')}
-          >
-            <ChevronLeft aria-hidden="true" className="size-5" />
-          </Link>
-        }
+        leading={<NavDrawer />}
       />
 
       <main className="mx-auto w-full max-w-md flex-1 px-5 pb-safe">

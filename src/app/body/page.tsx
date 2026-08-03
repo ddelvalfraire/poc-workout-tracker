@@ -1,5 +1,3 @@
-import Link from 'next/link'
-import { ChevronLeft } from 'lucide-react'
 import { requireUserId } from '@/lib/auth'
 import { getWeightUnit } from '@/db/preferences'
 import { listBodyweightLogs } from '@/db/bodyweight'
@@ -11,8 +9,7 @@ import { bodyweightDeltaKg } from '@/lib/bodyweight-trend'
 import { TrendChart } from '@/components/charts/trend-chart'
 import { formatWorkoutDate } from '@/lib/format'
 import { AppHeader } from '@/components/app-header'
-import { buttonVariants } from '@/components/ui/button'
-import { cn } from '@/lib/utils'
+import { NavDrawer } from '@/components/nav/nav-drawer'
 import { BodyweightLogForm } from './log-form'
 import { BodyweightEntryRow } from './entry-row'
 import { MeasurementsSection } from './measurements-section'
@@ -62,15 +59,7 @@ export default async function BodyPage() {
     <div className="flex min-h-[100dvh] flex-col">
       <AppHeader
         title="Body"
-        leading={
-          <Link
-            href="/settings"
-            aria-label="Back"
-            className={cn(buttonVariants({ variant: 'ghost', size: 'icon-sm' }), '-ml-2')}
-          >
-            <ChevronLeft aria-hidden="true" className="size-5" />
-          </Link>
-        }
+        leading={<NavDrawer />}
       />
 
       <main className="mx-auto w-full max-w-md flex-1 px-5 pb-safe">

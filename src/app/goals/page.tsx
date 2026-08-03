@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { ChevronLeft, ChevronRight, Dumbbell, Flame, Scale, Trophy } from 'lucide-react'
+import { ChevronRight, Dumbbell, Flame, Scale, Trophy } from 'lucide-react'
 import { requireUserId } from '@/lib/auth'
 import { getWeightUnit } from '@/db/preferences'
 import { listArchivedGoals } from '@/db/goals'
@@ -13,7 +13,7 @@ import {
 import { formatE1RM, formatWorkoutDate } from '@/lib/format'
 import { kgToDisplay, type WeightUnit } from '@/lib/units'
 import { AppHeader } from '@/components/app-header'
-import { buttonVariants } from '@/components/ui/button'
+import { NavDrawer } from '@/components/nav/nav-drawer'
 import { cn } from '@/lib/utils'
 import { GoalCreate } from './goal-create'
 import { GoalCardActions } from './goal-card-actions'
@@ -44,15 +44,7 @@ export default async function GoalsPage() {
     <div className="flex min-h-[100dvh] flex-col">
       <AppHeader
         title="Goals"
-        leading={
-          <Link
-            href="/"
-            aria-label="Back"
-            className={cn(buttonVariants({ variant: 'ghost', size: 'icon-sm' }), '-ml-2')}
-          >
-            <ChevronLeft aria-hidden="true" className="size-5" />
-          </Link>
-        }
+        leading={<NavDrawer />}
       />
 
       <main className="mx-auto w-full max-w-md flex-1 space-y-6 px-5 pb-safe pt-6">

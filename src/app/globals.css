@@ -207,6 +207,18 @@
   }
 }
 
+/* The nav drawer's slide/fade comes from vaul's runtime-injected stylesheet,
+   which carries NO prefers-reduced-motion guard of its own — gate it here.
+   1ms rather than none: vaul waits on animation/transition end to settle
+   state, so zeroing the motion must still fire those events. */
+@media (prefers-reduced-motion: reduce) {
+  [data-vaul-drawer],
+  [data-vaul-overlay] {
+    animation-duration: 1ms !important;
+    transition-duration: 1ms !important;
+  }
+}
+
 /* Previous-chip adopt feedback: a brief volt wash on the filled inputs.
    Confirmation, not error — a highlight, never a shake. Color-only and
    700ms one-shot, so it stays calm under reduced motion too. */
