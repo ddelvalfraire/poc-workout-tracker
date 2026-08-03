@@ -25,6 +25,7 @@ import {
   type ExerciseSession,
 } from '@/db/exercise-stats'
 import { getWorkoutDraft, putWorkoutDraft, deleteWorkoutDraft } from '@/db/workout-drafts'
+import { createWorkoutShare, revokeWorkoutShare } from '@/db/workout-shares'
 import { isDraftPayload, DRAFT_TTL_MS, draftKey } from '@/app/workout/new/draft-payload'
 
 /**
@@ -102,6 +103,35 @@ export async function deleteWorkoutAction(id: string): Promise<void> {
   // "workout in progress" banner alive with a Resume that 404s.
   await deleteWorkoutDraft(userId, draftKey(id))
   revalidatePath('/')
+}
+
+/**
+ * Mints (or returns the existing live) share link for an owned COMPLETED
+ * workout — the lazy mint behind the summary's Share control. The db layer
+ * gates via can(): not-owned nulls (we throw for the client's try/catch),
+ * an unfinished session throws UnfinishedWorkoutShareError upward as-is.
+ */
+export async function createWorkoutShareAction(id: unknown): Promise<{ token: string }> {
+  const userId = await requireUserId()
+  if (typeof id !== 'string' || id.length === 0) throw new Error('invalid workout id')
+  const share = await createWorkoutShare(userId, id)
+  if (!share) throw new Error('workout not found')
+  revalidatePath(`/workout/${id}`)
+  return { token: share.token }
+}
+
+/**
+ * Kills every live link for the workout (revokedAt — old URLs 404
+ * immediately). With no visibility column this IS the off-switch; a fresh
+ * link is an explicit re-create via createWorkoutShareAction, which then
+ * mints a NEW token — the rotate semantics without a combined endpoint.
+ */
+export async function revokeWorkoutShareAction(id: unknown): Promise<void> {
+  const userId = await requireUserId()
+  if (typeof id !== 'string' || id.length === 0) throw new Error('invalid workout id')
+  const revoked = await revokeWorkoutShare(userId, id)
+  if (!revoked) throw new Error('workout not found')
+  revalidatePath(`/workout/${id}`)
 }
 
 /**

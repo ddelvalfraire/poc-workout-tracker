@@ -23,7 +23,9 @@ import { PrBadge } from "@/components/pr-badge";
 import { ShareCardButton } from "@/components/share-card-button";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { getActiveWorkoutShare } from "@/db/workout-shares";
 import { WorkoutActions } from "./workout-actions";
+import { WorkoutSharing } from "./workout-sharing";
 import { FinishUpNextCard } from "./finish-up-next-card";
 
 export default async function WorkoutDetailPage({
@@ -59,19 +61,23 @@ export default async function WorkoutDetailPage({
   // Up-next only matters at the finish moment, and only for a program
   // session — a quick log has no rotation to advance. Fetched alongside the
   // PR history read (independent queries).
-  const [history, nextDay, achievedGoals, activeGoals, sessionTrophies] = await Promise.all([
-    getExerciseHistoryBefore(userId, exerciseIds, workout.startedAt),
-    justFinished && workout.programDayId !== null
-      ? getNextProgramDay(userId)
-      : null,
-    // "Achieved by THIS workout" = achievedAt inside the session's window
-    // (start → now): the post-finish seam stamps achievedAt moments before
-    // this page renders, so the window is the honest, race-free link between
-    // session and achievement — no threading state through the redirect.
-    justFinished ? goalsAchievedSince(userId, workout.startedAt) : [],
-    justFinished ? listActiveGoals(userId) : [],
-    justFinished ? trophiesAchievedSince(userId, workout.startedAt) : [],
-  ]);
+  const [history, nextDay, achievedGoals, activeGoals, sessionTrophies, activeShare] =
+    await Promise.all([
+      getExerciseHistoryBefore(userId, exerciseIds, workout.startedAt),
+      justFinished && workout.programDayId !== null
+        ? getNextProgramDay(userId)
+        : null,
+      // "Achieved by THIS workout" = achievedAt inside the session's window
+      // (start → now): the post-finish seam stamps achievedAt moments before
+      // this page renders, so the window is the honest, race-free link between
+      // session and achievement — no threading state through the redirect.
+      justFinished ? goalsAchievedSince(userId, workout.startedAt) : [],
+      justFinished ? listActiveGoals(userId) : [],
+      justFinished ? trophiesAchievedSince(userId, workout.startedAt) : [],
+      // The live share link, if one exists — seeds the Share control so the
+      // copy row survives refreshes (mint state isn't client-only).
+      getActiveWorkoutShare(userId, id),
+    ]);
   // Same session-window honesty as the goals block, PLUS the attribution
   // mark: only trophies whose stored context names THIS workout celebrate —
   // an import that stamped mid-session stays quiet by construction.
@@ -457,6 +463,11 @@ export default async function WorkoutDetailPage({
             );
           })}
         </div>
+
+        {/* Share control above the action stack: this page only renders
+            COMPLETED workouts (live sessions redirected to the logger above),
+            so the completed-only rule holds by construction here too. */}
+        <WorkoutSharing workoutId={workout.id} shareToken={activeShare?.token ?? null} />
 
         <WorkoutActions id={workout.id} />
       </main>

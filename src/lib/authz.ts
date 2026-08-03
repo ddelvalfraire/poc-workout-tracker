@@ -49,11 +49,29 @@ export interface ProgramResource {
   share?: { revokedAt: Date | null } | null
 }
 
+export interface WorkoutResource {
+  /** The workout's owner (workouts.userId). */
+  userId: string
+  /** workouts.completedAt — null = a LIVE session, never viewable through a
+   *  share (the summary is a record of a finished thing, not a spectator
+   *  feed). Workouts have no visibility column: a live share row IS the
+   *  outbound grant. */
+  completedAt: Date | null
+  /** The share row the actor arrived through; null/omitted = no token in
+   *  hand. A revoked share (revokedAt set) grants nothing. */
+  share?: { revokedAt: Date | null } | null
+}
+
 /** The CASL subject: the plain resource, tagged 'Program' via `subject()` at
  *  query time (plain objects carry no class for detectSubjectType). */
 type ProgramSubject = ProgramResource & ForcedSubject<'Program'>
 
-type AppAbility = MongoAbility<[AuthzAction, 'Program' | ProgramSubject]>
+/** Same tagging idiom for workouts — the second subject in the one module. */
+type WorkoutSubject = WorkoutResource & ForcedSubject<'Workout'>
+
+type AppAbility = MongoAbility<
+  [AuthzAction, 'Program' | ProgramSubject | 'Workout' | WorkoutSubject]
+>
 
 /**
  * A live-share read as CASL conditions: visibility must be outbound
@@ -70,6 +88,20 @@ const LIVE_SHARE_CONDITIONS: MongoQuery = {
   'share.revokedAt': { $eq: null },
 }
 
+/**
+ * A live WORKOUT share as CASL conditions. No visibility clause — workouts
+ * have no visibility column, so an un-revoked share row is itself the
+ * outbound grant. `completedAt $ne null` is the workout analog of the
+ * program's proposed-gate: a live session is never viewable through a token.
+ * The `share $exists/$ne null` pair carries the same load as in
+ * LIVE_SHARE_CONDITIONS — no token in hand must grant nothing.
+ */
+const LIVE_WORKOUT_SHARE_CONDITIONS: MongoQuery = {
+  completedAt: { $ne: null },
+  share: { $exists: true, $ne: null },
+  'share.revokedAt': { $eq: null },
+}
+
 /** Builds the actor's ability — the full v1 rule set. Rules referencing the
  *  actor's own id exist only for signed-in actors, so an anonymous ability is
  *  exactly the live-share read floor. */
@@ -78,6 +110,7 @@ function abilityFor(actor: AuthzActor): AppAbility {
 
   // Anyone a live share admits may read — the anonymous floor.
   allow('view', 'Program', LIVE_SHARE_CONDITIONS)
+  allow('view', 'Workout', LIVE_WORKOUT_SHARE_CONDITIONS)
 
   if (actor.userId !== null) {
     // Owners always read their own programs (any status — the proposal page
@@ -93,6 +126,14 @@ function abilityFor(actor: AuthzActor): AppAbility {
       ...LIVE_SHARE_CONDITIONS,
       userId: { $ne: actor.userId },
     })
+    // Owners always read their own workouts (any state — the summary and the
+    // logger are both reads)…
+    allow('view', 'Workout', { userId: actor.userId })
+    // …and manage sharing on the COMPLETED ones only: mint/revoke for a live
+    // session is refused here, at the seam, so createWorkoutShare's
+    // completed-only gate is a can() decision, not inline SQL. No workout
+    // 'adopt' rule exists anywhere — there is no adopt flow, by design.
+    allow('manage', 'Workout', { userId: actor.userId, completedAt: { $ne: null } })
   }
 
   // `anyAction` remapped off the default: CASL reserves 'manage' as its
@@ -105,7 +146,17 @@ function abilityFor(actor: AuthzActor): AppAbility {
 
 /** May `actor` perform `action` on `resource`? Pure — no I/O, no throw. The
  *  resource is spread before tagging so callers' objects are never mutated
- *  (`subject()` stamps its type marker on the instance it receives). */
-export function can(actor: AuthzActor, action: AuthzAction, resource: ProgramResource): boolean {
-  return abilityFor(actor).can(action, subject('Program', { ...resource }))
+ *  (`subject()` stamps its type marker on the instance it receives). The
+ *  subject discriminates on `visibility` — a program-only field; workouts
+ *  carry `completedAt` instead. */
+export function can(
+  actor: AuthzActor,
+  action: AuthzAction,
+  resource: ProgramResource | WorkoutResource,
+): boolean {
+  const tagged =
+    'visibility' in resource
+      ? subject('Program', { ...resource })
+      : subject('Workout', { ...resource })
+  return abilityFor(actor).can(action, tagged)
 }
