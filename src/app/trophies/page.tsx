@@ -15,6 +15,7 @@ import { evaluateTrophies, trophyContextLine, trophyHint, trophyLabel } from '@/
 import { TROPHY_DEFS, type TrophyDef } from '@/lib/trophy-kinds'
 import { formatWorkoutDate } from '@/lib/format'
 import { AppHeader } from '@/components/app-header'
+import { ShareCardButton } from '@/components/share-card-button'
 import { buttonVariants } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
@@ -65,7 +66,16 @@ export default async function TrophiesPage() {
                   key={row.id}
                   className="rounded-2xl border border-primary/50 bg-card p-4"
                 >
-                  <Icon aria-hidden="true" className="size-5 text-primary" />
+                  <div className="flex items-start justify-between">
+                    <Icon aria-hidden="true" className="size-5 text-primary" />
+                    {/* Ships the rendered PNG via the OS sheet — never a URL. */}
+                    <ShareCardButton
+                      cardUrl={`/api/cards/trophy/${row.kind}`}
+                      shareTitle={trophyLabel(row.kind)}
+                      size="icon-xs"
+                      className="-mr-2 -mt-2"
+                    />
+                  </div>
                   <h2 className="mt-2 font-display text-lg uppercase leading-tight tracking-wide">
                     {trophyLabel(row.kind)}
                   </h2>
