@@ -32,6 +32,7 @@ import {
   type DrawerData,
 } from '@/lib/drawer-status'
 import { buttonVariants } from '@/components/ui/button'
+import { Sparkbar } from '@/components/sparkbar'
 import { StreakChip } from '@/components/streak-chip'
 import { cn } from '@/lib/utils'
 
@@ -74,23 +75,6 @@ function ThinBar({ percent }: { percent: number }) {
   return (
     <span aria-hidden="true" className="mt-1.5 block h-1 overflow-hidden rounded-full bg-muted">
       <span className="block h-full rounded-full bg-primary" style={{ width: `${percent}%` }} />
-    </span>
-  )
-}
-
-/** Seven-block volume sparkbar (rolling 24h buckets, oldest first). */
-function Sparkbar({ daySets }: { daySets: number[] }) {
-  const max = Math.max(...daySets, 1)
-  return (
-    <span aria-hidden="true" className="mt-1.5 flex h-4 items-end gap-1">
-      {daySets.map((sets, i) => (
-        <span
-          key={i}
-          className={cn('w-1.5 rounded-[2px]', sets > 0 ? 'bg-primary/70' : 'bg-muted')}
-          // Zero-set blocks keep a 2px baseline so the week reads as 7 days.
-          style={{ height: sets > 0 ? `${Math.max(20, (sets / max) * 100)}%` : '2px' }}
-        />
-      ))}
     </span>
   )
 }
@@ -169,7 +153,7 @@ export function NavDrawer() {
       invitation: 'Log a session to see volume',
       visual:
         data?.stats && data.stats.weekSets > 0 && data.stats.daySets.length > 0 ? (
-          <Sparkbar daySets={data.stats.daySets} />
+          <Sparkbar daySets={data.stats.daySets} className="mt-1.5" />
         ) : undefined,
     },
     {

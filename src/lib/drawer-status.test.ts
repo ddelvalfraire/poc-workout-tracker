@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   bodyStatusLine,
+  bucketDaySets,
   exercisesStatusLine,
   isActiveRoute,
   programProgressPercent,
@@ -161,5 +162,31 @@ describe('isActiveRoute', () => {
   it('treats the root as exact-only', () => {
     expect(isActiveRoute('/', '/')).toBe(true)
     expect(isActiveRoute('/stats', '/')).toBe(false)
+  })
+})
+
+describe('bucketDaySets', () => {
+  const hourMs = 60 * 60 * 1000
+  const summary = (hoursAgo: number, sets: number, completed = true) => ({
+    startedAt: new Date(now.getTime() - hoursAgo * hourMs),
+    completedAt: completed ? new Date(now.getTime() - hoursAgo * hourMs + hourMs) : null,
+    completedSetCount: sets,
+  })
+
+  it('buckets completed sets into seven rolling 24h blocks, oldest first', () => {
+    const buckets = bucketDaySets(
+      [summary(1, 8), summary(30, 5), summary(26, 4), summary(6 * 24 + 2, 3)],
+      now,
+    )
+    expect(buckets).toHaveLength(7)
+    expect(buckets[6]).toBe(8) // the newest block
+    expect(buckets[5]).toBe(9) // 26h and 30h ago share the second block
+    expect(buckets[0]).toBe(3) // the oldest block still in the window
+  })
+
+  it('ignores unfinished sessions and instants outside the window', () => {
+    expect(bucketDaySets([summary(1, 8, false), summary(8 * 24, 5), summary(-2, 4)], now)).toEqual([
+      0, 0, 0, 0, 0, 0, 0,
+    ])
   })
 })

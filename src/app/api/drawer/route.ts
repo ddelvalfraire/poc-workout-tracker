@@ -1,7 +1,7 @@
 import { auth } from '@clerk/nextjs/server'
 import { NextResponse } from 'next/server'
 import { listWorkoutDrafts } from '@/db/workout-drafts'
-import { listWorkoutSummaries, type WorkoutSummary } from '@/db/workouts'
+import { listWorkoutSummaries } from '@/db/workouts'
 import { getNextProgramDay } from '@/db/programs'
 import { getVolumeTotals } from '@/db/muscle-volume'
 import { volumeWindows } from '@/lib/volume-window'
@@ -18,10 +18,8 @@ import { goalLabel, strengthPercent } from '@/lib/goal-progress'
 import { trophyLabel } from '@/lib/trophies'
 import { TROPHY_DEFS } from '@/lib/trophy-kinds'
 import { DEFAULT_WEIGHT_UNIT } from '@/lib/units'
-import type { DrawerData } from '@/lib/drawer-status'
+import { bucketDaySets, SPARKBAR_DAYS, type DrawerData } from '@/lib/drawer-status'
 
-const DAY_MS = 24 * 60 * 60 * 1000
-const SPARKBAR_DAYS = 7
 const RECENTS_LIMIT = 3
 // Fresh enough for a nav surface, cheap enough to reopen: the drawer also
 // caches in client state per mount, so this only shields rapid remounts.
@@ -36,21 +34,6 @@ async function orNull<T>(read: Promise<T>, slice: string): Promise<T | null> {
     console.error(`GET /api/drawer: ${slice} read failed (row degrades)`, error)
     return null
   }
-}
-
-/** Completed sets bucketed into seven rolling 24h blocks ending now, oldest
- *  first — derived from the summaries already fetched (no extra read). Rolling
- *  blocks, not local calendar days: the server can't know the user's day
- *  (lib/local-day.ts), and a tz-free window is honest for a micro-sparkbar. */
-function bucketDaySets(summaries: readonly WorkoutSummary[], now: Date): number[] {
-  const buckets = new Array<number>(SPARKBAR_DAYS).fill(0)
-  for (const workout of summaries) {
-    if (workout.completedAt === null) continue
-    const age = Math.floor((now.getTime() - workout.startedAt.getTime()) / DAY_MS)
-    if (age < 0 || age >= SPARKBAR_DAYS) continue
-    buckets[SPARKBAR_DAYS - 1 - age] += workout.completedSetCount
-  }
-  return buckets
 }
 
 /**

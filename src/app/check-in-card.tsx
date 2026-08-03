@@ -12,7 +12,7 @@ interface CheckInCardProps {
 }
 
 /**
- * The quiet "body check-in due" nudge (program-reminder-card pattern) — the
+ * The quiet "body check-in due" nudge — the
  * server renders it only when the active program's cadence says a check-in is
  * due, so non-push users see the suggestion too. Dismissal is
  * dismiss-for-today via sessionStorage (client state only, no persistence):
@@ -63,7 +63,7 @@ export function CheckInCard({ daysSinceLast }: CheckInCardProps) {
         >
           Check in
         </Link>
-        {/* A quiet text control (the program-reminder-card idiom): dismissal
+        {/* A quiet text control, not a button variant: dismissal
             must read as an afterthought, never a competing action. */}
         <button
           type="button"

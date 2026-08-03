@@ -6,7 +6,6 @@ import {
   getBodyweightKg,
   getDefaultRestSec,
   getRestTimerEnabled,
-  getProgramReminderDismissed,
 } from '@/db/preferences'
 import { kgToDisplay } from '@/lib/units'
 import { isOpsUser } from '@/lib/ops/access'
@@ -16,7 +15,6 @@ import { buttonVariants } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { RestDefaultSetting } from './rest-default-setting'
 import { RestTimerToggle } from './rest-timer-toggle'
-import { ProgramReminderToggle } from './program-reminder-toggle'
 import { WorkoutRemindersToggle } from './workout-reminders-toggle'
 
 /**
@@ -27,14 +25,12 @@ import { WorkoutRemindersToggle } from './workout-reminders-toggle'
  */
 export default async function SettingsPage() {
   const userId = await requireUserId()
-  const [unit, bodyweightKg, defaultRestSec, restTimerEnabled, programReminderDismissed] =
-    await Promise.all([
-      getWeightUnit(userId),
-      getBodyweightKg(userId),
-      getDefaultRestSec(userId),
-      getRestTimerEnabled(userId),
-      getProgramReminderDismissed(userId),
-    ])
+  const [unit, bodyweightKg, defaultRestSec, restTimerEnabled] = await Promise.all([
+    getWeightUnit(userId),
+    getBodyweightKg(userId),
+    getDefaultRestSec(userId),
+    getRestTimerEnabled(userId),
+  ])
 
   // Internal ops board — the link only renders for allowlisted users, the
   // same dev-gate visibility idiom the coach entry points use. The /ops route
@@ -69,15 +65,6 @@ export default async function SettingsPage() {
             hint="Countdown and rest readout after each set. Off hides the whole surface."
           >
             <RestTimerToggle enabled={restTimerEnabled} />
-          </SettingRow>
-          {/* The switch speaks "show", the column stores "dismissed" — the
-              inversion lives in the toggle so a card dismissal reads here as
-              the switch simply being off, ready to flip back on. */}
-          <SettingRow
-            label="Program reminder"
-            hint="Home-page nudge to start a program while you don't have one."
-          >
-            <ProgramReminderToggle enabled={!programReminderDismissed} />
           </SettingRow>
           {/* The switch's truth is the BROWSER's push subscription (probed on
               mount), not a server flag — and the permission prompt only ever
