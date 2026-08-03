@@ -1,4 +1,5 @@
 import { and, desc, eq, inArray } from 'drizzle-orm'
+import { cache } from 'react'
 import { db } from './index'
 import { workoutDrafts } from './schema'
 
@@ -18,16 +19,18 @@ import { workoutDrafts } from './schema'
  * All of a user's draft rows, newest first — the home screen derives its
  * "workout in progress" banner from these (freshness/validity filtering is
  * the caller's concern, via `pickActiveSession`). Bounded by the per-user cap.
+ * Request-memoized (React cache — per-request only, never cross-request).
+ * CONSTRAINT: args must stay cache-key-safe primitives.
  */
-export async function listWorkoutDrafts(
-  userId: string,
-): Promise<{ key: string; payload: unknown; updatedAt: Date }[]> {
-  return db
-    .select({ key: workoutDrafts.key, payload: workoutDrafts.payload, updatedAt: workoutDrafts.updatedAt })
-    .from(workoutDrafts)
-    .where(eq(workoutDrafts.userId, userId))
-    .orderBy(desc(workoutDrafts.updatedAt))
-}
+export const listWorkoutDrafts = cache(
+  async (userId: string): Promise<{ key: string; payload: unknown; updatedAt: Date }[]> => {
+    return db
+      .select({ key: workoutDrafts.key, payload: workoutDrafts.payload, updatedAt: workoutDrafts.updatedAt })
+      .from(workoutDrafts)
+      .where(eq(workoutDrafts.userId, userId))
+      .orderBy(desc(workoutDrafts.updatedAt))
+  },
+)
 
 /** Returns the draft row for a logging surface, or undefined. */
 export async function getWorkoutDraft(

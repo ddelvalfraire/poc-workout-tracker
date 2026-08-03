@@ -1,7 +1,8 @@
 import { and, eq, gte, isNotNull } from 'drizzle-orm'
 import type { ExerciseSource } from '@/lib/custom-exercise-input'
 import { MUSCLE_GROUPS, muscleGroupFor, type MuscleGroup } from '@/lib/muscle-groups'
-import { inWindow, type VolumeWindows } from '@/lib/volume-window'
+import { cache } from 'react'
+import { inWindow, volumeWindows, type VolumeWindows } from '@/lib/volume-window'
 import { getAllExercises } from '@/lib/wger'
 import { db } from './index'
 import { listCustomExercises } from './custom-exercises'
@@ -213,3 +214,18 @@ export async function getVolumeTotals(
   const emptyResolver: MuscleResolver = () => ({ primary: [], secondary: [] })
   return aggregateMuscleVolume(rows, emptyResolver, windows).totals
 }
+
+/**
+ * Rolling-window totals, request-memoized (React cache — per-request only,
+ * never cross-request). CONSTRAINT: this wrapper exists because
+ * `getVolumeTotals` takes a `VolumeWindows` OBJECT — cache keys args by
+ * Object.is, so a fresh windows object per call would defeat memoization.
+ * The rolling windows are derived INSIDE, on cache miss, keyed by userId
+ * alone. The fresh `new Date()` here matches the old call sites, which each
+ * constructed their own `new Date()` at the callsite anyway. Calendar-mode
+ * callers (/stats) keep using `getVolumeTotals`/`getMuscleVolume` directly.
+ */
+export const getRollingVolumeTotals = cache(
+  async (userId: string): Promise<MuscleVolume['totals']> =>
+    getVolumeTotals(userId, volumeWindows('rolling', new Date())),
+)

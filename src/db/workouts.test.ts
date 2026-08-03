@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   listWorkouts,
   createWorkout,
-  listWorkoutSummaries,
+  workoutSummariesQuery,
   getWorkoutDetail,
   deleteWorkout,
   latestCompletedWorkoutForDay,
@@ -25,7 +25,7 @@ describe('workouts repository (authorization boundary)', () => {
   })
 
   it('scopes the history summary query to the user', () => {
-    const { sql, params } = listWorkoutSummaries(USER).toSQL()
+    const { sql, params } = workoutSummariesQuery(USER).toSQL()
     expect(sql).toContain('"user_id"')
     expect(sql).toMatch(/count/i) // aggregate counts present
     expect(params).toContain(USER)

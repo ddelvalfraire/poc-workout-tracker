@@ -1,4 +1,5 @@
 import { and, asc, count, countDistinct, desc, eq, isNotNull, isNull, max, ne, sql } from 'drizzle-orm'
+import { cache } from 'react'
 import type { ProgramInput, Progression } from '@/lib/program-input'
 import type { ExerciseSource } from '@/lib/custom-exercise-input'
 import { getAllExercises, type Exercise } from '@/lib/wger'
@@ -1006,7 +1007,7 @@ export interface NextProgramDay {
  * from `nextProgramWeek`; the day rotates forward from the last day trained at
  * that week, wrapping to make up skipped days (`pickNextProgramDay`).
  */
-export async function getNextProgramDay(userId: string): Promise<NextProgramDay | null> {
+async function getNextProgramDayUncached(userId: string): Promise<NextProgramDay | null> {
   const [program] = await db
     .select({
       id: programs.id,
@@ -1079,6 +1080,12 @@ export async function getNextProgramDay(userId: string): Promise<NextProgramDay 
     mesocycleWeeks: program.mesocycleWeeks,
   }
 }
+
+/** Request-memoized entrypoint (React cache — per-request only, never
+ *  cross-request): home + drawer + any section can call it freely within one
+ *  render and share a single derivation. CONSTRAINT: args must stay
+ *  cache-key-safe primitives. */
+export const getNextProgramDay = cache(getNextProgramDayUncached)
 
 /**
  * The engine-derived week-N prescription for every exercise of a loaded day,

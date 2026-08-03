@@ -5,14 +5,10 @@ import { requireUserId } from "@/lib/auth";
 import { listWorkoutSummaries } from "@/db/workouts";
 import { listWorkoutDrafts } from "@/db/workout-drafts";
 import { getNextProgramDay } from "@/db/programs";
-import { getVolumeTotals } from "@/db/muscle-volume";
-import { volumeWindows } from "@/lib/volume-window";
 import { getWeightUnit } from "@/db/preferences";
 import { resolveActiveSession } from "@/lib/active-session";
 import { getCheckInStatus } from "@/lib/check-in";
 import { getGoalsHomeSummary } from "@/lib/goals";
-import { goalLabel } from "@/lib/goal-progress";
-import { bucketDaySets } from "@/lib/drawer-status";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { NavDrawer } from "@/components/nav/nav-drawer";
@@ -31,7 +27,11 @@ const HOME_HISTORY_LIMIT = 5;
 
 export default async function HomePage() {
   const userId = await requireUserId(); // middleware also guards; this is defense-in-depth
-  const [summaries, unit, nextDay, drafts, checkIn, weekTotals, goalsSummary] = await Promise.all([
+  // The page fetches only what ITS layout decisions and client-component
+  // props need; MomentumPanel self-fetches the rest. Every reader here is
+  // request-memoized (React cache), so overlap with the panel (summaries,
+  // unit, goals) still costs one query per request.
+  const [summaries, unit, nextDay, drafts, checkIn, goalsSummary] = await Promise.all([
     listWorkoutSummaries(userId),
     getWeightUnit(userId),
     getNextProgramDay(userId),
@@ -39,12 +39,9 @@ export default async function HomePage() {
     // Null when the active program suggests no cadence — the card is gated on
     // `due`, so the common case renders nothing and costs one indexed read.
     getCheckInStatus(userId),
-    // Totals only (rolling window — tz-free, so the server can compute it):
-    // getVolumeTotals skips muscle resolution, keeping the wger catalog off
-    // the home page's critical path. /stats owns the full picture.
-    getVolumeTotals(userId, volumeWindows("rolling", new Date())),
     // Null when the user has no active goals — the goals line costs one
-    // indexed read then, and renders nothing.
+    // indexed read then, and renders nothing. Still read here (not only in
+    // the panel) for StatusHero's streak; the memo makes it one query.
     getGoalsHomeSummary(userId),
   ]);
   // A fresh draft IS an in-progress session (the logger autosaves one on
@@ -168,24 +165,9 @@ export default async function HomePage() {
         {checkIn?.due && <CheckInCard daysSinceLast={checkIn.daysSinceLast} />}
 
         {/* MOMENTUM panel — one designed surface where the two teaser rows
-            were. Skipped only on true day one: the fresh hero already
-            invites, and two stacked invitations would compete. */}
-        {(completed.length > 0 || goalsSummary !== null) && (
-          <MomentumPanel
-            weekSets={weekTotals.currentSets}
-            weekSessions={weekTotals.currentSessions}
-            daySets={bucketDaySets(summaries, now)}
-            goal={
-              goalsSummary?.topGoal
-                ? {
-                    activeCount: goalsSummary.activeCount,
-                    label: goalLabel(goalsSummary.topGoal, unit),
-                    streak: goalsSummary.streak,
-                  }
-                : null
-            }
-          />
-        )}
+            were. Self-fetching server section (its reads dedupe against the
+            page's via the request memo); it skips itself on true day one. */}
+        <MomentumPanel userId={userId} nowMs={now.getTime()} />
 
         {/* TODAY recap — celebration cards for sessions completed on the
             user's local today (filter runs client-side; the 48h completion
