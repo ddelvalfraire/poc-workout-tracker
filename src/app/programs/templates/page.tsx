@@ -1,12 +1,11 @@
 import Link from 'next/link'
-import { ChevronLeft, ChevronRight, ExternalLink } from 'lucide-react'
+import { ChevronRight, ExternalLink } from 'lucide-react'
 import { requireUserId } from '@/lib/auth'
 import { getAllExercises } from '@/lib/wger'
 import { listPublicTemplates } from '@/lib/wger-templates'
 import { mapWgerRoutineToProgram, type MappedTemplate } from '@/lib/wger-template-map'
 import { AppHeader } from '@/components/app-header'
-import { buttonVariants } from '@/components/ui/button'
-import { cn } from '@/lib/utils'
+import { BackLink } from '@/components/back-link'
 import { ImportTemplateButton } from './import-button'
 import { TemplatesUnavailableCard } from './unavailable'
 
@@ -45,13 +44,7 @@ export default async function TemplatesPage() {
       <AppHeader
         title="Templates"
         leading={
-          <Link
-            href="/programs"
-            aria-label="Back"
-            className={cn(buttonVariants({ variant: 'ghost', size: 'icon-sm' }), '-ml-2')}
-          >
-            <ChevronLeft aria-hidden="true" className="size-5" />
-          </Link>
+          <BackLink fallback="/programs" />
         }
       />
 

@@ -1,13 +1,10 @@
-import Link from 'next/link'
-import { ChevronLeft } from 'lucide-react'
 import { requireUserId } from '@/lib/auth'
 import { listWorkoutSummaries } from '@/db/workouts'
 import { listWorkoutDrafts } from '@/db/workout-drafts'
 import { getWeightUnit } from '@/db/preferences'
 import { resolveActiveSession } from '@/lib/active-session'
 import { AppHeader } from '@/components/app-header'
-import { buttonVariants } from '@/components/ui/button'
-import { cn } from '@/lib/utils'
+import { BackLink } from '@/components/back-link'
 import { HistoryList } from '../history-list'
 
 /**
@@ -38,13 +35,7 @@ export default async function HistoryPage() {
       <AppHeader
         title="History"
         leading={
-          <Link
-            href="/"
-            aria-label="Back"
-            className={cn(buttonVariants({ variant: 'ghost', size: 'icon-sm' }), '-ml-2')}
-          >
-            <ChevronLeft aria-hidden="true" className="size-5" />
-          </Link>
+          <BackLink fallback="/" />
         }
       />
 

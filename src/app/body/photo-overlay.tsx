@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Trash2, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ConfirmDialog } from '@/components/confirm-dialog'
+import { useHistoryDismissable } from '@/lib/use-history-dismissable'
 import { thumbHashToPlaceholderUrl } from '@/lib/photo-pipeline'
 import { photoPoseLabel } from '@/lib/photo-input'
 import type { PhotoEntry } from './photo-cell'
@@ -29,6 +30,12 @@ export function PhotoOverlay({ entry, onClose }: PhotoOverlayProps) {
   const [error, setError] = useState<string | null>(null)
   const closeConfirmRef = useRef<(() => void) | null>(null)
   const router = useRouter()
+
+  // Mount-is-open overlay: the history entry lives exactly as long as this
+  // component (spike §3d-bis). System back/edge-swipe consumes the entry →
+  // onClose unmounts us; every other close path (×, Esc, post-delete)
+  // unmounts first and the hook's cleanup pops the entry it still owns.
+  useHistoryDismissable(true, onClose)
 
   const placeholder = useMemo(() => thumbHashToPlaceholderUrl(entry.thumbHash), [entry.thumbHash])
   // Display rendition preferred; degrade to the thumb, then placeholder-only.

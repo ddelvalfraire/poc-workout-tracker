@@ -1,12 +1,10 @@
-import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { ChevronLeft } from 'lucide-react'
 import { requireUserId } from '@/lib/auth'
 import { getProgramStats, type ProgramExercisePR } from '@/db/program-stats'
 import { getWeightUnit } from '@/db/preferences'
 import { formatSet, formatVolume, formatE1RM } from '@/lib/format'
 import { AppHeader } from '@/components/app-header'
-import { buttonVariants } from '@/components/ui/button'
+import { BackLink } from '@/components/back-link'
 import { cn } from '@/lib/utils'
 import {
   visibleWeeks,
@@ -53,13 +51,7 @@ export default async function ProgramStatsPage({
       <AppHeader
         title="Program Stats"
         leading={
-          <Link
-            href={`/programs/${stats.program.id}`}
-            aria-label="Back"
-            className={cn(buttonVariants({ variant: 'ghost', size: 'icon-sm' }), '-ml-2')}
-          >
-            <ChevronLeft aria-hidden="true" className="size-5" />
-          </Link>
+          <BackLink fallback={`/programs/${stats.program.id}`} />
         }
         trailing={
           <span

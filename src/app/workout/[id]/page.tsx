@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { ChevronLeft } from "lucide-react";
 import { requireUserId } from "@/lib/auth";
 import { getWorkoutDetail, getExerciseHistoryBefore } from "@/db/workouts";
 import { getNextProgramDay } from "@/db/programs";
@@ -19,9 +18,9 @@ import {
 } from "@/lib/format";
 import { bestScoredSet } from "@/lib/one-rep-max";
 import { AppHeader } from "@/components/app-header";
+import { BackLink } from "@/components/back-link";
 import { PrBadge } from "@/components/pr-badge";
 import { ShareCardButton } from "@/components/share-card-button";
-import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { getActiveWorkoutShare } from "@/db/workout-shares";
 import { WorkoutActions } from "./workout-actions";
@@ -183,13 +182,9 @@ export default async function WorkoutDetailPage({
       <AppHeader
         title={workout.name ?? "Workout"}
         leading={
-          <Link
-            href="/"
-            aria-label="Back"
-            className={cn(buttonVariants({ variant: "ghost", size: "icon-sm" }), "-ml-2")}
-          >
-            <ChevronLeft aria-hidden="true" className="size-5" />
-          </Link>
+          // Fallback /history, not / — the canonical parent of a workout
+          // record (spike §3c); warm arrivals pop to their true origin.
+          <BackLink fallback="/history" />
         }
       />
 

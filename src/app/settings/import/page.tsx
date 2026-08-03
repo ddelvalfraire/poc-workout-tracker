@@ -1,12 +1,9 @@
-import Link from 'next/link'
-import { ChevronLeft } from 'lucide-react'
 import { requireUserId } from '@/lib/auth'
 import { getWeightUnit } from '@/db/preferences'
 import { listImportBatches } from '@/db/import'
 import { formatWorkoutDate } from '@/lib/format'
 import { AppHeader } from '@/components/app-header'
-import { buttonVariants } from '@/components/ui/button'
-import { cn } from '@/lib/utils'
+import { BackLink } from '@/components/back-link'
 import { ImportFlow } from './import-flow'
 import { RemoveImportButton } from './remove-import-button'
 
@@ -24,13 +21,7 @@ export default async function ImportPage() {
       <AppHeader
         title="Import history"
         leading={
-          <Link
-            href="/settings"
-            aria-label="Back"
-            className={cn(buttonVariants({ variant: 'ghost', size: 'icon-sm' }), '-ml-2')}
-          >
-            <ChevronLeft aria-hidden="true" className="size-5" />
-          </Link>
+          <BackLink fallback="/settings" />
         }
       />
 

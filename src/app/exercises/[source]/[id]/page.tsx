@@ -14,6 +14,7 @@ import { StatTile, type StatDelta } from '@/components/stat-tile'
 import { listCustomExercises } from '@/db/custom-exercises'
 import { CustomExerciseEditor } from '../../custom-exercise-editor'
 import { AppHeader } from '@/components/app-header'
+import { BackLink } from '@/components/back-link'
 import { ShareCardButton } from '@/components/share-card-button'
 import { buttonVariants } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -107,13 +108,10 @@ export default async function ExerciseStatsPage({
       <AppHeader
         title={stats.exercise.name}
         leading={
-          <Link
-            href={backHref}
-            aria-label="Back"
-            className={cn(buttonVariants({ variant: 'ghost', size: 'icon-sm' }), '-ml-2')}
-          >
-            <ChevronLeft aria-hidden="true" className="size-5" />
-          </Link>
+          // backHref doubles as fallback: the logger's stats sheet links here
+          // with ?from=<logger path> so a cold entry still returns to the
+          // session; a warm entry pops there anyway.
+          <BackLink fallback={backHref} />
         }
         trailing={
           // Share the strength story: trend card once there's a line to show,
