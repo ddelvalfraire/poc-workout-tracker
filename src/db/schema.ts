@@ -26,6 +26,7 @@ import type { LoggingType } from '@/lib/workout-input'
 import type { MeasurementSite } from '@/lib/measurement-sites'
 import type { PhotoPose } from '@/lib/photo-input'
 import type { GoalKind, GoalTarget } from '@/lib/goal-input'
+import type { TrophyKind, TrophyContext } from '@/lib/trophy-kinds'
 
 export const workouts = pgTable(
   'workouts',
@@ -289,6 +290,31 @@ export const goals = pgTable(
     archivedAt: timestamp('archived_at', { withTimezone: true }),
   },
   (t) => [index('goals_user_id_idx').on(t.userId)],
+)
+
+/**
+ * Trophies — fact-derived milestones, stamped ONCE per (user, kind). Like
+ * goals' achievedAt, a stamp is a recorded fact: never re-derived, never
+ * cleared. UNIQUE(user_id, kind) IS the once-guarantee — detection writes via
+ * INSERT … ON CONFLICT DO NOTHING and only a returned row (the first stamp)
+ * may push/celebrate, so a racing double-fire of the seam can't double-
+ * notify. `context` is the fact behind the stamp (lift e1RM, count, weeks —
+ * see lib/trophy-kinds.ts); its `workoutId` is present only when a live
+ * finish earned it, which is what keeps history imports celebration-silent.
+ */
+export const trophies = pgTable(
+  'trophies',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    userId: text('user_id').notNull(), // Clerk user id — ownership root
+    kind: text('kind').$type<TrophyKind>().notNull(),
+    achievedAt: timestamp('achieved_at', { withTimezone: true }).defaultNow().notNull(),
+    context: jsonb('context').$type<TrophyContext>().notNull().default({}),
+  },
+  (t) => [
+    unique('trophies_user_id_kind_unique').on(t.userId, t.kind),
+    index('trophies_user_id_idx').on(t.userId),
+  ],
 )
 
 /**

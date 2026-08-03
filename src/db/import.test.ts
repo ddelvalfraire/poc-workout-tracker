@@ -77,14 +77,19 @@ const mockDb = vi.hoisted(() => {
 vi.mock('./index', () => ({ db: mockDb }))
 vi.mock('@/lib/wger', () => ({ getAllExercises: vi.fn() }))
 vi.mock('./custom-exercises', () => ({ listCustomExercises: vi.fn() }))
+// The trophy seam is unit-tested in lib/trophies.test.ts; here we assert only
+// that commit fires it with the RETROACTIVE-QUIET 'import' trigger.
+vi.mock('@/lib/trophies', () => ({ checkTrophies: vi.fn(async () => []) }))
 
 import { getAllExercises } from '@/lib/wger'
+import { checkTrophies } from '@/lib/trophies'
 import { listCustomExercises } from './custom-exercises'
 import { customExercises, importBatches, sets, workoutExercises, workouts } from './schema'
 import { commitImport, ImportPlanError, planImport, undoImport, type ImportPlan } from './import'
 
 const mockedCatalog = vi.mocked(getAllExercises)
 const mockedCustoms = vi.mocked(listCustomExercises)
+const mockedCheckTrophies = vi.mocked(checkTrophies)
 
 const USER = 'user_123'
 
@@ -344,6 +349,10 @@ describe('commitImport', () => {
       duplicatesSkipped: 1,
       customsCreated: 1,
     })
+
+    // Imported history may complete trophies — but ONLY via the retroactive-
+    // quiet trigger: 'import' stamps silently (no push, no celebration).
+    expect(mockedCheckTrophies).toHaveBeenCalledWith(USER, { kind: 'import' })
   })
 
   it('skips the custom-create insert entirely when everything matched', async () => {

@@ -25,8 +25,9 @@ export type ExerciseResolution =
 /** Abuse guard: an import may auto-create at most this many customs. */
 export const MAX_CUSTOM_CREATES = 100
 
-/** Lowercases, strips punctuation to spaces, collapses whitespace. */
-function normalizeKey(value: string): string {
+/** Lowercases, strips punctuation to spaces, collapses whitespace. Exported
+ *  for the trophy canonical-lift matcher — one normalizer, one dialect. */
+export function normalizeExerciseKey(value: string): string {
   return value
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, ' ')
@@ -46,7 +47,7 @@ export function candidateKeys(name: string): string[] {
     if (key !== '' && !keys.includes(key)) keys.push(key)
   }
 
-  push(normalizeKey(name))
+  push(normalizeExerciseKey(name))
 
   const qualifiers: string[] = []
   const base = name
@@ -56,8 +57,8 @@ export function candidateKeys(name: string): string[] {
     })
     .trim()
   if (qualifiers.length > 0) {
-    push(normalizeKey(`${qualifiers.join(' ')} ${base}`))
-    push(normalizeKey(base))
+    push(normalizeExerciseKey(`${qualifiers.join(' ')} ${base}`))
+    push(normalizeExerciseKey(base))
   }
 
   return keys
@@ -144,7 +145,7 @@ export function matchExercises(
 ): Map<string, ExerciseResolution> {
   const index = new Map<string, CatalogEntry>()
   for (const entry of catalog) {
-    const key = normalizeKey(entry.name)
+    const key = normalizeExerciseKey(entry.name)
     const existing = index.get(key)
     // First entry wins within a source; customs override wger on collision.
     if (!existing || (existing.source === 'wger' && entry.source === 'custom')) {
@@ -169,7 +170,7 @@ export function matchExercises(
       for (const key of keys) {
         const aliasTarget = EXERCISE_ALIASES[key]
         if (aliasTarget !== undefined) {
-          entry = index.get(normalizeKey(aliasTarget))
+          entry = index.get(normalizeExerciseKey(aliasTarget))
           if (entry) break
         }
       }
@@ -192,7 +193,7 @@ export function matchExercises(
  * affects catalog filtering — never scoring or history.
  */
 export function guessCategory(name: string): ExerciseCategory {
-  const words = normalizeKey(name).split(' ')
+  const words = normalizeExerciseKey(name).split(' ')
   const has = (...targets: string[]) => targets.some((t) => words.includes(t))
   if (has('calf', 'calves')) return 'Calves'
   if (has('squat', 'leg', 'lunge', 'thrust', 'glute', 'hamstring', 'quad', 'hip')) return 'Legs'
