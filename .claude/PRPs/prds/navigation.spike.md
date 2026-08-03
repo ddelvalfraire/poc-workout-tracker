@@ -113,3 +113,85 @@ customization, bottom-tab revival.
   header like Claude? Lean: stays.
 - [ ] Q4: does Quick Log deserve a drawer row distinct from + Start —
   lean no, one CTA (they're the same flow today).
+
+---
+
+## 7. RESEARCHED DESIGN DIRECTION (2026-08-03) — "the drawer is a dashboard, not a menu"
+
+User verdict on §3's flat list: boring components, research masterpieces
+and emulate. Findings from the research pass:
+
+- **Gentler Streak** (Apple Design Award winner) and its successor **The
+  Outsiders** (2026 ADA finalist): award-winning fitness design translates
+  stats into WORDS and STATUS — "fitness apps typically look cold,
+  presenting stats; Gentler Streak digests data and presents it as your
+  daily status." Data visualization IS the design language, warm and
+  editorial.
+- **Arc's sidebar**: the celebrated sidebar isn't a list — it's ZONES with
+  distinct jobs (spaces / pinned / favorites / auto-archive) and
+  context-aware content.
+- Mobbin's drawer pattern library (390+): the ones worth stealing share a
+  hero CTA, data-rich rows, and identity anchoring — never uniform
+  icon+label rows.
+
+### The direction: every drawer row is ALIVE
+
+Not icon+label — icon + label + a one-line LIVE status in the app's
+editorial voice, with deliberate scale rhythm (hero CTA big, primary rows
+medium, recents compact — hierarchy through contrast, per the design
+rules):
+
+```
+┌────────────────────────────────┐
+│  ➕ START WORKOUT              │  ← volt hero; copy IS the context:
+│     Legs · Week 3 · today      │    up-next day baked into the button
+├────────────────────────────────┤
+│  Programs                      │
+│  Upper/Lower Hybrid · Wk 3/7 ▓▓▓░░
+│  Stats                        │
+│  42 sets this week  ▂▅▃▇▂     │  ← sparkbar, volume by day
+│  Goals            🔥 6 wks    │
+│  Squat 315 · 87% ▓▓▓▓▓▓▓░    │
+│  Trophies                     │
+│  12 earned · newest: 315 Club │
+│  Body                         │
+│  185 lb ↘ · check-in due      │
+│  Exercises                    │
+│  Last PR: Squat 340 · 3d ago  │
+│  Coach                        │
+│  "Ready to plan next block?"  │
+├────────────────────────────────┤
+│  RECENT                       │
+│  Push · yesterday · 8,076 lb  │
+│  Legs · Aug 26 · 6,540 lb     │
+├────────────────────────────────┤
+│  Settings              [face] │
+└────────────────────────────────┘
+```
+
+- Every status line is a real fact from an existing read (up-next, program
+  week, weekly volume, top goal + streak, trophy count + newest, latest
+  bodyweight + check-in due, latest PR, recents) — the Gentler Streak
+  principle: the drawer TELLS YOU YOUR STATUS before you tap anything.
+  One authed drawer-data fetch on open serves all of it.
+- Zones, not a list (the Arc principle): ACT (hero CTA) / SURFACES (live
+  rows) / RECENT / IDENTITY. Hairline separators, font-display zone
+  voice.
+- Empty states are invitations, not blanks ("Goals — set your first
+  target"), which structurally kills the teaser-as-only-entry bug class.
+- Motion: drawer slides with the sheet-motion discipline; rows stagger
+  motion-safe rise-in (the logger's existing utility).
+- Degrade: any status read failing renders the row label-only — the nav
+  never breaks because a teaser did (the ops degrade contract, applied to
+  nav).
+
+### Sources
+- https://apps.apple.com/us/iphone/story/id1896567319 (2026 ADA finalists
+  — The Outsiders' readiness visualization)
+- https://www.sketch.com/blog/gentler-streak/ (the translate-stats-into-
+  status philosophy)
+- https://mobbin.com/explore/mobile/ui-elements/drawer (drawer pattern
+  corpus)
+- https://supasidebar.com/blog/what-is-arc-browser-sidebar-2026 (Arc
+  sidebar zone anatomy)
+- https://www.navbar.gallery/blog/best-side-bar-navigation-menu-design-examples
