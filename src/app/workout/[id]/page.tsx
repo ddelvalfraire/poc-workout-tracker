@@ -20,6 +20,7 @@ import {
 import { bestScoredSet } from "@/lib/one-rep-max";
 import { AppHeader } from "@/components/app-header";
 import { PrBadge } from "@/components/pr-badge";
+import { ShareCardButton } from "@/components/share-card-button";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { WorkoutActions } from "./workout-actions";
@@ -298,9 +299,17 @@ export default async function WorkoutDetailPage({
               {earnedTrophies.map((trophy) => (
                 <li
                   key={trophy.id}
-                  className="font-display text-3xl uppercase leading-none tracking-wide"
+                  className="flex items-center justify-between gap-2"
                 >
-                  {trophyLabel(trophy.kind)}
+                  <span className="min-w-0 font-display text-3xl uppercase leading-none tracking-wide">
+                    {trophyLabel(trophy.kind)}
+                  </span>
+                  {/* Shares the rendered card PNG via the OS sheet. */}
+                  <ShareCardButton
+                    cardUrl={`/api/cards/trophy/${trophy.kind}`}
+                    shareTitle={trophyLabel(trophy.kind)}
+                    className="-my-1 shrink-0"
+                  />
                 </li>
               ))}
             </ul>

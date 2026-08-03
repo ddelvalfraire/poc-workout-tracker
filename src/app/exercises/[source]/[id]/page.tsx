@@ -14,6 +14,7 @@ import { StatTile, type StatDelta } from '@/components/stat-tile'
 import { listCustomExercises } from '@/db/custom-exercises'
 import { CustomExerciseEditor } from '../../custom-exercise-editor'
 import { AppHeader } from '@/components/app-header'
+import { ShareCardButton } from '@/components/share-card-button'
 import { buttonVariants } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { parseExerciseRef } from '../../exercise-ref'
@@ -113,6 +114,21 @@ export default async function ExerciseStatsPage({
           >
             <ChevronLeft aria-hidden="true" className="size-5" />
           </Link>
+        }
+        trailing={
+          // Share the strength story: trend card once there's a line to show,
+          // PR card otherwise; no e1RM record → nothing to share.
+          records.bestE1rm !== null ? (
+            <ShareCardButton
+              cardUrl={
+                trend.length >= 2
+                  ? `/api/cards/trend/${ref.source}/${ref.wgerExerciseId}`
+                  : `/api/cards/pr/${ref.source}/${ref.wgerExerciseId}`
+              }
+              shareTitle={`${stats.exercise.name} ${trend.length >= 2 ? 'progress' : 'PR'}`}
+              className="-mr-2"
+            />
+          ) : undefined
         }
       />
 
