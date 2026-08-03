@@ -60,6 +60,31 @@ export interface DrawerData {
   unit: WeightUnit
 }
 
+const DAY_MS = 24 * 60 * 60 * 1000
+
+/** Sparkbar width — seven rolling 24h blocks (also the bodyweight-delta
+ *  window in /api/drawer). */
+export const SPARKBAR_DAYS = 7
+
+/** Completed sets bucketed into seven rolling 24h blocks ending now, oldest
+ *  first — derived from summaries already fetched (no extra read). Rolling
+ *  blocks, not local calendar days: the server can't know the user's day
+ *  (lib/local-day.ts), and a tz-free window is honest for a micro-sparkbar.
+ *  Shared by /api/drawer and the home momentum panel — one week, one shape. */
+export function bucketDaySets(
+  summaries: readonly { startedAt: Date; completedAt: Date | null; completedSetCount: number }[],
+  now: Date,
+): number[] {
+  const buckets = new Array<number>(SPARKBAR_DAYS).fill(0)
+  for (const workout of summaries) {
+    if (workout.completedAt === null) continue
+    const age = Math.floor((now.getTime() - workout.startedAt.getTime()) / DAY_MS)
+    if (age < 0 || age >= SPARKBAR_DAYS) continue
+    buckets[SPARKBAR_DAYS - 1 - age] += workout.completedSetCount
+  }
+  return buckets
+}
+
 /** Hero CTA second line: "Legs · Week 3 · today". The anchor is
  *  scheduleAnchor() computed CLIENT-side (local calendar) and lowercased into
  *  the sub-line voice; null anchor (unscheduled) drops the segment. */

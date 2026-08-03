@@ -9,7 +9,7 @@ import { cn } from '@/lib/utils'
 /**
  * The just-finished summary's follow-up card: the home hero's "up next"
  * answer, restated at the moment the question actually arises. Unlike
- * NextWorkoutCard this stays a server component — "Start when ready" is a
+ * the home StatusHero this stays a server component — "Start when ready" is a
  * LINK home (where the hero owns the one-tap start), never an instantiate:
  * a mis-tap seconds after finishing must not mint tomorrow's workout row.
  *

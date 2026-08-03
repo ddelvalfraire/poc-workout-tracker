@@ -12,7 +12,7 @@ import { scheduleAnchor } from '@/lib/schedule-anchor'
  * Unscheduled days never mount this component — the parent renders the plain
  * literal so that path stays byte-identical to the pre-schedule markup.
  *
- * Same useSyncExternalStore mounted pattern as trained-today-gate.tsx.
+ * Same useSyncExternalStore mounted pattern as status-hero.tsx.
  */
 const subscribeNever = () => () => {}
 const useMounted = () =>

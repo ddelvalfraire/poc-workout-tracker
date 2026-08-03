@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ChevronRight, RotateCcw, Settings } from "lucide-react";
+import { ChevronRight, Settings } from "lucide-react";
 import { UserButton } from "@clerk/nextjs";
 import { requireUserId } from "@/lib/auth";
 import { listWorkoutSummaries } from "@/db/workouts";
@@ -7,37 +7,35 @@ import { listWorkoutDrafts } from "@/db/workout-drafts";
 import { getNextProgramDay } from "@/db/programs";
 import { getVolumeTotals } from "@/db/muscle-volume";
 import { volumeWindows } from "@/lib/volume-window";
-import { getWeightUnit, getProgramReminderDismissed } from "@/db/preferences";
+import { getWeightUnit } from "@/db/preferences";
 import { resolveActiveSession } from "@/lib/active-session";
 import { getCheckInStatus } from "@/lib/check-in";
 import { getGoalsHomeSummary } from "@/lib/goals";
 import { goalLabel } from "@/lib/goal-progress";
-import { StreakChip } from "@/components/streak-chip";
-import { shouldShowProgramReminder } from "@/lib/program-reminder";
-import { formatVolume, formatWorkoutDuration } from "@/lib/format";
-import { startedWithinLastHours } from "@/lib/recent-window";
+import { bucketDaySets } from "@/lib/drawer-status";
 import { buttonVariants } from "@/components/ui/button";
-import { GuardedStartLink } from "@/components/guarded-start-link";
 import { cn } from "@/lib/utils";
 import { NavDrawer } from "@/components/nav/nav-drawer";
 import { CheckInCard } from "./check-in-card";
-import { NextWorkoutCard } from "./next-workout-card";
-import { ProgramReminderCard } from "./program-reminder-card";
-import { ResumeSessionCard } from "./resume-session-card";
-import { TodayWorkouts } from "./today-workouts";
-import { TrainedTodayGate } from "./trained-today-gate";
+import { HistoryList } from "./history-list";
+import { MomentumPanel } from "./momentum-panel";
+import { StatusHero } from "./status-hero";
+import { TodayRecap } from "./today-recap";
 
 // en-US matches formatWorkoutDate — one locale for all date display.
 const monthFormat = new Intl.DateTimeFormat("en-US", { month: "short" });
 
+/** Home keeps the freshest handful; the full log lives on /history (WHOOP
+ *  tier discipline — history is tier-3 data on tier-1 real estate). */
+const HOME_HISTORY_LIMIT = 5;
+
 export default async function HomePage() {
   const userId = await requireUserId(); // middleware also guards; this is defense-in-depth
-  const [summaries, unit, nextDay, drafts, programReminderDismissed, checkIn, weekTotals, goalsSummary] = await Promise.all([
+  const [summaries, unit, nextDay, drafts, checkIn, weekTotals, goalsSummary] = await Promise.all([
     listWorkoutSummaries(userId),
     getWeightUnit(userId),
     getNextProgramDay(userId),
     listWorkoutDrafts(userId),
-    getProgramReminderDismissed(userId),
     // Null when the active program suggests no cadence — the card is gated on
     // `due`, so the common case renders nothing and costs one indexed read.
     getCheckInStatus(userId),
@@ -45,7 +43,7 @@ export default async function HomePage() {
     // getVolumeTotals skips muscle resolution, keeping the wger catalog off
     // the home page's critical path. /stats owns the full picture.
     getVolumeTotals(userId, volumeWindows("rolling", new Date())),
-    // Null when the user has no active goals — the goals row costs one
+    // Null when the user has no active goals — the goals line costs one
     // indexed read then, and renders nothing.
     getGoalsHomeSummary(userId),
   ]);
@@ -64,31 +62,44 @@ export default async function HomePage() {
     setCount: activeSession.setCount,
     completedSetCount: activeSession.completedSetCount,
   };
-  // "Already trained today" is a LOCAL-calendar-day question the server
-  // can't answer, so it moved client-side into <TrainedTodayGate> below. The
-  // old 12h rolling window here suppressed the hero all morning after an
-  // evening session — and discarding an in-progress workout didn't restore
-  // it ("Right now it's cooked there is no hero card on my app"). The server
-  // keeps only what it truly knows: a program day exists and no session is
-  // live.
-  const showNextDay = Boolean(nextDay) && !activeSession;
-  // What the client gate needs: completion instants from the last 48h (same
-  // window rationale as TodayWorkouts below — covers any timezone's "today"
-  // without a row cap), as epoch ms for stable RSC serialization. The window
-  // filters on COMPLETION time, not start time: a weeks-old Unfinished
-  // session resumed and finished today must still count as trained-today.
+  // The trained-today fork stays a LOCAL-calendar-day question the server
+  // can't answer — but it now selects a StatusHero STATE instead of removing
+  // the hero (the "no hero card on my app" bug class is structurally gone).
+  // Same evidence as the old gate: completion instants from the last 48h
+  // (covers any timezone's "today" without a row cap), as epoch ms for
+  // stable RSC serialization. Filtered on COMPLETION time, not start time:
+  // a weeks-old Unfinished session finished today still counts.
   const GATE_WINDOW_MS = 48 * 60 * 60 * 1000;
-  const recentCompletedAtTimes = summaries.flatMap((w) =>
-    w.completedAt !== null && now.getTime() - w.completedAt.getTime() <= GATE_WINDOW_MS
-      ? [w.completedAt.getTime()]
-      : [],
+  const recentCompleted = summaries.filter(
+    (w) => w.completedAt !== null && now.getTime() - w.completedAt.getTime() <= GATE_WINDOW_MS,
   );
-  // History is a record of finished sessions — an unfinished row wearing an
-  // "In progress" chip there contradicts the definition (and duplicated the
-  // live banner above). Unfinished rows get their own quiet section instead:
-  // stale abandonments the user can resume or finish, not live state.
+  // History is a record of finished sessions; unfinished rows get their own
+  // quiet section (stale abandonments to resume or finish, not live state).
   const completed = summaries.filter((w) => w.completedAt !== null);
   const unfinished = summaries.filter((w) => w.completedAt === null);
+
+  // The hero's memory, from summaries already in hand (zero new queries —
+  // spike §5): the newest completion overall (trained-today + drifting
+  // facts), and the newest completed volume under the up-next day's name
+  // (the "last time" fact; per-set bests aren't in the summary read, so
+  // volume is the honest version of it).
+  const byCompletion = [...completed].sort(
+    (a, b) => (b.completedAt?.getTime() ?? 0) - (a.completedAt?.getTime() ?? 0),
+  );
+  const newest = byCompletion[0];
+  const lastCompleted = newest?.completedAt
+    ? {
+        name: newest.name,
+        completedAtMs: newest.completedAt.getTime(),
+        volumeKg: newest.volumeKg,
+      }
+    : null;
+  const lastTimeMatch = nextDay
+    ? byCompletion.find(
+        (w) => w.name?.trim().toLowerCase() === nextDay.dayName.trim().toLowerCase(),
+      )
+    : undefined;
+  const lastTimeVolumeKg = lastTimeMatch && lastTimeMatch.volumeKg > 0 ? lastTimeMatch.volumeKg : null;
 
   return (
     <div className="flex min-h-[100dvh] flex-col">
@@ -119,125 +130,81 @@ export default async function HomePage() {
       </header>
 
       <main className="mx-auto w-full max-w-md flex-1 px-5 pb-safe">
-        {activeSession && <ResumeSessionCard session={activeSession} />}
-
-        {/* The gate hides the hero client-side when a completion falls on the
-            user's local today. Layout note: the two-button shortcut row below
-            branches on nextDay only and is server-rendered regardless, so it
-            still reads sensibly when the gate removes the hero — the grid
-            simply becomes the top of the main column. */}
-        {showNextDay && nextDay && (
-          <TrainedTodayGate completedAtTimes={recentCompletedAtTimes}>
-            <NextWorkoutCard next={nextDay} />
-          </TrainedTodayGate>
-        )}
-
-        {/* The 2×2 shortcut grid and the fresh-state link stack are GONE —
-            the nav drawer replaces content-as-navigation (spike §7). The
-            fresh state keeps its big Start CTA: day one's job is one tap. */}
-        {!nextDay && (
-          <>
-            {/* Soft "get a program" nudge for the fresh state only — the
-                hero's absence (no nextDay) IS the signal; no extra query
-                beyond the dismissal preference. Muted on purpose: it's a
-                suggestion, and Start Workout below stays the primary CTA. */}
-            {shouldShowProgramReminder(Boolean(nextDay), programReminderDismissed) && (
-              <ProgramReminderCard />
-            )}
-            <GuardedStartLink
-              href="/workout/new"
-              session={guardSession}
-              className={cn(
-                buttonVariants({ size: "lg" }),
-                "mt-6 w-full text-base font-semibold uppercase tracking-wide",
-              )}
-            >
-              + Start Workout
-            </GuardedStartLink>
-          </>
-        )}
+        {/* STATUS zone — always rendered, digesting state into words (the
+            Gentler Streak move). Every fork it owns is local-calendar, so it
+            selects its state client-side from the facts below. */}
+        <StatusHero
+          session={
+            activeSession && {
+              key: activeSession.key,
+              name: activeSession.name,
+              setCount: activeSession.setCount,
+              completedSetCount: activeSession.completedSetCount,
+            }
+          }
+          nextDay={
+            nextDay && {
+              dayId: nextDay.dayId,
+              programId: nextDay.programId,
+              programName: nextDay.programName,
+              dayName: nextDay.dayName,
+              week: nextDay.week,
+              mesocycleWeeks: nextDay.mesocycleWeeks,
+              weekdays: nextDay.weekdays,
+              blockComplete: nextDay.blockComplete,
+            }
+          }
+          recentCompletedAtTimes={recentCompleted.map((w) => w.completedAt!.getTime())}
+          lastCompleted={lastCompleted}
+          lastTimeVolumeKg={lastTimeVolumeKg}
+          streak={goalsSummary?.streak ?? null}
+          guardSession={guardSession}
+          unit={unit}
+        />
 
         {/* Body check-in nudge — server-gated on `due` (never renders without
-            an active-program cadence), so push-less users still get the
-            suggestion; the card itself handles dismiss-for-today. Outside the
-            nextDay branch: due-ness doesn't care whether today has a workout. */}
+            an active-program cadence); the card handles dismiss-for-today.
+            Position unchanged: due-ness doesn't care what the status says. */}
         {checkIn?.due && <CheckInCard daysSinceLast={checkIn.daysSinceLast} />}
 
-        {/* Goals teaser — the honest-gamification home surface: the top
-            active goal's one-liner plus the streak flame (client-computed;
-            only rendered when a consistency goal exists). Same quiet row
-            idiom as the This week / Coach teasers. */}
-        {goalsSummary?.topGoal && (
-          <Link
-            href="/goals"
-            className="mt-3 flex items-center justify-between gap-3 rounded-2xl border border-border bg-card p-4 transition-colors active:bg-muted/60"
-          >
-            <span className="min-w-0">
-              <span className="block text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-                {goalsSummary.activeCount === 1
-                  ? "Goal"
-                  : `Goals · ${goalsSummary.activeCount}`}
-              </span>
-              <span className="mt-0.5 block truncate text-sm">
-                {goalLabel(goalsSummary.topGoal, unit)}
-              </span>
-            </span>
-            <span className="flex shrink-0 items-center gap-2">
-              {goalsSummary.streak && (
-                <StreakChip
-                  completedAtTimes={goalsSummary.streak.completedAtTimes}
-                  scheduledWeekdays={goalsSummary.streak.scheduledWeekdays}
-                  allowedMissesPerWeek={goalsSummary.streak.allowedMissesPerWeek}
-                />
-              )}
-              <ChevronRight aria-hidden="true" className="size-5 text-muted-foreground" />
-            </span>
-          </Link>
+        {/* MOMENTUM panel — one designed surface where the two teaser rows
+            were. Skipped only on true day one: the fresh hero already
+            invites, and two stacked invitations would compete. */}
+        {(completed.length > 0 || goalsSummary !== null) && (
+          <MomentumPanel
+            weekSets={weekTotals.currentSets}
+            weekSessions={weekTotals.currentSessions}
+            daySets={bucketDaySets(summaries, now)}
+            goal={
+              goalsSummary?.topGoal
+                ? {
+                    activeCount: goalsSummary.activeCount,
+                    label: goalLabel(goalsSummary.topGoal, unit),
+                    streak: goalsSummary.streak,
+                  }
+                : null
+            }
+          />
         )}
 
-        {/* The coach teaser card moved into the drawer (its gated row) —
-            home slims to training state, not doors (spike §7's home diet). */}
-
-        {/* Weekly-balance teaser: headline numbers only, the page has the
-            chart. Hidden until there's any volume — an empty stats pitch is
-            noise on day one. */}
-        {weekTotals.currentSets > 0 && (
-          <Link
-            href="/stats"
-            className="mt-3 flex items-center justify-between gap-3 rounded-2xl border border-border bg-card p-4 transition-colors active:bg-muted/60"
-          >
-            <span className="min-w-0">
-              <span className="block text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-                This week
-              </span>
-              <span className="mt-0.5 block text-sm">
-                {weekTotals.currentSets} sets · {weekTotals.currentSessions}{" "}
-                {weekTotals.currentSessions === 1 ? "session" : "sessions"}
-              </span>
-            </span>
-            <ChevronRight aria-hidden="true" className="size-5 shrink-0 text-muted-foreground" />
-          </Link>
-        )}
-
-        <TodayWorkouts
-          // A 48h window (not a row cap) so "today" can never be crowded out
-          // by backdated entries, while any client timezone's calendar day is
-          // still fully covered; the exact local-day filter runs client-side.
-          // Completed only: a freshly-started session must never wear the
-          // "Done today" checkmark — it's the live banner's job above.
-          workouts={startedWithinLastHours(summaries, 48)
-            .filter((w) => w.completedAt !== null)
-            .map((w) => ({
-              id: w.id,
-              name: w.name,
-              startedAt: w.startedAt,
-            }))}
+        {/* TODAY recap — celebration cards for sessions completed on the
+            user's local today (filter runs client-side; the 48h completion
+            window covers any timezone's calendar day). */}
+        <TodayRecap
+          workouts={recentCompleted.map((w) => ({
+            id: w.id,
+            name: w.name,
+            startedAtMs: w.startedAt.getTime(),
+            completedAtMs: w.completedAt!.getTime(),
+            volumeKg: w.volumeKg,
+          }))}
+          unit={unit}
         />
 
         {/* Unfinished sits ABOVE History: these rows still need an action
             (resume or finish), while History is done. Deliberately quiet —
             no volt chip, muted throughout: the live session already owns the
-            banner up top; anything here is a stale abandonment, not live
+            hero up top; anything here is a stale abandonment, not live
             state. Rows reopen the logger, never the read-only summary (which
             would present them as completed). */}
         {unfinished.length > 0 && (
@@ -280,73 +247,29 @@ export default async function HomePage() {
           </>
         )}
 
-        <h2 className="mt-10 mb-3 text-lg">History</h2>
-
-        {completed.length === 0 ? (
-          <div className="rounded-2xl border border-border bg-card px-5 py-12 text-center">
-            <p className="font-medium">No workouts yet</p>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Tap “Start Workout” to log your first session.
-            </p>
-          </div>
-        ) : (
-          <ul className="divide-y divide-border overflow-hidden rounded-2xl border border-border bg-card">
-            {completed.map((w) => (
-              // gap-1 gives the Repeat link's expanded hit inset dead space
-              // to land in — without it the inset overlaps the row link.
-              <li key={w.id} className="flex items-center gap-1">
+        {/* HISTORY, demoted (WHOOP tier discipline): the last few compact
+            rows; the full log lives on /history. No empty-state card here —
+            with nothing completed, the fresh hero already owns the invite. */}
+        {completed.length > 0 && (
+          <>
+            <div className="mt-10 mb-3 flex items-baseline justify-between gap-3">
+              <h2 className="text-lg">History</h2>
+              {completed.length > HOME_HISTORY_LIMIT && (
                 <Link
-                  // Completed only in this list, so every row goes to its
-                  // summary; unfinished rows live in the section above.
-                  href={`/workout/${w.id}`}
-                  className="flex min-w-0 flex-1 items-center gap-4 px-4 py-3.5 transition-colors active:bg-muted/60"
+                  href="/history"
+                  className="flex shrink-0 items-center gap-0.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
                 >
-                  {/* Stacked calendar block: scanning history is a date
-                      lookup first — give the eye a fixed tabular anchor
-                      instead of burying the date mid-sentence. */}
-                  <span className="flex w-9 shrink-0 flex-col items-center">
-                    <span className="font-display text-xl leading-none tnum">
-                      {w.startedAt.getDate()}
-                    </span>
-                    <span className="mt-0.5 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
-                      {monthFormat.format(w.startedAt)}
-                    </span>
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate font-medium">{w.name ?? "Workout"}</span>
-                    <span className="mt-0.5 block truncate text-sm text-muted-foreground tnum">
-                      {[
-                        formatWorkoutDuration(w.startedAt, w.completedAt),
-                        `${w.setCount} set${w.setCount === 1 ? "" : "s"}`,
-                        w.volumeKg > 0 ? formatVolume(w.volumeKg, unit) : null,
-                      ]
-                        .filter(Boolean)
-                        .join(" · ")}
-                    </span>
-                  </span>
-                  <ChevronRight
-                    aria-hidden="true"
-                    className="size-5 shrink-0 text-muted-foreground"
-                  />
+                  All history
+                  <ChevronRight aria-hidden="true" className="size-4" />
                 </Link>
-                {/* Repeat starts a NEW session seeded from this one — so it
-                    goes through the same guard as the other start CTAs. */}
-                <GuardedStartLink
-                  href={`/workout/new?from=${w.id}`}
-                  session={guardSession}
-                  aria-label={`Repeat ${w.name ?? "Workout"}`}
-                  className={cn(
-                    buttonVariants({ variant: "ghost", size: "icon-sm" }),
-                    // Invisible inset lifts the 36px visual button toward the
-                    // 44px HIG target without growing the row.
-                    "relative mr-2 shrink-0 text-muted-foreground before:absolute before:-inset-1",
-                  )}
-                >
-                  <RotateCcw aria-hidden="true" className="size-5" />
-                </GuardedStartLink>
-              </li>
-            ))}
-          </ul>
+              )}
+            </div>
+            <HistoryList
+              workouts={completed.slice(0, HOME_HISTORY_LIMIT)}
+              unit={unit}
+              guardSession={guardSession}
+            />
+          </>
         )}
       </main>
     </div>
