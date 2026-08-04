@@ -5,6 +5,7 @@ import { getWeightUnit } from '@/db/preferences'
 import { formatSet, formatVolume, formatE1RM } from '@/lib/format'
 import { AppHeader } from '@/components/app-header'
 import { BackLink } from '@/components/back-link'
+import { BlockSegment } from '@/components/block-map'
 import { cn } from '@/lib/utils'
 import {
   e1rmSparkline,
@@ -197,25 +198,16 @@ export default async function ProgramStatsPage({
                         >
                           Wk {w.week}
                         </span>
-                        {/* Day-fill segments; the numbers stay real text. */}
+                        {/* Day-fill via the shared block-map segment (same
+                            geometry as the programs list hero and the detail
+                            week strip); the numbers stay real text. */}
                         {w.plannedDays > 0 && (
-                          <span aria-hidden="true" className="flex shrink-0 gap-1">
-                            {Array.from({ length: w.plannedDays }, (_, i) => (
-                              <span
-                                key={i}
-                                className={cn(
-                                  'size-2 rounded-[3px]',
-                                  isDeload
-                                    ? i < w.daysCompleted
-                                      ? 'border border-foreground/60'
-                                      : 'border border-border'
-                                    : i < w.daysCompleted
-                                      ? 'bg-foreground/70'
-                                      : 'bg-muted',
-                                )}
-                              />
-                            ))}
-                          </span>
+                          <BlockSegment
+                            dayCountDone={w.daysCompleted}
+                            dayCountTotal={w.plannedDays}
+                            isDeload={isDeload}
+                            className="w-14 shrink-0"
+                          />
                         )}
                         <span className="text-sm tnum">
                           {w.daysCompleted}/{w.plannedDays}
