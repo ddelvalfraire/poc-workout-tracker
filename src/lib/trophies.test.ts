@@ -41,11 +41,15 @@ import { displayToKg } from '@/lib/units'
 import {
   canonicalLiftFor,
   checkTrophies,
+  closestTrophies,
   emptyEvidence,
   evaluateTrophies,
+  groupTrophiesByFamily,
   isAttributedToFinish,
   trophyCandidates,
   trophyContextLine,
+  trophyFraction,
+  trophyHeroGlyph,
   trophyHint,
   trophyLabel,
   type TrophyEvidence,
@@ -504,6 +508,130 @@ describe('checkTrophies', () => {
     expect(mockedStats).toHaveBeenCalledWith(USER, 'wger', 615)
     expect(result.map((r) => r.kind).sort()).toEqual(['club_squat_225', 'club_squat_315'])
     expect(mockedPush).toHaveBeenCalledTimes(2)
+  })
+})
+
+describe('trophyFraction', () => {
+  it('exposes the club numerator/denominator behind the hint', () => {
+    const ev = evidence({
+      bestByLift: { squat: { e1rmKg: displayToKg(285, 'lb'), workoutId: 'w1' } },
+    })
+    const fraction = trophyFraction('club_squat_315', ev)
+    expect(fraction).not.toBe(null)
+    expect(fraction?.current).toBeCloseTo(displayToKg(285, 'lb'), 2)
+    expect(fraction?.target).toBeCloseTo(thresholdKg(315), 2)
+    expect(fraction?.percent).toBe(90) // floor(285/315 · 100)
+  })
+
+  it('is null when the club has no e1RM yet (no honest fraction)', () => {
+    expect(trophyFraction('club_bench_135', evidence({}))).toBe(null)
+  })
+
+  it('sum club needs all three lifts before claiming a fraction', () => {
+    const partial = evidence({
+      bestByLift: {
+        squat: { e1rmKg: 100, workoutId: 'w1' },
+        bench: { e1rmKg: 80, workoutId: 'w1' },
+      },
+    })
+    expect(trophyFraction('club_1000', partial)).toBe(null)
+    const full = evidence({
+      bestByLift: {
+        squat: { e1rmKg: 100, workoutId: 'w1' },
+        bench: { e1rmKg: 80, workoutId: 'w1' },
+        deadlift: { e1rmKg: 120, workoutId: 'w1' },
+      },
+    })
+    const fraction = trophyFraction('club_1000', full)
+    expect(fraction?.current).toBe(300)
+    expect(fraction?.percent).toBe(Math.floor((300 / thresholdKg(1000)) * 100))
+  })
+
+  it('counts and tonnage are honest at zero; streak needs a schedule', () => {
+    expect(trophyFraction('workouts_50', evidence({ completedCount: 37 }))).toEqual({
+      current: 37,
+      target: 50,
+      percent: 74,
+    })
+    expect(trophyFraction('tonnage_1m', evidence({}))?.percent).toBe(0)
+    expect(trophyFraction('streak_12', evidence({ streakWeeks: 6 }))).toBe(null) // no schedule
+    expect(
+      trophyFraction('streak_12', evidence({ scheduledWeekdays: [1, 3], streakWeeks: 6 })),
+    ).toEqual({ current: 6, target: 12, percent: 50 })
+  })
+
+  it('block is binary — never a fraction', () => {
+    expect(trophyFraction('block_complete', evidence({ hasActiveProgram: true }))).toBe(null)
+  })
+
+  it('clamps an over-threshold (not yet stamped) fraction to 100', () => {
+    expect(trophyFraction('workouts_50', evidence({ completedCount: 60 }))?.percent).toBe(100)
+  })
+})
+
+describe('closestTrophies', () => {
+  it('ranks locked kinds by completion percent, capped at 3', () => {
+    const ev = evidence({
+      completedCount: 45, // workouts_50 → 90%
+      scheduledWeekdays: [1, 3, 5],
+      streakWeeks: 3, // streak_4 → 75%
+      bestByLift: { squat: { e1rmKg: displayToKg(200, 'lb'), workoutId: 'w1' } }, // 225 → 88%
+    })
+    const closest = closestTrophies(TROPHY_KINDS, ev)
+    expect(closest).toHaveLength(3)
+    expect(closest[0]).toBe('workouts_1') // 45/1 → clamped 100
+    expect(closest.slice(1)).toEqual(['workouts_50', 'club_squat_225'])
+  })
+
+  it('never lists zero-percent or fraction-less kinds', () => {
+    expect(closestTrophies(TROPHY_KINDS, evidence({}))).toEqual([])
+  })
+
+  it('only considers the kinds it was given (locked)', () => {
+    const ev = evidence({ completedCount: 45 })
+    expect(closestTrophies(['club_bench_135', 'streak_4'], ev)).toEqual([])
+  })
+})
+
+describe('groupTrophiesByFamily + hero glyphs', () => {
+  const row = (kind: TrophyKind, achievedAt: Date): TrophyRow => ({
+    id: `t_${kind}`,
+    kind,
+    achievedAt,
+    context: {},
+  })
+
+  it('zones families in display order, earned newest-first, locked after', () => {
+    const earned = [
+      row('club_bench_135', new Date('2026-06-01T00:00:00Z')),
+      row('club_squat_225', new Date('2026-07-01T00:00:00Z')),
+      row('workouts_1', new Date('2026-05-01T00:00:00Z')),
+    ]
+    const locked: TrophyKind[] = ['club_squat_315', 'workouts_50', 'streak_4']
+    const zones = groupTrophiesByFamily(earned, locked)
+
+    expect(zones.map((z) => z.family)).toEqual(['club', 'count', 'streak'])
+    expect(zones[0].label).toBe('Plate Clubs')
+    // Newest achievement first within the zone.
+    expect(zones[0].earned.map((r) => r.kind)).toEqual(['club_squat_225', 'club_bench_135'])
+    expect(zones[0].locked).toEqual(['club_squat_315'])
+    expect(zones[1].label).toBe('Showing Up')
+    expect(zones[2].locked).toEqual(['streak_4'])
+  })
+
+  it('covers every kind exactly once across zones', () => {
+    const zones = groupTrophiesByFamily([], [...TROPHY_KINDS])
+    const all = zones.flatMap((z) => z.locked)
+    expect(all.sort()).toEqual([...TROPHY_KINDS].sort())
+  })
+
+  it('the threshold number IS the trophy glyph; block has none', () => {
+    expect(trophyHeroGlyph('club_squat_315')).toBe('315')
+    expect(trophyHeroGlyph('club_1000')).toBe('1,000')
+    expect(trophyHeroGlyph('workouts_50')).toBe('50')
+    expect(trophyHeroGlyph('streak_12')).toBe('12')
+    expect(trophyHeroGlyph('tonnage_1m')).toBe('1M')
+    expect(trophyHeroGlyph('block_complete')).toBe(null)
   })
 })
 

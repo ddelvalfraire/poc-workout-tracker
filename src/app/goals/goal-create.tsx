@@ -31,7 +31,15 @@ const GRACE_OPTIONS: { value: 0 | 1 | 2; label: string }[] = [
   { value: 2, label: '2 misses / week' },
 ]
 
-export function GoalCreate({ unit }: { unit: WeightUnit }) {
+export function GoalCreate({
+  unit,
+  compact = false,
+}: {
+  unit: WeightUnit
+  /** Header-row trigger (goals exist — the list leads); the full-width volt
+   *  invitation stays for the empty state only. */
+  compact?: boolean
+}) {
   const [isOpen, setIsOpen] = useState(false)
   const [kind, setKind] = useState<GoalKind>('strength')
   const [exercise, setExercise] = useState<PickedExercise | null>(null)
@@ -101,7 +109,16 @@ export function GoalCreate({ unit }: { unit: WeightUnit }) {
   }
 
   if (!isOpen) {
-    return (
+    return compact ? (
+      <Button
+        variant="outline"
+        size="sm"
+        className="font-semibold uppercase"
+        onClick={() => setIsOpen(true)}
+      >
+        + New goal
+      </Button>
+    ) : (
       <Button className="w-full font-semibold uppercase" onClick={() => setIsOpen(true)}>
         + New goal
       </Button>

@@ -10,6 +10,8 @@ import { cn } from '@/lib/utils'
 export interface PhotoEntry {
   id: string
   dateLabel: string
+  /** Raw instant (epoch ms) — powers the cadence nudge + default compare pair. */
+  takenAtMs: number
   pose: PhotoPose | null
   note: string | null
   /** Base64 ThumbHash off the row — decodes to an instant placeholder. */

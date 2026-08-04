@@ -1,12 +1,14 @@
+import { ChevronRight } from 'lucide-react'
 import { requireUserId } from '@/lib/auth'
 import { getWeightUnit } from '@/db/preferences'
 import { listBodyweightLogs } from '@/db/bodyweight'
+import { listActiveGoals } from '@/db/goals'
 import { listMeasurements } from '@/db/body-measurements'
 import { listProgressPhotos, type ProgressPhoto } from '@/db/progress-photos'
 import { createSignedUrls } from '@/lib/supabase-storage'
 import { kgToDisplay, cmToDisplay, lengthUnitFor, type WeightUnit } from '@/lib/units'
-import { bodyweightDeltaKg } from '@/lib/bodyweight-trend'
-import { TrendChart } from '@/components/charts/trend-chart'
+import { bodyweightDeltaKg, trendWeightSeries } from '@/lib/bodyweight-trend'
+import { TrendChart, type TrendPoint } from '@/components/charts/trend-chart'
 import { formatWorkoutDate } from '@/lib/format'
 import { AppHeader } from '@/components/app-header'
 import { NavDrawer } from '@/components/nav/nav-drawer'
@@ -16,42 +18,67 @@ import { MeasurementsSection } from './measurements-section'
 import { PhotosSection } from './photos-section'
 import type { PhotoEntry } from './photo-cell'
 
-// The delta window the bodyweight hero reports against ("+1.2 lb / 30d").
+// The delta window the trend hero reports against ("Trending down — 1.2 lb / 30d").
 const DELTA_DAYS = 30
+// Visible history rows before the rest collapses behind a disclosure.
+const HISTORY_VISIBLE_ROWS = 5
 
 /**
- * The one body-tracking surface: bodyweight (current + delta, quick log,
- * trend, history — the former /bodyweight page, folded in) and tape
- * measurements (per-site log, trend, history). /bodyweight permanently
- * redirects here. Reached from Settings → Body. Server component — the
- * interactive bits are small client islands.
+ * The one body-tracking surface: bodyweight (trend hero + chart + quick log
+ * + capped history — status → visualization → input → history, the page's
+ * zone order), tape measurements, and progress photos. The hero number is
+ * the 7-day-EMA TREND weight, not the last reading — the scale's daily noise
+ * is demoted to a context line and to faint dots on the chart (the Happy
+ * Scale principle: trend over noise). /bodyweight permanently redirects
+ * here. Server component — the interactive bits are small client islands.
  */
 export default async function BodyPage() {
   const userId = await requireUserId()
-  const [unit, logs, measurements, photos] = await Promise.all([
+  const [unit, logs, measurements, photos, activeGoals] = await Promise.all([
     getWeightUnit(userId),
     listBodyweightLogs(userId),
     listMeasurements(userId),
     listProgressPhotos(userId),
+    // One cheap indexed read (<= 20 rows) so an existing bodyweight goal can
+    // draw its target as the chart's reference line — the same honesty as
+    // /goals showing this chart against the same target.
+    listActiveGoals(userId),
   ])
   const photoEntries = await buildPhotoEntries(photos)
   const lengthUnit = lengthUnitFor(unit)
 
   const current = logs[0] ?? null
-  const deltaKg = bodyweightDeltaKg(logs, DELTA_DAYS)
-  // Chart reads chronologically, oldest → newest (logs arrive freshest first);
-  // dates pre-formatted and kg → display unit here, server-side.
-  const trendPoints = [...logs].reverse().map((log) => ({
+  // Trend = time-decayed EMA over the same rows; the delta line reads the
+  // TREND series so "Trending down" can't be one salty dinner.
+  const trend = trendWeightSeries(logs)
+  const trendNow = trend[0] ?? null
+  const trendDeltaKg = bodyweightDeltaKg(trend, DELTA_DAYS)
+
+  const bodyweightGoal = activeGoals.find(
+    (goal) => goal.kind === 'bodyweight' && goal.achievedAt === null,
+  )
+  const targetKg =
+    bodyweightGoal !== undefined && 'weightKg' in bodyweightGoal.target
+      ? bodyweightGoal.target.weightKg
+      : null
+
+  // Chart reads chronologically, oldest → newest (logs arrive freshest
+  // first); value = trend, raw = the honest reading behind it. Dates
+  // pre-formatted and kg → display unit here, server-side.
+  const chronologicalTrend = [...trend].reverse()
+  const trendPoints: TrendPoint[] = [...logs].reverse().map((log, i) => ({
     label: formatWorkoutDate(log.weighedAt),
-    value: kgToDisplay(log.weightKg, unit),
+    value: kgToDisplay(chronologicalTrend[i]?.weightKg ?? log.weightKg, unit),
+    raw: kgToDisplay(log.weightKg, unit),
   }))
 
-  // Measurements cross the island boundary pre-formatted too (dates, display
-  // unit); the island only picks a site and slices — no conversion client-side.
+  // Measurements cross the island boundary pre-formatted (dates, display
+  // unit) plus the raw instant (epoch ms) for the island's delta window.
   const measurementEntries = measurements.map((m) => ({
     id: m.id,
     site: m.site,
     dateLabel: formatWorkoutDate(m.measuredAt),
+    measuredAtMs: m.measuredAt.getTime(),
     value: cmToDisplay(m.valueCm, lengthUnit),
   }))
 
@@ -69,22 +96,26 @@ export default async function BodyPage() {
             Bodyweight
           </h2>
 
-          {/* Hero: the current weight, big-numeral pattern. */}
+          {/* Status: the TREND weight leads; the raw reading is context. */}
           <div className="mt-3">
-            {current ? (
+            {current && trendNow ? (
               <>
-                <p className="text-sm text-muted-foreground">Current</p>
+                <p className="text-sm text-muted-foreground">Trend weight</p>
                 {/* Proportional figures at display size — tabular is for columns
                     (set tables, ticks), where digits must align vertically. */}
                 <p className="mt-1 font-display text-4xl leading-none">
-                  {kgToDisplay(current.weightKg, unit)}
+                  {roundDisplay(kgToDisplay(trendNow.weightKg, unit))}
                   <span className="ml-1.5 text-xl text-muted-foreground">{unit}</span>
                 </p>
-                {deltaKg !== null && (
+                {trendDeltaKg !== null && (
                   <p className="mt-1.5 text-sm text-muted-foreground">
-                    {formatDelta(deltaKg, unit)} / {DELTA_DAYS}d
+                    {directionLine(trendDeltaKg, unit)} / {DELTA_DAYS}d
                   </p>
                 )}
+                <p className="mt-1 text-xs text-muted-foreground tnum">
+                  Last weigh-in {kgToDisplay(current.weightKg, unit)} {unit} ·{' '}
+                  {formatWorkoutDate(current.weighedAt)}
+                </p>
               </>
             ) : (
               // Teach line, not a bare dash: the value exists to power est. 1RM.
@@ -94,37 +125,67 @@ export default async function BodyPage() {
             )}
           </div>
 
-          <div className="mt-4">
-            <BodyweightLogForm unit={unit} />
-          </div>
-
-          {/* Trend — needs at least two points to be a line. */}
+          {/* Visualization — trend line over faint raw dots, goal as target. */}
           {trendPoints.length >= 2 && (
             <div role="group" aria-label="Bodyweight trend" className="mt-6">
               <TrendChart
                 points={trendPoints}
                 unit={unit}
-                valueLabel="Bodyweight"
+                valueLabel="Trend"
+                rawLabel="Weigh-in"
                 ariaLabel={`Bodyweight trend, ${trendPoints[0].value} to ${trendPoints[trendPoints.length - 1].value} ${unit} over ${trendPoints.length} entries`}
+                targetValue={targetKg !== null ? kgToDisplay(targetKg, unit) : undefined}
+                targetLabel="Goal"
               />
             </div>
           )}
 
-          {/* History, freshest first. */}
+          {/* Input. */}
+          <div className="mt-6">
+            <BodyweightLogForm unit={unit} />
+          </div>
+
+          {/* History, freshest first, capped — the rest one disclosure away. */}
           {logs.length > 0 && (
-            <ul
-              aria-label="Weigh-in history"
-              className="mt-6 divide-y divide-border overflow-hidden rounded-2xl border border-border bg-card"
-            >
-              {logs.map((log) => (
-                <BodyweightEntryRow
-                  key={log.id}
-                  id={log.id}
-                  dateLabel={formatWorkoutDate(log.weighedAt)}
-                  weightLabel={`${kgToDisplay(log.weightKg, unit)} ${unit}`}
-                />
-              ))}
-            </ul>
+            <>
+              <ul
+                aria-label="Weigh-in history"
+                className="mt-6 divide-y divide-border overflow-hidden rounded-2xl border border-border bg-card"
+              >
+                {logs.slice(0, HISTORY_VISIBLE_ROWS).map((log) => (
+                  <BodyweightEntryRow
+                    key={log.id}
+                    id={log.id}
+                    dateLabel={formatWorkoutDate(log.weighedAt)}
+                    weightLabel={`${kgToDisplay(log.weightKg, unit)} ${unit}`}
+                  />
+                ))}
+              </ul>
+              {logs.length > HISTORY_VISIBLE_ROWS && (
+                <details className="group mt-2">
+                  <summary className="flex cursor-pointer list-none items-center gap-1 px-1 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground [&::-webkit-details-marker]:hidden">
+                    All weigh-ins · {logs.length}
+                    <ChevronRight
+                      aria-hidden="true"
+                      className="size-3.5 transition-transform group-open:rotate-90"
+                    />
+                  </summary>
+                  <ul
+                    aria-label="Older weigh-ins"
+                    className="mt-2 divide-y divide-border overflow-hidden rounded-2xl border border-border bg-card"
+                  >
+                    {logs.slice(HISTORY_VISIBLE_ROWS).map((log) => (
+                      <BodyweightEntryRow
+                        key={log.id}
+                        id={log.id}
+                        dateLabel={formatWorkoutDate(log.weighedAt)}
+                        weightLabel={`${kgToDisplay(log.weightKg, unit)} ${unit}`}
+                      />
+                    ))}
+                  </ul>
+                </details>
+              )}
+            </>
           )}
         </section>
 
@@ -153,8 +214,9 @@ export default async function BodyPage() {
 }
 
 /**
- * Rows → island entries: dates pre-formatted, thumb AND display URLs signed
- * in ONE bulk storage call at render (the RSC is the signer — no list API).
+ * Rows → island entries: dates pre-formatted (plus the raw instant for the
+ * cadence nudge / default compare pair), thumb AND display URLs signed in
+ * ONE bulk storage call at render (the RSC is the signer — no list API).
  * If signing fails, the timeline still renders from ThumbHashes alone
  * (urls null) instead of the whole page erroring.
  */
@@ -172,6 +234,7 @@ async function buildPhotoEntries(photos: ProgressPhoto[]): Promise<PhotoEntry[]>
   return photos.map((p) => ({
     id: p.id,
     dateLabel: formatWorkoutDate(p.takenAt),
+    takenAtMs: p.takenAt.getTime(),
     pose: p.pose,
     note: p.note,
     thumbHash: p.thumbHash,
@@ -180,9 +243,14 @@ async function buildPhotoEntries(photos: ProgressPhoto[]): Promise<PhotoEntry[]>
   }))
 }
 
-/** "+1.2 lb" / "−0.8 kg" — signed, 1dp, in the display unit. */
-function formatDelta(deltaKg: number, unit: WeightUnit): string {
+/** 1dp for the hero — the trend is an average, 2dp would claim false precision. */
+function roundDisplay(value: number): number {
+  return Math.round(value * 10) / 10
+}
+
+/** "Trending down — 1.2 lb" / "Holding steady" — the editorial direction. */
+function directionLine(deltaKg: number, unit: WeightUnit): string {
   const display = Math.round(kgToDisplay(Math.abs(deltaKg), unit) * 10) / 10
-  const sign = deltaKg < 0 ? '−' : '+'
-  return `${sign}${display} ${unit}`
+  if (display === 0) return 'Holding steady'
+  return `Trending ${deltaKg < 0 ? 'down' : 'up'} — ${display} ${unit}`
 }

@@ -1,12 +1,13 @@
 'use client'
 
-import { Area, AreaChart, CartesianGrid, ReferenceLine, XAxis, YAxis } from 'recharts'
+import { Area, CartesianGrid, ComposedChart, Line, ReferenceLine, XAxis, YAxis } from 'recharts'
 import {
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
   type ChartConfig,
 } from '@/components/ui/chart'
+import { cn } from '@/lib/utils'
 
 /**
  * The app's one time-series chart: a single-series area trend with a
@@ -18,6 +19,11 @@ import {
  * server components and pass pre-formatted points, so Recharts loads only on
  * routes that chart. Single series → no legend (the section heading names
  * it); values live in the tooltip, never painted on every point.
+ *
+ * ComposedChart (not AreaChart) so the optional `raw` companion series can
+ * render as faint dots under the smoothed line — trend-over-noise surfaces
+ * (bodyweight EMA) keep the honest raw readings visible without letting
+ * them shout.
  */
 
 export interface TrendPoint {
@@ -25,6 +31,9 @@ export interface TrendPoint {
   label: string
   /** Display-unit numeric value (already converted from canonical kg). */
   value: number
+  /** Optional companion reading (e.g. the raw weigh-in behind an EMA value)
+   *  painted as a faint dot — set rawLabel to name it in the tooltip. */
+  raw?: number
 }
 
 interface TrendChartProps {
@@ -40,6 +49,10 @@ interface TrendChartProps {
   targetValue?: number
   /** Short label painted at the reference line ("Target"). */
   targetLabel?: string
+  /** Tooltip name for the `raw` companion series ("Weigh-in"). */
+  rawLabel?: string
+  /** Height/spacing override for compact placements (default h-40). */
+  className?: string
 }
 
 export function TrendChart({
@@ -49,13 +62,22 @@ export function TrendChart({
   ariaLabel,
   targetValue,
   targetLabel,
+  rawLabel,
+  className,
 }: TrendChartProps) {
+  const hasRaw = points.some((p) => p.raw !== undefined)
   const config: ChartConfig = {
     value: { label: valueLabel, color: 'var(--primary)' },
+    ...(hasRaw ? { raw: { label: rawLabel ?? 'Raw', color: 'var(--muted-foreground)' } } : {}),
   }
   return (
-    <ChartContainer config={config} className="h-40 w-full" aria-label={ariaLabel} role="img">
-      <AreaChart data={points} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
+    <ChartContainer
+      config={config}
+      className={cn('h-40 w-full', className)}
+      aria-label={ariaLabel}
+      role="img"
+    >
+      <ComposedChart data={points} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
         <CartesianGrid vertical={false} strokeOpacity={0.25} />
         <XAxis
           dataKey="label"
@@ -78,8 +100,13 @@ export function TrendChart({
           cursor={{ strokeOpacity: 0.35 }}
           content={
             <ChartTooltipContent
-              formatter={(value) => (
-                <span className="font-semibold">
+              formatter={(value, name) => (
+                <span className={cn('font-semibold', name === 'raw' && 'text-muted-foreground')}>
+                  {hasRaw && (
+                    <span className="mr-1 font-normal text-muted-foreground">
+                      {String(config[name as string]?.label ?? name)}
+                    </span>
+                  )}
                   {typeof value === 'number'
                     ? `${Math.round(value * 10) / 10} ${unit}`
                     : String(value)}
@@ -103,6 +130,16 @@ export function TrendChart({
             }}
           />
         )}
+        {hasRaw && (
+          // Faint dots only — the honest readings under the smoothed truth.
+          <Line
+            dataKey="raw"
+            stroke="none"
+            dot={{ r: 1.5, fill: 'var(--color-raw)', strokeWidth: 0, fillOpacity: 0.45 }}
+            activeDot={{ r: 3, fill: 'var(--color-raw)' }}
+            isAnimationActive={false}
+          />
+        )}
         <Area
           dataKey="value"
           type="monotone"
@@ -113,7 +150,7 @@ export function TrendChart({
           dot={false}
           activeDot={{ r: 4 }}
         />
-      </AreaChart>
+      </ComposedChart>
     </ChartContainer>
   )
 }

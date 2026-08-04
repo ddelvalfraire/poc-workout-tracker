@@ -2,12 +2,17 @@ import { describe, it, expect } from 'vitest'
 import {
   bodyweightRemainingKg,
   goalLabel,
+  goalTension,
   isBodyweightAchieved,
   isConsistencyAchieved,
   isStrengthAchieved,
   paceProjection,
+  paceVsDeadline,
+  sortGoalsByTension,
+  streakWeekTicks,
   strengthPercent,
   weeklyStreak,
+  type WeekTickState,
 } from './goal-progress'
 
 /**
@@ -143,6 +148,95 @@ describe('weeklyStreak — current-week satisfiability', () => {
   })
 })
 
+describe('streakWeekTicks — same calendar as weeklyStreak', () => {
+  function ticks(
+    completions: Date[],
+    allowedMissesPerWeek: number,
+    targetWeeks: number,
+    now: Date = THU,
+    scheduledWeekdays: readonly number[] = MWF,
+  ): WeekTickState[] {
+    return streakWeekTicks(
+      { scheduledWeekdays, completions, allowedMissesPerWeek, now },
+      targetWeeks,
+    )
+  }
+
+  it('lays out clean past weeks then the pulsing current week', () => {
+    const completions = [
+      at('2026-07-20'), at('2026-07-22'), at('2026-07-24'), // week -1 perfect
+      at('2026-07-27'), at('2026-07-29'), // current trained
+    ]
+    expect(ticks(completions, 0, 4)).toEqual(['clean', 'current', 'future', 'future'])
+  })
+
+  it('marks a grace-surviving week as grace, not clean (grace matrix)', () => {
+    const completions = [
+      at('2026-07-20'), at('2026-07-22'), // week -1: 1 miss — needs grace 1
+      at('2026-07-13'), at('2026-07-15'), at('2026-07-17'), // week -2 perfect
+      at('2026-07-27'),
+    ]
+    expect(ticks(completions, 1, 4)).toEqual(['clean', 'grace', 'current', 'future'])
+    // Grace 2 forgives a 2-miss week the 1-grace walk would break on.
+    const sparse = [
+      at('2026-07-20'), // week -1: 2 misses
+      at('2026-07-27'),
+    ]
+    expect(ticks(sparse, 1, 4)).toEqual(['current', 'future', 'future', 'future'])
+    expect(ticks(sparse, 2, 4)).toEqual(['grace', 'current', 'future', 'future'])
+  })
+
+  it('collapses a dead streak to the restart invitation (current at zero)', () => {
+    const completions = [
+      at('2026-07-20'), at('2026-07-22'), at('2026-07-24'), // week -1 perfect
+      at('2026-07-27'), // current: Wed missed (elapsed by Thu), grace 0
+    ]
+    expect(ticks(completions, 0, 3)).toEqual(['current', 'future', 'future'])
+  })
+
+  it('drops the oldest weeks when the streak outgrows the row', () => {
+    const completions = [
+      at('2026-07-06'), at('2026-07-08'), at('2026-07-10'), // week -3 perfect
+      at('2026-07-13'), at('2026-07-15'), at('2026-07-17'), // week -2 perfect
+      at('2026-07-20'), at('2026-07-22'), at('2026-07-24'), // week -1 perfect
+      at('2026-07-27'), at('2026-07-29'),
+    ]
+    expect(ticks(completions, 0, 2)).toEqual(['clean', 'current'])
+  })
+
+  it('shows only the current cell with no schedule (nothing to adhere to)', () => {
+    expect(ticks([at('2026-07-27')], 1, 3, THU, [])).toEqual([
+      'current',
+      'future',
+      'future',
+    ])
+  })
+
+  it('returns [] for a junk target', () => {
+    expect(ticks([], 1, 0)).toEqual([])
+    expect(ticks([], 1, 2.5)).toEqual([])
+  })
+
+  it('never disagrees with weeklyStreak (counted cells = streak, capped)', () => {
+    const completions = [
+      at('2026-07-13'), at('2026-07-15'), // week -2: 1 miss
+      at('2026-07-20'), at('2026-07-22'), at('2026-07-24'), // week -1 perfect
+      at('2026-07-27'), at('2026-07-29'),
+    ]
+    const input = {
+      scheduledWeekdays: MWF,
+      completions,
+      allowedMissesPerWeek: 1,
+      now: THU,
+    }
+    const weeks = weeklyStreak(input) // 3: current + 2 past
+    const row = streakWeekTicks(input, 8)
+    const counted = row.filter((s) => s === 'clean' || s === 'grace').length
+    // Current week trained → it counts in `weeks` but renders as 'current'.
+    expect(counted + 1).toBe(weeks)
+  })
+})
+
 describe('paceProjection', () => {
   const day = (n: number) => new Date(2026, 0, 1 + n, 12)
 
@@ -224,6 +318,75 @@ describe('achievement predicates + percent', () => {
     const target = { targetWeeks: 8, allowedMissesPerWeek: 1 as const }
     expect(isConsistencyAchieved(7, target)).toBe(false)
     expect(isConsistencyAchieved(8, target)).toBe(true)
+  })
+})
+
+describe('goalTension + sortGoalsByTension', () => {
+  const strength = (percent: number, achieved = false) => ({
+    achieved,
+    progress: { kind: 'strength' as const, percent },
+  })
+  const bodyweight = (remainingKg: number | null) => ({
+    achieved: false,
+    progress: { kind: 'bodyweight' as const, remainingKg },
+  })
+  const consistency = (streakWeeks: number, targetWeeks: number) => ({
+    achieved: false,
+    progress: { kind: 'consistency' as const, streakWeeks, targetWeeks },
+  })
+
+  it('achieved outranks everything; percents order actives', () => {
+    expect(goalTension(strength(40, true))).toBe(101)
+    expect(goalTension(strength(87))).toBe(87)
+    expect(goalTension(consistency(6, 8))).toBe(75)
+  })
+
+  it('maps bodyweight closeness into (0, 100] and unknowns to the bottom', () => {
+    expect(goalTension(bodyweight(0))).toBe(100)
+    expect(goalTension(bodyweight(1))).toBe(50)
+    expect(goalTension(bodyweight(4))).toBe(20)
+    expect(goalTension(bodyweight(null))).toBe(-1)
+  })
+
+  it('sorts descending, stably, without mutating the input', () => {
+    const entries = [
+      bodyweight(null), // unknown → last
+      strength(87),
+      strength(40, true), // achieved → first
+      consistency(6, 8), // 75
+      bodyweight(1), // 50
+    ]
+    const frozen = [...entries]
+    const sorted = sortGoalsByTension(entries)
+    expect(sorted.map((e) => goalTension(e))).toEqual([101, 87, 75, 50, -1])
+    expect(entries).toEqual(frozen) // untouched
+  })
+})
+
+describe('paceVsDeadline', () => {
+  const projected = new Date(2026, 9, 12) // Oct 12, local midnight
+
+  it('is silent without a deadline', () => {
+    expect(paceVsDeadline(projected, null)).toBe(null)
+  })
+
+  it('reports whole weeks early', () => {
+    expect(paceVsDeadline(projected, '2026-11-02')).toBe('3 weeks early')
+    expect(paceVsDeadline(projected, '2026-10-19')).toBe('1 week early')
+  })
+
+  it('reports whole weeks late', () => {
+    expect(paceVsDeadline(projected, '2026-10-05')).toBe('1 week late')
+    expect(paceVsDeadline(projected, '2026-09-14')).toBe('4 weeks late')
+  })
+
+  it('is silent inside the same week — a verdict would be noise', () => {
+    expect(paceVsDeadline(projected, '2026-10-15')).toBe(null)
+    expect(paceVsDeadline(projected, '2026-10-09')).toBe(null)
+  })
+
+  it('is silent on a junk deadline', () => {
+    expect(paceVsDeadline(projected, 'not-a-date')).toBe(null)
   })
 })
 
