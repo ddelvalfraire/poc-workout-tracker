@@ -111,10 +111,8 @@ export default async function TemplateDetailPage({
           )}
         </header>
 
-        <div className="mt-5">
-          <ImportTemplateButton templateId={wgerId} />
-        </div>
-
+        {/* One CTA per surface (Arc D): the Add lives at the bottom, after
+            the plan has made its case — no duplicate above the fold. */}
         <h2 className="mt-8 font-display text-xl uppercase leading-none tracking-wide">The plan</h2>
         <div className="mt-3 space-y-3">
           {input.days.map((day, dayIndex) => (

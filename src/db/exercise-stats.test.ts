@@ -26,6 +26,7 @@ function makeBuilder() {
   const builder: Record<string, unknown> = {
     from: () => builder,
     innerJoin: () => builder,
+    leftJoin: () => builder,
     where: (cond: unknown) => {
       whereArgs.push(cond)
       return builder
@@ -485,7 +486,7 @@ describe('getExerciseSessions', () => {
 })
 
 describe('aggregateLoggedExercises', () => {
-  /** One occurrence row; overrides on top of a wger default. */
+  /** One left-joined row; overrides on top of a completed working wger set. */
   function occ(over: Partial<LoggedExerciseRow> = {}): LoggedExerciseRow {
     return {
       wgerExerciseId: 42,
@@ -493,9 +494,20 @@ describe('aggregateLoggedExercises', () => {
       name: 'Bench Press',
       workoutId: 'w1',
       startedAt: S1,
+      loggingType: 'weight_reps',
+      reps: 5,
+      weight: 100,
+      completed: true,
+      metricMode: 'reps_weight',
+      setType: 'working',
       ...over,
     }
   }
+
+  /** Aggregate with a pinned "now" so the 30d trend windows are deterministic. */
+  const NOW = new Date('2026-07-20T10:00:00Z')
+  const agg = (rows: LoggedExerciseRow[], bodyweightKg: number | null = null) =>
+    aggregateLoggedExercises(rows, bodyweightKg, NOW)
 
   it('keeps a custom exercise separate from a wger exercise with the same id', () => {
     const rows = [
@@ -545,6 +557,68 @@ describe('aggregateLoggedExercises', () => {
   it('returns an empty list for no history', () => {
     expect(aggregateLoggedExercises([])).toEqual([])
   })
+
+  it('derives bestE1rmKg and lastPrAt from per-session bests (strictly greater advances)', () => {
+    const rows = [
+      occ({ workoutId: 'w1', startedAt: S1, reps: 5, weight: 100 }), // e1RM 116.67
+      occ({ workoutId: 'w2', startedAt: S2, reps: 5, weight: 105 }), // e1RM 122.5 → PR
+      occ({ workoutId: 'w3', startedAt: S3, reps: 5, weight: 105 }), // tie → NOT a PR
+    ]
+
+    const entries = agg(rows)
+
+    expect(entries[0].bestE1rmKg).toBeCloseTo(122.5, 5)
+    expect(entries[0].lastPrAt).toEqual(S2)
+  })
+
+  it('computes the 30d-vs-prior trend delta and nulls it when a window is empty', () => {
+    // S1 (Jul 1) and S3 (Jul 15) sit inside the recent window (NOW Jul 20);
+    // Jun 5 sits in the prior 30d window.
+    const prior = new Date('2026-06-05T10:00:00Z')
+    const withBoth = [
+      occ({ workoutId: 'w0', startedAt: prior, reps: 5, weight: 90 }), // prior best 105
+      occ({ workoutId: 'w1', startedAt: S1, reps: 5, weight: 96 }), // recent best 112
+    ]
+    const recentOnly = [occ({ workoutId: 'w1', startedAt: S1, reps: 5, weight: 96 })]
+
+    expect(agg(withBoth)[0].trendDeltaKg).toBeCloseTo(7, 5)
+    // A delta with no baseline is no delta at all.
+    expect(agg(recentOnly)[0].trendDeltaKg).toBeNull()
+  })
+
+  it('never scores warm-ups, uncompleted, or duration-mode sets', () => {
+    const rows = [
+      occ({ setType: 'warmup', weight: 200 }),
+      occ({ completed: false, weight: 200 }),
+      occ({ metricMode: 'duration', weight: 200 }),
+    ]
+
+    const entries = agg(rows)
+
+    expect(entries[0].bestE1rmKg).toBeNull()
+    expect(entries[0].trendDeltaKg).toBeNull()
+    expect(entries[0].lastPrAt).toBeNull()
+    expect(entries[0].sessionCount).toBe(1) // still an occurrence
+  })
+
+  it('keeps a set-less occurrence (left-join null set row) as a listed session', () => {
+    const rows = [
+      occ({ reps: null, weight: null, completed: null, metricMode: null, setType: null }),
+    ]
+
+    const entries = agg(rows)
+
+    expect(entries).toHaveLength(1)
+    expect(entries[0]).toMatchObject({ sessionCount: 1, bestE1rmKg: null })
+  })
+
+  it('scores bodyweight logging types through the shared effective-load rule', () => {
+    const rows = [occ({ loggingType: 'bodyweight_reps', reps: 10, weight: null })]
+
+    // No stored bodyweight → nothing scorable; with one → e1RM appears.
+    expect(agg(rows, null)[0].bestE1rmKg).toBeNull()
+    expect(agg(rows, 80)[0].bestE1rmKg).toBeCloseTo(80 * (1 + 10 / 30), 5)
+  })
 })
 
 describe('listLoggedExercises', () => {
@@ -557,6 +631,12 @@ describe('listLoggedExercises', () => {
           name: 'Bench Press',
           workoutId: 'w1',
           startedAt: S1,
+          loggingType: 'weight_reps',
+          reps: 5,
+          weight: 100,
+          completed: true,
+          metricMode: 'reps_weight',
+          setType: 'working',
         },
       ],
     ]
@@ -565,6 +645,7 @@ describe('listLoggedExercises', () => {
 
     expect(entries).toHaveLength(1)
     expect(entries[0]).toMatchObject({ wgerExerciseId: 42, sessionCount: 1 })
+    expect(entries[0].bestE1rmKg).toBeCloseTo(100 * (1 + 5 / 30), 5)
     const where = new PgDialect().sqlToQuery(whereArgs[0] as SQL)
     expect(where.params).toContain(USER)
     expect(where.sql).toContain('"completed_at" is not null')

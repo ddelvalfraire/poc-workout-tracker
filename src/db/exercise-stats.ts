@@ -352,40 +352,74 @@ export async function getExerciseSessions(
 }
 
 /** One occurrence of an exercise in a completed workout — the flat row the
- *  library list aggregates over. */
+ *  library list aggregates over. Set fields are nullable because the query
+ *  LEFT-joins `sets`: an occurrence with no logged sets still lists. */
 export interface LoggedExerciseRow {
   wgerExerciseId: number
   source: ExerciseSource
   name: string
   workoutId: string
   startedAt: Date
+  loggingType: LoggingType
+  reps: number | null
+  weight: number | null // kg
+  completed: boolean | null
+  metricMode: string | null
+  setType: string | null
 }
 
 /** One library entry. `sessionCount` counts completed workouts CONTAINING the
  *  exercise (occurrence-level) — it can differ from `totalSessions` (which
- *  requires ≥1 COMPLETED set). The list is navigation, not scoring; the
- *  cheaper no-sets query is deliberate. */
+ *  requires ≥1 COMPLETED set); the LEFT join keeps set-less occurrences.
+ *  The e1RM fields are the /exercises alive-row facts; all null when no set
+ *  of the exercise is e1RM-scorable (rows degrade to session count). */
 export interface LoggedExercise {
   wgerExerciseId: number
   source: ExerciseSource
   name: string
   sessionCount: number
   lastPerformedAt: Date
+  /** All-time best e1RM (kg, full precision; round only at display). */
+  bestE1rmKg: number | null
+  /** Best e1RM of the last 30 days minus the best of the 30 days before
+   *  that — the row's trend delta (kg). Null when EITHER window has no
+   *  scorable session: a delta with no baseline is no delta at all. */
+  trendDeltaKg: number | null
+  /** When the running-max e1RM last advanced — the MOVING-zone signal. */
+  lastPrAt: Date | null
 }
 
+/** The trend windows: best-of-last-30d vs best-of-the-prior-30d. */
+const TREND_WINDOW_MS = 30 * 24 * 60 * 60 * 1000
+
 /**
- * Pure aggregation over occurrence rows — exported for tests. Groups by the
- * composite identity, latest name wins, newest-trained first. Builds fresh
- * structures; never mutates its inputs. Rows must arrive ascending by
- * session start (the query's orderBy) so "latest name" is honest.
+ * Pure aggregation over the left-joined rows — exported for tests. Groups by
+ * the composite identity, latest name/loggingType win, newest-trained first.
+ * Scoring reuses `bestScoredSet` (e1RM is deliberately NOT re-derived in SQL
+ * — the logging-type weight semantics live in one place) over completed
+ * working reps_weight sets, per session, in ascending order so `lastPrAt`
+ * and the strictly-greater tie policy match `aggregateExerciseStats`.
+ * Builds fresh structures; never mutates its inputs. Rows must arrive
+ * ascending by session start (the query's orderBy).
  */
-export function aggregateLoggedExercises(rows: readonly LoggedExerciseRow[]): LoggedExercise[] {
+export function aggregateLoggedExercises(
+  rows: readonly LoggedExerciseRow[],
+  bodyweightKg: number | null = null,
+  now: Date = new Date(),
+): LoggedExercise[] {
+  interface SessionAcc {
+    performedAt: Date
+    sets: { reps: number | null; weight: number | null }[]
+  }
   interface Acc {
     wgerExerciseId: number
     source: ExerciseSource
     name: string
+    loggingType: LoggingType
     workoutIds: Set<string>
     lastPerformedAt: Date
+    /** Insertion-ordered (= ascending session start) scorable sets. */
+    sessions: Map<string, SessionAcc>
   }
   // Keyed by the composite identity: a custom exercise's identity id can
   // collide with a wger id, and the two must never merge into one entry.
@@ -397,39 +431,103 @@ export function aggregateLoggedExercises(rows: readonly LoggedExerciseRow[]): Lo
       wgerExerciseId: row.wgerExerciseId,
       source: row.source,
       name: row.name,
+      loggingType: row.loggingType,
       workoutIds: new Set(),
       lastPerformedAt: row.startedAt,
+      sessions: new Map(),
     }
     if (!existing) byExercise.set(key, acc)
     acc.name = row.name // ascending input order → last write is the latest
+    acc.loggingType = row.loggingType // same latest-wins rule as getExerciseStats
     acc.workoutIds.add(row.workoutId)
     if (row.startedAt > acc.lastPerformedAt) acc.lastPerformedAt = row.startedAt
+    // Scoring truth: completed working reps_weight sets only — the same gate
+    // as aggregateExerciseStats, so list and detail can never disagree.
+    if (row.completed === true && row.setType !== 'warmup' && row.metricMode === 'reps_weight') {
+      let session = acc.sessions.get(row.workoutId)
+      if (!session) {
+        session = { performedAt: row.startedAt, sets: [] }
+        acc.sessions.set(row.workoutId, session)
+      }
+      session.sets.push({ reps: row.reps, weight: row.weight })
+    }
   }
+
+  const recentStart = now.getTime() - TREND_WINDOW_MS
+  const priorStart = recentStart - TREND_WINDOW_MS
+
   return [...byExercise.values()]
-    .map((acc) => ({
-      wgerExerciseId: acc.wgerExerciseId,
-      source: acc.source,
-      name: acc.name,
-      sessionCount: acc.workoutIds.size,
-      lastPerformedAt: acc.lastPerformedAt,
-    }))
+    .map((acc) => {
+      let bestE1rmKg: number | null = null
+      let lastPrAt: Date | null = null
+      let bestRecent: number | null = null
+      let bestPrior: number | null = null
+      for (const session of acc.sessions.values()) {
+        const best = bestScoredSet(session.sets, acc.loggingType, bodyweightKg)
+        if (best?.kind !== 'e1rm') continue
+        // Strictly-greater: a tied session is a repeat, not a new PR.
+        if (bestE1rmKg === null || best.e1rm > bestE1rmKg) {
+          bestE1rmKg = best.e1rm
+          lastPrAt = session.performedAt
+        }
+        const at = session.performedAt.getTime()
+        if (at >= recentStart) {
+          if (bestRecent === null || best.e1rm > bestRecent) bestRecent = best.e1rm
+        } else if (at >= priorStart) {
+          if (bestPrior === null || best.e1rm > bestPrior) bestPrior = best.e1rm
+        }
+      }
+      return {
+        wgerExerciseId: acc.wgerExerciseId,
+        source: acc.source,
+        name: acc.name,
+        sessionCount: acc.workoutIds.size,
+        lastPerformedAt: acc.lastPerformedAt,
+        bestE1rmKg,
+        trendDeltaKg: bestRecent !== null && bestPrior !== null ? bestRecent - bestPrior : null,
+        lastPrAt,
+      }
+    })
     .sort((a, b) => b.lastPerformedAt.getTime() - a.lastPerformedAt.getTime())
 }
 
-/** Every exercise the user has trained in a completed workout, newest first —
- *  the /exercises library list. Same authz scoping as the rest of the module. */
-export async function listLoggedExercises(userId: string): Promise<LoggedExercise[]> {
-  const rows = await db
+/** The library query builder, exported for SQL-shape tests (`.toSQL()`).
+ *  LEFT join on `sets` on purpose: the list is navigation first — an
+ *  exercise whose workouts hold no set rows must still appear
+ *  (occurrence-level sessionCount), while the set columns feed the
+ *  alive-row scoring above. One flat query over the user's completed
+ *  history; the windowed trend comparison happens in the pure aggregate,
+ *  where `bestScoredSet` already owns the e1RM semantics. */
+export function loggedExercisesQuery(userId: string) {
+  return db
     .select({
       wgerExerciseId: workoutExercises.wgerExerciseId,
       source: workoutExercises.source,
       name: workoutExercises.name,
       workoutId: workoutExercises.workoutId,
       startedAt: workouts.startedAt,
+      loggingType: workoutExercises.loggingType,
+      reps: sets.reps,
+      weight: sets.weight,
+      completed: sets.completed,
+      metricMode: sets.metricMode,
+      setType: sets.setType,
     })
     .from(workoutExercises)
     .innerJoin(workouts, eq(workouts.id, workoutExercises.workoutId))
+    .leftJoin(sets, eq(sets.workoutExerciseId, workoutExercises.id))
     .where(and(eq(workouts.userId, userId), isNotNull(workouts.completedAt)))
-    .orderBy(asc(workouts.startedAt))
-  return aggregateLoggedExercises(rows)
+    .orderBy(asc(workouts.startedAt), asc(workoutExercises.position), asc(sets.setNumber))
+}
+
+/** Every exercise the user has trained in a completed workout, newest first,
+ *  with best-e1RM + trend facts — the /exercises library list. Same authz
+ *  scoping as the rest of the module; bodyweight fetched like
+ *  `getExerciseStats` so bodyweight-type exercises score identically. */
+export async function listLoggedExercises(userId: string): Promise<LoggedExercise[]> {
+  const [bodyweightKg, rows] = await Promise.all([
+    getBodyweightKg(userId),
+    loggedExercisesQuery(userId),
+  ])
+  return aggregateLoggedExercises(rows, bodyweightKg, new Date())
 }

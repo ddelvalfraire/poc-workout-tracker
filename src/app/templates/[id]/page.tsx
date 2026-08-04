@@ -56,8 +56,10 @@ export default async function TemplateDetailPage({
 
   return (
     <div className="flex min-h-[100dvh] flex-col">
+      {/* The template IS the title (Arc D): "Template" told the user what
+          kind of page they were on, not where they were. */}
       <AppHeader
-        title="Template"
+        title={template.name}
         leading={
           <BackLink fallback="/templates" />
         }
