@@ -1,6 +1,13 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type ReactNode,
+} from 'react'
 import { useChat } from '@ai-sdk/react'
 import {
   DefaultChatTransport,
@@ -15,24 +22,23 @@ import {
 import Link from 'next/link'
 import { ArrowUp, RotateCcw } from 'lucide-react'
 import { Streamdown } from 'streamdown'
+import { AppHeader } from '@/components/app-header'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import {
+  chipsFor,
+  daySeparatorLabel,
   extractProgramProposal,
   formatToolInput,
-  humanizeToolName,
   isPinnedToBottom,
+  messageTimestamp,
   parseCoachError,
+  starterPrompts,
   toolInputDetail,
   toolStatusLabel,
   type ProgramProposal,
 } from '@/lib/coach/chat-ui'
-
-const EXAMPLE_PROMPTS = [
-  'What did I train this week?',
-  "Swap tomorrow's pressing for more volume",
-  'Preview next week',
-]
+import { describeToolCall } from '@/lib/coach/describe-tool-call'
 
 /** Both static (`tool-*`) and dynamic tool parts, under one roof. */
 type AnyToolPart = ToolUIPart | DynamicToolUIPart
@@ -43,6 +49,13 @@ function isToolPart(part: UIMessagePart<UIDataTypes, UITools>): part is AnyToolP
 
 function toolPartName(part: AnyToolPart): string {
   return part.type === 'dynamic-tool' ? part.toolName : part.type.slice('tool-'.length)
+}
+
+/** Outgoing user message stamped with the send time — the client half of the
+ *  day-separator timestamps (the server stamps assistant messages). Module
+ *  scope: the stamp happens at send time, outside render. */
+function stampedUserMessage(text: string): { text: string; metadata: { createdAt: number } } {
+  return { text, metadata: { createdAt: Date.now() } }
 }
 
 /** navigator.onLine as reactive state (true during SSR — no offline flash). */
@@ -122,13 +135,21 @@ function ApprovalCard({
       <p className="text-[11px] font-semibold uppercase tracking-widest text-primary">
         Needs your OK
       </p>
-      <p className="mt-1 font-display text-lg uppercase leading-tight tracking-wide">
-        {humanizeToolName(name)}
-      </p>
+      {/* The trust-critical line: a human sentence built from the tool input
+          (describeToolCall), not the tool's name or raw JSON. Body text, not
+          font-display — a change description is read, not shouted. */}
+      <p className="mt-1 text-[15px] font-medium leading-snug">{describeToolCall(name, part.input)}</p>
       {args && (
-        <pre className="mt-2 overflow-x-auto font-mono text-xs break-all whitespace-pre-wrap text-muted-foreground">
-          {args}
-        </pre>
+        /* The raw args, demoted: still one tap away for anyone who wants to
+           verify the exact payload, never the headline. */
+        <details className="mt-2">
+          <summary className="cursor-pointer text-xs text-muted-foreground select-none">
+            Details
+          </summary>
+          <pre className="mt-1 overflow-x-auto font-mono text-xs break-all whitespace-pre-wrap text-muted-foreground">
+            {args}
+          </pre>
+        </details>
       )}
       <div className="mt-3 grid grid-cols-2 gap-2">
         <Button
@@ -211,11 +232,13 @@ function ToolPartView({
     case 'approval-responded':
       return (
         <p className="text-xs text-muted-foreground">
-          {humanizeToolName(name)} — {part.approval.approved ? 'applying…' : 'cancelled'}
+          {describeToolCall(name, part.input)} — {part.approval.approved ? 'applying…' : 'cancelled'}
         </p>
       )
     case 'output-denied':
-      return <p className="text-xs text-muted-foreground">{humanizeToolName(name)} — cancelled</p>
+      return (
+        <p className="text-xs text-muted-foreground">{describeToolCall(name, part.input)} — cancelled</p>
+      )
     case 'output-available': {
       // A completed draft (create OR revision of a still-proposed draft)
       // becomes the proposal card; anything unverifiable degrades to the chip.
@@ -233,16 +256,31 @@ function ToolPartView({
 interface CoachChatProps {
   /** Optional app context (e.g. "program:<id>") forwarded in the POST body. */
   context?: string
+  /** Header leading slot (the nav drawer), passed through from the page. */
+  leading?: ReactNode
+  /** The context program's name (cheap server-side title read) — personalizes
+   *  the empty-state starters; absent → generic examples. */
+  programName?: string
   /** The persisted thread, loaded server-side — seeds the chat on mount. */
   initialMessages?: UIMessage[]
   /** Server action dropping the persisted thread ("New chat"). */
   clearAction?: () => Promise<void>
 }
 
-export function CoachChat({ context, initialMessages, clearAction }: CoachChatProps) {
+export function CoachChat({
+  context,
+  leading,
+  programName,
+  initialMessages,
+  clearAction,
+}: CoachChatProps) {
   const [input, setInput] = useState('')
   const online = useOnline()
   const bottomRef = useRef<HTMLDivElement>(null)
+  // "Now" for the day-separator labels, pinned at mount (render must stay
+  // pure). Only staler-than-a-day labels would misread, and a chat left open
+  // across midnight re-mounts long before that matters here.
+  const [mountedAt] = useState(() => Date.now())
 
   const transport = useMemo(
     () =>
@@ -324,13 +362,43 @@ export function CoachChat({ context, initialMessages, clearAction }: CoachChatPr
     clearError()
     // Sending always re-pins: the user asked a question, show the answer.
     pinnedRef.current = true
-    void sendMessage({ text: trimmed })
+    void sendMessage(stampedUserMessage(trimmed))
     setInput('')
     bottomRef.current?.scrollIntoView({ block: 'end' })
   }
 
+  const starters = starterPrompts(programName)
+  // Follow-up chips only for a settled turn: stream done, nothing awaiting
+  // approval, no error banner competing for the same attention.
+  const followUps =
+    status === 'ready' && !pendingApproval && !error ? chipsFor(messages[messages.length - 1]) : []
+
   return (
     <>
+      <AppHeader
+        title="Coach"
+        leading={leading}
+        trailing={
+          clearAction && messages.length > 0 ? (
+            /* "New chat" lives in the app bar, not the scroll — reachable at
+               any thread length. */
+            <Button
+              size="sm"
+              variant="ghost"
+              className="text-muted-foreground"
+              disabled={busy}
+              onClick={async () => {
+                clearError()
+                await clearAction()
+                setMessages([])
+              }}
+            >
+              <RotateCcw aria-hidden="true" className="size-3.5" />
+              New chat
+            </Button>
+          ) : undefined
+        }
+      />
       <main className="mx-auto w-full max-w-md flex-1 px-5">
         {messages.length === 0 ? (
           /* Empty state: what the coach is for, plus tappable starters. */
@@ -343,7 +411,7 @@ export function CoachChat({ context, initialMessages, clearAction }: CoachChatPr
               without your OK.
             </p>
             <div className="mt-6 space-y-2">
-              {EXAMPLE_PROMPTS.map((prompt) => (
+              {starters.map((prompt) => (
                 <button
                   key={prompt}
                   type="button"
@@ -358,33 +426,33 @@ export function CoachChat({ context, initialMessages, clearAction }: CoachChatPr
           </div>
         ) : (
           <div className="space-y-4 py-4">
-            {clearAction && (
-              <div className="flex justify-end">
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="text-muted-foreground"
-                  disabled={busy}
-                  onClick={async () => {
-                    clearError()
-                    await clearAction()
-                    setMessages([])
-                  }}
-                >
-                  <RotateCcw aria-hidden="true" className="size-3.5" />
-                  New chat
-                </Button>
-              </div>
-            )}
-            {messages.map((message) => (
+            {messages.map((message, messageIndex) => (
               <div key={message.id} className="space-y-2">
+                {/* Calendar-day divider — only when messages carry createdAt
+                    metadata (threads persisted before timestamps get none). */}
+                {(() => {
+                  const label = daySeparatorLabel(
+                    messageIndex === 0
+                      ? null
+                      : messageTimestamp(messages[messageIndex - 1].metadata),
+                    messageTimestamp(message.metadata),
+                    mountedAt,
+                  )
+                  return label ? (
+                    <p className="py-2 text-center text-[11px] font-semibold uppercase tracking-widest text-muted-foreground/70">
+                      {label}
+                    </p>
+                  ) : null
+                })()}
                 {message.parts.map((part, index) => {
                   if (part.type === 'text') {
                     if (!part.text) return null
                     return message.role === 'user' ? (
                       <p
                         key={index}
-                        className="ml-auto w-fit max-w-[85%] rounded-2xl rounded-br-md bg-primary/15 px-4 py-2.5 text-sm whitespace-pre-wrap"
+                        /* Neutral surface, not volt: user bubbles are content,
+                           and volt is reserved for action/achievement. */
+                        className="ml-auto w-fit max-w-[85%] rounded-2xl rounded-br-md bg-muted px-4 py-2.5 text-sm whitespace-pre-wrap"
                       >
                         {part.text}
                       </p>
@@ -416,6 +484,24 @@ export function CoachChat({ context, initialMessages, clearAction }: CoachChatPr
                 })}
               </div>
             ))}
+
+            {/* Contextual follow-ups for the settled turn — tapping one just
+                sends it as the next user message. */}
+            {followUps.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {followUps.map((chip) => (
+                  <button
+                    key={chip}
+                    type="button"
+                    onClick={() => submit(chip)}
+                    disabled={busy || offline}
+                    className="rounded-full border border-border bg-card px-3.5 py-1.5 text-xs text-muted-foreground transition-colors active:bg-muted/60 disabled:opacity-50"
+                  >
+                    {chip}
+                  </button>
+                ))}
+              </div>
+            )}
 
             {/* Streaming indicator: same live voice as the in-progress cards. */}
             {status === 'submitted' && (

@@ -1,11 +1,18 @@
 import { describe, expect, test } from 'vitest'
+import type { UIMessage } from 'ai'
 import {
+  chipsFor,
+  daySeparatorLabel,
+  DEFAULT_STARTERS,
   extractProgramProposal,
   formatToolInput,
   humanizeToolName,
   isPinnedToBottom,
+  messageTimestamp,
   parseCoachError,
   parseContextParam,
+  programIdFromContext,
+  starterPrompts,
   toolInputDetail,
   toolStatusLabel,
 } from './chat-ui'
@@ -240,5 +247,155 @@ describe('parseContextParam', () => {
 
   test('caps the length at the server bound', () => {
     expect(parseContextParam('x'.repeat(600))).toHaveLength(500)
+  })
+})
+
+const CONTEXT_PROGRAM_ID = '4de3c1a0-9d55-4a2b-8f18-2ab0c1d2e3f4'
+
+describe('programIdFromContext', () => {
+  test('extracts a UUID from a program context', () => {
+    expect(programIdFromContext(`program:${CONTEXT_PROGRAM_ID}`)).toBe(CONTEXT_PROGRAM_ID)
+  })
+
+  test('rejects non-program contexts, non-UUIDs, and absence', () => {
+    expect(programIdFromContext(undefined)).toBeNull()
+    expect(programIdFromContext('workout:123')).toBeNull()
+    expect(programIdFromContext('program:not-a-uuid')).toBeNull()
+    expect(programIdFromContext('program:')).toBeNull()
+  })
+})
+
+describe('starterPrompts', () => {
+  test('personalizes with the program name', () => {
+    expect(starterPrompts('Hypertrophy Block')).toEqual([
+      "How's Hypertrophy Block going?",
+      'Plan my next block',
+      'Preview next week',
+    ])
+  })
+
+  test('falls back to the generic examples without a name', () => {
+    expect(starterPrompts(undefined)).toEqual([...DEFAULT_STARTERS])
+    expect(starterPrompts(null)).toEqual([...DEFAULT_STARTERS])
+    expect(starterPrompts('   ')).toEqual([...DEFAULT_STARTERS])
+  })
+})
+
+/** Bare-bones message builder; parts are structurally typed by the SDK union. */
+function assistantTurn(parts: UIMessage['parts']): UIMessage {
+  return { id: 'a1', role: 'assistant', parts }
+}
+
+describe('chipsFor', () => {
+  test('empty for no turn or a user turn', () => {
+    expect(chipsFor(undefined)).toEqual([])
+    expect(chipsFor({ id: 'u1', role: 'user', parts: [{ type: 'text', text: 'hi' }] })).toEqual([])
+  })
+
+  test('proposal drafted → review-oriented chips', () => {
+    const turn = assistantTurn([
+      { type: 'text', text: 'Drafted it.' },
+      {
+        type: 'dynamic-tool',
+        toolName: 'upsert_program',
+        toolCallId: 'c1',
+        state: 'output-available',
+        input: { name: 'Block' },
+        output: {},
+      },
+    ] as UIMessage['parts'])
+    expect(chipsFor(turn)).toEqual(['Preview week 1', 'Why these numbers?'])
+  })
+
+  test('applied program change → change-log chips (static tool part shape)', () => {
+    const turn = assistantTurn([
+      {
+        type: 'tool-update_program_set',
+        toolCallId: 'c2',
+        state: 'output-available',
+        input: {},
+        output: {},
+      },
+      { type: 'text', text: 'Done — set 3 is now 8 reps.' },
+    ] as UIMessage['parts'])
+    expect(chipsFor(turn)).toEqual(['Show the change log', 'Preview next week'])
+  })
+
+  test('read-only or plain-text turn → generic chips', () => {
+    const readsOnly = assistantTurn([
+      {
+        type: 'tool-list_workouts',
+        toolCallId: 'c3',
+        state: 'output-available',
+        input: {},
+        output: {},
+      },
+      { type: 'text', text: 'You trained 3 times.' },
+    ] as UIMessage['parts'])
+    expect(chipsFor(readsOnly)).toEqual(['What should I focus on?', 'Any signs of stalling?'])
+    expect(chipsFor(assistantTurn([{ type: 'text', text: 'Hello!' }]))).toEqual([
+      'What should I focus on?',
+      'Any signs of stalling?',
+    ])
+  })
+
+  test('an unfinished (approval-requested) tool part does not count as applied', () => {
+    const pending = assistantTurn([
+      {
+        type: 'tool-update_program_set',
+        toolCallId: 'c4',
+        state: 'approval-requested',
+        input: {},
+      },
+    ] as unknown as UIMessage['parts'])
+    expect(chipsFor(pending)).toEqual(['What should I focus on?', 'Any signs of stalling?'])
+  })
+})
+
+describe('messageTimestamp', () => {
+  test('narrows a numeric createdAt', () => {
+    expect(messageTimestamp({ createdAt: 1_754_200_000_000 })).toBe(1_754_200_000_000)
+  })
+
+  test('null for absent, malformed, or non-finite metadata', () => {
+    expect(messageTimestamp(undefined)).toBeNull()
+    expect(messageTimestamp(null)).toBeNull()
+    expect(messageTimestamp({})).toBeNull()
+    expect(messageTimestamp({ createdAt: '2026-07-12' })).toBeNull()
+    expect(messageTimestamp({ createdAt: Number.NaN })).toBeNull()
+  })
+})
+
+describe('daySeparatorLabel', () => {
+  // Local-time constructors on purpose: separators are wall-clock days.
+  const at = (y: number, m: number, d: number, h = 12) => new Date(y, m, d, h).getTime()
+  const now = at(2026, 6, 14) // Jul 14, 2026
+
+  test('no timestamp on the current message → no separator (honest fallback)', () => {
+    expect(daySeparatorLabel(null, null, now)).toBeNull()
+    expect(daySeparatorLabel(at(2026, 6, 13), null, now)).toBeNull()
+  })
+
+  test('same calendar day → no separator, even hours apart', () => {
+    expect(daySeparatorLabel(at(2026, 6, 13, 1), at(2026, 6, 13, 23), now)).toBeNull()
+  })
+
+  test('crossing into today → "Today"', () => {
+    expect(daySeparatorLabel(at(2026, 6, 13), at(2026, 6, 14), now)).toBe('Today')
+  })
+
+  test('crossing into yesterday → "Yesterday"', () => {
+    expect(daySeparatorLabel(at(2026, 6, 12), at(2026, 6, 13), now)).toBe('Yesterday')
+  })
+
+  test('older days → "Jul 12", with the year only when it differs', () => {
+    expect(daySeparatorLabel(at(2026, 6, 11), at(2026, 6, 12), now)).toBe('Jul 12')
+    expect(daySeparatorLabel(at(2025, 11, 30), at(2025, 11, 31), now)).toBe('Dec 31, 2025')
+  })
+
+  test('first stamped message: labeled only when from before today', () => {
+    expect(daySeparatorLabel(null, at(2026, 6, 14), now)).toBeNull()
+    expect(daySeparatorLabel(null, at(2026, 6, 13), now)).toBe('Yesterday')
+    expect(daySeparatorLabel(null, at(2026, 6, 1), now)).toBe('Jul 1')
   })
 })

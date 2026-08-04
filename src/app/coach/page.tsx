@@ -1,10 +1,10 @@
 import { notFound } from 'next/navigation'
 import { requireUserId } from '@/lib/auth'
-import { AppHeader } from '@/components/app-header'
 import { NavDrawer } from '@/components/nav/nav-drawer'
+import { getProgramName } from '@/db/programs'
 import { isCoachUser } from '@/lib/coach/access'
 import { loadCoachChat } from '@/lib/coach/chat-store'
-import { parseContextParam } from '@/lib/coach/chat-ui'
+import { parseContextParam, programIdFromContext } from '@/lib/coach/chat-ui'
 import { clearCoachChatAction } from './actions'
 import { CoachChat } from './coach-chat'
 
@@ -24,16 +24,24 @@ export default async function CoachPage({
   if (!isCoachUser(userId)) notFound()
   const sp = await searchParams
   const context = parseContextParam(sp.context)
+  // Program context personalizes the empty-state starters. Deliberately a
+  // cheap name-only read (single indexed row), not getProgramDetail — the
+  // starters need a title, nothing else; missing/foreign ids fall back to
+  // the generic examples.
+  const contextProgramId = programIdFromContext(context)
+  const programName = contextProgramId
+    ? ((await getProgramName(userId, contextProgramId)) ?? undefined)
+    : undefined
   const initialMessages = await loadCoachChat(userId)
 
   return (
     <div className="flex min-h-[100dvh] flex-col">
-      <AppHeader
-        title="Coach"
-        leading={<NavDrawer />}
-      />
+      {/* CoachChat owns the AppHeader so "New chat" can live in the trailing
+          slot (it needs the client-side message state to clear). */}
       <CoachChat
         context={context}
+        leading={<NavDrawer />}
+        programName={programName}
         initialMessages={initialMessages}
         clearAction={clearCoachChatAction}
       />
