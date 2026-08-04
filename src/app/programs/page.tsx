@@ -1,15 +1,119 @@
 import Link from 'next/link'
 import { ChevronRight } from 'lucide-react'
 import { requireUserId } from '@/lib/auth'
-import { listPrograms } from '@/db/programs'
+import {
+  listPrograms,
+  getProgramDetail,
+  getNextProgramDay,
+  listProgramWorkouts,
+  programWeekState,
+} from '@/db/programs'
 import { AppHeader } from '@/components/app-header'
+import { BlockMap } from '@/components/block-map'
+import { buildBlockWeeks, type BlockWeek } from '@/components/block-weeks'
 import { buttonVariants } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { NavDrawer } from '@/components/nav/nav-drawer'
+import { zonePrograms, programStatusLabel } from './list-view'
+
+/** The list-row program shape (listPrograms row). */
+type ProgramRowData = Awaited<ReturnType<typeof listPrograms>>[number]
+
+/** Everything the active-hero card renders beyond the program row itself. */
+interface HeroData {
+  currentWeek: number
+  blockComplete: boolean
+  blockWeeks: BlockWeek[]
+  /** "Next: Day 2 · Legs" — null when there's nothing to suggest. */
+  nextLine: string | null
+}
+
+/**
+ * The hero's extra reads, for ONE program only (the most recent active).
+ * Cost, documented per the list-hero decision: getProgramDetail (day
+ * ids/names for the day count + "Day N" index), listProgramWorkouts (the
+ * block map's fill), and getNextProgramDay (cache()-wrapped — free if this
+ * request already derived it, one derivation otherwise; it carries
+ * currentWeek + blockComplete so programWeekState is only the fallback when
+ * the active program has no derivable next day).
+ */
+async function loadHeroData(userId: string, program: ProgramRowData): Promise<HeroData | null> {
+  const [detail, workouts, nextDay] = await Promise.all([
+    getProgramDetail(userId, program.id),
+    listProgramWorkouts(userId, program.id),
+    getNextProgramDay(userId),
+  ])
+  if (!detail) return null
+  // getNextProgramDay picks the most recent active — the same recency rule
+  // zonePrograms uses for the hero — so a mismatch means no next day here.
+  const next = nextDay?.programId === program.id ? nextDay : null
+  const { currentWeek, blockComplete } = next
+    ? { currentWeek: next.week, blockComplete: next.blockComplete }
+    : await programWeekState(userId, program.id, program.mesocycleWeeks)
+  const dayIndex = next ? detail.days.findIndex((d) => d.id === next.dayId) : -1
+  return {
+    currentWeek,
+    blockComplete,
+    blockWeeks: buildBlockWeeks({
+      mesocycleWeeks: program.mesocycleWeeks,
+      deloadWeek: program.deloadWeek,
+      currentWeek,
+      dayCountTotal: detail.days.length,
+      workouts,
+    }),
+    nextLine: next
+      ? `Next: ${dayIndex >= 0 ? `Day ${dayIndex + 1} · ` : ''}${next.dayName}`
+      : null,
+  }
+}
+
+/** The quiet list row every non-hero program gets, volt-dashed for proposals. */
+function ProgramRow({ program }: { program: ProgramRowData }) {
+  const isProposed = program.status === 'proposed'
+  return (
+    <li>
+      <Link
+        href={`/programs/${program.id}`}
+        className={cn(
+          'flex min-w-0 items-center justify-between gap-4 rounded-2xl border bg-card p-4 transition-colors active:bg-muted/60',
+          isProposed ? 'border-dashed border-primary/50' : 'border-border',
+        )}
+      >
+        <span className="min-w-0">
+          <span className="flex min-w-0 items-baseline gap-2 font-display text-lg uppercase leading-tight tracking-wide">
+            {program.icon !== null && (
+              <span aria-hidden="true" className="shrink-0 text-base leading-none">
+                {program.icon}
+              </span>
+            )}
+            <span className="min-w-0 truncate">{program.name}</span>
+          </span>
+          <span className="mt-1 block text-xs text-muted-foreground tnum">
+            {program.mesocycleWeeks} week{program.mesocycleWeeks === 1 ? '' : 's'}
+            {program.deloadWeek !== null && ` · deload wk ${program.deloadWeek}`}
+          </span>
+        </span>
+        <ChevronRight aria-hidden="true" className="size-5 shrink-0 text-muted-foreground" />
+      </Link>
+    </li>
+  )
+}
+
+/** A zone heading — quiet, uppercase, the same voice everywhere. */
+function ZoneHeading({ children }: { children: React.ReactNode }) {
+  return (
+    <h2 className="mt-8 mb-2 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
+      {children}
+    </h2>
+  )
+}
 
 export default async function ProgramsPage() {
   const userId = await requireUserId() // middleware also guards; defense-in-depth
   const programs = await listPrograms(userId)
+  const zones = zonePrograms(programs)
+  const hero = zones.hero
+  const heroData = hero ? await loadHeroData(userId, hero) : null
 
   return (
     <div className="flex min-h-[100dvh] flex-col">
@@ -19,115 +123,151 @@ export default async function ProgramsPage() {
       />
 
       <main className="mx-auto w-full max-w-md flex-1 px-5 pb-safe">
-        <Link
-          href="/programs/new"
-          className={cn(
-            buttonVariants({ size: 'lg' }),
-            'mt-6 w-full text-base font-semibold uppercase tracking-wide',
-          )}
-        >
-          + New Program
-        </Link>
-
-        {/* Secondary path: start from a wger community template instead of a
-            blank builder. Outline — the volt CTA above stays the primary. */}
-        <Link
-          href="/programs/templates"
-          className={cn(buttonVariants({ variant: 'outline', size: 'lg' }), 'mt-3 w-full')}
-        >
-          Browse templates
-        </Link>
-
-        <h2 className="mt-10 mb-3 text-lg">Your Programs</h2>
-
+        {/* Empty state = invitation, not apology: the editorial volt moment
+            owns the screen and the CTAs live inside it — no duplicate button
+            stack above. */}
         {programs.length === 0 ? (
-          <div className="rounded-2xl border border-border bg-card px-5 py-12 text-center">
-            <p className="font-medium">No programs yet</p>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Tap “New Program” to build your first training plan.
+          <div className="mt-12">
+            <p className="font-display text-5xl uppercase leading-none tracking-wide text-primary">
+              Day one.
             </p>
+            <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
+              Every block starts as a plan. Build your own, or start from a community template.
+            </p>
+            <Link
+              href="/programs/new"
+              className={cn(
+                buttonVariants({ size: 'lg' }),
+                'mt-6 w-full text-base font-semibold uppercase tracking-wide',
+              )}
+            >
+              + New Program
+            </Link>
+            <Link
+              href="/programs/templates"
+              className={cn(buttonVariants({ variant: 'outline', size: 'lg' }), 'mt-3 w-full')}
+            >
+              Browse templates
+            </Link>
           </div>
         ) : (
-          /* One card per program (not a divided list): each plan is a
-             commitment the lifter picked, and it reads like one — poster-type
-             name, the cycle length as the big glanceable numeral, and the
-             active plan alone carrying volt. */
-          <ul className="space-y-3">
-            {programs.map((program) => {
-              const isActive = program.status === 'active'
-              // A proposal is visible in the list (the owner must find it to
-              // confirm it) but visually distinct: dashed volt border + a
-              // "Proposed" chip instead of the plain status word.
-              const isProposed = program.status === 'proposed'
-              return (
-                <li key={program.id}>
-                  <Link
-                    href={`/programs/${program.id}`}
-                    className={cn(
-                      'flex min-w-0 items-stretch justify-between gap-4 rounded-2xl border bg-card p-5 transition-colors active:bg-muted/60',
-                      isActive
-                        ? 'border-primary/40'
-                        : isProposed
-                          ? 'border-dashed border-primary/50'
-                          : 'border-border',
+          <>
+            {/* The active hero: the one commitment in flight gets the big
+                "WK N OF M" numeral, the block map strip, and the next-day
+                status line. It is the page's primary object — creation CTAs
+                demote to a compact row beneath it. */}
+            {hero && (
+              <Link
+                href={`/programs/${hero.id}`}
+                className="mt-6 block rounded-2xl border border-primary/40 bg-card p-5 transition-colors active:bg-muted/60"
+              >
+                <span className="flex min-w-0 items-baseline justify-between gap-3">
+                  <span className="flex min-w-0 items-baseline gap-2 font-display text-xl uppercase leading-tight tracking-wide">
+                    {hero.icon !== null && (
+                      <span aria-hidden="true" className="shrink-0 text-lg leading-none">
+                        {hero.icon}
+                      </span>
                     )}
-                  >
-                    <span className="flex min-w-0 flex-col justify-between gap-3">
-                      <span className="min-w-0">
-                        <span className="flex min-w-0 items-baseline gap-2 font-display text-xl uppercase leading-tight tracking-wide">
-                          {program.icon !== null && (
-                            <span aria-hidden="true" className="shrink-0 text-lg leading-none">
-                              {program.icon}
-                            </span>
-                          )}
-                          <span className="min-w-0 truncate">{program.name}</span>
-                        </span>
-                        {isProposed ? (
-                          <span className="mt-1.5 inline-flex items-center rounded-full border border-primary/50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-widest text-primary">
-                            Proposed
-                          </span>
-                        ) : (
-                          <span
-                            className={cn(
-                              'mt-1.5 inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-widest',
-                              isActive ? 'text-primary' : 'text-muted-foreground',
-                            )}
-                          >
-                            {isActive && (
-                              <span
-                                aria-hidden="true"
-                                className="size-1.5 rounded-full bg-primary"
-                              />
-                            )}
-                            {program.status}
-                          </span>
-                        )}
+                    <span className="min-w-0 truncate">{hero.name}</span>
+                  </span>
+                  <span className="flex shrink-0 items-center gap-1.5 text-xs font-semibold uppercase tracking-widest text-primary">
+                    <span aria-hidden="true" className="size-1.5 rounded-full bg-primary" />
+                    {programStatusLabel(hero.status)}
+                  </span>
+                </span>
+                {heroData && (
+                  <>
+                    <span className="mt-4 flex items-baseline gap-2 font-display uppercase tracking-wide">
+                      <span className="text-5xl leading-none tnum">Wk {heroData.currentWeek}</span>
+                      <span className="text-xl leading-none text-muted-foreground tnum">
+                        of {hero.mesocycleWeeks}
                       </span>
-                      {program.deloadWeek !== null && (
-                        <span className="text-sm text-muted-foreground">
-                          Deload week {program.deloadWeek}
-                        </span>
-                      )}
                     </span>
-                    <span className="flex shrink-0 items-center gap-3">
-                      <span className="flex flex-col-reverse items-end">
-                        <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
-                          {program.mesocycleWeeks === 1 ? 'week' : 'weeks'}
-                        </span>
-                        <span className="font-display text-4xl leading-none tnum">
-                          {program.mesocycleWeeks}
-                        </span>
-                      </span>
-                      <ChevronRight
-                        aria-hidden="true"
-                        className="size-5 shrink-0 text-muted-foreground"
-                      />
+                    <BlockMap weeks={heroData.blockWeeks} size="compact" className="mt-3" />
+                    <span className="mt-3 block text-sm text-muted-foreground">
+                      {heroData.blockComplete
+                        ? 'Block complete — restart or review from the program page.'
+                        : (heroData.nextLine ?? 'No days planned yet.')}
                     </span>
-                  </Link>
-                </li>
-              )
-            })}
-          </ul>
+                  </>
+                )}
+              </Link>
+            )}
+
+            {/* Creation, demoted: below the hero when one exists, compact
+                side-by-side row either way — starting something new is a
+                secondary path once training is in flight. */}
+            <div className={cn('flex gap-2', hero ? 'mt-3' : 'mt-6')}>
+              <Link
+                href="/programs/new"
+                className={cn(buttonVariants({ variant: hero ? 'outline' : 'default' }), 'flex-1')}
+              >
+                + New Program
+              </Link>
+              <Link
+                href="/programs/templates"
+                className={cn(buttonVariants({ variant: 'outline' }), 'flex-1')}
+              >
+                Browse templates
+              </Link>
+            </div>
+
+            {/* Extra actives (nothing enforces a single one) stay near the
+                top — they're still live commitments, just not the hero. */}
+            {zones.otherActive.length > 0 && (
+              <>
+                <ZoneHeading>Also active</ZoneHeading>
+                <ul className="space-y-2">
+                  {zones.otherActive.map((program) => (
+                    <ProgramRow key={program.id} program={program} />
+                  ))}
+                </ul>
+              </>
+            )}
+
+            {/* Proposals lead the zones: they need a decision, and the
+                dashed-volt border keeps the established "pending" voice. */}
+            {zones.proposed.length > 0 && (
+              <>
+                <ZoneHeading>Needs your decision</ZoneHeading>
+                <ul className="space-y-2">
+                  {zones.proposed.map((program) => (
+                    <ProgramRow key={program.id} program={program} />
+                  ))}
+                </ul>
+              </>
+            )}
+
+            {zones.drafts.length > 0 && (
+              <>
+                <ZoneHeading>Drafts</ZoneHeading>
+                <ul className="space-y-2">
+                  {zones.drafts.map((program) => (
+                    <ProgramRow key={program.id} program={program} />
+                  ))}
+                </ul>
+              </>
+            )}
+
+            {/* Archived collapses to a count — past blocks are reference, not
+                a scroll cost. Native details: no client island needed. */}
+            {zones.archived.length > 0 && (
+              <details className="group mt-8">
+                <summary className="flex cursor-pointer list-none items-center gap-1 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground [&::-webkit-details-marker]:hidden">
+                  Archived · {zones.archived.length}
+                  <ChevronRight
+                    aria-hidden="true"
+                    className="size-3.5 transition-transform group-open:rotate-90"
+                  />
+                </summary>
+                <ul className="mt-2 space-y-2">
+                  {zones.archived.map((program) => (
+                    <ProgramRow key={program.id} program={program} />
+                  ))}
+                </ul>
+              </details>
+            )}
+          </>
         )}
       </main>
     </div>

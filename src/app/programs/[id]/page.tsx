@@ -17,12 +17,24 @@ import { getWeightUnit } from '@/db/preferences'
 import { listWorkoutSummaries } from '@/db/workouts'
 import { listWorkoutDrafts } from '@/db/workout-drafts'
 import { resolveActiveSession } from '@/lib/active-session'
+import { autoregReason } from '@/lib/autoregulate'
 import { AppHeader } from '@/components/app-header'
 import { BackLink } from '@/components/back-link'
+import { BlockMap } from '@/components/block-map'
+import { buildBlockWeeks } from '@/components/block-weeks'
 import { cn } from '@/lib/utils'
 import { formatE1RM, formatVolume, formatWorkoutDate, formatWorkoutDuration } from '@/lib/format'
 import { formatTargetLine, groupDerivedSets } from './derived-format'
 import { parseWeekParam, resolveDayState } from './week-view'
+import {
+  programStatusLine,
+  parseExpandParam,
+  withExpanded,
+  withoutExpanded,
+  shouldDeriveDay,
+  collectAutoregNotes,
+  groupEventsByDay,
+} from './detail-view'
 import { topPRs } from './stats/stats-view'
 import { StartDayButton } from './start-day-button'
 import { ProgramActions } from './program-actions'
@@ -38,6 +50,16 @@ const ACTOR_LABELS: Record<ProgramEventActor, string> = {
   wger: 'wger',
 }
 
+/** Distinct chip treatments per actor: your own edits stay quiet (muted),
+ *  agent/coach edits carry an outline so "someone else touched the plan"
+ *  reads at a glance without shouting. */
+const ACTOR_CHIP_CLASSES: Record<ProgramEventActor, string> = {
+  ui: 'bg-muted text-muted-foreground',
+  mcp: 'border border-primary/50 text-primary',
+  coach: 'border border-foreground/40 text-foreground',
+  wger: 'border border-border text-muted-foreground',
+}
+
 /** v1 cap: no pagination UI — older history stays reachable via the MCP
  *  tool's `before` cursor (list_program_changes). */
 const CHANGE_LOG_LIMIT = 10
@@ -47,7 +69,7 @@ export default async function ProgramDetailPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>
-  searchParams: Promise<{ week?: string | string[] }>
+  searchParams: Promise<{ week?: string | string[]; expand?: string | string[] }>
 }) {
   const userId = await requireUserId()
   const [{ id }, sp] = await Promise.all([params, searchParams])
@@ -82,6 +104,11 @@ export default async function ProgramDetailPage({
   const selectedWeek = parseWeekParam(sp.week, currentWeek, program.mesocycleWeeks)
   const isCurrentWeek = selectedWeek === currentWeek
   const isPastWeek = selectedWeek < currentWeek
+  // Which collapsed day cards are expanded to full targets — URL state like
+  // `?week=` (share/back/reload all work), parsed defensively. Resets on week
+  // switch by construction: targets are week-specific, so a stale expansion
+  // must not carry a derivation cost into every browsed week.
+  const expanded = parseExpandParam(sp.expand)
 
   // Same active-session projection as the home page: starting a day here
   // creates a real workout row immediately, so with a session already live
@@ -107,14 +134,22 @@ export default async function ProgramDetailPage({
       programWorkouts.filter((w) => w.programDayId === day.id && w.programWeek === selectedWeek),
     ),
   )
+  // The page's primary object, decided BEFORE derivation so the collapse
+  // predicate can see it: the day the user would actually train next, in the
+  // week they're actually in.
+  const isNextUpByIndex = program.days.map(
+    (day, i) => isCurrentWeek && dayStates[i] === null && day.id === nextDayId,
+  )
   // getProgramDetail days carry no back-ref to the program row, so the
   // DayForDerivation `program` slice is attached inline per day. Targets are
   // derived for the SELECTED week — the whole point of the week switcher —
-  // but ONLY for untouched days: Done and In-progress cards never render
-  // targets, and each derivation costs real history reads per exercise.
+  // but ONLY for days that will actually render them: Done and In-progress
+  // cards never show targets, and collapsed untouched cards (everything but
+  // next-up and explicit `?expand=` days) skip derivation entirely — each
+  // derivation costs real history reads per exercise (shouldDeriveDay).
   const prescriptions = await Promise.all(
     program.days.map((day, i) =>
-      dayStates[i]
+      !shouldDeriveDay(dayStates[i] !== null, isNextUpByIndex[i], expanded.has(day.id))
         ? Promise.resolve([])
         : deriveDayPrescription(
             userId,
@@ -131,13 +166,29 @@ export default async function ProgramDetailPage({
           ),
     ),
   )
-  // Which weeks carry at least one finished session — feeds the tiny progress
-  // dot under each week pill, so the selector doubles as a mesocycle map.
-  const completedWeeks = new Set(
-    programWorkouts
-      .filter((w) => w.completedAt !== null && w.programWeek !== null)
-      .map((w) => w.programWeek as number),
-  )
+  // The block map's week array — per-week distinct done-day counts derived
+  // from the same programWorkouts rows the day cards already bucket (the old
+  // binary completed-weeks Set, upgraded to real fractions).
+  const blockWeeks = buildBlockWeeks({
+    mesocycleWeeks: program.mesocycleWeeks,
+    deloadWeek: program.deloadWeek,
+    currentWeek,
+    dayCountTotal: program.days.length,
+    workouts: programWorkouts,
+  })
+  // The header's editorial digest — anchored to the CURRENT week regardless
+  // of which week is being browsed (same anchor rule as the meta line).
+  const statusLine = programStatusLine({
+    currentWeek,
+    mesocycleWeeks: program.mesocycleWeeks,
+    deloadWeek: program.deloadWeek,
+    daysDoneThisWeek: blockWeeks.find((w) => w.week === currentWeek)?.dayCountDone ?? 0,
+    dayCountTotal: program.days.length,
+    blockComplete,
+  })
+  // The engine's held/backed-off lifts, from the prescriptions derived above
+  // (a collapsed day honestly contributes nothing — no extra reads).
+  const autoregNotes = collectAutoregNotes(program.days, prescriptions)
   // Proposed branches BEFORE the draft-default narrowing: a proposal must
   // never masquerade as a draft (which would surface Activate/Edit/Restart —
   // exactly the paths the forced confirm exists to block).
@@ -145,7 +196,6 @@ export default async function ProgramDetailPage({
   const status = (
     program.status === 'active' || program.status === 'archived' ? program.status : 'draft'
   ) as 'draft' | 'active' | 'archived'
-  const weeks = Array.from({ length: Math.max(1, program.mesocycleWeeks) }, (_, i) => i + 1)
   const hasArticleHeader =
     program.heroImageUrl !== null || program.icon !== null || program.description !== null
 
@@ -266,9 +316,14 @@ export default async function ProgramDetailPage({
           </section>
         )}
 
-        {/* "You are here" stays anchored to the CURRENT week even while browsing
-            another one — the pills say what's selected, this says what's real. */}
-        <div className="mt-4 flex items-baseline justify-between gap-3">
+        {/* The editorial status line: where the block ACTUALLY stands, in the
+            font-display voice — anchored to the current week even while
+            browsing another one (the strip says what's selected, this says
+            what's real). The muted meta beneath keeps the raw numbers. */}
+        <p className="mt-5 font-display text-2xl uppercase leading-none tracking-wide">
+          {statusLine}
+        </p>
+        <div className="mt-1.5 flex items-baseline justify-between gap-3">
           <p className="min-w-0 truncate text-sm text-muted-foreground">
             Week {currentWeek} of {program.mesocycleWeeks}
             {program.deloadWeek !== null && ` · deload wk ${program.deloadWeek}`}
@@ -296,70 +351,19 @@ export default async function ProgramDetailPage({
           </div>
         </div>
 
-        {/* Week selector: plain links so the browser owns the state (share,
-            back button, reload all just work). Sits tight under the header
-            meta (they're one thought); bleeds to the screen edge (-mx-5/px-5)
-            so the scroll gutter isn't visibly clipped mid-pill; scrollbar
-            hidden — the pill row itself signals scrollability. */}
-        <nav
-          aria-label="Mesocycle week"
-          className="-mx-5 mt-2 overflow-x-auto px-5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-        >
-          <div className="flex w-max gap-2 py-1">
-            {weeks.map((week) => {
-              const isSelected = week === selectedWeek
-              const hasCompleted = completedWeeks.has(week)
-              return (
-                <Link
-                  key={week}
-                  href={`/programs/${program.id}?week=${week}`}
-                  aria-current={isSelected ? 'page' : undefined}
-                  // The dot and DL marker are visual shorthand; the label
-                  // spells them out for screen readers.
-                  aria-label={`Week ${week}${hasCompleted ? ', has completed sessions' : ''}${
-                    week === program.deloadWeek ? ', deload' : ''
-                  }`}
-                  // before:-inset-1 grows the invisible hit target past the
-                  // visible pill (repo precedent: rest/plate sheet pills);
-                  // pill + dot stack the link to ~44px effective height.
-                  className="relative flex shrink-0 flex-col items-center gap-1 before:absolute before:-inset-1"
-                >
-                  <span
-                    className={cn(
-                      'flex h-9 items-baseline gap-1.5 rounded-full border px-3.5 pt-2 text-sm font-semibold tnum transition-colors',
-                      isSelected
-                        ? 'border-primary bg-primary text-primary-foreground'
-                        : 'border-border text-muted-foreground',
-                    )}
-                  >
-                    Wk {week}
-                    {/* Deload is a fact about the plan, not an active state,
-                        so the marker stays quiet even on the selected pill. */}
-                    {week === program.deloadWeek && (
-                      <span
-                        className={cn(
-                          'text-[10px] font-semibold uppercase tracking-widest',
-                          isSelected ? 'text-primary-foreground/80' : 'text-muted-foreground',
-                        )}
-                      >
-                        DL
-                      </span>
-                    )}
-                  </span>
-                  {/* Mesocycle progress at a glance: volt dot = at least one
-                      finished session that week. Transparent (not hidden)
-                      otherwise so the pills don't shift baseline. */}
-                  <span
-                    aria-hidden="true"
-                    className={cn(
-                      'size-1 rounded-full',
-                      hasCompleted ? 'bg-primary' : 'bg-transparent',
-                    )}
-                  />
-                </Link>
-              )
-            })}
-          </div>
+        {/* The block map, as the week switcher: every segment is a link (the
+            browser owns the state — share, back button, reload all work), the
+            fill is each week's days-completed fraction, deload weeks render
+            hollow + DL, the current week is ringed. Same visualization as the
+            list hero and the stats week rows — learn once, read everywhere.
+            Replaces the old scrolling pill row: all weeks now fit one line. */}
+        <nav aria-label="Mesocycle week" className="mt-4 py-1">
+          <BlockMap
+            weeks={blockWeeks}
+            size="default"
+            selectedWeek={selectedWeek}
+            hrefForWeek={(week) => `/programs/${program.id}?week=${week}`}
+          />
         </nav>
 
         {/* The block's payoff moment: the advancement rule fired at the final
@@ -433,6 +437,31 @@ export default async function ProgramDetailPage({
           )}
         </div>
 
+        {/* Auto-regulation visibility: when the engine is holding or backing
+            off a lift this week, say so — quietly and honestly (muted card,
+            the engine's own reason line, no volt, links nothing new). Only
+            derived days can contribute, so a collapsed day never fakes a
+            verdict it didn't compute. */}
+        {autoregNotes.length > 0 && (
+          <section
+            aria-label="Auto-regulation"
+            className="mt-3 rounded-2xl border border-border bg-card p-4"
+          >
+            <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
+              Auto-regulation
+            </p>
+            <ul className="mt-2 space-y-1.5">
+              {autoregNotes.map((note) => (
+                <li key={note.exerciseName} className="text-sm text-muted-foreground">
+                  <span className="font-medium text-foreground">{note.exerciseName}</span>
+                  <span aria-hidden="true"> — </span>
+                  <span className="tnum">{autoregReason(note.adjustment, unit)}</span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+
         <div className="mt-3 space-y-3">
             {program.days.map((day, dayIndex) => {
               const dayState = dayStates[dayIndex]
@@ -441,7 +470,8 @@ export default async function ProgramDetailPage({
               // train next, in the week they're actually in. It alone gets
               // presence (bigger name, full-size volt Start); everything else
               // recedes so state — not uniform padding — drives the eye.
-              const isNextUp = isCurrentWeek && dayState === null && day.id === nextDayId
+              // Computed pre-derivation (see isNextUpByIndex above).
+              const isNextUp = isNextUpByIndex[dayIndex]
 
               const header = (
                 <h3 className="flex min-w-0 items-baseline gap-2">
@@ -545,6 +575,14 @@ export default async function ProgramDetailPage({
                 )
               }
 
+              // WHOOP tier discipline: only the next-up card (and explicitly
+              // expanded ones) shows full targets; other untouched days
+              // collapse to name + exercise count. Collapse is also the perf
+              // win — a collapsed day's prescription was never derived.
+              const isExpanded = expanded.has(day.id)
+              const showTargets = isNextUp || isExpanded
+              const collapseValue = withoutExpanded(expanded, day.id)
+
               return (
                 <section
                   key={day.id}
@@ -558,8 +596,8 @@ export default async function ProgramDetailPage({
                   <div className="flex min-w-0 items-baseline justify-between gap-3">
                     {header}
                     {/* A past-week untouched day is still a fact ("Skipped"),
-                        but no longer a dead end — it keeps its targets and
-                        Start so missed days can be made up. */}
+                        but no longer a dead end — it keeps its Start (and
+                        expandable targets) so missed days can be made up. */}
                     {isPastWeek && (
                       <span className="shrink-0 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
                         Skipped
@@ -567,13 +605,15 @@ export default async function ProgramDetailPage({
                     )}
                   </div>
 
-                  <div className="mt-3 space-y-3">
-                    {day.exercises.map((exercise, exerciseIndex) => (
-                      <div key={exercise.id}>
-                        <p className="text-sm font-medium">{exercise.name}</p>
-                        <div className="mt-1 space-y-0.5">
-                          {groupDerivedSets(prescriptions[dayIndex][exerciseIndex]?.sets ?? []).map(
-                            (group, groupIndex) => (
+                  {showTargets ? (
+                    <div className="mt-3 space-y-3">
+                      {day.exercises.map((exercise, exerciseIndex) => (
+                        <div key={exercise.id}>
+                          <p className="text-sm font-medium">{exercise.name}</p>
+                          <div className="mt-1 space-y-0.5">
+                            {groupDerivedSets(
+                              prescriptions[dayIndex][exerciseIndex]?.sets ?? [],
+                            ).map((group, groupIndex) => (
                               <p
                                 key={groupIndex}
                                 className="flex items-baseline gap-2 text-sm text-muted-foreground"
@@ -592,12 +632,22 @@ export default async function ProgramDetailPage({
                                   </span>
                                 )}
                               </p>
-                            ),
-                          )}
+                            ))}
+                          </div>
                         </div>
-                      </div>
-                    ))}
-                  </div>
+                      ))}
+                    </div>
+                  ) : (
+                    // Collapsed: the plan's shape without the derivation cost.
+                    // Names come from the program rows already loaded — only
+                    // the engine-derived TARGETS need the history reads.
+                    <p className="mt-2 min-w-0 truncate text-sm text-muted-foreground">
+                      {day.exercises.length} exercise{day.exercises.length === 1 ? '' : 's'}
+                      {day.exercises.length > 0 && (
+                        <> · {day.exercises.map((e) => e.name).join(' · ')}</>
+                      )}
+                    </p>
+                  )}
 
                   {/* Any untouched day of the SELECTED week is startable — the
                       workout is stamped with that exact (day, week), so
@@ -607,8 +657,8 @@ export default async function ProgramDetailPage({
                       Start at all: it instantiates nothing until adopted (the
                       db layer refuses regardless — this just keeps the UI
                       honest about it). */}
-                  {!isProposed && (
-                    <div className="mt-4">
+                  <div className="mt-4 flex items-center justify-between gap-3">
+                    {!isProposed ? (
                       <StartDayButton
                         programDayId={day.id}
                         week={selectedWeek}
@@ -616,56 +666,113 @@ export default async function ProgramDetailPage({
                         variant={isNextUp ? 'default' : 'outline'}
                         activeSession={guardSession}
                       />
-                    </div>
-                  )}
+                    ) : (
+                      <span />
+                    )}
+                    {/* Expansion is URL state (plain link, server derives on
+                        the round trip) — the whole point of the collapse is
+                        that hidden targets are never computed. Next-up always
+                        shows targets, so it offers neither link. */}
+                    {!isNextUp && !showTargets && (
+                      <Link
+                        href={`/programs/${program.id}?week=${selectedWeek}&expand=${encodeURIComponent(withExpanded(expanded, day.id))}`}
+                        className="flex shrink-0 items-center gap-0.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
+                      >
+                        Targets
+                        <ChevronRight aria-hidden="true" className="size-4" />
+                      </Link>
+                    )}
+                    {isExpanded && (
+                      <Link
+                        href={`/programs/${program.id}?week=${selectedWeek}${
+                          collapseValue !== null
+                            ? `&expand=${encodeURIComponent(collapseValue)}`
+                            : ''
+                        }`}
+                        className="shrink-0 text-sm text-muted-foreground transition-colors hover:text-foreground"
+                      >
+                        Hide targets
+                      </Link>
+                    )}
+                  </div>
                 </section>
               )
             })}
         </div>
 
-        {/* The plan's paper trail: who changed what, newest first. Same rows
-            the coach reads via list_program_changes — one shared read path.
-            Absent entirely for untouched programs (no empty-state filler);
-            capped at CHANGE_LOG_LIMIT with no pager in v1. */}
+        {/* The zoned tail: Changes / Sharing / danger actions are different
+            registers (paper trail, distribution, destruction) — each opens
+            past a hairline with real breathing room instead of running
+            together as one undifferentiated stack. */}
+
+        {/* The plan's paper trail: who changed what, newest first, grouped
+            under calendar-day headers (the date leaves the row, so summaries
+            get the full width and wrap to two lines instead of truncating
+            mid-sentence). Same rows the coach reads via list_program_changes —
+            one shared read path. Absent entirely for untouched programs (no
+            empty-state filler); capped at CHANGE_LOG_LIMIT, no pager in v1. */}
         {changeEvents.length > 0 && (
-          <section aria-label="Changes" className="mt-10">
+          <section aria-label="Changes" className="mt-10 border-t border-border pt-8">
             <h2 className="font-display text-xl uppercase leading-none tracking-wide">Changes</h2>
-            <ul className="mt-3 space-y-2.5">
-              {changeEvents.map((event) => (
-                <li key={event.id} className="flex items-baseline gap-2">
-                  <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
-                    {ACTOR_LABELS[event.actor]}
-                  </span>
-                  <span className="min-w-0 flex-1 truncate text-sm">{event.summary}</span>
-                  <span className="shrink-0 text-xs text-muted-foreground tnum">
-                    {formatWorkoutDate(event.occurredAt)}
-                  </span>
-                </li>
+            <div className="mt-3 space-y-4">
+              {groupEventsByDay(changeEvents, formatWorkoutDate).map((group) => (
+                <div key={group.label}>
+                  <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground tnum">
+                    {group.label}
+                  </p>
+                  <ul className="mt-1.5 space-y-1.5">
+                    {group.events.map((event) => (
+                      <li key={event.id} className="flex items-baseline gap-2">
+                        <span
+                          className={cn(
+                            'shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-widest',
+                            ACTOR_CHIP_CLASSES[event.actor],
+                          )}
+                        >
+                          {ACTOR_LABELS[event.actor]}
+                        </span>
+                        <span className="min-w-0 flex-1 text-sm leading-snug line-clamp-2">
+                          {event.summary}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               ))}
-            </ul>
+            </div>
           </section>
         )}
 
         {/* Sharing is an OWNER control and never appears on a proposal — a
             pending proposal can't be made sharable (adopt or decline first;
             the db layer refuses regardless, this keeps the UI honest). */}
+        {/* SharingSection carries its own mt-10 — the wrapper only draws
+            the hairline. */}
         {!isProposed && (
-          <SharingSection
-            programId={program.id}
-            visibility={program.visibility}
-            shareToken={activeShare?.token ?? null}
-          />
+          <div className="mt-10 border-t border-border">
+            <SharingSection
+              programId={program.id}
+              visibility={program.visibility}
+              shareToken={activeShare?.token ?? null}
+            />
+          </div>
         )}
 
         {/* A proposal's only actions are the banner's Adopt/Decline above —
-            Edit/Activate/Restart/Delete stay off until the owner confirms. */}
+            Edit/Activate/Restart/Delete stay off until the owner confirms.
+            The page's danger tail: separated behind its own hairline so
+            Delete never sits shoulder-to-shoulder with reading content. */}
+        {/* ProgramActions carries its own mt-6 — the wrapper only draws the
+            hairline and closes the page with bottom breathing room. */}
         {!isProposed && (
-          <ProgramActions
-            id={program.id}
-            status={status}
-            currentWeek={currentWeek}
-            mesocycleWeeks={program.mesocycleWeeks}
-          />
+          <div className="mt-10 border-t border-border pb-4">
+            <ProgramActions
+              id={program.id}
+              status={status}
+              currentWeek={currentWeek}
+              mesocycleWeeks={program.mesocycleWeeks}
+            />
+          </div>
         )}
       </main>
     </div>
