@@ -455,6 +455,9 @@ describe('checkTrophies', () => {
         name: 'Squats',
         sessionCount: 10,
         lastPerformedAt: new Date('2026-08-01T00:00:00Z'),
+        bestE1rmKg: null,
+        trendDeltaKg: null,
+        lastPrAt: null,
       },
       {
         wgerExerciseId: 507,
@@ -462,6 +465,9 @@ describe('checkTrophies', () => {
         name: 'Romanian Deadlift',
         sessionCount: 10,
         lastPerformedAt: new Date('2026-08-01T00:00:00Z'),
+        bestE1rmKg: null,
+        trendDeltaKg: null,
+        lastPrAt: null,
       },
     ])
     mockedStats.mockResolvedValue({
