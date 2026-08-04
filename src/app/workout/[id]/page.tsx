@@ -1,7 +1,11 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { requireUserId } from "@/lib/auth";
-import { getWorkoutDetail, getExerciseHistoryBefore } from "@/db/workouts";
+import {
+  getWorkoutDetail,
+  getExerciseHistoryBefore,
+  getPreviousCompletedWorkout,
+} from "@/db/workouts";
 import { getNextProgramDay } from "@/db/programs";
 import { getWeightUnit, getBodyweightKg } from "@/db/preferences";
 import { goalsAchievedSince, listActiveGoals, type GoalRow } from "@/db/goals";
@@ -15,8 +19,18 @@ import {
   formatE1RM,
   formatVolume,
   formatWorkoutDuration,
+  workoutDurationMinutes,
 } from "@/lib/format";
 import { bestScoredSet } from "@/lib/one-rep-max";
+import {
+  compareExercises,
+  durationVsLastLabel,
+  e1rmDeltaDisplay,
+  e1rmDirectionSuffix,
+  finishHeadline,
+  prHighlights,
+  volumeVsLastLabel,
+} from "./summary-view";
 import { AppHeader } from "@/components/app-header";
 import { BackLink } from "@/components/back-link";
 import { PrBadge } from "@/components/pr-badge";
@@ -60,7 +74,7 @@ export default async function WorkoutDetailPage({
   // Up-next only matters at the finish moment, and only for a program
   // session — a quick log has no rotation to advance. Fetched alongside the
   // PR history read (independent queries).
-  const [history, nextDay, achievedGoals, activeGoals, sessionTrophies, activeShare] =
+  const [history, nextDay, achievedGoals, activeGoals, sessionTrophies, activeShare, lastSameName] =
     await Promise.all([
       getExerciseHistoryBefore(userId, exerciseIds, workout.startedAt),
       justFinished && workout.programDayId !== null
@@ -76,6 +90,12 @@ export default async function WorkoutDetailPage({
       // The live share link, if one exists — seeds the Share control so the
       // copy row survives refreshes (mint state isn't client-only).
       getActiveWorkoutShare(userId, id),
+      // The "vs last {name}" baseline — the ONE extra read authorized for
+      // this page (Arc B; documented on the db helper). Unnamed sessions
+      // have no meaningful "last": skipped, tiles render without deltas.
+      workout.name !== null
+        ? getPreviousCompletedWorkout(userId, workout.name, workout.startedAt)
+        : null,
     ]);
   // Same session-window honesty as the goals block, PLUS the attribution
   // mark: only trophies whose stored context names THIS workout celebrate —
@@ -85,62 +105,22 @@ export default async function WorkoutDetailPage({
   );
   const upNext = resolveFinishUpNext(workout.programDayId, nextDay);
 
-  // Keyed by the composite identity: a custom exercise's id can collide with
-  // a wger id, and the two must never share a PR baseline.
-  const priorByExercise = new Map<
-    string,
-    { reps: number | null; weight: number | null }[]
-  >();
-  for (const row of history) {
-    const key = `${row.source}:${row.wgerExerciseId}`;
-    const list = priorByExercise.get(key) ?? [];
-    list.push({ reps: row.reps, weight: row.weight });
-    priorByExercise.set(key, list);
-  }
+  // The per-exercise session-vs-history comparisons, kept WHOLE (not reduced
+  // to booleans) so the celebration zone can name its wins — the composite-
+  // identity, best-across-cards, like-beats-like rules all live in
+  // summary-view.ts now, unchanged and unit-tested.
+  const comparisons = compareExercises(workout.exercises, history, bodyweightKg);
+  const comparisonByKey = new Map(comparisons.map((c) => [c.key, c]));
+  const prBadgeRowIds = new Set(
+    comparisons.filter((c) => c.isPr).map((c) => c.firstCardId),
+  );
+  const highlights = prHighlights(comparisons);
+  const headline = finishHeadline({
+    prNames: highlights.map((h) => h.name),
+    blockClosed: upNext.kind === "block-complete",
+    programWeek: workout.programWeek,
+  });
 
-  // A PR is a property of the exercise + workout, not a single card: an exercise
-  // logged in more than one card is judged by its best set across the whole
-  // workout, and the badge renders once — on the first card for that exercise.
-  const currentByExercise = new Map<
-    string,
-    { reps: number | null; weight: number | null }[]
-  >();
-  for (const ex of workout.exercises) {
-    const key = `${ex.source}:${ex.wgerExerciseId}`;
-    const list = currentByExercise.get(key) ?? [];
-    for (const s of ex.sets) list.push({ reps: s.reps, weight: s.weight });
-    currentByExercise.set(key, list);
-  }
-  const prBadgeRowIds = new Set<string>();
-  const decidedExercises = new Set<string>();
-  for (const ex of workout.exercises) {
-    const exKey = `${ex.source}:${ex.wgerExerciseId}`;
-    if (decidedExercises.has(exKey)) continue;
-    decidedExercises.add(exKey);
-    // Prior sets are scored under the exercise's CURRENT logging type — the
-    // history rows carry no type of their own, and comparing a pull-up's past
-    // under today's reading is the comparison the lifter actually means.
-    const cur = bestScoredSet(
-      currentByExercise.get(exKey) ?? [],
-      ex.loggingType,
-      bodyweightKg,
-    );
-    const pri = bestScoredSet(
-      priorByExercise.get(exKey) ?? [],
-      ex.loggingType,
-      bodyweightKg,
-    );
-    if (cur === null || pri === null) continue;
-    // Like beats like: an e1rm PR needs a prior e1rm, a rep PR a prior rep
-    // count. Mixed kinds (bodyweight set after weighted history) don't badge —
-    // there's no honest axis to compare on.
-    if (
-      (cur.kind === "e1rm" && pri.kind === "e1rm" && cur.e1rm > pri.e1rm) ||
-      (cur.kind === "reps" && pri.kind === "reps" && cur.reps > pri.reps)
-    ) {
-      prBadgeRowIds.add(ex.id);
-    }
-  }
 
   // Strength goals TOUCHED by this workout (composite identity), minus the
   // just-achieved ones (they get the celebration block, not a percent line):
@@ -150,15 +130,10 @@ export default async function WorkoutDetailPage({
     (goal): { goal: GoalRow; sessionE1rmKg: number; targetE1rmKg: number; percent: number }[] => {
       if (goal.kind !== "strength" || !("e1rmKg" in goal.target)) return [];
       if (achievedGoalIds.has(goal.id)) return [];
-      const key = `${goal.source}:${goal.wgerExerciseId}`;
-      const sets = currentByExercise.get(key);
-      if (!sets) return [];
-      const loggingType = workout.exercises.find(
-        (e) => e.source === goal.source && e.wgerExerciseId === goal.wgerExerciseId,
-      )?.loggingType;
-      if (loggingType === undefined) return [];
-      const best = bestScoredSet(sets, loggingType, bodyweightKg);
-      if (best === null || best.kind !== "e1rm") return [];
+      // The session best is already scored (composite identity, current
+      // logging type) in the comparisons above — one source of truth.
+      const best = comparisonByKey.get(`${goal.source}:${goal.wgerExerciseId}`)?.current;
+      if (!best || best.kind !== "e1rm") return [];
       return [
         {
           goal,
@@ -176,6 +151,19 @@ export default async function WorkoutDetailPage({
     0,
   );
   const duration = formatWorkoutDuration(workout.startedAt, workout.completedAt);
+
+  // "vs last {name}" deltas against the most recent completed same-name
+  // session (see lastSameName above). Null when flat or uncomputable — the
+  // tiles simply stay single-line, never "±0".
+  const volumeDelta = lastSameName
+    ? volumeVsLastLabel(volumeKg, lastSameName.volumeKg, unit)
+    : null;
+  const durationDelta = lastSameName
+    ? durationVsLastLabel(
+        workoutDurationMinutes(workout.startedAt, workout.completedAt),
+        workoutDurationMinutes(lastSameName.startedAt, lastSameName.completedAt),
+      )
+    : null;
 
   return (
     <div className="flex min-h-[100dvh] flex-col">
@@ -202,24 +190,50 @@ export default async function WorkoutDetailPage({
             <p className="text-xs font-semibold uppercase tracking-widest text-primary">
               Session logged
             </p>
-            <h2 className="mt-1 font-display text-4xl uppercase leading-none tracking-wide">
-              Workout complete
-            </h2>
-            {prBadgeRowIds.size > 0 && (
-              <div className="mt-3 flex items-center gap-2">
-                <PrBadge
-                  label={
-                    prBadgeRowIds.size === 1
-                      ? "PR"
-                      : `${prBadgeRowIds.size} PRs`
-                  }
-                />
-                <p className="text-sm text-muted-foreground">
-                  {prBadgeRowIds.size === 1
-                    ? "New personal record this session"
-                    : "New personal records this session"}
-                </p>
-              </div>
+            <div className="mt-1 flex items-start justify-between gap-3">
+              {/* The most specific true headline (summary-view copy table):
+                  "Two PRs." / "Bench PR." / "Week 7 closed." — never a
+                  generic stamp when something better happened. */}
+              <h2 className="min-w-0 font-display text-4xl uppercase leading-none tracking-wide">
+                {headline}
+              </h2>
+              {/* The session's share card, right in the celebration moment —
+                  the link-based WorkoutSharing block below stays put. */}
+              <ShareCardButton
+                cardUrl={`/api/cards/workout/${workout.id}`}
+                shareTitle={workout.name ?? "Workout"}
+                className="-my-1 shrink-0"
+              />
+            </div>
+            {/* Named PR deltas — the numbers the old badge threw away. Volt
+                is earned: these are the session's achievements. Staggered a
+                beat behind the headline (motion clarifies reading order). */}
+            {highlights.length > 0 && (
+              <ul
+                className="mt-3 space-y-1 motion-safe:animate-rise-in [animation-delay:90ms] [animation-fill-mode:backwards]"
+              >
+                {highlights.map((h) => (
+                  <li
+                    key={h.name}
+                    className="flex items-baseline gap-2 font-display text-xl uppercase leading-none tracking-wide text-primary tnum"
+                  >
+                    <span className="min-w-0 truncate">{h.name}</span>
+                    <span className="shrink-0">
+                      {h.kind === "e1rm" ? (
+                        <>
+                          <span aria-hidden="true">~</span>
+                          {formatE1RM(h.e1rmKg, unit)} e1RM (+
+                          {e1rmDeltaDisplay(h.deltaKg, unit)})
+                        </>
+                      ) : (
+                        <>
+                          {h.reps} reps (+{h.deltaReps})
+                        </>
+                      )}
+                    </span>
+                  </li>
+                ))}
+              </ul>
             )}
           </section>
         )}
@@ -235,17 +249,33 @@ export default async function WorkoutDetailPage({
           )}
         </div>
 
-        <dl className="mt-3 grid grid-cols-3 overflow-hidden rounded-2xl border border-border bg-card">
-          <Stat label="Duration" value={duration ?? "—"} />
+        {/* Third beat of the finish stagger (headline → PR lines → stats);
+            plain render on a revisit — motion marks the moment, not the page. */}
+        <dl
+          className={cn(
+            "mt-3 grid grid-cols-3 overflow-hidden rounded-2xl border border-border bg-card",
+            justFinished &&
+              "motion-safe:animate-rise-in [animation-delay:180ms] [animation-fill-mode:backwards]",
+          )}
+        >
+          <Stat label="Duration" value={duration ?? "—"} sub={durationDelta} />
           <Stat
             label="Volume"
             value={volumeKg > 0 ? formatVolume(volumeKg, unit) : "—"}
+            sub={volumeDelta}
           />
           <Stat
             label={totalSets === 1 ? "Set" : "Sets"}
             value={String(totalSets)}
           />
         </dl>
+        {/* One caption names the comparison for both tile deltas — tiles are
+            too narrow to repeat "vs last {name}" inside each. */}
+        {(volumeDelta !== null || durationDelta !== null) && (
+          <p className="mt-1.5 px-1 text-xs text-muted-foreground">
+            vs last {workout.name}
+          </p>
+        )}
 
         {/* Session note under the stats — context for the numbers above. */}
         {workout.notes !== null && (
@@ -444,6 +474,23 @@ export default async function WorkoutDetailPage({
                           ~
                         </span>
                         {formatE1RM(current.e1rm, unit)}
+                        {/* Direction against the exercise's prior best — no
+                            number without direction. Absent priors (first
+                            time on the lift) stay quiet. */}
+                        {(() => {
+                          const prior = comparisonByKey.get(
+                            `${exercise.source}:${exercise.wgerExerciseId}`,
+                          )?.prior;
+                          const suffix =
+                            prior?.kind === "e1rm"
+                              ? e1rmDirectionSuffix(current.e1rm - prior.e1rm, unit)
+                              : null;
+                          return suffix !== null ? (
+                            <span className="ml-2 text-base text-muted-foreground">
+                              {suffix}
+                            </span>
+                          ) : null;
+                        })()}
                       </span>
                     ) : (
                       // Rep fallback: no load to estimate from, but the best
@@ -470,15 +517,30 @@ export default async function WorkoutDetailPage({
   );
 }
 
-/** One tile of the session stat row: big tabular value over a small label.
- *  DOM keeps the valid dt→dd order; flex-col-reverse renders value on top. */
-function Stat({ label, value }: { label: string; value: string }) {
+/** One tile of the session stat row: big tabular value over a small label,
+ *  plus an optional signed "vs last" delta sub-line (muted — context, not
+ *  celebration; volt stays with the PR lines). DOM keeps the valid dt→dd
+ *  order; flex-col-reverse renders value on top. */
+function Stat({
+  label,
+  value,
+  sub,
+}: {
+  label: string;
+  value: string;
+  sub?: string | null;
+}) {
   return (
-    <div className="flex flex-col-reverse border-l border-border px-4 py-3 first:border-l-0">
-      <dt className="mt-0.5 text-[11px] font-medium uppercase tracking-widest text-muted-foreground">
+    // Valid dl grouping keeps dt before its dds; CSS order puts the value on
+    // top (as flex-col-reverse did) with the delta reading last.
+    <div className="flex flex-col border-l border-border px-4 py-3 first:border-l-0">
+      <dt className="order-2 mt-0.5 text-[11px] font-medium uppercase tracking-widest text-muted-foreground">
         {label}
       </dt>
-      <dd className="tnum text-3xl font-semibold tracking-tight">{value}</dd>
+      <dd className="order-1 tnum text-3xl font-semibold tracking-tight">{value}</dd>
+      {sub != null && (
+        <dd className="order-3 mt-0.5 truncate text-xs text-muted-foreground tnum">{sub}</dd>
+      )}
     </div>
   );
 }

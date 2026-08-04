@@ -34,6 +34,8 @@ import {
   sparklinePath,
   trendCardData,
   trophyCardData,
+  workoutCardData,
+  type WorkoutCardInput,
 } from './card-data'
 
 function trophyRow(overrides: Partial<TrophyRow> = {}): TrophyRow {
@@ -214,5 +216,54 @@ describe('sparklinePath', () => {
 
   it('spaces intermediate points evenly across the width', () => {
     expect(sparklinePath([100, 150, 200], 100, 50)).toBe('M 0 44 L 50 25 L 100 6')
+  })
+})
+
+describe('workoutCardData', () => {
+  function workout(over: Partial<WorkoutCardInput> = {}): WorkoutCardInput {
+    return {
+      name: 'Push Day',
+      startedAt: new Date('2026-08-01T18:00:00Z'),
+      completedAt: new Date('2026-08-01T18:48:00Z'),
+      exercises: [
+        { sets: [{ reps: 5, weight: 100 }, { reps: 5, weight: 100 }] },
+        { sets: [{ reps: 8, weight: 40 }] },
+      ],
+      ...over,
+    }
+  }
+
+  it('leads with volume in the display unit, sets and duration as context', () => {
+    expect(workoutCardData(workout(), 'kg')).toEqual({
+      title: 'Push Day',
+      value: '1,320',
+      unitLabel: 'kg',
+      context: '3 sets · 48 min · Aug 2026',
+    })
+  })
+
+  it('falls back to the set count when no set carried a load', () => {
+    const data = workoutCardData(
+      workout({ exercises: [{ sets: [{ reps: 12, weight: null }] }] }),
+      'kg',
+    )
+
+    expect(data).toMatchObject({ value: '1', unitLabel: 'set' })
+    expect(data?.context).toBe('48 min · Aug 2026')
+  })
+
+  it('drops an implausible duration and defaults an unnamed session', () => {
+    const started = new Date('2026-08-01T18:00:00Z')
+    const data = workoutCardData(
+      workout({ name: null, startedAt: started, completedAt: started }),
+      'kg',
+    )
+
+    expect(data?.title).toBe('Workout')
+    expect(data?.context).toBe('3 sets · Aug 2026')
+  })
+
+  it('is null for a workout still in progress', () => {
+    expect(workoutCardData(workout({ completedAt: null }), 'kg')).toBeNull()
   })
 })

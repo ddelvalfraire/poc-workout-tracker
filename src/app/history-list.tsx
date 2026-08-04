@@ -6,6 +6,7 @@ import { formatVolume, formatWorkoutDuration } from '@/lib/format'
 import { buttonVariants } from '@/components/ui/button'
 import { GuardedStartLink } from '@/components/guarded-start-link'
 import type { SessionSummary } from '@/components/session-conflict-dialog'
+import { rowEmphasisPct } from './history/history-view'
 import { cn } from '@/lib/utils'
 
 // en-US matches formatWorkoutDate — one locale for all date display.
@@ -16,16 +17,26 @@ const monthFormat = new Intl.DateTimeFormat('en-US', { month: 'short' })
  * the full /history page share, moved intact from the old home page (calendar
  * anchors, summary links, guarded Repeat). Completed only by contract:
  * unfinished rows live in home's Unfinished section, never here.
+ *
+ * The split, deliberately: /history's month grouping and sticky headers live
+ * in /history/page.tsx (one section = one HistoryList), and the volume
+ * emphasis bar only renders when the caller passes `maxVolumeKg` — home's
+ * compact last-5 passes neither, so its render is byte-identical to before.
+ * One shared row component, two densities; no API break.
  */
 export function HistoryList({
   workouts,
   unit,
   guardSession,
+  maxVolumeKg,
 }: {
   workouts: WorkoutSummary[]
   unit: WeightUnit
   /** Single-active-session guard for the Repeat starts. */
   guardSession: SessionSummary | null
+  /** LIST-max volume (across ALL months, not this slice) for the hairline
+   *  emphasis bar; omit (home) to render rows without it. */
+  maxVolumeKg?: number
 }) {
   return (
     <ul className="divide-y divide-border overflow-hidden rounded-2xl border border-border bg-card">
@@ -60,6 +71,21 @@ export function HistoryList({
                   .filter(Boolean)
                   .join(' · ')}
               </span>
+              {/* Quiet hierarchy, not decoration: session size relative to
+                  the list max, muted ink only (volt stays with actions and
+                  achievements). The number itself is in the meta line above —
+                  the bar is emphasis, so it hides from readers. */}
+              {maxVolumeKg !== undefined && maxVolumeKg > 0 && (
+                <span
+                  aria-hidden="true"
+                  className="mt-1.5 block h-0.5 w-full overflow-hidden rounded-full bg-muted"
+                >
+                  <span
+                    className="block h-full rounded-full bg-muted-foreground/50"
+                    style={{ width: `${rowEmphasisPct(w.volumeKg, maxVolumeKg)}%` }}
+                  />
+                </span>
+              )}
             </span>
             <ChevronRight aria-hidden="true" className="size-5 shrink-0 text-muted-foreground" />
           </Link>

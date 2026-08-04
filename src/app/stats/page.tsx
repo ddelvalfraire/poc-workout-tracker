@@ -1,18 +1,25 @@
 import { requireUserId } from '@/lib/auth'
 import { getMuscleVolume } from '@/db/muscle-volume'
 import { getPlannedWeeklyVolume } from '@/db/planned-volume'
-import { volumeWindows, type VolumeWindowMode } from '@/lib/volume-window'
+import {
+  daysLeftInCalendarWeek,
+  volumeWindows,
+  type VolumeWindowMode,
+} from '@/lib/volume-window'
 import { AppHeader } from '@/components/app-header'
 import { StatTile } from '@/components/stat-tile'
 import { VolumeBarChart } from '@/components/charts/volume-bar-chart'
 import { NavDrawer } from '@/components/nav/nav-drawer'
 import { WindowToggle } from './window-toggle'
+import { PlanBulletList } from './plan-bullet-list'
 import {
   lowVolumeGroups,
   LOW_VOLUME_FLOOR,
   overPlanGroups,
   setsDeltaLabel,
+  sortGroupsForDisplay,
   underPlanGroups,
+  verdictForStats,
   withPlanned,
 } from './volume-view'
 
@@ -55,8 +62,24 @@ export default async function StatsPage({
   const low = planned ? [] : lowVolumeGroups(volume.groups)
   const under = planned ? underPlanGroups(volume.groups, planned) : []
   const over = planned ? overPlanGroups(volume.groups, planned) : []
-  const chartGroups = planned ? withPlanned(volume.groups, planned) : volume.groups
+  // Shortfall-first with a plan, most-trained-first without. Bullet rows with
+  // nothing planned AND nothing performed teach nothing — dropped, not
+  // zero-barred.
+  const planRows = planned
+    ? sortGroupsForDisplay(withPlanned(volume.groups, planned), true).filter(
+        (g) => g.plannedSets > 0 || g.currentSets > 0 || g.previousSets > 0,
+      )
+    : null
+  const chartGroups = sortGroupsForDisplay(volume.groups, false)
   const delta = setsDeltaLabel(volume.totals.currentSets, volume.totals.previousSets)
+  // Days-left is only meaningful against a fixed week end — calendar mode.
+  const verdict = verdictForStats({
+    planned,
+    under,
+    currentSets: volume.totals.currentSets,
+    previousSets: volume.totals.previousSets,
+    daysLeft: mode === 'calendar' ? daysLeftInCalendarWeek(new Date(), tzOffset) : null,
+  })
 
   return (
     <div className="flex min-h-[100dvh] flex-col">
@@ -66,6 +89,18 @@ export default async function StatsPage({
       />
 
       <main className="mx-auto w-full max-w-md flex-1 space-y-6 px-5 pb-safe pt-6">
+        {/* The verdict zone leads (the drawer/home language): status in
+            words before any chart. The window toggle is demoted below it —
+            a preference, not the page's opening move. */}
+        {hasAnyVolume && (
+          <section aria-label="Week verdict">
+            <h2 className="font-display text-4xl uppercase leading-none tracking-wide">
+              {verdict.headline}
+            </h2>
+            <p className="mt-1.5 text-sm text-muted-foreground tnum">{verdict.context}</p>
+          </section>
+        )}
+
         <WindowToggle mode={mode} />
 
         {!hasAnyVolume ? (
@@ -95,13 +130,8 @@ export default async function StatsPage({
               </p>
             )}
 
-            {under.length > 0 && (
-              <p className="px-1 text-sm text-muted-foreground">
-                <span className="font-semibold text-foreground">Under plan:</span>{' '}
-                {under.map((e) => `${e.group} ${e.performedSets} / ${e.plannedSets}`).join(', ')}
-              </p>
-            )}
-
+            {/* The old "Under plan:" listing is gone: the verdict names the
+                worst gap and every bullet row below shows its own. */}
             {over.length > 0 && (
               <p className="px-1 text-xs text-muted-foreground">
                 Well over plan:{' '}
@@ -114,12 +144,18 @@ export default async function StatsPage({
                 Sets per muscle group
               </h2>
               <div className="mt-2 rounded-2xl border border-border bg-card p-4">
-                <VolumeBarChart groups={chartGroups} />
+                {planRows !== null ? (
+                  // Plan mode: bullet rows — performed inside the planned
+                  // track (see plan-bullet-list.tsx).
+                  <PlanBulletList rows={planRows} />
+                ) : (
+                  <VolumeBarChart groups={chartGroups} />
+                )}
               </div>
               <p className="mt-2 px-1 text-xs text-muted-foreground">
                 Primary muscles count a full set, secondaries half.
                 {planned &&
-                  ` Planned / week is one full pass through ${planned.programName}'s days; both window views compare against that same weekly figure.`}
+                  ` The track is one full pass through ${planned.programName}'s days; both window views compare against that same weekly figure. The thin mark is last week.`}
               </p>
             </section>
           </>

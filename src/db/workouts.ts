@@ -84,6 +84,52 @@ export const listWorkoutSummaries = cache(
   async (userId: string): Promise<WorkoutSummary[]> => workoutSummariesQuery(userId),
 )
 
+/** The comparison facts of a prior same-name session (volume in kg). */
+export interface PreviousWorkoutFacts {
+  id: string
+  startedAt: Date
+  completedAt: Date | null
+  volumeKg: number
+}
+
+/**
+ * The most recent COMPLETED workout with the same `name` started before
+ * `before` — the summary page's "vs last {name}" baseline. This is the ONE
+ * extra read authorized for that page (Arc B): the summary otherwise fetches
+ * only the workout itself, and deltas without a prior are no deltas at all.
+ * Name-keyed on purpose — "last Push Day" is the comparison the lifter
+ * means, program provenance or not. Callers skip unnamed workouts (a null
+ * name matches nothing meaningful).
+ */
+export async function getPreviousCompletedWorkout(
+  userId: string,
+  name: string,
+  before: Date,
+): Promise<PreviousWorkoutFacts | null> {
+  const [row] = await db
+    .select({
+      id: workouts.id,
+      startedAt: workouts.startedAt,
+      completedAt: workouts.completedAt,
+      volumeKg: sql<number>`coalesce(sum(${sets.reps} * ${sets.weight}), 0)`.mapWith(Number),
+    })
+    .from(workouts)
+    .leftJoin(workoutExercises, eq(workoutExercises.workoutId, workouts.id))
+    .leftJoin(sets, eq(sets.workoutExerciseId, workoutExercises.id))
+    .where(
+      and(
+        eq(workouts.userId, userId),
+        eq(workouts.name, name),
+        isNotNull(workouts.completedAt),
+        lt(workouts.startedAt, before),
+      ),
+    )
+    .groupBy(workouts.id)
+    .orderBy(desc(workouts.startedAt))
+    .limit(1)
+  return row ?? null
+}
+
 /** A prior performance of an exercise: when it was done and its sets (weights in kg, set order). */
 export interface LastPerformance {
   performedAt: Date

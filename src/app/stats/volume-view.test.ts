@@ -1,11 +1,14 @@
 import { describe, it, expect } from 'vitest'
 import {
+  bulletWidthPct,
   LOW_VOLUME_FLOOR,
   lowVolumeGroups,
   OVER_PLAN_RATIO,
   overPlanGroups,
   setsDeltaLabel,
+  sortGroupsForDisplay,
   underPlanGroups,
+  verdictForStats,
   withPlanned,
 } from './volume-view'
 import type { MuscleGroupVolume } from '@/db/muscle-volume'
@@ -109,6 +112,130 @@ describe('withPlanned', () => {
       previousSets: 0,
       plannedSets: 2,
     })
+  })
+})
+
+describe('sortGroupsForDisplay', () => {
+  it('sorts by shortfall descending when a plan exists', () => {
+    const groups = [
+      { ...group({ group: 'Chest', currentSets: 10 }), plannedSets: 12 }, // −2
+      { ...group({ group: 'Back', currentSets: 3 }), plannedSets: 12 }, // −9
+      { ...group({ group: 'Quads', currentSets: 14 }), plannedSets: 10 }, // +4 over
+    ]
+
+    expect(sortGroupsForDisplay(groups, true).map((g) => g.group)).toEqual([
+      'Back',
+      'Chest',
+      'Quads',
+    ])
+  })
+
+  it('sorts by currentSets descending without a plan', () => {
+    const groups = [
+      group({ group: 'Chest', currentSets: 4 }),
+      group({ group: 'Back', currentSets: 12 }),
+      group({ group: 'Quads', currentSets: 8 }),
+    ]
+
+    expect(sortGroupsForDisplay(groups, false).map((g) => g.group)).toEqual([
+      'Back',
+      'Quads',
+      'Chest',
+    ])
+  })
+
+  it('keeps catalog order on ties and never mutates the input', () => {
+    const groups = [
+      group({ group: 'Chest', currentSets: 8 }),
+      group({ group: 'Back', currentSets: 8 }),
+    ]
+    const before = groups.map((g) => ({ ...g }))
+
+    expect(sortGroupsForDisplay(groups, false).map((g) => g.group)).toEqual(['Chest', 'Back'])
+    expect(groups).toEqual(before)
+  })
+})
+
+describe('bulletWidthPct', () => {
+  it('is a whole percent of the planned track', () => {
+    expect(bulletWidthPct(6, 12)).toBe(50)
+    expect(bulletWidthPct(4, 12)).toBe(33)
+  })
+
+  it('caps at 100 when performed exceeds plan', () => {
+    expect(bulletWidthPct(19, 12)).toBe(100)
+  })
+
+  it('is 0 for a zero/absent plan (never NaN or Infinity)', () => {
+    expect(bulletWidthPct(5, 0)).toBe(0)
+  })
+})
+
+describe('verdictForStats', () => {
+  it('names the single worst under-plan group', () => {
+    const verdict = verdictForStats({
+      planned: plan([]),
+      under: [
+        { group: 'Chest', performedSets: 10, plannedSets: 12 }, // −2
+        { group: 'Back', performedSets: 6, plannedSets: 12 }, // −6 → worst
+      ],
+      currentSets: 30,
+      previousSets: 28,
+      daysLeft: null,
+    })
+
+    expect(verdict.headline).toBe('Back is behind.')
+    expect(verdict.context).toBe('6 of 12 planned sets')
+  })
+
+  it('appends days-left only when provided (calendar mode)', () => {
+    const under = [{ group: 'Back' as const, performedSets: 6, plannedSets: 12 }]
+    const base = { planned: plan([]), under, currentSets: 6, previousSets: 0 }
+
+    expect(verdictForStats({ ...base, daysLeft: 3 }).context).toBe(
+      '6 of 12 planned sets · 3 days left this week',
+    )
+    expect(verdictForStats({ ...base, daysLeft: 1 }).context).toBe(
+      '6 of 12 planned sets · 1 day left this week',
+    )
+  })
+
+  it('reads on plan when nothing is under', () => {
+    const verdict = verdictForStats({
+      planned: plan([]),
+      under: [],
+      currentSets: 24,
+      previousSets: 20,
+      daysLeft: 2,
+    })
+
+    expect(verdict.headline).toBe('On plan.')
+    expect(verdict.context).toBe('Every planned group at its weekly target · 2 days left this week')
+  })
+
+  it('falls back to no-plan copy with the week total and delta', () => {
+    const verdict = verdictForStats({
+      planned: null,
+      under: [],
+      currentSets: 24,
+      previousSets: 18,
+      daysLeft: null,
+    })
+
+    expect(verdict.headline).toBe('No plan set.')
+    expect(verdict.context).toBe('24 sets this week · +6 vs last week')
+  })
+
+  it('omits the delta when flat and handles the singular set', () => {
+    const verdict = verdictForStats({
+      planned: null,
+      under: [],
+      currentSets: 1,
+      previousSets: 1,
+      daysLeft: null,
+    })
+
+    expect(verdict.context).toBe('1 set this week')
   })
 })
 
