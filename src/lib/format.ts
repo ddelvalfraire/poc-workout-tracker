@@ -104,15 +104,26 @@ const MIN_PLAUSIBLE_DURATION_MS = 60_000 // instant saves carry no signal
 const MAX_PLAUSIBLE_DURATION_MS = 6 * 60 * 60_000 // backdated/forgotten sessions
 
 /**
- * A workout's session length as "42 min" / "1 h 5 min", or null when it can't
- * be shown: never completed, or an implausible span (completed at save-time in
- * the same instant, or a backdated startedAt) that would only mislead.
+ * A workout's session length in whole minutes (elapsed time floors: 42:30 is
+ * 42), or null when it can't be shown: never completed, or an implausible
+ * span (completed at save-time in the same instant, or a backdated startedAt)
+ * that would only mislead. The comparable form behind `formatWorkoutDuration`
+ * — delta computations (summary "vs last" sub-lines) subtract these.
  */
-export function formatWorkoutDuration(startedAt: Date, completedAt: Date | null): string | null {
+export function workoutDurationMinutes(startedAt: Date, completedAt: Date | null): number | null {
   if (!completedAt) return null
   const ms = completedAt.getTime() - startedAt.getTime()
   if (ms < MIN_PLAUSIBLE_DURATION_MS || ms > MAX_PLAUSIBLE_DURATION_MS) return null
-  const totalMin = Math.floor(ms / 60_000) // elapsed time floors: 42:30 is "42 min"
+  return Math.floor(ms / 60_000)
+}
+
+/**
+ * A workout's session length as "42 min" / "1 h 5 min", or null under the
+ * same plausibility rules as `workoutDurationMinutes`.
+ */
+export function formatWorkoutDuration(startedAt: Date, completedAt: Date | null): string | null {
+  const totalMin = workoutDurationMinutes(startedAt, completedAt)
+  if (totalMin === null) return null
   const h = Math.floor(totalMin / 60)
   const m = totalMin % 60
   return h > 0 ? `${h} h ${m} min` : `${m} min`

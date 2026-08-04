@@ -98,3 +98,88 @@ export function setsDeltaLabel(current: number, previous: number): string | null
   const sign = delta > 0 ? '+' : '−'
   return `${sign}${Math.abs(delta)} vs last week`
 }
+
+/**
+ * Display order for the per-group rows/chart: with a plan, biggest shortfall
+ * (planned − performed) first — the gap the lifter can still close leads;
+ * without one, most-trained first. Array.prototype.sort is stable, so ties
+ * keep the catalog's display order. Returns a new array.
+ */
+export function sortGroupsForDisplay<T extends MuscleGroupVolume & { plannedSets?: number }>(
+  groups: readonly T[],
+  hasPlan: boolean,
+): T[] {
+  return [...groups].sort((a, b) =>
+    hasPlan
+      ? (b.plannedSets ?? 0) - b.currentSets - ((a.plannedSets ?? 0) - a.currentSets)
+      : b.currentSets - a.currentSets,
+  )
+}
+
+/**
+ * A bullet-row bar width as a whole percent of its planned track. Capped at
+ * 100 — performed beyond plan fills the track, it never overflows it (the
+ * over-plan note carries that story). Zero/absent plan yields 0, never
+ * NaN/Infinity.
+ */
+export function bulletWidthPct(value: number, plannedSets: number): number {
+  if (plannedSets <= 0) return 0
+  return Math.round(Math.min(value / plannedSets, 1) * 100)
+}
+
+/** The verdict zone's two lines: editorial headline (CSS uppercases it) plus
+ *  one muted context sentence. */
+export interface StatsVerdict {
+  headline: string
+  context: string
+}
+
+/**
+ * The /stats verdict — the week's status told in words before any chart.
+ * Copy table (derived from the plan comparisons already computed for the
+ * flag lines; no new queries):
+ *   no plan            → "No plan set."       + sets this week (± vs last)
+ *   plan, none under   → "On plan."           + every-group line
+ *   plan, some under   → "{Group} is behind." (the single WORST shortfall) +
+ *                        "{performed} of {planned} planned sets"
+ * `daysLeft` (calendar mode only, null otherwise) appends "· N days left
+ * this week" — rolling windows have no end to count to.
+ */
+export function verdictForStats(input: {
+  planned: PlannedVolume | null
+  under: readonly PlanComparisonEntry[]
+  currentSets: number
+  previousSets: number
+  daysLeft: number | null
+}): StatsVerdict {
+  const daysLeftSuffix =
+    input.daysLeft !== null
+      ? ` · ${input.daysLeft} ${input.daysLeft === 1 ? 'day' : 'days'} left this week`
+      : ''
+  if (input.planned === null) {
+    const delta = setsDeltaLabel(input.currentSets, input.previousSets)
+    const sets = `${input.currentSets} ${input.currentSets === 1 ? 'set' : 'sets'} this week`
+    return {
+      headline: 'No plan set.',
+      context: `${sets}${delta !== null ? ` · ${delta}` : ''}`,
+    }
+  }
+  if (input.under.length === 0) {
+    return {
+      headline: 'On plan.',
+      context: `Every planned group at its weekly target${daysLeftSuffix}`,
+    }
+  }
+  // The single worst gap names the verdict — one clear instruction, not a
+  // list. Ties keep the earlier (catalog-order) group.
+  let worst = input.under[0]
+  for (const entry of input.under) {
+    if (entry.plannedSets - entry.performedSets > worst.plannedSets - worst.performedSets) {
+      worst = entry
+    }
+  }
+  return {
+    headline: `${worst.group} is behind.`,
+    context: `${worst.performedSets} of ${worst.plannedSets} planned sets${daysLeftSuffix}`,
+  }
+}

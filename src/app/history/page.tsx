@@ -3,9 +3,13 @@ import { listWorkoutSummaries } from '@/db/workouts'
 import { listWorkoutDrafts } from '@/db/workout-drafts'
 import { getWeightUnit } from '@/db/preferences'
 import { resolveActiveSession } from '@/lib/active-session'
+import { formatVolume } from '@/lib/format'
 import { AppHeader } from '@/components/app-header'
 import { BackLink } from '@/components/back-link'
+import { GuardedStartLink } from '@/components/guarded-start-link'
+import { buttonVariants } from '@/components/ui/button'
 import { HistoryList } from '../history-list'
+import { historyStatusLine, monthBuckets } from './history-view'
 
 /**
  * /history — the full training log, moved off home (WHOOP tier discipline:
@@ -13,6 +17,12 @@ import { HistoryList } from '../history-list'
  * same calendar anchors, same guarded Repeat — which is why the drafts read
  * comes along: Repeat is a start CTA and must respect the single-active-
  * session rule here too. Sub-page chrome: back chevron, no drawer trigger.
+ *
+ * The log reads as chapters, not a scroll of rows: an editorial status line
+ * up top, then sticky month headers with rollups over the shared HistoryList
+ * (one list per month — home's compact reuse stays header-free by design;
+ * see history-list.tsx). All derivation is over the one summaries array
+ * already in memory.
  */
 export default async function HistoryPage() {
   const userId = await requireUserId()
@@ -29,6 +39,12 @@ export default async function HistoryPage() {
     completedSetCount: activeSession.completedSetCount,
   }
   const completed = summaries.filter((w) => w.completedAt !== null)
+  const now = new Date()
+  const statusLine = historyStatusLine(completed, now)
+  const buckets = monthBuckets(completed, now)
+  // Row emphasis normalizes to the WHOLE list's max, not per month — a small
+  // month must not inflate its sessions.
+  const maxVolumeKg = completed.reduce((max, w) => Math.max(max, w.volumeKg), 0)
 
   return (
     <div className="flex min-h-[100dvh] flex-col">
@@ -46,9 +62,48 @@ export default async function HistoryPage() {
             <p className="mt-1 text-sm text-muted-foreground">
               Finished sessions land here — your full training log.
             </p>
+            {/* The empty state is an invitation, not a dead end. Guarded like
+                every other start CTA (single-active-session rule). */}
+            <GuardedStartLink
+              href="/workout/new"
+              session={guardSession}
+              className={buttonVariants({ className: 'mt-5' })}
+            >
+              Start your first workout
+            </GuardedStartLink>
           </div>
         ) : (
-          <HistoryList workouts={completed} unit={unit} guardSession={guardSession} />
+          <>
+            {statusLine !== null && (
+              <p className="mb-4 px-1 text-sm text-muted-foreground tnum">{statusLine}</p>
+            )}
+            <div className="space-y-6">
+              {buckets.map((bucket) => (
+                <section key={bucket.key} aria-label={bucket.label}>
+                  {/* Sticky under the h-14 app header (plus the safe-area it
+                      pads); backdrop matches the header so rows scroll under
+                      it cleanly. */}
+                  <h2 className="sticky top-[calc(3.5rem+env(safe-area-inset-top))] z-[5] -mx-1 flex items-baseline gap-2 bg-background/90 px-1 py-2 backdrop-blur-md">
+                    <span className="font-display text-xl uppercase leading-none tracking-wide">
+                      {bucket.label}
+                    </span>
+                    <span className="text-sm text-muted-foreground tnum">
+                      · {bucket.sessions} session{bucket.sessions === 1 ? '' : 's'}
+                      {bucket.volumeKg > 0 && <> · {formatVolume(bucket.volumeKg, unit)}</>}
+                    </span>
+                  </h2>
+                  <div className="mt-1">
+                    <HistoryList
+                      workouts={bucket.workouts}
+                      unit={unit}
+                      guardSession={guardSession}
+                      maxVolumeKg={maxVolumeKg}
+                    />
+                  </div>
+                </section>
+              ))}
+            </div>
+          </>
         )}
       </main>
     </div>

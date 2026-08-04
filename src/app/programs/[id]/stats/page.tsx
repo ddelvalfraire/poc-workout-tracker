@@ -7,11 +7,14 @@ import { AppHeader } from '@/components/app-header'
 import { BackLink } from '@/components/back-link'
 import { cn } from '@/lib/utils'
 import {
+  e1rmSparkline,
   visibleWeeks,
   volumeBarWidthPct,
   hasAnyTraining,
   prDeltaKg,
+  programVerdict,
   isHighRepEstimate,
+  topPRs,
 } from './stats-view'
 
 /**
@@ -41,10 +44,15 @@ export default async function ProgramStatsPage({
   const prExercises = stats.exercises.filter(
     (e): e is (typeof stats.exercises)[number] & { pr: ProgramExercisePR } => e.pr !== null,
   )
-  // Weeks are 1-based in a 0-based array: previous week = index currentWeek - 2.
-  // "Previous" per nextProgramWeek's position math, NOT guaranteed complete —
-  // the row shows its own daysCompleted/planned, so a partial week reads honestly.
-  const prevWeek = stats.currentWeek >= 2 ? stats.weeks[stats.currentWeek - 2] : null
+  // Real gains lead the PR section (celebration first, sorted by delta);
+  // single-week baselines follow in appearance order — context, not wins.
+  const gains = topPRs(stats.exercises, stats.exercises.length)
+  const gainKeys = new Set(gains.map((e) => `${e.source}:${e.wgerExerciseId}`))
+  const prRows = [
+    ...gains,
+    ...prExercises.filter((e) => !gainKeys.has(`${e.source}:${e.wgerExerciseId}`)),
+  ]
+  const verdict = programVerdict(stats.weeks, stats.currentWeek, gains.length)
 
   return (
     <div className="flex min-h-[100dvh] flex-col">
@@ -68,18 +76,18 @@ export default async function ProgramStatsPage({
       />
 
       <main className="mx-auto w-full max-w-md flex-1 px-5 pb-safe">
-        {/* Hero: where the block stands. Program name stays quiet — the
-            header already carries the surface's identity. */}
-        <section aria-label="Block position" className="mt-6">
+        {/* Verdict hero: the block's status in words (stats-view copy table),
+            then position. Program name stays quiet — the header already
+            carries the surface's identity. */}
+        <section aria-label="Block verdict" className="mt-6">
           <p className="text-sm text-muted-foreground">{stats.program.name}</p>
-          <h2 className="mt-1 font-display text-xl uppercase leading-none tracking-wide tnum">
-            Week {stats.currentWeek} of {stats.program.mesocycleWeeks}
+          <h2 className="mt-1 font-display text-4xl uppercase leading-none tracking-wide">
+            {verdict.headline}
           </h2>
-          {trained && prevWeek && (
-            <p className="mt-1.5 text-sm text-muted-foreground tnum">
-              {prevWeek.daysCompleted}/{prevWeek.plannedDays} days · wk {stats.currentWeek - 1}
-            </p>
-          )}
+          <p className="mt-1.5 text-sm text-muted-foreground tnum">{verdict.context}</p>
+          <p className="mt-0.5 text-sm text-muted-foreground tnum">
+            Week {stats.currentWeek} of {stats.program.mesocycleWeeks}
+          </p>
         </section>
 
         {!trained ? (
@@ -89,74 +97,13 @@ export default async function ProgramStatsPage({
           </p>
         ) : (
           <>
-            <section aria-label="Adherence" className="mt-8">
-              <h3 className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
-                Adherence
-              </h3>
-              <ul className="mt-2 space-y-1.5">
-                {weeks.map((w) => {
-                  const unfinished = w.daysStarted - w.daysCompleted
-                  return (
-                    <li key={w.week} className="flex items-baseline gap-3 text-sm">
-                      <span
-                        className={cn(
-                          'w-11 shrink-0 text-[11px] font-semibold uppercase tracking-widest tnum',
-                          // "You are here" accent — matches the program page's
-                          // anchored current-week voice.
-                          w.week === stats.currentWeek ? 'text-primary' : 'text-muted-foreground',
-                        )}
-                      >
-                        Wk {w.week}
-                      </span>
-                      <span className="tnum">
-                        {w.daysCompleted}/{w.plannedDays}
-                      </span>
-                      {/* Started counts, flagged visually — never silently excluded. */}
-                      {unfinished > 0 && (
-                        <span className="text-muted-foreground tnum">
-                          +{unfinished} unfinished
-                        </span>
-                      )}
-                    </li>
-                  )
-                })}
-              </ul>
-            </section>
-
-            <section aria-label="Weekly volume" className="mt-8">
-              <h3 className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
-                Volume
-              </h3>
-              <ul className="mt-2 space-y-2.5">
-                {weeks.map((w) => (
-                  <li key={w.week} className="flex items-center gap-3">
-                    <span className="w-11 shrink-0 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground tnum">
-                      Wk {w.week}
-                    </span>
-                    <div className="h-2 min-w-0 flex-1 rounded-full bg-muted">
-                      <div
-                        className="h-full rounded-full bg-primary"
-                        style={{ width: `${volumeBarWidthPct(w.tonnageKg, maxTonnage)}%` }}
-                      />
-                    </div>
-                    {/* Zero-tonnage weeks with sets are real training (maxed
-                        stack machines log null weight) — sets always show. */}
-                    <span className="shrink-0 text-sm text-muted-foreground tnum">
-                      {w.tonnageKg > 0 && `${formatVolume(w.tonnageKg, unit)} · `}
-                      {w.completedSets} set{w.completedSets === 1 ? '' : 's'}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </section>
-
-            {prExercises.length > 0 && (
+            {prRows.length > 0 && (
               <section aria-label="PRs" className="mt-8">
                 <h3 className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
                   PRs
                 </h3>
                 <ul className="mt-2 space-y-2.5">
-                  {prExercises.map((exercise) => {
+                  {prRows.map((exercise) => {
                     const pr = exercise.pr
                     const delta = prDeltaKg(pr)
                     const isSingleWeek = pr.baseline.week === pr.best.week
@@ -199,9 +146,10 @@ export default async function ProgramStatsPage({
                           </p>
                         </div>
                         {/* The verdict line: gain in the display unit. Volt is
-                            earned here — a PR is the page's one celebration. */}
+                            earned here — a PR is the page's one celebration,
+                            and it now leads the page at display scale. */}
                         {!isSingleWeek && delta > 0 && (
-                          <p className="mt-0.5 text-right text-sm font-semibold text-primary tnum">
+                          <p className="mt-0.5 text-right font-display text-2xl uppercase leading-none tracking-wide text-primary tnum">
                             +{formatE1RM(delta, unit)}
                           </p>
                         )}
@@ -217,15 +165,144 @@ export default async function ProgramStatsPage({
               </section>
             )}
 
+            {/* One row per week: day-fill + volume bar + tonnage — adherence
+                and volume merged into a single glance. Deload weeks render
+                hollow with a DL tag (a planned easy week must never read as
+                slacking); the current week is ringed. */}
+            <section aria-label="Weeks" className="mt-8">
+              <h3 className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
+                Weeks
+              </h3>
+              <ul className="mt-2 space-y-1">
+                {weeks.map((w) => {
+                  const unfinished = w.daysStarted - w.daysCompleted
+                  const isDeload = w.week === stats.program.deloadWeek
+                  const isCurrent = w.week === stats.currentWeek
+                  return (
+                    <li
+                      key={w.week}
+                      className={cn(
+                        '-mx-2 rounded-xl border border-transparent px-2 py-1.5',
+                        // "You are here" ring — matches the program page's
+                        // anchored current-week voice.
+                        isCurrent && 'border-primary/40',
+                      )}
+                    >
+                      <div className="flex items-center gap-3">
+                        <span
+                          className={cn(
+                            'w-11 shrink-0 text-[11px] font-semibold uppercase tracking-widest tnum',
+                            isCurrent ? 'text-primary' : 'text-muted-foreground',
+                          )}
+                        >
+                          Wk {w.week}
+                        </span>
+                        {/* Day-fill segments; the numbers stay real text. */}
+                        {w.plannedDays > 0 && (
+                          <span aria-hidden="true" className="flex shrink-0 gap-1">
+                            {Array.from({ length: w.plannedDays }, (_, i) => (
+                              <span
+                                key={i}
+                                className={cn(
+                                  'size-2 rounded-[3px]',
+                                  isDeload
+                                    ? i < w.daysCompleted
+                                      ? 'border border-foreground/60'
+                                      : 'border border-border'
+                                    : i < w.daysCompleted
+                                      ? 'bg-foreground/70'
+                                      : 'bg-muted',
+                                )}
+                              />
+                            ))}
+                          </span>
+                        )}
+                        <span className="text-sm tnum">
+                          {w.daysCompleted}/{w.plannedDays}
+                        </span>
+                        {/* Started counts, flagged visually — never silently
+                            excluded. */}
+                        {unfinished > 0 && (
+                          <span className="text-sm text-muted-foreground tnum">
+                            +{unfinished} unfinished
+                          </span>
+                        )}
+                        {isDeload && (
+                          <span className="rounded-full border border-border px-1.5 py-px text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+                            DL
+                          </span>
+                        )}
+                        {/* Zero-tonnage weeks with sets are real training
+                            (maxed stack machines log null weight) — sets
+                            always show. */}
+                        <span className="ml-auto shrink-0 text-sm text-muted-foreground tnum">
+                          {w.tonnageKg > 0 && `${formatVolume(w.tonnageKg, unit)} · `}
+                          {w.completedSets} set{w.completedSets === 1 ? '' : 's'}
+                        </span>
+                      </div>
+                      <div
+                        className={cn(
+                          'mt-1.5 h-2 overflow-hidden rounded-full',
+                          isDeload ? 'border border-border bg-transparent' : 'bg-muted',
+                        )}
+                      >
+                        <div
+                          className={cn(
+                            'h-full rounded-full',
+                            isDeload ? 'border border-primary/60 bg-transparent' : 'bg-primary',
+                          )}
+                          style={{ width: `${volumeBarWidthPct(w.tonnageKg, maxTonnage)}%` }}
+                        />
+                      </div>
+                    </li>
+                  )
+                })}
+              </ul>
+            </section>
+
             {stats.exercises.length > 0 && (
               <section aria-label="Progression" className="mt-8">
                 <h3 className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
                   Progression
                 </h3>
                 <div className="mt-2 space-y-4">
-                  {stats.exercises.map((exercise) => (
+                  {stats.exercises.map((exercise) => {
+                    // Server-rendered inline SVG, no chart lib: weeks on x
+                    // (time-true), e1RM on y, volt dots on new running maxes.
+                    // Decorative — the numeric rows below are the detail.
+                    const spark = e1rmSparkline(exercise.weeks, 120, 32)
+                    return (
                     <div key={`${exercise.source}:${exercise.wgerExerciseId}`}>
-                      <p className="text-sm font-medium">{exercise.name}</p>
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="min-w-0 truncate text-sm font-medium">{exercise.name}</p>
+                        {spark && (
+                          <svg
+                            viewBox="0 0 120 32"
+                            aria-hidden="true"
+                            className="h-8 w-[120px] shrink-0 text-muted-foreground"
+                          >
+                            <path
+                              d={spark.path}
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth={1.5}
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            />
+                            {spark.points
+                              .filter((p) => p.isRunningMax)
+                              .map((p) => (
+                                <circle
+                                  key={p.week}
+                                  cx={p.x}
+                                  cy={p.y}
+                                  r={2.5}
+                                  className="fill-primary"
+                                />
+                              ))}
+                          </svg>
+                        )}
+                      </div>
                       <ul className="mt-1 space-y-0.5">
                         {exercise.weeks.map((point) => (
                           <li key={point.week} className="flex items-baseline gap-3 text-sm">
@@ -264,7 +341,8 @@ export default async function ProgramStatsPage({
                         ))}
                       </ul>
                     </div>
-                  ))}
+                    )
+                  })}
                 </div>
               </section>
             )}

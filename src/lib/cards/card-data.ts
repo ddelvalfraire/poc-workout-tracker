@@ -1,5 +1,6 @@
 import type { ExerciseAllTimeStats } from '@/db/exercise-stats'
 import type { TrophyRow } from '@/db/trophies'
+import { formatWorkoutDuration } from '@/lib/format'
 import { trophyContextLine, trophyLabel } from '@/lib/trophies'
 import { TROPHY_KINDS, type TrophyKind } from '@/lib/trophy-kinds'
 import { kgToDisplay, type WeightUnit } from '@/lib/units'
@@ -49,6 +50,54 @@ export function trophyCardData(
   const fact = trophyContextLine(row, unit)
   const date = formatCardMonthYear(row.achievedAt)
   return { title: trophyLabel(row.kind), context: fact !== null ? `${fact} · ${date}` : date }
+}
+
+/** The completed-session facts the workout card reads (weights kg). */
+export interface WorkoutCardInput {
+  name: string | null
+  startedAt: Date
+  completedAt: Date | null
+  exercises: readonly { sets: readonly { reps: number | null; weight: number | null }[] }[]
+}
+
+export interface WorkoutCardData {
+  /** The session's name — the card headline. */
+  title: string
+  /** The one big volt number: total volume, or the set count when no set
+   *  carried a load (BW / machine-max sessions still get their moment). */
+  value: string
+  unitLabel: string
+  /** Remaining facts + coarse date ("18 sets · 42 min · Aug 2026"). */
+  context: string
+}
+
+/** Card data for a COMPLETED workout, or null for one still in progress —
+ *  the route collapses missing and unfinished into one constant 404. */
+export function workoutCardData(
+  workout: WorkoutCardInput,
+  unit: WeightUnit,
+): WorkoutCardData | null {
+  if (workout.completedAt === null) return null
+  const totalSets = workout.exercises.reduce((n, e) => n + e.sets.length, 0)
+  const volumeKg = workout.exercises.reduce(
+    (sum, e) => sum + e.sets.reduce((s, set) => s + (set.reps ?? 0) * (set.weight ?? 0), 0),
+    0,
+  )
+  const setsText = `${totalSets} ${totalSets === 1 ? 'set' : 'sets'}`
+  const duration = formatWorkoutDuration(workout.startedAt, workout.completedAt)
+  const date = formatCardMonthYear(workout.startedAt)
+  const hasVolume = volumeKg > 0
+  const context = [hasVolume ? setsText : null, duration, date]
+    .filter((part): part is string => part !== null)
+    .join(' · ')
+  return {
+    title: workout.name ?? 'Workout',
+    value: hasVolume
+      ? Math.round(kgToDisplay(volumeKg, unit)).toLocaleString('en-US')
+      : String(totalSets),
+    unitLabel: hasVolume ? unit : totalSets === 1 ? 'set' : 'sets',
+    context,
+  }
 }
 
 export interface PrCardData {

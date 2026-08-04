@@ -35,8 +35,10 @@ export function WindowToggle({ mode }: WindowToggleProps) {
   )
   const calendarHref = tz === null ? '/stats?window=calendar' : `/stats?window=calendar&tz=${tz}`
   const options: { label: string; href: string; value: VolumeWindowMode }[] = [
-    { label: 'Rolling 7d', href: '/stats', value: 'rolling' },
-    { label: 'Calendar wk', href: calendarHref, value: 'calendar' },
+    // De-jargoned: the WINDOW mechanics (rolling vs Monday-anchored) live in
+    // the module docs; the labels speak the lifter's calendar instead.
+    { label: 'Last 7 days', href: '/stats', value: 'rolling' },
+    { label: 'This week', href: calendarHref, value: 'calendar' },
   ]
 
   return (

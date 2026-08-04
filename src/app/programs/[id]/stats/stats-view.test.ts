@@ -1,15 +1,20 @@
 import { describe, it, expect } from 'vitest'
 import { MAX_RELIABLE_REPS } from '@/lib/one-rep-max'
 import type {
+  ExerciseWeekPoint,
   ProgramWeekStats,
   ProgramExercisePRPoint,
   ProgramExerciseProgression,
 } from '@/db/program-stats'
 import {
+  blockAdherencePct,
+  e1rmSparkline,
   visibleWeeks,
   volumeBarWidthPct,
+  volumeTrendSign,
   hasAnyTraining,
   prDeltaKg,
+  programVerdict,
   isHighRepEstimate,
   topPRs,
 } from './stats-view'
@@ -185,5 +190,124 @@ describe('hasAnyTraining', () => {
 
   it('is false for an empty weeks array', () => {
     expect(hasAnyTraining([])).toBe(false)
+  })
+})
+
+describe('blockAdherencePct', () => {
+  it('is the completed/planned percent over weeks before the current one', () => {
+    const weeks = [
+      week({ week: 1, daysCompleted: 4, plannedDays: 4 }),
+      week({ week: 2, daysCompleted: 2, plannedDays: 4 }),
+      week({ week: 3, daysCompleted: 1, plannedDays: 4 }), // current — excluded
+    ]
+
+    expect(blockAdherencePct(weeks, 3)).toBe(75)
+  })
+
+  it('is null with nothing behind you (week 1, or a dayless program)', () => {
+    expect(blockAdherencePct(zeroedBlock(4), 1)).toBeNull()
+    expect(blockAdherencePct([week({ week: 1, plannedDays: 0 })], 2)).toBeNull()
+  })
+})
+
+describe('volumeTrendSign', () => {
+  it('signs the last two trained prior weeks, skipping untrained gaps', () => {
+    const weeks = [
+      week({ week: 1, daysStarted: 2, tonnageKg: 4000 }),
+      week({ week: 2 }), // untrained — skipped, not a crash to zero
+      week({ week: 3, daysStarted: 2, tonnageKg: 5000 }),
+      week({ week: 4, daysStarted: 1, tonnageKg: 100 }), // current — excluded
+    ]
+
+    expect(volumeTrendSign(weeks, 4)).toBe(1)
+  })
+
+  it('signs a decline as −1', () => {
+    const weeks = [
+      week({ week: 1, daysStarted: 2, tonnageKg: 5000 }),
+      week({ week: 2, daysStarted: 2, tonnageKg: 4000 }),
+    ]
+
+    expect(volumeTrendSign(weeks, 3)).toBe(-1)
+  })
+
+  it('is null with fewer than two trained prior weeks', () => {
+    expect(volumeTrendSign([week({ week: 1, daysStarted: 1, tonnageKg: 4000 })], 2)).toBeNull()
+  })
+})
+
+describe('programVerdict', () => {
+  const trainedWeeks = [
+    week({ week: 1, daysStarted: 4, daysCompleted: 4, plannedDays: 4, tonnageKg: 4000 }),
+    week({ week: 2, daysStarted: 3, daysCompleted: 3, plannedDays: 4, tonnageKg: 5000 }),
+  ]
+
+  it('celebrates gains with count, adherence, and trend in the context', () => {
+    expect(programVerdict(trainedWeeks, 3, 2)).toEqual({
+      headline: 'Getting stronger.',
+      context: '2 lifts up this block · 88% of planned days trained · volume up week over week',
+    })
+  })
+
+  it('credits consistency without gains (singular lift handled elsewhere)', () => {
+    expect(programVerdict(trainedWeeks, 3, 0)).toEqual({
+      headline: 'Showing up.',
+      context: '88% of planned days trained · volume up week over week',
+    })
+  })
+
+  it('falls back to early days before any completed week', () => {
+    expect(programVerdict(zeroedBlock(5), 1, 0)).toEqual({
+      headline: 'Early days.',
+      context: 'The block picture builds as you train.',
+    })
+  })
+
+  it('omits the trend suffix when there is no trend to sign', () => {
+    const oneWeek = [week({ week: 1, daysStarted: 4, daysCompleted: 4, plannedDays: 4 })]
+
+    expect(programVerdict(oneWeek, 2, 1).context).toBe(
+      '1 lift up this block · 100% of planned days trained',
+    )
+  })
+})
+
+describe('e1rmSparkline', () => {
+  const point = (week: number, e1rm: number | null): ExerciseWeekPoint => ({
+    week,
+    best: e1rm === null ? null : { kind: 'e1rm', index: 0, reps: 5, weightKg: 100, e1rm },
+    completedSets: 3,
+  })
+
+  it('is null with fewer than two e1rm-scorable weeks', () => {
+    expect(e1rmSparkline([point(1, 100)], 120, 32)).toBeNull()
+    expect(e1rmSparkline([point(1, 100), point(2, null)], 120, 32)).toBeNull()
+  })
+
+  it('plots week on x (time-true), e1rm min-max on y, inside the inset', () => {
+    const spark = e1rmSparkline([point(1, 100), point(2, 110), point(4, 120)], 120, 32)
+
+    expect(spark).not.toBeNull()
+    // Week 2 sits 1/3 across the week-1..4 span, not halfway.
+    expect(spark!.points.map((p) => p.x)).toEqual([3, 41, 117])
+    expect(spark!.points[0].y).toBe(29) // min → bottom inset
+    expect(spark!.points[2].y).toBe(3) // max → top inset
+    expect(spark!.path).toBe('M 3 29 L 41 16 L 117 3')
+  })
+
+  it('marks only NEW running maxes, never the baseline', () => {
+    const spark = e1rmSparkline(
+      [point(1, 100), point(2, 110), point(3, 105), point(4, 120)],
+      120,
+      32,
+    )
+
+    expect(spark!.points.map((p) => p.isRunningMax)).toEqual([false, true, false, true])
+  })
+
+  it('draws the midline for a flat series', () => {
+    const spark = e1rmSparkline([point(1, 100), point(2, 100)], 120, 32)
+
+    expect(spark!.points.every((p) => p.y === 16)).toBe(true)
   })
 })

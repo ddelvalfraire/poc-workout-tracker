@@ -73,3 +73,16 @@ export function inWindow(at: Date, window: VolumeWindow): boolean {
   const t = at.getTime()
   return t >= window.start.getTime() && t < window.end.getTime()
 }
+
+/**
+ * Days remaining in the client-local Monday week, COUNTING today (Monday = 7,
+ * Sunday = 1) — "time left to close the gap" includes today while it can
+ * still hold a session. Same local-frame arithmetic (and the same documented
+ * DST drift) as the calendar branch of `volumeWindows`; only meaningful in
+ * calendar mode — rolling windows have no fixed end to count to.
+ */
+export function daysLeftInCalendarWeek(now: Date, tzOffsetMinutes = 0): number {
+  const localFrame = new Date(now.getTime() - tzOffsetMinutes * MINUTE_MS)
+  const daysSinceMonday = (localFrame.getUTCDay() + 6) % 7 // Mon=0 … Sun=6
+  return 7 - daysSinceMonday
+}

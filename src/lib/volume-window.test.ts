@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { inWindow, volumeWindows } from './volume-window'
+import { daysLeftInCalendarWeek, inWindow, volumeWindows } from './volume-window'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 
@@ -70,5 +70,21 @@ describe('inWindow', () => {
     expect(inWindow(win.end, win)).toBe(false)
     expect(inWindow(new Date(win.end.getTime() - 1), win)).toBe(true)
     expect(inWindow(new Date(win.start.getTime() - DAY_MS), win)).toBe(false)
+  })
+})
+
+describe('daysLeftInCalendarWeek', () => {
+  it('counts today: Monday 7 … Sunday 1 (UTC client)', () => {
+    expect(daysLeftInCalendarWeek(new Date('2026-07-13T09:00:00Z'), 0)).toBe(7) // Monday
+    expect(daysLeftInCalendarWeek(new Date('2026-07-15T18:30:00Z'), 0)).toBe(5) // Wednesday
+    expect(daysLeftInCalendarWeek(new Date('2026-07-19T09:00:00Z'), 0)).toBe(1) // Sunday
+  })
+
+  it('respects the client timezone offset across a local day boundary', () => {
+    // Sunday 23:30 UTC is already Monday in UTC+1 (offset −60).
+    const now = new Date('2026-07-19T23:30:00Z')
+
+    expect(daysLeftInCalendarWeek(now, 0)).toBe(1)
+    expect(daysLeftInCalendarWeek(now, -60)).toBe(7)
   })
 })
