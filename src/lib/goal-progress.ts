@@ -38,32 +38,30 @@ export interface StreakInput {
   now: Date
 }
 
-/**
- * Consecutive-week streak counted back from the current week. Exact rules:
- *  - A week's misses = scheduled weekdays with NO completion that week.
- *  - A past (full) week EXTENDS the streak iff misses <= grace AND at least
- *    one scheduled weekday was trained — a zero-training week never counts,
- *    even when a tiny schedule plus generous grace would technically forgive
- *    it (a streak week must contain training).
- *  - The CURRENT week: a scheduled weekday counts as missed only once it has
- *    fully elapsed (weekday strictly before today's); today untrained is not
- *    yet a miss. If the misses-so-far already exceed grace the streak is
- *    dead → 0. Otherwise the current week adds 1 iff it already has a
- *    trained scheduled day (still satisfiable but untrained = doesn't count
- *    yet), and the walk continues into past weeks either way.
- *  - No scheduled weekdays at all → every week is unscheduled → 0 (nothing
- *    to adhere to; the surfaces show a "schedule your days" state instead).
- */
-export function weeklyStreak({
+/** The full per-week walk behind the streak — ONE truth shared by the
+ *  count (weeklyStreak) and the week-tick row (streakWeekTicks), so the
+ *  grace semantics can never fork between surfaces. */
+interface StreakDetail {
+  /** Current week already unsatisfiable (misses-so-far > grace), or no
+   *  schedule at all — the streak is 0 regardless of the past. */
+  dead: boolean
+  /** The current week already contains a trained scheduled day. */
+  currentCounts: boolean
+  /** Consecutive counted PAST weeks, newest first; `usedGrace` = the week
+   *  survived only because grace forgave >= 1 miss. */
+  pastWeeks: { usedGrace: boolean }[]
+}
+
+function streakDetail({
   scheduledWeekdays,
   completions,
   allowedMissesPerWeek,
   now,
-}: StreakInput): number {
+}: StreakInput): StreakDetail {
   const scheduled = [
     ...new Set(scheduledWeekdays.filter((w) => Number.isInteger(w) && w >= 0 && w <= 6)),
   ]
-  if (scheduled.length === 0) return 0
+  if (scheduled.length === 0) return { dead: true, currentCounts: false, pastWeeks: [] }
   const grace =
     Number.isInteger(allowedMissesPerWeek) && allowedMissesPerWeek >= 0 ? allowedMissesPerWeek : 0
 
@@ -80,10 +78,9 @@ export function weeklyStreak({
   const currentWeekStart = startOfWeek(now)
   const trainedThisWeek = trainedByWeek.get(currentWeekStart.getTime()) ?? new Set<number>()
   const missesSoFar = scheduled.filter((w) => w < now.getDay() && !trainedThisWeek.has(w)).length
-  if (missesSoFar > grace) return 0
+  if (missesSoFar > grace) return { dead: true, currentCounts: false, pastWeeks: [] }
 
-  let streak = scheduled.some((w) => trainedThisWeek.has(w)) ? 1 : 0
-
+  const pastWeeks: { usedGrace: boolean }[] = []
   for (let back = 1; back <= MAX_STREAK_WEEKS; back += 1) {
     // Date arithmetic (not ms subtraction) so DST-shifted weeks stay aligned
     // to local midnights.
@@ -96,9 +93,72 @@ export function weeklyStreak({
     const trainedScheduled = scheduled.filter((w) => trained.has(w)).length
     const misses = scheduled.length - trainedScheduled
     if (trainedScheduled === 0 || misses > grace) break
-    streak += 1
+    pastWeeks.push({ usedGrace: misses > 0 })
   }
-  return streak
+
+  return {
+    dead: false,
+    currentCounts: scheduled.some((w) => trainedThisWeek.has(w)),
+    pastWeeks,
+  }
+}
+
+/**
+ * Consecutive-week streak counted back from the current week. Exact rules:
+ *  - A week's misses = scheduled weekdays with NO completion that week.
+ *  - A past (full) week EXTENDS the streak iff misses <= grace AND at least
+ *    one scheduled weekday was trained — a zero-training week never counts,
+ *    even when a tiny schedule plus generous grace would technically forgive
+ *    it (a streak week must contain training).
+ *  - The CURRENT week: a scheduled weekday counts as missed only once it has
+ *    fully elapsed (weekday strictly before today's); today untrained is not
+ *    yet a miss. If the misses-so-far already exceed grace the streak is
+ *    dead → 0. Otherwise the current week adds 1 iff it already has a
+ *    trained scheduled day (still satisfiable but untrained = doesn't count
+ *    yet), and the walk continues into past weeks either way.
+ *  - No scheduled weekdays at all → every week is unscheduled → 0 (nothing
+ *    to adhere to; the surfaces show a "schedule your days" state instead).
+ */
+export function weeklyStreak(input: StreakInput): number {
+  const detail = streakDetail(input)
+  if (detail.dead) return 0
+  return (detail.currentCounts ? 1 : 0) + detail.pastWeeks.length
+}
+
+/** One cell of the consistency card's week-tick row. */
+export type WeekTickState =
+  | 'clean' // a counted week with no grace burned — full volt fill
+  | 'grace' // counted, but grace forgave >= 1 miss — half fill
+  | 'current' // the in-flight week — outlined/pulsing
+  | 'future' // not yet reached — empty cell
+
+/**
+ * The week-tick row: `targetWeeks` cells, oldest → newest. Derived from the
+ * SAME per-week walk as weeklyStreak (streakDetail), so a cell can never
+ * disagree with the count. Layout rules:
+ *  - Counted past weeks fill from the left ('clean'/'grace'); when the streak
+ *    is longer than the row, the OLDEST weeks fall off (the row shows the
+ *    last targetWeeks of it).
+ *  - The cell after the past weeks is the live 'current' week — shown even
+ *    when it doesn't count yet (it's the week being fought for). A dead
+ *    streak collapses to current-at-zero: the restart invitation.
+ *  - Everything after is 'future'.
+ */
+export function streakWeekTicks(input: StreakInput, targetWeeks: number): WeekTickState[] {
+  if (!Number.isInteger(targetWeeks) || targetWeeks < 1) return []
+  const detail = streakDetail(input)
+  const ticks: WeekTickState[] = []
+  if (!detail.dead) {
+    // pastWeeks is newest-first → keep the newest targetWeeks - 1, then lay
+    // them out oldest-first.
+    const kept = detail.pastWeeks.slice(0, targetWeeks - 1)
+    for (let i = kept.length - 1; i >= 0; i -= 1) {
+      ticks.push(kept[i].usedGrace ? 'grace' : 'clean')
+    }
+  }
+  if (ticks.length < targetWeeks) ticks.push('current')
+  while (ticks.length < targetWeeks) ticks.push('future')
+  return ticks
 }
 
 // ── Pace projection ──────────────────────────────────────────────────────────
@@ -184,6 +244,68 @@ export function isBodyweightAchieved(currentKg: number | null, target: Bodyweigh
 
 export function isConsistencyAchieved(streakWeeks: number, target: ConsistencyTarget): boolean {
   return streakWeeks >= target.targetWeeks
+}
+
+// ── Card ordering (tension) ──────────────────────────────────────────────────
+
+/** The structural slice of a GoalWithProgress the tension sort reads —
+ *  lib/goals' evaluated entries satisfy it without an import cycle. */
+export interface TensionSortable {
+  achieved: boolean
+  progress:
+    | { kind: 'strength'; percent: number }
+    | { kind: 'bodyweight'; remainingKg: number | null }
+    | { kind: 'consistency'; streakWeeks: number; targetWeeks: number }
+}
+
+/**
+ * A goal's display tension on one 0–101 scale (higher = nearer the top):
+ *  - achieved → 101: the DONE moment leads the list;
+ *  - strength → its percent; consistency → streak/target percent (the
+ *    server-computed streak — UTC drift is accepted for ORDERING only, the
+ *    card's own number stays client-computed);
+ *  - bodyweight → 100/(1 + remainingKg): there is no honest percent without
+ *    a start weight, so closeness maps monotonically into (0, 100] — 0 kg
+ *    left = 100, 1 kg = 50, 4 kg = 20;
+ *  - unknowable (no bodyweight logged, corrupt progress) → −1, the bottom.
+ */
+export function goalTension(entry: TensionSortable): number {
+  if (entry.achieved) return 101
+  const p = entry.progress
+  if (p.kind === 'strength') return p.percent
+  if (p.kind === 'consistency') {
+    if (!(p.targetWeeks > 0)) return -1
+    return Math.max(0, Math.min(100, Math.round((p.streakWeeks / p.targetWeeks) * 100)))
+  }
+  if (p.remainingKg === null || !Number.isFinite(p.remainingKg)) return -1
+  return 100 / (1 + Math.max(0, p.remainingKg))
+}
+
+/** Tension-descending copy of the entries (stable: equal tension keeps the
+ *  incoming createdAt-desc order). Never mutates the input. */
+export function sortGoalsByTension<T extends TensionSortable>(entries: readonly T[]): T[] {
+  return [...entries].sort((a, b) => goalTension(b) - goalTension(a))
+}
+
+// ── Pace vs deadline ─────────────────────────────────────────────────────────
+
+/**
+ * The suffix promoting a pace projection against the goal's deadline:
+ * "3 weeks early" / "2 weeks late", or null when there's no deadline or the
+ * projection lands within the same week (close enough that a verdict would
+ * be noise). `deadline` is YYYY-MM-DD, parsed as LOCAL midnight (a deadline
+ * is a calendar date, not an instant).
+ */
+export function paceVsDeadline(projectedAt: Date, deadline: string | null): string | null {
+  if (deadline === null) return null
+  const [y, m, d] = deadline.split('-').map(Number)
+  if (!Number.isInteger(y) || !Number.isInteger(m) || !Number.isInteger(d)) return null
+  const deadlineMs = new Date(y, m - 1, d).getTime()
+  if (Number.isNaN(deadlineMs)) return null
+  const diffWeeks = Math.trunc((deadlineMs - projectedAt.getTime()) / (7 * MS_PER_DAY))
+  if (diffWeeks >= 1) return `${diffWeeks} week${diffWeeks === 1 ? '' : 's'} early`
+  if (diffWeeks <= -1) return `${-diffWeeks} week${diffWeeks === -1 ? '' : 's'} late`
+  return null
 }
 
 // ── Labels ───────────────────────────────────────────────────────────────────

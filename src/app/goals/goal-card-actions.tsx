@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
+import { Ellipsis } from 'lucide-react'
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import { archiveGoalAction, deleteGoalAction } from './actions'
 
@@ -12,18 +13,27 @@ interface GoalCardActionsProps {
 }
 
 /**
- * Quiet per-card controls: Archive (soft hide, no confirm — the row survives
+ * The card's ⋯ overflow: Archive (soft hide, no confirm — the row survives
  * in the archived list) and Delete (hard, behind the app's one ConfirmDialog
- * vocabulary). Text controls, not buttons — a goals list where every card
- * shouts two actions stops being about the goals.
+ * vocabulary). Native <details> (the programs page's disclosure recipe — no
+ * menu library exists and one card's two actions don't justify adding one);
+ * the panel closes itself before any action runs so the dialog never stacks
+ * on an open menu. Demoted to the header on purpose: a goals list where
+ * every card shouts two actions stops being about the goals.
  */
 export function GoalCardActions({ id, label, archived }: GoalCardActionsProps) {
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
+  const detailsRef = useRef<HTMLDetailsElement>(null)
   const router = useRouter()
 
+  function closeMenu() {
+    if (detailsRef.current !== null) detailsRef.current.open = false
+  }
+
   function archive() {
+    closeMenu()
     setError(null)
     startTransition(async () => {
       try {
@@ -48,29 +58,44 @@ export function GoalCardActions({ id, label, archived }: GoalCardActionsProps) {
     })
   }
 
-  const quietControl =
-    'relative text-xs text-muted-foreground outline-none underline-offset-2 transition-colors before:absolute before:-inset-2 hover:underline focus-visible:underline'
+  const item =
+    'block w-full rounded-lg px-3 py-2 text-left text-sm transition-colors hover:bg-muted focus-visible:bg-muted focus-visible:outline-none'
 
   return (
-    <div className="mt-3 flex items-center gap-5 border-t border-border pt-3">
-      {!archived && (
-        <button type="button" onClick={archive} disabled={isPending} className={quietControl}>
-          Archive
-        </button>
-      )}
-      <button
-        type="button"
-        onClick={() => setConfirmingDelete(true)}
-        disabled={isPending}
-        className={quietControl}
-      >
-        Delete
-      </button>
+    <div className="relative shrink-0">
+      <details ref={detailsRef} className="group">
+        <summary
+          aria-label={`Actions for ${label}`}
+          className="flex size-8 cursor-pointer list-none items-center justify-center rounded-full text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 group-open:bg-muted [&::-webkit-details-marker]:hidden"
+        >
+          <Ellipsis aria-hidden="true" className="size-4" />
+        </summary>
+        <div className="absolute right-0 top-9 z-10 w-36 rounded-xl border border-border bg-card p-1 shadow-lg">
+          {!archived && (
+            <button type="button" onClick={archive} disabled={isPending} className={item}>
+              Archive
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => {
+              closeMenu()
+              setConfirmingDelete(true)
+            }}
+            disabled={isPending}
+            className={`${item} text-destructive`}
+          >
+            Delete
+          </button>
+        </div>
+      </details>
+
       {error && !confirmingDelete && (
-        <p role="alert" className="text-xs text-destructive">
+        <p role="alert" className="absolute right-0 top-9 z-10 w-max text-xs text-destructive">
           {error}
         </p>
       )}
+
       {confirmingDelete && (
         <ConfirmDialog
           title={`Delete "${label}"?`}

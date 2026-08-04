@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useState, type ChangeEvent } from 'react'
+import { useEffect, useRef, useState, type ChangeEvent } from 'react'
 import { useRouter } from 'next/navigation'
 import { Camera, Columns2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -16,14 +16,21 @@ import { cn } from '@/lib/utils'
 import { PhotoCell, type PhotoEntry } from './photo-cell'
 import { PhotoOverlay } from './photo-overlay'
 import { PhotoCompare } from './photo-compare'
+import { defaultComparePair } from './compare-pair'
+
+// A month without a photo → the quiet cadence nudge by Add photo.
+const CADENCE_NUDGE_DAYS = 30
+const MS_PER_DAY = 24 * 60 * 60 * 1000
 
 /**
  * The photos third of /body: upload (pose + note optional), the 3-up timeline
- * grid, the detail overlay, and compare mode (pick two → side-by-side).
- * Derivatives + ThumbHash are computed here in the browser (photo-pipeline);
- * the server stores them verbatim. The file input carries no `capture`
- * attribute on purpose — progress photos are usually mirror selfies, so the
- * OS chooser (camera OR library) beats forcing the rear camera.
+ * grid, the detail overlay, and compare mode. Entering compare PRE-SELECTS
+ * the earliest-vs-latest pair of the same pose (compare-pair.ts) — the
+ * one-tap change story — and taps still repick freely. Derivatives +
+ * ThumbHash are computed here in the browser (photo-pipeline); the server
+ * stores them verbatim. The file input carries no `capture` attribute on
+ * purpose — progress photos are usually mirror selfies, so the OS chooser
+ * (camera OR library) beats forcing the rear camera.
  */
 export function PhotosSection({ entries }: { entries: PhotoEntry[] }) {
   const [pose, setPose] = useState<PhotoPose | null>(null)
@@ -33,13 +40,23 @@ export function PhotosSection({ entries }: { entries: PhotoEntry[] }) {
   const [openId, setOpenId] = useState<string | null>(null)
   const [isCompareMode, setIsCompareMode] = useState(false)
   const [compareIds, setCompareIds] = useState<string[]>([])
+  // Mounted gate for the cadence nudge — "now" is the client's, not the SSR's.
+  const [nowMs, setNowMs] = useState<number | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const router = useRouter()
+
+  useEffect(() => {
+    setNowMs(Date.now())
+  }, [entries])
 
   const openEntry = entries.find((e) => e.id === openId) ?? null
   const compareEntries = compareIds
     .map((id) => entries.find((e) => e.id === id))
     .filter((e): e is PhotoEntry => e !== undefined)
+
+  const newestMs = entries.length > 0 ? Math.max(...entries.map((e) => e.takenAtMs)) : null
+  const isStale =
+    nowMs !== null && newestMs !== null && nowMs - newestMs > CADENCE_NUDGE_DAYS * MS_PER_DAY
 
   async function handleFile(e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -83,6 +100,19 @@ export function PhotosSection({ entries }: { entries: PhotoEntry[] }) {
         : // Third pick replaces the older selection — compare is always a pair.
           [...current, id].slice(-2),
     )
+  }
+
+  function toggleCompare() {
+    if (isCompareMode) {
+      setIsCompareMode(false)
+      setCompareIds([])
+      return
+    }
+    // One tap in: the default same-pose earliest-vs-latest pair, when one
+    // exists — otherwise compare opens empty for manual picking.
+    const pair = defaultComparePair(entries)
+    setCompareIds(pair === null ? [] : [pair[0].id, pair[1].id])
+    setIsCompareMode(true)
   }
 
   return (
@@ -146,6 +176,12 @@ export function PhotosSection({ entries }: { entries: PhotoEntry[] }) {
           {error}
         </p>
       )}
+      {isStale && !error && (
+        // The quiet cadence nudge — a fact, not a guilt trip.
+        <p className="mt-1.5 text-xs text-muted-foreground">
+          Over a month since your last photo — monthly shots make the change visible.
+        </p>
+      )}
 
       {entries.length >= 2 && (
         <div className="mt-4 flex items-center justify-between">
@@ -154,10 +190,7 @@ export function PhotosSection({ entries }: { entries: PhotoEntry[] }) {
             variant={isCompareMode ? 'secondary' : 'ghost'}
             size="sm"
             aria-pressed={isCompareMode}
-            onClick={() => {
-              setIsCompareMode((on) => !on)
-              setCompareIds([])
-            }}
+            onClick={toggleCompare}
           >
             <Columns2 aria-hidden="true" className="size-4" />
             {isCompareMode ? 'Done comparing' : 'Compare'}

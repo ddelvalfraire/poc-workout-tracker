@@ -1,11 +1,13 @@
 'use client'
 
-import { useState, useTransition, type FormEvent } from 'react'
+import { useEffect, useState, useTransition, type FormEvent } from 'react'
 import { useRouter } from 'next/navigation'
+import { ChevronRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { TrendChart } from '@/components/charts/trend-chart'
 import { logMeasurementAction } from '@/app/actions'
+import { seriesDeltaAt } from '@/lib/bodyweight-trend'
 import type { LengthUnit } from '@/lib/units'
 import {
   MEASUREMENT_SITES,
@@ -15,24 +17,31 @@ import {
 import { cn } from '@/lib/utils'
 import { MeasurementEntryRow } from './measurement-entry-row'
 
+// The site delta's window — tape moves slowly; 90 days is a real change.
+const DELTA_DAYS = 90
+// Visible history rows before the rest collapses behind a disclosure.
+const HISTORY_VISIBLE_ROWS = 5
+
 /** One measurement crossing the island boundary — dates and unit conversion
- *  already handled server-side, freshest first (list order preserved). */
+ *  already handled server-side, freshest first (list order preserved).
+ *  `measuredAtMs` is the raw instant for the delta window. */
 export interface MeasurementEntry {
   id: string
   site: MeasurementSite
   dateLabel: string
+  measuredAtMs: number
   /** Display-unit value (cm verbatim, or inches at 1dp). */
   value: number
 }
 
 /**
- * The measurements half of /body: one site picker drives all three views —
- * the log form, the trend chart, and the history list. A single chart behind
- * the picker (not per-site small multiples) because eight stacked charts
- * don't survive a 320px viewport; the picker doubles as the form's site
- * input, so "look at your waist trend" and "log a waist reading" are the
- * same selection. Client island: the selection is view state, the data
- * arrives as props from the server page.
+ * The measurements half of /body: one site picker drives all views — the
+ * status delta line, the trend chart, the log form, and the capped history
+ * (status → visualization → input → history, the page's zone order). A
+ * single chart behind the picker (not per-site small multiples) because
+ * eight stacked charts don't survive a 320px viewport; the picker doubles
+ * as the form's site input. Client island: the selection is view state, the
+ * data arrives as props from the server page.
  */
 export function MeasurementsSection({
   unit,
@@ -45,7 +54,13 @@ export function MeasurementsSection({
   const [value, setValue] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
+  // Mounted gate for anything derived from "now" — no SSR/client drift.
+  const [nowMs, setNowMs] = useState<number | null>(null)
   const router = useRouter()
+
+  useEffect(() => {
+    setNowMs(Date.now())
+  }, [entries])
 
   const siteEntries = entries.filter((entry) => entry.site === site)
   // Chart reads chronologically, oldest → newest (entries arrive freshest first).
@@ -53,6 +68,15 @@ export function MeasurementsSection({
     .reverse()
     .map((entry) => ({ label: entry.dateLabel, value: entry.value }))
   const siteLabel = measurementSiteLabel(site)
+  const latest = siteEntries[0] ?? null
+  const delta =
+    nowMs === null
+      ? null
+      : seriesDeltaAt(
+          siteEntries.map((entry) => ({ atMs: entry.measuredAtMs, value: entry.value })),
+          DELTA_DAYS,
+          nowMs,
+        )
 
   function submit(e: FormEvent) {
     e.preventDefault()
@@ -105,7 +129,29 @@ export function MeasurementsSection({
         ))}
       </div>
 
-      <form onSubmit={submit} noValidate className="mt-4">
+      {/* Status: latest reading + the honest window delta, when it exists. */}
+      {latest !== null && (
+        <p className="mt-4 text-sm text-muted-foreground tnum">
+          {siteLabel}:{' '}
+          <span className="font-medium text-foreground">
+            {latest.value} {unit}
+          </span>
+          {delta !== null && ` · ${formatSignedDelta(delta)} ${unit} / ${DELTA_DAYS}d`}
+        </p>
+      )}
+
+      {trendPoints.length >= 2 && (
+        <div role="group" aria-label={`${siteLabel} trend`} className="mt-4">
+          <TrendChart
+            points={trendPoints}
+            unit={unit}
+            valueLabel={siteLabel}
+            ariaLabel={`${siteLabel} trend, ${trendPoints[0].value} to ${trendPoints[trendPoints.length - 1].value} ${unit} over ${trendPoints.length} entries`}
+          />
+        </div>
+      )}
+
+      <form onSubmit={submit} noValidate className="mt-6">
         <label htmlFor="measurement-input" className="text-sm font-medium">
           {siteLabel} ({unit})
         </label>
@@ -133,31 +179,46 @@ export function MeasurementsSection({
         )}
       </form>
 
-      {trendPoints.length >= 2 && (
-        <div role="group" aria-label={`${siteLabel} trend`} className="mt-6">
-          <TrendChart
-            points={trendPoints}
-            unit={unit}
-            valueLabel={siteLabel}
-            ariaLabel={`${siteLabel} trend, ${trendPoints[0].value} to ${trendPoints[trendPoints.length - 1].value} ${unit} over ${trendPoints.length} entries`}
-          />
-        </div>
-      )}
-
       {siteEntries.length > 0 ? (
-        <ul
-          aria-label={`${siteLabel} history`}
-          className="mt-6 divide-y divide-border overflow-hidden rounded-2xl border border-border bg-card"
-        >
-          {siteEntries.map((entry) => (
-            <MeasurementEntryRow
-              key={entry.id}
-              id={entry.id}
-              dateLabel={entry.dateLabel}
-              valueLabel={`${entry.value} ${unit}`}
-            />
-          ))}
-        </ul>
+        <>
+          <ul
+            aria-label={`${siteLabel} history`}
+            className="mt-6 divide-y divide-border overflow-hidden rounded-2xl border border-border bg-card"
+          >
+            {siteEntries.slice(0, HISTORY_VISIBLE_ROWS).map((entry) => (
+              <MeasurementEntryRow
+                key={entry.id}
+                id={entry.id}
+                dateLabel={entry.dateLabel}
+                valueLabel={`${entry.value} ${unit}`}
+              />
+            ))}
+          </ul>
+          {siteEntries.length > HISTORY_VISIBLE_ROWS && (
+            <details className="group mt-2">
+              <summary className="flex cursor-pointer list-none items-center gap-1 px-1 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground [&::-webkit-details-marker]:hidden">
+                All {siteLabel.toLowerCase()} entries · {siteEntries.length}
+                <ChevronRight
+                  aria-hidden="true"
+                  className="size-3.5 transition-transform group-open:rotate-90"
+                />
+              </summary>
+              <ul
+                aria-label={`Older ${siteLabel} entries`}
+                className="mt-2 divide-y divide-border overflow-hidden rounded-2xl border border-border bg-card"
+              >
+                {siteEntries.slice(HISTORY_VISIBLE_ROWS).map((entry) => (
+                  <MeasurementEntryRow
+                    key={entry.id}
+                    id={entry.id}
+                    dateLabel={entry.dateLabel}
+                    valueLabel={`${entry.value} ${unit}`}
+                  />
+                ))}
+              </ul>
+            </details>
+          )}
+        </>
       ) : (
         // Honest empty state, per site — the tape teaches what the scale can't.
         <p className="mt-6 text-sm text-muted-foreground">
@@ -166,4 +227,10 @@ export function MeasurementsSection({
       )}
     </div>
   )
+}
+
+/** "+0.5" / "−1.2" at 1dp — display-unit values, sign always shown. */
+function formatSignedDelta(delta: number): string {
+  const rounded = Math.round(Math.abs(delta) * 10) / 10
+  return `${delta < 0 ? '−' : '+'}${rounded}`
 }

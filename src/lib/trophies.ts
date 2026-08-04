@@ -23,6 +23,7 @@ import {
   thresholdKg,
   type CanonicalLift,
   type TrophyContext,
+  type TrophyDef,
   type TrophyKind,
 } from '@/lib/trophy-kinds'
 import { kgToDisplay, type WeightUnit } from '@/lib/units'
@@ -309,6 +310,148 @@ export function trophyHint(
     case 'tonnage':
       return `${wholeDisplay(evidence.tonnageKg, unit)}/${wholeDisplay(thresholdKg(def.lb), unit)} ${unit} lifted`
   }
+}
+
+// ── Fractions, zones + the CLOSEST rail (display composition, all pure) ─────
+
+export type TrophyFamily = TrophyDef['family']
+
+/** Zone order on /trophies — clubs are the culture, so they lead. */
+export const TROPHY_FAMILY_ORDER: readonly TrophyFamily[] = [
+  'club',
+  'sum_club',
+  'count',
+  'streak',
+  'block',
+  'tonnage',
+]
+
+/** Editorial zone headers, one per family. */
+export const TROPHY_FAMILY_LABELS: Readonly<Record<TrophyFamily, string>> = {
+  club: 'Plate Clubs',
+  sum_club: 'Totals',
+  count: 'Showing Up',
+  streak: 'Streaks',
+  block: 'Blocks',
+  tonnage: 'Tonnage',
+}
+
+export interface TrophyFraction {
+  /** Evidence numerator, same axis as `target` (kg for weight families). */
+  current: number
+  target: number
+  /** Integer 0–100, floored so 99.9% never claims 100. */
+  percent: number
+}
+
+/**
+ * The numerator/denominator behind trophyHint's words, from the SAME evidence
+ * the page already gathers for every locked family (evaluateTrophies →
+ * gatherTrophyEvidence(needsFor(locked))) — no re-evaluation, no added reads.
+ * Null = no honest fraction exists: a club with no e1RM on the lift yet, a
+ * streak with nothing scheduled, and block (binary — done or not).
+ */
+export function trophyFraction(kind: TrophyKind, evidence: TrophyEvidence): TrophyFraction | null {
+  const def = TROPHY_DEFS[kind]
+  const fraction = (current: number, target: number): TrophyFraction => ({
+    current,
+    target,
+    percent: target > 0 ? Math.max(0, Math.min(100, Math.floor((current / target) * 100))) : 0,
+  })
+  switch (def.family) {
+    case 'club': {
+      const best = evidence.bestByLift[def.lift]
+      return best === undefined ? null : fraction(best.e1rmKg, thresholdKg(def.lb))
+    }
+    case 'sum_club': {
+      const bests = SUM_CLUB_LIFTS.map((lift) => evidence.bestByLift[lift])
+      if (bests.some((b) => b === undefined)) return null
+      const sum = bests.reduce((total, b) => total + (b?.e1rmKg ?? 0), 0)
+      return fraction(sum, thresholdKg(def.lb))
+    }
+    case 'count':
+      return fraction(evidence.completedCount, def.count)
+    case 'streak':
+      return evidence.scheduledWeekdays.length === 0
+        ? null
+        : fraction(evidence.streakWeeks, def.weeks)
+    case 'block':
+      return null
+    case 'tonnage':
+      return fraction(evidence.tonnageKg, thresholdKg(def.lb))
+  }
+}
+
+/**
+ * The CLOSEST rail: locked kinds with the highest completion percent, capped
+ * at `limit`. Zero-percent and fraction-less kinds never qualify (a rail of
+ * 0% "almosts" is noise, not motivation). Ties keep DEFS order — the lower
+ * threshold of a family lists first.
+ */
+export function closestTrophies(
+  locked: readonly TrophyKind[],
+  evidence: TrophyEvidence,
+  limit = 3,
+): TrophyKind[] {
+  return locked
+    .map((kind) => ({ kind, fraction: trophyFraction(kind, evidence) }))
+    .filter((e): e is { kind: TrophyKind; fraction: TrophyFraction } => e.fraction !== null)
+    .filter((e) => e.fraction.percent > 0)
+    .sort((a, b) => b.fraction.percent - a.fraction.percent)
+    .slice(0, Math.max(0, limit))
+    .map((e) => e.kind)
+}
+
+/** The medal's hero glyph — the threshold number IS the trophy ("315").
+ *  Null for block, the one kind without a number (its icon carries it). */
+export function trophyHeroGlyph(kind: TrophyKind): string | null {
+  const def = TROPHY_DEFS[kind]
+  switch (def.family) {
+    case 'club':
+      return String(def.lb)
+    case 'sum_club':
+      return def.lb.toLocaleString('en-US')
+    case 'count':
+      return String(def.count)
+    case 'streak':
+      return String(def.weeks)
+    case 'block':
+      return null
+    case 'tonnage':
+      return `${def.lb / 1_000_000}M`
+  }
+}
+
+export interface TrophyZone {
+  family: TrophyFamily
+  label: string
+  /** Earned rows of the family, newest achievement first. */
+  earned: TrophyRow[]
+  /** Locked kinds of the family, DEFS (threshold-ascending) order. */
+  locked: TrophyKind[]
+}
+
+/** Family zones in display order — earned medals newest-first, locked kinds
+ *  after, empty families omitted (nothing renders an empty header). */
+export function groupTrophiesByFamily(
+  earned: readonly TrophyRow[],
+  locked: readonly TrophyKind[],
+): TrophyZone[] {
+  return TROPHY_FAMILY_ORDER.flatMap((family) => {
+    const earnedRows = earned
+      .filter((row) => TROPHY_DEFS[row.kind].family === family)
+      .sort((a, b) => b.achievedAt.getTime() - a.achievedAt.getTime())
+    const lockedKinds = locked.filter((kind) => TROPHY_DEFS[kind].family === family)
+    if (earnedRows.length === 0 && lockedKinds.length === 0) return []
+    return [
+      {
+        family,
+        label: TROPHY_FAMILY_LABELS[family],
+        earned: earnedRows,
+        locked: lockedKinds,
+      },
+    ]
+  })
 }
 
 // ── Evidence gathering + the check seam ──────────────────────────────────────
