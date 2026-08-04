@@ -52,6 +52,17 @@ import {
  * tables directly, so a caller can never read or mutate another user's program.
  */
 
+/** Name-only single-row read (e.g. seeding the coach's context starters) —
+ *  deliberately cheaper than getProgramDetail's full nested tree. */
+export async function getProgramName(userId: string, id: string): Promise<string | null> {
+  const rows = await db
+    .select({ name: programs.name })
+    .from(programs)
+    .where(and(eq(programs.id, id), eq(programs.userId, userId)))
+    .limit(1)
+  return rows[0]?.name ?? null
+}
+
 /** Lists a user's programs, most recently updated first. */
 export function listPrograms(userId: string) {
   return db

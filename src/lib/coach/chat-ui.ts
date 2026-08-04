@@ -3,8 +3,12 @@
  *
  * Everything here is presentation logic with no React in it, so it can be
  * unit-tested directly: tool-name humanization, the one-line status labels
- * for auto-running reads, server-error parsing, and context-param handling.
+ * for auto-running reads, server-error parsing, context-param handling,
+ * follow-up chips, and day-separator labeling.
  */
+
+import type { UIMessage } from 'ai'
+import { COACH_APPROVAL_TOOLS } from './tool-policy'
 
 /** Mirrors the server bound in /api/chat — no point sending more. */
 const MAX_CONTEXT_LENGTH = 500
@@ -236,4 +240,127 @@ export function parseContextParam(value: string | string[] | undefined): string 
   const trimmed = single?.replace(/[\u0000-\u001F\u007F]+/g, " ").trim()
   if (!trimmed) return undefined
   return trimmed.slice(0, MAX_CONTEXT_LENGTH)
+}
+
+/**
+ * Extracts the program id from a "program:<uuid>" context string. UUID-shape
+ * checked (same guard as the proposal card's href) because the context param
+ * rides a shareable URL — an arbitrary string must never reach a db lookup.
+ */
+export function programIdFromContext(context: string | undefined): string | null {
+  if (!context?.startsWith('program:')) return null
+  const id = context.slice('program:'.length).trim()
+  return UUID_RE.test(id) ? id : null
+}
+
+/** The generic empty-state starters (no app context). */
+export const DEFAULT_STARTERS = [
+  'What did I train this week?',
+  "Swap tomorrow's pressing for more volume",
+  'Preview next week',
+] as const
+
+/**
+ * Empty-state starter prompts, seeded from app context when the entry point
+ * carried one: arriving from a program page ("program:<id>") makes the
+ * starters about THAT program by name; otherwise the generic examples.
+ */
+export function starterPrompts(programName: string | null | undefined): string[] {
+  const name = programName?.trim()
+  if (!name) return [...DEFAULT_STARTERS]
+  return [`How's ${name} going?`, 'Plan my next block', 'Preview next week']
+}
+
+/** Structural view of a tool part — enough for the chip heuristics without
+ *  re-deriving the AI SDK's full ToolUIPart union. */
+interface ToolPartShape {
+  type: string
+  state?: string
+  toolName?: string
+}
+
+const APPROVAL_TOOL_SET: ReadonlySet<string> = new Set(COACH_APPROVAL_TOOLS)
+
+function completedToolNames(message: UIMessage): string[] {
+  const names: string[] = []
+  for (const part of message.parts) {
+    const shape = part as ToolPartShape
+    const isTool = shape.type === 'dynamic-tool' || shape.type.startsWith('tool-')
+    if (!isTool || shape.state !== 'output-available') continue
+    names.push(shape.type === 'dynamic-tool' ? (shape.toolName ?? '') : shape.type.slice('tool-'.length))
+  }
+  return names
+}
+
+/**
+ * Follow-up suggestion chips for a completed assistant turn. Static
+ * heuristics on what the turn actually did, most-specific first:
+ * drafted a proposal → route the user into reviewing it; applied a program
+ * change → surface the audit trail; otherwise generic coaching openers.
+ * Empty when the last turn isn't a finished assistant message — the caller
+ * additionally gates on stream status and pending approvals.
+ */
+export function chipsFor(lastTurn: UIMessage | undefined): string[] {
+  if (!lastTurn || lastTurn.role !== 'assistant') return []
+  const completed = completedToolNames(lastTurn)
+  if (completed.includes('upsert_program')) return ['Preview week 1', 'Why these numbers?']
+  if (completed.some((name) => APPROVAL_TOOL_SET.has(name))) {
+    return ['Show the change log', 'Preview next week']
+  }
+  return ['What should I focus on?', 'Any signs of stalling?']
+}
+
+/** Narrows a message's metadata to the createdAt epoch-ms stamp, if present.
+ *  Messages persisted before timestamps existed simply have none — the
+ *  separator logic treats that as "unknown day" and stays silent. */
+export function messageTimestamp(metadata: unknown): number | null {
+  if (typeof metadata !== 'object' || metadata === null) return null
+  const createdAt = (metadata as Record<string, unknown>).createdAt
+  return typeof createdAt === 'number' && Number.isFinite(createdAt) ? createdAt : null
+}
+
+/** Fixed English month labels — deterministic across machine locales. */
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+
+/** Local-calendar-day equality (the separators are about the user's wall clock). */
+function sameLocalDay(a: Date, b: Date): boolean {
+  return (
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+  )
+}
+
+/**
+ * The divider label to render ABOVE a message, or null for none.
+ * Rules:
+ * - no timestamp on the current message → null (honest fallback: threads
+ *   persisted before timestamps existed get no separators);
+ * - consecutive messages on the same local calendar day → null;
+ * - first stamped message → labeled only when it's from a day before today
+ *   (a "Today" header over a fresh chat is noise);
+ * - label relative to `now`: "Today", "Yesterday", else "Jul 12" (with the
+ *   year appended when it differs from now's).
+ */
+export function daySeparatorLabel(
+  previousTs: number | null,
+  currentTs: number | null,
+  now: number,
+): string | null {
+  if (currentTs === null) return null
+  const current = new Date(currentTs)
+  const today = new Date(now)
+  if (previousTs !== null) {
+    if (sameLocalDay(new Date(previousTs), current)) return null
+  } else if (sameLocalDay(current, today)) {
+    return null
+  }
+  if (sameLocalDay(current, today)) return 'Today'
+  const yesterday = new Date(now)
+  yesterday.setDate(yesterday.getDate() - 1)
+  if (sameLocalDay(current, yesterday)) return 'Yesterday'
+  const base = `${MONTHS[current.getMonth()]} ${current.getDate()}`
+  return current.getFullYear() === today.getFullYear()
+    ? base
+    : `${base}, ${current.getFullYear()}`
 }

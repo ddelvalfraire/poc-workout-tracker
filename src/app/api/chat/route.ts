@@ -163,6 +163,11 @@ export async function POST(request: Request): Promise<Response> {
     // so /coach can reload the thread; fire-and-forget, fails soft in-store.
     return result.toUIMessageStreamResponse({
       originalMessages: messages,
+      // Wall-clock stamp on each assistant message (the client stamps its own
+      // user messages) so /coach can render calendar-day separators. Messages
+      // persisted before this simply lack the metadata — no separators there.
+      messageMetadata: ({ part }) =>
+        part.type === 'start' ? { createdAt: Date.now() } : undefined,
       onFinish: ({ messages: finalMessages }) => {
         void saveCoachChat(userId, finalMessages)
       },
