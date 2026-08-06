@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { WEIGHT_UNITS, type WeightUnit } from '@/lib/units'
+import { cn } from '@/lib/utils'
 
 /**
  * The upload → dry-run preview → forced-confirm flow. The file stays in
@@ -57,6 +58,7 @@ export function ImportFlow({ defaultUnit }: ImportFlowProps) {
   const [preview, setPreview] = useState<PreviewResponse | null>(null)
   const [result, setResult] = useState<CommitResponse | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [isDragging, setIsDragging] = useState(false)
 
   async function runPreview(nextFile: File, previewUnit: WeightUnit) {
     if (nextFile.size > MAX_IMPORT_BYTES) {
@@ -130,27 +132,83 @@ export function ImportFlow({ defaultUnit }: ImportFlowProps) {
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
+  // The three-step arc the indicator narrates: upload → review → done.
+  const step = phase === 'done' ? 3 : phase === 'preview' || phase === 'committing' ? 2 : 1
+  const stepLabel = step === 3 ? 'Done' : step === 2 ? 'Review' : 'Upload'
+  const isBusy = phase === 'previewing' || phase === 'committing'
+  const hasPreview = phase === 'preview' || phase === 'committing'
+
   return (
     <section aria-label="Import a history file" className="mt-6">
       <div className="rounded-2xl border border-border bg-card p-4">
+        {/* Step indicator: where you are in the arc, in words + segments. */}
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+            Step {step} of 3 — {stepLabel}
+          </p>
+          <div aria-hidden="true" className="flex shrink-0 gap-1">
+            {[1, 2, 3].map((s) => (
+              <span
+                key={s}
+                className={cn(
+                  'h-1 w-5 rounded-full',
+                  s <= step ? 'bg-primary' : 'bg-muted',
+                )}
+              />
+            ))}
+          </div>
+        </div>
+
         {phase === 'done' && result ? (
-          <SuccessSummary result={result} onReset={reset} />
+          <div className="mt-3">
+            <SuccessSummary result={result} onReset={reset} />
+          </div>
         ) : (
           <>
-            <p className="font-medium">Import from Strong or Hevy</p>
+            <p className="mt-3 font-medium">Import from Strong or Hevy</p>
             <p className="mt-0.5 text-sm text-muted-foreground">
-              Upload the CSV export — the format is detected automatically. Nothing is saved
-              until you confirm the preview.
+              Nothing is saved until you confirm the preview.
             </p>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".csv,text/csv"
-              aria-label="History CSV file"
-              disabled={phase === 'previewing' || phase === 'committing'}
-              onChange={(e) => onFilePicked(e.target.files?.[0] ?? null)}
-              className="mt-3 block w-full text-sm text-muted-foreground file:mr-3 file:rounded-lg file:border file:border-border file:bg-muted file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-foreground"
-            />
+            {/* Drop-zone label wrapping the hidden input: the whole dashed
+                target opens the picker, and a dragged file lands the same
+                onFilePicked path. Compact once a preview is up — the target
+                becomes "swap the file", not the main event. */}
+            <label
+              onDragOver={(e) => {
+                e.preventDefault()
+                if (!isBusy) setIsDragging(true)
+              }}
+              onDragLeave={() => setIsDragging(false)}
+              onDrop={(e) => {
+                e.preventDefault()
+                setIsDragging(false)
+                if (!isBusy) onFilePicked(e.dataTransfer.files?.[0] ?? null)
+              }}
+              className={cn(
+                'mt-3 flex w-full cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-border text-center transition-colors',
+                hasPreview ? 'px-4 py-3' : 'px-4 py-8',
+                isDragging && 'border-primary bg-primary/5',
+                isBusy && 'pointer-events-none opacity-50',
+              )}
+            >
+              <span className="text-sm font-medium">
+                {hasPreview ? 'Choose a different CSV' : 'Choose CSV — Strong or Hevy'}
+              </span>
+              {!hasPreview && (
+                <span className="text-xs text-muted-foreground">
+                  The export format is detected automatically — or drag the file here.
+                </span>
+              )}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".csv,text/csv"
+                aria-label="History CSV file"
+                disabled={isBusy}
+                onChange={(e) => onFilePicked(e.target.files?.[0] ?? null)}
+                className="sr-only"
+              />
+            </label>
             {phase === 'previewing' && (
               <p className="mt-3 text-sm text-muted-foreground" role="status">
                 Reading file…
