@@ -8,7 +8,6 @@ import { getWeightUnit } from '@/db/preferences'
 import { formatE1RM, formatLoggedSet, formatWorkoutDate } from '@/lib/format'
 import { kgToDisplay } from '@/lib/units'
 import { MAX_RELIABLE_REPS } from '@/lib/one-rep-max'
-import { sessionBestSet } from '@/lib/session-best-set'
 import { TrendChart } from '@/components/charts/trend-chart'
 import { StatTile, type StatDelta } from '@/components/stat-tile'
 import { listCustomExercises } from '@/db/custom-exercises'
@@ -19,6 +18,13 @@ import { ShareCardButton } from '@/components/share-card-button'
 import { buttonVariants } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { parseExerciseRef } from '../../exercise-ref'
+import {
+  buildTrendChartPoints,
+  formatStandingTime,
+  prWorkoutIds,
+  recentE1rmDelta,
+  sessionSummary,
+} from './detail-view'
 
 /** Sessions per history page. length === HISTORY_PAGE drives the "Older" link —
  *  at an exact multiple that shows one empty final page; accepted POC trade-off
@@ -88,20 +94,34 @@ export default async function ExerciseStatsPage({
 
   const { records, trend } = stats
   const hasLoadRecords = records.bestE1rm !== null || records.heaviestLoadKg !== null
-  // Chart points built server-side: dates pre-formatted, kg → display unit.
-  const trendPoints = trend.map((p) => ({
-    label: formatWorkoutDate(p.performedAt),
-    value: kgToDisplay(p.e1rm, unit),
-  }))
-  // Progress context for the headline record: best vs the FIRST e1rm-scorable
-  // session. Shown only when there are ≥2 points and a real gain — a flat or
-  // single-session history has no story to tell.
-  const e1rmGainKg =
-    records.bestE1rm && trend.length >= 2 ? records.bestE1rm.e1rm - trend[0].e1rm : 0
+  const now = new Date()
+  // Record-setting sessions (running-max advances) mark both the chart's volt
+  // dots and the history's PR chips — one derivation, two surfaces agreeing.
+  const prIds = prWorkoutIds(trend)
+  // Chart points built server-side: epoch x (layoffs read as gaps), dates
+  // pre-formatted, kg → display unit.
+  const trendPoints = buildTrendChartPoints(trend, unit, prIds)
+  // Progress context for the headline record: best-of-last-3 sessions vs the
+  // best before them; short histories fall back to the vs-first story.
+  const delta = recentE1rmDelta(trend, now)
   const e1rmDelta: StatDelta | undefined =
-    e1rmGainKg > 0
-      ? { text: `+${kgToDisplay(e1rmGainKg, unit)} ${unit} vs first session`, tone: 'positive' }
+    delta !== null
+      ? {
+          text:
+            `+${kgToDisplay(delta.gainKg, unit)} ${unit} ` +
+            (delta.basis === 'first'
+              ? 'vs first session'
+              : delta.withinMonth
+                ? 'this month'
+                : 'vs earlier sessions'),
+          tone: 'positive',
+        }
       : undefined
+  /** "· held N months" caption suffix, or '' while a record is still news. */
+  const standing = (since: Date): string => {
+    const held = formatStandingTime(since, now)
+    return held !== null ? ` · ${held}` : ''
+  }
 
   return (
     <div className="flex min-h-[100dvh] flex-col">
@@ -174,7 +194,8 @@ export default async function ExerciseStatsPage({
                   <dd className="mt-1 text-xs text-muted-foreground tnum">
                     {(records.bestE1rm.reps > MAX_RELIABLE_REPS ? 'High-rep est. · ' : '') +
                       `${kgToDisplay(records.bestE1rm.weightKg, unit)} ${unit} × ${records.bestE1rm.reps} · ` +
-                      formatWorkoutDate(records.bestE1rm.performedAt)}
+                      formatWorkoutDate(records.bestE1rm.performedAt) +
+                      standing(records.bestE1rm.performedAt)}
                   </dd>
                 </div>
               )}
@@ -183,14 +204,14 @@ export default async function ExerciseStatsPage({
                   label="Heaviest load"
                   value={String(kgToDisplay(records.heaviestLoadKg.weightKg, unit))}
                   unit={unit}
-                  caption={`×${records.heaviestLoadKg.reps} · ${formatWorkoutDate(records.heaviestLoadKg.performedAt)}`}
+                  caption={`×${records.heaviestLoadKg.reps} · ${formatWorkoutDate(records.heaviestLoadKg.performedAt)}${standing(records.heaviestLoadKg.performedAt)}`}
                 />
               )}
               {records.mostReps && (
                 <StatTile
                   label="Most reps"
                   value={String(records.mostReps.reps)}
-                  caption={formatWorkoutDate(records.mostReps.performedAt)}
+                  caption={`${formatWorkoutDate(records.mostReps.performedAt)}${standing(records.mostReps.performedAt)}`}
                 />
               )}
               {records.bestSessionVolumeKg && (
@@ -202,7 +223,7 @@ export default async function ExerciseStatsPage({
                     kgToDisplay(records.bestSessionVolumeKg.volumeKg, unit),
                   ).toLocaleString('en-US')}
                   unit={unit}
-                  caption={formatWorkoutDate(records.bestSessionVolumeKg.performedAt)}
+                  caption={`${formatWorkoutDate(records.bestSessionVolumeKg.performedAt)}${standing(records.bestSessionVolumeKg.performedAt)}`}
                 />
               )}
             </dl>
@@ -246,16 +267,23 @@ export default async function ExerciseStatsPage({
               {page > 1 ? 'No older sessions.' : 'No sessions yet.'}
             </p>
           ) : (
-            <ul className="mt-2 space-y-3">
+            <ul className="mt-2 space-y-2">
               {sessions.map((session) => {
-                // Same picker as the logger's stats sheet — the two surfaces
-                // must agree on which set was the session's best.
-                const best = sessionBestSet(session.sets, stats.exercise.loggingType)
+                // Collapsed to one line per session — date · best set ·
+                // e1RM · set count; the set wall is one tap away on the
+                // workout page. Same best-set picker as the logger's stats
+                // sheet, so the two surfaces can never disagree.
+                const { best, setCount } = sessionSummary(session.sets, stats.exercise.loggingType)
+                const bestSet = best !== null ? session.sets[best.index] : null
+                // Volt is reserved for record-setting sessions — an ordinary
+                // session best is context, not achievement.
+                const isPr =
+                  best !== null && best.e1rmKg !== null && prIds.has(session.workoutId)
                 return (
                   <li key={session.workoutId}>
                     <Link
                       href={`/workout/${session.workoutId}`}
-                      className="block rounded-2xl border border-border bg-card p-4 transition-colors active:bg-muted/60"
+                      className="block rounded-2xl border border-border bg-card px-4 py-3 transition-colors active:bg-muted/60"
                     >
                       <div className="flex items-baseline gap-3">
                         <span className="shrink-0 text-sm font-semibold">
@@ -265,39 +293,31 @@ export default async function ExerciseStatsPage({
                           {session.workoutName}
                         </span>
                         {best !== null && best.e1rmKg !== null && (
-                          <span className="shrink-0 text-xs font-semibold text-primary tnum">
+                          <span
+                            className={cn(
+                              'shrink-0 text-xs font-semibold tnum',
+                              isPr ? 'text-primary' : 'text-muted-foreground',
+                            )}
+                          >
+                            {isPr && (
+                              <>
+                                PR<span className="sr-only"> (personal record)</span> ·{' '}
+                              </>
+                            )}
                             {formatE1RM(best.e1rmKg, unit)} e1RM
                           </span>
                         )}
                       </div>
-                      <ul className="mt-2 space-y-1">
-                        {session.sets.map((set, index) => (
-                          <li
-                            key={set.setNumber}
-                            className={cn(
-                              'flex items-baseline gap-2 text-sm tnum',
-                              set.completed
-                                ? 'text-foreground'
-                                : 'text-muted-foreground line-through',
-                              index === best?.index && 'font-semibold',
-                            )}
-                          >
-                            <span className="w-6 shrink-0 text-xs font-normal text-muted-foreground">
-                              {set.setNumber}
-                            </span>
-                            {formatLoggedSet(set, unit, stats.exercise.loggingType)}
-                            {index === best?.index && (
-                              <>
-                                <span
-                                  aria-hidden="true"
-                                  className="size-1.5 shrink-0 self-center rounded-full bg-primary"
-                                />
-                                <span className="sr-only">Best set</span>
-                              </>
-                            )}
-                          </li>
-                        ))}
-                      </ul>
+                      <p className="mt-1 flex items-baseline gap-2 text-sm tnum">
+                        {bestSet !== null && (
+                          <span className="min-w-0 truncate">
+                            {formatLoggedSet(bestSet, unit, stats.exercise.loggingType)}
+                          </span>
+                        )}
+                        <span className="shrink-0 text-xs text-muted-foreground">
+                          {setCount} set{setCount === 1 ? '' : 's'}
+                        </span>
+                      </p>
                     </Link>
                   </li>
                 )

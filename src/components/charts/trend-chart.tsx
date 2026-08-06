@@ -1,5 +1,6 @@
 'use client'
 
+import type { ReactElement } from 'react'
 import { Area, CartesianGrid, ComposedChart, Line, ReferenceLine, XAxis, YAxis } from 'recharts'
 import {
   ChartContainer,
@@ -34,6 +35,12 @@ export interface TrendPoint {
   /** Optional companion reading (e.g. the raw weigh-in behind an EMA value)
    *  painted as a faint dot — set rawLabel to name it in the tooltip. */
   raw?: number
+  /** Epoch ms. When EVERY point carries it, the x-axis goes numeric/time so
+   *  layoffs read as gaps instead of adjacent ticks; `label` keeps naming the
+   *  tooltip. Omit (all points) for the categorical axis. */
+  t?: number
+  /** Record-setting point — painted as a volt dot on the line. */
+  pr?: boolean
 }
 
 interface TrendChartProps {
@@ -55,6 +62,38 @@ interface TrendChartProps {
   className?: string
 }
 
+/** Numeric-axis tick dates ("Jun 14") — module-level so it's built once. */
+const SHORT_DAY = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' })
+
+/** The dot props recharts hands a custom dot renderer (typed locally — the
+ *  library's DotProps omits the bound datum). */
+interface PrDotProps {
+  cx?: number
+  cy?: number
+  index?: number
+  payload?: TrendPoint
+}
+
+/** Volt dot on record-setting points only; every other point renders an
+ *  empty group (recharts requires an element back, not false). */
+function renderPrDot(props: PrDotProps): ReactElement<SVGElement> {
+  const { cx, cy, index, payload } = props
+  if (payload?.pr !== true || cx === undefined || cy === undefined) {
+    return <g key={`dot-${index}`} />
+  }
+  return (
+    <circle
+      key={`dot-${index}`}
+      cx={cx}
+      cy={cy}
+      r={3.5}
+      fill="var(--color-value)"
+      stroke="var(--background)"
+      strokeWidth={1.5}
+    />
+  )
+}
+
 export function TrendChart({
   points,
   unit,
@@ -66,6 +105,10 @@ export function TrendChart({
   className,
 }: TrendChartProps) {
   const hasRaw = points.some((p) => p.raw !== undefined)
+  const hasPr = points.some((p) => p.pr === true)
+  // Time-true axis only when every point is stamped — a mixed series would
+  // silently drop the unstamped points off a numeric axis.
+  const isTimeAxis = points.length > 0 && points.every((p) => p.t !== undefined)
   const config: ChartConfig = {
     value: { label: valueLabel, color: 'var(--primary)' },
     ...(hasRaw ? { raw: { label: rawLabel ?? 'Raw', color: 'var(--muted-foreground)' } } : {}),
@@ -79,15 +122,32 @@ export function TrendChart({
     >
       <ComposedChart data={points} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
         <CartesianGrid vertical={false} strokeOpacity={0.25} />
-        <XAxis
-          dataKey="label"
-          tickLine={false}
-          axisLine={false}
-          tickMargin={8}
-          minTickGap={48}
-          // "Jun 14, 2026" → "Jun 14": ticks stay short, the tooltip keeps the year.
-          tickFormatter={(label: string) => label.replace(/, \d{4}$/, '')}
-        />
+        {isTimeAxis ? (
+          // Numeric epoch x: a three-month layoff is three months of blank
+          // axis, not one tick-width. Ticks land on round intervals recharts
+          // picks, so they format from the epoch, not the point labels.
+          <XAxis
+            dataKey="t"
+            type="number"
+            scale="time"
+            domain={['dataMin', 'dataMax']}
+            tickLine={false}
+            axisLine={false}
+            tickMargin={8}
+            minTickGap={48}
+            tickFormatter={(t: number) => SHORT_DAY.format(new Date(t))}
+          />
+        ) : (
+          <XAxis
+            dataKey="label"
+            tickLine={false}
+            axisLine={false}
+            tickMargin={8}
+            minTickGap={48}
+            // "Jun 14, 2026" → "Jun 14": ticks stay short, the tooltip keeps the year.
+            tickFormatter={(label: string) => label.replace(/, \d{4}$/, '')}
+          />
+        )}
         <YAxis
           width={36}
           tickLine={false}
@@ -100,6 +160,16 @@ export function TrendChart({
           cursor={{ strokeOpacity: 0.35 }}
           content={
             <ChartTooltipContent
+              // On the numeric axis the hover label is an epoch number — the
+              // point's pre-formatted label is the human title.
+              {...(isTimeAxis
+                ? {
+                    labelFormatter: (_value, payload) => {
+                      const point = payload?.[0]?.payload as TrendPoint | undefined
+                      return point?.label ?? ''
+                    },
+                  }
+                : {})}
               formatter={(value, name) => (
                 <span className={cn('font-semibold', name === 'raw' && 'text-muted-foreground')}>
                   {hasRaw && (
@@ -147,7 +217,7 @@ export function TrendChart({
           fillOpacity={0.12}
           stroke="var(--color-value)"
           strokeWidth={2}
-          dot={false}
+          dot={hasPr ? renderPrDot : false}
           activeDot={{ r: 4 }}
         />
       </ComposedChart>
