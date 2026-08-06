@@ -55,7 +55,7 @@ import { HeaderClock } from './session-clock'
 import { PlateSheet } from './plate-sheet'
 import { RestSheet } from './rest-sheet'
 import { StatsSheet } from './stats-sheet'
-import { RestAdjustStrip } from './rest-adjust-strip'
+import { RestPill } from './rest-pill'
 import { fireRestOverAlert } from './rest-over-alert'
 import { unlockRestChime } from './rest-chime'
 import { EXERCISE_COMPLETE_VIBRATION, SET_COMPLETE_VIBRATION, vibrate } from './haptics'
@@ -415,8 +415,8 @@ export function WorkoutLogger({
   // (optimistic local state; the server persist is best-effort). Same
   // local-first pattern as `gear`.
   const [sessionRestSec, setSessionRestSec] = useState<number | null>(defaultRestSec)
-  // Whether the rest-target sheet is up (opened by tapping the header's rest
-  // readout).
+  // Whether the rest-target sheet is up (opened by tapping the rest pill's
+  // time area in the sticky bar).
   const [isRestSheetOpen, setIsRestSheetOpen] = useState(false)
   // Quick-adjust (−15/+15) offset for the CURRENT rest period ONLY. Scope is
   // a settled constraint: it never writes into sessionRestSec (the session
@@ -426,8 +426,8 @@ export function WorkoutLogger({
   const restTargetSec = adjustedRestTarget(restPlanSec ?? sessionRestSec, restOffsetSec)
 
   /** Skip ends the CURRENT rest period outright — restStartedAt clears (the
-   *  readout and strip disappear, no overage counts up), the plan capture
-   *  and offset go with it. Defaults and plan values are untouched. */
+   *  rest pill disappears, no overage counts up), the plan capture and
+   *  offset go with it. Defaults and plan values are untouched. */
   function handleSkipRest() {
     setRestStartedAt(null)
     setRestPlanSec(null)
@@ -934,7 +934,8 @@ export function WorkoutLogger({
             {isLive && pulse.total > 0 && (
               // Session pulse: completed/total working sets (warm-ups and
               // skipped exercises excluded — scoring semantics). Muted, not
-              // volt: the live rest readout beside it keeps the one-volt slot.
+              // volt: while resting, the sticky bar's rest pill keeps the
+              // one-volt slot.
               <span
                 aria-label={`${pulse.completed} of ${pulse.total} working sets done`}
                 className="text-sm text-muted-foreground tnum"
@@ -944,18 +945,7 @@ export function WorkoutLogger({
                 </span>
               </span>
             )}
-            {isLive && (
-              <HeaderClock
-                startedAt={openedAt}
-                restStartedAt={restStartedAt}
-                restTargetSec={restTargetSec}
-                onRestClick={() => setIsRestSheetOpen(true)}
-                // Module function = stable reference (the tick effect
-                // depends on it). Fires vibrate + optional chirp + title
-                // flash, at most once per rest period.
-                onRestOver={fireRestOverAlert}
-              />
-            )}
+            {isLive && <HeaderClock startedAt={openedAt} />}
             {/* Back affordance, so it must pop-or-replace, never push
                 (spike §3d): closeHref demotes from destination to cold-entry
                 fallback. The draft still survives — Close ≠ Cancel. */}
@@ -1857,6 +1847,26 @@ export function WorkoutLogger({
             All sets done.
           </p>
         )}
+        {/* The unified rest pill, only while a period is actually running —
+            the bar's PRIMARY slot during rest (Next-up compresses to its
+            one-line glance beneath). Digits + depleting fill + −15/Skip/+15
+            in one surface; the time area opens the rest-target sheet.
+            Adjust taps accumulate into restOffsetSec (this period ONLY —
+            see its constraint comment); Skip ends the period. The pill also
+            owns the rest-over edge detection — its tick IS the countdown. */}
+        {isLive && restTimerEnabled && restStartedAt !== null && (
+          <RestPill
+            restStartedAt={restStartedAt}
+            restTargetSec={restTargetSec}
+            onTimeClick={() => setIsRestSheetOpen(true)}
+            onAdjust={(deltaSec) => setRestOffsetSec((prev) => prev + deltaSec)}
+            onSkip={handleSkipRest}
+            // Module function = stable reference (the tick effect depends
+            // on it). Fires vibrate + optional chirp + title flash, at most
+            // once per rest period.
+            onRestOver={fireRestOverAlert}
+          />
+        )}
         {/* Next-up glance: where the session continues after rest — the
             PWA-legal cousin of a lock-screen Live Activity, living in the
             thumb zone the sticky bar already owns. Ungated from rest: it
@@ -1881,16 +1891,6 @@ export function WorkoutLogger({
               <span className="shrink-0 text-sm font-medium tnum">{nextUp.label}</span>
             )}
           </button>
-        )}
-        {/* Mid-rest quick adjust, only while a period is actually running.
-            Adjust taps accumulate into restOffsetSec (this period ONLY —
-            see its constraint comment); Skip ends the period. */}
-        {isLive && restTimerEnabled && restStartedAt !== null && (
-          <RestAdjustStrip
-            hasTarget={restTargetSec !== null}
-            onAdjust={(deltaSec) => setRestOffsetSec((prev) => prev + deltaSec)}
-            onSkip={handleSkipRest}
-          />
         )}
         {/* Post-swap remember prompt: a quiet follow-up, never a modal — the
             decision that mattered (the swap) is already made; this must not

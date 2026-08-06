@@ -11,9 +11,9 @@ import { useAnimatedSheetClose } from '@/components/use-animated-sheet-close'
 import { cn } from '@/lib/utils'
 
 /**
- * Bottom sheet for the session's rest target — the number the header rest
- * readout counts down when the completed set has no per-set plan restSec.
- * Opened by tapping that readout. The dialog mechanics (showModal, StrictMode
+ * Bottom sheet for the session's rest target — the number the sticky bar's
+ * rest pill counts down when the completed set has no per-set plan restSec.
+ * Opened by tapping the pill's time area. The dialog mechanics (showModal, StrictMode
  * guard, geometric backdrop dismiss, scroll lock, close() in cleanup) are
  * copied from plate-sheet.tsx verbatim: two sheets, one behavior.
  *

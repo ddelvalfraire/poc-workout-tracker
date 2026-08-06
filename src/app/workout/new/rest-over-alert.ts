@@ -5,7 +5,7 @@ import { playRestChime } from './rest-chime'
 /**
  * The rest-over moment's side effects — vibration, the optional chirp, and a
  * document.title flash for a backgrounded tab. Fired once per rest period by
- * HeaderClock's edge detector (lib/rest-alert owns the once-only contract;
+ * RestPill's edge detector (lib/rest-alert owns the once-only contract;
  * this module is deliberately dumb about timing).
  *
  * NO push notifications and NO permission prompts, ever — the notifications
