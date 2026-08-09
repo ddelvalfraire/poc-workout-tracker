@@ -58,6 +58,9 @@ export const COACH_APPROVAL_TOOLS = [
   'remove_program_set_override',
   'set_program_autoregulation',
   'set_program_plan_sync',
+  // A TM change rewrites every derived load on the exercise — a mutation the
+  // owner must approve like any other patch op.
+  'set_training_max',
 ] as const
 
 /**

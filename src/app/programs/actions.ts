@@ -19,6 +19,7 @@ import {
   declineProgram,
 } from '@/db/programs'
 import { setProgramVisibility, createShare, revokeShare } from '@/db/program-shares'
+import { setTrainingMax } from '@/db/program-patches'
 
 /**
  * Validates and persists a new program for the signed-in user, returning its id.
@@ -169,10 +170,54 @@ export async function startProgramDayAction(
   if (week !== undefined && (typeof week !== 'number' || !Number.isInteger(week) || week < 1)) {
     throw new Error('invalid week')
   }
-  const result = await instantiateProgramDay(userId, programDayId, week ?? null)
+  const result = await instantiateProgramDay(userId, programDayId, week ?? null, 'ui')
   if (!result) throw new Error('program day not found')
   revalidatePath('/') // the new workout appears in the home history list
   return { workoutId: result.id, week: result.week }
+}
+
+/**
+ * The owner's explicit confirm on an M4 "TM likely set too high" flag: writes
+ * the proposed reduced training max through the single sanctioned setter
+ * (reason 'reset' — visible in the change log). Never called automatically;
+ * the program page renders the proposal and only this click applies it. The
+ * db layer re-validates scheme and ownership; a null result (not owned/found)
+ * and a ProgramPatchError (wrong scheme) both surface to the client's
+ * try/catch.
+ */
+export async function adjustTrainingMaxAction(
+  id: unknown,
+  dayPosition: unknown,
+  exercisePosition: unknown,
+  trainingMaxKg: unknown,
+): Promise<{ trainingMaxKg: number }> {
+  const userId = await requireUserId()
+  if (typeof id !== 'string' || id.length === 0) throw new Error('invalid program id')
+  if (typeof dayPosition !== 'number' || !Number.isInteger(dayPosition) || dayPosition < 0) {
+    throw new Error('invalid day position')
+  }
+  if (
+    typeof exercisePosition !== 'number' ||
+    !Number.isInteger(exercisePosition) ||
+    exercisePosition < 0
+  ) {
+    throw new Error('invalid exercise position')
+  }
+  if (typeof trainingMaxKg !== 'number' || !Number.isFinite(trainingMaxKg) || trainingMaxKg < 0) {
+    throw new Error('invalid training max')
+  }
+  const result = await setTrainingMax(
+    userId,
+    id,
+    dayPosition,
+    exercisePosition,
+    trainingMaxKg,
+    'reset',
+    'ui',
+  )
+  if (!result) throw new Error('exercise not found')
+  revalidatePath(`/programs/${id}`)
+  return { trainingMaxKg: result.trainingMaxKg }
 }
 
 /**

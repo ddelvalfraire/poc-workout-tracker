@@ -216,11 +216,28 @@ function schemeLoad(
   }
 }
 
+/** Completed amrap-cycle waves BEFORE `week`, on the non-deload week axis —
+ *  the wave-boundary count instantiation banks a TM bump against (and the
+ *  same arithmetic `amrapCycleTargets` cycles on, so the two can't drift). */
+export function amrapCompletedWaves(
+  week: number,
+  mesocycleWeeks: number,
+  deloadWeek: number | null,
+  waveLength: number,
+): number {
+  if (waveLength < 1) return 0
+  const clamped = Math.min(Math.max(1, week), Math.max(1, mesocycleWeeks))
+  const weeks = nonDeloadWeeks(Math.max(1, mesocycleWeeks), deloadWeek)
+  const steps = weeks.filter((w) => w < clamped).length
+  return Math.floor(steps / waveLength)
+}
+
 /** The amrap-cycle prescription for one progressed set: load = effective TM
- *  (base + one increment per completed wave) × this set's percent in the
- *  current wave row; reps come from the matching `waveReps` cell when the
- *  scheme prescribes them, else the template. Rows shorter than the day's
- *  set count clamp to their last entry. */
+ *  (base + one increment per completed wave NOT yet banked into the stored
+ *  trainingMaxKg — see `bankedWaves` in program-input.ts) × this set's
+ *  percent in the current wave row; reps come from the matching `waveReps`
+ *  cell when the scheme prescribes them, else the template. Rows shorter
+ *  than the day's set count clamp to their last entry. */
 function amrapCycleTargets(
   set: ProgramSetRowLike,
   progressedIdx: number,
@@ -231,9 +248,13 @@ function amrapCycleTargets(
   const steps = weeks.filter((w) => w < week).length
   const waveIdx = steps % progression.wave.length
   const completedWaves = Math.floor(steps / progression.wave.length)
+  // Banked waves are already inside trainingMaxKg (persisted at instantiation
+  // via setTrainingMax); only the unbanked remainder is added virtually.
+  // max(0) so re-deriving an EARLIER week after a bank never subtracts.
+  const unbankedWaves = Math.max(0, completedWaves - (progression.bankedWaves ?? 0))
   const percents = progression.wave[waveIdx]
   const percent = percents[Math.min(progressedIdx, percents.length - 1)]
-  const trainingMax = progression.trainingMaxKg + progression.incrementKg * completedWaves
+  const trainingMax = progression.trainingMaxKg + progression.incrementKg * unbankedWaves
   const reps = progression.waveReps?.[waveIdx]
   const rep = reps ? reps[Math.min(progressedIdx, reps.length - 1)] : null
   return {

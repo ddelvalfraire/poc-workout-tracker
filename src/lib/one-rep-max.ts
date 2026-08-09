@@ -16,6 +16,23 @@ export function estimate1RM(reps: number | null, weightKg: number | null): numbe
   return weightKg * (1 + reps / 30)
 }
 
+/** Wendler's training-max fraction (85% — the conservative end of 85–90%):
+ *  the default TM a percent-1rm / amrap-cycle exercise is seeded with from an
+ *  estimated 1RM. */
+export const TRAINING_MAX_FRACTION = 0.85
+
+/**
+ * The suggested training max from an estimated 1RM (TM lifecycle §1's
+ * exercise-add prefill): `e1rm × 0.85`, full precision — display rounding is
+ * the caller's job, like everywhere else. Null in → null out (no history, no
+ * suggestion); non-positive/invalid e1RMs also yield null rather than a
+ * nonsense TM.
+ */
+export function trainingMaxFromE1rm(e1rmKg: number | null): number | null {
+  if (e1rmKg === null || !Number.isFinite(e1rmKg) || e1rmKg <= 0) return null
+  return e1rmKg * TRAINING_MAX_FRACTION
+}
+
 export interface BestSet {
   reps: number
   weightKg: number

@@ -6,11 +6,16 @@ import { getAllExercises, type Exercise } from '@/lib/wger'
 import {
   deriveWeekSets,
   applyOverride,
+  amrapCompletedWaves,
   type DerivedSet,
   type ExerciseHistoryInput,
   type ProgramSetRowLike,
   type SetOverrideLike,
 } from '@/lib/progression'
+// Runtime-only cycle with ./program-patches (it imports our catalog helpers,
+// we call its TM setter) — safe because both directions are used strictly
+// inside function bodies, never at module init.
+import { setTrainingMax } from './program-patches'
 import { bestSet } from '@/lib/one-rep-max'
 import {
   autoregulate,
@@ -1385,7 +1390,10 @@ export async function deriveDayPrescription(
 export async function instantiateProgramDay(
   userId: string,
   programDayId: string,
-  week?: number | null,
+  week: number | null | undefined,
+  // WHO triggered the start — threaded into the wave-boundary TM persist's
+  // change-log event below, so a bump reads "You"/"Claude" like any edit.
+  actor: ProgramEventActor,
 ): Promise<{ id: string; week: number; weekDerived: boolean } | null> {
   const day = await getProgramDayDetail(userId, programDayId)
   if (!day) return null
@@ -1429,6 +1437,39 @@ export async function instantiateProgramDay(
     .orderBy(desc(workouts.startedAt))
     .limit(1)
   if (existing) return { id: existing.id, week: targetWeek, weekDerived }
+
+  // Wave-boundary TM persist (TM lifecycle §1): starting a week whose
+  // completed-wave count exceeds the banked count folds the earned
+  // increment(s) into the stored trainingMaxKg via setTrainingMax
+  // (reason 'cycle-end') — the classic Wendler bump becomes a visible
+  // change-log fact instead of invisible derive-time arithmetic.
+  // `bankedWaves` records how many waves the new TM absorbs, so derive's
+  // wave math stops re-adding them; the stale in-memory `progression`
+  // read below therefore prescribes IDENTICAL loads (old TM + n·inc ==
+  // new TM + 0·inc) and no re-read is needed. Static waves
+  // (incrementKg 0) never bank — a "TM 100 → 100" event would be noise.
+  for (const [position, exercise] of day.exercises.entries()) {
+    const progression = exercise.progression
+    if (progression?.scheme !== 'amrap-cycle' || progression.incrementKg <= 0) continue
+    const completed = amrapCompletedWaves(
+      targetWeek,
+      day.program.mesocycleWeeks,
+      day.program.deloadWeek,
+      progression.wave.length,
+    )
+    const banked = progression.bankedWaves ?? 0
+    if (completed <= banked) continue
+    await setTrainingMax(
+      userId,
+      day.program.id,
+      day.position,
+      position,
+      progression.trainingMaxKg + progression.incrementKg * (completed - banked),
+      'cycle-end',
+      actor,
+      { bankedWaves: completed },
+    )
+  }
 
   const prescription = await deriveDayPrescription(userId, day, targetWeek)
 

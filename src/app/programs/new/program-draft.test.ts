@@ -61,7 +61,7 @@ const NESTED: ProgramDraft = {
       notes: null,
       weekdays: [1, 3, 5],
       exercises: [
-        { id: 'ex1', ...BENCH, progression: null, supersetGroup: null, sets: [draftSet('s1'), draftSet('s2')] },
+        { id: 'ex1', ...BENCH, progression: null, trainingMax: '', trainingMaxFromE1rm: false, supersetGroup: null, sets: [draftSet('s1'), draftSet('s2')] },
       ],
     },
     { id: 'd2', name: 'Pull', notes: null, weekdays: [], exercises: [] },
@@ -116,7 +116,7 @@ describe('programDraftReducer', () => {
 
   it('ADD_EXERCISE and REMOVE_EXERCISE are day-scoped', () => {
     // Arrange
-    const exercise = { id: 'ex2', ...BENCH, progression: null, supersetGroup: null, sets: [] }
+    const exercise = { id: 'ex2', ...BENCH, progression: null, trainingMax: '', trainingMaxFromE1rm: false, supersetGroup: null, sets: [] }
 
     // Act
     const added = programDraftReducer(NESTED, { type: 'ADD_EXERCISE', dayIndex: 1, exercise })
@@ -370,7 +370,7 @@ describe('draftToProgramInput', () => {
           notes: null,
           weekdays: [],
           exercises: [
-            { id: 'ex1', ...BENCH, progression: null, supersetGroup: null, sets: [draftSet('s1', { load: '220.5' })] },
+            { id: 'ex1', ...BENCH, progression: null, trainingMax: '', trainingMaxFromE1rm: false, supersetGroup: null, sets: [draftSet('s1', { load: '220.5' })] },
           ],
         },
       ],
@@ -410,6 +410,8 @@ describe('draftToProgramInput', () => {
               id: 'ex1',
               ...BENCH,
               progression: null,
+              trainingMax: '',
+              trainingMaxFromE1rm: false,
               supersetGroup: null,
               sets: [draftSet('s1', { repMin: '', repMax: '', load: '', rpe: '', restSec: '' })],
             },
@@ -509,6 +511,8 @@ describe('draftToProgramInput', () => {
               id: 'ex1',
               ...BENCH,
               progression,
+              trainingMax: '',
+              trainingMaxFromE1rm: false,
               supersetGroup: null,
               sets: [
                 draftSet('s1', {
@@ -703,6 +707,111 @@ describe('detailToProgramDraft', () => {
       rir: 2,
       tempo: '3-1-1',
     })
+  })
+
+  /** DETAIL with the one exercise's progression swapped (immutably). */
+  function withProgression(progression: Progression): ProgramDetail {
+    return {
+      ...DETAIL,
+      days: [
+        {
+          ...DETAIL.days[0],
+          exercises: [{ ...DETAIL.days[0].exercises[0], progression }],
+        },
+      ],
+    }
+  }
+
+  const AMRAP: Progression = {
+    scheme: 'amrap-cycle',
+    trainingMaxKg: 0,
+    incrementKg: 2.5,
+    wave: [[0.65, 0.75, 0.85]],
+  }
+
+  it('seeds the TM input from a stored training max (display unit, no e1RM caption)', () => {
+    // Act
+    const draft = detailToProgramDraft(
+      withProgression({ scheme: 'percent-1rm', trainingMaxKg: 100, weekPercents: [0.8] }),
+      'lb',
+    )
+
+    // Assert — 100 kg → 220.5 lb; a real stored TM never claims e1RM provenance.
+    expect(draft.days[0].exercises[0].trainingMax).toBe('220.5')
+    expect(draft.days[0].exercises[0].trainingMaxFromE1rm).toBe(false)
+  })
+
+  it('prefills e1rm × 0.85 (display-unit rounded) for a TM-0 sketch with history', () => {
+    // Arrange — e1RM 120 kg → TM suggestion 102 kg.
+    const e1rms = new Map([['wger:1', 120]])
+
+    // Act
+    const draft = detailToProgramDraft(withProgression(AMRAP), 'kg', e1rms)
+
+    // Assert — prefilled AND flagged for the "from your e1RM" caption.
+    expect(draft.days[0].exercises[0].trainingMax).toBe('102')
+    expect(draft.days[0].exercises[0].trainingMaxFromE1rm).toBe(true)
+  })
+
+  it('leaves the TM blank when a sketch has no e1RM history', () => {
+    // Act
+    const draft = detailToProgramDraft(withProgression(AMRAP), 'kg', new Map())
+
+    // Assert
+    expect(draft.days[0].exercises[0].trainingMax).toBe('')
+    expect(draft.days[0].exercises[0].trainingMaxFromE1rm).toBe(false)
+  })
+
+  it('merges an edited TM back into the progression at save time (unit-converted)', () => {
+    // Arrange — seed, then the user types 230 (lb).
+    const draft = detailToProgramDraft(
+      withProgression({ scheme: 'percent-1rm', trainingMaxKg: 100, weekPercents: [0.8] }),
+      'lb',
+    )
+    const edited = programDraftReducer(draft, {
+      type: 'UPDATE_EXERCISE_TM',
+      dayIndex: 0,
+      index: 0,
+      value: '230',
+    })
+
+    // Act
+    const input = draftToProgramInput(edited, 'lb')
+
+    // Assert — 230 lb → 104.33 kg (column precision), percents untouched.
+    expect(input.days[0].exercises[0].progression).toEqual({
+      scheme: 'percent-1rm',
+      trainingMaxKg: 104.33,
+      weekPercents: [0.8],
+    })
+  })
+
+  it('a blank TM input leaves the stored progression verbatim at save time', () => {
+    // Arrange — sketch (TM 0), no prefill, user typed nothing.
+    const draft = detailToProgramDraft(withProgression(AMRAP), 'kg')
+
+    // Act
+    const input = draftToProgramInput(draft, 'kg')
+
+    // Assert — the sketch's TM 0 survives untouched (no invented value).
+    expect(input.days[0].exercises[0].progression).toEqual(AMRAP)
+  })
+
+  it('UPDATE_EXERCISE_TM clears the e1RM-provenance flag on the first edit', () => {
+    // Arrange
+    const draft = detailToProgramDraft(withProgression(AMRAP), 'kg', new Map([['wger:1', 120]]))
+
+    // Act
+    const edited = programDraftReducer(draft, {
+      type: 'UPDATE_EXERCISE_TM',
+      dayIndex: 0,
+      index: 0,
+      value: '105',
+    })
+
+    // Assert
+    expect(edited.days[0].exercises[0].trainingMax).toBe('105')
+    expect(edited.days[0].exercises[0].trainingMaxFromE1rm).toBe(false)
   })
 })
 

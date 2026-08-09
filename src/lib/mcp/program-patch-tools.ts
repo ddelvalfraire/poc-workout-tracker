@@ -10,6 +10,7 @@ import {
   removeProgramSetOverride,
   setProgramAutoregulation,
   setProgramPlanSync,
+  setTrainingMax,
   addProgramDay,
   updateProgramDay,
   removeProgramDay,
@@ -236,6 +237,62 @@ export function registerProgramPatchTools(server: McpServer): void {
         const result = await setProgramPlanSync(resolved, programId, enabled, resolveActor(extra))
         if (!result) throw new ToolError(`Program ${programId} not found for user ${resolved}`)
         return jsonResult({ userId: resolved, programId, planSync: enabled })
+      } catch (error: unknown) {
+        return errorResult(error)
+      }
+    },
+  )
+
+  server.registerTool(
+    'set_training_max',
+    {
+      title: 'Set Training Max',
+      description:
+        "Sets the training max on a percent-1rm or amrap-cycle exercise (by programId + 0-based dayPosition/exercisePosition) — the single sanctioned path for every TM change, logged in the change log with its reason. `trainingMax` is in the user's unit (or the `unit` arg). `reason` defaults to 'manual'; 'reset' marks a deliberate back-down (e.g. after repeated stalls), 'cycle-end'/'block-restart' are the engine/restart bumps. Only the TM moves — wave and percent structure are untouched. Errors for other progression schemes, or if the exercise isn't found or owned.",
+      inputSchema: {
+        programId: z.string(),
+        dayPosition: positionArg,
+        exercisePosition: positionArg,
+        trainingMax: z.number(),
+        reason: z.enum(['cycle-end', 'reset', 'manual', 'block-restart']).optional(),
+        unit: unitArg,
+        userId: z.string().optional(),
+      },
+    },
+    async (
+      { programId, dayPosition, exercisePosition, trainingMax, reason, unit, userId },
+      extra,
+    ) => {
+      try {
+        const resolved = resolveUserId(extra, userId)
+        assertProgramIdShape(programId)
+        const basis = unit ?? (await getWeightUnit(resolved))
+        const trainingMaxKg = toKgLoad(trainingMax, basis)
+        const result = await runOp(() =>
+          setTrainingMax(
+            resolved,
+            programId,
+            dayPosition,
+            exercisePosition,
+            trainingMaxKg,
+            reason ?? 'manual',
+            resolveActor(extra),
+          ),
+        )
+        if (!result) {
+          throw new ToolError(
+            `Exercise ${exercisePosition} of day ${dayPosition} in program ${programId} not found for user ${resolved}`,
+          )
+        }
+        return jsonResult({
+          userId: resolved,
+          unit: basis,
+          programId,
+          dayPosition,
+          exercisePosition,
+          trainingMax: kgToDisplay(result.trainingMaxKg, basis),
+          reason: reason ?? 'manual',
+        })
       } catch (error: unknown) {
         return errorResult(error)
       }

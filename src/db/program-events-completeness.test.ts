@@ -126,6 +126,14 @@ const INVOCATIONS: Record<string, { selects: unknown[][]; run: () => Promise<unk
     selects: [OWNED_PROGRAM],
     run: () => patches.setProgramPlanSync(USER, PID, false, 'mcp'),
   },
+  setTrainingMax: {
+    // Reads: owned-exercise → current progression (a TM-bearing scheme).
+    selects: [
+      OWNED_EXERCISE,
+      [{ progression: { scheme: 'percent-1rm', trainingMaxKg: 140, weekPercents: [0.85] } }],
+    ],
+    run: () => patches.setTrainingMax(USER, PID, 0, 0, 145, 'cycle-end', 'mcp'),
+  },
   addProgramDay: {
     selects: [OWNED_PROGRAM, [{ value: 0 }]],
     run: () => patches.addProgramDay(USER, PID, { name: 'Pull' }, 'mcp'),

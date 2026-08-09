@@ -3,6 +3,7 @@ import {
   percentOf1RM,
   deriveWeekSets,
   applyOverride,
+  amrapCompletedWaves,
   DELOAD_LOAD_FACTOR,
   DELOAD_SET_FACTOR,
   type ProgramSetRowLike,
@@ -490,6 +491,44 @@ describe('deriveWeekSets', () => {
       const derived = deriveWeekSets({ sets: sets531(), progression: p531, week: 4, ...base })
       expect(derived.map((s) => s.loadKg)).toEqual([68.25, 78.75, 89.25])
       expect(derived.map((s) => s.repMin)).toEqual([5, 5, 5])
+    })
+
+    it('does not double-count waves already banked into the persisted TM', () => {
+      // Arrange — the wave-boundary persist folded wave 1 into the TM
+      // (100 + 5 → 105, bankedWaves 1). Week 4 must derive the SAME loads
+      // the virtual math produced before the persist.
+      const banked = { ...p531, trainingMaxKg: 105, bankedWaves: 1 }
+
+      // Act
+      const derived = deriveWeekSets({ sets: sets531(), progression: banked, week: 4, ...base })
+
+      // Assert — identical to the unbanked week-4 expectation above.
+      expect(derived.map((s) => s.loadKg)).toEqual([68.25, 78.75, 89.25])
+    })
+
+    it('never subtracts when re-deriving an earlier week after a bank', () => {
+      // Arrange — TM banked at 105; browsing back to week 1 (0 completed
+      // waves) must use the persisted TM, not TM minus an increment.
+      const banked = { ...p531, trainingMaxKg: 105, bankedWaves: 1 }
+
+      // Act
+      const derived = deriveWeekSets({ sets: sets531(), progression: banked, week: 1, ...base })
+
+      // Assert — 105 × wave row 1, not 100 ×.
+      expect(derived.map((s) => s.loadKg)).toEqual([105 * 0.65, 105 * 0.75, 105 * 0.85])
+    })
+
+    it('amrapCompletedWaves counts whole waves on the non-deload axis', () => {
+      // Arrange + Act + Assert — 3-week wave, deload at week 7 of 8.
+      expect(amrapCompletedWaves(1, 8, 7, 3)).toBe(0)
+      expect(amrapCompletedWaves(3, 8, 7, 3)).toBe(0)
+      expect(amrapCompletedWaves(4, 8, 7, 3)).toBe(1)
+      expect(amrapCompletedWaves(6, 8, 7, 3)).toBe(1)
+      // Week 7 is the deload: 6 non-deload steps before it → 2 waves done.
+      expect(amrapCompletedWaves(7, 8, 7, 3)).toBe(2)
+      expect(amrapCompletedWaves(8, 8, 7, 3)).toBe(2)
+      // Degenerate wave length never divides by zero.
+      expect(amrapCompletedWaves(4, 8, null, 0)).toBe(0)
     })
 
     it('clamps to the last percent when a day has more sets than the wave row', () => {

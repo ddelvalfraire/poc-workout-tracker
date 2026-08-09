@@ -115,6 +115,7 @@ import {
   syncProgramExerciseLoads,
   setProgramSetOverride,
   removeProgramSetOverride,
+  setTrainingMax,
 } from './program-patches'
 
 const USER = 'user_123'
@@ -144,6 +145,116 @@ beforeEach(() => {
   updatedRows = [{ id: 'row1' }]
   deletedRows = [{ id: 'ps1' }]
   insertedRows = [{ id: 'pe-new' }]
+})
+
+describe('setTrainingMax (TM lifecycle §1)', () => {
+  const eventInsert = () =>
+    records.find((r) => r.op === 'insert:program_events')?.values as Record<string, unknown>
+  const exerciseUpdate = () =>
+    records.find((r) => r.op === 'update:program_exercises')?.values as {
+      progression: Record<string, unknown>
+    }
+
+  const AMRAP = {
+    scheme: 'amrap-cycle',
+    trainingMaxKg: 140,
+    incrementKg: 2.5,
+    wave: [
+      [0.65, 0.75, 0.85],
+      [0.7, 0.8, 0.9],
+    ],
+    waveReps: [
+      [5, 5, 5],
+      [3, 3, 3],
+    ],
+  }
+
+  it('updates ONLY the training max and logs the {before, after, reason} event', async () => {
+    // Arrange — reads: owned-exercise → current progression
+    selectQueue = [OWNED_EXERCISE, [{ progression: AMRAP }]]
+
+    // Act
+    const result = await setTrainingMax(USER, PID, 0, 1, 145, 'cycle-end', 'ui')
+
+    // Assert — the merged progression keeps every wave/rep field verbatim
+    expect(result).toEqual({ id: 'pe1', trainingMaxKg: 145 })
+    expect(exerciseUpdate().progression).toEqual({ ...AMRAP, trainingMaxKg: 145 })
+    expect(eventInsert()).toMatchObject({
+      programId: PID,
+      userId: USER,
+      actor: 'ui',
+      action: 'adjust_training_max',
+      summary: 'Bench TM 140 → 145 kg (cycle-end)',
+      payload: {
+        dayPosition: 0,
+        exercisePosition: 1,
+        before: { trainingMaxKg: 140 },
+        after: { trainingMaxKg: 145 },
+        reason: 'cycle-end',
+      },
+    })
+    // Exactly one event, plus the updatedAt bump on programs.
+    expect(records.filter((r) => r.op === 'insert:program_events')).toHaveLength(1)
+    expect(records.some((r) => r.op === 'update:programs')).toBe(true)
+  })
+
+  it('stamps bankedWaves on an amrap-cycle when the wave persist passes it', async () => {
+    // Arrange
+    selectQueue = [OWNED_EXERCISE, [{ progression: AMRAP }]]
+
+    // Act
+    await setTrainingMax(USER, PID, 0, 0, 142.5, 'cycle-end', 'ui', { bankedWaves: 1 })
+
+    // Assert
+    expect(exerciseUpdate().progression).toEqual({ ...AMRAP, trainingMaxKg: 142.5, bankedWaves: 1 })
+  })
+
+  it('works for percent-1rm and preserves the week percents', async () => {
+    // Arrange
+    const percent = { scheme: 'percent-1rm', trainingMaxKg: 100, weekPercents: [0.7, 0.8, 0.9] }
+    selectQueue = [OWNED_EXERCISE, [{ progression: percent }]]
+
+    // Act
+    await setTrainingMax(USER, PID, 0, 0, 90, 'reset', 'ui')
+
+    // Assert
+    expect(exerciseUpdate().progression).toEqual({ ...percent, trainingMaxKg: 90 })
+    expect((eventInsert().payload as Record<string, unknown>).reason).toBe('reset')
+  })
+
+  it('rejects schemes without a training max with a clear error and writes nothing', async () => {
+    // Arrange — a linear exercise has no TM
+    selectQueue = [OWNED_EXERCISE, [{ progression: { scheme: 'linear', incrementKg: 2.5 } }]]
+
+    // Act + Assert
+    await expect(setTrainingMax(USER, PID, 0, 0, 100, 'manual', 'ui')).rejects.toThrow(
+      /linear progression — a training max applies only to percent-1rm or amrap-cycle/,
+    )
+    expect(records.some((r) => r.op.startsWith('update:'))).toBe(false)
+    expect(records.some((r) => r.op === 'insert:program_events')).toBe(false)
+  })
+
+  it('rejects a negative or non-finite training max before any read', async () => {
+    // Act + Assert
+    await expect(setTrainingMax(USER, PID, 0, 0, -5, 'manual', 'ui')).rejects.toThrow(
+      ProgramPatchError,
+    )
+    await expect(setTrainingMax(USER, PID, 0, 0, Number.NaN, 'manual', 'ui')).rejects.toThrow(
+      ProgramPatchError,
+    )
+  })
+
+  it('returns null when the exercise is not owned/found', async () => {
+    // Arrange — the ownership join finds nothing
+    selectQueue = [[]]
+
+    // Act
+    const result = await setTrainingMax(USER, PID, 0, 0, 100, 'manual', 'ui')
+
+    // Assert
+    expect(result).toBeNull()
+    expect(records.some((r) => r.op === 'insert:program_events')).toBe(false)
+  })
 })
 
 describe('setProgramAutoregulation stall policy', () => {

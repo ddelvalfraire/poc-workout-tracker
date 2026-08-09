@@ -1025,7 +1025,7 @@ describe('registerProgramTools', () => {
       const result = await tools.get('instantiate_program_day')!({ programDayId: PID })
 
       // Assert — week passes through as null (derivation lives in the db layer)
-      expect(mockedInstantiate).toHaveBeenCalledWith('user_env', PID, null)
+      expect(mockedInstantiate).toHaveBeenCalledWith('user_env', PID, null, 'mcp')
       expect(payload(result)).toEqual({
         userId: 'user_env',
         workoutId: 'w1',
@@ -1044,7 +1044,7 @@ describe('registerProgramTools', () => {
       const result = await tools.get('instantiate_program_day')!({ programDayId: PID, week: 3 })
 
       // Assert
-      expect(mockedInstantiate).toHaveBeenCalledWith('user_env', PID, 3)
+      expect(mockedInstantiate).toHaveBeenCalledWith('user_env', PID, 3, 'mcp')
       expect(payload(result).programWeek).toBe(3)
       expect(payload(result).weekDerived).toBe(false)
     })

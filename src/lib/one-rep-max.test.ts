@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest'
-import { estimate1RM, bestSet, effectiveLoadKg, bestScoredSet } from './one-rep-max'
+import {
+  estimate1RM,
+  bestSet,
+  effectiveLoadKg,
+  bestScoredSet,
+  trainingMaxFromE1rm,
+} from './one-rep-max'
 
 describe('estimate1RM', () => {
   it('returns the weight itself for a single rep (a single is its own 1RM)', () => {
@@ -222,5 +228,20 @@ describe('bestScoredSet', () => {
 
   it('returns null for an empty list', () => {
     expect(bestScoredSet([], 'weight_reps', 80)).toBe(null)
+  })
+})
+
+describe('trainingMaxFromE1rm (TM lifecycle §1 prefill)', () => {
+  it('suggests e1rm × 0.85, full precision', () => {
+    // Arrange + Act + Assert
+    expect(trainingMaxFromE1rm(120)).toBeCloseTo(102, 10)
+    expect(trainingMaxFromE1rm(100)).toBeCloseTo(85, 10)
+  })
+
+  it('returns null for missing or unusable e1RMs', () => {
+    expect(trainingMaxFromE1rm(null)).toBeNull()
+    expect(trainingMaxFromE1rm(0)).toBeNull()
+    expect(trainingMaxFromE1rm(-5)).toBeNull()
+    expect(trainingMaxFromE1rm(Number.NaN)).toBeNull()
   })
 })

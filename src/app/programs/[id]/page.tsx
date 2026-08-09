@@ -33,8 +33,11 @@ import {
   withoutExpanded,
   shouldDeriveDay,
   collectAutoregNotes,
+  collectTmResetProposals,
   groupEventsByDay,
 } from './detail-view'
+import { kgToDisplay } from '@/lib/units'
+import { TmResetButton } from './tm-reset-button'
 import { topPRs } from './stats/stats-view'
 import { StartDayButton } from './start-day-button'
 import { ProgramActions } from './program-actions'
@@ -190,6 +193,10 @@ export default async function ProgramDetailPage({
   // The engine's held/backed-off lifts, from the prescriptions derived above
   // (a collapsed day honestly contributes nothing — no extra reads).
   const autoregNotes = collectAutoregNotes(program.days, prescriptions)
+  // M4 flags as owner-confirmable TM reductions (TM lifecycle §1) — same
+  // derived-prescriptions source, never auto-applied; the confirm button is
+  // withheld on proposals (nothing on a proposal may write).
+  const tmProposals = collectTmResetProposals(program.days, prescriptions)
   // Proposed branches BEFORE the draft-default narrowing: a proposal must
   // never masquerade as a draft (which would surface Activate/Edit/Restart —
   // exactly the paths the forced confirm exists to block).
@@ -443,7 +450,7 @@ export default async function ProgramDetailPage({
             the engine's own reason line, no volt, links nothing new). Only
             derived days can contribute, so a collapsed day never fakes a
             verdict it didn't compute. */}
-        {autoregNotes.length > 0 && (
+        {(autoregNotes.length > 0 || tmProposals.length > 0) && (
           <section
             aria-label="Auto-regulation"
             className="mt-3 rounded-2xl border border-border bg-card p-4"
@@ -451,15 +458,55 @@ export default async function ProgramDetailPage({
             <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
               Auto-regulation
             </p>
-            <ul className="mt-2 space-y-1.5">
-              {autoregNotes.map((note) => (
-                <li key={note.exerciseName} className="text-sm text-muted-foreground">
-                  <span className="font-medium text-foreground">{note.exerciseName}</span>
-                  <span aria-hidden="true"> — </span>
-                  <span className="tnum">{autoregReason(note.adjustment, unit)}</span>
-                </li>
-              ))}
-            </ul>
+            {autoregNotes.length > 0 && (
+              <ul className="mt-2 space-y-1.5">
+                {autoregNotes.map((note) => (
+                  <li key={note.exerciseName} className="text-sm text-muted-foreground">
+                    <span className="font-medium text-foreground">{note.exerciseName}</span>
+                    <span aria-hidden="true"> — </span>
+                    <span className="tnum">{autoregReason(note.adjustment, unit)}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {/* M4 TM proposals: the approval-card sentence ("Week 5, Squat:
+                TM 140 → 126 kg — 3 straight stalls") plus an explicit
+                owner confirm. Proposed-status pages read the sentence but
+                get no button — nothing on a proposal may write. */}
+            {tmProposals.length > 0 && (
+              <ul className="mt-2 space-y-2">
+                {tmProposals.map((proposal) => (
+                  <li
+                    key={proposal.exerciseName}
+                    className="flex items-center justify-between gap-3"
+                  >
+                    <p className="min-w-0 text-sm text-muted-foreground">
+                      <span className="font-medium text-foreground">
+                        {proposal.exerciseName}
+                      </span>
+                      <span aria-hidden="true"> — </span>
+                      <span className="tnum">
+                        Week {selectedWeek}: TM {kgToDisplay(proposal.currentTmKg, unit)} →{' '}
+                        {kgToDisplay(proposal.proposedTmKg, unit)} {unit} — 3 straight stalls,
+                        training max likely set too high
+                      </span>
+                    </p>
+                    {!isProposed && (
+                      <TmResetButton
+                        programId={program.id}
+                        dayPosition={proposal.dayPosition}
+                        exercisePosition={proposal.exercisePosition}
+                        exerciseName={proposal.exerciseName}
+                        currentTm={kgToDisplay(proposal.currentTmKg, unit)}
+                        proposedTm={kgToDisplay(proposal.proposedTmKg, unit)}
+                        proposedTmKg={proposal.proposedTmKg}
+                        unit={unit}
+                      />
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
           </section>
         )}
 

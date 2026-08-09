@@ -10,6 +10,7 @@ import type { ProgramDetail } from '@/db/programs'
 import type { AutoregStallPolicy } from '@/lib/autoregulate'
 import type { ExerciseSource } from '@/lib/custom-exercise-input'
 import { displayToKg, kgToDisplay, type WeightUnit } from '@/lib/units'
+import { trainingMaxFromE1rm } from '@/lib/one-rep-max'
 
 /**
  * Pure client-state logic for the program builder, kept free of React/JSX so
@@ -59,8 +60,17 @@ export interface DraftProgramExercise {
   source: ExerciseSource
   name: string
   category: string
-  /** Pass-through: agent-authored progression scheme, re-emitted verbatim. */
+  /** Pass-through: agent-authored progression scheme, re-emitted verbatim
+   *  EXCEPT its training max, which the builder edits via `trainingMax`. */
   progression: Progression | null
+  /** Training max in the display unit ('' = leave the stored value alone) —
+   *  editable ONLY when the progression is percent-1rm / amrap-cycle; merged
+   *  back into the progression JSONB at save time. */
+  trainingMax: string
+  /** True while `trainingMax` still holds the e1RM-derived prefill
+   *  (e1rm × 0.85 — TM lifecycle §1); drives the "from your e1RM" caption
+   *  and clears on the first user edit. */
+  trainingMaxFromE1rm: boolean
   /** Pass-through: superset grouping isn't edited by the builder, but must
    *  survive the edit round-trip (a save is a full replace). */
   supersetGroup: number | null
@@ -124,6 +134,7 @@ export type ProgramDraftAction =
   | { type: 'SET_DAY_WEEKDAYS'; index: number; weekdays: number[] }
   | { type: 'ADD_EXERCISE'; dayIndex: number; exercise: DraftProgramExercise }
   | { type: 'REMOVE_EXERCISE'; dayIndex: number; index: number }
+  | { type: 'UPDATE_EXERCISE_TM'; dayIndex: number; index: number; value: string }
   | { type: 'ADD_SET'; dayIndex: number; exerciseIndex: number; set: DraftProgramSet }
   | {
       type: 'UPDATE_SET'
@@ -188,6 +199,8 @@ export function newDraftProgramExercise(picked: {
     id: crypto.randomUUID(),
     ...picked,
     progression: null,
+    trainingMax: '',
+    trainingMaxFromE1rm: false,
     supersetGroup: null,
     sets: [newDraftProgramSet()],
   }
@@ -277,6 +290,20 @@ export function programDraftReducer(
         days: mapDayAt(state.days, action.dayIndex, (day) => ({
           ...day,
           exercises: day.exercises.filter((_, i) => i !== action.index),
+        })),
+      }
+
+    case 'UPDATE_EXERCISE_TM':
+      return {
+        ...state,
+        days: mapDayAt(state.days, action.dayIndex, (day) => ({
+          ...day,
+          exercises: mapExerciseAt(day.exercises, action.index, (exercise) => ({
+            ...exercise,
+            trainingMax: action.value,
+            // The first user edit ends the prefill's provenance claim.
+            trainingMaxFromE1rm: false,
+          })),
         })),
       }
 
@@ -476,6 +503,9 @@ export function parseStoredProgramDraft(raw: string, now: Date): ProgramDraft | 
         // Pre-composite-identity drafts restore as plain wger, ungrouped.
         source: exercise.source ?? 'wger',
         supersetGroup: exercise.supersetGroup ?? null,
+        // Pre-TM-field snapshots restore with the stored TM untouched.
+        trainingMax: exercise.trainingMax ?? '',
+        trainingMaxFromE1rm: exercise.trainingMaxFromE1rm ?? false,
         sets: exercise.sets.map((set) => ({ ...set, restSec: set.restSec ?? '' })),
       })),
     })),
@@ -496,6 +526,31 @@ function toDecimal(value: string): number | null {
   if (trimmed === '') return null
   const n = parseFloat(trimmed)
   return Number.isFinite(n) && n >= 0 ? n : null
+}
+
+/** True for the schemes that carry a training max (TM lifecycle §1). */
+function hasTrainingMax(
+  progression: Progression | null,
+): progression is Extract<Progression, { scheme: 'percent-1rm' | 'amrap-cycle' }> {
+  return progression?.scheme === 'percent-1rm' || progression?.scheme === 'amrap-cycle'
+}
+
+/**
+ * Merges the builder's display-unit training-max input back into the
+ * progression JSONB at save time. Blank/invalid (or a non-TM scheme) leaves
+ * the stored progression untouched — the pass-through guarantee holds unless
+ * the user actually typed a number. Immutable: a fresh object, never a patch
+ * of the draft's progression.
+ */
+function withDraftTrainingMax(
+  progression: Progression | null,
+  trainingMax: string,
+  unit: WeightUnit,
+): Progression | null {
+  if (!hasTrainingMax(progression)) return progression
+  const tm = toDecimal(trainingMax)
+  if (tm === null) return progression
+  return { ...progression, trainingMaxKg: displayToKg(tm, unit) }
 }
 
 /**
@@ -527,7 +582,7 @@ export function draftToProgramInput(
       wgerExerciseId: exercise.wgerExerciseId,
       source: exercise.source,
       name: exercise.name,
-      progression: exercise.progression,
+      progression: withDraftTrainingMax(exercise.progression, exercise.trainingMax, unit),
       supersetGroup: exercise.supersetGroup,
       sets: exercise.sets.map((set) => {
         const load = toDecimal(set.load)
@@ -590,9 +645,43 @@ function toStatus(status: string): ProgramInput['status'] {
  * technique, set types, timed metrics, notes, status) are carried verbatim.
  * Pure (no `crypto`), so the edit Server Component can call it safely.
  */
+/** Display-unit string for a TM input, rounded to 1 decimal (kg passes
+ *  through kgToDisplay unrounded, so an e1RM-derived prefill needs its own
+ *  rounding — 97.75000001 must read "97.8"). */
+function tmDisplayString(valueKg: number, unit: WeightUnit): string {
+  return (Math.round(kgToDisplay(valueKg, unit) * 10) / 10).toString()
+}
+
+/** The builder's seed for one exercise's TM input: the stored training max
+ *  when one is set; when the stored TM is 0 (an authored sketch) and e1RM
+ *  history exists, the e1rm × 0.85 prefill (flagged for the "from your e1RM"
+ *  caption); blank otherwise. Non-TM schemes always seed blank. */
+function seedTrainingMax(
+  progression: Progression | null,
+  e1rmKg: number | null | undefined,
+  unit: WeightUnit,
+): { trainingMax: string; trainingMaxFromE1rm: boolean } {
+  if (!hasTrainingMax(progression)) return { trainingMax: '', trainingMaxFromE1rm: false }
+  if (progression.trainingMaxKg > 0) {
+    return { trainingMax: tmDisplayString(progression.trainingMaxKg, unit), trainingMaxFromE1rm: false }
+  }
+  const suggested = trainingMaxFromE1rm(e1rmKg ?? null)
+  if (suggested === null) return { trainingMax: '', trainingMaxFromE1rm: false }
+  return { trainingMax: tmDisplayString(suggested, unit), trainingMaxFromE1rm: true }
+}
+
+/** The e1RM map key used by `detailToProgramDraft` — composite identity,
+ *  matching the catalog convention. */
+export function e1rmKey(source: ExerciseSource, wgerExerciseId: number): string {
+  return `${source}:${wgerExerciseId}`
+}
+
 export function detailToProgramDraft(
   detail: ProgramDetail,
   unit: WeightUnit = 'kg',
+  /** e1RMs (kg) keyed by `e1rmKey(source, id)` — feeds the TM prefill for
+   *  authored sketches (stored TM 0). Absent = no prefill (the /new page). */
+  e1rmKgByExercise?: ReadonlyMap<string, number>,
 ): ProgramDraft {
   return {
     name: detail.name,
@@ -620,6 +709,11 @@ export function detailToProgramDraft(
         name: exercise.name,
         category: '',
         progression: exercise.progression,
+        ...seedTrainingMax(
+          exercise.progression,
+          e1rmKgByExercise?.get(e1rmKey(exercise.source, exercise.wgerExerciseId)),
+          unit,
+        ),
         supersetGroup: exercise.supersetGroup,
         sets: exercise.sets.map((set) => ({
           id: set.id,
