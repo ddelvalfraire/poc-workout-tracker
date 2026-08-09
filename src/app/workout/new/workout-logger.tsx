@@ -51,6 +51,7 @@ import {
 import { draftKey, buildDraftPayload, parseDraftPayload } from './draft-payload'
 import { createDraftSyncQueue, type DraftSyncQueue, type DraftSyncStatus } from './draft-sync'
 import { SwipeToDelete } from './swipe-to-delete'
+import { EffortChips } from './effort-chips'
 import { HeaderClock } from './session-clock'
 import { PlateSheet } from './plate-sheet'
 import { RestSheet } from './rest-sheet'
@@ -72,6 +73,7 @@ import { type WeightUnit } from '@/lib/units'
 import { cn } from '@/lib/utils'
 import { markReplace, navigateBack } from '@/lib/back-navigation'
 import { discardSession } from '@/lib/discard-session'
+import { effortLabel, shouldShowEffortRow } from '@/lib/effort'
 import {
   planSetGhost,
   placeholderForSet,
@@ -156,6 +158,11 @@ interface WorkoutLoggerProps {
   /** Feature switch: false suppresses the whole rest surface — no readout,
    *  no countdown, plan targets ignored. The elapsed clock is unaffected. */
   restTimerEnabled?: boolean
+  /** Opt-in RPE/RIR effort logging (user_preferences.rpe_logging_enabled).
+   *  The effort chip row shows iff a set has a prescribed effort target OR
+   *  this is true — with both false the render is untouched (fast-path
+   *  parity for opted-out users is a hard contract). */
+  rpeLoggingEnabled?: boolean
 }
 
 export function WorkoutLogger({
@@ -174,6 +181,7 @@ export function WorkoutLogger({
   equipment,
   defaultRestSec = null,
   restTimerEnabled = true,
+  rpeLoggingEnabled = false,
 }: WorkoutLoggerProps) {
   const [draft, dispatch] = useReducer(workoutDraftReducer, initialDraft)
   const [name, setName] = useState(initialName)
@@ -433,6 +441,13 @@ export function WorkoutLogger({
     setRestPlanSec(null)
     setRestOffsetSec(0)
   }
+
+  // The set whose post-completion effort chip row is open — the just-checked
+  // set (when its show rule passes) or a logged caption re-opened for a
+  // correction. One at a time; skip-by-ignoring means the next check-off
+  // simply moves it. Never set while the show rule is false, so opted-out
+  // sessions carry only this dormant null.
+  const [effortPromptSetId, setEffortPromptSetId] = useState<string | null>(null)
 
   // Replace-exercise flow: which exercise the sheet is replacing (null = the
   // sheet is in plain add mode), and a pick paused at the logged-work guard.
@@ -712,6 +727,9 @@ export function WorkoutLogger({
         setStatsSheetFor(null)
         // And a held finish warning: its snapshot draft predates the restore.
         setPendingFinish(null)
+        // And an open effort prompt: its set id may not exist in the
+        // restored draft (id-addressed, but a stale id is a dead prompt).
+        setEffortPromptSetId(null)
         // And the remember prompt: its swap may not exist in the restored draft.
         setPendingRemember(null)
       })
@@ -1370,6 +1388,11 @@ export function WorkoutLogger({
                   unit,
                 )
                 const ghost = planSetGhost(plan, exercise.loggingType)
+                // Effort show rule (spec-exact): prescribed target on THIS
+                // set, or the opt-in preference. False = zero effort UI and
+                // zero new state writes — the fast path stays byte-identical.
+                const effortTarget = planFor(exercise.source, exercise.wgerExerciseId)?.[setIndex]
+                const effortEnabled = shouldShowEffortRow(effortTarget, rpeLoggingEnabled)
                 // Prev is previous PERFORMANCE only: plan targets ghost the
                 // inputs above but never masquerade as history in this column.
                 const prevLabel = previousChipLabel(history, exercise.loggingType)
@@ -1510,6 +1533,16 @@ export function WorkoutLogger({
                         // New period, clean slate: quick-adjust taps belong
                         // to ONE rest period only, never the next.
                         setRestOffsetSec(0)
+                      }
+                      // Effort capture rides the same tap (never a second
+                      // gate): checking off opens THIS set's chip row when
+                      // its show rule passes; unchecking withdraws it. With
+                      // the rule false neither branch runs — the 1-tap path
+                      // is untouched for opted-out sessions.
+                      if (effortEnabled && !set.completed) {
+                        setEffortPromptSetId(set.id)
+                      } else if (set.completed && effortPromptSetId === set.id) {
+                        setEffortPromptSetId(null)
                       }
                     }}
                     aria-pressed={set.completed}
@@ -1722,6 +1755,52 @@ export function WorkoutLogger({
                   if (!caption) return null
                   return <p className="pl-22 pr-11 text-xs text-muted-foreground tnum">{caption}</p>
                 })()}
+                {/* Post-completion effort row (opt-in / prescribed only):
+                    the open chip row under the just-completed set, or the
+                    logged value as a quiet tappable caption (tap = correct
+                    it). Skip-by-ignoring — nothing here ever blocks the
+                    next set, and unanswered rows simply move on. */}
+                {effortEnabled &&
+                  set.completed &&
+                  (effortPromptSetId === set.id ? (
+                    <EffortChips
+                      setLabel={setLabel}
+                      rir={set.rir ?? ''}
+                      rpe={set.rpe ?? ''}
+                      targetLabel={effortLabel(
+                        effortTarget?.rir ?? null,
+                        effortTarget?.rpe ?? null,
+                      )}
+                      onSelectRir={(value) => {
+                        dispatch({ type: 'SET_EFFORT', exerciseIndex, setIndex, rir: value })
+                        // A real selection answers the prompt; a clear keeps
+                        // the row open for a re-pick.
+                        if (value !== '') setEffortPromptSetId(null)
+                      }}
+                      onSelectRpe={(value) => {
+                        dispatch({ type: 'SET_EFFORT', exerciseIndex, setIndex, rpe: value })
+                        if (value !== '') setEffortPromptSetId(null)
+                      }}
+                    />
+                  ) : (
+                    (() => {
+                      const logged = effortLabel(
+                        set.rir ? Number(set.rir) : null,
+                        set.rpe ? Number(set.rpe) : null,
+                      )
+                      if (!logged) return null
+                      return (
+                        <button
+                          type="button"
+                          onClick={() => setEffortPromptSetId(set.id)}
+                          aria-label={`Change effort for ${setLabel}: ${logged}`}
+                          className="block pl-22 pr-11 text-left text-xs text-muted-foreground tnum underline-offset-2 active:underline"
+                        >
+                          {logged}
+                        </button>
+                      )
+                    })()
+                  ))}
                 {/* Steppers ride under the focused weight row only. One plate
                     a side per tap; pointerdown preventDefault keeps the input
                     focused so the row (and keyboard) don't dismiss mid-tap. */}

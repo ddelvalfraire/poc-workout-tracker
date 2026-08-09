@@ -2,6 +2,7 @@ import type { LoggingType, WorkoutInput, WorkoutSetType } from '@/lib/workout-in
 import type { ExerciseSource } from '@/lib/custom-exercise-input'
 import type { WorkoutDetail } from '@/db/workouts'
 import { displayToKg, kgToDisplay, type WeightUnit } from '@/lib/units'
+import { isValidRir, isValidRpe } from '@/lib/effort'
 
 /**
  * Pure client-state logic for the in-progress workout, kept free of React/JSX so
@@ -24,6 +25,11 @@ export interface DraftSet {
   /** Warm-up tag; required here (fully controlled), optional on the wire
    *  ('working' default) — same treatment as completed. */
   tag: WorkoutSetType
+  /** Logged effort, chip-selected ('' / absent = not logged). OPTIONAL —
+   *  unlike completed/tag — so pre-effort drafts, payloads, and fixtures stay
+   *  valid without a codec version bump; readers treat absent as ''. */
+  rir?: string
+  rpe?: string
 }
 
 /** An exercise in the draft, seeded with at least one empty set. */
@@ -79,6 +85,9 @@ export type DraftAction =
   /** Retags one set (working ↔ warmup) — the long-press toggle. Values and
    *  completion survive: the tag changes how the set SCORES, not what it says. */
   | { type: 'TAG_SET'; exerciseIndex: number; setIndex: number; tag: WorkoutSetType }
+  /** Post-completion effort chips: set/clear rir and/or rpe on one set. A
+   *  provided field replaces ('' clears); an omitted field is untouched. */
+  | { type: 'SET_EFFORT'; exerciseIndex: number; setIndex: number; rir?: string; rpe?: string }
   /** The Previous-chip tap: adopt ghost values into EMPTY fields only, without
    *  touching completion — same fill semantics as TOGGLE_SET_COMPLETED minus
    *  the check. Typed input always wins over the chip. */
@@ -231,6 +240,23 @@ export function workoutDraftReducer(state: WorkoutDraft, action: DraftAction): W
         })),
       }
 
+    case 'SET_EFFORT':
+      return {
+        ...state,
+        exercises: mapExerciseAt(state.exercises, action.exerciseIndex, (exercise) => ({
+          ...exercise,
+          sets: exercise.sets.map((set, i) =>
+            i === action.setIndex
+              ? {
+                  ...set,
+                  ...(action.rir !== undefined ? { rir: action.rir } : {}),
+                  ...(action.rpe !== undefined ? { rpe: action.rpe } : {}),
+                }
+              : set,
+          ),
+        })),
+      }
+
     case 'SET_LOGGING_TYPE':
       return {
         ...state,
@@ -341,6 +367,24 @@ function toReps(value: string): number | null {
   return Number.isInteger(n) && n >= 0 ? n : null
 }
 
+/** Parses a chip-set RIR string to a valid integer, or null when blank/off-grid.
+ *  Stricter than toReps: only grid values may reach the wire — the server
+ *  rejects off-grid effort, and a corrupt draft must not fail the save. */
+function toRir(value: string | undefined): number | null {
+  const trimmed = value?.trim() ?? ''
+  if (trimmed === '') return null
+  const n = Number(trimmed)
+  return isValidRir(n) ? n : null
+}
+
+/** Parses a chip-set RPE string to a valid half-step value, or null. */
+function toRpe(value: string | undefined): number | null {
+  const trimmed = value?.trim() ?? ''
+  if (trimmed === '') return null
+  const n = Number(trimmed)
+  return isValidRpe(n) ? n : null
+}
+
 /** Parses a weight string to a non-negative number, or null when blank/invalid. */
 function toWeight(value: string): number | null {
   const trimmed = value.trim()
@@ -375,6 +419,8 @@ export function draftToInput(
       ...(exercise.skipped && { skipped: true }),
       sets: exercise.sets.map((set) => {
         const w = toWeight(set.weight)
+        const rir = toRir(set.rir)
+        const rpe = toRpe(set.rpe)
         return {
           reps: toReps(set.reps),
           weight: w === null ? null : displayToKg(w, unit),
@@ -383,6 +429,9 @@ export function draftToInput(
           ...(set.completed && { completed: true }),
           // Same minimal-shape rule: 'working' is the column default.
           ...(set.tag === 'warmup' && { setType: 'warmup' as const }),
+          // Effort only when logged and on-grid (null column default otherwise).
+          ...(rir !== null && { rir }),
+          ...(rpe !== null && { rpe }),
         }
       }),
     }
@@ -430,6 +479,9 @@ export function detailToDraft(
       // working here and their true type survives the save via
       // updateWorkout's prior-facts preservation (never through the wire).
       tag: set.setType === 'warmup' ? ('warmup' as const) : ('working' as const),
+      // Logged effort round-trips as strings (edit mode must not shed it).
+      rir: set.rir?.toString() ?? '',
+      rpe: set.rpe?.toString() ?? '',
     })),
   }))
   return { draft: { exercises, notes: workout.notes ?? '' }, name: workout.name ?? '' }

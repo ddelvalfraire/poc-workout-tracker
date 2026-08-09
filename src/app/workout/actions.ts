@@ -273,6 +273,8 @@ export async function substitutePlanTargetsAction(
       ? { planLoadKg: s.schemeLoadKg }
       : {}),
     restSec: s.restSec,
+    rir: s.rir,
+    rpe: s.rpe,
   }))
 }
 

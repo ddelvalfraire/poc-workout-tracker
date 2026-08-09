@@ -8,6 +8,7 @@ import { updateSet, addSet, removeSet, updateWorkoutMeta, updateExerciseMeta } f
 import { getWeightUnit } from '@/db/preferences'
 import { displayToKg, kgToDisplay, type WeightUnit } from '@/lib/units'
 import { MAX_WEIGHT as MAX_WEIGHT_KG, parseStartedAt, parseNotes } from '@/lib/workout-input'
+import { isValidRir, isValidRpe, RIR_MIN, RIR_MAX, RPE_MIN, RPE_MAX } from '@/lib/effort'
 
 /** Optional explicit unit override; absent → the user's stored unit. */
 const unitArg = z.enum(['kg', 'lb']).optional()
@@ -15,6 +16,21 @@ const unitArg = z.enum(['kg', 'lb']).optional()
 const repsArg = z.number().int().min(0).max(10_000).nullable().optional()
 /** weight in the display unit; null to blank, omitted to leave unchanged (bounded in kg after conversion). */
 const weightArg = z.number().nullable().optional()
+/** Logged effort args — lib/effort.ts owns the ranges (rir 0–10 int, rpe 4–10
+ *  half steps); null blanks, omitted leaves unchanged. Validated in the
+ *  handler so the message names the grid instead of a generic zod failure. */
+const rirArg = z.number().nullable().optional()
+const rpeArg = z.number().nullable().optional()
+
+/** Throws a ToolError unless the effort values sit on the shared grid. */
+function assertEffortArgs(rir: number | null | undefined, rpe: number | null | undefined): void {
+  if (rir !== undefined && rir !== null && !isValidRir(rir)) {
+    throw new ToolError(`rir must be an integer between ${RIR_MIN} and ${RIR_MAX}, or null`)
+  }
+  if (rpe !== undefined && rpe !== null && !isValidRpe(rpe)) {
+    throw new ToolError(`rpe must be between ${RPE_MIN} and ${RPE_MAX} in 0.5 steps, or null`)
+  }
+}
 
 /**
  * Converts a single display-unit weight to canonical kg, bounding it with a
@@ -53,7 +69,7 @@ export function registerPatchTools(server: McpServer): void {
     {
       title: 'Update Set',
       description:
-        "Updates one set's reps, weight, and/or completed flag, addressed by workoutId, 0-based exercise position, and 1-based set number. Weights are in the user's unit (or the `unit` arg). Only the named fields change; pass null to blank reps/weight. `completed: true` checks the set off (what the web logger's in-session toggle does). Errors if the workout/exercise/set isn't found or owned.",
+        "Updates one set's reps, weight, completed flag, and/or logged effort (rir 0-10 integer, rpe 4-10 in 0.5 steps), addressed by workoutId, 0-based exercise position, and 1-based set number. Weights are in the user's unit (or the `unit` arg). Only the named fields change; pass null to blank reps/weight/rir/rpe. `completed: true` checks the set off (what the web logger's in-session toggle does). Errors if the workout/exercise/set isn't found or owned.",
       inputSchema: {
         workoutId: z.string(),
         exercisePosition: z.number().int().min(0),
@@ -61,22 +77,39 @@ export function registerPatchTools(server: McpServer): void {
         reps: repsArg,
         weight: weightArg,
         completed: z.boolean().optional(),
+        rir: rirArg,
+        rpe: rpeArg,
         unit: unitArg,
         userId: z.string().optional(),
       },
     },
-    async ({ workoutId, exercisePosition, setNumber, reps, weight, completed, unit, userId }, extra) => {
+    async ({ workoutId, exercisePosition, setNumber, reps, weight, completed, rir, rpe, unit, userId }, extra) => {
       try {
         const resolved = resolveUserId(extra, userId)
         assertWorkoutIdShape(workoutId)
-        if (reps === undefined && weight === undefined && completed === undefined) {
-          throw new ToolError('update_set needs at least one of reps, weight, or completed')
+        if (
+          reps === undefined &&
+          weight === undefined &&
+          completed === undefined &&
+          rir === undefined &&
+          rpe === undefined
+        ) {
+          throw new ToolError('update_set needs at least one of reps, weight, completed, rir, or rpe')
         }
+        assertEffortArgs(rir, rpe)
         // Resolve the unit only when a weight needs converting — which also
         // narrows `basis` to a real WeightUnit at the conversion site (no cast).
-        const patch: { reps?: number | null; weight?: number | null; completed?: boolean } = {}
+        const patch: {
+          reps?: number | null
+          weight?: number | null
+          completed?: boolean
+          rir?: number | null
+          rpe?: number | null
+        } = {}
         if (reps !== undefined) patch.reps = reps
         if (completed !== undefined) patch.completed = completed
+        if (rir !== undefined) patch.rir = rir
+        if (rpe !== undefined) patch.rpe = rpe
         let basis: WeightUnit | undefined
         if (weight !== undefined) {
           basis = unit ?? (await getWeightUnit(resolved))
@@ -106,21 +139,24 @@ export function registerPatchTools(server: McpServer): void {
     {
       title: 'Add Set',
       description:
-        "Appends a set to an exercise (by workoutId + 0-based position), numbered after the current last set. reps/weight default to blank; weight is in the user's unit (or the `unit` arg). Pass `completed: true` to check the new set off as done. Returns the new set number. Errors if the workout/exercise isn't found or owned.",
+        "Appends a set to an exercise (by workoutId + 0-based position), numbered after the current last set. reps/weight default to blank; weight is in the user's unit (or the `unit` arg). Optionally log effort with `rir` (0-10 integer) and/or `rpe` (4-10 in 0.5 steps). Pass `completed: true` to check the new set off as done. Returns the new set number. Errors if the workout/exercise isn't found or owned.",
       inputSchema: {
         workoutId: z.string(),
         exercisePosition: z.number().int().min(0),
         reps: repsArg,
         weight: weightArg,
         completed: z.boolean().optional(),
+        rir: rirArg,
+        rpe: rpeArg,
         unit: unitArg,
         userId: z.string().optional(),
       },
     },
-    async ({ workoutId, exercisePosition, reps, weight, completed, unit, userId }, extra) => {
+    async ({ workoutId, exercisePosition, reps, weight, completed, rir, rpe, unit, userId }, extra) => {
       try {
         const resolved = resolveUserId(extra, userId)
         assertWorkoutIdShape(workoutId)
+        assertEffortArgs(rir, rpe)
         const basis =
           weight === undefined || weight === null ? undefined : (unit ?? (await getWeightUnit(resolved)))
         const kgWeight = basis === undefined ? (weight ?? null) : toKgWeight(weight, basis)
@@ -128,6 +164,8 @@ export function registerPatchTools(server: McpServer): void {
           reps: reps ?? null,
           weight: kgWeight ?? null,
           ...(completed !== undefined && { completed }),
+          ...(rir !== undefined && { rir }),
+          ...(rpe !== undefined && { rpe }),
         })
         if (!result) {
           throw new ToolError(`Exercise ${exercisePosition} in workout ${workoutId} not found`)

@@ -1517,6 +1517,10 @@ export async function instantiateProgramDay(
             // ever update these two columns.
             prescribedLoadKg: s.metricMode === 'reps_weight' ? s.loadKg : null,
             prescribedRepMin: s.repMin,
+            // Effort targets snapshot under the same contract: the derived
+            // rir/rpe (template through overrides) this set was seeded with.
+            prescribedRir: s.rir,
+            prescribedRpe: s.rpe,
             metricMode: s.metricMode,
             durationSec: null,
             distanceM: null,

@@ -108,6 +108,8 @@ interface FixtureSet {
   metricMode?: string
   repMin?: number | null
   repMax?: number | null
+  rir?: number | null
+  rpe?: number | null
   suggestedLoadKg?: number | null
   overrides?: { week: number; [key: string]: unknown }[]
 }
@@ -330,6 +332,31 @@ describe('instantiateProgramDay (engine-driven)', () => {
         prescribedLoadKg: 102.5,
         prescribedRepMin: 8,
       }),
+    ])
+  })
+
+  it('seeds the prescribed effort snapshot (rir/rpe) from the derived prescription', async () => {
+    // Arrange — one set with an RIR target, one with an RPE target, one with
+    // neither (the common pre-effort shape must stay all-null).
+    findFirst.mockResolvedValue(
+      dayFixture({
+        sets: [
+          { setNumber: 1, rir: 2, suggestedLoadKg: 100 },
+          { setNumber: 2, rpe: 8.5, suggestedLoadKg: 100 },
+          { setNumber: 3, suggestedLoadKg: 100 },
+        ],
+      }),
+    )
+
+    // Act
+    await instantiateProgramDay(USER, 'd1', 1, 'ui')
+
+    // Assert — effort targets snapshot like prescribed_load_kg (immutable
+    // facts); no-target sets stay null.
+    expect(seededSets()).toEqual([
+      expect.objectContaining({ setNumber: 1, prescribedRir: 2, prescribedRpe: null }),
+      expect.objectContaining({ setNumber: 2, prescribedRir: null, prescribedRpe: 8.5 }),
+      expect.objectContaining({ setNumber: 3, prescribedRir: null, prescribedRpe: null }),
     ])
   })
 

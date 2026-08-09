@@ -61,7 +61,11 @@ function isDraftSet(value: unknown): value is DraftSet {
     typeof set.completed === 'boolean' &&
     // Absent = a payload persisted before warm-up tags; parseDraftPayload
     // defaults it on restore. Present-but-unrecognized is rejected.
-    (set.tag === undefined || isWorkoutSetType(set.tag))
+    (set.tag === undefined || isWorkoutSetType(set.tag)) &&
+    // Effort fields stay optional forever (DraftSet declares them so);
+    // present-but-wrong-typed is rejected like any malformed field.
+    (set.rir === undefined || typeof set.rir === 'string') &&
+    (set.rpe === undefined || typeof set.rpe === 'string')
   )
 }
 

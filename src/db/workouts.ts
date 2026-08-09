@@ -272,6 +272,8 @@ interface PriorSetFacts {
   setType: 'working' | 'warmup' | 'backoff' | 'amrap'
   prescribedLoadKg: number | null
   prescribedRepMin: number | null
+  prescribedRir: number | null
+  prescribedRpe: number | null
 }
 
 function priorFactKey(source: string, wgerExerciseId: number, setNumber: number): string {
@@ -349,8 +351,15 @@ async function insertWorkoutChildren(
               ? {
                   prescribedLoadKg: fact.prescribedLoadKg,
                   prescribedRepMin: fact.prescribedRepMin,
+                  prescribedRir: fact.prescribedRir,
+                  prescribedRpe: fact.prescribedRpe,
                 }
               : {}),
+            // Logged effort travels on the wire like reps/weight (absent →
+            // column default null) — unlike the prescribed_* snapshot, which
+            // only ever re-stamps from prior facts above.
+            ...(s.rir !== undefined ? { rir: s.rir } : {}),
+            ...(s.rpe !== undefined ? { rpe: s.rpe } : {}),
           }
         }),
       )
@@ -457,6 +466,8 @@ export async function updateWorkout(
         setType: sets.setType,
         prescribedLoadKg: sets.prescribedLoadKg,
         prescribedRepMin: sets.prescribedRepMin,
+        prescribedRir: sets.prescribedRir,
+        prescribedRpe: sets.prescribedRpe,
       })
       .from(sets)
       .innerJoin(workoutExercises, eq(workoutExercises.id, sets.workoutExerciseId))
@@ -473,6 +484,8 @@ export async function updateWorkout(
           setType: row.setType,
           prescribedLoadKg: row.prescribedLoadKg,
           prescribedRepMin: row.prescribedRepMin,
+          prescribedRir: row.prescribedRir,
+          prescribedRpe: row.prescribedRpe,
         })
         const exerciseKey = `${row.source}:${row.wgerExerciseId}`
         priorSetCounts.set(exerciseKey, (priorSetCounts.get(exerciseKey) ?? 0) + 1)
@@ -519,6 +532,10 @@ export interface SetPatch {
   weight?: number | null // kg
   /** In-session check-off state; boolean only (the column is NOT NULL). */
   completed?: boolean
+  /** Logged effort (validated at the tool boundary — lib/effort.ts ranges);
+   *  omitted = unchanged, explicit null clears. */
+  rir?: number | null
+  rpe?: number | null
 }
 
 /**
@@ -553,6 +570,8 @@ export async function updateSet(
     ...(patch.reps !== undefined ? { reps: patch.reps } : {}),
     ...(patch.weight !== undefined ? { weight: patch.weight } : {}),
     ...(patch.completed !== undefined ? { completed: patch.completed } : {}),
+    ...(patch.rir !== undefined ? { rir: patch.rir } : {}),
+    ...(patch.rpe !== undefined ? { rpe: patch.rpe } : {}),
   }
   if (Object.keys(values).length === 0) return null
   return db.transaction(async (tx) => {
@@ -599,6 +618,8 @@ export async function addSet(
       weight: patch.weight ?? null,
       completed: patch.completed ?? false,
       ...(patch.setType !== undefined ? { setType: patch.setType } : {}),
+      ...(patch.rir !== undefined ? { rir: patch.rir } : {}),
+      ...(patch.rpe !== undefined ? { rpe: patch.rpe } : {}),
     })
     await stampWorkoutCompleted(tx, workoutId)
     return { setNumber }

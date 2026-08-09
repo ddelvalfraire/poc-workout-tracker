@@ -661,8 +661,8 @@ describe('detailToDraft', () => {
           notes: null,
           skipped: false,
           sets: [
-            { id: 's1', workoutExerciseId: 'ex1', setNumber: 1, reps: 5, weight: 2.5, completed: false, setType: 'working', metricMode: 'reps_weight', durationSec: null, distanceM: null, prescribedLoadKg: null, prescribedRepMin: null },
-            { id: 's2', workoutExerciseId: 'ex1', setNumber: 2, reps: null, weight: null, completed: false, setType: 'working', metricMode: 'reps_weight', durationSec: null, distanceM: null, prescribedLoadKg: null, prescribedRepMin: null },
+            { id: 's1', workoutExerciseId: 'ex1', setNumber: 1, reps: 5, weight: 2.5, completed: false, setType: 'working', metricMode: 'reps_weight', durationSec: null, distanceM: null, prescribedLoadKg: null, prescribedRepMin: null, rir: null, rpe: null, prescribedRir: null, prescribedRpe: null },
+            { id: 's2', workoutExerciseId: 'ex1', setNumber: 2, reps: null, weight: null, completed: false, setType: 'working', metricMode: 'reps_weight', durationSec: null, distanceM: null, prescribedLoadKg: null, prescribedRepMin: null, rir: null, rpe: null, prescribedRir: null, prescribedRpe: null },
           ],
         },
       ],
@@ -685,8 +685,8 @@ describe('detailToDraft', () => {
       skipped: false,
     })
     expect(draft.exercises[0].sets).toEqual([
-      { id: 's1', reps: '5', weight: '2.5', completed: false, tag: 'working' as const },
-      { id: 's2', reps: '', weight: '', completed: false, tag: 'working' as const },
+      { id: 's1', reps: '5', weight: '2.5', completed: false, tag: 'working' as const, rir: '', rpe: '' },
+      { id: 's2', reps: '', weight: '', completed: false, tag: 'working' as const, rir: '', rpe: '' },
     ])
   })
 
@@ -715,8 +715,8 @@ describe('detailToDraft', () => {
           notes: null,
           skipped: false,
           sets: [
-            { id: 's1', workoutExerciseId: 'ex1', setNumber: 1, reps: 5, weight: 60, completed: true, setType: 'warmup', metricMode: 'reps_weight', durationSec: null, distanceM: null, prescribedLoadKg: null, prescribedRepMin: null },
-            { id: 's2', workoutExerciseId: 'ex1', setNumber: 2, reps: 5, weight: 100, completed: true, setType: 'working', metricMode: 'reps_weight', durationSec: null, distanceM: null, prescribedLoadKg: null, prescribedRepMin: null },
+            { id: 's1', workoutExerciseId: 'ex1', setNumber: 1, reps: 5, weight: 60, completed: true, setType: 'warmup', metricMode: 'reps_weight', durationSec: null, distanceM: null, prescribedLoadKg: null, prescribedRepMin: null, rir: null, rpe: null, prescribedRir: null, prescribedRpe: null },
+            { id: 's2', workoutExerciseId: 'ex1', setNumber: 2, reps: 5, weight: 100, completed: true, setType: 'working', metricMode: 'reps_weight', durationSec: null, distanceM: null, prescribedLoadKg: null, prescribedRepMin: null, rir: null, rpe: null, prescribedRir: null, prescribedRpe: null },
           ],
         },
       ],
@@ -814,7 +814,7 @@ describe('detailToDraft', () => {
           notes: null,
           skipped: false,
           sets: [
-            { id: 's1', workoutExerciseId: 'ex1', setNumber: 1, reps: 5, weight: 100, completed: true, setType: 'working', metricMode: 'reps_weight', durationSec: null, distanceM: null, prescribedLoadKg: null, prescribedRepMin: null },
+            { id: 's1', workoutExerciseId: 'ex1', setNumber: 1, reps: 5, weight: 100, completed: true, setType: 'working', metricMode: 'reps_weight', durationSec: null, distanceM: null, prescribedLoadKg: null, prescribedRepMin: null, rir: null, rpe: null, prescribedRir: null, prescribedRpe: null },
           ],
         },
       ],
@@ -852,7 +852,7 @@ describe('detailToDraft', () => {
           notes: null,
           skipped: false,
           sets: [
-            { id: 's1', workoutExerciseId: 'ex1', setNumber: 1, reps: 5, weight: 100, completed: false, setType: 'working', metricMode: 'reps_weight', durationSec: null, distanceM: null, prescribedLoadKg: null, prescribedRepMin: null },
+            { id: 's1', workoutExerciseId: 'ex1', setNumber: 1, reps: 5, weight: 100, completed: false, setType: 'working', metricMode: 'reps_weight', durationSec: null, distanceM: null, prescribedLoadKg: null, prescribedRepMin: null, rir: null, rpe: null, prescribedRir: null, prescribedRpe: null },
           ],
         },
       ],
@@ -1059,5 +1059,118 @@ describe('resolveTargetSetIndex', () => {
 
   it('returns -1 for no sets so callers can no-op', () => {
     expect(resolveTargetSetIndex([])).toBe(-1)
+  })
+})
+
+describe('SET_EFFORT', () => {
+  it('sets rir on the targeted set only', () => {
+    const next = workoutDraftReducer(NESTED, {
+      type: 'SET_EFFORT',
+      exerciseIndex: 0,
+      setIndex: 1,
+      rir: '2',
+    })
+
+    expect(next.exercises[0].sets[1].rir).toBe('2')
+    expect(next.exercises[0].sets[0].rir).toBeUndefined()
+  })
+
+  it('sets rpe independently and leaves an omitted field untouched', () => {
+    const withRir = workoutDraftReducer(NESTED, {
+      type: 'SET_EFFORT',
+      exerciseIndex: 0,
+      setIndex: 0,
+      rir: '1',
+    })
+
+    const next = workoutDraftReducer(withRir, {
+      type: 'SET_EFFORT',
+      exerciseIndex: 0,
+      setIndex: 0,
+      rpe: '8.5',
+    })
+
+    expect(next.exercises[0].sets[0]).toMatchObject({ rir: '1', rpe: '8.5' })
+  })
+
+  it("clears with '' (re-tapping the selected chip)", () => {
+    const withRir = workoutDraftReducer(NESTED, {
+      type: 'SET_EFFORT',
+      exerciseIndex: 0,
+      setIndex: 0,
+      rir: '3',
+    })
+
+    const next = workoutDraftReducer(withRir, {
+      type: 'SET_EFFORT',
+      exerciseIndex: 0,
+      setIndex: 0,
+      rir: '',
+    })
+
+    expect(next.exercises[0].sets[0].rir).toBe('')
+  })
+})
+
+describe('draftToInput effort fields', () => {
+  function draftWithEffort(rir: string, rpe: string): WorkoutDraft {
+    return {
+      notes: '',
+      exercises: [
+        {
+          id: 'ex1',
+          ...SQUAT,
+          sets: [{ id: 's1', reps: '5', weight: '100', completed: true, tag: 'working', rir, rpe }],
+        },
+      ],
+    }
+  }
+
+  it('emits on-grid effort as numbers', () => {
+    const input = draftToInput(draftWithEffort('2', '8.5'))
+    expect(input.exercises[0].sets[0]).toMatchObject({ rir: 2, rpe: 8.5 })
+  })
+
+  it('omits blank effort entirely (minimal wire shape)', () => {
+    const input = draftToInput(draftWithEffort('', ''))
+    expect(input.exercises[0].sets[0]).not.toHaveProperty('rir')
+    expect(input.exercises[0].sets[0]).not.toHaveProperty('rpe')
+  })
+
+  it('omits off-grid values so a corrupt draft cannot fail the save', () => {
+    const input = draftToInput(draftWithEffort('11', '8.25'))
+    expect(input.exercises[0].sets[0]).not.toHaveProperty('rir')
+    expect(input.exercises[0].sets[0]).not.toHaveProperty('rpe')
+  })
+
+  it('handles pre-effort sets with no rir/rpe fields at all', () => {
+    const input = draftToInput(NESTED)
+    expect(input.exercises[0].sets[0]).not.toHaveProperty('rir')
+  })
+})
+
+describe('detailToDraft effort round-trip', () => {
+  it('maps stored rir/rpe to strings and null to empty strings', () => {
+    const workout = {
+      id: 'w1', userId: 'u1', name: null, startedAt: new Date(), completedAt: null,
+      createdAt: new Date(), programDayId: null, programWeek: null, importBatchId: null,
+      notes: null,
+      exercises: [
+        {
+          id: 'ex1', workoutId: 'w1', wgerExerciseId: 73, source: 'wger' as const,
+          name: 'Squat', position: 0, loggingType: 'weight_reps' as const,
+          notes: null, skipped: false,
+          sets: [
+            { id: 's1', workoutExerciseId: 'ex1', setNumber: 1, reps: 5, weight: 100, completed: true, setType: 'working' as const, metricMode: 'reps_weight', durationSec: null, distanceM: null, prescribedLoadKg: null, prescribedRepMin: null, rir: 2, rpe: 8.5, prescribedRir: null, prescribedRpe: null },
+            { id: 's2', workoutExerciseId: 'ex1', setNumber: 2, reps: 5, weight: 100, completed: true, setType: 'working' as const, metricMode: 'reps_weight', durationSec: null, distanceM: null, prescribedLoadKg: null, prescribedRepMin: null, rir: null, rpe: null, prescribedRir: null, prescribedRpe: null },
+          ],
+        },
+      ],
+    } satisfies WorkoutDetail
+
+    const { draft } = detailToDraft(workout)
+
+    expect(draft.exercises[0].sets[0]).toMatchObject({ rir: '2', rpe: '8.5' })
+    expect(draft.exercises[0].sets[1]).toMatchObject({ rir: '', rpe: '' })
   })
 })

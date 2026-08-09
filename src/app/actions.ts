@@ -8,6 +8,7 @@ import {
   setDefaultRestSec,
   setRestTimerEnabled,
   setHomeLayout,
+  setRpeLoggingEnabled,
   getWeightUnit,
 } from '@/db/preferences'
 import { parseHomeLayoutInput } from '@/lib/home/layout'
@@ -179,6 +180,16 @@ export async function setRestTimerEnabledAction(enabled: unknown): Promise<void>
     throw new Error('rest timer flag must be a boolean')
   }
   await setRestTimerEnabled(userId, enabled)
+  revalidatePath('/', 'layout')
+}
+
+/** Flips opt-in RPE/RIR effort logging on/off (settings toggle). */
+export async function setRpeLoggingEnabledAction(enabled: unknown): Promise<void> {
+  const userId = await requireUserId()
+  if (typeof enabled !== 'boolean') {
+    throw new Error('rpe logging flag must be a boolean')
+  }
+  await setRpeLoggingEnabled(userId, enabled)
   revalidatePath('/', 'layout')
 }
 

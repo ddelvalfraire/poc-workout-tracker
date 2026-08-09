@@ -169,3 +169,30 @@ export async function setRestTimerEnabled(userId: string, enabled: boolean): Pro
     })
 }
 
+/**
+ * Whether RPE/RIR effort logging is opted in — the preference arm of the
+ * effort-row show rule (sets with a prescribed effort target show the row
+ * regardless). Inverse guard of `getRestTimerEnabled`: this feature defaults
+ * OFF, so only a literal stored `true` enables it — a missing row or corrupt
+ * value can never silently opt a user in.
+ */
+export async function getRpeLoggingEnabled(userId: string): Promise<boolean> {
+  const [row] = await db
+    .select({ rpeLoggingEnabled: userPreferences.rpeLoggingEnabled })
+    .from(userPreferences)
+    .where(eq(userPreferences.userId, userId))
+    .limit(1)
+  return row?.rpeLoggingEnabled === true
+}
+
+/** Upserts the RPE/RIR logging switch (validated by setRpeLoggingEnabledAction). */
+export async function setRpeLoggingEnabled(userId: string, enabled: boolean): Promise<void> {
+  await db
+    .insert(userPreferences)
+    .values({ userId, rpeLoggingEnabled: enabled })
+    .onConflictDoUpdate({
+      target: userPreferences.userId,
+      set: { rpeLoggingEnabled: enabled, updatedAt: new Date() },
+    })
+}
+

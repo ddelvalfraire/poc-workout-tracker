@@ -186,6 +186,67 @@ describe('registerPatchTools', () => {
       expect(mockedUpdateSet).toHaveBeenCalledWith(expect.any(String), WID, 0, 1, { completed: true })
     })
 
+    it('patches logged effort (rir/rpe) through, no unit lookup needed', async () => {
+      // Arrange
+      const tools = setup()
+      mockedUpdateSet.mockResolvedValue({ id: 's1' })
+
+      // Act
+      const result = await tools.get('update_set')!({
+        workoutId: WID,
+        exercisePosition: 0,
+        setNumber: 2,
+        rir: 2,
+        rpe: 8.5,
+      })
+
+      // Assert
+      expect(result.isError).toBeUndefined()
+      expect(mockedGetUnit).not.toHaveBeenCalled()
+      expect(mockedUpdateSet).toHaveBeenCalledWith('user_env', WID, 0, 2, { rir: 2, rpe: 8.5 })
+    })
+
+    it('accepts explicit nulls to clear logged effort', async () => {
+      // Arrange
+      const tools = setup()
+      mockedUpdateSet.mockResolvedValue({ id: 's1' })
+
+      // Act
+      await tools.get('update_set')!({
+        workoutId: WID,
+        exercisePosition: 0,
+        setNumber: 1,
+        rir: null,
+        rpe: null,
+      })
+
+      // Assert
+      expect(mockedUpdateSet).toHaveBeenCalledWith('user_env', WID, 0, 1, { rir: null, rpe: null })
+    })
+
+    it.each([
+      { args: { rir: 11 }, pattern: /rir must be an integer between 0 and 10/ },
+      { args: { rir: 2.5 }, pattern: /rir must be an integer between 0 and 10/ },
+      { args: { rpe: 3.5 }, pattern: /rpe must be between 4 and 10 in 0\.5 steps/ },
+      { args: { rpe: 8.25 }, pattern: /rpe must be between 4 and 10 in 0\.5 steps/ },
+    ])('rejects off-grid effort ($args) without touching the db', async ({ args, pattern }) => {
+      // Arrange
+      const tools = setup()
+
+      // Act
+      const result = await tools.get('update_set')!({
+        workoutId: WID,
+        exercisePosition: 0,
+        setNumber: 1,
+        ...args,
+      })
+
+      // Assert
+      expect(result.isError).toBe(true)
+      expect(result.content[0]?.text).toMatch(pattern)
+      expect(mockedUpdateSet).not.toHaveBeenCalled()
+    })
+
     it('acts as the authenticated user, ignoring a conflicting userId arg', async () => {
       // Arrange
       const tools = setup()
@@ -244,6 +305,31 @@ describe('registerPatchTools', () => {
       expect(mockedGetUnit).not.toHaveBeenCalled()
       expect(mockedAddSet).toHaveBeenCalledWith('user_env', WID, 0, { reps: null, weight: null })
       expect(payload(result)).not.toHaveProperty('unit')
+    })
+
+    it('carries logged effort onto the appended set and rejects off-grid values', async () => {
+      // Arrange
+      const tools = setup()
+      mockedAddSet.mockResolvedValue({ setNumber: 3 })
+
+      // Act — valid effort passes through
+      await tools.get('add_set')!({ workoutId: WID, exercisePosition: 0, reps: 5, rir: 1, rpe: 9 })
+
+      // Assert
+      expect(mockedAddSet).toHaveBeenCalledWith('user_env', WID, 0, {
+        reps: 5,
+        weight: null,
+        rir: 1,
+        rpe: 9,
+      })
+
+      // Act — an off-grid rpe is rejected before the db
+      mockedAddSet.mockClear()
+      const bad = await tools.get('add_set')!({ workoutId: WID, exercisePosition: 0, rpe: 11 })
+
+      // Assert
+      expect(bad.isError).toBe(true)
+      expect(mockedAddSet).not.toHaveBeenCalled()
     })
 
     it('surfaces not-found when the exercise is not owned', async () => {

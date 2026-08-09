@@ -51,6 +51,8 @@ import {
   getRestTimerEnabled,
   getHomeLayout,
   setHomeLayout,
+  getRpeLoggingEnabled,
+  setRpeLoggingEnabled,
 } from './preferences'
 
 const USER = 'user_123'
@@ -229,5 +231,32 @@ describe('setHomeLayout', () => {
     expect(upserts).toHaveLength(1)
     expect(upserts[0].values).toMatchObject({ userId: USER, homeLayout: null })
     expect(upserts[0].conflict).toMatchObject({ set: { homeLayout: null } })
+  })
+})
+
+describe('getRpeLoggingEnabled', () => {
+  it('defaults to disabled when no row exists (opt-in)', async () => {
+    selectRows = []
+    expect(await getRpeLoggingEnabled(USER)).toBe(false)
+  })
+
+  it('returns the stored flag', async () => {
+    selectRows = [{ rpeLoggingEnabled: true }]
+    expect(await getRpeLoggingEnabled(USER)).toBe(true)
+  })
+
+  it('treats anything but a literal true as disabled (corrupt data must not opt a user in)', async () => {
+    selectRows = [{ rpeLoggingEnabled: null }]
+    expect(await getRpeLoggingEnabled(USER)).toBe(false)
+  })
+})
+
+describe('setRpeLoggingEnabled', () => {
+  it('upserts the flag by user id', async () => {
+    await setRpeLoggingEnabled(USER, true)
+
+    expect(upserts).toHaveLength(1)
+    expect(upserts[0].values).toMatchObject({ userId: USER, rpeLoggingEnabled: true })
+    expect(upserts[0].conflict).toMatchObject({ set: { rpeLoggingEnabled: true } })
   })
 })
