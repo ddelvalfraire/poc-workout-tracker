@@ -31,7 +31,6 @@ import {
   prHighlights,
   volumeVsLastLabel,
 } from "./summary-view";
-import { Check } from "lucide-react";
 import { AppHeader } from "@/components/app-header";
 import { BackLink } from "@/components/back-link";
 import { PrBadge } from "@/components/pr-badge";
@@ -419,16 +418,11 @@ export default async function WorkoutDetailPage({
             return (
               <section
                 key={exercise.id}
-                className={cn(
-                  // De-carded (logger vocabulary): sections sit on hairline
-                  // dividers, no shell. A PR section earns the quiet volt
-                  // hairline — the same state marker the logger's done
-                  // sections wear; skipped stays muted (one-volt rule).
-                  "border-b pb-4",
-                  isPR && !exercise.skipped
-                    ? "border-b-primary/30"
-                    : "border-b-border/60",
-                )}
+                // De-carded (logger vocabulary): sections sit on hairline
+                // dividers, no shell. PrBadge alone carries the PR marker —
+                // a volt hairline on top of it would stack volt per PR'd
+                // exercise on every revisit (one-volt rule).
+                className="border-b border-b-border/60 pb-4"
               >
                 <div className="flex items-center justify-between gap-2">
                   {/* Display type on the movement name: the card is a record
@@ -464,17 +458,16 @@ export default async function WorkoutDetailPage({
                         <span
                           aria-label={`Set ${set.setNumber}`}
                           className={cn(
-                            "grid size-6 shrink-0 place-items-center rounded-full",
+                            // Number stays visible on every disc — a wall of
+                            // identical checks loses the set index sighted
+                            // lifters audit rows by (review parity finding).
+                            "grid size-6 shrink-0 place-items-center rounded-full text-xs font-semibold tnum",
                             exercise.skipped
-                              ? "bg-muted text-xs font-semibold tnum text-muted-foreground"
+                              ? "bg-muted text-muted-foreground"
                               : "bg-primary text-primary-foreground",
                           )}
                         >
-                          {exercise.skipped ? (
-                            set.setNumber
-                          ) : (
-                            <Check aria-hidden="true" className="size-3.5" />
-                          )}
+                          {set.setNumber}
                         </span>
                         <span
                           className={cn(
