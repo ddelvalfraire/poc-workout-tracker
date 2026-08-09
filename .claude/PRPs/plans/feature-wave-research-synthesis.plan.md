@@ -64,6 +64,15 @@ Already live: proposal = `programs` row w/ `status='proposed'` + `authorActor`; 
   - **Feature-parity contract (hard rule per reskin PR)**: render-layer only — no reducer/action/handler/query/prop removed; per-surface affordance checklist enumerated pre-PR and verified in review (logger list: tap-complete, Prev-fill, swipe-delete, steppers, long-press tags, collapse, stats-sheet tap, replace, plate/rest sheets, next-up scroll, undo); full suite + review gauntlet as always.
   - Order: logger → workout summary → program page → programs list + settings + exercise detail → stats shell.
 
+### 9. Native-future strategy (LOCKED 2026-08-09) + customizable home / SDUI
+- **User decision: future mobile = TRUE NATIVE (SwiftUI + Compose). Capacitor and React Native are permanently rejected** ("you will never beat native"). Consequences, now standing architecture law:
+  - **The server is the brain, forever**: the progression/autoreg engine stays server-side — native clients consume derived prescriptions/verdicts via the API, never reimplement them. No engine ports.
+  - **API-first**: the MCP/HTTP surface (Clerk OAuth) is the mobile API; every new capability must be reachable through it, not web-only.
+  - **Platform-agnostic contracts**: SDUI section contracts = semantic kind + data shape, NEVER React-specific; design tokens exportable as data. A SwiftUI client renders the same layout document the PWA does.
+  - Native triggers (HealthKit/Health Connect, widgets/Live Activities, background timers) are ACCEPTED as future native work, not worked around.
+- **SDUI research verdict (2026-08-09)**: build minimal in-house registry + per-user layout document; ALL libraries rejected (Rise/Judo/DivKit/Plasmic/Builder/Puck). `user_preferences.homeLayout` jsonb, zod-guarded, degrade-to-code-default; const registry, unknown kinds skip silently; sections = self-fetching RSCs (MomentumPanel pattern → visible-only queries); StatusHero exempt; /settings edit surface; coach layout proposals deferred to the batch-proposal machinery (item 3); the logger is never composable. Open Qs for PRD: hide/unhide surface shape, StatusHero internals (assume out of scope), stats-tile registry timing, coach proposals ride item 3.
+- Unverified flag from research: a CSP header was NOT found in the repo — audit before relying on the "strict CSP" premise.
+
 ### UI patterns locked (from award/precedent research)
 - TM review + volume proposals: approval-card sentence diffs (`describeToolCall` idiom) — no bespoke screens.
 - Mesocycle timeline: horizontal week-pill rail (volt = current, icon = deload; never a calendar grid).
