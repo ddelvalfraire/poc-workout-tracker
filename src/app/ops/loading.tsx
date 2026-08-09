@@ -7,8 +7,9 @@ import { OpsGhostPanel, OpsGhostStrip } from '@/components/ops/loading-ghosts'
  * OpsHeader renders immediately (it is static — title, tabs, refresh
  * controls never blank), and the board's exact frame stands in below it:
  * wrapper, strip, and the 12-col 7/5/12 grid all copy page.tsx's classes
- * verbatim, so the resolved page replaces ghosts with content at zero
- * layout shift.
+ * verbatim, so the frames, header, and grid land shift-free. Panel BODIES
+ * are variable-height (tables, charts), so total page height still settles
+ * on resolve — only the outer geometry is guaranteed stable.
  */
 export default function OpsLoading() {
   return (
