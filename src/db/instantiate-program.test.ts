@@ -15,11 +15,17 @@ import { DELOAD_LOAD_FACTOR } from '@/lib/progression'
  *
  * Returned ids by call order: workout → w1, exercise → e1.
  */
-const { findFirst, lastPerformance, historyBefore } = vi.hoisted(() => ({
+const { findFirst, lastPerformance, historyBefore, setTrainingMaxMock } = vi.hoisted(() => ({
   findFirst: vi.fn(),
   lastPerformance: vi.fn(),
   historyBefore: vi.fn(),
+  setTrainingMaxMock: vi.fn(),
 }))
+
+// The wave-boundary TM persist routes through program-patches' setter — the
+// routing (address, new TM, reason, banked-wave marker) is asserted here; the
+// setter's own write/event mechanics live in program-patches.test.ts.
+vi.mock('./program-patches', () => ({ setTrainingMax: setTrainingMaxMock }))
 
 const records: { values: unknown }[] = []
 let idCounter = 0
@@ -118,6 +124,7 @@ function dayFixture(options: {
   return {
     id: 'd1',
     name: 'Push',
+    position: 0,
     program: {
       id: 'p1',
       userId: USER,
@@ -166,6 +173,98 @@ beforeEach(() => {
   vi.clearAllMocks()
   historyBefore.mockResolvedValue([])
   lastPerformance.mockResolvedValue(null)
+  setTrainingMaxMock.mockResolvedValue({ id: 'pe1', trainingMaxKg: 0 })
+})
+
+describe('instantiateProgramDay — amrap-cycle wave-boundary TM persist', () => {
+  const WAVE_PROGRESSION = {
+    scheme: 'amrap-cycle',
+    trainingMaxKg: 100,
+    incrementKg: 2.5,
+    wave: [[0.65], [0.75], [0.85]],
+  }
+
+  it('banks the completed wave through setTrainingMax (reason cycle-end) when a new wave starts', async () => {
+    // Arrange — 3-week wave, week 4 = first week of wave 2 (1 completed wave).
+    findFirst.mockResolvedValue(
+      dayFixture({
+        mesocycleWeeks: 8,
+        progression: WAVE_PROGRESSION,
+        sets: [{ setNumber: 1, suggestedLoadKg: null }],
+      }),
+    )
+
+    // Act
+    await instantiateProgramDay(USER, 'd1', 4, 'ui')
+
+    // Assert — TM 100 → 102.5, addressed by (program, day 0, exercise 0),
+    // marker says one wave is now folded into the stored TM.
+    expect(setTrainingMaxMock).toHaveBeenCalledExactlyOnceWith(
+      USER,
+      'p1',
+      0,
+      0,
+      102.5,
+      'cycle-end',
+      'ui',
+      { bankedWaves: 1 },
+    )
+    // The derived seed still carries the bumped TM (102.5 × 0.65) — the
+    // stale in-memory progression and the persisted TM agree by design.
+    expect(seededSets()[0].weight).toBeCloseTo(102.5 * 0.65, 5)
+  })
+
+  it('does not bank mid-wave', async () => {
+    // Arrange — week 3 is still inside wave 1.
+    findFirst.mockResolvedValue(
+      dayFixture({
+        mesocycleWeeks: 8,
+        progression: WAVE_PROGRESSION,
+        sets: [{ setNumber: 1, suggestedLoadKg: null }],
+      }),
+    )
+
+    // Act
+    await instantiateProgramDay(USER, 'd1', 3, 'ui')
+
+    // Assert
+    expect(setTrainingMaxMock).not.toHaveBeenCalled()
+  })
+
+  it('does not re-bank an already-banked wave, and derives off the persisted TM', async () => {
+    // Arrange — TM already bumped to 102.5 with wave 1 folded in.
+    findFirst.mockResolvedValue(
+      dayFixture({
+        mesocycleWeeks: 8,
+        progression: { ...WAVE_PROGRESSION, trainingMaxKg: 102.5, bankedWaves: 1 },
+        sets: [{ setNumber: 1, suggestedLoadKg: null }],
+      }),
+    )
+
+    // Act
+    await instantiateProgramDay(USER, 'd1', 4, 'ui')
+
+    // Assert — no double bump; loads read the persisted value.
+    expect(setTrainingMaxMock).not.toHaveBeenCalled()
+    expect(seededSets()[0].weight).toBeCloseTo(102.5 * 0.65, 5)
+  })
+
+  it('never banks a static wave (incrementKg 0)', async () => {
+    // Arrange
+    findFirst.mockResolvedValue(
+      dayFixture({
+        mesocycleWeeks: 8,
+        progression: { ...WAVE_PROGRESSION, incrementKg: 0 },
+        sets: [{ setNumber: 1, suggestedLoadKg: null }],
+      }),
+    )
+
+    // Act
+    await instantiateProgramDay(USER, 'd1', 4, 'ui')
+
+    // Assert
+    expect(setTrainingMaxMock).not.toHaveBeenCalled()
+  })
 })
 
 describe('instantiateProgramDay (engine-driven)', () => {
@@ -182,7 +281,7 @@ describe('instantiateProgramDay (engine-driven)', () => {
     )
 
     // Act
-    const result = await instantiateProgramDay(USER, 'd1', 3)
+    const result = await instantiateProgramDay(USER, 'd1', 3, 'ui')
 
     // Assert — provenance stamps the explicit week
     expect(records[0].values).toEqual({
@@ -212,7 +311,7 @@ describe('instantiateProgramDay (engine-driven)', () => {
     )
 
     // Act
-    await instantiateProgramDay(USER, 'd1', 2)
+    await instantiateProgramDay(USER, 'd1', 2, 'ui')
 
     // Assert — the prescription's role and derived facts travel with the row
     // (the DB default 'working' must never erase a warmup/backoff/amrap, and
@@ -241,7 +340,7 @@ describe('instantiateProgramDay (engine-driven)', () => {
     )
 
     // Act
-    await instantiateProgramDay(USER, 'd1', 1)
+    await instantiateProgramDay(USER, 'd1', 1, 'ui')
 
     // Assert — the seeded workout exercise carries the composite identity
     expect(records[1].values).toMatchObject({ wgerExerciseId: 1, source: 'custom' })
@@ -257,7 +356,7 @@ describe('instantiateProgramDay (engine-driven)', () => {
     )
 
     // Act
-    await instantiateProgramDay(USER, 'd1', 4)
+    await instantiateProgramDay(USER, 'd1', 4, 'ui')
 
     // Assert
     const seeded = seededSets()
@@ -294,7 +393,7 @@ describe('instantiateProgramDay (engine-driven)', () => {
     )
 
     // Act
-    await instantiateProgramDay(USER, 'd1', 3)
+    await instantiateProgramDay(USER, 'd1', 3, 'ui')
 
     // Assert
     expect(seededSets()[0].weight).toBe(95)
@@ -310,7 +409,7 @@ describe('instantiateProgramDay (engine-driven)', () => {
     )
 
     // Act
-    await instantiateProgramDay(USER, 'd1', 1)
+    await instantiateProgramDay(USER, 'd1', 1, 'ui')
 
     // Assert — no e1RM history → no derived load (base is NOT used for rpe-target)
     expect(seededSets()[0].weight).toBeNull()
@@ -331,7 +430,7 @@ describe('instantiateProgramDay (engine-driven)', () => {
     )
 
     // Act
-    await instantiateProgramDay(USER, 'd1', 1)
+    await instantiateProgramDay(USER, 'd1', 1, 'ui')
 
     // Assert
     expect(seededSets()[0].weight).toBeCloseTo(100 * (1 + 5 / 30) * 0.811, 3)
@@ -351,7 +450,7 @@ describe('instantiateProgramDay (engine-driven)', () => {
     )
 
     // Act
-    await instantiateProgramDay(USER, 'd1', 1)
+    await instantiateProgramDay(USER, 'd1', 1, 'ui')
 
     // Assert — no admissible history → no derived load
     expect(seededSets()[0].weight).toBeNull()
@@ -371,7 +470,7 @@ describe('instantiateProgramDay (engine-driven)', () => {
     )
 
     // Act
-    await instantiateProgramDay(USER, 'd1', 3)
+    await instantiateProgramDay(USER, 'd1', 3, 'ui')
 
     // Assert
     expect(seededSets()).toHaveLength(4)
@@ -395,7 +494,7 @@ describe('instantiateProgramDay (engine-driven)', () => {
     )
 
     // Act
-    await instantiateProgramDay(USER, 'd1', 2)
+    await instantiateProgramDay(USER, 'd1', 2, 'ui')
 
     // Assert
     expect(lastPerformance).toHaveBeenCalledWith(USER, 'wger', 1)
@@ -408,7 +507,7 @@ describe('instantiateProgramDay (engine-driven)', () => {
     selectQueue = [[{ current: 2 }], [{ value: 1 }], [{ value: 1 }]]
 
     // Act
-    const result = await instantiateProgramDay(USER, 'd1', null)
+    const result = await instantiateProgramDay(USER, 'd1', null, 'ui')
 
     // Assert
     expect(result).toEqual({ id: 'w1', week: 3, weekDerived: true })
@@ -421,7 +520,7 @@ describe('instantiateProgramDay (engine-driven)', () => {
     findFirst.mockResolvedValue({ ...day, program: { ...day.program, userId: 'someone_else' } })
 
     // Act
-    const result = await instantiateProgramDay(USER, 'd1', 1)
+    const result = await instantiateProgramDay(USER, 'd1', 1, 'ui')
 
     // Assert
     expect(result).toBeNull()
@@ -435,7 +534,7 @@ describe('instantiateProgramDay (engine-driven)', () => {
     )
 
     // Act + Assert — clear refusal pointing at adopt/decline, no writes
-    await expect(instantiateProgramDay(USER, 'd1', 1)).rejects.toThrow(/adopt/)
+    await expect(instantiateProgramDay(USER, 'd1', 1, 'ui')).rejects.toThrow(/adopt/)
     expect(records).toHaveLength(0)
   })
 
@@ -444,7 +543,7 @@ describe('instantiateProgramDay (engine-driven)', () => {
     findFirst.mockResolvedValue(undefined)
 
     // Act
-    const result = await instantiateProgramDay(USER, 'missing', 1)
+    const result = await instantiateProgramDay(USER, 'missing', 1, 'ui')
 
     // Assert
     expect(result).toBeNull()
@@ -461,7 +560,7 @@ describe('instantiateProgramDay (resume semantics)', () => {
     selectQueue = [[{ id: 'w-old' }]]
 
     // Act
-    const result = await instantiateProgramDay(USER, 'd1', 3)
+    const result = await instantiateProgramDay(USER, 'd1', 3, 'ui')
 
     // Assert — the existing row comes back and NOTHING is inserted
     expect(result).toEqual({ id: 'w-old', week: 3, weekDerived: false })
@@ -477,7 +576,7 @@ describe('instantiateProgramDay (resume semantics)', () => {
     )
     selectQueue = [[]]
 
-    const result = await instantiateProgramDay(USER, 'd1', 3)
+    const result = await instantiateProgramDay(USER, 'd1', 3, 'ui')
 
     expect(result).toEqual({ id: 'w1', week: 3, weekDerived: false })
     expect(records.length).toBeGreaterThan(0)
@@ -492,7 +591,7 @@ describe('instantiateProgramDay (resume semantics)', () => {
       dayFixture({ mesocycleWeeks: 4, sets: [{ setNumber: 1, suggestedLoadKg: 100 }] }),
     )
 
-    await expect(instantiateProgramDay(USER, 'd1', 5)).rejects.toThrow(/week/)
+    await expect(instantiateProgramDay(USER, 'd1', 5, 'ui')).rejects.toThrow(/week/)
     expect(records).toHaveLength(0)
   })
 
@@ -501,7 +600,7 @@ describe('instantiateProgramDay (resume semantics)', () => {
       dayFixture({ mesocycleWeeks: 4, sets: [{ setNumber: 1, suggestedLoadKg: 100 }] }),
     )
 
-    await expect(instantiateProgramDay(USER, 'd1', 0)).rejects.toThrow(/week/)
+    await expect(instantiateProgramDay(USER, 'd1', 0, 'ui')).rejects.toThrow(/week/)
     expect(records).toHaveLength(0)
   })
 
@@ -515,7 +614,7 @@ describe('instantiateProgramDay (resume semantics)', () => {
     selectQueue = [[{ current: 2 }], [{ value: 3 }], [{ value: 1 }], [{ id: 'w-old' }]]
 
     // Act
-    const result = await instantiateProgramDay(USER, 'd1', null)
+    const result = await instantiateProgramDay(USER, 'd1', null, 'ui')
 
     // Assert — resumed at the derived week, nothing inserted, and the
     // lookup predicate still requires completion state

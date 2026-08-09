@@ -689,7 +689,12 @@ export function registerProgramTools(server: McpServer): void {
       try {
         const resolved = resolveUserId(extra, userId)
         assertProgramDayIdShape(programDayId)
-        const result = await instantiateProgramDay(resolved, programDayId, week ?? null)
+        const result = await instantiateProgramDay(
+          resolved,
+          programDayId,
+          week ?? null,
+          resolveActor(extra),
+        )
         if (!result) {
           throw new ToolError(`Program day ${programDayId} not found for user ${resolved}`)
         }
