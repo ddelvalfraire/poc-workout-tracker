@@ -22,6 +22,7 @@ vi.mock('@/db/program-patches', () => {
     setProgramSetOverride: vi.fn(),
     removeProgramSetOverride: vi.fn(),
     setProgramAutoregulation: vi.fn(),
+    setProgramDeloadPolicy: vi.fn(),
     setProgramPlanSync: vi.fn(),
   }
 })
@@ -45,6 +46,7 @@ import {
   setProgramSetOverride,
   removeProgramSetOverride,
   setProgramAutoregulation,
+  setProgramDeloadPolicy,
   setProgramPlanSync,
 } from '@/db/program-patches'
 import { getWeightUnit } from '@/db/preferences'
@@ -63,6 +65,7 @@ const mockedUpdateSet = vi.mocked(updateProgramSet)
 const mockedRemoveSet = vi.mocked(removeProgramSet)
 const mockedMoveSet = vi.mocked(moveProgramSet)
 const mockedSetAutoreg = vi.mocked(setProgramAutoregulation)
+const mockedSetDeloadPolicy = vi.mocked(setProgramDeloadPolicy)
 const mockedSetPlanSync = vi.mocked(setProgramPlanSync)
 const mockedSetOverride = vi.mocked(setProgramSetOverride)
 const mockedRemoveOverride = vi.mocked(removeProgramSetOverride)
@@ -182,6 +185,65 @@ describe('registerProgramPatchTools', () => {
       const result = await tools.get('set_program_autoregulation')!({
         programId: PID,
         enabled: true,
+      })
+
+      // Assert
+      expect(result.isError).toBe(true)
+      expect(result.content[0]?.text).toMatch(/not found/)
+    })
+
+    it('set_program_deload_policy sets a policy and echoes it', async () => {
+      // Arrange
+      const tools = setup()
+      mockedSetDeloadPolicy.mockResolvedValue({ id: PID })
+
+      // Act — the harness invokes the raw handler (no SDK schema parse);
+      // the db op re-parses through deloadPolicySchema, which is where the
+      // shape defaults are guaranteed (covered in program-patches.test.ts).
+      const result = await tools.get('set_program_deload_policy')!({
+        programId: PID,
+        policy: { mode: 'scheduled', shape: {} },
+      })
+
+      // Assert — the policy passes through verbatim, actor-attributed.
+      expect(mockedSetDeloadPolicy).toHaveBeenCalledWith(
+        'user_env',
+        PID,
+        { mode: 'scheduled', shape: {} },
+        'mcp',
+      )
+      expect(payload(result)).toEqual({
+        userId: 'user_env',
+        programId: PID,
+        deloadPolicy: { mode: 'scheduled', shape: {} },
+      })
+    })
+
+    it('set_program_deload_policy clears with null', async () => {
+      // Arrange
+      const tools = setup()
+      mockedSetDeloadPolicy.mockResolvedValue({ id: PID })
+
+      // Act
+      const result = await tools.get('set_program_deload_policy')!({
+        programId: PID,
+        policy: null,
+      })
+
+      // Assert
+      expect(mockedSetDeloadPolicy).toHaveBeenCalledWith('user_env', PID, null, 'mcp')
+      expect(payload(result)).toEqual({ userId: 'user_env', programId: PID, deloadPolicy: null })
+    })
+
+    it('set_program_deload_policy surfaces not-owned as isError /not found/', async () => {
+      // Arrange
+      const tools = setup()
+      mockedSetDeloadPolicy.mockResolvedValue(null)
+
+      // Act
+      const result = await tools.get('set_program_deload_policy')!({
+        programId: PID,
+        policy: { mode: 'none' },
       })
 
       // Assert

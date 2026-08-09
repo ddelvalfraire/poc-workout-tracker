@@ -441,6 +441,59 @@ describe('deriveDayPrescription auto-regulation', () => {
     expect(exercise.sets.map((s) => s.loadKg)).toEqual([85, 85, 85])
   })
 
+  it("M4 gating: an EXPLICIT deload policy of 'none' suppresses the flag (no history read)", async () => {
+    // Arrange — the same three-stall history that flags above…
+    trainedSessions.mockResolvedValue([
+      trained('w3', 3, [5, 5, 5], 80),
+      trained('w2', 2, [5, 5, 5], 75),
+      trained('w1', 1, [5, 5, 5], 70),
+    ])
+    const percent = {
+      scheme: 'percent-1rm',
+      trainingMaxKg: 100,
+      weekPercents: [0.7, 0.75, 0.8, 0.85],
+    }
+
+    // Act — …under a program that explicitly declared "no deloads".
+    const [exercise] = await deriveDayPrescription(
+      USER,
+      day({ progression: percent, deloadPolicy: { mode: 'none' } }),
+      4,
+    )
+
+    // Assert — no verdict at all, and the plan short-circuits before any
+    // history read (the flag was the only thing those reads could feed).
+    expect(exercise.autoreg).toBeNull()
+    expect(trainedSessions).not.toHaveBeenCalled()
+    expect(exercise.sets.map((s) => s.loadKg)).toEqual([85, 85, 85])
+  })
+
+  it("M4 gating: 'reactive' keeps the flag — it IS the reactive deload's trigger", async () => {
+    // Arrange
+    trainedSessions.mockResolvedValue([
+      trained('w3', 3, [5, 5, 5], 80),
+      trained('w2', 2, [5, 5, 5], 75),
+      trained('w1', 1, [5, 5, 5], 70),
+    ])
+
+    // Act
+    const [exercise] = await deriveDayPrescription(
+      USER,
+      day({
+        progression: {
+          scheme: 'percent-1rm',
+          trainingMaxKg: 100,
+          weekPercents: [0.7, 0.75, 0.8, 0.85],
+        },
+        deloadPolicy: { mode: 'reactive' },
+      }),
+      4,
+    )
+
+    // Assert
+    expect(exercise.autoreg).toMatchObject({ action: 'flag', suggestEarlyDeload: true })
+  })
+
   it('the program-level switch off skips the rules (and their history reads) entirely', async () => {
     // Arrange
     trainedSessions.mockResolvedValue([trained('w1', 1, [5, 5, 5])])
