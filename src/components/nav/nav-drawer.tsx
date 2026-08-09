@@ -1,8 +1,9 @@
 'use client'
 
 import Link from 'next/link'
-import { useRef, useState, type ComponentType, type ReactNode } from 'react'
+import { useState, type ComponentType, type ReactNode } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
+import { useQuery } from '@tanstack/react-query'
 import { Drawer } from 'vaul'
 import { UserButton } from '@clerk/nextjs'
 import {
@@ -46,12 +47,22 @@ import { cn } from '@/lib/utils'
  * translate-stats-into-status) / RECENT / IDENTITY (pinned bottom).
  *
  * Vaul (Radix Dialog under the hood) owns the mechanics: focus trap, scrim,
- * esc, swipe-to-dismiss, left-edge slide. Status data arrives from ONE authed
- * fetch on the drawer's first open per mount, cached in state — navigation
- * remounts the trigger on the next page, so data refreshes per surface, not
- * per open. A failed fetch degrades every row to its label: the nav never
- * breaks because a status read did.
+ * esc, swipe-to-dismiss, left-edge slide. Status data arrives via TanStack
+ * Query, enabled on the drawer's first open — a warm cache renders instantly
+ * on later opens/pages (no ghosts, no arrival replay), and a reopen past
+ * staleTime revalidates in the background while the cached rows stay put.
+ * A failed fetch degrades every row to its label: the nav never breaks
+ * because a status read did.
  */
+
+/** How long a fetched drawer snapshot counts as fresh on reopen. */
+const DRAWER_STALE_MS = 30_000
+
+async function fetchDrawerData(signal: AbortSignal): Promise<DrawerData> {
+  const res = await fetch('/api/drawer', { signal })
+  if (!res.ok) throw new Error(`drawer fetch failed: ${res.status}`)
+  return (await res.json()) as DrawerData
+}
 
 /** Stagger step for the rows' motion-safe rise-in. */
 const ROW_STAGGER_MS = 25
@@ -83,12 +94,32 @@ function ThinBar({ percent }: { percent: number }) {
 
 export function NavDrawer() {
   const [isOpen, setIsOpen] = useState(false)
-  const [data, setData] = useState<DrawerData | null>(null)
+  const [hasOpened, setHasOpened] = useState(false)
   const [isStarting, setIsStarting] = useState(false)
   const [startError, setStartError] = useState<string | null>(null)
-  const hasFetchedRef = useRef(false)
+  // True while the CURRENT open began without data — the arrival animation
+  // plays only for that open ('first successful load' semantics); a cached
+  // reopen renders the status lines statically inside the rows' own rise-in.
+  const [openedPending, setOpenedPending] = useState(true)
   const pathname = usePathname()
   const router = useRouter()
+
+  // Open-triggered (enabled flips on first open, as the raw fetch did); an
+  // error leaves data undefined → the same label-only degrade as before, and
+  // Query's focus/reopen revalidation quietly recovers it later.
+  const {
+    data: drawerData,
+    isStale,
+    refetch,
+  } = useQuery({
+    queryKey: ['drawer'],
+    queryFn: ({ signal }) => fetchDrawerData(signal),
+    staleTime: DRAWER_STALE_MS,
+    enabled: hasOpened,
+  })
+  // data === null IS the pending state — the ghost/arrival contract below
+  // (and the static-render test) key off it exactly as the useState days.
+  const data = drawerData ?? null
 
   // The drawer is a history entry (spike §3d-bis): open pushes a same-URL
   // state entry, so the iOS edge-swipe / system back CLOSES the drawer
@@ -121,16 +152,16 @@ export function NavDrawer() {
 
   function handleOpenChange(open: boolean): void {
     setIsOpen(open)
-    if (!open || hasFetchedRef.current) return
-    hasFetchedRef.current = true
-    void fetch('/api/drawer')
-      .then(async (res) => {
-        if (!res.ok) return
-        setData((await res.json()) as DrawerData)
-      })
-      .catch(() => {
-        // Degrade contract: no status data → every row renders label-only.
-      })
+    if (!open) return
+    // Snapshot whether THIS open starts pending — the arrival animation's key.
+    setOpenedPending(data === null)
+    if (!hasOpened) {
+      setHasOpened(true) // first open: enables the query (cold fetch → ghosts)
+      return
+    }
+    // Reopen: serve the cache instantly; only a stale snapshot revalidates,
+    // in the background, with the rendered rows staying put.
+    if (isStale) void refetch()
   }
 
   // Same instantiate-then-navigate discipline as StartDayButton: await the
@@ -411,13 +442,22 @@ export function NavDrawer() {
                             </span>
                           ) : (
                             // Arrival: status + micro-visual rise in IN
-                            // PLACE, reusing the rows' own stagger.
+                            // PLACE, reusing the rows' own stagger — but only
+                            // when the data landed DURING this open. A cached
+                            // reopen renders statically (no arrival replay).
                             <span
-                              className="block motion-safe:animate-rise-in"
-                              style={{
-                                animationDelay: `${index * ROW_STAGGER_MS}ms`,
-                                animationFillMode: 'backwards',
-                              }}
+                              className={cn(
+                                'block',
+                                openedPending && 'motion-safe:animate-rise-in',
+                              )}
+                              style={
+                                openedPending
+                                  ? {
+                                      animationDelay: `${index * ROW_STAGGER_MS}ms`,
+                                      animationFillMode: 'backwards',
+                                    }
+                                  : undefined
+                              }
                             >
                               {statusLine !== null && (
                                 <span className="mt-0.5 block truncate text-xs text-muted-foreground tnum">
