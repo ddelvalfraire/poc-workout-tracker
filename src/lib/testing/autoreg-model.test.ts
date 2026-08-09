@@ -5,6 +5,7 @@ import {
   AUTOREG_SESSION_WINDOW,
   type AutoregAdjustment,
   type AutoregSession,
+  type AutoregStallPolicy,
 } from '@/lib/autoregulate'
 import { reasonNonEmptyOnAdjustment } from './invariants'
 import { evidenceLoadArb, evidenceSession, sessionClassArb, type SessionClass } from './arbitraries'
@@ -45,6 +46,11 @@ interface AutoregModel {
 interface AutoregReal {
   sessions: AutoregSession[]
   clock: number
+  /** The walk's stall policy. The evidence classes are POLICY-UNIFORM by
+   *  construction — 'stallAtLoad' misses EVERY floor (so the governing set
+   *  misses too) and every other class hits every floor — so one model
+   *  predicts both policies and the walk runs under each (C1). */
+  policy: AutoregStallPolicy
 }
 
 const freshModel = (): AutoregModel => ({
@@ -138,7 +144,7 @@ class AppendSessionCommand implements fc.Command<AutoregModel, AutoregReal> {
       }),
     )
     const expected = advanceModel(model, this.cls, this.loadKg)
-    const adjustment = autoregulate(INCREMENT_KG, real.sessions, 'all-sets')
+    const adjustment = autoregulate(INCREMENT_KG, real.sessions, real.policy)
     expect(classOf(adjustment)).toBe(expected)
     // Transparency rides along: any verdict the walk produces must render.
     expect(reasonNonEmptyOnAdjustment(adjustment)).toBe(true)
@@ -153,11 +159,17 @@ const commandArb = fc
   .tuple(sessionClassArb, evidenceLoadArb, fc.boolean())
   .map(([cls, loadKg, withWarmup]) => new AppendSessionCommand(cls, loadKg, withWarmup))
 
-describe('autoregulate model-based walk (FIXED mode, all-sets)', () => {
-  test.prop([fc.commands([commandArb], { maxCommands: 20 })])(
-    'engine verdict class matches the docblock model after every append',
-    (commands) => {
-      fc.modelRun(() => ({ model: freshModel(), real: { sessions: [], clock: 0 } }), commands)
-    },
-  )
-})
+describe.each<AutoregStallPolicy>(['all-sets', 'first-set'])(
+  'autoregulate model-based walk (FIXED mode, %s)',
+  (policy) => {
+    test.prop([fc.commands([commandArb], { maxCommands: 20 })])(
+      'engine verdict class matches the docblock model after every append',
+      (commands) => {
+        fc.modelRun(
+          () => ({ model: freshModel(), real: { sessions: [], clock: 0, policy } }),
+          commands,
+        )
+      },
+    )
+  },
+)
