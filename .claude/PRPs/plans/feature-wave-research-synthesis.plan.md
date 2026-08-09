@@ -58,6 +58,11 @@ Already live: proposal = `programs` row w/ `status='proposed'` + `authorActor`; 
 - Keep-list (locked): one-volt rule, StatTile contract, sheet-only glass, actor-chip pills, and the logger fast path is OFF-LIMITS (load-bearing state interleaved with visuals).
 - Risks: illustrated assets vs PWA precache budget (no asset budget doc exists — write one first); directions tempting a second accent must be re-specified monochrome+volt before any code.
 - Sequencing: pairs with #7 (notes chips/article surfaces born into the new vocabulary); program-page divider-list conversion is the natural first PR.
+- **APPROVED 2026-08-09** (visual mock: claude.ai artifact "De-card Design Preview" — program page + logger frames). Runs AFTER TM lifecycle ships. Conversion map (cards/pills counted):
+  - Convert: logger (reskin only — "affordance follows work": done sets flatten to text, live set is the only input-affordance row, underline fields, Finish as full-bleed volt text band), workout summary 6/4 (best candidate — read-only; shares flattened set-line component with logger), program page, programs list 2/1, settings 2/0 (divider rows), exercise detail 4/0, stats shell 2/0 (StatTile itself stays).
+  - Keep deliberately: coach chat bubbles + approval cards (chat convention/decision units; only tool chips soften), templates gallery cards (content preview is a correct card use), StatTile, bottom sheets, sticky bars, actor chips. Home/history/exercise-search already healthy.
+  - **Feature-parity contract (hard rule per reskin PR)**: render-layer only — no reducer/action/handler/query/prop removed; per-surface affordance checklist enumerated pre-PR and verified in review (logger list: tap-complete, Prev-fill, swipe-delete, steppers, long-press tags, collapse, stats-sheet tap, replace, plate/rest sheets, next-up scroll, undo); full suite + review gauntlet as always.
+  - Order: logger → workout summary → program page → programs list + settings + exercise detail → stats shell.
 
 ### UI patterns locked (from award/precedent research)
 - TM review + volume proposals: approval-card sentence diffs (`describeToolCall` idiom) — no bespoke screens.
