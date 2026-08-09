@@ -83,6 +83,8 @@ A 3-agent adversarial review (math-executed corruption constructions, training-m
 - **M3 — evidence quorum.** No verdict of any kind without scorable evidence on ≥ ceil(snapshotWorkingSetCount / 2) of the snapshot's working sets. Single-working-set exercises remain 1-of-1 (unavoidable) — but combined with M2 their up-anchors still need 2 sessions.
 - **M4 — percent-1rm and amrap-cycle get the early-deload flag.** Floor-only stall scoring for these schemes drives `suggestEarlyDeload` ONLY (never a load adjustment — the scheme owns its loads), after the same 3-streak, reason "training max likely set too high" (5/3/1's failed-cycle rule), surfaced through the same reason/flag plumbing as the existing suggestion.
 
+- **H3v2 — mixed-top buckets cannot step (verification pass, 2026-08-08).** The independent verification of this hardening re-broke H3: two ranged rows sharing one load bucket with *different* tops let the optimistic best-reps→highest-top match launder a top-target miss into a fill and a load increase. Fix: misses stay optimistic (only certain misses stall), but a heterogeneous-top bucket's fill is unconfirmable — hold, not step. Regression test `H3v2` encodes the executed construction. The remaining 12 findings were verified CONFIRMED-FIXED with attack-encoding tests; the ε-boundary evidence-blend noted by the verifier is bounded by design tolerance.
+
 ### Accepted limitations
 
 - **Backdating as a window-manipulation surface.** `startedAt` is user-editable, so a backdated workout can reorder or displace the evidence window. Single-user app, MCP-only write surface — accepted.
