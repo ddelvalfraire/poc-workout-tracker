@@ -90,6 +90,7 @@ function trained(
   return {
     workoutId,
     programWeek,
+    startedAt: new Date(Date.UTC(2026, 6, programWeek)),
     sets: reps.map((r, i) => ({
       setNumber: i + 1,
       reps: r,
@@ -140,21 +141,40 @@ describe('deriveDayPrescription auto-regulation', () => {
     expect(exercise.autoreg).toMatchObject({ action: 'repeat', suggestEarlyDeload: false })
   })
 
-  it('three consecutive stalls back off ~10% and suggest the early deload', async () => {
-    // Arrange — stalls at weeks 3/2/1 (snapshots 105 / 102.5 / 100)
+  it('three consecutive stalls at the SAME held load back off ~10% and suggest the early deload', async () => {
+    // Arrange — the repeat verdicts held 100 across weeks 1–3, and the
+    // lifter stalled at 100 every time (H2: the streak only counts at one
+    // prescribed top load).
     trainedSessions.mockResolvedValue([
-      trained('w3', 3, [6, 6, 5], 105),
-      trained('w2', 2, [6, 6, 5], 102.5),
+      trained('w3', 3, [6, 6, 5], 100),
+      trained('w2', 2, [6, 6, 5], 100),
       trained('w1', 1, [6, 6, 7], 100),
     ])
 
     // Act — week 4 scheme would prescribe 107.5
     const [exercise] = await deriveDayPrescription(USER, day({}), 4)
 
-    // Assert — 10% of the 105 stall = 10.5 → snapped to 10 → 95
-    expect(exercise.sets[0].loadKg).toBe(95)
+    // Assert — 10% of the 100 stall → the 100 bucket caps at 90
+    expect(exercise.sets[0].loadKg).toBe(90)
     expect(exercise.sets[0].derivedFrom).toBe('autoreg')
     expect(exercise.autoreg).toMatchObject({ action: 'decrement', suggestEarlyDeload: true })
+  })
+
+  it('H2: stalls at three DIFFERENT prescribed loads never escalate to a decrement', async () => {
+    // Arrange — the load moved every week (edits/scheme), so no three
+    // stalls share a prescribed top load.
+    trainedSessions.mockResolvedValue([
+      trained('w3', 3, [6, 6, 5], 105),
+      trained('w2', 2, [6, 6, 5], 102.5),
+      trained('w1', 1, [6, 6, 7], 100),
+    ])
+
+    // Act
+    const [exercise] = await deriveDayPrescription(USER, day({}), 4)
+
+    // Assert — repeat of the latest stalled 105, no back-off cascade.
+    expect(exercise.autoreg).toMatchObject({ action: 'repeat', suggestEarlyDeload: false })
+    expect(exercise.sets[0].loadKg).toBe(105)
   })
 
   it("scores against the SNAPSHOT, not today's edited plan", async () => {
@@ -177,6 +197,7 @@ describe('deriveDayPrescription auto-regulation', () => {
       {
         workoutId: 'w1',
         programWeek: 1,
+        startedAt: new Date(Date.UTC(2026, 6, 1)),
         sets: [1, 2, 3].map((setNumber) => ({
           setNumber,
           reps: 3,
@@ -287,6 +308,7 @@ describe('deriveDayPrescription auto-regulation', () => {
       {
         workoutId: 'w1',
         programWeek: 1,
+        startedAt: new Date(Date.UTC(2026, 6, 1)),
         sets: [1, 2, 3].map((setNumber) => ({
           setNumber,
           reps: 10,
@@ -313,13 +335,25 @@ describe('deriveDayPrescription auto-regulation', () => {
     expect(exercise.sets.every((s) => s.schemeLoadKg === null)).toBe(true)
   })
 
-  it('an outperformed last session anchors the fixed-mode prescription at the performed loads', async () => {
-    // Arrange — prescribed 100×8 floor, performed 120×8 on every set (≥5%
-    // over): the program follows the lifter up instead of marching 102.5.
+  it('M2: a single outperformed session no longer anchors (one good day is not a trend)', async () => {
     trainedSessions.mockResolvedValue([trained('w1', 1, [8, 8, 8], 120, 100)])
 
-    // Act
     const [exercise] = await deriveDayPrescription(USER, day({}), 2)
+
+    expect(exercise.autoreg).toBeNull()
+    expect(exercise.sets[0]).toMatchObject({ loadKg: 102.5, derivedFrom: 'scheme' })
+  })
+
+  it('TWO consecutive outperformed sessions anchor the fixed-mode prescription (M2)', async () => {
+    // Arrange — prescribed 100×8 floor, performed ≥5% over on every set two
+    // sessions running: the program follows the lifter up.
+    trainedSessions.mockResolvedValue([
+      trained('w2', 2, [8, 8, 8], 120, 100),
+      trained('w1', 1, [8, 8, 8], 110, 100),
+    ])
+
+    // Act
+    const [exercise] = await deriveDayPrescription(USER, day({}), 3)
 
     // Assert
     expect(exercise.autoreg).toMatchObject({
@@ -329,20 +363,52 @@ describe('deriveDayPrescription auto-regulation', () => {
     })
     expect(exercise.sets.map((s) => s.loadKg)).toEqual([120, 120, 120])
     expect(exercise.sets.every((s) => s.derivedFrom === 'autoreg')).toBe(true)
-    expect(exercise.sets[0].schemeLoadKg).toBe(102.5)
+    expect(exercise.sets[0].schemeLoadKg).toBe(105)
   })
 
-  it('mixed fixed/ranged working sets fall back to the v1 fixed rules (ambiguous shape)', async () => {
-    // Arrange — set 2 has no repMax among 8–12 sets; the fixed floor governs.
+  it('H3: mixed fixed/ranged working sets run the RANGE rules (no whole-exercise fallback)', async () => {
+    // Arrange — set 2 has no repMax among 8–12 sets. The ranged rows score
+    // fill/hold, the fixed row floor-scores; the shape no longer collapses
+    // to v1 fixed rules.
     trainedSessions.mockResolvedValue([trained('w1', 1, [8, 6, 5])])
 
     // Act
     const [exercise] = await deriveDayPrescription(USER, day({ mixedShape: true }), 2)
 
-    // Assert — a v1 verdict: no range evidence, floor-miss repeat at 100.
+    // Assert — a range-mode HOLD: the verdict carries range evidence and the
+    // scheme's 102.5 is capped back to the held 100.
     expect(exercise.autoreg).toMatchObject({ action: 'repeat' })
-    expect(exercise.autoreg?.range).toBeUndefined()
+    expect(exercise.autoreg?.range).toBeDefined()
     expect(exercise.sets.map((s) => s.loadKg)).toEqual([100, 100, 100])
+  })
+
+  it('M4: percent-1rm gets the advisory early-deload flag after three stalls, loads untouched', async () => {
+    // Arrange — three straight floor-missed sessions under a scheme that
+    // owns its loads (static training max).
+    trainedSessions.mockResolvedValue([
+      trained('w3', 3, [5, 5, 5], 80),
+      trained('w2', 2, [5, 5, 5], 75),
+      trained('w1', 1, [5, 5, 5], 70),
+    ])
+
+    // Act
+    const [exercise] = await deriveDayPrescription(
+      USER,
+      day({
+        progression: {
+          scheme: 'percent-1rm',
+          trainingMaxKg: 100,
+          weekPercents: [0.7, 0.75, 0.8, 0.85],
+        },
+      }),
+      4,
+    )
+
+    // Assert — the flag rides the verdict; the scheme's loads are untouched
+    // (never a load adjustment — the scheme owns them).
+    expect(exercise.autoreg).toMatchObject({ action: 'flag', suggestEarlyDeload: true })
+    expect(exercise.sets.every((s) => s.derivedFrom === 'scheme')).toBe(true)
+    expect(exercise.sets.map((s) => s.loadKg)).toEqual([85, 85, 85])
   })
 
   it('the program-level switch off skips the rules (and their history reads) entirely', async () => {

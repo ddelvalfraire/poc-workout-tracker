@@ -16,9 +16,11 @@ import {
   autoregulate,
   autoregulateRange,
   autoregulateAnchor,
+  autoregulateEarlyDeload,
   applyAutoregToSets,
   AUTOREG_DEFAULT_STEP_KG,
   type AutoregAdjustment,
+  type AutoregRangeRow,
   type AutoregSession,
 } from '@/lib/autoregulate'
 import { getRecentTrainedSessions } from './autoreg-history'
@@ -1135,20 +1137,20 @@ export interface ExercisePrescription {
 }
 
 /** Which Layer 1 rule set an exercise gets (see lib/autoregulate.ts's scope
- *  note): FIXED (v1 stall rules), RANGE (v2 double progression), or ANCHOR
+ *  note): FIXED (v1 stall rules), RANGE (v2 double progression), ANCHOR
  *  (performed-load anchoring only, for schemes that can prescribe load-less
- *  sets). */
+ *  sets), or DELOAD-FLAG (M4: advisory early-deload only, for schemes that
+ *  own their loads). */
 type AutoregPlan =
   | { mode: 'fixed'; incrementKg: number }
-  | { mode: 'range'; stepKg: number; rangeTopBySetNumber: Record<number, number> }
+  | { mode: 'range'; stepKg: number; topForWorkingRow: (row: DerivedSet) => number | null }
   | { mode: 'anchor' }
+  | { mode: 'deload-flag' }
 
-/** The current plan's range top per DERIVED setNumber (template order, 1-based
- *  — exactly `deriveWeekSets`' renumbering for the schemes admitted here,
- *  which never resize sets outside the deload week). Null unless EVERY
- *  working set carries a real range (repMin < repMax): fixed-rep and
- *  mixed-shape days keep v1 semantics — an ambiguous shape must not half-run
- *  the range rules.
+/** True when a working template row carries a real rep range. A LINEAR
+ *  exercise runs the range rules when ANY working set is ranged (H3): ranged
+ *  rows are scored by fill/hold, fixed rows join floor scoring only — a
+ *  mixed shape no longer collapses the whole exercise to v1 fixed rules.
  *
  *  SNAPSHOT NOTE (why there is no prescribed_rep_max column): the range top
  *  is the goal the lifter is climbing toward — a plan PARAMETER read at
@@ -1156,59 +1158,54 @@ type AutoregPlan =
  *  what happened. The facts a verdict scores (prescribed loads, logged reps)
  *  stay snapshot-only; editing repMax today legitimately moves the goalposts
  *  for the NEXT verdict, exactly as editing incrementKg always has. */
-function workingRangeTops(
-  sets: DayForDerivation['exercises'][number]['sets'],
-): Record<number, number> | null {
-  const tops: Record<number, number> = {}
-  let workingSets = 0
-  for (const [index, set] of sets.entries()) {
-    if (set.setType !== 'working') continue
-    workingSets += 1
-    if (set.repMin === null || set.repMax === null || set.repMax <= set.repMin) return null
-    tops[index + 1] = set.repMax
-  }
-  return workingSets > 0 ? tops : null
+function isRangedRow(row: { repMin: number | null; repMax: number | null }): boolean {
+  return row.repMin !== null && row.repMax !== null && row.repMax > row.repMin
 }
 
 function autoregPlan(exercise: DayForDerivation['exercises'][number]): AutoregPlan | null {
   const progression = exercise.progression
   if (progression?.scheme === 'linear') {
-    const tops = workingRangeTops(exercise.sets)
-    if (tops === null) return { mode: 'fixed', incrementKg: progression.incrementKg }
+    const workingRows = exercise.sets.filter((s) => s.setType === 'working')
+    if (workingRows.length === 0 || !workingRows.some(isRangedRow)) {
+      return { mode: 'fixed', incrementKg: progression.incrementKg }
+    }
     return {
       mode: 'range',
       // A configured increment is reused as the step; a zero increment falls
       // back to the smallest sensible total-load step (WEIGHT_STEP's 2.5 kg).
       stepKg: progression.incrementKg > 0 ? progression.incrementKg : AUTOREG_DEFAULT_STEP_KG,
-      rangeTopBySetNumber: tops,
+      // Per-row top from the DERIVED row itself — null marks a fixed row in a
+      // mixed template (floor scoring only, H3).
+      topForWorkingRow: (row) => (isRangedRow(row) ? row.repMax : null),
     }
   }
   if (progression?.scheme === 'double-progression') {
+    if (!exercise.sets.some((s) => s.setType === 'working')) return null
     // The scheme's own exercise-level repMax IS the range top for every
     // working set — that is the contract its advancement already uses.
-    const tops: Record<number, number> = {}
-    for (const [index, set] of exercise.sets.entries()) {
-      if (set.setType === 'working') tops[index + 1] = progression.repMax
-    }
-    if (Object.keys(tops).length === 0) return null
     return {
       mode: 'range',
       stepKg: progression.incrementKg > 0 ? progression.incrementKg : AUTOREG_DEFAULT_STEP_KG,
-      rangeTopBySetNumber: tops,
+      topForWorkingRow: () => progression.repMax,
     }
   }
   // Schemes that can legitimately prescribe LOAD-LESS sets (rpe-target before
   // an e1RM exists; weekly-volume / rep-progression with a null base) get the
   // anchor-only rules: a completed working load on a null-load prescription
   // becomes the next prescription — the weight ghost those exercises never
-  // had. percent-1rm and amrap-cycle always derive a load (nothing to
-  // anchor), and their stall behavior stays explicitly out of scope.
+  // had.
   if (
     progression?.scheme === 'rpe-target' ||
     progression?.scheme === 'weekly-volume' ||
     progression?.scheme === 'rep-progression'
   ) {
     return { mode: 'anchor' }
+  }
+  // percent-1rm / amrap-cycle own their loads (static training max / wave):
+  // floor scoring drives the advisory early-deload flag ONLY (M4) — never a
+  // load adjustment.
+  if (progression?.scheme === 'percent-1rm' || progression?.scheme === 'amrap-cycle') {
+    return { mode: 'deload-flag' }
   }
   return null
 }
@@ -1264,10 +1261,23 @@ export async function deriveDayPrescription(
       lastSets: lastSetsByKey.get(key) ?? null,
     }
 
+    // The scheme derives FIRST: range mode reads today's scheme-derived
+    // working rows (load + top) as its load-keyed plan parameters (C2 — no
+    // positional keys survive between history and today's plan).
+    const scheme = deriveWeekSets({
+      sets: exercise.sets,
+      progression: exercise.progression,
+      week,
+      mesocycleWeeks: day.program.mesocycleWeeks,
+      deloadWeek: day.program.deloadWeek,
+      history,
+    })
+
     // Layer 1 auto-regulation (program-gated; fixed-rep linear gets the v1
-    // stall rules, ranged linear + double-progression the v2 double-
-    // progression rules, load-less-capable schemes the anchor-only rules;
-    // never on the deload week — its whole point is the planned back-off).
+    // stall rules, ranged/mixed linear + double-progression the v2 double-
+    // progression rules, load-less-capable schemes the anchor-only rules,
+    // percent-1rm/amrap-cycle the advisory early-deload flag (M4); never on
+    // the deload week — its whole point is the planned back-off).
     const plan = day.program.autoregulation ? autoregPlan(exercise) : null
     let adjustment: AutoregAdjustment | null = null
     if (plan !== null && !isDeloadWeek) {
@@ -1290,7 +1300,10 @@ export async function deriveDayPrescription(
         // without snapshots (all pre-snapshot history, ad-hoc adds) carry
         // nulls and are unscorable: the engine stays silent until enough
         // post-snapshot sessions accrue — the cold start is by design.
+        // `startedAtMs` carries the ordering contract (H6): the engine
+        // re-sorts defensively instead of trusting array order.
         const sessions: AutoregSession[] = trained.map((s) => ({
+          startedAtMs: s.startedAt.getTime(),
           prescribed: s.sets.map((r) => ({
             setNumber: r.setNumber,
             repMin: r.prescribedRepMin,
@@ -1305,26 +1318,26 @@ export async function deriveDayPrescription(
             setType: r.setType,
           })),
         }))
+        const rangeRows: AutoregRangeRow[] =
+          plan.mode === 'range'
+            ? scheme
+                .filter((s) => s.setType === 'working')
+                .map((s) => ({ loadKg: s.loadKg, repMax: plan.topForWorkingRow(s) }))
+            : []
         adjustment =
           plan.mode === 'fixed'
             ? autoregulate(plan.incrementKg, sessions)
             : plan.mode === 'range'
-              ? autoregulateRange(plan.stepKg, sessions, plan.rangeTopBySetNumber)
-              : autoregulateAnchor(sessions)
+              ? autoregulateRange(plan.stepKg, sessions, rangeRows)
+              : plan.mode === 'anchor'
+                ? autoregulateAnchor(sessions)
+                : autoregulateEarlyDeload(sessions)
         adjustmentByKey.set(key, adjustment)
       }
     }
 
     // Precedence: scheme → autoreg (BEFORE overrides) → override on top, so
     // an explicit per-week override always outranks the adjustment.
-    const scheme = deriveWeekSets({
-      sets: exercise.sets,
-      progression: exercise.progression,
-      week,
-      mesocycleWeeks: day.program.mesocycleWeeks,
-      deloadWeek: day.program.deloadWeek,
-      history,
-    })
     const adjusted = adjustment ? applyAutoregToSets(scheme, adjustment) : scheme
     results.push({
       sets: adjusted.map((s) =>
