@@ -153,6 +153,10 @@ const CASES: Record<
     input: { programId: PROGRAM_ID, enabled: false },
     expected: 'Turn auto-regulation off',
   },
+  set_program_deload_policy: {
+    input: { programId: PROGRAM_ID, policy: { mode: 'scheduled', shape: {} } },
+    expected: 'Set the deload policy → scheduled',
+  },
   set_program_plan_sync: {
     input: { programId: PROGRAM_ID, enabled: true },
     expected: 'Turn plan sync on',

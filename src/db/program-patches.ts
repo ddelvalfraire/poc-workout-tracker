@@ -5,9 +5,11 @@ import {
   metricModeSchema,
   techniqueSchema,
   progressionSchema,
+  deloadPolicySchema,
   programSetIntegrityViolation,
   type Technique,
   type Progression,
+  type DeloadPolicy,
 } from '@/lib/program-input'
 import type { ExerciseSource } from '@/lib/custom-exercise-input'
 import type { AutoregStallPolicy } from '@/lib/autoregulate'
@@ -253,6 +255,60 @@ export async function setProgramAutoregulation(
           ...(policyChanged ? { autoregStallPolicy: stallPolicy } : {}),
         },
       },
+    })
+    return { id: programId }
+  })
+}
+
+/** One human-readable line for the deload-policy event summary. */
+function deloadPolicySummary(policy: DeloadPolicy | null): string {
+  if (policy === null) return 'Deload policy cleared (legacy behavior)'
+  if (policy.mode === 'none') return 'Deload policy: none'
+  if (policy.mode === 'reactive') return 'Deload policy: reactive'
+  const { loadFactor, setFactor, rpeCap } = policy.shape
+  return `Deload policy: scheduled (load ×${loadFactor}, sets ×${setFactor}${
+    rpeCap !== null ? `, RPE cap ${rpeCap}` : ''
+  })`
+}
+
+/**
+ * Sets (or clears, with null) the program-level deload policy
+ * (programs.deloadPolicy — see lib/program-input.ts deloadPolicySchema; the
+ * read-time resolver in lib/progression.ts turns null back into the legacy
+ * regime). A non-null policy is re-parsed through the schema
+ * (`ProgramPatchError` on mismatch) so nothing outside the union can reach
+ * the column. Same narrow-op rationale, ownership gate, and event discipline
+ * as setProgramAutoregulation above — including the unconditional write.
+ * Returns null when the program isn't owned. Reads, in order: owned-program.
+ */
+export async function setProgramDeloadPolicy(
+  userId: string,
+  programId: string,
+  policy: DeloadPolicy | null,
+  actor: ProgramEventActor,
+): Promise<{ id: string } | null> {
+  let parsed: DeloadPolicy | null = null
+  if (policy !== null) {
+    try {
+      parsed = deloadPolicySchema.parse(policy)
+    } catch (error: unknown) {
+      throw patchErrorFromZod(error, 'invalid deload policy')
+    }
+  }
+  return db.transaction(async (tx) => {
+    const owned = await findOwnedProgramId(tx, userId, programId)
+    if (!owned) return null
+    await tx
+      .update(programs)
+      .set({ deloadPolicy: parsed, updatedAt: new Date() })
+      .where(eq(programs.id, programId))
+    await recordProgramEvent(tx, {
+      programId,
+      userId,
+      actor,
+      action: 'set_program_deload_policy',
+      summary: deloadPolicySummary(parsed),
+      payload: { after: { deloadPolicy: parsed } },
     })
     return { id: programId }
   })

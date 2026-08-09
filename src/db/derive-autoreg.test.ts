@@ -37,6 +37,7 @@ function day(options: {
   autoregulation?: boolean
   stallPolicy?: AutoregStallPolicy
   deloadWeek?: number | null
+  deloadPolicy?: DayForDerivation['program']['deloadPolicy']
   overrides?: { week: number; [key: string]: unknown }[]
   duplicateSlot?: boolean
   repRange?: boolean
@@ -76,6 +77,7 @@ function day(options: {
       deloadWeek: options.deloadWeek ?? null,
       autoregulation: options.autoregulation ?? true,
       autoregStallPolicy: options.stallPolicy ?? 'all-sets',
+      deloadPolicy: options.deloadPolicy ?? null,
     },
     exercises: options.duplicateSlot ? [exercise, { ...exercise }] : [exercise],
   }

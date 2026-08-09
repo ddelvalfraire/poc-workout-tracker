@@ -51,6 +51,18 @@ export function resolveDeloadPolicy(
 }
 
 /**
+ * True only when the STORED policy is a valid, explicit `{mode:'none'}` —
+ * the one case that suppresses the M4 early-deload suggestion. Deliberately
+ * NOT the resolver's 'none': a pre-policy program without a deload week also
+ * RESOLVES to 'none', but it never asked for silence, and the byte-identity
+ * guarantee keeps its advisory flag exactly as it is today.
+ */
+export function isExplicitNoDeloadPolicy(policyJson: unknown): boolean {
+  const parsed = deloadPolicySchema.safeParse(policyJson)
+  return parsed.success && parsed.data.mode === 'none'
+}
+
+/**
  * Rep-max %1RM curve underlying the RTS chart. Index i (0-based) = percent of
  * 1RM for an (i+1)-rep max. The published chart is this curve read on the
  * reps+RIR diagonal: "5 reps @ RPE 8" (2 in reserve) sits at the 7RM percent.

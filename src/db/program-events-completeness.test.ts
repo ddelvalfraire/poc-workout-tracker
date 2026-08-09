@@ -126,6 +126,10 @@ const INVOCATIONS: Record<string, { selects: unknown[][]; run: () => Promise<unk
     selects: [OWNED_PROGRAM],
     run: () => patches.setProgramPlanSync(USER, PID, false, 'mcp'),
   },
+  setProgramDeloadPolicy: {
+    selects: [OWNED_PROGRAM],
+    run: () => patches.setProgramDeloadPolicy(USER, PID, { mode: 'reactive' }, 'mcp'),
+  },
   setTrainingMax: {
     // Reads: owned-exercise → current progression (a TM-bearing scheme).
     selects: [

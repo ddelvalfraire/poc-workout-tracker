@@ -9,6 +9,7 @@ import {
   setProgramSetOverride,
   removeProgramSetOverride,
   setProgramAutoregulation,
+  setProgramDeloadPolicy,
   setProgramPlanSync,
   setTrainingMax,
   addProgramDay,
@@ -34,6 +35,7 @@ import {
   metricModeSchema,
   techniqueSchema,
   progressionSchema,
+  deloadPolicySchema,
 } from '@/lib/program-input'
 
 /** Optional explicit unit override; absent → the user's stored unit. */
@@ -212,6 +214,33 @@ export function registerProgramPatchTools(server: McpServer): void {
           autoregulation: enabled,
           ...(stallPolicy !== undefined ? { autoregStallPolicy: stallPolicy } : {}),
         })
+      } catch (error: unknown) {
+        return errorResult(error)
+      }
+    },
+  )
+
+  server.registerTool(
+    'set_program_deload_policy',
+    {
+      title: 'Set Program Deload Policy',
+      description:
+        "Sets (or clears, with `policy: null`) a program's deload policy without touching its days/exercises/sets. `policy.mode`: 'none' (the deload week — if any — derives as a normal training week and the early-deload suggestion is suppressed), 'reactive' (no scheduled back-off; deload only when the stall-driven early-deload flag suggests it), or 'scheduled' with a `shape` ({ loadFactor 0–1 default 0.85, setFactor 0–1 default 0.5, rpeCap 5–10 or null }) applied to the deload week's progressed sets. `deloadWeek` still shapes the progression axis in every mode. Clearing (null) restores the legacy behavior: a set deloadWeek backs off at the historical factors, none otherwise. Errors if the program isn't found or owned.",
+      inputSchema: {
+        programId: z.string(),
+        policy: deloadPolicySchema.nullable(),
+        userId: z.string().optional(),
+      },
+    },
+    async ({ programId, policy, userId }, extra) => {
+      try {
+        const resolved = resolveUserId(extra, userId)
+        assertProgramIdShape(programId)
+        const result = await runOp(() =>
+          setProgramDeloadPolicy(resolved, programId, policy, resolveActor(extra)),
+        )
+        if (!result) throw new ToolError(`Program ${programId} not found for user ${resolved}`)
+        return jsonResult({ userId: resolved, programId, deloadPolicy: policy })
       } catch (error: unknown) {
         return errorResult(error)
       }
