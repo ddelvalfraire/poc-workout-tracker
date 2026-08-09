@@ -173,7 +173,10 @@ export default async function ExerciseStatsPage({
                   grid below is context, this is the number the page is for.
                   Proportional figures on the value (tnum is for columns). */}
               {records.bestE1rm && (
-                <div className="col-span-2 rounded-2xl border border-border bg-card p-5 motion-safe:animate-rise-in">
+                // De-carded: the headline record leads bare on a muted
+                // hairline (revisit surface — no volt hairlines here per the
+                // #163 precedent; the delta TEXT already carries the volt).
+                <div className="col-span-2 border-b border-b-border/60 pb-4 motion-safe:animate-rise-in">
                   <dt className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
                     Best est. 1RM
                   </dt>
@@ -228,7 +231,7 @@ export default async function ExerciseStatsPage({
               )}
             </dl>
           ) : (
-            <p className="mt-2 rounded-2xl border border-border bg-card px-5 py-8 text-center text-sm text-muted-foreground">
+            <p className="mt-2 border-b border-b-border/60 px-1 py-8 text-center text-sm text-muted-foreground">
               No load records yet — log weight (or set your bodyweight in Settings for bodyweight
               movements) and PRs land here.
             </p>
@@ -242,7 +245,9 @@ export default async function ExerciseStatsPage({
               Est. 1RM trend · {trend.length} sessions
               {goalTargetKg !== null && ` · target ${kgToDisplay(goalTargetKg, unit)} ${unit}`}
             </h2>
-            <div className="mt-2 rounded-2xl border border-border bg-card p-4">
+            {/* De-carded: the chart sits between its header and a muted
+                hairline — the divider does the framing the shell used to. */}
+            <div className="mt-3 border-b border-b-border/60 pb-4">
               <TrendChart
                 points={trendPoints}
                 unit={unit}
@@ -267,7 +272,7 @@ export default async function ExerciseStatsPage({
               {page > 1 ? 'No older sessions.' : 'No sessions yet.'}
             </p>
           ) : (
-            <ul className="mt-2 space-y-2">
+            <ul className="mt-2">
               {sessions.map((session) => {
                 // Collapsed to one line per session — date · best set ·
                 // e1RM · set count; the set wall is one tap away on the
@@ -283,7 +288,10 @@ export default async function ExerciseStatsPage({
                   <li key={session.workoutId}>
                     <Link
                       href={`/workout/${session.workoutId}`}
-                      className="block rounded-2xl border border-border bg-card px-4 py-3 transition-colors active:bg-muted/60"
+                      // Divider row (Things-3 shape): muted hairline, no
+                      // shell — PR sessions are marked by the volt TEXT chip
+                      // alone, never a volt hairline (#163 precedent).
+                      className="block border-b border-b-border/60 py-3 transition-colors active:bg-muted/60"
                     >
                       <div className="flex items-baseline gap-3">
                         <span className="shrink-0 text-sm font-semibold">

@@ -67,7 +67,11 @@ async function loadHeroData(userId: string, program: ProgramRowData): Promise<He
   }
 }
 
-/** The quiet list row every non-hero program gets, volt-dashed for proposals. */
+/** The quiet list row every non-hero program gets — a divider row (Things-3
+ *  shape): muted hairline, no shell. Proposals keep the pending voice as a
+ *  DASHED hairline — dashed still reads "not settled", but muted, because
+ *  per-item volt on a list surface stacks (the #163 review precedent) and
+ *  the "Needs your decision" zone heading already carries the ask. */
 function ProgramRow({ program }: { program: ProgramRowData }) {
   const isProposed = program.status === 'proposed'
   return (
@@ -75,8 +79,8 @@ function ProgramRow({ program }: { program: ProgramRowData }) {
       <Link
         href={`/programs/${program.id}`}
         className={cn(
-          'flex min-w-0 items-center justify-between gap-4 rounded-2xl border bg-card p-4 transition-colors active:bg-muted/60',
-          isProposed ? 'border-dashed border-primary/50' : 'border-border',
+          'flex min-w-0 items-center justify-between gap-4 border-b py-4 transition-colors active:bg-muted/60',
+          isProposed ? 'border-dashed border-b-border' : 'border-b-border/60',
         )}
       >
         <span className="min-w-0">
@@ -157,9 +161,12 @@ export default async function ProgramsPage() {
                 status line. It is the page's primary object — creation CTAs
                 demote to a compact row beneath it. */}
             {hero && (
+              /* De-carded (summary grammar): the hero sits on the page's one
+                 quiet VOLT hairline — the single live element the screen gets
+                 — with no shell; scale and the block map carry the weight. */
               <Link
                 href={`/programs/${hero.id}`}
-                className="mt-6 block rounded-2xl border border-primary/40 bg-card p-5 transition-colors active:bg-muted/60"
+                className="mt-6 block border-b border-b-primary/30 pb-5 transition-colors active:bg-muted/60"
               >
                 <span className="flex min-w-0 items-baseline justify-between gap-3">
                   <span className="flex min-w-0 items-baseline gap-2 font-display text-xl uppercase leading-tight tracking-wide">
@@ -217,7 +224,7 @@ export default async function ProgramsPage() {
             {zones.otherActive.length > 0 && (
               <>
                 <ZoneHeading>Also active</ZoneHeading>
-                <ul className="space-y-2">
+                <ul>
                   {zones.otherActive.map((program) => (
                     <ProgramRow key={program.id} program={program} />
                   ))}
@@ -230,7 +237,7 @@ export default async function ProgramsPage() {
             {zones.proposed.length > 0 && (
               <>
                 <ZoneHeading>Needs your decision</ZoneHeading>
-                <ul className="space-y-2">
+                <ul>
                   {zones.proposed.map((program) => (
                     <ProgramRow key={program.id} program={program} />
                   ))}
@@ -241,7 +248,7 @@ export default async function ProgramsPage() {
             {zones.drafts.length > 0 && (
               <>
                 <ZoneHeading>Drafts</ZoneHeading>
-                <ul className="space-y-2">
+                <ul>
                   {zones.drafts.map((program) => (
                     <ProgramRow key={program.id} program={program} />
                   ))}
@@ -260,7 +267,7 @@ export default async function ProgramsPage() {
                     className="size-3.5 transition-transform group-open:rotate-90"
                   />
                 </summary>
-                <ul className="mt-2 space-y-2">
+                <ul className="mt-2">
                   {zones.archived.map((program) => (
                     <ProgramRow key={program.id} program={program} />
                   ))}
