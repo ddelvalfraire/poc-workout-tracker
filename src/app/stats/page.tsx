@@ -104,7 +104,9 @@ export default async function StatsPage({
         <WindowToggle mode={mode} />
 
         {!hasAnyVolume ? (
-          <p className="rounded-2xl border border-border bg-card px-5 py-12 text-center text-sm text-muted-foreground">
+          // De-carded teach state: plain muted words (the program-stats
+          // empty-state voice), no shell.
+          <p className="text-sm text-muted-foreground">
             No completed sets in the last two weeks — finish a workout and the balance picture
             builds itself.
           </p>
@@ -139,11 +141,14 @@ export default async function StatsPage({
               </p>
             )}
 
+            {/* De-carded: condensed-caps header over open content, closed by
+                a muted hairline — the shell card is gone (settings-zone
+                shape); chart/bullet internals untouched. */}
             <section aria-label="Sets per muscle group">
-              <h2 className="px-1 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+              <h2 className="font-display text-base uppercase leading-none tracking-wide text-muted-foreground">
                 Sets per muscle group
               </h2>
-              <div className="mt-2 rounded-2xl border border-border bg-card p-4">
+              <div className="mt-3 border-b border-b-border/60 pb-4">
                 {planRows !== null ? (
                   // Plan mode: bullet rows — performed inside the planned
                   // track (see plan-bullet-list.tsx).
@@ -152,7 +157,7 @@ export default async function StatsPage({
                   <VolumeBarChart groups={chartGroups} />
                 )}
               </div>
-              <p className="mt-2 px-1 text-xs text-muted-foreground">
+              <p className="mt-2 text-xs text-muted-foreground">
                 Primary muscles count a full set, secondaries half.
                 {planned &&
                   ` The track is one full pass through ${planned.programName}'s days; both window views compare against that same weekly figure. The thin mark is last week.`}
