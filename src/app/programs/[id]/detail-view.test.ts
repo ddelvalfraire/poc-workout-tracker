@@ -7,6 +7,8 @@ import {
   withoutExpanded,
   shouldDeriveDay,
   collectAutoregNotes,
+  collectTmResetProposals,
+  proposedTrainingMaxKg,
   groupEventsByDay,
 } from './detail-view'
 
@@ -148,6 +150,106 @@ describe('collectAutoregNotes', () => {
 
   it('tolerates collapsed days with empty prescription arrays', () => {
     expect(collectAutoregNotes(days, [[], []])).toEqual([])
+  })
+
+  it('excludes flag verdicts — those surface as TM proposals, not notes', () => {
+    const notes = collectAutoregNotes(days, [
+      [{ autoreg: adjustment('flag') }, { autoreg: null }],
+      [],
+    ])
+    expect(notes).toEqual([])
+  })
+})
+
+describe('proposedTrainingMaxKg', () => {
+  it('reduces ~10% snapped to 2.5 kg increments (backoffKg semantics)', () => {
+    // Arrange + Act + Assert — 140 × 0.1 = 14 → snaps to 15 → 125.
+    expect(proposedTrainingMaxKg(140)).toBe(125)
+    // 100 × 0.1 = 10 (already loadable) → 90.
+    expect(proposedTrainingMaxKg(100)).toBe(90)
+  })
+
+  it('caps the reduction on tiny TMs and refuses a zero TM', () => {
+    // The 25% cap beats the one-increment floor: 5 → −1.25, never −2.5.
+    expect(proposedTrainingMaxKg(5)).toBe(5 - 1.25)
+    expect(proposedTrainingMaxKg(0)).toBeNull()
+  })
+})
+
+describe('collectTmResetProposals', () => {
+  const tmDays = [
+    {
+      exercises: [
+        {
+          name: 'Squat',
+          progression: {
+            scheme: 'amrap-cycle',
+            trainingMaxKg: 140,
+            incrementKg: 2.5,
+            wave: [[0.85]],
+          },
+        },
+        { name: 'Row', progression: { scheme: 'linear', incrementKg: 2.5 } },
+      ],
+    },
+    {
+      exercises: [
+        {
+          name: 'Squat',
+          progression: {
+            scheme: 'amrap-cycle',
+            trainingMaxKg: 140,
+            incrementKg: 2.5,
+            wave: [[0.85]],
+          },
+        },
+      ],
+    },
+  ] as never
+
+  it('proposes a ~10% reduction for flagged TM-bearing exercises, with addresses', () => {
+    // Arrange
+    const prescriptions = [
+      [{ autoreg: adjustment('flag') }, { autoreg: null }],
+      [{ autoreg: null }],
+    ]
+
+    // Act
+    const proposals = collectTmResetProposals(tmDays, prescriptions)
+
+    // Assert — 140 → 125 (10% snapped to 2.5 via backoffKg), addressed for the setter.
+    expect(proposals).toEqual([
+      {
+        exerciseName: 'Squat',
+        dayPosition: 0,
+        exercisePosition: 0,
+        currentTmKg: 140,
+        proposedTmKg: 125,
+      },
+    ])
+  })
+
+  it('never proposes for non-TM schemes, even on a mismatched flag verdict', () => {
+    // Arrange — a flag against the linear exercise (should be impossible).
+    const prescriptions = [[{ autoreg: null }, { autoreg: adjustment('flag') }], [{ autoreg: null }]]
+
+    // Act + Assert
+    expect(collectTmResetProposals(tmDays, prescriptions)).toEqual([])
+  })
+
+  it('ignores non-flag verdicts and dedupes a lift repeated across days', () => {
+    // Arrange — Squat flagged on both days, decrement elsewhere.
+    const prescriptions = [
+      [{ autoreg: adjustment('flag') }, { autoreg: adjustment('decrement') }],
+      [{ autoreg: adjustment('flag') }],
+    ]
+
+    // Act
+    const proposals = collectTmResetProposals(tmDays, prescriptions)
+
+    // Assert
+    expect(proposals).toHaveLength(1)
+    expect(proposals[0].exerciseName).toBe('Squat')
   })
 })
 

@@ -1,4 +1,5 @@
-import type { AutoregAdjustment } from '@/lib/autoregulate'
+import { backoffKg, AUTOREG_DEFAULT_STEP_KG, type AutoregAdjustment } from '@/lib/autoregulate'
+import type { Progression } from '@/lib/program-input'
 
 /**
  * Pure view logic for the program detail page's Arc C additions (editorial
@@ -116,6 +117,71 @@ export function collectAutoregNotes(
     })
   })
   return notes
+}
+
+/** One M4-flagged lift with its owner-confirmable TM reduction (TM lifecycle
+ *  §1): the flag verdict says "training max likely set too high"; the page
+ *  turns it into a PROPOSED ~10% reduction the owner may confirm — never an
+ *  automatic write. */
+export interface TmResetProposal {
+  exerciseName: string
+  /** 0-based address for the setter (adjustTrainingMaxAction). */
+  dayPosition: number
+  exercisePosition: number
+  currentTmKg: number
+  proposedTmKg: number
+}
+
+/**
+ * The proposed post-flag training max: current TM minus ~10% snapped to
+ * loadable 2.5 kg increments — exactly `backoffKg`'s semantics (incl. its
+ * one-increment floor and 25% cap), so the proposal and the autoreg
+ * decrement rule can never disagree about what "~10% off" means. Null when
+ * no sensible reduction exists (TM already 0).
+ */
+export function proposedTrainingMaxKg(currentTmKg: number): number | null {
+  const reduction = backoffKg(currentTmKg, AUTOREG_DEFAULT_STEP_KG)
+  if (reduction <= 0) return null
+  return currentTmKg - reduction
+}
+
+/**
+ * The M4-flagged lifts as confirmable TM-reduction proposals, from the
+ * prescriptions the page ALREADY derived (same no-extra-reads honesty as
+ * `collectAutoregNotes`, which deliberately excludes 'flag'). Only TM-bearing
+ * schemes (percent-1rm / amrap-cycle) can be flagged, but the scheme is
+ * re-checked here so a mismatched verdict can never propose against a scheme
+ * without a TM. Deduped by exercise name (one verdict per lift, as in
+ * collectAutoregNotes).
+ */
+export function collectTmResetProposals(
+  days: readonly {
+    exercises: readonly { name: string; progression: Progression | null }[]
+  }[],
+  prescriptions: readonly (readonly { autoreg: AutoregAdjustment | null }[])[],
+): TmResetProposal[] {
+  const proposals: TmResetProposal[] = []
+  const seen = new Set<string>()
+  days.forEach((day, dayIndex) => {
+    day.exercises.forEach((exercise, exerciseIndex) => {
+      const adjustment = prescriptions[dayIndex]?.[exerciseIndex]?.autoreg ?? null
+      if (adjustment === null || adjustment.action !== 'flag') return
+      const progression = exercise.progression
+      if (progression?.scheme !== 'percent-1rm' && progression?.scheme !== 'amrap-cycle') return
+      const proposedTmKg = proposedTrainingMaxKg(progression.trainingMaxKg)
+      if (proposedTmKg === null) return
+      if (seen.has(exercise.name)) return
+      seen.add(exercise.name)
+      proposals.push({
+        exerciseName: exercise.name,
+        dayPosition: dayIndex,
+        exercisePosition: exerciseIndex,
+        currentTmKg: progression.trainingMaxKg,
+        proposedTmKg,
+      })
+    })
+  })
+  return proposals
 }
 
 /** Change-log events bucketed under one calendar-day label. */
