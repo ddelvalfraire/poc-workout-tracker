@@ -253,6 +253,13 @@
       "when": 1786315305872,
       "tag": "0035_light_shiva",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1786317286863,
+      "tag": "0036_yellow_photon",
+      "breakpoints": true
     }
   ]
 }
