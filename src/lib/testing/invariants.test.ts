@@ -363,6 +363,109 @@ describe('autoregulate properties', () => {
   )
 })
 
+describe('review-gap positive controls (Layer 1-2 review)', () => {
+  // M4 positive control — the negative properties above prove flags never
+  // adjust; this proves the flag actually FIRES: three genuine consecutive
+  // stalls (any policy — the evidence class misses EVERY floor, so the
+  // governing set misses too) must produce action 'flag' with zero delta,
+  // and applyAutoregToSets must pass every derived set through untouched.
+  test.prop([evidenceLoadArb, policyArb, programSetRowsArb, progressionArb, weekGeometryArb, historyArb])(
+    'M4: three genuine stalls flag — and a flag adjusts nothing',
+    (loadKg, policy, sets, progression, geometry, history) => {
+      const sessions = [3, 2, 1].map((i) =>
+        evidenceSession({ cls: 'stallAtLoad', loadKg, startedAtMs: i * 86_400_000 }),
+      )
+      const verdict = autoregulateEarlyDeload(sessions, policy)
+      expect(verdict?.action).toBe('flag')
+      expect(verdict?.suggestEarlyDeload).toBe(true)
+      expect(verdict?.deltaKg).toBe(0)
+      const derived = deriveWeekSets({ sets, progression, history, ...geometry })
+      const applied = applyAutoregToSets(derived, verdict as NonNullable<typeof verdict>)
+      expect(applied).toEqual(derived)
+    },
+  )
+
+  // RANGE positive control — a genuine fill (uniform-top rows, every rep at
+  // the top) must STEP by exactly stepKg. The H3v2 property above only
+  // proves mixed tops never step; this pins the step actually firing.
+  test.prop([
+    evidenceLoadArb,
+    fc.integer({ min: 1, max: 4 }),
+    fc.integer({ min: 6, max: 12 }),
+    kgArb(0.5, 10),
+  ])('RANGE: a genuine uniform-top fill steps by exactly stepKg', (loadKg, count, top, stepKg) => {
+    const session = evidenceSession({
+      cls: 'cleanPass',
+      loadKg,
+      sets: count,
+      repFloor: top, // cleanPass performs exactly repFloor — every top met
+      startedAtMs: 86_400_000,
+    })
+    const rows = Array.from({ length: count }, () => ({ loadKg, repMax: top }))
+    const verdict = autoregulateRange(stepKg, [session], rows)
+    expect(verdict?.action).toBe('step')
+    expect(verdict?.deltaKg).toBe(stepKg)
+  })
+
+  /** A range-mode session with per-set reps at one prescribed load — the
+   *  M1/C1 shapes need reps that differ per set, which evidenceSession's
+   *  uniform classes can't express. */
+  const perSetRepsSession = (
+    reps: readonly number[],
+    repMin: number,
+    loadKg: number,
+    startedAtMs: number,
+  ) => ({
+    startedAtMs,
+    prescribed: reps.map((_, i) => ({
+      setNumber: i + 1,
+      repMin,
+      loadKg,
+      setType: 'working',
+    })),
+    actual: reps.map((r, i) => ({
+      setNumber: i + 1,
+      reps: r,
+      weightKg: loadKg,
+      completed: true,
+      setType: 'working',
+    })),
+  })
+
+  // M1 positive control — a flat streak parked within ONE rep of the fill
+  // target (12,12,11 vs 3×12: 35 of 36) across the full range window HOLDs
+  // (repeat) instead of decrementing: the model is densifying, not failing.
+  test.prop([evidenceLoadArb, kgArb(0.5, 10)])(
+    'M1: a near-fill flat streak holds instead of decrementing',
+    (loadKg, stepKg) => {
+      const sessions = [4, 3, 2, 1].map((i) =>
+        perSetRepsSession([12, 12, 11], 6, loadKg, i * 86_400_000),
+      )
+      const rows = Array.from({ length: 3 }, () => ({ loadKg, repMax: 12 }))
+      const verdict = autoregulateRange(stepKg, sessions, rows)
+      expect(verdict?.action).toBe('repeat')
+      expect(verdict?.deltaKg).toBe(0)
+      expect(verdict?.suggestEarlyDeload).toBe(false)
+      expect(verdict?.range?.stalls).toBeGreaterThanOrEqual(3)
+    },
+  )
+
+  // C1 distinguishing scenario — the docblock's 8,8,6 shape (first set hits
+  // its floor, a later set misses): a failed session under 'all-sets' (the
+  // StrongLifts/Starting Strength definition), a pass under 'first-set'
+  // (the top-set-driven convention).
+  test.prop([evidenceLoadArb])(
+    "C1: 8,8,6 stalls under 'all-sets' and passes under 'first-set'",
+    (loadKg) => {
+      const session = perSetRepsSession([8, 8, 6], 8, loadKg, 86_400_000)
+      const allSets = autoregulate(2.5, [session], 'all-sets')
+      expect(allSets?.action).toBe('repeat')
+      expect(allSets?.evidence).toMatchObject({ missedSets: 1, scorableSets: 3 })
+      expect(autoregulate(2.5, [session], 'first-set')).toBeNull()
+    },
+  )
+})
+
 describe('plan-sync properties', () => {
   const workoutArb: fc.Arbitrary<PlanSyncWorkoutExercise> = fc
     .tuple(
