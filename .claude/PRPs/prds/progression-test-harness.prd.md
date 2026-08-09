@@ -34,6 +34,17 @@ The engine (progression + autoregulate + plan-sync) is guarded by 2,607 mostly e
 - 100%-mutation-score gates (fights silence-over-corruption by construction).
 - Broad snapshot coverage (PBT owns breadth; the corpus is curated, cited depth).
 
+## Mutation ratchet
+
+Layer 4 is live. Stryker mutates only the three engine files (`src/lib/progression.ts`, `src/lib/autoregulate.ts`, `src/lib/plan-sync.ts`) and runs only the engine suites (the three co-located `.test.ts` files + `src/lib/testing/**`) via `vitest.stryker.config.ts`.
+
+- **Baseline (measured 2026-08-09, StrykerJS 9.6.1 / Vitest 4.1)**: **86.22%** — 1,459 mutants: 1,145 killed + 113 timeout, 187 survived, 14 no-coverage, 0 errors. Per file: progression 93.90%, autoregulate 84.53%, plan-sync 76.81%.
+- **Runtime**: full cold run ~7m30s local (10 workers); incremental reruns (`.stryker-incremental.json`, gitignored) re-test only mutants whose code or tests changed — a no-change rerun takes ~5s.
+- **Commands**: `npm run test:mutation` (plain Stryker run), `npm run test:mutation:check` (runs Stryker, then fails if the score drops below `stryker-baseline.json` minus 0.5pp tolerance — `scripts/mutation-check.mjs`).
+- **Ratchet policy (raise-only)**: the gate blocks REGRESSION only — never an absolute threshold (a 100% gate fights silence-over-corruption by construction; see "What We're NOT Building"). When the score improves past baseline + tolerance, bump `mutationScore` in `stryker-baseline.json` in the same PR. Never lower it to make a run pass.
+- **Survived-mutant workflow**: a survived mutant is a COVERAGE GAP lead, not an emergency. Periodically (or when touching an engine file) open the JSON report (`reports/mutation/mutation.json`, gitignored), pick survivors in the code you own, and either (a) add a test that kills it — usually a Layer 0 example or a Layer 1 invariant cite — or (b) note why it's unkillable (equivalent mutant). Known lead clusters from the baseline run: plan-sync's evidence-set filter and `Math.min` candidate-load choice (~lines 148–158), autoregulate's `LOAD_EPSILON_KG` boundary/tie-break in `evidenceLoadFor`/`anchorLoadFor` (~260–284), progression's null-reps filtering in `hitTopOfRange` (~170).
+- **Cadence**: quick/incremental check per PR touching the engine; full cold run nightly (delete `.stryker-incremental.json` to force cold). No CI workflow exists in-repo yet; the npm scripts are the interface.
+
 ## Success Metrics
 | Metric | Target |
 |---|---|

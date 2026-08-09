@@ -54,3 +54,8 @@ next-env.d.ts
 
 # allow committed example env
 !.env.example
+
+# stryker mutation testing (machine-generated)
+.stryker-tmp/
+.stryker-incremental.json
+reports/

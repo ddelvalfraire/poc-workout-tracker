@@ -1,0 +1,33 @@
+{
+  "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
+  "testRunner": "vitest",
+  "vitest": {
+    "configFile": "vitest.stryker.config.ts"
+  },
+  "mutate": [
+    "src/lib/progression.ts",
+    "src/lib/autoregulate.ts",
+    "src/lib/plan-sync.ts"
+  ],
+  "ignorePatterns": [
+    ".claude",
+    ".next",
+    ".vercel",
+    "e2e",
+    "reports",
+    "public",
+    "drizzle"
+  ],
+  "incremental": true,
+  "incrementalFile": ".stryker-incremental.json",
+  "reporters": ["progress", "clear-text", "json"],
+  "jsonReporter": {
+    "fileName": "reports/mutation/mutation.json"
+  },
+  "clearTextReporter": {
+    "logTests": false,
+    "reportMutants": false,
+    "reportScoreTable": true
+  },
+  "tempDirName": ".stryker-tmp"
+}
