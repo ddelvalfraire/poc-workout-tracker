@@ -1,9 +1,9 @@
 'use client'
 
 import { useState } from 'react'
-import Link from 'next/link'
-import { ChevronRight } from 'lucide-react'
 import { Input } from '@/components/ui/input'
+import { DividerList, DividerRow } from '@/components/ui/divider-list'
+import { EmptyWords } from '@/components/ui/empty-words'
 import { ZONE_LABELS, ZONE_ORDER, type ExerciseZone } from '@/lib/exercise-library'
 import { cn } from '@/lib/utils'
 import { exerciseHref } from './exercise-ref'
@@ -62,15 +62,13 @@ export function LibraryFilter({ entries }: LibraryFilterProps) {
       />
 
       {entries.length === 0 && (
-        <p className="rounded-2xl border border-border bg-card px-5 py-12 text-center text-sm text-muted-foreground">
+        <EmptyWords className="py-12">
           Nothing here yet — finish a workout and your exercises show up with their stats.
-        </p>
+        </EmptyWords>
       )}
 
       {entries.length > 0 && visible.length === 0 && (
-        <p className="px-1 py-6 text-center text-sm text-muted-foreground">
-          No exercise matches “{query.trim()}”.
-        </p>
+        <EmptyWords>No exercise matches “{query.trim()}”.</EmptyWords>
       )}
 
       {zones.map(({ zone, items }) => (
@@ -83,43 +81,40 @@ export function LibraryFilter({ entries }: LibraryFilterProps) {
           >
             {ZONE_LABELS[zone]}
           </h2>
-          <ul className="space-y-3">
+          {/* De-carded: divider rows on the page background, full-bleed
+              hairlines — the shell did nothing the divider doesn't. */}
+          <DividerList>
             {items.map((entry) => (
-              <li key={`${entry.source}:${entry.wgerExerciseId}`}>
-                <Link
-                  href={exerciseHref(entry)}
-                  className="flex min-w-0 items-center justify-between gap-4 rounded-2xl border border-border bg-card p-5 transition-colors active:bg-muted/60"
-                >
-                  <span className="min-w-0">
-                    <span className="block truncate text-base leading-tight">{entry.name}</span>
-                    <span className="mt-1 block truncate text-sm text-muted-foreground">
-                      {entry.statusBase}
-                      {entry.deltaText !== null && (
-                        <>
-                          {' '}
-                          <span
-                            className={cn(
-                              // Volt on the delta ONLY — achievement accent,
-                              // never the whole line, never a decline.
-                              entry.deltaDirection === 'up' && 'font-semibold text-primary',
-                            )}
-                          >
-                            {entry.deltaText}
-                          </span>
-                        </>
-                      )}
-                      {' · '}
-                      {entry.recencyLabel}
-                    </span>
+              <DividerRow
+                key={`${entry.source}:${entry.wgerExerciseId}`}
+                href={exerciseHref(entry)}
+                className="min-w-0 active:bg-muted/60"
+              >
+                <span className="min-w-0">
+                  <span className="block truncate text-base leading-tight">{entry.name}</span>
+                  <span className="mt-1 block truncate text-sm text-muted-foreground">
+                    {entry.statusBase}
+                    {entry.deltaText !== null && (
+                      <>
+                        {' '}
+                        <span
+                          className={cn(
+                            // Volt on the delta ONLY — achievement accent,
+                            // never the whole line, never a decline.
+                            entry.deltaDirection === 'up' && 'font-semibold text-primary',
+                          )}
+                        >
+                          {entry.deltaText}
+                        </span>
+                      </>
+                    )}
+                    {' · '}
+                    {entry.recencyLabel}
                   </span>
-                  <ChevronRight
-                    aria-hidden="true"
-                    className="size-5 shrink-0 text-muted-foreground"
-                  />
-                </Link>
-              </li>
+                </span>
+              </DividerRow>
             ))}
-          </ul>
+          </DividerList>
         </section>
       ))}
     </div>
