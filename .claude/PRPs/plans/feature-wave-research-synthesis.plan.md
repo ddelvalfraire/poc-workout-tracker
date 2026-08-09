@@ -44,6 +44,21 @@ Already live: proposal = `programs` row w/ `status='proposed'` + `authorActor`; 
 - wger import as one-time seed script (M — external mapping is the risk). `/templates` browse reusing the article-card treatment.
 - NOT building: a DSL (Liftosaur's identity, our regression), marketplace/ratings/community upload, live sync.
 
+### 7. Notes revamp + reusable editor (M/L) — researched 2026-08-09
+- Audit verdict: 9 free-text surfaces, most dead-ends; `getLastPerformance` excludes notes at the SQL layer; exercise-IDENTITY notes don't exist at all (the "seat pin 4" gap).
+- Build: new `exerciseNotes(userId, source, exerciseId, body markdown, pinned)` table (unique per user+identity), LEFT JOIN into getLastPerformance, sticky-chip resurfacing in the logger (Strong's pin pattern, Hevy's routine-note semantics — contextual resurfacing beats note lists, unanimously).
+- Editor: **TipTap** (smallest tree-shakable core, first-party bidirectional markdown, BlockNote layers on it later if blocks ever needed). **Markdown strings are source of truth** (agents read/write markdown, never editor JSON). Two variants of one component: QuickCapture (bottom sheet, bold/lists/links only) and FullEditor (toolbar-above-keyboard — Notion's own mobile fallback; slash menus fight predictive text). Read-only = lightweight markdown renderer, never the editor bundle.
+- Program articles get their first human authoring UI (FullEditor on description); template-edit-sheet textarea retires onto QuickCapture. `programs.notes`/`programDays.notes`: decide (repurpose-private or deprecate), don't carry forward ambiguous.
+- Zero data migration (existing text is valid markdown). New MCP tool `set_exercise_note` (identity-scoped; set_exercise_meta stays instance-scoped).
+- NOT building: blocks/embeds/tables, collab, version history, global notes tab, attachments, JSON storage.
+
+### 8. De-carding the visual vocabulary (design pass) — researched 2026-08-09
+- Audit: 79 rounded-2xl cards / 39 files; 99 pills / 48 files doing 3 unrelated jobs. Worst: programs/[id] — six day states, one shell.
+- Direction: FINISH what's started, don't import a language. Program day list → Things-3 divider list (ADA-verified, lowest risk); extend StatusHero's status-as-words (Gentler Streak STRUCTURE only — never its palette); stats → tiered/timeline disclosure (Day One/WHOOP).
+- Keep-list (locked): one-volt rule, StatTile contract, sheet-only glass, actor-chip pills, and the logger fast path is OFF-LIMITS (load-bearing state interleaved with visuals).
+- Risks: illustrated assets vs PWA precache budget (no asset budget doc exists — write one first); directions tempting a second accent must be re-specified monochrome+volt before any code.
+- Sequencing: pairs with #7 (notes chips/article surfaces born into the new vocabulary); program-page divider-list conversion is the natural first PR.
+
 ### UI patterns locked (from award/precedent research)
 - TM review + volume proposals: approval-card sentence diffs (`describeToolCall` idiom) — no bespoke screens.
 - Mesocycle timeline: horizontal week-pill rail (volt = current, icon = deload; never a calendar grid).
