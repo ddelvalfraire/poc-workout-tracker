@@ -21,6 +21,16 @@ import {
 } from './program-draft'
 import { type WeightUnit } from '@/lib/units'
 import { WEEKDAY_NAMES } from '@/lib/schedule-anchor'
+import type { DeloadPolicy } from '@/lib/program-input'
+
+/** The read-only shape caption for the scheduled mode: the stored shape when
+ *  one exists (agent-configured), the historical defaults otherwise. */
+function deloadShapeLine(policy: DeloadPolicy | null): string {
+  const shape =
+    policy?.mode === 'scheduled' ? policy.shape : { loadFactor: 0.85, setFactor: 0.5, rpeCap: null }
+  const base = `${Math.round(shape.loadFactor * 100)}% of the load · ${Math.round(shape.setFactor * 100)}% of the sets`
+  return shape.rpeCap !== null ? `${base} · effort capped at RPE ${shape.rpeCap}` : base
+}
 
 interface ProgramBuilderProps {
   /** When set, the builder is in edit mode: Save updates this program and returns to its detail page. */
@@ -38,6 +48,11 @@ export function ProgramBuilder({
   const [draft, dispatch] = useReducer(programDraftReducer, initialDraft)
   const [error, setError] = useState<string | null>(null)
   const [isPending, setIsPending] = useState(false)
+  // The deload-mode picker's checked state: an explicit policy wins; a
+  // never-set one shows the LEGACY resolution (scheduled when a deload week
+  // is typed, none otherwise) — mirroring resolveDeloadPolicy's read path.
+  const resolvedDeloadMode =
+    draft.deloadPolicy?.mode ?? (draft.deloadWeek.trim() !== '' ? 'scheduled' : 'none')
   const router = useRouter()
   // Local draft persistence: the builder is a long phone form with no server
   // draft (unlike the logger) — a backgrounded-tab kill would otherwise
@@ -190,6 +205,55 @@ export function ProgramBuilder({
         <p id="deload-hint" className="px-1 text-sm text-muted-foreground">
           A deload week eases the load partway through so you recover before the next block.
         </p>
+
+        {/* Deload policy: the same compact radio idiom as the stall policy
+            below. The checked state shows the RESOLVED mode (a never-set
+            policy displays what the program will actually do — scheduled
+            when a deload week is set, none otherwise); picking an option
+            writes an explicit policy. Scheduled's shape is read-only here —
+            the historical back-off unless an agent configured otherwise. */}
+        <fieldset className="px-1">
+          <legend className="text-sm">How should the deload week behave?</legend>
+          <div className="mt-1 flex flex-col gap-1">
+            {(
+              [
+                ['none', 'None — train it like any other week'],
+                ['reactive', 'Reactive — only when stalls suggest one'],
+                ['scheduled', 'Scheduled — back off on the deload week'],
+              ] as const
+            ).map(([mode, label]) => (
+              <label key={mode} className="flex items-center gap-2.5">
+                <input
+                  type="radio"
+                  name="deload-policy-mode"
+                  checked={resolvedDeloadMode === mode}
+                  onChange={() =>
+                    dispatch({
+                      type: 'SET_DELOAD_POLICY',
+                      value:
+                        mode === 'scheduled'
+                          ? {
+                              mode,
+                              shape:
+                                draft.deloadPolicy?.mode === 'scheduled'
+                                  ? draft.deloadPolicy.shape
+                                  : { loadFactor: 0.85, setFactor: 0.5, rpeCap: null },
+                            }
+                          : { mode },
+                    })
+                  }
+                  className="size-4 shrink-0 accent-primary"
+                />
+                <span className="text-sm text-muted-foreground">{label}</span>
+              </label>
+            ))}
+          </div>
+          {resolvedDeloadMode === 'scheduled' && (
+            <p className="mt-1 pl-6.5 text-sm text-muted-foreground">
+              {deloadShapeLine(draft.deloadPolicy)}
+            </p>
+          )}
+        </fieldset>
 
         {/* Program-level auto-regulation switch. A native checkbox — one
             boolean doesn't justify custom chrome, and the adjusted targets
