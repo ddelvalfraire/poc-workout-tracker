@@ -403,6 +403,37 @@ export function ProgramBuilder({
                   </Button>
                 </div>
 
+                {/* Training max: only TM-bearing schemes (percent-1rm /
+                    amrap-cycle) render it — the one progression field the
+                    builder edits (the rest stays agent-authored pass-
+                    through). Seeded from the stored TM, or prefilled
+                    e1rm × 0.85 for authored sketches (the caption says so
+                    until the first edit). */}
+                {(exercise.progression?.scheme === 'percent-1rm' ||
+                  exercise.progression?.scheme === 'amrap-cycle') && (
+                  <label className="flex items-center gap-2.5 px-0.5 text-sm">
+                    <span className="shrink-0">Training max ({unit})</span>
+                    <Input
+                      type="text"
+                      inputMode="decimal"
+                      value={exercise.trainingMax}
+                      onChange={(e) =>
+                        dispatch({
+                          type: 'UPDATE_EXERCISE_TM',
+                          dayIndex,
+                          index: exerciseIndex,
+                          value: e.target.value,
+                        })
+                      }
+                      aria-label={`${exercise.name} training max in ${unit}`}
+                      className="w-24 shrink-0 text-center tnum"
+                    />
+                    {exercise.trainingMaxFromE1rm && (
+                      <span className="text-xs text-muted-foreground">from your e1RM</span>
+                    )}
+                  </label>
+                )}
+
                 {exercise.sets.length > 0 && (
                   <div className="flex items-center gap-2 px-0.5 text-[0.7rem] font-semibold uppercase tracking-wider text-muted-foreground">
                     <span className="w-6 shrink-0" aria-hidden="true" />
