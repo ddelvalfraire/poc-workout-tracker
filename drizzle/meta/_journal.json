@@ -246,6 +246,13 @@
       "when": 1786305555385,
       "tag": "0034_gigantic_jackpot",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1786315305872,
+      "tag": "0035_light_shiva",
+      "breakpoints": true
     }
   ]
 }

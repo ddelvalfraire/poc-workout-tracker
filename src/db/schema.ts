@@ -175,6 +175,11 @@ export const userPreferences = pgTable('user_preferences', {
   // ignored. Default ON — the timer is the feature's normal state; the
   // switch exists for lifters who find any clock a distraction.
   restTimerEnabled: boolean('rest_timer_enabled').notNull().default(true),
+  // Home section layout ({ version: 1, sections: [{ kind, hidden? }] } — see
+  // lib/home/layout.ts). Nullable: null means the code-defined default order,
+  // which is also what "Reset to default" writes. Readers zod-guard the shape
+  // and degrade to the default on any corruption.
+  homeLayout: jsonb('home_layout'),
   // Home-page "train with a plan" nudge, dismissed. Stored as DISMISSED (not
   // "enabled") so the false default means every user starts with the reminder
   // visible; only an explicit dismissal — card or settings toggle — hides it.

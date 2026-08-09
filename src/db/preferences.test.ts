@@ -49,6 +49,8 @@ import {
   getDefaultRestSec,
   setDefaultRestSec,
   getRestTimerEnabled,
+  getHomeLayout,
+  setHomeLayout,
 } from './preferences'
 
 const USER = 'user_123'
@@ -170,5 +172,62 @@ describe('setDefaultRestSec', () => {
     expect(upserts).toHaveLength(1)
     expect(upserts[0].values).toMatchObject({ userId: USER, defaultRestSec: null })
     expect(upserts[0].conflict).toMatchObject({ set: { defaultRestSec: null } })
+  })
+})
+
+describe('getHomeLayout', () => {
+  const DEFAULT_KINDS = ['momentum', 'today-recap', 'unfinished', 'history']
+
+  it('resolves to the default order when no row exists', async () => {
+    selectRows = []
+    expect((await getHomeLayout(USER)).map((s) => s.kind)).toEqual(DEFAULT_KINDS)
+  })
+
+  it('resolves to the default when the stored document is corrupt', async () => {
+    selectRows = [{ homeLayout: { sections: 'garbage' } }]
+    expect((await getHomeLayout(USER)).map((s) => s.kind)).toEqual(DEFAULT_KINDS)
+  })
+
+  it('resolves a stored document (order + hidden honored)', async () => {
+    selectRows = [
+      {
+        homeLayout: {
+          version: 1,
+          sections: [
+            { kind: 'history' },
+            { kind: 'momentum', hidden: true },
+            { kind: 'today-recap' },
+            { kind: 'unfinished' },
+          ],
+        },
+      },
+    ]
+    const resolved = await getHomeLayout(USER)
+    expect(resolved.map((s) => s.kind)).toEqual([
+      'history',
+      'momentum',
+      'today-recap',
+      'unfinished',
+    ])
+    expect(resolved[1].hidden).toBe(true)
+  })
+})
+
+describe('setHomeLayout', () => {
+  it('upserts the layout document by user id', async () => {
+    const layout = { version: 1 as const, sections: [{ kind: 'history' }] }
+    await setHomeLayout(USER, layout)
+
+    expect(upserts).toHaveLength(1)
+    expect(upserts[0].values).toMatchObject({ userId: USER, homeLayout: layout })
+    expect(upserts[0].conflict).toMatchObject({ set: { homeLayout: layout } })
+  })
+
+  it('upserts null to reset to the default layout', async () => {
+    await setHomeLayout(USER, null)
+
+    expect(upserts).toHaveLength(1)
+    expect(upserts[0].values).toMatchObject({ userId: USER, homeLayout: null })
+    expect(upserts[0].conflict).toMatchObject({ set: { homeLayout: null } })
   })
 })
