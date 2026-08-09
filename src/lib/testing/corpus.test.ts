@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   amrapCompletedWaves,
+  DELOAD_LOAD_FACTOR,
   deriveWeekSets,
   type ExerciseHistoryInput,
   type ProgramSetRowLike,
@@ -162,8 +163,8 @@ describe('corpus: Wendler 5/3/1 — amrap-cycle vs the published cycle tables [W
     // a forced canon match.
     const derived = derive(4)
     expect(derived).toHaveLength(2)
-    expect(derived[0].loadKg).toBeCloseTo(102.5 * 0.65 * 0.85, 9) // 56.63125, not 40
-    expect(derived[1].loadKg).toBeCloseTo(102.5 * 0.75 * 0.85, 9) // 65.34375, not 50
+    expect(derived[0].loadKg).toBeCloseTo(102.5 * 0.65 * DELOAD_LOAD_FACTOR, 9) // 56.63125, not 40
+    expect(derived[1].loadKg).toBeCloseTo(102.5 * 0.75 * DELOAD_LOAD_FACTOR, 9) // 65.34375, not 50
     derived.forEach((s) => expect(s.derivedFrom).toBe('deload'))
   })
 
