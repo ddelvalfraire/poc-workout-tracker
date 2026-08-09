@@ -753,6 +753,12 @@ function classifyRange(
       .filter((p) => governing(p.loadKg) === bucketLoad)
       .sort((a, b) => b.reps - a.reps)
     if (bucketPairs.length < bucketTops.length) filled = false
+    // Heterogeneous tops within one bucket (verification re-break of H3):
+    // which historical set owned which top is unknowable order-free, and the
+    // optimistic best-reps→highest-top match can launder a top-target miss
+    // into a fill. Misses stay optimistic — only CERTAIN misses stall — but
+    // a fill is unconfirmable here: a mixed-top bucket can never step.
+    if (new Set(bucketTops).size > 1) filled = false
     for (const [i, pair] of bucketPairs.entries()) {
       const top = bucketTops[i]
       if (top !== undefined) {

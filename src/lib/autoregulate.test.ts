@@ -792,6 +792,28 @@ describe('autoregulateRange', () => {
     })
   })
 
+  it('H3v2: heterogeneous tops in ONE load bucket can never step (verification re-break)', () => {
+    // Two ranged rows at the same load with different tops (12 and 5): which
+    // historical set owned which top is unknowable order-free, and the
+    // optimistic best-reps→highest-top match would score 6 reps against the
+    // top-5 row and 12 against the top-12 row — laundering a 50% miss on the
+    // true top-12 set into a fill and a LOAD INCREASE. Misses stay optimistic
+    // (no certain miss → no stall), but the fill is unconfirmable: hold.
+    const mixedTops: AutoregRangeRow[] = [
+      { loadKg: 100, repMax: 12 },
+      { loadKg: 100, repMax: 5 },
+    ]
+    const laundered = mixedSession([
+      { setNumber: 1, repMin: 5, loadKg: 100, reps: 6 },
+      { setNumber: 2, repMin: 5, loadKg: 100, reps: 12 },
+    ])
+
+    const adjustment = autoregulateRange(2.5, [laundered], mixedTops)
+
+    expect(adjustment?.action).not.toBe('step')
+    expect(adjustment).toMatchObject({ action: 'repeat', evidence: { missedSets: 0 } })
+  })
+
   it('sets attempted lighter than prescribed are excluded from the fill (follow-down evidence)', () => {
     const s: AutoregSession = {
       startedAtMs: 0,
