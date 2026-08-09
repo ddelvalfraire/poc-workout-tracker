@@ -153,6 +153,13 @@ export const progressionSchema = z
       scheme: z.literal('amrap-cycle'),
       trainingMaxKg: z.number().min(0).max(MAX_WEIGHT),
       incrementKg: z.number().min(0).max(MAX_WEIGHT),
+      // Completed waves whose bumps are already FOLDED INTO trainingMaxKg by
+      // the wave-boundary persist (instantiation routes each completed wave's
+      // increment through setTrainingMax so the bump is visible in the change
+      // log). The engine adds increments only for completed waves BEYOND this
+      // count, so a persisted bump and the derive-time wave math can never
+      // double-count. Absent (all pre-persist programs) = 0: fully virtual.
+      bankedWaves: z.number().int().min(0).max(1000).optional(),
       wave: z
         .array(z.array(z.number().min(0).max(2)).min(1).max(20))
         .min(1)

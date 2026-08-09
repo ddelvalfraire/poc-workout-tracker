@@ -157,6 +157,17 @@ const CASES: Record<
     input: { programId: PROGRAM_ID, enabled: true },
     expected: 'Turn plan sync on',
   },
+  set_training_max: {
+    input: {
+      programId: PROGRAM_ID,
+      dayPosition: 0,
+      exercisePosition: 1,
+      trainingMax: 145,
+      reason: 'manual',
+      unit: 'kg',
+    },
+    expected: 'Day 1, exercise 2: set the training max → 145 kg (manual)',
+  },
 }
 
 describe('describeToolCall', () => {

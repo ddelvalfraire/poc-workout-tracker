@@ -255,6 +255,15 @@ export function describeToolCall(toolName: string, input: unknown): string {
       return typeof args.enabled === 'boolean'
         ? `Turn plan sync ${args.enabled ? 'on' : 'off'}`
         : fallback
+    case 'set_training_max': {
+      const location = locationPhrase(args, false)
+      const tm = num(args.trainingMax)
+      if (tm === null) return fallback
+      const unit = str(args.unit)
+      const reason = str(args.reason)
+      const change = `set the training max → ${tm}${unit ? ` ${unit}` : ''}${reason ? ` (${reason})` : ''}`
+      return location ? `${sentence(location)}: ${change}` : sentence(change)
+    }
     case 'upsert_program': {
       const verb = str(args.id) ? 'Replace' : 'Create'
       const name = str(args.name)

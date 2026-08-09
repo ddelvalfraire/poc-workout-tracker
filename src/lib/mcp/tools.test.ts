@@ -82,6 +82,7 @@ describe('registerTools', () => {
       'set_program_plan_sync',
       'set_program_set_override',
       'set_program_status',
+      'set_training_max',
       'set_weight_unit',
       'set_workout_meta',
       'update_custom_exercise',
