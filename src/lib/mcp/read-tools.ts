@@ -65,7 +65,7 @@ export function registerReadTools(server: McpServer): void {
     {
       title: 'Get Workout',
       description:
-        "Returns one workout (owned by the user) with its exercises and sets, weights in the user's unit, plus a per-exercise estimated 1RM. Includes the session `notes` and, per exercise, `notes` and `skipped` (skipped = the lifter didn't do this exercise that day; its sets stay uncompleted).",
+        "Returns one workout (owned by the user) with its exercises and sets, weights in the user's unit, plus a per-exercise estimated 1RM. Each set carries logged effort (`rir`/`rpe`) and its prescribed target (`prescribedRir`/`prescribedRpe`), null when absent. Includes the session `notes` and, per exercise, `notes` and `skipped` (skipped = the lifter didn't do this exercise that day; its sets stay uncompleted).",
       inputSchema: { id: z.string(), userId: z.string().optional() },
     },
     async ({ id, userId }, extra) => {
@@ -375,7 +375,17 @@ export interface WorkoutPayload {
       notes: string | null
       // Marked skipped in-session ("didn't do this today"); the sets stay uncompleted.
       skipped: boolean
-      sets: { setNumber: number; reps: number | null; weight: number | null; completed: boolean }[]
+      sets: {
+        setNumber: number
+        reps: number | null
+        weight: number | null
+        completed: boolean
+        // Logged effort and its prescribed target — unitless, null when absent.
+        rir: number | null
+        rpe: number | null
+        prescribedRir: number | null
+        prescribedRpe: number | null
+      }[]
       estimated1RM: number | null
       // Additive rep-fallback readout: the best set's rep count when nothing
       // is load-scorable (BW type without a stored bodyweight, or no weights
@@ -422,6 +432,12 @@ export function buildWorkoutPayload(
           reps: s.reps,
           weight: s.weight === null ? null : kgToDisplay(s.weight, unit),
           completed: s.completed,
+          // Logged effort + its prescribed-at-instantiation target — unitless
+          // scales, so no display conversion. Null when not logged/prescribed.
+          rir: s.rir,
+          rpe: s.rpe,
+          prescribedRir: s.prescribedRir,
+          prescribedRpe: s.prescribedRpe,
         })),
         ...scoreExercise(exercise.sets, exercise.loggingType, bodyweightKg, unit),
       })),

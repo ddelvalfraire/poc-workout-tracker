@@ -14,6 +14,8 @@
  * similar) schema while keeping the same signature.
  */
 
+import { isValidRir, isValidRpe, RIR_MIN, RIR_MAX, RPE_MIN, RPE_MAX } from './effort'
+
 /**
  * How an exercise's sets are logged and how their `weight` column reads
  * (Hevy-style). The type lives on the EXERCISE (not the set) — a movement is
@@ -55,6 +57,11 @@ export interface SetInput {
   /** Warm-up tag; absent = 'working' (the column default). Warm-ups are
    *  preparation, not record attempts — scorers must skip them. */
   setType?: WorkoutSetType
+  /** Logged reps-in-reserve (0–10 int); absent/null = not logged. Stored
+   *  alongside rpe, never converted (lib/effort.ts owns the ranges). */
+  rir?: number | null
+  /** Logged RPE (4–10, half steps); absent/null = not logged. */
+  rpe?: number | null
 }
 
 /** One exercise within a workout, with its logged sets. */
@@ -189,11 +196,26 @@ function parseSet(raw: unknown): SetInput {
     throw new Error(`set setType must be one of ${SET_TYPES.join(', ')}`)
   }
 
+  // Effort fields: absent/null = not logged; anything present must sit on the
+  // shared grid (lib/effort.ts) — an off-scale value would poison later
+  // RIR-adjusted scoring the way a typo'd setType would mis-score records.
+  const { rir } = obj
+  if (rir !== undefined && rir !== null && (typeof rir !== 'number' || !isValidRir(rir))) {
+    throw new Error(`set rir must be an integer between ${RIR_MIN} and ${RIR_MAX}, or null`)
+  }
+
+  const { rpe } = obj
+  if (rpe !== undefined && rpe !== null && (typeof rpe !== 'number' || !isValidRpe(rpe))) {
+    throw new Error(`set rpe must be between ${RPE_MIN} and ${RPE_MAX} in 0.5 steps, or null`)
+  }
+
   return {
     reps: reps as number | null,
     weight: weight as number | null,
     ...(typeof completed === 'boolean' && { completed }),
     ...(isWorkoutSetType(setType) && { setType }),
+    ...(rir !== undefined && { rir: rir as number | null }),
+    ...(rpe !== undefined && { rpe: rpe as number | null }),
   }
 }
 

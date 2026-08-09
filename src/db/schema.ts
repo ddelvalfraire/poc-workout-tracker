@@ -141,6 +141,17 @@ export const sets = pgTable(
     // unscorable by the auto-regulation engine, by design.
     prescribedLoadKg: numeric('prescribed_load_kg', { precision: 6, scale: 2, mode: 'number' }),
     prescribedRepMin: integer('prescribed_rep_min'),
+    // Logged effort, opt-in (RPE/RIR §2): BOTH scales stored, never converted
+    // (half-point RPE straddles RIR integers). Null = not logged — skipping
+    // by ignoring the chip row is the designed common case.
+    rir: integer('rir'),
+    rpe: numeric('rpe', { precision: 3, scale: 1, mode: 'number' }),
+    // Prescribed-at-instantiation effort snapshot, same immutability contract
+    // as prescribed_load_kg/prescribed_rep_min above: the target this set was
+    // seeded with (program_sets.rir/rpe through the week derivation). Null on
+    // ad-hoc sets and all pre-snapshot history.
+    prescribedRir: integer('prescribed_rir'),
+    prescribedRpe: numeric('prescribed_rpe', { precision: 3, scale: 1, mode: 'number' }),
     // Metric model (timed exercises). Additive + defaulted so existing rows and
     // the reps_weight logging path are unaffected; e1RM applies only to reps_weight.
     metricMode: text('metric_mode').notNull().default('reps_weight'),
@@ -184,6 +195,11 @@ export const userPreferences = pgTable('user_preferences', {
   // "enabled") so the false default means every user starts with the reminder
   // visible; only an explicit dismissal — card or settings toggle — hides it.
   programReminderDismissed: boolean('program_reminder_dismissed').notNull().default(false),
+  // Opt-in switch for RPE/RIR effort logging on EVERY set (the show rule's
+  // preference arm; sets with a prescribed effort target show the row
+  // regardless). Default OFF — effort logging must never tax a lifter who
+  // didn't ask for it.
+  rpeLoggingEnabled: boolean('rpe_logging_enabled').notNull().default(false),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 })
 

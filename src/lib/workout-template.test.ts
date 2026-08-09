@@ -20,6 +20,10 @@ function makeSet(
     distanceM: null,
     prescribedLoadKg: null,
     prescribedRepMin: null,
+    rir: null,
+    rpe: null,
+    prescribedRir: null,
+    prescribedRpe: null,
     ...overrides,
   }
 }
