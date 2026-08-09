@@ -1,7 +1,13 @@
 import { notFound } from 'next/navigation'
 import { requireUserId } from '@/lib/auth'
 import { getWorkoutDetail, type WorkoutDetail } from '@/db/workouts'
-import { getWeightUnit, getEquipment, getDefaultRestSec, getRestTimerEnabled } from '@/db/preferences'
+import {
+  getWeightUnit,
+  getEquipment,
+  getDefaultRestSec,
+  getRestTimerEnabled,
+  getRpeLoggingEnabled,
+} from '@/db/preferences'
 import { getProgramDayDetail, deriveDayPrescription } from '@/db/programs'
 import { getWorkoutDraft } from '@/db/workout-drafts'
 import type { PlanSetTarget } from '@/lib/format'
@@ -78,6 +84,10 @@ async function loadPlanTargets(
       // Per-set rest prescription — drives the logger's rest countdown
       // (override > template, via the same derivation as the load ghosts).
       restSec: s.restSec,
+      // Prescribed effort target — the structural arm of the effort-row
+      // show rule (and the "Target RIR 2" caption inside the chip row).
+      rir: s.rir,
+      rpe: s.rpe,
     }))
   })
   // The day name rides along so the logger can say which (day, week) this
@@ -99,11 +109,12 @@ export default async function EditWorkoutPage({
   ])
   if (!workout) notFound()
 
-  const [plan, equipment, defaultRestSec, restTimerEnabled, draftRow] = await Promise.all([
+  const [plan, equipment, defaultRestSec, restTimerEnabled, rpeLoggingEnabled, draftRow] = await Promise.all([
     loadPlanTargets(userId, workout, unit),
     getEquipment(userId, unit),
     getDefaultRestSec(userId),
     getRestTimerEnabled(userId),
+    getRpeLoggingEnabled(userId),
     // The logger's autosave key for this surface is the workout id; the write
     // path lower-cases keys at the action boundary, so read the same form.
     getWorkoutDraft(userId, id.toLowerCase()),
@@ -153,6 +164,7 @@ export default async function EditWorkoutPage({
         equipment={equipment}
         defaultRestSec={defaultRestSec}
         restTimerEnabled={restTimerEnabled}
+        rpeLoggingEnabled={rpeLoggingEnabled}
       />
     </div>
   )

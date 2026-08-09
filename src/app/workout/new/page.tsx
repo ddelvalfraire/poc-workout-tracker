@@ -1,5 +1,11 @@
 import { requireUserId } from '@/lib/auth'
-import { getWeightUnit, getEquipment, getDefaultRestSec, getRestTimerEnabled } from '@/db/preferences'
+import {
+  getWeightUnit,
+  getEquipment,
+  getDefaultRestSec,
+  getRestTimerEnabled,
+  getRpeLoggingEnabled,
+} from '@/db/preferences'
 import { getWorkoutDetail } from '@/db/workouts'
 import { getWorkoutTemplateDetail } from '@/db/workout-templates'
 import { getWorkoutDraft } from '@/db/workout-drafts'
@@ -36,10 +42,11 @@ export default async function NewWorkoutPage({
   ])
   // Equipment and the rest default are independent preference reads — one
   // round-trip of latency instead of two.
-  const [equipment, defaultRestSec, restTimerEnabled] = await Promise.all([
+  const [equipment, defaultRestSec, restTimerEnabled, rpeLoggingEnabled] = await Promise.all([
     getEquipment(userId, unit),
     getDefaultRestSec(userId),
     getRestTimerEnabled(userId),
+    getRpeLoggingEnabled(userId),
   ])
   // resetCompleted: repeating an old workout starts a fresh session — no
   // checked-off sets carried over from the source. A template seeds
@@ -73,6 +80,7 @@ export default async function NewWorkoutPage({
         equipment={equipment}
         defaultRestSec={defaultRestSec}
         restTimerEnabled={restTimerEnabled}
+        rpeLoggingEnabled={rpeLoggingEnabled}
       />
     </div>
   )

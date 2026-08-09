@@ -237,6 +237,34 @@ describe('isDraftPayload / parseDraftPayload rejection', () => {
   })
 })
 
+describe('effort fields in the payload', () => {
+  function withSetOverrides(setOverrides: Record<string, unknown>): Record<string, unknown> {
+    const base = JSON.parse(JSON.stringify(payload())) as {
+      draft: { exercises: { sets: Record<string, unknown>[] }[] }
+    }
+    base.draft.exercises[0].sets[0] = { ...base.draft.exercises[0].sets[0], ...setOverrides }
+    return base as unknown as Record<string, unknown>
+  }
+
+  it('round-trips chip-logged rir/rpe strings', () => {
+    const stored = withSetOverrides({ rir: '2', rpe: '8.5' })
+
+    const restored = parseDraftPayload(stored, { unit: 'kg', now: NOW })
+
+    expect(restored).not.toBeNull()
+    expect(restored!.draft.exercises[0].sets[0]).toMatchObject({ rir: '2', rpe: '8.5' })
+  })
+
+  it('accepts pre-effort payloads without the fields (no version bump)', () => {
+    expect(isDraftPayload(payload())).toBe(true)
+  })
+
+  it('rejects wrong-typed effort fields like any malformed field', () => {
+    expect(isDraftPayload(withSetOverrides({ rir: 2 }))).toBe(false)
+    expect(isDraftPayload(withSetOverrides({ rpe: { value: '8' } }))).toBe(false)
+  })
+})
+
 describe('resolveDraftSeed', () => {
   const row = (ageMs: number, p: unknown = payload()) => ({
     payload: p,

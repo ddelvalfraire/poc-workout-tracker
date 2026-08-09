@@ -22,6 +22,7 @@ import {
   workoutDurationMinutes,
 } from "@/lib/format";
 import { bestScoredSet } from "@/lib/one-rep-max";
+import { effortLabel } from "@/lib/effort";
 import {
   compareExercises,
   durationVsLastLabel,
@@ -479,6 +480,16 @@ export default async function WorkoutDetailPage({
                         >
                           {formatLoggedSet(set, unit, exercise.loggingType)}
                         </span>
+                        {/* Logged effort as words (never a chip here — pure
+                            display): muted, after the set text, absent when
+                            nothing was logged. */}
+                        {(() => {
+                          const effort = effortLabel(set.rir, set.rpe);
+                          if (!effort) return null;
+                          return (
+                            <span className="text-xs text-muted-foreground tnum">{effort}</span>
+                          );
+                        })()}
                         {setIndex === bestIndex && (
                           // Chip → word (logger grammar): a quiet caps label,
                           // no pill shell.

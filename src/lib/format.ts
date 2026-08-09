@@ -295,6 +295,11 @@ export interface PlanSetTarget {
   repMin: number | null
   repMax: number | null
   loadKg: number | null
+  /** Prescribed effort target (program_sets.rir/rpe through the week
+   *  derivation) — the structural arm of the effort-row show rule. Optional:
+   *  pre-effort call sites and fixtures carry neither. */
+  rir?: number | null
+  rpe?: number | null
   /** The unadjusted scheme load when autoreg touched this set — the value the
    *  logger's "Use plan as written" escape reverts to. Absent otherwise. */
   planLoadKg?: number | null
