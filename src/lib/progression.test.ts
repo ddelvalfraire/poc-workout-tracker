@@ -4,6 +4,7 @@ import {
   deriveWeekSets,
   applyOverride,
   amrapCompletedWaves,
+  amrapBankableWaves,
   resolveDeloadPolicy,
   DELOAD_LOAD_FACTOR,
   DELOAD_SET_FACTOR,
@@ -743,6 +744,209 @@ describe('resolveDeloadPolicy', () => {
     expect(resolveDeloadPolicy({ mode: 'scheduled', shape: { loadFactor: 0.9 } }, 4)).toEqual({
       mode: 'scheduled',
       shape: { loadFactor: 0.9, setFactor: DELOAD_SET_FACTOR, rpeCap: null },
+    })
+  })
+})
+
+describe('deriveWeekSets under a deload policy', () => {
+  const geometry = { mesocycleWeeks: 4, deloadWeek: 4 }
+  const linear = { scheme: 'linear', incrementKg: 2.5 } as const
+
+  it("mode 'none' derives the deload week as a NORMAL week (no modifier, no stamp)", () => {
+    const derived = deriveWeekSets({
+      sets: workingSets(4, 100),
+      progression: linear,
+      week: 4,
+      history: NO_HISTORY,
+      ...geometry,
+      deloadPolicy: { mode: 'none' },
+    })
+    // Geometry unchanged: weeks 1-3 are the axis, so week 4 sits at 3 steps —
+    // but NO deload factor, NO set halving, NO 'deload' stamp.
+    expect(derived).toHaveLength(4)
+    derived.forEach((s) => {
+      expect(s.loadKg).toBeCloseTo(107.5, 9)
+      expect(s.derivedFrom).toBe('scheme')
+    })
+  })
+
+  it("mode 'reactive' derives the deload week identically to 'none'", () => {
+    const args = {
+      sets: workingSets(4, 100),
+      progression: linear,
+      week: 4,
+      history: NO_HISTORY,
+      ...geometry,
+    } as const
+    expect(deriveWeekSets({ ...args, deloadPolicy: { mode: 'reactive' } })).toEqual(
+      deriveWeekSets({ ...args, deloadPolicy: { mode: 'none' } }),
+    )
+  })
+
+  it("the omitted policy IS the legacy resolution — byte-identical either way", () => {
+    const args = {
+      sets: workingSets(4, 100),
+      progression: linear,
+      week: 4,
+      history: NO_HISTORY,
+      ...geometry,
+    } as const
+    expect(deriveWeekSets({ ...args, deloadPolicy: resolveDeloadPolicy(null, 4) })).toEqual(
+      deriveWeekSets(args),
+    )
+  })
+
+  it('a scheduled shape parameterizes the factors (loadFactor 0.7, setFactor 1)', () => {
+    const derived = deriveWeekSets({
+      sets: workingSets(4, 100),
+      progression: linear,
+      week: 4,
+      history: NO_HISTORY,
+      ...geometry,
+      deloadPolicy: { mode: 'scheduled', shape: { loadFactor: 0.7, setFactor: 1, rpeCap: null } },
+    })
+    expect(derived).toHaveLength(4) // setFactor 1 keeps every working set
+    derived.forEach((s) => {
+      expect(s.loadKg).toBeCloseTo(107.5 * 0.7, 9)
+      expect(s.derivedFrom).toBe('deload')
+    })
+  })
+
+  it('rpeCap clamps derived RPE stamps on the deload week — null stays null', () => {
+    const sets = [
+      workingSet({ setNumber: 1, suggestedLoadKg: 100, rpe: 9 }),
+      workingSet({ setNumber: 2, suggestedLoadKg: 100, rpe: 6 }),
+      workingSet({ setNumber: 3, suggestedLoadKg: 100, rpe: null }),
+    ]
+    const derived = deriveWeekSets({
+      sets,
+      progression: linear,
+      week: 4,
+      history: NO_HISTORY,
+      ...geometry,
+      deloadPolicy: { mode: 'scheduled', shape: { loadFactor: 0.85, setFactor: 1, rpeCap: 7 } },
+    })
+    expect(derived.map((s) => s.rpe)).toEqual([7, 6, null]) // clamp, keep, never invent
+  })
+
+  describe('amrap-cycle tmBumpTiming + deloadRow', () => {
+    const bench = {
+      scheme: 'amrap-cycle',
+      trainingMaxKg: 100,
+      incrementKg: 2.5,
+      wave: [
+        [0.65, 0.75, 0.85],
+        [0.7, 0.8, 0.9],
+        [0.75, 0.85, 0.95],
+      ],
+      waveReps: [
+        [5, 5, 5],
+        [3, 3, 3],
+        [5, 3, 1],
+      ],
+    } as const
+    const scheduled = {
+      mode: 'scheduled',
+      shape: { loadFactor: DELOAD_LOAD_FACTOR, setFactor: DELOAD_SET_FACTOR, rpeCap: null },
+    } as const
+    const derive = (week: number, progression: typeof linear | Record<string, unknown>) =>
+      deriveWeekSets({
+        sets: workingSets(3, null),
+        progression: progression as never,
+        week,
+        history: NO_HISTORY,
+        ...geometry,
+        deloadPolicy: scheduled,
+      })
+
+    it("'after-deload' + deloadRow emits the row off the OLD (unbumped) TM", () => {
+      const derived = derive(4, {
+        ...bench,
+        tmBumpTiming: 'after-deload',
+        deloadRow: { percents: [0.4, 0.5, 0.6], reps: 5 },
+      })
+      expect(derived.map((s) => s.loadKg)).toEqual([40, 50, 60]) // TM 100, not 102.5
+      expect(derived.map((s) => s.repMin)).toEqual([5, 5, 5])
+      derived.forEach((s) => expect(s.derivedFrom).toBe('deload'))
+    })
+
+    it("'before-deload' + deloadRow emits the row off the BUMPED TM (legacy timing)", () => {
+      const derived = derive(4, {
+        ...bench,
+        tmBumpTiming: 'before-deload',
+        deloadRow: { percents: [0.4, 0.5, 0.6], reps: 5 },
+      })
+      expect(derived.map((s) => s.loadKg)).toEqual([41, 51.25, 61.5]) // TM 102.5
+    })
+
+    it("'after-deload' WITHOUT a deloadRow scale-shapes off the OLD TM", () => {
+      const derived = derive(4, { ...bench, tmBumpTiming: 'after-deload' })
+      expect(derived).toHaveLength(2) // set halving still applies
+      expect(derived[0].loadKg).toBeCloseTo(100 * 0.65 * DELOAD_LOAD_FACTOR, 9)
+      expect(derived[1].loadKg).toBeCloseTo(100 * 0.75 * DELOAD_LOAD_FACTOR, 9)
+    })
+
+    it("the withheld bump lands on the first post-deload week ('after-deload')", () => {
+      const derived = deriveWeekSets({
+        sets: workingSets(3, null),
+        progression: { ...bench, tmBumpTiming: 'after-deload' } as never,
+        week: 5,
+        mesocycleWeeks: 8,
+        deloadWeek: 4,
+        history: NO_HISTORY,
+        deloadPolicy: scheduled,
+      })
+      expect(derived[0].loadKg).toBeCloseTo(102.5 * 0.65, 9) // cycle 2 off the NEW TM
+    })
+
+    it("an ABSENT timing on a stored row means 'before-deload' (migration semantics)", () => {
+      const stamped = derive(4, { ...bench, tmBumpTiming: 'before-deload' })
+      const absent = derive(4, bench)
+      expect(absent).toEqual(stamped)
+    })
+
+    it("mode 'none' derives the amrap deload week as a normal wave week", () => {
+      const derived = deriveWeekSets({
+        sets: workingSets(3, null),
+        progression: { ...bench, tmBumpTiming: 'after-deload' } as never,
+        week: 4,
+        history: NO_HISTORY,
+        ...geometry,
+        deloadPolicy: { mode: 'none' },
+      })
+      // 3 steps → wave row 1 again, bumped TM (a normal week owns its bump),
+      // full set count, no deload stamp.
+      expect(derived).toHaveLength(3)
+      expect(derived[0].loadKg).toBeCloseTo(102.5 * 0.65, 9)
+      derived.forEach((s) => expect(s.derivedFrom).toBe('scheme'))
+    })
+  })
+
+  describe('amrapBankableWaves (the wave-boundary persist gate)', () => {
+    it("withholds the bank when starting an 'after-deload' scheduled deload week", () => {
+      expect(
+        amrapBankableWaves(4, 8, 4, 3, { tmBumpTiming: 'after-deload', isScheduledDeload: true }),
+      ).toBe(0)
+      // The first post-deload week banks it.
+      expect(
+        amrapBankableWaves(5, 8, 4, 3, { tmBumpTiming: 'after-deload', isScheduledDeload: false }),
+      ).toBe(1)
+    })
+
+    it("banks on the deload week under 'before-deload' (current behavior exactly)", () => {
+      expect(
+        amrapBankableWaves(4, 8, 4, 3, { tmBumpTiming: 'before-deload', isScheduledDeload: true }),
+      ).toBe(amrapCompletedWaves(4, 8, 4, 3))
+      // Absent timing on a stored row = the migration-stamped legacy meaning.
+      expect(
+        amrapBankableWaves(4, 8, 4, 3, { tmBumpTiming: undefined, isScheduledDeload: true }),
+      ).toBe(amrapCompletedWaves(4, 8, 4, 3))
+    })
+
+    it("a non-scheduled deload week (policy 'none'/'reactive') banks on schedule", () => {
+      expect(
+        amrapBankableWaves(4, 8, 4, 3, { tmBumpTiming: 'after-deload', isScheduledDeload: false }),
+      ).toBe(1)
     })
   })
 })

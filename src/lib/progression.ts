@@ -264,6 +264,73 @@ export function amrapCompletedWaves(
   return Math.floor(steps / waveLength)
 }
 
+/**
+ * The completed-wave count the wave-boundary TM PERSIST may bank when
+ * starting `week` — `amrapCompletedWaves` gated by `tmBumpTiming`: starting
+ * the scheduled-deload week of an 'after-deload' config withholds the
+ * just-finished wave (the deload derives off the OLD TM; the bump banks when
+ * the first post-deload week starts). Instantiation and `deriveWeekSets`'s
+ * wave math share this arithmetic so the persisted TM and the derive-time
+ * virtual TM can never drift.
+ */
+export function amrapBankableWaves(
+  week: number,
+  mesocycleWeeks: number,
+  deloadWeek: number | null,
+  waveLength: number,
+  options: {
+    tmBumpTiming: 'before-deload' | 'after-deload' | undefined
+    /** True only when the RESOLVED deload policy is 'scheduled' and `week`
+     *  is the deload week — under 'none'/'reactive' the week is a normal
+     *  training week and the bump lands on schedule. */
+    isScheduledDeload: boolean
+  },
+): number {
+  if (waveLength < 1) return 0
+  const oldTm =
+    options.isScheduledDeload && (options.tmBumpTiming ?? 'before-deload') === 'after-deload'
+  if (!oldTm) return amrapCompletedWaves(week, mesocycleWeeks, deloadWeek, waveLength)
+  const clamped = Math.min(Math.max(1, week), Math.max(1, mesocycleWeeks))
+  const weeks = nonDeloadWeeks(Math.max(1, mesocycleWeeks), deloadWeek)
+  const steps = weeks.filter((w) => w < clamped).length
+  return Math.floor(Math.max(0, steps - 1) / waveLength)
+}
+
+/** True when the deload week must derive off the OLD training max: the
+ *  scheduled-deload week of an 'after-deload' config (Wendler canon — the
+ *  wave's bump becomes effective only from the first non-deload week after).
+ *  Absent timing on a STORED row means the row predates the field and was
+ *  migration-stamped 'before-deload'; the fallback keeps that legacy meaning
+ *  for any row the migration could not have seen. */
+function usesOldTmOnDeload(
+  progression: Extract<Progression, { scheme: 'amrap-cycle' }>,
+  isScheduledDeload: boolean,
+): boolean {
+  return isScheduledDeload && (progression.tmBumpTiming ?? 'before-deload') === 'after-deload'
+}
+
+/** Completed-wave count the TM math uses for a week that sits `steps`
+ *  non-deload weeks into the block. `oldTm` (the 'after-deload' deload week)
+ *  reads the count as of the LAST non-deload week before it — the just-
+ *  finished wave's bump is withheld until the deload has passed. */
+function tmWaves(steps: number, waveLength: number, oldTm: boolean): number {
+  return Math.floor((oldTm ? Math.max(0, steps - 1) : steps) / waveLength)
+}
+
+/** The effective amrap-cycle training max at `steps`: stored TM + one
+ *  increment per completed-but-unbanked wave (see `bankedWaves` in
+ *  program-input.ts — max(0) so re-deriving an EARLIER week after a bank
+ *  never subtracts). */
+function amrapEffectiveTmKg(
+  progression: Extract<Progression, { scheme: 'amrap-cycle' }>,
+  steps: number,
+  oldTm: boolean,
+): number {
+  const completedWaves = tmWaves(steps, progression.wave.length, oldTm)
+  const unbankedWaves = Math.max(0, completedWaves - (progression.bankedWaves ?? 0))
+  return progression.trainingMaxKg + progression.incrementKg * unbankedWaves
+}
+
 /** The amrap-cycle prescription for one progressed set: load = effective TM
  *  (base + one increment per completed wave NOT yet banked into the stored
  *  trainingMaxKg — see `bankedWaves` in program-input.ts) × this set's
@@ -276,17 +343,17 @@ function amrapCycleTargets(
   progression: Extract<Progression, { scheme: 'amrap-cycle' }>,
   week: number,
   weeks: number[],
+  isScheduledDeload: boolean,
 ): { repMin: number | null; repMax: number | null; loadKg: number | null } {
   const steps = weeks.filter((w) => w < week).length
   const waveIdx = steps % progression.wave.length
-  const completedWaves = Math.floor(steps / progression.wave.length)
-  // Banked waves are already inside trainingMaxKg (persisted at instantiation
-  // via setTrainingMax); only the unbanked remainder is added virtually.
-  // max(0) so re-deriving an EARLIER week after a bank never subtracts.
-  const unbankedWaves = Math.max(0, completedWaves - (progression.bankedWaves ?? 0))
   const percents = progression.wave[waveIdx]
   const percent = percents[Math.min(progressedIdx, percents.length - 1)]
-  const trainingMax = progression.trainingMaxKg + progression.incrementKg * unbankedWaves
+  const trainingMax = amrapEffectiveTmKg(
+    progression,
+    steps,
+    usesOldTmOnDeload(progression, isScheduledDeload),
+  )
   const reps = progression.waveReps?.[waveIdx]
   const rep = reps ? reps[Math.min(progressedIdx, reps.length - 1)] : null
   return {
@@ -359,11 +426,20 @@ function resizeWorkingSets(sets: DerivedSet[], target: number): DerivedSet[] {
 
 /**
  * Derives the week-N prescription for one exercise. Warmups pass through
- * untouched; working/backoff/amrap sets get scheme-derived loads; the deload
- * week then scales loads by `DELOAD_LOAD_FACTOR` and the working-set count by
- * `DELOAD_SET_FACTOR` (ceil, min 1). Weeks beyond the mesocycle clamp to the
- * last week; `setNumber`s are renumbered 1-based contiguous at the end.
- * Per-week overrides are merged by the caller ON TOP of this result.
+ * untouched; working/backoff/amrap sets get scheme-derived loads; when the
+ * RESOLVED deload policy is 'scheduled', the deload week then scales loads by
+ * the shape's `loadFactor` and the working-set count by its `setFactor`
+ * (ceil, min 1; the historical DELOAD_LOAD_FACTOR/DELOAD_SET_FACTOR are the
+ * shape defaults), clamps derived RPE stamps to `rpeCap`, and — for an
+ * amrap-cycle with a `deloadRow` — EMITS that row off the effective TM
+ * instead of scale-shaping. Under 'none'/'reactive' the deload week derives
+ * as a NORMAL week (no modifier, no 'deload' stamp) while `deloadWeek` still
+ * shapes the week AXIS (progression steps skip it — geometry is not the
+ * policy's to change). `deloadPolicy` omitted resolves the legacy regime
+ * from `deloadWeek` (byte-for-byte the pre-policy behavior). Weeks beyond
+ * the mesocycle clamp to the last week; `setNumber`s are renumbered 1-based
+ * contiguous at the end. Per-week overrides are merged by the caller ON TOP
+ * of this result.
  */
 export function deriveWeekSets(args: {
   sets: ProgramSetRowLike[]
@@ -372,11 +448,17 @@ export function deriveWeekSets(args: {
   mesocycleWeeks: number
   deloadWeek: number | null
   history: ExerciseHistoryInput
+  /** The READ-TIME resolved policy (resolveDeloadPolicy). Omitted = resolve
+   *  the legacy regime from `deloadWeek` — the ONE code path either way. */
+  deloadPolicy?: ResolvedDeloadPolicy
 }): DerivedSet[] {
   const { sets, progression, mesocycleWeeks, deloadWeek, history } = args
   const week = Math.min(Math.max(1, args.week), Math.max(1, mesocycleWeeks))
   const weeks = nonDeloadWeeks(Math.max(1, mesocycleWeeks), deloadWeek)
-  const isDeload = deloadWeek !== null && week === deloadWeek
+  const policy = args.deloadPolicy ?? resolveDeloadPolicy(null, deloadWeek)
+  // The MODIFIER gate: geometry (the week axis above) always honors
+  // deloadWeek; whether that week gets the deload treatment is the policy's.
+  const isDeload = deloadWeek !== null && week === deloadWeek && policy.mode === 'scheduled'
 
   // The 0-based index of each set among the PROGRESSED sets — amrap-cycle
   // percents address working/backoff/amrap sets in order, skipping warmups.
@@ -394,7 +476,7 @@ export function deriveWeekSets(args: {
     // its wave (the deload factor then applies on top like any scheme load).
     const cycle =
       applies && progression.scheme === 'amrap-cycle'
-        ? amrapCycleTargets(set, progressedIdx[sourceIndex], progression, week, weeks)
+        ? amrapCycleTargets(set, progressedIdx[sourceIndex], progression, week, weeks, isDeload)
         : null
     const targets =
       applies && progression.scheme === 'rep-progression' && !isDeload
@@ -428,18 +510,55 @@ export function deriveWeekSets(args: {
     derived = resizeWorkingSets(derived, volumeSetCount(progression, week, weeks))
   }
 
-  if (isDeload) {
-    const workingCount = derived.filter((s) => s.setType === 'working').length
-    const target = Math.max(1, Math.ceil(workingCount * DELOAD_SET_FACTOR))
-    derived = resizeWorkingSets(derived, target).map((s) =>
-      isProgressed(s.setType)
-        ? {
-            ...s,
-            loadKg: clampLoad(s.loadKg === null ? null : s.loadKg * DELOAD_LOAD_FACTOR),
-            derivedFrom: 'deload' as const,
-          }
-        : s,
-    )
+  if (isDeload && policy.mode === 'scheduled') {
+    const shape = policy.shape
+    const deloadRow = progression?.scheme === 'amrap-cycle' ? progression.deloadRow : undefined
+    const chassis = derived.filter((s) => isProgressed(s.setType))
+    if (progression?.scheme === 'amrap-cycle' && deloadRow && chassis.length > 0) {
+      // Wendler-canon deload row: EMIT percents × effective TM at `reps`,
+      // replacing the scale-shape derivation. Warmups still pass through;
+      // each emitted row borrows its chassis (rest/tempo/technique,
+      // sourceIndex for override matching) from the progressed set at its
+      // position, clamped to the last one.
+      const steps = weeks.filter((w) => w < week).length
+      const trainingMax = amrapEffectiveTmKg(
+        progression,
+        steps,
+        usesOldTmOnDeload(progression, true),
+      )
+      const emitted = deloadRow.percents.map((percent, i) => {
+        const base = chassis[Math.min(i, chassis.length - 1)]
+        return {
+          ...base,
+          setType: 'working' as const,
+          metricMode: 'reps_weight' as const,
+          repMin: deloadRow.reps,
+          repMax: null,
+          rir: null,
+          rpe: null,
+          loadKg: clampLoad(trainingMax * percent),
+          durationSec: null,
+          distanceM: null,
+          derivedFrom: 'deload' as const,
+        }
+      })
+      derived = [...derived.filter((s) => !isProgressed(s.setType)), ...emitted]
+    } else {
+      const workingCount = derived.filter((s) => s.setType === 'working').length
+      const target = Math.max(1, Math.ceil(workingCount * shape.setFactor))
+      derived = resizeWorkingSets(derived, target).map((s) =>
+        isProgressed(s.setType)
+          ? {
+              ...s,
+              loadKg: clampLoad(s.loadKg === null ? null : s.loadKg * shape.loadFactor),
+              // The cap clamps derived effort stamps only — a null RPE stays
+              // an un-prescribed effort, never an invented one.
+              rpe: shape.rpeCap !== null && s.rpe !== null ? Math.min(s.rpe, shape.rpeCap) : s.rpe,
+              derivedFrom: 'deload' as const,
+            }
+          : s,
+      )
+    }
   }
 
   return derived.map((s, i) => ({ ...s, setNumber: i + 1 }))
