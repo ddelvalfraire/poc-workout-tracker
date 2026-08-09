@@ -71,7 +71,9 @@ export default async function SettingsPage() {
         {/* Identity: who's signed in, and the way out. UserButton carries
             Clerk's account management; sign-out gets its own explicit exit. */}
         <section aria-label="Account" className="mt-6">
-          <div className="flex items-center gap-3 rounded-2xl border border-border bg-card px-4 py-4">
+          {/* De-carded: identity is the grouped list's first row — a muted
+              hairline under it, no shell. */}
+          <div className="flex items-center gap-3 border-b border-b-border/60 py-4">
             <UserButton />
             <p className="min-w-0 flex-1 truncate text-sm">
               {email ?? <span className="text-muted-foreground">Signed in</span>}
@@ -146,9 +148,10 @@ export default async function SettingsPage() {
   )
 }
 
-/** One settings zone: small-caps header over a single card of rows. The
- *  quarantined variant (INTERNAL) goes dashed + transparent — present, not
- *  product. */
+/** One settings zone: condensed-caps group header over a divider list — the
+ *  iOS-grouped-list shape in the de-card vocabulary: rows separated by muted
+ *  hairlines, a closing hairline instead of a shell. The quarantined variant
+ *  (INTERNAL) keeps its "present, not product" voice as DASHED hairlines. */
 function SettingsZone({
   title,
   quarantined = false,
@@ -159,14 +162,16 @@ function SettingsZone({
   children: React.ReactNode
 }) {
   return (
-    <section aria-label={title} className="mt-6">
-      <h2 className="px-1 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+    <section aria-label={title} className="mt-8">
+      <h2 className="font-display text-base uppercase leading-none tracking-wide text-muted-foreground">
         {title}
       </h2>
       <ul
         className={cn(
-          'mt-2 divide-y divide-border overflow-hidden rounded-2xl border border-border',
-          quarantined ? 'border-dashed bg-transparent' : 'bg-card',
+          'mt-1',
+          quarantined
+            ? 'divide-y divide-dashed divide-border/60 border-b border-dashed border-b-border/60'
+            : 'divide-y divide-border/60 border-b border-b-border/60',
         )}
       >
         {children}
@@ -186,7 +191,7 @@ function SettingRow({
   children: React.ReactNode
 }) {
   return (
-    <li className="flex items-center justify-between gap-4 px-4 py-4">
+    <li className="flex items-center justify-between gap-4 py-4">
       <div className="min-w-0">
         <p className="font-medium">{label}</p>
         <p className="mt-0.5 text-sm text-muted-foreground">{hint}</p>
@@ -213,7 +218,7 @@ function LinkRow({
     <li>
       <Link
         href={href}
-        className="flex items-center justify-between gap-4 px-4 py-4 transition-colors outline-none hover:bg-muted/50 focus-visible:bg-muted/50"
+        className="flex items-center justify-between gap-4 py-4 transition-colors outline-none hover:bg-muted/50 focus-visible:bg-muted/50"
       >
         <div className="min-w-0">
           <p className="font-medium">{label}</p>
