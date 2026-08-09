@@ -564,10 +564,11 @@ export default async function ProgramDetailPage({
                 return (
                   <section
                     key={day.id}
-                    // Divider row, not a card: the quiet volt hairline is the
-                    // done-state marker (logger/summary grammar) — state in
-                    // type and words, no shell.
-                    className="border-b border-b-primary/30 py-4"
+                    // Divider row, not a card. Muted hairline: this is a
+                    // revisit surface, and volt hairlines stack per trained
+                    // day (#163 precedent) — the "Done" label carries the
+                    // state. In-progress below keeps volt (at most one ever).
+                    className="border-b border-b-border/60 py-4"
                   >
                     {/* The whole row links to the workout summary — the
                         results ARE the affordance, no extra button needed. */}
