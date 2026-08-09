@@ -988,7 +988,9 @@ export function WorkoutLogger({
             placeholder="Optional — e.g. Lower"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            className="mt-1.5"
+            // De-boxed to an underline field (keep-list allows): same input,
+            // same h-11 hit area, px-1 keeps horizontal hit padding.
+            className="mt-1.5 rounded-none border-0 border-b-2 border-input bg-transparent px-1"
           />
         </div>
 
@@ -1017,6 +1019,10 @@ export function WorkoutLogger({
           // current and upcoming work, not rows of dead inputs. Re-expand is
           // one tap (corrections); auto-collapse costs the log path nothing.
           const isCollapsed = isDone && !expandedDone.has(exercise.id)
+          // Affordance follows work (render-only skin): the FIRST incomplete
+          // set is the one row wearing full input affordance; completed sets
+          // flatten to quiet text; later incompletes wait muted until focused.
+          const activeSetIndex = exercise.sets.findIndex((set) => !set.completed)
           const hasPR =
             typeof prIndexByExercise[exerciseIndex] === 'number' &&
             (prIndexByExercise[exerciseIndex] as number) >= 0
@@ -1035,17 +1041,18 @@ export function WorkoutLogger({
           <section
             key={exercise.id}
             className={cn(
-              'rounded-2xl border bg-card transition-colors',
+              // De-carded: sections sit on hairline dividers, no shell.
+              'border-b pb-4 transition-colors',
               riseInArmed && 'motion-safe:animate-rise-in',
-              isCollapsed || exercise.skipped ? '' : 'p-4',
-              // Every set checked off = this movement is done: the volt
-              // outline is the same "live/complete" state marker the resume
-              // banner and rest readout use. Skipped stays muted — opting
-              // out is not a live state (one-volt rule).
-              isDone && !exercise.skipped ? 'border-primary/50' : 'border-border',
+              // Every set checked off = this movement is done: a quiet volt
+              // hairline under the section is the same "live/complete" state
+              // marker the resume banner and rest readout use. Skipped stays
+              // muted — opting out is not a live state (one-volt rule).
+              isDone && !exercise.skipped ? 'border-b-primary/30' : 'border-b-border/60',
               // Muted rail, not volt (one-volt rule): grouping is structure,
-              // not a live state.
-              supersetLabel !== undefined && 'border-l-2 border-l-muted-foreground/40',
+              // not a live state. The rail replaces the old card edge, so it
+              // earns a little breathing room.
+              supersetLabel !== undefined && 'border-l-2 border-l-muted-foreground/40 pl-3',
               continuesSuperset && '-mt-2',
             )}
           >
@@ -1063,7 +1070,7 @@ export function WorkoutLogger({
               onClick={() => dispatch({ type: 'TOGGLE_SKIP_EXERCISE', exerciseIndex })}
               aria-label={`Unskip ${exercise.name}`}
               className={cn(
-                'flex w-full items-center justify-between gap-3 p-4 text-left',
+                'flex w-full items-center justify-between gap-3 py-2 text-left',
                 riseInArmed && 'motion-safe:animate-rise-in',
               )}
             >
@@ -1102,7 +1109,7 @@ export function WorkoutLogger({
               aria-expanded={false}
               aria-label={`Expand ${exercise.name} — completed, ${completedSetsSummary(exercise.sets, exercise.loggingType)}${hasPR ? ', new PR' : ''}${supersetLabel !== undefined ? `, superset ${supersetLabel}` : ''}`}
               className={cn(
-                'flex w-full items-center justify-between gap-3 p-4 text-left',
+                'flex w-full items-center justify-between gap-3 py-2 text-left',
                 riseInArmed && 'motion-safe:animate-rise-in',
               )}
             >
@@ -1124,11 +1131,12 @@ export function WorkoutLogger({
             </button>
           ) : (
           <div className={cn('space-y-3', riseInArmed && 'motion-safe:animate-rise-in')}>
-            {/* Layered header: the movement name owns the top line at full
-                width; the utility rail sits beneath it, so controls never
-                crowd or truncate the title. */}
+            {/* De-carded header: condensed-caps movement name with the tool
+                rail inline on the same row (the name truncates; tools never
+                wrap). The logging-type select sits on its own quiet line. */}
             <div>
-              <h3 className="min-w-0 text-base leading-tight">
+              <div className="flex items-start justify-between gap-2">
+              <h3 className="min-w-0 flex-1 text-base uppercase tracking-wide leading-tight">
                 {/* The name IS the stats entry point (Strong/Hevy convention):
                     zero added chrome. Read-only, so unlike replace it never
                     freezes behind the save/discard barriers. */}
@@ -1141,46 +1149,12 @@ export function WorkoutLogger({
                   {exercise.name}
                 </button>
                 {exercise.category && (
-                  <span className="mt-0.5 block text-sm font-normal tracking-normal text-muted-foreground">
+                  <span className="mt-0.5 block text-sm font-normal normal-case tracking-normal text-muted-foreground">
                     {exercise.category}
                   </span>
                 )}
               </h3>
-              <div className="mt-2 flex items-center gap-1">
-              {/* How this exercise logs (Hevy-style). A native select — four
-                  options don't justify a custom menu, and the OS picker is the
-                  best small-screen affordance. Ghost-quiet on purpose: it's a
-                  per-exercise setting touched once, not a control competing
-                  with the movement name — small caps + chevron, no box. */}
-              <span className="relative shrink-0">
-                <select
-                  value={exercise.loggingType}
-                  onChange={(e) => {
-                    // The DOM only offers whitelisted options; the guard keeps
-                    // the reducer payload typed without an `as` cast.
-                    if (isLoggingType(e.target.value)) {
-                      dispatch({
-                        type: 'SET_LOGGING_TYPE',
-                        exerciseIndex,
-                        loggingType: e.target.value,
-                      })
-                    }
-                  }}
-                  aria-label={`Logging type for ${exercise.name}`}
-                  className="h-9 appearance-none rounded-lg bg-transparent pl-1 pr-5 text-xs font-semibold uppercase tracking-wide text-muted-foreground outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
-                >
-                  {LOGGING_TYPES.map((type) => (
-                    <option key={type} value={type}>
-                      {LOGGING_TYPE_LABELS[type]}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown
-                  aria-hidden="true"
-                  className="pointer-events-none absolute right-0.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground"
-                />
-              </span>
-              <span aria-hidden="true" className="flex-1" />
+              <div className="-mr-1 flex shrink-0 items-center">
               {/* A done card auto-collapses; once re-expanded for corrections
                   this is the way back down — same expandedDone set, inverse
                   edge. Only rendered when done: an unfinished card collapsing
@@ -1273,6 +1247,40 @@ export function WorkoutLogger({
                 <Trash2 aria-hidden="true" className="size-4" />
               </Button>
               </div>
+              </div>
+              {/* How this exercise logs (Hevy-style). A native select — four
+                  options don't justify a custom menu, and the OS picker is the
+                  best small-screen affordance. Ghost-quiet on purpose: it's a
+                  per-exercise setting touched once, not a control competing
+                  with the movement name — small caps + chevron, no box. */}
+              <span className="relative inline-block">
+                <select
+                  value={exercise.loggingType}
+                  onChange={(e) => {
+                    // The DOM only offers whitelisted options; the guard keeps
+                    // the reducer payload typed without an `as` cast.
+                    if (isLoggingType(e.target.value)) {
+                      dispatch({
+                        type: 'SET_LOGGING_TYPE',
+                        exerciseIndex,
+                        loggingType: e.target.value,
+                      })
+                    }
+                  }}
+                  aria-label={`Logging type for ${exercise.name}`}
+                  className="h-9 appearance-none rounded-lg bg-transparent pl-1 pr-5 text-xs font-semibold uppercase tracking-wide text-muted-foreground outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+                >
+                  {LOGGING_TYPES.map((type) => (
+                    <option key={type} value={type}>
+                      {LOGGING_TYPE_LABELS[type]}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown
+                  aria-hidden="true"
+                  className="pointer-events-none absolute right-0.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground"
+                />
+              </span>
             </div>
 
             {/* Auto-shown while a note exists: a hidden note is a lost note. */}
@@ -1383,6 +1391,16 @@ export function WorkoutLogger({
                 // the 'W' glyph alone is visual-only.
                 const setLabel =
                   set.tag === 'warmup' ? `warm-up set ${setIndex + 1}` : `set ${setIndex + 1}`
+                // Per-row affordance state (visual skin ONLY — every handler,
+                // input, and tap target below is identical across states):
+                // done rows flatten to quiet text, the active row carries the
+                // full underline-input affordance, waiting rows sit muted and
+                // promote to full affordance on any focus within the row.
+                const rowState: 'done' | 'active' | 'waiting' = set.completed
+                  ? 'done'
+                  : setIndex === activeSetIndex
+                    ? 'active'
+                    : 'waiting'
                 return (
                 <Fragment key={set.id}>
                 {/* Swipe is the fast touch path; the row's X stays for
@@ -1391,7 +1409,9 @@ export function WorkoutLogger({
                 <SwipeToDelete onDelete={() => handleRemoveSet(exerciseIndex, setIndex)}>
                 <div
                   className={cn(
-                    'flex items-center gap-2',
+                    // group/setrow: focus anywhere in a waiting row promotes
+                    // its quiet inputs to full affordance (CSS-only).
+                    'group/setrow flex items-center gap-2',
                     riseInArmed && 'motion-safe:animate-rise-in',
                   )}
                   id={`set-row-${set.id}`}
@@ -1504,9 +1524,14 @@ export function WorkoutLogger({
                       // without growing the visual circle or shifting the row
                       // (Tailwind v4 injects content on before: automatically).
                       'before:absolute before:-inset-1.5',
-                      set.completed
-                        ? 'bg-primary text-primary-foreground'
-                        : 'bg-muted text-muted-foreground',
+                      // Same disc, same size, same tap semantics — only the
+                      // paint follows the row's affordance state: volt check
+                      // when done, full-weight disc on the active row, muted
+                      // ring while waiting.
+                      rowState === 'done' && 'bg-primary text-primary-foreground',
+                      rowState === 'active' && 'bg-muted text-foreground',
+                      rowState === 'waiting' &&
+                        'bg-transparent text-muted-foreground ring-1 ring-inset ring-border',
                       // One-shot pop on completion (motion-safe: reduced
                       // motion keeps the instant color/check swap).
                       set.completed &&
@@ -1577,14 +1602,35 @@ export function WorkoutLogger({
                       document.getElementById(`weight-input-${set.id}`)?.focus()
                     }}
                     aria-label={`Set ${setIndex + 1} reps`}
-                    className={cn('flex-1 text-center tnum', flashSetId === set.id && 'fill-flash')}
+                    className={cn(
+                      // Underline-field skin: same input, same handlers, same
+                      // h-11 hit area — the box collapses to a baseline. px-1
+                      // keeps a sliver of horizontal hit padding.
+                      'flex-1 rounded-none border-0 border-b-2 bg-transparent px-1 text-center tnum',
+                      // Active row: the one full-affordance row (bigger
+                      // numerals, visible underline).
+                      rowState === 'active' && 'border-input text-lg font-medium',
+                      // Done row: flattened to quiet text; tap-to-edit still
+                      // works and focus restores a visible underline + ring.
+                      rowState === 'done' && 'border-transparent text-muted-foreground',
+                      // Waiting row: visually quiet until anything in the row
+                      // takes focus, then full affordance (CSS-only).
+                      rowState === 'waiting' &&
+                        'border-transparent opacity-80 group-focus-within/setrow:border-input group-focus-within/setrow:opacity-100',
+                      flashSetId === set.id && 'fill-flash',
+                    )}
                   />
                   {exercise.loggingType === 'bodyweight_reps' ? (
                     // The lifter IS the load: a non-editable pill holds the
                     // weight input's footprint so rows never jump on switch.
                     <span
                       aria-label={`Set ${setIndex + 1} uses bodyweight`}
-                      className="flex h-11 flex-1 items-center justify-center rounded-lg border border-border bg-muted text-base font-medium text-muted-foreground"
+                      className={cn(
+                        // Chips → words: "BW" as quiet text, same footprint so
+                        // rows never jump on a logging-type switch.
+                        'flex h-11 flex-1 items-center justify-center text-base font-medium text-muted-foreground',
+                        rowState === 'waiting' && 'opacity-80',
+                      )}
                     >
                       BW
                     </span>
@@ -1595,7 +1641,7 @@ export function WorkoutLogger({
                         // to (+) or subtracted from (−) bodyweight, not total.
                         <span
                           aria-hidden="true"
-                          className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-base text-muted-foreground"
+                          className="pointer-events-none absolute left-1 top-1/2 -translate-y-1/2 text-base text-muted-foreground"
                         >
                           {exercise.loggingType === 'assisted_bodyweight' ? '−' : '+'}
                         </span>
@@ -1640,7 +1686,13 @@ export function WorkoutLogger({
                               : `Set ${setIndex + 1} weight in ${unit}`
                         }
                         className={cn(
-                          'w-full text-center tnum',
+                          // Same underline skin as the reps input (see its
+                          // per-state comments).
+                          'w-full rounded-none border-0 border-b-2 bg-transparent px-1 text-center tnum',
+                          rowState === 'active' && 'border-input text-lg font-medium',
+                          rowState === 'done' && 'border-transparent text-muted-foreground',
+                          rowState === 'waiting' &&
+                            'border-transparent opacity-80 group-focus-within/setrow:border-input group-focus-within/setrow:opacity-100',
                           flashSetId === set.id && 'fill-flash',
                         )}
                       />
@@ -1957,7 +2009,7 @@ export function WorkoutLogger({
             </Button>
           </div>
         )}
-        <div className="flex gap-3">
+        <div className="flex flex-col gap-2">
           {/* Adding an exercise is the second-most-frequent act mid-session,
               so it earns a permanent slot in the thumb bar — outline, so the
               volt Finish stays the unmistakable primary. Disabled while
@@ -1965,7 +2017,7 @@ export function WorkoutLogger({
           <Button
             size="lg"
             variant="outline"
-            className="flex-1"
+            className="w-full"
             // Also frozen while discarding: the settle barrier has engaged
             // and the draft is on its way out — no more edits.
             disabled={isSaving || isDiscarding}
@@ -1982,11 +2034,18 @@ export function WorkoutLogger({
             // keeps an outline "Save changes" — that IS paperwork.
             variant={isLive ? 'default' : 'outline'}
             className={cn(
-              'flex-[1.6] font-semibold uppercase tracking-wide',
+              'w-full font-semibold uppercase tracking-wide',
+              // Live Finish is the full-bleed volt-tinted text-action band
+              // (the sticky bar's primary, still the only volt CTA): tinted
+              // wash + volt condensed caps instead of a solid pill. -mx-5
+              // bleeds across the bar's px-5. Edit-mode "Save changes" keeps
+              // the outline pill — corrections are paperwork, not a moment.
+              isLive &&
+                '-mx-5 w-[calc(100%+2.5rem)] rounded-none border-0 bg-primary/15 font-display text-base tracking-wider text-primary hover:bg-primary/25',
               // Every planned set is done: a gentle scale nudge says "wrap it
               // up" — motion as state (session complete), not decoration.
               // Reduced-motion users get the same information from the volt
-              // card outlines above.
+              // section hairlines above.
               isLive && isSessionDone && !isSaving && 'motion-safe:animate-finish-nudge',
             )}
             // isDiscarding too: finishing a session that's mid-discard would
@@ -1997,7 +2056,15 @@ export function WorkoutLogger({
             disabled={isEmpty || isSaving || isDiscarding || isRemembering}
             onClick={handleFinishClick}
           >
-            {isSaving ? 'Saving…' : isLive ? 'Finish workout' : 'Save changes'}
+            {isSaving ? (
+              'Saving…'
+            ) : isLive ? (
+              <>
+                Finish workout <span aria-hidden="true">→</span>
+              </>
+            ) : (
+              'Save changes'
+            )}
           </Button>
         </div>
       </div>
