@@ -215,14 +215,12 @@ export default async function ProgramDetailPage({
           <BackLink fallback="/programs" />
         }
         trailing={
+          /* Chip → word: status is a label, not a control — caps text, volt
+             only when the plan is live (or pending the owner's confirm). */
           <span
             className={cn(
-              'shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold uppercase tracking-wide',
-              isProposed
-                ? 'border border-primary/50 bg-transparent text-primary'
-                : status === 'active'
-                  ? 'bg-primary text-primary-foreground'
-                  : 'bg-muted text-muted-foreground',
+              'shrink-0 text-xs font-semibold uppercase tracking-widest',
+              isProposed || status === 'active' ? 'text-primary' : 'text-muted-foreground',
             )}
           >
             {isProposed ? 'proposed' : status}
@@ -375,14 +373,15 @@ export default async function ProgramDetailPage({
         </nav>
 
         {/* The block's payoff moment: the advancement rule fired at the final
-            week, so say so — with the biggest e1RM wins as evidence. Volt is
-            confined to TEXT (label) and the done-card border treatment; the
-            page's one volt BUTTON stays with Start below. Phase 3's Restart
-            action lands in this card. */}
+            week, so say so — with the biggest e1RM wins as evidence. De-carded
+            to the quiet volt hairline the summary's achievement sections wear:
+            volt lives in the TEXT (label) and the hairline; the page's one
+            volt BUTTON stays with Start below. Phase 3's Restart action lands
+            in this section. */}
         {blockComplete && (
           <section
             aria-label="Block complete"
-            className="mt-8 rounded-2xl border border-primary/50 bg-card p-4"
+            className="mt-8 border-b border-b-primary/30 pb-4"
           >
             <p className="text-[11px] font-semibold uppercase tracking-widest text-primary tnum">
               Block complete · {program.mesocycleWeeks} week
@@ -434,7 +433,9 @@ export default async function ProgramDetailPage({
 
         {/* Breathing room before the week's content — the selector belongs to
             the header, the heading opens the body. Deliberately non-uniform. */}
-        <div className="mt-8 flex items-baseline justify-between gap-3">
+        {/* Hairline section header (logger grammar): the condensed-caps
+            heading opens the week's divider list past its own hairline. */}
+        <div className="mt-8 flex items-baseline justify-between gap-3 border-t border-border pt-6">
           <h2 className="font-display text-xl uppercase leading-none tracking-wide">
             Week {selectedWeek}
           </h2>
@@ -453,7 +454,7 @@ export default async function ProgramDetailPage({
         {(autoregNotes.length > 0 || tmProposals.length > 0) && (
           <section
             aria-label="Auto-regulation"
-            className="mt-3 rounded-2xl border border-border bg-card p-4"
+            className="mt-3 border-b border-border/60 pb-4"
           >
             <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
               Auto-regulation
@@ -510,7 +511,10 @@ export default async function ProgramDetailPage({
           </section>
         )}
 
-        <div className="mt-3 space-y-3">
+        {/* The day list is a divider list (Things-3 shape): rows separated by
+            hairlines, no shells — each row's bottom border does the work the
+            card stack's gaps used to. */}
+        <div className="mt-1">
             {program.days.map((day, dayIndex) => {
               const dayState = dayStates[dayIndex]
               const workout = dayState?.workout ?? null
@@ -560,9 +564,12 @@ export default async function ProgramDetailPage({
                 return (
                   <section
                     key={day.id}
-                    className="rounded-2xl border border-primary/50 bg-card p-4"
+                    // Divider row, not a card: the quiet volt hairline is the
+                    // done-state marker (logger/summary grammar) — state in
+                    // type and words, no shell.
+                    className="border-b border-b-primary/30 py-4"
                   >
-                    {/* The whole card links to the workout summary — the
+                    {/* The whole row links to the workout summary — the
                         results ARE the affordance, no extra button needed. */}
                     <Link href={`/workout/${workout.id}`} className="block">
                       <div className="flex items-baseline justify-between gap-3">
@@ -597,10 +604,12 @@ export default async function ProgramDetailPage({
                 return (
                   <section
                     key={day.id}
-                    className="rounded-2xl border border-primary/50 bg-card p-4"
+                    // Live work wears the same quiet volt hairline as done —
+                    // the pulsing dot (not a shell) says which is which.
+                    className="border-b border-b-primary/30 py-4"
                   >
                     {/* Same live-session voice as the home resume banner:
-                        volt border, pulsing volt dot (motion-safe ping over a
+                        pulsing volt dot (motion-safe ping over a
                         static dot, so reduced-motion still reads "live").
                         The link resumes the logger. */}
                     <Link href={`/workout/${workout.id}/edit`} className="block">
@@ -634,12 +643,10 @@ export default async function ProgramDetailPage({
               return (
                 <section
                   key={day.id}
-                  className={cn(
-                    'rounded-2xl border bg-card p-4',
-                    // Volt border only on the primary object; plain and
-                    // future-week cards stay quiet.
-                    isNextUp ? 'border-primary/40' : 'border-border',
-                  )}
+                  // Untouched days sit on the muted hairline — next-up is
+                  // marked by scale (2xl name) and the page's one volt Start,
+                  // not by a border treatment.
+                  className="border-b border-border/60 py-4"
                 >
                   <div className="flex min-w-0 items-baseline justify-between gap-3">
                     {header}
@@ -669,13 +676,16 @@ export default async function ProgramDetailPage({
                                 <span className="tnum">
                                   {formatTargetLine(group.set, group.count, unit)}
                                 </span>
+                                {/* Chips → words: deload/technique are labels
+                                    on the set line, not controls — quiet caps
+                                    text, no pill shell. */}
                                 {group.set.derivedFrom === 'deload' && (
-                                  <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-semibold uppercase tracking-wide">
+                                  <span className="text-[10px] font-semibold uppercase tracking-widest">
                                     Deload
                                   </span>
                                 )}
                                 {group.set.technique && (
-                                  <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-semibold uppercase tracking-wide">
+                                  <span className="text-[10px] font-semibold uppercase tracking-widest">
                                     {group.set.technique.kind}
                                   </span>
                                 )}
