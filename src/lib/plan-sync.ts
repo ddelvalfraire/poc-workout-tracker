@@ -1,4 +1,9 @@
-import { sessionAnchorLoads, type AutoregSession } from './autoregulate'
+import {
+  anchorLoadFor,
+  sessionAnchorLoads,
+  type AutoregAnchor,
+  type AutoregSession,
+} from './autoregulate'
 import { kgToDisplay, type WeightUnit } from './units'
 
 /**
@@ -6,25 +11,37 @@ import { kgToDisplay, type WeightUnit } from './units'
  * the plan's CURRENT suggested loads (program_sets.suggested_load_kg) did the
  * lifter outperform enough that the plan itself should follow? The verdict is
  * the engine's, not a re-implementation: `sessionAnchorLoads` (autoregulate.ts)
- * scores the performed sets against the plan loads under the same ≥5% margin,
- * rep-floor gate, epsilon, and all-or-nothing discipline the derive-time
- * anchor rule uses — the sync card and the engine can never disagree about
- * what counts as outperformed.
+ * scores the performed sets against their prescribed-at-instantiation
+ * SNAPSHOTS under the same ≥5% margin, rep-floor gate, epsilon, and
+ * all-or-nothing discipline the derive-time anchor rule uses — the sync card
+ * and the engine can never disagree about what counts as outperformed.
+ *
+ * EVIDENCE IS LOAD-KEYED (C2): the workout's session is scored against its
+ * OWN snapshot columns (internally consistent, setNumber pairing allowed),
+ * and the resulting anchor buckets are applied to plan sets by load — never
+ * by setNumber, which a plan edit renumbers. A plan set at load L adopts the
+ * bucket at/below L (ε-tolerant, `anchorLoadFor`); load-less plan sets adopt
+ * the null bucket.
+ *
+ * UP-ANCHORS NEED CONFIRMATION (M2): a change that RAISES an existing plan
+ * load is only offered when the PREVIOUS completed session of the day also
+ * outperformed its own snapshots — two consecutive qualifying sessions, the
+ * same rule the derive-time anchor uses. First anchors onto load-less plan
+ * sets stay single-session (there is no plan load to chase).
  *
  * Interplay with the autoreg anchor rule: the anchor already fixes the NEXT
  * session's derived prescription (from immutable per-set snapshots); syncing
  * makes the PLAN durable — program stats, week derives, and the coach all see
  * the real load, after which performed == prescribed and the anchor rule
  * stops firing for that exercise. The two compose; neither depends on the
- * other, and both are user-visible (the sync is confirmed, never silent).
+ * other, and both are user-visible (the sync is audited, never silent).
  *
  * Evidence rules, mirroring the engine's:
  * - skipped exercises and non-`weight_reps` slots never contribute
  *   (`sets.weight` is a total load only for that logging type);
  * - warm-ups (and backoff/amrap sets) never contribute — working sets only;
- * - sets pair by setNumber; sets without evidence are left unchanged;
- * - plan sets with NO suggested load anchor at any completed working load
- *   (the rpe-target case: syncing writes them a first real anchor);
+ * - plan sets with NO suggested load anchor at the null bucket (the
+ *   rpe-target case: syncing writes them a first real anchor);
  * - values already equal propose nothing, so a re-run after syncing is empty.
  */
 
@@ -35,6 +52,10 @@ export interface PlanSyncWorkoutSet {
   weight: number | null
   completed: boolean
   setType: string
+  /** Prescribed-at-instantiation snapshot — the facts the performance is
+   *  scored against (never today's editable plan). */
+  prescribedLoadKg: number | null
+  prescribedRepMin: number | null
 }
 
 export interface PlanSyncWorkoutExercise {
@@ -92,63 +113,101 @@ function firstByIdentity<T extends { source: string; wgerExerciseId: number }>(
   return map
 }
 
+/** One workout exercise as an engine session, scored against its OWN
+ *  prescribed-at-instantiation snapshots — both sides come from the same
+ *  logged rows, so setNumber pairing is internally consistent. Ordering is
+ *  irrelevant for single-session scoring (startedAtMs 0). */
+function snapshotSession(exercise: PlanSyncWorkoutExercise): AutoregSession {
+  return {
+    startedAtMs: 0,
+    prescribed: exercise.sets.map((s) => ({
+      setNumber: s.setNumber,
+      repMin: s.prescribedRepMin,
+      loadKg: s.prescribedLoadKg,
+      setType: s.setType,
+    })),
+    actual: exercise.sets.map((s) => ({
+      setNumber: s.setNumber,
+      reps: s.reps,
+      weightKg: s.weight,
+      completed: s.completed,
+      setType: s.setType,
+    })),
+  }
+}
+
+/** The null-bucket anchor for plan rows that prescribe NOTHING (no load, no
+ *  floor — rpe-only prescriptions): the engine's null-load rule demands a
+ *  snapshot floor because in a snapshot null+null means "no snapshot at
+ *  all", but a load-less PLAN row is a real row with no such ambiguity, so
+ *  its first anchor may come from any completed working load whose snapshot
+ *  prescribed no load. Minimum performed — the engine's conservative
+ *  null-bucket convention. */
+function firstAnchorKg(exercise: PlanSyncWorkoutExercise): number | undefined {
+  const loads = exercise.sets
+    .filter(
+      (s) =>
+        s.completed &&
+        s.setType === 'working' &&
+        s.prescribedLoadKg === null &&
+        s.reps !== null &&
+        s.weight !== null &&
+        s.weight > 0,
+    )
+    .map((s) => s.weight as number)
+  return loads.length > 0 ? Math.min(...loads) : undefined
+}
+
 /**
  * The confirmed-sync candidates for one completed workout against its program
- * day's CURRENT plan. Pure — callers supply both trees; ordering follows the
- * plan's exercise order. Empty array = nothing to offer (no card).
+ * day's CURRENT plan. Pure — callers supply the trees; ordering follows the
+ * plan's exercise order. `previousWorkoutExercises` is the day's previous
+ * completed session (M2): without it — or when it didn't also outperform its
+ * own snapshots — up-anchor changes are withheld. Empty array = nothing to
+ * offer (no card).
  */
 export function detectPlanSyncCandidates(
   workoutExercises: readonly PlanSyncWorkoutExercise[],
   planExercises: readonly PlanSyncPlanExercise[],
+  previousWorkoutExercises?: readonly PlanSyncWorkoutExercise[],
 ): PlanSyncCandidate[] {
-  const workoutByIdentity = firstByIdentity(
-    // Only performed weight_reps slots testify: a skipped exercise attempted
-    // nothing, and non-weight_reps `weight` values aren't absolute loads.
-    workoutExercises.filter((e) => !e.skipped && e.loggingType === 'weight_reps'),
-  )
+  // Only performed weight_reps slots testify: a skipped exercise attempted
+  // nothing, and non-weight_reps `weight` values aren't absolute loads.
+  const performed = (rows: readonly PlanSyncWorkoutExercise[]) =>
+    firstByIdentity(rows.filter((e) => !e.skipped && e.loggingType === 'weight_reps'))
+  const workoutByIdentity = performed(workoutExercises)
+  const previousByIdentity = performed(previousWorkoutExercises ?? [])
+
   const candidates: PlanSyncCandidate[] = []
   for (const plan of firstByIdentity(planExercises).values()) {
-    const done = workoutByIdentity.get(`${plan.source}:${plan.wgerExerciseId}`)
+    const identity = `${plan.source}:${plan.wgerExerciseId}`
+    const done = workoutByIdentity.get(identity)
     if (!done) continue
-    // Loads sync onto reps_weight plan sets only — a duration set has no load
-    // prescription to update.
-    const planSets = plan.sets.filter((s) => s.metricMode === 'reps_weight')
-    const session: AutoregSession = {
-      prescribed: planSets.map((s) => ({
-        setNumber: s.setNumber,
-        repMin: s.repMin,
-        loadKg: s.suggestedLoadKg,
-        setType: s.setType,
-      })),
-      actual: done.sets.map((s) => ({
-        setNumber: s.setNumber,
-        reps: s.reps,
-        weightKg: s.weight,
-        completed: s.completed,
-        setType: s.setType,
-      })),
+    const anchors: AutoregAnchor[] = sessionAnchorLoads(snapshotSession(done))
+    if (!anchors.some((a) => a.prescribedLoadKg === null)) {
+      const first = firstAnchorKg(done)
+      if (first !== undefined) anchors.push({ prescribedLoadKg: null, anchorKg: first })
     }
-    const anchors = sessionAnchorLoads(session)
-    // The engine's null-load anchor demands a non-null repMin because in a
-    // SNAPSHOT a null repMin beside a null load means "no snapshot at all".
-    // A program set is a real plan row — no such ambiguity — so a load-less,
-    // floor-less plan set (rpe-only prescriptions) still takes a first anchor
-    // from a completed working load. Same evidence rules otherwise.
-    const actualByNumber = new Map(done.sets.map((s) => [s.setNumber, s]))
-    for (const planSet of planSets) {
-      if (planSet.suggestedLoadKg !== null || planSet.repMin !== null) continue
-      if (planSet.setType !== 'working' || anchors[planSet.setNumber] !== undefined) continue
-      const actual = actualByNumber.get(planSet.setNumber)
-      if (!actual?.completed || actual.setType !== 'working') continue
-      if (actual.reps === null || actual.weight === null || actual.weight <= 0) continue
-      anchors[planSet.setNumber] = actual.weight
-    }
+    if (anchors.length === 0) continue
 
+    // M2: raising an existing plan load needs the previous session of the
+    // day to have outperformed its own snapshots too — one good day is not a
+    // trend the plan should chase.
+    const previous = previousByIdentity.get(identity)
+    const upAnchorsConfirmed =
+      previous !== undefined &&
+      sessionAnchorLoads(snapshotSession(previous)).some((a) => a.prescribedLoadKg !== null)
+
+    // Loads sync onto reps_weight plan sets only — a duration set has no load
+    // prescription to update. Application is load-keyed (C2): each plan set
+    // adopts the anchor bucket its OWN load belongs to.
     const changes: PlanSyncSetChange[] = []
-    for (const planSet of planSets) {
-      const proposed = anchors[planSet.setNumber]
+    for (const planSet of plan.sets) {
+      if (planSet.metricMode !== 'reps_weight') continue
+      const proposed = anchorLoadFor(anchors, planSet.suggestedLoadKg)
       if (proposed === undefined) continue // no evidence → set unchanged
       if (planSet.suggestedLoadKg === proposed) continue // already synced → no-op
+      if (planSet.suggestedLoadKg !== null && !upAnchorsConfirmed) continue // M2
       changes.push({
         setNumber: planSet.setNumber,
         currentLoadKg: planSet.suggestedLoadKg,

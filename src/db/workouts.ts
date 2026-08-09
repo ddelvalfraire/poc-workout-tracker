@@ -233,11 +233,13 @@ export function getWorkoutDetail(userId: string, id: string) {
 export type WorkoutDetail = NonNullable<Awaited<ReturnType<typeof getWorkoutDetail>>>
 
 /**
- * The user's most recent COMPLETED workout for one program day (id only,
- * newest by startedAt with id as the midnight-collision tiebreak — the
- * autoreg-history ordering convention). The plan-sync guard: only this
- * workout may offer to sync the plan to its performance, so a stale summary
- * revisited later can never propose regressing the plan to old numbers.
+ * The user's two most recent COMPLETED workouts for one program day (ids
+ * only, newest by startedAt with id as the midnight-collision tiebreak — the
+ * autoreg-history ordering convention). Row 0 is the plan-sync guard: only
+ * that workout may offer to sync the plan to its performance, so a stale
+ * summary revisited later can never propose regressing the plan to old
+ * numbers. Row 1 (when present) is the M2 confirmation session — up-anchors
+ * need two consecutive outperformed sessions.
  */
 export function latestCompletedWorkoutForDay(userId: string, programDayId: string) {
   return db
@@ -251,7 +253,7 @@ export function latestCompletedWorkoutForDay(userId: string, programDayId: strin
       ),
     )
     .orderBy(desc(workouts.startedAt), desc(workouts.id))
-    .limit(1)
+    .limit(2)
 }
 
 /** Creates a workout owned by the given user. */

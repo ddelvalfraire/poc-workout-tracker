@@ -29,7 +29,7 @@ export async function autoSyncPlanToPerformance(userId: string, workoutId: strin
   try {
     const workout = await getWorkoutDetail(userId, workoutId)
     if (!workout?.programDayId || workout.completedAt === null) return
-    const [latest] = await latestCompletedWorkoutForDay(userId, workout.programDayId)
+    const [latest, previous] = await latestCompletedWorkoutForDay(userId, workout.programDayId)
     if (latest?.id !== workout.id) return
     const day = await getProgramDayDetail(userId, workout.programDayId)
     if (!day) return
@@ -38,7 +38,14 @@ export async function autoSyncPlanToPerformance(userId: string, workoutId: strin
     // performs BY DESIGN — the flag rides the same day read, no extra query.
     if (!day.program.planSync) return
 
-    const candidates = detectPlanSyncCandidates(workout.exercises, day.exercises)
+    // The day's PREVIOUS completed session confirms up-anchors (M2): a plan
+    // load is only raised after two consecutive outperformed sessions.
+    const previousWorkout = previous ? await getWorkoutDetail(userId, previous.id) : null
+    const candidates = detectPlanSyncCandidates(
+      workout.exercises,
+      day.exercises,
+      previousWorkout?.exercises,
+    )
     if (candidates.length === 0) return
 
     const unit = await getWeightUnit(userId)

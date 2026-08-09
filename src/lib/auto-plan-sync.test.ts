@@ -34,7 +34,7 @@ const mockedRevalidate = vi.mocked(revalidatePath)
 const USER = 'user_123'
 const ID = '11111111-1111-1111-1111-111111111111'
 
-// A completed program workout that beat the plan (80 → 120 on both sets).
+// A completed program workout that beat its snapshots (80 → 120 on both sets).
 const WORKOUT = {
   id: ID,
   programDayId: 'pd1',
@@ -46,8 +46,53 @@ const WORKOUT = {
       loggingType: 'weight_reps',
       skipped: false,
       sets: [
-        { setNumber: 1, reps: 12, weight: 120, completed: true, setType: 'working' },
-        { setNumber: 2, reps: 12, weight: 120, completed: true, setType: 'working' },
+        {
+          setNumber: 1,
+          reps: 12,
+          weight: 120,
+          completed: true,
+          setType: 'working',
+          prescribedLoadKg: 80,
+          prescribedRepMin: 12,
+        },
+        {
+          setNumber: 2,
+          reps: 12,
+          weight: 120,
+          completed: true,
+          setType: 'working',
+          prescribedLoadKg: 80,
+          prescribedRepMin: 12,
+        },
+      ],
+    },
+  ],
+} as unknown as Awaited<ReturnType<typeof getWorkoutDetail>>
+
+const PREVIOUS_ID = '22222222-2222-2222-2222-222222222222'
+
+// The day's PREVIOUS completed session, which also outperformed its
+// snapshots — the M2 confirmation for up-anchors.
+const PREVIOUS_WORKOUT = {
+  id: PREVIOUS_ID,
+  programDayId: 'pd1',
+  completedAt: new Date('2026-06-24T11:00:00Z'),
+  exercises: [
+    {
+      wgerExerciseId: 73,
+      source: 'wger',
+      loggingType: 'weight_reps',
+      skipped: false,
+      sets: [
+        {
+          setNumber: 1,
+          reps: 12,
+          weight: 110,
+          completed: true,
+          setType: 'working',
+          prescribedLoadKg: 80,
+          prescribedRepMin: 12,
+        },
       ],
     },
   ],
@@ -71,9 +116,16 @@ const DAY = {
 } as unknown as Awaited<ReturnType<typeof getProgramDayDetail>>
 
 function arrangeHappyPath() {
-  mockedGetWorkoutDetail.mockResolvedValue(WORKOUT)
+  mockedGetWorkoutDetail.mockImplementation(
+    (_user, id) =>
+      Promise.resolve(id === PREVIOUS_ID ? PREVIOUS_WORKOUT : WORKOUT) as unknown as ReturnType<
+        typeof getWorkoutDetail
+      >,
+  )
   mockedLatestForDay.mockReturnValue(
-    Promise.resolve([{ id: ID }]) as unknown as ReturnType<typeof latestCompletedWorkoutForDay>,
+    Promise.resolve([{ id: ID }, { id: PREVIOUS_ID }]) as unknown as ReturnType<
+      typeof latestCompletedWorkoutForDay
+    >,
   )
   mockedGetDayDetail.mockResolvedValue(DAY)
   mockedGetUnit.mockResolvedValue('kg')
@@ -168,6 +220,22 @@ describe('autoSyncPlanToPerformance', () => {
 
     await autoSyncPlanToPerformance(USER, ID)
 
+    expect(mockedSyncLoads).not.toHaveBeenCalled()
+    expect(mockedRevalidate).not.toHaveBeenCalled()
+  })
+
+  it('M2: no sync when the day has no previous completed session to confirm the up-anchor', async () => {
+    // Arrange — the outperformed workout is the day's FIRST completed
+    // session: one good day is not a trend the plan should chase.
+    arrangeHappyPath()
+    mockedLatestForDay.mockReturnValue(
+      Promise.resolve([{ id: ID }]) as unknown as ReturnType<typeof latestCompletedWorkoutForDay>,
+    )
+
+    // Act
+    await autoSyncPlanToPerformance(USER, ID)
+
+    // Assert
     expect(mockedSyncLoads).not.toHaveBeenCalled()
     expect(mockedRevalidate).not.toHaveBeenCalled()
   })

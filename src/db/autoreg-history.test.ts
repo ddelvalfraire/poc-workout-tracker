@@ -60,9 +60,11 @@ const slot = (
   programWeek: number,
   workoutExerciseId: string,
   startedAt = new Date(`2026-07-0${programWeek}T10:00:00Z`),
+  programDayId = 'pd1',
 ) => ({
   workoutId,
   programWeek,
+  programDayId,
   startedAt,
   workoutExerciseId,
 })
@@ -227,6 +229,53 @@ describe('getRecentTrainedSessions', () => {
     expect(predicateMentionsColumn(orderArgs[0], 'started_at')).toBe(true)
     expect(predicateMentionsColumn(orderArgs[1], 'id')).toBe(true)
     expect(predicateMentionsColumn(orderArgs[2], 'position')).toBe(true)
+  })
+
+  it('H4: the trained predicate is scoped to the exercise identity, not the whole workout', async () => {
+    // Arrange
+    selectQueue = [[]]
+
+    // Act
+    await getRecentTrainedSessions(USER, PID, 'wger', 1)
+
+    // Assert — the EXISTS sub-predicate (the one gating on completed sets)
+    // must ALSO bind the composite exercise identity: a workout where some
+    // OTHER exercise was trained but this one was skipped entirely may not
+    // enter this exercise's window (burning slots, resetting streaks).
+    const mentionsAll = (node: unknown): boolean =>
+      ['completed', 'wger_exercise_id', 'source'].every((column) =>
+        predicateMentionsColumn(node, column),
+      )
+    const findScopedExists = (node: unknown): boolean => {
+      if (node === null || typeof node !== 'object') return false
+      const chunks = (node as { queryChunks?: unknown[] }).queryChunks
+      if (!Array.isArray(chunks)) return false
+      if (predicateMentionsColumn(node, 'completed') && mentionsAll(node)) return true
+      return chunks.some(findScopedExists)
+    }
+    expect(findScopedExists(capturedWheres[0])).toBe(true)
+  })
+
+  it('H5: a re-instantiated (programDayId, programWeek) slot never double-counts in the window', async () => {
+    // Arrange — w2b and w2a are BOTH completed instantiations of day pd1 at
+    // week 2 (a stale-abandon re-instantiation), on different days. Only the
+    // most recently started may testify, and the window must still reach the
+    // genuinely distinct w1.
+    selectQueue = [
+      [
+        slot('w2b', 2, 'we2b', new Date('2026-07-05T10:00:00Z')),
+        slot('w2a', 2, 'we2a', new Date('2026-07-02T10:00:00Z')),
+        slot('w1', 1, 'we1', new Date('2026-07-01T10:00:00Z')),
+      ],
+      [setRow('we2b', 6, 100), setRow('we1', 8, 100)],
+    ]
+
+    // Act
+    const sessions = await getRecentTrainedSessions(USER, PID, 'wger', 1)
+
+    // Assert — the duplicate slot is dropped even though its calendar day
+    // differs; the same week trained under a DIFFERENT day would not be.
+    expect(sessions.map((s) => s.workoutId)).toEqual(['w2b', 'w1'])
   })
 
   it('returns [] (no second query) when nothing qualifies', async () => {

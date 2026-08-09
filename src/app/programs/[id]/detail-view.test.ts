@@ -111,7 +111,7 @@ const adjustment = (action: AutoregAdjustment['action']): AutoregAdjustment => (
   action,
   deltaKg: action === 'decrement' ? -10 : 0,
   suggestEarlyDeload: false,
-  stalledLoadBySetNumber: { 1: 100 },
+  stalledLoads: [100],
   evidence: { missedSets: 2, scorableSets: 3, repFloor: 8, loadKg: 100 },
 })
 

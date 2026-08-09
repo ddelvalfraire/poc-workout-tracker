@@ -9,9 +9,11 @@ import { workouts, workoutExercises, sets, programDays } from './schema'
  * the most recent COMPLETED trained sessions of one program exercise,
  * provenance-scoped to one program. A session testifies only when the workout
  * is finished (`completedAt` set — a live session in the logger must never be
- * evidence on the preview/program-page paths) AND trained (≥1 completed set,
- * the week-axis invariant from `programWeekState`, so ghost instantiations
- * can never testify to a stall). Only `weight_reps` slots qualify:
+ * evidence on the preview/program-page paths) AND THIS EXERCISE was trained
+ * in it (≥1 completed set under the exercise's composite identity — H4: a
+ * workout where the exercise was skipped entirely must not enter this
+ * exercise's window, silently resetting streaks and burning window slots).
+ * Only `weight_reps` slots qualify:
  * `sets.weight` is a total load only for that logging type, and prescriptions
  * are absolute loads, so nothing else is scorable against them.
  *
@@ -27,6 +29,8 @@ import { workouts, workoutExercises, sets, programDays } from './schema'
 export interface AutoregHistorySession {
   workoutId: string
   programWeek: number
+  /** Session start — the engine's ordering key (AutoregSession.startedAtMs). */
+  startedAt: Date
   sets: {
     setNumber: number
     reps: number | null
@@ -63,9 +67,12 @@ export interface AutoregHistoryOptions {
  * not `programId`) and gated on `workouts.userId` — the module's
  * authorization boundary. Ordered by `startedAt` desc with `workouts.id` as
  * tiebreak so midnight-collision backdates can't flap the verdict. One
- * session per calendar day (the latest) — a double-session day must not fill
- * the whole window. A day that repeats the exercise contributes its FIRST
- * slot only (position order), mirroring the logger's first-slot-wins keying.
+ * session per (programDayId, programWeek) slot, keeping the most recently
+ * started (H5: a re-instantiated completed slot mints a real duplicate row
+ * that must not double-count), then one per calendar day (the latest) — a
+ * double-session day must not fill the whole window. A day that repeats the
+ * exercise contributes its FIRST slot only (position order), mirroring the
+ * logger's first-slot-wins keying.
  */
 export async function getRecentTrainedSessions(
   userId: string,
@@ -74,12 +81,19 @@ export async function getRecentTrainedSessions(
   wgerExerciseId: number,
   options?: AutoregHistoryOptions,
 ): Promise<AutoregHistorySession[]> {
-  // Same trained predicate as programWeekState: ≥1 completed set anywhere in
-  // the workout. Raw sql so the invariant stays a plain readable expression.
-  const trainedWorkout = sql`exists (
+  // Exercise-scoped trained predicate (H4): ≥1 completed set under THIS
+  // exercise's composite identity in the workout — NOT programWeekState's
+  // workout-level invariant, which would admit workouts where this exercise
+  // was skipped entirely. Raw sql so the invariant stays a plain readable
+  // expression; the inner table references shadow the outer ones (innermost
+  // scope), while `workouts.id` correlates and the identity binds as params.
+  const trainedExercise = sql`exists (
     select 1 from ${workoutExercises}
     inner join ${sets} on ${sets.workoutExerciseId} = ${workoutExercises.id}
-    where ${workoutExercises.workoutId} = ${workouts.id} and ${sets.completed}
+    where ${workoutExercises.workoutId} = ${workouts.id}
+      and ${workoutExercises.wgerExerciseId} = ${wgerExerciseId}
+      and ${workoutExercises.source} = ${source}
+      and ${sets.completed}
   )`
 
   const recencyCutoff = new Date(Date.now() - AUTOREG_RECENCY_DAYS * 24 * 60 * 60 * 1000)
@@ -88,6 +102,7 @@ export async function getRecentTrainedSessions(
     .select({
       workoutId: workouts.id,
       programWeek: workouts.programWeek,
+      programDayId: workouts.programDayId,
       startedAt: workouts.startedAt,
       workoutExerciseId: workoutExercises.id,
     })
@@ -105,7 +120,7 @@ export async function getRecentTrainedSessions(
         isNotNull(workouts.completedAt),
         gte(workouts.startedAt, recencyCutoff),
         options?.excludeWorkoutId ? ne(workouts.id, options.excludeWorkoutId) : undefined,
-        trainedWorkout,
+        trainedExercise,
       ),
     )
     .orderBy(desc(workouts.startedAt), desc(workouts.id), asc(workoutExercises.position))
@@ -115,6 +130,7 @@ export async function getRecentTrainedSessions(
   const perWorkout: {
     workoutId: string
     programWeek: number
+    programDayId: string | null
     startedAt: Date
     workoutExerciseId: string
   }[] = []
@@ -131,13 +147,23 @@ export async function getRecentTrainedSessions(
     deloadWeek === null ? -1 : perWorkout.findIndex((c) => c.programWeek === deloadWeek)
   const sinceDeload = boundary === -1 ? perWorkout : perWorkout.slice(0, boundary)
 
-  // One session per calendar day, keeping the latest (rows are newest-first).
+  // One session per (programDayId, programWeek) slot, keeping the most
+  // recently started (H5: a re-instantiated completed slot is a duplicate of
+  // the same planned session — it must not double-count in the window), then
+  // one per calendar day, keeping the latest (rows are newest-first).
+  const seenSlots = new Set<string>()
   const seenDays = new Set<string>()
   const chosen: typeof perWorkout = []
   for (const candidate of sinceDeload) {
     if (chosen.length >= AUTOREG_HISTORY_LIMIT) break
+    const slotKey =
+      candidate.programDayId === null
+        ? null
+        : `${candidate.programDayId}:${candidate.programWeek}`
+    if (slotKey !== null && seenSlots.has(slotKey)) continue
     const day = candidate.startedAt.toISOString().slice(0, 10)
     if (seenDays.has(day)) continue
+    if (slotKey !== null) seenSlots.add(slotKey)
     seenDays.add(day)
     chosen.push(candidate)
   }
@@ -166,6 +192,7 @@ export async function getRecentTrainedSessions(
   return chosen.map((c) => ({
     workoutId: c.workoutId,
     programWeek: c.programWeek,
+    startedAt: c.startedAt,
     sets: setRows
       .filter((r) => r.workoutExerciseId === c.workoutExerciseId)
       .map((r) => ({
