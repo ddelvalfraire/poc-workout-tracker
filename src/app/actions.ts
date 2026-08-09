@@ -7,8 +7,10 @@ import {
   setEquipment,
   setDefaultRestSec,
   setRestTimerEnabled,
+  setHomeLayout,
   getWeightUnit,
 } from '@/db/preferences'
+import { parseHomeLayoutInput } from '@/lib/home/layout'
 import { logBodyweight, deleteBodyweightLog } from '@/db/bodyweight'
 import { checkGoalAchievements } from '@/lib/goals'
 import { logMeasurement, deleteMeasurement } from '@/db/body-measurements'
@@ -153,6 +155,20 @@ export async function setDefaultRestSecAction(sec: unknown): Promise<void> {
     throw new Error(`rest target must be null or an integer between 0 and ${MAX_REST_SEC} seconds`)
   }
   await setDefaultRestSec(userId, sec)
+  revalidatePath('/', 'layout')
+}
+
+/**
+ * Persists the user's home section layout (the settings/home editor writes
+ * the FULL document per interaction). `null` resets to the code-defined
+ * default — degrade-to-default IS the reset path. Non-null payloads are
+ * boundary-validated: unknown kinds, duplicates, and missing kinds all
+ * reject before any write.
+ */
+export async function setHomeLayoutAction(layout: unknown): Promise<void> {
+  const userId = await requireUserId()
+  const doc = layout === null ? null : parseHomeLayoutInput(layout)
+  await setHomeLayout(userId, doc)
   revalidatePath('/', 'layout')
 }
 

@@ -1,11 +1,11 @@
 import Link from "next/link";
-import { ChevronRight, Settings } from "lucide-react";
+import { Settings } from "lucide-react";
 import { UserButton } from "@clerk/nextjs";
 import { requireUserId } from "@/lib/auth";
 import { listWorkoutSummaries } from "@/db/workouts";
 import { listWorkoutDrafts } from "@/db/workout-drafts";
 import { getNextProgramDay } from "@/db/programs";
-import { getWeightUnit } from "@/db/preferences";
+import { getWeightUnit, getHomeLayout } from "@/db/preferences";
 import { resolveActiveSession } from "@/lib/active-session";
 import { getCheckInStatus } from "@/lib/check-in";
 import { getGoalsHomeSummary } from "@/lib/goals";
@@ -13,17 +13,8 @@ import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { NavDrawer } from "@/components/nav/nav-drawer";
 import { CheckInCard } from "./check-in-card";
-import { HistoryList } from "./history-list";
-import { MomentumPanel } from "./momentum-panel";
+import { renderHomeSections } from "./home-sections";
 import { StatusHero } from "./status-hero";
-import { TodayRecap } from "./today-recap";
-
-// en-US matches formatWorkoutDate — one locale for all date display.
-const monthFormat = new Intl.DateTimeFormat("en-US", { month: "short" });
-
-/** Home keeps the freshest handful; the full log lives on /history (WHOOP
- *  tier discipline — history is tier-3 data on tier-1 real estate). */
-const HOME_HISTORY_LIMIT = 5;
 
 export default async function HomePage() {
   const userId = await requireUserId(); // middleware also guards; this is defense-in-depth
@@ -31,9 +22,12 @@ export default async function HomePage() {
   // props need; MomentumPanel self-fetches the rest. Every reader here is
   // request-memoized (React cache), so overlap with the panel (summaries,
   // unit, goals) still costs one query per request.
-  const [summaries, unit, nextDay, drafts, checkIn, goalsSummary] = await Promise.all([
+  const [summaries, unit, layout, nextDay, drafts, checkIn, goalsSummary] = await Promise.all([
     listWorkoutSummaries(userId),
     getWeightUnit(userId),
+    // The section layout rides the SAME memoized preferences row as the unit
+    // read above — resolving it adds zero queries to the default render.
+    getHomeLayout(userId),
     getNextProgramDay(userId),
     listWorkoutDrafts(userId),
     // Null when the active program suggests no cadence — the card is gated on
@@ -164,95 +158,30 @@ export default async function HomePage() {
             Position unchanged: due-ness doesn't care what the status says. */}
         {checkIn?.due && <CheckInCard daysSinceLast={checkIn.daysSinceLast} />}
 
-        {/* MOMENTUM panel — one designed surface where the two teaser rows
-            were. Self-fetching server section (its reads dedupe against the
-            page's via the request memo); it skips itself on true day one. */}
-        <MomentumPanel userId={userId} nowMs={now.getTime()} />
+        {/* OPTIONAL sections — presence and order are the user's layout
+            document (settings → Customize home), resolved from preferences
+            already in hand (zero extra queries). Sections render exactly as
+            before; only the sequence became data-driven. Hidden sections'
+            renderers never run, so a hidden Momentum panel costs no reads. */}
+        {renderHomeSections(layout, {
+          userId,
+          nowMs: now.getTime(),
+          unit,
+          recentCompleted,
+          completed,
+          unfinished,
+          guardSession: guardSession ?? null,
+        })}
 
-        {/* TODAY recap — celebration cards for sessions completed on the
-            user's local today (filter runs client-side; the 48h completion
-            window covers any timezone's calendar day). */}
-        <TodayRecap
-          workouts={recentCompleted.map((w) => ({
-            id: w.id,
-            name: w.name,
-            startedAtMs: w.startedAt.getTime(),
-            completedAtMs: w.completedAt!.getTime(),
-            volumeKg: w.volumeKg,
-          }))}
-          unit={unit}
-        />
-
-        {/* Unfinished sits ABOVE History: these rows still need an action
-            (resume or finish), while History is done. Deliberately quiet —
-            no volt chip, muted throughout: the live session already owns the
-            hero up top; anything here is a stale abandonment, not live
-            state. Rows reopen the logger, never the read-only summary (which
-            would present them as completed). */}
-        {unfinished.length > 0 && (
-          <>
-            <h2 className="mt-10 mb-3 text-lg">Unfinished</h2>
-            <ul className="divide-y divide-border overflow-hidden rounded-2xl border border-border bg-card">
-              {unfinished.map((w) => (
-                <li key={w.id}>
-                  <Link
-                    href={`/workout/${w.id}/edit`}
-                    className="flex min-w-0 items-center gap-4 px-4 py-3.5 transition-colors active:bg-muted/60"
-                  >
-                    {/* Same calendar anchor as History for scan continuity,
-                        but muted — these dates mark where a session stalled,
-                        not an achievement. */}
-                    <span className="flex w-9 shrink-0 flex-col items-center text-muted-foreground">
-                      <span className="font-display text-xl leading-none tnum">
-                        {w.startedAt.getDate()}
-                      </span>
-                      <span className="mt-0.5 text-[10px] font-semibold uppercase tracking-widest">
-                        {monthFormat.format(w.startedAt)}
-                      </span>
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate font-medium">{w.name ?? "Workout"}</span>
-                      <span className="mt-0.5 block truncate text-sm text-muted-foreground tnum">
-                        {`started · ${w.completedSetCount} set${w.completedSetCount === 1 ? "" : "s"} logged`}
-                      </span>
-                    </span>
-                    {/* A quiet word instead of the chevron: "resume" says what
-                        tapping does; a bare chevron would read like a detail
-                        disclosure. */}
-                    <span className="shrink-0 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
-                      Resume
-                    </span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </>
-        )}
-
-        {/* HISTORY, demoted (WHOOP tier discipline): the last few compact
-            rows; the full log lives on /history. No empty-state card here —
-            with nothing completed, the fresh hero already owns the invite. */}
-        {completed.length > 0 && (
-          <>
-            <div className="mt-10 mb-3 flex items-baseline justify-between gap-3">
-              <h2 className="text-lg">History</h2>
-              {completed.length > HOME_HISTORY_LIMIT && (
-                <Link
-                  href="/history"
-                  className="flex shrink-0 items-center gap-0.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
-                >
-                  All history
-                  <ChevronRight aria-hidden="true" className="size-4" />
-                </Link>
-              )}
-            </div>
-            <HistoryList
-              workouts={completed.slice(0, HOME_HISTORY_LIMIT)}
-              unit={unit}
-              guardSession={guardSession}
-            />
-          </>
-        )}
+        {/* The quiet door to the layout editor — a whisper at the very
+            bottom, after everything it edits. Discoverable when you go
+            looking, invisible when you don't. */}
+        <Link
+          href="/settings/home"
+          className="mx-auto mt-12 mb-4 block w-fit text-[10px] font-semibold uppercase tracking-widest text-muted-foreground transition-colors outline-none hover:text-foreground focus-visible:text-foreground"
+        >
+          Edit home
+        </Link>
       </main>
     </div>
   );

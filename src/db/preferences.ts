@@ -4,6 +4,7 @@ import { db } from './index'
 import { userPreferences } from './schema'
 import { DEFAULT_WEIGHT_UNIT, isWeightUnit, type WeightUnit } from '@/lib/units'
 import { equipmentForUnit, type Equipment, type StoredEquipment } from '@/lib/equipment'
+import { resolveHomeLayout, type HomeLayout, type ResolvedHomeSection } from '@/lib/home/layout'
 
 /**
  * Data access for per-user preferences, always scoped to a Clerk userId.
@@ -13,15 +14,24 @@ import { equipmentForUnit, type Equipment, type StoredEquipment } from '@/lib/eq
  * `isWeightUnit` and fall back to the default rather than trusting stored data.
  */
 
-/** Returns the user's weight unit, defaulting to the product default (lb) when
- *  unset or unrecognized. Request-memoized (React cache — per-request only,
- *  never cross-request). CONSTRAINT: args must stay cache-key-safe primitives. */
-export const getWeightUnit = cache(async (userId: string): Promise<WeightUnit> => {
+/** The whole preferences row, request-memoized (React cache — per-request
+ *  only, never cross-request). getWeightUnit and getHomeLayout both read
+ *  through this memo, so home resolves its layout with ZERO queries beyond
+ *  the unit read it already made. CONSTRAINT: args must stay cache-key-safe
+ *  primitives. */
+const getPreferencesRow = cache(async (userId: string) => {
   const [row] = await db
-    .select({ unit: userPreferences.unit })
+    .select()
     .from(userPreferences)
     .where(eq(userPreferences.userId, userId))
     .limit(1)
+  return row ?? null
+})
+
+/** Returns the user's weight unit, defaulting to the product default (lb) when
+ *  unset or unrecognized. Request-memoized via getPreferencesRow. */
+export const getWeightUnit = cache(async (userId: string): Promise<WeightUnit> => {
+  const row = await getPreferencesRow(userId)
   return row && isWeightUnit(row.unit) ? row.unit : DEFAULT_WEIGHT_UNIT
 })
 
@@ -122,6 +132,30 @@ export async function getRestTimerEnabled(userId: string): Promise<boolean> {
     .where(eq(userPreferences.userId, userId))
     .limit(1)
   return row?.restTimerEnabled !== false
+}
+
+/**
+ * The user's resolved home section layout. Stored jsonb is untrusted, so
+ * `resolveHomeLayout` zod-guards the shape: corrupt, absent, or
+ * unknown-version documents degrade to the code-defined default order.
+ * Request-memoized THROUGH getPreferencesRow: on home this shares the row
+ * the unit read already fetched — zero additional queries.
+ */
+export const getHomeLayout = cache(async (userId: string): Promise<ResolvedHomeSection[]> => {
+  const row = await getPreferencesRow(userId)
+  return resolveHomeLayout(row?.homeLayout ?? null)
+})
+
+/** Upserts the user's home layout (validated by setHomeLayoutAction); null
+ *  clears it — degrade-to-default IS the "Reset to default" path. */
+export async function setHomeLayout(userId: string, layout: HomeLayout | null): Promise<void> {
+  await db
+    .insert(userPreferences)
+    .values({ userId, homeLayout: layout })
+    .onConflictDoUpdate({
+      target: userPreferences.userId,
+      set: { homeLayout: layout, updatedAt: new Date() },
+    })
 }
 
 /** Upserts the rest-timer feature switch (validated by setRestTimerEnabledAction). */

@@ -112,6 +112,13 @@ export default async function SettingsPage() {
           >
             <RestDefaultSetting defaultRestSec={defaultRestSec} />
           </SettingRow>
+          {/* Link row, like Body: the home layout editor grew its own surface
+              at /settings/home (locked hero row, chevron reorder, switches). */}
+          <LinkRow
+            href="/settings/home"
+            label="Customize home"
+            hint="Choose which sections show, and their order."
+          />
         </SettingsZone>
 
         <SettingsZone title="Data">

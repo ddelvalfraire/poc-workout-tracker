@@ -11,6 +11,7 @@ vi.mock('@/db/preferences', () => ({
   setEquipment: vi.fn(async () => {}),
   setDefaultRestSec: vi.fn(async () => {}),
   setRestTimerEnabled: vi.fn(async () => {}),
+  setHomeLayout: vi.fn(async () => {}),
   getWeightUnit: vi.fn(async () => 'lb'),
 }))
 vi.mock('@/db/bodyweight', () => ({
@@ -32,12 +33,14 @@ import {
   deleteMeasurementAction,
   setDefaultRestSecAction,
   setRestTimerEnabledAction,
+  setHomeLayoutAction,
 } from './actions'
 import {
   setWeightUnit,
   setEquipment,
   setDefaultRestSec,
   setRestTimerEnabled,
+  setHomeLayout,
   getWeightUnit,
 } from '@/db/preferences'
 import { logBodyweight, deleteBodyweightLog } from '@/db/bodyweight'
@@ -293,4 +296,61 @@ describe('setRestTimerEnabledAction', () => {
       expect(revalidatePath).toHaveBeenCalledWith('/', 'layout')
     },
   )
+})
+
+describe('setHomeLayoutAction', () => {
+  const validLayout = {
+    version: 1,
+    sections: [
+      { kind: 'history' },
+      { kind: 'momentum', hidden: true },
+      { kind: 'today-recap' },
+      { kind: 'unfinished' },
+    ],
+  }
+
+  it('persists a valid full layout document and revalidates the layout', async () => {
+    await setHomeLayoutAction(validLayout)
+    expect(setHomeLayout).toHaveBeenCalledWith('user_123', validLayout)
+    expect(revalidatePath).toHaveBeenCalledWith('/', 'layout')
+  })
+
+  it('persists null to reset to the default layout', async () => {
+    await setHomeLayoutAction(null)
+    expect(setHomeLayout).toHaveBeenCalledWith('user_123', null)
+    expect(revalidatePath).toHaveBeenCalledWith('/', 'layout')
+  })
+
+  it('rejects a malformed document without writing or revalidating', async () => {
+    await expect(setHomeLayoutAction('garbage')).rejects.toThrow('invalid home layout')
+    expect(setHomeLayout).not.toHaveBeenCalled()
+    expect(revalidatePath).not.toHaveBeenCalled()
+  })
+
+  it('rejects unknown kinds without writing', async () => {
+    await expect(
+      setHomeLayoutAction({
+        version: 1,
+        sections: [...validLayout.sections, { kind: 'mystery' }],
+      }),
+    ).rejects.toThrow('unknown home section kind')
+    expect(setHomeLayout).not.toHaveBeenCalled()
+  })
+
+  it('rejects duplicate kinds without writing', async () => {
+    await expect(
+      setHomeLayoutAction({
+        version: 1,
+        sections: [...validLayout.sections.slice(0, 3), { kind: 'history' }],
+      }),
+    ).rejects.toThrow('duplicate home section kind')
+    expect(setHomeLayout).not.toHaveBeenCalled()
+  })
+
+  it('rejects a document missing sections without writing', async () => {
+    await expect(
+      setHomeLayoutAction({ version: 1, sections: [{ kind: 'history' }] }),
+    ).rejects.toThrow('home layout must include every section')
+    expect(setHomeLayout).not.toHaveBeenCalled()
+  })
 })
