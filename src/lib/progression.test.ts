@@ -4,6 +4,7 @@ import {
   deriveWeekSets,
   applyOverride,
   amrapCompletedWaves,
+  resolveDeloadPolicy,
   DELOAD_LOAD_FACTOR,
   DELOAD_SET_FACTOR,
   type ProgramSetRowLike,
@@ -699,5 +700,49 @@ describe('applyOverride', () => {
     const result = applyOverride(base, { suggestedLoadKg: null, repMin: null, repMax: null, rir: null, rpe: null, tempo: null, durationSec: null, distanceM: null, restSec: null, technique: null })
     expect(result).toEqual(base)
     expect(result.derivedFrom).toBe('scheme')
+  })
+})
+
+describe('resolveDeloadPolicy', () => {
+  const LEGACY_SCHEDULED = {
+    mode: 'scheduled',
+    shape: { loadFactor: DELOAD_LOAD_FACTOR, setFactor: DELOAD_SET_FACTOR, rpeCap: null },
+  }
+
+  it('passes a valid stored policy through untouched', () => {
+    expect(resolveDeloadPolicy({ mode: 'none' }, 4)).toEqual({ mode: 'none' })
+    expect(resolveDeloadPolicy({ mode: 'reactive' }, 4)).toEqual({ mode: 'reactive' })
+    const scheduled = {
+      mode: 'scheduled',
+      shape: { loadFactor: 0.7, setFactor: 0.6, rpeCap: 7 },
+    }
+    expect(resolveDeloadPolicy(scheduled, null)).toEqual(scheduled)
+  })
+
+  it('resolves null to the legacy regime (deloadWeek set → historical scheduled)', () => {
+    expect(resolveDeloadPolicy(null, 4)).toEqual(LEGACY_SCHEDULED)
+    expect(resolveDeloadPolicy(null, null)).toEqual({ mode: 'none' })
+  })
+
+  it('degrades an INVALID blob to legacy — silence over corruption, never a throw', () => {
+    const garbage = [
+      { mode: 'weird' },
+      { mode: 'scheduled' }, // shape missing
+      { mode: 'none', extra: 1 }, // strict
+      'scheduled',
+      42,
+      undefined,
+    ]
+    for (const blob of garbage) {
+      expect(resolveDeloadPolicy(blob, 4), JSON.stringify(blob)).toEqual(LEGACY_SCHEDULED)
+      expect(resolveDeloadPolicy(blob, null), JSON.stringify(blob)).toEqual({ mode: 'none' })
+    }
+  })
+
+  it('applies the scheduled shape defaults when the stored shape is partial', () => {
+    expect(resolveDeloadPolicy({ mode: 'scheduled', shape: { loadFactor: 0.9 } }, 4)).toEqual({
+      mode: 'scheduled',
+      shape: { loadFactor: 0.9, setFactor: DELOAD_SET_FACTOR, rpeCap: null },
+    })
   })
 })

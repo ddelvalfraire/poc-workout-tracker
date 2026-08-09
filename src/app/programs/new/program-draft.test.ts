@@ -560,6 +560,7 @@ describe('detailToProgramDraft', () => {
     authorActor: 'coach',
     autoregulation: true,
     autoregStallPolicy: 'first-set',
+    deloadPolicy: null,
     planSync: false,
     checkInEveryDays: 14,
     visibility: 'private',

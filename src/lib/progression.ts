@@ -1,4 +1,9 @@
-import type { Progression, Technique } from './program-input'
+import {
+  deloadPolicySchema,
+  type DeloadPolicy,
+  type Progression,
+  type Technique,
+} from './program-input'
 import { MAX_RELIABLE_REPS } from './one-rep-max'
 
 /**
@@ -17,6 +22,33 @@ import { MAX_RELIABLE_REPS } from './one-rep-max'
 export const DELOAD_LOAD_FACTOR = 0.85
 /** Deload week: the working-set count is scaled by this (ceil, min 1). */
 export const DELOAD_SET_FACTOR = 0.5
+
+/** A deload policy after read-time resolution — never null: legacy programs
+ *  resolve to the regime they always had. Same shape as `DeloadPolicy` with
+ *  the scheduled shape's defaults applied. */
+export type ResolvedDeloadPolicy = DeloadPolicy
+
+/**
+ * Resolves the `programs.deload_policy` column into the policy the engine
+ * applies — THE one code path between the stored JSON and behavior (silence
+ * over corruption: an invalid blob degrades to legacy, never throws, never
+ * half-applies). A valid stored policy wins; null/absent/invalid resolves to
+ * the LEGACY regime: `deloadWeek` set → 'scheduled' at the historical
+ * factors (byte-for-byte today's behavior), no deload week → 'none'.
+ */
+export function resolveDeloadPolicy(
+  policyJson: unknown,
+  deloadWeek: number | null,
+): ResolvedDeloadPolicy {
+  const parsed = deloadPolicySchema.safeParse(policyJson)
+  if (parsed.success) return parsed.data
+  return deloadWeek !== null
+    ? {
+        mode: 'scheduled',
+        shape: { loadFactor: DELOAD_LOAD_FACTOR, setFactor: DELOAD_SET_FACTOR, rpeCap: null },
+      }
+    : { mode: 'none' }
+}
 
 /**
  * Rep-max %1RM curve underlying the RTS chart. Index i (0-based) = percent of

@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
+  deloadPolicySchema,
   parseProgramInput,
   programSetIntegrityViolation,
   progressionSchema,
@@ -547,6 +548,105 @@ describe('progressionSchema bounds (Phase 5 tightening)', () => {
     expect(() =>
       progressionSchema.parse({ scheme: 'weekly-volume', mevSets: 14, mrvSets: 8 }),
     ).toThrow(/mevSets/)
+  })
+
+  describe('amrap-cycle deload additions', () => {
+    const base = { scheme: 'amrap-cycle', trainingMaxKg: 100, incrementKg: 2.5, wave: [[0.7]] }
+
+    it("materializes tmBumpTiming 'after-deload' on new configs (Wendler canon default)", () => {
+      expect(progressionSchema.parse(base)).toMatchObject({ tmBumpTiming: 'after-deload' })
+    })
+
+    it("preserves an explicit tmBumpTiming 'before-deload' (migration-stamped legacy)", () => {
+      expect(progressionSchema.parse({ ...base, tmBumpTiming: 'before-deload' })).toMatchObject({
+        tmBumpTiming: 'before-deload',
+      })
+    })
+
+    it('never stamps tmBumpTiming onto other schemes', () => {
+      expect(progressionSchema.parse({ scheme: 'linear', incrementKg: 2.5 })).toEqual({
+        scheme: 'linear',
+        incrementKg: 2.5,
+      })
+    })
+
+    it('accepts a canonical deloadRow (40/50/60% ×5)', () => {
+      const parsed = progressionSchema.parse({
+        ...base,
+        deloadRow: { percents: [0.4, 0.5, 0.6], reps: 5 },
+      })
+      expect(parsed).toMatchObject({ deloadRow: { percents: [0.4, 0.5, 0.6], reps: 5 } })
+    })
+
+    it('rejects out-of-bound deloadRow params', () => {
+      const invalid = [
+        { percents: [], reps: 5 }, // min 1 entry
+        { percents: [0.05], reps: 5 }, // percent floor 0.1
+        { percents: [1.1], reps: 5 }, // percent ceiling 1
+        { percents: Array.from({ length: 21 }, () => 0.5), reps: 5 }, // max 20 entries
+        { percents: [0.5], reps: 0 }, // reps floor 1
+        { percents: [0.5], reps: 21 }, // reps ceiling 20
+        { percents: [0.5], reps: 2.5 }, // int only
+        { percents: [0.5], reps: 5, extra: true }, // strict
+      ]
+      for (const deloadRow of invalid) {
+        expect(
+          () => progressionSchema.parse({ ...base, deloadRow }),
+          JSON.stringify(deloadRow),
+        ).toThrow()
+      }
+    })
+  })
+})
+
+describe('deloadPolicySchema', () => {
+  it('parses all three modes; scheduled shape defaults to the historical factors', () => {
+    expect(deloadPolicySchema.parse({ mode: 'none' })).toEqual({ mode: 'none' })
+    expect(deloadPolicySchema.parse({ mode: 'reactive' })).toEqual({ mode: 'reactive' })
+    expect(deloadPolicySchema.parse({ mode: 'scheduled', shape: {} })).toEqual({
+      mode: 'scheduled',
+      shape: { loadFactor: 0.85, setFactor: 0.5, rpeCap: null },
+    })
+  })
+
+  it('parses an explicit scheduled shape (partial fields default individually)', () => {
+    expect(
+      deloadPolicySchema.parse({ mode: 'scheduled', shape: { loadFactor: 0.7, rpeCap: 7 } }),
+    ).toEqual({ mode: 'scheduled', shape: { loadFactor: 0.7, setFactor: 0.5, rpeCap: 7 } })
+  })
+
+  it('rejects malformed policies (strict at every level)', () => {
+    const invalid = [
+      { mode: 'weird' },
+      { mode: 'scheduled' }, // shape required
+      { mode: 'none', shape: {} }, // strict: no shape on none
+      { mode: 'reactive', extra: 1 },
+      { mode: 'scheduled', shape: { loadFactor: 1.5 } },
+      { mode: 'scheduled', shape: { setFactor: -0.1 } },
+      { mode: 'scheduled', shape: { rpeCap: 4 } }, // floor 5
+      { mode: 'scheduled', shape: { rpeCap: 10.5 } }, // ceiling 10
+      { mode: 'scheduled', shape: { loadFactor: 0.8, extra: true } },
+      null,
+      'scheduled',
+    ]
+    for (const p of invalid) {
+      expect(() => deloadPolicySchema.parse(p), JSON.stringify(p)).toThrow()
+    }
+  })
+
+  it('rides programInputSchema with preserve-on-omit discipline (no default)', () => {
+    // Omitted stays absent — never materialized (or an upsert that omits it
+    // would wipe a stored policy back to legacy on the update path).
+    expect('deloadPolicy' in parseProgramInput(VALID)).toBe(false)
+    // Explicit null passes through (= clear back to legacy resolution).
+    expect(parseProgramInput({ ...VALID, deloadPolicy: null }).deloadPolicy).toBeNull()
+    // A valid policy normalizes through the schema.
+    expect(
+      parseProgramInput({ ...VALID, deloadPolicy: { mode: 'scheduled', shape: {} } }).deloadPolicy,
+    ).toEqual({ mode: 'scheduled', shape: { loadFactor: 0.85, setFactor: 0.5, rpeCap: null } })
+    // An invalid policy is rejected at the boundary (write-time strictness;
+    // read-time degrade lives in resolveDeloadPolicy, not here).
+    expect(() => parseProgramInput({ ...VALID, deloadPolicy: { mode: 'weird' } })).toThrow()
   })
 })
 

@@ -20,6 +20,7 @@ import type {
   SetType,
   MetricMode,
   ProgramVisibility,
+  DeloadPolicy,
 } from '@/lib/program-input'
 import type { AutoregStallPolicy } from '@/lib/autoregulate'
 import type { ExerciseSource, ExerciseCategory } from '@/lib/custom-exercise-input'
@@ -550,6 +551,14 @@ export const programs = pgTable(
       .$type<AutoregStallPolicy>()
       .notNull()
       .default('all-sets'),
+    // Deload policy (lib/program-input.ts deloadPolicySchema): 'none' |
+    // 'reactive' | 'scheduled' (+ shape). NULLABLE with no default and no
+    // backfill ON PURPOSE — null means "pre-policy program", resolved at
+    // READ time by resolveDeloadPolicy (lib/progression.ts) into the legacy
+    // behavior (deloadWeek set → scheduled at the historical factors, else
+    // none), so existing programs derive byte-identically. Narrow,
+    // boundary-validated JSONB like `progression` below.
+    deloadPolicy: jsonb('deload_policy').$type<DeloadPolicy>(),
     // Performance→plan auto-sync switch, default ON so fresh users never see
     // stale plans; off for deliberate-percentage programs (5/3/1-style waves)
     // where performed > listed is by design.

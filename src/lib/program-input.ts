@@ -107,6 +107,45 @@ export const techniqueSchema = z
   .strict()
 
 /**
+ * The SHAPE of a scheduled deload — how hard the deload week backs off. All
+ * fields default to the historical engine constants (progression.ts's
+ * DELOAD_LOAD_FACTOR / DELOAD_SET_FACTOR), so `{}` parses to exactly today's
+ * deload. `rpeCap` (5–10, null = no cap) additionally clamps any derived RPE
+ * stamps on the deload week's progressed sets.
+ */
+export const deloadShapeSchema = z
+  .object({
+    loadFactor: z.number().min(0).max(1).default(0.85),
+    setFactor: z.number().min(0).max(1).default(0.5),
+    rpeCap: z.number().min(5).max(10).nullable().default(null),
+  })
+  .strict()
+
+/**
+ * Program-level deload policy (nullable JSONB on `programs`). The `mode`
+ * discriminator picks the regime:
+ * - 'none'      — the deload week (if any) derives as a NORMAL week: no load/
+ *                 set modifier, no 'deload' stamp, and the M4 early-deload
+ *                 suggestion is suppressed. `deloadWeek` still shapes the
+ *                 week AXIS (progression steps skip it) — geometry is not
+ *                 this policy's to change.
+ * - 'reactive'  — no scheduled modifier either; deloads happen only when the
+ *                 lifter reacts to the M4 early-deload flag (which stays on).
+ * - 'scheduled' — the deload week applies `shape` (load/set factors + RPE
+ *                 cap). With the default shape this is byte-for-byte the
+ *                 legacy behavior.
+ * A null/absent/invalid column resolves at READ time via
+ * `resolveDeloadPolicy` (progression.ts) — never here — so every pre-policy
+ * program keeps deriving exactly what it always has (silence over
+ * corruption).
+ */
+export const deloadPolicySchema = z.discriminatedUnion('mode', [
+  z.object({ mode: z.literal('none') }).strict(),
+  z.object({ mode: z.literal('reactive') }).strict(),
+  z.object({ mode: z.literal('scheduled'), shape: deloadShapeSchema }).strict(),
+])
+
+/**
  * Per-exercise progression tail (narrow JSONB on `program_exercises`). The
  * `scheme` discriminator names the rule; params are minimal here — Phase 5's
  * engine tightens each variant and computes week-N targets from them.
@@ -169,6 +208,26 @@ export const progressionSchema = z
         .min(1)
         .max(12)
         .optional(),
+      // Wendler-canon deload row: when present AND the program's deload
+      // policy is 'scheduled', the deload week EMITS these sets — one per
+      // percent, at `reps` — off the effective TM, REPLACING the scale-shape
+      // derivation (still stamped 'deload'). Absent = scale-shape as ever.
+      deloadRow: z
+        .object({
+          percents: z.array(z.number().min(0.1).max(1)).min(1).max(20),
+          reps: z.number().int().min(1).max(20),
+        })
+        .strict()
+        .optional(),
+      // Which TM the SCHEDULED deload week derives off. 'after-deload'
+      // (Wendler canon, the default for NEW configs — materialized by the
+      // transform below): the wave's earned bump becomes effective only from
+      // the first non-deload week after the deload, so the deload derives
+      // off the OLD TM. 'before-deload': the historical engine behavior (the
+      // bump is visible to the deload week) — stamped onto every
+      // pre-existing amrap-cycle config by migration 0036, and what the
+      // engine assumes when the field is absent from a stored row.
+      tmBumpTiming: z.enum(['before-deload', 'after-deload']).optional(),
     }),
   ])
   // Cross-field rules live at the union level: discriminatedUnion members must
@@ -203,6 +262,17 @@ export const progressionSchema = z
       })
     }
   })
+  // The zod-level default for `tmBumpTiming` — a transform instead of
+  // `.default()` so the TYPE keeps the field optional: stored rows written
+  // before the field existed (and migration-stamped ones) are read WITHOUT a
+  // re-parse, so the engine's absent-field fallback ('before-deload', the
+  // legacy behavior) must stay expressible. Every parse path (create,
+  // replace, patch) materializes 'after-deload' onto NEW amrap-cycle configs.
+  .transform((p) =>
+    p.scheme === 'amrap-cycle' && p.tmBumpTiming === undefined
+      ? { ...p, tmBumpTiming: 'after-deload' as const }
+      : p,
+  )
 
 /**
  * The cross-field rules a planned-set row must satisfy, shared verbatim by
@@ -336,6 +406,13 @@ export const programInputSchema = z
     // back to the default. saveProgram lets the column default cover
     // omitted-on-create; updateProgram preserves when omitted.
     autoregStallPolicy: z.enum(['all-sets', 'first-set']).optional(),
+    // Deload policy (programs.deloadPolicy, nullable JSONB — see
+    // deloadPolicySchema above). Same preserve-on-omit discipline as the
+    // switches: NO default, or an upsert that omits the field would wipe a
+    // stored policy back to legacy. saveProgram treats omitted-on-create as
+    // null (= legacy resolution); updateProgram preserves when omitted, and
+    // an explicit null clears the policy back to legacy resolution.
+    deloadPolicy: deloadPolicySchema.nullable().optional(),
     // Performance→plan auto-sync switch (programs.planSync). Same preserve-on-
     // omit discipline as autoregulation above: no .default(true), or an upsert
     // that omits the field would flip a stored OFF back ON. saveProgram
@@ -377,6 +454,8 @@ export type SetType = z.infer<typeof setTypeSchema>
 export type ProgramVisibility = z.infer<typeof visibilitySchema>
 export type MetricMode = z.infer<typeof metricModeSchema>
 export type Technique = z.infer<typeof techniqueSchema>
+export type DeloadShape = z.infer<typeof deloadShapeSchema>
+export type DeloadPolicy = z.infer<typeof deloadPolicySchema>
 export type Progression = z.infer<typeof progressionSchema>
 export type SetOverrideInput = z.infer<typeof setOverrideSchema>
 export type ProgramSetInput = z.infer<typeof programSetSchema>
