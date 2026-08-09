@@ -39,3 +39,9 @@ Contrast-axis pairing (condensed display + neutral UI sans), not two similar san
 ## Motion
 - 150–250ms state transitions (color, ring, subtle press translate). No page-load choreography.
 - Press feedback on buttons (small translate/active state). Full `prefers-reduced-motion: reduce` fallbacks (crossfade/instant).
+
+## Pending states
+- **Ghosts** (`<Ghost />`, `animate-ghost-in`): a rounded `bg-muted` bar holding the EXACT final dimensions of the content it stands in for (same wrappers/margins, bar boxed to the text's line height) — zero layout shift on resolve. 1.8s opacity pulse via `motion-safe:` only; static bar under reduced motion. Never a shimmer sweep, never a new color.
+- **150ms delayed appearance**: ghosts start at `opacity: 0` with a 150ms `animation-delay` — data that beats the delay means no ghost is ever seen. The ops tabs' pending dim (`animate-pending-dim`) follows the same rule.
+- **Arrival**: resolved content replaces its ghost in place through the existing `rise-in`/`fade-in` vocabulary (180ms ease-out, row stagger where rows already stagger); reduced motion gets the instant swap.
+- The root `loading.tsx` spinner stays the app's ONLY naked spinner — every other pending surface is a ghost of its resolved self.

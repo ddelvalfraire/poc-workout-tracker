@@ -33,6 +33,7 @@ import {
   type DrawerData,
 } from '@/lib/drawer-status'
 import { buttonVariants } from '@/components/ui/button'
+import { Ghost } from '@/components/ghost'
 import { Sparkbar } from '@/components/sparkbar'
 import { StreakChip } from '@/components/streak-chip'
 import { cn } from '@/lib/utils'
@@ -274,8 +275,25 @@ export function NavDrawer() {
               </Link>
             </div>
 
-            {/* Zone ACT — the volt hero; its second line IS the context. */}
-            <div className="border-b border-border p-4">
+            {/* Zone ACT — the volt hero; its second line IS the context. The
+                key swaps only when the VARIANT changes (pending → resume /
+                up-next / quick), remounting the hero through animate-fade-in:
+                a single 180ms opacity crossfade in place, instant under
+                reduced motion. While data is pending the quick-log hero shows
+                with its context line ghosted — same h-4 line box as the
+                text-xs copy, so the swap never moves a pixel. */}
+            <div
+              key={
+                data === null
+                  ? 'pending'
+                  : data.resume
+                    ? 'resume'
+                    : data.upNext
+                      ? 'up-next'
+                      : 'quick'
+              }
+              className="border-b border-border p-4 motion-safe:animate-fade-in"
+            >
               {data?.resume ? (
                 <Link
                   href={activeSessionHref(data.resume.key)}
@@ -323,7 +341,15 @@ export function NavDrawer() {
                   <span className="text-base font-semibold uppercase tracking-wide">
                     Start Workout
                   </span>
-                  <span className="text-xs font-medium normal-case opacity-80">Quick log</span>
+                  {data === null ? (
+                    // Ghost of the context line: h-4 = the text-xs line box,
+                    // so pending and resolved heroes are pixel-identical.
+                    <span className="flex h-4 items-center justify-center">
+                      <Ghost className="h-2 w-20" />
+                    </span>
+                  ) : (
+                    <span className="text-xs font-medium normal-case opacity-80">Quick log</span>
+                  )}
                 </Link>
               )}
               {startError && (
@@ -376,12 +402,31 @@ export function NavDrawer() {
                             </span>
                             {row.trailing}
                           </span>
-                          {statusLine !== null && (
-                            <span className="mt-0.5 block truncate text-xs text-muted-foreground tnum">
-                              {statusLine}
+                          {data === null ? (
+                            // Ghost where the status line will land — the
+                            // h-4 line box IS the text-xs line height, so
+                            // the row's height never changes on arrival.
+                            <span className="mt-0.5 flex h-4 items-center">
+                              <Ghost className="h-2 w-28" />
+                            </span>
+                          ) : (
+                            // Arrival: status + micro-visual rise in IN
+                            // PLACE, reusing the rows' own stagger.
+                            <span
+                              className="block motion-safe:animate-rise-in"
+                              style={{
+                                animationDelay: `${index * ROW_STAGGER_MS}ms`,
+                                animationFillMode: 'backwards',
+                              }}
+                            >
+                              {statusLine !== null && (
+                                <span className="mt-0.5 block truncate text-xs text-muted-foreground tnum">
+                                  {statusLine}
+                                </span>
+                              )}
+                              {row.visual}
                             </span>
                           )}
-                          {row.visual}
                         </span>
                       </Link>
                     </li>
@@ -392,7 +437,16 @@ export function NavDrawer() {
 
             {/* Zone RECENT — the anatomy's soul: last 3 completed sessions. */}
             {data !== null && data.recents.length > 0 && (
-              <section className="px-2 py-2">
+              // Mounts with the data (no ghost — its existence is itself
+              // data); the rise-in lands it after the rows' stagger instead
+              // of snapping in.
+              <section
+                className="px-2 py-2 motion-safe:animate-rise-in"
+                style={{
+                  animationDelay: `${surfaces.length * ROW_STAGGER_MS}ms`,
+                  animationFillMode: 'backwards',
+                }}
+              >
                 <h2 className="px-3 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
                   Recent
                 </h2>
