@@ -172,6 +172,16 @@ export default async function HomePage() {
           unfinished,
           guardSession: guardSession ?? null,
         })}
+
+        {/* The quiet door to the layout editor — a whisper at the very
+            bottom, after everything it edits. Discoverable when you go
+            looking, invisible when you don't. */}
+        <Link
+          href="/settings/home"
+          className="mx-auto mt-12 mb-4 block w-fit text-[10px] font-semibold uppercase tracking-widest text-muted-foreground transition-colors outline-none hover:text-foreground focus-visible:text-foreground"
+        >
+          Edit home
+        </Link>
       </main>
     </div>
   );
