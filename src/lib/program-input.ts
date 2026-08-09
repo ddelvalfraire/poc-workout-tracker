@@ -321,6 +321,14 @@ export const programInputSchema = z
     // upsert omits the field. saveProgram defaults omitted-on-create to ON;
     // updateProgram preserves the stored value when omitted.
     autoregulation: z.boolean().optional(),
+    // Fixed-mode stall policy (programs.autoregStallPolicy): 'all-sets'
+    // (ANY working set under its floor stalls — C1) | 'first-set' (only the
+    // lowest-setNumber working set governs). Same preserve-on-omit
+    // discipline as autoregulation above: NO .default('all-sets'), or an
+    // upsert that omits the field would silently flip a stored 'first-set'
+    // back to the default. saveProgram lets the column default cover
+    // omitted-on-create; updateProgram preserves when omitted.
+    autoregStallPolicy: z.enum(['all-sets', 'first-set']).optional(),
     // Performance→plan auto-sync switch (programs.planSync). Same preserve-on-
     // omit discipline as autoregulation above: no .default(true), or an upsert
     // that omits the field would flip a stored OFF back ON. saveProgram

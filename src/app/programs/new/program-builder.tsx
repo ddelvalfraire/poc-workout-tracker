@@ -210,6 +210,42 @@ export function ProgramBuilder({
           </span>
         </label>
 
+        {/* Fixed-mode stall policy: a compact radio pair riding next to the
+            auto-regulation switch it refines — native inputs, same form idiom.
+            Only meaningful while auto-regulation is on, so it hides with it
+            (the stored value is preserved either way). */}
+        {draft.autoregulation && (
+          <fieldset className="px-1 pl-7">
+            <legend className="text-sm">When does a session count as stalled?</legend>
+            <div className="mt-1 flex flex-col gap-1">
+              <label className="flex items-center gap-2.5">
+                <input
+                  type="radio"
+                  name="autoreg-stall-policy"
+                  checked={draft.autoregStallPolicy === 'all-sets'}
+                  onChange={() =>
+                    dispatch({ type: 'SET_AUTOREG_STALL_POLICY', value: 'all-sets' })
+                  }
+                  className="size-4 shrink-0 accent-primary"
+                />
+                <span className="text-sm text-muted-foreground">Every set must hit its reps</span>
+              </label>
+              <label className="flex items-center gap-2.5">
+                <input
+                  type="radio"
+                  name="autoreg-stall-policy"
+                  checked={draft.autoregStallPolicy === 'first-set'}
+                  onChange={() =>
+                    dispatch({ type: 'SET_AUTOREG_STALL_POLICY', value: 'first-set' })
+                  }
+                  className="size-4 shrink-0 accent-primary"
+                />
+                <span className="text-sm text-muted-foreground">Top set decides</span>
+              </label>
+            </div>
+          </fieldset>
+        )}
+
         {/* Performance→plan auto-sync switch: same native-checkbox row as
             auto-regulation above. Off is for deliberate-percentage programs
             (5/3/1-style waves) where lifting past the listed load is by

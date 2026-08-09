@@ -87,6 +87,11 @@ const rawProgramSchema = z.object({
   deloadWeek: z.number().int().nullable().optional(),
   // Program-level auto-regulation switch; omitted → the schema default (on).
   autoregulation: z.boolean().optional(),
+  // Fixed-mode stall policy: 'all-sets' (any working set under its floor
+  // stalls — the default) | 'first-set' (only the first working set
+  // governs). Omitted → 'all-sets' at create (the column default),
+  // PRESERVED on replace — same no-default discipline as the switches.
+  autoregStallPolicy: z.enum(['all-sets', 'first-set']).optional(),
   // Performance→plan auto-sync switch; omitted → default on at create,
   // PRESERVED on replace (no .default — see lib/program-input.ts).
   planSync: z.boolean().optional(),
@@ -144,6 +149,7 @@ function toKgProgram(raw: RawProgram, unit: WeightUnit): unknown {
     mesocycleWeeks: raw.mesocycleWeeks,
     deloadWeek: raw.deloadWeek,
     autoregulation: raw.autoregulation,
+    autoregStallPolicy: raw.autoregStallPolicy,
     planSync: raw.planSync,
     checkInEveryDays: raw.checkInEveryDays,
     visibility: raw.visibility,
@@ -236,6 +242,8 @@ export interface ProgramPayload {
     mesocycleWeeks: number
     deloadWeek: number | null
     autoregulation: boolean
+    /** Fixed-mode stall policy: 'all-sets' | 'first-set'. */
+    autoregStallPolicy: string
     planSync: boolean
     /** Suggested body check-in cadence in days; null = no suggestion. */
     checkInEveryDays: number | null
@@ -404,6 +412,7 @@ export function buildProgramPayload(
       mesocycleWeeks: program.mesocycleWeeks,
       deloadWeek: program.deloadWeek,
       autoregulation: program.autoregulation,
+      autoregStallPolicy: program.autoregStallPolicy,
       planSync: program.planSync,
       checkInEveryDays: program.checkInEveryDays,
       visibility: program.visibility,
@@ -452,7 +461,7 @@ export function registerProgramTools(server: McpServer): void {
     {
       title: 'Upsert Program',
       description:
-        "Creates a training program, or fully replaces one when `id` is given (coarse create/replace, not a partial edit). Exercise identity is the composite (source, wgerExerciseId); `source` defaults to 'wger', pass 'custom' for custom exercises. `supersetGroup` (same non-null value within a day) survives replace. Each day may carry `weekdays` (integers 0–6, Sunday-first) scheduling it on those weekdays — the home screen then anchors it in time (Today/Tomorrow); omitted or empty = unscheduled, and like the rest of the day tree it is full-replace (an upsert that omits it unschedules the day). Per-week set overrides survive replace for sets that keep the same day/exercise/setNumber position; overrides on removed slots are dropped. `suggestedLoad` is in the user's unit (or the `unit` arg) and stored as kg; `technique`/`progression` JSONB are in kg. When called by the in-app coach, the program is ALWAYS saved as a 'proposed' draft (whatever `status` says) that only the owner can adopt or decline, and a replace may target only the coach's own still-proposed drafts. `planSync` (default true) auto-updates the plan's suggested loads to what the lifter actually performed after each finished session; set false for deliberate-percentage programs (5/3/1-style waves). `checkInEveryDays` (3–90, or null) makes the program suggest a body check-in (weigh-in/tape/photo, the /body page) every N days — a due check-in shows a home card and rides the daily reminder push. `visibility` ('private' | 'link' | 'public', default 'private') controls sharing: 'link'/'public' make the program readable via a share URL the owner mints in the app; proposals can never be made sharable. Omitting `planSync`, `autoregulation`, `checkInEveryDays`, or `visibility` on a replace PRESERVES the stored value. Returns the programId and effective status. Errors if a given id isn't found or owned.",
+        "Creates a training program, or fully replaces one when `id` is given (coarse create/replace, not a partial edit). Exercise identity is the composite (source, wgerExerciseId); `source` defaults to 'wger', pass 'custom' for custom exercises. `supersetGroup` (same non-null value within a day) survives replace. Each day may carry `weekdays` (integers 0–6, Sunday-first) scheduling it on those weekdays — the home screen then anchors it in time (Today/Tomorrow); omitted or empty = unscheduled, and like the rest of the day tree it is full-replace (an upsert that omits it unschedules the day). Per-week set overrides survive replace for sets that keep the same day/exercise/setNumber position; overrides on removed slots are dropped. `suggestedLoad` is in the user's unit (or the `unit` arg) and stored as kg; `technique`/`progression` JSONB are in kg. When called by the in-app coach, the program is ALWAYS saved as a 'proposed' draft (whatever `status` says) that only the owner can adopt or decline, and a replace may target only the coach's own still-proposed drafts. `planSync` (default true) auto-updates the plan's suggested loads to what the lifter actually performed after each finished session; set false for deliberate-percentage programs (5/3/1-style waves). `checkInEveryDays` (3–90, or null) makes the program suggest a body check-in (weigh-in/tape/photo, the /body page) every N days — a due check-in shows a home card and rides the daily reminder push. `visibility` ('private' | 'link' | 'public', default 'private') controls sharing: 'link'/'public' make the program readable via a share URL the owner mints in the app; proposals can never be made sharable. `autoregStallPolicy` ('all-sets' | 'first-set', default 'all-sets') picks the fixed-mode stall rule: 'all-sets' stalls when ANY working set misses its rep floor; 'first-set' lets only the first working set decide. Omitting `planSync`, `autoregulation`, `autoregStallPolicy`, `checkInEveryDays`, or `visibility` on a replace PRESERVES the stored value. Returns the programId and effective status. Errors if a given id isn't found or owned.",
       inputSchema: {
         id: z.string().optional(),
         ...rawProgramSchema.shape,
@@ -468,6 +477,7 @@ export function registerProgramTools(server: McpServer): void {
         mesocycleWeeks,
         deloadWeek,
         autoregulation,
+        autoregStallPolicy,
         planSync,
         checkInEveryDays,
         visibility,
@@ -502,6 +512,7 @@ export function registerProgramTools(server: McpServer): void {
             mesocycleWeeks,
             deloadWeek,
             autoregulation,
+            autoregStallPolicy,
             planSync,
             checkInEveryDays,
             visibility,

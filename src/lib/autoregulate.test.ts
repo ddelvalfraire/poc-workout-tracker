@@ -70,7 +70,7 @@ describe('sessionStall', () => {
   it('C1: ANY scorable working set under the floor stalls the session (8,8,6 is a failed session)', () => {
     // StrongLifts/Starting Strength: one missed set fails the session — the
     // old half-threshold let the linear increment ride over 8,8,6.
-    expect(sessionStall(session([8, 8, 6]))).toEqual({
+    expect(sessionStall(session([8, 8, 6]), 'all-sets')).toEqual({
       missedSets: 1,
       scorableSets: 3,
       repFloor: 8,
@@ -79,7 +79,7 @@ describe('sessionStall', () => {
   })
 
   it('flags a session missing the floor on two of three sets', () => {
-    expect(sessionStall(session([8, 6, 5]))).toEqual({
+    expect(sessionStall(session([8, 6, 5]), 'all-sets')).toEqual({
       missedSets: 2,
       scorableSets: 3,
       repFloor: 8,
@@ -89,7 +89,7 @@ describe('sessionStall', () => {
 
   it('excludes sets attempted lighter than prescribed (self-regulation feeds follow-down, not a stall)', () => {
     // All sets at 80 kg vs 100 prescribed: zero at-load pairs → no verdict.
-    expect(sessionStall(session([5, 5, 5], 80))).toBeNull()
+    expect(sessionStall(session([5, 5, 5], 80), 'all-sets')).toBeNull()
   })
 
   it('keeps a lb→kg round-trip attempt scorable (epsilon 0.05)', () => {
@@ -100,7 +100,7 @@ describe('sessionStall', () => {
       prescribed: [{ setNumber: 1, repMin: 8, loadKg: 5.01 }],
       actual: [{ setNumber: 1, reps: 5, weightKg: 4.99, completed: true }],
     }
-    expect(sessionStall(s)).toEqual({
+    expect(sessionStall(s, 'all-sets')).toEqual({
       missedSets: 1,
       scorableSets: 1,
       repFloor: 8,
@@ -120,7 +120,7 @@ describe('sessionStall', () => {
     }
     // Only prescribed #2/#3 pair with actuals (both hit the floor); the
     // warmup miss (1 rep vs 5) never counts.
-    expect(sessionStall(s)).toBeNull()
+    expect(sessionStall(s, 'all-sets')).toBeNull()
   })
 
   it('pairs by setNumber WITHIN the session: a skipped middle row cannot shift the frame', () => {
@@ -143,7 +143,7 @@ describe('sessionStall', () => {
     }
 
     // Assert — both working pairs hit their floors: no stall.
-    expect(sessionStall(s)).toBeNull()
+    expect(sessionStall(s, 'all-sets')).toBeNull()
   })
 
   it('ignores extra logged sets with no prescribed counterpart', () => {
@@ -152,7 +152,7 @@ describe('sessionStall', () => {
       ...s,
       actual: [...s.actual, { setNumber: 4, reps: 2, weightKg: 100, completed: true }],
     }
-    expect(sessionStall(withExtra)).toBeNull()
+    expect(sessionStall(withExtra, 'all-sets')).toBeNull()
   })
 
   it('names the HEAVIEST missed set in the evidence, not the last-iterated one', () => {
@@ -165,7 +165,7 @@ describe('sessionStall', () => {
 
     // Assert — evidence speaks about the 100 kg set (floor 5), whatever the
     // iteration order.
-    expect(sessionStall(s)).toEqual({
+    expect(sessionStall(s, 'all-sets')).toEqual({
       missedSets: 2,
       scorableSets: 3,
       repFloor: 5,
@@ -174,13 +174,13 @@ describe('sessionStall', () => {
   })
 
   it('returns null (no verdict) for a session with nothing scorable', () => {
-    expect(sessionStall({ startedAtMs: 0, prescribed: [], actual: [] })).toBeNull()
+    expect(sessionStall({ startedAtMs: 0, prescribed: [], actual: [] }, 'all-sets')).toBeNull()
     expect(
       sessionStall({
         startedAtMs: 0,
         prescribed: [{ setNumber: 1, repMin: null, loadKg: null }],
         actual: [],
-      }),
+      }, 'all-sets'),
     ).toBeNull()
   })
 
@@ -191,12 +191,12 @@ describe('sessionStall', () => {
       prescribed: [1, 2, 3].map((n) => ({ setNumber: n, repMin: null, loadKg: null })),
       actual: [1, 2, 3].map((n) => ({ setNumber: n, reps: 2, weightKg: 100, completed: true })),
     }
-    expect(sessionStall(preSnapshot)).toBeNull()
-    expect(autoregulate(2.5, seq(preSnapshot, preSnapshot, preSnapshot))).toBeNull()
+    expect(sessionStall(preSnapshot, 'all-sets')).toBeNull()
+    expect(autoregulate(2.5, seq(preSnapshot, preSnapshot, preSnapshot), 'all-sets')).toBeNull()
   })
 
   it('never counts uncompleted or rep-less sets', () => {
-    expect(sessionStall(session([null, null, 8]))).toBeNull()
+    expect(sessionStall(session([null, null, 8]), 'all-sets')).toBeNull()
   })
 
   it('M3: one surviving set of three cannot speak for the exercise (evidence quorum)', () => {
@@ -208,8 +208,154 @@ describe('sessionStall', () => {
       prescribed: prescribed(),
       actual: [{ setNumber: 3, reps: 5, weightKg: 100, completed: true }],
     }
-    expect(sessionStall(s)).toBeNull()
-    expect(autoregulate(2.5, [s])).toBeNull()
+    expect(sessionStall(s, 'all-sets')).toBeNull()
+    expect(autoregulate(2.5, [s], 'all-sets')).toBeNull()
+  })
+})
+
+describe("stall policy 'first-set'", () => {
+  it("8,8,6 progresses under 'first-set' (top set hit its floor) but stalls under 'all-sets'", () => {
+    // Arrange
+    const s = session([8, 8, 6])
+
+    // Act + Assert — the same session, two verdicts: the policy decides.
+    expect(sessionStall(s, 'first-set')).toBeNull()
+    expect(autoregulate(2.5, seq(s), 'first-set')).toBeNull()
+    expect(sessionStall(s, 'all-sets')).toMatchObject({ missedSets: 1, scorableSets: 3 })
+    expect(autoregulate(2.5, seq(s), 'all-sets')).toMatchObject({ action: 'repeat' })
+  })
+
+  it('a first-set miss stalls even when every other set passes, naming the governing set', () => {
+    // Arrange — set 1 (heaviest, governing) misses; the volume sets pass.
+    const s = mixedSession([
+      { setNumber: 1, repMin: 8, loadKg: 100, reps: 6 },
+      { setNumber: 2, repMin: 8, loadKg: 90, reps: 8 },
+      { setNumber: 3, repMin: 8, loadKg: 90, reps: 8 },
+    ])
+
+    // Act
+    const stall = sessionStall(s, 'first-set')
+    const verdict = autoregulate(2.5, seq(s), 'first-set')
+
+    // Assert — evidence IS the governing set: its load, its floor, 1-of-1.
+    expect(stall).toEqual({ missedSets: 1, scorableSets: 1, repFloor: 8, loadKg: 100 })
+    expect(verdict).toMatchObject({
+      action: 'repeat',
+      evidence: { missedSets: 1, scorableSets: 1, repFloor: 8, loadKg: 100 },
+    })
+  })
+
+  it('an unscorable (skipped) first set is NO verdict — never a fallback to another set', () => {
+    // Arrange — set 1 skipped, sets 2–3 miss their floors: under 'all-sets'
+    // this is a stall; under 'first-set' the governing set stayed silent.
+    const s = session([null, 6, 5])
+
+    // Act + Assert
+    expect(sessionStall(s, 'first-set')).toBeNull()
+    expect(autoregulate(2.5, seq(s), 'first-set')).toBeNull()
+    expect(sessionStall(s, 'all-sets')).toMatchObject({ missedSets: 2 })
+  })
+
+  it('a lighter-attempted first set is unscorable — silence, not a stall', () => {
+    // Arrange — set 1 done at 80 vs 100 prescribed (feeds follow-down, not
+    // a stall); the others at load and passing.
+    const s: AutoregSession = {
+      startedAtMs: 0,
+      prescribed: prescribed(),
+      actual: [
+        { setNumber: 1, reps: 8, weightKg: 80, completed: true },
+        { setNumber: 2, reps: 8, weightKg: 100, completed: true },
+        { setNumber: 3, reps: 8, weightKg: 100, completed: true },
+      ],
+    }
+
+    // Act + Assert
+    expect(sessionStall(s, 'first-set')).toBeNull()
+  })
+
+  it('a retagged (warmup) first set is unscorable — silence, not a fallback', () => {
+    // Arrange — the logged set 1 was retagged to warmup; sets 2–3 pass.
+    const s: AutoregSession = {
+      startedAtMs: 0,
+      prescribed: prescribed(),
+      actual: [
+        { setNumber: 1, reps: 6, weightKg: 100, completed: true, setType: 'warmup' },
+        { setNumber: 2, reps: 8, weightKg: 100, completed: true },
+        { setNumber: 3, reps: 8, weightKg: 100, completed: true },
+      ],
+    }
+
+    // Act + Assert
+    expect(sessionStall(s, 'first-set')).toBeNull()
+  })
+
+  it("the governing set's scorability IS the quorum: 1-of-3 scorable still stalls", () => {
+    // Arrange — sets 2–3 skipped: the half-count quorum (M3) silences
+    // 'all-sets', but the governing set testified and missed.
+    const s = session([6, null, null])
+
+    // Act + Assert
+    expect(sessionStall(s, 'all-sets')).toBeNull()
+    expect(sessionStall(s, 'first-set')).toMatchObject({ missedSets: 1, scorableSets: 1 })
+    expect(autoregulate(2.5, seq(s), 'first-set')).toMatchObject({ action: 'repeat' })
+  })
+
+  it('three first-set stalls at the same top load decrement (streak intact)', () => {
+    // Arrange
+    const stalled = session([6, 8, 8])
+
+    // Act
+    const verdict = autoregulate(2.5, seq(stalled, stalled, stalled), 'first-set')
+
+    // Assert
+    expect(verdict).toMatchObject({ action: 'decrement', suggestEarlyDeload: true })
+  })
+
+  it('H2: a prescribed-load change still resets the first-set streak', () => {
+    // Arrange — latest stall at 102.5 after two stalls at 100: fresh streak.
+    const verdict = autoregulate(
+      2.5,
+      seq(sessionAt(102.5, [6, 8, 8]), sessionAt(100, [6, 8, 8]), sessionAt(100, [6, 8, 8])),
+      'first-set',
+    )
+
+    // Assert
+    expect(verdict).toMatchObject({ action: 'repeat', suggestEarlyDeload: false })
+  })
+
+  it('H1: follow-down is unaffected by the policy', () => {
+    // Arrange — three comparable all-lighter sessions with floors met.
+    const lighter = session([8, 8, 8], 90)
+
+    // Act
+    const verdict = autoregulate(2.5, seq(lighter, lighter, lighter), 'first-set')
+
+    // Assert — the anchor-down proposal fires exactly as under 'all-sets'.
+    expect(verdict).toMatchObject({
+      action: 'anchor',
+      anchor: { fromLoadKg: 100, toLoadKg: 90 },
+    })
+  })
+
+  it("M4: the early-deload flag scores by the policy — 8,8,6 × 3 flags only under 'all-sets'", () => {
+    // Arrange
+    const s = session([8, 8, 6])
+    const window = seq(s, s, s)
+
+    // Act + Assert
+    expect(autoregulateEarlyDeload(window, 'all-sets')).toMatchObject({ action: 'flag' })
+    expect(autoregulateEarlyDeload(window, 'first-set')).toBeNull()
+  })
+
+  it("M4: three straight governing-set misses flag under 'first-set'", () => {
+    // Arrange
+    const s = session([6, 8, 8])
+
+    // Act + Assert
+    expect(autoregulateEarlyDeload(seq(s, s, s), 'first-set')).toMatchObject({
+      action: 'flag',
+      suggestEarlyDeload: true,
+    })
   })
 })
 
@@ -235,25 +381,24 @@ describe('backoffKg', () => {
 
 describe('autoregulate', () => {
   it('returns null with no history or no stall', () => {
-    expect(autoregulate(2.5, [])).toBeNull()
-    expect(autoregulate(2.5, [session([8, 8, 8])])).toBeNull()
+    expect(autoregulate(2.5, [], 'all-sets')).toBeNull()
+    expect(autoregulate(2.5, [session([8, 8, 8])], 'all-sets')).toBeNull()
   })
 
   it('repeats the load after a single stall', () => {
-    const adjustment = autoregulate(2.5, [session([6, 5, 8])])
+    const adjustment = autoregulate(2.5, [session([6, 5, 8])], 'all-sets')
     expect(adjustment).toMatchObject({ action: 'repeat', deltaKg: 0, suggestEarlyDeload: false })
   })
 
   it('still repeats (no decrement) after only two consecutive stalls', () => {
-    const adjustment = autoregulate(2.5, seq(session([6, 5, 8]), session([7, 6, 6])))
+    const adjustment = autoregulate(2.5, seq(session([6, 5, 8]), session([7, 6, 6])), 'all-sets')
     expect(adjustment).toMatchObject({ action: 'repeat', deltaKg: 0, suggestEarlyDeload: false })
   })
 
   it('decrements ~10% and suggests the early deload after THREE consecutive stalls', () => {
     const adjustment = autoregulate(
       2.5,
-      seq(session([6, 5, 8]), session([7, 6, 6]), session([6, 6, 7])),
-    )
+      seq(session([6, 5, 8]), session([7, 6, 6]), session([6, 6, 7])), 'all-sets')
     // 10% of 100 kg = 10 kg, already a multiple of 2.5 — the StrongLifts-
     // style deload after the third failed session, not a micro-step.
     expect(adjustment).toMatchObject({
@@ -269,22 +414,20 @@ describe('autoregulate', () => {
     // when the prescribed top load moved, killing the 10%→10% cascade.
     const adjustment = autoregulate(
       2.5,
-      seq(sessionAt(90, [6, 6, 5]), sessionAt(90, [6, 6, 6]), sessionAt(100, [6, 6, 6])),
-    )
+      seq(sessionAt(90, [6, 6, 5]), sessionAt(90, [6, 6, 6]), sessionAt(100, [6, 6, 6])), 'all-sets')
     expect(adjustment).toMatchObject({ action: 'repeat', suggestEarlyDeload: false })
   })
 
   it('a clean session inside the streak keeps a fresh stall at repeat', () => {
     const adjustment = autoregulate(
       2.5,
-      seq(session([6, 5, 8]), session([8, 8, 8]), session([6, 6, 6])),
-    )
+      seq(session([6, 5, 8]), session([8, 8, 8]), session([6, 6, 6])), 'all-sets')
     expect(adjustment).toMatchObject({ action: 'repeat', suggestEarlyDeload: false })
   })
 
   it('a no-verdict previous session (deviated day) never escalates', () => {
     const deviated: AutoregSession = { startedAtMs: 0, prescribed: [], actual: [] }
-    const adjustment = autoregulate(2.5, seq(session([6, 5, 8]), deviated, session([6, 6, 6])))
+    const adjustment = autoregulate(2.5, seq(session([6, 5, 8]), deviated, session([6, 6, 6])), 'all-sets')
     expect(adjustment).toMatchObject({ action: 'repeat' })
   })
 
@@ -293,8 +436,7 @@ describe('autoregulate', () => {
     // streak.
     const adjustment = autoregulate(
       2.5,
-      seq(session([6, 5, 8]), session([7, 6, 6]), session([8, 8, 8]), session([5, 5, 5])),
-    )
+      seq(session([6, 5, 8]), session([7, 6, 6]), session([8, 8, 8]), session([5, 5, 5])), 'all-sets')
     expect(adjustment).toMatchObject({ action: 'repeat' })
   })
 
@@ -304,7 +446,7 @@ describe('autoregulate', () => {
     // trusting it would have called this a repeat off the stale stall.
     const stalls = seq(session([5, 5, 5]), session([5, 5, 6]))
     const clean = { ...session([8, 8, 8]), startedAtMs: BASE_MS + DAY_MS }
-    expect(autoregulate(2.5, [...stalls.reverse(), clean])).toBeNull()
+    expect(autoregulate(2.5, [...stalls.reverse(), clean], 'all-sets')).toBeNull()
   })
 
   it('carries the stalled prescribed loads as ε-deduped descending buckets', () => {
@@ -313,7 +455,7 @@ describe('autoregulate', () => {
       { setNumber: 2, repMin: 8, loadKg: 90, reps: 6 },
       { setNumber: 3, repMin: 1, loadKg: 80, reps: 10, setType: 'backoff' },
     ])
-    const adjustment = autoregulate(2.5, [s])
+    const adjustment = autoregulate(2.5, [s], 'all-sets')
     expect(adjustment?.stalledLoads).toEqual([100, 90, 80])
   })
 })
@@ -323,7 +465,7 @@ describe('autoregulate — follow-down (H1)', () => {
   const lighter = (weightKg = 90, reps: number[] = [8, 8, 8]) => session(reps, weightKg)
 
   it('H1: three comparable all-lighter sessions anchor the plan down to the used loads', () => {
-    const adjustment = autoregulate(2.5, seq(lighter(), lighter(), lighter()))
+    const adjustment = autoregulate(2.5, seq(lighter(), lighter(), lighter()), 'all-sets')
     expect(adjustment).toMatchObject({
       action: 'anchor',
       deltaKg: -10,
@@ -334,19 +476,19 @@ describe('autoregulate — follow-down (H1)', () => {
   })
 
   it('one or two lighter sessions propose nothing yet (their own streak class)', () => {
-    expect(autoregulate(2.5, seq(lighter()))).toBeNull()
-    expect(autoregulate(2.5, seq(lighter(), lighter()))).toBeNull()
+    expect(autoregulate(2.5, seq(lighter()), 'all-sets')).toBeNull()
+    expect(autoregulate(2.5, seq(lighter(), lighter()), 'all-sets')).toBeNull()
   })
 
   it('a lighter session missing its floors does not qualify', () => {
     // Working at 90 but under the 8-rep floor is a struggling session, not
     // self-regulation the plan should adopt.
-    expect(autoregulate(2.5, seq(lighter(90, [5, 5, 5]), lighter(), lighter()))).toBeNull()
+    expect(autoregulate(2.5, seq(lighter(90, [5, 5, 5]), lighter(), lighter()), 'all-sets')).toBeNull()
   })
 
   it('an attempt between 95% and plan is ambiguous — never follow-down evidence', () => {
     // 97 kg vs 100 planned: neither at-load nor ≤95% — silence.
-    expect(autoregulate(2.5, seq(lighter(97), lighter(97), lighter(97)))).toBeNull()
+    expect(autoregulate(2.5, seq(lighter(97), lighter(97), lighter(97)), 'all-sets')).toBeNull()
   })
 
   it('a prescribed-load change inside the streak breaks comparability', () => {
@@ -354,18 +496,18 @@ describe('autoregulate — follow-down (H1)', () => {
       ...sessionAt(90, [8, 8, 8]),
       actual: [1, 2, 3].map((n) => ({ setNumber: n, reps: 8, weightKg: 80, completed: true })),
     }
-    expect(autoregulate(2.5, seq(lighter(), lighter(), atNinety))).toBeNull()
+    expect(autoregulate(2.5, seq(lighter(), lighter(), atNinety), 'all-sets')).toBeNull()
   })
 
   it('names the evidence in the reason line', () => {
-    const adjustment = autoregulate(2.5, seq(lighter(), lighter(), lighter()))!
+    const adjustment = autoregulate(2.5, seq(lighter(), lighter(), lighter()), 'all-sets')!
     expect(autoregReason(adjustment, 'kg')).toBe(
       'Worked at ~90 kg vs the planned 100 kg for 3 sessions — matching the plan to reality',
     )
   })
 
   it('applies the down-anchor to the scheme sets by load bucket', () => {
-    const adjustment = autoregulate(2.5, seq(lighter(), lighter(), lighter()))!
+    const adjustment = autoregulate(2.5, seq(lighter(), lighter(), lighter()), 'all-sets')!
     const scheme: DerivedSet = {
       setNumber: 1,
       setType: 'working',
@@ -393,7 +535,7 @@ describe('autoregulate — follow-down (H1)', () => {
 
 describe('autoregReason', () => {
   it('names the evidence in the display unit', () => {
-    const adjustment = autoregulate(2.5, [session([6, 5, 8])])!
+    const adjustment = autoregulate(2.5, [session([6, 5, 8])], 'all-sets')!
     expect(autoregReason(adjustment, 'kg')).toBe(
       'Missed 8 reps on 2 of 3 sets at 100 kg — repeating the load',
     )
@@ -403,8 +545,7 @@ describe('autoregReason', () => {
   it('describes the back-off with its magnitude', () => {
     const adjustment = autoregulate(
       2.5,
-      seq(session([6, 5, 8]), session([6, 6, 6]), session([5, 6, 6])),
-    )!
+      seq(session([6, 5, 8]), session([6, 6, 6]), session([5, 6, 6])), 'all-sets')!
     expect(autoregReason(adjustment, 'kg')).toBe(
       'Third straight stall at 100 kg — backing off 10 kg (~10%)',
     )
@@ -434,7 +575,7 @@ describe('applyAutoregToSets', () => {
 
   it('caps working scheme sets at the stalled load on repeat (keeps the pre-autoreg value)', () => {
     // Arrange — linear would prescribe 102.5; the lifter stalled at 100
-    const adjustment = autoregulate(2.5, [session([6, 5, 8])])!
+    const adjustment = autoregulate(2.5, [session([6, 5, 8])], 'all-sets')!
 
     // Act
     const result = applyAutoregToSets([derivedSet()], adjustment)
@@ -450,7 +591,7 @@ describe('applyAutoregToSets', () => {
       { setNumber: 2, repMin: 8, loadKg: 90, reps: 5 },
       { setNumber: 3, repMin: 8, loadKg: 90, reps: 6 },
     ])
-    const adjustment = autoregulate(2.5, [stalled])!
+    const adjustment = autoregulate(2.5, [stalled], 'all-sets')!
     const nextWeek = [
       derivedSet({ setNumber: 1, loadKg: 102.5 }),
       derivedSet({ setNumber: 2, loadKg: 92.5, sourceIndex: 1 }),
@@ -472,7 +613,7 @@ describe('applyAutoregToSets', () => {
     // its cap; load-keyed evidence follows the load, not the number.
     const adjustment = autoregulate(2.5, [
       mixedSession([{ setNumber: 1, repMin: 5, loadKg: 100, reps: 3 }]),
-    ])!
+    ], 'all-sets')!
     const nextWeek = [
       derivedSet({ setNumber: 1, loadKg: 60 }),
       derivedSet({ setNumber: 2, loadKg: 102.5, sourceIndex: 1 }),
@@ -493,7 +634,7 @@ describe('applyAutoregToSets', () => {
     // it; load-keyed evidence has nothing at/below 60 to say.
     const adjustment = autoregulate(2.5, [
       mixedSession([{ setNumber: 1, repMin: 5, loadKg: 100, reps: 3 }]),
-    ])!
+    ], 'all-sets')!
     const newcomer = derivedSet({ setNumber: 1, loadKg: 60 })
 
     // Act
@@ -511,7 +652,7 @@ describe('applyAutoregToSets', () => {
       { setNumber: 1, repMin: 5, loadKg: 140, reps: 3 },
       { setNumber: 2, repMin: 12, loadKg: 20, reps: 12 },
     ])
-    const adjustment = autoregulate(2.5, [stalled])!
+    const adjustment = autoregulate(2.5, [stalled], 'all-sets')!
     const nextWeek = [
       // The 20 kg accessory now sits at setNumber 1, the top set at 2.
       derivedSet({ setNumber: 1, loadKg: 22.5 }),
@@ -533,7 +674,7 @@ describe('applyAutoregToSets', () => {
         { setNumber: 1, repMin: 5, loadKg: 100, reps: 3 },
         { setNumber: 2, repMin: 8, loadKg: 90, reps: 5 },
       ])
-    const adjustment = autoregulate(2.5, seq(stall(), stall(), stall()))!
+    const adjustment = autoregulate(2.5, seq(stall(), stall(), stall()), 'all-sets')!
     const nextWeek = [
       derivedSet({ setNumber: 1, loadKg: 102.5 }),
       derivedSet({ setNumber: 2, loadKg: 92.5, sourceIndex: 1 }),
@@ -554,7 +695,7 @@ describe('applyAutoregToSets', () => {
       { setNumber: 1, repMin: 5, loadKg: 100, reps: 3 },
       { setNumber: 2, repMin: 1, loadKg: 80, reps: 8, setType: 'backoff' },
     ])
-    const adjustment = autoregulate(2.5, [stalled])!
+    const adjustment = autoregulate(2.5, [stalled], 'all-sets')!
     const nextWeek = [
       derivedSet({ setNumber: 1, loadKg: 102.5 }),
       derivedSet({ setNumber: 2, setType: 'backoff', loadKg: 82.5, sourceIndex: 1 }),
@@ -570,7 +711,7 @@ describe('applyAutoregToSets', () => {
 
   it('never raises a set already below the target (a held base keeps its own load)', () => {
     // Arrange — the scheme already holds 100 (no advance)
-    const adjustment = autoregulate(2.5, [session([6, 5, 8])])!
+    const adjustment = autoregulate(2.5, [session([6, 5, 8])], 'all-sets')!
 
     // Act
     const result = applyAutoregToSets([derivedSet({ loadKg: 100 })], adjustment)
@@ -581,7 +722,7 @@ describe('applyAutoregToSets', () => {
 
   it('leaves warmups, template passthroughs, and load-less sets untouched', () => {
     // Arrange
-    const adjustment = autoregulate(2.5, [session([6, 5, 8])])!
+    const adjustment = autoregulate(2.5, [session([6, 5, 8])], 'all-sets')!
     const warmup = derivedSet({ setType: 'warmup', derivedFrom: 'template', loadKg: 60 })
     const template = derivedSet({ derivedFrom: 'template' })
     const loadless = derivedSet({ loadKg: null })
@@ -595,7 +736,7 @@ describe('applyAutoregToSets', () => {
 
   it('does not mutate the input sets', () => {
     // Arrange
-    const adjustment = autoregulate(2.5, [session([6, 5, 8])])!
+    const adjustment = autoregulate(2.5, [session([6, 5, 8])], 'all-sets')!
     const input = derivedSet()
 
     // Act
@@ -969,14 +1110,14 @@ describe('autoregulate — outperform anchoring', () => {
   it('M2: one outperformed session proposes nothing — up-anchors need two in a row', () => {
     // The single good day that used to anchor immediately: no methodology
     // chases one good day.
-    expect(autoregulate(2.5, [session([8, 8, 8], 120)])).toBeNull()
-    expect(autoregulate(2.5, seq(session([8, 8, 8], 120), session([8, 8, 8])))).toBeNull()
+    expect(autoregulate(2.5, [session([8, 8, 8], 120)], 'all-sets')).toBeNull()
+    expect(autoregulate(2.5, seq(session([8, 8, 8], 120), session([8, 8, 8])), 'all-sets')).toBeNull()
   })
 
   it('anchors at the performed load after TWO consecutive qualifying sessions', () => {
     // Prescribed 100×8, performed ≥5% over on every set, two sessions
     // running — the program follows the lifter up.
-    const adjustment = autoregulate(2.5, seq(session([8, 8, 8], 120), session([8, 8, 8], 110)))
+    const adjustment = autoregulate(2.5, seq(session([8, 8, 8], 120), session([8, 8, 8], 110)), 'all-sets')
     expect(adjustment).toMatchObject({
       action: 'anchor',
       deltaKg: 20,
@@ -988,19 +1129,19 @@ describe('autoregulate — outperform anchoring', () => {
   })
 
   it('exactly 5% over anchors; 4.9% does not (epsilon-tolerant boundary)', () => {
-    expect(autoregulate(2.5, seq(session([8, 8, 8], 105), session([8, 8, 8], 105)))).toMatchObject(
+    expect(autoregulate(2.5, seq(session([8, 8, 8], 105), session([8, 8, 8], 105)), 'all-sets')).toMatchObject(
       { action: 'anchor' },
     )
-    expect(autoregulate(2.5, seq(session([8, 8, 8], 104.9), session([8, 8, 8], 105)))).toBeNull()
+    expect(autoregulate(2.5, seq(session([8, 8, 8], 104.9), session([8, 8, 8], 105)), 'all-sets')).toBeNull()
   })
 
   it('C1: outperforming load while missing a floor is a stall, not an outperform', () => {
     // One set under the floor blocks the anchor AND fails the session.
-    expect(autoregulate(2.5, [session([8, 8, 7], 120)])).toMatchObject({
+    expect(autoregulate(2.5, [session([8, 8, 7], 120)], 'all-sets')).toMatchObject({
       action: 'repeat',
       evidence: { missedSets: 1 },
     })
-    expect(autoregulate(2.5, [session([6, 6, 8], 120)])).toMatchObject({ action: 'repeat' })
+    expect(autoregulate(2.5, [session([6, 6, 8], 120)], 'all-sets')).toMatchObject({ action: 'repeat' })
   })
 
   it('one set at plan blocks the whole exercise (all-or-nothing testimony)', () => {
@@ -1013,7 +1154,7 @@ describe('autoregulate — outperform anchoring', () => {
         { setNumber: 3, reps: 8, weightKg: 100, completed: true },
       ],
     }
-    expect(autoregulate(2.5, seq(s, session([8, 8, 8], 120)))).toBeNull()
+    expect(autoregulate(2.5, seq(s, session([8, 8, 8], 120)), 'all-sets')).toBeNull()
   })
 
   it('anchors each load bucket at its performed load, evidence naming the heaviest prescription', () => {
@@ -1028,7 +1169,7 @@ describe('autoregulate — outperform anchoring', () => {
         { setNumber: 2, reps: 8, weightKg: 100, completed: true },
       ],
     })
-    expect(autoregulate(2.5, seq(outperformed(), outperformed()))).toMatchObject({
+    expect(autoregulate(2.5, seq(outperformed(), outperformed()), 'all-sets')).toMatchObject({
       action: 'anchor',
       deltaKg: 10,
       anchor: { fromLoadKg: 100, toLoadKg: 110 },
@@ -1048,7 +1189,7 @@ describe('autoregulate — outperform anchoring', () => {
       ],
       actual: [1, 2].map((n) => ({ setNumber: n, reps: 8, weightKg: 120, completed: true })),
     })
-    expect(autoregulate(2.5, seq(s(), s()))).toBeNull()
+    expect(autoregulate(2.5, seq(s(), s()), 'all-sets')).toBeNull()
   })
 
   it('warm-up and amrap rows never testify to an outperform', () => {
@@ -1066,11 +1207,11 @@ describe('autoregulate — outperform anchoring', () => {
         { setNumber: 3, reps: 10, weightKg: 120, completed: true, setType: 'amrap' },
       ],
     })
-    expect(autoregulate(2.5, seq(s(), s()))).toBeNull()
+    expect(autoregulate(2.5, seq(s(), s()), 'all-sets')).toBeNull()
   })
 
   it('stays silent on empty history', () => {
-    expect(autoregulate(2.5, [])).toBeNull()
+    expect(autoregulate(2.5, [], 'all-sets')).toBeNull()
     expect(autoregulateAnchor([])).toBeNull()
   })
 })
@@ -1135,7 +1276,7 @@ describe('null-load prescription anchoring', () => {
         { setNumber: 2, reps: 10, weightKg: 60, completed: true },
       ],
     }
-    const adjustment = autoregulate(2.5, [s])
+    const adjustment = autoregulate(2.5, [s], 'all-sets')
     expect(adjustment).toMatchObject({
       action: 'anchor',
       anchor: { fromLoadKg: null, toLoadKg: 60 },
@@ -1155,7 +1296,7 @@ describe('null-load prescription anchoring', () => {
         { setNumber: 2, reps: 10, weightKg: 60, completed: true },
       ],
     }
-    const adjustment = autoregulate(2.5, [s])
+    const adjustment = autoregulate(2.5, [s], 'all-sets')
     expect(adjustment).toMatchObject({
       action: 'repeat',
       anchorLoads: [{ prescribedLoadKg: null, anchorKg: 60 }],
@@ -1257,7 +1398,7 @@ describe('applyAutoregToSets — anchor', () => {
   })
 
   it('prescribes exactly the performed load, keeping the scheme value for the escape', () => {
-    const adjustment = autoregulate(2.5, seq(session([8, 8, 8], 120), session([8, 8, 8], 110)))!
+    const adjustment = autoregulate(2.5, seq(session([8, 8, 8], 120), session([8, 8, 8], 110)), 'all-sets')!
     const result = applyAutoregToSets(
       [derivedSet(), derivedSet({ setNumber: 2, sourceIndex: 1 })],
       adjustment,
@@ -1318,7 +1459,7 @@ describe('applyAutoregToSets — anchor', () => {
         { setNumber: 2, reps: 10, weightKg: 60, completed: true },
       ],
     }
-    const adjustment = autoregulate(2.5, [s])!
+    const adjustment = autoregulate(2.5, [s], 'all-sets')!
     const result = applyAutoregToSets(
       [derivedSet(), derivedSet({ setNumber: 2, loadKg: null, sourceIndex: 1 })],
       adjustment,
@@ -1328,7 +1469,7 @@ describe('applyAutoregToSets — anchor', () => {
   })
 
   it('does not mutate the input sets', () => {
-    const adjustment = autoregulate(2.5, seq(session([8, 8, 8], 120), session([8, 8, 8], 110)))!
+    const adjustment = autoregulate(2.5, seq(session([8, 8, 8], 120), session([8, 8, 8], 110)), 'all-sets')!
     const input = derivedSet()
     applyAutoregToSets([input], adjustment)
     expect(input).toMatchObject({ loadKg: 102.5, derivedFrom: 'scheme' })
@@ -1339,7 +1480,7 @@ describe('autoregulateEarlyDeload (M4)', () => {
   const stall = () => session([5, 5, 5])
 
   it('M4: three consecutive stalled sessions flag the early deload without touching loads', () => {
-    const adjustment = autoregulateEarlyDeload(seq(stall(), stall(), stall()))
+    const adjustment = autoregulateEarlyDeload(seq(stall(), stall(), stall()), 'all-sets')
     expect(adjustment).toMatchObject({
       action: 'flag',
       deltaKg: 0,
@@ -1349,13 +1490,13 @@ describe('autoregulateEarlyDeload (M4)', () => {
   })
 
   it('stays silent below three stalls or when the latest session passed', () => {
-    expect(autoregulateEarlyDeload(seq(stall(), stall()))).toBeNull()
-    expect(autoregulateEarlyDeload(seq(session([8, 8, 8]), stall(), stall()))).toBeNull()
-    expect(autoregulateEarlyDeload([])).toBeNull()
+    expect(autoregulateEarlyDeload(seq(stall(), stall()), 'all-sets')).toBeNull()
+    expect(autoregulateEarlyDeload(seq(session([8, 8, 8]), stall(), stall()), 'all-sets')).toBeNull()
+    expect(autoregulateEarlyDeload([], 'all-sets')).toBeNull()
   })
 
   it('a flag verdict never adjusts a prescription (the scheme owns its loads)', () => {
-    const adjustment = autoregulateEarlyDeload(seq(stall(), stall(), stall()))!
+    const adjustment = autoregulateEarlyDeload(seq(stall(), stall(), stall()), 'all-sets')!
     const scheme: DerivedSet = {
       setNumber: 1,
       setType: 'working',
@@ -1377,7 +1518,7 @@ describe('autoregulateEarlyDeload (M4)', () => {
   })
 
   it('speaks the failed-cycle reason (training max likely set too high)', () => {
-    const adjustment = autoregulateEarlyDeload(seq(stall(), stall(), stall()))!
+    const adjustment = autoregulateEarlyDeload(seq(stall(), stall(), stall()), 'all-sets')!
     expect(autoregReason(adjustment, 'kg')).toBe(
       'Third straight stall at 100 kg — training max likely set too high',
     )
@@ -1386,7 +1527,7 @@ describe('autoregulateEarlyDeload (M4)', () => {
 
 describe('autoregReason — anchor', () => {
   it('names the outperform in the display unit', () => {
-    const adjustment = autoregulate(2.5, seq(session([8, 8, 8], 120), session([8, 8, 8], 110)))!
+    const adjustment = autoregulate(2.5, seq(session([8, 8, 8], 120), session([8, 8, 8], 110)), 'all-sets')!
     expect(autoregReason(adjustment, 'kg')).toBe(
       'Did 120 kg vs 100 kg planned — anchoring at 120 kg',
     )

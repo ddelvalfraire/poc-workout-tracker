@@ -605,6 +605,55 @@ describe('autoregulation toggle integrity', () => {
   })
 })
 
+describe('stall policy integrity', () => {
+  const MINIMAL = {
+    name: 'P',
+    days: [{ name: 'D', exercises: [{ wgerExerciseId: 1, name: 'X', sets: [{}] }] }],
+  }
+
+  it('saveProgram leaves an omitted policy to the column default at create', async () => {
+    // Act
+    await saveProgram(USER, parseProgramInput(MINIMAL), 'ui')
+
+    // Assert — no materialized value: the column default owns the omit
+    expect('autoregStallPolicy' in (records[0].values as Record<string, unknown>)).toBe(false)
+  })
+
+  it('saveProgram writes an explicit policy through at create', async () => {
+    // Act
+    await saveProgram(USER, parseProgramInput({ ...MINIMAL, autoregStallPolicy: 'first-set' }), 'ui')
+
+    // Assert
+    expect(records[0].values).toMatchObject({ autoregStallPolicy: 'first-set' })
+  })
+
+  it("updateProgram PRESERVES the stored policy when the input omits it (omit ≠ 'all-sets')", async () => {
+    // Arrange — an MCP upsert that never mentions the policy: a user's
+    // stored 'first-set' must survive the round trip.
+    const input = parseProgramInput(MINIMAL)
+
+    // Act
+    await updateProgram(USER, 'p1', input, 'mcp')
+
+    // Assert — the update payload does not touch the column at all
+    expect(updateSets).toHaveLength(1)
+    expect('autoregStallPolicy' in (updateSets[0] as Record<string, unknown>)).toBe(false)
+  })
+
+  it('updateProgram writes an explicit policy through', async () => {
+    // Act
+    await updateProgram(
+      USER,
+      'p1',
+      parseProgramInput({ ...MINIMAL, autoregStallPolicy: 'first-set' }),
+      'ui',
+    )
+
+    // Assert
+    expect(updateSets[0]).toMatchObject({ autoregStallPolicy: 'first-set' })
+  })
+})
+
 describe('planSync toggle integrity', () => {
   const MINIMAL = {
     name: 'P',

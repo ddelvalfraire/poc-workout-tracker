@@ -10,6 +10,7 @@ import {
   type Progression,
 } from '@/lib/program-input'
 import type { ExerciseSource } from '@/lib/custom-exercise-input'
+import type { AutoregStallPolicy } from '@/lib/autoregulate'
 import { db } from './index'
 import { recordProgramEvent, type ProgramEventActor } from './program-events'
 import { loadExerciseCatalog, muscleRowsFor, type ExerciseCatalog } from './programs'
@@ -203,31 +204,55 @@ function definedFields<T extends object>(patch: T): Partial<T> {
 
 /**
  * Flips the program-level auto-regulation switch (see programs.autoregulation:
- * false skips the Layer 1 stall rules at derive time). A narrow patch op — not
- * upsert_program — because the full-replace path wipes supersets/overrides, and
- * flipping a boolean must never cost plan structure. Returns null when the
- * program isn't owned. Reads, in order: owned-program.
+ * false skips the Layer 1 stall rules at derive time) and, when `stallPolicy`
+ * is given, sets the fixed-mode stall policy alongside it
+ * (programs.autoregStallPolicy — omitted preserves the stored policy). A
+ * narrow patch op — not upsert_program — because the full-replace path wipes
+ * supersets/overrides, and flipping a setting must never cost plan structure.
+ * The event names the policy in summary/payload ONLY when it actually
+ * changed — an unchanged pass-through stays the plain toggle line. Returns
+ * null when the program isn't owned. Reads, in order: owned-program (with its
+ * current stall policy).
  */
 export async function setProgramAutoregulation(
   userId: string,
   programId: string,
   enabled: boolean,
   actor: ProgramEventActor,
+  stallPolicy?: AutoregStallPolicy,
 ): Promise<{ id: string } | null> {
   return db.transaction(async (tx) => {
-    const owned = await findOwnedProgramId(tx, userId, programId)
+    const [owned] = await tx
+      .select({ id: programs.id, autoregStallPolicy: programs.autoregStallPolicy })
+      .from(programs)
+      .where(and(eq(programs.id, programId), eq(programs.userId, userId)))
+      .limit(1)
     if (!owned) return null
+    const policyChanged = stallPolicy !== undefined && stallPolicy !== owned.autoregStallPolicy
     await tx
       .update(programs)
-      .set({ autoregulation: enabled, updatedAt: new Date() })
+      .set({
+        autoregulation: enabled,
+        ...(stallPolicy !== undefined ? { autoregStallPolicy: stallPolicy } : {}),
+        updatedAt: new Date(),
+      })
       .where(eq(programs.id, programId))
     await recordProgramEvent(tx, {
       programId,
       userId,
       actor,
       action: 'set_program_autoregulation',
-      summary: `Auto-regulation ${enabled ? 'on' : 'off'}`,
-      payload: { after: { autoregulation: enabled } },
+      summary: policyChanged
+        ? `Auto-regulation ${enabled ? 'on' : 'off'} · stall policy: ${
+            stallPolicy === 'first-set' ? 'top set decides' : 'every set counts'
+          }`
+        : `Auto-regulation ${enabled ? 'on' : 'off'}`,
+      payload: {
+        after: {
+          autoregulation: enabled,
+          ...(policyChanged ? { autoregStallPolicy: stallPolicy } : {}),
+        },
+      },
     })
     return { id: programId }
   })
