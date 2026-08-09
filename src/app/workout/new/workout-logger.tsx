@@ -1616,7 +1616,7 @@ export function WorkoutLogger({
                       // Waiting row: visually quiet until anything in the row
                       // takes focus, then full affordance (CSS-only).
                       rowState === 'waiting' &&
-                        'border-transparent opacity-60 group-focus-within/setrow:border-input group-focus-within/setrow:opacity-100',
+                        'border-transparent opacity-80 group-focus-within/setrow:border-input group-focus-within/setrow:opacity-100',
                       flashSetId === set.id && 'fill-flash',
                     )}
                   />
@@ -1629,7 +1629,7 @@ export function WorkoutLogger({
                         // Chips → words: "BW" as quiet text, same footprint so
                         // rows never jump on a logging-type switch.
                         'flex h-11 flex-1 items-center justify-center text-base font-medium text-muted-foreground',
-                        rowState === 'waiting' && 'opacity-60',
+                        rowState === 'waiting' && 'opacity-80',
                       )}
                     >
                       BW
@@ -1692,7 +1692,7 @@ export function WorkoutLogger({
                           rowState === 'active' && 'border-input text-lg font-medium',
                           rowState === 'done' && 'border-transparent text-muted-foreground',
                           rowState === 'waiting' &&
-                            'border-transparent opacity-60 group-focus-within/setrow:border-input group-focus-within/setrow:opacity-100',
+                            'border-transparent opacity-80 group-focus-within/setrow:border-input group-focus-within/setrow:opacity-100',
                           flashSetId === set.id && 'fill-flash',
                         )}
                       />
