@@ -99,6 +99,7 @@ vi.mock('./programs', async (importOriginal) => ({
 
 import {
   ProgramPatchError,
+  setProgramAutoregulation,
   addProgramDay,
   updateProgramDay,
   removeProgramDay,
@@ -143,6 +144,62 @@ beforeEach(() => {
   updatedRows = [{ id: 'row1' }]
   deletedRows = [{ id: 'ps1' }]
   insertedRows = [{ id: 'pe-new' }]
+})
+
+describe('setProgramAutoregulation stall policy', () => {
+  const eventInsert = () =>
+    records.find((r) => r.op === 'insert:program_events')?.values as Record<string, unknown>
+  const programsUpdate = () =>
+    records.find((r) => r.op === 'update:programs')?.values as Record<string, unknown>
+
+  it('writes a changed policy and records it in the event summary/payload', async () => {
+    // Arrange — stored policy is the default; the call flips it
+    selectQueue = [[{ id: PID, autoregStallPolicy: 'all-sets' }]]
+
+    // Act
+    await setProgramAutoregulation(USER, PID, true, 'mcp', 'first-set')
+
+    // Assert
+    expect(programsUpdate()).toMatchObject({
+      autoregulation: true,
+      autoregStallPolicy: 'first-set',
+    })
+    expect(eventInsert()).toMatchObject({
+      action: 'set_program_autoregulation',
+      summary: 'Auto-regulation on · stall policy: top set decides',
+      payload: { after: { autoregulation: true, autoregStallPolicy: 'first-set' } },
+    })
+  })
+
+  it('an unchanged policy pass-through keeps the plain toggle line', async () => {
+    // Arrange — the stored policy already matches the arg
+    selectQueue = [[{ id: PID, autoregStallPolicy: 'first-set' }]]
+
+    // Act
+    await setProgramAutoregulation(USER, PID, false, 'mcp', 'first-set')
+
+    // Assert — the column is (re)written but the event stays the toggle line
+    expect(programsUpdate()).toMatchObject({ autoregStallPolicy: 'first-set' })
+    expect(eventInsert()).toMatchObject({
+      summary: 'Auto-regulation off',
+      payload: { after: { autoregulation: false } },
+    })
+    expect(
+      'autoregStallPolicy' in ((eventInsert().payload as { after: object }).after ?? {}),
+    ).toBe(false)
+  })
+
+  it('an omitted policy never touches the column (preserve-on-omit)', async () => {
+    // Arrange
+    selectQueue = [[{ id: PID, autoregStallPolicy: 'first-set' }]]
+
+    // Act
+    await setProgramAutoregulation(USER, PID, false, 'mcp')
+
+    // Assert
+    expect('autoregStallPolicy' in programsUpdate()).toBe(false)
+    expect(eventInsert()).toMatchObject({ summary: 'Auto-regulation off' })
+  })
 })
 
 describe('day ops (user-scoped)', () => {

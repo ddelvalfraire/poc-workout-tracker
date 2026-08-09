@@ -7,6 +7,7 @@ import type {
   Technique,
 } from '@/lib/program-input'
 import type { ProgramDetail } from '@/db/programs'
+import type { AutoregStallPolicy } from '@/lib/autoregulate'
 import type { ExerciseSource } from '@/lib/custom-exercise-input'
 import { displayToKg, kgToDisplay, type WeightUnit } from '@/lib/units'
 
@@ -87,6 +88,9 @@ export interface ProgramDraft {
   deloadWeek: string
   /** Program-level auto-regulation switch (see programs.autoregulation). */
   autoregulation: boolean
+  /** Fixed-mode stall policy (see programs.autoregStallPolicy): 'all-sets'
+   *  (every working set must hit its floor) | 'first-set' (top set decides). */
+  autoregStallPolicy: AutoregStallPolicy
   /** Performance→plan auto-sync switch (see programs.planSync). */
   planSync: boolean
   /** Suggested body check-in cadence in days as an input string; blank = no
@@ -112,6 +116,7 @@ export type ProgramDraftAction =
       value: string
     }
   | { type: 'SET_AUTOREGULATION'; value: boolean }
+  | { type: 'SET_AUTOREG_STALL_POLICY'; value: AutoregStallPolicy }
   | { type: 'SET_PLAN_SYNC'; value: boolean }
   | { type: 'ADD_DAY'; day: DraftProgramDay }
   | { type: 'REMOVE_DAY'; index: number }
@@ -137,6 +142,7 @@ export const emptyProgramDraft: ProgramDraft = {
   mesocycleWeeks: '',
   deloadWeek: '',
   autoregulation: true,
+  autoregStallPolicy: 'all-sets',
   planSync: true,
   checkInEveryDays: '',
   days: [],
@@ -231,6 +237,9 @@ export function programDraftReducer(
 
     case 'SET_AUTOREGULATION':
       return { ...state, autoregulation: action.value }
+
+    case 'SET_AUTOREG_STALL_POLICY':
+      return { ...state, autoregStallPolicy: action.value }
 
     case 'SET_PLAN_SYNC':
       return { ...state, planSync: action.value }
@@ -406,6 +415,12 @@ function isProgramDraft(v: unknown): v is ProgramDraft {
     isString(d.mesocycleWeeks) &&
     isString(d.deloadWeek) &&
     typeof d.autoregulation === 'boolean' &&
+    // Tolerate a missing stall policy: pre-policy envelopes predate the
+    // field; parseStoredProgramDraft backfills 'all-sets' (same policy as
+    // checkInEveryDays).
+    (d.autoregStallPolicy === undefined ||
+      d.autoregStallPolicy === 'all-sets' ||
+      d.autoregStallPolicy === 'first-set') &&
     typeof d.planSync === 'boolean' &&
     // Tolerate a missing checkInEveryDays: pre-cadence envelopes predate the
     // field; parseStoredProgramDraft backfills '' (same policy as weekdays).
@@ -445,6 +460,8 @@ export function parseStoredProgramDraft(raw: string, now: Date): ProgramDraft | 
     ...envelope.draft,
     // Pre-cadence snapshots restore with no suggestion, not discarded.
     checkInEveryDays: envelope.draft.checkInEveryDays ?? '',
+    // Pre-stall-policy snapshots restore on the default rule, not discarded.
+    autoregStallPolicy: envelope.draft.autoregStallPolicy ?? 'all-sets',
     // Pre-article-metadata snapshots restore with the fields absent → null.
     description: envelope.draft.description ?? null,
     icon: envelope.draft.icon ?? null,
@@ -542,6 +559,7 @@ export function draftToProgramInput(
     mesocycleWeeks: toInt(draft.mesocycleWeeks) ?? 1,
     deloadWeek: toInt(draft.deloadWeek),
     autoregulation: draft.autoregulation,
+    autoregStallPolicy: draft.autoregStallPolicy,
     planSync: draft.planSync,
     // Blank = clear the suggestion (explicit null — the builder always shows
     // the stored value, so a full replace saying null MEANS off). An
@@ -581,6 +599,7 @@ export function detailToProgramDraft(
     mesocycleWeeks: detail.mesocycleWeeks.toString(),
     deloadWeek: detail.deloadWeek?.toString() ?? '',
     autoregulation: detail.autoregulation,
+    autoregStallPolicy: detail.autoregStallPolicy,
     planSync: detail.planSync,
     checkInEveryDays: detail.checkInEveryDays?.toString() ?? '',
     status: toStatus(detail.status),

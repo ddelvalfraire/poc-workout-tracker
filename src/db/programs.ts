@@ -22,6 +22,7 @@ import {
   type AutoregAdjustment,
   type AutoregRangeRow,
   type AutoregSession,
+  type AutoregStallPolicy,
 } from '@/lib/autoregulate'
 import { getRecentTrainedSessions } from './autoreg-history'
 import { pickNextProgramDay } from '@/lib/next-program-day'
@@ -266,6 +267,11 @@ export async function saveProgram(
         // Omitted on create = ON: propose-don't-impose delivery is the
         // softener, not an opt-in gate.
         autoregulation: input.autoregulation ?? true,
+        // Omitted on create = the column default ('all-sets' — C1's rule).
+        // No materialization, same discipline as `visibility` below.
+        ...(input.autoregStallPolicy !== undefined
+          ? { autoregStallPolicy: input.autoregStallPolicy }
+          : {}),
         // Same omitted-on-create = ON rule: default-on keeps fresh users'
         // plans tracking what they actually lift.
         planSync: input.planSync ?? true,
@@ -435,6 +441,11 @@ export async function updateProgram(
         // Omitted on update = PRESERVE the stored switch: an upsert that
         // doesn't mention the field must never flip a user's OFF back ON.
         ...(input.autoregulation !== undefined ? { autoregulation: input.autoregulation } : {}),
+        // Same preserve rule for the stall policy: an upsert that omits it
+        // must never flip a stored 'first-set' back to the default.
+        ...(input.autoregStallPolicy !== undefined
+          ? { autoregStallPolicy: input.autoregStallPolicy }
+          : {}),
         ...(input.planSync !== undefined ? { planSync: input.planSync } : {}),
         // Same preserve rule for the check-in cadence; explicit null clears it.
         ...(input.checkInEveryDays !== undefined
@@ -684,6 +695,7 @@ export async function cloneProgram(
         mesocycleWeeks: source.mesocycleWeeks,
         deloadWeek: source.deloadWeek,
         autoregulation: source.autoregulation,
+        autoregStallPolicy: source.autoregStallPolicy,
         planSync: source.planSync,
         checkInEveryDays: source.checkInEveryDays,
         notes: source.notes,
@@ -833,7 +845,7 @@ export async function getProgramDayDetail(userId: string, programDayId: string) 
         // 'proposed' plan instantiates nothing until the owner adopts it.
         // planSync rides along for the post-finish auto-sync gate
         // (lib/auto-plan-sync) — same read, no extra round-trip.
-        columns: { id: true, userId: true, status: true, mesocycleWeeks: true, deloadWeek: true, autoregulation: true, planSync: true },
+        columns: { id: true, userId: true, status: true, mesocycleWeeks: true, deloadWeek: true, autoregulation: true, autoregStallPolicy: true, planSync: true },
       },
       exercises: {
         orderBy: (e) => [asc(e.position)],
@@ -1125,6 +1137,10 @@ export interface DayForDerivation {
     /** Program-level switch: false skips the stall rules (and their history
      *  reads) entirely — schemes derive exactly as before autoreg existed. */
     autoregulation: boolean
+    /** Fixed-mode stall policy (programs.autoreg_stall_policy) — threaded
+     *  into `autoregulate` and `autoregulateEarlyDeload`; range/anchor modes
+     *  ignore it. Required so every caller reads the program row's policy. */
+    autoregStallPolicy: AutoregStallPolicy
   }
 }
 
@@ -1326,12 +1342,12 @@ export async function deriveDayPrescription(
             : []
         adjustment =
           plan.mode === 'fixed'
-            ? autoregulate(plan.incrementKg, sessions)
+            ? autoregulate(plan.incrementKg, sessions, day.program.autoregStallPolicy)
             : plan.mode === 'range'
               ? autoregulateRange(plan.stepKg, sessions, rangeRows)
               : plan.mode === 'anchor'
                 ? autoregulateAnchor(sessions)
-                : autoregulateEarlyDeload(sessions)
+                : autoregulateEarlyDeload(sessions, day.program.autoregStallPolicy)
         adjustmentByKey.set(key, adjustment)
       }
     }

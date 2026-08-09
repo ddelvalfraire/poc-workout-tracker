@@ -160,6 +160,7 @@ export default async function ProgramDetailPage({
                 mesocycleWeeks: program.mesocycleWeeks,
                 deloadWeek: program.deloadWeek,
                 autoregulation: program.autoregulation,
+                autoregStallPolicy: program.autoregStallPolicy,
               },
             },
             selectedWeek,

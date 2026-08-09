@@ -19,11 +19,18 @@ import type { DerivedSet } from './progression'
  * outcome; anchors key the same way.
  *
  * Scope — the rule sets:
- * - FIXED (`autoregulate`): fixed-rep `linear`. Stall = ANY scorable working
- *   set under its rep floor (C1 — the StrongLifts/Starting Strength failed-
- *   session definition); repeat, then back off after three consecutive
+ * - FIXED (`autoregulate`): fixed-rep `linear`. Stall scoring follows the
+ *   program's STALL POLICY (`AutoregStallPolicy`): 'all-sets' (the default)
+ *   stalls when ANY scorable working set finishes under its rep floor (C1 —
+ *   the StrongLifts/Starting Strength failed-session definition);
+ *   'first-set' lets ONLY the lowest-setNumber working set govern (the
+ *   top-set-driven convention — 8,8,6 with the first set at its floor
+ *   progresses). Either way: repeat, then back off after three consecutive
  *   stalls AT THE SAME prescribed top load (H2 — any prescribed-load change,
- *   including an applied back-off, resets the streak).
+ *   including an applied back-off, resets the streak). The policy also
+ *   drives the M4 early-deload flag scoring; RANGE mode is UNAFFECTED — its
+ *   stall is total-rep-gain over comparable sessions, not floor misses, so
+ *   there is no per-set floor for a policy to select.
  * - RANGE (`autoregulateRange`): double progression for rep ranges. Ranged
  *   working rows are scored by fill/hold; fixed rows in a MIXED template
  *   join floor scoring only (H3) — a mixed shape no longer disables range
@@ -47,6 +54,14 @@ import type { DerivedSet } from './progression'
  * but blocked on data: logged sets carry no actual RPE (only prescriptions
  * do), so they wait for an optional per-set RPE input.
  */
+
+/** Per-program FIXED-mode stall policy (programs.autoreg_stall_policy):
+ *  'all-sets' — ANY scorable working set under its floor stalls the session
+ *  (C1, the default); 'first-set' — ONLY the lowest-setNumber non-warmup
+ *  working prescribed set governs (within-session setNumber IS valid — never
+ *  cross-session). An unscorable governing set (skipped/lighter/retagged)
+ *  yields NO verdict — silence over corruption, never a fallback set. */
+export type AutoregStallPolicy = 'all-sets' | 'first-set'
 
 export interface AutoregPrescribedSet {
   /** Pairing key against the actual side WITHIN this session only — never
@@ -276,6 +291,9 @@ export function anchorLoadFor(
  *  instead). `repMin` rides along nullable — FIXED mode additionally
  *  requires it. */
 interface ScorablePair {
+  /** Within-session pairing key — carried so the 'first-set' stall policy can
+   *  find its governing set; never meaningful across sessions. */
+  setNumber: number
   loadKg: number
   repMin: number | null
   reps: number
@@ -299,6 +317,7 @@ function workingPairs(session: AutoregSession): {
     const done = actualByNumber.get(plan.setNumber)
     if (!done?.completed || done.reps === null || done.weightKg === null) continue
     const pair = {
+      setNumber: plan.setNumber,
       loadKg: plan.loadKg,
       repMin: plan.repMin,
       reps: done.reps,
@@ -426,21 +445,49 @@ function confirmedOutperform(
   return latest
 }
 
+/** The 'first-set' stall verdict: ONLY the lowest-setNumber non-warmup
+ *  working prescribed set governs. Its scorable pair (floor + load on the
+ *  snapshot, completed at-load actual) under the floor stalls the session;
+ *  a hit floor progresses it regardless of the other sets. An unscorable
+ *  governing set is NO verdict — never a fallback to another set — and its
+ *  scorability IS the quorum here (M3 collapses to the one set that can
+ *  testify): the evidence is exactly the governing set's load/floor. */
+function firstSetStall(
+  session: AutoregSession,
+): { missedSets: number; scorableSets: number; repFloor: number; loadKg: number } | null {
+  const workingPlans = [
+    ...bySetNumber(session.prescribed.filter((s) => isWorking(s.setType))).values(),
+  ]
+  if (workingPlans.length === 0) return null
+  const governingNumber = Math.min(...workingPlans.map((p) => p.setNumber))
+  const pair = scorablePairs(session).find(
+    (p): p is ScorablePair & { repMin: number } =>
+      p.setNumber === governingNumber && p.repMin !== null,
+  )
+  if (!pair) return null
+  if (pair.reps >= pair.repMin) return null
+  return { missedSets: 1, scorableSets: 1, repFloor: pair.repMin, loadKg: pair.loadKg }
+}
+
 /**
- * A session stalled when ANY scorable working set finished under its rep
- * floor (C1 — the StrongLifts/Starting Strength failed-session definition:
- * 8,8,6 is a failed session, not a pass). Prescribed and actual sets pair BY
+ * The FIXED-mode stall verdict for one session, per the program's stall
+ * policy. 'all-sets' (C1 — the StrongLifts/Starting Strength failed-session
+ * definition: 8,8,6 is a failed session, not a pass): ANY scorable working
+ * set under its rep floor stalls, evidence names the HEAVIEST missed set,
+ * and the M3 quorum gates the verdict. 'first-set': only the governing set
+ * speaks — see `firstSetStall`. Prescribed and actual sets pair BY
  * `setNumber` within the session — unpaired entries on either side are
  * ignored. A pair is scorable when the snapshot carries a floor + load, the
  * actual is completed with reps+weight, and the weight is ≥ the prescribed
  * load − epsilon (attempted lighter feeds the follow-down rule instead).
- * Evidence names the HEAVIEST missed set. Null when nothing is scorable OR
- * the evidence quorum fails (M3): no evidence either way, never a stall
- * from silence.
+ * Null when nothing (policy-relevant) is scorable OR the quorum fails: no
+ * evidence either way, never a stall from silence.
  */
 export function sessionStall(
   session: AutoregSession,
+  stallPolicy: AutoregStallPolicy,
 ): { missedSets: number; scorableSets: number; repFloor: number; loadKg: number } | null {
+  if (stallPolicy === 'first-set') return firstSetStall(session)
   // FIXED mode also demands a rep floor on the snapshot — no floor, no verdict.
   const pairs = scorablePairs(session).filter(
     (p): p is ScorablePair & { repMin: number } => p.repMin !== null,
@@ -607,16 +654,21 @@ export function sessionAnchorLoads(session: AutoregSession): AutoregAnchor[] {
  * Sessions are defensively re-sorted newest-first by `startedAtMs` (H6);
  * only the first `AUTOREG_SESSION_WINDOW` are consulted. Verdict order:
  * FOLLOW-DOWN (three comparable all-lighter sessions — H1) → OUTPERFORM
- * (two consecutive qualifying sessions — M2) → stall rules (ANY floor miss
- * stalls — C1; one or two consecutive stalls repeat the load; three AT THE
- * SAME prescribed top load — H2 — back off ~10% and suggest pulling the
- * deload forward). Null-load sets with completed working loads anchor
- * regardless of the loaded verdict. All verdicts are quorum-gated (M3).
- * Null = no adjustment (schemes proceed untouched).
+ * (two consecutive qualifying sessions — M2) → stall rules per the
+ * program's `stallPolicy` ('all-sets': ANY floor miss stalls — C1;
+ * 'first-set': only the governing set's miss stalls; one or two consecutive
+ * stalls repeat the load; three AT THE SAME prescribed top load — H2 — back
+ * off ~10% and suggest pulling the deload forward). Null-load sets with
+ * completed working loads anchor regardless of the loaded verdict. All
+ * verdicts are quorum-gated (M3) — under 'first-set' a STALL verdict's
+ * quorum is the governing set's scorability itself; non-stall verdicts keep
+ * the half-count quorum under either policy. Null = no adjustment (schemes
+ * proceed untouched).
  */
 export function autoregulate(
   incrementKg: number,
   sessions: readonly AutoregSession[],
+  stallPolicy: AutoregStallPolicy,
 ): AutoregAdjustment | null {
   const window = newestFirst(sessions).slice(0, AUTOREG_SESSION_WINDOW)
   const latest = window[0]
@@ -630,12 +682,20 @@ export function autoregulate(
     if (nullAnchor && !meetsQuorum(nullAnchor.count, latest)) return null
     return anchorVerdict(latest, null, nullAnchor, 0)
   }
-  if (!meetsQuorum(pairs.length + (nullAnchor?.count ?? 0), latest)) return null
 
-  const outperform = confirmedOutperform(outperformAnchors(pairs), window)
-  if (outperform) return anchorVerdict(latest, outperform, nullAnchor, pairs.length)
-  const latestStall = sessionStall(latest)
-  if (!latestStall) return anchorVerdict(latest, null, nullAnchor, pairs.length)
+  // The stall verdict carries its own policy-shaped quorum (sessionStall);
+  // outperform / anchor verdicts keep the half-count M3 quorum under either
+  // policy — the stall policy governs stall scoring only. Stall and
+  // outperform are mutually exclusive (an outperform needs EVERY floor met,
+  // a stall needs a governed floor missed), so checking the stall first
+  // changes no all-sets verdict.
+  const latestStall = sessionStall(latest, stallPolicy)
+  if (!latestStall) {
+    if (!meetsQuorum(pairs.length + (nullAnchor?.count ?? 0), latest)) return null
+    const outperform = confirmedOutperform(outperformAnchors(pairs), window)
+    if (outperform) return anchorVerdict(latest, outperform, nullAnchor, pairs.length)
+    return anchorVerdict(latest, null, nullAnchor, pairs.length)
+  }
 
   // H2: the streak only deepens while the prescribed top load is unchanged —
   // any change (including an applied back-off) starts a fresh streak, so a
@@ -643,7 +703,7 @@ export function autoregulate(
   const latestTop = topPrescribedLoad(latest)
   let consecutive = 1
   for (const session of window.slice(1)) {
-    if (sessionStall(session) === null) break
+    if (sessionStall(session, stallPolicy) === null) break
     const top = topPrescribedLoad(session)
     if (latestTop === null || top === null || Math.abs(top - latestTop) > LOAD_EPSILON_KG) break
     consecutive += 1
@@ -924,7 +984,9 @@ export function autoregulateAnchor(sessions: readonly AutoregSession[]): Autoreg
  * The EARLY-DELOAD-FLAG rule set (M4) for schemes that own their loads
  * (percent-1rm's static training max, amrap-cycle's wave): floor-only stall
  * scoring drives `suggestEarlyDeload` ONLY — never a load adjustment. Three
- * consecutive stalled sessions (C1 scoring, quorum-gated per session — M3)
+ * consecutive stalled sessions (floor scoring per the program's stall
+ * policy — the same `sessionStall` the fixed rules use, so 'first-set'
+ * flags only on the governing set's misses; quorum-gated per session — M3)
  * flag "training max likely set too high" (5/3/1's failed-cycle rule). No
  * H2 load-scoping: these schemes legitimately change loads every week, so
  * the streak is session-based. Null below the streak — either way the
@@ -933,12 +995,13 @@ export function autoregulateAnchor(sessions: readonly AutoregSession[]): Autoreg
  */
 export function autoregulateEarlyDeload(
   sessions: readonly AutoregSession[],
+  stallPolicy: AutoregStallPolicy,
 ): AutoregAdjustment | null {
   const window = newestFirst(sessions).slice(0, AUTOREG_SESSION_WINDOW)
   if (window.length < STALLS_BEFORE_DECREMENT) return null
   const stallEvidence = window
     .slice(0, STALLS_BEFORE_DECREMENT)
-    .map((session) => sessionStall(session))
+    .map((session) => sessionStall(session, stallPolicy))
   const latestStall = stallEvidence[0]
   if (!latestStall || stallEvidence.some((s) => s === null)) return null
   return {

@@ -24,6 +24,7 @@ vi.mock('./autoreg-history', () => ({
 }))
 
 import { deriveDayPrescription, type DayForDerivation } from './programs'
+import type { AutoregStallPolicy } from '@/lib/autoregulate'
 
 const USER = 'user_123'
 
@@ -34,6 +35,7 @@ const USER = 'user_123'
 function day(options: {
   progression?: unknown
   autoregulation?: boolean
+  stallPolicy?: AutoregStallPolicy
   deloadWeek?: number | null
   overrides?: { week: number; [key: string]: unknown }[]
   duplicateSlot?: boolean
@@ -73,6 +75,7 @@ function day(options: {
       mesocycleWeeks: 4,
       deloadWeek: options.deloadWeek ?? null,
       autoregulation: options.autoregulation ?? true,
+      autoregStallPolicy: options.stallPolicy ?? 'all-sets',
     },
     exercises: options.duplicateSlot ? [exercise, { ...exercise }] : [exercise],
   }
@@ -124,6 +127,31 @@ describe('deriveDayPrescription auto-regulation', () => {
     expect(exercise.sets.every((s) => s.derivedFrom === 'autoreg')).toBe(true)
     expect(exercise.sets[0].schemeLoadKg).toBe(102.5)
     expect(exercise.autoreg).toMatchObject({ action: 'repeat', suggestEarlyDeload: false })
+  })
+
+  it("the program row's 'first-set' policy lets 8,8,6 progress — the top set hit its floor", async () => {
+    // Arrange — same 8,8,6 history that stalls under 'all-sets': the policy
+    // on the program row is what flips the verdict.
+    trainedSessions.mockResolvedValue([trained('w1', 1, [8, 8, 6])])
+
+    // Act
+    const [exercise] = await deriveDayPrescription(USER, day({ stallPolicy: 'first-set' }), 2)
+
+    // Assert — no verdict; the scheme's week-2 increment applies untouched.
+    expect(exercise.autoreg).toBeNull()
+    expect(exercise.sets[0]).toMatchObject({ loadKg: 102.5, derivedFrom: 'scheme' })
+  })
+
+  it("the same 8,8,6 session stalls under the default 'all-sets' policy on the row", async () => {
+    // Arrange
+    trainedSessions.mockResolvedValue([trained('w1', 1, [8, 8, 6])])
+
+    // Act
+    const [exercise] = await deriveDayPrescription(USER, day({}), 2)
+
+    // Assert — C1: any scorable set under its floor repeats the load.
+    expect(exercise.autoreg).toMatchObject({ action: 'repeat' })
+    expect(exercise.sets.map((s) => s.loadKg)).toEqual([100, 100, 100])
   })
 
   it('two consecutive stalls still only repeat (three-stall rule)', async () => {

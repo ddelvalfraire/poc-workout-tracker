@@ -232,6 +232,7 @@ export async function adoptShared(userId: string, token: string): Promise<{ id: 
         mesocycleWeeks: source.mesocycleWeeks,
         deloadWeek: source.deloadWeek,
         autoregulation: source.autoregulation,
+        autoregStallPolicy: source.autoregStallPolicy,
         planSync: source.planSync,
         checkInEveryDays: source.checkInEveryDays,
         notes: source.notes,

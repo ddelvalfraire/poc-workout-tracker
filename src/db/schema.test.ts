@@ -34,6 +34,12 @@ describe('schema', () => {
     expect(cols.autoregulation.hasDefault).toBe(true)
   })
 
+  it('makes the stall policy additive on programs (non-null, default all-sets)', () => {
+    const cols = getTableColumns(programs)
+    expect(cols.autoregStallPolicy.notNull).toBe(true)
+    expect(cols.autoregStallPolicy.hasDefault).toBe(true)
+  })
+
   it('makes the plan-sync switch additive on programs (non-null, default true)', () => {
     const cols = getTableColumns(programs)
     expect(cols.planSync.notNull).toBe(true)

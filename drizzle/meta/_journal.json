@@ -239,6 +239,13 @@
       "when": 1785735045503,
       "tag": "0033_reflective_thunderbolt_ross",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1786305555385,
+      "tag": "0034_gigantic_jackpot",
+      "breakpoints": true
     }
   ]
 }

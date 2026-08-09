@@ -185,14 +185,15 @@ export function registerProgramPatchTools(server: McpServer): void {
     {
       title: 'Set Program Auto-Regulation',
       description:
-        "Turns a program's auto-regulation on or off without touching its days/exercises/sets. When on (the default), week previews and instantiated sessions propose stall-reactive load adjustments (repeat after one stalled session, ~10% back-off after two) with a visible reason; explicit per-week overrides always win. Errors if the program isn't found or owned.",
+        "Turns a program's auto-regulation on or off without touching its days/exercises/sets. When on (the default), week previews and instantiated sessions propose stall-reactive load adjustments (repeat after one stalled session, ~10% back-off after two) with a visible reason; explicit per-week overrides always win. Optional `stallPolicy` sets the fixed-mode stall rule alongside the toggle: 'all-sets' (the default — any working set missing its rep floor stalls the session) or 'first-set' (only the first working set decides; its miss stalls, other sets' misses don't). Omitting `stallPolicy` preserves the stored policy. Errors if the program isn't found or owned.",
       inputSchema: {
         programId: z.string(),
         enabled: z.boolean(),
+        stallPolicy: z.enum(['all-sets', 'first-set']).optional(),
         userId: z.string().optional(),
       },
     },
-    async ({ programId, enabled, userId }, extra) => {
+    async ({ programId, enabled, stallPolicy, userId }, extra) => {
       try {
         const resolved = resolveUserId(extra, userId)
         assertProgramIdShape(programId)
@@ -201,9 +202,15 @@ export function registerProgramPatchTools(server: McpServer): void {
           programId,
           enabled,
           resolveActor(extra),
+          stallPolicy,
         )
         if (!result) throw new ToolError(`Program ${programId} not found for user ${resolved}`)
-        return jsonResult({ userId: resolved, programId, autoregulation: enabled })
+        return jsonResult({
+          userId: resolved,
+          programId,
+          autoregulation: enabled,
+          ...(stallPolicy !== undefined ? { autoregStallPolicy: stallPolicy } : {}),
+        })
       } catch (error: unknown) {
         return errorResult(error)
       }

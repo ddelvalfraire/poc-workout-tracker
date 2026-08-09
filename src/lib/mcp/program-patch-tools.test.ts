@@ -141,11 +141,33 @@ describe('registerProgramPatchTools', () => {
       })
 
       // Assert
-      expect(mockedSetAutoreg).toHaveBeenCalledWith('user_env', PID, false, 'mcp')
+      expect(mockedSetAutoreg).toHaveBeenCalledWith('user_env', PID, false, 'mcp', undefined)
       expect(payload(result)).toEqual({
         userId: 'user_env',
         programId: PID,
         autoregulation: false,
+      })
+    })
+
+    it('set_program_autoregulation passes the stall policy through and echoes it', async () => {
+      // Arrange
+      const tools = setup()
+      mockedSetAutoreg.mockResolvedValue({ id: PID })
+
+      // Act
+      const result = await tools.get('set_program_autoregulation')!({
+        programId: PID,
+        enabled: true,
+        stallPolicy: 'first-set',
+      })
+
+      // Assert
+      expect(mockedSetAutoreg).toHaveBeenCalledWith('user_env', PID, true, 'mcp', 'first-set')
+      expect(payload(result)).toEqual({
+        userId: 'user_env',
+        programId: PID,
+        autoregulation: true,
+        autoregStallPolicy: 'first-set',
       })
     })
 

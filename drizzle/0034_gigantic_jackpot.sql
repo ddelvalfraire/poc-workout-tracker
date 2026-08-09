@@ -1,0 +1,1 @@
+ALTER TABLE "programs" ADD COLUMN "autoreg_stall_policy" text DEFAULT 'all-sets' NOT NULL;

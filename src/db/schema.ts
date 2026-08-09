@@ -21,6 +21,7 @@ import type {
   MetricMode,
   ProgramVisibility,
 } from '@/lib/program-input'
+import type { AutoregStallPolicy } from '@/lib/autoregulate'
 import type { ExerciseSource, ExerciseCategory } from '@/lib/custom-exercise-input'
 import type { LoggingType } from '@/lib/workout-input'
 import type { MeasurementSite } from '@/lib/measurement-sites'
@@ -519,6 +520,15 @@ export const programs = pgTable(
     // the per-exercise "use plan as written" escape soften the default; false
     // skips the stall rules (and their history reads) entirely at derive time.
     autoregulation: boolean('autoregulation').notNull().default(true),
+    // Fixed-mode stall policy (lib/autoregulate.ts AutoregStallPolicy):
+    // 'all-sets' (default — ANY scorable working set under its floor stalls,
+    // C1) | 'first-set' (only the lowest-setNumber working set governs).
+    // Text + app-level union like `status`; range mode ignores it (its stall
+    // is total-rep-gain, not floor misses).
+    autoregStallPolicy: text('autoreg_stall_policy')
+      .$type<AutoregStallPolicy>()
+      .notNull()
+      .default('all-sets'),
     // Performance→plan auto-sync switch, default ON so fresh users never see
     // stale plans; off for deliberate-percentage programs (5/3/1-style waves)
     // where performed > listed is by design.
