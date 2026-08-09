@@ -238,22 +238,29 @@ export default async function WorkoutDetailPage({
           </section>
         )}
 
-        <div className="mt-4 flex items-center gap-2">
-          <p className="text-sm text-muted-foreground">
-            {formatWorkoutDate(workout.startedAt)}
-          </p>
+        {/* One readable meta line (chips → words): date · week. The week is
+            program context, not an action — volt small-caps text marks it the
+            same way the "Session logged" eyebrow does, no pill shell. */}
+        <p className="mt-4 text-sm text-muted-foreground">
+          {formatWorkoutDate(workout.startedAt)}
           {workout.programWeek !== null && (
-            <span className="rounded-full border border-primary/40 bg-primary/10 px-2 py-0.5 text-xs font-semibold uppercase tracking-wide text-primary">
-              Week {workout.programWeek}
-            </span>
+            <>
+              {" "}
+              <span aria-hidden="true">·</span>{" "}
+              <span className="text-xs font-semibold uppercase tracking-wide text-primary">
+                Week {workout.programWeek}
+              </span>
+            </>
           )}
-        </div>
+        </p>
 
         {/* Third beat of the finish stagger (headline → PR lines → stats);
             plain render on a revisit — motion marks the moment, not the page. */}
         <dl
           className={cn(
-            "mt-3 grid grid-cols-3 overflow-hidden rounded-2xl border border-border bg-card",
+            // De-carded: the stat band sits between hairlines, tiles keep
+            // their internal hairline dividers — no shell, no fill.
+            "mt-3 grid grid-cols-3 border-y border-border",
             justFinished &&
               "motion-safe:animate-rise-in [animation-delay:180ms] [animation-fill-mode:backwards]",
           )}
@@ -277,9 +284,11 @@ export default async function WorkoutDetailPage({
           </p>
         )}
 
-        {/* Session note under the stats — context for the numbers above. */}
+        {/* Session note under the stats — context for the numbers above.
+            De-carded to a quiet quote rail (muted, not volt: notes are
+            context, not state). Plain text for now — TipTap is a later wave. */}
         {workout.notes !== null && (
-          <p className="mt-3 whitespace-pre-wrap rounded-2xl border border-border bg-card p-4 text-sm text-muted-foreground">
+          <p className="mt-4 whitespace-pre-wrap border-l-2 border-border pl-3 text-sm text-muted-foreground">
             {workout.notes}
           </p>
         )}
@@ -293,7 +302,10 @@ export default async function WorkoutDetailPage({
         {justFinished && achievedGoals.length > 0 && (
           <section
             aria-label="Goals reached"
-            className="mt-4 rounded-2xl border border-primary/50 bg-card p-5 motion-safe:animate-rise-in"
+            // De-carded: the volt hairline under the section is the same
+            // quiet "achievement" state marker the logger's done sections
+            // wear — celebration lives in the volt type, not a shell.
+            className="mt-6 border-b border-b-primary/30 pb-5 motion-safe:animate-rise-in"
           >
             <p className="text-xs font-semibold uppercase tracking-widest text-primary">
               {achievedGoals.length === 1 ? "Goal reached" : "Goals reached"}
@@ -321,7 +333,8 @@ export default async function WorkoutDetailPage({
         {justFinished && earnedTrophies.length > 0 && (
           <section
             aria-label="Trophies earned"
-            className="mt-4 rounded-2xl border border-primary/50 bg-card p-5 motion-safe:animate-rise-in"
+            // Same de-carded volt-hairline treatment as the goals block.
+            className="mt-6 border-b border-b-primary/30 pb-5 motion-safe:animate-rise-in"
           >
             <p className="text-xs font-semibold uppercase tracking-widest text-primary">
               {earnedTrophies.length === 1 ? "Trophy earned" : "Trophies earned"}
@@ -355,7 +368,9 @@ export default async function WorkoutDetailPage({
         {justFinished && touchedStrengthGoals.length > 0 && (
           <section
             aria-label="Goal progress"
-            className="mt-4 rounded-2xl border border-border bg-card p-4"
+            // Progress-not-achievement stays on the muted hairline (one-volt
+            // rule: volt marks the reached goals above, not the partials).
+            className="mt-6 border-b border-b-border/60 pb-4"
           >
             <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
               Goal progress
@@ -381,7 +396,9 @@ export default async function WorkoutDetailPage({
           <FinishUpNextCard state={upNext} />
         )}
 
-        <div className="mt-4 space-y-3">
+        {/* Hairline sections breathe a touch more than the old card stack —
+            the divider is doing the separating work the shells used to. */}
+        <div className="mt-6 space-y-4">
           {workout.exercises.map((exercise) => {
             // Scored under the exercise's logging type: highest e1rm over the
             // EFFECTIVE load, or the most-reps fallback when no set is
@@ -401,7 +418,11 @@ export default async function WorkoutDetailPage({
             return (
               <section
                 key={exercise.id}
-                className="rounded-2xl border border-border bg-card p-4"
+                // De-carded (logger vocabulary): sections sit on hairline
+                // dividers, no shell. PrBadge alone carries the PR marker —
+                // a volt hairline on top of it would stack volt per PR'd
+                // exercise on every revisit (one-volt rule).
+                className="border-b border-b-border/60 pb-4"
               >
                 <div className="flex items-center justify-between gap-2">
                   {/* Display type on the movement name: the card is a record
@@ -415,16 +436,19 @@ export default async function WorkoutDetailPage({
                     {exercise.name}
                   </h2>
                   {exercise.skipped ? (
-                    <span className="rounded-full border border-border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+                    // Chip → word: skipped is a label, not a control.
+                    <span className="shrink-0 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
                       Skipped
                     </span>
                   ) : (
                     isPR && <PrBadge />
                   )}
                 </div>
-                {/* Set rows echo the logger's number circles (log → review
-                    continuity) and run the values at glanceable scale; the top
-                    set reads heavier than the rest. */}
+                {/* Set rows echo the logger's DONE-row treatment (log →
+                    review continuity): volt check + quiet text line — pure
+                    display here, so even simpler than the logger's. The top
+                    set reads heavier than the rest; a skipped exercise keeps
+                    the muted numbered disc (nothing was done to check off). */}
                 <div className="mt-3 space-y-2">
                   {exercise.sets.length === 0 ? (
                     <p className="text-sm text-muted-foreground">No sets logged.</p>
@@ -433,7 +457,15 @@ export default async function WorkoutDetailPage({
                       <div key={set.id} className="flex items-center gap-3">
                         <span
                           aria-label={`Set ${set.setNumber}`}
-                          className="grid size-6 shrink-0 place-items-center rounded-full bg-muted text-xs font-semibold tnum text-muted-foreground"
+                          className={cn(
+                            // Number stays visible on every disc — a wall of
+                            // identical checks loses the set index sighted
+                            // lifters audit rows by (review parity finding).
+                            "grid size-6 shrink-0 place-items-center rounded-full text-xs font-semibold tnum",
+                            exercise.skipped
+                              ? "bg-muted text-muted-foreground"
+                              : "bg-primary text-primary-foreground",
+                          )}
                         >
                           {set.setNumber}
                         </span>
@@ -442,13 +474,15 @@ export default async function WorkoutDetailPage({
                             "tnum text-base",
                             setIndex === bestIndex
                               ? "font-semibold"
-                              : "font-medium text-foreground/80",
+                              : "font-medium text-muted-foreground",
                           )}
                         >
                           {formatLoggedSet(set, unit, exercise.loggingType)}
                         </span>
                         {setIndex === bestIndex && (
-                          <span className="rounded-full border border-border px-1.5 py-px text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+                          // Chip → word (logger grammar): a quiet caps label,
+                          // no pill shell.
+                          <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
                             Top set
                           </span>
                         )}
