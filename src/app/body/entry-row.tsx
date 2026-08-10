@@ -47,7 +47,7 @@ export function BodyweightEntryRow({ id, dateLabel, weightLabel }: BodyweightEnt
   }
 
   return (
-    <li className="flex items-center justify-between gap-4 px-4 py-3">
+    <li className="flex items-center justify-between gap-4 py-3">
       <span className="text-sm text-muted-foreground">{dateLabel}</span>
       <span className="ml-auto font-medium tnum">{weightLabel}</span>
       <button
