@@ -39,6 +39,7 @@ import {
 import { kgToDisplay } from '@/lib/units'
 import { listPatchProposals } from '@/db/patch-proposals'
 import { ensureVolumeProposals } from '@/db/volume-progression'
+import { ensureReactiveDeloadProposals } from '@/db/reactive-deload'
 import { describeToolCall } from '@/lib/coach/describe-tool-call'
 import { patchForDisplay } from '@/lib/patch-proposal'
 import { proposalAgeLine } from '../list-view'
@@ -97,6 +98,11 @@ export default async function ProgramDetailPage({
   // freshly minted +1 proposal renders on this very load. Best-effort: it
   // can never throw into the page.
   await ensureVolumeProposals(userId, program.id)
+  // The reactive-deload weekly check rides the same derive-time slot: only
+  // reactive-policy or cutting-phase programs pay past the first row read,
+  // the Redis marker caps it at one real evaluation per (program, week), and
+  // like the volume check it can never throw into the page.
+  await ensureReactiveDeloadProposals(userId, program.id)
 
   const [
     { currentWeek, blockComplete },
@@ -187,6 +193,7 @@ export default async function ProgramDetailPage({
                 autoregulation: program.autoregulation,
                 autoregStallPolicy: program.autoregStallPolicy,
                 deloadPolicy: program.deloadPolicy,
+                dietPhase: program.dietPhase,
               },
             },
             selectedWeek,

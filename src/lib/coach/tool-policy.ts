@@ -73,6 +73,9 @@ export const COACH_APPROVAL_TOOLS = [
   'remove_program_set_override',
   'set_program_autoregulation',
   'set_program_deload_policy',
+  // The diet phase reframes stall verdicts and gates the auto-backoff into
+  // a proposal — a behavior change the owner must approve like any policy.
+  'set_program_diet_phase',
   'set_program_plan_sync',
   // A TM change rewrites every derived load on the exercise — a mutation the
   // owner must approve like any other patch op.

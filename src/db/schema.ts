@@ -22,6 +22,7 @@ import type {
   MetricMode,
   ProgramVisibility,
   DeloadPolicy,
+  DietPhase,
 } from '@/lib/program-input'
 import type { AutoregStallPolicy } from '@/lib/autoregulate'
 import type { ExerciseSource, ExerciseCategory } from '@/lib/custom-exercise-input'
@@ -591,6 +592,19 @@ export const programs = pgTable(
     // none), so existing programs derive byte-identically. Narrow,
     // boundary-validated JSONB like `progression` below.
     deloadPolicy: jsonb('deload_policy').$type<DeloadPolicy>(),
+    // Diet-phase context (lib/program-input.ts dietPhaseSchema): 'cutting' |
+    // 'maintaining' | 'bulking'. NULLABLE with no default and no backfill ON
+    // PURPOSE — null means "not a thing" and the engine derives byte-for-byte
+    // today's behavior. 'cutting' only ANNOTATES stall verdicts and gates the
+    // 3-stall auto-backoff into a confirmable proposal (loads never change
+    // from phase alone); 'maintaining'/'bulking' are stored context only in
+    // v1. Text + app-level union like `status`. NEVER copied by clone/adopt —
+    // phases don't cross training blocks.
+    dietPhase: text('diet_phase').$type<DietPhase>(),
+    // When the phase was last SET (any explicit write, including a null
+    // clear) — the minimal staleness signal, exposed via get_program so the
+    // coach can reason about "still cutting?" without a nag surface.
+    dietPhaseSetAt: timestamp('diet_phase_set_at', { withTimezone: true }),
     // Performance→plan auto-sync switch, default ON so fresh users never see
     // stale plans; off for deliberate-percentage programs (5/3/1-style waves)
     // where performed > listed is by design.

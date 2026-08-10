@@ -101,6 +101,7 @@ import {
   ProgramPatchError,
   setProgramAutoregulation,
   setProgramDeloadPolicy,
+  setProgramDietPhase,
   addProgramDay,
   updateProgramDay,
   removeProgramDay,
@@ -376,6 +377,57 @@ describe('setProgramDeloadPolicy', () => {
     selectQueue = [[]]
     expect(await setProgramDeloadPolicy(USER, PID, { mode: 'none' }, 'mcp')).toBeNull()
     expect(records).toHaveLength(0)
+  })
+})
+
+describe('setProgramDietPhase', () => {
+  const eventInsert = () =>
+    records.find((r) => r.op === 'insert:program_events')?.values as Record<string, unknown>
+  const programsUpdate = () =>
+    records.find((r) => r.op === 'update:programs')?.values as Record<string, unknown>
+
+  it('writes the phase, stamps set_at, and logs the event', async () => {
+    // Reads: owned-program
+    selectQueue = [[{ id: PID }]]
+
+    const result = await setProgramDietPhase(USER, PID, 'cutting', 'coach')
+
+    expect(result).toEqual({ id: PID })
+    expect(programsUpdate()).toMatchObject({ dietPhase: 'cutting' })
+    expect(programsUpdate().dietPhaseSetAt).toBeInstanceOf(Date)
+    expect(eventInsert()).toMatchObject({
+      actor: 'coach',
+      action: 'set_program_diet_phase',
+      summary: 'Diet phase: cutting',
+      payload: { after: { dietPhase: 'cutting' } },
+    })
+  })
+
+  it('clears with null — and the clear STILL stamps set_at (a clear is a statement too)', async () => {
+    selectQueue = [[{ id: PID }]]
+
+    await setProgramDietPhase(USER, PID, null, 'ui')
+
+    expect(programsUpdate().dietPhase).toBeNull()
+    expect(programsUpdate().dietPhaseSetAt).toBeInstanceOf(Date)
+    expect(eventInsert()).toMatchObject({
+      action: 'set_program_diet_phase',
+      summary: 'Diet phase cleared',
+      payload: { after: { dietPhase: null } },
+    })
+  })
+
+  it('rejects anything outside the union before touching the db', async () => {
+    await expect(setProgramDietPhase(USER, PID, 'shredding' as never, 'mcp')).rejects.toThrow(
+      ProgramPatchError,
+    )
+    expect(records).toHaveLength(0)
+  })
+
+  it('returns null (no write, no event) when the program is not owned', async () => {
+    selectQueue = [[]]
+    expect(await setProgramDietPhase(USER, PID, 'bulking', 'mcp')).toBeNull()
+    expect(records.find((r) => r.op === 'insert:program_events')).toBeUndefined()
   })
 })
 

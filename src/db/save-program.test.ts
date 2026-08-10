@@ -654,6 +654,68 @@ describe('stall policy integrity', () => {
   })
 })
 
+describe('diet phase integrity', () => {
+  const MINIMAL = {
+    name: 'P',
+    days: [{ name: 'D', exercises: [{ wgerExerciseId: 1, name: 'X', sets: [{}] }] }],
+  }
+
+  it('saveProgram leaves an omitted phase unset at create (null = not a thing)', async () => {
+    // Act
+    await saveProgram(USER, parseProgramInput(MINIMAL), 'ui')
+
+    // Assert — no materialized value, no set_at stamp: absence stays absence
+    const values = records[0].values as Record<string, unknown>
+    expect('dietPhase' in values).toBe(false)
+    expect('dietPhaseSetAt' in values).toBe(false)
+  })
+
+  it('saveProgram writes an explicit phase through at create and stamps set_at', async () => {
+    // Act
+    await saveProgram(USER, parseProgramInput({ ...MINIMAL, dietPhase: 'cutting' }), 'ui')
+
+    // Assert
+    const values = records[0].values as Record<string, unknown>
+    expect(values).toMatchObject({ dietPhase: 'cutting' })
+    expect(values.dietPhaseSetAt).toBeInstanceOf(Date)
+  })
+
+  it('updateProgram PRESERVES the stored phase when the input omits it', async () => {
+    // Arrange — an upsert that never mentions the phase: a stored 'cutting'
+    // must survive the round trip.
+    const input = parseProgramInput(MINIMAL)
+
+    // Act
+    await updateProgram(USER, 'p1', input, 'mcp')
+
+    // Assert — the update payload does not touch the columns at all
+    expect(updateSets).toHaveLength(1)
+    expect('dietPhase' in (updateSets[0] as Record<string, unknown>)).toBe(false)
+    expect('dietPhaseSetAt' in (updateSets[0] as Record<string, unknown>)).toBe(false)
+  })
+
+  it('updateProgram writes an explicit phase through (set_at as change-gated SQL)', async () => {
+    // Act
+    await updateProgram(USER, 'p1', parseProgramInput({ ...MINIMAL, dietPhase: 'bulking' }), 'ui')
+
+    // Assert — set_at rides as SQL (bumps only when the value CHANGES, so an
+    // unchanged full-replace round-trip never fakes freshness)
+    const values = updateSets[0] as Record<string, unknown>
+    expect(values).toMatchObject({ dietPhase: 'bulking' })
+    expect('dietPhaseSetAt' in values).toBe(true)
+  })
+
+  it('updateProgram clears the phase with an explicit null', async () => {
+    // Act
+    await updateProgram(USER, 'p1', parseProgramInput({ ...MINIMAL, dietPhase: null }), 'ui')
+
+    // Assert — clearing is a change: the column is written and set_at rides
+    const values = updateSets[0] as Record<string, unknown>
+    expect(values.dietPhase).toBeNull()
+    expect('dietPhaseSetAt' in values).toBe(true)
+  })
+})
+
 describe('planSync toggle integrity', () => {
   const MINIMAL = {
     name: 'P',

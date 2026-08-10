@@ -38,6 +38,7 @@ function day(options: {
   stallPolicy?: AutoregStallPolicy
   deloadWeek?: number | null
   deloadPolicy?: DayForDerivation['program']['deloadPolicy']
+  dietPhase?: DayForDerivation['program']['dietPhase']
   overrides?: { week: number; [key: string]: unknown }[]
   duplicateSlot?: boolean
   repRange?: boolean
@@ -78,6 +79,7 @@ function day(options: {
       autoregulation: options.autoregulation ?? true,
       autoregStallPolicy: options.stallPolicy ?? 'all-sets',
       deloadPolicy: options.deloadPolicy ?? null,
+      dietPhase: options.dietPhase ?? null,
     },
     exercises: options.duplicateSlot ? [exercise, { ...exercise }] : [exercise],
   }
@@ -188,6 +190,79 @@ describe('deriveDayPrescription auto-regulation', () => {
     expect(exercise.sets[0].loadKg).toBe(90)
     expect(exercise.sets[0].derivedFrom).toBe('autoreg')
     expect(exercise.autoreg).toMatchObject({ action: 'decrement', suggestEarlyDeload: true })
+  })
+
+  it("diet phase 'cutting' HOLDS the three-stall backoff (repeat at the stalled load, cut carried)", async () => {
+    // Arrange — the exact decrement fixture above, on a cutting program
+    trainedSessions.mockResolvedValue([
+      trained('w3', 3, [6, 6, 5], 100),
+      trained('w2', 2, [6, 6, 5], 100),
+      trained('w1', 1, [6, 6, 7], 100),
+    ])
+
+    // Act
+    const [exercise] = await deriveDayPrescription(USER, day({ dietPhase: 'cutting' }), 4)
+
+    // Assert — the load HOLDS at the stalled 100 (never 90): the backoff is
+    // held behind the reactive-proposal confirm, and the verdict says so.
+    expect(exercise.sets[0].loadKg).toBe(100)
+    expect(exercise.autoreg).toMatchObject({
+      action: 'repeat',
+      deltaKg: 0,
+      suggestEarlyDeload: true,
+      phaseContext: 'cutting',
+      heldBackoffKg: 10,
+    })
+  })
+
+  it("diet phase 'cutting' annotates the M4 flag without suppressing it", async () => {
+    // Arrange — the percent-1rm three-stall history that flags
+    trainedSessions.mockResolvedValue([
+      trained('w3', 3, [5, 5, 5], 80),
+      trained('w2', 2, [5, 5, 5], 75),
+      trained('w1', 1, [5, 5, 5], 70),
+    ])
+
+    // Act
+    const [exercise] = await deriveDayPrescription(
+      USER,
+      day({
+        progression: {
+          scheme: 'percent-1rm',
+          trainingMaxKg: 100,
+          weekPercents: [0.7, 0.75, 0.8, 0.85],
+        },
+        dietPhase: 'cutting',
+      }),
+      4,
+    )
+
+    // Assert — still a flag (annotate, never suppress), loads untouched
+    expect(exercise.autoreg).toMatchObject({
+      action: 'flag',
+      suggestEarlyDeload: true,
+      phaseContext: 'cutting',
+    })
+    expect(exercise.sets.map((s) => s.loadKg)).toEqual([85, 85, 85])
+  })
+
+  it("'bulking'/'maintaining' have ZERO engine effect (byte-identical to no phase)", async () => {
+    // Arrange
+    const history = [
+      trained('w3', 3, [6, 6, 5], 100),
+      trained('w2', 2, [6, 6, 5], 100),
+      trained('w1', 1, [6, 6, 7], 100),
+    ]
+    trainedSessions.mockResolvedValue(history)
+
+    // Act — the same derivation under no phase and under each stored-only phase
+    const [bare] = await deriveDayPrescription(USER, day({}), 4)
+    const [bulking] = await deriveDayPrescription(USER, day({ dietPhase: 'bulking' }), 4)
+    const [maintaining] = await deriveDayPrescription(USER, day({ dietPhase: 'maintaining' }), 4)
+
+    // Assert — deep-identical results: stored context only in v1
+    expect(bulking).toEqual(bare)
+    expect(maintaining).toEqual(bare)
   })
 
   it('H2: stalls at three DIFFERENT prescribed loads never escalate to a decrement', async () => {

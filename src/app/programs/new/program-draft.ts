@@ -1,5 +1,6 @@
 import type {
   DeloadPolicy,
+  DietPhase,
   MetricMode,
   ProgramInput,
   ProgramInputUnparsed,
@@ -106,6 +107,9 @@ export interface ProgramDraft {
    *  read-time resolver keeps legacy behavior; the mode picker shows the
    *  RESOLVED mode but only writes a policy when the user picks one. */
   deloadPolicy: DeloadPolicy | null
+  /** Diet-phase context (see programs.dietPhase). Null = None (the default
+   *  forever) — no phase, byte-identical engine behavior. */
+  dietPhase: DietPhase | null
   /** Performance→plan auto-sync switch (see programs.planSync). */
   planSync: boolean
   /** Suggested body check-in cadence in days as an input string; blank = no
@@ -133,6 +137,7 @@ export type ProgramDraftAction =
   | { type: 'SET_AUTOREGULATION'; value: boolean }
   | { type: 'SET_AUTOREG_STALL_POLICY'; value: AutoregStallPolicy }
   | { type: 'SET_DELOAD_POLICY'; value: DeloadPolicy }
+  | { type: 'SET_DIET_PHASE'; value: DietPhase | null }
   | { type: 'SET_PLAN_SYNC'; value: boolean }
   | { type: 'ADD_DAY'; day: DraftProgramDay }
   | { type: 'REMOVE_DAY'; index: number }
@@ -161,6 +166,7 @@ export const emptyProgramDraft: ProgramDraft = {
   autoregulation: true,
   autoregStallPolicy: 'all-sets',
   deloadPolicy: null,
+  dietPhase: null,
   planSync: true,
   checkInEveryDays: '',
   days: [],
@@ -263,6 +269,9 @@ export function programDraftReducer(
 
     case 'SET_DELOAD_POLICY':
       return { ...state, deloadPolicy: action.value }
+
+    case 'SET_DIET_PHASE':
+      return { ...state, dietPhase: action.value }
 
     case 'SET_PLAN_SYNC':
       return { ...state, planSync: action.value }
@@ -464,6 +473,10 @@ function isProgramDraft(v: unknown): v is ProgramDraft {
     (d.deloadPolicy === undefined ||
       d.deloadPolicy === null ||
       typeof d.deloadPolicy === 'object') &&
+    // Tolerate a missing/loose dietPhase: pre-phase envelopes predate the
+    // field; parseStoredProgramDraft backfills null (lenient-mapper policy —
+    // the server union rejects junk values at save time).
+    (d.dietPhase === undefined || d.dietPhase === null || typeof d.dietPhase === 'string') &&
     typeof d.planSync === 'boolean' &&
     // Tolerate a missing checkInEveryDays: pre-cadence envelopes predate the
     // field; parseStoredProgramDraft backfills '' (same policy as weekdays).
@@ -507,6 +520,8 @@ export function parseStoredProgramDraft(raw: string, now: Date): ProgramDraft | 
     autoregStallPolicy: envelope.draft.autoregStallPolicy ?? 'all-sets',
     // Pre-deload-policy snapshots restore on legacy resolution, not discarded.
     deloadPolicy: envelope.draft.deloadPolicy ?? null,
+    // Pre-diet-phase snapshots restore phase-less, not discarded.
+    dietPhase: envelope.draft.dietPhase ?? null,
     // Pre-article-metadata snapshots restore with the fields absent → null.
     description: envelope.draft.description ?? null,
     icon: envelope.draft.icon ?? null,
@@ -637,6 +652,11 @@ export function draftToProgramInput(
     // mode persists. Full-replace safe: the draft always carries the stored
     // value via detailToProgramDraft.
     deloadPolicy: draft.deloadPolicy,
+    // Null round-trips to null when nothing was ever set; picking None on a
+    // phased program sends an explicit null, which clears (full-replace
+    // safe: the draft always carries the stored value via
+    // detailToProgramDraft, same as deloadPolicy above).
+    dietPhase: draft.dietPhase,
     planSync: draft.planSync,
     // Blank = clear the suggestion (explicit null — the builder always shows
     // the stored value, so a full replace saying null MEANS off). An
@@ -712,6 +732,7 @@ export function detailToProgramDraft(
     autoregulation: detail.autoregulation,
     autoregStallPolicy: detail.autoregStallPolicy,
     deloadPolicy: detail.deloadPolicy,
+    dietPhase: detail.dietPhase,
     planSync: detail.planSync,
     checkInEveryDays: detail.checkInEveryDays?.toString() ?? '',
     status: toStatus(detail.status),

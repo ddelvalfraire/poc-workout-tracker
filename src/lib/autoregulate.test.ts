@@ -6,6 +6,7 @@ import {
   autoregulateEarlyDeload,
   autoregReason,
   applyAutoregToSets,
+  applyDietPhaseToAdjustment,
   backoffKg,
   sessionBeatsTop,
   sessionStall,
@@ -549,6 +550,109 @@ describe('autoregReason', () => {
       seq(session([6, 5, 8]), session([6, 6, 6]), session([5, 6, 6])), 'all-sets')!
     expect(autoregReason(adjustment, 'kg')).toBe(
       'Third straight stall at 100 kg — backing off 10 kg (~10%)',
+    )
+  })
+})
+
+describe('applyDietPhaseToAdjustment (diet-phase gate)', () => {
+  const threeStalls = () =>
+    autoregulate(2.5, seq(session([6, 5, 8]), session([6, 6, 6]), session([5, 6, 6])), 'all-sets')!
+
+  it('is the IDENTITY for null / maintaining / bulking (byte-identity guarantee)', () => {
+    const adjustment = threeStalls()
+    expect(applyDietPhaseToAdjustment(adjustment, null)).toBe(adjustment)
+    expect(applyDietPhaseToAdjustment(adjustment, 'maintaining')).toBe(adjustment)
+    expect(applyDietPhaseToAdjustment(adjustment, 'bulking')).toBe(adjustment)
+    expect(applyDietPhaseToAdjustment(null, 'cutting')).toBeNull()
+  })
+
+  it('cutting HOLDS the H2 auto-backoff: repeat at the stalled load, backoff carried', () => {
+    // Arrange — the third-stall decrement (−10 kg off 100)
+    const decrement = threeStalls()
+    expect(decrement.action).toBe('decrement')
+
+    // Act
+    const held = applyDietPhaseToAdjustment(decrement, 'cutting')!
+
+    // Assert — annotate-never-suppress: the flag stays, the cut is held
+    expect(held).toMatchObject({
+      action: 'repeat',
+      deltaKg: 0,
+      suggestEarlyDeload: true,
+      phaseContext: 'cutting',
+      heldBackoffKg: 10,
+    })
+    // The applied prescription HOLDS (caps at the stalled 100), never cuts.
+    const sets: DerivedSet[] = [
+      {
+        setNumber: 1,
+        setType: 'working',
+        metricMode: 'reps_weight',
+        repMin: 8,
+        repMax: null,
+        rir: null,
+        rpe: null,
+        loadKg: 102.5,
+        tempo: null,
+        durationSec: null,
+        distanceM: null,
+        restSec: null,
+        technique: null,
+        derivedFrom: 'scheme',
+        sourceIndex: 0,
+      },
+    ]
+    expect(applyAutoregToSets(sets, held)[0].loadKg).toBe(100)
+  })
+
+  it('cutting ANNOTATES the M4 flag without suppressing it (loads untouched either way)', () => {
+    const flag = autoregulateEarlyDeload(
+      seq(session([6, 5, 8]), session([6, 6, 6]), session([5, 6, 6])),
+      'all-sets',
+    )!
+    const annotated = applyDietPhaseToAdjustment(flag, 'cutting')!
+    expect(annotated).toMatchObject({
+      action: 'flag',
+      deltaKg: 0,
+      suggestEarlyDeload: true,
+      phaseContext: 'cutting',
+    })
+    expect(annotated.heldBackoffKg).toBeUndefined()
+  })
+
+  it('cutting annotates a plain repeat and passes step/anchor through untouched', () => {
+    const repeat = autoregulate(2.5, [session([6, 5, 8])], 'all-sets')!
+    expect(applyDietPhaseToAdjustment(repeat, 'cutting')).toMatchObject({
+      action: 'repeat',
+      phaseContext: 'cutting',
+    })
+    // A filled range steps regardless of phase — progress is progress.
+    const step = autoregulateRange(2.5, [ranged([12, 12, 12])], ROWS)!
+    expect(step.action).toBe('step')
+    expect(applyDietPhaseToAdjustment(step, 'cutting')).toBe(step)
+  })
+
+  it('reason lines: holding-is-the-win framing, never a strength-impairment claim', () => {
+    const held = applyDietPhaseToAdjustment(threeStalls(), 'cutting')!
+    expect(autoregReason(held, 'kg')).toBe(
+      '3 stalls at 100 kg — expected while cutting; holding is the win. Deload only if sessions feel grindy',
+    )
+    const flag = applyDietPhaseToAdjustment(
+      autoregulateEarlyDeload(
+        seq(session([6, 5, 8]), session([6, 6, 6]), session([5, 6, 6])),
+        'all-sets',
+      ),
+      'cutting',
+    )!
+    expect(autoregReason(flag, 'kg')).toBe(
+      '3 stalls at 100 kg — expected while cutting; holding is the win. Deload only if sessions feel grindy',
+    )
+    const repeat = applyDietPhaseToAdjustment(
+      autoregulate(2.5, [session([6, 5, 8])], 'all-sets'),
+      'cutting',
+    )!
+    expect(autoregReason(repeat, 'kg')).toBe(
+      'Missed 8 reps on 2 of 3 sets at 100 kg — repeating the load (expected while cutting)',
     )
   })
 })

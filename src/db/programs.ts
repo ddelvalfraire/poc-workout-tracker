@@ -1,6 +1,6 @@
 import { and, asc, count, countDistinct, desc, eq, isNotNull, isNull, max, ne, sql } from 'drizzle-orm'
 import { cache } from 'react'
-import type { DeloadPolicy, ProgramInput, Progression } from '@/lib/program-input'
+import type { DeloadPolicy, DietPhase, ProgramInput, Progression } from '@/lib/program-input'
 import type { ExerciseSource } from '@/lib/custom-exercise-input'
 import { getAllExercises, type Exercise } from '@/lib/wger'
 import {
@@ -26,6 +26,7 @@ import {
   autoregulateAnchor,
   autoregulateEarlyDeload,
   applyAutoregToSets,
+  applyDietPhaseToAdjustment,
   AUTOREG_DEFAULT_STEP_KG,
   type AutoregAdjustment,
   type AutoregRangeRow,
@@ -299,6 +300,11 @@ export async function saveProgram(
         // Omitted on create = null (legacy read-time resolution — see
         // resolveDeloadPolicy). Same no-materialization discipline.
         ...(input.deloadPolicy !== undefined ? { deloadPolicy: input.deloadPolicy } : {}),
+        // Diet phase: omitted/null on create = no phase (null IS the off
+        // state). An explicit phase stamps set_at — the staleness anchor.
+        ...(input.dietPhase !== undefined && input.dietPhase !== null
+          ? { dietPhase: input.dietPhase, dietPhaseSetAt: new Date() }
+          : {}),
         // Same omitted-on-create = ON rule: default-on keeps fresh users'
         // plans tracking what they actually lift.
         planSync: input.planSync ?? true,
@@ -476,6 +482,16 @@ export async function updateProgram(
         // Same preserve rule for the deload policy; explicit null clears it
         // back to legacy read-time resolution.
         ...(input.deloadPolicy !== undefined ? { deloadPolicy: input.deloadPolicy } : {}),
+        // Same preserve rule for the diet phase; explicit null clears it.
+        // set_at bumps ONLY when the stored value actually changes (IS
+        // DISTINCT FROM — null-safe), so a full-replace save that round-trips
+        // an unchanged phase never fakes freshness on the staleness signal.
+        ...(input.dietPhase !== undefined
+          ? {
+              dietPhase: input.dietPhase,
+              dietPhaseSetAt: sql`case when ${programs.dietPhase} is distinct from ${input.dietPhase ?? null} then now() else ${programs.dietPhaseSetAt} end`,
+            }
+          : {}),
         ...(input.planSync !== undefined ? { planSync: input.planSync } : {}),
         // Same preserve rule for the check-in cadence; explicit null clears it.
         ...(input.checkInEveryDays !== undefined
@@ -785,6 +801,10 @@ export async function cloneProgram(
         autoregulation: source.autoregulation,
         autoregStallPolicy: source.autoregStallPolicy,
         deloadPolicy: source.deloadPolicy,
+        // dietPhase / dietPhaseSetAt deliberately do NOT travel: a phase is a
+        // fact about the lifter's CURRENT diet, not about the plan — a new
+        // block starts phase-less until the owner says otherwise (same
+        // rationale in adoptTemplate/adoptShared).
         planSync: source.planSync,
         checkInEveryDays: source.checkInEveryDays,
         notes: source.notes,
@@ -957,7 +977,7 @@ export async function getProgramDayDetail(userId: string, programDayId: string) 
         // 'proposed' plan instantiates nothing until the owner adopts it.
         // planSync rides along for the post-finish auto-sync gate
         // (lib/auto-plan-sync) — same read, no extra round-trip.
-        columns: { id: true, userId: true, status: true, mesocycleWeeks: true, deloadWeek: true, autoregulation: true, autoregStallPolicy: true, deloadPolicy: true, planSync: true },
+        columns: { id: true, userId: true, status: true, mesocycleWeeks: true, deloadWeek: true, autoregulation: true, autoregStallPolicy: true, deloadPolicy: true, dietPhase: true, planSync: true },
       },
       exercises: {
         orderBy: (e) => [asc(e.position)],
@@ -1257,6 +1277,12 @@ export interface DayForDerivation {
      *  resolved ONCE per derivation via resolveDeloadPolicy. Required so
      *  every caller reads the program row's policy, like the stall policy. */
     deloadPolicy: DeloadPolicy | null
+    /** Raw programs.diet_phase column (null = no phase — byte-identical
+     *  derivation). Required so every caller reads the program row's phase,
+     *  like the policies above; only 'cutting' has any effect, and only as
+     *  a verdict ANNOTATION/hold (applyDietPhaseToAdjustment) — never a
+     *  load change. */
+    dietPhase: DietPhase | null
   }
 }
 
@@ -1480,6 +1506,11 @@ export async function deriveDayPrescription(
               : plan.mode === 'anchor'
                 ? autoregulateAnchor(sessions)
                 : autoregulateEarlyDeload(sessions, day.program.autoregStallPolicy)
+        // Diet-phase gate (Part A): verdict math above is phase-blind; only
+        // now does a 'cutting' program annotate the verdict (and hold an H2
+        // auto-backoff behind a confirmable proposal). A null phase returns
+        // the identical object — byte-identity for phase-less programs.
+        adjustment = applyDietPhaseToAdjustment(adjustment, day.program.dietPhase)
         adjustmentByKey.set(key, adjustment)
       }
     }

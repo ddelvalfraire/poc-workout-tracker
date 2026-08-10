@@ -269,6 +269,22 @@ describe('cloneProgram (row-for-row fidelity)', () => {
     expect(records[0].values).not.toHaveProperty('visibility')
   })
 
+  it('CLEARS the diet phase — phases never cross training blocks', async () => {
+    // Arrange — a mid-cut source: the clone starts phase-less regardless
+    findFirst.mockResolvedValue({
+      ...maximalDetail(),
+      dietPhase: 'cutting',
+      dietPhaseSetAt: new Date('2026-01-01T00:00:00Z'),
+    })
+
+    // Act
+    await cloneProgram(USER, 'src1', 'mcp')
+
+    // Assert — absent keys land the null column default (no phase, no stamp)
+    expect(records[0].values).not.toHaveProperty('dietPhase')
+    expect(records[0].values).not.toHaveProperty('dietPhaseSetAt')
+  })
+
   it('refuses to clone a proposed program (no adopt-by-clone laundering)', async () => {
     // Arrange — a proposal: cloning it would mint an owner-authored twin
     // with no adopt event, bypassing the forced confirm
