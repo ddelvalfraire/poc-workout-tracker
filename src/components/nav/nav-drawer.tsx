@@ -55,8 +55,51 @@ import { cn } from '@/lib/utils'
  * because a status read did.
  */
 
-/** How long a fetched drawer snapshot counts as fresh on reopen. */
+/** How long a fetched drawer snapshot counts as fresh on reopen. Mirrors the
+ *  provider-wide default in app/providers.tsx — stated here explicitly so the
+ *  drawer's reopen contract survives a provider retune. */
 const DRAWER_STALE_MS = 30_000
+
+/** What an open (or reopen) of the drawer must do — pure so the reopen
+ *  contract is unit-testable without a DOM. */
+export interface DrawerOpenPlan {
+  /** This open began without data → ghosts now, arrival animation on load. */
+  openedPending: boolean
+  /** First open ever: enable the query (the open-triggered cold fetch). */
+  enableQuery: boolean
+  /** Reopen past staleTime: revalidate in the background — the cached rows
+   *  stay rendered (openedPending false → no ghosts, no arrival replay). */
+  refetchInBackground: boolean
+}
+
+export function planDrawerOpen(args: {
+  hasOpened: boolean
+  hasData: boolean
+  isStale: boolean
+}): DrawerOpenPlan {
+  return {
+    openedPending: !args.hasData,
+    enableQuery: !args.hasOpened,
+    refetchInBackground: args.hasOpened && args.isStale,
+  }
+}
+
+/** The status line's arrival treatment: rise-in (staggered with its row) only
+ *  when the data landed DURING this open — a cached reopen renders statically
+ *  so the arrival never replays. Exported for the keying tests. */
+export function statusArrival(
+  openedPending: boolean,
+  index: number,
+): { className: string; style?: React.CSSProperties } {
+  if (!openedPending) return { className: 'block' }
+  return {
+    className: 'block motion-safe:animate-rise-in',
+    style: {
+      animationDelay: `${index * ROW_STAGGER_MS}ms`,
+      animationFillMode: 'backwards',
+    },
+  }
+}
 
 async function fetchDrawerData(signal: AbortSignal): Promise<DrawerData> {
   const res = await fetch('/api/drawer', { signal })
@@ -153,15 +196,13 @@ export function NavDrawer() {
   function handleOpenChange(open: boolean): void {
     setIsOpen(open)
     if (!open) return
+    const plan = planDrawerOpen({ hasOpened, hasData: data !== null, isStale })
     // Snapshot whether THIS open starts pending — the arrival animation's key.
-    setOpenedPending(data === null)
-    if (!hasOpened) {
-      setHasOpened(true) // first open: enables the query (cold fetch → ghosts)
-      return
-    }
+    setOpenedPending(plan.openedPending)
+    if (plan.enableQuery) setHasOpened(true) // first open: cold fetch → ghosts
     // Reopen: serve the cache instantly; only a stale snapshot revalidates,
     // in the background, with the rendered rows staying put.
-    if (isStale) void refetch()
+    if (plan.refetchInBackground) void refetch()
   }
 
   // Same instantiate-then-navigate discipline as StartDayButton: await the
@@ -445,20 +486,7 @@ export function NavDrawer() {
                             // PLACE, reusing the rows' own stagger — but only
                             // when the data landed DURING this open. A cached
                             // reopen renders statically (no arrival replay).
-                            <span
-                              className={cn(
-                                'block',
-                                openedPending && 'motion-safe:animate-rise-in',
-                              )}
-                              style={
-                                openedPending
-                                  ? {
-                                      animationDelay: `${index * ROW_STAGGER_MS}ms`,
-                                      animationFillMode: 'backwards',
-                                    }
-                                  : undefined
-                              }
-                            >
+                            <span {...statusArrival(openedPending, index)}>
                               {statusLine !== null && (
                                 <span className="mt-0.5 block truncate text-xs text-muted-foreground tnum">
                                   {statusLine}
