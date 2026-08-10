@@ -82,6 +82,22 @@ export function listPrograms(userId: string) {
     .orderBy(desc(programs.updatedAt))
 }
 
+/** The user's outstanding program proposals (status 'proposed'), newest
+ *  first — the coach's own drafts inbox for `list_proposals`. Read-only:
+ *  adopt/decline stay owner-only server actions. */
+export function listProposals(userId: string) {
+  return db
+    .select({
+      id: programs.id,
+      name: programs.name,
+      createdAt: programs.createdAt,
+      authorActor: programs.authorActor,
+    })
+    .from(programs)
+    .where(and(eq(programs.userId, userId), eq(programs.status, 'proposed')))
+    .orderBy(desc(programs.createdAt))
+}
+
 /** Fetches a single program with its days/exercises (incl. muscle tags)/sets
  *  (incl. per-week overrides), only if owned by the user. */
 export function getProgramDetail(userId: string, id: string) {

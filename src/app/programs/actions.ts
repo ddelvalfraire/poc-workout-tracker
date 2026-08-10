@@ -20,6 +20,7 @@ import {
 } from '@/db/programs'
 import { setProgramVisibility, createShare, revokeShare } from '@/db/program-shares'
 import { setTrainingMax } from '@/db/program-patches'
+import { confirmPatchProposal, declinePatchProposal } from '@/db/patch-proposals'
 
 /**
  * Validates and persists a new program for the signed-in user, returning its id.
@@ -124,6 +125,39 @@ export async function declineProgramAction(id: unknown): Promise<void> {
   const result = await declineProgram(userId, id)
   if (!result) throw new Error('proposal not found')
   revalidatePath('/programs')
+}
+
+/**
+ * The owner's single combined confirm on a batch-patch proposal: every stored
+ * patch is applied atomically through the event-logged patch functions (the db
+ * layer re-validates and rolls the lot back on any mismatch — apply ALL or
+ * apply NOTHING). A null result means not owned / not pending; a
+ * PatchProposalError (program drifted) surfaces its owner-safe message to the
+ * client's try/catch.
+ */
+export async function confirmPatchProposalAction(id: unknown): Promise<{ applied: number }> {
+  const userId = await requireUserId()
+  if (typeof id !== 'string' || id.length === 0) throw new Error('invalid proposal id')
+  const result = await confirmPatchProposal(userId, id)
+  if (!result) throw new Error('proposal not found')
+  revalidatePath('/programs')
+  revalidatePath(`/programs/${result.programId}`)
+  return { applied: result.applied }
+}
+
+/**
+ * The owner's reject on a batch-patch proposal: hard-deletes the pending row
+ * (decline discards; the decline event stays in the change log). Returns void —
+ * the card refreshes in place; no redirect() (same try/catch rationale as
+ * declineProgramAction).
+ */
+export async function declinePatchProposalAction(id: unknown): Promise<void> {
+  const userId = await requireUserId()
+  if (typeof id !== 'string' || id.length === 0) throw new Error('invalid proposal id')
+  const result = await declinePatchProposal(userId, id)
+  if (!result) throw new Error('proposal not found')
+  revalidatePath('/programs')
+  revalidatePath(`/programs/${result.programId}`)
 }
 
 /**

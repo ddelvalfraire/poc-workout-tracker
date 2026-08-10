@@ -25,6 +25,7 @@ import {
   setProgramStatus,
   cloneProgram,
   listPrograms,
+  listProposals,
   getProgramDetail,
   instantiateProgramDay,
   nextProgramWeek,
@@ -33,6 +34,7 @@ import {
   type ProgramDayDetail,
 } from '@/db/programs'
 import { NotCoachProposalError, ProposedProgramError } from '@/db/program-errors'
+import { listPatchProposals } from '@/db/patch-proposals'
 import { getWeightUnit } from '@/db/preferences'
 
 /** Optional explicit unit override; absent → the user's stored unit. */
@@ -601,6 +603,44 @@ export function registerProgramTools(server: McpServer): void {
             deloadWeek: r.deloadWeek,
             createdAt: r.createdAt.toISOString(),
             updatedAt: r.updatedAt.toISOString(),
+          })),
+        })
+      } catch (error: unknown) {
+        return errorResult(error)
+      }
+    },
+  )
+
+  server.registerTool(
+    'list_proposals',
+    {
+      title: 'List Proposals',
+      description:
+        "Lists the user's outstanding proposals awaiting the owner's decision (newest first): proposed PROGRAMS (status 'proposed', e.g. coach drafts from upsert_program) and pending batch CHANGE proposals on active programs (from propose_program_patches). Read-only — adopt/confirm/decline are owner-only in the app; nothing here can resolve one.",
+      inputSchema: { userId: z.string().optional() },
+    },
+    async ({ userId }, extra) => {
+      try {
+        const resolved = resolveUserId(extra, userId)
+        const [programRows, patchRows] = await Promise.all([
+          listProposals(resolved),
+          listPatchProposals(resolved),
+        ])
+        return jsonResult({
+          userId: resolved,
+          programProposals: programRows.map((r) => ({
+            id: r.id,
+            name: r.name,
+            createdAt: r.createdAt.toISOString(),
+            authorActor: r.authorActor,
+          })),
+          patchProposals: patchRows.map((r) => ({
+            id: r.id,
+            programId: r.programId,
+            summary: r.summary,
+            patchCount: r.patches.length,
+            createdAt: r.createdAt.toISOString(),
+            authorActor: r.authorActor,
           })),
         })
       } catch (error: unknown) {

@@ -43,7 +43,12 @@ const AUTO_TOOL_LABELS: Record<string, { running: string; done: string }> = {
     done: 'Checked your custom exercises',
   },
   preview_program_week: { running: 'Previewing the week', done: 'Previewed the week' },
+  list_proposals: {
+    running: 'Checking outstanding proposals',
+    done: 'Checked outstanding proposals',
+  },
   upsert_program: { running: 'Drafting your program', done: 'Drafted a program' },
+  propose_program_patches: { running: 'Proposing plan changes', done: 'Proposed plan changes' },
 }
 
 export type ToolPhase = 'running' | 'done' | 'failed'

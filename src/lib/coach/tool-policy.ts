@@ -38,6 +38,9 @@ export const COACH_READ_TOOLS = [
   // Read-only by construction too — goals have no MCP write tools in v1, so
   // the coach can reference targets/streaks freely, never set them.
   'list_goals',
+  // Read-only by construction: adopt/confirm/decline are owner-only server
+  // actions, so listing outstanding proposals can never resolve one.
+  'list_proposals',
 ] as const
 
 /** Granular program patch tools — allowed, but gated behind user approval. */
@@ -71,7 +74,14 @@ export const COACH_APPROVAL_TOOLS = [
  * authorActor='coach' and scopes replaces to the coach's own still-proposed
  * drafts (src/db/programs.ts). Adoption stays owner-only on the program page.
  */
-export const COACH_DRAFT_TOOLS = ['upsert_program'] as const
+export const COACH_DRAFT_TOOLS = [
+  'upsert_program',
+  // Same safe-by-construction rationale: the db layer stores a batch of
+  // patch ops as an INERT pending proposal (db/patch-proposals.ts) — nothing
+  // applies until the owner's single combined confirm on the program page,
+  // so an in-chat approval on top would be a double confirm.
+  'propose_program_patches',
+] as const
 
 /**
  * Tools the coach must never see. Kept as an explicit list (not just "whatever

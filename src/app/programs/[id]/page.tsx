@@ -37,6 +37,11 @@ import {
   groupEventsByDay,
 } from './detail-view'
 import { kgToDisplay } from '@/lib/units'
+import { listPatchProposals } from '@/db/patch-proposals'
+import { describeToolCall } from '@/lib/coach/describe-tool-call'
+import { patchForDisplay } from '@/lib/patch-proposal'
+import { proposalAgeLine } from '../list-view'
+import { PatchProposalCard } from './patch-proposal-card'
 import { TmResetButton } from './tm-reset-button'
 import { topPRs } from './stats/stats-view'
 import { StartDayButton } from './start-day-button'
@@ -87,6 +92,7 @@ export default async function ProgramDetailPage({
     programWorkouts,
     changeEvents,
     activeShare,
+    patchProposals,
   ] = await Promise.all([
     programWeekState(userId, program.id, program.mesocycleWeeks),
     getNextProgramDay(userId),
@@ -96,6 +102,8 @@ export default async function ProgramDetailPage({
     listProgramEvents(userId, program.id, { limit: CHANGE_LOG_LIMIT }),
     // The live share token for the sharing UI's copy-link (null until minted).
     getActiveShare(userId, program.id),
+    // Pending batch-patch proposals awaiting the owner's combined confirm.
+    listPatchProposals(userId, program.id),
   ])
   // The payoff moment costs an extra read, so only complete blocks pay it —
   // an incomplete block's page issues exactly the queries it always has.
@@ -318,6 +326,11 @@ export default async function ProgramDetailPage({
                   ? 'Proposed for you'
                   : 'Shared program'}
             </p>
+            {/* Staleness affordance: the proposal's age as muted words —
+                never an auto-expiry (a coach draft must not silently die). */}
+            <p className="mt-0.5 text-xs text-muted-foreground first-letter:uppercase">
+              {proposalAgeLine(program.createdAt, new Date())}
+            </p>
             <p className="mt-1 text-sm text-muted-foreground">
               Review the plan below, then adopt it as a draft, start it right away, or decline.
               Nothing trains until you confirm.
@@ -360,6 +373,30 @@ export default async function ProgramDetailPage({
             </Link>
           </div>
         </div>
+
+        {/* Batch-patch proposals (proposals plan §3): the chat approval-card
+            idiom on the program page — the proposal's summary, one sentence
+            diff per patch (describeToolCall over the stored kg-canonical args,
+            re-expressed in the user's unit), and ONE combined confirm. Only an
+            active program can carry these (the db layer gates propose AND
+            confirm), so they never render beside the adopt banner above. */}
+        {patchProposals.map((proposal) => (
+          <PatchProposalCard
+            key={proposal.id}
+            id={proposal.id}
+            eyebrow={
+              proposal.authorActor === 'coach'
+                ? 'Proposed by your coach'
+                : 'Proposed changes'
+            }
+            summary={proposal.summary}
+            ageLine={proposalAgeLine(proposal.createdAt, new Date())}
+            sentences={proposal.patches.map((patch) => {
+              const display = patchForDisplay(patch, unit)
+              return describeToolCall(display.tool, display.args)
+            })}
+          />
+        ))}
 
         {/* The block map, as the week switcher: every segment is a link (the
             browser owns the state — share, back button, reload all work), the

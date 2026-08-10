@@ -27,6 +27,7 @@ vi.mock('@/db/program-patches', () => {
   }
 })
 vi.mock('@/db/preferences', () => ({ getWeightUnit: vi.fn() }))
+vi.mock('@/db/patch-proposals', () => ({ createPatchProposal: vi.fn() }))
 
 import { registerProgramPatchTools } from './program-patch-tools'
 import {
@@ -50,6 +51,8 @@ import {
   setProgramPlanSync,
 } from '@/db/program-patches'
 import { getWeightUnit } from '@/db/preferences'
+import { createPatchProposal } from '@/db/patch-proposals'
+import { PatchProposalError } from '@/db/program-errors'
 import { displayToKg } from '@/lib/units'
 
 const mockedAddDay = vi.mocked(addProgramDay)
@@ -110,7 +113,7 @@ describe('registerProgramPatchTools', () => {
     else process.env.MCP_DEV_USER_ID = original
   })
 
-  it('registers exactly the eighteen program patch tools', () => {
+  it('registers exactly the nineteen program patch tools', () => {
     expect([...setup().keys()].sort()).toEqual([
       'add_program_day',
       'add_program_exercise',
@@ -118,6 +121,7 @@ describe('registerProgramPatchTools', () => {
       'move_program_day',
       'move_program_exercise',
       'move_program_set',
+      'propose_program_patches',
       'remove_program_day',
       'remove_program_exercise',
       'remove_program_set',
@@ -1003,6 +1007,127 @@ describe('registerProgramPatchTools', () => {
         dayPosition: 0,
         exercisePosition: 1,
       })
+    })
+  })
+
+  describe('propose_program_patches (batch proposals)', () => {
+    const mockedCreateProposal = vi.mocked(createPatchProposal)
+
+    it('converts load-bearing fields to kg, stamps unit, and stores one pending proposal', async () => {
+      // Arrange — stored unit lb (mockedGetUnit), no explicit unit arg
+      const tools = setup()
+      mockedCreateProposal.mockResolvedValue({ id: 'pp1' })
+
+      // Act
+      const result = await tools.get('propose_program_patches')!({
+        programId: PID,
+        summary: 'Add a chest set',
+        patches: [
+          {
+            tool: 'add_program_set',
+            args: { dayPosition: 0, exercisePosition: 1, repMin: 8, suggestedLoad: 220.5 },
+          },
+          { tool: 'set_training_max', args: { dayPosition: 0, exercisePosition: 0, trainingMax: 220.5 } },
+        ],
+      })
+
+      // Assert — kg-canonical storage with unit:'kg', actor threaded
+      expect(mockedCreateProposal).toHaveBeenCalledExactlyOnceWith(
+        'user_env',
+        PID,
+        {
+          summary: 'Add a chest set',
+          patches: [
+            {
+              tool: 'add_program_set',
+              args: {
+                dayPosition: 0,
+                exercisePosition: 1,
+                repMin: 8,
+                suggestedLoad: displayToKg(220.5, 'lb'),
+                unit: 'kg',
+              },
+            },
+            {
+              tool: 'set_training_max',
+              args: {
+                dayPosition: 0,
+                exercisePosition: 0,
+                trainingMax: displayToKg(220.5, 'lb'),
+                unit: 'kg',
+              },
+            },
+          ],
+        },
+        'mcp',
+      )
+      expect(payload(result)).toEqual({
+        userId: 'user_env',
+        unit: 'lb',
+        programId: PID,
+        proposalId: 'pp1',
+        patchCount: 2,
+        status: 'pending',
+      })
+    })
+
+    it('never resolves the unit when no patch carries a load-bearing number', async () => {
+      // Arrange
+      const tools = setup()
+      mockedCreateProposal.mockResolvedValue({ id: 'pp1' })
+
+      // Act
+      const result = await tools.get('propose_program_patches')!({
+        programId: PID,
+        summary: 'Drop the fifth set',
+        patches: [
+          { tool: 'remove_program_set', args: { dayPosition: 0, exercisePosition: 0, setNumber: 5 } },
+        ],
+      })
+
+      // Assert — lazy unit (same discipline as buildSetPatch), no unit echoed
+      expect(mockedGetUnit).not.toHaveBeenCalled()
+      expect(payload(result)).not.toHaveProperty('unit')
+    })
+
+    it('surfaces PatchProposalError messages verbatim (invalid batch / non-active program)', async () => {
+      // Arrange
+      const tools = setup()
+      mockedCreateProposal.mockRejectedValue(
+        new PatchProposalError('batch change proposals target an active program — this one is draft'),
+      )
+
+      // Act
+      const result = await tools.get('propose_program_patches')!({
+        programId: PID,
+        summary: 'x',
+        patches: [
+          { tool: 'remove_program_set', args: { dayPosition: 0, exercisePosition: 0, setNumber: 1 } },
+        ],
+      })
+
+      // Assert
+      expect(result.isError).toBe(true)
+      expect(result.content[0]!.text).toContain('active program')
+    })
+
+    it('reports not-found when the program is not owned', async () => {
+      // Arrange
+      const tools = setup()
+      mockedCreateProposal.mockResolvedValue(null)
+
+      // Act
+      const result = await tools.get('propose_program_patches')!({
+        programId: PID,
+        summary: 'x',
+        patches: [
+          { tool: 'remove_program_set', args: { dayPosition: 0, exercisePosition: 0, setNumber: 1 } },
+        ],
+      })
+
+      // Assert
+      expect(result.isError).toBe(true)
+      expect(result.content[0]!.text).toContain(`Program ${PID} not found`)
     })
   })
 })

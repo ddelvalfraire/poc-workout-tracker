@@ -27,6 +27,13 @@ import {
   type ProgramSetPatch,
   type ProgramSetOverridePatch,
 } from '@/db/program-patches'
+import { createPatchProposal } from '@/db/patch-proposals'
+import { PatchProposalError } from '@/db/program-errors'
+import {
+  PROPOSABLE_PATCH_TOOLS,
+  MAX_PROPOSAL_PATCHES,
+  MAX_PROPOSAL_SUMMARY,
+} from '@/lib/patch-proposal'
 import { getWeightUnit } from '@/db/preferences'
 import { displayToKg, kgToDisplay, type WeightUnit } from '@/lib/units'
 import { MAX_WEIGHT as MAX_WEIGHT_KG } from '@/lib/workout-input'
@@ -119,6 +126,17 @@ async function runOp<T>(op: () => Promise<T>): Promise<T> {
     return await op()
   } catch (error: unknown) {
     if (error instanceof ProgramPatchError) throw new ToolError(error.message)
+    throw error
+  }
+}
+
+/** runOp's twin for the proposal layer: `PatchProposalError` (invalid batch /
+ *  non-active program) surfaces verbatim instead of being genericized. */
+async function runProposalOp<T>(op: () => Promise<T>): Promise<T> {
+  try {
+    return await op()
+  } catch (error: unknown) {
+    if (error instanceof PatchProposalError) throw new ToolError(error.message)
     throw error
   }
 }
@@ -974,6 +992,78 @@ export function registerProgramPatchTools(server: McpServer): void {
           exercisePosition,
           setNumber,
           removedWeek: week,
+        })
+      } catch (error: unknown) {
+        return errorResult(error)
+      }
+    },
+  )
+
+  server.registerTool(
+    'propose_program_patches',
+    {
+      title: 'Propose Program Patches',
+      description:
+        "Proposes a BATCH of program changes against an ACTIVE program as ONE pending proposal the owner reviews and confirms (or declines) in the app — nothing is applied by this call. Use for grouped suggestions (e.g. volume progression: \"add a set to Chest — Bench +1\"); for single immediate edits use the individual patch tools. `patches` is an array of the corresponding patch-tool payloads WITHOUT programId/userId: add_program_set, update_program_set, remove_program_set, set_program_set_override, remove_program_set_override, set_training_max. Loads (`suggestedLoad`, `trainingMax`) are in the user's unit (or the `unit` arg) and stored canonically in kg. `summary` is the one-line explanation the owner sees. Errors if the program isn't found, owned, or active, or any patch is invalid.",
+      inputSchema: {
+        programId: z.string(),
+        summary: z.string().trim().min(1).max(MAX_PROPOSAL_SUMMARY),
+        patches: z
+          .array(
+            z.object({
+              tool: z.enum(PROPOSABLE_PATCH_TOOLS),
+              args: z.record(z.string(), z.unknown()),
+            }),
+          )
+          .min(1)
+          .max(MAX_PROPOSAL_PATCHES),
+        unit: unitArg,
+        userId: z.string().optional(),
+      },
+    },
+    async ({ programId, summary, patches, unit, userId }, extra) => {
+      try {
+        const resolved = resolveUserId(extra, userId)
+        assertProgramIdShape(programId)
+        // Resolve the unit lazily — only when some patch actually carries a
+        // load-bearing number (same laziness as buildSetPatch).
+        const needsUnit = patches.some(
+          (p) =>
+            typeof p.args.suggestedLoad === 'number' || typeof p.args.trainingMax === 'number',
+        )
+        const basis = needsUnit ? (unit ?? (await getWeightUnit(resolved))) : undefined
+        // kg-canonical storage: convert the load-bearing fields at this
+        // boundary and stamp unit:'kg', so the stored proposal can never
+        // drift when the owner flips display units before confirming.
+        const normalized = patches.map((p) => {
+          const args: Record<string, unknown> = { ...p.args }
+          delete args.unit
+          if (typeof args.suggestedLoad === 'number' && basis) {
+            args.suggestedLoad = toKgLoad(args.suggestedLoad, basis)
+            args.unit = 'kg'
+          }
+          if (typeof args.trainingMax === 'number' && basis) {
+            args.trainingMax = toKgLoad(args.trainingMax, basis)
+            args.unit = 'kg'
+          }
+          return { tool: p.tool, args }
+        })
+        const result = await runProposalOp(() =>
+          createPatchProposal(
+            resolved,
+            programId,
+            { summary, patches: normalized },
+            resolveActor(extra),
+          ),
+        )
+        if (!result) throw new ToolError(`Program ${programId} not found for user ${resolved}`)
+        return jsonResult({
+          userId: resolved,
+          ...(basis ? { unit: basis } : {}),
+          programId,
+          proposalId: result.id,
+          patchCount: patches.length,
+          status: 'pending',
         })
       } catch (error: unknown) {
         return errorResult(error)
