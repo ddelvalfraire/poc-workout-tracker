@@ -1,6 +1,6 @@
 import { and, asc, count, countDistinct, desc, eq, isNotNull, isNull, max, ne, sql } from 'drizzle-orm'
 import { cache } from 'react'
-import type { DeloadPolicy, ProgramInput, Progression } from '@/lib/program-input'
+import type { DeloadPolicy, DietPhase, ProgramInput, Progression } from '@/lib/program-input'
 import type { ExerciseSource } from '@/lib/custom-exercise-input'
 import { getAllExercises, type Exercise } from '@/lib/wger'
 import {
@@ -26,6 +26,7 @@ import {
   autoregulateAnchor,
   autoregulateEarlyDeload,
   applyAutoregToSets,
+  applyDietPhaseToAdjustment,
   AUTOREG_DEFAULT_STEP_KG,
   type AutoregAdjustment,
   type AutoregRangeRow,
@@ -1276,6 +1277,12 @@ export interface DayForDerivation {
      *  resolved ONCE per derivation via resolveDeloadPolicy. Required so
      *  every caller reads the program row's policy, like the stall policy. */
     deloadPolicy: DeloadPolicy | null
+    /** Raw programs.diet_phase column (null = no phase — byte-identical
+     *  derivation). Required so every caller reads the program row's phase,
+     *  like the policies above; only 'cutting' has any effect, and only as
+     *  a verdict ANNOTATION/hold (applyDietPhaseToAdjustment) — never a
+     *  load change. */
+    dietPhase: DietPhase | null
   }
 }
 
@@ -1499,6 +1506,11 @@ export async function deriveDayPrescription(
               : plan.mode === 'anchor'
                 ? autoregulateAnchor(sessions)
                 : autoregulateEarlyDeload(sessions, day.program.autoregStallPolicy)
+        // Diet-phase gate (Part A): verdict math above is phase-blind; only
+        // now does a 'cutting' program annotate the verdict (and hold an H2
+        // auto-backoff behind a confirmable proposal). A null phase returns
+        // the identical object — byte-identity for phase-less programs.
+        adjustment = applyDietPhaseToAdjustment(adjustment, day.program.dietPhase)
         adjustmentByKey.set(key, adjustment)
       }
     }

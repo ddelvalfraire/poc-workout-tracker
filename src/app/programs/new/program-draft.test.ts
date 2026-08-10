@@ -577,6 +577,8 @@ describe('detailToProgramDraft', () => {
     autoregulation: true,
     autoregStallPolicy: 'first-set',
     deloadPolicy: null,
+    dietPhase: null,
+    dietPhaseSetAt: null,
     planSync: false,
     checkInEveryDays: 14,
     visibility: 'private',

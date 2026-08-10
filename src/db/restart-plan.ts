@@ -39,6 +39,7 @@ export async function restartTmPlan(
             autoregulation: program.autoregulation,
             autoregStallPolicy: program.autoregStallPolicy,
             deloadPolicy: program.deloadPolicy,
+            dietPhase: program.dietPhase,
           },
         },
         currentWeek,

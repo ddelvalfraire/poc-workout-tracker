@@ -35,7 +35,10 @@ async function loadPlanTargets(
       targets: Record<string, PlanSetTarget[]>
       supersets: Record<string, number>
       dayName: string
-      autoreg: Record<string, { reason: string; suggestEarlyDeload: boolean }>
+      autoreg: Record<
+        string,
+        { reason: string; suggestEarlyDeload: boolean; phaseContext?: 'cutting' }
+      >
     }
   | undefined
 > {
@@ -51,7 +54,10 @@ async function loadPlanTargets(
   const targets: Record<string, PlanSetTarget[]> = {}
   // Per-exercise Layer 1 reasons (display unit applied here, not in the db
   // layer), same first-slot-wins keying as the targets.
-  const autoreg: Record<string, { reason: string; suggestEarlyDeload: boolean }> = {}
+  const autoreg: Record<
+    string,
+    { reason: string; suggestEarlyDeload: boolean; phaseContext?: 'cutting' }
+  > = {}
   // Plan-declared superset pairings (display-only in the logger): same
   // first-slot-wins keying as the targets so the two maps stay congruent.
   const supersets: Record<string, number> = {}
@@ -70,6 +76,9 @@ async function loadPlanTargets(
       autoreg[key] = {
         reason: autoregReason(adjustment, unit),
         suggestEarlyDeload: adjustment.suggestEarlyDeload,
+        // Cutting annotation rides along so the logger swaps the deload
+        // nudge for the holding-is-the-win framing (Part A copy rule).
+        ...(adjustment.phaseContext === 'cutting' ? { phaseContext: 'cutting' as const } : {}),
       }
     }
     targets[key] = derived[i].sets.map((s) => ({

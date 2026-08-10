@@ -154,7 +154,10 @@ interface WorkoutLoggerProps {
   /** Per-exercise auto-regulation reasons keyed `source:id` (reason already in
    *  the display unit). Display-only + one optional escape: the ghosts arrive
    *  pre-adjusted in planTargets; "Use plan as written" reverts them. */
-  planAutoreg?: Record<string, { reason: string; suggestEarlyDeload: boolean }>
+  planAutoreg?: Record<
+    string,
+    { reason: string; suggestEarlyDeload: boolean; phaseContext?: 'cutting' }
+  >
   /** Which program (day · week) this session is stamped to, e.g. "Legs ·
    *  Week 1". Provenance is fixed at start and can't be edited — surfacing
    *  it here is what keeps a wrong-day start from absorbing a full session
@@ -1396,11 +1399,16 @@ export function WorkoutLogger({
                       Use plan as written
                     </button>
                   </p>
-                  {autoregInfo.suggestEarlyDeload && (
-                    <p className="text-xs text-muted-foreground">
-                      Consider pulling the deload forward.
-                    </p>
-                  )}
+                  {/* While cutting, the reason line above already carries the
+                      holding-is-the-win framing — repeating the deload nudge
+                      here would contradict it (stalls are expected under a
+                      deficit; deload only if sessions feel grindy). */}
+                  {autoregInfo.suggestEarlyDeload &&
+                    autoregInfo.phaseContext !== 'cutting' && (
+                      <p className="text-xs text-muted-foreground">
+                        Consider pulling the deload forward.
+                      </p>
+                    )}
                 </div>
               )
             })()}

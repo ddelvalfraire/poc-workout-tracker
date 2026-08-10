@@ -1,5 +1,6 @@
 import { kgToDisplay, type WeightUnit } from './units'
 import type { DerivedSet } from './progression'
+import type { DietPhase } from './program-input'
 
 /**
  * Auto-regulation Layer 1: performance-reactive adjustments derived ONLY from
@@ -149,6 +150,19 @@ export interface AutoregAdjustment {
     repFloor: number
     loadKg: number
   }
+  /** Diet-phase annotation (applyDietPhaseToAdjustment): present ONLY when
+   *  the program is CUTTING and the verdict is stall-shaped (repeat /
+   *  decrement-held / flag). Copy-side framing only — stalls are EXPECTED
+   *  under a deficit and holding is the win; the phase never changes a load
+   *  (Murphy & Koehler: lean mass is what a cut impairs, strength stays
+   *  comparable — so the copy never claims otherwise). */
+  phaseContext?: 'cutting'
+  /** The auto-backoff a cutting phase HELD (kg, positive): the H2 3-stall
+   *  decrement fires as usual, but under 'cutting' the application is gated
+   *  to a hold — this carries what WOULD have been cut so a batch-patch
+   *  proposal can offer the backoff as the confirmable action (decline =
+   *  hold). Absent everywhere else. */
+  heldBackoffKg?: number
   /** Present ONLY on range-mode (double progression) verdicts. Totals sum
    *  at-load working reps over the load-comparable prior session
    *  (`prevTotalReps` null when no comparable prior session exists). */
@@ -1029,6 +1043,45 @@ export function autoregulateEarlyDeload(
 }
 
 /**
+ * Diet-phase gate over a finished verdict (pure, applied by the derive layer
+ * AFTER the rule sets ran — verdict MATH is never phase-aware). Only
+ * 'cutting' does anything; null / 'maintaining' / 'bulking' return the input
+ * IDENTITY (===), which is the byte-identity guarantee for phase-less
+ * programs. Under 'cutting':
+ * - a 'decrement' (H2's third-stall auto-backoff, fixed or range) is HELD:
+ *   the applied action becomes a repeat at the stalled load, the would-be
+ *   backoff rides along as `heldBackoffKg` so the reactive-proposal path can
+ *   offer it as the confirmable action (decline = hold), and
+ *   `suggestEarlyDeload` stays true — annotate, never suppress;
+ * - 'repeat' and 'flag' verdicts keep their action and gain the
+ *   `phaseContext` annotation (the copy reframes: stalls are expected while
+ *   cutting, holding is the win);
+ * - 'step' / 'anchor' verdicts pass through untouched — progress is progress
+ *   in any phase, and an anchor mirrors what the lifter already did.
+ * Loads never change BECAUSE of a phase; only the auto-application of a cut
+ * gates. Null in, null out.
+ */
+export function applyDietPhaseToAdjustment(
+  adjustment: AutoregAdjustment | null,
+  phase: DietPhase | null,
+): AutoregAdjustment | null {
+  if (adjustment === null || phase !== 'cutting') return adjustment
+  if (adjustment.action === 'decrement') {
+    return {
+      ...adjustment,
+      action: 'repeat',
+      deltaKg: 0,
+      phaseContext: 'cutting',
+      heldBackoffKg: -adjustment.deltaKg,
+    }
+  }
+  if (adjustment.action === 'repeat' || adjustment.action === 'flag') {
+    return { ...adjustment, phaseContext: 'cutting' }
+  }
+  return adjustment
+}
+
+/**
  * Applies a Layer 1 adjustment to a week's scheme-derived sets, BEFORE
  * overrides (override > autoreg — the caller merges overrides on top and they
  * replace both the load and the stamp). Evidence is LOAD-KEYED (C2): each
@@ -1119,6 +1172,13 @@ export function applyAutoregToSets(
  */
 export function autoregReason(adjustment: AutoregAdjustment, unit: WeightUnit): string {
   const load = `${kgToDisplay(adjustment.evidence.loadKg, unit)} ${unit}`
+  // Cutting framing (honest copy rule: stalls are EXPECTED under a deficit
+  // and holding is the win — never a claim that cutting impairs strength).
+  // One sentence owns every cutting-annotated 3-stall verdict: the M4 flag
+  // and the held H2 backoff alike.
+  if (adjustment.phaseContext === 'cutting' && adjustment.suggestEarlyDeload) {
+    return `3 stalls at ${load} — expected while cutting; holding is the win. Deload only if sessions feel grindy`
+  }
   if (adjustment.action === 'flag') {
     return `Third straight stall at ${load} — training max likely set too high`
   }
@@ -1143,14 +1203,16 @@ export function autoregReason(adjustment: AutoregAdjustment, unit: WeightUnit): 
       const backoff = `${kgToDisplay(-adjustment.deltaKg, unit)} ${unit}`
       return `No new reps at ${load} for ${stalls} straight sessions — backing off ${backoff} (~10%)`
     }
+    const cutting = adjustment.phaseContext === 'cutting' ? ' — expected while cutting' : ''
     return stalls > 0 && prevTotalReps !== null
-      ? `No new reps at ${load} (${totalReps} vs ${prevTotalReps}) — holding the load`
-      : `Range not filled at ${load} — adding reps before the load steps`
+      ? `No new reps at ${load} (${totalReps} vs ${prevTotalReps}) — holding the load${cutting}`
+      : `Range not filled at ${load} — adding reps before the load steps${cutting}`
   }
   if (adjustment.action === 'decrement') {
     const backoff = `${kgToDisplay(-adjustment.deltaKg, unit)} ${unit}`
     return `Third straight stall at ${load} — backing off ${backoff} (~10%)`
   }
   const { missedSets, scorableSets, repFloor } = adjustment.evidence
-  return `Missed ${repFloor} reps on ${missedSets} of ${scorableSets} sets at ${load} — repeating the load`
+  const cutting = adjustment.phaseContext === 'cutting' ? ' (expected while cutting)' : ''
+  return `Missed ${repFloor} reps on ${missedSets} of ${scorableSets} sets at ${load} — repeating the load${cutting}`
 }
