@@ -94,7 +94,10 @@ const SIZE_SPAN: Record<HomeSectionSize, string> = {
  * gap-x only, deliberately: vertical rhythm stays owned by each section's own
  * mt-* margins (grid items don't collapse margins, but nothing here used
  * collapsing — every section spaces itself with a single top margin), so the
- * all-md default renders byte-identical to the pre-grid stacked home.
+ * all-md default renders byte-identical to the pre-grid stacked home. From
+ * the md breakpoint sections can sit side-by-side, so every section's top
+ * margin normalizes to md:mt-10 (DESIGN.md) — differing phone margins would
+ * misalign adjacent tile tops.
  */
 export function renderHomeSections(
   sections: readonly ResolvedHomeSection[],

@@ -66,7 +66,7 @@ export async function MomentumPanel({ userId, nowMs, size = 'md' }: MomentumPane
   // styles, everything else (sparkbar, sessions line, goal line) dropped.
   if (size === 'sm') {
     return (
-      <section aria-label="This week" className="mt-6 border-b border-b-border/60">
+      <section aria-label="This week" className="mt-6 border-b border-b-border/60 md:mt-10">
         <Link href="/stats" className="block py-5 transition-colors active:bg-muted/60">
           <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
             This week
@@ -92,7 +92,7 @@ export async function MomentumPanel({ userId, nowMs, size = 'md' }: MomentumPane
   }
 
   return (
-    <section aria-label="This week" className="mt-6 border-b border-b-border/60">
+    <section aria-label="This week" className="mt-6 border-b border-b-border/60 md:mt-10">
       <Link href="/stats" className="block py-5 transition-colors active:bg-muted/60">
         <span className="flex items-center justify-between gap-3">
           <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
