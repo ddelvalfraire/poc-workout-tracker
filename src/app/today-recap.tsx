@@ -4,6 +4,7 @@ import { useSyncExternalStore } from 'react'
 import Link from 'next/link'
 import { Check, ChevronRight } from 'lucide-react'
 import { isSameLocalDay } from '@/lib/local-day'
+import type { HomeSectionSize } from '@/lib/home/registry'
 import { formatVolume, formatWorkoutDuration } from '@/lib/format'
 import type { WeightUnit } from '@/lib/units'
 
@@ -37,13 +38,55 @@ export interface RecapWorkout {
   volumeKg: number
 }
 
-export function TodayRecap({ workouts, unit }: { workouts: RecapWorkout[]; unit: WeightUnit }) {
+export function TodayRecap({
+  workouts,
+  unit,
+  size = 'md',
+}: {
+  workouts: RecapWorkout[]
+  unit: WeightUnit
+  /** Layout size class: sm renders one compact line; md the full cards. */
+  size?: Extract<HomeSectionSize, 'sm' | 'md'>
+}) {
   const mounted = useMounted()
   if (!mounted) return null
 
   const now = new Date()
   const today = workouts.filter((w) => isSameLocalDay(new Date(w.completedAtMs), now))
   if (today.length === 0) return null
+
+  // sm: one line — the check, the session count, the latest name. Same card
+  // vocabulary as the md cells, just one of them for the whole day.
+  if (size === 'sm') {
+    const latest = today[0]
+    return (
+      <section aria-label="Completed today" className="mt-6">
+        <h2 className="text-xs font-semibold uppercase tracking-widest text-primary">Today</h2>
+        <ul className="mt-2">
+          <li>
+            <Link
+              href={`/workout/${latest.id}`}
+              className="flex items-center gap-3 rounded-2xl border border-primary/25 bg-primary/5 p-4 transition-colors active:bg-primary/10"
+            >
+              <Check
+                aria-hidden="true"
+                strokeWidth={2.5}
+                className="size-5 shrink-0 text-primary"
+              />
+              <span className="min-w-0 flex-1">
+                <span className="block truncate font-medium tnum">
+                  {today.length === 1 ? '1 session today' : `${today.length} sessions today`}
+                </span>
+                <span className="mt-0.5 block truncate text-sm text-muted-foreground">
+                  {latest.name ?? 'Workout'}
+                </span>
+              </span>
+            </Link>
+          </li>
+        </ul>
+      </section>
+    )
+  }
 
   return (
     <section aria-label="Completed today" className="mt-6">

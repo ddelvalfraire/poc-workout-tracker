@@ -4,10 +4,15 @@ import { useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { ChevronDown, ChevronUp, Lock } from 'lucide-react'
 import { setHomeLayoutAction } from '@/app/actions'
-import { HOME_SECTION_REGISTRY } from '@/lib/home/registry'
+import {
+  HOME_SECTION_REGISTRY,
+  HOME_SECTION_SIZES,
+  type HomeSectionSize,
+} from '@/lib/home/registry'
 import {
   moveSection,
   toggleSection,
+  setSectionSize,
   toLayoutDoc,
   resolveHomeLayout,
   type ResolvedHomeSection,
@@ -69,6 +74,11 @@ export function HomeLayoutEditor({
     if (next !== sections) persist(next)
   }
 
+  function onSize(kind: string, size: HomeSectionSize) {
+    const next = setSectionSize(sections, kind, size)
+    if (next !== sections) persist(next)
+  }
+
   function onReset() {
     persist(resolveHomeLayout(null), true)
   }
@@ -122,6 +132,13 @@ export function HomeLayoutEditor({
               >
                 <p className="font-medium">{meta.title}</p>
                 <p className="mt-0.5 text-sm text-muted-foreground">{meta.description}</p>
+                <SizeControl
+                  title={meta.title}
+                  allowedSizes={meta.allowedSizes}
+                  value={section.size}
+                  disabled={section.hidden}
+                  onSelect={(size) => onSize(section.kind, size)}
+                />
               </div>
               <VisibilitySwitch
                 label={`Show ${meta.title} on Home`}
@@ -150,6 +167,59 @@ export function HomeLayoutEditor({
         Reset to default
       </button>
     </>
+  )
+}
+
+const SIZE_LABELS: Record<HomeSectionSize, string> = { sm: 'S', md: 'M', lg: 'L' }
+const SIZE_NAMES: Record<HomeSectionSize, string> = { sm: 'Small', md: 'Medium', lg: 'Large' }
+
+/** S/M/L segmented size picker — the goal-kind picker's radio vocabulary,
+ *  compact. Sizes outside the section's allowedSizes stay visible but
+ *  disabled (the row keeps its shape); a hidden row dims the whole control. */
+function SizeControl({
+  title,
+  allowedSizes,
+  value,
+  disabled,
+  onSelect,
+}: {
+  title: string
+  allowedSizes: readonly HomeSectionSize[]
+  value: HomeSectionSize
+  disabled: boolean
+  onSelect: (size: HomeSectionSize) => void
+}) {
+  return (
+    <div
+      role="radiogroup"
+      aria-label={`${title} size`}
+      className={cn('mt-2 flex gap-1.5 transition-opacity', disabled && 'opacity-40')}
+    >
+      {HOME_SECTION_SIZES.map((size) => {
+        const isAllowed = allowedSizes.includes(size)
+        return (
+          <button
+            key={size}
+            type="button"
+            role="radio"
+            aria-checked={value === size}
+            aria-label={`${SIZE_NAMES[size]} ${title}`}
+            disabled={disabled || !isAllowed}
+            onClick={() => onSelect(size)}
+            className={cn(
+              'w-9 rounded-lg border py-1 text-xs font-semibold uppercase tracking-wide transition-colors',
+              'outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
+              value === size
+                ? 'border-primary bg-primary/10 text-primary'
+                : 'border-border text-muted-foreground',
+              !isAllowed && 'opacity-30',
+            )}
+          >
+            {SIZE_LABELS[size]}
+          </button>
+        )
+      })}
+    </div>
   )
 }
 

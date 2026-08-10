@@ -1,10 +1,10 @@
 import Link from 'next/link'
-import { Fragment, type ReactNode } from 'react'
+import type { ReactNode } from 'react'
 import { ChevronRight } from 'lucide-react'
 import type { WorkoutSummary } from '@/db/workouts'
 import type { WeightUnit } from '@/lib/units'
 import type { SessionSummary } from '@/components/session-conflict-dialog'
-import type { HomeSectionKind } from '@/lib/home/registry'
+import type { HomeSectionKind, HomeSectionSize } from '@/lib/home/registry'
 import type { ResolvedHomeSection } from '@/lib/home/layout'
 import { HistoryList } from './history-list'
 import { MomentumPanel } from './momentum-panel'
@@ -45,9 +45,11 @@ export interface HomeSectionContext {
   guardSession: SessionSummary | null
 }
 
-const HOME_SECTION_RENDERERS: Record<HomeSectionKind, (ctx: HomeSectionContext) => ReactNode> = {
-  momentum: (ctx) => <MomentumPanel userId={ctx.userId} nowMs={ctx.nowMs} />,
-  'today-recap': (ctx) => (
+type HomeSectionRenderer = (ctx: HomeSectionContext, size: HomeSectionSize) => ReactNode
+
+const HOME_SECTION_RENDERERS: Record<HomeSectionKind, HomeSectionRenderer> = {
+  momentum: (ctx, size) => <MomentumPanel userId={ctx.userId} nowMs={ctx.nowMs} size={size} />,
+  'today-recap': (ctx, size) => (
     <TodayRecap
       workouts={ctx.recentCompleted.map((w) => ({
         id: w.id,
@@ -57,30 +59,59 @@ const HOME_SECTION_RENDERERS: Record<HomeSectionKind, (ctx: HomeSectionContext) 
         volumeKg: w.volumeKg,
       }))}
       unit={ctx.unit}
+      size={size === 'sm' ? 'sm' : 'md'}
     />
   ),
   unfinished: (ctx) => <UnfinishedSection workouts={ctx.unfinished} />,
-  history: (ctx) => (
-    <HistorySection workouts={ctx.completed} unit={ctx.unit} guardSession={ctx.guardSession} />
+  history: (ctx, size) => (
+    <HistorySection
+      workouts={ctx.completed}
+      unit={ctx.unit}
+      guardSession={ctx.guardSession}
+      size={size}
+    />
   ),
 }
 
+/** The web mapping of the abstract 4-unit row onto home's narrow column:
+ *  a 2-col grid where sm = half width and md/lg = full width. Flow is
+ *  row-major with NO dense back-fill — a gap left by a lone sm before a
+ *  full-width section stays visible (predictability over density). */
+const SIZE_SPAN: Record<HomeSectionSize, string> = {
+  sm: 'col-span-1',
+  md: 'col-span-2',
+  lg: 'col-span-2',
+}
+
 /**
- * Maps the resolved layout to rendered sections. Hidden sections are filtered
- * BEFORE any renderer runs; unknown kinds (a future client's sections) are
- * silently skipped — never an error.
+ * Maps the resolved layout to rendered sections inside ONE flow grid. Hidden
+ * sections are filtered BEFORE any renderer runs; unknown kinds (a future
+ * client's sections) are silently skipped — never an error.
+ *
+ * gap-x only, deliberately: vertical rhythm stays owned by each section's own
+ * mt-* margins (grid items don't collapse margins, but nothing here used
+ * collapsing — every section spaces itself with a single top margin), so the
+ * all-md default renders byte-identical to the pre-grid stacked home.
  */
 export function renderHomeSections(
   sections: readonly ResolvedHomeSection[],
   ctx: HomeSectionContext,
-  renderers: Partial<Record<string, (ctx: HomeSectionContext) => ReactNode>> = HOME_SECTION_RENDERERS,
+  renderers: Partial<Record<string, HomeSectionRenderer>> = HOME_SECTION_RENDERERS,
 ): ReactNode {
-  return sections
-    .filter((s) => !s.hidden)
-    .map((s) => {
-      const render = renderers[s.kind]
-      return render ? <Fragment key={s.kind}>{render(ctx)}</Fragment> : null
-    })
+  return (
+    <div className="grid grid-cols-2 gap-x-3">
+      {sections
+        .filter((s) => !s.hidden)
+        .map((s) => {
+          const render = renderers[s.kind]
+          return render ? (
+            <div key={s.kind} className={SIZE_SPAN[s.size]}>
+              {render(ctx, s.size)}
+            </div>
+          ) : null
+        })}
+    </div>
+  )
 }
 
 /** Unfinished sits above History by default: these rows still need an action
@@ -130,24 +161,59 @@ function UnfinishedSection({ workouts }: { workouts: WorkoutSummary[] }) {
   )
 }
 
+/** Rows shown at md — the demoted middle size; lg keeps the classic
+ *  HOME_HISTORY_LIMIT handful. */
+const HISTORY_MD_LIMIT = 3
+
 /** History, demoted (WHOOP tier discipline): the last few compact rows; the
  *  full log lives on /history. No empty-state card — with nothing completed,
- *  the fresh hero already owns the invite. */
+ *  the fresh hero already owns the invite.
+ *
+ *  Sizes: sm is one line (count + latest name/date) linking to /history;
+ *  md shows 3 rows; lg the classic 5. The "All history" link appears whenever
+ *  the size's slice leaves rows unseen. */
 function HistorySection({
   workouts,
   unit,
   guardSession,
+  size = 'md',
 }: {
   workouts: WorkoutSummary[]
   unit: WeightUnit
   guardSession: SessionSummary | null
+  size?: HomeSectionSize
 }) {
   if (workouts.length === 0) return null
+
+  if (size === 'sm') {
+    const latest = workouts[0]
+    return (
+      <>
+        <h2 className="mt-10 mb-3 text-lg">History</h2>
+        <Link
+          href="/history"
+          className="flex min-w-0 items-center gap-4 overflow-hidden rounded-2xl border border-border bg-card px-4 py-3.5 transition-colors active:bg-muted/60"
+        >
+          <span className="min-w-0 flex-1">
+            <span className="block truncate font-medium tnum">
+              {`${workouts.length} workout${workouts.length === 1 ? '' : 's'}`}
+            </span>
+            <span className="mt-0.5 block truncate text-sm text-muted-foreground tnum">
+              {`${latest.name ?? 'Workout'} · ${latest.startedAt.getDate()} ${monthFormat.format(latest.startedAt)}`}
+            </span>
+          </span>
+          <ChevronRight aria-hidden="true" className="size-5 shrink-0 text-muted-foreground" />
+        </Link>
+      </>
+    )
+  }
+
+  const limit = size === 'lg' ? HOME_HISTORY_LIMIT : HISTORY_MD_LIMIT
   return (
     <>
       <div className="mt-10 mb-3 flex items-baseline justify-between gap-3">
         <h2 className="text-lg">History</h2>
-        {workouts.length > HOME_HISTORY_LIMIT && (
+        {workouts.length > limit && (
           <Link
             href="/history"
             className="flex shrink-0 items-center gap-0.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
@@ -158,7 +224,7 @@ function HistorySection({
         )}
       </div>
       <HistoryList
-        workouts={workouts.slice(0, HOME_HISTORY_LIMIT)}
+        workouts={workouts.slice(0, limit)}
         unit={unit}
         guardSession={guardSession}
       />

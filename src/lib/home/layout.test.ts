@@ -6,6 +6,7 @@ import {
   parseHomeLayoutInput,
   moveSection,
   toggleSection,
+  setSectionSize,
   toLayoutDoc,
 } from './layout'
 
@@ -18,20 +19,28 @@ describe('resolveHomeLayout', () => {
     expect(resolved.every((s) => !s.hidden)).toBe(true)
   })
 
+  it("gives every DEFAULT section its kind's registry defaultSize (the parity contract)", () => {
+    const resolved = resolveHomeLayout(null)
+    for (const section of resolved) {
+      const meta = HOME_SECTION_REGISTRY.find((s) => s.kind === section.kind)
+      expect(section.size).toBe(meta?.defaultSize)
+    }
+  })
+
   it('degrades to the default on a corrupt document', () => {
-    for (const corrupt of ['garbage', 42, { sections: 'nope' }, { version: 1 }, []]) {
+    for (const corrupt of ['garbage', 42, { sections: 'nope' }, { version: 2 }, []]) {
       expect(resolveHomeLayout(corrupt).map((s) => s.kind)).toEqual(REGISTRY_KINDS)
     }
   })
 
   it('degrades to the default on an unknown version', () => {
-    const resolved = resolveHomeLayout({ version: 2, sections: [{ kind: 'history' }] })
+    const resolved = resolveHomeLayout({ version: 99, sections: [{ kind: 'history' }] })
     expect(resolved.map((s) => s.kind)).toEqual(REGISTRY_KINDS)
   })
 
   it('honors stored order and hidden flags', () => {
     const resolved = resolveHomeLayout({
-      version: 1,
+      version: 2,
       sections: [
         { kind: 'history' },
         { kind: 'momentum', hidden: true },
@@ -51,15 +60,15 @@ describe('resolveHomeLayout', () => {
 
   it('keeps unknown kinds in place (render skips them, resolution round-trips them)', () => {
     const resolved = resolveHomeLayout({
-      version: 1,
+      version: 2,
       sections: [{ kind: 'from-the-future' }, { kind: 'history' }],
     })
-    expect(resolved[0]).toEqual({ kind: 'from-the-future', hidden: false })
+    expect(resolved[0]).toEqual({ kind: 'from-the-future', size: 'md', hidden: false })
   })
 
   it('appends registry kinds missing from the stored doc, visible, in registry order', () => {
     const resolved = resolveHomeLayout({
-      version: 1,
+      version: 2,
       sections: [{ kind: 'history', hidden: true }],
     })
     expect(resolved.map((s) => s.kind)).toEqual([
@@ -73,7 +82,7 @@ describe('resolveHomeLayout', () => {
 
   it('drops duplicate kinds, keeping the first occurrence', () => {
     const resolved = resolveHomeLayout({
-      version: 1,
+      version: 2,
       sections: [
         { kind: 'history', hidden: true },
         { kind: 'history' },
@@ -83,14 +92,72 @@ describe('resolveHomeLayout', () => {
       ],
     })
     expect(resolved.filter((s) => s.kind === 'history')).toEqual([
-      { kind: 'history', hidden: true },
+      { kind: 'history', size: 'lg', hidden: true },
     ])
+  })
+
+  it('honors a stored size the kind allows', () => {
+    const resolved = resolveHomeLayout({
+      version: 2,
+      sections: [
+        { kind: 'momentum', size: 'lg' },
+        { kind: 'today-recap', size: 'sm' },
+        { kind: 'unfinished' },
+        { kind: 'history', size: 'sm' },
+      ],
+    })
+    expect(resolved.map((s) => s.size)).toEqual(['lg', 'sm', 'md', 'sm'])
+  })
+
+  it('normalizes an unknown, missing, or not-allowed size to the kind default', () => {
+    const resolved = resolveHomeLayout({
+      version: 2,
+      sections: [
+        { kind: 'momentum', size: 'xl' }, // unknown size value
+        { kind: 'today-recap', size: 'lg' }, // not in today-recap's allowedSizes
+        { kind: 'unfinished', size: 'sm' }, // unfinished is md-only
+        { kind: 'history' }, // missing — history's own default is lg
+      ],
+    })
+    expect(resolved.map((s) => s.size)).toEqual(['md', 'md', 'md', 'lg'])
+  })
+
+  it('auto-upgrades a v1 document in memory: order and hidden survive, sizes are registry defaults', () => {
+    const resolved = resolveHomeLayout({
+      version: 1,
+      sections: [
+        { kind: 'history' },
+        { kind: 'momentum', hidden: true },
+        { kind: 'today-recap' },
+        { kind: 'unfinished' },
+      ],
+    })
+    expect(resolved).toEqual([
+      { kind: 'history', size: 'lg', hidden: false },
+      { kind: 'momentum', size: 'md', hidden: true },
+      { kind: 'today-recap', size: 'md', hidden: false },
+      { kind: 'unfinished', size: 'md', hidden: false },
+    ])
+  })
+
+  it('a v1 document still gains newly shipped sections and sheds duplicates', () => {
+    const resolved = resolveHomeLayout({
+      version: 1,
+      sections: [{ kind: 'history', hidden: true }, { kind: 'history' }],
+    })
+    expect(resolved.map((s) => s.kind)).toEqual([
+      'history',
+      'momentum',
+      'today-recap',
+      'unfinished',
+    ])
+    expect(resolved[0]).toEqual({ kind: 'history', size: 'lg', hidden: true })
   })
 })
 
 describe('parseHomeLayoutInput', () => {
   const valid = {
-    version: 1,
+    version: 2,
     sections: [
       { kind: 'history' },
       { kind: 'momentum', hidden: true },
@@ -101,7 +168,7 @@ describe('parseHomeLayoutInput', () => {
 
   it('accepts a complete valid document and normalizes hidden flags', () => {
     const doc = parseHomeLayoutInput(valid)
-    expect(doc.version).toBe(1)
+    expect(doc.version).toBe(2)
     expect(doc.sections).toEqual([
       { kind: 'history' },
       { kind: 'momentum', hidden: true },
@@ -112,9 +179,15 @@ describe('parseHomeLayoutInput', () => {
 
   it('rejects a malformed document', () => {
     expect(() => parseHomeLayoutInput('garbage')).toThrow('invalid home layout')
-    expect(() => parseHomeLayoutInput({ version: 2, sections: [] })).toThrow(
+    expect(() => parseHomeLayoutInput({ version: 99, sections: [] })).toThrow(
       'invalid home layout',
     )
+  })
+
+  it('rejects a v1 document at the write boundary (writes are always current-version)', () => {
+    expect(() =>
+      parseHomeLayoutInput({ version: 1, sections: valid.sections }),
+    ).toThrow('invalid home layout')
   })
 
   it('rejects unknown kinds', () => {
@@ -137,8 +210,42 @@ describe('parseHomeLayoutInput', () => {
 
   it('rejects a document missing registry kinds', () => {
     expect(() =>
-      parseHomeLayoutInput({ version: 1, sections: [{ kind: 'history' }] }),
+      parseHomeLayoutInput({ version: 2, sections: [{ kind: 'history' }] }),
     ).toThrow('home layout must include every section')
+  })
+
+  it('accepts sizes the kind allows and omits a size equal to the default', () => {
+    const doc = parseHomeLayoutInput({
+      version: 2,
+      sections: [
+        { kind: 'momentum', size: 'sm' },
+        { kind: 'today-recap', size: 'md' }, // default — serialized away
+        { kind: 'unfinished', size: 'md' },
+        { kind: 'history', size: 'lg' }, // history's default IS lg — serialized away
+      ],
+    })
+    expect(doc.sections).toEqual([
+      { kind: 'momentum', size: 'sm' },
+      { kind: 'today-recap' },
+      { kind: 'unfinished' },
+      { kind: 'history' },
+    ])
+  })
+
+  it('rejects a size outside the kind allowedSizes (strict, unlike the read guard)', () => {
+    const withSize = (kind: string, size: string) => ({
+      version: 2,
+      sections: valid.sections.map((s) => (s.kind === kind ? { ...s, size } : s)),
+    })
+    expect(() => parseHomeLayoutInput(withSize('today-recap', 'lg'))).toThrow(
+      'invalid home section size',
+    )
+    expect(() => parseHomeLayoutInput(withSize('unfinished', 'sm'))).toThrow(
+      'invalid home section size',
+    )
+    expect(() => parseHomeLayoutInput(withSize('momentum', 'xl'))).toThrow(
+      'invalid home layout',
+    )
   })
 })
 
@@ -190,16 +297,35 @@ describe('toggleSection', () => {
   })
 })
 
+describe('setSectionSize', () => {
+  const sections = resolveHomeLayout(null)
+
+  it('sets an allowed size without mutating the input', () => {
+    const next = setSectionSize(sections, 'momentum', 'sm')
+    expect(next.find((s) => s.kind === 'momentum')?.size).toBe('sm')
+    expect(sections.find((s) => s.kind === 'momentum')?.size).toBe('md')
+  })
+
+  it('is a no-op for unknown kinds, disallowed sizes, and the current size', () => {
+    expect(setSectionSize(sections, 'nope', 'sm')).toBe(sections)
+    expect(setSectionSize(sections, 'unfinished', 'sm')).toBe(sections)
+    expect(setSectionSize(sections, 'today-recap', 'lg')).toBe(sections)
+    expect(setSectionSize(sections, 'momentum', 'md')).toBe(sections)
+  })
+})
+
 describe('toLayoutDoc', () => {
-  it('serializes resolved sections into a version-1 document, omitting hidden:false', () => {
-    const doc = toLayoutDoc(toggleSection(resolveHomeLayout(null), 'momentum'))
+  it('serializes resolved sections into a version-2 document, omitting hidden:false and default sizes', () => {
+    const doc = toLayoutDoc(
+      setSectionSize(toggleSection(resolveHomeLayout(null), 'momentum'), 'history', 'sm'),
+    )
     expect(doc).toEqual({
-      version: 1,
+      version: 2,
       sections: [
         { kind: 'momentum', hidden: true },
         { kind: 'today-recap' },
         { kind: 'unfinished' },
-        { kind: 'history' },
+        { kind: 'history', size: 'sm' },
       ],
     })
   })
@@ -207,5 +333,11 @@ describe('toLayoutDoc', () => {
   it('round-trips the default layout through parseHomeLayoutInput', () => {
     expect(() => parseHomeLayoutInput(toLayoutDoc(resolveHomeLayout(null)))).not.toThrow()
     expect(toLayoutDoc(resolveHomeLayout(null))).toEqual(DEFAULT_HOME_LAYOUT)
+  })
+
+  it('round-trips a non-default size through parse and resolve', () => {
+    const doc = toLayoutDoc(setSectionSize(resolveHomeLayout(null), 'momentum', 'lg'))
+    const resolved = resolveHomeLayout(parseHomeLayoutInput(doc))
+    expect(resolved.find((s) => s.kind === 'momentum')?.size).toBe('lg')
   })
 })
