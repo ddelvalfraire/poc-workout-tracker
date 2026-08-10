@@ -7,6 +7,7 @@ import {
   type MongoQuery,
 } from '@casl/ability'
 import type { ProgramVisibility } from './program-input'
+import { TEMPLATE_OWNER_USER_ID } from './template-owner'
 
 /**
  * Sharing/visibility authorization — the ONE place a cross-account access
@@ -126,6 +127,18 @@ function abilityFor(actor: AuthzActor): AppAbility {
       ...LIVE_SHARE_CONDITIONS,
       userId: { $ne: actor.userId },
     })
+    // Template library: any signed-in user may read and adopt a PUBLIC
+    // program owned by the system template account — no share token in the
+    // loop (curated templates are first-party content, not user shares).
+    // Keyed on the well-known owner id, so 'public' visibility on a USER's
+    // program still requires a live share row to grant anything.
+    const SYSTEM_TEMPLATE_CONDITIONS: MongoQuery = {
+      userId: TEMPLATE_OWNER_USER_ID,
+      visibility: 'public',
+      status: { $ne: 'proposed' },
+    }
+    allow('view', 'Program', SYSTEM_TEMPLATE_CONDITIONS)
+    allow('adopt', 'Program', SYSTEM_TEMPLATE_CONDITIONS)
     // Owners always read their own workouts (any state — the summary and the
     // logger are both reads)…
     allow('view', 'Workout', { userId: actor.userId })

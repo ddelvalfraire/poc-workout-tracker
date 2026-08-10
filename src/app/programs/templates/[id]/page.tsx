@@ -11,9 +11,13 @@ import { BackLink } from '@/components/back-link'
 import { cn } from '@/lib/utils'
 import { ImportTemplateButton } from '../import-button'
 import { TemplatesUnavailable } from '../unavailable'
+import { SystemTemplateDetail } from './system-template-detail'
 
 /** wger routine ids are small positive integers; anything else is a bad URL. */
 const TEMPLATE_ID_PATTERN = /^\d{1,9}$/
+/** Curated system templates are programs rows — uuids. The two id shapes are
+ *  disjoint, so one route serves both shelves. */
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 /**
  * In-app detail for one wger public template — the browse card's missing
@@ -32,6 +36,8 @@ export default async function TemplateDetailPage({
 }) {
   const userId = await requireUserId() // middleware also guards; defense-in-depth
   const { id } = await params
+  // Curated branch: a uuid is a system template (db-backed detail + adopt).
+  if (UUID_PATTERN.test(id)) return <SystemTemplateDetail templateId={id} userId={userId} />
   if (!TEMPLATE_ID_PATTERN.test(id)) notFound()
   const wgerId = Number(id)
 
