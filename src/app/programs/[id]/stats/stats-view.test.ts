@@ -6,6 +6,7 @@ import type {
   ProgramExercisePRPoint,
   ProgramExerciseProgression,
 } from '@/db/program-stats'
+import type { MuscleVerdict } from '@/lib/volume-progression'
 import {
   blockAdherencePct,
   e1rmSparkline,
@@ -17,6 +18,10 @@ import {
   programVerdict,
   isHighRepEstimate,
   topPRs,
+  volumeStatusLabel,
+  volumeDriversLine,
+  muscleWeekSeries,
+  formatCreditedSets,
 } from './stats-view'
 
 function week(over: Partial<ProgramWeekStats> = {}): ProgramWeekStats {
@@ -309,5 +314,47 @@ describe('e1rmSparkline', () => {
     const spark = e1rmSparkline([point(1, 100), point(2, 100)], 120, 32)
 
     expect(spark!.points.every((p) => p.y === 16)).toBe(true)
+  })
+})
+
+describe('volume status view helpers', () => {
+  const verdict = (
+    status: MuscleVerdict['status'],
+    drivers: string[] = [],
+  ): MuscleVerdict => ({ group: 'Chest', status, drivers, candidate: null })
+
+  it('status words per the chip contract', () => {
+    expect(volumeStatusLabel('increase')).toBe('+1 earned')
+    expect(volumeStatusLabel('hold')).toBe('hold')
+    expect(volumeStatusLabel('on-track')).toBe('on track')
+  })
+
+  it('drivers line names the movements; on-track stays silent', () => {
+    expect(volumeDriversLine(verdict('increase', ['Bench Press']))).toBe(
+      'Bench Press beat top of range 2 weeks running',
+    )
+    expect(volumeDriversLine(verdict('hold', ['Squat', 'Leg Press']))).toBe(
+      'Squat, Leg Press stalled — hold volume while recovery catches up',
+    )
+    expect(volumeDriversLine(verdict('on-track'))).toBe(null)
+  })
+
+  it('muscleWeekSeries keeps zero weeks and honors the trend limit', () => {
+    const weeks = [
+      { week: 1, groups: [{ group: 'Chest' as const, sets: 6 }] },
+      { week: 2, groups: [] },
+      { week: 3, groups: [{ group: 'Chest' as const, sets: 7.5 }] },
+    ]
+    expect(muscleWeekSeries(weeks, 'Chest')).toEqual([
+      { week: 1, sets: 6 },
+      { week: 2, sets: 0 },
+      { week: 3, sets: 7.5 },
+    ])
+    expect(muscleWeekSeries(weeks, 'Chest', 2).map((p) => p.week)).toEqual([2, 3])
+  })
+
+  it('formatCreditedSets renders halves honestly and integers bare', () => {
+    expect(formatCreditedSets(7)).toBe('7')
+    expect(formatCreditedSets(7.5)).toBe('7.5')
   })
 })

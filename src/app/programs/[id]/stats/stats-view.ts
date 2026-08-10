@@ -6,6 +6,9 @@ import type {
   ProgramExercisePRPoint,
   ProgramExerciseProgression,
 } from '@/db/program-stats'
+import type { VolumeWeek } from '@/db/volume-progression'
+import type { VolumeGroup } from '@/db/muscle-volume'
+import type { MuscleVerdict } from '@/lib/volume-progression'
 
 /**
  * Pure view logic for the program stats page — kept free of JSX so it
@@ -198,6 +201,57 @@ export function e1rmSparkline(
   })
   const path = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ')
   return { path, points }
+}
+
+/** The muscle chip's status word (CSS handles emphasis; volt is reserved for
+ *  on-track — the quiet good state, per the volume-progression plan). */
+export function volumeStatusLabel(status: MuscleVerdict['status']): string {
+  switch (status) {
+    case 'increase':
+      return '+1 earned'
+    case 'hold':
+      return 'hold'
+    case 'on-track':
+      return 'on track'
+  }
+}
+
+/**
+ * The tier-2 evidence sentence: WHO drove the verdict, in words. Null for
+ * on-track (nothing to explain — the trend below is the content).
+ */
+export function volumeDriversLine(verdict: MuscleVerdict): string | null {
+  if (verdict.drivers.length === 0) return null
+  const names = verdict.drivers.join(', ')
+  if (verdict.status === 'increase') {
+    return `${names} beat top of range 2 weeks running`
+  }
+  if (verdict.status === 'hold') {
+    return `${names} stalled — hold volume while recovery catches up`
+  }
+  return null
+}
+
+/**
+ * One muscle's per-week credited-set series, ascending — the trend (last
+ * `limit` weeks) and the per-week table both read from this. Weeks with zero
+ * credited sets for the muscle are kept: an untrained week is a fact.
+ */
+export function muscleWeekSeries(
+  weeks: readonly VolumeWeek[],
+  group: VolumeGroup,
+  limit?: number,
+): { week: number; sets: number }[] {
+  const series = weeks.map((w) => ({
+    week: w.week,
+    sets: w.groups.find((g) => g.group === group)?.sets ?? 0,
+  }))
+  return limit !== undefined ? series.slice(-limit) : series
+}
+
+/** Credited set counts render halves honestly ("7.5") and integers bare. */
+export function formatCreditedSets(sets: number): string {
+  return Number.isInteger(sets) ? String(sets) : sets.toFixed(1)
 }
 
 /**

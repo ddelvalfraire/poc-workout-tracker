@@ -7,6 +7,7 @@ import { AppHeader } from '@/components/app-header'
 import { BackLink } from '@/components/back-link'
 import { BlockSegment } from '@/components/block-map'
 import { cn } from '@/lib/utils'
+import { getVolumeStatus } from '@/db/volume-progression'
 import {
   e1rmSparkline,
   visibleWeeks,
@@ -16,6 +17,10 @@ import {
   programVerdict,
   isHighRepEstimate,
   topPRs,
+  volumeStatusLabel,
+  volumeDriversLine,
+  muscleWeekSeries,
+  formatCreditedSets,
 } from './stats-view'
 
 /**
@@ -32,7 +37,14 @@ export default async function ProgramStatsPage({
 }) {
   const userId = await requireUserId()
   const { id } = await params
-  const [stats, unit] = await Promise.all([getProgramStats(userId, id), getWeightUnit(userId)])
+  const [stats, unit, volume] = await Promise.all([
+    getProgramStats(userId, id),
+    getWeightUnit(userId),
+    // Per-muscle volume verdicts + the per-week set table (the WHOOP-style
+    // 3-tier disclosure's data). Cheap-skips itself for non-active programs
+    // and autoregulation off.
+    getVolumeStatus(userId, id),
+  ])
   if (!stats) notFound()
 
   const status = stats.program.status
@@ -251,6 +263,85 @@ export default async function ProgramStatsPage({
                 })}
               </ul>
             </section>
+
+            {/* Per-muscle volume verdicts (WHOOP-style 3-tier disclosure):
+                status row → tap → drivers + trend → per-week table. Verdicts
+                speak about the last COMPLETED program week; muscles without
+                scorable evidence are simply absent (silence over corruption).
+                Volt is reserved for on-track — the quiet good state; +1 and
+                hold carry words, not accent. Native <details>, no client JS. */}
+            {volume !== null && volume.enabled && volume.week !== null &&
+              volume.verdicts.length > 0 && (
+                <section aria-label="Muscle volume" className="mt-8">
+                  <h3 className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
+                    Muscle volume
+                  </h3>
+                  <p className="mt-1 text-xs text-muted-foreground tnum">
+                    Verdicts from week {volume.week} — sets credited per muscle
+                  </p>
+                  <ul className="mt-2 divide-y divide-border/60 border-b border-b-border/60">
+                    {volume.verdicts.map((verdict) => {
+                      const series = muscleWeekSeries(volume.weeks, verdict.group)
+                      const trend = series.slice(-4)
+                      const drivers = volumeDriversLine(verdict)
+                      return (
+                        <li key={verdict.group}>
+                          <details className="group">
+                            <summary className="flex cursor-pointer list-none items-center justify-between gap-4 py-3 outline-none transition-colors hover:bg-muted/50 focus-visible:bg-muted/50 [&::-webkit-details-marker]:hidden">
+                              <span className="text-sm font-medium">{verdict.group}</span>
+                              <span
+                                className={cn(
+                                  'text-[11px] font-semibold uppercase tracking-widest',
+                                  verdict.status === 'on-track' && 'text-primary',
+                                  verdict.status === 'hold' && 'text-muted-foreground',
+                                )}
+                              >
+                                {volumeStatusLabel(verdict.status)}
+                              </span>
+                            </summary>
+                            <div className="space-y-2 pb-3">
+                              {drivers !== null && (
+                                <p className="text-sm text-muted-foreground">{drivers}</p>
+                              )}
+                              {/* Tier 2: the trend at a glance — last weeks'
+                                  credited sets, oldest → newest. */}
+                              {trend.length > 0 && (
+                                <p className="text-sm tnum">
+                                  {trend.map((p) => formatCreditedSets(p.sets)).join(' → ')}
+                                  <span className="text-muted-foreground"> sets/week</span>
+                                </p>
+                              )}
+                              {/* Tier 3: the per-week table, every observed
+                                  week (the current partial one included). */}
+                              <ul className="space-y-0.5">
+                                {series.map((point) => (
+                                  <li
+                                    key={point.week}
+                                    className="flex items-baseline gap-3 text-sm"
+                                  >
+                                    <span className="w-11 shrink-0 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground tnum">
+                                      Wk {point.week}
+                                    </span>
+                                    <span className="tnum">
+                                      {formatCreditedSets(point.sets)} set
+                                      {point.sets === 1 ? '' : 's'}
+                                    </span>
+                                    {point.week === stats.program.deloadWeek && (
+                                      <span className="rounded-full border border-border px-1.5 py-px text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+                                        DL
+                                      </span>
+                                    )}
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          </details>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                </section>
+              )}
 
             {stats.exercises.length > 0 && (
               <section aria-label="Progression" className="mt-8">
