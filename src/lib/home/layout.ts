@@ -205,6 +205,21 @@ export function moveSection(
   return next
 }
 
+/** Moves `kind` to the front, preserving everyone else's relative order.
+ *  Returns the input unchanged (same reference) when the section is already
+ *  first or the kind is unknown. */
+export function moveSectionToTop(
+  sections: readonly ResolvedHomeSection[],
+  kind: string,
+): readonly ResolvedHomeSection[] {
+  const index = sections.findIndex((s) => s.kind === kind)
+  if (index <= 0) return sections
+  const next = [...sections]
+  const [moved] = next.splice(index, 1)
+  next.unshift(moved)
+  return next
+}
+
 /** Flips a section's visibility. Returns the input unchanged for unknown kinds. */
 export function toggleSection(
   sections: readonly ResolvedHomeSection[],

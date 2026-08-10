@@ -5,6 +5,7 @@ import {
   resolveHomeLayout,
   parseHomeLayoutInput,
   moveSection,
+  moveSectionToTop,
   toggleSection,
   setSectionSize,
   toLayoutDoc,
@@ -277,6 +278,32 @@ describe('moveSection', () => {
     expect(moveSection(sections, 'momentum', 'up')).toBe(sections)
     expect(moveSection(sections, 'history', 'down')).toBe(sections)
     expect(moveSection(sections, 'nope', 'up')).toBe(sections)
+  })
+})
+
+describe('moveSectionToTop', () => {
+  const sections = resolveHomeLayout(null)
+
+  it('moves a section to the front, preserving relative order, without mutating', () => {
+    const next = moveSectionToTop(sections, 'unfinished')
+    expect(next.map((s) => s.kind)).toEqual([
+      'unfinished',
+      'momentum',
+      'today-recap',
+      'history',
+    ])
+    expect(sections.map((s) => s.kind)).toEqual(REGISTRY_KINDS) // untouched
+  })
+
+  it('carries the moved section intact (size and hidden survive the move)', () => {
+    const customized = toggleSection(setSectionSize(sections, 'history', 'sm'), 'history')
+    const next = moveSectionToTop(customized, 'history')
+    expect(next[0]).toEqual({ kind: 'history', size: 'sm', hidden: true })
+  })
+
+  it('is a no-op (same reference) when already first or for unknown kinds', () => {
+    expect(moveSectionToTop(sections, 'momentum')).toBe(sections)
+    expect(moveSectionToTop(sections, 'nope')).toBe(sections)
   })
 })
 
