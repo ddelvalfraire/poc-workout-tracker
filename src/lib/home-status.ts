@@ -87,6 +87,18 @@ export function momentumSessionsLine(count: number): string {
   return `${count} ${count === 1 ? 'session' : 'sessions'} this week`
 }
 
+/** The lg momentum panel's week-over-week line ("Up 8 on last week").
+ *  Null when last week logged nothing — a comparison against an empty
+ *  window reads as noise (a brand-new user's first week isn't "up"),
+ *  so silence over a hollow number. Counts are working sets, both from
+ *  the rolling-window totals already fetched for the panel. */
+export function momentumWeekDeltaLine(currentSets: number, previousSets: number): string | null {
+  if (previousSets === 0) return null
+  const delta = currentSets - previousSets
+  if (delta === 0) return 'Level with last week'
+  return delta > 0 ? `Up ${delta} on last week` : `Down ${-delta} on last week`
+}
+
 function pluralSets(count: number): string {
   return `${count} set${count === 1 ? '' : 's'}`
 }

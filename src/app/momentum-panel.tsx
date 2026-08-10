@@ -7,7 +7,7 @@ import { getRollingVolumeTotals } from '@/db/muscle-volume'
 import { getGoalsHomeSummary } from '@/lib/goals'
 import { goalLabel } from '@/lib/goal-progress'
 import { bucketDaySets } from '@/lib/drawer-status'
-import { momentumSessionsLine } from '@/lib/home-status'
+import { momentumSessionsLine, momentumWeekDeltaLine } from '@/lib/home-status'
 import { Sparkbar } from '@/components/sparkbar'
 import { StreakChip } from '@/components/streak-chip'
 
@@ -31,7 +31,8 @@ export interface MomentumPanelProps {
    *  the whole surface) so the sparkbar buckets match the history sections. */
   nowMs: number
   /** Layout size class: sm renders only the one big number + streak flame;
-   *  md (default) and lg render the full panel. */
+   *  md (default) renders the full panel; lg adds the week-over-week line
+   *  (from the previous rolling window the totals read already carries). */
   size?: HomeSectionSize
 }
 
@@ -51,6 +52,7 @@ export async function MomentumPanel({ userId, nowMs, size = 'md' }: MomentumPane
 
   const weekSets = weekTotals.currentSets
   const weekSessions = weekTotals.currentSessions
+  const weekDelta = momentumWeekDeltaLine(weekTotals.currentSets, weekTotals.previousSets)
   const daySets = bucketDaySets(summaries, new Date(nowMs))
   const goal = goalsSummary?.topGoal
     ? {
@@ -113,6 +115,12 @@ export async function MomentumPanel({ userId, nowMs, size = 'md' }: MomentumPane
                 ? momentumSessionsLine(weekSessions)
                 : 'The week is wide open — log a session.'}
             </span>
+            {/* lg only: the week-over-week fact, from the previous window the
+                totals read already fetched (zero new queries). Null (empty
+                last week) renders nothing — silence over a hollow compare. */}
+            {size === 'lg' && weekDelta !== null && (
+              <span className="mt-0.5 block text-sm text-muted-foreground tnum">{weekDelta}</span>
+            )}
           </span>
           {daySets.length > 0 && (
             <Sparkbar daySets={daySets} className="h-10 shrink-0 gap-1.5" barClassName="w-2.5" />
