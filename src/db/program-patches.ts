@@ -6,10 +6,12 @@ import {
   techniqueSchema,
   progressionSchema,
   deloadPolicySchema,
+  dietPhaseSchema,
   programSetIntegrityViolation,
   type Technique,
   type Progression,
   type DeloadPolicy,
+  type DietPhase,
 } from '@/lib/program-input'
 import type { ExerciseSource } from '@/lib/custom-exercise-input'
 import type { AutoregStallPolicy } from '@/lib/autoregulate'
@@ -328,6 +330,51 @@ export async function setProgramDeloadPolicy(
       action: 'set_program_deload_policy',
       summary: deloadPolicySummary(parsed),
       payload: { after: { deloadPolicy: parsed } },
+    })
+    return { id: programId }
+  })
+}
+
+/**
+ * Sets (or clears, with null) the program's diet-phase context
+ * (programs.dietPhase — see lib/program-input.ts dietPhaseSchema). A
+ * non-null phase is re-parsed through the schema (`ProgramPatchError` on
+ * mismatch) so nothing outside the union can reach the column. EVERY
+ * explicit write — including a null clear — stamps diet_phase_set_at = now:
+ * the setter is a deliberate statement about the diet, and set_at is the
+ * staleness anchor get_program exposes. Same narrow-op rationale, ownership
+ * gate, and event discipline as setProgramDeloadPolicy above — including
+ * the unconditional write. Returns null when the program isn't owned.
+ * Reads, in order: owned-program.
+ */
+export async function setProgramDietPhase(
+  userId: string,
+  programId: string,
+  phase: DietPhase | null,
+  actor: ProgramEventActor,
+): Promise<{ id: string } | null> {
+  let parsed: DietPhase | null = null
+  if (phase !== null) {
+    try {
+      parsed = dietPhaseSchema.parse(phase)
+    } catch (error: unknown) {
+      throw patchErrorFromZod(error, 'invalid diet phase')
+    }
+  }
+  return db.transaction(async (tx) => {
+    const owned = await findOwnedProgramId(tx, userId, programId)
+    if (!owned) return null
+    await tx
+      .update(programs)
+      .set({ dietPhase: parsed, dietPhaseSetAt: new Date(), updatedAt: new Date() })
+      .where(eq(programs.id, programId))
+    await recordProgramEvent(tx, {
+      programId,
+      userId,
+      actor,
+      action: 'set_program_diet_phase',
+      summary: parsed === null ? 'Diet phase cleared' : `Diet phase: ${parsed}`,
+      payload: { after: { dietPhase: parsed } },
     })
     return { id: programId }
   })

@@ -261,6 +261,13 @@ export function describeToolCall(toolName: string, input: unknown): string {
         ? `Set the deload policy → ${mode}`
         : fallback
     }
+    case 'set_program_diet_phase': {
+      if (args.phase === null) return 'Clear the diet phase'
+      const phase = str(args.phase)
+      return phase === 'cutting' || phase === 'maintaining' || phase === 'bulking'
+        ? `Set the diet phase → ${phase}`
+        : fallback
+    }
     case 'set_program_plan_sync':
       return typeof args.enabled === 'boolean'
         ? `Turn plan sync ${args.enabled ? 'on' : 'off'}`

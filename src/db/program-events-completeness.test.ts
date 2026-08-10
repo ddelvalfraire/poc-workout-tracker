@@ -130,6 +130,10 @@ const INVOCATIONS: Record<string, { selects: unknown[][]; run: () => Promise<unk
     selects: [OWNED_PROGRAM],
     run: () => patches.setProgramDeloadPolicy(USER, PID, { mode: 'reactive' }, 'mcp'),
   },
+  setProgramDietPhase: {
+    selects: [OWNED_PROGRAM],
+    run: () => patches.setProgramDietPhase(USER, PID, 'cutting', 'mcp'),
+  },
   setTrainingMax: {
     // Reads: owned-exercise → current progression (a TM-bearing scheme).
     selects: [

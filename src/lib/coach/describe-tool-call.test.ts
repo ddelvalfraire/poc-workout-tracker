@@ -157,6 +157,10 @@ const CASES: Record<
     input: { programId: PROGRAM_ID, policy: { mode: 'scheduled', shape: {} } },
     expected: 'Set the deload policy → scheduled',
   },
+  set_program_diet_phase: {
+    input: { programId: PROGRAM_ID, phase: 'cutting' },
+    expected: 'Set the diet phase → cutting',
+  },
   set_program_plan_sync: {
     input: { programId: PROGRAM_ID, enabled: true },
     expected: 'Turn plan sync on',

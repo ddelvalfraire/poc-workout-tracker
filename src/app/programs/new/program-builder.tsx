@@ -255,6 +255,36 @@ export function ProgramBuilder({
           )}
         </fieldset>
 
+        {/* Diet phase: the same compact radio idiom as the deload policy
+            above. None is first and the default — no phase means the engine
+            behaves exactly as it always has. Cutting only reframes stall
+            verdicts (holding is the win) and asks before backing off; it
+            never changes a load. */}
+        <fieldset className="px-1">
+          <legend className="text-sm">Diet phase (optional)</legend>
+          <div className="mt-1 flex flex-col gap-1">
+            {(
+              [
+                [null, 'None'],
+                ['cutting', 'Cutting — stalls are expected; hold, don’t auto-back-off'],
+                ['maintaining', 'Maintaining'],
+                ['bulking', 'Bulking'],
+              ] as const
+            ).map(([phase, label]) => (
+              <label key={phase ?? 'none'} className="flex items-center gap-2.5">
+                <input
+                  type="radio"
+                  name="diet-phase"
+                  checked={draft.dietPhase === phase}
+                  onChange={() => dispatch({ type: 'SET_DIET_PHASE', value: phase })}
+                  className="size-4 shrink-0 accent-primary"
+                />
+                <span className="text-sm text-muted-foreground">{label}</span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
+
         {/* Program-level auto-regulation switch. A native checkbox — one
             boolean doesn't justify custom chrome, and the adjusted targets
             always arrive as proposals with a per-exercise escape. */}

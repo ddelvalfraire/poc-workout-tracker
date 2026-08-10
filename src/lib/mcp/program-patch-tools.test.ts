@@ -113,7 +113,7 @@ describe('registerProgramPatchTools', () => {
     else process.env.MCP_DEV_USER_ID = original
   })
 
-  it('registers exactly the nineteen program patch tools', () => {
+  it('registers exactly the twenty program patch tools', () => {
     expect([...setup().keys()].sort()).toEqual([
       'add_program_day',
       'add_program_exercise',
@@ -128,6 +128,7 @@ describe('registerProgramPatchTools', () => {
       'remove_program_set_override',
       'set_program_autoregulation',
       'set_program_deload_policy',
+      'set_program_diet_phase',
       'set_program_plan_sync',
       'set_program_set_override',
       'set_training_max',

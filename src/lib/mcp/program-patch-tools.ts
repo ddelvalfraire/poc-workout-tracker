@@ -10,6 +10,7 @@ import {
   removeProgramSetOverride,
   setProgramAutoregulation,
   setProgramDeloadPolicy,
+  setProgramDietPhase,
   setProgramPlanSync,
   setTrainingMax,
   addProgramDay,
@@ -43,6 +44,7 @@ import {
   techniqueSchema,
   progressionSchema,
   deloadPolicySchema,
+  dietPhaseSchema,
 } from '@/lib/program-input'
 
 /** Optional explicit unit override; absent → the user's stored unit. */
@@ -259,6 +261,33 @@ export function registerProgramPatchTools(server: McpServer): void {
         )
         if (!result) throw new ToolError(`Program ${programId} not found for user ${resolved}`)
         return jsonResult({ userId: resolved, programId, deloadPolicy: policy })
+      } catch (error: unknown) {
+        return errorResult(error)
+      }
+    },
+  )
+
+  server.registerTool(
+    'set_program_diet_phase',
+    {
+      title: 'Set Program Diet Phase',
+      description:
+        "Sets (or clears, with `phase: null`) a program's diet-phase context: 'cutting' | 'maintaining' | 'bulking'. Null means no phase — the engine behaves exactly as if the field never existed. 'cutting' never changes loads or suppresses signals; it reframes three-stall verdicts (stalls are expected in a deficit — holding is the win) and routes the automatic three-stall back-off through an owner-confirmable proposal instead of applying it (declining holds). 'maintaining'/'bulking' are stored context only. Every explicit set — including a clear — stamps dietPhaseSetAt (exposed by get_program as the staleness signal). Errors if the program isn't found or owned.",
+      inputSchema: {
+        programId: z.string(),
+        phase: dietPhaseSchema.nullable(),
+        userId: z.string().optional(),
+      },
+    },
+    async ({ programId, phase, userId }, extra) => {
+      try {
+        const resolved = resolveUserId(extra, userId)
+        assertProgramIdShape(programId)
+        const result = await runOp(() =>
+          setProgramDietPhase(resolved, programId, phase, resolveActor(extra)),
+        )
+        if (!result) throw new ToolError(`Program ${programId} not found for user ${resolved}`)
+        return jsonResult({ userId: resolved, programId, dietPhase: phase })
       } catch (error: unknown) {
         return errorResult(error)
       }
