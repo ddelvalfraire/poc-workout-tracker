@@ -850,7 +850,7 @@ export function registerProgramTools(server: McpServer): void {
                       // The backoff a cutting phase held, in the display unit
                       // like every load in this payload.
                       heldBackoff:
-                        adjustment.heldBackoffKg == null
+                        adjustment.heldBackoffKg === undefined
                           ? null
                           : kgToDisplay(adjustment.heldBackoffKg, displayUnit),
                     }

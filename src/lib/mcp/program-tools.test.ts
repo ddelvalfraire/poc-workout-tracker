@@ -1144,17 +1144,26 @@ describe('registerProgramTools', () => {
       const result = await tools.get('preview_program_week')!({ programId: PID, week: 2 })
 
       // Assert — the phase rides as data, not just prose; the held backoff
-      // speaks the display unit like every load in the payload.
+      // speaks the display unit like every load in the payload. Full-object
+      // pin so the cutting branch can't silently drop a sibling field.
       const body = payload(result) as {
         days: {
           exercises: {
-            autoreg: { phaseContext: string | null; heldBackoff: number | null } | null
+            autoreg: {
+              reason: string
+              suggestEarlyDeload: boolean
+              phaseContext: string | null
+              heldBackoff: number | null
+            } | null
           }[]
         }[]
       }
-      const autoreg = body.days[0]!.exercises[0]!.autoreg!
-      expect(autoreg.phaseContext).toBe('cutting')
-      expect(autoreg.heldBackoff).toBe(kgToDisplay(2.5, 'lb'))
+      expect(body.days[0]!.exercises[0]!.autoreg).toEqual({
+        reason: expect.stringContaining('repeating the load'),
+        suggestEarlyDeload: false,
+        phaseContext: 'cutting',
+        heldBackoff: kgToDisplay(2.5, 'lb'),
+      })
     })
 
     it('returns isError /not found/ for a missing program without deriving', async () => {
