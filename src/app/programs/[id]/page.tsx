@@ -57,6 +57,9 @@ const ACTOR_LABELS: Record<ProgramEventActor, string> = {
   mcp: 'Claude',
   coach: 'Coach',
   wger: 'wger',
+  // Seed-script writes exist only on the system account's template rows, so
+  // this label renders for no real user; the record stays total for TS.
+  seed: 'System',
 }
 
 /** Distinct chip treatments per actor: your own edits stay quiet (muted),
@@ -67,6 +70,7 @@ const ACTOR_CHIP_CLASSES: Record<ProgramEventActor, string> = {
   mcp: 'border border-primary/50 text-primary',
   coach: 'border border-foreground/40 text-foreground',
   wger: 'border border-border text-muted-foreground',
+  seed: 'border border-border text-muted-foreground',
 }
 
 /** v1 cap: no pagination UI — older history stays reachable via the MCP
