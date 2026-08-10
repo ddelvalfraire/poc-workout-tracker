@@ -1,5 +1,4 @@
-import Link from 'next/link'
-import { ChevronRight, Dumbbell, Flame, Scale, Trophy } from 'lucide-react'
+import { Dumbbell, Flame, Scale, Trophy } from 'lucide-react'
 import { requireUserId } from '@/lib/auth'
 import { getWeightUnit } from '@/db/preferences'
 import { listArchivedGoals } from '@/db/goals'
@@ -16,6 +15,8 @@ import { kgToDisplay, type WeightUnit } from '@/lib/units'
 import { TrendChart, type TrendPoint } from '@/components/charts/trend-chart'
 import { AppHeader } from '@/components/app-header'
 import { NavDrawer } from '@/components/nav/nav-drawer'
+import { DividerList, DividerRow } from '@/components/ui/divider-list'
+import { EmptyWords } from '@/components/ui/empty-words'
 import { cn } from '@/lib/utils'
 import { GoalCreate } from './goal-create'
 import { GoalCardActions } from './goal-card-actions'
@@ -74,12 +75,9 @@ export default async function GoalsPage() {
           <>
             {/* Empty state keeps the big invitation — the one action that matters. */}
             <GoalCreate unit={unit} />
-            <div className="rounded-2xl border border-border bg-card px-5 py-12 text-center">
-              <p className="font-medium">No goals yet</p>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Set a strength target, a bodyweight target, or a training streak.
-              </p>
-            </div>
+            <EmptyWords>
+              No goals yet. Set a strength target, a bodyweight target, or a training streak.
+            </EmptyWords>
           </>
         ) : (
           <section aria-label="Active goals">
@@ -90,7 +88,7 @@ export default async function GoalsPage() {
               {/* Demoted to the header row — the goals are the page. */}
               <GoalCreate unit={unit} compact />
             </div>
-            <div className="mt-2 space-y-3">
+            <DividerList className="mt-2">
               {sorted.map((entry) => (
                 <GoalCard
                   key={entry.goal.id}
@@ -100,32 +98,29 @@ export default async function GoalsPage() {
                   bodyweightPoints={bodyweightPoints}
                 />
               ))}
-            </div>
+            </DividerList>
           </section>
         )}
 
         {/* The trophy case's one entry point — goals are the achievement
             family, so the link lives here (home already carries its stack). */}
-        <Link
-          href="/trophies"
-          className="flex items-center gap-2.5 rounded-2xl border border-border bg-card p-4 transition-colors hover:border-primary/40"
-        >
-          <Trophy aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
-          <span className="min-w-0 flex-1 truncate text-sm font-medium">Trophies</span>
-          <ChevronRight aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
-        </Link>
+        <DividerList>
+          <DividerRow href="/trophies">
+            <span className="flex min-w-0 flex-1 items-center gap-2.5">
+              <Trophy aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
+              <span className="min-w-0 truncate text-sm font-medium">Trophies</span>
+            </span>
+          </DividerRow>
+        </DividerList>
 
         {archived.length > 0 && (
           <section aria-label="Archived goals">
             <h2 className="px-1 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
               Archived
             </h2>
-            <ul className="mt-2 space-y-3">
+            <DividerList className="mt-2">
               {archived.map((goal) => (
-                <li
-                  key={goal.id}
-                  className="rounded-2xl border border-border bg-card p-4 text-muted-foreground"
-                >
+                <li key={goal.id} className="py-4 text-muted-foreground">
                   <div className="flex items-center justify-between gap-2">
                     <span className="min-w-0 truncate text-sm font-medium">
                       {goalLabel(goal, unit)}
@@ -139,7 +134,7 @@ export default async function GoalsPage() {
                   </div>
                 </li>
               ))}
-            </ul>
+            </DividerList>
           </section>
         )}
       </main>
@@ -166,14 +161,7 @@ function GoalCard({
   const isAchieved = goal.achievedAt !== null
 
   return (
-    <article
-      className={cn(
-        'rounded-2xl border bg-card p-4',
-        isAchieved
-          ? 'border-primary/50 bg-primary/10 motion-safe:animate-rise-in'
-          : 'border-border',
-      )}
-    >
+    <li className={cn('py-5', isAchieved && 'motion-safe:animate-rise-in')}>
       <div className="flex items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2.5">
           <Icon aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
@@ -301,7 +289,7 @@ function GoalCard({
             )}
           </div>
         )}
-    </article>
+    </li>
   )
 }
 

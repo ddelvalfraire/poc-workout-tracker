@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Section } from '@/components/ui/section'
 import { ExercisePicker, type PickedExercise } from '@/app/workout/new/exercise-picker'
 import type { GoalKind } from '@/lib/goal-input'
 import type { WeightUnit } from '@/lib/units'
@@ -126,9 +127,7 @@ export function GoalCreate({
   }
 
   return (
-    <section aria-label="New goal" className="rounded-2xl border border-border bg-card p-4">
-      <p className="text-xs font-semibold uppercase tracking-widest text-primary">New goal</p>
-
+    <Section title="New goal" className="mt-0">
       {/* Kind picker — segmented, one row. */}
       <div role="radiogroup" aria-label="Goal kind" className="mt-3 grid grid-cols-3 gap-1.5">
         {KIND_OPTIONS.map((option) => (
@@ -157,7 +156,7 @@ export function GoalCreate({
         {kind === 'strength' && (
           <>
             {exercise ? (
-              <div className="flex items-center justify-between gap-2 rounded-xl border border-border px-3 py-2.5">
+              <div className="flex items-center justify-between gap-2 border-b border-b-border/60 py-2.5">
                 <span className="min-w-0 truncate text-sm font-medium">{exercise.name}</span>
                 <button
                   type="button"
@@ -317,6 +316,6 @@ export function GoalCreate({
           {isPending ? 'Creating…' : 'Create goal'}
         </Button>
       </div>
-    </section>
+    </Section>
   )
 }
