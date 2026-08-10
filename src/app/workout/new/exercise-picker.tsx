@@ -123,9 +123,15 @@ export function ExercisePicker({
   })
 
   // Pending covers the 401 retry window (Query keeps status pending across
-  // retries) and the Retry button's refetch; a background revalidate of a
-  // warm cache never disables the input.
-  const loading = catalogQuery.isPending || (catalogQuery.isError && catalogQuery.isFetching)
+  // retries), the Retry button's refetch, AND the initial customs load when
+  // enabled — the old Promise.all gated readiness on both requests, and
+  // creating a custom before `?custom=1` resolves would let the late response
+  // clobber the optimistic cache write. A background revalidate of a warm
+  // cache never disables the input.
+  const loading =
+    catalogQuery.isPending ||
+    (catalogQuery.isError && catalogQuery.isFetching) ||
+    (includeCustom && customsQuery.isPending)
   const error =
     catalogQuery.isError && !catalogQuery.isFetching ? 'Could not load exercises.' : null
 
