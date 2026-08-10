@@ -16,6 +16,7 @@ import { AppHeader } from '@/components/app-header'
 import { BackLink } from '@/components/back-link'
 import { ShareCardButton } from '@/components/share-card-button'
 import { buttonVariants } from '@/components/ui/button'
+import { EmptyWords } from '@/components/ui/empty-words'
 import { cn } from '@/lib/utils'
 import { parseExerciseRef } from '../../exercise-ref'
 import {
@@ -268,9 +269,9 @@ export default async function ExerciseStatsPage({
             History
           </h2>
           {sessions.length === 0 ? (
-            <p className="mt-2 px-1 py-6 text-center text-sm text-muted-foreground">
+            <EmptyWords className="mt-2">
               {page > 1 ? 'No older sessions.' : 'No sessions yet.'}
-            </p>
+            </EmptyWords>
           ) : (
             <ul className="mt-2">
               {sessions.map((session) => {

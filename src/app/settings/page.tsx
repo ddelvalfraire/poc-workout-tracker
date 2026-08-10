@@ -1,5 +1,3 @@
-import Link from 'next/link'
-import { ChevronRight } from 'lucide-react'
 import { currentUser } from '@clerk/nextjs/server'
 import { SignOutButton, UserButton } from '@clerk/nextjs'
 import { requireUserId } from '@/lib/auth'
@@ -15,7 +13,8 @@ import { isOpsUser } from '@/lib/ops/access'
 import { AppHeader } from '@/components/app-header'
 import { BackLink } from '@/components/back-link'
 import { UnitToggle } from '@/components/unit-toggle'
-import { cn } from '@/lib/utils'
+import { Section } from '@/components/ui/section'
+import { DividerList, DividerRow } from '@/components/ui/divider-list'
 import packageJson from '../../../package.json'
 import { RestDefaultSetting } from './rest-default-setting'
 import { RestTimerToggle } from './rest-timer-toggle'
@@ -166,9 +165,9 @@ export default async function SettingsPage() {
 }
 
 /** One settings zone: condensed-caps group header over a divider list — the
- *  iOS-grouped-list shape in the de-card vocabulary: rows separated by muted
- *  hairlines, a closing hairline instead of a shell. The quarantined variant
- *  (INTERNAL) keeps its "present, not product" voice as DASHED hairlines. */
+ *  Section + DividerList primitives (this page is the shape's reference
+ *  surface). The quarantined variant (INTERNAL) keeps its "present, not
+ *  product" voice as DASHED hairlines. */
 function SettingsZone({
   title,
   quarantined = false,
@@ -179,21 +178,11 @@ function SettingsZone({
   children: React.ReactNode
 }) {
   return (
-    <section aria-label={title} className="mt-8">
-      <h2 className="font-display text-base uppercase leading-none tracking-wide text-muted-foreground">
-        {title}
-      </h2>
-      <ul
-        className={cn(
-          'mt-1',
-          quarantined
-            ? 'divide-y divide-dashed divide-border/60 border-b border-dashed border-b-border/60'
-            : 'divide-y divide-border/60 border-b border-b-border/60',
-        )}
-      >
+    <Section title={title}>
+      <DividerList dashed={quarantined} className="mt-1">
         {children}
-      </ul>
-    </section>
+      </DividerList>
+    </Section>
   )
 }
 
@@ -219,7 +208,7 @@ function SettingRow({
 }
 
 /** A navigation row: same anatomy as SettingRow, but the whole row is the
- *  control — optional trailing value, then the chevron. */
+ *  control — optional trailing value, then the chevron (DividerRow). */
 function LinkRow({
   href,
   label,
@@ -232,20 +221,11 @@ function LinkRow({
   children?: React.ReactNode
 }) {
   return (
-    <li>
-      <Link
-        href={href}
-        className="flex items-center justify-between gap-4 py-4 transition-colors outline-none hover:bg-muted/50 focus-visible:bg-muted/50"
-      >
-        <div className="min-w-0">
-          <p className="font-medium">{label}</p>
-          <p className="mt-0.5 text-sm text-muted-foreground">{hint}</p>
-        </div>
-        <div className="flex shrink-0 items-center gap-1 text-muted-foreground">
-          {children}
-          <ChevronRight aria-hidden="true" className="size-4" />
-        </div>
-      </Link>
-    </li>
+    <DividerRow href={href} trailing={children}>
+      <div className="min-w-0">
+        <p className="font-medium">{label}</p>
+        <p className="mt-0.5 text-sm text-muted-foreground">{hint}</p>
+      </div>
+    </DividerRow>
   )
 }

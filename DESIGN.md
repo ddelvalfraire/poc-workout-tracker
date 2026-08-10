@@ -1,5 +1,9 @@
 # Design
 
+> The [De-card vocabulary](#de-card-vocabulary-review-contract) section is the
+> review contract for list/detail surfaces — check every conversion and every
+> new surface against it.
+
 ## Theme
 Dark, committed — not a toggle. Near-black surface (`#0a0a0a`, matching the PWA `theme_color`/manifest) with subtly lifted panels, near-white ink, and a single high-voltage accent for primary actions and active state. Dark is the deliberate choice for a gym environment (harsh/low light, OLED phones, glance-readability), echoing athletic apps (Strong, Hevy, Nike Training). The light shadcn defaults are removed; the app ships one intentional dark theme.
 
@@ -39,6 +43,76 @@ Contrast-axis pairing (condensed display + neutral UI sans), not two similar san
 ## Motion
 - 150–250ms state transitions (color, ring, subtle press translate). No page-load choreography.
 - Press feedback on buttons (small translate/active state). Full `prefers-reduced-motion: reduce` fallbacks (crossfade/instant).
+
+## De-card vocabulary (review contract)
+
+The shipped list/detail surfaces (settings, programs, exercises) speak one
+visual language. Review every conversion and every new surface against this
+section.
+
+### Hairlines, not shells
+
+Content sits on the page background, framed by muted hairline dividers — not
+inside rounded card shells. `rounded-2xl` + `bg-card` shells are reserved for
+the keep-list below. Prefer the primitives in `src/components/ui/`
+(`Section`, `DividerList`/`DividerRow`, `EmptyWords`) over re-typing recipes.
+
+### The exact recipes
+
+- **Hairline**: `border-b border-b-border/60` (grouped lists close with one; a
+  chart or hero sits *above* one instead of inside a shell).
+- **Caps header**: `font-display text-base uppercase leading-none
+  tracking-wide text-muted-foreground` (`Section`).
+- **Divider list**: `divide-y divide-border/60 border-b border-b-border/60`
+  on the `ul` (`DividerList`); the dashed variant (`divide-dashed
+  border-dashed`) is the quarantined / pending voice.
+- **Divider row**: `flex items-center justify-between gap-4 py-4
+  transition-colors outline-none hover:bg-muted/50 focus-visible:bg-muted/50`
+  with a trailing `text-muted-foreground` value + `size-4` chevron cluster
+  (`DividerRow`).
+- **Empty words**: `px-1 py-6 text-center text-sm text-muted-foreground` —
+  an empty state is a plain sentence, not a boxed apology (`EmptyWords`).
+- **Ghost / pending**: once the loading-states pass lands, skeletons use the
+  same hairline geometry as the loaded surface — never placeholder cards.
+
+### One volt
+
+One volt (accent) moment per screen: the primary action or the single live
+element. Precedent (#163): on revisit surfaces (lists you scan repeatedly),
+per-item volt stacks and is banned — a zone heading or a single delta carries
+the accent; declines and ordinary values render quiet.
+
+### Chips are controls, words are labels
+
+Pill/chip styling means "you can press me" (toggle chips, segmented controls,
+the rest pill). Metadata is words in the muted ink — never decorate a label
+as a chip.
+
+### Keep-list (do not de-card)
+
+Card shells stay where the shell *is* the meaning:
+
+- **Sheets, dialogs, popovers** — elevation is the point of an overlay.
+- **Coach chat** — message bubbles are the conversational idiom.
+- **StatTile** — a tile grid is the scannable record wall.
+- **Article / content-preview cards** — external content previews read as
+  clippings.
+- **Actor chips** — provenance markers are chips by design.
+- **Control clusters** — rest pill, segmented controls, toggle chips: chips
+  mean pressable.
+- **Media tiles** — photos and share cards need a bounded frame.
+- **Form fields** (`Input`, `Textarea`) — fields need enclosure.
+- **`src/components/ui/card.tsx`** — the primitive stays for keep-list use.
+- **Nav-drawer hover shapes** — the drawer's own interaction vocabulary.
+- **Programs-landing active hero** — explicitly kept as shipped.
+
+### Lint ratchet
+
+`eslint.config.mjs` bans `rounded-2xl` and `bg-card` (via
+`better-tailwindcss/no-restricted-classes`) outside two allowlists: the
+keep-list (permanent) and the `CARD_SHELL_RATCHET` grandfather list
+(temporary). Every conversion PR must remove its files from the ratchet
+list — it only ever shrinks, never grows, and new surfaces never join it.
 
 ## Pending states
 - **Ghosts** (`<Ghost />`, `animate-ghost-in`): a rounded `bg-muted` bar holding the EXACT final dimensions of the content it stands in for (same wrappers/margins, bar boxed to the text's line height) — zero layout shift on resolve. 1.8s opacity pulse via `motion-safe:` only; static bar under reduced motion. Never a shimmer sweep, never a new color.
