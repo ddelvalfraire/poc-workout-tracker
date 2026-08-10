@@ -4,6 +4,7 @@ import {
   dueHeadline,
   localDayDiff,
   momentumSessionsLine,
+  momentumWeekDeltaLine,
   statusForHome,
   type HomeStatusFacts,
 } from './home-status'
@@ -260,5 +261,18 @@ describe('momentumSessionsLine', () => {
   it('pluralizes sessions', () => {
     expect(momentumSessionsLine(1)).toBe('1 session this week')
     expect(momentumSessionsLine(3)).toBe('3 sessions this week')
+  })
+})
+
+describe('momentumWeekDeltaLine', () => {
+  it('states the direction and magnitude against last week', () => {
+    expect(momentumWeekDeltaLine(20, 12)).toBe('Up 8 on last week')
+    expect(momentumWeekDeltaLine(9, 12)).toBe('Down 3 on last week')
+    expect(momentumWeekDeltaLine(12, 12)).toBe('Level with last week')
+  })
+
+  it('stays silent when last week has no sets (nothing honest to compare)', () => {
+    expect(momentumWeekDeltaLine(15, 0)).toBeNull()
+    expect(momentumWeekDeltaLine(0, 0)).toBeNull()
   })
 })

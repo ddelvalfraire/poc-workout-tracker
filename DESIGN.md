@@ -37,7 +37,7 @@ Contrast-axis pairing (condensed display + neutral UI sans), not two similar san
 ## Layout & Mobile
 - `viewport-fit=cover` + `env(safe-area-inset-*)` so content clears the notch and home indicator in standalone mode.
 - `-webkit-text-size-adjust: 100%`, `overscroll-behavior-y: contain`, momentum scroll, removed tap-highlight, `touch-action` tuned for inputs.
-- Single-column, max-width ~28rem, centered — phone-first; scales gracefully on larger screens without desktop density.
+- Single-column, max-width ~28rem, centered — phone-first. Exception: HOME widens to ~42rem from the `md` breakpoint and renders its 4-unit bento row literally (`md:grid-cols-4`; sm=1, md=2, lg=4). Side-by-side sections normalize their top margin to `md:mt-10` so tile tops align; every other surface stays the single phone column.
 - User zoom stays enabled (accessibility); zoom-on-focus solved via 16px inputs, not a scale lock.
 
 ## Motion

@@ -74,14 +74,16 @@ const HOME_SECTION_RENDERERS: Record<HomeSectionKind, HomeSectionRenderer> = {
   ),
 }
 
-/** The web mapping of the abstract 4-unit row onto home's narrow column:
- *  a 2-col grid where sm = half width and md/lg = full width. Flow is
- *  row-major with NO dense back-fill — a gap left by a lone sm before a
- *  full-width section stays visible (predictability over density). */
+/** The web mapping of the abstract 4-unit row: on the phone column a 2-col
+ *  grid (sm = half width, md/lg = full width); from the md breakpoint the
+ *  full 4-unit row renders literally (sm=1, md=2, lg=4 of 4 columns) — the
+ *  desktop bento, same layout document. Flow is row-major with NO dense
+ *  back-fill — a gap left by a lone sm before a full-width section stays
+ *  visible (predictability over density). */
 const SIZE_SPAN: Record<HomeSectionSize, string> = {
   sm: 'col-span-1',
   md: 'col-span-2',
-  lg: 'col-span-2',
+  lg: 'col-span-2 md:col-span-4',
 }
 
 /**
@@ -92,7 +94,10 @@ const SIZE_SPAN: Record<HomeSectionSize, string> = {
  * gap-x only, deliberately: vertical rhythm stays owned by each section's own
  * mt-* margins (grid items don't collapse margins, but nothing here used
  * collapsing — every section spaces itself with a single top margin), so the
- * all-md default renders byte-identical to the pre-grid stacked home.
+ * all-md default renders byte-identical to the pre-grid stacked home. From
+ * the md breakpoint sections can sit side-by-side, so every section's top
+ * margin normalizes to md:mt-10 (DESIGN.md) — differing phone margins would
+ * misalign adjacent tile tops.
  */
 export function renderHomeSections(
   sections: readonly ResolvedHomeSection[],
@@ -100,7 +105,7 @@ export function renderHomeSections(
   renderers: Partial<Record<string, HomeSectionRenderer>> = HOME_SECTION_RENDERERS,
 ): ReactNode {
   return (
-    <div className="grid grid-cols-2 gap-x-3">
+    <div className="grid grid-cols-2 gap-x-3 md:grid-cols-4 md:gap-x-6">
       {sections
         .filter((s) => !s.hidden)
         .map((s) => {

@@ -101,11 +101,12 @@ describe('renderHomeSections', () => {
     expect(wrappers).toHaveLength(HOME_SECTION_REGISTRY.length)
   })
 
-  it('DEFAULT-layout parity: every default section spans the full row and the grid adds no vertical spacing', () => {
-    // The parity contract: a user with no stored doc gets all-md sections,
-    // each col-span-2 in a grid-cols-2 container — i.e. full-width stacked,
-    // exactly the pre-bento home. gap-x only: vertical rhythm stays owned by
-    // each section's own mt-* margins.
+  it('DEFAULT-layout parity: every default section spans the full phone row and the grid adds no vertical spacing', () => {
+    // The parity contract holds on the PHONE column: a user with no stored
+    // doc gets sections that each span the full 2-col base grid — full-width
+    // stacked, exactly the pre-bento home. The md: classes are desktop-only
+    // additions and never touch the base rendering. gap-x only: vertical
+    // rhythm stays owned by each section's own mt-* margins.
     const sections = HOME_SECTION_REGISTRY.map((s) => ({
       kind: s.kind,
       size: s.defaultSize,
@@ -114,13 +115,15 @@ describe('renderHomeSections', () => {
     const { container, wrappers } = wrappersOf(
       renderHomeSections(sections, ctx, stubRenderers()),
     )
-    expect(container.props.className).toBe('grid grid-cols-2 gap-x-3')
+    expect(container.props.className).toBe('grid grid-cols-2 gap-x-3 md:grid-cols-4 md:gap-x-6')
     for (const wrapper of wrappers) {
-      expect(wrapper.props.className).toBe('col-span-2')
+      // Base span first, then (only) md: desktop modifiers — the phone
+      // rendering is always the plain col-span-2 full row.
+      expect(wrapper.props.className).toMatch(/^col-span-2( md:col-span-4)?$/)
     }
   })
 
-  it('maps sizes to spans: sm half-width, md and lg full-width (narrow-column web mapping)', () => {
+  it('maps sizes to spans: phone 2-col base plus the literal 4-unit desktop row (sm=1, md=2, lg=4)', () => {
     const { wrappers } = wrappersOf(
       renderHomeSections(
         [
@@ -137,7 +140,7 @@ describe('renderHomeSections', () => {
       'col-span-1',
       'col-span-1',
       'col-span-2',
-      'col-span-2',
+      'col-span-2 md:col-span-4',
     ])
   })
 })
