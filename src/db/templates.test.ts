@@ -131,6 +131,9 @@ describe('adoptTemplate (the library pull — copy, never link)', () => {
       sourceUrl: 'https://stronglifts.com/stronglifts-5x5/',
     })
     expect(inserts[0].values).not.toHaveProperty('visibility')
+    // The diet phase never travels: a template can't know the adopter's diet.
+    expect(inserts[0].values).not.toHaveProperty('dietPhase')
+    expect(inserts[0].values).not.toHaveProperty('dietPhaseSetAt')
     // The tree is copied from the SOURCE detail into the new row.
     expect(copyProgramTree).toHaveBeenCalledWith(expect.anything(), sourceDetail().days, 'copy-1')
     // The clone's timeline opens with where it came from.

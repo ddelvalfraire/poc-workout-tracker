@@ -112,6 +112,8 @@ export async function adoptTemplate(
         heroImageUrl: source.heroImageUrl,
         sourceUrl: source.sourceUrl,
         // visibility omitted → the 'private' column default: the reset.
+        // dietPhase/dietPhaseSetAt omitted → null: a phase is a fact about
+        // the lifter's current diet, never a property a template carries.
       })
       .returning({ id: programs.id })
     await copyProgramTree(tx, source.days, program.id)

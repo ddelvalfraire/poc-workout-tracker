@@ -242,6 +242,8 @@ export async function adoptShared(userId: string, token: string): Promise<{ id: 
         heroImageUrl: source.heroImageUrl,
         sourceUrl: source.sourceUrl,
         // visibility omitted → the 'private' column default: the reset.
+        // dietPhase/dietPhaseSetAt omitted → null: the sharer's diet phase is
+        // about THEIR body, never something an adopted copy inherits.
       })
       .returning({ id: programs.id })
     await copyProgramTree(tx, source.days, program.id)

@@ -410,6 +410,9 @@ describe('adoptShared (cross-account clone)', () => {
       sourceUrl: 'https://example.com/src',
     })
     expect('visibility' in values).toBe(false)
+    // The sharer's diet phase never travels — it is about THEIR body.
+    expect('dietPhase' in values).toBe(false)
+    expect('dietPhaseSetAt' in values).toBe(false)
 
     // The tree copies with clone fidelity, on the same handle/program.
     expect(copyProgramTree).toHaveBeenCalledTimes(1)

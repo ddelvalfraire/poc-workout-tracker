@@ -43,6 +43,13 @@ export const statusSchema = z.enum(['draft', 'active', 'archived'])
  *  read-only via a live share URL, 'public' = link behavior plus eligibility
  *  for a future browse surface (the field is the seam; no directory yet). */
 export const visibilitySchema = z.enum(['private', 'link', 'public'])
+/** Diet-phase context (programs.dietPhase, nullable text). NULL = "not a
+ *  thing": the engine behaves byte-for-byte as before the column existed —
+ *  no default assumption, no onboarding question, no nag. 'cutting' ANNOTATES
+ *  stall verdicts (never suppresses, never changes a load — see
+ *  applyDietPhaseToAdjustment in lib/autoregulate.ts); 'maintaining'/
+ *  'bulking' are stored context only in v1 (zero engine effect). */
+export const dietPhaseSchema = z.enum(['cutting', 'maintaining', 'bulking'])
 
 // Article-metadata caps (PRD §3): the description is an article lead, the
 // rest are short tokens/URLs.
@@ -413,6 +420,15 @@ export const programInputSchema = z
     // null (= legacy resolution); updateProgram preserves when omitted, and
     // an explicit null clears the policy back to legacy resolution.
     deloadPolicy: deloadPolicySchema.nullable().optional(),
+    // Diet-phase context (programs.dietPhase — see dietPhaseSchema above).
+    // Same preserve-on-omit discipline as the switches: NO default, or an
+    // upsert that omits the field would wipe a stored phase. saveProgram
+    // treats omitted-on-create as null (no phase); updateProgram preserves
+    // when omitted, and an explicit null clears the phase (set_at still
+    // bumps — clearing IS a change). Cloning/adopting NEVER carries it:
+    // phases don't cross training blocks (db/programs.ts cloneProgram,
+    // db/templates.ts, db/program-shares.ts).
+    dietPhase: dietPhaseSchema.nullable().optional(),
     // Performance→plan auto-sync switch (programs.planSync). Same preserve-on-
     // omit discipline as autoregulation above: no .default(true), or an upsert
     // that omits the field would flip a stored OFF back ON. saveProgram
@@ -456,6 +472,7 @@ export type MetricMode = z.infer<typeof metricModeSchema>
 export type Technique = z.infer<typeof techniqueSchema>
 export type DeloadShape = z.infer<typeof deloadShapeSchema>
 export type DeloadPolicy = z.infer<typeof deloadPolicySchema>
+export type DietPhase = z.infer<typeof dietPhaseSchema>
 export type Progression = z.infer<typeof progressionSchema>
 export type SetOverrideInput = z.infer<typeof setOverrideSchema>
 export type ProgramSetInput = z.infer<typeof programSetSchema>
