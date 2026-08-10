@@ -100,6 +100,7 @@ vi.mock('./programs', async (importOriginal) => ({
 import {
   ProgramPatchError,
   setProgramAutoregulation,
+  setProgramDeloadPolicy,
   addProgramDay,
   updateProgramDay,
   removeProgramDay,
@@ -159,6 +160,10 @@ describe('setTrainingMax (TM lifecycle §1)', () => {
     scheme: 'amrap-cycle',
     trainingMaxKg: 140,
     incrementKg: 2.5,
+    // A stored row post-migration-0037 carries an explicit timing; the
+    // re-parse in setTrainingMax preserves it (absent would be materialized
+    // to 'after-deload' — the new-config zod default).
+    tmBumpTiming: 'before-deload',
     wave: [
       [0.65, 0.75, 0.85],
       [0.7, 0.8, 0.9],
@@ -310,6 +315,67 @@ describe('setProgramAutoregulation stall policy', () => {
     // Assert
     expect('autoregStallPolicy' in programsUpdate()).toBe(false)
     expect(eventInsert()).toMatchObject({ summary: 'Auto-regulation off' })
+  })
+})
+
+describe('setProgramDeloadPolicy', () => {
+  const eventInsert = () =>
+    records.find((r) => r.op === 'insert:program_events')?.values as Record<string, unknown>
+  const programsUpdate = () =>
+    records.find((r) => r.op === 'update:programs')?.values as Record<string, unknown>
+
+  it('writes a parsed policy (shape defaults applied) and logs the event', async () => {
+    // Reads: owned-program
+    selectQueue = [[{ id: PID }]]
+
+    const result = await setProgramDeloadPolicy(
+      USER,
+      PID,
+      { mode: 'scheduled', shape: { rpeCap: 7 } } as never,
+      'mcp',
+    )
+
+    expect(result).toEqual({ id: PID })
+    expect(programsUpdate()).toMatchObject({
+      deloadPolicy: { mode: 'scheduled', shape: { loadFactor: 0.85, setFactor: 0.5, rpeCap: 7 } },
+    })
+    expect(eventInsert()).toMatchObject({
+      action: 'set_program_deload_policy',
+      summary: 'Deload policy: scheduled (load ×0.85, sets ×0.5, RPE cap 7)',
+      payload: {
+        after: {
+          deloadPolicy: {
+            mode: 'scheduled',
+            shape: { loadFactor: 0.85, setFactor: 0.5, rpeCap: 7 },
+          },
+        },
+      },
+    })
+  })
+
+  it('clears with null and says so in the summary', async () => {
+    selectQueue = [[{ id: PID }]]
+
+    await setProgramDeloadPolicy(USER, PID, null, 'ui')
+
+    expect(programsUpdate()).toMatchObject({ deloadPolicy: null })
+    expect(eventInsert()).toMatchObject({
+      summary: 'Deload policy cleared (legacy behavior)',
+      payload: { after: { deloadPolicy: null } },
+    })
+  })
+
+  it('rejects an invalid policy with ProgramPatchError before any write', async () => {
+    await expect(
+      setProgramDeloadPolicy(USER, PID, { mode: 'weird' } as never, 'mcp'),
+    ).rejects.toBeInstanceOf(ProgramPatchError)
+    expect(records).toHaveLength(0)
+  })
+
+  it('returns null when the program is not owned', async () => {
+    selectQueue = [[]]
+    expect(await setProgramDeloadPolicy(USER, PID, { mode: 'none' }, 'mcp')).toBeNull()
+    expect(records).toHaveLength(0)
   })
 })
 

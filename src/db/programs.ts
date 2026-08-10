@@ -1,12 +1,14 @@
 import { and, asc, count, countDistinct, desc, eq, isNotNull, isNull, max, ne, sql } from 'drizzle-orm'
 import { cache } from 'react'
-import type { ProgramInput, Progression } from '@/lib/program-input'
+import type { DeloadPolicy, ProgramInput, Progression } from '@/lib/program-input'
 import type { ExerciseSource } from '@/lib/custom-exercise-input'
 import { getAllExercises, type Exercise } from '@/lib/wger'
 import {
   deriveWeekSets,
   applyOverride,
-  amrapCompletedWaves,
+  amrapBankableWaves,
+  isExplicitNoDeloadPolicy,
+  resolveDeloadPolicy,
   type DerivedSet,
   type ExerciseHistoryInput,
   type ProgramSetRowLike,
@@ -277,6 +279,9 @@ export async function saveProgram(
         ...(input.autoregStallPolicy !== undefined
           ? { autoregStallPolicy: input.autoregStallPolicy }
           : {}),
+        // Omitted on create = null (legacy read-time resolution — see
+        // resolveDeloadPolicy). Same no-materialization discipline.
+        ...(input.deloadPolicy !== undefined ? { deloadPolicy: input.deloadPolicy } : {}),
         // Same omitted-on-create = ON rule: default-on keeps fresh users'
         // plans tracking what they actually lift.
         planSync: input.planSync ?? true,
@@ -451,6 +456,9 @@ export async function updateProgram(
         ...(input.autoregStallPolicy !== undefined
           ? { autoregStallPolicy: input.autoregStallPolicy }
           : {}),
+        // Same preserve rule for the deload policy; explicit null clears it
+        // back to legacy read-time resolution.
+        ...(input.deloadPolicy !== undefined ? { deloadPolicy: input.deloadPolicy } : {}),
         ...(input.planSync !== undefined ? { planSync: input.planSync } : {}),
         // Same preserve rule for the check-in cadence; explicit null clears it.
         ...(input.checkInEveryDays !== undefined
@@ -701,6 +709,7 @@ export async function cloneProgram(
         deloadWeek: source.deloadWeek,
         autoregulation: source.autoregulation,
         autoregStallPolicy: source.autoregStallPolicy,
+        deloadPolicy: source.deloadPolicy,
         planSync: source.planSync,
         checkInEveryDays: source.checkInEveryDays,
         notes: source.notes,
@@ -850,7 +859,7 @@ export async function getProgramDayDetail(userId: string, programDayId: string) 
         // 'proposed' plan instantiates nothing until the owner adopts it.
         // planSync rides along for the post-finish auto-sync gate
         // (lib/auto-plan-sync) — same read, no extra round-trip.
-        columns: { id: true, userId: true, status: true, mesocycleWeeks: true, deloadWeek: true, autoregulation: true, autoregStallPolicy: true, planSync: true },
+        columns: { id: true, userId: true, status: true, mesocycleWeeks: true, deloadWeek: true, autoregulation: true, autoregStallPolicy: true, deloadPolicy: true, planSync: true },
       },
       exercises: {
         orderBy: (e) => [asc(e.position)],
@@ -1146,6 +1155,10 @@ export interface DayForDerivation {
      *  into `autoregulate` and `autoregulateEarlyDeload`; range/anchor modes
      *  ignore it. Required so every caller reads the program row's policy. */
     autoregStallPolicy: AutoregStallPolicy
+    /** Raw programs.deload_policy column (null = pre-policy program) —
+     *  resolved ONCE per derivation via resolveDeloadPolicy. Required so
+     *  every caller reads the program row's policy, like the stall policy. */
+    deloadPolicy: DeloadPolicy | null
   }
 }
 
@@ -1267,8 +1280,14 @@ export async function deriveDayPrescription(
 
   // The deload check mirrors deriveWeekSets' internal clamp so an out-of-range
   // caller week lands on the same verdict the derivation itself will use.
+  // Policy-gated like the engine's modifier: under 'none'/'reactive' the
+  // deload week is a NORMAL training week, so autoreg runs on it as usual.
+  const deloadPolicy = resolveDeloadPolicy(day.program.deloadPolicy, day.program.deloadWeek)
   const clampedWeek = Math.min(Math.max(1, week), Math.max(1, day.program.mesocycleWeeks))
-  const isDeloadWeek = day.program.deloadWeek !== null && clampedWeek === day.program.deloadWeek
+  const isDeloadWeek =
+    day.program.deloadWeek !== null &&
+    clampedWeek === day.program.deloadWeek &&
+    deloadPolicy.mode === 'scheduled'
 
   const results: ExercisePrescription[] = []
   // Autoreg verdict cache: a day that repeats an exercise derives ONCE per
@@ -1292,6 +1311,7 @@ export async function deriveDayPrescription(
       mesocycleWeeks: day.program.mesocycleWeeks,
       deloadWeek: day.program.deloadWeek,
       history,
+      deloadPolicy,
     })
 
     // Layer 1 auto-regulation (program-gated; fixed-rep linear gets the v1
@@ -1299,7 +1319,16 @@ export async function deriveDayPrescription(
     // progression rules, load-less-capable schemes the anchor-only rules,
     // percent-1rm/amrap-cycle the advisory early-deload flag (M4); never on
     // the deload week — its whole point is the planned back-off).
-    const plan = day.program.autoregulation ? autoregPlan(exercise) : null
+    const rawPlan = day.program.autoregulation ? autoregPlan(exercise) : null
+    // M4 gating: an EXPLICIT policy of 'none' says "this program does not
+    // deload" — suppressing the advisory early-deload flag with it.
+    // 'reactive' and 'scheduled' keep the suggestion (reactive IS the flag's
+    // whole point), and so does the LEGACY resolution to 'none' (a
+    // pre-policy program never asked for silence — byte-identity).
+    const plan =
+      rawPlan?.mode === 'deload-flag' && isExplicitNoDeloadPolicy(day.program.deloadPolicy)
+        ? null
+        : rawPlan
     let adjustment: AutoregAdjustment | null = null
     if (plan !== null && !isDeloadWeek) {
       if (adjustmentByKey.has(key)) {
@@ -1448,14 +1477,25 @@ export async function instantiateProgramDay(
   // read below therefore prescribes IDENTICAL loads (old TM + n·inc ==
   // new TM + 0·inc) and no re-read is needed. Static waves
   // (incrementKg 0) never bank — a "TM 100 → 100" event would be noise.
+  // tmBumpTiming gate: starting an 'after-deload' config's SCHEDULED deload
+  // week must not bank the just-finished wave — the deload derives off the
+  // OLD TM and the bump banks when the first post-deload week starts. Same
+  // arithmetic as the engine's wave math (amrapBankableWaves), so the
+  // persisted and virtual TMs can never drift.
+  const startPolicy = resolveDeloadPolicy(day.program.deloadPolicy, day.program.deloadWeek)
+  const startIsScheduledDeload =
+    day.program.deloadWeek !== null &&
+    targetWeek === day.program.deloadWeek &&
+    startPolicy.mode === 'scheduled'
   for (const [position, exercise] of day.exercises.entries()) {
     const progression = exercise.progression
     if (progression?.scheme !== 'amrap-cycle' || progression.incrementKg <= 0) continue
-    const completed = amrapCompletedWaves(
+    const completed = amrapBankableWaves(
       targetWeek,
       day.program.mesocycleWeeks,
       day.program.deloadWeek,
       progression.wave.length,
+      { tmBumpTiming: progression.tmBumpTiming, isScheduledDeload: startIsScheduledDeload },
     )
     const banked = progression.bankedWaves ?? 0
     if (completed <= banked) continue

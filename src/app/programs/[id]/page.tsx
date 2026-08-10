@@ -164,6 +164,7 @@ export default async function ProgramDetailPage({
                 deloadWeek: program.deloadWeek,
                 autoregulation: program.autoregulation,
                 autoregStallPolicy: program.autoregStallPolicy,
+                deloadPolicy: program.deloadPolicy,
               },
             },
             selectedWeek,

@@ -152,20 +152,53 @@ describe('corpus: Wendler 5/3/1 — amrap-cycle vs the published cycle tables [W
     })
   })
 
-  it('week 4 deloads by the ENGINE rule — a documented divergence from 40/50/60 [W1]', () => {
-    // DIVERGENCE: Wendler's deload week is its own row — 40/50/60% ×5 at
-    // full set count, off the OLD TM (the bump lands with the next cycle)
-    // [W1]. Our engine has no per-scheme deload row: the deload week
+  it("week 4 on a LEGACY config deloads by the engine's scale-shape rule [W1]", () => {
+    // LEGACY PIN (pre-deload-policy configs, migration-stamped
+    // tmBumpTiming 'before-deload', no deloadRow): Wendler's deload week is
+    // its own row — 40/50/60% ×5 at full set count, off the OLD TM [W1] —
+    // but a legacy config has no per-scheme deload row: the deload week
     // re-derives the wave (week 4's steps land back on wave row 1), applies
     // DELOAD_LOAD_FACTOR 0.85, halves the working-set count (ceil → 2 of
-    // 3), AND — because wave 1 completed before week 4 — already derives
-    // off the bumped TM 102.5. Asserting the engine's actual behavior, not
-    // a forced canon match.
+    // 3), AND — 'before-deload' — already derives off the bumped TM 102.5.
+    // This pins what every EXISTING amrap-cycle program keeps deriving;
+    // the canon path is the deloadRow + 'after-deload' entry below.
     const derived = derive(4)
     expect(derived).toHaveLength(2)
     expect(derived[0].loadKg).toBeCloseTo(102.5 * 0.65 * DELOAD_LOAD_FACTOR, 9) // 56.63125, not 40
     expect(derived[1].loadKg).toBeCloseTo(102.5 * 0.75 * DELOAD_LOAD_FACTOR, 9) // 65.34375, not 50
     derived.forEach((s) => expect(s.derivedFrom).toBe('deload'))
+  })
+
+  it('week 4 with deloadRow + after-deload derives the PUBLISHED 40/50/60 ×5 off the old TM [W1]', () => {
+    // Wendler canon, now expressible: the deload week is its own row —
+    // 40/50/60% of the TM ×5 — and the cycle bump lands only with the NEXT
+    // cycle's first week, so the deload derives off the UNBUMPED TM 100
+    // [W1]. New configs get tmBumpTiming 'after-deload' by default; the
+    // deloadRow is the program author's opt-in.
+    const canon: Progression = {
+      ...bench,
+      tmBumpTiming: 'after-deload',
+      deloadRow: { percents: [0.4, 0.5, 0.6], reps: 5 },
+    }
+    const derived = derive(4, canon)
+    expect(derived).toHaveLength(3)
+    expect(derived.map((s) => s.loadKg)).toEqual([40, 50, 60]) // TM 100 × 40/50/60% [W1]
+    expect(derived.map((s) => s.repMin)).toEqual([5, 5, 5]) // ×5 [W1]
+    derived.forEach((s) => expect(s.derivedFrom).toBe('deload'))
+    // The withheld bump still lands where Wendler says: cycle 2 week 1 off
+    // the NEW TM 102.5 [W1].
+    const week5 = derive(5, canon)
+    expect(week5[0].loadKg).toBeCloseTo(102.5 * 0.65, 9)
+  })
+
+  it('a migration-stamped legacy program derives byte-identically to its pre-stamp self', () => {
+    // Migration 0037 stamps tmBumpTiming 'before-deload' onto every stored
+    // amrap-cycle config. The stamp must be a pure freeze: for every week
+    // of the block, stamped and unstamped configs derive the same bytes.
+    const stamped: Progression = { ...bench, tmBumpTiming: 'before-deload' }
+    for (let week = 1; week <= geometry.mesocycleWeeks; week++) {
+      expect(derive(week, stamped)).toEqual(derive(week))
+    }
   })
 
   it('cycle 2 bumps the TM by +2.5 kg (upper) at the wave boundary [W1]', () => {

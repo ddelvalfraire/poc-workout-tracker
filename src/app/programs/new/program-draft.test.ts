@@ -46,6 +46,7 @@ const NESTED: ProgramDraft = {
   deloadWeek: '6',
   autoregulation: true,
   autoregStallPolicy: 'all-sets',
+  deloadPolicy: null,
   planSync: true,
   checkInEveryDays: '',
   status: 'draft',
@@ -211,6 +212,20 @@ describe('stored program draft (localStorage persistence)', () => {
     expect(next.planSync).toBe(false)
     expect(next.autoregulation).toBe(NESTED.autoregulation)
     expect(NESTED.planSync).toBe(true) // input untouched
+  })
+
+  it('SET_DELOAD_POLICY stores the picked policy and rides the save mapping', () => {
+    // Act — pick reactive, then map to the server payload
+    const next = programDraftReducer(NESTED, {
+      type: 'SET_DELOAD_POLICY',
+      value: { mode: 'reactive' },
+    })
+
+    // Assert — stored, emitted, and the input untouched (null = pass-through)
+    expect(next.deloadPolicy).toEqual({ mode: 'reactive' })
+    expect(draftToProgramInput(next).deloadPolicy).toEqual({ mode: 'reactive' })
+    expect(NESTED.deloadPolicy).toBeNull()
+    expect(draftToProgramInput(NESTED).deloadPolicy).toBeNull()
   })
 
   it('round-trips a draft through build → parse', () => {
@@ -391,6 +406,7 @@ describe('draftToProgramInput', () => {
       deloadWeek: '',
       autoregulation: true,
       autoregStallPolicy: 'all-sets',
+      deloadPolicy: null,
       planSync: true,
       checkInEveryDays: '',
       status: 'draft',
@@ -560,6 +576,7 @@ describe('detailToProgramDraft', () => {
     authorActor: 'coach',
     autoregulation: true,
     autoregStallPolicy: 'first-set',
+    deloadPolicy: null,
     planSync: false,
     checkInEveryDays: 14,
     visibility: 'private',

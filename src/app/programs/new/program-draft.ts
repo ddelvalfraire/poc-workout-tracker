@@ -1,4 +1,5 @@
 import type {
+  DeloadPolicy,
   MetricMode,
   ProgramInput,
   ProgramInputUnparsed,
@@ -101,6 +102,10 @@ export interface ProgramDraft {
   /** Fixed-mode stall policy (see programs.autoregStallPolicy): 'all-sets'
    *  (every working set must hit its floor) | 'first-set' (top set decides). */
   autoregStallPolicy: AutoregStallPolicy
+  /** Deload policy (see programs.deloadPolicy). Null = never set — the
+   *  read-time resolver keeps legacy behavior; the mode picker shows the
+   *  RESOLVED mode but only writes a policy when the user picks one. */
+  deloadPolicy: DeloadPolicy | null
   /** Performance→plan auto-sync switch (see programs.planSync). */
   planSync: boolean
   /** Suggested body check-in cadence in days as an input string; blank = no
@@ -127,6 +132,7 @@ export type ProgramDraftAction =
     }
   | { type: 'SET_AUTOREGULATION'; value: boolean }
   | { type: 'SET_AUTOREG_STALL_POLICY'; value: AutoregStallPolicy }
+  | { type: 'SET_DELOAD_POLICY'; value: DeloadPolicy }
   | { type: 'SET_PLAN_SYNC'; value: boolean }
   | { type: 'ADD_DAY'; day: DraftProgramDay }
   | { type: 'REMOVE_DAY'; index: number }
@@ -154,6 +160,7 @@ export const emptyProgramDraft: ProgramDraft = {
   deloadWeek: '',
   autoregulation: true,
   autoregStallPolicy: 'all-sets',
+  deloadPolicy: null,
   planSync: true,
   checkInEveryDays: '',
   days: [],
@@ -253,6 +260,9 @@ export function programDraftReducer(
 
     case 'SET_AUTOREG_STALL_POLICY':
       return { ...state, autoregStallPolicy: action.value }
+
+    case 'SET_DELOAD_POLICY':
+      return { ...state, deloadPolicy: action.value }
 
     case 'SET_PLAN_SYNC':
       return { ...state, planSync: action.value }
@@ -448,6 +458,12 @@ function isProgramDraft(v: unknown): v is ProgramDraft {
     (d.autoregStallPolicy === undefined ||
       d.autoregStallPolicy === 'all-sets' ||
       d.autoregStallPolicy === 'first-set') &&
+    // Tolerate a missing/loose deloadPolicy: pre-policy envelopes predate the
+    // field, and malformed values are the server Zod schema's problem
+    // (lenient-mapper policy); parseStoredProgramDraft backfills null.
+    (d.deloadPolicy === undefined ||
+      d.deloadPolicy === null ||
+      typeof d.deloadPolicy === 'object') &&
     typeof d.planSync === 'boolean' &&
     // Tolerate a missing checkInEveryDays: pre-cadence envelopes predate the
     // field; parseStoredProgramDraft backfills '' (same policy as weekdays).
@@ -489,6 +505,8 @@ export function parseStoredProgramDraft(raw: string, now: Date): ProgramDraft | 
     checkInEveryDays: envelope.draft.checkInEveryDays ?? '',
     // Pre-stall-policy snapshots restore on the default rule, not discarded.
     autoregStallPolicy: envelope.draft.autoregStallPolicy ?? 'all-sets',
+    // Pre-deload-policy snapshots restore on legacy resolution, not discarded.
+    deloadPolicy: envelope.draft.deloadPolicy ?? null,
     // Pre-article-metadata snapshots restore with the fields absent → null.
     description: envelope.draft.description ?? null,
     icon: envelope.draft.icon ?? null,
@@ -615,6 +633,10 @@ export function draftToProgramInput(
     deloadWeek: toInt(draft.deloadWeek),
     autoregulation: draft.autoregulation,
     autoregStallPolicy: draft.autoregStallPolicy,
+    // Null round-trips to null (nothing stored → nothing cleared); a picked
+    // mode persists. Full-replace safe: the draft always carries the stored
+    // value via detailToProgramDraft.
+    deloadPolicy: draft.deloadPolicy,
     planSync: draft.planSync,
     // Blank = clear the suggestion (explicit null — the builder always shows
     // the stored value, so a full replace saying null MEANS off). An
@@ -689,6 +711,7 @@ export function detailToProgramDraft(
     deloadWeek: detail.deloadWeek?.toString() ?? '',
     autoregulation: detail.autoregulation,
     autoregStallPolicy: detail.autoregStallPolicy,
+    deloadPolicy: detail.deloadPolicy,
     planSync: detail.planSync,
     checkInEveryDays: detail.checkInEveryDays?.toString() ?? '',
     status: toStatus(detail.status),

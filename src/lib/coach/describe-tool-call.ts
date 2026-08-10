@@ -251,6 +251,16 @@ export function describeToolCall(toolName: string, input: unknown): string {
       return typeof args.enabled === 'boolean'
         ? `Turn auto-regulation ${args.enabled ? 'on' : 'off'}`
         : fallback
+    case 'set_program_deload_policy': {
+      if (args.policy === null) return 'Clear the deload policy (back to the default behavior)'
+      const mode =
+        typeof args.policy === 'object' && args.policy !== null && 'mode' in args.policy
+          ? String((args.policy as { mode: unknown }).mode)
+          : null
+      return mode === 'none' || mode === 'reactive' || mode === 'scheduled'
+        ? `Set the deload policy → ${mode}`
+        : fallback
+    }
     case 'set_program_plan_sync':
       return typeof args.enabled === 'boolean'
         ? `Turn plan sync ${args.enabled ? 'on' : 'off'}`
