@@ -1,10 +1,10 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import dynamic from 'next/dynamic'
 import { X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Textarea } from '@/components/ui/textarea'
 import { useAnimatedSheetClose } from '@/components/use-animated-sheet-close'
 import { updateTemplateMetaAction } from '@/app/templates/actions'
 import { cn } from '@/lib/utils'
@@ -21,6 +21,17 @@ import { cn } from '@/lib/utils'
 
 /** The quick-pick row — training-flavored, one row on a phone. */
 const ICON_CHOICES = ['💪', '🏋️', '🦵', '🔥', '🫀', '🏃', '🧗', '⚡'] as const
+
+// The description textarea retired onto the notes editor (plan §7): markdown
+// in/out, quick variant (marks only). Dynamic so TipTap only loads when this
+// sheet actually opens.
+const NotesEditor = dynamic(
+  () => import('@/components/editor/notes-editor').then((m) => m.NotesEditor),
+  {
+    ssr: false,
+    loading: () => <div aria-hidden="true" className="min-h-24 rounded-lg border border-border" />,
+  },
+)
 
 interface TemplateEditSheetProps {
   template: {
@@ -168,16 +179,19 @@ export function TemplateEditSheet({ template, onClose }: TemplateEditSheetProps)
         </div>
       </fieldset>
 
-      <label className="mt-3 block text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-        Description
-        <Textarea
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          maxLength={2000}
-          rows={3}
-          className="mt-1"
-        />
-      </label>
+      <div className="mt-3">
+        <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+          Description
+        </p>
+        <div className="mt-1">
+          <NotesEditor
+            variant="quick"
+            initialMarkdown={description}
+            onChangeMarkdown={setDescription}
+            ariaLabel={`Description for ${template.name}`}
+          />
+        </div>
+      </div>
 
       {error && <p className="mt-2 text-sm text-destructive">{error}</p>}
 

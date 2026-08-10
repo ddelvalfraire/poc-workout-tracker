@@ -605,6 +605,26 @@ export async function setProgramStatus(
 }
 
 /**
+ * Narrow metadata write: the program article's description only (markdown —
+ * the FullEditor's save path; MCP's upsert_program remains the full-replace
+ * route). Owner-gated like setProgramStatus, and 'proposed' rows are excluded
+ * the same way — a proposal's article is the proposer's draft until adopted.
+ * Returns null when not owned (or proposed).
+ */
+export async function updateProgramDescription(
+  userId: string,
+  id: string,
+  description: string | null,
+): Promise<{ id: string } | null> {
+  const [owned] = await db
+    .update(programs)
+    .set({ description, updatedAt: new Date() })
+    .where(and(eq(programs.id, id), eq(programs.userId, userId), ne(programs.status, 'proposed')))
+    .returning({ id: programs.id })
+  return owned ?? null
+}
+
+/**
  * The forced confirm's accept path — the ONLY way a 'proposed' program leaves
  * that status upward. Owner-only by construction (userId gate + the UI server
  * action is the sole caller), hence the hardcoded 'ui' actor. `activate: true`

@@ -11,7 +11,9 @@ import { MAX_RELIABLE_REPS } from '@/lib/one-rep-max'
 import { TrendChart } from '@/components/charts/trend-chart'
 import { StatTile, type StatDelta } from '@/components/stat-tile'
 import { listCustomExercises } from '@/db/custom-exercises'
+import { getExerciseNote } from '@/db/exercise-notes'
 import { CustomExerciseEditor } from '../../custom-exercise-editor'
+import { ExerciseNoteSection } from './exercise-note-section'
 import { AppHeader } from '@/components/app-header'
 import { BackLink } from '@/components/back-link'
 import { ShareCardButton } from '@/components/share-card-button'
@@ -72,7 +74,7 @@ export default async function ExerciseStatsPage({
   const page =
     /^\d+$/.test(pageParam ?? '') && parseInt(pageParam!, 10) >= 1 ? parseInt(pageParam!, 10) : 1
 
-  const [stats, sessions, unit, strengthGoal] = await Promise.all([
+  const [stats, sessions, unit, strengthGoal, note] = await Promise.all([
     getExerciseStats(userId, ref.source, ref.wgerExerciseId),
     getExerciseSessions(userId, ref.source, ref.wgerExerciseId, {
       limit: HISTORY_PAGE,
@@ -81,6 +83,8 @@ export default async function ExerciseStatsPage({
     getWeightUnit(userId),
     // Active strength goal for THIS exercise → the trend gains a target line.
     activeStrengthGoalForExercise(userId, ref.source, ref.wgerExerciseId),
+    // Identity note (seat pins, cues) — the note that follows the exercise.
+    getExerciseNote(userId, ref.source, ref.wgerExerciseId),
   ])
   if (!stats) notFound()
   const goalTargetKg =
@@ -161,6 +165,15 @@ export default async function ExerciseStatsPage({
             musclesSecondary={customDef.musclesSecondary ?? []}
           />
         )}
+
+        {/* Identity note: view + edit; the same note the logger's chip
+            resurfaces when pinned. */}
+        <ExerciseNoteSection
+          source={ref.source}
+          exerciseId={ref.wgerExerciseId}
+          exerciseName={stats.exercise.name}
+          note={note ? { body: note.body, pinned: note.pinned } : null}
+        />
 
         {/* All-time records. reps_weight-only by design — duration work shows
             in history below but claims no records until the cardio feature. */}

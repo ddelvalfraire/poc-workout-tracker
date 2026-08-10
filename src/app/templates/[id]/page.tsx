@@ -6,6 +6,7 @@ import { listWorkoutDrafts } from '@/db/workout-drafts'
 import { resolveActiveSession } from '@/lib/active-session'
 import { AppHeader } from '@/components/app-header'
 import { BackLink } from '@/components/back-link'
+import { MarkdownView } from '@/components/markdown-view'
 import { TemplateActions } from './template-actions'
 
 // Same guard as /workout/new's `?from`: a malformed path id must not reach
@@ -79,9 +80,8 @@ export default async function TemplateDetailPage({
             <span className="min-w-0 break-words">{template.name}</span>
           </h2>
           {template.description !== null && (
-            <p className="mt-2 whitespace-pre-wrap text-sm text-muted-foreground">
-              {template.description}
-            </p>
+            // Markdown (the edit sheet writes it now; plain text stays valid).
+            <MarkdownView markdown={template.description} className="mt-2 text-muted-foreground" />
           )}
         </div>
 

@@ -113,3 +113,13 @@ describe('WorkoutLogger effort-row parity', () => {
     expect(html).toContain('RPE 8.5')
   })
 })
+
+describe('WorkoutLogger identity-note parity', () => {
+  it('renders NO note chip when the exercise has no identity note', () => {
+    // The sticky chip follows the effort-row discipline: with no pinned note
+    // (here: no last-performance data at all, queries disabled) the logger's
+    // markup contains zero note-chip UI — the fast path is byte-identical.
+    const html = render()
+    expect(html).not.toContain('Exercise note')
+  })
+})
