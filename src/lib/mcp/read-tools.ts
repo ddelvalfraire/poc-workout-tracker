@@ -13,6 +13,7 @@ import {
 } from '@/db/workouts'
 import { getProgramDayDetail, type ProgramDayDetail } from '@/db/programs'
 import { getProgramStats, type ProgramStats } from '@/db/program-stats'
+import { ensureVolumeProposals, getVolumeStatus } from '@/db/volume-progression'
 import { listProgramEvents, PROGRAM_EVENTS_MAX_LIMIT } from '@/db/program-events'
 import { getWeightUnit, getBodyweightKg } from '@/db/preferences'
 import { searchExercises } from '@/lib/wger'
@@ -222,6 +223,57 @@ export function registerReadTools(server: McpServer): void {
         }
         const unit = await getWeightUnit(resolved)
         return jsonResult(buildProgramStatsPayload(stats, resolved, unit))
+      } catch (error: unknown) {
+        return errorResult(error)
+      }
+    },
+  )
+
+  server.registerTool(
+    'get_volume_status',
+    {
+      title: 'Get Volume Status',
+      description:
+        "Per-muscle weekly volume verdicts for one ACTIVE program with autoregulation on: 'increase' (a primary movement beat its rep-range top two consecutive completed weeks — a +1-set batch proposal is raised for the owner to confirm), 'hold' (two or more primary movements stalled — recovery signal, no proposal), or 'on-track'. Muscles without scorable evidence are absent. Also returns per-program-week credited set counts per muscle (primary 1.0 / secondary 0.5). `week` is the completed program week the verdicts speak about; null = nothing completed yet. Read-only aside from raising any due proposals; use to discuss whether volume should move.",
+      inputSchema: { programId: z.string(), userId: z.string().optional() },
+    },
+    async ({ programId, userId }, extra) => {
+      try {
+        const resolved = resolveUserId(extra, userId)
+        assertProgramIdShape(programId)
+        // The coach/MCP read is a trigger site (plan §4): any due +1 proposals
+        // are raised here so the agent can reference them immediately.
+        // Best-effort — it never throws into the read.
+        await ensureVolumeProposals(resolved, programId)
+        const status = await getVolumeStatus(resolved, programId)
+        if (!status) {
+          return errorResult(new ToolError(`Program ${programId} not found for user ${resolved}`))
+        }
+        return jsonResult({
+          userId: resolved,
+          programId: status.programId,
+          programName: status.programName,
+          enabled: status.enabled,
+          currentWeek: status.currentWeek,
+          week: status.week,
+          verdicts: status.verdicts.map((v) => ({
+            muscle: v.group,
+            status: v.status,
+            drivers: v.drivers,
+            candidate:
+              v.candidate === null
+                ? null
+                : {
+                    name: v.candidate.name,
+                    dayPosition: v.candidate.address.dayPosition,
+                    exercisePosition: v.candidate.address.exercisePosition,
+                  },
+          })),
+          weeks: status.weeks.map((w) => ({
+            week: w.week,
+            muscles: w.groups.map((g) => ({ muscle: g.group, sets: g.sets })),
+          })),
+        })
       } catch (error: unknown) {
         return errorResult(error)
       }

@@ -30,6 +30,10 @@ export const COACH_READ_TOOLS = [
   'get_program',
   'list_programs',
   'get_program_stats',
+  // Read tool with one deliberate side path: it runs the weekly volume check,
+  // which can RAISE a batch proposal — but a proposal is inert until the
+  // owner's confirm, so the coach still can't change anything.
+  'get_volume_status',
   'list_custom_exercises',
   'preview_program_week',
   // Read-only by construction (the log has no write tool): the coach can
