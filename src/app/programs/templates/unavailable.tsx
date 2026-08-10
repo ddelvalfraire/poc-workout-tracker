@@ -13,11 +13,12 @@ const UNAVAILABLE_COPY: Record<TemplatesUnavailableReason, { title: string; body
   },
 }
 
-/** The graceful empty-state card for an unreachable template catalog. */
-export function TemplatesUnavailableCard({ reason }: { reason: TemplatesUnavailableReason }) {
+/** The graceful empty state for an unreachable template catalog — plain
+ *  words (the EmptyWords voice), not a boxed apology. */
+export function TemplatesUnavailable({ reason }: { reason: TemplatesUnavailableReason }) {
   return (
-    <div className="mt-6 rounded-2xl border border-border bg-card px-5 py-12 text-center">
-      <p className="font-medium">{UNAVAILABLE_COPY[reason].title}</p>
+    <div className="mt-6 px-1 py-6 text-center">
+      <p className="text-sm font-medium">{UNAVAILABLE_COPY[reason].title}</p>
       <p className="mt-1 text-sm text-muted-foreground">{UNAVAILABLE_COPY[reason].body}</p>
     </div>
   )

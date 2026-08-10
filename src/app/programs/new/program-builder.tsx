@@ -365,17 +365,19 @@ export function ProgramBuilder({
         )}
 
         {draft.days.map((day, dayIndex) => (
-          <section key={day.id} className="space-y-3 rounded-2xl border border-border bg-card p-4">
-            <div className="flex items-start justify-between gap-2">
-              <Input
-                placeholder={`Day ${dayIndex + 1} name`}
-                value={day.name}
-                onChange={(e) =>
-                  dispatch({ type: 'RENAME_DAY', index: dayIndex, name: e.target.value })
-                }
-                aria-label={`Day ${dayIndex + 1} name`}
-                className="min-w-0 flex-1"
-              />
+          // De-carded (review contract): each day is a hairline section — a
+          // condensed-caps header over content that closes with a hairline,
+          // not a rounded card shell. The name input keeps its exact wiring;
+          // only the shell around it changed.
+          <section
+            key={day.id}
+            aria-label={`Day ${dayIndex + 1}`}
+            className="space-y-3 border-b border-b-border/60 pb-6 pt-2"
+          >
+            <div className="flex items-center justify-between gap-2">
+              <h2 className="font-display text-base uppercase leading-none tracking-wide text-muted-foreground tnum">
+                Day {dayIndex + 1}
+              </h2>
               <Button
                 size="icon-sm"
                 variant="ghost"
@@ -386,6 +388,15 @@ export function ProgramBuilder({
                 <Trash2 aria-hidden="true" className="size-4" />
               </Button>
             </div>
+            <Input
+              placeholder={`Day ${dayIndex + 1} name`}
+              value={day.name}
+              onChange={(e) =>
+                dispatch({ type: 'RENAME_DAY', index: dayIndex, name: e.target.value })
+              }
+              aria-label={`Day ${dayIndex + 1} name`}
+              className="min-w-0"
+            />
 
             {/* Weekday schedule: 7 toggle chips, Sunday-first to match the
                 stored 0–6 indices. Optional — no selection = unscheduled, and
@@ -441,8 +452,10 @@ export function ProgramBuilder({
               </p>
             )}
 
+            {/* Exercise rows: a hairline opens each exercise instead of a
+                nested box — the sets below read as the row's indented body. */}
             {day.exercises.map((exercise, exerciseIndex) => (
-              <div key={exercise.id} className="space-y-2 rounded-xl border border-border p-3">
+              <div key={exercise.id} className="space-y-2 border-t border-t-border/60 pt-3">
                 <div className="flex items-start justify-between gap-2">
                   <h3 className="min-w-0 text-base leading-tight">
                     {exercise.name}
@@ -498,100 +511,104 @@ export function ProgramBuilder({
                   </label>
                 )}
 
-                {exercise.sets.length > 0 && (
-                  <div className="flex items-center gap-2 px-0.5 text-[0.7rem] font-semibold uppercase tracking-wider text-muted-foreground">
-                    <span className="w-6 shrink-0" aria-hidden="true" />
-                    <span className="flex-1 text-center">Rep min</span>
-                    <span className="flex-1 text-center">Rep max</span>
-                    <span className="flex-[1.4] text-center">{unit}</span>
-                    <span className="flex-1 text-center">RPE</span>
-                    <span className="flex-1 text-center">Rest s</span>
-                    <span className="size-9 shrink-0" aria-hidden="true" />
-                  </div>
-                )}
-
-                <div className="space-y-2">
-                  {exercise.sets.map((set, setIndex) => (
-                    <div key={set.id} className="flex items-center gap-2">
-                      <span className="grid size-6 shrink-0 place-items-center rounded-full bg-muted text-xs font-semibold tnum text-muted-foreground">
-                        {setIndex + 1}
-                      </span>
-                      {(
-                        [
-                          { field: 'repMin', label: 'rep min', mode: 'numeric', value: set.repMin },
-                          { field: 'repMax', label: 'rep max', mode: 'numeric', value: set.repMax },
-                          {
-                            field: 'load',
-                            label: `load in ${unit}`,
-                            mode: 'decimal',
-                            value: set.load,
-                          },
-                          { field: 'rpe', label: 'RPE', mode: 'decimal', value: set.rpe },
-                          // Per-set rest target in seconds — the granularity
-                          // the product asked for ("per exercise per set").
-                          // Rides the same UPDATE_SET path as its siblings.
-                          {
-                            field: 'restSec',
-                            label: 'rest in seconds',
-                            mode: 'numeric',
-                            value: set.restSec,
-                          },
-                        ] as const
-                      ).map(({ field, label, mode, value }) => (
-                        <Input
-                          key={field}
-                          type="text"
-                          inputMode={mode}
-                          // Rest is the one optional-feeling column; the ghost
-                          // hint says what the blank means without a legend.
-                          placeholder={field === 'restSec' ? 'Rest s' : undefined}
-                          value={value}
-                          onChange={(e) =>
-                            dispatch({
-                              type: 'UPDATE_SET',
-                              dayIndex,
-                              exerciseIndex,
-                              setIndex,
-                              field,
-                              value: e.target.value,
-                            })
-                          }
-                          aria-label={`${exercise.name} set ${setIndex + 1} ${label}`}
-                          // The load column gets extra width: 3-digit values +
-                          // a decimal must not clip at the 390px PWA viewport.
-                          className={`min-w-0 px-1 text-center tnum ${field === 'load' ? 'flex-[1.4]' : 'flex-1'}`}
-                        />
-                      ))}
-                      <Button
-                        size="icon-sm"
-                        variant="ghost"
-                        className="shrink-0 text-muted-foreground"
-                        onClick={() =>
-                          dispatch({ type: 'REMOVE_SET', dayIndex, exerciseIndex, setIndex })
-                        }
-                        aria-label={`Remove ${exercise.name} set ${setIndex + 1}`}
-                      >
-                        <X aria-hidden="true" className="size-4" />
-                      </Button>
+                {/* The set group: indentation + the exercise hairline carry
+                    the grouping the removed inner box used to. */}
+                <div className="space-y-2 pl-2">
+                  {exercise.sets.length > 0 && (
+                    <div className="flex items-center gap-2 px-0.5 text-[0.7rem] font-semibold uppercase tracking-wider text-muted-foreground">
+                      <span className="w-6 shrink-0" aria-hidden="true" />
+                      <span className="flex-1 text-center">Rep min</span>
+                      <span className="flex-1 text-center">Rep max</span>
+                      <span className="flex-[1.4] text-center">{unit}</span>
+                      <span className="flex-1 text-center">RPE</span>
+                      <span className="flex-1 text-center">Rest s</span>
+                      <span className="size-9 shrink-0" aria-hidden="true" />
                     </div>
-                  ))}
+                  )}
+  
+                  <div className="space-y-2">
+                    {exercise.sets.map((set, setIndex) => (
+                      <div key={set.id} className="flex items-center gap-2">
+                        <span className="grid size-6 shrink-0 place-items-center rounded-full bg-muted text-xs font-semibold tnum text-muted-foreground">
+                          {setIndex + 1}
+                        </span>
+                        {(
+                          [
+                            { field: 'repMin', label: 'rep min', mode: 'numeric', value: set.repMin },
+                            { field: 'repMax', label: 'rep max', mode: 'numeric', value: set.repMax },
+                            {
+                              field: 'load',
+                              label: `load in ${unit}`,
+                              mode: 'decimal',
+                              value: set.load,
+                            },
+                            { field: 'rpe', label: 'RPE', mode: 'decimal', value: set.rpe },
+                            // Per-set rest target in seconds — the granularity
+                            // the product asked for ("per exercise per set").
+                            // Rides the same UPDATE_SET path as its siblings.
+                            {
+                              field: 'restSec',
+                              label: 'rest in seconds',
+                              mode: 'numeric',
+                              value: set.restSec,
+                            },
+                          ] as const
+                        ).map(({ field, label, mode, value }) => (
+                          <Input
+                            key={field}
+                            type="text"
+                            inputMode={mode}
+                            // Rest is the one optional-feeling column; the ghost
+                            // hint says what the blank means without a legend.
+                            placeholder={field === 'restSec' ? 'Rest s' : undefined}
+                            value={value}
+                            onChange={(e) =>
+                              dispatch({
+                                type: 'UPDATE_SET',
+                                dayIndex,
+                                exerciseIndex,
+                                setIndex,
+                                field,
+                                value: e.target.value,
+                              })
+                            }
+                            aria-label={`${exercise.name} set ${setIndex + 1} ${label}`}
+                            // The load column gets extra width: 3-digit values +
+                            // a decimal must not clip at the 390px PWA viewport.
+                            className={`min-w-0 px-1 text-center tnum ${field === 'load' ? 'flex-[1.4]' : 'flex-1'}`}
+                          />
+                        ))}
+                        <Button
+                          size="icon-sm"
+                          variant="ghost"
+                          className="shrink-0 text-muted-foreground"
+                          onClick={() =>
+                            dispatch({ type: 'REMOVE_SET', dayIndex, exerciseIndex, setIndex })
+                          }
+                          aria-label={`Remove ${exercise.name} set ${setIndex + 1}`}
+                        >
+                          <X aria-hidden="true" className="size-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+  
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="w-full"
+                    onClick={() =>
+                      dispatch({
+                        type: 'ADD_SET',
+                        dayIndex,
+                        exerciseIndex,
+                        set: newDraftProgramSet(),
+                      })
+                    }
+                  >
+                    + Add set
+                  </Button>
                 </div>
-
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="w-full"
-                  onClick={() =>
-                    dispatch({
-                      type: 'ADD_SET',
-                      dayIndex,
-                      exerciseIndex,
-                      set: newDraftProgramSet(),
-                    })
-                  }
-                >
-                  + Add set
-                </Button>
               </div>
             ))}
           </section>

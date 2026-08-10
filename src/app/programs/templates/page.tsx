@@ -13,8 +13,10 @@ import {
 import { listPrograms } from '@/db/programs'
 import { AppHeader } from '@/components/app-header'
 import { BackLink } from '@/components/back-link'
+import { DividerList } from '@/components/ui/divider-list'
+import { EmptyWords } from '@/components/ui/empty-words'
 import { ImportTemplateButton } from './import-button'
-import { TemplatesUnavailableCard } from './unavailable'
+import { TemplatesUnavailable } from './unavailable'
 
 /**
  * Browse wger's public routine templates and add them to your own programs.
@@ -64,14 +66,12 @@ export default async function TemplatesPage() {
         </p>
 
         {!result.ok ? (
-          <TemplatesUnavailableCard reason={result.reason} />
+          <TemplatesUnavailable reason={result.reason} />
         ) : cards.length === 0 ? (
-          <div className="mt-6 rounded-2xl border border-border bg-card px-5 py-12 text-center">
-            <p className="font-medium">No templates to show</p>
-            <p className="mt-1 text-sm text-muted-foreground">
-              wger has no importable public templates right now. Check back later.
-            </p>
-          </div>
+          <EmptyWords className="mt-6">
+            No templates to show — wger has no importable public templates right now. Check back
+            later.
+          </EmptyWords>
         ) : (
           groups.map((group) => (
             <section key={group.daysPerWeek} className="mt-8 first-of-type:mt-6">
@@ -80,19 +80,24 @@ export default async function TemplatesPage() {
                 {group.label}
                 <span className="ml-2 text-sm tracking-widest text-muted-foreground">/ week</span>
               </h2>
-              <ul className="mt-3 space-y-3">
+              {/* Divider rows, not card shells: name + facts + chevron per
+                  row, hairlines between and a closing hairline under the
+                  group. Day names are metadata, so they read as muted words
+                  (chips are controls, words are labels) — the same facts the
+                  old chips carried. */}
+              <DividerList className="mt-1">
                 {group.cards.map(({ wgerId, mapped }) => {
                   const { input } = mapped
                   const chips = dayNameChips(input)
                   const adopted = findAdoptedProgram(programs, input.sourceUrl)
                   return (
-                    <li key={wgerId} className="rounded-2xl border border-border bg-card p-5">
-                      {/* The card body IS the link (programs-list convention:
+                    <li key={wgerId} className="py-4">
+                      {/* The row body IS the link (divider-row convention:
                           content + trailing chevron); the action row below
                           stays outside it so the CTA doesn't nest in an anchor. */}
                       <Link
                         href={`/programs/templates/${wgerId}`}
-                        className="group flex min-w-0 items-start justify-between gap-3"
+                        className="group flex min-w-0 items-start justify-between gap-3 outline-none focus-visible:bg-muted/50"
                       >
                         <span className="min-w-0">
                           <span className="flex items-baseline gap-2 font-display text-xl uppercase leading-tight tracking-wide">
@@ -107,29 +112,22 @@ export default async function TemplatesPage() {
                             {input.mesocycleWeeks} {input.mesocycleWeeks === 1 ? 'week' : 'weeks'}
                           </span>
                           {chips.length > 0 && (
-                            <span className="mt-3 flex flex-wrap gap-1.5">
-                              {chips.map((chip, chipIndex) => (
-                                <span
-                                  key={`${chipIndex}:${chip}`}
-                                  className="rounded-full bg-muted px-2 py-0.5 text-xs font-semibold uppercase tracking-wide"
-                                >
-                                  {chip}
-                                </span>
-                              ))}
+                            <span className="mt-1.5 block text-sm text-muted-foreground">
+                              {chips.join(' · ')}
                             </span>
                           )}
                           {typeof input.description === 'string' && (
-                            <span className="mt-2 line-clamp-1 block text-sm text-muted-foreground">
+                            <span className="mt-1 line-clamp-1 block text-sm text-muted-foreground">
                               {input.description}
                             </span>
                           )}
                         </span>
                         <ChevronRight
                           aria-hidden="true"
-                          className="mt-1 size-5 shrink-0 text-muted-foreground transition-colors group-hover:text-foreground"
+                          className="mt-1 size-5 shrink-0 text-muted-foreground transition-colors group-hover:text-foreground group-focus-visible:text-foreground"
                         />
                       </Link>
-                      <div className="mt-4">
+                      <div className="mt-3">
                         {adopted !== null ? (
                           <Link
                             href={`/programs/${adopted.id}`}
@@ -145,7 +143,7 @@ export default async function TemplatesPage() {
                     </li>
                   )
                 })}
-              </ul>
+              </DividerList>
             </section>
           ))
         )}

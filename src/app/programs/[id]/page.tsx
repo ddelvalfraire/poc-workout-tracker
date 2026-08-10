@@ -302,7 +302,10 @@ export default async function ProgramDetailPage({
         {isProposed && (
           <section
             aria-label="Proposed program"
-            className="mt-4 rounded-2xl border border-primary/50 bg-card p-4"
+            // De-carded: the quiet volt hairline (block-complete vocabulary)
+            // frames the proposal — volt lives in the label and hairline;
+            // the page's volt BUTTON stays with ProposalActions' adopt CTA.
+            className="mt-6 border-b border-b-primary/30 pb-5"
           >
             <p className="text-[11px] font-semibold uppercase tracking-widest text-primary">
               {/* authorActor is an OPEN value space: 'coach' and 'owner' get
