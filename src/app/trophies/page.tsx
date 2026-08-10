@@ -153,7 +153,9 @@ function EarnedMedal({
       {/* The threshold number IS the trophy — poster type carries the volt;
           block (no number) leans on its icon + name alone. */}
       {glyph !== null && (
-        <p className="mt-2 font-display text-5xl leading-none text-primary tnum">{glyph}</p>
+        {/* Plain foreground: a volt numeral per grid cell stacks volt on a
+            revisit surface (#163 rule) — the NEW chip alone carries volt. */}
+        <p className="mt-2 font-display text-5xl leading-none tnum">{glyph}</p>
       )}
       <h3 className={`${glyph !== null ? 'mt-1' : 'mt-2'} font-display text-lg uppercase leading-tight tracking-wide`}>
         {trophyLabel(row.kind)}
