@@ -85,14 +85,14 @@ export default async function TemplateDetailPage({
           )}
         </div>
 
-        <div className="mt-4 space-y-3">
+        {/* De-carded (review contract): exercise rows sit on hairline
+            dividers, no shells — the sketch reads like the shipped divider
+            list surfaces. */}
+        <div className="mt-2">
           {template.exercises.map((exercise) => {
             const typeLabel = LOGGING_TYPE_LABELS[exercise.loggingType]
             return (
-              <section
-                key={exercise.id}
-                className="rounded-2xl border border-border bg-card p-4"
-              >
+              <section key={exercise.id} className="border-b border-b-border/60 py-4">
                 <div className="flex items-baseline justify-between gap-3">
                   <h3 className="min-w-0 truncate font-display text-lg uppercase leading-tight tracking-wide">
                     {exercise.name}
