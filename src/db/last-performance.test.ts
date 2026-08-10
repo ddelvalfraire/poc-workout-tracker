@@ -24,6 +24,7 @@ function makeBuilder() {
   const builder: Record<string, unknown> = {
     from: () => builder,
     innerJoin: () => builder,
+    leftJoin: () => builder,
     where: (cond: unknown) => {
       whereArgs.push(cond)
       return builder
@@ -54,7 +55,7 @@ beforeEach(() => {
 describe('getLastPerformance', () => {
   it('maps the most recent performance to its sets in order', async () => {
     selectResults = [
-      [{ exerciseId: 'e1', performedAt: PERFORMED_AT }],
+      [{ exerciseId: 'e1', performedAt: PERFORMED_AT, noteBody: null, notePinned: null }],
       [
         { reps: 5, weight: 100 },
         { reps: 5, weight: 95 },
@@ -69,7 +70,19 @@ describe('getLastPerformance', () => {
         { reps: 5, weight: 100 },
         { reps: 5, weight: 95 },
       ],
+      note: null,
     })
+  })
+
+  it('carries the identity note from the LEFT JOIN when one exists', async () => {
+    selectResults = [
+      [{ exerciseId: 'e1', performedAt: PERFORMED_AT, noteBody: 'Seat pin 4', notePinned: true }],
+      [{ reps: 5, weight: 100 }],
+    ]
+
+    const result = await getLastPerformance(USER, 'wger', 73)
+
+    expect(result?.note).toEqual({ body: 'Seat pin 4', pinned: true })
   })
 
   it('returns null and does not query sets when there is no history', async () => {

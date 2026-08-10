@@ -392,6 +392,37 @@ export const customExercises = pgTable(
 )
 
 /**
+ * Exercise-IDENTITY notes ("seat pin 4"): one markdown note per user per
+ * exercise identity — the composite (source, exercise_id), same discriminator
+ * as everywhere else — that follows the exercise across workouts. Distinct
+ * from workout_exercises.notes, which stays a per-INSTANCE session note.
+ * `body` is a markdown string (markdown is the source of truth — agents read
+ * and write it; editor JSON is never persisted). `pinned` opts the note into
+ * sticky resurfacing in the logger.
+ */
+export const exerciseNotes = pgTable(
+  'exercise_notes',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    userId: text('user_id').notNull(), // Clerk user id — ownership root, like `workouts`/`programs`
+    // 'wger' | 'custom' — exercise identity is the composite (source, id).
+    source: text('source').$type<ExerciseSource>().notNull().default('wger'),
+    // Exercise ref, always positive (CHECK) — holds a custom_exercises.id when
+    // source = 'custom', matching workout_exercises.wger_exercise_id semantics.
+    exerciseId: integer('exercise_id').notNull(),
+    body: text('body').notNull(), // markdown
+    pinned: boolean('pinned').notNull().default(false),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [
+    check('exercise_notes_exercise_id_positive', sql`${t.exerciseId} > 0`),
+    // One note per identity: upserts key on this, and the getLastPerformance
+    // LEFT JOIN relies on at-most-one row per (user, source, exercise).
+    unique('exercise_notes_user_exercise_unique').on(t.userId, t.source, t.exerciseId),
+  ],
+)
+
+/**
  * Standalone workout templates — a reusable session SKETCH that lives outside
  * any program ("users can save workout templates outside of programs"). One
  * level flatter than the program tree on purpose: a template records which

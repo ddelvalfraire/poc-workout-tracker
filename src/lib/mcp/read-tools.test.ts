@@ -590,6 +590,7 @@ describe('registerReadTools', () => {
           { reps: 5, weight: 95 },
           { reps: 8, weight: null },
         ],
+        note: null,
       })
 
       // Act
