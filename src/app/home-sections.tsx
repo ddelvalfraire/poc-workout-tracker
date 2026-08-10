@@ -6,6 +6,7 @@ import type { WeightUnit } from '@/lib/units'
 import type { SessionSummary } from '@/components/session-conflict-dialog'
 import type { HomeSectionKind, HomeSectionSize } from '@/lib/home/registry'
 import type { ResolvedHomeSection } from '@/lib/home/layout'
+import { DividerList } from '@/components/ui/divider-list'
 import { HistoryList } from './history-list'
 import { MomentumPanel } from './momentum-panel'
 import { TodayRecap } from './today-recap'
@@ -123,12 +124,12 @@ function UnfinishedSection({ workouts }: { workouts: WorkoutSummary[] }) {
   return (
     <>
       <h2 className="mt-10 mb-3 text-lg">Unfinished</h2>
-      <ul className="divide-y divide-border overflow-hidden rounded-2xl border border-border bg-card">
+      <DividerList>
         {workouts.map((w) => (
           <li key={w.id}>
             <Link
               href={`/workout/${w.id}/edit`}
-              className="flex min-w-0 items-center gap-4 px-4 py-3.5 transition-colors active:bg-muted/60"
+              className="flex min-w-0 items-center gap-4 py-3.5 transition-colors active:bg-muted/60"
             >
               {/* Same calendar anchor as History for scan continuity, but
                   muted — these dates mark where a session stalled, not an
@@ -156,7 +157,7 @@ function UnfinishedSection({ workouts }: { workouts: WorkoutSummary[] }) {
             </Link>
           </li>
         ))}
-      </ul>
+      </DividerList>
     </>
   )
 }

@@ -46,7 +46,7 @@ export function CheckInCard({ daysSinceLast }: CheckInCardProps) {
   if (!isVisible) return null
 
   return (
-    <div className="mt-6 rounded-2xl border border-border bg-card p-4 motion-safe:animate-rise-in">
+    <div className="mt-6 border-b border-b-border/60 pb-4 motion-safe:animate-rise-in">
       <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
         Body check-in due
       </p>
