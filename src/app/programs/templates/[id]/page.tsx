@@ -10,7 +10,7 @@ import { AppHeader } from '@/components/app-header'
 import { BackLink } from '@/components/back-link'
 import { cn } from '@/lib/utils'
 import { ImportTemplateButton } from '../import-button'
-import { TemplatesUnavailableCard } from '../unavailable'
+import { TemplatesUnavailable } from '../unavailable'
 
 /** wger routine ids are small positive integers; anything else is a bad URL. */
 const TEMPLATE_ID_PATTERN = /^\d{1,9}$/
@@ -46,7 +46,7 @@ export default async function TemplateDetailPage({
           }
         />
         <main className="mx-auto w-full max-w-md flex-1 px-5 pb-safe">
-          <TemplatesUnavailableCard reason={result.reason} />
+          <TemplatesUnavailable reason={result.reason} />
         </main>
       </div>
     )
@@ -114,9 +114,12 @@ export default async function TemplateDetailPage({
         {/* One CTA per surface (Arc D): the Add lives at the bottom, after
             the plan has made its case — no duplicate above the fold. */}
         <h2 className="mt-8 font-display text-xl uppercase leading-none tracking-wide">The plan</h2>
-        <div className="mt-3 space-y-3">
+        {/* Hairline day sections (programs/[id] vocabulary): each day sits on
+            a muted hairline, no shells — the preview reads like the detail
+            page it becomes after import. */}
+        <div className="mt-1">
           {input.days.map((day, dayIndex) => (
-            <section key={dayIndex} className="rounded-2xl border border-border bg-card p-4">
+            <section key={dayIndex} className="border-b border-b-border/60 py-4">
               <h3 className="flex min-w-0 items-baseline gap-2">
                 <span className="shrink-0 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground tnum">
                   Day {dayIndex + 1}
@@ -158,10 +161,13 @@ export default async function TemplateDetailPage({
                             <span className="tnum">
                               {formatPlannedScheme(run.set, run.count, unit)}
                             </span>
+                            {/* Chips → words: set qualifiers are labels on
+                                the line, not controls — quiet caps text, no
+                                pill shell (programs/[id] target-line rule). */}
                             {plannedSetChips(run.set).map((chip) => (
                               <span
                                 key={chip}
-                                className="rounded-full bg-muted px-2 py-0.5 text-xs font-semibold uppercase tracking-wide tnum"
+                                className="text-[10px] font-semibold uppercase tracking-widest tnum"
                               >
                                 {chip}
                               </span>
