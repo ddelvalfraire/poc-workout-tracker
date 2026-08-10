@@ -205,7 +205,7 @@ export function registerWriteTools(server: McpServer): void {
     {
       title: 'Set Exercise Note',
       description:
-        "Creates, replaces, or clears the user's IDENTITY note for an exercise — the note that follows the exercise across every workout (seat pins, setup, cues), distinct from set_exercise_meta's per-workout-instance notes. `body` is markdown (markdown is the stored source of truth). An empty/blank body deletes the note. `pinned: true` resurfaces the note as a sticky chip in the live logger; omitted, an existing note keeps its pin state (new notes default unpinned). Identity is the composite (source, wgerExerciseId); `source` defaults to 'wger'.",
+        "Creates, replaces, or clears the user's IDENTITY note for an exercise — the note that follows the exercise across every workout (seat pins, setup, cues), distinct from set_exercise_meta's per-workout-instance notes. `body` is markdown (markdown is the stored source of truth). An empty/blank body deletes the note; deleting when no note exists is a soft no-op — the result carries `deleted: false` rather than an error. `pinned: true` resurfaces the note as a sticky chip in the live logger; omitted, an existing note keeps its pin state (new notes default unpinned). Identity is the composite (source, wgerExerciseId); `source` defaults to 'wger'.",
       inputSchema: {
         wgerExerciseId: z.number().int().positive(),
         source: z.enum(['wger', 'custom']).optional(),

@@ -2309,6 +2309,10 @@ export function WorkoutLogger({
               title={exercise.name}
               eyebrow="Exercise note"
               initialBody={current?.body ?? ''}
+              // `current` is never null today (the chip only renders for an
+              // existing pinned note), so the `?? true` arm is unreachable —
+              // a deliberate default for any future create-from-logger path:
+              // a note born in the logger should surface here again.
               initialPinned={current?.pinned ?? true}
               onSave={async (value) => {
                 const saved = await upsertExerciseNoteAction(
