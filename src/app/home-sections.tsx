@@ -48,8 +48,8 @@ export interface HomeSectionContext {
 type HomeSectionRenderer = (ctx: HomeSectionContext, size: HomeSectionSize) => ReactNode
 
 const HOME_SECTION_RENDERERS: Record<HomeSectionKind, HomeSectionRenderer> = {
-  momentum: (ctx) => <MomentumPanel userId={ctx.userId} nowMs={ctx.nowMs} />,
-  'today-recap': (ctx) => (
+  momentum: (ctx, size) => <MomentumPanel userId={ctx.userId} nowMs={ctx.nowMs} size={size} />,
+  'today-recap': (ctx, size) => (
     <TodayRecap
       workouts={ctx.recentCompleted.map((w) => ({
         id: w.id,
@@ -59,11 +59,17 @@ const HOME_SECTION_RENDERERS: Record<HomeSectionKind, HomeSectionRenderer> = {
         volumeKg: w.volumeKg,
       }))}
       unit={ctx.unit}
+      size={size === 'sm' ? 'sm' : 'md'}
     />
   ),
   unfinished: (ctx) => <UnfinishedSection workouts={ctx.unfinished} />,
-  history: (ctx) => (
-    <HistorySection workouts={ctx.completed} unit={ctx.unit} guardSession={ctx.guardSession} />
+  history: (ctx, size) => (
+    <HistorySection
+      workouts={ctx.completed}
+      unit={ctx.unit}
+      guardSession={ctx.guardSession}
+      size={size}
+    />
   ),
 }
 
@@ -155,24 +161,59 @@ function UnfinishedSection({ workouts }: { workouts: WorkoutSummary[] }) {
   )
 }
 
+/** Rows shown at md — the demoted middle size; lg keeps the classic
+ *  HOME_HISTORY_LIMIT handful. */
+const HISTORY_MD_LIMIT = 3
+
 /** History, demoted (WHOOP tier discipline): the last few compact rows; the
  *  full log lives on /history. No empty-state card — with nothing completed,
- *  the fresh hero already owns the invite. */
+ *  the fresh hero already owns the invite.
+ *
+ *  Sizes: sm is one line (count + latest name/date) linking to /history;
+ *  md shows 3 rows; lg the classic 5. The "All history" link appears whenever
+ *  the size's slice leaves rows unseen. */
 function HistorySection({
   workouts,
   unit,
   guardSession,
+  size = 'md',
 }: {
   workouts: WorkoutSummary[]
   unit: WeightUnit
   guardSession: SessionSummary | null
+  size?: HomeSectionSize
 }) {
   if (workouts.length === 0) return null
+
+  if (size === 'sm') {
+    const latest = workouts[0]
+    return (
+      <>
+        <h2 className="mt-10 mb-3 text-lg">History</h2>
+        <Link
+          href="/history"
+          className="flex min-w-0 items-center gap-4 overflow-hidden rounded-2xl border border-border bg-card px-4 py-3.5 transition-colors active:bg-muted/60"
+        >
+          <span className="min-w-0 flex-1">
+            <span className="block truncate font-medium tnum">
+              {`${workouts.length} workout${workouts.length === 1 ? '' : 's'}`}
+            </span>
+            <span className="mt-0.5 block truncate text-sm text-muted-foreground tnum">
+              {`${latest.name ?? 'Workout'} · ${latest.startedAt.getDate()} ${monthFormat.format(latest.startedAt)}`}
+            </span>
+          </span>
+          <ChevronRight aria-hidden="true" className="size-5 shrink-0 text-muted-foreground" />
+        </Link>
+      </>
+    )
+  }
+
+  const limit = size === 'lg' ? HOME_HISTORY_LIMIT : HISTORY_MD_LIMIT
   return (
     <>
       <div className="mt-10 mb-3 flex items-baseline justify-between gap-3">
         <h2 className="text-lg">History</h2>
-        {workouts.length > HOME_HISTORY_LIMIT && (
+        {workouts.length > limit && (
           <Link
             href="/history"
             className="flex shrink-0 items-center gap-0.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
@@ -183,7 +224,7 @@ function HistorySection({
         )}
       </div>
       <HistoryList
-        workouts={workouts.slice(0, HOME_HISTORY_LIMIT)}
+        workouts={workouts.slice(0, limit)}
         unit={unit}
         guardSession={guardSession}
       />

@@ -29,9 +29,12 @@ export interface MomentumPanelProps {
   /** The page's request "now" (epoch ms — serializable, and one instant for
    *  the whole surface) so the sparkbar buckets match the history sections. */
   nowMs: number
+  /** Layout size class: sm renders only the one big number + streak flame;
+   *  md (default) and lg render the full panel. */
+  size?: 'sm' | 'md' | 'lg'
 }
 
-export async function MomentumPanel({ userId, nowMs }: MomentumPanelProps) {
+export async function MomentumPanel({ userId, nowMs, size = 'md' }: MomentumPanelProps) {
   const [summaries, unit, goalsSummary, weekTotals] = await Promise.all([
     listWorkoutSummaries(userId),
     getWeightUnit(userId),
@@ -55,6 +58,38 @@ export async function MomentumPanel({ userId, nowMs }: MomentumPanelProps) {
         streak: goalsSummary.streak,
       }
     : null
+
+  // sm: the one big number + streak flame ONLY — same card, same type
+  // styles, everything else (sparkbar, sessions line, goal line) dropped.
+  if (size === 'sm') {
+    return (
+      <section
+        aria-label="This week"
+        className="mt-6 overflow-hidden rounded-2xl border border-border bg-card"
+      >
+        <Link href="/stats" className="block p-5 transition-colors active:bg-muted/60">
+          <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+            This week
+          </span>
+          <span className="mt-3 flex items-baseline gap-2">
+            <span className="font-display text-6xl leading-none tnum">{weekSets}</span>
+            <span className="text-sm font-medium text-muted-foreground">
+              {weekSets === 1 ? 'set' : 'sets'}
+            </span>
+          </span>
+          {goal?.streak && (
+            <span className="mt-3 block">
+              <StreakChip
+                completedAtTimes={goal.streak.completedAtTimes}
+                scheduledWeekdays={goal.streak.scheduledWeekdays}
+                allowedMissesPerWeek={goal.streak.allowedMissesPerWeek}
+              />
+            </span>
+          )}
+        </Link>
+      </section>
+    )
+  }
 
   return (
     <section
