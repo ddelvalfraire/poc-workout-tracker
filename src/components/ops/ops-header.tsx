@@ -3,6 +3,7 @@ import { BackLink } from '@/components/back-link'
 import { cn } from '@/lib/utils'
 import { AutoRefreshToggle } from './auto-refresh-toggle'
 import { OpsRefreshButton } from './refresh-button'
+import { OpsTabPending } from './tab-pending'
 
 /**
  * Shared header for the ops surface: back link, title, the Ops | Product tab
@@ -40,7 +41,10 @@ export function OpsHeader({ active }: { active: OpsTab }) {
                   : 'border-transparent text-muted-foreground hover:border-muted-foreground/40 focus-visible:border-primary',
               )}
             >
-              {label}
+              {/* Pending hint (useLinkStatus): the label dims after 150ms of
+                  pending navigation — zero layout impact, fast navs never
+                  flash it. */}
+              <OpsTabPending>{label}</OpsTabPending>
             </Link>
           ))}
         </nav>

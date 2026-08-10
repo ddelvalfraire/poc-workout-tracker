@@ -12,6 +12,7 @@ import { formatLoggedSet, formatVolume, formatWorkoutDate } from '@/lib/format'
 import { sessionBestSet } from '@/lib/session-best-set'
 import { kgToDisplay, type WeightUnit } from '@/lib/units'
 import type { ExerciseSource } from '@/lib/custom-exercise-input'
+import { Ghost } from '@/components/ghost'
 import { useAnimatedSheetClose } from '@/components/use-animated-sheet-close'
 import { cn } from '@/lib/utils'
 
@@ -123,7 +124,39 @@ export function StatsSheet({ wgerExerciseId, source, name, unit, onClose }: Stat
       </div>
 
       {isPending && (
-        <p className="py-6 text-center text-sm text-muted-foreground">Loading stats…</p>
+        // Fixed-geometry ghost of the resolved layout (headline record +
+        // 3-up glance row): every wrapper/margin class copies the real
+        // markup below, and each bar sits in a flex box sized to its text's
+        // line height (text-[10px] → 15px at the inherited 1.5 leading,
+        // text-5xl leading-none → h-12, text-xs → h-4, text-sm → h-5), so
+        // data arriving replaces the ghosts without anything moving. The
+        // ghosts themselves appear only after 150ms (Ghost's delay) — a
+        // warm cache never shows them at all.
+        <div aria-hidden="true">
+          <div className="mt-3">
+            <span className="flex h-[15px] items-center">
+              <Ghost className="h-2 w-24" />
+            </span>
+            <span className="mt-1 flex h-12 items-center">
+              <Ghost className="h-8 w-40" />
+            </span>
+            <span className="mt-1.5 flex h-4 items-center">
+              <Ghost className="h-2 w-36" />
+            </span>
+          </div>
+          <div className="mt-4 grid grid-cols-3 gap-2">
+            {[0, 1, 2].map((tile) => (
+              <div key={tile} className="rounded-xl border border-border px-2.5 py-2">
+                <span className="flex h-[15px] items-center">
+                  <Ghost className="h-2 w-12" />
+                </span>
+                <span className="mt-0.5 flex h-5 items-center">
+                  <Ghost className="h-3 w-14" />
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
       )}
 
       {isError && (
@@ -140,7 +173,9 @@ export function StatsSheet({ wgerExerciseId, source, name, unit, onClose }: Stat
       )}
 
       {data && records && (
-        <>
+        // Arrival: the resolved story rises in IN PLACE of the ghosts (the
+        // shared 180ms vocabulary); reduced motion gets the instant swap.
+        <div className="motion-safe:animate-rise-in">
           {/* The headline record leads as a poster moment (font-display,
               proportional figures — tnum is for columns, not display type);
               the remaining records compress into a 3-up glance row. */}
@@ -245,7 +280,7 @@ export function StatsSheet({ wgerExerciseId, source, name, unit, onClose }: Stat
               </ul>
             </div>
           )}
-        </>
+        </div>
       )}
 
       <div className="mt-5 pb-4">

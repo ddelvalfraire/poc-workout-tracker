@@ -13,7 +13,9 @@ interface DividerListProps {
 /**
  * The grouped divider list: rows separated by muted hairlines with a closing
  * hairline instead of a shell — the iOS-grouped-list shape in the de-card
- * vocabulary, class recipe verbatim from the shipped /settings zones.
+ * vocabulary, from the shipped /settings zones. The dashed variant appends
+ * modifier classes rather than swapping whole strings — the resulting
+ * utility SET is equivalent to the original, not string-identical.
  */
 function DividerList({ dashed = false, className, children }: DividerListProps) {
   return (
