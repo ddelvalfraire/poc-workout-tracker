@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { rankAlternatives } from '@/lib/exercise-alternatives'
@@ -46,6 +47,29 @@ const optionId = (result: { id: number; source?: ExerciseSource }) =>
 const resultKey = (result: { id: number; source?: ExerciseSource }) =>
   `${sourceOf(result)}:${result.id}`
 
+/** The shared cached catalog barely changes — hold it fresh across pickers. */
+const CATALOG_STALE_MS = 5 * 60_000
+/** Customs change via the create flow, so revalidate sooner. */
+const CUSTOMS_STALE_MS = 30_000
+
+/** Error carrying the HTTP status so the 401 retry policy can key off it. */
+class RequestError extends Error {
+  constructor(readonly status: number) {
+    super(`request failed: ${status}`)
+  }
+}
+
+async function fetchExercises(url: string, signal: AbortSignal): Promise<ExerciseResult[]> {
+  const res = await fetch(url, { signal })
+  if (!res.ok) throw new RequestError(res.status)
+  return (await res.json()) as ExerciseResult[]
+}
+
+/** One delayed retry on 401 only — the Clerk token-refresh window (see
+ *  AUTH_RETRY_DELAY_MS above); any other failure surfaces immediately. */
+const retryOn401 = (failureCount: number, error: Error) =>
+  failureCount === 0 && error instanceof RequestError && error.status === 401
+
 interface ExercisePickerProps {
   onAdd: (exercise: PickedExercise) => void
   /** Fill the parent column: the result list grows to the available space
@@ -70,63 +94,54 @@ export function ExercisePicker({
   includeCustom = false,
 }: ExercisePickerProps) {
   const [query, setQuery] = useState('')
-  const [catalog, setCatalog] = useState<ExerciseResult[]>([])
-  const [customs, setCustoms] = useState<ExerciseResult[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
   const [activeIndex, setActiveIndex] = useState(0)
-  // Bumped by the Retry button to re-run the catalog load after a failure.
-  const [loadAttempt, setLoadAttempt] = useState(0)
   const [isCreating, setIsCreating] = useState(false)
+  const queryClient = useQueryClient()
 
-  // Load the full catalog once per attempt. The list is small and changes
+  // The full catalog, once per staleTime. The list is small and changes
   // rarely, so all filtering then happens in-process — every keystroke is
-  // instant, with no per-keystroke network round-trip. The user's customs
-  // ride a separate uncached request (per-user, changed by the create flow);
-  // its failure is non-fatal — search degrades to catalog-only.
-  useEffect(() => {
-    const controller = new AbortController()
-    let retryTimer: number | undefined
+  // instant, with no per-keystroke network round-trip. A warm cache makes a
+  // later picker mount (sheet reopen, another surface) instant too.
+  const catalogQuery = useQuery({
+    queryKey: ['exercises', 'catalog'],
+    queryFn: ({ signal }) => fetchExercises('/api/exercises?all=1', signal),
+    staleTime: CATALOG_STALE_MS,
+    retry: retryOn401,
+    retryDelay: AUTH_RETRY_DELAY_MS,
+  })
 
-    async function load(isAuthRetry: boolean) {
-      try {
-        const [res, customRes] = await Promise.all([
-          fetch('/api/exercises?all=1', { signal: controller.signal }),
-          includeCustom
-            ? fetch('/api/exercises?custom=1', { signal: controller.signal })
-            : Promise.resolve(null),
-        ])
-        if (res.status === 401 && !isAuthRetry) {
-          retryTimer = window.setTimeout(() => load(true), AUTH_RETRY_DELAY_MS)
-          return
-        }
-        if (!res.ok) throw new Error(`request failed: ${res.status}`)
-        const data: ExerciseResult[] = await res.json()
-        setCatalog(data)
-        if (customRes?.ok) {
-          const customData: ExerciseResult[] = await customRes.json()
-          setCustoms(customData)
-        }
-        setLoading(false)
-      } catch (err: unknown) {
-        if (err instanceof DOMException && err.name === 'AbortError') return
-        setError('Could not load exercises.')
-        setLoading(false)
-      }
-    }
+  // The user's customs ride a separate uncached request (per-user, changed by
+  // the create flow); its failure is non-fatal — search degrades to
+  // catalog-only, exactly the pre-Query contract.
+  const customsQuery = useQuery({
+    queryKey: ['exercises', 'custom'],
+    queryFn: ({ signal }) => fetchExercises('/api/exercises?custom=1', signal),
+    staleTime: CUSTOMS_STALE_MS,
+    retry: retryOn401,
+    retryDelay: AUTH_RETRY_DELAY_MS,
+    enabled: includeCustom,
+  })
 
-    load(false)
-
-    return () => {
-      controller.abort()
-      if (retryTimer !== undefined) window.clearTimeout(retryTimer)
-    }
-  }, [loadAttempt, includeCustom])
+  // Pending covers the 401 retry window (Query keeps status pending across
+  // retries), the Retry button's refetch, AND the initial customs load when
+  // enabled — the old Promise.all gated readiness on both requests, and
+  // creating a custom before `?custom=1` resolves would let the late response
+  // clobber the optimistic cache write. A background revalidate of a warm
+  // cache never disables the input.
+  const loading =
+    catalogQuery.isPending ||
+    (catalogQuery.isError && catalogQuery.isFetching) ||
+    (includeCustom && customsQuery.isPending)
+  const error =
+    catalogQuery.isError && !catalogQuery.isFetching ? 'Could not load exercises.' : null
 
   const term = query.trim().toLowerCase()
 
   // Customs first: the user's own movements outrank catalog homonyms.
-  const merged = useMemo(() => [...customs, ...catalog], [customs, catalog])
+  const merged = useMemo(
+    () => [...(customsQuery.data ?? []), ...(catalogQuery.data ?? [])],
+    [customsQuery.data, catalogQuery.data],
+  )
 
   // Results appear only while searching, so the field stays collapsed by
   // default and never buries the exercises already added below it.
@@ -171,9 +186,13 @@ export function ExercisePicker({
   }
 
   function handleCreated(created: ExerciseResult) {
-    // The next mount re-fetches `?custom=1`; this keeps THIS session's list
-    // consistent without a round-trip.
-    setCustoms((prev) => [created, ...prev])
+    // Write-through to the customs cache: keeps THIS session's list (and any
+    // other mounted picker) consistent without a round-trip; the next
+    // staleTime expiry re-fetches `?custom=1` anyway.
+    queryClient.setQueryData<ExerciseResult[]>(['exercises', 'custom'], (prev) => [
+      created,
+      ...(prev ?? []),
+    ])
     setIsCreating(false)
     addExercise(created)
   }
@@ -224,9 +243,8 @@ export function ExercisePicker({
             size="sm"
             variant="outline"
             onClick={() => {
-              setLoading(true)
-              setError(null)
-              setLoadAttempt((n) => n + 1)
+              void catalogQuery.refetch()
+              if (includeCustom) void customsQuery.refetch()
             }}
           >
             Retry
