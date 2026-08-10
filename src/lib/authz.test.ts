@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { can, type AuthzAction, type ProgramResource, type WorkoutResource } from './authz'
+import { TEMPLATE_OWNER_USER_ID } from './template-owner'
 
 /**
  * The full truth table for the v1 authorization seam. Every row names the
@@ -84,6 +85,47 @@ describe('can — adopt', () => {
     expect(can({ userId: VISITOR }, 'adopt', resource({ status: 'proposed' }))).toBe(false)
     expect(can({ userId: VISITOR }, 'adopt', resource({ share: REVOKED }))).toBe(false)
     expect(can({ userId: VISITOR }, 'adopt', resource({ share: null }))).toBe(false)
+  })
+})
+
+describe('can — system templates (the template library rules)', () => {
+  /** A curated template as db/templates.ts reads it: system-owned, public,
+   *  no share row anywhere in the loop. */
+  function template(over: Partial<ProgramResource> = {}): ProgramResource {
+    return { userId: TEMPLATE_OWNER_USER_ID, visibility: 'public', status: 'draft', ...over }
+  }
+
+  it('grants any signed-in user view + adopt on a public system template, shareless', () => {
+    expect(can({ userId: VISITOR }, 'view', template())).toBe(true)
+    expect(can({ userId: VISITOR }, 'adopt', template())).toBe(true)
+  })
+
+  it('denies anonymous actors (the library lives behind sign-in)', () => {
+    expect(can({ userId: null }, 'view', template())).toBe(false)
+    expect(can({ userId: null }, 'adopt', template())).toBe(false)
+  })
+
+  it('denies non-public system rows (a private/link system row is not in the library)', () => {
+    for (const visibility of ['private', 'link'] as const) {
+      expect(can({ userId: VISITOR }, 'view', template({ visibility }))).toBe(false)
+      expect(can({ userId: VISITOR }, 'adopt', template({ visibility }))).toBe(false)
+    }
+  })
+
+  it('denies a proposed system row (never publishable mid-proposal)', () => {
+    expect(can({ userId: VISITOR }, 'view', template({ status: 'proposed' }))).toBe(false)
+    expect(can({ userId: VISITOR }, 'adopt', template({ status: 'proposed' }))).toBe(false)
+  })
+
+  it("denies a USER's public program without a live share — the rule keys on the system owner", () => {
+    // 'public' visibility on a user's row still needs a live share row to
+    // grant anything; only the well-known system owner is shareless.
+    expect(can({ userId: VISITOR }, 'adopt', resource({ visibility: 'public', share: null }))).toBe(
+      false,
+    )
+    expect(can({ userId: VISITOR }, 'view', resource({ visibility: 'public', share: null }))).toBe(
+      false,
+    )
   })
 })
 
