@@ -207,6 +207,53 @@
   }
 }
 
+/* Pending ghosts (DESIGN.md § Pending states). Base opacity 0 + the 150ms
+   animation-delay is the delayed-appearance trick: data that beats the delay
+   means the ghost is never seen. Then a gentle opacity pulse — never a
+   shimmer sweep. Applied via motion-safe: only, so reduced-motion users get
+   the whole block dropped and see a static bg-muted bar instead. */
+@keyframes ghost-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+@utility animate-ghost-in {
+  opacity: 0;
+  animation: ghost-pulse 1.8s ease-in-out 150ms infinite;
+}
+
+/* Opacity-only sibling of rise-in, for in-place swaps that must not move
+   (the drawer hero's pending → Resume/Start crossfade). Same 180ms ease-out
+   contract, same motion-safe: gating (reduced motion = instant swap). */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+@utility animate-fade-in {
+  animation: fade-in 180ms ease-out;
+}
+
+/* Ops tab pending hint (useLinkStatus): the pressed tab's label eases to a
+   pending opacity only once the navigation has been pending ≥150ms, so fast
+   navs never flash it. Opacity-only with ZERO layout impact, and deliberately
+   NOT motion-safe-gated: this is feedback, not decoration — reduced-motion
+   users keep it (a delayed opacity step, no movement). */
+@keyframes pending-dim {
+  to {
+    opacity: 0.6;
+  }
+}
+@layer utilities {
+  .animate-pending-dim {
+    animation: pending-dim 180ms ease-out 150ms forwards;
+  }
+}
+
 /* The nav drawer's slide/fade comes from vaul's runtime-injected stylesheet,
    which carries NO prefers-reduced-motion guard of its own — gate it here.
    1ms rather than none: vaul waits on animation/transition end to settle
