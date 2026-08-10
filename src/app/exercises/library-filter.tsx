@@ -62,7 +62,7 @@ export function LibraryFilter({ entries }: LibraryFilterProps) {
       />
 
       {entries.length === 0 && (
-        <EmptyWords className="py-12">
+        <EmptyWords className="px-5 py-12">
           Nothing here yet — finish a workout and your exercises show up with their stats.
         </EmptyWords>
       )}
