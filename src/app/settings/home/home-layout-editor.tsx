@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useState, useTransition } from 'react'
+import { useEffect, useRef, useState, useTransition, type ComponentType } from 'react'
 import { useRouter } from 'next/navigation'
 import { Lock } from 'lucide-react'
 import { setHomeLayoutAction } from '@/app/actions'
@@ -16,6 +16,8 @@ import {
 } from '@/lib/home/layout'
 import { EditorGrid } from './editor-grid'
 import { TileSheet } from './tile-sheet'
+import { createDragController } from './drag-controller'
+import type { DndGridProps } from './editor-grid-dnd'
 
 /**
  * The grid-preview home layout editor: a miniature of home's own 2-col flow
@@ -28,6 +30,12 @@ import { TileSheet } from './tile-sheet'
  * optimistically: state flips first, the action writes, failure rolls back to
  * the pre-interaction snapshot. Reset stores NULL — the read path's
  * degrade-to-default IS the reset.
+ *
+ * Drag is layered on AFTER hydration: the dnd-kit grid is a dynamic import
+ * scoped to this route (home's bundle gains zero bytes), and until it loads —
+ * or without JS at all — the static grid with the sheet's Move buttons is the
+ * complete, WCAG 2.5.7-safe editor. A drag previews by reordering this state
+ * live (no persist per move) and commits ONCE on drop.
  */
 export function HomeLayoutEditor({
   initialSections,
@@ -42,15 +50,61 @@ export function HomeLayoutEditor({
   // Monotonic write counter: only the LATEST write may roll state back or
   // refresh, so a slow earlier failure can't clobber a newer success.
   const writeSeq = useRef(0)
+  // The drag-enabled grid, loaded after hydration. Until then (and with JS
+  // off) the static EditorGrid renders — same markup, no drag.
+  const [DndGrid, setDndGrid] = useState<ComponentType<DndGridProps> | null>(null)
+  // Render-fresh mirrors, synced in an effect (never written during render),
+  // so the once-created drag controller always reads current state and the
+  // current persist closure — drag handlers fire in later tasks, post-effect.
+  const sectionsRef = useRef<readonly ResolvedHomeSection[]>(initialSections)
+  const persistRef = useRef<typeof persist | null>(null)
+  useEffect(() => {
+    sectionsRef.current = sections
+    persistRef.current = persist
+  })
+  // The drag lifecycle's tested logic (drag-controller.ts), wired verbatim:
+  // preview reorders state only; commit persists ONCE with the pre-drag order
+  // as the rollback target; cancel restores the snapshot.
+  const [dragController] = useState(() =>
+    createDragController({
+      getSections: () => sectionsRef.current,
+      // Sync the mirror immediately: consecutive previews inside one drag
+      // must see each other even before the next render's effect runs.
+      setSections: (next) => {
+        sectionsRef.current = next
+        setSections(next)
+      },
+      persist: (next, opts) => persistRef.current?.(next, opts),
+    }),
+  )
 
-  function persist(next: readonly ResolvedHomeSection[], reset = false) {
-    const prev = sections
+  useEffect(() => {
+    let cancelled = false
+    import('./editor-grid-dnd').then(
+      (m) => {
+        if (!cancelled) setDndGrid(() => m.DndGrid)
+      },
+      () => {
+        // Chunk failed to load (offline, deploy skew): the static grid stays —
+        // the editor is complete without drag.
+      },
+    )
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  function persist(
+    next: readonly ResolvedHomeSection[],
+    opts: { reset?: boolean; rollbackTo?: readonly ResolvedHomeSection[] } = {},
+  ) {
+    const prev = opts.rollbackTo ?? sections
     const seq = ++writeSeq.current
     setSections(next)
     setHasError(false)
     startTransition(async () => {
       try {
-        await setHomeLayoutAction(reset ? null : toLayoutDoc(next))
+        await setHomeLayoutAction(opts.reset === true ? null : toLayoutDoc(next))
         if (seq === writeSeq.current) router.refresh()
       } catch {
         if (seq === writeSeq.current) {
@@ -83,7 +137,7 @@ export function HomeLayoutEditor({
 
   function onReset() {
     setActiveKind(null)
-    persist(resolveHomeLayout(null), true)
+    persist(resolveHomeLayout(null), { reset: true })
   }
 
   const activeIndex = sections.findIndex((s) => s.kind === activeKind)
@@ -109,10 +163,22 @@ export function HomeLayoutEditor({
         <Lock aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
       </div>
 
-      <EditorGrid sections={sections} onOpen={setActiveKind} />
+      {DndGrid !== null ? (
+        <DndGrid
+          sections={sections}
+          onOpen={setActiveKind}
+          onDragStart={dragController.onDragStart}
+          onDragPreview={dragController.onDragPreview}
+          onDragCommit={dragController.onDragCommit}
+          onDragCancel={dragController.onDragCancel}
+        />
+      ) : (
+        <EditorGrid sections={sections} onOpen={setActiveKind} />
+      )}
 
       <p className="mt-4 text-sm text-muted-foreground">
-        Tap a tile to resize, reorder, or hide it. Hidden sections keep
+        Tap a tile to resize, reorder, or hide it &mdash; or press and hold to
+        drag it. Hidden sections keep
         tracking &mdash; they just don&rsquo;t show on Home.
       </p>
       {hasError && (

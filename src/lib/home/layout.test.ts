@@ -6,6 +6,7 @@ import {
   parseHomeLayoutInput,
   moveSection,
   moveSectionToTop,
+  reorderSection,
   toggleSection,
   setSectionSize,
   toLayoutDoc,
@@ -304,6 +305,37 @@ describe('moveSectionToTop', () => {
   it('is a no-op (same reference) when already first or for unknown kinds', () => {
     expect(moveSectionToTop(sections, 'momentum')).toBe(sections)
     expect(moveSectionToTop(sections, 'nope')).toBe(sections)
+  })
+})
+
+describe('reorderSection', () => {
+  const sections = resolveHomeLayout(null)
+
+  it("moves the active section to the over section's slot, downward, without mutating", () => {
+    const next = reorderSection(sections, 'momentum', 'unfinished')
+    expect(next.map((s) => s.kind)).toEqual([
+      'today-recap',
+      'unfinished',
+      'momentum',
+      'history',
+    ])
+    expect(sections.map((s) => s.kind)).toEqual(REGISTRY_KINDS) // untouched
+  })
+
+  it("moves the active section to the over section's slot, upward", () => {
+    const next = reorderSection(sections, 'history', 'today-recap')
+    expect(next.map((s) => s.kind)).toEqual([
+      'momentum',
+      'history',
+      'today-recap',
+      'unfinished',
+    ])
+  })
+
+  it('is a no-op (same reference) for unknown kinds and self-targets', () => {
+    expect(reorderSection(sections, 'nope', 'history')).toBe(sections)
+    expect(reorderSection(sections, 'history', 'nope')).toBe(sections)
+    expect(reorderSection(sections, 'history', 'history')).toBe(sections)
   })
 })
 

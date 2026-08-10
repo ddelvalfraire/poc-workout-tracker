@@ -220,6 +220,23 @@ export function moveSectionToTop(
   return next
 }
 
+/** Moves `activeKind` to `overKind`'s position (the drag preview's reorder),
+ *  preserving everyone else's relative order. Returns the input unchanged
+ *  (same reference) when either kind is unknown or they already coincide. */
+export function reorderSection(
+  sections: readonly ResolvedHomeSection[],
+  activeKind: string,
+  overKind: string,
+): readonly ResolvedHomeSection[] {
+  const from = sections.findIndex((s) => s.kind === activeKind)
+  const to = sections.findIndex((s) => s.kind === overKind)
+  if (from === -1 || to === -1 || from === to) return sections
+  const next = [...sections]
+  const [moved] = next.splice(from, 1)
+  next.splice(to, 0, moved)
+  return next
+}
+
 /** Flips a section's visibility. Returns the input unchanged for unknown kinds. */
 export function toggleSection(
   sections: readonly ResolvedHomeSection[],

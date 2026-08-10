@@ -59,4 +59,13 @@ describe('HomeLayoutEditor (grid preview)', () => {
     expect(html).not.toContain('<dialog')
     expect(html).toContain('Reset to default')
   })
+
+  test('server render is the STATIC grid — no drag attributes before the dnd chunk loads', () => {
+    // The dnd grid arrives via a post-hydration dynamic import (effects never
+    // run in a static render): no-JS users and the loading window get the
+    // complete Phase 2 editor, and home-adjacent bundles stay dnd-free.
+    const html = renderToStaticMarkup(<HomeLayoutEditor initialSections={sections} />)
+    expect(html).not.toContain('aria-roledescription')
+    expect(html).not.toContain('draggable')
+  })
 })
