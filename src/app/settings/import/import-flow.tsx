@@ -140,7 +140,7 @@ export function ImportFlow({ defaultUnit }: ImportFlowProps) {
 
   return (
     <section aria-label="Import a history file" className="mt-6">
-      <div className="rounded-2xl border border-border bg-card p-4">
+      <div>
         {/* Step indicator: where you are in the arc, in words + segments. */}
         <div className="flex items-center justify-between gap-3">
           <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
@@ -255,7 +255,7 @@ function PreviewSummary({
 }: PreviewSummaryProps) {
   const sourceLabel = preview.source === 'strong' ? 'Strong' : 'Hevy'
   return (
-    <div className="mt-4 border-t border-border pt-4">
+    <div className="mt-4 border-t border-t-border/60 pt-4">
       <p className="text-sm">
         <span className="font-medium">{sourceLabel} export</span>
         {preview.fileName && <span className="text-muted-foreground"> — {preview.fileName}</span>}
@@ -302,8 +302,8 @@ function PreviewSummary({
       </dl>
 
       {preview.toCreate.length > 0 && (
-        <div className="mt-3 rounded-xl bg-muted/50 p-3">
-          <p className="text-sm font-medium">
+        <div className="mt-3 border-t border-t-border/60 pt-3">
+          <p className="text-sm font-medium tnum">
             {preview.toCreate.length} new custom exercise{preview.toCreate.length === 1 ? '' : 's'}
           </p>
           <p className="mt-0.5 text-xs text-muted-foreground">

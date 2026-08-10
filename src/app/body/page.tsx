@@ -150,7 +150,7 @@ export default async function BodyPage() {
             <>
               <ul
                 aria-label="Weigh-in history"
-                className="mt-6 divide-y divide-border overflow-hidden rounded-2xl border border-border bg-card"
+                className="mt-6 divide-y divide-border/60 border-b border-b-border/60"
               >
                 {logs.slice(0, HISTORY_VISIBLE_ROWS).map((log) => (
                   <BodyweightEntryRow
@@ -172,7 +172,7 @@ export default async function BodyPage() {
                   </summary>
                   <ul
                     aria-label="Older weigh-ins"
-                    className="mt-2 divide-y divide-border overflow-hidden rounded-2xl border border-border bg-card"
+                    className="mt-2 divide-y divide-border/60 border-b border-b-border/60"
                   >
                     {logs.slice(HISTORY_VISIBLE_ROWS).map((log) => (
                       <BodyweightEntryRow

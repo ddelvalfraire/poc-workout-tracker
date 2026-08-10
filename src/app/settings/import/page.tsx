@@ -36,11 +36,11 @@ export default async function ImportPage() {
               one tap.
             </p>
           ) : (
-            <ul className="mt-2 divide-y divide-border overflow-hidden rounded-2xl border border-border bg-card">
+            <ul className="mt-2 divide-y divide-border/60 border-b border-b-border/60">
               {batches.map((batch) => {
                 const scopeLabel = `${batch.workoutCount} workout${batch.workoutCount === 1 ? '' : 's'}`
                 return (
-                  <li key={batch.id} className="flex items-center justify-between gap-3 px-4 py-3">
+                  <li key={batch.id} className="flex items-center justify-between gap-3 py-3">
                     <div className="min-w-0">
                       <p className="truncate font-medium">
                         {batch.source === 'strong' ? 'Strong' : 'Hevy'}

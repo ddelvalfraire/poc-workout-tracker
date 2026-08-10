@@ -183,7 +183,7 @@ export function MeasurementsSection({
         <>
           <ul
             aria-label={`${siteLabel} history`}
-            className="mt-6 divide-y divide-border overflow-hidden rounded-2xl border border-border bg-card"
+            className="mt-6 divide-y divide-border/60 border-b border-b-border/60"
           >
             {siteEntries.slice(0, HISTORY_VISIBLE_ROWS).map((entry) => (
               <MeasurementEntryRow
@@ -205,7 +205,7 @@ export function MeasurementsSection({
               </summary>
               <ul
                 aria-label={`Older ${siteLabel} entries`}
-                className="mt-2 divide-y divide-border overflow-hidden rounded-2xl border border-border bg-card"
+                className="mt-2 divide-y divide-border/60 border-b border-b-border/60"
               >
                 {siteEntries.slice(HISTORY_VISIBLE_ROWS).map((entry) => (
                   <MeasurementEntryRow
