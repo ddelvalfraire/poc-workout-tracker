@@ -7,10 +7,16 @@ vi.mock('@/db/workouts', () => ({
   deleteWorkout: vi.fn(),
 }))
 vi.mock('@/db/preferences', () => ({ getWeightUnit: vi.fn(), setWeightUnit: vi.fn() }))
+vi.mock('@/db/exercise-notes', () => ({
+  getExerciseNote: vi.fn(),
+  upsertExerciseNote: vi.fn(),
+  deleteExerciseNote: vi.fn(),
+}))
 
 import { registerWriteTools } from './write-tools'
 import { saveWorkout, updateWorkout, deleteWorkout } from '@/db/workouts'
 import { getWeightUnit, setWeightUnit } from '@/db/preferences'
+import { getExerciseNote, upsertExerciseNote, deleteExerciseNote } from '@/db/exercise-notes'
 import { displayToKg, kgToDisplay } from '@/lib/units'
 import { MAX_WEIGHT as MAX_WEIGHT_KG } from '@/lib/workout-input'
 
@@ -19,6 +25,9 @@ const mockedUpdate = vi.mocked(updateWorkout)
 const mockedDelete = vi.mocked(deleteWorkout)
 const mockedGetUnit = vi.mocked(getWeightUnit)
 const mockedSetUnit = vi.mocked(setWeightUnit)
+const mockedGetNote = vi.mocked(getExerciseNote)
+const mockedUpsertNote = vi.mocked(upsertExerciseNote)
+const mockedDeleteNote = vi.mocked(deleteExerciseNote)
 
 type ToolResult = { content: { type: string; text: string }[]; isError?: boolean }
 /** Auth context an MCP tool handler receives as its 2nd arg (the bits we read). */
@@ -70,7 +79,7 @@ describe('registerWriteTools', () => {
     else process.env.MCP_DEV_USER_ID = original
   })
 
-  it('registers exactly the four write tools', () => {
+  it('registers exactly the five write tools', () => {
     // Arrange + Act
     const tools = setup()
 
@@ -78,6 +87,7 @@ describe('registerWriteTools', () => {
     expect([...tools.keys()].sort()).toEqual([
       'create_workout',
       'delete_workout',
+      'set_exercise_note',
       'set_weight_unit',
       'update_workout',
     ])
@@ -416,6 +426,81 @@ describe('registerWriteTools', () => {
       expect(result.isError).toBe(true)
       expect(result.content[0]?.text).toMatch(/not found/)
       expect(mockedDelete).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('set_exercise_note', () => {
+    const NOTE_ROW = {
+      id: 'n1',
+      userId: 'user_env',
+      source: 'wger' as const,
+      exerciseId: 73,
+      body: 'Seat pin 4',
+      pinned: true,
+      updatedAt: new Date(),
+    }
+
+    it('upserts the identity note and echoes it back', async () => {
+      const tools = setup()
+      mockedUpsertNote.mockResolvedValue(NOTE_ROW)
+
+      const result = await tools.get('set_exercise_note')!({
+        wgerExerciseId: 73,
+        body: 'Seat pin 4',
+        pinned: true,
+      })
+
+      expect(mockedUpsertNote).toHaveBeenCalledWith('user_env', 'wger', 73, {
+        body: 'Seat pin 4',
+        pinned: true,
+      })
+      expect(payload(result)).toMatchObject({
+        userId: 'user_env',
+        source: 'wger',
+        wgerExerciseId: 73,
+        note: { body: 'Seat pin 4', pinned: true },
+      })
+    })
+
+    it('forwards a custom source — a custom id must never write wger #id', async () => {
+      const tools = setup()
+      mockedUpsertNote.mockResolvedValue({ ...NOTE_ROW, source: 'custom' })
+
+      await tools.get('set_exercise_note')!({
+        wgerExerciseId: 73,
+        source: 'custom',
+        body: 'x',
+        pinned: false,
+      })
+
+      expect(mockedUpsertNote).toHaveBeenCalledWith('user_env', 'custom', 73, {
+        body: 'x',
+        pinned: false,
+      })
+    })
+
+    it('inherits the existing pin state when pinned is omitted', async () => {
+      const tools = setup()
+      mockedGetNote.mockResolvedValue(NOTE_ROW) // existing note is pinned
+      mockedUpsertNote.mockResolvedValue(NOTE_ROW)
+
+      await tools.get('set_exercise_note')!({ wgerExerciseId: 73, body: 'New body' })
+
+      expect(mockedUpsertNote).toHaveBeenCalledWith('user_env', 'wger', 73, {
+        body: 'New body',
+        pinned: true,
+      })
+    })
+
+    it('a blank body deletes the note instead of storing emptiness', async () => {
+      const tools = setup()
+      mockedDeleteNote.mockResolvedValue(true)
+
+      const result = await tools.get('set_exercise_note')!({ wgerExerciseId: 73, body: '   ' })
+
+      expect(mockedDeleteNote).toHaveBeenCalledWith('user_env', 'wger', 73)
+      expect(mockedUpsertNote).not.toHaveBeenCalled()
+      expect(payload(result)).toMatchObject({ deleted: true, note: null })
     })
   })
 
