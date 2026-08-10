@@ -1116,8 +1116,54 @@ describe('registerProgramTools', () => {
       expect(exercise.autoreg).toEqual({
         reason: 'Missed 8 reps on 2 of 3 sets at 220.5 lb — repeating the load',
         suggestEarlyDeload: false,
+        phaseContext: null,
+        heldBackoff: null,
       })
       expect(exercise.sets[0]!.derivedFrom).toBe('autoreg')
+    })
+
+    it('surfaces the cutting phase and held backoff structurally, in display units', async () => {
+      // Arrange — a cutting program held the H2 backoff (2.5 kg; unit is lb)
+      const tools = setup()
+      mockedDetail.mockResolvedValue(programDetail() as unknown as Detail)
+      mockedDerive.mockResolvedValue([
+        {
+          autoreg: {
+            action: 'repeat',
+            deltaKg: 0,
+            suggestEarlyDeload: false,
+            evidence: { missedSets: 2, scorableSets: 3, repFloor: 8, loadKg: 100 },
+            phaseContext: 'cutting',
+            heldBackoffKg: 2.5,
+          },
+          sets: [{ ...DERIVED[0].sets[0], loadKg: 100, derivedFrom: 'autoreg' }],
+        },
+      ] as never)
+
+      // Act
+      const result = await tools.get('preview_program_week')!({ programId: PID, week: 2 })
+
+      // Assert — the phase rides as data, not just prose; the held backoff
+      // speaks the display unit like every load in the payload. Full-object
+      // pin so the cutting branch can't silently drop a sibling field.
+      const body = payload(result) as {
+        days: {
+          exercises: {
+            autoreg: {
+              reason: string
+              suggestEarlyDeload: boolean
+              phaseContext: string | null
+              heldBackoff: number | null
+            } | null
+          }[]
+        }[]
+      }
+      expect(body.days[0]!.exercises[0]!.autoreg).toEqual({
+        reason: expect.stringContaining('repeating the load'),
+        suggestEarlyDeload: false,
+        phaseContext: 'cutting',
+        heldBackoff: kgToDisplay(2.5, 'lb'),
+      })
     })
 
     it('returns isError /not found/ for a missing program without deriving', async () => {
