@@ -11,6 +11,7 @@ import {
   type ShelfCard,
 } from '@/lib/wger-template-shelf'
 import { listPrograms } from '@/db/programs'
+import { listTemplates } from '@/db/templates'
 import { AppHeader } from '@/components/app-header'
 import { BackLink } from '@/components/back-link'
 import { DividerList } from '@/components/ui/divider-list'
@@ -34,6 +35,11 @@ import { TemplatesUnavailable } from './unavailable'
  */
 export default async function TemplatesPage() {
   const userId = await requireUserId() // middleware also guards; defense-in-depth
+
+  // Curated system templates (db-backed, seeded) lead the shelf; the wger
+  // community shelf follows. An unseeded environment returns [] and the
+  // section simply doesn't render.
+  const curated = await listTemplates()
 
   const result = await listPublicTemplates()
   let cards: ShelfCard[] = []
@@ -61,9 +67,63 @@ export default async function TemplatesPage() {
 
       <main className="mx-auto w-full max-w-md flex-1 px-5 pb-safe">
         <p className="mt-6 text-sm text-muted-foreground">
-          Ready-made plans from the wger community. Adding one makes it your own draft — edit
-          anything, then activate.
+          Ready-made plans — the classics, plus community templates from wger. Adding one makes it
+          your own draft — edit anything, then activate.
         </p>
+
+        {curated.length > 0 && (
+          <section className="mt-6">
+            {/* The curated zone leads the shelf: the classics, not a
+                commitment bucket, so the header names the collection. */}
+            <h2 className="font-display text-xl uppercase leading-none tracking-wide">
+              The classics
+              <span className="ml-2 text-sm tracking-widest text-muted-foreground">/ curated</span>
+            </h2>
+            {/* Divider rows, not card shells — the wger rows' vocabulary.
+                The whole row is the link; the volt CTA lives on the detail
+                page (one volt per surface). */}
+            <DividerList className="mt-1">
+              {curated.map((template) => (
+                <li key={template.id} className="py-4">
+                  <Link
+                    href={`/programs/templates/${template.id}`}
+                    className="group flex min-w-0 items-start justify-between gap-3 outline-none focus-visible:bg-muted/50"
+                  >
+                    <span className="min-w-0">
+                      <span className="flex items-baseline gap-2 font-display text-xl uppercase leading-tight tracking-wide">
+                        {template.icon !== null && (
+                          <span aria-hidden="true" className="shrink-0 text-lg leading-none">
+                            {template.icon}
+                          </span>
+                        )}
+                        <span className="min-w-0 truncate">{template.name}</span>
+                      </span>
+                      <span className="mt-1 block text-xs font-semibold uppercase tracking-widest text-muted-foreground tnum">
+                        {template.days.length} {template.days.length === 1 ? 'day' : 'days'}/week ·{' '}
+                        {template.mesocycleWeeks}{' '}
+                        {template.mesocycleWeeks === 1 ? 'week' : 'weeks'}
+                      </span>
+                      {template.days.length > 0 && (
+                        <span className="mt-1.5 block text-sm text-muted-foreground">
+                          {template.days.map((d) => d.name).join(' · ')}
+                        </span>
+                      )}
+                      {template.description !== null && (
+                        <span className="mt-1 line-clamp-1 block text-sm text-muted-foreground">
+                          {template.description}
+                        </span>
+                      )}
+                    </span>
+                    <ChevronRight
+                      aria-hidden="true"
+                      className="mt-1 size-5 shrink-0 text-muted-foreground transition-colors group-hover:text-foreground group-focus-visible:text-foreground"
+                    />
+                  </Link>
+                </li>
+              ))}
+            </DividerList>
+          </section>
+        )}
 
         {!result.ok ? (
           <TemplatesUnavailable reason={result.reason} />
