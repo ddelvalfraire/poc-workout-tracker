@@ -54,7 +54,9 @@ export interface StatusHeroProps {
   } | null
   /** Completion instants from the last 48h (epoch ms) — trained-today evidence. */
   recentCompletedAtTimes: number[]
-  lastCompleted: { name: string | null; completedAtMs: number; volumeKg: number } | null
+  /** Carries the workout id on top of the status facts — the trained-today
+   *  state links to the day's completed session. */
+  lastCompleted: { id: string; name: string | null; completedAtMs: number; volumeKg: number } | null
   lastTimeVolumeKg: number | null
   /** Consistency-goal streak evidence (weeks computed here, client-side). */
   streak: {
@@ -214,18 +216,31 @@ export function StatusHero(props: StatusHeroProps) {
         </>
       )}
 
+      {status.state === 'trained-today' && props.lastCompleted && (
+        /* The day's receipt: the headline says done, this door shows the work. */
+        <Link
+          href={`/workout/${props.lastCompleted.id}`}
+          className="mt-4 flex w-fit items-center gap-0.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
+        >
+          See today&apos;s session
+          <ChevronRight aria-hidden="true" className="size-4" />
+        </Link>
+      )}
+
       {(status.state === 'trained-today' || status.state === 'rest-day') && (
         /* Quiet by design (spike table): the day's work is done or not due —
-           the door stays open without volt shouting. */
+           the door stays open without volt shouting. Same muted-link
+           vocabulary as Browse programs / See results, not a chip. */
         <GuardedStartLink
           href="/workout/new"
           session={props.guardSession}
           className={cn(
-            buttonVariants({ variant: 'outline', size: 'sm' }),
-            'mt-4 text-xs font-semibold uppercase tracking-wide',
+            'flex w-fit items-center gap-0.5 text-sm text-muted-foreground transition-colors hover:text-foreground',
+            status.state === 'trained-today' ? 'mt-2' : 'mt-4',
           )}
         >
           {status.state === 'trained-today' ? 'Log more' : 'Quick log'}
+          <ChevronRight aria-hidden="true" className="size-4" />
         </GuardedStartLink>
       )}
 

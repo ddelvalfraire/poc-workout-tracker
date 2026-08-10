@@ -80,6 +80,7 @@ export default async function HomePage() {
   const newest = byCompletion[0];
   const lastCompleted = newest?.completedAt
     ? {
+        id: newest.id,
         name: newest.name,
         completedAtMs: newest.completedAt.getTime(),
         volumeKg: newest.volumeKg,
