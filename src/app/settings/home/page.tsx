@@ -5,14 +5,15 @@ import { BackLink } from '@/components/back-link'
 import { HomeLayoutEditor } from './home-layout-editor'
 
 /**
- * The home layout editor surface: one list that teaches the model — a locked
- * Status row first (always rendered, never customizable), then the optional
- * sections in the user's order. Reorder is chevron buttons, visibility is a
- * switch; every interaction persists the full layout document immediately.
+ * The home layout editor surface: a miniature grid preview that teaches the
+ * model — a locked Status bar first (always rendered, never customizable),
+ * then the optional sections as schematic tiles in home's own 2-col flow.
+ * Tapping a tile opens its sheet (size, visibility, Move buttons — the WCAG
+ * 2.5.7 non-drag path); every interaction persists the full layout document
+ * immediately.
  *
- * Precedents, deliberately: Fitbit's chevron reorder (no drag — buttons are
- * natively focusable, so keyboard/switch/voice all work, WCAG 2.5.7), Apple
- * Health's single-list toggle editor. Mobile-first; desktop is the same
+ * Precedents, deliberately: iOS's widget-gallery schematic previews, Apple
+ * Health's single-surface editor. Mobile-first; desktop is the same
  * component in the settings max-width column.
  */
 export default async function CustomizeHomePage() {
