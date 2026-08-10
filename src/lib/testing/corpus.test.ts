@@ -192,7 +192,7 @@ describe('corpus: Wendler 5/3/1 — amrap-cycle vs the published cycle tables [W
   })
 
   it('a migration-stamped legacy program derives byte-identically to its pre-stamp self', () => {
-    // Migration 0036 stamps tmBumpTiming 'before-deload' onto every stored
+    // Migration 0037 stamps tmBumpTiming 'before-deload' onto every stored
     // amrap-cycle config. The stamp must be a pure freeze: for every week
     // of the block, stamped and unstamped configs derive the same bytes.
     const stamped: Progression = { ...bench, tmBumpTiming: 'before-deload' }

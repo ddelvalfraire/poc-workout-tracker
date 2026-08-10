@@ -160,7 +160,7 @@ describe('setTrainingMax (TM lifecycle §1)', () => {
     scheme: 'amrap-cycle',
     trainingMaxKg: 140,
     incrementKg: 2.5,
-    // A stored row post-migration-0036 carries an explicit timing; the
+    // A stored row post-migration-0037 carries an explicit timing; the
     // re-parse in setTrainingMax preserves it (absent would be materialized
     // to 'after-deload' — the new-config zod default).
     tmBumpTiming: 'before-deload',

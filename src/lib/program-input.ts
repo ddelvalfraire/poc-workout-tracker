@@ -225,7 +225,7 @@ export const progressionSchema = z
       // the first non-deload week after the deload, so the deload derives
       // off the OLD TM. 'before-deload': the historical engine behavior (the
       // bump is visible to the deload week) — stamped onto every
-      // pre-existing amrap-cycle config by migration 0036, and what the
+      // pre-existing amrap-cycle config by migration 0037, and what the
       // engine assumes when the field is absent from a stored row.
       tmBumpTiming: z.enum(['before-deload', 'after-deload']).optional(),
     }),
