@@ -139,7 +139,7 @@ export function SharingSection({ programId, visibility, shareToken }: SharingSec
       <p className="mt-2 text-sm text-muted-foreground">{DESCRIPTIONS[current]}</p>
 
       {current !== 'private' && shareUrl !== null && (
-        <div className="mt-3 rounded-2xl border border-border bg-card p-4">
+        <div className="mt-3 border-b border-b-border/60 pb-4">
           <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
             Share link
           </p>
