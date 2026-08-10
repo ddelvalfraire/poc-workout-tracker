@@ -8,6 +8,8 @@ import { parseWorkoutInput, MAX_WEIGHT as MAX_WEIGHT_KG, type WorkoutInput } fro
 import { displayToKg, kgToDisplay, type WeightUnit } from '@/lib/units'
 import { saveWorkout, updateWorkout, deleteWorkout } from '@/db/workouts'
 import { getWeightUnit, setWeightUnit } from '@/db/preferences'
+import { getExerciseNote, upsertExerciseNote, deleteExerciseNote } from '@/db/exercise-notes'
+import { parseExerciseNoteInput } from '@/lib/exercise-note-input'
 
 /** Workout body shape the create/update tools accept (weights in display unit). */
 const exercisesSchema = z.array(
@@ -192,6 +194,45 @@ export function registerWriteTools(server: McpServer): void {
           throw new ToolError(`Workout ${id} not found for user ${resolved}`)
         }
         return jsonResult({ userId: resolved, workoutId: deleted.id, deleted: true })
+      } catch (error: unknown) {
+        return errorResult(error)
+      }
+    },
+  )
+
+  server.registerTool(
+    'set_exercise_note',
+    {
+      title: 'Set Exercise Note',
+      description:
+        "Creates, replaces, or clears the user's IDENTITY note for an exercise — the note that follows the exercise across every workout (seat pins, setup, cues), distinct from set_exercise_meta's per-workout-instance notes. `body` is markdown (markdown is the stored source of truth). An empty/blank body deletes the note; deleting when no note exists is a soft no-op — the result carries `deleted: false` rather than an error. `pinned: true` resurfaces the note as a sticky chip in the live logger; omitted, an existing note keeps its pin state (new notes default unpinned). Identity is the composite (source, wgerExerciseId); `source` defaults to 'wger'.",
+      inputSchema: {
+        wgerExerciseId: z.number().int().positive(),
+        source: z.enum(['wger', 'custom']).optional(),
+        body: z.string(),
+        pinned: z.boolean().optional(),
+        userId: z.string().optional(),
+      },
+    },
+    async ({ wgerExerciseId, source, body, pinned, userId }, extra) => {
+      try {
+        const resolved = resolveUserId(extra, userId)
+        const src = source ?? 'wger'
+        if (body.trim() === '') {
+          const deleted = await deleteExerciseNote(resolved, src, wgerExerciseId)
+          return jsonResult({ userId: resolved, source: src, wgerExerciseId, deleted, note: null })
+        }
+        // Pin inheritance: an omitted `pinned` must never silently unpin an
+        // existing note (the chip vanishing would read as data loss).
+        const effectivePinned = pinned ?? (await getExerciseNote(resolved, src, wgerExerciseId))?.pinned ?? false
+        const parsed = parseExerciseNoteInput({ body, pinned: effectivePinned })
+        const row = await upsertExerciseNote(resolved, src, wgerExerciseId, parsed)
+        return jsonResult({
+          userId: resolved,
+          source: src,
+          wgerExerciseId,
+          note: { body: row.body, pinned: row.pinned },
+        })
       } catch (error: unknown) {
         return errorResult(error)
       }

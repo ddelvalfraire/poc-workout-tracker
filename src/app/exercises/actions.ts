@@ -3,8 +3,14 @@
 import { revalidatePath } from 'next/cache'
 import { ZodError } from 'zod'
 import { requireUserId } from '@/lib/auth'
-import { customExerciseInputSchema, type CustomExerciseInput } from '@/lib/custom-exercise-input'
+import {
+  customExerciseInputSchema,
+  type CustomExerciseInput,
+  type ExerciseSource,
+} from '@/lib/custom-exercise-input'
 import { createCustomExercise, updateCustomExercise } from '@/db/custom-exercises'
+import { parseExerciseNoteInput } from '@/lib/exercise-note-input'
+import { upsertExerciseNote, deleteExerciseNote } from '@/db/exercise-notes'
 
 /**
  * Action boundary for the user's custom exercise definitions (create from the
@@ -96,4 +102,49 @@ export async function updateCustomExerciseAction(
     muscles: row.muscles ?? [],
     musclesSecondary: row.musclesSecondary ?? [],
   }
+}
+
+/** Trailing source param shared by the note actions, mirroring the workout
+ *  actions' whitelist: a typo'd source must never touch the wrong identity. */
+function parseNoteSource(source: unknown): ExerciseSource {
+  if (source === 'wger' || source === 'custom') return source
+  throw new Error('invalid exercise source')
+}
+
+/**
+ * Creates or replaces the caller's identity note for one exercise (the
+ * seat-pin note). Validation runs here on the server via the zod boundary;
+ * ownership is the db layer's user-scoped upsert. Returns the stored note so
+ * optimistic UI can reconcile.
+ */
+export async function upsertExerciseNoteAction(
+  source: unknown,
+  exerciseId: unknown,
+  input: unknown,
+): Promise<{ body: string; pinned: boolean }> {
+  const userId = await requireUserId()
+  const parsedSource = parseNoteSource(source)
+  if (!Number.isInteger(exerciseId) || (exerciseId as number) <= 0) {
+    throw new Error('invalid exercise id')
+  }
+  const parsed = parseExerciseNoteInput(input)
+  const row = await upsertExerciseNote(userId, parsedSource, exerciseId as number, parsed)
+  revalidatePath(`/exercises/${parsedSource}/${exerciseId}`)
+  return { body: row.body, pinned: row.pinned }
+}
+
+/** Deletes the caller's identity note; missing/not-owned notes throw so the
+ *  client's try/catch surfaces it (updateWorkoutAction's ownership handling). */
+export async function deleteExerciseNoteAction(
+  source: unknown,
+  exerciseId: unknown,
+): Promise<void> {
+  const userId = await requireUserId()
+  const parsedSource = parseNoteSource(source)
+  if (!Number.isInteger(exerciseId) || (exerciseId as number) <= 0) {
+    throw new Error('invalid exercise id')
+  }
+  const deleted = await deleteExerciseNote(userId, parsedSource, exerciseId as number)
+  if (!deleted) throw new Error('note not found')
+  revalidatePath(`/exercises/${parsedSource}/${exerciseId}`)
 }

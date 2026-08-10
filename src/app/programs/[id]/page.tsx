@@ -47,6 +47,8 @@ import { TmResetButton } from './tm-reset-button'
 import { topPRs } from './stats/stats-view'
 import { StartDayButton } from './start-day-button'
 import { ProgramActions } from './program-actions'
+import { DescriptionEdit } from './description-edit'
+import { MarkdownView } from '@/components/markdown-view'
 import { ProposalActions } from './proposal-actions'
 import { SharingSection } from './sharing-section'
 import { RestartProgramButton } from './restart-program-button'
@@ -247,8 +249,9 @@ export default async function ProgramDetailPage({
 
       <main className="mx-auto w-full max-w-md flex-1 px-5 pb-safe">
         {/* Article READ surface (PRD §3): hero + icon/title + description
-            lead. Renders ONLY when metadata exists — an unadorned program's
-            page is byte-identical to the pre-article layout. */}
+            lead. Renders ONLY when metadata exists; an unadorned program's
+            page keeps the pre-article layout plus the quiet Add-description
+            control below (the article's first human authoring path). */}
         {hasArticleHeader && (
           <header className="mt-4">
             {program.heroImageUrl !== null && (
@@ -291,9 +294,19 @@ export default async function ProgramDetailPage({
               </p>
             )}
             {program.description !== null && (
-              <p className="mt-3 whitespace-pre-line text-sm leading-relaxed text-muted-foreground">
-                {program.description}
-              </p>
+              // Markdown article lead (trusted-subset renderer — zero client
+              // JS; existing plain-text descriptions are valid markdown).
+              <MarkdownView
+                markdown={program.description}
+                className="mt-3 text-muted-foreground"
+              />
+            )}
+            {!isProposed && (
+              <DescriptionEdit
+                programId={program.id}
+                programName={program.name}
+                description={program.description}
+              />
             )}
             {program.sourceUrl !== null && (
               <p className="mt-2 text-xs text-muted-foreground">
@@ -310,6 +323,18 @@ export default async function ProgramDetailPage({
               </p>
             )}
           </header>
+        )}
+
+        {/* No article yet: the same authoring control stands alone so every
+            owned program can grow its article without going through MCP. */}
+        {!hasArticleHeader && !isProposed && (
+          <div className="mt-4">
+            <DescriptionEdit
+              programId={program.id}
+              programName={program.name}
+              description={program.description}
+            />
+          </div>
         )}
 
         {/* The forced confirm: a proposal page leads with WHO drafted it and

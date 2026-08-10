@@ -6,6 +6,7 @@ import {
   parseProgramInput,
   statusSchema,
   visibilitySchema,
+  MAX_DESCRIPTION,
   type ProgramVisibility,
 } from '@/lib/program-input'
 import {
@@ -13,6 +14,7 @@ import {
   updateProgram,
   deleteProgram,
   setProgramStatus,
+  updateProgramDescription,
   cloneProgram,
   instantiateProgramDay,
   adoptProgram,
@@ -75,6 +77,30 @@ export async function updateProgramAction(id: string, input: unknown): Promise<{
  * throw so the client surfaces an error rather than navigating away as if it
  * had worked — mirroring deleteWorkoutAction's ownership handling.
  */
+/**
+ * Updates the program article's description (the FullEditor save path —
+ * markdown string, blank clears to null). Narrow on purpose: the builder's
+ * full-replace update would race a quick description edit against unsaved
+ * structural state. Not-owned/proposed throws for the client's try/catch.
+ */
+export async function updateProgramDescriptionAction(
+  id: unknown,
+  description: unknown,
+): Promise<void> {
+  const userId = await requireUserId()
+  if (typeof id !== 'string' || id.length === 0) throw new Error('invalid program id')
+  if (typeof description !== 'string' && description !== null) {
+    throw new Error('invalid description')
+  }
+  const trimmed = typeof description === 'string' ? description.trim() : null
+  if (trimmed !== null && trimmed.length > MAX_DESCRIPTION) {
+    throw new Error('Description is too long.')
+  }
+  const result = await updateProgramDescription(userId, id, trimmed === '' ? null : trimmed)
+  if (!result) throw new Error('program not found')
+  revalidatePath(`/programs/${id}`)
+}
+
 export async function deleteProgramAction(id: string): Promise<void> {
   const userId = await requireUserId()
   const [deleted] = await deleteProgram(userId, id)

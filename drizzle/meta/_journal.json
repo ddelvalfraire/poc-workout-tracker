@@ -281,6 +281,13 @@
       "when": 1786330234245,
       "tag": "0039_ambiguous_cardiac",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1786330909033,
+      "tag": "0040_old_joystick",
+      "breakpoints": true
     }
   ]
 }

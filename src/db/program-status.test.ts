@@ -16,7 +16,8 @@ const whereArgs: unknown[] = []
 let ownedRows: { id: string }[] = [{ id: 'p1' }]
 // Rows for the promotion-guard's refusal-path existence read (db.select):
 // [{ status: 'proposed' }] makes the guard throw; [] means plain not-found.
-let selectRows: { status: string }[] = []
+// updateProgramDescription reuses the same channel for its prior-value read.
+let selectRows: Record<string, unknown>[] = []
 
 type Resolve = (value: unknown) => unknown
 
@@ -67,7 +68,7 @@ vi.mock('./index', () => ({
   },
 }))
 
-import { setProgramStatus } from './programs'
+import { setProgramStatus, updateProgramDescription } from './programs'
 import { ProposedProgramError } from './program-errors'
 
 const USER = 'user_123'
@@ -185,5 +186,59 @@ describe('setProgramStatus promotion guard (proposed rows)', () => {
     // Assert — the pre-guard contract holds: null, no sweep, no event
     expect(result).toBeNull()
     expect(records).toHaveLength(1)
+  })
+})
+
+describe('updateProgramDescription change-log events', () => {
+  it('logs "Description added" when there was no prior description', async () => {
+    // Arrange — prior-value read finds an owned row without a description
+    selectRows = [{ description: null }]
+
+    // Act
+    const result = await updateProgramDescription(USER, 'p1', '## Notes')
+
+    // Assert — gated update then the event, mirroring setProgramStatus
+    expect(result).toEqual({ id: 'p1' })
+    expect(records.map((r) => r.op)).toEqual(['update:programs', 'insert:program_events'])
+    expect(records[1].values).toMatchObject({
+      programId: 'p1',
+      userId: USER,
+      actor: 'ui',
+      action: 'update_description',
+      summary: 'Description added',
+    })
+  })
+
+  it('logs "Description updated" when replacing an existing description', async () => {
+    selectRows = [{ description: 'old text' }]
+
+    await updateProgramDescription(USER, 'p1', 'new text')
+
+    expect(records[1].values).toMatchObject({
+      action: 'update_description',
+      summary: 'Description updated',
+    })
+  })
+
+  it('logs "Description cleared" on a null write', async () => {
+    selectRows = [{ description: 'old text' }]
+
+    await updateProgramDescription(USER, 'p1', null)
+
+    expect(records[1].values).toMatchObject({
+      action: 'update_description',
+      summary: 'Description cleared',
+    })
+  })
+
+  it('logs nothing when the ownership gate matches no row', async () => {
+    // Arrange — not owned (or proposed): update returns no row
+    ownedRows = []
+    selectRows = []
+
+    const result = await updateProgramDescription(USER, 'p1', 'text')
+
+    expect(result).toBeNull()
+    expect(records.filter((r) => r.op === 'insert:program_events')).toHaveLength(0)
   })
 })

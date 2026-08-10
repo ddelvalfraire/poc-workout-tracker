@@ -18,6 +18,7 @@ import { listProgramEvents, PROGRAM_EVENTS_MAX_LIMIT } from '@/db/program-events
 import { getWeightUnit, getBodyweightKg } from '@/db/preferences'
 import { searchExercises } from '@/lib/wger'
 import { listCustomExercises } from '@/db/custom-exercises'
+import { listExerciseNotesFor } from '@/db/exercise-notes'
 import { kgToDisplay, type WeightUnit } from '@/lib/units'
 import { bestScoredSet } from '@/lib/one-rep-max'
 import type { LoggingType } from '@/lib/workout-input'
@@ -81,17 +82,36 @@ export function registerReadTools(server: McpServer): void {
         }
         // Bodyweight is fetched once per request, like the unit — it's the
         // load basis for any bodyweight-type exercise's estimated 1RM.
-        const [unit, bodyweightKg] = await Promise.all([
+        // Identity notes ride the same round: one batched query for every
+        // exercise in the workout (cheap — bounded by the exercise count).
+        const [unit, bodyweightKg, noteRows] = await Promise.all([
           getWeightUnit(resolved),
           getBodyweightKg(resolved),
+          listExerciseNotesFor(
+            resolved,
+            workout.exercises.map((e) => ({ source: e.source, exerciseId: e.wgerExerciseId })),
+          ),
         ])
+        const identityNotes = new Map(
+          noteRows.map((n) => [
+            `${n.source}:${n.exerciseId}`,
+            { body: n.body, pinned: n.pinned },
+          ]),
+        )
         // When the workout was instantiated from a program day, overlay that day's
         // prescription (targets) — read from the program, never stored on the sets.
         const programDay = workout.programDayId
           ? await getProgramDayDetail(resolved, workout.programDayId)
           : null
         return jsonResult(
-          buildWorkoutPayload(workout, resolved, unit, bodyweightKg, programDay ?? undefined),
+          buildWorkoutPayload(
+            workout,
+            resolved,
+            unit,
+            bodyweightKg,
+            programDay ?? undefined,
+            identityNotes,
+          ),
         )
       } catch (error: unknown) {
         return errorResult(error)
@@ -195,6 +215,9 @@ export function registerReadTools(server: McpServer): void {
                     reps: s.reps,
                     weight: s.weight === null ? null : kgToDisplay(s.weight, unit),
                   })),
+                  // Identity note ride-along (markdown): the note that follows
+                  // this exercise across workouts; null when none exists.
+                  note: last.note,
                 },
         })
       } catch (error: unknown) {
@@ -426,6 +449,10 @@ export interface WorkoutPayload {
       loggingType: LoggingType
       // Free-form per-exercise note (null = none).
       notes: string | null
+      // The user's exercise-IDENTITY note (markdown; follows the exercise
+      // across workouts). Present only on surfaces that fetch it (the
+      // get_workout tool); null = no note for this identity.
+      identityNote?: { body: string; pinned: boolean } | null
       // Marked skipped in-session ("didn't do this today"); the sets stay uncompleted.
       skipped: boolean
       sets: {
@@ -460,6 +487,10 @@ export function buildWorkoutPayload(
   unit: WeightUnit,
   bodyweightKg: number | null,
   programDay?: ProgramDayDetail,
+  /** Identity notes keyed `${source}:${wgerExerciseId}` — when provided, each
+   *  exercise carries its `identityNote` (null = none). The resource path
+   *  omits the map and stays byte-identical to its pre-notes shape. */
+  identityNotes?: Map<string, { body: string; pinned: boolean }>,
 ): WorkoutPayload {
   return {
     userId: resolved,
@@ -479,6 +510,12 @@ export function buildWorkoutPayload(
         position: exercise.position,
         loggingType: exercise.loggingType,
         notes: exercise.notes,
+        ...(identityNotes !== undefined
+          ? {
+              identityNote:
+                identityNotes.get(`${exercise.source}:${exercise.wgerExerciseId}`) ?? null,
+            }
+          : {}),
         skipped: exercise.skipped,
         sets: exercise.sets.map((s) => ({
           setNumber: s.setNumber,

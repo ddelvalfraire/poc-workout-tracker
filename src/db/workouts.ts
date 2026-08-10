@@ -17,7 +17,7 @@ import { cache } from 'react'
 import type { WorkoutInput, LoggingType } from '@/lib/workout-input'
 import type { ExerciseSource } from '@/lib/custom-exercise-input'
 import { db } from './index'
-import { workouts, workoutExercises, sets } from './schema'
+import { workouts, workoutExercises, sets, exerciseNotes } from './schema'
 
 /**
  * Data access for workouts, always scoped to a Clerk userId.
@@ -134,6 +134,12 @@ export async function getPreviousCompletedWorkout(
 export interface LastPerformance {
   performedAt: Date
   sets: { reps: number | null; weight: number | null }[]
+  /**
+   * The user's exercise-IDENTITY note (exercise_notes LEFT JOIN), riding the
+   * Prev context so the logger can resurface it without a second query. Null
+   * when no note exists for the identity.
+   */
+  note: { body: string; pinned: boolean } | null
 }
 
 /**
@@ -150,9 +156,23 @@ export async function getLastPerformance(
   excludeWorkoutId?: string,
 ): Promise<LastPerformance | null> {
   const [recent] = await db
-    .select({ exerciseId: workoutExercises.id, performedAt: workouts.startedAt })
+    .select({
+      exerciseId: workoutExercises.id,
+      performedAt: workouts.startedAt,
+      // Identity-note ride-along (LEFT JOIN): null columns when no note.
+      noteBody: exerciseNotes.body,
+      notePinned: exerciseNotes.pinned,
+    })
     .from(workoutExercises)
     .innerJoin(workouts, eq(workouts.id, workoutExercises.workoutId))
+    .leftJoin(
+      exerciseNotes,
+      and(
+        eq(exerciseNotes.userId, userId),
+        eq(exerciseNotes.source, workoutExercises.source),
+        eq(exerciseNotes.exerciseId, workoutExercises.wgerExerciseId),
+      ),
+    )
     .where(
       and(
         eq(workouts.userId, userId),
@@ -172,7 +192,14 @@ export async function getLastPerformance(
     .where(eq(sets.workoutExerciseId, recent.exerciseId))
     .orderBy(asc(sets.setNumber))
 
-  return { performedAt: recent.performedAt, sets: setRows }
+  return {
+    performedAt: recent.performedAt,
+    sets: setRows,
+    note:
+      recent.noteBody === null
+        ? null
+        : { body: recent.noteBody, pinned: recent.notePinned ?? false },
+  }
 }
 
 /** Flat set rows (reps/weight in kg) for the given exercises across the user's

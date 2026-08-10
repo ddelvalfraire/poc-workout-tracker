@@ -605,6 +605,52 @@ export async function setProgramStatus(
 }
 
 /**
+ * Narrow metadata write: the program article's description only (markdown —
+ * the FullEditor's save path; MCP's upsert_program remains the full-replace
+ * route). Owner-gated like setProgramStatus, and 'proposed' rows are excluded
+ * the same way — a proposal's article is the proposer's draft until adopted.
+ * Returns null when not owned (or proposed).
+ */
+export async function updateProgramDescription(
+  userId: string,
+  id: string,
+  description: string | null,
+): Promise<{ id: string } | null> {
+  // Read the prior value first so the event line can say add vs edit vs clear
+  // (the UPDATE's RETURNING only sees the new row). Same owner gate as the
+  // write; a not-owned call selects nothing and the update matches nothing.
+  const [prior] = await db
+    .select({ description: programs.description })
+    .from(programs)
+    .where(and(eq(programs.id, id), eq(programs.userId, userId), ne(programs.status, 'proposed')))
+  const [owned] = await db
+    .update(programs)
+    .set({ description, updatedAt: new Date() })
+    .where(and(eq(programs.id, id), eq(programs.userId, userId), ne(programs.status, 'proposed')))
+    .returning({ id: programs.id })
+  // Event only after the gated update matched — mirrors setProgramStatus.
+  // Owner-only server action is the sole caller, hence the hardcoded 'ui'.
+  if (owned) {
+    const hadDescription = Boolean(prior?.description)
+    const summary =
+      description === null
+        ? 'Description cleared'
+        : hadDescription
+          ? 'Description updated'
+          : 'Description added'
+    await recordProgramEvent(db, {
+      programId: id,
+      userId,
+      actor: 'ui',
+      action: 'update_description',
+      summary,
+      payload: { after: { hasDescription: description !== null } },
+    })
+  }
+  return owned ?? null
+}
+
+/**
  * The forced confirm's accept path — the ONLY way a 'proposed' program leaves
  * that status upward. Owner-only by construction (userId gate + the UI server
  * action is the sole caller), hence the hardcoded 'ui' actor. `activate: true`

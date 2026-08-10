@@ -11,6 +11,7 @@ import {
   CircleSlash,
   Dumbbell,
   NotebookPen,
+  Pin,
   Trash2,
   X,
 } from 'lucide-react'
@@ -52,6 +53,17 @@ import { draftKey, buildDraftPayload, parseDraftPayload } from './draft-payload'
 import { createDraftSyncQueue, type DraftSyncQueue, type DraftSyncStatus } from './draft-sync'
 import { SwipeToDelete } from './swipe-to-delete'
 import { EffortChips } from './effort-chips'
+import { stickyNote, noteChipLabel, type IdentityNote } from './identity-note'
+import { upsertExerciseNoteAction, deleteExerciseNoteAction } from '@/app/exercises/actions'
+import dynamic from 'next/dynamic'
+
+// Lazy on purpose (bundle discipline, plan §7): the note sheet — and through
+// its own dynamic import, TipTap — loads only when a chip is actually tapped.
+// The logger's first-paint bundle gains no editor bytes.
+const QuickCaptureSheet = dynamic(
+  () => import('@/components/editor/quick-capture-sheet').then((m) => m.QuickCaptureSheet),
+  { ssr: false },
+)
 import { HeaderClock } from './session-clock'
 import { PlateSheet } from './plate-sheet'
 import { RestSheet } from './rest-sheet'
@@ -317,6 +329,17 @@ export function WorkoutLogger({
   const [gear, setGear] = useState<Equipment>(equipment ?? DEFAULT_EQUIPMENT[unit])
   // Which exercise's plate sheet is open (by index), if any.
   const [plateSheetFor, setPlateSheetFor] = useState<number | null>(null)
+  // Which exercise's identity-note sheet is open (by index), if any. The
+  // sticky chip that opens it renders ONLY when a pinned note exists — an
+  // exercise without a note keeps its markup byte-identical (the effort-row
+  // discipline).
+  const [noteSheetFor, setNoteSheetFor] = useState<number | null>(null)
+  // Session-local note edits, keyed `${source}:${id}`: undefined = untouched
+  // (the Prev query's ride-along wins), null = deleted this session. The
+  // last-performance query stays frozen — this map is the fresher truth.
+  const [noteOverrides, setNoteOverrides] = useState<
+    Record<string, IdentityNote | null>
+  >({})
   // Previous-chip feedback: the set whose inputs briefly flash after a fill —
   // "accepted from history", not an error, hence a highlight (never a shake).
   const [flashSetId, setFlashSetId] = useState<string | null>(null)
@@ -725,6 +748,7 @@ export function WorkoutLogger({
         // restore is async and can.)
         setPlateSheetFor(null)
         setStatsSheetFor(null)
+        setNoteSheetFor(null)
         // And a held finish warning: its snapshot draft predates the restore.
         setPendingFinish(null)
         // And an open effort prompt: its set id may not exist in the
@@ -821,6 +845,7 @@ export function WorkoutLogger({
   async function handleSave(finalDraft: WorkoutDraft = draft) {
     setPlateSheetFor(null) // a live showModal() dialog must not cross navigation
     setStatsSheetFor(null) // same for the stats sheet
+    setNoteSheetFor(null) // and the identity-note sheet
     setIsPickerOpen(false) // same top-layer invariant for the exercise sheet
     setIsRestSheetOpen(false) // and for the rest-target sheet
     setReplaceTargetIndex(null) // and for the replace sheet + its guard dialog
@@ -895,6 +920,7 @@ export function WorkoutLogger({
     setPendingFinish(null) // finishing and discarding are mutually exclusive
     setPlateSheetFor(null) // a live showModal() dialog must not cross navigation
     setStatsSheetFor(null)
+    setNoteSheetFor(null)
     setIsPickerOpen(false)
     setIsRestSheetOpen(false)
     setReplaceTargetIndex(null)
@@ -1055,6 +1081,14 @@ export function WorkoutLogger({
             supersetGroup !== undefined &&
             previous !== undefined &&
             planSupersets?.[`${previous.source}:${previous.wgerExerciseId}`] === supersetGroup
+          // Sticky identity note (Strong's pin pattern): session-local edits
+          // outrank the Prev ride-along; only pinned notes surface. Null =
+          // zero note markup — the no-note path stays byte-identical.
+          const identityKey = `${exercise.source}:${exercise.wgerExerciseId}`
+          const identityNote = stickyNote(
+            noteOverrides[identityKey],
+            lastByExercise[identityKey]?.note,
+          )
           return (
           <section
             key={exercise.id}
@@ -1300,6 +1334,23 @@ export function WorkoutLogger({
                 />
               </span>
             </div>
+
+            {/* Sticky identity-note chip: the pinned "seat pin 4" line that
+                follows the exercise across sessions. A control (tap = open in
+                QuickCapture), rendered ONLY when a pinned note exists — the
+                no-note fast path gains nothing. Distinct from the session
+                note textarea below, which stays per-instance. */}
+            {identityNote !== null && (
+              <button
+                type="button"
+                onClick={() => setNoteSheetFor(exerciseIndex)}
+                aria-label={`Exercise note for ${exercise.name}: ${noteChipLabel(identityNote.body)}`}
+                className="flex max-w-full items-center gap-1.5 self-start rounded-full border border-border bg-muted/40 px-2.5 py-1 text-xs text-muted-foreground transition-colors active:bg-muted"
+              >
+                <Pin aria-hidden="true" className="size-3 shrink-0" />
+                <span className="truncate">{noteChipLabel(identityNote.body)}</span>
+              </button>
+            )}
 
             {/* Auto-shown while a note exists: a hidden note is a lost note. */}
             {(notesOpen.has(exercise.id) || exercise.notes !== '') && (
@@ -2240,6 +2291,49 @@ export function WorkoutLogger({
           }}
         />
       )}
+
+      {/* Identity-note QuickCapture: markdown in/out through the note
+          actions; the session-local override map keeps the chip fresh
+          without touching the frozen last-performance query. */}
+      {noteSheetFor !== null &&
+        draft.exercises[noteSheetFor] &&
+        (() => {
+          const exercise = draft.exercises[noteSheetFor]
+          const key = `${exercise.source}:${exercise.wgerExerciseId}`
+          const current =
+            noteOverrides[key] !== undefined
+              ? noteOverrides[key]
+              : (lastByExercise[key]?.note ?? null)
+          return (
+            <QuickCaptureSheet
+              title={exercise.name}
+              eyebrow="Exercise note"
+              initialBody={current?.body ?? ''}
+              // `current` is never null today (the chip only renders for an
+              // existing pinned note), so the `?? true` arm is unreachable —
+              // a deliberate default for any future create-from-logger path:
+              // a note born in the logger should surface here again.
+              initialPinned={current?.pinned ?? true}
+              onSave={async (value) => {
+                const saved = await upsertExerciseNoteAction(
+                  exercise.source,
+                  exercise.wgerExerciseId,
+                  value,
+                )
+                setNoteOverrides((prev) => ({ ...prev, [key]: saved }))
+              }}
+              onDelete={
+                current !== null
+                  ? async () => {
+                      await deleteExerciseNoteAction(exercise.source, exercise.wgerExerciseId)
+                      setNoteOverrides((prev) => ({ ...prev, [key]: null }))
+                    }
+                  : undefined
+              }
+              onClose={() => setNoteSheetFor(null)}
+            />
+          )
+        })()}
 
       {isDiscardModalOpen && (
         <ConfirmDialog

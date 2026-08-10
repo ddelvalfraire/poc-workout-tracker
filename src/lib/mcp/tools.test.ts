@@ -81,6 +81,7 @@ describe('registerTools', () => {
       'restart_program',
       'search_exercises',
       'set_exercise_meta',
+      'set_exercise_note',
       'set_program_autoregulation',
       'set_program_deload_policy',
       'set_program_plan_sync',

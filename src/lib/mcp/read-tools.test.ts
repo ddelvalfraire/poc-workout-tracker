@@ -12,6 +12,8 @@ vi.mock('@/db/volume-progression', () => ({ getVolumeStatus: vi.fn() }))
 vi.mock('@/db/preferences', () => ({ getWeightUnit: vi.fn(), getBodyweightKg: vi.fn() }))
 vi.mock('@/lib/wger', () => ({ searchExercises: vi.fn() }))
 vi.mock('@/db/custom-exercises', () => ({ listCustomExercises: vi.fn(async () => []) }))
+vi.mock('@/db/exercise-notes', () => ({ listExerciseNotesFor: vi.fn(async () => []) }))
+import { listExerciseNotesFor } from '@/db/exercise-notes'
 vi.mock('@/db/program-events', () => ({
   listProgramEvents: vi.fn(),
   PROGRAM_EVENTS_MAX_LIMIT: 100,
@@ -356,6 +358,39 @@ describe('registerReadTools', () => {
       expect(body.workout.notes).toBeNull()
       expect(body.workout.exercises[0]!.notes).toBeNull()
       expect(body.workout.exercises[0]!.skipped).toBe(false)
+      // No identity note stored → explicit null, matching the notes style.
+      expect(
+        (body.workout.exercises[0] as { identityNote?: unknown }).identityNote,
+      ).toBeNull()
+    })
+
+    it('attaches the exercise-identity note when one exists for the identity', async () => {
+      // Arrange — the batched note read returns a row for (wger, 73).
+      const tools = setup()
+      mockedDetail.mockResolvedValue({
+        ...detail(),
+        exercises: detail().exercises.map((e) => ({ ...e, source: 'wger' })),
+      } as unknown as Awaited<ReturnType<typeof getWorkoutDetail>>)
+      vi.mocked(listExerciseNotesFor).mockResolvedValueOnce([
+        {
+          id: 'n1',
+          userId: 'user_env',
+          source: 'wger',
+          exerciseId: 73,
+          body: 'Seat pin 4',
+          pinned: true,
+          updatedAt: new Date(),
+        },
+      ])
+
+      // Act
+      const result = await tools.get('get_workout')!({ id: '11111111-1111-4111-8111-111111111111' })
+
+      // Assert
+      const body = payload(result) as {
+        workout: { exercises: { identityNote: { body: string; pinned: boolean } | null }[] }
+      }
+      expect(body.workout.exercises[0]!.identityNote).toEqual({ body: 'Seat pin 4', pinned: true })
     })
 
     it('returns weights verbatim when the unit is kg', async () => {
@@ -590,6 +625,7 @@ describe('registerReadTools', () => {
           { reps: 5, weight: 95 },
           { reps: 8, weight: null },
         ],
+        note: null,
       })
 
       // Act
@@ -610,8 +646,26 @@ describe('registerReadTools', () => {
             { reps: 5, weight: kgToDisplay(95, 'lb') },
             { reps: 8, weight: null },
           ],
+          note: null,
         },
       })
+    })
+
+    it('carries the identity note through unchanged (markdown, unit-free)', async () => {
+      // Arrange
+      const tools = setup()
+      mockedLast.mockResolvedValue({
+        performedAt: new Date('2026-05-20T12:00:00.000Z'),
+        sets: [{ reps: 5, weight: 95 }],
+        note: { body: '**Seat pin 4**', pinned: true },
+      })
+
+      // Act
+      const result = await tools.get('get_last_performance')!({ wgerExerciseId: 73 })
+
+      // Assert
+      const last = payload(result).lastPerformance as { note: unknown }
+      expect(last.note).toEqual({ body: '**Seat pin 4**', pinned: true })
     })
 
     it('returns lastPerformance null when there is no history', async () => {
