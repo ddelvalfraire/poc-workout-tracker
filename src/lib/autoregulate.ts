@@ -509,6 +509,21 @@ export function sessionStall(
   return { missedSets: missed, scorableSets: pairs.length, ...heaviestMissed }
 }
 
+/**
+ * Whether ONE session beat a rep top: every scorable working pair (the same
+ * at-load pairing discipline as the stall rules) finished AT OR ABOVE
+ * `repTop`, quorum-gated (M3). Null = no verdict (nothing scorable, or the
+ * quorum failed) — silence over corruption. Exported for the weekly volume-
+ * progression signal (lib/volume-progression.ts): "beat top of range" must
+ * mean exactly what the engine means by scorable, or the two would disagree
+ * about the same session.
+ */
+export function sessionBeatsTop(session: AutoregSession, repTop: number): boolean | null {
+  const pairs = scorablePairs(session)
+  if (!meetsQuorum(pairs.length, session)) return null
+  return pairs.every((p) => p.reps >= repTop)
+}
+
 /** The heaviest scorable prescribed load of a session — the H2 streak scope:
  *  a fixed-mode stall streak only deepens while this is unchanged. */
 function topPrescribedLoad(session: AutoregSession): number | null {
