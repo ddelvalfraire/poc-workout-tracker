@@ -114,6 +114,10 @@ export const COACH_EXCLUDED_TOOLS = [
   'delete_workout',
   'set_workout_meta',
   'set_exercise_meta',
+  // Identity notes are the LIFTER's own setup memory ("seat pin 4") — a
+  // coach silently rewriting them would be imposing, not proposing. External
+  // MCP agents keep the tool; the coach reads notes via the read tools.
+  'set_exercise_note',
   'update_set',
   'add_set',
   'remove_set',
