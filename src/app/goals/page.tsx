@@ -213,8 +213,16 @@ function GoalCard({
                   aria-label="Progress to target"
                   className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted"
                 >
+                  {/* Progress at rest is data ink, not accent ink (Primer/
+                      Things precedent): the fill goes volt at the same
+                      near-target threshold the percent text already uses. */}
                   <div
-                    className="h-full rounded-full bg-primary"
+                    className={cn(
+                      'h-full rounded-full',
+                      progress.percent >= NEAR_TARGET_PERCENT
+                        ? 'bg-primary'
+                        : 'bg-muted-foreground/60',
+                    )}
                     style={{ width: `${progress.percent}%` }}
                   />
                 </div>
