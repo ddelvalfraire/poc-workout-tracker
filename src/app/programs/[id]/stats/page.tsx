@@ -268,8 +268,10 @@ export default async function ProgramStatsPage({
                 status row → tap → drivers + trend → per-week table. Verdicts
                 speak about the last COMPLETED program week; muscles without
                 scorable evidence are simply absent (silence over corruption).
-                Volt is reserved for on-track — the quiet good state; +1 and
-                hold carry words, not accent. Native <details>, no client JS. */}
+                Volt on a revisit LIST never stacks (#163): ordinary statuses
+                (on track, hold) are muted words; only the decision-adjacent
+                "+1 earned" carries the accent. Native <details>, no client
+                JS. */}
             {volume !== null && volume.enabled && volume.week !== null &&
               volume.verdicts.length > 0 && (
                 <section aria-label="Muscle volume" className="mt-8">
@@ -292,8 +294,9 @@ export default async function ProgramStatsPage({
                               <span
                                 className={cn(
                                   'text-[11px] font-semibold uppercase tracking-widest',
-                                  verdict.status === 'on-track' && 'text-primary',
-                                  verdict.status === 'hold' && 'text-muted-foreground',
+                                  verdict.status === 'increase'
+                                    ? 'text-primary'
+                                    : 'text-muted-foreground',
                                 )}
                               >
                                 {volumeStatusLabel(verdict.status)}

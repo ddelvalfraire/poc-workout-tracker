@@ -17,6 +17,14 @@
  *    on top would be a double confirm;
  *  - everything else (workout writes, deletes, lifecycle moves, settings,
  *    custom-exercise writes): excluded entirely.
+ *
+ * Fifth shape, documented honestly: reads with an embedded DRAFT-TIER side
+ * effect — currently only `get_volume_status`, whose weekly check can RAISE
+ * a batch-patch proposal. It rides the read tier because the side effect is
+ * inert by construction (db-layer inertness: a pending proposal changes no
+ * plan until the owner's explicit confirm on the program page — the same
+ * forced-confirm rationale as the drafting tier), so the coach still cannot
+ * change anything by calling it.
  */
 
 /** Read-only tools the coach may call freely. */
