@@ -20,6 +20,13 @@ import {
 } from '@/db/programs'
 import { setProgramVisibility, createShare, revokeShare } from '@/db/program-shares'
 import { setTrainingMax } from '@/db/program-patches'
+import { confirmPatchProposal, declinePatchProposal } from '@/db/patch-proposals'
+import { restartTmPlan } from '@/db/restart-plan'
+import { getWeightUnit } from '@/db/preferences'
+import { kgToDisplay } from '@/lib/units'
+import type { TmIncrement } from '@/lib/tm-restart'
+import { proposedTrainingMaxKg } from './[id]/detail-view'
+import type { RestartPreview } from './[id]/restart-view'
 
 /**
  * Validates and persists a new program for the signed-in user, returning its id.
@@ -127,6 +134,39 @@ export async function declineProgramAction(id: unknown): Promise<void> {
 }
 
 /**
+ * The owner's single combined confirm on a batch-patch proposal: every stored
+ * patch is applied atomically through the event-logged patch functions (the db
+ * layer re-validates and rolls the lot back on any mismatch — apply ALL or
+ * apply NOTHING). A null result means not owned / not pending; a
+ * PatchProposalError (program drifted) surfaces its owner-safe message to the
+ * client's try/catch.
+ */
+export async function confirmPatchProposalAction(id: unknown): Promise<{ applied: number }> {
+  const userId = await requireUserId()
+  if (typeof id !== 'string' || id.length === 0) throw new Error('invalid proposal id')
+  const result = await confirmPatchProposal(userId, id)
+  if (!result) throw new Error('proposal not found')
+  revalidatePath('/programs')
+  revalidatePath(`/programs/${result.programId}`)
+  return { applied: result.applied }
+}
+
+/**
+ * The owner's reject on a batch-patch proposal: hard-deletes the pending row
+ * (decline discards; the decline event stays in the change log). Returns void —
+ * the card refreshes in place; no redirect() (same try/catch rationale as
+ * declineProgramAction).
+ */
+export async function declinePatchProposalAction(id: unknown): Promise<void> {
+  const userId = await requireUserId()
+  if (typeof id !== 'string' || id.length === 0) throw new Error('invalid proposal id')
+  const result = await declinePatchProposal(userId, id)
+  if (!result) throw new Error('proposal not found')
+  revalidatePath('/programs')
+  revalidatePath(`/programs/${result.programId}`)
+}
+
+/**
  * Rolls a block over: clone the program (full row fidelity, week-1 fresh) and
  * activate the clone — setProgramStatus's single-active sweep archives an
  * active source automatically; an already-archived source stays archived.
@@ -140,7 +180,18 @@ export async function restartProgramAction(id: unknown): Promise<{ id: string }>
   if (typeof id !== 'string' || id.length === 0) {
     throw new Error('invalid program id')
   }
-  const clone = await cloneProgram(userId, id, 'ui')
+  // Block-restart TM carry-forward (plan §5): clean amrap-cycle lifts step up
+  // one increment inside the clone transaction; M4-flagged lifts are skipped
+  // (the confirm dialog suggested a reset instead — restartPreviewAction). A
+  // failed plan derivation must not block the restart itself: proceed with a
+  // plain copy rather than stranding the user (silence over corruption).
+  let tmIncrements: TmIncrement[] = []
+  try {
+    tmIncrements = (await restartTmPlan(userId, id))?.increments ?? []
+  } catch {
+    tmIncrements = []
+  }
+  const clone = await cloneProgram(userId, id, 'ui', { tmIncrements })
   if (!clone) throw new Error('program not found')
   const activated = await setProgramStatus(userId, clone.id, 'active', 'ui')
   if (!activated) throw new Error('could not activate the new block')
@@ -148,6 +199,33 @@ export async function restartProgramAction(id: unknown): Promise<{ id: string }>
   revalidatePath('/programs')
   revalidatePath(`/programs/${id}`)
   return { id: clone.id }
+}
+
+/**
+ * The restart confirm step's TM preview: which lifts step up for the new
+ * block and which M4-flagged lifts will be SKIPPED (with the reset the page's
+ * M4 idiom would suggest), in the user's display unit. Purely informational —
+ * restartProgramAction recomputes the plan server-side at confirm, so the
+ * client is never trusted with it. Throws on not-owned; the dialog treats any
+ * failure as "no preview" and keeps its base copy.
+ */
+export async function restartPreviewAction(id: unknown): Promise<RestartPreview> {
+  const userId = await requireUserId()
+  if (typeof id !== 'string' || id.length === 0) throw new Error('invalid program id')
+  const plan = await restartTmPlan(userId, id)
+  if (!plan) throw new Error('program not found')
+  const unit = await getWeightUnit(userId)
+  return {
+    unit,
+    incrementCount: plan.increments.length,
+    flagged: plan.flags.map((flag) => {
+      const proposedKg = proposedTrainingMaxKg(flag.currentTmKg)
+      return {
+        exerciseName: flag.exerciseName,
+        proposedTm: proposedKg === null ? null : kgToDisplay(proposedKg, unit),
+      }
+    }),
+  }
 }
 
 /**

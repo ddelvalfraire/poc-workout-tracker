@@ -14,7 +14,7 @@ import { buildBlockWeeks, type BlockWeek } from '@/components/block-weeks'
 import { buttonVariants } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { NavDrawer } from '@/components/nav/nav-drawer'
-import { zonePrograms, programStatusLabel } from './list-view'
+import { zonePrograms, programStatusLabel, proposalAgeLine } from './list-view'
 
 /** The list-row program shape (listPrograms row). */
 type ProgramRowData = Awaited<ReturnType<typeof listPrograms>>[number]
@@ -95,6 +95,9 @@ function ProgramRow({ program }: { program: ProgramRowData }) {
           <span className="mt-1 block text-xs text-muted-foreground tnum">
             {program.mesocycleWeeks} week{program.mesocycleWeeks === 1 ? '' : 's'}
             {program.deloadWeek !== null && ` · deload wk ${program.deloadWeek}`}
+            {/* Staleness affordance: a pending proposal wears its age as
+                muted words — never an auto-expiry. */}
+            {isProposed && ` · ${proposalAgeLine(program.createdAt, new Date())}`}
           </span>
         </span>
         <ChevronRight aria-hidden="true" className="size-5 shrink-0 text-muted-foreground" />

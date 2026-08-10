@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { programStatusLabel, zonePrograms } from './list-view'
+import { programStatusLabel, proposalAgeLine, zonePrograms } from './list-view'
 
 describe('programStatusLabel', () => {
   it('labels the known statuses', () => {
@@ -51,5 +51,28 @@ describe('zonePrograms', () => {
       drafts: [],
       archived: [],
     })
+  })
+})
+
+describe('proposalAgeLine (staleness affordance)', () => {
+  const NOW = new Date('2026-08-09T12:00:00Z')
+  const daysAgo = (n: number) => new Date(NOW.getTime() - n * 24 * 60 * 60 * 1000)
+
+  it('reads today / yesterday / N days ago inside the first week', () => {
+    expect(proposalAgeLine(NOW, NOW)).toBe('proposed today')
+    expect(proposalAgeLine(daysAgo(1), NOW)).toBe('proposed yesterday')
+    expect(proposalAgeLine(daysAgo(3), NOW)).toBe('proposed 3 days ago')
+    expect(proposalAgeLine(daysAgo(6), NOW)).toBe('proposed 6 days ago')
+  })
+
+  it('rolls up to weeks and months for stale proposals — never expires', () => {
+    expect(proposalAgeLine(daysAgo(7), NOW)).toBe('proposed 1 week ago')
+    expect(proposalAgeLine(daysAgo(20), NOW)).toBe('proposed 2 weeks ago')
+    expect(proposalAgeLine(daysAgo(30), NOW)).toBe('proposed 1 month ago')
+    expect(proposalAgeLine(daysAgo(365), NOW)).toBe('proposed 12 months ago')
+  })
+
+  it('treats clock skew (future createdAt) as today', () => {
+    expect(proposalAgeLine(daysAgo(-2), NOW)).toBe('proposed today')
   })
 })

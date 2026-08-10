@@ -8,12 +8,15 @@ vi.mock('@/db/programs', () => ({
   setProgramStatus: vi.fn(),
   cloneProgram: vi.fn(),
   listPrograms: vi.fn(),
+  listProposals: vi.fn(),
   getProgramDetail: vi.fn(),
   instantiateProgramDay: vi.fn(),
   nextProgramWeek: vi.fn(),
   deriveDayPrescription: vi.fn(),
 }))
 vi.mock('@/db/preferences', () => ({ getWeightUnit: vi.fn() }))
+vi.mock('@/db/patch-proposals', () => ({ listPatchProposals: vi.fn() }))
+vi.mock('@/db/restart-plan', () => ({ restartTmPlan: vi.fn() }))
 
 import { registerProgramTools } from './program-tools'
 import {
@@ -23,12 +26,15 @@ import {
   setProgramStatus,
   cloneProgram,
   listPrograms,
+  listProposals,
   getProgramDetail,
   instantiateProgramDay,
   nextProgramWeek,
   deriveDayPrescription,
 } from '@/db/programs'
 import { getWeightUnit } from '@/db/preferences'
+import { listPatchProposals } from '@/db/patch-proposals'
+import { restartTmPlan } from '@/db/restart-plan'
 // Real classes (module NOT mocked): the instanceof in surfaceProposalGuard must
 // see the same identities the db layer throws.
 import { NotCoachProposalError, ProposedProgramError } from '@/db/program-errors'
@@ -185,13 +191,14 @@ describe('registerProgramTools', () => {
     else process.env.MCP_DEV_USER_ID = original
   })
 
-  it('registers exactly the eight program tools', () => {
+  it('registers exactly the nine program tools', () => {
     const tools = setup()
     expect([...tools.keys()].sort()).toEqual([
       'delete_program',
       'get_program',
       'instantiate_program_day',
       'list_programs',
+      'list_proposals',
       'preview_program_week',
       'restart_program',
       'set_program_status',
@@ -647,6 +654,78 @@ describe('registerProgramTools', () => {
     })
   })
 
+  describe('list_proposals', () => {
+    const mockedListProposals = vi.mocked(listProposals)
+    const mockedListPatchProposals = vi.mocked(listPatchProposals)
+
+    it('maps program proposals and pending batch proposals with ISO dates', async () => {
+      // Arrange
+      const tools = setup()
+      mockedListProposals.mockResolvedValue([
+        {
+          id: PID,
+          name: 'Coach block',
+          createdAt: new Date('2026-08-01T00:00:00.000Z'),
+          authorActor: 'coach',
+        },
+      ] as unknown as Awaited<ReturnType<typeof listProposals>>)
+      mockedListPatchProposals.mockResolvedValue([
+        {
+          id: 'pp1',
+          programId: PID,
+          authorActor: 'coach',
+          summary: 'Add a chest set',
+          patches: [
+            { tool: 'set_training_max', args: { dayPosition: 0, exercisePosition: 0, trainingMax: 90 } },
+          ],
+          createdAt: new Date('2026-08-02T00:00:00.000Z'),
+        },
+      ] as unknown as Awaited<ReturnType<typeof listPatchProposals>>)
+
+      // Act
+      const result = await tools.get('list_proposals')!({})
+
+      // Assert
+      expect(mockedListProposals).toHaveBeenCalledWith('user_env')
+      expect(mockedListPatchProposals).toHaveBeenCalledWith('user_env')
+      expect(payload(result)).toEqual({
+        userId: 'user_env',
+        programProposals: [
+          {
+            id: PID,
+            name: 'Coach block',
+            createdAt: '2026-08-01T00:00:00.000Z',
+            authorActor: 'coach',
+          },
+        ],
+        patchProposals: [
+          {
+            id: 'pp1',
+            programId: PID,
+            summary: 'Add a chest set',
+            patchCount: 1,
+            createdAt: '2026-08-02T00:00:00.000Z',
+            authorActor: 'coach',
+          },
+        ],
+      })
+    })
+
+    it('returns empty arrays when nothing is outstanding', async () => {
+      // Arrange
+      const tools = setup()
+      mockedListProposals.mockResolvedValue([] as unknown as Awaited<ReturnType<typeof listProposals>>)
+      mockedListPatchProposals.mockResolvedValue([])
+
+      // Act + Assert
+      expect(payload(await tools.get('list_proposals')!({}))).toEqual({
+        userId: 'user_env',
+        programProposals: [],
+        patchProposals: [],
+      })
+    })
+  })
+
   describe('delete_program', () => {
     it('deletes an owned program and reports deleted:true', async () => {
       // Arrange
@@ -823,9 +902,12 @@ describe('registerProgramTools', () => {
   })
 
   describe('restart_program', () => {
+    const mockedRestartPlan = vi.mocked(restartTmPlan)
+
     it('clones the program then activates the clone, echoing the new id', async () => {
-      // Arrange
+      // Arrange — no TM plan (e.g. no amrap-cycle exercises)
       const tools = setup()
+      mockedRestartPlan.mockResolvedValue({ flags: [], increments: [] })
       mockedClone.mockResolvedValue({ id: 'p-clone' })
       mockedSetStatus.mockResolvedValue({ id: 'p-clone' })
 
@@ -833,7 +915,7 @@ describe('registerProgramTools', () => {
       const result = await tools.get('restart_program')!({ id: PID })
 
       // Assert — same two-step path as the UI's restartProgramAction
-      expect(mockedClone).toHaveBeenCalledWith('user_env', PID, 'mcp')
+      expect(mockedClone).toHaveBeenCalledWith('user_env', PID, 'mcp', { tmIncrements: [] })
       expect(mockedSetStatus).toHaveBeenCalledWith('user_env', 'p-clone', 'active', 'mcp')
       expect(payload(result)).toEqual({
         userId: 'user_env',
@@ -869,6 +951,44 @@ describe('registerProgramTools', () => {
       // Assert
       expect(result.isError).toBe(true)
       expect(result.content[0]?.text).toMatch(/activate/)
+    })
+
+    it('passes the TM carry-forward increments into the clone (plan §5)', async () => {
+      // Arrange — one clean amrap-cycle lift steps up
+      const tools = setup()
+      const increment = {
+        exerciseName: 'Squat',
+        dayPosition: 0,
+        exercisePosition: 0,
+        fromKg: 140,
+        toKg: 142.5,
+      }
+      mockedRestartPlan.mockResolvedValue({ flags: [], increments: [increment] })
+      mockedClone.mockResolvedValue({ id: 'p-clone' })
+      mockedSetStatus.mockResolvedValue({ id: 'p-clone' })
+
+      // Act
+      await tools.get('restart_program')!({ id: PID })
+
+      // Assert
+      expect(mockedClone).toHaveBeenCalledWith('user_env', PID, 'mcp', {
+        tmIncrements: [increment],
+      })
+    })
+
+    it('restarts with a plain copy when the TM plan derivation fails', async () => {
+      // Arrange — the carry-forward is best-effort; restart must not break
+      const tools = setup()
+      mockedRestartPlan.mockRejectedValue(new Error('derive blew up'))
+      mockedClone.mockResolvedValue({ id: 'p-clone' })
+      mockedSetStatus.mockResolvedValue({ id: 'p-clone' })
+
+      // Act
+      const result = await tools.get('restart_program')!({ id: PID })
+
+      // Assert
+      expect(result.isError).toBeUndefined()
+      expect(mockedClone).toHaveBeenCalledWith('user_env', PID, 'mcp', { tmIncrements: [] })
     })
 
     it('surfaces not-found for a malformed id without hitting the db', async () => {

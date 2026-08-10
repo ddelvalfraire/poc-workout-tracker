@@ -267,6 +267,13 @@
       "when": 1786323254582,
       "tag": "0037_kind_silver_surfer",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1786325887288,
+      "tag": "0038_naive_manta",
+      "breakpoints": true
     }
   ]
 }

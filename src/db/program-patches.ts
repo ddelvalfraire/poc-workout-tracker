@@ -58,6 +58,25 @@ type MetricMode = z.infer<typeof metricModeSchema>
 /** The transaction handle, lifted from the callback signature (no internal import). */
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0]
 
+/**
+ * Where a patch op runs: the root `db` (the default — each op owns its own
+ * transaction, unchanged behavior) or a caller-supplied runner that executes
+ * the op's body inside an ALREADY-OPEN transaction. The two callers that need
+ * the latter are the batch-proposal confirm (db/patch-proposals.ts — all
+ * patches commit or none do) and the block-restart TM carry-forward
+ * (cloneProgram — increments ride the clone's transaction). Ops stay
+ * event-logged and actor-attributed identically either way.
+ */
+export interface PatchRunner {
+  transaction<T>(cb: (tx: Tx) => Promise<T>): Promise<T>
+}
+
+/** Wraps an open transaction as a PatchRunner (the op's body just runs on it —
+ *  a throw aborts the caller's whole transaction, which is the point). */
+export function withTx(tx: Tx): PatchRunner {
+  return { transaction: (cb) => cb(tx) }
+}
+
 /** A ZodError → a concise ProgramPatchError (first issue, path-prefixed). */
 function patchErrorFromZod(error: unknown, fallback: string): ProgramPatchError {
   if (error instanceof z.ZodError) {
@@ -378,12 +397,12 @@ export async function setTrainingMax(
   trainingMaxKg: number,
   reason: TrainingMaxReason,
   actor: ProgramEventActor,
-  options?: { bankedWaves?: number },
+  options?: { bankedWaves?: number; runIn?: PatchRunner },
 ): Promise<{ id: string; trainingMaxKg: number } | null> {
   if (!Number.isFinite(trainingMaxKg) || trainingMaxKg < 0) {
     throw new ProgramPatchError('trainingMax must be a non-negative number')
   }
-  return db.transaction(async (tx) => {
+  return (options?.runIn ?? db).transaction(async (tx) => {
     const found = await findOwnedExercise(tx, userId, programId, dayPosition, exercisePosition)
     if (!found) return null
     const [row] = await tx
@@ -931,12 +950,13 @@ export async function addProgramSet(
   exercisePosition: number,
   patch: ProgramSetPatch,
   actor: ProgramEventActor,
+  runIn?: PatchRunner,
 ): Promise<{ setNumber: number } | null> {
   const values = definedFields(patch)
   if (values.technique != null) values.technique = parseTechnique(values.technique)
   const row = { ...SET_DEFAULTS, ...values }
   assertSetRowIntegrity(row)
-  return db.transaction(async (tx) => {
+  return (runIn ?? db).transaction(async (tx) => {
     const found = await findOwnedExercise(tx, userId, programId, dayPosition, exercisePosition)
     if (!found) return null
     const [{ value: lastNumber }] = await tx
@@ -974,11 +994,12 @@ export async function updateProgramSet(
   setNumber: number,
   patch: ProgramSetPatch,
   actor: ProgramEventActor,
+  runIn?: PatchRunner,
 ): Promise<{ id: string } | null> {
   const values = definedFields(patch)
   if (Object.keys(values).length === 0) return null
   if (values.technique != null) values.technique = parseTechnique(values.technique)
-  return db.transaction(async (tx) => {
+  return (runIn ?? db).transaction(async (tx) => {
     const found = await findOwnedExercise(tx, userId, programId, dayPosition, exercisePosition)
     if (!found) return null
     const [current] = await tx
@@ -1051,8 +1072,9 @@ export async function removeProgramSet(
   exercisePosition: number,
   setNumber: number,
   actor: ProgramEventActor,
+  runIn?: PatchRunner,
 ): Promise<{ removed: true } | null> {
-  return db.transaction(async (tx) => {
+  return (runIn ?? db).transaction(async (tx) => {
     const found = await findOwnedExercise(tx, userId, programId, dayPosition, exercisePosition)
     if (!found) return null
     const [{ value: total }] = await tx
@@ -1295,11 +1317,12 @@ export async function setProgramSetOverride(
   week: number,
   patch: ProgramSetOverridePatch,
   actor: ProgramEventActor,
+  runIn?: PatchRunner,
 ): Promise<{ week: number; cleared: boolean } | null> {
   const values = definedFields(patch)
   if (Object.keys(values).length === 0) return null
   if (values.technique != null) values.technique = parseTechnique(values.technique)
-  return db.transaction(async (tx) => {
+  return (runIn ?? db).transaction(async (tx) => {
     const found = await findOwnedExercise(tx, userId, programId, dayPosition, exercisePosition)
     if (!found) return null
     const [current] = await tx
@@ -1392,8 +1415,9 @@ export async function removeProgramSetOverride(
   setNumber: number,
   week: number,
   actor: ProgramEventActor,
+  runIn?: PatchRunner,
 ): Promise<{ removed: true } | null> {
-  return db.transaction(async (tx) => {
+  return (runIn ?? db).transaction(async (tx) => {
     const found = await findOwnedExercise(tx, userId, programId, dayPosition, exercisePosition)
     if (!found) return null
     const [set] = await tx

@@ -582,6 +582,42 @@ export const programs = pgTable(
   (t) => [index('programs_user_id_idx').on(t.userId)],
 )
 
+/**
+ * Batch-patch proposals (proposals plan §3): ONE row per proposal — a grouped
+ * set of existing patch ops an agent suggests against an ACTIVE program, held
+ * inert until the owner's single combined confirm. Deliberately NOT a
+ * normalized patch-list table: `patches` is an opaque validated jsonb array
+ * (lib/patch-proposal.ts shapes it like the MCP patch-tool inputs, kg-
+ * canonical), so the proposal stays one decision unit — accept whole or
+ * decline — and the schema stays a pending-inbox, not a second change log
+ * (program_events remains the log; every applied patch writes its own row
+ * there). `status`: 'pending' | 'applied' (confirm keeps the row as the audit
+ * anchor its events reference; decline hard-deletes, mirroring
+ * declineProgram). Cascade: proposals die with their program.
+ */
+export const programPatchProposals = pgTable(
+  'program_patch_proposals',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    programId: uuid('program_id')
+      .notNull()
+      .references(() => programs.id, { onDelete: 'cascade' }),
+    userId: text('user_id').notNull(), // Clerk user id — ownership root, like `programs`
+    // Who proposed — same open value space philosophy as programs.authorActor
+    // ('coach' | 'mcp' today; a human coach's user id later needs data, not
+    // schema).
+    authorActor: text('author_actor').notNull(),
+    // The one-line human summary the approval card leads with.
+    summary: text('summary').notNull(),
+    patches: jsonb('patches').notNull(),
+    status: text('status').notNull().default('pending'),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  // The only read path (pending proposals for a program page / user) filters
+  // by program; user-wide listings ride the program join.
+  (t) => [index('program_patch_proposals_program_id_idx').on(t.programId)],
+)
+
 export const programDays = pgTable(
   'program_days',
   {

@@ -13,6 +13,7 @@ import {
   programSetOverrides,
   customExercises,
   programEvents,
+  programPatchProposals,
   workoutTemplates,
   workoutTemplateExercises,
 } from './schema'
@@ -50,6 +51,19 @@ describe('schema', () => {
     const cols = getTableColumns(programs)
     expect(cols.checkInEveryDays.notNull).toBe(false)
     expect(cols.checkInEveryDays.hasDefault).toBe(false)
+  })
+
+  it('defines the batch-proposal inbox as one row per proposal (no patch-list table)', () => {
+    // Additive new table: patches ride as ONE opaque jsonb array — the schema
+    // stays a pending-inbox, never a second change log.
+    expect(getTableName(programPatchProposals)).toBe('program_patch_proposals')
+    const cols = getTableColumns(programPatchProposals)
+    expect(cols.patches.notNull).toBe(true)
+    expect(cols.summary.notNull).toBe(true)
+    expect(cols.authorActor.notNull).toBe(true)
+    // status defaults 'pending' so inserts never need to name it.
+    expect(cols.status.notNull).toBe(true)
+    expect(cols.status.hasDefault).toBe(true)
   })
 
   it('defines the four program tables with snake_case names', () => {

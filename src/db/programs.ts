@@ -17,7 +17,8 @@ import {
 // Runtime-only cycle with ./program-patches (it imports our catalog helpers,
 // we call its TM setter) — safe because both directions are used strictly
 // inside function bodies, never at module init.
-import { setTrainingMax } from './program-patches'
+import { setTrainingMax, withTx, ProgramPatchError } from './program-patches'
+import type { TmIncrement } from '@/lib/tm-restart'
 import { bestSet } from '@/lib/one-rep-max'
 import {
   autoregulate,
@@ -80,6 +81,22 @@ export function listPrograms(userId: string) {
     .from(programs)
     .where(eq(programs.userId, userId))
     .orderBy(desc(programs.updatedAt))
+}
+
+/** The user's outstanding program proposals (status 'proposed'), newest
+ *  first — the coach's own drafts inbox for `list_proposals`. Read-only:
+ *  adopt/decline stay owner-only server actions. */
+export function listProposals(userId: string) {
+  return db
+    .select({
+      id: programs.id,
+      name: programs.name,
+      createdAt: programs.createdAt,
+      authorActor: programs.authorActor,
+    })
+    .from(programs)
+    .where(and(eq(programs.userId, userId), eq(programs.status, 'proposed')))
+    .orderBy(desc(programs.createdAt))
 }
 
 /** Fetches a single program with its days/exercises (incl. muscle tags)/sets
@@ -691,6 +708,18 @@ export async function cloneProgram(
   userId: string,
   sourceId: string,
   actor: ProgramEventActor,
+  options?: {
+    /**
+     * Block-restart TM carry-forward (plan §5): each entry applies ONE
+     * `setTrainingMax` (reason 'block-restart') to the CLONE inside the clone
+     * transaction — event-logged on the new program's timeline. Callers
+     * compute the list via `restartTmPlan` (amrap-cycle exercises minus M4
+     * flags); an entry whose address/scheme no longer matches is skipped
+     * (the restart itself must not fail over a lost bump — silence over
+     * corruption). Omitted = a pure copy.
+     */
+    tmIncrements?: readonly TmIncrement[]
+  },
 ): Promise<{ id: string } | null> {
   const source = await getProgramDetail(userId, sourceId) // ownership gate
   if (!source) return null
@@ -738,6 +767,29 @@ export async function cloneProgram(
       summary: `Block restarted from "${source.name}"`,
       payload: { sourceProgramId: sourceId },
     })
+
+    // TM carry-forward: one block-boundary bump per clean amrap-cycle
+    // exercise, through THE setter (event-logged, actor-attributed), riding
+    // this same transaction. bankedWaves resets to 0: the clone has no
+    // history, so a stale bank from the source would wrongly suppress the
+    // new block's first wave bumps. A mismatch (null / wrong scheme after a
+    // concurrent edit) skips that bump rather than failing the restart.
+    for (const increment of options?.tmIncrements ?? []) {
+      try {
+        await setTrainingMax(
+          userId,
+          program.id,
+          increment.dayPosition,
+          increment.exercisePosition,
+          increment.toKg,
+          'block-restart',
+          actor,
+          { bankedWaves: 0, runIn: withTx(tx) },
+        )
+      } catch (error: unknown) {
+        if (!(error instanceof ProgramPatchError)) throw error
+      }
+    }
 
     return { id: program.id }
   })

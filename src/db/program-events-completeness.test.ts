@@ -219,9 +219,14 @@ beforeEach(() => {
 
 describe('program change log completeness (program-patches.ts)', () => {
   it('the invocation map covers every mutating export — a new op must be registered here', () => {
-    // Arrange — every exported function except the error class is a mutator.
+    // Arrange — every exported function except the error class and the
+    // transaction-plumbing helper (withTx wraps an open tx for the batch
+    // confirm / clone carry-forward; it mutates nothing itself) is a mutator.
     const mutatingExports = Object.entries(patches)
-      .filter(([name, value]) => typeof value === 'function' && name !== 'ProgramPatchError')
+      .filter(
+        ([name, value]) =>
+          typeof value === 'function' && name !== 'ProgramPatchError' && name !== 'withTx',
+      )
       .map(([name]) => name)
       .sort()
 

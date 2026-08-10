@@ -35,6 +35,22 @@ export class NotCoachProposalError extends Error {
 }
 
 /**
+ * An invalid batch-patch proposal (vs. `null` = not-found): malformed or
+ * out-of-policy patches at propose time, or a confirm against a program that
+ * changed underneath the proposal (no longer active, an address that no longer
+ * matches). Confirm-time throws abort the whole transaction — apply ALL or
+ * apply NOTHING. Same module/identity rationale as ProposedProgramError:
+ * `instanceof` survives tests that mock '@/db/patch-proposals'. Messages are
+ * caller-safe; the MCP layer surfaces them verbatim as ToolErrors.
+ */
+export class PatchProposalError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'PatchProposalError'
+  }
+}
+
+/**
  * A share link was requested for a program whose visibility is 'private'.
  * Minting is gated on visibility link|public so a private program can never
  * hold a live token — flipping visibility is the explicit first step. Same
