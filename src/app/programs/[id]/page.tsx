@@ -38,6 +38,7 @@ import {
 } from './detail-view'
 import { kgToDisplay } from '@/lib/units'
 import { listPatchProposals } from '@/db/patch-proposals'
+import { ensureVolumeProposals } from '@/db/volume-progression'
 import { describeToolCall } from '@/lib/coach/describe-tool-call'
 import { patchForDisplay } from '@/lib/patch-proposal'
 import { proposalAgeLine } from '../list-view'
@@ -83,6 +84,13 @@ export default async function ProgramDetailPage({
   const [{ id }, sp] = await Promise.all([params, searchParams])
   const [program, unit] = await Promise.all([getProgramDetail(userId, id), getWeightUnit(userId)])
   if (!program) notFound()
+
+  // The volume-progression weekly check (derive-time trigger, no cron): at
+  // most one real evaluation per (program, completed week) — steady-state
+  // loads pay one Redis GET. Runs BEFORE listPatchProposals below so a
+  // freshly minted +1 proposal renders on this very load. Best-effort: it
+  // can never throw into the page.
+  await ensureVolumeProposals(userId, program.id)
 
   const [
     { currentWeek, blockComplete },

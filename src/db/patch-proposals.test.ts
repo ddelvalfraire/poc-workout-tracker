@@ -11,6 +11,9 @@ import { getTableName, type Table } from 'drizzle-orm'
  */
 const records: { op: string; values?: unknown }[] = []
 let selectQueue: unknown[][] = []
+/** What the proposal insert's `.returning()` resolves — [] simulates the ON
+ *  CONFLICT DO NOTHING collapse on the pending-source unique index. */
+let insertReturning: unknown[] = [{ id: 'pp1' }]
 
 type Resolve = (value: unknown) => unknown
 
@@ -33,12 +36,17 @@ function makeTx() {
     insert: (table: unknown) => ({
       values: (values: unknown) => {
         records.push({ op: `insert:${getTableName(table as Table)}`, values })
-        return {
+        const chain = {
+          // ON CONFLICT DO NOTHING passthrough — `insertReturning` decides
+          // whether the row "landed" ([{id}]) or collapsed on the partial
+          // unique index ([]).
+          onConflictDoNothing: () => chain,
           returning: () => ({
-            then: (resolve: Resolve) => Promise.resolve([{ id: 'pp1' }]).then(resolve),
+            then: (resolve: Resolve) => Promise.resolve(insertReturning).then(resolve),
           }),
           then: (resolve: Resolve) => Promise.resolve(undefined).then(resolve),
         }
+        return chain
       },
     }),
     update: (table: unknown) => {
@@ -124,6 +132,7 @@ const eventInsert = () =>
 beforeEach(() => {
   records.length = 0
   selectQueue = []
+  insertReturning = [{ id: 'pp1' }]
   vi.clearAllMocks()
   addProgramSetMock.mockResolvedValue({ setNumber: 4 })
   updateProgramSetMock.mockResolvedValue({ id: 'ps1' })
@@ -166,6 +175,53 @@ describe('createPatchProposal', () => {
       summary: 'Proposed 2 changes: Add a chest set',
       payload: { proposalId: 'pp1', patchCount: 2 },
     })
+  })
+
+  it('stamps structured provenance (source + muscleGroup) when provided', async () => {
+    // Arrange
+    selectQueue = [[{ id: PID, status: 'active' }]]
+
+    // Act
+    await createPatchProposal(
+      USER,
+      PID,
+      {
+        summary: 'Add a set to Chest',
+        patches: [ADD_SET_PATCH],
+        source: 'volume-progression',
+        muscleGroup: 'Chest',
+      },
+      'mcp',
+    )
+
+    // Assert
+    expect(records[0]).toMatchObject({
+      op: 'insert:program_patch_proposals',
+      values: { source: 'volume-progression', muscleGroup: 'Chest' },
+    })
+  })
+
+  it('a concurrent duplicate collapses to null: ON CONFLICT no row, no event', async () => {
+    // Arrange — owned + active, but the partial unique index eats the insert
+    selectQueue = [[{ id: PID, status: 'active' }]]
+    insertReturning = []
+
+    // Act
+    const result = await createPatchProposal(
+      USER,
+      PID,
+      {
+        summary: 'Add a set to Chest',
+        patches: [ADD_SET_PATCH],
+        source: 'volume-progression',
+        muscleGroup: 'Chest',
+      },
+      'mcp',
+    )
+
+    // Assert — no-op result and no propose event for a row that never landed
+    expect(result).toBe(null)
+    expect(records.some((r) => r.op === 'insert:program_events')).toBe(false)
   })
 
   it('returns null (no writes) when the program is not owned', async () => {

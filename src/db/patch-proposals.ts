@@ -180,11 +180,17 @@ function actorFromAuthor(authorActor: string): ProgramEventActor {
  * archived/proposed program has no live plan to batch-patch — that's what
  * upsert/adopt are for). Logs `propose_program_patches` with the proposing
  * actor in the same transaction, so the change log shows the ask itself.
+ *
+ * Machine-raised proposals may carry a structured provenance (`source` +
+ * `muscleGroup`): the partial unique index (schema.ts) admits ONE pending row
+ * per (program, source, muscleGroup), and the insert is ON CONFLICT DO
+ * NOTHING — a concurrent duplicate collapses to a null return (no row, no
+ * event) instead of a thrown race.
  */
 export async function createPatchProposal(
   userId: string,
   programId: string,
-  input: { summary: string; patches: unknown },
+  input: { summary: string; patches: unknown; source?: string; muscleGroup?: string },
   actor: ProgramEventActor,
 ): Promise<{ id: string } | null> {
   const summary = input.summary.trim()
@@ -206,8 +212,20 @@ export async function createPatchProposal(
     }
     const [row] = await tx
       .insert(programPatchProposals)
-      .values({ programId, userId, authorActor: actor, summary, patches })
+      .values({
+        programId,
+        userId,
+        authorActor: actor,
+        summary,
+        patches,
+        source: input.source ?? null,
+        muscleGroup: input.muscleGroup ?? null,
+      })
+      // The pending-source unique index turns a concurrent duplicate into a
+      // silent no-row result rather than an aborted transaction.
+      .onConflictDoNothing()
       .returning({ id: programPatchProposals.id })
+    if (!row) return null
     await recordProgramEvent(tx, {
       programId,
       userId,
@@ -226,6 +244,10 @@ export interface PatchProposalRow {
   authorActor: string
   summary: string
   patches: ProposalPatch[]
+  /** Machine provenance ('volume-progression' today); null for human/coach
+   *  proposals. The structured dedup key, with `muscleGroup`. */
+  source: string | null
+  muscleGroup: string | null
   createdAt: Date
 }
 
@@ -246,6 +268,8 @@ export async function listPatchProposals(
       authorActor: programPatchProposals.authorActor,
       summary: programPatchProposals.summary,
       patches: programPatchProposals.patches,
+      source: programPatchProposals.source,
+      muscleGroup: programPatchProposals.muscleGroup,
       createdAt: programPatchProposals.createdAt,
     })
     .from(programPatchProposals)

@@ -10,6 +10,7 @@ import {
   date,
   index,
   unique,
+  uniqueIndex,
   check,
   primaryKey,
 } from 'drizzle-orm/pg-core'
@@ -611,11 +612,24 @@ export const programPatchProposals = pgTable(
     summary: text('summary').notNull(),
     patches: jsonb('patches').notNull(),
     status: text('status').notNull().default('pending'),
+    // Structured provenance for MACHINE-raised proposals (nullable — human/
+    // coach proposals carry neither): `source` names the generator
+    // ('volume-progression' today), `muscleGroup` its subject. The partial
+    // unique index below makes "one pending proposal per (program, source,
+    // subject)" a DATABASE guarantee, so concurrent trigger runs collapse to
+    // one row instead of racing past an app-level pending check.
+    source: text('source'),
+    muscleGroup: text('muscle_group'),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   },
   // The only read path (pending proposals for a program page / user) filters
   // by program; user-wide listings ride the program join.
-  (t) => [index('program_patch_proposals_program_id_idx').on(t.programId)],
+  (t) => [
+    index('program_patch_proposals_program_id_idx').on(t.programId),
+    uniqueIndex('program_patch_proposals_pending_source_unique')
+      .on(t.programId, t.source, t.muscleGroup)
+      .where(sql`${t.status} = 'pending' and ${t.source} is not null`),
+  ],
 )
 
 export const programDays = pgTable(

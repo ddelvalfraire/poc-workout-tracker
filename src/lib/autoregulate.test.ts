@@ -7,6 +7,7 @@ import {
   autoregReason,
   applyAutoregToSets,
   backoffKg,
+  sessionBeatsTop,
   sessionStall,
   type AutoregRangeRow,
   type AutoregSession,
@@ -1553,5 +1554,28 @@ describe('autoregReason — anchor', () => {
     expect(autoregReason(adjustment, 'kg')).toBe(
       'Range filled at 110 kg last session — stepping to 112.5 kg',
     )
+  })
+})
+
+describe('sessionBeatsTop (volume-progression signal)', () => {
+  it('true when every scorable working pair finishes at or above the top', () => {
+    expect(sessionBeatsTop(session([12, 12, 13]), 12)).toBe(true)
+  })
+
+  it('false when any scorable pair sits under the top', () => {
+    expect(sessionBeatsTop(session([12, 12, 11]), 12)).toBe(false)
+  })
+
+  it('null when nothing is scorable (silence, never a verdict from nothing)', () => {
+    expect(sessionBeatsTop(session([null, null, null]), 12)).toBe(null)
+  })
+
+  it('null when the M3 quorum fails (one surviving set cannot speak for three)', () => {
+    expect(sessionBeatsTop(session([12, null, null]), 12)).toBe(null)
+  })
+
+  it('lighter-than-prescribed attempts do not count as beats', () => {
+    // Performed at 80 vs 100 prescribed: not at-load, so nothing is scorable.
+    expect(sessionBeatsTop(session([15, 15, 15], 80), 12)).toBe(null)
   })
 })

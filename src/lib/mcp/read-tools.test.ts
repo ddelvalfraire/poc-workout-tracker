@@ -8,6 +8,7 @@ vi.mock('@/db/workouts', () => ({
 }))
 vi.mock('@/db/programs', () => ({ getProgramDayDetail: vi.fn() }))
 vi.mock('@/db/program-stats', () => ({ getProgramStats: vi.fn() }))
+vi.mock('@/db/volume-progression', () => ({ getVolumeStatus: vi.fn() }))
 vi.mock('@/db/preferences', () => ({ getWeightUnit: vi.fn(), getBodyweightKg: vi.fn() }))
 vi.mock('@/lib/wger', () => ({ searchExercises: vi.fn() }))
 vi.mock('@/db/custom-exercises', () => ({ listCustomExercises: vi.fn(async () => []) }))
@@ -20,6 +21,7 @@ import { registerReadTools } from './read-tools'
 import { listWorkoutSummaries, getWorkoutDetail, getLastPerformance } from '@/db/workouts'
 import { getProgramDayDetail } from '@/db/programs'
 import { getProgramStats, type ProgramStats } from '@/db/program-stats'
+import { getVolumeStatus, type VolumeStatus } from '@/db/volume-progression'
 import { getWeightUnit, getBodyweightKg } from '@/db/preferences'
 import { searchExercises } from '@/lib/wger'
 import { listProgramEvents } from '@/db/program-events'
@@ -31,6 +33,7 @@ const mockedDetail = vi.mocked(getWorkoutDetail)
 const mockedLast = vi.mocked(getLastPerformance)
 const mockedProgramDay = vi.mocked(getProgramDayDetail)
 const mockedProgramStats = vi.mocked(getProgramStats)
+const mockedVolumeStatus = vi.mocked(getVolumeStatus)
 const mockedUnit = vi.mocked(getWeightUnit)
 const mockedBodyweight = vi.mocked(getBodyweightKg)
 const mockedSearch = vi.mocked(searchExercises)
@@ -78,7 +81,7 @@ describe('registerReadTools', () => {
     else process.env.MCP_DEV_USER_ID = original
   })
 
-  it('registers exactly the seven read tools', () => {
+  it('registers exactly the eight read tools', () => {
     // Arrange + Act
     const tools = setup()
 
@@ -86,6 +89,7 @@ describe('registerReadTools', () => {
     expect([...tools.keys()].sort()).toEqual([
       'get_last_performance',
       'get_program_stats',
+      'get_volume_status',
       'get_weight_unit',
       'get_workout',
       'list_program_changes',
@@ -812,12 +816,88 @@ describe('registerReadTools', () => {
     })
   })
 
+  describe('get_volume_status', () => {
+    const PID = '22222222-2222-4222-8222-222222222222'
+    const status: VolumeStatus = {
+      programId: PID,
+      programName: 'PPL',
+      enabled: true,
+      currentWeek: 3,
+      week: 2,
+      verdicts: [
+        {
+          group: 'Chest',
+          status: 'increase',
+          drivers: ['Bench Press'],
+          candidate: {
+            key: 'wger:73',
+            name: 'Bench Press',
+            address: { dayPosition: 0, exercisePosition: 1 },
+            setTemplate: { repMin: 8, repMax: 12, restSec: 120 },
+          },
+        },
+        { group: 'Back', status: 'on-track', drivers: [], candidate: null },
+      ],
+      weeks: [{ week: 1, groups: [{ group: 'Chest', sets: 6.5 }] }],
+    }
+
+    it('reads with the raise flag set, then maps verdicts and the week table', async () => {
+      // Arrange
+      const tools = setup()
+      mockedVolumeStatus.mockResolvedValue(status)
+
+      // Act
+      const result = await tools.get('get_volume_status')!({ programId: PID })
+
+      // Assert — one shared computation: the read itself carries the trigger.
+      expect(mockedVolumeStatus).toHaveBeenCalledWith('user_env', PID, { raiseProposals: true })
+      const body = payload(result)
+      expect(body.week).toBe(2)
+      expect(body.verdicts).toEqual([
+        {
+          muscle: 'Chest',
+          status: 'increase',
+          drivers: ['Bench Press'],
+          candidate: { name: 'Bench Press', dayPosition: 0, exercisePosition: 1 },
+        },
+        { muscle: 'Back', status: 'on-track', drivers: [], candidate: null },
+      ])
+      expect(body.weeks).toEqual([{ week: 1, muscles: [{ muscle: 'Chest', sets: 6.5 }] }])
+    })
+
+    it('unknown program returns isError naming the id', async () => {
+      // Arrange
+      const tools = setup()
+      mockedVolumeStatus.mockResolvedValue(null)
+
+      // Act
+      const result = await tools.get('get_volume_status')!({ programId: PID })
+
+      // Assert
+      expect(result.isError).toBe(true)
+      expect(result.content[0]?.text).toContain(PID)
+    })
+
+    it('rejects a malformed programId before any query', async () => {
+      // Arrange
+      const tools = setup()
+
+      // Act
+      const result = await tools.get('get_volume_status')!({ programId: 'nope' })
+
+      // Assert
+      expect(result.isError).toBe(true)
+      expect(mockedVolumeStatus).not.toHaveBeenCalled()
+    })
+  })
+
   describe('shared failure handling (remaining user-scoped tools)', () => {
     const cases = [
       { name: 'get_workout', args: { id: '11111111-1111-4111-8111-111111111111' }, dep: mockedDetail as unknown as Mock },
       { name: 'get_last_performance', args: { wgerExerciseId: 1 }, dep: mockedLast as unknown as Mock },
       { name: 'get_weight_unit', args: {}, dep: mockedUnit as unknown as Mock },
       { name: 'get_program_stats', args: { programId: '22222222-2222-4222-8222-222222222222' }, dep: mockedProgramStats as unknown as Mock },
+      { name: 'get_volume_status', args: { programId: '22222222-2222-4222-8222-222222222222' }, dep: mockedVolumeStatus as unknown as Mock },
       { name: 'list_program_changes', args: { programId: '22222222-2222-4222-8222-222222222222' }, dep: mockedEvents as unknown as Mock },
     ] as const
 

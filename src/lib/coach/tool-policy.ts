@@ -17,6 +17,14 @@
  *    on top would be a double confirm;
  *  - everything else (workout writes, deletes, lifecycle moves, settings,
  *    custom-exercise writes): excluded entirely.
+ *
+ * Fifth shape, documented honestly: reads with an embedded DRAFT-TIER side
+ * effect — currently only `get_volume_status`, whose weekly check can RAISE
+ * a batch-patch proposal. It rides the read tier because the side effect is
+ * inert by construction (db-layer inertness: a pending proposal changes no
+ * plan until the owner's explicit confirm on the program page — the same
+ * forced-confirm rationale as the drafting tier), so the coach still cannot
+ * change anything by calling it.
  */
 
 /** Read-only tools the coach may call freely. */
@@ -30,6 +38,10 @@ export const COACH_READ_TOOLS = [
   'get_program',
   'list_programs',
   'get_program_stats',
+  // Read tool with one deliberate side path: it runs the weekly volume check,
+  // which can RAISE a batch proposal — but a proposal is inert until the
+  // owner's confirm, so the coach still can't change anything.
+  'get_volume_status',
   'list_custom_exercises',
   'preview_program_week',
   // Read-only by construction (the log has no write tool): the coach can
