@@ -14,6 +14,8 @@ import {
 import { AppHeader } from '@/components/app-header'
 import { GuardedStartLink } from '@/components/guarded-start-link'
 import { NavDrawer } from '@/components/nav/nav-drawer'
+import { DividerList } from '@/components/ui/divider-list'
+import { EmptyWords } from '@/components/ui/empty-words'
 import { buttonVariants } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
@@ -26,6 +28,10 @@ import { cn } from '@/lib/utils'
  * the volt hero Start with its name baked in. Templates are created from a
  * logged workout's "Save as template" — there is no blank builder here on
  * purpose: the sketch derives from work actually done.
+ *
+ * De-carded (review contract): the hero sits ABOVE a closing hairline, the
+ * rest are divider rows, and the empty state is plain words. One volt per
+ * surface — the hero Start; per-row Play affordances stay quiet ghosts.
  */
 export default async function TemplatesPage() {
   const userId = await requireUserId() // middleware also guards; defense-in-depth
@@ -62,25 +68,26 @@ export default async function TemplatesPage() {
 
       <main className="mx-auto w-full max-w-md flex-1 px-5 pb-safe">
         {templates.length === 0 ? (
-          <div className="mt-6 rounded-2xl border border-border bg-card px-5 py-12 text-center">
-            <p className="font-display text-xl uppercase tracking-wide">Your future go-to</p>
-            <p className="mt-2 text-sm text-muted-foreground">
+          <div className="mt-6">
+            <EmptyWords>
               Finish a workout, tap “Save as template” on its summary, and it
               lives here ready to start in one tap.
-            </p>
+            </EmptyWords>
             <GuardedStartLink
               href="/workout/new"
               session={guardSession}
-              className={cn(buttonVariants(), 'mt-5 w-full gap-2')}
+              className={cn(buttonVariants(), 'mt-2 w-full gap-2')}
             >
               <Play aria-hidden="true" className="size-4" />
               Start a workout
             </GuardedStartLink>
           </div>
         ) : (
-          <div className="mt-6 space-y-3">
+          <div className="mt-6">
             {hero !== null && (
-              <div className="rounded-2xl border border-border bg-card p-5">
+              // Hero above a hairline, not inside a shell (de-card contract);
+              // its Start is the surface's one volt moment.
+              <div className="border-b border-b-border/60 pb-5">
                 <Link href={`/templates/${hero.id}`} className="block min-w-0">
                   <span className="flex min-w-0 items-baseline gap-2 font-display text-2xl uppercase leading-tight tracking-wide">
                     {hero.icon !== null && (
@@ -106,17 +113,14 @@ export default async function TemplatesPage() {
             )}
 
             {rest.length > 0 && (
-              <ul className="space-y-3">
+              <DividerList>
                 {rest.map((template) => (
                   // gap-1 keeps the Start button's expanded hit area off the
-                  // row link, same geometry as the home history rows.
-                  <li
-                    key={template.id}
-                    className="flex items-center gap-1 rounded-2xl border border-border bg-card transition-colors active:bg-muted/60"
-                  >
+                  // row link; the Play stays OUTSIDE the anchor (no nesting).
+                  <li key={template.id} className="flex items-center gap-1">
                     <Link
                       href={`/templates/${template.id}`}
-                      className="flex min-w-0 flex-1 items-center gap-3 p-4"
+                      className="flex min-w-0 flex-1 items-center gap-3 py-4 transition-colors outline-none hover:bg-muted/50 focus-visible:bg-muted/50"
                     >
                       {template.icon !== null && (
                         <span aria-hidden="true" className="shrink-0 text-2xl leading-none">
@@ -143,14 +147,14 @@ export default async function TemplatesPage() {
                       aria-label={`Start ${template.name}`}
                       className={cn(
                         buttonVariants({ variant: 'ghost', size: 'icon-sm' }),
-                        'relative mr-2 shrink-0 text-muted-foreground before:absolute before:-inset-1',
+                        'relative shrink-0 text-muted-foreground before:absolute before:-inset-1',
                       )}
                     >
                       <Play aria-hidden="true" className="size-5" />
                     </GuardedStartLink>
                   </li>
                 ))}
-              </ul>
+              </DividerList>
             )}
           </div>
         )}
