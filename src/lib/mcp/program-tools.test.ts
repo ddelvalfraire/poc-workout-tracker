@@ -16,6 +16,7 @@ vi.mock('@/db/programs', () => ({
 }))
 vi.mock('@/db/preferences', () => ({ getWeightUnit: vi.fn() }))
 vi.mock('@/db/patch-proposals', () => ({ listPatchProposals: vi.fn() }))
+vi.mock('@/db/restart-plan', () => ({ restartTmPlan: vi.fn() }))
 
 import { registerProgramTools } from './program-tools'
 import {
@@ -33,6 +34,7 @@ import {
 } from '@/db/programs'
 import { getWeightUnit } from '@/db/preferences'
 import { listPatchProposals } from '@/db/patch-proposals'
+import { restartTmPlan } from '@/db/restart-plan'
 // Real classes (module NOT mocked): the instanceof in surfaceProposalGuard must
 // see the same identities the db layer throws.
 import { NotCoachProposalError, ProposedProgramError } from '@/db/program-errors'
@@ -900,9 +902,12 @@ describe('registerProgramTools', () => {
   })
 
   describe('restart_program', () => {
+    const mockedRestartPlan = vi.mocked(restartTmPlan)
+
     it('clones the program then activates the clone, echoing the new id', async () => {
-      // Arrange
+      // Arrange — no TM plan (e.g. no amrap-cycle exercises)
       const tools = setup()
+      mockedRestartPlan.mockResolvedValue({ flags: [], increments: [] })
       mockedClone.mockResolvedValue({ id: 'p-clone' })
       mockedSetStatus.mockResolvedValue({ id: 'p-clone' })
 
@@ -910,7 +915,7 @@ describe('registerProgramTools', () => {
       const result = await tools.get('restart_program')!({ id: PID })
 
       // Assert — same two-step path as the UI's restartProgramAction
-      expect(mockedClone).toHaveBeenCalledWith('user_env', PID, 'mcp')
+      expect(mockedClone).toHaveBeenCalledWith('user_env', PID, 'mcp', { tmIncrements: [] })
       expect(mockedSetStatus).toHaveBeenCalledWith('user_env', 'p-clone', 'active', 'mcp')
       expect(payload(result)).toEqual({
         userId: 'user_env',
@@ -946,6 +951,44 @@ describe('registerProgramTools', () => {
       // Assert
       expect(result.isError).toBe(true)
       expect(result.content[0]?.text).toMatch(/activate/)
+    })
+
+    it('passes the TM carry-forward increments into the clone (plan §5)', async () => {
+      // Arrange — one clean amrap-cycle lift steps up
+      const tools = setup()
+      const increment = {
+        exerciseName: 'Squat',
+        dayPosition: 0,
+        exercisePosition: 0,
+        fromKg: 140,
+        toKg: 142.5,
+      }
+      mockedRestartPlan.mockResolvedValue({ flags: [], increments: [increment] })
+      mockedClone.mockResolvedValue({ id: 'p-clone' })
+      mockedSetStatus.mockResolvedValue({ id: 'p-clone' })
+
+      // Act
+      await tools.get('restart_program')!({ id: PID })
+
+      // Assert
+      expect(mockedClone).toHaveBeenCalledWith('user_env', PID, 'mcp', {
+        tmIncrements: [increment],
+      })
+    })
+
+    it('restarts with a plain copy when the TM plan derivation fails', async () => {
+      // Arrange — the carry-forward is best-effort; restart must not break
+      const tools = setup()
+      mockedRestartPlan.mockRejectedValue(new Error('derive blew up'))
+      mockedClone.mockResolvedValue({ id: 'p-clone' })
+      mockedSetStatus.mockResolvedValue({ id: 'p-clone' })
+
+      // Act
+      const result = await tools.get('restart_program')!({ id: PID })
+
+      // Assert
+      expect(result.isError).toBeUndefined()
+      expect(mockedClone).toHaveBeenCalledWith('user_env', PID, 'mcp', { tmIncrements: [] })
     })
 
     it('surfaces not-found for a malformed id without hitting the db', async () => {

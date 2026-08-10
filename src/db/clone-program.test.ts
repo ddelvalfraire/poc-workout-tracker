@@ -53,7 +53,21 @@ vi.mock('./index', () => ({
 
 vi.mock('@/lib/wger', () => ({ getAllExercises }))
 
+// The TM setter is mocked so carry-forward is observable as calls (its own
+// behavior is program-patches.test.ts territory). The mock's ProgramPatchError
+// is the identity cloneProgram's skip-on-mismatch catch sees.
+const { setTrainingMaxMock } = vi.hoisted(() => ({ setTrainingMaxMock: vi.fn() }))
+vi.mock('./program-patches', () => {
+  class ProgramPatchError extends Error {}
+  return {
+    ProgramPatchError,
+    setTrainingMax: setTrainingMaxMock,
+    withTx: (tx: unknown) => ({ transaction: (cb: (t: unknown) => unknown) => cb(tx) }),
+  }
+})
+
 import { cloneProgram } from './programs'
+import { ProgramPatchError } from './program-patches'
 
 const USER = 'user_123'
 
@@ -215,6 +229,8 @@ beforeEach(() => {
   idCounter = 0
   findFirst.mockResolvedValue(maximalDetail())
   getAllExercises.mockResolvedValue([])
+  setTrainingMaxMock.mockReset()
+  setTrainingMaxMock.mockResolvedValue({ id: 'pe-new', trainingMaxKg: 142.5 })
 })
 
 describe('cloneProgram (row-for-row fidelity)', () => {
@@ -352,5 +368,72 @@ describe('cloneProgram (row-for-row fidelity)', () => {
 
     // Assert
     expect(getAllExercises).not.toHaveBeenCalled()
+  })
+})
+
+describe('cloneProgram (block-restart TM carry-forward, plan §5)', () => {
+  it('applies no TM increments by default — a plain clone stays a pure copy', async () => {
+    // Act
+    await cloneProgram(USER, 'src1', 'mcp')
+
+    // Assert
+    expect(setTrainingMaxMock).not.toHaveBeenCalled()
+  })
+
+  it('routes each increment through setTrainingMax on the CLONE, inside the clone tx', async () => {
+    // Act
+    const result = await cloneProgram(USER, 'src1', 'ui', {
+      tmIncrements: [
+        { exerciseName: 'Bench', dayPosition: 0, exercisePosition: 0, fromKg: 140, toKg: 142.5 },
+        { exerciseName: 'Squat', dayPosition: 1, exercisePosition: 0, fromKg: 100, toKg: 102.5 },
+      ],
+    })
+
+    // Assert — new program id, reason 'block-restart', actor threaded, the
+    // bank marker reset (the clone has no history to have banked), and the
+    // op riding the clone's transaction via the runner.
+    expect(result).toEqual({ id: 'p2' })
+    expect(setTrainingMaxMock).toHaveBeenCalledTimes(2)
+    expect(setTrainingMaxMock).toHaveBeenNthCalledWith(
+      1,
+      USER,
+      'p2',
+      0,
+      0,
+      142.5,
+      'block-restart',
+      'ui',
+      { bankedWaves: 0, runIn: expect.objectContaining({ transaction: expect.any(Function) }) },
+    )
+    expect(setTrainingMaxMock).toHaveBeenNthCalledWith(
+      2,
+      USER,
+      'p2',
+      1,
+      0,
+      102.5,
+      'block-restart',
+      'ui',
+      expect.objectContaining({ bankedWaves: 0 }),
+    )
+  })
+
+  it('skips a bump the program drifted out from under, without failing the restart', async () => {
+    // Arrange — first increment hits a scheme mismatch, second is fine
+    setTrainingMaxMock
+      .mockRejectedValueOnce(new ProgramPatchError('wrong scheme'))
+      .mockResolvedValueOnce({ id: 'pe-new', trainingMaxKg: 102.5 })
+
+    // Act
+    const result = await cloneProgram(USER, 'src1', 'ui', {
+      tmIncrements: [
+        { exerciseName: 'Row', dayPosition: 0, exercisePosition: 1, fromKg: 60, toKg: 62.5 },
+        { exerciseName: 'Squat', dayPosition: 1, exercisePosition: 0, fromKg: 100, toKg: 102.5 },
+      ],
+    })
+
+    // Assert — the restart succeeds and the clean bump still lands.
+    expect(result).toEqual({ id: 'p2' })
+    expect(setTrainingMaxMock).toHaveBeenCalledTimes(2)
   })
 })

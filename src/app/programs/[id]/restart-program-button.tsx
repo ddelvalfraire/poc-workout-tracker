@@ -1,11 +1,12 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import { cn } from '@/lib/utils'
-import { restartProgramAction } from '@/app/programs/actions'
+import { restartProgramAction, restartPreviewAction } from '@/app/programs/actions'
+import { restartDialogBody, type RestartPreview } from './restart-view'
 
 /**
  * "Restart block": clones the program into a fresh week-1 copy ("Name —
@@ -33,7 +34,28 @@ export function RestartProgramButton({
   // ConfirmDialog populates this with an imperative close; the success path
   // calls it BEFORE router.push (the #25 stranded-::backdrop race).
   const closeDialogRef = useRef<(() => void) | null>(null)
+  // TM carry-forward preview (plan §5): fetched when the dialog opens so the
+  // confirm step can say which lifts step up and which stalled lifts are
+  // held with a reset suggestion. Null while loading or on failure — the
+  // dialog keeps its base copy and the restart NEVER waits on the preview
+  // (the server recomputes the plan authoritatively at confirm).
+  const [preview, setPreview] = useState<RestartPreview | null>(null)
   const router = useRouter()
+
+  useEffect(() => {
+    if (!isOpen) return
+    let cancelled = false
+    restartPreviewAction(id)
+      .then((result) => {
+        if (!cancelled) setPreview(result)
+      })
+      .catch(() => {
+        // No preview is fine — the base copy stands.
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [isOpen, id])
 
   // Not startTransition: navigating inside an async transition lets the
   // app-wide <ViewTransition> strand the old screen's snapshot over the
@@ -71,7 +93,7 @@ export function RestartProgramButton({
       {isOpen && (
         <ConfirmDialog
           title="Start the next block?"
-          body="Creates a fresh copy of this program starting at week 1 and makes it active. This one is archived — its history and stats stay."
+          body={restartDialogBody(preview)}
           confirmLabel="Restart block"
           pendingLabel="Restarting…"
           confirmVariant="default"

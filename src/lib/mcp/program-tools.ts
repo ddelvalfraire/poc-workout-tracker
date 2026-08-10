@@ -35,6 +35,8 @@ import {
 } from '@/db/programs'
 import { NotCoachProposalError, ProposedProgramError } from '@/db/program-errors'
 import { listPatchProposals } from '@/db/patch-proposals'
+import { restartTmPlan } from '@/db/restart-plan'
+import type { TmIncrement } from '@/lib/tm-restart'
 import { getWeightUnit } from '@/db/preferences'
 
 /** Optional explicit unit override; absent → the user's stored unit. */
@@ -705,8 +707,17 @@ export function registerProgramTools(server: McpServer): void {
         assertProgramIdShape(id)
         // Same two-step path as the UI's restartProgramAction: the clone
         // commits before activation, so a failed activate leaves only a
-        // harmless draft copy (retry-safe).
-        const clone = await cloneProgram(resolved, id, resolveActor(extra))
+        // harmless draft copy (retry-safe). TM carry-forward matches too —
+        // clean amrap-cycle lifts step up one increment inside the clone
+        // transaction; M4-flagged lifts are skipped; a failed plan
+        // derivation restarts with a plain copy rather than erroring.
+        let tmIncrements: TmIncrement[] = []
+        try {
+          tmIncrements = (await restartTmPlan(resolved, id))?.increments ?? []
+        } catch {
+          tmIncrements = []
+        }
+        const clone = await cloneProgram(resolved, id, resolveActor(extra), { tmIncrements })
         if (!clone) throw new ToolError(`Program ${id} not found for user ${resolved}`)
         const activated = await setProgramStatus(resolved, clone.id, 'active', resolveActor(extra))
         if (!activated) {
