@@ -97,7 +97,7 @@ export default async function TemplatesPage() {
                           stays outside it so the CTA doesn't nest in an anchor. */}
                       <Link
                         href={`/programs/templates/${wgerId}`}
-                        className="group flex min-w-0 items-start justify-between gap-3 outline-none"
+                        className="group flex min-w-0 items-start justify-between gap-3 outline-none focus-visible:bg-muted/50"
                       >
                         <span className="min-w-0">
                           <span className="flex items-baseline gap-2 font-display text-xl uppercase leading-tight tracking-wide">
