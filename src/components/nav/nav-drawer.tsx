@@ -10,6 +10,7 @@ import {
   BarChart3,
   ClipboardList,
   Dumbbell,
+  LayoutTemplate,
   Menu,
   MessageCircle,
   Scale,
@@ -243,6 +244,16 @@ export function NavDrawer() {
       visual: data?.program ? (
         <ThinBar percent={programProgressPercent(data.program.week, data.program.mesocycleWeeks)} />
       ) : undefined,
+    },
+    {
+      // Static line v1 (the Coach-row precedent): /api/drawer carries no
+      // template fact today, and a count would mean a new read on every
+      // drawer open — not a nav-open cost for a static promise.
+      href: '/templates',
+      label: 'Templates',
+      icon: LayoutTemplate,
+      status: 'Start from a saved session',
+      invitation: 'Start from a saved session',
     },
     {
       href: '/stats',
