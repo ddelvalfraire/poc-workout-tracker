@@ -66,8 +66,10 @@ export default async function SharedProgramPage({
 
   const dayCount = program.days.length
 
+  // De-carded notice: a plain sentence past a hairline — the button, not a
+  // shell, carries the affordance (same voice as /w/[token]).
   const cta = isOwner ? (
-    <div className="rounded-2xl border border-border bg-card p-4">
+    <div className="border-t border-border pt-4">
       <p className="text-sm text-muted-foreground">
         This is your program — this is what people with the link see.
       </p>
@@ -148,9 +150,11 @@ export default async function SharedProgramPage({
         <div className="mt-5">{cta}</div>
 
         <h2 className="mt-8 font-display text-xl uppercase leading-none tracking-wide">The plan</h2>
-        <div className="mt-3 space-y-3">
+        {/* Hairline day sections (programs/[id] vocabulary): the public read
+            speaks the same de-carded language as the owner's detail page. */}
+        <div className="mt-1">
           {program.days.map((day, dayIndex) => (
-            <section key={day.id} className="rounded-2xl border border-border bg-card p-4">
+            <section key={day.id} className="border-b border-b-border/60 py-4">
               <h3 className="flex min-w-0 items-baseline gap-2">
                 <span className="shrink-0 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground tnum">
                   Day {dayIndex + 1}
@@ -207,10 +211,13 @@ export default async function SharedProgramPage({
                             <span className="tnum">
                               {formatPlannedScheme(run.set, run.count, unit)}
                             </span>
+                            {/* Chips → words: set qualifiers are labels, not
+                                controls — quiet caps text, no pill shell
+                                (programs/[id] target-line rule). */}
                             {plannedSetChips(run.set).map((chip) => (
                               <span
                                 key={chip}
-                                className="rounded-full bg-muted px-2 py-0.5 text-xs font-semibold uppercase tracking-wide tnum"
+                                className="text-[10px] font-semibold uppercase tracking-widest tnum"
                               >
                                 {chip}
                               </span>

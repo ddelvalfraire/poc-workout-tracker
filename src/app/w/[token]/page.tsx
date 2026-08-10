@@ -61,8 +61,10 @@ export default async function SharedWorkoutPage({
   )
   const duration = formatWorkoutDuration(workout.startedAt, workout.completedAt)
 
+  // De-carded notices: a plain sentence over the page background, opening
+  // past a hairline — the button, not a shell, carries the affordance.
   const footer = isOwner ? (
-    <div className="rounded-2xl border border-border bg-card p-4">
+    <div className="border-t border-border pt-4">
       <p className="text-sm text-muted-foreground">
         This is your workout — this is what people with the link see.
       </p>
@@ -76,7 +78,7 @@ export default async function SharedWorkoutPage({
   ) : userId === null ? (
     // Post-sign-in returns here (Clerk honors redirect_url) so a curious
     // visitor lands back on the session that brought them in.
-    <div className="rounded-2xl border border-border bg-card p-4">
+    <div className="border-t border-border pt-4">
       <p className="text-sm text-muted-foreground">
         Logged with this app — track your own sessions, PRs, and programs.
       </p>
@@ -107,7 +109,9 @@ export default async function SharedWorkoutPage({
           <Stat label={totalSets === 1 ? 'Set' : 'Sets'} value={String(totalSets)} />
         </dl>
 
-        <div className="mt-4 space-y-3">
+        {/* De-carded (owner-summary vocabulary): exercises sit on hairline
+            dividers, no shells — the public read speaks the same language. */}
+        <div className="mt-6 space-y-4">
           {workout.exercises.map((exercise) => {
             // Same top-set scoring as the owner summary — but bodyweightKg is
             // null by the hard rule (body data never crosses), so bodyweight
@@ -119,7 +123,7 @@ export default async function SharedWorkoutPage({
             const isPR = prBadgeRowIds.has(exercise.id)
 
             return (
-              <section key={exercise.id} className="rounded-2xl border border-border bg-card p-4">
+              <section key={exercise.id} className="border-b border-b-border/60 pb-4">
                 <div className="flex items-center justify-between gap-2">
                   <h2
                     className={cn(
