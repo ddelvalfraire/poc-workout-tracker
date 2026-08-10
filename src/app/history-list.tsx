@@ -4,6 +4,7 @@ import type { WorkoutSummary } from '@/db/workouts'
 import type { WeightUnit } from '@/lib/units'
 import { formatVolume, formatWorkoutDuration } from '@/lib/format'
 import { buttonVariants } from '@/components/ui/button'
+import { DividerList } from '@/components/ui/divider-list'
 import { GuardedStartLink } from '@/components/guarded-start-link'
 import type { SessionSummary } from '@/components/session-conflict-dialog'
 import { rowEmphasisPct } from './history/history-view'
@@ -39,7 +40,7 @@ export function HistoryList({
   maxVolumeKg?: number
 }) {
   return (
-    <ul className="divide-y divide-border overflow-hidden rounded-2xl border border-border bg-card">
+    <DividerList>
       {workouts.map((w) => (
         // gap-1 gives the Repeat link's expanded hit inset dead space
         // to land in — without it the inset overlaps the row link.
@@ -47,7 +48,7 @@ export function HistoryList({
           <Link
             // Completed only in this list, so every row goes to its summary.
             href={`/workout/${w.id}`}
-            className="flex min-w-0 flex-1 items-center gap-4 px-4 py-3.5 transition-colors active:bg-muted/60"
+            className="flex min-w-0 flex-1 items-center gap-4 py-3.5 transition-colors active:bg-muted/60"
           >
             {/* Stacked calendar block: scanning history is a date
                 lookup first — give the eye a fixed tabular anchor
@@ -99,13 +100,13 @@ export function HistoryList({
               buttonVariants({ variant: 'ghost', size: 'icon-sm' }),
               // Invisible inset lifts the 36px visual button toward the
               // 44px HIG target without growing the row.
-              'relative mr-2 shrink-0 text-muted-foreground before:absolute before:-inset-1',
+              'relative shrink-0 text-muted-foreground before:absolute before:-inset-1',
             )}
           >
             <RotateCcw aria-hidden="true" className="size-5" />
           </GuardedStartLink>
         </li>
       ))}
-    </ul>
+    </DividerList>
   )
 }

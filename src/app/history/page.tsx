@@ -8,6 +8,7 @@ import { AppHeader } from '@/components/app-header'
 import { BackLink } from '@/components/back-link'
 import { GuardedStartLink } from '@/components/guarded-start-link'
 import { buttonVariants } from '@/components/ui/button'
+import { EmptyWords } from '@/components/ui/empty-words'
 import { HistoryList } from '../history-list'
 import { historyStatusLine, monthBuckets } from './history-view'
 
@@ -57,21 +58,22 @@ export default async function HistoryPage() {
 
       <main className="mx-auto w-full max-w-md flex-1 px-5 pb-safe pt-6">
         {completed.length === 0 ? (
-          <div className="rounded-2xl border border-border bg-card px-5 py-12 text-center">
-            <p className="font-medium">No workouts yet</p>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Finished sessions land here — your full training log.
-            </p>
+          <>
+            <EmptyWords>
+              No workouts yet — finished sessions land here, your full training log.
+            </EmptyWords>
             {/* The empty state is an invitation, not a dead end. Guarded like
                 every other start CTA (single-active-session rule). */}
-            <GuardedStartLink
-              href="/workout/new"
-              session={guardSession}
-              className={buttonVariants({ className: 'mt-5' })}
-            >
-              Start your first workout
-            </GuardedStartLink>
-          </div>
+            <div className="text-center">
+              <GuardedStartLink
+                href="/workout/new"
+                session={guardSession}
+                className={buttonVariants({ className: 'mt-2' })}
+              >
+                Start your first workout
+              </GuardedStartLink>
+            </div>
+          </>
         ) : (
           <>
             {statusLine !== null && (

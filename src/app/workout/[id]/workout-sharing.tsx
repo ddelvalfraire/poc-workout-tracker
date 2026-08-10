@@ -106,7 +106,7 @@ export function WorkoutSharing({ workoutId, shareToken }: WorkoutSharingProps) {
           </p>
         </>
       ) : (
-        <div className="rounded-2xl border border-border bg-card p-4">
+        <div className="border-b border-b-border/60 pb-4">
           <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
             Share link
           </p>

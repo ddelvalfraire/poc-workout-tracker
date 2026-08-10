@@ -5,13 +5,15 @@ import Link from 'next/link'
 import { Check, ChevronRight } from 'lucide-react'
 import { isSameLocalDay } from '@/lib/local-day'
 import type { HomeSectionSize } from '@/lib/home/registry'
+import { DividerList } from '@/components/ui/divider-list'
 import { formatVolume, formatWorkoutDuration } from '@/lib/format'
 import type { WeightUnit } from '@/lib/units'
 
 /**
- * The TODAY recap — celebration, not a list row (spike §3): each session
- * completed on the user's LOCAL today gets a card (name · duration · volume)
- * linking to its summary. Absorbs TodayWorkouts' job with designed weight;
+ * The TODAY recap — celebration, not a plain history row (spike §3): each
+ * session completed on the user's LOCAL today gets a divider row (name ·
+ * duration · volume) linking to its summary; the volt lives on the Check
+ * icon and the Today heading, never on the row surface. Absorbs TodayWorkouts' job with designed weight;
  * PR chips wait for a cheap PR read (spike §5 — the facts aren't in home's
  * summaries today, and no new home queries is a hard rule).
  *
@@ -55,18 +57,18 @@ export function TodayRecap({
   const today = workouts.filter((w) => isSameLocalDay(new Date(w.completedAtMs), now))
   if (today.length === 0) return null
 
-  // sm: one line — the check, the session count, the latest name. Same card
-  // vocabulary as the md cells, just one of them for the whole day.
+  // sm: one line — the check, the session count, the latest name. Same row
+  // vocabulary as the md rows, just one of them for the whole day.
   if (size === 'sm') {
     const latest = today[0]
     return (
       <section aria-label="Completed today" className="mt-6">
         <h2 className="text-xs font-semibold uppercase tracking-widest text-primary">Today</h2>
-        <ul className="mt-2">
+        <DividerList className="mt-2">
           <li>
             <Link
               href={`/workout/${latest.id}`}
-              className="flex items-center gap-3 rounded-2xl border border-primary/25 bg-primary/5 p-4 transition-colors active:bg-primary/10"
+              className="flex items-center gap-3 py-4 transition-colors active:bg-muted/60"
             >
               <Check
                 aria-hidden="true"
@@ -83,7 +85,7 @@ export function TodayRecap({
               </span>
             </Link>
           </li>
-        </ul>
+        </DividerList>
       </section>
     )
   }
@@ -91,7 +93,7 @@ export function TodayRecap({
   return (
     <section aria-label="Completed today" className="mt-6">
       <h2 className="text-xs font-semibold uppercase tracking-widest text-primary">Today</h2>
-      <ul className="mt-2 space-y-2">
+      <DividerList className="mt-2">
         {today.map((w) => {
           const facts = [
             formatWorkoutDuration(new Date(w.startedAtMs), new Date(w.completedAtMs)),
@@ -101,7 +103,7 @@ export function TodayRecap({
             <li key={w.id}>
               <Link
                 href={`/workout/${w.id}`}
-                className="flex items-center gap-3 rounded-2xl border border-primary/25 bg-primary/5 p-4 transition-colors active:bg-primary/10"
+                className="flex items-center gap-3 py-4 transition-colors active:bg-muted/60"
               >
                 <Check
                   aria-hidden="true"
@@ -126,7 +128,7 @@ export function TodayRecap({
             </li>
           )
         })}
-      </ul>
+      </DividerList>
     </section>
   )
 }

@@ -25,7 +25,7 @@ export function FinishUpNextCard({
 
   if (state.kind === 'block-complete') {
     return (
-      <section className="mt-4 rounded-2xl border border-primary/50 bg-card p-5 motion-safe:animate-rise-in">
+      <section className="mt-4 border-b border-b-border/60 py-5 motion-safe:animate-rise-in">
         <p className="text-xs font-semibold uppercase tracking-widest text-primary">
           Block complete
         </p>
@@ -55,7 +55,7 @@ export function FinishUpNextCard({
 
   const exerciseCount = next.exerciseNames.length
   return (
-    <section className="mt-4 rounded-2xl border border-border bg-card p-5 motion-safe:animate-rise-in">
+    <section className="mt-4 border-b border-b-border/60 py-5 motion-safe:animate-rise-in">
       <p className="text-xs font-semibold uppercase tracking-widest text-primary">
         {/* Same schedule anchor as the home hero (up-next-anchor.tsx): the two
             surfaces restate one answer, so they must agree on its wording. */}

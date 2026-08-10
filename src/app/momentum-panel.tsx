@@ -64,11 +64,8 @@ export async function MomentumPanel({ userId, nowMs, size = 'md' }: MomentumPane
   // styles, everything else (sparkbar, sessions line, goal line) dropped.
   if (size === 'sm') {
     return (
-      <section
-        aria-label="This week"
-        className="mt-6 overflow-hidden rounded-2xl border border-border bg-card"
-      >
-        <Link href="/stats" className="block p-5 transition-colors active:bg-muted/60">
+      <section aria-label="This week" className="mt-6 border-b border-b-border/60">
+        <Link href="/stats" className="block py-5 transition-colors active:bg-muted/60">
           <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
             This week
           </span>
@@ -93,11 +90,8 @@ export async function MomentumPanel({ userId, nowMs, size = 'md' }: MomentumPane
   }
 
   return (
-    <section
-      aria-label="This week"
-      className="mt-6 overflow-hidden rounded-2xl border border-border bg-card"
-    >
-      <Link href="/stats" className="block p-5 transition-colors active:bg-muted/60">
+    <section aria-label="This week" className="mt-6 border-b border-b-border/60">
+      <Link href="/stats" className="block py-5 transition-colors active:bg-muted/60">
         <span className="flex items-center justify-between gap-3">
           <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
             This week
@@ -129,7 +123,7 @@ export async function MomentumPanel({ userId, nowMs, size = 'md' }: MomentumPane
       {goal !== null && (
         <Link
           href="/goals"
-          className="flex items-center justify-between gap-3 border-t border-border px-5 py-3.5 transition-colors active:bg-muted/60"
+          className="flex items-center justify-between gap-3 border-t border-border/60 py-3.5 transition-colors active:bg-muted/60"
         >
           <span className="min-w-0">
             <span className="block text-xs font-semibold uppercase tracking-widest text-muted-foreground">
