@@ -54,8 +54,16 @@ import { createDraftSyncQueue, type DraftSyncQueue, type DraftSyncStatus } from 
 import { SwipeToDelete } from './swipe-to-delete'
 import { EffortChips } from './effort-chips'
 import { stickyNote, noteChipLabel, type IdentityNote } from './identity-note'
-import { QuickCaptureSheet } from '@/components/editor/quick-capture-sheet'
 import { upsertExerciseNoteAction, deleteExerciseNoteAction } from '@/app/exercises/actions'
+import dynamic from 'next/dynamic'
+
+// Lazy on purpose (bundle discipline, plan §7): the note sheet — and through
+// its own dynamic import, TipTap — loads only when a chip is actually tapped.
+// The logger's first-paint bundle gains no editor bytes.
+const QuickCaptureSheet = dynamic(
+  () => import('@/components/editor/quick-capture-sheet').then((m) => m.QuickCaptureSheet),
+  { ssr: false },
+)
 import { HeaderClock } from './session-clock'
 import { PlateSheet } from './plate-sheet'
 import { RestSheet } from './rest-sheet'
