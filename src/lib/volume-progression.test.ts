@@ -9,7 +9,7 @@ import {
   proposalsToCreate,
   uniformRepTop,
   volumeProposalContent,
-  volumeProposalSummary,
+  VOLUME_PROPOSAL_SOURCE,
   type MovementWeekEvidence,
   type MovementWeekResult,
   type SetTemplate,
@@ -270,10 +270,16 @@ describe('proposal content and dedup', () => {
     })
   })
 
-  it('a pending proposal for the muscle blocks a duplicate (summary-prefix match)', () => {
-    const pending = [volumeProposalSummary('Chest')]
+  it('a pending volume proposal for the muscle blocks a duplicate (structured columns)', () => {
+    const pending = [{ source: VOLUME_PROPOSAL_SOURCE, muscleGroup: 'Chest' }]
     expect(hasPendingVolumeProposal(pending, 'Chest')).toBe(true)
     expect(hasPendingVolumeProposal(pending, 'Back')).toBe(false)
+    // A human/coach proposal (no structured source) never blocks anything.
+    expect(hasPendingVolumeProposal([{ source: null, muscleGroup: null }], 'Chest')).toBe(false)
+    // A future generator's rows are not ours to dedup against.
+    expect(hasPendingVolumeProposal([{ source: 'other', muscleGroup: 'Chest' }], 'Chest')).toBe(
+      false,
+    )
   })
 
   it('proposalsToCreate: increase-with-candidate only, deduped against pending', () => {
@@ -293,7 +299,9 @@ describe('proposal content and dedup', () => {
       },
       { group: 'Biceps' as const, status: 'increase' as const, drivers: ['Curl'], candidate: null },
     ]
-    const out = proposalsToCreate(verdicts, [volumeProposalSummary('Back')])
+    const out = proposalsToCreate(verdicts, [
+      { source: VOLUME_PROPOSAL_SOURCE, muscleGroup: 'Back' },
+    ])
     expect(out.map((p) => p.group)).toEqual(['Chest'])
   })
 })

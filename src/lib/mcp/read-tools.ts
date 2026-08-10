@@ -13,7 +13,7 @@ import {
 } from '@/db/workouts'
 import { getProgramDayDetail, type ProgramDayDetail } from '@/db/programs'
 import { getProgramStats, type ProgramStats } from '@/db/program-stats'
-import { ensureVolumeProposals, getVolumeStatus } from '@/db/volume-progression'
+import { getVolumeStatus } from '@/db/volume-progression'
 import { listProgramEvents, PROGRAM_EVENTS_MAX_LIMIT } from '@/db/program-events'
 import { getWeightUnit, getBodyweightKg } from '@/db/preferences'
 import { searchExercises } from '@/lib/wger'
@@ -241,11 +241,12 @@ export function registerReadTools(server: McpServer): void {
       try {
         const resolved = resolveUserId(extra, userId)
         assertProgramIdShape(programId)
-        // The coach/MCP read is a trigger site (plan §4): any due +1 proposals
-        // are raised here so the agent can reference them immediately.
-        // Best-effort — it never throws into the read.
-        await ensureVolumeProposals(resolved, programId)
-        const status = await getVolumeStatus(resolved, programId)
+        // The coach/MCP read is a trigger site (plan §4): `raiseProposals`
+        // runs the weekly check off this read's own computation (one shared
+        // program/structure/verdict pass), so any due +1 proposal exists by
+        // the time the agent references it. Best-effort — the raise can
+        // never fail the read.
+        const status = await getVolumeStatus(resolved, programId, { raiseProposals: true })
         if (!status) {
           return errorResult(new ToolError(`Program ${programId} not found for user ${resolved}`))
         }

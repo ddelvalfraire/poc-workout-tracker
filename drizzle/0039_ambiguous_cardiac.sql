@@ -1,0 +1,3 @@
+ALTER TABLE "program_patch_proposals" ADD COLUMN "source" text;--> statement-breakpoint
+ALTER TABLE "program_patch_proposals" ADD COLUMN "muscle_group" text;--> statement-breakpoint
+CREATE UNIQUE INDEX "program_patch_proposals_pending_source_unique" ON "program_patch_proposals" USING btree ("program_id","source","muscle_group") WHERE "program_patch_proposals"."status" = 'pending' and "program_patch_proposals"."source" is not null;

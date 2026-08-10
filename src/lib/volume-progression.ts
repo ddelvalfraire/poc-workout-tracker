@@ -225,22 +225,33 @@ export function muscleVerdicts(
   return verdicts
 }
 
-/** The proposal's one-line summary — its prefix is ALSO the pending-dedup key
- *  (see `hasPendingVolumeProposal`): the table carries no structured source
- *  column, so the summary prefix is the stable contract. */
+/** The structured `source` value volume proposals are stamped with — one half
+ *  of the dedup key (with the muscle group), backed by the partial unique
+ *  index on program_patch_proposals. */
+export const VOLUME_PROPOSAL_SOURCE = 'volume-progression'
+
+/** The provenance slice of a pending proposal row the dedup check reads. */
+export interface PendingProposalRef {
+  source: string | null
+  muscleGroup: string | null
+}
+
+/** The proposal's one-line summary (display only — dedup is the structured
+ *  source/muscleGroup columns, never the text). */
 export function volumeProposalSummary(group: MuscleGroup): string {
   return `Add a set to ${group} — beat top of range ${BEAT_WEEKS_REQUIRED} weeks running`
 }
 
-/** Whether a pending proposal for this muscle already exists — matched on the
- *  `volumeProposalSummary` prefix. Any pending +1 for the muscle blocks a new
- *  one regardless of week: one open question per muscle at a time. */
+/** Whether a pending volume proposal for this muscle already exists — matched
+ *  on the structured columns. Any pending +1 for the muscle blocks a new one
+ *  regardless of week: one open question per muscle at a time. (The partial
+ *  unique index enforces the same rule at the database; this check just makes
+ *  the common path quiet.) */
 export function hasPendingVolumeProposal(
-  pendingSummaries: readonly string[],
+  pending: readonly PendingProposalRef[],
   group: MuscleGroup,
 ): boolean {
-  const prefix = `Add a set to ${group} —`
-  return pendingSummaries.some((s) => s.startsWith(prefix))
+  return pending.some((p) => p.source === VOLUME_PROPOSAL_SOURCE && p.muscleGroup === group)
 }
 
 /** One +1 proposal's content: the summary and its single add_program_set
@@ -274,12 +285,12 @@ export function volumeProposalContent(
  *  silence is the deliverable there. */
 export function proposalsToCreate(
   verdicts: readonly MuscleVerdict[],
-  pendingSummaries: readonly string[],
+  pending: readonly PendingProposalRef[],
 ): { group: MuscleGroup; candidate: VolumeCandidate }[] {
   return verdicts.flatMap((v) =>
     v.status === 'increase' &&
     v.candidate !== null &&
-    !hasPendingVolumeProposal(pendingSummaries, v.group)
+    !hasPendingVolumeProposal(pending, v.group)
       ? [{ group: v.group, candidate: v.candidate }]
       : [],
   )

@@ -10,6 +10,7 @@ import {
   proposalsToCreate,
   uniformRepTop,
   volumeProposalContent,
+  VOLUME_PROPOSAL_SOURCE,
   type MovementWeekEvidence,
   type MovementWeekResult,
   type MuscleVerdict,
@@ -142,6 +143,13 @@ const identityKey = (source: string, id: number) => `${source}:${id}`
  * two-week evidence rows into per-movement evidence for `muscleVerdicts`.
  * Deload-week sessions never testify (a planned back-off is neither a beat
  * nor a stall). Builds fresh structures; never mutates inputs.
+ *
+ * Known simplification: the rep top and set template come from the FIRST
+ * occurrence of a multi-day movement, and every session that week scores
+ * against that one top. A movement programmed 5×5 on day A and 3×12 on day B
+ * therefore scores day-B sessions against day A's top — accepted v1 drift
+ * (per-occurrence tops would need per-slot session attribution); such splits
+ * usually fail the uniform-top rule anyway and fall to silence.
  */
 export function assembleMovements(
   structure: readonly StructureRow[],
@@ -498,15 +506,17 @@ function evidenceWeeks(week: number): number[] {
   return week >= 2 ? [week - 1, week] : [week]
 }
 
+type ProgramStructure = Awaited<ReturnType<typeof loadStructure>>
+
+/** Verdicts from a PRELOADED structure (callers thread their one
+ *  `loadStructure` result through — never re-fetched here). */
 async function computeVerdicts(
   userId: string,
   program: ProgramRow,
   week: number,
+  { structure, structureSets, muscleRows }: ProgramStructure,
 ): Promise<MuscleVerdict[]> {
-  const [{ structure, structureSets, muscleRows }, evidence] = await Promise.all([
-    loadStructure(program.id),
-    loadEvidence(userId, program.id, evidenceWeeks(week)),
-  ])
+  const evidence = await loadEvidence(userId, program.id, evidenceWeeks(week))
   const movements = assembleMovements(
     structure,
     structureSets,
@@ -523,11 +533,15 @@ async function computeVerdicts(
  * last completed program week plus the per-week volume table. Null when the
  * program doesn't exist or isn't owned. Skips ALL heavy reads (`enabled:
  * false`) for non-active programs and programs with autoregulation off — the
- * plan's cheap-skip rule.
+ * plan's cheap-skip rule. `raiseProposals: true` (the MCP read path) also
+ * runs the weekly proposal trigger off the SAME loaded program/structure/
+ * verdicts — one computation, both outcomes; the raise is best-effort and
+ * can never fail the read.
  */
 export async function getVolumeStatus(
   userId: string,
   programId: string,
+  options?: { raiseProposals?: boolean },
 ): Promise<VolumeStatus | null> {
   const program = await loadProgram(userId, programId)
   if (!program) return null
@@ -544,11 +558,19 @@ export async function getVolumeStatus(
   }
   const currentWeek = await nextProgramWeek(userId, programId, program.mesocycleWeeks)
   const week = currentWeek - 1
-  const [verdicts, structureForTable, volumeRows] = await Promise.all([
-    week >= 1 ? computeVerdicts(userId, program, week) : Promise.resolve([]),
+  const [structure, volumeRows] = await Promise.all([
     loadStructure(program.id),
     loadWeekVolumeRows(userId, programId),
   ])
+  const verdicts = week >= 1 ? await computeVerdicts(userId, program, week, structure) : []
+  if (options?.raiseProposals === true && week >= 1) {
+    try {
+      await raiseProposals(userId, programId, week, verdicts)
+    } catch (error: unknown) {
+      // Best-effort side path on a read: never fail the status for it.
+      console.error('volume proposal check failed (read unaffected)', error)
+    }
+  }
   return {
     programId: program.id,
     programName: program.name,
@@ -558,27 +580,64 @@ export async function getVolumeStatus(
     verdicts,
     weeks: aggregateWeekVolume(
       volumeRows,
-      musclesByIdentity(structureForTable.structure, structureForTable.muscleRows),
+      musclesByIdentity(structure.structure, structure.muscleRows),
     ),
   }
 }
 
-/** Redis marker: the weekly check runs at most once per (program, completed
- *  week) — page loads in between cost one GET. Also what keeps a declined
- *  proposal from re-nagging within the same week. */
+/** Redis marker: a COST optimization only — it caps the weekly check at one
+ *  real evaluation per (program, completed week) (steady-state loads pay one
+ *  GET) and keeps a declined proposal from re-nagging within its week.
+ *  CORRECTNESS does not depend on it: the pending-source partial unique
+ *  index is what guarantees no duplicate pending proposal, Redis or not. */
 const markerKey = (programId: string, week: number) => `volume-proposals:${programId}:w${week}`
 const MARKER_TTL_SECONDS = 60 * 60 * 24 * 90
 
 /**
- * The derive-time weekly trigger (plan §4): computes verdicts for the last
- * completed week and turns eligible muscles into batch-patch proposals
- * (authorActor 'mcp') through `createPatchProposal` — one add_program_set
- * per muscle; the owner picks by confirming. HOLD produces nothing (silence).
- * Runs at most once per (program, week) via the Redis marker; still-pending
- * proposals are summary-prefix-deduped either way, so a missing Redis config
- * degrades to pending-dedup, never to duplicates. Best-effort by design: any
- * failure logs and leaves the page unharmed, and the marker stays unset so
- * the next load retries.
+ * Turns the eligible verdicts into batch-patch proposals (authorActor 'mcp'):
+ * one add_program_set per muscle, stamped source='volume-progression' +
+ * muscleGroup so the partial unique index owns dedup at the database. Layers,
+ * outermost first: the Redis marker (cost — skip everything when this week
+ * already ran), the pending-row check (quiet common path), and the ON
+ * CONFLICT no-op inside createPatchProposal (the race-proof guarantee).
+ * HOLD/on-track verdicts produce nothing — silence.
+ */
+async function raiseProposals(
+  userId: string,
+  programId: string,
+  week: number,
+  verdicts: readonly MuscleVerdict[],
+): Promise<void> {
+  const redis = getRedis()
+  if (redis && (await redis.get(markerKey(programId, week))) !== null) return
+  const pending = await listPatchProposals(userId, programId)
+  const jobs = proposalsToCreate(verdicts, pending)
+  for (const job of jobs) {
+    // A null result (concurrent duplicate, program drifted) is a no-op.
+    await createPatchProposal(
+      userId,
+      programId,
+      {
+        ...volumeProposalContent(job.group, job.candidate),
+        source: VOLUME_PROPOSAL_SOURCE,
+        muscleGroup: job.group,
+      },
+      'mcp',
+    )
+  }
+  if (redis) {
+    await redis.set(markerKey(programId, week), '1', { ex: MARKER_TTL_SECONDS })
+  }
+}
+
+/**
+ * The derive-time weekly trigger for the program-page load (plan §4): cheap
+ * gates (owned + active + autoregulation on + a completed week), then the
+ * Redis marker check BEFORE any heavy read, then one structure load threaded
+ * through verdict computation into `raiseProposals`. Best-effort by design:
+ * any failure logs and leaves the page unharmed, the marker stays unset so
+ * the next load retries, and duplicates remain impossible either way (the
+ * partial unique index — see `markerKey`'s note on the division of labor).
  */
 export async function ensureVolumeProposals(userId: string, programId: string): Promise<void> {
   try {
@@ -591,25 +650,9 @@ export async function ensureVolumeProposals(userId: string, programId: string): 
     const redis = getRedis()
     if (redis && (await redis.get(markerKey(programId, week))) !== null) return
 
-    const [verdicts, pending] = await Promise.all([
-      computeVerdicts(userId, program, week),
-      listPatchProposals(userId, programId),
-    ])
-    const jobs = proposalsToCreate(
-      verdicts,
-      pending.map((p) => p.summary),
-    )
-    for (const job of jobs) {
-      await createPatchProposal(
-        userId,
-        programId,
-        volumeProposalContent(job.group, job.candidate),
-        'mcp',
-      )
-    }
-    if (redis) {
-      await redis.set(markerKey(programId, week), '1', { ex: MARKER_TTL_SECONDS })
-    }
+    const structure = await loadStructure(program.id)
+    const verdicts = await computeVerdicts(userId, program, week, structure)
+    await raiseProposals(userId, programId, week, verdicts)
   } catch (error: unknown) {
     // Enhancement on a read path: never break the page; next load retries.
     console.error('volume proposal check failed (page unaffected)', error)

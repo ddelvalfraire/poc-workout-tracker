@@ -274,6 +274,13 @@
       "when": 1786325887288,
       "tag": "0038_naive_manta",
       "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1786330234245,
+      "tag": "0039_ambiguous_cardiac",
+      "breakpoints": true
     }
   ]
 }

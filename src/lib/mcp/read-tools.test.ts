@@ -8,10 +8,7 @@ vi.mock('@/db/workouts', () => ({
 }))
 vi.mock('@/db/programs', () => ({ getProgramDayDetail: vi.fn() }))
 vi.mock('@/db/program-stats', () => ({ getProgramStats: vi.fn() }))
-vi.mock('@/db/volume-progression', () => ({
-  getVolumeStatus: vi.fn(),
-  ensureVolumeProposals: vi.fn(async () => undefined),
-}))
+vi.mock('@/db/volume-progression', () => ({ getVolumeStatus: vi.fn() }))
 vi.mock('@/db/preferences', () => ({ getWeightUnit: vi.fn(), getBodyweightKg: vi.fn() }))
 vi.mock('@/lib/wger', () => ({ searchExercises: vi.fn() }))
 vi.mock('@/db/custom-exercises', () => ({ listCustomExercises: vi.fn(async () => []) }))
@@ -24,7 +21,7 @@ import { registerReadTools } from './read-tools'
 import { listWorkoutSummaries, getWorkoutDetail, getLastPerformance } from '@/db/workouts'
 import { getProgramDayDetail } from '@/db/programs'
 import { getProgramStats, type ProgramStats } from '@/db/program-stats'
-import { getVolumeStatus, ensureVolumeProposals, type VolumeStatus } from '@/db/volume-progression'
+import { getVolumeStatus, type VolumeStatus } from '@/db/volume-progression'
 import { getWeightUnit, getBodyweightKg } from '@/db/preferences'
 import { searchExercises } from '@/lib/wger'
 import { listProgramEvents } from '@/db/program-events'
@@ -37,7 +34,6 @@ const mockedLast = vi.mocked(getLastPerformance)
 const mockedProgramDay = vi.mocked(getProgramDayDetail)
 const mockedProgramStats = vi.mocked(getProgramStats)
 const mockedVolumeStatus = vi.mocked(getVolumeStatus)
-const mockedEnsureProposals = vi.mocked(ensureVolumeProposals)
 const mockedUnit = vi.mocked(getWeightUnit)
 const mockedBodyweight = vi.mocked(getBodyweightKg)
 const mockedSearch = vi.mocked(searchExercises)
@@ -845,7 +841,7 @@ describe('registerReadTools', () => {
       weeks: [{ week: 1, groups: [{ group: 'Chest', sets: 6.5 }] }],
     }
 
-    it('runs the proposal trigger, then maps verdicts and the week table', async () => {
+    it('reads with the raise flag set, then maps verdicts and the week table', async () => {
       // Arrange
       const tools = setup()
       mockedVolumeStatus.mockResolvedValue(status)
@@ -853,8 +849,8 @@ describe('registerReadTools', () => {
       // Act
       const result = await tools.get('get_volume_status')!({ programId: PID })
 
-      // Assert
-      expect(mockedEnsureProposals).toHaveBeenCalledWith('user_env', PID)
+      // Assert — one shared computation: the read itself carries the trigger.
+      expect(mockedVolumeStatus).toHaveBeenCalledWith('user_env', PID, { raiseProposals: true })
       const body = payload(result)
       expect(body.week).toBe(2)
       expect(body.verdicts).toEqual([
@@ -892,7 +888,6 @@ describe('registerReadTools', () => {
       // Assert
       expect(result.isError).toBe(true)
       expect(mockedVolumeStatus).not.toHaveBeenCalled()
-      expect(mockedEnsureProposals).not.toHaveBeenCalled()
     })
   })
 
