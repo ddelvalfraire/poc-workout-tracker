@@ -4,6 +4,7 @@ import { useSyncExternalStore } from 'react'
 import Link from 'next/link'
 import { Check, ChevronRight } from 'lucide-react'
 import { isSameLocalDay } from '@/lib/local-day'
+import type { HomeSectionSize } from '@/lib/home/registry'
 import { formatVolume, formatWorkoutDuration } from '@/lib/format'
 import type { WeightUnit } from '@/lib/units'
 
@@ -45,7 +46,7 @@ export function TodayRecap({
   workouts: RecapWorkout[]
   unit: WeightUnit
   /** Layout size class: sm renders one compact line; md the full cards. */
-  size?: 'sm' | 'md'
+  size?: Extract<HomeSectionSize, 'sm' | 'md'>
 }) {
   const mounted = useMounted()
   if (!mounted) return null

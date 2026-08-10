@@ -29,7 +29,7 @@ export interface HomeSectionMeta {
    *  anything else; reads normalize to `defaultSize`. */
   allowedSizes: readonly HomeSectionSize[]
   /** The size a section gets when the document doesn't say (and what
-   *  serialization omits) — md everywhere, the pre-bento home. */
+   *  serialization omits) — each kind's pre-bento rendering. */
   defaultSize: HomeSectionSize
 }
 
@@ -60,7 +60,9 @@ export const HOME_SECTION_REGISTRY = [
     title: 'History',
     description: 'Your latest completed workouts.',
     allowedSizes: ['sm', 'md', 'lg'],
-    defaultSize: 'md',
+    // lg, not md: today's home shows HOME_HISTORY_LIMIT (5) rows, which is
+    // the lg rendering — the default-parity contract pins the default to it.
+    defaultSize: 'lg',
   },
 ] as const satisfies readonly HomeSectionMeta[]
 

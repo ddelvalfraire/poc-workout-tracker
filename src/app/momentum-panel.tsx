@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { ChevronRight } from 'lucide-react'
+import type { HomeSectionSize } from '@/lib/home/registry'
 import { listWorkoutSummaries } from '@/db/workouts'
 import { getWeightUnit } from '@/db/preferences'
 import { getRollingVolumeTotals } from '@/db/muscle-volume'
@@ -31,7 +32,7 @@ export interface MomentumPanelProps {
   nowMs: number
   /** Layout size class: sm renders only the one big number + streak flame;
    *  md (default) and lg render the full panel. */
-  size?: 'sm' | 'md' | 'lg'
+  size?: HomeSectionSize
 }
 
 export async function MomentumPanel({ userId, nowMs, size = 'md' }: MomentumPanelProps) {

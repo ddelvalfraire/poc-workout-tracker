@@ -19,12 +19,11 @@ describe('resolveHomeLayout', () => {
     expect(resolved.every((s) => !s.hidden)).toBe(true)
   })
 
-  it('gives every DEFAULT section its registry default size (md across the board — the parity contract)', () => {
+  it("gives every DEFAULT section its kind's registry defaultSize (the parity contract)", () => {
     const resolved = resolveHomeLayout(null)
     for (const section of resolved) {
       const meta = HOME_SECTION_REGISTRY.find((s) => s.kind === section.kind)
       expect(section.size).toBe(meta?.defaultSize)
-      expect(section.size).toBe('md')
     }
   })
 
@@ -93,7 +92,7 @@ describe('resolveHomeLayout', () => {
       ],
     })
     expect(resolved.filter((s) => s.kind === 'history')).toEqual([
-      { kind: 'history', size: 'md', hidden: true },
+      { kind: 'history', size: 'lg', hidden: true },
     ])
   })
 
@@ -117,10 +116,10 @@ describe('resolveHomeLayout', () => {
         { kind: 'momentum', size: 'xl' }, // unknown size value
         { kind: 'today-recap', size: 'lg' }, // not in today-recap's allowedSizes
         { kind: 'unfinished', size: 'sm' }, // unfinished is md-only
-        { kind: 'history' }, // missing
+        { kind: 'history' }, // missing — history's own default is lg
       ],
     })
-    expect(resolved.map((s) => s.size)).toEqual(['md', 'md', 'md', 'md'])
+    expect(resolved.map((s) => s.size)).toEqual(['md', 'md', 'md', 'lg'])
   })
 
   it('auto-upgrades a v1 document in memory: order and hidden survive, sizes are registry defaults', () => {
@@ -134,7 +133,7 @@ describe('resolveHomeLayout', () => {
       ],
     })
     expect(resolved).toEqual([
-      { kind: 'history', size: 'md', hidden: false },
+      { kind: 'history', size: 'lg', hidden: false },
       { kind: 'momentum', size: 'md', hidden: true },
       { kind: 'today-recap', size: 'md', hidden: false },
       { kind: 'unfinished', size: 'md', hidden: false },
@@ -152,7 +151,7 @@ describe('resolveHomeLayout', () => {
       'today-recap',
       'unfinished',
     ])
-    expect(resolved[0]).toEqual({ kind: 'history', size: 'md', hidden: true })
+    expect(resolved[0]).toEqual({ kind: 'history', size: 'lg', hidden: true })
   })
 })
 
@@ -222,14 +221,14 @@ describe('parseHomeLayoutInput', () => {
         { kind: 'momentum', size: 'sm' },
         { kind: 'today-recap', size: 'md' }, // default — serialized away
         { kind: 'unfinished', size: 'md' },
-        { kind: 'history', size: 'lg' },
+        { kind: 'history', size: 'lg' }, // history's default IS lg — serialized away
       ],
     })
     expect(doc.sections).toEqual([
       { kind: 'momentum', size: 'sm' },
       { kind: 'today-recap' },
       { kind: 'unfinished' },
-      { kind: 'history', size: 'lg' },
+      { kind: 'history' },
     ])
   })
 
@@ -318,7 +317,7 @@ describe('setSectionSize', () => {
 describe('toLayoutDoc', () => {
   it('serializes resolved sections into a version-2 document, omitting hidden:false and default sizes', () => {
     const doc = toLayoutDoc(
-      setSectionSize(toggleSection(resolveHomeLayout(null), 'momentum'), 'history', 'lg'),
+      setSectionSize(toggleSection(resolveHomeLayout(null), 'momentum'), 'history', 'sm'),
     )
     expect(doc).toEqual({
       version: 2,
@@ -326,7 +325,7 @@ describe('toLayoutDoc', () => {
         { kind: 'momentum', hidden: true },
         { kind: 'today-recap' },
         { kind: 'unfinished' },
-        { kind: 'history', size: 'lg' },
+        { kind: 'history', size: 'sm' },
       ],
     })
   })
