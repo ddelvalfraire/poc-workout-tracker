@@ -11,6 +11,7 @@ import {
   setProgramSetOverride,
   removeProgramSetOverride,
   setTrainingMax,
+  setProgramDietPhase,
   withTx,
   type PatchRunner,
   type ProgramSetPatch,
@@ -91,6 +92,11 @@ async function applyProposalPatch(
   patch: ProposalPatch,
   actor: ProgramEventActor,
 ): Promise<unknown | null> {
+  // Program-level op — no position address, so it forks before the
+  // destructure every set-level case shares. Stamps diet_phase_set_at.
+  if (patch.tool === 'set_program_diet_phase') {
+    return setProgramDietPhase(userId, programId, patch.args.phase, actor, runIn)
+  }
   const { dayPosition, exercisePosition } = patch.args
   switch (patch.tool) {
     case 'add_program_set':

@@ -6,6 +6,7 @@ import {
   parseProgramInput,
   statusSchema,
   visibilitySchema,
+  dietPhaseSchema,
   MAX_DESCRIPTION,
   type ProgramVisibility,
 } from '@/lib/program-input'
@@ -21,7 +22,7 @@ import {
   declineProgram,
 } from '@/db/programs'
 import { setProgramVisibility, createShare, revokeShare } from '@/db/program-shares'
-import { setTrainingMax } from '@/db/program-patches'
+import { setTrainingMax, setProgramDietPhase } from '@/db/program-patches'
 import { confirmPatchProposal, declinePatchProposal } from '@/db/patch-proposals'
 import { restartTmPlan } from '@/db/restart-plan'
 import { getWeightUnit } from '@/db/preferences'
@@ -130,6 +131,22 @@ export async function setProgramStatusAction(id: string, status: unknown): Promi
  * db layer is the guard — this is the ONLY path off 'proposed'. A null result
  * means not owned or not a proposal; throw for the client's try/catch.
  */
+/**
+ * Sets (or clears, with null) the program's diet phase from an owner surface
+ * (the staleness card's "Still cutting" / "End cut"). Every explicit write —
+ * including re-affirming the same phase — stamps diet_phase_set_at, which is
+ * exactly what "Still cutting" needs: the affirmation resets the staleness
+ * clock. Same event-logged op the MCP tool and batch proposals apply through.
+ */
+export async function setDietPhaseAction(id: string, phase: unknown): Promise<{ id: string }> {
+  const userId = await requireUserId()
+  const parsed = dietPhaseSchema.nullable().parse(phase)
+  const result = await setProgramDietPhase(userId, id, parsed, 'ui')
+  if (!result) throw new Error('program not found')
+  revalidatePath(`/programs/${id}`)
+  return result
+}
+
 export async function adoptProgramAction(
   id: unknown,
   activate: unknown,

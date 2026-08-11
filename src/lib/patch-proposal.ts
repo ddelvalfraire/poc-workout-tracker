@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { setTypeSchema, metricModeSchema, techniqueSchema } from '@/lib/program-input'
+import { setTypeSchema, metricModeSchema, techniqueSchema, dietPhaseSchema } from '@/lib/program-input'
 import { MAX_WEIGHT } from '@/lib/workout-input'
 import { kgToDisplay, type WeightUnit } from '@/lib/units'
 
@@ -30,6 +30,10 @@ export const PROPOSABLE_PATCH_TOOLS = [
   'set_program_set_override',
   'remove_program_set_override',
   'set_training_max',
+  // Program-level phase context — lets the coach (or a staleness trigger)
+  // propose ending/affirming a cut; applied via the same event-logged op
+  // as the direct MCP tool.
+  'set_program_diet_phase',
 ] as const
 
 export type ProposablePatchTool = (typeof PROPOSABLE_PATCH_TOOLS)[number]
@@ -151,6 +155,12 @@ export const proposalPatchSchema = z.discriminatedUnion('tool', [
       unit: kgUnitField,
     }),
   }),
+  z.object({
+    tool: z.literal('set_program_diet_phase'),
+    // Program-level (no position address); null clears the phase. No unit —
+    // nothing here is a load.
+    args: z.strictObject({ phase: dietPhaseSchema.nullable() }),
+  }),
 ])
 
 export const proposalPatchesSchema = z
@@ -168,6 +178,8 @@ export type ProposalPatch = z.infer<typeof proposalPatchSchema>
  */
 export function patchForDisplay(patch: ProposalPatch, unit: WeightUnit): ProposalPatch {
   if (unit === 'kg') return patch
+  // Loadless program-level ops have nothing to convert (and no unit key to echo).
+  if (patch.tool === 'set_program_diet_phase') return patch
   const args: Record<string, unknown> = { ...patch.args, unit }
   if (typeof args.suggestedLoad === 'number') {
     args.suggestedLoad = kgToDisplay(args.suggestedLoad, unit)

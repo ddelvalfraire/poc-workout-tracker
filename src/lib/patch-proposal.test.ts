@@ -26,6 +26,9 @@ describe('proposalPatchSchema (batch-proposal envelope)', () => {
         args: { dayPosition: 0, exercisePosition: 0, setNumber: 1, week: 4 },
       },
       { tool: 'set_training_max', args: { dayPosition: 0, exercisePosition: 0, trainingMax: 90 } },
+      { tool: 'set_program_diet_phase', args: { phase: 'cutting' } },
+      // null clears the phase — still a deliberate statement (stamps set_at).
+      { tool: 'set_program_diet_phase', args: { phase: null } },
     ]
 
     // Act + Assert
@@ -56,6 +59,21 @@ describe('proposalPatchSchema (batch-proposal envelope)', () => {
       args: { dayPosition: 0, exercisePosition: 0, trainingMax: 200, unit: 'lb' },
     })
     expect(result.success).toBe(false)
+  })
+
+  it('rejects a diet phase outside the enum (and junk keys on the loadless op)', () => {
+    expect(
+      proposalPatchSchema.safeParse({
+        tool: 'set_program_diet_phase',
+        args: { phase: 'recomp' },
+      }).success,
+    ).toBe(false)
+    expect(
+      proposalPatchSchema.safeParse({
+        tool: 'set_program_diet_phase',
+        args: { phase: 'cutting', unit: 'kg' },
+      }).success,
+    ).toBe(false)
   })
 
   it('rejects an update patch that changes nothing', () => {
@@ -117,6 +135,14 @@ describe('patchForDisplay', () => {
       args: { dayPosition: 0, exercisePosition: 0, trainingMax: 100, unit: 'kg' },
     }
     expect(patchForDisplay(patch, 'kg')).toBe(patch)
+  })
+
+  it('passes the loadless diet-phase op through untouched for any viewer', () => {
+    const patch: ProposalPatch = {
+      tool: 'set_program_diet_phase',
+      args: { phase: 'cutting' },
+    }
+    expect(patchForDisplay(patch, 'lb')).toBe(patch)
   })
 
   it('converts trainingMax and stamps the display unit for an lb viewer', () => {

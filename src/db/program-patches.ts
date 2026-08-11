@@ -352,6 +352,7 @@ export async function setProgramDietPhase(
   programId: string,
   phase: DietPhase | null,
   actor: ProgramEventActor,
+  runIn?: PatchRunner,
 ): Promise<{ id: string } | null> {
   let parsed: DietPhase | null = null
   if (phase !== null) {
@@ -361,7 +362,7 @@ export async function setProgramDietPhase(
       throw patchErrorFromZod(error, 'invalid diet phase')
     }
   }
-  return db.transaction(async (tx) => {
+  return (runIn ?? db).transaction(async (tx) => {
     const owned = await findOwnedProgramId(tx, userId, programId)
     if (!owned) return null
     await tx
