@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { Preview } from "@storybook/nextjs-vite";
+import { storybookTheme } from "./theme";
 
 import { fontVariables } from "../src/app/fonts";
 import "../src/app/globals.css";
@@ -72,6 +73,7 @@ function withQueryClient(Story: React.ComponentType) {
 const preview: Preview = {
   decorators: [withQueryClient],
   parameters: {
+    docs: { theme: storybookTheme },
     layout: "centered",
     // The app ships ONE intentional dark theme (DESIGN.md § Theme) — a
     // background switcher would advertise a light mode that does not exist.
