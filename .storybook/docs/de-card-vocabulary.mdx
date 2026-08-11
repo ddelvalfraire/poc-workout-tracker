@@ -1,0 +1,99 @@
+import { Meta, Canvas, Story } from "@storybook/addon-docs/blocks";
+
+import * as SectionStories from "../../src/components/ui/section.stories";
+import * as DividerListStories from "../../src/components/ui/divider-list.stories";
+import * as EmptyWordsStories from "../../src/components/ui/empty-words.stories";
+import * as CardStories from "../../src/components/ui/card.stories";
+import * as StatTileStories from "../../src/components/stat-tile.stories";
+
+<Meta title="Design/De-card Vocabulary" />
+
+# De-card vocabulary — the review contract
+
+The shipped list/detail surfaces (settings, programs, exercises) speak one
+visual language. **Check every conversion and every new surface against this
+page.** It restates DESIGN.md § De-card vocabulary with the live components.
+
+## Hairlines, not shells
+
+Content sits on the page background, framed by muted hairline dividers — not
+inside rounded card shells. Prefer the primitives in `src/components/ui/` over
+re-typing the recipes.
+
+<Canvas of={SectionStories.StackedZones} />
+
+### The exact recipes
+
+| Piece | Recipe | Primitive |
+|---|---|---|
+| Hairline | `border-b border-b-border/60` | — |
+| Caps header | `font-display text-base uppercase leading-none tracking-wide text-muted-foreground` | `Section` |
+| Divider list | `divide-y divide-border/60 border-b border-b-border/60` | `DividerList` |
+| Divider row | `flex items-center justify-between gap-4 py-4 transition-colors outline-none hover:bg-muted/50 focus-visible:bg-muted/50` | `DividerRow` |
+| Empty words | `px-1 py-6 text-center text-sm text-muted-foreground` | `EmptyWords` |
+
+A chart or hero sits **above** a hairline rather than inside a shell.
+
+<Canvas of={DividerListStories.WithTrailingValues} />
+
+### The dashed variant
+
+Dashed hairlines are the quarantined / pending voice — "present, but not
+product". Reach for it deliberately, not for visual variety.
+
+<Canvas of={DividerListStories.Dashed} />
+
+## An empty state is a sentence
+
+Not a boxed apology, not an illustration. Say what is not there and — when
+there is one — what to do about it.
+
+<Canvas of={EmptyWordsStories.WithNextStep} />
+
+## One volt
+
+**One volt moment per screen**: the primary action, or the single live element.
+
+On revisit surfaces — lists you scan repeatedly — per-item volt stacks and is
+**banned**. A zone heading or a single delta carries the accent; declines and
+ordinary values render quiet. The stat grid below has exactly one volt delta,
+and that is the rule, not the example.
+
+<Canvas of={StatTileStories.Grid} />
+
+## Chips are controls, words are labels
+
+Pill/chip styling means "you can press me" — toggle chips, segmented controls,
+the rest pill. Metadata is words in the muted ink. **Never decorate a label as
+a chip.**
+
+## Keep-list (do not de-card)
+
+Card shells stay where the shell *is* the meaning:
+
+- **Sheets, dialogs, popovers** — elevation is the point of an overlay.
+- **Coach chat** — message bubbles are the conversational idiom.
+- **StatTile** — a tile grid is the scannable record wall.
+- **Article / content-preview cards** — external previews read as clippings.
+- **Actor chips** — provenance markers are chips by design.
+- **Control clusters** — rest pill, segmented controls, toggle chips.
+- **Media tiles** — photos and share cards need a bounded frame.
+- **Form fields** (`Input`, `Textarea`) — fields need enclosure.
+- **`src/components/ui/card.tsx`** — the primitive stays for keep-list use.
+- **Nav-drawer hover shapes** — the drawer's own interaction vocabulary.
+- **Programs-landing active hero** — explicitly kept as shipped.
+
+<Canvas of={CardStories.Default} />
+
+## The lint ratchet
+
+`eslint.config.mjs` bans `rounded-2xl` and `bg-card` (via
+`better-tailwindcss/no-restricted-classes`) outside two allowlists:
+
+- **`CARD_SHELL_KEEP`** — the keep-list above. Permanent.
+- **`CARD_SHELL_RATCHET`** — files still carrying pre-conversion shells,
+  grandfathered so the ban could land.
+
+**Every conversion PR must remove its files from the ratchet.** It only ever
+shrinks, never grows, and new surfaces never join it — they use the primitives
+from day one.

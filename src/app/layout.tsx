@@ -1,5 +1,4 @@
 import type { Metadata, Viewport } from "next";
-import { Inter, Oswald } from "next/font/google";
 import { ClerkProvider } from "@clerk/nextjs";
 import { NavigationTracker } from "@/components/navigation-tracker";
 import { ServiceWorkerRegister } from "@/components/pwa/service-worker-register";
@@ -7,22 +6,8 @@ import { ChunkRecoveryScript } from "@/components/pwa/chunk-recovery-script";
 import { UpdateOnResume } from "@/components/pwa/update-on-resume";
 import { PageTransition } from "@/components/page-transition";
 import { Providers } from "./providers";
+import { fontVariables } from "./fonts";
 import "./globals.css";
-
-// Body / UI / data — humanist sans, product-grade workhorse.
-const inter = Inter({
-  variable: "--font-sans",
-  subsets: ["latin"],
-  display: "swap",
-});
-
-// Display / headings — condensed grotesque, athletic gym-poster feel.
-const oswald = Oswald({
-  variable: "--font-display",
-  subsets: ["latin"],
-  weight: ["500", "600", "700"],
-  display: "swap",
-});
 
 const BRAND = "#0a0a0a";
 
@@ -66,7 +51,7 @@ export default function RootLayout({
     >
       <html
         lang="en"
-        className={`dark ${inter.variable} ${oswald.variable} h-full antialiased`}
+        className={`dark ${fontVariables} h-full antialiased`}
       >
         <body className="bg-background text-foreground min-h-[100dvh] flex flex-col">
           {/* Must be first in <body>: attaches chunk-failure listeners before

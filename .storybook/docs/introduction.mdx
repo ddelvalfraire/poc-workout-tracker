@@ -1,0 +1,50 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Design/Introduction" />
+
+# Workout Tracker — design system
+
+This catalog is the **reference implementation** of [DESIGN.md](https://github.com/ddelvalfraire/poc-workout-tracker/blob/main/DESIGN.md).
+Every component in `src/components/**` has a story. When the two disagree,
+DESIGN.md wins and the component is a bug.
+
+## How to use it
+
+- **Building a new surface?** Start in `UI/` — `Section`, `DividerList`,
+  `EmptyWords` and `Button` cover most list and detail work. Reach for
+  `UI/Card` only if your surface is on the keep-list.
+- **Reviewing a PR?** The [De-card Vocabulary](?path=/docs/design-de-card-vocabulary--docs)
+  page is the review contract, restated with live examples.
+- **Changing a colour, radius, duration or type size?** Edit
+  `src/design/tokens.ts` and run `npm run tokens`. Never edit a generated file.
+
+## The three rules that catch most mistakes
+
+1. **Hairlines, not shells.** Content sits on the page background, framed by
+   muted hairline dividers. `rounded-2xl` + `bg-card` shells are reserved for
+   the keep-list, and ESLint enforces it.
+2. **One volt per screen.** The accent marks the primary action or the single
+   live element — never decoration, and never once per row on a list you scan
+   repeatedly.
+3. **Chips are controls, words are labels.** Pill styling means "you can press
+   me". Metadata is words in the muted ink.
+
+## Sections
+
+- **Design** — this page, the tokens, and the de-card contract.
+- **UI** — the primitives. Full variant matrices; these are the vocabulary.
+- **Components** — feature components (stat tiles, badges, dialogs, headers).
+- **Charts** / **Ops** — data surfaces and the internal dashboard.
+- **Navigation** / **Editor** — the drawer and the notes editor.
+- **Behavioral** — components that render `null`. They are here as mount smoke
+  tests; see that section's stories for why they have no visual.
+
+## What this catalog does not do
+
+It does **not** make components portable to iOS or Android. These are React DOM
+components — `next/link`, Tailwind class strings, Base UI, Recharts. None of it
+runs in SwiftUI or Jetpack Compose, and a story file does not change that.
+
+What ports is the **token layer** and this catalog as a spec. See
+[Design Tokens](?path=/docs/design-design-tokens--docs) for the pipeline that
+generates Swift and Kotlin from the same source this app reads.
