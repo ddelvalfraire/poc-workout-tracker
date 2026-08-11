@@ -314,20 +314,35 @@ export function workoutDraftReducer(state: WorkoutDraft, action: DraftAction): W
     case 'TOGGLE_SET_COMPLETED':
       return {
         ...state,
-        exercises: mapExerciseAt(state.exercises, action.exerciseIndex, (exercise) => ({
-          ...exercise,
-          sets: exercise.sets.map((set, i) => {
-            if (i !== action.setIndex) return set
-            const checkingOff = !set.completed
-            const fill = checkingOff ? action.fill : undefined
-            return {
-              ...set,
-              reps: set.reps === '' && fill?.reps ? fill.reps : set.reps,
-              weight: set.weight === '' && fill?.weight ? fill.weight : set.weight,
-              completed: checkingOff,
-            }
-          }),
-        })),
+        exercises: mapExerciseAt(state.exercises, action.exerciseIndex, (exercise) => {
+          // Checking off a weight_reps set with no usable weight (typed or
+          // adoptable from the fill) is refused whole — no completion, no
+          // partial fill. A "done" set with a phantom load poisons volume
+          // and e1RM downstream. Unchecking is always allowed, so legacy
+          // rows that predate this rule stay correctable.
+          const target = exercise.sets[action.setIndex]
+          if (
+            target &&
+            !target.completed &&
+            isMissingRequiredWeight(exercise, action.setIndex, action.fill)
+          ) {
+            return exercise
+          }
+          return {
+            ...exercise,
+            sets: exercise.sets.map((set, i) => {
+              if (i !== action.setIndex) return set
+              const checkingOff = !set.completed
+              const fill = checkingOff ? action.fill : undefined
+              return {
+                ...set,
+                reps: set.reps === '' && fill?.reps ? fill.reps : set.reps,
+                weight: set.weight === '' && fill?.weight ? fill.weight : set.weight,
+                completed: checkingOff,
+              }
+            }),
+          }
+        }),
       }
 
     case 'SET_WORKOUT_NOTES':
@@ -487,6 +502,26 @@ export function detailToDraft(
   return { draft: { exercises, notes: workout.notes ?? '' }, name: workout.name ?? '' }
 }
 
+/**
+ * True when marking this set done must be refused: weight_reps mode with no
+ * usable weight typed and none adoptable from `fill`. Bodyweight modes are
+ * exempt — a blank weight is their normal reading (BW / +0 added / no
+ * assist). An explicit "0" passes (empty-bar work is a real load). Shared by
+ * the reducer guard, the finish pass, and the logger's pre-dispatch check so
+ * all three refuse the same sets.
+ */
+export function isMissingRequiredWeight(
+  exercise: DraftExercise,
+  setIndex: number,
+  fill?: { reps?: string; weight?: string },
+): boolean {
+  if (exercise.loggingType !== 'weight_reps') return false
+  const set = exercise.sets[setIndex]
+  if (!set) return false
+  const effective = set.weight.trim() === '' && fill?.weight ? fill.weight : set.weight
+  return toWeight(effective) === null
+}
+
 /** Plain positive-integer reps ("5", never "5.9"/"0"/"5e1") — the bar a set
  *  must clear to be auto-completed at finish. Stricter than toReps (which
  *  truncates fractions for persistence): auto-completion only claims sets
@@ -502,10 +537,11 @@ function hasPerformedReps(reps: string): boolean {
  * The finish-time completion pass: every unchecked set with reps logged gets
  * checked off (typing the reps IS the "I did it" — forgetting the circle
  * must not erase the set from scoring), and whatever remains unchecked is
- * counted so the finish flow can warn before saving it as skipped. Weight
- * stays irrelevant here — null-weight machine sets are legitimate, and
- * bodyweight sets never carry one. Pure: builds a fresh draft, counts both
- * outcomes, never mutates its input.
+ * counted so the finish flow can warn before saving it as skipped. A
+ * weight_reps set additionally needs a weight — auto-claiming one without it
+ * would persist exactly the phantom-load row the reducer guard refuses.
+ * Bodyweight modes still complete on reps alone. Pure: builds a fresh draft,
+ * counts both outcomes, never mutates its input.
  */
 export function completeFilledSets(draft: WorkoutDraft): {
   draft: WorkoutDraft
@@ -522,9 +558,9 @@ export function completeFilledSets(draft: WorkoutDraft): {
     if (exercise.skipped) return exercise
     return {
       ...exercise,
-      sets: exercise.sets.map((set) => {
+      sets: exercise.sets.map((set, setIndex) => {
         if (set.completed) return set
-        if (hasPerformedReps(set.reps)) {
+        if (hasPerformedReps(set.reps) && !isMissingRequiredWeight(exercise, setIndex)) {
           autoCompleted += 1
           return { ...set, completed: true }
         }
