@@ -63,13 +63,14 @@ export const REACTIVE_DEFAULT_SHAPE: DeloadShape = {
 
 /**
  * Whether a derived verdict should raise a reactive-deload proposal, and
- * which flavor. 'cutting-hold': the phase gate held an H2 auto-backoff — the
- * proposal offers THAT backoff, with hold as the default (Part A phrasing;
- * fires in any policy mode, because the hold gates auto-application, not the
- * policy). 'reactive': the policy is mode 'reactive' and M4 fired — the
- * proposal offers the program's deload shape (Part B). Null = silence
- * ('none' suppression already happened upstream in the derive gate; a
- * 'scheduled' program's non-cutting stalls keep their planned deload week).
+ * which flavor. Mode 'none' is silence for BOTH flavors — opting out of
+ * deloads means no backoff offers of any kind (owner's call, 2026-08-10;
+ * the engine still HOLDS the cutting backoff, it just never asks about it).
+ * 'cutting-hold': the phase gate held an H2 auto-backoff — the proposal
+ * offers THAT backoff, with hold as the default (Part A phrasing).
+ * 'reactive': the policy is mode 'reactive' and M4 fired — the proposal
+ * offers the program's deload shape (Part B). Null = silence (a 'scheduled'
+ * program's non-cutting stalls keep their planned deload week).
  */
 export function reactiveDeloadKind(
   adjustment: AutoregAdjustment | null,
@@ -77,6 +78,7 @@ export function reactiveDeloadKind(
   phase: DietPhase | null,
 ): 'cutting-hold' | 'reactive' | null {
   if (!adjustment?.suggestEarlyDeload) return null
+  if (policyMode === 'none') return null
   if (phase === 'cutting' && adjustment.heldBackoffKg !== undefined) return 'cutting-hold'
   if (policyMode === 'reactive') return 'reactive'
   return null

@@ -52,7 +52,7 @@ describe('reactiveDeloadKind (eligibility)', () => {
     )
   })
 
-  it("a cutting-held backoff → 'cutting-hold' in ANY policy mode (Part A)", () => {
+  it("a cutting-held backoff → 'cutting-hold' under 'scheduled' and 'reactive' (Part A)", () => {
     const held = adjustment({
       action: 'repeat',
       deltaKg: 0,
@@ -60,9 +60,18 @@ describe('reactiveDeloadKind (eligibility)', () => {
       heldBackoffKg: 10,
     })
     expect(reactiveDeloadKind(held, 'scheduled', 'cutting')).toBe('cutting-hold')
-    expect(reactiveDeloadKind(held, 'none', 'cutting')).toBe('cutting-hold')
     // Reactive + cutting collapses to the cutting phrasing — one proposal.
     expect(reactiveDeloadKind(held, 'reactive', 'cutting')).toBe('cutting-hold')
+  })
+
+  it("mode 'none' suppresses cutting-hold proposals too — opting out of deloads means no backoff offers", () => {
+    const held = adjustment({
+      action: 'repeat',
+      deltaKg: 0,
+      phaseContext: 'cutting',
+      heldBackoffKg: 10,
+    })
+    expect(reactiveDeloadKind(held, 'none', 'cutting')).toBeNull()
   })
 
   it("a non-reactive, non-cutting program raises nothing ('scheduled' keeps its week)", () => {
