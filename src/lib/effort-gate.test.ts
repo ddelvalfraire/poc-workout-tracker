@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest'
-import { applyEffortToAdjustment, EFFORT_GATE_MIN_SESSIONS } from './effort-gate'
+import {
+  applyEffortToAdjustment,
+  sustainedUndershoot,
+  EFFORT_GATE_MIN_SESSIONS,
+} from './effort-gate'
 import type { AutoregAdjustment, AutoregSession } from './autoregulate'
 
 /**
@@ -182,6 +186,62 @@ describe('overshoot-hold (range mode: downgrades a step)', () => {
 
   it('range mode never synthesizes from null (fill/hold is the scheme’s own logic)', () => {
     expect(applyEffortToAdjustment(null, effortSessions(0), 'range')).toBeNull()
+  })
+})
+
+describe('sustainedUndershoot (slice 4 detection)', () => {
+  it('fires after TWO consecutive easy sessions at the same load (mirror of M2)', () => {
+    // Prescribed RIR 2 (RPE 8), logged RIR 4 (RPE 6) = a full point-plus under.
+    const sessions = [
+      session({ startedAtMs: 3, rir: 4, prescribedRir: 2 }),
+      session({ startedAtMs: 2, rir: 4, prescribedRir: 2 }),
+      session({ startedAtMs: 1, rir: 2, prescribedRir: 2 }),
+    ]
+    expect(sustainedUndershoot(sessions)).toEqual({ loadKg: 100 })
+  })
+
+  it('one easy session is a good day, not a trend — silence', () => {
+    const sessions = [
+      session({ startedAtMs: 3, rir: 4, prescribedRir: 2 }),
+      session({ startedAtMs: 2, rir: 2, prescribedRir: 2 }),
+      session({ startedAtMs: 1, rir: 2, prescribedRir: 2 }),
+    ]
+    expect(sustainedUndershoot(sessions)).toBeNull()
+  })
+
+  it('the two sessions must be at the SAME load (ε) — a fresh load restarts the case', () => {
+    const sessions = [
+      session({ startedAtMs: 3, loadKg: 102.5, rir: 4, prescribedRir: 2 }),
+      session({ startedAtMs: 2, loadKg: 100, rir: 4, prescribedRir: 2 }),
+      session({ startedAtMs: 1, loadKg: 100, rir: 2, prescribedRir: 2 }),
+    ]
+    expect(sustainedUndershoot(sessions)).toBeNull()
+  })
+
+  it('respects the activation floor and the full-point threshold', () => {
+    // Only 2 logged sessions in the window → below EFFORT_GATE_MIN_SESSIONS.
+    const tooFew = [
+      session({ startedAtMs: 3, rir: 4, prescribedRir: 2 }),
+      session({ startedAtMs: 2, rir: 4, prescribedRir: 2 }),
+      session({ startedAtMs: 1 }),
+    ]
+    expect(sustainedUndershoot(tooFew)).toBeNull()
+    // RIR 3 vs prescribed 2 = one RIR under... exactly −1 RPE: fires only at ≤ target − 1.
+    const boundary = [
+      session({ startedAtMs: 3, rir: 3, prescribedRir: 2 }),
+      session({ startedAtMs: 2, rir: 3, prescribedRir: 2 }),
+      session({ startedAtMs: 1, rir: 2, prescribedRir: 2 }),
+    ]
+    expect(sustainedUndershoot(boundary)).toEqual({ loadKg: 100 })
+  })
+
+  it('a missed floor disqualifies the session — easy AND failed cannot coexist honestly', () => {
+    const sessions = [
+      session({ startedAtMs: 3, reps: 3, rir: 4, prescribedRir: 2 }),
+      session({ startedAtMs: 2, rir: 4, prescribedRir: 2 }),
+      session({ startedAtMs: 1, rir: 2, prescribedRir: 2 }),
+    ]
+    expect(sustainedUndershoot(sessions)).toBeNull()
   })
 })
 
