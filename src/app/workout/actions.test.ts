@@ -20,7 +20,7 @@ import {
   getWorkoutDetail,
 } from '@/db/workouts'
 import { getProgramDayDetail } from '@/db/programs'
-import { updateProgramExercise } from '@/db/program-patches'
+import { substituteProgramExercise } from '@/db/program-patches'
 import { autoSyncPlanToPerformance } from '@/lib/auto-plan-sync'
 import { checkTrophies } from '@/lib/trophies'
 import { getExerciseStats, getExerciseSessions } from '@/db/exercise-stats'
@@ -50,6 +50,7 @@ vi.mock('@/db/programs', () => ({
 }))
 vi.mock('@/db/program-patches', () => ({
   updateProgramExercise: vi.fn(),
+  substituteProgramExercise: vi.fn(),
 }))
 // The auto-sync helper is unit-tested in lib/auto-plan-sync.test.ts; here we
 // only assert the actions invoke it at the right seam.
@@ -406,7 +407,7 @@ describe('rememberSwapAction', () => {
       programDayId: 'day-1',
     } as never)
     vi.mocked(getProgramDayDetail).mockResolvedValue(DAY as never)
-    vi.mocked(updateProgramExercise).mockResolvedValue({ id: 'pe-1' } as never)
+    vi.mocked(substituteProgramExercise).mockResolvedValue({ id: 'pe-1' } as never)
   }
 
   it('patches the slot identity and does NOT revalidate any path (#214)', async () => {
@@ -417,7 +418,7 @@ describe('rememberSwapAction', () => {
     await rememberSwapAction(ID, 1706, { wgerExerciseId: 4, name: 'Elevated Lunge', source: 'custom' }, 'wger')
 
     // Assert — the write lands on the resolved slot…
-    expect(vi.mocked(updateProgramExercise)).toHaveBeenCalledWith(
+    expect(vi.mocked(substituteProgramExercise)).toHaveBeenCalledWith(
       USER,
       'prog-1',
       2,

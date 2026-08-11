@@ -15,6 +15,7 @@ import {
 } from '@/lib/program-input'
 import type { ExerciseSource } from '@/lib/custom-exercise-input'
 import type { AutoregStallPolicy } from '@/lib/autoregulate'
+import { TM_BASED_SCHEMES } from '@/lib/substitute-slot'
 import { db } from './index'
 import { recordProgramEvent, type ProgramEventActor } from './program-events'
 import { loadExerciseCatalog, muscleRowsFor, type ExerciseCatalog } from './programs'
@@ -838,6 +839,93 @@ export async function updateProgramExercise(
       payload: {
         before: { wgerExerciseId: found.wgerExerciseId, source: found.source, name: found.name },
         after: values,
+      },
+    })
+    return updated
+  })
+}
+
+/**
+ * The persisted twin of lib/substitute-slot.ts: re-points a slot at a new
+ * movement AND strips every absolute load that belonged to the old one —
+ * template `suggestedLoadKg`, per-week override `suggestedLoadKg`, and a
+ * TM-based progression (`percent-1rm`/`amrap-cycle` would keep prescribing
+ * the ORIGINAL lift's training max to the substitute). Rep ranges, RIR/RPE,
+ * rest, technique, and non-load overrides all survive — structure transfers,
+ * loads don't (#215). `updateProgramExercise` deliberately keeps loads: it
+ * is the general patch op, not a movement swap.
+ * Reads, in order: owned-exercise, current-progression, set-ids.
+ */
+export async function substituteProgramExercise(
+  userId: string,
+  programId: string,
+  dayPosition: number,
+  exercisePosition: number,
+  substitute: { wgerExerciseId: number; source: ExerciseSource; name: string },
+  actor: ProgramEventActor,
+): Promise<{ id: string } | null> {
+  const catalog = await loadExerciseCatalog(userId)
+  return db.transaction(async (tx) => {
+    const found = await findOwnedExercise(tx, userId, programId, dayPosition, exercisePosition)
+    if (!found) return null
+    const [current] = await tx
+      .select({ progression: programExercises.progression })
+      .from(programExercises)
+      .where(eq(programExercises.id, found.exerciseId))
+      .limit(1)
+    const dropProgression =
+      current?.progression != null && TM_BASED_SCHEMES.has(current.progression.scheme)
+    const [updated] = await tx
+      .update(programExercises)
+      .set({
+        wgerExerciseId: substitute.wgerExerciseId,
+        source: substitute.source,
+        name: substitute.name,
+        ...(dropProgression && { progression: null }),
+      })
+      .where(eq(programExercises.id, found.exerciseId))
+      .returning({ id: programExercises.id })
+    if (!updated) return null
+    await retagExerciseMuscles(
+      tx,
+      found.exerciseId,
+      substitute.source,
+      substitute.wgerExerciseId,
+      catalog,
+    )
+    const setRows = await tx
+      .select({ id: programSets.id })
+      .from(programSets)
+      .where(eq(programSets.programExerciseId, found.exerciseId))
+    await tx
+      .update(programSets)
+      .set({ suggestedLoadKg: null })
+      .where(eq(programSets.programExerciseId, found.exerciseId))
+    if (setRows.length > 0) {
+      await tx
+        .update(programSetOverrides)
+        .set({ suggestedLoadKg: null })
+        .where(
+          inArray(
+            programSetOverrides.programSetId,
+            setRows.map((row) => row.id),
+          ),
+        )
+    }
+    await bumpUpdatedAt(tx, programId)
+    await recordProgramEvent(tx, {
+      programId,
+      userId,
+      actor,
+      action: 'update_program_exercise',
+      summary: `Replace ${found.name} → ${substitute.name} (Day ${dayPosition + 1})`,
+      payload: {
+        before: { wgerExerciseId: found.wgerExerciseId, source: found.source, name: found.name },
+        after: {
+          ...substitute,
+          loadsCleared: true,
+          ...(dropProgression && { progressionCleared: true }),
+        },
       },
     })
     return updated
