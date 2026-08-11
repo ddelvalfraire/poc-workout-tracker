@@ -114,6 +114,26 @@ describe('WorkoutLogger effort-row parity', () => {
   })
 })
 
+describe('WorkoutLogger name lock (#207)', () => {
+  it('live session renders the name as static text, never an input', () => {
+    const html = render({ initialName: 'Legs', isLive: true })
+    expect(html).toContain('Legs')
+    // The name input's placeholder is the tell for the editable field.
+    expect(html).not.toContain('Optional — e.g. Lower')
+  })
+
+  it('live session with no name shows the muted fallback', () => {
+    const html = render({ isLive: true })
+    expect(html).toContain('Unnamed workout')
+  })
+
+  it('edit mode (finished workout) keeps the editable name input', () => {
+    const html = render({ workoutId: 'w1', isLive: false, initialName: 'Legs' })
+    expect(html).toContain('Optional — e.g. Lower')
+    expect(html).not.toContain('Unnamed workout')
+  })
+})
+
 describe('WorkoutLogger identity-note parity', () => {
   it('renders NO note chip when the exercise has no identity note', () => {
     // The sticky chip follows the effort-row discipline: with no pinned note
