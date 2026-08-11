@@ -20,6 +20,7 @@ import {
 import { setTrainingMax, withTx, ProgramPatchError } from './program-patches'
 import type { TmIncrement } from '@/lib/tm-restart'
 import { rollingE1rm } from '@/lib/rolling-e1rm'
+import { applyEffortToAdjustment } from '@/lib/effort-gate'
 import {
   autoregulate,
   autoregulateRange,
@@ -1532,6 +1533,10 @@ export async function deriveDayPrescription(
         // auto-backoff behind a confirmable proposal). A null phase returns
         // the identical object — byte-identity for phase-less programs.
         adjustment = applyDietPhaseToAdjustment(adjustment, day.program.dietPhase)
+        // Effort gate (RPE plan slice 3), strictly AFTER the diet gate — a
+        // cutting hold is never reopened. `===` passthrough without effort
+        // logs keeps non-RPE lifters byte-identical.
+        adjustment = applyEffortToAdjustment(adjustment, sessions, plan.mode)
         adjustmentByKey.set(key, adjustment)
       }
     }
