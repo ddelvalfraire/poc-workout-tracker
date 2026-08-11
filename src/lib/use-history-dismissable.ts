@@ -155,15 +155,23 @@ export function useHistoryDismissable(
 ): { dismissForNavigation: () => void } {
   // One controller per mounted overlay — lazy useState init keeps the
   // instance stable across renders; the latest onClose closure is wired in
-  // an effect so render never touches mutable state.
-  const [controller] = useState(
-    () => new HistoryDismissableController(window.history, () => window.location.href),
+  // an effect so render never touches mutable state. Null on the SERVER:
+  // the initializer runs during SSR too, and touching window there threw on
+  // every NavDrawer page, silently downgrading the whole page to client
+  // rendering. Effects only run in the browser, so they always see the real
+  // instance; the server's no-op dismiss handler is discarded with the rest
+  // of the server output.
+  const [controller] = useState(() =>
+    typeof window === 'undefined'
+      ? null
+      : new HistoryDismissableController(window.history, () => window.location.href),
   )
   useEffect(() => {
-    controller.setOnClose(onClose)
+    controller?.setOnClose(onClose)
   }, [controller, onClose])
 
   useEffect(() => {
+    if (controller === null) return
     const onPopstate = () => controller.handlePopstate()
     window.addEventListener('popstate', onPopstate)
     return () => {
@@ -173,8 +181,8 @@ export function useHistoryDismissable(
   }, [controller])
 
   useEffect(() => {
-    controller.setOpen(isOpen)
+    controller?.setOpen(isOpen)
   }, [controller, isOpen])
 
-  return { dismissForNavigation: () => controller.dismissForNavigation() }
+  return { dismissForNavigation: () => controller?.dismissForNavigation() }
 }
