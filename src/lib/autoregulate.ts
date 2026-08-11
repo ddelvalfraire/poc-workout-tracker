@@ -171,6 +171,12 @@ export interface AutoregAdjustment {
    *  proposal can offer the backoff as the confirmable action (decline =
    *  hold). Absent everywhere else. */
   heldBackoffKg?: number
+  /** Effort-gate annotation (lib/effort-gate.ts, RPE plan slice 3):
+   *  'overshoot' — reps hit but the top set ran a full RPE point hot, the
+   *  load holds instead of stepping; 'trend-veto' — H2's decrement was
+   *  vetoed by a rising credited-e1RM trend (bad day, not a stall). Same
+   *  additive-annotation contract as phaseContext. */
+  effortContext?: 'overshoot' | 'trend-veto'
   /** Present ONLY on range-mode (double progression) verdicts. Totals sum
    *  at-load working reps over the load-comparable prior session
    *  (`prevTotalReps` null when no comparable prior session exists). */
@@ -1186,6 +1192,13 @@ export function autoregReason(adjustment: AutoregAdjustment, unit: WeightUnit): 
   // and the held H2 backoff alike.
   if (adjustment.phaseContext === 'cutting' && adjustment.suggestEarlyDeload) {
     return `3 stalls at ${load} — expected while cutting; holding is the win. Deload only if sessions feel grindy`
+  }
+  // Effort-gate sentences (one each — the annotation IS the story).
+  if (adjustment.effortContext === 'overshoot') {
+    return `Reps there but the top set ran hot at ${load} — holding the load`
+  }
+  if (adjustment.effortContext === 'trend-veto') {
+    return `Third stall at ${load}, but your e1RM trend is rising — holding, not backing off`
   }
   if (adjustment.action === 'flag') {
     return `Third straight stall at ${load} — training max likely set too high`
