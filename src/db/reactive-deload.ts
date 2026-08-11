@@ -10,6 +10,11 @@ import {
   reactiveDeloadSubject,
   type ReactiveDeloadCandidate,
 } from '@/lib/reactive-deload'
+import {
+  EFFORT_STEP_SOURCE,
+  effortStepProposalContent,
+  hasPendingEffortStepProposal,
+} from '@/lib/effort-step'
 import { db } from './index'
 import { createPatchProposal, listPatchProposals } from './patch-proposals'
 import { getProgramDetail, nextProgramWeek, deriveDayPrescription } from './programs'
@@ -60,10 +65,12 @@ export async function ensureReactiveDeloadProposals(
     if (!program || program.status !== 'active' || !program.autoregulation) return
     const resolved = resolveDeloadPolicy(program.deloadPolicy, program.deloadWeek)
     const cutting = program.dietPhase === 'cutting'
-    // Mode 'none' opted out of deloads entirely — no proposals, cutting or
-    // not (reactiveDeloadKind enforces the same rule; this skips the reads).
-    if (resolved.mode === 'none') return
-    if (resolved.mode !== 'reactive' && !cutting) return
+    // Deload-flavored proposals: mode 'none' opted out entirely (#197);
+    // otherwise 'reactive' (Part B) or a cutting hold (Part A) wants them.
+    // EFFORT-STEP proposals (RPE plan slice 4) are not deloads — a step-up
+    // ask fires under ANY policy, so the sweep now runs for every active
+    // autoregulated program (the weekly marker still caps the cost).
+    const wantsDeload = resolved.mode !== 'none' && (resolved.mode === 'reactive' || cutting)
 
     const currentWeek = await nextProgramWeek(userId, programId, program.mesocycleWeeks)
     const redis = getRedis()
@@ -126,33 +133,68 @@ export async function ensureReactiveDeloadProposals(
       )
 
       for (const [index, exercise] of day.exercises.entries()) {
-        const adjustment = prescriptions[index]?.autoreg ?? null
-        const kind = reactiveDeloadKind(adjustment, resolved.mode, program.dietPhase)
-        if (kind === null || adjustment === null) continue
         const subject = reactiveDeloadSubject(exercise.source, exercise.wgerExerciseId)
-        // First occurrence wins (deriveDayPrescription already shares one
-        // verdict per identity); pending rows block a re-ask outright.
-        if (proposedSubjects.has(subject)) continue
-        if (hasPendingReactiveDeloadProposal(pending, subject)) continue
-        const candidate: ReactiveDeloadCandidate = {
-          name: exercise.name,
-          dayPosition: day.position,
-          exercisePosition: exercise.position,
-          week: targetWeek,
-          workingSets: (prescriptions[index]?.sets ?? [])
-            .filter((s) => s.setType === 'working')
-            .map((s) => ({ setNumber: s.setNumber, loadKg: s.loadKg })),
-          adjustment,
+        const workingSets = (prescriptions[index]?.sets ?? [])
+          .filter((s) => s.setType === 'working')
+          .map((s) => ({ setNumber: s.setNumber, loadKg: s.loadKg }))
+
+        const adjustment = prescriptions[index]?.autoreg ?? null
+        const kind = wantsDeload
+          ? reactiveDeloadKind(adjustment, resolved.mode, program.dietPhase)
+          : null
+        if (kind !== null && adjustment !== null) {
+          // First occurrence wins (deriveDayPrescription already shares one
+          // verdict per identity); pending rows block a re-ask outright.
+          if (!proposedSubjects.has(subject) && !hasPendingReactiveDeloadProposal(pending, subject)) {
+            const candidate: ReactiveDeloadCandidate = {
+              name: exercise.name,
+              dayPosition: day.position,
+              exercisePosition: exercise.position,
+              week: targetWeek,
+              workingSets,
+              adjustment,
+            }
+            const content = reactiveDeloadProposalContent(candidate, kind, shape, unit)
+            if (content !== null) {
+              proposedSubjects.add(subject)
+              // A null result (concurrent duplicate, program drifted) is a
+              // no-op — the ON CONFLICT no-op inside createPatchProposal is
+              // the race net.
+              await createPatchProposal(
+                userId,
+                programId,
+                { ...content, source: REACTIVE_DELOAD_SOURCE, muscleGroup: subject },
+                'mcp',
+              )
+            }
+          }
         }
-        const content = reactiveDeloadProposalContent(candidate, kind, shape, unit)
-        if (content === null) continue
+
+        // Effort-step (slice 4): sustained undershoot earns a step-UP ask —
+        // the mirror proposal, own source, own pending row. A lift never
+        // gets both asks in one sweep: a deload-flavored verdict wins (the
+        // signals are contradictory; stall evidence outranks easy evidence).
+        const stepLoadKg = prescriptions[index]?.effortStepLoadKg ?? null
+        if (stepLoadKg === null || kind !== null) continue
+        if (proposedSubjects.has(subject)) continue
+        if (hasPendingEffortStepProposal(pending, subject)) continue
+        const stepContent = effortStepProposalContent(
+          {
+            name: exercise.name,
+            dayPosition: day.position,
+            exercisePosition: exercise.position,
+            week: targetWeek,
+            workingSets,
+          },
+          stepLoadKg,
+          unit,
+        )
+        if (stepContent === null) continue
         proposedSubjects.add(subject)
-        // A null result (concurrent duplicate, program drifted) is a no-op —
-        // the ON CONFLICT no-op inside createPatchProposal is the race net.
         await createPatchProposal(
           userId,
           programId,
-          { ...content, source: REACTIVE_DELOAD_SOURCE, muscleGroup: subject },
+          { ...stepContent, source: EFFORT_STEP_SOURCE, muscleGroup: subject },
           'mcp',
         )
       }

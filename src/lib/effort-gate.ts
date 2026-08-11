@@ -96,6 +96,42 @@ function risingTrend(orderedDesc: AutoregSession[]): boolean {
   return points[points.length - 1] - points[0] > TREND_MIN_GAIN_KG
 }
 
+/**
+ * SUSTAINED UNDERSHOOT (RPE plan slice 4's detector): the newest TWO
+ * sessions (mirror of M2's two-session confirm) both worked the same
+ * ε-comparable top load with floors met and logged effort a FULL point or
+ * more UNDER the prescribed target. Returns the load that earned a step —
+ * consumed by the proposal trigger (db/reactive-deload.ts), never applied
+ * automatically: steps are the owner's confirm, holds are the only thing
+ * the gate does on its own. Same activation floor as the gate.
+ */
+export function sustainedUndershoot(sessions: AutoregSession[]): { loadKg: number } | null {
+  const ordered = [...sessions].sort((a, b) => b.startedAtMs - a.startedAtMs) // H6
+  const loggedCount = ordered.filter((s) => {
+    const pair = topPair(s)
+    return pair !== null && effortAsRpe(pair.actual.rpe, pair.actual.rir) !== null
+  }).length
+  if (loggedCount < EFFORT_GATE_MIN_SESSIONS) return null
+
+  const LOAD_EPSILON_KG = 0.05 // engine's C2 epsilon
+  let caseLoadKg: number | null = null
+  for (const s of ordered.slice(0, 2)) {
+    const pair = topPair(s)
+    if (pair === null || pair.prescribed.loadKg === null) return null
+    const target = effortAsRpe(pair.prescribed.rpe, pair.prescribed.rir)
+    const logged = effortAsRpe(pair.actual.rpe, pair.actual.rir)
+    if (target === null || logged === null) return null
+    const floorMet =
+      pair.prescribed.repMin === null ||
+      (pair.actual.reps !== null && pair.actual.reps >= pair.prescribed.repMin)
+    if (!floorMet) return null // easy AND failed cannot coexist honestly
+    if (logged > target - OVERSHOOT_RPE_THRESHOLD) return null
+    if (caseLoadKg === null) caseLoadKg = pair.prescribed.loadKg
+    else if (Math.abs(pair.prescribed.loadKg - caseLoadKg) > LOAD_EPSILON_KG) return null
+  }
+  return caseLoadKg === null ? null : { loadKg: caseLoadKg }
+}
+
 export function applyEffortToAdjustment(
   adjustment: AutoregAdjustment | null,
   sessions: AutoregSession[],

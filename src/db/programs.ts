@@ -20,7 +20,7 @@ import {
 import { setTrainingMax, withTx, ProgramPatchError } from './program-patches'
 import type { TmIncrement } from '@/lib/tm-restart'
 import { rollingE1rm } from '@/lib/rolling-e1rm'
-import { applyEffortToAdjustment } from '@/lib/effort-gate'
+import { applyEffortToAdjustment, sustainedUndershoot } from '@/lib/effort-gate'
 import {
   autoregulate,
   autoregulateRange,
@@ -1293,6 +1293,10 @@ export interface DayForDerivation {
 export interface ExercisePrescription {
   sets: DerivedSet[]
   autoreg: AutoregAdjustment | null
+  /** Sustained-undershoot signal (RPE plan slice 4): the ε-comparable top
+   *  load two consecutive easy sessions worked, or null. Consumed by the
+   *  effort-step proposal trigger — NEVER auto-applied. */
+  effortStepLoadKg: number | null
 }
 
 /** Which Layer 1 rule set an exercise gets (see lib/autoregulate.ts's scope
@@ -1436,6 +1440,7 @@ export async function deriveDayPrescription(
   // composite key (first slot) and reuses it — no re-query, and slot-1
   // actuals are never scored against a later slot's templates.
   const adjustmentByKey = new Map<string, AutoregAdjustment | null>()
+  const effortStepByKey = new Map<string, number | null>()
   for (const exercise of day.exercises) {
     const key = catalogKey(exercise.source, exercise.wgerExerciseId)
     const history: ExerciseHistoryInput = {
@@ -1538,6 +1543,12 @@ export async function deriveDayPrescription(
         // logs keeps non-RPE lifters byte-identical.
         adjustment = applyEffortToAdjustment(adjustment, sessions, plan.mode)
         adjustmentByKey.set(key, adjustment)
+        // Sustained-undershoot detection (slice 4) — fixed/range only, the
+        // same restriction as the gate: self-correcting schemes step
+        // through their own math, not through proposals.
+        if (plan.mode === 'fixed' || plan.mode === 'range') {
+          effortStepByKey.set(key, sustainedUndershoot(sessions)?.loadKg ?? null)
+        }
       }
     }
 
@@ -1552,6 +1563,7 @@ export async function deriveDayPrescription(
         ),
       ),
       autoreg: adjustment,
+      effortStepLoadKg: effortStepByKey.get(key) ?? null,
     })
   }
   return results
