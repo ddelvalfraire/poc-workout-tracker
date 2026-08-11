@@ -51,9 +51,10 @@ import type { DietPhase } from './program-input'
  * at least half the snapshot's working sets (M3). Overrides always outrank
  * autoreg (applied later in the precedence chain, same as scheme loads).
  *
- * v1 rules are REP-based. RPE over/undershoot rules are specified in the PRD
- * but blocked on data: logged sets carry no actual RPE (only prescriptions
- * do), so they wait for an optional per-set RPE input.
+ * v1 rules are REP-based. Logged per-set effort (sets.rir/rpe via the chips,
+ * RPE/RIR §2) now rides along on both session sides with its prescription
+ * snapshot (prescribedRir/prescribedRpe) — the effort gate consumes it
+ * (RPE plan slices 3–4); the rep rules themselves stay effort-blind.
  */
 
 /** Per-program FIXED-mode stall policy (programs.autoreg_stall_policy):
@@ -72,6 +73,10 @@ export interface AutoregPrescribedSet {
   loadKg: number | null
   /** Warm-ups never stall a lift. */
   setType?: string
+  /** Prescribed effort targets from the snapshot columns (RPE plan slice 2) —
+   *  the effort gate's comparison baseline; absent/null = no target. */
+  rir?: number | null
+  rpe?: number | null
 }
 
 export interface AutoregActualSet {
@@ -81,6 +86,9 @@ export interface AutoregActualSet {
   weightKg: number | null
   completed: boolean
   setType?: string
+  /** Logged effort (the chips) — absent/null = not logged (opt-in). */
+  rir?: number | null
+  rpe?: number | null
 }
 
 /** One prior session of the exercise: what the snapshot says was prescribed,

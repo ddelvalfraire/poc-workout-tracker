@@ -39,6 +39,14 @@ export interface AutoregHistorySession {
     setType: 'working' | 'warmup' | 'backoff' | 'amrap'
     prescribedLoadKg: number | null
     prescribedRepMin: number | null
+    /** Logged effort + its prescription snapshot (RPE plan slice 2) — the
+     *  effort gate scores rir/rpe against prescribedRir/prescribedRpe, the
+     *  same snapshot contract as load/repMin. Null everywhere for sets
+     *  without chips or targets; nothing downstream acts on them yet. */
+    rir: number | null
+    rpe: number | null
+    prescribedRir: number | null
+    prescribedRpe: number | null
   }[]
 }
 
@@ -179,6 +187,10 @@ export async function getRecentTrainedSessions(
       setType: sets.setType,
       prescribedLoadKg: sets.prescribedLoadKg,
       prescribedRepMin: sets.prescribedRepMin,
+      rir: sets.rir,
+      rpe: sets.rpe,
+      prescribedRir: sets.prescribedRir,
+      prescribedRpe: sets.prescribedRpe,
     })
     .from(sets)
     .where(
@@ -203,6 +215,10 @@ export async function getRecentTrainedSessions(
         setType: r.setType,
         prescribedLoadKg: r.prescribedLoadKg,
         prescribedRepMin: r.prescribedRepMin,
+        rir: r.rir,
+        rpe: r.rpe,
+        prescribedRir: r.prescribedRir,
+        prescribedRpe: r.prescribedRpe,
       })),
   }))
 }
