@@ -15,6 +15,7 @@ import {
 } from 'drizzle-orm'
 import { cache } from 'react'
 import type { WorkoutInput, LoggingType } from '@/lib/workout-input'
+import type { SetType } from '@/lib/program-input'
 import type { ExerciseSource } from '@/lib/custom-exercise-input'
 import { db } from './index'
 import { workouts, workoutExercises, sets, exerciseNotes } from './schema'
@@ -216,6 +217,11 @@ export async function getExerciseHistoryBefore(
     reps: number | null
     weight: number | null
     loggingType: LoggingType
+    workoutId: string
+    startedAt: Date
+    rir: number | null
+    setType: SetType
+    completed: boolean
   }[]
 > {
   if (wgerExerciseIds.length === 0) return []
@@ -230,6 +236,14 @@ export async function getExerciseHistoryBefore(
       // The row's OWN logging type: `weight` is only a total load for
       // weight_reps rows — scorers must not read BW-type rows raw.
       loggingType: workoutExercises.loggingType,
+      // Session identity + ordering + effort for the rolling e1RM
+      // (lib/rolling-e1rm.ts) — the windowed signal groups per workout and
+      // credits logged RIR; additive, existing consumers ignore them.
+      workoutId: workouts.id,
+      startedAt: workouts.startedAt,
+      rir: sets.rir,
+      setType: sets.setType,
+      completed: sets.completed,
     })
     .from(sets)
     .innerJoin(workoutExercises, eq(workoutExercises.id, sets.workoutExerciseId))
