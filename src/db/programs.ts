@@ -1500,6 +1500,8 @@ export async function deriveDayPrescription(
             repMin: r.prescribedRepMin,
             loadKg: r.prescribedLoadKg,
             setType: r.setType,
+            rir: r.prescribedRir,
+            rpe: r.prescribedRpe,
           })),
           actual: s.sets.map((r) => ({
             setNumber: r.setNumber,
@@ -1507,6 +1509,8 @@ export async function deriveDayPrescription(
             weightKg: r.weightKg,
             completed: r.completed,
             setType: r.setType,
+            rir: r.rir,
+            rpe: r.rpe,
           })),
         }))
         const rangeRows: AutoregRangeRow[] =
