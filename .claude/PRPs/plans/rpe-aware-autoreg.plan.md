@@ -69,12 +69,12 @@ Replace the all-time-best e1RM input with the rolling e1RM (window-scoped), so a
 4. **Slice 4 — undershoot step proposals** through the reactive-proposal seam (owner-confirmed, never auto).
 Each slice: TDD, byte-identity tests for the no-effort-data path (reference-equality, same as diet-phase's), full review.
 
-## 5. Open questions for David
+## 5. Resolved decisions (from the research — not open)
 
-- Overshoot threshold: target +1 RPE (proposed) or +0.5? (+0.5 is within reporting noise per Halperin — recommend +1.)
-- Should the trend veto apply to the M4 early-deload *flag* too, or only H2's load-touching decrement? (Proposed: flag stays — it's advisory and cheap to see.)
-- Does the undershoot proposal ride the existing reactive-deload proposal table (`source: 'effort-step'`) or want its own surface?
-- Minimum data: 3 sessions (proposed) vs 5 — 3 matches the engine's stall cadence; 5 matches the literature's caution.
+- **Overshoot threshold: target +1 RPE.** Halperin 2022: between-person reporting SD ≈ 1.45 reps and ~1-rep systematic sandbagging — a ±0.5 distinction is inside the noise floor of the instrument. The engine reacts only to a full-point overshoot; anything finer is reacting to measurement error, which violates silence-over-corruption.
+- **Trend veto applies to H2's decrement only; the M4 flag stays visible.** The veto exists to stop the engine *changing loads* off what the trend proves was a bad day. M4 never touches loads — it's advisory information, and the deload-policy design already gives 'none' users the switch that silences it. Hiding cheap advisory information behind a trend heuristic adds a failure mode (trend wrong → flag lost) with no corresponding safety gain.
+- **Undershoot proposals ride the existing proposal machinery, `source: 'effort-step'`.** The dedup subject infrastructure (partial unique index on program + source + muscleGroup-as-subject) is already generic, the approval-card surface already renders per-patch sentences, and the deload-policy memory explicitly deferred proposal flows TO the batch machinery — building a second surface would revisit a settled decision. Only the copy inverts (offering *more* load), which is a sentence, not a surface.
+- **Minimum data: 3 qualifying RPE-logged sessions.** Forced by the architecture, not just preference: the history window is 4 sessions (`AUTOREG_RANGE_SESSION_WINDOW`, 45-day recency), so a 5-session minimum could never be satisfied without widening the window — a bigger change than the guardrail it serves. The literature's caution about small samples is already absorbed upstream: the gate acts on the rolling trend (never one session), holds are its only automatic action, and steps go through owner confirmation.
 
 ## Sources
 
