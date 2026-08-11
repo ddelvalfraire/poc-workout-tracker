@@ -338,8 +338,13 @@ export async function rememberSwapAction(
     'ui',
   )
   if (!updated) throw new Error('could not update the program')
-  revalidatePath('/programs')
-  revalidatePath(`/programs/${day.program.id}`)
+  // No revalidatePath here: a Server-Action revalidation also re-renders the
+  // CURRENT route's RSC payload, and mid-session that re-runs the whole
+  // logger page (plan derivation included) under the app-wide page
+  // <ViewTransition> — the "full reload" jank of #214. The program pages
+  // this write affects render dynamically per request (auth cookies), so
+  // the only staleness is the client router cache's brief TTL — and there
+  // is no path from a live session to /programs that matters within it.
 }
 
 // ---------------------------------------------------------------------------
