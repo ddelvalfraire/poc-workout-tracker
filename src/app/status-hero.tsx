@@ -208,7 +208,7 @@ export function StatusHero(props: StatusHeroProps) {
               its copy lives in the context sentence above. */}
           <Link
             href="/programs"
-            className="mt-3 flex items-center gap-0.5 text-sm text-muted-foreground underline-offset-2 active:underline"
+            className="mt-3 flex w-fit items-center gap-0.5 text-sm text-muted-foreground underline-offset-2 active:underline"
           >
             Browse programs
             <ChevronRight aria-hidden="true" className="size-4" />
@@ -247,7 +247,7 @@ export function StatusHero(props: StatusHeroProps) {
       {status.state === 'block-complete' && props.nextDay && (
         <Link
           href={`/programs/${props.nextDay.programId}/stats`}
-          className="mt-4 flex items-center gap-0.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
+          className="mt-4 flex w-fit items-center gap-0.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
         >
           See results
           <ChevronRight aria-hidden="true" className="size-4" />

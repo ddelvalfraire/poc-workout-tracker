@@ -250,7 +250,7 @@ export function NavDrawer() {
       // template fact today, and a count would mean a new read on every
       // drawer open — not a nav-open cost for a static promise.
       href: '/templates',
-      label: 'Templates',
+      label: 'Session templates',
       icon: LayoutTemplate,
       status: 'Start from a saved session',
       invitation: 'Start from a saved session',
