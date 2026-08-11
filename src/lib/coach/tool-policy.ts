@@ -50,6 +50,10 @@ export const COACH_READ_TOOLS = [
   // Read-only by construction too — goals have no MCP write tools in v1, so
   // the coach can reference targets/streaks freely, never set them.
   'list_goals',
+  // The curated library index — read-only. adopt_template stays EXCLUDED:
+  // it lands a draft directly (no 'proposed' gate), so the coach's route to
+  // a template remains upsert_program → proposed → the owner's adopt.
+  'list_templates',
   // Read-only by construction: adopt/confirm/decline are owner-only server
   // actions, so listing outstanding proposals can never resolve one.
   'list_proposals',
@@ -127,6 +131,9 @@ export const COACH_EXCLUDED_TOOLS = [
   'create_custom_exercise',
   'update_custom_exercise',
   'set_weight_unit',
+  // Lands a DRAFT directly (no 'proposed' gate) — the coach's route to a
+  // template is upsert_program → proposed → the owner's adopt.
+  'adopt_template',
 ] as const
 
 export const COACH_ALLOWED_TOOLS: ReadonlySet<string> = new Set([
