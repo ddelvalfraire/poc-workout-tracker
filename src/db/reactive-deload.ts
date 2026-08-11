@@ -60,6 +60,9 @@ export async function ensureReactiveDeloadProposals(
     if (!program || program.status !== 'active' || !program.autoregulation) return
     const resolved = resolveDeloadPolicy(program.deloadPolicy, program.deloadWeek)
     const cutting = program.dietPhase === 'cutting'
+    // Mode 'none' opted out of deloads entirely — no proposals, cutting or
+    // not (reactiveDeloadKind enforces the same rule; this skips the reads).
+    if (resolved.mode === 'none') return
     if (resolved.mode !== 'reactive' && !cutting) return
 
     const currentWeek = await nextProgramWeek(userId, programId, program.mesocycleWeeks)
