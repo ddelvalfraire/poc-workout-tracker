@@ -62,7 +62,7 @@ export default async function TemplatesPage() {
   return (
     <div className="flex min-h-[100dvh] flex-col">
       <AppHeader
-        title="Templates"
+        title="Session templates"
         leading={<NavDrawer />}
       />
 

@@ -154,7 +154,7 @@ export default async function ProgramsPage() {
               href="/programs/templates"
               className={cn(buttonVariants({ variant: 'outline', size: 'lg' }), 'mt-3 w-full')}
             >
-              Browse templates
+              Browse program templates
             </Link>
           </div>
         ) : (
@@ -218,7 +218,7 @@ export default async function ProgramsPage() {
                 href="/programs/templates"
                 className={cn(buttonVariants({ variant: 'outline' }), 'flex-1')}
               >
-                Browse templates
+                Browse program templates
               </Link>
             </div>
 
