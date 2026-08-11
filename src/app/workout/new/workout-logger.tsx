@@ -421,6 +421,13 @@ export function WorkoutLogger({
     [],
   )
 
+  useEffect(
+    () => () => {
+      if (weightNudgeTimerRef.current) clearTimeout(weightNudgeTimerRef.current)
+    },
+    [],
+  )
+
   function flashFilledSet(setId: string) {
     if (flashTimerRef.current) clearTimeout(flashTimerRef.current)
     setFlashSetId(setId)
