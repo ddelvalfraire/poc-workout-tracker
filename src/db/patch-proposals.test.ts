@@ -86,6 +86,7 @@ const {
   setOverrideMock,
   removeOverrideMock,
   setTrainingMaxMock,
+  setDietPhaseMock,
 } = vi.hoisted(() => ({
   addProgramSetMock: vi.fn(),
   updateProgramSetMock: vi.fn(),
@@ -93,6 +94,7 @@ const {
   setOverrideMock: vi.fn(),
   removeOverrideMock: vi.fn(),
   setTrainingMaxMock: vi.fn(),
+  setDietPhaseMock: vi.fn(),
 }))
 
 vi.mock('./program-patches', () => ({
@@ -102,6 +104,7 @@ vi.mock('./program-patches', () => ({
   setProgramSetOverride: setOverrideMock,
   removeProgramSetOverride: removeOverrideMock,
   setTrainingMax: setTrainingMaxMock,
+  setProgramDietPhase: setDietPhaseMock,
   withTx: (tx: unknown) => ({ transaction: (cb: (t: unknown) => unknown) => cb(tx) }),
 }))
 
@@ -276,6 +279,28 @@ describe('confirmPatchProposal (single combined confirm)', () => {
       ...over,
     },
   ]
+
+  it('applies a program-level diet-phase patch through setProgramDietPhase (no position address)', async () => {
+    // Arrange
+    selectQueue = [
+      pendingRow({
+        patches: [{ tool: 'set_program_diet_phase', args: { phase: null } }],
+      }),
+    ]
+
+    // Act
+    const result = await confirmPatchProposal(USER, PROPOSAL_ID)
+
+    // Assert — the op gets the proposal's actor and the shared transaction
+    expect(result).toEqual({ id: PROPOSAL_ID, programId: PID, applied: 1 })
+    expect(setDietPhaseMock).toHaveBeenCalledExactlyOnceWith(
+      USER,
+      PID,
+      null,
+      'coach',
+      expect.objectContaining({ transaction: expect.any(Function) }),
+    )
+  })
 
   it('applies every patch through the existing ops with the PROPOSAL actor, then marks applied', async () => {
     // Arrange

@@ -53,6 +53,8 @@ import { MarkdownView } from '@/components/markdown-view'
 import { ProposalActions } from './proposal-actions'
 import { SharingSection } from './sharing-section'
 import { RestartProgramButton } from './restart-program-button'
+import { DietPhaseCard } from './diet-phase-card'
+import { cuttingStalenessWeeks } from '@/lib/diet-phase-staleness'
 
 /** Chip labels for the change log — WHO edited, in the user's own terms. */
 const ACTOR_LABELS: Record<ProgramEventActor, string> = {
@@ -530,6 +532,20 @@ export default async function ProgramDetailPage({
             </span>
           )}
         </div>
+
+        {/* "Still cutting?" — the phase's staleness ask (only cutting goes
+            stale; lib/diet-phase-staleness.ts owns the threshold). Active
+            programs only: a draft/archived plan reads no verdicts through
+            the phase, so there is nothing to affirm. */}
+        {status === 'active' &&
+          (() => {
+            const weeks = cuttingStalenessWeeks(
+              program.dietPhase,
+              program.dietPhaseSetAt,
+              new Date(),
+            )
+            return weeks !== null ? <DietPhaseCard programId={program.id} weeks={weeks} /> : null
+          })()}
 
         {/* Auto-regulation visibility: when the engine is holding or backing
             off a lift this week, say so — quietly and honestly (muted card,
