@@ -166,6 +166,19 @@ const INVOCATIONS: Record<string, { selects: unknown[][]; run: () => Promise<unk
     selects: [OWNED_EXERCISE],
     run: () => patches.updateProgramExercise(USER, PID, 0, 0, { name: 'Larsen Press' }, 'mcp'),
   },
+  substituteProgramExercise: {
+    // Reads: owned-exercise, current-progression, set-ids
+    selects: [OWNED_EXERCISE, [{ progression: null }], []],
+    run: () =>
+      patches.substituteProgramExercise(
+        USER,
+        PID,
+        0,
+        0,
+        { wgerExerciseId: 4, source: 'custom', name: 'Elevated Lunge' },
+        'mcp',
+      ),
+  },
   removeProgramExercise: {
     selects: [OWNED_EXERCISE],
     run: () => patches.removeProgramExercise(USER, PID, 0, 0, 'mcp'),

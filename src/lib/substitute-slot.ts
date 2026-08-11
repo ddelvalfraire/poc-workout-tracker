@@ -20,8 +20,10 @@ export interface SlotForSubstitution {
 /** Schemes whose loads come from an ORIGINAL-movement training max — kept,
  *  they'd prescribe squat loads to a leg press. Base-anchored schemes are
  *  fine once the base is stripped (loads go null); rpe-target anchors on the
- *  substitute's own history e1RM and transfers perfectly. */
-const TM_BASED_SCHEMES = new Set<Progression['scheme']>(['percent-1rm', 'amrap-cycle'])
+ *  substitute's own history e1RM and transfers perfectly. Exported so the
+ *  persisted swap (db/program-patches.ts substituteProgramExercise) applies
+ *  the exact same rule as this in-memory preview. */
+export const TM_BASED_SCHEMES = new Set<Progression['scheme']>(['percent-1rm', 'amrap-cycle'])
 
 /**
  * The original slot re-pointed at the substitute, with every absolute load
