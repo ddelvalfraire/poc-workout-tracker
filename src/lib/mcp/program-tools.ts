@@ -36,6 +36,7 @@ import {
 } from '@/db/programs'
 import { NotCoachProposalError, ProposedProgramError } from '@/db/program-errors'
 import { listPatchProposals } from '@/db/patch-proposals'
+import { listTemplates, adoptTemplate } from '@/db/templates'
 import { restartTmPlan } from '@/db/restart-plan'
 import type { TmIncrement } from '@/lib/tm-restart'
 import { getWeightUnit } from '@/db/preferences'
@@ -620,6 +621,57 @@ export function registerProgramTools(server: McpServer): void {
             updatedAt: r.updatedAt.toISOString(),
           })),
         })
+      } catch (error: unknown) {
+        return errorResult(error)
+      }
+    },
+  )
+
+  server.registerTool(
+    'list_templates',
+    {
+      title: 'List Templates',
+      description:
+        'Lists the curated program-template library (public, system-owned): id, name, description, mesocycle length, and day names. Read-only. Use adopt_template to copy one into the user’s account as a draft.',
+      inputSchema: { userId: z.string().optional() },
+    },
+    async ({ userId }, extra) => {
+      try {
+        const resolved = resolveUserId(extra, userId)
+        const rows = await listTemplates()
+        return jsonResult({
+          userId: resolved,
+          templates: rows.map((t) => ({
+            id: t.id,
+            name: t.name,
+            description: t.description,
+            icon: t.icon,
+            mesocycleWeeks: t.mesocycleWeeks,
+            deloadWeek: t.deloadWeek,
+            days: t.days.map((d) => d.name),
+          })),
+        })
+      } catch (error: unknown) {
+        return errorResult(error)
+      }
+    },
+  )
+
+  server.registerTool(
+    'adopt_template',
+    {
+      title: 'Adopt Template',
+      description:
+        "Copies a program template from the curated library into the user's account as a DRAFT program (never linked — the copy is theirs to edit; activate it with set_program_status). Returns the new programId. Errors if the template id isn't in the public library.",
+      inputSchema: { templateId: z.string(), userId: z.string().optional() },
+    },
+    async ({ templateId, userId }, extra) => {
+      try {
+        const resolved = resolveUserId(extra, userId)
+        assertProgramIdShape(templateId)
+        const result = await adoptTemplate(resolved, templateId)
+        if (!result) throw new ToolError(`Template ${templateId} not found in the library`)
+        return jsonResult({ userId: resolved, programId: result.id, status: 'draft' })
       } catch (error: unknown) {
         return errorResult(error)
       }

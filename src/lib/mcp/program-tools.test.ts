@@ -17,6 +17,7 @@ vi.mock('@/db/programs', () => ({
 vi.mock('@/db/preferences', () => ({ getWeightUnit: vi.fn() }))
 vi.mock('@/db/patch-proposals', () => ({ listPatchProposals: vi.fn() }))
 vi.mock('@/db/restart-plan', () => ({ restartTmPlan: vi.fn() }))
+vi.mock('@/db/templates', () => ({ listTemplates: vi.fn(), adoptTemplate: vi.fn() }))
 
 import { registerProgramTools } from './program-tools'
 import {
@@ -34,6 +35,7 @@ import {
 } from '@/db/programs'
 import { getWeightUnit } from '@/db/preferences'
 import { listPatchProposals } from '@/db/patch-proposals'
+import { listTemplates, adoptTemplate } from '@/db/templates'
 import { restartTmPlan } from '@/db/restart-plan'
 // Real classes (module NOT mocked): the instanceof in surfaceProposalGuard must
 // see the same identities the db layer throws.
@@ -191,14 +193,16 @@ describe('registerProgramTools', () => {
     else process.env.MCP_DEV_USER_ID = original
   })
 
-  it('registers exactly the nine program tools', () => {
+  it('registers exactly the eleven program tools', () => {
     const tools = setup()
     expect([...tools.keys()].sort()).toEqual([
+      'adopt_template',
       'delete_program',
       'get_program',
       'instantiate_program_day',
       'list_programs',
       'list_proposals',
+      'list_templates',
       'preview_program_week',
       'restart_program',
       'set_program_status',
@@ -651,6 +655,59 @@ describe('registerProgramTools', () => {
       // Assert
       const body = payload(result) as { programs: { id: string; updatedAt: string }[] }
       expect(body.programs[0]).toMatchObject({ id: PID, updatedAt: '2026-06-02T00:00:00.000Z' })
+    })
+  })
+
+  describe('list_templates / adopt_template', () => {
+    const mockedListTemplates = vi.mocked(listTemplates)
+    const mockedAdoptTemplate = vi.mocked(adoptTemplate)
+
+    it('lists the library with flattened day names', async () => {
+      // Arrange
+      const tools = setup()
+      mockedListTemplates.mockResolvedValue([
+        {
+          id: PID,
+          name: 'Starting Strength',
+          description: 'The canon LP',
+          icon: null,
+          mesocycleWeeks: 12,
+          deloadWeek: null,
+          days: [
+            { name: 'A', position: 0 },
+            { name: 'B', position: 1 },
+          ],
+        },
+      ] as unknown as Awaited<ReturnType<typeof listTemplates>>)
+
+      // Act
+      const result = await tools.get('list_templates')!({})
+
+      // Assert
+      const body = payload(result) as { templates: { id: string; days: string[] }[] }
+      expect(body.templates[0]).toMatchObject({
+        id: PID,
+        name: 'Starting Strength',
+        days: ['A', 'B'],
+      })
+    })
+
+    it('adopt returns the draft copy id and errors on an unknown template', async () => {
+      // Arrange
+      const tools = setup()
+      mockedAdoptTemplate.mockResolvedValueOnce({ id: 'new-program-id' })
+
+      // Act
+      const adopted = await tools.get('adopt_template')!({ templateId: PID })
+
+      // Assert — the copy is the user's draft
+      expect(payload(adopted)).toMatchObject({ programId: 'new-program-id', status: 'draft' })
+      expect(mockedAdoptTemplate).toHaveBeenCalledWith(expect.any(String), PID)
+
+      // Unknown id → constant-shape null → ToolError
+      mockedAdoptTemplate.mockResolvedValueOnce(null)
+      const missing = await tools.get('adopt_template')!({ templateId: PID })
+      expect(missing.isError).toBe(true)
     })
   })
 
