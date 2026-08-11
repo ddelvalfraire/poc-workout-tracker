@@ -445,9 +445,31 @@ describe('instantiateProgramDay (engine-driven)', () => {
   it('derives the rpe-target load from batched history e1RM', async () => {
     // Arrange — best set 100×5 → e1RM 116.67; 5 @ RPE 8 = 81.1%
     historyBefore.mockResolvedValue([
-      { wgerExerciseId: 1, source: 'wger', reps: 5, weight: 100, loggingType: 'weight_reps' },
+      {
+        wgerExerciseId: 1,
+        source: 'wger',
+        reps: 5,
+        weight: 100,
+        loggingType: 'weight_reps',
+        workoutId: 'w1',
+        startedAt: new Date('2026-06-01T00:00:00.000Z'),
+        rir: null,
+        setType: 'working',
+        completed: true,
+      },
       // Composite guard: a CUSTOM exercise sharing id 1 must not feed this anchor.
-      { wgerExerciseId: 1, source: 'custom', reps: 5, weight: 500, loggingType: 'weight_reps' },
+      {
+        wgerExerciseId: 1,
+        source: 'custom',
+        reps: 5,
+        weight: 500,
+        loggingType: 'weight_reps',
+        workoutId: 'w1',
+        startedAt: new Date('2026-06-01T00:00:00.000Z'),
+        rir: null,
+        setType: 'working',
+        completed: true,
+      },
     ])
     findFirst.mockResolvedValue(
       dayFixture({

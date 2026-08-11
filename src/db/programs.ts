@@ -19,7 +19,7 @@ import {
 // inside function bodies, never at module init.
 import { setTrainingMax, withTx, ProgramPatchError } from './program-patches'
 import type { TmIncrement } from '@/lib/tm-restart'
-import { bestSet } from '@/lib/one-rep-max'
+import { rollingE1rm } from '@/lib/rolling-e1rm'
 import {
   autoregulate,
   autoregulateRange,
@@ -1383,13 +1383,30 @@ export async function deriveDayPrescription(
   const e1rmByKey = new Map<string, number | null>()
   for (const key of keys) {
     // weight_reps rows only: for BW-type rows `weight` is added/assisted
-    // load, not total — feeding it to bestSet would deflate the e1RM the
-    // prescription math anchors on. Program prescriptions are absolute
+    // load, not total — feeding it to the estimator would deflate the e1RM
+    // the prescription math anchors on. Program prescriptions are absolute
     // loads, so only absolute-load history is admissible.
     const rows = historyRows.filter(
       (r) => catalogKey(r.source, r.wgerExerciseId) === key && r.loggingType === 'weight_reps',
     )
-    e1rmByKey.set(key, bestSet(rows)?.e1rm ?? null)
+    // ROLLING e1RM (RPE plan §3.3), replacing the all-time bestSet: the
+    // windowed per-session-top average lets a bad stretch actually lower
+    // next week's rpe-target load — best-ever was monotonic, so a stale PR
+    // prescribed forever. Only the rpe-target scheme consumes e1rmKg.
+    e1rmByKey.set(
+      key,
+      rollingE1rm(
+        rows.map((r) => ({
+          workoutId: r.workoutId,
+          startedAtMs: r.startedAt.getTime(),
+          reps: r.reps,
+          weightKg: r.weight,
+          rir: r.rir,
+          setType: r.setType,
+          completed: r.completed,
+        })),
+      ),
+    )
   }
 
   // Only double-progression needs the LAST session's sets specifically.
