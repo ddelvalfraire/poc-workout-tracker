@@ -31,6 +31,8 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
+let issueId = 0;
+
 const issue = (
   title: string,
   culprit: string,
@@ -42,7 +44,8 @@ const issue = (
   culprit,
   count,
   userCount: Number(count) > 20 ? 8 : 2,
-  permalink: "https://sentry.io/issues/1",
+  // The panel keys rows by permalink; real Sentry permalinks are unique.
+  permalink: `https://sentry.io/issues/${++issueId}`,
   firstSeen: new Date(Date.now() - 6 * 86_400_000).toISOString(),
   lastSeen: new Date(Date.now() - 3600_000).toISOString(),
 });
