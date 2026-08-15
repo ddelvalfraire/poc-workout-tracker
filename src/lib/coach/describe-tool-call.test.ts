@@ -91,6 +91,16 @@ const CASES: Record<
     },
     expected: 'Day 1, exercise 3: swap to “Incline Dumbbell Press”',
   },
+  substitute_program_exercise: {
+    input: {
+      programId: PROGRAM_ID,
+      dayPosition: 0,
+      exercisePosition: 2,
+      wgerExerciseId: 211,
+      name: 'Incline Dumbbell Press',
+    },
+    expected: 'Day 1, exercise 3: substitute “Incline Dumbbell Press” (old loads cleared)',
+  },
   remove_program_exercise: {
     input: { programId: PROGRAM_ID, dayPosition: 1, exercisePosition: 0 },
     expected: 'Day 2: remove exercise 1 and its sets',

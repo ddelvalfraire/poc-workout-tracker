@@ -13,6 +13,7 @@ vi.mock('@/db/program-patches', () => {
     moveProgramDay: vi.fn(),
     addProgramExercise: vi.fn(),
     updateProgramExercise: vi.fn(),
+    substituteProgramExercise: vi.fn(),
     removeProgramExercise: vi.fn(),
     moveProgramExercise: vi.fn(),
     addProgramSet: vi.fn(),
@@ -38,6 +39,7 @@ import {
   moveProgramDay,
   addProgramExercise,
   updateProgramExercise,
+  substituteProgramExercise,
   removeProgramExercise,
   moveProgramExercise,
   addProgramSet,
@@ -61,6 +63,7 @@ const mockedRemoveDay = vi.mocked(removeProgramDay)
 const mockedMoveDay = vi.mocked(moveProgramDay)
 const mockedAddExercise = vi.mocked(addProgramExercise)
 const mockedUpdateExercise = vi.mocked(updateProgramExercise)
+const mockedSubstituteExercise = vi.mocked(substituteProgramExercise)
 const mockedRemoveExercise = vi.mocked(removeProgramExercise)
 const mockedMoveExercise = vi.mocked(moveProgramExercise)
 const mockedAddSet = vi.mocked(addProgramSet)
@@ -113,7 +116,7 @@ describe('registerProgramPatchTools', () => {
     else process.env.MCP_DEV_USER_ID = original
   })
 
-  it('registers exactly the twenty program patch tools', () => {
+  it('registers exactly the twenty-one program patch tools', () => {
     expect([...setup().keys()].sort()).toEqual([
       'add_program_day',
       'add_program_exercise',
@@ -132,6 +135,7 @@ describe('registerProgramPatchTools', () => {
       'set_program_plan_sync',
       'set_program_set_override',
       'set_training_max',
+      'substitute_program_exercise',
       'update_program_day',
       'update_program_exercise',
       'update_program_set',
@@ -456,6 +460,89 @@ describe('registerProgramPatchTools', () => {
       expect(mockedUpdateExercise).not.toHaveBeenCalled()
     })
 
+    it('substitute_program_exercise swaps the movement via the load-stripping op', async () => {
+      const tools = setup()
+      mockedSubstituteExercise.mockResolvedValue({ id: 'pe1' })
+
+      const result = await tools.get('substitute_program_exercise')!({
+        programId: PID,
+        dayPosition: 1,
+        exercisePosition: 0,
+        wgerExerciseId: 99,
+        name: 'Incline Press',
+      })
+
+      expect(mockedSubstituteExercise).toHaveBeenCalledWith(
+        'user_env',
+        PID,
+        1,
+        0,
+        { wgerExerciseId: 99, source: 'wger', name: 'Incline Press' },
+        'mcp',
+      )
+      expect(payload(result)).toEqual({
+        userId: 'user_env',
+        programId: PID,
+        dayPosition: 1,
+        exercisePosition: 0,
+      })
+    })
+
+    it('substitute_program_exercise passes source through (composite identity)', async () => {
+      const tools = setup()
+      mockedSubstituteExercise.mockResolvedValue({ id: 'pe1' })
+
+      await tools.get('substitute_program_exercise')!({
+        programId: PID,
+        dayPosition: 0,
+        exercisePosition: 2,
+        wgerExerciseId: 9,
+        source: 'custom',
+        name: 'Cable Face Pull',
+      })
+
+      expect(mockedSubstituteExercise).toHaveBeenCalledWith(
+        'user_env',
+        PID,
+        0,
+        2,
+        { wgerExerciseId: 9, source: 'custom', name: 'Cable Face Pull' },
+        'mcp',
+      )
+    })
+
+    it('substitute_program_exercise surfaces not-owned as isError /not found/', async () => {
+      const tools = setup()
+      mockedSubstituteExercise.mockResolvedValue(null)
+
+      const result = await tools.get('substitute_program_exercise')!({
+        programId: PID,
+        dayPosition: 0,
+        exercisePosition: 3,
+        wgerExerciseId: 42,
+        name: 'Front Squat',
+      })
+
+      expect(result.isError).toBe(true)
+      expect(result.content[0]?.text).toMatch(/not found/)
+    })
+
+    it('substitute_program_exercise surfaces not-found for a malformed programId without hitting the db', async () => {
+      const tools = setup()
+
+      const result = await tools.get('substitute_program_exercise')!({
+        programId: 'not-a-uuid',
+        dayPosition: 0,
+        exercisePosition: 0,
+        wgerExerciseId: 42,
+        name: 'Front Squat',
+      })
+
+      expect(result.isError).toBe(true)
+      expect(result.content[0]?.text).toMatch(/not found/)
+      expect(mockedSubstituteExercise).not.toHaveBeenCalled()
+    })
+
     it('remove_program_exercise removes and echoes the removed position', async () => {
       const tools = setup()
       mockedRemoveExercise.mockResolvedValue({ removed: true })
@@ -767,6 +854,10 @@ describe('registerProgramPatchTools', () => {
       {
         name: 'update_program_exercise',
         args: { programId: PID, dayPosition: 0, exercisePosition: 0, name: 'X' },
+      },
+      {
+        name: 'substitute_program_exercise',
+        args: { programId: PID, dayPosition: 0, exercisePosition: 0, wgerExerciseId: 1, name: 'Bench' },
       },
       {
         name: 'remove_program_exercise',

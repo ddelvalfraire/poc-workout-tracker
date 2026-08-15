@@ -191,6 +191,14 @@ export function describeToolCall(toolName: string, input: unknown): string {
     }
     case 'update_program_exercise':
       return locatedChanges(locationPhrase(args, false), exerciseChangePhrases(args), fallback)
+    case 'substitute_program_exercise': {
+      const location = locationPhrase(args, false)
+      const name = str(args.name)
+      const change = name
+        ? `substitute “${name}” (old loads cleared)`
+        : 'substitute the movement (old loads cleared)'
+      return location ? `${sentence(location)}: ${change}` : sentence(change)
+    }
     case 'remove_program_exercise': {
       const day = ordinal(args.dayPosition)
       const exercise = ordinal(args.exercisePosition)

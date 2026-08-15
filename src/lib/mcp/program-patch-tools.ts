@@ -19,6 +19,7 @@ import {
   moveProgramDay,
   addProgramExercise,
   updateProgramExercise,
+  substituteProgramExercise,
   removeProgramExercise,
   moveProgramExercise,
   addProgramSet,
@@ -560,7 +561,7 @@ export function registerProgramPatchTools(server: McpServer): void {
     {
       title: 'Update Program Exercise',
       description:
-        "Updates an exercise's identity (wgerExerciseId and/or source — the composite key; changing either re-derives muscle tags), name, progression, and/or supersetGroup (by programId + 0-based dayPosition + 0-based exercisePosition) — e.g. swap the movement without touching its sets (a swap re-derives the muscle tags). Only the named fields change; pass progression: null to clear it (`progression` JSONB is in kg) or supersetGroup: null to ungroup (same non-null group within a day = superset). Errors if the exercise isn't found or owned.",
+        "Updates an exercise's identity (wgerExerciseId and/or source — the composite key; changing either re-derives muscle tags), name, progression, and/or supersetGroup (by programId + 0-based dayPosition + 0-based exercisePosition). Identity changes here are load-PRESERVING relabels — for fixing a mislabeled exercise while keeping its suggested loads and progression; to swap one movement for another, use substitute_program_exercise instead so the old movement's loads don't carry over. Only the named fields change; pass progression: null to clear it (`progression` JSONB is in kg) or supersetGroup: null to ungroup (same non-null group within a day = superset). Errors if the exercise isn't found or owned.",
       inputSchema: {
         programId: z.string(),
         dayPosition: positionArg,
@@ -604,6 +605,52 @@ export function registerProgramPatchTools(server: McpServer): void {
             dayPosition,
             exercisePosition,
             { wgerExerciseId, source, name, progression, supersetGroup },
+            resolveActor(extra),
+          ),
+        )
+        if (!result) {
+          throw new ToolError(
+            `Exercise ${exercisePosition} of day ${dayPosition} in program ${programId} not found for user ${resolved}`,
+          )
+        }
+        return jsonResult({ userId: resolved, programId, dayPosition, exercisePosition })
+      } catch (error: unknown) {
+        return errorResult(error)
+      }
+    },
+  )
+
+  server.registerTool(
+    'substitute_program_exercise',
+    {
+      title: 'Substitute Program Exercise',
+      description:
+        "Swaps a slot's movement for a different exercise (by programId + 0-based dayPosition + 0-based exercisePosition). Use THIS tool to swap a movement: it clears the old movement's suggested loads (template and per-week overrides) and drops a TM-based progression so the plan re-derives loads for the substitute — rep ranges, RIR/RPE, rest, tempo, and technique survive, and muscle tags re-derive from the new identity. For a load-preserving relabel of a mislabeled exercise, use update_program_exercise instead. `source` defaults to 'wger'; pass 'custom' for custom exercises. Errors if the exercise isn't found or owned.",
+      inputSchema: {
+        programId: z.string(),
+        dayPosition: positionArg,
+        exercisePosition: positionArg,
+        wgerExerciseId: z.number().int(),
+        // Composite identity: absent = 'wger', pass 'custom' for custom exercises.
+        source: z.enum(['wger', 'custom']).optional(),
+        name: nameArg,
+        userId: z.string().optional(),
+      },
+    },
+    async (
+      { programId, dayPosition, exercisePosition, wgerExerciseId, source, name, userId },
+      extra,
+    ) => {
+      try {
+        const resolved = resolveUserId(extra, userId)
+        assertProgramIdShape(programId)
+        const result = await runOp(() =>
+          substituteProgramExercise(
+            resolved,
+            programId,
+            dayPosition,
+            exercisePosition,
+            { wgerExerciseId, source: source ?? 'wger', name },
             resolveActor(extra),
           ),
         )
