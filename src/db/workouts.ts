@@ -14,7 +14,7 @@ import {
   sql,
 } from 'drizzle-orm'
 import { cache } from 'react'
-import type { WorkoutInput, LoggingType } from '@/lib/workout-input'
+import type { WorkoutInput, LoggingType, WorkoutMetricMode } from '@/lib/workout-input'
 import type { SetType } from '@/lib/program-input'
 import type { ExerciseSource } from '@/lib/custom-exercise-input'
 import { db } from './index'
@@ -607,6 +607,11 @@ export interface SetPatch {
    *  omitted = unchanged, explicit null clears. */
   rir?: number | null
   rpe?: number | null
+  /** How the set reads (reps_weight | duration | duration_distance); the
+   *  column is NOT NULL so omitted = unchanged, never null. */
+  metricMode?: WorkoutMetricMode
+  durationSec?: number | null
+  distanceM?: number | null
 }
 
 /**
@@ -643,6 +648,9 @@ export async function updateSet(
     ...(patch.completed !== undefined ? { completed: patch.completed } : {}),
     ...(patch.rir !== undefined ? { rir: patch.rir } : {}),
     ...(patch.rpe !== undefined ? { rpe: patch.rpe } : {}),
+    ...(patch.metricMode !== undefined ? { metricMode: patch.metricMode } : {}),
+    ...(patch.durationSec !== undefined ? { durationSec: patch.durationSec } : {}),
+    ...(patch.distanceM !== undefined ? { distanceM: patch.distanceM } : {}),
   }
   if (Object.keys(values).length === 0) return null
   return db.transaction(async (tx) => {
@@ -691,6 +699,9 @@ export async function addSet(
       ...(patch.setType !== undefined ? { setType: patch.setType } : {}),
       ...(patch.rir !== undefined ? { rir: patch.rir } : {}),
       ...(patch.rpe !== undefined ? { rpe: patch.rpe } : {}),
+      ...(patch.metricMode !== undefined ? { metricMode: patch.metricMode } : {}),
+      ...(patch.durationSec !== undefined ? { durationSec: patch.durationSec } : {}),
+      ...(patch.distanceM !== undefined ? { distanceM: patch.distanceM } : {}),
     })
     await stampWorkoutCompleted(tx, workoutId)
     return { setNumber }

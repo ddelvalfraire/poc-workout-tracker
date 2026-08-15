@@ -59,6 +59,9 @@ describe('parseDurationInput', () => {
 describe('distance input codec (km entry, meters stored)', () => {
   test('formats meters as trimmed km', () => {
     expect(formatDistanceInput(2500)).toBe('2.5')
+    // Centimeter precision survives the edit round-trip: an MCP-authored
+    // 1234.56 m must re-save exactly, not silently round to 1235 m.
+    expect(formatDistanceInput(1234.56)).toBe('1.23456')
     expect(formatDistanceInput(400)).toBe('0.4')
     expect(formatDistanceInput(5000)).toBe('5')
   })

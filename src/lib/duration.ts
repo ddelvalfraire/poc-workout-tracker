@@ -46,6 +46,9 @@ export function parseDurationInput(value: string): number | null {
     const h = colon[1] !== undefined ? parseInt(colon[1], 10) : 0
     const m = parseInt(colon[2], 10)
     const s = parseInt(colon[3], 10)
+    // Minutes cap at 59 ONLY when an hours part exists: "75:30" is a valid
+    // 75-minute steady-state entry (mm:ss with no hour prefix), while
+    // "1:75:00" is a typo. Seconds always cap.
     if (s > 59 || (colon[1] !== undefined && m > 59)) return null
     totalSec = h * 3600 + m * 60 + s
   } else if (/^\d+(\.\d+)?$/.test(trimmed)) {
@@ -59,7 +62,10 @@ export function parseDurationInput(value: string): number | null {
 /** Meters → the km input's editable text: 2500 → "2.5", 400 → "0.4". Trailing
  *  zeros trimmed via Number(); precision capped at 3 decimals (meter grain). */
 export function formatDistanceInput(distanceM: number): string {
-  return String(Number((Math.max(0, distanceM) / 1000).toFixed(3)))
+  // 5 decimals of km = the column's centimeter precision, so an untouched
+  // edit round-trip re-saves the exact stored value (an MCP-authored 1234.56 m
+  // must not silently become 1235 m). Number() trims the trailing zeros.
+  return String(Number((Math.max(0, distanceM) / 1000).toFixed(5)))
 }
 
 /** km input → meters, or null when blank/invalid/zero. Meters are stored to

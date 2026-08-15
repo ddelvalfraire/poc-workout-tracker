@@ -407,15 +407,18 @@ describe('metric-mode × scheme validation (cardio v1 slice 2)', () => {
     ],
   })
 
-  it('rejects a load-anchored scheme on an all-timed exercise', () => {
+  it('ACCEPTS a load-anchored scheme on an all-timed exercise — legacy tolerance', () => {
+    // MCP write tools allowed this combo before cardio v1; a parse-time throw
+    // would brick full-replace saves of programs storing it. The derivation
+    // guard (deriveWeekSets) is where the dead scheme no-ops, silently.
     expect(() =>
       parseProgramInput(cardioExercise({ scheme: 'linear', incrementKg: 2.5 })),
-    ).toThrow(/rep-progression/)
+    ).not.toThrow()
     expect(() =>
       parseProgramInput(
         cardioExercise({ scheme: 'weekly-volume', mevSets: 2, mrvSets: 5 }),
       ),
-    ).toThrow(/rep-progression/)
+    ).not.toThrow()
   })
 
   it('accepts rep-progression on a timed exercise (the one cardio scheme)', () => {

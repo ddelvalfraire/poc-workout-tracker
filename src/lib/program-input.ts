@@ -376,24 +376,11 @@ export const programExerciseSchema = z
     supersetGroup: z.number().int().min(0).nullable().optional(),
     sets: z.array(programSetSchema).min(1),
   })
-  // Metric-mode × scheme integrity (cardio v1): a load-anchored scheme on an
-  // exercise with NO reps_weight working material can never fire — the
-  // derivation layer's guard (deriveWeekSets) no-ops it silently, and this
-  // parse-time twin turns the dead config into a visible error instead.
-  // Mixed exercises pass: the scheme still has lifting rows to act on.
-  .superRefine((e, ctx) => {
-    if (!e.progression || e.progression.scheme === 'rep-progression') return
-    const hasLiftingSet = e.sets.some(
-      (s) => s.setType !== 'warmup' && s.metricMode === 'reps_weight',
-    )
-    if (!hasLiftingSet) {
-      ctx.addIssue({
-        code: 'custom',
-        message: `the ${e.progression.scheme} scheme needs at least one reps_weight working set — timed exercises progress via rep-progression`,
-        path: ['progression'],
-      })
-    }
-  })
+  // Metric-mode × scheme integrity is enforced at the DERIVATION layer only
+  // (deriveWeekSets no-ops load-anchored schemes on timed sets — silence over
+  // corruption). Deliberately NOT re-validated here: MCP write tools accepted
+  // timed-set + load-scheme combos before cardio v1, so a parse-time throw
+  // would brick full-replace saves of any program storing that legacy shape.
 
 /** One training day (e.g. "Push") — an ordered list of exercises. */
 export const programDaySchema = z.object({

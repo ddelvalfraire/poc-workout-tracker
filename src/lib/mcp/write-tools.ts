@@ -4,7 +4,7 @@ import { resolveUserId } from './resolve-user'
 import { jsonResult, errorResult } from './result'
 import { ToolError } from './errors'
 import { assertWorkoutIdShape } from './workout-id'
-import { parseWorkoutInput, MAX_WEIGHT as MAX_WEIGHT_KG, type WorkoutInput } from '@/lib/workout-input'
+import { parseWorkoutInput, MAX_WEIGHT as MAX_WEIGHT_KG, MAX_DURATION_SEC, MAX_DISTANCE_M, METRIC_MODES, type WorkoutInput } from '@/lib/workout-input'
 import { displayToKg, kgToDisplay, type WeightUnit } from '@/lib/units'
 import { saveWorkout, updateWorkout, deleteWorkout } from '@/db/workouts'
 import { getWeightUnit, setWeightUnit } from '@/db/preferences'
@@ -23,7 +23,18 @@ const exercisesSchema = z.array(
     notes: z.string().optional(),
     // Skipped in-session ("didn't do this"); the sets save uncompleted either way.
     skipped: z.boolean().optional(),
-    sets: z.array(z.object({ reps: z.number().int().nullable(), weight: z.number().nullable() })),
+    sets: z.array(
+      z.object({
+        reps: z.number().int().nullable(),
+        weight: z.number().nullable(),
+        // Cardio fields (canonical seconds/meters — no display conversion);
+        // optional so pre-cardio callers keep their shape. parseWorkoutInput
+        // re-validates the cross-field rules downstream.
+        metricMode: z.enum(METRIC_MODES).optional(),
+        durationSec: z.number().int().min(0).max(MAX_DURATION_SEC).nullable().optional(),
+        distanceM: z.number().min(0).max(MAX_DISTANCE_M).nullable().optional(),
+      }),
+    ),
   }),
 )
 
@@ -62,6 +73,10 @@ function toKgInput(raw: RawWorkout, unit: WeightUnit): RawWorkout {
       sets: e.sets.map((s) => ({
         reps: s.reps,
         weight: s.weight === null ? null : displayToKg(s.weight, unit),
+        // Seconds/meters are canonical on the wire — pass-through, no conversion.
+        ...(s.metricMode !== undefined ? { metricMode: s.metricMode } : {}),
+        ...(s.durationSec !== undefined ? { durationSec: s.durationSec } : {}),
+        ...(s.distanceM !== undefined ? { distanceM: s.distanceM } : {}),
       })),
     })),
   }

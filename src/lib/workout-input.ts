@@ -142,10 +142,10 @@ export const MAX_WEIGHT = 9999.99
 // A generous sanity cap for the integer `reps` column — no real set exceeds it.
 const MAX_REPS = 10_000
 // A day of continuous work is the duration ceiling (lib/duration.ts shares it).
-const MAX_DURATION_SEC = 86_400
+export const MAX_DURATION_SEC = 86_400
 // distance_m is numeric(9,2) — 9,999,999.99 m is the column ceiling (mirrors
 // MAX_DISTANCE_M in program-input.ts, which isn't exported there).
-const MAX_DISTANCE_M = 9_999_999.99
+export const MAX_DISTANCE_M = 9_999_999.99
 
 function asRecord(value: unknown, message: string): Record<string, unknown> {
   if (!value || typeof value !== 'object') throw new Error(message)
