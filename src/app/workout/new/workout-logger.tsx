@@ -1030,12 +1030,20 @@ export function WorkoutLogger({
               the moment typing starts, and an unlabeled box at the top of the
               screen reads as a mystery field. */}
           <div className="flex items-baseline justify-between gap-3 px-1">
-            <label
-              htmlFor="workout-name"
-              className="text-xs font-semibold uppercase tracking-widest text-muted-foreground"
-            >
-              Workout name
-            </label>
+            {/* A <label> only when there is a control to label — the live
+                session shows static text, and htmlFor on a <p> is invalid. */}
+            {isLive ? (
+              <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                Workout name
+              </span>
+            ) : (
+              <label
+                htmlFor="workout-name"
+                className="text-xs font-semibold uppercase tracking-widest text-muted-foreground"
+              >
+                Workout name
+              </label>
+            )}
             {/* The session's fixed (day · week) stamp: renaming or swapping
                 exercises never moves a workout to another day, so the stamp
                 stays visible while logging. */}
@@ -1043,15 +1051,32 @@ export function WorkoutLogger({
               <span className="shrink-0 text-xs text-muted-foreground tnum">{programContext}</span>
             )}
           </div>
-          <Input
-            id="workout-name"
-            placeholder="Optional — e.g. Lower"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            // De-boxed to an underline field (keep-list allows): same input,
-            // same h-11 hit area, px-1 keeps horizontal hit padding.
-            className="mt-1.5 rounded-none border-0 border-b-2 border-input bg-transparent px-1"
-          />
+          {isLive ? (
+            // Mid-session the name is a fact, not a field (#207): renaming
+            // belongs to the edit surface after the workout is saved. Static
+            // text with the input's exact metrics (h-11, px-1, border slot
+            // kept transparent) so edit mode swaps in the input without a
+            // layout shift.
+            <p
+              id="workout-name"
+              className={cn(
+                'mt-1.5 flex h-11 items-center border-b-2 border-transparent px-1 text-base',
+                name.trim() === '' && 'text-muted-foreground',
+              )}
+            >
+              {name.trim() === '' ? 'Unnamed workout' : name}
+            </p>
+          ) : (
+            <Input
+              id="workout-name"
+              placeholder="Optional — e.g. Lower"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              // De-boxed to an underline field (keep-list allows): same input,
+              // same h-11 hit area, px-1 keeps horizontal hit padding.
+              className="mt-1.5 rounded-none border-0 border-b-2 border-input bg-transparent px-1"
+            />
+          )}
         </div>
 
         {syncStatus === 'failed' && (
