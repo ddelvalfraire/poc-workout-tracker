@@ -35,6 +35,7 @@ import {
   collectAutoregNotes,
   collectTmResetProposals,
   groupEventsByDay,
+  progressionLine,
 } from './detail-view'
 import { kgToDisplay } from '@/lib/units'
 import { listPatchProposals } from '@/db/patch-proposals'
@@ -766,7 +767,16 @@ export default async function ProgramDetailPage({
 
                   {showTargets ? (
                     <div className="mt-3 space-y-3">
-                      {day.exercises.map((exercise, exerciseIndex) => (
+                      {day.exercises.map((exercise, exerciseIndex) => {
+                        // The scheme's plain-English conditional sentence with
+                        // THIS exercise's numbers (#228) — words not chips,
+                        // quiet, skipped when there is no progression.
+                        const howLine = progressionLine(
+                          exercise.progression,
+                          prescriptions[dayIndex][exerciseIndex]?.sets ?? [],
+                          unit,
+                        )
+                        return (
                         <div key={exercise.id}>
                           <p className="text-sm font-medium">{exercise.name}</p>
                           <div className="mt-1 space-y-0.5">
@@ -796,8 +806,12 @@ export default async function ProgramDetailPage({
                               </p>
                             ))}
                           </div>
+                          {howLine !== null && (
+                            <p className="mt-1 text-sm text-muted-foreground">{howLine}</p>
+                          )}
                         </div>
-                      ))}
+                        )
+                      })}
                     </div>
                   ) : (
                     // Collapsed: the plan's shape without the derivation cost.
