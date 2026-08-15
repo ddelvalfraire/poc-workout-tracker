@@ -1323,7 +1323,7 @@ export function WorkoutLogger({
                   type="button"
                   onClick={() => setNotesOpen((prev) => new Set(prev).add(exercise.id))}
                   aria-label={`Add note for ${exercise.name}`}
-                  className="mx-1 shrink-0 rounded-full border border-border bg-muted/40 px-2.5 py-1 text-xs text-muted-foreground transition-colors active:bg-muted"
+                  className="mx-1 shrink-0 hit-44-y rounded-full border border-border bg-muted/40 px-3 py-2.5 text-xs text-muted-foreground transition-colors active:bg-muted"
                 >
                   Note
                 </button>
@@ -1398,7 +1398,7 @@ export function WorkoutLogger({
                 type="button"
                 onClick={() => setNoteSheetFor(exerciseIndex)}
                 aria-label={`Exercise note for ${exercise.name}: ${noteChipLabel(identityNote.body)}`}
-                className="flex max-w-full items-center gap-1.5 self-start rounded-full border border-border bg-muted/40 px-2.5 py-1 text-xs text-muted-foreground transition-colors active:bg-muted"
+                className="flex max-w-full items-center gap-1.5 self-start hit-44-y rounded-full border border-border bg-muted/40 px-3 py-2.5 text-xs text-muted-foreground transition-colors active:bg-muted"
               >
                 <Pin aria-hidden="true" className="size-3 shrink-0" />
                 <span className="truncate">{noteChipLabel(identityNote.body)}</span>
@@ -1456,7 +1456,7 @@ export function WorkoutLogger({
                     type="button"
                     onClick={() => setNotesOpen((prev) => new Set(prev).add(exercise.id))}
                     aria-label={`Edit note for ${exercise.name}`}
-                    className="min-w-0 flex-1 whitespace-pre-wrap px-0.5 py-1 text-left text-sm text-muted-foreground"
+                    className="hit-44-y min-w-0 flex-1 whitespace-pre-wrap px-0.5 py-2 text-left text-sm text-muted-foreground"
                   >
                     {exercise.notes}
                   </button>
@@ -2103,7 +2103,7 @@ export function WorkoutLogger({
             <button
               type="button"
               onClick={() => setIsWorkoutNotesOpen(true)}
-              className="rounded-full border border-border bg-muted/40 px-2.5 py-1 text-xs text-muted-foreground transition-colors active:bg-muted"
+              className="hit-44-y rounded-full border border-border bg-muted/40 px-3 py-2.5 text-xs text-muted-foreground transition-colors active:bg-muted"
             >
               Workout note
             </button>
