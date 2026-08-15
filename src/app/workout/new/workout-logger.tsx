@@ -71,6 +71,7 @@ import { PlateSheet } from './plate-sheet'
 import { RestSheet } from './rest-sheet'
 import { StatsSheet } from './stats-sheet'
 import { RestPill } from './rest-pill'
+import { SessionToast } from './session-toast'
 import { fireRestOverAlert } from './rest-over-alert'
 import { unlockRestChime } from './rest-chime'
 import { EXERCISE_COMPLETE_VIBRATION, SET_COMPLETE_VIBRATION, vibrate } from './haptics'
@@ -101,8 +102,11 @@ import {
 } from '@/lib/format'
 import type { LastPerformance } from '@/db/workouts'
 
-/** How long the inline "Removed — Undo" affordance stays actionable. */
-const UNDO_WINDOW_MS = 5000
+/** How long the inline "Removed — Undo" affordance stays actionable. 8s per
+ *  the #210 direction: action-bearing snackbars sit at the long end of M3's
+ *  4–10s, and the SessionToast drain hairline now makes the window visible
+ *  (hover/focus pauses it — the drain's animationend IS the dismissal). */
+const UNDO_WINDOW_MS = 8000
 
 /** Hold a set circle this long to toggle its warm-up tag. */
 const LONG_PRESS_MS = 500
@@ -447,7 +451,15 @@ export function WorkoutLogger({
   // drop an earlier undo. Each removal restarts the shared window; Undo
   // restores last-removed-first.
   const [removed, setRemoved] = useState<RemovedEntry[]>([])
-  const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // The undo window's clock lives in SessionToast's drain animation (its
+  // animationend dismisses — so hover/focus pausing the visual pauses the
+  // window too). This key restarts that animation: bumped ONLY on push, so
+  // an Undo tap mid-stack never re-extends the shared window (the old
+  // setTimeout behavior, preserved).
+  const [undoResetKey, setUndoResetKey] = useState(0)
+  // Which exit the undo toast plays when it closes: 100ms fade after an
+  // Undo press, the default drop-fade after expiry/replacement.
+  const [undoExitQuick, setUndoExitQuick] = useState(false)
   // When the user last checked off a set — starts the between-sets rest
   // count-up. In-session only by design: a restored draft can't know how long
   // ago the interrupted session's last set really was.
@@ -572,8 +584,8 @@ export function WorkoutLogger({
 
   function pushRemoved(entry: RemovedEntry) {
     setRemoved((prev) => [...prev, entry])
-    if (undoTimerRef.current) clearTimeout(undoTimerRef.current)
-    undoTimerRef.current = setTimeout(() => setRemoved([]), UNDO_WINDOW_MS)
+    setUndoResetKey((key) => key + 1) // restart the toast's drain = the window
+    setUndoExitQuick(false)
   }
 
   function handleRemoveExercise(index: number) {
@@ -723,14 +735,10 @@ export function WorkoutLogger({
       }
     }
     setRemoved((prev) => prev.slice(0, -1))
-    if (removed.length === 1 && undoTimerRef.current) clearTimeout(undoTimerRef.current)
+    // Popping the LAST entry closes the toast — that close is the undo-pressed
+    // exit (100ms fade), not the expiry drop.
+    setUndoExitQuick(true)
   }
-
-  useEffect(() => {
-    return () => {
-      if (undoTimerRef.current) clearTimeout(undoTimerRef.current)
-    }
-  }, [])
 
   // Restore an interrupted session from the server draft (cross-device: a
   // session started on the phone resumes on the laptop). In edit mode this
@@ -2142,69 +2150,81 @@ export function WorkoutLogger({
         )}
         {/* Post-swap remember prompt: a quiet follow-up, never a modal — the
             decision that mattered (the swap) is already made; this must not
-            block logging. Sits above the undo toast (it outlives undo's 5s).
+            block logging. Sits above the undo toast (it outlives undo's
+            window). Prompt mode = no countdown: it persists until answered.
             One-volt rule: ghost/outline pair, Finish keeps the bar's volt. */}
-        {pendingRemember && (
-          <div
-            role="status"
-            className="mb-3 rounded-xl border border-border bg-card px-4 py-2.5 motion-safe:animate-rise-in"
-          >
-            <p className="min-w-0 text-sm">
-              Use <span className="font-medium">{pendingRemember.substituteName}</span> for the
-              rest of the block?
-            </p>
-            <p className="mt-0.5 text-xs text-muted-foreground">
-              Replaces {pendingRemember.originalName} in the plan — your history stays.
-            </p>
-            <div className="mt-2 flex justify-end gap-2">
-              <Button
-                size="sm"
-                variant="reversal"
-                disabled={isRemembering}
-                onClick={handleRememberJustToday}
-              >
-                Just today
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={isRemembering}
-                onClick={handleRememberForBlock}
-              >
-                {isRemembering ? 'Saving…' : 'Use for block'}
+        <SessionToast open={pendingRemember !== null}>
+          {pendingRemember && (
+            <>
+              <p className="min-w-0 text-sm">
+                Use <span className="font-medium">{pendingRemember.substituteName}</span> for the
+                rest of the block?
+              </p>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                Replaces {pendingRemember.originalName} in the plan — your history stays.
+              </p>
+              <div className="mt-2 flex justify-end gap-2">
+                <Button
+                  size="sm"
+                  variant="reversal"
+                  disabled={isRemembering}
+                  onClick={handleRememberJustToday}
+                >
+                  Just today
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={isRemembering}
+                  onClick={handleRememberForBlock}
+                >
+                  {isRemembering ? 'Saving…' : 'Use for block'}
+                </Button>
+              </div>
+              {rememberError && (
+                <p className="mt-1.5 text-sm text-destructive">{rememberError}</p>
+              )}
+            </>
+          )}
+        </SessionToast>
+        {/* Undo toast: SessionToast owns the window's clock — its drain
+            hairline's animationend clears the stack, so hover/focus pausing
+            the drain pauses the dismissal with it. */}
+        <SessionToast
+          open={removed.length > 0}
+          countdown={{
+            durationMs: UNDO_WINDOW_MS,
+            resetKey: undoResetKey,
+            onExpire: () => setRemoved([]),
+          }}
+          exit={undoExitQuick ? 'quick' : 'default'}
+        >
+          {removed.length > 0 && (
+            <div className="flex items-center justify-between gap-3">
+              <p className="min-w-0 truncate text-sm">
+                {(() => {
+                  // Sentence per kind — "Removed X" / "Replaced X" — with the
+                  // name carrying the emphasis in both.
+                  const last = removed[removed.length - 1]
+                  const [verb, subject] =
+                    last.kind === 'exercise'
+                      ? ['Removed', last.exercise.name]
+                      : last.kind === 'replace'
+                        ? ['Replaced', last.previous.name]
+                        : ['Removed', `set ${last.setIndex + 1} · ${last.exerciseName}`]
+                  return (
+                    <>
+                      {verb} <span className="font-medium">{subject}</span>
+                    </>
+                  )
+                })()}
+              </p>
+              <Button size="sm" variant="reversal" className="shrink-0" onClick={handleUndoRemove}>
+                {removed.length > 1 ? `Undo (${removed.length})` : 'Undo'}
               </Button>
             </div>
-            {rememberError && <p className="mt-1.5 text-sm text-destructive">{rememberError}</p>}
-          </div>
-        )}
-        {removed.length > 0 && (
-          <div
-            role="status"
-            className="mb-3 flex items-center justify-between gap-3 rounded-xl border border-border bg-card px-4 py-2.5 motion-safe:animate-rise-in"
-          >
-            <p className="min-w-0 truncate text-sm">
-              {(() => {
-                // Sentence per kind — "Removed X" / "Replaced X" — with the
-                // name carrying the emphasis in both.
-                const last = removed[removed.length - 1]
-                const [verb, subject] =
-                  last.kind === 'exercise'
-                    ? ['Removed', last.exercise.name]
-                    : last.kind === 'replace'
-                      ? ['Replaced', last.previous.name]
-                      : ['Removed', `set ${last.setIndex + 1} · ${last.exerciseName}`]
-                return (
-                  <>
-                    {verb} <span className="font-medium">{subject}</span>
-                  </>
-                )
-              })()}
-            </p>
-            <Button size="sm" variant="reversal" className="shrink-0" onClick={handleUndoRemove}>
-              {removed.length > 1 ? `Undo (${removed.length})` : 'Undo'}
-            </Button>
-          </div>
-        )}
+          )}
+        </SessionToast>
         <div className="flex flex-col gap-2">
           {/* Adding an exercise is the second-most-frequent act mid-session,
               so it earns a permanent slot in the thumb bar — outline, so the

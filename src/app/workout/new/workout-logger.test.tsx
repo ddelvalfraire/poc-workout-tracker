@@ -32,6 +32,7 @@ vi.mock('@/app/workout/actions', () => ({
 }))
 
 import { WorkoutLogger } from './workout-logger'
+import { SessionToast } from './session-toast'
 import type { WorkoutDraft } from './workout-draft'
 
 /** One exercise, first set completed (the moment the chip row would appear). */
@@ -131,6 +132,53 @@ describe('WorkoutLogger name lock (#207)', () => {
     const html = render({ workoutId: 'w1', isLive: false, initialName: 'Legs' })
     expect(html).toContain('Optional — e.g. Lower')
     expect(html).not.toContain('Unnamed workout')
+  })
+})
+
+describe('SessionToast (#210)', () => {
+  const countdown = { durationMs: 8000, resetKey: 0, onExpire: () => {} }
+
+  it('undo mode renders role=status with the message and the countdown drain', () => {
+    const html = renderToStaticMarkup(
+      <SessionToast open countdown={countdown}>
+        <p>
+          Removed <span className="font-medium">Squat</span>
+        </p>
+      </SessionToast>,
+    )
+    expect(html).toContain('role="status"')
+    expect(html).toContain('Removed')
+    expect(html).toContain('Squat')
+    expect(html).toContain('toast-drain')
+  })
+
+  it('prompt mode renders both action labels and NO countdown element', () => {
+    const html = renderToStaticMarkup(
+      <SessionToast open>
+        <p>Use Front Squat for the rest of the block?</p>
+        <button type="button">Just today</button>
+        <button type="button">Use for block</button>
+      </SessionToast>,
+    )
+    expect(html).toContain('role="status"')
+    expect(html).toContain('Just today')
+    expect(html).toContain('Use for block')
+    expect(html).not.toContain('toast-drain')
+  })
+
+  it('stays a hairline strip — never a card shell', () => {
+    const html = renderToStaticMarkup(
+      <SessionToast open countdown={countdown}>
+        <p>Removed set</p>
+      </SessionToast>,
+    )
+    expect(html).not.toContain('bg-card')
+    expect(html).not.toContain('rounded-xl')
+  })
+
+  it('renders nothing when closed', () => {
+    const html = renderToStaticMarkup(<SessionToast open={false}>{null}</SessionToast>)
+    expect(html).toBe('')
   })
 })
 
