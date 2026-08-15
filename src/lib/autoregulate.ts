@@ -4,6 +4,8 @@ import type { WeightUnit } from './units'
 // `loadsMatch` widens the C2 evidence identity across the quantization
 // deploy boundary (raw epsilon OR same display increment).
 import { loadsMatch, quantizeDisplayLoad } from './load-quantize'
+import { estimate1RM } from './one-rep-max'
+import type { OvershootPolicy } from './overshoot-policy'
 import type { DerivedSet } from './progression'
 import type { DietPhase } from './program-input'
 
@@ -182,6 +184,18 @@ export interface AutoregAdjustment {
    *  vetoed by a rising credited-e1RM trend (bad day, not a stall). Same
    *  additive-annotation contract as phaseContext. */
   effortContext?: 'overshoot' | 'trend-veto'
+  /** Overshoot recognition (#227): the latest session held a completed
+   *  working set that beat its SNAPSHOT prescription's e1RM at a different
+   *  load/rep mix (lighter-but-more-reps). Display-side ONLY — a miss-shaped
+   *  hold carrying this renders recognition ("Beat the target …"), never a
+   *  "goal not met" line. Never changes a load (`applyAutoregToSets` ignores
+   *  it); same additive-annotation contract as phaseContext/effortContext. */
+  overshoot?: {
+    reps: number
+    weightKg: number
+    targetReps: number
+    targetLoadKg: number
+  }
   /** Present ONLY on range-mode (double progression) verdicts. Totals sum
    *  at-load working reps over the load-comparable prior session
    *  (`prevTotalReps` null when no comparable prior session exists). */
@@ -391,6 +405,123 @@ function workingPairs(session: AutoregSession): {
 
 function scorablePairs(session: AutoregSession): ScorablePair[] {
   return workingPairs(session).atLoad
+}
+
+/** Epley inversion: the whole-rep count at `loadKg` equivalent to `e1rmKg`
+ *  (floor — credit never rounds up past what was demonstrated). */
+function equivalentRepsAt(loadKg: number, e1rmKg: number): number {
+  return Math.floor(30 * (e1rmKg / loadKg - 1))
+}
+
+/**
+ * The overshoot-policy credit for ONE actual set against its snapshot plan
+ * (#227): null = no credit, facts stand raw. Crediting rewrites the set to
+ * its goal-equivalent AT the prescribed load so every downstream rule
+ * (bands, floors, range tops, totals, quorum) scores it under the strict
+ * machinery unchanged:
+ * - 'e1rm-equivalent' — a LIGHTER completed set whose e1RM meets the
+ *   prescription's e1RM (repMin × prescribed load, both snapshot facts) is
+ *   credited as its Epley-equivalent reps at the prescribed load. At-load
+ *   sets keep their raw facts: fewer reps at the load IS a lower e1RM.
+ * - 'any-metric' — permissive: reps ≥ target reps (any load), load ≥ target
+ *   load (any reps), or e1RM ≥ target e1RM. A load-met set floor-credits its
+ *   reps; a lighter set credits at the prescribed load with the best of its
+ *   raw reps (when the rep metric hit) / e1RM-equivalent reps.
+ * Crediting can only ever mark a goal MET — it never invents a stall, and
+ * (deliberately) never composes with the outperform rule: the credited
+ * weight is the prescribed load, so a credited set can't propose an
+ * up-anchor or skip a progression step.
+ */
+function creditSet(
+  plan: AutoregPrescribedSet | undefined,
+  set: AutoregActualSet,
+  policy: OvershootPolicy,
+): AutoregActualSet | null {
+  if (!plan || !isWorking(set.setType) || !set.completed) return null
+  if (set.reps === null || set.weightKg === null || set.weightKg <= 0) return null
+  if (plan.loadKg === null || plan.loadKg <= 0 || plan.repMin === null) return null
+  const loadMet = set.weightKg >= plan.loadKg - LOAD_EPSILON_KG
+  const repsMet = set.reps >= plan.repMin
+  const performedE1rm = estimate1RM(set.reps, set.weightKg)
+  const targetE1rm = estimate1RM(plan.repMin, plan.loadKg)
+  const e1rmReps =
+    performedE1rm !== null && targetE1rm !== null && performedE1rm >= targetE1rm
+      ? equivalentRepsAt(plan.loadKg, performedE1rm)
+      : null
+  if (policy === 'e1rm-equivalent') {
+    if (loadMet || e1rmReps === null) return null
+    return { ...set, reps: Math.max(e1rmReps, plan.repMin), weightKg: plan.loadKg }
+  }
+  // any-metric.
+  if (loadMet && repsMet) return null // a clean strict pass needs no credit
+  if (loadMet) return { ...set, reps: plan.repMin } // load metric met — floor-credit
+  if (!repsMet && e1rmReps === null) return null // lighter AND no metric met
+  return {
+    ...set,
+    reps: Math.max(repsMet ? set.reps : 0, e1rmReps ?? 0, plan.repMin),
+    weightKg: plan.loadKg,
+  }
+}
+
+/**
+ * The overshoot-policy view of the sessions (#227): under 'strict-load' the
+ * input passes through untouched (byte-identical scoring — the default for
+ * every load-anchored scheme); under a crediting policy each actual working
+ * set that beat its snapshot prescription on the policy's metric is
+ * rewritten to its goal-equivalent at the prescribed load (see `creditSet`)
+ * BEFORE any rule runs. Evaluation stays snapshot-against-actual — the plan
+ * side is never touched, and un-credited sets keep their raw facts.
+ */
+function creditSessions(
+  sessions: readonly AutoregSession[],
+  policy: OvershootPolicy,
+): readonly AutoregSession[] {
+  if (policy === 'strict-load') return sessions
+  return sessions.map((session) => {
+    const plans = bySetNumber(session.prescribed.filter((s) => isWorking(s.setType)))
+    let changed = false
+    const actual = session.actual.map((set) => {
+      const credited = creditSet(plans.get(set.setNumber), set, policy)
+      if (credited === null) return set
+      changed = true
+      return credited
+    })
+    return changed ? { ...session, actual } : session
+  })
+}
+
+/**
+ * The display-side overshoot fact of ONE session (#227's reported bug):
+ * the completed working set — heaviest prescribed load first — that FAILED
+ * the strict at-load band yet beat its snapshot prescription's e1RM
+ * (estimate1RM(repMin, loadKg)). Null when no set overshot. Policy-blind on
+ * purpose: whatever the scoring policy says about progression, an
+ * e1RM-exceeding performance must never RENDER as "goal not met" — verdicts
+ * carry this annotation so `autoregReason` can lead with recognition.
+ */
+export function sessionOvershoot(
+  session: AutoregSession,
+): NonNullable<AutoregAdjustment['overshoot']> | null {
+  const actualByNumber = bySetNumber(session.actual.filter((set) => isWorking(set.setType)))
+  let best: NonNullable<AutoregAdjustment['overshoot']> | null = null
+  for (const plan of bySetNumber(session.prescribed.filter((s) => isWorking(s.setType))).values()) {
+    if (plan.loadKg === null || plan.loadKg <= 0 || plan.repMin === null) continue
+    const done = actualByNumber.get(plan.setNumber)
+    if (!done?.completed || done.reps === null || done.weightKg === null) continue
+    if (done.weightKg <= 0 || done.weightKg >= plan.loadKg - LOAD_EPSILON_KG) continue
+    const performedE1rm = estimate1RM(done.reps, done.weightKg)
+    const targetE1rm = estimate1RM(plan.repMin, plan.loadKg)
+    if (performedE1rm === null || targetE1rm === null || performedE1rm < targetE1rm) continue
+    if (best === null || plan.loadKg > best.targetLoadKg) {
+      best = {
+        reps: done.reps,
+        weightKg: done.weightKg,
+        targetReps: plan.repMin,
+        targetLoadKg: plan.loadKg,
+      }
+    }
+  }
+  return best
 }
 
 /** Working sets the snapshot actually prescribed something for — the quorum
@@ -754,10 +885,14 @@ export function autoregulate(
   sessions: readonly AutoregSession[],
   stallPolicy: AutoregStallPolicy,
   unit?: WeightUnit,
+  overshootPolicy: OvershootPolicy = 'strict-load',
 ): AutoregAdjustment | null {
-  const window = newestFirst(sessions).slice(0, AUTOREG_SESSION_WINDOW)
+  const ordered = newestFirst(sessions)
+  const window = creditSessions(ordered, overshootPolicy).slice(0, AUTOREG_SESSION_WINDOW)
   const latest = window[0]
   if (!latest) return null
+  // Display-side recognition rides RAW facts — a credited view can't overshoot.
+  const overshoot = ordered[0] ? sessionOvershoot(ordered[0]) : null
   const nullAnchor = nullLoadAnchor(latest)
   const pairs = scorablePairs(latest)
 
@@ -806,7 +941,16 @@ export function autoregulate(
         suggestEarlyDeload: true,
         ...shared,
       }
-    : { action: 'repeat' as const, deltaKg: 0, suggestEarlyDeload: false, ...shared }
+    : {
+        action: 'repeat' as const,
+        deltaKg: 0,
+        suggestEarlyDeload: false,
+        ...shared,
+        // Recognition on HOLDS only (#227): a repeat that would read as a
+        // miss leads with the beat instead; a decrement keeps its
+        // (load-changing) stall story — a hold reason there would be a lie.
+        ...(overshoot ? { overshoot } : {}),
+      }
 }
 
 /**
@@ -976,10 +1120,14 @@ export function autoregulateRange(
   sessions: readonly AutoregSession[],
   rangeRows: readonly AutoregRangeRow[],
   unit?: WeightUnit,
+  overshootPolicy: OvershootPolicy = 'strict-load',
 ): AutoregAdjustment | null {
-  const window = newestFirst(sessions).slice(0, AUTOREG_RANGE_SESSION_WINDOW)
+  const ordered = newestFirst(sessions)
+  const window = creditSessions(ordered, overshootPolicy).slice(0, AUTOREG_RANGE_SESSION_WINDOW)
   const latest = window[0]
   if (!latest) return null
+  // Display-side recognition rides RAW facts — a credited view can't overshoot.
+  const overshoot = ordered[0] ? sessionOvershoot(ordered[0]) : null
   const nullAnchor = nullLoadAnchor(latest)
   const pairs = scorablePairs(latest)
   if (pairs.length === 0) {
@@ -1056,7 +1204,14 @@ export function autoregulateRange(
       }
     }
   }
-  return { action: 'repeat', deltaKg: 0, suggestEarlyDeload: false, ...shared }
+  return {
+    action: 'repeat',
+    deltaKg: 0,
+    suggestEarlyDeload: false,
+    ...shared,
+    // Recognition on holds only (#227) — same contract as fixed mode.
+    ...(overshoot ? { overshoot } : {}),
+  }
 }
 
 /**
@@ -1095,8 +1250,15 @@ export function autoregulateAnchor(
 export function autoregulateEarlyDeload(
   sessions: readonly AutoregSession[],
   stallPolicy: AutoregStallPolicy,
+  overshootPolicy: OvershootPolicy = 'strict-load',
 ): AutoregAdjustment | null {
-  const window = newestFirst(sessions).slice(0, AUTOREG_SESSION_WINDOW)
+  // Crediting can SILENCE the advisory flag (a policy-met session is no
+  // stall) but the mode's contract holds under every policy: 'flag' only,
+  // deltaKg 0 — a credited overshoot never touches the scheme's TM math.
+  const window = creditSessions(newestFirst(sessions), overshootPolicy).slice(
+    0,
+    AUTOREG_SESSION_WINDOW,
+  )
   if (window.length < STALLS_BEFORE_DECREMENT) return null
   const stallEvidence = window
     .slice(0, STALLS_BEFORE_DECREMENT)
@@ -1256,6 +1418,15 @@ export function autoregReason(adjustment: AutoregAdjustment, unit: WeightUnit): 
   }
   if (adjustment.effortContext === 'trend-veto') {
     return `Third stall at ${load}, but your e1RM trend is rising — holding, not backing off`
+  }
+  // Overshoot recognition (#227): a HOLD whose evidence would read as a miss
+  // while the lifter beat the prescription's e1RM leads with the beat —
+  // "goal not met" over a higher-e1RM performance is a display lie.
+  if (adjustment.overshoot && adjustment.action === 'repeat') {
+    const o = adjustment.overshoot
+    const done = `${o.reps} × ${quantizeDisplayLoad(o.weightKg, unit)} ${unit}`
+    const target = `${o.targetReps} × ${quantizeDisplayLoad(o.targetLoadKg, unit)} ${unit}`
+    return `Beat the target — ${done} tops ${target} — holding the load`
   }
   if (adjustment.action === 'flag') {
     return `Third straight stall at ${load} — training max likely set too high`

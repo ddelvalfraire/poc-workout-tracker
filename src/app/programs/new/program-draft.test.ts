@@ -581,6 +581,7 @@ describe('detailToProgramDraft', () => {
     deloadPolicy: null,
     dietPhase: null,
     dietPhaseSetAt: null,
+    overshootPolicy: null,
     planSync: false,
     checkInEveryDays: 14,
     visibility: 'private',
@@ -611,6 +612,7 @@ describe('detailToProgramDraft', () => {
             position: 0,
             supersetGroup: null,
             progression: { scheme: 'linear', incrementKg: 2.5 },
+            overshootPolicy: null,
             muscles: [],
             sets: [
               {
