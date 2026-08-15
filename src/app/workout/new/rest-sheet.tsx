@@ -162,7 +162,9 @@ export function RestSheet({ currentSec, onClose, onSaved }: RestSheetProps) {
       </div>
 
       {/* Preset pills — same compact 36px pill + invisible inset (~44px
-          effective target) vocabulary as the plate sheet's bar picker. */}
+          effective target) vocabulary as the plate sheet's bar picker.
+          Selection is muted foreground-on-background (effort-chips
+          precedent, #217): Save below is this sheet's ONE volt moment. */}
       <div className="mt-3 flex flex-wrap gap-2">
         {REST_PRESETS.map((preset) => (
           <button
@@ -173,7 +175,7 @@ export function RestSheet({ currentSec, onClose, onSaved }: RestSheetProps) {
             className={cn(
               'relative h-9 rounded-full border px-3.5 text-sm font-semibold tnum transition-colors before:absolute before:-inset-1',
               selected === preset
-                ? 'border-primary bg-primary text-primary-foreground'
+                ? 'border-foreground bg-foreground text-background'
                 : 'border-border bg-muted text-muted-foreground',
             )}
           >
@@ -230,8 +232,10 @@ export function RestSheet({ currentSec, onClose, onSaved }: RestSheetProps) {
           }}
           className={cn(
             'relative h-9 shrink-0 rounded-full border px-3.5 text-sm font-semibold transition-colors before:absolute before:-inset-1',
+            // Muted On state (effort-chips precedent, #217) — a device
+            // toggle is not the sheet's volt moment; Save is.
             chimeOn
-              ? 'border-primary bg-primary text-primary-foreground'
+              ? 'border-foreground bg-foreground text-background'
               : 'border-border bg-muted text-muted-foreground',
           )}
         >

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
+import { ButtonGroup } from '@/components/ui/button-group'
 import { formatElapsed } from '@/lib/format'
 import { createRestEdgeDetector, REST_ADJUST_STEP_SEC } from '@/lib/rest-alert'
 import { cn } from '@/lib/utils'
@@ -19,10 +20,12 @@ import { cn } from '@/lib/utils'
  *
  * Two modes, same as the old header readout:
  * - No target: volt count-up digits, no fill (nothing to deplete), Skip only.
- * - With a target: a volt countdown + a fill that drains with the remaining
- *   fraction; at zero the digits flip to "+overage" and the fill switches to
- *   the warning color — the "go" signal, styled like the offline hint
- *   because both mean "you're past where you should be", not "an error".
+ * - With a target: a quiet countdown + a fill that drains with the remaining
+ *   fraction; the digits flip to volt for the last REST_CLOSING_WINDOW_SEC
+ *   seconds (the "wrap it up" moment), then at zero to "+overage" and the
+ *   fill switches to the warning color — the "go" signal, styled like the
+ *   offline hint because both mean "you're past where you should be", not
+ *   "an error".
  *
  * Tapping the time area opens the rest-target sheet (the logger owns the
  * dialog; this component only reports the tap) — the same handler the header
@@ -45,6 +48,20 @@ import { cn } from '@/lib/utils'
  * fill at all, digits only. A zero/negative target has nothing to deplete
  * and is treated the same.
  */
+/** The countdown's final stretch: digits flip to volt for these last seconds
+ *  before the overage/warning flip — the "wrap it up" color moment. */
+export const REST_CLOSING_WINDOW_SEC = 10
+
+/**
+ * Whether the countdown sits in the last-10s volt window: >0s remaining
+ * (overage owns ≤0 — warning wins there) and within the window. Count-up
+ * mode (null/zero target) has no window at all.
+ */
+export function isRestClosing(remainingSec: number, targetSec: number | null): boolean {
+  if (targetSec === null || targetSec <= 0) return false
+  return remainingSec > 0 && remainingSec <= REST_CLOSING_WINDOW_SEC
+}
+
 export function restProgressFraction(
   remainingSec: number,
   targetSec: number | null,
@@ -153,6 +170,21 @@ export function RestPill({
   const remainingSec =
     restTargetSec === null ? 0 : restTargetSec - Math.floor(restMs / 1_000)
   const fraction = restProgressFraction(remainingSec, restTargetSec)
+  // Digit color ladder (color-only, #217): countdown digits sit quiet on
+  // foreground, flip to volt for the last-10s window, then to warning on
+  // overage (unchanged). Count-up mode keeps its volt digits — with no fill
+  // there, the digits ARE the pill's one live volt element.
+  const isClosing = isRestClosing(remainingSec, restTargetSec)
+  const digitColor = readout.isOver
+    ? 'text-warning'
+    : restTargetSec === null || isClosing
+      ? 'text-primary'
+      : 'text-foreground'
+  const eyebrowColor = readout.isOver
+    ? 'text-warning'
+    : restTargetSec === null || isClosing
+      ? 'text-primary'
+      : 'text-muted-foreground'
 
   return (
     // The frame carries NO overflow clip: the controls' hit-44-y insets must
@@ -189,56 +221,54 @@ export function RestPill({
       >
         <span
           aria-hidden="true"
-          className={cn(
-            'text-[10px] font-semibold uppercase tracking-widest',
-            readout.isOver ? 'text-warning' : 'text-primary',
-          )}
+          className={cn('text-[10px] font-semibold uppercase tracking-widest', eyebrowColor)}
         >
           Rest
         </span>
         <span
           aria-hidden="true"
-          className={cn(
-            'truncate font-display text-xl leading-none tnum',
-            readout.isOver ? 'text-warning' : 'text-primary',
-          )}
+          className={cn('truncate font-display text-xl leading-none tnum', digitColor)}
         >
           {readout.text}
         </span>
       </button>
       {/* ±15 only makes sense against a countdown; a bare count-up gets Skip
-          alone. Ghost-quiet controls — the volt stays on the digits/fill. */}
+          alone. The reversible adjusters group into ONE segmented control
+          (#217) while Skip sits apart with the reversal treatment — the
+          terminal, irreversible action must not read as a third ± sibling.
+          `relative` lifts the hairline frame above the fill layer, matching
+          the time button. */}
       {restTargetSec !== null && (
-        <Button
-          size="sm"
-          variant="ghost"
-          className="hit-44-y shrink-0 tnum text-muted-foreground"
-          onClick={() => onAdjust(-REST_ADJUST_STEP_SEC)}
-          aria-label={`Shorten this rest by ${REST_ADJUST_STEP_SEC} seconds`}
-        >
-          −{REST_ADJUST_STEP_SEC}
-        </Button>
+        <ButtonGroup className="relative w-auto shrink-0">
+          <Button
+            size="sm"
+            variant="ghost"
+            className="hit-44-y tnum text-muted-foreground"
+            onClick={() => onAdjust(-REST_ADJUST_STEP_SEC)}
+            aria-label={`Shorten this rest by ${REST_ADJUST_STEP_SEC} seconds`}
+          >
+            −{REST_ADJUST_STEP_SEC}
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="hit-44-y tnum text-muted-foreground"
+            onClick={() => onAdjust(REST_ADJUST_STEP_SEC)}
+            aria-label={`Extend this rest by ${REST_ADJUST_STEP_SEC} seconds`}
+          >
+            +{REST_ADJUST_STEP_SEC}
+          </Button>
+        </ButtonGroup>
       )}
       <Button
         size="sm"
-        variant="ghost"
-        className="hit-44-y shrink-0 text-muted-foreground"
+        variant="reversal"
+        className="ml-1 hit-44-y shrink-0"
         onClick={onSkip}
         aria-label="Skip rest"
       >
         Skip
       </Button>
-      {restTargetSec !== null && (
-        <Button
-          size="sm"
-          variant="ghost"
-          className="hit-44-y shrink-0 tnum text-muted-foreground"
-          onClick={() => onAdjust(REST_ADJUST_STEP_SEC)}
-          aria-label={`Extend this rest by ${REST_ADJUST_STEP_SEC} seconds`}
-        >
-          +{REST_ADJUST_STEP_SEC}
-        </Button>
-      )}
     </div>
   )
 }

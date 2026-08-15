@@ -1,5 +1,31 @@
 import { describe, expect, it } from 'vitest'
-import { restProgressFraction, restReadout } from './rest-pill'
+import {
+  REST_CLOSING_WINDOW_SEC,
+  isRestClosing,
+  restProgressFraction,
+  restReadout,
+} from './rest-pill'
+
+describe('isRestClosing', () => {
+  it('flags the last-10s window of a countdown', () => {
+    expect(isRestClosing(REST_CLOSING_WINDOW_SEC, 90)).toBe(true)
+    expect(isRestClosing(1, 90)).toBe(true)
+  })
+
+  it('stays quiet above the window', () => {
+    expect(isRestClosing(REST_CLOSING_WINDOW_SEC + 1, 90)).toBe(false)
+  })
+
+  it('hands off to the overage/warning state at zero and below', () => {
+    expect(isRestClosing(0, 90)).toBe(false)
+    expect(isRestClosing(-5, 90)).toBe(false)
+  })
+
+  it('never closes in count-up mode or against a zero target', () => {
+    expect(isRestClosing(5, null)).toBe(false)
+    expect(isRestClosing(5, 0)).toBe(false)
+  })
+})
 
 describe('restProgressFraction', () => {
   it('returns the remaining fraction of the target', () => {
