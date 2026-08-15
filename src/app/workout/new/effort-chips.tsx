@@ -88,69 +88,14 @@ export function EffortChips({
   const targetChip = showRpe ? rpeTargetChip(targetRpe) : rirTargetChip(targetRir)
 
   return (
-    <div
-      className="pl-22 pr-11 motion-safe:animate-rise-in"
-      onPointerDown={() => idleRef.current?.arm()}
-    >
-      <div className="flex items-center gap-2">
+    <div className="pr-11 motion-safe:animate-rise-in" onPointerDown={() => idleRef.current?.arm()}>
+      {/* Scale label + switch ride their own line at input-column alignment;
+          the chip strip below takes a shallower gutter so six chips fit the
+          narrowest supported viewport without scroll or wrap. */}
+      <div className="flex items-center justify-between pl-22">
         <span className="shrink-0 text-[0.65rem] font-semibold uppercase tracking-widest text-muted-foreground">
           {showRpe ? 'RPE' : 'RIR'}
         </span>
-        <div
-          role="group"
-          aria-label={`${showRpe ? 'RPE' : 'Reps in reserve'} for ${setLabel}`}
-          // py-1.5 keeps the chips' hit-44-y vertical extensions inside the
-          // strip so they never overlap the set row above or the caption
-          // below (nothing scrolls here anymore — both strips fit).
-          className="flex min-w-0 flex-1 gap-1 py-1.5"
-        >
-          {chips.map((chip) => {
-            const half = showRpe ? rpeHalfOf(chip) : null
-            const isSelected = showRpe
-              ? rpe === chip || (half !== null && rpe === half)
-              : rir === chip
-            const isTarget = chip === targetChip
-            return (
-              <button
-                key={chip}
-                type="button"
-                onClick={() =>
-                  showRpe
-                    ? onSelectRpe(nextRpeValue(rpe, chip))
-                    : onSelectRir(isSelected ? '' : chip)
-                }
-                aria-pressed={isSelected}
-                aria-label={
-                  showRpe
-                    ? rpeChipAriaLabel(rpe, chip)
-                    : `RIR ${chip}${chip === '5' ? ' or more' : ''}`
-                }
-                className={cn(
-                  // Vertical-only inset: gap-1 neighbors sit closer than the
-                  // full inset would reach, and adjacent invisible extensions
-                  // must never overlap a chip meaning a different value.
-                  'hit-44-y h-9 min-w-9 shrink-0 rounded-full px-2 text-sm font-medium tnum transition-colors',
-                  // Muted selection state (one-volt rule: effort is a note,
-                  // not the session's live moment).
-                  isSelected
-                    ? 'bg-foreground text-background'
-                    : isTarget
-                      ? // Target affordance: a hairline foreground ring —
-                        // louder than ring-border, never volt.
-                        'bg-transparent text-muted-foreground ring-1 ring-inset ring-foreground/40'
-                      : 'bg-transparent text-muted-foreground ring-1 ring-inset ring-border',
-                )}
-              >
-                {/* A selected half-point shows on its whole chip ("8.5"). */}
-                {showRpe && half !== null && rpe === half
-                  ? half
-                  : !showRpe && chip === '5'
-                    ? '5+'
-                    : chip}
-              </button>
-            )
-          })}
-        </div>
         <button
           type="button"
           onClick={() => setShowRpe((prev) => !prev)}
@@ -160,10 +105,65 @@ export function EffortChips({
           {showRpe ? 'RIR' : 'RPE'}
         </button>
       </div>
+      <div
+        role="group"
+        aria-label={`${showRpe ? 'RPE' : 'Reps in reserve'} for ${setLabel}`}
+        // py-1.5 keeps the chips' hit-44-y vertical extensions inside the
+        // strip so they never overlap the line above or the caption below
+        // (nothing scrolls here anymore — both strips fit).
+        // Worst-case width math (320px viewport, RIR mode, 6 chips):
+        // pl-11 (44) + 6 × min-w-8 (192) + 5 × gap-1 (20) + pr-11 (44,
+        // wrapper) = 300px ≤ 320 — 20px slack. RPE mode is narrower
+        // (5 chips = 264px), and a grown chip ("5+"/"8.5" over min-w at
+        // px-1) adds ≤ 4px. Do not widen chips or gutters past this.
+        className="flex min-w-0 gap-1 py-1.5 pl-11"
+      >
+        {chips.map((chip) => {
+          const half = showRpe ? rpeHalfOf(chip) : null
+          const isSelected = showRpe
+            ? rpe === chip || (half !== null && rpe === half)
+            : rir === chip
+          const isTarget = chip === targetChip
+          return (
+            <button
+              key={chip}
+              type="button"
+              onClick={() =>
+                showRpe ? onSelectRpe(nextRpeValue(rpe, chip)) : onSelectRir(isSelected ? '' : chip)
+              }
+              aria-pressed={isSelected}
+              aria-label={
+                showRpe ? rpeChipAriaLabel(rpe, chip) : `RIR ${chip}${chip === '5' ? ' or more' : ''}`
+              }
+              className={cn(
+                // Vertical-only inset: gap-1 neighbors sit closer than the
+                // full inset would reach, and adjacent invisible extensions
+                // must never overlap a chip meaning a different value.
+                // min-w-8 + px-1, not min-w-9 + px-2: the width budget is
+                // what lets six chips fit 320px (math above); the a11y
+                // target is carried by h-9 + hit-44-y (44px effective).
+                'hit-44-y h-9 min-w-8 shrink-0 rounded-full px-1 text-sm font-medium tnum transition-colors',
+                // Muted selection state (one-volt rule: effort is a note,
+                // not the session's live moment).
+                isSelected
+                  ? 'bg-foreground text-background'
+                  : isTarget
+                    ? // Target affordance: a hairline foreground ring —
+                      // louder than ring-border, never volt.
+                      'bg-transparent text-muted-foreground ring-1 ring-inset ring-foreground/40'
+                    : 'bg-transparent text-muted-foreground ring-1 ring-inset ring-border',
+              )}
+            >
+              {/* A selected half-point shows on its whole chip ("8.5"). */}
+              {showRpe && half !== null && rpe === half ? half : !showRpe && chip === '5' ? '5+' : chip}
+            </button>
+          )
+        })}
+      </div>
       {/* The prescribed target restated as words — the loop the chips close.
           Quiet caption, same grammar as the plan target caption above. */}
       {targetLabel && (
-        <p className="mt-0.5 text-xs text-muted-foreground tnum">Target {targetLabel}</p>
+        <p className="mt-0.5 pl-22 text-xs text-muted-foreground tnum">Target {targetLabel}</p>
       )}
     </div>
   )

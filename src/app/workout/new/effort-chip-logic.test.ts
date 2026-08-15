@@ -54,6 +54,15 @@ describe('nextRpeValue (the two-tap cycle)', () => {
   it('10 cycles whole → clear (no 10.5 exists)', () => {
     expect(nextRpeValue('10', '10')).toBe('')
   })
+
+  it('legacy half-point values (logged under the old 9-chip UI) sit at the half step of the cycle: tapping their chip clears', () => {
+    // A 6.5 logged before this redesign IS chip 6's half state — the
+    // stateless cycle's next step from a half is clear. Intended, not a
+    // quirk: the value renders selected on chip 6 reading "6.5", and one
+    // tap clears it exactly like a freshly-cycled half would.
+    expect(nextRpeValue('6.5', '6')).toBe('')
+    expect(nextRpeValue('9.5', '9')).toBe('')
+  })
 })
 
 describe('rpeChipAriaLabel (names the next action)', () => {
@@ -71,6 +80,10 @@ describe('rpeChipAriaLabel (names the next action)', () => {
 
   it('selected 10 names clear directly (no half exists)', () => {
     expect(rpeChipAriaLabel('10', '10')).toBe('RPE 10 — tap again to clear')
+  })
+
+  it('legacy half-point values name the clear next step on their whole chip', () => {
+    expect(rpeChipAriaLabel('6.5', '6')).toBe('RPE 6.5 — tap again to clear')
   })
 })
 
