@@ -202,7 +202,11 @@ export function WeightStepper({
   )
   // pointerdown already stepped, so the click that follows pointerup must be
   // swallowed — but ONLY then: keyboard activation arrives as a bare click
-  // and must still step.
+  // and must still step. The guard is cleared ONLY by the click that
+  // consumes it (or re-armed by the next pointerdown) — with implicit
+  // pointer capture on touch, a hold that wobbles off the hit box fires
+  // pointerleave yet the synthesized click still lands on this button, so
+  // resetting the guard there would let a wobbly tap step twice.
   const pointerSteppedRef = useRef(false)
 
   // The − half is "disabled" at the effective 0 floor: same base extraction
@@ -248,14 +252,8 @@ export function WeightStepper({
                 startHold(direction)
               }}
               onPointerUp={stopHold}
-              onPointerCancel={() => {
-                stopHold()
-                pointerSteppedRef.current = false
-              }}
-              onPointerLeave={() => {
-                stopHold()
-                pointerSteppedRef.current = false
-              }}
+              onPointerCancel={stopHold}
+              onPointerLeave={stopHold}
               onClick={() => {
                 if (pointerSteppedRef.current) {
                   pointerSteppedRef.current = false
