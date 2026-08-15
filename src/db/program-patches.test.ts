@@ -108,6 +108,7 @@ import {
   moveProgramDay,
   addProgramExercise,
   updateProgramExercise,
+  substituteProgramExercise,
   removeProgramExercise,
   moveProgramExercise,
   addProgramSet,
@@ -626,6 +627,106 @@ describe('exercise ops (user-scoped)', () => {
     selectQueue = [[]]
 
     const result = await updateProgramExercise(USER, PID, 0, 0, { name: 'X' }, 'mcp')
+
+    expect(result).toBeNull()
+    expect(records).toEqual([])
+  })
+
+  it('substituteProgramExercise swaps identity and strips template + override loads', async () => {
+    // Reads: owned-exercise, current-progression (non-TM), set-ids
+    selectQueue = [
+      OWNED_EXERCISE,
+      [{ progression: { scheme: 'double-progression', repMin: 8, repMax: 12, incrementKg: 2.5 } }],
+      [{ id: 'ps1' }, { id: 'ps2' }],
+    ]
+
+    const result = await substituteProgramExercise(
+      USER,
+      PID,
+      1,
+      0,
+      { wgerExerciseId: 4, source: 'custom', name: 'Elevated Lunge' },
+      'ui',
+    )
+
+    expect(records.map((r) => r.op)).toEqual([
+      'update:program_exercises',
+      'delete:program_exercise_muscles',
+      'update:program_sets',
+      'update:program_set_overrides',
+      'update:programs',
+      'insert:program_events',
+    ])
+    // Identity swapped; a non-TM progression survives (it re-anchors on the
+    // substitute's own history once the absolute loads are gone).
+    expect(records[0]!.values).toEqual({
+      wgerExerciseId: 4,
+      source: 'custom',
+      name: 'Elevated Lunge',
+    })
+    expect(records[2]!.values).toEqual({ suggestedLoadKg: null })
+    expect(records[3]!.values).toEqual({ suggestedLoadKg: null })
+    expect(result).toEqual({ id: 'row1' })
+  })
+
+  it('substituteProgramExercise drops a TM-based progression with the swap', async () => {
+    // Reads: owned-exercise, current-progression (TM-anchored), set-ids
+    selectQueue = [
+      OWNED_EXERCISE,
+      [{ progression: { scheme: 'percent-1rm', trainingMaxKg: 140, weekPercents: [0.7] } }],
+      [{ id: 'ps1' }],
+    ]
+
+    await substituteProgramExercise(
+      USER,
+      PID,
+      0,
+      0,
+      { wgerExerciseId: 4, source: 'custom', name: 'X' },
+      'ui',
+    )
+
+    // The old lift's training max must not price the substitute's sets.
+    expect(records[0]!.values).toEqual({
+      wgerExerciseId: 4,
+      source: 'custom',
+      name: 'X',
+      progression: null,
+    })
+  })
+
+  it('substituteProgramExercise skips the override write when the slot has no sets', async () => {
+    selectQueue = [OWNED_EXERCISE, [{ progression: null }], []]
+
+    await substituteProgramExercise(
+      USER,
+      PID,
+      0,
+      0,
+      { wgerExerciseId: 4, source: 'custom', name: 'X' },
+      'ui',
+    )
+
+    expect(records.map((r) => r.op)).toEqual([
+      'update:program_exercises',
+      'delete:program_exercise_muscles',
+      'update:program_sets',
+      'update:programs',
+      'insert:program_events',
+    ])
+  })
+
+  it('substituteProgramExercise returns null and writes nothing when not owned', async () => {
+    selectQueue = [[]]
+
+    const result = await substituteProgramExercise(
+      USER,
+      PID,
+      0,
+      0,
+      { wgerExerciseId: 4, source: 'custom', name: 'X' },
+      'ui',
+    )
 
     expect(result).toBeNull()
     expect(records).toEqual([])
