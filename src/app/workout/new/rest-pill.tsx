@@ -155,7 +155,10 @@ export function RestPill({
   const fraction = restProgressFraction(remainingSec, restTargetSec)
 
   return (
-    <div className="relative mb-2 flex items-center gap-1 overflow-hidden rounded-xl border border-border bg-card py-1 pl-1 pr-1.5">
+    // The frame carries NO overflow clip: the controls' hit-44-y insets must
+    // reach past the 36px buttons, and a clipped hit area is silently lost.
+    // The fill layer below clips itself to the frame's radius instead.
+    <div className="relative mb-2 flex items-center gap-1 rounded-xl border border-border bg-card py-1 pl-1 pr-1.5">
       {/* Depleting fill: an absolutely-positioned layer scaled by the
           remaining fraction — scaleX from the left edge keeps the motion
           compositor-only (same pattern as the session-pulse hairline). The
@@ -163,7 +166,10 @@ export function RestPill({
           reduced motion gets stepped updates, no animated pulsing.
           Overage: full-width warning tint — the "go" state, not a drain. */}
       {fraction !== null && (
-        <div aria-hidden="true" className="pointer-events-none absolute inset-0">
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 overflow-hidden rounded-[inherit]"
+        >
           <div
             className={cn(
               'h-full origin-left motion-safe:transition-transform motion-safe:duration-1000 motion-safe:ease-linear',
@@ -206,7 +212,7 @@ export function RestPill({
         <Button
           size="sm"
           variant="ghost"
-          className="relative shrink-0 tnum text-muted-foreground"
+          className="hit-44-y shrink-0 tnum text-muted-foreground"
           onClick={() => onAdjust(-REST_ADJUST_STEP_SEC)}
           aria-label={`Shorten this rest by ${REST_ADJUST_STEP_SEC} seconds`}
         >
@@ -216,7 +222,7 @@ export function RestPill({
       <Button
         size="sm"
         variant="ghost"
-        className="relative shrink-0 text-muted-foreground"
+        className="hit-44-y shrink-0 text-muted-foreground"
         onClick={onSkip}
         aria-label="Skip rest"
       >
@@ -226,7 +232,7 @@ export function RestPill({
         <Button
           size="sm"
           variant="ghost"
-          className="relative shrink-0 tnum text-muted-foreground"
+          className="hit-44-y shrink-0 tnum text-muted-foreground"
           onClick={() => onAdjust(REST_ADJUST_STEP_SEC)}
           aria-label={`Extend this rest by ${REST_ADJUST_STEP_SEC} seconds`}
         >

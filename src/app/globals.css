@@ -350,6 +350,36 @@
   .tnum {
     font-variant-numeric: tabular-nums;
   }
+  /* Touch-target inset: an invisible ::before growing a sub-44px control's
+     hit area by 4px per edge (36px visual → 44px effective, the HIG floor)
+     without shifting layout — the same trick the remove-set button and
+     rest-sheet presets hand-roll with `relative before:absolute
+     before:-inset-1`. Ancestors must not overflow-clip the control, or the
+     extra area is silently lost. Full-inset form ONLY where every neighbor
+     sits ≥8px away: overlapping extensions have no arbitration (the later
+     sibling wins hit-testing), so a tap near a divider would silently fire
+     the wrong control. */
+  .hit-44 {
+    position: relative;
+  }
+  .hit-44::before {
+    content: '';
+    position: absolute;
+    inset: calc(var(--spacing) * -1);
+  }
+  /* Vertical-only sibling for controls with close horizontal neighbors
+     (segments inside ButtonGroup, chip strips): the height reaches 44px
+     effective while the side edges stay exactly where they look, so an
+     invisible extension can never cross into the adjacent control. */
+  .hit-44-y {
+    position: relative;
+  }
+  .hit-44-y::before {
+    content: '';
+    position: absolute;
+    inset-block: calc(var(--spacing) * -1);
+    inset-inline: 0;
+  }
 }
 
 /* Notes editor (TipTap) content: the ProseMirror div carries Tailwind classes

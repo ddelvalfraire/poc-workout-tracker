@@ -16,6 +16,7 @@ import {
   X,
 } from 'lucide-react'
 import { Button, buttonVariants } from '@/components/ui/button'
+import { ButtonGroup } from '@/components/ui/button-group'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { AppHeader } from '@/components/app-header'
@@ -1928,16 +1929,13 @@ export function WorkoutLogger({
                   // (left inset = circle + prev + gaps, right = the row's X):
                   // one control, not two orphaned buttons floating right.
                   <div className="flex flex-col gap-1.5 pl-22 pr-11 motion-safe:animate-rise-in">
-                    <div className="flex w-full overflow-hidden rounded-lg border border-border bg-card">
+                    <ButtonGroup>
                     {([-1, 1] as const).map((direction) => (
                       <Button
                         key={direction}
                         size="sm"
                         variant="ghost"
-                        className={cn(
-                          'h-9 flex-1 rounded-none text-sm font-semibold tnum',
-                          direction === 1 && 'border-l border-border',
-                        )}
+                        className="hit-44-y font-semibold tnum"
                         onPointerDown={(e) => e.preventDefault()}
                         onClick={() => {
                           // ghost.weight is undefined for BW-relative types by
@@ -1966,7 +1964,7 @@ export function WorkoutLogger({
                         {WEIGHT_STEP[unit]}
                       </Button>
                     ))}
-                    </div>
+                    </ButtonGroup>
                     {/* Per-side plate chip: the racked answer for the focused
                         weight, against the default (heaviest) bar — barbell
                         totals only, and only when the field parses to a
@@ -2052,14 +2050,14 @@ export function WorkoutLogger({
             rendered near the other top-layer surfaces below. */}
         {isLive && (
           <div className="pt-2">
-            {/* Demoted on purpose (tinted outline, never volt): a designed
-                escape hatch rather than a bare text link, but still nothing
-                that competes with the volt Finish below. Full-width matches
-                the card rhythm of the page; the ConfirmDialog stays the
-                actual guard. */}
+            {/* Demoted on purpose (destructive-outline, never volt): a
+                designed escape hatch rather than a bare text link, but still
+                nothing that competes with the volt Finish below. Full-width
+                matches the card rhythm of the page; the ConfirmDialog stays
+                the actual guard. */}
             <Button
-              variant="outline"
-              className="w-full border-destructive/30 bg-destructive/5 text-destructive"
+              variant="destructive-outline"
+              className="w-full"
               disabled={isSaving || isDiscarding}
               onClick={() => {
                 setDiscardError(null) // a stale failure must not reopen with the dialog
@@ -2161,7 +2159,7 @@ export function WorkoutLogger({
             <div className="mt-2 flex justify-end gap-2">
               <Button
                 size="sm"
-                variant="ghost"
+                variant="reversal"
                 disabled={isRemembering}
                 onClick={handleRememberJustToday}
               >
@@ -2202,7 +2200,7 @@ export function WorkoutLogger({
                 )
               })()}
             </p>
-            <Button size="sm" variant="outline" className="shrink-0" onClick={handleUndoRemove}>
+            <Button size="sm" variant="reversal" className="shrink-0" onClick={handleUndoRemove}>
               {removed.length > 1 ? `Undo (${removed.length})` : 'Undo'}
             </Button>
           </div>
@@ -2230,16 +2228,16 @@ export function WorkoutLogger({
             // "Finish", not "Save": ending a session is the product's peak
             // moment, not filing paperwork. Correcting a finished workout
             // keeps an outline "Save changes" — that IS paperwork.
-            variant={isLive ? 'default' : 'outline'}
+            variant={isLive ? 'band' : 'outline'}
             className={cn(
               'w-full font-semibold uppercase tracking-wide',
-              // Live Finish is the full-bleed volt-tinted text-action band
-              // (the sticky bar's primary, still the only volt CTA): tinted
-              // wash + volt condensed caps instead of a solid pill. -mx-5
-              // bleeds across the bar's px-5. Edit-mode "Save changes" keeps
-              // the outline pill — corrections are paperwork, not a moment.
-              isLive &&
-                '-mx-5 w-[calc(100%+2.5rem)] rounded-none border-0 bg-primary/15 font-display text-base tracking-wider text-primary hover:bg-primary/25',
+              // Live Finish is the `band` variant (the sticky bar's primary,
+              // still the only volt CTA): tinted wash + volt condensed caps
+              // instead of a solid pill. The variant owns the skin; -mx-5
+              // bleeding across the bar's px-5 is layout and stays here.
+              // Edit-mode "Save changes" keeps the outline pill —
+              // corrections are paperwork, not a moment.
+              isLive && '-mx-5 w-[calc(100%+2.5rem)]',
               // Every planned set is done: a gentle scale nudge says "wrap it
               // up" — motion as state (session complete), not decoration.
               // Reduced-motion users get the same information from the volt
