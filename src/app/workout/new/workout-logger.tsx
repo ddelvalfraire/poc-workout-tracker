@@ -15,7 +15,6 @@ import {
   X,
 } from 'lucide-react'
 import { Button, buttonVariants } from '@/components/ui/button'
-import { ButtonGroup } from '@/components/ui/button-group'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { AppHeader } from '@/components/app-header'
@@ -71,6 +70,7 @@ import { PlateSheet } from './plate-sheet'
 import { RestSheet } from './rest-sheet'
 import { StatsSheet } from './stats-sheet'
 import { RestPill } from './rest-pill'
+import { WeightStepper } from './weight-stepper'
 import { SessionToast } from './session-toast'
 import { fireRestOverAlert } from './rest-over-alert'
 import { unlockRestChime } from './rest-chime'
@@ -79,7 +79,6 @@ import { resolveRestTarget } from '@/lib/rest-target'
 import { adjustedRestTarget } from '@/lib/rest-alert'
 import { sessionPulse, shouldShowNextUp } from '@/lib/session-pulse'
 import { targetCaption } from '@/lib/target-caption'
-import { plateChipLabel } from '@/lib/plate-chip'
 import { allTimePRIndex } from '@/lib/pr-detection'
 import { DEFAULT_EQUIPMENT, type Equipment } from '@/lib/equipment'
 import { LOGGING_TYPES, isLoggingType, type LoggingType } from '@/lib/workout-input'
@@ -96,8 +95,6 @@ import {
   adoptableGhostValue,
   previousChipLabel,
   completedSetsSummary,
-  stepWeightValue,
-  WEIGHT_STEP,
   type PlanSetTarget,
 } from '@/lib/format'
 import type { LastPerformance } from '@/db/workouts'
@@ -2037,74 +2034,34 @@ export function WorkoutLogger({
                       )
                     })()
                   ))}
-                {/* Steppers ride under the focused weight row only. One plate
-                    a side per tap; pointerdown preventDefault keeps the input
-                    focused so the row (and keyboard) don't dismiss mid-tap. */}
+                {/* Steppers ride under the focused weight row only —
+                    extracted to WeightStepper (#216), which owns the ± rail,
+                    hold-to-autorepeat, and the per-side plate chip. The
+                    focus-gating (stepperSetId) and blur-to-dismiss lifecycle
+                    stay here. ghost.weight is undefined for BW-relative
+                    types by design (a total-load ghost would be a phantom),
+                    so their steppers step the typed value or from zero. */}
                 {stepperSetId === set.id && (
-                  // Connected segmented pair aligned to the input columns
-                  // (left inset = circle + prev + gaps, right = the row's X):
-                  // one control, not two orphaned buttons floating right.
-                  <div className="flex flex-col gap-1.5 pl-22 pr-11 motion-safe:animate-rise-in">
-                    <ButtonGroup>
-                    {([-1, 1] as const).map((direction) => (
-                      <Button
-                        key={direction}
-                        size="sm"
-                        variant="ghost"
-                        className="hit-44-y font-semibold tnum"
-                        onPointerDown={(e) => e.preventDefault()}
-                        onClick={() => {
-                          // ghost.weight is undefined for BW-relative types by
-                          // design (a total-load ghost would be a phantom), so
-                          // their steppers step the typed value or from zero.
-                          const next = stepWeightValue(set.weight, ghost.weight, direction, unit)
-                          if (next !== null) {
-                            dispatch({
-                              type: 'UPDATE_SET',
-                              exerciseIndex,
-                              setIndex,
-                              field: 'weight',
-                              value: next,
-                            })
-                          }
-                        }}
-                        aria-label={`${direction === 1 ? 'Increase' : 'Decrease'} set ${setIndex + 1} ${
-                          exercise.loggingType === 'weighted_bodyweight'
-                            ? 'added weight'
-                            : exercise.loggingType === 'assisted_bodyweight'
-                              ? 'assistance'
-                              : 'weight'
-                        } by ${WEIGHT_STEP[unit]} ${unit}`}
-                      >
-                        {direction === 1 ? '+' : '−'}
-                        {WEIGHT_STEP[unit]}
-                      </Button>
-                    ))}
-                    </ButtonGroup>
-                    {/* Per-side plate chip: the racked answer for the focused
-                        weight, against the default (heaviest) bar — barbell
-                        totals only, and only when the field parses to a
-                        rackable number. Tap opens the full plate sheet.
-                        pointerdown preventDefault keeps the input focused
-                        (same trick as the steppers) so the strip doesn't
-                        unmount before the click lands. */}
-                    {exercise.loggingType === 'weight_reps' &&
-                      (() => {
-                        const chip = plateChipLabel(set.weight, gear.bars[0] ?? 0, gear.plates)
-                        if (!chip) return null
-                        return (
-                          <button
-                            type="button"
-                            onPointerDown={(e) => e.preventDefault()}
-                            onClick={() => setPlateSheetFor(exerciseIndex)}
-                            aria-label={`Plates for this weight: ${chip}. Open plate calculator`}
-                            className="self-start text-xs text-muted-foreground tnum underline-offset-2 active:underline"
-                          >
-                            {chip}
-                          </button>
-                        )
-                      })()}
-                  </div>
+                  <WeightStepper
+                    setIndex={setIndex}
+                    inputId={`weight-input-${set.id}`}
+                    weight={set.weight}
+                    ghostWeight={ghost.weight}
+                    unit={unit}
+                    loggingType={exercise.loggingType}
+                    bar={gear.bars[0] ?? 0}
+                    plates={gear.plates}
+                    onWeightChange={(value) =>
+                      dispatch({
+                        type: 'UPDATE_SET',
+                        exerciseIndex,
+                        setIndex,
+                        field: 'weight',
+                        value,
+                      })
+                    }
+                    onOpenPlateSheet={() => setPlateSheetFor(exerciseIndex)}
+                  />
                 )}
                 {/* The record moment, recognized as it happens: this set's
                     e1RM strictly beats the all-time best the session opened
