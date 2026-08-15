@@ -8,13 +8,18 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
  * fixture rows (prescribedLoadKg/prescribedRepMin) — never re-derived — so
  * the fixtures supply actuals + snapshots.
  */
-const { lastPerformance, historyBefore, trainedSessions } = vi.hoisted(() => ({
+const { lastPerformance, historyBefore, trainedSessions, weightUnit } = vi.hoisted(() => ({
   lastPerformance: vi.fn(),
   historyBefore: vi.fn(),
   trainedSessions: vi.fn(),
+  weightUnit: vi.fn(),
 }))
 
 vi.mock('./index', () => ({ db: {} }))
+// Derivation reads the display unit for load quantization (#226). Defaults
+// to 'kg' here so every legacy fixture (100 kg base, 2.5 kg steps — all on
+// the 1.25 kg grid) derives byte-identically.
+vi.mock('./preferences', () => ({ getWeightUnit: weightUnit }))
 vi.mock('./workouts', () => ({
   getLastPerformance: lastPerformance,
   getExerciseHistoryBefore: historyBefore,
@@ -115,6 +120,7 @@ beforeEach(() => {
   historyBefore.mockResolvedValue([])
   lastPerformance.mockResolvedValue(null)
   trainedSessions.mockResolvedValue([])
+  weightUnit.mockResolvedValue('kg')
 })
 
 describe('deriveDayPrescription auto-regulation', () => {
@@ -609,5 +615,37 @@ describe('deriveDayPrescription auto-regulation', () => {
       excludeWorkoutId: 'w-current',
       deloadWeek: null,
     })
+  })
+})
+
+describe('deriveDayPrescription load quantization (#226)', () => {
+  it('snaps a kg-derived load to the lb grid: 16.87 kg (37.2 lb) prescribes 37.5 lb', async () => {
+    // Arrange — an lb lifter whose base load is off the 2.5 lb grid.
+    weightUnit.mockResolvedValue('lb')
+    const fixture = day({ autoregulation: false })
+    const offGrid = {
+      ...fixture,
+      exercises: fixture.exercises.map((e) => ({
+        ...e,
+        sets: e.sets.map((s) => ({ ...s, suggestedLoadKg: 16.87 })),
+      })),
+    }
+
+    // Act
+    const [prescription] = await deriveDayPrescription(USER, offGrid, 1)
+
+    // Assert — 17.01 kg is 37.5 lb at column precision (never 37.2).
+    expect(prescription.sets.map((s) => s.loadKg)).toEqual([17.01, 17.01, 17.01])
+  })
+
+  it('snaps kg-unit loads onto the 1.25 kg grid after a scheme step', async () => {
+    // Arrange — week 2 of a linear scheme stepping 100 → 102.4 raw.
+    const fixture = day({ autoregulation: false, progression: { scheme: 'linear', incrementKg: 2.4 } })
+
+    // Act
+    const [prescription] = await deriveDayPrescription(USER, fixture, 2)
+
+    // Assert — 102.4 lands on 102.5.
+    expect(prescription.sets.map((s) => s.loadKg)).toEqual([102.5, 102.5, 102.5])
   })
 })

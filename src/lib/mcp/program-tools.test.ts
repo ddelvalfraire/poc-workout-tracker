@@ -1171,7 +1171,8 @@ describe('registerProgramTools', () => {
       }
       const exercise = body.days[0]!.exercises[0]!
       expect(exercise.autoreg).toEqual({
-        reason: 'Missed 8 reps on 2 of 3 sets at 220.5 lb — repeating the load',
+        // 220.5 lb raw quantizes to the loadable 220 (#226).
+        reason: 'Missed 8 reps on 2 of 3 sets at 220 lb — repeating the load',
         suggestEarlyDeload: false,
         phaseContext: null,
         heldBackoff: null,

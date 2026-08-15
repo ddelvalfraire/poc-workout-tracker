@@ -162,9 +162,16 @@ describe('planPlaceholderForSet', () => {
     })
   })
 
-  it('converts the load ghost to the active unit (lb)', () => {
+  it('quantizes a kg-derived load ghost to the lb grid (16.87 kg → 37.5, #226)', () => {
+    const target = [{ repMin: 12, repMax: 12, loadKg: 16.87, restSec: null }]
+    // Raw conversion is 37.2 lb — unloadable; the ghost snaps to 37.5.
+    expect(planPlaceholderForSet(target, 0, 'lb')).toEqual({ reps: '12', weight: '37.5' })
+  })
+
+  it('converts the load ghost to the active unit (lb), on the 2.5 lb grid', () => {
     const targets = [{ repMin: 5, repMax: 5, loadKg: 100, restSec: null }]
-    expect(planPlaceholderForSet(targets, 0, 'lb')).toEqual({ reps: '5', weight: '220.5' })
+    // 220.5 lb raw quantizes to the loadable 220 (#226).
+    expect(planPlaceholderForSet(targets, 0, 'lb')).toEqual({ reps: '5', weight: '220' })
   })
 
   it('returns {} when there is no plan', () => {

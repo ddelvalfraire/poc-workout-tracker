@@ -541,7 +541,16 @@ describe('autoregReason', () => {
     expect(autoregReason(adjustment, 'kg')).toBe(
       'Missed 8 reps on 2 of 3 sets at 100 kg — repeating the load',
     )
-    expect(autoregReason(adjustment, 'lb')).toContain('220.5 lb')
+    // 100 kg is 220.5 lb raw — the reason prints the loadable 220 lb (#226).
+    expect(autoregReason(adjustment, 'lb')).toContain('220 lb')
+  })
+
+  it('quantizes lb loads to the 2.5 lb grid — never 66.6 lb (#226)', () => {
+    // Prescribed and performed at 30.21 kg (66.6 lb raw) with missed reps.
+    const adjustment = autoregulate(2.5, [sessionAt(30.21, [6, 6, 6])], 'all-sets')!
+    const reason = autoregReason(adjustment, 'lb')
+    expect(reason).toContain('67.5 lb')
+    expect(reason).not.toContain('66.6')
   })
 
   it('describes the back-off with its magnitude', () => {

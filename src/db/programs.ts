@@ -20,6 +20,8 @@ import {
 import { setTrainingMax, withTx, ProgramPatchError } from './program-patches'
 import type { TmIncrement } from '@/lib/tm-restart'
 import { rollingE1rm } from '@/lib/rolling-e1rm'
+import { quantizeSetLoads } from '@/lib/load-quantize'
+import { getWeightUnit } from './preferences'
 import { applyEffortToAdjustment, sustainedUndershoot } from '@/lib/effort-gate'
 import {
   autoregulate,
@@ -1384,6 +1386,11 @@ export async function deriveDayPrescription(
   const ids = [...new Set(day.exercises.map((e) => e.wgerExerciseId))]
   const historyRows = ids.length > 0 ? await getExerciseHistoryBefore(userId, ids, new Date()) : []
 
+  // Suggested loads quantize to the display unit's loadable grid (#226) —
+  // round-at-derivation, so ghosts, previews, and the prescribed snapshots
+  // stamped at instantiation compare like with like. Request-memoized read.
+  const unit = await getWeightUnit(userId)
+
   const keys = [...new Set(day.exercises.map((e) => catalogKey(e.source, e.wgerExerciseId)))]
   const e1rmByKey = new Map<string, number | null>()
   for (const key of keys) {
@@ -1451,6 +1458,8 @@ export async function deriveDayPrescription(
     // The scheme derives FIRST: range mode reads today's scheme-derived
     // working rows (load + top) as its load-keyed plan parameters (C2 — no
     // positional keys survive between history and today's plan).
+    // Quantized immediately so range-mode plan params (rangeRows) and the
+    // final prescription share one grid.
     const scheme = deriveWeekSets({
       sets: exercise.sets,
       progression: exercise.progression,
@@ -1459,7 +1468,7 @@ export async function deriveDayPrescription(
       deloadWeek: day.program.deloadWeek,
       history,
       deloadPolicy,
-    })
+    }).map((s) => quantizeSetLoads(s, unit))
 
     // Layer 1 auto-regulation (program-gated; fixed-rep linear gets the v1
     // stall rules, ranged/mixed linear + double-progression the v2 double-
@@ -1554,7 +1563,12 @@ export async function deriveDayPrescription(
 
     // Precedence: scheme → autoreg (BEFORE overrides) → override on top, so
     // an explicit per-week override always outranks the adjustment.
-    const adjusted = adjustment ? applyAutoregToSets(scheme, adjustment) : scheme
+    // Re-quantized after autoreg: a step adds a raw kg increment that can
+    // land off-grid in lb. Overrides apply AFTER — an explicit per-week
+    // override is the owner's number and is never rounded.
+    const adjusted = adjustment
+      ? applyAutoregToSets(scheme, adjustment).map((s) => quantizeSetLoads(s, unit))
+      : scheme
     results.push({
       sets: adjusted.map((s) =>
         applyOverride(

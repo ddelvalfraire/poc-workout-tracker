@@ -1,4 +1,7 @@
-import { kgToDisplay, type WeightUnit } from './units'
+import type { WeightUnit } from './units'
+// Reason strings print loads through the #226 quantizer — a lifter must
+// never read an unloadable number like 66.6 lb in the transparency copy.
+import { quantizeDisplayLoad } from './load-quantize'
 import type { DerivedSet } from './progression'
 import type { DietPhase } from './program-input'
 
@@ -1185,7 +1188,7 @@ export function applyAutoregToSets(
  * anchor), matching where `applyAutoregToSets` actually lands the step.
  */
 export function autoregReason(adjustment: AutoregAdjustment, unit: WeightUnit): string {
-  const load = `${kgToDisplay(adjustment.evidence.loadKg, unit)} ${unit}`
+  const load = `${quantizeDisplayLoad(adjustment.evidence.loadKg, unit)} ${unit}`
   // Cutting framing (honest copy rule: stalls are EXPECTED under a deficit
   // and holding is the win — never a claim that cutting impairs strength).
   // One sentence owns every cutting-annotated 3-stall verdict: the M4 flag
@@ -1204,9 +1207,9 @@ export function autoregReason(adjustment: AutoregAdjustment, unit: WeightUnit): 
     return `Third straight stall at ${load} — training max likely set too high`
   }
   if (adjustment.action === 'anchor' && adjustment.anchor) {
-    const to = `${kgToDisplay(adjustment.anchor.toLoadKg, unit)} ${unit}`
+    const to = `${quantizeDisplayLoad(adjustment.anchor.toLoadKg, unit)} ${unit}`
     if (adjustment.anchor.fromLoadKg === null) return `Last session: ${to} — anchoring`
-    const from = `${kgToDisplay(adjustment.anchor.fromLoadKg, unit)} ${unit}`
+    const from = `${quantizeDisplayLoad(adjustment.anchor.fromLoadKg, unit)} ${unit}`
     if (adjustment.anchor.toLoadKg < adjustment.anchor.fromLoadKg - LOAD_EPSILON_KG) {
       return `Worked at ~${to} vs the planned ${from} for ${STALLS_BEFORE_DECREMENT} sessions — matching the plan to reality`
     }
@@ -1214,14 +1217,14 @@ export function autoregReason(adjustment: AutoregAdjustment, unit: WeightUnit): 
   }
   if (adjustment.action === 'step') {
     const fillKg = adjustment.anchor?.toLoadKg ?? adjustment.evidence.loadKg
-    const fill = `${kgToDisplay(fillKg, unit)} ${unit}`
-    const next = `${kgToDisplay(fillKg + adjustment.deltaKg, unit)} ${unit}`
+    const fill = `${quantizeDisplayLoad(fillKg, unit)} ${unit}`
+    const next = `${quantizeDisplayLoad(fillKg + adjustment.deltaKg, unit)} ${unit}`
     return `Range filled at ${fill} last session — stepping to ${next}`
   }
   if (adjustment.range) {
     const { totalReps, prevTotalReps, stalls } = adjustment.range
     if (adjustment.action === 'decrement') {
-      const backoff = `${kgToDisplay(-adjustment.deltaKg, unit)} ${unit}`
+      const backoff = `${quantizeDisplayLoad(-adjustment.deltaKg, unit)} ${unit}`
       return `No new reps at ${load} for ${stalls} straight sessions — backing off ${backoff} (~10%)`
     }
     const cutting = adjustment.phaseContext === 'cutting' ? ' — expected while cutting' : ''
@@ -1230,7 +1233,7 @@ export function autoregReason(adjustment: AutoregAdjustment, unit: WeightUnit): 
       : `Range not filled at ${load} — adding reps before the load steps${cutting}`
   }
   if (adjustment.action === 'decrement') {
-    const backoff = `${kgToDisplay(-adjustment.deltaKg, unit)} ${unit}`
+    const backoff = `${quantizeDisplayLoad(-adjustment.deltaKg, unit)} ${unit}`
     return `Third straight stall at ${load} — backing off ${backoff} (~10%)`
   }
   const { missedSets, scorableSets, repFloor } = adjustment.evidence

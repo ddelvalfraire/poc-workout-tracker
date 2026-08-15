@@ -15,12 +15,20 @@ import { DELOAD_LOAD_FACTOR } from '@/lib/progression'
  *
  * Returned ids by call order: workout → w1, exercise → e1.
  */
-const { findFirst, lastPerformance, historyBefore, setTrainingMaxMock } = vi.hoisted(() => ({
-  findFirst: vi.fn(),
-  lastPerformance: vi.fn(),
-  historyBefore: vi.fn(),
-  setTrainingMaxMock: vi.fn(),
-}))
+const { findFirst, lastPerformance, historyBefore, setTrainingMaxMock, weightUnit } = vi.hoisted(
+  () => ({
+    findFirst: vi.fn(),
+    lastPerformance: vi.fn(),
+    historyBefore: vi.fn(),
+    setTrainingMaxMock: vi.fn(),
+    weightUnit: vi.fn(),
+  }),
+)
+
+// Derivation quantizes suggested loads to the display unit's grid (#226);
+// mocked to 'kg' so fixtures derive on the familiar 1.25 kg grid instead of
+// falling through the generic select chain to the 'lb' default.
+vi.mock('./preferences', () => ({ getWeightUnit: weightUnit }))
 
 // The wave-boundary TM persist routes through program-patches' setter — the
 // routing (address, new TM, reason, banked-wave marker) is asserted here; the
@@ -176,6 +184,7 @@ beforeEach(() => {
   historyBefore.mockResolvedValue([])
   lastPerformance.mockResolvedValue(null)
   setTrainingMaxMock.mockResolvedValue({ id: 'pe1', trainingMaxKg: 0 })
+  weightUnit.mockResolvedValue('kg')
 })
 
 describe('instantiateProgramDay — amrap-cycle wave-boundary TM persist', () => {
@@ -211,9 +220,10 @@ describe('instantiateProgramDay — amrap-cycle wave-boundary TM persist', () =>
       'ui',
       { bankedWaves: 1 },
     )
-    // The derived seed still carries the bumped TM (102.5 × 0.65) — the
-    // stale in-memory progression and the persisted TM agree by design.
-    expect(seededSets()[0].weight).toBeCloseTo(102.5 * 0.65, 5)
+    // The derived seed still carries the bumped TM (102.5 × 0.65 = 66.625,
+    // quantized to the 1.25 kg grid → 66.25, #226) — the stale in-memory
+    // progression and the persisted TM agree by design.
+    expect(seededSets()[0].weight).toBeCloseTo(66.25, 5)
   })
 
   it('does not bank mid-wave', async () => {
@@ -246,9 +256,10 @@ describe('instantiateProgramDay — amrap-cycle wave-boundary TM persist', () =>
     // Act
     await instantiateProgramDay(USER, 'd1', 4, 'ui')
 
-    // Assert — no double bump; loads read the persisted value.
+    // Assert — no double bump; loads read the persisted value (66.625
+    // quantized to the 1.25 kg grid → 66.25, #226).
     expect(setTrainingMaxMock).not.toHaveBeenCalled()
-    expect(seededSets()[0].weight).toBeCloseTo(102.5 * 0.65, 5)
+    expect(seededSets()[0].weight).toBeCloseTo(66.25, 5)
   })
 
   it('never banks a static wave (incrementKg 0)', async () => {
@@ -482,7 +493,8 @@ describe('instantiateProgramDay (engine-driven)', () => {
     await instantiateProgramDay(USER, 'd1', 1, 'ui')
 
     // Assert
-    expect(seededSets()[0].weight).toBeCloseTo(100 * (1 + 5 / 30) * 0.811, 3)
+    // 100 × (1 + 5/30) × 0.811 = 94.62, quantized to the 1.25 kg grid (#226).
+    expect(seededSets()[0].weight).toBeCloseTo(95, 3)
   })
 
   it('excludes bodyweight-type history rows from the e1RM derivation', async () => {
