@@ -25,6 +25,7 @@ import type {
   DietPhase,
 } from '@/lib/program-input'
 import type { AutoregStallPolicy } from '@/lib/autoregulate'
+import type { OvershootPolicy } from '@/lib/overshoot-policy'
 import type { ExerciseSource, ExerciseCategory } from '@/lib/custom-exercise-input'
 import type { LoggingType } from '@/lib/workout-input'
 import type { MeasurementSite } from '@/lib/measurement-sites'
@@ -605,6 +606,13 @@ export const programs = pgTable(
     // clear) — the minimal staleness signal, exposed via get_program so the
     // coach can reason about "still cutting?" without a nag surface.
     dietPhaseSetAt: timestamp('diet_phase_set_at', { withTimezone: true }),
+    // Overshoot / goal-met policy (lib/overshoot-policy.ts): 'strict-load' |
+    // 'e1rm-equivalent' | 'any-metric'. NULLABLE with no default and no
+    // backfill ON PURPOSE — null means "per-scheme default", resolved at READ
+    // time by resolveOvershootPolicy (strict for load-anchored schemes,
+    // e1rm-equivalent for rpe-target), so existing programs score
+    // byte-identically. Text + app-level union like `status`.
+    overshootPolicy: text('overshoot_policy').$type<OvershootPolicy>(),
     // Performance→plan auto-sync switch, default ON so fresh users never see
     // stale plans; off for deliberate-percentage programs (5/3/1-style waves)
     // where performed > listed is by design.
@@ -716,6 +724,12 @@ export const programExercises = pgTable(
     position: integer('position').notNull().default(0),
     // Same non-null value within a day = perform those exercises as a superset.
     supersetGroup: integer('superset_group'),
+    // Per-exercise overshoot-policy override (lib/overshoot-policy.ts) —
+    // outranks the program column; null = inherit (program policy, else the
+    // scheme default). Same nullable-text + read-time-resolution discipline
+    // as programs.overshoot_policy. No override UI in v1 — the column and
+    // resolver support it so a later surface needs data, not schema.
+    overshootPolicy: text('overshoot_policy').$type<OvershootPolicy>(),
     // Narrow JSONB tail: per-exercise progression scheme params (Phase 5 engine
     // consumes it). Validated/typed by `progressionSchema` at the boundary.
     progression: jsonb('progression').$type<Progression>(),
