@@ -198,7 +198,7 @@ describe('aggregateExerciseStats', () => {
     expect(stats.records.bestSessionVolumeKg).toMatchObject({ volumeKg: 500 })
   })
 
-  it('counts duration-mode sets but produces no records or trend from them', () => {
+  it('counts duration-mode sets but produces no LIFTING records or trend from them', () => {
     const rows = [
       row({ workoutId: 'w1', reps: null, weight: null, metricMode: 'duration' }),
       row({ workoutId: 'w1', reps: null, weight: null, metricMode: 'duration' }),
@@ -213,6 +213,10 @@ describe('aggregateExerciseStats', () => {
       heaviestLoadKg: null,
       mostReps: null,
       bestSessionVolumeKg: null,
+      // No durations logged on these rows → the cardio trio stays empty too.
+      longestDuration: null,
+      longestDistance: null,
+      bestPace: null,
     })
     expect(stats.trend).toEqual([])
   })
@@ -649,5 +653,65 @@ describe('listLoggedExercises', () => {
     const where = new PgDialect().sqlToQuery(whereArgs[0] as SQL)
     expect(where.params).toContain(USER)
     expect(where.sql).toContain('"completed_at" is not null')
+  })
+})
+
+describe('cardio records (cardio v1 slice 3)', () => {
+  const cardioRow = (over: Partial<ExerciseStatsRow> = {}): ExerciseStatsRow =>
+    row({ reps: null, weight: null, metricMode: 'duration_distance', ...over })
+
+  it('derives longest duration, longest distance, and best pace', () => {
+    const rows = [
+      // w1: 30:00 for 5 km → 360 s/km
+      cardioRow({ workoutId: 'w1', startedAt: S1, durationSec: 1800, distanceM: 5000 }),
+      // w2: 25:00 for 5 km → 300 s/km (best pace), shorter duration
+      cardioRow({ workoutId: 'w2', startedAt: S2, durationSec: 1500, distanceM: 5000 }),
+      // w3: 40:00, no distance — longest duration, paceless
+      cardioRow({ workoutId: 'w3', startedAt: S3, durationSec: 2400, distanceM: null, metricMode: 'duration' }),
+    ]
+
+    const stats = aggregateExerciseStats(rows, 'weight_reps')
+
+    expect(stats.records.longestDuration).toMatchObject({ workoutId: 'w3', durationSec: 2400 })
+    expect(stats.records.longestDistance).toMatchObject({ workoutId: 'w1', distanceM: 5000 })
+    expect(stats.records.bestPace).toMatchObject({
+      workoutId: 'w2',
+      durationSec: 1500,
+      distanceM: 5000,
+    })
+    expect(stats.records.bestPace!.secPerKm).toBeCloseTo(300, 10)
+    // Ties keep the earliest occurrence (w1 vs w2 at 5 km).
+    expect(stats.records.longestDistance!.workoutId).toBe('w1')
+    // And the lifting records stay empty — nothing to invent.
+    expect(stats.records.bestE1rm).toBeNull()
+    expect(stats.records.heaviestLoadKg).toBeNull()
+  })
+
+  it('ignores uncompleted and warm-up duration rows (scoring truth)', () => {
+    const rows = [
+      cardioRow({ workoutId: 'w1', durationSec: 9000, completed: false }),
+      cardioRow({ workoutId: 'w1', durationSec: 8000, setType: 'warmup' }),
+      cardioRow({ workoutId: 'w1', durationSec: 600 }),
+    ]
+
+    const stats = aggregateExerciseStats(rows, 'weight_reps')
+
+    expect(stats.records.longestDuration).toMatchObject({ durationSec: 600 })
+  })
+
+  it('REGRESSION: duration rows never leak into e1RM, volume, or rep records', () => {
+    const rows = [
+      row({ workoutId: 'w1', startedAt: S1, reps: 5, weight: 100 }),
+      // A stray-fact cardio row: reps+weight typed AND a huge duration.
+      cardioRow({ workoutId: 'w1', startedAt: S1, reps: 50, weight: 500, durationSec: 1800 }),
+    ]
+
+    const stats = aggregateExerciseStats(rows, 'weight_reps')
+
+    expect(stats.records.bestE1rm).toMatchObject({ reps: 5, weightKg: 100 })
+    expect(stats.records.heaviestLoadKg).toMatchObject({ weightKg: 100 })
+    expect(stats.records.mostReps).toMatchObject({ reps: 5 })
+    expect(stats.records.bestSessionVolumeKg).toMatchObject({ volumeKg: 500 })
+    expect(stats.trend).toHaveLength(1)
   })
 })

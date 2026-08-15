@@ -220,7 +220,13 @@ describe('getVolumeTotals', () => {
 
     const totals = await getVolumeTotals(USER, WINDOWS)
 
-    expect(totals).toEqual({ currentSets: 1, previousSets: 1, currentSessions: 1 })
+    expect(totals).toEqual({
+      currentSets: 1,
+      previousSets: 1,
+      currentSessions: 1,
+      currentCardioSec: 0,
+      previousCardioSec: 0,
+    })
     // The home teaser's guarantee: no wger catalog on its critical path.
     expect(getAllExercises).not.toHaveBeenCalled()
   })
@@ -239,5 +245,32 @@ describe('getMuscleVolume', () => {
     // Drizzle serializes Date params to ISO strings at the dialect layer.
     expect(where.params).toContain(WINDOWS.previous.start.toISOString())
     expect(where.sql).toContain('"completed_at" is not null')
+  })
+})
+
+describe('weekly cardio seconds (cardio v1 slice 3)', () => {
+  it('sums completed duration-set seconds per window, apart from set counts', () => {
+    const rows = [
+      row(), // lifting set — counts as a set, no cardio seconds
+      row({ metricMode: 'duration_distance', durationSec: 1800 }),
+      row({ metricMode: 'duration', durationSec: 600 }),
+      row({ workoutId: 'w2', startedAt: IN_PREVIOUS, metricMode: 'duration', durationSec: 900 }),
+      // Over-fetch tolerance: outside both windows → never counted.
+      row({ workoutId: 'w3', startedAt: TOO_OLD, metricMode: 'duration', durationSec: 999 }),
+    ]
+
+    const volume = aggregateMuscleVolume(rows, BENCH_RESOLVER, WINDOWS)
+
+    expect(volume.totals.currentCardioSec).toBe(2400)
+    expect(volume.totals.previousCardioSec).toBe(900)
+    // Duration rows still never count as sets or muscle credits.
+    expect(volume.totals.currentSets).toBe(1)
+    expect(volume.groups.find((g) => g.group === 'Chest')!.currentSets).toBe(1)
+  })
+
+  it('reports zero cardio seconds for a lifting-only horizon', () => {
+    const volume = aggregateMuscleVolume([row()], BENCH_RESOLVER, WINDOWS)
+    expect(volume.totals.currentCardioSec).toBe(0)
+    expect(volume.totals.previousCardioSec).toBe(0)
   })
 })

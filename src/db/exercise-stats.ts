@@ -35,6 +35,10 @@ export interface ExerciseStatsRow {
   metricMode: string
   /** 'working' | 'warmup' — warm-ups are display truth, never scoring truth. */
   setType: string
+  /** Cardio facts (duration/duration_distance rows) — optional so pre-cardio
+   *  fixtures keep their shape; reps_weight rows carry nulls. */
+  durationSec?: number | null
+  distanceM?: number | null
 }
 
 /** One record-holding set (kg, full precision; round only at display). */
@@ -59,6 +63,23 @@ export interface ExerciseRecords {
   /** Σ reps × weight per session over completed reps_weight sets with BOTH
    *  non-null (same rule as program-stats tonnage). */
   bestSessionVolumeKg: { workoutId: string; performedAt: Date; volumeKg: number } | null
+  /** Cardio trio (duration-mode sets only — the exact complement of the
+   *  reps_weight gate above, so the two families can never double-claim).
+   *  Optional (`?:`) so pre-cardio fixtures and consumers keep their shape;
+   *  `aggregateExerciseStats` always emits all three (null when unclaimed).
+   *  Longest single-set duration in seconds. */
+  longestDuration?: { workoutId: string; performedAt: Date; durationSec: number } | null
+  /** Longest single-set distance in meters. */
+  longestDistance?: { workoutId: string; performedAt: Date; distanceM: number } | null
+  /** Best pace over sets carrying BOTH duration and distance — lowest
+   *  seconds-per-km (distance/duration alone is no pace at all). */
+  bestPace?: {
+    workoutId: string
+    performedAt: Date
+    durationSec: number
+    distanceM: number
+    secPerKm: number
+  } | null
 }
 
 /** One session's best e1RM — the chart series. */
@@ -119,6 +140,9 @@ export function aggregateExerciseStats(
   let heaviestLoadKg: ExerciseRecordSet | null = null
   let mostReps: ExerciseRecords['mostReps'] = null
   let bestSessionVolumeKg: ExerciseRecords['bestSessionVolumeKg'] = null
+  let longestDuration: ExerciseRecords['longestDuration'] = null
+  let longestDistance: ExerciseRecords['longestDistance'] = null
+  let bestPace: ExerciseRecords['bestPace'] = null
   const trend: ExerciseTrendPoint[] = []
 
   for (const [workoutId, session] of bySession) {
@@ -143,8 +167,29 @@ export function aggregateExerciseStats(
     for (const row of session.rows) {
       // Every record is reps_weight-gated — nothing in the write path forces
       // reps null on duration rows, so stray reps there must not claim the
-      // rep record any more than the load ones.
-      if (row.metricMode !== 'reps_weight') continue
+      // rep record any more than the load ones. Duration rows claim the
+      // CARDIO trio instead (strictly-greater/-lower keeps ties earliest).
+      if (row.metricMode !== 'reps_weight') {
+        const durationSec = row.durationSec ?? null
+        const distanceM = row.distanceM ?? null
+        if (durationSec !== null && durationSec > 0) {
+          if (longestDuration === null || durationSec > longestDuration.durationSec) {
+            longestDuration = { workoutId, performedAt: session.performedAt, durationSec }
+          }
+        }
+        if (distanceM !== null && distanceM > 0) {
+          if (longestDistance === null || distanceM > longestDistance.distanceM) {
+            longestDistance = { workoutId, performedAt: session.performedAt, distanceM }
+          }
+        }
+        if (durationSec !== null && durationSec > 0 && distanceM !== null && distanceM > 0) {
+          const secPerKm = durationSec / (distanceM / 1000)
+          if (bestPace === null || secPerKm < bestPace.secPerKm) {
+            bestPace = { workoutId, performedAt: session.performedAt, durationSec, distanceM, secPerKm }
+          }
+        }
+        continue
+      }
       // Same guard as the rep fallback in bestScoredSet: reps must be a
       // positive integer to count as a rep record.
       if (row.reps !== null && Number.isInteger(row.reps) && row.reps >= 1) {
@@ -180,7 +225,15 @@ export function aggregateExerciseStats(
   return {
     totalSessions: bySession.size,
     totalCompletedSets: completedRows.length,
-    records: { bestE1rm, heaviestLoadKg, mostReps, bestSessionVolumeKg },
+    records: {
+      bestE1rm,
+      heaviestLoadKg,
+      mostReps,
+      bestSessionVolumeKg,
+      longestDuration,
+      longestDistance,
+      bestPace,
+    },
     trend,
   }
 }
@@ -207,6 +260,8 @@ export async function getExerciseStats(
         completed: sets.completed,
         metricMode: sets.metricMode,
         setType: sets.setType,
+        durationSec: sets.durationSec,
+        distanceM: sets.distanceM,
       })
       .from(sets)
       .innerJoin(workoutExercises, eq(workoutExercises.id, sets.workoutExerciseId))

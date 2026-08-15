@@ -27,6 +27,9 @@ export interface MuscleVolumeRow {
   wgerExerciseId: number
   source: ExerciseSource
   metricMode: string
+  /** Logged seconds on duration-mode rows (cardio-minutes total); optional
+   *  so pre-cardio fixtures keep their shape. */
+  durationSec?: number | null
 }
 
 /** Muscles an exercise trains, as catalog names (not yet bucketed). Null =
@@ -57,6 +60,11 @@ export interface MuscleVolume {
     previousSets: number
     /** Distinct completed workouts in the current window. */
     currentSessions: number
+    /** Completed duration-set seconds summed per window (cardio v1) — the
+     *  weekly cardio-minutes aggregate, kept apart from set counts because
+     *  a minute of cycling is not a set of bench. */
+    currentCardioSec: number
+    previousCardioSec: number
   }
 }
 
@@ -102,13 +110,22 @@ export function aggregateMuscleVolume(
   const previous = new Map<VolumeGroup, number>()
   let currentSets = 0
   let previousSets = 0
+  let currentCardioSec = 0
+  let previousCardioSec = 0
   const currentWorkouts = new Set<string>()
 
   for (const row of rows) {
-    if (row.metricMode !== 'reps_weight') continue
     const isCurrent = inWindow(row.startedAt, windows.current)
     const isPrevious = !isCurrent && inWindow(row.startedAt, windows.previous)
     if (!isCurrent && !isPrevious) continue // horizon over-fetch tolerance
+    // Duration rows never count as sets or muscle credits (reps_weight is
+    // the set-volume unit) — they sum into the cardio-minutes totals instead.
+    if (row.metricMode !== 'reps_weight') {
+      const sec = row.durationSec ?? 0
+      if (isCurrent) currentCardioSec += sec
+      else previousCardioSec += sec
+      continue
+    }
     const bucket = isCurrent ? current : previous
     if (isCurrent) {
       currentSets += 1
@@ -137,7 +154,13 @@ export function aggregateMuscleVolume(
 
   return {
     groups,
-    totals: { currentSets, previousSets, currentSessions: currentWorkouts.size },
+    totals: {
+      currentSets,
+      previousSets,
+      currentSessions: currentWorkouts.size,
+      currentCardioSec,
+      previousCardioSec,
+    },
   }
 }
 
@@ -175,6 +198,7 @@ function fetchVolumeRows(userId: string, windows: VolumeWindows) {
       wgerExerciseId: workoutExercises.wgerExerciseId,
       source: workoutExercises.source,
       metricMode: sets.metricMode,
+      durationSec: sets.durationSec,
     })
     .from(sets)
     .innerJoin(workoutExercises, eq(workoutExercises.id, sets.workoutExerciseId))
