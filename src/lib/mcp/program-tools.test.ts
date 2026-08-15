@@ -1188,7 +1188,7 @@ describe('registerProgramTools', () => {
       const exercise = body.days[0]!.exercises[0]!
       expect(exercise.autoreg).toEqual({
         // 220.5 lb raw quantizes to the loadable 220 (#226).
-        reason: 'Missed 8 reps on 2 of 3 sets at 220 lb — repeating the load',
+        reason: 'Stay at 220 lb — get 8 reps on all 3 sets (2 came up short)',
         suggestEarlyDeload: false,
         phaseContext: null,
         heldBackoff: null,
@@ -1233,7 +1233,7 @@ describe('registerProgramTools', () => {
         }[]
       }
       expect(body.days[0]!.exercises[0]!.autoreg).toEqual({
-        reason: expect.stringContaining('repeating the load'),
+        reason: expect.stringContaining('Stay at 220 lb'),
         suggestEarlyDeload: false,
         phaseContext: 'cutting',
         heldBackoff: kgToDisplay(2.5, 'lb'),

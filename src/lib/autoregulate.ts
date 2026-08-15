@@ -3,7 +3,11 @@ import type { WeightUnit } from './units'
 // never read an unloadable number like 66.6 lb in the transparency copy.
 // `loadsMatch` widens the C2 evidence identity across the quantization
 // deploy boundary (raw epsilon OR same display increment).
-import { loadsMatch, quantizeDisplayLoad } from './load-quantize'
+import { loadsMatch, quantizeAdjustedLoadKg, quantizeDisplayLoad } from './load-quantize'
+import { kgToDisplay } from './units'
+// Reason lines share the double-progression hold clause with the scheme-copy
+// module (#228) — one voice for "hit N reps, then the weight goes up".
+import { repFillHoldReason } from './scheme-copy'
 import { estimate1RM } from './one-rep-max'
 import type { OvershootPolicy } from './overshoot-policy'
 import type { DerivedSet } from './progression'
@@ -1388,36 +1392,54 @@ export function applyAutoregToSets(
 /**
  * The lifter-facing reason line — every adjustment ships one (the PRD's
  * transparency contract). Display unit applied here, not in the engine.
- *   Fixed:  "Missed 8 reps on 2 of 3 sets at 100 kg — repeating the load"
- *           "Third straight stall at 100 kg — backing off 10 kg (~10%)"
- *   Range:  "Range filled at 100 kg last session — stepping to 102.5 kg"
- *           "Range not filled at 100 kg — adding reps before the load steps"
- *           "No new reps at 100 kg (24 vs 24) — holding the load"
- *           "No new reps at 100 kg for 3 straight sessions — backing off ..."
- *   Anchor: "Did 120 kg vs 80 kg planned — anchoring at 120 kg"
- *           "Worked at ~90 kg vs the planned 100 kg for 3 sessions —
- *            matching the plan to reality" (follow-down, H1)
- *           "Last session: 120 kg — anchoring"
- *   Flag:   "Third straight stall at 100 kg — training max likely set too
- *            high" (M4 — 5/3/1's failed-cycle rule)
+ * Voice bar (#228): imperative, what-to-do-and-why, the lifter's actual
+ * quantized numbers, zero engine vocabulary ("range", "load steps",
+ * "anchor", "quorum").
+ *   Fixed:  "Stay at 100 kg — get 8 reps on all 3 sets (2 came up short)"
+ *           "Drop to 90 kg — stalled at 100 kg 3 sessions straight (~10% off)"
+ *   Range:  "Move up to 102.5 kg — you hit the top reps on every set at 100 kg"
+ *           "Stay at 100 kg — hit 12 reps on every set, then the weight goes up"
+ *           "Stay at 100 kg — no new reps yet (24 vs 24); add reps and the
+ *            weight goes up"
+ *           "Drop to 90 kg — no new reps at 100 kg for 3 straight sessions ..."
+ *   Anchor: "Work at 120 kg — you lifted it over the planned 100 kg; the plan
+ *            follows you"
+ *           "Work at 90 kg — that's where you worked for 3 straight sessions,
+ *            not the planned 100 kg" (follow-down, H1)
+ *           "Start at 120 kg — what you lifted last session"
+ *   Flag:   "Lower the training max — 3 straight stalls at 100 kg say it's
+ *            set too high" (M4 — 5/3/1's failed-cycle rule)
  * An outperformed fill's step line speaks from the PERFORMED load (the
- * anchor), matching where `applyAutoregToSets` actually lands the step.
+ * anchor bucket), matching where `applyAutoregToSets` actually lands the step.
  */
 export function autoregReason(adjustment: AutoregAdjustment, unit: WeightUnit): string {
   const load = `${quantizeDisplayLoad(adjustment.evidence.loadKg, unit)} ${unit}`
+  // A decrement's landing load — the SAME anti-fixed-point quantization the
+  // application path uses (#226), so "Drop to X" can never name a load the
+  // prescription won't actually reach (a light-load ~10% backoff would
+  // otherwise re-quantize straight back to the stalled load).
+  const droppedTo = () =>
+    `${kgToDisplay(
+      quantizeAdjustedLoadKg(
+        adjustment.evidence.loadKg + adjustment.deltaKg,
+        adjustment.evidence.loadKg,
+        unit,
+      ),
+      unit,
+    )} ${unit}`
   // Cutting framing (honest copy rule: stalls are EXPECTED under a deficit
   // and holding is the win — never a claim that cutting impairs strength).
   // One sentence owns every cutting-annotated 3-stall verdict: the M4 flag
   // and the held H2 backoff alike.
   if (adjustment.phaseContext === 'cutting' && adjustment.suggestEarlyDeload) {
-    return `3 stalls at ${load} — expected while cutting; holding is the win. Deload only if sessions feel grindy`
+    return `Hold ${load} — 3 stalls is expected while cutting and holding is the win. Deload only if sessions feel grindy`
   }
   // Effort-gate sentences (one each — the annotation IS the story).
   if (adjustment.effortContext === 'overshoot') {
-    return `Reps there but the top set ran hot at ${load} — holding the load`
+    return `Stay at ${load} — reps are there but the top set ran hot`
   }
   if (adjustment.effortContext === 'trend-veto') {
-    return `Third stall at ${load}, but your e1RM trend is rising — holding, not backing off`
+    return `Stay at ${load} — third stall, but your e1RM is rising; no backoff yet`
   }
   // Overshoot recognition (#227): a HOLD whose evidence would read as a miss
   // while the lifter beat the prescription's e1RM leads with the beat —
@@ -1429,39 +1451,39 @@ export function autoregReason(adjustment: AutoregAdjustment, unit: WeightUnit): 
     return `Beat the target — ${done} tops ${target} — holding the load`
   }
   if (adjustment.action === 'flag') {
-    return `Third straight stall at ${load} — training max likely set too high`
+    return `Lower the training max — 3 straight stalls at ${load} say it's set too high`
   }
   if (adjustment.action === 'anchor' && adjustment.anchor) {
     const to = `${quantizeDisplayLoad(adjustment.anchor.toLoadKg, unit)} ${unit}`
-    if (adjustment.anchor.fromLoadKg === null) return `Last session: ${to} — anchoring`
+    if (adjustment.anchor.fromLoadKg === null) {
+      return `Start at ${to} — what you lifted last session`
+    }
     const from = `${quantizeDisplayLoad(adjustment.anchor.fromLoadKg, unit)} ${unit}`
     if (adjustment.anchor.toLoadKg < adjustment.anchor.fromLoadKg - LOAD_EPSILON_KG) {
-      return `Worked at ~${to} vs the planned ${from} for ${STALLS_BEFORE_DECREMENT} sessions — matching the plan to reality`
+      return `Work at ${to} — that's where you worked for ${STALLS_BEFORE_DECREMENT} straight sessions, not the planned ${from}`
     }
-    return `Did ${to} vs ${from} planned — anchoring at ${to}`
+    return `Work at ${to} — you lifted it over the planned ${from}; the plan follows you`
   }
   if (adjustment.action === 'step') {
     const fillKg = adjustment.anchor?.toLoadKg ?? adjustment.evidence.loadKg
     const fill = `${quantizeDisplayLoad(fillKg, unit)} ${unit}`
     const next = `${quantizeDisplayLoad(fillKg + adjustment.deltaKg, unit)} ${unit}`
-    return `Range filled at ${fill} last session — stepping to ${next}`
+    return `Move up to ${next} — you hit the top reps on every set at ${fill}`
   }
   if (adjustment.range) {
     const { totalReps, prevTotalReps, stalls } = adjustment.range
     if (adjustment.action === 'decrement') {
-      const backoff = `${quantizeDisplayLoad(-adjustment.deltaKg, unit)} ${unit}`
-      return `No new reps at ${load} for ${stalls} straight sessions — backing off ${backoff} (~10%)`
+      return `Drop to ${droppedTo()} — no new reps at ${load} for ${stalls} straight sessions (~10% off)`
     }
-    const cutting = adjustment.phaseContext === 'cutting' ? ' — expected while cutting' : ''
+    const cutting = adjustment.phaseContext === 'cutting' ? ' (expected while cutting)' : ''
     return stalls > 0 && prevTotalReps !== null
-      ? `No new reps at ${load} (${totalReps} vs ${prevTotalReps}) — holding the load${cutting}`
-      : `Range not filled at ${load} — adding reps before the load steps${cutting}`
+      ? `Stay at ${load} — no new reps yet (${totalReps} vs ${prevTotalReps}); add reps and the weight goes up${cutting}`
+      : `${repFillHoldReason(load, adjustment.evidence.repFloor)}${cutting}`
   }
   if (adjustment.action === 'decrement') {
-    const backoff = `${quantizeDisplayLoad(-adjustment.deltaKg, unit)} ${unit}`
-    return `Third straight stall at ${load} — backing off ${backoff} (~10%)`
+    return `Drop to ${droppedTo()} — stalled at ${load} 3 sessions straight (~10% off)`
   }
   const { missedSets, scorableSets, repFloor } = adjustment.evidence
   const cutting = adjustment.phaseContext === 'cutting' ? ' (expected while cutting)' : ''
-  return `Missed ${repFloor} reps on ${missedSets} of ${scorableSets} sets at ${load} — repeating the load${cutting}`
+  return `Stay at ${load} — get ${repFloor} reps on all ${scorableSets} sets (${missedSets} came up short)${cutting}`
 }

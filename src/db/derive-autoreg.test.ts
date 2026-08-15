@@ -708,11 +708,11 @@ describe('deriveDayPrescription load quantization (#226)', () => {
     // Act — first post-stall derivation
     const [first] = await deriveDayPrescription(USER, base, 1)
 
-    // Assert — strictly decreased: 5 lb → 2.5 lb (1.13 kg), and the printed
-    // backoff (2.5 lb) matches the actual displayed change (5 − 2.5).
+    // Assert — strictly decreased: 5 lb → 2.5 lb (1.13 kg), and the reason's
+    // landing load (2.5 lb) matches the actually-applied prescription.
     expect(first.autoreg).toMatchObject({ action: 'decrement' })
     expect(first.sets.map((s) => s.loadKg)).toEqual([1.13, 1.13, 1.13])
-    expect(autoregReason(first.autoreg!, 'lb')).toContain('backing off 2.5 lb')
+    expect(autoregReason(first.autoreg!, 'lb')).toContain('Drop to 2.5 lb')
 
     // Act — next cycle: three stalls at the decremented 1.13 kg (2.5 lb)
     trainedSessions.mockResolvedValue([
