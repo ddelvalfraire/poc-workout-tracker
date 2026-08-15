@@ -23,7 +23,8 @@ describe('formatPlannedScheme', () => {
     const set: PlannedSetShape = { repMin: 5, repMax: 5, suggestedLoadKg: 100 }
 
     expect(formatPlannedScheme(set, 3, 'kg')).toBe('3×5 @ 100 kg')
-    expect(formatPlannedScheme(set, 3, 'lb')).toBe('3×5 @ 220.5 lb')
+    // 220.5 lb raw quantizes to the loadable 220 (#226).
+    expect(formatPlannedScheme(set, 3, 'lb')).toBe('3×5 @ 220 lb')
   })
 
   it('renders AMRAP sets regardless of missing rep targets', () => {

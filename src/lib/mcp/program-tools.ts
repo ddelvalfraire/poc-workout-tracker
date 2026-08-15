@@ -871,6 +871,10 @@ export function registerProgramTools(server: McpServer): void {
             resolved,
             { exercises: day.exercises, program },
             targetWeek,
+            // The RESOLVED display unit (explicit arg > stored preference)
+            // governs load quantization, so previewed loads sit on the grid
+            // the caller will actually read (#226).
+            { unit: displayUnit },
           )
           days.push({
             programDayId: day.id,

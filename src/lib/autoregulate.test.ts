@@ -541,7 +541,16 @@ describe('autoregReason', () => {
     expect(autoregReason(adjustment, 'kg')).toBe(
       'Missed 8 reps on 2 of 3 sets at 100 kg — repeating the load',
     )
-    expect(autoregReason(adjustment, 'lb')).toContain('220.5 lb')
+    // 100 kg is 220.5 lb raw — the reason prints the loadable 220 lb (#226).
+    expect(autoregReason(adjustment, 'lb')).toContain('220 lb')
+  })
+
+  it('quantizes lb loads to the 2.5 lb grid — never 66.6 lb (#226)', () => {
+    // Prescribed and performed at 30.21 kg (66.6 lb raw) with missed reps.
+    const adjustment = autoregulate(2.5, [sessionAt(30.21, [6, 6, 6])], 'all-sets')!
+    const reason = autoregReason(adjustment, 'lb')
+    expect(reason).toContain('67.5 lb')
+    expect(reason).not.toContain('66.6')
   })
 
   it('describes the back-off with its magnitude', () => {
@@ -1681,5 +1690,51 @@ describe('sessionBeatsTop (volume-progression signal)', () => {
   it('lighter-than-prescribed attempts do not count as beats', () => {
     // Performed at 80 vs 100 prescribed: not at-load, so nothing is scorable.
     expect(sessionBeatsTop(session([15, 15, 15], 80), 12)).toBe(null)
+  })
+})
+
+describe('legacy-snapshot bucket matching (#226 transitional epsilon)', () => {
+  it('keeps a stall streak alive across the quantization deploy boundary', () => {
+    // Legacy sessions prescribed 16.87 kg raw; the newest at its quantized
+    // re-derivation 17.01 kg (both 37.5 lb) — 0.14 kg apart, past the raw
+    // 0.05 kg epsilon, but the SAME 2.5 lb increment.
+    const sessions = seq(
+      sessionAt(17.01, [6, 6, 6]),
+      sessionAt(16.87, [6, 6, 6]),
+      sessionAt(16.87, [6, 6, 6]),
+    )
+    // Without a unit the raw epsilon governs: the streak breaks → repeat.
+    expect(autoregulate(2.5, sessions, 'all-sets')!.action).toBe('repeat')
+    // With the active unit the loads share an increment: third stall → decrement.
+    expect(autoregulate(2.5, sessions, 'all-sets', 'lb')!.action).toBe('decrement')
+  })
+
+  it('applies a verdict to a set whose quantized load shares the evidence increment', () => {
+    // Legacy evidence at 17.1 kg (37.5 lb raw-rounded DOWN by quantization).
+    const adjustment = autoregulate(2.5, [sessionAt(17.1, [6, 6, 6])], 'all-sets', 'lb')!
+    const scheme: DerivedSet = {
+      setNumber: 1,
+      setType: 'working',
+      metricMode: 'reps_weight',
+      repMin: 8,
+      repMax: null,
+      rir: null,
+      rpe: null,
+      loadKg: 17.01, // today's quantized derivation of the same 37.5 lb
+      tempo: null,
+      durationSec: null,
+      distanceM: null,
+      restSec: null,
+      technique: null,
+      derivedFrom: 'scheme',
+      sourceIndex: 0,
+    }
+    // Raw epsilon alone misses the bucket (17.01 < 17.1 − 0.05): untouched.
+    expect(applyAutoregToSets([scheme], adjustment)[0].derivedFrom).toBe('scheme')
+    // Same 37.5 lb increment in the active unit: the verdict lands.
+    expect(applyAutoregToSets([scheme], adjustment, 'lb')[0]).toMatchObject({
+      loadKg: 17.01,
+      derivedFrom: 'autoreg',
+    })
   })
 })

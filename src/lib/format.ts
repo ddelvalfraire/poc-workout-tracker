@@ -4,6 +4,7 @@ export function formatWorkoutDate(date: Date): string {
 }
 
 import { kgToDisplay, type WeightUnit } from './units'
+import { quantizeDisplayLoad } from './load-quantize'
 import type { LoggingType } from './workout-input'
 
 /**
@@ -331,6 +332,9 @@ export function planPlaceholderForSet(
   }
   return {
     reps,
-    weight: target.loadKg !== null ? String(kgToDisplay(target.loadKg, unit)) : undefined,
+    // Quantized display (#226): plan-target ghosts must be loadable numbers.
+    // New derivations are already on the grid; this also cleans the ghosts of
+    // legacy prescribed snapshots stamped before quantization existed.
+    weight: target.loadKg !== null ? String(quantizeDisplayLoad(target.loadKg, unit)) : undefined,
   }
 }
