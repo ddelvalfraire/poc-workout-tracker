@@ -86,6 +86,12 @@ interface ExercisePickerProps {
    *  escape hatch at the bottom of results. OFF by default so read-only or
    *  wger-scoped hosts opt in explicitly. */
   includeCustom?: boolean
+  /** #218: when set, the create row NAVIGATES (the host pushes the full-page
+   *  `/exercises/new` form and owns the return leg) instead of opening the
+   *  inline CreateCustomForm. The logger passes this; the program builder and
+   *  goal picker keep the inline form — their drafts have no return-leg
+   *  channel, and a sheet-local create is still correct there. */
+  onCreateNavigate?: (query: string) => void
 }
 
 export function ExercisePicker({
@@ -93,6 +99,7 @@ export function ExercisePicker({
   fill = false,
   suggestFor,
   includeCustom = false,
+  onCreateNavigate,
 }: ExercisePickerProps) {
   const [query, setQuery] = useState('')
   const [activeIndex, setActiveIndex] = useState(0)
@@ -289,9 +296,9 @@ export function ExercisePicker({
           onCreated={handleCreated}
         />
       ) : (
-        term.length > 0 && (
-          <>
-            {matches.length > 0 ? (
+        <>
+          {term.length > 0 &&
+            (matches.length > 0 ? (
               <ul
                 id={LISTBOX_ID}
                 role="listbox"
@@ -328,22 +335,27 @@ export function ExercisePicker({
               </ul>
             ) : (
               <EmptyWords>No exercises found.</EmptyWords>
-            )}
-            {/* The dedup-at-source escape hatch: creation sits BELOW the
-                catalog's best matches, so a near-duplicate is staring at the
-                existing entry before the button. */}
-            {includeCustom && (
-              <Button
-                size="sm"
-                variant="ghost"
-                className="w-full justify-start text-muted-foreground"
-                onClick={() => setIsCreating(true)}
-              >
-                + Create “{query.trim()}” as a custom exercise
-              </Button>
-            )}
-          </>
-        )
+            ))}
+          {/* The dedup-at-source escape hatch, creatable-select style: the
+              final row under whatever is above it — the catalog's best
+              matches (a near-duplicate is staring at the existing entry
+              first), the plain-words empty state, or the collapsed/rail
+              resting state (persistent generic label). #218: with
+              onCreateNavigate the row pushes the full-page form; otherwise
+              the inline CreateCustomForm opens here. */}
+          {includeCustom && !loading && !error && (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="w-full justify-start text-muted-foreground"
+              onClick={() =>
+                onCreateNavigate ? onCreateNavigate(query.trim()) : setIsCreating(true)
+              }
+            >
+              {term.length > 0 ? <>+ Create “{query.trim()}”</> : <>+ Create custom exercise</>}
+            </Button>
+          )}
+        </>
       )}
     </div>
   )

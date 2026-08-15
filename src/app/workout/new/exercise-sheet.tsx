@@ -24,6 +24,9 @@ interface ExerciseSheetProps {
   /** Forwarded to the picker: the exercise being replaced, whose muscle-matched
    *  alternatives fill the rail. Present only in replace mode. */
   suggestFor?: number
+  /** Forwarded to the picker (#218): the create row navigates to the
+   *  full-page form instead of opening the inline one. */
+  onCreateNavigate?: (query: string) => void
 }
 
 export function ExerciseSheet({
@@ -31,6 +34,7 @@ export function ExerciseSheet({
   onClose,
   heading = 'Add exercise',
   suggestFor,
+  onCreateNavigate,
 }: ExerciseSheetProps) {
   const dialogRef = useRef<HTMLDialogElement>(null)
   const closeButtonRef = useRef<HTMLButtonElement>(null)
@@ -130,6 +134,7 @@ export function ExerciseSheet({
           // renders (the program builder opts in the same way).
           includeCustom
           suggestFor={suggestFor}
+          onCreateNavigate={onCreateNavigate}
           onAdd={(exercise) => {
             onAdd(exercise)
             requestClose()
