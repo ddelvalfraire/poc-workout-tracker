@@ -506,7 +506,7 @@ describe('autoregulate — follow-down (H1)', () => {
   it('names the evidence in the reason line', () => {
     const adjustment = autoregulate(2.5, seq(lighter(), lighter(), lighter()), 'all-sets')!
     expect(autoregReason(adjustment, 'kg')).toBe(
-      'Worked at ~90 kg vs the planned 100 kg for 3 sessions — matching the plan to reality',
+      "Work at 90 kg — that's where you worked for 3 straight sessions, not the planned 100 kg",
     )
   })
 
@@ -541,7 +541,7 @@ describe('autoregReason', () => {
   it('names the evidence in the display unit', () => {
     const adjustment = autoregulate(2.5, [session([6, 5, 8])], 'all-sets')!
     expect(autoregReason(adjustment, 'kg')).toBe(
-      'Missed 8 reps on 2 of 3 sets at 100 kg — repeating the load',
+      'Stay at 100 kg — get 8 reps on all 3 sets (2 came up short)',
     )
     // 100 kg is 220.5 lb raw — the reason prints the loadable 220 lb (#226).
     expect(autoregReason(adjustment, 'lb')).toContain('220 lb')
@@ -560,7 +560,7 @@ describe('autoregReason', () => {
       2.5,
       seq(session([6, 5, 8]), session([6, 6, 6]), session([5, 6, 6])), 'all-sets')!
     expect(autoregReason(adjustment, 'kg')).toBe(
-      'Third straight stall at 100 kg — backing off 10 kg (~10%)',
+      'Drop to 90 kg — stalled at 100 kg 3 sessions straight (~10% off)',
     )
   })
 })
@@ -646,7 +646,7 @@ describe('applyDietPhaseToAdjustment (diet-phase gate)', () => {
   it('reason lines: holding-is-the-win framing, never a strength-impairment claim', () => {
     const held = applyDietPhaseToAdjustment(threeStalls(), 'cutting')!
     expect(autoregReason(held, 'kg')).toBe(
-      '3 stalls at 100 kg — expected while cutting; holding is the win. Deload only if sessions feel grindy',
+      'Hold 100 kg — 3 stalls is expected while cutting and holding is the win. Deload only if sessions feel grindy',
     )
     const flag = applyDietPhaseToAdjustment(
       autoregulateEarlyDeload(
@@ -656,14 +656,14 @@ describe('applyDietPhaseToAdjustment (diet-phase gate)', () => {
       'cutting',
     )!
     expect(autoregReason(flag, 'kg')).toBe(
-      '3 stalls at 100 kg — expected while cutting; holding is the win. Deload only if sessions feel grindy',
+      'Hold 100 kg — 3 stalls is expected while cutting and holding is the win. Deload only if sessions feel grindy',
     )
     const repeat = applyDietPhaseToAdjustment(
       autoregulate(2.5, [session([6, 5, 8])], 'all-sets'),
       'cutting',
     )!
     expect(autoregReason(repeat, 'kg')).toBe(
-      'Missed 8 reps on 2 of 3 sets at 100 kg — repeating the load (expected while cutting)',
+      'Stay at 100 kg — get 8 reps on all 3 sets (2 came up short) (expected while cutting)',
     )
   })
 })
@@ -1184,21 +1184,21 @@ describe('autoregReason — range mode', () => {
   it('names the step and its target load', () => {
     const adjustment = autoregulateRange(2.5, [ranged([12, 12, 12])], ROWS)!
     expect(autoregReason(adjustment, 'kg')).toBe(
-      'Range filled at 100 kg last session — stepping to 102.5 kg',
+      'Move up to 102.5 kg — you hit the top reps on every set at 100 kg',
     )
   })
 
   it('explains a first-evidence hold without claiming a stall', () => {
     const adjustment = autoregulateRange(2.5, [ranged([9, 9, 9])], ROWS)!
     expect(autoregReason(adjustment, 'kg')).toBe(
-      'Range not filled at 100 kg — adding reps before the load steps',
+      'Stay at 100 kg — hit 12 reps on every set, then the weight goes up',
     )
   })
 
   it('shows the flat totals on a rep stall', () => {
     const adjustment = autoregulateRange(2.5, seq(ranged([9, 9, 9]), ranged([9, 9, 9])), ROWS)!
     expect(autoregReason(adjustment, 'kg')).toBe(
-      'No new reps at 100 kg (27 vs 27) — holding the load',
+      'Stay at 100 kg — no new reps yet (27 vs 27); add reps and the weight goes up',
     )
   })
 
@@ -1206,7 +1206,7 @@ describe('autoregReason — range mode', () => {
     const flat = () => ranged([9, 9, 9])
     const adjustment = autoregulateRange(2.5, seq(flat(), flat(), flat(), flat()), ROWS)!
     expect(autoregReason(adjustment, 'kg')).toBe(
-      'No new reps at 100 kg for 3 straight sessions — backing off 10 kg (~10%)',
+      'Drop to 90 kg — no new reps at 100 kg for 3 straight sessions (~10% off)',
     )
   })
 })
@@ -1636,7 +1636,7 @@ describe('autoregulateEarlyDeload (M4)', () => {
   it('speaks the failed-cycle reason (training max likely set too high)', () => {
     const adjustment = autoregulateEarlyDeload(seq(stall(), stall(), stall()), 'all-sets')!
     expect(autoregReason(adjustment, 'kg')).toBe(
-      'Third straight stall at 100 kg — training max likely set too high',
+      "Lower the training max — 3 straight stalls at 100 kg say it's set too high",
     )
   })
 })
@@ -1645,13 +1645,13 @@ describe('autoregReason — anchor', () => {
   it('names the outperform in the display unit', () => {
     const adjustment = autoregulate(2.5, seq(session([8, 8, 8], 120), session([8, 8, 8], 110)), 'all-sets')!
     expect(autoregReason(adjustment, 'kg')).toBe(
-      'Did 120 kg vs 100 kg planned — anchoring at 120 kg',
+      'Work at 120 kg — you lifted it over the planned 100 kg; the plan follows you',
     )
   })
 
   it('names a null-prescription anchor from the last session', () => {
     const adjustment = autoregulateAnchor([nullLoadSession({ reps: 10, weightKg: 60 })])!
-    expect(autoregReason(adjustment, 'kg')).toBe('Last session: 60 kg — anchoring')
+    expect(autoregReason(adjustment, 'kg')).toBe('Start at 60 kg — what you lifted last session')
   })
 
   it('speaks the composed step from the performed load', () => {
@@ -1667,7 +1667,7 @@ describe('autoregReason — anchor', () => {
     }
     const adjustment = autoregulateRange(2.5, seq(filled, previous), ROWS)!
     expect(autoregReason(adjustment, 'kg')).toBe(
-      'Range filled at 110 kg last session — stepping to 112.5 kg',
+      'Move up to 112.5 kg — you hit the top reps on every set at 110 kg',
     )
   })
 })

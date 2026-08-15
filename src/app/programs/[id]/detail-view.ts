@@ -1,5 +1,7 @@
 import { backoffKg, AUTOREG_DEFAULT_STEP_KG, type AutoregAdjustment } from '@/lib/autoregulate'
 import type { Progression } from '@/lib/program-input'
+import { schemeSentence } from '@/lib/scheme-copy'
+import type { WeightUnit } from '@/lib/units'
 
 /**
  * Pure view logic for the program detail page's Arc C additions (editorial
@@ -182,6 +184,28 @@ export function collectTmResetProposals(
     })
   })
   return proposals
+}
+
+/**
+ * The muted "how this progresses" line for one exercise row (#228): the
+ * scheme-copy sentence with the exercise's REAL numbers — the heaviest
+ * non-warmup derived load anchors the "at 65 lb" clause (already quantized
+ * at derivation, and `schemeSentence` quantizes again at display). Null when
+ * the exercise has no progression — the row renders nothing rather than
+ * inventing copy.
+ */
+export function progressionLine(
+  progression: Progression | null,
+  derivedSets: readonly { loadKg: number | null; setType?: string | null }[],
+  unit: WeightUnit,
+): string | null {
+  if (progression === null) return null
+  let currentLoadKg: number | null = null
+  for (const set of derivedSets) {
+    if (set.setType === 'warmup' || set.loadKg === null) continue
+    if (currentLoadKg === null || set.loadKg > currentLoadKg) currentLoadKg = set.loadKg
+  }
+  return schemeSentence(progression, { unit, currentLoadKg })
 }
 
 /** Change-log events bucketed under one calendar-day label. */

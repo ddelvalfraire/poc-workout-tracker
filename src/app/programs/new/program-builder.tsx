@@ -19,6 +19,7 @@ import {
   toggleWeekday,
   type ProgramDraft,
 } from './program-draft'
+import { SchemeSubtitle } from './scheme-subtitle'
 import { type WeightUnit } from '@/lib/units'
 import { WEEKDAY_NAMES } from '@/lib/schedule-anchor'
 import { metricModeSchema, type DeloadPolicy, type MetricMode } from '@/lib/program-input'
@@ -306,8 +307,9 @@ export function ProgramBuilder({
           <span className="text-sm">
             Auto-regulate loads
             <span className="mt-0.5 block text-muted-foreground">
-              After missed reps, sessions propose repeating the load (or backing off ~10% after two
-              stalls) with the reason shown — you can always use the plan as written.
+              After missed reps, sessions say what to do next — “Stay at 100 kg” or, after
+              repeated stalls, “Drop to 90 kg” — with the reason shown. You can always use the
+              plan as written.
             </span>
           </span>
         </label>
@@ -558,6 +560,13 @@ export function ProgramBuilder({
                     className="pointer-events-none absolute right-0.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground"
                   />
                 </span>
+
+                {/* Scheme line (#228): name + plain one-liner for exercises
+                    whose sketch carries a progression — what the scheme will
+                    DO, in lifter language, since the builder never edits it. */}
+                {exercise.progression !== null && (
+                  <SchemeSubtitle scheme={exercise.progression.scheme} />
+                )}
 
                 {/* Training max: only TM-bearing schemes (percent-1rm /
                     amrap-cycle) render it — the one progression field the

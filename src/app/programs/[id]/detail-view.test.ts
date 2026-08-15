@@ -10,6 +10,7 @@ import {
   collectTmResetProposals,
   proposedTrainingMaxKg,
   groupEventsByDay,
+  progressionLine,
 } from './detail-view'
 
 describe('programStatusLine', () => {
@@ -271,5 +272,35 @@ describe('groupEventsByDay', () => {
 
   it('handles an empty list', () => {
     expect(groupEventsByDay([], fmt)).toEqual([])
+  })
+})
+
+describe('progressionLine (#228 — the "how this progresses" row line)', () => {
+  it('returns null when the exercise has no progression', () => {
+    expect(progressionLine(null, [], 'lb')).toBeNull()
+  })
+
+  it('speaks the double-progression sentence with the heaviest working load', () => {
+    const progression = {
+      scheme: 'double-progression',
+      repMin: 8,
+      repMax: 12,
+      incrementKg: 2.27,
+    } as const
+    const sets = [
+      { loadKg: 20, setType: 'warmup' }, // warm-ups never anchor the clause
+      { loadKg: 29.48, setType: 'working' }, // 65.0 lb
+      { loadKg: 27, setType: 'working' },
+    ]
+    expect(progressionLine(progression, sets, 'lb')).toBe(
+      'Hit 12 reps on every set at 65 lb → +5 lb next session.',
+    )
+  })
+
+  it('degrades to the subtitle voice when the derived sets carry no load', () => {
+    const progression = { scheme: 'rpe-target', targetRpe: 8 } as const
+    expect(progressionLine(progression, [{ loadKg: null, setType: 'working' }], 'lb')).toBe(
+      'Loads picked from your estimated max to land at RPE 8.',
+    )
   })
 })
