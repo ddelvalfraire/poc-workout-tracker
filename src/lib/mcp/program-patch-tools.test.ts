@@ -24,6 +24,7 @@ vi.mock('@/db/program-patches', () => {
     removeProgramSetOverride: vi.fn(),
     setProgramAutoregulation: vi.fn(),
     setProgramDeloadPolicy: vi.fn(),
+    setProgramOvershootPolicy: vi.fn(),
     setProgramPlanSync: vi.fn(),
   }
 })
@@ -50,6 +51,7 @@ import {
   removeProgramSetOverride,
   setProgramAutoregulation,
   setProgramDeloadPolicy,
+  setProgramOvershootPolicy,
   setProgramPlanSync,
 } from '@/db/program-patches'
 import { getWeightUnit } from '@/db/preferences'
@@ -72,6 +74,7 @@ const mockedRemoveSet = vi.mocked(removeProgramSet)
 const mockedMoveSet = vi.mocked(moveProgramSet)
 const mockedSetAutoreg = vi.mocked(setProgramAutoregulation)
 const mockedSetDeloadPolicy = vi.mocked(setProgramDeloadPolicy)
+const mockedSetOvershootPolicy = vi.mocked(setProgramOvershootPolicy)
 const mockedSetPlanSync = vi.mocked(setProgramPlanSync)
 const mockedSetOverride = vi.mocked(setProgramSetOverride)
 const mockedRemoveOverride = vi.mocked(removeProgramSetOverride)
@@ -132,6 +135,7 @@ describe('registerProgramPatchTools', () => {
       'set_program_autoregulation',
       'set_program_deload_policy',
       'set_program_diet_phase',
+      'set_program_overshoot_policy',
       'set_program_plan_sync',
       'set_program_set_override',
       'set_training_max',
@@ -253,6 +257,47 @@ describe('registerProgramPatchTools', () => {
       const result = await tools.get('set_program_deload_policy')!({
         programId: PID,
         policy: { mode: 'none' },
+      })
+
+      // Assert
+      expect(result.isError).toBe(true)
+      expect(result.content[0]?.text).toMatch(/not found/)
+    })
+
+    it('set_program_overshoot_policy sets the policy and echoes it', async () => {
+      // Arrange
+      const tools = setup()
+      mockedSetOvershootPolicy.mockResolvedValue({ id: PID })
+
+      // Act
+      const result = await tools.get('set_program_overshoot_policy')!({
+        programId: PID,
+        policy: 'e1rm-equivalent',
+      })
+
+      // Assert
+      expect(mockedSetOvershootPolicy).toHaveBeenCalledWith(
+        'user_env',
+        PID,
+        'e1rm-equivalent',
+        'mcp',
+      )
+      expect(payload(result)).toEqual({
+        userId: 'user_env',
+        programId: PID,
+        overshootPolicy: 'e1rm-equivalent',
+      })
+    })
+
+    it('set_program_overshoot_policy surfaces not-owned as isError /not found/', async () => {
+      // Arrange
+      const tools = setup()
+      mockedSetOvershootPolicy.mockResolvedValue(null)
+
+      // Act
+      const result = await tools.get('set_program_overshoot_policy')!({
+        programId: PID,
+        policy: null,
       })
 
       // Assert

@@ -276,6 +276,13 @@ export function describeToolCall(toolName: string, input: unknown): string {
         ? `Set the diet phase → ${phase}`
         : fallback
     }
+    case 'set_program_overshoot_policy': {
+      if (args.policy === null) return 'Clear the overshoot policy (back to scheme defaults)'
+      const policy = str(args.policy)
+      return policy === 'strict-load' || policy === 'e1rm-equivalent' || policy === 'any-metric'
+        ? `Set the overshoot policy → ${policy}`
+        : fallback
+    }
     case 'set_program_plan_sync':
       return typeof args.enabled === 'boolean'
         ? `Turn plan sync ${args.enabled ? 'on' : 'off'}`

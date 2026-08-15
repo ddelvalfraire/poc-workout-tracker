@@ -9,7 +9,9 @@ import {
   applyDietPhaseToAdjustment,
   backoffKg,
   sessionBeatsTop,
+  sessionOvershoot,
   sessionStall,
+  type AutoregAdjustment,
   type AutoregRangeRow,
   type AutoregSession,
 } from './autoregulate'
@@ -1736,5 +1738,195 @@ describe('legacy-snapshot bucket matching (#226 transitional epsilon)', () => {
       loadKg: 17.01,
       derivedFrom: 'autoreg',
     })
+  })
+})
+
+describe('overshoot policy (#227)', () => {
+  // The user's real numbers: prescribed 12 × 16.87 kg (37.5 lb), performed
+  // 15 × 15.88 kg (35 lb) — a HIGHER e1RM (23.82 vs 23.62 kg) at a lighter
+  // load the gym could actually rack.
+  const overshootSession = (): AutoregSession => ({
+    startedAtMs: 0,
+    prescribed: [
+      { setNumber: 1, repMin: 12, loadKg: 16.87 },
+      { setNumber: 2, repMin: 12, loadKg: 16.87 },
+      { setNumber: 3, repMin: 12, loadKg: 16.87 },
+    ],
+    actual: [1, 2, 3].map((setNumber) => ({
+      setNumber,
+      reps: 15,
+      weightKg: 15.88,
+      completed: true,
+    })),
+  })
+  const overshootRows: AutoregRangeRow[] = [
+    { loadKg: 16.87, repMax: 12 },
+    { loadKg: 16.87, repMax: 12 },
+    { loadKg: 16.87, repMax: 12 },
+  ]
+
+  it("REGRESSION: the user's overshoot is never rendered as a miss under strict (default) policy", () => {
+    const verdict = autoregulateRange(2.5, seq(overshootSession()), overshootRows)
+    // Strict policy: the lighter sets aren't scorable, so the only honest
+    // strict verdict is silence — never a "Range not filled"/"Missed" line.
+    if (verdict !== null) {
+      const reason = autoregReason(verdict, 'lb')
+      expect(reason).not.toContain('Missed')
+      expect(reason).not.toContain('not filled')
+    }
+  })
+
+  it("e1rm-equivalent credits the user's overshoot as a range fill (one step, never more)", () => {
+    const verdict = autoregulateRange(
+      2.5,
+      seq(overshootSession()),
+      overshootRows,
+      undefined,
+      'e1rm-equivalent',
+    )!
+    expect(verdict.action).toBe('step')
+    expect(verdict.deltaKg).toBe(2.5) // exactly one step — overshoot never accelerates
+  })
+
+  it('e1rm-equivalent does NOT credit a set below the range top toward a fill', () => {
+    // 13 × 90 vs 8–12 @ 100: e1RM 129 beats the floor's 126.7 (credited, no
+    // stall) but is nowhere near the top's e1RM — the range must NOT fill.
+    const s: AutoregSession = {
+      startedAtMs: 0,
+      prescribed: [
+        { setNumber: 1, repMin: 8, loadKg: 100 },
+        { setNumber: 2, repMin: 8, loadKg: 100 },
+      ],
+      actual: [1, 2].map((setNumber) => ({
+        setNumber,
+        reps: 13,
+        weightKg: 90,
+        completed: true,
+      })),
+    }
+    const rows: AutoregRangeRow[] = [
+      { loadKg: 100, repMax: 12 },
+      { loadKg: 100, repMax: 12 },
+    ]
+    const verdict = autoregulateRange(2.5, seq(s), rows, undefined, 'e1rm-equivalent')!
+    expect(verdict.action).toBe('repeat')
+  })
+
+  it('any-metric counts reps-over at ANY load; e1rm-equivalent stays silent on it', () => {
+    // 15 × 50 vs 8–12 @ 100: reps beat the top but the e1RM (75) is nowhere
+    // near the target's — permissive counts it, e1rm-equivalent does not.
+    const s: AutoregSession = {
+      startedAtMs: 0,
+      prescribed: [{ setNumber: 1, repMin: 8, loadKg: 100 }],
+      actual: [{ setNumber: 1, reps: 15, weightKg: 50, completed: true }],
+    }
+    const rows: AutoregRangeRow[] = [{ loadKg: 100, repMax: 12 }]
+    expect(autoregulateRange(2.5, seq(s), rows, undefined, 'any-metric')!.action).toBe('step')
+    expect(autoregulateRange(2.5, seq(s), rows, undefined, 'e1rm-equivalent')).toBeNull()
+  })
+
+  it('fixed mode: e1rm-equivalent goal-met silences the strict follow-down proposal', () => {
+    // Three identical sessions at 90 vs plan 100, floors beaten on e1RM: the
+    // strict read proposes matching the plan down; the equivalent read says
+    // the goal was met — no anchor-down proposal.
+    const lighter = (): AutoregSession => ({
+      startedAtMs: 0,
+      prescribed: prescribed(),
+      actual: [1, 2, 3].map((setNumber) => ({
+        setNumber,
+        reps: 13, // e1RM 129 ≥ e1RM(8 × 100) = 126.7
+        weightKg: 90,
+        completed: true,
+      })),
+    })
+    const sessions = seq(lighter(), lighter(), lighter())
+    expect(autoregulate(2.5, sessions, 'all-sets')!.action).toBe('anchor')
+    expect(autoregulate(2.5, sessions, 'all-sets', undefined, 'e1rm-equivalent')).toBeNull()
+  })
+
+  it('amrap-cycle: the early-deload flag never becomes a load change under any policy', () => {
+    const stalled = () => session([6, 6, 6])
+    // Permissive any-metric reads 6 @ the prescribed load as load-metric-met
+    // (no stall, no flag) — crediting can SILENCE the flag, never turn it
+    // into a load adjustment.
+    expect(
+      autoregulateEarlyDeload(seq(stalled(), stalled(), stalled()), 'all-sets', 'any-metric'),
+    ).toBeNull()
+    for (const policy of ['strict-load', 'e1rm-equivalent'] as const) {
+      const verdict = autoregulateEarlyDeload(
+        seq(stalled(), stalled(), stalled()),
+        'all-sets',
+        policy,
+      )
+      expect(verdict).not.toBeNull()
+      expect(verdict!.action).toBe('flag')
+      expect(verdict!.deltaKg).toBe(0)
+      // A flag adjusts nothing — the scheme's TM math never sees the policy.
+      const set: DerivedSet = {
+        setNumber: 1,
+        setType: 'working',
+        metricMode: 'reps_weight',
+        repMin: 8,
+        repMax: null,
+        rir: null,
+        rpe: null,
+        loadKg: 100,
+        tempo: null,
+        durationSec: null,
+        distanceM: null,
+        restSec: null,
+        technique: null,
+        derivedFrom: 'scheme',
+        sourceIndex: 0,
+      }
+      expect(applyAutoregToSets([set], verdict!)[0]).toEqual(set)
+    }
+  })
+
+  it('sessionOvershoot names the e1RM-beating set against its snapshot target', () => {
+    expect(sessionOvershoot(overshootSession())).toEqual({
+      reps: 15,
+      weightKg: 15.88,
+      targetReps: 12,
+      targetLoadKg: 16.87,
+    })
+    // An at-load session is not an overshoot — no annotation, no noise.
+    expect(sessionOvershoot(session([8, 8, 8]))).toBeNull()
+  })
+
+  it('a miss-shaped hold carrying an overshoot renders recognition, never a miss', () => {
+    // Mixed evidence: set 1 genuinely missed at load, set 2 beat the target
+    // e1RM at a lighter load — the reason must lead with the recognition.
+    const s: AutoregSession = {
+      startedAtMs: 0,
+      prescribed: [
+        { setNumber: 1, repMin: 8, loadKg: 100 },
+        { setNumber: 2, repMin: 8, loadKg: 100 },
+      ],
+      actual: [
+        { setNumber: 1, reps: 6, weightKg: 100, completed: true },
+        { setNumber: 2, reps: 13, weightKg: 90, completed: true },
+      ],
+    }
+    const verdict = autoregulate(2.5, seq(s), 'all-sets')!
+    expect(verdict.action).toBe('repeat')
+    expect(verdict.overshoot).toBeDefined()
+    const reason = autoregReason(verdict, 'kg')
+    expect(reason).toContain('Beat the target')
+    expect(reason).not.toContain('Missed')
+  })
+
+  it("autoregReason formats the user's overshoot in loadable lb", () => {
+    const verdict: AutoregAdjustment = {
+      action: 'repeat',
+      deltaKg: 0,
+      suggestEarlyDeload: false,
+      stalledLoads: [16.87],
+      evidence: { missedSets: 3, scorableSets: 3, repFloor: 12, loadKg: 16.87 },
+      overshoot: { reps: 15, weightKg: 15.88, targetReps: 12, targetLoadKg: 16.87 },
+    }
+    expect(autoregReason(verdict, 'lb')).toBe(
+      'Beat the target — 15 × 35 lb tops 12 × 37.5 lb — holding the load',
+    )
   })
 })

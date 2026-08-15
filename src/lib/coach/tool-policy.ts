@@ -83,6 +83,9 @@ export const COACH_APPROVAL_TOOLS = [
   // The diet phase reframes stall verdicts and gates the auto-backoff into
   // a proposal — a behavior change the owner must approve like any policy.
   'set_program_diet_phase',
+  // The overshoot policy changes how goals are scored across the whole
+  // program — a behavior change the owner must approve like any policy.
+  'set_program_overshoot_policy',
   'set_program_plan_sync',
   // A TM change rewrites every derived load on the exercise — a mutation the
   // owner must approve like any other patch op.

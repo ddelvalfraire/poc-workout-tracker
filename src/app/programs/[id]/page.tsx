@@ -54,6 +54,7 @@ import { ProposalActions } from './proposal-actions'
 import { SharingSection } from './sharing-section'
 import { RestartProgramButton } from './restart-program-button'
 import { DietPhaseCard } from './diet-phase-card'
+import { OvershootPolicyControl } from './overshoot-policy-control'
 import { cuttingStalenessWeeks } from '@/lib/diet-phase-staleness'
 
 /** Chip labels for the change log — WHO edited, in the user's own terms. */
@@ -196,6 +197,7 @@ export default async function ProgramDetailPage({
                 autoregStallPolicy: program.autoregStallPolicy,
                 deloadPolicy: program.deloadPolicy,
                 dietPhase: program.dietPhase,
+                overshootPolicy: program.overshootPolicy,
               },
             },
             selectedWeek,
@@ -901,6 +903,19 @@ export default async function ProgramDetailPage({
               ))}
             </div>
           </section>
+        )}
+
+        {/* Overshoot / goal-met policy (#227): an OWNER setting like sharing
+            below — how a beaten-on-a-different-axis target is credited.
+            Null = per-scheme defaults; the change-logged narrow op rides the
+            same patch conventions as the diet phase. */}
+        {!isProposed && (
+          <div className="mt-10 border-t border-border">
+            <OvershootPolicyControl
+              programId={program.id}
+              policy={program.overshootPolicy}
+            />
+          </div>
         )}
 
         {/* Sharing is an OWNER control and never appears on a proposal — a

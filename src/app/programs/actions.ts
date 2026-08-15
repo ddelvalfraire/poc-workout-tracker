@@ -22,7 +22,12 @@ import {
   declineProgram,
 } from '@/db/programs'
 import { setProgramVisibility, createShare, revokeShare } from '@/db/program-shares'
-import { setTrainingMax, setProgramDietPhase } from '@/db/program-patches'
+import {
+  setTrainingMax,
+  setProgramDietPhase,
+  setProgramOvershootPolicy,
+} from '@/db/program-patches'
+import { overshootPolicySchema } from '@/lib/overshoot-policy'
 import { confirmPatchProposal, declinePatchProposal } from '@/db/patch-proposals'
 import { restartTmPlan } from '@/db/restart-plan'
 import { getWeightUnit } from '@/db/preferences'
@@ -142,6 +147,23 @@ export async function setDietPhaseAction(id: string, phase: unknown): Promise<{ 
   const userId = await requireUserId()
   const parsed = dietPhaseSchema.nullable().parse(phase)
   const result = await setProgramDietPhase(userId, id, parsed, 'ui')
+  if (!result) throw new Error('program not found')
+  revalidatePath(`/programs/${id}`)
+  return result
+}
+
+/**
+ * Sets (or clears, with null) the program's overshoot / goal-met policy from
+ * the owner's settings control (#227). Same event-logged narrow op the MCP
+ * tool applies through; null restores the per-scheme defaults.
+ */
+export async function setOvershootPolicyAction(
+  id: string,
+  policy: unknown,
+): Promise<{ id: string }> {
+  const userId = await requireUserId()
+  const parsed = overshootPolicySchema.nullable().parse(policy)
+  const result = await setProgramOvershootPolicy(userId, id, parsed, 'ui')
   if (!result) throw new Error('program not found')
   revalidatePath(`/programs/${id}`)
   return result

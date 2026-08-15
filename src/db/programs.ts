@@ -37,6 +37,7 @@ import {
   type AutoregSession,
   type AutoregStallPolicy,
 } from '@/lib/autoregulate'
+import { resolveOvershootPolicy, type OvershootPolicy } from '@/lib/overshoot-policy'
 import { getRecentTrainedSessions } from './autoreg-history'
 import { pickNextProgramDay } from '@/lib/next-program-day'
 import { nextBlockName } from '@/lib/block-name'
@@ -805,6 +806,10 @@ export async function cloneProgram(
         autoregulation: source.autoregulation,
         autoregStallPolicy: source.autoregStallPolicy,
         deloadPolicy: source.deloadPolicy,
+        // The overshoot policy encodes the program's GOAL (like deloadPolicy),
+        // so it travels with the block. Per-exercise overrides copy with the
+        // tree (copyProgramTree copies exercise rows verbatim).
+        overshootPolicy: source.overshootPolicy,
         // dietPhase / dietPhaseSetAt deliberately do NOT travel: a phase is a
         // fact about the lifter's CURRENT diet, not about the plan — a new
         // block starts phase-less until the owner says otherwise (same
@@ -903,6 +908,7 @@ export async function copyProgramTree(
           position: exercise.position,
           supersetGroup: exercise.supersetGroup,
           progression: exercise.progression,
+          overshootPolicy: exercise.overshootPolicy,
         })
         .returning({ id: programExercises.id })
 
@@ -981,7 +987,7 @@ export async function getProgramDayDetail(userId: string, programDayId: string) 
         // 'proposed' plan instantiates nothing until the owner adopts it.
         // planSync rides along for the post-finish auto-sync gate
         // (lib/auto-plan-sync) — same read, no extra round-trip.
-        columns: { id: true, userId: true, status: true, mesocycleWeeks: true, deloadWeek: true, autoregulation: true, autoregStallPolicy: true, deloadPolicy: true, dietPhase: true, planSync: true },
+        columns: { id: true, userId: true, status: true, mesocycleWeeks: true, deloadWeek: true, autoregulation: true, autoregStallPolicy: true, deloadPolicy: true, dietPhase: true, overshootPolicy: true, planSync: true },
       },
       exercises: {
         orderBy: (e) => [asc(e.position)],
@@ -1264,6 +1270,9 @@ export interface DayForDerivation {
     wgerExerciseId: number
     source: ExerciseSource
     progression: Progression | null
+    /** Per-exercise overshoot-policy override (program_exercises.overshoot_policy)
+     *  — optional so hand-built slices stay valid; omitted/null = inherit. */
+    overshootPolicy?: OvershootPolicy | null
     sets: (ProgramSetRowLike & { overrides: (SetOverrideLike & { week: number })[] })[]
   }[]
   program: {
@@ -1287,6 +1296,11 @@ export interface DayForDerivation {
      *  a verdict ANNOTATION/hold (applyDietPhaseToAdjustment) — never a
      *  load change. */
     dietPhase: DietPhase | null
+    /** Raw programs.overshoot_policy column (null = per-scheme default) —
+     *  resolved per exercise via resolveOvershootPolicy (exercise override >
+     *  program > scheme default). Required so every caller reads the program
+     *  row's policy, like the policies above. */
+    overshootPolicy: OvershootPolicy | null
   }
 }
 
@@ -1557,14 +1571,33 @@ export async function deriveDayPrescription(
             : []
         // The unit rides into the engine so evidence matching can bridge
         // pre-quantization snapshots onto today's quantized grid (#226).
+        // Overshoot policy (#227): exercise override > program > per-scheme
+        // default, resolved ONCE per exercise. Crediting happens inside the
+        // engine against the SNAPSHOTTED prescriptions — anchor mode carries
+        // no goal scoring, so the policy has nothing to credit there.
+        const overshootPolicy = resolveOvershootPolicy(
+          day.program.overshootPolicy,
+          exercise.overshootPolicy ?? null,
+          exercise.progression?.scheme ?? null,
+        )
         adjustment =
           plan.mode === 'fixed'
-            ? autoregulate(plan.incrementKg, sessions, day.program.autoregStallPolicy, unit)
+            ? autoregulate(
+                plan.incrementKg,
+                sessions,
+                day.program.autoregStallPolicy,
+                unit,
+                overshootPolicy,
+              )
             : plan.mode === 'range'
-              ? autoregulateRange(plan.stepKg, sessions, rangeRows, unit)
+              ? autoregulateRange(plan.stepKg, sessions, rangeRows, unit, overshootPolicy)
               : plan.mode === 'anchor'
                 ? autoregulateAnchor(sessions, unit)
-                : autoregulateEarlyDeload(sessions, day.program.autoregStallPolicy)
+                : autoregulateEarlyDeload(
+                    sessions,
+                    day.program.autoregStallPolicy,
+                    overshootPolicy,
+                  )
         // Diet-phase gate (Part A): verdict math above is phase-blind; only
         // now does a 'cutting' program annotate the verdict (and hold an H2
         // auto-backoff behind a confirmable proposal). A null phase returns

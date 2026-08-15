@@ -130,6 +130,10 @@ const INVOCATIONS: Record<string, { selects: unknown[][]; run: () => Promise<unk
     selects: [OWNED_PROGRAM],
     run: () => patches.setProgramDeloadPolicy(USER, PID, { mode: 'reactive' }, 'mcp'),
   },
+  setProgramOvershootPolicy: {
+    selects: [OWNED_PROGRAM],
+    run: () => patches.setProgramOvershootPolicy(USER, PID, 'e1rm-equivalent', 'mcp'),
+  },
   setProgramDietPhase: {
     selects: [OWNED_PROGRAM],
     run: () => patches.setProgramDietPhase(USER, PID, 'cutting', 'mcp'),

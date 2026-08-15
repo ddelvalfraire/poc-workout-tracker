@@ -44,6 +44,8 @@ function day(options: {
   deloadWeek?: number | null
   deloadPolicy?: DayForDerivation['program']['deloadPolicy']
   dietPhase?: DayForDerivation['program']['dietPhase']
+  overshootPolicy?: DayForDerivation['program']['overshootPolicy']
+  exerciseOvershootPolicy?: DayForDerivation['exercises'][number]['overshootPolicy']
   overrides?: { week: number; [key: string]: unknown }[]
   duplicateSlot?: boolean
   repRange?: boolean
@@ -52,6 +54,7 @@ function day(options: {
   const exercise = {
     wgerExerciseId: 1,
     source: 'wger' as const,
+    overshootPolicy: options.exerciseOvershootPolicy ?? null,
     progression: (options.progression ?? {
       scheme: 'linear',
       incrementKg: 2.5,
@@ -85,6 +88,7 @@ function day(options: {
       autoregStallPolicy: options.stallPolicy ?? 'all-sets',
       deloadPolicy: options.deloadPolicy ?? null,
       dietPhase: options.dietPhase ?? null,
+      overshootPolicy: options.overshootPolicy ?? null,
     },
     exercises: options.duplicateSlot ? [exercise, { ...exercise }] : [exercise],
   }
@@ -628,6 +632,40 @@ function withBaseLoad(fixture: DayForDerivation, suggestedLoadKg: number): DayFo
     })),
   }
 }
+
+describe('deriveDayPrescription overshoot policy (#227)', () => {
+  // 18 × 90 vs the 8–12 @ 100 range: e1RM 144 ≥ the top's 140 — under
+  // strict this is just a lighter session; under e1rm-equivalent it is a
+  // range fill, credited against the SNAPSHOT prescription.
+  const overshotRange = () => [trained('w1', 1, [18, 18, 18], 90, 100)]
+
+  it("the program row's e1rm-equivalent policy credits a lighter overshoot as a fill", async () => {
+    trainedSessions.mockResolvedValue(overshotRange())
+    const [strict] = await deriveDayPrescription(USER, day({ repRange: true }), 2)
+    expect(strict.autoreg).toBeNull() // strict default: lighter session, silence
+    trainedSessions.mockResolvedValue(overshotRange())
+    const [credited] = await deriveDayPrescription(
+      USER,
+      day({ repRange: true, overshootPolicy: 'e1rm-equivalent' }),
+      2,
+    )
+    expect(credited.autoreg).toMatchObject({ action: 'step', deltaKg: 2.5 })
+  })
+
+  it('a per-exercise strict override outranks the program policy', async () => {
+    trainedSessions.mockResolvedValue(overshotRange())
+    const [exercise] = await deriveDayPrescription(
+      USER,
+      day({
+        repRange: true,
+        overshootPolicy: 'e1rm-equivalent',
+        exerciseOvershootPolicy: 'strict-load',
+      }),
+      2,
+    )
+    expect(exercise.autoreg).toBeNull()
+  })
+})
 
 describe('deriveDayPrescription load quantization (#226)', () => {
   it('snaps a kg-derived load to the lb grid: 16.87 kg (37.2 lb) prescribes 37.5 lb', async () => {
