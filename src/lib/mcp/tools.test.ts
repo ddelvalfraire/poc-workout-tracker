@@ -93,6 +93,7 @@ describe('registerTools', () => {
       'set_training_max',
       'set_weight_unit',
       'set_workout_meta',
+      'substitute_program_exercise',
       'update_custom_exercise',
       'update_program_day',
       'update_program_exercise',

@@ -67,6 +67,9 @@ export const COACH_APPROVAL_TOOLS = [
   'move_program_day',
   'add_program_exercise',
   'update_program_exercise',
+  // The load-stripping movement swap — approval-gated like every patch op;
+  // the swap itself clears the old movement's loads server-side.
+  'substitute_program_exercise',
   'remove_program_exercise',
   'move_program_exercise',
   'add_program_set',
