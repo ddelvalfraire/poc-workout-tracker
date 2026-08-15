@@ -2004,6 +2004,12 @@ export function WorkoutLogger({
                         effortTarget?.rir ?? null,
                         effortTarget?.rpe ?? null,
                       )}
+                      targetRir={effortTarget?.rir ?? null}
+                      targetRpe={effortTarget?.rpe ?? null}
+                      // An untouched row tidies itself (~5s): same collapse
+                      // as the prompt moving on — skip-by-ignoring, never
+                      // blocking, and the quiet slot below stays tappable.
+                      onIdleCollapse={() => setEffortPromptSetId(null)}
                       onSelectRir={(value) => {
                         dispatch({ type: 'SET_EFFORT', exerciseIndex, setIndex, rir: value })
                         // A real selection answers the prompt; a clear keeps
@@ -2012,7 +2018,9 @@ export function WorkoutLogger({
                       }}
                       onSelectRpe={(value) => {
                         dispatch({ type: 'SET_EFFORT', exerciseIndex, setIndex, rpe: value })
-                        if (value !== '') setEffortPromptSetId(null)
+                        // Unlike RIR, an RPE pick must NOT close the row:
+                        // the second tap of the whole → half cycle needs the
+                        // chip still on screen. The idle collapse tidies up.
                       }}
                     />
                   ) : (
@@ -2021,15 +2029,23 @@ export function WorkoutLogger({
                         set.rir ? Number(set.rir) : null,
                         set.rpe ? Number(set.rpe) : null,
                       )
-                      if (!logged) return null
+                      // Nothing logged: the slot itself stays — a quiet
+                      // "Effort" word so late logging is always reachable
+                      // after the prompt moved on (or idle-collapsed).
+                      // Renders only under the show rule, so the opted-out
+                      // fast path stays byte-identical.
                       return (
                         <button
                           type="button"
                           onClick={() => setEffortPromptSetId(set.id)}
-                          aria-label={`Change effort for ${setLabel}: ${logged}`}
+                          aria-label={
+                            logged
+                              ? `Change effort for ${setLabel}: ${logged}`
+                              : `Log effort for ${setLabel}`
+                          }
                           className="block pl-22 pr-11 text-left text-xs text-muted-foreground tnum underline-offset-2 active:underline"
                         >
-                          {logged}
+                          {logged ?? 'Effort'}
                         </button>
                       )
                     })()
