@@ -51,6 +51,7 @@ import {
   type WorkoutDraft,
 } from './workout-draft'
 import { draftKey, buildDraftPayload, parseDraftPayload } from './draft-payload'
+import { consumePendingPick } from './pending-pick'
 import { createDraftSyncQueue, type DraftSyncQueue, type DraftSyncStatus } from './draft-sync'
 import { SwipeToDelete } from './swipe-to-delete'
 import { EffortChips } from './effort-chips'
@@ -681,20 +682,68 @@ export function WorkoutLogger({
     }
   }
 
-  function handleReplacePick(picked: PickedExercise) {
-    const index = replaceTargetIndex
-    setReplaceTargetIndex(null) // the sheet closes itself; clear replace mode
-    if (index === null) return
+  /** One pick, one gate: routes a replacement through the logged-work guard
+   *  (warn + Add-instead instead of silently discarding checked-off sets)
+   *  before performReplace. Shared by the sheet's live pick and the
+   *  create-from-swap return leg, so both fire the exact same swap. */
+  function applyPick(index: number, picked: PickedExercise) {
     const target = draft.exercises[index]
     if (!target) return
-    // Logged work deserves a pause: warn + offer Add-instead instead of
-    // silently discarding checked-off sets.
     if (target.sets.some((set) => set.completed)) {
       setPendingReplace({ index, picked })
       return
     }
     performReplace(index, picked)
   }
+
+  function handleReplacePick(picked: PickedExercise) {
+    const index = replaceTargetIndex
+    setReplaceTargetIndex(null) // the sheet closes itself; clear replace mode
+    if (index === null) return
+    applyPick(index, picked)
+  }
+
+  /** #218 outbound leg: the picker's create row pushes the full-page form.
+   *  Flush the draft first (best-effort) so the page seed on return already
+   *  holds this session; the swap target travels by the draft exercise's
+   *  STABLE client id (persisted in the payload), never by index. */
+  function handleCreateNavigate(query: string) {
+    queue.flush()
+    const params = new URLSearchParams()
+    if (query) params.set('name', query)
+    if (replaceTargetIndex !== null) {
+      const target = draft.exercises[replaceTargetIndex]
+      if (!target) return
+      params.set('return', 'swap')
+      params.set('target', target.id)
+    } else {
+      params.set('return', 'add')
+    }
+    router.push(`/exercises/new?${params.toString()}`)
+  }
+
+  // #218 return leg: consume the pick instruction the create page stored and
+  // route it through the SAME paths a live pick takes (append, or swap with
+  // the logged-work guard + plan-target re-derive + use-for-block prompt +
+  // undo). Mount-only against the server-seeded draft; a vanished target
+  // drops the instruction silently (silence over corruption).
+  useEffect(() => {
+    const pick = consumePendingPick()
+    if (!pick) return
+    // The pick is newer user intent than any cross-device snapshot: hold the
+    // async draft restore off exactly like in-flight typing, so it can't
+    // clobber the swap or silently close the guard dialog it may open.
+    dirtyRef.current = true
+    if (pick.mode === 'add') {
+      dispatch({ type: 'ADD_EXERCISE', exercise: newDraftExercise(pick.exercise) })
+      return
+    }
+    const index = draft.exercises.findIndex((exercise) => exercise.id === pick.targetId)
+    if (index === -1) return
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- one-shot mount sync from sessionStorage (external system), the WARMUP_HINT_KEY precedent
+    applyPick(index, pick.exercise)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only: applies against the seeded draft
+  }, [])
 
   function handleRemoveSet(exerciseIndex: number, setIndex: number) {
     const exercise = draft.exercises[exerciseIndex]
@@ -2366,6 +2415,7 @@ export function WorkoutLogger({
               ? handleReplacePick(exercise)
               : dispatch({ type: 'ADD_EXERCISE', exercise: newDraftExercise(exercise) })
           }
+          onCreateNavigate={handleCreateNavigate}
           onClose={() => {
             setIsPickerOpen(false)
             setReplaceTargetIndex(null)

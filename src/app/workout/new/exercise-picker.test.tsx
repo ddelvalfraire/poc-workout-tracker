@@ -42,11 +42,13 @@ afterEach(() => {
   container.remove()
 })
 
-/** Mount with the catalog pre-seeded (fresh within staleTime → no fetch). */
+/** Mount with the catalog pre-seeded (fresh within staleTime → no fetch).
+ *  Customs are seeded empty too so `includeCustom` mounts stay offline. */
 function renderPicker(props: Partial<Parameters<typeof ExercisePicker>[0]> = {}) {
   const picks: PickedExercise[] = []
   const queryClient = new QueryClient()
   queryClient.setQueryData(['exercises', 'catalog'], CATALOG)
+  queryClient.setQueryData(['exercises', 'custom'], [])
   root = createRoot(container)
   act(() => {
     root.render(
@@ -171,5 +173,60 @@ describe('rows are the control (#213)', () => {
     expect(picks).toEqual([
       { wgerExerciseId: 2, source: 'wger', name: 'Incline Press', category: 'Chest' },
     ])
+  })
+})
+
+describe('create row (#218)', () => {
+  function createRow(): HTMLButtonElement | undefined {
+    return [...container.querySelectorAll('button')].find((b) =>
+      b.textContent?.includes('Create'),
+    )
+  }
+
+  it('appends a final Create row echoing the query under results', () => {
+    renderPicker({ includeCustom: true })
+    type('press')
+    const row = createRow()!
+    expect(row.textContent).toContain('Create “press”')
+    // Final row: it renders AFTER the results listbox in document order.
+    const listbox = container.querySelector('[role="listbox"]')!
+    expect(listbox.compareDocumentPosition(row) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('keeps the plain-sentence empty state with the create row beneath', () => {
+    renderPicker({ includeCustom: true })
+    type('zzzz')
+    const empty = [...container.querySelectorAll('p')].find(
+      (p) => p.textContent === 'No exercises found.',
+    )!
+    expect(empty).toBeDefined()
+    expect(createRow()!.textContent).toContain('Create “zzzz”')
+  })
+
+  it('shows the persistent generic create row while the query is empty', () => {
+    renderPicker({ includeCustom: true })
+    expect(createRow()!.textContent).toContain('Create custom exercise')
+  })
+
+  it('hides the create affordance entirely without includeCustom', () => {
+    renderPicker()
+    type('zzzz')
+    expect(createRow()).toBeUndefined()
+  })
+
+  it('onCreateNavigate: the row hands the host the query instead of opening the inline form', () => {
+    const navigated: string[] = []
+    renderPicker({ includeCustom: true, onCreateNavigate: (q) => navigated.push(q) })
+    type('zzzz')
+    act(() => createRow()!.click())
+    expect(navigated).toEqual(['zzzz'])
+    expect(container.textContent).not.toContain('New custom exercise')
+  })
+
+  it('without onCreateNavigate the row still opens the inline form (builder host)', () => {
+    renderPicker({ includeCustom: true })
+    type('zzzz')
+    act(() => createRow()!.click())
+    expect(container.textContent).toContain('New custom exercise')
   })
 })

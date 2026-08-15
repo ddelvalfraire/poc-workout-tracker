@@ -44,7 +44,11 @@ describe('spike §3c fallback table', () => {
     const source = readFileSync(join(ROOT, 'src/app/workout/new/workout-logger.tsx'), 'utf8')
     expect(source).toContain('navigateBack(router, closeHref)')
     // Finish and discard are redirect-ish hops: replace + markReplace only.
-    expect(source).not.toMatch(/router\.push\(/)
+    // The ONE sanctioned push is #218's create-exercise hop — a forward step
+    // whose back must return INTO the logger, so push is the correct verb.
+    const pushCalls = source.match(/router\.push\(/g) ?? []
+    expect(pushCalls.length).toBe(1)
+    expect(source).toContain('router.push(`/exercises/new?')
     const replaceCalls = source.match(/router\.replace\(/g) ?? []
     expect(replaceCalls.length).toBe(3) // two finish branches + discard exit
     const markCalls = source.match(/markReplace\(\)/g) ?? []
