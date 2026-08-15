@@ -11,6 +11,7 @@ import {
   setProgramAutoregulation,
   setProgramDeloadPolicy,
   setProgramDietPhase,
+  setProgramOvershootPolicy,
   setProgramPlanSync,
   setTrainingMax,
   addProgramDay,
@@ -47,6 +48,7 @@ import {
   deloadPolicySchema,
   dietPhaseSchema,
 } from '@/lib/program-input'
+import { overshootPolicySchema } from '@/lib/overshoot-policy'
 
 /** Optional explicit unit override; absent → the user's stored unit. */
 const unitArg = z.enum(['kg', 'lb']).optional()
@@ -289,6 +291,33 @@ export function registerProgramPatchTools(server: McpServer): void {
         )
         if (!result) throw new ToolError(`Program ${programId} not found for user ${resolved}`)
         return jsonResult({ userId: resolved, programId, dietPhase: phase })
+      } catch (error: unknown) {
+        return errorResult(error)
+      }
+    },
+  )
+
+  server.registerTool(
+    'set_program_overshoot_policy',
+    {
+      title: 'Set Program Overshoot Policy',
+      description:
+        "Sets (or clears, with `policy: null`) a program's overshoot / goal-met policy — how a completed set that beat its prescription on a different axis (more reps at a lighter load) is credited. 'strict-load': a goal counts only at the prescribed load (the load-anchored doctrine). 'e1rm-equivalent': a set counts when its estimated 1RM meets the prescription's e1RM. 'any-metric': permissive — reps ≥ target reps OR load ≥ target load OR e1RM ≥ target e1RM. Null restores the per-scheme defaults (strict for linear / double-progression / rep-progression / percent-1rm / amrap-cycle; e1rm-equivalent for rpe-target; weekly-volume is set-count scored, so the policy is inert there). Under every policy, overshoot never auto-accelerates a training max or skips progression steps. Errors if the program isn't found or owned.",
+      inputSchema: {
+        programId: z.string(),
+        policy: overshootPolicySchema.nullable(),
+        userId: z.string().optional(),
+      },
+    },
+    async ({ programId, policy, userId }, extra) => {
+      try {
+        const resolved = resolveUserId(extra, userId)
+        assertProgramIdShape(programId)
+        const result = await runOp(() =>
+          setProgramOvershootPolicy(resolved, programId, policy, resolveActor(extra)),
+        )
+        if (!result) throw new ToolError(`Program ${programId} not found for user ${resolved}`)
+        return jsonResult({ userId: resolved, programId, overshootPolicy: policy })
       } catch (error: unknown) {
         return errorResult(error)
       }

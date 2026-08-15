@@ -15,6 +15,7 @@ import {
 } from '@/lib/program-input'
 import type { ExerciseSource } from '@/lib/custom-exercise-input'
 import type { AutoregStallPolicy } from '@/lib/autoregulate'
+import { overshootPolicySchema, type OvershootPolicy } from '@/lib/overshoot-policy'
 import { TM_BASED_SCHEMES } from '@/lib/substitute-slot'
 import { db } from './index'
 import { recordProgramEvent, type ProgramEventActor } from './program-events'
@@ -377,6 +378,53 @@ export async function setProgramDietPhase(
       action: 'set_program_diet_phase',
       summary: parsed === null ? 'Diet phase cleared' : `Diet phase: ${parsed}`,
       payload: { after: { dietPhase: parsed } },
+    })
+    return { id: programId }
+  })
+}
+
+/**
+ * Sets (or clears, with null) the program-level overshoot / goal-met policy
+ * (programs.overshootPolicy — see lib/overshoot-policy.ts; null resolves to
+ * the per-scheme default at read time: strict for load-anchored schemes,
+ * e1rm-equivalent for rpe-target). A non-null policy is re-parsed through
+ * the schema (`ProgramPatchError` on mismatch) so nothing outside the union
+ * can reach the column. Same narrow-op rationale, ownership gate, and event
+ * discipline as setProgramDeloadPolicy above — including the unconditional
+ * write. Returns null when the program isn't owned. Reads, in order:
+ * owned-program.
+ */
+export async function setProgramOvershootPolicy(
+  userId: string,
+  programId: string,
+  policy: OvershootPolicy | null,
+  actor: ProgramEventActor,
+): Promise<{ id: string } | null> {
+  let parsed: OvershootPolicy | null = null
+  if (policy !== null) {
+    try {
+      parsed = overshootPolicySchema.parse(policy)
+    } catch (error: unknown) {
+      throw patchErrorFromZod(error, 'invalid overshoot policy')
+    }
+  }
+  return db.transaction(async (tx) => {
+    const owned = await findOwnedProgramId(tx, userId, programId)
+    if (!owned) return null
+    await tx
+      .update(programs)
+      .set({ overshootPolicy: parsed, updatedAt: new Date() })
+      .where(eq(programs.id, programId))
+    await recordProgramEvent(tx, {
+      programId,
+      userId,
+      actor,
+      action: 'set_program_overshoot_policy',
+      summary:
+        parsed === null
+          ? 'Overshoot policy cleared (per-scheme defaults)'
+          : `Overshoot policy: ${parsed}`,
+      payload: { after: { overshootPolicy: parsed } },
     })
     return { id: programId }
   })

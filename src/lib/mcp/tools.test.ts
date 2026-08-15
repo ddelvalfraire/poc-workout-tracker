@@ -87,6 +87,7 @@ describe('registerTools', () => {
       'set_program_autoregulation',
       'set_program_deload_policy',
       'set_program_diet_phase',
+      'set_program_overshoot_policy',
       'set_program_plan_sync',
       'set_program_set_override',
       'set_program_status',
