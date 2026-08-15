@@ -41,6 +41,7 @@ import {
   completeFilledSets,
   draftToInput,
   emptyDraft,
+  isMissingRequiredWeight,
   newDraftExercise,
   newDraftSet,
   replacementDraftExercise,
@@ -347,6 +348,11 @@ export function WorkoutLogger({
   // "accepted from history", not an error, hence a highlight (never a shake).
   const [flashSetId, setFlashSetId] = useState<string | null>(null)
   const flashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Refused check-off feedback: the weight_reps set whose empty weight input
+  // briefly flashes when its circle is tapped — "this needs a weight", the
+  // error twin of fill-flash (still color-only, never a shake).
+  const [weightNudgeSetId, setWeightNudgeSetId] = useState<string | null>(null)
+  const weightNudgeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   // Weight steppers show ONLY for the row whose weight input has focus —
   // zero ambient chrome for lifters who never use them.
   const [stepperSetId, setStepperSetId] = useState<string | null>(null)
@@ -411,6 +417,13 @@ export function WorkoutLogger({
   useEffect(
     () => () => {
       if (flashTimerRef.current) clearTimeout(flashTimerRef.current)
+    },
+    [],
+  )
+
+  useEffect(
+    () => () => {
+      if (weightNudgeTimerRef.current) clearTimeout(weightNudgeTimerRef.current)
     },
     [],
   )
@@ -1542,22 +1555,43 @@ export function WorkoutLogger({
                         longPressFiredRef.current = false
                         return
                       }
+                      // Tap-to-accept: checking off an untouched set adopts
+                      // the ghost ("do what I did last time" in one tap).
+                      // A "8–12" plan range adopts its floor.
+                      const fill = {
+                        reps: adoptableGhostValue(ghost.reps),
+                        // A bodyweight set HAS no weight value to adopt —
+                        // filling one would persist a phantom load.
+                        weight:
+                          exercise.loggingType === 'bodyweight_reps'
+                            ? undefined
+                            : adoptableGhostValue(ghost.weight),
+                      }
+                      // The reducer refuses a weight-less weight_reps
+                      // check-off; mirror its predicate here so the refusal
+                      // gets FEEDBACK (weight-input flash) and none of the
+                      // completion side effects (pop, rest clock, effort
+                      // chips) fire for a set that didn't complete.
+                      if (
+                        !set.completed &&
+                        isMissingRequiredWeight(exercise, setIndex, fill)
+                      ) {
+                        vibrate(SET_COMPLETE_VIBRATION)
+                        if (weightNudgeTimerRef.current) {
+                          clearTimeout(weightNudgeTimerRef.current)
+                        }
+                        setWeightNudgeSetId(set.id)
+                        weightNudgeTimerRef.current = setTimeout(
+                          () => setWeightNudgeSetId(null),
+                          700,
+                        )
+                        return
+                      }
                       dispatch({
                         type: 'TOGGLE_SET_COMPLETED',
                         exerciseIndex,
                         setIndex,
-                        // Tap-to-accept: checking off an untouched set adopts
-                        // the ghost ("do what I did last time" in one tap).
-                        // A "8–12" plan range adopts its floor.
-                        fill: {
-                          reps: adoptableGhostValue(ghost.reps),
-                          // A bodyweight set HAS no weight value to adopt —
-                          // filling one would persist a phantom load.
-                          weight:
-                            exercise.loggingType === 'bodyweight_reps'
-                              ? undefined
-                              : adoptableGhostValue(ghost.weight),
-                        },
+                        fill,
                       })
                       if (!set.completed) {
                         // Sensory answer to the check-off: a haptic tick and
@@ -1786,6 +1820,7 @@ export function WorkoutLogger({
                           rowState === 'waiting' &&
                             'border-transparent opacity-80 group-focus-within/setrow:border-input group-focus-within/setrow:opacity-100',
                           flashSetId === set.id && 'fill-flash',
+                          weightNudgeSetId === set.id && 'weight-required-flash',
                         )}
                       />
                     </div>

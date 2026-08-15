@@ -314,9 +314,26 @@
   }
 }
 
+/* Refused check-off: the empty weight input a completion tap bounced off.
+   The error twin of fill-flash — destructive-tinted, still color-only and
+   700ms one-shot (a highlight, never a shake), calm under reduced motion. */
+@keyframes weight-required-flash {
+  0% {
+    border-color: var(--color-destructive);
+    background-color: color-mix(in oklch, var(--color-destructive) 18%, transparent);
+  }
+  100% {
+    border-color: var(--color-border);
+    background-color: transparent;
+  }
+}
+
 @layer utilities {
   .fill-flash {
     animation: fill-flash 700ms ease-out;
+  }
+  .weight-required-flash {
+    animation: weight-required-flash 700ms ease-out;
   }
   /* Safe-area helpers for standalone/notched devices. */
   .pt-safe {

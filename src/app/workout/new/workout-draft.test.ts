@@ -5,6 +5,7 @@ import {
   draftToInput,
   detailToDraft,
   emptyDraft,
+  isMissingRequiredWeight,
   newDraftExercise,
   newDraftSet,
   replacementDraftExercise,
@@ -395,6 +396,76 @@ describe('workoutDraftReducer', () => {
 
     // Assert
     expect(next.exercises[0].sets[0]).toEqual({ id: 's1', reps: '', weight: '', completed: false, tag: 'working' as const })
+  })
+
+  it('TOGGLE_SET_COMPLETED refuses to check off a weight_reps set with no weight', () => {
+    // Arrange — reps typed but no weight, and no ghost weight to adopt
+    const partial: WorkoutDraft = { notes: '',
+      exercises: [{ id: 'ex1', ...SQUAT, sets: [{ id: 's1', reps: '6', weight: '', completed: false, tag: 'working' as const }] }],
+    }
+
+    // Act — fill offers reps only (no history for this movement)
+    const next = workoutDraftReducer(partial, {
+      type: 'TOGGLE_SET_COMPLETED',
+      exerciseIndex: 0,
+      setIndex: 0,
+      fill: { reps: '8' },
+    })
+
+    // Assert — untouched: no completion, no partial fill
+    expect(next.exercises[0].sets[0]).toEqual(partial.exercises[0].sets[0])
+  })
+
+  it('TOGGLE_SET_COMPLETED checks off a bodyweight set without weight', () => {
+    // Arrange — blank weight is the normal reading for bodyweight_reps
+    const bw: WorkoutDraft = { notes: '',
+      exercises: [{ id: 'ex1', ...SQUAT, loggingType: 'bodyweight_reps' as const, sets: [{ id: 's1', reps: '12', weight: '', completed: false, tag: 'working' as const }] }],
+    }
+
+    // Act
+    const next = workoutDraftReducer(bw, { type: 'TOGGLE_SET_COMPLETED', exerciseIndex: 0, setIndex: 0 })
+
+    // Assert
+    expect(next.exercises[0].sets[0].completed).toBe(true)
+  })
+
+  it('TOGGLE_SET_COMPLETED still unchecks a weight_reps set that has no weight', () => {
+    // Arrange — a legacy/bad row (completed, no weight) must stay correctable
+    const done: WorkoutDraft = { notes: '',
+      exercises: [{ id: 'ex1', ...SQUAT, sets: [{ id: 's1', reps: '12', weight: '', completed: true, tag: 'working' as const }] }],
+    }
+
+    // Act
+    const next = workoutDraftReducer(done, { type: 'TOGGLE_SET_COMPLETED', exerciseIndex: 0, setIndex: 0 })
+
+    // Assert
+    expect(next.exercises[0].sets[0].completed).toBe(false)
+  })
+})
+
+describe('isMissingRequiredWeight', () => {
+  const exerciseWith = (weight: string, loggingType = 'weight_reps' as const) => ({
+    id: 'ex1',
+    ...SQUAT,
+    loggingType,
+    sets: [{ id: 's1', reps: '5', weight, completed: false, tag: 'working' as const }],
+  })
+
+  it('flags a weight_reps set with blank weight and no adoptable fill', () => {
+    expect(isMissingRequiredWeight(exerciseWith(''), 0)).toBe(true)
+    expect(isMissingRequiredWeight(exerciseWith(''), 0, { reps: '8' })).toBe(true)
+  })
+
+  it('passes when weight is typed, adoptable from fill, or an explicit 0 (empty bar)', () => {
+    expect(isMissingRequiredWeight(exerciseWith('100'), 0)).toBe(false)
+    expect(isMissingRequiredWeight(exerciseWith(''), 0, { weight: '100' })).toBe(false)
+    expect(isMissingRequiredWeight(exerciseWith('0'), 0)).toBe(false)
+  })
+
+  it('flags unparseable weight but never bodyweight modes or missing sets', () => {
+    expect(isMissingRequiredWeight(exerciseWith('abc'), 0)).toBe(true)
+    expect(isMissingRequiredWeight(exerciseWith('', 'bodyweight_reps' as never), 0)).toBe(false)
+    expect(isMissingRequiredWeight(exerciseWith(''), 5)).toBe(false)
   })
 })
 
@@ -928,8 +999,13 @@ describe('completeFilledSets', () => {
     }
   }
 
-  it('checks off unchecked sets that have reps logged', () => {
-    const result = completeFilledSets(draftWith([{ reps: '5', weight: '100' }, { reps: '8' }]))
+  it('checks off unchecked sets that have reps and weight logged', () => {
+    const result = completeFilledSets(
+      draftWith([
+        { reps: '5', weight: '100' },
+        { reps: '8', weight: '80' },
+      ]),
+    )
 
     expect(result.autoCompleted).toBe(2)
     expect(result.skipped).toBe(0)
@@ -946,11 +1022,11 @@ describe('completeFilledSets', () => {
   it('counts unchecked sets without usable reps as skipped, unflipped', () => {
     const result = completeFilledSets(
       draftWith([
-        { reps: '' }, // untouched seeded set
-        { reps: '0' }, // zero reps is not a performed set
-        { reps: '5.9' }, // fractional — ambiguous, save truncates; not claimed
-        { reps: 'abc' },
-        { reps: '5' }, // the one real set
+        { reps: '', weight: '100' }, // untouched seeded set
+        { reps: '0', weight: '100' }, // zero reps is not a performed set
+        { reps: '5.9', weight: '100' }, // fractional — ambiguous, save truncates; not claimed
+        { reps: 'abc', weight: '100' },
+        { reps: '5', weight: '100' }, // the one real set
       ]),
     )
 
@@ -960,8 +1036,22 @@ describe('completeFilledSets', () => {
     expect(completed).toEqual([false, false, false, false, true])
   })
 
-  it('needs no weight — null-load machine and bodyweight sets complete on reps alone', () => {
+  it('refuses weight_reps sets with reps but no weight — counted as skipped', () => {
     const result = completeFilledSets(draftWith([{ reps: '12', weight: '' }]))
+
+    expect(result.autoCompleted).toBe(0)
+    expect(result.skipped).toBe(1)
+    expect(result.draft.exercises[0].sets[0].completed).toBe(false)
+  })
+
+  it('bodyweight-mode sets still complete on reps alone — blank weight is their normal reading', () => {
+    const base = draftWith([{ reps: '12', weight: '' }])
+    const draft: WorkoutDraft = {
+      ...base,
+      exercises: [{ ...base.exercises[0], loggingType: 'bodyweight_reps' as const }],
+    }
+
+    const result = completeFilledSets(draft)
 
     expect(result.autoCompleted).toBe(1)
     expect(result.draft.exercises[0].sets[0].completed).toBe(true)
@@ -970,7 +1060,7 @@ describe('completeFilledSets', () => {
   it('ignores skipped exercises entirely — no auto-complete, no warning count', () => {
     // Arrange — a skipped exercise with reps typed AND an empty set: neither
     // may be claimed or warned about; the sibling still runs the pass.
-    const base = draftWith([{ reps: '5' }, { reps: '' }])
+    const base = draftWith([{ reps: '5', weight: '100' }, { reps: '' }])
     const draft: WorkoutDraft = {
       ...base,
       exercises: [
@@ -989,13 +1079,13 @@ describe('completeFilledSets', () => {
   })
 
   it('preserves the workout note on the transformed draft', () => {
-    const input = { ...draftWith([{ reps: '5' }]), notes: 'keep me' }
+    const input = { ...draftWith([{ reps: '5', weight: '100' }]), notes: 'keep me' }
 
     expect(completeFilledSets(input).draft.notes).toBe('keep me')
   })
 
   it('does not mutate its input draft', () => {
-    const input = draftWith([{ reps: '5' }])
+    const input = draftWith([{ reps: '5', weight: '100' }])
     const snapshot = structuredClone(input)
 
     completeFilledSets(input)
