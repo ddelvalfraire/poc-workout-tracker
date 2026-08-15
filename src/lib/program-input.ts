@@ -363,18 +363,37 @@ export const setOverrideSchema = z
   .strict()
 
 /** One exercise slot within a program day, with its planned sets + progression. */
-export const programExerciseSchema = z.object({
-  wgerExerciseId: z.number().int(),
-  // Exercise identity is the composite (source, wgerExerciseId); defaulted so
-  // every pre-existing caller keeps meaning the wger catalog.
-  source: exerciseSourceSchema.default('wger'),
-  name: z.string().trim().min(1).max(MAX_NAME),
-  progression: progressionSchema.nullable().optional(),
-  // Same non-null value within a day = perform as a superset. Carried through
-  // the full-replace path so groupings survive upsert/edit round-trips.
-  supersetGroup: z.number().int().min(0).nullable().optional(),
-  sets: z.array(programSetSchema).min(1),
-})
+export const programExerciseSchema = z
+  .object({
+    wgerExerciseId: z.number().int(),
+    // Exercise identity is the composite (source, wgerExerciseId); defaulted so
+    // every pre-existing caller keeps meaning the wger catalog.
+    source: exerciseSourceSchema.default('wger'),
+    name: z.string().trim().min(1).max(MAX_NAME),
+    progression: progressionSchema.nullable().optional(),
+    // Same non-null value within a day = perform as a superset. Carried through
+    // the full-replace path so groupings survive upsert/edit round-trips.
+    supersetGroup: z.number().int().min(0).nullable().optional(),
+    sets: z.array(programSetSchema).min(1),
+  })
+  // Metric-mode × scheme integrity (cardio v1): a load-anchored scheme on an
+  // exercise with NO reps_weight working material can never fire — the
+  // derivation layer's guard (deriveWeekSets) no-ops it silently, and this
+  // parse-time twin turns the dead config into a visible error instead.
+  // Mixed exercises pass: the scheme still has lifting rows to act on.
+  .superRefine((e, ctx) => {
+    if (!e.progression || e.progression.scheme === 'rep-progression') return
+    const hasLiftingSet = e.sets.some(
+      (s) => s.setType !== 'warmup' && s.metricMode === 'reps_weight',
+    )
+    if (!hasLiftingSet) {
+      ctx.addIssue({
+        code: 'custom',
+        message: `the ${e.progression.scheme} scheme needs at least one reps_weight working set — timed exercises progress via rep-progression`,
+        path: ['progression'],
+      })
+    }
+  })
 
 /** One training day (e.g. "Push") — an ordered list of exercises. */
 export const programDaySchema = z.object({

@@ -950,3 +950,100 @@ describe('deriveWeekSets under a deload policy', () => {
     })
   })
 })
+
+describe('metric-mode guard (cardio v1 slice 2): load schemes no-op on non-reps_weight sets', () => {
+  const base = { week: 3, mesocycleWeeks: 6, deloadWeek: null, history: NO_HISTORY }
+  const timedSet = (overrides: Partial<ProgramSetRowLike> = {}) =>
+    workingSet({ metricMode: 'duration', durationSec: 600, ...overrides })
+
+  it('linear never bumps a timed set (even one carrying a stray load)', () => {
+    const derived = deriveWeekSets({
+      sets: [timedSet({ suggestedLoadKg: 20 })],
+      progression: { scheme: 'linear', incrementKg: 2.5 },
+      ...base,
+    })
+    expect(derived[0].loadKg).toBe(20) // template passthrough, no ×2 steps
+    expect(derived[0].derivedFrom).toBe('template')
+  })
+
+  it('double-progression never advances a timed set', () => {
+    const derived = deriveWeekSets({
+      sets: [timedSet({ repMin: 8, repMax: 12, suggestedLoadKg: 20 })],
+      progression: { scheme: 'double-progression', repMin: 8, repMax: 12, incrementKg: 2.5 },
+      ...base,
+      history: { e1rmKg: null, lastSets: [{ reps: 12, weightKg: 20 }] }, // top hit — would advance
+    })
+    expect(derived[0].loadKg).toBe(20)
+    expect(derived[0].derivedFrom).toBe('template')
+  })
+
+  it('percent-1rm and rpe-target never stamp a computed load onto a timed set', () => {
+    const percent = deriveWeekSets({
+      sets: [timedSet()],
+      progression: { scheme: 'percent-1rm', trainingMaxKg: 100, weekPercents: [0.7, 0.8, 0.9] },
+      ...base,
+    })
+    expect(percent[0].loadKg).toBeNull()
+    const rpe = deriveWeekSets({
+      sets: [timedSet()],
+      progression: { scheme: 'rpe-target', targetRpe: 8 },
+      ...base,
+      history: { e1rmKg: 120, lastSets: null },
+    })
+    expect(rpe[0].loadKg).toBeNull()
+    expect(rpe[0].rpe).toBeNull() // no rpe stamp either — the scheme never applied
+  })
+
+  it('weekly-volume never resizes a timed exercise', () => {
+    const derived = deriveWeekSets({
+      sets: [timedSet({ setNumber: 1 }), timedSet({ setNumber: 2 })],
+      progression: { scheme: 'weekly-volume', mevSets: 2, mrvSets: 6 },
+      week: 6,
+      mesocycleWeeks: 6,
+      deloadWeek: null,
+      history: NO_HISTORY,
+    })
+    expect(derived).toHaveLength(2)
+  })
+
+  it('amrap-cycle never rewrites a timed set into a wave prescription', () => {
+    const derived = deriveWeekSets({
+      sets: [timedSet({ repMin: null })],
+      progression: {
+        scheme: 'amrap-cycle',
+        trainingMaxKg: 100,
+        incrementKg: 2.5,
+        wave: [[0.65, 0.75, 0.85]],
+      },
+      ...base,
+    })
+    expect(derived[0].loadKg).toBeNull()
+    expect(derived[0].repMin).toBeNull()
+    expect(derived[0].metricMode).toBe('duration')
+  })
+
+  it('rep-progression STILL applies to timed sets (the one cardio scheme)', () => {
+    const derived = deriveWeekSets({
+      sets: [timedSet()],
+      progression: { scheme: 'rep-progression', incrementReps: 0, incrementSec: 30 },
+      ...base,
+    })
+    expect(derived[0].durationSec).toBe(660) // 600 + 30×2 prior weeks
+    expect(derived[0].derivedFrom).toBe('scheme')
+  })
+
+  it('a mixed exercise progresses its reps_weight sets and passes timed sets through', () => {
+    const derived = deriveWeekSets({
+      sets: [
+        workingSet({ setNumber: 1, suggestedLoadKg: 100 }),
+        timedSet({ setNumber: 2 }),
+      ],
+      progression: { scheme: 'linear', incrementKg: 2.5 },
+      ...base,
+    })
+    expect(derived[0].loadKg).toBe(105) // 100 + 2.5×2
+    expect(derived[0].derivedFrom).toBe('scheme')
+    expect(derived[1].loadKg).toBeNull()
+    expect(derived[1].derivedFrom).toBe('template')
+  })
+})

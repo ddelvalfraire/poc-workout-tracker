@@ -478,7 +478,17 @@ export function deriveWeekSets(args: {
   const progressedIdx = sets.map((s) => (isProgressed(s.setType) ? progressedCount++ : -1))
 
   let derived: DerivedSet[] = sets.map((set, sourceIndex) => {
-    const applies = progression !== null && isProgressed(set.setType)
+    // Metric-mode guard (cardio v1): load-anchored schemes are meaningless
+    // on duration/duration_distance sets — every scheme except
+    // rep-progression (which legitimately bumps seconds) no-ops on them, per
+    // SET, so a mixed exercise still progresses its lifting rows. Enforced
+    // here, at the derivation layer, so every consumer (instantiation,
+    // previews, ghosts) inherits the guard. Inline (not a helper) so the
+    // `applies` alias keeps narrowing `progression` below.
+    const applies =
+      progression !== null &&
+      isProgressed(set.setType) &&
+      (set.metricMode === 'reps_weight' || progression.scheme === 'rep-progression')
     const { loadKg: schemeLoadKg, rpe } = applies
       ? schemeLoad(set, progression, week, weeks, history)
       : { loadKg: set.suggestedLoadKg, rpe: set.rpe }
@@ -517,8 +527,13 @@ export function deriveWeekSets(args: {
     }
   })
 
-  // weekly-volume adjusts the working-set count on non-deload weeks.
-  if (progression?.scheme === 'weekly-volume' && !isDeload) {
+  // weekly-volume adjusts the working-set count on non-deload weeks — but
+  // never on an exercise carrying timed working sets (same guard as above,
+  // lifted to the exercise level because resizing is a whole-list operation).
+  const hasTimedProgressedSet = sets.some(
+    (s) => isProgressed(s.setType) && s.metricMode !== 'reps_weight',
+  )
+  if (progression?.scheme === 'weekly-volume' && !isDeload && !hasTimedProgressedSet) {
     derived = resizeWorkingSets(derived, volumeSetCount(progression, week, weeks))
   }
 
@@ -526,7 +541,14 @@ export function deriveWeekSets(args: {
     const shape = policy.shape
     const deloadRow = progression?.scheme === 'amrap-cycle' ? progression.deloadRow : undefined
     const chassis = derived.filter((s) => isProgressed(s.setType))
-    if (progression?.scheme === 'amrap-cycle' && deloadRow && chassis.length > 0) {
+    if (
+      progression?.scheme === 'amrap-cycle' &&
+      deloadRow &&
+      chassis.length > 0 &&
+      // The emit REPLACES the chassis with reps_weight rows — never over a
+      // timed chassis (metric-mode guard); such exercises scale-shape instead.
+      chassis.every((s) => s.metricMode === 'reps_weight')
+    ) {
       // Wendler-canon deload row: EMIT percents × effective TM at `reps`,
       // replacing the scale-shape derivation. Warmups still pass through;
       // each emitted row borrows its chassis (rest/tempo/technique,
