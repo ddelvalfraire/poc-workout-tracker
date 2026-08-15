@@ -57,7 +57,15 @@ export default async function StatsPage({
     getPlannedWeeklyVolume(userId),
   ])
 
-  const hasAnyVolume = volume.totals.currentSets > 0 || volume.totals.previousSets > 0
+  // Cardio minutes (this week / last) ride the same fetch — a cardio-only
+  // week is training, not an empty page.
+  const cardioMinutes = Math.round(volume.totals.currentCardioSec / 60)
+  const previousCardioMinutes = Math.round(volume.totals.previousCardioSec / 60)
+  const hasAnyVolume =
+    volume.totals.currentSets > 0 ||
+    volume.totals.previousSets > 0 ||
+    cardioMinutes > 0 ||
+    previousCardioMinutes > 0
   // The plan replaces the generic floor as the shortfall yardstick.
   const low = planned ? [] : lowVolumeGroups(volume.groups)
   const under = planned ? underPlanGroups(volume.groups, planned) : []
@@ -120,6 +128,21 @@ export default async function StatsPage({
                   delta={delta ? { text: delta, tone: 'neutral' } : undefined}
                 />
                 <StatTile label="Sessions" value={String(volume.totals.currentSessions)} />
+                {/* Weekly cardio minutes (cardio v1): rendered only when a
+                    window has any — lifting-only weeks keep the two-tile
+                    grid byte-identical. */}
+                {(cardioMinutes > 0 || previousCardioMinutes > 0) && (
+                  <StatTile
+                    label="Cardio"
+                    value={String(cardioMinutes)}
+                    unit="min"
+                    delta={
+                      previousCardioMinutes > 0
+                        ? { text: `vs ${previousCardioMinutes} min last week`, tone: 'neutral' }
+                        : undefined
+                    }
+                  />
+                )}
               </dl>
             </section>
 

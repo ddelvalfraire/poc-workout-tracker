@@ -275,6 +275,9 @@ export async function substitutePlanTargetsAction(
     restSec: s.restSec,
     rir: s.rir,
     rpe: s.rpe,
+    // Cardio targets — same dialect as loadPlanTargets (the comment above).
+    durationSec: s.durationSec,
+    distanceM: s.distanceM,
   }))
 }
 

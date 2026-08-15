@@ -120,6 +120,39 @@ describe('registerWriteTools', () => {
       expect(payload(result)).toEqual({ userId: 'user_env', unit: 'lb', workoutId: '11111111-1111-4111-8111-111111111111' })
     })
 
+    it('passes cardio set fields through in canonical units (no display conversion)', async () => {
+      // Arrange
+      const tools = setup()
+      mockedSave.mockResolvedValue({ id: 'w-cardio' })
+
+      // Act
+      await tools.get('create_workout')!({
+        exercises: [
+          {
+            wgerExerciseId: 201,
+            name: 'Running',
+            sets: [
+              { reps: null, weight: null, metricMode: 'duration_distance', durationSec: 1800, distanceM: 5000 },
+            ],
+          },
+        ],
+      })
+
+      // Assert — seconds/meters untouched; weight conversion untouched for the nulls
+      expect(mockedSave).toHaveBeenCalledWith(
+        'user_env',
+        expect.objectContaining({
+          exercises: [
+            expect.objectContaining({
+              sets: [
+                { reps: null, weight: null, metricMode: 'duration_distance', durationSec: 1800, distanceM: 5000 },
+              ],
+            }),
+          ],
+        }),
+      )
+    })
+
     it('acts as the authenticated user, ignoring a conflicting userId arg (no impersonation)', async () => {
       // Arrange — token user differs from the arg-supplied id and the env default
       const tools = setup()

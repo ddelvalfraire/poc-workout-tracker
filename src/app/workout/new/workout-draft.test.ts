@@ -5,6 +5,7 @@ import {
   draftToInput,
   detailToDraft,
   emptyDraft,
+  isMissingRequiredMetric,
   isMissingRequiredWeight,
   newDraftExercise,
   newDraftSet,
@@ -1262,5 +1263,203 @@ describe('detailToDraft effort round-trip', () => {
 
     expect(draft.exercises[0].sets[0]).toMatchObject({ rir: '2', rpe: '8.5' })
     expect(draft.exercises[0].sets[1]).toMatchObject({ rir: '', rpe: '' })
+  })
+})
+
+describe('cardio metric modes (slice 1)', () => {
+  const RUN = {
+    wgerExerciseId: 201,
+    source: 'wger' as const,
+    name: 'Running',
+    category: 'Cardio',
+    loggingType: 'weight_reps' as const,
+    notes: '',
+    skipped: false,
+  }
+
+  const cardioSet = (overrides: Partial<DraftSet> = {}): DraftSet => ({
+    id: 's1',
+    reps: '',
+    weight: '',
+    completed: false,
+    tag: 'working' as const,
+    metricMode: 'duration_distance' as const,
+    duration: '',
+    distance: '',
+    ...overrides,
+  })
+
+  const cardioDraft = (set: DraftSet): WorkoutDraft => ({
+    notes: '',
+    exercises: [{ id: 'ex1', ...RUN, sets: [set] }],
+  })
+
+  it('newDraftExercise defaults a Cardio-category pick to duration_distance sets', () => {
+    const exercise = newDraftExercise({ wgerExerciseId: 201, name: 'Running', category: 'Cardio' })
+    expect(exercise.sets[0].metricMode).toBe('duration_distance')
+    // Non-cardio picks keep the minimal shape: no metricMode key at all.
+    const squat = newDraftExercise({ wgerExerciseId: 73, name: 'Squat', category: 'Legs' })
+    expect('metricMode' in squat.sets[0]).toBe(false)
+  })
+
+  it('replacementDraftExercise seeds the SUBSTITUTE category mode', () => {
+    const replacement = replacementDraftExercise(
+      { wgerExerciseId: 201, name: 'Running', category: 'Cardio' },
+      3,
+    )
+    expect(replacement.sets).toHaveLength(3)
+    expect(replacement.sets.every((s) => s.metricMode === 'duration_distance')).toBe(true)
+  })
+
+  it('isMissingRequiredMetric requires a duration > 0 on cardio sets (no phantom facts)', () => {
+    const draft = cardioDraft(cardioSet())
+    expect(isMissingRequiredMetric(draft.exercises[0], 0)).toBe(true)
+    // An adoptable ghost duration satisfies the gate, like fill.weight does.
+    expect(isMissingRequiredMetric(draft.exercises[0], 0, { duration: '12:30' })).toBe(false)
+    const typed = cardioDraft(cardioSet({ duration: '20:00' }))
+    expect(isMissingRequiredMetric(typed.exercises[0], 0)).toBe(false)
+    // Distance alone never completes a set — duration is the required metric.
+    const distanceOnly = cardioDraft(cardioSet({ distance: '5' }))
+    expect(isMissingRequiredMetric(distanceOnly.exercises[0], 0)).toBe(true)
+  })
+
+  it('isMissingRequiredMetric keeps the weight rule for reps_weight sets', () => {
+    const draft: WorkoutDraft = {
+      notes: '',
+      exercises: [
+        {
+          id: 'ex1',
+          ...RUN,
+          category: 'Legs',
+          sets: [{ id: 's1', reps: '5', weight: '', completed: false, tag: 'working' as const }],
+        },
+      ],
+    }
+    expect(isMissingRequiredMetric(draft.exercises[0], 0)).toBe(true)
+    expect(isMissingRequiredMetric(draft.exercises[0], 0, { weight: '100' })).toBe(false)
+  })
+
+  it('TOGGLE_SET_COMPLETED refuses a duration-less cardio check-off, whole', () => {
+    const draft = cardioDraft(cardioSet({ distance: '5' }))
+    const next = workoutDraftReducer(draft, {
+      type: 'TOGGLE_SET_COMPLETED',
+      exerciseIndex: 0,
+      setIndex: 0,
+    })
+    expect(next.exercises[0].sets[0].completed).toBe(false)
+  })
+
+  it('TOGGLE_SET_COMPLETED adopts ghost duration/distance into empty fields on check-off', () => {
+    const draft = cardioDraft(cardioSet())
+    const next = workoutDraftReducer(draft, {
+      type: 'TOGGLE_SET_COMPLETED',
+      exerciseIndex: 0,
+      setIndex: 0,
+      fill: { duration: '12:30', distance: '2.5' },
+    })
+    expect(next.exercises[0].sets[0]).toMatchObject({
+      completed: true,
+      duration: '12:30',
+      distance: '2.5',
+    })
+  })
+
+  it('FILL_SET fills cardio fields into EMPTY fields only (typed input wins)', () => {
+    const draft = cardioDraft(cardioSet({ duration: '10:00' }))
+    const next = workoutDraftReducer(draft, {
+      type: 'FILL_SET',
+      exerciseIndex: 0,
+      setIndex: 0,
+      fill: { duration: '12:30', distance: '2.5' },
+    })
+    expect(next.exercises[0].sets[0]).toMatchObject({ duration: '10:00', distance: '2.5' })
+  })
+
+  it('completeFilledSets auto-completes cardio sets on duration alone', () => {
+    const draft: WorkoutDraft = {
+      notes: '',
+      exercises: [
+        {
+          id: 'ex1',
+          ...RUN,
+          sets: [
+            cardioSet({ id: 's1', duration: '20:00' }),
+            cardioSet({ id: 's2' }), // no duration → stays unchecked
+          ],
+        },
+      ],
+    }
+    const result = completeFilledSets(draft)
+    expect(result.autoCompleted).toBe(1)
+    expect(result.skipped).toBe(1)
+    expect(result.draft.exercises[0].sets[0].completed).toBe(true)
+    expect(result.draft.exercises[0].sets[1].completed).toBe(false)
+  })
+
+  it('draftToInput emits metricMode + canonical durationSec/distanceM, reps/weight null', () => {
+    const draft = cardioDraft(
+      cardioSet({ reps: '5', weight: '100', duration: '12:30', distance: '2.5', completed: true }),
+    )
+    const input = draftToInput(draft)
+    expect(input.exercises[0].sets[0]).toEqual({
+      reps: null, // stray typed reps must not leak into scoring
+      weight: null,
+      metricMode: 'duration_distance',
+      durationSec: 750,
+      distanceM: 2500,
+      completed: true,
+    })
+  })
+
+  it('draftToInput keeps reps_weight sets byte-identical (no cardio keys)', () => {
+    const input = draftToInput(NESTED)
+    expect('metricMode' in input.exercises[0].sets[0]).toBe(false)
+    expect('durationSec' in input.exercises[0].sets[0]).toBe(false)
+  })
+
+  it('detailToDraft round-trips cardio rows to input strings and back', () => {
+    const workout = {
+      id: 'w1',
+      userId: 'user_123',
+      name: 'Cardio Day',
+      startedAt: new Date(),
+      completedAt: null,
+      createdAt: new Date(),
+      programDayId: null,
+      programWeek: null,
+      importBatchId: null,
+      notes: null,
+      exercises: [
+        {
+          id: 'ex1',
+          workoutId: 'w1',
+          wgerExerciseId: 201,
+          source: 'wger',
+          name: 'Running',
+          position: 0,
+          loggingType: 'weight_reps',
+          notes: null,
+          skipped: false,
+          sets: [
+            { id: 's1', workoutExerciseId: 'ex1', setNumber: 1, reps: null, weight: null, completed: true, setType: 'working', metricMode: 'duration_distance', durationSec: 750, distanceM: 2500, prescribedLoadKg: null, prescribedRepMin: null, rir: null, rpe: null, prescribedRir: null, prescribedRpe: null },
+          ],
+        },
+      ],
+    } as WorkoutDetail
+
+    const { draft } = detailToDraft(workout)
+    expect(draft.exercises[0].sets[0]).toMatchObject({
+      metricMode: 'duration_distance',
+      duration: '12:30',
+      distance: '2.5',
+    })
+
+    // And back out: the wire re-asserts what the row held.
+    const input = draftToInput(draft)
+    expect(input.exercises[0].sets[0]).toMatchObject({
+      metricMode: 'duration_distance',
+      durationSec: 750,
+      distanceM: 2500,
+    })
   })
 })

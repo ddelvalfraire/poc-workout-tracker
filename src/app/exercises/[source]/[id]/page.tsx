@@ -6,6 +6,7 @@ import { getExerciseStats, getExerciseSessions } from '@/db/exercise-stats'
 import { activeStrengthGoalForExercise } from '@/db/goals'
 import { getWeightUnit } from '@/db/preferences'
 import { formatE1RM, formatLoggedSet, formatWorkoutDate } from '@/lib/format'
+import { formatDistanceInput, formatDurationInput } from '@/lib/duration'
 import { kgToDisplay } from '@/lib/units'
 import { MAX_RELIABLE_REPS } from '@/lib/one-rep-max'
 import { TrendChart } from '@/components/charts/trend-chart'
@@ -99,6 +100,13 @@ export default async function ExerciseStatsPage({
 
   const { records, trend } = stats
   const hasLoadRecords = records.bestE1rm !== null || records.heaviestLoadKg !== null
+  // Cardio trio (duration-mode sets): longest duration leads when there's no
+  // e1RM headline (a pure cardio exercise); mixed histories keep the lifting
+  // headline and the cardio records join the grid as tiles.
+  const longestDuration = records.longestDuration ?? null
+  const longestDistance = records.longestDistance ?? null
+  const bestPace = records.bestPace ?? null
+  const hasCardioRecords = longestDuration !== null || longestDistance !== null
   const now = new Date()
   // Record-setting sessions (running-max advances) mark both the chart's volt
   // dots and the history's PR chips — one derivation, two surfaces agreeing.
@@ -175,13 +183,14 @@ export default async function ExerciseStatsPage({
           note={note ? { body: note.body, pinned: note.pinned } : null}
         />
 
-        {/* All-time records. reps_weight-only by design — duration work shows
-            in history below but claims no records until the cardio feature. */}
+        {/* All-time records. Lifting records stay reps_weight-only; duration
+            work claims the cardio trio (longest duration/distance, best
+            pace) instead — the two families never double-claim a set. */}
         <section aria-label="All-time records">
           <h2 className="px-1 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
             All-time records
           </h2>
-          {hasLoadRecords || records.mostReps !== null ? (
+          {hasLoadRecords || records.mostReps !== null || hasCardioRecords ? (
             <dl className="mt-2 grid grid-cols-2 gap-3">
               {/* The headline record leads full-width in poster type — the
                   grid below is context, this is the number the page is for.
@@ -241,6 +250,46 @@ export default async function ExerciseStatsPage({
                   ).toLocaleString('en-US')}
                   unit={unit}
                   caption={`${formatWorkoutDate(records.bestSessionVolumeKg.performedAt)}${standing(records.bestSessionVolumeKg.performedAt)}`}
+                />
+              )}
+              {/* Cardio trio. With no e1RM headline the longest duration
+                  takes the poster slot (a pure cardio exercise's page leads
+                  with ITS number); mixed histories keep it as a tile. */}
+              {longestDuration && records.bestE1rm === null && (
+                <div className="col-span-2 border-b border-b-border/60 pb-4 motion-safe:animate-rise-in">
+                  <dt className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                    Longest duration
+                  </dt>
+                  <dd className="mt-2 font-display text-6xl leading-none tracking-tight tnum">
+                    {formatDurationInput(longestDuration.durationSec)}
+                  </dd>
+                  <dd className="mt-1 text-xs text-muted-foreground tnum">
+                    {formatWorkoutDate(longestDuration.performedAt) +
+                      standing(longestDuration.performedAt)}
+                  </dd>
+                </div>
+              )}
+              {longestDuration && records.bestE1rm !== null && (
+                <StatTile
+                  label="Longest duration"
+                  value={formatDurationInput(longestDuration.durationSec)}
+                  caption={`${formatWorkoutDate(longestDuration.performedAt)}${standing(longestDuration.performedAt)}`}
+                />
+              )}
+              {longestDistance && (
+                <StatTile
+                  label="Longest distance"
+                  value={formatDistanceInput(longestDistance.distanceM)}
+                  unit="km"
+                  caption={`${formatWorkoutDate(longestDistance.performedAt)}${standing(longestDistance.performedAt)}`}
+                />
+              )}
+              {bestPace && (
+                <StatTile
+                  label="Best pace"
+                  value={formatDurationInput(Math.round(bestPace.secPerKm))}
+                  unit="/km"
+                  caption={`${formatWorkoutDate(bestPace.performedAt)}${standing(bestPace.performedAt)}`}
                 />
               )}
             </dl>

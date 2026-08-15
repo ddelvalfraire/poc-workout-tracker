@@ -13,6 +13,13 @@ import type { AutoregStallPolicy } from '@/lib/autoregulate'
 import type { ExerciseSource } from '@/lib/custom-exercise-input'
 import { displayToKg, kgToDisplay, type WeightUnit } from '@/lib/units'
 import { trainingMaxFromE1rm } from '@/lib/one-rep-max'
+import { defaultMetricModeForCategory } from '@/lib/workout-input'
+import {
+  formatDistanceInput,
+  formatDurationInput,
+  parseDistanceInput,
+  parseDurationInput,
+} from '@/lib/duration'
 
 /**
  * Pure client-state logic for the program builder, kept free of React/JSX so
@@ -43,13 +50,20 @@ export interface DraftProgramSet {
    *  the finest granularity the tree offers. Editable (not pass-through):
    *  rest is a first-class builder target alongside reps/load/RPE. */
   restSec: string
+  /** Cardio targets as typed — duration "mm:ss" (or bare minutes) and
+   *  distance in km (lib/duration.ts speaks both). EDITABLE now (cardio v1):
+   *  they render instead of rep/load inputs when metricMode ≠ reps_weight.
+   *  Stored envelopes written before this change carried NUMBERS
+   *  (durationSec/distanceM) — parseStoredProgramDraft converts. */
+  duration: string
+  distance: string
   // Pass-through fields (never edited by the builder; re-emitted verbatim).
   setType: SetType
+  /** How the set is measured — editable via the exercise-level control
+   *  (cardio v1); new Cardio-category adds default to duration_distance. */
   metricMode: MetricMode
   rir: number | null
   tempo: string | null
-  durationSec: number | null
-  distanceM: number | null
   technique: Technique | null
 }
 
@@ -146,13 +160,18 @@ export type ProgramDraftAction =
   | { type: 'ADD_EXERCISE'; dayIndex: number; exercise: DraftProgramExercise }
   | { type: 'REMOVE_EXERCISE'; dayIndex: number; index: number }
   | { type: 'UPDATE_EXERCISE_TM'; dayIndex: number; index: number; value: string }
+  /** The exercise-level metric-mode control: stamps every set of the slot
+   *  (per-set drift inside one slot is an agent affordance, not a builder
+   *  one). Typed values survive — they re-read under the new mode's columns
+   *  and simply don't emit while hidden. */
+  | { type: 'SET_EXERCISE_METRIC_MODE'; dayIndex: number; index: number; value: MetricMode }
   | { type: 'ADD_SET'; dayIndex: number; exerciseIndex: number; set: DraftProgramSet }
   | {
       type: 'UPDATE_SET'
       dayIndex: number
       exerciseIndex: number
       setIndex: number
-      field: 'repMin' | 'repMax' | 'load' | 'rpe' | 'restSec'
+      field: 'repMin' | 'repMax' | 'load' | 'rpe' | 'restSec' | 'duration' | 'distance'
       value: string
     }
   | { type: 'REMOVE_SET'; dayIndex: number; exerciseIndex: number; setIndex: number }
@@ -183,7 +202,7 @@ export const emptyProgramDraft: ProgramDraft = {
  * kept OUT of the reducer — callers create the object, the reducer just places
  * it, so the reducer stays pure and deterministic for unit tests.
  */
-export function newDraftProgramSet(): DraftProgramSet {
+export function newDraftProgramSet(metricMode: MetricMode = 'reps_weight'): DraftProgramSet {
   return {
     id: crypto.randomUUID(),
     repMin: '',
@@ -191,17 +210,19 @@ export function newDraftProgramSet(): DraftProgramSet {
     load: '',
     rpe: '',
     restSec: '',
+    duration: '',
+    distance: '',
     setType: 'working',
-    metricMode: 'reps_weight',
+    metricMode,
     rir: null,
     tempo: null,
-    durationSec: null,
-    distanceM: null,
     technique: null,
   }
 }
 
-/** Builds a draft exercise from a picked exercise, seeded with one empty set. */
+/** Builds a draft exercise from a picked exercise, seeded with one empty set.
+ *  A Cardio-category pick seeds duration_distance sets (mapping at add time —
+ *  flip via the metric-mode control). */
 export function newDraftProgramExercise(picked: {
   wgerExerciseId: number
   source: ExerciseSource
@@ -215,7 +236,7 @@ export function newDraftProgramExercise(picked: {
     trainingMax: '',
     trainingMaxFromE1rm: false,
     supersetGroup: null,
-    sets: [newDraftProgramSet()],
+    sets: [newDraftProgramSet(defaultMetricModeForCategory(picked.category))],
   }
 }
 
@@ -326,6 +347,18 @@ export function programDraftReducer(
         })),
       }
 
+    case 'SET_EXERCISE_METRIC_MODE':
+      return {
+        ...state,
+        days: mapDayAt(state.days, action.dayIndex, (day) => ({
+          ...day,
+          exercises: mapExerciseAt(day.exercises, action.index, (exercise) => ({
+            ...exercise,
+            sets: exercise.sets.map((set) => ({ ...set, metricMode: action.value })),
+          })),
+        })),
+      }
+
     case 'ADD_SET':
       return {
         ...state,
@@ -414,8 +447,13 @@ function isDraftProgramSet(v: unknown): v is DraftProgramSet {
     isString(s.metricMode) &&
     isNumberOrNull(s.rir) &&
     isStringOrNull(s.tempo) &&
-    isNumberOrNull(s.durationSec) &&
-    isNumberOrNull(s.distanceM) &&
+    // Cardio fields changed SHAPE (cardio v1): pre-change envelopes carry
+    // numeric durationSec/distanceM pass-throughs, new ones carry the
+    // editable duration/distance strings. Both restore; the parse converts.
+    (s.duration === undefined || isString(s.duration)) &&
+    (s.distance === undefined || isString(s.distance)) &&
+    (s.durationSec === undefined || isNumberOrNull(s.durationSec)) &&
+    (s.distanceM === undefined || isNumberOrNull(s.distanceM)) &&
     isStringOrNull(s.technique)
   )
 }
@@ -539,7 +577,28 @@ export function parseStoredProgramDraft(raw: string, now: Date): ProgramDraft | 
         // Pre-TM-field snapshots restore with the stored TM untouched.
         trainingMax: exercise.trainingMax ?? '',
         trainingMaxFromE1rm: exercise.trainingMaxFromE1rm ?? false,
-        sets: exercise.sets.map((set) => ({ ...set, restSec: set.restSec ?? '' })),
+        sets: exercise.sets.map((set) => {
+          // Legacy cardio pass-throughs (numeric durationSec/distanceM)
+          // convert to today's editable strings; the numeric keys are
+          // dropped from the restored object.
+          const { durationSec, distanceM, ...rest } = set as Omit<
+            DraftProgramSet,
+            'duration' | 'distance'
+          > & {
+            duration?: string
+            distance?: string
+            durationSec?: number | null
+            distanceM?: number | null
+          }
+          return {
+            ...rest,
+            restSec: rest.restSec ?? '',
+            duration:
+              rest.duration ?? (durationSec != null ? formatDurationInput(durationSec) : ''),
+            distance:
+              rest.distance ?? (distanceM != null ? formatDistanceInput(distanceM) : ''),
+          }
+        }),
       })),
     })),
   }
@@ -628,8 +687,11 @@ export function draftToProgramInput(
           rpe: toDecimal(set.rpe),
           suggestedLoadKg: load === null ? null : displayToKg(load, unit),
           tempo: set.tempo,
-          durationSec: set.durationSec,
-          distanceM: set.distanceM,
+          // Cardio strings parse to canonical units (mm:ss → seconds, km →
+          // meters); blank/invalid → null, and a cardio set missing its
+          // duration is the server integrity rule's to reject visibly.
+          durationSec: parseDurationInput(set.duration),
+          distanceM: parseDistanceInput(set.distance),
           // Seconds are unit-less — no display conversion, unlike load. An
           // out-of-range value passes through for the server's 0..3600
           // bound to reject visibly (lenient-mapper policy above).
@@ -767,12 +829,12 @@ export function detailToProgramDraft(
             set.suggestedLoadKg === null ? '' : kgToDisplay(set.suggestedLoadKg, unit).toString(),
           rpe: set.rpe?.toString() ?? '',
           restSec: set.restSec?.toString() ?? '',
+          duration: set.durationSec !== null ? formatDurationInput(set.durationSec) : '',
+          distance: set.distanceM !== null ? formatDistanceInput(set.distanceM) : '',
           setType: set.setType,
           metricMode: set.metricMode,
           rir: set.rir,
           tempo: set.tempo,
-          durationSec: set.durationSec,
-          distanceM: set.distanceM,
           technique: set.technique,
         })),
       })),

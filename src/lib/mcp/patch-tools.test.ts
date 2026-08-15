@@ -100,6 +100,31 @@ describe('registerPatchTools', () => {
       })
     })
 
+    it('patches cardio fields in canonical units with no unit lookup', async () => {
+      // Arrange
+      const tools = setup()
+      mockedUpdateSet.mockResolvedValue({ id: 's1' })
+
+      // Act
+      const result = await tools.get('update_set')!({
+        workoutId: WID,
+        exercisePosition: 0,
+        setNumber: 1,
+        metricMode: 'duration_distance',
+        durationSec: 1800,
+        distanceM: 5000,
+      })
+
+      // Assert — seconds/meters pass through untouched; no display conversion
+      expect(mockedGetUnit).not.toHaveBeenCalled()
+      expect(mockedUpdateSet).toHaveBeenCalledWith('user_env', WID, 0, 1, {
+        metricMode: 'duration_distance',
+        durationSec: 1800,
+        distanceM: 5000,
+      })
+      expect(payload(result)).not.toHaveProperty('unit')
+    })
+
     it('does not read the stored unit for a reps-only update', async () => {
       // Arrange
       const tools = setup()
@@ -276,6 +301,30 @@ describe('registerPatchTools', () => {
       // Assert
       expect(mockedAddSet).toHaveBeenCalledWith('user_env', WID, 0, { reps: null, weight: null })
       expect(payload(result)).toMatchObject({ workoutId: WID, exercisePosition: 0, setNumber: 4 })
+    })
+
+    it('appends a cardio set with canonical seconds/meters', async () => {
+      // Arrange
+      const tools = setup()
+      mockedAddSet.mockResolvedValue({ setNumber: 1 })
+
+      // Act
+      await tools.get('add_set')!({
+        workoutId: WID,
+        exercisePosition: 0,
+        metricMode: 'duration',
+        durationSec: 600,
+        completed: true,
+      })
+
+      // Assert
+      expect(mockedAddSet).toHaveBeenCalledWith('user_env', WID, 0, {
+        reps: null,
+        weight: null,
+        completed: true,
+        metricMode: 'duration',
+        durationSec: 600,
+      })
     })
 
     it('converts a provided weight with the stored unit', async () => {

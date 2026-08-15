@@ -2,7 +2,7 @@
 
 import { useEffect, useReducer, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Trash2, X } from 'lucide-react'
+import { ChevronDown, Trash2, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ExercisePicker } from '@/app/workout/new/exercise-picker'
@@ -22,7 +22,15 @@ import {
 import { SchemeSubtitle } from './scheme-subtitle'
 import { type WeightUnit } from '@/lib/units'
 import { WEEKDAY_NAMES } from '@/lib/schedule-anchor'
-import type { DeloadPolicy } from '@/lib/program-input'
+import { metricModeSchema, type DeloadPolicy, type MetricMode } from '@/lib/program-input'
+
+/** Compact labels for the per-exercise metric-mode select (same ghost-quiet
+ *  native-select idiom as the logger's logging-type control). */
+const METRIC_MODE_LABELS: Record<MetricMode, string> = {
+  reps_weight: 'Reps × weight',
+  duration: 'Duration',
+  duration_distance: 'Duration + distance',
+}
 
 /** The read-only shape caption for the scheduled mode: the stored shape when
  *  one exists (agent-configured), the historical defaults otherwise. */
@@ -486,7 +494,13 @@ export function ProgramBuilder({
 
             {/* Exercise rows: a hairline opens each exercise instead of a
                 nested box — the sets below read as the row's indented body. */}
-            {day.exercises.map((exercise, exerciseIndex) => (
+            {day.exercises.map((exercise, exerciseIndex) => {
+              // What this slot's sets measure — one control per exercise
+              // (the builder edits sets uniformly; per-set drift stays an
+              // agent affordance). First set speaks for the slot.
+              const exerciseMode: MetricMode = exercise.sets[0]?.metricMode ?? 'reps_weight'
+              const isCardioExercise = exerciseMode !== 'reps_weight'
+              return (
               <div key={exercise.id} className="space-y-2 border-t border-t-border/60 pt-3">
                 <div className="flex items-start justify-between gap-2">
                   <h3 className="min-w-0 text-base leading-tight">
@@ -511,6 +525,41 @@ export function ProgramBuilder({
                     <Trash2 aria-hidden="true" className="size-4" />
                   </Button>
                 </div>
+
+                {/* How this exercise's sets are measured (cardio v1): the
+                    same ghost-quiet native-select idiom as the logger's
+                    logging-type control. Cardio-category adds default to
+                    duration + distance; this is the flip. */}
+                <span className="relative inline-block">
+                  <select
+                    value={exerciseMode}
+                    onChange={(e) => {
+                      // The DOM only offers whitelisted options; the guard
+                      // keeps the reducer payload typed without an `as` cast.
+                      const parsed = metricModeSchema.safeParse(e.target.value)
+                      if (parsed.success) {
+                        dispatch({
+                          type: 'SET_EXERCISE_METRIC_MODE',
+                          dayIndex,
+                          index: exerciseIndex,
+                          value: parsed.data,
+                        })
+                      }
+                    }}
+                    aria-label={`Tracking mode for ${exercise.name}`}
+                    className="h-9 appearance-none rounded-lg bg-transparent pl-1 pr-5 text-xs font-semibold uppercase tracking-wide text-muted-foreground outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+                  >
+                    {(Object.keys(METRIC_MODE_LABELS) as MetricMode[]).map((mode) => (
+                      <option key={mode} value={mode}>
+                        {METRIC_MODE_LABELS[mode]}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown
+                    aria-hidden="true"
+                    className="pointer-events-none absolute right-0.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground"
+                  />
+                </span>
 
                 {/* Scheme line (#228): name + plain one-liner for exercises
                     whose sketch carries a progression — what the scheme will
@@ -556,11 +605,27 @@ export function ProgramBuilder({
                   {exercise.sets.length > 0 && (
                     <div className="flex items-center gap-2 px-0.5 text-[0.7rem] font-semibold uppercase tracking-wider text-muted-foreground">
                       <span className="w-6 shrink-0" aria-hidden="true" />
-                      <span className="flex-1 text-center">Rep min</span>
-                      <span className="flex-1 text-center">Rep max</span>
-                      <span className="flex-[1.4] text-center">{unit}</span>
-                      <span className="flex-1 text-center">RPE</span>
-                      <span className="flex-1 text-center">Rest s</span>
+                      {isCardioExercise ? (
+                        <>
+                          {/* Cardio columns: mm:ss + optional km replace the
+                              rep/load trio; RPE stays (effort cap) and rest
+                              keeps its slot. */}
+                          <span className="flex-[1.4] text-center">Time</span>
+                          {exerciseMode === 'duration_distance' && (
+                            <span className="flex-[1.4] text-center">Km</span>
+                          )}
+                          <span className="flex-1 text-center">RPE</span>
+                          <span className="flex-1 text-center">Rest s</span>
+                        </>
+                      ) : (
+                        <>
+                          <span className="flex-1 text-center">Rep min</span>
+                          <span className="flex-1 text-center">Rep max</span>
+                          <span className="flex-[1.4] text-center">{unit}</span>
+                          <span className="flex-1 text-center">RPE</span>
+                          <span className="flex-1 text-center">Rest s</span>
+                        </>
+                      )}
                       <span className="size-9 shrink-0" aria-hidden="true" />
                     </div>
                   )}
@@ -571,8 +636,36 @@ export function ProgramBuilder({
                         <span className="grid size-6 shrink-0 place-items-center rounded-full bg-muted text-xs font-semibold tnum text-muted-foreground">
                           {setIndex + 1}
                         </span>
-                        {(
-                          [
+                        {(set.metricMode !== 'reps_weight'
+                          ? ([
+                              // Cardio row: duration (mm:ss, stored seconds)
+                              // + km for duration_distance; RPE stays as the
+                              // optional effort cap, rest keeps its slot.
+                              {
+                                field: 'duration',
+                                label: 'duration, minutes and seconds',
+                                mode: 'numeric',
+                                value: set.duration,
+                              },
+                              ...(set.metricMode === 'duration_distance'
+                                ? ([
+                                    {
+                                      field: 'distance',
+                                      label: 'distance in km',
+                                      mode: 'decimal',
+                                      value: set.distance,
+                                    },
+                                  ] as const)
+                                : []),
+                              { field: 'rpe', label: 'RPE', mode: 'decimal', value: set.rpe },
+                              {
+                                field: 'restSec',
+                                label: 'rest in seconds',
+                                mode: 'numeric',
+                                value: set.restSec,
+                              },
+                            ] as const)
+                          : ([
                             { field: 'repMin', label: 'rep min', mode: 'numeric', value: set.repMin },
                             { field: 'repMax', label: 'rep max', mode: 'numeric', value: set.repMax },
                             {
@@ -591,7 +684,7 @@ export function ProgramBuilder({
                               mode: 'numeric',
                               value: set.restSec,
                             },
-                          ] as const
+                          ] as const)
                         ).map(({ field, label, mode, value }) => (
                           <Input
                             key={field}
@@ -599,7 +692,14 @@ export function ProgramBuilder({
                             inputMode={mode}
                             // Rest is the one optional-feeling column; the ghost
                             // hint says what the blank means without a legend.
-                            placeholder={field === 'restSec' ? 'Rest s' : undefined}
+                            // Duration hints its dialect the same quiet way.
+                            placeholder={
+                              field === 'restSec'
+                                ? 'Rest s'
+                                : field === 'duration'
+                                  ? 'mm:ss'
+                                  : undefined
+                            }
                             value={value}
                             onChange={(e) =>
                               dispatch({
@@ -613,8 +713,13 @@ export function ProgramBuilder({
                             }
                             aria-label={`${exercise.name} set ${setIndex + 1} ${label}`}
                             // The load column gets extra width: 3-digit values +
-                            // a decimal must not clip at the 390px PWA viewport.
-                            className={`min-w-0 px-1 text-center tnum ${field === 'load' ? 'flex-[1.4]' : 'flex-1'}`}
+                            // a decimal must not clip at the 390px PWA viewport
+                            // — and so do cardio's mm:ss / km columns.
+                            className={`min-w-0 px-1 text-center tnum ${
+                              field === 'load' || field === 'duration' || field === 'distance'
+                                ? 'flex-[1.4]'
+                                : 'flex-1'
+                            }`}
                           />
                         ))}
                         <Button
@@ -641,7 +746,8 @@ export function ProgramBuilder({
                         type: 'ADD_SET',
                         dayIndex,
                         exerciseIndex,
-                        set: newDraftProgramSet(),
+                        // New sets join the slot's current mode.
+                        set: newDraftProgramSet(exerciseMode),
                       })
                     }
                   >
@@ -649,7 +755,8 @@ export function ProgramBuilder({
                   </Button>
                 </div>
               </div>
-            ))}
+              )
+            })}
           </section>
         ))}
 

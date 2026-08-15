@@ -26,12 +26,12 @@ function draftSet(id: string, overrides: Partial<DraftProgramSet> = {}): DraftPr
     load: '100',
     rpe: '',
     restSec: '',
+    duration: '',
+    distance: '',
     setType: 'working',
     metricMode: 'reps_weight',
     rir: null,
     tempo: null,
-    durationSec: null,
-    distanceM: null,
     technique: null,
     ...overrides,
   }
@@ -538,8 +538,10 @@ describe('draftToProgramInput', () => {
                   metricMode: 'duration',
                   rir: 2,
                   tempo: '3-1-1',
-                  durationSec: 60,
-                  distanceM: 400,
+                  // Cardio fields are editable strings now (cardio v1) —
+                  // they parse to canonical seconds/meters at save time.
+                  duration: '1:00',
+                  distance: '0.4',
                   technique,
                 }),
               ],
@@ -931,5 +933,121 @@ describe('id factories', () => {
 describe('emptyProgramDraft', () => {
   it('starts with no days and draft status', () => {
     expect(emptyProgramDraft).toMatchObject({ name: '', days: [], status: 'draft' })
+  })
+})
+
+describe('cardio in the builder draft (slice 1)', () => {
+  it('newDraftProgramExercise defaults a Cardio-category add to duration_distance sets', () => {
+    const cardio = newDraftProgramExercise({
+      wgerExerciseId: 201,
+      source: 'wger',
+      name: 'Running',
+      category: 'Cardio',
+    })
+    expect(cardio.sets[0].metricMode).toBe('duration_distance')
+    const bench = newDraftProgramExercise(BENCH)
+    expect(bench.sets[0].metricMode).toBe('reps_weight')
+  })
+
+  it('SET_EXERCISE_METRIC_MODE stamps every set of the slot, values intact', () => {
+    const next = programDraftReducer(NESTED, {
+      type: 'SET_EXERCISE_METRIC_MODE',
+      dayIndex: 0,
+      index: 0,
+      value: 'duration',
+    })
+    expect(next.days[0].exercises[0].sets.every((s) => s.metricMode === 'duration')).toBe(true)
+    // Typed rep/load values survive — they just don't render (or emit) while
+    // the cardio columns are up.
+    expect(next.days[0].exercises[0].sets[0].repMin).toBe(NESTED.days[0].exercises[0].sets[0].repMin)
+  })
+
+  it('UPDATE_SET edits duration/distance strings like any target field', () => {
+    const cardio = programDraftReducer(NESTED, {
+      type: 'SET_EXERCISE_METRIC_MODE',
+      dayIndex: 0,
+      index: 0,
+      value: 'duration_distance',
+    })
+    const withDuration = programDraftReducer(cardio, {
+      type: 'UPDATE_SET',
+      dayIndex: 0,
+      exerciseIndex: 0,
+      setIndex: 0,
+      field: 'duration',
+      value: '12:30',
+    })
+    expect(withDuration.days[0].exercises[0].sets[0].duration).toBe('12:30')
+  })
+
+  it('draftToProgramInput parses cardio strings to canonical seconds/meters', () => {
+    let draft = programDraftReducer(NESTED, {
+      type: 'SET_EXERCISE_METRIC_MODE',
+      dayIndex: 0,
+      index: 0,
+      value: 'duration_distance',
+    })
+    draft = programDraftReducer(draft, {
+      type: 'UPDATE_SET',
+      dayIndex: 0,
+      exerciseIndex: 0,
+      setIndex: 0,
+      field: 'duration',
+      value: '30',
+    })
+    draft = programDraftReducer(draft, {
+      type: 'UPDATE_SET',
+      dayIndex: 0,
+      exerciseIndex: 0,
+      setIndex: 0,
+      field: 'distance',
+      value: '5',
+    })
+    const input = draftToProgramInput(draft)
+    expect(input.days[0].exercises[0].sets[0]).toMatchObject({
+      metricMode: 'duration_distance',
+      durationSec: 1800, // "30" reads as minutes
+      distanceM: 5000,
+    })
+  })
+
+  it('parseStoredProgramDraft converts a legacy numeric-cardio envelope to strings', () => {
+    // A pre-cardio-v1 envelope: sets carried numeric durationSec/distanceM
+    // pass-throughs and no duration/distance strings.
+    const legacySet = {
+      id: 's1',
+      repMin: '',
+      repMax: '',
+      load: '',
+      rpe: '',
+      restSec: '',
+      setType: 'working',
+      metricMode: 'duration_distance',
+      rir: null,
+      tempo: null,
+      durationSec: 750,
+      distanceM: 2500,
+      technique: null,
+    }
+    const legacyDraft = {
+      ...NESTED,
+      days: [
+        {
+          ...NESTED.days[0],
+          exercises: [{ ...NESTED.days[0].exercises[0], sets: [legacySet] }],
+        },
+      ],
+    }
+    const stored = JSON.stringify({
+      v: 1,
+      savedAt: new Date().toISOString(),
+      draft: legacyDraft,
+    })
+    const restored = parseStoredProgramDraft(stored, new Date())
+    expect(restored).not.toBeNull()
+    const set = restored!.days[0].exercises[0].sets[0]
+    expect(set).toMatchObject({ duration: '12:30', distance: '2.5' })
+    expect('durationSec' in set).toBe(false)
+    expect('distanceM' in set).toBe(false)
   })
 })

@@ -363,18 +363,24 @@ export const setOverrideSchema = z
   .strict()
 
 /** One exercise slot within a program day, with its planned sets + progression. */
-export const programExerciseSchema = z.object({
-  wgerExerciseId: z.number().int(),
-  // Exercise identity is the composite (source, wgerExerciseId); defaulted so
-  // every pre-existing caller keeps meaning the wger catalog.
-  source: exerciseSourceSchema.default('wger'),
-  name: z.string().trim().min(1).max(MAX_NAME),
-  progression: progressionSchema.nullable().optional(),
-  // Same non-null value within a day = perform as a superset. Carried through
-  // the full-replace path so groupings survive upsert/edit round-trips.
-  supersetGroup: z.number().int().min(0).nullable().optional(),
-  sets: z.array(programSetSchema).min(1),
-})
+export const programExerciseSchema = z
+  .object({
+    wgerExerciseId: z.number().int(),
+    // Exercise identity is the composite (source, wgerExerciseId); defaulted so
+    // every pre-existing caller keeps meaning the wger catalog.
+    source: exerciseSourceSchema.default('wger'),
+    name: z.string().trim().min(1).max(MAX_NAME),
+    progression: progressionSchema.nullable().optional(),
+    // Same non-null value within a day = perform as a superset. Carried through
+    // the full-replace path so groupings survive upsert/edit round-trips.
+    supersetGroup: z.number().int().min(0).nullable().optional(),
+    sets: z.array(programSetSchema).min(1),
+  })
+  // Metric-mode × scheme integrity is enforced at the DERIVATION layer only
+  // (deriveWeekSets no-ops load-anchored schemes on timed sets — silence over
+  // corruption). Deliberately NOT re-validated here: MCP write tools accepted
+  // timed-set + load-scheme combos before cardio v1, so a parse-time throw
+  // would brick full-replace saves of any program storing that legacy shape.
 
 /** One training day (e.g. "Push") — an ordered list of exercises. */
 export const programDaySchema = z.object({

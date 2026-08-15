@@ -294,3 +294,62 @@ describe('resolveDraftSeed', () => {
     expect(resolveDraftSeed(row(60_000, { junk: true }), { unit: 'kg', now: NOW })).toBeNull()
   })
 })
+
+describe('cardio fields in the codec (optional-forever, no version bump)', () => {
+  const cardioDraft: WorkoutDraft = {
+    notes: '',
+    exercises: [
+      {
+        id: 'ex1',
+        wgerExerciseId: 201,
+        source: 'wger',
+        name: 'Running',
+        category: 'Cardio',
+        loggingType: 'weight_reps',
+        notes: '',
+        skipped: false,
+        sets: [
+          {
+            id: 's1',
+            reps: '',
+            weight: '',
+            completed: true,
+            tag: 'working' as const,
+            metricMode: 'duration_distance' as const,
+            duration: '12:30',
+            distance: '2.5',
+          },
+        ],
+      },
+    ],
+  }
+
+  it('round-trips cardio sets intact', () => {
+    const stored = JSON.parse(
+      JSON.stringify(
+        buildDraftPayload({ draft: cardioDraft, name: 'Run', unit: 'kg', openedAt: OPENED }),
+      ),
+    )
+    const restored = parseDraftPayload(stored, { unit: 'kg', now: NOW })
+    expect(restored).not.toBeNull()
+    expect(restored!.draft).toEqual(cardioDraft)
+  })
+
+  it('still accepts pre-cardio payloads (absent fields keep old drafts valid)', () => {
+    // DRAFT has no cardio keys at all — the standing fixture IS the proof.
+    expect(isDraftPayload(payload())).toBe(true)
+  })
+
+  it('rejects an unrecognized metricMode and wrong-typed cardio fields', () => {
+    const bad = (setOverrides: Record<string, unknown>) => {
+      const p = JSON.parse(JSON.stringify(payload())) as {
+        draft: { exercises: { sets: Record<string, unknown>[] }[] }
+      }
+      Object.assign(p.draft.exercises[0].sets[0], setOverrides)
+      return p
+    }
+    expect(isDraftPayload(bad({ metricMode: 'laps' }))).toBe(false)
+    expect(isDraftPayload(bad({ duration: 750 }))).toBe(false)
+    expect(isDraftPayload(bad({ distance: 2.5 }))).toBe(false)
+  })
+})

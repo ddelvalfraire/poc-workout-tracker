@@ -97,6 +97,10 @@ async function loadPlanTargets(
       // show rule (and the "Target RIR 2" caption inside the chip row).
       rir: s.rir,
       rpe: s.rpe,
+      // Cardio targets (duration/duration_distance sets) — the ghost fields
+      // the logger's timed rows read (plan targets only, per ghost-vs-prev).
+      durationSec: s.durationSec,
+      distanceM: s.distanceM,
     }))
   })
   // The day name rides along so the logger can say which (day, week) this

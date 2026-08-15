@@ -14,7 +14,7 @@ import {
   sql,
 } from 'drizzle-orm'
 import { cache } from 'react'
-import type { WorkoutInput, LoggingType } from '@/lib/workout-input'
+import type { WorkoutInput, LoggingType, WorkoutMetricMode } from '@/lib/workout-input'
 import type { SetType } from '@/lib/program-input'
 import type { ExerciseSource } from '@/lib/custom-exercise-input'
 import { db } from './index'
@@ -134,7 +134,15 @@ export async function getPreviousCompletedWorkout(
 /** A prior performance of an exercise: when it was done and its sets (weights in kg, set order). */
 export interface LastPerformance {
   performedAt: Date
-  sets: { reps: number | null; weight: number | null }[]
+  /** Cardio fields ride along so the Prev chip can speak duration/distance;
+   *  reps_weight rows carry nulls there. Optional (not `| null` required) so
+   *  pre-cardio consumers and fixtures keep their shape. */
+  sets: {
+    reps: number | null
+    weight: number | null
+    durationSec?: number | null
+    distanceM?: number | null
+  }[]
   /**
    * The user's exercise-IDENTITY note (exercise_notes LEFT JOIN), riding the
    * Prev context so the logger can resurface it without a second query. Null
@@ -198,7 +206,12 @@ export async function getLastPerformance(
   if (!recent) return null
 
   const setRows = await db
-    .select({ reps: sets.reps, weight: sets.weight })
+    .select({
+      reps: sets.reps,
+      weight: sets.weight,
+      durationSec: sets.durationSec,
+      distanceM: sets.distanceM,
+    })
     .from(sets)
     .where(eq(sets.workoutExerciseId, recent.exerciseId))
     .orderBy(asc(sets.setNumber))
@@ -412,6 +425,12 @@ async function insertWorkoutChildren(
             // only ever re-stamps from prior facts above.
             ...(s.rir !== undefined ? { rir: s.rir } : {}),
             ...(s.rpe !== undefined ? { rpe: s.rpe } : {}),
+            // Cardio metric fields (same additive rule): the draft round-trips
+            // metricMode through detailToDraft → draftToInput, so a full
+            // replace re-asserts it from the wire — no prior-facts leg needed.
+            ...(s.metricMode !== undefined ? { metricMode: s.metricMode } : {}),
+            ...(s.durationSec !== undefined ? { durationSec: s.durationSec } : {}),
+            ...(s.distanceM !== undefined ? { distanceM: s.distanceM } : {}),
           }
         }),
       )
@@ -588,6 +607,11 @@ export interface SetPatch {
    *  omitted = unchanged, explicit null clears. */
   rir?: number | null
   rpe?: number | null
+  /** How the set reads (reps_weight | duration | duration_distance); the
+   *  column is NOT NULL so omitted = unchanged, never null. */
+  metricMode?: WorkoutMetricMode
+  durationSec?: number | null
+  distanceM?: number | null
 }
 
 /**
@@ -624,6 +648,9 @@ export async function updateSet(
     ...(patch.completed !== undefined ? { completed: patch.completed } : {}),
     ...(patch.rir !== undefined ? { rir: patch.rir } : {}),
     ...(patch.rpe !== undefined ? { rpe: patch.rpe } : {}),
+    ...(patch.metricMode !== undefined ? { metricMode: patch.metricMode } : {}),
+    ...(patch.durationSec !== undefined ? { durationSec: patch.durationSec } : {}),
+    ...(patch.distanceM !== undefined ? { distanceM: patch.distanceM } : {}),
   }
   if (Object.keys(values).length === 0) return null
   return db.transaction(async (tx) => {
@@ -672,6 +699,9 @@ export async function addSet(
       ...(patch.setType !== undefined ? { setType: patch.setType } : {}),
       ...(patch.rir !== undefined ? { rir: patch.rir } : {}),
       ...(patch.rpe !== undefined ? { rpe: patch.rpe } : {}),
+      ...(patch.metricMode !== undefined ? { metricMode: patch.metricMode } : {}),
+      ...(patch.durationSec !== undefined ? { durationSec: patch.durationSec } : {}),
+      ...(patch.distanceM !== undefined ? { distanceM: patch.distanceM } : {}),
     })
     await stampWorkoutCompleted(tx, workoutId)
     return { setNumber }
