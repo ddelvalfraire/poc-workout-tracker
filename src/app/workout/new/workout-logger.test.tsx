@@ -33,6 +33,7 @@ vi.mock('@/app/workout/actions', () => ({
 
 import { WorkoutLogger } from './workout-logger'
 import type { WorkoutDraft } from './workout-draft'
+import type { LastPerformance } from '@/db/workouts'
 
 /** One exercise, first set completed (the moment the chip row would appear). */
 function draftWithCompletedSet(effort: { rir?: string; rpe?: string } = {}): WorkoutDraft {
@@ -57,9 +58,17 @@ function draftWithCompletedSet(effort: { rir?: string; rpe?: string } = {}): Wor
   }
 }
 
-function render(props: Partial<Parameters<typeof WorkoutLogger>[0]> = {}): string {
+function render(
+  props: Partial<Parameters<typeof WorkoutLogger>[0]> = {},
+  // Seeded straight into the cache (queries stay disabled) so the static
+  // render can exercise the last-performance ride-alongs without a fetch.
+  seedLastPerformance?: LastPerformance,
+): string {
   // queries disabled: a static render must never kick off fetches.
   const client = new QueryClient({ defaultOptions: { queries: { enabled: false } } })
+  if (seedLastPerformance !== undefined) {
+    client.setQueryData(['last-performance', 'wger', 73, null], seedLastPerformance)
+  }
   return renderToStaticMarkup(
     <QueryClientProvider client={client}>
       <WorkoutLogger
@@ -141,5 +150,87 @@ describe('WorkoutLogger identity-note parity', () => {
     // markup contains zero note-chip UI — the fast path is byte-identical.
     const html = render()
     expect(html).not.toContain('Exercise note')
+  })
+})
+
+/** A prior performance for wger #73, with per-field overrides. */
+function lastPerformance(overrides: Partial<LastPerformance> = {}): LastPerformance {
+  return {
+    performedAt: new Date('2026-08-01T12:00:00Z'),
+    sets: [],
+    note: null,
+    sessionNote: null,
+    ...overrides,
+  }
+}
+
+describe('WorkoutLogger notes three-tier IA (#211)', () => {
+  it('renders the "Note" entry chip while the exercise has no session note', () => {
+    const html = render()
+    expect(html).toContain(`Add note for Squat`)
+    expect(html).toContain('>Note<')
+  })
+
+  it('renders the note words as the tap target once a session note exists', () => {
+    // Open-OR-has-notes invariant, new grammar: a non-empty note is never
+    // hidden — it renders as muted words that reopen the editor; the entry
+    // chip retires.
+    const draft = draftWithCompletedSet()
+    draft.exercises[0].notes = 'felt heavy today'
+    const html = render({ initialDraft: draft })
+    expect(html).toContain('felt heavy today')
+    expect(html).toContain('Edit note for Squat')
+    expect(html).not.toContain('Add note for Squat')
+  })
+
+  it('a session note carries the pin-as-promotion affordance', () => {
+    const draft = draftWithCompletedSet()
+    draft.exercises[0].notes = 'felt heavy today'
+    const html = render({ initialDraft: draft })
+    expect(html).toContain('Pin note for Squat')
+  })
+
+  it('the workout-level entry keeps its label on the chip skin', () => {
+    const html = render()
+    expect(html).toContain('Workout note')
+  })
+
+  it("echoes last session's note when this session has none", () => {
+    const html = render({}, lastPerformance({ sessionNote: 'Felt strong, add 2.5' }))
+    expect(html).toContain('Last time:')
+    expect(html).toContain('Felt strong, add 2.5')
+  })
+
+  it('retires the echo once a session note exists', () => {
+    const draft = draftWithCompletedSet()
+    draft.exercises[0].notes = 'new note this session'
+    const html = render(
+      { initialDraft: draft },
+      lastPerformance({ sessionNote: 'Felt strong, add 2.5' }),
+    )
+    expect(html).not.toContain('Last time:')
+    expect(html).not.toContain('Felt strong, add 2.5')
+  })
+
+  it('suppresses the echo when the pinned chip already shows the same text', () => {
+    const html = render(
+      {},
+      lastPerformance({
+        sessionNote: 'Seat pin 4',
+        note: { body: 'Seat pin 4', pinned: true },
+      }),
+    )
+    // The pinned chip owns the text; the echo must not duplicate it.
+    expect(html).toContain('Exercise note for Squat')
+    expect(html).not.toContain('Last time:')
+  })
+
+  it('the skipped fold still echoes the session note', () => {
+    const draft = draftWithCompletedSet()
+    draft.exercises[0].skipped = true
+    draft.exercises[0].notes = 'shoulder tweak'
+    const html = render({ initialDraft: draft })
+    expect(html).toContain('shoulder tweak')
+    expect(html).toContain('Skipped')
   })
 })

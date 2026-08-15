@@ -10,7 +10,6 @@ import {
   ChevronUp,
   CircleSlash,
   Dumbbell,
-  NotebookPen,
   Pin,
   Trash2,
   X,
@@ -55,7 +54,7 @@ import { draftKey, buildDraftPayload, parseDraftPayload } from './draft-payload'
 import { createDraftSyncQueue, type DraftSyncQueue, type DraftSyncStatus } from './draft-sync'
 import { SwipeToDelete } from './swipe-to-delete'
 import { EffortChips } from './effort-chips'
-import { stickyNote, noteChipLabel, type IdentityNote } from './identity-note'
+import { stickyNote, noteChipLabel, lastSessionEcho, type IdentityNote } from './identity-note'
 import { upsertExerciseNoteAction, deleteExerciseNoteAction } from '@/app/exercises/actions'
 import dynamic from 'next/dynamic'
 
@@ -1131,6 +1130,14 @@ export function WorkoutLogger({
             noteOverrides[identityKey],
             lastByExercise[identityKey]?.note,
           )
+          // The middle tier (#211): last session's per-instance note, offered
+          // once. Pure show rule — gone as soon as this session has its own
+          // note, and never a duplicate of the pinned chip's text.
+          const echoNote = lastSessionEcho(
+            lastByExercise[identityKey]?.sessionNote,
+            exercise.notes,
+            identityNote,
+          )
           return (
           <section
             key={exercise.id}
@@ -1298,25 +1305,21 @@ export function WorkoutLogger({
               >
                 <ArrowLeftRight aria-hidden="true" className="size-4" />
               </Button>
-              {/* Notes toggle: open-OR-has-notes visibility (see notesOpen)
-                  — the button opens the textarea; a non-empty note keeps it
-                  shown regardless. */}
-              <Button
-                size="icon-sm"
-                variant="ghost"
-                className="shrink-0 text-muted-foreground"
-                onClick={() =>
-                  setNotesOpen((prev) => {
-                    const next = new Set(prev)
-                    if (next.has(exercise.id)) next.delete(exercise.id)
-                    else next.add(exercise.id)
-                    return next
-                  })
-                }
-                aria-label={`Notes for ${exercise.name}`}
-              >
-                <NotebookPen aria-hidden="true" className="size-4" />
-              </Button>
+              {/* Note entry (one grammar, #211): a worded chip — pill skin
+                  mirrors the pinned chip because chips mean pressable. It
+                  renders only while there is nothing to show; once a session
+                  note exists the note words themselves are the reopen target
+                  below (open-OR-has-notes: a hidden note is a lost note). */}
+              {exercise.notes === '' && !notesOpen.has(exercise.id) && (
+                <button
+                  type="button"
+                  onClick={() => setNotesOpen((prev) => new Set(prev).add(exercise.id))}
+                  aria-label={`Add note for ${exercise.name}`}
+                  className="mx-1 shrink-0 rounded-full border border-border bg-muted/40 px-2.5 py-1 text-xs text-muted-foreground transition-colors active:bg-muted"
+                >
+                  Note
+                </button>
+              )}
               {/* Hairline gap between the everyday utilities and the
                   destructive remove — adjacency invites mid-set slips. */}
               <span aria-hidden="true" className="h-5 w-px shrink-0 self-center bg-border" />
@@ -1394,18 +1397,74 @@ export function WorkoutLogger({
               </button>
             )}
 
-            {/* Auto-shown while a note exists: a hidden note is a lost note. */}
+            {/* Last-session echo (#211's new tier): the previous session's
+                note, one greyed italic line, read-only. Tap = copy it into
+                this session's editor, prefilled — which retires the echo
+                (exercise.notes is no longer empty). Muted throughout: memory,
+                not a live state. */}
+            {echoNote !== null && (
+              <button
+                type="button"
+                onClick={() => {
+                  dispatch({ type: 'SET_EXERCISE_NOTES', exerciseIndex, value: echoNote })
+                  setNotesOpen((prev) => new Set(prev).add(exercise.id))
+                }}
+                aria-label={`Copy last session's note for ${exercise.name}`}
+                className="block max-w-full truncate px-0.5 text-left text-xs italic text-muted-foreground"
+              >
+                Last time: {noteChipLabel(echoNote)}
+              </button>
+            )}
+
+            {/* Session note, open-OR-has-notes (a hidden note is a lost note):
+                open = the editor; closed with text = the words themselves are
+                the reopen target (words are labels — and here the label IS
+                the control, muted, no chip dress-up). The pin beside either
+                state PROMOTES the note to the identity tier via QuickCapture
+                (Strong's pin-as-promotion); the session copy stays. */}
             {(notesOpen.has(exercise.id) || exercise.notes !== '') && (
-              <Textarea
-                rows={2}
-                placeholder="Add note…"
-                value={exercise.notes}
-                onChange={(e) =>
-                  dispatch({ type: 'SET_EXERCISE_NOTES', exerciseIndex, value: e.target.value })
-                }
-                aria-label={`Notes for ${exercise.name}`}
-                className="motion-safe:animate-rise-in"
-              />
+              <div className="flex items-start gap-1">
+                {notesOpen.has(exercise.id) ? (
+                  <Textarea
+                    rows={2}
+                    autoFocus
+                    placeholder="Add note…"
+                    value={exercise.notes}
+                    onChange={(e) =>
+                      dispatch({ type: 'SET_EXERCISE_NOTES', exerciseIndex, value: e.target.value })
+                    }
+                    onBlur={() =>
+                      setNotesOpen((prev) => {
+                        const next = new Set(prev)
+                        next.delete(exercise.id)
+                        return next
+                      })
+                    }
+                    aria-label={`Notes for ${exercise.name}`}
+                    className="min-w-0 flex-1 motion-safe:animate-rise-in"
+                  />
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setNotesOpen((prev) => new Set(prev).add(exercise.id))}
+                    aria-label={`Edit note for ${exercise.name}`}
+                    className="min-w-0 flex-1 whitespace-pre-wrap px-0.5 py-1 text-left text-sm text-muted-foreground"
+                  >
+                    {exercise.notes}
+                  </button>
+                )}
+                {exercise.notes.trim() !== '' && (
+                  <Button
+                    size="icon-sm"
+                    variant="ghost"
+                    className="shrink-0 text-muted-foreground"
+                    onClick={() => setNoteSheetFor(exerciseIndex)}
+                    aria-label={`Pin note for ${exercise.name}`}
+                  >
+                    <Pin aria-hidden="true" className="size-4" />
+                  </Button>
+                )}
+              </div>
             )}
 
             {/* Layer 1 auto-regulation, propose-don't-impose: the adjusted
@@ -2031,14 +2090,15 @@ export function WorkoutLogger({
               className="motion-safe:animate-rise-in"
             />
           ) : (
-            <Button
-              variant="ghost"
-              className="w-full text-muted-foreground"
+            /* Same entry grammar as the per-exercise chip (#211): a worded
+               pill, muted — one way to start a note everywhere. */
+            <button
+              type="button"
               onClick={() => setIsWorkoutNotesOpen(true)}
+              className="rounded-full border border-border bg-muted/40 px-2.5 py-1 text-xs text-muted-foreground transition-colors active:bg-muted"
             >
-              <NotebookPen aria-hidden="true" className="size-4" />
-              Add workout note
-            </Button>
+              Workout note
+            </button>
           ))}
 
         {/* Discard lives at the END of the scrolling content, not in the
@@ -2374,11 +2434,14 @@ export function WorkoutLogger({
             <QuickCaptureSheet
               title={exercise.name}
               eyebrow="Exercise note"
-              initialBody={current?.body ?? ''}
-              // `current` is never null today (the chip only renders for an
-              // existing pinned note), so the `?? true` arm is unreachable —
-              // a deliberate default for any future create-from-logger path:
-              // a note born in the logger should surface here again.
+              // Pin-as-promotion (#211): with no identity note yet, the sheet
+              // opens seeded from the SESSION note being promoted — the
+              // create-from-logger path the `?? true` arm was groundwork for.
+              // Promotion copies: the identity note gets the text, the
+              // session note stays as this session's record.
+              initialBody={current?.body ?? exercise.notes}
+              // A note born in the logger defaults pinned — pinning is the
+              // whole point of promoting it.
               initialPinned={current?.pinned ?? true}
               onSave={async (value) => {
                 const saved = await upsertExerciseNoteAction(
