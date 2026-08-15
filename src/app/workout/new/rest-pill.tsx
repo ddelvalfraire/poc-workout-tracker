@@ -206,7 +206,7 @@ export function RestPill({
         <Button
           size="sm"
           variant="ghost"
-          className="relative shrink-0 tnum text-muted-foreground"
+          className="hit-44 shrink-0 tnum text-muted-foreground"
           onClick={() => onAdjust(-REST_ADJUST_STEP_SEC)}
           aria-label={`Shorten this rest by ${REST_ADJUST_STEP_SEC} seconds`}
         >
@@ -216,7 +216,7 @@ export function RestPill({
       <Button
         size="sm"
         variant="ghost"
-        className="relative shrink-0 text-muted-foreground"
+        className="hit-44 shrink-0 text-muted-foreground"
         onClick={onSkip}
         aria-label="Skip rest"
       >
@@ -226,7 +226,7 @@ export function RestPill({
         <Button
           size="sm"
           variant="ghost"
-          className="relative shrink-0 tnum text-muted-foreground"
+          className="hit-44 shrink-0 tnum text-muted-foreground"
           onClick={() => onAdjust(REST_ADJUST_STEP_SEC)}
           aria-label={`Extend this rest by ${REST_ADJUST_STEP_SEC} seconds`}
         >

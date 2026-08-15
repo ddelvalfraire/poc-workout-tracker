@@ -70,7 +70,7 @@ export function EffortChips({
                 aria-pressed={isSelected}
                 aria-label={`${showRpe ? 'RPE' : 'RIR'} ${choice}${!showRpe && choice === '5' ? ' or more' : ''}`}
                 className={cn(
-                  'h-8 min-w-8 shrink-0 rounded-full px-2 text-sm font-medium tnum transition-colors',
+                  'hit-44 h-8 min-w-8 shrink-0 rounded-full px-2 text-sm font-medium tnum transition-colors',
                   // Muted selection state (one-volt rule: effort is a note,
                   // not the session's live moment).
                   isSelected
