@@ -777,39 +777,39 @@ export default async function ProgramDetailPage({
                           unit,
                         )
                         return (
-                        <div key={exercise.id}>
-                          <p className="text-sm font-medium">{exercise.name}</p>
-                          <div className="mt-1 space-y-0.5">
-                            {groupDerivedSets(
-                              prescriptions[dayIndex][exerciseIndex]?.sets ?? [],
-                            ).map((group, groupIndex) => (
-                              <p
-                                key={groupIndex}
-                                className="flex items-baseline gap-2 text-sm text-muted-foreground"
-                              >
-                                <span className="tnum">
-                                  {formatTargetLine(group.set, group.count, unit)}
-                                </span>
-                                {/* Chips → words: deload/technique are labels
-                                    on the set line, not controls — quiet caps
-                                    text, no pill shell. */}
-                                {group.set.derivedFrom === 'deload' && (
-                                  <span className="text-[10px] font-semibold uppercase tracking-widest">
-                                    Deload
+                          <div key={exercise.id}>
+                            <p className="text-sm font-medium">{exercise.name}</p>
+                            <div className="mt-1 space-y-0.5">
+                              {groupDerivedSets(
+                                prescriptions[dayIndex][exerciseIndex]?.sets ?? [],
+                              ).map((group, groupIndex) => (
+                                <p
+                                  key={groupIndex}
+                                  className="flex items-baseline gap-2 text-sm text-muted-foreground"
+                                >
+                                  <span className="tnum">
+                                    {formatTargetLine(group.set, group.count, unit)}
                                   </span>
-                                )}
-                                {group.set.technique && (
-                                  <span className="text-[10px] font-semibold uppercase tracking-widest">
-                                    {group.set.technique.kind}
-                                  </span>
-                                )}
-                              </p>
-                            ))}
+                                  {/* Chips → words: deload/technique are labels
+                                      on the set line, not controls — quiet caps
+                                      text, no pill shell. */}
+                                  {group.set.derivedFrom === 'deload' && (
+                                    <span className="text-[10px] font-semibold uppercase tracking-widest">
+                                      Deload
+                                    </span>
+                                  )}
+                                  {group.set.technique && (
+                                    <span className="text-[10px] font-semibold uppercase tracking-widest">
+                                      {group.set.technique.kind}
+                                    </span>
+                                  )}
+                                </p>
+                              ))}
+                            </div>
+                            {howLine !== null && (
+                              <p className="mt-1 text-sm text-muted-foreground">{howLine}</p>
+                            )}
                           </div>
-                          {howLine !== null && (
-                            <p className="mt-1 text-sm text-muted-foreground">{howLine}</p>
-                          )}
-                        </div>
                         )
                       })}
                     </div>

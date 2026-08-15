@@ -299,8 +299,9 @@ export function ProgramBuilder({
           <span className="text-sm">
             Auto-regulate loads
             <span className="mt-0.5 block text-muted-foreground">
-              After missed reps, sessions propose repeating the load (or backing off ~10% after two
-              stalls) with the reason shown — you can always use the plan as written.
+              After missed reps, sessions say what to do next — “Stay at 100 kg” or, after
+              repeated stalls, “Drop to 90 kg” — with the reason shown. You can always use the
+              plan as written.
             </span>
           </span>
         </label>

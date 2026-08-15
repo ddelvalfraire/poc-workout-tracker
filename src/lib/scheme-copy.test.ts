@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
+import { AUTOREG_DEFAULT_STEP_KG } from './autoregulate'
 import type { Progression } from './program-input'
 import {
   repFillHoldReason,
@@ -81,6 +82,14 @@ describe('schemeSentence — actual numbers, quantized, in the display unit', ()
     expect(schemeSentence(p, { unit: 'kg' })).toBe(
       'Hit 12 reps on every set → +2.5 kg next session.',
     )
+  })
+
+  it("guards the local DEFAULT_STEP_KG mirror against the engine's AUTOREG_DEFAULT_STEP_KG", () => {
+    // scheme-copy cannot import autoregulate (autoregulate imports it), so
+    // the default step is mirrored locally — this test (no cycle here) pins
+    // the copy's zero-increment sentence to the engine's actual default step.
+    const p: Progression = { scheme: 'double-progression', repMin: 8, repMax: 12, incrementKg: 0 }
+    expect(schemeSentence(p, { unit: 'kg' })).toContain(`+${AUTOREG_DEFAULT_STEP_KG} kg`)
   })
 
   it('percent-1rm: the percent span of a quantized training max', () => {

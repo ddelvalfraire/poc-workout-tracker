@@ -182,6 +182,14 @@ export interface AutoregAdjustment {
    *  proposal can offer the backoff as the confirmable action (decline =
    *  hold). Absent everywhere else. */
   heldBackoffKg?: number
+  /** The landing load a decrement was actually APPLIED at (kg) — stamped by
+   *  the derive layer AFTER per-set quantization (the heaviest autoreg-
+   *  adjusted working set of `applyAutoregToSets` + the anti-fixed-point
+   *  quantizer). `autoregReason`'s "Drop to X" prints THIS when present, so
+   *  the reason and the prescription always speak from one number; absent
+   *  (raw engine verdicts, invariant checks) the reason falls back to
+   *  recomputing from the evidence load. */
+  appliedLoadKg?: number
   /** Effort-gate annotation (lib/effort-gate.ts, RPE plan slice 3):
    *  'overshoot' — reps hit but the top set ran a full RPE point hot, the
    *  load holds instead of stepping; 'trend-veto' — H2's decrement was
@@ -1414,17 +1422,19 @@ export function applyAutoregToSets(
  */
 export function autoregReason(adjustment: AutoregAdjustment, unit: WeightUnit): string {
   const load = `${quantizeDisplayLoad(adjustment.evidence.loadKg, unit)} ${unit}`
-  // A decrement's landing load — the SAME anti-fixed-point quantization the
-  // application path uses (#226), so "Drop to X" can never name a load the
-  // prescription won't actually reach (a light-load ~10% backoff would
-  // otherwise re-quantize straight back to the stalled load).
+  // A decrement's landing load: the derive layer stamps the APPLIED per-set
+  // result (`appliedLoadKg`) so "Drop to X" always names the prescription
+  // that actually landed. The fallback (raw engine verdicts) recomputes with
+  // the SAME anti-fixed-point quantization the application path uses (#226),
+  // so a light-load ~10% backoff can never claim the stalled load itself.
   const droppedTo = () =>
     `${kgToDisplay(
-      quantizeAdjustedLoadKg(
-        adjustment.evidence.loadKg + adjustment.deltaKg,
-        adjustment.evidence.loadKg,
-        unit,
-      ),
+      adjustment.appliedLoadKg ??
+        quantizeAdjustedLoadKg(
+          adjustment.evidence.loadKg + adjustment.deltaKg,
+          adjustment.evidence.loadKg,
+          unit,
+        ),
       unit,
     )} ${unit}`
   // Cutting framing (honest copy rule: stalls are EXPECTED under a deficit

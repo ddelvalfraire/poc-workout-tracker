@@ -30,6 +30,7 @@ vi.mock('./autoreg-history', () => ({
 
 import { deriveDayPrescription, type DayForDerivation } from './programs'
 import { autoregReason, type AutoregStallPolicy } from '@/lib/autoregulate'
+import { kgToDisplay } from '@/lib/units'
 
 const USER = 'user_123'
 
@@ -724,6 +725,54 @@ describe('deriveDayPrescription load quantization (#226)', () => {
 
     // Assert — holds the smallest loadable value: never 0, never back up to 5.
     expect(second.sets.map((s) => s.loadKg)).toEqual([1.13, 1.13, 1.13])
+  })
+
+  it('the stated "Drop to" load equals the applied top working load (multi-load session)', async () => {
+    // Arrange — an lb lifter with top sets (2.27 kg = 5 lb) plus a lighter
+    // third set (1.13 kg = 2.5 lb), stalled on the top sets three sessions
+    // straight. Per-set quantization runs from each set's own scheme load —
+    // the property under test (#228 review): the reason's landing load must
+    // be the load the application actually produced, never a recomputation
+    // that can diverge from it.
+    weightUnit.mockResolvedValue('lb')
+    const base = day({})
+    const multi: DayForDerivation = {
+      ...base,
+      exercises: base.exercises.map((e) => ({
+        ...e,
+        sets: e.sets.map((s) => ({ ...s, suggestedLoadKg: s.setNumber === 3 ? 1.13 : 2.27 })),
+      })),
+    }
+    const stalledSet = (setNumber: number, reps: number, loadKg: number) => ({
+      setNumber,
+      reps,
+      weightKg: loadKg,
+      completed: true,
+      setType: 'working' as const,
+      prescribedLoadKg: loadKg,
+      prescribedRepMin: 8,
+    })
+    const stalled = (id: string, week: number) => ({
+      workoutId: id,
+      programWeek: week,
+      startedAt: new Date(Date.UTC(2026, 6, week)),
+      sets: [stalledSet(1, 6, 2.27), stalledSet(2, 6, 2.27), stalledSet(3, 8, 1.13)],
+    })
+    trainedSessions.mockResolvedValue([stalled('w3', 3), stalled('w2', 2), stalled('w1', 1)])
+
+    // Act
+    const [prescription] = await deriveDayPrescription(USER, multi, 1)
+
+    // Assert — the property: reason landing load === applied top working load.
+    expect(prescription.autoreg).toMatchObject({ action: 'decrement' })
+    const appliedTop = Math.max(
+      ...prescription.sets
+        .filter((s) => s.setType === 'working' && s.loadKg !== null)
+        .map((s) => s.loadKg as number),
+    )
+    expect(autoregReason(prescription.autoreg!, 'lb')).toContain(
+      `Drop to ${kgToDisplay(appliedTop, 'lb')} lb`,
+    )
   })
 
   it('snaps kg-unit loads onto the 1.25 kg grid after a scheme step', async () => {

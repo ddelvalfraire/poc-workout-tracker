@@ -1403,6 +1403,24 @@ function quantizeAdjustedSet(set: DerivedSet, unit: WeightUnit): DerivedSet {
   return loadKg === set.loadKg ? set : { ...set, loadKg }
 }
 
+/** Stamps a decrement verdict with the landing load the application ACTUALLY
+ *  produced — the heaviest autoreg-adjusted working load of the quantized
+ *  sets — so `autoregReason`'s "Drop to X" and the prescription can never
+ *  diverge (per-set quantization runs from each set's own `schemeLoadKg`,
+ *  which in multi-load sessions or after a mid-cycle edit is not the reason
+ *  fallback's evidence load). Verdict unchanged when nothing was adjusted. */
+function stampAppliedLoad(
+  adjustment: AutoregAdjustment,
+  sets: readonly DerivedSet[],
+): AutoregAdjustment {
+  let top: number | null = null
+  for (const set of sets) {
+    if (set.setType === 'warmup' || set.derivedFrom !== 'autoreg' || set.loadKg === null) continue
+    if (top === null || set.loadKg > top) top = set.loadKg
+  }
+  return top === null ? adjustment : { ...adjustment, appliedLoadKg: top }
+}
+
 export async function deriveDayPrescription(
   userId: string,
   day: DayForDerivation,
@@ -1640,7 +1658,13 @@ export async function deriveDayPrescription(
           exercise.sets[s.sourceIndex]?.overrides.find((o) => o.week === week),
         ),
       ),
-      autoreg: adjustment,
+      // A decrement's reason must name the load the application actually
+      // produced (#228 review): stamp the applied top working load onto the
+      // verdict — per exercise instance, never back into the shared cache.
+      autoreg:
+        adjustment !== null && adjustment.action === 'decrement'
+          ? stampAppliedLoad(adjustment, adjusted)
+          : adjustment,
       effortStepLoadKg: effortStepByKey.get(key) ?? null,
     })
   }
