@@ -1,25 +1,32 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { cn } from '@/lib/utils'
+import {
+  RIR_CHIPS,
+  RPE_CHIPS,
+  IDLE_COLLAPSE_MS,
+  rpeHalfOf,
+  nextRpeValue,
+  rpeChipAriaLabel,
+  rpeTargetChip,
+  rirTargetChip,
+  createIdleCollapse,
+} from './effort-chip-logic'
 
 /**
  * Post-completion effort chip row — the opt-in RPE/RIR capture surface.
- * RIR integer chips (0–5+) are the primary vocabulary; RPE half-points sit
- * behind the small "RPE" affordance for lifters who think in that scale.
+ * RIR integer chips (0–5+) are the primary vocabulary; RPE whole-point
+ * chips (6–10, half-points on the second tap) sit behind the small "RPE"
+ * affordance for lifters who think in that scale.
  * Never blocks: no modal, no required answer — the row simply exists under
- * the just-completed set until the session moves on (skip-by-ignoring).
+ * the just-completed set until the session moves on (skip-by-ignoring),
+ * and an untouched row tidies itself after IDLE_COLLAPSE_MS.
  * Chips are CONTROLS here, so pill shapes are correct (de-card vocabulary);
  * muted throughout — logging effort is bookkeeping, never the volt moment.
+ * The prescribed target's chip wears a hairline foreground ring (not volt);
+ * selection stays bg-foreground.
  */
-
-/** RIR choices: 0–4 literal, 5 rendered "5+" (stored as 5 — beyond five reps
- *  in reserve the distinction carries no training signal). */
-const RIR_CHOICES = ['0', '1', '2', '3', '4', '5'] as const
-
-/** RPE half-point choices, 6–10 — the working range lifters actually report.
- *  (Storage accepts 4+ for MCP/history; sub-6 taps have no training signal.) */
-const RPE_CHOICES = ['6', '6.5', '7', '7.5', '8', '8.5', '9', '9.5', '10'] as const
 
 interface EffortChipsProps {
   /** Row identity for assistive tech, e.g. "set 2". */
@@ -29,9 +36,18 @@ interface EffortChipsProps {
   rpe: string
   /** The set's prescribed effort target as words ("RIR 2"), or null. */
   targetLabel: string | null
-  /** A tap reports the new value; the SAME chip re-tapped reports '' (clear). */
+  /** The prescribed target as numbers — places the hairline target ring on
+   *  the matching chip (a half-point RPE target rings its whole chip). */
+  targetRir: number | null
+  targetRpe: number | null
+  /** A tap reports the new value; the SAME chip re-tapped reports '' (clear)
+   *  for RIR, or cycles whole → half → '' for RPE. */
   onSelectRir: (value: string) => void
   onSelectRpe: (value: string) => void
+  /** Fired when the row sat untouched for IDLE_COLLAPSE_MS — the owner
+   *  collapses it to the quiet tappable slot (nothing blocks, log-late
+   *  stays reachable). Any interaction inside the row resets the clock. */
+  onIdleCollapse: () => void
 }
 
 export function EffortChips({
@@ -39,18 +55,43 @@ export function EffortChips({
   rir,
   rpe,
   targetLabel,
+  targetRir,
+  targetRpe,
   onSelectRir,
   onSelectRpe,
+  onIdleCollapse,
 }: EffortChipsProps) {
   // Advanced affordance: RPE chips replace the RIR row while open. Opens
   // pre-expanded when RPE is the scale already logged on this set.
   const [showRpe, setShowRpe] = useState(rpe !== '' && rir === '')
-  const choices = showRpe ? RPE_CHOICES : RIR_CHOICES
-  const selected = showRpe ? rpe : rir
-  const onSelect = showRpe ? onSelectRpe : onSelectRir
+
+  // Idle collapse: armed on mount, re-armed by any interaction inside the
+  // row (pointerdown on the root catches chips, scale switch, and misses),
+  // cleared on unmount. The callback rides a ref so a re-render never
+  // re-arms the window by itself.
+  const onIdleCollapseRef = useRef(onIdleCollapse)
+  useEffect(() => {
+    onIdleCollapseRef.current = onIdleCollapse
+  }, [onIdleCollapse])
+  const idleRef = useRef<ReturnType<typeof createIdleCollapse> | null>(null)
+  useEffect(() => {
+    const idle = createIdleCollapse(() => onIdleCollapseRef.current(), IDLE_COLLAPSE_MS)
+    idleRef.current = idle
+    idle.arm()
+    return () => {
+      idle.clear()
+      idleRef.current = null
+    }
+  }, [])
+
+  const chips = showRpe ? RPE_CHIPS : RIR_CHIPS
+  const targetChip = showRpe ? rpeTargetChip(targetRpe) : rirTargetChip(targetRir)
 
   return (
-    <div className="pl-22 pr-11 motion-safe:animate-rise-in">
+    <div
+      className="pl-22 pr-11 motion-safe:animate-rise-in"
+      onPointerDown={() => idleRef.current?.arm()}
+    >
       <div className="flex items-center gap-2">
         <span className="shrink-0 text-[0.65rem] font-semibold uppercase tracking-widest text-muted-foreground">
           {showRpe ? 'RPE' : 'RIR'}
@@ -58,33 +99,54 @@ export function EffortChips({
         <div
           role="group"
           aria-label={`${showRpe ? 'RPE' : 'Reps in reserve'} for ${setLabel}`}
-          // py-1.5, not py-0.5: overflow-x-auto forces overflow-y to compute
-          // to auto as well, so the chips' hit-44-y insets clip at the strip
-          // edge — the padding gives the vertical extension room to live.
-          className="flex min-w-0 flex-1 gap-1 overflow-x-auto py-1.5"
+          // py-1.5 keeps the chips' hit-44-y vertical extensions inside the
+          // strip so they never overlap the set row above or the caption
+          // below (nothing scrolls here anymore — both strips fit).
+          className="flex min-w-0 flex-1 gap-1 py-1.5"
         >
-          {choices.map((choice) => {
-            const isSelected = selected === choice
+          {chips.map((chip) => {
+            const half = showRpe ? rpeHalfOf(chip) : null
+            const isSelected = showRpe
+              ? rpe === chip || (half !== null && rpe === half)
+              : rir === chip
+            const isTarget = chip === targetChip
             return (
               <button
-                key={choice}
+                key={chip}
                 type="button"
-                onClick={() => onSelect(isSelected ? '' : choice)}
+                onClick={() =>
+                  showRpe
+                    ? onSelectRpe(nextRpeValue(rpe, chip))
+                    : onSelectRir(isSelected ? '' : chip)
+                }
                 aria-pressed={isSelected}
-                aria-label={`${showRpe ? 'RPE' : 'RIR'} ${choice}${!showRpe && choice === '5' ? ' or more' : ''}`}
+                aria-label={
+                  showRpe
+                    ? rpeChipAriaLabel(rpe, chip)
+                    : `RIR ${chip}${chip === '5' ? ' or more' : ''}`
+                }
                 className={cn(
                   // Vertical-only inset: gap-1 neighbors sit closer than the
                   // full inset would reach, and adjacent invisible extensions
                   // must never overlap a chip meaning a different value.
-                  'hit-44-y h-8 min-w-8 shrink-0 rounded-full px-2 text-sm font-medium tnum transition-colors',
+                  'hit-44-y h-9 min-w-9 shrink-0 rounded-full px-2 text-sm font-medium tnum transition-colors',
                   // Muted selection state (one-volt rule: effort is a note,
                   // not the session's live moment).
                   isSelected
                     ? 'bg-foreground text-background'
-                    : 'bg-transparent text-muted-foreground ring-1 ring-inset ring-border',
+                    : isTarget
+                      ? // Target affordance: a hairline foreground ring —
+                        // louder than ring-border, never volt.
+                        'bg-transparent text-muted-foreground ring-1 ring-inset ring-foreground/40'
+                      : 'bg-transparent text-muted-foreground ring-1 ring-inset ring-border',
                 )}
               >
-                {!showRpe && choice === '5' ? '5+' : choice}
+                {/* A selected half-point shows on its whole chip ("8.5"). */}
+                {showRpe && half !== null && rpe === half
+                  ? half
+                  : !showRpe && chip === '5'
+                    ? '5+'
+                    : chip}
               </button>
             )
           })}
