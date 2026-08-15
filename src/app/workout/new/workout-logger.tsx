@@ -1935,7 +1935,7 @@ export function WorkoutLogger({
                         key={direction}
                         size="sm"
                         variant="ghost"
-                        className="hit-44 font-semibold tnum"
+                        className="hit-44-y font-semibold tnum"
                         onPointerDown={(e) => e.preventDefault()}
                         onClick={() => {
                           // ghost.weight is undefined for BW-relative types by

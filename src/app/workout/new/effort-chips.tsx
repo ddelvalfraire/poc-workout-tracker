@@ -58,7 +58,10 @@ export function EffortChips({
         <div
           role="group"
           aria-label={`${showRpe ? 'RPE' : 'Reps in reserve'} for ${setLabel}`}
-          className="flex min-w-0 flex-1 gap-1 overflow-x-auto py-0.5"
+          // py-1.5, not py-0.5: overflow-x-auto forces overflow-y to compute
+          // to auto as well, so the chips' hit-44-y insets clip at the strip
+          // edge — the padding gives the vertical extension room to live.
+          className="flex min-w-0 flex-1 gap-1 overflow-x-auto py-1.5"
         >
           {choices.map((choice) => {
             const isSelected = selected === choice
@@ -70,7 +73,10 @@ export function EffortChips({
                 aria-pressed={isSelected}
                 aria-label={`${showRpe ? 'RPE' : 'RIR'} ${choice}${!showRpe && choice === '5' ? ' or more' : ''}`}
                 className={cn(
-                  'hit-44 h-8 min-w-8 shrink-0 rounded-full px-2 text-sm font-medium tnum transition-colors',
+                  // Vertical-only inset: gap-1 neighbors sit closer than the
+                  // full inset would reach, and adjacent invisible extensions
+                  // must never overlap a chip meaning a different value.
+                  'hit-44-y h-8 min-w-8 shrink-0 rounded-full px-2 text-sm font-medium tnum transition-colors',
                   // Muted selection state (one-volt rule: effort is a note,
                   // not the session's live moment).
                   isSelected

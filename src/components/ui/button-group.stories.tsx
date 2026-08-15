@@ -51,15 +51,17 @@ export const Matrix = {
 }
 
 /** The weight stepper as the logger renders it: sm ghost pair, tabular
- *  numerals, hit-44 touch insets riding outside the 36px controls. */
+ *  numerals, hit-44-y vertical touch insets riding outside the 36px
+ *  controls (vertical-only so the segments' invisible extensions never
+ *  cross the divider into the opposite action). */
 export const Stepper = {
   render: () => (
     <div className="w-64 p-6">
       <ButtonGroup>
-        <Button size="sm" variant="ghost" className="hit-44 font-semibold tnum">
+        <Button size="sm" variant="ghost" className="hit-44-y font-semibold tnum">
           −5
         </Button>
-        <Button size="sm" variant="ghost" className="hit-44 font-semibold tnum">
+        <Button size="sm" variant="ghost" className="hit-44-y font-semibold tnum">
           +5
         </Button>
       </ButtonGroup>

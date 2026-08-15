@@ -13,11 +13,14 @@ import { cn } from '@/lib/utils'
  * the group squares them (rounded-none) and stretches them (flex-1) so
  * segments share the width evenly.
  *
- * Deliberately NOT overflow-hidden: the hit-44 touch-target inset relies on
- * a ::before extending past the 36px control, and an overflow clip on the
+ * Deliberately NOT overflow-hidden: the touch-target insets rely on a
+ * ::before extending past the 36px control, and an overflow clip on the
  * frame would remove exactly the extra hit area it exists to add. The
  * first/last segments inherit the frame's radius on their outer corners
- * instead, so hover fills never poke past the border.
+ * instead, so hover fills never poke past the border. Segments use
+ * hit-44-y (vertical-only): full hit-44 insets would overlap across the
+ * 1px divider with no arbitration — the later sibling wins hit-testing,
+ * so a tap near the divider could fire the opposite segment.
  */
 function ButtonGroup({ className, ...props }: React.ComponentProps<'div'>) {
   return (
