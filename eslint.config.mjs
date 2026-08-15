@@ -46,7 +46,6 @@ const CARD_SHELL_RATCHET = [
   "src/app/programs/new/program-builder.tsx",
   "src/app/settings/import/import-flow.tsx",
   "src/app/w/\\[token\\]/page.tsx",
-  "src/app/workout/new/exercise-picker.tsx",
   "src/app/workout/new/workout-logger.tsx",
   "src/components/nav/nav-drawer.tsx",
   "src/components/ops/loading-ghosts.tsx",

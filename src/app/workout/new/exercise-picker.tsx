@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { EmptyWords } from '@/components/ui/empty-words'
 import { rankAlternatives } from '@/lib/exercise-alternatives'
 import { createCustomExerciseAction } from '@/app/exercises/actions'
 import { EXERCISE_CATEGORIES, type ExerciseSource } from '@/lib/custom-exercise-input'
@@ -255,31 +256,26 @@ export function ExercisePicker({
       {/* Muscle-matched alternatives to the exercise being replaced — a plain
           labeled list, deliberately OUTSIDE the search combobox's a11y model
           (no role=option, no aria-activedescendant coupling): arrows/Enter
-          keep driving the search listbox only. Same row anatomy as results. */}
+          keep driving the search listbox only. The whole row is the control
+          (tap = the swap) — no per-row Add affordance. */}
       {!loading && !error && !isCreating && suggestions.length > 0 && (
         <div>
-          <p className="px-1 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
+          <p className="px-1 pb-2 pt-1 font-display text-base uppercase leading-none tracking-wide text-muted-foreground">
             Suggested
           </p>
           <ul
             aria-label="Suggested replacements"
-            className="mt-1 divide-y divide-border overflow-hidden rounded-xl border border-border bg-card"
+            className="divide-y divide-border/60 border-b border-b-border/60"
           >
             {suggestions.map((result) => (
-              <li
-                key={resultKey(result)}
-                className="flex items-center justify-between gap-2 px-3 py-2.5"
-              >
-                <span className="min-w-0 truncate text-sm">
-                  {result.name}
-                  <span className="text-muted-foreground">
-                    {' '}
-                    · {sourceOf(result) === 'custom' ? 'Custom' : result.category}
-                  </span>
-                </span>
-                <Button size="sm" variant="outline" onClick={() => addExercise(result)}>
-                  Add
-                </Button>
+              <li key={resultKey(result)}>
+                <button
+                  type="button"
+                  onClick={() => addExercise(result)}
+                  className="flex w-full items-center gap-4 py-4 text-left transition-colors outline-none hover:bg-muted/50 focus-visible:bg-muted/50"
+                >
+                  <ResultWords result={result} />
+                </button>
               </li>
             ))}
           </ul>
@@ -302,36 +298,36 @@ export function ExercisePicker({
                 aria-label="Exercise results"
                 // In fill mode the list takes all remaining sheet height and owns
                 // the scroll (the input above stays pinned); inline keeps the cap.
-                className={`divide-y divide-border overflow-y-auto overscroll-contain rounded-xl border border-border bg-card shadow-lg ${
+                // Hairline divider list, not a card shell (DESIGN.md de-card
+                // vocabulary) — the recipe is applied to the existing combobox
+                // option markup, not DividerRow (which renders li > Link).
+                className={`divide-y divide-border/60 overflow-y-auto overscroll-contain border-b border-b-border/60 ${
                   fill ? 'min-h-0 flex-1' : 'max-h-72'
                 }`}
               >
                 {matches.map((result, index) => (
+                  // The row IS the control: tapping an option performs the
+                  // pick (add-mode append or replace-mode swap) — no per-row
+                  // Add button. Keyboard picks stay on the input via
+                  // aria-activedescendant + Enter; options are never tabbable.
                   <li
                     key={resultKey(result)}
                     id={optionId(result)}
                     role="option"
                     aria-selected={index === active}
                     onPointerMove={() => setActiveIndex(index)}
-                    className={`flex items-center justify-between gap-2 px-3 py-2.5 ${
-                      index === active ? 'bg-muted' : ''
-                    }`}
+                    onClick={() => addExercise(result)}
+                    className={cn(
+                      'flex cursor-pointer items-center gap-4 py-4 transition-colors',
+                      index === active && 'bg-muted/50',
+                    )}
                   >
-                    <span className="min-w-0 truncate text-sm">
-                      {result.name}
-                      <span className="text-muted-foreground">
-                        {' '}
-                        · {sourceOf(result) === 'custom' ? 'Custom' : result.category}
-                      </span>
-                    </span>
-                    <Button size="sm" variant="outline" onClick={() => addExercise(result)}>
-                      Add
-                    </Button>
+                    <ResultWords result={result} />
                   </li>
                 ))}
               </ul>
             ) : (
-              <p className="px-1 text-sm text-muted-foreground">No exercises found.</p>
+              <EmptyWords>No exercises found.</EmptyWords>
             )}
             {/* The dedup-at-source escape hatch: creation sits BELOW the
                 catalog's best matches, so a near-duplicate is staring at the
@@ -350,6 +346,19 @@ export function ExercisePicker({
         )
       )}
     </div>
+  )
+}
+
+/** Shared row anatomy for results and suggestions: name over a muted
+ *  metadata line (the library-filter row shape). */
+function ResultWords({ result }: { result: ExerciseResult }) {
+  return (
+    <span className="min-w-0">
+      <span className="block truncate text-base leading-tight">{result.name}</span>
+      <span className="mt-1 block truncate text-sm text-muted-foreground">
+        {sourceOf(result) === 'custom' ? 'Custom' : result.category}
+      </span>
+    </span>
   )
 }
 
@@ -412,8 +421,10 @@ function CreateCustomForm({
   }
 
   return (
-    <div className="space-y-3 rounded-xl border border-border bg-card p-3">
-      <p className="text-xs font-semibold uppercase tracking-widest text-primary">
+    // De-carded: fields sit on the sheet background under a caps header,
+    // closed by a hairline — no shell.
+    <div className="space-y-3 border-b border-b-border/60 pb-4">
+      <p className="font-display text-base uppercase leading-none tracking-wide text-muted-foreground">
         New custom exercise
       </p>
       <Input
@@ -426,7 +437,10 @@ function CreateCustomForm({
         value={category}
         onChange={(e) => setCategory(e.target.value)}
         aria-label="Category"
-        className="h-9 w-full rounded-lg border border-border bg-transparent px-2 text-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+        // The Input field vocabulary (44px, 16px text, ring focus) on a raw
+        // select — bg stays transparent (bg-card is the keep-listed field
+        // primitive's own skin).
+        className="h-11 w-full rounded-lg border border-input bg-transparent px-3 text-base outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
       >
         <option value="" disabled>
           Category…
@@ -448,8 +462,10 @@ function CreateCustomForm({
               aria-pressed={muscles.includes(muscle)}
               className={cn(
                 'rounded-full border px-2.5 py-1 text-xs font-medium transition-colors',
+                // Muted selection (effort-chips precedent): the sheet's one
+                // volt is the primary commit action, not these toggles.
                 muscles.includes(muscle)
-                  ? 'border-primary bg-primary text-primary-foreground'
+                  ? 'border-foreground bg-foreground text-background'
                   : 'border-border bg-muted text-muted-foreground',
               )}
             >
