@@ -1104,6 +1104,9 @@ describe('registerProgramTools', () => {
         'user_env',
         expect.objectContaining({ program: expect.objectContaining({ mesocycleWeeks: 4 }) }),
         2,
+        // The resolved display unit rides into the derivation so preview
+        // loads quantize on the grid the caller will read (#226).
+        { unit: 'lb' },
       )
       const body = payload(result) as {
         week: number
@@ -1123,6 +1126,19 @@ describe('registerProgramTools', () => {
       expect(set.derivedFrom).toBe('scheme')
       // 1 working set attributed to the exercise's primary muscle
       expect(body.volume).toEqual({ Chest: 1 })
+    })
+
+    it('threads an explicit unit override into the derivation grid (#226)', async () => {
+      // Arrange — a stored-lb user (mock default) previewing in kg
+      const tools = setup()
+      mockedDetail.mockResolvedValue(programDetail() as unknown as Detail)
+      mockedDerive.mockResolvedValue(DERIVED as never)
+
+      // Act
+      await tools.get('preview_program_week')!({ programId: PID, week: 2, unit: 'kg' })
+
+      // Assert — the override, not the stored unit, governs quantization
+      expect(mockedDerive).toHaveBeenCalledWith('user_env', expect.anything(), 2, { unit: 'kg' })
     })
 
     it('defaults the week via nextProgramWeek and flags the derivation', async () => {

@@ -20,7 +20,8 @@ import {
 import { setTrainingMax, withTx, ProgramPatchError } from './program-patches'
 import type { TmIncrement } from '@/lib/tm-restart'
 import { rollingE1rm } from '@/lib/rolling-e1rm'
-import { quantizeSetLoads } from '@/lib/load-quantize'
+import { quantizeAdjustedLoadKg, quantizeSetLoads } from '@/lib/load-quantize'
+import type { WeightUnit } from '@/lib/units'
 import { getWeightUnit } from './preferences'
 import { applyEffortToAdjustment, sustainedUndershoot } from '@/lib/effort-gate'
 import {
@@ -1375,11 +1376,30 @@ function autoregPlan(exercise: DayForDerivation['exercises'][number]): AutoregPl
   return null
 }
 
+/** Quantizes a set touched by an INTENDED load change (step/decrement):
+ *  autoreg-adjusted sets quantize against their pre-adjustment scheme load
+ *  via `quantizeAdjustedLoadKg` (the anti-fixed-point rule); untouched sets
+ *  quantize plainly. */
+function quantizeAdjustedSet(set: DerivedSet, unit: WeightUnit): DerivedSet {
+  if (set.derivedFrom !== 'autoreg' || set.loadKg == null || set.schemeLoadKg == null) {
+    return quantizeSetLoads(set, unit)
+  }
+  const loadKg = quantizeAdjustedLoadKg(set.loadKg, set.schemeLoadKg, unit)
+  // schemeLoadKg was quantized before the adjustment ran — idempotent here.
+  return loadKg === set.loadKg ? set : { ...set, loadKg }
+}
+
 export async function deriveDayPrescription(
   userId: string,
   day: DayForDerivation,
   week: number,
-  options?: { excludeWorkoutId?: string },
+  options?: {
+    excludeWorkoutId?: string
+    /** Quantization grid override (#226) — callers previewing in a non-stored
+     *  unit (MCP `preview_program_week`'s `unit` arg) pass it so loads land
+     *  on the grid the reader will actually see. Default: the stored unit. */
+    unit?: WeightUnit
+  },
 ): Promise<ExercisePrescription[]> {
   // The history query stays id-based (see getExerciseHistoryBefore); rows are
   // matched back onto the composite (source, id) below.
@@ -1388,8 +1408,9 @@ export async function deriveDayPrescription(
 
   // Suggested loads quantize to the display unit's loadable grid (#226) —
   // round-at-derivation, so ghosts, previews, and the prescribed snapshots
-  // stamped at instantiation compare like with like. Request-memoized read.
-  const unit = await getWeightUnit(userId)
+  // stamped at instantiation compare like with like. An explicit override
+  // wins (unit-parameterized previews); otherwise the request-memoized read.
+  const unit = options?.unit ?? (await getWeightUnit(userId))
 
   const keys = [...new Set(day.exercises.map((e) => catalogKey(e.source, e.wgerExerciseId)))]
   const e1rmByKey = new Map<string, number | null>()
@@ -1534,13 +1555,15 @@ export async function deriveDayPrescription(
                 .filter((s) => s.setType === 'working')
                 .map((s) => ({ loadKg: s.loadKg, repMax: plan.topForWorkingRow(s) }))
             : []
+        // The unit rides into the engine so evidence matching can bridge
+        // pre-quantization snapshots onto today's quantized grid (#226).
         adjustment =
           plan.mode === 'fixed'
-            ? autoregulate(plan.incrementKg, sessions, day.program.autoregStallPolicy)
+            ? autoregulate(plan.incrementKg, sessions, day.program.autoregStallPolicy, unit)
             : plan.mode === 'range'
-              ? autoregulateRange(plan.stepKg, sessions, rangeRows)
+              ? autoregulateRange(plan.stepKg, sessions, rangeRows, unit)
               : plan.mode === 'anchor'
-                ? autoregulateAnchor(sessions)
+                ? autoregulateAnchor(sessions, unit)
                 : autoregulateEarlyDeload(sessions, day.program.autoregStallPolicy)
         // Diet-phase gate (Part A): verdict math above is phase-blind; only
         // now does a 'cutting' program annotate the verdict (and hold an H2
@@ -1556,7 +1579,7 @@ export async function deriveDayPrescription(
         // same restriction as the gate: self-correcting schemes step
         // through their own math, not through proposals.
         if (plan.mode === 'fixed' || plan.mode === 'range') {
-          effortStepByKey.set(key, sustainedUndershoot(sessions)?.loadKg ?? null)
+          effortStepByKey.set(key, sustainedUndershoot(sessions, unit)?.loadKg ?? null)
         }
       }
     }
@@ -1564,10 +1587,18 @@ export async function deriveDayPrescription(
     // Precedence: scheme → autoreg (BEFORE overrides) → override on top, so
     // an explicit per-week override always outranks the adjustment.
     // Re-quantized after autoreg: a step adds a raw kg increment that can
-    // land off-grid in lb. Overrides apply AFTER — an explicit per-week
-    // override is the owner's number and is never rounded.
+    // land off-grid in lb. INTENDED changes (step/decrement) quantize against
+    // their pre-adjustment baseline so a light-load backoff can never round
+    // back to the load it claims to change (the 5 lb fixed point) — repeats
+    // and anchors re-prescribe the same number by design and quantize
+    // plainly. Overrides apply AFTER — an explicit per-week override is the
+    // owner's number and is never rounded.
     const adjusted = adjustment
-      ? applyAutoregToSets(scheme, adjustment).map((s) => quantizeSetLoads(s, unit))
+      ? applyAutoregToSets(scheme, adjustment, unit).map((s) =>
+          adjustment.action === 'step' || adjustment.action === 'decrement'
+            ? quantizeAdjustedSet(s, unit)
+            : quantizeSetLoads(s, unit),
+        )
       : scheme
     results.push({
       sets: adjusted.map((s) =>

@@ -20,16 +20,57 @@ export const LOAD_INCREMENT_KG = 1.25
  * itself; lb snaps the converted display value, then round-trips back to kg
  * at column precision (2dp — within 0.011 lb, absorbed by 1dp display
  * rounding, so `kgToDisplay` of the result always lands ON the grid).
- * Zero, negative, and non-finite input clamp to 0.
+ * Zero, negative, and non-finite input clamp to 0; a strictly-POSITIVE load
+ * clamps to a minimum of one increment — a real suggestion must never
+ * quantize to 0 and vanish from plan strings (callers gate on > 0).
  */
 export function quantizeLoadKg(kg: number, unit: WeightUnit): number {
   if (!Number.isFinite(kg) || kg <= 0) return 0
   if (unit === 'kg') {
     // 1.25 is dyadic (5/4), so its multiples are float-exact.
-    return Math.round(kg / LOAD_INCREMENT_KG) * LOAD_INCREMENT_KG
+    const snapped = Math.round(kg / LOAD_INCREMENT_KG) * LOAD_INCREMENT_KG
+    return snapped > 0 ? snapped : LOAD_INCREMENT_KG
   }
   const lb = Math.round(kgToDisplay(kg, 'lb') / LOAD_INCREMENT_LB) * LOAD_INCREMENT_LB
-  return displayToKg(lb, 'lb')
+  return displayToKg(lb > 0 ? lb : LOAD_INCREMENT_LB, 'lb')
+}
+
+/**
+ * Quantizes an autoreg-ADJUSTED load against its pre-adjustment baseline,
+ * breaking the light-load fixed point: a ~10–25% backoff at (say) 5 lb lands
+ * on 3.75 lb, which rounds BACK to 5 lb — and since the quantized value
+ * persists as next session's evidence, the load would never move while the
+ * reason keeps claiming a backoff. When the quantized result equals the
+ * quantized baseline but the raw adjustment intended a change, step one full
+ * display increment in the intended direction. A reduction never steps below
+ * one increment (the smallest loadable value is the floor). Callers apply
+ * this ONLY to intended changes (step/decrement) — never to repeat caps or
+ * anchors, which legitimately re-prescribe the same number.
+ */
+export function quantizeAdjustedLoadKg(
+  rawKg: number,
+  baselineKg: number,
+  unit: WeightUnit,
+): number {
+  const quantized = quantizeLoadKg(rawKg, unit)
+  if (rawKg === baselineKg || quantized !== quantizeLoadKg(baselineKg, unit)) return quantized
+  const increment = unit === 'kg' ? LOAD_INCREMENT_KG : LOAD_INCREMENT_LB
+  const stepped = kgToDisplay(quantized, unit) + (rawKg < baselineKg ? -increment : increment)
+  if (stepped <= 0) return quantized
+  return displayToKg(stepped, unit)
+}
+
+/**
+ * Epsilon-or-increment load identity: raw values within `epsilonKg` always
+ * match; with a unit, values that quantize to the SAME display increment
+ * also match. The transitional bridge (#226): prescribed snapshots stamped
+ * before quantization can sit up to ~half an increment from their quantized
+ * re-derivation — far past the raw epsilon — yet they are the same load on
+ * the only grid the lifter can actually set up.
+ */
+export function loadsMatch(a: number, b: number, epsilonKg: number, unit?: WeightUnit): boolean {
+  if (Math.abs(a - b) <= epsilonKg) return true
+  return unit !== undefined && quantizeLoadKg(a, unit) === quantizeLoadKg(b, unit)
 }
 
 /**

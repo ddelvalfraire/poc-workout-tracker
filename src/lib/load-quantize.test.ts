@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import {
   LOAD_INCREMENT_KG,
   LOAD_INCREMENT_LB,
+  loadsMatch,
+  quantizeAdjustedLoadKg,
   quantizeDisplayLoad,
   quantizeLoadKg,
   quantizeSetLoads,
@@ -47,6 +49,54 @@ describe('quantizeLoadKg', () => {
     expect(quantizeLoadKg(0, 'kg')).toBe(0)
     expect(quantizeLoadKg(-5, 'lb')).toBe(0)
     expect(quantizeLoadKg(Number.NaN, 'kg')).toBe(0)
+  })
+
+  it('clamps a strictly-positive sub-half-increment load UP to one increment, never 0', () => {
+    expect(quantizeLoadKg(0.3, 'kg')).toBe(LOAD_INCREMENT_KG)
+    expect(quantizeLoadKg(0.2, 'lb')).toBe(1.13) // 2.5 lb at column precision
+    expect(quantizeDisplayLoad(0.2, 'lb')).toBe(LOAD_INCREMENT_LB)
+  })
+})
+
+describe('quantizeAdjustedLoadKg (anti-fixed-point)', () => {
+  it('steps down one increment when a reduction quantizes back to its baseline (5 lb loop)', () => {
+    // 2.27 kg is 5 lb; a 25% backoff lands at 1.7025 kg = 3.75 lb, whose
+    // nearest 2.5 lb multiple rounds BACK UP to 5 lb — the fixed point.
+    expect(quantizeAdjustedLoadKg(1.7025, 2.27, 'lb')).toBe(1.13) // 2.5 lb
+  })
+
+  it('steps up one increment when an intended increase rounds back down', () => {
+    // 2.4 kg is 5.29 lb, which quantizes back to 5 lb — same as baseline.
+    expect(quantizeAdjustedLoadKg(2.4, 2.27, 'lb')).toBe(3.4) // 7.5 lb
+  })
+
+  it('passes a normally-resolving adjustment straight through', () => {
+    expect(quantizeAdjustedLoadKg(90, 100, 'kg')).toBe(90)
+  })
+
+  it('never steps a reduction below the smallest loadable increment', () => {
+    // Backing off 1.13 kg (2.5 lb) would step to 0 — hold the floor instead.
+    expect(quantizeAdjustedLoadKg(0.8475, 1.13, 'lb')).toBe(1.13)
+  })
+})
+
+describe('loadsMatch', () => {
+  it('matches within the raw epsilon regardless of unit', () => {
+    expect(loadsMatch(100, 100.03, 0.05)).toBe(true)
+    expect(loadsMatch(100, 100.03, 0.05, 'lb')).toBe(true)
+  })
+
+  it('rejects beyond-epsilon values without a unit', () => {
+    expect(loadsMatch(16.87, 17.01, 0.05)).toBe(false)
+  })
+
+  it('matches a legacy unquantized snapshot with its quantized re-derivation', () => {
+    // 16.87 kg and 17.01 kg both display as 37.5 lb on the 2.5 lb grid.
+    expect(loadsMatch(16.87, 17.01, 0.05, 'lb')).toBe(true)
+  })
+
+  it('rejects values in different increments of the unit grid', () => {
+    expect(loadsMatch(16.87, 18.5, 0.05, 'lb')).toBe(false) // 37.5 vs 40 lb
   })
 })
 

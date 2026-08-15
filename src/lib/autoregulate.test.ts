@@ -1692,3 +1692,49 @@ describe('sessionBeatsTop (volume-progression signal)', () => {
     expect(sessionBeatsTop(session([15, 15, 15], 80), 12)).toBe(null)
   })
 })
+
+describe('legacy-snapshot bucket matching (#226 transitional epsilon)', () => {
+  it('keeps a stall streak alive across the quantization deploy boundary', () => {
+    // Legacy sessions prescribed 16.87 kg raw; the newest at its quantized
+    // re-derivation 17.01 kg (both 37.5 lb) — 0.14 kg apart, past the raw
+    // 0.05 kg epsilon, but the SAME 2.5 lb increment.
+    const sessions = seq(
+      sessionAt(17.01, [6, 6, 6]),
+      sessionAt(16.87, [6, 6, 6]),
+      sessionAt(16.87, [6, 6, 6]),
+    )
+    // Without a unit the raw epsilon governs: the streak breaks → repeat.
+    expect(autoregulate(2.5, sessions, 'all-sets')!.action).toBe('repeat')
+    // With the active unit the loads share an increment: third stall → decrement.
+    expect(autoregulate(2.5, sessions, 'all-sets', 'lb')!.action).toBe('decrement')
+  })
+
+  it('applies a verdict to a set whose quantized load shares the evidence increment', () => {
+    // Legacy evidence at 17.1 kg (37.5 lb raw-rounded DOWN by quantization).
+    const adjustment = autoregulate(2.5, [sessionAt(17.1, [6, 6, 6])], 'all-sets', 'lb')!
+    const scheme: DerivedSet = {
+      setNumber: 1,
+      setType: 'working',
+      metricMode: 'reps_weight',
+      repMin: 8,
+      repMax: null,
+      rir: null,
+      rpe: null,
+      loadKg: 17.01, // today's quantized derivation of the same 37.5 lb
+      tempo: null,
+      durationSec: null,
+      distanceM: null,
+      restSec: null,
+      technique: null,
+      derivedFrom: 'scheme',
+      sourceIndex: 0,
+    }
+    // Raw epsilon alone misses the bucket (17.01 < 17.1 − 0.05): untouched.
+    expect(applyAutoregToSets([scheme], adjustment)[0].derivedFrom).toBe('scheme')
+    // Same 37.5 lb increment in the active unit: the verdict lands.
+    expect(applyAutoregToSets([scheme], adjustment, 'lb')[0]).toMatchObject({
+      loadKg: 17.01,
+      derivedFrom: 'autoreg',
+    })
+  })
+})

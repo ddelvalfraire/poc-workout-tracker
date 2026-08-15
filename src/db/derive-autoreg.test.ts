@@ -29,7 +29,7 @@ vi.mock('./autoreg-history', () => ({
 }))
 
 import { deriveDayPrescription, type DayForDerivation } from './programs'
-import type { AutoregStallPolicy } from '@/lib/autoregulate'
+import { autoregReason, type AutoregStallPolicy } from '@/lib/autoregulate'
 
 const USER = 'user_123'
 
@@ -618,24 +618,74 @@ describe('deriveDayPrescription auto-regulation', () => {
   })
 })
 
+/** The `day()` fixture with every set's base load replaced (immutably). */
+function withBaseLoad(fixture: DayForDerivation, suggestedLoadKg: number): DayForDerivation {
+  return {
+    ...fixture,
+    exercises: fixture.exercises.map((e) => ({
+      ...e,
+      sets: e.sets.map((s) => ({ ...s, suggestedLoadKg })),
+    })),
+  }
+}
+
 describe('deriveDayPrescription load quantization (#226)', () => {
   it('snaps a kg-derived load to the lb grid: 16.87 kg (37.2 lb) prescribes 37.5 lb', async () => {
     // Arrange — an lb lifter whose base load is off the 2.5 lb grid.
     weightUnit.mockResolvedValue('lb')
-    const fixture = day({ autoregulation: false })
-    const offGrid = {
-      ...fixture,
-      exercises: fixture.exercises.map((e) => ({
-        ...e,
-        sets: e.sets.map((s) => ({ ...s, suggestedLoadKg: 16.87 })),
-      })),
-    }
+    const offGrid = withBaseLoad(day({ autoregulation: false }), 16.87)
 
     // Act
     const [prescription] = await deriveDayPrescription(USER, offGrid, 1)
 
     // Assert — 17.01 kg is 37.5 lb at column precision (never 37.2).
     expect(prescription.sets.map((s) => s.loadKg)).toEqual([17.01, 17.01, 17.01])
+  })
+
+  it('lets an explicit unit override outrank the stored preference', async () => {
+    // Arrange — a stored-lb user previewing in kg.
+    weightUnit.mockResolvedValue('lb')
+    const offGrid = withBaseLoad(day({ autoregulation: false }), 16.87)
+
+    // Act
+    const [prescription] = await deriveDayPrescription(USER, offGrid, 1, { unit: 'kg' })
+
+    // Assert — the 1.25 KG grid governs, not the stored lb grid (17.01).
+    expect(prescription.sets.map((s) => s.loadKg)).toEqual([16.25, 16.25, 16.25])
+  })
+
+  it('breaks the light-load backoff fixed point: 5 lb decreases, then floors at 2.5 lb', async () => {
+    // Arrange — an lb lifter stalled three times at 2.27 kg (5 lb). The 25%
+    // backoff lands at 1.7025 kg = 3.75 lb, which quantizes BACK to 5 lb —
+    // without the anti-fixed-point step the load would never move while the
+    // reason keeps claiming a backoff.
+    weightUnit.mockResolvedValue('lb')
+    const base = withBaseLoad(day({}), 2.27)
+    trainedSessions.mockResolvedValue([
+      trained('w3', 3, [6, 6, 6], 2.27),
+      trained('w2', 2, [6, 6, 6], 2.27),
+      trained('w1', 1, [6, 6, 6], 2.27),
+    ])
+
+    // Act — first post-stall derivation
+    const [first] = await deriveDayPrescription(USER, base, 1)
+
+    // Assert — strictly decreased: 5 lb → 2.5 lb (1.13 kg), and the printed
+    // backoff (2.5 lb) matches the actual displayed change (5 − 2.5).
+    expect(first.autoreg).toMatchObject({ action: 'decrement' })
+    expect(first.sets.map((s) => s.loadKg)).toEqual([1.13, 1.13, 1.13])
+    expect(autoregReason(first.autoreg!, 'lb')).toContain('backing off 2.5 lb')
+
+    // Act — next cycle: three stalls at the decremented 1.13 kg (2.5 lb)
+    trainedSessions.mockResolvedValue([
+      trained('w6', 6, [6, 6, 6], 1.13),
+      trained('w5', 5, [6, 6, 6], 1.13),
+      trained('w4', 4, [6, 6, 6], 1.13),
+    ])
+    const [second] = await deriveDayPrescription(USER, base, 1)
+
+    // Assert — holds the smallest loadable value: never 0, never back up to 5.
+    expect(second.sets.map((s) => s.loadKg)).toEqual([1.13, 1.13, 1.13])
   })
 
   it('snaps kg-unit loads onto the 1.25 kg grid after a scheme step', async () => {
