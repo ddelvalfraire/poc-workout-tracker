@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { stickyNote, noteChipLabel } from './identity-note'
+import { stickyNote, noteChipLabel, lastSessionEcho } from './identity-note'
 
 describe('stickyNote (chip show rule)', () => {
   const pinned = { body: 'Seat pin 4', pinned: true }
@@ -38,5 +38,36 @@ describe('noteChipLabel', () => {
     const label = noteChipLabel(long)
     expect(label.length).toBe(80)
     expect(label.endsWith('…')).toBe(true)
+  })
+})
+
+describe('lastSessionEcho (the middle tier show rule)', () => {
+  it('echoes a previous-session note when this session has none', () => {
+    expect(lastSessionEcho('Felt strong, add 2.5', '', null)).toBe('Felt strong, add 2.5')
+  })
+
+  it('trims the echoed note', () => {
+    expect(lastSessionEcho('  slow eccentric \n', '', null)).toBe('slow eccentric')
+  })
+
+  it('never echoes when there is no previous note', () => {
+    expect(lastSessionEcho(null, '', null)).toBeNull()
+    expect(lastSessionEcho(undefined, '', null)).toBeNull()
+    expect(lastSessionEcho('   ', '', null)).toBeNull()
+  })
+
+  it('disappears once a session note exists', () => {
+    expect(lastSessionEcho('Felt strong', 'new note', null)).toBeNull()
+    // Whitespace-only input is not a note yet — the echo stays offered.
+    expect(lastSessionEcho('Felt strong', '  ', null)).toBe('Felt strong')
+  })
+
+  it('suppressed when the pinned chip already shows the same text', () => {
+    expect(lastSessionEcho('Seat pin 4', '', { body: 'Seat pin 4', pinned: true })).toBeNull()
+    expect(lastSessionEcho('Seat pin 4 ', '', { body: ' Seat pin 4\n', pinned: true })).toBeNull()
+    // A different pinned note does not block the echo.
+    expect(lastSessionEcho('Felt strong', '', { body: 'Seat pin 4', pinned: true })).toBe(
+      'Felt strong',
+    )
   })
 })

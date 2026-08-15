@@ -141,6 +141,13 @@ export interface LastPerformance {
    * when no note exists for the identity.
    */
   note: { body: string; pinned: boolean } | null
+  /**
+   * The previous session's per-INSTANCE note (workout_exercises.notes),
+   * riding the same query — the logger's one-session "Last time: …" echo.
+   * Null when that session had no note. Distinct from `note`, which is the
+   * exercise-identity note.
+   */
+  sessionNote: string | null
 }
 
 /**
@@ -163,6 +170,9 @@ export async function getLastPerformance(
       // Identity-note ride-along (LEFT JOIN): null columns when no note.
       noteBody: exerciseNotes.body,
       notePinned: exerciseNotes.pinned,
+      // Per-instance session note of that same prior performance — the
+      // "Last time: …" echo rides along, no second query.
+      sessionNote: workoutExercises.notes,
     })
     .from(workoutExercises)
     .innerJoin(workouts, eq(workouts.id, workoutExercises.workoutId))
@@ -200,6 +210,7 @@ export async function getLastPerformance(
       recent.noteBody === null
         ? null
         : { body: recent.noteBody, pinned: recent.notePinned ?? false },
+    sessionNote: recent.sessionNote ?? null,
   }
 }
 
