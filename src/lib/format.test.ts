@@ -448,3 +448,38 @@ describe('stepWeightValue', () => {
     expect(stepWeightValue('heavy', undefined, 1, 'kg')).toBeNull()
   })
 })
+
+describe('cardio ghosts and Prev (slice 1)', () => {
+  it('placeholderForSet ghosts prior duration/distance in the input dialect', () => {
+    const last = {
+      sets: [{ reps: null, weight: null, durationSec: 750, distanceM: 2500 }],
+    }
+    expect(placeholderForSet(last, 0)).toEqual({
+      reps: undefined,
+      weight: undefined,
+      duration: '12:30',
+      distance: '2.5',
+    })
+  })
+
+  it('planPlaceholderForSet ghosts the plan target duration/distance', () => {
+    const targets = [
+      { repMin: null, repMax: null, loadKg: null, restSec: null, durationSec: 1800, distanceM: 5000 },
+    ]
+    expect(planPlaceholderForSet(targets, 0)).toMatchObject({
+      duration: '30:00',
+      distance: '5',
+    })
+  })
+
+  it('planSetGhost passes cardio fields through untouched for every logging type', () => {
+    const ghost = planSetGhost({ duration: '30:00', distance: '5' }, 'bodyweight_reps')
+    expect(ghost).toMatchObject({ duration: '30:00', distance: '5' })
+  })
+
+  it('previousChipLabel prefers the cardio duration over rep×weight fragments', () => {
+    expect(previousChipLabel({ duration: '12:30', distance: '2.5' })).toBe('12:30')
+    // No cardio history → the standing rules are untouched.
+    expect(previousChipLabel({ reps: '8', weight: '60' })).toBe('60×8')
+  })
+})

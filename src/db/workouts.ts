@@ -134,7 +134,15 @@ export async function getPreviousCompletedWorkout(
 /** A prior performance of an exercise: when it was done and its sets (weights in kg, set order). */
 export interface LastPerformance {
   performedAt: Date
-  sets: { reps: number | null; weight: number | null }[]
+  /** Cardio fields ride along so the Prev chip can speak duration/distance;
+   *  reps_weight rows carry nulls there. Optional (not `| null` required) so
+   *  pre-cardio consumers and fixtures keep their shape. */
+  sets: {
+    reps: number | null
+    weight: number | null
+    durationSec?: number | null
+    distanceM?: number | null
+  }[]
   /**
    * The user's exercise-IDENTITY note (exercise_notes LEFT JOIN), riding the
    * Prev context so the logger can resurface it without a second query. Null
@@ -198,7 +206,12 @@ export async function getLastPerformance(
   if (!recent) return null
 
   const setRows = await db
-    .select({ reps: sets.reps, weight: sets.weight })
+    .select({
+      reps: sets.reps,
+      weight: sets.weight,
+      durationSec: sets.durationSec,
+      distanceM: sets.distanceM,
+    })
     .from(sets)
     .where(eq(sets.workoutExerciseId, recent.exerciseId))
     .orderBy(asc(sets.setNumber))
@@ -412,6 +425,12 @@ async function insertWorkoutChildren(
             // only ever re-stamps from prior facts above.
             ...(s.rir !== undefined ? { rir: s.rir } : {}),
             ...(s.rpe !== undefined ? { rpe: s.rpe } : {}),
+            // Cardio metric fields (same additive rule): the draft round-trips
+            // metricMode through detailToDraft → draftToInput, so a full
+            // replace re-asserts it from the wire — no prior-facts leg needed.
+            ...(s.metricMode !== undefined ? { metricMode: s.metricMode } : {}),
+            ...(s.durationSec !== undefined ? { durationSec: s.durationSec } : {}),
+            ...(s.distanceM !== undefined ? { distanceM: s.distanceM } : {}),
           }
         }),
       )

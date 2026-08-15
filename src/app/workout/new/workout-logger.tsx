@@ -40,11 +40,13 @@ import {
   completeFilledSets,
   draftToInput,
   emptyDraft,
-  isMissingRequiredWeight,
+  isMissingRequiredMetric,
   newDraftExercise,
   newDraftSet,
+  nextSetMetricMode,
   replacementDraftExercise,
   resolveTargetSetIndex,
+  setMetricMode,
   type DraftExercise,
   type DraftSet,
   type WorkoutDraft,
@@ -566,6 +568,8 @@ export function WorkoutLogger({
             exercise.loggingType === 'weight_reps'
               ? set.weight || ghost.weight
               : set.weight || undefined,
+          // Cardio next-up reads as its duration (typed first, plan fallback).
+          duration: (set.duration ?? '') || ghost.duration,
         },
         exercise.loggingType,
       )
@@ -1569,8 +1573,22 @@ export function WorkoutLogger({
               <div className="flex items-center gap-2 px-0.5 text-[0.7rem] font-semibold uppercase tracking-wider text-muted-foreground">
                 <span className="w-8 shrink-0" aria-hidden="true" />
                 <span className="w-10 shrink-0 text-center">Prev</span>
-                <span className="flex-1 text-center">Reps</span>
-                <span className="flex-1 text-center">{unit}</span>
+                {/* Cardio exercises head their columns Time/km; the first
+                    set's metric mode speaks for the card (rows still render
+                    per their OWN mode). */}
+                {setMetricMode(exercise.sets[0]) !== 'reps_weight' ? (
+                  <>
+                    <span className="flex-1 text-center">Time</span>
+                    <span className="flex-1 text-center">
+                      {setMetricMode(exercise.sets[0]) === 'duration_distance' ? 'km' : ''}
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <span className="flex-1 text-center">Reps</span>
+                    <span className="flex-1 text-center">{unit}</span>
+                  </>
+                )}
                 <span className="size-9 shrink-0" aria-hidden="true" />
               </div>
             )}
@@ -1607,20 +1625,31 @@ export function WorkoutLogger({
                 // Prev is previous PERFORMANCE only: plan targets ghost the
                 // inputs above but never masquerade as history in this column.
                 const prevLabel = previousChipLabel(history, exercise.loggingType)
+                // This row's metric: cardio rows swap reps/weight inputs for
+                // duration (+ distance) and gate completion on duration.
+                const metricMode = setMetricMode(set)
+                const isCardioSet = metricMode !== 'reps_weight'
                 // Chip fills from history (what the chip shows); BW-relative
                 // types never fill a weight — theirs isn't a total load.
-                const chipFill = {
-                  reps: adoptableGhostValue(history.reps),
-                  weight:
-                    exercise.loggingType === 'weight_reps'
-                      ? adoptableGhostValue(history.weight)
-                      : undefined,
-                }
+                // Cardio rows fill duration/distance instead (the ghost
+                // strings are already in the input dialect — no adoptable
+                // parse needed).
+                const chipFill = isCardioSet
+                  ? { duration: history.duration, distance: history.distance }
+                  : {
+                      reps: adoptableGhostValue(history.reps),
+                      weight:
+                        exercise.loggingType === 'weight_reps'
+                          ? adoptableGhostValue(history.weight)
+                          : undefined,
+                    }
                 // Enabled only when a tap would actually change something —
                 // otherwise the flash would confirm a fill that never happened.
-                const chipCanFill =
-                  (set.reps === '' && !!chipFill.reps) ||
-                  (set.weight === '' && !!chipFill.weight)
+                const chipCanFill = isCardioSet
+                  ? ((set.duration ?? '') === '' && !!chipFill.duration) ||
+                    ((set.distance ?? '') === '' && !!chipFill.distance)
+                  : (set.reps === '' && !!chipFill.reps) ||
+                    (set.weight === '' && !!chipFill.weight)
                 // Row identity for assistive tech: a warm-up row must SAY so —
                 // the 'W' glyph alone is visual-only.
                 const setLabel =
@@ -1696,24 +1725,28 @@ export function WorkoutLogger({
                       }
                       // Tap-to-accept: checking off an untouched set adopts
                       // the ghost ("do what I did last time" in one tap).
-                      // A "8–12" plan range adopts its floor.
-                      const fill = {
-                        reps: adoptableGhostValue(ghost.reps),
-                        // A bodyweight set HAS no weight value to adopt —
-                        // filling one would persist a phantom load.
-                        weight:
-                          exercise.loggingType === 'bodyweight_reps'
-                            ? undefined
-                            : adoptableGhostValue(ghost.weight),
-                      }
-                      // The reducer refuses a weight-less weight_reps
-                      // check-off; mirror its predicate here so the refusal
-                      // gets FEEDBACK (weight-input flash) and none of the
-                      // completion side effects (pop, rest clock, effort
-                      // chips) fire for a set that didn't complete.
+                      // A "8–12" plan range adopts its floor; cardio rows
+                      // adopt the plan's duration/distance verbatim (the
+                      // ghost already speaks the input dialect).
+                      const fill = isCardioSet
+                        ? { duration: ghost.duration, distance: ghost.distance }
+                        : {
+                            reps: adoptableGhostValue(ghost.reps),
+                            // A bodyweight set HAS no weight value to adopt —
+                            // filling one would persist a phantom load.
+                            weight:
+                              exercise.loggingType === 'bodyweight_reps'
+                                ? undefined
+                                : adoptableGhostValue(ghost.weight),
+                          }
+                      // The reducer refuses a weight-less weight_reps (or
+                      // duration-less cardio) check-off; mirror its predicate
+                      // here so the refusal gets FEEDBACK (input flash) and
+                      // none of the completion side effects (pop, rest clock,
+                      // effort chips) fire for a set that didn't complete.
                       if (
                         !set.completed &&
-                        isMissingRequiredWeight(exercise, setIndex, fill)
+                        isMissingRequiredMetric(exercise, setIndex, fill)
                       ) {
                         vibrate(SET_COMPLETE_VIBRATION)
                         if (weightNudgeTimerRef.current) {
@@ -1830,6 +1863,96 @@ export function WorkoutLogger({
                   >
                     {prevLabel ?? '—'}
                   </button>
+                  {isCardioSet ? (
+                    <>
+                      {/* Cardio row: mm:ss + km replace reps/weight. Same
+                          underline skin, same row states, same select-all
+                          focus dance as the lifting inputs. */}
+                      <Input
+                        type="text"
+                        inputMode="numeric"
+                        placeholder={ghost.duration ?? 'mm:ss'}
+                        value={set.duration ?? ''}
+                        onChange={(e) =>
+                          dispatch({
+                            type: 'UPDATE_SET',
+                            exerciseIndex,
+                            setIndex,
+                            field: 'duration',
+                            value: e.target.value,
+                          })
+                        }
+                        onFocus={(e) => {
+                          const input = e.currentTarget
+                          requestAnimationFrame(() => input.select())
+                        }}
+                        enterKeyHint={metricMode === 'duration_distance' ? 'next' : 'done'}
+                        onKeyDown={(e) => {
+                          if (e.key !== 'Enter') return
+                          e.preventDefault()
+                          if (metricMode !== 'duration_distance') {
+                            e.currentTarget.blur()
+                            return
+                          }
+                          document.getElementById(`distance-input-${set.id}`)?.focus()
+                        }}
+                        aria-label={`Set ${setIndex + 1} duration, minutes and seconds`}
+                        className={cn(
+                          'flex-1 rounded-none border-0 border-b-2 bg-transparent px-1 text-center tnum',
+                          rowState === 'active' && 'border-input text-lg font-medium',
+                          rowState === 'done' && 'border-transparent text-muted-foreground',
+                          rowState === 'waiting' &&
+                            'border-transparent opacity-80 group-focus-within/setrow:border-input group-focus-within/setrow:opacity-100',
+                          flashSetId === set.id && 'fill-flash',
+                          // The refused-check-off nudge lands on the duration
+                          // input — cardio's required metric (#206 mirror).
+                          weightNudgeSetId === set.id && 'weight-required-flash',
+                        )}
+                      />
+                      {metricMode === 'duration_distance' ? (
+                        <Input
+                          type="text"
+                          inputMode="decimal"
+                          id={`distance-input-${set.id}`}
+                          placeholder={ghost.distance}
+                          value={set.distance ?? ''}
+                          onChange={(e) =>
+                            dispatch({
+                              type: 'UPDATE_SET',
+                              exerciseIndex,
+                              setIndex,
+                              field: 'distance',
+                              value: e.target.value,
+                            })
+                          }
+                          onFocus={(e) => {
+                            const input = e.currentTarget
+                            requestAnimationFrame(() => input.select())
+                          }}
+                          enterKeyHint="done"
+                          onKeyDown={(e) => {
+                            if (e.key !== 'Enter') return
+                            e.preventDefault()
+                            e.currentTarget.blur()
+                          }}
+                          aria-label={`Set ${setIndex + 1} distance in kilometers`}
+                          className={cn(
+                            'flex-1 rounded-none border-0 border-b-2 bg-transparent px-1 text-center tnum',
+                            rowState === 'active' && 'border-input text-lg font-medium',
+                            rowState === 'done' && 'border-transparent text-muted-foreground',
+                            rowState === 'waiting' &&
+                              'border-transparent opacity-80 group-focus-within/setrow:border-input group-focus-within/setrow:opacity-100',
+                            flashSetId === set.id && 'fill-flash',
+                          )}
+                        />
+                      ) : (
+                        // Duration-only mode: hold the second column's
+                        // footprint so rows never jump (the BW-pill trick).
+                        <span aria-hidden="true" className="h-11 flex-1" />
+                      )}
+                    </>
+                  ) : (
+                    <>
                   <Input
                     type="text"
                     inputMode="numeric"
@@ -1964,6 +2087,8 @@ export function WorkoutLogger({
                       />
                     </div>
                   )}
+                    </>
+                  )}
                   <Button
                     size="icon-sm"
                     variant="ghost"
@@ -1984,6 +2109,9 @@ export function WorkoutLogger({
                     when a typed value actually DIFFERS from the plan; muted,
                     aligned under the inputs. */}
                 {(() => {
+                  // Cardio rows skip the caption: their ghost strings ("12:30")
+                  // aren't numeric targets the caption grammar can restate.
+                  if (isCardioSet) return null
                   const caption = targetCaption({ reps: set.reps, weight: set.weight }, ghost)
                   if (!caption) return null
                   return <p className="pl-22 pr-11 text-xs text-muted-foreground tnum">{caption}</p>
@@ -2096,7 +2224,15 @@ export function WorkoutLogger({
               size="sm"
               variant="outline"
               className="w-full"
-              onClick={() => dispatch({ type: 'ADD_SET', exerciseIndex, set: newDraftSet() })}
+              // New sets inherit the exercise's metric mode (cardio adds
+              // cardio sets; lifting adds lifting sets).
+              onClick={() =>
+                dispatch({
+                  type: 'ADD_SET',
+                  exerciseIndex,
+                  set: newDraftSet(nextSetMetricMode(exercise)),
+                })
+              }
             >
               + Add set
             </Button>

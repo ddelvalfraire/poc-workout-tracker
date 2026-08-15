@@ -1,6 +1,6 @@
 import type { WorkoutDraft, DraftExercise, DraftSet } from './workout-draft'
 import { isWeightUnit, type WeightUnit } from '@/lib/units'
-import { isLoggingType, isWorkoutSetType } from '@/lib/workout-input'
+import { isLoggingType, isMetricMode, isWorkoutSetType } from '@/lib/workout-input'
 
 /**
  * Pure build/parse for the cross-device draft snapshot the logger autosaves to
@@ -65,7 +65,13 @@ function isDraftSet(value: unknown): value is DraftSet {
     // Effort fields stay optional forever (DraftSet declares them so);
     // present-but-wrong-typed is rejected like any malformed field.
     (set.rir === undefined || typeof set.rir === 'string') &&
-    (set.rpe === undefined || typeof set.rpe === 'string')
+    (set.rpe === undefined || typeof set.rpe === 'string') &&
+    // Cardio fields follow the same optional-forever contract: absent = a
+    // pre-cardio payload (or a plain reps_weight set); present values must
+    // be well-typed, and an unrecognized metricMode is rejected.
+    (set.metricMode === undefined || isMetricMode(set.metricMode)) &&
+    (set.duration === undefined || typeof set.duration === 'string') &&
+    (set.distance === undefined || typeof set.distance === 'string')
   )
 }
 

@@ -435,4 +435,52 @@ describe('parseWorkoutInput', () => {
       expect(result.completedAt?.toISOString()).toBe('2026-01-02T10:00:00.000Z')
     })
   })
+
+  describe('cardio metric fields', () => {
+    const cardioWorkout = (set: Record<string, unknown>) => ({
+      exercises: [
+        { wgerExerciseId: 201, name: 'Running', sets: [{ reps: null, weight: null, ...set }] },
+      ],
+    })
+
+    it('accepts metricMode + durationSec/distanceM and normalizes them through', () => {
+      const result = parseWorkoutInput(
+        cardioWorkout({
+          metricMode: 'duration_distance',
+          durationSec: 750,
+          distanceM: 2500,
+          completed: true,
+        }),
+      )
+      expect(result.exercises[0].sets[0]).toEqual({
+        reps: null,
+        weight: null,
+        completed: true,
+        metricMode: 'duration_distance',
+        durationSec: 750,
+        distanceM: 2500,
+      })
+    })
+
+    it('omits absent cardio fields (pre-cardio payloads keep their shape)', () => {
+      const result = parseWorkoutInput(cardioWorkout({}))
+      expect('metricMode' in result.exercises[0].sets[0]).toBe(false)
+      expect('durationSec' in result.exercises[0].sets[0]).toBe(false)
+    })
+
+    it('rejects an off-whitelist metricMode', () => {
+      expect(() => parseWorkoutInput(cardioWorkout({ metricMode: 'laps' }))).toThrow(/metricMode/)
+    })
+
+    it('rejects a non-integer, negative, or absurd durationSec', () => {
+      expect(() => parseWorkoutInput(cardioWorkout({ durationSec: 1.5 }))).toThrow(/durationSec/)
+      expect(() => parseWorkoutInput(cardioWorkout({ durationSec: -1 }))).toThrow(/durationSec/)
+      expect(() => parseWorkoutInput(cardioWorkout({ durationSec: 90_000 }))).toThrow(/durationSec/)
+    })
+
+    it('rejects a negative or past-column-cap distanceM', () => {
+      expect(() => parseWorkoutInput(cardioWorkout({ distanceM: -1 }))).toThrow(/distanceM/)
+      expect(() => parseWorkoutInput(cardioWorkout({ distanceM: 10_000_000 }))).toThrow(/distanceM/)
+    })
+  })
 })
