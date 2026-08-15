@@ -47,3 +47,28 @@ export function noteChipLabel(body: string): string {
     .trim()
   return plain.length > CHIP_LABEL_MAX ? `${plain.slice(0, CHIP_LABEL_MAX - 1)}…` : plain
 }
+
+/**
+ * Last-session echo (Hevy's one-session resurface) — the middle tier between
+ * "session-only note" and "pinned forever". Shows the PREVIOUS session's
+ * per-instance note exactly once, and only while it still adds anything:
+ *
+ * - `prevSessionNote` must be a real note (non-blank) — no history, no echo;
+ * - `currentSessionNote` must still be empty — writing this session's note
+ *   (including tap-to-copy) retires the echo;
+ * - `shownPinned` (the note the pinned chip is ALREADY showing, i.e. the
+ *   `stickyNote` result) must not carry the same text — one surface per fact.
+ *
+ * Returns the trimmed echo text, or null for "render nothing".
+ */
+export function lastSessionEcho(
+  prevSessionNote: string | null | undefined,
+  currentSessionNote: string,
+  shownPinned: IdentityNote | null,
+): string | null {
+  const prev = prevSessionNote?.trim() ?? ''
+  if (prev === '') return null
+  if (currentSessionNote.trim() !== '') return null
+  if (shownPinned !== null && shownPinned.body.trim() === prev) return null
+  return prev
+}

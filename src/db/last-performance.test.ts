@@ -55,7 +55,15 @@ beforeEach(() => {
 describe('getLastPerformance', () => {
   it('maps the most recent performance to its sets in order', async () => {
     selectResults = [
-      [{ exerciseId: 'e1', performedAt: PERFORMED_AT, noteBody: null, notePinned: null }],
+      [
+        {
+          exerciseId: 'e1',
+          performedAt: PERFORMED_AT,
+          noteBody: null,
+          notePinned: null,
+          sessionNote: null,
+        },
+      ],
       [
         { reps: 5, weight: 100 },
         { reps: 5, weight: 95 },
@@ -71,7 +79,27 @@ describe('getLastPerformance', () => {
         { reps: 5, weight: 95 },
       ],
       note: null,
+      sessionNote: null,
     })
+  })
+
+  it("carries the previous session's per-instance note in the same query", async () => {
+    selectResults = [
+      [
+        {
+          exerciseId: 'e1',
+          performedAt: PERFORMED_AT,
+          noteBody: null,
+          notePinned: null,
+          sessionNote: 'Felt strong, add 2.5',
+        },
+      ],
+      [{ reps: 5, weight: 100 }],
+    ]
+
+    const result = await getLastPerformance(USER, 'wger', 73)
+
+    expect(result?.sessionNote).toBe('Felt strong, add 2.5')
   })
 
   it('carries the identity note from the LEFT JOIN when one exists', async () => {

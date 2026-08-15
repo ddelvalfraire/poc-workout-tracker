@@ -626,6 +626,7 @@ describe('registerReadTools', () => {
           { reps: 8, weight: null },
         ],
         note: null,
+        sessionNote: null,
       })
 
       // Act
@@ -658,6 +659,7 @@ describe('registerReadTools', () => {
         performedAt: new Date('2026-05-20T12:00:00.000Z'),
         sets: [{ reps: 5, weight: 95 }],
         note: { body: '**Seat pin 4**', pinned: true },
+        sessionNote: null,
       })
 
       // Act
