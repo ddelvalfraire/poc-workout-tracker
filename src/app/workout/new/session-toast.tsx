@@ -54,6 +54,8 @@ interface SessionToastProps {
 
 /** Exit backstop, same shape as use-animated-sheet-close: longest exit + slack. */
 const EXIT_BACKSTOP_MS = 240
+/** Slack past the drain's own duration before the leak guard may act. */
+const LEAK_GUARD_GRACE_MS = 1_000
 
 /** Live media-query subscription; false until mounted (SSR-safe). */
 function usePrefersReducedMotion(): boolean {
@@ -132,10 +134,31 @@ export function SessionToast({ open, countdown, exit = 'default', children }: Se
     return () => clearInterval(id)
   }, [reducedMotion, open, durationMs, resetKey])
 
+  // Leak guard: dismissal normally rides the drain's animationend, but that
+  // event can be lost (throttled background tab, an animation canceled instead
+  // of completed) and the toast would sit open forever. A generous timeout
+  // catches the leak — and because the CSS hover/focus pause must keep
+  // winning, a guard firing while the strip is hovered or focused re-arms for
+  // another window instead of dismissing out from under the user.
+  const rootRef = useRef<HTMLDivElement | null>(null)
+  useEffect(() => {
+    if (reducedMotion || !open || durationMs === undefined) return
+    let id: ReturnType<typeof setTimeout>
+    const arm = (ms: number) => {
+      id = setTimeout(() => {
+        if (rootRef.current?.matches(':hover, :focus-within')) arm(durationMs)
+        else onExpireRef.current?.()
+      }, ms)
+    }
+    arm(durationMs + LEAK_GUARD_GRACE_MS)
+    return () => clearTimeout(id)
+  }, [reducedMotion, open, durationMs, resetKey])
+
   if (phase === 'closed') return null
 
   return (
     <div
+      ref={rootRef}
       role="status"
       className={cn(
         // `session-toast` scopes the pause-on-hover/focus rule for the drain
