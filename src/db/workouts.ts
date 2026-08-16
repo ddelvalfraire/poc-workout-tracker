@@ -639,7 +639,11 @@ function patchCanBreakCompletion(patch: SetPatch): boolean {
   return (
     patch.completed === true ||
     patch.weight === null ||
+    // <= 0 matches assertPatchedSetCompletable's "missing" definition — the
+    // MCP arg floor (min 1) forecloses 0 today, but this API has no floor of
+    // its own and a future caller must not defeat the completion guarantee.
     patch.durationSec === null ||
+    (patch.durationSec !== undefined && patch.durationSec <= 0) ||
     patch.metricMode !== undefined
   )
 }

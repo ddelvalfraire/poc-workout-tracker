@@ -464,3 +464,19 @@ describe('updateExerciseMeta (user-scoped)', () => {
     expect(records).toEqual([])
   })
 })
+
+describe('patchCanBreakCompletion zero-duration guard (review follow-up)', () => {
+  it('a bare durationSec: 0 patch on a completed cardio set is refused, not fast-pathed', async () => {
+    // Arrange — stored: completed duration set; patch blanks via zero with no
+    // completed/metricMode field, which previously skipped the pre-write read.
+    selectQueue = [
+      [{ id: 'we1' }],
+      [{ completed: true, metricMode: 'duration', weight: null, durationSec: 600 }],
+    ]
+
+    // Act + Assert
+    await expect(
+      updateSet(USER, WID, 0, 1, { durationSec: 0 }),
+    ).rejects.toThrow(/duration/)
+  })
+})
