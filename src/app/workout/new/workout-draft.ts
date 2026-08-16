@@ -194,8 +194,10 @@ export function newDraftExercise(picked: {
   category: string
 }): DraftExercise {
   return {
-    id: crypto.randomUUID(),
     ...picked,
+    // AFTER the spread (defense-in-depth): a smuggled `id` riding a hostile
+    // pick object must never beat the fresh uuid.
+    id: crypto.randomUUID(),
     source: picked.source ?? 'wger',
     loggingType: 'weight_reps',
     notes: '',
@@ -216,8 +218,9 @@ export function replacementDraftExercise(
   setCount: number,
 ): DraftExercise {
   return {
-    id: crypto.randomUUID(),
     ...picked,
+    // AFTER the spread (defense-in-depth) — same rule as newDraftExercise.
+    id: crypto.randomUUID(),
     source: picked.source ?? 'wger',
     loggingType: 'weight_reps',
     // Fresh note and skip state: both belonged to the old movement.

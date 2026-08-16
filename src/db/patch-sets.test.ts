@@ -82,9 +82,32 @@ vi.mock('./index', () => ({
 }))
 
 import { updateSet, addSet, removeSet, updateWorkoutMeta, updateExerciseMeta } from './workouts'
+import { SetCompletionError } from './workout-errors'
 
 const USER = 'user_123'
 const WID = '11111111-1111-1111-1111-111111111111'
+
+/** The row shape updateSet's completion read-gate selects, with overridable
+ *  fields — defaults model an uncompleted reps_weight set on a weight_reps
+ *  exercise. */
+function rowRead(
+  overrides: Partial<{
+    completed: boolean
+    weight: number | null
+    durationSec: number | null
+    metricMode: string
+    loggingType: string
+  }> = {},
+) {
+  return {
+    completed: false,
+    weight: null,
+    durationSec: null,
+    metricMode: 'reps_weight',
+    loggingType: 'weight_reps',
+    ...overrides,
+  }
+}
 
 beforeEach(() => {
   records.length = 0
@@ -109,9 +132,9 @@ describe('updateSet (user-scoped)', () => {
     expect(result).toEqual({ id: 's9' })
   })
 
-  it('patches the completed flag alone (a check-off is a valid single-field edit)', async () => {
-    // Arrange
-    selectQueue = [[{ id: 'ex1' }]]
+  it('completes a set after the pre-write read proves its metric is present', async () => {
+    // Arrange — ownership lookup, then the completion read-gate's row
+    selectQueue = [[{ id: 'ex1' }], [rowRead({ weight: 100 })]]
 
     // Act
     const result = await updateSet(USER, WID, 0, 3, { completed: true })
@@ -119,6 +142,86 @@ describe('updateSet (user-scoped)', () => {
     // Assert — only the flag written, and it still counts as a non-empty patch
     expect(records[0].values).toEqual({ completed: true })
     expect(result).toEqual({ id: 's9' })
+  })
+
+  it('refuses completing a weight-less weight_reps set (SetCompletionError, no write)', async () => {
+    // Arrange
+    selectQueue = [[{ id: 'ex1' }], [rowRead({ weight: null })]]
+
+    // Act + Assert — #206 at the db boundary
+    await expect(updateSet(USER, WID, 0, 3, { completed: true })).rejects.toBeInstanceOf(
+      SetCompletionError,
+    )
+    expect(records).toEqual([])
+  })
+
+  it('refuses nulling the weight of a completed weight_reps set; bodyweight is exempt', async () => {
+    // Arrange — the row is already completed; the patch would blank its metric
+    selectQueue = [[{ id: 'ex1' }], [rowRead({ completed: true, weight: 80 })]]
+
+    // Act + Assert
+    await expect(updateSet(USER, WID, 0, 3, { weight: null })).rejects.toBeInstanceOf(
+      SetCompletionError,
+    )
+    expect(records).toEqual([])
+
+    // Arrange — same patch on a bodyweight exercise reads fine
+    selectQueue = [
+      [{ id: 'ex1' }],
+      [rowRead({ completed: true, weight: null, loggingType: 'bodyweight_reps' })],
+    ]
+
+    // Act
+    const result = await updateSet(USER, WID, 0, 3, { weight: null })
+
+    // Assert
+    expect(result).toEqual({ id: 's9' })
+  })
+
+  it('refuses nulling the duration of a completed cardio set, and a mode flip that strands one', async () => {
+    // Arrange — completed duration set; the patch blanks its metric
+    selectQueue = [
+      [{ id: 'ex1' }],
+      [rowRead({ completed: true, durationSec: 1800, metricMode: 'duration' })],
+    ]
+
+    // Act + Assert
+    await expect(updateSet(USER, WID, 0, 3, { durationSec: null })).rejects.toBeInstanceOf(
+      SetCompletionError,
+    )
+
+    // Arrange — flipping a completed reps_weight set to duration with no duration
+    selectQueue = [[{ id: 'ex1' }], [rowRead({ completed: true, weight: 100 })]]
+
+    // Act + Assert
+    await expect(updateSet(USER, WID, 0, 3, { metricMode: 'duration' })).rejects.toBeInstanceOf(
+      SetCompletionError,
+    )
+  })
+
+  it('skips the pre-write read when the patch cannot break completion (fast path)', async () => {
+    // Arrange — ONLY the ownership lookup is queued; a second select would
+    // shift an empty result and null the update, so success proves no read.
+    selectQueue = [[{ id: 'ex1' }]]
+
+    // Act
+    const result = await updateSet(USER, WID, 0, 3, { reps: 5, weight: 100 })
+
+    // Assert
+    expect(result).toEqual({ id: 's9' })
+    expect(records.map((r) => r.op)).toEqual(['update:sets', 'update:workouts'])
+  })
+
+  it('returns null (not-found) when the completion read finds no such set', async () => {
+    // Arrange — owned, but the read-gate finds no row
+    selectQueue = [[{ id: 'ex1' }], []]
+
+    // Act
+    const result = await updateSet(USER, WID, 0, 9, { completed: true })
+
+    // Assert — no write, no completion stamp
+    expect(result).toBeNull()
+    expect(records).toEqual([])
   })
 
   it('does not stamp completion when no such set exists', async () => {

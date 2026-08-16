@@ -36,6 +36,11 @@ export function formatDurationInput(totalSec: number): string {
  * "h:mm:ss", and a bare number (MINUTES, decimals allowed: "1.5" = 90 s).
  * Seconds/minutes segments past 59 in colon form are rejected — "1:75" is a
  * typo, not 2:15. Values above MAX_DURATION_SEC are invalid, not clamped.
+ *
+ * Zero is unrepresentable BY DESIGN: "0:00" parses to null here, the wire
+ * (parseWorkoutInput) normalizes durationSec 0 → null, and the MCP set tools
+ * reject 0 outright — so a stored 0 can never exist to round-trip through an
+ * edit. Same story for a zero distance below.
  */
 export function parseDurationInput(value: string): number | null {
   const trimmed = value.trim()

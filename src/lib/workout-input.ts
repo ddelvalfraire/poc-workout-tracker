@@ -197,8 +197,12 @@ export function parseStartedAt(raw: unknown): Date | undefined {
   return parsePastDate(raw, 'startedAt')
 }
 
-/** Validates a single set: reps a non-negative integer or null, weight a non-negative finite number or null. */
-function parseSet(raw: unknown): SetInput {
+/** Validates a single set: reps a non-negative integer or null, weight a non-negative finite number or null.
+ *  `loggingType` is the owning exercise's effective logging type — the
+ *  completed-set gate needs it because weight is only required reading for
+ *  `weight_reps` (the three bodyweight modes read the weight column
+ *  differently, or not at all). */
+function parseSet(raw: unknown, loggingType: LoggingType): SetInput {
   const obj = asRecord(raw, 'each set must be an object')
 
   const { reps } = obj
@@ -274,6 +278,48 @@ function parseSet(raw: unknown): SetInput {
     throw new Error(`set distanceM must be a number between 0 and ${MAX_DISTANCE_M} m, or null`)
   }
 
+  // ---- Cross-field rules (the wire mirrors draftToInput's exclusivity) ----
+  // A zero duration/distance carries no logged fact — normalize to null BEFORE
+  // the gates below, so a completed set with `0` reads as missing its metric
+  // and a stored 0 (unrepresentable by the edit codecs in lib/duration.ts)
+  // never reaches a row.
+  const mode: WorkoutMetricMode = isMetricMode(metricMode) ? metricMode : 'reps_weight'
+  const normDurationSec = durationSec === 0 ? null : (durationSec as number | null | undefined)
+  const normDistanceM = distanceM === 0 ? null : (distanceM as number | null | undefined)
+
+  // Each mode speaks ONLY its own metrics. draftToInput already nulls the
+  // irrelevant fields, so a non-null value here can only come from a non-draft
+  // caller (MCP, hostile client) — refuse it rather than let a stray value
+  // ride into scoring.
+  if (mode === 'reps_weight') {
+    if (normDurationSec != null) {
+      throw new Error('a reps_weight set must not carry durationSec (set metricMode to a duration mode)')
+    }
+    if (normDistanceM != null) {
+      throw new Error('a reps_weight set must not carry distanceM (set metricMode to duration_distance)')
+    }
+  } else {
+    if (reps != null) throw new Error(`a ${mode} set must not carry reps`)
+    if (weight != null) throw new Error(`a ${mode} set must not carry weight`)
+    if (mode === 'duration' && normDistanceM != null) {
+      throw new Error('a duration set must not carry distanceM (use duration_distance)')
+    }
+  }
+
+  // #206 at the wire: a COMPLETED set must carry its required metric — weight
+  // for weight_reps exercises (bodyweight modes are exempt), a positive
+  // duration for the cardio modes. A completed set without its metric is a
+  // phantom fact that would poison history and scoring.
+  if (completed === true) {
+    if (mode === 'reps_weight') {
+      if (loggingType === 'weight_reps' && weight === null) {
+        throw new Error('a completed set needs a weight when the exercise logs weight × reps')
+      }
+    } else if (normDurationSec == null) {
+      throw new Error(`a completed ${mode} set needs a duration`)
+    }
+  }
+
   return {
     reps: reps as number | null,
     weight: weight as number | null,
@@ -282,8 +328,8 @@ function parseSet(raw: unknown): SetInput {
     ...(rir !== undefined && { rir: rir as number | null }),
     ...(rpe !== undefined && { rpe: rpe as number | null }),
     ...(isMetricMode(metricMode) && { metricMode }),
-    ...(durationSec !== undefined && { durationSec: durationSec as number | null }),
-    ...(distanceM !== undefined && { distanceM: distanceM as number | null }),
+    ...(normDurationSec !== undefined && { durationSec: normDurationSec }),
+    ...(normDistanceM !== undefined && { distanceM: normDistanceM }),
   }
 }
 
@@ -327,7 +373,8 @@ function parseExercise(raw: unknown): ExerciseInput {
   }
 
   if (!Array.isArray(obj.sets)) throw new Error('exercise sets must be an array')
-  const sets = obj.sets.map(parseSet)
+  const effectiveLoggingType: LoggingType = isLoggingType(loggingType) ? loggingType : 'weight_reps'
+  const sets = obj.sets.map((set) => parseSet(set, effectiveLoggingType))
 
   return {
     wgerExerciseId: wgerExerciseId as number,

@@ -19,6 +19,7 @@ import type { SetType } from '@/lib/program-input'
 import type { ExerciseSource } from '@/lib/custom-exercise-input'
 import { db } from './index'
 import { workouts, workoutExercises, sets, exerciseNotes } from './schema'
+import { SetCompletionError } from './workout-errors'
 
 /**
  * Data access for workouts, always scoped to a Clerk userId.
@@ -630,10 +631,66 @@ async function stampWorkoutCompleted(tx: Tx, workoutId: string): Promise<void> {
 }
 
 /**
+ * True when applying `patch` could leave the addressed set completed WITHOUT
+ * its required metric — the only shapes that force a pre-write read. Anything
+ * else keeps the original no-read fast path.
+ */
+function patchCanBreakCompletion(patch: SetPatch): boolean {
+  return (
+    patch.completed === true ||
+    patch.weight === null ||
+    patch.durationSec === null ||
+    patch.metricMode !== undefined
+  )
+}
+
+/**
+ * #206 (and its cardio parity) at the DB boundary: given the CURRENT row and
+ * the patch, refuses any edit whose post-patch state is a completed set with
+ * no required metric — no weight on a weight_reps-logged reps_weight set, no
+ * positive duration on a cardio set. Throws `SetCompletionError` (invalid,
+ * surfaced verbatim by the tool layer) — distinct from `null` = not-found.
+ */
+function assertPatchedSetCompletable(
+  row: {
+    completed: boolean
+    weight: number | null
+    durationSec: number | null
+    /** Raw column text (the schema doesn't $type this column); the whitelist
+     *  was enforced on the way in, so comparing literals is safe. */
+    metricMode: string
+    loggingType: LoggingType
+  },
+  patch: SetPatch,
+): void {
+  const completed = patch.completed ?? row.completed
+  if (!completed) return
+  const mode = patch.metricMode ?? row.metricMode
+  if (mode === 'reps_weight') {
+    const weight = patch.weight !== undefined ? patch.weight : row.weight
+    if (row.loggingType === 'weight_reps' && weight === null) {
+      throw new SetCompletionError(
+        'a completed set needs a weight when the exercise logs weight × reps — set a weight in the same call, or uncomplete the set',
+      )
+    }
+  } else {
+    const durationSec = patch.durationSec !== undefined ? patch.durationSec : row.durationSec
+    if (durationSec === null || durationSec <= 0) {
+      throw new SetCompletionError(
+        `a completed ${mode} set needs a duration — set durationSec in the same call, or uncomplete the set`,
+      )
+    }
+  }
+}
+
+/**
  * Updates one set (reps and/or weight) of an owned workout's exercise, addressed
  * by 0-based exercise `position` and 1-based `setNumber`. Returns null when the
  * patch is empty, the workout isn't owned, the position is absent, or no such set
- * exists — the tool layer turns that into a not-found.
+ * exists — the tool layer turns that into a not-found. Throws
+ * `SetCompletionError` when the patch would leave a completed set without its
+ * required metric (see `assertPatchedSetCompletable`); patches that can't
+ * produce that state keep the original no-read fast path.
  */
 export async function updateSet(
   userId: string,
@@ -656,6 +713,22 @@ export async function updateSet(
   return db.transaction(async (tx) => {
     const exerciseId = await findOwnedExerciseId(tx, userId, workoutId, exercisePosition)
     if (!exerciseId) return null
+    if (patchCanBreakCompletion(patch)) {
+      const [row] = await tx
+        .select({
+          completed: sets.completed,
+          weight: sets.weight,
+          durationSec: sets.durationSec,
+          metricMode: sets.metricMode,
+          loggingType: workoutExercises.loggingType,
+        })
+        .from(sets)
+        .innerJoin(workoutExercises, eq(workoutExercises.id, sets.workoutExerciseId))
+        .where(and(eq(sets.workoutExerciseId, exerciseId), eq(sets.setNumber, setNumber)))
+        .limit(1)
+      if (!row) return null
+      assertPatchedSetCompletable(row, patch)
+    }
     const [updated] = await tx
       .update(sets)
       .set(values)
