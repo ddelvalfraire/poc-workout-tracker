@@ -58,6 +58,11 @@ export function noteChipLabel(body: string): string {
  *   (including tap-to-copy) retires the echo;
  * - `shownPinned` (the note the pinned chip is ALREADY showing, i.e. the
  *   `stickyNote` result) must not carry the same text — one surface per fact.
+ *   Both surfaces render through `noteChipLabel`, so "same text" is judged by
+ *   the label the user actually sees: a pinned "**Seat pin 4**" and a prev
+ *   "Seat pin 4" are the same words on screen even though the raw bodies
+ *   differ. Raw equality implies label equality, so the label check subsumes
+ *   the raw one — a suppressed echo is always a genuine display duplicate.
  *
  * Returns the trimmed echo text, or null for "render nothing".
  */
@@ -69,6 +74,6 @@ export function lastSessionEcho(
   const prev = prevSessionNote?.trim() ?? ''
   if (prev === '') return null
   if (currentSessionNote.trim() !== '') return null
-  if (shownPinned !== null && shownPinned.body.trim() === prev) return null
+  if (shownPinned !== null && noteChipLabel(shownPinned.body) === noteChipLabel(prev)) return null
   return prev
 }
