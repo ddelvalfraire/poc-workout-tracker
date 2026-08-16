@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { cn } from '@/lib/utils'
 
 /**
@@ -95,6 +95,23 @@ export function SessionToast({ open, countdown, exit = 'default', children }: Se
     onExpireRef.current = onExpire
   }, [onExpire])
 
+  // One-shot per window: onExpire reaches the owner at most once per
+  // resetKey. The drain's animationend, the reduced-motion interval, and the
+  // leak guard are redundant delivery paths for the SAME expiry — whichever
+  // lands first wins and the rest are swallowed here, so the owner never
+  // sees a double-fire (e.g. animationend at durationMs, then the leak
+  // guard again at the grace deadline).
+  const expiredRef = useRef(false)
+  const windowResetKey = countdown?.resetKey
+  useEffect(() => {
+    expiredRef.current = false
+  }, [windowResetKey])
+  const fireExpire = useCallback(() => {
+    if (expiredRef.current) return
+    expiredRef.current = true
+    onExpireRef.current?.()
+  }, [])
+
   useEffect(() => {
     // Presence state machine: `open` is the external signal; the phase must
     // lag it through 'exiting' so the exit animation gets its frames.
@@ -126,13 +143,13 @@ export function SessionToast({ open, countdown, exit = 'default', children }: Se
       const left = Math.ceil((durationMs - (Date.now() - startedAt)) / 1_000)
       if (left <= 0) {
         clearInterval(id)
-        onExpireRef.current?.()
+        fireExpire()
       } else {
         setRemainingSec(left)
       }
     }, 1_000)
     return () => clearInterval(id)
-  }, [reducedMotion, open, durationMs, resetKey])
+  }, [reducedMotion, open, durationMs, resetKey, fireExpire])
 
   // Leak guard: dismissal normally rides the drain's animationend, but that
   // event can be lost (throttled background tab, an animation canceled instead
@@ -147,12 +164,12 @@ export function SessionToast({ open, countdown, exit = 'default', children }: Se
     const arm = (ms: number) => {
       id = setTimeout(() => {
         if (rootRef.current?.matches(':hover, :focus-within')) arm(durationMs)
-        else onExpireRef.current?.()
+        else fireExpire()
       }, ms)
     }
     arm(durationMs + LEAK_GUARD_GRACE_MS)
     return () => clearTimeout(id)
-  }, [reducedMotion, open, durationMs, resetKey])
+  }, [reducedMotion, open, durationMs, resetKey, fireExpire])
 
   if (phase === 'closed') return null
 
@@ -201,7 +218,7 @@ export function SessionToast({ open, countdown, exit = 'default', children }: Se
             key={countdown.resetKey}
             className="toast-drain h-full w-full bg-primary"
             style={{ animationDuration: `${countdown.durationMs}ms` }}
-            onAnimationEnd={() => onExpireRef.current?.()}
+            onAnimationEnd={fireExpire}
           />
         </div>
       )}
