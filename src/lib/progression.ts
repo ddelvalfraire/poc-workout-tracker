@@ -179,7 +179,12 @@ export function applyOverride(
   if (override.repMax !== null) overridden.repMax = override.repMax
   if (override.rir !== null) overridden.rir = override.rir
   if (override.rpe !== null) overridden.rpe = override.rpe
-  if (override.suggestedLoadKg !== null) overridden.loadKg = override.suggestedLoadKg
+  // Metric-mode guard (cardio v1): a load override is meaningless on a timed
+  // row — the derivation guard keeps loadKg null there, and a stray/legacy
+  // per-week suggestedLoadKg must not resurrect a load onto a duration set.
+  // Every other override field still applies.
+  if (override.suggestedLoadKg !== null && set.metricMode === 'reps_weight')
+    overridden.loadKg = override.suggestedLoadKg
   if (override.tempo !== null) overridden.tempo = override.tempo
   if (override.durationSec !== null) overridden.durationSec = override.durationSec
   if (override.distanceM !== null) overridden.distanceM = override.distanceM
@@ -472,10 +477,16 @@ export function deriveWeekSets(args: {
   // deloadWeek; whether that week gets the deload treatment is the policy's.
   const isDeload = deloadWeek !== null && week === deloadWeek && policy.mode === 'scheduled'
 
-  // The 0-based index of each set among the PROGRESSED sets — amrap-cycle
-  // percents address working/backoff/amrap sets in order, skipping warmups.
+  // The 0-based index of each set among the progressed LIFTING sets —
+  // amrap-cycle percents address reps_weight working/backoff/amrap sets in
+  // order. Warmups AND timed rows are skipped: the metric-mode guard no-ops
+  // the scheme on a timed set, so letting one consume a wave-percent slot
+  // would shift the lifting rows onto the WRONG percents (75/85 instead of
+  // 65/75) — a wrong prescription, not a no-op.
   let progressedCount = 0
-  const progressedIdx = sets.map((s) => (isProgressed(s.setType) ? progressedCount++ : -1))
+  const progressedIdx = sets.map((s) =>
+    isProgressed(s.setType) && s.metricMode === 'reps_weight' ? progressedCount++ : -1,
+  )
 
   let derived: DerivedSet[] = sets.map((set, sourceIndex) => {
     // Metric-mode guard (cardio v1): load-anchored schemes are meaningless
