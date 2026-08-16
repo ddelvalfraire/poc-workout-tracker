@@ -183,12 +183,13 @@ export interface AutoregAdjustment {
    *  hold). Absent everywhere else. */
   heldBackoffKg?: number
   /** The landing load a decrement was actually APPLIED at (kg) — stamped by
-   *  the derive layer AFTER per-set quantization (the heaviest autoreg-
-   *  adjusted working set of `applyAutoregToSets` + the anti-fixed-point
-   *  quantizer). `autoregReason`'s "Drop to X" prints THIS when present, so
-   *  the reason and the prescription always speak from one number; absent
-   *  (raw engine verdicts, invariant checks) the reason falls back to
-   *  recomputing from the evidence load. */
+   *  the derive layer AFTER per-set quantization (`stampAppliedLoad`: the
+   *  adjusted working set of the EVIDENCE bucket — the set whose scheme load
+   *  matches `evidence.loadKg` — falling back to the heaviest adjusted set
+   *  only when no set matches). `autoregReason`'s "Drop to X" prints THIS
+   *  when present, so the reason and the prescription always speak from one
+   *  number; absent (raw engine verdicts, invariant checks) the reason falls
+   *  back to recomputing from the evidence load. */
   appliedLoadKg?: number
   /** Effort-gate annotation (lib/effort-gate.ts, RPE plan slice 3):
    *  'overshoot' — reps hit but the top set ran a full RPE point hot, the
@@ -946,21 +947,23 @@ export function autoregulate(
     ...anchorRider(nullAnchor),
     evidence: latestStall,
   }
+  // Recognition rides EVERY verdict shape (#227): a repeat that would read
+  // as a miss leads with the beat; a decrement keeps its (load-changing)
+  // stall story in the reason line but still CARRIES the annotation, so an
+  // e1RM-beating session never renders as pure "goal not met".
   return consecutive >= STALLS_BEFORE_DECREMENT
     ? {
         action: 'decrement' as const,
         deltaKg: -backoffKg(latestStall.loadKg, incrementKg),
         suggestEarlyDeload: true,
         ...shared,
+        ...(overshoot ? { overshoot } : {}),
       }
     : {
         action: 'repeat' as const,
         deltaKg: 0,
         suggestEarlyDeload: false,
         ...shared,
-        // Recognition on HOLDS only (#227): a repeat that would read as a
-        // miss leads with the beat instead; a decrement keeps its
-        // (load-changing) stall story — a hold reason there would be a lie.
         ...(overshoot ? { overshoot } : {}),
       }
 }
@@ -1213,6 +1216,10 @@ export function autoregulateRange(
         deltaKg: -backoffKg(evidence.loadKg, stepKg),
         suggestEarlyDeload: true,
         ...shared,
+        // Recognition rides decrements too (#227) — same contract as fixed
+        // mode: the reason keeps its stall story, the annotation carries the
+        // beat so it never renders as pure "goal not met".
+        ...(overshoot ? { overshoot } : {}),
       }
     }
   }
@@ -1221,7 +1228,7 @@ export function autoregulateRange(
     deltaKg: 0,
     suggestEarlyDeload: false,
     ...shared,
-    // Recognition on holds only (#227) — same contract as fixed mode.
+    // Recognition on holds (#227) — same contract as fixed mode.
     ...(overshoot ? { overshoot } : {}),
   }
 }
@@ -1398,6 +1405,39 @@ export function applyAutoregToSets(
 }
 
 /**
+ * Stamps a decrement verdict with the landing load the application ACTUALLY
+ * produced, so `autoregReason`'s "Drop to X" and the prescription can never
+ * diverge. The reason's evidence names the heaviest MISSED load, so X must
+ * be the adjusted landing load of that EVIDENCE bucket — the set whose
+ * pre-adjustment scheme load matches `evidence.loadKg` (ε-or-increment
+ * identity, same `loadsMatch` tolerance as scoring). In a multi-load session
+ * the heaviest ADJUSTED set can belong to a PASSING bucket (top 100 kg held,
+ * back-off 80 kg stalling → "Drop to 91.25 — stalled at 80" is not a drop);
+ * the fallback to the heaviest adjusted working load fires only when no set
+ * matches the evidence bucket (mid-cycle edits can orphan it). Verdict
+ * unchanged when nothing was adjusted. Callers pass the sets AFTER per-set
+ * quantization (`quantizeAdjustedLoadKg`) so the stamp is the number that
+ * actually lands on the plan.
+ */
+export function stampAppliedLoad(
+  adjustment: AutoregAdjustment,
+  sets: readonly DerivedSet[],
+  unit?: WeightUnit,
+): AutoregAdjustment {
+  let evidenceTop: number | null = null
+  let top: number | null = null
+  for (const set of sets) {
+    if (set.setType === 'warmup' || set.derivedFrom !== 'autoreg' || set.loadKg === null) continue
+    if (top === null || set.loadKg > top) top = set.loadKg
+    if (set.schemeLoadKg != null && sameLoad(set.schemeLoadKg, adjustment.evidence.loadKg, unit)) {
+      if (evidenceTop === null || set.loadKg > evidenceTop) evidenceTop = set.loadKg
+    }
+  }
+  const applied = evidenceTop ?? top
+  return applied === null ? adjustment : { ...adjustment, appliedLoadKg: applied }
+}
+
+/**
  * The lifter-facing reason line — every adjustment ships one (the PRD's
  * transparency contract). Display unit applied here, not in the engine.
  * Voice bar (#228): imperative, what-to-do-and-why, the lifter's actual
@@ -1427,16 +1467,21 @@ export function autoregReason(adjustment: AutoregAdjustment, unit: WeightUnit): 
   // that actually landed. The fallback (raw engine verdicts) recomputes with
   // the SAME anti-fixed-point quantization the application path uses (#226),
   // so a light-load ~10% backoff can never claim the stalled load itself.
-  const droppedTo = () =>
-    `${kgToDisplay(
-      adjustment.appliedLoadKg ??
-        quantizeAdjustedLoadKg(
-          adjustment.evidence.loadKg + adjustment.deltaKg,
-          adjustment.evidence.loadKg,
-          unit,
-        ),
+  const droppedKg = () =>
+    adjustment.appliedLoadKg ??
+    quantizeAdjustedLoadKg(
+      adjustment.evidence.loadKg + adjustment.deltaKg,
+      adjustment.evidence.loadKg,
       unit,
-    )} ${unit}`
+    )
+  const droppedTo = () => `${kgToDisplay(droppedKg(), unit)} ${unit}`
+  // Floor-pinned decrement (#228): the one-increment floor made the cut a
+  // no-op — the applied load quantizes back onto the evidence load. "Drop to
+  // X — stalled at X" would phrase changing nothing as a change; hold voice
+  // is the honest rendering.
+  const pinnedAtFloor = () =>
+    quantizeDisplayLoad(droppedKg(), unit) ===
+    quantizeDisplayLoad(adjustment.evidence.loadKg, unit)
   // Cutting framing (honest copy rule: stalls are EXPECTED under a deficit
   // and holding is the win — never a claim that cutting impairs strength).
   // One sentence owns every cutting-annotated 3-stall verdict: the M4 flag
@@ -1483,6 +1528,9 @@ export function autoregReason(adjustment: AutoregAdjustment, unit: WeightUnit): 
   if (adjustment.range) {
     const { totalReps, prevTotalReps, stalls } = adjustment.range
     if (adjustment.action === 'decrement') {
+      if (pinnedAtFloor()) {
+        return `Stay at ${load} — no new reps for ${stalls} straight sessions (already at the smallest load)`
+      }
       return `Drop to ${droppedTo()} — no new reps at ${load} for ${stalls} straight sessions (~10% off)`
     }
     const cutting = adjustment.phaseContext === 'cutting' ? ' (expected while cutting)' : ''
@@ -1491,6 +1539,9 @@ export function autoregReason(adjustment: AutoregAdjustment, unit: WeightUnit): 
       : `${repFillHoldReason(load, adjustment.evidence.repFloor)}${cutting}`
   }
   if (adjustment.action === 'decrement') {
+    if (pinnedAtFloor()) {
+      return `Stay at ${load} — stalled 3 sessions straight (already at the smallest load)`
+    }
     return `Drop to ${droppedTo()} — stalled at ${load} 3 sessions straight (~10% off)`
   }
   const { missedSets, scorableSets, repFloor } = adjustment.evidence
