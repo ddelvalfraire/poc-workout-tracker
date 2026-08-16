@@ -13,6 +13,7 @@ vi.mock('@/db/preferences', () => ({ getWeightUnit: vi.fn() }))
 import { registerPatchTools } from './patch-tools'
 import { updateSet, addSet, removeSet, updateWorkoutMeta, updateExerciseMeta } from '@/db/workouts'
 import { getWeightUnit } from '@/db/preferences'
+import { SetCompletionError } from '@/db/workout-errors'
 import { displayToKg } from '@/lib/units'
 
 const mockedUpdateSet = vi.mocked(updateSet)
@@ -193,22 +194,60 @@ describe('registerPatchTools', () => {
       expect(mockedUpdateSet).not.toHaveBeenCalled()
     })
 
-    it('accepts a completed-only patch (checking a set off is a valid edit)', async () => {
+    it('refuses a completed-only patch (blind completion) but accepts completed + its metric', async () => {
       // Arrange
       const tools = setup()
       mockedUpdateSet.mockResolvedValue({ id: 's1' })
 
-      // Act
-      const result = await tools.get('update_set')!({
+      // Act — #206 at the tool boundary: checking a set off must carry the
+      // performed metric in the same call.
+      const blind = await tools.get('update_set')!({
         workoutId: WID,
         exercisePosition: 0,
         setNumber: 1,
         completed: true,
       })
 
-      // Assert — flag passed through, no unit resolution needed
-      expect(result.isError).toBeUndefined()
-      expect(mockedUpdateSet).toHaveBeenCalledWith(expect.any(String), WID, 0, 1, { completed: true })
+      // Assert — refused before any db call
+      expect(blind.isError).toBe(true)
+      expect(mockedUpdateSet).not.toHaveBeenCalled()
+
+      // Act — the same check-off WITH the weight goes through
+      const withMetric = await tools.get('update_set')!({
+        workoutId: WID,
+        exercisePosition: 0,
+        setNumber: 1,
+        weight: 100,
+        completed: true,
+        unit: 'kg',
+      })
+
+      // Assert
+      expect(withMetric.isError).toBeUndefined()
+      expect(mockedUpdateSet).toHaveBeenCalledWith(expect.any(String), WID, 0, 1, {
+        completed: true,
+        weight: 100,
+      })
+    })
+
+    it("surfaces the db layer's SetCompletionError message verbatim", async () => {
+      // Arrange — the read-gate inside db updateSet refused the post-patch state
+      const tools = setup()
+      mockedUpdateSet.mockRejectedValue(
+        new SetCompletionError('a completed set needs a weight when the exercise logs weight × reps'),
+      )
+
+      // Act — nulling the weight of a completed set (args alone can't see this)
+      const result = await tools.get('update_set')!({
+        workoutId: WID,
+        exercisePosition: 0,
+        setNumber: 1,
+        weight: null,
+      })
+
+      // Assert
+      expect(result.isError).toBe(true)
+      expect(result.content[0]?.text).toMatch(/completed set needs a weight/)
     })
 
     it('patches logged effort (rir/rpe) through, no unit lookup needed', async () => {

@@ -30,22 +30,29 @@ export type PendingPick =
 
 export const PENDING_PICK_KEY = 'workout:pending-pick'
 
-function isPickExercise(value: unknown): value is PendingPickExercise {
-  if (!value || typeof value !== 'object') return false
+/** Mirrors workout-input's MAX_NAME: a pick with a longer name could only
+ *  wedge every later autosave against the server's payload cap. */
+const MAX_NAME = 200
+
+/** Validates AND rebuilds the picked exercise from exactly its four declared
+ *  fields — a hostile writer's ride-along keys (a smuggled `id`, a `sets`
+ *  blob…) must not survive the boundary and win a later object spread. */
+function toPickExercise(value: unknown): PendingPickExercise | null {
+  if (!value || typeof value !== 'object') return null
   const exercise = value as Record<string, unknown>
-  return (
-    typeof exercise.wgerExerciseId === 'number' &&
-    Number.isInteger(exercise.wgerExerciseId) &&
-    exercise.wgerExerciseId > 0 &&
-    (exercise.source === 'wger' || exercise.source === 'custom') &&
-    typeof exercise.name === 'string' &&
-    exercise.name.length > 0 &&
-    typeof exercise.category === 'string'
-  )
+  const { wgerExerciseId, source, name, category } = exercise
+  if (!(typeof wgerExerciseId === 'number' && Number.isInteger(wgerExerciseId) && wgerExerciseId > 0)) {
+    return null
+  }
+  if (source !== 'wger' && source !== 'custom') return null
+  if (typeof name !== 'string' || name.length === 0 || name.length > MAX_NAME) return null
+  if (typeof category !== 'string') return null
+  return { wgerExerciseId, source, name, category }
 }
 
 /** Validates a raw storage value into a `PendingPick`, or null when it can't
- *  be trusted (absent, malformed JSON, wrong shape). Pure — no storage I/O. */
+ *  be trusted (absent, malformed JSON, wrong shape). Pure — no storage I/O.
+ *  The returned exercise is a FRESH object holding only the validated fields. */
 export function parsePendingPick(raw: unknown): PendingPick | null {
   if (typeof raw !== 'string' || raw === '') return null
   let value: unknown
@@ -56,12 +63,13 @@ export function parsePendingPick(raw: unknown): PendingPick | null {
   }
   if (!value || typeof value !== 'object') return null
   const pick = value as Record<string, unknown>
-  if (!isPickExercise(pick.exercise)) return null
+  const exercise = toPickExercise(pick.exercise)
+  if (!exercise) return null
   if (pick.mode === 'add') {
-    return { mode: 'add', exercise: pick.exercise }
+    return { mode: 'add', exercise }
   }
   if (pick.mode === 'swap' && typeof pick.targetId === 'string' && pick.targetId.length > 0) {
-    return { mode: 'swap', targetId: pick.targetId, exercise: pick.exercise }
+    return { mode: 'swap', targetId: pick.targetId, exercise }
   }
   return null
 }
