@@ -51,6 +51,10 @@ export const HOLD_ACCEL_FACTOR = 5
 /** Per-step feedback: value-dip duration and haptic tick. */
 const STEP_DIP_MS = 150
 const STEP_VIBRATION = 10
+/** How long after a pointer gesture its synthesized click may still arrive
+ *  and be swallowed. Longer than any tap; far shorter than the gap before a
+ *  genuine keyboard/AT activation that must step. */
+const CLICK_SWALLOW_WINDOW_MS = 700
 
 /** Delay before the Nth repeat (0-based): the first waits the long press-in
  *  delay, every later one the fast interval. */
@@ -202,12 +206,29 @@ export function WeightStepper({
   )
   // pointerdown already stepped, so the click that follows pointerup must be
   // swallowed — but ONLY then: keyboard activation arrives as a bare click
-  // and must still step. The guard is cleared ONLY by the click that
-  // consumes it (or re-armed by the next pointerdown) — with implicit
-  // pointer capture on touch, a hold that wobbles off the hit box fires
-  // pointerleave yet the synthesized click still lands on this button, so
-  // resetting the guard there would let a wobbly tap step twice.
-  const pointerSteppedRef = useRef(false)
+  // and must still step. The guard is a TIMESTAMP, not a flag: a click is
+  // swallowed only within CLICK_SWALLOW_WINDOW_MS of the pointer gesture's
+  // latest event (down/up/leave all refresh it), so a stale guard from a
+  // gesture whose click never came can't eat a keyboard step minutes later.
+  // With implicit pointer capture on touch, a hold that wobbles off the hit
+  // box fires pointerleave yet the synthesized click still lands on this
+  // button — the leave refreshes (never clears) the stamp so that click is
+  // still swallowed. pointercancel clears it: a canceled pointer synthesizes
+  // no click, so whatever click comes next is a fresh gesture that must step.
+  const pointerSteppedAtRef = useRef<number | null>(null)
+  // Which segment owns the live hold chain. While a chain is active, a
+  // second finger landing on the other segment is IGNORED (no step, no chain
+  // replacement) — and only the owning segment's up/leave/cancel may stop
+  // the chain, so a stray second finger can't kill a hold mid-flight.
+  const activeHoldRef = useRef<1 | -1 | null>(null)
+  const endHold = useCallback(
+    (direction: 1 | -1) => {
+      if (activeHoldRef.current !== direction) return
+      activeHoldRef.current = null
+      stopHold()
+    },
+    [stopHold],
+  )
 
   // The − half is "disabled" at the effective 0 floor: same base extraction
   // as stepWeightValue so the two can never disagree about where 0 is.
@@ -246,19 +267,36 @@ export function WeightStepper({
                 // Keeps the weight input focused (and the iOS keyboard up) —
                 // pointer delivery continues, so the hold chain still runs.
                 e.preventDefault()
+                // Arm the swallow guard even when this pointerdown won't step
+                // (floored, or a second finger): its synthesized click must
+                // never step either.
+                pointerSteppedAtRef.current = Date.now()
+                // A chain is already live: a second finger on either segment
+                // neither steps nor replaces the chain.
+                if (activeHoldRef.current !== null) return
                 if (isFloored) return
-                pointerSteppedRef.current = true
+                activeHoldRef.current = direction
                 applyStep(direction, 1)
                 startHold(direction)
               }}
-              onPointerUp={stopHold}
-              onPointerCancel={stopHold}
-              onPointerLeave={stopHold}
+              onPointerUp={() => {
+                if (pointerSteppedAtRef.current !== null) pointerSteppedAtRef.current = Date.now()
+                endHold(direction)
+              }}
+              onPointerCancel={() => {
+                // No click follows a canceled pointer — the next click is a
+                // fresh gesture (keyboard/AT) and must step.
+                pointerSteppedAtRef.current = null
+                endHold(direction)
+              }}
+              onPointerLeave={() => {
+                if (pointerSteppedAtRef.current !== null) pointerSteppedAtRef.current = Date.now()
+                endHold(direction)
+              }}
               onClick={() => {
-                if (pointerSteppedRef.current) {
-                  pointerSteppedRef.current = false
-                  return
-                }
+                const armedAt = pointerSteppedAtRef.current
+                pointerSteppedAtRef.current = null
+                if (armedAt !== null && Date.now() - armedAt <= CLICK_SWALLOW_WINDOW_MS) return
                 if (isFloored) return
                 applyStep(direction, 1)
               }}

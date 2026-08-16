@@ -65,10 +65,12 @@ export function EffortChips({
   // pre-expanded when RPE is the scale already logged on this set.
   const [showRpe, setShowRpe] = useState(rpe !== '' && rir === '')
 
-  // Idle collapse: armed on mount, re-armed by any interaction inside the
-  // row (pointerdown on the root catches chips, scale switch, and misses),
-  // cleared on unmount. The callback rides a ref so a re-render never
-  // re-arms the window by itself.
+  // Idle collapse: armed on mount, re-armed by ANY interaction inside the
+  // row — pointerdown catches taps (chips, scale switch, and misses), while
+  // click + keydown catch keyboard users, whose Enter/Space arrives as a
+  // bare click with no pointer sequence (a pointer tap firing both is a
+  // harmless double-reset). Cleared on unmount. The callback rides a ref so
+  // a re-render never re-arms the window by itself.
   const onIdleCollapseRef = useRef(onIdleCollapse)
   useEffect(() => {
     onIdleCollapseRef.current = onIdleCollapse
@@ -88,7 +90,12 @@ export function EffortChips({
   const targetChip = showRpe ? rpeTargetChip(targetRpe) : rirTargetChip(targetRir)
 
   return (
-    <div className="pr-11 motion-safe:animate-rise-in" onPointerDown={() => idleRef.current?.arm()}>
+    <div
+      className="pr-11 motion-safe:animate-rise-in"
+      onPointerDown={() => idleRef.current?.arm()}
+      onClick={() => idleRef.current?.arm()}
+      onKeyDown={() => idleRef.current?.arm()}
+    >
       {/* Scale label + switch ride their own line at input-column alignment;
           the chip strip below takes a shallower gutter so six chips fit the
           narrowest supported viewport without scroll or wrap. */}
