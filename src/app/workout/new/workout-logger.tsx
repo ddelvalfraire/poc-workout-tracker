@@ -341,7 +341,15 @@ export function WorkoutLogger({
   // sticky chip that opens it renders ONLY when a pinned note exists — an
   // exercise without a note keeps its markup byte-identical (the effort-row
   // discipline).
-  const [noteSheetFor, setNoteSheetFor] = useState<number | null>(null)
+  // Which exercise the QuickCapture sheet is open for, plus WHICH text seeds
+  // it: 'identity' (pinned-chip tap — edit the pinned body) or 'session'
+  // (pin-as-promotion — the session note being promoted). The two entry
+  // points must diverge or promotion silently drops the session text
+  // whenever an identity note already exists.
+  const [noteSheetFor, setNoteSheetFor] = useState<{
+    index: number
+    seed: 'identity' | 'session'
+  } | null>(null)
   // Session-local note edits, keyed `${source}:${id}`: undefined = untouched
   // (the Prev query's ride-along wins), null = deleted this session. The
   // last-performance query stays frozen — this map is the fresher truth.
@@ -1367,8 +1375,11 @@ export function WorkoutLogger({
                   mirrors the pinned chip because chips mean pressable. It
                   renders only while there is nothing to show; once a session
                   note exists the note words themselves are the reopen target
-                  below (open-OR-has-notes: a hidden note is a lost note). */}
-              {exercise.notes === '' && !notesOpen.has(exercise.id) && (
+                  below (open-OR-has-notes: a hidden note is a lost note).
+                  Trim-gated like every sibling: a whitespace-only draft is
+                  not a note yet (lastSessionEcho's definition), so the entry
+                  affordance must survive it. */}
+              {exercise.notes.trim() === '' && !notesOpen.has(exercise.id) && (
                 <button
                   type="button"
                   onClick={() => setNotesOpen((prev) => new Set(prev).add(exercise.id))}
@@ -1446,7 +1457,7 @@ export function WorkoutLogger({
             {identityNote !== null && (
               <button
                 type="button"
-                onClick={() => setNoteSheetFor(exerciseIndex)}
+                onClick={() => setNoteSheetFor({ index: exerciseIndex, seed: 'identity' })}
                 aria-label={`Exercise note for ${exercise.name}: ${noteChipLabel(identityNote.body)}`}
                 className="flex max-w-full items-center gap-1.5 self-start hit-44-y rounded-full border border-border bg-muted/40 px-3 py-2.5 text-xs text-muted-foreground transition-colors active:bg-muted"
               >
@@ -1479,8 +1490,11 @@ export function WorkoutLogger({
                 the reopen target (words are labels — and here the label IS
                 the control, muted, no chip dress-up). The pin beside either
                 state PROMOTES the note to the identity tier via QuickCapture
-                (Strong's pin-as-promotion); the session copy stays. */}
-            {(notesOpen.has(exercise.id) || exercise.notes !== '') && (
+                (Strong's pin-as-promotion); the session copy stays.
+                Trim-gated: a whitespace-only draft is not a note, so closing
+                the editor over one hides this block rather than leaving an
+                invisible reopen target (the entry chip above returns). */}
+            {(notesOpen.has(exercise.id) || exercise.notes.trim() !== '') && (
               <div className="flex items-start gap-1">
                 {notesOpen.has(exercise.id) ? (
                   <Textarea
@@ -1516,7 +1530,7 @@ export function WorkoutLogger({
                     size="icon-sm"
                     variant="ghost"
                     className="shrink-0 text-muted-foreground"
-                    onClick={() => setNoteSheetFor(exerciseIndex)}
+                    onClick={() => setNoteSheetFor({ index: exerciseIndex, seed: 'session' })}
                     aria-label={`Pin note for ${exercise.name}`}
                   >
                     <Pin aria-hidden="true" className="size-4" />
@@ -2246,7 +2260,7 @@ export function WorkoutLogger({
             ("cut short — gym closing") belongs to the whole workout, not one
             card. Same open-OR-has-notes visibility as the per-exercise ones. */}
         {!isEmpty &&
-          (isWorkoutNotesOpen || draft.notes !== '' ? (
+          (isWorkoutNotesOpen || draft.notes.trim() !== '' ? (
             <Textarea
               rows={2}
               placeholder="Add note…"
@@ -2601,27 +2615,29 @@ export function WorkoutLogger({
           actions; the session-local override map keeps the chip fresh
           without touching the frozen last-performance query. */}
       {noteSheetFor !== null &&
-        draft.exercises[noteSheetFor] &&
+        draft.exercises[noteSheetFor.index] &&
         (() => {
-          const exercise = draft.exercises[noteSheetFor]
+          const exercise = draft.exercises[noteSheetFor.index]
           const key = `${exercise.source}:${exercise.wgerExerciseId}`
           const current =
             noteOverrides[key] !== undefined
               ? noteOverrides[key]
               : (lastByExercise[key]?.note ?? null)
+          // Pin-as-promotion (#211): the pin beside a session note seeds the
+          // SESSION text — that is the promotion the control promises, even
+          // when an identity note already exists (saving then overwrites the
+          // pinned body with the promoted text: the user explicitly pinned
+          // it). The pinned-chip tap keeps seeding the pinned body for edits.
+          // Promotion copies: the session note stays as this session's record.
+          const promoting = noteSheetFor.seed === 'session'
           return (
             <QuickCaptureSheet
               title={exercise.name}
               eyebrow="Exercise note"
-              // Pin-as-promotion (#211): with no identity note yet, the sheet
-              // opens seeded from the SESSION note being promoted — the
-              // create-from-logger path the `?? true` arm was groundwork for.
-              // Promotion copies: the identity note gets the text, the
-              // session note stays as this session's record.
-              initialBody={current?.body ?? exercise.notes}
-              // A note born in the logger defaults pinned — pinning is the
-              // whole point of promoting it.
-              initialPinned={current?.pinned ?? true}
+              initialBody={promoting ? exercise.notes : (current?.body ?? exercise.notes)}
+              // A note born in (or promoted from) the logger defaults pinned —
+              // pinning is the whole point of promoting it.
+              initialPinned={promoting ? true : (current?.pinned ?? true)}
               onSave={async (value) => {
                 const saved = await upsertExerciseNoteAction(
                   exercise.source,
