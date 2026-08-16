@@ -1,6 +1,6 @@
 import type { Progression } from './program-input'
-import type { WeightUnit } from './units'
-import { quantizeDisplayLoad } from './load-quantize'
+import { kgToDisplay, type WeightUnit } from './units'
+import { LOAD_INCREMENT_KG, LOAD_INCREMENT_LB, quantizeDisplayLoad } from './load-quantize'
 
 /**
  * Plain-English voice for every progression scheme (#228) — ONE module owns
@@ -82,6 +82,20 @@ function load(kg: number, unit: WeightUnit): string {
 }
 
 /**
+ * The display form of an INCREMENT (a delta, not a bar load). Increments of
+ * at least one display increment keep the quantized grid form (#226); a
+ * configured micro-increment BELOW one increment prints its exact converted
+ * value (2 dp, trimmed) — "+1.1 lb" for 0.5 kg, never the one-increment
+ * floor's "+2.5 lb" (2.27× the configured step, #228's actual-numbers bar).
+ */
+function increment(kg: number, unit: WeightUnit): string {
+  const display = kgToDisplay(kg, unit)
+  const grid = unit === 'kg' ? LOAD_INCREMENT_KG : LOAD_INCREMENT_LB
+  if (display < grid) return `${Number(display.toFixed(2))} ${unit}`
+  return load(kg, unit)
+}
+
+/**
  * The "how this progresses" conditional sentence with the exercise's ACTUAL
  * numbers, e.g. "Hit 12 reps on every set at 65 lb → +5 lb next session."
  * Loads quantize to the display unit (#226). Missing/partial config degrades
@@ -93,7 +107,7 @@ export function schemeSentence(progression: Progression, context: SchemeSentence
     case 'linear': {
       const inc = positive(progression.incrementKg)
       if (inc === null) break
-      return `Complete all sets → +${load(inc, unit)} next session.`
+      return `Complete all sets → +${increment(inc, unit)} next session.`
     }
     case 'double-progression': {
       const top = positive(progression.repMax)
@@ -101,7 +115,7 @@ export function schemeSentence(progression: Progression, context: SchemeSentence
       const inc = positive(progression.incrementKg) ?? DEFAULT_STEP_KG
       const at = positive(context.currentLoadKg)
       const atClause = at === null ? '' : ` at ${load(at, unit)}`
-      return `Hit ${top} reps on every set${atClause} → +${load(inc, unit)} next session.`
+      return `Hit ${top} reps on every set${atClause} → +${increment(inc, unit)} next session.`
     }
     case 'percent-1rm': {
       const tm = positive(progression.trainingMaxKg)
@@ -139,7 +153,7 @@ export function schemeSentence(progression: Progression, context: SchemeSentence
     case 'amrap-cycle': {
       const inc = positive(progression.incrementKg)
       if (inc === null) break
-      return `Beat your rep record on the last set to earn the next training-max bump (+${load(inc, unit)}).`
+      return `Beat your rep record on the last set to earn the next training-max bump (+${increment(inc, unit)}).`
     }
   }
   return schemeSubtitle(progression.scheme)
