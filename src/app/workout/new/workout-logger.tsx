@@ -10,6 +10,7 @@ import {
   ChevronUp,
   CircleSlash,
   Dumbbell,
+  NotebookPen,
   Pin,
   Trash2,
   X,
@@ -55,6 +56,26 @@ import { draftKey, buildDraftPayload, parseDraftPayload } from './draft-payload'
 import { consumePendingPick } from './pending-pick'
 import { createDraftSyncQueue, type DraftSyncQueue, type DraftSyncStatus } from './draft-sync'
 import { SwipeToDelete } from './swipe-to-delete'
+import { SetRowMenu } from './set-row-menu'
+import { NoteSheet } from './note-sheet'
+import {
+  collectSetNotes,
+  exerciseNoteCount,
+  fallbackPendingNotes,
+  setHasNote,
+  setSnapshotLabel,
+  type NoteScope,
+} from './note-capture'
+import {
+  createPendingNotesQueue,
+  PENDING_NOTES_STORAGE_KEY,
+  type PendingNotesQueue,
+} from './pending-notes'
+import {
+  createNoteAction,
+  createFallbackSetNoteAction,
+  createSetNotesForWorkoutAction,
+} from '@/app/notes/actions'
 import { EffortChips } from './effort-chips'
 import { stickyNote, noteChipLabel, lastSessionEcho, type IdentityNote } from './identity-note'
 import { upsertExerciseNoteAction, deleteExerciseNoteAction } from '@/app/exercises/actions'
@@ -406,6 +427,78 @@ export function WorkoutLogger({
   }
 
   useEffect(() => cancelLongPress, [])
+
+  // Row-BODY long-press → the set context menu (notes v2). Deliberately its
+  // own refs — sharing the circle's would let the two gestures cancel each
+  // other; the circle's warm-up hold is untouched. Same LONG_PRESS_MS/SLOP
+  // machinery; the fired flag arms a click-capture swallow so the release
+  // tap can't also land on an input or the circle.
+  const rowPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const rowPressOriginRef = useRef<{ x: number; y: number } | null>(null)
+  const rowPressFiredRef = useRef(false)
+  // Which set row's context menu is open, anchored at the press point.
+  const [rowMenu, setRowMenu] = useState<{
+    exerciseIndex: number
+    setIndex: number
+    x: number
+    y: number
+  } | null>(null)
+  // Which set the capture sheet is open for (the sheet's DEFAULT scope is
+  // the pressed set; scope chips can retarget before saving).
+  const [noteCaptureFor, setNoteCaptureFor] = useState<{
+    exerciseIndex: number
+    setIndex: number
+  } | null>(null)
+  // The save receipt: the set whose volt dot pops in (150ms, motion-safe).
+  const [notePopSetId, setNotePopSetId] = useState<string | null>(null)
+
+  function cancelRowPress() {
+    if (rowPressTimerRef.current) clearTimeout(rowPressTimerRef.current)
+    rowPressTimerRef.current = null
+    rowPressOriginRef.current = null
+  }
+
+  useEffect(() => cancelRowPress, [])
+
+  // Offline fallback for capture-sheet SET notes (the pending-notes queue's
+  // consumer): entries land here only when the post-save batch create fails,
+  // already downgraded to a workout anchor (fallbackPendingNotes). Send
+  // routes by anchor kind — downgraded workout-anchored notes go through the
+  // fallback action (marker snapshot: never the canonical session note);
+  // anything else replays as a plain create. Storage access stays inside the
+  // callbacks so the queue is SSR-safe to construct.
+  const [notesQueue] = useState<PendingNotesQueue>(() =>
+    createPendingNotesQueue({
+      load: () => {
+        try {
+          return window.localStorage.getItem(PENDING_NOTES_STORAGE_KEY)
+        } catch {
+          return null
+        }
+      },
+      store: (raw) => {
+        if (raw === null) window.localStorage.removeItem(PENDING_NOTES_STORAGE_KEY)
+        else window.localStorage.setItem(PENDING_NOTES_STORAGE_KEY, raw)
+      },
+      send: async (note) => {
+        if (note.anchor.kind === 'workout') {
+          await createFallbackSetNoteAction(note.anchor.id, note.body, note.id)
+        } else {
+          await createNoteAction(note.anchor, note.body, note.id)
+        }
+      },
+    }),
+  )
+
+  // Flush on mount + reconnect: a note queued by a previous session (save
+  // landed, notes didn't) delivers the next time any logger is open with a
+  // network — the queue is one per browser, not per workout.
+  useEffect(() => {
+    void notesQueue.flush()
+    const onOnline = () => void notesQueue.flush()
+    window.addEventListener('online', onOnline)
+    return () => window.removeEventListener('online', onOnline)
+  }, [notesQueue])
   // Fully-completed cards collapse to a one-line summary; this holds the ids
   // the lifter re-expanded (to correct a set). Never pruned — stale ids are
   // harmless once an exercise stops being complete.
@@ -831,6 +924,10 @@ export function WorkoutLogger({
         setPlateSheetFor(null)
         setStatsSheetFor(null)
         setNoteSheetFor(null)
+        // Index-addressed notes-v2 surfaces: a restore under an open menu or
+        // capture sheet would silently retarget them at a different set.
+        setRowMenu(null)
+        setNoteCaptureFor(null)
         // And a held finish warning: its snapshot draft predates the restore.
         setPendingFinish(null)
         // And an open effort prompt: its set id may not exist in the
@@ -924,10 +1021,32 @@ export function WorkoutLogger({
     handleSave(finalDraft)
   }
 
+  /**
+   * Post-save leg for capture-sheet SET notes (see note-capture.ts for the
+   * positional design): one batch action against the just-inserted rows.
+   * Failure downgrades every entry to a workout-anchored pending-notes item —
+   * the words survive and the queue replays them (clientKey dedupes any that
+   * landed before the failure). Never throws: the save already succeeded and
+   * the finish navigation must not be held hostage by a notes hiccup.
+   */
+  async function persistSetNotes(savedWorkoutId: string, finalDraft: WorkoutDraft) {
+    const entries = collectSetNotes(finalDraft)
+    if (entries.length === 0) return
+    try {
+      await createSetNotesForWorkoutAction(savedWorkoutId, entries)
+    } catch {
+      for (const note of fallbackPendingNotes(savedWorkoutId, entries, new Date())) {
+        notesQueue.enqueue(note)
+      }
+    }
+  }
+
   async function handleSave(finalDraft: WorkoutDraft = draft) {
     setPlateSheetFor(null) // a live showModal() dialog must not cross navigation
     setStatsSheetFor(null) // same for the stats sheet
     setNoteSheetFor(null) // and the identity-note sheet
+    setRowMenu(null) // the set context menu + capture sheet die with the barrier
+    setNoteCaptureFor(null)
     setIsPickerOpen(false) // same top-layer invariant for the exercise sheet
     setIsRestSheetOpen(false) // and for the rest-target sheet
     setReplaceTargetIndex(null) // and for the replace sheet + its guard dialog
@@ -944,6 +1063,10 @@ export function WorkoutLogger({
       // the saved workout supersedes it on every device.
       if (workoutId) {
         await updateWorkoutAction(workoutId, draftToInput(finalDraft, name, unit))
+        // Capture-sheet set notes land AFTER the replace, against the
+        // re-inserted rows (their positional address) — creating them before
+        // would hand them to rows the replace is about to delete.
+        await persistSetNotes(workoutId, finalDraft)
         // History changed: the browser QueryClient outlives this page, so
         // cached ghosts would otherwise show pre-save data next session.
         queryClient.invalidateQueries({ queryKey: ['last-performance'], refetchType: 'none' })
@@ -970,6 +1093,9 @@ export function WorkoutLogger({
           startedAt: openedAt,
           completedAt: new Date(),
         })
+        // The new-session leg of the positional design: the server workout
+        // exists only NOW, so queued set notes flush here, right after save.
+        await persistSetNotes(id, finalDraft)
         queryClient.invalidateQueries({ queryKey: ['last-performance'], refetchType: 'none' })
         // Same success-path close-before-push as the update branch above.
         closeFinishDialogRef.current?.()
@@ -1003,6 +1129,8 @@ export function WorkoutLogger({
     setPlateSheetFor(null) // a live showModal() dialog must not cross navigation
     setStatsSheetFor(null)
     setNoteSheetFor(null)
+    setRowMenu(null)
+    setNoteCaptureFor(null)
     setIsPickerOpen(false)
     setIsRestSheetOpen(false)
     setReplaceTargetIndex(null)
@@ -1323,6 +1451,24 @@ export function WorkoutLogger({
                 )}
               </h3>
               <div className="-mr-1 flex shrink-0 items-center">
+              {/* Notes-v2 roll-up: the exercise's instance note + its noted
+                  sets, as glyph + count (the drafts' header grammar). Quiet
+                  and non-interactive — the notes themselves are reached from
+                  their anchors; zero markup when the count is 0 (the
+                  fast-path discipline). */}
+              {(() => {
+                const noteCount = exerciseNoteCount(exercise)
+                if (noteCount === 0) return null
+                return (
+                  <span
+                    aria-label={`${noteCount} ${noteCount === 1 ? 'note' : 'notes'} on ${exercise.name}`}
+                    className="mr-1 flex shrink-0 items-center gap-1 text-xs text-muted-foreground tnum"
+                  >
+                    <NotebookPen aria-hidden="true" className="size-3.5" />
+                    <span aria-hidden="true">{noteCount}</span>
+                  </span>
+                )
+              })()}
               {/* A done card auto-collapses; once re-expanded for corrections
                   this is the way back down — same expandedDone set, inverse
                   edge. Only rendered when done: an unfinished card collapsing
@@ -1693,6 +1839,48 @@ export function WorkoutLogger({
                     riseInArmed && 'motion-safe:animate-rise-in',
                   )}
                   id={`set-row-${set.id}`}
+                  // Row-BODY long-press → context menu (notes v2). Never
+                  // starts on inputs/buttons (SwipeToDelete's bail-out list —
+                  // the circle keeps its warm-up hold, a drag in a weight
+                  // field stays cursor placement); pointercancel + move-slop
+                  // keep scrolls from firing it.
+                  onPointerDown={(e) => {
+                    if (
+                      e.target instanceof Element &&
+                      e.target.closest('input, button, select, a, textarea')
+                    ) {
+                      return
+                    }
+                    rowPressFiredRef.current = false
+                    rowPressOriginRef.current = { x: e.clientX, y: e.clientY }
+                    if (rowPressTimerRef.current) clearTimeout(rowPressTimerRef.current)
+                    const at = { x: e.clientX, y: e.clientY }
+                    rowPressTimerRef.current = setTimeout(() => {
+                      rowPressFiredRef.current = true
+                      setRowMenu({ exerciseIndex, setIndex, x: at.x, y: at.y })
+                    }, LONG_PRESS_MS)
+                  }}
+                  onPointerUp={cancelRowPress}
+                  onPointerLeave={cancelRowPress}
+                  onPointerCancel={cancelRowPress}
+                  onPointerMove={(e) => {
+                    const origin = rowPressOriginRef.current
+                    if (
+                      origin &&
+                      Math.hypot(e.clientX - origin.x, e.clientY - origin.y) > LONG_PRESS_SLOP_PX
+                    ) {
+                      cancelRowPress()
+                    }
+                  }}
+                  // A press that already opened the menu must not ALSO click
+                  // whatever the finger lifted over.
+                  onClickCapture={(e) => {
+                    if (rowPressFiredRef.current) {
+                      rowPressFiredRef.current = false
+                      e.preventDefault()
+                      e.stopPropagation()
+                    }
+                  }}
                 >
                   <button
                     type="button"
@@ -1860,6 +2048,21 @@ export function WorkoutLogger({
                       'W'
                     ) : (
                       setIndex + 1
+                    )}
+                    {/* Notes-v2 indicator: a 4px volt dot beside the set
+                        number — the note's WHOLE in-logger footprint (the
+                        body never renders inline). Pops in on save (the
+                        receipt; motion-safe keeps reduced-motion instant). */}
+                    {setHasNote(set) && (
+                      <span
+                        aria-hidden="true"
+                        className={cn(
+                          // ring-background keeps the dot legible on a
+                          // completed (volt-filled) circle too.
+                          'absolute -right-0.5 -top-0.5 size-1 rounded-full bg-primary ring-2 ring-background',
+                          notePopSetId === set.id && 'motion-safe:animate-dot-in',
+                        )}
+                      />
                     )}
                   </button>
                   <button
@@ -2656,6 +2859,98 @@ export function WorkoutLogger({
                   : undefined
               }
               onClose={() => setNoteSheetFor(null)}
+            />
+          )
+        })()}
+
+      {/* Set-row context menu (notes v2): guarded on the target still
+          existing — the draft can shift under an open menu (undo, restore). */}
+      {rowMenu &&
+        draft.exercises[rowMenu.exerciseIndex]?.sets[rowMenu.setIndex] &&
+        (() => {
+          const exercise = draft.exercises[rowMenu.exerciseIndex]
+          const set = exercise.sets[rowMenu.setIndex]
+          const menuSetLabel =
+            set.tag === 'warmup' ? `warm-up set ${rowMenu.setIndex + 1}` : `set ${rowMenu.setIndex + 1}`
+          return (
+            <SetRowMenu
+              x={rowMenu.x}
+              y={rowMenu.y}
+              setLabel={`${menuSetLabel} of ${exercise.name}`}
+              hasNote={setHasNote(set)}
+              isWarmup={set.tag === 'warmup'}
+              onNote={() => {
+                setNoteCaptureFor({
+                  exerciseIndex: rowMenu.exerciseIndex,
+                  setIndex: rowMenu.setIndex,
+                })
+                setRowMenu(null)
+              }}
+              onTagWarmup={() => {
+                // The same TAG_SET the circle hold dispatches — a second door
+                // to the same action; the gesture hint retires with either.
+                if (set.tag !== 'warmup') dismissWarmupHint()
+                dispatch({
+                  type: 'TAG_SET',
+                  exerciseIndex: rowMenu.exerciseIndex,
+                  setIndex: rowMenu.setIndex,
+                  tag: set.tag === 'warmup' ? 'working' : 'warmup',
+                })
+                setRowMenu(null)
+              }}
+              onRemove={() => {
+                handleRemoveSet(rowMenu.exerciseIndex, rowMenu.setIndex)
+                setRowMenu(null)
+              }}
+              onClose={() => setRowMenu(null)}
+            />
+          )
+        })()}
+
+      {/* The notes-v2 capture sheet (non-modal — the session stays live).
+          Set scope writes the draft's set note + mints its clientKey (the
+          post-save create's idempotency handle); exercise/workout scopes
+          route into the existing #211 note tiers this sheet absorbs
+          (appended, never clobbering words already there). */}
+      {noteCaptureFor &&
+        draft.exercises[noteCaptureFor.exerciseIndex]?.sets[noteCaptureFor.setIndex] &&
+        (() => {
+          const exercise = draft.exercises[noteCaptureFor.exerciseIndex]
+          const set = exercise.sets[noteCaptureFor.setIndex]
+          const handleCaptureSave = (scope: NoteScope, body: string) => {
+            if (scope === 'set') {
+              dispatch({
+                type: 'SET_SET_NOTE',
+                exerciseIndex: noteCaptureFor.exerciseIndex,
+                setIndex: noteCaptureFor.setIndex,
+                note: body,
+                clientKey: set.noteClientKey ?? crypto.randomUUID(),
+              })
+              setNotePopSetId(set.id) // the receipt: the dot pops in
+            } else if (scope === 'exercise') {
+              const existing = exercise.notes.trim()
+              dispatch({
+                type: 'SET_EXERCISE_NOTES',
+                exerciseIndex: noteCaptureFor.exerciseIndex,
+                value: existing === '' ? body : `${existing}\n${body}`,
+              })
+            } else {
+              const existing = draft.notes.trim()
+              dispatch({
+                type: 'SET_WORKOUT_NOTES',
+                value: existing === '' ? body : `${existing}\n${body}`,
+              })
+            }
+          }
+          return (
+            <NoteSheet
+              exerciseName={exercise.name}
+              setNumber={noteCaptureFor.setIndex + 1}
+              snapshot={setSnapshotLabel(set, exercise.loggingType, unit)}
+              initialScope="set"
+              initialBody={set.note ?? ''}
+              onSave={handleCaptureSave}
+              onClose={() => setNoteCaptureFor(null)}
             />
           )
         })()}

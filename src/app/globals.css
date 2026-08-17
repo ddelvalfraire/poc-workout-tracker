@@ -300,6 +300,22 @@
   animation: set-pop-big 340ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
+/* Notes-v2 save receipt: the set row's volt dot pops in (150ms scale, the
+   drafts' spec) — the whole acknowledgment, no toast. Transform-only and
+   @utility-registered so motion-safe: applies; reduced-motion users get the
+   dot appearing instantly. */
+@keyframes dot-in {
+  0% {
+    transform: scale(0);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+@utility animate-dot-in {
+  animation: dot-in 150ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
 /* SessionToast strips (#210): enter rises 12px (a touch farther than
    rise-in — the strip arrives from the bar's bottom edge), exit drops 8px
    and fades. Exit < enter per the direction doc; both transform/opacity
