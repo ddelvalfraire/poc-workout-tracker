@@ -1,12 +1,21 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import {
   createNoteAction,
+  createSetNotesForWorkoutAction,
+  createFallbackSetNoteAction,
   updateNoteAction,
   deleteNoteAction,
   listNotesAction,
 } from './actions'
 import { requireUserId } from '@/lib/auth'
-import { createNote, updateNote, deleteNote, listNotes } from '@/db/notes'
+import {
+  createNote,
+  createPositionalSetNote,
+  createWorkoutFallbackNote,
+  updateNote,
+  deleteNote,
+  listNotes,
+} from '@/db/notes'
 
 /**
  * Action-layer tests for the notes-v2 control flow (the workout/actions.test.ts
@@ -18,6 +27,8 @@ import { createNote, updateNote, deleteNote, listNotes } from '@/db/notes'
 vi.mock('@/lib/auth', () => ({ requireUserId: vi.fn() }))
 vi.mock('@/db/notes', () => ({
   createNote: vi.fn(),
+  createPositionalSetNote: vi.fn(),
+  createWorkoutFallbackNote: vi.fn(),
   updateNote: vi.fn(),
   deleteNote: vi.fn(),
   listNotes: vi.fn(),
@@ -120,5 +131,74 @@ describe('listNotesAction', () => {
     vi.mocked(listNotes).mockResolvedValue([])
     await listNotesAction()
     expect(listNotes).toHaveBeenCalledWith(USER, {})
+  })
+})
+
+describe('createSetNotesForWorkoutAction (the post-save positional batch)', () => {
+  const ENTRY = {
+    exercisePosition: 0,
+    setNumber: 3,
+    body: '  left shoulder clicked  ',
+    clientKey: UUID.toUpperCase(),
+  }
+
+  it('validates, normalizes, and creates each entry sequentially — no revalidate', async () => {
+    vi.mocked(createPositionalSetNote).mockResolvedValue({ id: 'n1' } as never)
+
+    await createSetNotesForWorkoutAction(UUID.toUpperCase(), [
+      ENTRY,
+      { ...ENTRY, setNumber: 4, clientKey: '11234567-89ab-cdef-0123-456789abcdef' },
+    ])
+
+    expect(createPositionalSetNote).toHaveBeenCalledTimes(2)
+    expect(createPositionalSetNote).toHaveBeenNthCalledWith(1, USER, UUID, {
+      exercisePosition: 0,
+      setNumber: 3,
+      body: 'left shoulder clicked',
+      clientKey: UUID,
+    })
+    expect(revalidatePath).not.toHaveBeenCalled()
+  })
+
+  it('throws when the workout is not owned (db returns null)', async () => {
+    vi.mocked(createPositionalSetNote).mockResolvedValue(null)
+    await expect(createSetNotesForWorkoutAction(UUID, [ENTRY])).rejects.toThrow(/not found/)
+  })
+
+  it('rejects malformed entries field-by-field before any db call', async () => {
+    await expect(createSetNotesForWorkoutAction('w1', [ENTRY])).rejects.toThrow(/workout id/)
+    await expect(createSetNotesForWorkoutAction(UUID, [])).rejects.toThrow(/entries/)
+    await expect(createSetNotesForWorkoutAction(UUID, 'notes')).rejects.toThrow(/entries/)
+    await expect(
+      createSetNotesForWorkoutAction(UUID, [{ ...ENTRY, exercisePosition: -1 }]),
+    ).rejects.toThrow(/exercisePosition/)
+    await expect(
+      createSetNotesForWorkoutAction(UUID, [{ ...ENTRY, setNumber: 0 }]),
+    ).rejects.toThrow(/setNumber/)
+    await expect(
+      createSetNotesForWorkoutAction(UUID, [{ ...ENTRY, clientKey: 'nope' }]),
+    ).rejects.toThrow(/clientKey/)
+    await expect(createSetNotesForWorkoutAction(UUID, [{ ...ENTRY, body: '   ' }])).rejects.toThrow(
+      /body/,
+    )
+    expect(createPositionalSetNote).not.toHaveBeenCalled()
+  })
+})
+
+describe('createFallbackSetNoteAction (the queue replay target)', () => {
+  it('validates and forwards to the marker-snapshot create', async () => {
+    vi.mocked(createWorkoutFallbackNote).mockResolvedValue({ id: 'n1' } as never)
+
+    await createFallbackSetNoteAction(UUID.toUpperCase(), ' downgraded ', UUID.toUpperCase())
+
+    expect(createWorkoutFallbackNote).toHaveBeenCalledWith(USER, UUID, 'downgraded', UUID)
+    expect(revalidatePath).not.toHaveBeenCalled()
+  })
+
+  it('throws on junk ids/keys and unowned workouts', async () => {
+    await expect(createFallbackSetNoteAction('w1', 'x', UUID)).rejects.toThrow(/workout id/)
+    await expect(createFallbackSetNoteAction(UUID, 'x', 'k1')).rejects.toThrow(/client key/)
+    vi.mocked(createWorkoutFallbackNote).mockResolvedValue(null)
+    await expect(createFallbackSetNoteAction(UUID, 'x', UUID)).rejects.toThrow(/not found/)
   })
 })

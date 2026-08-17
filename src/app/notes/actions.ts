@@ -4,6 +4,8 @@ import { requireUserId } from '@/lib/auth'
 import { isNoteAnchorKind, parseNoteAnchor, parseNoteBody } from '@/lib/note-input'
 import {
   createNote,
+  createPositionalSetNote,
+  createWorkoutFallbackNote,
   updateNote,
   deleteNote,
   listNotes,
@@ -62,6 +64,96 @@ export async function createNoteAction(
   })
   if (!row) throw new Error('note anchor not found')
   return row
+}
+
+/** Sanity ceiling for one batch — a session tops out well under this. */
+const MAX_SET_NOTE_BATCH = 100
+/** Positions/set numbers far past any real workout are junk, not input. */
+const MAX_POSITION = 500
+
+function parsePositionalEntry(raw: unknown, index: number): {
+  exercisePosition: number
+  setNumber: number
+  body: string
+  clientKey: string
+} {
+  if (!raw || typeof raw !== 'object') throw new Error(`invalid set note entry ${index}`)
+  const entry = raw as Record<string, unknown>
+  const { exercisePosition, setNumber, clientKey } = entry
+  if (
+    !Number.isInteger(exercisePosition) ||
+    (exercisePosition as number) < 0 ||
+    (exercisePosition as number) > MAX_POSITION
+  ) {
+    throw new Error(`invalid exercisePosition in set note entry ${index}`)
+  }
+  if (!Number.isInteger(setNumber) || (setNumber as number) < 1 || (setNumber as number) > MAX_POSITION) {
+    throw new Error(`invalid setNumber in set note entry ${index}`)
+  }
+  if (typeof clientKey !== 'string' || !UUID_RE.test(clientKey.toLowerCase())) {
+    throw new Error(`invalid clientKey in set note entry ${index}`)
+  }
+  return {
+    exercisePosition: exercisePosition as number,
+    setNumber: setNumber as number,
+    body: parseNoteBody(entry.body),
+    clientKey: clientKey.toLowerCase(),
+  }
+}
+
+/**
+ * Batch-creates capture-sheet SET notes against a just-saved workout by
+ * positional address (0-based exercise position, 1-based set number) — the
+ * logger's post-save leg (see note-capture.ts for why set notes can't anchor
+ * by id mid-session). Each entry is validated field-by-field; creation is
+ * sequential and idempotent per clientKey, so the client may replay the whole
+ * batch after a failure and only the missing rows land. Throws on invalid
+ * input or an unowned workout (the client downgrades to the pending queue).
+ */
+export async function createSetNotesForWorkoutAction(
+  workoutId: unknown,
+  entries: unknown,
+): Promise<void> {
+  const userId = await requireUserId()
+  if (typeof workoutId !== 'string' || !UUID_RE.test(workoutId.toLowerCase())) {
+    throw new Error('invalid workout id')
+  }
+  if (!Array.isArray(entries) || entries.length === 0 || entries.length > MAX_SET_NOTE_BATCH) {
+    throw new Error('invalid set note entries')
+  }
+  const parsed = entries.map((entry, index) => parsePositionalEntry(entry, index))
+  const id = workoutId.toLowerCase()
+  for (const entry of parsed) {
+    const row = await createPositionalSetNote(userId, id, entry)
+    if (!row) throw new Error('workout not found')
+  }
+}
+
+/**
+ * The pending-notes queue's send target for DOWNGRADED set notes (post-save
+ * batch failed; positional info is gone by replay time): a workout-anchored
+ * note with the marker snapshot that keeps it out of the canonical
+ * session-note projection. Same clientKey idempotency as every create here.
+ */
+export async function createFallbackSetNoteAction(
+  workoutId: unknown,
+  body: unknown,
+  clientKey: unknown,
+): Promise<void> {
+  const userId = await requireUserId()
+  if (typeof workoutId !== 'string' || !UUID_RE.test(workoutId.toLowerCase())) {
+    throw new Error('invalid workout id')
+  }
+  if (typeof clientKey !== 'string' || !UUID_RE.test(clientKey.toLowerCase())) {
+    throw new Error('invalid client key')
+  }
+  const row = await createWorkoutFallbackNote(
+    userId,
+    workoutId.toLowerCase(),
+    parseNoteBody(body),
+    clientKey.toLowerCase(),
+  )
+  if (!row) throw new Error('workout not found')
 }
 
 /** Edits the body of the user's own (user-authored) note. */

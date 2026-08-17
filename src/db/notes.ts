@@ -162,22 +162,35 @@ export async function createNote(
 ): Promise<NoteRow | null> {
   const resolved = await resolveAnchor(userId, anchor)
   if (!resolved) return null
-  const values = {
+  return insertNoteRow(
+    {
+      userId,
+      author: opts.author ?? 'user',
+      body,
+      [anchorColumn(anchor.kind)]: anchor.id,
+      ...(resolved.snapshot !== null ? { anchorSnapshot: resolved.snapshot } : {}),
+    },
     userId,
-    author: opts.author ?? 'user',
-    body,
-    [anchorColumn(anchor.kind)]: anchor.id,
-    ...(resolved.snapshot !== null ? { anchorSnapshot: resolved.snapshot } : {}),
-    ...(opts.clientKey !== undefined ? { clientKey: opts.clientKey } : {}),
-  }
-  if (opts.clientKey === undefined) {
+    opts.clientKey,
+  )
+}
+
+/** The shared insert leg: plain insert without a clientKey; with one, the
+ *  ON CONFLICT DO NOTHING + re-read dance that makes a replayed create
+ *  return the EXISTING row (exactly-once per client key). */
+async function insertNoteRow(
+  values: typeof notes.$inferInsert,
+  userId: string,
+  clientKey: string | undefined,
+): Promise<NoteRow> {
+  if (clientKey === undefined) {
     const [row] = await db.insert(notes).values(values).returning()
     if (!row) throw new Error('createNote: insert returned no row')
     return row
   }
   const [row] = await db
     .insert(notes)
-    .values(values)
+    .values({ ...values, clientKey })
     .onConflictDoNothing({
       target: [notes.userId, notes.clientKey],
       // Match the partial index predicate — required for Postgres to pick it.
@@ -189,10 +202,116 @@ export async function createNote(
   const [existing] = await db
     .select()
     .from(notes)
-    .where(and(eq(notes.userId, userId), eq(notes.clientKey, opts.clientKey)))
+    .where(and(eq(notes.userId, userId), eq(notes.clientKey, clientKey)))
     .limit(1)
   if (!existing) throw new Error('createNote: conflict with no existing row')
   return existing
+}
+
+/**
+ * Creates a set note by POSITIONAL address — (workoutId, 0-based exercise
+ * position, 1-based setNumber) — the post-save path for capture-sheet set
+ * notes: the logger never knows server set ids (client draft ids; full
+ * replace re-mints them), so it addresses the just-inserted rows the same
+ * way insertWorkoutChildren wrote them. The resolve read carries the
+ * ownership join AND the snapshot facts in one query.
+ *
+ * When the position doesn't resolve (the saved tree diverged from the draft
+ * that collected the note — a note must never vanish over it), the note
+ * FALLS BACK to the workout anchor with a marker snapshot ({setNumber}), the
+ * note-sync fallback rule: a snapshot on a workout-anchored row keeps it out
+ * of the canonical session-note projection, so the words survive without
+ * masquerading. Returns null only when the workout itself isn't owned.
+ */
+export async function createPositionalSetNote(
+  userId: string,
+  workoutId: string,
+  entry: { exercisePosition: number; setNumber: number; body: string; clientKey: string },
+): Promise<NoteRow | null> {
+  const [setRow] = await db
+    .select({
+      setId: sets.id,
+      exerciseName: workoutExercises.name,
+      loadKg: sets.weight,
+      reps: sets.reps,
+      durationSec: sets.durationSec,
+    })
+    .from(sets)
+    .innerJoin(workoutExercises, eq(workoutExercises.id, sets.workoutExerciseId))
+    .innerJoin(workouts, eq(workouts.id, workoutExercises.workoutId))
+    .where(
+      and(
+        eq(workouts.id, workoutId),
+        eq(workouts.userId, userId),
+        eq(workoutExercises.position, entry.exercisePosition),
+        eq(sets.setNumber, entry.setNumber),
+      ),
+    )
+    .limit(1)
+  if (setRow) {
+    return insertNoteRow(
+      {
+        userId,
+        author: 'user',
+        body: entry.body,
+        setId: setRow.setId,
+        anchorSnapshot: {
+          exerciseName: setRow.exerciseName,
+          setNumber: entry.setNumber,
+          loadKg: setRow.loadKg,
+          reps: setRow.reps,
+          durationSec: setRow.durationSec,
+        },
+      },
+      userId,
+      entry.clientKey,
+    )
+  }
+  // Position didn't resolve — verify workout ownership, then park the words
+  // on the workout anchor (marker snapshot = never the canonical session note).
+  const [workout] = await db
+    .select({ id: workouts.id })
+    .from(workouts)
+    .where(and(eq(workouts.id, workoutId), eq(workouts.userId, userId)))
+    .limit(1)
+  if (!workout) return null
+  return insertNoteRow(
+    {
+      userId,
+      author: 'user',
+      body: entry.body,
+      workoutId,
+      anchorSnapshot: { setNumber: entry.setNumber },
+    },
+    userId,
+    entry.clientKey,
+  )
+}
+
+/**
+ * The pending-notes queue's replay target for downgraded set notes: a
+ * workout-anchored note that must NOT read as the canonical session note, so
+ * it carries a marker snapshot ({} — non-null is what the canonical
+ * projection excludes on). Ownership is the same direct read as the other
+ * workout-anchored paths.
+ */
+export async function createWorkoutFallbackNote(
+  userId: string,
+  workoutId: string,
+  body: string,
+  clientKey: string,
+): Promise<NoteRow | null> {
+  const [workout] = await db
+    .select({ id: workouts.id })
+    .from(workouts)
+    .where(and(eq(workouts.id, workoutId), eq(workouts.userId, userId)))
+    .limit(1)
+  if (!workout) return null
+  return insertNoteRow(
+    { userId, author: 'user', body, workoutId, anchorSnapshot: {} },
+    userId,
+    clientKey,
+  )
 }
 
 /**
