@@ -209,7 +209,7 @@ describe('ATTACK: amrap deloadRow emit requires an all-lifting chassis', () => {
     history: NO_HISTORY,
     deloadPolicy: {
       mode: 'scheduled' as const,
-      shape: { loadFactor: 0.85, setFactor: 0.5, rpeCap: null },
+      shape: { loadFactor: 0.85, setFactor: 0.5, rpeCap: null, timedExercises: 'untouched' as const },
     },
   }
 
@@ -321,18 +321,82 @@ describe('ATTACK: legacy tolerance — stored timed set + load-anchored scheme',
     expect(row.rpe).toBe(7) // template RPE, not the scheme's 9
   })
 
-  // OPEN DESIGN DECISION (deload policy × legacy timed rows) — pending an
-  // owner call: should a scheduled deload's scale-shape branch stamp
-  // 'deload' on (and setFactor-resize) an exercise whose progressed rows are
-  // all timed under a legacy load scheme, or must it no-op entirely ("no
-  // 'deload' stamps leaking")? Today the branch stamps every progressed set
-  // 'deload' and halves the set count regardless of metricMode. Kept as a
-  // todo until the policy is decided — the original red asserted: loadKg
-  // stays null, durationSec stays the template 600 (never × loadFactor),
-  // derivedFrom never 'deload', and setFactor never resizes the exercise.
-  it.todo(
-    'a scheduled deload over a legacy timed+linear exercise leaks no deload stamp and invents no load',
-  )
+  // RESOLVED DESIGN DECISION (deload policy × legacy timed rows) — owner
+  // call, 2026-08: the creator decides. The scheduled shape's new
+  // `timedExercises` arm defaults to 'untouched' (a fully-timed exercise
+  // derives its deload week as a NORMAL week — no setFactor resize, no
+  // 'deload' stamps), and the zod default covers legacy stored policies at
+  // resolve time. 'scaled' is the explicit opt-in to the old scale-shape
+  // treatment (durationSec is still never × loadFactor).
+  it("a scheduled deload over a legacy timed+linear exercise leaks no deload stamp and invents no load (default 'untouched')", () => {
+    const sets = [timed({ setNumber: 1, rpe: 7 }), timed({ setNumber: 2, rpe: 7 })]
+    const derived = deriveWeekSets({
+      sets,
+      progression: { scheme: 'linear', incrementKg: 2.5 },
+      week: 4,
+      mesocycleWeeks: 4,
+      deloadWeek: 4, // no stored policy → legacy resolution: scheduled at the defaults
+      history: NO_HISTORY,
+    })
+    // setFactor never resizes the exercise…
+    expect(derived).toHaveLength(2)
+    derived.forEach((row, i) => {
+      // …no load is invented, the duration is the template 600 (never ×
+      // loadFactor), no 'deload' stamp leaks, and the RPE stays template.
+      expect(row.loadKg).toBeNull()
+      expect(row.durationSec).toBe(600)
+      expect(row.derivedFrom).toBe('template')
+      expect(row.rpe).toBe(7)
+      expect(passthroughFields(row)).toEqual(passthroughFields(sets[i]))
+    })
+  })
+
+  it("timedExercises: 'scaled' opts back into the legacy treatment (resize + stamp, duration still untouched)", () => {
+    const derived = deriveWeekSets({
+      sets: [timed({ setNumber: 1 }), timed({ setNumber: 2 })],
+      progression: { scheme: 'linear', incrementKg: 2.5 },
+      week: 4,
+      mesocycleWeeks: 4,
+      deloadWeek: 4,
+      history: NO_HISTORY,
+      deloadPolicy: {
+        mode: 'scheduled',
+        shape: { loadFactor: 0.85, setFactor: 0.5, rpeCap: null, timedExercises: 'scaled' },
+      },
+    })
+    // The old behavior, by explicit creator opt-in: sets halve and stamp…
+    expect(derived).toHaveLength(1)
+    expect(derived[0].derivedFrom).toBe('deload')
+    // …but durationSec is NEVER multiplied by loadFactor (the invariant
+    // holds regardless of the arm), and no load is invented.
+    expect(derived[0].durationSec).toBe(600)
+    expect(derived[0].loadKg).toBeNull()
+  })
+
+  it("mixed exercise under the 'untouched' default: lifting rows deload, timed rows pass through", () => {
+    const sets = [
+      timed({ setNumber: 1, rpe: 7 }),
+      set({ setNumber: 2, suggestedLoadKg: 100 }),
+      set({ setNumber: 3, suggestedLoadKg: 100 }),
+    ]
+    const derived = deriveWeekSets({
+      sets,
+      progression: { scheme: 'linear', incrementKg: 2.5 },
+      week: 4,
+      mesocycleWeeks: 4,
+      deloadWeek: 4,
+      history: NO_HISTORY,
+    })
+    // setFactor halves the LIFTING working rows only (2 → 1); the timed row
+    // survives untouched in place.
+    expect(derived).toHaveLength(2)
+    const [timedRow, liftingRow] = derived
+    expect(passthroughFields(timedRow)).toEqual(passthroughFields(sets[0]))
+    expect(timedRow.derivedFrom).toBe('template')
+    // The lifting row gets the full deload treatment: 3 prior steps then ×0.85.
+    expect(liftingRow.derivedFrom).toBe('deload')
+    expect(liftingRow.loadKg).toBeCloseTo((100 + 2.5 * 3) * 0.85, 10)
+  })
 
   it('parseProgramInput ACCEPTS a timed set paired with percent-1rm (the parse-time throw stays removed)', () => {
     const input = {
@@ -424,7 +488,10 @@ describe('ATTACK: rep-progression on seconds — accumulation, clamp, deload int
       mesocycleWeeks: 4,
       deloadWeek: 4,
       history: NO_HISTORY,
-      deloadPolicy: { mode: 'scheduled', shape: { loadFactor: 0.85, setFactor: 0.5, rpeCap: null } },
+      deloadPolicy: {
+        mode: 'scheduled',
+        shape: { loadFactor: 0.85, setFactor: 0.5, rpeCap: null, timedExercises: 'untouched' },
+      },
     })
     expect(derived[0].durationSec).toBe(600) // template, not 600×0.85=510, not 690
     expect(derived[0].loadKg).toBeNull()

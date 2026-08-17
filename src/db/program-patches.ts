@@ -288,10 +288,10 @@ function deloadPolicySummary(policy: DeloadPolicy | null): string {
   if (policy === null) return 'Deload policy cleared (legacy behavior)'
   if (policy.mode === 'none') return 'Deload policy: none'
   if (policy.mode === 'reactive') return 'Deload policy: reactive'
-  const { loadFactor, setFactor, rpeCap } = policy.shape
+  const { loadFactor, setFactor, rpeCap, timedExercises } = policy.shape
   return `Deload policy: scheduled (load ×${loadFactor}, sets ×${setFactor}${
     rpeCap !== null ? `, RPE cap ${rpeCap}` : ''
-  })`
+  }${timedExercises === 'scaled' ? ', timed sets scaled' : ''})`
 }
 
 /**
