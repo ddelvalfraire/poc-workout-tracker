@@ -393,6 +393,16 @@ export default async function ProgramDetailPage({
             font-display voice — anchored to the current week even while
             browsing another one (the strip says what's selected, this says
             what's real). The muted meta beneath keeps the raw numbers. */}
+        {/* The program DOCUMENT note (notes v2 catch-up): authored once
+            (upsert_program takes plain text ≤2000 — no markdown contract, so
+            no MarkdownView), read at program start, never in the logger. The
+            muted quote rail is the workout-detail session-note treatment. */}
+        {program.notes !== null && (
+          <p className="mt-4 whitespace-pre-wrap border-l-2 border-border pl-3 text-sm text-muted-foreground">
+            {program.notes}
+          </p>
+        )}
+
         <p className="mt-5 font-display text-2xl uppercase leading-none tracking-wide">
           {statusLine}
         </p>
@@ -765,6 +775,16 @@ export default async function ProgramDetailPage({
                       </span>
                     )}
                   </div>
+
+                  {/* The day's plan-authored note (notes v2 catch-up): the
+                      read-before-lift cue, muted under the day name. Done and
+                      in-progress days skip it — the plan is the past there,
+                      and the live session carries its own cue line. */}
+                  {day.notes !== null && (
+                    <p className="mt-1.5 whitespace-pre-wrap text-sm text-muted-foreground">
+                      {day.notes}
+                    </p>
+                  )}
 
                   {showTargets ? (
                     <div className="mt-3 space-y-3">
