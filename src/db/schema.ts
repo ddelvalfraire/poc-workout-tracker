@@ -32,6 +32,7 @@ import type { MeasurementSite } from '@/lib/measurement-sites'
 import type { PhotoPose } from '@/lib/photo-input'
 import type { GoalKind, GoalTarget } from '@/lib/goal-input'
 import type { TrophyKind, TrophyContext } from '@/lib/trophy-kinds'
+import type { NoteAuthor, NoteAnchorSnapshot } from '@/lib/note-input'
 
 export const workouts = pgTable(
   'workouts',
@@ -421,6 +422,66 @@ export const exerciseNotes = pgTable(
     // One note per identity: upserts key on this, and the getLastPerformance
     // LEFT JOIN relies on at-most-one row per (user, source, exercise).
     unique('exercise_notes_user_exercise_unique').on(t.userId, t.source, t.exerciseId),
+  ],
+)
+
+/**
+ * Notes v2 — authored annotations with exactly ONE anchor (program, workout,
+ * workout-exercise instance, or set). One table (not per-entity columns)
+ * because the global notes browser queries across anchors in one shot and
+ * `author` makes rows entities in their own right (user today, coach comments
+ * later — the WRITE path for 'coach' is gated behind the coach surface, but
+ * the column ships now so it needs data, not schema).
+ *
+ * Anchoring rules:
+ * - Exactly one anchor FK is non-null (DB CHECK, `num_nonnulls` = 1); every
+ *   FK cascades — a deleted anchor takes its notes.
+ * - `anchor_snapshot` is written ONCE at creation for set/exercise anchors
+ *   (cheap facts: load×reps, set number, exercise name) and NEVER updated —
+ *   it powers the future "outdated" badge. A workout-anchored row WITH a
+ *   snapshot is a fallback re-anchor (its set/exercise vanished in an edit);
+ *   a true session note never carries one — reconcile logic keys on this.
+ * - `updateWorkout`'s full replace must re-anchor these rows across its
+ *   delete/re-insert (db/note-sync.ts) — cascade would otherwise eat them.
+ *
+ * The identity `exercise_notes` table above is a different animal (follows
+ * the exercise across workouts, markdown, pinned) and stays as-is.
+ */
+export const notes = pgTable(
+  'notes',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    userId: text('user_id').notNull(), // Clerk user id — ownership root
+    // Who wrote it: 'user' | 'coach' (text + app-level union, validated at
+    // the boundary like `status`/`source` everywhere else).
+    author: text('author').$type<NoteAuthor>().notNull().default('user'),
+    body: text('body').notNull(), // plain text, 2000 cap (parseNotes 'note')
+    // The four anchors — exactly one non-null, each a REAL cascade.
+    programId: uuid('program_id').references(() => programs.id, { onDelete: 'cascade' }),
+    workoutId: uuid('workout_id').references(() => workouts.id, { onDelete: 'cascade' }),
+    workoutExerciseId: uuid('workout_exercise_id').references(() => workoutExercises.id, {
+      onDelete: 'cascade',
+    }),
+    setId: uuid('set_id').references(() => sets.id, { onDelete: 'cascade' }),
+    // Frozen creation-time context for set/exercise anchors; null for
+    // workout/program anchors. Written once, never updated.
+    anchorSnapshot: jsonb('anchor_snapshot').$type<NoteAnchorSnapshot>(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [
+    check(
+      'notes_exactly_one_anchor',
+      sql`num_nonnulls(${t.programId}, ${t.workoutId}, ${t.workoutExerciseId}, ${t.setId}) = 1`,
+    ),
+    // The browser's read path: by user, newest first — the composite serves
+    // the sort too (bodyweight_logs precedent).
+    index('notes_user_created_idx').on(t.userId, t.createdAt.desc()),
+    // Per-anchor lookups (ride-alongs, re-anchor capture, cascade sweeps).
+    index('notes_program_id_idx').on(t.programId),
+    index('notes_workout_id_idx').on(t.workoutId),
+    index('notes_workout_exercise_id_idx').on(t.workoutExerciseId),
+    index('notes_set_id_idx').on(t.setId),
   ],
 )
 
