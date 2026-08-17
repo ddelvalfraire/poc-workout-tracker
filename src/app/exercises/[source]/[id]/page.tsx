@@ -13,6 +13,10 @@ import { TrendChart } from '@/components/charts/trend-chart'
 import { StatTile, type StatDelta } from '@/components/stat-tile'
 import { listCustomExercises } from '@/db/custom-exercises'
 import { getExerciseNote } from '@/db/exercise-notes'
+import { listNotes } from '@/db/notes'
+import { buildNoteView, groupNotesByThread } from '@/components/notes/note-view'
+import { NoteRow } from '@/components/notes/note-row'
+import { DividerList } from '@/components/ui/divider-list'
 import { CustomExerciseEditor } from '../../custom-exercise-editor'
 import { ExerciseNoteSection } from './exercise-note-section'
 import { AppHeader } from '@/components/app-header'
@@ -75,7 +79,7 @@ export default async function ExerciseStatsPage({
   const page =
     /^\d+$/.test(pageParam ?? '') && parseInt(pageParam!, 10) >= 1 ? parseInt(pageParam!, 10) : 1
 
-  const [stats, sessions, unit, strengthGoal, note] = await Promise.all([
+  const [stats, sessions, unit, strengthGoal, note, sessionNotes] = await Promise.all([
     getExerciseStats(userId, ref.source, ref.wgerExerciseId),
     getExerciseSessions(userId, ref.source, ref.wgerExerciseId, {
       limit: HISTORY_PAGE,
@@ -86,6 +90,9 @@ export default async function ExerciseStatsPage({
     activeStrengthGoalForExercise(userId, ref.source, ref.wgerExerciseId),
     // Identity note (seat pins, cues) — the note that follows the exercise.
     getExerciseNote(userId, ref.source, ref.wgerExerciseId),
+    // The reverse index: every SESSION note ever anchored to this exercise
+    // identity (any instance, any workout — directly or via one of its sets).
+    listNotes(userId, { exercise: { source: ref.source, exerciseId: ref.wgerExerciseId } }),
   ])
   if (!stats) notFound()
   const goalTargetKg =
@@ -135,6 +142,11 @@ export default async function ExerciseStatsPage({
     const held = formatStandingTime(since, now)
     return held !== null ? ` · ${held}` : ''
   }
+  // Reverse-index rows, session-threaded like the /notes browser. The
+  // exercise segment drops from breadcrumbs — this page IS the exercise.
+  const noteThreads = groupNotesByThread(
+    sessionNotes.map((n) => buildNoteView(n, unit, now, { omitExercise: true })),
+  )
 
   return (
     <div className="flex min-h-[100dvh] flex-col">
@@ -420,6 +432,35 @@ export default async function ExerciseStatsPage({
             )}
           </div>
         </section>
+
+        {/* The reverse index: every note ever anchored here (any instance,
+            any workout), threaded by session like the /notes browser. An
+            exercise with no notes shows no section — the identity note block
+            above already owns authoring. */}
+        {noteThreads.length > 0 && (
+          <section aria-label="Session notes">
+            <h2 className="px-1 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+              Notes
+            </h2>
+            {noteThreads.map((thread) => (
+              <div key={thread.key}>
+                <div className="flex items-baseline justify-between gap-3 px-1 pb-1 pt-3">
+                  <h3 className="min-w-0 truncate text-xs font-semibold text-muted-foreground">
+                    {thread.title}
+                  </h3>
+                  <span className="shrink-0 text-xs text-muted-foreground tnum">
+                    {thread.dateLabel}
+                  </span>
+                </div>
+                <DividerList>
+                  {thread.notes.map((note) => (
+                    <NoteRow key={note.id} note={note} />
+                  ))}
+                </DividerList>
+              </div>
+            ))}
+          </section>
+        )}
       </main>
     </div>
   )
