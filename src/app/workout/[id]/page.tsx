@@ -7,6 +7,10 @@ import {
   getPreviousCompletedWorkout,
 } from "@/db/workouts";
 import { getNextProgramDay } from "@/db/programs";
+import { notesForWorkout } from "@/db/notes";
+import { buildNoteView, type NoteView } from "@/components/notes/note-view";
+import { NoteRow } from "@/components/notes/note-row";
+import { DividerList } from "@/components/ui/divider-list";
 import { getWeightUnit, getBodyweightKg } from "@/db/preferences";
 import { goalsAchievedSince, listActiveGoals, type GoalRow } from "@/db/goals";
 import { trophiesAchievedSince } from "@/db/trophies";
@@ -75,7 +79,16 @@ export default async function WorkoutDetailPage({
   // Up-next only matters at the finish moment, and only for a program
   // session — a quick log has no rotation to advance. Fetched alongside the
   // PR history read (independent queries).
-  const [history, nextDay, achievedGoals, activeGoals, sessionTrophies, activeShare, lastSameName] =
+  const [
+    history,
+    nextDay,
+    achievedGoals,
+    activeGoals,
+    sessionTrophies,
+    activeShare,
+    lastSameName,
+    sessionNotes,
+  ] =
     await Promise.all([
       getExerciseHistoryBefore(userId, exerciseIds, workout.startedAt),
       justFinished && workout.programDayId !== null
@@ -97,6 +110,9 @@ export default async function WorkoutDetailPage({
       workout.name !== null
         ? getPreviousCompletedWorkout(userId, workout.name, workout.startedAt)
         : null,
+      // Every note anchored anywhere in this session (workout, exercises,
+      // sets — plus outdated fallbacks), for the consolidated Notes section.
+      notesForWorkout(userId, id),
     ]);
   // Same session-window honesty as the goals block, PLUS the attribution
   // mark: only trophies whose stored context names THIS workout celebrate —
@@ -152,6 +168,14 @@ export default async function WorkoutDetailPage({
     0,
   );
   const duration = formatWorkoutDuration(workout.startedAt, workout.completedAt);
+
+  // The consolidated Notes rows: notesForWorkout reads oldest-first, and the
+  // stable anchor partition keeps every anchor's notes together — grouped by
+  // anchor, with each row's breadcrumb naming the anchor.
+  const now = new Date();
+  const noteViews: NoteView[] = groupSessionNotesByAnchor(sessionNotes).map((note) =>
+    buildNoteView(note, unit, now),
+  );
 
   // "vs last {name}" deltas against the most recent completed same-name
   // session (see lastSameName above). Null when flat or uncomputable — the
@@ -282,15 +306,6 @@ export default async function WorkoutDetailPage({
         {(volumeDelta !== null || durationDelta !== null) && (
           <p className="mt-1.5 px-1 text-xs text-muted-foreground">
             vs last {workout.name}
-          </p>
-        )}
-
-        {/* Session note under the stats — context for the numbers above.
-            De-carded to a quiet quote rail (muted, not volt: notes are
-            context, not state). Plain text for now — TipTap is a later wave. */}
-        {workout.notes !== null && (
-          <p className="mt-4 whitespace-pre-wrap border-l-2 border-border pl-3 text-sm text-muted-foreground">
-            {workout.notes}
           </p>
         )}
 
@@ -501,13 +516,6 @@ export default async function WorkoutDetailPage({
                     ))
                   )}
                 </div>
-                {/* Per-exercise note under the set rows — the "why" behind
-                    the numbers (or behind the skip). */}
-                {exercise.notes !== null && (
-                  <p className="mt-3 whitespace-pre-wrap text-sm text-muted-foreground">
-                    {exercise.notes}
-                  </p>
-                )}
                 {current && (
                   <div className="mt-3 flex items-baseline justify-between gap-3 border-t border-border pt-3">
                     <span className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
@@ -551,6 +559,23 @@ export default async function WorkoutDetailPage({
           })}
         </div>
 
+        {/* The consolidated Notes section (notes v2 slice 3): EVERY note
+            anchored in this session — workout, exercise, set, coach rows,
+            and outdated fallbacks — with anchor breadcrumbs, replacing the
+            scattered per-block renders. Reading order within each anchor. */}
+        {noteViews.length > 0 && (
+          <section aria-label="Notes" className="mt-8">
+            <h2 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+              Notes
+            </h2>
+            <DividerList className="mt-2">
+              {noteViews.map((note) => (
+                <NoteRow key={note.id} note={note} />
+              ))}
+            </DividerList>
+          </section>
+        )}
+
         {/* Share control above the action stack: this page only renders
             COMPLETED workouts (live sessions redirected to the logger above),
             so the completed-only rule holds by construction here too. */}
@@ -560,6 +585,28 @@ export default async function WorkoutDetailPage({
       </main>
     </div>
   );
+}
+
+/** Stable anchor partition for the Notes section: buckets rows by their
+ *  concrete anchor (set, exercise, or the workout itself), first-seen order,
+ *  preserving reading order inside each bucket — "grouped by anchor" without
+ *  losing notesForWorkout's chronology. */
+function groupSessionNotesByAnchor<
+  T extends { setId: string | null; workoutExerciseId: string | null },
+>(rows: T[]): T[] {
+  const order: string[] = [];
+  const buckets = new Map<string, T[]>();
+  for (const row of rows) {
+    const key = row.setId ?? row.workoutExerciseId ?? "workout";
+    const bucket = buckets.get(key);
+    if (bucket) {
+      bucket.push(row);
+      continue;
+    }
+    buckets.set(key, [row]);
+    order.push(key);
+  }
+  return order.flatMap((key) => buckets.get(key) ?? []);
 }
 
 /** One tile of the session stat row: big tabular value over a small label,
