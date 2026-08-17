@@ -20,7 +20,9 @@ function selectChain() {
   const obj = {
     from: () => obj,
     innerJoin: () => obj,
+    leftJoin: () => obj,
     where: () => obj,
+    orderBy: () => obj,
     limit: () => obj,
     then: (resolve: Resolve) => Promise.resolve(rows).then(resolve),
   }
@@ -329,28 +331,42 @@ describe('addSet (user-scoped)', () => {
 })
 
 describe('removeSet (user-scoped)', () => {
-  it('deletes the set, renumbers the rest, and stamps completion', async () => {
-    // Arrange — owned, a set was deleted
-    selectQueue = [[{ id: 'ex1' }]]
+  /** The doomed-set facts read (notes fallback + not-found gate). */
+  const targetSetRow = { id: 's7', weight: 100, reps: 5, durationSec: null, exerciseName: 'Squat' }
+
+  it('re-anchors the set notes to the workout BEFORE deleting, then renumbers and stamps', async () => {
+    // Arrange — owned, the target set exists
+    selectQueue = [[{ id: 'ex1' }], [targetSetRow]]
 
     // Act
     const result = await removeSet(USER, WID, 0, 2)
 
-    // Assert — delete, renumber against sets, then the workout completion stamp
-    expect(records.map((r) => r.op)).toEqual(['delete', 'update:sets', 'update:workouts'])
+    // Assert — the notes fallback update runs FIRST (the cascade would eat
+    // set notes otherwise), then delete, renumber, completion stamp.
+    expect(records.map((r) => r.op)).toEqual([
+      'update:notes',
+      'delete',
+      'update:sets',
+      'update:workouts',
+    ])
+    const fallback = records[0].values as Record<string, unknown>
+    expect(fallback).toMatchObject({ workoutId: WID, setId: null })
+    // The snapshot is written at fallback time when absent (coalesce keeps an
+    // existing one) — a SQL expression, never a plain overwrite.
+    expect(fallback.anchorSnapshot).toBeTruthy()
     expect(result).toEqual({ removed: true })
   })
 
-  it('returns null and does not renumber when no such set exists', async () => {
-    // Arrange — owned, but nothing deleted
-    selectQueue = [[{ id: 'ex1' }]]
+  it('returns null and mutates nothing when no such set exists', async () => {
+    // Arrange — owned, but the target read finds nothing
+    selectQueue = [[{ id: 'ex1' }], []]
     deletedSetRows = []
 
     // Act
     const result = await removeSet(USER, WID, 0, 9)
 
-    // Assert — delete attempted, but no renumber follows
-    expect(records.map((r) => r.op)).toEqual(['delete'])
+    // Assert — the not-found gate fires before any write
+    expect(records).toEqual([])
     expect(result).toBeNull()
   })
 
@@ -401,46 +417,74 @@ describe('updateWorkoutMeta (user-scoped)', () => {
     expect(result).toBeNull()
   })
 
-  it('sets and clears the session notes', async () => {
-    // Arrange
-    ownedWorkoutRows = [{ id: WID }]
+  it('sets the session note as a notes-table row (legacy column dead)', async () => {
+    // Arrange — a notes-only patch: ownership select, then an empty
+    // canonical-note lookup (no existing session note).
+    selectQueue = [[{ id: WID }], []]
 
-    // Act — set, then clear (null)
-    await updateWorkoutMeta(USER, WID, { notes: 'felt strong' })
+    // Act
+    const result = await updateWorkoutMeta(USER, WID, { notes: 'felt strong' })
+
+    // Assert — no workouts-column write; one notes insert instead.
+    expect(records).toEqual([
+      {
+        op: 'insert',
+        values: { userId: USER, author: 'user', body: 'felt strong', workoutId: WID },
+      },
+    ])
+    expect(result).toEqual({ id: WID })
+  })
+
+  it('clears the session note by deleting the canonical notes row', async () => {
+    // Arrange — ownership select, then the canonical row to clear.
+    selectQueue = [[{ id: WID }], [{ id: 'n1', body: 'felt strong' }]]
+
+    // Act
     await updateWorkoutMeta(USER, WID, { notes: null })
 
-    // Assert
-    expect(records).toEqual([
-      { op: 'update:workouts', values: { notes: 'felt strong' } },
-      { op: 'update:workouts', values: { notes: null } },
-    ])
+    // Assert — a delete, never a column write.
+    expect(records).toEqual([{ op: 'delete' }])
   })
 })
 
 describe('updateExerciseMeta (user-scoped)', () => {
   it('updates notes and skipped on the owned exercise, with no completion stamp', async () => {
-    // Arrange — ownership lookup resolves an exercise
-    selectQueue = [[{ id: 'ex1' }]]
+    // Arrange — ownership lookup, then an empty canonical-note lookup; the
+    // skipped update returns the row with its name (the snapshot source).
+    selectQueue = [[{ id: 'ex1' }], []]
+    updatedSetRows = [{ id: 'ex1', name: 'Squat' } as unknown as { id: string }]
 
     // Act
     const result = await updateExerciseMeta(USER, WID, 0, { notes: 'knee pain', skipped: true })
 
-    // Assert — one targeted write to workout_exercises; workouts untouched
+    // Assert — the skipped flag writes the column; the note lands in the
+    // notes table with the standard exercise snapshot. Workouts untouched.
     expect(records).toEqual([
-      { op: 'update:workout_exercises', values: { notes: 'knee pain', skipped: true } },
+      { op: 'update:workout_exercises', values: { skipped: true } },
+      {
+        op: 'insert',
+        values: {
+          userId: USER,
+          author: 'user',
+          body: 'knee pain',
+          workoutExerciseId: 'ex1',
+          anchorSnapshot: { exerciseName: 'Squat' },
+        },
+      },
     ])
-    expect(result).toEqual({ id: 's9' })
+    expect(result).toEqual({ id: 'ex1' })
   })
 
-  it('clears notes with an explicit null', async () => {
-    // Arrange
-    selectQueue = [[{ id: 'ex1' }]]
+  it('clears notes by deleting the canonical notes row', async () => {
+    // Arrange — ownership lookup, the id+name read (notes-only patch), then
+    // the canonical row to clear.
+    selectQueue = [[{ id: 'ex1' }], [{ id: 'ex1', name: 'Squat' }], [{ id: 'n1', body: 'knee pain' }]]
 
     // Act
     await updateExerciseMeta(USER, WID, 0, { notes: null })
 
     // Assert
-    expect(records[0]).toEqual({ op: 'update:workout_exercises', values: { notes: null } })
+    expect(records).toEqual([{ op: 'delete' }])
   })
 
   it('returns null for an empty patch without querying', async () => {

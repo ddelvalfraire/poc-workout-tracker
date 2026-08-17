@@ -302,6 +302,27 @@
       "when": 1786818563374,
       "tag": "0042_overshoot_policy",
       "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1786949039793,
+      "tag": "0043_notes_table",
+      "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1786949270669,
+      "tag": "0044_notes_backfill",
+      "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "7",
+      "when": 1786951144920,
+      "tag": "0045_notes_client_key",
+      "breakpoints": true
     }
   ]
 }

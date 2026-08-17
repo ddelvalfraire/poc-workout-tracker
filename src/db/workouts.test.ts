@@ -3,7 +3,7 @@ import {
   listWorkouts,
   createWorkout,
   workoutSummariesQuery,
-  getWorkoutDetail,
+  workoutDetailQuery,
   deleteWorkout,
   latestCompletedWorkoutForDay,
 } from './workouts'
@@ -32,7 +32,7 @@ describe('workouts repository (authorization boundary)', () => {
   })
 
   it('scopes the detail query to the user as well as the id', () => {
-    const { sql, params } = getWorkoutDetail(USER, WORKOUT_ID).toSQL()
+    const { sql, params } = workoutDetailQuery(USER, WORKOUT_ID).toSQL()
     expect(sql).toContain('"user_id"')
     expect(params).toEqual(expect.arrayContaining([USER, WORKOUT_ID]))
   })
