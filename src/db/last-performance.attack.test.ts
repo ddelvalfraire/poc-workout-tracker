@@ -55,11 +55,12 @@ describe('ATTACK: skipped prior instances feed the echo', () => {
           performedAt: PERFORMED_AT,
           noteBody: null,
           notePinned: null,
-          // The prior instance was skipped; only its excuse note exists.
-          sessionNote: 'shoulder tweak — skipped',
           sessionSkipped: true,
         },
       ],
+      // The prior instance was skipped; only its excuse note exists — now a
+      // notes-table row (notes v2), returned by the session-note query.
+      [{ body: 'shoulder tweak — skipped' }],
       [], // a skipped instance has no set rows
     ]
 

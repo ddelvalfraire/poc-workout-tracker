@@ -13,24 +13,49 @@ const ID_SEQUENCE = ['e1', 's1', 'e2'] // exercise/set ids handed back on re-ins
 // Prior set rows the pre-delete facts read returns (snapshot preservation).
 // A read, so it is NOT pushed onto `records` — that stays the mutation log.
 let priorFactRows: unknown[] = []
+// Child-anchored note rows the notes-capture read returns (note re-anchoring).
+let capturedNoteRows: unknown[] = []
 
 function makeTx() {
-  const selectChain = {
-    from: () => selectChain,
-    innerJoin: () => selectChain,
-    where: () => selectChain,
-    orderBy: () => Promise.resolve(priorFactRows),
-  }
+  // Reads run in a fixed order inside the tx: (1) prior set facts,
+  // (2) note-anchor capture, then the canonical-note reconcile lookups
+  // (empty unless a test seeds them). Each tx.select() consumes the next.
+  const selectQueue: unknown[][] = [priorFactRows as unknown[], capturedNoteRows as unknown[]]
   return {
-    select: () => selectChain,
+    select: () => {
+      const rows = selectQueue.shift() ?? []
+      const chain: Record<string, unknown> = {
+        from: () => chain,
+        innerJoin: () => chain,
+        leftJoin: () => chain,
+        where: () => chain,
+        orderBy: () => chain,
+        limit: () => chain,
+        then: (resolve: (v: unknown) => unknown, reject: (e: unknown) => unknown) =>
+          Promise.resolve(rows).then(resolve, reject),
+      }
+      return chain
+    },
     update: () => ({
       set: (values: unknown) => ({
-        where: () => ({
-          returning: () => {
-            records.push({ op: 'update', values })
-            return Promise.resolve(ownedRow)
-          },
-        }),
+        where: () => {
+          let recorded = false
+          const record = () => {
+            if (!recorded) records.push({ op: 'update', values })
+            recorded = true
+          }
+          return {
+            returning: () => {
+              record()
+              return Promise.resolve(ownedRow)
+            },
+            // Park/re-attach updates are awaited without .returning().
+            then: (resolve: (v: unknown) => unknown, reject: (e: unknown) => unknown) => {
+              record()
+              return Promise.resolve(undefined).then(resolve, reject)
+            },
+          }
+        },
       }),
     }),
     delete: () => ({
@@ -42,7 +67,17 @@ function makeTx() {
     insert: () => ({
       values: (values: unknown) => {
         records.push({ op: 'insert', values })
-        return { returning: () => Promise.resolve([{ id: ID_SEQUENCE[idCounter++] }]) }
+        return {
+          returning: () =>
+            Promise.resolve(
+              Array.isArray(values)
+                ? (values as Record<string, unknown>[]).map((v) => ({
+                    id: ID_SEQUENCE[idCounter++] ?? `x${idCounter}`,
+                    setNumber: v.setNumber,
+                  }))
+                : [{ id: ID_SEQUENCE[idCounter++] ?? `x${idCounter}` }],
+            ),
+        }
       },
     }),
   }
@@ -62,6 +97,7 @@ beforeEach(() => {
   idCounter = 0
   ownedRow = [{ id: 'w1' }]
   priorFactRows = []
+  capturedNoteRows = []
 })
 
 describe('updateWorkout (transactional, user-scoped)', () => {
@@ -265,6 +301,116 @@ describe('updateWorkout (transactional, user-scoped)', () => {
     expect(values[0]).toMatchObject({ prescribedLoadKg: 100 })
     expect('prescribedLoadKg' in values[1]).toBe(false)
     expect('prescribedRepMin' in values[1]).toBe(false)
+  })
+
+  it('never writes the legacy notes columns (notes v2 owns the words)', async () => {
+    // Act — a wire input WITH notes at both tiers
+    await updateWorkout(USER, ID, {
+      notes: 'good session',
+      exercises: [
+        { wgerExerciseId: 73, name: 'Squat', notes: 'felt heavy', sets: [{ reps: 5, weight: 100 }] },
+      ],
+    })
+
+    // Assert — neither the workouts update nor the exercise insert carries a
+    // notes column; the words arrive as notes-table inserts instead.
+    expect(records[0].op).toBe('update')
+    expect(records[0].values).not.toHaveProperty('notes')
+    const weInsert = records.find(
+      (r) => r.op === 'insert' && !Array.isArray(r.values) && (r.values as Record<string, unknown>).wgerExerciseId === 73,
+    )
+    expect(weInsert?.values).not.toHaveProperty('notes')
+    const noteInserts = records.filter(
+      (r) => r.op === 'insert' && !Array.isArray(r.values) && (r.values as Record<string, unknown>).author === 'user',
+    )
+    expect(noteInserts.map((r) => r.values)).toEqual([
+      expect.objectContaining({ body: 'good session', workoutId: ID }),
+      expect.objectContaining({
+        body: 'felt heavy',
+        workoutExerciseId: 'e1',
+        anchorSnapshot: { exerciseName: 'Squat' },
+      }),
+    ])
+  })
+
+  it('re-anchors set and exercise notes across the replace (edit preserves notes)', async () => {
+    // Arrange — one prior set (aligned: incoming count >= 1), an exercise
+    // note and a set note hanging on it.
+    priorFactRows = [
+      { wgerExerciseId: 73, source: 'wger', setNumber: 1, setType: 'working', prescribedLoadKg: null, prescribedRepMin: null },
+    ]
+    capturedNoteRows = [
+      { noteId: 'n-ex', source: 'wger', wgerExerciseId: 73, setNumber: null },
+      { noteId: 'n-set', source: 'wger', wgerExerciseId: 73, setNumber: 1 },
+    ]
+
+    // Act
+    await updateWorkout(USER, ID, {
+      exercises: [{ wgerExerciseId: 73, name: 'Squat', sets: [{ reps: 5, weight: 100 }] }],
+    })
+
+    // Assert — park BEFORE the child delete (or the cascade eats the notes)…
+    const parkIndex = records.findIndex(
+      (r) =>
+        r.op === 'update' &&
+        (r.values as Record<string, unknown>).workoutId === ID &&
+        (r.values as Record<string, unknown>).workoutExerciseId === null,
+    )
+    const deleteIndex = records.findIndex((r) => r.op === 'delete')
+    expect(parkIndex).toBeGreaterThan(-1)
+    expect(parkIndex).toBeLessThan(deleteIndex)
+    // …then both notes re-attach to the NEW row ids.
+    const updates = records.filter((r) => r.op === 'update').map((r) => r.values)
+    expect(updates).toContainEqual({ workoutId: null, workoutExerciseId: 'e1' })
+    expect(updates).toContainEqual({ workoutId: null, setId: 's1' })
+  })
+
+  it('leaves a set note on the workout anchor when its position vanished (fallback, snapshot untouched)', async () => {
+    // Arrange — two prior sets; the edit removes one, so positions shifted
+    // and the set note must NOT be positionally re-attached.
+    priorFactRows = [
+      { wgerExerciseId: 73, source: 'wger', setNumber: 1, setType: 'working', prescribedLoadKg: null, prescribedRepMin: null },
+      { wgerExerciseId: 73, source: 'wger', setNumber: 2, setType: 'working', prescribedLoadKg: null, prescribedRepMin: null },
+    ]
+    capturedNoteRows = [
+      { noteId: 'n-ex', source: 'wger', wgerExerciseId: 73, setNumber: null },
+      { noteId: 'n-set', source: 'wger', wgerExerciseId: 73, setNumber: 2 },
+    ]
+
+    // Act — only one set comes back
+    await updateWorkout(USER, ID, {
+      exercises: [{ wgerExerciseId: 73, name: 'Squat', sets: [{ reps: 8, weight: 80 }] }],
+    })
+
+    // Assert — the exercise note re-attaches; the set note stays parked on
+    // the workout (no update carries a setId), and nothing ever touches
+    // anchor_snapshot (the frozen context survives the fallback).
+    const updates = records.filter((r) => r.op === 'update').map((r) => r.values as Record<string, unknown>)
+    expect(updates).toContainEqual({ workoutId: null, workoutExerciseId: 'e1' })
+    expect(updates.some((v) => typeof v.setId === 'string')).toBe(false)
+    expect(updates.some((v) => 'anchorSnapshot' in v)).toBe(false)
+  })
+
+  it('keeps notes with their exercise identity when exercises are reordered', async () => {
+    // Arrange — two exercises with one note each; the edit swaps their order.
+    capturedNoteRows = [
+      { noteId: 'n-squat', source: 'wger', wgerExerciseId: 73, setNumber: null },
+      { noteId: 'n-row', source: 'wger', wgerExerciseId: 99, setNumber: null },
+    ]
+
+    // Act — 99 now comes first: new we ids are e1 (99) then s1 (73, next in
+    // the id sequence).
+    await updateWorkout(USER, ID, {
+      exercises: [
+        { wgerExerciseId: 99, name: 'Row', sets: [] },
+        { wgerExerciseId: 73, name: 'Squat', sets: [] },
+      ],
+    })
+
+    // Assert — each note followed its identity, not its old position.
+    const updates = records.filter((r) => r.op === 'update').map((r) => r.values)
+    expect(updates).toContainEqual({ workoutId: null, workoutExerciseId: 'e1' }) // 99's note
+    expect(updates).toContainEqual({ workoutId: null, workoutExerciseId: 's1' }) // 73's note
   })
 
   it('returns null and mutates nothing when the user does not own the workout', async () => {

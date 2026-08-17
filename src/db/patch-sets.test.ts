@@ -20,7 +20,9 @@ function selectChain() {
   const obj = {
     from: () => obj,
     innerJoin: () => obj,
+    leftJoin: () => obj,
     where: () => obj,
+    orderBy: () => obj,
     limit: () => obj,
     then: (resolve: Resolve) => Promise.resolve(rows).then(resolve),
   }
@@ -401,46 +403,74 @@ describe('updateWorkoutMeta (user-scoped)', () => {
     expect(result).toBeNull()
   })
 
-  it('sets and clears the session notes', async () => {
-    // Arrange
-    ownedWorkoutRows = [{ id: WID }]
+  it('sets the session note as a notes-table row (legacy column dead)', async () => {
+    // Arrange — a notes-only patch: ownership select, then an empty
+    // canonical-note lookup (no existing session note).
+    selectQueue = [[{ id: WID }], []]
 
-    // Act — set, then clear (null)
-    await updateWorkoutMeta(USER, WID, { notes: 'felt strong' })
+    // Act
+    const result = await updateWorkoutMeta(USER, WID, { notes: 'felt strong' })
+
+    // Assert — no workouts-column write; one notes insert instead.
+    expect(records).toEqual([
+      {
+        op: 'insert',
+        values: { userId: USER, author: 'user', body: 'felt strong', workoutId: WID },
+      },
+    ])
+    expect(result).toEqual({ id: WID })
+  })
+
+  it('clears the session note by deleting the canonical notes row', async () => {
+    // Arrange — ownership select, then the canonical row to clear.
+    selectQueue = [[{ id: WID }], [{ id: 'n1', body: 'felt strong' }]]
+
+    // Act
     await updateWorkoutMeta(USER, WID, { notes: null })
 
-    // Assert
-    expect(records).toEqual([
-      { op: 'update:workouts', values: { notes: 'felt strong' } },
-      { op: 'update:workouts', values: { notes: null } },
-    ])
+    // Assert — a delete, never a column write.
+    expect(records).toEqual([{ op: 'delete' }])
   })
 })
 
 describe('updateExerciseMeta (user-scoped)', () => {
   it('updates notes and skipped on the owned exercise, with no completion stamp', async () => {
-    // Arrange — ownership lookup resolves an exercise
-    selectQueue = [[{ id: 'ex1' }]]
+    // Arrange — ownership lookup, then an empty canonical-note lookup; the
+    // skipped update returns the row with its name (the snapshot source).
+    selectQueue = [[{ id: 'ex1' }], []]
+    updatedSetRows = [{ id: 'ex1', name: 'Squat' } as unknown as { id: string }]
 
     // Act
     const result = await updateExerciseMeta(USER, WID, 0, { notes: 'knee pain', skipped: true })
 
-    // Assert — one targeted write to workout_exercises; workouts untouched
+    // Assert — the skipped flag writes the column; the note lands in the
+    // notes table with the standard exercise snapshot. Workouts untouched.
     expect(records).toEqual([
-      { op: 'update:workout_exercises', values: { notes: 'knee pain', skipped: true } },
+      { op: 'update:workout_exercises', values: { skipped: true } },
+      {
+        op: 'insert',
+        values: {
+          userId: USER,
+          author: 'user',
+          body: 'knee pain',
+          workoutExerciseId: 'ex1',
+          anchorSnapshot: { exerciseName: 'Squat' },
+        },
+      },
     ])
-    expect(result).toEqual({ id: 's9' })
+    expect(result).toEqual({ id: 'ex1' })
   })
 
-  it('clears notes with an explicit null', async () => {
-    // Arrange
-    selectQueue = [[{ id: 'ex1' }]]
+  it('clears notes by deleting the canonical notes row', async () => {
+    // Arrange — ownership lookup, the id+name read (notes-only patch), then
+    // the canonical row to clear.
+    selectQueue = [[{ id: 'ex1' }], [{ id: 'ex1', name: 'Squat' }], [{ id: 'n1', body: 'knee pain' }]]
 
     // Act
     await updateExerciseMeta(USER, WID, 0, { notes: null })
 
     // Assert
-    expect(records[0]).toEqual({ op: 'update:workout_exercises', values: { notes: null } })
+    expect(records).toEqual([{ op: 'delete' }])
   })
 
   it('returns null for an empty patch without querying', async () => {

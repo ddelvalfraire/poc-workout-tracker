@@ -11,6 +11,7 @@ import {
   lt,
   max,
   ne,
+  or,
   sql,
 } from 'drizzle-orm'
 import { cache } from 'react'
@@ -18,8 +19,15 @@ import type { WorkoutInput, LoggingType, WorkoutMetricMode } from '@/lib/workout
 import type { SetType } from '@/lib/program-input'
 import type { ExerciseSource } from '@/lib/custom-exercise-input'
 import { db } from './index'
-import { workouts, workoutExercises, sets, exerciseNotes } from './schema'
+import { workouts, workoutExercises, sets, exerciseNotes, notes } from './schema'
 import { SetCompletionError } from './workout-errors'
+import {
+  captureAndParkChildNotes,
+  reattachChildNotes,
+  setCanonicalExerciseNote,
+  setCanonicalWorkoutNote,
+  type InsertedChildIds,
+} from './note-sync'
 
 /**
  * Data access for workouts, always scoped to a Clerk userId.
@@ -187,9 +195,6 @@ export async function getLastPerformance(
       // Identity-note ride-along (LEFT JOIN): null columns when no note.
       noteBody: exerciseNotes.body,
       notePinned: exerciseNotes.pinned,
-      // Per-instance session note of that same prior performance — the
-      // "Last time: …" echo rides along, no second query.
-      sessionNote: workoutExercises.notes,
       // …and whether that instance was skipped, so the echo can say so.
       sessionSkipped: workoutExercises.skipped,
     })
@@ -216,6 +221,22 @@ export async function getLastPerformance(
 
   if (!recent) return null
 
+  // The previous instance's session note now lives in the notes table
+  // (notes v2) — the legacy workout_exercises.notes column is no longer
+  // read. Latest user-authored note on that instance = the echo.
+  const [sessionNoteRow] = await db
+    .select({ body: notes.body })
+    .from(notes)
+    .where(
+      and(
+        eq(notes.userId, userId),
+        eq(notes.workoutExerciseId, recent.exerciseId),
+        eq(notes.author, 'user'),
+      ),
+    )
+    .orderBy(desc(notes.updatedAt), desc(notes.id))
+    .limit(1)
+
   const setRows = await db
     .select({
       reps: sets.reps,
@@ -234,7 +255,7 @@ export async function getLastPerformance(
       recent.noteBody === null
         ? null
         : { body: recent.noteBody, pinned: recent.notePinned ?? false },
-    sessionNote: recent.sessionNote ?? null,
+    sessionNote: sessionNoteRow?.body ?? null,
     sessionSkipped: recent.sessionSkipped ?? false,
   }
 }
@@ -293,8 +314,9 @@ export async function getExerciseHistoryBefore(
     )
 }
 
-/** Fetches a single workout with its exercises and sets, only if owned by the user. */
-export function getWorkoutDetail(userId: string, id: string) {
+/** The tree query builder, exported for SQL-shape tests (`.toSQL()`), the
+ *  workoutSummariesQuery convention. App callers use `getWorkoutDetail`. */
+export function workoutDetailQuery(userId: string, id: string) {
   return db.query.workouts.findFirst({
     where: and(eq(workouts.id, id), eq(workouts.userId, userId)),
     with: {
@@ -304,6 +326,57 @@ export function getWorkoutDetail(userId: string, id: string) {
       },
     },
   })
+}
+
+/**
+ * Fetches a single workout with its exercises and sets, only if owned by the
+ * user. The `notes` fields on the workout and each exercise are PROJECTED from
+ * the notes table (notes v2) — the legacy columns are never read: the workout
+ * tier is the latest user-authored workout-anchored note without a fallback
+ * snapshot, the exercise tier the latest user-authored note per instance —
+ * so every consumer (detail page, detailToDraft, MCP get_workout) keeps its
+ * shape while the storage moves.
+ */
+export async function getWorkoutDetail(userId: string, id: string) {
+  const workout = await workoutDetailQuery(userId, id)
+  if (!workout) return workout
+  const noteRows = await db
+    .select({
+      workoutId: notes.workoutId,
+      workoutExerciseId: notes.workoutExerciseId,
+      body: notes.body,
+      anchorSnapshot: notes.anchorSnapshot,
+    })
+    .from(notes)
+    .leftJoin(workoutExercises, eq(workoutExercises.id, notes.workoutExerciseId))
+    .where(
+      and(
+        eq(notes.userId, userId),
+        eq(notes.author, 'user'),
+        or(eq(notes.workoutId, id), eq(workoutExercises.workoutId, id)),
+      ),
+    )
+    // Newest first; the first row seen per anchor below is the canonical one.
+    .orderBy(desc(notes.updatedAt), desc(notes.id))
+  let workoutNote: string | null = null
+  const exerciseNote = new Map<string, string>()
+  for (const row of noteRows) {
+    if (row.workoutExerciseId !== null) {
+      if (!exerciseNote.has(row.workoutExerciseId)) exerciseNote.set(row.workoutExerciseId, row.body)
+    } else if (row.workoutId !== null && row.anchorSnapshot === null && workoutNote === null) {
+      // A snapshot on a workout-anchored row marks a fallback re-anchor — a
+      // set/exercise note whose anchor vanished — never the session note.
+      workoutNote = row.body
+    }
+  }
+  return {
+    ...workout,
+    notes: workoutNote,
+    exercises: workout.exercises.map((exercise) => ({
+      ...exercise,
+      notes: exerciseNote.get(exercise.id) ?? null,
+    })),
+  }
 }
 
 /** The full nested shape returned by getWorkoutDetail (workout + exercises + sets). */
@@ -379,7 +452,11 @@ async function insertWorkoutChildren(
   exercises: WorkoutInput['exercises'],
   priorFacts?: Map<string, PriorSetFacts>,
   priorSetCounts?: Map<string, number>,
-) {
+): Promise<InsertedChildIds> {
+  // New row ids keyed by exercise identity (first slot wins on duplicates,
+  // mirroring priorFacts) — what note re-anchoring and the wire-notes
+  // reconcile address the fresh rows by.
+  const inserted: InsertedChildIds = { exerciseIdByKey: new Map(), setIdByKey: new Map() }
   for (const [position, exercise] of exercises.entries()) {
     const [we] = await tx
       .insert(workoutExercises)
@@ -393,18 +470,22 @@ async function insertWorkoutChildren(
         ...(exercise.loggingType !== undefined ? { loggingType: exercise.loggingType } : {}),
         // Same rule for the identity discriminator (default 'wger').
         ...(exercise.source !== undefined ? { source: exercise.source } : {}),
-        // Notes/skipped: absent → column defaults (null / false). A full
-        // replace without them therefore clears both — the input IS the state.
-        ...(exercise.notes !== undefined ? { notes: exercise.notes } : {}),
+        // NOTE: the wire's exercise `notes` no longer writes the legacy
+        // column — the callers reconcile it into the notes table (notes v2).
         ...(exercise.skipped !== undefined ? { skipped: exercise.skipped } : {}),
       })
       .returning({ id: workoutExercises.id })
+    const exerciseKeyOf = `${exercise.source ?? 'wger'}:${exercise.wgerExerciseId}`
+    if (!inserted.exerciseIdByKey.has(exerciseKeyOf)) {
+      inserted.exerciseIdByKey.set(exerciseKeyOf, we.id)
+    }
+    const firstSlot = inserted.exerciseIdByKey.get(exerciseKeyOf) === we.id
 
     if (exercise.sets.length > 0) {
-      const exerciseKey = `${exercise.source ?? 'wger'}:${exercise.wgerExerciseId}`
+      const exerciseKey = exerciseKeyOf
       const priorCount = priorSetCounts?.get(exerciseKey)
       const positionsAlign = priorCount !== undefined && exercise.sets.length >= priorCount
-      await tx.insert(sets).values(
+      const setRows = await tx.insert(sets).values(
         exercise.sets.map((s, i) => {
           const fact = positionsAlign
             ? priorFacts?.get(
@@ -445,9 +526,15 @@ async function insertWorkoutChildren(
             ...(s.distanceM !== undefined ? { distanceM: s.distanceM } : {}),
           }
         }),
-      )
+      ).returning({ id: sets.id, setNumber: sets.setNumber })
+      if (firstSlot) {
+        for (const row of setRows) {
+          inserted.setIdByKey.set(`${exerciseKey}:${row.setNumber}`, row.id)
+        }
+      }
     }
   }
+  return inserted
 }
 
 /**
@@ -478,16 +565,70 @@ export async function saveWorkout(userId: string, input: WorkoutInput): Promise<
       .values({
         userId,
         name: input.name,
-        notes: input.notes,
+        // The session note goes to the notes table below (notes v2); the
+        // legacy workouts.notes column is no longer written.
         completedAt: input.completedAt ?? input.startedAt ?? new Date(),
         ...(input.startedAt !== undefined ? { startedAt: input.startedAt } : {}),
       })
       .returning({ id: workouts.id })
 
-    await insertWorkoutChildren(tx, workout.id, input.exercises)
+    const ids = await insertWorkoutChildren(tx, workout.id, input.exercises)
+    await syncWireNotes(tx, userId, workout.id, input, ids, { fresh: true })
 
     return { id: workout.id }
   })
+}
+
+/**
+ * Reconciles the wire's one-string note tiers into the notes table: the
+ * session note and each exercise's instance note map onto their CANONICAL
+ * rows (create/update/delete — absent clears, preserving the legacy
+ * full-replace "the input IS the state" rule). First slot wins on a
+ * duplicated exercise identity, mirroring priorFacts. Shared by saveWorkout
+ * and updateWorkout so the two write paths can't drift. `fresh` skips the
+ * canonical reads on a brand-new workout (nothing can exist yet) — one
+ * batched insert instead of a read-modify per tier.
+ */
+async function syncWireNotes(
+  tx: Tx,
+  userId: string,
+  workoutId: string,
+  input: WorkoutInput,
+  ids: InsertedChildIds,
+  opts: { fresh?: boolean } = {},
+): Promise<void> {
+  const seen = new Set<string>()
+  if (opts.fresh) {
+    const values: (typeof notes.$inferInsert)[] = []
+    if (input.notes !== undefined) {
+      values.push({ userId, author: 'user', body: input.notes, workoutId })
+    }
+    for (const exercise of input.exercises) {
+      const key = `${exercise.source ?? 'wger'}:${exercise.wgerExerciseId}`
+      if (seen.has(key)) continue
+      seen.add(key)
+      const weId = ids.exerciseIdByKey.get(key)
+      if (weId === undefined || exercise.notes === undefined) continue
+      values.push({
+        userId,
+        author: 'user',
+        body: exercise.notes,
+        workoutExerciseId: weId,
+        anchorSnapshot: { exerciseName: exercise.name },
+      })
+    }
+    if (values.length > 0) await tx.insert(notes).values(values)
+    return
+  }
+  await setCanonicalWorkoutNote(tx, userId, workoutId, input.notes ?? null)
+  for (const exercise of input.exercises) {
+    const key = `${exercise.source ?? 'wger'}:${exercise.wgerExerciseId}`
+    if (seen.has(key)) continue
+    seen.add(key)
+    const weId = ids.exerciseIdByKey.get(key)
+    if (weId === undefined) continue
+    await setCanonicalExerciseNote(tx, userId, weId, exercise.name, exercise.notes ?? null)
+  }
 }
 
 /** Deletes a workout (and its children, via FK cascade) only if owned by the user. */
@@ -519,8 +660,8 @@ export async function updateWorkout(
       // completion moment — never stamp wall-clock time onto a past session.
       .set({
         name: input.name ?? null,
-        // Same full-replace rule as name: an input without notes clears them.
-        notes: input.notes ?? null,
+        // The session note is reconciled into the notes table below (notes
+        // v2); the legacy workouts.notes column is no longer written.
         completedAt: (() => {
           const explicit = input.completedAt ?? input.startedAt
           // Serialize to ISO here: a param inside a raw sql`` fragment skips
@@ -575,8 +716,29 @@ export async function updateWorkout(
       }
     }
 
+    // Park set/exercise-anchored notes on the workout BEFORE the child delete
+    // — their FKs cascade, and an edit must never eat the user's words.
+    const capturedNotes = await captureAndParkChildNotes(tx, id)
+
     await tx.delete(workoutExercises).where(eq(workoutExercises.workoutId, id))
-    await insertWorkoutChildren(tx, id, input.exercises, priorFacts, priorSetCounts)
+    const ids = await insertWorkoutChildren(tx, id, input.exercises, priorFacts, priorSetCounts)
+
+    // Re-attach parked notes to the re-inserted rows under the SAME alignment
+    // gate as the prescribed_* facts (set notes carry only while incoming set
+    // counts >= prior); anything unmatched stays workout-anchored (fallback,
+    // snapshot preserved).
+    const alignedKeys = new Set<string>()
+    for (const [key, priorCount] of priorSetCounts) {
+      const incoming = input.exercises.find(
+        (e) => `${e.source ?? 'wger'}:${e.wgerExerciseId}` === key,
+      )
+      if (incoming !== undefined && incoming.sets.length >= priorCount) alignedKeys.add(key)
+    }
+    await reattachChildNotes(tx, capturedNotes, ids, alignedKeys)
+
+    // Finally reconcile the wire's one-string note tiers against the
+    // (re-anchored) canonical rows.
+    await syncWireNotes(tx, userId, id, input, ids)
     return { id }
   })
 }
@@ -846,15 +1008,33 @@ export async function updateWorkoutMeta(
   const values = {
     ...(meta.name !== undefined ? { name: meta.name } : {}),
     ...(meta.startedAt !== undefined ? { startedAt: meta.startedAt } : {}),
-    ...(meta.notes !== undefined ? { notes: meta.notes } : {}),
   }
-  if (Object.keys(values).length === 0) return null
-  const [owned] = await db
-    .update(workouts)
-    .set(values)
-    .where(and(eq(workouts.id, id), eq(workouts.userId, userId)))
-    .returning({ id: workouts.id })
-  return owned ?? null
+  if (Object.keys(values).length === 0 && meta.notes === undefined) return null
+  return db.transaction(async (tx) => {
+    // The ownership gate: a column update when there is one, else a bare
+    // owned-row read (a notes-only patch still needs the proof).
+    let owned: { id: string } | undefined
+    if (Object.keys(values).length > 0) {
+      ;[owned] = await tx
+        .update(workouts)
+        .set(values)
+        .where(and(eq(workouts.id, id), eq(workouts.userId, userId)))
+        .returning({ id: workouts.id })
+    } else {
+      ;[owned] = await tx
+        .select({ id: workouts.id })
+        .from(workouts)
+        .where(and(eq(workouts.id, id), eq(workouts.userId, userId)))
+        .limit(1)
+    }
+    if (!owned) return null
+    // The session note lives in the notes table (notes v2): null clears the
+    // canonical row, a string creates/updates it. The legacy column is dead.
+    if (meta.notes !== undefined) {
+      await setCanonicalWorkoutNote(tx, userId, id, meta.notes)
+    }
+    return owned
+  })
 }
 
 /** The per-exercise facts `updateExerciseMeta` can change without touching sets. */
@@ -877,19 +1057,30 @@ export async function updateExerciseMeta(
   exercisePosition: number,
   meta: ExerciseMeta,
 ): Promise<{ id: string } | null> {
-  const values = {
-    ...(meta.notes !== undefined ? { notes: meta.notes } : {}),
-    ...(meta.skipped !== undefined ? { skipped: meta.skipped } : {}),
-  }
-  if (Object.keys(values).length === 0) return null
+  if (meta.notes === undefined && meta.skipped === undefined) return null
   return db.transaction(async (tx) => {
     const exerciseId = await findOwnedExerciseId(tx, userId, workoutId, exercisePosition)
     if (!exerciseId) return null
-    const [updated] = await tx
-      .update(workoutExercises)
-      .set(values)
-      .where(eq(workoutExercises.id, exerciseId))
-      .returning({ id: workoutExercises.id })
-    return updated ?? null
+    let updated: { id: string; name: string } | undefined
+    if (meta.skipped !== undefined) {
+      ;[updated] = await tx
+        .update(workoutExercises)
+        .set({ skipped: meta.skipped })
+        .where(eq(workoutExercises.id, exerciseId))
+        .returning({ id: workoutExercises.id, name: workoutExercises.name })
+    } else {
+      ;[updated] = await tx
+        .select({ id: workoutExercises.id, name: workoutExercises.name })
+        .from(workoutExercises)
+        .where(eq(workoutExercises.id, exerciseId))
+        .limit(1)
+    }
+    if (!updated) return null
+    // The instance note lives in the notes table (notes v2): null clears the
+    // canonical row, a string creates/updates it. The legacy column is dead.
+    if (meta.notes !== undefined) {
+      await setCanonicalExerciseNote(tx, userId, updated.id, updated.name, meta.notes)
+    }
+    return { id: updated.id }
   })
 }

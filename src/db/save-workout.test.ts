@@ -180,6 +180,30 @@ describe('saveWorkout (transactional, user-scoped)', () => {
     expect(records[2].values).not.toHaveProperty('loggingType')
   })
 
+  it('writes session and exercise notes into the notes table (legacy columns dead)', async () => {
+    // Act
+    await saveWorkout(USER, {
+      name: 'Leg Day',
+      notes: 'good session',
+      exercises: [{ wgerExerciseId: 73, name: 'Squat', notes: 'felt heavy', sets: [] }],
+    })
+
+    // Assert — no notes column on the workout or exercise inserts; one
+    // batched notes-table insert instead, exercise note with its snapshot.
+    expect(records[0].values).not.toHaveProperty('notes')
+    expect(records[1].values).not.toHaveProperty('notes')
+    expect(records[2].values).toEqual([
+      { userId: USER, author: 'user', body: 'good session', workoutId: 'w1' },
+      {
+        userId: USER,
+        author: 'user',
+        body: 'felt heavy',
+        workoutExerciseId: 'e1',
+        anchorSnapshot: { exerciseName: 'Squat' },
+      },
+    ])
+  })
+
   it('skips the sets insert when an exercise has no sets', async () => {
     // Act
     await saveWorkout(USER, {
