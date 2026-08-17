@@ -353,3 +353,35 @@ describe('cardio fields in the codec (optional-forever, no version bump)', () =>
     expect(isDraftPayload(bad({ distance: 2.5 }))).toBe(false)
   })
 })
+
+describe('set-note fields (notes v2 — the optional-forever contract)', () => {
+  function withSetNote(setOverrides: Record<string, unknown>): Record<string, unknown> {
+    const p = JSON.parse(JSON.stringify(payload())) as {
+      draft: { exercises: { sets: Record<string, unknown>[] }[] }
+    }
+    Object.assign(p.draft.exercises[0].sets[0], setOverrides)
+    return p as unknown as Record<string, unknown>
+  }
+
+  it('accepts and round-trips note + noteClientKey', () => {
+    const stored = withSetNote({
+      note: 'left shoulder clicked #form',
+      noteClientKey: '01234567-89ab-cdef-0123-456789abcdef',
+    })
+    expect(isDraftPayload(stored)).toBe(true)
+    const restored = parseDraftPayload(stored, { unit: 'kg', now: NOW })
+    expect(restored!.draft.exercises[0].sets[0]).toMatchObject({
+      note: 'left shoulder clicked #form',
+      noteClientKey: '01234567-89ab-cdef-0123-456789abcdef',
+    })
+  })
+
+  it('still accepts pre-note payloads (the standing fixture has neither field)', () => {
+    expect(isDraftPayload(payload())).toBe(true)
+  })
+
+  it('rejects wrong-typed note fields', () => {
+    expect(isDraftPayload(withSetNote({ note: 42 }))).toBe(false)
+    expect(isDraftPayload(withSetNote({ noteClientKey: ['x'] }))).toBe(false)
+  })
+})

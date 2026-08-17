@@ -1463,3 +1463,58 @@ describe('cardio metric modes (slice 1)', () => {
     })
   })
 })
+
+describe('SET_SET_NOTE (notes v2 capture)', () => {
+  const KEY = '01234567-89ab-cdef-0123-456789abcdef'
+
+  it('sets the note and stamps the clientKey on exactly one set', () => {
+    const next = workoutDraftReducer(NESTED, {
+      type: 'SET_SET_NOTE',
+      exerciseIndex: 0,
+      setIndex: 1,
+      note: 'left shoulder clicked #form',
+      clientKey: KEY,
+    })
+    expect(next.exercises[0].sets[1]).toMatchObject({
+      note: 'left shoulder clicked #form',
+      noteClientKey: KEY,
+    })
+    expect(next.exercises[0].sets[0]).not.toHaveProperty('note')
+    // Immutability: fresh objects on the changed path, originals untouched.
+    expect(NESTED.exercises[0].sets[1]).not.toHaveProperty('note')
+    expect(next.exercises[0]).not.toBe(NESTED.exercises[0])
+  })
+
+  it('replaces an existing note while KEEPING its clientKey stable (idempotency)', () => {
+    const withNote = workoutDraftReducer(NESTED, {
+      type: 'SET_SET_NOTE',
+      exerciseIndex: 0,
+      setIndex: 0,
+      note: 'first words',
+      clientKey: KEY,
+    })
+    const edited = workoutDraftReducer(withNote, {
+      type: 'SET_SET_NOTE',
+      exerciseIndex: 0,
+      setIndex: 0,
+      note: 'second thoughts',
+      clientKey: withNote.exercises[0].sets[0].noteClientKey!,
+    })
+    expect(edited.exercises[0].sets[0]).toMatchObject({
+      note: 'second thoughts',
+      noteClientKey: KEY,
+    })
+  })
+
+  it('the note does not leak onto the wire (draftToInput ignores it)', () => {
+    const next = workoutDraftReducer(NESTED, {
+      type: 'SET_SET_NOTE',
+      exerciseIndex: 0,
+      setIndex: 0,
+      note: 'quiet',
+      clientKey: KEY,
+    })
+    const input = draftToInput(next)
+    expect(JSON.stringify(input)).not.toContain('quiet')
+  })
+})

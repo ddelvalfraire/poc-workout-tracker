@@ -71,7 +71,11 @@ function isDraftSet(value: unknown): value is DraftSet {
     // be well-typed, and an unrecognized metricMode is rejected.
     (set.metricMode === undefined || isMetricMode(set.metricMode)) &&
     (set.duration === undefined || typeof set.duration === 'string') &&
-    (set.distance === undefined || typeof set.distance === 'string')
+    (set.distance === undefined || typeof set.distance === 'string') &&
+    // Set-note fields (notes v2) keep the same optional-forever contract:
+    // absent = a pre-notes payload; present must be well-typed strings.
+    (set.note === undefined || typeof set.note === 'string') &&
+    (set.noteClientKey === undefined || typeof set.noteClientKey === 'string')
   )
 }
 

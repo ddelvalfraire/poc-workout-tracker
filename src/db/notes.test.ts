@@ -77,6 +77,8 @@ vi.mock('./index', () => ({
 
 import {
   createNote,
+  createPositionalSetNote,
+  createWorkoutFallbackNote,
   updateNote,
   deleteNote,
   listNotes,
@@ -295,5 +297,111 @@ describe('notesForWorkout', () => {
     await notesForWorkout(USER, ANCHOR_ID)
     expect(renderedWhere(0)).toContain('user_id')
     expect(renderedWhere(0)).toContain('"workouts"."id"')
+  })
+})
+
+describe('createPositionalSetNote (the post-save capture-sheet path)', () => {
+  const CLIENT_KEY = 'fedcba98-7654-3210-fedc-ba9876543210'
+  const ENTRY = {
+    exercisePosition: 1,
+    setNumber: 3,
+    body: 'left shoulder clicked #form',
+    clientKey: CLIENT_KEY,
+  }
+
+  it('resolves (position, setNumber) through the ownership join and anchors to the set with a full snapshot', async () => {
+    selectResults = [
+      [{ setId: 'set-1', exerciseName: 'Bench Press', loadKg: 84, reps: 6, durationSec: null }],
+    ]
+    insertRows = [{ id: 'n1' }]
+
+    const row = await createPositionalSetNote(USER, ANCHOR_ID, ENTRY)
+
+    expect(row).toEqual({ id: 'n1' })
+    // The one resolve read carries ownership AND the positional address.
+    expect(renderedWhere(0)).toContain('user_id')
+    expect(renderedWhere(0)).toContain('position')
+    expect(renderedWhere(0)).toContain('set_number')
+    expect(inserts[0]).toMatchObject({
+      userId: USER,
+      author: 'user',
+      body: ENTRY.body,
+      setId: 'set-1',
+      clientKey: CLIENT_KEY,
+      anchorSnapshot: {
+        exerciseName: 'Bench Press',
+        setNumber: 3,
+        loadKg: 84,
+        reps: 6,
+        durationSec: null,
+      },
+    })
+    // clientKey creates are conflict-guarded (exactly-once per key).
+    expect(conflicts).toHaveLength(1)
+  })
+
+  it('falls back to the workout anchor with a MARKER snapshot when the position does not resolve', async () => {
+    selectResults = [
+      [], // no set at that position
+      [{ id: ANCHOR_ID }], // but the workout is owned
+    ]
+    insertRows = [{ id: 'n2' }]
+
+    const row = await createPositionalSetNote(USER, ANCHOR_ID, ENTRY)
+
+    expect(row).toEqual({ id: 'n2' })
+    expect(inserts[0]).toMatchObject({
+      workoutId: ANCHOR_ID,
+      // The snapshot's presence keeps the fallback OUT of the canonical
+      // session-note projection — the note survives without masquerading.
+      anchorSnapshot: { setNumber: 3 },
+    })
+    expect(inserts[0]).not.toHaveProperty('setId')
+  })
+
+  it('returns null when the workout is not owned (nothing inserted)', async () => {
+    selectResults = [[], []]
+    const row = await createPositionalSetNote(USER, ANCHOR_ID, ENTRY)
+    expect(row).toBeNull()
+    expect(inserts).toHaveLength(0)
+  })
+
+  it('a clientKey conflict returns the existing row instead of duplicating', async () => {
+    selectResults = [
+      [{ setId: 'set-1', exerciseName: 'Bench Press', loadKg: 84, reps: 6, durationSec: null }],
+      [{ id: 'n-existing' }], // the conflict re-read
+    ]
+    insertRows = [] // ON CONFLICT DO NOTHING returned nothing
+
+    const row = await createPositionalSetNote(USER, ANCHOR_ID, ENTRY)
+
+    expect(row).toEqual({ id: 'n-existing' })
+  })
+})
+
+describe('createWorkoutFallbackNote (the queue replay target)', () => {
+  const CLIENT_KEY = 'fedcba98-7654-3210-fedc-ba9876543210'
+
+  it('inserts a workout-anchored note with the {} marker snapshot', async () => {
+    selectResults = [[{ id: ANCHOR_ID }]]
+    insertRows = [{ id: 'n3' }]
+
+    const row = await createWorkoutFallbackNote(USER, ANCHOR_ID, 'downgraded words', CLIENT_KEY)
+
+    expect(row).toEqual({ id: 'n3' })
+    expect(renderedWhere(0)).toContain('user_id')
+    expect(inserts[0]).toMatchObject({
+      workoutId: ANCHOR_ID,
+      body: 'downgraded words',
+      clientKey: CLIENT_KEY,
+      anchorSnapshot: {},
+    })
+  })
+
+  it('returns null for an unowned workout', async () => {
+    selectResults = [[]]
+    const row = await createWorkoutFallbackNote(USER, ANCHOR_ID, 'x', CLIENT_KEY)
+    expect(row).toBeNull()
+    expect(inserts).toHaveLength(0)
   })
 })
