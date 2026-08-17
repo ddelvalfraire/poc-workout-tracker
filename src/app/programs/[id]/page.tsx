@@ -56,6 +56,7 @@ import { SharingSection } from './sharing-section'
 import { RestartProgramButton } from './restart-program-button'
 import { DietPhaseCard } from './diet-phase-card'
 import { OvershootPolicyControl } from './overshoot-policy-control'
+import { ExerciseOvershootControl } from './exercise-overshoot-control'
 import { cuttingStalenessWeeks } from '@/lib/diet-phase-staleness'
 
 /** Chip labels for the change log — WHO edited, in the user's own terms. */
@@ -808,6 +809,19 @@ export default async function ProgramDetailPage({
                             </div>
                             {howLine !== null && (
                               <p className="mt-1 text-sm text-muted-foreground">{howLine}</p>
+                            )}
+                            {/* Per-exercise overshoot override (#239's data,
+                                now with UI): owner-only quiet select; never
+                                on a proposal (adopt first — same gate as the
+                                program-level control below). */}
+                            {!isProposed && (
+                              <ExerciseOvershootControl
+                                programId={program.id}
+                                dayPosition={day.position}
+                                exercisePosition={exercise.position}
+                                exerciseName={exercise.name}
+                                policy={exercise.overshootPolicy}
+                              />
                             )}
                           </div>
                         )

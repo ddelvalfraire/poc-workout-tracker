@@ -623,6 +623,56 @@ describe('exercise ops (user-scoped)', () => {
     expect(records[0]!.values).toEqual({ progression: null })
   })
 
+  it('updateProgramExercise threads overshootPolicy through to the row and the event', async () => {
+    // Reads: owned-exercise
+    selectQueue = [OWNED_EXERCISE]
+
+    const result = await updateProgramExercise(
+      USER,
+      PID,
+      0,
+      1,
+      { overshootPolicy: 'any-metric' },
+      'mcp',
+    )
+
+    // No identity change → no retag; the named field lands on the row…
+    expect(records.map((r) => r.op)).toEqual([
+      'update:program_exercises',
+      'update:programs',
+      'insert:program_events',
+    ])
+    expect(records[0]!.values).toEqual({ overshootPolicy: 'any-metric' })
+    // …and the event summary names the touched field.
+    const event = records[2]!.values as { summary: string; payload: { after: unknown } }
+    expect(event.summary).toContain('overshootPolicy')
+    expect(event.payload.after).toEqual({ overshootPolicy: 'any-metric' })
+    expect(result).toEqual({ id: 'row1' })
+  })
+
+  it('updateProgramExercise clears overshootPolicy with an explicit null', async () => {
+    // Reads: owned-exercise
+    selectQueue = [OWNED_EXERCISE]
+
+    await updateProgramExercise(USER, PID, 0, 1, { overshootPolicy: null }, 'mcp')
+
+    expect(records[0]!.values).toEqual({ overshootPolicy: null })
+  })
+
+  it('updateProgramExercise rejects a value outside the overshoot enum before any read or write', async () => {
+    await expect(
+      updateProgramExercise(
+        USER,
+        PID,
+        0,
+        1,
+        { overshootPolicy: 'lenient' as unknown as 'any-metric' },
+        'mcp',
+      ),
+    ).rejects.toThrow(/expected one of "strict-load"/)
+    expect(records).toEqual([])
+  })
+
   it('updateProgramExercise returns null and writes nothing when not owned', async () => {
     selectQueue = [[]]
 

@@ -590,7 +590,7 @@ export function registerProgramPatchTools(server: McpServer): void {
     {
       title: 'Update Program Exercise',
       description:
-        "Updates an exercise's identity (wgerExerciseId and/or source — the composite key; changing either re-derives muscle tags), name, progression, and/or supersetGroup (by programId + 0-based dayPosition + 0-based exercisePosition). Identity changes here are load-PRESERVING relabels — for fixing a mislabeled exercise while keeping its suggested loads and progression; to swap one movement for another, use substitute_program_exercise instead so the old movement's loads don't carry over. Only the named fields change; pass progression: null to clear it (`progression` JSONB is in kg) or supersetGroup: null to ungroup (same non-null group within a day = superset). Errors if the exercise isn't found or owned.",
+        "Updates an exercise's identity (wgerExerciseId and/or source — the composite key; changing either re-derives muscle tags), name, progression, and/or supersetGroup (by programId + 0-based dayPosition + 0-based exercisePosition). Identity changes here are load-PRESERVING relabels — for fixing a mislabeled exercise while keeping its suggested loads and progression; to swap one movement for another, use substitute_program_exercise instead so the old movement's loads don't carry over. Only the named fields change; pass progression: null to clear it (`progression` JSONB is in kg), supersetGroup: null to ungroup (same non-null group within a day = superset), or overshootPolicy ('strict-load' | 'e1rm-equivalent' | 'any-metric', null clears) to override the program's overshoot / goal-met policy for THIS exercise only (exercise > program > per-scheme default). Errors if the exercise isn't found or owned.",
       inputSchema: {
         programId: z.string(),
         dayPosition: positionArg,
@@ -602,6 +602,7 @@ export function registerProgramPatchTools(server: McpServer): void {
         name: nameArg.optional(),
         progression: progressionSchema.nullable().optional(),
         supersetGroup: z.number().int().min(0).nullable().optional(),
+        overshootPolicy: overshootPolicySchema.nullable().optional(),
         userId: z.string().optional(),
       },
     },
@@ -615,6 +616,7 @@ export function registerProgramPatchTools(server: McpServer): void {
         name,
         progression,
         supersetGroup,
+        overshootPolicy,
         userId,
       },
       extra,
@@ -622,9 +624,11 @@ export function registerProgramPatchTools(server: McpServer): void {
       try {
         const resolved = resolveUserId(extra, userId)
         assertProgramIdShape(programId)
-        if (isEmptyPatch({ wgerExerciseId, source, name, progression, supersetGroup })) {
+        if (
+          isEmptyPatch({ wgerExerciseId, source, name, progression, supersetGroup, overshootPolicy })
+        ) {
           throw new ToolError(
-            'update_program_exercise needs at least one of wgerExerciseId, source, name, progression, or supersetGroup',
+            'update_program_exercise needs at least one of wgerExerciseId, source, name, progression, supersetGroup, or overshootPolicy',
           )
         }
         const result = await runOp(() =>
@@ -633,7 +637,7 @@ export function registerProgramPatchTools(server: McpServer): void {
             programId,
             dayPosition,
             exercisePosition,
-            { wgerExerciseId, source, name, progression, supersetGroup },
+            { wgerExerciseId, source, name, progression, supersetGroup, overshootPolicy },
             resolveActor(extra),
           ),
         )

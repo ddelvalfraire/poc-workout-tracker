@@ -1145,6 +1145,59 @@ describe('registerProgramPatchTools', () => {
         exercisePosition: 1,
       })
     })
+
+    it('update_program_exercise accepts a lone overshootPolicy patch (and null clears)', async () => {
+      // Arrange
+      const tools = setup()
+      mockedUpdateExercise.mockResolvedValue({ id: 'pe1' })
+
+      // Act — set the per-exercise override…
+      const result = await tools.get('update_program_exercise')!({
+        programId: PID,
+        dayPosition: 0,
+        exercisePosition: 1,
+        overshootPolicy: 'e1rm-equivalent',
+      })
+
+      // Assert
+      expect(mockedUpdateExercise).toHaveBeenCalledWith(
+        'user_env',
+        PID,
+        0,
+        1,
+        {
+          wgerExerciseId: undefined,
+          name: undefined,
+          progression: undefined,
+          supersetGroup: undefined,
+          overshootPolicy: 'e1rm-equivalent',
+        },
+        'mcp',
+      )
+      expect(payload(result)).toEqual({
+        userId: 'user_env',
+        programId: PID,
+        dayPosition: 0,
+        exercisePosition: 1,
+      })
+
+      // …and an explicit null (fall back to the program/scheme resolution)
+      // is a non-empty patch, passed through as null.
+      await tools.get('update_program_exercise')!({
+        programId: PID,
+        dayPosition: 0,
+        exercisePosition: 1,
+        overshootPolicy: null,
+      })
+      expect(mockedUpdateExercise).toHaveBeenLastCalledWith(
+        'user_env',
+        PID,
+        0,
+        1,
+        expect.objectContaining({ overshootPolicy: null }),
+        'mcp',
+      )
+    })
   })
 
   describe('propose_program_patches (batch proposals)', () => {
