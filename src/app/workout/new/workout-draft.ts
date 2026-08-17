@@ -52,6 +52,16 @@ export interface DraftSet {
   duration?: string
   /** Cardio distance in km as typed; optional, absent reads as ''. */
   distance?: string
+  /** Set note captured mid-session (notes v2, plain text). OPTIONAL FOREVER —
+   *  absent = no note — so pre-notes drafts, payloads, and fixtures stay valid
+   *  without a codec version bump (the rir/rpe precedent). NOT sent through
+   *  draftToInput: set notes become `notes` table rows AFTER the save, by
+   *  (exercisePosition, setNumber) — see note-capture.ts. */
+  note?: string
+  /** Idempotency handle for this set's note, minted ONCE when the note is
+   *  first captured and stable across edits/retries — the create's clientKey
+   *  (a replayed finish or queue re-send dedupes on it). */
+  noteClientKey?: string
 }
 
 /** Ghost values a tap can adopt into EMPTY fields (FILL_SET / check-off). */
@@ -141,6 +151,12 @@ export type DraftAction =
       setIndex: number
       fill?: SetFill
     }
+  /** Capture-sheet set note (notes v2): sets/replaces one set's note text and
+   *  stamps its idempotency key. The caller mints `clientKey` once (reusing
+   *  the existing key on edits) — the reducer stays pure. An empty value
+   *  keeps the key: the note row is only created at save time, so clearing
+   *  text before then simply collects nothing. */
+  | { type: 'SET_SET_NOTE'; exerciseIndex: number; setIndex: number; note: string; clientKey: string }
   /** Controlled workout-level notes textarea. */
   | { type: 'SET_WORKOUT_NOTES'; value: string }
   /** Controlled per-exercise notes textarea. */
@@ -391,6 +407,19 @@ export function workoutDraftReducer(state: WorkoutDraft, action: DraftAction): W
             }),
           }
         }),
+      }
+
+    case 'SET_SET_NOTE':
+      return {
+        ...state,
+        exercises: mapExerciseAt(state.exercises, action.exerciseIndex, (exercise) => ({
+          ...exercise,
+          sets: exercise.sets.map((set, i) =>
+            i === action.setIndex
+              ? { ...set, note: action.note, noteClientKey: action.clientKey }
+              : set,
+          ),
+        })),
       }
 
     case 'SET_WORKOUT_NOTES':
