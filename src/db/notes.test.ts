@@ -15,6 +15,7 @@ let insertRows: Record<string, unknown>[] = []
 let updateRows: Record<string, unknown>[] = []
 let deleteRows: Record<string, unknown>[] = []
 const inserts: unknown[] = []
+const conflicts: unknown[] = []
 const updates: unknown[] = []
 const whereArgs: unknown[] = []
 const limits: number[] = []
@@ -45,7 +46,13 @@ vi.mock('./index', () => ({
     insert: () => ({
       values: (v: unknown) => {
         inserts.push(v)
-        return { returning: () => Promise.resolve(insertRows) }
+        return {
+          returning: () => Promise.resolve(insertRows),
+          onConflictDoNothing: (cfg: unknown) => {
+            conflicts.push(cfg)
+            return { returning: () => Promise.resolve(insertRows) }
+          },
+        }
       },
     }),
     update: () => ({
@@ -91,6 +98,7 @@ beforeEach(() => {
   updateRows = []
   deleteRows = []
   inserts.length = 0
+  conflicts.length = 0
   updates.length = 0
   whereArgs.length = 0
   limits.length = 0
@@ -165,6 +173,28 @@ describe('createNote', () => {
     })
 
     expect(inserts[0]).toMatchObject({ author: 'coach', programId: ANCHOR_ID })
+  })
+
+  it('dedupes on clientKey: conflict target + existing-row return (replayed flush)', async () => {
+    // First flush: insert succeeds.
+    selectResults = [[{ id: ANCHOR_ID }]]
+    insertRows = [{ id: 'n1', clientKey: 'ck-1' }]
+    const first = await createNote(USER, { kind: 'workout', id: ANCHOR_ID }, 'x', {
+      clientKey: 'ck-1',
+    })
+    expect(first).toEqual({ id: 'n1', clientKey: 'ck-1' })
+    expect(inserts[0]).toMatchObject({ clientKey: 'ck-1' })
+    expect(conflicts).toHaveLength(1) // ON CONFLICT DO NOTHING was armed
+
+    // Replayed flush: the insert conflicts (returns no row) and the existing
+    // row comes back from the follow-up select — ONE row, ever.
+    inserts.length = 0
+    selectResults = [[{ id: ANCHOR_ID }], [{ id: 'n1', clientKey: 'ck-1' }]]
+    insertRows = []
+    const replay = await createNote(USER, { kind: 'workout', id: ANCHOR_ID }, 'x', {
+      clientKey: 'ck-1',
+    })
+    expect(replay).toEqual({ id: 'n1', clientKey: 'ck-1' })
   })
 
   it('returns null (no insert) when the anchor is not owned', async () => {

@@ -466,6 +466,10 @@ export const notes = pgTable(
     // Frozen creation-time context for set/exercise anchors; null for
     // workout/program anchors. Written once, never updated.
     anchorSnapshot: jsonb('anchor_snapshot').$type<NoteAnchorSnapshot>(),
+    // Client-supplied idempotency key (the offline queue's PendingNote.id):
+    // the partial unique below makes a replayed flush a no-op instead of a
+    // duplicate row. Nullable — direct (non-queued) creates carry none.
+    clientKey: text('client_key'),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
   },
@@ -474,6 +478,10 @@ export const notes = pgTable(
       'notes_exactly_one_anchor',
       sql`num_nonnulls(${t.programId}, ${t.workoutId}, ${t.workoutExerciseId}, ${t.setId}) = 1`,
     ),
+    // Exactly-once for queued creates: one row per (user, client key).
+    uniqueIndex('notes_user_client_key_unique')
+      .on(t.userId, t.clientKey)
+      .where(sql`${t.clientKey} is not null`),
     // The browser's read path: by user, newest first — the composite serves
     // the sort too (bodyweight_logs precedent).
     index('notes_user_created_idx').on(t.userId, t.createdAt.desc()),

@@ -1,4 +1,6 @@
 import { and, desc, eq, inArray, isNull, sql } from 'drizzle-orm'
+import type { NoteAnchorSnapshot } from '@/lib/note-input'
+import { loadsMatch } from '@/lib/load-quantize'
 import { db } from './index'
 import { notes, sets, workoutExercises } from './schema'
 
@@ -36,6 +38,17 @@ export interface CapturedChildNote {
   exerciseKey: string
   /** 1-based set number for set-anchored notes; null = exercise-anchored. */
   setNumber: number | null
+  /** The note's frozen creation-time context — the content-affinity evidence
+   *  the re-attach gate compares against the re-inserted row. */
+  anchorSnapshot: NoteAnchorSnapshot | null
+}
+
+/** A re-inserted set row: id plus the content the affinity gate compares. */
+export interface InsertedSetRow {
+  id: string
+  weight: number | null
+  reps: number | null
+  durationSec: number | null
 }
 
 /** The re-inserted child row ids, keyed by exercise identity (first slot wins
@@ -43,8 +56,35 @@ export interface CapturedChildNote {
 export interface InsertedChildIds {
   /** exerciseKey -> new workout_exercises.id */
   exerciseIdByKey: Map<string, string>
-  /** `${exerciseKey}:${setNumber}` -> new sets.id */
-  setIdByKey: Map<string, string>
+  /** `${exerciseKey}:${setNumber}` -> new set row (id + content). */
+  setIdByKey: Map<string, InsertedSetRow>
+}
+
+/** Load-identity tolerance for the affinity gate — autoregulate.ts's
+ *  LOAD_EPSILON_KG convention (float dust, not a real load difference). */
+const LOAD_EPSILON_KG = 0.05
+
+/**
+ * The content-affinity gate (never misattribute): a parked set note may only
+ * re-attach positionally when the facts its snapshot recorded still agree
+ * with the row now at that position — loadKg within the loadsMatch tolerance,
+ * reps/duration exact. Snapshot fields that were null/absent at creation
+ * (note taken on a not-yet-typed set) are wildcards: there is nothing to
+ * contradict. A snapshot with NO recorded facts passes on position alone.
+ */
+export function snapshotMatchesSetRow(
+  snapshot: NoteAnchorSnapshot | null,
+  row: { weight: number | null; reps: number | null; durationSec: number | null },
+): boolean {
+  if (snapshot == null) return true
+  if (snapshot.loadKg != null) {
+    if (row.weight === null || !loadsMatch(snapshot.loadKg, row.weight, LOAD_EPSILON_KG)) {
+      return false
+    }
+  }
+  if (snapshot.reps != null && snapshot.reps !== row.reps) return false
+  if (snapshot.durationSec != null && snapshot.durationSec !== row.durationSec) return false
+  return true
 }
 
 /**
@@ -63,6 +103,7 @@ export async function captureAndParkChildNotes(
       source: workoutExercises.source,
       wgerExerciseId: workoutExercises.wgerExerciseId,
       setNumber: sets.setNumber,
+      anchorSnapshot: notes.anchorSnapshot,
     })
     .from(notes)
     .leftJoin(sets, eq(sets.id, notes.setId))
@@ -88,6 +129,7 @@ export async function captureAndParkChildNotes(
     noteId: r.noteId,
     exerciseKey: exerciseKey(r.source, r.wgerExerciseId),
     setNumber: r.setNumber,
+    anchorSnapshot: r.anchorSnapshot,
   }))
 }
 
@@ -97,8 +139,11 @@ export async function captureAndParkChildNotes(
  * identity leaves them parked = the workout-anchor fallback). Set-anchored
  * notes additionally require positional alignment — the caller passes the
  * SAME gate PriorSetFacts uses (`alignedKeys`: identities whose incoming set
- * count >= prior count); an unaligned or missing target leaves the note
- * parked, snapshot intact.
+ * count >= prior count) — AND content affinity: the note's snapshot must
+ * agree with the row now at that position (snapshotMatchesSetRow), or a
+ * same-count within-exercise reorder would hand the note to whatever set
+ * shifted into its ordinal. Any failed gate leaves the note parked, snapshot
+ * intact — never misattribute, never delete.
  */
 export async function reattachChildNotes(
   tx: Tx,
@@ -121,9 +166,12 @@ export async function reattachChildNotes(
       if (!alignedKeys.has(note.exerciseKey)) continue // shifted positions: park
       const target = ids.setIdByKey.get(`${note.exerciseKey}:${note.setNumber}`)
       if (target === undefined) continue
-      const list = bySetId.get(target) ?? []
+      // Content affinity: position agreeing is not enough after a same-count
+      // reorder — the recorded facts must agree with the row too.
+      if (!snapshotMatchesSetRow(note.anchorSnapshot, target)) continue
+      const list = bySetId.get(target.id) ?? []
       list.push(note.noteId)
-      bySetId.set(target, list)
+      bySetId.set(target.id, list)
     }
   }
   for (const [weId, noteIds] of byExerciseId) {
@@ -135,6 +183,45 @@ export async function reattachChildNotes(
   for (const [setId, noteIds] of bySetId) {
     await tx.update(notes).set({ workoutId: null, setId }).where(inArray(notes.id, noteIds))
   }
+}
+
+/**
+ * Guard for the SINGLE-set removal path (removeSet — MCP remove_set or a
+ * future UI): the set's cascade would eat its notes, so before the delete
+ * every note on that set falls back to the workout anchor. The snapshot is
+ * preserved when present and WRITTEN AT FALLBACK TIME when absent — the
+ * set's facts are about to be destroyed, and a fallback note without its
+ * context would be an anonymous orphan. Never delete a user's words.
+ */
+export async function fallbackSetNotesBeforeRemoval(
+  tx: Tx,
+  workoutId: string,
+  set: {
+    id: string
+    setNumber: number
+    exerciseName: string
+    weight: number | null
+    reps: number | null
+    durationSec: number | null
+  },
+): Promise<void> {
+  const snapshot: NoteAnchorSnapshot = {
+    exerciseName: set.exerciseName,
+    setNumber: set.setNumber,
+    loadKg: set.weight,
+    reps: set.reps,
+    durationSec: set.durationSec,
+  }
+  await tx
+    .update(notes)
+    .set({
+      workoutId,
+      setId: null,
+      // Written-once rule holds: coalesce keeps an existing snapshot verbatim
+      // and only fills the gap for notes that never had one.
+      anchorSnapshot: sql`coalesce(${notes.anchorSnapshot}, ${JSON.stringify(snapshot)}::jsonb)`,
+    })
+    .where(eq(notes.setId, set.id))
 }
 
 /**

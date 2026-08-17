@@ -74,6 +74,9 @@ function makeTx() {
                 ? (values as Record<string, unknown>[]).map((v) => ({
                     id: ID_SEQUENCE[idCounter++] ?? `x${idCounter}`,
                     setNumber: v.setNumber,
+                    weight: v.weight ?? null,
+                    reps: v.reps ?? null,
+                    durationSec: v.durationSec ?? null,
                   }))
                 : [{ id: ID_SEQUENCE[idCounter++] ?? `x${idCounter}` }],
             ),
@@ -340,8 +343,16 @@ describe('updateWorkout (transactional, user-scoped)', () => {
       { wgerExerciseId: 73, source: 'wger', setNumber: 1, setType: 'working', prescribedLoadKg: null, prescribedRepMin: null },
     ]
     capturedNoteRows = [
-      { noteId: 'n-ex', source: 'wger', wgerExerciseId: 73, setNumber: null },
-      { noteId: 'n-set', source: 'wger', wgerExerciseId: 73, setNumber: 1 },
+      { noteId: 'n-ex', source: 'wger', wgerExerciseId: 73, setNumber: null, anchorSnapshot: null },
+      {
+        noteId: 'n-set',
+        source: 'wger',
+        wgerExerciseId: 73,
+        setNumber: 1,
+        // Recorded facts agree with the re-inserted row — the affinity gate
+        // must let the positional re-attach through.
+        anchorSnapshot: { exerciseName: 'Squat', setNumber: 1, loadKg: 100, reps: 5 },
+      },
     ]
 
     // Act
@@ -373,8 +384,14 @@ describe('updateWorkout (transactional, user-scoped)', () => {
       { wgerExerciseId: 73, source: 'wger', setNumber: 2, setType: 'working', prescribedLoadKg: null, prescribedRepMin: null },
     ]
     capturedNoteRows = [
-      { noteId: 'n-ex', source: 'wger', wgerExerciseId: 73, setNumber: null },
-      { noteId: 'n-set', source: 'wger', wgerExerciseId: 73, setNumber: 2 },
+      { noteId: 'n-ex', source: 'wger', wgerExerciseId: 73, setNumber: null, anchorSnapshot: null },
+      {
+        noteId: 'n-set',
+        source: 'wger',
+        wgerExerciseId: 73,
+        setNumber: 2,
+        anchorSnapshot: { loadKg: 80, reps: 8 },
+      },
     ]
 
     // Act — only one set comes back
@@ -394,8 +411,8 @@ describe('updateWorkout (transactional, user-scoped)', () => {
   it('keeps notes with their exercise identity when exercises are reordered', async () => {
     // Arrange — two exercises with one note each; the edit swaps their order.
     capturedNoteRows = [
-      { noteId: 'n-squat', source: 'wger', wgerExerciseId: 73, setNumber: null },
-      { noteId: 'n-row', source: 'wger', wgerExerciseId: 99, setNumber: null },
+      { noteId: 'n-squat', source: 'wger', wgerExerciseId: 73, setNumber: null, anchorSnapshot: null },
+      { noteId: 'n-row', source: 'wger', wgerExerciseId: 99, setNumber: null, anchorSnapshot: null },
     ]
 
     // Act — 99 now comes first: new we ids are e1 (99) then s1 (73, next in
@@ -411,6 +428,79 @@ describe('updateWorkout (transactional, user-scoped)', () => {
     const updates = records.filter((r) => r.op === 'update').map((r) => r.values)
     expect(updates).toContainEqual({ workoutId: null, workoutExerciseId: 'e1' }) // 99's note
     expect(updates).toContainEqual({ workoutId: null, workoutExerciseId: 's1' }) // 73's note
+  })
+
+  it('parks a set note instead of misattributing it after a same-count set reorder', async () => {
+    // Arrange — two prior sets; the note hangs on set 2 (100×5). The edit
+    // swaps the two sets, so position 2 now holds 80×8: position alone would
+    // hand the note to the wrong set — content affinity must refuse.
+    priorFactRows = [
+      { wgerExerciseId: 73, source: 'wger', setNumber: 1, setType: 'working', prescribedLoadKg: null, prescribedRepMin: null },
+      { wgerExerciseId: 73, source: 'wger', setNumber: 2, setType: 'working', prescribedLoadKg: null, prescribedRepMin: null },
+    ]
+    capturedNoteRows = [
+      {
+        noteId: 'n-set',
+        source: 'wger',
+        wgerExerciseId: 73,
+        setNumber: 2,
+        anchorSnapshot: { loadKg: 100, reps: 5 },
+      },
+    ]
+
+    // Act — same count, reordered content
+    await updateWorkout(USER, ID, {
+      exercises: [
+        {
+          wgerExerciseId: 73,
+          name: 'Squat',
+          sets: [
+            { reps: 8, weight: 80 },
+            { reps: 5, weight: 100 },
+          ],
+        },
+      ],
+    })
+
+    // Wait — position 2 now holds 100×5 (the SAME content), so this attach
+    // is correct; the misattribution case is the inverse: note on set 1.
+    // Assert the gate on the real mismatch: re-run with the note on set 1.
+    const updates = records.filter((r) => r.op === 'update').map((r) => r.values as Record<string, unknown>)
+    expect(updates.filter((v) => typeof v.setId === 'string')).toHaveLength(1)
+
+    // Re-arrange: note on set 1 (was 100×5), position 1 now holds 80×8.
+    records.length = 0
+    idCounter = 0
+    priorFactRows = [
+      { wgerExerciseId: 73, source: 'wger', setNumber: 1, setType: 'working', prescribedLoadKg: null, prescribedRepMin: null },
+      { wgerExerciseId: 73, source: 'wger', setNumber: 2, setType: 'working', prescribedLoadKg: null, prescribedRepMin: null },
+    ]
+    capturedNoteRows = [
+      {
+        noteId: 'n-set',
+        source: 'wger',
+        wgerExerciseId: 73,
+        setNumber: 1,
+        anchorSnapshot: { loadKg: 100, reps: 5 },
+      },
+    ]
+
+    await updateWorkout(USER, ID, {
+      exercises: [
+        {
+          wgerExerciseId: 73,
+          name: 'Squat',
+          sets: [
+            { reps: 8, weight: 80 },
+            { reps: 5, weight: 100 },
+          ],
+        },
+      ],
+    })
+
+    // The note stays parked on the workout anchor — no setId update at all.
+    const updates2 = records.filter((r) => r.op === 'update').map((r) => r.values as Record<string, unknown>)
+    expect(updates2.some((v) => typeof v.setId === 'string')).toBe(false)
   })
 
   it('returns null and mutates nothing when the user does not own the workout', async () => {

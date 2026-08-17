@@ -42,7 +42,7 @@ describe('createNoteAction', () => {
     const result = await createNoteAction({ kind: 'set', id: UUID }, '  shoulder clicked  ')
 
     expect(result).toBe(row)
-    expect(createNote).toHaveBeenCalledWith(USER, { kind: 'set', id: UUID }, 'shoulder clicked')
+    expect(createNote).toHaveBeenCalledWith(USER, { kind: 'set', id: UUID }, 'shoulder clicked', {})
     // The live-session rule: a note save must never re-render the logger.
     expect(revalidatePath).not.toHaveBeenCalled()
   })
@@ -50,6 +50,18 @@ describe('createNoteAction', () => {
   it('throws when the anchor is not owned (db returns null)', async () => {
     vi.mocked(createNote).mockResolvedValue(null)
     await expect(createNoteAction({ kind: 'workout', id: UUID }, 'x')).rejects.toThrow(/not found/)
+  })
+
+  it('lower-cases and forwards a clientKey (queue idempotency), rejecting junk keys', async () => {
+    vi.mocked(createNote).mockResolvedValue({ id: 'n1' } as never)
+    await createNoteAction({ kind: 'set', id: UUID }, 'x', UUID.toUpperCase())
+    expect(createNote).toHaveBeenCalledWith(USER, { kind: 'set', id: UUID }, 'x', {
+      clientKey: UUID,
+    })
+
+    await expect(createNoteAction({ kind: 'set', id: UUID }, 'x', 'my-key')).rejects.toThrow(
+      /client key/,
+    )
   })
 
   it('rejects a blank body and a bad anchor before touching the db', async () => {

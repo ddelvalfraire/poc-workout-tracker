@@ -331,28 +331,42 @@ describe('addSet (user-scoped)', () => {
 })
 
 describe('removeSet (user-scoped)', () => {
-  it('deletes the set, renumbers the rest, and stamps completion', async () => {
-    // Arrange — owned, a set was deleted
-    selectQueue = [[{ id: 'ex1' }]]
+  /** The doomed-set facts read (notes fallback + not-found gate). */
+  const targetSetRow = { id: 's7', weight: 100, reps: 5, durationSec: null, exerciseName: 'Squat' }
+
+  it('re-anchors the set notes to the workout BEFORE deleting, then renumbers and stamps', async () => {
+    // Arrange — owned, the target set exists
+    selectQueue = [[{ id: 'ex1' }], [targetSetRow]]
 
     // Act
     const result = await removeSet(USER, WID, 0, 2)
 
-    // Assert — delete, renumber against sets, then the workout completion stamp
-    expect(records.map((r) => r.op)).toEqual(['delete', 'update:sets', 'update:workouts'])
+    // Assert — the notes fallback update runs FIRST (the cascade would eat
+    // set notes otherwise), then delete, renumber, completion stamp.
+    expect(records.map((r) => r.op)).toEqual([
+      'update:notes',
+      'delete',
+      'update:sets',
+      'update:workouts',
+    ])
+    const fallback = records[0].values as Record<string, unknown>
+    expect(fallback).toMatchObject({ workoutId: WID, setId: null })
+    // The snapshot is written at fallback time when absent (coalesce keeps an
+    // existing one) — a SQL expression, never a plain overwrite.
+    expect(fallback.anchorSnapshot).toBeTruthy()
     expect(result).toEqual({ removed: true })
   })
 
-  it('returns null and does not renumber when no such set exists', async () => {
-    // Arrange — owned, but nothing deleted
-    selectQueue = [[{ id: 'ex1' }]]
+  it('returns null and mutates nothing when no such set exists', async () => {
+    // Arrange — owned, but the target read finds nothing
+    selectQueue = [[{ id: 'ex1' }], []]
     deletedSetRows = []
 
     // Act
     const result = await removeSet(USER, WID, 0, 9)
 
-    // Assert — delete attempted, but no renumber follows
-    expect(records.map((r) => r.op)).toEqual(['delete'])
+    // Assert — the not-found gate fires before any write
+    expect(records).toEqual([])
     expect(result).toBeNull()
   })
 

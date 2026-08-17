@@ -23,6 +23,7 @@ import { workouts, workoutExercises, sets, exerciseNotes, notes } from './schema
 import { SetCompletionError } from './workout-errors'
 import {
   captureAndParkChildNotes,
+  fallbackSetNotesBeforeRemoval,
   reattachChildNotes,
   setCanonicalExerciseNote,
   setCanonicalWorkoutNote,
@@ -526,10 +527,21 @@ async function insertWorkoutChildren(
             ...(s.distanceM !== undefined ? { distanceM: s.distanceM } : {}),
           }
         }),
-      ).returning({ id: sets.id, setNumber: sets.setNumber })
+      ).returning({
+        id: sets.id,
+        setNumber: sets.setNumber,
+        weight: sets.weight,
+        reps: sets.reps,
+        durationSec: sets.durationSec,
+      })
       if (firstSlot) {
         for (const row of setRows) {
-          inserted.setIdByKey.set(`${exerciseKey}:${row.setNumber}`, row.id)
+          inserted.setIdByKey.set(`${exerciseKey}:${row.setNumber}`, {
+            id: row.id,
+            weight: row.weight,
+            reps: row.reps,
+            durationSec: row.durationSec,
+          })
         }
       }
     }
@@ -972,6 +984,31 @@ export async function removeSet(
   return db.transaction(async (tx) => {
     const exerciseId = await findOwnedExerciseId(tx, userId, workoutId, exercisePosition)
     if (!exerciseId) return null
+    // Capture the doomed set's facts BEFORE the delete: its notes must fall
+    // back to the workout anchor (the cascade would eat them — the same
+    // landmine updateWorkout's park/re-attach guards), with a snapshot
+    // written from these facts when the note never had one.
+    const [target] = await tx
+      .select({
+        id: sets.id,
+        weight: sets.weight,
+        reps: sets.reps,
+        durationSec: sets.durationSec,
+        exerciseName: workoutExercises.name,
+      })
+      .from(sets)
+      .innerJoin(workoutExercises, eq(workoutExercises.id, sets.workoutExerciseId))
+      .where(and(eq(sets.workoutExerciseId, exerciseId), eq(sets.setNumber, setNumber)))
+      .limit(1)
+    if (!target) return null
+    await fallbackSetNotesBeforeRemoval(tx, workoutId, {
+      id: target.id,
+      setNumber,
+      exerciseName: target.exerciseName,
+      weight: target.weight,
+      reps: target.reps,
+      durationSec: target.durationSec,
+    })
     const [deleted] = await tx
       .delete(sets)
       .where(and(eq(sets.workoutExerciseId, exerciseId), eq(sets.setNumber, setNumber)))

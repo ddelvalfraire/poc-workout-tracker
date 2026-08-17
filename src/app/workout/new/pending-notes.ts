@@ -7,6 +7,11 @@ import { isNoteAnchorKind, type NoteAnchor } from '@/lib/note-input'
  * every queued note must eventually land, in order, exactly once per queue
  * entry — so this is a FIFO drain, not a newest-snapshot sender.
  *
+ * Exactly-once: `send` must forward `PendingNote.id` as the create's
+ * `clientKey` (createNoteAction's third arg) — the server's partial unique
+ * on (user_id, client_key) dedupes a replayed flush (send landed, response
+ * lost, note re-sent) into the one existing row.
+ *
  * Pure logic with injectable storage and sender (the logger supplies
  * localStorage access and the createNote server action), so the whole state
  * machine unit-tests as plain functions — the draft-sync.ts idiom. The codec
@@ -110,14 +115,26 @@ export function createPendingNotesQueue(opts: {
   // The current drain, or null. A flush during a drain JOINS it (returns the
   // same promise) instead of racing a second sender — one in-flight, ever.
   let inFlight: Promise<void> | null = null
+  // In-memory mirror of the queue, authoritative once the first write lands.
+  // localStorage persistence is BEST-EFFORT: a quota/serialization failure
+  // must not lose the note (memory keeps it; every later write retries the
+  // store) — it only loses reload durability until a store succeeds.
+  let memory: PendingNote[] | null = null
 
   function read(): PendingNote[] {
-    return parsePendingNotes(opts.load())
+    return memory ?? parsePendingNotes(opts.load())
   }
 
   function write(notes: PendingNote[]): void {
-    // An empty queue removes the key entirely — no stale payloads linger.
-    opts.store(notes.length === 0 ? null : JSON.stringify(buildPendingNotesPayload(notes)))
+    memory = notes
+    try {
+      // An empty queue removes the key entirely — no stale payloads linger.
+      opts.store(notes.length === 0 ? null : JSON.stringify(buildPendingNotesPayload(notes)))
+    } catch {
+      // Quota exceeded (or storage unavailable): fail soft — the in-memory
+      // queue is intact and the drain path re-attempts persistence on its
+      // next write.
+    }
     opts.onStatus?.(notes.length)
   }
 

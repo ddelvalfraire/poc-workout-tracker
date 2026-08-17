@@ -38,13 +38,28 @@ function parseNoteId(raw: unknown): string {
 /**
  * Creates a note on an owned anchor. Throws on invalid input or when the
  * anchor isn't owned/doesn't exist (the client try/catches, like every other
- * action here).
+ * action here). `clientKey` (optional, a client uuid — the offline queue
+ * passes its PendingNote.id) makes the create idempotent: a replayed flush
+ * returns the already-created row instead of duplicating it.
  */
-export async function createNoteAction(anchor: unknown, body: unknown): Promise<NoteRow> {
+export async function createNoteAction(
+  anchor: unknown,
+  body: unknown,
+  clientKey?: unknown,
+): Promise<NoteRow> {
   const userId = await requireUserId()
   const parsedAnchor = parseNoteAnchor(anchor)
   const parsedBody = parseNoteBody(body)
-  const row = await createNote(userId, parsedAnchor, parsedBody)
+  let parsedClientKey: string | undefined
+  if (clientKey !== undefined && clientKey !== null) {
+    if (typeof clientKey !== 'string' || !UUID_RE.test(clientKey.toLowerCase())) {
+      throw new Error('invalid client key')
+    }
+    parsedClientKey = clientKey.toLowerCase()
+  }
+  const row = await createNote(userId, parsedAnchor, parsedBody, {
+    ...(parsedClientKey !== undefined ? { clientKey: parsedClientKey } : {}),
+  })
   if (!row) throw new Error('note anchor not found')
   return row
 }

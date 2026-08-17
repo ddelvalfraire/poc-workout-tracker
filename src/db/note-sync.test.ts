@@ -3,9 +3,11 @@ import type { SQL } from 'drizzle-orm'
 import { PgDialect } from 'drizzle-orm/pg-core'
 import {
   captureAndParkChildNotes,
+  fallbackSetNotesBeforeRemoval,
   reattachChildNotes,
   setCanonicalWorkoutNote,
   setCanonicalExerciseNote,
+  snapshotMatchesSetRow,
   type CapturedChildNote,
   type InsertedChildIds,
 } from './note-sync'
@@ -84,16 +86,27 @@ describe('captureAndParkChildNotes', () => {
   it('parks captured notes on the workout anchor and returns identity keys', async () => {
     selectQueue = [
       [
-        { noteId: 'n1', source: 'wger', wgerExerciseId: 73, setNumber: null },
-        { noteId: 'n2', source: 'custom', wgerExerciseId: 73, setNumber: 2 },
+        { noteId: 'n1', source: 'wger', wgerExerciseId: 73, setNumber: null, anchorSnapshot: null },
+        {
+          noteId: 'n2',
+          source: 'custom',
+          wgerExerciseId: 73,
+          setNumber: 2,
+          anchorSnapshot: { loadKg: 100, reps: 5 },
+        },
       ],
     ]
 
     const captured = await captureAndParkChildNotes(makeTx() as unknown as Tx, WID)
 
     expect(captured).toEqual([
-      { noteId: 'n1', exerciseKey: 'wger:73', setNumber: null },
-      { noteId: 'n2', exerciseKey: 'custom:73', setNumber: 2 },
+      { noteId: 'n1', exerciseKey: 'wger:73', setNumber: null, anchorSnapshot: null },
+      {
+        noteId: 'n2',
+        exerciseKey: 'custom:73',
+        setNumber: 2,
+        anchorSnapshot: { loadKg: 100, reps: 5 },
+      },
     ])
     // The park update swaps every anchor to the workout, snapshot untouched.
     expect(records).toEqual([
@@ -112,13 +125,20 @@ describe('captureAndParkChildNotes', () => {
 describe('reattachChildNotes', () => {
   const ids: InsertedChildIds = {
     exerciseIdByKey: new Map([['wger:73', 'e-new']]),
-    setIdByKey: new Map([['wger:73:2', 's-new']]),
+    setIdByKey: new Map([
+      ['wger:73:2', { id: 's-new', weight: 100, reps: 5, durationSec: null }],
+    ]),
   }
 
   it('re-attaches exercise and aligned set notes, grouped per target', async () => {
     const captured: CapturedChildNote[] = [
-      { noteId: 'n1', exerciseKey: 'wger:73', setNumber: null },
-      { noteId: 'n2', exerciseKey: 'wger:73', setNumber: 2 },
+      { noteId: 'n1', exerciseKey: 'wger:73', setNumber: null, anchorSnapshot: null },
+      {
+        noteId: 'n2',
+        exerciseKey: 'wger:73',
+        setNumber: 2,
+        anchorSnapshot: { loadKg: 100, reps: 5 },
+      },
     ]
 
     await reattachChildNotes(makeTx() as unknown as Tx, captured, ids, new Set(['wger:73']))
@@ -129,8 +149,26 @@ describe('reattachChildNotes', () => {
     ])
   })
 
+  it('leaves a set note parked when the row at its position carries DIFFERENT content', async () => {
+    // The same-count reorder case: the ordinal exists but holds another set.
+    const captured: CapturedChildNote[] = [
+      {
+        noteId: 'n2',
+        exerciseKey: 'wger:73',
+        setNumber: 2,
+        anchorSnapshot: { loadKg: 80, reps: 8 },
+      },
+    ]
+
+    await reattachChildNotes(makeTx() as unknown as Tx, captured, ids, new Set(['wger:73']))
+
+    expect(records).toEqual([])
+  })
+
   it('leaves set notes parked when their exercise is not aligned (shifted positions)', async () => {
-    const captured: CapturedChildNote[] = [{ noteId: 'n2', exerciseKey: 'wger:73', setNumber: 2 }]
+    const captured: CapturedChildNote[] = [
+      { noteId: 'n2', exerciseKey: 'wger:73', setNumber: 2, anchorSnapshot: null },
+    ]
 
     await reattachChildNotes(makeTx() as unknown as Tx, captured, ids, new Set())
 
@@ -139,13 +177,59 @@ describe('reattachChildNotes', () => {
 
   it('leaves notes parked when their exercise identity vanished', async () => {
     const captured: CapturedChildNote[] = [
-      { noteId: 'n1', exerciseKey: 'wger:99', setNumber: null },
-      { noteId: 'n2', exerciseKey: 'wger:99', setNumber: 1 },
+      { noteId: 'n1', exerciseKey: 'wger:99', setNumber: null, anchorSnapshot: null },
+      { noteId: 'n2', exerciseKey: 'wger:99', setNumber: 1, anchorSnapshot: null },
     ]
 
     await reattachChildNotes(makeTx() as unknown as Tx, captured, ids, new Set(['wger:99']))
 
     expect(records).toEqual([])
+  })
+})
+
+describe('snapshotMatchesSetRow', () => {
+  const row = { weight: 100, reps: 5, durationSec: null }
+
+  it('matches when recorded facts agree (loads within tolerance)', () => {
+    expect(snapshotMatchesSetRow({ loadKg: 100.04, reps: 5 }, row)).toBe(true)
+  })
+
+  it('mismatches on a different load or reps', () => {
+    expect(snapshotMatchesSetRow({ loadKg: 80 }, row)).toBe(false)
+    expect(snapshotMatchesSetRow({ reps: 8 }, row)).toBe(false)
+  })
+
+  it('treats null/absent snapshot fields as wildcards (note on a not-yet-typed set)', () => {
+    expect(snapshotMatchesSetRow({ loadKg: null, reps: null, setNumber: 2 }, row)).toBe(true)
+    expect(snapshotMatchesSetRow(null, row)).toBe(true)
+  })
+
+  it('compares duration for timed sets', () => {
+    expect(snapshotMatchesSetRow({ durationSec: 45 }, { weight: null, reps: null, durationSec: 45 })).toBe(true)
+    expect(snapshotMatchesSetRow({ durationSec: 45 }, { weight: null, reps: null, durationSec: 60 })).toBe(false)
+  })
+})
+
+describe('fallbackSetNotesBeforeRemoval', () => {
+  it('re-anchors the doomed set\'s notes to the workout, snapshot coalesced in', async () => {
+    await fallbackSetNotesBeforeRemoval(makeTx() as unknown as Tx, WID, {
+      id: 's7',
+      setNumber: 2,
+      exerciseName: 'Squat',
+      weight: 100,
+      reps: 5,
+      durationSec: null,
+    })
+
+    expect(records).toHaveLength(1)
+    const values = records[0].values as Record<string, unknown>
+    expect(values).toMatchObject({ workoutId: WID, setId: null })
+    // The snapshot write is a coalesce (existing snapshot always wins) — a
+    // SQL expression, not a plain object overwrite.
+    expect(values.anchorSnapshot).toBeTruthy()
+    expect(values.anchorSnapshot).not.toEqual(expect.objectContaining({ exerciseName: 'Squat' }))
+    // …and the where targets exactly that set's notes.
+    expect(renderedWhere(0)).toContain('set_id')
   })
 })
 

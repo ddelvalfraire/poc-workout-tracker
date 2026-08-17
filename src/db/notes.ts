@@ -144,6 +144,11 @@ function anchorColumn(
  * "outdated" badge's evidence AND the fallback marker note-sync keys on).
  * Returns null when the anchor isn't owned or doesn't exist.
  *
+ * `clientKey` is the offline queue's idempotency handle: the partial unique
+ * on (user_id, client_key) plus ON CONFLICT DO NOTHING makes a replayed
+ * flush (send landed, response lost) return the EXISTING row instead of
+ * minting a duplicate — exactly-once per queued note.
+ *
  * The ownership read and the insert are two statements (no tx): the only
  * race is a concurrent anchor delete, which the FK turns into a loud error —
  * the accepted single-user-POC tradeoff noted in db/programs.ts.
@@ -152,22 +157,41 @@ export async function createNote(
   userId: string,
   anchor: NoteAnchor,
   body: string,
-  opts: { author?: NoteAuthor } = {},
+  opts: { author?: NoteAuthor; clientKey?: string } = {},
 ): Promise<NoteRow | null> {
   const resolved = await resolveAnchor(userId, anchor)
   if (!resolved) return null
+  const values = {
+    userId,
+    author: opts.author ?? 'user',
+    body,
+    [anchorColumn(anchor.kind)]: anchor.id,
+    ...(resolved.snapshot !== null ? { anchorSnapshot: resolved.snapshot } : {}),
+    ...(opts.clientKey !== undefined ? { clientKey: opts.clientKey } : {}),
+  }
+  if (opts.clientKey === undefined) {
+    const [row] = await db.insert(notes).values(values).returning()
+    if (!row) throw new Error('createNote: insert returned no row')
+    return row
+  }
   const [row] = await db
     .insert(notes)
-    .values({
-      userId,
-      author: opts.author ?? 'user',
-      body,
-      [anchorColumn(anchor.kind)]: anchor.id,
-      ...(resolved.snapshot !== null ? { anchorSnapshot: resolved.snapshot } : {}),
+    .values(values)
+    .onConflictDoNothing({
+      target: [notes.userId, notes.clientKey],
+      // Match the partial index predicate — required for Postgres to pick it.
+      where: sql`${notes.clientKey} is not null`,
     })
     .returning()
-  if (!row) throw new Error('createNote: insert returned no row')
-  return row
+  if (row) return row
+  // Conflict: the note already landed on a previous flush — return it.
+  const [existing] = await db
+    .select()
+    .from(notes)
+    .where(and(eq(notes.userId, userId), eq(notes.clientKey, opts.clientKey)))
+    .limit(1)
+  if (!existing) throw new Error('createNote: conflict with no existing row')
+  return existing
 }
 
 /**
