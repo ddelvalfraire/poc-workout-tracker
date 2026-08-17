@@ -5,6 +5,7 @@ import type {
   NoteAnchorSnapshot,
   NoteAuthor,
 } from '@/lib/note-input'
+import type { ExerciseSource } from '@/lib/custom-exercise-input'
 import { db } from './index'
 import { notes, programs, sets, workoutExercises, workouts } from './schema'
 
@@ -232,6 +233,15 @@ export interface ListNotesFilters {
   workoutId?: string
   workoutExerciseId?: string
   setId?: string
+  /**
+   * Exercise IDENTITY (source + id), not one instance: every note anchored to
+   * ANY workout_exercise of this identity — directly or through one of its
+   * sets — across all workouts. The exercise page's reverse index. Fallback
+   * re-anchored rows (workout-anchored, snapshot-carrying) drop out by
+   * construction: their exercise row is gone, so the join can't prove
+   * identity — the browser's outdated badge is where those surface.
+   */
+  exercise?: { source: ExerciseSource; exerciseId: number }
   limit?: number
   offset?: number
 }
@@ -320,6 +330,15 @@ export async function listNotes(
           ? eq(notes.workoutExerciseId, filters.workoutExerciseId)
           : undefined,
         filters.setId !== undefined ? eq(notes.setId, filters.setId) : undefined,
+        // eq against the LEFT-joined exercise columns: rows whose anchor
+        // chain reaches no workout_exercise (workout/program anchors) have
+        // NULL there and never match — no extra isNotNull needed.
+        filters.exercise !== undefined
+          ? eq(workoutExercises.source, filters.exercise.source)
+          : undefined,
+        filters.exercise !== undefined
+          ? eq(workoutExercises.wgerExerciseId, filters.exercise.exerciseId)
+          : undefined,
       ),
     )
     .orderBy(desc(notes.createdAt), desc(notes.id))
