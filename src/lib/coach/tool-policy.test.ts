@@ -60,6 +60,13 @@ describe('coach tool policy', () => {
     expect(filtered).not.toHaveProperty('restart_program')
     expect(filtered).not.toHaveProperty('delete_workout')
     expect(filtered).not.toHaveProperty('set_weight_unit')
+    // Notes v2: the coach reads the browser freely but never writes through
+    // the user-authored note tools (author='user' is unconditional there —
+    // a coach call would forge user authorship, the set_exercise_note rule).
+    expect(filtered).toHaveProperty('list_notes')
+    expect(filtered).not.toHaveProperty('create_note')
+    expect(filtered).not.toHaveProperty('update_note')
+    expect(filtered).not.toHaveProperty('delete_note')
   })
 
   it('keeps the owner-only confirm out of the registry entirely: no adopt/decline tools exist', () => {

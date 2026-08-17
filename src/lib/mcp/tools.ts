@@ -8,6 +8,7 @@ import { registerProgramTools } from './program-tools'
 import { registerProgramPatchTools } from './program-patch-tools'
 import { registerCustomExerciseTools } from './custom-exercise-tools'
 import { registerGoalTools } from './goal-tools'
+import { registerNoteTools } from './note-tools'
 import { registerResources } from './resources'
 
 /**
@@ -60,5 +61,6 @@ export function registerTools(server: McpServer): void {
   registerProgramPatchTools(server)
   registerCustomExerciseTools(server)
   registerGoalTools(server)
+  registerNoteTools(server)
   registerResources(server)
 }

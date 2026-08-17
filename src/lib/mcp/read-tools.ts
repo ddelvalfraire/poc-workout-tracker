@@ -19,6 +19,8 @@ import { getWeightUnit, getBodyweightKg } from '@/db/preferences'
 import { searchExercises } from '@/lib/wger'
 import { listCustomExercises } from '@/db/custom-exercises'
 import { listExerciseNotesFor } from '@/db/exercise-notes'
+import { notesForWorkout } from '@/db/notes'
+import type { NoteAuthor } from '@/lib/note-input'
 import { kgToDisplay, type WeightUnit } from '@/lib/units'
 import { bestScoredSet } from '@/lib/one-rep-max'
 import type { LoggingType } from '@/lib/workout-input'
@@ -67,7 +69,7 @@ export function registerReadTools(server: McpServer): void {
     {
       title: 'Get Workout',
       description:
-        "Returns one workout (owned by the user) with its exercises and sets, weights in the user's unit, plus a per-exercise estimated 1RM. Each set carries logged effort (`rir`/`rpe`) and its prescribed target (`prescribedRir`/`prescribedRpe`), null when absent. Includes the session `notes` and, per exercise, `notes` and `skipped` (skipped = the lifter didn't do this exercise that day; its sets stay uncompleted).",
+        "Returns one workout (owned by the user) with its exercises and sets, weights in the user's unit, plus a per-exercise estimated 1RM. Each set carries logged effort (`rir`/`rpe`) and its prescribed target (`prescribedRir`/`prescribedRpe`), null when absent. Includes the session `notes`, per exercise `notes` and `skipped` (skipped = the lifter didn't do this exercise that day; its sets stay uncompleted), and per set an optional `notes` list ({author, body} — set-anchored notes in reading order, present only when the set has any).",
       inputSchema: { id: z.string(), userId: z.string().optional() },
     },
     async ({ id, userId }, extra) => {
@@ -84,13 +86,16 @@ export function registerReadTools(server: McpServer): void {
         // load basis for any bodyweight-type exercise's estimated 1RM.
         // Identity notes ride the same round: one batched query for every
         // exercise in the workout (cheap — bounded by the exercise count).
-        const [unit, bodyweightKg, noteRows] = await Promise.all([
+        // notesForWorkout rides too — its set-anchored rows are the only tier
+        // getWorkoutDetail's projection doesn't already surface.
+        const [unit, bodyweightKg, noteRows, workoutNoteRows] = await Promise.all([
           getWeightUnit(resolved),
           getBodyweightKg(resolved),
           listExerciseNotesFor(
             resolved,
             workout.exercises.map((e) => ({ source: e.source, exerciseId: e.wgerExerciseId })),
           ),
+          notesForWorkout(resolved, id),
         ])
         const identityNotes = new Map(
           noteRows.map((n) => [
@@ -98,6 +103,15 @@ export function registerReadTools(server: McpServer): void {
             { body: n.body, pinned: n.pinned },
           ]),
         )
+        // Set-anchored notes keyed by set id (reading order preserved). The
+        // workout/exercise tiers are already projected into the detail's
+        // `notes` fields, so only the set tier rides separately.
+        const setNotes = new Map<string, { author: NoteAuthor; body: string }[]>()
+        for (const note of workoutNoteRows) {
+          if (note.setId === null) continue
+          const list = setNotes.get(note.setId) ?? []
+          setNotes.set(note.setId, [...list, { author: note.author, body: note.body }])
+        }
         // When the workout was instantiated from a program day, overlay that day's
         // prescription (targets) — read from the program, never stored on the sets.
         const programDay = workout.programDayId
@@ -111,6 +125,7 @@ export function registerReadTools(server: McpServer): void {
             bodyweightKg,
             programDay ?? undefined,
             identityNotes,
+            setNotes,
           ),
         )
       } catch (error: unknown) {
@@ -465,6 +480,9 @@ export interface WorkoutPayload {
         rpe: number | null
         prescribedRir: number | null
         prescribedRpe: number | null
+        // Set-anchored notes in reading order — present only when the set has
+        // any (and only on surfaces that fetch them, i.e. the get_workout tool).
+        notes?: { author: NoteAuthor; body: string }[]
       }[]
       estimated1RM: number | null
       // Additive rep-fallback readout: the best set's rep count when nothing
@@ -491,6 +509,10 @@ export function buildWorkoutPayload(
    *  exercise carries its `identityNote` (null = none). The resource path
    *  omits the map and stays byte-identical to its pre-notes shape. */
   identityNotes?: Map<string, { body: string; pinned: boolean }>,
+  /** Set-anchored notes keyed by set id — when provided, a set with entries
+   *  carries them as `notes` (omitted otherwise: minimal wire shape). The
+   *  resource path omits the map and stays byte-identical, like identityNotes. */
+  setNotes?: Map<string, { author: NoteAuthor; body: string }[]>,
 ): WorkoutPayload {
   return {
     userId: resolved,
@@ -517,18 +539,22 @@ export function buildWorkoutPayload(
             }
           : {}),
         skipped: exercise.skipped,
-        sets: exercise.sets.map((s) => ({
-          setNumber: s.setNumber,
-          reps: s.reps,
-          weight: s.weight === null ? null : kgToDisplay(s.weight, unit),
-          completed: s.completed,
-          // Logged effort + its prescribed-at-instantiation target — unitless
-          // scales, so no display conversion. Null when not logged/prescribed.
-          rir: s.rir,
-          rpe: s.rpe,
-          prescribedRir: s.prescribedRir,
-          prescribedRpe: s.prescribedRpe,
-        })),
+        sets: exercise.sets.map((s) => {
+          const noteList = setNotes?.get(s.id)
+          return {
+            setNumber: s.setNumber,
+            reps: s.reps,
+            weight: s.weight === null ? null : kgToDisplay(s.weight, unit),
+            completed: s.completed,
+            // Logged effort + its prescribed-at-instantiation target — unitless
+            // scales, so no display conversion. Null when not logged/prescribed.
+            rir: s.rir,
+            rpe: s.rpe,
+            prescribedRir: s.prescribedRir,
+            prescribedRpe: s.prescribedRpe,
+            ...(noteList !== undefined && noteList.length > 0 ? { notes: noteList } : {}),
+          }
+        }),
         ...scoreExercise(exercise.sets, exercise.loggingType, bodyweightKg, unit),
       })),
     },
