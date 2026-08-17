@@ -57,6 +57,7 @@ describe('ATTACK: skipped prior instances feed the echo', () => {
           notePinned: null,
           // The prior instance was skipped; only its excuse note exists.
           sessionNote: 'shoulder tweak — skipped',
+          sessionSkipped: true,
         },
       ],
       [], // a skipped instance has no set rows
@@ -67,6 +68,9 @@ describe('ATTACK: skipped prior instances feed the echo', () => {
     // The note of the SKIPPED instance rides through as the echo source…
     expect(result?.sessionNote).toBe('shoulder tweak — skipped')
     expect(result?.sets).toEqual([])
+    // …ADOPTED (owner call): the skipped instance stays eligible, but the
+    // fact now rides along so the echo can label itself honestly.
+    expect(result?.sessionSkipped).toBe(true)
 
     // …and the query text confirms no filter could have fenced it out:
     // neither `skipped` nor any completion predicate appears in the WHERE.

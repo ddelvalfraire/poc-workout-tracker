@@ -157,6 +157,14 @@ export interface LastPerformance {
    * exercise-identity note.
    */
   sessionNote: string | null
+  /**
+   * Whether that same previous instance was marked skipped
+   * (workout_exercises.skipped, riding the identical row — no extra query).
+   * The echo labels itself "Last time (skipped)" off this fact. Optional so
+   * pre-flag consumers and fixtures keep their shape (cardio-field rationale
+   * above); absent reads as performed.
+   */
+  sessionSkipped?: boolean
 }
 
 /**
@@ -182,6 +190,8 @@ export async function getLastPerformance(
       // Per-instance session note of that same prior performance — the
       // "Last time: …" echo rides along, no second query.
       sessionNote: workoutExercises.notes,
+      // …and whether that instance was skipped, so the echo can say so.
+      sessionSkipped: workoutExercises.skipped,
     })
     .from(workoutExercises)
     .innerJoin(workouts, eq(workouts.id, workoutExercises.workoutId))
@@ -225,6 +235,7 @@ export async function getLastPerformance(
         ? null
         : { body: recent.noteBody, pinned: recent.notePinned ?? false },
     sessionNote: recent.sessionNote ?? null,
+    sessionSkipped: recent.sessionSkipped ?? false,
   }
 }
 

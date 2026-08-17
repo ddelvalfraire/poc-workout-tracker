@@ -80,6 +80,8 @@ describe('getLastPerformance', () => {
       ],
       note: null,
       sessionNote: null,
+      // Absent in the mocked row (pre-flag fixture) → performed.
+      sessionSkipped: false,
     })
   })
 

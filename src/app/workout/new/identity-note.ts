@@ -64,16 +64,26 @@ export function noteChipLabel(body: string): string {
  *   differ. Raw equality implies label equality, so the label check subsumes
  *   the raw one — a suppressed echo is always a genuine display duplicate.
  *
- * Returns the trimmed echo text, or null for "render nothing".
+ * Returns the trimmed echo text plus the ride-along `sessionSkipped` fact
+ * (the previous instance was marked skipped — the logger labels the line
+ * "Last time (skipped): …" so the echo never masquerades as a performance),
+ * or null for "render nothing". The flag NEVER changes eligibility; it only
+ * rides through so the render can speak it.
  */
+export interface LastSessionEcho {
+  text: string
+  sessionSkipped: boolean
+}
+
 export function lastSessionEcho(
   prevSessionNote: string | null | undefined,
   currentSessionNote: string,
   shownPinned: IdentityNote | null,
-): string | null {
+  sessionSkipped = false,
+): LastSessionEcho | null {
   const prev = prevSessionNote?.trim() ?? ''
   if (prev === '') return null
   if (currentSessionNote.trim() !== '') return null
   if (shownPinned !== null && noteChipLabel(shownPinned.body) === noteChipLabel(prev)) return null
-  return prev
+  return { text: prev, sessionSkipped }
 }

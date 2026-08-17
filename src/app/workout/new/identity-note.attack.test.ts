@@ -52,9 +52,10 @@ describe('ATTACK: echo suppression vs the chip-label lens', () => {
   })
 
   it('a genuinely different short note is never falsely suppressed', () => {
-    expect(
-      lastSessionEcho('Felt strong', '', { body: 'Seat pin 4', pinned: true }),
-    ).toBe('Felt strong')
+    expect(lastSessionEcho('Felt strong', '', { body: 'Seat pin 4', pinned: true })).toEqual({
+      text: 'Felt strong',
+      sessionSkipped: false,
+    })
   })
 })
 
@@ -64,7 +65,10 @@ describe('ATTACK: whitespace-only current note is "not a note yet" (the module c
   // gate must agree — see workout-logger-notes.attack.test.tsx for the
   // render-level half of this attack.
   it('echo stays offered over a whitespace-only current note', () => {
-    expect(lastSessionEcho('Felt strong', '   \n\t', null)).toBe('Felt strong')
+    expect(lastSessionEcho('Felt strong', '   \n\t', null)).toEqual({
+      text: 'Felt strong',
+      sessionSkipped: false,
+    })
   })
 })
 
