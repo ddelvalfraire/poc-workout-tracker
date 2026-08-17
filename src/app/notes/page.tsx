@@ -103,6 +103,13 @@ export default async function NotesPage({
             </nav>
           )}
         </NotesBrowser>
+        {/* No silent caps: listNotes windows at 200 — when the window is
+            full, older notes exist beyond it and the reader must know. */}
+        {rows.length >= 200 && (
+          <p className="px-1 py-4 text-center text-xs text-muted-foreground">
+            Showing your latest 200 notes.
+          </p>
+        )}
       </main>
     </div>
   )
