@@ -272,6 +272,16 @@ describe('listNotes', () => {
     expect(renderedWhere(0)).toContain('workout_id')
   })
 
+  it('filters by exercise IDENTITY through the joined exercise columns (reverse index)', async () => {
+    selectResults = [[]]
+    await listNotes(USER, { exercise: { source: 'custom', exerciseId: 42 } })
+    // The identity condition lives on the joined workout_exercises columns —
+    // workout/program-anchored rows (NULL there) can never match.
+    expect(renderedWhere(0)).toContain('"workout_exercises"."source"')
+    expect(renderedWhere(0)).toContain('"workout_exercises"."wger_exercise_id"')
+    expect(renderedWhere(0)).toContain('user_id')
+  })
+
   it('caps the limit at the ceiling', async () => {
     selectResults = [[]]
     await listNotes(USER, { limit: 10_000 })
