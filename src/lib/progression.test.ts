@@ -707,7 +707,12 @@ describe('applyOverride', () => {
 describe('resolveDeloadPolicy', () => {
   const LEGACY_SCHEDULED = {
     mode: 'scheduled',
-    shape: { loadFactor: DELOAD_LOAD_FACTOR, setFactor: DELOAD_SET_FACTOR, rpeCap: null },
+    shape: {
+      loadFactor: DELOAD_LOAD_FACTOR,
+      setFactor: DELOAD_SET_FACTOR,
+      rpeCap: null,
+      timedExercises: 'untouched',
+    },
   }
 
   it('passes a valid stored policy through untouched', () => {
@@ -715,7 +720,7 @@ describe('resolveDeloadPolicy', () => {
     expect(resolveDeloadPolicy({ mode: 'reactive' }, 4)).toEqual({ mode: 'reactive' })
     const scheduled = {
       mode: 'scheduled',
-      shape: { loadFactor: 0.7, setFactor: 0.6, rpeCap: 7 },
+      shape: { loadFactor: 0.7, setFactor: 0.6, rpeCap: 7, timedExercises: 'scaled' },
     }
     expect(resolveDeloadPolicy(scheduled, null)).toEqual(scheduled)
   })
@@ -743,7 +748,14 @@ describe('resolveDeloadPolicy', () => {
   it('applies the scheduled shape defaults when the stored shape is partial', () => {
     expect(resolveDeloadPolicy({ mode: 'scheduled', shape: { loadFactor: 0.9 } }, 4)).toEqual({
       mode: 'scheduled',
-      shape: { loadFactor: 0.9, setFactor: DELOAD_SET_FACTOR, rpeCap: null },
+      shape: {
+        loadFactor: 0.9,
+        setFactor: DELOAD_SET_FACTOR,
+        rpeCap: null,
+        // The zod default rides read-time resolution — legacy stored shapes
+        // (no field) resolve to the protective 'untouched' arm (D3).
+        timedExercises: 'untouched',
+      },
     })
   })
 })
@@ -803,7 +815,10 @@ describe('deriveWeekSets under a deload policy', () => {
       week: 4,
       history: NO_HISTORY,
       ...geometry,
-      deloadPolicy: { mode: 'scheduled', shape: { loadFactor: 0.7, setFactor: 1, rpeCap: null } },
+      deloadPolicy: {
+        mode: 'scheduled',
+        shape: { loadFactor: 0.7, setFactor: 1, rpeCap: null, timedExercises: 'untouched' },
+      },
     })
     expect(derived).toHaveLength(4) // setFactor 1 keeps every working set
     derived.forEach((s) => {
@@ -824,7 +839,10 @@ describe('deriveWeekSets under a deload policy', () => {
       week: 4,
       history: NO_HISTORY,
       ...geometry,
-      deloadPolicy: { mode: 'scheduled', shape: { loadFactor: 0.85, setFactor: 1, rpeCap: 7 } },
+      deloadPolicy: {
+        mode: 'scheduled',
+        shape: { loadFactor: 0.85, setFactor: 1, rpeCap: 7, timedExercises: 'untouched' },
+      },
     })
     expect(derived.map((s) => s.rpe)).toEqual([7, 6, null]) // clamp, keep, never invent
   })
@@ -847,7 +865,12 @@ describe('deriveWeekSets under a deload policy', () => {
     } as const
     const scheduled = {
       mode: 'scheduled',
-      shape: { loadFactor: DELOAD_LOAD_FACTOR, setFactor: DELOAD_SET_FACTOR, rpeCap: null },
+      shape: {
+      loadFactor: DELOAD_LOAD_FACTOR,
+      setFactor: DELOAD_SET_FACTOR,
+      rpeCap: null,
+      timedExercises: 'untouched',
+    },
     } as const
     const derive = (week: number, progression: typeof linear | Record<string, unknown>) =>
       deriveWeekSets({

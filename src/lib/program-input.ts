@@ -118,13 +118,22 @@ export const techniqueSchema = z
  * fields default to the historical engine constants (progression.ts's
  * DELOAD_LOAD_FACTOR / DELOAD_SET_FACTOR), so `{}` parses to exactly today's
  * deload. `rpeCap` (5–10, null = no cap) additionally clamps any derived RPE
- * stamps on the deload week's progressed sets.
+ * stamps on the deload week's progressed sets. `timedExercises` decides what
+ * the deload does to duration/duration_distance rows: 'untouched' (the
+ * default — a fully-timed exercise derives its deload week as a normal week;
+ * a mixed exercise deloads its lifting rows only) or 'scaled' (the explicit
+ * opt-in: setFactor resizes and 'deload' stamps apply to timed rows too —
+ * durationSec is never multiplied by loadFactor either way). The default
+ * covers legacy stored policies at resolve time — the adjudicated D3 call
+ * ("creator decides"): stored scheduled policies no longer silently halve a
+ * timed exercise's sets.
  */
 export const deloadShapeSchema = z
   .object({
     loadFactor: z.number().min(0).max(1).default(0.85),
     setFactor: z.number().min(0).max(1).default(0.5),
     rpeCap: z.number().min(5).max(10).nullable().default(null),
+    timedExercises: z.enum(['untouched', 'scaled']).default('untouched'),
   })
   .strict()
 

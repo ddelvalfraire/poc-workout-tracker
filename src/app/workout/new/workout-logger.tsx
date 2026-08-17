@@ -1203,6 +1203,7 @@ export function WorkoutLogger({
             lastByExercise[identityKey]?.sessionNote,
             exercise.notes,
             identityNote,
+            lastByExercise[identityKey]?.sessionSkipped ?? false,
           )
           return (
           <section
@@ -1475,13 +1476,13 @@ export function WorkoutLogger({
               <button
                 type="button"
                 onClick={() => {
-                  dispatch({ type: 'SET_EXERCISE_NOTES', exerciseIndex, value: echoNote })
+                  dispatch({ type: 'SET_EXERCISE_NOTES', exerciseIndex, value: echoNote.text })
                   setNotesOpen((prev) => new Set(prev).add(exercise.id))
                 }}
                 aria-label={`Copy last session's note for ${exercise.name}`}
                 className="block max-w-full truncate px-0.5 text-left text-xs italic text-muted-foreground"
               >
-                Last time: {noteChipLabel(echoNote)}
+                Last time{echoNote.sessionSkipped ? ' (skipped)' : ''}: {noteChipLabel(echoNote.text)}
               </button>
             )}
 

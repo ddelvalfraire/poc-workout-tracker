@@ -32,13 +32,29 @@ const METRIC_MODE_LABELS: Record<MetricMode, string> = {
   duration_distance: 'Duration + distance',
 }
 
+/** The scheduled shape at the historical defaults — what a never-set policy
+ *  resolves to, and the seed when the picker writes an explicit one. */
+const DEFAULT_DELOAD_SHAPE = {
+  loadFactor: 0.85,
+  setFactor: 0.5,
+  rpeCap: null,
+  timedExercises: 'untouched',
+} as const
+
 /** The read-only shape caption for the scheduled mode: the stored shape when
  *  one exists (agent-configured), the historical defaults otherwise. */
 function deloadShapeLine(policy: DeloadPolicy | null): string {
-  const shape =
-    policy?.mode === 'scheduled' ? policy.shape : { loadFactor: 0.85, setFactor: 0.5, rpeCap: null }
+  const shape = policy?.mode === 'scheduled' ? policy.shape : DEFAULT_DELOAD_SHAPE
   const base = `${Math.round(shape.loadFactor * 100)}% of the load · ${Math.round(shape.setFactor * 100)}% of the sets`
   return shape.rpeCap !== null ? `${base} · effort capped at RPE ${shape.rpeCap}` : base
+}
+
+/** The scheduled shape's timedExercises arm as the picker shows it. A
+ *  pre-field stored policy (or none at all) reads 'untouched' — mirroring
+ *  the zod default resolveDeloadPolicy applies at read time. */
+function resolvedTimedExercises(policy: DeloadPolicy | null): 'untouched' | 'scaled' {
+  if (policy?.mode !== 'scheduled') return 'untouched'
+  return policy.shape.timedExercises ?? 'untouched'
 }
 
 interface ProgramBuilderProps {
@@ -246,7 +262,7 @@ export function ProgramBuilder({
                               shape:
                                 draft.deloadPolicy?.mode === 'scheduled'
                                   ? draft.deloadPolicy.shape
-                                  : { loadFactor: 0.85, setFactor: 0.5, rpeCap: null },
+                                  : DEFAULT_DELOAD_SHAPE,
                             }
                           : { mode },
                     })
@@ -261,6 +277,49 @@ export function ProgramBuilder({
             <p className="mt-1 pl-6.5 text-sm text-muted-foreground">
               {deloadShapeLine(draft.deloadPolicy)}
             </p>
+          )}
+          {/* Timed exercises on the deload week (D3, "creator decides"):
+              the same compact radio idiom, nested under Scheduled like the
+              stall policy under auto-regulation. Untouched is the default —
+              a duration exercise's deload week trains as written unless the
+              creator opts its sets into the back-off. Picking either option
+              writes an explicit policy (seeding the current/default shape). */}
+          {resolvedDeloadMode === 'scheduled' && (
+            <fieldset className="mt-2 pl-6.5">
+              <legend className="text-sm">Timed exercises on the deload week?</legend>
+              <div className="mt-1 flex flex-col gap-1">
+                {(
+                  [
+                    ['untouched', 'Untouched — timed work trains as written'],
+                    ['scaled', 'Scaled — fewer timed sets too'],
+                  ] as const
+                ).map(([arm, label]) => (
+                  <label key={arm} className="flex items-center gap-2.5">
+                    <input
+                      type="radio"
+                      name="deload-timed-exercises"
+                      checked={resolvedTimedExercises(draft.deloadPolicy) === arm}
+                      onChange={() =>
+                        dispatch({
+                          type: 'SET_DELOAD_POLICY',
+                          value: {
+                            mode: 'scheduled',
+                            shape: {
+                              ...(draft.deloadPolicy?.mode === 'scheduled'
+                                ? draft.deloadPolicy.shape
+                                : DEFAULT_DELOAD_SHAPE),
+                              timedExercises: arm,
+                            },
+                          },
+                        })
+                      }
+                      className="size-4 shrink-0 accent-primary"
+                    />
+                    <span className="text-sm text-muted-foreground">{label}</span>
+                  </label>
+                ))}
+              </div>
+            </fieldset>
           )}
         </fieldset>
 

@@ -288,10 +288,10 @@ function deloadPolicySummary(policy: DeloadPolicy | null): string {
   if (policy === null) return 'Deload policy cleared (legacy behavior)'
   if (policy.mode === 'none') return 'Deload policy: none'
   if (policy.mode === 'reactive') return 'Deload policy: reactive'
-  const { loadFactor, setFactor, rpeCap } = policy.shape
+  const { loadFactor, setFactor, rpeCap, timedExercises } = policy.shape
   return `Deload policy: scheduled (load ×${loadFactor}, sets ×${setFactor}${
     rpeCap !== null ? `, RPE cap ${rpeCap}` : ''
-  })`
+  }${timedExercises === 'scaled' ? ', timed sets scaled' : ''})`
 }
 
 /**
@@ -728,7 +728,9 @@ export async function moveProgramDay(
 
 /**
  * An exercise edit. An omitted key is left unchanged; `progression: null`
- * clears the JSONB, `supersetGroup: null` ungroups the exercise. Changing
+ * clears the JSONB, `supersetGroup: null` ungroups the exercise, and
+ * `overshootPolicy: null` clears the per-exercise override back to the
+ * program/scheme resolution (lib/overshoot-policy.ts precedence). Changing
  * either identity half — `wgerExerciseId` or `source` — re-derives the muscle
  * tags from the merged catalog using the effective (source, id).
  */
@@ -738,6 +740,7 @@ export interface ProgramExercisePatch {
   name?: string
   progression?: Progression | null
   supersetGroup?: number | null
+  overshootPolicy?: OvershootPolicy | null
 }
 
 /** Replaces an exercise's muscle tags from the catalog (delete + re-insert). */
@@ -849,6 +852,15 @@ export async function updateProgramExercise(
   const values = definedFields(patch)
   if (Object.keys(values).length === 0) return null
   if (values.progression != null) values.progression = parseProgression(values.progression)
+  // Boundary re-parse (null clears — only a non-null value must sit inside
+  // the enum), same discipline as setProgramOvershootPolicy at program level.
+  if (values.overshootPolicy != null) {
+    try {
+      values.overshootPolicy = overshootPolicySchema.parse(values.overshootPolicy)
+    } catch (error: unknown) {
+      throw patchErrorFromZod(error, 'invalid overshoot policy')
+    }
+  }
   // A change to either identity half re-derives the muscle tags; fetch the
   // catalog outside the tx.
   const identityChanged = values.wgerExerciseId !== undefined || values.source !== undefined

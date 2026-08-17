@@ -150,6 +150,23 @@ describe('ATTACK: echo duplication as the user sees it (#211)', () => {
   })
 })
 
+describe('skipped-session echo label (the honest "Last time")', () => {
+  it('a skipped prior instance renders "Last time (skipped):"', () => {
+    const html = render(
+      {},
+      lastPerformance({ sessionNote: 'shoulder tweak', sessionSkipped: true }),
+    )
+    expect(html).toContain('Last time (skipped):')
+    expect(html).toContain('shoulder tweak')
+  })
+
+  it('a performed prior instance keeps the plain label — no phantom (skipped)', () => {
+    const html = render({}, lastPerformance({ sessionNote: 'Felt strong' }))
+    expect(html).toContain('Last time:')
+    expect(html).not.toContain('(skipped)')
+  })
+})
+
 describe('ATTACK: #207 name-lock edges', () => {
   it('a whitespace-only name in a live session falls back to "Unnamed workout"', () => {
     const html = render({ isLive: true, initialName: '   ' })

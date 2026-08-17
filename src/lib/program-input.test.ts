@@ -652,14 +652,32 @@ describe('deloadPolicySchema', () => {
     expect(deloadPolicySchema.parse({ mode: 'reactive' })).toEqual({ mode: 'reactive' })
     expect(deloadPolicySchema.parse({ mode: 'scheduled', shape: {} })).toEqual({
       mode: 'scheduled',
-      shape: { loadFactor: 0.85, setFactor: 0.5, rpeCap: null },
+      shape: { loadFactor: 0.85, setFactor: 0.5, rpeCap: null, timedExercises: 'untouched' },
     })
   })
 
   it('parses an explicit scheduled shape (partial fields default individually)', () => {
     expect(
       deloadPolicySchema.parse({ mode: 'scheduled', shape: { loadFactor: 0.7, rpeCap: 7 } }),
-    ).toEqual({ mode: 'scheduled', shape: { loadFactor: 0.7, setFactor: 0.5, rpeCap: 7 } })
+    ).toEqual({
+      mode: 'scheduled',
+      shape: { loadFactor: 0.7, setFactor: 0.5, rpeCap: 7, timedExercises: 'untouched' },
+    })
+  })
+
+  it("timedExercises: legacy stored shapes (no field) default to 'untouched'; 'scaled' is an explicit opt-in", () => {
+    // A pre-field stored policy re-parses with the protective default — this
+    // IS the adjudicated behavior change (D3): timed exercises are no longer
+    // silently halved unless the creator opted in.
+    expect(
+      deloadPolicySchema.parse({ mode: 'scheduled', shape: { loadFactor: 0.8 } }),
+    ).toMatchObject({ shape: { timedExercises: 'untouched' } })
+    expect(
+      deloadPolicySchema.parse({ mode: 'scheduled', shape: { timedExercises: 'scaled' } }),
+    ).toEqual({
+      mode: 'scheduled',
+      shape: { loadFactor: 0.85, setFactor: 0.5, rpeCap: null, timedExercises: 'scaled' },
+    })
   })
 
   it('rejects malformed policies (strict at every level)', () => {
@@ -690,7 +708,10 @@ describe('deloadPolicySchema', () => {
     // A valid policy normalizes through the schema.
     expect(
       parseProgramInput({ ...VALID, deloadPolicy: { mode: 'scheduled', shape: {} } }).deloadPolicy,
-    ).toEqual({ mode: 'scheduled', shape: { loadFactor: 0.85, setFactor: 0.5, rpeCap: null } })
+    ).toEqual({
+      mode: 'scheduled',
+      shape: { loadFactor: 0.85, setFactor: 0.5, rpeCap: null, timedExercises: 'untouched' },
+    })
     // An invalid policy is rejected at the boundary (write-time strictness;
     // read-time degrade lives in resolveDeloadPolicy, not here).
     expect(() => parseProgramInput({ ...VALID, deloadPolicy: { mode: 'weird' } })).toThrow()
