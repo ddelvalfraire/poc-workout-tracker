@@ -57,6 +57,9 @@ export const COACH_READ_TOOLS = [
   // Read-only by construction: adopt/confirm/decline are owner-only server
   // actions, so listing outstanding proposals can never resolve one.
   'list_proposals',
+  // Notes-v2 browser read — the coach's window into the user's notes across
+  // every anchor. The note WRITE tools stay excluded (see below).
+  'list_notes',
 ] as const
 
 /** Granular program patch tools — allowed, but gated behind user approval. */
@@ -131,6 +134,15 @@ export const COACH_EXCLUDED_TOOLS = [
   // coach silently rewriting them would be imposing, not proposing. External
   // MCP agents keep the tool; the coach reads notes via the read tools.
   'set_exercise_note',
+  // Notes-v2 writes: same reasoning as set_exercise_note — the user's notes
+  // are their own words, and these tools stamp author='user' unconditionally
+  // (no author arg), so a coach-actor call would FORGE user authorship. The
+  // coach's write path is the future coach-author arm (avatar comments),
+  // gated behind the coach surface — never these tools. External MCP agents
+  // keep them (they act as the user).
+  'create_note',
+  'update_note',
+  'delete_note',
   'update_set',
   'add_set',
   'remove_set',
