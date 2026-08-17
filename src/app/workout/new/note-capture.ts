@@ -183,3 +183,41 @@ export function fallbackPendingNotes(
     createdAt: now.toISOString(),
   }))
 }
+
+/** The IO seams persistSetNotes orchestrates — the logger injects the batch
+ *  server action and the pending-notes queue's enqueue. */
+export interface PersistSetNotesDeps {
+  /** The one post-save round trip (createSetNotesForWorkoutAction). */
+  createBatch: (workoutId: string, entries: PositionalSetNote[]) => Promise<void>
+  /** The downgrade path: one pending-notes queue item per entry. */
+  enqueue: (note: PendingNote) => void
+  /** Injectable clock for deterministic tests; defaults to wall time. */
+  now?: () => Date
+}
+
+/**
+ * The post-save orchestration for capture-sheet set notes (extracted from the
+ * logger so the riskiest mechanism unit-tests as a plain function): collect
+ * the draft's noted sets, send them as ONE batch against the just-saved
+ * workout, and on ANY failure downgrade every entry into the pending-notes
+ * queue as a workout-anchored fallback — clientKeys intact, so entries that
+ * landed before the failure dedupe server-side on replay, and a retry never
+ * re-mints keys. Never throws: the save already succeeded and the finish
+ * navigation must not be held hostage by a notes hiccup.
+ */
+export async function persistSetNotes(
+  workoutId: string,
+  draft: WorkoutDraft,
+  deps: PersistSetNotesDeps,
+): Promise<void> {
+  const entries = collectSetNotes(draft)
+  if (entries.length === 0) return
+  try {
+    await deps.createBatch(workoutId, entries)
+  } catch {
+    const now = deps.now?.() ?? new Date()
+    for (const note of fallbackPendingNotes(workoutId, entries, now)) {
+      deps.enqueue(note)
+    }
+  }
+}

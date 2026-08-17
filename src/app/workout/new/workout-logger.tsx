@@ -59,9 +59,8 @@ import { SwipeToDelete } from './swipe-to-delete'
 import { SetRowMenu } from './set-row-menu'
 import { NoteSheet } from './note-sheet'
 import {
-  collectSetNotes,
   exerciseNoteCount,
-  fallbackPendingNotes,
+  persistSetNotes,
   setHasNote,
   setSnapshotLabel,
   type NoteScope,
@@ -1021,24 +1020,14 @@ export function WorkoutLogger({
     handleSave(finalDraft)
   }
 
-  /**
-   * Post-save leg for capture-sheet SET notes (see note-capture.ts for the
-   * positional design): one batch action against the just-inserted rows.
-   * Failure downgrades every entry to a workout-anchored pending-notes item —
-   * the words survive and the queue replays them (clientKey dedupes any that
-   * landed before the failure). Never throws: the save already succeeded and
-   * the finish navigation must not be held hostage by a notes hiccup.
-   */
-  async function persistSetNotes(savedWorkoutId: string, finalDraft: WorkoutDraft) {
-    const entries = collectSetNotes(finalDraft)
-    if (entries.length === 0) return
-    try {
-      await createSetNotesForWorkoutAction(savedWorkoutId, entries)
-    } catch {
-      for (const note of fallbackPendingNotes(savedWorkoutId, entries, new Date())) {
-        notesQueue.enqueue(note)
-      }
-    }
+  /** Post-save leg for capture-sheet SET notes: the extracted orchestration
+   *  (note-capture.ts persistSetNotes — unit-tested there) with the logger's
+   *  real seams injected: the batch server action and the pending queue. */
+  function persistDraftSetNotes(savedWorkoutId: string, finalDraft: WorkoutDraft) {
+    return persistSetNotes(savedWorkoutId, finalDraft, {
+      createBatch: (id, entries) => createSetNotesForWorkoutAction(id, entries),
+      enqueue: (note) => notesQueue.enqueue(note),
+    })
   }
 
   async function handleSave(finalDraft: WorkoutDraft = draft) {
@@ -1066,7 +1055,7 @@ export function WorkoutLogger({
         // Capture-sheet set notes land AFTER the replace, against the
         // re-inserted rows (their positional address) — creating them before
         // would hand them to rows the replace is about to delete.
-        await persistSetNotes(workoutId, finalDraft)
+        await persistDraftSetNotes(workoutId, finalDraft)
         // History changed: the browser QueryClient outlives this page, so
         // cached ghosts would otherwise show pre-save data next session.
         queryClient.invalidateQueries({ queryKey: ['last-performance'], refetchType: 'none' })
@@ -1095,7 +1084,7 @@ export function WorkoutLogger({
         })
         // The new-session leg of the positional design: the server workout
         // exists only NOW, so queued set notes flush here, right after save.
-        await persistSetNotes(id, finalDraft)
+        await persistDraftSetNotes(id, finalDraft)
         queryClient.invalidateQueries({ queryKey: ['last-performance'], refetchType: 'none' })
         // Same success-path close-before-push as the update branch above.
         closeFinishDialogRef.current?.()

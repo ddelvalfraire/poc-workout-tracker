@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import {
   insertToken,
   noteBreadcrumb,
@@ -7,8 +7,9 @@ import {
   exerciseNoteCount,
   collectSetNotes,
   fallbackPendingNotes,
+  persistSetNotes,
 } from './note-capture'
-import { isPendingNote } from './pending-notes'
+import { createPendingNotesQueue, isPendingNote, type PendingNote } from './pending-notes'
 import type { DraftExercise, DraftSet, WorkoutDraft } from './workout-draft'
 
 const KEY_A = '01234567-89ab-cdef-0123-456789abcdef'
@@ -214,5 +215,112 @@ describe('fallbackPendingNotes (the queue-consumer downgrade)', () => {
     // The downgraded shape must pass the queue's own trust boundary, or the
     // codec would silently drop the words it exists to protect.
     expect(pending.every(isPendingNote)).toBe(true)
+  })
+})
+
+describe('persistSetNotes (the post-save orchestration)', () => {
+  function notedDraft(): WorkoutDraft {
+    return {
+      notes: '',
+      exercises: [
+        draftExercise({
+          sets: [
+            draftSet({ note: 'left shoulder clicked', noteClientKey: KEY_A }),
+            draftSet({ id: 's2', note: 'better path', noteClientKey: KEY_B }),
+          ],
+        }),
+      ],
+    }
+  }
+
+  it('batch success: ONE createBatch call with the collected entries, nothing enqueued', async () => {
+    const createBatch = vi.fn().mockResolvedValue(undefined)
+    const enqueue = vi.fn()
+
+    await persistSetNotes(WORKOUT_ID, notedDraft(), { createBatch, enqueue })
+
+    expect(createBatch).toHaveBeenCalledTimes(1)
+    expect(createBatch).toHaveBeenCalledWith(WORKOUT_ID, [
+      expect.objectContaining({ exercisePosition: 0, setNumber: 1, clientKey: KEY_A }),
+      expect.objectContaining({ exercisePosition: 0, setNumber: 2, clientKey: KEY_B }),
+    ])
+    expect(enqueue).not.toHaveBeenCalled()
+  })
+
+  it('no noted sets: no batch call at all (the fast path costs nothing)', async () => {
+    const createBatch = vi.fn()
+    await persistSetNotes(
+      WORKOUT_ID,
+      { notes: '', exercises: [draftExercise()] },
+      { createBatch, enqueue: vi.fn() },
+    )
+    expect(createBatch).not.toHaveBeenCalled()
+  })
+
+  it('batch failure: ALL entries downgrade into the queue as workout-anchor fallbacks, clientKeys intact — and it never throws', async () => {
+    const createBatch = vi.fn().mockRejectedValue(new Error('offline'))
+    const enqueue = vi.fn()
+    const now = new Date('2026-08-17T10:00:00Z')
+
+    await expect(
+      persistSetNotes(WORKOUT_ID, notedDraft(), { createBatch, enqueue, now: () => now }),
+    ).resolves.toBeUndefined()
+
+    expect(enqueue).toHaveBeenCalledTimes(2)
+    expect(enqueue.mock.calls.map(([note]) => note)).toEqual([
+      {
+        id: KEY_A,
+        anchor: { kind: 'workout', id: WORKOUT_ID },
+        body: 'left shoulder clicked',
+        createdAt: now.toISOString(),
+      },
+      {
+        id: KEY_B,
+        anchor: { kind: 'workout', id: WORKOUT_ID },
+        body: 'better path',
+        createdAt: now.toISOString(),
+      },
+    ])
+  })
+
+  it('a replayed flush re-sends the SAME clientKey — the client never re-mints', async () => {
+    // The real queue, in-memory storage: downgrade lands the note, the first
+    // flush fails (still offline), the retry flush succeeds. Every send must
+    // carry the same PendingNote.id (= the note's clientKey) — the server's
+    // (user_id, client_key) dedupe only works if the client keeps the key.
+    let stored: string | null = null
+    const sent: PendingNote[] = []
+    let failNext = true
+    const queue = createPendingNotesQueue({
+      load: () => stored,
+      store: (raw) => {
+        stored = raw
+      },
+      send: async (note) => {
+        sent.push(note)
+        if (failNext) {
+          failNext = false
+          throw new Error('still offline')
+        }
+      },
+    })
+
+    const draft: WorkoutDraft = {
+      notes: '',
+      exercises: [
+        draftExercise({ sets: [draftSet({ note: 'left shoulder clicked', noteClientKey: KEY_A })] }),
+      ],
+    }
+    await persistSetNotes(WORKOUT_ID, draft, {
+      createBatch: vi.fn().mockRejectedValue(new Error('offline')),
+      enqueue: (note) => queue.enqueue(note),
+    })
+    await queue.flush() // enqueue's own flush attempt failed; this is the retry
+    await queue.flush() // idempotence: nothing left to send
+
+    expect(sent).toHaveLength(2)
+    expect(sent[0].id).toBe(KEY_A)
+    expect(sent[1].id).toBe(KEY_A) // the SAME key on retry, never re-minted
+    expect(queue.pending()).toHaveLength(0)
   })
 })
