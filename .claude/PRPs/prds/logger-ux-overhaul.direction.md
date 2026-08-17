@@ -425,3 +425,45 @@ tier.
 3. Review surfaces (workout-detail Notes section with breadcrumbs; program +
    day notes rendering; history stays note-free).
 4. MCP: `note` arg on add_set/update_set + get_workout ride-along.
+
+### Notes v2 amendment (owner direction, 2026-08-16): browser + coach authors
+
+Owner reversed two "not building" calls: a global notes browser IS wanted, and
+coaches will leave comments during/after workouts. Both change the model:
+
+- **Schema flip — one `notes` table, not a sets column.** Authored entities
+  (author: user | coach) that a browser queries across anchors don't fit
+  single-author columns. Shape: `notes(id, user_id, author, body, created_at,
+  program_id?, workout_id?, workout_exercise_id?, set_id?)` — exactly one
+  anchor FK non-null (CHECK), real ON DELETE CASCADE per anchor, so the
+  browser is ONE query joined to its anchors — that's how it "understands
+  workouts". Existing column tiers (workouts.notes, workout_exercises.notes)
+  migrate in or stay as legacy-read; decide in slice 1. Anchor edits never
+  orphan notes: an `anchor_snapshot` (load×reps at write time) preserves
+  context and powers the "outdated" badge (GitHub outdated-comment semantics).
+- **Capture sheet** (research: ADA winners — Things 3 quick-entry, Bear
+  zero-chrome, Flighty live-density; WWDC21 non-modal detents): half-detent
+  NON-MODAL sheet over the live session; anchor pre-filled from the
+  long-pressed row with the set's snapshot as subtitle; Set/Exercise/Workout
+  scope chips (default = most specific, never prompt); keyboard-first (focus
+  during present animation); inline #tag tokens from an accessory bar (the
+  body carries its metadata); drag-down SAVES (journal semantics, no discard
+  alert); save receipt = the set-row dot popping in, no toast.
+- **Browser**: session headers as threads (the workout is the thread), row =
+  caps anchor breadcrumb + excerpt with volt tags + micro-snapshot of the
+  anchored set; composing filter chips (All/Mine/Coach/#tags/Exercise/
+  Program) + token-suggesting search (Apple Notes Smart-Folder logic);
+  exercise detail gets the reverse index (every note ever anchored there).
+- **Coach comments**: avatar presence = other-author (no chat bubbles, no
+  alignment games); volt left hairline; unread volt dot fades on read; one-tap
+  "Got it" ack (Strava-kudos); reply depth 1, no nesting. In-session: a
+  read-before-lift cue line under the exercise header + avatar-dot on rows.
+- **Screen drafts** (reviewable artifact): "Notes v2 — screen drafts" —
+  active-session grammar, capture sheet, browser with coach rows.
+- Revised slices: (1) notes table + migration of existing tiers + wire +
+  full-replace preservation (the landmine still applies to anchor FKs across
+  set re-inserts — set_id must be re-linked or snapshot-preserved through
+  updateWorkout's delete/re-insert); (2) capture sheet + logger grammar;
+  (3) browser + reverse index + program/day notes rendering; (4) coach author
+  arm (model ships author from day one; coach WRITE path gated behind the
+  coach surface when it exists); (5) MCP args + get_workout ride-alongs.
