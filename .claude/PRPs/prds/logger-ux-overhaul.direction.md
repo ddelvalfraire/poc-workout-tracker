@@ -349,3 +349,79 @@ docs change**, since the coach prompt layer can then choose intent explicitly.
 Each numbered item is one PR-sized slice (or explicitly sub-sliced above),
 tests ride along, every touched component gets/updates its story, and
 conversion PRs shrink the ratchet.
+
+---
+
+## Notes v2 — full granularity (research synthesis, 2026-08-16)
+
+Owner direction: every program, workout, exercise-instance, and set can carry a
+note; the current UI needs a rehaul. Research: fitness precedents (GymBook is
+the only shipping set-note UI — long-press the logged set; Hevy/Strong cap
+freeform at exercise level and handle set meaning with enumerated chips;
+JEFIT's scattered/buried notes are the cautionary tale) + the annotation
+grammar every mature system shares (Sheets cells, GitHub lines, Figma pins,
+Notion blocks): tiny passive indicator on the anchor · creation is a verb
+behind progressive disclosure, never a per-item input · one consolidated
+review surface with anchor breadcrumbs · counts roll up on containers.
+
+### The grammar (one grammar, four anchors)
+
+- **Set** (new): long-press the set-row BODY (free gesture — the warmup-tag
+  hold lives on the circle button only and stays untouched) opens a set
+  context sheet with "Note" (and room for future set actions). Indicator: a
+  3-4px volt dot beside the set number; the note body NEVER renders inline in
+  the logger. Plain text, 2000 cap (`parseNotes(raw,'set')`) — the instance
+  dialect, not the markdown/10k identity dialect; TipTap stays off the set row.
+- **Exercise-instance**: keeps the Note chip grammar; header gains a note
+  glyph + count that ROLLS UP set notes ("2 notes"). Plan-authored cues
+  (program day/exercise notes) render as a muted read-before-lift line under
+  the exercise title — a different thing from written-after notes.
+- **Workout**: existing note field; badge count on the session header.
+- **Program**: a DOCUMENT, not an annotation — `programs.notes` and
+  `program_days.notes` exist in schema+MCP today with NO UI; render them on
+  the program detail (day notes on their day sections). Authored once, read at
+  program start, never in the logger.
+
+### Consolidated review
+
+A "Notes" section on the workout detail (src/app/workout/[id]/page.tsx — the
+only post-session note surface today): every note with its anchor breadcrumb
+("Bench · set 3: left shoulder clicked"), tap-to-jump. History is where notes
+pay off (ghost-vs-prev: past notes are Prev-world). Share view keeps its
+NEVER-notes contract; coach receives set notes via get_workout ride-along
+(deliberate — notes are context; set_exercise_note stays coach-denied).
+
+### Data model (audit-settled)
+
+Nullable `text` column on `sets` (migration 0043, the 0042 additive shape) —
+the repo's own rule: identity notes are a table because they outlive workouts;
+per-instance notes are columns and cascade-die with their row. No polymorphic
+notes table (no precedent, app-enforced FKs, a join on the hottest read path).
+DraftSet gains optional-forever `note?` (no codec version bump, per the cardio
+rule).
+
+**The one correctness landmine**: `updateWorkout` full-replace deletes and
+re-inserts sets; only `PriorSetFacts` survives. Set notes MUST round-trip
+detailToDraft → draftToInput AND join the prior-facts preservation so an
+edit-mode save or MCP `update_workout` can never silently wipe them — same
+bug class the prescribed-* snapshots guard against. This ships in slice 1 with
+tests or not at all.
+
+### Not building
+
+Threads/replies/mentions/reactions (no second collaborator) · voice/photo
+notes · per-row visible inputs or icons · auto-promotion between tiers
+(provenance is a fact) · inline note bodies in the logger · a global notes
+browser (workout-detail consolidation covers review) · markdown at the set
+tier.
+
+### Slices
+
+1. Schema + wire + round-trip preservation (sets.notes, parseNotes 'set',
+   DraftSet.note, PriorSetFacts, detailToDraft/draftToInput, tests) — the
+   correctness core, zero UI.
+2. Logger entry + indicator (row-body long-press → set sheet, volt dot,
+   exercise-header roll-up count; unify the duplicated chip call sites).
+3. Review surfaces (workout-detail Notes section with breadcrumbs; program +
+   day notes rendering; history stays note-free).
+4. MCP: `note` arg on add_set/update_set + get_workout ride-along.
