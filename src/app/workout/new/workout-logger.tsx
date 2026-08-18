@@ -2506,7 +2506,20 @@ export function WorkoutLogger({
         {error && <p className="text-sm text-destructive">{error}</p>}
       </div>
 
-      <div className="sticky bottom-0 z-10 -mx-5 border-t border-border bg-background/85 px-5 pt-3 pb-safe backdrop-blur-md">
+      <div
+        data-volt-muted={noteCaptureFor !== null || undefined}
+        className={cn(
+          'sticky bottom-0 z-10 -mx-5 border-t border-border bg-background/85 px-5 pt-3 pb-safe backdrop-blur-md',
+          // One volt while the capture sheet is open: the bar recedes
+          // (opacity + desaturation — still readable, still tappable per the
+          // sheet's non-modal contract) so the sheet's Save is the screen's
+          // only live accent regardless of how tall the bar stacks (rest
+          // pill + toasts). Mechanism, not layout coincidence — pinned by
+          // the volt-budget render tests.
+          noteCaptureFor !== null &&
+            'opacity-50 saturate-50 motion-safe:transition-opacity motion-safe:duration-200',
+        )}
+      >
         {/* Session-pulse fill riding the bar's top border: 2px of volt that
             grows with completed working sets. Live-progress semantics, same
             one-volt family as the rest readout; scaleX (not width) keeps the
