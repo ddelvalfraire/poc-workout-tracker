@@ -75,13 +75,13 @@ public enum DesignTokens {
         public static let xl: CGFloat = 16.8
 
         /// --radius * 1.8. Keep-list shells only.
-        public static let 2xl: CGFloat = 21.6
+        public static let xl2: CGFloat = 21.6
 
         /// --radius * 2.2
-        public static let 3xl: CGFloat = 26.4
+        public static let xl3: CGFloat = 26.4
 
         /// --radius * 2.6
-        public static let 4xl: CGFloat = 31.2
+        public static let xl4: CGFloat = 31.2
 
         /// Pills and chips — controls, never labels.
         public static let full: CGFloat = 9999

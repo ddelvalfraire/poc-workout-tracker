@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 
 import { OpsPanel } from "./panel";
+import { STORY_NOW } from "../story-time";
 
 /**
  * The shell every ops panel wears: title, status dot, optional vendor deep
@@ -65,7 +66,7 @@ export const WithVendorLink: Story = {
 export const Degraded: Story = {
   args: {
     status: "degraded",
-    staleAt: new Date(Date.now() - 4 * 3600_000).toISOString(),
+    staleAt: new Date(STORY_NOW - 4 * 3600_000).toISOString(),
     children: body,
   },
 }
@@ -101,7 +102,7 @@ export const StatusComparison: Story = {
         id="b"
         title="Vendor down"
         status="degraded"
-        staleAt={new Date(Date.now() - 2 * 3600_000).toISOString()}
+        staleAt={new Date(STORY_NOW - 2 * 3600_000).toISOString()}
       >
         <p className="py-4 text-sm text-muted-foreground">Showing the cached copy.</p>
       </OpsPanel>

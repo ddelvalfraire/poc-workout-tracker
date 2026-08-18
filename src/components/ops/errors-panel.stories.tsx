@@ -4,6 +4,7 @@ import type { SentryPeriod, SentrySnapshot } from "@/lib/ops/sentry";
 import type { OpsResult } from "@/lib/ops/types";
 
 import { ErrorsPanel } from "./errors-panel";
+import { STORY_NOW } from "../story-time";
 
 /**
  * The Sentry panel. Both windows (24h and 14d) are fetched in the page's
@@ -46,8 +47,8 @@ const issue = (
   userCount: Number(count) > 20 ? 8 : 2,
   // The panel keys rows by permalink; real Sentry permalinks are unique.
   permalink: `https://sentry.io/issues/${++issueId}`,
-  firstSeen: new Date(Date.now() - 6 * 86_400_000).toISOString(),
-  lastSeen: new Date(Date.now() - 3600_000).toISOString(),
+  firstSeen: new Date(STORY_NOW - 6 * 86_400_000).toISOString(),
+  lastSeen: new Date(STORY_NOW - 3600_000).toISOString(),
 });
 
 const snapshot = (
@@ -112,12 +113,12 @@ export const StaleCache: Story = {
       "24h": {
         ok: true,
         data: { period: "24h", unresolvedCount: 37, topIssues: BUSY },
-        staleAt: new Date(Date.now() - 5 * 3600_000).toISOString(),
+        staleAt: new Date(STORY_NOW - 5 * 3600_000).toISOString(),
       },
       "14d": {
         ok: true,
         data: { period: "14d", unresolvedCount: 214, topIssues: BUSY },
-        staleAt: new Date(Date.now() - 5 * 3600_000).toISOString(),
+        staleAt: new Date(STORY_NOW - 5 * 3600_000).toISOString(),
       },
     },
   },

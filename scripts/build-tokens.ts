@@ -18,7 +18,7 @@
  * platform only.
  */
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, join, relative } from "node:path";
+import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import Color from "colorjs.io";
@@ -44,10 +44,22 @@ const BANNER_LINES = [
   "Regenerate: npm run tokens",
 ];
 
+/**
+ * Neither Swift nor Kotlin allows an identifier to begin with a digit, and
+ * stripping the `radius-` prefix off `radius-2xl` leaves exactly that. Rotate
+ * the leading digits to the end so the token keeps its meaning and the file
+ * compiles: `2xl` -> `xl2`. Guarded by scripts/build-tokens.test.ts.
+ */
+function identifierSafe(part: string): string {
+  const leadingDigits = /^(\d+)(.+)$/.exec(part);
+  return leadingDigits ? `${leadingDigits[2]}${leadingDigits[1]}` : part;
+}
+
 /** `background` -> `Background`; `primary-foreground` -> `PrimaryForeground`. */
 function pascal(name: string): string {
   return name
     .split("-")
+    .map(identifierSafe)
     .map((p) => p.charAt(0).toUpperCase() + p.slice(1))
     .join("");
 }
@@ -95,7 +107,19 @@ function toSrgb(token: ColorToken): Srgb {
   return { r, g, b, a, hex };
 }
 
-function css(): string {
+/** The web's `--radius`. Named lookup, so a rename fails by name not by TypeError. */
+function baseRadius(): number {
+  const lg = RADII.find((r) => r.name === "radius-lg");
+  if (!lg) {
+    throw new Error(
+      "No `radius-lg` token: the web's --radius is derived from it. " +
+        "Rename it back, or point baseRadius() at its replacement.",
+    );
+  }
+  return lg.value;
+}
+
+export function css(): string {
   const banner = BANNER_LINES.map((l) => (l ? `   ${l}` : "")).join("\n");
   const decl = (t: ColorToken) => {
     const { hex, a } = toSrgb(t);
@@ -112,12 +136,12 @@ ${banner.split("\n").slice(1).join("\n")}
 :root,
 .dark {
 ${COLORS.map(decl).join("\n")}
-  --radius: ${RADII.find((r) => r.name === "radius-lg")!.value / 16}rem;
+  --radius: ${baseRadius() / 16}rem;
 }
 `;
 }
 
-function swift(): string {
+export function swift(): string {
   const core = COLORS.filter((c) => c.status === "core");
   const colorCases = core
     .map((t) => {
@@ -186,7 +210,7 @@ ${LAYOUT.map((l) => `        /// ${l.doc}\n        public static let ${camel(l.n
 `;
 }
 
-function kotlin(): string {
+export function kotlin(): string {
   const core = COLORS.filter((c) => c.status === "core");
   const colorVals = core
     .map((t) => {
@@ -233,7 +257,7 @@ ${TOUCH_TARGETS.map((t) => `        /** ${t.doc} */\n        val ${pascal(t.name
      * (Settings.Global.TRANSITION_ANIMATION_SCALE).
      */
     object Duration {
-${DURATIONS.map((d) => `        /** ${d.doc} */\n        const val ${pascal(d.name.replace(/^duration-?/, ""))} = ${d.value}`).join("\n\n")}
+${DURATIONS.map((d) => `        /** ${d.doc} */\n        const val ${pascal(d.name.replace(/^duration-?/, ""))}Ms = ${d.value}`).join("\n\n")}
     }
 
     /**
@@ -255,50 +279,59 @@ ${LAYOUT.map((l) => `        /** ${l.doc} */\n        val ${pascal(l.name)} = ${
 `;
 }
 
-const OUTPUTS: ReadonlyArray<{ path: string; contents: string }> = [
-  { path: join(ROOT, "src/app/tokens.generated.css"), contents: css() },
-  { path: join(ROOT, "design/generated/DesignTokens.swift"), contents: swift() },
-  { path: join(ROOT, "design/generated/DesignTokens.kt"), contents: kotlin() },
+export const OUTPUTS: ReadonlyArray<{ path: string; contents: () => string }> = [
+  { path: join(ROOT, "src/app/tokens.generated.css"), contents: css },
+  { path: join(ROOT, "design/generated/DesignTokens.swift"), contents: swift },
+  { path: join(ROOT, "design/generated/DesignTokens.kt"), contents: kotlin },
 ];
 
-let drifted = 0;
-for (const { path, contents } of OUTPUTS) {
-  const rel = relative(ROOT, path);
-  if (CHECK) {
-    let current: string | null = null;
-    try {
-      current = readFileSync(path, "utf8");
-    } catch {
-      current = null;
-    }
-    if (current !== contents) {
-      drifted += 1;
-      console.error(
-        current === null
-          ? `MISSING  ${rel}`
-          : `DRIFTED  ${rel} — regenerate with \`npm run tokens\``,
-      );
+function main(): void {
+  let drifted = 0;
+  for (const { path, contents: emit } of OUTPUTS) {
+    const rel = relative(ROOT, path);
+    const contents = emit();
+    if (CHECK) {
+      let current: string | null = null;
+      try {
+        current = readFileSync(path, "utf8");
+      } catch {
+        current = null;
+      }
+      if (current !== contents) {
+        drifted += 1;
+        console.error(
+          current === null
+            ? `MISSING  ${rel}`
+            : `DRIFTED  ${rel} — regenerate with \`npm run tokens\``,
+        );
+      } else {
+        console.log(`ok       ${rel}`);
+      }
     } else {
-      console.log(`ok       ${rel}`);
+      mkdirSync(dirname(path), { recursive: true });
+      writeFileSync(path, contents);
+      console.log(`wrote    ${rel}`);
     }
-  } else {
-    mkdirSync(dirname(path), { recursive: true });
-    writeFileSync(path, contents);
-    console.log(`wrote    ${rel}`);
+  }
+
+  if (CHECK && drifted > 0) {
+    console.error(
+      `\n${drifted} generated token file(s) out of date with src/design/tokens.ts.`,
+    );
+    process.exit(1);
+  }
+
+  const skipped = COLORS.filter((c) => c.status === "unused").length;
+  if (!CHECK && skipped > 0) {
+    console.log(
+      `\n${COLORS.length - skipped} core colours emitted to all platforms; ` +
+        `${skipped} unused (web CSS only — see tokens.ts).`,
+    );
   }
 }
 
-if (CHECK && drifted > 0) {
-  console.error(
-    `\n${drifted} generated token file(s) out of date with src/design/tokens.ts.`,
-  );
-  process.exit(1);
-}
-
-const skipped = COLORS.filter((c) => c.status === "unused").length;
-if (!CHECK && skipped > 0) {
-  console.log(
-    `\n${COLORS.length - skipped} core colours emitted to all platforms; ` +
-      `${skipped} unused (web CSS only — see tokens.ts).`,
-  );
+// Only run when invoked as a script. Importing this module (the emitter tests
+// do) must not write files or call process.exit.
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  main();
 }

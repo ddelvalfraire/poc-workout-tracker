@@ -5,6 +5,7 @@ import type { OpsResult } from "@/lib/ops/types";
 import type { VercelSnapshot } from "@/lib/ops/vercel";
 
 import { DeliveryPanel } from "./delivery-panel";
+import { STORY_NOW } from "../story-time";
 
 /**
  * Deploys and cron health in one panel: Vercel deployments plus Healthchecks
@@ -42,7 +43,7 @@ const deploy = (
   isFailed: state === "ERROR" || state === "CANCELED",
   sha7,
   commitMessage,
-  createdAt: Date.now() - hoursAgo * 3600_000,
+  createdAt: STORY_NOW - hoursAgo * 3600_000,
   durationMs,
   url: `poc-workout-tracker-${sha7}.vercel.app`,
 });
@@ -68,8 +69,8 @@ const check = (
   lastPing:
     lastPingHoursAgo === null
       ? null
-      : new Date(Date.now() - lastPingHoursAgo * 3600_000).toISOString(),
-  nextPing: new Date(Date.now() + 3600_000).toISOString(),
+      : new Date(STORY_NOW - lastPingHoursAgo * 3600_000).toISOString(),
+  nextPing: new Date(STORY_NOW + 3600_000).toISOString(),
   flips: [],
 });
 
@@ -161,7 +162,7 @@ export const StaleCache: Story = {
     vercel: {
       ok: true,
       data: VERCEL_OK.ok ? VERCEL_OK.data : { deployments: [] },
-      staleAt: new Date(Date.now() - 9 * 3600_000).toISOString(),
+      staleAt: new Date(STORY_NOW - 9 * 3600_000).toISOString(),
     },
     healthchecks: HC_OK,
   },

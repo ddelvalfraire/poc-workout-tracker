@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 
 import { CoachChart, type CoachChartPoint } from "./coach-chart";
+import { STORY_NOW } from "../story-time";
 
 /**
  * Traces and cost per day for the coach panel — two series on different
@@ -27,7 +28,7 @@ type Story = StoryObj<typeof meta>;
 
 const series = (traces: number[], perTrace = 0.0042): CoachChartPoint[] =>
   traces.map((t, i) => ({
-    label: new Date(Date.now() - (traces.length - 1 - i) * 86_400_000)
+    label: new Date(STORY_NOW - (traces.length - 1 - i) * 86_400_000)
       .toLocaleDateString("en-US", { month: "short", day: "numeric" }),
     traces: t,
     cost: Number((t * perTrace).toFixed(4)),

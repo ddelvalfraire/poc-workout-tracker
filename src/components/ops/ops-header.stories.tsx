@@ -28,13 +28,34 @@ export const OpsTab: Story = { args: { active: "ops" } }
 
 export const ProductTab: Story = { args: { active: "product" } }
 
-/** Both states together — only one volt at a time. */
+/**
+ * Both states together — only one volt at a time.
+ *
+ * Each is scoped in its own <section>: OpsHeader renders a <header>, and two
+ * of those at page level would be two `banner` landmarks. A <header> inside a
+ * sectioning element is not a banner, so the comparison costs no a11y.
+ */
 export const BothStates: Story = {
   args: { active: "ops" },
+  parameters: {
+    a11y: {
+      config: {
+        // Rendering ONE component twice necessarily duplicates the <nav> it
+        // owns. That is a property of this side-by-side harness, not of
+        // OpsHeader — the shipped page mounts exactly one. Waived here only;
+        // OpsTab and ProductTab still assert the rule individually.
+        rules: [{ id: "landmark-unique", enabled: false }],
+      },
+    },
+  },
   render: () => (
     <div className="flex flex-col gap-6">
-      <OpsHeader active="ops" />
-      <OpsHeader active="product" />
+      <section aria-label="Ops tab active">
+        <OpsHeader active="ops" />
+      </section>
+      <section aria-label="Product tab active">
+        <OpsHeader active="product" />
+      </section>
     </div>
   ),
 }

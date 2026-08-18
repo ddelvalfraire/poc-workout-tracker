@@ -75,13 +75,13 @@ object DesignTokens {
         val Xl = 16.8.dp
 
         /** --radius * 1.8. Keep-list shells only. */
-        val 2xl = 21.6.dp
+        val Xl2 = 21.6.dp
 
         /** --radius * 2.2 */
-        val 3xl = 26.4.dp
+        val Xl3 = 26.4.dp
 
         /** --radius * 2.6 */
-        val 4xl = 31.2.dp
+        val Xl4 = 31.2.dp
 
         /** Pills and chips — controls, never labels. */
         val Full = 9999.dp
@@ -101,22 +101,22 @@ object DesignTokens {
      */
     object Duration {
         /** Colour / ring state transitions — the fast end. */
-        const val State = 150
+        const val StateMs = 150
 
         /** State transitions — the slow end. */
-        const val StateSlow = 250
+        const val StateSlowMs = 250
 
         /** In-session mount motion: fade + 4px rise. */
-        const val RiseIn = 180
+        const val RiseInMs = 180
 
         /** Bottom sheet entry from the edge it lives on. */
-        const val SheetUp = 240
+        const val SheetUpMs = 240
 
         /** Pending delay: data that beats this shows NO ghost at all. */
-        const val GhostDelay = 150
+        const val GhostDelayMs = 150
 
         /** Ghost opacity pulse. Never a shimmer sweep. */
-        const val GhostPulse = 1800
+        const val GhostPulseMs = 1800
     }
 
     /**

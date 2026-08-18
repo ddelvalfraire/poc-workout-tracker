@@ -11,11 +11,6 @@ const CARD_SHELL_KEEP = [
   "src/components/ui/input.tsx",
   "src/components/ui/textarea.tsx",
   "src/components/stat-tile.tsx",
-  // Renders StatTile's PENDING state, so it must reproduce StatTile's shell
-  // exactly — a ghost holds the geometry of the thing it stands in for
-  // (DESIGN.md § Pending states). Keep-list by inheritance from stat-tile.tsx,
-  // not a new exception: stories of keep-list components wear the same shell.
-  "src/components/ghost.stories.tsx",
   "src/components/confirm-dialog.tsx",
   "src/components/session-conflict-dialog.tsx",
   "src/components/editor/quick-capture-sheet.tsx",

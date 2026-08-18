@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 
 import { MiniBarChart, type MiniBarPoint } from "./mini-bar-chart";
+import { STORY_NOW } from "../story-time";
 
 /**
  * The small daily-count bar chart used inside ops panels. One series, volt,
@@ -26,7 +27,7 @@ type Story = StoryObj<typeof meta>;
 
 const points = (values: number[]): MiniBarPoint[] =>
   values.map((value, i) => ({
-    label: new Date(Date.now() - (values.length - 1 - i) * 86_400_000)
+    label: new Date(STORY_NOW - (values.length - 1 - i) * 86_400_000)
       .toLocaleDateString("en-US", { month: "short", day: "numeric" }),
     value,
   }));

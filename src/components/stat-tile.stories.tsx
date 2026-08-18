@@ -22,11 +22,17 @@ const meta = {
   parameters: { layout: "padded" },
   args: { label: "Best set", value: "102.5", unit: "kg" },
   decorators: [
-    (Story) => (
-      <dl className="w-[min(20rem,calc(100vw-2rem))]">
+    // A single tile is dt/dd, so it needs a <dl> ancestor to be valid. Stories
+    // that build their own list set `ownsList` — nesting <dl> inside <dl> is
+    // invalid and axe flags it.
+    (Story, context) =>
+      context.parameters.ownsList ? (
         <Story />
-      </dl>
-    ),
+      ) : (
+        <dl className="w-[min(20rem,calc(100vw-2rem))]">
+          <Story />
+        </dl>
+      ),
   ],
 } satisfies Meta<typeof StatTile>;
 
@@ -80,8 +86,7 @@ export const LongValue: Story = {
  * surface, per-item volt stacks and is banned (DESIGN.md § One volt).
  */
 export const Grid: Story = {
-  parameters: { layout: "padded" },
-  decorators: [],
+  parameters: { layout: "padded", ownsList: true },
   render: () => (
     <dl className="grid w-[min(28rem,calc(100vw-2rem))] grid-cols-2 gap-3">
       <StatTile

@@ -7,6 +7,7 @@ import type {
 import type { OpsResult } from "@/lib/ops/types";
 
 import { CoachPanel } from "./coach-panel";
+import { STORY_NOW } from "../story-time";
 
 /**
  * LLM spend and latency for the coach, from Langfuse: 14-day totals, a daily
@@ -33,7 +34,7 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 const days: LangfuseSnapshot["days"] = Array.from({ length: 14 }, (_, i) => {
-  const d = new Date(Date.now() - i * 86_400_000);
+  const d = new Date(STORY_NOW - i * 86_400_000);
   const traces = [18, 24, 31, 12, 27, 22, 9, 33, 28, 19, 25, 30, 14, 21][i];
   return {
     date: d.toISOString().slice(0, 10),
@@ -59,10 +60,10 @@ const TRACES: OpsResult<LangfuseTracesSnapshot> = {
   ok: true,
   data: {
     traces: [
-      { time: new Date(Date.now() - 12 * 60_000).toISOString(), name: "coach-chat", latencyMs: 3120, totalCost: 0.0061, tokens: 2140, model: "claude-opus-5" },
-      { time: new Date(Date.now() - 48 * 60_000).toISOString(), name: "program-patch", latencyMs: 8430, totalCost: 0.0184, tokens: 6120, model: "claude-opus-5" },
-      { time: new Date(Date.now() - 95 * 60_000).toISOString(), name: "coach-chat", latencyMs: 1890, totalCost: 0.0037, tokens: 1310, model: "claude-sonnet-5" },
-      { time: new Date(Date.now() - 180 * 60_000).toISOString(), name: "weekly-summary", latencyMs: null, totalCost: 0.0092, tokens: 3400, model: "claude-sonnet-5" },
+      { time: new Date(STORY_NOW - 12 * 60_000).toISOString(), name: "coach-chat", latencyMs: 3120, totalCost: 0.0061, tokens: 2140, model: "claude-opus-5" },
+      { time: new Date(STORY_NOW - 48 * 60_000).toISOString(), name: "program-patch", latencyMs: 8430, totalCost: 0.0184, tokens: 6120, model: "claude-opus-5" },
+      { time: new Date(STORY_NOW - 95 * 60_000).toISOString(), name: "coach-chat", latencyMs: 1890, totalCost: 0.0037, tokens: 1310, model: "claude-sonnet-5" },
+      { time: new Date(STORY_NOW - 180 * 60_000).toISOString(), name: "weekly-summary", latencyMs: null, totalCost: 0.0092, tokens: 3400, model: "claude-sonnet-5" },
     ],
   },
 };
@@ -110,7 +111,7 @@ export const StaleCache: Story = {
     daily: {
       ok: true,
       data: DAILY.ok ? DAILY.data : { days: [], totalTraces: 0, totalCost: 0, totalCost7d: 0 },
-      staleAt: new Date(Date.now() - 7 * 3600_000).toISOString(),
+      staleAt: new Date(STORY_NOW - 7 * 3600_000).toISOString(),
     },
     traces: TRACES,
   },

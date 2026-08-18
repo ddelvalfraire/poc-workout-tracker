@@ -14,6 +14,9 @@ import { StreakChip } from "./streak-chip";
  * The stories below synthesise completions relative to "now", so the chip
  * shows a live streak whenever you open them.
  */
+// StreakChip computes the streak against the REAL clock on mount (local
+// calendar weeks, by design), so its fixtures have to be relative to now.
+// A frozen epoch would yield a zero streak and the component renders null.
 const meta = {
   title: "Components/StreakChip",
   component: StreakChip,

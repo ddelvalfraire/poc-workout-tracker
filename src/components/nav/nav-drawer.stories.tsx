@@ -99,6 +99,9 @@ const json = (data: DrawerData, delayMs = 400) => async () => {
   });
 };
 
+// NavDrawer resolves 'today'/'tomorrow' and relative recents against the
+// REAL clock (local-day semantics, by design), so its fixtures stay relative
+// to now. A frozen epoch would label every recent workout months old.
 const meta = {
   title: "Navigation/NavDrawer",
   component: NavDrawer,

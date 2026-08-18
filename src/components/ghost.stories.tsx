@@ -1,5 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 
+import { STAT_TILE_SHELL } from "./stat-tile";
+
 import { Ghost } from "./ghost";
 
 /**
@@ -55,11 +57,14 @@ export const GhostedList: Story = {
   ),
 }
 
-/** A ghosted stat tile keeps the tile's exact box. */
+/**
+ * A ghosted stat tile keeps the tile's exact box — and reads that box from
+ * StatTile rather than restating it, so the two cannot drift apart.
+ */
 export const GhostedStatTile: Story = {
   args: { className: "h-4 w-20" },
   render: () => (
-    <div className="w-[min(20rem,calc(100vw-2rem))] rounded-2xl border border-border bg-card p-4">
+    <div className={`w-[min(20rem,calc(100vw-2rem))] ${STAT_TILE_SHELL}`}>
       <Ghost className="h-3 w-20" />
       <Ghost className="mt-2 h-7 w-24" />
       <Ghost className="mt-2 h-4 w-32" />

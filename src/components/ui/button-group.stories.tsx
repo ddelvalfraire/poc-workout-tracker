@@ -1,3 +1,5 @@
+import type { Meta, StoryObj } from '@storybook/nextjs-vite'
+
 import { Button } from './button'
 import { ButtonGroup } from './button-group'
 
@@ -6,22 +8,21 @@ import { ButtonGroup } from './button-group'
  * page background (never bg-card), a hairline divider between segments,
  * flush flex-1 buttons inside. Consumers: the weight stepper today; the
  * rest trio and future segmented controls in later slices (#216/#217).
- *
- * CSF-shaped module: renders under Storybook when the workbench lands; until
- * then it is the reviewable variant matrix and a compile-checked contract.
  */
 
 const meta = {
   title: 'UI/ButtonGroup',
   component: ButtonGroup,
-}
+  parameters: { layout: 'padded' },
+} satisfies Meta<typeof ButtonGroup>
 
 export default meta
+type Story = StoryObj<typeof meta>
 
 /** Segment counts × sizes — ghost segments, the group carries the frame. */
-export const Matrix = {
+export const Matrix: Story = {
   render: () => (
-    <div className="flex w-80 flex-col gap-4 p-6">
+    <div className="flex w-80 flex-col gap-4">
       {(['sm', 'default'] as const).map((size) => (
         <div key={size} className="flex flex-col gap-2">
           <span className="text-xs text-muted-foreground">{size}</span>
@@ -54,9 +55,9 @@ export const Matrix = {
  *  numerals, hit-44-y vertical touch insets riding outside the 36px
  *  controls (vertical-only so the segments' invisible extensions never
  *  cross the divider into the opposite action). */
-export const Stepper = {
+export const Stepper: Story = {
   render: () => (
-    <div className="w-64 p-6">
+    <div className="w-64">
       <ButtonGroup>
         <Button size="sm" variant="ghost" className="hit-44-y font-semibold tnum">
           −5
@@ -70,9 +71,9 @@ export const Stepper = {
 }
 
 /** Disabled segments keep the frame; only the segment dims. */
-export const DisabledSegment = {
+export const DisabledSegment: Story = {
   render: () => (
-    <div className="w-64 p-6">
+    <div className="w-64">
       <ButtonGroup>
         <Button size="sm" variant="ghost" disabled>
           −5

@@ -3,6 +3,7 @@ import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 import type { ActivityItem } from "@/lib/ops/activity";
 
 import { ActivityLog } from "./activity-log";
+import { STORY_NOW } from "../story-time";
 
 /**
  * The product-side activity feed: what actually happened in the app, filtered
@@ -29,7 +30,7 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-const ago = (minutes: number) => new Date(Date.now() - minutes * 60_000);
+const ago = (minutes: number) => new Date(STORY_NOW - minutes * 60_000);
 
 const ITEMS: ActivityItem[] = [
   { type: "workout", line: "Completed Push A — 18 sets, 9,820 kg", at: ago(35) },
