@@ -57,6 +57,9 @@ export const COACH_READ_TOOLS = [
   // Read-only by construction: adopt/confirm/decline are owner-only server
   // actions, so listing outstanding proposals can never resolve one.
   'list_proposals',
+  // Notes-v2 browser read — the coach's window into the user's notes across
+  // every anchor. The note WRITE tools stay excluded (see below).
+  'list_notes',
 ] as const
 
 /** Granular program patch tools — allowed, but gated behind user approval. */
@@ -67,6 +70,9 @@ export const COACH_APPROVAL_TOOLS = [
   'move_program_day',
   'add_program_exercise',
   'update_program_exercise',
+  // The load-stripping movement swap — approval-gated like every patch op;
+  // the swap itself clears the old movement's loads server-side.
+  'substitute_program_exercise',
   'remove_program_exercise',
   'move_program_exercise',
   'add_program_set',
@@ -80,6 +86,9 @@ export const COACH_APPROVAL_TOOLS = [
   // The diet phase reframes stall verdicts and gates the auto-backoff into
   // a proposal — a behavior change the owner must approve like any policy.
   'set_program_diet_phase',
+  // The overshoot policy changes how goals are scored across the whole
+  // program — a behavior change the owner must approve like any policy.
+  'set_program_overshoot_policy',
   'set_program_plan_sync',
   // A TM change rewrites every derived load on the exercise — a mutation the
   // owner must approve like any other patch op.
@@ -125,6 +134,15 @@ export const COACH_EXCLUDED_TOOLS = [
   // coach silently rewriting them would be imposing, not proposing. External
   // MCP agents keep the tool; the coach reads notes via the read tools.
   'set_exercise_note',
+  // Notes-v2 writes: same reasoning as set_exercise_note — the user's notes
+  // are their own words, and these tools stamp author='user' unconditionally
+  // (no author arg), so a coach-actor call would FORGE user authorship. The
+  // coach's write path is the future coach-author arm (avatar comments),
+  // gated behind the coach surface — never these tools. External MCP agents
+  // keep them (they act as the user).
+  'create_note',
+  'update_note',
+  'delete_note',
   'update_set',
   'add_set',
   'remove_set',

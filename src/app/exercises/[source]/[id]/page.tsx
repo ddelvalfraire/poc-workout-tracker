@@ -6,12 +6,17 @@ import { getExerciseStats, getExerciseSessions } from '@/db/exercise-stats'
 import { activeStrengthGoalForExercise } from '@/db/goals'
 import { getWeightUnit } from '@/db/preferences'
 import { formatE1RM, formatLoggedSet, formatWorkoutDate } from '@/lib/format'
+import { formatDistanceInput, formatDurationInput } from '@/lib/duration'
 import { kgToDisplay } from '@/lib/units'
 import { MAX_RELIABLE_REPS } from '@/lib/one-rep-max'
 import { TrendChart } from '@/components/charts/trend-chart'
 import { StatTile, type StatDelta } from '@/components/stat-tile'
 import { listCustomExercises } from '@/db/custom-exercises'
 import { getExerciseNote } from '@/db/exercise-notes'
+import { listNotes } from '@/db/notes'
+import { buildNoteView, groupNotesByThread } from '@/components/notes/note-view'
+import { NoteRow } from '@/components/notes/note-row'
+import { DividerList } from '@/components/ui/divider-list'
 import { CustomExerciseEditor } from '../../custom-exercise-editor'
 import { ExerciseNoteSection } from './exercise-note-section'
 import { AppHeader } from '@/components/app-header'
@@ -74,7 +79,7 @@ export default async function ExerciseStatsPage({
   const page =
     /^\d+$/.test(pageParam ?? '') && parseInt(pageParam!, 10) >= 1 ? parseInt(pageParam!, 10) : 1
 
-  const [stats, sessions, unit, strengthGoal, note] = await Promise.all([
+  const [stats, sessions, unit, strengthGoal, note, sessionNotes] = await Promise.all([
     getExerciseStats(userId, ref.source, ref.wgerExerciseId),
     getExerciseSessions(userId, ref.source, ref.wgerExerciseId, {
       limit: HISTORY_PAGE,
@@ -85,6 +90,9 @@ export default async function ExerciseStatsPage({
     activeStrengthGoalForExercise(userId, ref.source, ref.wgerExerciseId),
     // Identity note (seat pins, cues) — the note that follows the exercise.
     getExerciseNote(userId, ref.source, ref.wgerExerciseId),
+    // The reverse index: every SESSION note ever anchored to this exercise
+    // identity (any instance, any workout — directly or via one of its sets).
+    listNotes(userId, { exercise: { source: ref.source, exerciseId: ref.wgerExerciseId } }),
   ])
   if (!stats) notFound()
   const goalTargetKg =
@@ -99,6 +107,13 @@ export default async function ExerciseStatsPage({
 
   const { records, trend } = stats
   const hasLoadRecords = records.bestE1rm !== null || records.heaviestLoadKg !== null
+  // Cardio trio (duration-mode sets): longest duration leads when there's no
+  // e1RM headline (a pure cardio exercise); mixed histories keep the lifting
+  // headline and the cardio records join the grid as tiles.
+  const longestDuration = records.longestDuration ?? null
+  const longestDistance = records.longestDistance ?? null
+  const bestPace = records.bestPace ?? null
+  const hasCardioRecords = longestDuration !== null || longestDistance !== null
   const now = new Date()
   // Record-setting sessions (running-max advances) mark both the chart's volt
   // dots and the history's PR chips — one derivation, two surfaces agreeing.
@@ -127,6 +142,11 @@ export default async function ExerciseStatsPage({
     const held = formatStandingTime(since, now)
     return held !== null ? ` · ${held}` : ''
   }
+  // Reverse-index rows, session-threaded like the /notes browser. The
+  // exercise segment drops from breadcrumbs — this page IS the exercise.
+  const noteThreads = groupNotesByThread(
+    sessionNotes.map((n) => buildNoteView(n, unit, now, { omitExercise: true })),
+  )
 
   return (
     <div className="flex min-h-[100dvh] flex-col">
@@ -175,13 +195,14 @@ export default async function ExerciseStatsPage({
           note={note ? { body: note.body, pinned: note.pinned } : null}
         />
 
-        {/* All-time records. reps_weight-only by design — duration work shows
-            in history below but claims no records until the cardio feature. */}
+        {/* All-time records. Lifting records stay reps_weight-only; duration
+            work claims the cardio trio (longest duration/distance, best
+            pace) instead — the two families never double-claim a set. */}
         <section aria-label="All-time records">
           <h2 className="px-1 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
             All-time records
           </h2>
-          {hasLoadRecords || records.mostReps !== null ? (
+          {hasLoadRecords || records.mostReps !== null || hasCardioRecords ? (
             <dl className="mt-2 grid grid-cols-2 gap-3">
               {/* The headline record leads full-width in poster type — the
                   grid below is context, this is the number the page is for.
@@ -241,6 +262,46 @@ export default async function ExerciseStatsPage({
                   ).toLocaleString('en-US')}
                   unit={unit}
                   caption={`${formatWorkoutDate(records.bestSessionVolumeKg.performedAt)}${standing(records.bestSessionVolumeKg.performedAt)}`}
+                />
+              )}
+              {/* Cardio trio. With no e1RM headline the longest duration
+                  takes the poster slot (a pure cardio exercise's page leads
+                  with ITS number); mixed histories keep it as a tile. */}
+              {longestDuration && records.bestE1rm === null && (
+                <div className="col-span-2 border-b border-b-border/60 pb-4 motion-safe:animate-rise-in">
+                  <dt className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                    Longest duration
+                  </dt>
+                  <dd className="mt-2 font-display text-6xl leading-none tracking-tight tnum">
+                    {formatDurationInput(longestDuration.durationSec)}
+                  </dd>
+                  <dd className="mt-1 text-xs text-muted-foreground tnum">
+                    {formatWorkoutDate(longestDuration.performedAt) +
+                      standing(longestDuration.performedAt)}
+                  </dd>
+                </div>
+              )}
+              {longestDuration && records.bestE1rm !== null && (
+                <StatTile
+                  label="Longest duration"
+                  value={formatDurationInput(longestDuration.durationSec)}
+                  caption={`${formatWorkoutDate(longestDuration.performedAt)}${standing(longestDuration.performedAt)}`}
+                />
+              )}
+              {longestDistance && (
+                <StatTile
+                  label="Longest distance"
+                  value={formatDistanceInput(longestDistance.distanceM)}
+                  unit="km"
+                  caption={`${formatWorkoutDate(longestDistance.performedAt)}${standing(longestDistance.performedAt)}`}
+                />
+              )}
+              {bestPace && (
+                <StatTile
+                  label="Best pace"
+                  value={formatDurationInput(Math.round(bestPace.secPerKm))}
+                  unit="/km"
+                  caption={`${formatWorkoutDate(bestPace.performedAt)}${standing(bestPace.performedAt)}`}
                 />
               )}
             </dl>
@@ -371,6 +432,35 @@ export default async function ExerciseStatsPage({
             )}
           </div>
         </section>
+
+        {/* The reverse index: every note ever anchored here (any instance,
+            any workout), threaded by session like the /notes browser. An
+            exercise with no notes shows no section — the identity note block
+            above already owns authoring. */}
+        {noteThreads.length > 0 && (
+          <section aria-label="Session notes">
+            <h2 className="px-1 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+              Notes
+            </h2>
+            {noteThreads.map((thread) => (
+              <div key={thread.key}>
+                <div className="flex items-baseline justify-between gap-3 px-1 pb-1 pt-3">
+                  <h3 className="min-w-0 truncate text-xs font-semibold text-muted-foreground">
+                    {thread.title}
+                  </h3>
+                  <span className="shrink-0 text-xs text-muted-foreground tnum">
+                    {thread.dateLabel}
+                  </span>
+                </div>
+                <DividerList>
+                  {thread.notes.map((note) => (
+                    <NoteRow key={note.id} note={note} />
+                  ))}
+                </DividerList>
+              </div>
+            ))}
+          </section>
+        )}
       </main>
     </div>
   )

@@ -389,6 +389,53 @@ describe('parseProgramInput', () => {
   })
 })
 
+describe('metric-mode × scheme validation (cardio v1 slice 2)', () => {
+  const cardioExercise = (progression: Record<string, unknown> | null) => ({
+    name: 'PPL',
+    days: [
+      {
+        name: 'Cardio',
+        exercises: [
+          {
+            wgerExerciseId: 201,
+            name: 'Running',
+            progression,
+            sets: [{ metricMode: 'duration_distance', durationSec: 1800 }],
+          },
+        ],
+      },
+    ],
+  })
+
+  it('ACCEPTS a load-anchored scheme on an all-timed exercise — legacy tolerance', () => {
+    // MCP write tools allowed this combo before cardio v1; a parse-time throw
+    // would brick full-replace saves of programs storing it. The derivation
+    // guard (deriveWeekSets) is where the dead scheme no-ops, silently.
+    expect(() =>
+      parseProgramInput(cardioExercise({ scheme: 'linear', incrementKg: 2.5 })),
+    ).not.toThrow()
+    expect(() =>
+      parseProgramInput(
+        cardioExercise({ scheme: 'weekly-volume', mevSets: 2, mrvSets: 5 }),
+      ),
+    ).not.toThrow()
+  })
+
+  it('accepts rep-progression on a timed exercise (the one cardio scheme)', () => {
+    const result = parseProgramInput(
+      cardioExercise({ scheme: 'rep-progression', incrementReps: 0, incrementSec: 30 }),
+    )
+    expect(result.days[0].exercises[0].progression).toMatchObject({ scheme: 'rep-progression' })
+  })
+
+  it('accepts a scheme-less timed exercise and a load scheme on a MIXED exercise', () => {
+    expect(() => parseProgramInput(cardioExercise(null))).not.toThrow()
+    const mixed = cardioExercise({ scheme: 'linear', incrementKg: 2.5 })
+    mixed.days[0].exercises[0].sets.push({ metricMode: 'reps_weight', durationSec: 0 })
+    expect(() => parseProgramInput(mixed)).not.toThrow()
+  })
+})
+
 describe('programSetIntegrityViolation', () => {
   // The single source of the cross-field set rules — the schema refines and the
   // patch layer's merge revalidation must both flag exactly these shapes.
@@ -605,14 +652,32 @@ describe('deloadPolicySchema', () => {
     expect(deloadPolicySchema.parse({ mode: 'reactive' })).toEqual({ mode: 'reactive' })
     expect(deloadPolicySchema.parse({ mode: 'scheduled', shape: {} })).toEqual({
       mode: 'scheduled',
-      shape: { loadFactor: 0.85, setFactor: 0.5, rpeCap: null },
+      shape: { loadFactor: 0.85, setFactor: 0.5, rpeCap: null, timedExercises: 'untouched' },
     })
   })
 
   it('parses an explicit scheduled shape (partial fields default individually)', () => {
     expect(
       deloadPolicySchema.parse({ mode: 'scheduled', shape: { loadFactor: 0.7, rpeCap: 7 } }),
-    ).toEqual({ mode: 'scheduled', shape: { loadFactor: 0.7, setFactor: 0.5, rpeCap: 7 } })
+    ).toEqual({
+      mode: 'scheduled',
+      shape: { loadFactor: 0.7, setFactor: 0.5, rpeCap: 7, timedExercises: 'untouched' },
+    })
+  })
+
+  it("timedExercises: legacy stored shapes (no field) default to 'untouched'; 'scaled' is an explicit opt-in", () => {
+    // A pre-field stored policy re-parses with the protective default — this
+    // IS the adjudicated behavior change (D3): timed exercises are no longer
+    // silently halved unless the creator opted in.
+    expect(
+      deloadPolicySchema.parse({ mode: 'scheduled', shape: { loadFactor: 0.8 } }),
+    ).toMatchObject({ shape: { timedExercises: 'untouched' } })
+    expect(
+      deloadPolicySchema.parse({ mode: 'scheduled', shape: { timedExercises: 'scaled' } }),
+    ).toEqual({
+      mode: 'scheduled',
+      shape: { loadFactor: 0.85, setFactor: 0.5, rpeCap: null, timedExercises: 'scaled' },
+    })
   })
 
   it('rejects malformed policies (strict at every level)', () => {
@@ -643,7 +708,10 @@ describe('deloadPolicySchema', () => {
     // A valid policy normalizes through the schema.
     expect(
       parseProgramInput({ ...VALID, deloadPolicy: { mode: 'scheduled', shape: {} } }).deloadPolicy,
-    ).toEqual({ mode: 'scheduled', shape: { loadFactor: 0.85, setFactor: 0.5, rpeCap: null } })
+    ).toEqual({
+      mode: 'scheduled',
+      shape: { loadFactor: 0.85, setFactor: 0.5, rpeCap: null, timedExercises: 'untouched' },
+    })
     // An invalid policy is rejected at the boundary (write-time strictness;
     // read-time degrade lives in resolveDeloadPolicy, not here).
     expect(() => parseProgramInput({ ...VALID, deloadPolicy: { mode: 'weird' } })).toThrow()

@@ -1,42 +1,60 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
+import type { VariantProps } from "class-variance-authority";
 import { Plus, Trash2 } from "lucide-react";
 
-import { Button } from "./button";
+import { Button, buttonVariants } from "./button";
 
 /**
- * The app's one button shape (DESIGN.md § Components). `default` and `lg` are
- * ≥44px tall so primary actions clear the HIG touch target; `xs`/`sm`/`icon-*`
- * stay for inline affordances like remove-set.
+ * The button role → variant contract (logger UX overhaul, #212):
+ *
+ * - default             the screen's ONE primary action (solid volt)
+ * - band                session-peak action (live Finish): full-bleed
+ *                       volt-tinted display-face band — the skin only; the
+ *                       -mx gutter bleed is layout and lives at the call site
+ * - outline             constructive-additive ("adds something": + Add set,
+ *                       + Exercise) and paperwork-primary (Save changes)
+ * - ghost               quiet utility (tool rails, sheet close)
+ * - reversal            walks something back (Undo, Just today, Use plan as
+ *                       written): ghost-quiet with a standing underline
+ * - destructive         destructive COMMIT, confirm surfaces only
+ * - destructive-outline standing destructive entry point (Discard workout)
+ * - secondary / link    shadcn defaults, outside the logger vocabulary
+ *
+ * Sizes: `default` (44px) and `lg` (48px) clear the HIG touch target and are
+ * the only two a primary action may use; `xs`/`sm`/`icon-*` are inline
+ * affordances (remove-set, tool rails).
  */
+type ButtonVariant = NonNullable<VariantProps<typeof buttonVariants>["variant"]>;
+type ButtonSize = NonNullable<VariantProps<typeof buttonVariants>["size"]>;
+
+/** Declaration order is the review order: loudest role first. */
+const VARIANTS: readonly ButtonVariant[] = [
+  "default",
+  "band",
+  "outline",
+  "secondary",
+  "ghost",
+  "reversal",
+  "destructive",
+  "destructive-outline",
+  "link",
+];
+
+const TEXT_SIZES: readonly ButtonSize[] = ["xs", "sm", "default", "lg"];
+const ICON_SIZES: readonly ButtonSize[] = [
+  "icon-xs",
+  "icon-sm",
+  "icon",
+  "icon-lg",
+];
+
 const meta = {
   title: "UI/Button",
   component: Button,
   args: { children: "Start workout" },
   argTypes: {
-    variant: {
-      control: "select",
-      options: [
-        "default",
-        "outline",
-        "secondary",
-        "ghost",
-        "destructive",
-        "link",
-      ],
-    },
-    size: {
-      control: "select",
-      options: [
-        "default",
-        "xs",
-        "sm",
-        "lg",
-        "icon",
-        "icon-xs",
-        "icon-sm",
-        "icon-lg",
-      ],
-    },
+    variant: { control: "select", options: VARIANTS },
+    size: { control: "select", options: [...TEXT_SIZES, ...ICON_SIZES] },
     disabled: { control: "boolean" },
   },
 } satisfies Meta<typeof Button>;
@@ -44,38 +62,84 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const Default: Story = {}
+export const Default: Story = {};
 
-export const Outline: Story = { args: { variant: "outline" } }
-export const Secondary: Story = { args: { variant: "secondary" } }
-export const Ghost: Story = { args: { variant: "ghost" } }
-export const Destructive: Story = {
-  args: { variant: "destructive", children: "Remove set" },
-}
-export const Link: Story = { args: { variant: "link", children: "See all" } }
-
-/** Every variant at the default size — the volt appears on `default` only. */
-export const AllVariants: Story = {
+/** Every variant at every text size, plus the disabled column. */
+export const Matrix: Story = {
   parameters: { layout: "padded" },
   render: (args) => (
-    <div className="flex flex-col items-start gap-3">
-      {(
-        [
-          "default",
-          "outline",
-          "secondary",
-          "ghost",
-          "destructive",
-          "link",
-        ] as const
-      ).map((variant) => (
-        <Button key={variant} {...args} variant={variant}>
-          {variant}
-        </Button>
+    <div className="flex flex-col gap-4">
+      {VARIANTS.map((variant) => (
+        <div key={variant} className="flex items-center gap-3">
+          <span className="w-40 text-xs text-muted-foreground">{variant}</span>
+          {TEXT_SIZES.map((size) => (
+            <Button key={size} {...args} variant={variant} size={size}>
+              Button
+            </Button>
+          ))}
+          <Button {...args} variant={variant} disabled>
+            Disabled
+          </Button>
+        </div>
       ))}
     </div>
   ),
-}
+};
+
+/**
+ * The band in situ: full width inside a gutter-bled sticky-bar stand-in.
+ * The bleed classes stay with the LAYOUT (this wrapper), never the skin.
+ */
+export const Band: Story = {
+  parameters: { layout: "padded" },
+  render: () => (
+    <div className="w-96 border-t border-border px-5 pt-3 pb-4">
+      <Button
+        size="lg"
+        variant="band"
+        className="-mx-5 w-[calc(100%+2.5rem)] font-semibold uppercase tracking-wide"
+      >
+        Finish workout <span aria-hidden="true">→</span>
+      </Button>
+    </div>
+  ),
+};
+
+/** The reversal family next to ghost — the underline is the differentiator. */
+export const Reversal: Story = {
+  parameters: { layout: "padded" },
+  render: () => (
+    <div className="flex items-center gap-3">
+      <Button size="sm" variant="ghost">
+        Ghost utility
+      </Button>
+      <Button size="sm" variant="reversal">
+        Undo
+      </Button>
+      <Button size="sm" variant="reversal">
+        Just today
+      </Button>
+      <Button size="sm" variant="reversal" disabled>
+        Undo
+      </Button>
+    </div>
+  ),
+};
+
+/** Standing destructive vs destructive commit, side by side. */
+export const Destructive: Story = {
+  parameters: { layout: "padded" },
+  render: () => (
+    <div className="flex w-80 flex-col gap-3">
+      <Button variant="destructive-outline" className="w-full">
+        Discard workout
+      </Button>
+      <Button variant="destructive" className="w-full">
+        Delete (confirm surface)
+      </Button>
+    </div>
+  ),
+};
 
 /**
  * The full size ramp. `default` (44px) and `lg` (48px) are the touch-target
@@ -85,13 +149,13 @@ export const AllSizes: Story = {
   parameters: { layout: "padded" },
   render: (args) => (
     <div className="flex flex-col items-start gap-3">
-      {(["xs", "sm", "default", "lg"] as const).map((size) => (
+      {TEXT_SIZES.map((size) => (
         <Button key={size} {...args} size={size}>
           {size}
         </Button>
       ))}
       <div className="flex items-center gap-3">
-        {(["icon-xs", "icon-sm", "icon", "icon-lg"] as const).map((size) => (
+        {ICON_SIZES.map((size) => (
           <Button key={size} {...args} size={size} aria-label={`Add (${size})`}>
             <Plus />
           </Button>
@@ -99,49 +163,9 @@ export const AllSizes: Story = {
       </div>
     </div>
   ),
-}
+};
 
-/** The full variant × size matrix — the consistency check for the shape. */
-export const Matrix: Story = {
-  parameters: { layout: "padded" },
-  render: (args) => (
-    <table className="border-separate border-spacing-3 text-left">
-      <thead>
-        <tr>
-          <th className="text-xs font-normal text-muted-foreground">size \ variant</th>
-          {(["default", "outline", "secondary", "ghost", "destructive"] as const).map(
-            (variant) => (
-              <th
-                key={variant}
-                className="text-xs font-normal text-muted-foreground"
-              >
-                {variant}
-              </th>
-            ),
-          )}
-        </tr>
-      </thead>
-      <tbody>
-        {(["xs", "sm", "default", "lg"] as const).map((size) => (
-          <tr key={size}>
-            <th className="text-xs font-normal text-muted-foreground">{size}</th>
-            {(
-              ["default", "outline", "secondary", "ghost", "destructive"] as const
-            ).map((variant) => (
-              <td key={variant}>
-                <Button {...args} size={size} variant={variant}>
-                  Save
-                </Button>
-              </td>
-            ))}
-          </tr>
-        ))}
-      </tbody>
-    </table>
-  ),
-}
-
-export const Disabled: Story = { args: { disabled: true } }
+export const Disabled: Story = { args: { disabled: true } };
 
 /** Leading/trailing icon slots — `data-icon` tightens the matching padding. */
 export const WithIcons: Story = {
@@ -161,7 +185,7 @@ export const WithIcons: Story = {
       </Button>
     </div>
   ),
-}
+};
 
 /** Primary actions are full-width and thumb-reachable (DESIGN.md § Components). */
 export const FullWidthAction: Story = {
@@ -173,4 +197,4 @@ export const FullWidthAction: Story = {
       </Button>
     </div>
   ),
-}
+};

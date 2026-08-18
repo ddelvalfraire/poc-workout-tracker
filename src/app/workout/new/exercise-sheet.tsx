@@ -24,6 +24,9 @@ interface ExerciseSheetProps {
   /** Forwarded to the picker: the exercise being replaced, whose muscle-matched
    *  alternatives fill the rail. Present only in replace mode. */
   suggestFor?: number
+  /** Forwarded to the picker (#218): the create row navigates to the
+   *  full-page form instead of opening the inline one. */
+  onCreateNavigate?: (query: string) => void
 }
 
 export function ExerciseSheet({
@@ -31,6 +34,7 @@ export function ExerciseSheet({
   onClose,
   heading = 'Add exercise',
   suggestFor,
+  onCreateNavigate,
 }: ExerciseSheetProps) {
   const dialogRef = useRef<HTMLDialogElement>(null)
   const closeButtonRef = useRef<HTMLButtonElement>(null)
@@ -102,7 +106,9 @@ export function ExerciseSheet({
       className="mx-auto mt-auto mb-0 flex h-[92dvh] w-full max-w-md flex-col rounded-t-2xl border-t border-x border-border bg-card px-5 pt-5 text-foreground backdrop:bg-black/60 motion-safe:animate-sheet-up"
     >
       <div className="flex shrink-0 items-start justify-between gap-3 pb-3">
-        <p className="min-w-0 truncate text-xs font-semibold uppercase tracking-widest text-primary">
+        {/* Muted eyebrow (one-volt rule): the sheet's single volt is the
+            primary commit action inside the picker, not its title. */}
+        <p className="min-w-0 truncate text-xs font-semibold uppercase tracking-widest text-muted-foreground">
           {heading}
         </p>
         <Button
@@ -128,6 +134,7 @@ export function ExerciseSheet({
           // renders (the program builder opts in the same way).
           includeCustom
           suggestFor={suggestFor}
+          onCreateNavigate={onCreateNavigate}
           onAdd={(exercise) => {
             onAdd(exercise)
             requestClose()

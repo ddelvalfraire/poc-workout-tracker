@@ -8,13 +8,18 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
  * fixture rows (prescribedLoadKg/prescribedRepMin) — never re-derived — so
  * the fixtures supply actuals + snapshots.
  */
-const { lastPerformance, historyBefore, trainedSessions } = vi.hoisted(() => ({
+const { lastPerformance, historyBefore, trainedSessions, weightUnit } = vi.hoisted(() => ({
   lastPerformance: vi.fn(),
   historyBefore: vi.fn(),
   trainedSessions: vi.fn(),
+  weightUnit: vi.fn(),
 }))
 
 vi.mock('./index', () => ({ db: {} }))
+// Derivation reads the display unit for load quantization (#226). Defaults
+// to 'kg' here so every legacy fixture (100 kg base, 2.5 kg steps — all on
+// the 1.25 kg grid) derives byte-identically.
+vi.mock('./preferences', () => ({ getWeightUnit: weightUnit }))
 vi.mock('./workouts', () => ({
   getLastPerformance: lastPerformance,
   getExerciseHistoryBefore: historyBefore,
@@ -24,7 +29,8 @@ vi.mock('./autoreg-history', () => ({
 }))
 
 import { deriveDayPrescription, type DayForDerivation } from './programs'
-import type { AutoregStallPolicy } from '@/lib/autoregulate'
+import { autoregReason, type AutoregStallPolicy } from '@/lib/autoregulate'
+import { kgToDisplay } from '@/lib/units'
 
 const USER = 'user_123'
 
@@ -39,6 +45,8 @@ function day(options: {
   deloadWeek?: number | null
   deloadPolicy?: DayForDerivation['program']['deloadPolicy']
   dietPhase?: DayForDerivation['program']['dietPhase']
+  overshootPolicy?: DayForDerivation['program']['overshootPolicy']
+  exerciseOvershootPolicy?: DayForDerivation['exercises'][number]['overshootPolicy']
   overrides?: { week: number; [key: string]: unknown }[]
   duplicateSlot?: boolean
   repRange?: boolean
@@ -47,6 +55,7 @@ function day(options: {
   const exercise = {
     wgerExerciseId: 1,
     source: 'wger' as const,
+    overshootPolicy: options.exerciseOvershootPolicy ?? null,
     progression: (options.progression ?? {
       scheme: 'linear',
       incrementKg: 2.5,
@@ -80,6 +89,7 @@ function day(options: {
       autoregStallPolicy: options.stallPolicy ?? 'all-sets',
       deloadPolicy: options.deloadPolicy ?? null,
       dietPhase: options.dietPhase ?? null,
+      overshootPolicy: options.overshootPolicy ?? null,
     },
     exercises: options.duplicateSlot ? [exercise, { ...exercise }] : [exercise],
   }
@@ -115,6 +125,7 @@ beforeEach(() => {
   historyBefore.mockResolvedValue([])
   lastPerformance.mockResolvedValue(null)
   trainedSessions.mockResolvedValue([])
+  weightUnit.mockResolvedValue('kg')
 })
 
 describe('deriveDayPrescription auto-regulation', () => {
@@ -609,5 +620,169 @@ describe('deriveDayPrescription auto-regulation', () => {
       excludeWorkoutId: 'w-current',
       deloadWeek: null,
     })
+  })
+})
+
+/** The `day()` fixture with every set's base load replaced (immutably). */
+function withBaseLoad(fixture: DayForDerivation, suggestedLoadKg: number): DayForDerivation {
+  return {
+    ...fixture,
+    exercises: fixture.exercises.map((e) => ({
+      ...e,
+      sets: e.sets.map((s) => ({ ...s, suggestedLoadKg })),
+    })),
+  }
+}
+
+describe('deriveDayPrescription overshoot policy (#227)', () => {
+  // 18 × 90 vs the 8–12 @ 100 range: e1RM 144 ≥ the top's 140 — under
+  // strict this is just a lighter session; under e1rm-equivalent it is a
+  // range fill, credited against the SNAPSHOT prescription.
+  const overshotRange = () => [trained('w1', 1, [18, 18, 18], 90, 100)]
+
+  it("the program row's e1rm-equivalent policy credits a lighter overshoot as a fill", async () => {
+    trainedSessions.mockResolvedValue(overshotRange())
+    const [strict] = await deriveDayPrescription(USER, day({ repRange: true }), 2)
+    expect(strict.autoreg).toBeNull() // strict default: lighter session, silence
+    trainedSessions.mockResolvedValue(overshotRange())
+    const [credited] = await deriveDayPrescription(
+      USER,
+      day({ repRange: true, overshootPolicy: 'e1rm-equivalent' }),
+      2,
+    )
+    expect(credited.autoreg).toMatchObject({ action: 'step', deltaKg: 2.5 })
+  })
+
+  it('a per-exercise strict override outranks the program policy', async () => {
+    trainedSessions.mockResolvedValue(overshotRange())
+    const [exercise] = await deriveDayPrescription(
+      USER,
+      day({
+        repRange: true,
+        overshootPolicy: 'e1rm-equivalent',
+        exerciseOvershootPolicy: 'strict-load',
+      }),
+      2,
+    )
+    expect(exercise.autoreg).toBeNull()
+  })
+})
+
+describe('deriveDayPrescription load quantization (#226)', () => {
+  it('snaps a kg-derived load to the lb grid: 16.87 kg (37.2 lb) prescribes 37.5 lb', async () => {
+    // Arrange — an lb lifter whose base load is off the 2.5 lb grid.
+    weightUnit.mockResolvedValue('lb')
+    const offGrid = withBaseLoad(day({ autoregulation: false }), 16.87)
+
+    // Act
+    const [prescription] = await deriveDayPrescription(USER, offGrid, 1)
+
+    // Assert — 17.01 kg is 37.5 lb at column precision (never 37.2).
+    expect(prescription.sets.map((s) => s.loadKg)).toEqual([17.01, 17.01, 17.01])
+  })
+
+  it('lets an explicit unit override outrank the stored preference', async () => {
+    // Arrange — a stored-lb user previewing in kg.
+    weightUnit.mockResolvedValue('lb')
+    const offGrid = withBaseLoad(day({ autoregulation: false }), 16.87)
+
+    // Act
+    const [prescription] = await deriveDayPrescription(USER, offGrid, 1, { unit: 'kg' })
+
+    // Assert — the 1.25 KG grid governs, not the stored lb grid (17.01).
+    expect(prescription.sets.map((s) => s.loadKg)).toEqual([16.25, 16.25, 16.25])
+  })
+
+  it('breaks the light-load backoff fixed point: 5 lb decreases, then floors at 2.5 lb', async () => {
+    // Arrange — an lb lifter stalled three times at 2.27 kg (5 lb). The 25%
+    // backoff lands at 1.7025 kg = 3.75 lb, which quantizes BACK to 5 lb —
+    // without the anti-fixed-point step the load would never move while the
+    // reason keeps claiming a backoff.
+    weightUnit.mockResolvedValue('lb')
+    const base = withBaseLoad(day({}), 2.27)
+    trainedSessions.mockResolvedValue([
+      trained('w3', 3, [6, 6, 6], 2.27),
+      trained('w2', 2, [6, 6, 6], 2.27),
+      trained('w1', 1, [6, 6, 6], 2.27),
+    ])
+
+    // Act — first post-stall derivation
+    const [first] = await deriveDayPrescription(USER, base, 1)
+
+    // Assert — strictly decreased: 5 lb → 2.5 lb (1.13 kg), and the reason's
+    // landing load (2.5 lb) matches the actually-applied prescription.
+    expect(first.autoreg).toMatchObject({ action: 'decrement' })
+    expect(first.sets.map((s) => s.loadKg)).toEqual([1.13, 1.13, 1.13])
+    expect(autoregReason(first.autoreg!, 'lb')).toContain('Drop to 2.5 lb')
+
+    // Act — next cycle: three stalls at the decremented 1.13 kg (2.5 lb)
+    trainedSessions.mockResolvedValue([
+      trained('w6', 6, [6, 6, 6], 1.13),
+      trained('w5', 5, [6, 6, 6], 1.13),
+      trained('w4', 4, [6, 6, 6], 1.13),
+    ])
+    const [second] = await deriveDayPrescription(USER, base, 1)
+
+    // Assert — holds the smallest loadable value: never 0, never back up to 5.
+    expect(second.sets.map((s) => s.loadKg)).toEqual([1.13, 1.13, 1.13])
+  })
+
+  it('the stated "Drop to" load equals the applied top working load (multi-load session)', async () => {
+    // Arrange — an lb lifter with top sets (2.27 kg = 5 lb) plus a lighter
+    // third set (1.13 kg = 2.5 lb), stalled on the top sets three sessions
+    // straight. Per-set quantization runs from each set's own scheme load —
+    // the property under test (#228 review): the reason's landing load must
+    // be the load the application actually produced, never a recomputation
+    // that can diverge from it.
+    weightUnit.mockResolvedValue('lb')
+    const base = day({})
+    const multi: DayForDerivation = {
+      ...base,
+      exercises: base.exercises.map((e) => ({
+        ...e,
+        sets: e.sets.map((s) => ({ ...s, suggestedLoadKg: s.setNumber === 3 ? 1.13 : 2.27 })),
+      })),
+    }
+    const stalledSet = (setNumber: number, reps: number, loadKg: number) => ({
+      setNumber,
+      reps,
+      weightKg: loadKg,
+      completed: true,
+      setType: 'working' as const,
+      prescribedLoadKg: loadKg,
+      prescribedRepMin: 8,
+    })
+    const stalled = (id: string, week: number) => ({
+      workoutId: id,
+      programWeek: week,
+      startedAt: new Date(Date.UTC(2026, 6, week)),
+      sets: [stalledSet(1, 6, 2.27), stalledSet(2, 6, 2.27), stalledSet(3, 8, 1.13)],
+    })
+    trainedSessions.mockResolvedValue([stalled('w3', 3), stalled('w2', 2), stalled('w1', 1)])
+
+    // Act
+    const [prescription] = await deriveDayPrescription(USER, multi, 1)
+
+    // Assert — the property: reason landing load === applied top working load.
+    expect(prescription.autoreg).toMatchObject({ action: 'decrement' })
+    const appliedTop = Math.max(
+      ...prescription.sets
+        .filter((s) => s.setType === 'working' && s.loadKg !== null)
+        .map((s) => s.loadKg as number),
+    )
+    expect(autoregReason(prescription.autoreg!, 'lb')).toContain(
+      `Drop to ${kgToDisplay(appliedTop, 'lb')} lb`,
+    )
+  })
+
+  it('snaps kg-unit loads onto the 1.25 kg grid after a scheme step', async () => {
+    // Arrange — week 2 of a linear scheme stepping 100 → 102.4 raw.
+    const fixture = day({ autoregulation: false, progression: { scheme: 'linear', incrementKg: 2.4 } })
+
+    // Act
+    const [prescription] = await deriveDayPrescription(USER, fixture, 2)
+
+    // Assert — 102.4 lands on 102.5.
+    expect(prescription.sets.map((s) => s.loadKg)).toEqual([102.5, 102.5, 102.5])
   })
 })

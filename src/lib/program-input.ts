@@ -118,13 +118,22 @@ export const techniqueSchema = z
  * fields default to the historical engine constants (progression.ts's
  * DELOAD_LOAD_FACTOR / DELOAD_SET_FACTOR), so `{}` parses to exactly today's
  * deload. `rpeCap` (5–10, null = no cap) additionally clamps any derived RPE
- * stamps on the deload week's progressed sets.
+ * stamps on the deload week's progressed sets. `timedExercises` decides what
+ * the deload does to duration/duration_distance rows: 'untouched' (the
+ * default — a fully-timed exercise derives its deload week as a normal week;
+ * a mixed exercise deloads its lifting rows only) or 'scaled' (the explicit
+ * opt-in: setFactor resizes and 'deload' stamps apply to timed rows too —
+ * durationSec is never multiplied by loadFactor either way). The default
+ * covers legacy stored policies at resolve time — the adjudicated D3 call
+ * ("creator decides"): stored scheduled policies no longer silently halve a
+ * timed exercise's sets.
  */
 export const deloadShapeSchema = z
   .object({
     loadFactor: z.number().min(0).max(1).default(0.85),
     setFactor: z.number().min(0).max(1).default(0.5),
     rpeCap: z.number().min(5).max(10).nullable().default(null),
+    timedExercises: z.enum(['untouched', 'scaled']).default('untouched'),
   })
   .strict()
 
@@ -363,18 +372,24 @@ export const setOverrideSchema = z
   .strict()
 
 /** One exercise slot within a program day, with its planned sets + progression. */
-export const programExerciseSchema = z.object({
-  wgerExerciseId: z.number().int(),
-  // Exercise identity is the composite (source, wgerExerciseId); defaulted so
-  // every pre-existing caller keeps meaning the wger catalog.
-  source: exerciseSourceSchema.default('wger'),
-  name: z.string().trim().min(1).max(MAX_NAME),
-  progression: progressionSchema.nullable().optional(),
-  // Same non-null value within a day = perform as a superset. Carried through
-  // the full-replace path so groupings survive upsert/edit round-trips.
-  supersetGroup: z.number().int().min(0).nullable().optional(),
-  sets: z.array(programSetSchema).min(1),
-})
+export const programExerciseSchema = z
+  .object({
+    wgerExerciseId: z.number().int(),
+    // Exercise identity is the composite (source, wgerExerciseId); defaulted so
+    // every pre-existing caller keeps meaning the wger catalog.
+    source: exerciseSourceSchema.default('wger'),
+    name: z.string().trim().min(1).max(MAX_NAME),
+    progression: progressionSchema.nullable().optional(),
+    // Same non-null value within a day = perform as a superset. Carried through
+    // the full-replace path so groupings survive upsert/edit round-trips.
+    supersetGroup: z.number().int().min(0).nullable().optional(),
+    sets: z.array(programSetSchema).min(1),
+  })
+  // Metric-mode × scheme integrity is enforced at the DERIVATION layer only
+  // (deriveWeekSets no-ops load-anchored schemes on timed sets — silence over
+  // corruption). Deliberately NOT re-validated here: MCP write tools accepted
+  // timed-set + load-scheme combos before cardio v1, so a parse-time throw
+  // would brick full-replace saves of any program storing that legacy shape.
 
 /** One training day (e.g. "Push") — an ordered list of exercises. */
 export const programDaySchema = z.object({

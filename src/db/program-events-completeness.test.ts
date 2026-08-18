@@ -130,6 +130,10 @@ const INVOCATIONS: Record<string, { selects: unknown[][]; run: () => Promise<unk
     selects: [OWNED_PROGRAM],
     run: () => patches.setProgramDeloadPolicy(USER, PID, { mode: 'reactive' }, 'mcp'),
   },
+  setProgramOvershootPolicy: {
+    selects: [OWNED_PROGRAM],
+    run: () => patches.setProgramOvershootPolicy(USER, PID, 'e1rm-equivalent', 'mcp'),
+  },
   setProgramDietPhase: {
     selects: [OWNED_PROGRAM],
     run: () => patches.setProgramDietPhase(USER, PID, 'cutting', 'mcp'),
@@ -165,6 +169,19 @@ const INVOCATIONS: Record<string, { selects: unknown[][]; run: () => Promise<unk
   updateProgramExercise: {
     selects: [OWNED_EXERCISE],
     run: () => patches.updateProgramExercise(USER, PID, 0, 0, { name: 'Larsen Press' }, 'mcp'),
+  },
+  substituteProgramExercise: {
+    // Reads: owned-exercise, current-progression, set-ids
+    selects: [OWNED_EXERCISE, [{ progression: null }], []],
+    run: () =>
+      patches.substituteProgramExercise(
+        USER,
+        PID,
+        0,
+        0,
+        { wgerExerciseId: 4, source: 'custom', name: 'Elevated Lunge' },
+        'mcp',
+      ),
   },
   removeProgramExercise: {
     selects: [OWNED_EXERCISE],

@@ -13,6 +13,7 @@ vi.mock('@/db/program-patches', () => {
     moveProgramDay: vi.fn(),
     addProgramExercise: vi.fn(),
     updateProgramExercise: vi.fn(),
+    substituteProgramExercise: vi.fn(),
     removeProgramExercise: vi.fn(),
     moveProgramExercise: vi.fn(),
     addProgramSet: vi.fn(),
@@ -23,6 +24,7 @@ vi.mock('@/db/program-patches', () => {
     removeProgramSetOverride: vi.fn(),
     setProgramAutoregulation: vi.fn(),
     setProgramDeloadPolicy: vi.fn(),
+    setProgramOvershootPolicy: vi.fn(),
     setProgramPlanSync: vi.fn(),
   }
 })
@@ -38,6 +40,7 @@ import {
   moveProgramDay,
   addProgramExercise,
   updateProgramExercise,
+  substituteProgramExercise,
   removeProgramExercise,
   moveProgramExercise,
   addProgramSet,
@@ -48,6 +51,7 @@ import {
   removeProgramSetOverride,
   setProgramAutoregulation,
   setProgramDeloadPolicy,
+  setProgramOvershootPolicy,
   setProgramPlanSync,
 } from '@/db/program-patches'
 import { getWeightUnit } from '@/db/preferences'
@@ -61,6 +65,7 @@ const mockedRemoveDay = vi.mocked(removeProgramDay)
 const mockedMoveDay = vi.mocked(moveProgramDay)
 const mockedAddExercise = vi.mocked(addProgramExercise)
 const mockedUpdateExercise = vi.mocked(updateProgramExercise)
+const mockedSubstituteExercise = vi.mocked(substituteProgramExercise)
 const mockedRemoveExercise = vi.mocked(removeProgramExercise)
 const mockedMoveExercise = vi.mocked(moveProgramExercise)
 const mockedAddSet = vi.mocked(addProgramSet)
@@ -69,6 +74,7 @@ const mockedRemoveSet = vi.mocked(removeProgramSet)
 const mockedMoveSet = vi.mocked(moveProgramSet)
 const mockedSetAutoreg = vi.mocked(setProgramAutoregulation)
 const mockedSetDeloadPolicy = vi.mocked(setProgramDeloadPolicy)
+const mockedSetOvershootPolicy = vi.mocked(setProgramOvershootPolicy)
 const mockedSetPlanSync = vi.mocked(setProgramPlanSync)
 const mockedSetOverride = vi.mocked(setProgramSetOverride)
 const mockedRemoveOverride = vi.mocked(removeProgramSetOverride)
@@ -113,7 +119,7 @@ describe('registerProgramPatchTools', () => {
     else process.env.MCP_DEV_USER_ID = original
   })
 
-  it('registers exactly the twenty program patch tools', () => {
+  it('registers exactly the twenty-one program patch tools', () => {
     expect([...setup().keys()].sort()).toEqual([
       'add_program_day',
       'add_program_exercise',
@@ -129,9 +135,11 @@ describe('registerProgramPatchTools', () => {
       'set_program_autoregulation',
       'set_program_deload_policy',
       'set_program_diet_phase',
+      'set_program_overshoot_policy',
       'set_program_plan_sync',
       'set_program_set_override',
       'set_training_max',
+      'substitute_program_exercise',
       'update_program_day',
       'update_program_exercise',
       'update_program_set',
@@ -249,6 +257,47 @@ describe('registerProgramPatchTools', () => {
       const result = await tools.get('set_program_deload_policy')!({
         programId: PID,
         policy: { mode: 'none' },
+      })
+
+      // Assert
+      expect(result.isError).toBe(true)
+      expect(result.content[0]?.text).toMatch(/not found/)
+    })
+
+    it('set_program_overshoot_policy sets the policy and echoes it', async () => {
+      // Arrange
+      const tools = setup()
+      mockedSetOvershootPolicy.mockResolvedValue({ id: PID })
+
+      // Act
+      const result = await tools.get('set_program_overshoot_policy')!({
+        programId: PID,
+        policy: 'e1rm-equivalent',
+      })
+
+      // Assert
+      expect(mockedSetOvershootPolicy).toHaveBeenCalledWith(
+        'user_env',
+        PID,
+        'e1rm-equivalent',
+        'mcp',
+      )
+      expect(payload(result)).toEqual({
+        userId: 'user_env',
+        programId: PID,
+        overshootPolicy: 'e1rm-equivalent',
+      })
+    })
+
+    it('set_program_overshoot_policy surfaces not-owned as isError /not found/', async () => {
+      // Arrange
+      const tools = setup()
+      mockedSetOvershootPolicy.mockResolvedValue(null)
+
+      // Act
+      const result = await tools.get('set_program_overshoot_policy')!({
+        programId: PID,
+        policy: null,
       })
 
       // Assert
@@ -454,6 +503,89 @@ describe('registerProgramPatchTools', () => {
       expect(result.isError).toBe(true)
       expect(result.content[0]?.text).toMatch(/at least one/i)
       expect(mockedUpdateExercise).not.toHaveBeenCalled()
+    })
+
+    it('substitute_program_exercise swaps the movement via the load-stripping op', async () => {
+      const tools = setup()
+      mockedSubstituteExercise.mockResolvedValue({ id: 'pe1' })
+
+      const result = await tools.get('substitute_program_exercise')!({
+        programId: PID,
+        dayPosition: 1,
+        exercisePosition: 0,
+        wgerExerciseId: 99,
+        name: 'Incline Press',
+      })
+
+      expect(mockedSubstituteExercise).toHaveBeenCalledWith(
+        'user_env',
+        PID,
+        1,
+        0,
+        { wgerExerciseId: 99, source: 'wger', name: 'Incline Press' },
+        'mcp',
+      )
+      expect(payload(result)).toEqual({
+        userId: 'user_env',
+        programId: PID,
+        dayPosition: 1,
+        exercisePosition: 0,
+      })
+    })
+
+    it('substitute_program_exercise passes source through (composite identity)', async () => {
+      const tools = setup()
+      mockedSubstituteExercise.mockResolvedValue({ id: 'pe1' })
+
+      await tools.get('substitute_program_exercise')!({
+        programId: PID,
+        dayPosition: 0,
+        exercisePosition: 2,
+        wgerExerciseId: 9,
+        source: 'custom',
+        name: 'Cable Face Pull',
+      })
+
+      expect(mockedSubstituteExercise).toHaveBeenCalledWith(
+        'user_env',
+        PID,
+        0,
+        2,
+        { wgerExerciseId: 9, source: 'custom', name: 'Cable Face Pull' },
+        'mcp',
+      )
+    })
+
+    it('substitute_program_exercise surfaces not-owned as isError /not found/', async () => {
+      const tools = setup()
+      mockedSubstituteExercise.mockResolvedValue(null)
+
+      const result = await tools.get('substitute_program_exercise')!({
+        programId: PID,
+        dayPosition: 0,
+        exercisePosition: 3,
+        wgerExerciseId: 42,
+        name: 'Front Squat',
+      })
+
+      expect(result.isError).toBe(true)
+      expect(result.content[0]?.text).toMatch(/not found/)
+    })
+
+    it('substitute_program_exercise surfaces not-found for a malformed programId without hitting the db', async () => {
+      const tools = setup()
+
+      const result = await tools.get('substitute_program_exercise')!({
+        programId: 'not-a-uuid',
+        dayPosition: 0,
+        exercisePosition: 0,
+        wgerExerciseId: 42,
+        name: 'Front Squat',
+      })
+
+      expect(result.isError).toBe(true)
+      expect(result.content[0]?.text).toMatch(/not found/)
+      expect(mockedSubstituteExercise).not.toHaveBeenCalled()
     })
 
     it('remove_program_exercise removes and echoes the removed position', async () => {
@@ -769,6 +901,10 @@ describe('registerProgramPatchTools', () => {
         args: { programId: PID, dayPosition: 0, exercisePosition: 0, name: 'X' },
       },
       {
+        name: 'substitute_program_exercise',
+        args: { programId: PID, dayPosition: 0, exercisePosition: 0, wgerExerciseId: 1, name: 'Bench' },
+      },
+      {
         name: 'remove_program_exercise',
         args: { programId: PID, dayPosition: 0, exercisePosition: 0 },
       },
@@ -1008,6 +1144,59 @@ describe('registerProgramPatchTools', () => {
         dayPosition: 0,
         exercisePosition: 1,
       })
+    })
+
+    it('update_program_exercise accepts a lone overshootPolicy patch (and null clears)', async () => {
+      // Arrange
+      const tools = setup()
+      mockedUpdateExercise.mockResolvedValue({ id: 'pe1' })
+
+      // Act — set the per-exercise override…
+      const result = await tools.get('update_program_exercise')!({
+        programId: PID,
+        dayPosition: 0,
+        exercisePosition: 1,
+        overshootPolicy: 'e1rm-equivalent',
+      })
+
+      // Assert
+      expect(mockedUpdateExercise).toHaveBeenCalledWith(
+        'user_env',
+        PID,
+        0,
+        1,
+        {
+          wgerExerciseId: undefined,
+          name: undefined,
+          progression: undefined,
+          supersetGroup: undefined,
+          overshootPolicy: 'e1rm-equivalent',
+        },
+        'mcp',
+      )
+      expect(payload(result)).toEqual({
+        userId: 'user_env',
+        programId: PID,
+        dayPosition: 0,
+        exercisePosition: 1,
+      })
+
+      // …and an explicit null (fall back to the program/scheme resolution)
+      // is a non-empty patch, passed through as null.
+      await tools.get('update_program_exercise')!({
+        programId: PID,
+        dayPosition: 0,
+        exercisePosition: 1,
+        overshootPolicy: null,
+      })
+      expect(mockedUpdateExercise).toHaveBeenLastCalledWith(
+        'user_env',
+        PID,
+        0,
+        1,
+        expect.objectContaining({ overshootPolicy: null }),
+        'mcp',
+      )
     })
   })
 

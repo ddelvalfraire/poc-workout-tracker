@@ -1,8 +1,21 @@
-import type { LoggingType, WorkoutInput, WorkoutSetType } from '@/lib/workout-input'
+import type {
+  LoggingType,
+  WorkoutInput,
+  WorkoutMetricMode,
+  WorkoutSetType,
+} from '@/lib/workout-input'
 import type { ExerciseSource } from '@/lib/custom-exercise-input'
 import type { WorkoutDetail } from '@/db/workouts'
 import { displayToKg, kgToDisplay, type WeightUnit } from '@/lib/units'
+import { defaultMetricModeForCategory, isMetricMode } from '@/lib/workout-input'
+export { defaultMetricModeForCategory }
 import { isValidRir, isValidRpe } from '@/lib/effort'
+import {
+  formatDistanceInput,
+  formatDurationInput,
+  parseDistanceInput,
+  parseDurationInput,
+} from '@/lib/duration'
 
 /**
  * Pure client-state logic for the in-progress workout, kept free of React/JSX so
@@ -30,6 +43,33 @@ export interface DraftSet {
    *  valid without a codec version bump; readers treat absent as ''. */
   rir?: string
   rpe?: string
+  /** How this set is measured. OPTIONAL — absent = 'reps_weight' — so every
+   *  pre-cardio draft, payload, and fixture stays valid without a codec
+   *  version bump (the rir/rpe precedent). */
+  metricMode?: WorkoutMetricMode
+  /** Cardio duration as typed ("12:30" / bare minutes — lib/duration.ts);
+   *  optional like metricMode, absent reads as ''. */
+  duration?: string
+  /** Cardio distance in km as typed; optional, absent reads as ''. */
+  distance?: string
+  /** Set note captured mid-session (notes v2, plain text). OPTIONAL FOREVER —
+   *  absent = no note — so pre-notes drafts, payloads, and fixtures stay valid
+   *  without a codec version bump (the rir/rpe precedent). NOT sent through
+   *  draftToInput: set notes become `notes` table rows AFTER the save, by
+   *  (exercisePosition, setNumber) — see note-capture.ts. */
+  note?: string
+  /** Idempotency handle for this set's note, minted ONCE when the note is
+   *  first captured and stable across edits/retries — the create's clientKey
+   *  (a replayed finish or queue re-send dedupes on it). */
+  noteClientKey?: string
+}
+
+/** Ghost values a tap can adopt into EMPTY fields (FILL_SET / check-off). */
+export interface SetFill {
+  reps?: string
+  weight?: string
+  duration?: string
+  distance?: string
 }
 
 /** An exercise in the draft, seeded with at least one empty set. */
@@ -78,7 +118,7 @@ export type DraftAction =
       type: 'UPDATE_SET'
       exerciseIndex: number
       setIndex: number
-      field: 'reps' | 'weight'
+      field: 'reps' | 'weight' | 'duration' | 'distance'
       value: string
     }
   | { type: 'REMOVE_SET'; exerciseIndex: number; setIndex: number }
@@ -95,7 +135,7 @@ export type DraftAction =
       type: 'FILL_SET'
       exerciseIndex: number
       setIndex: number
-      fill: { reps?: string; weight?: string }
+      fill: SetFill
     }
   /** Switches how an exercise's weights read (BW / +weight / −assist). Values
    *  already typed are left alone — they re-read under the new type. */
@@ -109,8 +149,14 @@ export type DraftAction =
       type: 'TOGGLE_SET_COMPLETED'
       exerciseIndex: number
       setIndex: number
-      fill?: { reps?: string; weight?: string }
+      fill?: SetFill
     }
+  /** Capture-sheet set note (notes v2): sets/replaces one set's note text and
+   *  stamps its idempotency key. The caller mints `clientKey` once (reusing
+   *  the existing key on edits) — the reducer stays pure. An empty value
+   *  keeps the key: the note row is only created at save time, so clearing
+   *  text before then simply collects nothing. */
+  | { type: 'SET_SET_NOTE'; exerciseIndex: number; setIndex: number; note: string; clientKey: string }
   /** Controlled workout-level notes textarea. */
   | { type: 'SET_WORKOUT_NOTES'; value: string }
   /** Controlled per-exercise notes textarea. */
@@ -128,13 +174,35 @@ export const emptyDraft: WorkoutDraft = { exercises: [], notes: '' }
  * kept OUT of the reducer — callers create the object, the reducer just places
  * it, so the reducer stays pure and deterministic for unit tests.
  */
-export function newDraftSet(): DraftSet {
-  return { id: crypto.randomUUID(), reps: '', weight: '', completed: false, tag: 'working' }
+export function newDraftSet(metricMode?: WorkoutMetricMode): DraftSet {
+  return {
+    id: crypto.randomUUID(),
+    reps: '',
+    weight: '',
+    completed: false,
+    tag: 'working',
+    // Only non-default modes are stamped — reps_weight stays ABSENT so the
+    // minimal wire/payload shape (and every pre-cardio fixture) is preserved.
+    ...(metricMode !== undefined && metricMode !== 'reps_weight' && { metricMode }),
+  }
+}
+
+/** A set's effective metric mode (absent = the reps_weight column default). */
+export function setMetricMode(set: Pick<DraftSet, 'metricMode'>): WorkoutMetricMode {
+  return set.metricMode ?? 'reps_weight'
+}
+
+/** The mode NEW sets of this exercise should adopt: the last set's mode (the
+ *  scheme being extended), falling back to the category default. */
+export function nextSetMetricMode(exercise: DraftExercise): WorkoutMetricMode {
+  const last = exercise.sets[exercise.sets.length - 1]
+  return last !== undefined ? setMetricMode(last) : defaultMetricModeForCategory(exercise.category)
 }
 
 /** Builds a draft exercise from a picked exercise, seeded with one empty set.
  *  `source` defaults to 'wger' — the picker only offers catalog entries until
- *  the merged-catalog phase labels its results. */
+ *  the merged-catalog phase labels its results. A Cardio-category pick seeds
+ *  its set in duration_distance mode. */
 export function newDraftExercise(picked: {
   wgerExerciseId: number
   source?: ExerciseSource
@@ -142,13 +210,15 @@ export function newDraftExercise(picked: {
   category: string
 }): DraftExercise {
   return {
-    id: crypto.randomUUID(),
     ...picked,
+    // AFTER the spread (defense-in-depth): a smuggled `id` riding a hostile
+    // pick object must never beat the fresh uuid.
+    id: crypto.randomUUID(),
     source: picked.source ?? 'wger',
     loggingType: 'weight_reps',
     notes: '',
     skipped: false,
-    sets: [newDraftSet()],
+    sets: [newDraftSet(defaultMetricModeForCategory(picked.category))],
   }
 }
 
@@ -164,14 +234,19 @@ export function replacementDraftExercise(
   setCount: number,
 ): DraftExercise {
   return {
-    id: crypto.randomUUID(),
     ...picked,
+    // AFTER the spread (defense-in-depth) — same rule as newDraftExercise.
+    id: crypto.randomUUID(),
     source: picked.source ?? 'wger',
     loggingType: 'weight_reps',
     // Fresh note and skip state: both belonged to the old movement.
     notes: '',
     skipped: false,
-    sets: Array.from({ length: Math.max(1, setCount) }, () => newDraftSet()),
+    // Metric mode follows the SUBSTITUTE's category, not the old slot's —
+    // swapping squats for cycling changes what a set even measures.
+    sets: Array.from({ length: Math.max(1, setCount) }, () =>
+      newDraftSet(defaultMetricModeForCategory(picked.category)),
+    ),
   }
 }
 
@@ -300,13 +375,7 @@ export function workoutDraftReducer(state: WorkoutDraft, action: DraftAction): W
         exercises: mapExerciseAt(state.exercises, action.exerciseIndex, (exercise) => ({
           ...exercise,
           sets: exercise.sets.map((set, i) =>
-            i === action.setIndex
-              ? {
-                  ...set,
-                  reps: set.reps === '' && action.fill.reps ? action.fill.reps : set.reps,
-                  weight: set.weight === '' && action.fill.weight ? action.fill.weight : set.weight,
-                }
-              : set,
+            i === action.setIndex ? adoptFill(set, action.fill) : set,
           ),
         })),
       }
@@ -314,19 +383,42 @@ export function workoutDraftReducer(state: WorkoutDraft, action: DraftAction): W
     case 'TOGGLE_SET_COMPLETED':
       return {
         ...state,
+        exercises: mapExerciseAt(state.exercises, action.exerciseIndex, (exercise) => {
+          // Checking off a weight_reps set with no usable weight (typed or
+          // adoptable from the fill) is refused whole — no completion, no
+          // partial fill. A "done" set with a phantom load poisons volume
+          // and e1RM downstream. Unchecking is always allowed, so legacy
+          // rows that predate this rule stay correctable.
+          const target = exercise.sets[action.setIndex]
+          if (
+            target &&
+            !target.completed &&
+            isMissingRequiredMetric(exercise, action.setIndex, action.fill)
+          ) {
+            return exercise
+          }
+          return {
+            ...exercise,
+            sets: exercise.sets.map((set, i) => {
+              if (i !== action.setIndex) return set
+              const checkingOff = !set.completed
+              const fill = checkingOff ? action.fill : undefined
+              return { ...(fill ? adoptFill(set, fill) : set), completed: checkingOff }
+            }),
+          }
+        }),
+      }
+
+    case 'SET_SET_NOTE':
+      return {
+        ...state,
         exercises: mapExerciseAt(state.exercises, action.exerciseIndex, (exercise) => ({
           ...exercise,
-          sets: exercise.sets.map((set, i) => {
-            if (i !== action.setIndex) return set
-            const checkingOff = !set.completed
-            const fill = checkingOff ? action.fill : undefined
-            return {
-              ...set,
-              reps: set.reps === '' && fill?.reps ? fill.reps : set.reps,
-              weight: set.weight === '' && fill?.weight ? fill.weight : set.weight,
-              completed: checkingOff,
-            }
-          }),
+          sets: exercise.sets.map((set, i) =>
+            i === action.setIndex
+              ? { ...set, note: action.note, noteClientKey: action.clientKey }
+              : set,
+          ),
         })),
       }
 
@@ -356,6 +448,19 @@ export function workoutDraftReducer(state: WorkoutDraft, action: DraftAction): W
 
     default:
       return state
+  }
+}
+
+/** Adopts fill values into EMPTY fields only — typed input always wins.
+ *  Shared by FILL_SET (the Prev chip) and TOGGLE_SET_COMPLETED (tap-to-accept)
+ *  so the two fills can never drift. Absent cardio strings count as empty. */
+function adoptFill(set: DraftSet, fill: SetFill): DraftSet {
+  return {
+    ...set,
+    reps: set.reps === '' && fill.reps ? fill.reps : set.reps,
+    weight: set.weight === '' && fill.weight ? fill.weight : set.weight,
+    ...(fill.duration && !(set.duration ?? '') ? { duration: fill.duration } : {}),
+    ...(fill.distance && !(set.distance ?? '') ? { distance: fill.distance } : {}),
   }
 }
 
@@ -421,6 +526,23 @@ export function draftToInput(
         const w = toWeight(set.weight)
         const rir = toRir(set.rir)
         const rpe = toRpe(set.rpe)
+        const metricMode = setMetricMode(set)
+        // Cardio sets speak duration/distance INSTEAD of reps/weight — a
+        // stray typed rep on a timed set must not leak into scoring.
+        if (metricMode !== 'reps_weight') {
+          return {
+            reps: null,
+            weight: null,
+            metricMode,
+            durationSec: parseDurationInput(set.duration ?? ''),
+            distanceM:
+              metricMode === 'duration_distance' ? parseDistanceInput(set.distance ?? '') : null,
+            ...(set.completed && { completed: true }),
+            ...(set.tag === 'warmup' && { setType: 'warmup' as const }),
+            ...(rir !== null && { rir }),
+            ...(rpe !== null && { rpe }),
+          }
+        }
         return {
           reps: toReps(set.reps),
           weight: w === null ? null : displayToKg(w, unit),
@@ -482,9 +604,64 @@ export function detailToDraft(
       // Logged effort round-trips as strings (edit mode must not shed it).
       rir: set.rir?.toString() ?? '',
       rpe: set.rpe?.toString() ?? '',
+      // Cardio metric round-trip: non-default modes carry their fields as
+      // input strings; reps_weight rows stay shape-identical (fields absent).
+      // isMetricMode guards the un-$typed DB text — junk degrades to default.
+      ...(isMetricMode(set.metricMode) && set.metricMode !== 'reps_weight'
+        ? {
+            metricMode: set.metricMode,
+            duration: set.durationSec !== null ? formatDurationInput(set.durationSec) : '',
+            distance: set.distanceM !== null ? formatDistanceInput(set.distanceM) : '',
+          }
+        : {}),
     })),
   }))
   return { draft: { exercises, notes: workout.notes ?? '' }, name: workout.name ?? '' }
+}
+
+/**
+ * True when marking this set done must be refused: weight_reps mode with no
+ * usable weight typed and none adoptable from `fill`. Bodyweight modes are
+ * exempt — a blank weight is their normal reading (BW / +0 added / no
+ * assist). An explicit "0" passes (empty-bar work is a real load). Shared by
+ * the reducer guard, the finish pass, and the logger's pre-dispatch check so
+ * all three refuse the same sets.
+ */
+export function isMissingRequiredWeight(
+  exercise: DraftExercise,
+  setIndex: number,
+  fill?: SetFill,
+): boolean {
+  if (exercise.loggingType !== 'weight_reps') return false
+  const set = exercise.sets[setIndex]
+  if (!set) return false
+  // Cardio sets have no weight to require — their gate is duration, below.
+  if (setMetricMode(set) !== 'reps_weight') return false
+  const effective = set.weight.trim() === '' && fill?.weight ? fill.weight : set.weight
+  return toWeight(effective) === null
+}
+
+/**
+ * The metric-aware completion gate (supersedes calling isMissingRequiredWeight
+ * directly): a duration-mode set completes only with a duration > 0 — typed
+ * or adoptable from `fill` — mirroring the #206 weight-required rule (a
+ * "done" cardio set with no time is a phantom fact); reps_weight sets keep
+ * the weight rule. Shared by the reducer guard, the finish pass, and the
+ * logger's pre-dispatch check so all three refuse the same sets.
+ */
+export function isMissingRequiredMetric(
+  exercise: DraftExercise,
+  setIndex: number,
+  fill?: SetFill,
+): boolean {
+  const set = exercise.sets[setIndex]
+  if (!set) return false
+  if (setMetricMode(set) !== 'reps_weight') {
+    const typed = set.duration ?? ''
+    const effective = typed.trim() === '' && fill?.duration ? fill.duration : typed
+    return parseDurationInput(effective) === null
+  }
+  return isMissingRequiredWeight(exercise, setIndex, fill)
 }
 
 /** Plain positive-integer reps ("5", never "5.9"/"0"/"5e1") — the bar a set
@@ -502,10 +679,11 @@ function hasPerformedReps(reps: string): boolean {
  * The finish-time completion pass: every unchecked set with reps logged gets
  * checked off (typing the reps IS the "I did it" — forgetting the circle
  * must not erase the set from scoring), and whatever remains unchecked is
- * counted so the finish flow can warn before saving it as skipped. Weight
- * stays irrelevant here — null-weight machine sets are legitimate, and
- * bodyweight sets never carry one. Pure: builds a fresh draft, counts both
- * outcomes, never mutates its input.
+ * counted so the finish flow can warn before saving it as skipped. A
+ * weight_reps set additionally needs a weight — auto-claiming one without it
+ * would persist exactly the phantom-load row the reducer guard refuses.
+ * Bodyweight modes still complete on reps alone. Pure: builds a fresh draft,
+ * counts both outcomes, never mutates its input.
  */
 export function completeFilledSets(draft: WorkoutDraft): {
   draft: WorkoutDraft
@@ -522,9 +700,15 @@ export function completeFilledSets(draft: WorkoutDraft): {
     if (exercise.skipped) return exercise
     return {
       ...exercise,
-      sets: exercise.sets.map((set) => {
+      sets: exercise.sets.map((set, setIndex) => {
         if (set.completed) return set
-        if (hasPerformedReps(set.reps)) {
+        // Cardio sets: a parseable duration IS the "I did it" (the analog of
+        // typed reps); the metric gate above already requires duration > 0.
+        const performed =
+          setMetricMode(set) !== 'reps_weight'
+            ? !isMissingRequiredMetric(exercise, setIndex)
+            : hasPerformedReps(set.reps) && !isMissingRequiredWeight(exercise, setIndex)
+        if (performed) {
           autoCompleted += 1
           return { ...set, completed: true }
         }

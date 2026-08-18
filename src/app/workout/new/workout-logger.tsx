@@ -41,19 +41,42 @@ import {
   completeFilledSets,
   draftToInput,
   emptyDraft,
+  isMissingRequiredMetric,
   newDraftExercise,
   newDraftSet,
+  nextSetMetricMode,
   replacementDraftExercise,
   resolveTargetSetIndex,
+  setMetricMode,
   type DraftExercise,
   type DraftSet,
   type WorkoutDraft,
 } from './workout-draft'
 import { draftKey, buildDraftPayload, parseDraftPayload } from './draft-payload'
+import { consumePendingPick } from './pending-pick'
 import { createDraftSyncQueue, type DraftSyncQueue, type DraftSyncStatus } from './draft-sync'
 import { SwipeToDelete } from './swipe-to-delete'
+import { SetRowMenu } from './set-row-menu'
+import { NoteSheet } from './note-sheet'
+import {
+  exerciseNoteCount,
+  persistSetNotes,
+  setHasNote,
+  setSnapshotLabel,
+  type NoteScope,
+} from './note-capture'
+import {
+  createPendingNotesQueue,
+  PENDING_NOTES_STORAGE_KEY,
+  type PendingNotesQueue,
+} from './pending-notes'
+import {
+  createNoteAction,
+  createFallbackSetNoteAction,
+  createSetNotesForWorkoutAction,
+} from '@/app/notes/actions'
 import { EffortChips } from './effort-chips'
-import { stickyNote, noteChipLabel, type IdentityNote } from './identity-note'
+import { stickyNote, noteChipLabel, lastSessionEcho, type IdentityNote } from './identity-note'
 import { upsertExerciseNoteAction, deleteExerciseNoteAction } from '@/app/exercises/actions'
 import dynamic from 'next/dynamic'
 
@@ -69,6 +92,8 @@ import { PlateSheet } from './plate-sheet'
 import { RestSheet } from './rest-sheet'
 import { StatsSheet } from './stats-sheet'
 import { RestPill } from './rest-pill'
+import { WeightStepper } from './weight-stepper'
+import { SessionToast } from './session-toast'
 import { fireRestOverAlert } from './rest-over-alert'
 import { unlockRestChime } from './rest-chime'
 import { EXERCISE_COMPLETE_VIBRATION, SET_COMPLETE_VIBRATION, vibrate } from './haptics'
@@ -76,7 +101,6 @@ import { resolveRestTarget } from '@/lib/rest-target'
 import { adjustedRestTarget } from '@/lib/rest-alert'
 import { sessionPulse, shouldShowNextUp } from '@/lib/session-pulse'
 import { targetCaption } from '@/lib/target-caption'
-import { plateChipLabel } from '@/lib/plate-chip'
 import { allTimePRIndex } from '@/lib/pr-detection'
 import { DEFAULT_EQUIPMENT, type Equipment } from '@/lib/equipment'
 import { LOGGING_TYPES, isLoggingType, type LoggingType } from '@/lib/workout-input'
@@ -93,14 +117,15 @@ import {
   adoptableGhostValue,
   previousChipLabel,
   completedSetsSummary,
-  stepWeightValue,
-  WEIGHT_STEP,
   type PlanSetTarget,
 } from '@/lib/format'
 import type { LastPerformance } from '@/db/workouts'
 
-/** How long the inline "Removed — Undo" affordance stays actionable. */
-const UNDO_WINDOW_MS = 5000
+/** How long the inline "Removed — Undo" affordance stays actionable. 8s per
+ *  the #210 direction: action-bearing snackbars sit at the long end of M3's
+ *  4–10s, and the SessionToast drain hairline now makes the window visible
+ *  (hover/focus pauses it — the drain's animationend IS the dismissal). */
+const UNDO_WINDOW_MS = 8000
 
 /** Hold a set circle this long to toggle its warm-up tag. */
 const LONG_PRESS_MS = 500
@@ -336,7 +361,15 @@ export function WorkoutLogger({
   // sticky chip that opens it renders ONLY when a pinned note exists — an
   // exercise without a note keeps its markup byte-identical (the effort-row
   // discipline).
-  const [noteSheetFor, setNoteSheetFor] = useState<number | null>(null)
+  // Which exercise the QuickCapture sheet is open for, plus WHICH text seeds
+  // it: 'identity' (pinned-chip tap — edit the pinned body) or 'session'
+  // (pin-as-promotion — the session note being promoted). The two entry
+  // points must diverge or promotion silently drops the session text
+  // whenever an identity note already exists.
+  const [noteSheetFor, setNoteSheetFor] = useState<{
+    index: number
+    seed: 'identity' | 'session'
+  } | null>(null)
   // Session-local note edits, keyed `${source}:${id}`: undefined = untouched
   // (the Prev query's ride-along wins), null = deleted this session. The
   // last-performance query stays frozen — this map is the fresher truth.
@@ -347,6 +380,11 @@ export function WorkoutLogger({
   // "accepted from history", not an error, hence a highlight (never a shake).
   const [flashSetId, setFlashSetId] = useState<string | null>(null)
   const flashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Refused check-off feedback: the weight_reps set whose empty weight input
+  // briefly flashes when its circle is tapped — "this needs a weight", the
+  // error twin of fill-flash (still color-only, never a shake).
+  const [weightNudgeSetId, setWeightNudgeSetId] = useState<string | null>(null)
+  const weightNudgeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   // Weight steppers show ONLY for the row whose weight input has focus —
   // zero ambient chrome for lifters who never use them.
   const [stepperSetId, setStepperSetId] = useState<string | null>(null)
@@ -388,6 +426,78 @@ export function WorkoutLogger({
   }
 
   useEffect(() => cancelLongPress, [])
+
+  // Row-BODY long-press → the set context menu (notes v2). Deliberately its
+  // own refs — sharing the circle's would let the two gestures cancel each
+  // other; the circle's warm-up hold is untouched. Same LONG_PRESS_MS/SLOP
+  // machinery; the fired flag arms a click-capture swallow so the release
+  // tap can't also land on an input or the circle.
+  const rowPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const rowPressOriginRef = useRef<{ x: number; y: number } | null>(null)
+  const rowPressFiredRef = useRef(false)
+  // Which set row's context menu is open, anchored at the press point.
+  const [rowMenu, setRowMenu] = useState<{
+    exerciseIndex: number
+    setIndex: number
+    x: number
+    y: number
+  } | null>(null)
+  // Which set the capture sheet is open for (the sheet's DEFAULT scope is
+  // the pressed set; scope chips can retarget before saving).
+  const [noteCaptureFor, setNoteCaptureFor] = useState<{
+    exerciseIndex: number
+    setIndex: number
+  } | null>(null)
+  // The save receipt: the set whose volt dot pops in (150ms, motion-safe).
+  const [notePopSetId, setNotePopSetId] = useState<string | null>(null)
+
+  function cancelRowPress() {
+    if (rowPressTimerRef.current) clearTimeout(rowPressTimerRef.current)
+    rowPressTimerRef.current = null
+    rowPressOriginRef.current = null
+  }
+
+  useEffect(() => cancelRowPress, [])
+
+  // Offline fallback for capture-sheet SET notes (the pending-notes queue's
+  // consumer): entries land here only when the post-save batch create fails,
+  // already downgraded to a workout anchor (fallbackPendingNotes). Send
+  // routes by anchor kind — downgraded workout-anchored notes go through the
+  // fallback action (marker snapshot: never the canonical session note);
+  // anything else replays as a plain create. Storage access stays inside the
+  // callbacks so the queue is SSR-safe to construct.
+  const [notesQueue] = useState<PendingNotesQueue>(() =>
+    createPendingNotesQueue({
+      load: () => {
+        try {
+          return window.localStorage.getItem(PENDING_NOTES_STORAGE_KEY)
+        } catch {
+          return null
+        }
+      },
+      store: (raw) => {
+        if (raw === null) window.localStorage.removeItem(PENDING_NOTES_STORAGE_KEY)
+        else window.localStorage.setItem(PENDING_NOTES_STORAGE_KEY, raw)
+      },
+      send: async (note) => {
+        if (note.anchor.kind === 'workout') {
+          await createFallbackSetNoteAction(note.anchor.id, note.body, note.id)
+        } else {
+          await createNoteAction(note.anchor, note.body, note.id)
+        }
+      },
+    }),
+  )
+
+  // Flush on mount + reconnect: a note queued by a previous session (save
+  // landed, notes didn't) delivers the next time any logger is open with a
+  // network — the queue is one per browser, not per workout.
+  useEffect(() => {
+    void notesQueue.flush()
+    const onOnline = () => void notesQueue.flush()
+    window.addEventListener('online', onOnline)
+    return () => window.removeEventListener('online', onOnline)
+  }, [notesQueue])
   // Fully-completed cards collapse to a one-line summary; this holds the ids
   // the lifter re-expanded (to correct a set). Never pruned — stale ids are
   // harmless once an exercise stops being complete.
@@ -415,6 +525,13 @@ export function WorkoutLogger({
     [],
   )
 
+  useEffect(
+    () => () => {
+      if (weightNudgeTimerRef.current) clearTimeout(weightNudgeTimerRef.current)
+    },
+    [],
+  )
+
   function flashFilledSet(setId: string) {
     if (flashTimerRef.current) clearTimeout(flashTimerRef.current)
     setFlashSetId(setId)
@@ -433,7 +550,15 @@ export function WorkoutLogger({
   // drop an earlier undo. Each removal restarts the shared window; Undo
   // restores last-removed-first.
   const [removed, setRemoved] = useState<RemovedEntry[]>([])
-  const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // The undo window's clock lives in SessionToast's drain animation (its
+  // animationend dismisses — so hover/focus pausing the visual pauses the
+  // window too). This key restarts that animation: bumped ONLY on push, so
+  // an Undo tap mid-stack never re-extends the shared window (the old
+  // setTimeout behavior, preserved).
+  const [undoResetKey, setUndoResetKey] = useState(0)
+  // Which exit the undo toast plays when it closes: 100ms fade after an
+  // Undo press, the default drop-fade after expiry/replacement.
+  const [undoExitQuick, setUndoExitQuick] = useState(false)
   // When the user last checked off a set — starts the between-sets rest
   // count-up. In-session only by design: a restored draft can't know how long
   // ago the interrupted session's last set really was.
@@ -543,6 +668,8 @@ export function WorkoutLogger({
             exercise.loggingType === 'weight_reps'
               ? set.weight || ghost.weight
               : set.weight || undefined,
+          // Cardio next-up reads as its duration (typed first, plan fallback).
+          duration: (set.duration ?? '') || ghost.duration,
         },
         exercise.loggingType,
       )
@@ -558,8 +685,8 @@ export function WorkoutLogger({
 
   function pushRemoved(entry: RemovedEntry) {
     setRemoved((prev) => [...prev, entry])
-    if (undoTimerRef.current) clearTimeout(undoTimerRef.current)
-    undoTimerRef.current = setTimeout(() => setRemoved([]), UNDO_WINDOW_MS)
+    setUndoResetKey((key) => key + 1) // restart the toast's drain = the window
+    setUndoExitQuick(false)
   }
 
   function handleRemoveExercise(index: number) {
@@ -656,20 +783,68 @@ export function WorkoutLogger({
     }
   }
 
-  function handleReplacePick(picked: PickedExercise) {
-    const index = replaceTargetIndex
-    setReplaceTargetIndex(null) // the sheet closes itself; clear replace mode
-    if (index === null) return
+  /** One pick, one gate: routes a replacement through the logged-work guard
+   *  (warn + Add-instead instead of silently discarding checked-off sets)
+   *  before performReplace. Shared by the sheet's live pick and the
+   *  create-from-swap return leg, so both fire the exact same swap. */
+  function applyPick(index: number, picked: PickedExercise) {
     const target = draft.exercises[index]
     if (!target) return
-    // Logged work deserves a pause: warn + offer Add-instead instead of
-    // silently discarding checked-off sets.
     if (target.sets.some((set) => set.completed)) {
       setPendingReplace({ index, picked })
       return
     }
     performReplace(index, picked)
   }
+
+  function handleReplacePick(picked: PickedExercise) {
+    const index = replaceTargetIndex
+    setReplaceTargetIndex(null) // the sheet closes itself; clear replace mode
+    if (index === null) return
+    applyPick(index, picked)
+  }
+
+  /** #218 outbound leg: the picker's create row pushes the full-page form.
+   *  Flush the draft first (best-effort) so the page seed on return already
+   *  holds this session; the swap target travels by the draft exercise's
+   *  STABLE client id (persisted in the payload), never by index. */
+  function handleCreateNavigate(query: string) {
+    queue.flush()
+    const params = new URLSearchParams()
+    if (query) params.set('name', query)
+    if (replaceTargetIndex !== null) {
+      const target = draft.exercises[replaceTargetIndex]
+      if (!target) return
+      params.set('return', 'swap')
+      params.set('target', target.id)
+    } else {
+      params.set('return', 'add')
+    }
+    router.push(`/exercises/new?${params.toString()}`)
+  }
+
+  // #218 return leg: consume the pick instruction the create page stored and
+  // route it through the SAME paths a live pick takes (append, or swap with
+  // the logged-work guard + plan-target re-derive + use-for-block prompt +
+  // undo). Mount-only against the server-seeded draft; a vanished target
+  // drops the instruction silently (silence over corruption).
+  useEffect(() => {
+    const pick = consumePendingPick()
+    if (!pick) return
+    // The pick is newer user intent than any cross-device snapshot: hold the
+    // async draft restore off exactly like in-flight typing, so it can't
+    // clobber the swap or silently close the guard dialog it may open.
+    dirtyRef.current = true
+    if (pick.mode === 'add') {
+      dispatch({ type: 'ADD_EXERCISE', exercise: newDraftExercise(pick.exercise) })
+      return
+    }
+    const index = draft.exercises.findIndex((exercise) => exercise.id === pick.targetId)
+    if (index === -1) return
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- one-shot mount sync from sessionStorage (external system), the WARMUP_HINT_KEY precedent
+    applyPick(index, pick.exercise)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only: applies against the seeded draft
+  }, [])
 
   function handleRemoveSet(exerciseIndex: number, setIndex: number) {
     const exercise = draft.exercises[exerciseIndex]
@@ -709,14 +884,10 @@ export function WorkoutLogger({
       }
     }
     setRemoved((prev) => prev.slice(0, -1))
-    if (removed.length === 1 && undoTimerRef.current) clearTimeout(undoTimerRef.current)
+    // Popping the LAST entry closes the toast — that close is the undo-pressed
+    // exit (100ms fade), not the expiry drop.
+    setUndoExitQuick(true)
   }
-
-  useEffect(() => {
-    return () => {
-      if (undoTimerRef.current) clearTimeout(undoTimerRef.current)
-    }
-  }, [])
 
   // Restore an interrupted session from the server draft (cross-device: a
   // session started on the phone resumes on the laptop). In edit mode this
@@ -752,6 +923,10 @@ export function WorkoutLogger({
         setPlateSheetFor(null)
         setStatsSheetFor(null)
         setNoteSheetFor(null)
+        // Index-addressed notes-v2 surfaces: a restore under an open menu or
+        // capture sheet would silently retarget them at a different set.
+        setRowMenu(null)
+        setNoteCaptureFor(null)
         // And a held finish warning: its snapshot draft predates the restore.
         setPendingFinish(null)
         // And an open effort prompt: its set id may not exist in the
@@ -845,10 +1020,22 @@ export function WorkoutLogger({
     handleSave(finalDraft)
   }
 
+  /** Post-save leg for capture-sheet SET notes: the extracted orchestration
+   *  (note-capture.ts persistSetNotes — unit-tested there) with the logger's
+   *  real seams injected: the batch server action and the pending queue. */
+  function persistDraftSetNotes(savedWorkoutId: string, finalDraft: WorkoutDraft) {
+    return persistSetNotes(savedWorkoutId, finalDraft, {
+      createBatch: (id, entries) => createSetNotesForWorkoutAction(id, entries),
+      enqueue: (note) => notesQueue.enqueue(note),
+    })
+  }
+
   async function handleSave(finalDraft: WorkoutDraft = draft) {
     setPlateSheetFor(null) // a live showModal() dialog must not cross navigation
     setStatsSheetFor(null) // same for the stats sheet
     setNoteSheetFor(null) // and the identity-note sheet
+    setRowMenu(null) // the set context menu + capture sheet die with the barrier
+    setNoteCaptureFor(null)
     setIsPickerOpen(false) // same top-layer invariant for the exercise sheet
     setIsRestSheetOpen(false) // and for the rest-target sheet
     setReplaceTargetIndex(null) // and for the replace sheet + its guard dialog
@@ -865,6 +1052,10 @@ export function WorkoutLogger({
       // the saved workout supersedes it on every device.
       if (workoutId) {
         await updateWorkoutAction(workoutId, draftToInput(finalDraft, name, unit))
+        // Capture-sheet set notes land AFTER the replace, against the
+        // re-inserted rows (their positional address) — creating them before
+        // would hand them to rows the replace is about to delete.
+        await persistDraftSetNotes(workoutId, finalDraft)
         // History changed: the browser QueryClient outlives this page, so
         // cached ghosts would otherwise show pre-save data next session.
         queryClient.invalidateQueries({ queryKey: ['last-performance'], refetchType: 'none' })
@@ -891,6 +1082,9 @@ export function WorkoutLogger({
           startedAt: openedAt,
           completedAt: new Date(),
         })
+        // The new-session leg of the positional design: the server workout
+        // exists only NOW, so queued set notes flush here, right after save.
+        await persistDraftSetNotes(id, finalDraft)
         queryClient.invalidateQueries({ queryKey: ['last-performance'], refetchType: 'none' })
         // Same success-path close-before-push as the update branch above.
         closeFinishDialogRef.current?.()
@@ -924,6 +1118,8 @@ export function WorkoutLogger({
     setPlateSheetFor(null) // a live showModal() dialog must not cross navigation
     setStatsSheetFor(null)
     setNoteSheetFor(null)
+    setRowMenu(null)
+    setNoteCaptureFor(null)
     setIsPickerOpen(false)
     setIsRestSheetOpen(false)
     setReplaceTargetIndex(null)
@@ -1017,12 +1213,20 @@ export function WorkoutLogger({
               the moment typing starts, and an unlabeled box at the top of the
               screen reads as a mystery field. */}
           <div className="flex items-baseline justify-between gap-3 px-1">
-            <label
-              htmlFor="workout-name"
-              className="text-xs font-semibold uppercase tracking-widest text-muted-foreground"
-            >
-              Workout name
-            </label>
+            {/* A <label> only when there is a control to label — the live
+                session shows static text, and htmlFor on a <p> is invalid. */}
+            {isLive ? (
+              <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                Workout name
+              </span>
+            ) : (
+              <label
+                htmlFor="workout-name"
+                className="text-xs font-semibold uppercase tracking-widest text-muted-foreground"
+              >
+                Workout name
+              </label>
+            )}
             {/* The session's fixed (day · week) stamp: renaming or swapping
                 exercises never moves a workout to another day, so the stamp
                 stays visible while logging. */}
@@ -1030,15 +1234,32 @@ export function WorkoutLogger({
               <span className="shrink-0 text-xs text-muted-foreground tnum">{programContext}</span>
             )}
           </div>
-          <Input
-            id="workout-name"
-            placeholder="Optional — e.g. Lower"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            // De-boxed to an underline field (keep-list allows): same input,
-            // same h-11 hit area, px-1 keeps horizontal hit padding.
-            className="mt-1.5 rounded-none border-0 border-b-2 border-input bg-transparent px-1"
-          />
+          {isLive ? (
+            // Mid-session the name is a fact, not a field (#207): renaming
+            // belongs to the edit surface after the workout is saved. Static
+            // text with the input's exact metrics (h-11, px-1, border slot
+            // kept transparent) so edit mode swaps in the input without a
+            // layout shift.
+            <p
+              id="workout-name"
+              className={cn(
+                'mt-1.5 flex h-11 items-center border-b-2 border-transparent px-1 text-base',
+                name.trim() === '' && 'text-muted-foreground',
+              )}
+            >
+              {name.trim() === '' ? 'Unnamed workout' : name}
+            </p>
+          ) : (
+            <Input
+              id="workout-name"
+              placeholder="Optional — e.g. Lower"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              // De-boxed to an underline field (keep-list allows): same input,
+              // same h-11 hit area, px-1 keeps horizontal hit padding.
+              className="mt-1.5 rounded-none border-0 border-b-2 border-input bg-transparent px-1"
+            />
+          )}
         </div>
 
         {syncStatus === 'failed' && (
@@ -1091,6 +1312,15 @@ export function WorkoutLogger({
           const identityNote = stickyNote(
             noteOverrides[identityKey],
             lastByExercise[identityKey]?.note,
+          )
+          // The middle tier (#211): last session's per-instance note, offered
+          // once. Pure show rule — gone as soon as this session has its own
+          // note, and never a duplicate of the pinned chip's text.
+          const echoNote = lastSessionEcho(
+            lastByExercise[identityKey]?.sessionNote,
+            exercise.notes,
+            identityNote,
+            lastByExercise[identityKey]?.sessionSkipped ?? false,
           )
           return (
           <section
@@ -1210,6 +1440,24 @@ export function WorkoutLogger({
                 )}
               </h3>
               <div className="-mr-1 flex shrink-0 items-center">
+              {/* Notes-v2 roll-up: the exercise's instance note + its noted
+                  sets, as glyph + count (the drafts' header grammar). Quiet
+                  and non-interactive — the notes themselves are reached from
+                  their anchors; zero markup when the count is 0 (the
+                  fast-path discipline). */}
+              {(() => {
+                const noteCount = exerciseNoteCount(exercise)
+                if (noteCount === 0) return null
+                return (
+                  <span
+                    aria-label={`${noteCount} ${noteCount === 1 ? 'note' : 'notes'} on ${exercise.name}`}
+                    className="mr-1 flex shrink-0 items-center gap-1 text-xs text-muted-foreground tnum"
+                  >
+                    <NotebookPen aria-hidden="true" className="size-3.5" />
+                    <span aria-hidden="true">{noteCount}</span>
+                  </span>
+                )
+              })()}
               {/* A done card auto-collapses; once re-expanded for corrections
                   this is the way back down — same expandedDone set, inverse
                   edge. Only rendered when done: an unfinished card collapsing
@@ -1259,25 +1507,24 @@ export function WorkoutLogger({
               >
                 <ArrowLeftRight aria-hidden="true" className="size-4" />
               </Button>
-              {/* Notes toggle: open-OR-has-notes visibility (see notesOpen)
-                  — the button opens the textarea; a non-empty note keeps it
-                  shown regardless. */}
-              <Button
-                size="icon-sm"
-                variant="ghost"
-                className="shrink-0 text-muted-foreground"
-                onClick={() =>
-                  setNotesOpen((prev) => {
-                    const next = new Set(prev)
-                    if (next.has(exercise.id)) next.delete(exercise.id)
-                    else next.add(exercise.id)
-                    return next
-                  })
-                }
-                aria-label={`Notes for ${exercise.name}`}
-              >
-                <NotebookPen aria-hidden="true" className="size-4" />
-              </Button>
+              {/* Note entry (one grammar, #211): a worded chip — pill skin
+                  mirrors the pinned chip because chips mean pressable. It
+                  renders only while there is nothing to show; once a session
+                  note exists the note words themselves are the reopen target
+                  below (open-OR-has-notes: a hidden note is a lost note).
+                  Trim-gated like every sibling: a whitespace-only draft is
+                  not a note yet (lastSessionEcho's definition), so the entry
+                  affordance must survive it. */}
+              {exercise.notes.trim() === '' && !notesOpen.has(exercise.id) && (
+                <button
+                  type="button"
+                  onClick={() => setNotesOpen((prev) => new Set(prev).add(exercise.id))}
+                  aria-label={`Add note for ${exercise.name}`}
+                  className="mx-1 shrink-0 hit-44-y rounded-full border border-border bg-muted/40 px-3 py-2.5 text-xs text-muted-foreground transition-colors active:bg-muted"
+                >
+                  Note
+                </button>
+              )}
               {/* Hairline gap between the everyday utilities and the
                   destructive remove — adjacency invites mid-set slips. */}
               <span aria-hidden="true" className="h-5 w-px shrink-0 self-center bg-border" />
@@ -1346,27 +1593,86 @@ export function WorkoutLogger({
             {identityNote !== null && (
               <button
                 type="button"
-                onClick={() => setNoteSheetFor(exerciseIndex)}
+                onClick={() => setNoteSheetFor({ index: exerciseIndex, seed: 'identity' })}
                 aria-label={`Exercise note for ${exercise.name}: ${noteChipLabel(identityNote.body)}`}
-                className="flex max-w-full items-center gap-1.5 self-start rounded-full border border-border bg-muted/40 px-2.5 py-1 text-xs text-muted-foreground transition-colors active:bg-muted"
+                className="flex max-w-full items-center gap-1.5 self-start hit-44-y rounded-full border border-border bg-muted/40 px-3 py-2.5 text-xs text-muted-foreground transition-colors active:bg-muted"
               >
                 <Pin aria-hidden="true" className="size-3 shrink-0" />
                 <span className="truncate">{noteChipLabel(identityNote.body)}</span>
               </button>
             )}
 
-            {/* Auto-shown while a note exists: a hidden note is a lost note. */}
-            {(notesOpen.has(exercise.id) || exercise.notes !== '') && (
-              <Textarea
-                rows={2}
-                placeholder="Add note…"
-                value={exercise.notes}
-                onChange={(e) =>
-                  dispatch({ type: 'SET_EXERCISE_NOTES', exerciseIndex, value: e.target.value })
-                }
-                aria-label={`Notes for ${exercise.name}`}
-                className="motion-safe:animate-rise-in"
-              />
+            {/* Last-session echo (#211's new tier): the previous session's
+                note, one greyed italic line, read-only. Tap = copy it into
+                this session's editor, prefilled — which retires the echo
+                (exercise.notes is no longer empty). Muted throughout: memory,
+                not a live state. */}
+            {echoNote !== null && (
+              <button
+                type="button"
+                onClick={() => {
+                  dispatch({ type: 'SET_EXERCISE_NOTES', exerciseIndex, value: echoNote.text })
+                  setNotesOpen((prev) => new Set(prev).add(exercise.id))
+                }}
+                aria-label={`Copy last session's note for ${exercise.name}`}
+                className="block max-w-full truncate px-0.5 text-left text-xs italic text-muted-foreground"
+              >
+                Last time{echoNote.sessionSkipped ? ' (skipped)' : ''}: {noteChipLabel(echoNote.text)}
+              </button>
+            )}
+
+            {/* Session note, open-OR-has-notes (a hidden note is a lost note):
+                open = the editor; closed with text = the words themselves are
+                the reopen target (words are labels — and here the label IS
+                the control, muted, no chip dress-up). The pin beside either
+                state PROMOTES the note to the identity tier via QuickCapture
+                (Strong's pin-as-promotion); the session copy stays.
+                Trim-gated: a whitespace-only draft is not a note, so closing
+                the editor over one hides this block rather than leaving an
+                invisible reopen target (the entry chip above returns). */}
+            {(notesOpen.has(exercise.id) || exercise.notes.trim() !== '') && (
+              <div className="flex items-start gap-1">
+                {notesOpen.has(exercise.id) ? (
+                  <Textarea
+                    rows={2}
+                    autoFocus
+                    placeholder="Add note…"
+                    value={exercise.notes}
+                    onChange={(e) =>
+                      dispatch({ type: 'SET_EXERCISE_NOTES', exerciseIndex, value: e.target.value })
+                    }
+                    onBlur={() =>
+                      setNotesOpen((prev) => {
+                        const next = new Set(prev)
+                        next.delete(exercise.id)
+                        return next
+                      })
+                    }
+                    aria-label={`Notes for ${exercise.name}`}
+                    className="min-w-0 flex-1 motion-safe:animate-rise-in"
+                  />
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setNotesOpen((prev) => new Set(prev).add(exercise.id))}
+                    aria-label={`Edit note for ${exercise.name}`}
+                    className="hit-44-y min-w-0 flex-1 whitespace-pre-wrap px-0.5 py-2 text-left text-sm text-muted-foreground"
+                  >
+                    {exercise.notes}
+                  </button>
+                )}
+                {exercise.notes.trim() !== '' && (
+                  <Button
+                    size="icon-sm"
+                    variant="ghost"
+                    className="shrink-0 text-muted-foreground"
+                    onClick={() => setNoteSheetFor({ index: exerciseIndex, seed: 'session' })}
+                    aria-label={`Pin note for ${exercise.name}`}
+                  >
+                    <Pin aria-hidden="true" className="size-4" />
+                  </Button>
+                )}
+              </div>
             )}
 
             {/* Layer 1 auto-regulation, propose-don't-impose: the adjusted
@@ -1417,8 +1723,22 @@ export function WorkoutLogger({
               <div className="flex items-center gap-2 px-0.5 text-[0.7rem] font-semibold uppercase tracking-wider text-muted-foreground">
                 <span className="w-8 shrink-0" aria-hidden="true" />
                 <span className="w-10 shrink-0 text-center">Prev</span>
-                <span className="flex-1 text-center">Reps</span>
-                <span className="flex-1 text-center">{unit}</span>
+                {/* Cardio exercises head their columns Time/km; the first
+                    set's metric mode speaks for the card (rows still render
+                    per their OWN mode). */}
+                {setMetricMode(exercise.sets[0]) !== 'reps_weight' ? (
+                  <>
+                    <span className="flex-1 text-center">Time</span>
+                    <span className="flex-1 text-center">
+                      {setMetricMode(exercise.sets[0]) === 'duration_distance' ? 'km' : ''}
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <span className="flex-1 text-center">Reps</span>
+                    <span className="flex-1 text-center">{unit}</span>
+                  </>
+                )}
                 <span className="size-9 shrink-0" aria-hidden="true" />
               </div>
             )}
@@ -1455,20 +1775,31 @@ export function WorkoutLogger({
                 // Prev is previous PERFORMANCE only: plan targets ghost the
                 // inputs above but never masquerade as history in this column.
                 const prevLabel = previousChipLabel(history, exercise.loggingType)
+                // This row's metric: cardio rows swap reps/weight inputs for
+                // duration (+ distance) and gate completion on duration.
+                const metricMode = setMetricMode(set)
+                const isCardioSet = metricMode !== 'reps_weight'
                 // Chip fills from history (what the chip shows); BW-relative
                 // types never fill a weight — theirs isn't a total load.
-                const chipFill = {
-                  reps: adoptableGhostValue(history.reps),
-                  weight:
-                    exercise.loggingType === 'weight_reps'
-                      ? adoptableGhostValue(history.weight)
-                      : undefined,
-                }
+                // Cardio rows fill duration/distance instead (the ghost
+                // strings are already in the input dialect — no adoptable
+                // parse needed).
+                const chipFill = isCardioSet
+                  ? { duration: history.duration, distance: history.distance }
+                  : {
+                      reps: adoptableGhostValue(history.reps),
+                      weight:
+                        exercise.loggingType === 'weight_reps'
+                          ? adoptableGhostValue(history.weight)
+                          : undefined,
+                    }
                 // Enabled only when a tap would actually change something —
                 // otherwise the flash would confirm a fill that never happened.
-                const chipCanFill =
-                  (set.reps === '' && !!chipFill.reps) ||
-                  (set.weight === '' && !!chipFill.weight)
+                const chipCanFill = isCardioSet
+                  ? ((set.duration ?? '') === '' && !!chipFill.duration) ||
+                    ((set.distance ?? '') === '' && !!chipFill.distance)
+                  : (set.reps === '' && !!chipFill.reps) ||
+                    (set.weight === '' && !!chipFill.weight)
                 // Row identity for assistive tech: a warm-up row must SAY so —
                 // the 'W' glyph alone is visual-only.
                 const setLabel =
@@ -1497,6 +1828,48 @@ export function WorkoutLogger({
                     riseInArmed && 'motion-safe:animate-rise-in',
                   )}
                   id={`set-row-${set.id}`}
+                  // Row-BODY long-press → context menu (notes v2). Never
+                  // starts on inputs/buttons (SwipeToDelete's bail-out list —
+                  // the circle keeps its warm-up hold, a drag in a weight
+                  // field stays cursor placement); pointercancel + move-slop
+                  // keep scrolls from firing it.
+                  onPointerDown={(e) => {
+                    if (
+                      e.target instanceof Element &&
+                      e.target.closest('input, button, select, a, textarea')
+                    ) {
+                      return
+                    }
+                    rowPressFiredRef.current = false
+                    rowPressOriginRef.current = { x: e.clientX, y: e.clientY }
+                    if (rowPressTimerRef.current) clearTimeout(rowPressTimerRef.current)
+                    const at = { x: e.clientX, y: e.clientY }
+                    rowPressTimerRef.current = setTimeout(() => {
+                      rowPressFiredRef.current = true
+                      setRowMenu({ exerciseIndex, setIndex, x: at.x, y: at.y })
+                    }, LONG_PRESS_MS)
+                  }}
+                  onPointerUp={cancelRowPress}
+                  onPointerLeave={cancelRowPress}
+                  onPointerCancel={cancelRowPress}
+                  onPointerMove={(e) => {
+                    const origin = rowPressOriginRef.current
+                    if (
+                      origin &&
+                      Math.hypot(e.clientX - origin.x, e.clientY - origin.y) > LONG_PRESS_SLOP_PX
+                    ) {
+                      cancelRowPress()
+                    }
+                  }}
+                  // A press that already opened the menu must not ALSO click
+                  // whatever the finger lifted over.
+                  onClickCapture={(e) => {
+                    if (rowPressFiredRef.current) {
+                      rowPressFiredRef.current = false
+                      e.preventDefault()
+                      e.stopPropagation()
+                    }
+                  }}
                 >
                   <button
                     type="button"
@@ -1542,22 +1915,47 @@ export function WorkoutLogger({
                         longPressFiredRef.current = false
                         return
                       }
+                      // Tap-to-accept: checking off an untouched set adopts
+                      // the ghost ("do what I did last time" in one tap).
+                      // A "8–12" plan range adopts its floor; cardio rows
+                      // adopt the plan's duration/distance verbatim (the
+                      // ghost already speaks the input dialect).
+                      const fill = isCardioSet
+                        ? { duration: ghost.duration, distance: ghost.distance }
+                        : {
+                            reps: adoptableGhostValue(ghost.reps),
+                            // A bodyweight set HAS no weight value to adopt —
+                            // filling one would persist a phantom load.
+                            weight:
+                              exercise.loggingType === 'bodyweight_reps'
+                                ? undefined
+                                : adoptableGhostValue(ghost.weight),
+                          }
+                      // The reducer refuses a weight-less weight_reps (or
+                      // duration-less cardio) check-off; mirror its predicate
+                      // here so the refusal gets FEEDBACK (input flash) and
+                      // none of the completion side effects (pop, rest clock,
+                      // effort chips) fire for a set that didn't complete.
+                      if (
+                        !set.completed &&
+                        isMissingRequiredMetric(exercise, setIndex, fill)
+                      ) {
+                        vibrate(SET_COMPLETE_VIBRATION)
+                        if (weightNudgeTimerRef.current) {
+                          clearTimeout(weightNudgeTimerRef.current)
+                        }
+                        setWeightNudgeSetId(set.id)
+                        weightNudgeTimerRef.current = setTimeout(
+                          () => setWeightNudgeSetId(null),
+                          700,
+                        )
+                        return
+                      }
                       dispatch({
                         type: 'TOGGLE_SET_COMPLETED',
                         exerciseIndex,
                         setIndex,
-                        // Tap-to-accept: checking off an untouched set adopts
-                        // the ghost ("do what I did last time" in one tap).
-                        // A "8–12" plan range adopts its floor.
-                        fill: {
-                          reps: adoptableGhostValue(ghost.reps),
-                          // A bodyweight set HAS no weight value to adopt —
-                          // filling one would persist a phantom load.
-                          weight:
-                            exercise.loggingType === 'bodyweight_reps'
-                              ? undefined
-                              : adoptableGhostValue(ghost.weight),
-                        },
+                        fill,
                       })
                       if (!set.completed) {
                         // Sensory answer to the check-off: a haptic tick and
@@ -1640,6 +2038,21 @@ export function WorkoutLogger({
                     ) : (
                       setIndex + 1
                     )}
+                    {/* Notes-v2 indicator: a 4px volt dot beside the set
+                        number — the note's WHOLE in-logger footprint (the
+                        body never renders inline). Pops in on save (the
+                        receipt; motion-safe keeps reduced-motion instant). */}
+                    {setHasNote(set) && (
+                      <span
+                        aria-hidden="true"
+                        className={cn(
+                          // ring-background keeps the dot legible on a
+                          // completed (volt-filled) circle too.
+                          'absolute -right-0.5 -top-0.5 size-1 rounded-full bg-primary ring-2 ring-background',
+                          notePopSetId === set.id && 'motion-safe:animate-dot-in',
+                        )}
+                      />
+                    )}
                   </button>
                   <button
                     type="button"
@@ -1657,6 +2070,96 @@ export function WorkoutLogger({
                   >
                     {prevLabel ?? '—'}
                   </button>
+                  {isCardioSet ? (
+                    <>
+                      {/* Cardio row: mm:ss + km replace reps/weight. Same
+                          underline skin, same row states, same select-all
+                          focus dance as the lifting inputs. */}
+                      <Input
+                        type="text"
+                        inputMode="numeric"
+                        placeholder={ghost.duration ?? 'mm:ss'}
+                        value={set.duration ?? ''}
+                        onChange={(e) =>
+                          dispatch({
+                            type: 'UPDATE_SET',
+                            exerciseIndex,
+                            setIndex,
+                            field: 'duration',
+                            value: e.target.value,
+                          })
+                        }
+                        onFocus={(e) => {
+                          const input = e.currentTarget
+                          requestAnimationFrame(() => input.select())
+                        }}
+                        enterKeyHint={metricMode === 'duration_distance' ? 'next' : 'done'}
+                        onKeyDown={(e) => {
+                          if (e.key !== 'Enter') return
+                          e.preventDefault()
+                          if (metricMode !== 'duration_distance') {
+                            e.currentTarget.blur()
+                            return
+                          }
+                          document.getElementById(`distance-input-${set.id}`)?.focus()
+                        }}
+                        aria-label={`Set ${setIndex + 1} duration, minutes and seconds`}
+                        className={cn(
+                          'flex-1 rounded-none border-0 border-b-2 bg-transparent px-1 text-center tnum',
+                          rowState === 'active' && 'border-input text-lg font-medium',
+                          rowState === 'done' && 'border-transparent text-muted-foreground',
+                          rowState === 'waiting' &&
+                            'border-transparent opacity-80 group-focus-within/setrow:border-input group-focus-within/setrow:opacity-100',
+                          flashSetId === set.id && 'fill-flash',
+                          // The refused-check-off nudge lands on the duration
+                          // input — cardio's required metric (#206 mirror).
+                          weightNudgeSetId === set.id && 'weight-required-flash',
+                        )}
+                      />
+                      {metricMode === 'duration_distance' ? (
+                        <Input
+                          type="text"
+                          inputMode="decimal"
+                          id={`distance-input-${set.id}`}
+                          placeholder={ghost.distance}
+                          value={set.distance ?? ''}
+                          onChange={(e) =>
+                            dispatch({
+                              type: 'UPDATE_SET',
+                              exerciseIndex,
+                              setIndex,
+                              field: 'distance',
+                              value: e.target.value,
+                            })
+                          }
+                          onFocus={(e) => {
+                            const input = e.currentTarget
+                            requestAnimationFrame(() => input.select())
+                          }}
+                          enterKeyHint="done"
+                          onKeyDown={(e) => {
+                            if (e.key !== 'Enter') return
+                            e.preventDefault()
+                            e.currentTarget.blur()
+                          }}
+                          aria-label={`Set ${setIndex + 1} distance in kilometers`}
+                          className={cn(
+                            'flex-1 rounded-none border-0 border-b-2 bg-transparent px-1 text-center tnum',
+                            rowState === 'active' && 'border-input text-lg font-medium',
+                            rowState === 'done' && 'border-transparent text-muted-foreground',
+                            rowState === 'waiting' &&
+                              'border-transparent opacity-80 group-focus-within/setrow:border-input group-focus-within/setrow:opacity-100',
+                            flashSetId === set.id && 'fill-flash',
+                          )}
+                        />
+                      ) : (
+                        // Duration-only mode: hold the second column's
+                        // footprint so rows never jump (the BW-pill trick).
+                        <span aria-hidden="true" className="h-11 flex-1" />
+                      )}
+                    </>
+                  ) : (
+                    <>
                   <Input
                     type="text"
                     inputMode="numeric"
@@ -1786,9 +2289,12 @@ export function WorkoutLogger({
                           rowState === 'waiting' &&
                             'border-transparent opacity-80 group-focus-within/setrow:border-input group-focus-within/setrow:opacity-100',
                           flashSetId === set.id && 'fill-flash',
+                          weightNudgeSetId === set.id && 'weight-required-flash',
                         )}
                       />
                     </div>
+                  )}
+                    </>
                   )}
                   <Button
                     size="icon-sm"
@@ -1810,6 +2316,9 @@ export function WorkoutLogger({
                     when a typed value actually DIFFERS from the plan; muted,
                     aligned under the inputs. */}
                 {(() => {
+                  // Cardio rows skip the caption: their ghost strings ("12:30")
+                  // aren't numeric targets the caption grammar can restate.
+                  if (isCardioSet) return null
                   const caption = targetCaption({ reps: set.reps, weight: set.weight }, ghost)
                   if (!caption) return null
                   return <p className="pl-22 pr-11 text-xs text-muted-foreground tnum">{caption}</p>
@@ -1830,6 +2339,12 @@ export function WorkoutLogger({
                         effortTarget?.rir ?? null,
                         effortTarget?.rpe ?? null,
                       )}
+                      targetRir={effortTarget?.rir ?? null}
+                      targetRpe={effortTarget?.rpe ?? null}
+                      // An untouched row tidies itself (~5s): same collapse
+                      // as the prompt moving on — skip-by-ignoring, never
+                      // blocking, and the quiet slot below stays tappable.
+                      onIdleCollapse={() => setEffortPromptSetId(null)}
                       onSelectRir={(value) => {
                         dispatch({ type: 'SET_EFFORT', exerciseIndex, setIndex, rir: value })
                         // A real selection answers the prompt; a clear keeps
@@ -1838,7 +2353,9 @@ export function WorkoutLogger({
                       }}
                       onSelectRpe={(value) => {
                         dispatch({ type: 'SET_EFFORT', exerciseIndex, setIndex, rpe: value })
-                        if (value !== '') setEffortPromptSetId(null)
+                        // Unlike RIR, an RPE pick must NOT close the row:
+                        // the second tap of the whole → half cycle needs the
+                        // chip still on screen. The idle collapse tidies up.
                       }}
                     />
                   ) : (
@@ -1847,90 +2364,55 @@ export function WorkoutLogger({
                         set.rir ? Number(set.rir) : null,
                         set.rpe ? Number(set.rpe) : null,
                       )
-                      if (!logged) return null
+                      // Nothing logged: the slot itself stays — a quiet
+                      // "Effort" word so late logging is always reachable
+                      // after the prompt moved on (or idle-collapsed).
+                      // Renders only under the show rule, so the opted-out
+                      // fast path stays byte-identical.
                       return (
                         <button
                           type="button"
                           onClick={() => setEffortPromptSetId(set.id)}
-                          aria-label={`Change effort for ${setLabel}: ${logged}`}
+                          aria-label={
+                            logged
+                              ? `Change effort for ${setLabel}: ${logged}`
+                              : `Log effort for ${setLabel}`
+                          }
                           className="block pl-22 pr-11 text-left text-xs text-muted-foreground tnum underline-offset-2 active:underline"
                         >
-                          {logged}
+                          {logged ?? 'Effort'}
                         </button>
                       )
                     })()
                   ))}
-                {/* Steppers ride under the focused weight row only. One plate
-                    a side per tap; pointerdown preventDefault keeps the input
-                    focused so the row (and keyboard) don't dismiss mid-tap. */}
+                {/* Steppers ride under the focused weight row only —
+                    extracted to WeightStepper (#216), which owns the ± rail,
+                    hold-to-autorepeat, and the per-side plate chip. The
+                    focus-gating (stepperSetId) and blur-to-dismiss lifecycle
+                    stay here. ghost.weight is undefined for BW-relative
+                    types by design (a total-load ghost would be a phantom),
+                    so their steppers step the typed value or from zero. */}
                 {stepperSetId === set.id && (
-                  // Connected segmented pair aligned to the input columns
-                  // (left inset = circle + prev + gaps, right = the row's X):
-                  // one control, not two orphaned buttons floating right.
-                  <div className="flex flex-col gap-1.5 pl-22 pr-11 motion-safe:animate-rise-in">
-                    <div className="flex w-full overflow-hidden rounded-lg border border-border bg-card">
-                    {([-1, 1] as const).map((direction) => (
-                      <Button
-                        key={direction}
-                        size="sm"
-                        variant="ghost"
-                        className={cn(
-                          'h-9 flex-1 rounded-none text-sm font-semibold tnum',
-                          direction === 1 && 'border-l border-border',
-                        )}
-                        onPointerDown={(e) => e.preventDefault()}
-                        onClick={() => {
-                          // ghost.weight is undefined for BW-relative types by
-                          // design (a total-load ghost would be a phantom), so
-                          // their steppers step the typed value or from zero.
-                          const next = stepWeightValue(set.weight, ghost.weight, direction, unit)
-                          if (next !== null) {
-                            dispatch({
-                              type: 'UPDATE_SET',
-                              exerciseIndex,
-                              setIndex,
-                              field: 'weight',
-                              value: next,
-                            })
-                          }
-                        }}
-                        aria-label={`${direction === 1 ? 'Increase' : 'Decrease'} set ${setIndex + 1} ${
-                          exercise.loggingType === 'weighted_bodyweight'
-                            ? 'added weight'
-                            : exercise.loggingType === 'assisted_bodyweight'
-                              ? 'assistance'
-                              : 'weight'
-                        } by ${WEIGHT_STEP[unit]} ${unit}`}
-                      >
-                        {direction === 1 ? '+' : '−'}
-                        {WEIGHT_STEP[unit]}
-                      </Button>
-                    ))}
-                    </div>
-                    {/* Per-side plate chip: the racked answer for the focused
-                        weight, against the default (heaviest) bar — barbell
-                        totals only, and only when the field parses to a
-                        rackable number. Tap opens the full plate sheet.
-                        pointerdown preventDefault keeps the input focused
-                        (same trick as the steppers) so the strip doesn't
-                        unmount before the click lands. */}
-                    {exercise.loggingType === 'weight_reps' &&
-                      (() => {
-                        const chip = plateChipLabel(set.weight, gear.bars[0] ?? 0, gear.plates)
-                        if (!chip) return null
-                        return (
-                          <button
-                            type="button"
-                            onPointerDown={(e) => e.preventDefault()}
-                            onClick={() => setPlateSheetFor(exerciseIndex)}
-                            aria-label={`Plates for this weight: ${chip}. Open plate calculator`}
-                            className="self-start text-xs text-muted-foreground tnum underline-offset-2 active:underline"
-                          >
-                            {chip}
-                          </button>
-                        )
-                      })()}
-                  </div>
+                  <WeightStepper
+                    setIndex={setIndex}
+                    inputId={`weight-input-${set.id}`}
+                    weight={set.weight}
+                    ghostWeight={ghost.weight}
+                    unit={unit}
+                    loggingType={exercise.loggingType}
+                    bar={gear.bars[0] ?? 0}
+                    plates={gear.plates}
+                    onWeightChange={(value) =>
+                      dispatch({
+                        type: 'UPDATE_SET',
+                        exerciseIndex,
+                        setIndex,
+                        field: 'weight',
+                        value,
+                      })
+                    }
+                    onOpenPlateSheet={() => setPlateSheetFor(exerciseIndex)}
+                  />
                 )}
                 {/* The record moment, recognized as it happens: this set's
                     e1RM strictly beats the all-time best the session opened
@@ -1949,7 +2431,15 @@ export function WorkoutLogger({
               size="sm"
               variant="outline"
               className="w-full"
-              onClick={() => dispatch({ type: 'ADD_SET', exerciseIndex, set: newDraftSet() })}
+              // New sets inherit the exercise's metric mode (cardio adds
+              // cardio sets; lifting adds lifting sets).
+              onClick={() =>
+                dispatch({
+                  type: 'ADD_SET',
+                  exerciseIndex,
+                  set: newDraftSet(nextSetMetricMode(exercise)),
+                })
+              }
             >
               + Add set
             </Button>
@@ -1963,7 +2453,7 @@ export function WorkoutLogger({
             ("cut short — gym closing") belongs to the whole workout, not one
             card. Same open-OR-has-notes visibility as the per-exercise ones. */}
         {!isEmpty &&
-          (isWorkoutNotesOpen || draft.notes !== '' ? (
+          (isWorkoutNotesOpen || draft.notes.trim() !== '' ? (
             <Textarea
               rows={2}
               placeholder="Add note…"
@@ -1973,14 +2463,15 @@ export function WorkoutLogger({
               className="motion-safe:animate-rise-in"
             />
           ) : (
-            <Button
-              variant="ghost"
-              className="w-full text-muted-foreground"
+            /* Same entry grammar as the per-exercise chip (#211): a worded
+               pill, muted — one way to start a note everywhere. */
+            <button
+              type="button"
               onClick={() => setIsWorkoutNotesOpen(true)}
+              className="hit-44-y rounded-full border border-border bg-muted/40 px-3 py-2.5 text-xs text-muted-foreground transition-colors active:bg-muted"
             >
-              <NotebookPen aria-hidden="true" className="size-4" />
-              Add workout note
-            </Button>
+              Workout note
+            </button>
           ))}
 
         {/* Discard lives at the END of the scrolling content, not in the
@@ -1992,14 +2483,14 @@ export function WorkoutLogger({
             rendered near the other top-layer surfaces below. */}
         {isLive && (
           <div className="pt-2">
-            {/* Demoted on purpose (tinted outline, never volt): a designed
-                escape hatch rather than a bare text link, but still nothing
-                that competes with the volt Finish below. Full-width matches
-                the card rhythm of the page; the ConfirmDialog stays the
-                actual guard. */}
+            {/* Demoted on purpose (destructive-outline, never volt): a
+                designed escape hatch rather than a bare text link, but still
+                nothing that competes with the volt Finish below. Full-width
+                matches the card rhythm of the page; the ConfirmDialog stays
+                the actual guard. */}
             <Button
-              variant="outline"
-              className="w-full border-destructive/30 bg-destructive/5 text-destructive"
+              variant="destructive-outline"
+              className="w-full"
               disabled={isSaving || isDiscarding}
               onClick={() => {
                 setDiscardError(null) // a stale failure must not reopen with the dialog
@@ -2015,7 +2506,20 @@ export function WorkoutLogger({
         {error && <p className="text-sm text-destructive">{error}</p>}
       </div>
 
-      <div className="sticky bottom-0 z-10 -mx-5 border-t border-border bg-background/85 px-5 pt-3 pb-safe backdrop-blur-md">
+      <div
+        data-volt-muted={noteCaptureFor !== null || undefined}
+        className={cn(
+          'sticky bottom-0 z-10 -mx-5 border-t border-border bg-background/85 px-5 pt-3 pb-safe backdrop-blur-md',
+          // One volt while the capture sheet is open: the bar recedes
+          // (opacity + desaturation — still readable, still tappable per the
+          // sheet's non-modal contract) so the sheet's Save is the screen's
+          // only live accent regardless of how tall the bar stacks (rest
+          // pill + toasts). Mechanism, not layout coincidence — pinned by
+          // the volt-budget render tests.
+          noteCaptureFor !== null &&
+            'opacity-50 saturate-50 motion-safe:transition-opacity motion-safe:duration-200',
+        )}
+      >
         {/* Session-pulse fill riding the bar's top border: 2px of volt that
             grows with completed working sets. Live-progress semantics, same
             one-volt family as the rest readout; scaleX (not width) keeps the
@@ -2084,69 +2588,81 @@ export function WorkoutLogger({
         )}
         {/* Post-swap remember prompt: a quiet follow-up, never a modal — the
             decision that mattered (the swap) is already made; this must not
-            block logging. Sits above the undo toast (it outlives undo's 5s).
+            block logging. Sits above the undo toast (it outlives undo's
+            window). Prompt mode = no countdown: it persists until answered.
             One-volt rule: ghost/outline pair, Finish keeps the bar's volt. */}
-        {pendingRemember && (
-          <div
-            role="status"
-            className="mb-3 rounded-xl border border-border bg-card px-4 py-2.5 motion-safe:animate-rise-in"
-          >
-            <p className="min-w-0 text-sm">
-              Use <span className="font-medium">{pendingRemember.substituteName}</span> for the
-              rest of the block?
-            </p>
-            <p className="mt-0.5 text-xs text-muted-foreground">
-              Replaces {pendingRemember.originalName} in the plan — your history stays.
-            </p>
-            <div className="mt-2 flex justify-end gap-2">
-              <Button
-                size="sm"
-                variant="ghost"
-                disabled={isRemembering}
-                onClick={handleRememberJustToday}
-              >
-                Just today
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={isRemembering}
-                onClick={handleRememberForBlock}
-              >
-                {isRemembering ? 'Saving…' : 'Use for block'}
+        <SessionToast open={pendingRemember !== null}>
+          {pendingRemember && (
+            <>
+              <p className="min-w-0 text-sm">
+                Use <span className="font-medium">{pendingRemember.substituteName}</span> for the
+                rest of the block?
+              </p>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                Replaces {pendingRemember.originalName} in the plan — your history stays.
+              </p>
+              <div className="mt-2 flex justify-end gap-2">
+                <Button
+                  size="sm"
+                  variant="reversal"
+                  disabled={isRemembering}
+                  onClick={handleRememberJustToday}
+                >
+                  Just today
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={isRemembering}
+                  onClick={handleRememberForBlock}
+                >
+                  {isRemembering ? 'Saving…' : 'Use for block'}
+                </Button>
+              </div>
+              {rememberError && (
+                <p className="mt-1.5 text-sm text-destructive">{rememberError}</p>
+              )}
+            </>
+          )}
+        </SessionToast>
+        {/* Undo toast: SessionToast owns the window's clock — its drain
+            hairline's animationend clears the stack, so hover/focus pausing
+            the drain pauses the dismissal with it. */}
+        <SessionToast
+          open={removed.length > 0}
+          countdown={{
+            durationMs: UNDO_WINDOW_MS,
+            resetKey: undoResetKey,
+            onExpire: () => setRemoved([]),
+          }}
+          exit={undoExitQuick ? 'quick' : 'default'}
+        >
+          {removed.length > 0 && (
+            <div className="flex items-center justify-between gap-3">
+              <p className="min-w-0 truncate text-sm">
+                {(() => {
+                  // Sentence per kind — "Removed X" / "Replaced X" — with the
+                  // name carrying the emphasis in both.
+                  const last = removed[removed.length - 1]
+                  const [verb, subject] =
+                    last.kind === 'exercise'
+                      ? ['Removed', last.exercise.name]
+                      : last.kind === 'replace'
+                        ? ['Replaced', last.previous.name]
+                        : ['Removed', `set ${last.setIndex + 1} · ${last.exerciseName}`]
+                  return (
+                    <>
+                      {verb} <span className="font-medium">{subject}</span>
+                    </>
+                  )
+                })()}
+              </p>
+              <Button size="sm" variant="reversal" className="shrink-0" onClick={handleUndoRemove}>
+                {removed.length > 1 ? `Undo (${removed.length})` : 'Undo'}
               </Button>
             </div>
-            {rememberError && <p className="mt-1.5 text-sm text-destructive">{rememberError}</p>}
-          </div>
-        )}
-        {removed.length > 0 && (
-          <div
-            role="status"
-            className="mb-3 flex items-center justify-between gap-3 rounded-xl border border-border bg-card px-4 py-2.5 motion-safe:animate-rise-in"
-          >
-            <p className="min-w-0 truncate text-sm">
-              {(() => {
-                // Sentence per kind — "Removed X" / "Replaced X" — with the
-                // name carrying the emphasis in both.
-                const last = removed[removed.length - 1]
-                const [verb, subject] =
-                  last.kind === 'exercise'
-                    ? ['Removed', last.exercise.name]
-                    : last.kind === 'replace'
-                      ? ['Replaced', last.previous.name]
-                      : ['Removed', `set ${last.setIndex + 1} · ${last.exerciseName}`]
-                return (
-                  <>
-                    {verb} <span className="font-medium">{subject}</span>
-                  </>
-                )
-              })()}
-            </p>
-            <Button size="sm" variant="outline" className="shrink-0" onClick={handleUndoRemove}>
-              {removed.length > 1 ? `Undo (${removed.length})` : 'Undo'}
-            </Button>
-          </div>
-        )}
+          )}
+        </SessionToast>
         <div className="flex flex-col gap-2">
           {/* Adding an exercise is the second-most-frequent act mid-session,
               so it earns a permanent slot in the thumb bar — outline, so the
@@ -2170,16 +2686,16 @@ export function WorkoutLogger({
             // "Finish", not "Save": ending a session is the product's peak
             // moment, not filing paperwork. Correcting a finished workout
             // keeps an outline "Save changes" — that IS paperwork.
-            variant={isLive ? 'default' : 'outline'}
+            variant={isLive ? 'band' : 'outline'}
             className={cn(
               'w-full font-semibold uppercase tracking-wide',
-              // Live Finish is the full-bleed volt-tinted text-action band
-              // (the sticky bar's primary, still the only volt CTA): tinted
-              // wash + volt condensed caps instead of a solid pill. -mx-5
-              // bleeds across the bar's px-5. Edit-mode "Save changes" keeps
-              // the outline pill — corrections are paperwork, not a moment.
-              isLive &&
-                '-mx-5 w-[calc(100%+2.5rem)] rounded-none border-0 bg-primary/15 font-display text-base tracking-wider text-primary hover:bg-primary/25',
+              // Live Finish is the `band` variant (the sticky bar's primary,
+              // still the only volt CTA): tinted wash + volt condensed caps
+              // instead of a solid pill. The variant owns the skin; -mx-5
+              // bleeding across the bar's px-5 is layout and stays here.
+              // Edit-mode "Save changes" keeps the outline pill —
+              // corrections are paperwork, not a moment.
+              isLive && '-mx-5 w-[calc(100%+2.5rem)]',
               // Every planned set is done: a gentle scale nudge says "wrap it
               // up" — motion as state (session complete), not decoration.
               // Reduced-motion users get the same information from the volt
@@ -2228,6 +2744,7 @@ export function WorkoutLogger({
               ? handleReplacePick(exercise)
               : dispatch({ type: 'ADD_EXERCISE', exercise: newDraftExercise(exercise) })
           }
+          onCreateNavigate={handleCreateNavigate}
           onClose={() => {
             setIsPickerOpen(false)
             setReplaceTargetIndex(null)
@@ -2304,24 +2821,29 @@ export function WorkoutLogger({
           actions; the session-local override map keeps the chip fresh
           without touching the frozen last-performance query. */}
       {noteSheetFor !== null &&
-        draft.exercises[noteSheetFor] &&
+        draft.exercises[noteSheetFor.index] &&
         (() => {
-          const exercise = draft.exercises[noteSheetFor]
+          const exercise = draft.exercises[noteSheetFor.index]
           const key = `${exercise.source}:${exercise.wgerExerciseId}`
           const current =
             noteOverrides[key] !== undefined
               ? noteOverrides[key]
               : (lastByExercise[key]?.note ?? null)
+          // Pin-as-promotion (#211): the pin beside a session note seeds the
+          // SESSION text — that is the promotion the control promises, even
+          // when an identity note already exists (saving then overwrites the
+          // pinned body with the promoted text: the user explicitly pinned
+          // it). The pinned-chip tap keeps seeding the pinned body for edits.
+          // Promotion copies: the session note stays as this session's record.
+          const promoting = noteSheetFor.seed === 'session'
           return (
             <QuickCaptureSheet
               title={exercise.name}
               eyebrow="Exercise note"
-              initialBody={current?.body ?? ''}
-              // `current` is never null today (the chip only renders for an
-              // existing pinned note), so the `?? true` arm is unreachable —
-              // a deliberate default for any future create-from-logger path:
-              // a note born in the logger should surface here again.
-              initialPinned={current?.pinned ?? true}
+              initialBody={promoting ? exercise.notes : (current?.body ?? exercise.notes)}
+              // A note born in (or promoted from) the logger defaults pinned —
+              // pinning is the whole point of promoting it.
+              initialPinned={promoting ? true : (current?.pinned ?? true)}
               onSave={async (value) => {
                 const saved = await upsertExerciseNoteAction(
                   exercise.source,
@@ -2339,6 +2861,98 @@ export function WorkoutLogger({
                   : undefined
               }
               onClose={() => setNoteSheetFor(null)}
+            />
+          )
+        })()}
+
+      {/* Set-row context menu (notes v2): guarded on the target still
+          existing — the draft can shift under an open menu (undo, restore). */}
+      {rowMenu &&
+        draft.exercises[rowMenu.exerciseIndex]?.sets[rowMenu.setIndex] &&
+        (() => {
+          const exercise = draft.exercises[rowMenu.exerciseIndex]
+          const set = exercise.sets[rowMenu.setIndex]
+          const menuSetLabel =
+            set.tag === 'warmup' ? `warm-up set ${rowMenu.setIndex + 1}` : `set ${rowMenu.setIndex + 1}`
+          return (
+            <SetRowMenu
+              x={rowMenu.x}
+              y={rowMenu.y}
+              setLabel={`${menuSetLabel} of ${exercise.name}`}
+              hasNote={setHasNote(set)}
+              isWarmup={set.tag === 'warmup'}
+              onNote={() => {
+                setNoteCaptureFor({
+                  exerciseIndex: rowMenu.exerciseIndex,
+                  setIndex: rowMenu.setIndex,
+                })
+                setRowMenu(null)
+              }}
+              onTagWarmup={() => {
+                // The same TAG_SET the circle hold dispatches — a second door
+                // to the same action; the gesture hint retires with either.
+                if (set.tag !== 'warmup') dismissWarmupHint()
+                dispatch({
+                  type: 'TAG_SET',
+                  exerciseIndex: rowMenu.exerciseIndex,
+                  setIndex: rowMenu.setIndex,
+                  tag: set.tag === 'warmup' ? 'working' : 'warmup',
+                })
+                setRowMenu(null)
+              }}
+              onRemove={() => {
+                handleRemoveSet(rowMenu.exerciseIndex, rowMenu.setIndex)
+                setRowMenu(null)
+              }}
+              onClose={() => setRowMenu(null)}
+            />
+          )
+        })()}
+
+      {/* The notes-v2 capture sheet (non-modal — the session stays live).
+          Set scope writes the draft's set note + mints its clientKey (the
+          post-save create's idempotency handle); exercise/workout scopes
+          route into the existing #211 note tiers this sheet absorbs
+          (appended, never clobbering words already there). */}
+      {noteCaptureFor &&
+        draft.exercises[noteCaptureFor.exerciseIndex]?.sets[noteCaptureFor.setIndex] &&
+        (() => {
+          const exercise = draft.exercises[noteCaptureFor.exerciseIndex]
+          const set = exercise.sets[noteCaptureFor.setIndex]
+          const handleCaptureSave = (scope: NoteScope, body: string) => {
+            if (scope === 'set') {
+              dispatch({
+                type: 'SET_SET_NOTE',
+                exerciseIndex: noteCaptureFor.exerciseIndex,
+                setIndex: noteCaptureFor.setIndex,
+                note: body,
+                clientKey: set.noteClientKey ?? crypto.randomUUID(),
+              })
+              setNotePopSetId(set.id) // the receipt: the dot pops in
+            } else if (scope === 'exercise') {
+              const existing = exercise.notes.trim()
+              dispatch({
+                type: 'SET_EXERCISE_NOTES',
+                exerciseIndex: noteCaptureFor.exerciseIndex,
+                value: existing === '' ? body : `${existing}\n${body}`,
+              })
+            } else {
+              const existing = draft.notes.trim()
+              dispatch({
+                type: 'SET_WORKOUT_NOTES',
+                value: existing === '' ? body : `${existing}\n${body}`,
+              })
+            }
+          }
+          return (
+            <NoteSheet
+              exerciseName={exercise.name}
+              setNumber={noteCaptureFor.setIndex + 1}
+              snapshot={setSnapshotLabel(set, exercise.loggingType, unit)}
+              initialScope="set"
+              initialBody={set.note ?? ''}
+              onSave={handleCaptureSave}
+              onClose={() => setNoteCaptureFor(null)}
             />
           )
         })()}

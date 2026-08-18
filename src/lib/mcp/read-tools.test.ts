@@ -14,6 +14,8 @@ vi.mock('@/lib/wger', () => ({ searchExercises: vi.fn() }))
 vi.mock('@/db/custom-exercises', () => ({ listCustomExercises: vi.fn(async () => []) }))
 vi.mock('@/db/exercise-notes', () => ({ listExerciseNotesFor: vi.fn(async () => []) }))
 import { listExerciseNotesFor } from '@/db/exercise-notes'
+vi.mock('@/db/notes', () => ({ notesForWorkout: vi.fn(async () => []) }))
+import { notesForWorkout } from '@/db/notes'
 vi.mock('@/db/program-events', () => ({
   listProgramEvents: vi.fn(),
   PROGRAM_EVENTS_MAX_LIMIT: 100,
@@ -393,6 +395,72 @@ describe('registerReadTools', () => {
       expect(body.workout.exercises[0]!.identityNote).toEqual({ body: 'Seat pin 4', pinned: true })
     })
 
+    it('rides set-anchored notes onto their sets, in order, and omits notes elsewhere', async () => {
+      // Arrange — sets carry db ids; notesForWorkout returns one exercise-tier
+      // row (already projected into exercise.notes — must NOT duplicate onto a
+      // set) and two set-tier rows on set 1.
+      const tools = setup()
+      mockedDetail.mockResolvedValue({
+        ...detail(),
+        exercises: [
+          {
+            ...detail().exercises[0]!,
+            sets: [
+              { id: 'set1', setNumber: 1, reps: 5, weight: 100 },
+              { id: 'set2', setNumber: 2, reps: null, weight: null },
+            ],
+          },
+        ],
+      } as unknown as Awaited<ReturnType<typeof getWorkoutDetail>>)
+      vi.mocked(notesForWorkout).mockResolvedValueOnce([
+        {
+          id: 'n1',
+          anchorKind: 'workout_exercise',
+          workoutExerciseId: 'we1',
+          setId: null,
+          author: 'user',
+          body: 'grip slipped',
+        },
+        {
+          id: 'n2',
+          anchorKind: 'set',
+          workoutExerciseId: null,
+          setId: 'set1',
+          author: 'user',
+          body: 'left shoulder clicked',
+        },
+        {
+          id: 'n3',
+          anchorKind: 'set',
+          workoutExerciseId: null,
+          setId: 'set1',
+          author: 'coach',
+          body: 'brace harder next time',
+        },
+      ] as unknown as Awaited<ReturnType<typeof notesForWorkout>>)
+
+      // Act
+      const result = await tools.get('get_workout')!({ id: '11111111-1111-4111-8111-111111111111' })
+
+      // Assert — set 1 carries both notes (author + body, reading order); set 2
+      // omits the key entirely (minimal wire shape).
+      expect(vi.mocked(notesForWorkout)).toHaveBeenCalledWith(
+        'user_env',
+        '11111111-1111-4111-8111-111111111111',
+      )
+      const body = payload(result) as {
+        workout: {
+          exercises: { sets: { notes?: { author: string; body: string }[] }[] }[]
+        }
+      }
+      const sets = body.workout.exercises[0]!.sets
+      expect(sets[0]!.notes).toEqual([
+        { author: 'user', body: 'left shoulder clicked' },
+        { author: 'coach', body: 'brace harder next time' },
+      ])
+      expect(sets[1]!.notes).toBeUndefined()
+    })
+
     it('returns weights verbatim when the unit is kg', async () => {
       // Arrange
       const tools = setup()
@@ -626,6 +694,7 @@ describe('registerReadTools', () => {
           { reps: 8, weight: null },
         ],
         note: null,
+        sessionNote: null,
       })
 
       // Act
@@ -658,6 +727,7 @@ describe('registerReadTools', () => {
         performedAt: new Date('2026-05-20T12:00:00.000Z'),
         sets: [{ reps: 5, weight: 95 }],
         note: { body: '**Seat pin 4**', pinned: true },
+        sessionNote: null,
       })
 
       // Act

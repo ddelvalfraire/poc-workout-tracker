@@ -162,9 +162,16 @@ describe('planPlaceholderForSet', () => {
     })
   })
 
-  it('converts the load ghost to the active unit (lb)', () => {
+  it('quantizes a kg-derived load ghost to the lb grid (16.87 kg → 37.5, #226)', () => {
+    const target = [{ repMin: 12, repMax: 12, loadKg: 16.87, restSec: null }]
+    // Raw conversion is 37.2 lb — unloadable; the ghost snaps to 37.5.
+    expect(planPlaceholderForSet(target, 0, 'lb')).toEqual({ reps: '12', weight: '37.5' })
+  })
+
+  it('converts the load ghost to the active unit (lb), on the 2.5 lb grid', () => {
     const targets = [{ repMin: 5, repMax: 5, loadKg: 100, restSec: null }]
-    expect(planPlaceholderForSet(targets, 0, 'lb')).toEqual({ reps: '5', weight: '220.5' })
+    // 220.5 lb raw quantizes to the loadable 220 (#226).
+    expect(planPlaceholderForSet(targets, 0, 'lb')).toEqual({ reps: '5', weight: '220' })
   })
 
   it('returns {} when there is no plan', () => {
@@ -439,5 +446,40 @@ describe('stepWeightValue', () => {
 
   it('refuses to step non-numeric input', () => {
     expect(stepWeightValue('heavy', undefined, 1, 'kg')).toBeNull()
+  })
+})
+
+describe('cardio ghosts and Prev (slice 1)', () => {
+  it('placeholderForSet ghosts prior duration/distance in the input dialect', () => {
+    const last = {
+      sets: [{ reps: null, weight: null, durationSec: 750, distanceM: 2500 }],
+    }
+    expect(placeholderForSet(last, 0)).toEqual({
+      reps: undefined,
+      weight: undefined,
+      duration: '12:30',
+      distance: '2.5',
+    })
+  })
+
+  it('planPlaceholderForSet ghosts the plan target duration/distance', () => {
+    const targets = [
+      { repMin: null, repMax: null, loadKg: null, restSec: null, durationSec: 1800, distanceM: 5000 },
+    ]
+    expect(planPlaceholderForSet(targets, 0)).toMatchObject({
+      duration: '30:00',
+      distance: '5',
+    })
+  })
+
+  it('planSetGhost passes cardio fields through untouched for every logging type', () => {
+    const ghost = planSetGhost({ duration: '30:00', distance: '5' }, 'bodyweight_reps')
+    expect(ghost).toMatchObject({ duration: '30:00', distance: '5' })
+  })
+
+  it('previousChipLabel prefers the cardio duration over rep×weight fragments', () => {
+    expect(previousChipLabel({ duration: '12:30', distance: '2.5' })).toBe('12:30')
+    // No cardio history → the standing rules are untouched.
+    expect(previousChipLabel({ reps: '8', weight: '60' })).toBe('60×8')
   })
 })

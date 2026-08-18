@@ -1,4 +1,15 @@
-import { kgToDisplay, type WeightUnit } from './units'
+import type { WeightUnit } from './units'
+// Reason strings print loads through the #226 quantizer — a lifter must
+// never read an unloadable number like 66.6 lb in the transparency copy.
+// `loadsMatch` widens the C2 evidence identity across the quantization
+// deploy boundary (raw epsilon OR same display increment).
+import { loadsMatch, quantizeAdjustedLoadKg, quantizeDisplayLoad } from './load-quantize'
+import { kgToDisplay } from './units'
+// Reason lines share the double-progression hold clause with the scheme-copy
+// module (#228) — one voice for "hit N reps, then the weight goes up".
+import { repFillHoldReason } from './scheme-copy'
+import { estimate1RM } from './one-rep-max'
+import type { OvershootPolicy } from './overshoot-policy'
 import type { DerivedSet } from './progression'
 import type { DietPhase } from './program-input'
 
@@ -171,12 +182,33 @@ export interface AutoregAdjustment {
    *  proposal can offer the backoff as the confirmable action (decline =
    *  hold). Absent everywhere else. */
   heldBackoffKg?: number
+  /** The landing load a decrement was actually APPLIED at (kg) — stamped by
+   *  the derive layer AFTER per-set quantization (`stampAppliedLoad`: the
+   *  adjusted working set of the EVIDENCE bucket — the set whose scheme load
+   *  matches `evidence.loadKg` — falling back to the heaviest adjusted set
+   *  only when no set matches). `autoregReason`'s "Drop to X" prints THIS
+   *  when present, so the reason and the prescription always speak from one
+   *  number; absent (raw engine verdicts, invariant checks) the reason falls
+   *  back to recomputing from the evidence load. */
+  appliedLoadKg?: number
   /** Effort-gate annotation (lib/effort-gate.ts, RPE plan slice 3):
    *  'overshoot' — reps hit but the top set ran a full RPE point hot, the
    *  load holds instead of stepping; 'trend-veto' — H2's decrement was
    *  vetoed by a rising credited-e1RM trend (bad day, not a stall). Same
    *  additive-annotation contract as phaseContext. */
   effortContext?: 'overshoot' | 'trend-veto'
+  /** Overshoot recognition (#227): the latest session held a completed
+   *  working set that beat its SNAPSHOT prescription's e1RM at a different
+   *  load/rep mix (lighter-but-more-reps). Display-side ONLY — a miss-shaped
+   *  hold carrying this renders recognition ("Beat the target …"), never a
+   *  "goal not met" line. Never changes a load (`applyAutoregToSets` ignores
+   *  it); same additive-annotation contract as phaseContext/effortContext. */
+  overshoot?: {
+    reps: number
+    weightKg: number
+    targetReps: number
+    targetLoadKg: number
+  }
   /** Present ONLY on range-mode (double progression) verdicts. Totals sum
    *  at-load working reps over the load-comparable prior session
    *  (`prevTotalReps` null when no comparable prior session exists). */
@@ -269,26 +301,45 @@ function isWorking(setType?: string): boolean {
   return setType === undefined || setType === 'working'
 }
 
+/** ε-or-increment load identity (see load-quantize's `loadsMatch`): the raw
+ *  epsilon, widened — when the active unit is known — to "same display
+ *  increment", so pre-quantization snapshots keep matching their quantized
+ *  re-derivations (#226 transitional bridge). */
+function sameLoad(a: number, b: number, unit?: WeightUnit): boolean {
+  return loadsMatch(a, b, LOAD_EPSILON_KG, unit)
+}
+
 /** Descending ε-deduped load buckets — the C2 evidence key. Values within
- *  epsilon of an already-kept (heavier) bucket merge into it. */
-function bucketLoads(loads: readonly number[]): number[] {
+ *  epsilon (or the unit's increment) of an already-kept (heavier) bucket
+ *  merge into it. */
+function bucketLoads(loads: readonly number[], unit?: WeightUnit): number[] {
   const sorted = [...loads].sort((a, b) => b - a)
   const buckets: number[] = []
   for (const load of sorted) {
-    if (buckets.length === 0 || buckets[buckets.length - 1] - load > LOAD_EPSILON_KG) {
+    if (buckets.length === 0 || !sameLoad(buckets[buckets.length - 1], load, unit)) {
       buckets.push(load)
     }
   }
   return buckets
 }
 
-/** The largest evidence load X with `loadKg ≥ X − ε` — the bucket a derived
- *  set belongs to. Undefined when the set sits below every evidence load
- *  (a genuinely new lighter set carries no evidence — untouched). */
-function evidenceLoadFor(loads: readonly number[], loadKg: number): number | undefined {
+/** The largest evidence load X with `loadKg ≥ X − ε` (or X in the same
+ *  display increment) — the bucket a derived set belongs to. Undefined when
+ *  the set sits below every evidence load (a genuinely new lighter set
+ *  carries no evidence — untouched). */
+function evidenceLoadFor(
+  loads: readonly number[],
+  loadKg: number,
+  unit?: WeightUnit,
+): number | undefined {
   let best: number | undefined
   for (const x of loads) {
-    if (loadKg >= x - LOAD_EPSILON_KG && (best === undefined || x > best)) best = x
+    if (
+      (loadKg >= x - LOAD_EPSILON_KG || sameLoad(loadKg, x, unit)) &&
+      (best === undefined || x > best)
+    ) {
+      best = x
+    }
   }
   return best
 }
@@ -300,13 +351,15 @@ function evidenceLoadFor(loads: readonly number[], loadKg: number): number | und
 export function anchorLoadFor(
   anchors: readonly AutoregAnchor[] | undefined,
   loadKg: number | null,
+  unit?: WeightUnit,
 ): number | undefined {
   if (!anchors) return undefined
   if (loadKg === null) return anchors.find((a) => a.prescribedLoadKg === null)?.anchorKg
   let best: AutoregAnchor | undefined
   for (const a of anchors) {
     if (a.prescribedLoadKg === null) continue
-    if (loadKg < a.prescribedLoadKg - LOAD_EPSILON_KG) continue
+    if (loadKg < a.prescribedLoadKg - LOAD_EPSILON_KG && !sameLoad(loadKg, a.prescribedLoadKg, unit))
+      continue
     if (best === undefined || a.prescribedLoadKg > (best.prescribedLoadKg ?? 0)) best = a
   }
   return best?.anchorKg
@@ -367,6 +420,123 @@ function scorablePairs(session: AutoregSession): ScorablePair[] {
   return workingPairs(session).atLoad
 }
 
+/** Epley inversion: the whole-rep count at `loadKg` equivalent to `e1rmKg`
+ *  (floor — credit never rounds up past what was demonstrated). */
+function equivalentRepsAt(loadKg: number, e1rmKg: number): number {
+  return Math.floor(30 * (e1rmKg / loadKg - 1))
+}
+
+/**
+ * The overshoot-policy credit for ONE actual set against its snapshot plan
+ * (#227): null = no credit, facts stand raw. Crediting rewrites the set to
+ * its goal-equivalent AT the prescribed load so every downstream rule
+ * (bands, floors, range tops, totals, quorum) scores it under the strict
+ * machinery unchanged:
+ * - 'e1rm-equivalent' — a LIGHTER completed set whose e1RM meets the
+ *   prescription's e1RM (repMin × prescribed load, both snapshot facts) is
+ *   credited as its Epley-equivalent reps at the prescribed load. At-load
+ *   sets keep their raw facts: fewer reps at the load IS a lower e1RM.
+ * - 'any-metric' — permissive: reps ≥ target reps (any load), load ≥ target
+ *   load (any reps), or e1RM ≥ target e1RM. A load-met set floor-credits its
+ *   reps; a lighter set credits at the prescribed load with the best of its
+ *   raw reps (when the rep metric hit) / e1RM-equivalent reps.
+ * Crediting can only ever mark a goal MET — it never invents a stall, and
+ * (deliberately) never composes with the outperform rule: the credited
+ * weight is the prescribed load, so a credited set can't propose an
+ * up-anchor or skip a progression step.
+ */
+function creditSet(
+  plan: AutoregPrescribedSet | undefined,
+  set: AutoregActualSet,
+  policy: OvershootPolicy,
+): AutoregActualSet | null {
+  if (!plan || !isWorking(set.setType) || !set.completed) return null
+  if (set.reps === null || set.weightKg === null || set.weightKg <= 0) return null
+  if (plan.loadKg === null || plan.loadKg <= 0 || plan.repMin === null) return null
+  const loadMet = set.weightKg >= plan.loadKg - LOAD_EPSILON_KG
+  const repsMet = set.reps >= plan.repMin
+  const performedE1rm = estimate1RM(set.reps, set.weightKg)
+  const targetE1rm = estimate1RM(plan.repMin, plan.loadKg)
+  const e1rmReps =
+    performedE1rm !== null && targetE1rm !== null && performedE1rm >= targetE1rm
+      ? equivalentRepsAt(plan.loadKg, performedE1rm)
+      : null
+  if (policy === 'e1rm-equivalent') {
+    if (loadMet || e1rmReps === null) return null
+    return { ...set, reps: Math.max(e1rmReps, plan.repMin), weightKg: plan.loadKg }
+  }
+  // any-metric.
+  if (loadMet && repsMet) return null // a clean strict pass needs no credit
+  if (loadMet) return { ...set, reps: plan.repMin } // load metric met — floor-credit
+  if (!repsMet && e1rmReps === null) return null // lighter AND no metric met
+  return {
+    ...set,
+    reps: Math.max(repsMet ? set.reps : 0, e1rmReps ?? 0, plan.repMin),
+    weightKg: plan.loadKg,
+  }
+}
+
+/**
+ * The overshoot-policy view of the sessions (#227): under 'strict-load' the
+ * input passes through untouched (byte-identical scoring — the default for
+ * every load-anchored scheme); under a crediting policy each actual working
+ * set that beat its snapshot prescription on the policy's metric is
+ * rewritten to its goal-equivalent at the prescribed load (see `creditSet`)
+ * BEFORE any rule runs. Evaluation stays snapshot-against-actual — the plan
+ * side is never touched, and un-credited sets keep their raw facts.
+ */
+function creditSessions(
+  sessions: readonly AutoregSession[],
+  policy: OvershootPolicy,
+): readonly AutoregSession[] {
+  if (policy === 'strict-load') return sessions
+  return sessions.map((session) => {
+    const plans = bySetNumber(session.prescribed.filter((s) => isWorking(s.setType)))
+    let changed = false
+    const actual = session.actual.map((set) => {
+      const credited = creditSet(plans.get(set.setNumber), set, policy)
+      if (credited === null) return set
+      changed = true
+      return credited
+    })
+    return changed ? { ...session, actual } : session
+  })
+}
+
+/**
+ * The display-side overshoot fact of ONE session (#227's reported bug):
+ * the completed working set — heaviest prescribed load first — that FAILED
+ * the strict at-load band yet beat its snapshot prescription's e1RM
+ * (estimate1RM(repMin, loadKg)). Null when no set overshot. Policy-blind on
+ * purpose: whatever the scoring policy says about progression, an
+ * e1RM-exceeding performance must never RENDER as "goal not met" — verdicts
+ * carry this annotation so `autoregReason` can lead with recognition.
+ */
+export function sessionOvershoot(
+  session: AutoregSession,
+): NonNullable<AutoregAdjustment['overshoot']> | null {
+  const actualByNumber = bySetNumber(session.actual.filter((set) => isWorking(set.setType)))
+  let best: NonNullable<AutoregAdjustment['overshoot']> | null = null
+  for (const plan of bySetNumber(session.prescribed.filter((s) => isWorking(s.setType))).values()) {
+    if (plan.loadKg === null || plan.loadKg <= 0 || plan.repMin === null) continue
+    const done = actualByNumber.get(plan.setNumber)
+    if (!done?.completed || done.reps === null || done.weightKg === null) continue
+    if (done.weightKg <= 0 || done.weightKg >= plan.loadKg - LOAD_EPSILON_KG) continue
+    const performedE1rm = estimate1RM(done.reps, done.weightKg)
+    const targetE1rm = estimate1RM(plan.repMin, plan.loadKg)
+    if (performedE1rm === null || targetE1rm === null || performedE1rm < targetE1rm) continue
+    if (best === null || plan.loadKg > best.targetLoadKg) {
+      best = {
+        reps: done.reps,
+        weightKg: done.weightKg,
+        targetReps: plan.repMin,
+        targetLoadKg: plan.loadKg,
+      }
+    }
+  }
+  return best
+}
+
 /** Working sets the snapshot actually prescribed something for — the quorum
  *  denominator (M3). Pre-snapshot rows (null load AND null floor) are not
  *  snapshots and never count. */
@@ -419,10 +589,13 @@ interface OutperformEvidence {
  *  first: pairs within ε of a bucket's prescribed load share it, and the
  *  performed load NEAREST the prescription wins the bucket — with no per-set
  *  identity across sessions, the least-surprising anchor is the honest one. */
-function anchorBuckets(pairs: readonly ScorablePair[]): AutoregAnchor[] {
-  const loads = bucketLoads(pairs.map((p) => p.loadKg))
+function anchorBuckets(pairs: readonly ScorablePair[], unit?: WeightUnit): AutoregAnchor[] {
+  const loads = bucketLoads(
+    pairs.map((p) => p.loadKg),
+    unit,
+  )
   return loads.map((prescribedLoadKg) => {
-    const members = pairs.filter((p) => Math.abs(p.loadKg - prescribedLoadKg) <= LOAD_EPSILON_KG)
+    const members = pairs.filter((p) => sameLoad(p.loadKg, prescribedLoadKg, unit))
     const anchorKg = members.reduce((best, p) =>
       Math.abs(p.weightKg - prescribedLoadKg) < Math.abs(best.weightKg - prescribedLoadKg)
         ? p
@@ -438,13 +611,16 @@ function anchorBuckets(pairs: readonly ScorablePair[]): AutoregAnchor[] {
  *  design — one set at plan (or one ambiguous snapshot) means the session
  *  does not testify to a deliberate jump, and outperforming load while
  *  missing reps is NOT an outperform. Null = no evidence. */
-function outperformAnchors(pairs: readonly ScorablePair[]): OutperformEvidence | null {
+function outperformAnchors(
+  pairs: readonly ScorablePair[],
+  unit?: WeightUnit,
+): OutperformEvidence | null {
   if (pairs.length === 0) return null
   for (const pair of pairs) {
     if (pair.loadKg <= 0 || pair.repMin === null || pair.reps < pair.repMin) return null
     if (pair.weightKg < pair.loadKg * (1 + OUTPERFORM_FRACTION) - LOAD_EPSILON_KG) return null
   }
-  const buckets = anchorBuckets(pairs)
+  const buckets = anchorBuckets(pairs, unit)
   const heaviest = pairs.reduce((a, b) => (b.loadKg > a.loadKg ? b : a))
   return {
     buckets,
@@ -461,6 +637,7 @@ function outperformAnchors(pairs: readonly ScorablePair[]): OutperformEvidence |
 function confirmedOutperform(
   latest: OutperformEvidence | null,
   window: readonly AutoregSession[],
+  unit?: WeightUnit,
 ): OutperformEvidence | null {
   if (!latest) return null
   for (let i = 1; i < OUTPERFORM_SESSIONS_REQUIRED; i++) {
@@ -468,7 +645,7 @@ function confirmedOutperform(
     if (!previous) return null
     const previousPairs = scorablePairs(previous)
     if (!meetsQuorum(previousPairs.length, previous)) return null
-    if (outperformAnchors(previousPairs) === null) return null
+    if (outperformAnchors(previousPairs, unit) === null) return null
   }
   return latest
 }
@@ -562,13 +739,13 @@ function topPrescribedLoad(session: AutoregSession): number | null {
 
 /** Every non-warmup prescribed load of the session, ε-deduped descending —
  *  the load-keyed cap basis for `applyAutoregToSets` (C2). */
-function stalledLoads(session: AutoregSession): number[] {
+function stalledLoads(session: AutoregSession, unit?: WeightUnit): number[] {
   const loads: number[] = []
   for (const plan of bySetNumber(session.prescribed).values()) {
     if (plan.setType === 'warmup' || plan.loadKg === null) continue
     loads.push(plan.loadKg)
   }
-  return bucketLoads(loads)
+  return bucketLoads(loads, unit)
 }
 
 /** Builds the `'anchor'` verdict from outperform / null-load evidence. Null
@@ -581,6 +758,7 @@ function anchorVerdict(
   nullAnchor: { count: number; anchorKg: number } | null,
   scorableSets: number,
   range?: AutoregAdjustment['range'],
+  unit?: WeightUnit,
 ): AutoregAdjustment | null {
   const anchors: AutoregAnchor[] = [
     ...(nullAnchor ? [{ prescribedLoadKg: null, anchorKg: nullAnchor.anchorKg }] : []),
@@ -594,7 +772,7 @@ function anchorVerdict(
     action: 'anchor',
     deltaKg: anchor.fromLoadKg === null ? 0 : anchor.toLoadKg - anchor.fromLoadKg,
     suggestEarlyDeload: false,
-    stalledLoads: stalledLoads(latest),
+    stalledLoads: stalledLoads(latest, unit),
     anchorLoads: anchors,
     anchor,
     evidence: {
@@ -627,7 +805,10 @@ function followDownPairs(session: AutoregSession): ScorablePair[] | null {
  *  matching the plan to reality. Null when the streak isn't there: one or
  *  two lighter sessions are their own streak class (not a stall, not
  *  no-evidence), just not yet a proposal. */
-function followDownVerdict(window: readonly AutoregSession[]): AutoregAdjustment | null {
+function followDownVerdict(
+  window: readonly AutoregSession[],
+  unit?: WeightUnit,
+): AutoregAdjustment | null {
   if (window.length < STALLS_BEFORE_DECREMENT) return null
   const streak: ScorablePair[][] = []
   for (const session of window.slice(0, STALLS_BEFORE_DECREMENT)) {
@@ -635,22 +816,26 @@ function followDownVerdict(window: readonly AutoregSession[]): AutoregAdjustment
     if (pairs === null) return null
     streak.push(pairs)
   }
-  const loadsOf = (pairs: ScorablePair[]) => bucketLoads(pairs.map((p) => p.loadKg))
+  const loadsOf = (pairs: ScorablePair[]) =>
+    bucketLoads(
+      pairs.map((p) => p.loadKg),
+      unit,
+    )
   const reference = loadsOf(streak[0])
   for (const pairs of streak.slice(1)) {
     const loads = loadsOf(pairs)
     if (loads.length !== reference.length) return null
-    if (loads.some((load, i) => Math.abs(load - reference[i]) > LOAD_EPSILON_KG)) return null
+    if (loads.some((load, i) => !sameLoad(load, reference[i], unit))) return null
   }
   const latestPairs = streak[0]
-  const buckets = anchorBuckets(latestPairs)
+  const buckets = anchorBuckets(latestPairs, unit)
   const top = buckets[0]
   const heaviest = latestPairs.reduce((a, b) => (b.loadKg > a.loadKg ? b : a))
   return {
     action: 'anchor',
     deltaKg: top.anchorKg - (top.prescribedLoadKg ?? 0),
     suggestEarlyDeload: false,
-    stalledLoads: stalledLoads(window[0]),
+    stalledLoads: stalledLoads(window[0], unit),
     anchorLoads: buckets,
     anchor: { fromLoadKg: top.prescribedLoadKg, toLoadKg: top.anchorKg },
     evidence: {
@@ -684,11 +869,11 @@ function anchorRider(
  * evidence; the two-session up-anchor confirmation (M2) is the CALLER's to
  * enforce across sessions.
  */
-export function sessionAnchorLoads(session: AutoregSession): AutoregAnchor[] {
+export function sessionAnchorLoads(session: AutoregSession, unit?: WeightUnit): AutoregAnchor[] {
   const nullAnchor = nullLoadAnchor(session)
   return [
     ...(nullAnchor ? [{ prescribedLoadKg: null, anchorKg: nullAnchor.anchorKg }] : []),
-    ...(outperformAnchors(scorablePairs(session))?.buckets ?? []),
+    ...(outperformAnchors(scorablePairs(session), unit)?.buckets ?? []),
   ]
 }
 
@@ -712,18 +897,23 @@ export function autoregulate(
   incrementKg: number,
   sessions: readonly AutoregSession[],
   stallPolicy: AutoregStallPolicy,
+  unit?: WeightUnit,
+  overshootPolicy: OvershootPolicy = 'strict-load',
 ): AutoregAdjustment | null {
-  const window = newestFirst(sessions).slice(0, AUTOREG_SESSION_WINDOW)
+  const ordered = newestFirst(sessions)
+  const window = creditSessions(ordered, overshootPolicy).slice(0, AUTOREG_SESSION_WINDOW)
   const latest = window[0]
   if (!latest) return null
+  // Display-side recognition rides RAW facts — a credited view can't overshoot.
+  const overshoot = ordered[0] ? sessionOvershoot(ordered[0]) : null
   const nullAnchor = nullLoadAnchor(latest)
   const pairs = scorablePairs(latest)
 
   if (pairs.length === 0) {
-    const down = followDownVerdict(window)
+    const down = followDownVerdict(window, unit)
     if (down) return down
     if (nullAnchor && !meetsQuorum(nullAnchor.count, latest)) return null
-    return anchorVerdict(latest, null, nullAnchor, 0)
+    return anchorVerdict(latest, null, nullAnchor, 0, undefined, unit)
   }
 
   // The stall verdict carries its own policy-shaped quorum (sessionStall);
@@ -735,9 +925,9 @@ export function autoregulate(
   const latestStall = sessionStall(latest, stallPolicy)
   if (!latestStall) {
     if (!meetsQuorum(pairs.length + (nullAnchor?.count ?? 0), latest)) return null
-    const outperform = confirmedOutperform(outperformAnchors(pairs), window)
-    if (outperform) return anchorVerdict(latest, outperform, nullAnchor, pairs.length)
-    return anchorVerdict(latest, null, nullAnchor, pairs.length)
+    const outperform = confirmedOutperform(outperformAnchors(pairs, unit), window, unit)
+    if (outperform) return anchorVerdict(latest, outperform, nullAnchor, pairs.length, undefined, unit)
+    return anchorVerdict(latest, null, nullAnchor, pairs.length, undefined, unit)
   }
 
   // H2: the streak only deepens while the prescribed top load is unchanged —
@@ -748,23 +938,34 @@ export function autoregulate(
   for (const session of window.slice(1)) {
     if (sessionStall(session, stallPolicy) === null) break
     const top = topPrescribedLoad(session)
-    if (latestTop === null || top === null || Math.abs(top - latestTop) > LOAD_EPSILON_KG) break
+    if (latestTop === null || top === null || !sameLoad(top, latestTop, unit)) break
     consecutive += 1
   }
 
   const shared = {
-    stalledLoads: stalledLoads(latest),
+    stalledLoads: stalledLoads(latest, unit),
     ...anchorRider(nullAnchor),
     evidence: latestStall,
   }
+  // Recognition rides EVERY verdict shape (#227): a repeat that would read
+  // as a miss leads with the beat; a decrement keeps its (load-changing)
+  // stall story in the reason line but still CARRIES the annotation, so an
+  // e1RM-beating session never renders as pure "goal not met".
   return consecutive >= STALLS_BEFORE_DECREMENT
     ? {
         action: 'decrement' as const,
         deltaKg: -backoffKg(latestStall.loadKg, incrementKg),
         suggestEarlyDeload: true,
         ...shared,
+        ...(overshoot ? { overshoot } : {}),
       }
-    : { action: 'repeat' as const, deltaKg: 0, suggestEarlyDeload: false, ...shared }
+    : {
+        action: 'repeat' as const,
+        deltaKg: 0,
+        suggestEarlyDeload: false,
+        ...shared,
+        ...(overshoot ? { overshoot } : {}),
+      }
 }
 
 /**
@@ -778,6 +979,7 @@ export function autoregulate(
 function comparableTotals(
   current: AutoregSession,
   previous: AutoregSession,
+  unit?: WeightUnit,
 ): { totalReps: number; prevTotalReps: number } | null {
   const currentPairs = scorablePairs(current)
   const previousPairs = scorablePairs(previous)
@@ -785,7 +987,7 @@ function comparableTotals(
   const currentLoads = currentPairs.map((p) => p.loadKg).sort((a, b) => b - a)
   const previousLoads = previousPairs.map((p) => p.loadKg).sort((a, b) => b - a)
   for (let i = 0; i < currentLoads.length; i++) {
-    if (Math.abs(currentLoads[i] - previousLoads[i]) > LOAD_EPSILON_KG) return null
+    if (!sameLoad(currentLoads[i], previousLoads[i], unit)) return null
   }
   return {
     totalReps: currentPairs.reduce((sum, p) => sum + p.reps, 0),
@@ -802,6 +1004,7 @@ function comparableTotals(
 function classifyRange(
   pairs: readonly ScorablePair[],
   rows: readonly AutoregRangeRow[],
+  unit?: WeightUnit,
 ): {
   filled: boolean
   missedSets: number
@@ -834,11 +1037,19 @@ function classifyRange(
   // Heterogeneous / mixed (H3): bucket rows by load, govern each pair by the
   // SMALLEST row bucket at/above its prescribed load (scheme loads only ever
   // drift up from the held snapshot loads).
-  const rowBucketLoads = bucketLoads(loadedRows.map((r) => r.loadKg))
+  const rowBucketLoads = bucketLoads(
+    loadedRows.map((r) => r.loadKg),
+    unit,
+  )
   const governing = (loadKg: number): number | undefined => {
     let best: number | undefined
     for (const x of rowBucketLoads) {
-      if (x >= loadKg - LOAD_EPSILON_KG && (best === undefined || x < best)) best = x
+      if (
+        (x >= loadKg - LOAD_EPSILON_KG || sameLoad(x, loadKg, unit)) &&
+        (best === undefined || x < best)
+      ) {
+        best = x
+      }
     }
     return best
   }
@@ -849,7 +1060,7 @@ function classifyRange(
   let topForHeaviest = 0
   for (const bucketLoad of rowBucketLoads) {
     const bucketTops = loadedRows
-      .filter((r) => Math.abs(r.loadKg - bucketLoad) <= LOAD_EPSILON_KG && r.repMax !== null)
+      .filter((r) => sameLoad(r.loadKg, bucketLoad, unit) && r.repMax !== null)
       .map((r) => r.repMax as number)
       .sort((a, b) => b - a)
     const bucketPairs = pairs
@@ -923,22 +1134,27 @@ export function autoregulateRange(
   stepKg: number,
   sessions: readonly AutoregSession[],
   rangeRows: readonly AutoregRangeRow[],
+  unit?: WeightUnit,
+  overshootPolicy: OvershootPolicy = 'strict-load',
 ): AutoregAdjustment | null {
-  const window = newestFirst(sessions).slice(0, AUTOREG_RANGE_SESSION_WINDOW)
+  const ordered = newestFirst(sessions)
+  const window = creditSessions(ordered, overshootPolicy).slice(0, AUTOREG_RANGE_SESSION_WINDOW)
   const latest = window[0]
   if (!latest) return null
+  // Display-side recognition rides RAW facts — a credited view can't overshoot.
+  const overshoot = ordered[0] ? sessionOvershoot(ordered[0]) : null
   const nullAnchor = nullLoadAnchor(latest)
   const pairs = scorablePairs(latest)
   if (pairs.length === 0) {
-    const down = followDownVerdict(window)
+    const down = followDownVerdict(window, unit)
     if (down) return down
     if (nullAnchor && !meetsQuorum(nullAnchor.count, latest)) return null
-    return anchorVerdict(latest, null, nullAnchor, 0)
+    return anchorVerdict(latest, null, nullAnchor, 0, undefined, unit)
   }
   if (!meetsQuorum(pairs.length + (nullAnchor?.count ?? 0), latest)) return null
 
   const heaviest = pairs.reduce((a, b) => (b.loadKg > a.loadKg ? b : a))
-  const classified = classifyRange(pairs, rangeRows)
+  const classified = classifyRange(pairs, rangeRows, unit)
   const evidence = {
     missedSets: classified.missedSets,
     scorableSets: pairs.length,
@@ -948,21 +1164,21 @@ export function autoregulateRange(
 
   let stalls = 0
   for (let i = 0; i + 1 < window.length; i++) {
-    const totals = comparableTotals(window[i], window[i + 1])
+    const totals = comparableTotals(window[i], window[i + 1], unit)
     if (totals === null || totals.totalReps > totals.prevTotalReps) break
     stalls += 1
   }
 
-  const latestTotals = window[1] ? comparableTotals(latest, window[1]) : null
+  const latestTotals = window[1] ? comparableTotals(latest, window[1], unit) : null
   const latestTotal = pairs.reduce((sum, p) => sum + p.reps, 0)
   const range = {
     totalReps: latestTotals?.totalReps ?? latestTotal,
     prevTotalReps: latestTotals?.prevTotalReps ?? null,
     stalls,
   }
-  const outperform = confirmedOutperform(outperformAnchors(pairs), window)
+  const outperform = confirmedOutperform(outperformAnchors(pairs, unit), window, unit)
   const shared = {
-    stalledLoads: stalledLoads(latest),
+    stalledLoads: stalledLoads(latest, unit),
     ...anchorRider(nullAnchor),
     evidence,
     range,
@@ -989,7 +1205,7 @@ export function autoregulateRange(
         : {}),
     }
   }
-  if (outperform) return anchorVerdict(latest, outperform, nullAnchor, pairs.length, range)
+  if (outperform) return anchorVerdict(latest, outperform, nullAnchor, pairs.length, range, unit)
   if (stalls >= STALLS_BEFORE_DECREMENT) {
     // M1: a flat streak parked within one rep of the fill target is the
     // model densifying, not failing — HOLD; nobody cuts 10% off 35/36 reps.
@@ -1000,10 +1216,21 @@ export function autoregulateRange(
         deltaKg: -backoffKg(evidence.loadKg, stepKg),
         suggestEarlyDeload: true,
         ...shared,
+        // Recognition rides decrements too (#227) — same contract as fixed
+        // mode: the reason keeps its stall story, the annotation carries the
+        // beat so it never renders as pure "goal not met".
+        ...(overshoot ? { overshoot } : {}),
       }
     }
   }
-  return { action: 'repeat', deltaKg: 0, suggestEarlyDeload: false, ...shared }
+  return {
+    action: 'repeat',
+    deltaKg: 0,
+    suggestEarlyDeload: false,
+    ...shared,
+    // Recognition on holds (#227) — same contract as fixed mode.
+    ...(overshoot ? { overshoot } : {}),
+  }
 }
 
 /**
@@ -1015,12 +1242,15 @@ export function autoregulateRange(
  * (rpe-target self-corrects through the e1RM). Quorum-gated (M3); sessions
  * defensively re-sorted newest-first (H6).
  */
-export function autoregulateAnchor(sessions: readonly AutoregSession[]): AutoregAdjustment | null {
+export function autoregulateAnchor(
+  sessions: readonly AutoregSession[],
+  unit?: WeightUnit,
+): AutoregAdjustment | null {
   const latest = newestFirst(sessions)[0]
   if (!latest) return null
   const nullAnchor = nullLoadAnchor(latest)
   if (nullAnchor && !meetsQuorum(nullAnchor.count, latest)) return null
-  return anchorVerdict(latest, null, nullAnchor, 0)
+  return anchorVerdict(latest, null, nullAnchor, 0, undefined, unit)
 }
 
 /**
@@ -1039,8 +1269,15 @@ export function autoregulateAnchor(sessions: readonly AutoregSession[]): Autoreg
 export function autoregulateEarlyDeload(
   sessions: readonly AutoregSession[],
   stallPolicy: AutoregStallPolicy,
+  overshootPolicy: OvershootPolicy = 'strict-load',
 ): AutoregAdjustment | null {
-  const window = newestFirst(sessions).slice(0, AUTOREG_SESSION_WINDOW)
+  // Crediting can SILENCE the advisory flag (a policy-met session is no
+  // stall) but the mode's contract holds under every policy: 'flag' only,
+  // deltaKg 0 — a credited overshoot never touches the scheme's TM math.
+  const window = creditSessions(newestFirst(sessions), overshootPolicy).slice(
+    0,
+    AUTOREG_SESSION_WINDOW,
+  )
   if (window.length < STALLS_BEFORE_DECREMENT) return null
   const stallEvidence = window
     .slice(0, STALLS_BEFORE_DECREMENT)
@@ -1119,6 +1356,7 @@ export function applyDietPhaseToAdjustment(
 export function applyAutoregToSets(
   sets: readonly DerivedSet[],
   adjustment: AutoregAdjustment,
+  unit?: WeightUnit,
 ): DerivedSet[] {
   if (adjustment.action === 'flag') return [...sets]
   const fraction =
@@ -1127,7 +1365,7 @@ export function applyAutoregToSets(
       : 1
   return sets.map((set) => {
     if (set.setType === 'warmup' || set.derivedFrom !== 'scheme') return set
-    const anchorKg = anchorLoadFor(adjustment.anchorLoads, set.loadKg)
+    const anchorKg = anchorLoadFor(adjustment.anchorLoads, set.loadKg, unit)
     if (anchorKg !== undefined) {
       // Anchored: the bucket load IS the prescription — exactly, up or down —
       // and the ONE path allowed to stamp a load onto a load-less scheme set.
@@ -1136,7 +1374,7 @@ export function applyAutoregToSets(
       const stepsFromAnchor =
         adjustment.action === 'step' &&
         set.loadKg !== null &&
-        evidenceLoadFor(adjustment.stalledLoads, set.loadKg) !== undefined
+        evidenceLoadFor(adjustment.stalledLoads, set.loadKg, unit) !== undefined
       return {
         ...set,
         loadKg: stepsFromAnchor ? anchorKg + adjustment.deltaKg : anchorKg,
@@ -1149,7 +1387,7 @@ export function applyAutoregToSets(
     // carry no evidence and stay exactly as the scheme derived them.
     if (adjustment.action === 'anchor') return set
     if (set.loadKg === null) return set
-    const stalledLoadKg = evidenceLoadFor(adjustment.stalledLoads, set.loadKg)
+    const stalledLoadKg = evidenceLoadFor(adjustment.stalledLoads, set.loadKg, unit)
     if (stalledLoadKg === undefined) return set
     // Decrement scales each cap proportionally (the evidence set's back-off
     // fraction); a step adds the absolute increment, like the scheme would.
@@ -1167,73 +1405,146 @@ export function applyAutoregToSets(
 }
 
 /**
+ * Stamps a decrement verdict with the landing load the application ACTUALLY
+ * produced, so `autoregReason`'s "Drop to X" and the prescription can never
+ * diverge. The reason's evidence names the heaviest MISSED load, so X must
+ * be the adjusted landing load of that EVIDENCE bucket — the set whose
+ * pre-adjustment scheme load matches `evidence.loadKg` (ε-or-increment
+ * identity, same `loadsMatch` tolerance as scoring). In a multi-load session
+ * the heaviest ADJUSTED set can belong to a PASSING bucket (top 100 kg held,
+ * back-off 80 kg stalling → "Drop to 91.25 — stalled at 80" is not a drop);
+ * the fallback to the heaviest adjusted working load fires only when no set
+ * matches the evidence bucket (mid-cycle edits can orphan it). Verdict
+ * unchanged when nothing was adjusted. Callers pass the sets AFTER per-set
+ * quantization (`quantizeAdjustedLoadKg`) so the stamp is the number that
+ * actually lands on the plan.
+ */
+export function stampAppliedLoad(
+  adjustment: AutoregAdjustment,
+  sets: readonly DerivedSet[],
+  unit?: WeightUnit,
+): AutoregAdjustment {
+  let evidenceTop: number | null = null
+  let top: number | null = null
+  for (const set of sets) {
+    if (set.setType === 'warmup' || set.derivedFrom !== 'autoreg' || set.loadKg === null) continue
+    if (top === null || set.loadKg > top) top = set.loadKg
+    if (set.schemeLoadKg != null && sameLoad(set.schemeLoadKg, adjustment.evidence.loadKg, unit)) {
+      if (evidenceTop === null || set.loadKg > evidenceTop) evidenceTop = set.loadKg
+    }
+  }
+  const applied = evidenceTop ?? top
+  return applied === null ? adjustment : { ...adjustment, appliedLoadKg: applied }
+}
+
+/**
  * The lifter-facing reason line — every adjustment ships one (the PRD's
  * transparency contract). Display unit applied here, not in the engine.
- *   Fixed:  "Missed 8 reps on 2 of 3 sets at 100 kg — repeating the load"
- *           "Third straight stall at 100 kg — backing off 10 kg (~10%)"
- *   Range:  "Range filled at 100 kg last session — stepping to 102.5 kg"
- *           "Range not filled at 100 kg — adding reps before the load steps"
- *           "No new reps at 100 kg (24 vs 24) — holding the load"
- *           "No new reps at 100 kg for 3 straight sessions — backing off ..."
- *   Anchor: "Did 120 kg vs 80 kg planned — anchoring at 120 kg"
- *           "Worked at ~90 kg vs the planned 100 kg for 3 sessions —
- *            matching the plan to reality" (follow-down, H1)
- *           "Last session: 120 kg — anchoring"
- *   Flag:   "Third straight stall at 100 kg — training max likely set too
- *            high" (M4 — 5/3/1's failed-cycle rule)
+ * Voice bar (#228): imperative, what-to-do-and-why, the lifter's actual
+ * quantized numbers, zero engine vocabulary ("range", "load steps",
+ * "anchor", "quorum").
+ *   Fixed:  "Stay at 100 kg — get 8 reps on all 3 sets (2 came up short)"
+ *           "Drop to 90 kg — stalled at 100 kg 3 sessions straight (~10% off)"
+ *   Range:  "Move up to 102.5 kg — you hit the top reps on every set at 100 kg"
+ *           "Stay at 100 kg — hit 12 reps on every set, then the weight goes up"
+ *           "Stay at 100 kg — no new reps yet (24 vs 24); add reps and the
+ *            weight goes up"
+ *           "Drop to 90 kg — no new reps at 100 kg for 3 straight sessions ..."
+ *   Anchor: "Work at 120 kg — you lifted it over the planned 100 kg; the plan
+ *            follows you"
+ *           "Work at 90 kg — that's where you worked for 3 straight sessions,
+ *            not the planned 100 kg" (follow-down, H1)
+ *           "Start at 120 kg — what you lifted last session"
+ *   Flag:   "Lower the training max — 3 straight stalls at 100 kg say it's
+ *            set too high" (M4 — 5/3/1's failed-cycle rule)
  * An outperformed fill's step line speaks from the PERFORMED load (the
- * anchor), matching where `applyAutoregToSets` actually lands the step.
+ * anchor bucket), matching where `applyAutoregToSets` actually lands the step.
  */
 export function autoregReason(adjustment: AutoregAdjustment, unit: WeightUnit): string {
-  const load = `${kgToDisplay(adjustment.evidence.loadKg, unit)} ${unit}`
+  const load = `${quantizeDisplayLoad(adjustment.evidence.loadKg, unit)} ${unit}`
+  // A decrement's landing load: the derive layer stamps the APPLIED per-set
+  // result (`appliedLoadKg`) so "Drop to X" always names the prescription
+  // that actually landed. The fallback (raw engine verdicts) recomputes with
+  // the SAME anti-fixed-point quantization the application path uses (#226),
+  // so a light-load ~10% backoff can never claim the stalled load itself.
+  const droppedKg = () =>
+    adjustment.appliedLoadKg ??
+    quantizeAdjustedLoadKg(
+      adjustment.evidence.loadKg + adjustment.deltaKg,
+      adjustment.evidence.loadKg,
+      unit,
+    )
+  const droppedTo = () => `${kgToDisplay(droppedKg(), unit)} ${unit}`
+  // Floor-pinned decrement (#228): the one-increment floor made the cut a
+  // no-op — the applied load quantizes back onto the evidence load. "Drop to
+  // X — stalled at X" would phrase changing nothing as a change; hold voice
+  // is the honest rendering.
+  const pinnedAtFloor = () =>
+    quantizeDisplayLoad(droppedKg(), unit) ===
+    quantizeDisplayLoad(adjustment.evidence.loadKg, unit)
   // Cutting framing (honest copy rule: stalls are EXPECTED under a deficit
   // and holding is the win — never a claim that cutting impairs strength).
   // One sentence owns every cutting-annotated 3-stall verdict: the M4 flag
   // and the held H2 backoff alike.
   if (adjustment.phaseContext === 'cutting' && adjustment.suggestEarlyDeload) {
-    return `3 stalls at ${load} — expected while cutting; holding is the win. Deload only if sessions feel grindy`
+    return `Hold ${load} — 3 stalls is expected while cutting and holding is the win. Deload only if sessions feel grindy`
   }
   // Effort-gate sentences (one each — the annotation IS the story).
   if (adjustment.effortContext === 'overshoot') {
-    return `Reps there but the top set ran hot at ${load} — holding the load`
+    return `Stay at ${load} — reps are there but the top set ran hot`
   }
   if (adjustment.effortContext === 'trend-veto') {
-    return `Third stall at ${load}, but your e1RM trend is rising — holding, not backing off`
+    return `Stay at ${load} — third stall, but your e1RM is rising; no backoff yet`
+  }
+  // Overshoot recognition (#227): a HOLD whose evidence would read as a miss
+  // while the lifter beat the prescription's e1RM leads with the beat —
+  // "goal not met" over a higher-e1RM performance is a display lie.
+  if (adjustment.overshoot && adjustment.action === 'repeat') {
+    const o = adjustment.overshoot
+    const done = `${o.reps} × ${quantizeDisplayLoad(o.weightKg, unit)} ${unit}`
+    const target = `${o.targetReps} × ${quantizeDisplayLoad(o.targetLoadKg, unit)} ${unit}`
+    return `Beat the target — ${done} tops ${target} — holding the load`
   }
   if (adjustment.action === 'flag') {
-    return `Third straight stall at ${load} — training max likely set too high`
+    return `Lower the training max — 3 straight stalls at ${load} say it's set too high`
   }
   if (adjustment.action === 'anchor' && adjustment.anchor) {
-    const to = `${kgToDisplay(adjustment.anchor.toLoadKg, unit)} ${unit}`
-    if (adjustment.anchor.fromLoadKg === null) return `Last session: ${to} — anchoring`
-    const from = `${kgToDisplay(adjustment.anchor.fromLoadKg, unit)} ${unit}`
-    if (adjustment.anchor.toLoadKg < adjustment.anchor.fromLoadKg - LOAD_EPSILON_KG) {
-      return `Worked at ~${to} vs the planned ${from} for ${STALLS_BEFORE_DECREMENT} sessions — matching the plan to reality`
+    const to = `${quantizeDisplayLoad(adjustment.anchor.toLoadKg, unit)} ${unit}`
+    if (adjustment.anchor.fromLoadKg === null) {
+      return `Start at ${to} — what you lifted last session`
     }
-    return `Did ${to} vs ${from} planned — anchoring at ${to}`
+    const from = `${quantizeDisplayLoad(adjustment.anchor.fromLoadKg, unit)} ${unit}`
+    if (adjustment.anchor.toLoadKg < adjustment.anchor.fromLoadKg - LOAD_EPSILON_KG) {
+      return `Work at ${to} — that's where you worked for ${STALLS_BEFORE_DECREMENT} straight sessions, not the planned ${from}`
+    }
+    return `Work at ${to} — you lifted it over the planned ${from}; the plan follows you`
   }
   if (adjustment.action === 'step') {
     const fillKg = adjustment.anchor?.toLoadKg ?? adjustment.evidence.loadKg
-    const fill = `${kgToDisplay(fillKg, unit)} ${unit}`
-    const next = `${kgToDisplay(fillKg + adjustment.deltaKg, unit)} ${unit}`
-    return `Range filled at ${fill} last session — stepping to ${next}`
+    const fill = `${quantizeDisplayLoad(fillKg, unit)} ${unit}`
+    const next = `${quantizeDisplayLoad(fillKg + adjustment.deltaKg, unit)} ${unit}`
+    return `Move up to ${next} — you hit the top reps on every set at ${fill}`
   }
   if (adjustment.range) {
     const { totalReps, prevTotalReps, stalls } = adjustment.range
     if (adjustment.action === 'decrement') {
-      const backoff = `${kgToDisplay(-adjustment.deltaKg, unit)} ${unit}`
-      return `No new reps at ${load} for ${stalls} straight sessions — backing off ${backoff} (~10%)`
+      if (pinnedAtFloor()) {
+        return `Stay at ${load} — no new reps for ${stalls} straight sessions (already at the smallest load)`
+      }
+      return `Drop to ${droppedTo()} — no new reps at ${load} for ${stalls} straight sessions (~10% off)`
     }
-    const cutting = adjustment.phaseContext === 'cutting' ? ' — expected while cutting' : ''
+    const cutting = adjustment.phaseContext === 'cutting' ? ' (expected while cutting)' : ''
     return stalls > 0 && prevTotalReps !== null
-      ? `No new reps at ${load} (${totalReps} vs ${prevTotalReps}) — holding the load${cutting}`
-      : `Range not filled at ${load} — adding reps before the load steps${cutting}`
+      ? `Stay at ${load} — no new reps yet (${totalReps} vs ${prevTotalReps}); add reps and the weight goes up${cutting}`
+      : `${repFillHoldReason(load, adjustment.evidence.repFloor)}${cutting}`
   }
   if (adjustment.action === 'decrement') {
-    const backoff = `${kgToDisplay(-adjustment.deltaKg, unit)} ${unit}`
-    return `Third straight stall at ${load} — backing off ${backoff} (~10%)`
+    if (pinnedAtFloor()) {
+      return `Stay at ${load} — stalled 3 sessions straight (already at the smallest load)`
+    }
+    return `Drop to ${droppedTo()} — stalled at ${load} 3 sessions straight (~10% off)`
   }
   const { missedSets, scorableSets, repFloor } = adjustment.evidence
   const cutting = adjustment.phaseContext === 'cutting' ? ' (expected while cutting)' : ''
-  return `Missed ${repFloor} reps on ${missedSets} of ${scorableSets} sets at ${load} — repeating the load${cutting}`
+  return `Stay at ${load} — get ${repFloor} reps on all ${scorableSets} sets (${missedSets} came up short)${cutting}`
 }

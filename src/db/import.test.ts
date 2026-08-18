@@ -84,7 +84,7 @@ vi.mock('@/lib/trophies', () => ({ checkTrophies: vi.fn(async () => []) }))
 import { getAllExercises } from '@/lib/wger'
 import { checkTrophies } from '@/lib/trophies'
 import { listCustomExercises } from './custom-exercises'
-import { customExercises, importBatches, sets, workoutExercises, workouts } from './schema'
+import { customExercises, importBatches, notes, sets, workoutExercises, workouts } from './schema'
 import { commitImport, ImportPlanError, planImport, undoImport, type ImportPlan } from './import'
 
 const mockedCatalog = vi.mocked(getAllExercises)
@@ -303,9 +303,10 @@ describe('commitImport', () => {
       name: 'Push Day',
       startedAt: new Date('2024-01-15T17:32:11.000Z'),
       completedAt: new Date('2024-01-15T18:44:11.000Z'),
-      notes: 'Great session',
       importBatchId: 'id1', // the batch insert was the first returning id
     })
+    // Legacy notes column dead — no workout insert carries notes.
+    expect(workoutInserts[0].values).not.toHaveProperty('notes')
 
     // Exercises: matched → canonical wger name; created → verbatim custom.
     const exerciseInserts = state.inserts.filter((i) => i.table === workoutExercises)
@@ -315,7 +316,6 @@ describe('commitImport', () => {
         source: 'wger',
         name: 'Bench Press',
         position: 0,
-        notes: 'Felt heavy',
       }),
       expect.objectContaining({
         wgerExerciseId: 42,
@@ -339,6 +339,24 @@ describe('commitImport', () => {
         metricMode: 'duration',
         durationSec: 45,
         completed: true,
+      }),
+    ])
+
+    // Notes land in the notes table (notes v2), dated to the session, the
+    // exercise note with its standard snapshot.
+    const noteInserts = state.inserts.filter((i) => i.table === notes)
+    expect(noteInserts).toHaveLength(1)
+    expect(noteInserts[0].values).toEqual([
+      expect.objectContaining({
+        userId: USER,
+        author: 'user',
+        body: 'Great session',
+        createdAt: new Date('2024-01-15T17:32:11.000Z'),
+      }),
+      expect.objectContaining({
+        author: 'user',
+        body: 'Felt heavy',
+        anchorSnapshot: { exerciseName: 'Bench Press' },
       }),
     ])
 

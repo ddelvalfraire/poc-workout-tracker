@@ -22,7 +22,13 @@ import {
   declineProgram,
 } from '@/db/programs'
 import { setProgramVisibility, createShare, revokeShare } from '@/db/program-shares'
-import { setTrainingMax, setProgramDietPhase } from '@/db/program-patches'
+import {
+  setTrainingMax,
+  setProgramDietPhase,
+  setProgramOvershootPolicy,
+  updateProgramExercise,
+} from '@/db/program-patches'
+import { overshootPolicySchema } from '@/lib/overshoot-policy'
 import { confirmPatchProposal, declinePatchProposal } from '@/db/patch-proposals'
 import { restartTmPlan } from '@/db/restart-plan'
 import { getWeightUnit } from '@/db/preferences'
@@ -145,6 +151,46 @@ export async function setDietPhaseAction(id: string, phase: unknown): Promise<{ 
   if (!result) throw new Error('program not found')
   revalidatePath(`/programs/${id}`)
   return result
+}
+
+/**
+ * Sets (or clears, with null) the program's overshoot / goal-met policy from
+ * the owner's settings control (#227). Same event-logged narrow op the MCP
+ * tool applies through; null restores the per-scheme defaults.
+ */
+export async function setOvershootPolicyAction(
+  id: string,
+  policy: unknown,
+): Promise<{ id: string }> {
+  const userId = await requireUserId()
+  const parsed = overshootPolicySchema.nullable().parse(policy)
+  const result = await setProgramOvershootPolicy(userId, id, parsed, 'ui')
+  if (!result) throw new Error('program not found')
+  revalidatePath(`/programs/${id}`)
+  return result
+}
+
+/**
+ * Sets (or clears, with null) ONE exercise's overshoot override from its
+ * expanded row on the detail page — the per-exercise half of #227/#239's
+ * precedence (exercise > program > per-scheme default). Rides the same
+ * event-logged updateProgramExercise op the MCP tool uses; ownership is the
+ * db layer's join chain. Positions are 0-based (get_program addressing).
+ */
+export async function setExerciseOvershootPolicyAction(
+  id: string,
+  dayPosition: number,
+  exercisePosition: number,
+  policy: unknown,
+): Promise<{ id: string }> {
+  const userId = await requireUserId()
+  const parsed = overshootPolicySchema.nullable().parse(policy)
+  const result = await updateProgramExercise(userId, id, dayPosition, exercisePosition, {
+    overshootPolicy: parsed,
+  }, 'ui')
+  if (!result) throw new Error('exercise not found')
+  revalidatePath(`/programs/${id}`)
+  return { id }
 }
 
 export async function adoptProgramAction(

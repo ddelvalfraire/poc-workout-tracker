@@ -129,7 +129,7 @@ describe('reactiveDeloadProposalContent — reactive flavor (Part B)', () => {
     const content = reactiveDeloadProposalContent(
       candidate(),
       'reactive',
-      { loadFactor: 0.9, setFactor: 1, rpeCap: 7 },
+      { loadFactor: 0.9, setFactor: 1, rpeCap: 7, timedExercises: 'untouched' },
       'kg',
     )!
     expect(content.patches[0].args).toMatchObject({ suggestedLoad: 90, rpe: 7 })

@@ -191,6 +191,14 @@ export function describeToolCall(toolName: string, input: unknown): string {
     }
     case 'update_program_exercise':
       return locatedChanges(locationPhrase(args, false), exerciseChangePhrases(args), fallback)
+    case 'substitute_program_exercise': {
+      const location = locationPhrase(args, false)
+      const name = str(args.name)
+      const change = name
+        ? `substitute “${name}” (old loads cleared)`
+        : 'substitute the movement (old loads cleared)'
+      return location ? `${sentence(location)}: ${change}` : sentence(change)
+    }
     case 'remove_program_exercise': {
       const day = ordinal(args.dayPosition)
       const exercise = ordinal(args.exercisePosition)
@@ -266,6 +274,13 @@ export function describeToolCall(toolName: string, input: unknown): string {
       const phase = str(args.phase)
       return phase === 'cutting' || phase === 'maintaining' || phase === 'bulking'
         ? `Set the diet phase → ${phase}`
+        : fallback
+    }
+    case 'set_program_overshoot_policy': {
+      if (args.policy === null) return 'Clear the overshoot policy (back to scheme defaults)'
+      const policy = str(args.policy)
+      return policy === 'strict-load' || policy === 'e1rm-equivalent' || policy === 'any-metric'
+        ? `Set the overshoot policy → ${policy}`
         : fallback
     }
     case 'set_program_plan_sync':

@@ -38,6 +38,29 @@ export function isLoggingType(value: unknown): value is LoggingType {
   return (LOGGING_TYPES as readonly unknown[]).includes(value)
 }
 
+/**
+ * How a set is measured (mirrors program_sets/sets `metric_mode`). Lives on
+ * the SET (unlike loggingType) because that's where the schema puts it —
+ * instantiation stamps it per row. `reps_weight` is the column default and
+ * stays absent on the wire so every pre-cardio payload keeps its shape.
+ */
+export const METRIC_MODES = ['reps_weight', 'duration', 'duration_distance'] as const
+export type WorkoutMetricMode = (typeof METRIC_MODES)[number]
+
+/** Narrows untrusted input (action payloads, DB text) to a WorkoutMetricMode. */
+export function isMetricMode(value: unknown): value is WorkoutMetricMode {
+  return (METRIC_MODES as readonly unknown[]).includes(value)
+}
+
+/** The metric mode a freshly added exercise's sets default to: wger's Cardio
+ *  category maps to duration+distance logging (the competitor-standard cardio
+ *  model); everything else stays reps × weight. Mapping happens at ADD time
+ *  (logger picks AND builder adds); the user can still flip the mode via the
+ *  builder's control. Shared here so the two drafts can never disagree. */
+export function defaultMetricModeForCategory(category: string): WorkoutMetricMode {
+  return category.trim().toLowerCase() === 'cardio' ? 'duration_distance' : 'reps_weight'
+}
+
 /** The logged set-type tags — the subset of program_sets' set_type that is a
  *  performed fact, not a prescription (backoff/amrap stay plan-side). */
 export const SET_TYPES = ['working', 'warmup'] as const
@@ -62,6 +85,13 @@ export interface SetInput {
   rir?: number | null
   /** Logged RPE (4–10, half steps); absent/null = not logged. */
   rpe?: number | null
+  /** How this set is measured; absent = 'reps_weight' (the column default).
+   *  Cardio sets carry 'duration'/'duration_distance' + the fields below. */
+  metricMode?: WorkoutMetricMode
+  /** Logged duration in seconds (cardio modes); absent/null = not logged. */
+  durationSec?: number | null
+  /** Logged distance in meters (duration_distance); absent/null = not logged. */
+  distanceM?: number | null
 }
 
 /** One exercise within a workout, with its logged sets. */
@@ -111,6 +141,11 @@ const MAX_NOTES = 2000
 export const MAX_WEIGHT = 9999.99
 // A generous sanity cap for the integer `reps` column — no real set exceeds it.
 const MAX_REPS = 10_000
+// A day of continuous work is the duration ceiling (lib/duration.ts shares it).
+export const MAX_DURATION_SEC = 86_400
+// distance_m is numeric(9,2) — 9,999,999.99 m is the column ceiling (mirrors
+// MAX_DISTANCE_M in program-input.ts, which isn't exported there).
+export const MAX_DISTANCE_M = 9_999_999.99
 
 function asRecord(value: unknown, message: string): Record<string, unknown> {
   if (!value || typeof value !== 'object') throw new Error(message)
@@ -162,8 +197,12 @@ export function parseStartedAt(raw: unknown): Date | undefined {
   return parsePastDate(raw, 'startedAt')
 }
 
-/** Validates a single set: reps a non-negative integer or null, weight a non-negative finite number or null. */
-function parseSet(raw: unknown): SetInput {
+/** Validates a single set: reps a non-negative integer or null, weight a non-negative finite number or null.
+ *  `loggingType` is the owning exercise's effective logging type — the
+ *  completed-set gate needs it because weight is only required reading for
+ *  `weight_reps` (the three bodyweight modes read the weight column
+ *  differently, or not at all). */
+function parseSet(raw: unknown, loggingType: LoggingType): SetInput {
   const obj = asRecord(raw, 'each set must be an object')
 
   const { reps } = obj
@@ -209,6 +248,78 @@ function parseSet(raw: unknown): SetInput {
     throw new Error(`set rpe must be between ${RPE_MIN} and ${RPE_MAX} in 0.5 steps, or null`)
   }
 
+  // Metric mode: absent/null → column default ('reps_weight'); anything
+  // present must be whitelisted — a typo'd mode would silently pull the set
+  // out of (or into) volume/e1RM scoring.
+  const { metricMode } = obj
+  if (metricMode !== undefined && metricMode !== null && !isMetricMode(metricMode)) {
+    throw new Error(`set metricMode must be one of ${METRIC_MODES.join(', ')}`)
+  }
+
+  const { durationSec } = obj
+  if (
+    durationSec !== undefined &&
+    durationSec !== null &&
+    (!Number.isInteger(durationSec) ||
+      (durationSec as number) < 0 ||
+      (durationSec as number) > MAX_DURATION_SEC)
+  ) {
+    throw new Error(`set durationSec must be an integer between 0 and ${MAX_DURATION_SEC}, or null`)
+  }
+
+  const { distanceM } = obj
+  if (
+    distanceM !== undefined &&
+    distanceM !== null &&
+    (!Number.isFinite(distanceM) ||
+      (distanceM as number) < 0 ||
+      (distanceM as number) > MAX_DISTANCE_M)
+  ) {
+    throw new Error(`set distanceM must be a number between 0 and ${MAX_DISTANCE_M} m, or null`)
+  }
+
+  // ---- Cross-field rules (the wire mirrors draftToInput's exclusivity) ----
+  // A zero duration/distance carries no logged fact — normalize to null BEFORE
+  // the gates below, so a completed set with `0` reads as missing its metric
+  // and a stored 0 (unrepresentable by the edit codecs in lib/duration.ts)
+  // never reaches a row.
+  const mode: WorkoutMetricMode = isMetricMode(metricMode) ? metricMode : 'reps_weight'
+  const normDurationSec = durationSec === 0 ? null : (durationSec as number | null | undefined)
+  const normDistanceM = distanceM === 0 ? null : (distanceM as number | null | undefined)
+
+  // Each mode speaks ONLY its own metrics. draftToInput already nulls the
+  // irrelevant fields, so a non-null value here can only come from a non-draft
+  // caller (MCP, hostile client) — refuse it rather than let a stray value
+  // ride into scoring.
+  if (mode === 'reps_weight') {
+    if (normDurationSec != null) {
+      throw new Error('a reps_weight set must not carry durationSec (set metricMode to a duration mode)')
+    }
+    if (normDistanceM != null) {
+      throw new Error('a reps_weight set must not carry distanceM (set metricMode to duration_distance)')
+    }
+  } else {
+    if (reps != null) throw new Error(`a ${mode} set must not carry reps`)
+    if (weight != null) throw new Error(`a ${mode} set must not carry weight`)
+    if (mode === 'duration' && normDistanceM != null) {
+      throw new Error('a duration set must not carry distanceM (use duration_distance)')
+    }
+  }
+
+  // #206 at the wire: a COMPLETED set must carry its required metric — weight
+  // for weight_reps exercises (bodyweight modes are exempt), a positive
+  // duration for the cardio modes. A completed set without its metric is a
+  // phantom fact that would poison history and scoring.
+  if (completed === true) {
+    if (mode === 'reps_weight') {
+      if (loggingType === 'weight_reps' && weight === null) {
+        throw new Error('a completed set needs a weight when the exercise logs weight × reps')
+      }
+    } else if (normDurationSec == null) {
+      throw new Error(`a completed ${mode} set needs a duration`)
+    }
+  }
+
   return {
     reps: reps as number | null,
     weight: weight as number | null,
@@ -216,6 +327,9 @@ function parseSet(raw: unknown): SetInput {
     ...(isWorkoutSetType(setType) && { setType }),
     ...(rir !== undefined && { rir: rir as number | null }),
     ...(rpe !== undefined && { rpe: rpe as number | null }),
+    ...(isMetricMode(metricMode) && { metricMode }),
+    ...(normDurationSec !== undefined && { durationSec: normDurationSec }),
+    ...(normDistanceM !== undefined && { distanceM: normDistanceM }),
   }
 }
 
@@ -259,7 +373,8 @@ function parseExercise(raw: unknown): ExerciseInput {
   }
 
   if (!Array.isArray(obj.sets)) throw new Error('exercise sets must be an array')
-  const sets = obj.sets.map(parseSet)
+  const effectiveLoggingType: LoggingType = isLoggingType(loggingType) ? loggingType : 'weight_reps'
+  const sets = obj.sets.map((set) => parseSet(set, effectiveLoggingType))
 
   return {
     wgerExerciseId: wgerExerciseId as number,

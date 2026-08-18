@@ -45,7 +45,15 @@ export function resolveDeloadPolicy(
   return deloadWeek !== null
     ? {
         mode: 'scheduled',
-        shape: { loadFactor: DELOAD_LOAD_FACTOR, setFactor: DELOAD_SET_FACTOR, rpeCap: null },
+        shape: {
+          loadFactor: DELOAD_LOAD_FACTOR,
+          setFactor: DELOAD_SET_FACTOR,
+          rpeCap: null,
+          // The D3 adjudication ("creator decides", untouched default)
+          // applies to the legacy regime too: timed rows are protected
+          // unless a stored policy explicitly opts into 'scaled'.
+          timedExercises: 'untouched',
+        },
       }
     : { mode: 'none' }
 }
@@ -179,7 +187,12 @@ export function applyOverride(
   if (override.repMax !== null) overridden.repMax = override.repMax
   if (override.rir !== null) overridden.rir = override.rir
   if (override.rpe !== null) overridden.rpe = override.rpe
-  if (override.suggestedLoadKg !== null) overridden.loadKg = override.suggestedLoadKg
+  // Metric-mode guard (cardio v1): a load override is meaningless on a timed
+  // row — the derivation guard keeps loadKg null there, and a stray/legacy
+  // per-week suggestedLoadKg must not resurrect a load onto a duration set.
+  // Every other override field still applies.
+  if (override.suggestedLoadKg !== null && set.metricMode === 'reps_weight')
+    overridden.loadKg = override.suggestedLoadKg
   if (override.tempo !== null) overridden.tempo = override.tempo
   if (override.durationSec !== null) overridden.durationSec = override.durationSec
   if (override.distanceM !== null) overridden.distanceM = override.distanceM
@@ -413,15 +426,23 @@ function volumeSetCount(
 
 /** Resizes the working-set portion of the list to `target`, cloning the last
  *  working set to grow and dropping working sets from the end to shrink.
- *  Non-working sets (warmup/backoff/amrap) are preserved in place. */
-function resizeWorkingSets(sets: DerivedSet[], target: number): DerivedSet[] {
-  const workingCount = sets.filter((s) => s.setType === 'working').length
+ *  Non-working sets (warmup/backoff/amrap) are preserved in place. An
+ *  `eligible` predicate narrows which working sets participate (the deload's
+ *  'untouched' arm resizes lifting rows only); ineligible rows are preserved
+ *  in place like non-working sets. */
+function resizeWorkingSets(
+  sets: DerivedSet[],
+  target: number,
+  eligible: (s: DerivedSet) => boolean = () => true,
+): DerivedSet[] {
+  const isResizable = (s: DerivedSet) => s.setType === 'working' && eligible(s)
+  const workingCount = sets.filter(isResizable).length
   if (workingCount === 0 || target === workingCount) return sets
   if (target < workingCount) {
     let toDrop = workingCount - target
     const kept: DerivedSet[] = []
     for (let i = sets.length - 1; i >= 0; i--) {
-      if (toDrop > 0 && sets[i].setType === 'working') {
+      if (toDrop > 0 && isResizable(sets[i])) {
         toDrop--
         continue
       }
@@ -429,7 +450,7 @@ function resizeWorkingSets(sets: DerivedSet[], target: number): DerivedSet[] {
     }
     return kept
   }
-  const lastWorkingIdx = sets.map((s) => s.setType).lastIndexOf('working')
+  const lastWorkingIdx = sets.reduce((acc, s, i) => (isResizable(s) ? i : acc), -1)
   const clones = Array.from({ length: target - workingCount }, () => ({
     ...sets[lastWorkingIdx],
   }))
@@ -443,7 +464,11 @@ function resizeWorkingSets(sets: DerivedSet[], target: number): DerivedSet[] {
  * the shape's `loadFactor` and the working-set count by its `setFactor`
  * (ceil, min 1; the historical DELOAD_LOAD_FACTOR/DELOAD_SET_FACTOR are the
  * shape defaults), clamps derived RPE stamps to `rpeCap`, and — for an
- * amrap-cycle with a `deloadRow` — EMITS that row off the effective TM
+ * exercise carrying timed rows — honors the shape's `timedExercises` arm
+ * ('untouched' default: timed rows never resize or stamp, so a fully-timed
+ * exercise deloads as a normal week; 'scaled' opts into the legacy
+ * whole-exercise treatment). For an amrap-cycle with a `deloadRow` it
+ * EMITS that row off the effective TM
  * instead of scale-shaping. Under 'none'/'reactive' the deload week derives
  * as a NORMAL week (no modifier, no 'deload' stamp) while `deloadWeek` still
  * shapes the week AXIS (progression steps skip it — geometry is not the
@@ -472,13 +497,29 @@ export function deriveWeekSets(args: {
   // deloadWeek; whether that week gets the deload treatment is the policy's.
   const isDeload = deloadWeek !== null && week === deloadWeek && policy.mode === 'scheduled'
 
-  // The 0-based index of each set among the PROGRESSED sets — amrap-cycle
-  // percents address working/backoff/amrap sets in order, skipping warmups.
+  // The 0-based index of each set among the progressed LIFTING sets —
+  // amrap-cycle percents address reps_weight working/backoff/amrap sets in
+  // order. Warmups AND timed rows are skipped: the metric-mode guard no-ops
+  // the scheme on a timed set, so letting one consume a wave-percent slot
+  // would shift the lifting rows onto the WRONG percents (75/85 instead of
+  // 65/75) — a wrong prescription, not a no-op.
   let progressedCount = 0
-  const progressedIdx = sets.map((s) => (isProgressed(s.setType) ? progressedCount++ : -1))
+  const progressedIdx = sets.map((s) =>
+    isProgressed(s.setType) && s.metricMode === 'reps_weight' ? progressedCount++ : -1,
+  )
 
   let derived: DerivedSet[] = sets.map((set, sourceIndex) => {
-    const applies = progression !== null && isProgressed(set.setType)
+    // Metric-mode guard (cardio v1): load-anchored schemes are meaningless
+    // on duration/duration_distance sets — every scheme except
+    // rep-progression (which legitimately bumps seconds) no-ops on them, per
+    // SET, so a mixed exercise still progresses its lifting rows. Enforced
+    // here, at the derivation layer, so every consumer (instantiation,
+    // previews, ghosts) inherits the guard. Inline (not a helper) so the
+    // `applies` alias keeps narrowing `progression` below.
+    const applies =
+      progression !== null &&
+      isProgressed(set.setType) &&
+      (set.metricMode === 'reps_weight' || progression.scheme === 'rep-progression')
     const { loadKg: schemeLoadKg, rpe } = applies
       ? schemeLoad(set, progression, week, weeks, history)
       : { loadKg: set.suggestedLoadKg, rpe: set.rpe }
@@ -517,8 +558,13 @@ export function deriveWeekSets(args: {
     }
   })
 
-  // weekly-volume adjusts the working-set count on non-deload weeks.
-  if (progression?.scheme === 'weekly-volume' && !isDeload) {
+  // weekly-volume adjusts the working-set count on non-deload weeks — but
+  // never on an exercise carrying timed working sets (same guard as above,
+  // lifted to the exercise level because resizing is a whole-list operation).
+  const hasTimedProgressedSet = sets.some(
+    (s) => isProgressed(s.setType) && s.metricMode !== 'reps_weight',
+  )
+  if (progression?.scheme === 'weekly-volume' && !isDeload && !hasTimedProgressedSet) {
     derived = resizeWorkingSets(derived, volumeSetCount(progression, week, weeks))
   }
 
@@ -526,7 +572,14 @@ export function deriveWeekSets(args: {
     const shape = policy.shape
     const deloadRow = progression?.scheme === 'amrap-cycle' ? progression.deloadRow : undefined
     const chassis = derived.filter((s) => isProgressed(s.setType))
-    if (progression?.scheme === 'amrap-cycle' && deloadRow && chassis.length > 0) {
+    if (
+      progression?.scheme === 'amrap-cycle' &&
+      deloadRow &&
+      chassis.length > 0 &&
+      // The emit REPLACES the chassis with reps_weight rows — never over a
+      // timed chassis (metric-mode guard); such exercises scale-shape instead.
+      chassis.every((s) => s.metricMode === 'reps_weight')
+    ) {
       // Wendler-canon deload row: EMIT percents × effective TM at `reps`,
       // replacing the scale-shape derivation. Warmups still pass through;
       // each emitted row borrows its chassis (rest/tempo/technique,
@@ -556,10 +609,22 @@ export function deriveWeekSets(args: {
       })
       derived = [...derived.filter((s) => !isProgressed(s.setType)), ...emitted]
     } else {
-      const workingCount = derived.filter((s) => s.setType === 'working').length
-      const target = Math.max(1, Math.ceil(workingCount * shape.setFactor))
-      derived = resizeWorkingSets(derived, target).map((s) =>
-        isProgressed(s.setType)
+      // The timedExercises arm (D3, "creator decides"): under 'untouched'
+      // (the default) only lifting rows deload — a fully-timed exercise
+      // derives its deload week as a NORMAL week (no resize, no stamps),
+      // and a mixed exercise keeps its timed rows byte-identical while the
+      // lifting rows scale-shape. 'scaled' opts back into the legacy
+      // whole-exercise treatment. durationSec is never × loadFactor either
+      // way (only loadKg is multiplied below).
+      const deloads = (s: DerivedSet) =>
+        shape.timedExercises === 'scaled' || s.metricMode === 'reps_weight'
+      const workingCount = derived.filter((s) => s.setType === 'working' && deloads(s)).length
+      if (workingCount > 0) {
+        const target = Math.max(1, Math.ceil(workingCount * shape.setFactor))
+        derived = resizeWorkingSets(derived, target, deloads)
+      }
+      derived = derived.map((s) =>
+        isProgressed(s.setType) && deloads(s)
           ? {
               ...s,
               loadKg: clampLoad(s.loadKg === null ? null : s.loadKg * shape.loadFactor),

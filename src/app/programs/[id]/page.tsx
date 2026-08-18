@@ -35,6 +35,7 @@ import {
   collectAutoregNotes,
   collectTmResetProposals,
   groupEventsByDay,
+  progressionLine,
 } from './detail-view'
 import { kgToDisplay } from '@/lib/units'
 import { listPatchProposals } from '@/db/patch-proposals'
@@ -54,6 +55,8 @@ import { ProposalActions } from './proposal-actions'
 import { SharingSection } from './sharing-section'
 import { RestartProgramButton } from './restart-program-button'
 import { DietPhaseCard } from './diet-phase-card'
+import { OvershootPolicyControl } from './overshoot-policy-control'
+import { ExerciseOvershootControl } from './exercise-overshoot-control'
 import { cuttingStalenessWeeks } from '@/lib/diet-phase-staleness'
 
 /** Chip labels for the change log — WHO edited, in the user's own terms. */
@@ -196,6 +199,7 @@ export default async function ProgramDetailPage({
                 autoregStallPolicy: program.autoregStallPolicy,
                 deloadPolicy: program.deloadPolicy,
                 dietPhase: program.dietPhase,
+                overshootPolicy: program.overshootPolicy,
               },
             },
             selectedWeek,
@@ -389,6 +393,16 @@ export default async function ProgramDetailPage({
             font-display voice — anchored to the current week even while
             browsing another one (the strip says what's selected, this says
             what's real). The muted meta beneath keeps the raw numbers. */}
+        {/* The program DOCUMENT note (notes v2 catch-up): authored once
+            (upsert_program takes plain text ≤2000 — no markdown contract, so
+            no MarkdownView), read at program start, never in the logger. The
+            muted quote rail is the workout-detail session-note treatment. */}
+        {program.notes !== null && (
+          <p className="mt-4 whitespace-pre-wrap border-l-2 border-border pl-3 text-sm text-muted-foreground">
+            {program.notes}
+          </p>
+        )}
+
         <p className="mt-5 font-display text-2xl uppercase leading-none tracking-wide">
           {statusLine}
         </p>
@@ -762,40 +776,76 @@ export default async function ProgramDetailPage({
                     )}
                   </div>
 
+                  {/* The day's plan-authored note (notes v2 catch-up): the
+                      read-before-lift cue, muted under the day name. Done and
+                      in-progress days skip it — the plan is the past there,
+                      and the live session carries its own cue line. */}
+                  {day.notes !== null && (
+                    <p className="mt-1.5 whitespace-pre-wrap text-sm text-muted-foreground">
+                      {day.notes}
+                    </p>
+                  )}
+
                   {showTargets ? (
                     <div className="mt-3 space-y-3">
-                      {day.exercises.map((exercise, exerciseIndex) => (
-                        <div key={exercise.id}>
-                          <p className="text-sm font-medium">{exercise.name}</p>
-                          <div className="mt-1 space-y-0.5">
-                            {groupDerivedSets(
-                              prescriptions[dayIndex][exerciseIndex]?.sets ?? [],
-                            ).map((group, groupIndex) => (
-                              <p
-                                key={groupIndex}
-                                className="flex items-baseline gap-2 text-sm text-muted-foreground"
-                              >
-                                <span className="tnum">
-                                  {formatTargetLine(group.set, group.count, unit)}
-                                </span>
-                                {/* Chips → words: deload/technique are labels
-                                    on the set line, not controls — quiet caps
-                                    text, no pill shell. */}
-                                {group.set.derivedFrom === 'deload' && (
-                                  <span className="text-[10px] font-semibold uppercase tracking-widest">
-                                    Deload
+                      {day.exercises.map((exercise, exerciseIndex) => {
+                        // The scheme's plain-English conditional sentence with
+                        // THIS exercise's numbers (#228) — words not chips,
+                        // quiet, skipped when there is no progression.
+                        const howLine = progressionLine(
+                          exercise.progression,
+                          prescriptions[dayIndex][exerciseIndex]?.sets ?? [],
+                          unit,
+                        )
+                        return (
+                          <div key={exercise.id}>
+                            <p className="text-sm font-medium">{exercise.name}</p>
+                            <div className="mt-1 space-y-0.5">
+                              {groupDerivedSets(
+                                prescriptions[dayIndex][exerciseIndex]?.sets ?? [],
+                              ).map((group, groupIndex) => (
+                                <p
+                                  key={groupIndex}
+                                  className="flex items-baseline gap-2 text-sm text-muted-foreground"
+                                >
+                                  <span className="tnum">
+                                    {formatTargetLine(group.set, group.count, unit)}
                                   </span>
-                                )}
-                                {group.set.technique && (
-                                  <span className="text-[10px] font-semibold uppercase tracking-widest">
-                                    {group.set.technique.kind}
-                                  </span>
-                                )}
-                              </p>
-                            ))}
+                                  {/* Chips → words: deload/technique are labels
+                                      on the set line, not controls — quiet caps
+                                      text, no pill shell. */}
+                                  {group.set.derivedFrom === 'deload' && (
+                                    <span className="text-[10px] font-semibold uppercase tracking-widest">
+                                      Deload
+                                    </span>
+                                  )}
+                                  {group.set.technique && (
+                                    <span className="text-[10px] font-semibold uppercase tracking-widest">
+                                      {group.set.technique.kind}
+                                    </span>
+                                  )}
+                                </p>
+                              ))}
+                            </div>
+                            {howLine !== null && (
+                              <p className="mt-1 text-sm text-muted-foreground">{howLine}</p>
+                            )}
+                            {/* Per-exercise overshoot override (#239's data,
+                                now with UI): owner-only quiet select; never
+                                on a proposal (adopt first — same gate as the
+                                program-level control below). */}
+                            {!isProposed && (
+                              <ExerciseOvershootControl
+                                programId={program.id}
+                                dayPosition={day.position}
+                                exercisePosition={exercise.position}
+                                exerciseName={exercise.name}
+                                policy={exercise.overshootPolicy}
+                              />
+                            )}
                           </div>
-                        </div>
-                      ))}
+                        )
+                      })}
                     </div>
                   ) : (
                     // Collapsed: the plan's shape without the derivation cost.
@@ -901,6 +951,19 @@ export default async function ProgramDetailPage({
               ))}
             </div>
           </section>
+        )}
+
+        {/* Overshoot / goal-met policy (#227): an OWNER setting like sharing
+            below — how a beaten-on-a-different-axis target is credited.
+            Null = per-scheme defaults; the change-logged narrow op rides the
+            same patch conventions as the diet phase. */}
+        {!isProposed && (
+          <div className="mt-10 border-t border-border">
+            <OvershootPolicyControl
+              programId={program.id}
+              policy={program.overshootPolicy}
+            />
+          </div>
         )}
 
         {/* Sharing is an OWNER control and never appears on a proposal — a

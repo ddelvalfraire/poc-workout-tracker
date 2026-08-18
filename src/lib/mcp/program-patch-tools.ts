@@ -11,6 +11,7 @@ import {
   setProgramAutoregulation,
   setProgramDeloadPolicy,
   setProgramDietPhase,
+  setProgramOvershootPolicy,
   setProgramPlanSync,
   setTrainingMax,
   addProgramDay,
@@ -19,6 +20,7 @@ import {
   moveProgramDay,
   addProgramExercise,
   updateProgramExercise,
+  substituteProgramExercise,
   removeProgramExercise,
   moveProgramExercise,
   addProgramSet,
@@ -46,6 +48,7 @@ import {
   deloadPolicySchema,
   dietPhaseSchema,
 } from '@/lib/program-input'
+import { overshootPolicySchema } from '@/lib/overshoot-policy'
 
 /** Optional explicit unit override; absent → the user's stored unit. */
 const unitArg = z.enum(['kg', 'lb']).optional()
@@ -245,7 +248,7 @@ export function registerProgramPatchTools(server: McpServer): void {
     {
       title: 'Set Program Deload Policy',
       description:
-        "Sets (or clears, with `policy: null`) a program's deload policy without touching its days/exercises/sets. `policy.mode`: 'none' (the deload week — if any — derives as a normal training week and the early-deload suggestion is suppressed), 'reactive' (no scheduled back-off; deload only when the stall-driven early-deload flag suggests it), or 'scheduled' with a `shape` ({ loadFactor 0–1 default 0.85, setFactor 0–1 default 0.5, rpeCap 5–10 or null }) applied to the deload week's progressed sets. `deloadWeek` still shapes the progression axis in every mode. Clearing (null) restores the legacy behavior: a set deloadWeek backs off at the historical factors, none otherwise. Errors if the program isn't found or owned.",
+        "Sets (or clears, with `policy: null`) a program's deload policy without touching its days/exercises/sets. `policy.mode`: 'none' (the deload week — if any — derives as a normal training week and the early-deload suggestion is suppressed), 'reactive' (no scheduled back-off; deload only when the stall-driven early-deload flag suggests it), or 'scheduled' with a `shape` ({ loadFactor 0–1 default 0.85, setFactor 0–1 default 0.5, rpeCap 5–10 or null, timedExercises 'untouched' (default — duration sets never resize or stamp; a fully-timed exercise deloads as a normal week) | 'scaled' (timed sets join the back-off; durations are never multiplied) }) applied to the deload week's progressed sets. `deloadWeek` still shapes the progression axis in every mode. Clearing (null) restores the legacy behavior: a set deloadWeek backs off at the historical factors, none otherwise. Errors if the program isn't found or owned.",
       inputSchema: {
         programId: z.string(),
         policy: deloadPolicySchema.nullable(),
@@ -288,6 +291,33 @@ export function registerProgramPatchTools(server: McpServer): void {
         )
         if (!result) throw new ToolError(`Program ${programId} not found for user ${resolved}`)
         return jsonResult({ userId: resolved, programId, dietPhase: phase })
+      } catch (error: unknown) {
+        return errorResult(error)
+      }
+    },
+  )
+
+  server.registerTool(
+    'set_program_overshoot_policy',
+    {
+      title: 'Set Program Overshoot Policy',
+      description:
+        "Sets (or clears, with `policy: null`) a program's overshoot / goal-met policy — how a completed set that beat its prescription on a different axis (more reps at a lighter load) is credited. 'strict-load': a goal counts only at the prescribed load (the load-anchored doctrine). 'e1rm-equivalent': a set counts when its estimated 1RM meets the prescription's e1RM. 'any-metric': permissive — reps ≥ target reps OR load ≥ target load OR e1RM ≥ target e1RM. Null restores the per-scheme defaults (strict for linear / double-progression / rep-progression / percent-1rm / amrap-cycle; e1rm-equivalent for rpe-target; weekly-volume is set-count scored, so the policy is inert there). Under every policy, overshoot never auto-accelerates a training max or skips progression steps. Errors if the program isn't found or owned.",
+      inputSchema: {
+        programId: z.string(),
+        policy: overshootPolicySchema.nullable(),
+        userId: z.string().optional(),
+      },
+    },
+    async ({ programId, policy, userId }, extra) => {
+      try {
+        const resolved = resolveUserId(extra, userId)
+        assertProgramIdShape(programId)
+        const result = await runOp(() =>
+          setProgramOvershootPolicy(resolved, programId, policy, resolveActor(extra)),
+        )
+        if (!result) throw new ToolError(`Program ${programId} not found for user ${resolved}`)
+        return jsonResult({ userId: resolved, programId, overshootPolicy: policy })
       } catch (error: unknown) {
         return errorResult(error)
       }
@@ -560,7 +590,7 @@ export function registerProgramPatchTools(server: McpServer): void {
     {
       title: 'Update Program Exercise',
       description:
-        "Updates an exercise's identity (wgerExerciseId and/or source — the composite key; changing either re-derives muscle tags), name, progression, and/or supersetGroup (by programId + 0-based dayPosition + 0-based exercisePosition) — e.g. swap the movement without touching its sets (a swap re-derives the muscle tags). Only the named fields change; pass progression: null to clear it (`progression` JSONB is in kg) or supersetGroup: null to ungroup (same non-null group within a day = superset). Errors if the exercise isn't found or owned.",
+        "Updates an exercise's identity (wgerExerciseId and/or source — the composite key; changing either re-derives muscle tags), name, progression, and/or supersetGroup (by programId + 0-based dayPosition + 0-based exercisePosition). Identity changes here are load-PRESERVING relabels — for fixing a mislabeled exercise while keeping its suggested loads and progression; to swap one movement for another, use substitute_program_exercise instead so the old movement's loads don't carry over. Only the named fields change; pass progression: null to clear it (`progression` JSONB is in kg), supersetGroup: null to ungroup (same non-null group within a day = superset), or overshootPolicy ('strict-load' | 'e1rm-equivalent' | 'any-metric', null clears) to override the program's overshoot / goal-met policy for THIS exercise only (exercise > program > per-scheme default). Errors if the exercise isn't found or owned.",
       inputSchema: {
         programId: z.string(),
         dayPosition: positionArg,
@@ -572,6 +602,7 @@ export function registerProgramPatchTools(server: McpServer): void {
         name: nameArg.optional(),
         progression: progressionSchema.nullable().optional(),
         supersetGroup: z.number().int().min(0).nullable().optional(),
+        overshootPolicy: overshootPolicySchema.nullable().optional(),
         userId: z.string().optional(),
       },
     },
@@ -585,6 +616,7 @@ export function registerProgramPatchTools(server: McpServer): void {
         name,
         progression,
         supersetGroup,
+        overshootPolicy,
         userId,
       },
       extra,
@@ -592,9 +624,11 @@ export function registerProgramPatchTools(server: McpServer): void {
       try {
         const resolved = resolveUserId(extra, userId)
         assertProgramIdShape(programId)
-        if (isEmptyPatch({ wgerExerciseId, source, name, progression, supersetGroup })) {
+        if (
+          isEmptyPatch({ wgerExerciseId, source, name, progression, supersetGroup, overshootPolicy })
+        ) {
           throw new ToolError(
-            'update_program_exercise needs at least one of wgerExerciseId, source, name, progression, or supersetGroup',
+            'update_program_exercise needs at least one of wgerExerciseId, source, name, progression, supersetGroup, or overshootPolicy',
           )
         }
         const result = await runOp(() =>
@@ -603,7 +637,53 @@ export function registerProgramPatchTools(server: McpServer): void {
             programId,
             dayPosition,
             exercisePosition,
-            { wgerExerciseId, source, name, progression, supersetGroup },
+            { wgerExerciseId, source, name, progression, supersetGroup, overshootPolicy },
+            resolveActor(extra),
+          ),
+        )
+        if (!result) {
+          throw new ToolError(
+            `Exercise ${exercisePosition} of day ${dayPosition} in program ${programId} not found for user ${resolved}`,
+          )
+        }
+        return jsonResult({ userId: resolved, programId, dayPosition, exercisePosition })
+      } catch (error: unknown) {
+        return errorResult(error)
+      }
+    },
+  )
+
+  server.registerTool(
+    'substitute_program_exercise',
+    {
+      title: 'Substitute Program Exercise',
+      description:
+        "Swaps a slot's movement for a different exercise (by programId + 0-based dayPosition + 0-based exercisePosition). Use THIS tool to swap a movement: it clears the old movement's suggested loads (template and per-week overrides) and drops a TM-based progression so the plan re-derives loads for the substitute — rep ranges, RIR/RPE, rest, tempo, and technique survive, and muscle tags re-derive from the new identity. For a load-preserving relabel of a mislabeled exercise, use update_program_exercise instead. `source` defaults to 'wger'; pass 'custom' for custom exercises. Errors if the exercise isn't found or owned.",
+      inputSchema: {
+        programId: z.string(),
+        dayPosition: positionArg,
+        exercisePosition: positionArg,
+        wgerExerciseId: z.number().int(),
+        // Composite identity: absent = 'wger', pass 'custom' for custom exercises.
+        source: z.enum(['wger', 'custom']).optional(),
+        name: nameArg,
+        userId: z.string().optional(),
+      },
+    },
+    async (
+      { programId, dayPosition, exercisePosition, wgerExerciseId, source, name, userId },
+      extra,
+    ) => {
+      try {
+        const resolved = resolveUserId(extra, userId)
+        assertProgramIdShape(programId)
+        const result = await runOp(() =>
+          substituteProgramExercise(
+            resolved,
+            programId,
+            dayPosition,
+            exercisePosition,
+            { wgerExerciseId, source: source ?? 'wger', name },
             resolveActor(extra),
           ),
         )

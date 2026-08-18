@@ -251,7 +251,7 @@ describe('corpus: Wendler 5/3/1 — amrap-cycle vs the published cycle tables [W
     const verdict = autoregulateEarlyDeload(sessions, 'all-sets')
     expect(verdict).toMatchObject({ action: 'flag', deltaKg: 0, suggestEarlyDeload: true })
     expect(autoregReason(verdict as NonNullable<typeof verdict>, 'kg')).toBe(
-      'Third straight stall at 95 kg — training max likely set too high',
+      "Lower the training max — 3 straight stalls at 95 kg say it's set too high",
     )
     // A flag never touches the prescription — the wave stays the scheme's.
     const derived = derive(4)
@@ -300,7 +300,7 @@ describe('corpus: StrongLifts 5×5 — linear +2.5 kg, 10% deload on the third f
     // itself loads real plates, so the snapped value is the practical canon.
     expect(verdict).toMatchObject({ action: 'decrement', deltaKg: -10, suggestEarlyDeload: true })
     expect(autoregReason(verdict as NonNullable<typeof verdict>, 'kg')).toBe(
-      'Third straight stall at 102.5 kg — backing off 10 kg (~10%)',
+      'Drop to 92.5 kg — stalled at 102.5 kg 3 sessions straight (~10% off)',
     )
     // Applied to the next derive (week 3 would prescribe 105): every set is
     // capped to the stalled load minus the back-off — 92.5 kg [S1].
@@ -401,7 +401,7 @@ describe('corpus: follow-down (H1) — the plan is matched to reality [H1]', () 
       anchor: { fromLoadKg: 100, toLoadKg: 90 },
     })
     expect(autoregReason(verdict as NonNullable<typeof verdict>, 'kg')).toBe(
-      'Worked at ~90 kg vs the planned 100 kg for 3 sessions — matching the plan to reality',
+      "Work at 90 kg — that's where you worked for 3 straight sessions, not the planned 100 kg",
     )
     // The next derive (linear would prescribe 107.5 by week 4) lands at
     // EXACTLY the demonstrated 90 — anchors prescribe the bucket load.

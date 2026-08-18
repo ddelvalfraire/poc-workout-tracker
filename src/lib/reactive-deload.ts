@@ -59,6 +59,9 @@ export const REACTIVE_DEFAULT_SHAPE: DeloadShape = {
   loadFactor: 0.85,
   setFactor: 0.5,
   rpeCap: null,
+  // Inert here — reactive proposals only patch LOADED working sets, so timed
+  // rows are naturally untouched — but the resolved shape carries the field.
+  timedExercises: 'untouched',
 }
 
 /**

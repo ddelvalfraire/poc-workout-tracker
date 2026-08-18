@@ -1,4 +1,8 @@
 import type { AutoregAdjustment, AutoregSession } from './autoregulate'
+import type { WeightUnit } from './units'
+// ε-or-increment identity so a pre-quantization snapshot still matches its
+// quantized re-derivation (#226 transitional bridge).
+import { loadsMatch } from './load-quantize'
 import { estimate1RM } from './one-rep-max'
 
 /**
@@ -105,7 +109,10 @@ function risingTrend(orderedDesc: AutoregSession[]): boolean {
  * automatically: steps are the owner's confirm, holds are the only thing
  * the gate does on its own. Same activation floor as the gate.
  */
-export function sustainedUndershoot(sessions: AutoregSession[]): { loadKg: number } | null {
+export function sustainedUndershoot(
+  sessions: AutoregSession[],
+  unit?: WeightUnit,
+): { loadKg: number } | null {
   const ordered = [...sessions].sort((a, b) => b.startedAtMs - a.startedAtMs) // H6
   const loggedCount = ordered.filter((s) => {
     const pair = topPair(s)
@@ -127,7 +134,7 @@ export function sustainedUndershoot(sessions: AutoregSession[]): { loadKg: numbe
     if (!floorMet) return null // easy AND failed cannot coexist honestly
     if (logged > target - OVERSHOOT_RPE_THRESHOLD) return null
     if (caseLoadKg === null) caseLoadKg = pair.prescribed.loadKg
-    else if (Math.abs(pair.prescribed.loadKg - caseLoadKg) > LOAD_EPSILON_KG) return null
+    else if (!loadsMatch(pair.prescribed.loadKg, caseLoadKg, LOAD_EPSILON_KG, unit)) return null
   }
   return caseLoadKg === null ? null : { loadKg: caseLoadKg }
 }

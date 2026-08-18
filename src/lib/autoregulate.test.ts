@@ -9,7 +9,9 @@ import {
   applyDietPhaseToAdjustment,
   backoffKg,
   sessionBeatsTop,
+  sessionOvershoot,
   sessionStall,
+  type AutoregAdjustment,
   type AutoregRangeRow,
   type AutoregSession,
 } from './autoregulate'
@@ -504,7 +506,7 @@ describe('autoregulate — follow-down (H1)', () => {
   it('names the evidence in the reason line', () => {
     const adjustment = autoregulate(2.5, seq(lighter(), lighter(), lighter()), 'all-sets')!
     expect(autoregReason(adjustment, 'kg')).toBe(
-      'Worked at ~90 kg vs the planned 100 kg for 3 sessions — matching the plan to reality',
+      "Work at 90 kg — that's where you worked for 3 straight sessions, not the planned 100 kg",
     )
   })
 
@@ -539,9 +541,18 @@ describe('autoregReason', () => {
   it('names the evidence in the display unit', () => {
     const adjustment = autoregulate(2.5, [session([6, 5, 8])], 'all-sets')!
     expect(autoregReason(adjustment, 'kg')).toBe(
-      'Missed 8 reps on 2 of 3 sets at 100 kg — repeating the load',
+      'Stay at 100 kg — get 8 reps on all 3 sets (2 came up short)',
     )
-    expect(autoregReason(adjustment, 'lb')).toContain('220.5 lb')
+    // 100 kg is 220.5 lb raw — the reason prints the loadable 220 lb (#226).
+    expect(autoregReason(adjustment, 'lb')).toContain('220 lb')
+  })
+
+  it('quantizes lb loads to the 2.5 lb grid — never 66.6 lb (#226)', () => {
+    // Prescribed and performed at 30.21 kg (66.6 lb raw) with missed reps.
+    const adjustment = autoregulate(2.5, [sessionAt(30.21, [6, 6, 6])], 'all-sets')!
+    const reason = autoregReason(adjustment, 'lb')
+    expect(reason).toContain('67.5 lb')
+    expect(reason).not.toContain('66.6')
   })
 
   it('describes the back-off with its magnitude', () => {
@@ -549,7 +560,7 @@ describe('autoregReason', () => {
       2.5,
       seq(session([6, 5, 8]), session([6, 6, 6]), session([5, 6, 6])), 'all-sets')!
     expect(autoregReason(adjustment, 'kg')).toBe(
-      'Third straight stall at 100 kg — backing off 10 kg (~10%)',
+      'Drop to 90 kg — stalled at 100 kg 3 sessions straight (~10% off)',
     )
   })
 })
@@ -635,7 +646,7 @@ describe('applyDietPhaseToAdjustment (diet-phase gate)', () => {
   it('reason lines: holding-is-the-win framing, never a strength-impairment claim', () => {
     const held = applyDietPhaseToAdjustment(threeStalls(), 'cutting')!
     expect(autoregReason(held, 'kg')).toBe(
-      '3 stalls at 100 kg — expected while cutting; holding is the win. Deload only if sessions feel grindy',
+      'Hold 100 kg — 3 stalls is expected while cutting and holding is the win. Deload only if sessions feel grindy',
     )
     const flag = applyDietPhaseToAdjustment(
       autoregulateEarlyDeload(
@@ -645,14 +656,14 @@ describe('applyDietPhaseToAdjustment (diet-phase gate)', () => {
       'cutting',
     )!
     expect(autoregReason(flag, 'kg')).toBe(
-      '3 stalls at 100 kg — expected while cutting; holding is the win. Deload only if sessions feel grindy',
+      'Hold 100 kg — 3 stalls is expected while cutting and holding is the win. Deload only if sessions feel grindy',
     )
     const repeat = applyDietPhaseToAdjustment(
       autoregulate(2.5, [session([6, 5, 8])], 'all-sets'),
       'cutting',
     )!
     expect(autoregReason(repeat, 'kg')).toBe(
-      'Missed 8 reps on 2 of 3 sets at 100 kg — repeating the load (expected while cutting)',
+      'Stay at 100 kg — get 8 reps on all 3 sets (2 came up short) (expected while cutting)',
     )
   })
 })
@@ -1173,21 +1184,21 @@ describe('autoregReason — range mode', () => {
   it('names the step and its target load', () => {
     const adjustment = autoregulateRange(2.5, [ranged([12, 12, 12])], ROWS)!
     expect(autoregReason(adjustment, 'kg')).toBe(
-      'Range filled at 100 kg last session — stepping to 102.5 kg',
+      'Move up to 102.5 kg — you hit the top reps on every set at 100 kg',
     )
   })
 
   it('explains a first-evidence hold without claiming a stall', () => {
     const adjustment = autoregulateRange(2.5, [ranged([9, 9, 9])], ROWS)!
     expect(autoregReason(adjustment, 'kg')).toBe(
-      'Range not filled at 100 kg — adding reps before the load steps',
+      'Stay at 100 kg — hit 12 reps on every set, then the weight goes up',
     )
   })
 
   it('shows the flat totals on a rep stall', () => {
     const adjustment = autoregulateRange(2.5, seq(ranged([9, 9, 9]), ranged([9, 9, 9])), ROWS)!
     expect(autoregReason(adjustment, 'kg')).toBe(
-      'No new reps at 100 kg (27 vs 27) — holding the load',
+      'Stay at 100 kg — no new reps yet (27 vs 27); add reps and the weight goes up',
     )
   })
 
@@ -1195,7 +1206,7 @@ describe('autoregReason — range mode', () => {
     const flat = () => ranged([9, 9, 9])
     const adjustment = autoregulateRange(2.5, seq(flat(), flat(), flat(), flat()), ROWS)!
     expect(autoregReason(adjustment, 'kg')).toBe(
-      'No new reps at 100 kg for 3 straight sessions — backing off 10 kg (~10%)',
+      'Drop to 90 kg — no new reps at 100 kg for 3 straight sessions (~10% off)',
     )
   })
 })
@@ -1625,7 +1636,7 @@ describe('autoregulateEarlyDeload (M4)', () => {
   it('speaks the failed-cycle reason (training max likely set too high)', () => {
     const adjustment = autoregulateEarlyDeload(seq(stall(), stall(), stall()), 'all-sets')!
     expect(autoregReason(adjustment, 'kg')).toBe(
-      'Third straight stall at 100 kg — training max likely set too high',
+      "Lower the training max — 3 straight stalls at 100 kg say it's set too high",
     )
   })
 })
@@ -1634,13 +1645,13 @@ describe('autoregReason — anchor', () => {
   it('names the outperform in the display unit', () => {
     const adjustment = autoregulate(2.5, seq(session([8, 8, 8], 120), session([8, 8, 8], 110)), 'all-sets')!
     expect(autoregReason(adjustment, 'kg')).toBe(
-      'Did 120 kg vs 100 kg planned — anchoring at 120 kg',
+      'Work at 120 kg — you lifted it over the planned 100 kg; the plan follows you',
     )
   })
 
   it('names a null-prescription anchor from the last session', () => {
     const adjustment = autoregulateAnchor([nullLoadSession({ reps: 10, weightKg: 60 })])!
-    expect(autoregReason(adjustment, 'kg')).toBe('Last session: 60 kg — anchoring')
+    expect(autoregReason(adjustment, 'kg')).toBe('Start at 60 kg — what you lifted last session')
   })
 
   it('speaks the composed step from the performed load', () => {
@@ -1656,7 +1667,7 @@ describe('autoregReason — anchor', () => {
     }
     const adjustment = autoregulateRange(2.5, seq(filled, previous), ROWS)!
     expect(autoregReason(adjustment, 'kg')).toBe(
-      'Range filled at 110 kg last session — stepping to 112.5 kg',
+      'Move up to 112.5 kg — you hit the top reps on every set at 110 kg',
     )
   })
 })
@@ -1681,5 +1692,241 @@ describe('sessionBeatsTop (volume-progression signal)', () => {
   it('lighter-than-prescribed attempts do not count as beats', () => {
     // Performed at 80 vs 100 prescribed: not at-load, so nothing is scorable.
     expect(sessionBeatsTop(session([15, 15, 15], 80), 12)).toBe(null)
+  })
+})
+
+describe('legacy-snapshot bucket matching (#226 transitional epsilon)', () => {
+  it('keeps a stall streak alive across the quantization deploy boundary', () => {
+    // Legacy sessions prescribed 16.87 kg raw; the newest at its quantized
+    // re-derivation 17.01 kg (both 37.5 lb) — 0.14 kg apart, past the raw
+    // 0.05 kg epsilon, but the SAME 2.5 lb increment.
+    const sessions = seq(
+      sessionAt(17.01, [6, 6, 6]),
+      sessionAt(16.87, [6, 6, 6]),
+      sessionAt(16.87, [6, 6, 6]),
+    )
+    // Without a unit the raw epsilon governs: the streak breaks → repeat.
+    expect(autoregulate(2.5, sessions, 'all-sets')!.action).toBe('repeat')
+    // With the active unit the loads share an increment: third stall → decrement.
+    expect(autoregulate(2.5, sessions, 'all-sets', 'lb')!.action).toBe('decrement')
+  })
+
+  it('applies a verdict to a set whose quantized load shares the evidence increment', () => {
+    // Legacy evidence at 17.1 kg (37.5 lb raw-rounded DOWN by quantization).
+    const adjustment = autoregulate(2.5, [sessionAt(17.1, [6, 6, 6])], 'all-sets', 'lb')!
+    const scheme: DerivedSet = {
+      setNumber: 1,
+      setType: 'working',
+      metricMode: 'reps_weight',
+      repMin: 8,
+      repMax: null,
+      rir: null,
+      rpe: null,
+      loadKg: 17.01, // today's quantized derivation of the same 37.5 lb
+      tempo: null,
+      durationSec: null,
+      distanceM: null,
+      restSec: null,
+      technique: null,
+      derivedFrom: 'scheme',
+      sourceIndex: 0,
+    }
+    // Raw epsilon alone misses the bucket (17.01 < 17.1 − 0.05): untouched.
+    expect(applyAutoregToSets([scheme], adjustment)[0].derivedFrom).toBe('scheme')
+    // Same 37.5 lb increment in the active unit: the verdict lands.
+    expect(applyAutoregToSets([scheme], adjustment, 'lb')[0]).toMatchObject({
+      loadKg: 17.01,
+      derivedFrom: 'autoreg',
+    })
+  })
+})
+
+describe('overshoot policy (#227)', () => {
+  // The user's real numbers: prescribed 12 × 16.87 kg (37.5 lb), performed
+  // 15 × 15.88 kg (35 lb) — a HIGHER e1RM (23.82 vs 23.62 kg) at a lighter
+  // load the gym could actually rack.
+  const overshootSession = (): AutoregSession => ({
+    startedAtMs: 0,
+    prescribed: [
+      { setNumber: 1, repMin: 12, loadKg: 16.87 },
+      { setNumber: 2, repMin: 12, loadKg: 16.87 },
+      { setNumber: 3, repMin: 12, loadKg: 16.87 },
+    ],
+    actual: [1, 2, 3].map((setNumber) => ({
+      setNumber,
+      reps: 15,
+      weightKg: 15.88,
+      completed: true,
+    })),
+  })
+  const overshootRows: AutoregRangeRow[] = [
+    { loadKg: 16.87, repMax: 12 },
+    { loadKg: 16.87, repMax: 12 },
+    { loadKg: 16.87, repMax: 12 },
+  ]
+
+  it("REGRESSION: the user's overshoot is never rendered as a miss under strict (default) policy", () => {
+    const verdict = autoregulateRange(2.5, seq(overshootSession()), overshootRows)
+    // Strict policy: the lighter sets aren't scorable, so the only honest
+    // strict verdict is silence — never a "Range not filled"/"Missed" line.
+    if (verdict !== null) {
+      const reason = autoregReason(verdict, 'lb')
+      expect(reason).not.toContain('Missed')
+      expect(reason).not.toContain('not filled')
+    }
+  })
+
+  it("e1rm-equivalent credits the user's overshoot as a range fill (one step, never more)", () => {
+    const verdict = autoregulateRange(
+      2.5,
+      seq(overshootSession()),
+      overshootRows,
+      undefined,
+      'e1rm-equivalent',
+    )!
+    expect(verdict.action).toBe('step')
+    expect(verdict.deltaKg).toBe(2.5) // exactly one step — overshoot never accelerates
+  })
+
+  it('e1rm-equivalent does NOT credit a set below the range top toward a fill', () => {
+    // 13 × 90 vs 8–12 @ 100: e1RM 129 beats the floor's 126.7 (credited, no
+    // stall) but is nowhere near the top's e1RM — the range must NOT fill.
+    const s: AutoregSession = {
+      startedAtMs: 0,
+      prescribed: [
+        { setNumber: 1, repMin: 8, loadKg: 100 },
+        { setNumber: 2, repMin: 8, loadKg: 100 },
+      ],
+      actual: [1, 2].map((setNumber) => ({
+        setNumber,
+        reps: 13,
+        weightKg: 90,
+        completed: true,
+      })),
+    }
+    const rows: AutoregRangeRow[] = [
+      { loadKg: 100, repMax: 12 },
+      { loadKg: 100, repMax: 12 },
+    ]
+    const verdict = autoregulateRange(2.5, seq(s), rows, undefined, 'e1rm-equivalent')!
+    expect(verdict.action).toBe('repeat')
+  })
+
+  it('any-metric counts reps-over at ANY load; e1rm-equivalent stays silent on it', () => {
+    // 15 × 50 vs 8–12 @ 100: reps beat the top but the e1RM (75) is nowhere
+    // near the target's — permissive counts it, e1rm-equivalent does not.
+    const s: AutoregSession = {
+      startedAtMs: 0,
+      prescribed: [{ setNumber: 1, repMin: 8, loadKg: 100 }],
+      actual: [{ setNumber: 1, reps: 15, weightKg: 50, completed: true }],
+    }
+    const rows: AutoregRangeRow[] = [{ loadKg: 100, repMax: 12 }]
+    expect(autoregulateRange(2.5, seq(s), rows, undefined, 'any-metric')!.action).toBe('step')
+    expect(autoregulateRange(2.5, seq(s), rows, undefined, 'e1rm-equivalent')).toBeNull()
+  })
+
+  it('fixed mode: e1rm-equivalent goal-met silences the strict follow-down proposal', () => {
+    // Three identical sessions at 90 vs plan 100, floors beaten on e1RM: the
+    // strict read proposes matching the plan down; the equivalent read says
+    // the goal was met — no anchor-down proposal.
+    const lighter = (): AutoregSession => ({
+      startedAtMs: 0,
+      prescribed: prescribed(),
+      actual: [1, 2, 3].map((setNumber) => ({
+        setNumber,
+        reps: 13, // e1RM 129 ≥ e1RM(8 × 100) = 126.7
+        weightKg: 90,
+        completed: true,
+      })),
+    })
+    const sessions = seq(lighter(), lighter(), lighter())
+    expect(autoregulate(2.5, sessions, 'all-sets')!.action).toBe('anchor')
+    expect(autoregulate(2.5, sessions, 'all-sets', undefined, 'e1rm-equivalent')).toBeNull()
+  })
+
+  it('amrap-cycle: the early-deload flag never becomes a load change under any policy', () => {
+    const stalled = () => session([6, 6, 6])
+    // Permissive any-metric reads 6 @ the prescribed load as load-metric-met
+    // (no stall, no flag) — crediting can SILENCE the flag, never turn it
+    // into a load adjustment.
+    expect(
+      autoregulateEarlyDeload(seq(stalled(), stalled(), stalled()), 'all-sets', 'any-metric'),
+    ).toBeNull()
+    for (const policy of ['strict-load', 'e1rm-equivalent'] as const) {
+      const verdict = autoregulateEarlyDeload(
+        seq(stalled(), stalled(), stalled()),
+        'all-sets',
+        policy,
+      )
+      expect(verdict).not.toBeNull()
+      expect(verdict!.action).toBe('flag')
+      expect(verdict!.deltaKg).toBe(0)
+      // A flag adjusts nothing — the scheme's TM math never sees the policy.
+      const set: DerivedSet = {
+        setNumber: 1,
+        setType: 'working',
+        metricMode: 'reps_weight',
+        repMin: 8,
+        repMax: null,
+        rir: null,
+        rpe: null,
+        loadKg: 100,
+        tempo: null,
+        durationSec: null,
+        distanceM: null,
+        restSec: null,
+        technique: null,
+        derivedFrom: 'scheme',
+        sourceIndex: 0,
+      }
+      expect(applyAutoregToSets([set], verdict!)[0]).toEqual(set)
+    }
+  })
+
+  it('sessionOvershoot names the e1RM-beating set against its snapshot target', () => {
+    expect(sessionOvershoot(overshootSession())).toEqual({
+      reps: 15,
+      weightKg: 15.88,
+      targetReps: 12,
+      targetLoadKg: 16.87,
+    })
+    // An at-load session is not an overshoot — no annotation, no noise.
+    expect(sessionOvershoot(session([8, 8, 8]))).toBeNull()
+  })
+
+  it('a miss-shaped hold carrying an overshoot renders recognition, never a miss', () => {
+    // Mixed evidence: set 1 genuinely missed at load, set 2 beat the target
+    // e1RM at a lighter load — the reason must lead with the recognition.
+    const s: AutoregSession = {
+      startedAtMs: 0,
+      prescribed: [
+        { setNumber: 1, repMin: 8, loadKg: 100 },
+        { setNumber: 2, repMin: 8, loadKg: 100 },
+      ],
+      actual: [
+        { setNumber: 1, reps: 6, weightKg: 100, completed: true },
+        { setNumber: 2, reps: 13, weightKg: 90, completed: true },
+      ],
+    }
+    const verdict = autoregulate(2.5, seq(s), 'all-sets')!
+    expect(verdict.action).toBe('repeat')
+    expect(verdict.overshoot).toBeDefined()
+    const reason = autoregReason(verdict, 'kg')
+    expect(reason).toContain('Beat the target')
+    expect(reason).not.toContain('Missed')
+  })
+
+  it("autoregReason formats the user's overshoot in loadable lb", () => {
+    const verdict: AutoregAdjustment = {
+      action: 'repeat',
+      deltaKg: 0,
+      suggestEarlyDeload: false,
+      stalledLoads: [16.87],
+      evidence: { missedSets: 3, scorableSets: 3, repFloor: 12, loadKg: 16.87 },
+      overshoot: { reps: 15, weightKg: 15.88, targetReps: 12, targetLoadKg: 16.87 },
+    }
+    expect(autoregReason(verdict, 'lb')).toBe(
+      'Beat the target — 15 × 35 lb tops 12 × 37.5 lb — holding the load',
+    )
   })
 })

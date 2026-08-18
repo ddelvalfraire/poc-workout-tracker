@@ -25,12 +25,14 @@ import type {
   DietPhase,
 } from '@/lib/program-input'
 import type { AutoregStallPolicy } from '@/lib/autoregulate'
+import type { OvershootPolicy } from '@/lib/overshoot-policy'
 import type { ExerciseSource, ExerciseCategory } from '@/lib/custom-exercise-input'
 import type { LoggingType } from '@/lib/workout-input'
 import type { MeasurementSite } from '@/lib/measurement-sites'
 import type { PhotoPose } from '@/lib/photo-input'
 import type { GoalKind, GoalTarget } from '@/lib/goal-input'
 import type { TrophyKind, TrophyContext } from '@/lib/trophy-kinds'
+import type { NoteAuthor, NoteAnchorSnapshot } from '@/lib/note-input'
 
 export const workouts = pgTable(
   'workouts',
@@ -424,6 +426,74 @@ export const exerciseNotes = pgTable(
 )
 
 /**
+ * Notes v2 — authored annotations with exactly ONE anchor (program, workout,
+ * workout-exercise instance, or set). One table (not per-entity columns)
+ * because the global notes browser queries across anchors in one shot and
+ * `author` makes rows entities in their own right (user today, coach comments
+ * later — the WRITE path for 'coach' is gated behind the coach surface, but
+ * the column ships now so it needs data, not schema).
+ *
+ * Anchoring rules:
+ * - Exactly one anchor FK is non-null (DB CHECK, `num_nonnulls` = 1); every
+ *   FK cascades — a deleted anchor takes its notes.
+ * - `anchor_snapshot` is written ONCE at creation for set/exercise anchors
+ *   (cheap facts: load×reps, set number, exercise name) and NEVER updated —
+ *   it powers the future "outdated" badge. A workout-anchored row WITH a
+ *   snapshot is a fallback re-anchor (its set/exercise vanished in an edit);
+ *   a true session note never carries one — reconcile logic keys on this.
+ * - `updateWorkout`'s full replace must re-anchor these rows across its
+ *   delete/re-insert (db/note-sync.ts) — cascade would otherwise eat them.
+ *
+ * The identity `exercise_notes` table above is a different animal (follows
+ * the exercise across workouts, markdown, pinned) and stays as-is.
+ */
+export const notes = pgTable(
+  'notes',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    userId: text('user_id').notNull(), // Clerk user id — ownership root
+    // Who wrote it: 'user' | 'coach' (text + app-level union, validated at
+    // the boundary like `status`/`source` everywhere else).
+    author: text('author').$type<NoteAuthor>().notNull().default('user'),
+    body: text('body').notNull(), // plain text, 2000 cap (parseNotes 'note')
+    // The four anchors — exactly one non-null, each a REAL cascade.
+    programId: uuid('program_id').references(() => programs.id, { onDelete: 'cascade' }),
+    workoutId: uuid('workout_id').references(() => workouts.id, { onDelete: 'cascade' }),
+    workoutExerciseId: uuid('workout_exercise_id').references(() => workoutExercises.id, {
+      onDelete: 'cascade',
+    }),
+    setId: uuid('set_id').references(() => sets.id, { onDelete: 'cascade' }),
+    // Frozen creation-time context for set/exercise anchors; null for
+    // workout/program anchors. Written once, never updated.
+    anchorSnapshot: jsonb('anchor_snapshot').$type<NoteAnchorSnapshot>(),
+    // Client-supplied idempotency key (the offline queue's PendingNote.id):
+    // the partial unique below makes a replayed flush a no-op instead of a
+    // duplicate row. Nullable — direct (non-queued) creates carry none.
+    clientKey: text('client_key'),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [
+    check(
+      'notes_exactly_one_anchor',
+      sql`num_nonnulls(${t.programId}, ${t.workoutId}, ${t.workoutExerciseId}, ${t.setId}) = 1`,
+    ),
+    // Exactly-once for queued creates: one row per (user, client key).
+    uniqueIndex('notes_user_client_key_unique')
+      .on(t.userId, t.clientKey)
+      .where(sql`${t.clientKey} is not null`),
+    // The browser's read path: by user, newest first — the composite serves
+    // the sort too (bodyweight_logs precedent).
+    index('notes_user_created_idx').on(t.userId, t.createdAt.desc()),
+    // Per-anchor lookups (ride-alongs, re-anchor capture, cascade sweeps).
+    index('notes_program_id_idx').on(t.programId),
+    index('notes_workout_id_idx').on(t.workoutId),
+    index('notes_workout_exercise_id_idx').on(t.workoutExerciseId),
+    index('notes_set_id_idx').on(t.setId),
+  ],
+)
+
+/**
  * Standalone workout templates — a reusable session SKETCH that lives outside
  * any program ("users can save workout templates outside of programs"). One
  * level flatter than the program tree on purpose: a template records which
@@ -605,6 +675,13 @@ export const programs = pgTable(
     // clear) — the minimal staleness signal, exposed via get_program so the
     // coach can reason about "still cutting?" without a nag surface.
     dietPhaseSetAt: timestamp('diet_phase_set_at', { withTimezone: true }),
+    // Overshoot / goal-met policy (lib/overshoot-policy.ts): 'strict-load' |
+    // 'e1rm-equivalent' | 'any-metric'. NULLABLE with no default and no
+    // backfill ON PURPOSE — null means "per-scheme default", resolved at READ
+    // time by resolveOvershootPolicy (strict for load-anchored schemes,
+    // e1rm-equivalent for rpe-target), so existing programs score
+    // byte-identically. Text + app-level union like `status`.
+    overshootPolicy: text('overshoot_policy').$type<OvershootPolicy>(),
     // Performance→plan auto-sync switch, default ON so fresh users never see
     // stale plans; off for deliberate-percentage programs (5/3/1-style waves)
     // where performed > listed is by design.
@@ -716,6 +793,12 @@ export const programExercises = pgTable(
     position: integer('position').notNull().default(0),
     // Same non-null value within a day = perform those exercises as a superset.
     supersetGroup: integer('superset_group'),
+    // Per-exercise overshoot-policy override (lib/overshoot-policy.ts) —
+    // outranks the program column; null = inherit (program policy, else the
+    // scheme default). Same nullable-text + read-time-resolution discipline
+    // as programs.overshoot_policy. No override UI in v1 — the column and
+    // resolver support it so a later surface needs data, not schema.
+    overshootPolicy: text('overshoot_policy').$type<OvershootPolicy>(),
     // Narrow JSONB tail: per-exercise progression scheme params (Phase 5 engine
     // consumes it). Validated/typed by `progressionSchema` at the boundary.
     progression: jsonb('progression').$type<Progression>(),

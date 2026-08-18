@@ -127,6 +127,7 @@ export async function ensureReactiveDeloadProposals(
             autoregStallPolicy: detail.autoregStallPolicy,
             deloadPolicy: detail.deloadPolicy,
             dietPhase: detail.dietPhase,
+            overshootPolicy: detail.overshootPolicy,
           },
         },
         targetWeek,

@@ -265,6 +265,95 @@
   animation: set-pop-big 340ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
+/* Notes-v2 save receipt: the set row's volt dot pops in (150ms scale, the
+   drafts' spec) — the whole acknowledgment, no toast. Transform-only and
+   @utility-registered so motion-safe: applies; reduced-motion users get the
+   dot appearing instantly. */
+@keyframes dot-in {
+  0% {
+    transform: scale(0);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+@utility animate-dot-in {
+  animation: dot-in 150ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* SessionToast strips (#210): enter rises 12px (a touch farther than
+   rise-in — the strip arrives from the bar's bottom edge), exit drops 8px
+   and fades. Exit < enter per the direction doc; both transform/opacity
+   only. Enter goes through motion-safe:/motion-reduce: in the component;
+   the exit classes are applied by JS (unmount waits on animationend, same
+   contract as sheet-exit) so the reduced-motion swap lives here. */
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+}
+@utility animate-toast-in {
+  animation: toast-in 200ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes toast-out {
+  to {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+@keyframes toast-fade-out {
+  to {
+    opacity: 0;
+  }
+}
+/* !important for the same reason as sheet-exit: the element still carries
+   animate-toast-in at equal specificity and the exit must win. */
+@layer utilities {
+  .toast-exit {
+    animation: toast-out 150ms ease-in both !important;
+  }
+  .toast-exit-quick {
+    animation: toast-fade-out 100ms ease-in both !important;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .toast-exit {
+      animation-name: toast-fade-out !important;
+    }
+  }
+}
+
+/* The undo toast's countdown hairline: 2px of volt draining left-to-right
+   (the rest pill's scaleX depletion vocabulary). A real CSS animation —
+   duration set inline to the undo window — so animation-play-state can
+   pause it, and its animationend IS the dismiss signal: hovering or
+   focusing the strip pauses the visual AND the timer as one. Reduced
+   motion drops the bar entirely (the component swaps in a ticking text
+   suffix and a plain timeout). */
+@keyframes toast-drain {
+  from {
+    transform: scaleX(1);
+  }
+  to {
+    transform: scaleX(0);
+  }
+}
+@layer utilities {
+  .toast-drain {
+    transform-origin: left;
+    animation: toast-drain linear both;
+  }
+  .session-toast:hover .toast-drain,
+  .session-toast:focus-within .toast-drain {
+    animation-play-state: paused;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .toast-drain {
+      display: none;
+    }
+  }
+}
+
 /* Previous-chip adopt feedback: a brief volt wash on the filled inputs.
    Confirmation, not error — a highlight, never a shake. Color-only and
    700ms one-shot, so it stays calm under reduced motion too. */
@@ -279,9 +368,26 @@
   }
 }
 
+/* Refused check-off: the empty weight input a completion tap bounced off.
+   The error twin of fill-flash — destructive-tinted, still color-only and
+   700ms one-shot (a highlight, never a shake), calm under reduced motion. */
+@keyframes weight-required-flash {
+  0% {
+    border-color: var(--color-destructive);
+    background-color: color-mix(in oklch, var(--color-destructive) 18%, transparent);
+  }
+  100% {
+    border-color: var(--color-border);
+    background-color: transparent;
+  }
+}
+
 @layer utilities {
   .fill-flash {
     animation: fill-flash 700ms ease-out;
+  }
+  .weight-required-flash {
+    animation: weight-required-flash 700ms ease-out;
   }
   /* Safe-area helpers for standalone/notched devices. */
   .pt-safe {
@@ -297,6 +403,36 @@
   /* Tabular, large numerals for glanceable set/rep/weight values. */
   .tnum {
     font-variant-numeric: tabular-nums;
+  }
+  /* Touch-target inset: an invisible ::before growing a sub-44px control's
+     hit area by 4px per edge (36px visual → 44px effective, the HIG floor)
+     without shifting layout — the same trick the remove-set button and
+     rest-sheet presets hand-roll with `relative before:absolute
+     before:-inset-1`. Ancestors must not overflow-clip the control, or the
+     extra area is silently lost. Full-inset form ONLY where every neighbor
+     sits ≥8px away: overlapping extensions have no arbitration (the later
+     sibling wins hit-testing), so a tap near a divider would silently fire
+     the wrong control. */
+  .hit-44 {
+    position: relative;
+  }
+  .hit-44::before {
+    content: '';
+    position: absolute;
+    inset: calc(var(--spacing) * -1);
+  }
+  /* Vertical-only sibling for controls with close horizontal neighbors
+     (segments inside ButtonGroup, chip strips): the height reaches 44px
+     effective while the side edges stay exactly where they look, so an
+     invisible extension can never cross into the adjacent control. */
+  .hit-44-y {
+    position: relative;
+  }
+  .hit-44-y::before {
+    content: '';
+    position: absolute;
+    inset-block: calc(var(--spacing) * -1);
+    inset-inline: 0;
   }
 }
 

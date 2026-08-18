@@ -91,6 +91,16 @@ const CASES: Record<
     },
     expected: 'Day 1, exercise 3: swap to “Incline Dumbbell Press”',
   },
+  substitute_program_exercise: {
+    input: {
+      programId: PROGRAM_ID,
+      dayPosition: 0,
+      exercisePosition: 2,
+      wgerExerciseId: 211,
+      name: 'Incline Dumbbell Press',
+    },
+    expected: 'Day 1, exercise 3: substitute “Incline Dumbbell Press” (old loads cleared)',
+  },
   remove_program_exercise: {
     input: { programId: PROGRAM_ID, dayPosition: 1, exercisePosition: 0 },
     expected: 'Day 2: remove exercise 1 and its sets',
@@ -160,6 +170,10 @@ const CASES: Record<
   set_program_diet_phase: {
     input: { programId: PROGRAM_ID, phase: 'cutting' },
     expected: 'Set the diet phase → cutting',
+  },
+  set_program_overshoot_policy: {
+    input: { programId: PROGRAM_ID, policy: 'e1rm-equivalent' },
+    expected: 'Set the overshoot policy → e1rm-equivalent',
   },
   set_program_plan_sync: {
     input: { programId: PROGRAM_ID, enabled: true },

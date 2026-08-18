@@ -12,7 +12,7 @@ import {
   type LastPerformance,
 } from '@/db/workouts'
 import { getProgramDayDetail, deriveDayPrescription } from '@/db/programs'
-import { updateProgramExercise } from '@/db/program-patches'
+import { substituteProgramExercise } from '@/db/program-patches'
 import { autoSyncPlanToPerformance } from '@/lib/auto-plan-sync'
 import { checkGoalAchievements } from '@/lib/goals'
 import { checkTrophies } from '@/lib/trophies'
@@ -275,14 +275,21 @@ export async function substitutePlanTargetsAction(
     restSec: s.restSec,
     rir: s.rir,
     rpe: s.rpe,
+    // Cardio targets — same dialect as loadPlanTargets (the comment above).
+    durationSec: s.durationSec,
+    distanceM: s.distanceM,
   }))
 }
 
 /**
  * Persists a mid-session swap into the PROGRAM: the slot that prescribed the
- * original exercise is re-pointed at the substitute via the narrow
- * updateProgramExercise patch — sets and per-week overrides untouched, muscle
- * tags re-derived. Position addresses are resolved server-side from the
+ * original exercise is re-pointed at the substitute via
+ * substituteProgramExercise — identity + name swapped, muscle tags
+ * re-derived, and every load that belonged to the OLD movement stripped
+ * (template/override suggestedLoadKg, TM-based progressions) so the plan
+ * can't keep prescribing the original lift's weights to the substitute
+ * (#215) — the persisted twin of substitutePlanTargetsAction's preview
+ * sanitization. Position addresses are resolved server-side from the
  * workout's provenance AT ACCEPT TIME (a program edited elsewhere meanwhile
  * throws on the vanished original instead of patching the wrong slot).
  * Throws (not null) on any broken link: the client offered the prompt
@@ -324,7 +331,7 @@ export async function rememberSwapAction(
   if (matches.length > 1) throw new Error('exercise appears more than once in this day')
   const slot = matches[0]
 
-  const updated = await updateProgramExercise(
+  const updated = await substituteProgramExercise(
     userId,
     day.program.id,
     day.position,
@@ -338,8 +345,13 @@ export async function rememberSwapAction(
     'ui',
   )
   if (!updated) throw new Error('could not update the program')
-  revalidatePath('/programs')
-  revalidatePath(`/programs/${day.program.id}`)
+  // No revalidatePath here: a Server-Action revalidation also re-renders the
+  // CURRENT route's RSC payload, and mid-session that re-runs the whole
+  // logger page (plan derivation included) under the app-wide page
+  // <ViewTransition> — the "full reload" jank of #214. The program pages
+  // this write affects render dynamically per request (auth cookies), so
+  // the only staleness is the client router cache's brief TTL — and there
+  // is no path from a live session to /programs that matters within it.
 }
 
 // ---------------------------------------------------------------------------

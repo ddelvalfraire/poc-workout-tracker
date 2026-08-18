@@ -12,7 +12,7 @@ import {
 import type { ImportSource, ParsedImport, ParsedSet, SkippedRow } from '@/lib/import/types'
 import { checkTrophies } from '@/lib/trophies'
 import { db } from './index'
-import { customExercises, importBatches, sets, workoutExercises, workouts } from './schema'
+import { customExercises, importBatches, notes, sets, workoutExercises, workouts } from './schema'
 import { listCustomExercises } from './custom-exercises'
 
 /**
@@ -218,10 +218,29 @@ export async function commitImport(
             name: workout.name !== undefined ? truncate(workout.name, MAX_NAME) : null,
             startedAt: workout.startedAt,
             completedAt: workout.completedAt,
-            notes: workout.notes !== undefined ? truncate(workout.notes, MAX_NOTES) : null,
             importBatchId: batch.id,
           })
           .returning({ id: workouts.id })
+
+        // Imported notes land in the notes table (notes v2 — the legacy
+        // columns are dead): workout-anchored session notes, exercise-anchored
+        // instance notes with the standard {exerciseName} snapshot, both
+        // dated to the session (created_at = started_at, the backfill rule).
+        // Undo stays safe: the batch delete removes the workouts explicitly,
+        // and the anchor FKs cascade the notes with them.
+        const noteValues: (typeof notes.$inferInsert)[] = []
+        const workoutNote =
+          workout.notes !== undefined ? truncate(workout.notes, MAX_NOTES).trim() : ''
+        if (workoutNote !== '') {
+          noteValues.push({
+            userId,
+            author: 'user',
+            body: workoutNote,
+            workoutId: w.id,
+            createdAt: workout.startedAt,
+            updatedAt: workout.startedAt,
+          })
+        }
 
         for (const [position, exercise] of workout.exercises.entries()) {
           const ref = resolveRef(exercise.name, plan.resolutions, customsByName)
@@ -233,11 +252,21 @@ export async function commitImport(
               source: ref.source,
               name: truncate(ref.name, MAX_NAME),
               position,
-              ...(exercise.notes !== undefined
-                ? { notes: truncate(exercise.notes, MAX_NOTES) }
-                : {}),
             })
             .returning({ id: workoutExercises.id })
+          const exerciseNote =
+            exercise.notes !== undefined ? truncate(exercise.notes, MAX_NOTES).trim() : ''
+          if (exerciseNote !== '') {
+            noteValues.push({
+              userId,
+              author: 'user',
+              body: exerciseNote,
+              workoutExerciseId: we.id,
+              anchorSnapshot: { exerciseName: truncate(ref.name, MAX_NAME) },
+              createdAt: workout.startedAt,
+              updatedAt: workout.startedAt,
+            })
+          }
 
           if (exercise.sets.length > 0) {
             await tx.insert(sets).values(
@@ -255,6 +284,7 @@ export async function commitImport(
             setsImported += exercise.sets.length
           }
         }
+        if (noteValues.length > 0) await tx.insert(notes).values(noteValues)
         workoutsImported += 1
       }
     })

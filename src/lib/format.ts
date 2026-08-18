@@ -4,7 +4,19 @@ export function formatWorkoutDate(date: Date): string {
 }
 
 import { kgToDisplay, type WeightUnit } from './units'
+import { quantizeDisplayLoad } from './load-quantize'
+import { formatDistanceInput, formatDurationInput } from './duration'
 import type { LoggingType } from './workout-input'
+
+/** Ghost-placeholder strings for one set's inputs — reps/weight for lifting
+ *  rows, duration (mm:ss) / distance (km) for cardio rows. Every field is
+ *  optional; an unset field renders no ghost. */
+export interface SetGhost {
+  reps?: string
+  weight?: string
+  duration?: string
+  distance?: string
+}
 
 /**
  * Formats a logged set's reps/weight for display. Weight is stored in kg and
@@ -162,15 +174,28 @@ export function formatE1RM(e1rmKg: number, unit: WeightUnit = 'kg'): string {
  * field renders no ghost (an `undefined` `placeholder` is omitted by React).
  */
 export function placeholderForSet(
-  last: { sets: { reps: number | null; weight: number | null }[] } | null,
+  last: {
+    sets: {
+      reps: number | null
+      weight: number | null
+      /** Cardio ride-alongs (LastPerformance) — optional so pre-cardio
+       *  fixtures and callers keep their shape. */
+      durationSec?: number | null
+      distanceM?: number | null
+    }[]
+  } | null,
   index: number,
   unit: WeightUnit = 'kg',
-): { reps?: string; weight?: string } {
+): SetGhost {
   const prior = last?.sets[index]
   if (!prior) return {}
   return {
     reps: prior.reps !== null ? String(prior.reps) : undefined,
     weight: prior.weight !== null ? String(kgToDisplay(prior.weight, unit)) : undefined,
+    // Ghosts speak the INPUT dialect (mm:ss / km — lib/duration.ts), so a
+    // tap-to-adopt lands a value the field would accept as typed.
+    duration: prior.durationSec != null ? formatDurationInput(prior.durationSec) : undefined,
+    distance: prior.distanceM != null ? formatDistanceInput(prior.distanceM) : undefined,
   }
 }
 
@@ -195,13 +220,14 @@ export function adoptableGhostValue(ghost?: string): string | undefined {
  * partial (a rep range without a prescribed load is a real prescription);
  * BW-relative types never ghost a weight — theirs isn't a total load.
  */
-export function planSetGhost(
-  plan: { reps?: string; weight?: string },
-  loggingType: LoggingType,
-): { reps?: string; weight?: string } {
+export function planSetGhost(plan: SetGhost, loggingType: LoggingType): SetGhost {
   return {
     reps: plan.reps,
     weight: loggingType === 'weight_reps' ? plan.weight : undefined,
+    // Cardio targets pass through untouched: duration/distance have no
+    // BW-relative reading, so the loggingType strip never applies to them.
+    duration: plan.duration,
+    distance: plan.distance,
   }
 }
 
@@ -215,9 +241,12 @@ export function planSetGhost(
  * is stripped by design, so reps ARE the complete story.
  */
 export function previousChipLabel(
-  ghost: { reps?: string; weight?: string },
+  ghost: SetGhost,
   loggingType: LoggingType = 'weight_reps',
 ): string | null {
+  // Cardio history: the duration IS the story (the chip is one word wide —
+  // distance rides the fill, not the label).
+  if (ghost.duration) return ghost.duration
   if (ghost.weight && ghost.reps) return `${ghost.weight}×${ghost.reps}`
   if (loggingType === 'weight_reps') return null
   if (ghost.reps) return `×${ghost.reps}`
@@ -306,6 +335,10 @@ export interface PlanSetTarget {
   /** Prescribed rest AFTER this set, seconds — feeds the logger's rest
    *  countdown (resolveRestTarget), not the ghost placeholders. */
   restSec: number | null
+  /** Cardio targets (duration/duration_distance sets) — optional so
+   *  pre-cardio call sites and fixtures keep their shape. */
+  durationSec?: number | null
+  distanceM?: number | null
 }
 
 /**
@@ -319,7 +352,7 @@ export function planPlaceholderForSet(
   targets: readonly PlanSetTarget[] | undefined,
   index: number,
   unit: WeightUnit = 'kg',
-): { reps?: string; weight?: string } {
+): SetGhost {
   const target = targets?.[index]
   if (!target) return {}
   let reps: string | undefined
@@ -331,6 +364,13 @@ export function planPlaceholderForSet(
   }
   return {
     reps,
-    weight: target.loadKg !== null ? String(kgToDisplay(target.loadKg, unit)) : undefined,
+    // Quantized display (#226): plan-target ghosts must be loadable numbers.
+    // New derivations are already on the grid; this also cleans the ghosts of
+    // legacy prescribed snapshots stamped before quantization existed.
+    weight: target.loadKg !== null ? String(quantizeDisplayLoad(target.loadKg, unit)) : undefined,
+    // Cardio plan targets ghost in the input dialect (mm:ss / km), same as
+    // the history placeholders — adoption must land typed-valid values.
+    duration: target.durationSec != null ? formatDurationInput(target.durationSec) : undefined,
+    distance: target.distanceM != null ? formatDistanceInput(target.distanceM) : undefined,
   }
 }

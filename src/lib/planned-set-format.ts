@@ -8,7 +8,8 @@
  * "2×60s", "@ 100 kg"). Kept free of JSX so it unit-tests as plain functions
  * (repo convention for pure modules).
  */
-import { kgToDisplay, type WeightUnit } from './units'
+import type { WeightUnit } from './units'
+import { quantizeDisplayLoad } from './load-quantize'
 import type { ProgramInputUnparsed } from './program-input'
 
 /** One planned set as a lenient mapper emits it (defaults not yet applied). */
@@ -54,7 +55,9 @@ export function formatPlannedScheme(set: PlannedSetShape, count: number, unit: W
     core = reps !== null ? `${count}×${reps}` : `${count} set${count === 1 ? '' : 's'}`
   }
   if (set.suggestedLoadKg != null && set.suggestedLoadKg > 0) {
-    core += ` @ ${kgToDisplay(set.suggestedLoadKg, unit)} ${unit}`
+    // Quantized display (#226): suggested loads written back by plan sync are
+    // exact performed kg facts — they PRINT on the unit's loadable grid.
+    core += ` @ ${quantizeDisplayLoad(set.suggestedLoadKg, unit)} ${unit}`
   }
   const tails = [
     set.rir != null ? `RIR ${set.rir}` : null,

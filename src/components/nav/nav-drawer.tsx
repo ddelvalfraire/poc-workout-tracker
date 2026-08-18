@@ -13,6 +13,7 @@ import {
   LayoutTemplate,
   Menu,
   MessageCircle,
+  NotebookPen,
   Scale,
   Settings,
   Target,
@@ -308,6 +309,15 @@ export function NavDrawer() {
         ? exercisesStatusLine(data.exercises.lastPrLabel, data.exercises.loggedCount)
         : null,
       invitation: 'Browse the catalog',
+    },
+    {
+      // Static line v1 (the Templates-row precedent): /api/drawer carries no
+      // note fact today, and a count would cost a new read per drawer open.
+      href: '/notes',
+      label: 'Notes',
+      icon: NotebookPen,
+      status: 'Everything you wrote, by session',
+      invitation: 'Everything you wrote, by session',
     },
     ...(data?.coach
       ? [
