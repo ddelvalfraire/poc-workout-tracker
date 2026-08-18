@@ -141,6 +141,33 @@ ${COLORS.map(decl).join("\n")}
 `;
 }
 
+/**
+ * Resolved sRGB for TypeScript consumers that cannot take OKLCH. Storybook's
+ * theme API predates OKLCH and wants plain colour strings; without this the
+ * chrome restates the palette by hand and drifts from it.
+ */
+export function tsTokens(): string {
+  const hex = (t: ColorToken) => `  "${t.name}": "${toSrgb(t).hex}",`;
+  return `${BANNER_LINES.map((l) => (l ? `// ${l}` : "//")).join("\n")}
+
+/** Resolved sRGB hex for every colour token, keyed by CSS custom property name. */
+export const SRGB_HEX = {
+${COLORS.map(hex).join("\n")}
+} as const satisfies Record<string, \`#\${string}\`>;
+
+/** Corner radii in px, keyed by token name. */
+export const RADIUS_PX = {
+${RADII.map((r) => `  "${r.name}": ${r.value},`).join("\n")}
+} as const;
+
+/** The two family names. Consumers that cannot read CSS variables (Storybook's
+ *  theme API) compose their own fallback stack from these. */
+export const FONT_FAMILY = {
+${FONTS.map((f) => `  "${f.name}": ${JSON.stringify(f.native)},`).join("\n")}
+} as const;
+`;
+}
+
 export function swift(): string {
   const core = COLORS.filter((c) => c.status === "core");
   const colorCases = core
@@ -281,6 +308,7 @@ ${LAYOUT.map((l) => `        /** ${l.doc} */\n        val ${pascal(l.name)} = ${
 
 export const OUTPUTS: ReadonlyArray<{ path: string; contents: () => string }> = [
   { path: join(ROOT, "src/app/tokens.generated.css"), contents: css },
+  { path: join(ROOT, "src/design/tokens.generated.ts"), contents: tsTokens },
   { path: join(ROOT, "design/generated/DesignTokens.swift"), contents: swift },
   { path: join(ROOT, "design/generated/DesignTokens.kt"), contents: kotlin },
 ];

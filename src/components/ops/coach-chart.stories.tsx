@@ -29,7 +29,7 @@ type Story = StoryObj<typeof meta>;
 const series = (traces: number[], perTrace = 0.0042): CoachChartPoint[] =>
   traces.map((t, i) => ({
     label: new Date(STORY_NOW - (traces.length - 1 - i) * 86_400_000)
-      .toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+      .toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" }),
     traces: t,
     cost: Number((t * perTrace).toFixed(4)),
   }));

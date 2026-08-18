@@ -18,11 +18,12 @@ Everything below is generated from **one file**: `src/design/tokens.ts`.
 src/design/tokens.ts
         │
         ├── src/app/tokens.generated.css        →  web  (imported by globals.css)
+        ├── src/design/tokens.generated.ts      →  TS consumers that need sRGB
         ├── design/generated/DesignTokens.swift →  iOS   (SwiftUI)
         └── design/generated/DesignTokens.kt    →  Android (Jetpack Compose)
 ```
 
-- `npm run tokens` regenerates all three.
+- `npm run tokens` regenerates all four.
 - `npm run tokens:check` fails if any of them has drifted — wire it into CI.
 - **Never edit a generated file.** Edit `tokens.ts` and regenerate.
 
@@ -43,6 +44,10 @@ leaves sRGB, rather than silently shifting colour on one platform.
 
 The **sRGB** column is the literal value compiled into the Swift and Kotlin
 files. `core` tokens ship to all three platforms.
+
+The `.ts` output exists because Storybook's own theme API predates OKLCH and
+takes plain colour strings. Without it the catalog's chrome would restate the
+palette by hand — a design system whose own workbench drifts from it.
 
 <ColorTable status="core" />
 
@@ -97,4 +102,4 @@ substituting a system face loses the athletic register.
    that string becomes the comment on every platform, so write it for a
    developer who has never seen this app.
 2. Run `npm run tokens`.
-3. Commit `tokens.ts` **and** all three generated files together.
+3. Commit `tokens.ts` **and** all four generated files together.

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { COLORS } from "../src/design/tokens";
-import { css, kotlin, swift } from "./build-tokens";
+import { css, kotlin, swift, tsTokens } from "./build-tokens";
 
 /**
  * The emitters have no compiler downstream — no Swift or Kotlin toolchain runs
@@ -75,14 +75,25 @@ describe("token emitters", () => {
     for (const id of durations) expect(id, `kotlin duration ${id}`).toMatch(/Ms$/);
   });
 
+  it("resolves sRGB for the TS consumers that cannot read OKLCH", () => {
+    const out = tsTokens();
+    // Storybook's theme reads this; a missing token silently paints the chrome
+    // in a default colour rather than the app's.
+    for (const token of COLORS) {
+      expect(out, token.name).toContain(`"${token.name}": "#`);
+    }
+    expect(out).toContain('"radius-lg": 12');
+  });
+
   it("is deterministic — two runs produce identical output", () => {
+    expect(tsTokens()).toBe(tsTokens());
     expect(css()).toBe(css());
     expect(swift()).toBe(swift());
     expect(kotlin()).toBe(kotlin());
   });
 
   it("marks every generated file as generated", () => {
-    for (const out of [css(), swift(), kotlin()]) {
+    for (const out of [css(), tsTokens(), swift(), kotlin()]) {
       expect(out).toContain("GENERATED FILE — DO NOT EDIT.");
       expect(out).toContain("src/design/tokens.ts");
     }

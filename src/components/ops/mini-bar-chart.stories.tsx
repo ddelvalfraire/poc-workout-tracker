@@ -28,7 +28,7 @@ type Story = StoryObj<typeof meta>;
 const points = (values: number[]): MiniBarPoint[] =>
   values.map((value, i) => ({
     label: new Date(STORY_NOW - (values.length - 1 - i) * 86_400_000)
-      .toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+      .toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" }),
     value,
   }));
 

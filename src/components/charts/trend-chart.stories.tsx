@@ -37,7 +37,7 @@ const DAY_MS = 86_400_000;
 const START = Date.UTC(2026, 2, 2);
 
 const fmt = (t: number) =>
-  new Date(t).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  new Date(t).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
 
 /** A rising e1RM with two records along the way. */
 const CLIMB: TrendPoint[] = [
