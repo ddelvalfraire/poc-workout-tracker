@@ -362,3 +362,36 @@ describe('registerResources', () => {
     })
   })
 })
+
+describe('workout:// notes omission (notes-v2 guard)', () => {
+  const original = process.env.MCP_DEV_USER_ID
+  beforeEach(() => {
+    vi.clearAllMocks()
+    process.env.MCP_DEV_USER_ID = 'user_env'
+  })
+  afterEach(() => {
+    process.env.MCP_DEV_USER_ID = original
+  })
+
+  it('never rides set notes along — the resource payload carries no notes key on any set', async () => {
+    // The get_workout TOOL rides notesForWorkout; the resource deliberately
+    // does not (byte-identical pre-notes shape). This pins the omission so a
+    // future edit cannot wire notesForWorkout into the resource path without
+    // failing here.
+    const resources = setup()
+    mockedDetail.mockResolvedValue(detail() as never)
+    mockedUnit.mockResolvedValue('kg')
+
+    const result = await readWorkout(resources)
+    const body = JSON.parse(result.contents[0]!.text) as {
+      workout: { exercises: { sets: Record<string, unknown>[] }[] }
+    }
+
+    expect(body.workout.exercises.length).toBeGreaterThan(0)
+    for (const exercise of body.workout.exercises) {
+      for (const set of exercise.sets) {
+        expect(set).not.toHaveProperty('notes')
+      }
+    }
+  })
+})
