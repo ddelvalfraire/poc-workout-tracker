@@ -66,9 +66,12 @@ still has some — that means a half-finished run, and it wants a human.
 Only after the app works signed in as the migrated user:
 
 1. Delete the Clerk user from the Clerk dashboard.
-2. Remove the Clerk env vars from Vercel.
-3. `npm uninstall @clerk/nextjs @clerk/mcp-tools @clerk/testing` — no code
-   imports them any more.
+2. Remove the Clerk env vars from Vercel (`CLERK_SECRET_KEY`,
+   `NEXT_PUBLIC_CLERK_*`).
+3. Close the Clerk application/account itself.
+
+The `@clerk/*` packages are already uninstalled on this branch — reverting the
+branch is the rollback, not reinstalling them.
 
 ## Passwords and social sign-in
 
