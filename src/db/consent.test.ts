@@ -28,6 +28,8 @@ function makeDb() {
     return b
   }
   const database = {
+    // The advisory-lock statement inside recordConsent's transaction.
+    execute: () => Promise.resolve(),
     select: () => selectBuilder(),
     insert: () => ({
       values: (v: unknown) => {
@@ -89,6 +91,17 @@ describe('truncateIp', () => {
     expect(truncateIp('')).toBeNull()
     expect(truncateIp(null)).toBeNull()
     expect(truncateIp(undefined)).toBeNull()
+  })
+
+  it('never stores colon-containing non-IP strings as evidence', () => {
+    expect(truncateIp('account@example.com:token')).toBeNull()
+    expect(truncateIp('https://evil.example:443')).toBeNull()
+    expect(truncateIp('a:b')).toBeNull() // two groups is not an IPv6
+  })
+
+  it('rejects out-of-range IPv4 octets and loopback-ish compressed IPv6', () => {
+    expect(truncateIp('999.1.2.3')).toBeNull()
+    expect(truncateIp('::1')).toBeNull() // non-identifying anyway; store nothing
   })
 })
 

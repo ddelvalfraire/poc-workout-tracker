@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { and, desc, eq } from 'drizzle-orm'
+import { and, desc, eq, sql } from 'drizzle-orm'
 import { db } from './index'
 import {
   consentDocuments,
@@ -45,11 +45,17 @@ export function truncateIp(ip: string | null | undefined): string | null {
   // unwrap before the v4 check or the most common real-world form would
   // degrade to null instead of truncating.
   const unwrapped = ip.replace(/^::ffff:/i, '')
-  const v4 = unwrapped.match(/^(\d{1,3})\.(\d{1,3})\.\d{1,3}\.\d{1,3}$/)
-  if (v4) return `${v4[1]}.${v4[2]}.0.0`
-  if (unwrapped.includes(':')) {
+  const v4 = unwrapped.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/)
+  if (v4) {
+    // Out-of-range octets ('999.1.2.3') are not an IP; store nothing.
+    if (v4.slice(1).some((octet) => Number(octet) > 255)) return null
+    return `${v4[1]}.${v4[2]}.0.0`
+  }
+  // IPv6: only hex groups and colons may appear — anything else (URLs,
+  // 'user@host:token', header junk) must never be stored as evidence.
+  if (/^[0-9a-f:]+$/i.test(unwrapped) && unwrapped.includes(':')) {
     const groups = unwrapped.split(':')
-    if (groups.length < 2 || groups[0] === '') return null
+    if (groups.length < 3 || groups[0] === '' || groups[1] === '') return null
     return `${groups[0]}:${groups[1]}::`
   }
   return null
@@ -158,6 +164,15 @@ export async function recordConsent(input: {
     throw new Error(`consent ${input.action} for ${input.purpose} requires a documentId`)
   }
   return db.transaction(async (tx) => {
+    // Serialize concurrent writers on the same (user, purpose): without this,
+    // a grant that inserted its event first can commit its projection upsert
+    // AFTER a later withdrawal, leaving consent_current claiming granted
+    // while the ledger's newest event says withdrawn — an unacceptable
+    // divergence for a compliance table. The advisory lock is transaction-
+    // scoped (released automatically at commit/rollback).
+    await tx.execute(
+      sql`select pg_advisory_xact_lock(hashtext(${input.userId + ':' + input.purpose}))`,
+    )
     const [event] = await tx
       .insert(consentEvents)
       .values({

@@ -337,6 +337,13 @@
       "when": 1787116973005,
       "tag": "0047_consent_events_append_only",
       "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1787117586929,
+      "tag": "0048_consent_documents_append_only",
+      "breakpoints": true
     }
   ]
 }
