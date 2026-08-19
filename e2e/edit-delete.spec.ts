@@ -1,41 +1,29 @@
 import { test, expect } from '@playwright/test'
-import { clerk } from '@clerk/testing/playwright'
 import postgres from 'postgres'
+import { createTestUser, deleteTestUser, signIn, type TestUser } from './auth'
 
 /**
- * End-to-end happy path for Phase 5 edit + delete, against the LIVE Clerk dev
- * instance and Supabase DB.
+ * End-to-end happy path for Phase 5 edit + delete, against the LIVE WorkOS
+ * environment and Supabase DB.
  *
- * Mirrors the Phase 3 harness (e2e/workout.spec.ts): a disposable `+clerk_test`
- * user is provisioned via the Clerk Backend API, signed in through the real UI,
- * logs a workout, then edits a set's weight (asserted directly in Postgres) and
- * deletes the workout (asserting the rows are gone). Teardown removes the
- * workout rows (cascade) and the Clerk user, so the test leaves nothing behind.
+ * Mirrors the Phase 3 harness (e2e/workout.spec.ts): a disposable user is
+ * provisioned via the WorkOS User Management API, signed in through the real
+ * hosted AuthKit page, logs a workout, then edits a set's weight (asserted
+ * directly in Postgres) and deletes the workout (asserting the rows are gone).
+ * Teardown removes the workout rows (cascade) and the WorkOS user, so the test
+ * leaves nothing behind.
  */
 
-const CLERK_API = 'https://api.clerk.com/v1'
-const SECRET = process.env.CLERK_SECRET_KEY!
 const STAMP = Date.now()
-const TEST_EMAIL = `e2e+clerk_test_ed_${STAMP}@example.com`
-const TEST_PASSWORD = `Pw-e2e-${STAMP}-aZ9!`
 const WORKOUT_NAME = `E2E Edit ${STAMP}`
 
+let user: TestUser
 let userId: string
 let sql: ReturnType<typeof postgres>
 
 test.beforeAll(async () => {
-  const res = await fetch(`${CLERK_API}/users`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${SECRET}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      email_address: [TEST_EMAIL],
-      password: TEST_PASSWORD,
-      skip_password_checks: true,
-    }),
-  })
-  const body = await res.json()
-  if (!res.ok) throw new Error(`Clerk create user failed (${res.status}): ${JSON.stringify(body)}`)
-  userId = body.id
+  user = await createTestUser('ed')
+  userId = user.id
 
   sql = postgres(process.env.DATABASE_URL_DIRECT!, { prepare: false })
 
@@ -49,18 +37,12 @@ test.afterAll(async () => {
     await sql`delete from user_preferences where user_id = ${userId}`
     await sql.end()
   }
-  if (userId) {
-    await fetch(`${CLERK_API}/users/${userId}`, {
-      method: 'DELETE',
-      headers: { Authorization: `Bearer ${SECRET}` },
-    })
-  }
+  if (userId) await deleteTestUser(userId)
 })
 
 test('signed-in user can edit a set and delete a workout', async ({ page }) => {
   // Sign in.
-  await page.goto('/sign-in')
-  await clerk.signIn({ page, emailAddress: TEST_EMAIL })
+  await signIn(page, user)
 
   // Start a workout, give it a findable name.
   await page.goto('/')

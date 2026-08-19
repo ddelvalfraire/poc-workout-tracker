@@ -1,41 +1,27 @@
 import { test, expect } from '@playwright/test'
-import { clerk } from '@clerk/testing/playwright'
 import postgres from 'postgres'
+import { createTestUser, deleteTestUser, signIn, type TestUser } from './auth'
 
 /**
  * End-to-end happy path for the Phase 6 program UI: build a program in the
  * browser, browse its engine-derived targets, and start today's day as a real
  * workout — the PRD success signal, entirely in the UI.
  *
- * Mirrors workout.spec.ts: a disposable `+clerk_test` user is provisioned via
- * the Clerk Backend API, signed in through the real UI, and rows are asserted
- * directly in Postgres. Cleanup happens through the UI (delete program), with a
- * SQL/Clerk teardown as the safety net so the test leaves nothing behind.
+ * Mirrors workout.spec.ts: a disposable user is provisioned via the WorkOS User
+ * Management API, signed in through the real hosted AuthKit page, and rows are
+ * asserted directly in Postgres. Cleanup happens through the UI (delete
+ * program), with a SQL/WorkOS teardown as the safety net so the test leaves
+ * nothing behind.
  */
 
-const CLERK_API = 'https://api.clerk.com/v1'
-const SECRET = process.env.CLERK_SECRET_KEY!
-const STAMP = Date.now()
-const TEST_EMAIL = `e2e+clerk_test_${STAMP}@example.com`
-const TEST_PASSWORD = `Pw-e2e-${STAMP}-aZ9!`
-
+let user: TestUser
 let userId: string
 let sql: ReturnType<typeof postgres>
 
 test.beforeAll(async () => {
   // Provision a disposable, pre-verified test user with a password.
-  const res = await fetch(`${CLERK_API}/users`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${SECRET}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      email_address: [TEST_EMAIL],
-      password: TEST_PASSWORD,
-      skip_password_checks: true,
-    }),
-  })
-  const body = await res.json()
-  if (!res.ok) throw new Error(`Clerk create user failed (${res.status}): ${JSON.stringify(body)}`)
-  userId = body.id
+  user = await createTestUser('programs')
+  userId = user.id
 
   // Direct connection (session pooler, 5432) for assertions + cleanup.
   sql = postgres(process.env.DATABASE_URL_DIRECT!, { prepare: false })
@@ -51,18 +37,12 @@ test.afterAll(async () => {
     await sql`delete from user_preferences where user_id = ${userId}`
     await sql.end()
   }
-  if (userId) {
-    await fetch(`${CLERK_API}/users/${userId}`, {
-      method: 'DELETE',
-      headers: { Authorization: `Bearer ${SECRET}` },
-    })
-  }
+  if (userId) await deleteTestUser(userId)
 })
 
 test('signed-in user can build a program, browse targets, and start a day', async ({ page }) => {
-  // Sign in via Clerk on a page that loads it (home redirects to /sign-in).
-  await page.goto('/sign-in')
-  await clerk.signIn({ page, emailAddress: TEST_EMAIL })
+  // Sign in through the hosted AuthKit page (home redirects to /sign-in).
+  await signIn(page, user)
 
   // Home → Programs → empty state → New Program.
   await page.goto('/')

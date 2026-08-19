@@ -1,39 +1,24 @@
 import { test, expect } from '@playwright/test'
-import { clerk } from '@clerk/testing/playwright'
 import postgres from 'postgres'
+import { createTestUser, deleteTestUser, signIn, type TestUser } from './auth'
 
 /**
- * End-to-end for Phase 2 "last time" ghost inputs, against the LIVE Clerk dev
- * instance and Supabase DB. Mirrors the Phase 3 harness: a disposable
- * `+clerk_test` user (pinned to kg for deterministic values) logs a workout,
- * then starts another with the same exercise and the set inputs should show the
- * prior performance as placeholder ghosts. Covers first-time (no ghosts) and
- * more-sets-than-history (extra set stays blank). Teardown removes all rows and
- * the Clerk user.
+ * End-to-end for Phase 2 "last time" ghost inputs, against the LIVE WorkOS
+ * environment and Supabase DB. Mirrors the Phase 3 harness: a disposable user
+ * (pinned to kg for deterministic values) logs a workout, then starts another
+ * with the same exercise and the set inputs should show the prior performance
+ * as placeholder ghosts. Covers first-time (no ghosts) and more-sets-than-
+ * history (extra set stays blank). Teardown removes all rows and the WorkOS
+ * user.
  */
 
-const CLERK_API = 'https://api.clerk.com/v1'
-const SECRET = process.env.CLERK_SECRET_KEY!
-const STAMP = Date.now()
-const TEST_EMAIL = `e2e+clerk_test_lt_${STAMP}@example.com`
-const TEST_PASSWORD = `Pw-e2e-${STAMP}-aZ9!`
-
+let user: TestUser
 let userId: string
 let sql: ReturnType<typeof postgres>
 
 test.beforeAll(async () => {
-  const res = await fetch(`${CLERK_API}/users`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${SECRET}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      email_address: [TEST_EMAIL],
-      password: TEST_PASSWORD,
-      skip_password_checks: true,
-    }),
-  })
-  const body = await res.json()
-  if (!res.ok) throw new Error(`Clerk create user failed (${res.status}): ${JSON.stringify(body)}`)
-  userId = body.id
+  user = await createTestUser('lt')
+  userId = user.id
 
   sql = postgres(process.env.DATABASE_URL_DIRECT!, { prepare: false })
   // Pin to kg so ghost values round-trip exactly (kg is the canonical identity).
@@ -46,17 +31,11 @@ test.afterAll(async () => {
     await sql`delete from user_preferences where user_id = ${userId}`
     await sql.end()
   }
-  if (userId) {
-    await fetch(`${CLERK_API}/users/${userId}`, {
-      method: 'DELETE',
-      headers: { Authorization: `Bearer ${SECRET}` },
-    })
-  }
+  if (userId) await deleteTestUser(userId)
 })
 
 test('logs a workout, then shows it as per-set ghost placeholders next time', async ({ page }) => {
-  await page.goto('/sign-in')
-  await clerk.signIn({ page, emailAddress: TEST_EMAIL })
+  await signIn(page, user)
 
   // --- Workout 1: a fresh user has no history, so no ghosts yet. ---
   await page.goto('/')

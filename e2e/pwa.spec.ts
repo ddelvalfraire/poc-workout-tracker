@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test'
 
 /**
  * PWA installability surface. The manifest, service worker, and icons are
- * fetched by the browser UNCREDENTIALED, so they must be public (the Clerk
+ * fetched by the browser UNCREDENTIALED, so they must be public (the auth
  * middleware matcher excludes .webmanifest/.js/.png). These checks use the
  * `request` fixture — no sign-in needed — and assert each path is served
  * directly (200, correct content-type) with no redirect to /sign-in.

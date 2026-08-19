@@ -1,8 +1,8 @@
 import { defineConfig, devices } from '@playwright/test'
 
-// Load the same local secrets the app uses (Clerk keys, DATABASE_URL_DIRECT) so
-// the Clerk global setup and the DB assertions have what they need. The dev
-// server started below also inherits this env (and Next re-reads .env.local).
+// Load the same local secrets the app uses (WORKOS_* keys, DATABASE_URL_DIRECT)
+// so the test-user provisioning and the DB assertions have what they need. The
+// dev server started below also inherits this env (and Next re-reads .env.local).
 process.loadEnvFile('.env.local')
 
 export default defineConfig({
