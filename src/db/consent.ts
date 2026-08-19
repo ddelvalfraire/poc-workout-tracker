@@ -41,10 +41,14 @@ export class ConsentRequiredError extends Error {
  */
 export function truncateIp(ip: string | null | undefined): string | null {
   if (!ip) return null
-  const v4 = ip.match(/^(\d{1,3})\.(\d{1,3})\.\d{1,3}\.\d{1,3}$/)
+  // Node reports IPv4 clients on dual-stack sockets as '::ffff:1.2.3.4' —
+  // unwrap before the v4 check or the most common real-world form would
+  // degrade to null instead of truncating.
+  const unwrapped = ip.replace(/^::ffff:/i, '')
+  const v4 = unwrapped.match(/^(\d{1,3})\.(\d{1,3})\.\d{1,3}\.\d{1,3}$/)
   if (v4) return `${v4[1]}.${v4[2]}.0.0`
-  if (ip.includes(':')) {
-    const groups = ip.split(':')
+  if (unwrapped.includes(':')) {
+    const groups = unwrapped.split(':')
     if (groups.length < 2 || groups[0] === '') return null
     return `${groups[0]}:${groups[1]}::`
   }
@@ -57,13 +61,39 @@ export function truncateIp(ip: string | null | undefined): string | null {
  * call on every deploy); otherwise a new row with version = newest + 1 is
  * inserted. Content is the full text as shown to users — the court evidence.
  */
-export async function upsertConsentDocument(input: {
-  docType: 'tos' | 'privacy' | 'health_notice' | 'analytics_notice'
-  contentMd: string
-  isMaterial: boolean
-  effectiveAt: Date
-}): Promise<{ id: string; version: number; unchanged: boolean }> {
+export async function upsertConsentDocument(
+  input: {
+    docType: 'tos' | 'privacy' | 'health_notice' | 'analytics_notice'
+    contentMd: string
+    isMaterial: boolean
+    effectiveAt: Date
+  },
+  // Concurrent deploy-time seeding can race read-then-insert: both readers
+  // see the same latest version, one insert loses to the unique index. One
+  // retry re-reads (usually finding the winner's identical content = the
+  // idempotent no-op path) instead of surfacing a raw 23505 to the deploy.
+  retry = true,
+): Promise<{ id: string; version: number; unchanged: boolean }> {
   const sha = createHash('sha256').update(input.contentMd).digest('hex')
+  try {
+    return await upsertConsentDocumentOnce(input, sha)
+  } catch (error) {
+    const isUniqueViolation =
+      typeof error === 'object' && error !== null && (error as { code?: string }).code === '23505'
+    if (isUniqueViolation && retry) return upsertConsentDocument(input, false)
+    throw error
+  }
+}
+
+async function upsertConsentDocumentOnce(
+  input: {
+    docType: 'tos' | 'privacy' | 'health_notice' | 'analytics_notice'
+    contentMd: string
+    isMaterial: boolean
+    effectiveAt: Date
+  },
+  sha: string,
+): Promise<{ id: string; version: number; unchanged: boolean }> {
   return db.transaction(async (tx) => {
     const [latest] = await tx
       .select({

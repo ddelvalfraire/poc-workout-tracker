@@ -76,6 +76,10 @@ describe('truncateIp', () => {
     expect(truncateIp('203.0.113.42')).toBe('203.0.0.0')
   })
 
+  it('unwraps IPv4-mapped-IPv6 (the dual-stack socket form Node emits)', () => {
+    expect(truncateIp('::ffff:203.0.113.42')).toBe('203.0.0.0')
+  })
+
   it('keeps only the first two hextets of an IPv6', () => {
     expect(truncateIp('2001:db8:85a3::8a2e:370:7334')).toBe('2001:db8::')
   })
