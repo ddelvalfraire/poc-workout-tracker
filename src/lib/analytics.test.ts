@@ -19,6 +19,34 @@ async function importAnalytics() {
   return import('./analytics')
 }
 
+describe('durationMin', () => {
+  it('rounds to whole minutes', async () => {
+    const { durationMin } = await importAnalytics()
+    const start = new Date('2026-01-01T10:00:00Z')
+    expect(durationMin(start, new Date('2026-01-01T10:42:29Z'))).toBe(42)
+    expect(durationMin(start, new Date('2026-01-01T10:42:31Z'))).toBe(43)
+  })
+
+  it('is 0 when either side is missing and never negative', async () => {
+    const { durationMin } = await importAnalytics()
+    const start = new Date('2026-01-01T10:00:00Z')
+    expect(durationMin(null, new Date())).toBe(0)
+    expect(durationMin(start, undefined)).toBe(0)
+    // Backdated completedAt before startedAt clamps rather than going negative.
+    expect(durationMin(start, new Date('2026-01-01T09:00:00Z'))).toBe(0)
+  })
+})
+
+describe('workoutInputCounts', () => {
+  it('counts exercises and their sets — counts only, no content', async () => {
+    const { workoutInputCounts } = await importAnalytics()
+    expect(
+      workoutInputCounts({ exercises: [{ sets: [1, 2, 3] }, { sets: [1] }] }),
+    ).toEqual({ exercise_count: 2, set_count: 4 })
+    expect(workoutInputCounts({ exercises: [] })).toEqual({ exercise_count: 0, set_count: 0 })
+  })
+})
+
 describe('captureServerEvent', () => {
   beforeEach(() => {
     vi.unstubAllEnvs()

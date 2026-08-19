@@ -26,6 +26,16 @@ import { PostHog } from 'posthog-node'
  * joined/merged across analytics projects or vendors later (the batch-export
  * escape hatch). Pre-signup anonymous activity stitches when the consent step
  * lands and identify() is called client-side with the same id.
+ *
+ * Two accepted imprecisions (documented, not bugs):
+ * - MCP tool writes (lib/mcp/write-tools.ts) fire NO events, deliberately:
+ *   the MCP surface is owner-only, and owner activity in a product funnel is
+ *   noise. Revisit only if MCP ever becomes user-facing.
+ * - The transition pre-reads in the actions (is_first, completed-vs-not) can
+ *   race a same-instant duplicate submit and double-fire one event. The
+ *   window is milliseconds and the funnel impact rounds to zero; the fix
+ *   (transition detection inside the write's RETURNING) isn't worth the db
+ *   surface it would touch.
  */
 
 export type AnalyticsEvent =
@@ -53,20 +63,46 @@ export type AnalyticsEvent =
     }
   | {
       name: 'trial_started'
-      properties: { plan: 'pro' | 'coach'; days: number }
+      properties: { plan: 'pro' | 'max'; days: number }
     }
   | {
       name: 'subscription_started'
       properties: {
-        plan: 'pro' | 'coach'
+        plan: 'pro' | 'max'
         period: 'monthly' | 'annual' | 'lifetime'
         from_trial: boolean
       }
     }
   | {
       name: 'subscription_cancelled'
-      properties: { plan: 'pro' | 'coach'; tenure_days: number }
+      properties: { plan: 'pro' | 'max'; tenure_days: number }
     }
+
+/**
+ * Whole minutes between two instants, clamped to >= 0; 0 when either side is
+ * missing (a manual log without explicit timestamps has no real duration).
+ */
+export function durationMin(
+  startedAt: Date | null | undefined,
+  completedAt: Date | null | undefined,
+): number {
+  if (!startedAt || !completedAt) return 0
+  return Math.max(0, Math.round((completedAt.getTime() - startedAt.getTime()) / 60_000))
+}
+
+/**
+ * Counts off the validated wire input — structural type so this module never
+ * imports the workout-input schema. Counts only, per the health-data rule.
+ */
+export function workoutInputCounts(input: { exercises: ReadonlyArray<{ sets: ReadonlyArray<unknown> }> }): {
+  exercise_count: number
+  set_count: number
+} {
+  return {
+    exercise_count: input.exercises.length,
+    set_count: input.exercises.reduce((n, e) => n + e.sets.length, 0),
+  }
+}
 
 let client: PostHog | null | undefined
 

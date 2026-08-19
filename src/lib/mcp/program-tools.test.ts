@@ -1259,7 +1259,7 @@ describe('registerProgramTools', () => {
     it('auto-derives the week when omitted and echoes the derivation', async () => {
       // Arrange — the db layer derives week 2 from the program's history
       const tools = setup()
-      mockedInstantiate.mockResolvedValue({ id: 'w1', week: 2, weekDerived: true })
+      mockedInstantiate.mockResolvedValue({ id: 'w1', week: 2, weekDerived: true, resumed: false })
 
       // Act
       const result = await tools.get('instantiate_program_day')!({ programDayId: PID })
@@ -1278,7 +1278,7 @@ describe('registerProgramTools', () => {
     it('passes an explicit week through and echoes it', async () => {
       // Arrange
       const tools = setup()
-      mockedInstantiate.mockResolvedValue({ id: 'w1', week: 3, weekDerived: false })
+      mockedInstantiate.mockResolvedValue({ id: 'w1', week: 3, weekDerived: false, resumed: false })
 
       // Act
       const result = await tools.get('instantiate_program_day')!({ programDayId: PID, week: 3 })

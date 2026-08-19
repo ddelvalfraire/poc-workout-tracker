@@ -308,7 +308,7 @@ describe('instantiateProgramDay (engine-driven)', () => {
       expect.objectContaining({ setNumber: 1, weight: 105, metricMode: 'reps_weight' }),
       expect.objectContaining({ setNumber: 2, weight: null, metricMode: 'duration' }),
     ])
-    expect(result).toEqual({ id: 'w1', week: 3, weekDerived: false })
+    expect(result).toEqual({ id: 'w1', week: 3, weekDerived: false, resumed: false })
   })
 
   it('seeds setType and the prescribed_* snapshot on every set (immutable autoreg facts)', async () => {
@@ -571,7 +571,7 @@ describe('instantiateProgramDay (engine-driven)', () => {
     const result = await instantiateProgramDay(USER, 'd1', null, 'ui')
 
     // Assert
-    expect(result).toEqual({ id: 'w1', week: 3, weekDerived: true })
+    expect(result).toEqual({ id: 'w1', week: 3, weekDerived: true, resumed: false })
     expect(records[0].values).toMatchObject({ programWeek: 3 })
   })
 
@@ -624,7 +624,7 @@ describe('instantiateProgramDay (resume semantics)', () => {
     const result = await instantiateProgramDay(USER, 'd1', 3, 'ui')
 
     // Assert — the existing row comes back and NOTHING is inserted
-    expect(result).toEqual({ id: 'w-old', week: 3, weekDerived: false })
+    expect(result).toEqual({ id: 'w-old', week: 3, weekDerived: false, resumed: true })
     expect(records).toHaveLength(0)
     // The lookup must target UNFINISHED rows only — a completed instantiation
     // for the week is history, not a session to resume.
@@ -639,7 +639,7 @@ describe('instantiateProgramDay (resume semantics)', () => {
 
     const result = await instantiateProgramDay(USER, 'd1', 3, 'ui')
 
-    expect(result).toEqual({ id: 'w1', week: 3, weekDerived: false })
+    expect(result).toEqual({ id: 'w1', week: 3, weekDerived: false, resumed: false })
     expect(records.length).toBeGreaterThan(0)
   })
 
@@ -679,7 +679,7 @@ describe('instantiateProgramDay (resume semantics)', () => {
 
     // Assert — resumed at the derived week, nothing inserted, and the
     // lookup predicate still requires completion state
-    expect(result).toEqual({ id: 'w-old', week: 2, weekDerived: true })
+    expect(result).toEqual({ id: 'w-old', week: 2, weekDerived: true, resumed: true })
     expect(records).toHaveLength(0)
     expect(predicateMentionsColumn(capturedWheres[3], 'completed_at')).toBe(true)
   })

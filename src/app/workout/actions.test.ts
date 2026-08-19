@@ -18,7 +18,10 @@ import {
   deleteWorkout,
   getLastPerformance,
   getWorkoutDetail,
+  hasAnyCompletedWorkout,
+  getWorkoutAnalyticsState,
 } from '@/db/workouts'
+import { captureServerEvent } from '@/lib/analytics'
 import { getProgramDayDetail } from '@/db/programs'
 import { substituteProgramExercise } from '@/db/program-patches'
 import { autoSyncPlanToPerformance } from '@/lib/auto-plan-sync'
@@ -43,6 +46,15 @@ vi.mock('@/db/workouts', () => ({
   deleteWorkout: vi.fn(),
   getLastPerformance: vi.fn(),
   getWorkoutDetail: vi.fn(),
+  // Analytics pre-reads: resolve to "user has history / workout unknown" so
+  // no event fires unless a test arranges otherwise.
+  hasAnyCompletedWorkout: vi.fn(async () => true),
+  getWorkoutAnalyticsState: vi.fn(async () => null),
+}))
+vi.mock('@/lib/analytics', async (importOriginal) => ({
+  // Keep the pure prop builders real; only the transport is stubbed.
+  ...(await importOriginal<typeof import('@/lib/analytics')>()),
+  captureServerEvent: vi.fn(async () => {}),
 }))
 vi.mock('@/db/programs', () => ({
   getProgramDayDetail: vi.fn(),
@@ -119,6 +131,27 @@ describe('saveWorkoutAction', () => {
     await expect(saveWorkoutAction({ exercises: [] })).rejects.toThrow()
     expect(mockedSave).not.toHaveBeenCalled()
     expect(mockedDeleteDraft).not.toHaveBeenCalled()
+  })
+
+  it('fires workout_completed with is_first from the pre-save read', async () => {
+    // Arrange — no completed history yet, so this save is the activation event
+    mockedSave.mockResolvedValue({ id: ID })
+    vi.mocked(hasAnyCompletedWorkout).mockResolvedValueOnce(false)
+
+    // Act
+    await saveWorkoutAction(VALID_INPUT)
+
+    // Assert — capture is fire-and-forget (a microtask behind the action), so
+    // wait for it rather than asserting synchronously.
+    await vi.waitFor(() => {
+      expect(vi.mocked(captureServerEvent)).toHaveBeenCalledWith(
+        USER,
+        expect.objectContaining({
+          name: 'workout_completed',
+          properties: expect.objectContaining({ is_first: true }),
+        }),
+      )
+    })
   })
 })
 
@@ -251,6 +284,45 @@ describe('updateWorkoutAction', () => {
     expect(mockedRevalidate).toHaveBeenCalledWith(`/workout/${ID}`)
   })
 
+  it('fires workout_completed when the edit is the completing one', async () => {
+    // Arrange — pre-read says the session was still in progress
+    mockedUpdate.mockResolvedValue({ id: ID })
+    vi.mocked(getWorkoutAnalyticsState).mockResolvedValueOnce({
+      startedAt: new Date('2026-01-01T10:00:00Z'),
+      completedAt: null,
+      setCount: 3,
+    })
+
+    // Act
+    await updateWorkoutAction(ID, VALID_INPUT)
+
+    // Assert — fire-and-forget, so wait for the microtask
+    await vi.waitFor(() => {
+      expect(vi.mocked(captureServerEvent)).toHaveBeenCalledWith(
+        USER,
+        expect.objectContaining({ name: 'workout_completed' }),
+      )
+    })
+  })
+
+  it('does not fire workout_completed when the workout was already completed', async () => {
+    // Arrange — pre-read says completion happened on an earlier edit
+    mockedUpdate.mockResolvedValue({ id: ID })
+    vi.mocked(getWorkoutAnalyticsState).mockResolvedValueOnce({
+      startedAt: new Date('2026-01-01T10:00:00Z'),
+      completedAt: new Date('2026-01-01T11:00:00Z'),
+      setCount: 3,
+    })
+
+    // Act
+    await updateWorkoutAction(ID, VALID_INPUT)
+    // Give the void capture chain its microtask before asserting the negative.
+    await new Promise((r) => setTimeout(r, 0))
+
+    // Assert
+    expect(vi.mocked(captureServerEvent)).not.toHaveBeenCalled()
+  })
+
   it('throws and does not revalidate when the workout is not owned', async () => {
     // Arrange — repo signals "not owned (or gone)" with null
     mockedUpdate.mockResolvedValue(null)
@@ -282,6 +354,47 @@ describe('deleteWorkoutAction', () => {
     expect(mockedDelete).toHaveBeenCalledWith(USER, ID)
     expect(mockedDeleteDraft).toHaveBeenCalledWith(USER, ID)
     expect(mockedRevalidate).toHaveBeenCalledWith('/')
+  })
+
+  it('fires workout_abandoned when deleting a never-completed session', async () => {
+    // Arrange — in-progress session with 3 sets logged
+    mockedDelete.mockResolvedValue([{ id: ID }] as Awaited<ReturnType<typeof deleteWorkout>>)
+    vi.mocked(getWorkoutAnalyticsState).mockResolvedValueOnce({
+      startedAt: new Date(Date.now() - 10 * 60_000),
+      completedAt: null,
+      setCount: 3,
+    })
+
+    // Act
+    await deleteWorkoutAction(ID)
+
+    // Assert
+    await vi.waitFor(() => {
+      expect(vi.mocked(captureServerEvent)).toHaveBeenCalledWith(
+        USER,
+        expect.objectContaining({
+          name: 'workout_abandoned',
+          properties: expect.objectContaining({ set_count_logged: 3 }),
+        }),
+      )
+    })
+  })
+
+  it('does not fire workout_abandoned when deleting completed history', async () => {
+    // Arrange — deleting an old logged session is history management
+    mockedDelete.mockResolvedValue([{ id: ID }] as Awaited<ReturnType<typeof deleteWorkout>>)
+    vi.mocked(getWorkoutAnalyticsState).mockResolvedValueOnce({
+      startedAt: new Date('2026-01-01T10:00:00Z'),
+      completedAt: new Date('2026-01-01T11:00:00Z'),
+      setCount: 12,
+    })
+
+    // Act
+    await deleteWorkoutAction(ID)
+    await new Promise((r) => setTimeout(r, 0))
+
+    // Assert
+    expect(vi.mocked(captureServerEvent)).not.toHaveBeenCalled()
   })
 
   it('throws and does not revalidate when nothing was deleted', async () => {
