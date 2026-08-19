@@ -1,5 +1,5 @@
-import { createHash } from 'node:crypto'
-import { and, desc, eq, sql } from 'drizzle-orm'
+import { createHash, randomUUID } from 'node:crypto'
+import { and, desc, eq, inArray, ne, sql } from 'drizzle-orm'
 import { db } from './index'
 import {
   consentDocuments,
@@ -216,6 +216,59 @@ export async function recordConsent(input: {
       )
     }
     return { eventId: event.id }
+  })
+}
+
+/**
+ * Account-deletion severance for the consent ledger. Events must SURVIVE
+ * deletion (CA ARL >= 3-year retention; MHMDA proof) but stop pointing at a
+ * person: every consent_events.user_id for this user becomes one irreversible
+ * pseudonym (`deleted:` + a random uuid — random, so nothing maps back; one
+ * value, so the per-user event sequence stays coherent as evidence).
+ *
+ * The 0047 trigger blocks all mutation; 0049 gates it on the
+ * `app.consent_pseudonymize` GUC, which this function sets via SET LOCAL so
+ * the permission exists only inside this one transaction. In the same
+ * transaction the user's consent_current projection rows are deleted (the
+ * person is gone, there is no current state) and their still-pending
+ * downstream actions are deleted as superseded — account deletion propagates
+ * harder than any single withdrawal. `keepEventId` exempts the deletion
+ * event's own fan-out rows, which the orchestrator completes afterwards.
+ */
+export async function pseudonymizeConsentRecords(
+  userId: string,
+  opts: { keepEventId?: string } = {},
+): Promise<{ pseudonym: string; eventsPseudonymized: number }> {
+  const pseudonym = `deleted:${randomUUID()}`
+  return db.transaction(async (tx) => {
+    // SET LOCAL takes no bind parameters; the value is a constant, nothing
+    // user-controlled is interpolated.
+    await tx.execute(sql`SET LOCAL app.consent_pseudonymize = 'on'`)
+
+    const events = await tx
+      .select({ id: consentEvents.id })
+      .from(consentEvents)
+      .where(eq(consentEvents.userId, userId))
+    const eventIds = events.map((e) => e.id)
+
+    if (eventIds.length > 0) {
+      const stale = [
+        inArray(consentDownstreamActions.eventId, eventIds),
+        eq(consentDownstreamActions.status, 'pending'),
+      ]
+      if (opts.keepEventId) stale.push(ne(consentDownstreamActions.eventId, opts.keepEventId))
+      await tx.delete(consentDownstreamActions).where(and(...stale))
+    }
+
+    await tx.delete(consentCurrent).where(eq(consentCurrent.userId, userId))
+
+    const updated = await tx
+      .update(consentEvents)
+      .set({ userId: pseudonym })
+      .where(eq(consentEvents.userId, userId))
+      .returning({ id: consentEvents.id })
+
+    return { pseudonym, eventsPseudonymized: updated.length }
   })
 }
 
