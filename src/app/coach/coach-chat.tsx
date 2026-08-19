@@ -23,6 +23,7 @@ import Link from 'next/link'
 import { ArrowUp, RotateCcw } from 'lucide-react'
 import { Streamdown } from 'streamdown'
 import { AppHeader } from '@/components/app-header'
+import { CoachDisclosure } from './coach-disclosure'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import {
@@ -399,6 +400,13 @@ export function CoachChat({
           ) : undefined
         }
       />
+      {/* Structural AI disclosure (Utah proactive tier): a quiet hairline
+          strip on the surface itself — never per-message banners. The
+          first-open interstitial below carries the full caveat once. */}
+      <p className="border-b border-border px-5 py-1.5 text-center text-xs text-muted-foreground">
+        AI coach — responses are AI-generated and can be wrong. Not medical advice.
+      </p>
+      <CoachDisclosure />
       <main className="mx-auto w-full max-w-md flex-1 px-5">
         {messages.length === 0 ? (
           /* Empty state: what the coach is for, plus tappable starters. */
