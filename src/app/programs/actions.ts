@@ -20,7 +20,9 @@ import {
   instantiateProgramDay,
   adoptProgram,
   declineProgram,
+  countProgramDays,
 } from '@/db/programs'
+import { captureServerEvent } from '@/lib/analytics'
 import { setProgramVisibility, createShare, revokeShare } from '@/db/program-shares'
 import {
   setTrainingMax,
@@ -125,9 +127,36 @@ export async function setProgramStatusAction(id: string, status: unknown): Promi
   const parsed = statusSchema.parse(status)
   const result = await setProgramStatus(userId, id, parsed, 'ui')
   if (!result) throw new Error('program not found')
+  // Activating an own-built program = starting it (the funnel's setup step).
+  // Whole capture path fail-open: analytics never fails the status change.
+  if (parsed === 'active') {
+    void captureProgramStarted(userId, id, 'custom')
+  }
   revalidatePath('/programs')
   revalidatePath(`/programs/${id}`)
   return result
+}
+
+/**
+ * program_started capture, fail-open end to end (the day-count read included).
+ * `source` maps the entry path: 'custom' = own program activated, 'template' =
+ * adopted proposal (template import or share), 'coach' = reserved for the
+ * coach-drafted flow once it stamps distinct provenance here.
+ */
+async function captureProgramStarted(
+  userId: string,
+  programId: string,
+  source: 'template' | 'custom' | 'coach',
+): Promise<void> {
+  try {
+    const dayCount = await countProgramDays(userId, programId)
+    await captureServerEvent(userId, {
+      name: 'program_started',
+      properties: { source, day_count: dayCount },
+    })
+  } catch (error) {
+    console.error('[analytics] program_started failed', error)
+  }
 }
 
 /**
@@ -202,6 +231,11 @@ export async function adoptProgramAction(
   if (typeof activate !== 'boolean') throw new Error('invalid activate flag')
   const result = await adoptProgram(userId, id, activate)
   if (!result) throw new Error('proposal not found')
+  // Adopt-and-activate = starting an imported program (templates and shares
+  // arrive as proposals). Adopt-to-draft is not a start; no event.
+  if (activate) {
+    void captureProgramStarted(userId, result.id, 'template')
+  }
   revalidatePath('/') // activating repoints the home hero
   revalidatePath('/programs')
   revalidatePath(`/programs/${id}`)
@@ -339,6 +373,13 @@ export async function startProgramDayAction(
   }
   const result = await instantiateProgramDay(userId, programDayId, week ?? null, 'ui')
   if (!result) throw new Error('program day not found')
+  // The activation funnel's start signal (completion lands in updateWorkout's
+  // first-edit path). Adhoc quick logs don't emit a start — save IS their
+  // whole lifecycle. captureServerEvent never throws (fail-open inside).
+  void captureServerEvent(userId, {
+    name: 'workout_started',
+    properties: { source: 'program_day', is_resumed: result.resumed },
+  })
   revalidatePath('/') // the new workout appears in the home history list
   return { workoutId: result.id, week: result.week }
 }

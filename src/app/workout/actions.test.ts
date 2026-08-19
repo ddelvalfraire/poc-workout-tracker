@@ -18,7 +18,9 @@ import {
   deleteWorkout,
   getLastPerformance,
   getWorkoutDetail,
+  hasAnyCompletedWorkout,
 } from '@/db/workouts'
+import { captureServerEvent } from '@/lib/analytics'
 import { getProgramDayDetail } from '@/db/programs'
 import { substituteProgramExercise } from '@/db/program-patches'
 import { autoSyncPlanToPerformance } from '@/lib/auto-plan-sync'
@@ -43,6 +45,15 @@ vi.mock('@/db/workouts', () => ({
   deleteWorkout: vi.fn(),
   getLastPerformance: vi.fn(),
   getWorkoutDetail: vi.fn(),
+  // Analytics pre-reads: resolve to "user has history / workout unknown" so
+  // no event fires unless a test arranges otherwise.
+  hasAnyCompletedWorkout: vi.fn(async () => true),
+  getWorkoutAnalyticsState: vi.fn(async () => null),
+}))
+vi.mock('@/lib/analytics', async (importOriginal) => ({
+  // Keep the pure prop builders real; only the transport is stubbed.
+  ...(await importOriginal<typeof import('@/lib/analytics')>()),
+  captureServerEvent: vi.fn(async () => {}),
 }))
 vi.mock('@/db/programs', () => ({
   getProgramDayDetail: vi.fn(),
@@ -119,6 +130,27 @@ describe('saveWorkoutAction', () => {
     await expect(saveWorkoutAction({ exercises: [] })).rejects.toThrow()
     expect(mockedSave).not.toHaveBeenCalled()
     expect(mockedDeleteDraft).not.toHaveBeenCalled()
+  })
+
+  it('fires workout_completed with is_first from the pre-save read', async () => {
+    // Arrange — no completed history yet, so this save is the activation event
+    mockedSave.mockResolvedValue({ id: ID })
+    vi.mocked(hasAnyCompletedWorkout).mockResolvedValue(false)
+
+    // Act
+    await saveWorkoutAction(VALID_INPUT)
+
+    // Assert — capture is fire-and-forget (a microtask behind the action), so
+    // wait for it rather than asserting synchronously.
+    await vi.waitFor(() => {
+      expect(vi.mocked(captureServerEvent)).toHaveBeenCalledWith(
+        USER,
+        expect.objectContaining({
+          name: 'workout_completed',
+          properties: expect.objectContaining({ is_first: true }),
+        }),
+      )
+    })
   })
 })
 

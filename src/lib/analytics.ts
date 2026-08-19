@@ -53,20 +53,46 @@ export type AnalyticsEvent =
     }
   | {
       name: 'trial_started'
-      properties: { plan: 'pro' | 'coach'; days: number }
+      properties: { plan: 'pro' | 'max'; days: number }
     }
   | {
       name: 'subscription_started'
       properties: {
-        plan: 'pro' | 'coach'
+        plan: 'pro' | 'max'
         period: 'monthly' | 'annual' | 'lifetime'
         from_trial: boolean
       }
     }
   | {
       name: 'subscription_cancelled'
-      properties: { plan: 'pro' | 'coach'; tenure_days: number }
+      properties: { plan: 'pro' | 'max'; tenure_days: number }
     }
+
+/**
+ * Whole minutes between two instants, clamped to >= 0; 0 when either side is
+ * missing (a manual log without explicit timestamps has no real duration).
+ */
+export function durationMin(
+  startedAt: Date | null | undefined,
+  completedAt: Date | null | undefined,
+): number {
+  if (!startedAt || !completedAt) return 0
+  return Math.max(0, Math.round((completedAt.getTime() - startedAt.getTime()) / 60_000))
+}
+
+/**
+ * Counts off the validated wire input — structural type so this module never
+ * imports the workout-input schema. Counts only, per the health-data rule.
+ */
+export function workoutInputCounts(input: { exercises: ReadonlyArray<{ sets: ReadonlyArray<unknown> }> }): {
+  exercise_count: number
+  set_count: number
+} {
+  return {
+    exercise_count: input.exercises.length,
+    set_count: input.exercises.reduce((n, e) => n + e.sets.length, 0),
+  }
+}
 
 let client: PostHog | null | undefined
 

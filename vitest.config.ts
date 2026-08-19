@@ -6,7 +6,11 @@ import { playwright } from '@vitest/browser-playwright'
 import { defineConfig, configDefaults } from 'vitest/config'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
-const srcAlias = { '@': fileURLToPath(new URL('./src', import.meta.url)) }
+const srcAlias = {
+  '@': fileURLToPath(new URL('./src', import.meta.url)),
+  // `server-only` throws outside RSC; stub it so server modules unit-test.
+  'server-only': fileURLToPath(new URL('./vitest.server-only-stub.ts', import.meta.url)),
+}
 
 export default defineConfig({
   test: {

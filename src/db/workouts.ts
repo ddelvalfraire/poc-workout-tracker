@@ -412,6 +412,44 @@ export function createWorkout(userId: string, name?: string) {
   return db.insert(workouts).values({ userId, name }).returning()
 }
 
+/**
+ * Whether the user has EVER completed a workout — the `is_first` bit on the
+ * workout_completed analytics event (activation metric). Called before the
+ * write so the workout being saved doesn't count itself.
+ */
+export async function hasAnyCompletedWorkout(userId: string): Promise<boolean> {
+  const [row] = await db
+    .select({ id: workouts.id })
+    .from(workouts)
+    .where(and(eq(workouts.userId, userId), isNotNull(workouts.completedAt)))
+    .limit(1)
+  return row !== undefined
+}
+
+/**
+ * The pre-write facts the analytics events need about one workout: its
+ * timestamps (duration, completed-vs-in-progress transition) and how many
+ * sets exist (abandonment depth). Counts only — no workout content leaves
+ * this shape, per the health-data rule in @/lib/analytics.
+ */
+export async function getWorkoutAnalyticsState(
+  userId: string,
+  id: string,
+): Promise<{ startedAt: Date; completedAt: Date | null; setCount: number } | null> {
+  const [row] = await db
+    .select({
+      startedAt: workouts.startedAt,
+      completedAt: workouts.completedAt,
+      setCount: count(sets.id),
+    })
+    .from(workouts)
+    .leftJoin(workoutExercises, eq(workoutExercises.workoutId, workouts.id))
+    .leftJoin(sets, eq(sets.workoutExerciseId, workoutExercises.id))
+    .where(and(eq(workouts.id, id), eq(workouts.userId, userId)))
+    .groupBy(workouts.id)
+  return row ?? null
+}
+
 /** The transaction handle, lifted from the callback signature (no internal import). */
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0]
 

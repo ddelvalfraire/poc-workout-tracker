@@ -9,8 +9,11 @@ import {
   deleteWorkout,
   getLastPerformance,
   getWorkoutDetail,
+  hasAnyCompletedWorkout,
+  getWorkoutAnalyticsState,
   type LastPerformance,
 } from '@/db/workouts'
+import { captureServerEvent, durationMin, workoutInputCounts } from '@/lib/analytics'
 import { getProgramDayDetail, deriveDayPrescription } from '@/db/programs'
 import { substituteProgramExercise } from '@/db/program-patches'
 import { autoSyncPlanToPerformance } from '@/lib/auto-plan-sync'
@@ -36,10 +39,51 @@ import { isDraftPayload, DRAFT_TTL_MS, draftKey } from '@/app/workout/new/draft-
  * (auth redirect, validation failure, or DB error) surfaces to the caller as a
  * rejected action; the client component is expected to `try/catch` it.
  */
+/**
+ * Analytics wrapper: the pre-reads (is_first, prior state) can themselves
+ * throw, and captureServerEvent's own fail-open only covers the transport —
+ * so the WHOLE capture path runs inside one swallow. Never awaited by the
+ * user-facing work below; a lost event is always preferable to a failed save.
+ */
+async function captureWorkoutEvent(fn: () => Promise<void>): Promise<void> {
+  try {
+    await fn()
+  } catch (error) {
+    console.error('[analytics] workout event failed', error)
+  }
+}
+
+/**
+ * Analytics pre-read that can NEVER fail the surrounding action — catches
+ * synchronous throws too (a bare `.catch()` on the call wouldn't), degrading
+ * to the fallback.
+ */
+async function safeRead<T>(read: () => Promise<T>, fallback: T): Promise<T> {
+  try {
+    return await read()
+  } catch {
+    return fallback
+  }
+}
+
 export async function saveWorkoutAction(input: unknown): Promise<{ id: string }> {
   const userId = await requireUserId()
   const parsed = parseWorkoutInput(input)
+  // Read BEFORE the save so the workout being logged doesn't count itself.
+  const isFirstPromise = safeRead(async () => !(await hasAnyCompletedWorkout(userId)), false)
   const result = await saveWorkout(userId, parsed)
+  // A manual log IS a completion (saveWorkout stamps completedAt) — this is
+  // the activation metric's event. Counts only; no workout content.
+  void captureWorkoutEvent(async () =>
+    captureServerEvent(userId, {
+      name: 'workout_completed',
+      properties: {
+        duration_min: durationMin(parsed.startedAt ?? null, parsed.completedAt ?? null),
+        ...workoutInputCounts(parsed),
+        is_first: await isFirstPromise,
+      },
+    }),
+  )
   // The saved workout supersedes the /workout/new draft on every device.
   await deleteWorkoutDraft(userId, draftKey())
   // Quick logs carry no program provenance today, so this is a guaranteed
@@ -65,8 +109,29 @@ export async function saveWorkoutAction(input: unknown): Promise<{ id: string }>
 export async function updateWorkoutAction(id: string, input: unknown): Promise<{ id: string }> {
   const userId = await requireUserId()
   const parsed = parseWorkoutInput(input)
+  // Pre-reads for the completion-transition event (updateWorkout's coalesce
+  // means only a first edit completes): both race the write harmlessly —
+  // they describe the BEFORE state by design, and failures degrade to "no
+  // event" inside captureWorkoutEvent.
+  const preStatePromise = safeRead(() => getWorkoutAnalyticsState(userId, id), null)
+  const isFirstPromise = safeRead(async () => !(await hasAnyCompletedWorkout(userId)), false)
   const result = await updateWorkout(userId, id, parsed)
   if (!result) throw new Error('workout not found')
+  void captureWorkoutEvent(async () => {
+    const pre = await preStatePromise
+    // Already completed before this edit → not a completion, no event.
+    if (!pre || pre.completedAt !== null) return
+    await captureServerEvent(userId, {
+      name: 'workout_completed',
+      properties: {
+        // Live program finish: the session ran from its instantiation to now
+        // (or to the backdated completion the edit carried).
+        duration_min: durationMin(pre.startedAt, parsed.completedAt ?? parsed.startedAt ?? new Date()),
+        ...workoutInputCounts(parsed),
+        is_first: await isFirstPromise,
+      },
+    })
+  })
   // The saved edit supersedes this workout's draft on every device.
   await deleteWorkoutDraft(userId, draftKey(id))
   // Live program finishes land here (updateWorkout stamps completedAt), so the
@@ -97,8 +162,23 @@ export async function updateWorkoutAction(id: string, input: unknown): Promise<{
  */
 export async function deleteWorkoutAction(id: string): Promise<void> {
   const userId = await requireUserId()
+  // Pre-read MUST resolve before the delete (the row is gone after); deleting
+  // a never-completed session is the abandonment signal, deleting history is
+  // not an event at all.
+  const preState = await safeRead(() => getWorkoutAnalyticsState(userId, id), null)
   const [deleted] = await deleteWorkout(userId, id)
   if (!deleted) throw new Error('workout not found')
+  if (preState && preState.completedAt === null) {
+    void captureWorkoutEvent(async () =>
+      captureServerEvent(userId, {
+        name: 'workout_abandoned',
+        properties: {
+          elapsed_min: durationMin(preState.startedAt, new Date()),
+          set_count_logged: preState.setCount,
+        },
+      }),
+    )
+  }
   // Drop any draft keyed to this workout — an orphaned draft keeps the home
   // "workout in progress" banner alive with a Resume that 404s.
   await deleteWorkoutDraft(userId, draftKey(id))

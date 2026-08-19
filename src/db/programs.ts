@@ -1669,6 +1669,20 @@ export async function deriveDayPrescription(
  * The day + history are read first, then the whole tree is seeded in one
  * transaction, mirroring `saveWorkout`.
  */
+/**
+ * Day count for one owned program — the program_started analytics event's
+ * day_count property. 0 when the program isn't found/owned (the capture
+ * helper treats that as fine; analytics never gates on ownership errors).
+ */
+export async function countProgramDays(userId: string, programId: string): Promise<number> {
+  const [row] = await db
+    .select({ value: count(programDays.id) })
+    .from(programDays)
+    .innerJoin(programs, eq(programs.id, programDays.programId))
+    .where(and(eq(programDays.programId, programId), eq(programs.userId, userId)))
+  return row?.value ?? 0
+}
+
 export async function instantiateProgramDay(
   userId: string,
   programDayId: string,
@@ -1676,7 +1690,7 @@ export async function instantiateProgramDay(
   // WHO triggered the start — threaded into the wave-boundary TM persist's
   // change-log event below, so a bump reads "You"/"Claude" like any edit.
   actor: ProgramEventActor,
-): Promise<{ id: string; week: number; weekDerived: boolean } | null> {
+): Promise<{ id: string; week: number; weekDerived: boolean; resumed: boolean } | null> {
   const day = await getProgramDayDetail(userId, programDayId)
   if (!day) return null
 
@@ -1718,7 +1732,9 @@ export async function instantiateProgramDay(
     )
     .orderBy(desc(workouts.startedAt))
     .limit(1)
-  if (existing) return { id: existing.id, week: targetWeek, weekDerived }
+  // `resumed` is analytics provenance (workout_started's is_resumed bit) —
+  // callers' behavior is unchanged by it.
+  if (existing) return { id: existing.id, week: targetWeek, weekDerived, resumed: true }
 
   // Wave-boundary TM persist (TM lifecycle §1): starting a week whose
   // completed-wave count exceeds the banked count folds the earned
@@ -1823,6 +1839,6 @@ export async function instantiateProgramDay(
       }
     }
 
-    return { id: workout.id, week: targetWeek, weekDerived }
+    return { id: workout.id, week: targetWeek, weekDerived, resumed: false }
   })
 }
