@@ -255,3 +255,26 @@ export async function hasConsent(userId: string, purpose: ConsentPurpose): Promi
 export async function requireConsent(userId: string, purpose: ConsentPurpose): Promise<void> {
   if (!(await hasConsent(userId, purpose))) throw new ConsentRequiredError(purpose)
 }
+
+/**
+ * Records the outcome of one enqueued downstream action — the second half of
+ * the MHMDA propagation evidence (the enqueue proves intent; this proves the
+ * processor call happened, or honestly that it failed). completedAt is
+ * stamped only on success: a failed row with no timestamp reads as "still
+ * owed", which is the truth.
+ */
+export async function markDownstreamAction(
+  eventId: string,
+  processor: string,
+  status: 'completed' | 'failed',
+): Promise<void> {
+  await db
+    .update(consentDownstreamActions)
+    .set({ status, completedAt: status === 'completed' ? new Date() : null })
+    .where(
+      and(
+        eq(consentDownstreamActions.eventId, eventId),
+        eq(consentDownstreamActions.processor, processor),
+      ),
+    )
+}

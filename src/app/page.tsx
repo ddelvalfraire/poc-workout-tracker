@@ -4,6 +4,7 @@ import { UserButton } from "@clerk/nextjs";
 import { redirect } from "next/navigation";
 import { requireUserId } from "@/lib/auth";
 import { getConsentState } from "@/db/consent";
+import { ConsentIdentity } from "@/components/consent-identity";
 import { listWorkoutSummaries } from "@/db/workouts";
 import { listWorkoutDrafts } from "@/db/workout-drafts";
 import { getNextProgramDay } from "@/db/programs";
@@ -106,6 +107,14 @@ export default async function HomePage() {
 
   return (
     <div className="flex min-h-[100dvh] flex-col">
+      {/* Identity reconciler mounts on the surfaces that already read the
+          consent projection (home + settings) rather than the root layout —
+          an auth() read there would de-static the public legal pages. Home
+          is every session's entry, so devices converge here. */}
+      <ConsentIdentity
+        userId={userId}
+        granted={Boolean(consent.analytics_identity?.granted)}
+      />
       <header className="sticky top-0 z-10 border-b border-border bg-background/80 px-safe pt-safe backdrop-blur-md">
         <div className="mx-auto flex w-full max-w-md items-center justify-between px-5 pb-3 md:max-w-2xl">
           <div className="flex min-w-0 items-center gap-2">
