@@ -86,6 +86,7 @@ import {
   hasConsent,
   requireConsent,
   pseudonymizeConsentRecords,
+  markDownstreamAction,
   ConsentRequiredError,
 } from './consent'
 
@@ -279,7 +280,32 @@ function collectStrings(root: unknown): string[] {
 }
 
 describe('pseudonymizeConsentRecords', () => {
-  it('sets the GUC via SET LOCAL as the first statement of the transaction', async () => {
+  it('serializes with recordConsent by locking every (user, purpose) pair first', async () => {
+    selectQueue.push([{ id: 'ev-1' }])
+    updateReturnRows = [{ id: 'ev-1' }]
+
+    await pseudonymizeConsentRecords('user_1')
+
+    // recordConsent locks on hashtext(userId + ':' + purpose); to actually
+    // exclude a concurrent consent write, pseudonymization must hold ALL of
+    // those locks — one per purpose — before it mutates. Same keyspace, or
+    // the two paths would never contend.
+    const lockStatements = executed
+      .map((s) => collectStrings(s))
+      .filter((params) => params.some((p) => p.includes('pg_advisory_xact_lock')))
+    const lockedKeys = lockStatements.flatMap((params) =>
+      params.filter((p) => p.startsWith('user_1:')),
+    )
+    expect(lockedKeys.sort()).toEqual([
+      'user_1:analytics_identity',
+      'user_1:autorenewal',
+      'user_1:health_collect',
+      'user_1:health_share',
+      'user_1:tos',
+    ])
+  })
+
+  it('sets the GUC via SET LOCAL after the locks and before any mutation', async () => {
     // Arrange — the user has one event; the update reports one row touched
     selectQueue.push([{ id: 'ev-1' }])
     updateReturnRows = [{ id: 'ev-1' }]
@@ -289,12 +315,14 @@ describe('pseudonymizeConsentRecords', () => {
 
     // Assert — the GUC grant precedes every mutation, and it is the
     // transaction-scoped form (SET LOCAL), so the permission dies at commit
-    expect(ops[0]).toBe('execute')
-    const statement = JSON.stringify(executed[0])
-    expect(statement).toContain('SET LOCAL')
-    expect(statement).toContain('app.consent_pseudonymize')
-    expect(ops.indexOf('execute')).toBeLessThan(ops.indexOf('update'))
-    expect(ops.indexOf('execute')).toBeLessThan(ops.indexOf('delete'))
+    const gucIndex = executed.findIndex((s) =>
+      JSON.stringify(collectStrings(s)).includes('SET LOCAL app.consent_pseudonymize'),
+    )
+    expect(gucIndex).toBeGreaterThanOrEqual(0)
+    // Every execute (locks + GUC) precedes the first update/delete.
+    const lastExecute = ops.lastIndexOf('execute')
+    expect(lastExecute).toBeLessThan(ops.indexOf('update'))
+    expect(lastExecute).toBeLessThan(ops.indexOf('delete'))
   })
 
   it('replaces user_id with one irreversible random pseudonym across all events', async () => {
@@ -338,6 +366,34 @@ describe('pseudonymizeConsentRecords', () => {
     // Only the projection delete runs; the update touches nothing.
     expect(deletes).toHaveLength(1)
     expect(result.eventsPseudonymized).toBe(0)
+  })
+})
+
+describe('markDownstreamAction', () => {
+  it('stamps completedAt only on success', async () => {
+    await markDownstreamAction('ev-1', 'posthog', 'completed')
+
+    expect(updates).toHaveLength(1)
+    const set = updates[0].set as { status: string; completedAt: Date | null }
+    expect(set.status).toBe('completed')
+    expect(set.completedAt).toBeInstanceOf(Date)
+  })
+
+  it('records a failure with completedAt null — the honest still-owed marker', async () => {
+    await markDownstreamAction('ev-1', 'clerk', 'failed')
+
+    expect(updates).toHaveLength(1)
+    const set = updates[0].set as { status: string; completedAt: Date | null }
+    expect(set.status).toBe('failed')
+    expect(set.completedAt).toBeNull()
+  })
+
+  it('targets exactly the (eventId, processor) evidence row', async () => {
+    await markDownstreamAction('ev-1', 'posthog', 'completed')
+
+    const whereParams = collectStrings(updates[0].where)
+    expect(whereParams).toContain('ev-1')
+    expect(whereParams).toContain('posthog')
   })
 })
 
