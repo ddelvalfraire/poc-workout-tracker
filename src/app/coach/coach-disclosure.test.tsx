@@ -17,6 +17,10 @@ import { CoachDisclosure, acknowledgeCoachDisclosure } from './coach-disclosure'
 const store = new Map<string, string>()
 let container: HTMLDivElement
 let root: Root
+// Prototype stubs must be RESTORED, not just installed — a leaked stub lets
+// later jsdom tests pass against non-native dialog behavior.
+const originalShowModal = HTMLDialogElement.prototype.showModal
+const originalClose = HTMLDialogElement.prototype.close
 
 beforeEach(() => {
   store.clear()
@@ -39,6 +43,8 @@ afterEach(() => {
   act(() => root.unmount())
   container.remove()
   vi.unstubAllGlobals()
+  HTMLDialogElement.prototype.showModal = originalShowModal
+  HTMLDialogElement.prototype.close = originalClose
 })
 
 function render() {
