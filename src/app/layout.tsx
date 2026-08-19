@@ -75,8 +75,13 @@ export default async function RootLayout({
           {/* Once, app-wide: the in-app history stack every BackLink reads
               (pop vs fallback-replace) — see lib/back-navigation. */}
           <NavigationTracker />
-          {/* No messages prop: client islands inherit whatever the server
-              already resolved, so nothing is serialised twice. */}
+          {/* No messages prop: client islands inherit what the server already
+              resolved. NOTE the cost of putting this at the root — getMessages()
+              returns the WHOLE catalog unscoped, so every route's payload
+              carries every namespace. Fine at this size; once extraction has
+              grown the catalog, scope it (pick() per route, or push providers
+              down to the islands that need them) or it becomes a bundle
+              regression no test will catch. */}
           <NextIntlClientProvider>
             <Providers>
               <PageTransition>{children}</PageTransition>
