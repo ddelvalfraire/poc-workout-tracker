@@ -93,3 +93,10 @@ instance:
   `aud`/Resource Indicator match are asserted against mocks.
 - **The migration script against real rows** — run the dry run and read the
   counts before committing.
+- **The visual-regression baselines** — the home header changed (the vendor
+  avatar button became a first-party sign-out control), so
+  `e2e/visual.spec.ts-snapshots/` will fail until regenerated. Look at the first
+  diff deliberately before running `--update-snapshots`; that suite exists to
+  catch exactly this kind of change, so a blind regen wastes it.
+- **Password sign-in must be enabled** in the WorkOS environment, or the e2e
+  suite can provision users it can never sign in as.
