@@ -51,6 +51,29 @@ describe('recordSignupConsentsAction', () => {
     }
   })
 
+  it('Sec-GPC header suppresses the analytics grant even when the client says yes', async () => {
+    const { headers } = await import('next/headers')
+    vi.mocked(headers).mockResolvedValueOnce(
+      new Headers({ 'x-forwarded-for': '203.0.113.9', 'user-agent': 'ua', 'sec-gpc': '1' }),
+    )
+
+    await expect(recordSignupConsentsAction(ALL_GRANTED)).resolves.toBeUndefined()
+
+    // Required consents recorded; the forged/inconsistent analytics grant is
+    // vetoed by the browser's own privacy signal.
+    const purposes = vi.mocked(recordConsent).mock.calls.map(([input]) => input.purpose)
+    expect(purposes).toEqual(['health_collect', 'health_share', 'tos'])
+  })
+
+  it('stores the exact rendered ToS control label as presentation proof', async () => {
+    await expect(recordSignupConsentsAction(ALL_GRANTED)).resolves.toBeUndefined()
+
+    const tosCall = vi.mocked(recordConsent).mock.calls.find(([i]) => i.purpose === 'tos')
+    expect(tosCall?.[0].presentation.controlLabel).toBe(
+      'I agree to the Terms of Service and have read the Privacy Notice and Health Data Privacy Policy.',
+    )
+  })
+
   it('declined analytics writes NO event — absent row is the ledger default', async () => {
     await expect(
       recordSignupConsentsAction({ ...ALL_GRANTED, analyticsIdentity: false }),

@@ -45,6 +45,9 @@ export function Toc({ headings }: { headings: TocHeading[] }) {
           const line = window.innerHeight * 0.35
           const passed = targets.filter((el) => el.getBoundingClientRect().top < line)
           if (passed.length > 0) setActive(passed[passed.length - 1].id)
+          // Above the first heading nothing is active — a stale
+          // aria-current would lie.
+          else setActive(null)
         }
       },
       // Band from the top of the viewport to the 35% reading line.

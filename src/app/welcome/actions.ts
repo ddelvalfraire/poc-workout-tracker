@@ -31,18 +31,25 @@ export async function recordSignupConsentsAction(input: {
     throw new Error('required consents missing')
   }
 
+  const h = await headers()
+  // GPC is enforced HERE, not just in the browser toggle: the client control
+  // is UX, the Sec-GPC request header is the signal the law recognizes — a
+  // forged analyticsIdentity:true cannot out-vote it.
+  const gpcSignal = h.get('sec-gpc') === '1'
+  const grantAnalytics = input.analyticsIdentity && !gpcSignal
+
   const [tosDoc, healthDoc, analyticsDoc] = await Promise.all([
     getActiveConsentDocument('tos'),
     getActiveConsentDocument('health_notice'),
     getActiveConsentDocument('analytics_notice'),
   ])
-  if (!tosDoc || !healthDoc || !analyticsDoc) {
+  if (!tosDoc || !healthDoc || (grantAnalytics && !analyticsDoc)) {
     // Documents are seeded by npm run db:seed-consent-docs; an unseeded
     // environment must fail loudly rather than record unanchored consent.
+    // The optional analytics doc only blocks when it is actually needed.
     throw new Error('consent documents not seeded')
   }
 
-  const h = await headers()
   const ip = h.get('x-forwarded-for')?.split(',')[0]?.trim() ?? null
   const userAgent = h.get('user-agent')
   const base = { userId, ip, userAgent }
@@ -71,9 +78,13 @@ export async function recordSignupConsentsAction(input: {
     purpose: 'tos',
     action: 'granted',
     documentId: tosDoc.id,
-    presentation: presentation('I agree to the Terms of Service and have read the Privacy Notice'),
+    // MUST match the rendered control text exactly — the presentation proof
+    // exists to reproduce the affirmative act (consent-form.tsx ToS row).
+    presentation: presentation(
+      'I agree to the Terms of Service and have read the Privacy Notice and Health Data Privacy Policy.',
+    ),
   })
-  if (input.analyticsIdentity) {
+  if (grantAnalytics && analyticsDoc) {
     await recordConsent({
       ...base,
       purpose: 'analytics_identity',

@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 import { requireUserId } from '@/lib/auth'
-import { hasConsent } from '@/db/consent'
+import { getConsentState } from '@/db/consent'
 import { ConsentForm } from './consent-form'
 
 export const metadata: Metadata = { title: 'Your data, your call' }
@@ -14,7 +14,16 @@ export const metadata: Metadata = { title: 'Your data, your call' }
  */
 export default async function WelcomePage() {
   const userId = await requireUserId()
-  if (await hasConsent(userId, 'tos')) redirect('/')
+  // Mirror of the home gate: bounce to the app only when EVERY required
+  // purpose is granted, so a withdrawn health consent re-opens this screen.
+  const consent = await getConsentState(userId)
+  if (
+    consent.tos?.granted &&
+    consent.health_collect?.granted &&
+    consent.health_share?.granted
+  ) {
+    redirect('/')
+  }
   return (
     // Mobile: single thumb-friendly column. Desktop (lg+): the intro becomes
     // a sticky left pane and the form takes a bounded right column — a form
