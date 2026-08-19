@@ -15,6 +15,26 @@ const nextConfig: NextConfig = {
   env: {
     NEXT_PUBLIC_BUILD_ID: buildId,
   },
+  // PostHog ingest reverse proxy: first-party /_i/* so ad blockers (which eat
+  // 25-35% of direct third-party analytics requests) don't blind the funnel.
+  // Path is deliberately short and non-obvious — blockers pattern-match
+  // /analytics, /posthog, /tracking. US Cloud hosts; assets host is separate
+  // from the ingest host per PostHog's proxy docs.
+  async rewrites() {
+    return [
+      {
+        source: "/_i/static/:path*",
+        destination: "https://us-assets.i.posthog.com/static/:path*",
+      },
+      {
+        source: "/_i/:path*",
+        destination: "https://us.i.posthog.com/:path*",
+      },
+    ];
+  },
+  // PostHog API paths end in slashes (/e/, /flags/); without this Next would
+  // 308-redirect them to the slashless form before the rewrite applies.
+  skipTrailingSlashRedirect: true,
   experimental: {
     // Enables React's <ViewTransition> for animated route changes.
     viewTransition: true,

@@ -21,6 +21,10 @@ const isPublicRoute = createRouteMatcher([
   // 404s anything but a live token on a completed workout) and the same
   // signed-out acquisition purpose.
   '/w/(.*)',
+  // PostHog ingest proxy (rewritten in next.config.ts): anonymous visitors
+  // are the point — a sign-in redirect here would blind the acquisition
+  // funnel. Carries no user data beyond what the client SDK sends.
+  '/_i/(.*)',
 ])
 
 export default clerkMiddleware(async (auth, req) => {
