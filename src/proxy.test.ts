@@ -80,6 +80,11 @@ describe('proxy middleware', () => {
     // PostHog ingest proxy — anonymous visitors' events are the acquisition
     // funnel; a sign-in redirect here would blind it.
     '/_i/e',
+    // Public legal documents — MHMDA wants the health policy reachable
+    // without an account, and store review fetches them unauthenticated.
+    '/terms',
+    '/privacy',
+    '/health-privacy',
   ])(
     'leaves the public route %s alone even when signed out',
     async (path) => {

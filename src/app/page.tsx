@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { Settings } from "lucide-react";
 import { UserButton } from "@clerk/nextjs";
+import { redirect } from "next/navigation";
 import { requireUserId } from "@/lib/auth";
+import { getConsentState } from "@/db/consent";
 import { listWorkoutSummaries } from "@/db/workouts";
 import { listWorkoutDrafts } from "@/db/workout-drafts";
 import { getNextProgramDay } from "@/db/programs";
@@ -18,6 +20,15 @@ import { StatusHero } from "./status-hero";
 
 export default async function HomePage() {
   const userId = await requireUserId(); // middleware also guards; this is defense-in-depth
+  // Consent gate (4b): ALL required purposes must be currently granted —
+  // gating on tos alone would strand a user whose health consent was
+  // withdrawn (in, but unable to re-consent). One indexed read per home
+  // load; 4c replaces this with a session-claim check in the middleware so
+  // every route is covered without the read.
+  const consent = await getConsentState(userId);
+  const requiredGranted =
+    consent.tos?.granted && consent.health_collect?.granted && consent.health_share?.granted;
+  if (!requiredGranted) redirect("/welcome");
   // The page fetches only what ITS layout decisions and client-component
   // props need; MomentumPanel self-fetches the rest. Every reader here is
   // request-memoized (React cache), so overlap with the panel (summaries,

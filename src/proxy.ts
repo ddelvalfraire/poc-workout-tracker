@@ -26,6 +26,12 @@ const isPublicRoute = createRouteMatcher([
   // are the point — a sign-in redirect here would blind the acquisition
   // funnel. Carries no user data beyond what the client SDK sends.
   '/_i/(.*)',
+  // Public legal documents: signed-out readability is a legal requirement
+  // (MHMDA wants the health-data policy reachable from the homepage, and
+  // store reviews fetch these unauthenticated).
+  '/terms',
+  '/privacy',
+  '/health-privacy',
 ])
 
 export default clerkMiddleware(async (auth, req) => {
