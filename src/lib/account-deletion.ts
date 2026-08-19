@@ -39,6 +39,10 @@ import { deletePosthogPerson, type PosthogPersonDeletion } from '@/lib/posthog-p
  * event.
  */
 
+/** Storage keys per delete request — small enough that no realistic photo
+ *  count can outsize a request body. */
+export const STORAGE_DELETE_BATCH_SIZE = 100
+
 export interface AccountDeletionResult {
   pseudonym: string
   eventsPseudonymized: number
@@ -61,7 +65,12 @@ export async function deleteAccount(
   })
 
   const { photoBlobKeys } = await purgeUserData(userId)
-  await deleteObjects(photoBlobKeys)
+  // Batched: a photo-heavy account must never build a storage request the
+  // API could reject — that would strand deletion at this step on every
+  // retry.
+  for (let i = 0; i < photoBlobKeys.length; i += STORAGE_DELETE_BATCH_SIZE) {
+    await deleteObjects(photoBlobKeys.slice(i, i + STORAGE_DELETE_BATCH_SIZE))
+  }
   await clearUserRedisKeys(userId)
 
   let posthog: AccountDeletionResult['posthog']
@@ -86,6 +95,42 @@ export async function deleteAccount(
   await markDownstreamAction(eventId, 'clerk', 'completed')
 
   return { pseudonym, eventsPseudonymized, posthog }
+}
+
+/**
+ * Daily cap on deletion attempts. Blast radius is already bounded (a user
+ * can only delete their own account), but every attempt appends a withdrawal
+ * event + fan-out rows to the consent ledger, so a hostile retry loop could
+ * bloat append-only evidence tables. Same shape as the coach limiter:
+ * increment-then-check, fail-open (an outage must never trap a user in the
+ * app — deletion is a legal right, the cap is anti-abuse).
+ */
+export const ACCOUNT_DELETION_DAILY_LIMIT = 5
+
+const RATE_LIMIT_KEY_TTL_SECONDS = 26 * 60 * 60
+
+export type AccountDeletionRateLimit = { allowed: true } | { allowed: false; limit: number }
+
+export async function checkAccountDeletionRateLimit(
+  userId: string,
+): Promise<AccountDeletionRateLimit> {
+  const redis = getRedis()
+  if (!redis) return { allowed: true }
+  try {
+    const day = new Date().toISOString().slice(0, 10)
+    // NOTE: deliberately not swept by clearUserRedisKeys — deleting the
+    // counter mid-flow would reset the cap on every attempt. TTL cleans it.
+    const key = `account:delete:${userId}:${day}`
+    const count = await redis.incr(key)
+    if (count === 1) await redis.expire(key, RATE_LIMIT_KEY_TTL_SECONDS)
+    if (count > ACCOUNT_DELETION_DAILY_LIMIT) {
+      return { allowed: false, limit: ACCOUNT_DELETION_DAILY_LIMIT }
+    }
+    return { allowed: true }
+  } catch (error: unknown) {
+    console.error('[account-deletion] rate limit check failed; allowing', { userId, error })
+    return { allowed: true }
+  }
 }
 
 /**

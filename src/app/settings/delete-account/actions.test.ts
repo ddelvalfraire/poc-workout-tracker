@@ -8,14 +8,18 @@ const deleteAccount = vi.fn(async () => ({
   eventsPseudonymized: 1,
   posthog: 'deleted' as const,
 }))
+const checkAccountDeletionRateLimit = vi.fn(async () => ({ allowed: true }) as const)
 vi.mock('@/lib/account-deletion', () => ({
   deleteAccount: (...a: unknown[]) => deleteAccount(...(a as [])),
+  checkAccountDeletionRateLimit: (...a: unknown[]) =>
+    checkAccountDeletionRateLimit(...(a as [])),
 }))
 
 import { deleteAccountAction } from './actions'
 
 beforeEach(() => {
   vi.clearAllMocks()
+  checkAccountDeletionRateLimit.mockResolvedValue({ allowed: true })
 })
 
 describe('deleteAccountAction', () => {
@@ -36,6 +40,19 @@ describe('deleteAccountAction', () => {
       surface: 'settings',
       controlLabel: 'Delete my account',
     })
+  })
+
+  it('refuses when the daily attempt cap is hit, without touching the orchestrator', async () => {
+    checkAccountDeletionRateLimit.mockResolvedValueOnce({
+      allowed: false,
+      limit: 5,
+    } as unknown as { allowed: true })
+
+    const result = await deleteAccountAction('DELETE')
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error).toMatch(/too many/i)
+    expect(deleteAccount).not.toHaveBeenCalled()
   })
 
   it('maps an orchestration failure to a retryable error message, never a throw', async () => {

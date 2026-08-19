@@ -60,7 +60,13 @@ vi.mock('@clerk/nextjs/server', () => ({
   clerkClient: async () => ({ users: { deleteUser: clerkDeleteUser } }),
 }))
 
-import { deleteAccount, clearUserRedisKeys } from './account-deletion'
+import {
+  deleteAccount,
+  clearUserRedisKeys,
+  checkAccountDeletionRateLimit,
+  ACCOUNT_DELETION_DAILY_LIMIT,
+  STORAGE_DELETE_BATCH_SIZE,
+} from './account-deletion'
 
 const PRESENTATION = {
   route: '/settings/delete-account',
@@ -100,7 +106,7 @@ describe('deleteAccount', () => {
     await deleteAccount('user_1', PRESENTATION)
 
     expect(recordConsent).toHaveBeenCalledTimes(1)
-    expect(recordConsent.mock.calls[0][0]).toMatchObject({
+    expect((recordConsent.mock.calls as unknown as unknown[][])[0][0]).toMatchObject({
       userId: 'user_1',
       action: 'withdrawn',
       presentation: PRESENTATION,
@@ -114,6 +120,23 @@ describe('deleteAccount', () => {
   it('passes the purged photo keys to storage deletion', async () => {
     await deleteAccount('user_1', PRESENTATION)
     expect(deleteObjects).toHaveBeenCalledWith(['user_1/p1/display.webp'])
+  })
+
+  it('chunks storage deletion so a photo-heavy account cannot outsize one request', async () => {
+    const manyKeys = Array.from({ length: 250 }, (_, i) => `user_1/p${i}/key.webp`)
+    purgeUserData.mockResolvedValueOnce({ photoBlobKeys: manyKeys })
+
+    await deleteAccount('user_1', PRESENTATION)
+
+    const batches = (deleteObjects.mock.calls as unknown as unknown[][]).map(
+      (c) => c[0] as string[],
+    )
+    expect(batches.length).toBe(Math.ceil(manyKeys.length / STORAGE_DELETE_BATCH_SIZE))
+    for (const batch of batches) {
+      expect(batch.length).toBeLessThanOrEqual(STORAGE_DELETE_BATCH_SIZE)
+    }
+    // Nothing dropped, order preserved.
+    expect(batches.flat()).toEqual(manyKeys)
   })
 
   it('spares the deletion event from the pseudonymize reconciliation', async () => {
@@ -147,6 +170,59 @@ describe('deleteAccount', () => {
     await expect(deleteAccount('user_1', PRESENTATION)).rejects.toThrow('bucket down')
     expect(deletePosthogPerson).not.toHaveBeenCalled()
     expect(clerkDeleteUser).not.toHaveBeenCalled()
+  })
+})
+
+describe('checkAccountDeletionRateLimit', () => {
+  const redisIncr = vi.fn(async () => 1)
+  const redisExpire = vi.fn(async () => 1)
+
+  beforeEach(() => {
+    redisIncr.mockReset().mockResolvedValue(1)
+    redisExpire.mockReset()
+    redisClient = {
+      del: redisDel,
+      scan: redisScan,
+      incr: redisIncr,
+      expire: redisExpire,
+    } as unknown as typeof redisClient
+  })
+
+  it('allows attempts under the daily cap and TTLs the counter on first use', async () => {
+    redisIncr.mockResolvedValueOnce(1)
+    await expect(checkAccountDeletionRateLimit('user_1')).resolves.toEqual({ allowed: true })
+
+    const key = (redisIncr.mock.calls as unknown as unknown[][])[0]?.[0] as string
+    expect(key).toMatch(/^account:delete:user_1:\d{4}-\d{2}-\d{2}$/)
+    expect(redisExpire).toHaveBeenCalledWith(key, expect.any(Number))
+  })
+
+  it('blocks past the cap — a hostile retry loop cannot bloat consent_events', async () => {
+    redisIncr.mockResolvedValueOnce(ACCOUNT_DELETION_DAILY_LIMIT + 1)
+    await expect(checkAccountDeletionRateLimit('user_1')).resolves.toEqual({
+      allowed: false,
+      limit: ACCOUNT_DELETION_DAILY_LIMIT,
+    })
+  })
+
+  it('fails open without redis or on redis errors — an outage must not trap a user in the app', async () => {
+    redisClient = null
+    await expect(checkAccountDeletionRateLimit('user_1')).resolves.toEqual({ allowed: true })
+
+    redisClient = {
+      del: redisDel,
+      scan: redisScan,
+      incr: redisIncr,
+      expire: redisExpire,
+    } as unknown as typeof redisClient
+    redisIncr.mockRejectedValueOnce(new Error('redis down'))
+    await expect(checkAccountDeletionRateLimit('user_1')).resolves.toEqual({ allowed: true })
+  })
+
+  it('is NOT swept by clearUserRedisKeys — deleting the counter mid-flow would defeat the cap', async () => {
+    await clearUserRedisKeys('user_1')
+    const allDeleted = redisDel.mock.calls.flat() as unknown as string[]
+    expect(allDeleted.some((k) => String(k).startsWith('account:delete:'))).toBe(false)
   })
 })
 

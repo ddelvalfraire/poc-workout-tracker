@@ -1,7 +1,7 @@
 'use server'
 
 import { requireUserId } from '@/lib/auth'
-import { deleteAccount } from '@/lib/account-deletion'
+import { deleteAccount, checkAccountDeletionRateLimit } from '@/lib/account-deletion'
 import { DELETE_CONFIRM_PHRASE } from './confirm-phrase'
 
 /**
@@ -17,6 +17,15 @@ export async function deleteAccountAction(
   const userId = await requireUserId()
   if (confirmPhrase !== DELETE_CONFIRM_PHRASE) {
     return { ok: false, error: `Type ${DELETE_CONFIRM_PHRASE} to confirm.` }
+  }
+  // Anti-abuse cap, checked before any ledger write: each attempt appends
+  // append-only evidence rows, so a retry loop must hit a wall.
+  const rateLimit = await checkAccountDeletionRateLimit(userId)
+  if (!rateLimit.allowed) {
+    return {
+      ok: false,
+      error: 'Too many deletion attempts today. Please try again tomorrow.',
+    }
   }
   try {
     await deleteAccount(userId, {
