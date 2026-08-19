@@ -5,6 +5,11 @@
 //
 // Drop this file into the Android target. Colours are exact sRGB ARGB — every
 // token in the palette was verified inside the sRGB gamut at generation time.
+//
+// Naming: a token whose name begins with a digit once its prefix is stripped
+// (radius-2xl -> 2xl) has its digits rotated to the end (xl2), because neither
+// Swift nor Kotlin allows a leading digit. The web name is recoverable: xl2 is
+// --radius-2xl.
 
 package com.workouttracker.design
 

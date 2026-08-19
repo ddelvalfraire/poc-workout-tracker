@@ -1,4 +1,4 @@
-import type { Meta, StoryObj } from "@storybook/nextjs-vite";
+import type { Decorator, Meta, StoryObj } from "@storybook/nextjs-vite";
 
 import { StatTile } from "./stat-tile";
 
@@ -21,27 +21,31 @@ const meta = {
   component: StatTile,
   parameters: { layout: "padded" },
   args: { label: "Best set", value: "102.5", unit: "kg" },
-  decorators: [
-    // A single tile is dt/dd, so it needs a <dl> ancestor to be valid. Stories
-    // that build their own list set `ownsList` — nesting <dl> inside <dl> is
-    // invalid and axe flags it.
-    (Story, context) =>
-      context.parameters.ownsList ? (
-        <Story />
-      ) : (
-        <dl className="w-[min(20rem,calc(100vw-2rem))]">
-          <Story />
-        </dl>
-      ),
-  ],
 } satisfies Meta<typeof StatTile>;
 
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const Default: Story = {}
+/**
+ * StatTile renders dt/dd, which are only valid inside a <dl>. Single-tile
+ * stories opt into this wrapper; `Grid` supplies its own <dl> and must not get
+ * a second — HTML permits at most ONE <div> between <dl> and its dt/dd, and
+ * the tile's shell already spends it.
+ *
+ * A decorator reference rather than a story parameter: Storybook's `Parameters`
+ * type carries an index signature, so a misspelled flag would type-check and
+ * silently do nothing. A misspelled import will not compile.
+ */
+const inDefinitionList: Decorator = (Story) => (
+  <dl className="w-[min(20rem,calc(100vw-2rem))]">
+    <Story />
+  </dl>
+);
+
+export const Default: Story = { decorators: [inDefinitionList] }
 
 export const WithPositiveDelta: Story = {
+  decorators: [inDefinitionList],
   args: {
     delta: { text: "+2.5 kg vs first session", tone: "positive" },
     caption: "12 Mar 2026",
@@ -50,6 +54,7 @@ export const WithPositiveDelta: Story = {
 
 /** Neutral tone for context that is not progress — bodyweight drift, volume. */
 export const WithNeutralDelta: Story = {
+  decorators: [inDefinitionList],
   args: {
     label: "Bodyweight",
     value: "78.4",
@@ -61,6 +66,7 @@ export const WithNeutralDelta: Story = {
 
 /** A decline renders quiet, never in the destructive colour. */
 export const Decline: Story = {
+  decorators: [inDefinitionList],
   args: {
     label: "Weekly volume",
     value: "12,480",
@@ -70,14 +76,17 @@ export const Decline: Story = {
 }
 
 export const NoUnit: Story = {
+  decorators: [inDefinitionList],
   args: { label: "Sessions", value: "148", unit: undefined },
 }
 
 export const LabelAndValueOnly: Story = {
+  decorators: [inDefinitionList],
   args: { label: "Streak", value: "6", unit: "wk" },
 }
 
 export const LongValue: Story = {
+  decorators: [inDefinitionList],
   args: { label: "Lifetime volume", value: "1,284,930", unit: "kg" },
 }
 
@@ -86,7 +95,6 @@ export const LongValue: Story = {
  * surface, per-item volt stacks and is banned (DESIGN.md § One volt).
  */
 export const Grid: Story = {
-  parameters: { layout: "padded", ownsList: true },
   render: () => (
     <dl className="grid w-[min(28rem,calc(100vw-2rem))] grid-cols-2 gap-3">
       <StatTile

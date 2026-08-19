@@ -13,6 +13,14 @@ const HERE = dirname(fileURLToPath(import.meta.url));
  * this list covers every action module the components import, and that the
  * stub file exports every symbol they pull from it.
  */
+/**
+ * `@clerk/nextjs` components throw outside a ClerkProvider, and standing one up
+ * would mean a publishable key and a network call just to render the catalog.
+ * NavDrawer's `<UserButton />` is the only such component under
+ * src/components/**; `.storybook/mocks/clerk.tsx` stands in for it.
+ */
+export const VENDOR_MODULES = ["@clerk/nextjs"];
+
 export const SERVER_ACTION_MODULES = [
   "@/app/actions",
   "@/app/programs/actions",
@@ -64,6 +72,10 @@ const config: StorybookConfig = {
       ...SERVER_ACTION_MODULES.map((find) => ({
         find,
         replacement: join(HERE, "mocks/app-actions.ts"),
+      })),
+      ...VENDOR_MODULES.map((find) => ({
+        find,
+        replacement: join(HERE, "mocks/clerk.tsx"),
       })),
       ...inheritedEntries,
     ];

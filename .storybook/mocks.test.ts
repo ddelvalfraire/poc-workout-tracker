@@ -3,8 +3,9 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { SERVER_ACTION_MODULES } from "./main";
+import { SERVER_ACTION_MODULES, VENDOR_MODULES } from "./main";
 import * as mocks from "./mocks/app-actions";
+import * as clerkMock from "./mocks/clerk";
 
 /**
  * The alias list in main.ts is the only thing keeping Drizzle, Postgres and
@@ -65,6 +66,25 @@ describe("storybook server-action mocks", () => {
     );
     // An aliased module missing an export fails at call time inside a story,
     // not at build time — which is exactly when nobody is watching.
+    expect(missing).toEqual([]);
+  });
+
+  it("stubs every vendor module that needs a provider", () => {
+    // NavDrawer's <UserButton /> throws outside a ClerkProvider. Standing up a
+    // real provider would mean a publishable key and a network call to render
+    // a catalog, so the specifier is aliased. This test is what stops a new
+    // Clerk import from silently reintroducing the crash — and the crash only
+    // reproduces when the drawer is OPEN, which is why NavDrawer has an
+    // `Opened` story with a play function.
+    const pattern = /import\s*\{([^}]+)\}\s*from\s*['"]@clerk\/nextjs['"]/g;
+    const used = walk(COMPONENTS).flatMap((file) =>
+      [...readFileSync(file, "utf8").matchAll(pattern)].flatMap((m) =>
+        m[1].split(",").map((sym) => sym.trim().split(/\s+as\s+/)[0].trim()),
+      ),
+    );
+    expect(VENDOR_MODULES).toContain("@clerk/nextjs");
+    expect(used.length).toBeGreaterThan(0);
+    const missing = used.filter((symbol) => !(symbol in clerkMock));
     expect(missing).toEqual([]);
   });
 

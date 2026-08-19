@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
+import { expect, userEvent, within } from "storybook/test";
 import { useEffect } from "react";
 
 import type { DrawerData } from "@/lib/drawer-status";
@@ -20,7 +21,9 @@ import { NavDrawer } from "./nav-drawer";
  * row to its label**. The nav never breaks because a status read did — see
  * `FetchFails` below.
  *
- * Open the drawer with the trigger; `/api/drawer` is stubbed per story.
+ * Open the drawer with the trigger; `/api/drawer` is stubbed per story. Every
+ * story below renders the drawer CLOSED — the content lives in a portal that
+ * mounts on first open, so `Opened` is the one that actually exercises it.
  */
 
 const FULL: DrawerData = {
@@ -120,6 +123,30 @@ type Story = StoryObj<typeof meta>;
 
 /** A full dashboard: active program, goals, trophies, body, recents. */
 export const Populated: Story = { decorators: [stubDrawer(json(FULL))] }
+
+/**
+ * The drawer as the user sees it. Vaul renders the content in a portal that
+ * only mounts on first open, so a story that leaves it closed asserts almost
+ * nothing about this component — including whether it renders at all. That
+ * gap hid a crash: the footer's Clerk `<UserButton />` throws outside a
+ * ClerkProvider, and nothing caught it because nothing ever opened the drawer.
+ */
+export const Opened: Story = {
+  decorators: [stubDrawer(json(FULL))],
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(await canvas.findByLabelText("Open navigation"));
+    // The portal renders outside canvasElement, so query the document body.
+    const drawer = within(document.body);
+    // Substring match: the hero reads "Push A · Week 3 · tomorrow" in one node.
+    await expect(await drawer.findByText(/Push A/)).toBeInTheDocument();
+    // The identity row is the part the closed stories could never reach — it
+    // holds the Clerk UserButton that used to throw here.
+    await expect(
+      await drawer.findByRole("link", { name: /settings/i }),
+    ).toBeInTheDocument();
+  },
+}
 
 /**
  * A live session turns the hero into RESUME — the single-active-session

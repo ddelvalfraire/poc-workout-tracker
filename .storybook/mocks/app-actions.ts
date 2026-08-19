@@ -55,12 +55,24 @@ export async function deleteWorkoutAction(id: string): Promise<void> {
   await settle(undefined);
 }
 
-// Compile-time fidelity checks — see the module doc above.
-export const __typeCheck = {
-  setWeightUnitAction: setWeightUnitAction satisfies typeof AppActions.setWeightUnitAction,
-  startProgramDayAction:
-    startProgramDayAction satisfies typeof ProgramActions.startProgramDayAction,
-  deleteWorkoutDraftAction:
-    deleteWorkoutDraftAction satisfies typeof WorkoutActions.deleteWorkoutDraftAction,
-  deleteWorkoutAction: deleteWorkoutAction satisfies typeof WorkoutActions.deleteWorkoutAction,
-};
+// Compile-time fidelity checks — see the module doc above. Purely type-level:
+// no runtime value is produced. A stub whose signature drifts from the action
+// it stands in for makes `Matches` resolve to `false`, which fails `Assert`.
+type Matches<Stub, Real> = Stub extends Real ? true : false;
+type Assert<T extends true> = T;
+
+/**
+ * Exported so it counts as used — it exists purely to be type-checked. Each
+ * entry must resolve to `true`; a stub that drifts resolves to `false` and
+ * fails the `Assert` constraint.
+ */
+export type MockFidelity = [
+  Assert<Matches<typeof setWeightUnitAction, typeof AppActions.setWeightUnitAction>>,
+  Assert<
+    Matches<typeof startProgramDayAction, typeof ProgramActions.startProgramDayAction>
+  >,
+  Assert<
+    Matches<typeof deleteWorkoutDraftAction, typeof WorkoutActions.deleteWorkoutDraftAction>
+  >,
+  Assert<Matches<typeof deleteWorkoutAction, typeof WorkoutActions.deleteWorkoutAction>>,
+];

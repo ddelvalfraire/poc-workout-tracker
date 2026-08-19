@@ -19,11 +19,14 @@ const meta = {
   component: NoteRow,
   parameters: { layout: "padded" },
   decorators: [
-    // NoteRow is an <li>, so it needs a list ancestor to be valid. Stories that
-    // build their own list set `ownsList` — a <ul> inside a <ul> is invalid.
-    (Story, context) => (
+    // NoteRow is an <li>, so every story needs a list ancestor — and exactly
+    // one. Stories showing several rows render them as siblings INSIDE this
+    // list rather than opening a second <ul>, which would be invalid.
+    (Story) => (
       <div className="w-[min(28rem,calc(100vw-2rem))]">
-        {context.parameters.ownsList ? <Story /> : <DividerList><Story /></DividerList>}
+        <DividerList>
+          <Story />
+        </DividerList>
       </div>
     ),
   ],
@@ -118,12 +121,14 @@ export const LongContent: Story = {
 
 /** How the surface actually reads: a run of rows sharing one DividerList. */
 export const InAList: Story = {
-  parameters: { layout: "padded", ownsList: true },
+  parameters: { layout: "padded" },
   // `render` ignores args, but NoteRow's `note` prop is required so the story
   // type demands one. The list below supplies its own rows.
   args: { note: note() },
+  // A fragment — the meta decorator already opened the DividerList these rows
+  // belong to, and their hairlines come from it.
   render: () => (
-    <DividerList>
+    <>
       <NoteRow note={note()} />
       <NoteRow
         note={note({
@@ -146,6 +151,6 @@ export const InAList: Story = {
           timeLabel: "Yesterday",
         })}
       />
-    </DividerList>
+    </>
   ),
 };
