@@ -12,7 +12,7 @@ import { getExerciseStats, listLoggedExercises } from '@/db/exercise-stats'
 import { resolveActiveSession } from '@/lib/active-session'
 import { bodyweightDeltaKg } from '@/lib/bodyweight-trend'
 import { getCheckInStatus } from '@/lib/check-in'
-import { isCoachUser } from '@/lib/coach/access'
+import { isCoachEnabled } from '@/lib/coach/access'
 import { getGoalsHomeSummary } from '@/lib/goals'
 import { goalLabel, strengthPercent } from '@/lib/goal-progress'
 import { trophyLabel } from '@/lib/trophies'
@@ -157,7 +157,7 @@ export async function GET(): Promise<NextResponse> {
             loggedCount: logged?.length ?? 0,
           }
         : null,
-    coach: isCoachUser(userId),
+    coach: await isCoachEnabled(userId),
     recents:
       summaries
         ?.filter((workout) => workout.completedAt !== null)

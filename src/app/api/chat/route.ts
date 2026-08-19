@@ -2,7 +2,7 @@ import { auth } from '@clerk/nextjs/server'
 import { NextResponse, after } from 'next/server'
 import { convertToModelMessages, stepCountIs, streamText, type UIMessage } from 'ai'
 import { getWeightUnit } from '@/db/preferences'
-import { isCoachUser } from '@/lib/coach/access'
+import { isCoachEnabled } from '@/lib/coach/access'
 import {
   MAX_BODY_BYTES,
   MAX_MESSAGES,
@@ -53,9 +53,9 @@ export async function POST(request: Request): Promise<Response> {
   if (!userId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
-  // Dev gate: the coach is allowlist-only while in development. Server-side
+  // Gate: env allowlist OR the 'coach-access' flag (fail-closed). Server-side
   // like every other guard — hiding the UI entry points is cosmetics.
-  if (!isCoachUser(userId)) {
+  if (!(await isCoachEnabled(userId))) {
     return NextResponse.json({ error: 'The coach is not enabled for this account.' }, { status: 403 })
   }
 

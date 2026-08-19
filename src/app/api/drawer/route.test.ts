@@ -20,7 +20,7 @@ vi.mock('@/lib/goals', () => ({ getGoalsHomeSummary: vi.fn(async () => null) }))
 vi.mock('@/lib/check-in', () => ({ getCheckInStatus: vi.fn(async () => null) }))
 vi.mock('@/lib/trophies', () => ({ trophyLabel: vi.fn(() => '315 Squat Club') }))
 vi.mock('@/lib/active-session', () => ({ resolveActiveSession: vi.fn(() => null) }))
-vi.mock('@/lib/coach/access', () => ({ isCoachUser: vi.fn(() => false) }))
+vi.mock('@/lib/coach/access', () => ({ isCoachEnabled: vi.fn(async () => false) }))
 
 import { auth } from '@clerk/nextjs/server'
 import { listWorkoutSummaries, type WorkoutSummary } from '@/db/workouts'
@@ -31,7 +31,7 @@ import { getExerciseStats, type ExerciseAllTimeStats } from '@/db/exercise-stats
 import { getGoalsHomeSummary } from '@/lib/goals'
 import { getCheckInStatus } from '@/lib/check-in'
 import { resolveActiveSession } from '@/lib/active-session'
-import { isCoachUser } from '@/lib/coach/access'
+import { isCoachEnabled } from '@/lib/coach/access'
 import type { GoalRow } from '@/db/goals'
 import type { DrawerData } from '@/lib/drawer-status'
 import { GET } from './route'
@@ -123,7 +123,7 @@ beforeEach(() => {
   vi.mocked(listBodyweightLogs).mockResolvedValue([])
   vi.mocked(getExerciseStats).mockResolvedValue(null)
   vi.mocked(resolveActiveSession).mockReturnValue(null)
-  vi.mocked(isCoachUser).mockReturnValue(false)
+  vi.mocked(isCoachEnabled).mockResolvedValue(false)
 })
 
 describe('GET /api/drawer', () => {
@@ -152,7 +152,7 @@ describe('GET /api/drawer', () => {
       { id: 'b1', weighedAt: new Date(now - HOUR_MS), weightKg: 84 },
       { id: 'b2', weighedAt: new Date(now - 10 * DAY_MS), weightKg: 85 },
     ])
-    vi.mocked(isCoachUser).mockReturnValue(true)
+    vi.mocked(isCoachEnabled).mockResolvedValue(true)
 
     const { res, data } = await getData()
 

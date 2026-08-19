@@ -2,7 +2,7 @@ import { notFound } from 'next/navigation'
 import { requireUserId } from '@/lib/auth'
 import { NavDrawer } from '@/components/nav/nav-drawer'
 import { getProgramName } from '@/db/programs'
-import { isCoachUser } from '@/lib/coach/access'
+import { isCoachEnabled } from '@/lib/coach/access'
 import { loadCoachChat } from '@/lib/coach/chat-store'
 import { parseContextParam, programIdFromContext } from '@/lib/coach/chat-ui'
 import { clearCoachChatAction } from './actions'
@@ -19,9 +19,9 @@ export default async function CoachPage({
   searchParams: Promise<{ context?: string | string[] }>
 }) {
   const userId = await requireUserId() // middleware also guards; this is defense-in-depth
-  // Dev gate: allowlist-only while the coach is in development. 404, not
-  // 403 — the page simply doesn't exist for everyone else.
-  if (!isCoachUser(userId)) notFound()
+  // Gate: env allowlist OR the 'coach-access' PostHog flag (fail-closed).
+  // 404, not 403 — the page simply doesn't exist for everyone else.
+  if (!(await isCoachEnabled(userId))) notFound()
   const sp = await searchParams
   const context = parseContextParam(sp.context)
   // Program context personalizes the empty-state starters. Deliberately a
