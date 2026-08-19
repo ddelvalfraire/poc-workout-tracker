@@ -1020,3 +1020,109 @@ export const programSetsRelations = relations(programSets, ({ one, many }) => ({
   }),
   overrides: many(programSetOverrides),
 }))
+
+// ---------------------------------------------------------------------------
+// Consent ledger (see docs/legal/in-product-copy.md and the PR 4 brief).
+// Append-only events + a current-state projection — the Fides/iubenda shape.
+// consent_events is NEVER updated or deleted (CA ARL: keep >= 3 years; on
+// account deletion the user is pseudonymized, the events remain as compliance
+// records). All writes go through src/db/consent.ts.
+// ---------------------------------------------------------------------------
+
+/**
+ * Versioned snapshots of the documents consent can reference. content is the
+ * FULL text as shown — clickwrap enforceability turns on reproducing exactly
+ * what was accepted, so the snapshot (plus hash) is the evidence, and the
+ * version label is cosmetic. `isMaterial` drives re-consent: a material new
+ * version gates the app behind a fresh affirmative act; non-material just
+ * swaps the linked text.
+ */
+export const consentDocuments = pgTable(
+  'consent_documents',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    docType: text('doc_type')
+      .$type<'tos' | 'privacy' | 'health_notice' | 'analytics_notice'>()
+      .notNull(),
+    version: integer('version').notNull(),
+    contentMd: text('content_md').notNull(),
+    contentSha256: text('content_sha256').notNull(),
+    isMaterial: boolean('is_material').notNull().default(true),
+    effectiveAt: timestamp('effective_at', { withTimezone: true }).notNull(),
+  },
+  (t) => [uniqueIndex('consent_documents_type_version_idx').on(t.docType, t.version)],
+)
+
+export type ConsentPurpose =
+  | 'tos'
+  | 'health_collect'
+  | 'health_share'
+  | 'analytics_identity'
+  | 'autorenewal'
+
+/**
+ * The append-only ledger. One row per affirmative act (grant, withdraw,
+ * reconfirm). `presentation` captures HOW it was shown (route, surface, the
+ * exact control label, locale) — the half of consent proof most systems drop.
+ * IP is stored TRUNCATED (v4: last octets zeroed to /16) — a full IP beside
+ * health-consent rows is itself a data-minimization problem.
+ *
+ * No FK to a users table by design: the ledger must outlive account deletion
+ * (events are retained pseudonymized), so a cascade would destroy evidence.
+ */
+export const consentEvents = pgTable(
+  'consent_events',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    userId: text('user_id').notNull(), // Clerk user id (pseudonymized on account deletion)
+    purpose: text('purpose').$type<ConsentPurpose>().notNull(),
+    action: text('action').$type<'granted' | 'withdrawn' | 'reconfirmed'>().notNull(),
+    // Null on withdrawals — you withdraw a purpose, not a document version.
+    documentId: uuid('document_id').references(() => consentDocuments.id),
+    occurredAt: timestamp('occurred_at', { withTimezone: true }).defaultNow().notNull(),
+    ipTruncated: text('ip_truncated'),
+    userAgent: text('user_agent'),
+    presentation: jsonb('presentation').notNull(),
+  },
+  (t) => [index('consent_events_user_purpose_idx').on(t.userId, t.purpose, t.occurredAt.desc())],
+)
+
+/**
+ * Current-state projection, rewritten in the same transaction as each event
+ * insert. Hot-path gates (requireConsent) read ONLY this — one PK lookup.
+ */
+export const consentCurrent = pgTable(
+  'consent_current',
+  {
+    userId: text('user_id').notNull(),
+    purpose: text('purpose').$type<ConsentPurpose>().notNull(),
+    granted: boolean('granted').notNull(),
+    documentId: uuid('document_id').references(() => consentDocuments.id),
+    eventId: uuid('event_id')
+      .notNull()
+      .references(() => consentEvents.id),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.purpose] })],
+)
+
+/**
+ * Withdrawal/deletion fan-out log — MHMDA requires propagating to processors,
+ * and this table is the evidence it happened (e.g. PostHog person deletion
+ * after analytics_identity withdrawal). Rows are enqueued in the withdrawal
+ * transaction and completed by the worker that performs the action.
+ */
+export const consentDownstreamActions = pgTable(
+  'consent_downstream_actions',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    eventId: uuid('event_id')
+      .notNull()
+      .references(() => consentEvents.id),
+    processor: text('processor').notNull(), // 'posthog', ...
+    action: text('action').notNull(), // 'person_delete', 'stop_share', ...
+    status: text('status').$type<'pending' | 'completed' | 'failed'>().notNull().default('pending'),
+    completedAt: timestamp('completed_at', { withTimezone: true }),
+  },
+  (t) => [index('consent_downstream_status_idx').on(t.status)],
+)
