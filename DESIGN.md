@@ -4,8 +4,65 @@
 > review contract for list/detail surfaces — check every conversion and every
 > new surface against it.
 
+> **Storybook is this document's reference implementation.** `npm run storybook`
+> renders every component in `src/components/**`, with the vocabulary and the
+> token tables under "Design/". When a component and this document disagree,
+> this document wins and the component is a bug. See
+> [Component catalog](#component-catalog) and [Tokens](#tokens).
+
 ## Theme
 Dark, committed — not a toggle. Near-black surface (`#0a0a0a`, matching the PWA `theme_color`/manifest) with subtly lifted panels, near-white ink, and a single high-voltage accent for primary actions and active state. Dark is the deliberate choice for a gym environment (harsh/low light, OLED phones, glance-readability), echoing athletic apps (Strong, Hevy, Nike Training). The light shadcn defaults are removed; the app ships one intentional dark theme.
+
+## Tokens
+
+`src/design/tokens.ts` is the **single source** for colour, radius, touch
+targets, motion, type scale and layout constants. `npm run tokens` generates
+three files from it, and `npm run tokens:check` fails when any has drifted:
+
+| Output | Platform |
+|---|---|
+| `src/app/tokens.generated.css` | Web — imported by `globals.css` |
+| `design/generated/DesignTokens.swift` | iOS — SwiftUI |
+| `design/generated/DesignTokens.kt` | Android — Jetpack Compose |
+
+**Never edit a generated file.** Edit `tokens.ts` and regenerate; commit the
+source and all three outputs together.
+
+Why it exists: React components do not port to SwiftUI or Compose — a
+`className` string is a dead end on both. The token layer and this document are
+what actually port, so they are the artifacts that keep three codebases looking
+like one product. Colours are authored in OKLCH and every one is verified inside
+the sRGB gamut, so the hex handed to Swift and Kotlin is exact rather than
+gamut-mapped; the generator throws if a future token leaves sRGB.
+
+Tokens carry a `status`. `core` ships to all three platforms; `unused` marks
+inherited shadcn scaffolding no component reads (`chart-1..5`, `sidebar-*`,
+`popover-*`, `accent-*` — the charts colour series with `var(--primary)` and
+`var(--muted-foreground)`). Unused tokens stay in the web CSS so nothing moves,
+but are withheld from the native output.
+
+## Component catalog
+
+Every component in `src/components/**` has a `.stories.tsx` beside it. The
+primitives carry full variant matrices; feature components carry their real
+states (default, empty, pending, error, degraded). Four components render
+`null` — `NavigationTracker` and the three PWA scripts — and their stories are
+mount smoke tests, filed under "Behavioral" and labelled as such rather than
+given invented visuals.
+
+Storybook config lives in `.storybook/`. Three things it has to do that are
+worth knowing before you change it:
+
+- **Fonts** come from `src/app/fonts.ts`, imported by BOTH the app shell and
+  the preview. Declaring the two `next/font` calls twice would let the catalog
+  and the app drift on the exact axis the catalog exists to police.
+- **`'use server'` modules are aliased** to `.storybook/mocks/app-actions.ts`
+  (`UnitToggle`, `NavDrawer`, `SessionConflictDialog` each call one). Keep the
+  list in `main.ts` in sync with
+  `grep -rn "from '@/app/.*actions'" src/components/`.
+- **The `dark` class goes on `documentElement`**, not a wrapper, because
+  `@custom-variant dark (&:is(.dark *))` needs a `.dark` ancestor for every
+  `dark:` utility to match.
 
 ## Color (OKLCH)
 | Role | Value | Use |

@@ -142,7 +142,17 @@ export function BlockMap({
           )
         }
         return (
-          <span key={w.week} className="min-w-0 flex-1 space-y-1" aria-label={segmentLabel(w, false)}>
+          // role=img: the segment is one graphic whose bar is aria-hidden, so
+          // the label is its whole accessible name. Without a role, `span` is
+          // generic and ARIA prohibits naming it — the label was being dropped
+          // by assistive tech, not merely flagged. The linked branch above
+          // needs no role: <a href> is already a `link`, which permits naming.
+          <span
+            key={w.week}
+            role="img"
+            className="min-w-0 flex-1 space-y-1"
+            aria-label={segmentLabel(w, false)}
+          >
             {body}
           </span>
         )

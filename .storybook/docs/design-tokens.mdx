@@ -1,0 +1,105 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+import {
+  ColorTable,
+  DimensionTable,
+  DurationTable,
+  TypeScaleTable,
+  FontTable,
+} from "./token-tables";
+
+<Meta title="Design/Design Tokens" />
+
+# Design tokens
+
+Everything below is generated from **one file**: `src/design/tokens.ts`.
+
+```
+src/design/tokens.ts
+        │
+        ├── src/app/tokens.generated.css        →  web  (imported by globals.css)
+        ├── src/design/tokens.generated.ts      →  TS consumers that need sRGB
+        ├── design/generated/DesignTokens.swift →  iOS   (SwiftUI)
+        └── design/generated/DesignTokens.kt    →  Android (Jetpack Compose)
+```
+
+- `npm run tokens` regenerates all four.
+- `npm run tokens:check` fails if any of them has drifted — wire it into CI.
+- **Never edit a generated file.** Edit `tokens.ts` and regenerate.
+
+## Why this exists
+
+React components do not port to SwiftUI or Compose — a `className` string is a
+dead end on both. The palette, radii, touch targets, motion durations and type
+scale *do* port, and they are the part that actually keeps three codebases
+looking like one product.
+
+Colours are authored in OKLCH because that is what the web renders and what
+DESIGN.md specifies. **Every token in this palette is verified inside the sRGB
+gamut**, so the hex handed to Swift and Kotlin is exact rather than a
+gamut-mapped approximation. The generator fails loudly if a future token ever
+leaves sRGB, rather than silently shifting colour on one platform.
+
+## Colour
+
+The **sRGB** column is the literal value compiled into the Swift and Kotlin
+files. `core` tokens ship to all three platforms.
+
+The `.ts` output exists because Storybook's own theme API predates OKLCH and
+takes plain colour strings. Without it the catalog's chrome would restate the
+palette by hand — a design system whose own workbench drifts from it.
+
+<ColorTable status="core" />
+
+### Unused
+
+Inherited shadcn scaffolding that no component reads — verified: the charts
+colour their series with `var(--primary)` and `var(--muted-foreground)`, never
+`--chart-N`. These stay in the web CSS so nothing moves, but they are withheld
+from the native output. Shipping dead colours to a mobile team is how a design
+system starts lying. Delete them from `tokens.ts` when the web side is cleaned
+up.
+
+<ColorTable status="unused" />
+
+## Corner radius
+
+Points on iOS, dp on Android, px on web. The web derives these from
+`--radius` (0.75rem); native gets them pre-resolved so it never replicates the
+arithmetic.
+
+<DimensionTable which="radii" />
+
+## Touch targets
+
+Both clear the 44pt floor shared by Apple's HIG and Material's 48dp guidance —
+the reason `Button`'s `default` is `h-11` and `lg` is `h-12`.
+
+<DimensionTable which="touch" />
+
+## Motion
+
+Every one of these must be skipped under the platform's reduce-motion setting:
+`UIAccessibility.isReduceMotionEnabled` on iOS,
+`Settings.Global.TRANSITION_ANIMATION_SCALE == 0` on Android, and
+`prefers-reduced-motion` on web.
+
+<DurationTable />
+
+## Typography
+
+A contrast-axis pairing — condensed display against neutral UI sans, not two
+similar sans. iOS and Android must **bundle the same two families**;
+substituting a system face loses the athletic register.
+
+<FontTable />
+
+<TypeScaleTable />
+
+## Adding a token
+
+1. Add it to the right array in `src/design/tokens.ts`, with a `doc` string —
+   that string becomes the comment on every platform, so write it for a
+   developer who has never seen this app.
+2. Run `npm run tokens`.
+3. Commit `tokens.ts` **and** all four generated files together.

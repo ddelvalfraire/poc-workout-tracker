@@ -18,7 +18,39 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to see the
 
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load its type pairing (Oswald + Inter), declared once in `src/app/fonts.ts`.
+
+## Design system
+
+The design contract is [DESIGN.md](DESIGN.md); Storybook is its reference
+implementation.
+
+```bash
+npm run storybook        # component catalog on :6006
+npm run build-storybook  # static build
+```
+
+Every component in `src/components/**` has a `.stories.tsx` beside it. The
+"Design/" section renders the token tables and the de-card review contract as
+live pages.
+
+### Design tokens
+
+Colour, radius, touch targets, motion, type scale and layout constants live in
+**one** file, `src/design/tokens.ts`, which generates all three platforms:
+
+```bash
+npm run tokens        # regenerate
+npm run tokens:check  # fail on drift (wire into CI)
+```
+
+| Output | Platform |
+|---|---|
+| `src/app/tokens.generated.css` | Web — imported by `globals.css` |
+| `design/generated/DesignTokens.swift` | iOS — SwiftUI |
+| `design/generated/DesignTokens.kt` | Android — Jetpack Compose |
+
+Never edit a generated file. Edit `tokens.ts` and regenerate.
 
 ## MCP Agent Server
 

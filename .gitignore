@@ -59,3 +59,6 @@ next-env.d.ts
 .stryker-tmp/
 .stryker-incremental.json
 reports/
+
+# storybook build output
+storybook-static/

@@ -1,0 +1,45 @@
+/* GENERATED FILE — DO NOT EDIT.
+
+   Source: src/design/tokens.ts
+   Regenerate: npm run tokens
+
+   The app ships ONE intentional dark palette (DESIGN.md § Theme), not a
+   toggle. :root and .dark carry identical values so there is no light flash
+   before the shell's `dark` class lands. */
+:root,
+.dark {
+  --background: oklch(0.145 0 0); /* #0a0a0a */
+  --foreground: oklch(0.97 0 0); /* #f5f5f5 */
+  --card: oklch(0.205 0 0); /* #171717 */
+  --card-foreground: oklch(0.97 0 0); /* #f5f5f5 */
+  --popover: oklch(0.205 0 0); /* #171717 */
+  --popover-foreground: oklch(0.97 0 0); /* #f5f5f5 */
+  --primary: oklch(0.86 0.19 128); /* #ade74e */
+  --primary-foreground: oklch(0.16 0.03 128); /* #091003 */
+  --secondary: oklch(0.269 0 0); /* #262626 */
+  --secondary-foreground: oklch(0.97 0 0); /* #f5f5f5 */
+  --muted: oklch(0.269 0 0); /* #262626 */
+  --muted-foreground: oklch(0.72 0 0); /* #a4a4a4 */
+  --accent: oklch(0.269 0 0); /* #262626 */
+  --accent-foreground: oklch(0.97 0 0); /* #f5f5f5 */
+  --destructive: oklch(0.65 0.2 25); /* #f14d4c */
+  --destructive-ink: oklch(0.775 0.13 25); /* #fe938b */
+  --warning: oklch(0.8 0.15 85); /* #eab532 */
+  --border: oklch(1 0 0 / 12%); /* #ffffff @ 12% */
+  --input: oklch(1 0 0 / 15%); /* #ffffff @ 15% */
+  --ring: oklch(0.86 0.19 128); /* #ade74e */
+  --chart-1: oklch(0.86 0.19 128); /* #ade74e */
+  --chart-2: oklch(0.708 0 0); /* #a1a1a1 */
+  --chart-3: oklch(0.556 0 0); /* #737373 */
+  --chart-4: oklch(0.439 0 0); /* #525252 */
+  --chart-5: oklch(0.371 0 0); /* #404040 */
+  --sidebar: oklch(0.205 0 0); /* #171717 */
+  --sidebar-foreground: oklch(0.97 0 0); /* #f5f5f5 */
+  --sidebar-primary: oklch(0.86 0.19 128); /* #ade74e */
+  --sidebar-primary-foreground: oklch(0.16 0.03 128); /* #091003 */
+  --sidebar-accent: oklch(0.269 0 0); /* #262626 */
+  --sidebar-accent-foreground: oklch(0.97 0 0); /* #f5f5f5 */
+  --sidebar-border: oklch(1 0 0 / 12%); /* #ffffff @ 12% */
+  --sidebar-ring: oklch(0.86 0.19 128); /* #ade74e */
+  --radius: 0.75rem;
+}

@@ -35,12 +35,20 @@ interface StatTileProps {
   className?: string
 }
 
+/**
+ * The tile's shell — one of the few keep-list surfaces (DESIGN.md § De-card
+ * vocabulary). Exported so a pending stand-in can hold the SAME box without
+ * re-typing the classes: a ghost that drifts from its resolved state is a
+ * layout shift waiting to happen.
+ */
+export const STAT_TILE_SHELL = 'rounded-2xl border border-border bg-card p-4'
+
 export function StatTile({ label, value, unit, delta, caption, className }: StatTileProps) {
   // dt/dd internals so a grid of tiles stays a real description list — wrap
   // the grid in <dl> (a div-wrapped dt/dd group is valid dl content), the
   // same semantics the workout summary and stats sheet grids already use.
   return (
-    <div className={cn('rounded-2xl border border-border bg-card p-4', className)}>
+    <div className={cn(STAT_TILE_SHELL, className)}>
       <dt className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
         {label}
       </dt>
