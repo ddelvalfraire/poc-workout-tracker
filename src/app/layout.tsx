@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { ClerkProvider } from "@clerk/nextjs";
+import { AuthKitProvider } from "@workos-inc/authkit-nextjs/components";
 import { NavigationTracker } from "@/components/navigation-tracker";
 import { ServiceWorkerRegister } from "@/components/pwa/service-worker-register";
 import { ChunkRecoveryScript } from "@/components/pwa/chunk-recovery-script";
@@ -35,28 +35,18 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <ClerkProvider
-      appearance={{
-        variables: {
-          colorBackground: BRAND,
-          colorPrimary: "oklch(0.86 0.19 128)",
-          colorPrimaryForeground: "oklch(0.16 0.03 128)",
-          colorForeground: "oklch(0.97 0 0)",
-          colorMutedForeground: "oklch(0.72 0 0)",
-          colorInput: "oklch(0.205 0 0)",
-          colorInputForeground: "oklch(0.97 0 0)",
-          colorNeutral: "oklch(0.97 0 0)",
-        },
-      }}
+    <html
+      lang="en"
+      className={`dark ${fontVariables} h-full antialiased`}
     >
-      <html
-        lang="en"
-        className={`dark ${fontVariables} h-full antialiased`}
-      >
-        <body className="bg-background text-foreground min-h-[100dvh] flex flex-col">
-          {/* Must be first in <body>: attaches chunk-failure listeners before
-              any /_next script can 404 (stale deploy), when React never boots. */}
-          <ChunkRecoveryScript />
+      <body className="bg-background text-foreground min-h-[100dvh] flex flex-col">
+        {/* Must be first in <body>: attaches chunk-failure listeners before
+            any /_next script can 404 (stale deploy), when React never boots. */}
+        <ChunkRecoveryScript />
+        {/* AuthKit's client-side session context (useAuth) plus its handling
+            for auth edge cases — the hosted sign-in page is themed in the
+            WorkOS dashboard, so no appearance config lives in code. */}
+        <AuthKitProvider>
           {/* Once, app-wide: the in-app history stack every BackLink reads
               (pop vs fallback-replace) — see lib/back-navigation. */}
           <NavigationTracker />
@@ -67,8 +57,8 @@ export default function RootLayout({
           {/* Proactive stale-build reload on resume — the counterpart to the
               reactive ChunkRecoveryScript above. */}
           <UpdateOnResume />
-        </body>
-      </html>
-    </ClerkProvider>
+        </AuthKitProvider>
+      </body>
+    </html>
   );
 }

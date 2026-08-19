@@ -1,5 +1,5 @@
-import { auth } from '@clerk/nextjs/server'
 import { NextResponse } from 'next/server'
+import { getUserId } from '@/lib/auth'
 import { searchExercises, getAllExercises } from '@/lib/wger'
 import { listCustomExercises } from '@/db/custom-exercises'
 
@@ -12,12 +12,12 @@ const CATALOG_CACHE_CONTROL = 'private, max-age=3600, stale-while-revalidate=864
  * GET /api/exercises?all=1                      — the full catalog, for clients
  *   that filter in-process (the exercise picker does this so search is instant).
  *
- * Proxies wger's exercise catalog (cached). The Clerk middleware (src/proxy.ts)
- * already gates this route; the explicit auth() check here is defense-in-depth.
+ * Proxies wger's exercise catalog (cached). The AuthKit middleware (src/proxy.ts)
+ * already gates this route; the explicit session check here is defense-in-depth.
  * No user scoping — exercise data is public reference data, not user data.
  */
 export async function GET(request: Request): Promise<NextResponse> {
-  const { userId } = await auth()
+  const userId = await getUserId()
   if (!userId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }

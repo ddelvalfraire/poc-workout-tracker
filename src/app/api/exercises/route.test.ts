@@ -1,18 +1,18 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { GET } from './route'
 import { searchExercises, getAllExercises } from '@/lib/wger'
-import { auth } from '@clerk/nextjs/server'
+import { getUserId } from '@/lib/auth'
 
 vi.mock('@/lib/wger', () => ({ searchExercises: vi.fn(), getAllExercises: vi.fn() }))
-vi.mock('@clerk/nextjs/server', () => ({ auth: vi.fn() }))
+vi.mock('@/lib/auth', () => ({ getUserId: vi.fn() }))
 
 const mockedSearch = vi.mocked(searchExercises)
 const mockedGetAll = vi.mocked(getAllExercises)
-const mockedAuth = vi.mocked(auth)
+const mockedGetUserId = vi.mocked(getUserId)
 
-/** Sets the Clerk auth result for the next request. */
+/** Sets the session result for the next request. */
 function signedIn(userId: string | null): void {
-  mockedAuth.mockResolvedValue({ userId } as unknown as Awaited<ReturnType<typeof auth>>)
+  mockedGetUserId.mockResolvedValue(userId)
 }
 
 function get(query = ''): Promise<Response> {

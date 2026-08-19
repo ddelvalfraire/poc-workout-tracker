@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { ExternalLink } from 'lucide-react'
-import { auth } from '@clerk/nextjs/server'
+import { getUserId } from '@/lib/auth'
 import { resolveShare } from '@/db/program-shares'
 import { getWeightUnit } from '@/db/preferences'
 import { DEFAULT_WEIGHT_UNIT } from '@/lib/units'
@@ -45,7 +45,7 @@ export default async function SharedProgramPage({
 
   // Who's looking decides the CTA — signed-out visitors still get the full
   // read (this page is the acquisition surface).
-  const { userId } = await auth()
+  const userId = await getUserId()
   const isOwner = userId !== null && userId === ownerUserId
   // Loads render in the VIEWER's unit when signed in; anonymous visitors get
   // the app default.

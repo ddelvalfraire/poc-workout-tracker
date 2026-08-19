@@ -1,5 +1,5 @@
-import { auth } from '@clerk/nextjs/server'
 import { NextResponse } from 'next/server'
+import { getUserId } from '@/lib/auth'
 import { parsePushEndpoint } from '@/lib/push-input'
 import { deletePushSubscription } from '@/db/push-subscriptions'
 
@@ -10,7 +10,7 @@ import { deletePushSubscription } from '@/db/push-subscriptions'
  * ever remove their own rows. Idempotent: deleting a gone row is success.
  */
 export async function POST(request: Request): Promise<NextResponse> {
-  const { userId } = await auth()
+  const userId = await getUserId()
   if (!userId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }

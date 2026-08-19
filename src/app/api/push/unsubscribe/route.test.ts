@@ -1,18 +1,18 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-vi.mock('@clerk/nextjs/server', () => ({ auth: vi.fn() }))
+vi.mock('@/lib/auth', () => ({ getUserId: vi.fn() }))
 vi.mock('@/db/push-subscriptions', () => ({ deletePushSubscription: vi.fn() }))
 
 import { POST } from './route'
-import { auth } from '@clerk/nextjs/server'
+import { getUserId } from '@/lib/auth'
 import { deletePushSubscription } from '@/db/push-subscriptions'
 
-const mockedAuth = vi.mocked(auth)
+const mockedGetUserId = vi.mocked(getUserId)
 const mockedDelete = vi.mocked(deletePushSubscription)
 
-/** Sets the Clerk auth result for the next request. */
+/** Sets the session result for the next request. */
 function signedIn(userId: string | null): void {
-  mockedAuth.mockResolvedValue({ userId } as unknown as Awaited<ReturnType<typeof auth>>)
+  mockedGetUserId.mockResolvedValue(userId)
 }
 
 function post(body: unknown): Promise<Response> {

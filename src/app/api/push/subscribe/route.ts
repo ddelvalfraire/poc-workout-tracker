@@ -1,5 +1,5 @@
-import { auth } from '@clerk/nextjs/server'
 import { NextResponse } from 'next/server'
+import { getUserId } from '@/lib/auth'
 import { parsePushSubscriptionInput } from '@/lib/push-input'
 import { upsertPushSubscription } from '@/db/push-subscriptions'
 
@@ -11,7 +11,7 @@ import { upsertPushSubscription } from '@/db/push-subscriptions'
  * re-subscribe (or another user on the same device) takes the row over.
  */
 export async function POST(request: Request): Promise<NextResponse> {
-  const { userId } = await auth()
+  const userId = await getUserId()
   if (!userId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }

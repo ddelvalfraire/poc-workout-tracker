@@ -128,8 +128,8 @@ export const Populated: Story = { decorators: [stubDrawer(json(FULL))] }
  * The drawer as the user sees it. Vaul renders the content in a portal that
  * only mounts on first open, so a story that leaves it closed asserts almost
  * nothing about this component — including whether it renders at all. That
- * gap hid a crash: the footer's Clerk `<UserButton />` throws outside a
- * ClerkProvider, and nothing caught it because nothing ever opened the drawer.
+ * gap hid a crash: the footer's account widget threw outside its auth
+ * provider, and nothing caught it because nothing ever opened the drawer.
  */
 export const Opened: Story = {
   decorators: [stubDrawer(json(FULL))],
@@ -141,7 +141,7 @@ export const Opened: Story = {
     // Substring match: the hero reads "Push A · Week 3 · tomorrow" in one node.
     await expect(await drawer.findByText(/Push A/)).toBeInTheDocument();
     // The identity row is the part the closed stories could never reach — it
-    // holds the Clerk UserButton that used to throw here.
+    // holds the account widget that used to throw here.
     await expect(
       await drawer.findByRole("link", { name: /settings/i }),
     ).toBeInTheDocument();

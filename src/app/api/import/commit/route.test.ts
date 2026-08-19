@@ -1,11 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { auth } from '@clerk/nextjs/server'
+import { getUserId } from '@/lib/auth'
 import { planImport, commitImport, ImportPlanError, type ImportPlan } from '@/db/import'
 import { loadPreview, deletePreview } from '@/lib/import/preview-cache'
 import type { ParsedImport } from '@/lib/import/types'
 import { POST } from './route'
 
-vi.mock('@clerk/nextjs/server', () => ({ auth: vi.fn() }))
+vi.mock('@/lib/auth', () => ({ getUserId: vi.fn() }))
 vi.mock('@/db/import', async (importOriginal) => {
   const original = await importOriginal<typeof import('@/db/import')>()
   return { ...original, planImport: vi.fn(), commitImport: vi.fn(), undoImport: vi.fn() }
@@ -16,14 +16,14 @@ vi.mock('@/lib/import/preview-cache', () => ({
   deletePreview: vi.fn(),
 }))
 
-const mockedAuth = vi.mocked(auth)
+const mockedGetUserId = vi.mocked(getUserId)
 const mockedPlan = vi.mocked(planImport)
 const mockedCommit = vi.mocked(commitImport)
 const mockedLoad = vi.mocked(loadPreview)
 const mockedDelete = vi.mocked(deletePreview)
 
 function signedIn(userId: string | null): void {
-  mockedAuth.mockResolvedValue({ userId } as unknown as Awaited<ReturnType<typeof auth>>)
+  mockedGetUserId.mockResolvedValue(userId)
 }
 
 const TOKEN = '11111111-2222-3333-4444-555555555555'

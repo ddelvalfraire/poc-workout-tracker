@@ -55,6 +55,12 @@ export async function deleteWorkoutAction(id: string): Promise<void> {
   await settle(undefined);
 }
 
+/** `@/app/actions` — ends the session (SignOutButton, drawer footer). */
+export async function signOutAction(): Promise<void> {
+  console.info("[storybook] signOutAction");
+  await settle(undefined);
+}
+
 // Compile-time fidelity checks — see the module doc above. Purely type-level:
 // no runtime value is produced. A stub whose signature drifts from the action
 // it stands in for makes `Matches` resolve to `false`, which fails `Assert`.
@@ -68,6 +74,7 @@ type Assert<T extends true> = T;
  */
 export type MockFidelity = [
   Assert<Matches<typeof setWeightUnitAction, typeof AppActions.setWeightUnitAction>>,
+  Assert<Matches<typeof signOutAction, typeof AppActions.signOutAction>>,
   Assert<
     Matches<typeof startProgramDayAction, typeof ProgramActions.startProgramDayAction>
   >,

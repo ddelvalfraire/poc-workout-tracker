@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Settings } from "lucide-react";
-import { UserButton } from "@clerk/nextjs";
+import { SignOutButton } from "@/components/auth/sign-out-button";
 import { redirect } from "next/navigation";
 import { requireUserId } from "@/lib/auth";
 import { getConsentState } from "@/db/consent";
@@ -136,7 +136,7 @@ export default async function HomePage() {
             >
               <Settings aria-hidden="true" className="size-5" />
             </Link>
-            <UserButton />
+            <SignOutButton />
           </div>
         </div>
       </header>

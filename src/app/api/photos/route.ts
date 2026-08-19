@@ -1,5 +1,5 @@
-import { auth } from '@clerk/nextjs/server'
 import { NextResponse } from 'next/server'
+import { getUserId } from '@/lib/auth'
 import { countProgressPhotos, insertProgressPhoto } from '@/db/progress-photos'
 import { deleteObjects, uploadObject } from '@/lib/supabase-storage'
 import {
@@ -30,7 +30,7 @@ const TAKEN_AT_FUTURE_SLACK_MS = 24 * 60 * 60 * 1000
  * timeline cell).
  */
 export async function POST(request: Request): Promise<NextResponse> {
-  const { userId } = await auth()
+  const userId = await getUserId()
   if (!userId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }

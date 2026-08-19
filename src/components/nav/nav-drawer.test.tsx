@@ -13,7 +13,9 @@ vi.mock('next/navigation', () => ({
   usePathname: () => '/',
   useRouter: () => ({ push: vi.fn() }),
 }))
-vi.mock('@clerk/nextjs', () => ({ UserButton: () => null }))
+// The footer's SignOutButton calls a `'use server'` module; stub it so the
+// drawer renders without pulling the server action graph into jsdom.
+vi.mock('@/app/actions', () => ({ signOutAction: vi.fn() }))
 vi.mock('@/app/programs/actions', () => ({ startProgramDayAction: vi.fn() }))
 vi.mock('vaul', () => {
   const Passthrough = ({ children }: { children?: ReactNode }) => <>{children}</>

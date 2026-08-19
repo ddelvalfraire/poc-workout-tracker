@@ -1,5 +1,5 @@
-import { auth } from '@clerk/nextjs/server'
 import { NextResponse } from 'next/server'
+import { getUserId } from '@/lib/auth'
 import { getWeightUnit } from '@/db/preferences'
 import { ImportPlanError, planImport, type ImportPlan } from '@/db/import'
 import { detectImportSource } from '@/lib/import/detect'
@@ -24,7 +24,7 @@ const MAX_LISTED = 50
  * confirm never re-uploads. Guards: auth → multipart → size → format.
  */
 export async function POST(request: Request): Promise<NextResponse> {
-  const { userId } = await auth()
+  const userId = await getUserId()
   if (!userId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }

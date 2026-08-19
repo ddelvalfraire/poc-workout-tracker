@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-vi.mock('@clerk/nextjs/server', () => ({ auth: vi.fn() }))
+vi.mock('@/lib/auth', () => ({ getUserId: vi.fn() }))
 vi.mock('@/db/workout-drafts', () => ({ listWorkoutDrafts: vi.fn(async () => []) }))
 vi.mock('@/db/workouts', () => ({ listWorkoutSummaries: vi.fn(async () => []) }))
 vi.mock('@/db/programs', () => ({ getNextProgramDay: vi.fn(async () => null) }))
@@ -22,7 +22,7 @@ vi.mock('@/lib/trophies', () => ({ trophyLabel: vi.fn(() => '315 Squat Club') })
 vi.mock('@/lib/active-session', () => ({ resolveActiveSession: vi.fn(() => null) }))
 vi.mock('@/lib/coach/access', () => ({ isCoachEnabled: vi.fn(async () => false) }))
 
-import { auth } from '@clerk/nextjs/server'
+import { getUserId } from '@/lib/auth'
 import { listWorkoutSummaries, type WorkoutSummary } from '@/db/workouts'
 import { getNextProgramDay, type NextProgramDay } from '@/db/programs'
 import { listBodyweightLogs } from '@/db/bodyweight'
@@ -36,10 +36,10 @@ import type { GoalRow } from '@/db/goals'
 import type { DrawerData } from '@/lib/drawer-status'
 import { GET } from './route'
 
-const mockedAuth = vi.mocked(auth)
+const mockedGetUserId = vi.mocked(getUserId)
 
 function signedIn(userId: string | null): void {
-  mockedAuth.mockResolvedValue({ userId } as unknown as Awaited<ReturnType<typeof auth>>)
+  mockedGetUserId.mockResolvedValue(userId)
 }
 
 const now = Date.now()
