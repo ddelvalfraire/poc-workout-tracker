@@ -24,8 +24,13 @@ export default async function WelcomePage() {
         <h1 className="text-[clamp(1.875rem,1.3rem+2.4vw,3rem)] leading-tight font-semibold tracking-tight text-balance">
           Your data, your call
         </h1>
+        {/* Jurisdiction-neutral on purpose: the consent set satisfies MHMDA,
+            GDPR, and the rest, but we honor the same choices for EVERYONE —
+            the specific statutes are named where they must be, in the Health
+            Data Privacy policy. */}
         <p className="mt-3 max-w-[42ch] text-muted-foreground lg:mt-4 lg:text-lg lg:leading-relaxed">
-          Washington law gives you real choices here. Each one in plain English.
+          Your training data is health data, and you get real choices about it — each one in
+          plain English.
         </p>
         <p className="mt-6 hidden max-w-[42ch] text-sm leading-relaxed text-muted-foreground lg:block">
           Two of these are required — they are what the app is. One is optional and off by
