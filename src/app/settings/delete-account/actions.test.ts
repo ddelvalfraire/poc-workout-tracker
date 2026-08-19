@@ -56,7 +56,7 @@ describe('deleteAccountAction', () => {
   })
 
   it('maps an orchestration failure to a retryable error message, never a throw', async () => {
-    deleteAccount.mockRejectedValueOnce(new Error('clerk down'))
+    deleteAccount.mockRejectedValueOnce(new Error('workos down'))
 
     const result = await deleteAccountAction('DELETE')
 
