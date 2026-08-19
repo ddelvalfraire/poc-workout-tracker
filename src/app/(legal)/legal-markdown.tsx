@@ -179,7 +179,12 @@ export function LegalMarkdown({ markdown }: { markdown: string }) {
           case 'heading':
             if (block.level === 1) {
               return (
-                <h1 key={i} className="text-3xl font-semibold tracking-tight text-balance">
+                // Fluid scale (research: type escalation, not more columns,
+                // is what keeps a reading column from feeling phone-zoomed).
+                <h1
+                  key={i}
+                  className="text-[clamp(1.75rem,1.2rem+2.2vw,2.75rem)] leading-tight font-semibold tracking-tight text-balance"
+                >
                   {renderInline(block.text)}
                 </h1>
               )
@@ -190,7 +195,7 @@ export function LegalMarkdown({ markdown }: { markdown: string }) {
                 <h2
                   key={i}
                   id={slug}
-                  className="mt-10 scroll-mt-20 border-t border-border pt-6 text-xl font-semibold tracking-tight"
+                  className="mt-[clamp(2.25rem,1.5rem+2.5vw,3.5rem)] scroll-mt-20 border-t border-border pt-6 text-[clamp(1.2rem,1rem+0.7vw,1.5rem)] font-semibold tracking-tight"
                 >
                   <a href={`#${slug}`} className="hover:underline">
                     {renderInline(block.text)}
@@ -205,7 +210,10 @@ export function LegalMarkdown({ markdown }: { markdown: string }) {
             )
           case 'paragraph':
             return (
-              <p key={i} className="mt-4 leading-relaxed text-muted-foreground">
+              <p
+                key={i}
+                className="mt-4 text-[clamp(1rem,0.96rem+0.2vw,1.0625rem)] leading-relaxed text-muted-foreground"
+              >
                 {renderInline(block.text)}
               </p>
             )

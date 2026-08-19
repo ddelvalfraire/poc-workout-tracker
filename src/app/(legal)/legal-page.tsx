@@ -28,7 +28,7 @@ export function LegalPage({ markdown, currentPath }: { markdown: string; current
     // Desktop: sticky scroll-spy rail left of the 68ch column (the
     // Stripe/Linear layout); mobile: the rail hides and the collapsible
     // page-top TOC below takes over.
-    <main className="mx-auto w-full max-w-[68ch] px-5 pt-8 pb-16 lg:grid lg:max-w-[calc(68ch+18rem)] lg:grid-cols-[15rem_minmax(0,68ch)] lg:gap-12">
+    <main className="mx-auto w-full max-w-[68ch] px-[clamp(1.25rem,4vw,2.5rem)] pt-[clamp(2rem,1rem+3vw,3.5rem)] pb-16 lg:grid lg:max-w-[calc(68ch+18rem)] lg:grid-cols-[15rem_minmax(0,68ch)] lg:gap-12">
       <nav className="mb-8 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground lg:col-span-2">
         <Link href="/" className="hover:text-foreground">
           ← App
@@ -51,7 +51,9 @@ export function LegalPage({ markdown, currentPath }: { markdown: string; current
       </nav>
 
       {headings.length > 2 && (
-        <details className="mb-8 border-y border-border py-3 text-sm lg:hidden">
+        // Sticky, not deleted, on mobile (the Next.js docs pattern): the TOC
+        // re-homes into a disclosure that stays reachable mid-read.
+        <details className="sticky top-0 z-10 -mx-[clamp(1.25rem,4vw,2.5rem)] mb-8 border-y border-border bg-background px-[clamp(1.25rem,4vw,2.5rem)] py-3 text-sm lg:hidden">
           <summary className="cursor-pointer font-medium">On this page</summary>
           <ol className="mt-3 space-y-1.5 pl-4 text-muted-foreground">
             {headings.map((h) => (

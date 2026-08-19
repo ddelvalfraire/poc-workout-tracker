@@ -3,23 +3,22 @@
 import { useState, useSyncExternalStore, useTransition } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { Check, ChevronDown } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
 import { recordSignupConsentsAction } from './actions'
 
 /**
  * The signup consent screen — implements docs/legal/in-product-copy.md §2
- * under the consent-UX research rules:
+ * with the app's own control vocabulary (DESIGN.md), not native inputs:
+ * check rows follow the de-card grammar (hairline dividers, whole-row 44px
+ * targets, volt only on affirmative state), the switch is the settings
+ * track+thumb pattern, and the CTA is the Button primitive.
  *
- * - Nothing pre-checked; the two health consents are SEPARATE affirmative
- *   acts (MHMDA "separate and distinct"), never a select-all.
- * - Equal visual weight everywhere — no volt on the ask, no confirmshaming
- *   copy on the optional toggle (CPPA symmetry; Honda settlement).
- * - Layered notice: one plain sentence per item, ~80-word Details expander,
- *   full policies linked (never gating the flow).
- * - GPC: if the browser sends Global Privacy Control, the optional
- *   analytics toggle locks off with a visible confirmation (12-state rule;
- *   California requires showing the signal was honored).
- * - This screen's own instrumentation stays anonymous by construction —
- *   identify() cannot run before the consent it asks for exists.
+ * Consent rules (research-backed, unchanged from v1): nothing pre-checked,
+ * the two health consents are separate affirmative acts, equal visual
+ * weight, GPC locks the optional toggle with a visible confirmation, and
+ * the action deliberately does not redirect (success resolves; we navigate).
  */
 
 declare global {
@@ -28,36 +27,109 @@ declare global {
   }
 }
 
-interface RowProps {
+/** De-carded consent row: whole-row toggle, drawn check, hairline divider. */
+function ConsentRow({
+  id,
+  label,
+  body,
+  detail,
+  checked,
+  onChange,
+}: {
   id: string
   label: string
   body: string
   detail: string
   checked: boolean
   onChange: (checked: boolean) => void
-}
-
-function ConsentRow({ id, label, body, detail, checked, onChange }: RowProps) {
+}) {
+  const [open, setOpen] = useState(false)
   return (
     <div className="border-b border-border py-4">
-      <label htmlFor={id} className="flex cursor-pointer items-start gap-3">
-        <input
-          id={id}
-          type="checkbox"
-          checked={checked}
-          onChange={(e) => onChange(e.target.checked)}
-          className="mt-1 size-5 shrink-0 accent-primary"
-        />
-        <span>
-          <span className="font-medium">{label}</span>
-          <span className="mt-0.5 block text-sm text-muted-foreground">{body}</span>
+      <button
+        type="button"
+        id={id}
+        role="checkbox"
+        aria-checked={checked}
+        onClick={() => onChange(!checked)}
+        className="group flex w-full cursor-pointer items-start gap-3.5 text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+      >
+        <span
+          aria-hidden="true"
+          className={cn(
+            // 44px effective target via the invisible inset on a compact box.
+            'relative mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-md border transition-colors before:absolute before:-inset-2.5',
+            checked
+              ? 'border-primary bg-primary text-primary-foreground'
+              : 'border-border bg-transparent group-hover:border-muted-foreground',
+          )}
+        >
+          <Check
+            className={cn('size-4 transition-opacity', checked ? 'opacity-100' : 'opacity-0')}
+            strokeWidth={3}
+          />
         </span>
-      </label>
-      <details className="mt-2 pl-8 text-sm text-muted-foreground">
-        <summary className="cursor-pointer select-none">Details</summary>
-        <p className="mt-1.5 leading-relaxed">{detail}</p>
-      </details>
+        <span className="min-w-0">
+          <span className="font-medium">{label}</span>
+          <span className="mt-0.5 block text-sm leading-relaxed text-muted-foreground">
+            {body}
+          </span>
+        </span>
+      </button>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className="mt-2 ml-[38px] flex items-center gap-1 text-xs font-medium text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
+      >
+        What this means
+        <ChevronDown
+          className={cn('size-3.5 transition-transform', open && 'rotate-180')}
+          aria-hidden
+        />
+      </button>
+      {open && (
+        <p className="mt-2 ml-[38px] text-sm leading-relaxed text-muted-foreground">{detail}</p>
+      )}
     </div>
+  )
+}
+
+/** The settings track+thumb switch (rest-timer pattern), consent-sized. */
+function ConsentSwitch({
+  checked,
+  disabled,
+  describedBy,
+  onChange,
+}: {
+  checked: boolean
+  disabled: boolean
+  describedBy?: string
+  onChange: (checked: boolean) => void
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-label="Analytics identity"
+      aria-describedby={describedBy}
+      disabled={disabled}
+      onClick={() => onChange(!checked)}
+      className={cn(
+        'relative h-7 w-12 shrink-0 rounded-full border transition-colors before:absolute before:-inset-2',
+        'outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-40',
+        checked ? 'border-primary bg-primary' : 'border-border bg-muted',
+      )}
+    >
+      <span
+        aria-hidden="true"
+        className={cn(
+          'absolute top-0.5 left-0.5 size-[22px] rounded-full transition-transform',
+          checked ? 'translate-x-5 bg-primary-foreground' : 'translate-x-0 bg-muted-foreground',
+        )}
+      />
+    </button>
   )
 }
 
@@ -69,28 +141,20 @@ export function ConsentForm() {
   const [error, setError] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
   // GPC is a browser signal — readable only client-side, static for the
-  // page's life. useSyncExternalStore reads it without an effect (server
-  // snapshot false, so SSR renders the toggle unlocked and hydration
-  // corrects it in one pass). Detected = the optional toggle locks off with
-  // a visible confirmation (the disclosure California requires), and the
-  // submit path forces false regardless of local state.
+  // page's life; server snapshot false, hydration corrects in one pass.
   const gpc = useSyncExternalStore(
     () => () => {},
     () => Boolean(navigator.globalPrivacyControl),
     () => false,
   )
+  const router = useRouter()
 
   const requiredComplete = healthCollect && healthShare && tos
-
-  const router = useRouter()
 
   function submit() {
     setError(null)
     startTransition(async () => {
       try {
-        // The action deliberately does NOT redirect (a server-action
-        // redirect rejects the promise, which this catch would misread as
-        // failure) — success resolves normally and we navigate here.
         await recordSignupConsentsAction({
           healthCollect,
           healthShare,
@@ -109,7 +173,7 @@ export function ConsentForm() {
       <section aria-labelledby="required-heading">
         <h2
           id="required-heading"
-          className="text-xs font-medium tracking-wider text-muted-foreground uppercase"
+          className="border-b border-border pb-2 text-xs font-medium tracking-wider text-muted-foreground uppercase"
         >
           Required to use the app
         </h2>
@@ -134,17 +198,17 @@ export function ConsentForm() {
         </p>
       </section>
 
-      <section aria-labelledby="optional-heading" className="mt-8">
+      <section aria-labelledby="optional-heading" className="mt-9">
         <h2
           id="optional-heading"
-          className="text-xs font-medium tracking-wider text-muted-foreground uppercase"
+          className="border-b border-border pb-2 text-xs font-medium tracking-wider text-muted-foreground uppercase"
         >
           Optional
         </h2>
         <div className="flex items-start justify-between gap-4 border-b border-border py-4">
-          <div>
+          <div className="min-w-0">
             <p className="font-medium">Analytics identity</p>
-            <p className="mt-0.5 text-sm text-muted-foreground">
+            <p className="mt-0.5 text-sm leading-relaxed text-muted-foreground">
               Link your usage (never your workout content) to your account so we can see which
               features actually help. Change anytime in Settings.
             </p>
@@ -154,52 +218,71 @@ export function ConsentForm() {
               </p>
             )}
           </div>
-          <label className="mt-1 inline-flex shrink-0 cursor-pointer items-center">
-            <input
-              type="checkbox"
-              role="switch"
-              aria-label="Analytics identity"
-              aria-describedby={gpc ? 'gpc-note' : undefined}
-              checked={analyticsIdentity}
+          <div className="mt-1">
+            <ConsentSwitch
+              checked={gpc ? false : analyticsIdentity}
               disabled={gpc}
-              onChange={(e) => setAnalyticsIdentity(e.target.checked)}
-              className="size-5 accent-primary disabled:opacity-40"
+              describedBy={gpc ? 'gpc-note' : undefined}
+              onChange={setAnalyticsIdentity}
             />
-          </label>
+          </div>
         </div>
       </section>
 
       <p className="mt-6 text-sm text-muted-foreground">
         We never sell your health data. Ever. ·{' '}
-        <Link href="/privacy" className="underline underline-offset-2 hover:text-foreground">
+        <Link
+          href="/privacy"
+          className="underline underline-offset-2 hover:text-foreground"
+          target="_blank"
+        >
           Full privacy policy
         </Link>
       </p>
 
-      <label htmlFor="consent-tos" className="mt-6 flex cursor-pointer items-start gap-3">
-        <input
+      <div className="mt-7 border-t border-border pt-5">
+        <button
+          type="button"
           id="consent-tos"
-          type="checkbox"
-          checked={tos}
-          onChange={(e) => setTos(e.target.checked)}
-          className="mt-1 size-5 shrink-0 accent-primary"
-        />
-        <span className="text-sm">
-          I agree to the{' '}
-          <Link href="/terms" className="underline underline-offset-2">
-            Terms of Service
-          </Link>{' '}
-          and have read the{' '}
-          <Link href="/privacy" className="underline underline-offset-2">
-            Privacy Notice
-          </Link>{' '}
-          and{' '}
-          <Link href="/health-privacy" className="underline underline-offset-2">
-            Health Data Privacy Policy
+          role="checkbox"
+          aria-checked={tos}
+          onClick={() => setTos((v) => !v)}
+          className="group flex w-full cursor-pointer items-start gap-3.5 text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+        >
+          <span
+            aria-hidden="true"
+            className={cn(
+              'relative mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-md border transition-colors before:absolute before:-inset-2.5',
+              tos
+                ? 'border-primary bg-primary text-primary-foreground'
+                : 'border-border bg-transparent group-hover:border-muted-foreground',
+            )}
+          >
+            <Check
+              className={cn('size-4 transition-opacity', tos ? 'opacity-100' : 'opacity-0')}
+              strokeWidth={3}
+            />
+          </span>
+          <span className="text-sm leading-relaxed">
+            I agree to the Terms of Service and have read the Privacy Notice and Health Data
+            Privacy Policy.
+          </span>
+        </button>
+        <p className="mt-2 ml-[38px] text-xs text-muted-foreground">
+          Read them:{' '}
+          <Link href="/terms" target="_blank" className="underline underline-offset-2">
+            Terms
           </Link>
-          .
-        </span>
-      </label>
+          {' · '}
+          <Link href="/privacy" target="_blank" className="underline underline-offset-2">
+            Privacy
+          </Link>
+          {' · '}
+          <Link href="/health-privacy" target="_blank" className="underline underline-offset-2">
+            Health Data
+          </Link>
+        </p>
+      </div>
 
       {error && (
         <p role="alert" className="mt-4 text-sm text-destructive">
@@ -207,14 +290,15 @@ export function ConsentForm() {
         </p>
       )}
 
-      <button
+      <Button
         type="button"
+        size="lg"
         onClick={submit}
         disabled={!requiredComplete || pending}
-        className="mt-8 w-full rounded-lg bg-primary py-3.5 font-semibold text-primary-foreground transition-opacity disabled:opacity-40"
+        className="mt-8 w-full"
       >
         {pending ? 'Saving…' : 'Continue'}
-      </button>
+      </Button>
     </div>
   )
 }
