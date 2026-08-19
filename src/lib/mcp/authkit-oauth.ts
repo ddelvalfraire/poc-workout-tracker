@@ -1,3 +1,7 @@
+// Top-level jose (v6), which the MCP SDK also resolves to. authkit-nextjs
+// bundles its own jose v5 for session cookies — two copies on purpose: they
+// share no module state, and forcing a vendor package onto a major version it
+// does not declare would trade a tidy `npm ls` for a real breakage risk.
 import { createRemoteJWKSet, jwtVerify } from 'jose'
 import type { AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js'
 
