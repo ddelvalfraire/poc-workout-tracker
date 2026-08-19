@@ -26,6 +26,16 @@ import { PostHog } from 'posthog-node'
  * joined/merged across analytics projects or vendors later (the batch-export
  * escape hatch). Pre-signup anonymous activity stitches when the consent step
  * lands and identify() is called client-side with the same id.
+ *
+ * Two accepted imprecisions (documented, not bugs):
+ * - MCP tool writes (lib/mcp/write-tools.ts) fire NO events, deliberately:
+ *   the MCP surface is owner-only, and owner activity in a product funnel is
+ *   noise. Revisit only if MCP ever becomes user-facing.
+ * - The transition pre-reads in the actions (is_first, completed-vs-not) can
+ *   race a same-instant duplicate submit and double-fire one event. The
+ *   window is milliseconds and the funnel impact rounds to zero; the fix
+ *   (transition detection inside the write's RETURNING) isn't worth the db
+ *   surface it would touch.
  */
 
 export type AnalyticsEvent =

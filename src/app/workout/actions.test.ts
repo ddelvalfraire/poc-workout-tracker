@@ -19,6 +19,7 @@ import {
   getLastPerformance,
   getWorkoutDetail,
   hasAnyCompletedWorkout,
+  getWorkoutAnalyticsState,
 } from '@/db/workouts'
 import { captureServerEvent } from '@/lib/analytics'
 import { getProgramDayDetail } from '@/db/programs'
@@ -135,7 +136,7 @@ describe('saveWorkoutAction', () => {
   it('fires workout_completed with is_first from the pre-save read', async () => {
     // Arrange — no completed history yet, so this save is the activation event
     mockedSave.mockResolvedValue({ id: ID })
-    vi.mocked(hasAnyCompletedWorkout).mockResolvedValue(false)
+    vi.mocked(hasAnyCompletedWorkout).mockResolvedValueOnce(false)
 
     // Act
     await saveWorkoutAction(VALID_INPUT)
@@ -283,6 +284,45 @@ describe('updateWorkoutAction', () => {
     expect(mockedRevalidate).toHaveBeenCalledWith(`/workout/${ID}`)
   })
 
+  it('fires workout_completed when the edit is the completing one', async () => {
+    // Arrange — pre-read says the session was still in progress
+    mockedUpdate.mockResolvedValue({ id: ID })
+    vi.mocked(getWorkoutAnalyticsState).mockResolvedValueOnce({
+      startedAt: new Date('2026-01-01T10:00:00Z'),
+      completedAt: null,
+      setCount: 3,
+    })
+
+    // Act
+    await updateWorkoutAction(ID, VALID_INPUT)
+
+    // Assert — fire-and-forget, so wait for the microtask
+    await vi.waitFor(() => {
+      expect(vi.mocked(captureServerEvent)).toHaveBeenCalledWith(
+        USER,
+        expect.objectContaining({ name: 'workout_completed' }),
+      )
+    })
+  })
+
+  it('does not fire workout_completed when the workout was already completed', async () => {
+    // Arrange — pre-read says completion happened on an earlier edit
+    mockedUpdate.mockResolvedValue({ id: ID })
+    vi.mocked(getWorkoutAnalyticsState).mockResolvedValueOnce({
+      startedAt: new Date('2026-01-01T10:00:00Z'),
+      completedAt: new Date('2026-01-01T11:00:00Z'),
+      setCount: 3,
+    })
+
+    // Act
+    await updateWorkoutAction(ID, VALID_INPUT)
+    // Give the void capture chain its microtask before asserting the negative.
+    await new Promise((r) => setTimeout(r, 0))
+
+    // Assert
+    expect(vi.mocked(captureServerEvent)).not.toHaveBeenCalled()
+  })
+
   it('throws and does not revalidate when the workout is not owned', async () => {
     // Arrange — repo signals "not owned (or gone)" with null
     mockedUpdate.mockResolvedValue(null)
@@ -314,6 +354,47 @@ describe('deleteWorkoutAction', () => {
     expect(mockedDelete).toHaveBeenCalledWith(USER, ID)
     expect(mockedDeleteDraft).toHaveBeenCalledWith(USER, ID)
     expect(mockedRevalidate).toHaveBeenCalledWith('/')
+  })
+
+  it('fires workout_abandoned when deleting a never-completed session', async () => {
+    // Arrange — in-progress session with 3 sets logged
+    mockedDelete.mockResolvedValue([{ id: ID }] as Awaited<ReturnType<typeof deleteWorkout>>)
+    vi.mocked(getWorkoutAnalyticsState).mockResolvedValueOnce({
+      startedAt: new Date(Date.now() - 10 * 60_000),
+      completedAt: null,
+      setCount: 3,
+    })
+
+    // Act
+    await deleteWorkoutAction(ID)
+
+    // Assert
+    await vi.waitFor(() => {
+      expect(vi.mocked(captureServerEvent)).toHaveBeenCalledWith(
+        USER,
+        expect.objectContaining({
+          name: 'workout_abandoned',
+          properties: expect.objectContaining({ set_count_logged: 3 }),
+        }),
+      )
+    })
+  })
+
+  it('does not fire workout_abandoned when deleting completed history', async () => {
+    // Arrange — deleting an old logged session is history management
+    mockedDelete.mockResolvedValue([{ id: ID }] as Awaited<ReturnType<typeof deleteWorkout>>)
+    vi.mocked(getWorkoutAnalyticsState).mockResolvedValueOnce({
+      startedAt: new Date('2026-01-01T10:00:00Z'),
+      completedAt: new Date('2026-01-01T11:00:00Z'),
+      setCount: 12,
+    })
+
+    // Act
+    await deleteWorkoutAction(ID)
+    await new Promise((r) => setTimeout(r, 0))
+
+    // Assert
+    expect(vi.mocked(captureServerEvent)).not.toHaveBeenCalled()
   })
 
   it('throws and does not revalidate when nothing was deleted', async () => {
