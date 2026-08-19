@@ -408,6 +408,22 @@ describe('append-only trigger migrations (SQL fixtures)', () => {
     expect(sql).toContain("current_setting('app.consent_pseudonymize', true) = 'on'")
     expect(sql).toContain('RAISE EXCEPTION')
     expect(sql).toMatch(/consent_events is append-only/)
+    // Review-pinned narrowing: the GUC admits ONLY an UPDATE (DELETE always
+    // raises) and ONLY one that changes user_id alone — every other column
+    // must be proven unchanged inside the gate condition.
+    expect(sql).toContain("AND TG_OP = 'UPDATE'")
+    for (const guard of [
+      'NEW.id = OLD.id',
+      'NEW.purpose = OLD.purpose',
+      'NEW.action = OLD.action',
+      'NEW.document_id IS NOT DISTINCT FROM OLD.document_id',
+      'NEW.occurred_at = OLD.occurred_at',
+      'NEW.presentation = OLD.presentation',
+    ]) {
+      expect(sql).toContain(guard)
+    }
+    // The permissive first-draft shape must never come back.
+    expect(sql).not.toMatch(/RETURN OLD/)
     // The replacement targets the 0047 function name, so the existing
     // trigger binding (BEFORE UPDATE OR DELETE) keeps pointing at it.
     expect(sql).toContain('FUNCTION consent_events_block_mutation()')
