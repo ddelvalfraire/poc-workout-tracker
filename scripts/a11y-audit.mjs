@@ -24,15 +24,16 @@
  */
 import { createReadStream, existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { createServer } from 'node:http'
-import { extname, join, normalize } from 'node:path'
+import { extname, join, normalize, sep } from 'node:path'
 import { createRequire } from 'node:module'
+import { fileURLToPath } from 'node:url'
 
 import { chromium } from 'playwright'
 
 const require = createRequire(import.meta.url)
 const AXE_PATH = require.resolve('axe-core')
 
-const ROOT = new URL('..', import.meta.url).pathname
+const ROOT = fileURLToPath(new URL('..', import.meta.url))
 const STATIC_DIR = join(ROOT, 'storybook-static')
 const BASELINE = join(ROOT, 'scripts/a11y-baseline.json')
 const UPDATE = process.argv.includes('--update')
@@ -54,7 +55,7 @@ const server = createServer((req, res) => {
   // normalize() collapses ../ so a crafted URL cannot escape the static dir.
   const rel = normalize(url === '/' ? '/index.html' : url).replace(/^(\.\.[/\\])+/, '')
   const file = join(STATIC_DIR, rel)
-  if (!file.startsWith(STATIC_DIR) || !existsSync(file)) {
+  if (!(file + sep).startsWith(STATIC_DIR + sep) || !existsSync(file)) {
     res.writeHead(404).end('not found')
     return
   }
@@ -62,8 +63,8 @@ const server = createServer((req, res) => {
   createReadStream(file).pipe(res)
 })
 
-await new Promise((resolve) => server.listen(0, resolve))
-const BASE = `http://localhost:${server.address().port}`
+await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve))
+const BASE = `http://127.0.0.1:${server.address().port}`
 
 const index = JSON.parse(readFileSync(join(STATIC_DIR, 'index.json'), 'utf8'))
 const stories = Object.values(index.entries).filter((e) => e.type === 'story')
