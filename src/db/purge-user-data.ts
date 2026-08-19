@@ -38,6 +38,24 @@ import {
  * outlive this transaction and the caller removes them from the bucket after
  * commit (object deletion cannot join a db transaction).
  */
+/**
+ * The photo blob keys as a standalone read — the orchestrator deletes the
+ * storage objects BEFORE purging rows (review finding: keys are only
+ * knowable while the rows exist, so storage-after-purge orphaned blobs
+ * forever if the bucket call failed after commit). Object deletion is
+ * idempotent; a retry after storage succeeded simply finds fewer keys.
+ */
+export async function listPhotoBlobKeys(userId: string): Promise<string[]> {
+  const rows = await db
+    .select({
+      blobKeyDisplay: progressPhotos.blobKeyDisplay,
+      blobKeyThumb: progressPhotos.blobKeyThumb,
+    })
+    .from(progressPhotos)
+    .where(eq(progressPhotos.userId, userId))
+  return rows.flatMap((row) => [row.blobKeyDisplay, row.blobKeyThumb])
+}
+
 export async function purgeUserData(userId: string): Promise<{ photoBlobKeys: string[] }> {
   return db.transaction(async (tx) => {
     const photoRows = await tx

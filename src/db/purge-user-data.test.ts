@@ -92,6 +92,38 @@ describe('purgeUserData', () => {
     expect(deletedTables).not.toContain('consent_downstream_actions')
   })
 
+  it('every user_id-bearing table in the schema is purged or explicitly accounted for', async () => {
+    // Schema-driven drift guard (review finding: a hand-maintained roster
+    // only re-validates what the author remembered — this fails CI the day
+    // someone adds a user-scoped table and forgets deletion). Enumerate the
+    // real schema; every table with a user id column must appear in the
+    // purge roster or in the reasoned allow-list below.
+    const schema = await import('./schema')
+    const { getTableColumns, getTableName, is } = await import('drizzle-orm')
+    const { PgTable } = await import('drizzle-orm/pg-core')
+
+    const ACCOUNTED: Record<string, string> = {
+      consent_events: 'retained pseudonymized (CA ARL evidence) via pseudonymizeConsentRecords',
+      consent_current: 'deleted inside pseudonymizeConsentRecords, same transaction',
+    }
+    await purgeUserData('user_1')
+
+    const userScopedTables = Object.values(schema)
+      .filter((v) => is(v, PgTable))
+      .map((t) => t as InstanceType<typeof PgTable>)
+      .filter((t) => {
+        const columns = getTableColumns(t) as Record<string, { name: string }>
+        return Object.values(columns).some((c) => c.name === 'user_id')
+      })
+      .map((t) => getTableName(t))
+
+    expect(userScopedTables.length).toBeGreaterThan(15)
+    for (const table of userScopedTables) {
+      const covered = [...deletedTables].includes(table) || table in ACCOUNTED
+      expect(covered, `user-scoped table "${table}" is neither purged nor allow-listed`).toBe(true)
+    }
+  })
+
   it('returns empty keys for a user with no photos', async () => {
     const result = await purgeUserData('user_2')
     expect(result.photoBlobKeys).toEqual([])

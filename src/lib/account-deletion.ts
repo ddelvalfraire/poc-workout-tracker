@@ -6,7 +6,7 @@ import {
   pseudonymizeConsentRecords,
   type ConsentPresentation,
 } from '@/db/consent'
-import { purgeUserData } from '@/db/purge-user-data'
+import { listPhotoBlobKeys, purgeUserData } from '@/db/purge-user-data'
 import { deleteObjects } from '@/lib/supabase-storage'
 import { getRedis } from '@/lib/redis'
 import { coachChatKey } from '@/lib/coach/chat-store'
@@ -64,13 +64,19 @@ export async function deleteAccount(
     ],
   })
 
-  const { photoBlobKeys } = await purgeUserData(userId)
+  // Storage objects go FIRST (review finding): blob keys are only knowable
+  // while the rows exist — the old rows-then-storage order orphaned photos
+  // forever when the bucket call failed after the purge transaction had
+  // committed, because the retry re-read an empty table. Object deletion is
+  // idempotent, so a failure AFTER this step retries cleanly.
   // Batched: a photo-heavy account must never build a storage request the
   // API could reject — that would strand deletion at this step on every
   // retry.
+  const photoBlobKeys = await listPhotoBlobKeys(userId)
   for (let i = 0; i < photoBlobKeys.length; i += STORAGE_DELETE_BATCH_SIZE) {
     await deleteObjects(photoBlobKeys.slice(i, i + STORAGE_DELETE_BATCH_SIZE))
   }
+  await purgeUserData(userId)
   await clearUserRedisKeys(userId)
 
   let posthog: AccountDeletionResult['posthog']

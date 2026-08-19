@@ -19,7 +19,9 @@ export async function deleteAccountAction(
     return { ok: false, error: `Type ${DELETE_CONFIRM_PHRASE} to confirm.` }
   }
   // Anti-abuse cap, checked before any ledger write: each attempt appends
-  // append-only evidence rows, so a retry loop must hit a wall.
+  // append-only evidence rows, so a retry loop must hit a wall. NOTE: the
+  // limiter fails OPEN on Redis outages (see account-deletion.ts) — deletion
+  // is a legal right; the cap is a soft wall, never a hard one.
   const rateLimit = await checkAccountDeletionRateLimit(userId)
   if (!rateLimit.allowed) {
     return {

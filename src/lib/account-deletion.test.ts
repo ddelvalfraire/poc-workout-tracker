@@ -27,10 +27,15 @@ vi.mock('@/db/consent', () => ({
 
 const purgeUserData = vi.fn(async () => {
   calls.push('purge')
-  return { photoBlobKeys: ['user_1/p1/display.webp'] }
+  return { photoBlobKeys: [] }
+})
+const listPhotoBlobKeys = vi.fn(async () => {
+  calls.push('listKeys')
+  return ['user_1/p1/display.webp']
 })
 vi.mock('@/db/purge-user-data', () => ({
   purgeUserData: (...a: unknown[]) => purgeUserData(...(a as [])),
+  listPhotoBlobKeys: (...a: unknown[]) => listPhotoBlobKeys(...(a as [])),
 }))
 
 const deleteObjects = vi.fn(async () => {
@@ -82,13 +87,16 @@ beforeEach(() => {
 })
 
 describe('deleteAccount', () => {
-  it('runs the full sequence in order: evidence, purge, storage, posthog, pseudonymize, clerk', async () => {
+  it('runs the full sequence in order: evidence, storage, purge, posthog, pseudonymize, clerk', async () => {
     const result = await deleteAccount('user_1', PRESENTATION)
 
+    // Storage BEFORE purge (review-pinned): blob keys are only knowable
+    // while the rows exist; the reverse order orphaned photos on retry.
     expect(calls).toEqual([
       'recordConsent',
-      'purge',
+      'listKeys',
       'storage',
+      'purge',
       'posthog',
       'mark:posthog:completed',
       'pseudonymize',
@@ -124,7 +132,7 @@ describe('deleteAccount', () => {
 
   it('chunks storage deletion so a photo-heavy account cannot outsize one request', async () => {
     const manyKeys = Array.from({ length: 250 }, (_, i) => `user_1/p${i}/key.webp`)
-    purgeUserData.mockResolvedValueOnce({ photoBlobKeys: manyKeys })
+    listPhotoBlobKeys.mockResolvedValueOnce(manyKeys)
 
     await deleteAccount('user_1', PRESENTATION)
 
