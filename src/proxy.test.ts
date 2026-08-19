@@ -1,74 +1,67 @@
-import { describe, it, expect, vi, type Mock } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
+import { NextResponse } from 'next/server'
 
 /**
- * Mock Clerk so importing `./proxy` yields the raw route-guard callback rather
- * than a wired-up middleware. `clerkMiddleware(cb)` returns `cb` here, and
- * `createRouteMatcher(patterns)` returns a small path-prefix matcher that mirrors
- * the real `'/x(.*)'` semantics closely enough for routing assertions.
+ * Mock AuthKit so importing `./proxy` exercises the routing decisions without
+ * a WorkOS session. `authkit()` returns the session/headers/authorizationUrl
+ * triple the real one does; `handleAuthkitProxy` collapses to a tagged value
+ * (or a redirect Response) so assertions can read the branch that was taken.
  */
-vi.mock('@clerk/nextjs/server', () => ({
-  clerkMiddleware: (cb: unknown) => cb,
-  createRouteMatcher: (patterns: string[]) => (req: { url: string }) => {
-    const path = new URL(req.url).pathname
-    return patterns.some((p) => new RegExp('^' + p.replace(/\(\.\*\)/g, '.*') + '$').test(path))
-  },
+const AUTHORIZATION_URL = 'https://auth.example.com/authorize?client_id=client_test'
+
+const mockAuthkit = vi.fn()
+
+vi.mock('@workos-inc/authkit-nextjs', () => ({
+  authkit: (...args: unknown[]) => mockAuthkit(...args),
+  handleAuthkitProxy: (_req: unknown, _headers: unknown, options?: { redirect?: string }) =>
+    options?.redirect
+      ? NextResponse.redirect(options.redirect, 307)
+      : ({ __passthrough: true } as unknown as NextResponse),
 }))
 
-import proxyDefault from './proxy'
+import proxy from './proxy'
+import type { NextRequest } from 'next/server'
 
-type AuthState = {
-  authFn: ((...args: unknown[]) => Promise<{ userId: string | null; redirectToSignIn: Mock }>) & {
-    protect: Mock
-  }
-  redirectToSignIn: Mock
-  protect: Mock
+const req = (url: string) => ({ url }) as unknown as NextRequest
+
+/** Sets the AuthKit session for the next request. */
+function setSession(userId: string | null) {
+  mockAuthkit.mockResolvedValue({
+    session: { user: userId === null ? null : { id: userId } },
+    headers: new Headers(),
+    authorizationUrl: AUTHORIZATION_URL,
+  })
 }
-
-// At runtime the mocked `clerkMiddleware` returns the raw callback, but its static
-// type is `NextMiddleware`; cast to the callback shape so the tests can invoke it.
-const handler = proxyDefault as unknown as (
-  auth: AuthState['authFn'],
-  req: Request,
-) => Promise<unknown>
-
-/** A fake Clerk middleware `auth` — callable (returns the session) and with `.protect`. */
-function makeAuth(userId: string | null): AuthState {
-  const redirectToSignIn = vi.fn(() => ({ __redirect: true }))
-  const protect = vi.fn()
-  const authFn = Object.assign(vi.fn(async () => ({ userId, redirectToSignIn })), { protect })
-  return { authFn, redirectToSignIn, protect }
-}
-
-const req = (url: string) => ({ url }) as unknown as Request
 
 describe('proxy middleware', () => {
-  it('redirects a signed-out user on a protected route to sign-in', async () => {
+  it('redirects a signed-out user on a protected route to AuthKit', async () => {
     // Arrange
-    const { authFn, redirectToSignIn } = makeAuth(null)
+    setSession(null)
 
     // Act
-    const result = await handler(authFn, req('http://localhost:3000/'))
+    const result = (await proxy(req('http://localhost:3000/'))) as Response
 
-    // Assert — explicit redirect, not Clerk's context-detecting protect()
-    expect(redirectToSignIn).toHaveBeenCalledTimes(1)
-    expect(result).toEqual({ __redirect: true })
+    // Assert — AuthKit's authorizationUrl carries the return path
+    expect(result.status).toBe(307)
+    expect(result.headers.get('location')).toBe(AUTHORIZATION_URL)
   })
 
   it('does not redirect a signed-in user on a protected route', async () => {
     // Arrange
-    const { authFn, redirectToSignIn } = makeAuth('user_123')
+    setSession('user_01HWORKOS')
 
     // Act
-    const result = await handler(authFn, req('http://localhost:3000/workout/new'))
+    const result = await proxy(req('http://localhost:3000/workout/new'))
 
     // Assert
-    expect(redirectToSignIn).not.toHaveBeenCalled()
-    expect(result).toBeUndefined()
+    expect(result).toEqual({ __passthrough: true })
   })
 
   it.each([
     '/sign-in',
     '/sign-up',
+    // AuthKit's OAuth callback: reached mid-handshake, before a session exists.
+    '/callback',
     '/api/mcp',
     '/.well-known/oauth-protected-resource/mcp',
     '/.well-known/oauth-authorization-server',
@@ -85,31 +78,26 @@ describe('proxy middleware', () => {
     '/terms',
     '/privacy',
     '/health-privacy',
-  ])(
-    'leaves the public route %s alone even when signed out',
-    async (path) => {
-      // Arrange
-      const { authFn, redirectToSignIn } = makeAuth(null)
+  ])('leaves the public route %s alone even when signed out', async (path) => {
+    // Arrange
+    setSession(null)
 
-      // Act
-      const result = await handler(authFn, req(`http://localhost:3000${path}`))
+    // Act
+    const result = await proxy(req(`http://localhost:3000${path}`))
 
-      // Assert — public routes never get gated
-      expect(redirectToSignIn).not.toHaveBeenCalled()
-      expect(result).toBeUndefined()
-    },
-  )
+    // Assert — public routes never get gated
+    expect(result).toEqual({ __passthrough: true })
+  })
 
   // next.config.ts disables Next's global trailing-slash 308 (PostHog's ingest
   // paths need their slashes); the middleware re-provides it for everything
   // else. These pin both halves of that contract.
   it('308-redirects a trailing-slash path to its slashless form', async () => {
     // Arrange
-    const { authFn, redirectToSignIn } = makeAuth(null)
+    setSession(null)
 
     // Act
-    const result = (await handler(
-      authFn,
+    const result = (await proxy(
       req('http://localhost:3000/p/tok_abcdefghijklmnopqrstuvwxyz012345/'),
     )) as Response
 
@@ -118,18 +106,16 @@ describe('proxy middleware', () => {
     expect(result.headers.get('location')).toBe(
       'http://localhost:3000/p/tok_abcdefghijklmnopqrstuvwxyz012345',
     )
-    expect(redirectToSignIn).not.toHaveBeenCalled()
   })
 
   it('leaves trailing slashes on /_i paths intact for the PostHog rewrite', async () => {
     // Arrange
-    const { authFn, redirectToSignIn } = makeAuth(null)
+    setSession(null)
 
     // Act — /e/ is PostHog's event-capture endpoint shape
-    const result = await handler(authFn, req('http://localhost:3000/_i/e/'))
+    const result = await proxy(req('http://localhost:3000/_i/e/'))
 
     // Assert — no redirect, no auth gate; the rewrite must see the slash
-    expect(result).toBeUndefined()
-    expect(redirectToSignIn).not.toHaveBeenCalled()
+    expect(result).toEqual({ __passthrough: true })
   })
 })

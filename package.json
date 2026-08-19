@@ -47,6 +47,8 @@
     "@tiptap/react": "^3.29.2",
     "@tiptap/starter-kit": "^3.29.2",
     "@upstash/redis": "^1.38.0",
+    "@workos-inc/authkit-nextjs": "^4.3.1",
+    "@workos-inc/node": "^10.10.0",
     "ai": "^7.0.47",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
