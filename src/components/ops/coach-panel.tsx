@@ -76,7 +76,12 @@ export function CoachPanel({ daily, traces, className }: CoachPanelProps) {
             ) : traces.data.traces.length === 0 ? (
               <p className="mt-2 text-sm text-muted-foreground">No generations yet.</p>
             ) : (
-              <div className="mt-2 overflow-x-auto">
+              <div
+                /* A horizontally scrolling region must be reachable by keyboard:
+                   without tabindex a keyboard user cannot scroll it at all. */
+                tabIndex={0}
+                className="mt-2 overflow-x-auto"
+              >
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="text-left text-xs uppercase tracking-wider text-muted-foreground">

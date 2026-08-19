@@ -129,7 +129,13 @@ export const COLORS: readonly ColorToken[] = [
   {
     name: "destructive",
     oklch: "oklch(0.65 0.2 25)",
-    doc: "Remove / delete.",
+    doc: "Remove / delete. The TINT and border colour — not the ink on top of it.",
+    status: "core",
+  },
+  {
+    name: "destructive-ink",
+    oklch: "oklch(0.775 0.13 25)",
+    doc: "Text and icons ON a destructive tint. A tint and its ink cannot be the same value: as the tint's alpha rises the background approaches the ink, so contrast falls to 1. Verified >=4.5:1 on destructive tints from 5% to 30% (hover included) over page, card and muted.",
     status: "core",
   },
   {

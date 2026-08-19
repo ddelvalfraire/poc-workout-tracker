@@ -23,8 +23,7 @@
     "build-storybook": "storybook build",
     "tokens": "tsx scripts/build-tokens.ts",
     "tokens:check": "tsx scripts/build-tokens.ts --check",
-    "a11y": "node scripts/a11y-audit.mjs",
-    "a11y:update": "node scripts/a11y-audit.mjs --update"
+    "test:storybook": "vitest run --project=storybook"
   },
   "dependencies": {
     "@ai-sdk/mcp": "^2.0.15",
@@ -75,6 +74,7 @@
     "@serwist/turbopack": "^9.5.11",
     "@storybook/addon-a11y": "^10.5.7",
     "@storybook/addon-docs": "^10.5.7",
+    "@storybook/addon-vitest": "^10.5.9",
     "@storybook/nextjs-vite": "^10.5.7",
     "@stryker-mutator/core": "^9.6.1",
     "@stryker-mutator/vitest-runner": "^9.6.1",
@@ -83,7 +83,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@types/web-push": "^3.6.4",
-    "axe-core": "^4.13.0",
+    "@vitest/browser-playwright": "^4.1.11",
     "colorjs.io": "^0.7.1",
     "dotenv": "^17.4.2",
     "drizzle-kit": "^0.31.10",

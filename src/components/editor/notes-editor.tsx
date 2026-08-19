@@ -75,6 +75,12 @@ export function NotesEditor({
     onUpdate: ({ editor }) => onChangeMarkdown(editor.getMarkdown()),
     editorProps: {
       attributes: {
+        // A bare contenteditable div has the generic role, which prohibits
+        // aria-label — the name was being dropped by assistive tech, not just
+        // flagged. role=textbox + aria-multiline is what MDN specifies for an
+        // editable multi-line region, and what ProseMirror emits by default.
+        role: 'textbox',
+        'aria-multiline': 'true',
         'aria-label': ariaLabel,
         class: cn(
           'notes-editor-content min-h-24 max-h-[45dvh] overflow-y-auto px-1 py-2 text-sm leading-relaxed outline-none',

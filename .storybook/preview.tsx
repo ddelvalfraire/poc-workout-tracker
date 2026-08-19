@@ -73,6 +73,11 @@ function withQueryClient(Story: React.ComponentType) {
 const preview: Preview = {
   decorators: [withQueryClient],
   parameters: {
+    // Accessibility is a test, not a panel you remember to open: every story
+    // fails its Vitest run on a violation. Stories that still carry a known
+    // violation say so with `a11y: { test: 'todo' }` ON THE STORY, where the
+    // component author will see it.
+    a11y: { test: "error" },
     docs: { theme: storybookTheme },
     layout: "centered",
     // The app ships ONE intentional dark theme (DESIGN.md § Theme) — a
@@ -82,7 +87,6 @@ const preview: Preview = {
     // Required for any component importing next/navigation (BackLink,
     // UnitToggle, the ops controls, the nav drawer).
     nextjs: { appDirectory: true },
-    a11y: { test: "todo" },
     controls: {
       matchers: { color: /(background|color)$/i, date: /Date$/i },
       expanded: true,

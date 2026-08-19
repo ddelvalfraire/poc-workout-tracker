@@ -48,8 +48,11 @@ public enum DesignTokens {
         /// Secondary text and metadata. Verified >=4.5:1 on background.
         public static let mutedForeground = Color(.sRGB, red: 0.6447, green: 0.6447, blue: 0.6447, opacity: 1.0000)
 
-        /// Remove / delete.
+        /// Remove / delete. The TINT and border colour — not the ink on top of it.
         public static let destructive = Color(.sRGB, red: 0.9436, green: 0.3038, blue: 0.2990, opacity: 1.0000)
+
+        /// Text and icons ON a destructive tint. A tint and its ink cannot be the same value: as the tint's alpha rises the background approaches the ink, so contrast falls to 1. Verified >=4.5:1 on destructive tints from 5% to 30% (hover included) over page, card and muted.
+        public static let destructiveInk = Color(.sRGB, red: 0.9963, green: 0.5775, blue: 0.5464, opacity: 1.0000)
 
         /// Offline / degraded hints. Verified >=4.5:1 on background.
         public static let warning = Color(.sRGB, red: 0.9165, green: 0.7093, blue: 0.1953, opacity: 1.0000)
