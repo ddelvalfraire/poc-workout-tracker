@@ -1,5 +1,5 @@
 import 'server-only'
-import { clerkClient } from '@clerk/nextjs/server'
+import { getWorkOS } from '@workos-inc/authkit-nextjs'
 import {
   recordConsent,
   markDownstreamAction,
@@ -31,7 +31,7 @@ import { deletePosthogPerson, type PosthogPersonDeletion } from '@/lib/posthog-p
  *     honest record of what is still owed.
  *  6. Pseudonymize the consent ledger (GUC-gated transaction), sparing this
  *     deletion's own fan-out rows via keepEventId.
- *  7. Delete the Clerk user LAST — auth stays alive for a retry until
+ *  7. Delete the WorkOS user LAST — auth stays alive for a retry until
  *     everything else is done; after this the account is gone.
  *
  * Re-running after a mid-flight failure is safe: every step deletes toward
@@ -60,7 +60,7 @@ export async function deleteAccount(
     presentation,
     downstream: [
       { processor: 'posthog', action: 'person_delete' },
-      { processor: 'clerk', action: 'user_delete' },
+      { processor: 'workos', action: 'user_delete' },
     ],
   })
 
@@ -93,12 +93,11 @@ export async function deleteAccount(
     keepEventId: eventId,
   })
 
-  // Clerk failure throws PAST the pseudonymization on purpose: the account
-  // still authenticates, the user retries, and the retry's ledger pass finds
-  // nothing left to pseudonymize (harmless).
-  const clerk = await clerkClient()
-  await clerk.users.deleteUser(userId)
-  await markDownstreamAction(eventId, 'clerk', 'completed')
+  // An auth-delete failure throws PAST the pseudonymization on purpose: the
+  // account still authenticates, the user retries, and the retry's ledger pass
+  // finds nothing left to pseudonymize (harmless).
+  await getWorkOS().userManagement.deleteUser(userId)
+  await markDownstreamAction(eventId, 'workos', 'completed')
 
   return { pseudonym, eventsPseudonymized, posthog }
 }

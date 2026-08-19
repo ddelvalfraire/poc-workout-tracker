@@ -58,11 +58,11 @@ vi.mock('@/lib/posthog-person-deletion', () => ({
   deletePosthogPerson: (...a: unknown[]) => deletePosthogPerson(...(a as [])),
 }))
 
-const clerkDeleteUser = vi.fn(async () => {
-  calls.push('clerk')
+const workosDeleteUser = vi.fn(async () => {
+  calls.push('workos')
 })
-vi.mock('@clerk/nextjs/server', () => ({
-  clerkClient: async () => ({ users: { deleteUser: clerkDeleteUser } }),
+vi.mock('@workos-inc/authkit-nextjs', () => ({
+  getWorkOS: () => ({ userManagement: { deleteUser: workosDeleteUser } }),
 }))
 
 import {
@@ -87,7 +87,7 @@ beforeEach(() => {
 })
 
 describe('deleteAccount', () => {
-  it('runs the full sequence in order: evidence, storage, purge, posthog, pseudonymize, clerk', async () => {
+  it('runs the full sequence in order: evidence, storage, purge, posthog, pseudonymize, workos', async () => {
     const result = await deleteAccount('user_1', PRESENTATION)
 
     // Storage BEFORE purge (review-pinned): blob keys are only knowable
@@ -100,8 +100,8 @@ describe('deleteAccount', () => {
       'posthog',
       'mark:posthog:completed',
       'pseudonymize',
-      'clerk',
-      'mark:clerk:completed',
+      'workos',
+      'mark:workos:completed',
     ])
     expect(result).toEqual({
       pseudonym: 'deleted:abc',
@@ -120,7 +120,7 @@ describe('deleteAccount', () => {
       presentation: PRESENTATION,
       downstream: [
         { processor: 'posthog', action: 'person_delete' },
-        { processor: 'clerk', action: 'user_delete' },
+        { processor: 'workos', action: 'user_delete' },
       ],
     })
   })
@@ -160,16 +160,16 @@ describe('deleteAccount', () => {
     expect(result.posthog).toBe('failed')
     expect(markDownstreamAction).toHaveBeenCalledWith('ev-final', 'posthog', 'failed')
     // The rest of the sequence still ran — the account is gone.
-    expect(clerkDeleteUser).toHaveBeenCalledWith('user_1')
+    expect(workosDeleteUser).toHaveBeenCalledWith('user_1')
     expect(pseudonymizeConsentRecords).toHaveBeenCalled()
   })
 
-  it('lets a clerk failure throw (auth survives, the user retries)', async () => {
-    clerkDeleteUser.mockRejectedValueOnce(new Error('clerk down'))
+  it('lets an auth-delete failure throw (auth survives, the user retries)', async () => {
+    workosDeleteUser.mockRejectedValueOnce(new Error('workos down'))
 
-    await expect(deleteAccount('user_1', PRESENTATION)).rejects.toThrow('clerk down')
-    // The clerk evidence row was never marked completed.
-    expect(markDownstreamAction).not.toHaveBeenCalledWith('ev-final', 'clerk', 'completed')
+    await expect(deleteAccount('user_1', PRESENTATION)).rejects.toThrow('workos down')
+    // The auth-delete evidence row was never marked completed.
+    expect(markDownstreamAction).not.toHaveBeenCalledWith('ev-final', 'workos', 'completed')
   })
 
   it('propagates a storage failure BEFORE any external processor is told anything', async () => {
@@ -177,7 +177,7 @@ describe('deleteAccount', () => {
 
     await expect(deleteAccount('user_1', PRESENTATION)).rejects.toThrow('bucket down')
     expect(deletePosthogPerson).not.toHaveBeenCalled()
-    expect(clerkDeleteUser).not.toHaveBeenCalled()
+    expect(workosDeleteUser).not.toHaveBeenCalled()
   })
 })
 
