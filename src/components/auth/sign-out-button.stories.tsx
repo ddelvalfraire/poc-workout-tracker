@@ -1,6 +1,10 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
+import { expect, within } from "storybook/test";
 
 import { SignOutButton } from "./sign-out-button";
+
+/** The HIG/Material floor, and `touch-target-min` in src/design/tokens.ts. */
+const TOUCH_TARGET_MIN_PX = 44;
 
 /**
  * The way out of the app, in both of its shapes.
@@ -28,6 +32,24 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const Icon: Story = {}
+/**
+ * Both stories assert the 44px floor rather than trusting the prose above it.
+ * The first version of this component claimed both variants met the floor
+ * while the labelled one sized off padding alone and landed near 32px — the
+ * story rendered it perfectly happily, because nothing measured it.
+ */
+async function expectTouchTargetFloor(canvasElement: HTMLElement) {
+  const button = within(canvasElement).getByRole("button", { name: /sign out/i });
+  await expect(button.getBoundingClientRect().height).toBeGreaterThanOrEqual(
+    TOUCH_TARGET_MIN_PX,
+  );
+}
 
-export const Full: Story = { args: { variant: "full" } }
+export const Icon: Story = {
+  play: async ({ canvasElement }) => expectTouchTargetFloor(canvasElement),
+}
+
+export const Full: Story = {
+  args: { variant: "full" },
+  play: async ({ canvasElement }) => expectTouchTargetFloor(canvasElement),
+}

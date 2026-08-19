@@ -2,14 +2,15 @@
 
 import { useTransition } from 'react'
 import { LogOut } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { signOutAction } from '@/app/actions'
 
 interface SignOutButtonProps {
   /**
-   * `icon` is the compact affordance for headers and the drawer footer, where
-   * the old vendor avatar button used to sit; `full` is the labelled control
-   * the settings surface wants. Both hit the same 44px target.
+   * `icon` is the compact affordance for the home header and the drawer
+   * footer, where the old vendor avatar button used to sit; `full` is the
+   * labelled control the settings identity row wants.
    */
   variant?: 'icon' | 'full'
   className?: string
@@ -19,6 +20,12 @@ interface SignOutButtonProps {
  * The way out, app-wide. AuthKit has no drop-in account widget — account
  * management lives on the hosted AuthKit page and on /settings — so sign-out
  * is its own explicit control rather than a menu hidden behind an avatar.
+ *
+ * Built on Button rather than a bespoke element so both variants inherit the
+ * 44px touch floor (`icon` and `default` sizes) along with the focus ring and
+ * disabled treatment. The hand-rolled version this replaced sized the labelled
+ * variant off padding alone and landed near 32px — under the floor, on the one
+ * control a user reaches for when they want out.
  *
  * Sign-out is a navigation, not a mutation the UI can roll back: the action
  * redirects to AuthKit's logout, so the button only has to stay disabled and
@@ -35,36 +42,29 @@ export function SignOutButton({ variant = 'icon', className }: SignOutButtonProp
 
   if (variant === 'icon') {
     return (
-      <button
+      <Button
         type="button"
+        variant="ghost"
+        size="icon"
         onClick={signOut}
         disabled={isPending}
         aria-label="Sign out"
-        className={cn(
-          'flex size-11 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors',
-          'outline-none hover:bg-muted/50 focus-visible:ring-3 focus-visible:ring-ring/50',
-          'disabled:opacity-50',
-          className,
-        )}
+        className={cn('text-muted-foreground', className)}
       >
         <LogOut aria-hidden="true" className="size-5" />
-      </button>
+      </Button>
     )
   }
 
   return (
-    <button
+    <Button
       type="button"
+      variant="ghost"
       onClick={signOut}
       disabled={isPending}
-      className={cn(
-        'shrink-0 rounded-lg px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors',
-        'outline-none hover:bg-muted/50 focus-visible:ring-3 focus-visible:ring-ring/50',
-        'disabled:opacity-50',
-        className,
-      )}
+      className={cn('text-muted-foreground', className)}
     >
       {isPending ? 'Signing out…' : 'Sign out'}
-    </button>
+    </Button>
   )
 }
