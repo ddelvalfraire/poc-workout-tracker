@@ -61,6 +61,34 @@ export function getResourceUrl(request: Request): string {
 }
 
 /**
+ * Signature algorithms accepted from AuthKit — every asymmetric family jose
+ * supports, and deliberately no symmetric (`HS*`) one.
+ *
+ * The property that matters is the EXCLUSION: an HS256 token verified against
+ * a public key is the classic algorithm-confusion forgery. Pinning a single
+ * algorithm would be tighter still, but WorkOS does not document which one it
+ * signs with, and a wrong guess rejects every real token — so this closes the
+ * attack class without betting on an unverifiable detail. Narrow it to the
+ * actual `alg` once a live JWKS can be observed.
+ *
+ * (jose already refuses to resolve a symmetric key out of a remote JWKS, so
+ * this is defense in depth against a future refactor that swaps the key input,
+ * not a live hole.)
+ */
+const ASYMMETRIC_ALGORITHMS = [
+  'RS256',
+  'RS384',
+  'RS512',
+  'PS256',
+  'PS384',
+  'PS512',
+  'ES256',
+  'ES384',
+  'ES512',
+  'EdDSA',
+]
+
+/**
  * jose caches keys and rate-limits refetches per JWKS instance, so the set is
  * built once per issuer instead of per request. Keyed by URL so a changed env
  * var in tests/dev doesn't hand back a stale key set.
@@ -98,6 +126,7 @@ export async function verifyAccessToken(
     const { payload } = await jwtVerify(token, getJwks(getJwksUrl()), {
       issuer: getAuthkitIssuer(),
       audience: getResourceUrl(request),
+      algorithms: ASYMMETRIC_ALGORITHMS,
     })
 
     const userId = typeof payload.sub === 'string' ? payload.sub.trim() : ''
@@ -113,12 +142,18 @@ export async function verifyAccessToken(
       extra: { userId },
     }
   } catch (error) {
-    // In dev (`required: false`) a failed verification falls through to
-    // MCP_DEV_USER_ID; surface it so a real token problem isn't silently
-    // masked by the dev fallback.
-    if (process.env.NODE_ENV !== 'production') {
-      console.warn('[mcp] bearer token present but AuthKit verification failed:', error)
-    }
+    // Logged in EVERY environment, for two different reasons. In dev
+    // (`required: false`) a failed verification falls through to
+    // MCP_DEV_USER_ID, so silence would let a real token problem masquerade as
+    // the dev fallback working. In prod this is the authorization boundary for
+    // the whole MCP surface: someone probing it with forged or expired tokens
+    // should leave a trace, not just a 401 the client sees.
+    //
+    // The reason is logged; the token never is — it is a live credential until
+    // it expires, and logs outlive it.
+    console.warn('[mcp] bearer token present but AuthKit verification failed', {
+      reason: error instanceof Error ? error.message : 'unknown',
+    })
     return undefined
   }
 }

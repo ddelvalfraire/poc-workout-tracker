@@ -109,7 +109,26 @@ describe('verifyAccessToken', () => {
     expect(jwtVerify).toHaveBeenCalledWith('good-token', 'jwks-stub', {
       issuer: ISSUER,
       audience: RESOURCE,
+      algorithms: expect.arrayContaining(['RS256']),
     })
+  })
+
+  it('accepts no symmetric algorithm — the confusion forgery has no opening', async () => {
+    // Arrange — an HS256 token verified against a PUBLIC key is the classic
+    // algorithm-confusion forgery: the attacker signs with the key everyone
+    // can read. The allow-list is what refuses it, so assert the exclusion
+    // itself rather than the exact membership (which may narrow once the live
+    // JWKS is observable).
+    jwtVerify.mockResolvedValue({ payload: { sub: 'user_01JABCDEF' } })
+
+    // Act
+    await verifyAccessToken(mcpRequest(), 'good-token')
+
+    // Assert
+    const options = jwtVerify.mock.calls[0][2] as { algorithms: string[] }
+    expect(options.algorithms.length).toBeGreaterThan(0)
+    expect(options.algorithms.filter((alg) => alg.startsWith('HS'))).toEqual([])
+    expect(options.algorithms).not.toContain('none')
   })
 
   it('returns undefined when no token is presented', async () => {
