@@ -220,6 +220,29 @@ export async function recordConsent(input: {
 }
 
 /**
+ * Records the outcome of one enqueued downstream action — the second half of
+ * the MHMDA propagation evidence (the enqueue proves intent; this proves the
+ * processor call happened, or honestly that it failed). completedAt is
+ * stamped only on success: a failed row with no timestamp reads as "still
+ * owed", which is the truth.
+ */
+export async function markDownstreamAction(
+  eventId: string,
+  processor: string,
+  status: 'completed' | 'failed',
+): Promise<void> {
+  await db
+    .update(consentDownstreamActions)
+    .set({ status, completedAt: status === 'completed' ? new Date() : null })
+    .where(
+      and(
+        eq(consentDownstreamActions.eventId, eventId),
+        eq(consentDownstreamActions.processor, processor),
+      ),
+    )
+}
+
+/**
  * Account-deletion severance for the consent ledger. Events must SURVIVE
  * deletion (CA ARL >= 3-year retention; MHMDA proof) but stop pointing at a
  * person: every consent_events.user_id for this user becomes one irreversible

@@ -147,6 +147,15 @@ export default async function SettingsPage() {
             label="Import history"
             hint="Bring your Strong or Hevy workouts with you."
           />
+          {/* The app-store-mandated deletion entry point. Lives in DATA (it
+              is a data action, not an identity toggle); the destructive label
+              is the row's only warning — the /settings/delete-account surface
+              carries the full consequences and the type-to-confirm gate. */}
+          <LinkRow
+            href="/settings/delete-account"
+            label="Delete account"
+            hint="Erase your data and close your account."
+          />
         </SettingsZone>
 
         {/* Internal-only, visually quarantined (dashed, muted) so operator
