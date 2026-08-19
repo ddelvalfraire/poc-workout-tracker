@@ -77,6 +77,9 @@ describe('proxy middleware', () => {
     '/p/tok_abcdefghijklmnopqrstuvwxyz012345',
     // Public workout share page — same self-gating rationale as /p above.
     '/w/tok_abcdefghijklmnopqrstuvwxyz012345',
+    // PostHog ingest proxy — anonymous visitors' events are the acquisition
+    // funnel; a sign-in redirect here would blind it.
+    '/_i/e',
   ])(
     'leaves the public route %s alone even when signed out',
     async (path) => {
@@ -91,4 +94,37 @@ describe('proxy middleware', () => {
       expect(result).toBeUndefined()
     },
   )
+
+  // next.config.ts disables Next's global trailing-slash 308 (PostHog's ingest
+  // paths need their slashes); the middleware re-provides it for everything
+  // else. These pin both halves of that contract.
+  it('308-redirects a trailing-slash path to its slashless form', async () => {
+    // Arrange
+    const { authFn, redirectToSignIn } = makeAuth(null)
+
+    // Act
+    const result = (await handler(
+      authFn,
+      req('http://localhost:3000/p/tok_abcdefghijklmnopqrstuvwxyz012345/'),
+    )) as Response
+
+    // Assert — same 308 Next itself used to issue
+    expect(result.status).toBe(308)
+    expect(result.headers.get('location')).toBe(
+      'http://localhost:3000/p/tok_abcdefghijklmnopqrstuvwxyz012345',
+    )
+    expect(redirectToSignIn).not.toHaveBeenCalled()
+  })
+
+  it('leaves trailing slashes on /_i paths intact for the PostHog rewrite', async () => {
+    // Arrange
+    const { authFn, redirectToSignIn } = makeAuth(null)
+
+    // Act — /e/ is PostHog's event-capture endpoint shape
+    const result = await handler(authFn, req('http://localhost:3000/_i/e/'))
+
+    // Assert — no redirect, no auth gate; the rewrite must see the slash
+    expect(result).toBeUndefined()
+    expect(redirectToSignIn).not.toHaveBeenCalled()
+  })
 })

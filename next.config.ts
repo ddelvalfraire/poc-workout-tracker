@@ -34,6 +34,8 @@ const nextConfig: NextConfig = {
   },
   // PostHog API paths end in slashes (/e/, /flags/); without this Next would
   // 308-redirect them to the slashless form before the rewrite applies.
+  // GLOBAL flag — src/proxy.ts re-provides the 308 for every non-/_i path, so
+  // the rest of the app (share links especially) keeps its old behavior.
   skipTrailingSlashRedirect: true,
   experimental: {
     // Enables React's <ViewTransition> for animated route changes.

@@ -1,4 +1,5 @@
 import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server'
+import { NextResponse } from 'next/server'
 
 // `/.well-known/*` carries the OAuth discovery metadata MCP clients fetch before
 // they have a token, so it must be reachable without sign-in alongside /api/mcp.
@@ -28,6 +29,16 @@ const isPublicRoute = createRouteMatcher([
 ])
 
 export default clerkMiddleware(async (auth, req) => {
+  // next.config.ts sets skipTrailingSlashRedirect so PostHog's slash-
+  // terminated ingest paths (/_i/e/, /_i/flags/) survive to the rewrite —
+  // but that flag is GLOBAL, and share links (/p/…/, /w/…/) are exactly the
+  // URLs chat apps append slashes to. Restore Next's original 308 here for
+  // everything except /_i so the app-wide behavior is unchanged.
+  const url = new URL(req.url)
+  if (url.pathname.length > 1 && url.pathname.endsWith('/') && !url.pathname.startsWith('/_i/')) {
+    url.pathname = url.pathname.replace(/\/+$/, '')
+    return NextResponse.redirect(url, 308)
+  }
   if (isPublicRoute(req)) return
   // Redirect signed-out users explicitly rather than via `auth.protect()`:
   // protect() auto-detects middleware-vs-page context to choose redirect-vs-404,

@@ -73,6 +73,8 @@ let client: PostHog | null | undefined
 /** Singleton, or null when unconfigured (dev without a key = silent no-op). */
 function getClient(): PostHog | null {
   if (client !== undefined) return client
+  // NEXT_PUBLIC_ on purpose in a server-only module: PostHog uses ONE public
+  // project key for both browser and server ingestion (see .env.example).
   const key = process.env.NEXT_PUBLIC_POSTHOG_KEY
   if (!key) {
     client = null
