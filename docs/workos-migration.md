@@ -61,6 +61,21 @@ npm run db:migrate-user -- --from user_2yourClerkId --to user_01JyourWorkOSId --
 The script refuses to run when the target id already owns rows while the source
 still has some — that means a half-finished run, and it wants a human.
 
+### 3b. Update the env vars that store a user id
+
+The script moves database rows. It cannot reach into environment variables, and
+three of them hold the id directly:
+
+| Variable | Effect if left on the Clerk id |
+|---|---|
+| `MCP_DEV_USER_ID` | local MCP calls resolve to a user with no data |
+| `COACH_ALLOWED_USER_IDS` | the coach surfaces disappear |
+| `OPS_ALLOWED_USER_IDS` | `/ops` 404s |
+
+All three fail CLOSED — you lose access rather than someone else gaining it —
+so the symptom is a feature quietly vanishing, not a breach. Update them in
+`.env.local` and in Vercel wherever they are set.
+
 ### 4. Verify, then delete the Clerk side
 
 Only after the app works signed in as the migrated user:
