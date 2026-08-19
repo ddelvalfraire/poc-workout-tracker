@@ -18,6 +18,8 @@ import { DividerList, DividerRow } from '@/components/ui/divider-list'
 import packageJson from '../../../package.json'
 import { RestDefaultSetting } from './rest-default-setting'
 import { RestTimerToggle } from './rest-timer-toggle'
+import { AnalyticsConsentToggle } from './analytics-consent-toggle'
+import { getConsentState } from '@/db/consent'
 import { RpeLoggingToggle } from './rpe-logging-toggle'
 import { WorkoutRemindersToggle } from './workout-reminders-toggle'
 
@@ -32,7 +34,7 @@ import { WorkoutRemindersToggle } from './workout-reminders-toggle'
  */
 export default async function SettingsPage() {
   const userId = await requireUserId()
-  const [unit, bodyweightKg, defaultRestSec, restTimerEnabled, rpeLoggingEnabled, user] =
+  const [unit, bodyweightKg, defaultRestSec, restTimerEnabled, rpeLoggingEnabled, user, consent] =
     await Promise.all([
       getWeightUnit(userId),
       getBodyweightKg(userId),
@@ -40,6 +42,7 @@ export default async function SettingsPage() {
       getRestTimerEnabled(userId),
       getRpeLoggingEnabled(userId),
       currentUser(),
+      getConsentState(userId),
     ])
 
   // Internal ops board — the link only renders for allowlisted users, the
@@ -158,6 +161,17 @@ export default async function SettingsPage() {
             <LinkRow href="/ops" label="Ops" hint="Monitoring board — not part of the app." />
           </SettingsZone>
         )}
+
+        {/* Privacy: the MHMDA withdrawal path — consent must be revocable
+            here as easily as it was granted at signup. */}
+        <SettingsZone title="Privacy">
+          <SettingRow
+            label="Analytics identity"
+            hint="Link your usage (never your workout content) to your account. Turning this off also deletes your usage profile from our analytics provider."
+          >
+            <AnalyticsConsentToggle granted={Boolean(consent.analytics_identity?.granted)} />
+          </SettingRow>
+        </SettingsZone>
 
         {/* Legal links: the health-privacy link's prominence is an MHMDA
             requirement, not footer decoration. */}

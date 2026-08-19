@@ -1,5 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import { ClerkProvider } from "@clerk/nextjs";
+import { auth } from "@clerk/nextjs/server";
+import { ConsentIdentity } from "@/components/consent-identity";
+import { getConsentState } from "@/db/consent";
 import { NavigationTracker } from "@/components/navigation-tracker";
 import { ServiceWorkerRegister } from "@/components/pwa/service-worker-register";
 import { ChunkRecoveryScript } from "@/components/pwa/chunk-recovery-script";
@@ -29,11 +32,19 @@ export const viewport: Viewport = {
   interactiveWidget: "resizes-content",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // Server-truth bootstrap for analytics identity: consent is a per-USER
+  // fact; the ConsentIdentity island converges this device's PostHog state
+  // to it (identify on grant, reset on withdrawal — cross-device correct).
+  // Signed-out = nothing to reconcile. One projection read per request.
+  const { userId } = await auth();
+  const analyticsGranted = userId
+    ? Boolean((await getConsentState(userId)).analytics_identity?.granted)
+    : false;
   return (
     <ClerkProvider
       appearance={{
@@ -63,6 +74,7 @@ export default function RootLayout({
           <Providers>
             <PageTransition>{children}</PageTransition>
           </Providers>
+          {userId && <ConsentIdentity userId={userId} granted={analyticsGranted} />}
           <ServiceWorkerRegister />
           {/* Proactive stale-build reload on resume — the counterpart to the
               reactive ChunkRecoveryScript above. */}
