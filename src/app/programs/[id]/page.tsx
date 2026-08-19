@@ -2,7 +2,7 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { ChevronRight, MessageCircle } from 'lucide-react'
 import { requireUserId } from '@/lib/auth'
-import { isCoachUser } from '@/lib/coach/access'
+import { isCoachEnabled } from '@/lib/coach/access'
 import {
   getProgramDetail,
   programWeekState,
@@ -94,7 +94,13 @@ export default async function ProgramDetailPage({
 }) {
   const userId = await requireUserId()
   const [{ id }, sp] = await Promise.all([params, searchParams])
-  const [program, unit] = await Promise.all([getProgramDetail(userId, id), getWeightUnit(userId)])
+  // coachEnabled rides the same Promise.all so the flag lookup (env
+  // short-circuit, else PostHog with a bounded timeout) adds no waterfall.
+  const [program, unit, coachEnabled] = await Promise.all([
+    getProgramDetail(userId, id),
+    getWeightUnit(userId),
+    isCoachEnabled(userId),
+  ])
   if (!program) notFound()
 
   // The volume-progression weekly check (derive-time trigger, no cron): at
@@ -414,8 +420,8 @@ export default async function ProgramDetailPage({
           <div className="flex shrink-0 items-center gap-4">
             {/* Coach opens with this program as context, so "swap tomorrow's
                 pressing" needs no preamble about which program is meant.
-                Dev-gated: allowlist accounts only (server enforces too). */}
-            {isCoachUser(userId) && (
+                Gated: env allowlist or the coach-access flag (server enforces too). */}
+            {coachEnabled && (
               <Link
                 href={`/coach?context=${encodeURIComponent(`program:${program.id}`)}`}
                 className="flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground"

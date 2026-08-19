@@ -5,9 +5,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 vi.mock('server-only', () => ({}))
 
 const captureImmediate = vi.fn()
+const isFeatureEnabled = vi.fn()
 // Plain function (not arrow) so `new PostHog(...)` works in the module under test.
 const posthogCtor = vi.fn(function PostHogMock() {
-  return { captureImmediate }
+  return { captureImmediate, isFeatureEnabled }
 })
 vi.mock('posthog-node', () => ({
   PostHog: posthogCtor,
@@ -44,6 +45,60 @@ describe('workoutInputCounts', () => {
       workoutInputCounts({ exercises: [{ sets: [1, 2, 3] }, { sets: [1] }] }),
     ).toEqual({ exercise_count: 2, set_count: 4 })
     expect(workoutInputCounts({ exercises: [] })).toEqual({ exercise_count: 0, set_count: 0 })
+  })
+})
+
+describe('isServerFeatureEnabled', () => {
+  beforeEach(() => {
+    vi.unstubAllEnvs()
+    vi.useRealTimers()
+    isFeatureEnabled.mockReset()
+    posthogCtor.mockClear()
+  })
+
+  it('is false when no key is configured', async () => {
+    vi.stubEnv('NEXT_PUBLIC_POSTHOG_KEY', '')
+    const { isServerFeatureEnabled } = await importAnalytics()
+
+    await expect(isServerFeatureEnabled('coach-access', 'user_1')).resolves.toBe(false)
+    expect(posthogCtor).not.toHaveBeenCalled()
+  })
+
+  it('is true only for an explicit true (undefined = flag unknown = closed)', async () => {
+    vi.stubEnv('NEXT_PUBLIC_POSTHOG_KEY', 'phc_test')
+    const { isServerFeatureEnabled } = await importAnalytics()
+
+    isFeatureEnabled.mockResolvedValueOnce(true)
+    await expect(isServerFeatureEnabled('coach-access', 'user_1')).resolves.toBe(true)
+
+    isFeatureEnabled.mockResolvedValueOnce(undefined)
+    await expect(isServerFeatureEnabled('coach-access', 'user_1')).resolves.toBe(false)
+
+    isFeatureEnabled.mockResolvedValueOnce(false)
+    await expect(isServerFeatureEnabled('coach-access', 'user_1')).resolves.toBe(false)
+  })
+
+  it('fails closed when the flag request rejects', async () => {
+    vi.stubEnv('NEXT_PUBLIC_POSTHOG_KEY', 'phc_test')
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const { isServerFeatureEnabled } = await importAnalytics()
+    isFeatureEnabled.mockRejectedValueOnce(new Error('posthog down'))
+
+    await expect(isServerFeatureEnabled('coach-access', 'user_1')).resolves.toBe(false)
+    consoleError.mockRestore()
+  })
+
+  it('fails closed when the flag request outlives the timeout', async () => {
+    vi.stubEnv('NEXT_PUBLIC_POSTHOG_KEY', 'phc_test')
+    vi.useFakeTimers()
+    const { isServerFeatureEnabled } = await importAnalytics()
+    // Never resolves — only the raced timeout can settle the check.
+    isFeatureEnabled.mockReturnValueOnce(new Promise(() => {}))
+
+    const pending = isServerFeatureEnabled('coach-access', 'user_1')
+    await vi.advanceTimersByTimeAsync(1600)
+    await expect(pending).resolves.toBe(false)
+    vi.useRealTimers()
   })
 })
 

@@ -128,6 +128,39 @@ function getClient(): PostHog | null {
   return client
 }
 
+/** Flag lookups bound the request; a slow PostHog must not stall a page. */
+const FLAG_TIMEOUT_MS = 1500
+
+/**
+ * Server-side feature-flag check against PostHog (remote evaluation), riding
+ * the same client/key as event capture. FALSE on every failure mode —
+ * unconfigured, network error, timeout — so flag-gated features fail CLOSED.
+ * Gates that must not depend on PostHog uptime OR-compose this with their own
+ * env allowlist (see @/lib/coach/access).
+ */
+export async function isServerFeatureEnabled(
+  flag: string,
+  distinctId: string,
+): Promise<boolean> {
+  const posthog = getClient()
+  if (!posthog) return false
+  try {
+    // Race tradeoff, acknowledged: a timeout win leaves the underlying
+    // request running (harmless — nothing consumes its late result, and
+    // posthog-node may still log a $feature_flag_called for it).
+    // isFeatureEnabled is deprecated in posthog-node v5 (evaluateFlags is the
+    // successor) — migrate on the next major bump.
+    const result = await Promise.race([
+      posthog.isFeatureEnabled(flag, distinctId),
+      new Promise<undefined>((resolve) => setTimeout(() => resolve(undefined), FLAG_TIMEOUT_MS)),
+    ])
+    return result === true
+  } catch (error) {
+    console.error('[analytics] flag check failed', { flag, error })
+    return false
+  }
+}
+
 /**
  * Capture one tracking-plan event for a user. Awaitable but safe to
  * fire-and-forget (`void captureServerEvent(...)`) — failures never throw.

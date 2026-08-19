@@ -12,7 +12,7 @@ import { getExerciseStats, listLoggedExercises } from '@/db/exercise-stats'
 import { resolveActiveSession } from '@/lib/active-session'
 import { bodyweightDeltaKg } from '@/lib/bodyweight-trend'
 import { getCheckInStatus } from '@/lib/check-in'
-import { isCoachUser } from '@/lib/coach/access'
+import { isCoachEnabled } from '@/lib/coach/access'
 import { getGoalsHomeSummary } from '@/lib/goals'
 import { goalLabel, strengthPercent } from '@/lib/goal-progress'
 import { trophyLabel } from '@/lib/trophies'
@@ -51,7 +51,7 @@ export async function GET(): Promise<NextResponse> {
   }
 
   const now = new Date()
-  const [drafts, summaries, nextDay, unitRead, weekTotals, goalsSummary, trophyRows, logged, bodyLogs, checkIn] =
+  const [drafts, summaries, nextDay, unitRead, weekTotals, goalsSummary, trophyRows, logged, bodyLogs, checkIn, coachEnabled] =
     await Promise.all([
       orNull(listWorkoutDrafts(userId), 'drafts'),
       orNull(listWorkoutSummaries(userId), 'workouts'),
@@ -65,6 +65,11 @@ export async function GET(): Promise<NextResponse> {
       orNull(listLoggedExercises(userId), 'exercises'),
       orNull(listBodyweightLogs(userId), 'bodyweight'),
       orNull(getCheckInStatus(userId, now.getTime()), 'check-in'),
+      // The gate rides the same batch: the drawer is a hot nav surface, and a
+      // sequential flag round-trip here would be a per-open waterfall for
+      // every non-allowlisted user. isCoachEnabled never throws (env
+      // short-circuit, else fail-closed flag), so no orNull wrapper needed.
+      isCoachEnabled(userId),
     ])
 
   const unit = unitRead ?? DEFAULT_WEIGHT_UNIT
@@ -157,7 +162,7 @@ export async function GET(): Promise<NextResponse> {
             loggedCount: logged?.length ?? 0,
           }
         : null,
-    coach: isCoachUser(userId),
+    coach: coachEnabled,
     recents:
       summaries
         ?.filter((workout) => workout.completedAt !== null)

@@ -7,6 +7,8 @@
  * setup. No ids configured at all means NOBODY: fail closed, never open.
  */
 
+import { isServerFeatureEnabled } from '@/lib/analytics'
+
 type Env = Record<string, string | undefined>
 
 export function coachAllowedUserIds(env: Env = process.env): Set<string> {
@@ -25,4 +27,21 @@ export function coachAllowedUserIds(env: Env = process.env): Set<string> {
 
 export function isCoachUser(userId: string, env: Env = process.env): boolean {
   return coachAllowedUserIds(env).has(userId)
+}
+
+/**
+ * The coach gate, flag-aware: env allowlist FIRST (zero-latency, and access
+ * for the ids already granted never depends on PostHog uptime), then the
+ * 'coach-access' PostHog flag for gradual rollout beyond the allowlist. The
+ * flag path fails closed (isServerFeatureEnabled returns false on any
+ * failure), so the gate's never-open-by-accident property is preserved.
+ *
+ * The ops gate deliberately does NOT get this treatment: /ops is an internal
+ * admin surface, and making admin access remotely toggleable from a
+ * third-party dashboard widens the attack surface instead of enabling a
+ * rollout. Product gates go through flags; admin authz stays in env.
+ */
+export async function isCoachEnabled(userId: string): Promise<boolean> {
+  if (isCoachUser(userId)) return true
+  return isServerFeatureEnabled('coach-access', userId)
 }
