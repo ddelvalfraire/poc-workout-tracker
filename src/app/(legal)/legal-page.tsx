@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { LegalMarkdown, extractHeadings } from './legal-markdown'
+import { Toc } from './toc'
 
 /**
  * Shared shell for the three public legal routes. Layout follows the
@@ -24,8 +25,11 @@ const SIBLINGS = [
 export function LegalPage({ markdown, currentPath }: { markdown: string; currentPath: string }) {
   const headings = extractHeadings(markdown)
   return (
-    <main className="mx-auto w-full max-w-[68ch] px-5 pt-8 pb-16">
-      <nav className="mb-8 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
+    // Desktop: sticky scroll-spy rail left of the 68ch column (the
+    // Stripe/Linear layout); mobile: the rail hides and the collapsible
+    // page-top TOC below takes over.
+    <main className="mx-auto w-full max-w-[68ch] px-5 pt-8 pb-16 lg:grid lg:max-w-[calc(68ch+18rem)] lg:grid-cols-[15rem_minmax(0,68ch)] lg:gap-12">
+      <nav className="mb-8 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground lg:col-span-2">
         <Link href="/" className="hover:text-foreground">
           ← App
         </Link>
@@ -47,7 +51,7 @@ export function LegalPage({ markdown, currentPath }: { markdown: string; current
       </nav>
 
       {headings.length > 2 && (
-        <details className="mb-8 border-y border-border py-3 text-sm">
+        <details className="mb-8 border-y border-border py-3 text-sm lg:hidden">
           <summary className="cursor-pointer font-medium">On this page</summary>
           <ol className="mt-3 space-y-1.5 pl-4 text-muted-foreground">
             {headings.map((h) => (
@@ -61,7 +65,15 @@ export function LegalPage({ markdown, currentPath }: { markdown: string; current
         </details>
       )}
 
-      <article>
+      {headings.length > 2 && (
+        <aside className="hidden lg:block">
+          <div className="sticky top-8 max-h-[calc(100vh-4rem)] overflow-y-auto pr-2">
+            <Toc headings={headings} />
+          </div>
+        </aside>
+      )}
+
+      <article className="min-w-0">
         <LegalMarkdown markdown={markdown} />
       </article>
     </main>
