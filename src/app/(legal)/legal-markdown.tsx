@@ -22,13 +22,20 @@ const LINK_RE = /\[([^\]]+)\]\(([^)\s]+)\)/
 const BOLD_RE = /\*\*([^*]+)\*\*/
 
 function isSafeHref(href: string): boolean {
-  return /^https?:\/\//i.test(href) || href.startsWith('/')
+  // '//' would be protocol-relative (resolves off-site) — internal means
+  // exactly one leading slash.
+  return /^https?:\/\//i.test(href) || (href.startsWith('/') && !href.startsWith('//'))
 }
 
-/** Maps the docs' relative cross-references onto the public routes. */
+/**
+ * Maps the docs' relative cross-references onto the public routes. Most
+ * specific suffix FIRST: consumer-health-data-privacy-policy.md also ends
+ * with privacy-policy.md, and the wrong order sent the MHMDA-required
+ * health-policy link back to /privacy itself.
+ */
 function rewriteHref(href: string): string {
-  if (href.endsWith('privacy-policy.md')) return '/privacy'
   if (href.endsWith('consumer-health-data-privacy-policy.md')) return '/health-privacy'
+  if (href.endsWith('privacy-policy.md')) return '/privacy'
   if (href.endsWith('terms-of-service.md')) return '/terms'
   return href
 }

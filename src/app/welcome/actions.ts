@@ -1,7 +1,6 @@
 'use server'
 
 import { headers } from 'next/headers'
-import { redirect } from 'next/navigation'
 import { requireUserId } from '@/lib/auth'
 import { getActiveConsentDocument, recordConsent } from '@/db/consent'
 
@@ -83,6 +82,8 @@ export async function recordSignupConsentsAction(input: {
       presentation: presentation('Analytics identity'),
     })
   }
-
-  redirect('/')
+  // No redirect() here on purpose: a server action invoked as a plain
+  // function call rejects its promise on redirect (Next routes it to the
+  // RedirectBoundary), which a client try/catch would misread as failure.
+  // The client navigates on successful resolution instead.
 }

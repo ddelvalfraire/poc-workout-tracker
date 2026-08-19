@@ -2,6 +2,7 @@
 
 import { useState, useSyncExternalStore, useTransition } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { recordSignupConsentsAction } from './actions'
 
 /**
@@ -81,18 +82,23 @@ export function ConsentForm() {
 
   const requiredComplete = healthCollect && healthShare && tos
 
+  const router = useRouter()
+
   function submit() {
     setError(null)
     startTransition(async () => {
       try {
+        // The action deliberately does NOT redirect (a server-action
+        // redirect rejects the promise, which this catch would misread as
+        // failure) — success resolves normally and we navigate here.
         await recordSignupConsentsAction({
           healthCollect,
           healthShare,
           tos,
           analyticsIdentity: gpc ? false : analyticsIdentity,
         })
+        router.push('/')
       } catch {
-        // redirect() throws NEXT_REDIRECT on success — anything else is real.
         setError('Something went wrong saving your choices. Please try again.')
       }
     })
@@ -143,7 +149,7 @@ export function ConsentForm() {
               features actually help. Change anytime in Settings.
             </p>
             {gpc && (
-              <p className="mt-1.5 text-xs text-muted-foreground">
+              <p id="gpc-note" className="mt-1.5 text-xs text-muted-foreground">
                 Your browser sent a Global Privacy Control signal — this stays off.
               </p>
             )}
@@ -153,6 +159,7 @@ export function ConsentForm() {
               type="checkbox"
               role="switch"
               aria-label="Analytics identity"
+              aria-describedby={gpc ? 'gpc-note' : undefined}
               checked={analyticsIdentity}
               disabled={gpc}
               onChange={(e) => setAnalyticsIdentity(e.target.checked)}

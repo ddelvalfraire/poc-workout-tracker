@@ -30,7 +30,15 @@ const SOURCES = [
 ] as const
 
 function stripDraftComments(md: string): string {
-  return md.replace(/<!--[\s\S]*?-->/g, '').trimStart()
+  return (
+    md
+      .replace(/<!--[\s\S]*?-->/g, '')
+      // ⚖️ marks attorney-review items in the sources (see each doc's
+      // banner) — authoring metadata that must never reach the live pages
+      // or the hashed ledger content.
+      .replace(/\s*⚖️/g, '')
+      .trimStart()
+  )
 }
 
 function generate(): string {

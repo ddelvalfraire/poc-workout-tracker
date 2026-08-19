@@ -1,11 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 vi.mock('@/lib/auth', () => ({ requireUserId: vi.fn(async () => 'user_1') }))
-vi.mock('next/navigation', () => ({
-  redirect: vi.fn(() => {
-    throw new Error('NEXT_REDIRECT')
-  }),
-}))
 vi.mock('next/headers', () => ({
   headers: vi.fn(async () => new Headers({ 'x-forwarded-for': '203.0.113.9', 'user-agent': 'ua' })),
 }))
@@ -16,7 +11,6 @@ vi.mock('@/db/consent', () => ({
 
 import { recordSignupConsentsAction } from './actions'
 import { recordConsent, getActiveConsentDocument } from '@/db/consent'
-import { redirect } from 'next/navigation'
 
 const ALL_GRANTED = { healthCollect: true, healthShare: true, tos: true, analyticsIdentity: true }
 
@@ -41,7 +35,10 @@ describe('recordSignupConsentsAction', () => {
   })
 
   it('writes the three required events as separate acts, plus analytics when granted', async () => {
-    await expect(recordSignupConsentsAction(ALL_GRANTED)).rejects.toThrow('NEXT_REDIRECT')
+    // Resolves normally — the action deliberately does not redirect (the
+    // client navigates on success; a server-action redirect would reject
+    // the promise and be indistinguishable from failure in the caller).
+    await expect(recordSignupConsentsAction(ALL_GRANTED)).resolves.toBeUndefined()
 
     const purposes = vi.mocked(recordConsent).mock.calls.map(([input]) => input.purpose)
     expect(purposes).toEqual(['health_collect', 'health_share', 'tos', 'analytics_identity'])
@@ -52,13 +49,12 @@ describe('recordSignupConsentsAction', () => {
       expect(input.presentation).toMatchObject({ route: '/welcome', surface: 'signup' })
       expect(input.ip).toBe('203.0.113.9')
     }
-    expect(redirect).toHaveBeenCalledWith('/')
   })
 
   it('declined analytics writes NO event — absent row is the ledger default', async () => {
     await expect(
       recordSignupConsentsAction({ ...ALL_GRANTED, analyticsIdentity: false }),
-    ).rejects.toThrow('NEXT_REDIRECT')
+    ).resolves.toBeUndefined()
 
     const purposes = vi.mocked(recordConsent).mock.calls.map(([input]) => input.purpose)
     expect(purposes).toEqual(['health_collect', 'health_share', 'tos'])
