@@ -26,6 +26,7 @@
     "legal": "tsx scripts/build-legal.ts",
     "legal:check": "tsx scripts/build-legal.ts --check",
     "db:seed-consent-docs": "tsx scripts/seed-consent-docs.ts",
+    "db:migrate-user": "tsx scripts/migrate-user-id.ts",
     "test:storybook": "vitest run --project=storybook"
   },
   "dependencies": {
@@ -53,6 +54,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "drizzle-orm": "^0.45.2",
+    "jose": "^6.2.3",
     "lucide-react": "^1.18.0",
     "mcp-handler": "^1.1.0",
     "next": "16.2.9",
