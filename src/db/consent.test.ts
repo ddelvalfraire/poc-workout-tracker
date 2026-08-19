@@ -9,6 +9,13 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 let selectQueue: Record<string, unknown>[][] = []
 const inserts: { values: unknown }[] = []
 const upserts: { values: unknown; conflict: unknown }[] = []
+// Pseudonymization-path recorders: the op log proves ordering (GUC first),
+// `executed` captures raw sql statements, updates/deletes capture arguments.
+const ops: string[] = []
+const executed: unknown[] = []
+const updates: { set: unknown; where: unknown }[] = []
+const deletes: { where: unknown }[] = []
+let updateReturnRows: Record<string, unknown>[] = []
 
 function nextSelectRows() {
   return selectQueue.length > 0 ? selectQueue.shift()! : []
@@ -28,8 +35,28 @@ function makeDb() {
     return b
   }
   const database = {
-    // The advisory-lock statement inside recordConsent's transaction.
-    execute: () => Promise.resolve(),
+    // Advisory lock (recordConsent) and the SET LOCAL GUC (pseudonymize).
+    execute: (statement: unknown) => {
+      ops.push('execute')
+      executed.push(statement)
+      return Promise.resolve()
+    },
+    update: () => ({
+      set: (s: unknown) => ({
+        where: (w: unknown) => {
+          ops.push('update')
+          updates.push({ set: s, where: w })
+          return { returning: () => Promise.resolve(updateReturnRows) }
+        },
+      }),
+    }),
+    delete: () => ({
+      where: (w: unknown) => {
+        ops.push('delete')
+        deletes.push({ where: w })
+        return Promise.resolve()
+      },
+    }),
     select: () => selectBuilder(),
     insert: () => ({
       values: (v: unknown) => {
@@ -58,6 +85,8 @@ import {
   recordConsent,
   hasConsent,
   requireConsent,
+  pseudonymizeConsentRecords,
+  markDownstreamAction,
   ConsentRequiredError,
 } from './consent'
 
@@ -71,6 +100,11 @@ beforeEach(() => {
   selectQueue = []
   inserts.length = 0
   upserts.length = 0
+  ops.length = 0
+  executed.length = 0
+  updates.length = 0
+  deletes.length = 0
+  updateReturnRows = []
 })
 
 describe('truncateIp', () => {
@@ -224,5 +258,181 @@ describe('hasConsent / requireConsent', () => {
   it('throws after withdrawal (row present, granted=false)', async () => {
     selectQueue.push([{ granted: false }])
     await expect(hasConsent('user_1', 'analytics_identity')).resolves.toBe(false)
+  })
+})
+
+/** Walks a (possibly circular) drizzle condition tree collecting the string
+ *  params — enough to assert which values a where clause binds. */
+function collectStrings(root: unknown): string[] {
+  const seen = new Set<object>()
+  const found: string[] = []
+  const walk = (node: unknown) => {
+    if (typeof node === 'string') {
+      found.push(node)
+      return
+    }
+    if (node === null || typeof node !== 'object' || seen.has(node)) return
+    seen.add(node)
+    for (const value of Object.values(node)) walk(value)
+  }
+  walk(root)
+  return found
+}
+
+describe('pseudonymizeConsentRecords', () => {
+  it('serializes with recordConsent by locking every (user, purpose) pair first', async () => {
+    selectQueue.push([{ id: 'ev-1' }])
+    updateReturnRows = [{ id: 'ev-1' }]
+
+    await pseudonymizeConsentRecords('user_1')
+
+    // recordConsent locks on hashtext(userId + ':' + purpose); to actually
+    // exclude a concurrent consent write, pseudonymization must hold ALL of
+    // those locks — one per purpose — before it mutates. Same keyspace, or
+    // the two paths would never contend.
+    const lockStatements = executed
+      .map((s) => collectStrings(s))
+      .filter((params) => params.some((p) => p.includes('pg_advisory_xact_lock')))
+    const lockedKeys = lockStatements.flatMap((params) =>
+      params.filter((p) => p.startsWith('user_1:')),
+    )
+    expect(lockedKeys.sort()).toEqual([
+      'user_1:analytics_identity',
+      'user_1:autorenewal',
+      'user_1:health_collect',
+      'user_1:health_share',
+      'user_1:tos',
+    ])
+  })
+
+  it('sets the GUC via SET LOCAL after the locks and before any mutation', async () => {
+    // Arrange — the user has one event; the update reports one row touched
+    selectQueue.push([{ id: 'ev-1' }])
+    updateReturnRows = [{ id: 'ev-1' }]
+
+    // Act
+    await pseudonymizeConsentRecords('user_1')
+
+    // Assert — the GUC grant precedes every mutation, and it is the
+    // transaction-scoped form (SET LOCAL), so the permission dies at commit
+    const gucIndex = executed.findIndex((s) =>
+      JSON.stringify(collectStrings(s)).includes('SET LOCAL app.consent_pseudonymize'),
+    )
+    expect(gucIndex).toBeGreaterThanOrEqual(0)
+    // Every execute (locks + GUC) precedes the first update/delete.
+    const lastExecute = ops.lastIndexOf('execute')
+    expect(lastExecute).toBeLessThan(ops.indexOf('update'))
+    expect(lastExecute).toBeLessThan(ops.indexOf('delete'))
+  })
+
+  it('replaces user_id with one irreversible random pseudonym across all events', async () => {
+    selectQueue.push([{ id: 'ev-1' }, { id: 'ev-2' }])
+    updateReturnRows = [{ id: 'ev-1' }, { id: 'ev-2' }]
+
+    const result = await pseudonymizeConsentRecords('user_1')
+
+    // One update statement rewrites every event row to the same pseudonym —
+    // random uuid (nothing derivable back to user_1), deleted: prefix.
+    expect(updates).toHaveLength(1)
+    const set = updates[0].set as { userId: string }
+    expect(set.userId).toMatch(/^deleted:[0-9a-f]{8}-[0-9a-f-]{27}$/)
+    expect(set.userId).not.toContain('user_1')
+    expect(result.pseudonym).toBe(set.userId)
+    expect(result.eventsPseudonymized).toBe(2)
+  })
+
+  it('reconciles projection + stale pending fan-out in the same transaction, sparing keepEventId', async () => {
+    selectQueue.push([{ id: 'ev-1' }, { id: 'ev-final' }])
+    updateReturnRows = [{ id: 'ev-1' }, { id: 'ev-final' }]
+
+    await pseudonymizeConsentRecords('user_1', { keepEventId: 'ev-final' })
+
+    // Two deletes: stale pending downstream actions first, then the
+    // consent_current projection rows. The keep-list rides in the fan-out
+    // delete's where clause (ne keepEventId) so the deletion event's own
+    // pending rows survive for the orchestrator to complete.
+    expect(deletes).toHaveLength(2)
+    const fanOutParams = collectStrings(deletes[0].where)
+    expect(fanOutParams).toContain('ev-final')
+    expect(fanOutParams).toContain('pending')
+  })
+
+  it('skips the fan-out delete when the user has no events (nothing to reconcile)', async () => {
+    selectQueue.push([])
+    updateReturnRows = []
+
+    const result = await pseudonymizeConsentRecords('user_ghost')
+
+    // Only the projection delete runs; the update touches nothing.
+    expect(deletes).toHaveLength(1)
+    expect(result.eventsPseudonymized).toBe(0)
+  })
+})
+
+describe('markDownstreamAction', () => {
+  it('stamps completedAt only on success', async () => {
+    await markDownstreamAction('ev-1', 'posthog', 'completed')
+
+    expect(updates).toHaveLength(1)
+    const set = updates[0].set as { status: string; completedAt: Date | null }
+    expect(set.status).toBe('completed')
+    expect(set.completedAt).toBeInstanceOf(Date)
+  })
+
+  it('records a failure with completedAt null — the honest still-owed marker', async () => {
+    await markDownstreamAction('ev-1', 'clerk', 'failed')
+
+    expect(updates).toHaveLength(1)
+    const set = updates[0].set as { status: string; completedAt: Date | null }
+    expect(set.status).toBe('failed')
+    expect(set.completedAt).toBeNull()
+  })
+
+  it('targets exactly the (eventId, processor) evidence row', async () => {
+    await markDownstreamAction('ev-1', 'posthog', 'completed')
+
+    const whereParams = collectStrings(updates[0].where)
+    expect(whereParams).toContain('ev-1')
+    expect(whereParams).toContain('posthog')
+  })
+})
+
+describe('append-only trigger migrations (SQL fixtures)', () => {
+  // The trigger itself runs in Postgres, out of unit-test reach — but the
+  // migration files are in-repo facts we can hold still: the block branch
+  // must remain, and the ONLY bypass must be the exact GUC the controlled
+  // path sets. A drive-by edit that widens the gate fails here.
+  it('0049 keeps the RAISE for mutations without the GUC and gates on the exact setting', async () => {
+    const { readFile } = await import('node:fs/promises')
+    const sql = await readFile('drizzle/0049_consent_pseudonymize_guc.sql', 'utf8')
+    expect(sql).toContain("current_setting('app.consent_pseudonymize', true) = 'on'")
+    expect(sql).toContain('RAISE EXCEPTION')
+    expect(sql).toMatch(/consent_events is append-only/)
+    // Review-pinned narrowing: the GUC admits ONLY an UPDATE (DELETE always
+    // raises) and ONLY one that changes user_id alone — every other column
+    // must be proven unchanged inside the gate condition.
+    expect(sql).toContain("AND TG_OP = 'UPDATE'")
+    for (const guard of [
+      'NEW.id = OLD.id',
+      'NEW.purpose = OLD.purpose',
+      'NEW.action = OLD.action',
+      'NEW.document_id IS NOT DISTINCT FROM OLD.document_id',
+      'NEW.occurred_at = OLD.occurred_at',
+      'NEW.presentation = OLD.presentation',
+    ]) {
+      expect(sql).toContain(guard)
+    }
+    // The permissive first-draft shape must never come back.
+    expect(sql).not.toMatch(/RETURN OLD/)
+    // The replacement targets the 0047 function name, so the existing
+    // trigger binding (BEFORE UPDATE OR DELETE) keeps pointing at it.
+    expect(sql).toContain('FUNCTION consent_events_block_mutation()')
+  })
+
+  it('0048 consent_documents trigger stays unconditional (documents are never user-scoped)', async () => {
+    const { readFile } = await import('node:fs/promises')
+    const sql = await readFile('drizzle/0048_consent_documents_append_only.sql', 'utf8')
+    expect(sql).toContain('RAISE EXCEPTION')
+    expect(sql).not.toContain('consent_pseudonymize')
   })
 })
