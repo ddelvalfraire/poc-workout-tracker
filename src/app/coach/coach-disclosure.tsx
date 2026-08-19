@@ -112,9 +112,11 @@ function DisclosureDialog({
         e.preventDefault()
         onDismiss()
       }}
-      className="m-auto w-full max-w-md border border-border bg-background p-0 text-foreground backdrop:bg-background/80 backdrop:backdrop-blur-sm"
+      // Shell classes match confirm-dialog.tsx — the repo's one dialog skin
+      // (rounded-2xl lifted card, black/60 backdrop, inset width).
+      className="m-auto w-[calc(100%-2.5rem)] max-w-sm rounded-2xl border border-border bg-card p-5 text-foreground backdrop:bg-black/60"
     >
-      <div className="px-6 pt-6 pb-8">
+      <div>
         <p className="text-xs font-medium tracking-wider text-muted-foreground uppercase">
           Before you start
         </p>
