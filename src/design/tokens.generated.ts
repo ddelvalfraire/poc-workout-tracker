@@ -20,6 +20,7 @@ export const SRGB_HEX = {
   "accent": "#262626",
   "accent-foreground": "#f5f5f5",
   "destructive": "#f14d4c",
+  "destructive-ink": "#fe938b",
   "warning": "#eab532",
   "border": "#ffffff",
   "input": "#ffffff",

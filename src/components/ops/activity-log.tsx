@@ -25,7 +25,9 @@ interface ActivityLogProps {
 /** Type badge tint per source — semantic, matching each feature's surface. */
 const BADGE: Record<ActivityType, string> = {
   workout: 'bg-primary/10 text-primary',
-  program: 'bg-violet-500/10 text-violet-500',
+  // violet-400 in dark, like every sibling below: violet-500 on its own
+  // 10% tint is 3.84:1. The lighter step clears AA at 5.97:1.
+  program: 'bg-violet-500/10 text-violet-600 dark:text-violet-400',
   goal: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
   photo: 'bg-sky-500/10 text-sky-600 dark:text-sky-400',
   measurement: 'bg-amber-500/10 text-amber-600 dark:text-amber-400',

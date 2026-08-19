@@ -79,7 +79,14 @@ export function ErrorsPanel({ results, sentryUrl, className }: ErrorsPanelProps)
           {result.data.topIssues.length === 0 ? (
             <p className="mt-4 text-sm text-muted-foreground">No unresolved issues. Clean.</p>
           ) : (
-            <div className="mt-4 overflow-x-auto">
+            <div
+                role="region"
+                aria-label="Top unresolved issues"
+                /* A horizontally scrolling region must be reachable by keyboard:
+                   without tabindex a keyboard user cannot scroll it at all. */
+                tabIndex={0}
+                className="mt-4 overflow-x-auto"
+              >
               <table className="w-full text-sm">
                 <thead>
                   <tr className="text-left text-xs uppercase tracking-wider text-muted-foreground">
@@ -96,6 +103,10 @@ export function ErrorsPanel({ results, sentryUrl, className }: ErrorsPanelProps)
                       <td className="max-w-0 py-2 pr-3">
                         <div className="flex items-center gap-2">
                           <span
+                            // A bare span is generic, and ARIA prohibits
+                            // naming it — the level was dropped by assistive
+                            // tech, not just flagged. The dot IS the meaning.
+                            role="img"
                             title={issue.level}
                             aria-label={issue.level}
                             className={cn(

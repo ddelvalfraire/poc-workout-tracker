@@ -23,6 +23,7 @@
   --accent: oklch(0.269 0 0); /* #262626 */
   --accent-foreground: oklch(0.97 0 0); /* #f5f5f5 */
   --destructive: oklch(0.65 0.2 25); /* #f14d4c */
+  --destructive-ink: oklch(0.775 0.13 25); /* #fe938b */
   --warning: oklch(0.8 0.15 85); /* #eab532 */
   --border: oklch(1 0 0 / 12%); /* #ffffff @ 12% */
   --input: oklch(1 0 0 / 15%); /* #ffffff @ 15% */

@@ -50,8 +50,11 @@ object DesignTokens {
         /** Secondary text and metadata. Verified >=4.5:1 on background. */
         val MutedForeground = Color(0xFFA4A4A4)
 
-        /** Remove / delete. */
+        /** Remove / delete. The TINT and border colour — not the ink on top of it. */
         val Destructive = Color(0xFFF14D4C)
+
+        /** Text and icons ON a destructive tint. A tint and its ink cannot be the same value: as the tint's alpha rises the background approaches the ink, so contrast falls to 1. Verified >=4.5:1 on destructive tints from 5% to 30% (hover included) over page, card and muted. */
+        val DestructiveInk = Color(0xFFFE938B)
 
         /** Offline / degraded hints. Verified >=4.5:1 on background. */
         val Warning = Color(0xFFEAB532)
