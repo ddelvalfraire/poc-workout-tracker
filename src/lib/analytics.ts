@@ -145,6 +145,11 @@ export async function isServerFeatureEnabled(
   const posthog = getClient()
   if (!posthog) return false
   try {
+    // Race tradeoff, acknowledged: a timeout win leaves the underlying
+    // request running (harmless — nothing consumes its late result, and
+    // posthog-node may still log a $feature_flag_called for it).
+    // isFeatureEnabled is deprecated in posthog-node v5 (evaluateFlags is the
+    // successor) — migrate on the next major bump.
     const result = await Promise.race([
       posthog.isFeatureEnabled(flag, distinctId),
       new Promise<undefined>((resolve) => setTimeout(() => resolve(undefined), FLAG_TIMEOUT_MS)),
