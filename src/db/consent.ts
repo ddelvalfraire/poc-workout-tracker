@@ -220,6 +220,40 @@ export async function recordConsent(input: {
 }
 
 /**
+ * Records the outcome of one enqueued downstream action — the second half of
+ * the MHMDA propagation evidence (the enqueue proves intent; this proves the
+ * processor call happened, or honestly that it failed). completedAt is
+ * stamped only on success: a failed row with no timestamp reads as "still
+ * owed", which is the truth.
+ */
+export async function markDownstreamAction(
+  eventId: string,
+  processor: string,
+  status: 'completed' | 'failed',
+): Promise<void> {
+  await db
+    .update(consentDownstreamActions)
+    .set({ status, completedAt: status === 'completed' ? new Date() : null })
+    .where(
+      and(
+        eq(consentDownstreamActions.eventId, eventId),
+        eq(consentDownstreamActions.processor, processor),
+      ),
+    )
+}
+
+// Every purpose the ledger knows. Pseudonymization locks all of them (below);
+// keep in sync with the ConsentPurpose union — the type system can't derive a
+// runtime list from a union.
+const ALL_CONSENT_PURPOSES: readonly ConsentPurpose[] = [
+  'tos',
+  'health_collect',
+  'health_share',
+  'analytics_identity',
+  'autorenewal',
+]
+
+/**
  * Account-deletion severance for the consent ledger. Events must SURVIVE
  * deletion (CA ARL >= 3-year retention; MHMDA proof) but stop pointing at a
  * person: every consent_events.user_id for this user becomes one irreversible
@@ -241,6 +275,17 @@ export async function pseudonymizeConsentRecords(
 ): Promise<{ pseudonym: string; eventsPseudonymized: number }> {
   const pseudonym = `deleted:${randomUUID()}`
   return db.transaction(async (tx) => {
+    // Exclude concurrent consent writes for this user: recordConsent locks on
+    // hashtext(userId + ':' + purpose), so holding ALL per-purpose locks (in
+    // a fixed order — recordConsent only ever holds one, so no cycle is
+    // possible) means no event can slip in after the pseudonymizing UPDATE
+    // and no projection row can be re-created after the delete. Same
+    // keyspace as recordConsent or the two paths would never contend.
+    for (const purpose of ALL_CONSENT_PURPOSES) {
+      await tx.execute(
+        sql`select pg_advisory_xact_lock(hashtext(${userId + ':' + purpose}))`,
+      )
+    }
     // SET LOCAL takes no bind parameters; the value is a constant, nothing
     // user-controlled is interpolated.
     await tx.execute(sql`SET LOCAL app.consent_pseudonymize = 'on'`)
