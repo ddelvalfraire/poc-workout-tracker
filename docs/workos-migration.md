@@ -35,8 +35,27 @@ Then set these in `.env.local` (and in Vercel, for production):
 
 ### 2. Dashboard configuration that has no code equivalent
 
-- **Applications → Redirects**: register the callback URI (must match
-  `NEXT_PUBLIC_WORKOS_REDIRECT_URI` exactly), plus a logout URI.
+- **Applications → Redirects**: register one callback URI per environment, each
+  matching that environment's `NEXT_PUBLIC_WORKOS_REDIRECT_URI` exactly, plus
+  the matching logout URIs:
+
+  | Environment | Callback URI |
+  |---|---|
+  | Local | `http://localhost:3000/callback` |
+  | Production | `https://poc-workout-tracker.vercel.app/callback` |
+  | Preview | `https://<project>-git-<branch>-<scope>.vercel.app/callback` |
+
+  **Do not register a `*.vercel.app` wildcard.** `vercel.app` is a shared public
+  suffix: a wildcard there lets anyone else's deployment on that domain receive
+  this app's authorization codes. WorkOS's own guidance calls this out.
+  Wildcards are only safe on a domain you control
+  (`*.preview.yourdomain.com`).
+
+  Per-commit preview URLs are therefore not usable for sign-in, but Vercel also
+  gives each BRANCH a stable URL — that one is registerable. Note this pins the
+  Preview environment to one branch at a time, because `NEXT_PUBLIC_*` values
+  are inlined at build: a second branch needing sign-in wants its own URI
+  registered and the Preview variable repointed.
 - **Connect → Configuration**: enable **Client ID Metadata Document**. That is
   what current MCP clients use, and it is what replaces the static-client DCR
   bypass the Clerk setup needed. Enable DCR too if older clients must keep
