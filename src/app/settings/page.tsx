@@ -159,6 +159,18 @@ export default async function SettingsPage() {
           </SettingsZone>
         )}
 
+        {/* Legal links: the health-privacy link's prominence is an MHMDA
+            requirement, not footer decoration. */}
+        <SettingsZone title="Legal">
+          <LinkRow href="/terms" label="Terms of Service" hint="The agreement for using the app." />
+          <LinkRow href="/privacy" label="Privacy Policy" hint="What we collect and why." />
+          <LinkRow
+            href="/health-privacy"
+            label="Health Data Privacy"
+            hint="How your health data is handled, and your rights."
+          />
+        </SettingsZone>
+
         <p className="mt-8 pb-4 text-center text-xs text-muted-foreground tnum">{versionLabel}</p>
       </main>
     </div>

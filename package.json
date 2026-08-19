@@ -23,6 +23,9 @@
     "build-storybook": "storybook build",
     "tokens": "tsx scripts/build-tokens.ts",
     "tokens:check": "tsx scripts/build-tokens.ts --check",
+    "legal": "tsx scripts/build-legal.ts",
+    "legal:check": "tsx scripts/build-legal.ts --check",
+    "db:seed-consent-docs": "tsx scripts/seed-consent-docs.ts",
     "test:storybook": "vitest run --project=storybook"
   },
   "dependencies": {
