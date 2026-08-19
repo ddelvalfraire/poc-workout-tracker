@@ -20,6 +20,7 @@ import { RestDefaultSetting } from './rest-default-setting'
 import { RestTimerToggle } from './rest-timer-toggle'
 import { AnalyticsConsentToggle } from './analytics-consent-toggle'
 import { getConsentState } from '@/db/consent'
+import { ConsentIdentity } from '@/components/consent-identity'
 import { RpeLoggingToggle } from './rpe-logging-toggle'
 import { WorkoutRemindersToggle } from './workout-reminders-toggle'
 
@@ -66,6 +67,13 @@ export default async function SettingsPage() {
 
   return (
     <div className="flex min-h-[100dvh] flex-col">
+      {/* Second reconciler mount: the settings toggle changes the consent
+          fact, and this page re-renders with the new projection — the
+          island applies identify()/reset() immediately after the flip. */}
+      <ConsentIdentity
+        userId={userId}
+        granted={Boolean(consent.analytics_identity?.granted)}
+      />
       <AppHeader
         title="Settings"
         leading={

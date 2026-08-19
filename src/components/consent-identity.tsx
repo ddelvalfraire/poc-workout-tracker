@@ -35,7 +35,7 @@ export function ConsentIdentity({ userId, granted }: { userId: string; granted: 
 
     async function attempt(): Promise<boolean> {
       const { default: posthog } = await import('posthog-js')
-      if (!(posthog as unknown as { __loaded?: boolean }).__loaded) return false
+      if (!posthog.__loaded) return false
       if (cancelled) return true
       const action = decideIdentityAction(posthog.get_distinct_id(), userId, granted)
       if (action === 'identify') posthog.identify(userId)

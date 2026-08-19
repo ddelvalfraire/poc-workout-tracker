@@ -56,14 +56,20 @@ export async function setAnalyticsConsentAction(granted: boolean): Promise<void>
       action: 'withdrawn',
       downstream: [{ processor: 'posthog', action: 'person_delete' }],
     })
+    // Only the PostHog call decides the outcome — a bookkeeping failure must
+    // neither mislabel a successful deletion as owed nor block the
+    // withdrawal (whose ledger fact is already durably committed above).
+    let outcome: 'completed' | 'failed' = 'completed'
     try {
       await deletePosthogPerson(userId)
-      await markDownstreamAction(eventId, 'posthog', 'completed')
     } catch (error) {
-      // Recorded as still-owed; the withdrawal itself stands. (Account
-      // deletion and any future retry worker drain failed rows.)
       console.error('[consent] posthog person deletion failed', error)
-      await markDownstreamAction(eventId, 'posthog', 'failed')
+      outcome = 'failed'
+    }
+    try {
+      await markDownstreamAction(eventId, 'posthog', outcome)
+    } catch (error) {
+      console.error('[consent] downstream bookkeeping failed', { eventId, outcome, error })
     }
   }
 
