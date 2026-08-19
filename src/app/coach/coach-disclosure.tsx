@@ -1,6 +1,6 @@
 'use client'
 
-import { useSyncExternalStore } from 'react'
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { Button } from '@/components/ui/button'
 
 /**
@@ -14,6 +14,11 @@ import { Button } from '@/components/ui/button'
  * re-shows the interstitial once, which errs protective for a proactive-
  * disclosure obligation, and needs no schema. The persistent strip carries
  * the disclosure for every session either way.
+ *
+ * The dialog itself uses the repo's one dialog vocabulary (confirm-dialog
+ * mechanics: StrictMode-guarded showModal, body scroll lock, initial focus,
+ * close + focus restore) — the native top layer is what actually keeps the
+ * composer unreachable until the user has seen this.
  */
 
 const ACK_KEY = 'coach-ai-disclosure-ack'
@@ -23,8 +28,9 @@ function readAck(): boolean {
   try {
     return localStorage.getItem(ACK_KEY) === '1'
   } catch {
-    // Storage unavailable (private mode edge cases): show the interstitial
-    // each visit rather than never.
+    // Storage unavailable: show the interstitial each visit rather than
+    // never (the protective direction for first render; the session state
+    // below still guarantees dismissal works).
     return false
   }
 }
@@ -33,7 +39,7 @@ export function acknowledgeCoachDisclosure(): void {
   try {
     localStorage.setItem(ACK_KEY, '1')
   } catch {
-    // Unpersistable ack still dismisses for this page's lifetime via notify.
+    // Unpersistable ack is fine: the caller also dismisses via local state.
   }
   for (const l of listeners) l()
 }
@@ -49,16 +55,66 @@ export function useCoachDisclosureAcked(): boolean {
 }
 
 export function CoachDisclosure() {
-  const acked = useCoachDisclosureAcked()
-  if (acked) return null
+  const ackedPersisted = useCoachDisclosureAcked()
+  // Session dismissal is independent of storage: a browser that rejects the
+  // localStorage write (private-mode quota splits) must still let "Got it"
+  // close the dialog — otherwise it reopens forever with no way out.
+  const [dismissed, setDismissed] = useState(false)
+  if (ackedPersisted || dismissed) return null
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
+    <DisclosureDialog
+      onAcknowledge={() => {
+        acknowledgeCoachDisclosure()
+        setDismissed(true)
+      }}
+      onDismiss={() => setDismissed(true)}
+    />
+  )
+}
+
+function DisclosureDialog({
+  onAcknowledge,
+  onDismiss,
+}: {
+  onAcknowledge: () => void
+  onDismiss: () => void
+}) {
+  const dialogRef = useRef<HTMLDialogElement>(null)
+  const gotItRef = useRef<HTMLButtonElement>(null)
+
+  // confirm-dialog.tsx mechanics, copied: StrictMode-guarded showModal,
+  // manual body scroll lock, initial focus, close() + focus restore.
+  useEffect(() => {
+    const dialog = dialogRef.current
+    const active = document.activeElement
+    const previouslyFocused =
+      active instanceof HTMLElement && !dialog?.contains(active) ? active : null
+    if (dialog && !dialog.open) dialog.showModal()
+    gotItRef.current?.focus()
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      if (dialog?.open) dialog.close()
+      document.body.style.overflow = previousOverflow
+      previouslyFocused?.focus()
+    }
+  }, [])
+
+  return (
+    // m-auto centers a <dialog> on both axes in the top layer. No backdrop
+    // click-to-close: a must-see disclosure shouldn't vanish on a stray tap;
+    // Esc (onCancel) dismisses for the session only — it re-shows next
+    // visit, while "Got it" persists the acknowledgement.
+    <dialog
+      ref={dialogRef}
       aria-labelledby="coach-disclosure-title"
-      className="fixed inset-0 z-50 flex items-end justify-center bg-background/90 backdrop-blur-sm sm:items-center"
+      onCancel={(e) => {
+        e.preventDefault()
+        onDismiss()
+      }}
+      className="m-auto w-full max-w-md border border-border bg-background p-0 text-foreground backdrop:bg-background/80 backdrop:backdrop-blur-sm"
     >
-      <div className="w-full max-w-md border-t border-border bg-background px-6 pt-6 pb-8 sm:rounded-lg sm:border">
+      <div className="px-6 pt-6 pb-8">
         <p className="text-xs font-medium tracking-wider text-muted-foreground uppercase">
           Before you start
         </p>
@@ -70,15 +126,10 @@ export function CoachDisclosure() {
           make mistakes, and it isn&apos;t a doctor. Check anything that matters, and see a
           physician before making health decisions.
         </p>
-        <Button
-          type="button"
-          size="lg"
-          className="mt-6 w-full"
-          onClick={acknowledgeCoachDisclosure}
-        >
+        <Button ref={gotItRef} type="button" size="lg" className="mt-6 w-full" onClick={onAcknowledge}>
           Got it
         </Button>
       </div>
-    </div>
+    </dialog>
   )
 }
