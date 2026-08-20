@@ -139,14 +139,26 @@ describe('the exercise header roll-up', () => {
    * callers, so EVERY count is guarded rather than the single draft state
    * that test happens to render.
    */
-  function pensBelowAppBar(html: string): number {
+  /** Everything above the logger's content root — the app bar and nothing
+   *  else. One definition, so the counter below and the test that names what
+   *  gets hidden can never drift onto two different anchors. */
+  function appBarRegion(html: string): string {
     const body = html.indexOf('<main')
     if (body === -1) throw new Error('the logger rendered no <main> to slice to')
-    const hidden = html.slice(0, body).split(PEN).length - 1
-    if (hidden !== 1) {
-      throw new Error(`the app bar slice hid ${hidden} pens, not the workout-note entry alone`)
+    return html.slice(0, body)
+  }
+
+  /** `appBarPens` is the number the CALLER expects to be hidden, not a
+   *  constant: the workout-note entry is gated on !isEmpty, so an
+   *  exercise-less draft legitimately hides none, and a hardcoded 1 would
+   *  throw at a draft shape while claiming the app bar had regressed. */
+  function pensBelowAppBar(html: string, appBarPens = 1): number {
+    const bar = appBarRegion(html)
+    const hidden = bar.split(PEN).length - 1
+    if (hidden !== appBarPens) {
+      throw new Error(`the app bar slice hid ${hidden} pens, not the ${appBarPens} expected`)
     }
-    return html.slice(body).split(PEN).length - 1
+    return html.slice(bar.length).split(PEN).length - 1
   }
 
   it('counts the instance note plus noted sets', () => {
@@ -192,10 +204,20 @@ describe('the exercise header roll-up', () => {
     // A count alone would not know WHAT it excluded. Naming the control pins
     // that the hidden region is the app bar and not, say, a card that grew a
     // <header> of its own.
-    const html = render(baseDraft({}))
-    const hidden = html.slice(0, html.indexOf('<main'))
-    expect(hidden).toContain('Add workout note')
-    expect(hidden.split(PEN).length - 1).toBe(1)
+    // Through the helper's OWN slicer, not a second copy of the anchor: a
+    // hand-rolled `slice(0, indexOf('<main'))` returns the whole document
+    // minus its last character when the anchor is missing, which is the very
+    // count-mismatch-blaming-the-wrong-code failure the anchor change exists
+    // to end. The pen count is the helper's job (it guards on every call);
+    // what this test adds is WHICH control is being hidden.
+    expect(appBarRegion(render(baseDraft({})))).toContain('Add workout note')
+  })
+
+  it('lets an exercise-less draft say it draws no pens at all', () => {
+    // The workout-note entry is gated on !isEmpty, so "the app bar hides
+    // exactly one pen" is false BY DESIGN here. A helper that hardcoded 1
+    // would throw and blame the app bar for what is really a draft shape.
+    expect(pensBelowAppBar(render({ notes: '', exercises: [] }), 0)).toBe(0)
   })
 
   it('refuses to count when the hidden region holds more than that one pen', () => {
@@ -204,7 +226,7 @@ describe('the exercise header roll-up', () => {
     // pen (a "this workout has a note" glyph beside the entry, say) would
     // otherwise widen the blind spot in silence while both counts stayed 1.
     const twoPens = `<header><svg><path d="${PEN}"/><path d="${PEN}"/></svg></header><main></main>`
-    expect(() => pensBelowAppBar(twoPens)).toThrow(/hid 2 pens/)
+    expect(() => pensBelowAppBar(twoPens)).toThrow(/hid 2 pens, not the 1 expected/)
   })
 
   it('refuses to count when there is no app bar to slice to', () => {

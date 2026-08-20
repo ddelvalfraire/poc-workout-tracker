@@ -158,9 +158,23 @@ Two conditions make it safe, and both are load-bearing:
   repeated glyph; it was a repeated glyph where one copy was *inert* — a
   roll-up count wearing a control's clothes. Same glyph, same band, one
   pressable and one not, is the banned shape.
-- **The scopes sit in different bands.** App bar vs. card rail reads as
-  workout vs. movement because the bands already mean that. Two of the same
-  glyph inside ONE band is a duplicate, not a scope.
+- **The scopes sit in different bands.** Two of the same glyph inside ONE band
+  is a duplicate, not a scope.
+
+The bands, outermost in:
+
+| Band | Owns | Note scope today |
+|---|---|---|
+| **App bar** | the session | the workout note |
+| **Card rail** | one exercise | the exercise note |
+| **Row** | one set | (the dot — a mark, not a control) |
+| **Overlay** | whatever opened it | the set note, via the row menu |
+
+An overlay is always a band of its own: it is summoned, it names its subject,
+and it cannot be mistaken for the surface underneath. So the third pen — the
+set-row menu's — is in the clear by construction, and an overlay never needs
+this test run against it. The rule bites between the three *standing* bands,
+where two glyphs can be on screen at once.
 
 Assistive tech gets the scope from the name, so the labels must differ and
 must lead with the action ("Add workout note" vs. "Add note for Squat, 1
