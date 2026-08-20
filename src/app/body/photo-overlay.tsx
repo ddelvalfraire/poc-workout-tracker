@@ -10,6 +10,7 @@ import { thumbHashToPlaceholderUrl } from '@/lib/photo-pipeline'
 import { photoPoseLabel } from '@/lib/photo-input'
 import type { PhotoEntry } from './photo-cell'
 import { useTranslations } from 'next-intl'
+import { renderMessage } from '@/lib/message'
 
 interface PhotoOverlayProps {
   entry: PhotoEntry
@@ -26,6 +27,7 @@ interface PhotoOverlayProps {
  */
 export function PhotoOverlay({ entry, onClose }: PhotoOverlayProps) {
   const t = useTranslations('PhotoOverlay')
+  const tBody = useTranslations('Body')
   const dialogRef = useRef<HTMLDialogElement>(null)
   const [isConfirmOpen, setIsConfirmOpen] = useState(false)
   const [isPending, setIsPending] = useState(false)
@@ -92,7 +94,7 @@ export function PhotoOverlay({ entry, onClose }: PhotoOverlayProps) {
             src={imageUrl}
             alt={t('alt', {
               date: entry.dateLabel,
-              pose: entry.pose === null ? 'none' : photoPoseLabel(entry.pose),
+              pose: entry.pose === null ? 'none' : renderMessage(tBody, photoPoseLabel(entry.pose)),
             })}
             width={810}
             height={1080}
@@ -115,7 +117,7 @@ export function PhotoOverlay({ entry, onClose }: PhotoOverlayProps) {
             {entry.dateLabel}
             {entry.pose && (
               <span className="text-muted-foreground">
-                {t('poseSuffix', { pose: photoPoseLabel(entry.pose) })}
+                {t('poseSuffix', { pose: renderMessage(tBody, photoPoseLabel(entry.pose)) })}
               </span>
             )}
           </p>

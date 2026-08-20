@@ -6,6 +6,7 @@ import { photoPoseLabel } from '@/lib/photo-input'
 import { cn } from '@/lib/utils'
 import type { PhotoEntry } from './photo-cell'
 import { useTranslations } from 'next-intl'
+import { renderMessage } from '@/lib/message'
 
 const SLIDER_STEP_PERCENT = 5
 
@@ -14,10 +15,14 @@ const SLIDER_STEP_PERCENT = 5
  *  ReturnType<typeof useTranslations> asks TypeScript to instantiate every
  *  namespace in the catalog, which exceeds the depth limit now that the
  *  catalog is app-wide. */
-function altFor(t: ReturnType<typeof useTranslations<'PhotoCompare'>>, entry: PhotoEntry): string {
+function altFor(
+  t: ReturnType<typeof useTranslations<'PhotoCompare'>>,
+  tBody: ReturnType<typeof useTranslations<'Body'>>,
+  entry: PhotoEntry,
+): string {
   return t('alt', {
     date: entry.dateLabel,
-    pose: entry.pose === null ? 'none' : photoPoseLabel(entry.pose),
+    pose: entry.pose === null ? 'none' : renderMessage(tBody, photoPoseLabel(entry.pose)),
   })
 }
 
@@ -87,6 +92,7 @@ export function PhotoCompare({ left, right }: { left: PhotoEntry; right: PhotoEn
  */
 function OverlaySlider({ left, right }: { left: PhotoEntry; right: PhotoEntry }) {
   const t = useTranslations('PhotoCompare')
+  const tBody = useTranslations('Body')
   const [percent, setPercent] = useState(50)
   const frameRef = useRef<HTMLDivElement>(null)
   const isDraggingRef = useRef(false)
@@ -167,7 +173,7 @@ function OverlaySlider({ left, right }: { left: PhotoEntry; right: PhotoEntry })
       <figcaption className="mt-1 text-center text-xs font-medium text-muted-foreground">
         {t('captionPair', { left: left.dateLabel, right: right.dateLabel })}
         {left.pose && left.pose === right.pose && (
-          <span className="opacity-75">{t('poseSuffix', { pose: photoPoseLabel(left.pose) })}</span>
+          <span className="opacity-75">{t('poseSuffix', { pose: renderMessage(tBody, photoPoseLabel(left.pose)) })}</span>
         )}
       </figcaption>
     </figure>
@@ -176,6 +182,7 @@ function OverlaySlider({ left, right }: { left: PhotoEntry; right: PhotoEntry })
 
 function SliderImage({ entry }: { entry: PhotoEntry }) {
   const t = useTranslations('PhotoCompare')
+  const tBody = useTranslations('Body')
   const placeholder = useMemo(() => thumbHashToPlaceholderUrl(entry.thumbHash), [entry.thumbHash])
   const imageUrl = entry.displayUrl ?? entry.thumbUrl
   return (
@@ -191,7 +198,7 @@ function SliderImage({ entry }: { entry: PhotoEntry }) {
         // eslint-disable-next-line @next/next/no-img-element -- signed expiring URL; the optimizer would cache-bust every render
         <img
           src={imageUrl}
-          alt={altFor(t, entry)}
+          alt={altFor(t, tBody, entry)}
           width={540}
           height={720}
           draggable={false}
@@ -204,6 +211,7 @@ function SliderImage({ entry }: { entry: PhotoEntry }) {
 
 function ComparePane({ entry }: { entry: PhotoEntry }) {
   const t = useTranslations('PhotoCompare')
+  const tBody = useTranslations('Body')
   const placeholder = useMemo(() => thumbHashToPlaceholderUrl(entry.thumbHash), [entry.thumbHash])
   const imageUrl = entry.displayUrl ?? entry.thumbUrl
 
@@ -221,7 +229,7 @@ function ComparePane({ entry }: { entry: PhotoEntry }) {
           // eslint-disable-next-line @next/next/no-img-element -- signed expiring URL; the optimizer would cache-bust every render
           <img
             src={imageUrl}
-            alt={altFor(t, entry)}
+            alt={altFor(t, tBody, entry)}
             width={540}
             height={720}
             className="absolute inset-0 h-full w-full object-cover"
@@ -231,7 +239,7 @@ function ComparePane({ entry }: { entry: PhotoEntry }) {
       <figcaption className="mt-1 text-center text-xs font-medium text-muted-foreground">
         {entry.dateLabel}
         {entry.pose && (
-          <span className="opacity-75">{t('poseSuffix', { pose: photoPoseLabel(entry.pose) })}</span>
+          <span className="opacity-75">{t('poseSuffix', { pose: renderMessage(tBody, photoPoseLabel(entry.pose)) })}</span>
         )}
       </figcaption>
     </figure>

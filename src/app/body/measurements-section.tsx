@@ -16,7 +16,8 @@ import {
 } from '@/lib/measurement-sites'
 import { cn } from '@/lib/utils'
 import { MeasurementEntryRow } from './measurement-entry-row'
-import { useTranslations } from 'next-intl'
+import { useLocale, useTranslations } from 'next-intl'
+import { renderMessage } from '@/lib/message'
 
 // The site delta's window — tape moves slowly; 90 days is a real change.
 const DELTA_DAYS = 90
@@ -52,6 +53,11 @@ export function MeasurementsSection({
   entries: MeasurementEntry[]
 }) {
   const t = useTranslations('MeasurementsSection')
+  // Site names are one shared vocabulary in the `Body` namespace: the
+  // value is a db enum, so the picker and the history heading must never
+  // be free to word it differently.
+  const tBody = useTranslations('Body')
+  const locale = useLocale()
   const [site, setSite] = useState<MeasurementSite>(entries[0]?.site ?? 'waist')
   const [value, setValue] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -69,7 +75,11 @@ export function MeasurementsSection({
   const trendPoints = [...siteEntries]
     .reverse()
     .map((entry) => ({ label: entry.dateLabel, value: entry.value }))
-  const siteLabel = measurementSiteLabel(site)
+  const siteLabel = renderMessage(tBody, measurementSiteLabel(site))
+  // Mid-sentence, English wants the site lowercased. `toLocaleLowerCase`
+  // at least casts the fold in the reader's locale; a language that
+  // capitalises nouns will need its own inline key rather than this.
+  const siteLabelInline = siteLabel.toLocaleLowerCase(locale)
   const latest = siteEntries[0] ?? null
   const delta =
     nowMs === null
@@ -126,7 +136,7 @@ export function MeasurementsSection({
                 : 'border-border bg-card text-muted-foreground hover:text-foreground',
             )}
           >
-            {measurementSiteLabel(s)}
+            {renderMessage(tBody, measurementSiteLabel(s))}
           </button>
         ))}
       </div>
@@ -210,7 +220,7 @@ export function MeasurementsSection({
           {siteEntries.length > HISTORY_VISIBLE_ROWS && (
             <details className="group mt-2">
               <summary className="flex cursor-pointer list-none items-center gap-1 px-1 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground [&::-webkit-details-marker]:hidden">
-                {t('showAll', { site: siteLabel.toLowerCase(), count: siteEntries.length })}
+                {t('showAll', { site: siteLabelInline, count: siteEntries.length })}
                 <ChevronRight
                   aria-hidden="true"
                   className="size-3.5 transition-transform group-open:rotate-90"

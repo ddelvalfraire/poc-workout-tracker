@@ -15,7 +15,8 @@ import type { ExerciseSource } from '@/lib/custom-exercise-input'
 import { Ghost } from '@/components/ghost'
 import { useAnimatedSheetClose } from '@/components/use-animated-sheet-close'
 import { cn } from '@/lib/utils'
-import { useTranslations } from 'next-intl'
+import { useLocale, useTranslations } from 'next-intl'
+import { renderMessage } from '@/lib/message'
 
 /**
  * Bottom sheet for an exercise's all-time story mid-session: records, the
@@ -41,6 +42,8 @@ interface StatsSheetProps {
 
 export function StatsSheet({ wgerExerciseId, source, name, unit, onClose }: StatsSheetProps) {
   const t = useTranslations('StatsSheet')
+  const tFormat = useTranslations('Format')
+  const locale = useLocale()
   const dialogRef = useRef<HTMLDialogElement>(null)
   const closeButtonRef = useRef<HTMLButtonElement>(null)
   const requestClose = useAnimatedSheetClose(dialogRef, onClose)
@@ -199,7 +202,7 @@ export function StatsSheet({ wgerExerciseId, source, name, unit, onClose }: Stat
                   weight: kgToDisplay(records.bestE1rm.weightKg, unit),
                   unit,
                   reps: records.bestE1rm.reps,
-                  date: formatWorkoutDate(records.bestE1rm.performedAt),
+                  date: formatWorkoutDate(records.bestE1rm.performedAt, locale),
                 })}
               </p>
             </div>
@@ -245,7 +248,7 @@ export function StatsSheet({ wgerExerciseId, source, name, unit, onClose }: Stat
                     {t('topVolumeLabel')}
                   </dt>
                   <dd className="mt-0.5 text-sm font-semibold tnum">
-                    {formatVolume(records.bestSessionVolumeKg.volumeKg, unit)}
+                    {formatVolume(records.bestSessionVolumeKg.volumeKg, unit, locale)}
                   </dd>
                 </div>
               )}
@@ -272,7 +275,7 @@ export function StatsSheet({ wgerExerciseId, source, name, unit, onClose }: Stat
                       className="flex items-baseline gap-3 text-sm"
                     >
                       <span className="w-24 shrink-0 text-xs text-muted-foreground">
-                        {formatWorkoutDate(session.performedAt)}
+                        {formatWorkoutDate(session.performedAt, locale)}
                       </span>
                       <span className="min-w-0 tnum">
                         {shown.length === 0
@@ -283,7 +286,10 @@ export function StatsSheet({ wgerExerciseId, source, name, unit, onClose }: Stat
                                 <span
                                   className={cn(index === best?.index && 'font-semibold')}
                                 >
-                                  {formatLoggedSet(set, unit, data.stats.exercise.loggingType)}
+                                  {renderMessage(
+                                    tFormat,
+                                    formatLoggedSet(set, unit, data.stats.exercise.loggingType, locale),
+                                  )}
                                 </span>
                               </span>
                             ))}

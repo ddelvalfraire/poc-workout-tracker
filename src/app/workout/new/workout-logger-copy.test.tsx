@@ -69,12 +69,12 @@ function renderLogger(props: Partial<Parameters<typeof WorkoutLogger>[0]> = {}):
   )
 }
 
-function Probe({ render }: { render: (t: ReturnType<typeof useTranslations>) => ReactNode }) {
+function Probe({ render }: { render: (t: ReturnType<typeof useTranslations<'WorkoutLogger'>>) => ReactNode }) {
   const t = useTranslations('WorkoutLogger')
   return <>{render(t)}</>
 }
 
-const message = (render: (t: ReturnType<typeof useTranslations>) => ReactNode) =>
+const message = (render: (t: ReturnType<typeof useTranslations<'WorkoutLogger'>>) => ReactNode) =>
   renderStaticIntl(<Probe render={render} />)
 
 describe('WorkoutLogger copy resolves through the catalog', () => {

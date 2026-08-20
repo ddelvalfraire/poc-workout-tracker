@@ -8,7 +8,8 @@ import { DividerList } from '@/components/ui/divider-list'
 import { GuardedStartLink } from '@/components/guarded-start-link'
 import type { SessionSummary } from '@/components/session-conflict-dialog'
 import { rowEmphasisPct } from './history/history-view'
-import { useTranslations } from 'next-intl'
+import { useLocale, useTranslations } from 'next-intl'
+import { renderMessage } from '@/lib/message'
 import { cn } from '@/lib/utils'
 
 // en-US matches formatWorkoutDate — one locale for all date display.
@@ -41,6 +42,8 @@ export function HistoryList({
   maxVolumeKg?: number
 }) {
   const t = useTranslations('HistoryList')
+  const tFormat = useTranslations('Format')
+  const locale = useLocale()
   return (
     <DividerList>
       {workouts.map((w) => (
@@ -67,9 +70,9 @@ export function HistoryList({
               <span className="block truncate font-medium">{w.name ?? t('untitledWorkout')}</span>
               <span className="mt-0.5 block truncate text-sm text-muted-foreground tnum">
                 {[
-                  formatWorkoutDuration(w.startedAt, w.completedAt),
+                  renderMessage(tFormat, formatWorkoutDuration(w.startedAt, w.completedAt)),
                   t('setCount', { count: w.setCount }),
-                  w.volumeKg > 0 ? formatVolume(w.volumeKg, unit) : null,
+                  w.volumeKg > 0 ? formatVolume(w.volumeKg, unit, locale) : null,
                 ]
                   .filter(Boolean)
                   .join(' · ')}

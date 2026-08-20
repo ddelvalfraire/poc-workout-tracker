@@ -1,21 +1,29 @@
 /**
  * Pure view logic for the programs list — kept free of JSX so it unit-tests
- * as plain functions (repo convention for pure modules).
+ * as plain functions (repo convention for pure modules). Copy is returned as
+ * message DESCRIPTORS (I18N-KEYS §9): the decision is made here, the words
+ * live in the catalog, and the tests below assert the branch rather than an
+ * English sentence.
  */
 
-/** Raw status strings as the user reads them — never render the db value. */
-const STATUS_LABELS: Record<string, string> = {
-  active: 'Active',
-  proposed: 'Proposed',
-  draft: 'Draft',
-  archived: 'Archived',
-}
+import type { Message } from '@/lib/message'
 
-/** A program's status label; unknown values title-case rather than leak raw. */
-export function programStatusLabel(status: string): string {
-  const known = STATUS_LABELS[status]
-  if (known) return known
-  return status.length > 0 ? status[0].toUpperCase() + status.slice(1) : status
+/** The statuses the catalog has words for. Anything else is a value the
+ *  schema grew without the UI noticing. */
+const KNOWN_STATUSES = ['active', 'proposed', 'draft', 'archived'] as const
+
+export type ProgramStatusKey = `status.${(typeof KNOWN_STATUSES)[number]}`
+
+/**
+ * A program's status label, or null when no copy exists for the value — the
+ * caller then renders the raw status rather than a blank. Title-casing an
+ * unknown db value was only ever an English affordance, and dressing up a
+ * string nobody wrote copy for hides the gap instead of showing it.
+ */
+export function programStatusLabel(status: string): Message<ProgramStatusKey> | null {
+  return (KNOWN_STATUSES as readonly string[]).includes(status)
+    ? { key: `status.${status}` as ProgramStatusKey }
+    : null
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000
@@ -29,17 +37,20 @@ const DAY_MS = 24 * 60 * 60 * 1000
  * A future-dated or same-day timestamp reads "proposed today" (clock skew
  * must not produce "in -1 days").
  */
-export function proposalAgeLine(createdAt: Date, now: Date): string {
+export type ProposalAgeKey =
+  | 'proposalAge.today'
+  | 'proposalAge.yesterday'
+  | 'proposalAge.days'
+  | 'proposalAge.weeks'
+  | 'proposalAge.months'
+
+export function proposalAgeLine(createdAt: Date, now: Date): Message<ProposalAgeKey> {
   const days = Math.floor((now.getTime() - createdAt.getTime()) / DAY_MS)
-  if (days <= 0) return 'proposed today'
-  if (days === 1) return 'proposed yesterday'
-  if (days < 7) return `proposed ${days} days ago`
-  if (days < 30) {
-    const weeks = Math.floor(days / 7)
-    return `proposed ${weeks} week${weeks === 1 ? '' : 's'} ago`
-  }
-  const months = Math.floor(days / 30)
-  return `proposed ${months} month${months === 1 ? '' : 's'} ago`
+  if (days <= 0) return { key: 'proposalAge.today' }
+  if (days === 1) return { key: 'proposalAge.yesterday' }
+  if (days < 7) return { key: 'proposalAge.days', values: { days } }
+  if (days < 30) return { key: 'proposalAge.weeks', values: { weeks: Math.floor(days / 7) } }
+  return { key: 'proposalAge.months', values: { months: Math.floor(days / 30) } }
 }
 
 /** The list's zones, in render order. `hero` is the one program that gets the

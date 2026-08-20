@@ -34,6 +34,8 @@ import {
   sessionSummary,
 } from './detail-view'
 import { getTranslations } from 'next-intl/server'
+import { renderMessage } from '@/lib/message'
+import { resolveLocale } from '@/i18n/request'
 
 /** Sessions per history page. length === HISTORY_PAGE drives the "Older" link —
  *  at an exact multiple that shows one empty final page; accepted POC trade-off
@@ -54,6 +56,8 @@ export default async function ExerciseStatsPage({
   searchParams: Promise<{ page?: string | string[]; from?: string | string[] }>
 }) {
   const t = await getTranslations('ExerciseStats')
+  const tFormat = await getTranslations('Format')
+  const locale = await resolveLocale()
   const userId = await requireUserId()
   const [{ source, id }, { page: rawPage, from: rawFrom }] = await Promise.all([
     params,
@@ -253,7 +257,7 @@ export default async function ExerciseStatsPage({
                         ? t('records.highRepEstimate')
                         : null,
                       `${kgToDisplay(records.bestE1rm.weightKg, unit)} ${unit} × ${records.bestE1rm.reps}`,
-                      formatWorkoutDate(records.bestE1rm.performedAt),
+                      formatWorkoutDate(records.bestE1rm.performedAt, locale),
                       standing(records.bestE1rm.performedAt),
                     )}
                   </dd>
@@ -266,7 +270,7 @@ export default async function ExerciseStatsPage({
                   unit={unit}
                   caption={caption(
                     `×${records.heaviestLoadKg.reps}`,
-                    formatWorkoutDate(records.heaviestLoadKg.performedAt),
+                    formatWorkoutDate(records.heaviestLoadKg.performedAt, locale),
                     standing(records.heaviestLoadKg.performedAt),
                   )}
                 />
@@ -276,7 +280,7 @@ export default async function ExerciseStatsPage({
                   label={t('records.mostRepsLabel')}
                   value={String(records.mostReps.reps)}
                   caption={caption(
-                    formatWorkoutDate(records.mostReps.performedAt),
+                    formatWorkoutDate(records.mostReps.performedAt, locale),
                     standing(records.mostReps.performedAt),
                   )}
                 />
@@ -287,7 +291,7 @@ export default async function ExerciseStatsPage({
                   value={bestSessionVolume ?? ''}
                   unit={unit}
                   caption={caption(
-                    formatWorkoutDate(records.bestSessionVolumeKg.performedAt),
+                    formatWorkoutDate(records.bestSessionVolumeKg.performedAt, locale),
                     standing(records.bestSessionVolumeKg.performedAt),
                   )}
                 />
@@ -305,7 +309,7 @@ export default async function ExerciseStatsPage({
                   </dd>
                   <dd className="mt-1 text-xs text-muted-foreground tnum">
                     {caption(
-                      formatWorkoutDate(longestDuration.performedAt),
+                      formatWorkoutDate(longestDuration.performedAt, locale),
                       standing(longestDuration.performedAt),
                     )}
                   </dd>
@@ -316,7 +320,7 @@ export default async function ExerciseStatsPage({
                   label={t('records.longestDurationLabel')}
                   value={formatDurationInput(longestDuration.durationSec)}
                   caption={caption(
-                    formatWorkoutDate(longestDuration.performedAt),
+                    formatWorkoutDate(longestDuration.performedAt, locale),
                     standing(longestDuration.performedAt),
                   )}
                 />
@@ -327,7 +331,7 @@ export default async function ExerciseStatsPage({
                   value={formatDistanceInput(longestDistance.distanceM)}
                   unit={t('records.distanceUnit')}
                   caption={caption(
-                    formatWorkoutDate(longestDistance.performedAt),
+                    formatWorkoutDate(longestDistance.performedAt, locale),
                     standing(longestDistance.performedAt),
                   )}
                 />
@@ -338,7 +342,7 @@ export default async function ExerciseStatsPage({
                   value={formatDurationInput(Math.round(bestPace.secPerKm))}
                   unit={t('records.paceUnit')}
                   caption={caption(
-                    formatWorkoutDate(bestPace.performedAt),
+                    formatWorkoutDate(bestPace.performedAt, locale),
                     standing(bestPace.performedAt),
                   )}
                 />
@@ -371,7 +375,7 @@ export default async function ExerciseStatsPage({
                 valueLabel={t('trend.valueLabel')}
                 ariaLabel={t('trend.chartAriaLabel', {
                   sessions: trend.length,
-                  current: formatE1RM(trend[trend.length - 1].e1rm, unit),
+                  current: formatE1RM(trend[trend.length - 1].e1rm, unit, locale),
                 })}
                 {...(goalTargetKg !== null
                   ? {
@@ -418,7 +422,7 @@ export default async function ExerciseStatsPage({
                     >
                       <div className="flex items-baseline gap-3">
                         <span className="shrink-0 text-sm font-semibold">
-                          {formatWorkoutDate(session.performedAt)}
+                          {formatWorkoutDate(session.performedAt, locale)}
                         </span>
                         <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
                           {session.workoutName}
@@ -439,7 +443,7 @@ export default async function ExerciseStatsPage({
                               </>
                             )}
                             {t('history.e1rmChip', {
-                              value: formatE1RM(best.e1rmKg, unit),
+                              value: formatE1RM(best.e1rmKg, unit, locale),
                             })}
                           </span>
                         )}
@@ -447,7 +451,10 @@ export default async function ExerciseStatsPage({
                       <p className="mt-1 flex items-baseline gap-2 text-sm tnum">
                         {bestSet !== null && (
                           <span className="min-w-0 truncate">
-                            {formatLoggedSet(bestSet, unit, stats.exercise.loggingType)}
+                            {renderMessage(
+                              tFormat,
+                              formatLoggedSet(bestSet, unit, stats.exercise.loggingType, locale),
+                            )}
                           </span>
                         )}
                         <span className="shrink-0 text-xs text-muted-foreground">

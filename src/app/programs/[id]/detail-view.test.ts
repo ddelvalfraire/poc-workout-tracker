@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import type { AutoregAdjustment } from '@/lib/autoregulate'
+import { renderMessageIn } from '../../../../vitest.intl'
 import {
   programStatusLine,
   parseExpandParam,
@@ -11,10 +12,11 @@ import {
   proposedTrainingMaxKg,
   groupEventsByDay,
   progressionLine,
+  type StatusLineInput,
 } from './detail-view'
 
 describe('programStatusLine', () => {
-  const base = {
+  const base: StatusLineInput = {
     currentWeek: 3,
     mesocycleWeeks: 7,
     deloadWeek: null,
@@ -22,40 +24,80 @@ describe('programStatusLine', () => {
     dayCountTotal: 4,
     blockComplete: false,
   }
+  const line = (over: Partial<StatusLineInput> = {}) =>
+    renderMessageIn('ProgramDetail', programStatusLine({ ...base, ...over }))
 
-  it('digests week position and remaining days', () => {
-    expect(programStatusLine(base)).toBe('Week 3 of 7 · 2 days to go.')
+  it('picks the remaining-days key and carries the count', () => {
+    expect(programStatusLine(base)).toEqual({
+      key: 'statusLine.weekRemaining',
+      values: { week: 3, total: 7, deload: 'no', deloadNext: 'no', remaining: 2 },
+    })
   })
 
+  it('picks a distinct key for a fully trained week and for a dayless program', () => {
+    expect(programStatusLine({ ...base, daysDoneThisWeek: 4 }).key).toBe('statusLine.weekTrained')
+    expect(programStatusLine({ ...base, dayCountTotal: 0, daysDoneThisWeek: 0 }).key).toBe(
+      'statusLine.week',
+    )
+    expect(programStatusLine({ ...base, blockComplete: true })).toEqual({
+      key: 'statusLine.complete',
+    })
+  })
+
+  it('flags this week and next week as the deload independently', () => {
+    expect(programStatusLine({ ...base, deloadWeek: 3 }).values).toMatchObject({
+      deload: 'yes',
+      deloadNext: 'no',
+    })
+    expect(programStatusLine({ ...base, deloadWeek: 4 }).values).toMatchObject({
+      deload: 'no',
+      deloadNext: 'yes',
+    })
+  })
+
+  it('digests week position and remaining days', () => {
+    expect(line()).toBe('Week 3 of 7 · 2 days to go.')
+  })
+
+  // The day count asserted at ONE and at MANY separately — the old line built
+  // its own `day/days` and would have read "1 days" from a single branch.
   it('singularizes one remaining day', () => {
-    expect(programStatusLine({ ...base, daysDoneThisWeek: 3 })).toBe('Week 3 of 7 · 1 day to go.')
+    expect(line({ daysDoneThisWeek: 3 })).toBe('Week 3 of 7 · 1 day to go.')
   })
 
   it('reads "week trained" when every day is done (and never goes negative)', () => {
-    expect(programStatusLine({ ...base, daysDoneThisWeek: 4 })).toBe('Week 3 of 7 · week trained.')
-    expect(programStatusLine({ ...base, daysDoneThisWeek: 9 })).toBe('Week 3 of 7 · week trained.')
+    expect(line({ daysDoneThisWeek: 4 })).toBe('Week 3 of 7 · week trained.')
+    expect(line({ daysDoneThisWeek: 9 })).toBe('Week 3 of 7 · week trained.')
   })
 
   it('announces a deload landing next week', () => {
-    expect(programStatusLine({ ...base, deloadWeek: 4 })).toBe(
-      'Week 3 of 7 · 2 days to go · deload next week.',
-    )
+    expect(line({ deloadWeek: 4 })).toBe('Week 3 of 7 · 2 days to go · deload next week.')
   })
 
   it('names the current week as the deload when it is one', () => {
-    expect(programStatusLine({ ...base, deloadWeek: 3 })).toBe(
-      'Week 3 of 7 · deload week · 2 days to go.',
-    )
+    expect(line({ deloadWeek: 3 })).toBe('Week 3 of 7 · deload week · 2 days to go.')
   })
 
   it('collapses to the completion sentence when the block is complete', () => {
-    expect(programStatusLine({ ...base, blockComplete: true })).toBe('Block complete.')
+    expect(line({ blockComplete: true })).toBe('Block complete.')
   })
 
   it('omits the day count for a dayless program', () => {
-    expect(programStatusLine({ ...base, dayCountTotal: 0, daysDoneThisWeek: 0 })).toBe(
-      'Week 3 of 7.',
-    )
+    expect(line({ dayCountTotal: 0, daysDoneThisWeek: 0 })).toBe('Week 3 of 7.')
+  })
+
+  it('leaves no unresolved key path in any branch', () => {
+    for (const over of [
+      {},
+      { daysDoneThisWeek: 3 },
+      { daysDoneThisWeek: 4 },
+      { deloadWeek: 3 },
+      { deloadWeek: 4 },
+      { blockComplete: true },
+      { dayCountTotal: 0, daysDoneThisWeek: 0 },
+    ]) {
+      expect(line(over)).not.toMatch(/ProgramDetail\.[a-zA-Z.]+/)
+    }
   })
 })
 

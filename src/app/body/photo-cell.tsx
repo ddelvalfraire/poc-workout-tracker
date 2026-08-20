@@ -5,6 +5,7 @@ import { thumbHashToPlaceholderUrl } from '@/lib/photo-pipeline'
 import { photoPoseLabel, type PhotoPose } from '@/lib/photo-input'
 import { cn } from '@/lib/utils'
 import { useTranslations } from 'next-intl'
+import { renderMessage } from '@/lib/message'
 
 /** One photo crossing the island boundary — dates pre-formatted server-side,
  *  URLs pre-signed at render (null when signing failed → placeholder only). */
@@ -38,6 +39,7 @@ interface PhotoCellProps {
  */
 export function PhotoCell({ entry, onSelect, isSelected, isCompareMode }: PhotoCellProps) {
   const t = useTranslations('PhotoCell')
+  const tBody = useTranslations('Body')
   const placeholder = useMemo(() => thumbHashToPlaceholderUrl(entry.thumbHash), [entry.thumbHash])
 
   return (
@@ -65,7 +67,7 @@ export function PhotoCell({ entry, onSelect, isSelected, isCompareMode }: PhotoC
           src={entry.thumbUrl}
           alt={t('alt', {
             date: entry.dateLabel,
-            pose: entry.pose === null ? 'none' : photoPoseLabel(entry.pose),
+            pose: entry.pose === null ? 'none' : renderMessage(tBody, photoPoseLabel(entry.pose)),
           })}
           loading="lazy"
           width={320}
@@ -76,7 +78,7 @@ export function PhotoCell({ entry, onSelect, isSelected, isCompareMode }: PhotoC
       <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/55 to-transparent px-1.5 pb-1 pt-4 text-left text-[10px] font-medium leading-tight text-white">
         {entry.dateLabel}
         {entry.pose && (
-          <span className="opacity-75">{t('poseSuffix', { pose: photoPoseLabel(entry.pose) })}</span>
+          <span className="opacity-75">{t('poseSuffix', { pose: renderMessage(tBody, photoPoseLabel(entry.pose)) })}</span>
         )}
       </span>
     </button>

@@ -1,6 +1,6 @@
 import type { ExerciseAllTimeStats } from '@/db/exercise-stats'
 import type { TrophyRow } from '@/db/trophies'
-import { formatWorkoutDuration } from '@/lib/format'
+import { workoutDurationMinutes } from '@/lib/format'
 import { trophyContextLine, trophyLabel } from '@/lib/trophies'
 import { TROPHY_KINDS, type TrophyKind } from '@/lib/trophy-kinds'
 import { kgToDisplay, type WeightUnit } from '@/lib/units'
@@ -84,7 +84,19 @@ export function workoutCardData(
     0,
   )
   const setsText = `${totalSets} ${totalSets === 1 ? 'set' : 'sets'}`
-  const duration = formatWorkoutDuration(workout.startedAt, workout.completedAt)
+  // The share card's copy is still hand-written English (see `setsText`
+  // and `trophyLabel` above) and renders into an image, not into a
+  // translated tree — so it composes from the comparable minutes rather
+  // than rendering lib/format's duration DESCRIPTOR, which would need a
+  // translator this pure mapper deliberately does not take. Migrating
+  // this module's copy is its own change.
+  const totalMin = workoutDurationMinutes(workout.startedAt, workout.completedAt)
+  const duration =
+    totalMin === null
+      ? null
+      : totalMin >= 60
+        ? `${Math.floor(totalMin / 60)} h ${totalMin % 60} min`
+        : `${totalMin} min`
   const date = formatCardMonthYear(workout.startedAt)
   const hasVolume = volumeKg > 0
   const context = [hasVolume ? setsText : null, duration, date]

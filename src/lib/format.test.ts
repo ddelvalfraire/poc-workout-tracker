@@ -1,20 +1,43 @@
 import { describe, it, expect } from 'vitest'
+import { renderMessageIn } from '../../vitest.intl'
 import {
   formatWorkoutDate,
-  formatSet,
+  formatSet as setMessage,
   formatE1RM,
-  formatLoggedSet,
+  formatLoggedSet as loggedSetMessage,
   formatVolume,
-  formatWorkoutDuration,
+  formatVolumeParts,
+  formatWorkoutDuration as durationMessage,
   formatElapsed,
   placeholderForSet,
   planPlaceholderForSet,
   adoptableGhostValue,
   planSetGhost,
   previousChipLabel,
-  completedSetsSummary,
+  completedSetsSummary as summaryMessage,
   stepWeightValue,
 } from './format'
+
+/**
+ * Four of these formatters now return message DESCRIPTORS rather than
+ * sentences (I18N-KEYS §9): the words "reps", "BW", "set", "min" and "top"
+ * are the catalog's, only the numbers are the formatter's. The existing
+ * expectations below are kept verbatim, rendered through the REAL en.json —
+ * that is the proof the copy only moved and did not change. The descriptor
+ * DECISIONS get their own block at the end of the file.
+ */
+const render = (message: Parameters<typeof renderMessageIn>[1]) =>
+  renderMessageIn('Format', message)
+
+const formatSet = (...args: Parameters<typeof setMessage>) => render(setMessage(...args))
+const formatLoggedSet = (...args: Parameters<typeof loggedSetMessage>) =>
+  render(loggedSetMessage(...args))
+const completedSetsSummary = (...args: Parameters<typeof summaryMessage>) =>
+  render(summaryMessage(...args))
+const formatWorkoutDuration = (...args: Parameters<typeof durationMessage>) => {
+  const message = durationMessage(...args)
+  return message === null ? null : render(message)
+}
 
 describe('formatSet', () => {
   it('formats reps and weight together', () => {
@@ -481,5 +504,132 @@ describe('cardio ghosts and Prev (slice 1)', () => {
     expect(previousChipLabel({ duration: '12:30', distance: '2.5' })).toBe('12:30')
     // No cardio history → the standing rules are untouched.
     expect(previousChipLabel({ reps: '8', weight: '60' })).toBe('60×8')
+  })
+})
+
+describe('format descriptors (the DECISION, not the sentence)', () => {
+  it('names the branch and hands the Intl-formatted weight to the catalog', () => {
+    expect(setMessage(5, 100)).toEqual({ key: 'set', values: { reps: 5, weight: '100 kg' } })
+    expect(setMessage(5, null)).toEqual({ key: 'setReps', values: { reps: 5 } })
+    expect(setMessage(null, 100, 'lb')).toEqual({ key: 'setWeight', values: { weight: '220.5 lb' } })
+    expect(setMessage(null, null)).toEqual({ key: 'empty' })
+  })
+
+  it('selects the bodyweight arm instead of splicing "BW" into a string', () => {
+    expect(setMessage(12, null, 'kg', 'bodyweight_reps')).toEqual({
+      key: 'setBodyweightReps',
+      values: { kind: 'plain', load: 0, reps: 12 },
+    })
+    expect(setMessage(8, 25, 'kg', 'weighted_bodyweight')).toEqual({
+      key: 'setBodyweightReps',
+      values: { kind: 'added', load: 25, reps: 8 },
+    })
+    expect(setMessage(6, 20, 'kg', 'assisted_bodyweight')).toEqual({
+      key: 'setBodyweightReps',
+      values: { kind: 'assisted', load: 20, reps: 6 },
+    })
+  })
+
+  it('splits the duration into hours and minutes for the catalog to word', () => {
+    const start = new Date('2026-06-14T10:00:00Z')
+    expect(durationMessage(start, new Date('2026-06-14T10:42:00Z'))).toEqual({
+      key: 'duration',
+      values: { minutes: 42 },
+    })
+    expect(durationMessage(start, new Date('2026-06-14T11:05:00Z'))).toEqual({
+      key: 'durationHours',
+      values: { hours: 1, minutes: 5 },
+    })
+  })
+
+  it('carries the top-set shape as arguments, not as pre-built copy', () => {
+    expect(summaryMessage([{ reps: '8', weight: '100' }], 'weight_reps')).toEqual({
+      key: 'summaryTop',
+      values: { count: 1, kind: 'plain', load: 100, reps: '8' },
+    })
+    expect(summaryMessage([{ reps: '', weight: '' }], 'weight_reps')).toEqual({
+      key: 'summary',
+      values: { count: 1 },
+    })
+  })
+
+  // Every plural at BOTH one and many — separately, because a single-branch
+  // plural reads fine at one value and wrong at every other.
+  it('agrees the set count at one and at many', () => {
+    expect(completedSetsSummary([{ reps: '', weight: '' }], 'weight_reps')).toBe('1 set')
+    expect(
+      completedSetsSummary(
+        [
+          { reps: '', weight: '' },
+          { reps: '', weight: '' },
+        ],
+        'weight_reps',
+      ),
+    ).toBe('2 sets')
+  })
+
+  it('agrees the rep count at one and at many (it used to read "1 reps")', () => {
+    expect(formatSet(1, null)).toBe('1 rep')
+    expect(formatSet(5, null)).toBe('5 reps')
+  })
+
+  it('leaves no unresolved key path in any set shape', () => {
+    for (const message of [
+      setMessage(5, 100),
+      setMessage(5, null),
+      setMessage(null, 100),
+      setMessage(null, null),
+      setMessage(8, 25, 'kg', 'weighted_bodyweight'),
+      loggedSetMessage({
+        reps: null,
+        weight: null,
+        metricMode: 'duration_distance',
+        durationSec: 750,
+        distanceM: 2500,
+      }),
+      summaryMessage([{ reps: '8', weight: '100' }], 'assisted_bodyweight'),
+    ]) {
+      expect(render(message)).not.toMatch(/Format\.[a-zA-Z.]+/)
+    }
+  })
+})
+
+describe('Intl, not hand-assembly', () => {
+  const date = new Date('2026-06-14T12:00:00Z')
+
+  it('formats the workout date with Intl.DateTimeFormat for the resolved locale', () => {
+    expect(formatWorkoutDate(date, 'en')).toBe(
+      new Intl.DateTimeFormat('en', { dateStyle: 'medium' }).format(date),
+    )
+  })
+
+  it('defaults to the app locale rather than a hardcoded en-US', () => {
+    expect(formatWorkoutDate(date)).toBe(formatWorkoutDate(date, 'en'))
+  })
+
+  it('formats volume and e1RM through Intl unit style, grouping only the total', () => {
+    expect(formatVolume(5200.4, 'kg', 'en')).toBe(
+      new Intl.NumberFormat('en', {
+        style: 'unit',
+        unit: 'kilogram',
+        unitDisplay: 'short',
+        useGrouping: true,
+      }).format(5200),
+    )
+    expect(formatE1RM(455, 'lb', 'en')).toBe(
+      new Intl.NumberFormat('en', {
+        style: 'unit',
+        unit: 'pound',
+        unitDisplay: 'short',
+        useGrouping: false,
+      }).format(1003.1),
+    )
+  })
+
+  it('splits a volume by Intl parts, never on a space the locale may not use', () => {
+    // `.split(' ')` on the rendered string tears the number in half in every
+    // locale that groups with a narrow no-break space.
+    expect(formatVolumeParts(5200.4, 'kg', 'en')).toEqual({ value: '5,200', unit: 'kg' })
+    expect(formatVolumeParts(0, 'lb', 'en')).toEqual({ value: '0', unit: 'lb' })
   })
 })

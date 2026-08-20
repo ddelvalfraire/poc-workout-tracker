@@ -44,6 +44,21 @@
       "groupLabel": "Progress photos",
       "title": "Progress photos"
     },
+    "pose": {
+      "back": "Back",
+      "front": "Front",
+      "side": "Side"
+    },
+    "site": {
+      "arm": "Arm",
+      "calf": "Calf",
+      "chest": "Chest",
+      "hips": "Hips",
+      "neck": "Neck",
+      "shoulders": "Shoulders",
+      "thigh": "Thigh",
+      "waist": "Waist"
+    },
     "title": "Body"
   },
   "BodyweightEntryRow": {
@@ -432,6 +447,22 @@
       "anchor": "Up next · Week {week}",
       "summary": "{count, plural, one {# exercise} other {# exercises}} · {programName}"
     }
+  },
+  "Format": {
+    "duration": "{minutes} min",
+    "durationHours": "{hours} h {minutes} min",
+    "empty": "—",
+    "set": "{reps} × {weight}",
+    "setBodyweight": "{kind, select, added {BW+{load}} assisted {BW−{load}} other {BW}}",
+    "setBodyweightReps": "{kind, select, added {BW+{load}} assisted {BW−{load}} other {BW}} × {reps}",
+    "setDuration": "{duration}",
+    "setDurationDistance": "{duration} · {distance}",
+    "setReps": "{reps, plural, one {# rep} other {# reps}}",
+    "setWeight": "{weight}",
+    "summary": "{count, plural, one {# set} other {# sets}}",
+    "summaryTop": "{count, plural, one {# set} other {# sets}} · top {kind, select, added {BW+{load}} assisted {BW−{load}} other {{load}}}×{reps}",
+    "summaryTopLoad": "{count, plural, one {# set} other {# sets}} · top {kind, select, added {BW+{load}} assisted {BW−{load}} other {{load}}}",
+    "summaryTopReps": "{count, plural, one {# set} other {# sets}} · top ×{reps}"
   },
   "GlobalError": {
     "description": "The app hit an unexpected error. Your saved workouts are safe — reload to continue.",
@@ -1102,6 +1133,13 @@
       "eyebrowOwner": "Proposed for you",
       "eyebrowShared": "Shared program"
     },
+    "proposalAge": {
+      "days": "proposed {days, plural, one {# day} other {# days}} ago",
+      "months": "proposed {months, plural, one {# month} other {# months}} ago",
+      "today": "proposed today",
+      "weeks": "proposed {weeks, plural, one {# week} other {# weeks}} ago",
+      "yesterday": "proposed yesterday"
+    },
     "sourceLinkLabel": "Source",
     "statsLink": "Stats",
     "status": {
@@ -1109,6 +1147,21 @@
       "archived": "archived",
       "draft": "draft",
       "proposed": "proposed"
+    },
+    "statusLine": {
+      "complete": "Block complete.",
+      "week": "Week {week} of {total}{deload, select, yes { · deload week} other {}}{deloadNext, select, yes { · deload next week} other {}}.",
+      "weekRemaining": "Week {week} of {total}{deload, select, yes { · deload week} other {}} · {remaining, plural, one {# day} other {# days}} to go{deloadNext, select, yes { · deload next week} other {}}.",
+      "weekTrained": "Week {week} of {total}{deload, select, yes { · deload week} other {}} · week trained{deloadNext, select, yes { · deload next week} other {}}."
+    },
+    "target": {
+      "load": "{count}×{reps, select, none {?} other {{reps}}} @ {load}",
+      "reps": "{count}×{reps} reps",
+      "rir": "RIR {rir}",
+      "rpe": "RPE {rpe}",
+      "sets": "{count, plural, one {# set} other {# sets}}",
+      "tempo": "{tempo} tempo",
+      "timed": "{count}×{duration, select, none {—} other {{duration}}}{distance, select, none {} other { / {distance}}}"
     },
     "weekMeta": "Week {week} of {total}",
     "weekMetaDeload": "Week {week} of {total} · deload wk {deloadWeek}",
@@ -1128,8 +1181,13 @@
     "muscle": {
       "ariaLabel": "Muscle volume",
       "deloadBadge": "DL",
+      "driversHold": "{names} stalled — hold volume while recovery catches up",
+      "driversIncrease": "{names} beat top of range 2 weeks running",
       "lede": "Verdicts from week {week} — sets credited per muscle",
       "setCount": "{value} {count, plural, one {set} other {sets}}",
+      "statusHold": "hold",
+      "statusIncrease": "+1 earned",
+      "statusOnTrack": "on track",
       "title": "Muscle volume",
       "trend": "{values} <muted>sets/week</muted>"
     },
@@ -1159,7 +1217,13 @@
     },
     "title": "Program Stats",
     "verdict": {
-      "ariaLabel": "Block verdict"
+      "ariaLabel": "Block verdict",
+      "contextEarly": "The block picture builds as you train.",
+      "contextSteady": "{adherence, number, percent} of planned days trained{trend, select, up { · volume up week over week} down { · volume down week over week} other {}}",
+      "contextStronger": "{lifts, plural, one {# lift} other {# lifts}} up this block · {adherence, number, percent} of planned days trained{trend, select, up { · volume up week over week} down { · volume down week over week} other {}}",
+      "headlineEarly": "Early days.",
+      "headlineSteady": "Showing up.",
+      "headlineStronger": "Getting stronger."
     },
     "weekMeta": "Week {week} of {total}",
     "weekShort": "Wk {week}",
@@ -1218,9 +1282,22 @@
       "weekPosition": "<big>Wk {week}</big> <small>of {total}</small>"
     },
     "newLink": "+ New Program",
+    "proposalAge": {
+      "days": "proposed {days, plural, one {# day} other {# days}} ago",
+      "months": "proposed {months, plural, one {# month} other {# months}} ago",
+      "today": "proposed today",
+      "weeks": "proposed {weeks, plural, one {# week} other {# weeks}} ago",
+      "yesterday": "proposed yesterday"
+    },
     "row": {
       "weeks": "{weeks, plural, one {# week} other {# weeks}}",
       "weeksDeload": "{weeks, plural, one {# week} other {# weeks}} · deload wk {deloadWeek}"
+    },
+    "status": {
+      "active": "Active",
+      "archived": "Archived",
+      "draft": "Draft",
+      "proposed": "Proposed"
     },
     "templatesLink": "Browse program templates",
     "title": "Programs",
@@ -1316,6 +1393,10 @@
   },
   "RestartProgramButton": {
     "dialog": {
+      "body": "Creates a fresh copy of this program starting at week 1 and makes it active. This one is archived — its history and stats stay.",
+      "bodyIncrements": "Training maxes step up one increment for the new block ({lifts, plural, one {# lift} other {# lifts}}).",
+      "bodyStalled": "{exercise} looks stalled — its training max stays put.",
+      "bodyStalledReset": "{exercise} looks stalled — its training max stays put; consider a reset to {tm} {unit} after restarting.",
       "confirm": "Restart block",
       "pending": "Restarting…",
       "title": "Start the next block?"

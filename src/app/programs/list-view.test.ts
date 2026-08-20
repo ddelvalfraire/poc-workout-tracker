@@ -1,17 +1,28 @@
 import { describe, it, expect } from 'vitest'
+import { renderMessageIn } from '../../../vitest.intl'
 import { programStatusLabel, proposalAgeLine, zonePrograms } from './list-view'
 
+/** The catalog half of a descriptor assertion: the key the view-model chose
+ *  resolves, with its arguments, against the real en.json. */
+const render = (message: Parameters<typeof renderMessageIn>[1]) =>
+  renderMessageIn('Programs', message)
+
 describe('programStatusLabel', () => {
-  it('labels the known statuses', () => {
-    expect(programStatusLabel('active')).toBe('Active')
-    expect(programStatusLabel('proposed')).toBe('Proposed')
-    expect(programStatusLabel('draft')).toBe('Draft')
-    expect(programStatusLabel('archived')).toBe('Archived')
+  it('picks the catalog key for each known status', () => {
+    expect(programStatusLabel('active')).toEqual({ key: 'status.active' })
+    expect(programStatusLabel('proposed')).toEqual({ key: 'status.proposed' })
+    expect(programStatusLabel('draft')).toEqual({ key: 'status.draft' })
+    expect(programStatusLabel('archived')).toEqual({ key: 'status.archived' })
   })
 
-  it('title-cases unknown statuses instead of leaking raw values', () => {
-    expect(programStatusLabel('paused')).toBe('Paused')
-    expect(programStatusLabel('')).toBe('')
+  it('resolves those keys to the words the badge renders', () => {
+    expect(render(programStatusLabel('active')!)).toBe('Active')
+    expect(render(programStatusLabel('archived')!)).toBe('Archived')
+  })
+
+  it('has no copy for an unknown status, so the caller shows the raw value', () => {
+    expect(programStatusLabel('paused')).toBeNull()
+    expect(programStatusLabel('')).toBeNull()
   })
 })
 
@@ -58,21 +69,58 @@ describe('proposalAgeLine (staleness affordance)', () => {
   const NOW = new Date('2026-08-09T12:00:00Z')
   const daysAgo = (n: number) => new Date(NOW.getTime() - n * 24 * 60 * 60 * 1000)
 
-  it('reads today / yesterday / N days ago inside the first week', () => {
-    expect(proposalAgeLine(NOW, NOW)).toBe('proposed today')
-    expect(proposalAgeLine(daysAgo(1), NOW)).toBe('proposed yesterday')
-    expect(proposalAgeLine(daysAgo(3), NOW)).toBe('proposed 3 days ago')
-    expect(proposalAgeLine(daysAgo(6), NOW)).toBe('proposed 6 days ago')
+  it('picks today / yesterday / a day count inside the first week', () => {
+    expect(proposalAgeLine(NOW, NOW)).toEqual({ key: 'proposalAge.today' })
+    expect(proposalAgeLine(daysAgo(1), NOW)).toEqual({ key: 'proposalAge.yesterday' })
+    expect(proposalAgeLine(daysAgo(3), NOW)).toEqual({
+      key: 'proposalAge.days',
+      values: { days: 3 },
+    })
+    expect(proposalAgeLine(daysAgo(6), NOW)).toEqual({
+      key: 'proposalAge.days',
+      values: { days: 6 },
+    })
   })
 
   it('rolls up to weeks and months for stale proposals — never expires', () => {
-    expect(proposalAgeLine(daysAgo(7), NOW)).toBe('proposed 1 week ago')
-    expect(proposalAgeLine(daysAgo(20), NOW)).toBe('proposed 2 weeks ago')
-    expect(proposalAgeLine(daysAgo(30), NOW)).toBe('proposed 1 month ago')
-    expect(proposalAgeLine(daysAgo(365), NOW)).toBe('proposed 12 months ago')
+    expect(proposalAgeLine(daysAgo(7), NOW)).toEqual({
+      key: 'proposalAge.weeks',
+      values: { weeks: 1 },
+    })
+    expect(proposalAgeLine(daysAgo(20), NOW)).toEqual({
+      key: 'proposalAge.weeks',
+      values: { weeks: 2 },
+    })
+    expect(proposalAgeLine(daysAgo(30), NOW)).toEqual({
+      key: 'proposalAge.months',
+      values: { months: 1 },
+    })
+    expect(proposalAgeLine(daysAgo(365), NOW)).toEqual({
+      key: 'proposalAge.months',
+      values: { months: 12 },
+    })
   })
 
   it('treats clock skew (future createdAt) as today', () => {
-    expect(proposalAgeLine(daysAgo(-2), NOW)).toBe('proposed today')
+    expect(proposalAgeLine(daysAgo(-2), NOW)).toEqual({ key: 'proposalAge.today' })
+  })
+
+  // Each count asserted at ONE and at MANY separately: a single-branch plural
+  // reads fine at one value and wrong at every other.
+  it('agrees each rolled-up unit with its own count, through the catalog', () => {
+    expect(render(proposalAgeLine(daysAgo(1), NOW))).toBe('proposed yesterday')
+    expect(render(proposalAgeLine(daysAgo(2), NOW))).toBe('proposed 2 days ago')
+    expect(render(proposalAgeLine(daysAgo(7), NOW))).toBe('proposed 1 week ago')
+    expect(render(proposalAgeLine(daysAgo(14), NOW))).toBe('proposed 2 weeks ago')
+    expect(render(proposalAgeLine(daysAgo(30), NOW))).toBe('proposed 1 month ago')
+    expect(render(proposalAgeLine(daysAgo(60), NOW))).toBe('proposed 2 months ago')
+  })
+
+  it('leaves no unresolved key path', () => {
+    for (const days of [0, 1, 3, 9, 40]) {
+      expect(render(proposalAgeLine(daysAgo(days), NOW))).not.toMatch(
+        /Programs\.[a-zA-Z.]+/,
+      )
+    }
   })
 })
