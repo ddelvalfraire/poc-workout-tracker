@@ -140,6 +140,8 @@ function ThinBar({ percent }: { percent: number }) {
 
 export function NavDrawer() {
   const t = useTranslations('NavDrawer')
+  // Same product name as the home heading and the document title.
+  const tCommon = useTranslations('Common')
   const [isOpen, setIsOpen] = useState(false)
   const [hasOpened, setHasOpened] = useState(false)
   const [isStarting, setIsStarting] = useState(false)
@@ -368,7 +370,7 @@ export function NavDrawer() {
                   pathname === '/' && 'text-primary',
                 )}
               >
-                {t('homeLink')}
+                {tCommon('appName')}
               </Link>
             </div>
 

@@ -22,6 +22,9 @@ import { getTranslations } from 'next-intl/server';
 
 export default async function HomePage() {
   const t = await getTranslations('Home');
+  // The product name is one string, not three: a brand cannot diverge by
+  // surface, and three copies are three chances to translate it apart.
+  const tCommon = await getTranslations('Common');
   const userId = await requireUserId(); // middleware also guards; this is defense-in-depth
   // Consent gate (4b): ALL required purposes must be currently granted —
   // gating on tos alone would strand a user whose health consent was
@@ -123,7 +126,7 @@ export default async function HomePage() {
             {/* The drawer trigger leads — home is the shell's root surface,
                 and the drawer is now the app's navigation (spike §7). */}
             <NavDrawer />
-            <h1 className="truncate text-2xl font-bold uppercase tracking-tight">{t('title')}</h1>
+            <h1 className="truncate text-2xl font-bold uppercase tracking-tight">{tCommon('appName')}</h1>
           </div>
           <div className="flex items-center gap-2">
             {/* Preferences live on /settings now — the header keeps only

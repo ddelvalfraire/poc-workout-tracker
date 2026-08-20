@@ -236,7 +236,7 @@ const eslintConfig = defineConfig([
           mode: "jsx-only",
           // The translator call itself, and class helpers, take string
           // arguments that are identifiers rather than copy.
-          callees: { exclude: ["t", "t.rich", "cn", "clsx", "cva"] },
+          callees: { exclude: ["t", "t.rich", "tCommon", "cn", "clsx", "cva"] },
           "jsx-attributes": {
             exclude: [
               "className", "id", "key", "type", "name", "href", "src", "role",

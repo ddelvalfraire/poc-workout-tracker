@@ -200,8 +200,7 @@
   },
   "Home": {
     "editHomeLink": "Edit home",
-    "settingsLink": "Settings",
-    "title": "Workout Tracker"
+    "settingsLink": "Settings"
   },
   "HomeLayoutEditor": {
     "hint": "Tap a tile to resize, reorder, or hide it — or press and hold to drag it. Hidden sections keep tracking — they just don’t show on Home.",
@@ -277,7 +276,6 @@
     "title": "This week"
   },
   "NavDrawer": {
-    "homeLink": "Workout Tracker",
     "invitation": {
       "body": "Log a weigh-in",
       "coach": "Ask about your training",
