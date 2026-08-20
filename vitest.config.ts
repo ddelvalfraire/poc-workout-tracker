@@ -7,8 +7,9 @@ import { playwright } from '@vitest/browser-playwright'
 import { defineConfig, configDefaults } from 'vitest/config'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
-// Where Node actually found the dependencies. Run from a git worktree that is
-// the primary checkout's node_modules, several levels above HERE.
+// Where Node actually resolved the dependencies from. Run from a linked
+// worktree this is the primary checkout's node_modules, several levels above
+// HERE — the worktree has none of its own.
 const NODE_MODULES = dirname(
   dirname(createRequire(import.meta.url).resolve('storybook/package.json')),
 )
