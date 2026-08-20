@@ -321,35 +321,6 @@
     "tosLabel": "I agree to the Terms of Service and have read the Privacy Notice and Health Data Privacy Policy.",
     "whatThisMeansAction": "What this means"
   },
-  "ConfirmDialog": {
-    "cancel": "Keep it"
-  },
-  "ConsentForm": {
-    "analyticsBody": "Link your usage (never your workout content) to your account so we can see which features actually help. Change anytime in Settings.",
-    "analyticsControlLabel": "Analytics identity",
-    "analyticsTitle": "Analytics identity",
-    "continueAction": "Continue",
-    "gpcNotice": "Your browser sent a Global Privacy Control signal — this stays off.",
-    "healthCollectBody": "We collect the workouts, sets, and body-weight entries you record to show your training history and progress.",
-    "healthCollectDetail": "This covers everything you log: sessions, exercises, sets and loads, body measurements, progress photos, and notes. It lives in our database, is visible only to you, and you can export or delete it at any time. Full details in the Health Data Privacy policy.",
-    "healthCollectLabel": "Store your health data",
-    "healthDataLink": "Health Data",
-    "healthShareBody": "Your data passes through the services that run the app — hosting, database, and the AI coach provider. They process it only for us, never for ads.",
-    "healthShareDetail": "The processors: Vercel (application hosting), Supabase (database), our AI model provider (coach responses only), and Sentry (error reports). Each works under contract, for us alone. Our analytics provider is deliberately NOT on this list — analytics never receives your workout content.",
-    "healthShareLabel": "Share with our service providers",
-    "neverSell": "We never sell your health data. Ever. · ",
-    "optionalTitle": "Optional",
-    "privacyLink": "Privacy",
-    "privacyPolicyLink": "Full privacy policy",
-    "readThem": "Read them: ",
-    "requiredNote": "Required because the app can't function without storing your training.",
-    "requiredTitle": "Required to use the app",
-    "saveError": "Something went wrong saving your choices. Please try again.",
-    "savingAction": "Saving…",
-    "termsLink": "Terms",
-    "tosLabel": "I agree to the Terms of Service and have read the Privacy Notice and Health Data Privacy Policy.",
-    "whatThisMeansAction": "What this means"
-  },
   "ConsistencyProgress": {
     "progressLabel": "{completed} of {target} streak weeks complete",
     "progressSummary": "{completed} of {target, plural, one {# week} other {# weeks}}",
