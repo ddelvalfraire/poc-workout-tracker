@@ -266,10 +266,13 @@ const eslintConfig = defineConfig([
     // Vendored agent skills (21 Clerk packages, tracked but not authored
     // here). Every .ts/.tsx under them is sample code in a `templates/`
     // directory, written for OTHER frameworks — TanStack, Astro, Vue, Expo —
-    // so our Next.js rules judge it against a target it was never for, and
-    // none of it reaches our bundle. Linting it can only produce findings
-    // nobody is allowed to act on.
-    ".agents/**",
+    // so our Next.js rules judge it against a target it was never for, none
+    // of it reaches our bundle, and the next skills update overwrites any
+    // edit. Linting it can only produce findings nobody may act on.
+    //
+    // Scoped to skills/, not all of .agents/: anything WE write there later
+    // is first-party and must stay linted.
+    ".agents/skills/**",
   ]),
   {
     files: ["src/**/*.{ts,tsx}"],
