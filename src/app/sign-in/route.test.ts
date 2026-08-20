@@ -1,6 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-const getSignInUrl = vi.fn(async (_options?: { returnTo?: string }) => 'https://auth.example.com/authorize')
+const getSignInUrl = vi.fn(
+  async (options?: { returnTo?: string }): Promise<string> => {
+    void options // asserted via mock.calls, not used to build the stub URL
+    return 'https://auth.example.com/authorize'
+  },
+)
 const redirect = vi.fn()
 
 vi.mock('@workos-inc/authkit-nextjs', () => ({
