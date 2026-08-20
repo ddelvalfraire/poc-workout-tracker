@@ -53,3 +53,31 @@ describe('resolveCoachModel', () => {
     expect(resolveCoachModel({ OPENROUTER_API_KEY: '   ' })).toBeNull()
   })
 })
+
+describe('prompt caching', () => {
+  /**
+   * The coach re-sends 44 tool schemas plus the system prompt every turn, so
+   * the cache prefix is most of the bill. These assert the REQUEST carries the
+   * caching instruction — without it the flag is silently absent and the only
+   * symptom is an invoice.
+   */
+  it('sends root-level cache_control on the OpenRouter request body', () => {
+    const config = resolveCoachModel({ OPENROUTER_API_KEY: 'or-key' })
+    const body = (config?.model as { settings?: { extraBody?: Record<string, unknown> } })?.settings
+      ?.extraBody
+
+    expect(body?.cache_control).toEqual({ type: 'ephemeral', ttl: '1h' })
+  })
+
+  // Not the default five minutes, deliberately: a gym session is intermittent
+  // across an hour, and every gap past the default would expire the cache and
+  // charge a fresh write. Paying 1.25x repeatedly is worse than 2x once.
+  it('holds the cache for an hour rather than the five-minute default', () => {
+    const config = resolveCoachModel({ OPENROUTER_API_KEY: 'or-key' })
+    const body = (config?.model as { settings?: { extraBody?: Record<string, unknown> } })?.settings
+      ?.extraBody
+    const cacheControl = body?.cache_control as { ttl?: string } | undefined
+
+    expect(cacheControl?.ttl).toBe('1h')
+  })
+})

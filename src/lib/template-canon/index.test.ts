@@ -303,3 +303,420 @@ describe('Upper / Lower', () => {
     expect(p().days.map((d) => d.name)).toEqual(['Upper A', 'Lower A', 'Upper B', 'Lower B'])
   })
 })
+
+describe('Starting Strength', () => {
+  const p = () => get('Starting Strength')
+
+  it('is 3 alternating days of 3×5 on session-linear load', () => {
+    expect(p().days).toHaveLength(3)
+    for (const day of p().days) {
+      expect(day.exercises[0].wgerExerciseId).toBe(WGER.squat)
+      expect(day.exercises[0].sets).toHaveLength(3)
+      expect(day.exercises[0].progression).toEqual({ scheme: 'linear', incrementKg: 5 })
+    }
+  })
+
+  it('pulls once per day: a heavy single-set deadlift or the clean', () => {
+    const [a, b] = p().days
+    expect(a.exercises.at(-1)).toMatchObject({ wgerExerciseId: WGER.deadlift })
+    expect(a.exercises.at(-1)?.sets).toHaveLength(1) // 1×5
+    expect(b.exercises.at(-1)).toMatchObject({ wgerExerciseId: WGER.powerClean })
+    expect(b.exercises.at(-1)?.sets).toHaveLength(5) // 5×3
+  })
+})
+
+describe('Greyskull LP', () => {
+  const p = () => get('Greyskull LP')
+
+  it('ends every main lift with an AMRAP — the program’s whole idea', () => {
+    for (const day of p().days) {
+      const main = day.exercises[0]
+      expect(main.progression?.scheme).toBe('linear')
+      expect(main.sets.at(-1)?.setType).toBe('amrap')
+      expect(main.sets.at(-1)?.repMax).toBeNull() // open-ended, not a range
+    }
+  })
+
+  it('squats every session and never schedules a deload week', () => {
+    for (const day of p().days) {
+      expect(day.exercises.map((e) => e.wgerExerciseId)).toContain(WGER.squat)
+    }
+    expect(p().deloadWeek).toBeUndefined()
+    expect(p().deloadPolicy).toEqual({ mode: 'reactive' })
+  })
+})
+
+describe('Madcow 5×5', () => {
+  const p = () => get('Madcow 5×5')
+
+  it('ramps to a top set on Monday, cuts the ramp short on Wednesday', () => {
+    const [monday, wednesday] = p().days
+    for (const exercise of monday.exercises) {
+      expect(exercise.progression).toMatchObject({
+        scheme: 'amrap-cycle',
+        wave: [[0.5, 0.625, 0.75, 0.875, 1.0]],
+      })
+      expect(exercise.sets).toHaveLength(5)
+    }
+    for (const exercise of wednesday.exercises) {
+      expect(exercise.sets).toHaveLength(3) // the same ramp, three rungs up
+    }
+  })
+
+  it('goes past the top for a Friday triple, then one back-off set of eight', () => {
+    for (const exercise of p().days[2].exercises) {
+      expect(exercise.progression).toMatchObject({
+        wave: [[0.5, 0.625, 0.75, 0.875, 1.05, 0.75]],
+        waveReps: [[5, 5, 5, 5, 3, 8]],
+      })
+      expect(exercise.sets[4].setType).toBe('amrap') // the record set
+      expect(exercise.sets[5].repMin).toBe(8)
+    }
+  })
+
+  it('climbs +2.5 kg per week and never chases the log', () => {
+    for (const day of p().days) {
+      for (const exercise of day.exercises) {
+        expect(exercise.progression).toMatchObject({ incrementKg: 2.5 })
+      }
+    }
+    expect(p().planSync).toBe(false)
+  })
+})
+
+describe('Texas Method', () => {
+  const p = () => get('Texas Method')
+
+  it('separates volume, recovery and intensity across three days', () => {
+    expect(p().days.map((d) => d.name)).toEqual([
+      'Monday · Volume',
+      'Wednesday · Recovery',
+      'Friday · Intensity',
+    ])
+  })
+
+  it('is 5×5 on Monday and a single heavy five on Friday', () => {
+    const [monday, , friday] = p().days
+    expect(monday.exercises[0].sets).toHaveLength(5)
+    for (const exercise of friday.exercises) {
+      expect(exercise.sets).toHaveLength(1)
+      expect(exercise.sets[0].repMin).toBe(5)
+    }
+  })
+
+  it('leaves Wednesday’s squat unprogressed — recovery is not a place to earn anything', () => {
+    const wednesday = p().days[1]
+    const squat = wednesday.exercises[0]
+    expect(squat.wgerExerciseId).toBe(WGER.squat)
+    expect(squat.sets).toHaveLength(2)
+    expect(squat.progression ?? null).toBeNull()
+  })
+})
+
+describe('nSuns 5/3/1 LP', () => {
+  const p = () => get('nSuns 5/3/1 LP')
+
+  it('runs a 9-set T1 ladder with two AMRAPs and an 8-set T2 behind it', () => {
+    for (const day of p().days) {
+      const [t1, t2] = day.exercises
+      expect(t1.sets).toHaveLength(9)
+      expect(t1.sets.filter((s) => s.setType === 'amrap')).toHaveLength(2)
+      expect(t1.sets[2].setType).toBe('amrap') // the top single
+      expect(t1.sets[8].setType).toBe('amrap') // the last back-off five
+      expect(t2.sets).toHaveLength(8)
+      expect(t2.progression?.scheme).toBe('amrap-cycle')
+    }
+  })
+
+  it('bumps the TM every WEEK — a single-row wave, not a 3-week cycle', () => {
+    for (const day of p().days) {
+      const t1 = day.exercises[0]
+      if (t1.progression?.scheme !== 'amrap-cycle') throw new Error('T1 must be a ladder')
+      expect(t1.progression.wave).toHaveLength(1)
+      expect(t1.progression.incrementKg).toBeGreaterThan(0)
+    }
+  })
+})
+
+describe('Candito 6-Week Strength', () => {
+  const p = () => get('Candito 6-Week Strength')
+
+  it('is a 6-week block that deloads on the last week', () => {
+    expect(p().mesocycleWeeks).toBe(6)
+    expect(p().deloadWeek).toBe(6)
+    expect(p().deloadPolicy).toMatchObject({ mode: 'scheduled', shape: { loadFactor: 0.6 } })
+  })
+
+  it('walks reps down and percentages up across the five working weeks', () => {
+    for (const day of p().days) {
+      const main = day.exercises[0]
+      if (main.progression?.scheme !== 'amrap-cycle') throw new Error('main must be a ladder')
+      const { wave, waveReps } = main.progression
+      expect(wave).toHaveLength(5)
+      // The measure is the HEAVIEST set of each week, not the max across the
+      // row: weeks 4–5 end on a lighter back-off set that carries more reps
+      // than the top single, and that back-off is the point, not a drift.
+      const topSet = wave.map((row) => row.indexOf(Math.max(...row)))
+      const topPercents = wave.map((row, i) => row[topSet[i]])
+      const topReps = topSet.map((setIdx, i) => waveReps?.[i][setIdx] ?? 0)
+      // Strictly heavier week over week, with the top set's reps walking down.
+      for (let i = 1; i < topPercents.length; i++) {
+        expect(topPercents[i]).toBeGreaterThan(topPercents[i - 1])
+        expect(topReps[i]).toBeLessThan(topReps[i - 1])
+      }
+    }
+  })
+
+  it('peaks inside the block rather than bumping the TM out of it', () => {
+    for (const day of p().days) {
+      expect(day.exercises[0].progression).toMatchObject({ incrementKg: 0 })
+    }
+  })
+})
+
+describe('Smolov Jr', () => {
+  const p = () => get('Smolov Jr')
+
+  it('is one lift, four days, at the published set/rep/percentage grid', () => {
+    const grid = p().days.map((d) => {
+      const main = d.exercises[0]
+      if (main.progression?.scheme !== 'amrap-cycle') throw new Error('main must be a ladder')
+      return [main.sets.length, main.progression.waveReps?.[0][0], main.progression.wave[0][0]]
+    })
+    expect(grid).toEqual([
+      [6, 6, 0.7],
+      [7, 5, 0.75],
+      [8, 4, 0.8],
+      [10, 3, 0.85],
+    ])
+  })
+
+  it('trains exactly one movement and adds nothing else', () => {
+    for (const day of p().days) {
+      expect(day.exercises).toHaveLength(1)
+      expect(day.exercises[0].wgerExerciseId).toBe(WGER.bench)
+    }
+  })
+
+  it('never deloads — three weeks then a test, not a block with a taper', () => {
+    expect(p().mesocycleWeeks).toBe(3)
+    expect(p().deloadWeek).toBeUndefined()
+    expect(p().deloadPolicy).toEqual({ mode: 'none' })
+  })
+})
+
+describe('PHUL', () => {
+  const p = () => get('PHUL')
+
+  it('is two power days at 3–5 then two hypertrophy days at 8+', () => {
+    const [upperPower, lowerPower, upperHyp, lowerHyp] = p().days
+    for (const day of [upperPower, lowerPower]) {
+      expect(day.exercises[0].progression).toMatchObject({ repMin: 3, repMax: 5 })
+      expect(day.exercises[0].sets[0].restSec).toBe(210) // long rests, heavy work
+    }
+    for (const day of [upperHyp, lowerHyp]) {
+      for (const exercise of day.exercises) {
+        expect(exercise.sets[0].repMin).toBeGreaterThanOrEqual(8)
+        expect(exercise.sets.at(-1)?.setType).toBe('amrap')
+      }
+    }
+  })
+})
+
+describe('PHAT', () => {
+  const p = () => get('PHAT')
+
+  it('is five days: two power, three hypertrophy', () => {
+    expect(p().days.map((d) => d.name)).toEqual([
+      'Upper Power',
+      'Lower Power',
+      'Back · Shoulders',
+      'Lower Hypertrophy',
+      'Chest · Arms',
+    ])
+  })
+
+  it('opens the week pulling, not pressing', () => {
+    expect(p().days[0].exercises[0].wgerExerciseId).toBe(WGER.row)
+  })
+})
+
+describe('Arnold Split', () => {
+  const p = () => get('Arnold Split')
+
+  it('is 6 days pairing antagonists, legs twice', () => {
+    expect(p().days).toHaveLength(6)
+    expect(p().days.map((d) => d.name)).toEqual([
+      'Chest · Back',
+      'Shoulders · Arms',
+      'Legs · Core',
+      'Chest · Back (2)',
+      'Shoulders · Arms (2)',
+      'Legs · Core (2)',
+    ])
+  })
+
+  it('deloads hard in week 6 — 80% load, half the sets', () => {
+    expect(p().deloadPolicy).toMatchObject({
+      mode: 'scheduled',
+      shape: { loadFactor: 0.8, setFactor: 0.5 },
+    })
+  })
+})
+
+describe('Body Part Split', () => {
+  const p = () => get('Body Part Split')
+
+  it('is one muscle a day across five days, each opening with a compound', () => {
+    expect(p().days.map((d) => d.name)).toEqual(['Chest', 'Back', 'Shoulders', 'Legs', 'Arms'])
+    for (const day of p().days) {
+      expect(day.exercises[0].progression?.scheme).toBe('double-progression')
+      expect(day.exercises[0].sets[0].restSec).toBe(150)
+    }
+  })
+})
+
+describe('Full Body Hypertrophy', () => {
+  const p = () => get('Full Body Hypertrophy')
+
+  it('drives every slot by volume landmarks, starting at MEV', () => {
+    for (const day of p().days) {
+      for (const exercise of day.exercises) {
+        const progression = exercise.progression
+        if (progression?.scheme !== 'weekly-volume') throw new Error('every slot ramps volume')
+        expect(progression.mevSets).toBeLessThan(progression.mrvSets)
+        // Week 1 plans exactly MEV sets — the ramp starts where it says it does.
+        expect(exercise.sets).toHaveLength(progression.mevSets)
+      }
+    }
+  })
+
+  it('asks for a check-in, because the model needs feedback to be honest', () => {
+    expect(p().checkInEveryDays).toBe(14)
+  })
+})
+
+describe('Recommended Routine', () => {
+  const p = () => get('Recommended Routine')
+
+  it('supersets every day into three pairs', () => {
+    for (const day of p().days) {
+      expect(day.exercises).toHaveLength(6)
+      const groups = day.exercises.map((e) => e.supersetGroup)
+      expect(groups).toEqual([1, 1, 2, 2, 3, 3])
+    }
+  })
+
+  it('progresses reps and seconds, never load', () => {
+    for (const day of p().days) {
+      for (const exercise of day.exercises) {
+        expect(exercise.progression?.scheme).toBe('rep-progression')
+      }
+    }
+  })
+
+  it('holds are timed sets with a real ceiling', () => {
+    const plank = p().days[0].exercises[4]
+    expect(plank.wgerExerciseId).toBe(WGER.plank)
+    expect(plank.sets[0].metricMode).toBe('duration')
+    expect(plank.sets[0].durationSec).toBe(45)
+    expect(plank.progression).toMatchObject({ incrementSec: 5, maxSec: 120 })
+  })
+})
+
+describe('Dumbbell Only', () => {
+  const p = () => get('Dumbbell Only')
+
+  it('is three full-body days that never name a barbell-only lift', () => {
+    expect(p().days).toHaveLength(3)
+    const barbellOnly = new Set<number>([WGER.squat, WGER.bench, WGER.deadlift, WGER.ohp, WGER.row])
+    for (const day of p().days) {
+      for (const exercise of day.exercises) {
+        expect(barbellOnly.has(exercise.wgerExerciseId)).toBe(false)
+      }
+    }
+  })
+})
+
+describe('Kettlebell Simple & Sinister', () => {
+  const p = () => get('Kettlebell Simple & Sinister')
+
+  it('is one day of two timed movements with no scheme at all', () => {
+    expect(p().days).toHaveLength(1)
+    const [swing, getUp] = p().days[0].exercises
+    expect(swing.wgerExerciseId).toBe(WGER.kettlebellSwing)
+    expect(swing.sets).toHaveLength(10)
+    expect(getUp.wgerExerciseId).toBe(WGER.turkishGetUp)
+    // Progress is rest compression and a heavier bell — neither is the
+    // engine's to apply, so nothing here carries a progression.
+    for (const exercise of p().days[0].exercises) {
+      expect(exercise.sets[0].metricMode).toBe('duration')
+      expect(exercise.progression ?? null).toBeNull()
+    }
+  })
+
+  it('is a practice, not a block — no deload, no plan-chasing', () => {
+    expect(p().deloadWeek).toBeUndefined()
+    expect(p().deloadPolicy).toEqual({ mode: 'reactive' })
+    expect(p().planSync).toBe(false)
+  })
+})
+
+describe('Couch to 5K', () => {
+  const p = () => get('Couch to 5K')
+
+  it('opens every run with a five-minute walk', () => {
+    for (const day of p().days) {
+      const warmup = day.exercises[0]
+      expect(warmup.wgerExerciseId).toBe(WGER.walking)
+      expect(warmup.sets).toHaveLength(1)
+      expect(warmup.sets[0].durationSec).toBe(300)
+    }
+  })
+
+  it('alternates jog and walk legs, both timed AND measured', () => {
+    for (const day of p().days) {
+      const run = day.exercises[1]
+      expect(run.sets.length % 2).toBe(0) // jog/walk pairs
+      for (const s of run.sets) {
+        expect(s.metricMode).toBe('duration_distance')
+        expect(s.durationSec).toBeGreaterThan(0)
+        expect(s.distanceM).toBeGreaterThan(0)
+      }
+    }
+  })
+
+  it('grows the jog in seconds toward a continuous half hour', () => {
+    for (const day of p().days) {
+      expect(day.exercises[1].progression).toMatchObject({
+        scheme: 'rep-progression',
+        maxSec: 1800,
+      })
+    }
+  })
+
+  it('never deloads — nine weeks of one direction', () => {
+    expect(p().mesocycleWeeks).toBe(9)
+    expect(p().deloadPolicy).toEqual({ mode: 'none' })
+  })
+})
+
+describe('Hybrid Strength & Endurance', () => {
+  const p = () => get('Hybrid Strength & Endurance')
+
+  it('alternates lifting and aerobic days so neither lands on the other', () => {
+    expect(p().days.map((d) => d.name)).toEqual([
+      'Lift · Lower',
+      'Easy aerobic',
+      'Lift · Upper',
+      'Long aerobic',
+    ])
+  })
+
+  it('is the one program whose deload scales the CLOCK as well as the bar', () => {
+    expect(p().deloadPolicy).toMatchObject({
+      mode: 'scheduled',
+      shape: { timedExercises: 'scaled' },
+    })
+  })
+})
