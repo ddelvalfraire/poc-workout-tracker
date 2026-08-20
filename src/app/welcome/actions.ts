@@ -73,7 +73,7 @@ export async function recordSignupConsentsAction(input: {
     purpose: 'health_share',
     action: 'granted',
     documentId: healthDoc.id,
-    presentation: presentation('Share with our service providers'),
+    presentation: presentation(t('healthShareLabel')),
   })
   await recordConsent({
     ...base,

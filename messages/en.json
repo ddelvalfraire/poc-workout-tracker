@@ -16,7 +16,9 @@
     "offlineNotice": "Coach needs a connection.",
     "pageTitle": "Coach",
     "pendingApprovalLabel": "Needs your OK",
+    "proposalDays": "{days, plural, one {# day} other {# days}}/week",
     "proposalTitle": "Proposed program",
+    "proposalWeeks": "{weeks, plural, one {# week} other {# weeks}}",
     "reviewAction": "Review & adopt",
     "sendLabel": "Send",
     "thinkingStatus": "Thinking",
@@ -26,7 +28,7 @@
   },
   "CoachDisclosure": {
     "acknowledgeAction": "Got it",
-    "body": "It knows your training history and can suggest changes to your program — but it can make mistakes, and it isn’t a doctor. Check anything that matters, and see a physician before making health decisions.",
+    "body": "It knows your training history and can suggest changes to your program — but it can make mistakes, and it isn't a doctor. Check anything that matters, and see a physician before making health decisions.",
     "eyebrow": "Before you start",
     "title": "Coach is an AI"
   },
@@ -52,7 +54,7 @@
     "privacyLink": "Privacy",
     "privacyPolicyLink": "Full privacy policy",
     "readThem": "Read them: ",
-    "requiredNote": "Required because the app can’t function without storing your training.",
+    "requiredNote": "Required because the app can't function without storing your training.",
     "requiredTitle": "Required to use the app",
     "savingAction": "Saving…",
     "termsLink": "Terms",

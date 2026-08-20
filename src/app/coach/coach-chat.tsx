@@ -185,10 +185,8 @@ function ApprovalCard({
 function ProposalCard({ proposal }: { proposal: ProgramProposal }) {
   const t = useTranslations('CoachChat')
   const meta = [
-    `${proposal.dayCount} ${proposal.dayCount === 1 ? 'day' : 'days'}/week`,
-    proposal.weekCount !== null
-      ? `${proposal.weekCount} ${proposal.weekCount === 1 ? 'week' : 'weeks'}`
-      : null,
+    t('proposalDays', { days: proposal.dayCount }),
+    proposal.weekCount !== null ? t('proposalWeeks', { weeks: proposal.weekCount }) : null,
   ]
     .filter(Boolean)
     .join(' · ')
