@@ -2450,7 +2450,6 @@
     "namePlaceholderStatic": "Unnamed workout",
     "nextUp": "Next: <exercise>{name}</exercise> — set {set}",
     "noPreviousAriaLabel": "No previous performance for {set}",
-    "noteAction": "Note",
     "noteCountAriaLabel": "{count, plural, one {# note} other {# notes}} on {name}",
     "notePlaceholder": "Add note…",
     "notesAriaLabel": "Notes for {name}",
