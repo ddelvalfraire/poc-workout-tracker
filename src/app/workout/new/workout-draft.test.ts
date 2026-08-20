@@ -733,8 +733,8 @@ describe('detailToDraft', () => {
           notes: null,
           skipped: false,
           sets: [
-            { id: 's1', workoutExerciseId: 'ex1', setNumber: 1, reps: 5, weight: 2.5, completed: false, setType: 'working', metricMode: 'reps_weight', durationSec: null, distanceM: null, prescribedLoadKg: null, prescribedRepMin: null, rir: null, rpe: null, prescribedRir: null, prescribedRpe: null },
-            { id: 's2', workoutExerciseId: 'ex1', setNumber: 2, reps: null, weight: null, completed: false, setType: 'working', metricMode: 'reps_weight', durationSec: null, distanceM: null, prescribedLoadKg: null, prescribedRepMin: null, rir: null, rpe: null, prescribedRir: null, prescribedRpe: null },
+            { id: 's1', workoutExerciseId: 'ex1', setNumber: 1, reps: 5, weight: 2.5, completed: false, setType: 'working', metricMode: 'reps_weight', durationSec: null, distanceM: null, prescribedLoadKg: null, prescribedRepMin: null, rir: null, rpe: null, prescribedRir: null, prescribedRpe: null, techniqueKind: null, techniqueGroup: null, stageIndex: null },
+            { id: 's2', workoutExerciseId: 'ex1', setNumber: 2, reps: null, weight: null, completed: false, setType: 'working', metricMode: 'reps_weight', durationSec: null, distanceM: null, prescribedLoadKg: null, prescribedRepMin: null, rir: null, rpe: null, prescribedRir: null, prescribedRpe: null, techniqueKind: null, techniqueGroup: null, stageIndex: null },
           ],
         },
       ],
@@ -787,8 +787,8 @@ describe('detailToDraft', () => {
           notes: null,
           skipped: false,
           sets: [
-            { id: 's1', workoutExerciseId: 'ex1', setNumber: 1, reps: 5, weight: 60, completed: true, setType: 'warmup', metricMode: 'reps_weight', durationSec: null, distanceM: null, prescribedLoadKg: null, prescribedRepMin: null, rir: null, rpe: null, prescribedRir: null, prescribedRpe: null },
-            { id: 's2', workoutExerciseId: 'ex1', setNumber: 2, reps: 5, weight: 100, completed: true, setType: 'working', metricMode: 'reps_weight', durationSec: null, distanceM: null, prescribedLoadKg: null, prescribedRepMin: null, rir: null, rpe: null, prescribedRir: null, prescribedRpe: null },
+            { id: 's1', workoutExerciseId: 'ex1', setNumber: 1, reps: 5, weight: 60, completed: true, setType: 'warmup', metricMode: 'reps_weight', durationSec: null, distanceM: null, prescribedLoadKg: null, prescribedRepMin: null, rir: null, rpe: null, prescribedRir: null, prescribedRpe: null, techniqueKind: null, techniqueGroup: null, stageIndex: null },
+            { id: 's2', workoutExerciseId: 'ex1', setNumber: 2, reps: 5, weight: 100, completed: true, setType: 'working', metricMode: 'reps_weight', durationSec: null, distanceM: null, prescribedLoadKg: null, prescribedRepMin: null, rir: null, rpe: null, prescribedRir: null, prescribedRpe: null, techniqueKind: null, techniqueGroup: null, stageIndex: null },
           ],
         },
       ],
@@ -886,7 +886,7 @@ describe('detailToDraft', () => {
           notes: null,
           skipped: false,
           sets: [
-            { id: 's1', workoutExerciseId: 'ex1', setNumber: 1, reps: 5, weight: 100, completed: true, setType: 'working', metricMode: 'reps_weight', durationSec: null, distanceM: null, prescribedLoadKg: null, prescribedRepMin: null, rir: null, rpe: null, prescribedRir: null, prescribedRpe: null },
+            { id: 's1', workoutExerciseId: 'ex1', setNumber: 1, reps: 5, weight: 100, completed: true, setType: 'working', metricMode: 'reps_weight', durationSec: null, distanceM: null, prescribedLoadKg: null, prescribedRepMin: null, rir: null, rpe: null, prescribedRir: null, prescribedRpe: null, techniqueKind: null, techniqueGroup: null, stageIndex: null },
           ],
         },
       ],
@@ -924,7 +924,7 @@ describe('detailToDraft', () => {
           notes: null,
           skipped: false,
           sets: [
-            { id: 's1', workoutExerciseId: 'ex1', setNumber: 1, reps: 5, weight: 100, completed: false, setType: 'working', metricMode: 'reps_weight', durationSec: null, distanceM: null, prescribedLoadKg: null, prescribedRepMin: null, rir: null, rpe: null, prescribedRir: null, prescribedRpe: null },
+            { id: 's1', workoutExerciseId: 'ex1', setNumber: 1, reps: 5, weight: 100, completed: false, setType: 'working', metricMode: 'reps_weight', durationSec: null, distanceM: null, prescribedLoadKg: null, prescribedRepMin: null, rir: null, rpe: null, prescribedRir: null, prescribedRpe: null, techniqueKind: null, techniqueGroup: null, stageIndex: null },
           ],
         },
       ],
@@ -1252,8 +1252,8 @@ describe('detailToDraft effort round-trip', () => {
           name: 'Squat', position: 0, loggingType: 'weight_reps' as const,
           notes: null, skipped: false,
           sets: [
-            { id: 's1', workoutExerciseId: 'ex1', setNumber: 1, reps: 5, weight: 100, completed: true, setType: 'working' as const, metricMode: 'reps_weight', durationSec: null, distanceM: null, prescribedLoadKg: null, prescribedRepMin: null, rir: 2, rpe: 8.5, prescribedRir: null, prescribedRpe: null },
-            { id: 's2', workoutExerciseId: 'ex1', setNumber: 2, reps: 5, weight: 100, completed: true, setType: 'working' as const, metricMode: 'reps_weight', durationSec: null, distanceM: null, prescribedLoadKg: null, prescribedRepMin: null, rir: null, rpe: null, prescribedRir: null, prescribedRpe: null },
+            { id: 's1', workoutExerciseId: 'ex1', setNumber: 1, reps: 5, weight: 100, completed: true, setType: 'working' as const, metricMode: 'reps_weight', durationSec: null, distanceM: null, prescribedLoadKg: null, prescribedRepMin: null, rir: 2, rpe: 8.5, prescribedRir: null, prescribedRpe: null, techniqueKind: null, techniqueGroup: null, stageIndex: null },
+            { id: 's2', workoutExerciseId: 'ex1', setNumber: 2, reps: 5, weight: 100, completed: true, setType: 'working' as const, metricMode: 'reps_weight', durationSec: null, distanceM: null, prescribedLoadKg: null, prescribedRepMin: null, rir: null, rpe: null, prescribedRir: null, prescribedRpe: null, techniqueKind: null, techniqueGroup: null, stageIndex: null },
           ],
         },
       ],
@@ -1441,7 +1441,7 @@ describe('cardio metric modes (slice 1)', () => {
           notes: null,
           skipped: false,
           sets: [
-            { id: 's1', workoutExerciseId: 'ex1', setNumber: 1, reps: null, weight: null, completed: true, setType: 'working', metricMode: 'duration_distance', durationSec: 750, distanceM: 2500, prescribedLoadKg: null, prescribedRepMin: null, rir: null, rpe: null, prescribedRir: null, prescribedRpe: null },
+            { id: 's1', workoutExerciseId: 'ex1', setNumber: 1, reps: null, weight: null, completed: true, setType: 'working', metricMode: 'duration_distance', durationSec: 750, distanceM: 2500, prescribedLoadKg: null, prescribedRepMin: null, rir: null, rpe: null, prescribedRir: null, prescribedRpe: null, techniqueKind: null, techniqueGroup: null, stageIndex: null },
           ],
         },
       ],

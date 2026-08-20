@@ -20,6 +20,7 @@ import {
 import { setTrainingMax, withTx, ProgramPatchError } from './program-patches'
 import type { TmIncrement } from '@/lib/tm-restart'
 import { rollingE1rm } from '@/lib/rolling-e1rm'
+import { expandTechniqueStages } from '@/lib/technique'
 import { quantizeAdjustedLoadKg, quantizeSetLoads } from '@/lib/load-quantize'
 import type { WeightUnit } from '@/lib/units'
 import { getWeightUnit } from './preferences'
@@ -1807,7 +1808,12 @@ export async function instantiateProgramDay(
         })
         .returning({ id: workoutExercises.id })
 
-      const derived = prescription[position].sets
+      // Technique expansion (lib/technique.ts, Model A): a prescribed
+      // drop-set / rest-pause / myo-reps / cluster set becomes N grouped
+      // ROWS — one per stage — so the lifter logs what actually happened
+      // and every row-reading consumer stays correct. Technique-free
+      // exercises pass through unchanged.
+      const derived = expandTechniqueStages(prescription[position].sets)
       if (derived.length > 0) {
         await tx.insert(sets).values(
           derived.map((s) => ({
@@ -1834,6 +1840,11 @@ export async function instantiateProgramDay(
             durationSec: null,
             distanceM: null,
             completed: false,
+            // Technique grouping travels with the row; null on every
+            // ordinary set (the columns' default reading).
+            techniqueKind: s.techniqueStage?.kind ?? null,
+            techniqueGroup: s.techniqueStage?.group ?? null,
+            stageIndex: s.techniqueStage?.index ?? null,
           })),
         )
       }
