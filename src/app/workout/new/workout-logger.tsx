@@ -98,6 +98,11 @@ import { fireRestOverAlert } from './rest-over-alert'
 import { unlockRestChime } from './rest-chime'
 import { EXERCISE_COMPLETE_VIBRATION, SET_COMPLETE_VIBRATION, vibrate } from './haptics'
 import { resolveRestTarget } from '@/lib/rest-target'
+import {
+  continuesTechniqueGroup,
+  startsRestPeriod,
+  TECHNIQUE_LABEL_KEY,
+} from '@/lib/technique'
 import { adjustedRestTarget } from '@/lib/rest-alert'
 import { sessionPulse, shouldShowNextUp } from '@/lib/session-pulse'
 import { targetCaption } from '@/lib/target-caption'
@@ -1839,10 +1844,31 @@ export function WorkoutLogger({
                     (set.weight === '' && !!chipFill.weight)
                 // Row identity for assistive tech: a warm-up row must SAY so —
                 // the 'W' glyph alone is visual-only.
-                const setLabel =
-                  set.tag === 'warmup'
+                // A stage row says what it is: "drop set stage 2 of set 3".
+                // The glyph in the circle is visual-only.
+                const stage = set.technique
+                const isStage = stage !== undefined && stage.stageIndex > 0
+                const setLabel = isStage
+                  ? t('setLabelStage', {
+                      // Sentence-position name ('drop set'), not the picker's title case.
+                      technique: t(`technique.${TECHNIQUE_LABEL_KEY[stage.kind]}`),
+                      stage: stage.stageIndex + 1,
+                      number: setIndex + 1,
+                    })
+                  : set.tag === 'warmup'
                     ? t('setLabelWarmup', { number: setIndex + 1 })
                     : t('setLabel', { number: setIndex + 1 })
+                // A technique group reads as ONE set: its rows sit under a
+                // shared hairline (the superset vocabulary), so three
+                // rest-pause rows never look like three straight sets.
+                const groupsWithPrevious = continuesTechniqueGroup(
+                  exercise.sets[setIndex - 1]?.technique,
+                  stage,
+                )
+                const groupsWithNext = continuesTechniqueGroup(
+                  stage,
+                  exercise.sets[setIndex + 1]?.technique,
+                )
                 // Per-row affordance state (visual skin ONLY — every handler,
                 // input, and tap target below is identical across states):
                 // done rows flatten to quiet text, the active row carries the
@@ -1860,6 +1886,19 @@ export function WorkoutLogger({
                     // group/setrow: focus anywhere in a waiting row promotes
                     // its quiet inputs to full affordance (CSS-only).
                     'group/setrow flex items-center gap-2',
+                    // Hairline, not a shell: the rows of one technique set
+                    // share a left rule and an indent for as long as the
+                    // group runs. Drawn as a pseudo-element rather than a
+                    // border so it can bridge the gap between rows — each row
+                    // sits in its own swipe wrapper, and three stubs of rule
+                    // read as three sets again. It reaches into the wrapper's
+                    // padding (py-1) only: further would be clipped.
+                    (groupsWithPrevious || groupsWithNext) && [
+                      'relative pl-2',
+                      'before:absolute before:left-0 before:w-0.5 before:bg-muted-foreground/40',
+                      groupsWithPrevious ? 'before:-top-1' : 'before:top-0',
+                      groupsWithNext ? 'before:-bottom-1' : 'before:bottom-0',
+                    ],
                     riseInArmed && 'motion-safe:animate-rise-in',
                   )}
                   id={`set-row-${set.id}`}
@@ -2017,11 +2056,23 @@ export function WorkoutLogger({
                       // Feature switch first: with the rest timer off, no
                       // rest state ever starts, so the readout/sheet never
                       // render — the surface disappears, not just the target.
-                      if (restTimerEnabled && !set.completed) {
+                      const planRestSec = resolveRestTarget(
+                        planFor(exercise.source, exercise.wgerExerciseId),
+                        setIndex,
+                        null,
+                      )
+                      // Between the stages of ONE technique set there is no
+                      // rest period — that absence IS the technique (Hevy's
+                      // rule). An authored intra-set pause (rest-pause,
+                      // cluster) still counts down: there the short rest IS
+                      // the prescription.
+                      if (
+                        restTimerEnabled &&
+                        !set.completed &&
+                        startsRestPeriod(stage, exercise.sets[setIndex + 1]?.technique, planRestSec)
+                      ) {
                         setRestStartedAt(new Date())
-                        setRestPlanSec(
-                          resolveRestTarget(planFor(exercise.source, exercise.wgerExerciseId), setIndex, null),
-                        )
+                        setRestPlanSec(planRestSec)
                         // New period, clean slate: quick-adjust taps belong
                         // to ONE rest period only, never the next.
                         setRestOffsetSec(0)
@@ -2068,6 +2119,8 @@ export function WorkoutLogger({
                   >
                     {set.completed ? (
                       <Check aria-hidden="true" strokeWidth={3} className="size-4" />
+                    ) : isStage ? (
+                      t(`techniqueGlyph.${TECHNIQUE_LABEL_KEY[stage.kind]}`)
                     ) : set.tag === 'warmup' ? (
                       t('warmupGlyph')
                     ) : (
@@ -2908,6 +2961,10 @@ export function WorkoutLogger({
               setLabel={`${menuSetLabel} of ${exercise.name}`}
               hasNote={setHasNote(set)}
               isWarmup={set.tag === 'warmup'}
+              techniqueKind={set.technique?.kind ?? null}
+              // A stage continues the set above it: the first set of an
+              // exercise has nothing to continue, so it isn't offered.
+              canTagTechnique={rowMenu.setIndex > 0}
               onNote={() => {
                 setNoteCaptureFor({
                   exerciseIndex: rowMenu.exerciseIndex,
@@ -2924,6 +2981,18 @@ export function WorkoutLogger({
                   exerciseIndex: rowMenu.exerciseIndex,
                   setIndex: rowMenu.setIndex,
                   tag: nextSetTag(set.tag),
+                })
+                setRowMenu(null)
+              }}
+              onTagTechnique={(kind) => {
+                dispatch({
+                  type: 'SET_SET_TECHNIQUE',
+                  exerciseIndex: rowMenu.exerciseIndex,
+                  setIndex: rowMenu.setIndex,
+                  kind,
+                  // Minted here (the reducer stays pure); used only when a
+                  // NEW group starts — joining reuses the group above.
+                  group: crypto.randomUUID(),
                 })
                 setRowMenu(null)
               }}

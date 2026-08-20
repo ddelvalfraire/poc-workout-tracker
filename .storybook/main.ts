@@ -7,14 +7,22 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 
 /**
  * `'use server'` modules can't be bundled for the browser — they pull in
- * Drizzle, Postgres and the AuthKit session. UnitToggle, NavDrawer and
- * SessionConflictDialog each call one, so the catalog swaps them for the
- * stubs in ./mocks/app-actions.ts. `.storybook/mocks.test.ts` enforces that
- * this list covers every action module the components import, and that the
- * stub file exports every symbol they pull from it.
+ * Drizzle, Postgres and the AuthKit session. Nothing in the components is
+ * "dependent on auth": Next replaces a server-action import with an RPC stub
+ * at build time, but Storybook's plain Vite build has no such transform, so
+ * the real module — and `requireUserId` behind it — would be evaluated in the
+ * browser (`__dirname is not defined`, from deep inside AuthKit).
+ *
+ * The catalog therefore aliases those specifiers to the stubs in
+ * ./mocks/app-actions.ts. `.storybook/mocks.test.ts` enforces that this list
+ * covers every action module reachable FROM A STORY — transitively, not just
+ * the direct imports of src/components — and that the stub file exports every
+ * symbol those files pull from it.
  */
 export const SERVER_ACTION_MODULES = [
   "@/app/actions",
+  "@/app/exercises/actions",
+  "@/app/notes/actions",
   "@/app/programs/actions",
   "@/app/workout/actions",
 ];

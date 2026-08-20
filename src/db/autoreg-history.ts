@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, inArray, isNotNull, ne, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, ne, or, sql } from 'drizzle-orm'
 import type { ExerciseSource } from '@/lib/custom-exercise-input'
 import { AUTOREG_RANGE_SESSION_WINDOW } from '@/lib/autoregulate'
 import { db } from './index'
@@ -194,9 +194,18 @@ export async function getRecentTrainedSessions(
     })
     .from(sets)
     .where(
-      inArray(
-        sets.workoutExerciseId,
-        chosen.map((c) => c.workoutExerciseId),
+      and(
+        inArray(
+          sets.workoutExerciseId,
+          chosen.map((c) => c.workoutExerciseId),
+        ),
+        // Technique STAGES never testify (lib/technique.ts): a drop or a
+        // rest-pause mini-set is taken to failure BY DESIGN, so scoring it as
+        // an independent working set would read the technique working as a
+        // stall and back the lifter's load off for succeeding. The group's
+        // top set (stage 0, and every ordinary set) still governs — it is a
+        // normal working set with a real prescription.
+        or(isNull(sets.stageIndex), eq(sets.stageIndex, 0)),
       ),
     )
     .orderBy(asc(sets.setNumber))

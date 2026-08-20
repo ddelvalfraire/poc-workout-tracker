@@ -119,6 +119,7 @@ interface FixtureSet {
   rir?: number | null
   rpe?: number | null
   suggestedLoadKg?: number | null
+  technique?: unknown
   overrides?: { week: number; [key: string]: unknown }[]
 }
 
@@ -344,6 +345,58 @@ describe('instantiateProgramDay (engine-driven)', () => {
         prescribedRepMin: 8,
       }),
     ])
+  })
+
+  it('expands a technique prescription into grouped stage rows (Model A)', async () => {
+    // Arrange — one rest-pause set: a top set plus two mini-sets, each with a
+    // 20 s intra-set pause. The between-set rest stays a plan fact.
+    findFirst.mockResolvedValue(
+      dayFixture({
+        sets: [
+          { setNumber: 1, repMin: 8, suggestedLoadKg: 100 },
+          {
+            setNumber: 2,
+            repMin: 10,
+            suggestedLoadKg: 80,
+            technique: {
+              version: 1,
+              kind: 'rest-pause',
+              stages: [
+                { reps: 3, restSec: 20 },
+                { reps: 2, restSec: 20 },
+              ],
+            },
+          },
+        ],
+      }),
+    )
+
+    // Act
+    await instantiateProgramDay(USER, 'd1', 1, 'ui')
+
+    // Assert — 2 planned sets become 4 contiguous rows; the technique's rows
+    // share a group, carry their stage index, and each stage's own targets
+    // land in the immutable prescribed_* snapshot.
+    expect(seededSets()).toEqual([
+      expect.objectContaining({
+        setNumber: 1,
+        techniqueKind: null,
+        techniqueGroup: null,
+        stageIndex: null,
+      }),
+      expect.objectContaining({
+        setNumber: 2,
+        techniqueKind: 'rest-pause',
+        stageIndex: 0,
+        prescribedLoadKg: 80,
+        prescribedRepMin: 10,
+      }),
+      expect.objectContaining({ setNumber: 3, techniqueKind: 'rest-pause', stageIndex: 1, prescribedRepMin: 3 }),
+      expect.objectContaining({ setNumber: 4, techniqueKind: 'rest-pause', stageIndex: 2, prescribedRepMin: 2 }),
+    ])
+    const rows = seededSets() as unknown as { techniqueGroup: string | null }[]
+    expect(new Set(rows.slice(1).map((r) => r.techniqueGroup)).size).toBe(1)
+    expect(rows[1].techniqueGroup).not.toBeNull()
   })
 
   it('seeds the prescribed effort snapshot (rir/rpe) from the derived prescription', async () => {

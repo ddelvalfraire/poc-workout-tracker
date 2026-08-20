@@ -9,6 +9,7 @@ import {
   getRpeLoggingEnabled,
 } from '@/db/preferences'
 import { getProgramDayDetail, deriveDayPrescription } from '@/db/programs'
+import { expandTechniqueStages } from '@/lib/technique'
 import { getWorkoutDraft } from '@/db/workout-drafts'
 import type { PlanSetTarget } from '@/lib/format'
 import type { WeightUnit } from '@/lib/units'
@@ -82,7 +83,11 @@ async function loadPlanTargets(
         ...(adjustment.phaseContext === 'cutting' ? { phaseContext: 'cutting' as const } : {}),
       }
     }
-    targets[key] = derived[i].sets.map((s) => ({
+    // Expanded through the SAME function instantiation used (lib/technique.ts)
+    // — plan targets are positional, so a technique set that seeded 3 rows
+    // must offer 3 targets or every later set would wear the wrong ghosts,
+    // rest countdown and effort target.
+    targets[key] = expandTechniqueStages(derived[i].sets).map((s) => ({
       repMin: s.repMin,
       repMax: s.repMax,
       loadKg: s.loadKg,

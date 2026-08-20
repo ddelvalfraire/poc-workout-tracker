@@ -483,4 +483,56 @@ describe('parseWorkoutInput', () => {
       expect(() => parseWorkoutInput(cardioWorkout({ distanceM: 10_000_000 }))).toThrow(/distanceM/)
     })
   })
+  describe('technique grouping', () => {
+    const stage = (stageIndex: number, over: Record<string, unknown> = {}) => ({
+      reps: 5,
+      weight: 100,
+      technique: { kind: 'drop-set', group: 'g1', stageIndex, ...over },
+    })
+    const grouped = (sets: Record<string, unknown>[]) => ({
+      exercises: [{ wgerExerciseId: 73, name: 'Squat', sets }],
+    })
+
+    it('accepts a well-formed group and passes it through verbatim', () => {
+      const result = parseWorkoutInput(grouped([stage(0), stage(1)]))
+
+      expect(result.exercises[0].sets.map((s) => s.technique)).toEqual([
+        { kind: 'drop-set', group: 'g1', stageIndex: 0 },
+        { kind: 'drop-set', group: 'g1', stageIndex: 1 },
+      ])
+    })
+
+    it('omits the field entirely when absent (pre-technique payloads keep their shape)', () => {
+      const result = parseWorkoutInput(VALID)
+
+      expect('technique' in result.exercises[0].sets[0]).toBe(false)
+    })
+
+    it('rejects an unknown kind, a blank group, and an off-range stage index', () => {
+      expect(() => parseWorkoutInput(grouped([stage(0, { kind: 'giant-set' })]))).toThrow(/kind/)
+      expect(() => parseWorkoutInput(grouped([stage(0, { group: '  ' })]))).toThrow(/group/)
+      expect(() => parseWorkoutInput(grouped([stage(1.5)]))).toThrow(/stageIndex/)
+      expect(() => parseWorkoutInput(grouped([stage(0), stage(99)]))).toThrow(/stageIndex/)
+    })
+
+    it('rejects a group that does not open at stage 0', () => {
+      expect(() => parseWorkoutInput(grouped([stage(1), stage(2)]))).toThrow(/stage 0/)
+    })
+
+    it('rejects a gap in the stage numbering', () => {
+      expect(() => parseWorkoutInput(grouped([stage(0), stage(2)]))).toThrow(/contiguously/)
+    })
+
+    it('rejects a group split by an ordinary set (it would count twice)', () => {
+      expect(() =>
+        parseWorkoutInput(grouped([stage(0), { reps: 5, weight: 100 }, stage(1)])),
+      ).toThrow(/contiguous run/)
+    })
+
+    it('rejects a group that mixes kinds', () => {
+      expect(() =>
+        parseWorkoutInput(grouped([stage(0), stage(1, { kind: 'rest-pause' })])),
+      ).toThrow(/mixes kinds/)
+    })
+  })
 })

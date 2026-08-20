@@ -215,6 +215,20 @@ describe('getRecentTrainedSessions', () => {
     }
   })
 
+  it('excludes technique STAGE rows from the evidence (a drop set is not a stall)', async () => {
+    // Arrange
+    selectQueue = [[slot('w1', 1, 'we1')], []]
+
+    // Act
+    await getRecentTrainedSessions(USER, PID, 'wger', 1)
+
+    // Assert — the set query filters on stage_index. A drop or rest-pause
+    // mini-set is taken to failure by design; scoring it as an independent
+    // working set would read the technique WORKING as a stall and back the
+    // lifter's load off for succeeding.
+    expect(predicateMentionsColumn(capturedWheres[1], 'stage_index')).toBe(true)
+  })
+
   it('orders by startedAt desc with the workout id as tiebreak (no midnight flapping)', async () => {
     // Arrange
     selectQueue = [[]]

@@ -1,5 +1,5 @@
-import { readFileSync, readdirSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
@@ -11,32 +11,101 @@ import * as mocks from "./mocks/app-actions";
  * the AuthKit session out of the Storybook browser bundle. It used to be
  * maintained by hand against a grep in a comment; these tests are that grep,
  * enforced.
+ *
+ * The grep follows the STORY IMPORT GRAPH, not a directory. A directory walk
+ * of src/components was the original rule, and it had a blind spot big enough
+ * to break a story: a story outside src/components (Logger/*) reaches server
+ * actions through several hops of its own module tree, and the catalog only
+ * discovers that when the story renders `__dirname is not defined` from deep
+ * inside AuthKit. What matters is reachability from a story, so that is what
+ * is walked.
  */
-const COMPONENTS = join(process.cwd(), "src/components");
+const SRC = resolve(process.cwd(), "src");
 
 function walk(dir: string): string[] {
   return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
     const full = join(dir, entry.name);
     if (entry.isDirectory()) return walk(full);
-    return entry.isFile() && /\.tsx?$/.test(entry.name) && !/\.(test|stories)\./.test(entry.name)
-      ? [full]
-      : [];
+    return entry.isFile() && /\.tsx?$/.test(entry.name) ? [full] : [];
   });
 }
 
-/** Every `import { a, b } from '@/app/**\/actions'` under src/components. */
-function actionImports(): { module: string; symbols: string[]; file: string }[] {
-  const pattern = /import\s*\{([^}]+)\}\s*from\s*['"](@\/app\/[^'"]*actions)['"]/g;
-  return walk(COMPONENTS).flatMap((file) => {
+/** Resolves a `@/`- or relative specifier to a file in src, or null for a
+ *  package (node_modules is not ours to guard). */
+function resolveSpecifier(specifier: string, from: string): string | null {
+  const base = specifier.startsWith("@/")
+    ? join(SRC, specifier.slice(2))
+    : specifier.startsWith(".")
+      ? resolve(dirname(from), specifier)
+      : null;
+  if (base === null) return null;
+  const candidates = [
+    base,
+    `${base}.ts`,
+    `${base}.tsx`,
+    join(base, "index.ts"),
+    join(base, "index.tsx"),
+  ];
+  return (
+    candidates.find((c) => existsSync(c) && statSync(c).isFile()) ?? null
+  );
+}
+
+const NAMED_IMPORT = /import\s*(?:type\s+)?\{([^}]*)\}\s*from\s*['"]([^'"]+)['"]/g;
+const ANY_IMPORT = /from\s*['"]([^'"]+)['"]/g;
+
+/** True for a module the alias list replaces with a stub. Traversal STOPS at
+ *  one: its own imports (auth, Drizzle, the AuthKit session) never reach the
+ *  browser bundle, so they are not the catalog's problem — that substitution
+ *  is the whole point of the alias. */
+function isAliased(file: string): boolean {
+  return SERVER_ACTION_MODULES.some(
+    (module) => resolveSpecifier(module, join(SRC, "x.ts")) === file,
+  );
+}
+
+/** Every file reachable from a story file, stories included, stopping at the
+ *  aliased action modules. */
+function storyGraph(): string[] {
+  const seen = new Set<string>();
+  const visit = (file: string) => {
+    if (seen.has(file)) return;
+    seen.add(file);
+    if (isAliased(file)) return;
     const source = readFileSync(file, "utf8");
-    return [...source.matchAll(pattern)].map((match) => ({
-      file,
-      module: match[2],
-      symbols: match[1]
-        .split(",")
-        .map((s) => s.trim().split(/\s+as\s+/)[0].trim())
-        .filter(Boolean),
-    }));
+    for (const match of source.matchAll(ANY_IMPORT)) {
+      const resolved = resolveSpecifier(match[1], file);
+      if (resolved !== null) visit(resolved);
+    }
+  };
+  for (const file of walk(SRC)) {
+    if (/\.stories\.tsx?$/.test(file)) visit(file);
+  }
+  return [...seen];
+}
+
+const GRAPH = storyGraph();
+
+/** Every `import { a, b } from '.../actions'` in the story graph. A relative
+ *  specifier is normalized to its `@/`-form: that is what the Vite alias
+ *  matches on, so a relative import of an action module is reported as
+ *  unaliased even though the module itself may be in the list. */
+function actionImports(): { module: string; symbols: string[]; file: string }[] {
+  return GRAPH.flatMap((file) => {
+    const source = readFileSync(file, "utf8");
+    return [...source.matchAll(NAMED_IMPORT)]
+      .filter((match) => {
+        const resolved = resolveSpecifier(match[2], file);
+        return resolved !== null && /[\\/]app[\\/].*actions\.tsx?$/.test(resolved);
+      })
+      .map((match) => ({
+        file,
+        module: match[2],
+        symbols: match[1]
+          .split(",")
+          .map((s) => s.trim().split(/\s+as\s+/)[0].trim())
+          .filter(Boolean),
+      }));
   });
 }
 
@@ -76,10 +145,12 @@ describe("storybook server-action mocks", () => {
     // function. AuthKit's session is reached through a server action instead,
     // so no component needs a provider standing up in the catalog. This test
     // is what stops a vendor component from reintroducing that class of crash.
-    const offenders = walk(COMPONENTS).filter((file) =>
-      /from\s*['"]@(?:clerk\/nextjs|workos-inc\/authkit-nextjs)[^'"]*['"]/.test(
-        readFileSync(file, "utf8"),
-      ),
+    const offenders = GRAPH.filter(
+      (file) =>
+        !isAliased(file) &&
+        /from\s*['"]@(?:clerk\/nextjs|workos-inc\/authkit-nextjs)[^'"]*['"]/.test(
+          readFileSync(file, "utf8"),
+        ),
     );
     expect(offenders).toEqual([]);
   });

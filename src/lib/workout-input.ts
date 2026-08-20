@@ -15,6 +15,13 @@
  */
 
 import { isValidRir, isValidRpe, RIR_MIN, RIR_MAX, RPE_MIN, RPE_MAX } from './effort'
+import {
+  isTechniqueKind,
+  TECHNIQUE_KINDS,
+  type SetTechnique,
+  type TechniqueKind,
+} from './technique'
+export type { SetTechnique }
 
 /**
  * How an exercise's sets are logged and how their `weight` column reads
@@ -92,6 +99,11 @@ export interface SetInput {
   durationSec?: number | null
   /** Logged distance in meters (duration_distance); absent/null = not logged. */
   distanceM?: number | null
+  /** This row's place inside an intensity-technique group (a drop set, a
+   *  rest-pause mini-set, …); absent = an ordinary set. ONE object, not three
+   *  loose fields, because the three facts are only ever true together — a
+   *  kind without a group would be an ungroupable stage. */
+  technique?: SetTechnique
 }
 
 /** One exercise within a workout, with its logged sets. */
@@ -146,6 +158,11 @@ export const MAX_DURATION_SEC = 86_400
 // distance_m is numeric(9,2) — 9,999,999.99 m is the column ceiling (mirrors
 // MAX_DISTANCE_M in program-input.ts, which isn't exported there).
 export const MAX_DISTANCE_M = 9_999_999.99
+/** Group-key length cap — the key is a client-minted handle, never prose. */
+const MAX_TECHNIQUE_GROUP = 64
+/** Stage ceiling per technique group: a set with 33 drops is corruption, not
+ *  a drop set, and each stage is a row that must not run away. */
+const MAX_STAGE_INDEX = 32
 
 function asRecord(value: unknown, message: string): Record<string, unknown> {
   if (!value || typeof value !== 'object') throw new Error(message)
@@ -278,6 +295,13 @@ function parseSet(raw: unknown, loggingType: LoggingType): SetInput {
     throw new Error(`set distanceM must be a number between 0 and ${MAX_DISTANCE_M} m, or null`)
   }
 
+  // Technique grouping: absent = an ordinary set. Present means all three
+  // facts, each whitelisted/bounded — a bad kind or a runaway stage index
+  // would mis-credit weekly volume the way a typo'd setType mis-scores
+  // records. Adjacency across the exercise's rows is checked in parseExercise,
+  // the only place the whole group is visible.
+  const technique = parseSetTechnique(obj.technique)
+
   // ---- Cross-field rules (the wire mirrors draftToInput's exclusivity) ----
   // A zero duration/distance carries no logged fact — normalize to null BEFORE
   // the gates below, so a completed set with `0` reads as missing its metric
@@ -330,6 +354,78 @@ function parseSet(raw: unknown, loggingType: LoggingType): SetInput {
     ...(isMetricMode(metricMode) && { metricMode }),
     ...(normDurationSec !== undefined && { durationSec: normDurationSec }),
     ...(normDistanceM !== undefined && { distanceM: normDistanceM }),
+    ...(technique !== undefined && { technique }),
+  }
+}
+
+/** Validates one set's technique grouping; undefined when absent (an ordinary
+ *  set). Null is accepted as "absent" for callers that clear the field. */
+function parseSetTechnique(raw: unknown): SetTechnique | undefined {
+  if (raw === undefined || raw === null) return undefined
+  const obj = asRecord(raw, 'set technique must be an object')
+
+  const { kind } = obj
+  if (!isTechniqueKind(kind)) {
+    throw new Error(`set technique kind must be one of ${TECHNIQUE_KINDS.join(', ')}`)
+  }
+
+  const { group } = obj
+  if (typeof group !== 'string' || group.trim().length === 0) {
+    throw new Error('set technique group must be a non-empty string')
+  }
+  if (group.length > MAX_TECHNIQUE_GROUP) {
+    throw new Error(`set technique group must be ${MAX_TECHNIQUE_GROUP} characters or fewer`)
+  }
+
+  const { stageIndex } = obj
+  if (
+    !Number.isInteger(stageIndex) ||
+    (stageIndex as number) < 0 ||
+    (stageIndex as number) > MAX_STAGE_INDEX
+  ) {
+    throw new Error(`set technique stageIndex must be an integer between 0 and ${MAX_STAGE_INDEX}`)
+  }
+
+  return { kind, group, stageIndex: stageIndex as number }
+}
+
+/**
+ * Group-shape rule across ONE exercise's sets: a technique group must be a
+ * CONTIGUOUS run of rows, opening at stage 0 and stepping by exactly 1, all
+ * of one kind. That is what makes the group countable — weekly volume credits
+ * the group once at stage 0 (lib/technique.ts), so a group with two stage 0s,
+ * a gap, or rows split across the exercise would silently miscount the
+ * lifter's hard sets. Rejected at the boundary rather than tolerated.
+ */
+function assertTechniqueGroups(sets: readonly SetInput[]): void {
+  const seen = new Set<string>()
+  let open: { group: string; kind: TechniqueKind; nextStage: number } | null = null
+  for (const set of sets) {
+    const technique = set.technique
+    if (!technique) {
+      open = null
+      continue
+    }
+    if (open === null || open.group !== technique.group) {
+      // Reopening first: a group split by an ordinary set is a more precise
+      // diagnosis than the stage-0 rule its second run also trips.
+      if (seen.has(technique.group)) {
+        throw new Error(`technique group '${technique.group}' must be one contiguous run of sets`)
+      }
+      if (technique.stageIndex !== 0) {
+        throw new Error(`technique group '${technique.group}' must open at stage 0`)
+      }
+      seen.add(technique.group)
+      open = { group: technique.group, kind: technique.kind, nextStage: 1 }
+      continue
+    }
+    if (technique.kind !== open.kind) {
+      throw new Error(`technique group '${technique.group}' mixes kinds`)
+    }
+    if (technique.stageIndex !== open.nextStage) {
+      throw new Error(`technique group '${technique.group}' must number its stages contiguously`)
+    }
+    open.nextStage += 1
   }
 }
 
@@ -375,6 +471,7 @@ function parseExercise(raw: unknown): ExerciseInput {
   if (!Array.isArray(obj.sets)) throw new Error('exercise sets must be an array')
   const effectiveLoggingType: LoggingType = isLoggingType(loggingType) ? loggingType : 'weight_reps'
   const sets = obj.sets.map((set) => parseSet(set, effectiveLoggingType))
+  assertTechniqueGroups(sets)
 
   return {
     wgerExerciseId: wgerExerciseId as number,

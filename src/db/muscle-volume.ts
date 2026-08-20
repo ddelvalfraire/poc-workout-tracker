@@ -4,13 +4,17 @@ import { MUSCLE_GROUPS, muscleGroupFor, type MuscleGroup } from '@/lib/muscle-gr
 import { cache } from 'react'
 import { inWindow, volumeWindows, type VolumeWindows } from '@/lib/volume-window'
 import { getAllExercises } from '@/lib/wger'
+import { isTechniqueKind, stageVolumeWeight, type SetTechnique } from '@/lib/technique'
 import { db } from './index'
 import { listCustomExercises } from './custom-exercises'
 import { workouts, workoutExercises, sets } from './schema'
 
 /**
  * Weekly training volume per muscle group — sets counted with the standard
- * hypertrophy credit rule (primary muscles 1.0, secondaries 0.5 per set).
+ * hypertrophy credit rule (primary muscles 1.0, secondaries 0.5 per set),
+ * each set first weighted by what it is worth as a HARD set: an ordinary set
+ * is 1.0, and a technique group's rows share a weight instead of counting
+ * three times (lib/technique.ts `stageVolumeWeight`).
  *
  * Like the other stats modules, this sits on the authorization boundary
  * (no RLS — every query filters by user_id) and counts only completed sets
@@ -30,6 +34,10 @@ export interface MuscleVolumeRow {
   /** Logged seconds on duration-mode rows (cardio-minutes total); optional
    *  so pre-cardio fixtures keep their shape. */
   durationSec?: number | null
+  /** Technique grouping columns — optional so pre-technique fixtures keep
+   *  their shape; a half-written pair reads as an ordinary set. */
+  techniqueKind?: string | null
+  stageIndex?: number | null
 }
 
 /** Muscles an exercise trains, as catalog names (not yet bucketed). Null =
@@ -55,7 +63,9 @@ export interface MuscleVolume {
    *  when it has volume in either window. */
   groups: MuscleGroupVolume[]
   totals: {
-    /** Raw completed reps_weight set counts (integers, uncredited). */
+    /** Completed reps_weight set counts, uncredited but hard-set weighted —
+     *  fractional when the window holds technique work (a 3-stage rest-pause
+     *  is 2 sets, not 3). */
     currentSets: number
     previousSets: number
     /** Distinct completed workouts in the current window. */
@@ -127,17 +137,23 @@ export function aggregateMuscleVolume(
       continue
     }
     const bucket = isCurrent ? current : previous
+    // What this ROW is worth as a hard set: 1.0 ordinarily, less for the
+    // later stages of a technique group (the group is one set, not N).
+    const weight = stageVolumeWeight(rowTechnique(row))
     if (isCurrent) {
-      currentSets += 1
+      currentSets += weight
       currentWorkouts.add(row.workoutId)
     } else {
-      previousSets += 1
+      previousSets += weight
     }
+    // A stage worth nothing (a cluster's later blocks) credits nothing —
+    // it was already counted at the top of its group.
+    if (weight === 0) continue
 
     // Per-set group credits: primary wins over secondary within one set.
     const credits = creditSetMuscles(resolver(row.source, row.wgerExerciseId))
     for (const [group, credit] of credits) {
-      bucket.set(group, (bucket.get(group) ?? 0) + credit)
+      bucket.set(group, (bucket.get(group) ?? 0) + credit * weight)
     }
   }
 
@@ -162,6 +178,15 @@ export function aggregateMuscleVolume(
       previousCardioSec,
     },
   }
+}
+
+/** The row's technique grouping, or undefined when it is an ordinary set.
+ *  Stored columns are still data: a junk kind or a missing stage index
+ *  degrades to "ordinary", never to a mis-weighted set. */
+function rowTechnique(row: MuscleVolumeRow): SetTechnique | undefined {
+  if (!isTechniqueKind(row.techniqueKind) || !Number.isInteger(row.stageIndex)) return undefined
+  // `group` plays no part in the weight — the stage index carries it.
+  return { kind: row.techniqueKind, group: '', stageIndex: row.stageIndex as number }
 }
 
 /**
@@ -199,6 +224,8 @@ function fetchVolumeRows(userId: string, windows: VolumeWindows) {
       source: workoutExercises.source,
       metricMode: sets.metricMode,
       durationSec: sets.durationSec,
+      techniqueKind: sets.techniqueKind,
+      stageIndex: sets.stageIndex,
     })
     .from(sets)
     .innerJoin(workoutExercises, eq(workoutExercises.id, sets.workoutExerciseId))

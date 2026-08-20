@@ -162,6 +162,17 @@ export const sets = pgTable(
     metricMode: text('metric_mode').notNull().default('reps_weight'),
     durationSec: integer('duration_sec'),
     distanceM: numeric('distance_m', { precision: 9, scale: 2, mode: 'number' }), // meters
+    // Intensity-technique grouping (lib/technique.ts, "Model A"): a drop-set /
+    // rest-pause / myo-reps / cluster set is N ROWS, not nested JSON, so every
+    // row-reading consumer (e1RM, best-set, plan-sync, the autoreg stall
+    // rules) keeps working untouched. All three columns are nullable and
+    // absent on an ordinary set — a technique row is the exception, never the
+    // default. `technique_group` is equal across one technique set's rows and
+    // unique within the exercise; `stage_index` is 0-based (0 = the top /
+    // activation set). Text + app-level union like `set_type`.
+    techniqueKind: text('technique_kind').$type<Technique['kind']>(),
+    techniqueGroup: text('technique_group'),
+    stageIndex: integer('stage_index'),
   },
   // setNumber is 1-based contiguous per exercise. This guard stops two concurrent
   // add_set calls from both inserting the same number (the read-max/insert race).

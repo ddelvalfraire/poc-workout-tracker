@@ -2,6 +2,8 @@ import { and, desc, eq } from 'drizzle-orm'
 import { MUSCLE_GROUPS } from '@/lib/muscle-groups'
 import { db } from './index'
 import { creditSetMuscles, type VolumeGroup } from './muscle-volume'
+import { plannedTechniqueWeight } from '@/lib/technique'
+import type { Technique } from '@/lib/program-input'
 import {
   programs,
   programDays,
@@ -38,6 +40,9 @@ export interface PlannedSetRow {
   programExerciseId: string
   setType: string
   metricMode: string
+  /** The technique tail, still nested here (the plan's grain). Optional so
+   *  pre-technique fixtures keep their shape. */
+  technique?: Technique | null
 }
 
 /** One muscle tag row (program_exercise_muscles). */
@@ -58,7 +63,8 @@ export interface PlannedVolume {
   programName: string
   /** All ten groups in display order; 'Other' appended only when planned. */
   groups: PlannedGroupVolume[]
-  /** Raw counted planned sets (integers, uncredited). */
+  /** Counted planned sets, uncredited but hard-set weighted — fractional
+   *  when the program prescribes technique work. */
   totalSets: number
 }
 
@@ -86,10 +92,14 @@ export function aggregatePlannedVolume(
   for (const row of setRows) {
     if (row.setType === 'warmup') continue // ramp-up, not dose (see module doc)
     if (row.metricMode !== 'reps_weight') continue
-    totalSets += 1
+    // Hard-set weight, the same rule the performed side applies to the rows
+    // this set will become (lib/technique.ts) — planned-vs-performed is only
+    // honest if a prescribed rest-pause and a logged one count the same.
+    const weight = plannedTechniqueWeight(row.technique)
+    totalSets += weight
     const credits = creditSetMuscles(musclesByExercise.get(row.programExerciseId) ?? null)
     for (const [group, credit] of credits) {
-      totals.set(group, (totals.get(group) ?? 0) + credit)
+      totals.set(group, (totals.get(group) ?? 0) + credit * weight)
     }
   }
 
@@ -126,6 +136,7 @@ export async function getPlannedWeeklyVolume(userId: string): Promise<PlannedVol
         programExerciseId: programSets.programExerciseId,
         setType: programSets.setType,
         metricMode: programSets.metricMode,
+        technique: programSets.technique,
       })
       .from(programSets)
       .innerJoin(programExercises, eq(programExercises.id, programSets.programExerciseId))

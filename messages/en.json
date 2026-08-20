@@ -1083,7 +1083,13 @@
       "setSummary": "{count, plural, one {# set} other {# sets}}",
       "setsUnit": "{count, plural, one {set} other {sets}}",
       "skippedBadge": "Skipped",
-      "targetsLink": "Targets"
+      "targetsLink": "Targets",
+      "technique": {
+        "dropSet": "Drop set",
+        "restPause": "Rest-pause",
+        "myoReps": "Myo-reps",
+        "cluster": "Cluster"
+      }
     },
     "deloadBadge": "Deload week",
     "patchProposal": {
@@ -1353,6 +1359,18 @@
     "noteAdd": "Add note",
     "noteView": "Note · view",
     "remove": "Remove set",
+    "technique": {
+      "cluster": "Cluster",
+      "dropSet": "Drop set",
+      "myoReps": "Myo-reps",
+      "restPause": "Rest-pause"
+    },
+    "techniqueGlyph": {
+      "cluster": "C",
+      "dropSet": "D",
+      "myoReps": "M",
+      "restPause": "R"
+    },
     "warmupGlyph": "W",
     "warmupTag": "Tag warm-up",
     "warmupUntag": "Untag warm-up"
@@ -1900,11 +1918,24 @@
     "savePending": "Saving…",
     "sessionDone": "All sets done.",
     "setLabel": "set {number}",
+    "setLabelStage": "{technique} stage {stage} of set {number}",
     "setLabelWarmup": "warm-up set {number}",
     "skipAriaLabel": "Skip {name}",
     "skippedBadge": "Skipped",
     "statsAriaLabel": "Stats for {name}",
     "supersetLabel": "Superset {group}",
+    "technique": {
+      "cluster": "cluster",
+      "dropSet": "drop set",
+      "myoReps": "myo-reps",
+      "restPause": "rest-pause"
+    },
+    "techniqueGlyph": {
+      "cluster": "C",
+      "dropSet": "D",
+      "myoReps": "M",
+      "restPause": "R"
+    },
     "undo": "Undo",
     "undoCount": "Undo ({count})",
     "undoRemoved": "Removed <name>{subject}</name>",
