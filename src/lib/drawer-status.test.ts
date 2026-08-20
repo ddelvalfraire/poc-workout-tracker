@@ -32,12 +32,21 @@ const now = new Date(2026, 7, 3, 12, 0, 0) // Mon Aug 3 2026, local
 
 describe('startContextLine', () => {
   it('joins day, week and a lowercased anchor', () => {
-    expect(startContextLine('Legs', 3, 'Today')).toEqual({
+    // The anchor arrives as a KIND (lib/schedule-anchor.ts) and rides in as
+    // a nested descriptor — the lowercasing is the drawer catalog's, not a
+    // toLowerCase() on an already-translated word.
+    expect(startContextLine('Legs', 3, { kind: 'today' })).toEqual({
       key: 'startContextAnchor',
-      values: { day: 'Legs', week: 3, anchor: 'today' },
+      values: {
+        day: 'Legs',
+        week: 3,
+        anchor: { key: 'anchor', values: { anchor: 'today' } },
+      },
     })
-    expect(read(startContextLine('Legs', 3, 'Today'))).toBe('Legs · Week 3 · today')
-    expect(read(startContextLine('Push', 1, 'Friday'))).toBe('Push · Week 1 · friday')
+    expect(read(startContextLine('Legs', 3, { kind: 'today' }))).toBe('Legs · Week 3 · today')
+    expect(read(startContextLine('Push', 1, { kind: 'weekday', weekday: 5 }))).toBe(
+      'Push · Week 1 · friday',
+    )
   })
 
   it('drops the anchor segment when unscheduled', () => {

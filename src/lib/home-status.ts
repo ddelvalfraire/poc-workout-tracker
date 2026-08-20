@@ -1,5 +1,5 @@
 import { isSameLocalDay } from '@/lib/local-day'
-import { scheduleAnchor } from '@/lib/schedule-anchor'
+import { scheduleAnchor, scheduleAnchorToken, type ScheduleAnchor } from '@/lib/schedule-anchor'
 import { formatVolume } from '@/lib/format'
 import type { Line, Message } from '@/lib/i18n/message'
 import type { WeightUnit } from '@/lib/units'
@@ -82,6 +82,7 @@ export type StatusHeroKey =
   | 'context.rest'
   | 'context.freshReturning'
   | 'context.freshDayOne'
+  | 'anchor'
   | 'lastSession'
   | 'unnamedSession'
   | 'untitledWorkout'
@@ -146,6 +147,13 @@ export function momentumWeekDeltaLine(
   return delta > 0
     ? { key: 'weekDeltaUp', values: { delta } }
     : { key: 'weekDeltaDown', values: { delta: -delta } }
+}
+
+/** The anchor's WORDS, as a nested descriptor. The hero owns its own copy of
+ *  them (docs/I18N-KEYS.md §4) — the drawer renders the same anchor
+ *  lowercased into its sub-line voice, which a shared key could not do. */
+function anchorLine(anchor: ScheduleAnchor): Message<StatusHeroKey> {
+  return { key: 'anchor', values: { anchor: scheduleAnchorToken(anchor) } }
 }
 
 function driftingStatus(
@@ -226,14 +234,15 @@ export function statusForHome(facts: HomeStatusFacts, unit: WeightUnit, now: Dat
     const anchor = scheduleAnchor(nextDay.weekdays, now)
     // Unscheduled programs are always "due" — the pre-schedule "Up next"
     // semantics; scheduled ones are due only on their local calendar day.
-    if (anchor === null || anchor === 'Today') {
+    // Branching on the KIND, never on the word: an anchor compared as a
+    // display string stops matching the moment the copy is translated, and
+    // the hero would silently take the wrong branch.
+    if (anchor === null || anchor.kind === 'today') {
       const week = { week: nextDay.week, total: nextDay.mesocycleWeeks }
       const hasLastTime = facts.lastTimeVolumeKg !== null && facts.lastTimeVolumeKg > 0
       return {
         state: 'program-due',
-        // The anchor is a schedule word from lib/schedule-anchor.ts, passed
-        // through as a fact; "Up next" is this surface's own copy.
-        eyebrow: anchor !== null ? { literal: anchor } : { key: 'eyebrow.upNext' },
+        eyebrow: anchor !== null ? anchorLine(anchor) : { key: 'eyebrow.upNext' },
         headline: dueHeadline(nextDay.dayName),
         context: hasLastTime
           ? {
@@ -246,14 +255,17 @@ export function statusForHome(facts: HomeStatusFacts, unit: WeightUnit, now: Dat
     if (daysSince !== null && daysSince >= DRIFT_THRESHOLD_DAYS) {
       return driftingStatus(facts, daysSince, {
         key: 'context.driftNext',
-        values: { day: nextDay.dayName, anchor },
+        values: { day: nextDay.dayName, anchor: anchorLine(anchor) },
       })
     }
     return {
       state: 'rest-day',
       eyebrow: { literal: nextDay.programName },
       headline: { key: 'headline.rest' },
-      context: { key: 'context.rest', values: { day: nextDay.dayName, anchor } },
+      context: {
+        key: 'context.rest',
+        values: { day: nextDay.dayName, anchor: anchorLine(anchor) },
+      },
     }
   }
 

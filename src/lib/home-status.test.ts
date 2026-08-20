@@ -162,8 +162,10 @@ describe('statusForHome', () => {
       now,
     )
     expect(status.state).toBe('program-due')
-    // The anchor comes from lib/schedule-anchor.ts as a fact, not a key.
-    expect(status.eyebrow).toEqual({ literal: 'Today' })
+    // The anchor arrives as a KIND and renders through the hero's own copy
+    // of the day words — nothing here compares an English string.
+    expect(status.eyebrow).toEqual({ key: 'anchor', values: { anchor: 'today' } })
+    expect(read(status.eyebrow!)).toBe('Today')
   })
 
   it('program-due appends the last-time volume fact when derivable', () => {

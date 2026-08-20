@@ -794,6 +794,7 @@
     "weekDeltaUp": "Up {delta} on last week"
   },
   "NavDrawer": {
+    "anchor": "{anchor, select, today {today} tomorrow {tomorrow} sunday {sunday} monday {monday} tuesday {tuesday} wednesday {wednesday} thursday {thursday} friday {friday} saturday {saturday} other {{anchor}}}",
     "day": {
       "date": "{date, date, ::MMMd}",
       "today": "Today",
@@ -1192,6 +1193,8 @@
       "fromE1rmNote": "from your e1RM",
       "label": "Training max ({unit})"
     },
+    "weekday": "{weekday, select, sunday {Sunday} monday {Monday} tuesday {Tuesday} wednesday {Wednesday} thursday {Thursday} friday {Friday} saturday {Saturday} other {{weekday}}}",
+    "weekdayInitial": "{weekday, select, sunday {S} monday {M} tuesday {T} wednesday {W} thursday {T} friday {F} saturday {S} other {{weekday}}}",
     "weeksAriaLabel": "Program length in weeks",
     "weeksPlaceholder": "Weeks (default 1)"
   },
@@ -1679,6 +1682,7 @@
     "topVolumeLabel": "Top volume"
   },
   "StatusHero": {
+    "anchor": "{anchor, select, today {Today} tomorrow {Tomorrow} sunday {Sunday} monday {Monday} tuesday {Tuesday} wednesday {Wednesday} thursday {Thursday} friday {Friday} saturday {Saturday} other {{anchor}}}",
     "context": {
       "blockWeeks": "{weeks, plural, one {# week} other {# weeks}}",
       "driftFallback": "Pick up where you left off.",
@@ -1858,6 +1862,7 @@
     "saveError": "Didn’t save — tap again"
   },
   "UpNextAnchor": {
+    "anchor": "{anchor, select, today {Today} tomorrow {Tomorrow} sunday {Sunday} monday {Monday} tuesday {Tuesday} wednesday {Wednesday} thursday {Thursday} friday {Friday} saturday {Saturday} other {{anchor}}}",
     "fallbackAnchor": "Up next",
     "summary": "{anchor} · Week {week}"
   },

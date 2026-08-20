@@ -2,6 +2,7 @@ import { kgToDisplay, type WeightUnit } from '@/lib/units'
 import { formatVolume } from '@/lib/format'
 import { isSameLocalDay } from '@/lib/local-day'
 import type { Line, Message } from '@/lib/i18n/message'
+import { scheduleAnchorToken, type ScheduleAnchor } from '@/lib/schedule-anchor'
 
 /**
  * The nav drawer's status-line language — every drawer row carries a one-line
@@ -89,6 +90,7 @@ export function bucketDaySets(
 /** Catalog keys the drawer's status language resolves to — all under the
  *  `NavDrawer` namespace, which is what renders them. */
 export type NavDrawerKey =
+  | 'anchor'
   | 'startContext'
   | 'startContextAnchor'
   | 'status.program'
@@ -107,15 +109,26 @@ export type NavDrawerKey =
 export type NavDrawerLine = Line<NavDrawerKey>
 
 /** Hero CTA second line: "Legs · Week 3 · today". The anchor is
- *  scheduleAnchor() computed CLIENT-side (local calendar) and lowercased into
- *  the sub-line voice; null anchor (unscheduled) drops the segment. */
+ *  scheduleAnchor() computed CLIENT-side (local calendar); null (unscheduled)
+ *  drops the segment.
+ *
+ *  The drawer's copy of the anchor words is lowercased in the CATALOG rather
+ *  than by calling toLowerCase() on a rendered word — casing is a per-language
+ *  rule (German nouns stay capitalized), so it belongs to the translator. */
 export function startContextLine(
   dayName: string,
   week: number,
-  anchor: string | null,
+  anchor: ScheduleAnchor | null,
 ): Message<NavDrawerKey> {
   return anchor !== null
-    ? { key: 'startContextAnchor', values: { day: dayName, week, anchor: anchor.toLowerCase() } }
+    ? {
+        key: 'startContextAnchor',
+        values: {
+          day: dayName,
+          week,
+          anchor: { key: 'anchor', values: { anchor: scheduleAnchorToken(anchor) } },
+        },
+      }
     : { key: 'startContext', values: { day: dayName, week } }
 }
 
