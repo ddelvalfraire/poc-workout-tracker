@@ -178,12 +178,38 @@ so: `stages[].loadKg` is optional. Authored → it seeds the row's
 they actually dropped to. An unauthored stage load is never inherited from the
 top set, which would be a phantom prescription.
 
+### The engine: what a technique set may testify to
+
+Researched after the fact, and it changed the code. Every source describes
+these methods as failure work: a drop set's top set goes "until technical
+failure" before the first drop ([Hevy](https://www.hevyapp.com/what-is-a-drop-set/)),
+and DC rest-pause is three failure sets inside one set. A per-set rep FLOOR is
+therefore the wrong yardstick — the technique working exactly as intended
+reads as a missed floor, and the auto-regulation stall rules would back the
+lifter's load off for succeeding.
+
+So **no row of a technique group testifies to auto-regulation**, top set
+included (`db/autoreg-history.ts`). Ordinary sets in the same exercise still
+do. The signal these methods actually progress on is the GROUP TOTAL — DC's
+"beat the logbook" adds 5 lb once the three mini-sets total more than 15 reps
+— and this engine does not compute totals yet. Until it does, silence beats a
+wrong verdict; that predicate is the seam where total-reps scoring lands.
+
+The one exception worth noting: a myo-reps ACTIVATION set is prescribed at
+1–2 RIR, not to failure (going to failure there compromises the mini-sets), so
+it is a scorable set in principle. It is excluded anyway — one rule for all
+four kinds is easier to reason about than four, and the cost is silence, not a
+wrong number.
+
 ### What is still open
 
 - **Authoring.** Nothing in the app WRITES a technique yet except the MCP
   tools — the builder has no picker. The template canon can now author
   techniques (the promise is no longer broken), but a human editing a program
   in the UI cannot.
+- **Total-reps progression** for rest-pause / myo-reps / drop sets — the
+  "beat the logbook" rule above. Until it exists, a technique-only exercise
+  simply gets no auto-regulation verdict.
 - **History and share surfaces** render stage rows as ordinary sets: they are
   correct (every row is a real logged set) but they don't yet SHOW the
   grouping the logger does.
