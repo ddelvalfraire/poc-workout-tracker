@@ -54,6 +54,21 @@ function resolveSpecifier(specifier: string, from: string): string | null {
 const NAMED_IMPORT = /import\s*(?:type\s+)?\{([^}]*)\}\s*from\s*['"]([^'"]+)['"]/g;
 const ANY_IMPORT = /from\s*['"]([^'"]+)['"]/g;
 
+/** Specifiers a file imports as VALUES. An `import type` edge is erased by
+ *  the compiler — the module never reaches the browser bundle, so it is not
+ *  the catalog's problem. A specifier is skipped by the graph walk only when
+ *  EVERY import of it in the file is type-only; one value import keeps the
+ *  edge. Exported for its own tests below. */
+export function valueImportSpecifiers(source: string): Set<string> {
+  const specifiers = new Set<string>();
+  for (const match of source.matchAll(
+    /\b(?:import|export)\b\s*(type\s+)?[^'";]*?from\s*['"]([^'"]+)['"]/g,
+  )) {
+    if (!match[1]) specifiers.add(match[2]);
+  }
+  return specifiers;
+}
+
 /** True for a module the alias list replaces with a stub. Traversal STOPS at
  *  one: its own imports (auth, Drizzle, the AuthKit session) never reach the
  *  browser bundle, so they are not the catalog's problem — that substitution
@@ -73,16 +88,7 @@ function storyGraph(): string[] {
     seen.add(file);
     if (isAliased(file)) return;
     const source = readFileSync(file, "utf8");
-    // An `import type` edge is erased by the compiler — the module never
-    // reaches the browser bundle, so it is not the catalog's problem. A
-    // specifier is skipped only when EVERY import of it in this file is
-    // type-only; one value import keeps the edge.
-    const valueSpecifiers = new Set<string>();
-    for (const match of source.matchAll(
-      /(?:import|export)\s+(type\s+)?[^'";]*?from\s*['"]([^'"]+)['"]/g,
-    )) {
-      if (!match[1]) valueSpecifiers.add(match[2]);
-    }
+    const valueSpecifiers = valueImportSpecifiers(source);
     for (const match of source.matchAll(ANY_IMPORT)) {
       if (!valueSpecifiers.has(match[1])) continue;
       const resolved = resolveSpecifier(match[1], file);
@@ -170,5 +176,44 @@ describe("storybook server-action mocks", () => {
     const used = new Set(imports.map((i) => i.module));
     const stale = SERVER_ACTION_MODULES.filter((m) => !used.has(m));
     expect(stale).toEqual([]);
+  });
+});
+
+describe("valueImportSpecifiers", () => {
+  it("keeps value imports and drops whole-statement type imports", () => {
+    const source = [
+      `import { Button } from './button'`,
+      `import type { Props } from './props'`,
+      `export type { Shape } from './shape'`,
+      `import Default from './default'`,
+      `export * from './barrel'`,
+    ].join("\n");
+    const specifiers = valueImportSpecifiers(source);
+    expect([...specifiers].sort()).toEqual([
+      "./barrel",
+      "./button",
+      "./default",
+    ]);
+  });
+
+  it("treats an inline type modifier mixed with values as a value import", () => {
+    const specifiers = valueImportSpecifiers(
+      `import { type Kind, label } from './mixed'`,
+    );
+    expect(specifiers.has("./mixed")).toBe(true);
+  });
+
+  it("follows a multi-line value import", () => {
+    const specifiers = valueImportSpecifiers(
+      `import {\n  one,\n  two,\n} from './multi'`,
+    );
+    expect(specifiers.has("./multi")).toBe(true);
+  });
+
+  it("keeps a minified zero-whitespace value import", () => {
+    // Prettier would never emit this, but the guard walks whatever is on
+    // disk — a compact import must not silently drop a real value edge.
+    const specifiers = valueImportSpecifiers(`import{Foo}from'./compact'`);
+    expect(specifiers.has("./compact")).toBe(true);
   });
 });
