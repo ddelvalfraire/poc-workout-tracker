@@ -65,6 +65,7 @@ const CARD_SHELL_RATCHET = [
 // A file joins this list in the same PR that extracts its copy — never
 // before, or the rule is just noise a future PR learns to ignore.
 const I18N_MIGRATED = [
+  "src/app/settings/account/page.tsx",
   "src/app/goals/consistency-progress.tsx",
   "src/app/goals/goal-card-actions.tsx",
   "src/app/goals/goal-create.tsx",
