@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, ne, or, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, ne, sql } from 'drizzle-orm'
 import type { ExerciseSource } from '@/lib/custom-exercise-input'
 import { AUTOREG_RANGE_SESSION_WINDOW } from '@/lib/autoregulate'
 import { db } from './index'
@@ -199,13 +199,19 @@ export async function getRecentTrainedSessions(
           sets.workoutExerciseId,
           chosen.map((c) => c.workoutExerciseId),
         ),
-        // Technique STAGES never testify (lib/technique.ts): a drop or a
-        // rest-pause mini-set is taken to failure BY DESIGN, so scoring it as
-        // an independent working set would read the technique working as a
-        // stall and back the lifter's load off for succeeding. The group's
-        // top set (stage 0, and every ordinary set) still governs — it is a
-        // normal working set with a real prescription.
-        or(isNull(sets.stageIndex), eq(sets.stageIndex, 0)),
+        // A technique set never testifies — no row of the group, top set
+        // included. The rule the sources agree on is that these sets are
+        // taken to failure BY DESIGN (a drop set's top set goes "until
+        // technical failure" before the first drop; DC rest-pause is three
+        // failure sets in one), so a per-set rep FLOOR is the wrong yardstick
+        // and a technique working as intended reads as a stall — the engine
+        // would back the lifter's load off for succeeding. The signal these
+        // methods actually progress on is the GROUP TOTAL ("beat the
+        // logbook": DC adds load when the three mini-sets total >15 reps),
+        // which this engine does not compute yet. Until it does, silence over
+        // corruption: ordinary sets in the same exercise still testify, and
+        // this predicate is the seam where total-reps scoring lands.
+        isNull(sets.techniqueKind),
       ),
     )
     .orderBy(asc(sets.setNumber))
