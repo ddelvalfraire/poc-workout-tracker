@@ -45,7 +45,6 @@ export const CLIENT_NAMESPACES = [
   'ExerciseSheet',
   'FacetSelect',
   'Format',
-  'GlobalError',
   'GoalCardActions',
   'GoalCreate',
   'Goals',

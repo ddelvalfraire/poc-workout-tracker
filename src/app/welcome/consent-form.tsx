@@ -167,7 +167,7 @@ export function ConsentForm() {
         })
         router.push('/')
       } catch {
-        setError('Something went wrong saving your choices. Please try again.')
+        setError(t('saveError'))
       }
     })
   }

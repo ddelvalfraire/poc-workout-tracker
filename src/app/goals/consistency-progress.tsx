@@ -63,7 +63,7 @@ export function ConsistencyProgress({
       {/* Week ticks: every cell is a real calendar week of the goal. */}
       <div
         role="img"
-        aria-label={`${derived.weeks} of ${targetWeeks} streak weeks complete`}
+        aria-label={t('progressLabel', { completed: derived.weeks, target: targetWeeks })}
         className="mt-3 flex flex-wrap gap-1"
       >
         {derived.ticks.map((state, i) => (

@@ -257,7 +257,8 @@
   },
   "Common": {
     "appDescription": "Log your workouts and review your training history.",
-    "appName": "Workout Tracker"
+    "appName": "Workout Tracker",
+    "appShortName": "Workouts"
   },
   "ConfirmDialog": {
     "cancel": "Keep it"
@@ -282,12 +283,14 @@
     "readThem": "Read them: ",
     "requiredNote": "Required because the app can't function without storing your training.",
     "requiredTitle": "Required to use the app",
+    "saveError": "Something went wrong saving your choices. Please try again.",
     "savingAction": "Saving…",
     "termsLink": "Terms",
     "tosLabel": "I agree to the Terms of Service and have read the Privacy Notice and Health Data Privacy Policy.",
     "whatThisMeansAction": "What this means"
   },
   "ConsistencyProgress": {
+    "progressLabel": "{completed} of {target} streak weeks complete",
     "progressSummary": "{completed} of {target, plural, one {# week} other {# weeks}}",
     "scheduleHint": "Schedule weekdays on your program days to start the streak.",
     "targetSummary": "Target {weeks, plural, one {# week} other {# weeks}}",
@@ -589,26 +592,24 @@
     "summaryTopLoad": "{count, plural, one {# set} other {# sets}} · top {kind, select, added {BW+{load}} assisted {BW−{load}} other {{load}}}",
     "summaryTopReps": "{count, plural, one {# set} other {# sets}} · top ×{reps}"
   },
-  "GlobalError": {
-    "description": "The app hit an unexpected error. Your saved workouts are safe — reload to continue.",
-    "errorRef": "Error ref: {digest}",
-    "reload": "Reload app",
-    "title": "Something went wrong"
-  },
   "GoalCardActions": {
     "archiveAction": "Archive",
+    "archiveError": "Could not archive the goal.",
     "delete": "Delete",
     "deleteDialog": {
       "body": "This removes the goal for good. Your training history is untouched.",
       "confirm": "Delete",
       "pending": "Deleting…"
-    }
+    },
+    "deleteError": "Could not delete the goal.",
+    "menuLabel": "Actions for {label}"
   },
   "GoalCreate": {
     "bodyweightLabel": "Target weight ({unit})",
     "cancel": "Cancel",
     "changeExerciseAction": "Change",
     "createAction": "Create goal",
+    "createError": "Could not create the goal.",
     "creatingAction": "Creating…",
     "deadlineLabel": "Deadline <optional>(optional)</optional>",
     "direction": {
@@ -631,6 +632,12 @@
     "newGoalAction": "+ New goal",
     "sectionTitle": "New goal",
     "streakLengthLabel": "Streak length (weeks)",
+    "validation": {
+      "enterE1rm": "Enter a target est. 1RM in {unit}.",
+      "enterWeeks": "Enter a streak length in weeks.",
+      "enterWeight": "Enter a target weight in {unit}.",
+      "pickExercise": "Pick an exercise first."
+    },
     "weightPlaceholder": "e.g. {example}"
   },
   "Goals": {
