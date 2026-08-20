@@ -855,9 +855,12 @@ export function ProgramBuilder({
           onClick={() =>
             dispatch({
               type: 'ADD_DAY',
-              // The seeded day NAME is stored data, so it is translated at
-              // the moment of creation like any other copy the user sees.
-              day: newDraftProgramDay(t('day.defaultName', { position: draft.days.length + 1 })),
+              // Stored data, NOT copy: a translated seed would freeze the
+              // creating user's language into the saved program, leave old
+              // names behind when they switch locale, and hand localized
+              // values to the MCP/API consumers. The display already falls
+              // back to a localized title when a day has no name.
+              day: newDraftProgramDay(`Day ${draft.days.length + 1}`),
             })
           }
         >

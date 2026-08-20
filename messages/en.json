@@ -250,7 +250,6 @@
     },
     "day": {
       "ariaLabel": "Day {position}",
-      "defaultName": "Day {position}",
       "nameAriaLabel": "Day {position} name",
       "namePlaceholder": "Day {position} name",
       "removeAriaLabel": "Remove day {position}",
