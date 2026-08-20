@@ -124,20 +124,29 @@ describe('the exercise header roll-up', () => {
   })()
 
   /**
-   * The rendered logger BELOW its app bar. The workout-level note entry lives
-   * up there and draws the same pen at a different scope (#283); these counts
-   * are about the EXERCISE rail, so the bar is sliced off deliberately — and
-   * the test below pins that it contributes exactly one pen, so the slice can
-   * never quietly absorb a second rail pen.
+   * Pens in the logger BELOW its app bar. The workout-level note entry lives
+   * up there and draws the same pen at a different scope (#283), deliberately
+   * — one note vocabulary — so the bar is sliced off before counting.
+   *
+   * Anchored on `<main`, not on `</header>`: <header> is a general sectioning
+   * element in this codebase (the ops panels use it), so the first one is the
+   * app bar only by luck of render order. A card that grew a <header> of its
+   * own would move the cut past the rail and silently swallow the very pen
+   * this counts — failing as "0 pens in the roll-up", which blames the wrong
+   * code.
+   *
+   * The one-pen invariant is enforced HERE rather than in a test beside the
+   * callers, so EVERY count is guarded rather than the single draft state
+   * that test happens to render.
    */
-  function belowAppBar(html: string): string {
-    const bar = html.indexOf('</header>')
-    if (bar === -1) throw new Error('the logger rendered no app bar to slice off')
-    return html.slice(bar)
-  }
-
-  function pens(html: string): number {
-    return belowAppBar(html).split(PEN).length - 1
+  function pensBelowAppBar(html: string): number {
+    const body = html.indexOf('<main')
+    if (body === -1) throw new Error('the logger rendered no <main> to slice to')
+    const hidden = html.slice(0, body).split(PEN).length - 1
+    if (hidden !== 1) {
+      throw new Error(`the app bar slice hid ${hidden} pens, not the workout-note entry alone`)
+    }
+    return html.slice(body).split(PEN).length - 1
   }
 
   it('counts the instance note plus noted sets', () => {
@@ -166,7 +175,7 @@ describe('the exercise header roll-up', () => {
     const html = render(baseDraft({}))
     expect(html).not.toMatch(/for Squat, \d+ notes?/)
     expect(html).toContain('Add note for Squat')
-    expect(pens(html)).toBe(1)
+    expect(pensBelowAppBar(html)).toBe(1)
   })
 
   it('holds the count in a fixed-width slot, so the rail settles once', () => {
@@ -179,13 +188,27 @@ describe('the exercise header roll-up', () => {
     expect(render(baseDraft({ note: 'pin 4' }))).toMatch(slot)
   })
 
-  it('excludes exactly one pen — the app bar’s — and does so on purpose', () => {
-    // The slice above is only honest if the app bar holds ONE pen. If the
-    // workout-note entry ever moves, or gains a twin, this fails rather than
-    // letting the rail counts drift under a widening blind spot.
+  it('excludes exactly one pen, and that pen is the workout-note entry', () => {
+    // A count alone would not know WHAT it excluded. Naming the control pins
+    // that the hidden region is the app bar and not, say, a card that grew a
+    // <header> of its own.
     const html = render(baseDraft({}))
-    const all = html.split(PEN).length - 1
-    expect(all - pens(html)).toBe(1)
+    const hidden = html.slice(0, html.indexOf('<main'))
+    expect(hidden).toContain('Add workout note')
+    expect(hidden.split(PEN).length - 1).toBe(1)
+  })
+
+  it('refuses to count when the hidden region holds more than that one pen', () => {
+    // The invariant lives INSIDE the slicer, so every count is guarded — not
+    // just the draft state a sibling test happens to render. A second app-bar
+    // pen (a "this workout has a note" glyph beside the entry, say) would
+    // otherwise widen the blind spot in silence while both counts stayed 1.
+    const twoPens = `<header><svg><path d="${PEN}"/><path d="${PEN}"/></svg></header><main></main>`
+    expect(() => pensBelowAppBar(twoPens)).toThrow(/hid 2 pens/)
+  })
+
+  it('refuses to count when there is no app bar to slice to', () => {
+    expect(() => pensBelowAppBar('<div>no main here</div>')).toThrow(/no <main>/)
   })
 
   it('shows ONE pen when a set is noted but the exercise is not', () => {
@@ -195,7 +218,7 @@ describe('the exercise header roll-up', () => {
     // which also rendered the entry button. Two identical pens, one of them
     // inert, with nothing to say which was pressable.
     const html = render(baseDraft({ note: 'left shoulder clicked' }))
-    expect(pens(html)).toBe(1)
+    expect(pensBelowAppBar(html)).toBe(1)
     expect(html).toContain('Add note for Squat, 1 note')
   })
 
