@@ -27,6 +27,28 @@ describe('namespaceFor', () => {
     expect(namespaceFor('src/app/settings/layout.tsx')).toBe('Settings')
   })
 
+  it('skips dynamic segments instead of naming a route after its param', () => {
+    // Regression: [id] and [token] are not names. These four routes all
+    // resolved to 'Id' and both share routes to 'Token', so two pages' copy
+    // merged into one namespace and one silently rendered the other's text.
+    expect(namespaceFor('src/app/programs/[id]/page.tsx')).toBe('Programs')
+    expect(namespaceFor('src/app/workout/[id]/page.tsx')).toBe('Workout')
+    expect(namespaceFor('src/app/templates/[id]/page.tsx')).toBe('Templates')
+    expect(namespaceFor('src/app/exercises/[source]/[id]/page.tsx')).toBe('Exercises')
+    expect(namespaceFor('src/app/(legal)/terms/page.tsx')).toBe('Terms')
+  })
+
+  it('gives distinct namespaces to routes that used to collide', () => {
+    const namespaces = [
+      'src/app/programs/[id]/page.tsx',
+      'src/app/workout/[id]/page.tsx',
+      'src/app/templates/[id]/page.tsx',
+      'src/app/exercises/[source]/[id]/page.tsx',
+    ].map(namespaceFor)
+
+    expect(new Set(namespaces).size).toBe(namespaces.length)
+  })
+
   it('names a component by its own filename', () => {
     expect(namespaceFor('src/components/nav/nav-drawer.tsx')).toBe('NavDrawer')
     expect(namespaceFor('src/app/workout/new/workout-logger.tsx')).toBe('WorkoutLogger')
@@ -153,6 +175,88 @@ export function Panel() {
 
     expect(Object.keys(result.extracted)).toHaveLength(2)
     expect(declarations).toHaveLength(1)
+  })
+
+  it('never puts a hook inside a .map callback, even with a block body', () => {
+    // Regression: "nearest function with a block body" matched the callback,
+    // so the hook ran once per item — React throws the moment the list
+    // length changes between renders.
+    const file = sourceFile(`
+export function List({ items }: { items: string[] }) {
+  return (
+    <ul>
+      {items.map((item) => {
+        return <li key={item}>Fixed label</li>
+      })}
+    </ul>
+  )
+}
+`)
+    extractFromFile(file, 'List')
+    const text = file.getFullText()
+
+    expect(text).toContain("{t('fixedLabel')}")
+    // The declaration belongs to the component, above the return.
+    expect(text.indexOf('const t = useTranslations')).toBeLessThan(text.indexOf('items.map'))
+    expect(text.match(/const t = useTranslations/g)).toHaveLength(1)
+  })
+
+  it('puts the translator on the component, not on a handler declared above it', () => {
+    // Regression: hasTranslatorDeclared regexed statement TEXT, and a
+    // statement's text includes nested function bodies — so once the handler
+    // had a translator the component looked declared, and its own `t` was
+    // never inserted, leaving an out-of-scope reference.
+    const file = sourceFile(`
+export function Page() {
+  const onClick = () => {
+    show(<p>Saved successfully</p>)
+  }
+  return <button onClick={onClick}>Go</button>
+}
+`)
+    extractFromFile(file, 'Page')
+    const text = file.getFullText()
+
+    expect(text.match(/const t = useTranslations/g)).toHaveLength(1)
+    // It sits in Page's body, before the handler that also needs it.
+    expect(text.indexOf('const t = useTranslations')).toBeLessThan(text.indexOf('const onClick'))
+    expect(text).toContain("{t('go')}")
+    expect(text).toContain("{t('savedSuccessfully')}")
+  })
+
+  it('refuses a component already bound to a different namespace', () => {
+    // Regression: the key was written under the file's namespace while `t`
+    // resolved against the bound one — compiles, type-checks, then misses at
+    // runtime with MISSING_MESSAGE.
+    const file = sourceFile(`
+export function Widget() {
+  const t = useTranslations('Other')
+  return (
+    <div>
+      <p>New static text</p>
+    </div>
+  )
+}
+`)
+    const result = extractFromFile(file, 'Widget')
+
+    expect(result.extracted).toEqual({})
+    expect(result.skips).toHaveLength(1)
+    expect(result.skips[0].reason).toContain("already bound to namespace 'Other'")
+    expect(file.getFullText()).toContain('New static text')
+  })
+
+  it('still extracts when the existing translator is for the same namespace', () => {
+    const file = sourceFile(`
+export function Widget() {
+  const t = useTranslations('Widget')
+  return <p>New static text</p>
+}
+`)
+    const result = extractFromFile(file, 'Widget')
+
+    expect(result.extracted).toEqual({ newStaticText: 'New static text' })
+    expect(file.getFullText().match(/const t = useTranslations/g)).toHaveLength(1)
   })
 
   it('matches the file style when it uses semicolons and when it does not', () => {

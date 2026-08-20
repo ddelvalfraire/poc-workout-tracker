@@ -52,17 +52,24 @@ export interface Skip {
  * reports rather than silently merging.
  */
 export function namespaceFor(relativePath: string): string {
-  const parts = relativePath.replace(/\.tsx?$/, '').split('/')
   const structural = new Set(['page', 'layout', 'template', 'index', 'route', 'default'])
-  let name = parts[parts.length - 1]
-  let i = parts.length - 2
-  while (structural.has(name) && i >= 0) {
-    name = parts[i]
-    i -= 1
+  const isDynamic = (part: string) => part.startsWith('[') || part.startsWith('(')
+
+  const parts = relativePath
+    .replace(/\.tsx?$/, '')
+    .split('/')
+    .filter((part) => part !== 'src' && part !== 'app' && part !== 'components')
+
+  // Walk back past Next's structural filenames AND past dynamic segments.
+  // [id] is not a name: programs/[id]/page.tsx and workout/[id]/page.tsx both
+  // used to land on "Id", and this repo has four such routes plus two on
+  // "Token" — a collision that silently merged two pages' copy.
+  for (let i = parts.length - 1; i >= 0; i -= 1) {
+    const part = parts[i]
+    if (structural.has(part) || isDynamic(part)) continue
+    return pascalCase(part)
   }
-  // Route groups (marketing) and dynamic segments [id] are not names.
-  name = name.replace(/^[([]|[)\]]$/g, '')
-  return pascalCase(name)
+  return pascalCase(parts[parts.length - 1] ?? 'app')
 }
 
 function pascalCase(value: string): string {
@@ -99,11 +106,34 @@ export function uniqueKey(base: string, taken: Set<string>): string {
   return `${base}${n}`
 }
 
+/** Components are PascalCase by convention; callbacks and handlers are not. */
+function isComponentName(name: string | undefined): boolean {
+  return name !== undefined && /^[A-Z]/.test(name)
+}
+
 /**
- * The enclosing component and whether it is async — which decides
- * getTranslations (await, server-only) vs useTranslations (hook). Returns
- * null when the literal is not inside a function at all, e.g. a module-level
- * config array, which is a case for a human.
+ * The name a function is bound to, whether declared or assigned to a const.
+ */
+function boundName(fn: Node): string | undefined {
+  if (Node.isFunctionDeclaration(fn)) return fn.getName()
+  const parent = fn.getParent()
+  if (parent && Node.isVariableDeclaration(parent)) return parent.getName()
+  return undefined
+}
+
+/**
+ * The enclosing COMPONENT — not merely the nearest function with a block.
+ *
+ * A `.map()` callback written as `(x) => { return <li/> }` has a block body
+ * and encloses the JSX, so "nearest block" put the hook inside the loop:
+ * a hook called once per array item, which React throws on as soon as the
+ * list length changes. Event handlers had the same problem in reverse — the
+ * translator landed in `onClick` while the component's own JSX still
+ * referenced `t`.
+ *
+ * A component is a function bound to a PascalCase name, or an anonymous
+ * `export default function`. Callbacks and handlers are neither, so we walk
+ * past them to the function that actually renders.
  */
 function enclosingComponent(node: Node): { fn: Node; isAsync: boolean } | null {
   let current: Node | undefined = node.getParent()
@@ -115,13 +145,14 @@ function enclosingComponent(node: Node): { fn: Node; isAsync: boolean } | null {
       Node.isMethodDeclaration(current)
     ) {
       const body = current.getBody()
-      // An arrow inside JSX (a .map callback) has an expression body, not a
-      // block — keep walking to the function that owns the render.
-      if (body && Node.isBlock(body)) {
-        // isAsync(), never getText(): the node's text includes any leading
+      const named = isComponentName(boundName(current))
+      const isDefaultExport = Node.isFunctionDeclaration(current) && current.isDefaultExport()
+
+      if (body && Node.isBlock(body) && (named || isDefaultExport)) {
+        // isAsync(), never getText(): a node's text includes any leading
         // JSDoc, so a documented `async function` reads as starting with
-        // "/**" and would be misclassified as sync — which puts a hook in an
-        // async Server Component, and that throws at runtime.
+        // "/**" and would be misclassified as sync — putting a hook in an
+        // async Server Component, which throws at runtime.
         return { fn: current, isAsync: current.isAsync() }
       }
     }
@@ -130,12 +161,36 @@ function enclosingComponent(node: Node): { fn: Node; isAsync: boolean } | null {
   return null
 }
 
-function hasTranslatorDeclared(fn: Node): boolean {
+/**
+ * An existing `const t = useTranslations('X')` in this component's OWN top
+ * level, and the namespace it is bound to.
+ *
+ * Reads declarations off the AST rather than regexing statement text: a
+ * statement's text includes any nested function body, so a handler that had
+ * already been given a translator made its parent component look declared,
+ * and the parent's own `t` was never inserted.
+ */
+function existingTranslator(fn: Node): { declared: boolean; namespace: string | null } {
   const body = fn.getFirstDescendantByKind(SyntaxKind.Block)
-  if (!body) return false
-  return body
-    .getStatements()
-    .some((s) => /const\s+t\s*=\s*(await\s+)?(getTranslations|useTranslations)\(/.test(s.getText()))
+  if (!body) return { declared: false, namespace: null }
+
+  for (const statement of body.getStatements()) {
+    if (!Node.isVariableStatement(statement)) continue
+    for (const decl of statement.getDeclarations()) {
+      if (decl.getName() !== 't') continue
+      const init = decl.getInitializer()
+      if (!init) continue
+      const call = Node.isAwaitExpression(init) ? init.getExpression() : init
+      if (!Node.isCallExpression(call)) continue
+      const callee = call.getExpression().getText()
+      if (callee !== 'useTranslations' && callee !== 'getTranslations') continue
+      const arg = call.getArguments()[0]
+      const namespace =
+        arg && Node.isStringLiteral(arg) ? arg.getLiteralValue() : null
+      return { declared: true, namespace }
+    }
+  }
+  return { declared: false, namespace: null }
 }
 
 function ensureImport(file: SourceFile, moduleSpecifier: string, named: string): void {
@@ -205,6 +260,23 @@ export function extractFromFile(file: SourceFile, namespace: string): ApplyResul
       continue
     }
 
+    // A component that already calls useTranslations('Other') has `t` bound
+    // to THAT namespace. Writing this key under the file's namespace would
+    // compile and type-check, then miss at runtime — next-intl resolves
+    // t('key') against 'Other', where the key does not exist. Refuse rather
+    // than emit a MISSING_MESSAGE nobody sees until the page is opened.
+    const bound = existingTranslator(component.fn)
+    if (bound.declared && bound.namespace !== null && bound.namespace !== namespace) {
+      skips.push({
+        file: relPath,
+        line,
+        text,
+        reason: `component is already bound to namespace '${bound.namespace}'`,
+      })
+      keys.push('')
+      continue
+    }
+
     const key = uniqueKey(keyFor(text), taken)
     taken.add(key)
     extracted[key] = text
@@ -214,7 +286,7 @@ export function extractFromFile(file: SourceFile, namespace: string): ApplyResul
 
   const suffix = semicolons ? ';' : ''
   for (const [fn, isAsync] of componentsNeedingTranslator) {
-    if (hasTranslatorDeclared(fn)) continue
+    if (existingTranslator(fn).declared) continue
     const body = fn.getFirstDescendantByKind(SyntaxKind.Block)
     if (!body) continue
     if (isAsync) {
@@ -330,17 +402,27 @@ function main(): void {
     const count = Object.keys(result.extracted).length
     if (count === 0) continue
 
+    // Merge FIRST, save only if every key landed. The old order saved the
+    // rewritten JSX and then dropped colliding keys, so the file called
+    // t('key') for a message the catalog never received — rendering the
+    // other file's sentence, with no error anywhere.
     const existing = catalog[namespace] ?? {}
-    for (const [key, value] of Object.entries(result.extracted)) {
-      if (existing[key] !== undefined && existing[key] !== value) {
+    const collisions = Object.entries(result.extracted).filter(
+      ([key, value]) => existing[key] !== undefined && existing[key] !== value,
+    )
+    if (collisions.length > 0) {
+      for (const [key, value] of collisions) {
         allSkips.push({
           file: result.file,
           line: 0,
           text: value,
-          reason: `key collision: ${namespace}.${key} already means "${existing[key]}"`,
+          reason: `key collision: ${namespace}.${key} already means "${existing[key]}" — file left untouched`,
         })
-        continue
       }
+      continue
+    }
+
+    for (const [key, value] of Object.entries(result.extracted)) {
       existing[key] = value
       messages += 1
     }
