@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Ellipsis } from 'lucide-react'
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import { archiveGoalAction, deleteGoalAction } from './actions'
+import { useTranslations } from 'next-intl'
 
 interface GoalCardActionsProps {
   id: string
@@ -22,6 +23,7 @@ interface GoalCardActionsProps {
  * every card shouts two actions stops being about the goals.
  */
 export function GoalCardActions({ id, label, archived }: GoalCardActionsProps) {
+  const t = useTranslations('GoalCardActions')
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
@@ -73,7 +75,7 @@ export function GoalCardActions({ id, label, archived }: GoalCardActionsProps) {
         <div className="absolute right-0 top-9 z-10 w-36 rounded-xl border border-border bg-card p-1 shadow-lg">
           {!archived && (
             <button type="button" onClick={archive} disabled={isPending} className={item}>
-              Archive
+              {t('archiveAction')}
             </button>
           )}
           <button
@@ -85,7 +87,7 @@ export function GoalCardActions({ id, label, archived }: GoalCardActionsProps) {
             disabled={isPending}
             className={`${item} text-destructive`}
           >
-            Delete
+            {t('deleteAction')}
           </button>
         </div>
       </details>

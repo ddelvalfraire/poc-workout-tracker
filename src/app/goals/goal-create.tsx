@@ -10,6 +10,7 @@ import type { GoalKind } from '@/lib/goal-input'
 import type { WeightUnit } from '@/lib/units'
 import { cn } from '@/lib/utils'
 import { createGoalAction } from './actions'
+import { useTranslations } from 'next-intl'
 
 /**
  * Inline goal composer: kind picker → per-kind fields. Strength reuses the
@@ -41,6 +42,7 @@ export function GoalCreate({
    *  invitation stays for the empty state only. */
   compact?: boolean
 }) {
+  const t = useTranslations('GoalCreate')
   const [isOpen, setIsOpen] = useState(false)
   const [kind, setKind] = useState<GoalKind>('strength')
   const [exercise, setExercise] = useState<PickedExercise | null>(null)
@@ -117,11 +119,11 @@ export function GoalCreate({
         className="font-semibold uppercase"
         onClick={() => setIsOpen(true)}
       >
-        + New goal
+        {t('newGoalAction')}
       </Button>
     ) : (
       <Button className="w-full font-semibold uppercase" onClick={() => setIsOpen(true)}>
-        + New goal
+        {t('newGoalAction')}
       </Button>
     )
   }
@@ -163,7 +165,7 @@ export function GoalCreate({
                   onClick={() => setExercise(null)}
                   className="shrink-0 text-xs text-muted-foreground underline-offset-2 hover:underline"
                 >
-                  Change
+                  {t('changeExerciseAction')}
                 </button>
               </div>
             ) : (
@@ -171,7 +173,7 @@ export function GoalCreate({
             )}
             <div>
               <label htmlFor="goal-e1rm" className="text-sm font-medium">
-                Target est. 1RM ({unit})
+                {t('e1rmLabel', { unit })}
               </label>
               <Input
                 id="goal-e1rm"
@@ -191,7 +193,7 @@ export function GoalCreate({
           <>
             <div>
               <label htmlFor="goal-bodyweight" className="text-sm font-medium">
-                Target weight ({unit})
+                {t('bodyweightLabel', { unit })}
               </label>
               <Input
                 id="goal-bodyweight"
@@ -235,7 +237,7 @@ export function GoalCreate({
           <>
             <div>
               <label htmlFor="goal-weeks" className="text-sm font-medium">
-                Streak length (weeks)
+                {t('streakLengthLabel')}
               </label>
               <Input
                 id="goal-weeks"
@@ -249,7 +251,7 @@ export function GoalCreate({
             </div>
             <div>
               {/* The user's own grace setting — per goal, forgiving default. */}
-              <p className="text-sm font-medium">Grace</p>
+              <p className="text-sm font-medium">{t('graceLabel')}</p>
               <div
                 role="radiogroup"
                 aria-label="Streak grace"
@@ -274,7 +276,7 @@ export function GoalCreate({
                 ))}
               </div>
               <p className="mt-1.5 text-xs text-muted-foreground">
-                Misses forgiven per week before the streak breaks.
+                {t('graceHint')}
               </p>
             </div>
           </>
@@ -282,7 +284,11 @@ export function GoalCreate({
 
         <div>
           <label htmlFor="goal-deadline" className="text-sm font-medium">
-            Deadline <span className="font-normal text-muted-foreground">(optional)</span>
+            {t.rich('deadlineLabel', {
+              optional: (chunks) => (
+                <span className="font-normal text-muted-foreground">{chunks}</span>
+              ),
+            })}
           </label>
           <Input
             id="goal-deadline"
@@ -310,7 +316,7 @@ export function GoalCreate({
             setIsOpen(false)
           }}
         >
-          Cancel
+          {t('cancelAction')}
         </Button>
         <Button className="flex-1" disabled={isPending} onClick={submit}>
           {isPending ? 'Creating…' : 'Create goal'}

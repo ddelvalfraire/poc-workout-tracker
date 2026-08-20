@@ -66,6 +66,10 @@ const CARD_SHELL_RATCHET = [
 // before, or the rule is just noise a future PR learns to ignore.
 const I18N_MIGRATED = [
   "src/app/trophies/page.tsx",
+  "src/app/goals/consistency-progress.tsx",
+  "src/app/goals/goal-card-actions.tsx",
+  "src/app/goals/goal-create.tsx",
+  "src/app/goals/page.tsx",
   "src/app/settings/analytics-consent-toggle.tsx",
   "src/app/settings/delete-account/delete-account-form.tsx",
   "src/app/settings/delete-account/page.tsx",

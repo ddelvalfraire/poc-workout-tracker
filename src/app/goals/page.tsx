@@ -21,6 +21,8 @@ import { cn } from '@/lib/utils'
 import { GoalCreate } from './goal-create'
 import { GoalCardActions } from './goal-card-actions'
 import { ConsistencyProgress } from './consistency-progress'
+import { getTranslations } from 'next-intl/server'
+import { useTranslations } from 'next-intl'
 
 // Volt threshold: a strength percent this close to done earns the accent.
 const NEAR_TARGET_PERCENT = 90
@@ -39,6 +41,7 @@ const BODYWEIGHT_CHART_POINTS = 30
  * server-rendered.
  */
 export default async function GoalsPage() {
+  const t = await getTranslations('Goals')
   const userId = await requireUserId()
   const [evaluated, archived, unit] = await Promise.all([
     evaluateGoalProgress(userId),
@@ -76,14 +79,14 @@ export default async function GoalsPage() {
             {/* Empty state keeps the big invitation — the one action that matters. */}
             <GoalCreate unit={unit} />
             <EmptyWords>
-              No goals yet. Set a strength target, a bodyweight target, or a training streak.
+              {t('empty')}
             </EmptyWords>
           </>
         ) : (
           <section aria-label="Active goals">
             <div className="flex items-center justify-between gap-2">
               <h2 className="px-1 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-                Active
+                {t('activeTitle')}
               </h2>
               {/* Demoted to the header row — the goals are the page. */}
               <GoalCreate unit={unit} compact />
@@ -108,7 +111,7 @@ export default async function GoalsPage() {
           <DividerRow href="/trophies">
             <span className="flex min-w-0 flex-1 items-center gap-2.5">
               <Trophy aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
-              <span className="min-w-0 truncate text-sm font-medium">Trophies</span>
+              <span className="min-w-0 truncate text-sm font-medium">{t('trophiesLinkLabel')}</span>
             </span>
           </DividerRow>
         </DividerList>
@@ -116,7 +119,7 @@ export default async function GoalsPage() {
         {archived.length > 0 && (
           <section aria-label="Archived goals">
             <h2 className="px-1 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-              Archived
+              {t('archivedTitle')}
             </h2>
             <DividerList className="mt-2">
               {archived.map((goal) => (
@@ -127,7 +130,7 @@ export default async function GoalsPage() {
                     </span>
                     <div className="flex shrink-0 items-center gap-1">
                       {goal.achievedAt !== null && (
-                        <span className="text-xs uppercase tracking-widest">Achieved</span>
+                        <span className="text-xs uppercase tracking-widest">{t('achievedBadge')}</span>
                       )}
                       <GoalCardActions id={goal.id} label={goalLabel(goal, unit)} archived />
                     </div>
@@ -155,6 +158,7 @@ function GoalCard({
   evidence: StreakEvidence | null
   bodyweightPoints: TrendPoint[]
 }) {
+  const t = useTranslations('Goals')
   const { goal, progress } = entry
   const Icon = KIND_ICONS[goal.kind]
   const label = goalLabel(goal, unit)
@@ -180,9 +184,9 @@ function GoalCard({
                 misstate the fact, and new card routes are out of this arc's
                 scope — the moment ships without the verb until a goal card
                 exists. */}
-            <p className="font-display text-4xl uppercase leading-none text-primary">Done.</p>
+            <p className="font-display text-4xl uppercase leading-none text-primary">{t('doneHeadline')}</p>
             <p className="mt-1.5 text-sm text-muted-foreground">
-              Achieved {formatWorkoutDate(goal.achievedAt)}
+              {t('achievedOn', { date: formatWorkoutDate(goal.achievedAt) })}
             </p>
           </div>
         ) : (
@@ -197,7 +201,7 @@ function GoalCard({
                       progress.percent >= NEAR_TARGET_PERCENT && 'text-primary',
                     )}
                   >
-                    {progress.percent}%
+                    {t('percentValue', { percent: progress.percent })}
                   </span>
                 </p>
                 <p className="mt-1.5 text-sm text-muted-foreground tnum">
@@ -230,8 +234,10 @@ function GoalCard({
                     silence. Promoted to a full sentence against the deadline. */}
                 {progress.projectedAt !== null && (
                   <p className="mt-2 text-xs text-muted-foreground">
-                    On pace for {formatWorkoutDate(progress.projectedAt)}
-                    {paceSuffix(progress.projectedAt, goal.deadline)}
+                    {t('onPace', {
+                      date: formatWorkoutDate(progress.projectedAt),
+                      suffix: paceSuffix(progress.projectedAt, goal.deadline),
+                    })}
                   </p>
                 )}
               </div>
@@ -241,19 +247,27 @@ function GoalCard({
               <div>
                 {progress.currentKg !== null && progress.remainingKg !== null ? (
                   <>
-                    <p className="flex items-baseline gap-1.5">
-                      <span className="font-display text-4xl leading-none tnum">
-                        {kgToDisplay(progress.remainingKg, unit)}
-                      </span>
-                      <span className="text-xl text-muted-foreground">{unit} to go</span>
+                    <p className="flex items-baseline gap-1.5 text-xl text-muted-foreground">
+                      {t.rich('remaining', {
+                        value: kgToDisplay(progress.remainingKg, unit),
+                        unit,
+                        amount: (chunks) => (
+                          <span className="font-display text-4xl leading-none text-foreground tnum">
+                            {chunks}
+                          </span>
+                        ),
+                      })}
                     </p>
                     <p className="mt-1.5 text-sm text-muted-foreground tnum">
-                      Now {kgToDisplay(progress.currentKg, unit)} {unit}
+                      {t('currentValue', {
+                        value: kgToDisplay(progress.currentKg, unit),
+                        unit,
+                      })}
                     </p>
                   </>
                 ) : (
                   <p className="text-sm text-muted-foreground">
-                    Log your bodyweight to track this goal.
+                    {t('bodyweightHint')}
                   </p>
                 )}
                 {bodyweightPoints.length >= 2 && 'weightKg' in goal.target && (
@@ -287,7 +301,7 @@ function GoalCard({
       {!isAchieved &&
         (goal.deadline !== null || progress.kind === 'consistency') && (
           <div className="mt-2 flex items-center gap-3 text-xs text-muted-foreground">
-            {goal.deadline !== null && <span>By {formatDeadline(goal.deadline)}</span>}
+            {goal.deadline !== null && <span>{t('byDeadline', { date: formatDeadline(goal.deadline) })}</span>}
             {progress.kind === 'consistency' && (
               <span>
                 {progress.allowedMissesPerWeek === 0

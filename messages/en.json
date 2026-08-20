@@ -6,6 +6,12 @@
     "appDescription": "Log your workouts and review your training history.",
     "appName": "Workout Tracker"
   },
+  "ConsistencyProgress": {
+    "progressSummary": "{completed} of {target, plural, one {# week} other {# weeks}}",
+    "scheduleHint": "Schedule weekdays on your program days to start the streak.",
+    "targetSummary": "Target {weeks, plural, one {# week} other {# weeks}}",
+    "weeksUnit": "wks"
+  },
   "DeleteAccount": {
     "erased": {
       "description": "your workouts, programs, templates, notes, goals, trophies, body measurements, progress photos, custom exercises, preferences, and coach conversations.",
@@ -23,6 +29,36 @@
   },
   "DeleteAccountForm": {
     "confirmInstruction": "Type <code>{phrase}</code> to confirm"
+  },
+  "GoalCardActions": {
+    "archiveAction": "Archive",
+    "deleteAction": "Delete"
+  },
+  "GoalCreate": {
+    "bodyweightLabel": "Target weight ({unit})",
+    "cancelAction": "Cancel",
+    "changeExerciseAction": "Change",
+    "deadlineLabel": "Deadline <optional>(optional)</optional>",
+    "e1rmLabel": "Target est. 1RM ({unit})",
+    "graceHint": "Misses forgiven per week before the streak breaks.",
+    "graceLabel": "Grace",
+    "newGoalAction": "+ New goal",
+    "streakLengthLabel": "Streak length (weeks)"
+  },
+  "Goals": {
+    "achievedBadge": "Achieved",
+    "achievedOn": "Achieved {date}",
+    "activeTitle": "Active",
+    "archivedTitle": "Archived",
+    "bodyweightHint": "Log your bodyweight to track this goal.",
+    "byDeadline": "By {date}",
+    "currentValue": "Now {value} {unit}",
+    "doneHeadline": "Done.",
+    "empty": "No goals yet. Set a strength target, a bodyweight target, or a training streak.",
+    "onPace": "On pace for {date}{suffix}",
+    "percentValue": "{percent}%",
+    "remaining": "<amount>{value}</amount> {unit} to go",
+    "trophiesLinkLabel": "Trophies"
   },
   "HomeLayoutEditor": {
     "hint": "Tap a tile to resize, reorder, or hide it — or press and hold to drag it. Hidden sections keep tracking — they just don’t show on Home.",
