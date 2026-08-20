@@ -21,7 +21,11 @@ vi.mock('@/db/program-events', () => ({
   PROGRAM_EVENTS_MAX_LIMIT: 100,
 }))
 
-import { registerReadTools } from './read-tools'
+import {
+  registerReadTools,
+  WORKOUT_LIST_DEFAULT_LIMIT,
+  WORKOUT_LIST_MAX_LIMIT,
+} from './read-tools'
 import { listWorkoutSummaries, getWorkoutDetail, getLastPerformance } from '@/db/workouts'
 import { getProgramDayDetail } from '@/db/programs'
 import { getProgramStats, type ProgramStats } from '@/db/program-stats'
@@ -65,6 +69,20 @@ function setup(): Map<string, ToolHandler> {
   const { server, tools } = fakeServer()
   registerReadTools(server)
   return tools
+}
+
+/** `n` workout summaries, newest first, one calendar day apart from 2026-06-01. */
+function summaries(n: number) {
+  return Array.from({ length: n }, (_, i) => ({
+    id: `1111111${i}-1111-4111-8111-111111111111`,
+    name: 'Push Day',
+    startedAt: new Date(Date.UTC(2026, 5, n - i, 10)),
+    completedAt: null,
+    exerciseCount: 3,
+    setCount: 9,
+    completedSetCount: 9,
+    volumeKg: 1000,
+  }))
 }
 
 /** Parses the JSON text payload of a (success) tool result. */
@@ -126,6 +144,8 @@ describe('registerReadTools', () => {
       expect(mockedList).toHaveBeenCalledWith('user_env')
       expect(payload(result)).toEqual({
         userId: 'user_env',
+        count: 1,
+        hasMore: false,
         workouts: [
           {
             id: '11111111-1111-4111-8111-111111111111',
@@ -151,6 +171,64 @@ describe('registerReadTools', () => {
 
       // Assert
       expect(mockedList).toHaveBeenCalledWith('user_arg')
+    })
+
+    it('caps the payload at the default page size and flags that more exist', async () => {
+      // Arrange
+      const tools = setup()
+      mockedList.mockResolvedValue(summaries(WORKOUT_LIST_DEFAULT_LIMIT + 5))
+
+      // Act
+      const result = await tools.get('list_workouts')!({})
+
+      // Assert
+      const body = payload(result) as { count: number; hasMore: boolean; workouts: unknown[] }
+      expect(body.workouts).toHaveLength(WORKOUT_LIST_DEFAULT_LIMIT)
+      expect(body.count).toBe(WORKOUT_LIST_DEFAULT_LIMIT)
+      expect(body.hasMore).toBe(true)
+    })
+
+    it('clamps an over-large limit to the maximum rather than erroring', async () => {
+      // Arrange
+      const tools = setup()
+      mockedList.mockResolvedValue(summaries(WORKOUT_LIST_MAX_LIMIT + 10))
+
+      // Act
+      const result = await tools.get('list_workouts')!({ limit: WORKOUT_LIST_MAX_LIMIT + 10 })
+
+      // Assert
+      const body = payload(result) as { workouts: unknown[]; hasMore: boolean }
+      expect(body.workouts).toHaveLength(WORKOUT_LIST_MAX_LIMIT)
+      expect(body.hasMore).toBe(true)
+    })
+
+    it('pages older history with `before`, excluding the cursor row itself', async () => {
+      // Arrange — three workouts, one per day, newest first.
+      const tools = setup()
+      mockedList.mockResolvedValue(summaries(3))
+
+      // Act — page past the newest row.
+      const result = await tools.get('list_workouts')!({ before: '2026-06-03T10:00:00.000Z' })
+
+      // Assert
+      const body = payload(result) as { workouts: { startedAt: string }[]; hasMore: boolean }
+      expect(body.workouts.map((w) => w.startedAt)).toEqual([
+        '2026-06-02T10:00:00.000Z',
+        '2026-06-01T10:00:00.000Z',
+      ])
+      expect(body.hasMore).toBe(false)
+    })
+
+    it('reports hasMore false when the page exactly drains the history', async () => {
+      // Arrange
+      const tools = setup()
+      mockedList.mockResolvedValue(summaries(2))
+
+      // Act
+      const result = await tools.get('list_workouts')!({ limit: 2 })
+
+      // Assert
+      expect((payload(result) as { hasMore: boolean }).hasMore).toBe(false)
     })
 
     it('returns a generic isError and logs (no internals leaked) when the db rejects', async () => {
