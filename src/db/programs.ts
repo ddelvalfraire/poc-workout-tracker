@@ -1,6 +1,12 @@
 import { and, asc, count, countDistinct, desc, eq, isNotNull, isNull, max, ne, sql } from 'drizzle-orm'
 import { cache } from 'react'
-import type { DeloadPolicy, DietPhase, ProgramInput, Progression } from '@/lib/program-input'
+import type {
+  DeloadPolicy,
+  DietPhase,
+  ProgramInput,
+  ProgramStatus,
+  Progression,
+} from '@/lib/program-input'
 import type { ExerciseSource } from '@/lib/custom-exercise-input'
 import { getAllExercises, type Exercise } from '@/lib/wger'
 import {
@@ -284,8 +290,13 @@ export async function saveProgram(
   userId: string,
   input: ProgramInput,
   actor: ProgramEventActor,
-): Promise<{ id: string }> {
-  const status = actor === 'coach' ? 'proposed' : input.status
+): Promise<{ id: string; status: string }> {
+  // Omitted on create = 'draft' (the column default, materialized here so the
+  // event payload and the returned echo state it); the coach path forces
+  // 'proposed' regardless. The input schema deliberately carries NO default —
+  // it would ride updateProgram's full-replace path and deactivate an active
+  // program whose upsert omits the field.
+  const status = actor === 'coach' ? 'proposed' : (input.status ?? 'draft')
   const catalog = await loadExerciseCatalog(userId) // network read stays outside the tx
   return db.transaction(async (tx) => {
     const [program] = await tx
@@ -352,7 +363,9 @@ export async function saveProgram(
       payload: { after: { name: input.name, status } },
     })
 
-    return { id: program.id }
+    // The effective status rides back so the MCP echo reports what was
+    // actually saved, not what the input said (or omitted).
+    return { id: program.id, status }
   })
 }
 
@@ -466,7 +479,7 @@ export async function updateProgram(
   id: string,
   input: ProgramInput,
   actor: ProgramEventActor,
-): Promise<{ id: string } | null> {
+): Promise<{ id: string; status: string } | null> {
   const isCoach = actor === 'coach'
   const status = isCoach ? 'proposed' : input.status
   const catalog = await loadExerciseCatalog(userId) // network read stays outside the tx
@@ -475,7 +488,11 @@ export async function updateProgram(
       .update(programs)
       .set({
         name: input.name,
-        status,
+        // Omitted on update = PRESERVE the stored status: an upsert that
+        // never mentions it must not deactivate an ACTIVE program back to
+        // 'draft'. Same discipline as the switches below; the coach path
+        // always writes 'proposed' (its gate only matches such rows anyway).
+        ...(status !== undefined ? { status } : {}),
         mesocycleWeeks: input.mesocycleWeeks,
         deloadWeek: input.deloadWeek ?? null,
         // Omitted on update = PRESERVE the stored switch: an upsert that
@@ -514,11 +531,12 @@ export async function updateProgram(
         sourceUrl: input.sourceUrl ?? null,
         updatedAt: new Date(),
       })
-      // Owner path — ne('proposed'): a full replace sets status, so it is a
-      // promotion path and must never move a proposal — only adoptProgram/
-      // declineProgram may. Coach path — the inverse gate: ONLY its own
-      // proposal rows match, so the coach can never touch an owner-authored
-      // or adopted program through this write.
+      // Owner path — ne('proposed'): a full replace may set status, so it is
+      // a promotion path and must never move a proposal — only adoptProgram/
+      // declineProgram may (and even an omitted-status replace must not
+      // rewrite a proposal's content). Coach path — the inverse gate: ONLY
+      // its own proposal rows match, so the coach can never touch an
+      // owner-authored or adopted program through this write.
       .where(
         isCoach
           ? and(
@@ -529,7 +547,9 @@ export async function updateProgram(
             )
           : and(eq(programs.id, id), eq(programs.userId, userId), ne(programs.status, 'proposed')),
       )
-      .returning({ id: programs.id })
+      // status rides back so an omitted-status replace can report the
+      // PRESERVED stored value (the row's post-update truth either way).
+      .returning({ id: programs.id, status: programs.status })
     if (!owned) {
       // Distinguish "not owned/missing" (null, like before) from "refused
       // by policy" (a clear, actionable error for the caller).
@@ -557,9 +577,12 @@ export async function updateProgram(
       actor,
       action: 'upsert_program',
       summary: 'Program replaced',
-      payload: { after: { name: input.name, status } },
+      // The event records the row's actual post-write status — for an
+      // omitted-status replace that is the preserved stored value, which the
+      // input can't know.
+      payload: { after: { name: input.name, status: owned.status } },
     })
-    return { id }
+    return { id, status: owned.status }
   })
 }
 
@@ -584,7 +607,7 @@ export function deleteProgram(userId: string, id: string) {
 export async function setProgramStatus(
   userId: string,
   id: string,
-  status: ProgramInput['status'],
+  status: ProgramStatus,
   actor: ProgramEventActor,
 ): Promise<{ id: string } | null> {
   const [owned] = await db

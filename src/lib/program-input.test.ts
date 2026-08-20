@@ -21,7 +21,6 @@ describe('parseProgramInput', () => {
     // Assert — program- and set-level defaults filled in
     expect(result).toMatchObject({
       name: 'PPL',
-      status: 'draft',
       mesocycleWeeks: 1,
       days: [
         {
@@ -36,6 +35,19 @@ describe('parseProgramInput', () => {
         },
       ],
     })
+  })
+
+  it('leaves an omitted status undefined (no materialized default — preserve-on-omit)', () => {
+    // Act — same preserve-on-omit discipline as autoregulation/planSync/
+    // visibility: a materialized 'draft' would ride the full-replace update
+    // path and silently deactivate an ACTIVE program whenever an upsert
+    // omits the field. Create-time defaulting is saveProgram's job.
+    const result = parseProgramInput(VALID)
+
+    // Assert — absent, not present-as-undefined (the stricter key check the
+    // sibling switch tests use)
+    expect(result.status).toBeUndefined()
+    expect('status' in result).toBe(false)
   })
 
   it('normalizes day weekdays: deduped, ascending, absent stays absent', () => {
