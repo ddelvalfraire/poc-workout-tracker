@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { renderToStaticMarkup } from 'react-dom/server'
+import { renderStaticIntl } from '../../../../vitest.intl'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 /**
@@ -20,7 +20,7 @@ import { CreateExerciseForm } from './create-exercise-form'
 function render(props: Partial<Parameters<typeof CreateExerciseForm>[0]> = {}): string {
   // queries disabled: a static render must never kick off fetches.
   const client = new QueryClient({ defaultOptions: { queries: { enabled: false } } })
-  return renderToStaticMarkup(
+  return renderStaticIntl(
     <QueryClientProvider client={client}>
       <CreateExerciseForm initialName="" returnMode={null} targetId={null} {...props} />
     </QueryClientProvider>,

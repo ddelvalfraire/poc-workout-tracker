@@ -65,6 +65,23 @@ const CARD_SHELL_RATCHET = [
 // A file joins this list in the same PR that extracts its copy — never
 // before, or the rule is just noise a future PR learns to ignore.
 const I18N_MIGRATED = [
+  "src/app/exercises/\\[source\\]/\\[id\\]/exercise-note-section.tsx",
+  "src/app/exercises/\\[source\\]/\\[id\\]/page.tsx",
+  "src/app/exercises/custom-exercise-editor.tsx",
+  "src/app/exercises/library-filter.tsx",
+  "src/app/exercises/new/create-exercise-form.tsx",
+  "src/app/exercises/new/page.tsx",
+  "src/app/exercises/page.tsx",
+  "src/app/notes/facet-select.tsx",
+  "src/app/notes/notes-browser.tsx",
+  "src/app/notes/page.tsx",
+  "src/app/stats/page.tsx",
+  "src/app/stats/plan-bullet-list.tsx",
+  "src/app/stats/window-toggle.tsx",
+  "src/app/templates/\\[id\\]/page.tsx",
+  "src/app/templates/\\[id\\]/template-actions.tsx",
+  "src/app/templates/\\[id\\]/template-edit-sheet.tsx",
+  "src/app/templates/page.tsx",
   "src/app/goals/consistency-progress.tsx",
   "src/app/goals/goal-card-actions.tsx",
   "src/app/goals/goal-create.tsx",
@@ -175,6 +192,9 @@ const eslintConfig = defineConfig([
               "data-.*", "aria-hidden", "width", "height", "viewBox", "fill",
               "stroke", "d", "xmlns", "style", "step", "min", "max", "pattern",
               "rel", "target", "method", "action", "encType", "dir", "lang",
+              // BackLink's fallback is a route, like href — and
+              // back-fallbacks.test.ts greps for the literal, so it must stay one.
+              "fallback",
             ],
           },
         },
