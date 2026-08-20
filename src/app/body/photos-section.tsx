@@ -17,6 +17,7 @@ import { PhotoCell, type PhotoEntry } from './photo-cell'
 import { PhotoOverlay } from './photo-overlay'
 import { PhotoCompare } from './photo-compare'
 import { defaultComparePair } from './compare-pair'
+import { useTranslations } from 'next-intl'
 
 // A month without a photo → the quiet cadence nudge by Add photo.
 const CADENCE_NUDGE_DAYS = 30
@@ -33,6 +34,7 @@ const MS_PER_DAY = 24 * 60 * 60 * 1000
  * (camera OR library) beats forcing the rear camera.
  */
 export function PhotosSection({ entries }: { entries: PhotoEntry[] }) {
+  const t = useTranslations('PhotosSection')
   const [pose, setPose] = useState<PhotoPose | null>(null)
   const [note, setNote] = useState('')
   const [isUploading, setIsUploading] = useState(false)
@@ -76,14 +78,14 @@ export function PhotosSection({ entries }: { entries: PhotoEntry[] }) {
       const res = await fetch('/api/photos', { method: 'POST', body: form })
       if (!res.ok) {
         const body = (await res.json().catch(() => null)) as { error?: string } | null
-        throw new Error(body?.error ?? 'Upload failed')
+        throw new Error(body?.error ?? t('uploadFailed'))
       }
       setNote('')
       setPose(null)
       router.refresh()
     } catch (err: unknown) {
       // Pipeline and route errors are written for users — surface verbatim.
-      setError(err instanceof Error ? err.message : 'Didn’t upload. Try again.')
+      setError(err instanceof Error ? err.message : t('uploadError'))
     } finally {
       setIsUploading(false)
     }
@@ -120,7 +122,7 @@ export function PhotosSection({ entries }: { entries: PhotoEntry[] }) {
       {/* Upload controls: optional pose pills + note, then THE action. */}
       <div
         role="radiogroup"
-        aria-label="Pose (optional)"
+        aria-label={t('poseGroupLabel')}
         className="-mx-5 flex gap-2 overflow-x-auto px-5 pb-1"
       >
         {PHOTO_POSES.map((p) => (
@@ -148,8 +150,8 @@ export function PhotosSection({ entries }: { entries: PhotoEntry[] }) {
           value={note}
           maxLength={PHOTO_NOTE_MAX_LENGTH}
           onChange={(e) => setNote(e.target.value)}
-          placeholder="Note (optional)"
-          aria-label="Photo note"
+          placeholder={t('notePlaceholder')}
+          aria-label={t('noteAriaLabel')}
           autoComplete="off"
         />
         <Button
@@ -159,7 +161,7 @@ export function PhotosSection({ entries }: { entries: PhotoEntry[] }) {
           className="shrink-0"
         >
           <Camera aria-hidden="true" className="size-4" />
-          {isUploading ? 'Uploading…' : 'Add photo'}
+          {isUploading ? t('pendingAction') : t('action')}
         </Button>
       </div>
       <input
@@ -179,7 +181,7 @@ export function PhotosSection({ entries }: { entries: PhotoEntry[] }) {
       {isStale && !error && (
         // The quiet cadence nudge — a fact, not a guilt trip.
         <p className="mt-1.5 text-xs text-muted-foreground">
-          Over a month since your last photo — monthly shots make the change visible.
+          {t('cadenceNudge')}
         </p>
       )}
 
@@ -193,11 +195,11 @@ export function PhotosSection({ entries }: { entries: PhotoEntry[] }) {
             onClick={toggleCompare}
           >
             <Columns2 aria-hidden="true" className="size-4" />
-            {isCompareMode ? 'Done comparing' : 'Compare'}
+            {isCompareMode ? t('compareDone') : t('compareAction')}
           </Button>
           {isCompareMode && compareEntries.length < 2 && (
             <p className="text-sm text-muted-foreground">
-              Pick {compareEntries.length === 0 ? 'two photos' : 'one more'}
+              {t('comparePick', { remaining: 2 - compareEntries.length })}
             </p>
           )}
         </div>
@@ -210,7 +212,7 @@ export function PhotosSection({ entries }: { entries: PhotoEntry[] }) {
       )}
 
       {entries.length > 0 ? (
-        <div role="list" aria-label="Photo timeline" className="mt-4 grid grid-cols-3 gap-1.5">
+        <div role="list" aria-label={t('timelineGroupLabel')} className="mt-4 grid grid-cols-3 gap-1.5">
           {entries.map((entry) => (
             <PhotoCell
               key={entry.id}
@@ -224,8 +226,7 @@ export function PhotosSection({ entries }: { entries: PhotoEntry[] }) {
       ) : (
         // Honest empty state — the privacy promise is the pitch.
         <p className="mt-4 text-sm text-muted-foreground">
-          No photos yet. Progress photos live only in your account — never public. The scale
-          misses what a monthly photo catches.
+          {t('empty')}
         </p>
       )}
 

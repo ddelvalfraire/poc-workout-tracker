@@ -4,6 +4,52 @@
     "gpcHint": "Your browser sends a Global Privacy Control signal — this stays off.",
     "saveError": "Could not save your choice. Please try again."
   },
+  "Body": {
+    "bodyweight": {
+      "chartLabel": "Bodyweight trend, {from} to {to} {unit} over {count, plural, one {# entry} other {# entries}}",
+      "deltaSummary": "{direction, select, down {Trending down — {value} {unit} / {days}d} up {Trending up — {value} {unit} / {days}d} other {Holding steady / {days}d}}",
+      "empty": "Log your first weigh-in — bodyweight exercises use it for est. 1RM.",
+      "groupLabel": "Bodyweight",
+      "historyGroupLabel": "Weigh-in history",
+      "olderGroupLabel": "Older weigh-ins",
+      "rawReading": "Last weigh-in {value} {unit} · {date}",
+      "seriesRaw": "Weigh-in",
+      "seriesTarget": "Goal",
+      "seriesTrend": "Trend",
+      "showAll": "All weigh-ins · {count}",
+      "title": "Bodyweight",
+      "trendGroupLabel": "Bodyweight trend",
+      "trendLabel": "Trend weight",
+      "weightValue": "{value} {unit}"
+    },
+    "measurements": {
+      "groupLabel": "Measurements",
+      "title": "Measurements"
+    },
+    "photos": {
+      "groupLabel": "Progress photos",
+      "title": "Progress photos"
+    },
+    "title": "Body"
+  },
+  "BodyweightEntryRow": {
+    "confirm": {
+      "body": "Your current weight resyncs to the latest remaining one.",
+      "confirmLabel": "Delete",
+      "pendingLabel": "Deleting…",
+      "title": "Delete this entry?"
+    },
+    "deleteAriaLabel": "Delete entry from {date}",
+    "deleteError": "Could not delete this entry. Please try again."
+  },
+  "BodyweightLogForm": {
+    "action": "Log weight",
+    "label": "Today’s weight ({unit})",
+    "pendingAction": "Logging…",
+    "placeholder": "e.g. {example}",
+    "saveError": "Didn’t save. Check the value and try again.",
+    "validation": "Enter a weight above 0 {unit}."
+  },
   "Common": {
     "appDescription": "Log your workouts and review your training history.",
     "appName": "Workout Tracker"
@@ -182,6 +228,79 @@
       "hint": "Strong files don’t say kg or lb — pick the unit this account logged in."
     },
     "unitGroupLabel": "File weight unit"
+  },
+  "MeasurementEntryRow": {
+    "confirm": {
+      "body": "It disappears from the history and the trend.",
+      "confirmLabel": "Delete",
+      "pendingLabel": "Deleting…",
+      "title": "Delete this entry?"
+    },
+    "deleteAriaLabel": "Delete entry from {date}",
+    "deleteError": "Could not delete this entry. Please try again."
+  },
+  "MeasurementsSection": {
+    "action": "Log measurement",
+    "chartLabel": "{site} trend, {from} to {to} {unit} over {count, plural, one {# entry} other {# entries}}",
+    "empty": "No {site} entries yet. Tape measurements catch changes the scale misses.",
+    "historyGroupLabel": "{site} history",
+    "inputLabel": "{site} ({unit})",
+    "latestSummary": "{site}: <reading>{value} {unit}</reading>{delta, select, none {} other { · {delta} {unit} / {days}d}}",
+    "olderGroupLabel": "Older {site} entries",
+    "pendingAction": "Logging…",
+    "placeholder": "e.g. {example}",
+    "saveError": "Didn’t save. Check the value and try again.",
+    "showAll": "All {site} entries · {count}",
+    "siteGroupLabel": "Measurement site",
+    "trendGroupLabel": "{site} trend",
+    "validation": "Enter a measurement above 0 {unit}.",
+    "value": "{value} {unit}"
+  },
+  "PhotoCell": {
+    "alt": "{pose, select, none {Progress photo, {date}} other {Progress photo, {date}, {pose}}}",
+    "ariaLabel": "{intent, select, select {Select photo from {date}} deselect {Deselect photo from {date}} other {View photo from {date}}}",
+    "poseSuffix": " · {pose}"
+  },
+  "PhotoCompare": {
+    "alt": "{pose, select, none {Progress photo, {date}} other {Progress photo, {date}, {pose}}}",
+    "captionPair": "{left} → {right}",
+    "mode": {
+      "side": "Side by side",
+      "slider": "Slider"
+    },
+    "modeGroupLabel": "Compare mode",
+    "poseSuffix": " · {pose}",
+    "sideGroupLabel": "Comparing {left} with {right}",
+    "sliderLabel": "Reveal earlier photo"
+  },
+  "PhotoOverlay": {
+    "alt": "{pose, select, none {Progress photo, {date}} other {Progress photo, {date}, {pose}}}",
+    "close": "Close",
+    "confirm": {
+      "body": "It's removed from your account permanently — there's no undo.",
+      "confirmLabel": "Delete",
+      "pendingLabel": "Deleting…",
+      "title": "Delete this photo?"
+    },
+    "deleteAriaLabel": "Delete photo from {date}",
+    "deleteError": "Could not delete this photo. Please try again.",
+    "dialogLabel": "Photo from {date}",
+    "poseSuffix": " · {pose}"
+  },
+  "PhotosSection": {
+    "action": "Add photo",
+    "cadenceNudge": "Over a month since your last photo — monthly shots make the change visible.",
+    "compareAction": "Compare",
+    "compareDone": "Done comparing",
+    "comparePick": "{remaining, plural, one {Pick one more} other {Pick two photos}}",
+    "empty": "No photos yet. Progress photos live only in your account — never public. The scale misses what a monthly photo catches.",
+    "noteAriaLabel": "Photo note",
+    "notePlaceholder": "Note (optional)",
+    "pendingAction": "Uploading…",
+    "poseGroupLabel": "Pose (optional)",
+    "timelineGroupLabel": "Photo timeline",
+    "uploadError": "Didn’t upload. Try again.",
+    "uploadFailed": "Upload failed"
   },
   "RemoveImportButton": {
     "confirm": {

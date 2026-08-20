@@ -60,6 +60,15 @@ const CARD_SHELL_RATCHET = [
 // A file joins this list in the same PR that extracts its copy — never
 // before, or the rule is just noise a future PR learns to ignore.
 const I18N_MIGRATED = [
+  "src/app/body/entry-row.tsx",
+  "src/app/body/log-form.tsx",
+  "src/app/body/measurement-entry-row.tsx",
+  "src/app/body/measurements-section.tsx",
+  "src/app/body/page.tsx",
+  "src/app/body/photo-cell.tsx",
+  "src/app/body/photo-compare.tsx",
+  "src/app/body/photo-overlay.tsx",
+  "src/app/body/photos-section.tsx",
   "src/app/goals/consistency-progress.tsx",
   "src/app/goals/goal-card-actions.tsx",
   "src/app/goals/goal-create.tsx",
