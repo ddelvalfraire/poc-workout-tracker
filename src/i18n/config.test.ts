@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
+import { execSync } from 'node:child_process'
 import { join } from 'node:path'
 import { DEFAULT_LOCALE, SUPPORTED_LOCALES } from './config'
 
@@ -144,5 +145,32 @@ describe('message catalogs', () => {
         expect(value.trim(), `${locale}: ${path} is empty`).not.toBe('')
       }
     }
+  })
+})
+
+describe('catalog has no orphaned keys', () => {
+  it('every message is referenced somewhere in src', () => {
+    // A key nobody renders is a key a translator still gets billed for, and
+    // it hides the fact that its surface was deleted or renamed.
+    //
+    // Matching is deliberately PERMISSIVE — any quoted occurrence of the
+    // path-after-namespace counts, which covers t('x'), message descriptors
+    // ({ key: 'x' }) and option maps alike. A false "dead" would delete a
+    // live key and break a render, so this errs toward missing one.
+    const files = execSync(
+      "grep -rl . src --include='*.ts' --include='*.tsx' | grep -v '.test.'",
+      { encoding: 'utf8' },
+    )
+      .split('\n')
+      .filter(Boolean)
+    const blob = files.map((f) => readFileSync(f, 'utf8')).join('\n')
+    const quoted = new Set(Array.from(blob.matchAll(/['"`]([A-Za-z][\w.]*)['"`]/g), (m) => m[1]))
+
+    const orphans = flattenKeys(readCatalog(DEFAULT_LOCALE)).filter((path) => {
+      const parts = path.split('.')
+      return !quoted.has(parts.slice(1).join('.')) && !quoted.has(parts[parts.length - 1])
+    })
+
+    expect(orphans).toEqual([])
   })
 })

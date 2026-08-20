@@ -1692,7 +1692,6 @@
       "hint": "Counts down your rest after each set.",
       "label": "Rest timer"
     },
-    "signOutAction": "Sign out",
     "signedInLabel": "Signed in",
     "terms": {
       "hint": "The agreement for using the app.",
