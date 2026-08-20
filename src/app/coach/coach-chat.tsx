@@ -40,6 +40,7 @@ import {
   type ProgramProposal,
 } from '@/lib/coach/chat-ui'
 import { describeToolCall } from '@/lib/coach/describe-tool-call'
+import { useTranslations } from 'next-intl'
 
 /** Both static (`tool-*`) and dynamic tool parts, under one roof. */
 type AnyToolPart = ToolUIPart | DynamicToolUIPart
@@ -78,6 +79,7 @@ function useOnline(): boolean {
 /** Compact one-line "the coach did X" status line for auto-running tool
  *  calls — deliberately not a bubble: quiet dot + text, no border/card. */
 function ToolChip({ part }: { part: AnyToolPart }) {
+  const t = useTranslations('CoachChat')
   const name = toolPartName(part)
   // Auto-approved calls (approval-requested with isAutomatic) are still
   // in-flight from the user's perspective, so they read as running too.
@@ -108,8 +110,10 @@ function ToolChip({ part }: { part: AnyToolPart }) {
       <span className="min-w-0 truncate">
         {toolStatusLabel(name, failed ? 'failed' : running ? 'running' : 'done')}
         {running ? '…' : ''}
-        {detail && <span className="text-muted-foreground/70"> · ‘{detail}’</span>}
-        {failed ? ' — failed' : ''}
+        {detail && (
+          <span className="text-muted-foreground/70"> {t('toolDetail', { detail })}</span>
+        )}
+        {failed ? t('toolFailed') : ''}
       </span>
     </p>
   )
@@ -129,12 +133,13 @@ function ApprovalCard({
   onRespond: (approvalId: string, approved: boolean) => void
   disabled: boolean
 }) {
+  const t = useTranslations('CoachChat')
   const name = toolPartName(part)
   const args = formatToolInput(part.input)
   return (
     <div className="rounded-2xl border border-primary/40 bg-card p-4">
       <p className="text-[11px] font-semibold uppercase tracking-widest text-primary">
-        Needs your OK
+        {t('pendingApprovalLabel')}
       </p>
       {/* The trust-critical line: a human sentence built from the tool input
           (describeToolCall), not the tool's name or raw JSON. Body text, not
@@ -145,7 +150,7 @@ function ApprovalCard({
            verify the exact payload, never the headline. */
         <details className="mt-2">
           <summary className="cursor-pointer text-xs text-muted-foreground select-none">
-            Details
+            {t('detailsSummary')}
           </summary>
           <pre className="mt-1 overflow-x-auto font-mono text-xs break-all whitespace-pre-wrap text-muted-foreground">
             {args}
@@ -159,12 +164,12 @@ function ApprovalCard({
           disabled={disabled}
           onClick={() => onRespond(part.approval.id, false)}
         >
-          Cancel
+          {t('cancel')}
         </Button>
         {/* The approval Apply is a live state, not the page's volt CTA — it
             borrows the primary variant only while a decision is pending. */}
         <Button size="sm" disabled={disabled} onClick={() => onRespond(part.approval.id, true)}>
-          Apply
+          {t('applyAction')}
         </Button>
       </div>
     </div>
@@ -178,6 +183,7 @@ function ApprovalCard({
  * Decline, owner-only) lives.
  */
 function ProposalCard({ proposal }: { proposal: ProgramProposal }) {
+  const t = useTranslations('CoachChat')
   const meta = [
     `${proposal.dayCount} ${proposal.dayCount === 1 ? 'day' : 'days'}/week`,
     proposal.weekCount !== null
@@ -189,7 +195,7 @@ function ProposalCard({ proposal }: { proposal: ProgramProposal }) {
   return (
     <div className="rounded-2xl border border-primary/40 bg-card p-4">
       <p className="text-[11px] font-semibold uppercase tracking-widest text-primary">
-        Proposed program
+        {t('proposalTitle')}
       </p>
       <p className="mt-1 font-display text-lg uppercase leading-tight tracking-wide">
         {proposal.icon ? `${proposal.icon} ` : ''}
@@ -203,7 +209,7 @@ function ProposalCard({ proposal }: { proposal: ProgramProposal }) {
         href={`/programs/${proposal.programId}`}
         className={cn(buttonVariants({ size: 'sm' }), 'mt-3 w-full rounded-xl')}
       >
-        Review &amp; adopt
+        {t('reviewAction')}
       </Link>
     </div>
   )
@@ -219,6 +225,7 @@ function ToolPartView({
   onRespond: (approvalId: string, approved: boolean) => void
   responding: boolean
 }) {
+  const t = useTranslations('CoachChat')
   const name = toolPartName(part)
   switch (part.state) {
     case 'approval-requested':
@@ -233,12 +240,16 @@ function ToolPartView({
     case 'approval-responded':
       return (
         <p className="text-xs text-muted-foreground">
-          {describeToolCall(name, part.input)} — {part.approval.approved ? 'applying…' : 'cancelled'}
+          {part.approval.approved
+            ? t('approvalApplied', { tool: describeToolCall(name, part.input) })
+            : t('approvalCancelled', { tool: describeToolCall(name, part.input) })}
         </p>
       )
     case 'output-denied':
       return (
-        <p className="text-xs text-muted-foreground">{describeToolCall(name, part.input)} — cancelled</p>
+        <p className="text-xs text-muted-foreground">
+          {t('approvalCancelled', { tool: describeToolCall(name, part.input) })}
+        </p>
       )
     case 'output-available': {
       // A completed draft (create OR revision of a still-proposed draft)
@@ -275,6 +286,7 @@ export function CoachChat({
   initialMessages,
   clearAction,
 }: CoachChatProps) {
+  const t = useTranslations('CoachChat')
   const [input, setInput] = useState('')
   const online = useOnline()
   const bottomRef = useRef<HTMLDivElement>(null)
@@ -377,7 +389,7 @@ export function CoachChat({
   return (
     <>
       <AppHeader
-        title="Coach"
+        title={t('pageTitle')}
         leading={leading}
         trailing={
           clearAction && messages.length > 0 ? (
@@ -395,7 +407,7 @@ export function CoachChat({
               }}
             >
               <RotateCcw aria-hidden="true" className="size-3.5" />
-              New chat
+              {t('newChatAction')}
             </Button>
           ) : undefined
         }
@@ -404,7 +416,7 @@ export function CoachChat({
           strip on the surface itself — never per-message banners. The
           first-open interstitial below carries the full caveat once. */}
       <p className="border-b border-border px-5 py-1.5 text-center text-xs text-muted-foreground">
-        AI coach — responses are AI-generated and can be wrong. Not medical advice.
+        {t('disclosureStrip')}
       </p>
       <CoachDisclosure />
       <main className="mx-auto w-full max-w-md flex-1 px-5">
@@ -412,11 +424,10 @@ export function CoachChat({
           /* Empty state: what the coach is for, plus tappable starters. */
           <div className="flex min-h-[60dvh] flex-col justify-center">
             <h2 className="font-display text-2xl uppercase leading-none tracking-wide">
-              Ask your coach
+              {t('title')}
             </h2>
             <p className="mt-2 text-sm text-muted-foreground">
-              It can read your workouts and programs, and propose plan changes — nothing is applied
-              without your OK.
+              {t('capabilityDescription')}
             </p>
             <div className="mt-6 space-y-2">
               {starters.map((prompt) => (
@@ -518,7 +529,7 @@ export function CoachChat({
                   <span className="absolute inline-flex h-full w-full rounded-full bg-primary opacity-60 motion-safe:animate-ping" />
                   <span className="relative inline-flex size-2 rounded-full bg-primary" />
                 </span>
-                Thinking
+                {t('thinkingStatus')}
               </p>
             )}
           </div>
@@ -532,7 +543,7 @@ export function CoachChat({
         <div className="mx-auto w-full max-w-md px-5 py-3">
           {offline ? (
             <p role="status" className="pb-2 text-center text-sm text-warning">
-              Coach needs a connection.
+              {t('offlineNotice')}
             </p>
           ) : (
             coachError && (
@@ -551,8 +562,8 @@ export function CoachChat({
             <input
               value={input}
               onChange={(event) => setInput(event.target.value)}
-              placeholder="Ask about your training…"
-              aria-label="Message the coach"
+              placeholder={t('composerPlaceholder')}
+              aria-label={t('composerLabel')}
               autoComplete="off"
               enterKeyHint="send"
               className="h-11 min-w-0 flex-1 rounded-2xl border border-input bg-card px-4 text-base transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
@@ -561,7 +572,7 @@ export function CoachChat({
             <Button
               type="submit"
               size="icon"
-              aria-label="Send"
+              aria-label={t('sendLabel')}
               disabled={busy || offline || !input.trim()}
               className="rounded-2xl"
             >

@@ -4,6 +4,16 @@ vi.mock('@/lib/auth', () => ({ requireUserId: vi.fn(async () => 'user_1') }))
 vi.mock('next/headers', () => ({
   headers: vi.fn(async () => new Headers({ 'x-forwarded-for': '203.0.113.9', 'user-agent': 'ua' })),
 }))
+// The real catalog, not a stub: the assertions below check the EXACT label
+// recorded as presentation proof, so a stub would let the wording drift from
+// what the consent row actually renders.
+vi.mock('next-intl/server', async () => {
+  const messages = (await import('../../../messages/en.json')).default
+  return {
+    getTranslations: async (namespace: keyof typeof messages) => (key: string) =>
+      (messages[namespace] as Record<string, string>)[key],
+  }
+})
 vi.mock('@/db/consent', () => ({
   getActiveConsentDocument: vi.fn(async (docType: string) => ({ id: `doc-${docType}` })),
   recordConsent: vi.fn(async () => ({ eventId: 'ev-1' })),

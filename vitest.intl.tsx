@@ -12,6 +12,18 @@ import messages from './messages/en.json'
  * these tests are about user-visible copy, so a stub would let a component
  * reference a key the catalog never got and still pass.
  */
+/**
+ * Wraps a node in the provider for tests that render through createRoot
+ * rather than to static markup. Same real-catalog rule as below.
+ */
+export function withIntl(node: ReactNode) {
+  return (
+    <NextIntlClientProvider locale="en" messages={messages}>
+      {node}
+    </NextIntlClientProvider>
+  )
+}
+
 export function renderStaticIntl(node: ReactNode): string {
   return renderToStaticMarkup(
     <NextIntlClientProvider locale="en" messages={messages}>

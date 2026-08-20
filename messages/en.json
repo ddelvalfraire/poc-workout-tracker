@@ -2,9 +2,62 @@
   "AnalyticsConsentToggle": {
     "gpcHint": "Your browser sends a Global Privacy Control signal — this stays off."
   },
+  "CoachChat": {
+    "applyAction": "Apply",
+    "approvalApplied": "{tool} — applying…",
+    "approvalCancelled": "{tool} — cancelled",
+    "cancel": "Cancel",
+    "capabilityDescription": "It can read your workouts and programs, and propose plan changes — nothing is applied without your OK.",
+    "composerLabel": "Message the coach",
+    "composerPlaceholder": "Ask about your training…",
+    "detailsSummary": "Details",
+    "disclosureStrip": "AI coach — responses are AI-generated and can be wrong. Not medical advice.",
+    "newChatAction": "New chat",
+    "offlineNotice": "Coach needs a connection.",
+    "pageTitle": "Coach",
+    "pendingApprovalLabel": "Needs your OK",
+    "proposalTitle": "Proposed program",
+    "reviewAction": "Review & adopt",
+    "sendLabel": "Send",
+    "thinkingStatus": "Thinking",
+    "title": "Ask your coach",
+    "toolDetail": "· ‘{detail}’",
+    "toolFailed": " — failed"
+  },
+  "CoachDisclosure": {
+    "acknowledgeAction": "Got it",
+    "body": "It knows your training history and can suggest changes to your program — but it can make mistakes, and it isn’t a doctor. Check anything that matters, and see a physician before making health decisions.",
+    "eyebrow": "Before you start",
+    "title": "Coach is an AI"
+  },
   "Common": {
     "appDescription": "Log your workouts and review your training history.",
     "appName": "Workout Tracker"
+  },
+  "ConsentForm": {
+    "analyticsBody": "Link your usage (never your workout content) to your account so we can see which features actually help. Change anytime in Settings.",
+    "analyticsControlLabel": "Analytics identity",
+    "analyticsTitle": "Analytics identity",
+    "continueAction": "Continue",
+    "gpcNotice": "Your browser sent a Global Privacy Control signal — this stays off.",
+    "healthCollectBody": "We collect the workouts, sets, and body-weight entries you record to show your training history and progress.",
+    "healthCollectDetail": "This covers everything you log: sessions, exercises, sets and loads, body measurements, progress photos, and notes. It lives in our database, is visible only to you, and you can export or delete it at any time. Full details in the Health Data Privacy policy.",
+    "healthCollectLabel": "Store your health data",
+    "healthDataLink": "Health Data",
+    "healthShareBody": "Your data passes through the services that run the app — hosting, database, and the AI coach provider. They process it only for us, never for ads.",
+    "healthShareDetail": "The processors: Vercel (application hosting), Supabase (database), our AI model provider (coach responses only), and Sentry (error reports). Each works under contract, for us alone. Our analytics provider is deliberately NOT on this list — analytics never receives your workout content.",
+    "healthShareLabel": "Share with our service providers",
+    "neverSell": "We never sell your health data. Ever. · ",
+    "optionalTitle": "Optional",
+    "privacyLink": "Privacy",
+    "privacyPolicyLink": "Full privacy policy",
+    "readThem": "Read them: ",
+    "requiredNote": "Required because the app can’t function without storing your training.",
+    "requiredTitle": "Required to use the app",
+    "savingAction": "Saving…",
+    "termsLink": "Terms",
+    "tosLabel": "I agree to the Terms of Service and have read the Privacy Notice and Health Data Privacy Policy.",
+    "whatThisMeansAction": "What this means"
   },
   "ConsistencyProgress": {
     "progressSummary": "{completed} of {target, plural, one {# week} other {# weeks}}",
@@ -92,6 +145,12 @@
     "trendLabel": "Bodyweight trend",
     "trophiesLinkLabel": "Trophies"
   },
+  "History": {
+    "bucketSessions": "· {count, plural, one {# session} other {# sessions}}",
+    "empty": "No workouts yet — finished sessions land here, your full training log.",
+    "startAction": "Start your first workout",
+    "title": "History"
+  },
   "HomeLayoutEditor": {
     "hint": "Tap a tile to resize, reorder, or hide it — or press and hold to drag it. Hidden sections keep tracking — they just don’t show on Home.",
     "lockedTileLabel": "Status",
@@ -146,6 +205,18 @@
       "hint": "Strong files don’t say kg or lb — pick the unit this account logged in."
     }
   },
+  "P": {
+    "adoptAction": "Add to my programs",
+    "attribution": "Shared program · {days, plural, one {# day} other {# days}}/week · {weeks, plural, one {# week} other {# weeks}}",
+    "dayLabel": "Day {number}",
+    "openAction": "Open your program",
+    "ownerNotice": "This is your program — this is what people with the link see.",
+    "pageTitle": "Shared program",
+    "planTitle": "The plan",
+    "signInAction": "Sign in to add this program",
+    "sourceLabel": "Source",
+    "supersetLabel": "Superset {label}"
+  },
   "RemoveImportButton": {
     "label": "Remove"
   },
@@ -182,6 +253,27 @@
       "title": "Closest"
     },
     "empty": "No trophies yet. Every trophy is a lifting fact — plate clubs, workout counts, streaks. Train and they stamp themselves."
+  },
+  "W": {
+    "approxPrefix": "~",
+    "durationLabel": "Duration",
+    "e1rmLabel": "Est. 1RM",
+    "emptySets": "No sets logged.",
+    "openAction": "Open your workout",
+    "ownerNotice": "This is your workout — this is what people with the link see.",
+    "promoDescription": "Logged with this app — track your own sessions, PRs, and programs.",
+    "repsValue": "{reps, plural, one {# rep} other {# reps}}",
+    "setsLabel": "{count, plural, one {Set} other {Sets}}",
+    "sharedLabel": "Shared workout",
+    "signInAction": "Sign in to start tracking",
+    "skippedLabel": "Skipped",
+    "topSetLabel": "Top set",
+    "volumeLabel": "Volume"
+  },
+  "Welcome": {
+    "lede": "Your training data is health data, and you get real choices about it — each one in plain English.",
+    "requirementNote": "Two of these are required — they are what the app is. One is optional and off by default. All of them can be revisited in Settings.",
+    "title": "Your data, your call"
   },
   "WorkoutRemindersToggle": {
     "blockedNotice": "Notifications are blocked for this app in your browser settings.",

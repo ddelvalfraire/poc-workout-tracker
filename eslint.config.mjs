@@ -15,6 +15,8 @@ const CARD_SHELL_KEEP = [
   "src/components/confirm-dialog.tsx",
   "src/components/session-conflict-dialog.tsx",
   "src/components/editor/quick-capture-sheet.tsx",
+  "src/app/welcome/consent-form.tsx",
+  "src/app/welcome/page.tsx",
   "src/app/coach/coach-chat.tsx",
   "src/app/body/photo-overlay.tsx",
   "src/app/programs/\\[id\\]/patch-proposal-card.tsx",
@@ -65,6 +67,14 @@ const CARD_SHELL_RATCHET = [
 // A file joins this list in the same PR that extracts its copy — never
 // before, or the rule is just noise a future PR learns to ignore.
 const I18N_MIGRATED = [
+  "src/app/welcome/consent-form.tsx",
+  "src/app/welcome/page.tsx",
+  "src/app/coach/coach-chat.tsx",
+  "src/app/coach/coach-disclosure.tsx",
+  "src/app/coach/page.tsx",
+  "src/app/history/page.tsx",
+  "src/app/p/\\[token\\]/page.tsx",
+  "src/app/w/\\[token\\]/page.tsx",
   "src/app/goals/consistency-progress.tsx",
   "src/app/goals/goal-card-actions.tsx",
   "src/app/goals/goal-create.tsx",
@@ -167,12 +177,12 @@ const eslintConfig = defineConfig([
           mode: "jsx-only",
           // The translator call itself, and class helpers, take string
           // arguments that are identifiers rather than copy.
-          callees: { exclude: ["t", "t.rich", "cn", "clsx", "cva"] },
+          callees: { exclude: ["t", "t.rich", "cn", "clsx", "cva", "toolStatusLabel"] },
           "jsx-attributes": {
             exclude: [
               "className", "id", "key", "type", "name", "href", "src", "role",
               "htmlFor", "variant", "size", "autoComplete", "inputMode",
-              "data-.*", "aria-hidden", "width", "height", "viewBox", "fill",
+              "data-.*", "aria-hidden", "aria-describedby", "describedBy", "width", "height", "viewBox", "fill",
               "stroke", "d", "xmlns", "style", "step", "min", "max", "pattern",
               "rel", "target", "method", "action", "encType", "dir", "lang",
             ],
