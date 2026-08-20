@@ -30,6 +30,11 @@ export interface BillingSnapshot {
   user: OpsUser
   effective: ResolvedEntitlement
   grants: EntitlementGrant[]
+  /** When the snapshot was taken (epoch ms). The ledger dates its rows
+   *  against THIS, not a second clock read at render time: the "as of" of a
+   *  snapshot belongs to the snapshot, and reading the clock while rendering
+   *  makes the render impure (and, on a server component, uncacheable). */
+  asOfMs: number
 }
 
 /**
@@ -110,7 +115,7 @@ export async function getBillingSnapshot(
   const user = found.data
   try {
     const [effective, grants] = await Promise.all([getEntitlement(user.id), listGrants(user.id)])
-    return { ok: true, data: { user, effective, grants } }
+    return { ok: true, data: { user, effective, grants, asOfMs: Date.now() } }
   } catch {
     return { ok: false, reason: 'unavailable' }
   }

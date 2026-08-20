@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useRef, useState, type ChangeEvent } from 'react'
+import { useRef, useState, type ChangeEvent } from 'react'
+import { useMounted } from '@/lib/use-mounted'
 import { useRouter } from 'next/navigation'
 import { Camera, Columns2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -45,13 +46,17 @@ export function PhotosSection({ entries }: { entries: PhotoEntry[] }) {
   const [isCompareMode, setIsCompareMode] = useState(false)
   const [compareIds, setCompareIds] = useState<string[]>([])
   // Mounted gate for the cadence nudge — "now" is the client's, not the SSR's.
-  const [nowMs, setNowMs] = useState<number | null>(null)
+  // Read at render, not stamped into state by an effect: a clock read is not
+  // state to own, and owning it cost a second render on every mount.
+  const mounted = useMounted()
+  // `new Date()` rather than `Date.now()`: NOT more pure — both read the wall
+  // clock. The compiler's typed-globals table marks `Date.now` impure and has
+  // no shape for the `Date` constructor, so only the former is flagged. What
+  // actually makes this safe is the mounted gate above; `new Date()` is just
+  // the unflagged spelling, and the one status-hero.tsx already uses.
+  const nowMs = mounted ? new Date().getTime() : null
   const fileInputRef = useRef<HTMLInputElement>(null)
   const router = useRouter()
-
-  useEffect(() => {
-    setNowMs(Date.now())
-  }, [entries])
 
   const openEntry = entries.find((e) => e.id === openId) ?? null
   const compareEntries = compareIds

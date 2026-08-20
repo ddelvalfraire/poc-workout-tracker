@@ -14,6 +14,10 @@ const CARD_SHELL_KEEP = [
   "src/components/stat-tile.tsx",
   "src/components/confirm-dialog.tsx",
   "src/components/session-conflict-dialog.tsx",
+  // A true modal <dialog> wearing the same skin as the three dialogs above —
+  // a KEEP, not a ratchet entry: a modal IS a shell by design. It only
+  // missed the list because it landed after the list was written.
+  "src/app/coach/coach-disclosure.tsx",
   "src/components/editor/quick-capture-sheet.tsx",
   "src/app/welcome/consent-form.tsx",
   "src/app/welcome/page.tsx",

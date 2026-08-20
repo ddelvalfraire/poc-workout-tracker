@@ -1,8 +1,8 @@
 'use client'
 
-import { useSyncExternalStore } from 'react'
 import { useTranslations } from 'next-intl'
 import { scheduleAnchor, scheduleAnchorToken } from '@/lib/schedule-anchor'
+import { useMounted } from '@/lib/use-mounted'
 
 /**
  * The hero eyebrow's text for a SCHEDULED next day: "Today · Week N",
@@ -13,15 +13,8 @@ import { scheduleAnchor, scheduleAnchorToken } from '@/lib/schedule-anchor'
  * Unscheduled days never mount this component — the parent renders the plain
  * literal so that path stays byte-identical to the pre-schedule markup.
  *
- * Same useSyncExternalStore mounted pattern as status-hero.tsx.
+ * Same useMounted gate as status-hero.tsx.
  */
-const subscribeNever = () => () => {}
-const useMounted = () =>
-  useSyncExternalStore(
-    subscribeNever,
-    () => true,
-    () => false,
-  )
 
 export function UpNextAnchor({ weekdays, week }: { weekdays: number[]; week: number }) {
   const t = useTranslations('UpNextAnchor')

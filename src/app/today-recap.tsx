@@ -1,9 +1,9 @@
 'use client'
 
-import { useSyncExternalStore } from 'react'
 import Link from 'next/link'
 import { Check, ChevronRight } from 'lucide-react'
 import { isSameLocalDay } from '@/lib/local-day'
+import { useMounted } from '@/lib/use-mounted'
 import type { HomeSectionSize } from '@/lib/home/registry'
 import { DividerList } from '@/components/ui/divider-list'
 import { formatVolume, formatWorkoutDuration } from '@/lib/format'
@@ -20,15 +20,8 @@ import { renderMessage } from '@/lib/message'
  * summaries today, and no new home queries is a hard rule).
  *
  * "Today" is the USER'S calendar day, so the filter runs client-side after
- * mount — the same useSyncExternalStore pattern the old strip used.
+ * mount — behind the same useMounted gate the old strip used.
  */
-const subscribeNever = () => () => {}
-const useMounted = () =>
-  useSyncExternalStore(
-    subscribeNever,
-    () => true,
-    () => false,
-  )
 
 // en-US matches formatWorkoutDate — one locale for all date/time display.
 const timeFormat = new Intl.DateTimeFormat('en-US', { timeStyle: 'short' })

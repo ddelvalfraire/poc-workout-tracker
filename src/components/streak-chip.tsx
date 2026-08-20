@@ -1,8 +1,8 @@
 'use client'
 
-import { useEffect, useState } from 'react'
 import { Flame } from 'lucide-react'
 import { weeklyStreak } from '@/lib/goal-progress'
+import { useMounted } from '@/lib/use-mounted'
 import { useTranslations } from 'next-intl'
 
 interface StreakChipProps {
@@ -28,18 +28,19 @@ export function StreakChip({
   allowedMissesPerWeek,
 }: StreakChipProps) {
   const t = useTranslations('StreakChip')
-  const [weeks, setWeeks] = useState<number | null>(null)
-
-  useEffect(() => {
-    setWeeks(
-      weeklyStreak({
+  // Derived at render behind the mounted gate rather than pushed into state
+  // by an effect: the streak is a pure function of the props and the user's
+  // clock, so there is nothing to store — and storing it cost a second render
+  // on every mount (react-hooks/set-state-in-effect).
+  const mounted = useMounted()
+  const weeks = mounted
+    ? weeklyStreak({
         scheduledWeekdays,
         completions: completedAtTimes.map((t) => new Date(t)),
         allowedMissesPerWeek,
         now: new Date(),
-      }),
-    )
-  }, [completedAtTimes, scheduledWeekdays, allowedMissesPerWeek])
+      })
+    : null
 
   if (weeks === null || weeks === 0) return null
 

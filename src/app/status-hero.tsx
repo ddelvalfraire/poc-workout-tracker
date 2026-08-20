@@ -1,6 +1,5 @@
 'use client'
 
-import { useSyncExternalStore } from 'react'
 import Link from 'next/link'
 import { ChevronRight } from 'lucide-react'
 import { activeSessionHref } from '@/lib/active-session'
@@ -12,6 +11,7 @@ import {
 } from '@/lib/home-status'
 import { renderLine } from '@/lib/message'
 import { weeklyStreak } from '@/lib/goal-progress'
+import { useMounted } from '@/lib/use-mounted'
 import type { WeightUnit } from '@/lib/units'
 import { StartDayButton } from '@/app/programs/[id]/start-day-button'
 import { GuardedStartLink } from '@/components/guarded-start-link'
@@ -29,17 +29,10 @@ import { useTranslations } from 'next-intl'
  *
  * Client component because every fork here is a LOCAL-calendar question
  * (trained today? drifting how long? scheduled today?) — only the browser
- * knows the user's day (lib/local-day.ts). Same useSyncExternalStore mounted
- * pattern as the old gate; pre-mount we hold the hero's slot with an empty
- * placeholder so the page below doesn't jump when the status pops in.
+ * knows the user's day (lib/local-day.ts). Same useMounted gate as the old
+ * one; pre-mount we hold the hero's slot with an empty placeholder so the
+ * page below doesn't jump when the status pops in.
  */
-const subscribeNever = () => () => {}
-const useMounted = () =>
-  useSyncExternalStore(
-    subscribeNever,
-    () => true,
-    () => false,
-  )
 
 export interface StatusHeroProps {
   /** The live session — carries the resume key on top of the status facts. */
