@@ -18,6 +18,8 @@ import {
   programs,
   programPatchProposals,
   programEvents,
+  entitlementGrants,
+  entitlementsCurrent,
 } from './schema'
 
 /**
@@ -30,7 +32,9 @@ import {
  * they get an explicit delete so rows that ever pointed at an
  * already-deleted program cannot linger.
  *
- * The consent tables are deliberately ABSENT: consent_events must survive
+ * Entitlement rows ARE swept (docs/ENTITLEMENTS.md explains why they are not
+ * treated as retained financial records). The consent tables are deliberately
+ * ABSENT: consent_events must survive
  * deletion (pseudonymized — see consent.ts) and the fan-out rows are the
  * propagation evidence.
  *
@@ -84,6 +88,12 @@ export async function purgeUserData(userId: string): Promise<{ photoBlobKeys: st
     await tx.delete(trophies).where(eq(trophies.userId, userId))
     await tx.delete(pushSubscriptions).where(eq(pushSubscriptions.userId, userId))
     await tx.delete(userPreferences).where(eq(userPreferences.userId, userId))
+    // Entitlements go with the account. Unlike consent_events — retained as
+    // legal evidence — a support comp for a deleted account has no continuing
+    // business purpose, and Stripe independently retains the record of any
+    // real payment. Projection first: it points at the grants.
+    await tx.delete(entitlementsCurrent).where(eq(entitlementsCurrent.userId, userId))
+    await tx.delete(entitlementGrants).where(eq(entitlementGrants.userId, userId))
 
     return { photoBlobKeys }
   })

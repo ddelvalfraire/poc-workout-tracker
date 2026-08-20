@@ -85,6 +85,8 @@ describe('purgeUserData', () => {
         'trophies',
         'push_subscriptions',
         'user_preferences',
+        'entitlements_current',
+        'entitlement_grants',
       ].sort(),
     )
     expect(deletedTables).not.toContain('consent_events')
