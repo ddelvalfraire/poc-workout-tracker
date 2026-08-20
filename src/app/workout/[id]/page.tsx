@@ -46,6 +46,8 @@ import { WorkoutActions } from "./workout-actions";
 import { WorkoutSharing } from "./workout-sharing";
 import { FinishUpNextCard } from "./finish-up-next-card";
 import { getTranslations } from 'next-intl/server';
+import { renderMessage } from '@/lib/message';
+import { resolveLocale } from '@/i18n/request';
 
 export default async function WorkoutDetailPage({
   params,
@@ -55,6 +57,12 @@ export default async function WorkoutDetailPage({
   searchParams: Promise<{ finished?: string }>;
 }) {
   const t = await getTranslations('WorkoutDetail');
+  const tFormat = await getTranslations('Format');
+  // Goal and trophy names belong to their own features' namespaces — this
+  // surface only displays them, so it borrows their translators.
+  const tGoals = await getTranslations('Goals');
+  const tTrophies = await getTranslations('Trophies');
+  const locale = await resolveLocale();
   const userId = await requireUserId();
   const [{ id }, { finished }] = await Promise.all([params, searchParams]);
   // Presentation-only flag set by the logger's finish push: it dresses the
@@ -169,7 +177,10 @@ export default async function WorkoutDetailPage({
     (sum, e) => sum + e.sets.reduce((s, set) => s + (set.reps ?? 0) * (set.weight ?? 0), 0),
     0,
   );
-  const duration = formatWorkoutDuration(workout.startedAt, workout.completedAt);
+  const duration = renderMessage(
+    tFormat,
+    formatWorkoutDuration(workout.startedAt, workout.completedAt),
+  );
 
   // The consolidated Notes rows: notesForWorkout reads oldest-first, and the
   // stable anchor partition keeps every anchor's notes together — grouped by
@@ -248,7 +259,7 @@ export default async function WorkoutDetailPage({
                     <span className="shrink-0">
                       {h.kind === "e1rm"
                         ? t.rich("complete.prE1rm", {
-                            value: formatE1RM(h.e1rmKg, unit),
+                            value: formatE1RM(h.e1rmKg, unit, locale),
                             delta: e1rmDeltaDisplay(h.deltaKg, unit),
                             // The tilde is decoration, not a word: kept out
                             // of the accessible name, kept inside the one
@@ -269,9 +280,9 @@ export default async function WorkoutDetailPage({
             same way the "Session logged" eyebrow does, no pill shell. */}
         <p className="mt-4 text-sm text-muted-foreground">
           {workout.programWeek === null
-            ? formatWorkoutDate(workout.startedAt)
+            ? formatWorkoutDate(workout.startedAt, locale)
             : t.rich("meta.summary", {
-                date: formatWorkoutDate(workout.startedAt),
+                date: formatWorkoutDate(workout.startedAt, locale),
                 week: workout.programWeek,
                 separator: (chunks) => <span aria-hidden="true">{chunks}</span>,
                 weekLabel: (chunks) => (
@@ -300,7 +311,7 @@ export default async function WorkoutDetailPage({
           />
           <Stat
             label={t("stats.volume")}
-            value={volumeKg > 0 ? formatVolume(volumeKg, unit) : t("stats.empty")}
+            value={volumeKg > 0 ? formatVolume(volumeKg, unit, locale) : t("stats.empty")}
             sub={volumeDelta}
           />
           <Stat label={t("stats.sets", { count: totalSets })} value={String(totalSets)} />
@@ -331,14 +342,17 @@ export default async function WorkoutDetailPage({
               {t("goals.title", { count: achievedGoals.length })}
             </p>
             <ul className="mt-2 space-y-1">
-              {achievedGoals.map((goal) => (
-                <li
-                  key={goal.id}
-                  className="font-display text-3xl uppercase leading-none tracking-wide"
-                >
-                  {goalLabel(goal, unit)}
-                </li>
-              ))}
+              {achievedGoals.map((goal) => {
+                const label = goalLabel(goal, unit)
+                return (
+                  <li
+                    key={goal.id}
+                    className="font-display text-3xl uppercase leading-none tracking-wide"
+                  >
+                    {tGoals(label.key, label.values)}
+                  </li>
+                )
+              })}
             </ul>
             <Link
               href="/goals"
@@ -360,22 +374,26 @@ export default async function WorkoutDetailPage({
               {t("trophies.title", { count: earnedTrophies.length })}
             </p>
             <ul className="mt-2 space-y-1">
-              {earnedTrophies.map((trophy) => (
-                <li
-                  key={trophy.id}
-                  className="flex items-center justify-between gap-2"
-                >
-                  <span className="min-w-0 font-display text-3xl uppercase leading-none tracking-wide">
-                    {trophyLabel(trophy.kind)}
-                  </span>
-                  {/* Shares the rendered card PNG via the OS sheet. */}
-                  <ShareCardButton
-                    cardUrl={`/api/cards/trophy/${trophy.kind}`}
-                    shareTitle={trophyLabel(trophy.kind)}
-                    className="-my-1 shrink-0"
-                  />
-                </li>
-              ))}
+              {earnedTrophies.map((trophy) => {
+                const label = trophyLabel(trophy.kind)
+                const name = tTrophies(label.key, label.values)
+                return (
+                  <li
+                    key={trophy.id}
+                    className="flex items-center justify-between gap-2"
+                  >
+                    <span className="min-w-0 font-display text-3xl uppercase leading-none tracking-wide">
+                      {name}
+                    </span>
+                    {/* Shares the rendered card PNG via the OS sheet. */}
+                    <ShareCardButton
+                      cardUrl={`/api/cards/trophy/${trophy.kind}`}
+                      shareTitle={name}
+                      className="-my-1 shrink-0"
+                    />
+                  </li>
+                )
+              })}
             </ul>
             <Link
               href="/trophies"
@@ -404,8 +422,8 @@ export default async function WorkoutDetailPage({
                   <span className="min-w-0 truncate">
                     {t("goalProgress.summary", {
                       exercise: goal.exerciseName ?? "",
-                      current: formatE1RM(sessionE1rmKg, unit),
-                      target: formatE1RM(targetE1rmKg, unit),
+                      current: formatE1RM(sessionE1rmKg, unit, locale),
+                      target: formatE1RM(targetE1rmKg, unit, locale),
                     })}
                   </span>
                   <span className="shrink-0 font-semibold text-primary">
@@ -502,7 +520,7 @@ export default async function WorkoutDetailPage({
                               : "font-medium text-muted-foreground",
                           )}
                         >
-                          {formatLoggedSet(set, unit, exercise.loggingType)}
+                          {renderMessage(tFormat, formatLoggedSet(set, unit, exercise.loggingType, locale))}
                         </span>
                         {/* Logged effort as words (never a chip here — pure
                             display): muted, after the set text, absent when
@@ -535,7 +553,7 @@ export default async function WorkoutDetailPage({
                         <span aria-hidden="true" className="text-muted-foreground">
                           {t('exercise.approx')}
                         </span>
-                        {formatE1RM(current.e1rm, unit)}
+                        {formatE1RM(current.e1rm, unit, locale)}
                         {/* Direction against the exercise's prior best — no
                             number without direction. Absent priors (first
                             time on the lift) stay quiet. */}

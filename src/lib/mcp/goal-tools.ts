@@ -1,7 +1,8 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
 import { getWeightUnit } from '@/db/preferences'
-import { goalLabel } from '@/lib/goal-progress'
+import { goalLabel, type GoalLabelMessage } from '@/lib/goal-progress'
+import { getMessages } from '@/i18n/translate'
 import { evaluateGoalProgress, type GoalWithProgress } from '@/lib/goals'
 import { kgToDisplay, type WeightUnit } from '@/lib/units'
 import { resolveUserId } from './resolve-user'
@@ -28,11 +29,13 @@ export function registerGoalTools(server: McpServer): void {
       try {
         const resolved = resolveUserId(extra, userId)
         const evaluated = await evaluateGoalProgress(resolved)
-        const unit = await getWeightUnit(resolved)
+        const [unit, t] = await Promise.all([getWeightUnit(resolved), getMessages('Goals')])
         return jsonResult({
           userId: resolved,
           unit,
-          goals: evaluated.map((entry) => buildGoalPayload(entry, unit)),
+          goals: evaluated.map((entry) =>
+            buildGoalPayload(entry, unit, (m) => t(m.key, m.values)),
+          ),
         })
       } catch (error: unknown) {
         return errorResult(error)
@@ -42,13 +45,19 @@ export function registerGoalTools(server: McpServer): void {
 }
 
 /** Projects one evaluated goal into the agent-facing shape (display units,
- *  ISO dates) — exported for the tool test. */
-export function buildGoalPayload(entry: GoalWithProgress, unit: WeightUnit) {
+ *  ISO dates) — exported for the tool test. `render` resolves the goal's
+ *  label descriptor: the payload carries words, not keys, because the coach
+ *  reads it as prose. */
+export function buildGoalPayload(
+  entry: GoalWithProgress,
+  unit: WeightUnit,
+  render: (message: GoalLabelMessage) => string,
+) {
   const { goal, progress, achieved } = entry
   return {
     id: goal.id,
     kind: goal.kind,
-    label: goalLabel(goal, unit),
+    label: render(goalLabel(goal, unit)),
     achieved,
     deadline: goal.deadline,
     createdAt: goal.createdAt.toISOString(),

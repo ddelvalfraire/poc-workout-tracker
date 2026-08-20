@@ -8,10 +8,10 @@ import {
   type TrophyRow,
 } from '@/db/trophies'
 import { getExerciseStats, listLoggedExercises } from '@/db/exercise-stats'
+import { getMessages } from '@/i18n/translate'
 import { activeScheduledWeekdays, completedWorkoutTimes } from '@/db/goals'
 import { programWeekState } from '@/db/programs'
 import type { ExerciseSource } from '@/lib/custom-exercise-input'
-import { formatE1RM } from '@/lib/format'
 import { normalizeExerciseKey } from '@/lib/import/match'
 import { weeklyStreak } from '@/lib/goal-progress'
 import { sendPushToUser } from '@/lib/push'
@@ -214,51 +214,93 @@ export function isAttributedToFinish(
 
 // ── Labels + hints (display words, shared by page / push / celebration) ─────
 
+/**
+ * Message DESCRIPTORS for the `Trophies` namespace (docs/I18N-KEYS.md §9).
+ * Each function below decides WHICH line a medal or locked row shows and
+ * with which numbers; the catalog owns the words and ICU's `number` argument
+ * owns the digit grouping, so the `toLocaleString('en-US')` calls that used
+ * to print "1,000" to a reader whose locale writes "1.000" are gone.
+ *
+ * LIFT NAMES stay out of the catalog and ride as ICU arguments: they are
+ * curated exercise content, not UI copy.
+ */
+export type TrophyLabelMessage =
+  | { key: 'label.club'; values: { lb: number; lift: string } }
+  | { key: 'label.sumClub'; values: { lb: number } }
+  | { key: 'label.count'; values: { count: number } }
+  | { key: 'label.streak'; values: { weeks: number } }
+  | { key: 'label.block'; values?: undefined }
+  | { key: 'label.tonnage'; values: { millions: number } }
+
 /** The trophy's name. Clubs keep their lb-culture names for every user —
  *  "315 Squat Club" IS the trophy; the context line speaks the user's unit. */
-export function trophyLabel(kind: TrophyKind): string {
+export function trophyLabel(kind: TrophyKind): TrophyLabelMessage {
   const def = TROPHY_DEFS[kind]
   switch (def.family) {
     case 'club':
-      return `${def.lb} ${LIFT_NAMES[def.lift]} Club`
+      return { key: 'label.club', values: { lb: def.lb, lift: LIFT_NAMES[def.lift] } }
     case 'sum_club':
-      return `${def.lb.toLocaleString('en-US')} lb Club`
+      return { key: 'label.sumClub', values: { lb: def.lb } }
     case 'count':
-      return def.count === 1 ? 'First Workout' : `${def.count} Workouts`
+      return { key: 'label.count', values: { count: def.count } }
     case 'streak':
-      return `${def.weeks}-Week Streak`
+      return { key: 'label.streak', values: { weeks: def.weeks } }
     case 'block':
-      return 'Block Complete'
+      return { key: 'label.block' }
     case 'tonnage':
-      return `${def.lb / 1_000_000}M lb Lifted`
+      return { key: 'label.tonnage', values: { millions: def.lb / 1_000_000 } }
   }
 }
 
+export type TrophyContextMessage =
+  | { key: 'context.clubE1rm' | 'context.sumTotal'; values: { value: number; unit: WeightUnit } }
+  | { key: 'context.count'; values: { count: number } }
+  | { key: 'context.streak'; values: { weeks: number } }
+  | { key: 'context.tonnage'; values: { value: number; unit: WeightUnit } }
+
 /** One line naming the recorded fact behind an earned trophy, or null. */
-export function trophyContextLine(row: TrophyRow, unit: WeightUnit): string | null {
+export function trophyContextLine(row: TrophyRow, unit: WeightUnit): TrophyContextMessage | null {
   const def = TROPHY_DEFS[row.kind]
   const c = row.context
   if ((def.family === 'club' || def.family === 'sum_club') && c.e1rmKg !== undefined) {
-    return def.family === 'club'
-      ? `e1RM ${formatE1RM(c.e1rmKg, unit)}`
-      : `Total ${formatE1RM(c.e1rmKg, unit)}`
+    return {
+      key: def.family === 'club' ? 'context.clubE1rm' : 'context.sumTotal',
+      values: { value: kgToDisplay(c.e1rmKg, unit), unit },
+    }
   }
   if (def.family === 'count' && c.count !== undefined) {
-    return def.count === 1 ? 'First session logged' : `Workout #${c.count}`
+    return { key: 'context.count', values: { count: c.count } }
   }
   if (def.family === 'streak' && c.weeks !== undefined) {
-    return `${c.weeks} consecutive weeks`
+    return { key: 'context.streak', values: { weeks: c.weeks } }
   }
   if (def.family === 'tonnage' && c.tonnageKg !== undefined) {
-    return `${Math.round(kgToDisplay(c.tonnageKg, unit)).toLocaleString('en-US')} ${unit} lifted`
+    return {
+      key: 'context.tonnage',
+      values: { value: Math.round(kgToDisplay(c.tonnageKg, unit)), unit },
+    }
   }
   return null
 }
 
-/** "1,234 lb" style whole-number display for progress fractions. */
-function wholeDisplay(kg: number, unit: WeightUnit): string {
-  return Math.round(kgToDisplay(kg, unit)).toLocaleString('en-US')
+/** Whole display units for progress fractions — a NUMBER, so the reader's
+ *  locale decides the grouping separator at render, not this module. */
+function wholeDisplay(kg: number, unit: WeightUnit): number {
+  return Math.round(kgToDisplay(kg, unit))
 }
+
+export type TrophyHintMessage =
+  | { key: 'hint.clubNoLift'; values: { lift: string } }
+  | {
+      key: 'hint.weightProgress'
+      values: { current: number; target: number; remaining: number; unit: WeightUnit }
+    }
+  | { key: 'hint.sumMissing'; values: { lifts: string } }
+  | { key: 'hint.count'; values: { current: number; target: number } }
+  | { key: 'hint.streakUnscheduled'; values?: undefined }
+  | { key: 'hint.streak'; values: { current: number; target: number } }
+  | { key: 'hint.blockActive' | 'hint.blockNoProgram'; values?: undefined }
+  | { key: 'hint.tonnage'; values: { current: number; target: number; unit: WeightUnit } }
 
 /**
  * The honest progress line for a LOCKED trophy — computed from the same
@@ -268,47 +310,64 @@ export function trophyHint(
   kind: TrophyKind,
   evidence: TrophyEvidence,
   unit: WeightUnit,
-): string {
+): TrophyHintMessage {
   const def = TROPHY_DEFS[kind]
   switch (def.family) {
     case 'club': {
       const best = evidence.bestByLift[def.lift]
-      if (!best) return `No ${LIFT_NAMES[def.lift]} e1RM yet`
+      if (!best) return { key: 'hint.clubNoLift', values: { lift: LIFT_NAMES[def.lift] } }
       const target = thresholdKg(def.lb)
-      const remaining = Math.max(0, target - best.e1rmKg)
-      return (
-        `${wholeDisplay(best.e1rmKg, unit)}/${wholeDisplay(target, unit)} ${unit}` +
-        ` — ${wholeDisplay(remaining, unit)} ${unit} to go`
-      )
+      return {
+        key: 'hint.weightProgress',
+        values: {
+          current: wholeDisplay(best.e1rmKg, unit),
+          target: wholeDisplay(target, unit),
+          remaining: wholeDisplay(Math.max(0, target - best.e1rmKg), unit),
+          unit,
+        },
+      }
     }
     case 'sum_club': {
       const missing = SUM_CLUB_LIFTS.filter((lift) => evidence.bestByLift[lift] === undefined)
       if (missing.length > 0) {
-        return `Needs a ${missing.map((l) => LIFT_NAMES[l]).join(', ')} e1RM`
+        // Lift names are content, so they travel joined as ONE argument
+        // rather than as keys the catalog would have to stitch together.
+        return {
+          key: 'hint.sumMissing',
+          values: { lifts: missing.map((l) => LIFT_NAMES[l]).join(', ') },
+        }
       }
       const sum = SUM_CLUB_LIFTS.reduce(
         (total, lift) => total + (evidence.bestByLift[lift]?.e1rmKg ?? 0),
         0,
       )
       const target = thresholdKg(def.lb)
-      return (
-        `${wholeDisplay(sum, unit)}/${wholeDisplay(target, unit)} ${unit}` +
-        ` — ${wholeDisplay(Math.max(0, target - sum), unit)} ${unit} to go`
-      )
+      return {
+        key: 'hint.weightProgress',
+        values: {
+          current: wholeDisplay(sum, unit),
+          target: wholeDisplay(target, unit),
+          remaining: wholeDisplay(Math.max(0, target - sum), unit),
+          unit,
+        },
+      }
     }
     case 'count':
-      return `${evidence.completedCount}/${def.count} workouts`
+      return { key: 'hint.count', values: { current: evidence.completedCount, target: def.count } }
     case 'streak':
-      if (evidence.scheduledWeekdays.length === 0) {
-        return 'Schedule program days to start a streak'
-      }
-      return `${evidence.streakWeeks}/${def.weeks} weeks`
+      if (evidence.scheduledWeekdays.length === 0) return { key: 'hint.streakUnscheduled' }
+      return { key: 'hint.streak', values: { current: evidence.streakWeeks, target: def.weeks } }
     case 'block':
-      return evidence.hasActiveProgram
-        ? "Train every day of your program's final week"
-        : 'Start a program'
+      return { key: evidence.hasActiveProgram ? 'hint.blockActive' : 'hint.blockNoProgram' }
     case 'tonnage':
-      return `${wholeDisplay(evidence.tonnageKg, unit)}/${wholeDisplay(thresholdKg(def.lb), unit)} ${unit} lifted`
+      return {
+        key: 'hint.tonnage',
+        values: {
+          current: wholeDisplay(evidence.tonnageKg, unit),
+          target: wholeDisplay(thresholdKg(def.lb), unit),
+          unit,
+        },
+      }
   }
 }
 
@@ -325,16 +384,6 @@ export const TROPHY_FAMILY_ORDER: readonly TrophyFamily[] = [
   'block',
   'tonnage',
 ]
-
-/** Editorial zone headers, one per family. */
-export const TROPHY_FAMILY_LABELS: Readonly<Record<TrophyFamily, string>> = {
-  club: 'Plate Clubs',
-  sum_club: 'Totals',
-  count: 'Showing Up',
-  streak: 'Streaks',
-  block: 'Blocks',
-  tonnage: 'Tonnage',
-}
 
 export interface TrophyFraction {
   /** Evidence numerator, same axis as `target` (kg for weight families). */
@@ -402,29 +451,43 @@ export function closestTrophies(
     .map((e) => e.kind)
 }
 
-/** The medal's hero glyph — the threshold number IS the trophy ("315").
- *  Null for block, the one kind without a number (its icon carries it). */
-export function trophyHeroGlyph(kind: TrophyKind): string | null {
+/**
+ * The medal's hero glyph — the threshold number IS the trophy ("315").
+ * Null for block, the one kind without a number (its icon carries it).
+ *
+ * A NUMBER plus a notation, not a formatted string: "1,000" and "1M" are both
+ * `Intl.NumberFormat` output, and which separator or compact suffix a reader
+ * sees is their locale's answer, not this module's. `standard` keeps grouping
+ * off below the sum-club thresholds, matching the plain "315" the medals
+ * always showed.
+ */
+export interface TrophyGlyph {
+  value: number
+  notation: 'standard' | 'grouped' | 'compact'
+}
+
+export function trophyHeroGlyph(kind: TrophyKind): TrophyGlyph | null {
   const def = TROPHY_DEFS[kind]
   switch (def.family) {
     case 'club':
-      return String(def.lb)
+      return { value: def.lb, notation: 'standard' }
     case 'sum_club':
-      return def.lb.toLocaleString('en-US')
+      return { value: def.lb, notation: 'grouped' }
     case 'count':
-      return String(def.count)
+      return { value: def.count, notation: 'standard' }
     case 'streak':
-      return String(def.weeks)
+      return { value: def.weeks, notation: 'standard' }
     case 'block':
       return null
     case 'tonnage':
-      return `${def.lb / 1_000_000}M`
+      return { value: def.lb, notation: 'compact' }
   }
 }
 
 export interface TrophyZone {
+  /** The zone's header key is `family.<family>` in the `Trophies` namespace —
+   *  the family IS the key, so no English header travels with the zone. */
   family: TrophyFamily
-  label: string
   /** Earned rows of the family, newest achievement first. */
   earned: TrophyRow[]
   /** Locked kinds of the family, DEFS (threshold-ascending) order. */
@@ -443,14 +506,7 @@ export function groupTrophiesByFamily(
       .sort((a, b) => b.achievedAt.getTime() - a.achievedAt.getTime())
     const lockedKinds = locked.filter((kind) => TROPHY_DEFS[kind].family === family)
     if (earnedRows.length === 0 && lockedKinds.length === 0) return []
-    return [
-      {
-        family,
-        label: TROPHY_FAMILY_LABELS[family],
-        earned: earnedRows,
-        locked: lockedKinds,
-      },
-    ]
+    return [{ family, earned: earnedRows, locked: lockedKinds }]
   })
 }
 
@@ -611,12 +667,16 @@ export async function checkTrophies(
     const celebrated = stamped.filter(
       (row) => trigger.kind === 'finish' && row.context.workoutId === trigger.workoutId,
     )
-    for (const row of celebrated) {
-      await sendPushToUser(userId, {
-        title: `Trophy: ${trophyLabel(row.kind)}`,
-        body: 'Earned — see your trophies.',
-        url: '/trophies',
-      })
+    if (celebrated.length > 0) {
+      const t = await getMessages('Trophies')
+      for (const row of celebrated) {
+        const label = trophyLabel(row.kind)
+        await sendPushToUser(userId, {
+          title: t('push.title', { name: t(label.key, label.values) }),
+          body: t('push.body'),
+          url: '/trophies',
+        })
+      }
     }
     return celebrated
   } catch (error) {

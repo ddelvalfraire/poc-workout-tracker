@@ -8,7 +8,8 @@ import type { HomeSectionSize } from '@/lib/home/registry'
 import { DividerList } from '@/components/ui/divider-list'
 import { formatVolume, formatWorkoutDuration } from '@/lib/format'
 import type { WeightUnit } from '@/lib/units'
-import { useTranslations } from 'next-intl'
+import { useLocale, useTranslations } from 'next-intl'
+import { renderMessage } from '@/lib/message'
 
 /**
  * The TODAY recap — celebration, not a plain history row (spike §3): each
@@ -52,6 +53,8 @@ export function TodayRecap({
   size?: Extract<HomeSectionSize, 'sm' | 'md'>
 }) {
   const t = useTranslations('TodayRecap')
+  const tFormat = useTranslations('Format')
+  const locale = useLocale()
   const mounted = useMounted()
   if (!mounted) return null
 
@@ -98,8 +101,11 @@ export function TodayRecap({
       <DividerList className="mt-2">
         {today.map((w) => {
           const facts = [
-            formatWorkoutDuration(new Date(w.startedAtMs), new Date(w.completedAtMs)),
-            w.volumeKg > 0 ? formatVolume(w.volumeKg, unit) : null,
+            renderMessage(
+              tFormat,
+              formatWorkoutDuration(new Date(w.startedAtMs), new Date(w.completedAtMs)),
+            ),
+            w.volumeKg > 0 ? formatVolume(w.volumeKg, unit, locale) : null,
           ].filter((p): p is string => p !== null)
           return (
             <li key={w.id}>

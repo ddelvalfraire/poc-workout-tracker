@@ -1,5 +1,4 @@
-import { formatVolume } from '@/lib/format'
-import type { WeightUnit } from '@/lib/units'
+import { kgToDisplay, type WeightUnit } from '@/lib/units'
 
 /**
  * Template ⇄ workout recency join for the /templates alive rows — pure so
@@ -63,21 +62,43 @@ export function sortTemplatesByUsage<T extends { name: string }>(
 
 const DAY_MS = 24 * 60 * 60 * 1000
 
+/**
+ * Message DESCRIPTORS for the `Templates` namespace (docs/I18N-KEYS.md §9):
+ * this module decides WHICH recency word a row earns, the catalog owns the
+ * word itself.
+ */
+export type LastRunMessage =
+  | { key: 'lastRun.today' | 'lastRun.yesterday'; values?: undefined }
+  | { key: 'lastRun.daysAgo'; values: { days: number } }
+  | { key: 'lastRun.weeksAgo'; values: { weeks: number } }
+  | { key: 'lastRun.monthsAgo'; values: { months: number } }
+
 /** "Today" / "Yesterday" / "4d ago" / "3 wks ago" / "5 mo ago" — the
  *  template rows speak relative words throughout: a template's pull is
  *  "how long since I ran this", never a bookkeeping date. */
-export function lastRunLabel(lastPerformedAt: Date, now: Date): string {
+export function lastRunLabel(lastPerformedAt: Date, now: Date): LastRunMessage {
   const days = Math.floor((now.getTime() - lastPerformedAt.getTime()) / DAY_MS)
-  if (days <= 0) return 'Today'
-  if (days === 1) return 'Yesterday'
-  if (days < 28) return `${days}d ago`
-  if (days <= 84) {
-    const weeks = Math.round(days / 7)
-    return `${weeks} ${weeks === 1 ? 'wk' : 'wks'} ago`
-  }
-  const months = Math.max(2, Math.round(days / 30.44))
-  return `${months} mo ago`
+  if (days <= 0) return { key: 'lastRun.today' }
+  if (days === 1) return { key: 'lastRun.yesterday' }
+  if (days < 28) return { key: 'lastRun.daysAgo', values: { days } }
+  if (days <= 84) return { key: 'lastRun.weeksAgo', values: { weeks: Math.round(days / 7) } }
+  return { key: 'lastRun.monthsAgo', values: { months: Math.max(2, Math.round(days / 30.44)) } }
 }
+
+/**
+ * The status line as a descriptor whose `when` argument is itself a
+ * `LastRunMessage` the caller renders first. Three whole sentences rather
+ * than one built from joined keys: where the separator sits and whether the
+ * volume leads are the translator's business, and §5 bans composing a line
+ * out of catalog entries.
+ */
+export type TemplateStatusMessage =
+  | { key: 'status.neverRun'; values: { count: number } }
+  | { key: 'status.lastRun'; values: { when: LastRunMessage } }
+  | {
+      key: 'status.lastRunVolume'
+      values: { when: LastRunMessage; volume: number; unit: WeightUnit }
+    }
 
 /**
  * The row's status second line: "Last: 4d ago · 8,076 lb" when the heuristic
@@ -89,11 +110,12 @@ export function templateStatusLine(
   exerciseCount: number,
   unit: WeightUnit,
   now: Date,
-): string {
-  if (usage === null) {
-    return `${exerciseCount} exercise${exerciseCount === 1 ? '' : 's'} · Never run`
+): TemplateStatusMessage {
+  if (usage === null) return { key: 'status.neverRun', values: { count: exerciseCount } }
+  const when = lastRunLabel(usage.lastPerformedAt, now)
+  if (usage.lastVolumeKg <= 0) return { key: 'status.lastRun', values: { when } }
+  return {
+    key: 'status.lastRunVolume',
+    values: { when, volume: Math.round(kgToDisplay(usage.lastVolumeKg, unit)), unit },
   }
-  const parts = [`Last: ${lastRunLabel(usage.lastPerformedAt, now)}`]
-  if (usage.lastVolumeKg > 0) parts.push(formatVolume(usage.lastVolumeKg, unit))
-  return parts.join(' · ')
 }

@@ -33,7 +33,7 @@ function BatchCopyProbe({ count }: { count: number }) {
   const t = useTranslations('Import')
   return (
     <ul>
-      <li>{t('headerTitle')}</li>
+      <li>{t('title')}</li>
       <li>{t('historyGroupLabel')}</li>
       <li>{t('batch.scope', { count })}</li>
       <li>{t('source.strong')}</li>

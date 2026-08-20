@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { requireUserId } from '@/lib/auth'
+import { requireFeature } from '@/db/entitlements'
 import {
   parseProgramInput,
   statusSchema,
@@ -40,6 +41,20 @@ import { proposedTrainingMaxKg } from './[id]/detail-view'
 import type { RestartPreview } from './[id]/restart-view'
 
 /**
+ * The paid capabilities a program can carry, checked before it is written.
+ *
+ * Both create and full-replace edit route through here: gating creation alone
+ * would let anyone save a Free program and then edit autoregulation onto it,
+ * which is the same feature obtained one request later.
+ */
+async function assertProgramEntitlements(
+  userId: string,
+  parsed: { autoregulation?: boolean },
+): Promise<void> {
+  if (parsed.autoregulation) await requireFeature(userId, 'autoreg')
+}
+
+/**
  * Validates and persists a new program for the signed-in user, returning its id.
  *
  * Validation runs here on the server — independent of any client-side checks —
@@ -47,9 +62,11 @@ import type { RestartPreview } from './[id]/restart-view'
  * (auth redirect, validation failure, or DB error) surfaces to the caller as a
  * rejected action; the client component is expected to `try/catch` it.
  */
+
 export async function saveProgramAction(input: unknown): Promise<{ id: string }> {
   const userId = await requireUserId()
   const parsed = parseProgramInput(input)
+  await assertProgramEntitlements(userId, parsed)
   const result = await saveProgram(userId, parsed, 'ui')
   revalidatePath('/programs')
   return result
@@ -70,6 +87,7 @@ export async function saveProgramAction(input: unknown): Promise<{ id: string }>
 export async function updateProgramAction(id: string, input: unknown): Promise<{ id: string }> {
   const userId = await requireUserId()
   const parsed = parseProgramInput(input)
+  await assertProgramEntitlements(userId, parsed)
   const result = await updateProgram(userId, id, parsed, 'ui')
   if (!result) throw new Error('program not found')
   revalidatePath('/programs')

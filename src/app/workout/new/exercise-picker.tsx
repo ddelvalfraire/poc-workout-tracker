@@ -394,6 +394,7 @@ function CreateCustomForm({
   onCreated: (created: ExerciseResult) => void
 }) {
   const t = useTranslations('ExercisePicker')
+  const tCommon = useTranslations('Common')
   const [name, setName] = useState(initialName)
   const [category, setCategory] = useState<string>('')
   const [muscles, setMuscles] = useState<string[]>([])
@@ -493,7 +494,7 @@ function CreateCustomForm({
       {formError && <p className="text-sm text-destructive">{formError}</p>}
       <div className="flex gap-2">
         <Button size="sm" variant="outline" className="flex-1" onClick={onCancel}>
-          {t('create.cancel')}
+          {tCommon('cancel')}
         </Button>
         <Button size="sm" className="flex-1" onClick={handleCreate} disabled={isSaving}>
           {isSaving ? t('create.submitPending') : t('create.submit')}

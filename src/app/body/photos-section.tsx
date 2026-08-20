@@ -18,6 +18,7 @@ import { PhotoOverlay } from './photo-overlay'
 import { PhotoCompare } from './photo-compare'
 import { defaultComparePair } from './compare-pair'
 import { useTranslations } from 'next-intl'
+import { renderMessage } from '@/lib/message'
 
 // A month without a photo → the quiet cadence nudge by Add photo.
 const CADENCE_NUDGE_DAYS = 30
@@ -35,6 +36,7 @@ const MS_PER_DAY = 24 * 60 * 60 * 1000
  */
 export function PhotosSection({ entries }: { entries: PhotoEntry[] }) {
   const t = useTranslations('PhotosSection')
+  const tBody = useTranslations('Body')
   const [pose, setPose] = useState<PhotoPose | null>(null)
   const [note, setNote] = useState('')
   const [isUploading, setIsUploading] = useState(false)
@@ -139,7 +141,7 @@ export function PhotosSection({ entries }: { entries: PhotoEntry[] }) {
                 : 'border-border bg-card text-muted-foreground hover:text-foreground',
             )}
           >
-            {photoPoseLabel(p)}
+            {renderMessage(tBody, photoPoseLabel(p))}
           </button>
         ))}
       </div>

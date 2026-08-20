@@ -76,6 +76,7 @@ export function PlateSheet({
   onUseWeight,
 }: PlateSheetProps) {
   const t = useTranslations('PlateSheet')
+  const tCommon = useTranslations('Common')
   /** "bar only" / "45 + 25 / side" — resolved at render, never in a module. */
   const perSideLabel = (perSide: number[]) =>
     perSide.length === 0
@@ -234,7 +235,7 @@ export function PlateSheet({
             variant="ghost"
             className="-mr-1 text-muted-foreground"
             onClick={requestClose}
-            aria-label={t('close')}
+            aria-label={tCommon('close')}
           >
             <X aria-hidden="true" className="size-4" />
           </Button>
@@ -478,7 +479,7 @@ export function PlateSheet({
               {editError && <p className="text-sm text-destructive">{editError}</p>}
               <div className="grid grid-cols-2 gap-2">
                 <Button size="sm" variant="outline" onClick={() => setIsEditing(false)} disabled={isSaving}>
-                  {t('cancel')}
+                  {tCommon('cancel')}
                 </Button>
                 <Button size="sm" onClick={handleSaveGear} disabled={isSaving}>
                   {isSaving ? t('saveGearPending') : t('saveGear')}

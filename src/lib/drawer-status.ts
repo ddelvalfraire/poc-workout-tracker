@@ -1,6 +1,8 @@
 import { kgToDisplay, type WeightUnit } from '@/lib/units'
 import { formatVolume } from '@/lib/format'
 import { isSameLocalDay } from '@/lib/local-day'
+import type { Line, Message } from '@/lib/message'
+import { scheduleAnchorToken, type ScheduleAnchor } from '@/lib/schedule-anchor'
 
 /**
  * The nav drawer's status-line language — every drawer row carries a one-line
@@ -85,18 +87,58 @@ export function bucketDaySets(
   return buckets
 }
 
+/** Catalog keys the drawer's status language resolves to — all under the
+ *  `NavDrawer` namespace, which is what renders them. */
+export type NavDrawerKey =
+  | 'anchor'
+  | 'startContext'
+  | 'startContextAnchor'
+  | 'status.program'
+  | 'status.volume'
+  | 'status.bodyCheckInDue'
+  | 'status.bodyCheckedInToday'
+  | 'status.bodyCheckedInDaysAgo'
+  | 'status.trophies'
+  | 'status.trophiesNewest'
+  | 'status.lastPr'
+  | 'status.movements'
+  | 'day.today'
+  | 'day.yesterday'
+  | 'day.date'
+
+export type NavDrawerLine = Line<NavDrawerKey>
+
 /** Hero CTA second line: "Legs · Week 3 · today". The anchor is
- *  scheduleAnchor() computed CLIENT-side (local calendar) and lowercased into
- *  the sub-line voice; null anchor (unscheduled) drops the segment. */
-export function startContextLine(dayName: string, week: number, anchor: string | null): string {
-  const parts = [dayName, `Week ${week}`]
-  if (anchor !== null) parts.push(anchor.toLowerCase())
-  return parts.join(' · ')
+ *  scheduleAnchor() computed CLIENT-side (local calendar); null (unscheduled)
+ *  drops the segment.
+ *
+ *  The drawer's copy of the anchor words is lowercased in the CATALOG rather
+ *  than by calling toLowerCase() on a rendered word — casing is a per-language
+ *  rule (German nouns stay capitalized), so it belongs to the translator. */
+export function startContextLine(
+  dayName: string,
+  week: number,
+  anchor: ScheduleAnchor | null,
+): Message<NavDrawerKey> {
+  return anchor !== null
+    ? {
+        key: 'startContextAnchor',
+        values: {
+          day: dayName,
+          week,
+          anchor: { key: 'anchor', values: { anchor: scheduleAnchorToken(anchor) } },
+        },
+      }
+    : { key: 'startContext', values: { day: dayName, week } }
 }
 
 /** "Upper/Lower Hybrid · Wk 3/7" */
-export function programStatusLine(name: string, week: number, mesocycleWeeks: number): string {
-  return `${name} · Wk ${week}/${mesocycleWeeks}`
+export function programStatusLine(
+  name: string,
+  week: number,
+  mesocycleWeeks: number,
+): Message<NavDrawerKey> {
+  return { key: 'status.program', values: { name, week, total: mesocycleWeeks } }
 }
 
 /** Block progress for the thin bar, 0–100 (current week counts as underway). */
@@ -106,9 +148,9 @@ export function programProgressPercent(week: number, mesocycleWeeks: number): nu
 }
 
 /** "42 sets this week"; null at zero — the row invites instead. */
-export function volumeStatusLine(weekSets: number): string | null {
+export function volumeStatusLine(weekSets: number): Message<NavDrawerKey> | null {
   if (weekSets <= 0) return null
-  return `${weekSets} ${weekSets === 1 ? 'set' : 'sets'} this week`
+  return { key: 'status.volume', values: { count: weekSets } }
 }
 
 /** Below this ~7-day change (kg) the arrow reads steady, not up/down —
@@ -123,8 +165,10 @@ export function trendArrow(deltaKg: number | null): '↗' | '↘' | '→' | null
   return '→'
 }
 
-/** "185 lb ↘ · check-in due" / "185 lb ↗ · last 3d ago"; null when there is
- *  neither a weight nor a due check-in to report. */
+/** "185 lb ↘ · check-in due" / "185 lb ↗ · last 3d ago" as its segments, in
+ *  render order; empty when there is neither a weight nor a due check-in to
+ *  report. The weight segment is a LITERAL — a number, a unit and a direction
+ *  glyph are data, not copy. */
 export function bodyStatusLine(
   body: {
     weightKg: number | null
@@ -133,64 +177,88 @@ export function bodyStatusLine(
     daysSinceLast: number | null
   },
   unit: WeightUnit,
-): string | null {
-  const weight =
-    body.weightKg !== null
-      ? [`${kgToDisplay(body.weightKg, unit)} ${unit}`, trendArrow(body.deltaKg)]
-          .filter((p): p is string => p !== null)
-          .join(' ')
-      : null
-  const checkIn = body.checkInDue
-    ? 'check-in due'
-    : body.daysSinceLast !== null
-      ? body.daysSinceLast === 0
-        ? 'checked in today'
-        : `last ${body.daysSinceLast}d ago`
-      : null
-  const parts = [weight, checkIn].filter((p): p is string => p !== null)
-  return parts.length > 0 ? parts.join(' · ') : null
+): NavDrawerLine[] {
+  const segments: NavDrawerLine[] = []
+  if (body.weightKg !== null) {
+    const arrow = trendArrow(body.deltaKg)
+    segments.push({
+      literal: `${kgToDisplay(body.weightKg, unit)} ${unit}${arrow !== null ? ` ${arrow}` : ''}`,
+    })
+  }
+  if (body.checkInDue) segments.push({ key: 'status.bodyCheckInDue' })
+  else if (body.daysSinceLast !== null) {
+    segments.push(
+      body.daysSinceLast === 0
+        ? { key: 'status.bodyCheckedInToday' }
+        : { key: 'status.bodyCheckedInDaysAgo', values: { days: body.daysSinceLast } },
+    )
+  }
+  return segments
 }
 
 /** "12 earned · newest: 315 Squat Club"; null when nothing is earned yet. */
-export function trophyStatusLine(earned: number, newestLabel: string | null): string | null {
+export function trophyStatusLine(
+  earned: number,
+  newestLabel: string | null,
+): Message<NavDrawerKey> | null {
   if (earned <= 0) return null
-  return newestLabel !== null ? `${earned} earned · newest: ${newestLabel}` : `${earned} earned`
+  return newestLabel !== null
+    ? { key: 'status.trophiesNewest', values: { count: earned, newest: newestLabel } }
+    : { key: 'status.trophies', values: { count: earned } }
 }
 
 /** "Last PR: 315 Squat Club", else "{n} logged movements", else null. */
 export function exercisesStatusLine(
   lastPrLabel: string | null,
   loggedCount: number,
-): string | null {
-  if (lastPrLabel !== null) return `Last PR: ${lastPrLabel}`
-  if (loggedCount > 0) {
-    return `${loggedCount} logged ${loggedCount === 1 ? 'movement' : 'movements'}`
-  }
+): Message<NavDrawerKey> | null {
+  if (lastPrLabel !== null) return { key: 'status.lastPr', values: { label: lastPrLabel } }
+  if (loggedCount > 0) return { key: 'status.movements', values: { count: loggedCount } }
   return null
 }
 
-// en-US matches formatWorkoutDate — one locale for all date display.
-const recentDayFormat = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' })
+/** Which day-word an instant gets, relative to the user's calendar. The
+ *  branch is the decision; the words (and the date FORMAT, which is
+ *  `Intl.DateTimeFormat` under the reader's locale, never a fixed 'en-US')
+ *  belong to the renderer. */
+function relativeDay(atMs: number, now: Date): { kind: 'today' | 'yesterday' } | { kind: 'date' } {
+  const at = new Date(atMs)
+  if (isSameLocalDay(at, now)) return { kind: 'today' }
+  const dayBefore = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1)
+  return isSameLocalDay(at, dayBefore) ? { kind: 'yesterday' } : { kind: 'date' }
+}
 
 /** "Today" / "Yesterday" / "Aug 26" — LOCAL calendar words, so callers must
  *  run this client-side with the user's clock (local-day.ts principle). */
-export function relativeDayLabel(atMs: number, now: Date): string {
-  const at = new Date(atMs)
-  if (isSameLocalDay(at, now)) return 'Today'
-  const dayBefore = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1)
-  if (isSameLocalDay(at, dayBefore)) return 'Yesterday'
-  return recentDayFormat.format(at)
+export function relativeDayMessage(atMs: number, now: Date): Message<NavDrawerKey> {
+  const day = relativeDay(atMs, now)
+  if (day.kind === 'today') return { key: 'day.today' }
+  if (day.kind === 'yesterday') return { key: 'day.yesterday' }
+  // The date renders through ICU (`{date, date, ::MMMd}`), so the month
+  // abbreviation and the field order follow the reader's locale.
+  return { key: 'day.date', values: { date: new Date(atMs) } }
 }
 
-/** RECENT row status: "Yesterday · 8,076 lb" (zero volume drops out). */
+/** English-only day words, kept for `components/notes/note-view.ts` until the
+ *  notes view rows are migrated to descriptors of their own. Do not add new
+ *  callers — use `relativeDayMessage`. */
+export function relativeDayLabel(atMs: number, now: Date): string {
+  const day = relativeDay(atMs, now)
+  if (day.kind === 'today') return 'Today'
+  if (day.kind === 'yesterday') return 'Yesterday'
+  return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' }).format(new Date(atMs))
+}
+
+/** RECENT row status: "Yesterday · 8,076 lb" as its segments (zero volume
+ *  drops out). The volume is a formatted number — data, not copy. */
 export function recentWorkoutLine(
   recent: { startedAtMs: number; volumeKg: number },
   unit: WeightUnit,
   now: Date,
-): string {
-  const parts = [relativeDayLabel(recent.startedAtMs, now)]
-  if (recent.volumeKg > 0) parts.push(formatVolume(recent.volumeKg, unit))
-  return parts.join(' · ')
+): NavDrawerLine[] {
+  const segments: NavDrawerLine[] = [relativeDayMessage(recent.startedAtMs, now)]
+  if (recent.volumeKg > 0) segments.push({ literal: formatVolume(recent.volumeKg, unit) })
+  return segments
 }
 
 /** Whether a nav href owns the current pathname: exact match or a sub-route

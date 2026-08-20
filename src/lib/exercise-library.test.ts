@@ -48,18 +48,39 @@ describe('exerciseZone', () => {
   })
 })
 
-describe('status-line formatters', () => {
-  it('formats the e1RM base unit-aware', () => {
-    expect(e1rmStatusBase(142, 'kg')).toBe('142 kg e1RM')
-    expect(e1rmStatusBase(100, 'lb')).toBe('221 lb e1RM') // 100 kg → 220.5 lb → rounds up
+/**
+ * These assert the DECISION — which message, which numbers — never English.
+ * The words live in `messages/en.json` and are proved rendered through the
+ * real catalog in exercises-i18n.test.tsx, so a copy edit cannot fail here.
+ */
+describe('status-line descriptors', () => {
+  it('carries the e1RM in the display unit, and nothing when unscorable', () => {
+    expect(e1rmStatusBase(142, 'kg')).toEqual({
+      key: 'status.best',
+      values: { value: 142, unit: 'kg' },
+    })
+    // 100 kg → 220.5 lb → rounds up.
+    expect(e1rmStatusBase(100, 'lb')).toEqual({
+      key: 'status.best',
+      values: { value: 221, unit: 'lb' },
+    })
     expect(e1rmStatusBase(null, 'kg')).toBeNull()
   })
 
-  it('formats the delta chip with direction, unit-aware', () => {
-    expect(e1rmDeltaChip(2.5, 'kg')).toEqual({ text: '↑ +3 this month', direction: 'up' })
-    expect(e1rmDeltaChip(-2.5, 'kg')).toEqual({ text: '↓ −3 this month', direction: 'down' })
+  it('picks the up/down message from the sign and the magnitude from the unit', () => {
+    expect(e1rmDeltaChip(2.5, 'kg')).toEqual({
+      message: { key: 'status.trendUp', values: { magnitude: 3 } },
+      direction: 'up',
+    })
+    expect(e1rmDeltaChip(-2.5, 'kg')).toEqual({
+      message: { key: 'status.trendDown', values: { magnitude: 3 } },
+      direction: 'down',
+    })
     // 2.5 kg ≈ 5.5 lb → rounds to 6 in lb display.
-    expect(e1rmDeltaChip(2.5, 'lb')).toEqual({ text: '↑ +6 this month', direction: 'up' })
+    expect(e1rmDeltaChip(2.5, 'lb')).toEqual({
+      message: { key: 'status.trendUp', values: { magnitude: 6 } },
+      direction: 'up',
+    })
   })
 
   it('suppresses the chip when there is no provable or visible delta', () => {
@@ -67,19 +88,30 @@ describe('status-line formatters', () => {
     expect(e1rmDeltaChip(0.2, 'kg')).toBeNull() // rounds to +0 — noise wearing an arrow
   })
 
-  it('falls back to a session count line', () => {
-    expect(sessionCountLine(1)).toBe('1 session')
-    expect(sessionCountLine(8)).toBe('8 sessions')
+  it('falls back to the session count, at one session and at many', () => {
+    expect(sessionCountLine(1)).toEqual({ key: 'status.sessionCount', values: { count: 1 } })
+    expect(sessionCountLine(8)).toEqual({ key: 'status.sessionCount', values: { count: 8 } })
   })
 })
 
 describe('recencyLabel', () => {
-  it('speaks dates while fresh and relative words past the threshold', () => {
-    expect(recencyLabel(daysAgo(0), NOW)).toBe('Today')
-    expect(recencyLabel(daysAgo(1), NOW)).toBe('Yesterday')
-    expect(recencyLabel(daysAgo(10), NOW)).toBe('Jul 10')
-    expect(recencyLabel(daysAgo(35), NOW)).toBe('5 wks ago')
-    expect(recencyLabel(daysAgo(120), NOW)).toBe('4 mo ago')
+  it('names the date while fresh and relative words past the threshold', () => {
+    expect(recencyLabel(daysAgo(0), NOW)).toEqual({ key: 'recency.today' })
+    expect(recencyLabel(daysAgo(1), NOW)).toEqual({ key: 'recency.yesterday' })
+    // The fresh window hands back the Date itself, never a formatted string:
+    // month/day ORDER is the catalog skeleton's call, not this module's.
+    expect(recencyLabel(daysAgo(10), NOW)).toEqual({
+      key: 'recency.onDate',
+      values: { date: daysAgo(10) },
+    })
+    expect(recencyLabel(daysAgo(35), NOW)).toEqual({
+      key: 'recency.weeksAgo',
+      values: { weeks: 5 },
+    })
+    expect(recencyLabel(daysAgo(120), NOW)).toEqual({
+      key: 'recency.monthsAgo',
+      values: { months: 4 },
+    })
   })
 })
 

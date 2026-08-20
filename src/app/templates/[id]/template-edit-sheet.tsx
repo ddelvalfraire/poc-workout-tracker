@@ -47,6 +47,7 @@ interface TemplateEditSheetProps {
 
 export function TemplateEditSheet({ template, onClose }: TemplateEditSheetProps) {
   const t = useTranslations('TemplateEditSheet')
+  const tCommon = useTranslations('Common')
   const [name, setName] = useState(template.name)
   const [icon, setIcon] = useState(template.icon ?? '')
   const [description, setDescription] = useState(template.description ?? '')
@@ -132,7 +133,7 @@ export function TemplateEditSheet({ template, onClose }: TemplateEditSheetProps)
           variant="ghost"
           className="-mr-1 text-muted-foreground"
           onClick={requestClose}
-          aria-label={t('close')}
+          aria-label={tCommon('close')}
         >
           <X aria-hidden="true" className="size-4" />
         </Button>
@@ -199,7 +200,7 @@ export function TemplateEditSheet({ template, onClose }: TemplateEditSheetProps)
 
       <div className="mt-4 flex gap-2 pb-2">
         <Button variant="outline" className="flex-1" disabled={isPending} onClick={requestClose}>
-          {t('cancel')}
+          {tCommon('cancel')}
         </Button>
         <Button
           className="flex-1"

@@ -1,12 +1,56 @@
-/** Formats a workout's date for display, e.g. "Jun 14, 2026" (server locale). */
-export function formatWorkoutDate(date: Date): string {
-  return new Intl.DateTimeFormat('en-US', { dateStyle: 'medium' }).format(date)
-}
-
 import { kgToDisplay, type WeightUnit } from './units'
 import { quantizeDisplayLoad } from './load-quantize'
 import { formatDistanceInput, formatDurationInput } from './duration'
 import type { LoggingType } from './workout-input'
+import { DEFAULT_LOCALE, type Locale } from '@/i18n/config'
+import type { Message } from './message'
+
+/**
+ * Dates, numbers and units are NOT catalog entries — they are `Intl`.
+ * "Jun 14, 2026" is not a string to translate, and a hardcoded 'en-US' here
+ * is a localization bug rather than a missing message. Every formatter below
+ * therefore takes the resolved `locale` (defaulted, so the modules that only
+ * ever render in the default locale keep their call sites) and hands the
+ * numerals to Intl.
+ *
+ * Only the surrounding WORDS — "reps", "BW", "set", "min" — leave as message
+ * DESCRIPTORS (`{ key, values }`, see ./message.ts) for the caller to render
+ * with `t(msg.key, msg.values)`. Weights, volumes and distances need no
+ * catalog entry at all: `Intl.NumberFormat`'s unit style already carries
+ * "kg"/"lb"/"m"/"km" with the locale's own grouping and separators.
+ */
+
+/** Formats a workout's date for display, e.g. "Jun 14, 2026" in `en`. */
+export function formatWorkoutDate(date: Date, locale: Locale = DEFAULT_LOCALE): string {
+  return new Intl.DateTimeFormat(locale, { dateStyle: 'medium' }).format(date)
+}
+
+/** Our weight units as CLDR unit identifiers, for Intl's `style: 'unit'`. */
+const INTL_WEIGHT_UNIT: Record<WeightUnit, string> = { kg: 'kilogram', lb: 'pound' }
+
+/**
+ * A display-unit weight with its unit word — "100 kg", "220.5 lb" — from
+ * Intl, so the decimal separator and the unit label follow the locale
+ * instead of being concatenated by hand.
+ *
+ * Ungrouped by default: a single lift's load reads as one number ("1003.1
+ * lb"), and only a session TOTAL is large enough to want thousands
+ * separators — `formatVolume` opts in.
+ */
+function formatWeight(
+  valueInDisplayUnit: number,
+  unit: WeightUnit,
+  locale: Locale,
+  options: Intl.NumberFormatOptions = {},
+): string {
+  return new Intl.NumberFormat(locale, {
+    style: 'unit',
+    unit: INTL_WEIGHT_UNIT[unit],
+    unitDisplay: 'short',
+    useGrouping: false,
+    ...options,
+  }).format(valueInDisplayUnit)
+}
 
 /** Ghost-placeholder strings for one set's inputs — reps/weight for lifting
  *  rows, duration (mm:ss) / distance (km) for cardio rows. Every field is
@@ -32,25 +76,49 @@ export interface SetGhost {
  *   assisted_bodyweight  → "BW−20 × 6"   (assistance, display unit)
  * A blank added/assist weight renders plain "BW × n"; a set with no reps at
  * all falls back to "—", matching the weight_reps contract.
+ *
+ * Returns a DESCRIPTOR, not a sentence: "reps" and "BW" are words, so the
+ * branch is decided here and the wording lives in the `Format` namespace.
+ * The weight itself is already Intl-formatted into `values.weight`, because
+ * "220.5 lb" is a number, not copy.
  */
+export type SetMessageKey =
+  | 'empty'
+  | 'set'
+  | 'setReps'
+  | 'setWeight'
+  | 'setBodyweight'
+  | 'setBodyweightReps'
+
+/** Which side of bodyweight the stored weight sits on — the `kind` select
+ *  arm the bodyweight messages branch on. */
+type BodyweightKind = 'plain' | 'added' | 'assisted'
+
 export function formatSet(
   reps: number | null,
   weightKg: number | null,
   unit: WeightUnit = 'kg',
   loggingType: LoggingType = 'weight_reps',
-): string {
+  locale: Locale = DEFAULT_LOCALE,
+): Message<SetMessageKey> {
   if (loggingType !== 'weight_reps') {
-    const load =
-      loggingType === 'bodyweight_reps' || weightKg === null || weightKg === 0
-        ? 'BW'
-        : `BW${loggingType === 'assisted_bodyweight' ? '−' : '+'}${kgToDisplay(weightKg, unit)}`
-    return reps !== null ? `${load} × ${reps}` : load === 'BW' ? '—' : load
+    const bare = loggingType === 'bodyweight_reps' || weightKg === null || weightKg === 0
+    const kind: BodyweightKind = bare
+      ? 'plain'
+      : loggingType === 'assisted_bodyweight'
+        ? 'assisted'
+        : 'added'
+    // The added/assist amount is a bare number, not a weight-with-unit: the
+    // "BW+25" idiom carries the unit implicitly from the account setting.
+    const load = bare ? 0 : kgToDisplay(weightKg as number, unit)
+    if (reps !== null) return { key: 'setBodyweightReps', values: { kind, load, reps } }
+    return bare ? { key: 'empty' } : { key: 'setBodyweight', values: { kind, load } }
   }
-  const weight = weightKg !== null ? `${kgToDisplay(weightKg, unit)} ${unit}` : null
-  if (reps !== null && weight !== null) return `${reps} × ${weight}`
-  if (reps !== null) return `${reps} reps`
-  if (weight !== null) return weight
-  return '—'
+  const weight = weightKg !== null ? formatWeight(kgToDisplay(weightKg, unit), unit, locale) : null
+  if (reps !== null && weight !== null) return { key: 'set', values: { reps, weight } }
+  if (reps !== null) return { key: 'setReps', values: { reps } }
+  if (weight !== null) return { key: 'setWeight', values: { weight } }
+  return { key: 'empty' }
 }
 
 /** The set fields the metric-aware formatter reads (matches the `sets` rows). */
@@ -62,7 +130,11 @@ export interface LoggedSetLike {
   distanceM: number | null
 }
 
-/** Seconds as a clock: 45 → "0:45", 90 → "1:30", 3900 → "1:05:00". */
+/** Seconds as a clock: 45 → "0:45", 90 → "1:30", 3900 → "1:05:00".
+ *  Deliberately NOT `Intl.DurationFormat`: its digital style zero-pads the
+ *  leading field ("01:30"), which is a different display contract from the
+ *  one the logger, the rest pill and the share cards all render. A colon
+ *  clock carries no words, so there is nothing here to translate. */
 function formatClock(totalSec: number): string {
   const h = Math.floor(totalSec / 3600)
   const m = Math.floor((totalSec % 3600) / 60)
@@ -71,11 +143,17 @@ function formatClock(totalSec: number): string {
   return h > 0 ? `${h}:${String(m).padStart(2, '0')}:${ss}` : `${m}:${ss}`
 }
 
-/** Meters for display: below 1 km in m, at/above in km (trailing zeros trimmed). */
-function formatDistance(meters: number): string {
-  if (meters < 1000) return `${meters} m`
-  const km = meters / 1000
-  return `${Number(km.toFixed(2))} km`
+/** Meters for display: below 1 km in m, at/above in km (trailing zeros
+ *  trimmed). The unit word comes from Intl, not from the catalog — "m"/"km"
+ *  are CLDR unit labels that differ per locale on their own. */
+function formatDistance(meters: number, locale: Locale): string {
+  const inKm = meters >= 1000
+  return new Intl.NumberFormat(locale, {
+    style: 'unit',
+    unit: inKm ? 'kilometer' : 'meter',
+    unitDisplay: 'short',
+    maximumFractionDigits: inKm ? 2 : 0,
+  }).format(inKm ? meters / 1000 : meters)
 }
 
 /**
@@ -84,32 +162,78 @@ function formatDistance(meters: number): string {
  * as clock + distance ("12:30 · 2.5 km"); unlogged fields drop out and a set
  * with nothing logged renders "—", matching `formatSet`'s contract.
  */
+export type LoggedSetMessageKey = SetMessageKey | 'setDuration' | 'setDurationDistance'
+
 export function formatLoggedSet(
   set: LoggedSetLike,
   unit: WeightUnit = 'kg',
   loggingType: LoggingType = 'weight_reps',
-): string {
+  locale: Locale = DEFAULT_LOCALE,
+): Message<LoggedSetMessageKey> {
   if (set.metricMode === 'duration') {
-    return set.durationSec !== null ? formatClock(set.durationSec) : '—'
+    return set.durationSec !== null
+      ? { key: 'setDuration', values: { duration: formatClock(set.durationSec) } }
+      : { key: 'empty' }
   }
   if (set.metricMode === 'duration_distance') {
-    const parts = [
-      set.durationSec !== null ? formatClock(set.durationSec) : null,
-      set.distanceM !== null ? formatDistance(set.distanceM) : null,
-    ].filter((p): p is string => p !== null)
-    return parts.length > 0 ? parts.join(' · ') : '—'
+    const duration = set.durationSec !== null ? formatClock(set.durationSec) : null
+    const distance = set.distanceM !== null ? formatDistance(set.distanceM, locale) : null
+    if (duration !== null && distance !== null) {
+      return { key: 'setDurationDistance', values: { duration, distance } }
+    }
+    if (duration !== null) return { key: 'setDuration', values: { duration } }
+    // A distance with no clock rides the same one-value slot as a bare
+    // duration — one message, one argument, whichever metric was logged.
+    if (distance !== null) return { key: 'setDuration', values: { duration: distance } }
+    return { key: 'empty' }
   }
   // loggingType lives on the exercise, not the set — the caller passes it down.
-  return formatSet(set.reps, set.weight, unit, loggingType)
+  return formatSet(set.reps, set.weight, unit, loggingType, locale)
 }
 
 /**
  * Formats a workout's total volume (Σ reps × weight, stored kg) in the active
  * unit, rounded to whole units with digit grouping: 5200.4 → "5,200 kg".
  */
-export function formatVolume(volumeKg: number, unit: WeightUnit = 'kg'): string {
-  const value = Math.round(kgToDisplay(volumeKg, unit))
-  return `${value.toLocaleString('en-US')} ${unit}`
+export function formatVolume(
+  volumeKg: number,
+  unit: WeightUnit = 'kg',
+  locale: Locale = DEFAULT_LOCALE,
+): string {
+  return formatWeight(Math.round(kgToDisplay(volumeKg, unit)), unit, locale, {
+    useGrouping: true,
+  })
+}
+
+/**
+ * The same volume, split into its numeral and its unit label — for the two
+ * call sites that set them at different type scales. Split by Intl's own
+ * `formatToParts` rather than `formatVolume(...).split(' ')`: several locales
+ * group with a narrow no-break space, which a plain space split would tear
+ * the number in half on.
+ */
+export function formatVolumeParts(
+  volumeKg: number,
+  unit: WeightUnit = 'kg',
+  locale: Locale = DEFAULT_LOCALE,
+): { value: string; unit: string } {
+  const parts = new Intl.NumberFormat(locale, {
+    style: 'unit',
+    unit: INTL_WEIGHT_UNIT[unit],
+    unitDisplay: 'short',
+    useGrouping: true,
+  }).formatToParts(Math.round(kgToDisplay(volumeKg, unit)))
+  return {
+    value: parts
+      .filter((p) => p.type !== 'unit')
+      .map((p) => p.value)
+      .join('')
+      .trim(),
+    unit: parts
+      .filter((p) => p.type === 'unit')
+      .map((p) => p.value)
+      .join(''),
+  }
 }
 
 const MIN_PLAUSIBLE_DURATION_MS = 60_000 // instant saves carry no signal
@@ -132,13 +256,23 @@ export function workoutDurationMinutes(startedAt: Date, completedAt: Date | null
 /**
  * A workout's session length as "42 min" / "1 h 5 min", or null under the
  * same plausibility rules as `workoutDurationMinutes`.
+ *
+ * A descriptor rather than a string: "h" and "min" are the unit WORDS this
+ * app abbreviates its own way (Intl's short hour label is "hr"), so they are
+ * catalog entries — while the numbers inside them are rendered by ICU, and
+ * therefore by Intl, at the caller.
  */
-export function formatWorkoutDuration(startedAt: Date, completedAt: Date | null): string | null {
+export function formatWorkoutDuration(
+  startedAt: Date,
+  completedAt: Date | null,
+): Message<'duration' | 'durationHours'> | null {
   const totalMin = workoutDurationMinutes(startedAt, completedAt)
   if (totalMin === null) return null
-  const h = Math.floor(totalMin / 60)
-  const m = totalMin % 60
-  return h > 0 ? `${h} h ${m} min` : `${m} min`
+  const hours = Math.floor(totalMin / 60)
+  const minutes = totalMin % 60
+  return hours > 0
+    ? { key: 'durationHours', values: { hours, minutes } }
+    : { key: 'duration', values: { minutes } }
 }
 
 /**
@@ -162,8 +296,12 @@ export function formatElapsed(ms: number): string | null {
  *   117 (kg) → "117 kg"      117 (lb) → "258 lb"
  * Rounds via kgToDisplay (kg identity, lb to 1dp), matching formatSet.
  */
-export function formatE1RM(e1rmKg: number, unit: WeightUnit = 'kg'): string {
-  return `${kgToDisplay(e1rmKg, unit)} ${unit}`
+export function formatE1RM(
+  e1rmKg: number,
+  unit: WeightUnit = 'kg',
+  locale: Locale = DEFAULT_LOCALE,
+): string {
+  return formatWeight(kgToDisplay(e1rmKg, unit), unit, locale)
 }
 
 /**
@@ -266,8 +404,8 @@ export function previousChipLabel(
 export function completedSetsSummary(
   sets: readonly { reps: string; weight: string }[],
   loggingType: LoggingType,
-): string {
-  const count = `${sets.length} ${sets.length === 1 ? 'set' : 'sets'}`
+): Message<'summary' | 'summaryTop' | 'summaryTopLoad' | 'summaryTopReps'> {
+  const count = sets.length
   let top: { weight: number; reps: string } | null = null
   let topReps = 0
   for (const set of sets) {
@@ -282,16 +420,17 @@ export function completedSetsSummary(
     if (Number.isFinite(reps) && reps > topReps) topReps = reps
   }
   if (top) {
-    const load =
+    const kind: BodyweightKind =
       loggingType === 'weighted_bodyweight'
-        ? `BW+${top.weight}`
+        ? 'added'
         : loggingType === 'assisted_bodyweight'
-          ? `BW−${top.weight}`
-          : String(top.weight)
-    return `${count} · top ${top.reps ? `${load}×${top.reps}` : load}`
+          ? 'assisted'
+          : 'plain'
+    const values = { count, kind, load: top.weight, reps: top.reps }
+    return top.reps ? { key: 'summaryTop', values } : { key: 'summaryTopLoad', values }
   }
-  if (topReps > 0) return `${count} · top ×${topReps}`
-  return count
+  if (topReps > 0) return { key: 'summaryTopReps', values: { count, reps: topReps } }
+  return { key: 'summary', values: { count } }
 }
 
 /** Weight-stepper jump per display unit — the smallest common plate added on

@@ -17,6 +17,8 @@ import { PrBadge } from '@/components/pr-badge'
 import { buttonVariants } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { getTranslations } from 'next-intl/server'
+import { renderMessage } from '@/lib/message'
+import { resolveLocale } from '@/i18n/request'
 
 /** Share tokens are 32 base64url chars (24 random bytes); anything shaped
  *  differently is a bad URL and 404s before touching the db — the /p/[token]
@@ -40,7 +42,9 @@ export default async function SharedWorkoutPage({
 }: {
   params: Promise<{ token: string }>
 }) {
-  const t = await getTranslations('W')
+  const t = await getTranslations('SharedWorkout')
+  const tFormat = await getTranslations('Format')
+  const locale = await resolveLocale()
   const { token } = await params
   if (!TOKEN_PATTERN.test(token)) notFound()
   const shared = await resolveWorkoutShare(token)
@@ -61,7 +65,10 @@ export default async function SharedWorkoutPage({
     (sum, e) => sum + e.sets.reduce((s, set) => s + (set.reps ?? 0) * (set.weight ?? 0), 0),
     0,
   )
-  const duration = formatWorkoutDuration(workout.startedAt, workout.completedAt)
+  const duration = renderMessage(
+    tFormat,
+    formatWorkoutDuration(workout.startedAt, workout.completedAt),
+  )
 
   // De-carded notices: a plain sentence over the page background, opening
   // past a hairline — the button, not a shell, carries the affordance.
@@ -99,7 +106,7 @@ export default async function SharedWorkoutPage({
 
       <main className="mx-auto w-full max-w-md flex-1 px-5 pb-safe">
         <div className="mt-4 flex items-center gap-2">
-          <p className="text-sm text-muted-foreground">{formatWorkoutDate(workout.startedAt)}</p>
+          <p className="text-sm text-muted-foreground">{formatWorkoutDate(workout.startedAt, locale)}</p>
           <span className="rounded-full border border-border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
             {t('sharedLabel')}
           </span>
@@ -107,7 +114,7 @@ export default async function SharedWorkoutPage({
 
         <dl className="mt-3 grid grid-cols-3 overflow-hidden rounded-2xl border border-border bg-card">
           <Stat label={t('durationLabel')} value={duration ?? '—'} />
-          <Stat label={t('volumeLabel')} value={volumeKg > 0 ? formatVolume(volumeKg, unit) : '—'} />
+          <Stat label={t('volumeLabel')} value={volumeKg > 0 ? formatVolume(volumeKg, unit, locale) : '—'} />
           <Stat label={t('setsLabel', { count: totalSets })} value={String(totalSets)} />
         </dl>
 
@@ -163,7 +170,7 @@ export default async function SharedWorkoutPage({
                               : 'font-medium text-foreground/80',
                           )}
                         >
-                          {formatLoggedSet(set, unit, exercise.loggingType)}
+                          {renderMessage(tFormat, formatLoggedSet(set, unit, exercise.loggingType, locale))}
                         </span>
                         {setIndex === bestIndex && (
                           <span className="rounded-full border border-border px-1.5 py-px text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">

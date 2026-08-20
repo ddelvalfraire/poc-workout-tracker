@@ -67,28 +67,52 @@ describe('sortTemplatesByUsage', () => {
   })
 })
 
-describe('status line', () => {
-  it('speaks relative words with unit-aware volume', () => {
+/**
+ * The decision only: which of the three status sentences a row earns, and
+ * the numbers inside it. The words are proved rendered through the real
+ * catalog in templates-i18n.test.tsx.
+ */
+describe('status descriptors', () => {
+  it('carries the recency message and the volume in the display unit', () => {
     const usage = { lastPerformedAt: daysAgo(4), lastVolumeKg: 3663.2 }
-    expect(templateStatusLine(usage, 5, 'lb', NOW)).toBe('Last: 4d ago · 8,076 lb')
-    expect(templateStatusLine(usage, 5, 'kg', NOW)).toBe('Last: 4d ago · 3,663 kg')
+    expect(templateStatusLine(usage, 5, 'lb', NOW)).toEqual({
+      key: 'status.lastRunVolume',
+      values: { when: { key: 'lastRun.daysAgo', values: { days: 4 } }, volume: 8076, unit: 'lb' },
+    })
+    expect(templateStatusLine(usage, 5, 'kg', NOW)).toEqual({
+      key: 'status.lastRunVolume',
+      values: { when: { key: 'lastRun.daysAgo', values: { days: 4 } }, volume: 3663, unit: 'kg' },
+    })
   })
 
-  it('drops a zero volume segment', () => {
+  it('picks the volume-less sentence when nothing was loaded', () => {
     expect(
       templateStatusLine({ lastPerformedAt: daysAgo(1), lastVolumeKg: 0 }, 5, 'kg', NOW),
-    ).toBe('Last: Yesterday')
+    ).toEqual({ key: 'status.lastRun', values: { when: { key: 'lastRun.yesterday' } } })
   })
 
-  it('reads honest Never run with the exercise count when nothing matched', () => {
-    expect(templateStatusLine(null, 1, 'kg', NOW)).toBe('1 exercise · Never run')
-    expect(templateStatusLine(null, 8, 'kg', NOW)).toBe('8 exercises · Never run')
+  it('reads honest Never run with the exercise count, at one and at many', () => {
+    expect(templateStatusLine(null, 1, 'kg', NOW)).toEqual({
+      key: 'status.neverRun',
+      values: { count: 1 },
+    })
+    expect(templateStatusLine(null, 8, 'kg', NOW)).toEqual({
+      key: 'status.neverRun',
+      values: { count: 8 },
+    })
   })
 
-  it('scales the relative words with age', () => {
-    expect(lastRunLabel(daysAgo(0), NOW)).toBe('Today')
-    expect(lastRunLabel(daysAgo(6), NOW)).toBe('6d ago')
-    expect(lastRunLabel(daysAgo(35), NOW)).toBe('5 wks ago')
-    expect(lastRunLabel(daysAgo(120), NOW)).toBe('4 mo ago')
+  it('scales the relative message with age', () => {
+    expect(lastRunLabel(daysAgo(0), NOW)).toEqual({ key: 'lastRun.today' })
+    expect(lastRunLabel(daysAgo(1), NOW)).toEqual({ key: 'lastRun.yesterday' })
+    expect(lastRunLabel(daysAgo(6), NOW)).toEqual({ key: 'lastRun.daysAgo', values: { days: 6 } })
+    expect(lastRunLabel(daysAgo(35), NOW)).toEqual({
+      key: 'lastRun.weeksAgo',
+      values: { weeks: 5 },
+    })
+    expect(lastRunLabel(daysAgo(120), NOW)).toEqual({
+      key: 'lastRun.monthsAgo',
+      values: { months: 4 },
+    })
   })
 })

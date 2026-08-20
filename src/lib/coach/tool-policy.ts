@@ -81,15 +81,12 @@ export const COACH_APPROVAL_TOOLS = [
   'move_program_set',
   'set_program_set_override',
   'remove_program_set_override',
-  'set_program_autoregulation',
-  'set_program_deload_policy',
-  // The diet phase reframes stall verdicts and gates the auto-backoff into
-  // a proposal — a behavior change the owner must approve like any policy.
-  'set_program_diet_phase',
-  // The overshoot policy changes how goals are scored across the whole
-  // program — a behavior change the owner must approve like any policy.
-  'set_program_overshoot_policy',
-  'set_program_plan_sync',
+  // The five program policies (autoregulation, deload, diet phase, overshoot,
+  // plan sync) behind one tool. Each one changes how the engine behaves across
+  // the whole program — the diet phase reframes stall verdicts and gates the
+  // auto-backoff into a proposal, overshoot changes how every goal is scored —
+  // so the whole tool stays approval-gated, exactly as the five were.
+  'set_program_policy',
   // A TM change rewrites every derived load on the exercise — a mutation the
   // owner must approve like any other patch op.
   'set_training_max',
@@ -171,7 +168,20 @@ export function requiresApproval(toolName: string): boolean {
  * Filters an MCP tool set down to the coach allowlist. Allowlist-based on
  * purpose: tools added to the registry later are excluded until explicitly
  * admitted here.
+ *
+ * Sorted by name, and that is load-bearing rather than tidiness. These 44
+ * schemas are the head of the prompt-cache prefix (Anthropic caches
+ * tools → system → messages in that order). The MCP client makes no promise
+ * about iteration order, and a prefix that serializes differently between two
+ * requests never matches the cache — so we would pay the 2x cache WRITE on
+ * every turn and take zero reads, which is strictly worse than not caching at
+ * all. Sorting is what makes the prefix byte-stable. OpenCode learned the same
+ * thing; see src/lib/coach/model.ts for the caching setup this feeds.
  */
 export function filterCoachTools<T>(tools: Record<string, T>): Record<string, T> {
-  return Object.fromEntries(Object.entries(tools).filter(([name]) => COACH_ALLOWED_TOOLS.has(name)))
+  return Object.fromEntries(
+    Object.entries(tools)
+      .filter(([name]) => COACH_ALLOWED_TOOLS.has(name))
+      .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)),
+  )
 }

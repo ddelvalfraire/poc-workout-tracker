@@ -19,6 +19,7 @@ import { trophyLabel } from '@/lib/trophies'
 import { TROPHY_DEFS } from '@/lib/trophy-kinds'
 import { DEFAULT_WEIGHT_UNIT } from '@/lib/units'
 import { bucketDaySets, SPARKBAR_DAYS, type DrawerData } from '@/lib/drawer-status'
+import { getMessages } from '@/i18n/translate'
 
 const RECENTS_LIMIT = 3
 // Fresh enough for a nav surface, cheap enough to reopen: the drawer also
@@ -105,6 +106,14 @@ export async function GET(): Promise<NextResponse> {
       return family === 'club' || family === 'sum_club'
     }) ?? null
 
+  // Labels resolve HERE, in the reader's locale, because the drawer payload
+  // crosses to the client as display strings — a descriptor sent over JSON
+  // would make the island carry the catalog too.
+  const [tGoals, tTrophies] = await Promise.all([getMessages('Goals'), getMessages('Trophies')])
+  const topGoalMessage = topGoal === null ? null : goalLabel(topGoal, unit)
+  const newestTrophy = trophyRows?.[0] === undefined ? null : trophyLabel(trophyRows[0].kind)
+  const newestClubLabel = newestClub === null ? null : trophyLabel(newestClub.kind)
+
   const data: DrawerData = {
     resume: activeSession !== null ? { key: activeSession.key, name: activeSession.name } : null,
     // Hero start context: suppressed while a session is live (RESUME owns the
@@ -131,10 +140,10 @@ export async function GET(): Promise<NextResponse> {
           }
         : null,
     goals:
-      goalsSummary !== null && topGoal !== null
+      goalsSummary !== null && topGoalMessage !== null
         ? {
             activeCount: goalsSummary.activeCount,
-            topGoalLabel: goalLabel(topGoal, unit),
+            topGoalLabel: tGoals(topGoalMessage.key, topGoalMessage.values),
             percent: goalPercent,
             streak: goalsSummary.streak,
           }
@@ -143,7 +152,8 @@ export async function GET(): Promise<NextResponse> {
       trophyRows !== null
         ? {
             earned: trophyRows.length,
-            newestLabel: trophyRows.length > 0 ? trophyLabel(trophyRows[0].kind) : null,
+            newestLabel:
+              newestTrophy === null ? null : tTrophies(newestTrophy.key, newestTrophy.values),
           }
         : null,
     body:
@@ -158,7 +168,10 @@ export async function GET(): Promise<NextResponse> {
     exercises:
       logged !== null || newestClub !== null
         ? {
-            lastPrLabel: newestClub !== null ? trophyLabel(newestClub.kind) : null,
+            lastPrLabel:
+              newestClubLabel === null
+                ? null
+                : tTrophies(newestClubLabel.key, newestClubLabel.values),
             loggedCount: logged?.length ?? 0,
           }
         : null,

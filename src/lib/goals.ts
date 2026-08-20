@@ -8,6 +8,7 @@ import {
 } from '@/db/goals'
 import { getExerciseStats } from '@/db/exercise-stats'
 import { getBodyweightKg, getWeightUnit } from '@/db/preferences'
+import { getMessages } from '@/i18n/translate'
 import type { ExerciseSource } from '@/lib/custom-exercise-input'
 import type { GoalKind } from '@/lib/goal-input'
 import {
@@ -179,13 +180,14 @@ export async function checkGoalAchievements(
       (e) => kinds.includes(e.goal.kind) && e.goal.achievedAt === null && e.achieved,
     )
     if (newlyAchieved.length === 0) return
-    const unit = await getWeightUnit(userId)
+    const [unit, t] = await Promise.all([getWeightUnit(userId), getMessages('Goals')])
     for (const { goal } of newlyAchieved) {
       const marked = await markGoalAchieved(userId, goal.id)
       if (marked === null) continue // raced: someone else stamped it — no double push
+      const label = goalLabel(goal, unit)
       await sendPushToUser(userId, {
-        title: `Goal reached: ${goalLabel(goal, unit)}`,
-        body: 'Target hit — see your goals.',
+        title: t('push.title', { name: t(label.key, label.values) }),
+        body: t('push.body'),
         url: '/goals',
       })
     }

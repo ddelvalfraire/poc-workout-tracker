@@ -24,6 +24,7 @@ vi.mock('@/db/program-patches', () => {
     removeProgramSetOverride: vi.fn(),
     setProgramAutoregulation: vi.fn(),
     setProgramDeloadPolicy: vi.fn(),
+    setProgramDietPhase: vi.fn(),
     setProgramOvershootPolicy: vi.fn(),
     setProgramPlanSync: vi.fn(),
   }
@@ -51,6 +52,7 @@ import {
   removeProgramSetOverride,
   setProgramAutoregulation,
   setProgramDeloadPolicy,
+  setProgramDietPhase,
   setProgramOvershootPolicy,
   setProgramPlanSync,
 } from '@/db/program-patches'
@@ -74,6 +76,7 @@ const mockedRemoveSet = vi.mocked(removeProgramSet)
 const mockedMoveSet = vi.mocked(moveProgramSet)
 const mockedSetAutoreg = vi.mocked(setProgramAutoregulation)
 const mockedSetDeloadPolicy = vi.mocked(setProgramDeloadPolicy)
+const mockedSetDietPhase = vi.mocked(setProgramDietPhase)
 const mockedSetOvershootPolicy = vi.mocked(setProgramOvershootPolicy)
 const mockedSetPlanSync = vi.mocked(setProgramPlanSync)
 const mockedSetOverride = vi.mocked(setProgramSetOverride)
@@ -119,7 +122,7 @@ describe('registerProgramPatchTools', () => {
     else process.env.MCP_DEV_USER_ID = original
   })
 
-  it('registers exactly the twenty-one program patch tools', () => {
+  it('registers exactly the eighteen program patch tools', () => {
     expect([...setup().keys()].sort()).toEqual([
       'add_program_day',
       'add_program_exercise',
@@ -132,11 +135,7 @@ describe('registerProgramPatchTools', () => {
       'remove_program_exercise',
       'remove_program_set',
       'remove_program_set_override',
-      'set_program_autoregulation',
-      'set_program_deload_policy',
-      'set_program_diet_phase',
-      'set_program_overshoot_policy',
-      'set_program_plan_sync',
+      'set_program_policy',
       'set_program_set_override',
       'set_training_max',
       'substitute_program_exercise',
@@ -147,15 +146,15 @@ describe('registerProgramPatchTools', () => {
   })
 
   describe('program tools', () => {
-    it('set_program_autoregulation flips the switch and echoes it', async () => {
+    it('set_program_policy applies the autoregulation arm and echoes it', async () => {
       // Arrange
       const tools = setup()
       mockedSetAutoreg.mockResolvedValue({ id: PID })
 
       // Act
-      const result = await tools.get('set_program_autoregulation')!({
+      const result = await tools.get('set_program_policy')!({
         programId: PID,
-        enabled: false,
+        policy: { name: 'autoregulation', value: false },
       })
 
       // Assert
@@ -167,16 +166,15 @@ describe('registerProgramPatchTools', () => {
       })
     })
 
-    it('set_program_autoregulation passes the stall policy through and echoes it', async () => {
+    it('set_program_policy passes the stall policy through and echoes it', async () => {
       // Arrange
       const tools = setup()
       mockedSetAutoreg.mockResolvedValue({ id: PID })
 
       // Act
-      const result = await tools.get('set_program_autoregulation')!({
+      const result = await tools.get('set_program_policy')!({
         programId: PID,
-        enabled: true,
-        stallPolicy: 'first-set',
+        policy: { name: 'autoregulation', value: true, stallPolicy: 'first-set' },
       })
 
       // Assert
@@ -189,58 +187,34 @@ describe('registerProgramPatchTools', () => {
       })
     })
 
-    it('set_program_autoregulation surfaces not-owned as isError /not found/', async () => {
-      // Arrange
+    it('set_program_policy applies the deload arm and echoes it', async () => {
+      // Arrange — the harness invokes the raw handler (no SDK schema parse);
+      // the db op re-parses through deloadPolicySchema, which is where the
+      // shape defaults are guaranteed (covered in program-patches.test.ts).
       const tools = setup()
-      mockedSetAutoreg.mockResolvedValue(null)
+      mockedSetDeloadPolicy.mockResolvedValue({ id: PID })
+      const value = { mode: 'scheduled', shape: { loadFactor: 0.85, setFactor: 0.5 } }
 
       // Act
-      const result = await tools.get('set_program_autoregulation')!({
+      const result = await tools.get('set_program_policy')!({
         programId: PID,
-        enabled: true,
+        policy: { name: 'deload', value },
       })
 
       // Assert
-      expect(result.isError).toBe(true)
-      expect(result.content[0]?.text).toMatch(/not found/)
+      expect(mockedSetDeloadPolicy).toHaveBeenCalledWith('user_env', PID, value, 'mcp')
+      expect(payload(result)).toEqual({ userId: 'user_env', programId: PID, deloadPolicy: value })
     })
 
-    it('set_program_deload_policy sets a policy and echoes it', async () => {
-      // Arrange
-      const tools = setup()
-      mockedSetDeloadPolicy.mockResolvedValue({ id: PID })
-
-      // Act — the harness invokes the raw handler (no SDK schema parse);
-      // the db op re-parses through deloadPolicySchema, which is where the
-      // shape defaults are guaranteed (covered in program-patches.test.ts).
-      const result = await tools.get('set_program_deload_policy')!({
-        programId: PID,
-        policy: { mode: 'scheduled', shape: {} },
-      })
-
-      // Assert — the policy passes through verbatim, actor-attributed.
-      expect(mockedSetDeloadPolicy).toHaveBeenCalledWith(
-        'user_env',
-        PID,
-        { mode: 'scheduled', shape: {} },
-        'mcp',
-      )
-      expect(payload(result)).toEqual({
-        userId: 'user_env',
-        programId: PID,
-        deloadPolicy: { mode: 'scheduled', shape: {} },
-      })
-    })
-
-    it('set_program_deload_policy clears with null', async () => {
+    it('set_program_policy clears the deload arm with a null value', async () => {
       // Arrange
       const tools = setup()
       mockedSetDeloadPolicy.mockResolvedValue({ id: PID })
 
       // Act
-      const result = await tools.get('set_program_deload_policy')!({
+      const result = await tools.get('set_program_policy')!({
         programId: PID,
-        policy: null,
+        policy: { name: 'deload', value: null },
       })
 
       // Assert
@@ -248,40 +222,35 @@ describe('registerProgramPatchTools', () => {
       expect(payload(result)).toEqual({ userId: 'user_env', programId: PID, deloadPolicy: null })
     })
 
-    it('set_program_deload_policy surfaces not-owned as isError /not found/', async () => {
+    it('set_program_policy applies the diet-phase arm and echoes it', async () => {
       // Arrange
       const tools = setup()
-      mockedSetDeloadPolicy.mockResolvedValue(null)
+      mockedSetDietPhase.mockResolvedValue({ id: PID })
 
       // Act
-      const result = await tools.get('set_program_deload_policy')!({
+      const result = await tools.get('set_program_policy')!({
         programId: PID,
-        policy: { mode: 'none' },
+        policy: { name: 'dietPhase', value: 'cutting' },
       })
 
       // Assert
-      expect(result.isError).toBe(true)
-      expect(result.content[0]?.text).toMatch(/not found/)
+      expect(mockedSetDietPhase).toHaveBeenCalledWith('user_env', PID, 'cutting', 'mcp')
+      expect(payload(result)).toEqual({ userId: 'user_env', programId: PID, dietPhase: 'cutting' })
     })
 
-    it('set_program_overshoot_policy sets the policy and echoes it', async () => {
+    it('set_program_policy applies the overshoot arm and echoes it', async () => {
       // Arrange
       const tools = setup()
       mockedSetOvershootPolicy.mockResolvedValue({ id: PID })
 
       // Act
-      const result = await tools.get('set_program_overshoot_policy')!({
+      const result = await tools.get('set_program_policy')!({
         programId: PID,
-        policy: 'e1rm-equivalent',
+        policy: { name: 'overshoot', value: 'e1rm-equivalent' },
       })
 
       // Assert
-      expect(mockedSetOvershootPolicy).toHaveBeenCalledWith(
-        'user_env',
-        PID,
-        'e1rm-equivalent',
-        'mcp',
-      )
+      expect(mockedSetOvershootPolicy).toHaveBeenCalledWith('user_env', PID, 'e1rm-equivalent', 'mcp')
       expect(payload(result)).toEqual({
         userId: 'user_env',
         programId: PID,
@@ -289,56 +258,47 @@ describe('registerProgramPatchTools', () => {
       })
     })
 
-    it('set_program_overshoot_policy surfaces not-owned as isError /not found/', async () => {
-      // Arrange
-      const tools = setup()
-      mockedSetOvershootPolicy.mockResolvedValue(null)
-
-      // Act
-      const result = await tools.get('set_program_overshoot_policy')!({
-        programId: PID,
-        policy: null,
-      })
-
-      // Assert
-      expect(result.isError).toBe(true)
-      expect(result.content[0]?.text).toMatch(/not found/)
-    })
-
-    it('set_program_plan_sync flips the switch and echoes it', async () => {
+    it('set_program_policy applies the plan-sync arm and echoes it', async () => {
       // Arrange
       const tools = setup()
       mockedSetPlanSync.mockResolvedValue({ id: PID })
 
       // Act
-      const result = await tools.get('set_program_plan_sync')!({
+      const result = await tools.get('set_program_policy')!({
         programId: PID,
-        enabled: false,
+        policy: { name: 'planSync', value: true },
       })
 
       // Assert
-      expect(mockedSetPlanSync).toHaveBeenCalledWith('user_env', PID, false, 'mcp')
-      expect(payload(result)).toEqual({
-        userId: 'user_env',
-        programId: PID,
-        planSync: false,
-      })
+      expect(mockedSetPlanSync).toHaveBeenCalledWith('user_env', PID, true, 'mcp')
+      expect(payload(result)).toEqual({ userId: 'user_env', programId: PID, planSync: true })
     })
 
-    it('set_program_plan_sync surfaces not-owned as isError /not found/', async () => {
-      // Arrange
+    it('set_program_policy surfaces not-owned as isError /not found/ on every arm', async () => {
+      // Arrange — one arm per underlying db op, so a missing null-guard in any
+      // branch of the dispatcher fails here rather than in production.
       const tools = setup()
+      mockedSetAutoreg.mockResolvedValue(null)
+      mockedSetDeloadPolicy.mockResolvedValue(null)
+      mockedSetDietPhase.mockResolvedValue(null)
+      mockedSetOvershootPolicy.mockResolvedValue(null)
       mockedSetPlanSync.mockResolvedValue(null)
+      const arms = [
+        { name: 'autoregulation', value: true },
+        { name: 'deload', value: null },
+        { name: 'dietPhase', value: null },
+        { name: 'overshoot', value: null },
+        { name: 'planSync', value: false },
+      ]
 
-      // Act
-      const result = await tools.get('set_program_plan_sync')!({
-        programId: PID,
-        enabled: true,
-      })
+      for (const policy of arms) {
+        // Act
+        const result = await tools.get('set_program_policy')!({ programId: PID, policy })
 
-      // Assert
-      expect(result.isError).toBe(true)
-      expect(result.content[0]?.text).toMatch(/not found/)
+        // Assert
+        expect(result.isError, policy.name).toBe(true)
+        expect(result.content[0]?.text).toMatch(/not found/)
+      }
     })
   })
 

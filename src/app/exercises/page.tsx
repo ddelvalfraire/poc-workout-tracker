@@ -61,16 +61,18 @@ export default async function ExercisesPage({
       if (group !== null) groups.add(group)
     }
     const delta = e1rmDeltaChip(e.trendDeltaKg, unit)
+    const status = e1rmStatusBase(e.bestE1rmKg, unit) ?? sessionCountLine(e.sessionCount)
+    const recency = recencyLabel(e.lastPerformedAt, now)
     return {
       entry: {
         source: e.source,
         wgerExerciseId: e.wgerExerciseId,
         name: e.name,
         zone: exerciseZone(e, now),
-        statusBase: e1rmStatusBase(e.bestE1rmKg, unit) ?? sessionCountLine(e.sessionCount),
-        deltaText: delta?.text ?? null,
+        statusBase: t(status.key, status.values),
+        deltaText: delta === null ? null : t(delta.message.key, delta.message.values),
         deltaDirection: delta?.direction ?? null,
-        recencyLabel: recencyLabel(e.lastPerformedAt, now),
+        recencyLabel: t(recency.key, recency.values),
       } satisfies LibraryEntry,
       sessionCount: e.sessionCount,
       lastPerformedAtMs: e.lastPerformedAt.getTime(),

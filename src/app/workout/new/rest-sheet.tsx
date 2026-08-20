@@ -45,6 +45,7 @@ interface RestSheetProps {
 
 export function RestSheet({ currentSec, onClose, onSaved }: RestSheetProps) {
   const t = useTranslations('RestSheet')
+  const tCommon = useTranslations('Common')
   // Pill selection is local until Save — mirroring the plate sheet's gear
   // editor, a cancelled sheet must not leak a half-picked target.
   const [selected, setSelected] = useState<number | null>(currentSec)
@@ -157,7 +158,7 @@ export function RestSheet({ currentSec, onClose, onSaved }: RestSheetProps) {
           variant="ghost"
           className="-mr-1 text-muted-foreground"
           onClick={requestClose}
-          aria-label={t('close')}
+          aria-label={tCommon('close')}
         >
           <X aria-hidden="true" className="size-4" />
         </Button>

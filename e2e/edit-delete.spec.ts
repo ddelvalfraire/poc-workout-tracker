@@ -54,7 +54,9 @@ test('signed-in user can edit a set and delete a workout', async ({ page }) => {
 
   // Add an exercise and log one set.
   await page.getByLabel('Search exercises').fill('bench')
-  const addButton = page.getByRole('button', { name: 'Add' }).first()
+  // The picker has no per-row Add button since #233: a result row IS the
+  // control (li role=option, click to add).
+  const addButton = page.getByRole('option').first()
   await expect(addButton).toBeVisible({ timeout: 20_000 })
   await addButton.click()
   await page.getByLabel('Set 1 reps').fill('5')

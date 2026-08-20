@@ -45,3 +45,25 @@ export async function isCoachEnabled(userId: string): Promise<boolean> {
   if (isCoachUser(userId)) return true
   return isServerFeatureEnabled('coach-access', userId)
 }
+
+/**
+ * The full coach gate: rollout FIRST, then entitlement.
+ *
+ * Order matters for what the user is shown, not just for access. Flag off
+ * means the feature does not exist for you yet, and the honest response is
+ * silence — offering to sell something we have not released would be worse
+ * than showing nothing. Flag on without the entitlement is the paywall.
+ *
+ * The dangerous combination — paid, but excluded by a rollout percentage — is
+ * not handled here because it must never occur: `coach-access` has to be
+ * retired before Max goes on sale. A flag is a temporary release gate and an
+ * entitlement is a permanent contract; selling a flagged feature conflates
+ * them, and the customer pays the difference. See docs/ENTITLEMENTS.md.
+ */
+export async function coachAccess(
+  userId: string,
+): Promise<'available' | 'unreleased' | 'unentitled'> {
+  if (!(await isCoachEnabled(userId))) return 'unreleased'
+  const { hasFeature } = await import('@/db/entitlements')
+  return (await hasFeature(userId, 'coach')) ? 'available' : 'unentitled'
+}

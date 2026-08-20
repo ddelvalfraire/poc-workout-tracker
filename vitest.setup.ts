@@ -1,4 +1,5 @@
 import { vi } from 'vitest'
+import { DEFAULT_LOCALE } from './src/i18n/config'
 // Dummy connection strings so the db client constructs in unit tests.
 // postgres-js does not open a socket until a query runs, so these are never dialed;
 // tests only build queries and assert their generated SQL.
@@ -39,7 +40,12 @@ vi.mock('next-intl', async (importActual) => {
       actual.createTranslator({ locale: 'en', messages, namespace } as Parameters<
         typeof actual.createTranslator
       >[0]),
-    // The provider is a no-op here: the hook above is already bound to the
+    // Dates, numbers and units are Intl's, not the catalog's, so components
+    // read the resolved locale alongside their translator. The mock has to
+    // answer that too — `useLocale` is context-backed like `useTranslations`,
+    // and the no-op provider below supplies no context.
+    useLocale: () => DEFAULT_LOCALE,
+    // The provider is a no-op here: the hooks above are already bound to the
     // catalog, so tests need not wrap anything.
     NextIntlClientProvider: ({ children }: { children: React.ReactNode }) => children,
   }

@@ -318,3 +318,54 @@ Not every existing key is wrong; only the ones that echo the sentence.
 - [next-intl — Messages](https://next-intl.dev/docs/usage/messages)
 - [Android — String resources](https://developer.android.com/guide/topics/resources/string-resource)
 - [Project Fluent — syntax spec](https://github.com/projectfluent/fluent/blob/master/spec/fluent.ebnf) (`Identifier ::= [a-zA-Z] [a-zA-Z0-9_-]*`)
+
+## 9. Copy that lives outside JSX
+
+The lint gate reads JSX. A pure function in `src/lib/**` that returns a
+sentence is invisible to it, so "migrated" means *migrated in its JSX*, not
+free of English. Those functions still have to be localized, and there is one
+way to do it.
+
+**A pure function returns a message DESCRIPTOR, never a sentence.**
+
+```ts
+// Before — the function owns the English.
+export function volumeStatusLabel(delta: number): string {
+  return delta > 0 ? `${delta} sets ahead` : `${-delta} sets behind`
+}
+
+// After — the function owns the DECISION, the catalog owns the words.
+export type Message = { key: string; values?: Record<string, string | number> }
+
+export function volumeStatus(delta: number): Message {
+  return delta > 0
+    ? { key: 'aheadBySets', values: { sets: delta } }
+    : { key: 'behindBySets', values: { sets: -delta } }
+}
+```
+
+The caller renders it: `t(status.key, status.values)`.
+
+Why descriptors rather than passing `t` in:
+
+- The function stays pure, so its tests assert the *decision* (which branch,
+  what count) instead of an English string. A test that asserts
+  `"3 sets behind"` fails the moment anyone rewords the copy, which is how
+  translation work ends up blocked on unrelated test churn.
+- Threading `t` through makes every caller in the chain carry a translator,
+  including the ones that only forward the value.
+- Server and client resolve translators differently (`getTranslations` vs
+  `useTranslations`); a descriptor does not care which one renders it.
+
+**Dates, numbers and units are not catalog entries.** `formatWorkoutDate`
+returning `"Jun 14, 2026"` is not a string to translate — it is
+`Intl.DateTimeFormat(locale)`. A hardcoded `'en-US'` in a `toLocaleString`
+call is a localization bug, not a missing message. Same for weights,
+percentages and durations: format them with the resolved locale, and put only
+the surrounding words in the catalog.
+
+**What is NOT copy**, and must stay out of the catalog: exercise names, muscle
+names, equipment and template seed content (catalog/database content, authored
+by users or the seed); MCP tool names and descriptions (an owner-only
+protocol, not app UI); and anything stored in the database, which must never
+be written in the creating user's language.

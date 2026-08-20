@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils'
 import { restartProgramAction, restartPreviewAction } from '@/app/programs/actions'
 import { restartDialogBody, type RestartPreview } from './restart-view'
 import { useTranslations } from 'next-intl'
+import { renderMessage } from '@/lib/message'
 
 /**
  * "Restart block": clones the program into a fresh week-1 copy ("Name —
@@ -95,7 +96,10 @@ export function RestartProgramButton({
       {isOpen && (
         <ConfirmDialog
           title={t('dialog.title')}
-          body={restartDialogBody(preview)}
+          // Whole sentences, joined — ConfirmDialog takes one body string.
+          body={restartDialogBody(preview)
+            .map((sentence) => renderMessage(t, sentence))
+            .join(' ')}
           confirmLabel={t('dialog.confirm')}
           pendingLabel={t('dialog.pending')}
           confirmVariant="default"

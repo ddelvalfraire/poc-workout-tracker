@@ -21,7 +21,7 @@ import {
 } from './program-draft'
 import { SchemeSubtitle } from './scheme-subtitle'
 import { type WeightUnit } from '@/lib/units'
-import { WEEKDAY_NAMES } from '@/lib/schedule-anchor'
+import { WEEKDAY_TOKENS } from '@/lib/schedule-anchor'
 import { metricModeSchema, type DeloadPolicy, type MetricMode } from '@/lib/program-input'
 import { useTranslations } from 'next-intl'
 
@@ -526,14 +526,14 @@ export function ProgramBuilder({
               })}
               className="flex gap-1.5 px-0.5"
             >
-              {WEEKDAY_NAMES.map((weekdayName, weekday) => {
+              {WEEKDAY_TOKENS.map((weekdayToken, weekday) => {
                 const isSelected = day.weekdays.includes(weekday)
                 return (
                   <button
-                    key={weekdayName}
+                    key={weekdayToken}
                     type="button"
                     aria-pressed={isSelected}
-                    aria-label={weekdayName}
+                    aria-label={t('weekday', { weekday: weekdayToken })}
                     onClick={() =>
                       dispatch({
                         type: 'SET_DAY_WEEKDAYS',
@@ -547,7 +547,10 @@ export function ProgramBuilder({
                         : 'bg-muted text-muted-foreground hover:text-foreground'
                     }`}
                   >
-                    {weekdayName[0]}
+                    {/* The glyph is its own message, not name[0]: which
+                        letters disambiguate seven weekdays is a per-language
+                        question (Spanish needs L/M/X/J/V/S/D). */}
+                    {t('weekdayInitial', { weekday: weekdayToken })}
                   </button>
                 )
               })}

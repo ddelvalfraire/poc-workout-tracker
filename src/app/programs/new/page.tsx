@@ -9,6 +9,7 @@ import { getTranslations } from 'next-intl/server'
 
 export default async function NewProgramPage() {
   const t = await getTranslations('ProgramNew')
+  const tCommon = await getTranslations('Common')
   const userId = await requireUserId() // middleware also guards; defense-in-depth
   const unit = await getWeightUnit(userId)
 
@@ -18,7 +19,7 @@ export default async function NewProgramPage() {
         title={t('title')}
         trailing={
           <Link href="/programs" className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }))}>
-            {t('closeLink')}
+            {tCommon('close')}
           </Link>
         }
       />

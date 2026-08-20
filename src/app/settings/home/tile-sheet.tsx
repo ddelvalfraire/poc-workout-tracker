@@ -52,6 +52,11 @@ export function TileSheet({
   onMoveToTop,
 }: TileSheetProps) {
   const t = useTranslations('TileSheet')
+  const tCommon = useTranslations('Common')
+  // The section's own name and blurb are registry copy, so they resolve
+  // against the registry's namespace, not this sheet's.
+  const tSection = useTranslations('HomeSection')
+  const sectionName = tSection(meta.titleKey)
   const dialogRef = useRef<HTMLDialogElement>(null)
   const closeButtonRef = useRef<HTMLButtonElement>(null)
   const requestClose = useAnimatedSheetClose(dialogRef, onClose)
@@ -86,7 +91,7 @@ export function TileSheet({
   return (
     <dialog
       ref={dialogRef}
-      aria-label={t('dialogLabel', { section: meta.title })}
+      aria-label={t('dialogLabel', { section: sectionName })}
       onCancel={(e) => {
         e.preventDefault() // keep open/closed state owned by React
         requestClose()
@@ -109,9 +114,9 @@ export function TileSheet({
       <div className="flex items-start justify-between gap-3 pb-1">
         <div>
           <p className="text-xs font-semibold uppercase tracking-widest text-primary">
-            {meta.title}
+            {sectionName}
           </p>
-          <p className="mt-0.5 text-sm text-muted-foreground">{meta.description}</p>
+          <p className="mt-0.5 text-sm text-muted-foreground">{tSection(meta.descriptionKey)}</p>
         </div>
         <Button
           ref={closeButtonRef}
@@ -119,7 +124,7 @@ export function TileSheet({
           variant="ghost"
           className="-mr-1 text-muted-foreground"
           onClick={requestClose}
-          aria-label={t('close')}
+          aria-label={tCommon('close')}
         >
           <X aria-hidden="true" className="size-4" />
         </Button>
@@ -130,7 +135,7 @@ export function TileSheet({
           keeps its shape, the gating stays legible. */}
       <div
         role="radiogroup"
-        aria-label={t('sizeGroupLabel', { section: meta.title })}
+        aria-label={t('sizeGroupLabel', { section: sectionName })}
         className="mt-3 flex gap-1.5"
       >
         {HOME_SECTION_SIZES.map((size) => {
@@ -141,7 +146,7 @@ export function TileSheet({
               type="button"
               role="radio"
               aria-checked={section.size === size}
-              aria-label={t('sizeOptionLabel', { section: meta.title, size })}
+              aria-label={t('sizeOptionLabel', { section: sectionName, size })}
               disabled={!isAllowed}
               onClick={() => onSize(size)}
               className={cn(
@@ -169,7 +174,7 @@ export function TileSheet({
           </p>
         </div>
         <VisibilitySwitch
-          label={t('visibility.ariaLabel', { section: meta.title })}
+          label={t('visibility.ariaLabel', { section: sectionName })}
           checked={!section.hidden}
           onToggle={onToggle}
         />
@@ -179,7 +184,7 @@ export function TileSheet({
           never the only path). Edges disable, they don't hide. */}
       <div className="mt-4 grid grid-cols-3 gap-2 border-t border-border/60 pt-4 pb-4">
         <MoveButton
-          label={t('move.upLabel', { section: meta.title })}
+          label={t('move.upLabel', { section: sectionName })}
           disabled={index === 0}
           onClick={moveUp}
         >
@@ -187,7 +192,7 @@ export function TileSheet({
           {t('move.up')}
         </MoveButton>
         <MoveButton
-          label={t('move.downLabel', { section: meta.title })}
+          label={t('move.downLabel', { section: sectionName })}
           disabled={index === count - 1}
           onClick={moveDown}
         >
@@ -195,7 +200,7 @@ export function TileSheet({
           {t('move.down')}
         </MoveButton>
         <MoveButton
-          label={t('move.toTopLabel', { section: meta.title })}
+          label={t('move.toTopLabel', { section: sectionName })}
           disabled={index === 0}
           onClick={onMoveToTop}
         >

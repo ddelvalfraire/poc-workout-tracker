@@ -10,6 +10,7 @@ import {
   sortTemplatesByUsage,
   templateStatusLine,
   templateUsageByName,
+  type TemplateStatusMessage,
 } from '@/lib/template-usage'
 import { AppHeader } from '@/components/app-header'
 import { GuardedStartLink } from '@/components/guarded-start-link'
@@ -97,7 +98,15 @@ export default async function TemplatesPage() {
                     <span className="min-w-0 truncate">{hero.name}</span>
                   </span>
                   <span className="mt-1 block text-sm text-muted-foreground tnum">
-                    {templateStatusLine(usage.get(hero.name) ?? null, hero.exerciseCount, unit, now)}
+                    {renderStatus(
+                      t,
+                      templateStatusLine(
+                        usage.get(hero.name) ?? null,
+                        hero.exerciseCount,
+                        unit,
+                        now,
+                      ),
+                    )}
                   </span>
                 </Link>
                 <GuardedStartLink
@@ -135,11 +144,14 @@ export default async function TemplatesPage() {
                           {template.name}
                         </span>
                         <span className="mt-0.5 block truncate text-sm text-muted-foreground tnum">
-                          {templateStatusLine(
-                            usage.get(template.name) ?? null,
-                            template.exerciseCount,
-                            unit,
-                            now,
+                          {renderStatus(
+                            t,
+                            templateStatusLine(
+                              usage.get(template.name) ?? null,
+                              template.exerciseCount,
+                              unit,
+                              now,
+                            ),
                           )}
                         </span>
                       </span>
@@ -164,4 +176,21 @@ export default async function TemplatesPage() {
       </main>
     </div>
   )
+}
+
+type TemplatesTranslator = Awaited<ReturnType<typeof getTranslations<'Templates'>>>
+
+/**
+ * Renders a row's status descriptor. The recency half arrives as its own
+ * message and is resolved FIRST, then handed to the outer sentence as an
+ * ICU argument — the outer message stays one whole sentence a translator can
+ * reorder, rather than two keys glued together.
+ */
+function renderStatus(t: TemplatesTranslator, status: TemplateStatusMessage): string {
+  if (status.key === 'status.neverRun') return t(status.key, status.values)
+  const { when } = status.values
+  const rendered = t(when.key, when.values)
+  return status.key === 'status.lastRun'
+    ? t(status.key, { when: rendered })
+    : t(status.key, { when: rendered, volume: status.values.volume, unit: status.values.unit })
 }

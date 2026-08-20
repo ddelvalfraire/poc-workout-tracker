@@ -1,4 +1,35 @@
 {
+  "Account": {
+    "connectedAccountsHintMultiple": "The accounts you can sign in with.",
+    "connectedAccountsHintSoleMethod": "Your only way in — keep it, or add a password first.",
+    "connectedAccountsLabel": "Connected accounts",
+    "connectedAccountsNone": "None",
+    "dangerZone": "Danger zone",
+    "deleteHint": "Erase your data and close your account.",
+    "deleteLabel": "Delete account",
+    "emailHintUnverified": "Unverified — check your inbox to confirm it.",
+    "emailHintVerified": "Where account and security messages go.",
+    "emailLabel": "Email",
+    "firstNameLabel": "First name",
+    "lastNameLabel": "Last name",
+    "loadErrorBody": "We could not reach the service that holds your account details. Your workouts are safe.",
+    "loadErrorRetry": "Try again",
+    "loadErrorTitle": "Couldn't load your account",
+    "mfaHintOptional": "Ask for a code from your phone when you sign in.",
+    "mfaHintRequired": "Required here — a code from your phone every time you sign in.",
+    "mfaLabel": "Two-step verification",
+    "mfaStateOff": "Off",
+    "mfaStateOn": "On",
+    "nameHint": "How the app greets you.",
+    "nameLabel": "Name",
+    "nameLengthError": "That name is too long — keep it under 100 characters.",
+    "saveAction": "Save",
+    "saving": "Saving…",
+    "signingInZone": "Signing in",
+    "title": "Account",
+    "valueNotSet": "Not set",
+    "youZone": "You"
+  },
   "ActivityLog": {
     "empty": "No activity yet.",
     "filterGroupLabel": "Filter activity by type"
@@ -44,6 +75,21 @@
       "groupLabel": "Progress photos",
       "title": "Progress photos"
     },
+    "pose": {
+      "back": "Back",
+      "front": "Front",
+      "side": "Side"
+    },
+    "site": {
+      "arm": "Arm",
+      "calf": "Calf",
+      "chest": "Chest",
+      "hips": "Hips",
+      "neck": "Neck",
+      "shoulders": "Shoulders",
+      "thigh": "Thigh",
+      "waist": "Waist"
+    },
     "title": "Body"
   },
   "BodyweightEntryRow": {
@@ -81,25 +127,79 @@
     "applyAction": "Apply",
     "approvalApplied": "{tool} — applying…",
     "approvalCancelled": "{tool} — cancelled",
-    "cancel": "Cancel",
     "capabilityDescription": "It can read your workouts and programs, and propose plan changes — nothing is applied without your OK.",
+    "chip": {
+      "changeLog": "Show the change log",
+      "focus": "What should I focus on?",
+      "nextWeek": "Preview next week",
+      "previewFirstWeek": "Preview week 1",
+      "stalling": "Any signs of stalling?",
+      "whyNumbers": "Why these numbers?"
+    },
     "composerLabel": "Message the coach",
     "composerPlaceholder": "Ask about your training…",
+    "day": {
+      "date": "{date, date, ::MMMd}",
+      "dateWithYear": "{date, date, ::MMMdy}",
+      "today": "Today",
+      "yesterday": "Yesterday"
+    },
     "detailsSummary": "Details",
     "disclosureStrip": "AI coach — responses are AI-generated and can be wrong. Not medical advice.",
+    "emptyTitle": "Ask your coach",
+    "errorGeneric": "Something went wrong. Try again.",
     "newChatAction": "New chat",
     "offlineNotice": "Coach needs a connection.",
-    "pageTitle": "Coach",
     "pendingApprovalLabel": "Needs your OK",
     "proposalDays": "{days, plural, one {# day} other {# days}}/week",
     "proposalTitle": "Proposed program",
+    "proposalUntitled": "New program",
     "proposalWeeks": "{weeks, plural, one {# week} other {# weeks}}",
     "reviewAction": "Review & adopt",
     "sendLabel": "Send",
+    "starter": {
+      "nextBlock": "Plan my next block",
+      "preview": "Preview next week",
+      "program": "How's {name} going?",
+      "recap": "What did I train this week?",
+      "swap": "Swap tomorrow's pressing for more volume"
+    },
     "thinkingStatus": "Thinking",
-    "title": "Ask your coach",
+    "title": "Coach",
     "toolDetail": "· ‘{detail}’",
-    "toolFailed": " — failed"
+    "toolDone": {
+      "get_last_performance": "Checked your last numbers",
+      "get_program": "Read your program",
+      "get_program_stats": "Crunched program stats",
+      "get_weight_unit": "Checked your units",
+      "get_workout": "Read a workout",
+      "list_custom_exercises": "Checked your custom exercises",
+      "list_programs": "Listed your programs",
+      "list_proposals": "Checked outstanding proposals",
+      "list_workouts": "Looked through your workouts",
+      "preview_program_week": "Previewed the week",
+      "propose_program_patches": "Proposed plan changes",
+      "search_exercises": "Searched exercises",
+      "upsert_program": "Drafted a program",
+      "whoami": "Checked your account"
+    },
+    "toolFailed": " — failed",
+    "toolRunning": {
+      "get_last_performance": "Checking your last numbers",
+      "get_program": "Reading your program",
+      "get_program_stats": "Crunching program stats",
+      "get_weight_unit": "Checking your units",
+      "get_workout": "Reading a workout",
+      "list_custom_exercises": "Checking your custom exercises",
+      "list_programs": "Listing your programs",
+      "list_proposals": "Checking outstanding proposals",
+      "list_workouts": "Looking through your workouts",
+      "preview_program_week": "Previewing the week",
+      "propose_program_patches": "Proposing plan changes",
+      "search_exercises": "Searching exercises",
+      "upsert_program": "Drafting your program",
+      "whoami": "Checking your account"
+    }
   },
   "CoachDisclosure": {
     "acknowledgeAction": "Got it",
@@ -128,9 +228,69 @@
     "traces14dLabel": "Traces 14d",
     "tracesUnavailable": "Traces list unavailable. It refreshes on reload."
   },
+  "CoachToolCall": {
+    "change": {
+      "addDay": "add a training day",
+      "addDayNamed": "add day “{name}”",
+      "addExercise": "add “{name}”",
+      "addSet": "add a set",
+      "autoregulationOff": "turn auto-regulation off",
+      "autoregulationOn": "turn auto-regulation on",
+      "deloadPolicy": "set the deload policy → {mode, select, none {none} reactive {reactive} scheduled {scheduled} other {{mode}}}",
+      "deloadPolicyClear": "clear the deload policy (back to the default behavior)",
+      "dietPhase": "set the diet phase → {phase, select, cutting {cutting} maintaining {maintaining} bulking {bulking} other {{phase}}}",
+      "dietPhaseClear": "clear the diet phase",
+      "dropOverride": "drop the week {week} override",
+      "moveDay": "move day {from} → day {to}",
+      "moveExercise": "move exercise {from} → {to}",
+      "moveSet": "move set {from} → set {to}",
+      "notesClear": "clear notes",
+      "notesUpdate": "update notes",
+      "overshoot": "set the overshoot policy → {policy, select, strictLoad {strict-load} e1rmEquivalent {e1rm-equivalent} anyMetric {any-metric} other {{policy}}}",
+      "overshootClear": "clear the overshoot policy (back to scheme defaults)",
+      "planSyncDisabled": "turn plan sync off",
+      "planSyncEnabled": "turn plan sync on",
+      "program": "{mode, select, replace {replace a program} other {create a program}}",
+      "programNamed": "{mode, select, replace {replace program “{name}”} other {create program “{name}”}}",
+      "progressionClear": "clear progression",
+      "progressionUpdate": "update progression",
+      "removeDay": "remove day {day} and everything in it",
+      "removeExercise": "remove exercise {exercise} and its sets",
+      "removeSet": "remove set {set}",
+      "rename": "rename to “{name}”",
+      "source": "source → {source}",
+      "substitute": "substitute “{name}” (old loads cleared)",
+      "substituteMovement": "substitute the movement (old loads cleared)",
+      "supersetGroup": "superset group → {group}",
+      "supersetUngroup": "ungroup superset",
+      "swapMovement": "swap movement (id {id})",
+      "swapTo": "swap to “{name}”",
+      "trainingMax": "set the training max → {load}",
+      "trainingMaxWithReason": "set the training max → {load} ({reason})"
+    },
+    "location": {
+      "day": "day {day}",
+      "exercise": "exercise {exercise}",
+      "set": "set {set}",
+      "week": "week {week} only"
+    },
+    "meta": {
+      "days": "{days, plural, one {# day} other {# days}}",
+      "weeks": "{weeks, plural, one {# week} other {# weeks}}"
+    },
+    "target": {
+      "cleared": "{field, select, type {type cleared} mode {mode cleared} reps {reps cleared} minReps {min reps cleared} maxReps {max reps cleared} rir {RIR cleared} rpe {RPE cleared} load {load cleared} duration {duration cleared} distance {distance cleared} rest {rest cleared} tempo {tempo cleared} technique {technique cleared} other {{field} cleared}}",
+      "techniqueUpdated": "technique updated",
+      "unpinned": "{field, select, type {type unpinned} mode {mode unpinned} reps {reps unpinned} minReps {min reps unpinned} maxReps {max reps unpinned} rir {RIR unpinned} rpe {RPE unpinned} load {load unpinned} duration {duration unpinned} distance {distance unpinned} rest {rest unpinned} tempo {tempo unpinned} technique {technique unpinned} other {{field} unpinned}}",
+      "value": "{field, select, type {type} mode {mode} reps {reps} minReps {min reps} maxReps {max reps} rir {RIR} rpe {RPE} load {load} duration {duration} distance {distance} rest {rest} tempo {tempo} technique {technique} other {{field}}} → {value}"
+    }
+  },
   "Common": {
     "appDescription": "Log your workouts and review your training history.",
-    "appName": "Workout Tracker"
+    "appName": "Workout Tracker",
+    "appShortName": "Workouts",
+    "cancel": "Cancel",
+    "close": "Close"
   },
   "ConfirmDialog": {
     "cancel": "Keep it"
@@ -155,12 +315,43 @@
     "readThem": "Read them: ",
     "requiredNote": "Required because the app can't function without storing your training.",
     "requiredTitle": "Required to use the app",
+    "saveError": "Something went wrong saving your choices. Please try again.",
+    "savingAction": "Saving…",
+    "termsLink": "Terms",
+    "tosLabel": "I agree to the Terms of Service and have read the Privacy Notice and Health Data Privacy Policy.",
+    "whatThisMeansAction": "What this means"
+  },
+  "ConfirmDialog": {
+    "cancel": "Keep it"
+  },
+  "ConsentForm": {
+    "analyticsBody": "Link your usage (never your workout content) to your account so we can see which features actually help. Change anytime in Settings.",
+    "analyticsControlLabel": "Analytics identity",
+    "analyticsTitle": "Analytics identity",
+    "continueAction": "Continue",
+    "gpcNotice": "Your browser sent a Global Privacy Control signal — this stays off.",
+    "healthCollectBody": "We collect the workouts, sets, and body-weight entries you record to show your training history and progress.",
+    "healthCollectDetail": "This covers everything you log: sessions, exercises, sets and loads, body measurements, progress photos, and notes. It lives in our database, is visible only to you, and you can export or delete it at any time. Full details in the Health Data Privacy policy.",
+    "healthCollectLabel": "Store your health data",
+    "healthDataLink": "Health Data",
+    "healthShareBody": "Your data passes through the services that run the app — hosting, database, and the AI coach provider. They process it only for us, never for ads.",
+    "healthShareDetail": "The processors: Vercel (application hosting), Supabase (database), our AI model provider (coach responses only), and Sentry (error reports). Each works under contract, for us alone. Our analytics provider is deliberately NOT on this list — analytics never receives your workout content.",
+    "healthShareLabel": "Share with our service providers",
+    "neverSell": "We never sell your health data. Ever. · ",
+    "optionalTitle": "Optional",
+    "privacyLink": "Privacy",
+    "privacyPolicyLink": "Full privacy policy",
+    "readThem": "Read them: ",
+    "requiredNote": "Required because the app can't function without storing your training.",
+    "requiredTitle": "Required to use the app",
+    "saveError": "Something went wrong saving your choices. Please try again.",
     "savingAction": "Saving…",
     "termsLink": "Terms",
     "tosLabel": "I agree to the Terms of Service and have read the Privacy Notice and Health Data Privacy Policy.",
     "whatThisMeansAction": "What this means"
   },
   "ConsistencyProgress": {
+    "progressLabel": "{completed} of {target} streak weeks complete",
     "progressSummary": "{completed} of {target, plural, one {# week} other {# weeks}}",
     "scheduleHint": "Schedule weekdays on your program days to start the streak.",
     "targetSummary": "Target {weeks, plural, one {# week} other {# weeks}}",
@@ -187,7 +378,6 @@
     "validationName": "Give it a name."
   },
   "CustomExerciseEditor": {
-    "cancel": "Cancel",
     "categoryLabel": "Category",
     "musclesLabel": "Primary muscles",
     "nameLabel": "Custom exercise name",
@@ -319,7 +509,6 @@
   },
   "ExercisePicker": {
     "create": {
-      "cancel": "Cancel",
       "categoryAriaLabel": "Category",
       "categoryPlaceholder": "Category…",
       "error": "Could not create the exercise.",
@@ -346,7 +535,6 @@
     "suggestionsTitle": "Suggested"
   },
   "ExerciseSheet": {
-    "close": "Close",
     "title": "Add exercise"
   },
   "ExerciseStats": {
@@ -404,10 +592,23 @@
       "all": "All",
       "ariaLabel": "Filter by muscle group"
     },
+    "recency": {
+      "monthsAgo": "{months} mo ago",
+      "onDate": "{date, date, ::MMMd}",
+      "today": "Today",
+      "weeksAgo": "{weeks, plural, one {# wk ago} other {# wks ago}}",
+      "yesterday": "Yesterday"
+    },
     "sort": {
       "ariaLabel": "Sort",
       "recent": "Recent",
       "trained": "Most trained"
+    },
+    "status": {
+      "best": "{value, number, ::group-off} {unit} e1RM",
+      "sessionCount": "{count, plural, one {# session} other {# sessions}}",
+      "trendDown": "↓ −{magnitude} this month",
+      "trendUp": "↑ +{magnitude} this month"
     },
     "title": "Exercises"
   },
@@ -433,26 +634,39 @@
       "summary": "{count, plural, one {# exercise} other {# exercises}} · {programName}"
     }
   },
-  "GlobalError": {
-    "description": "The app hit an unexpected error. Your saved workouts are safe — reload to continue.",
-    "errorRef": "Error ref: {digest}",
-    "reload": "Reload app",
-    "title": "Something went wrong"
+  "Format": {
+    "duration": "{minutes} min",
+    "durationHours": "{hours} h {minutes} min",
+    "empty": "—",
+    "set": "{reps} × {weight}",
+    "setBodyweight": "{kind, select, added {BW+{load}} assisted {BW−{load}} other {BW}}",
+    "setBodyweightReps": "{kind, select, added {BW+{load}} assisted {BW−{load}} other {BW}} × {reps}",
+    "setDuration": "{duration}",
+    "setDurationDistance": "{duration} · {distance}",
+    "setReps": "{reps, plural, one {# rep} other {# reps}}",
+    "setWeight": "{weight}",
+    "summary": "{count, plural, one {# set} other {# sets}}",
+    "summaryTop": "{count, plural, one {# set} other {# sets}} · top {kind, select, added {BW+{load}} assisted {BW−{load}} other {{load}}}×{reps}",
+    "summaryTopLoad": "{count, plural, one {# set} other {# sets}} · top {kind, select, added {BW+{load}} assisted {BW−{load}} other {{load}}}",
+    "summaryTopReps": "{count, plural, one {# set} other {# sets}} · top ×{reps}"
   },
   "GoalCardActions": {
     "archiveAction": "Archive",
+    "archiveError": "Could not archive the goal.",
     "delete": "Delete",
     "deleteDialog": {
       "body": "This removes the goal for good. Your training history is untouched.",
       "confirm": "Delete",
       "pending": "Deleting…"
-    }
+    },
+    "deleteError": "Could not delete the goal.",
+    "menuLabel": "Actions for {label}"
   },
   "GoalCreate": {
     "bodyweightLabel": "Target weight ({unit})",
-    "cancel": "Cancel",
     "changeExerciseAction": "Change",
     "createAction": "Create goal",
+    "createError": "Could not create the goal.",
     "creatingAction": "Creating…",
     "deadlineLabel": "Deadline <optional>(optional)</optional>",
     "direction": {
@@ -475,6 +689,12 @@
     "newGoalAction": "+ New goal",
     "sectionTitle": "New goal",
     "streakLengthLabel": "Streak length (weeks)",
+    "validation": {
+      "enterE1rm": "Enter a target est. 1RM in {unit}.",
+      "enterWeeks": "Enter a streak length in weeks.",
+      "enterWeight": "Enter a target weight in {unit}.",
+      "pickExercise": "Pick an exercise first."
+    },
     "weightPlaceholder": "e.g. {example}"
   },
   "Goals": {
@@ -484,6 +704,7 @@
     "activeTitle": "Active",
     "archivedGroupLabel": "Archived goals",
     "archivedTitle": "Archived",
+    "bestValue": "Best {value, number, ::group-off} {unit}",
     "bodyweightHint": "Log your bodyweight to track this goal.",
     "bodyweightSeriesLabel": "Bodyweight",
     "byDeadline": "By {date}",
@@ -491,15 +712,89 @@
     "doneHeadline": "Done.",
     "empty": "No goals yet. Set a strength target, a bodyweight target, or a training streak.",
     "graceSummary": "{misses, plural, =0 {Strict} one {# miss/week grace} other {# misses/week grace}}",
+    "label": {
+      "bodyweight": "Bodyweight {value, number, ::group-off} {unit}",
+      "consistency": "{weeks}-week streak",
+      "strength": "{exercise} {value, number, ::group-off} {unit}",
+      "strengthUnnamed": "Exercise {value, number, ::group-off} {unit}",
+      "unknown": "Goal"
+    },
     "noEstimate": "No est. 1RM yet",
-    "onPace": "On pace for {date}{suffix}",
+    "pace": "On pace for {date}",
+    "paceAhead": "On pace for {date} — {weeks, plural, one {# week} other {# weeks}} early",
+    "paceBehind": "On pace for {date} — {weeks, plural, one {# week} other {# weeks}} late",
     "percentValue": "{percent}%",
     "progressLabel": "Progress to target",
+    "push": {
+      "body": "Target hit — see your goals.",
+      "title": "Goal reached: {name}"
+    },
     "remaining": "<amount>{value}</amount> {unit} to go",
     "targetSeriesLabel": "Target",
     "title": "Goals",
+    "trendChartAriaLabel": "Bodyweight trend over {count, plural, one {# entry} other {# entries}} against the {target, number, ::group-off} {unit} target",
     "trendLabel": "Bodyweight trend",
     "trophiesLinkLabel": "Trophies"
+  },
+  "GrantForm": {
+    "action": "Grant",
+    "actionArmed": "Confirm: grant {tier}, {duration}",
+    "armedStatus": "Ready to grant {tier}, {duration}. Press again to confirm.",
+    "duration": {
+      "label": "Duration",
+      "option": {
+        "7d": "7 days",
+        "30d": "30 days",
+        "90d": "90 days",
+        "1y": "1 year",
+        "forever": "No expiry"
+      }
+    },
+    "errorDenied": "You are not allowed to grant tiers.",
+    "errorInvalid": "That grant was rejected. Check the fields and try again.",
+    "errorNotFound": "That member no longer exists.",
+    "loading": "Granting…",
+    "reason": {
+      "label": "Reason",
+      "placeholder": "Refund make-good for #1183",
+      "validation": "Say why — this is what the ledger shows later."
+    },
+    "tier": {
+      "label": "Tier"
+    },
+    "title": "Grant a tier"
+  },
+  "GrantLedger": {
+    "title": "Grant history",
+    "empty": "No grants on file. This member is on the default tier.",
+    "col": {
+      "granted": "Granted",
+      "tier": "Tier",
+      "source": "Source",
+      "window": "Until",
+      "reason": "Reason",
+      "state": "State"
+    },
+    "expiry": {
+      "never": "never expires"
+    },
+    "byActor": "by {actor}",
+    "revokedBecause": "Revoked: {reason}",
+    "state": {
+      "revoked": "Revoked",
+      "lapsed": "Lapsed"
+    },
+    "revoke": {
+      "action": "Revoke",
+      "confirm": "Confirm revoke",
+      "loading": "Revoking…"
+    },
+    "reason": {
+      "label": "Reason for revoking",
+      "placeholder": "Refunded on request",
+      "validation": "Say why — this is what the ledger shows later."
+    },
+    "error": "That did not go through. Try again."
   },
   "HeaderClock": {
     "ariaLabel": "Session time {elapsed}"
@@ -526,6 +821,20 @@
     "resetAction": "Reset to default",
     "saveError": "Couldn’t save. Try again."
   },
+  "HomeSection": {
+    "description": {
+      "history": "Your latest completed workouts.",
+      "momentum": "This week’s sets, activity, and goal progress.",
+      "todayRecap": "Celebration cards for sessions you finished today.",
+      "unfinished": "Stalled sessions waiting to be resumed or finished."
+    },
+    "title": {
+      "history": "History",
+      "momentum": "Momentum",
+      "todayRecap": "Today",
+      "unfinished": "Unfinished"
+    }
+  },
   "HomeSections": {
     "allHistoryLink": "All history",
     "historyTitle": "History",
@@ -543,17 +852,16 @@
       "scope": "{count, plural, one {# workout} other {# workouts}}"
     },
     "empty": "Nothing imported yet. Imports you confirm will be listed here, each removable in one tap.",
-    "headerTitle": "Import history",
     "historyGroupLabel": "Past imports",
+    "sectionTitle": "Past imports",
     "source": {
       "hevy": "Hevy",
       "strong": "Strong"
     },
-    "title": "Past imports"
+    "title": "Import history"
   },
   "ImportFlow": {
     "actions": {
-      "cancel": "Cancel",
       "confirm": "{count, plural, one {Import # workout} other {Import # workouts}}",
       "confirmPending": "Importing…",
       "importAnother": "Import another",
@@ -657,13 +965,56 @@
     "validation": "Enter a measurement above 0 {unit}.",
     "value": "{value} {unit}"
   },
+  "Mfa": {
+    "authenticatorCodeLabel": "Code from your authenticator app",
+    "beginAction": "Set up two-step verification",
+    "checking": "Checking…",
+    "copiedLabel": "Copied",
+    "copyKeyAction": "Copy key",
+    "doneAction": "Back to account",
+    "doneDisableBody": "You will sign in with just your connected account from now on.",
+    "doneDisableTitle": "Two-step verification is off",
+    "doneEnrollBody": "From now on you will enter a code from your authenticator app when you sign in.",
+    "doneEnrollTitle": "Two-step verification is on",
+    "errorAlreadyEnrolled": "Two-step verification is already on for this account.",
+    "errorGeneric": "Something went wrong. Try again.",
+    "errorReauthRequired": "For your security, sign in again before changing this.",
+    "errorRequiredHere": "Two-step verification is required for every account here, so it cannot be turned off.",
+    "errorSetupExpired": "Setup timed out. Start again to get a fresh key.",
+    "errorUnavailable": "Two-step verification is not available on this account right now.",
+    "errorWrongCode": "That code did not match. Codes change every 30 seconds — try the current one.",
+    "introDisable": "You will sign in with just your connected account after this.",
+    "introEnroll": "Add a code from your phone to every sign-in.",
+    "manualKeyLabel": "Or enter this key by hand:",
+    "openAuthenticatorAction": "Open in authenticator app",
+    "qrAlt": "QR code for setting up two-step verification",
+    "qrToggle": "Scan a QR code from another device",
+    "recoveryNotice": "If you lose your phone you will need to contact support to get back in — there are no backup codes.",
+    "setupInstructions": "Add this to your authenticator app, then enter the 6-digit code it shows.",
+    "setupUnavailable": "Two-step setup is temporarily unavailable. Try again in a few minutes.",
+    "titleDisable": "Turn off two-step",
+    "titleEnroll": "Two-step verification",
+    "turnOffAction": "Turn off two-step verification",
+    "turnOnAction": "Turn on",
+    "working": "Working…"
+  },
   "MomentumPanel": {
     "emptyWeek": "The week is wide open — log a session.",
     "goalLabel": "{count, plural, one {Goal} other {Goals · #}}",
+    "sessionsLine": "{count, plural, one {# session} other {# sessions}} this week",
     "setsUnit": "{count, plural, one {set} other {sets}}",
-    "title": "This week"
+    "title": "This week",
+    "weekDeltaDown": "Down {delta} on last week",
+    "weekDeltaLevel": "Level with last week",
+    "weekDeltaUp": "Up {delta} on last week"
   },
   "NavDrawer": {
+    "anchor": "{anchor, select, today {today} tomorrow {tomorrow} sunday {sunday} monday {monday} tuesday {tuesday} wednesday {wednesday} thursday {thursday} friday {friday} saturday {saturday} other {{anchor}}}",
+    "day": {
+      "date": "{date, date, ::MMMd}",
+      "today": "Today",
+      "yesterday": "Yesterday"
+    },
     "invitation": {
       "body": "Log a weigh-in",
       "coach": "Ask about your training",
@@ -694,8 +1045,21 @@
     "resumeContext": "Workout in progress",
     "settingsLink": "Settings",
     "startAction": "Start Workout",
+    "startContext": "{day} · Week {week}",
+    "startContextAnchor": "{day} · Week {week} · {anchor}",
     "startError": "Could not start — try again.",
     "startingAction": "Starting…",
+    "status": {
+      "bodyCheckInDue": "check-in due",
+      "bodyCheckedInDaysAgo": "last {days}d ago",
+      "bodyCheckedInToday": "checked in today",
+      "lastPr": "Last PR: {label}",
+      "movements": "{count, plural, one {# logged movement} other {# logged movements}}",
+      "program": "{name} · Wk {week}/{total}",
+      "trophies": "{count} earned",
+      "trophiesNewest": "{count} earned · newest: {newest}",
+      "volume": "{count, plural, one {# set} other {# sets}} this week"
+    },
     "title": "Navigation",
     "triggerLabel": "Open navigation",
     "untitledWorkout": "Workout"
@@ -759,11 +1123,44 @@
     "subheadingLabel": "Subheading",
     "toolbarLabel": "Formatting"
   },
+  "Offline": {
+    "body": "Workout Tracker will reconnect automatically. Your in-progress draft is safe and will sync when you’re back.",
+    "heading": "You’re offline",
+    "retry": "Try again now",
+    "title": "Offline — Workout Tracker"
+  },
+  "OpsBilling": {
+    "title": "Billing",
+    "lede": "Look up a member to see what they hold and why.",
+    "lookup": {
+      "label": "Email or user id",
+      "placeholder": "someone@example.com",
+      "action": "Look up"
+    },
+    "empty": "No member matches that.",
+    "prompt": "Search by email, or pick a member from the roster.",
+    "effective": {
+      "viaSource": "via {source}",
+      "default": "no grant on file"
+    },
+    "expiry": {
+      "on": "until {date}",
+      "never": "never expires"
+    },
+    "roster": {
+      "title": "Paying members",
+      "empty": "Nobody is on a paid tier yet.",
+      "colUser": "Member",
+      "colTier": "Tier",
+      "colExpires": "Expires"
+    }
+  },
   "OpsHeader": {
     "navLabel": "Ops sections",
     "tab": {
       "ops": "Ops",
-      "product": "Product"
+      "product": "Product",
+      "billing": "Billing"
     },
     "title": "Ops"
   },
@@ -797,18 +1194,6 @@
     },
     "updateError": "Could not update the overshoot policy. Please try again."
   },
-  "P": {
-    "adoptAction": "Add to my programs",
-    "attribution": "Shared program · {days, plural, one {# day} other {# days}}/week · {weeks, plural, one {# week} other {# weeks}}",
-    "dayLabel": "Day {number}",
-    "openAction": "Open your program",
-    "ownerNotice": "This is your program — this is what people with the link see.",
-    "pageTitle": "Shared program",
-    "planTitle": "The plan",
-    "signInAction": "Sign in to add this program",
-    "sourceLabel": "Source",
-    "supersetLabel": "Superset {label}"
-  },
   "PatchProposalCard": {
     "applyAction": "Apply all",
     "applyError": "Could not apply these changes. Please try again.",
@@ -841,7 +1226,6 @@
   },
   "PhotoOverlay": {
     "alt": "{pose, select, none {Progress photo, {date}} other {Progress photo, {date}, {pose}}}",
-    "close": "Close",
     "confirm": {
       "body": "It's removed from your account permanently — there's no undo.",
       "confirmLabel": "Delete",
@@ -868,6 +1252,46 @@
     "uploadError": "Didn’t upload. Try again.",
     "uploadFailed": "Upload failed"
   },
+  "Plan": {
+    "title": "Plan",
+    "current": {
+      "title": "Your plan"
+    },
+    "tier": {
+      "free": {
+        "name": "Free",
+        "price": "Free",
+        "summary": "Log every workout you want, forever."
+      },
+      "pro": {
+        "name": "Pro",
+        "price": "$5 / month",
+        "summary": "Automatic load adjustment as your lifts progress."
+      },
+      "max": {
+        "name": "Max",
+        "price": "$13 / month",
+        "summary": "Everything in Pro, plus the AI coach."
+      }
+    },
+    "capability": {
+      "coach": "AI coach",
+      "autoreg": "Automatic load adjustment"
+    },
+    "provenance": {
+      "granted": "Granted by support",
+      "purchased": "Billed through {source}"
+    },
+    "expiry": {
+      "on": "until {date}",
+      "never": "no expiry"
+    },
+    "compare": {
+      "title": "All plans",
+      "currentBadge": "Your plan"
+    },
+    "unavailableNotice": "Upgrading is not open yet. Nothing here can be bought, and nothing will be charged."
+  },
   "PlanBulletList": {
     "noTarget": "{current} sets · no target",
     "progress": "{current} / {planned} sets"
@@ -879,9 +1303,7 @@
     "barOption": "{weight} {unit} bar",
     "barsLegend": "Bars ({unit})",
     "belowBar": "below the bar",
-    "cancel": "Cancel",
     "clear": "Clear",
-    "close": "Close",
     "closest": "closest {weight} — {perSide}",
     "countHint": "Tap the plates on one side of the bar.",
     "countedPlate": "{weight} ×",
@@ -1044,6 +1466,8 @@
       "fromE1rmNote": "from your e1RM",
       "label": "Training max ({unit})"
     },
+    "weekday": "{weekday, select, sunday {Sunday} monday {Monday} tuesday {Tuesday} wednesday {Wednesday} thursday {Thursday} friday {Friday} saturday {Saturday} other {{weekday}}}",
+    "weekdayInitial": "{weekday, select, sunday {S} monday {M} tuesday {T} wednesday {W} thursday {T} friday {F} saturday {S} other {{weekday}}}",
     "weeksAriaLabel": "Program length in weeks",
     "weeksPlaceholder": "Weeks (default 1)"
   },
@@ -1108,6 +1532,13 @@
       "eyebrowOwner": "Proposed for you",
       "eyebrowShared": "Shared program"
     },
+    "proposalAge": {
+      "days": "proposed {days, plural, one {# day} other {# days}} ago",
+      "months": "proposed {months, plural, one {# month} other {# months}} ago",
+      "today": "proposed today",
+      "weeks": "proposed {weeks, plural, one {# week} other {# weeks}} ago",
+      "yesterday": "proposed yesterday"
+    },
     "sourceLinkLabel": "Source",
     "statsLink": "Stats",
     "status": {
@@ -1116,17 +1547,30 @@
       "draft": "draft",
       "proposed": "proposed"
     },
+    "statusLine": {
+      "complete": "Block complete.",
+      "week": "Week {week} of {total}{deload, select, yes { · deload week} other {}}{deloadNext, select, yes { · deload next week} other {}}.",
+      "weekRemaining": "Week {week} of {total}{deload, select, yes { · deload week} other {}} · {remaining, plural, one {# day} other {# days}} to go{deloadNext, select, yes { · deload next week} other {}}.",
+      "weekTrained": "Week {week} of {total}{deload, select, yes { · deload week} other {}} · week trained{deloadNext, select, yes { · deload next week} other {}}."
+    },
+    "target": {
+      "load": "{count}×{reps, select, none {?} other {{reps}}} @ {load}",
+      "reps": "{count}×{reps} reps",
+      "rir": "RIR {rir}",
+      "rpe": "RPE {rpe}",
+      "sets": "{count, plural, one {# set} other {# sets}}",
+      "tempo": "{tempo} tempo",
+      "timed": "{count}×{duration, select, none {—} other {{duration}}}{distance, select, none {} other { / {distance}}}"
+    },
     "weekMeta": "Week {week} of {total}",
     "weekMetaDeload": "Week {week} of {total} · deload wk {deloadWeek}",
     "weekNavLabel": "Mesocycle week",
     "weekTitle": "Week {week}"
   },
   "ProgramEdit": {
-    "closeLink": "Close",
     "title": "Edit Program"
   },
   "ProgramNew": {
-    "closeLink": "Close",
     "title": "New Program"
   },
   "ProgramStats": {
@@ -1134,8 +1578,13 @@
     "muscle": {
       "ariaLabel": "Muscle volume",
       "deloadBadge": "DL",
+      "driversHold": "{names} stalled — hold volume while recovery catches up",
+      "driversIncrease": "{names} beat top of range 2 weeks running",
       "lede": "Verdicts from week {week} — sets credited per muscle",
       "setCount": "{value} {count, plural, one {set} other {sets}}",
+      "statusHold": "hold",
+      "statusIncrease": "+1 earned",
+      "statusOnTrack": "on track",
       "title": "Muscle volume",
       "trend": "{values} <muted>sets/week</muted>"
     },
@@ -1165,7 +1614,13 @@
     },
     "title": "Program Stats",
     "verdict": {
-      "ariaLabel": "Block verdict"
+      "ariaLabel": "Block verdict",
+      "contextEarly": "The block picture builds as you train.",
+      "contextSteady": "{adherence, number, percent} of planned days trained{trend, select, up { · volume up week over week} down { · volume down week over week} other {}}",
+      "contextStronger": "{lifts, plural, one {# lift} other {# lifts}} up this block · {adherence, number, percent} of planned days trained{trend, select, up { · volume up week over week} down { · volume down week over week} other {}}",
+      "headlineEarly": "Early days.",
+      "headlineSteady": "Showing up.",
+      "headlineStronger": "Getting stronger."
     },
     "weekMeta": "Week {week} of {total}",
     "weekShort": "Wk {week}",
@@ -1224,9 +1679,22 @@
       "weekPosition": "<big>Wk {week}</big> <small>of {total}</small>"
     },
     "newLink": "+ New Program",
+    "proposalAge": {
+      "days": "proposed {days, plural, one {# day} other {# days}} ago",
+      "months": "proposed {months, plural, one {# month} other {# months}} ago",
+      "today": "proposed today",
+      "weeks": "proposed {weeks, plural, one {# week} other {# weeks}} ago",
+      "yesterday": "proposed yesterday"
+    },
     "row": {
       "weeks": "{weeks, plural, one {# week} other {# weeks}}",
       "weeksDeload": "{weeks, plural, one {# week} other {# weeks}} · deload wk {deloadWeek}"
+    },
+    "status": {
+      "active": "Active",
+      "archived": "Archived",
+      "draft": "Draft",
+      "proposed": "Proposed"
     },
     "templatesLink": "Browse program templates",
     "title": "Programs",
@@ -1250,8 +1718,6 @@
     "declineError": "Could not decline this proposal. Please try again."
   },
   "QuickCaptureSheet": {
-    "cancel": "Cancel",
-    "close": "Close",
     "delete": "Delete",
     "deleteError": "Could not delete the note. Please try again.",
     "dialogLabel": "{eyebrow}: {title}",
@@ -1304,7 +1770,6 @@
     "chimeLabel": "End-of-rest chirp",
     "chimeOff": "Off",
     "chimeOn": "On",
-    "close": "Close",
     "customAriaLabel": "Custom rest target in seconds",
     "customPlaceholder": "Custom s",
     "lede": "Fallback for sets without a planned rest. Off = count up only.",
@@ -1322,6 +1787,10 @@
   },
   "RestartProgramButton": {
     "dialog": {
+      "body": "Creates a fresh copy of this program starting at week 1 and makes it active. This one is archived — its history and stats stay.",
+      "bodyIncrements": "Training maxes step up one increment for the new block ({lifts, plural, one {# lift} other {# lifts}}).",
+      "bodyStalled": "{exercise} looks stalled — its training max stays put.",
+      "bodyStalledReset": "{exercise} looks stalled — its training max stays put; consider a reset to {tm} {unit} after restarting.",
       "confirm": "Restart block",
       "pending": "Restarting…",
       "title": "Start the next block?"
@@ -1333,6 +1802,40 @@
     "ariaLabel": "Effort logging (RPE/RIR)",
     "saveError": "Couldn’t save. Try again."
   },
+  "SchemeCopy": {
+    "name": {
+      "amrapCycle": "AMRAP cycle",
+      "doubleProgression": "Double progression",
+      "linear": "Linear",
+      "percent1rm": "Percent of 1RM",
+      "repProgression": "Rep progression",
+      "rpeTarget": "RPE target",
+      "weeklyVolume": "Weekly volume"
+    },
+    "sentence": {
+      "amrapCycle": "Beat your rep record on the last set to earn the next training-max bump (+{increment, number, ::group-off} {unit}).",
+      "doubleProgression": "Hit {reps} reps on every set → +{increment, number, ::group-off} {unit} next session.",
+      "doubleProgressionAtLoad": "Hit {reps} reps on every set at {load, number, ::group-off} {unit} → +{increment, number, ::group-off} {unit} next session.",
+      "linear": "Complete all sets → +{increment, number, ::group-off} {unit} next session.",
+      "percent1rm": "Week loads are {percent}% of your {trainingMax, number, ::group-off} {unit} training max.",
+      "percent1rmRange": "Week loads are {min}–{max}% of your {trainingMax, number, ::group-off} {unit} training max.",
+      "repProgression": "+{reps, plural, one {# rep} other {# reps}} each session.",
+      "repProgressionCapped": "+{reps, plural, one {# rep} other {# reps}} each session, up to {cap}.",
+      "rpeTarget": "Loads picked from your estimated max to land at RPE {rpe, number, ::group-off}.",
+      "secProgression": "+{seconds} sec each session.",
+      "secProgressionCapped": "+{seconds} sec each session, up to {cap} sec.",
+      "weeklyVolume": "{mev} → {mrv} sets across the block, added weekly."
+    },
+    "subtitle": {
+      "amrapCycle": "Each week ends with an as-many-reps-as-possible set; beat your record to earn the next training-max bump.",
+      "doubleProgression": "Work up to the top of your rep range, then the weight goes up and reps start over.",
+      "linear": "Add weight every session you complete all sets.",
+      "percent1rm": "Weights are percentages of your training max, which bumps a small fixed amount each cycle.",
+      "repProgression": "Same weight, more reps each session.",
+      "rpeTarget": "Loads are picked from your estimated max to hit a target effort — heavier on good days, lighter on bad.",
+      "weeklyVolume": "Start at minimum growth volume, add sets weekly until recovery caps, then deload."
+    }
+  },
   "SchemeSubtitle": {
     "separator": "—"
   },
@@ -1340,8 +1843,6 @@
     "ariaLabel": "{state, select, hidden {{section} — hidden. Edit section} sm {{section} — Small. Edit section} md {{section} — Medium. Edit section} lg {{section} — Large. Edit section} other {{section}. Edit section}}"
   },
   "SessionConflictDialog": {
-    "cancel": "Cancel",
-    "close": "Close",
     "continueAction": "Continue workout",
     "dialogLabel": "Workout in progress",
     "discardAction": "Discard & start new",
@@ -1376,6 +1877,10 @@
     "warmupUntag": "Untag warm-up"
   },
   "Settings": {
+    "account": {
+      "hint": "Your name, how you sign in, and closing your account.",
+      "label": "Account"
+    },
     "accountGroupLabel": "Account",
     "analytics": {
       "hint": "Link your usage (never your workout content) to your account. Turning this off also deletes your usage profile from our analytics provider.",
@@ -1416,6 +1921,10 @@
       "hint": "Monitoring board — not part of the app.",
       "label": "Ops"
     },
+    "plan": {
+      "label": "Plan",
+      "hint": "What you are on, and what the other plans include."
+    },
     "privacyPolicy": {
       "hint": "What we collect and why.",
       "label": "Privacy Policy"
@@ -1428,7 +1937,6 @@
       "hint": "Counts down your rest after each set.",
       "label": "Rest timer"
     },
-    "signOutAction": "Sign out",
     "signedInLabel": "Signed in",
     "terms": {
       "hint": "The agreement for using the app.",
@@ -1449,10 +1957,44 @@
       "training": "Training"
     }
   },
+  "ShareCard": {
+    "personalRecord": "Personal Record",
+    "progress": "Progress",
+    "session": "Session",
+    "trophy": "Trophy"
+  },
   "ShareCardButton": {
     "ariaLabel": "Share {title}",
     "error": "Couldn't create the share image",
     "savedHint": "Image saved — post it anywhere"
+  },
+  "SharedProgram": {
+    "adoptAction": "Add to my programs",
+    "attribution": "Shared program · {days, plural, one {# day} other {# days}}/week · {weeks, plural, one {# week} other {# weeks}}",
+    "dayLabel": "Day {number}",
+    "openAction": "Open your program",
+    "ownerNotice": "This is your program — this is what people with the link see.",
+    "planTitle": "The plan",
+    "signInAction": "Sign in to add this program",
+    "sourceLabel": "Source",
+    "supersetLabel": "Superset {label}",
+    "title": "Shared program"
+  },
+  "SharedWorkout": {
+    "approxPrefix": "~",
+    "durationLabel": "Duration",
+    "e1rmLabel": "Est. 1RM",
+    "emptySets": "No sets logged.",
+    "openAction": "Open your workout",
+    "ownerNotice": "This is your workout — this is what people with the link see.",
+    "promoDescription": "Logged with this app — track your own sessions, PRs, and programs.",
+    "repsValue": "{reps, plural, one {# rep} other {# reps}}",
+    "setsLabel": "{count, plural, one {Set} other {Sets}}",
+    "sharedLabel": "Shared workout",
+    "signInAction": "Sign in to start tracking",
+    "skippedLabel": "Skipped",
+    "topSetLabel": "Top set",
+    "volumeLabel": "Volume"
   },
   "SharingSection": {
     "ariaLabel": "Sharing",
@@ -1535,7 +2077,6 @@
     "bestE1rmDetail": "{weight} {unit} × {reps} · {date}",
     "bestE1rmLabel": "Best est. 1RM",
     "bestE1rmValue": "{value}<unitTag>{unit}</unitTag>",
-    "close": "Close",
     "empty": "No completed sessions yet — finish a workout with this movement and its records land here.",
     "emptyRecords": "No load records yet — log weight and PRs land here.",
     "error": "Couldn't load stats. Close and reopen to retry.",
@@ -1549,6 +2090,38 @@
     "topVolumeLabel": "Top volume"
   },
   "StatusHero": {
+    "anchor": "{anchor, select, today {Today} tomorrow {Tomorrow} sunday {Sunday} monday {Monday} tuesday {Tuesday} wednesday {Wednesday} thursday {Thursday} friday {Friday} saturday {Saturday} other {{anchor}}}",
+    "context": {
+      "blockWeeks": "{weeks, plural, one {# week} other {# weeks}}",
+      "driftFallback": "Pick up where you left off.",
+      "driftNext": "Next up: {day} · {anchor}",
+      "freshDayOne": "Log your first session — a program gives every set a target.",
+      "freshReturning": "No plan today — quick-log a session, or pick a program.",
+      "live": "{name} · {sets, plural, one {# set} other {# sets}} logged",
+      "rest": "Next: {day} · {anchor}",
+      "streak": "Your {weeks}-week streak is on the line — one session keeps it.",
+      "trained": "{name} · showed up — that counts",
+      "trainedVolume": "{name} · {volume}",
+      "week": "Week {week} of {total}",
+      "weekWithLastTime": "Week {week} of {total} · last time: {volume}"
+    },
+    "eyebrow": {
+      "blockComplete": "Block complete",
+      "live": "Workout in progress",
+      "logged": "Session logged",
+      "upNext": "Up next"
+    },
+    "headline": {
+      "dayOne": "Day one.",
+      "done": "Done for today.",
+      "drifting": "{days, plural, one {# day} other {# days}} since {session}.",
+      "due": "{day} day.",
+      "dueSelfNamed": "{day}.",
+      "live": "In the middle of it.",
+      "ready": "Ready when you are.",
+      "rest": "Rest day."
+    },
+    "lastSession": "your last session",
     "logMoreLink": "Log more",
     "programsLink": "Browse programs",
     "quickLogLink": "Quick log",
@@ -1559,7 +2132,9 @@
     "setsProgressLabel": "Sets completed",
     "startAction": "Start workout",
     "startActionFresh": "+ Start Workout",
-    "startDayAction": "Start {day}"
+    "startDayAction": "Start {day}",
+    "unnamedSession": "Unnamed session",
+    "untitledWorkout": "Workout"
   },
   "StatusStrip": {
     "navLabel": "System status"
@@ -1605,8 +2180,6 @@
   },
   "TemplateEditSheet": {
     "ariaLabel": "Edit {name}",
-    "cancel": "Cancel",
-    "close": "Close",
     "descriptionAriaLabel": "Description for {name}",
     "descriptionLabel": "Description",
     "eyebrow": "Edit template",
@@ -1621,9 +2194,21 @@
   },
   "Templates": {
     "empty": "Finish a workout, tap “Save as template” on its summary, and it lives here ready to start in one tap.",
+    "lastRun": {
+      "daysAgo": "{days}d ago",
+      "monthsAgo": "{months} mo ago",
+      "today": "Today",
+      "weeksAgo": "{weeks, plural, one {# wk ago} other {# wks ago}}",
+      "yesterday": "Yesterday"
+    },
     "startAction": "Start a workout",
     "startHeroAction": "Start {name}",
     "startRowAriaLabel": "Start {name}",
+    "status": {
+      "lastRun": "Last: {when}",
+      "lastRunVolume": "Last: {when} · {volume, number} {unit}",
+      "neverRun": "{count, plural, one {# exercise} other {# exercises}} · Never run"
+    },
     "title": "Session templates"
   },
   "TemplatesUnavailable": {
@@ -1637,7 +2222,6 @@
     }
   },
   "TileSheet": {
-    "close": "Close",
     "dialogLabel": "{section} section",
     "move": {
       "down": "Down",
@@ -1686,8 +2270,46 @@
       "groupLabel": "Closest trophies",
       "title": "Closest"
     },
+    "context": {
+      "clubE1rm": "e1RM {value, number, ::group-off} {unit}",
+      "count": "{count, plural, =1 {First session logged} other {Workout '#'{count}}}",
+      "streak": "{weeks, plural, one {# consecutive week} other {# consecutive weeks}}",
+      "sumTotal": "Total {value, number, ::group-off} {unit}",
+      "tonnage": "{value, number} {unit} lifted"
+    },
     "empty": "No trophies yet. Every trophy is a lifting fact — plate clubs, workout counts, streaks. Train and they stamp themselves.",
+    "family": {
+      "block": "Blocks",
+      "club": "Plate Clubs",
+      "count": "Showing Up",
+      "streak": "Streaks",
+      "sum_club": "Totals",
+      "tonnage": "Tonnage"
+    },
+    "hint": {
+      "blockActive": "Train every day of your program's final week",
+      "blockNoProgram": "Start a program",
+      "clubNoLift": "No {lift} e1RM yet",
+      "count": "{current}/{target} workouts",
+      "streak": "{current}/{target} weeks",
+      "streakUnscheduled": "Schedule program days to start a streak",
+      "sumMissing": "Needs a {lifts} e1RM",
+      "tonnage": "{current, number}/{target, number} {unit} lifted",
+      "weightProgress": "{current, number}/{target, number} {unit} — {remaining, number} {unit} to go"
+    },
+    "label": {
+      "block": "Block Complete",
+      "club": "{lb} {lift} Club",
+      "count": "{count, plural, =1 {First Workout} other {# Workouts}}",
+      "streak": "{weeks}-Week Streak",
+      "sumClub": "{lb, number} lb Club",
+      "tonnage": "{millions}M lb Lifted"
+    },
     "progressLabel": "{percent}% toward {trophy}",
+    "push": {
+      "body": "Earned — see your trophies.",
+      "title": "Trophy: {name}"
+    },
     "title": "Trophies"
   },
   "UnitToggle": {
@@ -1695,6 +2317,7 @@
     "saveError": "Didn’t save — tap again"
   },
   "UpNextAnchor": {
+    "anchor": "{anchor, select, today {Today} tomorrow {Tomorrow} sunday {Sunday} monday {Monday} tuesday {Tuesday} wednesday {Wednesday} thursday {Thursday} friday {Friday} saturday {Saturday} other {{anchor}}}",
     "fallbackAnchor": "Up next",
     "summary": "{anchor} · Week {week}"
   },
@@ -1710,22 +2333,6 @@
       "planned": "Planned / week",
       "previous": "Last week"
     }
-  },
-  "W": {
-    "approxPrefix": "~",
-    "durationLabel": "Duration",
-    "e1rmLabel": "Est. 1RM",
-    "emptySets": "No sets logged.",
-    "openAction": "Open your workout",
-    "ownerNotice": "This is your workout — this is what people with the link see.",
-    "promoDescription": "Logged with this app — track your own sessions, PRs, and programs.",
-    "repsValue": "{reps, plural, one {# rep} other {# reps}}",
-    "setsLabel": "{count, plural, one {Set} other {Sets}}",
-    "sharedLabel": "Shared workout",
-    "signInAction": "Sign in to start tracking",
-    "skippedLabel": "Skipped",
-    "topSetLabel": "Top set",
-    "volumeLabel": "Volume"
   },
   "WeightStepper": {
     "decreaseAriaLabel": "Decrease set {set} {noun} by {step} {unit}",
@@ -1838,7 +2445,6 @@
     "bodyweightAriaLabel": "Set {set} uses bodyweight",
     "bodyweightGlyph": "BW",
     "changeEffortAriaLabel": "Change effort for {set}: {effort}",
-    "close": "Close",
     "collapseAriaLabel": "Collapse {name}",
     "column": {
       "distance": "km",

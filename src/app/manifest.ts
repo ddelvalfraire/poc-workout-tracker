@@ -1,10 +1,16 @@
 import type { MetadataRoute } from 'next'
+import { getTranslations } from 'next-intl/server'
 
-export default function manifest(): MetadataRoute.Manifest {
+// The install prompt is the first copy a user ever sees, and it was a second
+// hardcoded copy of the same two strings the document title already resolves
+// from the catalog — so a translated app would still have offered an English
+// install prompt.
+export default async function manifest(): Promise<MetadataRoute.Manifest> {
+  const t = await getTranslations('Common')
   return {
-    name: 'Workout Tracker',
-    short_name: 'Workouts',
-    description: 'Log your workouts and review your training history.',
+    name: t('appName'),
+    short_name: t('appShortName'),
+    description: t('appDescription'),
     start_url: '/',
     display: 'standalone',
     background_color: '#0a0a0a',

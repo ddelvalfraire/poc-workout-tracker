@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
+import { execSync } from 'node:child_process'
 import { join } from 'node:path'
 import { DEFAULT_LOCALE, SUPPORTED_LOCALES } from './config'
 
@@ -144,5 +145,76 @@ describe('message catalogs', () => {
         expect(value.trim(), `${locale}: ${path} is empty`).not.toBe('')
       }
     }
+  })
+})
+
+describe('catalog has no orphaned keys', () => {
+  it('every message is referenced somewhere in src', () => {
+    // A key nobody renders is a key a translator still gets billed for, and
+    // it hides the fact that its surface was deleted or renamed.
+    //
+    // Matching is deliberately PERMISSIVE — any quoted occurrence of the
+    // path-after-namespace counts, which covers t('x'), message descriptors
+    // ({ key: 'x' }) and option maps alike. A false "dead" would delete a
+    // live key and break a render, so this errs toward missing one.
+    const files = execSync(
+      "grep -rl . src --include='*.ts' --include='*.tsx' | grep -v '.test.'",
+      { encoding: 'utf8' },
+    )
+      .split('\n')
+      .filter(Boolean)
+    const blob = files.map((f) => readFileSync(f, 'utf8')).join('\n')
+    const quoted = new Set(Array.from(blob.matchAll(/['"`]([A-Za-z][\w.]*)['"`]/g), (m) => m[1]))
+
+    const orphans = flattenKeys(readCatalog(DEFAULT_LOCALE)).filter((path) => {
+      const parts = path.split('.')
+      return !quoted.has(parts.slice(1).join('.')) && !quoted.has(parts[parts.length - 1])
+    })
+
+    expect(orphans).toEqual([])
+  })
+})
+
+/**
+ * Copy that already lives in `Common` must not be written out again.
+ *
+ * The naming doc reserves `Common` for context-free furniture on three or
+ * more unrelated surfaces, and deliberately does NOT ask for every repeated
+ * string to be shared — the same English word often translates differently by
+ * context, which is why `Save` and `Delete` stay per-surface. So this does not
+ * police duplication in general. It polices the narrower, unambiguous case: a
+ * word was consolidated into `Common`, and a later change wrote it out again
+ * somewhere else. That is how the rule erodes, and it happened within a day of
+ * the consolidation landing — a new namespace arrived carrying its own
+ * "Cancel".
+ *
+ * A collision can still be coincidental: two unrelated strings that happen to
+ * match. Those go in EXPECTED with the reason, rather than being shared.
+ */
+const COINCIDENTAL_MATCHES: Record<string, string> = {
+  'ImportFlow.preview.workoutsLabel':
+    'A column label for a count of workouts, not the product name it happens to match.',
+}
+
+describe('Common is the only home for shared chrome', () => {
+  it('no namespace repeats a string that Common already holds', () => {
+    const catalog = readCatalog(DEFAULT_LOCALE)
+    const entries = (node: Record<string, unknown>, prefix = ''): Array<[string, string]> =>
+      Object.entries(node).flatMap(([key, value]) => {
+        const path = prefix ? `${prefix}.${key}` : key
+        return typeof value === 'object' && value !== null
+          ? entries(value as Record<string, unknown>, path)
+          : ([[path, String(value)]] as Array<[string, string]>)
+      })
+
+    const all = entries(catalog)
+    const shared = new Set(all.filter(([p]) => p.startsWith('Common.')).map(([, v]) => v))
+
+    const repeats = all
+      .filter(([path, value]) => !path.startsWith('Common.') && shared.has(value))
+      .filter(([path]) => !(path in COINCIDENTAL_MATCHES))
+      .map(([path, value]) => `${path} = ${JSON.stringify(value)}`)
+
+    expect(repeats, 'render these from Common, or record why the match is coincidental').toEqual([])
   })
 })

@@ -7,7 +7,8 @@ import { getRollingVolumeTotals } from '@/db/muscle-volume'
 import { getGoalsHomeSummary } from '@/lib/goals'
 import { goalLabel } from '@/lib/goal-progress'
 import { bucketDaySets } from '@/lib/drawer-status'
-import { momentumSessionsLine, momentumWeekDeltaLine } from '@/lib/home-status'
+import { momentumSessionsLine, momentumWeekDeltaLine, type MomentumKey } from '@/lib/home-status'
+import { renderLine } from '@/lib/message'
 import { Sparkbar } from '@/components/sparkbar'
 import { StreakChip } from '@/components/streak-chip'
 import { getTranslations } from 'next-intl/server'
@@ -39,6 +40,7 @@ export interface MomentumPanelProps {
 
 export async function MomentumPanel({ userId, nowMs, size = 'md' }: MomentumPanelProps) {
   const t = await getTranslations('MomentumPanel')
+  const tGoals = await getTranslations('Goals')
   const [summaries, unit, goalsSummary, weekTotals] = await Promise.all([
     listWorkoutSummaries(userId),
     getWeightUnit(userId),
@@ -56,13 +58,17 @@ export async function MomentumPanel({ userId, nowMs, size = 'md' }: MomentumPane
   const weekSessions = weekTotals.currentSessions
   const weekDelta = momentumWeekDeltaLine(weekTotals.currentSets, weekTotals.previousSets)
   const daySets = bucketDaySets(summaries, new Date(nowMs))
-  const goal = goalsSummary?.topGoal
-    ? {
-        activeCount: goalsSummary.activeCount,
-        label: goalLabel(goalsSummary.topGoal, unit),
-        streak: goalsSummary.streak,
-      }
-    : null
+  const topGoal = goalsSummary?.topGoal ? goalLabel(goalsSummary.topGoal, unit) : null
+  const goal =
+    goalsSummary !== null && topGoal !== null
+      ? {
+          activeCount: goalsSummary.activeCount,
+          // Rendered from the GOALS namespace, not this panel's: the label is
+          // the goals feature's copy, merely displayed here.
+          label: tGoals(topGoal.key, topGoal.values),
+          streak: goalsSummary.streak,
+        }
+      : null
 
   // sm: the one big number + streak flame ONLY — same card, same type
   // styles, everything else (sparkbar, sessions line, goal line) dropped.
@@ -114,14 +120,16 @@ export async function MomentumPanel({ userId, nowMs, size = 'md' }: MomentumPane
             </span>
             <span className="mt-1.5 block text-sm text-muted-foreground tnum">
               {weekSets > 0
-                ? momentumSessionsLine(weekSessions)
+                ? renderLine<MomentumKey>(t, momentumSessionsLine(weekSessions))
                 : t('emptyWeek')}
             </span>
             {/* lg only: the week-over-week fact, from the previous window the
                 totals read already fetched (zero new queries). Null (empty
                 last week) renders nothing — silence over a hollow compare. */}
             {size === 'lg' && weekDelta !== null && (
-              <span className="mt-0.5 block text-sm text-muted-foreground tnum">{weekDelta}</span>
+              <span className="mt-0.5 block text-sm text-muted-foreground tnum">
+                {renderLine<MomentumKey>(t, weekDelta)}
+              </span>
             )}
           </span>
           {daySets.length > 0 && (

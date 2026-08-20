@@ -73,7 +73,18 @@ function storyGraph(): string[] {
     seen.add(file);
     if (isAliased(file)) return;
     const source = readFileSync(file, "utf8");
+    // An `import type` edge is erased by the compiler — the module never
+    // reaches the browser bundle, so it is not the catalog's problem. A
+    // specifier is skipped only when EVERY import of it in this file is
+    // type-only; one value import keeps the edge.
+    const valueSpecifiers = new Set<string>();
+    for (const match of source.matchAll(
+      /(?:import|export)\s+(type\s+)?[^'";]*?from\s*['"]([^'"]+)['"]/g,
+    )) {
+      if (!match[1]) valueSpecifiers.add(match[2]);
+    }
     for (const match of source.matchAll(ANY_IMPORT)) {
+      if (!valueSpecifiers.has(match[1])) continue;
       const resolved = resolveSpecifier(match[1], file);
       if (resolved !== null) visit(resolved);
     }

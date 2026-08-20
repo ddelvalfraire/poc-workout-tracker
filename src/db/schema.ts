@@ -33,6 +33,7 @@ import type { PhotoPose } from '@/lib/photo-input'
 import type { GoalKind, GoalTarget } from '@/lib/goal-input'
 import type { TrophyKind, TrophyContext } from '@/lib/trophy-kinds'
 import type { NoteAuthor, NoteAnchorSnapshot } from '@/lib/note-input'
+import type { Tier, GrantSource, GrantStatus } from '@/lib/entitlements/tiers'
 
 export const workouts = pgTable(
   'workouts',
@@ -1137,3 +1138,82 @@ export const consentDownstreamActions = pgTable(
   },
   (t) => [index('consent_downstream_status_idx').on(t.status)],
 )
+
+// ---------------------------------------------------------------------------
+// Entitlements — see docs/ENTITLEMENTS.md
+// ---------------------------------------------------------------------------
+
+/**
+ * The append-only reason a user has a tier. One row per grant, whatever
+ * conferred it: a Stripe subscription, an Apple/Google transaction, a support
+ * comp, a promo. Rows are NEVER edited to reflect a new truth — a revocation
+ * stamps the revoked_* columns and leaves the original act legible, which is
+ * what makes this answerable months later when a customer asks why.
+ *
+ * `reason` is not nullable on purpose. A grant nobody can explain later is
+ * unauditable, and the one most likely to need explaining is the manual one
+ * somebody made at 2am.
+ *
+ * No FK to a users table: user ids come from WorkOS, and the rest of the
+ * schema keys on the same bare text id.
+ */
+export const entitlementGrants = pgTable(
+  'entitlement_grants',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    userId: text('user_id').notNull(),
+    tier: text('tier').$type<Tier>().notNull(),
+    source: text('source').$type<GrantSource>().notNull(),
+    /**
+     * The external identity of what caused this: a Stripe subscription id, an
+     * Apple originalTransactionId, a Google purchaseToken, a promo code. Null
+     * for a manual comp, which has no external counterpart.
+     */
+    sourceRef: text('source_ref'),
+    status: text('status').$type<GrantStatus>().notNull().default('active'),
+    startsAt: timestamp('starts_at', { withTimezone: true }).defaultNow().notNull(),
+    /** Null = perpetual: a lifetime purchase, or an open-ended comp. */
+    endsAt: timestamp('ends_at', { withTimezone: true }),
+    reason: text('reason').notNull(),
+    /** The ops user who took the action; null when a payment processor did. */
+    actorId: text('actor_id'),
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+    revokedReason: text('revoked_reason'),
+    revokedByActorId: text('revoked_by_actor_id'),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [
+    index('entitlement_grants_user_idx').on(t.userId, t.createdAt.desc()),
+    /**
+     * At most one LIVE grant per external subscription. This is the webhook
+     * idempotency guard: a redelivered Stripe event tries to insert the same
+     * (source, source_ref) and collides instead of provisioning twice. Partial
+     * so a revoked grant does not block re-subscribing with the same id.
+     */
+    uniqueIndex('entitlement_grants_source_ref_live_idx')
+      .on(t.source, t.sourceRef)
+      .where(sql`${t.sourceRef} is not null and ${t.status} = 'active'`),
+    check('entitlement_grants_window_ck', sql`${t.endsAt} is null or ${t.endsAt} > ${t.startsAt}`),
+  ],
+)
+
+/**
+ * Current-state projection, rewritten in the same transaction as every grant
+ * write. Hot-path gates read ONLY this — one primary-key lookup.
+ *
+ * `expires_at` is stored rather than derived so the read can compare it to the
+ * clock: a grant that simply lapses stops granting with no event, no cron and
+ * no webhook. A stale projection therefore resolves DOWN, never up, which is
+ * the only acceptable direction for a row that hands out paid features.
+ */
+export const entitlementsCurrent = pgTable('entitlements_current', {
+  userId: text('user_id').primaryKey(),
+  tier: text('tier').$type<Tier>().notNull(),
+  /** Null when the user is on the default tier with nothing granted. */
+  source: text('source').$type<GrantSource>(),
+  /** Null when perpetual, or when on the default tier. */
+  expiresAt: timestamp('expires_at', { withTimezone: true }),
+  /** The winning grant, for the ops surface to link the tier back to a cause. */
+  grantId: uuid('grant_id').references(() => entitlementGrants.id, { onDelete: 'set null' }),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull(),
+})

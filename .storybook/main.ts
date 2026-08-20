@@ -25,6 +25,9 @@ export const SERVER_ACTION_MODULES = [
   "@/app/notes/actions",
   "@/app/programs/actions",
   "@/app/workout/actions",
+  "@/app/settings/account/mfa/actions",
+  "@/app/settings/account/actions",
+  "@/app/ops/billing/actions",
 ];
 
 /**

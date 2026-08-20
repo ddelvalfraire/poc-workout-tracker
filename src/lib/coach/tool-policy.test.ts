@@ -107,3 +107,33 @@ describe('coach tool policy', () => {
     }
   })
 })
+
+describe('tool order is stable for the prompt cache', () => {
+  /**
+   * The tool block is the head of the cache prefix. If it serialises in a
+   * different order between requests the cache never matches, and we pay the
+   * cache WRITE premium on every turn while taking zero reads — worse than
+   * having no caching at all. These pin the property, not the current order.
+   */
+  it('returns tools in name order whatever order they arrive in', () => {
+    const forward = filterCoachTools({
+      get_program: 1,
+      get_workouts: 2,
+      search_exercises: 3,
+    })
+    const shuffled = filterCoachTools({
+      search_exercises: 3,
+      get_program: 1,
+      get_workouts: 2,
+    })
+
+    expect(Object.keys(forward)).toEqual(Object.keys(shuffled))
+  })
+
+  it('is byte-identical across calls with the same tool set', () => {
+    const a = filterCoachTools({ search_exercises: 3, get_program: 1 })
+    const b = filterCoachTools({ get_program: 1, search_exercises: 3 })
+
+    expect(JSON.stringify(a)).toBe(JSON.stringify(b))
+  })
+})

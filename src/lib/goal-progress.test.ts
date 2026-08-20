@@ -370,14 +370,26 @@ describe('paceVsDeadline', () => {
     expect(paceVsDeadline(projected, null)).toBe(null)
   })
 
-  it('reports whole weeks early', () => {
-    expect(paceVsDeadline(projected, '2026-11-02')).toBe('3 weeks early')
-    expect(paceVsDeadline(projected, '2026-10-19')).toBe('1 week early')
+  it('picks the ahead message, at one week and at several', () => {
+    expect(paceVsDeadline(projected, '2026-11-02')).toEqual({
+      key: 'paceAhead',
+      values: { weeks: 3 },
+    })
+    expect(paceVsDeadline(projected, '2026-10-19')).toEqual({
+      key: 'paceAhead',
+      values: { weeks: 1 },
+    })
   })
 
-  it('reports whole weeks late', () => {
-    expect(paceVsDeadline(projected, '2026-10-05')).toBe('1 week late')
-    expect(paceVsDeadline(projected, '2026-09-14')).toBe('4 weeks late')
+  it('picks the behind message, at one week and at several', () => {
+    expect(paceVsDeadline(projected, '2026-10-05')).toEqual({
+      key: 'paceBehind',
+      values: { weeks: 1 },
+    })
+    expect(paceVsDeadline(projected, '2026-09-14')).toEqual({
+      key: 'paceBehind',
+      values: { weeks: 4 },
+    })
   })
 
   it('is silent inside the same week — a verdict would be noise', () => {
@@ -391,19 +403,16 @@ describe('paceVsDeadline', () => {
 })
 
 describe('goalLabel', () => {
-  it('names each kind in the display unit', () => {
+  it('names each kind in the display unit, exercise name as an argument', () => {
     expect(
-      goalLabel(
-        { kind: 'strength', target: { e1rmKg: 142.88 }, exerciseName: 'Squat' },
-        'lb',
-      ),
-    ).toBe('Squat 315 lb')
+      goalLabel({ kind: 'strength', target: { e1rmKg: 142.88 }, exerciseName: 'Squat' }, 'lb'),
+    ).toEqual({ key: 'label.strength', values: { exercise: 'Squat', value: 315, unit: 'lb' } })
     expect(
       goalLabel(
         { kind: 'bodyweight', target: { weightKg: 80, direction: 'down' }, exerciseName: null },
         'kg',
       ),
-    ).toBe('Bodyweight 80 kg')
+    ).toEqual({ key: 'label.bodyweight', values: { value: 80, unit: 'kg' } })
     expect(
       goalLabel(
         {
@@ -413,7 +422,13 @@ describe('goalLabel', () => {
         },
         'kg',
       ),
-    ).toBe('8-week streak')
+    ).toEqual({ key: 'label.consistency', values: { weeks: 8 } })
+  })
+
+  it('switches to the unnamed message rather than inventing an exercise name', () => {
+    expect(
+      goalLabel({ kind: 'strength', target: { e1rmKg: 100 }, exerciseName: null }, 'kg'),
+    ).toEqual({ key: 'label.strengthUnnamed', values: { value: 100, unit: 'kg' } })
   })
 
   it('falls back quietly on a corrupt kind/target pairing', () => {
@@ -426,6 +441,6 @@ describe('goalLabel', () => {
         },
         'kg',
       ),
-    ).toBe('Goal')
+    ).toEqual({ key: 'label.unknown' })
   })
 })

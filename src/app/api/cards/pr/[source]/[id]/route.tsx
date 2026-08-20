@@ -5,6 +5,7 @@ import { getWeightUnit } from '@/db/preferences'
 import { parseExerciseRef } from '@/app/exercises/exercise-ref'
 import { prCardData } from '@/lib/cards/card-data'
 import { CardFrame, cardImage, CARD_COLORS, HEADLINE_STYLE } from '@/lib/cards/chrome'
+import { getMessages } from '@/i18n/translate'
 
 /**
  * GET /api/cards/pr/[source]/[id] — 1200×630 PNG of the CURRENT user's best
@@ -31,12 +32,13 @@ export async function GET(
       getExerciseStats(userId, ref.source, ref.wgerExerciseId),
       getWeightUnit(userId),
     ])
+    const tCard = await getMessages('ShareCard')
     const data = prCardData(stats, unit)
     if (data === null) {
       return NextResponse.json({ error: 'Not found' }, { status: 404 })
     }
     return cardImage(
-      <CardFrame eyebrow="Personal Record">
+      <CardFrame eyebrow={tCard('personalRecord')}>
         <div style={{ display: 'flex', fontSize: 64, ...HEADLINE_STYLE }}>{data.exerciseName}</div>
         <div style={{ display: 'flex', alignItems: 'baseline', marginTop: 20 }}>
           <div
