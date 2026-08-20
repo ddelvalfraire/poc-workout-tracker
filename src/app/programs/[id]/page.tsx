@@ -18,6 +18,7 @@ import { listWorkoutSummaries } from '@/db/workouts'
 import { listWorkoutDrafts } from '@/db/workout-drafts'
 import { resolveActiveSession } from '@/lib/active-session'
 import { autoregReason } from '@/lib/autoregulate'
+import { TECHNIQUE_LABEL_KEY } from '@/lib/technique'
 import { AppHeader } from '@/components/app-header'
 import { BackLink } from '@/components/back-link'
 import { BlockMap } from '@/components/block-map'
@@ -836,7 +837,9 @@ export default async function ProgramDetailPage({
                                   )}
                                   {group.set.technique && (
                                     <span className="text-[10px] font-semibold uppercase tracking-widest">
-                                      {group.set.technique.kind}
+                                      {t(
+                                        `day.technique.${TECHNIQUE_LABEL_KEY[group.set.technique.kind]}`,
+                                      )}
                                     </span>
                                   )}
                                 </p>
