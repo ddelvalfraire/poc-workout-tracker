@@ -233,30 +233,14 @@ const I18N_MIGRATED = [
   "src/components/unit-toggle.tsx",
 ];
 
-// TEXT-ONLY RATCHET: migrated before the rule covered attributes and JSX
-// expressions, so their aria-labels, dialog props and ternary CTAs are still
-// English. Held to the weaker rule so the gate does not claim they are done.
-// Only ever SHRINKS — a backfill PR moves files up into I18N_MIGRATED.
-const I18N_TEXT_ONLY = [
-  "src/app/trophies/page.tsx",
-  "src/app/settings/analytics-consent-toggle.tsx",
-  "src/app/settings/delete-account/delete-account-form.tsx",
-  "src/app/settings/delete-account/page.tsx",
-  "src/app/settings/home/editor-grid-dnd.tsx",
-  "src/app/settings/home/editor-grid.tsx",
-  "src/app/settings/home/home-layout-editor.tsx",
-  "src/app/settings/home/page.tsx",
-  "src/app/settings/home/section-tile.tsx",
-  "src/app/settings/home/tile-sheet.tsx",
-  "src/app/settings/import/import-flow.tsx",
-  "src/app/settings/import/page.tsx",
-  "src/app/settings/import/remove-import-button.tsx",
-  "src/app/settings/page.tsx",
-  "src/app/settings/rest-default-setting.tsx",
-  "src/app/settings/rest-timer-toggle.tsx",
-  "src/app/settings/rpe-logging-toggle.tsx",
-  "src/app/settings/workout-reminders-toggle.tsx",
-];
+// TEXT-ONLY RATCHET — now EMPTY, and meant to stay that way. It held files
+// migrated before the rule covered attributes and JSX expressions, whose
+// aria-labels and ternary CTAs were still English; all of them now pass the
+// strict rule, so keeping them here would understate them and let new
+// attribute copy slip in unguarded. Retained as a landing place for a future
+// partial migration; its config block is spread conditionally because ESLint
+// rejects an empty `files` array.
+const I18N_TEXT_ONLY = [];
 
 const eslintConfig = defineConfig([
   ...nextVitals,
@@ -338,13 +322,20 @@ const eslintConfig = defineConfig([
       ],
     },
   },
-  {
-    files: I18N_TEXT_ONLY,
-    plugins: { i18next },
-    rules: {
-      "i18next/no-literal-string": ["error", { mode: "jsx-text-only" }],
-    },
-  },
+  // Spread, not inlined: ESLint rejects an empty `files` array, and the list
+  // is empty precisely because the ratchet finished. Keeping the block means a
+  // future partial migration has somewhere to land.
+  ...(I18N_TEXT_ONLY.length > 0
+    ? [
+        {
+          files: I18N_TEXT_ONLY,
+          plugins: { i18next },
+          rules: {
+            "i18next/no-literal-string": ["error", { mode: "jsx-text-only" }],
+          },
+        },
+      ]
+    : []),
 ]);
 
 export default eslintConfig;

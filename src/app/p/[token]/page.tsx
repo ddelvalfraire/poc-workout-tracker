@@ -38,7 +38,7 @@ export default async function SharedProgramPage({
 }: {
   params: Promise<{ token: string }>
 }) {
-  const t = await getTranslations('P')
+  const t = await getTranslations('SharedProgram')
   const { token } = await params
   if (!TOKEN_PATTERN.test(token)) notFound()
   const shared = await resolveShare(token)
@@ -103,7 +103,7 @@ export default async function SharedProgramPage({
 
   return (
     <div className="flex min-h-[100dvh] flex-col">
-      <AppHeader title={t('pageTitle')} />
+      <AppHeader title={t('title')} />
 
       <main className="mx-auto w-full max-w-md flex-1 px-5 pb-safe">
         {/* Article READ surface — the program page's visual language (hero +

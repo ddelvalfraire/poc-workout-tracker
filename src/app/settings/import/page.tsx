@@ -21,7 +21,7 @@ export default async function ImportPage() {
   return (
     <div className="flex min-h-[100dvh] flex-col">
       <AppHeader
-        title={t('headerTitle')}
+        title={t('title')}
         leading={
           <BackLink fallback="/settings" />
         }
@@ -31,7 +31,7 @@ export default async function ImportPage() {
         <ImportFlow defaultUnit={unit} />
 
         <section aria-label={t('historyGroupLabel')} className="mt-6">
-          <h2 className="text-sm font-medium text-muted-foreground">{t('title')}</h2>
+          <h2 className="text-sm font-medium text-muted-foreground">{t('sectionTitle')}</h2>
           {batches.length === 0 ? (
             <p className="mt-2 text-sm text-muted-foreground">
               {t('empty')}

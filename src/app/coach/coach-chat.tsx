@@ -398,7 +398,7 @@ export function CoachChat({
   return (
     <>
       <AppHeader
-        title={t('pageTitle')}
+        title={t('title')}
         leading={leading}
         trailing={
           clearAction && messages.length > 0 ? (
@@ -433,7 +433,7 @@ export function CoachChat({
           /* Empty state: what the coach is for, plus tappable starters. */
           <div className="flex min-h-[60dvh] flex-col justify-center">
             <h2 className="font-display text-2xl uppercase leading-none tracking-wide">
-              {t('title')}
+              {t('emptyTitle')}
             </h2>
             <p className="mt-2 text-sm text-muted-foreground">
               {t('capabilityDescription')}

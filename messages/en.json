@@ -116,10 +116,10 @@
     },
     "detailsSummary": "Details",
     "disclosureStrip": "AI coach — responses are AI-generated and can be wrong. Not medical advice.",
+    "emptyTitle": "Ask your coach",
     "errorGeneric": "Something went wrong. Try again.",
     "newChatAction": "New chat",
     "offlineNotice": "Coach needs a connection.",
-    "pageTitle": "Coach",
     "pendingApprovalLabel": "Needs your OK",
     "proposalDays": "{days, plural, one {# day} other {# days}}/week",
     "proposalTitle": "Proposed program",
@@ -135,7 +135,7 @@
       "swap": "Swap tomorrow's pressing for more volume"
     },
     "thinkingStatus": "Thinking",
-    "title": "Ask your coach",
+    "title": "Coach",
     "toolDetail": "· ‘{detail}’",
     "toolDone": {
       "get_last_performance": "Checked your last numbers",
@@ -728,13 +728,13 @@
       "scope": "{count, plural, one {# workout} other {# workouts}}"
     },
     "empty": "Nothing imported yet. Imports you confirm will be listed here, each removable in one tap.",
-    "headerTitle": "Import history",
     "historyGroupLabel": "Past imports",
+    "sectionTitle": "Past imports",
     "source": {
       "hevy": "Hevy",
       "strong": "Strong"
     },
-    "title": "Past imports"
+    "title": "Import history"
   },
   "ImportFlow": {
     "actions": {
@@ -1004,18 +1004,6 @@
       "strictLoad": "Strict load"
     },
     "updateError": "Could not update the overshoot policy. Please try again."
-  },
-  "P": {
-    "adoptAction": "Add to my programs",
-    "attribution": "Shared program · {days, plural, one {# day} other {# days}}/week · {weeks, plural, one {# week} other {# weeks}}",
-    "dayLabel": "Day {number}",
-    "openAction": "Open your program",
-    "ownerNotice": "This is your program — this is what people with the link see.",
-    "pageTitle": "Shared program",
-    "planTitle": "The plan",
-    "signInAction": "Sign in to add this program",
-    "sourceLabel": "Source",
-    "supersetLabel": "Superset {label}"
   },
   "PatchProposalCard": {
     "applyAction": "Apply all",
@@ -1725,10 +1713,44 @@
       "training": "Training"
     }
   },
+  "ShareCard": {
+    "personalRecord": "Personal Record",
+    "progress": "Progress",
+    "session": "Session",
+    "trophy": "Trophy"
+  },
   "ShareCardButton": {
     "ariaLabel": "Share {title}",
     "error": "Couldn't create the share image",
     "savedHint": "Image saved — post it anywhere"
+  },
+  "SharedProgram": {
+    "adoptAction": "Add to my programs",
+    "attribution": "Shared program · {days, plural, one {# day} other {# days}}/week · {weeks, plural, one {# week} other {# weeks}}",
+    "dayLabel": "Day {number}",
+    "openAction": "Open your program",
+    "ownerNotice": "This is your program — this is what people with the link see.",
+    "planTitle": "The plan",
+    "signInAction": "Sign in to add this program",
+    "sourceLabel": "Source",
+    "supersetLabel": "Superset {label}",
+    "title": "Shared program"
+  },
+  "SharedWorkout": {
+    "approxPrefix": "~",
+    "durationLabel": "Duration",
+    "e1rmLabel": "Est. 1RM",
+    "emptySets": "No sets logged.",
+    "openAction": "Open your workout",
+    "ownerNotice": "This is your workout — this is what people with the link see.",
+    "promoDescription": "Logged with this app — track your own sessions, PRs, and programs.",
+    "repsValue": "{reps, plural, one {# rep} other {# reps}}",
+    "setsLabel": "{count, plural, one {Set} other {Sets}}",
+    "sharedLabel": "Shared workout",
+    "signInAction": "Sign in to start tracking",
+    "skippedLabel": "Skipped",
+    "topSetLabel": "Top set",
+    "volumeLabel": "Volume"
   },
   "SharingSection": {
     "ariaLabel": "Sharing",
@@ -2071,22 +2093,6 @@
       "planned": "Planned / week",
       "previous": "Last week"
     }
-  },
-  "W": {
-    "approxPrefix": "~",
-    "durationLabel": "Duration",
-    "e1rmLabel": "Est. 1RM",
-    "emptySets": "No sets logged.",
-    "openAction": "Open your workout",
-    "ownerNotice": "This is your workout — this is what people with the link see.",
-    "promoDescription": "Logged with this app — track your own sessions, PRs, and programs.",
-    "repsValue": "{reps, plural, one {# rep} other {# reps}}",
-    "setsLabel": "{count, plural, one {Set} other {Sets}}",
-    "sharedLabel": "Shared workout",
-    "signInAction": "Sign in to start tracking",
-    "skippedLabel": "Skipped",
-    "topSetLabel": "Top set",
-    "volumeLabel": "Volume"
   },
   "WeightStepper": {
     "decreaseAriaLabel": "Decrease set {set} {noun} by {step} {unit}",

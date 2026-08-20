@@ -29,12 +29,13 @@ export async function GET(
       getWeightUnit(userId),
       getMessages('Trophies'),
     ])
+    const tCard = await getMessages('ShareCard')
     const data = trophyCardData(rows, kind, unit, (message) => t(message.key, message.values))
     if (data === null) {
       return NextResponse.json({ error: 'Not found' }, { status: 404 })
     }
     return cardImage(
-      <CardFrame eyebrow="Trophy">
+      <CardFrame eyebrow={tCard('trophy')}>
         <div style={{ display: 'flex', fontSize: 104, ...HEADLINE_STYLE }}>{data.title}</div>
         <div
           style={{

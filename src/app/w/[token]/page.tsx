@@ -42,7 +42,7 @@ export default async function SharedWorkoutPage({
 }: {
   params: Promise<{ token: string }>
 }) {
-  const t = await getTranslations('W')
+  const t = await getTranslations('SharedWorkout')
   const tFormat = await getTranslations('Format')
   const locale = await resolveLocale()
   const { token } = await params
