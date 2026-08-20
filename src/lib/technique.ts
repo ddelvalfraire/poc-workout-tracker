@@ -146,3 +146,47 @@ export function expandTechniqueStages(sets: readonly DerivedSet[]): StagedSet[] 
 function intraRestSec(technique: Technique, index: number): number {
   return technique.stages[index]?.restSec ?? 0
 }
+
+/**
+ * How much of a HARD SET one technique row is worth to weekly volume — the
+ * one number Model A owes the rest of the app, and the only place the
+ * grouping is not purely cosmetic.
+ *
+ * Why not simply 1.0 per row: volume landmarks (MEV/MAV/MRV) count hard sets
+ * as a proxy for stimulus AND recoverable fatigue. Counting a 3-stage
+ * rest-pause as 3 straight sets would fire an MRV warning at a third of the
+ * real dose; counting it as 1 would under-credit work that is demonstrably
+ * more than one set.
+ *
+ * The rule — top stage 1.0, each later stage 0.5 — reproduces what the
+ * literature and coaching practice already estimate for these techniques:
+ * a rest-pause set is commonly counted as ≈2 straight sets (and DC training,
+ * which is rest-pause throughout, is programmed as though it were), a
+ * myo-rep set (activation + 3–5 mini-sets) as ≈3, and a drop set as ≈2–3.
+ *
+ * Clusters are the deliberate exception: their mini-sets are submaximal with
+ * real intra-set rest — the technique exists to keep reps AWAY from failure —
+ * and the literature counts a cluster as ONE set by definition. So a cluster
+ * group is worth exactly 1.0 however many blocks it is broken into.
+ *
+ * Sources: Hevy, "Workout Set Types"; the standard hard-set convention
+ * (a set counts when taken within ~5 reps of failure); the cluster-set
+ * literature's own framing ("you still count that as one cluster set").
+ */
+export function stageVolumeWeight(technique: SetTechnique | undefined): number {
+  if (technique === undefined) return 1
+  if (technique.stageIndex === 0) return 1
+  return technique.kind === 'cluster' ? 0 : 0.5
+}
+
+/**
+ * The same rule applied to a PLANNED set, whose stages are still nested
+ * (program_sets.technique) rather than expanded into rows — so planned and
+ * performed volume stay apples-to-apples, the invariant db/planned-volume.ts
+ * exists to protect.
+ */
+export function plannedTechniqueWeight(technique: Technique | null | undefined): number {
+  if (!technique || technique.stages.length === 0) return 1
+  if (technique.kind === 'cluster') return 1
+  return 1 + 0.5 * technique.stages.length
+}

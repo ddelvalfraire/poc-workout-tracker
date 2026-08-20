@@ -84,6 +84,35 @@ describe('aggregatePlannedVolume', () => {
     expect(byGroup(aggregatePlannedVolume([set()], tags)).Chest).toBe(1)
   })
 
+  it('counts a prescribed technique set the way the logged rows will count', () => {
+    // Two mini-sets after the top set: 1 + 0.5 + 0.5 = 2 hard sets, exactly
+    // what db/muscle-volume.ts credits once the stages are logged as rows.
+    const restPause = set({
+      technique: {
+        version: 1,
+        kind: 'rest-pause',
+        stages: [{ reps: 3 }, { reps: 2 }],
+      },
+    })
+
+    const volume = aggregatePlannedVolume([restPause], BENCH_TAGS)
+
+    expect(volume.totalSets).toBe(2)
+    expect(byGroup(volume).Chest).toBe(2)
+  })
+
+  it('counts a prescribed cluster as one set however many blocks it names', () => {
+    const cluster = set({
+      technique: {
+        version: 1,
+        kind: 'cluster',
+        stages: [{ reps: 2, restSec: 20 }, { reps: 2, restSec: 20 }],
+      },
+    })
+
+    expect(aggregatePlannedVolume([cluster], BENCH_TAGS).totalSets).toBe(1)
+  })
+
   it('excludes warmup prescriptions but counts working, backoff, and amrap', () => {
     const rows = [
       set({ setType: 'warmup' }),

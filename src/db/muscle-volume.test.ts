@@ -191,6 +191,58 @@ describe('aggregateMuscleVolume', () => {
   })
 })
 
+describe('technique groups count as hard sets, not as rows', () => {
+  const stage = (kind: string, stageIndex: number) =>
+    row({ techniqueKind: kind, stageIndex })
+
+  it('counts a 3-row rest-pause as 2 sets (top set + two half-credit stages)', () => {
+    const volume = aggregateMuscleVolume(
+      [stage('rest-pause', 0), stage('rest-pause', 1), stage('rest-pause', 2)],
+      BENCH_RESOLVER,
+      WINDOWS,
+    )
+
+    expect(volume.totals.currentSets).toBe(2)
+    expect(volume.groups.find((g) => g.group === 'Chest')!.currentSets).toBe(2)
+    // Secondaries scale with the same weight — 0.5 credit × 2 hard sets.
+    expect(volume.groups.find((g) => g.group === 'Triceps')!.currentSets).toBe(1)
+  })
+
+  it('counts a cluster as exactly one set however many blocks it has', () => {
+    const volume = aggregateMuscleVolume(
+      [stage('cluster', 0), stage('cluster', 1), stage('cluster', 2)],
+      BENCH_RESOLVER,
+      WINDOWS,
+    )
+
+    expect(volume.totals.currentSets).toBe(1)
+    expect(volume.groups.find((g) => g.group === 'Chest')!.currentSets).toBe(1)
+  })
+
+  it('leaves ordinary sets at 1.0 and degrades a junk kind to ordinary', () => {
+    const volume = aggregateMuscleVolume(
+      [row(), row({ techniqueKind: 'giant-set', stageIndex: 1 })],
+      BENCH_RESOLVER,
+      WINDOWS,
+    )
+
+    expect(volume.totals.currentSets).toBe(2)
+  })
+
+  it('weights the previous window the same way (the comparison stays honest)', () => {
+    const volume = aggregateMuscleVolume(
+      [
+        row({ startedAt: IN_PREVIOUS, techniqueKind: 'drop-set', stageIndex: 0 }),
+        row({ startedAt: IN_PREVIOUS, techniqueKind: 'drop-set', stageIndex: 1 }),
+      ],
+      BENCH_RESOLVER,
+      WINDOWS,
+    )
+
+    expect(volume.totals.previousSets).toBe(1.5)
+  })
+})
+
 describe('buildMuscleResolver', () => {
   it('keys wger and custom identities separately', async () => {
     const resolver = await buildMuscleResolver(USER)
