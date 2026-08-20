@@ -20,6 +20,7 @@ import type * as ProgramActions from "@/app/programs/actions";
 import type * as WorkoutActions from "@/app/workout/actions";
 import type * as MfaActions from "@/app/settings/account/mfa/actions";
 import type * as AccountActions from "@/app/settings/account/actions";
+import type * as OpsBillingActions from "@/app/ops/billing/actions";
 
 const LATENCY_MS = 600;
 
@@ -115,6 +116,33 @@ export async function updateNameAction(
 // no runtime value is produced. A stub whose signature drifts from the action
 // it stands in for makes `Matches` resolve to `false`, which fails `Assert`.
 type Matches<Stub, Real> = Stub extends Real ? true : false;
+/**
+ * `@/app/ops/billing/actions` — the manual grant/revoke pair behind
+ * /ops/billing. Both resolve successfully: the stories that matter are the
+ * two-step confirm and the in-flight label, and a stubbed failure would only
+ * exercise copy the component already renders from a returned status.
+ */
+export async function grantTierAction(input: {
+  userId: string;
+  tier: string;
+  duration: string;
+  reason: string;
+}): Promise<OpsBillingActions.GrantActionResult> {
+  console.info("[storybook] grantTierAction", input);
+  await settle(undefined);
+  return { status: "granted", tier: "max" };
+}
+
+export async function revokeGrantAction(input: {
+  grantId: string;
+  reason: string;
+}): Promise<OpsBillingActions.GrantActionResult> {
+  console.info("[storybook] revokeGrantAction", input);
+  await settle(undefined);
+  return { status: "revoked" };
+}
+
+
 type Assert<T extends true> = T;
 
 /**
@@ -160,5 +188,14 @@ export type MockFidelity = [
   Assert<Matches<typeof disableMfaAction, typeof MfaActions.disableMfaAction>>,
   Assert<
     Matches<typeof updateNameAction, typeof AccountActions.updateNameAction>
+  >,
+  Assert<
+    Matches<typeof grantTierAction, typeof OpsBillingActions.grantTierAction>
+  >,
+  Assert<
+    Matches<
+      typeof revokeGrantAction,
+      typeof OpsBillingActions.revokeGrantAction
+    >
   >,
 ];

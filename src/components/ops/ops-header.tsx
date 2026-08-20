@@ -7,22 +7,23 @@ import { OpsTabPending } from './tab-pending'
 import { useTranslations } from 'next-intl'
 
 /**
- * Shared header for the ops surface: back link, title, the Ops | Product tab
+ * Shared header for the ops surface: back link, title, the Ops | Product | Billing tab
  * nav, and the refresh controls. Server component — the active tab is a fact
  * of the route, so each page passes it instead of a client usePathname read.
  *
- * The tabs are real routes (/ops, /ops/product), each independently gated and
+ * The tabs are real routes (/ops, /ops/product, /ops/billing), each independently gated and
  * force-dynamic, so both are deep-linkable and a refresh on either only
  * re-hits that tab's sources.
  */
 
-export type OpsTab = 'ops' | 'product'
+export type OpsTab = 'ops' | 'product' | 'billing'
 
 // VALUES only. A label baked in here would be built at module load, before
 // any request — so it could never be translated.
 const TABS: { tab: OpsTab; href: string }[] = [
   { tab: 'ops', href: '/ops' },
   { tab: 'product', href: '/ops/product' },
+  { tab: 'billing', href: '/ops/billing' },
 ]
 
 export function OpsHeader({ active }: { active: OpsTab }) {

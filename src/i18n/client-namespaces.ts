@@ -49,6 +49,8 @@ export const CLIENT_NAMESPACES = [
   'GoalCardActions',
   'GoalCreate',
   'Goals',
+  'GrantForm',
+  'GrantLedger',
   'HeaderClock',
   'HomeLayoutEditor',
   'HomeSection',

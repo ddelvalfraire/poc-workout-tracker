@@ -19,6 +19,7 @@ export const SERVER_ACTION_MODULES = [
   "@/app/workout/actions",
   "@/app/settings/account/mfa/actions",
   "@/app/settings/account/actions",
+  "@/app/ops/billing/actions",
 ];
 
 /**
