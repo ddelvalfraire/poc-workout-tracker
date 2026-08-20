@@ -42,7 +42,9 @@ async function logBench(page: Page, weight: string) {
   await expect(page).toHaveURL(/\/workout\/new$/)
 
   await page.getByLabel('Search exercises').fill('bench')
-  const addButton = page.getByRole('button', { name: 'Add' }).first()
+  // The picker has no per-row Add button since #233: a result row IS the
+  // control (li role=option, click to add).
+  const addButton = page.getByRole('option').first()
   await expect(addButton).toBeVisible({ timeout: 20_000 })
   await addButton.click()
 

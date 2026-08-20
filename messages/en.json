@@ -974,6 +974,12 @@
     "subheadingLabel": "Subheading",
     "toolbarLabel": "Formatting"
   },
+  "Offline": {
+    "body": "Workout Tracker will reconnect automatically. Your in-progress draft is safe and will sync when you’re back.",
+    "heading": "You’re offline",
+    "retry": "Try again now",
+    "title": "Offline — Workout Tracker"
+  },
   "OpsHeader": {
     "navLabel": "Ops sections",
     "tab": {
