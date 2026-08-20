@@ -1,6 +1,9 @@
 import { describe, it, expect } from 'vitest'
-import { parseProgramInput, type ProgramInput } from './program-input'
-import { TEMPLATE_CANON, WGER } from './template-canon'
+import { parseProgramInput, type ProgramInput } from '../program-input'
+import { TEMPLATE_CANON, WGER } from './index'
+import { STRENGTH_CANON } from './strength'
+import { HYPERTROPHY_CANON } from './hypertrophy'
+import { CONDITIONING_CANON } from './conditioning'
 
 /**
  * Seed-payload validation: every canonical template must clear the SAME
@@ -21,17 +24,42 @@ function get(name: string): ProgramInput {
   return program
 }
 
+const CANON_NAMES = [
+  'Arnold Split',
+  'Body Part Split',
+  'Candito 6-Week Strength',
+  'Couch to 5K',
+  'Dumbbell Only',
+  'Full Body Hypertrophy',
+  'GZCLP',
+  'Greyskull LP',
+  'Hybrid Strength & Endurance',
+  'Kettlebell Simple & Sinister',
+  'Madcow 5×5',
+  'PHAT',
+  'PHUL',
+  'Push Pull Legs',
+  'Recommended Routine',
+  'Smolov Jr',
+  'Starting Strength',
+  'StrongLifts 5×5',
+  'Texas Method',
+  'Upper / Lower',
+  'Wendler 5/3/1',
+  'nSuns 5/3/1 LP',
+]
+
 describe('template canon — the library as a whole', () => {
-  it('ships exactly the five planned templates under unique names', () => {
-    expect(parsed).toHaveLength(5)
-    expect(new Set(parsed.map((p) => p.name)).size).toBe(5)
-    expect([...byName.keys()].sort()).toEqual([
-      'GZCLP',
-      'Push Pull Legs',
-      'StrongLifts 5×5',
-      'Upper / Lower',
-      'Wendler 5/3/1',
-    ])
+  it('ships every planned template under a unique name', () => {
+    expect(parsed).toHaveLength(CANON_NAMES.length)
+    expect(new Set(parsed.map((p) => p.name)).size).toBe(CANON_NAMES.length)
+    expect([...byName.keys()].sort()).toEqual([...CANON_NAMES].sort())
+  })
+
+  it('is exactly the three families concatenated, nothing dropped or doubled', () => {
+    const families = [...STRENGTH_CANON, ...HYPERTROPHY_CANON, ...CONDITIONING_CANON]
+    expect(TEMPLATE_CANON).toHaveLength(families.length)
+    expect(TEMPLATE_CANON.map((p) => p.name)).toEqual(families.map((p) => p.name))
   })
 
   it('every template is public, draft-status, iconed, and described', () => {
@@ -51,6 +79,80 @@ describe('template canon — the library as a whole', () => {
         for (const exercise of day.exercises) {
           expect(exercise.source).toBe('wger') // the schema default materialized
           expect(verified.has(exercise.wgerExerciseId)).toBe(true)
+        }
+      }
+    }
+  })
+
+  it('never puts a load-anchored scheme on a timed set', () => {
+    // The derivation layer no-ops these (silence over corruption), so an
+    // authoring slip would be invisible at runtime — catch it here instead.
+    const loadAnchored = new Set(['linear', 'double-progression', 'percent-1rm', 'amrap-cycle'])
+    for (const p of parsed) {
+      for (const day of p.days) {
+        for (const exercise of day.exercises) {
+          const timed = exercise.sets.some((s) => s.metricMode !== 'reps_weight')
+          if (!timed) continue
+          expect(
+            exercise.progression === null ||
+              exercise.progression === undefined ||
+              !loadAnchored.has(exercise.progression.scheme),
+            `${p.name} / ${day.name} / ${exercise.name} rides a load scheme on a timed set`,
+          ).toBe(true)
+        }
+      }
+    }
+  })
+
+  it('gives every timed set a planned duration and every rep set a rep target', () => {
+    for (const p of parsed) {
+      for (const day of p.days) {
+        for (const exercise of day.exercises) {
+          for (const s of exercise.sets) {
+            if (s.metricMode === 'reps_weight') expect(s.repMin).not.toBeNull()
+            else expect(s.durationSec).toBeGreaterThan(0)
+          }
+        }
+      }
+    }
+  })
+
+  it('keeps every amrap-cycle ladder coherent: one rep row per wave row, one target per set', () => {
+    for (const p of parsed) {
+      for (const day of p.days) {
+        for (const exercise of day.exercises) {
+          const progression = exercise.progression
+          if (progression?.scheme !== 'amrap-cycle') continue
+          expect(progression.waveReps).toBeDefined()
+          expect(progression.waveReps).toHaveLength(progression.wave.length)
+          for (const [i, row] of progression.wave.entries()) {
+            expect(row).toHaveLength(exercise.sets.length)
+            expect(progression.waveReps?.[i]).toHaveLength(exercise.sets.length)
+          }
+          expect(progression.tmBumpTiming).toBe('after-deload')
+        }
+      }
+    }
+  })
+
+  it('only schedules a deload week when the policy actually shapes one', () => {
+    for (const p of parsed) {
+      if (p.deloadWeek == null) continue
+      expect(p.deloadWeek).toBeLessThanOrEqual(p.mesocycleWeeks)
+      expect(p.deloadPolicy?.mode, `${p.name} schedules week ${p.deloadWeek}`).toBe('scheduled')
+    }
+  })
+
+  it('pairs every superset group — a group of one is an authoring slip', () => {
+    for (const p of parsed) {
+      for (const day of p.days) {
+        const groups = new Map<number, number>()
+        for (const exercise of day.exercises) {
+          if (exercise.supersetGroup == null) continue
+          groups.set(exercise.supersetGroup, (groups.get(exercise.supersetGroup) ?? 0) + 1)
+        }
+        for (const [group, count] of groups) {
+          expect(count, `${p.name} / ${day.name} group ${group}`).toBeGreaterThan(1)
         }
       }
     }

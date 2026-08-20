@@ -64,6 +64,18 @@ export function tierHasFeature(tier: Tier, feature: Feature): boolean {
 }
 
 /**
+ * The CHEAPEST tier that includes a feature — what an upgrade prompt has to
+ * name. Derived from the map rather than listed separately, so re-packaging a
+ * feature cannot leave the paywall advertising the wrong plan.
+ */
+export function tierRequiredFor(feature: Feature): Tier {
+  const tier = TIERS.find((t) => TIER_FEATURES[t].includes(feature))
+  // Unreachable while every feature is sold by some tier — pinned by a test.
+  if (!tier) throw new Error(`no tier grants "${feature}"`)
+  return tier
+}
+
+/**
  * How many programs may be active at once. `null` is unlimited.
  *
  * A quota rather than a boolean because the interesting answer is a number:

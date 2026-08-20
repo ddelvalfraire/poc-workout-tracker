@@ -1,9 +1,10 @@
 import { and, desc, eq, isNotNull, sql } from 'drizzle-orm'
 import { db } from './index'
-import { entitlementGrants, entitlementsCurrent } from './schema'
+import { entitlementGrants, entitlementsCurrent, programs } from './schema'
 import {
   DEFAULT_TIER,
   activeProgramLimitFor,
+  tierRequiredFor,
   resolveEntitlement,
   tierHasFeature,
   type Feature,
@@ -386,4 +387,73 @@ export async function listPaidUsers(limit = 100): Promise<
     )
     .orderBy(desc(entitlementsCurrent.updatedAt))
     .limit(limit)
+}
+
+// ---------------------------------------------------------------------------
+// Gates — the server-side boundary. See docs/ENTITLEMENTS.md.
+// ---------------------------------------------------------------------------
+
+/**
+ * Thrown when a caller asks for something their tier does not include.
+ *
+ * Carries the feature and the tier that WOULD grant it, because the useful
+ * response is never "no" on its own — the surface that catches this has to
+ * name the plan that says yes.
+ */
+export class FeatureRequiredError extends Error {
+  constructor(
+    readonly feature: Feature,
+    readonly requiredTier: Tier,
+  ) {
+    super(`feature "${feature}" requires the ${requiredTier} plan`)
+    this.name = 'FeatureRequiredError'
+  }
+}
+
+/**
+ * The enforcement boundary. Every server action and route handler that touches
+ * a paid capability calls this; the UI's disabled buttons and upgrade prompts
+ * are sales copy, not security, and a request that skips them still lands here.
+ */
+export async function requireFeature(userId: string, feature: Feature): Promise<void> {
+  if (await hasFeature(userId, feature)) return
+  throw new FeatureRequiredError(feature, tierRequiredFor(feature))
+}
+
+export interface ProgramQuota {
+  /** null = unlimited. */
+  limit: number | null
+  used: number
+  /** Whether ONE more active program is allowed right now. */
+  allowed: boolean
+}
+
+/**
+ * How many active programs the user has against how many they may have.
+ *
+ * Counts 'active' only: drafts and proposals cost nothing to keep, and a cap
+ * that counted them would punish planning rather than usage. Returned as a
+ * quota rather than a boolean because the surface wants to say "2 of 2".
+ */
+export async function programQuota(userId: string): Promise<ProgramQuota> {
+  const limit = await activeProgramLimit(userId)
+  if (limit === null) return { limit: null, used: 0, allowed: true }
+
+  const [row] = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(programs)
+    .where(and(eq(programs.userId, userId), eq(programs.status, 'active')))
+
+  const used = row?.n ?? 0
+  return { limit, used, allowed: used < limit }
+}
+
+/**
+ * Guards the transition INTO an active program — the moment the cap actually
+ * means something. Creating and drafting stay free.
+ */
+export async function requireProgramSlot(userId: string): Promise<void> {
+  const quota = await programQuota(userId)
+  if (quota.allowed) return
+  throw new FeatureRequiredError('unlimited_programs', tierRequiredFor('unlimited_programs'))
 }

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, test, expect, vi, beforeEach } from 'vitest'
 
 /**
  * Recording stubs for the Drizzle builders, mirroring consent.test.ts:
@@ -73,12 +73,16 @@ function makeDb() {
 vi.mock('./index', () => ({ db: makeDb() }))
 
 import {
+  FeatureRequiredError,
   applyGrant,
   revokeGrant,
   getEntitlement,
   hasFeature,
   activeProgramLimit,
   listGrants,
+  programQuota,
+  requireFeature,
+  requireProgramSlot,
 } from './entitlements'
 
 const HOUR = 3_600_000
@@ -418,5 +422,72 @@ describe('listGrants', () => {
     selectQueue = [[liveGrant({ id: 'g2' }), liveGrant({ id: 'g1', status: 'revoked' })]]
     const rows = await listGrants('u1')
     expect(rows.map((r) => r.id)).toEqual(['g2', 'g1'])
+  })
+})
+
+describe('the enforcement boundary', () => {
+  test('requireFeature passes silently for an entitled user', async () => {
+    selectQueue = [[{ tier: 'max', source: 'stripe', expiresAt: null }]]
+    await expect(requireFeature('u1', 'coach')).resolves.toBeUndefined()
+  })
+
+  // The error has to name the plan that says yes — "no" alone cannot be
+  // rendered as an upgrade prompt.
+  test('requireFeature names the feature and the tier that would grant it', async () => {
+    selectQueue = [[{ tier: 'free', source: null, expiresAt: null }]]
+    await expect(requireFeature('u1', 'coach')).rejects.toThrow(FeatureRequiredError)
+
+    selectQueue = [[{ tier: 'free', source: null, expiresAt: null }]]
+    const error = await requireFeature('u1', 'coach').catch((e) => e)
+    expect(error.feature).toBe('coach')
+    expect(error.requiredTier).toBe('max')
+  })
+
+  test('pro is refused coach but allowed autoreg', async () => {
+    selectQueue = [[{ tier: 'pro', source: 'stripe', expiresAt: null }]]
+    await expect(requireFeature('u1', 'coach')).rejects.toThrow(FeatureRequiredError)
+    selectQueue = [[{ tier: 'pro', source: 'stripe', expiresAt: null }]]
+    await expect(requireFeature('u1', 'autoreg')).resolves.toBeUndefined()
+  })
+
+  // A database fault degrades to Free, so the boundary CLOSES rather than
+  // opening — the same direction as every other read here.
+  test('refuses a paid feature when the entitlement read fails', async () => {
+    selectThrows = true
+    await expect(requireFeature('u1', 'autoreg')).rejects.toThrow(FeatureRequiredError)
+  })
+})
+
+describe('programQuota', () => {
+  test('reports usage against the cap on a free plan', async () => {
+    // 1st select: the projection read. 2nd: the active-program count.
+    selectQueue = [[], [{ n: 1 }]]
+    expect(await programQuota('u1')).toEqual({ limit: 2, used: 1, allowed: true })
+  })
+
+  test('closes the gate once the cap is reached', async () => {
+    selectQueue = [[], [{ n: 2 }]]
+    expect(await programQuota('u1')).toMatchObject({ used: 2, allowed: false })
+  })
+
+  // Never counts, never queries: an unlimited plan must not pay for a scan on
+  // every activation.
+  test('skips the count entirely when the plan is unlimited', async () => {
+    selectQueue = [[{ tier: 'pro', source: 'stripe', expiresAt: null }]]
+    expect(await programQuota('u1')).toEqual({ limit: null, used: 0, allowed: true })
+    expect(selectQueue).toHaveLength(0)
+  })
+
+  test('requireProgramSlot throws at the cap and passes below it', async () => {
+    selectQueue = [[], [{ n: 2 }]]
+    await expect(requireProgramSlot('u1')).rejects.toThrow(FeatureRequiredError)
+    selectQueue = [[], [{ n: 1 }]]
+    await expect(requireProgramSlot('u1')).resolves.toBeUndefined()
+  })
+
+  test('the slot refusal points at Pro, the tier that lifts the cap', async () => {
+    selectQueue = [[], [{ n: 2 }]]
+    const error = await requireProgramSlot('u1').catch((e) => e)
+    expect(error.requiredTier).toBe('pro')
   })
 })
