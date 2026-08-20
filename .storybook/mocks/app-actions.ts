@@ -18,6 +18,8 @@
 import type * as AppActions from "@/app/actions";
 import type * as ProgramActions from "@/app/programs/actions";
 import type * as WorkoutActions from "@/app/workout/actions";
+import type * as MfaActions from "@/app/settings/account/mfa/actions";
+import type * as AccountActions from "@/app/settings/account/actions";
 
 const LATENCY_MS = 600;
 
@@ -61,6 +63,54 @@ export async function signOutAction(): Promise<void> {
   await settle(undefined);
 }
 
+/* --- `@/app/settings/account/mfa/actions` — TOTP enrolment ---------------
+ *
+ * Stubs return the SUCCESS branch at each step so a story can walk
+ * idle → secret → done without a WorkOS environment behind it.
+ */
+
+/** Mints the TOTP factor and returns the ways to add it. */
+export async function startMfaSetupAction(): Promise<MfaActions.StartResult> {
+  console.info("[storybook] startMfaSetupAction");
+  // A real base32 secret and well-formed otpauth:// URI, so the deep link and
+  // copy-key affordance behave exactly as they will in production.
+  return settle({
+    status: "enrolled" as const,
+    secret: "JBSWY3DPEHPK3PXP",
+    uri: "otpauth://totp/Workout%20Tracker:you@example.test?secret=JBSWY3DPEHPK3PXP&issuer=Workout%20Tracker",
+    qrCode: "",
+  });
+}
+
+/** Confirms the six digits from the authenticator app. */
+export async function confirmMfaSetupAction(
+  code: string,
+): Promise<MfaActions.ConfirmResult> {
+  console.info("[storybook] confirmMfaSetupAction", code);
+  return settle({ status: "verified" as const });
+}
+
+/** Abandons a half-finished enrolment. */
+export async function cancelMfaSetupAction(): Promise<void> {
+  console.info("[storybook] cancelMfaSetupAction");
+  await settle(undefined);
+}
+
+/** Turns MFA off, behind a recent-sign-in check. */
+export async function disableMfaAction(): Promise<MfaActions.DisableResult> {
+  console.info("[storybook] disableMfaAction");
+  return settle({ status: "removed" as const });
+}
+
+/** `@/app/settings/account/actions` — saves the display name. */
+export async function updateNameAction(
+  firstName: string,
+  lastName: string,
+): Promise<AccountActions.UpdateNameResult> {
+  console.info("[storybook] updateNameAction", firstName, lastName);
+  return settle({ status: "saved" as const });
+}
+
 // Compile-time fidelity checks — see the module doc above. Purely type-level:
 // no runtime value is produced. A stub whose signature drifts from the action
 // it stands in for makes `Matches` resolve to `false`, which fails `Assert`.
@@ -94,5 +144,21 @@ export type MockFidelity = [
       typeof deleteWorkoutAction,
       typeof WorkoutActions.deleteWorkoutAction
     >
+  >,
+  Assert<
+    Matches<typeof startMfaSetupAction, typeof MfaActions.startMfaSetupAction>
+  >,
+  Assert<
+    Matches<
+      typeof confirmMfaSetupAction,
+      typeof MfaActions.confirmMfaSetupAction
+    >
+  >,
+  Assert<
+    Matches<typeof cancelMfaSetupAction, typeof MfaActions.cancelMfaSetupAction>
+  >,
+  Assert<Matches<typeof disableMfaAction, typeof MfaActions.disableMfaAction>>,
+  Assert<
+    Matches<typeof updateNameAction, typeof AccountActions.updateNameAction>
   >,
 ];

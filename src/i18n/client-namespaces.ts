@@ -15,6 +15,7 @@
  * the test helpers deliberately provide the whole catalog.
  */
 export const CLIENT_NAMESPACES = [
+  'Account',
   'ActivityLog',
   'AnalyticsConsentToggle',
   'AutoRefreshToggle',
@@ -56,6 +57,7 @@ export const CLIENT_NAMESPACES = [
   'LibraryFilter',
   'MeasurementEntryRow',
   'MeasurementsSection',
+  'Mfa',
   'NavDrawer',
   'NoteRow',
   'NoteSheet',

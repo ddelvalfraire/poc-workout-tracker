@@ -90,6 +90,7 @@ const I18N_MIGRATED = [
   "src/app/exercises/new/page.tsx",
   "src/app/exercises/page.tsx",
   "src/app/global-error.tsx",
+  "src/app/settings/account/page.tsx",
   "src/app/goals/consistency-progress.tsx",
   "src/app/goals/goal-card-actions.tsx",
   "src/app/goals/goal-create.tsx",
