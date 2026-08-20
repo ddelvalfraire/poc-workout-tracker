@@ -2,24 +2,31 @@ import { type Page } from '@playwright/test'
 
 /**
  * Disposable-user provisioning and UI sign-in for the e2e suite, against the
- * LIVE WorkOS environment named by WORKOS_API_KEY.
+ * LOCAL WorkOS emulator (`workos emulate`, booted by playwright.config.ts).
  *
- * There is no `@workos-inc/testing` Playwright helper — nothing mints a session
- * out of band the way Clerk's testing token did — so sign-in has to go through
- * the real hosted AuthKit page. That is why every spec funnels through this one
- * module: the hosted page is third-party DOM we do not control, and when its
- * markup shifts, `signIn` below is the ONLY place that needs correcting.
+ * Why not the real WorkOS environment: AuthKit's hosted sign-in page runs a
+ * bot-detection worker that blocks automated browsers outright — verified, not
+ * assumed. Clerk solved this with a testing token; WorkOS solves it with an
+ * emulator that speaks the same API and serves a plain login page. The app
+ * needs NO code changes to use it: authkit-nextjs reads WORKOS_API_HOSTNAME /
+ * WORKOS_API_HTTPS / WORKOS_API_PORT, so pointing those at the emulator is
+ * enough. That matters — the alternative was shipping a session-minting bypass
+ * route in application code, which is a permanent security surface.
  *
- * !! UNVERIFIED SELECTORS !!
- * The locators in `signIn` are written against WorkOS's documented hosted
- * AuthKit sign-in page but have NOT been run against the live page (this suite
- * was ported before a WorkOS environment existed). They are intentionally
- * intention-revealing (labels and roles, with semantic input-type fallbacks) so
- * they survive cosmetic changes. If sign-in fails on first run, fix it HERE —
- * do not scatter page-specific selectors back into the specs.
+ * What this therefore does and does not prove: it exercises OUR auth wiring
+ * (the proxy's gating, /callback, the session cookie, redirects) end to end. It
+ * does not exercise the real hosted page, which nothing automated can. Pair it
+ * with a manual sign-in when the AuthKit configuration itself changes.
+ *
+ * Every spec funnels through this module so sign-in has exactly one definition.
  */
 
-const WORKOS_API = 'https://api.workos.com/user_management'
+/** The emulator's fixed defaults — deliberately NOT the real key. The suite
+ *  must never be able to touch a live WorkOS environment. */
+const EMULATOR_ORIGIN = process.env.WORKOS_E2E_API_BASE ?? 'http://localhost:4100'
+const EMULATOR_API_KEY = 'sk_test_default'
+
+const WORKOS_API = `${EMULATOR_ORIGIN}/user_management`
 
 /** Matches `use.baseURL` in playwright.config.ts. */
 const APP_ORIGIN = 'http://localhost:3000'
@@ -29,12 +36,6 @@ export type TestUser = {
   readonly id: string
   readonly email: string
   readonly password: string
-}
-
-function apiKey(): string {
-  const key = process.env.WORKOS_API_KEY
-  if (!key) throw new Error('WORKOS_API_KEY is not set — see e2e/global.setup.ts')
-  return key
 }
 
 /**
@@ -62,7 +63,7 @@ export async function createTestUser(slug: string): Promise<TestUser> {
 
   const res = await fetch(`${WORKOS_API}/users`, {
     method: 'POST',
-    headers: { Authorization: `Bearer ${apiKey()}`, 'Content-Type': 'application/json' },
+    headers: { Authorization: `Bearer ${EMULATOR_API_KEY}`, 'Content-Type': 'application/json' },
     // `email_verified` skips the verification mail, so the hosted page goes
     // straight to the password prompt instead of a "check your email" wall.
     body: JSON.stringify({ email, password, email_verified: true }),
@@ -79,7 +80,7 @@ export async function createTestUser(slug: string): Promise<TestUser> {
 export async function deleteTestUser(id: string): Promise<void> {
   const res = await fetch(`${WORKOS_API}/users/${id}`, {
     method: 'DELETE',
-    headers: { Authorization: `Bearer ${apiKey()}` },
+    headers: { Authorization: `Bearer ${EMULATOR_API_KEY}` },
   })
   // 404 means a prior teardown (or the app's own delete-account flow) got there
   // first — that is the desired end state, not a failure.
@@ -89,12 +90,15 @@ export async function deleteTestUser(id: string): Promise<void> {
 }
 
 /**
- * Signs in through the real UI: /sign-in redirects to the hosted AuthKit page,
- * we fill the credentials there, and AuthKit's callback drops us back on the
- * app with a session cookie. Returns once the browser is back on our origin, so
+ * Signs in through the real UI: /sign-in redirects to the emulator's login
+ * page, we identify the user there, and the callback drops us back on the app
+ * with a session cookie. Returns once the browser is back on our origin, so
  * callers can assert on app UI immediately.
  *
- * See the UNVERIFIED SELECTORS note at the top of this file.
+ * The emulator identifies users by email alone — there is no password step, so
+ * `user.password` is only used when provisioning. Selectors below are taken
+ * from the emulator's actual markup (`<label for="email">`, a submit button
+ * reading "Continue"), not guessed.
  */
 export async function signIn(page: Page, user: TestUser): Promise<void> {
   await page.goto('/sign-in')
@@ -106,27 +110,33 @@ export async function signIn(page: Page, user: TestUser): Promise<void> {
   await emailField.waitFor({ state: 'visible', timeout: 30_000 })
   await emailField.fill(user.email)
 
-  const passwordField = page
-    .getByLabel(/password/i)
-    .or(page.locator('input[type="password"]'))
-    .first()
-
-  // AuthKit shows the password on the same screen when password auth is the
-  // only enabled method, and behind a "Continue" step when it has to resolve
-  // the auth method from the email first. Handle both rather than guessing.
-  if (!(await passwordField.isVisible())) {
-    await page
-      .getByRole('button', { name: /continue|next|sign in/i })
-      .first()
-      .click()
-    await passwordField.waitFor({ state: 'visible', timeout: 30_000 })
-  }
-  await passwordField.fill(user.password)
-
   await page
     .getByRole('button', { name: /continue|sign in|log in/i })
     .first()
     .click()
 
   await page.waitForURL((url) => url.origin === APP_ORIGIN, { timeout: 30_000 })
+  await acceptRequiredConsents(page)
+}
+
+/**
+ * A brand-new account has no consent rows, so the home gate sends it to
+ * /welcome. Every spec needs to be past that screen before it can touch the
+ * app, and clicking through it is what a real new user does — seeding the rows
+ * behind the app's back would skip the very gate that decides whether the app
+ * is usable, and would write to a ledger that is append-only by trigger.
+ *
+ * Idempotent: a session that already consented never lands here.
+ */
+async function acceptRequiredConsents(page: Page): Promise<void> {
+  if (!new URL(page.url()).pathname.startsWith('/welcome')) return
+
+  for (const id of ['#consent-health-collect', '#consent-health-share', '#consent-tos']) {
+    const box = page.locator(id)
+    await box.waitFor({ state: 'visible', timeout: 15_000 })
+    if ((await box.getAttribute('aria-checked')) !== 'true') await box.click()
+  }
+
+  await page.getByRole('button', { name: /continue|agree|get started/i }).last().click()
+  await page.waitForURL((url) => new URL(url).pathname === '/', { timeout: 30_000 })
 }

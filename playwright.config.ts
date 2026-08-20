@@ -26,10 +26,34 @@ export default defineConfig({
       dependencies: ['setup'],
     },
   ],
-  webServer: {
-    command: 'npm run dev',
-    url: 'http://localhost:3000',
-    reuseExistingServer: false,
-    timeout: 120_000,
-  },
+  // Two servers, in order: the WorkOS emulator, then the app pointed at it.
+  // The emulator is what makes browser sign-in testable at all — AuthKit's
+  // hosted page blocks automation with bot detection. `--interactive` serves a
+  // plain login page instead of auto-redirecting.
+  webServer: [
+    {
+      command: 'npx workos@latest emulate --port 4100 --interactive',
+      url: 'http://localhost:4100/health',
+      reuseExistingServer: true,
+      timeout: 120_000,
+    },
+    {
+      command: 'npm run dev',
+      url: 'http://localhost:3000',
+      reuseExistingServer: false,
+      timeout: 120_000,
+      // The app needs NO code change to talk to the emulator — authkit-nextjs
+      // resolves its API host from these. Keys are the emulator's fixed
+      // defaults, not secrets.
+      env: {
+        WORKOS_API_HOSTNAME: 'localhost',
+        WORKOS_API_PORT: '4100',
+        WORKOS_API_HTTPS: 'false',
+        WORKOS_API_KEY: 'sk_test_default',
+        WORKOS_CLIENT_ID: 'client_local_authkit',
+        WORKOS_AUTHKIT_DOMAIN: 'http://localhost:4100',
+        NEXT_PUBLIC_WORKOS_REDIRECT_URI: 'http://localhost:3000/callback',
+      },
+    },
+  ],
 })

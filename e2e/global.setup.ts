@@ -6,13 +6,10 @@ import { test as setup } from '@playwright/test'
  * 401 from the provisioning call, or as a dev server that redirects every page
  * to a broken hosted sign-in.
  */
-const REQUIRED = [
-  'WORKOS_API_KEY', // provisions + deletes the disposable test users
-  'WORKOS_CLIENT_ID', // the app's AuthKit client
-  'WORKOS_COOKIE_PASSWORD', // seals the session cookie the sign-in flow sets
-  'NEXT_PUBLIC_WORKOS_REDIRECT_URI', // where AuthKit hands the browser back
-  'DATABASE_URL_DIRECT', // the specs assert their rows straight in Postgres
-] as const
+// WorkOS config is supplied by playwright.config.ts's webServer env (it points
+// the app at the local emulator), so the only thing a human must provide is the
+// database the specs assert against.
+const REQUIRED = ['DATABASE_URL_DIRECT'] as const
 
 setup('required env vars are present', () => {
   const missing = REQUIRED.filter((name) => !process.env[name])
