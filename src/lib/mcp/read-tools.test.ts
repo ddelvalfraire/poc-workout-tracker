@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach, type Mock } from 'vitest'
+import { z, type ZodRawShape } from 'zod'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 
 vi.mock('@/db/workouts', () => ({
@@ -57,12 +58,18 @@ type ToolHandler = (args: Record<string, unknown>) => Promise<ToolResult>
 function fakeServer(): { server: McpServer; tools: Map<string, ToolHandler> } {
   const tools = new Map<string, ToolHandler>()
   const server = {
-    registerTool: (name: string, _config: unknown, handler: ToolHandler) => {
+    registerTool: (name: string, config: { inputSchema?: ZodRawShape }, handler: ToolHandler) => {
       tools.set(name, handler)
+      if (config.inputSchema) schemas.set(name, config.inputSchema)
     },
   }
   return { server: server as unknown as McpServer, tools }
 }
+
+/** The registered input schemas, so a test can assert the PUBLIC contract the
+ *  MCP SDK enforces — the handler harness below invokes handlers directly, so
+ *  without this the schema is never exercised. */
+const schemas = new Map<string, ZodRawShape>()
 
 /** Registers the read tools on a fresh fake server and returns the handler map. */
 function setup(): Map<string, ToolHandler> {
@@ -188,7 +195,34 @@ describe('registerReadTools', () => {
       expect(body.hasMore).toBe(true)
     })
 
-    it('clamps an over-large limit to the maximum rather than erroring', async () => {
+    it('rejects an over-large limit at the schema boundary', () => {
+      // Arrange — the handler harness invokes handlers directly, so the public
+      // contract only shows up by parsing with the registered schema.
+      setup()
+      const shape = schemas.get('list_workouts')
+      expect(shape).toBeDefined()
+
+      // Act
+      const parsed = z.object(shape!).safeParse({ limit: WORKOUT_LIST_MAX_LIMIT + 1 })
+
+      // Assert
+      expect(parsed.success).toBe(false)
+    })
+
+    it('accepts a limit at exactly the maximum', () => {
+      // Arrange
+      setup()
+
+      // Act
+      const parsed = z
+        .object(schemas.get('list_workouts')!)
+        .safeParse({ limit: WORKOUT_LIST_MAX_LIMIT })
+
+      // Assert
+      expect(parsed.success).toBe(true)
+    })
+
+    it('clamps defensively if an over-large limit ever reaches the handler', async () => {
       // Arrange
       const tools = setup()
       mockedList.mockResolvedValue(summaries(WORKOUT_LIST_MAX_LIMIT + 10))
