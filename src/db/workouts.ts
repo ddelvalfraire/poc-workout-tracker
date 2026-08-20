@@ -563,6 +563,18 @@ async function insertWorkoutChildren(
             ...(s.metricMode !== undefined ? { metricMode: s.metricMode } : {}),
             ...(s.durationSec !== undefined ? { durationSec: s.durationSec } : {}),
             ...(s.distanceM !== undefined ? { distanceM: s.distanceM } : {}),
+            // Technique grouping rides the wire like metricMode (the draft
+            // round-trips it), NOT like the prescribed_* snapshot: the lifter
+            // may retag a set mid-session, and a replace must persist the
+            // retag rather than restore the plan's grouping. Absent → all
+            // three columns null, an ordinary set.
+            ...(s.technique !== undefined
+              ? {
+                  techniqueKind: s.technique.kind,
+                  techniqueGroup: s.technique.group,
+                  stageIndex: s.technique.stageIndex,
+                }
+              : {}),
           }
         }),
       ).returning({

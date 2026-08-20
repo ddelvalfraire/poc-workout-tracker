@@ -15,6 +15,7 @@ import {
   type WorkoutDraft,
 } from './workout-draft'
 import type { WorkoutDetail } from '@/db/workouts'
+import { parseWorkoutInput } from '@/lib/workout-input'
 
 const SQUAT = {
   wgerExerciseId: 73,
@@ -1518,3 +1519,207 @@ describe('SET_SET_NOTE (notes v2 capture)', () => {
     expect(JSON.stringify(input)).not.toContain('quiet')
   })
 })
+
+describe('SET_SET_TECHNIQUE (the set-type picker\'s technique arm)', () => {
+  const GROUP = 'g1'
+
+  /** A draft with one exercise and `count` working sets. */
+  function drafted(count: number): WorkoutDraft {
+    return {
+      notes: '',
+      exercises: [
+        {
+          id: 'ex1',
+          ...SQUAT,
+          sets: Array.from({ length: count }, (_, i) => ({
+            id: `s${i + 1}`,
+            reps: '8',
+            weight: '100',
+            completed: false,
+            tag: 'working' as const,
+          })),
+        },
+      ],
+    }
+  }
+
+  function tag(draft: WorkoutDraft, setIndex: number, kind: 'drop-set' | 'rest-pause' | null, group = GROUP) {
+    return workoutDraftReducer(draft, {
+      type: 'SET_SET_TECHNIQUE',
+      exerciseIndex: 0,
+      setIndex,
+      kind,
+      group,
+    })
+  }
+
+  it('pulls the set ABOVE into the group — a drop continues the set it drops from', () => {
+    const next = tag(drafted(3), 1, 'drop-set')
+
+    expect(next.exercises[0].sets.map((s) => s.technique)).toEqual([
+      { kind: 'drop-set', group: GROUP, stageIndex: 0 },
+      { kind: 'drop-set', group: GROUP, stageIndex: 1 },
+      undefined,
+    ])
+    // Immutability: the source draft never changes.
+    expect(drafted(3).exercises[0].sets[0]).not.toHaveProperty('technique')
+  })
+
+  it('is a no-op on the first set — nothing to continue', () => {
+    const draft = drafted(2)
+    expect(tag(draft, 0, 'drop-set')).toEqual(draft)
+  })
+
+  it('extends the group when the set above already carries the same kind', () => {
+    const next = tag(tag(drafted(3), 1, 'drop-set'), 2, 'drop-set', 'g2')
+
+    expect(next.exercises[0].sets.map((s) => s.technique?.stageIndex)).toEqual([0, 1, 2])
+    expect(new Set(next.exercises[0].sets.map((s) => s.technique?.group))).toEqual(new Set([GROUP]))
+  })
+
+  it('starts a NEW group when the kind differs from the set above', () => {
+    const next = tag(tag(drafted(4), 1, 'drop-set'), 3, 'rest-pause', 'g2')
+
+    const techniques = next.exercises[0].sets.map((s) => s.technique)
+    expect(techniques[0]?.group).toBe(GROUP)
+    expect(techniques[2]).toEqual({ kind: 'rest-pause', group: 'g2', stageIndex: 0 })
+    expect(techniques[3]).toEqual({ kind: 'rest-pause', group: 'g2', stageIndex: 1 })
+  })
+
+  it('untagging ends the group there and dissolves a leftover top set', () => {
+    const grouped = tag(drafted(3), 1, 'drop-set')
+
+    const next = tag(grouped, 1, null)
+
+    // A group of one isn't a technique — the top set loses the tag too.
+    expect(next.exercises[0].sets.every((s) => s.technique === undefined)).toBe(true)
+  })
+
+  it('untagging a middle stage drops the stages after it, keeping the group well-formed', () => {
+    const three = tag(tag(drafted(4), 1, 'drop-set'), 2, 'drop-set')
+
+    const next = tag(three, 2, null)
+
+    expect(next.exercises[0].sets.map((s) => s.technique?.stageIndex)).toEqual([
+      0,
+      1,
+      undefined,
+      undefined,
+    ])
+  })
+
+  it('removing a stage renumbers the group instead of leaving a gap', () => {
+    const grouped = tag(tag(drafted(3), 1, 'drop-set'), 2, 'drop-set')
+
+    const next = workoutDraftReducer(grouped, { type: 'REMOVE_SET', exerciseIndex: 0, setIndex: 1 })
+
+    expect(next.exercises[0].sets.map((s) => s.technique?.stageIndex)).toEqual([0, 1])
+    // The surviving group still saves — the wire's contiguity rule holds.
+    expect(() => parseWorkoutInput(draftToInput(next))).not.toThrow()
+  })
+
+  it('inserting an ordinary set into a group splits it and dissolves the orphan', () => {
+    const grouped = tag(drafted(2), 1, 'drop-set')
+
+    const next = workoutDraftReducer(grouped, {
+      type: 'INSERT_SET',
+      exerciseIndex: 0,
+      setIndex: 1,
+      set: { id: 'new', reps: '', weight: '', completed: false, tag: 'working' },
+    })
+
+    expect(next.exercises[0].sets.every((s) => s.technique === undefined)).toBe(true)
+  })
+
+  it('rides the wire and round-trips back through a persisted workout', () => {
+    const input = draftToInput(tag(drafted(2), 1, 'drop-set'))
+
+    expect(input.exercises[0].sets.map((s) => s.technique)).toEqual([
+      { kind: 'drop-set', group: GROUP, stageIndex: 0 },
+      { kind: 'drop-set', group: GROUP, stageIndex: 1 },
+    ])
+    // The saved rows read back as the same grouping (edit mode must not shed it).
+    const { draft } = detailToDraft({
+      id: 'w1',
+      userId: 'u1',
+      name: null,
+      startedAt: new Date(),
+      completedAt: null,
+      createdAt: new Date(),
+      programDayId: null,
+      programWeek: null,
+      importBatchId: null,
+      notes: null,
+      exercises: [
+        {
+          id: 'ex1',
+          workoutId: 'w1',
+          wgerExerciseId: 73,
+          source: 'wger',
+          name: 'Squat',
+          position: 0,
+          loggingType: 'weight_reps',
+          notes: null,
+          skipped: false,
+          sets: [
+            persistedSet({ setNumber: 1, techniqueKind: 'drop-set', techniqueGroup: GROUP, stageIndex: 0 }),
+            persistedSet({ setNumber: 2, techniqueKind: 'drop-set', techniqueGroup: GROUP, stageIndex: 1 }),
+          ],
+        },
+      ],
+    } as unknown as WorkoutDetail)
+
+    expect(draft.exercises[0].sets.map((s) => s.technique)).toEqual([
+      { kind: 'drop-set', group: GROUP, stageIndex: 0 },
+      { kind: 'drop-set', group: GROUP, stageIndex: 1 },
+    ])
+  })
+
+  it('degrades a half-written grouping to an ordinary set (stored rows are data)', () => {
+    const { draft } = detailToDraft({
+      notes: null,
+      exercises: [
+        {
+          id: 'ex1',
+          workoutId: 'w1',
+          wgerExerciseId: 73,
+          source: 'wger',
+          name: 'Squat',
+          position: 0,
+          loggingType: 'weight_reps',
+          notes: null,
+          skipped: false,
+          sets: [persistedSet({ setNumber: 1, techniqueKind: 'giant-set', techniqueGroup: 'g', stageIndex: 0 })],
+        },
+      ],
+    } as unknown as WorkoutDetail)
+
+    expect(draft.exercises[0].sets[0]).not.toHaveProperty('technique')
+  })
+})
+
+/** A persisted set row with every optional column nulled, for overriding. */
+function persistedSet(overrides: Record<string, unknown>) {
+  return {
+    id: `s${overrides.setNumber ?? 1}`,
+    workoutExerciseId: 'ex1',
+    setNumber: 1,
+    reps: 8,
+    weight: 100,
+    completed: false,
+    setType: 'working',
+    metricMode: 'reps_weight',
+    durationSec: null,
+    distanceM: null,
+    prescribedLoadKg: null,
+    prescribedRepMin: null,
+    rir: null,
+    rpe: null,
+    prescribedRir: null,
+    prescribedRpe: null,
+    techniqueKind: null,
+    techniqueGroup: null,
+    stageIndex: null,
+    ...overrides,
+  }
+}

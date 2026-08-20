@@ -119,6 +119,7 @@ interface FixtureSet {
   rir?: number | null
   rpe?: number | null
   suggestedLoadKg?: number | null
+  technique?: unknown
   overrides?: { week: number; [key: string]: unknown }[]
 }
 

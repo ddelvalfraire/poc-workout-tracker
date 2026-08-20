@@ -1,5 +1,6 @@
 import type {
   LoggingType,
+  SetTechnique,
   WorkoutInput,
   WorkoutMetricMode,
   WorkoutSetType,
@@ -10,6 +11,7 @@ import { displayToKg, kgToDisplay, type WeightUnit } from '@/lib/units'
 import { defaultMetricModeForCategory, isMetricMode } from '@/lib/workout-input'
 export { defaultMetricModeForCategory }
 import { isValidRir, isValidRpe } from '@/lib/effort'
+import { isTechniqueKind, type TechniqueKind } from '@/lib/technique'
 import {
   formatDistanceInput,
   formatDurationInput,
@@ -58,6 +60,12 @@ export interface DraftSet {
    *  draftToInput: set notes become `notes` table rows AFTER the save, by
    *  (exercisePosition, setNumber) — see note-capture.ts. */
   note?: string
+  /** This set's place in an intensity-technique group (drop set, rest-pause
+   *  mini-set, …). OPTIONAL FOREVER — absent = an ordinary set — so every
+   *  pre-technique draft, payload and fixture stays valid without a codec
+   *  version bump (the rir/rpe precedent). Unlike `tag`, it round-trips
+   *  through the wire: a mid-session retag is a fact, not a plan detail. */
+  technique?: SetTechnique
   /** Idempotency handle for this set's note, minted ONCE when the note is
    *  first captured and stable across edits/retries — the create's clientKey
    *  (a replayed finish or queue re-send dedupes on it). */
@@ -125,6 +133,19 @@ export type DraftAction =
   /** Retags one set (working ↔ warmup) — the long-press toggle. Values and
    *  completion survive: the tag changes how the set SCORES, not what it says. */
   | { type: 'TAG_SET'; exerciseIndex: number; setIndex: number; tag: WorkoutSetType }
+  /** The set-type picker's technique arm: makes set `setIndex` a stage of an
+   *  intensity technique (drop set, rest-pause mini-set, …) or, with a null
+   *  kind, an ordinary set again. The set JOINS the set above it — that's
+   *  what a drop IS — so the first set of an exercise can never be a stage.
+   *  `group` is the key to mint if a NEW group starts; the reducer stays pure
+   *  (the caller mints ids, as with note clientKeys). */
+  | {
+      type: 'SET_SET_TECHNIQUE'
+      exerciseIndex: number
+      setIndex: number
+      kind: TechniqueKind | null
+      group: string
+    }
   /** Post-completion effort chips: set/clear rir and/or rpe on one set. A
    *  provided field replaces ('' clears); an omitted field is untouched. */
   | { type: 'SET_EFFORT'; exerciseIndex: number; setIndex: number; rir?: string; rpe?: string }
@@ -315,6 +336,15 @@ export function workoutDraftReducer(state: WorkoutDraft, action: DraftAction): W
         })),
       }
 
+    case 'SET_SET_TECHNIQUE':
+      return {
+        ...state,
+        exercises: mapExerciseAt(state.exercises, action.exerciseIndex, (exercise) => ({
+          ...exercise,
+          sets: tagSetTechnique(exercise.sets, action.setIndex, action.kind, action.group),
+        })),
+      }
+
     case 'SET_EFFORT':
       return {
         ...state,
@@ -351,7 +381,9 @@ export function workoutDraftReducer(state: WorkoutDraft, action: DraftAction): W
         ...state,
         exercises: mapExerciseAt(state.exercises, action.exerciseIndex, (exercise) => ({
           ...exercise,
-          sets: exercise.sets.filter((_, i) => i !== action.setIndex),
+          // Renormalized: removing a row out of a technique group would leave
+          // a stage gap the wire refuses to save.
+          sets: normalizeTechniqueGroups(exercise.sets.filter((_, i) => i !== action.setIndex)),
         })),
       }
 
@@ -363,7 +395,13 @@ export function workoutDraftReducer(state: WorkoutDraft, action: DraftAction): W
           const index = Math.min(action.setIndex, exercise.sets.length)
           return {
             ...exercise,
-            sets: [...exercise.sets.slice(0, index), action.set, ...exercise.sets.slice(index)],
+            // Same renormalization as REMOVE_SET: an ordinary set inserted
+            // into a group splits it, and both halves must stay well-formed.
+            sets: normalizeTechniqueGroups([
+              ...exercise.sets.slice(0, index),
+              action.set,
+              ...exercise.sets.slice(index),
+            ]),
           }
         }),
       }
@@ -464,6 +502,95 @@ function adoptFill(set: DraftSet, fill: SetFill): DraftSet {
   }
 }
 
+/**
+ * Makes `index` a stage of a technique group, or (null kind) an ordinary set.
+ *
+ * A stage always JOINS the set above it — a drop set is a continuation of the
+ * set it drops from — so the top set is pulled into the group too, and
+ * tagging the FIRST set of an exercise is a no-op (nothing to continue).
+ * Untagging ends the group there: the row and every later stage of the same
+ * group become ordinary sets, because a stage can't follow a set that left.
+ * The result is renormalized, so the draft can only ever hold well-formed
+ * groups — the shape parseWorkoutInput enforces at the wire.
+ */
+export function tagSetTechnique(
+  sets: DraftSet[],
+  index: number,
+  kind: TechniqueKind | null,
+  group: string,
+): DraftSet[] {
+  const target = sets[index]
+  if (!target) return sets
+  if (kind === null) {
+    const leaving = target.technique?.group
+    if (leaving === undefined) return sets
+    return normalizeTechniqueGroups(
+      sets.map((set, i) =>
+        i >= index && set.technique?.group === leaving ? withoutTechnique(set) : set,
+      ),
+    )
+  }
+  const previous = sets[index - 1]
+  if (!previous) return sets
+  const joined =
+    previous.technique?.kind === kind ? previous.technique.group : group
+  return normalizeTechniqueGroups(
+    sets.map((set, i) => {
+      if (i === index - 1 && set.technique?.group !== joined) {
+        return { ...set, technique: { kind, group: joined, stageIndex: 0 } }
+      }
+      if (i === index) return { ...set, technique: { kind, group: joined, stageIndex: 0 } }
+      return set
+    }),
+  )
+}
+
+/** Drops the technique tag, keeping the minimal shape (absent, not null). */
+function withoutTechnique(set: DraftSet): DraftSet {
+  if (set.technique === undefined) return set
+  const rest = { ...set }
+  delete rest.technique
+  return rest
+}
+
+/**
+ * Rebuilds every group as a CONTIGUOUS run numbered from 0 — the invariant
+ * parseWorkoutInput checks and weekly volume counts on. A run of one is not a
+ * technique (nothing continues) and loses its tag; a group key that reappears
+ * after the run closed is dropped rather than silently merged with the first.
+ */
+export function normalizeTechniqueGroups(sets: DraftSet[]): DraftSet[] {
+  const closed = new Set<string>()
+  let open: { group: string; kind: TechniqueKind; stage: number } | null = null
+  const staged = sets.map((set) => {
+    const technique = set.technique
+    if (!technique) {
+      if (open) closed.add(open.group)
+      open = null
+      return withoutTechnique(set)
+    }
+    if (open !== null && open.group === technique.group) {
+      open.stage += 1
+      return { ...set, technique: { kind: open.kind, group: open.group, stageIndex: open.stage } }
+    }
+    if (open) closed.add(open.group)
+    if (closed.has(technique.group)) {
+      open = null
+      return withoutTechnique(set)
+    }
+    open = { group: technique.group, kind: technique.kind, stage: 0 }
+    return { ...set, technique: { kind: technique.kind, group: technique.group, stageIndex: 0 } }
+  })
+  // Second pass: a group left holding only its top set isn't a technique.
+  const size = new Map<string, number>()
+  for (const set of staged) {
+    if (set.technique) size.set(set.technique.group, (size.get(set.technique.group) ?? 0) + 1)
+  }
+  return staged.map((set) =>
+    set.technique && size.get(set.technique.group) === 1 ? withoutTechnique(set) : set,
+  )
+}
+
 /** Parses a reps string to a non-negative integer, or null when blank/invalid. */
 function toReps(value: string): number | null {
   const trimmed = value.trim()
@@ -541,6 +668,7 @@ export function draftToInput(
             ...(set.tag === 'warmup' && { setType: 'warmup' as const }),
             ...(rir !== null && { rir }),
             ...(rpe !== null && { rpe }),
+            ...(set.technique && { technique: set.technique }),
           }
         }
         return {
@@ -554,6 +682,9 @@ export function draftToInput(
           // Effort only when logged and on-grid (null column default otherwise).
           ...(rir !== null && { rir }),
           ...(rpe !== null && { rpe }),
+          // Technique grouping only when tagged — absent keeps the minimal
+          // wire shape every pre-technique fixture asserts.
+          ...(set.technique && { technique: set.technique }),
         }
       }),
     }
@@ -604,6 +735,21 @@ export function detailToDraft(
       // Logged effort round-trips as strings (edit mode must not shed it).
       rir: set.rir?.toString() ?? '',
       rpe: set.rpe?.toString() ?? '',
+      // Technique grouping round-trips whole or not at all (the three
+      // columns are only ever written together); junk in any of them degrades
+      // to an ordinary set rather than an ungroupable stage.
+      ...(isTechniqueKind(set.techniqueKind) &&
+      typeof set.techniqueGroup === 'string' &&
+      set.techniqueGroup !== '' &&
+      Number.isInteger(set.stageIndex)
+        ? {
+            technique: {
+              kind: set.techniqueKind,
+              group: set.techniqueGroup,
+              stageIndex: set.stageIndex as number,
+            },
+          }
+        : {}),
       // Cardio metric round-trip: non-default modes carry their fields as
       // input strings; reps_weight rows stay shape-identical (fields absent).
       // isMetricMode guards the un-$typed DB text — junk degrades to default.
