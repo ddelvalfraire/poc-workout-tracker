@@ -21,17 +21,13 @@ import { useTranslations } from 'next-intl'
  * server action converts against the STORED unit preference.
  */
 
-const KIND_OPTIONS: { kind: GoalKind; label: string }[] = [
-  { kind: 'strength', label: 'Strength' },
-  { kind: 'bodyweight', label: 'Bodyweight' },
-  { kind: 'consistency', label: 'Consistency' },
-]
+// Option lists carry VALUES only. A label baked in here would be built at
+// module load, before any request — so it could never be translated.
+const KIND_OPTIONS: GoalKind[] = ['strength', 'bodyweight', 'consistency']
 
-const GRACE_OPTIONS: { value: 0 | 1 | 2; label: string }[] = [
-  { value: 0, label: 'Strict' },
-  { value: 1, label: '1 miss / week' },
-  { value: 2, label: '2 misses / week' },
-]
+const GRACE_OPTIONS: (0 | 1 | 2)[] = [0, 1, 2]
+
+const DIRECTION_OPTIONS = ['down', 'up'] as const
 
 export function GoalCreate({
   unit,
@@ -129,27 +125,27 @@ export function GoalCreate({
   }
 
   return (
-    <Section title="New goal" className="mt-0">
+    <Section title={t('sectionTitle')} className="mt-0">
       {/* Kind picker — segmented, one row. */}
-      <div role="radiogroup" aria-label="Goal kind" className="mt-3 grid grid-cols-3 gap-1.5">
+      <div role="radiogroup" aria-label={t('kindGroupLabel')} className="mt-3 grid grid-cols-3 gap-1.5">
         {KIND_OPTIONS.map((option) => (
           <button
-            key={option.kind}
+            key={option}
             type="button"
             role="radio"
-            aria-checked={kind === option.kind}
+            aria-checked={kind === option}
             onClick={() => {
-              setKind(option.kind)
+              setKind(option)
               setError(null)
             }}
             className={cn(
               'rounded-lg border px-2 py-2 text-xs font-semibold uppercase tracking-wide transition-colors',
-              kind === option.kind
+              kind === option
                 ? 'border-primary bg-primary/10 text-primary'
                 : 'border-border text-muted-foreground',
             )}
           >
-            {option.label}
+            {t(`kind.${option}`)}
           </button>
         ))}
       </div>
@@ -182,7 +178,7 @@ export function GoalCreate({
                 autoComplete="off"
                 value={targetValue}
                 onChange={(e) => setTargetValue(e.target.value)}
-                placeholder={unit === 'lb' ? 'e.g. 315' : 'e.g. 142.5'}
+                placeholder={t('e1rmPlaceholder', { example: unit === 'lb' ? 315 : 142.5 })}
                 className="mt-1.5 tnum"
               />
             </div>
@@ -202,31 +198,26 @@ export function GoalCreate({
                 autoComplete="off"
                 value={targetValue}
                 onChange={(e) => setTargetValue(e.target.value)}
-                placeholder={unit === 'lb' ? 'e.g. 175' : 'e.g. 80'}
+                placeholder={t('weightPlaceholder', { example: unit === 'lb' ? 175 : 80 })}
                 className="mt-1.5 tnum"
               />
             </div>
-            <div role="radiogroup" aria-label="Direction" className="grid grid-cols-2 gap-1.5">
-              {(
-                [
-                  { value: 'down', label: 'Cutting down to' },
-                  { value: 'up', label: 'Building up to' },
-                ] as const
-              ).map((option) => (
+            <div role="radiogroup" aria-label={t('directionGroupLabel')} className="grid grid-cols-2 gap-1.5">
+              {DIRECTION_OPTIONS.map((option) => (
                 <button
-                  key={option.value}
+                  key={option}
                   type="button"
                   role="radio"
-                  aria-checked={direction === option.value}
-                  onClick={() => setDirection(option.value)}
+                  aria-checked={direction === option}
+                  onClick={() => setDirection(option)}
                   className={cn(
                     'rounded-lg border px-2 py-2 text-xs font-medium transition-colors',
-                    direction === option.value
+                    direction === option
                       ? 'border-primary bg-primary/10 text-primary'
                       : 'border-border text-muted-foreground',
                   )}
                 >
-                  {option.label}
+                  {t(`direction.${option}`)}
                 </button>
               ))}
             </div>
@@ -254,24 +245,24 @@ export function GoalCreate({
               <p className="text-sm font-medium">{t('graceLabel')}</p>
               <div
                 role="radiogroup"
-                aria-label="Streak grace"
+                aria-label={t('graceGroupLabel')}
                 className="mt-1.5 grid grid-cols-3 gap-1.5"
               >
                 {GRACE_OPTIONS.map((option) => (
                   <button
-                    key={option.value}
+                    key={option}
                     type="button"
                     role="radio"
-                    aria-checked={grace === option.value}
-                    onClick={() => setGrace(option.value)}
+                    aria-checked={grace === option}
+                    onClick={() => setGrace(option)}
                     className={cn(
                       'rounded-lg border px-1 py-2 text-xs font-medium transition-colors',
-                      grace === option.value
+                      grace === option
                         ? 'border-primary bg-primary/10 text-primary'
                         : 'border-border text-muted-foreground',
                     )}
                   >
-                    {option.label}
+                    {t('graceOption', { misses: option })}
                   </button>
                 ))}
               </div>
@@ -316,10 +307,10 @@ export function GoalCreate({
             setIsOpen(false)
           }}
         >
-          {t('cancelAction')}
+          {t('cancel')}
         </Button>
         <Button className="flex-1" disabled={isPending} onClick={submit}>
-          {isPending ? 'Creating…' : 'Create goal'}
+          {isPending ? t('creatingAction') : t('createAction')}
         </Button>
       </div>
     </Section>

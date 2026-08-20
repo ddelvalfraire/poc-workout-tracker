@@ -87,7 +87,7 @@ export function GoalCardActions({ id, label, archived }: GoalCardActionsProps) {
             disabled={isPending}
             className={`${item} text-destructive`}
           >
-            {t('deleteAction')}
+            {t('delete')}
           </button>
         </div>
       </details>
@@ -101,9 +101,9 @@ export function GoalCardActions({ id, label, archived }: GoalCardActionsProps) {
       {confirmingDelete && (
         <ConfirmDialog
           title={`Delete "${label}"?`}
-          body="This removes the goal for good. Your training history is untouched."
-          confirmLabel="Delete"
-          pendingLabel="Deleting…"
+          body={t('deleteDialog.body')}
+          confirmLabel={t('deleteDialog.confirm')}
+          pendingLabel={t('deleteDialog.pending')}
           error={error}
           isPending={isPending}
           onConfirm={confirmDelete}

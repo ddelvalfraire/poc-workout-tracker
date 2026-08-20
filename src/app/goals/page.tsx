@@ -69,7 +69,7 @@ export default async function GoalsPage() {
   return (
     <div className="flex min-h-[100dvh] flex-col">
       <AppHeader
-        title="Goals"
+        title={t('title')}
         leading={<NavDrawer />}
       />
 
@@ -83,7 +83,7 @@ export default async function GoalsPage() {
             </EmptyWords>
           </>
         ) : (
-          <section aria-label="Active goals">
+          <section aria-label={t('activeGroupLabel')}>
             <div className="flex items-center justify-between gap-2">
               <h2 className="px-1 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
                 {t('activeTitle')}
@@ -117,7 +117,7 @@ export default async function GoalsPage() {
         </DividerList>
 
         {archived.length > 0 && (
-          <section aria-label="Archived goals">
+          <section aria-label={t('archivedGroupLabel')}>
             <h2 className="px-1 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
               {t('archivedTitle')}
             </h2>
@@ -207,14 +207,14 @@ function GoalCard({
                 <p className="mt-1.5 text-sm text-muted-foreground tnum">
                   {progress.bestE1rmKg !== null
                     ? `Best ${formatE1RM(progress.bestE1rmKg, unit)}`
-                    : 'No est. 1RM yet'}
+                    : t('noEstimate')}
                 </p>
                 <div
                   role="progressbar"
                   aria-valuenow={progress.percent}
                   aria-valuemin={0}
                   aria-valuemax={100}
-                  aria-label="Progress to target"
+                  aria-label={t('progressLabel')}
                   className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted"
                 >
                   {/* Progress at rest is data ink, not accent ink (Primer/
@@ -271,14 +271,14 @@ function GoalCard({
                   </p>
                 )}
                 {bodyweightPoints.length >= 2 && 'weightKg' in goal.target && (
-                  <div role="group" aria-label="Bodyweight trend" className="mt-3">
+                  <div role="group" aria-label={t('trendLabel')} className="mt-3">
                     <TrendChart
                       points={bodyweightPoints}
                       unit={unit}
-                      valueLabel="Bodyweight"
+                      valueLabel={t('bodyweightSeriesLabel')}
                       ariaLabel={`Bodyweight trend over ${bodyweightPoints.length} entries against the ${kgToDisplay(goal.target.weightKg, unit)} ${unit} target`}
                       targetValue={kgToDisplay(goal.target.weightKg, unit)}
-                      targetLabel="Target"
+                      targetLabel={t('targetSeriesLabel')}
                       className="h-24"
                     />
                   </div>
@@ -304,9 +304,7 @@ function GoalCard({
             {goal.deadline !== null && <span>{t('byDeadline', { date: formatDeadline(goal.deadline) })}</span>}
             {progress.kind === 'consistency' && (
               <span>
-                {progress.allowedMissesPerWeek === 0
-                  ? 'Strict'
-                  : `${progress.allowedMissesPerWeek} miss${progress.allowedMissesPerWeek === 1 ? '' : 'es'}/week grace`}
+                {t('graceSummary', { misses: progress.allowedMissesPerWeek })}
               </span>
             )}
           </div>
