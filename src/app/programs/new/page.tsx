@@ -5,18 +5,20 @@ import { AppHeader } from '@/components/app-header'
 import { buttonVariants } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { ProgramBuilder } from './program-builder'
+import { getTranslations } from 'next-intl/server'
 
 export default async function NewProgramPage() {
+  const t = await getTranslations('ProgramNew')
   const userId = await requireUserId() // middleware also guards; defense-in-depth
   const unit = await getWeightUnit(userId)
 
   return (
     <div className="flex min-h-[100dvh] flex-col">
       <AppHeader
-        title="New Program"
+        title={t('title')}
         trailing={
           <Link href="/programs" className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }))}>
-            Close
+            {t('closeLink')}
           </Link>
         }
       />

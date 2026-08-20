@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { adoptTemplateAction } from './actions'
+import { useTranslations } from 'next-intl'
 
 /**
  * "Use this program" — the template detail page's one volt CTA: adopts a
@@ -13,6 +14,7 @@ import { adoptTemplateAction } from './actions'
  * ImportTemplateButton rationale, verbatim.
  */
 export function UseTemplateButton({ templateId }: { templateId: string }) {
+  const t = useTranslations('UseTemplateButton')
   const [isPending, setIsPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const router = useRouter()
@@ -25,14 +27,14 @@ export function UseTemplateButton({ templateId }: { templateId: string }) {
       router.push(`/programs/${id}`)
     } catch {
       setIsPending(false)
-      setError('Could not add this program. Please try again.')
+      setError(t('adoptError'))
     }
   }
 
   return (
     <div className="flex flex-col gap-2">
       <Button className="w-full" disabled={isPending} onClick={handleAdopt}>
-        {isPending ? 'Adding…' : 'Use this program'}
+        {isPending ? t('pending') : t('adoptAction')}
       </Button>
       {error !== null && (
         <p role="alert" className="text-xs text-destructive">

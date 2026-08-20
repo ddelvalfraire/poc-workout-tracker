@@ -6,19 +6,13 @@ import type { ProgramVisibility } from '@/lib/program-input'
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import { cn } from '@/lib/utils'
 import { setProgramVisibilityAction, rotateProgramShareAction } from '../actions'
+import { useTranslations } from 'next-intl'
 
-/** The three visibility modes as the owner reads them. */
-const OPTIONS: { value: ProgramVisibility; label: string }[] = [
-  { value: 'private', label: 'Private' },
-  { value: 'link', label: 'Shared via link' },
-  { value: 'public', label: 'Public' },
-]
-
-const DESCRIPTIONS: Record<ProgramVisibility, string> = {
-  private: 'Only you can see this program.',
-  link: 'Anyone with the link can read the plan. Your history and stats stay private.',
-  public: 'Readable via the link today; eligible for browse surfaces later. History stays private.',
-}
+/** The three visibility modes, as VALUES only. Their labels and blurbs
+ *  live in the catalog (`option.<value>` / `optionDescription.<value>`):
+ *  copy built at module load happens before any request, so it could
+ *  never be translated. */
+const OPTIONS: ProgramVisibility[] = ['private', 'link', 'public']
 
 const COPIED_RESET_MS = 2000
 
@@ -43,6 +37,7 @@ interface SharingSectionProps {
  * regardless).
  */
 export function SharingSection({ programId, visibility, shareToken }: SharingSectionProps) {
+  const t = useTranslations('SharingSection')
   const [current, setCurrent] = useState<ProgramVisibility>(visibility)
   const [token, setToken] = useState<string | null>(shareToken)
   const [error, setError] = useState<string | null>(null)
@@ -79,7 +74,7 @@ export function SharingSection({ programId, visibility, shareToken }: SharingSec
         setCurrent(result.visibility)
         setToken(result.token ?? token)
       } catch {
-        setError('Could not update sharing. Try again.')
+        setError(t('updateError'))
       }
     })
   }
@@ -93,7 +88,7 @@ export function SharingSection({ programId, visibility, shareToken }: SharingSec
         if (copyTimer.current) clearTimeout(copyTimer.current)
         copyTimer.current = setTimeout(() => setCopied(false), COPIED_RESET_MS)
       })
-      .catch(() => setError('Could not copy the link.'))
+      .catch(() => setError(t('copyError')))
   }
 
   function rotate() {
@@ -105,25 +100,25 @@ export function SharingSection({ programId, visibility, shareToken }: SharingSec
         closeRef.current?.()
         setShowRotate(false)
       } catch {
-        setError('Could not rotate the link. Try again.')
+        setError(t('rotateError'))
       }
     })
   }
 
   return (
-    <section aria-label="Sharing" className="mt-10">
-      <h2 className="font-display text-xl uppercase leading-none tracking-wide">Sharing</h2>
+    <section aria-label={t('ariaLabel')} className="mt-10">
+      <h2 className="font-display text-xl uppercase leading-none tracking-wide">{t('title')}</h2>
       {/* Segmented selector — the week-pill vocabulary, one selected at a time. */}
-      <div role="group" aria-label="Program visibility" className="mt-3 flex flex-wrap gap-2">
+      <div role="group" aria-label={t('visibilityGroupLabel')} className="mt-3 flex flex-wrap gap-2">
         {OPTIONS.map((option) => {
-          const isSelected = option.value === current
+          const isSelected = option === current
           return (
             <button
-              key={option.value}
+              key={option}
               type="button"
               aria-pressed={isSelected}
               disabled={isPending}
-              onClick={() => select(option.value)}
+              onClick={() => select(option)}
               className={cn(
                 'flex h-9 items-center rounded-full border px-3.5 text-sm font-semibold transition-colors disabled:opacity-60',
                 isSelected
@@ -131,24 +126,24 @@ export function SharingSection({ programId, visibility, shareToken }: SharingSec
                   : 'border-border text-muted-foreground hover:text-foreground',
               )}
             >
-              {option.label}
+              {t(`option.${option}`)}
             </button>
           )
         })}
       </div>
-      <p className="mt-2 text-sm text-muted-foreground">{DESCRIPTIONS[current]}</p>
+      <p className="mt-2 text-sm text-muted-foreground">{t(`optionDescription.${current}`)}</p>
 
       {current !== 'private' && shareUrl !== null && (
         <div className="mt-3 border-b border-b-border/60 pb-4">
           <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
-            Share link
+            {t('shareLinkLabel')}
           </p>
           <div className="mt-2 flex items-center gap-2">
             <p className="min-w-0 flex-1 truncate text-sm tnum">{shareUrl}</p>
             <button
               type="button"
               onClick={copyLink}
-              aria-label={copied ? 'Link copied' : 'Copy share link'}
+              aria-label={copied ? t('copiedAriaLabel') : t('copyAriaLabel')}
               className="flex h-9 shrink-0 items-center gap-1.5 rounded-full border border-border px-3 text-sm font-semibold text-muted-foreground transition-colors hover:text-foreground"
             >
               {copied ? (
@@ -156,7 +151,7 @@ export function SharingSection({ programId, visibility, shareToken }: SharingSec
               ) : (
                 <Copy aria-hidden="true" className="size-4" />
               )}
-              {copied ? 'Copied' : 'Copy'}
+              {copied ? t('copiedAction') : t('copyAction')}
             </button>
           </div>
           <button
@@ -165,7 +160,7 @@ export function SharingSection({ programId, visibility, shareToken }: SharingSec
             onClick={() => setShowRotate(true)}
             className="mt-3 text-sm text-muted-foreground underline underline-offset-2 transition-colors hover:text-destructive disabled:opacity-60"
           >
-            Revoke &amp; rotate link
+            {t('rotateAction')}
           </button>
         </div>
       )}
@@ -174,10 +169,10 @@ export function SharingSection({ programId, visibility, shareToken }: SharingSec
 
       {showRotate && (
         <ConfirmDialog
-          title="Revoke this link?"
-          body="Anyone holding the current link loses access immediately. A fresh link replaces it."
-          confirmLabel="Revoke & rotate"
-          pendingLabel="Rotating…"
+          title={t('rotateDialog.title')}
+          body={t('rotateDialog.body')}
+          confirmLabel={t('rotateDialog.confirm')}
+          pendingLabel={t('rotateDialog.pending')}
           error={error}
           isPending={isPending}
           onConfirm={rotate}

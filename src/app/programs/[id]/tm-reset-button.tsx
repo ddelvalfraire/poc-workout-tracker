@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import { adjustTrainingMaxAction } from '@/app/programs/actions'
+import { useTranslations } from 'next-intl'
 
 /**
  * The owner's confirm on an M4 "TM likely set too high" proposal (TM
@@ -34,6 +35,7 @@ export function TmResetButton({
   proposedTmKg: number
   unit: string
 }) {
+  const t = useTranslations('TmResetButton')
   const [isOpen, setIsOpen] = useState(false)
   const [isPending, setIsPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -51,7 +53,7 @@ export function TmResetButton({
       router.refresh() // same page, re-derived off the reduced TM
     } catch {
       setIsPending(false)
-      setError('Could not adjust the training max. Please try again.')
+      setError(t('adjustError'))
     }
   }
 
@@ -67,14 +69,14 @@ export function TmResetButton({
           setIsOpen(true)
         }}
       >
-        Reduce
+        {t('reduceAction')}
       </Button>
       {isOpen && (
         <ConfirmDialog
-          title="Reduce the training max?"
-          body={`${exerciseName}: training max ${currentTm} → ${proposedTm} ${unit} (~10% off). Future weeks derive from the lower number; the change is logged.`}
-          confirmLabel="Reduce training max"
-          pendingLabel="Reducing…"
+          title={t('dialog.title')}
+          body={t('dialog.body', { exerciseName, currentTm, proposedTm, unit })}
+          confirmLabel={t('dialog.confirm')}
+          pendingLabel={t('dialog.pending')}
           confirmVariant="default"
           error={error}
           isPending={isPending}

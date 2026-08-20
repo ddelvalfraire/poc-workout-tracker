@@ -18,6 +18,7 @@ import { DividerList } from '@/components/ui/divider-list'
 import { EmptyWords } from '@/components/ui/empty-words'
 import { ImportTemplateButton } from './import-button'
 import { TemplatesUnavailable } from './unavailable'
+import { getTranslations } from 'next-intl/server'
 
 /**
  * Browse wger's public routine templates and add them to your own programs.
@@ -34,6 +35,7 @@ import { TemplatesUnavailable } from './unavailable'
  * wger is not re-hit per view.
  */
 export default async function TemplatesPage() {
+  const t = await getTranslations('ProgramTemplates')
   const userId = await requireUserId() // middleware also guards; defense-in-depth
 
   // Curated system templates (db-backed, seeded) lead the shelf; the wger
@@ -59,7 +61,7 @@ export default async function TemplatesPage() {
   return (
     <div className="flex min-h-[100dvh] flex-col">
       <AppHeader
-        title="Program templates"
+        title={t('title')}
         leading={
           <BackLink fallback="/programs" />
         }
@@ -67,8 +69,7 @@ export default async function TemplatesPage() {
 
       <main className="mx-auto w-full max-w-md flex-1 px-5 pb-safe">
         <p className="mt-6 text-sm text-muted-foreground">
-          Ready-made plans — the classics, plus community templates from wger. Adding one makes it
-          your own draft — edit anything, then activate.
+          {t('lede')}
         </p>
 
         {curated.length > 0 && (
@@ -76,8 +77,8 @@ export default async function TemplatesPage() {
             {/* The curated zone leads the shelf: the classics, not a
                 commitment bucket, so the header names the collection. */}
             <h2 className="font-display text-xl uppercase leading-none tracking-wide">
-              The classics
-              <span className="ml-2 text-sm tracking-widest text-muted-foreground">/ curated</span>
+              {t('curated.title')}
+              <span className="ml-2 text-sm tracking-widest text-muted-foreground">{t('curated.tag')}</span>
             </h2>
             {/* Divider rows, not card shells — the wger rows' vocabulary.
                 The whole row is the link; the volt CTA lives on the detail
@@ -99,9 +100,10 @@ export default async function TemplatesPage() {
                         <span className="min-w-0 truncate">{template.name}</span>
                       </span>
                       <span className="mt-1 block text-xs font-semibold uppercase tracking-widest text-muted-foreground tnum">
-                        {template.days.length} {template.days.length === 1 ? 'day' : 'days'}/week ·{' '}
-                        {template.mesocycleWeeks}{' '}
-                        {template.mesocycleWeeks === 1 ? 'week' : 'weeks'}
+                        {t('curated.meta', {
+                          days: template.days.length,
+                          weeks: template.mesocycleWeeks,
+                        })}
                       </span>
                       {template.days.length > 0 && (
                         <span className="mt-1.5 block text-sm text-muted-foreground">
@@ -129,8 +131,7 @@ export default async function TemplatesPage() {
           <TemplatesUnavailable reason={result.reason} />
         ) : cards.length === 0 ? (
           <EmptyWords className="mt-6">
-            No templates to show — wger has no importable public templates right now. Check back
-            later.
+            {t('empty')}
           </EmptyWords>
         ) : (
           groups.map((group) => (
@@ -138,7 +139,7 @@ export default async function TemplatesPage() {
               {/* Commitment zone header — the shelf's organizing question. */}
               <h2 className="font-display text-xl uppercase leading-none tracking-wide">
                 {group.label}
-                <span className="ml-2 text-sm tracking-widest text-muted-foreground">/ week</span>
+                <span className="ml-2 text-sm tracking-widest text-muted-foreground">{t('group.tag')}</span>
               </h2>
               {/* Divider rows, not card shells: name + facts + chevron per
                   row, hairlines between and a closing hairline under the
@@ -169,7 +170,7 @@ export default async function TemplatesPage() {
                             <span className="min-w-0 truncate">{input.name}</span>
                           </span>
                           <span className="mt-1 block text-xs font-semibold uppercase tracking-widest text-muted-foreground tnum">
-                            {input.mesocycleWeeks} {input.mesocycleWeeks === 1 ? 'week' : 'weeks'}
+                            {t('group.weeks', { weeks: input.mesocycleWeeks ?? 1 })}
                           </span>
                           {chips.length > 0 && (
                             <span className="mt-1.5 block text-sm text-muted-foreground">
@@ -193,7 +194,7 @@ export default async function TemplatesPage() {
                             href={`/programs/${adopted.id}`}
                             className="inline-flex items-center gap-1.5 text-sm font-semibold text-primary underline-offset-2 hover:underline"
                           >
-                            In your programs
+                            {t('adoptedLink')}
                             <ArrowRight aria-hidden="true" className="size-4" />
                           </Link>
                         ) : (

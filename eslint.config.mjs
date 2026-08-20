@@ -86,6 +86,30 @@ const I18N_MIGRATED = [
   "src/app/goals/goal-card-actions.tsx",
   "src/app/goals/goal-create.tsx",
   "src/app/goals/page.tsx",
+  "src/app/programs/\\[id\\]/description-edit.tsx",
+  "src/app/programs/\\[id\\]/diet-phase-card.tsx",
+  "src/app/programs/\\[id\\]/edit/page.tsx",
+  "src/app/programs/\\[id\\]/exercise-overshoot-control.tsx",
+  "src/app/programs/\\[id\\]/overshoot-policy-control.tsx",
+  "src/app/programs/\\[id\\]/page.tsx",
+  "src/app/programs/\\[id\\]/patch-proposal-card.tsx",
+  "src/app/programs/\\[id\\]/program-actions.tsx",
+  "src/app/programs/\\[id\\]/proposal-actions.tsx",
+  "src/app/programs/\\[id\\]/restart-program-button.tsx",
+  "src/app/programs/\\[id\\]/sharing-section.tsx",
+  "src/app/programs/\\[id\\]/start-day-button.tsx",
+  "src/app/programs/\\[id\\]/stats/page.tsx",
+  "src/app/programs/\\[id\\]/tm-reset-button.tsx",
+  "src/app/programs/new/page.tsx",
+  "src/app/programs/new/program-builder.tsx",
+  "src/app/programs/new/scheme-subtitle.tsx",
+  "src/app/programs/page.tsx",
+  "src/app/programs/templates/\\[id\\]/page.tsx",
+  "src/app/programs/templates/\\[id\\]/system-template-detail.tsx",
+  "src/app/programs/templates/import-button.tsx",
+  "src/app/programs/templates/page.tsx",
+  "src/app/programs/templates/unavailable.tsx",
+  "src/app/programs/templates/use-template-button.tsx",
 ];
 
 // TEXT-ONLY RATCHET: migrated before the rule covered attributes and JSX
@@ -185,16 +209,23 @@ const eslintConfig = defineConfig([
           // The translator call itself, and class helpers, take string
           // arguments that are identifiers rather than copy.
           callees: { exclude: ["t", "t.rich", "cn", "clsx", "cva"] },
+          // Reducer-action discriminants and field descriptors: `type`,
+          // `field` and `mode` name a slot in the data, never anything a
+          // user reads. Without this the gate flags every dispatch payload
+          // written inline in JSX, which trains people to disable the rule.
+          "object-properties": { exclude: ["field", "mode", "type"] },
           "jsx-attributes": {
             exclude: [
               "className", "id", "key", "type", "name", "href", "src", "role",
-              "htmlFor", "variant", "size", "autoComplete", "inputMode",
+              "htmlFor", "aria-describedby", "variant", "size", "autoComplete", "inputMode",
               "data-.*", "aria-hidden", "width", "height", "viewBox", "fill",
               "stroke", "d", "xmlns", "style", "step", "min", "max", "pattern",
               "rel", "target", "method", "action", "encType", "dir", "lang",
-              // BackLink's fallback is a route, like href — and
-              // back-fallbacks.test.ts greps for the literal, so it must stay one.
-              "fallback",
+              // Route and variant identifiers, same class as href/variant
+              // above: BackLink's fallback is a URL (and back-fallbacks.test.ts
+              // greps for that literal, so it must stay one), ConfirmDialog's
+              // confirmVariant names a button style.
+              "fallback", "confirmVariant",
             ],
           },
         },

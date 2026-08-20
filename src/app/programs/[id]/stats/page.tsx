@@ -22,6 +22,7 @@ import {
   muscleWeekSeries,
   formatCreditedSets,
 } from './stats-view'
+import { getTranslations } from 'next-intl/server'
 
 /**
  * The one-screen block check-in: week position + adherence, per-week volume,
@@ -30,11 +31,18 @@ import {
  * client islands; the program page owns week browsing, this is the whole-block
  * lens. All weights arrive canonical kg and convert only in format helpers.
  */
+const STATUS_KEYS = ['draft', 'active', 'archived', 'proposed'] as const
+
+function isStatusKey(value: string): value is (typeof STATUS_KEYS)[number] {
+  return (STATUS_KEYS as readonly string[]).includes(value)
+}
+
 export default async function ProgramStatsPage({
   params,
 }: {
   params: Promise<{ id: string }>
 }) {
+  const t = await getTranslations('ProgramStats')
   const userId = await requireUserId()
   const { id } = await params
   const [stats, unit, volume] = await Promise.all([
@@ -47,6 +55,9 @@ export default async function ProgramStatsPage({
   ])
   if (!stats) notFound()
 
+  // stats.program.status is a plain string at the data layer, so it is
+  // narrowed before it can index the catalog; an unrecognised value renders
+  // raw rather than blowing up on a missing message.
   const status = stats.program.status
   const trained = hasAnyTraining(stats.weeks)
   const weeks = visibleWeeks(stats.weeks, stats.currentWeek)
@@ -70,7 +81,7 @@ export default async function ProgramStatsPage({
   return (
     <div className="flex min-h-[100dvh] flex-col">
       <AppHeader
-        title="Program Stats"
+        title={t('title')}
         leading={
           <BackLink fallback={`/programs/${stats.program.id}`} />
         }
@@ -83,7 +94,7 @@ export default async function ProgramStatsPage({
                 : 'bg-muted text-muted-foreground',
             )}
           >
-            {status}
+            {isStatusKey(status) ? t(`status.${status}`) : status}
           </span>
         }
       />
@@ -92,28 +103,31 @@ export default async function ProgramStatsPage({
         {/* Verdict hero: the block's status in words (stats-view copy table),
             then position. Program name stays quiet — the header already
             carries the surface's identity. */}
-        <section aria-label="Block verdict" className="mt-6">
+        <section aria-label={t('verdict.ariaLabel')} className="mt-6">
           <p className="text-sm text-muted-foreground">{stats.program.name}</p>
           <h2 className="mt-1 font-display text-4xl uppercase leading-none tracking-wide">
             {verdict.headline}
           </h2>
           <p className="mt-1.5 text-sm text-muted-foreground tnum">{verdict.context}</p>
           <p className="mt-0.5 text-sm text-muted-foreground tnum">
-            Week {stats.currentWeek} of {stats.program.mesocycleWeeks}
+            {t('weekMeta', {
+              week: stats.currentWeek,
+              total: stats.program.mesocycleWeeks,
+            })}
           </p>
         </section>
 
         {!trained ? (
           // Whole-page teach state, not a stack of zeroed sections.
           <p className="mt-6 text-sm text-muted-foreground">
-            No sessions from this program yet — start a day and stats build themselves.
+            {t('empty')}
           </p>
         ) : (
           <>
             {prRows.length > 0 && (
-              <section aria-label="PRs" className="mt-8">
+              <section aria-label={t('prs.ariaLabel')} className="mt-8">
                 <h3 className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
-                  PRs
+                  {t('prs.title')}
                 </h3>
                 <ul className="mt-2 space-y-2.5">
                   {prRows.map((exercise) => {
@@ -135,23 +149,25 @@ export default async function ProgramStatsPage({
                             {isSingleWeek ? (
                               <>
                                 <span aria-hidden="true" className="text-muted-foreground">
-                                  ~
+                                  {t('pr.approx')}
                                 </span>
                                 {formatE1RM(pr.baseline.e1rm, unit)}
-                                <span className="text-muted-foreground"> · wk {pr.baseline.week}</span>
+                                <span className="text-muted-foreground">
+                                  {t('prs.weekNote', { week: pr.baseline.week })}
+                                </span>
                               </>
                             ) : (
                               <>
                                 <span aria-hidden="true" className="text-muted-foreground">
-                                  ~
+                                  {t('pr.approx')}
                                 </span>
                                 {formatE1RM(pr.baseline.e1rm, unit)}
                                 <span aria-hidden="true" className="text-muted-foreground">
-                                  {' → '}
+                                  {` ${t('pr.arrow')} `}
                                 </span>
-                                <span className="sr-only"> to </span>
+                                <span className="sr-only"> {t('pr.srTo')} </span>
                                 <span aria-hidden="true" className="text-muted-foreground">
-                                  ~
+                                  {t('pr.approx')}
                                 </span>
                                 {formatE1RM(pr.best.e1rm, unit)}
                               </>
@@ -163,12 +179,12 @@ export default async function ProgramStatsPage({
                             and it now leads the page at display scale. */}
                         {!isSingleWeek && delta > 0 && (
                           <p className="mt-0.5 text-right font-display text-2xl uppercase leading-none tracking-wide text-primary tnum">
-                            +{formatE1RM(delta, unit)}
+                            {t('prs.gain', { value: formatE1RM(delta, unit) })}
                           </p>
                         )}
                         {highRepPoint && (
                           <p className="mt-0.5 text-right text-xs text-muted-foreground tnum">
-                            est. from {highRepPoint.reps} reps
+                            {t('prs.estimateNote', { reps: highRepPoint.reps })}
                           </p>
                         )}
                       </li>
@@ -182,9 +198,9 @@ export default async function ProgramStatsPage({
                 and volume merged into a single glance. Deload weeks render
                 hollow with a DL tag (a planned easy week must never read as
                 slacking); the current week is ringed. */}
-            <section aria-label="Weeks" className="mt-8">
+            <section aria-label={t('weeks.ariaLabel')} className="mt-8">
               <h3 className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
-                Weeks
+                {t('weeks.title')}
               </h3>
               <ul className="mt-2 space-y-1">
                 {weeks.map((w) => {
@@ -208,7 +224,7 @@ export default async function ProgramStatsPage({
                             isCurrent ? 'text-primary' : 'text-muted-foreground',
                           )}
                         >
-                          Wk {w.week}
+                          {t('weekShort', { week: w.week })}
                         </span>
                         {/* Day-fill via the shared block-map segment (same
                             geometry as the programs list hero and the detail
@@ -222,26 +238,33 @@ export default async function ProgramStatsPage({
                           />
                         )}
                         <span className="text-sm tnum">
-                          {w.daysCompleted}/{w.plannedDays}
+                          {t('weeks.dayRatio', {
+                            done: w.daysCompleted,
+                            planned: w.plannedDays,
+                          })}
                         </span>
                         {/* Started counts, flagged visually — never silently
                             excluded. */}
                         {unfinished > 0 && (
                           <span className="text-sm text-muted-foreground tnum">
-                            +{unfinished} unfinished
+                            {t('weeks.unfinished', { count: unfinished })}
                           </span>
                         )}
                         {isDeload && (
                           <span className="rounded-full border border-border px-1.5 py-px text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
-                            DL
+                            {t('weeks.deloadBadge')}
                           </span>
                         )}
                         {/* Zero-tonnage weeks with sets are real training
                             (maxed stack machines log null weight) — sets
                             always show. */}
                         <span className="ml-auto shrink-0 text-sm text-muted-foreground tnum">
-                          {w.tonnageKg > 0 && `${formatVolume(w.tonnageKg, unit)} · `}
-                          {w.completedSets} set{w.completedSets === 1 ? '' : 's'}
+                          {w.tonnageKg > 0
+                            ? t('weeks.volumeAndSets', {
+                                volume: formatVolume(w.tonnageKg, unit),
+                                sets: w.completedSets,
+                              })
+                            : t('weeks.sets', { sets: w.completedSets })}
                         </span>
                       </div>
                       <div
@@ -274,12 +297,12 @@ export default async function ProgramStatsPage({
                 JS. */}
             {volume !== null && volume.enabled && volume.week !== null &&
               volume.verdicts.length > 0 && (
-                <section aria-label="Muscle volume" className="mt-8">
+                <section aria-label={t('muscle.ariaLabel')} className="mt-8">
                   <h3 className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
-                    Muscle volume
+                    {t('muscle.title')}
                   </h3>
                   <p className="mt-1 text-xs text-muted-foreground tnum">
-                    Verdicts from week {volume.week} — sets credited per muscle
+                    {t('muscle.lede', { week: volume.week })}
                   </p>
                   <ul className="mt-2 divide-y divide-border/60 border-b border-b-border/60">
                     {volume.verdicts.map((verdict) => {
@@ -310,8 +333,14 @@ export default async function ProgramStatsPage({
                                   credited sets, oldest → newest. */}
                               {trend.length > 0 && (
                                 <p className="text-sm tnum">
-                                  {trend.map((p) => formatCreditedSets(p.sets)).join(' → ')}
-                                  <span className="text-muted-foreground"> sets/week</span>
+                                  {t.rich('muscle.trend', {
+                                    values: trend
+                                      .map((p) => formatCreditedSets(p.sets))
+                                      .join(' → '),
+                                    muted: (chunks) => (
+                                      <span className="text-muted-foreground">{chunks}</span>
+                                    ),
+                                  })}
                                 </p>
                               )}
                               {/* Tier 3: the per-week table, every observed
@@ -323,15 +352,17 @@ export default async function ProgramStatsPage({
                                     className="flex items-baseline gap-3 text-sm"
                                   >
                                     <span className="w-11 shrink-0 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground tnum">
-                                      Wk {point.week}
+                                      {t('weekShort', { week: point.week })}
                                     </span>
                                     <span className="tnum">
-                                      {formatCreditedSets(point.sets)} set
-                                      {point.sets === 1 ? '' : 's'}
+                                      {t('muscle.setCount', {
+                                        value: formatCreditedSets(point.sets),
+                                        count: point.sets,
+                                      })}
                                     </span>
                                     {point.week === stats.program.deloadWeek && (
                                       <span className="rounded-full border border-border px-1.5 py-px text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
-                                        DL
+                                        {t('muscle.deloadBadge')}
                                       </span>
                                     )}
                                   </li>
@@ -347,9 +378,9 @@ export default async function ProgramStatsPage({
               )}
 
             {stats.exercises.length > 0 && (
-              <section aria-label="Progression" className="mt-8">
+              <section aria-label={t('progression.ariaLabel')} className="mt-8">
                 <h3 className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
-                  Progression
+                  {t('progression.title')}
                 </h3>
                 <div className="mt-2 space-y-4">
                   {stats.exercises.map((exercise) => {
@@ -393,7 +424,7 @@ export default async function ProgramStatsPage({
                         {exercise.weeks.map((point) => (
                           <li key={point.week} className="flex items-baseline gap-3 text-sm">
                             <span className="w-11 shrink-0 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground tnum">
-                              Wk {point.week}
+                              {t('weekShort', { week: point.week })}
                             </span>
                             {point.best?.kind === 'e1rm' ? (
                               <>
@@ -404,10 +435,10 @@ export default async function ProgramStatsPage({
                                       line; the rep count is the honest fact. */}
                                   {exercise.loggingType === 'weight_reps'
                                     ? formatSet(point.best.reps, point.best.weightKg, unit)
-                                    : `${point.best.reps} reps`}
+                                    : t('progression.reps', { reps: point.best.reps })}
                                 </span>
                                 <span className="text-muted-foreground tnum">
-                                  <span aria-hidden="true">~</span>
+                                  <span aria-hidden="true">{t('pr.approx')}</span>
                                   {formatE1RM(point.best.e1rm, unit)}
                                 </span>
                               </>
@@ -415,12 +446,12 @@ export default async function ProgramStatsPage({
                               // Rep fallback: nothing load-scorable (maxed
                               // stack, BW lift without a stored bodyweight) —
                               // the best effort still gets its readout.
-                              <span className="tnum">{point.best.reps} reps</span>
+                              <span className="tnum">{t('progression.reps', { reps: point.best.reps })}</span>
                             ) : (
                               // Null best ≠ nothing happened: a week of
                               // unloggable sets still shows the effort.
                               <span className="text-muted-foreground tnum">
-                                {point.completedSets} set{point.completedSets === 1 ? '' : 's'}
+                                {t('progression.sets', { sets: point.completedSets })}
                               </span>
                             )}
                           </li>
