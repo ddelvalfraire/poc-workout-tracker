@@ -1,3 +1,4 @@
+import { useTranslations } from 'next-intl'
 import { cn } from '@/lib/utils'
 
 /**
@@ -25,8 +26,9 @@ const DOT: Record<PillTone, string> = {
 }
 
 export function StatusStrip({ pills }: { pills: StatusPill[] }) {
+  const t = useTranslations('StatusStrip')
   return (
-    <nav aria-label="System status" className="flex flex-wrap gap-2">
+    <nav aria-label={t('navLabel')} className="flex flex-wrap gap-2">
       {pills.map((pill) => (
         <a
           key={pill.href}

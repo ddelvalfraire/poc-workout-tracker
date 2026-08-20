@@ -3,6 +3,7 @@
 import { useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { RotateCw } from 'lucide-react'
+import { useTranslations } from 'next-intl'
 import { cn } from '@/lib/utils'
 
 /**
@@ -11,13 +12,14 @@ import { cn } from '@/lib/utils'
  * page's server render (which re-hits every source) without a full reload.
  */
 export function OpsRefreshButton() {
+  const t = useTranslations('OpsRefreshButton')
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
 
   return (
     <button
       type="button"
-      aria-label="Refresh"
+      aria-label={t('ariaLabel')}
       onClick={() => startTransition(() => router.refresh())}
       disabled={isPending}
       className="inline-flex size-9 items-center justify-center rounded-full text-muted-foreground outline-none transition-colors hover:bg-muted/50 focus-visible:bg-muted/50 disabled:opacity-50"

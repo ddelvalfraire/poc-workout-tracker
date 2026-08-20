@@ -40,6 +40,7 @@ import { Ghost } from '@/components/ghost'
 import { Sparkbar } from '@/components/sparkbar'
 import { StreakChip } from '@/components/streak-chip'
 import { cn } from '@/lib/utils'
+import { useTranslations } from 'next-intl'
 
 /**
  * The app's navigation drawer — the Claude-sidebar anatomy with the spike-§7
@@ -138,6 +139,9 @@ function ThinBar({ percent }: { percent: number }) {
 }
 
 export function NavDrawer() {
+  const t = useTranslations('NavDrawer')
+  // Same product name as the home heading and the document title.
+  const tCommon = useTranslations('Common')
   const [isOpen, setIsOpen] = useState(false)
   const [hasOpened, setHasOpened] = useState(false)
   const [isStarting, setIsStarting] = useState(false)
@@ -222,10 +226,12 @@ export function NavDrawer() {
       setIsOpen(false)
       router.push(`/workout/${workoutId}/edit`)
     } catch {
-      setStartError('Could not start — try again.')
+      setStartError(t('startError'))
       setIsStarting(false)
     }
   }
+
+  const settingsActive = isActiveRoute(pathname, '/settings')
 
   // Client-side on purpose: the anchor ("today"/"tomorrow"/weekday) and the
   // recents' relative days are LOCAL-calendar words (lib/local-day.ts). The
@@ -236,12 +242,12 @@ export function NavDrawer() {
   const surfaces: SurfaceRow[] = [
     {
       href: '/programs',
-      label: 'Programs',
+      label: t('label.programs'),
       icon: ClipboardList,
       status: data?.program
         ? programStatusLine(data.program.name, data.program.week, data.program.mesocycleWeeks)
         : null,
-      invitation: 'Start a plan',
+      invitation: t('invitation.programs'),
       visual: data?.program ? (
         <ThinBar percent={programProgressPercent(data.program.week, data.program.mesocycleWeeks)} />
       ) : undefined,
@@ -251,17 +257,17 @@ export function NavDrawer() {
       // template fact today, and a count would mean a new read on every
       // drawer open — not a nav-open cost for a static promise.
       href: '/templates',
-      label: 'Session templates',
+      label: t('label.templates'),
       icon: LayoutTemplate,
-      status: 'Start from a saved session',
-      invitation: 'Start from a saved session',
+      status: t('invitation.templates'),
+      invitation: t('invitation.templates'),
     },
     {
       href: '/stats',
-      label: 'Stats',
+      label: t('label.stats'),
       icon: BarChart3,
       status: data?.stats ? volumeStatusLine(data.stats.weekSets) : null,
-      invitation: 'Log a session to see volume',
+      invitation: t('invitation.stats'),
       visual:
         data?.stats && data.stats.weekSets > 0 && data.stats.daySets.length > 0 ? (
           <Sparkbar daySets={data.stats.daySets} className="mt-1.5" />
@@ -269,10 +275,10 @@ export function NavDrawer() {
     },
     {
       href: '/goals',
-      label: 'Goals',
+      label: t('label.goals'),
       icon: Target,
       status: data?.goals ? data.goals.topGoalLabel : null,
-      invitation: 'Set your first target',
+      invitation: t('invitation.goals'),
       visual:
         data?.goals && data.goals.percent !== null ? (
           <ThinBar percent={data.goals.percent} />
@@ -287,46 +293,46 @@ export function NavDrawer() {
     },
     {
       href: '/trophies',
-      label: 'Trophies',
+      label: t('label.trophies'),
       icon: Trophy,
       status: data?.trophies
         ? trophyStatusLine(data.trophies.earned, data.trophies.newestLabel)
         : null,
-      invitation: 'Your first is one session away',
+      invitation: t('invitation.trophies'),
     },
     {
       href: '/body',
-      label: 'Body',
+      label: t('label.body'),
       icon: Scale,
       status: data?.body ? bodyStatusLine(data.body, data.unit) : null,
-      invitation: 'Log a weigh-in',
+      invitation: t('invitation.body'),
     },
     {
       href: '/exercises',
-      label: 'Exercises',
+      label: t('label.exercises'),
       icon: Dumbbell,
       status: data?.exercises
         ? exercisesStatusLine(data.exercises.lastPrLabel, data.exercises.loggedCount)
         : null,
-      invitation: 'Browse the catalog',
+      invitation: t('invitation.exercises'),
     },
     {
       // Static line v1 (the Templates-row precedent): /api/drawer carries no
       // note fact today, and a count would cost a new read per drawer open.
       href: '/notes',
-      label: 'Notes',
+      label: t('label.notes'),
       icon: NotebookPen,
-      status: 'Everything you wrote, by session',
-      invitation: 'Everything you wrote, by session',
+      status: t('invitation.notes'),
+      invitation: t('invitation.notes'),
     },
     ...(data?.coach
       ? [
           {
             href: '/coach',
-            label: 'Coach',
+            label: t('label.coach'),
             icon: MessageCircle,
-            status: 'Ask about your training',
-            invitation: 'Ask about your training',
+            status: t('invitation.coach'),
+            invitation: t('invitation.coach'),
           } satisfies SurfaceRow,
         ]
       : []),
@@ -335,7 +341,7 @@ export function NavDrawer() {
   return (
     <Drawer.Root direction="left" open={isOpen} onOpenChange={handleOpenChange}>
       <Drawer.Trigger
-        aria-label="Open navigation"
+        aria-label={t('triggerLabel')}
         className={cn(
           buttonVariants({ variant: 'ghost', size: 'icon-sm' }),
           'relative -ml-2 text-muted-foreground before:absolute before:-inset-1',
@@ -349,7 +355,7 @@ export function NavDrawer() {
           aria-describedby={undefined}
           className="fixed inset-y-0 left-0 z-50 flex h-full w-[85%] max-w-[320px] flex-col border-r border-border bg-background outline-none"
         >
-          <Drawer.Title className="sr-only">Navigation</Drawer.Title>
+          <Drawer.Title className="sr-only">{t('title')}</Drawer.Title>
 
           <div className="flex-1 overflow-y-auto pt-safe pb-4">
             {/* Wordmark = the Home row (Claude-style drawer header): with the
@@ -364,7 +370,7 @@ export function NavDrawer() {
                   pathname === '/' && 'text-primary',
                 )}
               >
-                Workout Tracker
+                {tCommon('appName')}
               </Link>
             </div>
 
@@ -396,9 +402,9 @@ export function NavDrawer() {
                     'h-auto w-full flex-col gap-0.5 py-3',
                   )}
                 >
-                  <span className="text-base font-semibold uppercase tracking-wide">Resume</span>
+                  <span className="text-base font-semibold uppercase tracking-wide">{t('resumeAction')}</span>
                   <span className="text-xs font-medium normal-case opacity-80">
-                    {data.resume.name ?? 'Workout in progress'}
+                    {data.resume.name ?? t('resumeContext')}
                   </span>
                 </Link>
               ) : data?.upNext ? (
@@ -412,7 +418,7 @@ export function NavDrawer() {
                   )}
                 >
                   <span className="text-base font-semibold uppercase tracking-wide">
-                    {isStarting ? 'Starting…' : 'Start Workout'}
+                    {isStarting ? t('startingAction') : t('startAction')}
                   </span>
                   <span className="text-xs font-medium normal-case opacity-80">
                     {startContextLine(
@@ -432,7 +438,7 @@ export function NavDrawer() {
                   )}
                 >
                   <span className="text-base font-semibold uppercase tracking-wide">
-                    Start Workout
+                    {t('quickStartAction')}
                   </span>
                   {data === null ? (
                     // Ghost of the context line: h-4 = the text-xs line box,
@@ -441,7 +447,7 @@ export function NavDrawer() {
                       <Ghost className="h-2 w-20" />
                     </span>
                   ) : (
-                    <span className="text-xs font-medium normal-case opacity-80">Quick log</span>
+                    <span className="text-xs font-medium normal-case opacity-80">{t('quickLogContext')}</span>
                   )}
                 </Link>
               )}
@@ -453,7 +459,7 @@ export function NavDrawer() {
             </div>
 
             {/* Zone SURFACES — every row alive: icon + label + live status. */}
-            <nav aria-label="Main navigation" className="border-b border-border px-2 py-2">
+            <nav aria-label={t('navLabel')} className="border-b border-border px-2 py-2">
               <ul>
                 {surfaces.map((row, index) => {
                   const active = isActiveRoute(pathname, row.href)
@@ -537,7 +543,7 @@ export function NavDrawer() {
                 }}
               >
                 <h2 className="px-3 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
-                  Recent
+                  {t('recentTitle')}
                 </h2>
                 <ul>
                   {data.recents.map((recent) => (
@@ -547,7 +553,7 @@ export function NavDrawer() {
                         onClick={closeOnNavigate}
                         className="flex items-baseline justify-between gap-3 rounded-xl px-3 py-2 transition-colors active:bg-muted/60"
                       >
-                        <span className="min-w-0 truncate text-sm">{recent.name ?? 'Workout'}</span>
+                        <span className="min-w-0 truncate text-sm">{recent.name ?? t('untitledWorkout')}</span>
                         <span className="shrink-0 text-xs text-muted-foreground tnum">
                           {recentWorkoutLine(recent, data.unit, now)}
                         </span>
@@ -564,14 +570,14 @@ export function NavDrawer() {
             <Link
               href="/settings"
               onClick={closeOnNavigate}
-              aria-current={isActiveRoute(pathname, '/settings') ? 'page' : undefined}
+              aria-current={settingsActive ? 'page' : undefined}
               className={cn(
                 'flex items-center gap-2 rounded-xl px-2 py-2 text-sm font-semibold uppercase tracking-wide transition-colors active:bg-muted/60',
-                isActiveRoute(pathname, '/settings') ? 'text-primary' : 'text-muted-foreground',
+                settingsActive ? 'text-primary' : 'text-muted-foreground',
               )}
             >
               <Settings aria-hidden="true" className="size-5" />
-              Settings
+              {t('settingsLink')}
             </Link>
             <SignOutButton />
           </div>

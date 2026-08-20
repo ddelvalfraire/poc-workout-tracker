@@ -1,10 +1,61 @@
 {
+  "ActivityLog": {
+    "empty": "No activity yet.",
+    "filterGroupLabel": "Filter activity by type"
+  },
   "AnalyticsConsentToggle": {
     "gpcHint": "Your browser sends a Global Privacy Control signal — this stays off."
+  },
+  "AutoRefreshToggle": {
+    "action": "Auto 60s"
+  },
+  "BackLink": {
+    "ariaLabel": "Back"
+  },
+  "BlockMap": {
+    "deloadBadge": "DL",
+    "segmentLabel": "Week {week}{days, select, yes {, {daysDone} of {daysTotal} days done} other {}}{deload, select, yes {, deload} other {}}{current, select, yes {, current week} other {}}{selected, select, yes {, selected} other {}}"
+  },
+  "CheckInCard": {
+    "action": "Check in",
+    "dismiss": "Not today",
+    "lede": "Weight, tape, or a progress photo — {detail}.",
+    "title": "Body check-in due"
+  },
+  "CoachChart": {
+    "ariaLabel": "Coach traces and cost per day, last {days, plural, one {# day} other {# days}}",
+    "series": {
+      "cost": "Cost (USD)",
+      "traces": "Traces"
+    }
+  },
+  "CoachPanel": {
+    "column": {
+      "cost": "Cost",
+      "latency": "Latency",
+      "model": "Model",
+      "name": "Name",
+      "time": "When (UTC)",
+      "tokens": "Tokens"
+    },
+    "cost14dLabel": "Cost 14d",
+    "cost7dLabel": "Cost 7d",
+    "costAmount": "${amount}",
+    "empty": "No generations yet.",
+    "generationsLabel": "Recent generations",
+    "generationsTitle": "Recent generations",
+    "latencyValue": "{seconds}s",
+    "linkLabel": "Langfuse",
+    "title": "Coach",
+    "traces14dLabel": "Traces 14d",
+    "tracesUnavailable": "Traces list unavailable. It refreshes on reload."
   },
   "Common": {
     "appDescription": "Log your workouts and review your training history.",
     "appName": "Workout Tracker"
+  },
+  "ConfirmDialog": {
+    "cancel": "Keep it"
   },
   "ConsistencyProgress": {
     "progressSummary": "{completed} of {target, plural, one {# week} other {# weeks}}",
@@ -62,6 +113,28 @@
   "DeleteAccountForm": {
     "confirmInstruction": "Type <code>{phrase}</code> to confirm"
   },
+  "DeliveryPanel": {
+    "checksEmpty": "No checks configured.",
+    "checksLabel": "Cron checks",
+    "checksTitle": "Cron checks",
+    "column": {
+      "age": "Age",
+      "build": "Build",
+      "commit": "Commit",
+      "state": "State"
+    },
+    "degraded": "Upstream did not respond. It refreshes on reload.",
+    "deploysEmpty": "No production deployments yet.",
+    "deploysLabel": "Production deployments",
+    "deploysTitle": "Production deploys",
+    "flipDown": "↓ down",
+    "flipUp": "↑ up",
+    "lastPing": "ping {time}",
+    "linkLabel": "Vercel",
+    "neverPinged": "never",
+    "title": "Delivery",
+    "unconfigured": "Set <code>{envVar}</code> to light this up."
+  },
   "DescriptionEdit": {
     "addAction": "Add description",
     "editAction": "Edit description",
@@ -74,6 +147,28 @@
     "stalenessNote": "This cut was set {weeks, plural, one {# week} other {# weeks}} ago — stall verdicts are still being read through it.",
     "title": "Still cutting?",
     "updateError": "Could not update the diet phase. Please try again."
+  },
+  "ErrorBoundary": {
+    "description": "The app hit an unexpected error. Your saved workouts are safe — try again or reload.",
+    "errorRef": "Error ref: {digest}",
+    "reload": "Reload",
+    "retry": "Try again",
+    "title": "Something went wrong"
+  },
+  "ErrorsPanel": {
+    "column": {
+      "events": "Events",
+      "first": "First",
+      "issue": "Issue",
+      "last": "Last",
+      "users": "Users"
+    },
+    "empty": "No unresolved issues. Clean.",
+    "issuesRegionLabel": "Top unresolved issues",
+    "linkLabel": "Sentry",
+    "title": "Errors",
+    "unresolvedSummary": "unresolved · {period}",
+    "windowGroupLabel": "Errors window"
   },
   "ExerciseNoteSection": {
     "add": "Add note",
@@ -167,6 +262,12 @@
       "program": "Program ▾"
     }
   },
+  "GlobalError": {
+    "description": "The app hit an unexpected error. Your saved workouts are safe — reload to continue.",
+    "errorRef": "Error ref: {digest}",
+    "reload": "Reload app",
+    "title": "Something went wrong"
+  },
   "GoalCardActions": {
     "archiveAction": "Archive",
     "delete": "Delete",
@@ -229,11 +330,30 @@
     "trendLabel": "Bodyweight trend",
     "trophiesLinkLabel": "Trophies"
   },
+  "HistoryList": {
+    "repeatLabel": "Repeat {name}",
+    "setCount": "{count, plural, one {# set} other {# sets}}",
+    "untitledWorkout": "Workout"
+  },
+  "Home": {
+    "editHomeLink": "Edit home",
+    "settingsLink": "Settings"
+  },
   "HomeLayoutEditor": {
     "hint": "Tap a tile to resize, reorder, or hide it — or press and hold to drag it. Hidden sections keep tracking — they just don’t show on Home.",
     "lockedTileLabel": "Status",
     "resetAction": "Reset to default",
     "saveError": "Couldn’t save. Try again."
+  },
+  "HomeSections": {
+    "allHistoryLink": "All history",
+    "historyTitle": "History",
+    "latestSummary": "{name} · {day} {month}",
+    "resumeLabel": "Resume",
+    "startedSummary": "started · {sets, plural, one {# set} other {# sets}} logged",
+    "unfinishedTitle": "Unfinished",
+    "untitledWorkout": "Workout",
+    "workoutCount": "{count, plural, one {# workout} other {# workouts}}"
   },
   "Import": {
     "batch": {
@@ -299,8 +419,60 @@
       "training": "Training"
     }
   },
+  "Loading": {
+    "label": "Loading"
+  },
+  "MomentumPanel": {
+    "emptyWeek": "The week is wide open — log a session.",
+    "goalLabel": "{count, plural, one {Goal} other {Goals · #}}",
+    "setsUnit": "{count, plural, one {set} other {sets}}",
+    "title": "This week"
+  },
+  "NavDrawer": {
+    "invitation": {
+      "body": "Log a weigh-in",
+      "coach": "Ask about your training",
+      "exercises": "Browse the catalog",
+      "goals": "Set your first target",
+      "notes": "Everything you wrote, by session",
+      "programs": "Start a plan",
+      "stats": "Log a session to see volume",
+      "templates": "Start from a saved session",
+      "trophies": "Your first is one session away"
+    },
+    "label": {
+      "body": "Body",
+      "coach": "Coach",
+      "exercises": "Exercises",
+      "goals": "Goals",
+      "notes": "Notes",
+      "programs": "Programs",
+      "stats": "Stats",
+      "templates": "Session templates",
+      "trophies": "Trophies"
+    },
+    "navLabel": "Main navigation",
+    "quickLogContext": "Quick log",
+    "quickStartAction": "Start Workout",
+    "recentTitle": "Recent",
+    "resumeAction": "Resume",
+    "resumeContext": "Workout in progress",
+    "settingsLink": "Settings",
+    "startAction": "Start Workout",
+    "startError": "Could not start — try again.",
+    "startingAction": "Starting…",
+    "title": "Navigation",
+    "triggerLabel": "Open navigation",
+    "untitledWorkout": "Workout"
+  },
   "NewExercise": {
     "title": "New custom exercise"
+  },
+  "NoteRow": {
+    "coachAuthor": "Coach",
+    "coachInitial": "C",
+    "outdatedBadge": "Outdated",
+    "outdatedSnapshot": "was {snapshot} — set edited after"
   },
   "Notes": {
     "filters": {
@@ -318,6 +490,40 @@
     "emptyQuery": "No note matches “{query}”.",
     "searchLabel": "Search notes",
     "searchPlaceholder": "Search notes"
+  },
+  "NotesEditor": {
+    "boldLabel": "Bold",
+    "bulletListLabel": "Bullet list",
+    "headingAbbr": "H2",
+    "headingLabel": "Heading",
+    "italicLabel": "Italic",
+    "linkLabel": "Link",
+    "linkPrompt": "Link URL",
+    "numberedListLabel": "Numbered list",
+    "subheadingAbbr": "H3",
+    "subheadingLabel": "Subheading",
+    "toolbarLabel": "Formatting"
+  },
+  "OpsHeader": {
+    "navLabel": "Ops sections",
+    "tab": {
+      "ops": "Ops",
+      "product": "Product"
+    },
+    "title": "Ops"
+  },
+  "OpsPanel": {
+    "degraded": "Upstream did not respond. It refreshes on reload.",
+    "staleNote": "as of {time}",
+    "status": {
+      "degraded": "Unavailable",
+      "ok": "Live",
+      "unconfigured": "Not configured"
+    },
+    "unconfigured": "Set <code>{envVar}</code> to light this up."
+  },
+  "OpsRefreshButton": {
+    "ariaLabel": "Refresh"
   },
   "OvershootPolicyControl": {
     "ariaLabel": "Overshoot policy",
@@ -352,6 +558,10 @@
   "PlanBulletList": {
     "noTarget": "{current} sets · no target",
     "progress": "{current} / {planned} sets"
+  },
+  "PrBadge": {
+    "ariaLabel": "Personal record",
+    "label": "PR"
   },
   "ProgramActions": {
     "activateAction": "Activate",
@@ -679,6 +889,19 @@
     },
     "declineError": "Could not decline this proposal. Please try again."
   },
+  "QuickCaptureSheet": {
+    "cancel": "Cancel",
+    "close": "Close",
+    "delete": "Delete",
+    "deleteError": "Could not delete the note. Please try again.",
+    "dialogLabel": "{eyebrow}: {title}",
+    "editorLabel": "{eyebrow} for {title}",
+    "pinAction": "Pin in logger",
+    "pinActionActive": "Pinned in logger",
+    "save": "Save",
+    "saveError": "Could not save the note. Please try again.",
+    "savingAction": "Saving…"
+  },
   "RemoveImportButton": {
     "label": "Remove"
   },
@@ -706,9 +929,26 @@
   "SchemeSubtitle": {
     "separator": "—"
   },
+  "SessionConflictDialog": {
+    "cancel": "Cancel",
+    "close": "Close",
+    "continueAction": "Continue workout",
+    "dialogLabel": "Workout in progress",
+    "discardAction": "Discard & start new",
+    "discardError": "Could not finish discarding. Try again.",
+    "discardingAction": "Discarding…",
+    "liveBadge": "Workout in progress",
+    "setProgress": "{completed} of {total, plural, one {# set} other {# sets}} done",
+    "untitledSession": "Unnamed session"
+  },
   "Settings": {
     "signOutAction": "Sign out",
     "signedInLabel": "Signed in"
+  },
+  "ShareCardButton": {
+    "ariaLabel": "Share {title}",
+    "error": "Couldn't create the share image",
+    "savedHint": "Image saved — post it anywhere"
   },
   "SharingSection": {
     "ariaLabel": "Sharing",
@@ -784,6 +1024,26 @@
       "onPlanContextDays": "Every planned group at its weekly target · {days, plural, one {# day} other {# days}} left this week",
       "onPlanTitle": "On plan."
     }
+  },
+  "StatusHero": {
+    "logMoreLink": "Log more",
+    "programsLink": "Browse programs",
+    "quickLogLink": "Quick log",
+    "resultsLink": "See results",
+    "resumeAction": "Resume workout",
+    "sectionLabel": "Training status",
+    "sessionLink": "See today's session",
+    "setsProgressLabel": "Sets completed",
+    "startAction": "Start workout",
+    "startActionFresh": "+ Start Workout",
+    "startDayAction": "Start {day}"
+  },
+  "StatusStrip": {
+    "navLabel": "System status"
+  },
+  "StreakChip": {
+    "countLabel": "{weeks} wk",
+    "srOnly": "{weeks, plural, one {week} other {weeks}} training streak"
   },
   "SystemTemplateDetail": {
     "attribution": "About this program · <source>View source</source>",
@@ -871,6 +1131,16 @@
     },
     "reduceAction": "Reduce"
   },
+  "TodayRecap": {
+    "sectionLabel": "Completed today",
+    "sessionCount": "{count, plural, one {# session today} other {# sessions today}}",
+    "title": "Today",
+    "untitledWorkout": "Workout"
+  },
+  "TrendChart": {
+    "rawSeriesLabel": "Raw",
+    "targetSeriesLabel": "Target"
+  },
   "Trophies": {
     "badge": "New",
     "closest": {
@@ -878,10 +1148,26 @@
     },
     "empty": "No trophies yet. Every trophy is a lifting fact — plate clubs, workout counts, streaks. Train and they stamp themselves."
   },
+  "UnitToggle": {
+    "groupLabel": "Weight unit",
+    "saveError": "Didn’t save — tap again"
+  },
+  "UpNextAnchor": {
+    "fallbackAnchor": "Up next",
+    "summary": "{anchor} · Week {week}"
+  },
   "UseTemplateButton": {
     "adoptAction": "Use this program",
     "adoptError": "Could not add this program. Please try again.",
     "pending": "Adding…"
+  },
+  "VolumeBarChart": {
+    "ariaLabel": "Sets per muscle group, this week vs last, {count, plural, one {# group} other {# groups}}",
+    "series": {
+      "current": "This week",
+      "planned": "Planned / week",
+      "previous": "Last week"
+    }
   },
   "WindowToggle": {
     "ariaLabel": "Week window",

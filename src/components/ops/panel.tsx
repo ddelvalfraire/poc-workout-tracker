@@ -3,6 +3,7 @@ import { ArrowUpRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { OpsResult } from '@/lib/ops/types'
 import { timeAgo } from '@/lib/ops/time'
+import { useTranslations } from 'next-intl'
 
 /**
  * One panel on the v2 ops board — the desktop-scale successor to v1's
@@ -47,12 +48,6 @@ const DOT: Record<OpsPanelStatus, string> = {
   unconfigured: 'bg-muted-foreground/40',
 }
 
-const STATUS_LABEL: Record<OpsPanelStatus, string> = {
-  ok: 'Live',
-  degraded: 'Unavailable',
-  unconfigured: 'Not configured',
-}
-
 export function OpsPanel({
   id,
   title,
@@ -63,6 +58,7 @@ export function OpsPanel({
   className,
   children,
 }: OpsPanelProps) {
+  const t = useTranslations('OpsPanel')
   return (
     <section
       id={id}
@@ -79,9 +75,11 @@ export function OpsPanel({
         <div className="flex items-center gap-3">
           {/* Stale-serve note: the vendor is down, a cached copy is shown. */}
           {staleAt && (
-            <span className="text-xs text-muted-foreground">as of {timeAgo(staleAt)}</span>
+            <span className="text-xs text-muted-foreground">
+              {t('staleNote', { time: timeAgo(staleAt) })}
+            </span>
           )}
-          <span className="text-xs text-muted-foreground">{STATUS_LABEL[status]}</span>
+          <span className="text-xs text-muted-foreground">{t(`status.${status}`)}</span>
           {link && (
             <a
               href={link.href}
@@ -99,13 +97,20 @@ export function OpsPanel({
       <div className="mt-4 flex-1">
         {status === 'unconfigured' ? (
           <p className="text-sm text-muted-foreground">
-            Set{' '}
-            <code className="rounded bg-muted px-1.5 py-0.5 text-xs text-foreground">{envVar}</code>{' '}
-            to light this up.
+            {/* ONE message with a tag, not three fragments: the env var sits
+                mid-sentence in English and can move anywhere in translation. */}
+            {t.rich('unconfigured', {
+              // The prop is optional; an unconfigured panel always has one, and
+              // an empty code span beats a MISSING_ARG crash on the ops board.
+              envVar: envVar ?? '',
+              code: (chunks) => (
+                <code className="rounded bg-muted px-1.5 py-0.5 text-xs text-foreground">{chunks}</code>
+              ),
+            })}
           </p>
         ) : status === 'degraded' ? (
           <p className="text-sm text-muted-foreground">
-            Upstream did not respond. It refreshes on reload.
+            {t('degraded')}
           </p>
         ) : (
           children

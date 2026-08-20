@@ -6,6 +6,7 @@ import type { OpsResult } from '@/lib/ops/types'
 import type { SentryPeriod, SentrySnapshot } from '@/lib/ops/sentry'
 import { timeAgo } from '@/lib/ops/time'
 import { OpsPanel, statusOf } from './panel'
+import { useTranslations } from 'next-intl'
 
 /**
  * Errors panel: the full Sentry triage table — level, title (deep-linked),
@@ -35,16 +36,17 @@ interface ErrorsPanelProps {
 }
 
 export function ErrorsPanel({ results, sentryUrl, className }: ErrorsPanelProps) {
+  const t = useTranslations('ErrorsPanel')
   const [period, setPeriod] = useState<SentryPeriod>('24h')
   const result = results[period]
   return (
     <OpsPanel
       id="errors"
-      title="Errors"
+      title={t('title')}
       status={statusOf(result)}
       staleAt={result.ok ? result.staleAt : undefined}
       envVar="SENTRY_API_TOKEN"
-      link={{ href: sentryUrl, label: 'Sentry' }}
+      link={{ href: sentryUrl, label: t('linkLabel') }}
       className={className}
     >
       {result.ok && (
@@ -53,10 +55,10 @@ export function ErrorsPanel({ results, sentryUrl, className }: ErrorsPanelProps)
             <p className="text-3xl font-semibold leading-none tnum">
               {result.data.unresolvedCount}
               <span className="ml-2 text-sm font-normal text-muted-foreground">
-                unresolved · {result.data.period}
+                {t('unresolvedSummary', { period: result.data.period })}
               </span>
             </p>
-            <div className="flex gap-1" role="group" aria-label="Errors window">
+            <div className="flex gap-1" role="group" aria-label={t('windowGroupLabel')}>
               {PERIODS.map((p) => (
                 <button
                   key={p}
@@ -77,11 +79,11 @@ export function ErrorsPanel({ results, sentryUrl, className }: ErrorsPanelProps)
           </div>
 
           {result.data.topIssues.length === 0 ? (
-            <p className="mt-4 text-sm text-muted-foreground">No unresolved issues. Clean.</p>
+            <p className="mt-4 text-sm text-muted-foreground">{t('empty')}</p>
           ) : (
             <div
                 role="region"
-                aria-label="Top unresolved issues"
+                aria-label={t('issuesRegionLabel')}
                 /* A horizontally scrolling region must be reachable by keyboard:
                    without tabindex a keyboard user cannot scroll it at all. */
                 tabIndex={0}
@@ -90,11 +92,11 @@ export function ErrorsPanel({ results, sentryUrl, className }: ErrorsPanelProps)
               <table className="w-full text-sm">
                 <thead>
                   <tr className="text-left text-xs uppercase tracking-wider text-muted-foreground">
-                    <th className="pb-2 pr-3 font-medium">Issue</th>
-                    <th className="pb-2 pr-3 text-right font-medium">Events</th>
-                    <th className="pb-2 pr-3 text-right font-medium">Users</th>
-                    <th className="pb-2 pr-3 text-right font-medium">First</th>
-                    <th className="pb-2 text-right font-medium">Last</th>
+                    <th className="pb-2 pr-3 font-medium">{t('column.issue')}</th>
+                    <th className="pb-2 pr-3 text-right font-medium">{t('column.events')}</th>
+                    <th className="pb-2 pr-3 text-right font-medium">{t('column.users')}</th>
+                    <th className="pb-2 pr-3 text-right font-medium">{t('column.first')}</th>
+                    <th className="pb-2 text-right font-medium">{t('column.last')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/60">

@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect } from 'react'
+import { useTranslations } from 'next-intl'
 
 // Replaces the root layout when it (or the root error boundary) throws, so it
 // must render its own <html>/<body> and cannot rely on globals.css or any
@@ -12,6 +13,7 @@ export default function GlobalError({
   error: Error & { digest?: string }
   reset: () => void
 }) {
+  const t = useTranslations('GlobalError')
   useEffect(() => {
     console.error(error)
     // Report to Sentry when configured (Sentry's documented global-error
@@ -40,9 +42,9 @@ export default function GlobalError({
           padding: '1.5rem',
         }}
       >
-        <h1 style={{ fontSize: '1.5rem', margin: 0 }}>Something went wrong</h1>
+        <h1 style={{ fontSize: '1.5rem', margin: 0 }}>{t('title')}</h1>
         <p style={{ maxWidth: '24rem', color: '#b8b8b8', fontSize: '0.875rem', margin: 0 }}>
-          The app hit an unexpected error. Your saved workouts are safe — reload to continue.
+          {t('description')}
         </p>
         <button
           onClick={reset}
@@ -58,11 +60,11 @@ export default function GlobalError({
             cursor: 'pointer',
           }}
         >
-          Reload app
+          {t('reload')}
         </button>
         {error.digest && (
           <p style={{ fontSize: '0.75rem', color: '#8a8a8a', margin: 0 }}>
-            Error ref: {error.digest}
+            {t('errorRef', { digest: error.digest })}
           </p>
         )}
       </body>

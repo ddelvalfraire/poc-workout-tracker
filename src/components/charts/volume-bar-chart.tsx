@@ -9,6 +9,7 @@ import {
   ChartTooltipContent,
   type ChartConfig,
 } from '@/components/ui/chart'
+import { useTranslations } from 'next-intl'
 import type { MuscleGroupVolume } from '@/db/muscle-volume'
 
 /**
@@ -21,12 +22,6 @@ import type { MuscleGroupVolume } from '@/db/muscle-volume'
  * Client island: recharts renders client-side; the page passes plain rows.
  */
 
-const chartConfig = {
-  currentSets: { label: 'This week', color: 'var(--primary)' },
-  previousSets: { label: 'Last week', color: 'var(--muted-foreground)' },
-  plannedSets: { label: 'Planned / week', color: 'var(--foreground)' },
-} satisfies ChartConfig
-
 /** Vertical rhythm per group row — the thin bars plus breathing room. */
 const ROW_HEIGHT = 44
 
@@ -35,14 +30,22 @@ interface VolumeBarChartProps {
 }
 
 export function VolumeBarChart({ groups }: VolumeBarChartProps) {
+  const t = useTranslations('VolumeBarChart')
   const hasPlanned = groups.some((g) => g.plannedSets !== undefined)
+  // Built at render, not module load: a label frozen at import time is
+  // evaluated before any request and can never be translated.
+  const chartConfig = {
+    currentSets: { label: t('series.current'), color: 'var(--primary)' },
+    previousSets: { label: t('series.previous'), color: 'var(--muted-foreground)' },
+    plannedSets: { label: t('series.planned'), color: 'var(--foreground)' },
+  } satisfies ChartConfig
   return (
     <ChartContainer
       config={chartConfig}
       style={{ height: groups.length * ROW_HEIGHT + 60 }}
       className="w-full"
       role="img"
-      aria-label={`Sets per muscle group, this week vs last, ${groups.length} groups`}
+      aria-label={t('ariaLabel', { count: groups.length })}
     >
       <BarChart data={groups} layout="vertical" margin={{ top: 0, right: 12, bottom: 0, left: 0 }}>
         <CartesianGrid horizontal={false} strokeOpacity={0.25} />

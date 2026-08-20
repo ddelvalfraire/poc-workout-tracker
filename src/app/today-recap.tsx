@@ -8,6 +8,7 @@ import type { HomeSectionSize } from '@/lib/home/registry'
 import { DividerList } from '@/components/ui/divider-list'
 import { formatVolume, formatWorkoutDuration } from '@/lib/format'
 import type { WeightUnit } from '@/lib/units'
+import { useTranslations } from 'next-intl'
 
 /**
  * The TODAY recap — celebration, not a plain history row (spike §3): each
@@ -50,6 +51,7 @@ export function TodayRecap({
   /** Layout size class: sm renders one compact line; md the full cards. */
   size?: Extract<HomeSectionSize, 'sm' | 'md'>
 }) {
+  const t = useTranslations('TodayRecap')
   const mounted = useMounted()
   if (!mounted) return null
 
@@ -62,8 +64,8 @@ export function TodayRecap({
   if (size === 'sm') {
     const latest = today[0]
     return (
-      <section aria-label="Completed today" className="mt-6 md:mt-10">
-        <h2 className="text-xs font-semibold uppercase tracking-widest text-primary">Today</h2>
+      <section aria-label={t('sectionLabel')} className="mt-6 md:mt-10">
+        <h2 className="text-xs font-semibold uppercase tracking-widest text-primary">{t('title')}</h2>
         <DividerList className="mt-2">
           <li>
             <Link
@@ -77,10 +79,10 @@ export function TodayRecap({
               />
               <span className="min-w-0 flex-1">
                 <span className="block truncate font-medium tnum">
-                  {today.length === 1 ? '1 session today' : `${today.length} sessions today`}
+                  {t('sessionCount', { count: today.length })}
                 </span>
                 <span className="mt-0.5 block truncate text-sm text-muted-foreground">
-                  {latest.name ?? 'Workout'}
+                  {latest.name ?? t('untitledWorkout')}
                 </span>
               </span>
             </Link>
@@ -91,8 +93,8 @@ export function TodayRecap({
   }
 
   return (
-    <section aria-label="Completed today" className="mt-6 md:mt-10">
-      <h2 className="text-xs font-semibold uppercase tracking-widest text-primary">Today</h2>
+    <section aria-label={t('sectionLabel')} className="mt-6 md:mt-10">
+      <h2 className="text-xs font-semibold uppercase tracking-widest text-primary">{t('title')}</h2>
       <DividerList className="mt-2">
         {today.map((w) => {
           const facts = [
@@ -111,7 +113,7 @@ export function TodayRecap({
                   className="size-5 shrink-0 text-primary"
                 />
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate font-medium">{w.name ?? 'Workout'}</span>
+                  <span className="block truncate font-medium">{w.name ?? t('untitledWorkout')}</span>
                   <span className="mt-0.5 block truncate text-sm text-muted-foreground tnum">
                     {/* Implausible durations and zero volume drop out — the
                         completion time stands in so the line never goes empty. */}
