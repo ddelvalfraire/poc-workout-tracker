@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { renderToStaticMarkup } from 'react-dom/server'
+import { renderStaticIntl } from '../../../../vitest.intl'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 /**
@@ -75,7 +75,7 @@ function baseDraft(overrides: { note?: string; exerciseNotes?: string }): Workou
 
 function render(draft: WorkoutDraft): string {
   const client = new QueryClient({ defaultOptions: { queries: { enabled: false } } })
-  return renderToStaticMarkup(
+  return renderStaticIntl(
     <QueryClientProvider client={client}>
       <WorkoutLogger title="New Workout" closeHref="/" initialDraft={draft} />
     </QueryClientProvider>,
@@ -121,7 +121,7 @@ describe('the exercise header roll-up', () => {
 
 describe('SetRowMenu markup', () => {
   function renderMenu(props: Partial<Parameters<typeof SetRowMenu>[0]> = {}): string {
-    return renderToStaticMarkup(
+    return renderStaticIntl(
       <SetRowMenu
         x={100}
         y={200}
@@ -156,7 +156,7 @@ describe('SetRowMenu markup', () => {
 
 describe('NoteSheet markup (the capture sheet)', () => {
   function renderSheet(props: Partial<Parameters<typeof NoteSheet>[0]> = {}): string {
-    return renderToStaticMarkup(
+    return renderStaticIntl(
       <NoteSheet
         exerciseName="Bench Press"
         setNumber={3}

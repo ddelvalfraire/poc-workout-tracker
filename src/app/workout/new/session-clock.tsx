@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { formatElapsed } from '@/lib/format'
+import { useTranslations } from 'next-intl'
 
 /**
  * Compact session elapsed clock for the app header — it lives up there like
@@ -19,6 +20,7 @@ import { formatElapsed } from '@/lib/format'
  * only mislead.
  */
 export function HeaderClock({ startedAt }: { startedAt: Date }) {
+  const t = useTranslations('HeaderClock')
   const [now, setNow] = useState<Date | null>(null)
 
   useEffect(() => {
@@ -35,7 +37,10 @@ export function HeaderClock({ startedAt }: { startedAt: Date }) {
   return (
     // The label must INCLUDE the value: a bare aria-label would replace the
     // digits as the accessible name and hide the time from AT entirely.
-    <span aria-label={`Session time ${elapsed}`} className="font-display text-xl leading-none tnum">
+    <span
+      aria-label={t('ariaLabel', { elapsed })}
+      className="font-display text-xl leading-none tnum"
+    >
       <span aria-hidden="true">{elapsed}</span>
     </span>
   )

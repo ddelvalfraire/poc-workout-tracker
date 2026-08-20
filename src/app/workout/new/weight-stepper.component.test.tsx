@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+import { withIntl } from '../../../../vitest.intl'
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 
@@ -42,6 +43,7 @@ function renderStepper() {
   root = createRoot(container)
   act(() => {
     root.render(
+      withIntl(
       <WeightStepper
         setIndex={0}
         inputId="weight-input-test"
@@ -54,6 +56,7 @@ function renderStepper() {
         onWeightChange={onWeightChange}
         onOpenPlateSheet={() => {}}
       />,
+      ),
     )
   })
   const plus = container.querySelector<HTMLButtonElement>(

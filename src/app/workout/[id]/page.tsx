@@ -45,6 +45,7 @@ import { getActiveWorkoutShare } from "@/db/workout-shares";
 import { WorkoutActions } from "./workout-actions";
 import { WorkoutSharing } from "./workout-sharing";
 import { FinishUpNextCard } from "./finish-up-next-card";
+import { getTranslations } from 'next-intl/server';
 
 export default async function WorkoutDetailPage({
   params,
@@ -53,6 +54,7 @@ export default async function WorkoutDetailPage({
   params: Promise<{ id: string }>;
   searchParams: Promise<{ finished?: string }>;
 }) {
+  const t = await getTranslations('WorkoutDetail');
   const userId = await requireUserId();
   const [{ id }, { finished }] = await Promise.all([params, searchParams]);
   // Presentation-only flag set by the logger's finish push: it dresses the
@@ -193,7 +195,7 @@ export default async function WorkoutDetailPage({
   return (
     <div className="flex min-h-[100dvh] flex-col">
       <AppHeader
-        title={workout.name ?? "Workout"}
+        title={workout.name ?? t('titleFallback')}
         leading={
           // Fallback /history, not / — the canonical parent of a workout
           // record (spike §3c); warm arrivals pop to their true origin.
@@ -209,24 +211,24 @@ export default async function WorkoutDetailPage({
             is about actions and stays with WorkoutActions). */}
         {justFinished && (
           <section
-            aria-label="Workout complete"
+            aria-label={t('complete.groupLabel')}
             className="mt-6 motion-safe:animate-rise-in"
           >
             <p className="text-xs font-semibold uppercase tracking-widest text-primary">
-              Session logged
+              {t('complete.badge')}
             </p>
             <div className="mt-1 flex items-start justify-between gap-3">
               {/* The most specific true headline (summary-view copy table):
                   "Two PRs." / "Bench PR." / "Week 7 closed." — never a
                   generic stamp when something better happened. */}
               <h2 className="min-w-0 font-display text-4xl uppercase leading-none tracking-wide">
-                {headline}
+                {t(`headline.${headline.key}`, headline.values)}
               </h2>
               {/* The session's share card, right in the celebration moment —
                   the link-based WorkoutSharing block below stays put. */}
               <ShareCardButton
                 cardUrl={`/api/cards/workout/${workout.id}`}
-                shareTitle={workout.name ?? "Workout"}
+                shareTitle={workout.name ?? t('titleFallback')}
                 className="-my-1 shrink-0"
               />
             </div>
@@ -244,17 +246,16 @@ export default async function WorkoutDetailPage({
                   >
                     <span className="min-w-0 truncate">{h.name}</span>
                     <span className="shrink-0">
-                      {h.kind === "e1rm" ? (
-                        <>
-                          <span aria-hidden="true">~</span>
-                          {formatE1RM(h.e1rmKg, unit)} e1RM (+
-                          {e1rmDeltaDisplay(h.deltaKg, unit)})
-                        </>
-                      ) : (
-                        <>
-                          {h.reps} reps (+{h.deltaReps})
-                        </>
-                      )}
+                      {h.kind === "e1rm"
+                        ? t.rich("complete.prE1rm", {
+                            value: formatE1RM(h.e1rmKg, unit),
+                            delta: e1rmDeltaDisplay(h.deltaKg, unit),
+                            // The tilde is decoration, not a word: kept out
+                            // of the accessible name, kept inside the one
+                            // message so its position stays translatable.
+                            approx: (chunks) => <span aria-hidden="true">{chunks}</span>,
+                          })
+                        : t("complete.prReps", { reps: h.reps, delta: h.deltaReps })}
                     </span>
                   </li>
                 ))}
@@ -267,16 +268,18 @@ export default async function WorkoutDetailPage({
             program context, not an action — volt small-caps text marks it the
             same way the "Session logged" eyebrow does, no pill shell. */}
         <p className="mt-4 text-sm text-muted-foreground">
-          {formatWorkoutDate(workout.startedAt)}
-          {workout.programWeek !== null && (
-            <>
-              {" "}
-              <span aria-hidden="true">·</span>{" "}
-              <span className="text-xs font-semibold uppercase tracking-wide text-primary">
-                Week {workout.programWeek}
-              </span>
-            </>
-          )}
+          {workout.programWeek === null
+            ? formatWorkoutDate(workout.startedAt)
+            : t.rich("meta.summary", {
+                date: formatWorkoutDate(workout.startedAt),
+                week: workout.programWeek,
+                separator: (chunks) => <span aria-hidden="true">{chunks}</span>,
+                weekLabel: (chunks) => (
+                  <span className="text-xs font-semibold uppercase tracking-wide text-primary">
+                    {chunks}
+                  </span>
+                ),
+              })}
         </p>
 
         {/* Third beat of the finish stagger (headline → PR lines → stats);
@@ -290,22 +293,23 @@ export default async function WorkoutDetailPage({
               "motion-safe:animate-rise-in [animation-delay:180ms] [animation-fill-mode:backwards]",
           )}
         >
-          <Stat label="Duration" value={duration ?? "—"} sub={durationDelta} />
           <Stat
-            label="Volume"
-            value={volumeKg > 0 ? formatVolume(volumeKg, unit) : "—"}
+            label={t("stats.duration")}
+            value={duration ?? t("stats.empty")}
+            sub={durationDelta}
+          />
+          <Stat
+            label={t("stats.volume")}
+            value={volumeKg > 0 ? formatVolume(volumeKg, unit) : t("stats.empty")}
             sub={volumeDelta}
           />
-          <Stat
-            label={totalSets === 1 ? "Set" : "Sets"}
-            value={String(totalSets)}
-          />
+          <Stat label={t("stats.sets", { count: totalSets })} value={String(totalSets)} />
         </dl>
         {/* One caption names the comparison for both tile deltas — tiles are
             too narrow to repeat "vs last {name}" inside each. */}
         {(volumeDelta !== null || durationDelta !== null) && (
           <p className="mt-1.5 px-1 text-xs text-muted-foreground">
-            vs last {workout.name}
+            {t("comparisonCaption", { name: workout.name ?? "" })}
           </p>
         )}
 
@@ -317,14 +321,14 @@ export default async function WorkoutDetailPage({
             lines for strength targets this workout moved but didn't finish. */}
         {justFinished && achievedGoals.length > 0 && (
           <section
-            aria-label="Goals reached"
+            aria-label={t('goals.groupLabel')}
             // De-carded: the volt hairline under the section is the same
             // quiet "achievement" state marker the logger's done sections
             // wear — celebration lives in the volt type, not a shell.
             className="mt-6 border-b border-b-primary/30 pb-5 motion-safe:animate-rise-in"
           >
             <p className="text-xs font-semibold uppercase tracking-widest text-primary">
-              {achievedGoals.length === 1 ? "Goal reached" : "Goals reached"}
+              {t("goals.title", { count: achievedGoals.length })}
             </p>
             <ul className="mt-2 space-y-1">
               {achievedGoals.map((goal) => (
@@ -340,7 +344,7 @@ export default async function WorkoutDetailPage({
               href="/goals"
               className="mt-3 inline-block text-sm text-muted-foreground transition-colors hover:text-foreground"
             >
-              See your goals
+              {t('goals.action')}
             </Link>
           </section>
         )}
@@ -348,12 +352,12 @@ export default async function WorkoutDetailPage({
             same honesty rule (see earnedTrophies above). */}
         {justFinished && earnedTrophies.length > 0 && (
           <section
-            aria-label="Trophies earned"
+            aria-label={t('trophies.groupLabel')}
             // Same de-carded volt-hairline treatment as the goals block.
             className="mt-6 border-b border-b-primary/30 pb-5 motion-safe:animate-rise-in"
           >
             <p className="text-xs font-semibold uppercase tracking-widest text-primary">
-              {earnedTrophies.length === 1 ? "Trophy earned" : "Trophies earned"}
+              {t("trophies.title", { count: earnedTrophies.length })}
             </p>
             <ul className="mt-2 space-y-1">
               {earnedTrophies.map((trophy) => (
@@ -377,19 +381,19 @@ export default async function WorkoutDetailPage({
               href="/trophies"
               className="mt-3 inline-block text-sm text-muted-foreground transition-colors hover:text-foreground"
             >
-              See your trophies
+              {t('trophies.action')}
             </Link>
           </section>
         )}
         {justFinished && touchedStrengthGoals.length > 0 && (
           <section
-            aria-label="Goal progress"
+            aria-label={t('goalProgress.groupLabel')}
             // Progress-not-achievement stays on the muted hairline (one-volt
             // rule: volt marks the reached goals above, not the partials).
             className="mt-6 border-b border-b-border/60 pb-4"
           >
             <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-              Goal progress
+              {t('goalProgress.title')}
             </p>
             <ul className="mt-2 space-y-1.5">
               {touchedStrengthGoals.map(({ goal, sessionE1rmKg, targetE1rmKg, percent }) => (
@@ -398,10 +402,15 @@ export default async function WorkoutDetailPage({
                   className="flex items-baseline justify-between gap-3 text-sm tnum"
                 >
                   <span className="min-w-0 truncate">
-                    {goal.exerciseName} · {formatE1RM(sessionE1rmKg, unit)} of{" "}
-                    {formatE1RM(targetE1rmKg, unit)}
+                    {t("goalProgress.summary", {
+                      exercise: goal.exerciseName ?? "",
+                      current: formatE1RM(sessionE1rmKg, unit),
+                      target: formatE1RM(targetE1rmKg, unit),
+                    })}
                   </span>
-                  <span className="shrink-0 font-semibold text-primary">{percent}%</span>
+                  <span className="shrink-0 font-semibold text-primary">
+                    {t("goalProgress.percent", { percent })}
+                  </span>
                 </li>
               ))}
             </ul>
@@ -454,7 +463,7 @@ export default async function WorkoutDetailPage({
                   {exercise.skipped ? (
                     // Chip → word: skipped is a label, not a control.
                     <span className="shrink-0 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
-                      Skipped
+                      {t('exercise.skippedBadge')}
                     </span>
                   ) : (
                     isPR && <PrBadge />
@@ -467,12 +476,12 @@ export default async function WorkoutDetailPage({
                     the muted numbered disc (nothing was done to check off). */}
                 <div className="mt-3 space-y-2">
                   {exercise.sets.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">No sets logged.</p>
+                    <p className="text-sm text-muted-foreground">{t('exercise.empty')}</p>
                   ) : (
                     exercise.sets.map((set, setIndex) => (
                       <div key={set.id} className="flex items-center gap-3">
                         <span
-                          aria-label={`Set ${set.setNumber}`}
+                          aria-label={t("exercise.setAriaLabel", { number: set.setNumber })}
                           className={cn(
                             // Number stays visible on every disc — a wall of
                             // identical checks loses the set index sighted
@@ -509,7 +518,7 @@ export default async function WorkoutDetailPage({
                           // Chip → word (logger grammar): a quiet caps label,
                           // no pill shell.
                           <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
-                            Top set
+                            {t('exercise.topSetBadge')}
                           </span>
                         )}
                       </div>
@@ -519,12 +528,12 @@ export default async function WorkoutDetailPage({
                 {current && (
                   <div className="mt-3 flex items-baseline justify-between gap-3 border-t border-border pt-3">
                     <span className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
-                      {current.kind === "e1rm" ? "Est. 1RM" : "Top set"}
+                      {current.kind === "e1rm" ? t("exercise.e1rmLabel") : t("exercise.topSetLabel")}
                     </span>
                     {current.kind === "e1rm" ? (
                       <span className="font-display text-3xl leading-none tnum">
                         <span aria-hidden="true" className="text-muted-foreground">
-                          ~
+                          {t('exercise.approx')}
                         </span>
                         {formatE1RM(current.e1rm, unit)}
                         {/* Direction against the exercise's prior best — no
@@ -549,7 +558,7 @@ export default async function WorkoutDetailPage({
                       // Rep fallback: no load to estimate from, but the best
                       // effort still deserves its readout — not a blank card.
                       <span className="font-display text-3xl leading-none tnum">
-                        {current.reps} reps
+                        {t("exercise.repsValue", { reps: current.reps })}
                       </span>
                     )}
                   </div>
@@ -564,9 +573,9 @@ export default async function WorkoutDetailPage({
             and outdated fallbacks — with anchor breadcrumbs, replacing the
             scattered per-block renders. Reading order within each anchor. */}
         {noteViews.length > 0 && (
-          <section aria-label="Notes" className="mt-8">
+          <section aria-label={t('notes.groupLabel')} className="mt-8">
             <h2 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-              Notes
+              {t('notes.title')}
             </h2>
             <DividerList className="mt-2">
               {noteViews.map((note) => (

@@ -124,8 +124,17 @@ export function prHighlights(comparisons: readonly ExerciseComparison[]): PrHigh
   })
 }
 
-/** Small counts read better as words ("Two PRs."), larger ones as numerals. */
-const PR_COUNT_WORDS: readonly string[] = ['', '', 'Two', 'Three', 'Four', 'Five']
+/**
+ * Which headline the session earned, plus its arguments — a MESSAGE CHOICE,
+ * not a sentence. The copy (including the "Two PRs." / "7 PRs." word-vs-
+ * numeral split, now an ICU plural) lives in the catalog: a string built
+ * here would be assembled before any request and could never be translated.
+ */
+export type FinishHeadline =
+  | { key: 'prs'; values: { count: number } }
+  | { key: 'pr'; values: { exercise: string } }
+  | { key: 'blockClosed'; values: { week: number } }
+  | { key: 'complete'; values: Record<string, never> }
 
 /**
  * The finished-session headline — the most specific true thing, not a
@@ -142,12 +151,14 @@ export function finishHeadline(input: {
   /** True when this session completed the mesocycle (up-next 'block-complete'). */
   blockClosed: boolean
   programWeek: number | null
-}): string {
+}): FinishHeadline {
   const count = input.prNames.length
-  if (count > 1) return `${PR_COUNT_WORDS[count] ?? String(count)} PRs.`
-  if (count === 1) return `${input.prNames[0]} PR.`
-  if (input.blockClosed && input.programWeek !== null) return `Week ${input.programWeek} closed.`
-  return 'Workout complete.'
+  if (count > 1) return { key: 'prs', values: { count } }
+  if (count === 1) return { key: 'pr', values: { exercise: input.prNames[0] } }
+  if (input.blockClosed && input.programWeek !== null) {
+    return { key: 'blockClosed', values: { week: input.programWeek } }
+  }
+  return { key: 'complete', values: {} }
 }
 
 /**

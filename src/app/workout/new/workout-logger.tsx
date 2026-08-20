@@ -1,6 +1,6 @@
 'use client'
 
-import { Fragment, useEffect, useReducer, useRef, useState } from 'react'
+import { Fragment, useEffect, useReducer, useRef, useState, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import { useQueries, useQueryClient } from '@tanstack/react-query'
 import {
@@ -103,7 +103,7 @@ import { sessionPulse, shouldShowNextUp } from '@/lib/session-pulse'
 import { targetCaption } from '@/lib/target-caption'
 import { allTimePRIndex } from '@/lib/pr-detection'
 import { DEFAULT_EQUIPMENT, type Equipment } from '@/lib/equipment'
-import { LOGGING_TYPES, isLoggingType, type LoggingType } from '@/lib/workout-input'
+import { LOGGING_TYPES, isLoggingType } from '@/lib/workout-input'
 import type { ExerciseSource } from '@/lib/custom-exercise-input'
 import { type WeightUnit } from '@/lib/units'
 import { cn } from '@/lib/utils'
@@ -120,6 +120,7 @@ import {
   type PlanSetTarget,
 } from '@/lib/format'
 import type { LastPerformance } from '@/db/workouts'
+import { useTranslations } from 'next-intl'
 
 /** How long the inline "Removed — Undo" affordance stays actionable. 8s per
  *  the #210 direction: action-bearing snackbars sit at the long end of M3's
@@ -135,13 +136,10 @@ const LONG_PRESS_SLOP_PX = 8
 /** One-time hint flag: set after the user's first-ever warm-up tag. */
 const WARMUP_HINT_KEY = 'logger:warmup-hint-seen'
 
-/** Compact labels for the per-exercise logging-type select (Hevy-style). */
-const LOGGING_TYPE_LABELS: Record<LoggingType, string> = {
-  weight_reps: 'Weight × reps',
-  bodyweight_reps: 'Bodyweight',
-  weighted_bodyweight: 'BW + weight',
-  assisted_bodyweight: 'BW − assist',
-}
+/* The per-exercise logging-type select's option LABELS live in the catalog
+   (WorkoutLogger.loggingType.*) and are read at render — a label baked into
+   a module map is built before any request and can never be translated. The
+   option VALUES come from LOGGING_TYPES in lib/workout-input. */
 
 /** One reversible removal. Sets capture their exercise by STABLE id, not
  *  index — the exercise list can shift (or the exercise itself vanish and be
@@ -223,6 +221,7 @@ export function WorkoutLogger({
   restTimerEnabled = true,
   rpeLoggingEnabled = false,
 }: WorkoutLoggerProps) {
+  const t = useTranslations('WorkoutLogger')
   const [draft, dispatch] = useReducer(workoutDraftReducer, initialDraft)
   const [name, setName] = useState(initialName)
   const [error, setError] = useState<string | null>(null)
@@ -777,7 +776,7 @@ export function WorkoutLogger({
       setPendingRemember(null)
     } catch {
       // The prompt stays: the error renders inside it, retry in place.
-      setRememberError('Could not update the program. Please try again.')
+      setRememberError(t('rememberError'))
     } finally {
       setIsRemembering(false)
     }
@@ -1102,7 +1101,7 @@ export function WorkoutLogger({
     } catch {
       queue.resume() // save failed — autosave picks the latest back up
       setIsSaving(false)
-      setError('Could not save workout. Please try again.')
+      setError(t('saveError'))
     }
   }
 
@@ -1156,9 +1155,35 @@ export function WorkoutLogger({
       queue.resume() // discard failed — autosave picks the draft back up
       setIsDiscarding(false)
       // The dialog stays open: the error renders inside it, retry in place.
-      setDiscardError('Could not discard. Please try again.')
+      setDiscardError(t('discardError'))
     }
   }
+
+  /** Per-row affordance skin. Declared here, not inline in the set map: an
+   *  enum ternary written inside JSX reads to the i18n gate as copy. */
+  const rowStateOf = (completed: boolean, isActive: boolean): 'done' | 'active' | 'waiting' =>
+    completed ? 'done' : isActive ? 'active' : 'waiting'
+
+  /** The undo toast's sentence — "Removed X" / "Replaced X", one whole ICU
+   *  message per kind with the name as the emphasized chunk. Built outside
+   *  JSX for the same reason as rowStateOf. */
+  function undoMessage(last: RemovedEntry) {
+    const emphasis = { name: (chunks: ReactNode) => <span className="font-medium">{chunks}</span> }
+    if (last.kind === 'exercise') {
+      return t.rich('undoRemoved', { subject: last.exercise.name, ...emphasis })
+    }
+    if (last.kind === 'replace') {
+      return t.rich('undoReplaced', { subject: last.previous.name, ...emphasis })
+    }
+    return t.rich('undoRemoved', {
+      subject: t('undoSetSubject', { number: last.setIndex + 1, name: last.exerciseName }),
+      ...emphasis,
+    })
+  }
+
+  /** Flips a set's warm-up tag. Same reason as above: the tag values are
+   *  enum members, not words the user reads. */
+  const nextSetTag = (tag: DraftSet['tag']) => (tag === 'warmup' ? 'working' : 'warmup')
 
   return (
     <>
@@ -1180,7 +1205,7 @@ export function WorkoutLogger({
               // volt: while resting, the sticky bar's rest pill keeps the
               // one-volt slot.
               <span
-                aria-label={`${pulse.completed} of ${pulse.total} working sets done`}
+                aria-label={t('pulseAriaLabel', { completed: pulse.completed, total: pulse.total })}
                 className="text-sm text-muted-foreground tnum"
               >
                 <span aria-hidden="true">
@@ -1197,7 +1222,7 @@ export function WorkoutLogger({
               onClick={() => navigateBack(router, closeHref)}
               className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }))}
             >
-              Close
+              {t('close')}
             </button>
           </>
         }
@@ -1217,14 +1242,14 @@ export function WorkoutLogger({
                 session shows static text, and htmlFor on a <p> is invalid. */}
             {isLive ? (
               <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-                Workout name
+                {t('nameLabel')}
               </span>
             ) : (
               <label
                 htmlFor="workout-name"
                 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground"
               >
-                Workout name
+                {t('nameLabel')}
               </label>
             )}
             {/* The session's fixed (day · week) stamp: renaming or swapping
@@ -1247,12 +1272,12 @@ export function WorkoutLogger({
                 name.trim() === '' && 'text-muted-foreground',
               )}
             >
-              {name.trim() === '' ? 'Unnamed workout' : name}
+              {name.trim() === '' ? t('namePlaceholderStatic') : name}
             </p>
           ) : (
             <Input
               id="workout-name"
-              placeholder="Optional — e.g. Lower"
+              placeholder={t('namePlaceholder')}
               value={name}
               onChange={(e) => setName(e.target.value)}
               // De-boxed to an underline field (keep-list allows): same input,
@@ -1264,7 +1289,7 @@ export function WorkoutLogger({
 
         {syncStatus === 'failed' && (
           <p className="px-1 text-sm text-warning" role="status">
-            Offline — changes will sync when you&apos;re back.
+            {t('offlineNotice')}
           </p>
         )}
 
@@ -1273,10 +1298,10 @@ export function WorkoutLogger({
         {isEmpty && (
           <div className="px-1 py-8 text-center">
             <p className="font-display text-2xl font-semibold uppercase tracking-wide">
-              Empty bar.
+              {t('empty')}
             </p>
             <p className="mt-1 text-sm text-muted-foreground">
-              Tap + Exercise below to add your first movement.
+              {t('emptyHint')}
             </p>
           </div>
         )}
@@ -1343,7 +1368,7 @@ export function WorkoutLogger({
           >
             {supersetLabel !== undefined && !isCollapsed && !exercise.skipped && (
               <p className="mb-3 text-[0.65rem] font-semibold uppercase tracking-widest text-muted-foreground">
-                Superset {supersetLabel}
+                {t('supersetLabel', { group: supersetLabel })}
               </p>
             )}
           {exercise.skipped ? (
@@ -1353,7 +1378,7 @@ export function WorkoutLogger({
             <button
               type="button"
               onClick={() => dispatch({ type: 'TOGGLE_SKIP_EXERCISE', exerciseIndex })}
-              aria-label={`Unskip ${exercise.name}`}
+              aria-label={t('unskipAriaLabel', { name: exercise.name })}
               className={cn(
                 'flex w-full items-center justify-between gap-3 py-2 text-left',
                 riseInArmed && 'motion-safe:animate-rise-in',
@@ -1378,7 +1403,7 @@ export function WorkoutLogger({
                 </span>
               </span>
               <span className="shrink-0 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-                Skipped
+                {t('skippedBadge')}
               </span>
             </button>
           ) : isCollapsed ? (
@@ -1392,7 +1417,12 @@ export function WorkoutLogger({
                 })
               }
               aria-expanded={false}
-              aria-label={`Expand ${exercise.name} — completed, ${completedSetsSummary(exercise.sets, exercise.loggingType)}${hasPR ? ', new PR' : ''}${supersetLabel !== undefined ? `, superset ${supersetLabel}` : ''}`}
+              aria-label={t('expandAriaLabel', {
+                name: exercise.name,
+                summary: completedSetsSummary(exercise.sets, exercise.loggingType),
+                pr: hasPR ? 'yes' : 'no',
+                superset: supersetLabel ?? 'none',
+              })}
               className={cn(
                 'flex w-full items-center justify-between gap-3 py-2 text-left',
                 riseInArmed && 'motion-safe:animate-rise-in',
@@ -1428,7 +1458,7 @@ export function WorkoutLogger({
                 <button
                   type="button"
                   onClick={() => setStatsSheetFor(exerciseIndex)}
-                  aria-label={`Stats for ${exercise.name}`}
+                  aria-label={t('statsAriaLabel', { name: exercise.name })}
                   className="-my-1.5 py-1.5 text-left underline-offset-4 active:underline"
                 >
                   {exercise.name}
@@ -1450,7 +1480,7 @@ export function WorkoutLogger({
                 if (noteCount === 0) return null
                 return (
                   <span
-                    aria-label={`${noteCount} ${noteCount === 1 ? 'note' : 'notes'} on ${exercise.name}`}
+                    aria-label={t('noteCountAriaLabel', { count: noteCount, name: exercise.name })}
                     className="mr-1 flex shrink-0 items-center gap-1 text-xs text-muted-foreground tnum"
                   >
                     <NotebookPen aria-hidden="true" className="size-3.5" />
@@ -1475,7 +1505,7 @@ export function WorkoutLogger({
                     })
                   }
                   aria-expanded={true}
-                  aria-label={`Collapse ${exercise.name}`}
+                  aria-label={t('collapseAriaLabel', { name: exercise.name })}
                 >
                   <ChevronUp aria-hidden="true" className="size-4" />
                 </Button>
@@ -1488,7 +1518,7 @@ export function WorkoutLogger({
                   variant="ghost"
                   className="shrink-0 text-muted-foreground"
                   onClick={() => setPlateSheetFor(exerciseIndex)}
-                  aria-label={`Plates for ${exercise.name}`}
+                  aria-label={t('platesAriaLabel', { name: exercise.name })}
                 >
                   <Dumbbell aria-hidden="true" className="size-4" />
                 </Button>
@@ -1503,7 +1533,7 @@ export function WorkoutLogger({
                 className="shrink-0 text-muted-foreground"
                 disabled={isSaving || isDiscarding}
                 onClick={() => setReplaceTargetIndex(exerciseIndex)}
-                aria-label={`Replace ${exercise.name}`}
+                aria-label={t('replaceAriaLabel', { name: exercise.name })}
               >
                 <ArrowLeftRight aria-hidden="true" className="size-4" />
               </Button>
@@ -1519,10 +1549,10 @@ export function WorkoutLogger({
                 <button
                   type="button"
                   onClick={() => setNotesOpen((prev) => new Set(prev).add(exercise.id))}
-                  aria-label={`Add note for ${exercise.name}`}
+                  aria-label={t('addNoteAriaLabel', { name: exercise.name })}
                   className="mx-1 shrink-0 hit-44-y rounded-full border border-border bg-muted/40 px-3 py-2.5 text-xs text-muted-foreground transition-colors active:bg-muted"
                 >
-                  Note
+                  {t('noteAction')}
                 </button>
               )}
               {/* Hairline gap between the everyday utilities and the
@@ -1535,7 +1565,7 @@ export function WorkoutLogger({
                 variant="ghost"
                 className="shrink-0 text-muted-foreground"
                 onClick={() => dispatch({ type: 'TOGGLE_SKIP_EXERCISE', exerciseIndex })}
-                aria-label={`Skip ${exercise.name}`}
+                aria-label={t('skipAriaLabel', { name: exercise.name })}
               >
                 <CircleSlash aria-hidden="true" className="size-4" />
               </Button>
@@ -1544,7 +1574,7 @@ export function WorkoutLogger({
                 variant="ghost"
                 className="-mr-1 shrink-0 text-muted-foreground"
                 onClick={() => handleRemoveExercise(exerciseIndex)}
-                aria-label={`Remove ${exercise.name}`}
+                aria-label={t('removeExerciseAriaLabel', { name: exercise.name })}
               >
                 <Trash2 aria-hidden="true" className="size-4" />
               </Button>
@@ -1569,12 +1599,12 @@ export function WorkoutLogger({
                       })
                     }
                   }}
-                  aria-label={`Logging type for ${exercise.name}`}
+                  aria-label={t('loggingTypeAriaLabel', { name: exercise.name })}
                   className="h-9 appearance-none rounded-lg bg-transparent pl-1 pr-5 text-xs font-semibold uppercase tracking-wide text-muted-foreground outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
                 >
                   {LOGGING_TYPES.map((type) => (
                     <option key={type} value={type}>
-                      {LOGGING_TYPE_LABELS[type]}
+                      {t(`loggingType.${type}`)}
                     </option>
                   ))}
                 </select>
@@ -1594,7 +1624,10 @@ export function WorkoutLogger({
               <button
                 type="button"
                 onClick={() => setNoteSheetFor({ index: exerciseIndex, seed: 'identity' })}
-                aria-label={`Exercise note for ${exercise.name}: ${noteChipLabel(identityNote.body)}`}
+                aria-label={t('identityNoteAriaLabel', {
+                  name: exercise.name,
+                  note: noteChipLabel(identityNote.body),
+                })}
                 className="flex max-w-full items-center gap-1.5 self-start hit-44-y rounded-full border border-border bg-muted/40 px-3 py-2.5 text-xs text-muted-foreground transition-colors active:bg-muted"
               >
                 <Pin aria-hidden="true" className="size-3 shrink-0" />
@@ -1614,10 +1647,12 @@ export function WorkoutLogger({
                   dispatch({ type: 'SET_EXERCISE_NOTES', exerciseIndex, value: echoNote.text })
                   setNotesOpen((prev) => new Set(prev).add(exercise.id))
                 }}
-                aria-label={`Copy last session's note for ${exercise.name}`}
+                aria-label={t('echoNoteAriaLabel', { name: exercise.name })}
                 className="block max-w-full truncate px-0.5 text-left text-xs italic text-muted-foreground"
               >
-                Last time{echoNote.sessionSkipped ? ' (skipped)' : ''}: {noteChipLabel(echoNote.text)}
+                {echoNote.sessionSkipped
+                  ? t('echoNoteSkipped', { note: noteChipLabel(echoNote.text) })
+                  : t('echoNote', { note: noteChipLabel(echoNote.text) })}
               </button>
             )}
 
@@ -1636,7 +1671,7 @@ export function WorkoutLogger({
                   <Textarea
                     rows={2}
                     autoFocus
-                    placeholder="Add note…"
+                    placeholder={t('notePlaceholder')}
                     value={exercise.notes}
                     onChange={(e) =>
                       dispatch({ type: 'SET_EXERCISE_NOTES', exerciseIndex, value: e.target.value })
@@ -1648,14 +1683,14 @@ export function WorkoutLogger({
                         return next
                       })
                     }
-                    aria-label={`Notes for ${exercise.name}`}
+                    aria-label={t('notesAriaLabel', { name: exercise.name })}
                     className="min-w-0 flex-1 motion-safe:animate-rise-in"
                   />
                 ) : (
                   <button
                     type="button"
                     onClick={() => setNotesOpen((prev) => new Set(prev).add(exercise.id))}
-                    aria-label={`Edit note for ${exercise.name}`}
+                    aria-label={t('editNoteAriaLabel', { name: exercise.name })}
                     className="hit-44-y min-w-0 flex-1 whitespace-pre-wrap px-0.5 py-2 text-left text-sm text-muted-foreground"
                   >
                     {exercise.notes}
@@ -1667,7 +1702,7 @@ export function WorkoutLogger({
                     variant="ghost"
                     className="shrink-0 text-muted-foreground"
                     onClick={() => setNoteSheetFor({ index: exerciseIndex, seed: 'session' })}
-                    aria-label={`Pin note for ${exercise.name}`}
+                    aria-label={t('pinNoteAriaLabel', { name: exercise.name })}
                   >
                     <Pin aria-hidden="true" className="size-4" />
                   </Button>
@@ -1686,14 +1721,14 @@ export function WorkoutLogger({
               if (autoregReverted.has(autoregKey)) {
                 return (
                   <p className="px-0.5 text-xs text-muted-foreground">
-                    Using plan as written.
+                    {t('autoregReverted')}
                   </p>
                 )
               }
               return (
                 <div className="space-y-0.5 px-0.5">
                   <p className="text-xs text-muted-foreground">
-                    <span aria-hidden="true">⟳ </span>
+                    <span aria-hidden="true">{t('autoregGlyph')} </span>
                     {autoregInfo.reason}
                     <button
                       type="button"
@@ -1702,7 +1737,7 @@ export function WorkoutLogger({
                       }
                       className="ml-2 underline underline-offset-2"
                     >
-                      Use plan as written
+                      {t('autoregRevertAction')}
                     </button>
                   </p>
                   {/* While cutting, the reason line above already carries the
@@ -1712,7 +1747,7 @@ export function WorkoutLogger({
                   {autoregInfo.suggestEarlyDeload &&
                     autoregInfo.phaseContext !== 'cutting' && (
                       <p className="text-xs text-muted-foreground">
-                        Consider pulling the deload forward.
+                        {t('deloadNudge')}
                       </p>
                     )}
                 </div>
@@ -1722,20 +1757,22 @@ export function WorkoutLogger({
             {exercise.sets.length > 0 && (
               <div className="flex items-center gap-2 px-0.5 text-[0.7rem] font-semibold uppercase tracking-wider text-muted-foreground">
                 <span className="w-8 shrink-0" aria-hidden="true" />
-                <span className="w-10 shrink-0 text-center">Prev</span>
+                <span className="w-10 shrink-0 text-center">{t('column.prev')}</span>
                 {/* Cardio exercises head their columns Time/km; the first
                     set's metric mode speaks for the card (rows still render
                     per their OWN mode). */}
                 {setMetricMode(exercise.sets[0]) !== 'reps_weight' ? (
                   <>
-                    <span className="flex-1 text-center">Time</span>
+                    <span className="flex-1 text-center">{t('column.time')}</span>
                     <span className="flex-1 text-center">
-                      {setMetricMode(exercise.sets[0]) === 'duration_distance' ? 'km' : ''}
+                      {setMetricMode(exercise.sets[0]) === 'duration_distance'
+                        ? t('column.distance')
+                        : ''}
                     </span>
                   </>
                 ) : (
                   <>
-                    <span className="flex-1 text-center">Reps</span>
+                    <span className="flex-1 text-center">{t('column.reps')}</span>
                     <span className="flex-1 text-center">{unit}</span>
                   </>
                 )}
@@ -1747,7 +1784,7 @@ export function WorkoutLogger({
                 warm-up tag, via the localStorage flag. */}
             {showWarmupHint && exerciseIndex === 0 && exercise.sets.length > 0 && (
               <p className="px-0.5 text-xs text-muted-foreground">
-                Hold a set&apos;s number to tag it a warm-up — warm-ups never score.
+                {t('warmupHint')}
               </p>
             )}
 
@@ -1803,17 +1840,15 @@ export function WorkoutLogger({
                 // Row identity for assistive tech: a warm-up row must SAY so —
                 // the 'W' glyph alone is visual-only.
                 const setLabel =
-                  set.tag === 'warmup' ? `warm-up set ${setIndex + 1}` : `set ${setIndex + 1}`
+                  set.tag === 'warmup'
+                    ? t('setLabelWarmup', { number: setIndex + 1 })
+                    : t('setLabel', { number: setIndex + 1 })
                 // Per-row affordance state (visual skin ONLY — every handler,
                 // input, and tap target below is identical across states):
                 // done rows flatten to quiet text, the active row carries the
                 // full underline-input affordance, waiting rows sit muted and
                 // promote to full affordance on any focus within the row.
-                const rowState: 'done' | 'active' | 'waiting' = set.completed
-                  ? 'done'
-                  : setIndex === activeSetIndex
-                    ? 'active'
-                    : 'waiting'
+                const rowState = rowStateOf(set.completed, setIndex === activeSetIndex)
                 return (
                 <Fragment key={set.id}>
                 {/* Swipe is the fast touch path; the row's X stays for
@@ -1889,7 +1924,7 @@ export function WorkoutLogger({
                           type: 'TAG_SET',
                           exerciseIndex,
                           setIndex,
-                          tag: set.tag === 'warmup' ? 'working' : 'warmup',
+                          tag: nextSetTag(set.tag),
                         })
                       }, LONG_PRESS_MS)
                     }}
@@ -2005,8 +2040,8 @@ export function WorkoutLogger({
                     aria-pressed={set.completed}
                     aria-label={
                       set.completed
-                        ? `Mark ${setLabel} incomplete`
-                        : `Mark ${setLabel} complete`
+                        ? t('markIncompleteAriaLabel', { set: setLabel })
+                        : t('markCompleteAriaLabel', { set: setLabel })
                     }
                     className={cn(
                       'relative grid size-8 shrink-0 place-items-center rounded-full text-sm font-semibold tnum transition-colors',
@@ -2034,7 +2069,7 @@ export function WorkoutLogger({
                     {set.completed ? (
                       <Check aria-hidden="true" strokeWidth={3} className="size-4" />
                     ) : set.tag === 'warmup' ? (
-                      'W'
+                      t('warmupGlyph')
                     ) : (
                       setIndex + 1
                     )}
@@ -2063,12 +2098,12 @@ export function WorkoutLogger({
                     }}
                     aria-label={
                       prevLabel
-                        ? `Fill ${setLabel} from previous: ${prevLabel}`
-                        : `No previous performance for ${setLabel}`
+                        ? t('fillAriaLabel', { set: setLabel, previous: prevLabel })
+                        : t('noPreviousAriaLabel', { set: setLabel })
                     }
                     className="relative w-10 shrink-0 truncate text-center text-xs font-medium tnum text-muted-foreground before:absolute before:-inset-1.5 disabled:opacity-40"
                   >
-                    {prevLabel ?? '—'}
+                    {prevLabel ?? t('prevEmpty')}
                   </button>
                   {isCardioSet ? (
                     <>
@@ -2078,7 +2113,7 @@ export function WorkoutLogger({
                       <Input
                         type="text"
                         inputMode="numeric"
-                        placeholder={ghost.duration ?? 'mm:ss'}
+                        placeholder={ghost.duration ?? t('durationPlaceholder')}
                         value={set.duration ?? ''}
                         onChange={(e) =>
                           dispatch({
@@ -2103,7 +2138,7 @@ export function WorkoutLogger({
                           }
                           document.getElementById(`distance-input-${set.id}`)?.focus()
                         }}
-                        aria-label={`Set ${setIndex + 1} duration, minutes and seconds`}
+                        aria-label={t('durationAriaLabel', { set: setIndex + 1 })}
                         className={cn(
                           'flex-1 rounded-none border-0 border-b-2 bg-transparent px-1 text-center tnum',
                           rowState === 'active' && 'border-input text-lg font-medium',
@@ -2142,7 +2177,7 @@ export function WorkoutLogger({
                             e.preventDefault()
                             e.currentTarget.blur()
                           }}
-                          aria-label={`Set ${setIndex + 1} distance in kilometers`}
+                          aria-label={t('distanceAriaLabel', { set: setIndex + 1 })}
                           className={cn(
                             'flex-1 rounded-none border-0 border-b-2 bg-transparent px-1 text-center tnum',
                             rowState === 'active' && 'border-input text-lg font-medium',
@@ -2196,7 +2231,7 @@ export function WorkoutLogger({
                       }
                       document.getElementById(`weight-input-${set.id}`)?.focus()
                     }}
-                    aria-label={`Set ${setIndex + 1} reps`}
+                    aria-label={t('repsAriaLabel', { set: setIndex + 1 })}
                     className={cn(
                       // Underline-field skin: same input, same handlers, same
                       // h-11 hit area — the box collapses to a baseline. px-1
@@ -2219,7 +2254,7 @@ export function WorkoutLogger({
                     // The lifter IS the load: a non-editable pill holds the
                     // weight input's footprint so rows never jump on switch.
                     <span
-                      aria-label={`Set ${setIndex + 1} uses bodyweight`}
+                      aria-label={t('bodyweightAriaLabel', { set: setIndex + 1 })}
                       className={cn(
                         // Chips → words: "BW" as quiet text, same footprint so
                         // rows never jump on a logging-type switch.
@@ -2227,7 +2262,7 @@ export function WorkoutLogger({
                         rowState === 'waiting' && 'opacity-80',
                       )}
                     >
-                      BW
+                      {t('bodyweightGlyph')}
                     </span>
                   ) : (
                     <div className="relative flex-1">
@@ -2275,10 +2310,10 @@ export function WorkoutLogger({
                         onBlur={() => setStepperSetId(null)}
                         aria-label={
                           exercise.loggingType === 'weighted_bodyweight'
-                            ? `Set ${setIndex + 1} added weight in ${unit}`
+                            ? t('addedWeightAriaLabel', { set: setIndex + 1, unit })
                             : exercise.loggingType === 'assisted_bodyweight'
-                              ? `Set ${setIndex + 1} assistance in ${unit}`
-                              : `Set ${setIndex + 1} weight in ${unit}`
+                              ? t('assistanceAriaLabel', { set: setIndex + 1, unit })
+                              : t('weightAriaLabel', { set: setIndex + 1, unit })
                         }
                         className={cn(
                           // Same underline skin as the reps input (see its
@@ -2304,7 +2339,7 @@ export function WorkoutLogger({
                     // the set-complete circle).
                     className="relative shrink-0 text-muted-foreground before:absolute before:-inset-1"
                     onClick={() => handleRemoveSet(exerciseIndex, setIndex)}
-                    aria-label={`Remove ${setLabel}`}
+                    aria-label={t('removeSetAriaLabel', { set: setLabel })}
                   >
                     <X aria-hidden="true" className="size-4" />
                   </Button>
@@ -2375,12 +2410,12 @@ export function WorkoutLogger({
                           onClick={() => setEffortPromptSetId(set.id)}
                           aria-label={
                             logged
-                              ? `Change effort for ${setLabel}: ${logged}`
-                              : `Log effort for ${setLabel}`
+                              ? t('changeEffortAriaLabel', { set: setLabel, effort: logged })
+                              : t('logEffortAriaLabel', { set: setLabel })
                           }
                           className="block pl-22 pr-11 text-left text-xs text-muted-foreground tnum underline-offset-2 active:underline"
                         >
-                          {logged ?? 'Effort'}
+                          {logged ?? t('effortSlot')}
                         </button>
                       )
                     })()
@@ -2419,7 +2454,7 @@ export function WorkoutLogger({
                     with. Presentation-only — nothing is stored. */}
                 {setIndex === prIndexByExercise[exerciseIndex] && (
                   <p className="pl-10">
-                    <PrBadge label="All-time PR" />
+                    <PrBadge label={t('prBadge')} />
                   </p>
                 )}
                 </Fragment>
@@ -2441,7 +2476,7 @@ export function WorkoutLogger({
                 })
               }
             >
-              + Add set
+              {t('addSetAction')}
             </Button>
           </div>
           )}
@@ -2456,10 +2491,10 @@ export function WorkoutLogger({
           (isWorkoutNotesOpen || draft.notes.trim() !== '' ? (
             <Textarea
               rows={2}
-              placeholder="Add note…"
+              placeholder={t('notePlaceholder')}
               value={draft.notes}
               onChange={(e) => dispatch({ type: 'SET_WORKOUT_NOTES', value: e.target.value })}
-              aria-label="Workout notes"
+              aria-label={t('workoutNotesAriaLabel')}
               className="motion-safe:animate-rise-in"
             />
           ) : (
@@ -2470,7 +2505,7 @@ export function WorkoutLogger({
               onClick={() => setIsWorkoutNotesOpen(true)}
               className="hit-44-y rounded-full border border-border bg-muted/40 px-3 py-2.5 text-xs text-muted-foreground transition-colors active:bg-muted"
             >
-              Workout note
+              {t('workoutNoteAction')}
             </button>
           ))}
 
@@ -2498,7 +2533,7 @@ export function WorkoutLogger({
               }}
             >
               <Trash2 aria-hidden="true" className="size-4" />
-              Discard workout
+              {t('discardAction')}
             </Button>
           </div>
         )}
@@ -2538,7 +2573,7 @@ export function WorkoutLogger({
             toward; the volt stays on the button (one-volt rule). */}
         {isLive && isSessionDone && (
           <p className="mb-2 font-display text-lg font-semibold uppercase leading-none tracking-wide motion-safe:animate-rise-in">
-            All sets done.
+            {t('sessionDone')}
           </p>
         )}
         {/* The unified rest pill, only while a period is actually running —
@@ -2578,8 +2613,11 @@ export function WorkoutLogger({
             className="mb-2 flex w-full items-baseline justify-between gap-3 text-left"
           >
             <span className="min-w-0 truncate text-sm text-muted-foreground">
-              Next: <span className="text-foreground">{nextUp.exercise.name}</span> — set{' '}
-              {nextUp.setIndex + 1}
+              {t.rich('nextUp', {
+                name: nextUp.exercise.name,
+                set: nextUp.setIndex + 1,
+                exercise: (chunks) => <span className="text-foreground">{chunks}</span>,
+              })}
             </span>
             {nextUp.label && (
               <span className="shrink-0 text-sm font-medium tnum">{nextUp.label}</span>
@@ -2595,11 +2633,13 @@ export function WorkoutLogger({
           {pendingRemember && (
             <>
               <p className="min-w-0 text-sm">
-                Use <span className="font-medium">{pendingRemember.substituteName}</span> for the
-                rest of the block?
+                {t.rich('rememberPrompt', {
+                  name: pendingRemember.substituteName,
+                  substitute: (chunks) => <span className="font-medium">{chunks}</span>,
+                })}
               </p>
               <p className="mt-0.5 text-xs text-muted-foreground">
-                Replaces {pendingRemember.originalName} in the plan — your history stays.
+                {t('rememberHint', { name: pendingRemember.originalName })}
               </p>
               <div className="mt-2 flex justify-end gap-2">
                 <Button
@@ -2608,7 +2648,7 @@ export function WorkoutLogger({
                   disabled={isRemembering}
                   onClick={handleRememberJustToday}
                 >
-                  Just today
+                  {t('rememberJustToday')}
                 </Button>
                 <Button
                   size="sm"
@@ -2616,7 +2656,7 @@ export function WorkoutLogger({
                   disabled={isRemembering}
                   onClick={handleRememberForBlock}
                 >
-                  {isRemembering ? 'Saving…' : 'Use for block'}
+                  {isRemembering ? t('rememberPending') : t('rememberForBlock')}
                 </Button>
               </div>
               {rememberError && (
@@ -2640,25 +2680,10 @@ export function WorkoutLogger({
           {removed.length > 0 && (
             <div className="flex items-center justify-between gap-3">
               <p className="min-w-0 truncate text-sm">
-                {(() => {
-                  // Sentence per kind — "Removed X" / "Replaced X" — with the
-                  // name carrying the emphasis in both.
-                  const last = removed[removed.length - 1]
-                  const [verb, subject] =
-                    last.kind === 'exercise'
-                      ? ['Removed', last.exercise.name]
-                      : last.kind === 'replace'
-                        ? ['Replaced', last.previous.name]
-                        : ['Removed', `set ${last.setIndex + 1} · ${last.exerciseName}`]
-                  return (
-                    <>
-                      {verb} <span className="font-medium">{subject}</span>
-                    </>
-                  )
-                })()}
+                {undoMessage(removed[removed.length - 1])}
               </p>
               <Button size="sm" variant="reversal" className="shrink-0" onClick={handleUndoRemove}>
-                {removed.length > 1 ? `Undo (${removed.length})` : 'Undo'}
+                {removed.length > 1 ? t('undoCount', { count: removed.length }) : t('undo')}
               </Button>
             </div>
           )}
@@ -2677,7 +2702,7 @@ export function WorkoutLogger({
             disabled={isSaving || isDiscarding}
             onClick={() => setIsPickerOpen(true)}
           >
-            + Exercise
+            {t('addExerciseAction')}
           </Button>
           <Button
             size="lg"
@@ -2711,13 +2736,13 @@ export function WorkoutLogger({
             onClick={handleFinishClick}
           >
             {isSaving ? (
-              'Saving…'
+              t('savePending')
             ) : isLive ? (
-              <>
-                Finish workout <span aria-hidden="true">→</span>
-              </>
+              t.rich('finish', {
+                arrow: (chunks) => <span aria-hidden="true">{chunks}</span>,
+              })
             ) : (
-              'Save changes'
+              t('saveChanges')
             )}
           </Button>
         </div>
@@ -2731,7 +2756,9 @@ export function WorkoutLogger({
         <ExerciseSheet
           heading={
             replaceTargetIndex !== null
-              ? `Replace ${draft.exercises[replaceTargetIndex]?.name ?? 'exercise'}`
+              ? t('replaceHeading', {
+                  name: draft.exercises[replaceTargetIndex]?.name ?? t('replaceHeadingFallback'),
+                })
               : undefined
           }
           suggestFor={
@@ -2839,7 +2866,7 @@ export function WorkoutLogger({
           return (
             <QuickCaptureSheet
               title={exercise.name}
-              eyebrow="Exercise note"
+              eyebrow={t('identityNoteEyebrow')}
               initialBody={promoting ? exercise.notes : (current?.body ?? exercise.notes)}
               // A note born in (or promoted from) the logger defaults pinned —
               // pinning is the whole point of promoting it.
@@ -2896,7 +2923,7 @@ export function WorkoutLogger({
                   type: 'TAG_SET',
                   exerciseIndex: rowMenu.exerciseIndex,
                   setIndex: rowMenu.setIndex,
-                  tag: set.tag === 'warmup' ? 'working' : 'warmup',
+                  tag: nextSetTag(set.tag),
                 })
                 setRowMenu(null)
               }}
@@ -2959,10 +2986,10 @@ export function WorkoutLogger({
 
       {isDiscardModalOpen && (
         <ConfirmDialog
-          title="Discard this workout?"
-          body="Logged sets and the session go with it. This cannot be undone."
-          confirmLabel="Discard"
-          pendingLabel="Discarding…"
+          title={t('discardDialog.title')}
+          body={t('discardDialog.body')}
+          confirmLabel={t('discardDialog.confirm')}
+          pendingLabel={t('discardDialog.pending')}
           error={discardError}
           isPending={isDiscarding}
           onConfirm={handleDiscard}
@@ -2977,10 +3004,10 @@ export function WorkoutLogger({
           is affirmative, not destructive. */}
       {pendingFinish && (
         <ConfirmDialog
-          title="Finish workout?"
-          body={`${pendingFinish.skipped} ${pendingFinish.skipped === 1 ? 'set has' : 'sets have'} no reps logged and will save as skipped. Sets with reps are checked off for you.`}
-          confirmLabel="Finish"
-          pendingLabel="Finishing…"
+          title={t('finishDialog.title')}
+          body={t('finishDialog.body', { count: pendingFinish.skipped })}
+          confirmLabel={t('finishDialog.confirm')}
+          pendingLabel={t('finishDialog.pending')}
           error={error}
           isPending={isSaving}
           confirmVariant="default"

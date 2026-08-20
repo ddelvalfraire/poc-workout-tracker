@@ -69,6 +69,27 @@ const I18N_MIGRATED = [
   "src/app/goals/goal-card-actions.tsx",
   "src/app/goals/goal-create.tsx",
   "src/app/goals/page.tsx",
+  "src/app/workout/\\[id\\]/edit/page.tsx",
+  "src/app/workout/\\[id\\]/finish-up-next-card.tsx",
+  "src/app/workout/\\[id\\]/page.tsx",
+  "src/app/workout/\\[id\\]/workout-actions.tsx",
+  "src/app/workout/\\[id\\]/workout-sharing.tsx",
+  "src/app/workout/new/effort-chips.tsx",
+  "src/app/workout/new/exercise-picker.tsx",
+  "src/app/workout/new/exercise-sheet.tsx",
+  "src/app/workout/new/note-sheet.tsx",
+  "src/app/workout/new/page.tsx",
+  "src/app/workout/new/plate-sheet.tsx",
+  "src/app/workout/new/replace-confirm-dialog.tsx",
+  "src/app/workout/new/rest-pill.tsx",
+  "src/app/workout/new/rest-sheet.tsx",
+  "src/app/workout/new/session-clock.tsx",
+  "src/app/workout/new/session-toast.tsx",
+  "src/app/workout/new/set-row-menu.tsx",
+  "src/app/workout/new/stats-sheet.tsx",
+  "src/app/workout/new/swipe-to-delete.tsx",
+  "src/app/workout/new/weight-stepper.tsx",
+  "src/app/workout/new/workout-logger.tsx",
 ];
 
 // TEXT-ONLY RATCHET: migrated before the rule covered attributes and JSX
@@ -175,8 +196,16 @@ const eslintConfig = defineConfig([
               "data-.*", "aria-hidden", "width", "height", "viewBox", "fill",
               "stroke", "d", "xmlns", "style", "step", "min", "max", "pattern",
               "rel", "target", "method", "action", "encType", "dir", "lang",
+              // Enum- and identifier-valued props, never user-visible copy:
+              // HTML/ARIA enums, a route fallback, and component props whose
+              // values are union members the component switches on.
+              "enterKeyHint", "aria-autocomplete", "fallback", "initialScope",
+              "confirmVariant", "exit", "seed",
             ],
           },
+          // Reducer/action payload keys. Their values name a draft FIELD or a
+          // seed source — identifiers the reducer switches on, not words.
+          "object-properties": { exclude: ["field", "seed", "type", "tag"] },
         },
       ],
     },

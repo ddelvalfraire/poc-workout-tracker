@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { renderToStaticMarkup } from 'react-dom/server'
+import { renderStaticIntl } from '../../../../vitest.intl'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 /**
@@ -69,7 +69,7 @@ function render(
   if (seedLastPerformance !== undefined) {
     client.setQueryData(['last-performance', 'wger', 73, null], seedLastPerformance)
   }
-  return renderToStaticMarkup(
+  return renderStaticIntl(
     <QueryClientProvider client={client}>
       <WorkoutLogger title="New Workout" closeHref="/" initialDraft={baseDraft()} {...props} />
     </QueryClientProvider>,

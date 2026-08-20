@@ -6,6 +6,7 @@ import { ButtonGroup } from '@/components/ui/button-group'
 import { formatElapsed } from '@/lib/format'
 import { createRestEdgeDetector, REST_ADJUST_STEP_SEC } from '@/lib/rest-alert'
 import { cn } from '@/lib/utils'
+import { useTranslations } from 'next-intl'
 
 /**
  * The unified rest pill — ONE bottom-anchored surface (Dynamic Island /
@@ -70,10 +71,21 @@ export function restProgressFraction(
   return Math.min(1, Math.max(0, remainingSec / targetSec))
 }
 
+/**
+ * The readout's accessible name as a MESSAGE CHOICE plus its arguments —
+ * never an assembled sentence. restReadout runs in a module, before any
+ * request, so a string built here could never be translated; the wording
+ * lives in the RestPill catalog and is resolved at render.
+ */
+export type RestReadoutLabel =
+  | { key: 'countUp'; values: { time: string } }
+  | { key: 'remaining'; values: { time: string; target: number } }
+  | { key: 'over'; values: { time: string; target: number } }
+
 /** What the pill's time area shows for one observation, or null to hide. */
 export interface RestReadout {
   text: string
-  label: string
+  label: RestReadoutLabel
   isOver: boolean
 }
 
@@ -90,7 +102,7 @@ export function restReadout(restMs: number, targetSec: number | null): RestReado
   if (targetSec === null) {
     const text = formatElapsed(restMs)
     if (!text) return null
-    return { text, label: `Rest time ${text}. Set rest target`, isOver: false }
+    return { text, label: { key: 'countUp', values: { time: text } }, isOver: false }
   }
   const remainingSec = targetSec - Math.floor(restMs / 1_000)
   if (remainingSec > 0) {
@@ -98,7 +110,7 @@ export function restReadout(restMs: number, targetSec: number | null): RestReado
     if (!text) return null
     return {
       text,
-      label: `Rest ${text} remaining of ${targetSec} second target. Change rest target`,
+      label: { key: 'remaining', values: { time: text, target: targetSec } },
       isOver: false,
     }
   }
@@ -106,7 +118,7 @@ export function restReadout(restMs: number, targetSec: number | null): RestReado
   if (!text) return null
   return {
     text: `+${text}`,
-    label: `Rest ${text} over the ${targetSec} second target — go. Change rest target`,
+    label: { key: 'over', values: { time: text, target: targetSec } },
     isOver: true,
   }
 }
@@ -135,6 +147,7 @@ export function RestPill({
   onSkip,
   onRestOver,
 }: RestPillProps) {
+  const t = useTranslations('RestPill')
   const [now, setNow] = useState<Date | null>(null)
   // The once-per-period latch lives in lib/rest-alert (unit-tested there):
   // it needs to have SEEN the period counting down before it may fire, so a
@@ -216,14 +229,14 @@ export function RestPill({
       <button
         type="button"
         onClick={onTimeClick}
-        aria-label={readout.label}
+        aria-label={t(`label.${readout.label.key}`, readout.label.values)}
         className="relative flex min-w-0 flex-1 items-baseline gap-1.5 rounded-lg px-2 py-1.5 text-left focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
       >
         <span
           aria-hidden="true"
           className={cn('text-[10px] font-semibold uppercase tracking-widest', eyebrowColor)}
         >
-          Rest
+          {t('eyebrow')}
         </span>
         <span
           aria-hidden="true"
@@ -245,18 +258,18 @@ export function RestPill({
             variant="ghost"
             className="hit-44-y tnum text-muted-foreground"
             onClick={() => onAdjust(-REST_ADJUST_STEP_SEC)}
-            aria-label={`Shorten this rest by ${REST_ADJUST_STEP_SEC} seconds`}
+            aria-label={t('shortenAriaLabel', { seconds: REST_ADJUST_STEP_SEC })}
           >
-            −{REST_ADJUST_STEP_SEC}
+            {t('shorten', { seconds: REST_ADJUST_STEP_SEC })}
           </Button>
           <Button
             size="sm"
             variant="ghost"
             className="hit-44-y tnum text-muted-foreground"
             onClick={() => onAdjust(REST_ADJUST_STEP_SEC)}
-            aria-label={`Extend this rest by ${REST_ADJUST_STEP_SEC} seconds`}
+            aria-label={t('extendAriaLabel', { seconds: REST_ADJUST_STEP_SEC })}
           >
-            +{REST_ADJUST_STEP_SEC}
+            {t('extend', { seconds: REST_ADJUST_STEP_SEC })}
           </Button>
         </ButtonGroup>
       )}
@@ -265,9 +278,9 @@ export function RestPill({
         variant="reversal"
         className="ml-1 hit-44-y shrink-0"
         onClick={onSkip}
-        aria-label="Skip rest"
+        aria-label={t('skipAriaLabel')}
       >
-        Skip
+        {t('skip')}
       </Button>
     </div>
   )

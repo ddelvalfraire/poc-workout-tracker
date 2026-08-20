@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+import { withIntl } from '../../../../vitest.intl'
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 
@@ -57,12 +58,18 @@ function renderToast({ open, resetKey = 0, onExpire }: RenderArgs) {
   const render = (args: RenderArgs) =>
     act(() => {
       root.render(
-        <SessionToast
-          open={args.open}
-          countdown={{ durationMs: DURATION_MS, resetKey: args.resetKey ?? 0, onExpire: args.onExpire }}
-        >
-          <button type="button">Undo</button>
-        </SessionToast>,
+        withIntl(
+          <SessionToast
+            open={args.open}
+            countdown={{
+              durationMs: DURATION_MS,
+              resetKey: args.resetKey ?? 0,
+              onExpire: args.onExpire,
+            }}
+          >
+            <button type="button">Undo</button>
+          </SessionToast>,
+        ),
       )
     })
   render({ open, resetKey, onExpire })

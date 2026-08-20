@@ -10,6 +10,7 @@ import type { Equipment } from '@/lib/equipment'
 import type { WeightUnit } from '@/lib/units'
 import { useAnimatedSheetClose } from '@/components/use-animated-sheet-close'
 import { cn } from '@/lib/utils'
+import { useTranslations } from 'next-intl'
 
 /**
  * Bottom sheet for one exercise: per-weight plate breakdowns and the warm-up
@@ -36,9 +37,9 @@ interface PlateSheetProps {
 /** 2.5 → "2.5", 45 → "45" — JS number formatting is already what lifters write. */
 const fmt = (n: number) => n.toString()
 
-function perSideLabel(perSide: number[]): string {
-  return perSide.length === 0 ? 'bar only' : `${perSide.map(fmt).join(' + ')} / side`
-}
+/** Direction-toggle VALUES only. A label baked in here would be built at
+ *  module load, before any request — so it could never be translated. */
+const MODE_OPTIONS = ['build', 'count'] as const
 
 /** The denominations most gyms actually rack, per unit — the pill defaults.
  *  A user's own saved values always appear as pills too, so nothing owned
@@ -74,6 +75,12 @@ export function PlateSheet({
   onEquipmentSaved,
   onUseWeight,
 }: PlateSheetProps) {
+  const t = useTranslations('PlateSheet')
+  /** "bar only" / "45 + 25 / side" — resolved at render, never in a module. */
+  const perSideLabel = (perSide: number[]) =>
+    perSide.length === 0
+      ? t('perSideBarOnly')
+      : t('perSide', { plates: perSide.map(fmt).join(' + ') })
   // Bar options: the user's bars plus the UI-level "no bar" (plate-loaded).
   const [bar, setBar] = useState<number>(equipment.bars[0] ?? 0)
   // Which direction the math runs: weight → plates, or count plates → weight.
@@ -142,11 +149,16 @@ export function PlateSheet({
     setIsEditing(true)
   }
 
+  // Bound at component scope, not inline in JSX: an enum argument written
+  // inside a JSX prop reads to the i18n gate as untranslated copy.
+  const addCustomBar = () => handleAddCustom('bar')
+  const addCustomPlate = () => handleAddCustom('plate')
+
   function handleAddCustom(kind: 'bar' | 'plate') {
     const text = kind === 'bar' ? customBarText : customPlateText
     const value = parseCustomWeight(text)
     if (value === null) {
-      setEditError('Custom weight must be a positive number.')
+      setEditError(t('validationCustom'))
       return
     }
     setEditError(null)
@@ -161,7 +173,7 @@ export function PlateSheet({
 
   async function handleSaveGear() {
     if (selectedBars.length === 0 || selectedPlates.length === 0) {
-      setEditError('Pick at least one bar and one plate.')
+      setEditError(t('validationGear'))
       return
     }
     try {
@@ -177,7 +189,7 @@ export function PlateSheet({
       setBar(normalized.bars[0] ?? 0)
       setIsEditing(false)
     } catch {
-      setEditError('Could not save your gear. Please try again.')
+      setEditError(t('saveError'))
     } finally {
       setIsSaving(false)
     }
@@ -191,7 +203,7 @@ export function PlateSheet({
     // phone viewport, and content above the fold would be unreachable.
     <dialog
       ref={dialogRef}
-      aria-label={`Bar and plates for ${exerciseName}`}
+      aria-label={t('ariaLabel', { name: exerciseName })}
       onCancel={(e) => {
         e.preventDefault() // keep open/closed state owned by React
         requestClose()
@@ -213,7 +225,7 @@ export function PlateSheet({
     >
         <div className="flex items-start justify-between gap-3 pb-1">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-widest text-primary">Bar &amp; plates</p>
+            <p className="text-xs font-semibold uppercase tracking-widest text-primary">{t('title')}</p>
             <h3 className="mt-0.5 text-lg leading-tight">{exerciseName}</h3>
           </div>
           <Button
@@ -222,7 +234,7 @@ export function PlateSheet({
             variant="ghost"
             className="-mr-1 text-muted-foreground"
             onClick={requestClose}
-            aria-label="Close"
+            aria-label={t('close')}
           >
             <X aria-hidden="true" className="size-4" />
           </Button>
@@ -246,7 +258,7 @@ export function PlateSheet({
                   : 'border-border bg-muted text-muted-foreground',
               )}
             >
-              {fmt(weight)} {unit} bar
+              {t('barOption', { weight: fmt(weight), unit })}
             </button>
           ))}
           <button
@@ -260,18 +272,13 @@ export function PlateSheet({
                 : 'border-border bg-muted text-muted-foreground',
             )}
           >
-            No bar
+            {t('noBar')}
           </button>
         </div>
 
         {/* Direction toggle: same pill vocabulary as everything else here. */}
         <div className="mt-4 flex gap-2">
-          {(
-            [
-              { value: 'build', label: 'Load bar' },
-              { value: 'count', label: 'Count plates' },
-            ] as const
-          ).map(({ value, label }) => (
+          {MODE_OPTIONS.map((value) => (
             <button
               key={value}
               type="button"
@@ -284,7 +291,7 @@ export function PlateSheet({
                   : 'border-border bg-muted text-muted-foreground',
               )}
             >
-              {label}
+              {t(`mode.${value}`)}
             </button>
           ))}
         </div>
@@ -293,21 +300,24 @@ export function PlateSheet({
         {mode === 'build' && (
           <div className="mt-4 space-y-1.5">
             {weights.length === 0 && (
-              <p className="text-sm text-muted-foreground">Enter a weight on a set to see the plate math.</p>
+              <p className="text-sm text-muted-foreground">{t('emptyWeights')}</p>
             )}
             {weights.map((weight) => {
               const load = loadBar(weight, bar, equipment.plates)
               return (
                 <p key={weight} className="flex items-baseline justify-between gap-3 text-sm">
                   <span className="font-semibold tnum">
-                    {fmt(weight)} {unit}
+                    {t('weightValue', { weight: fmt(weight), unit })}
                   </span>
                   <span className="text-right text-muted-foreground tnum">
                     {load === null
-                      ? 'below the bar'
+                      ? t('belowBar')
                       : load.exact
                         ? perSideLabel(load.perSide)
-                        : `closest ${fmt(load.achieved)} — ${perSideLabel(load.perSide)}`}
+                        : t('closest', {
+                            weight: fmt(load.achieved),
+                            perSide: perSideLabel(load.perSide),
+                          })}
                   </span>
                 </p>
               )
@@ -318,14 +328,14 @@ export function PlateSheet({
         {/* Count mode: tap what's racked on ONE side; we double it + the bar. */}
         {mode === 'count' && (
           <div className="mt-4">
-            <p className="text-sm text-muted-foreground">Tap the plates on one side of the bar.</p>
+            <p className="text-sm text-muted-foreground">{t('countHint')}</p>
             <div className="mt-2 flex flex-wrap gap-2">
               {equipment.plates.map((plate) => (
                 <button
                   key={plate}
                   type="button"
                   onClick={() => setCounted((prev) => [...prev, plate])}
-                  aria-label={`Add a ${fmt(plate)} ${unit} plate`}
+                  aria-label={t('addPlateAriaLabel', { weight: fmt(plate), unit })}
                   className="relative h-9 rounded-full border border-border bg-muted px-3.5 text-sm font-semibold tnum transition-colors before:absolute before:-inset-1 active:border-primary"
                 >
                   {fmt(plate)}
@@ -339,10 +349,10 @@ export function PlateSheet({
                     key={`${plate}-${index}`}
                     type="button"
                     onClick={() => setCounted((prev) => prev.filter((_, i) => i !== index))}
-                    aria-label={`Remove the ${fmt(plate)} ${unit} plate`}
+                    aria-label={t('removePlateAriaLabel', { weight: fmt(plate), unit })}
                     className="relative h-8 rounded-full border border-primary/50 bg-primary/10 px-3 text-sm font-semibold tnum before:absolute before:-inset-1"
                   >
-                    {fmt(plate)} ×
+                    {t('countedPlate', { weight: fmt(plate) })}
                   </button>
                 ))}
               </div>
@@ -351,7 +361,7 @@ export function PlateSheet({
               {/* Live region: each plate tap announces the new total, so the
                   count is followable without re-navigating to this node. */}
               <span aria-live="polite" aria-atomic="true" className="text-2xl font-semibold tnum">
-                {fmt(countedTotal)} {unit}
+                {t('weightValue', { weight: fmt(countedTotal), unit })}
               </span>
               <span className="text-right text-sm text-muted-foreground tnum">
                 {perSideLabel([...counted].sort((a, b) => b - a))}
@@ -364,7 +374,7 @@ export function PlateSheet({
                 onClick={() => setCounted([])}
                 disabled={counted.length === 0}
               >
-                Clear
+                {t('clear')}
               </Button>
               {onUseWeight && (
                 <Button
@@ -372,7 +382,7 @@ export function PlateSheet({
                   onClick={() => onUseWeight(countedTotal)}
                   disabled={countedTotal <= 0}
                 >
-                  Use {fmt(countedTotal)} {unit}
+                  {t('useWeightAction', { weight: fmt(countedTotal), unit })}
                 </Button>
               )}
             </div>
@@ -388,7 +398,7 @@ export function PlateSheet({
                 htmlFor="warmup-target"
                 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground"
               >
-                Warm-up · toward
+                {t('warmupLabel')}
               </label>
               <span className="flex items-center gap-1.5">
                 <Input
@@ -396,7 +406,7 @@ export function PlateSheet({
                   value={warmupTargetText}
                   onChange={(e) => setWarmupTargetText(e.target.value)}
                   inputMode="decimal"
-                  placeholder={weights[0] !== undefined ? fmt(weights[0]) : '0'}
+                  placeholder={fmt(weights[0] ?? 0)}
                   className="h-8 w-20 text-center text-sm tnum"
                 />
                 <span className="text-sm text-muted-foreground">{unit}</span>
@@ -408,15 +418,16 @@ export function PlateSheet({
                 onClick={() => setWarmupTargetText('')}
                 className="mt-1.5 text-xs text-muted-foreground underline-offset-2 active:underline"
               >
-                Back to your top set ({fmt(weights[0])} {unit})
+                {t('warmupResetAction', { weight: fmt(weights[0]), unit })}
               </button>
             )}
             {/* A typo'd target must not read as an applied override: name the
                 fallback instead of silently ramping to the top set. */}
             {warmupTargetText.trim() !== '' && warmupOverride === null && (
               <p className="mt-1.5 text-xs text-muted-foreground">
-                Not a weight — showing{' '}
-                {weights[0] !== undefined ? `your top set (${fmt(weights[0])} ${unit})` : 'no ramp'}.
+                {weights[0] !== undefined
+                  ? t('warmupFallbackTopSet', { weight: fmt(weights[0]), unit })
+                  : t('warmupFallbackNone')}
               </p>
             )}
             {ramp.length > 0 ? (
@@ -424,7 +435,7 @@ export function PlateSheet({
                 {ramp.map((step) => (
                   <p key={step.weight} className="flex items-baseline justify-between gap-3 text-sm">
                     <span className="font-semibold tnum">
-                      {fmt(step.weight)} × {step.reps}
+                      {t('rampStep', { weight: fmt(step.weight), reps: step.reps })}
                     </span>
                     <span className="text-right text-muted-foreground tnum">{perSideLabel(step.perSide)}</span>
                   </p>
@@ -433,7 +444,7 @@ export function PlateSheet({
             ) : (
               warmupTarget === null && (
                 <p className="mt-2 text-sm text-muted-foreground">
-                  Type a target weight to preview the ramp.
+                  {t('warmupHint')}
                 </p>
               )
             )}
@@ -447,30 +458,30 @@ export function PlateSheet({
           {isEditing ? (
             <div className="space-y-4">
               <GearPillGroup
-                label={`Bars (${unit})`}
+                label={t('barsLegend', { unit })}
                 options={pillOptions(COMMON_GEAR[unit].bars, selectedBars)}
                 selected={selectedBars}
                 onToggle={(value) => setSelectedBars((prev) => toggleValue(prev, value))}
                 customText={customBarText}
                 onCustomChange={setCustomBarText}
-                onCustomAdd={() => handleAddCustom('bar')}
+                onCustomAdd={addCustomBar}
               />
               <GearPillGroup
-                label={`Plates (${unit})`}
+                label={t('platesLegend', { unit })}
                 options={pillOptions(COMMON_GEAR[unit].plates, selectedPlates)}
                 selected={selectedPlates}
                 onToggle={(value) => setSelectedPlates((prev) => toggleValue(prev, value))}
                 customText={customPlateText}
                 onCustomChange={setCustomPlateText}
-                onCustomAdd={() => handleAddCustom('plate')}
+                onCustomAdd={addCustomPlate}
               />
               {editError && <p className="text-sm text-destructive">{editError}</p>}
               <div className="grid grid-cols-2 gap-2">
                 <Button size="sm" variant="outline" onClick={() => setIsEditing(false)} disabled={isSaving}>
-                  Cancel
+                  {t('cancel')}
                 </Button>
                 <Button size="sm" onClick={handleSaveGear} disabled={isSaving}>
-                  {isSaving ? 'Saving…' : 'Save gear'}
+                  {isSaving ? t('saveGearPending') : t('saveGear')}
                 </Button>
               </div>
             </div>
@@ -480,7 +491,7 @@ export function PlateSheet({
               onClick={handleStartEditing}
               className="text-sm text-muted-foreground underline-offset-2 active:underline"
             >
-              Edit your bars &amp; plates ({unit})
+              {t('editGearAction', { unit })}
             </button>
           )}
         </div>
@@ -509,6 +520,7 @@ function GearPillGroup({
   onCustomChange,
   onCustomAdd,
 }: GearPillGroupProps) {
+  const t = useTranslations('PlateSheet')
   return (
     <fieldset>
       <legend className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
@@ -550,8 +562,8 @@ function GearPillGroup({
                 onCustomAdd()
               }
             }}
-            aria-label={`Add a custom weight to ${label}`}
-            placeholder="Custom"
+            aria-label={t('customAriaLabel', { group: label })}
+            placeholder={t('customPlaceholder')}
             inputMode="decimal"
             className="h-9 w-24 rounded-full text-center text-sm"
           />
@@ -563,7 +575,7 @@ function GearPillGroup({
             className="relative rounded-full before:absolute before:-inset-1"
             onClick={onCustomAdd}
           >
-            Add
+            {t('add')}
           </Button>
         </span>
       </div>

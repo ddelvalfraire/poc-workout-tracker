@@ -61,7 +61,7 @@ describe('restReadout', () => {
     // Assert
     expect(readout).toEqual({
       text: '1:15',
-      label: 'Rest time 1:15. Set rest target',
+      label: { key: 'countUp', values: { time: '1:15' } },
       isOver: false,
     })
   })
@@ -71,7 +71,7 @@ describe('restReadout', () => {
 
     expect(readout).toEqual({
       text: '1:00',
-      label: 'Rest 1:00 remaining of 90 second target. Change rest target',
+      label: { key: 'remaining', values: { time: '1:00', target: 90 } },
       isOver: false,
     })
   })
@@ -81,7 +81,7 @@ describe('restReadout', () => {
 
     expect(readout).toEqual({
       text: '+0:10',
-      label: 'Rest 0:10 over the 90 second target — go. Change rest target',
+      label: { key: 'over', values: { time: '0:10', target: 90 } },
       isOver: true,
     })
   })
