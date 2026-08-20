@@ -1,6 +1,7 @@
 'use client'
 
 import { useTransition } from 'react'
+import { useTranslations } from 'next-intl'
 import { LogOut } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -32,6 +33,7 @@ interface SignOutButtonProps {
  * say so while the request is in flight.
  */
 export function SignOutButton({ variant = 'icon', className }: SignOutButtonProps) {
+  const t = useTranslations('SignOutButton')
   const [isPending, startTransition] = useTransition()
 
   function signOut() {
@@ -48,7 +50,7 @@ export function SignOutButton({ variant = 'icon', className }: SignOutButtonProp
         size="icon"
         onClick={signOut}
         disabled={isPending}
-        aria-label="Sign out"
+        aria-label={t('ariaLabel')}
         className={cn('text-muted-foreground', className)}
       >
         <LogOut aria-hidden="true" className="size-5" />
@@ -64,7 +66,7 @@ export function SignOutButton({ variant = 'icon', className }: SignOutButtonProp
       disabled={isPending}
       className={cn('text-muted-foreground', className)}
     >
-      {isPending ? 'Signing out…' : 'Sign out'}
+      {isPending ? t('pending') : t('action')}
     </Button>
   )
 }

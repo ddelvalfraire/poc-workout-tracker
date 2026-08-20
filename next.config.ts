@@ -1,5 +1,6 @@
 import type { NextConfig } from "next";
 import { withSerwist } from "@serwist/turbopack";
+import createNextIntlPlugin from "next-intl/plugin";
 
 // Baked into BOTH bundles at build time: the client compares its copy against
 // /api/version (answered by the newest deployment) to detect a stale build —
@@ -50,4 +51,9 @@ const nextConfig: NextConfig = {
 // with the precache manifest injected. INERT until registration points at it
 // (service-worker-register.tsx still registers /public/sw.js) — the wrapper
 // only wires the build-asset manifest plumbing.
-export default withSerwist(nextConfig);
+// Locale lives on the user, not the URL — so there is no [locale] segment and
+// no intl middleware. The plugin's only job here is to wire src/i18n/request.ts
+// into the build; routing, rewrites and the /_i proxy above are untouched.
+const withNextIntl = createNextIntlPlugin();
+
+export default withSerwist(withNextIntl(nextConfig));

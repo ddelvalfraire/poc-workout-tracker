@@ -2,6 +2,7 @@ import { defineConfig, globalIgnores } from "eslint/config";
 import nextVitals from "eslint-config-next/core-web-vitals";
 import nextTs from "eslint-config-next/typescript";
 import betterTailwindcss from "eslint-plugin-better-tailwindcss";
+import i18next from "eslint-plugin-i18next";
 
 // Keep-list: surfaces where the card shell IS the intended vocabulary
 // (sheets/dialogs/overlays, coach chat, StatTile, control clusters, form
@@ -54,6 +55,47 @@ const CARD_SHELL_RATCHET = [
   "src/components/share-card-button.tsx",
 ];
 
+
+// I18N RATCHET — deliberately INVERTED relative to CARD_SHELL_RATCHET above.
+// That list grandfathers the files still to convert, which works because the
+// codebase was already mostly compliant when the ban landed. Extraction
+// starts from zero, so an exemption list would have to name every file under
+// src/. This names the MIGRATED files instead: it only ever GROWS, one
+// directory per PR, until it covers src/** and collapses into a single glob.
+// A file joins this list in the same PR that extracts its copy — never
+// before, or the rule is just noise a future PR learns to ignore.
+const I18N_MIGRATED = [
+  "src/app/goals/consistency-progress.tsx",
+  "src/app/goals/goal-card-actions.tsx",
+  "src/app/goals/goal-create.tsx",
+  "src/app/goals/page.tsx",
+];
+
+// TEXT-ONLY RATCHET: migrated before the rule covered attributes and JSX
+// expressions, so their aria-labels, dialog props and ternary CTAs are still
+// English. Held to the weaker rule so the gate does not claim they are done.
+// Only ever SHRINKS — a backfill PR moves files up into I18N_MIGRATED.
+const I18N_TEXT_ONLY = [
+  "src/app/trophies/page.tsx",
+  "src/app/settings/analytics-consent-toggle.tsx",
+  "src/app/settings/delete-account/delete-account-form.tsx",
+  "src/app/settings/delete-account/page.tsx",
+  "src/app/settings/home/editor-grid-dnd.tsx",
+  "src/app/settings/home/editor-grid.tsx",
+  "src/app/settings/home/home-layout-editor.tsx",
+  "src/app/settings/home/page.tsx",
+  "src/app/settings/home/section-tile.tsx",
+  "src/app/settings/home/tile-sheet.tsx",
+  "src/app/settings/import/import-flow.tsx",
+  "src/app/settings/import/page.tsx",
+  "src/app/settings/import/remove-import-button.tsx",
+  "src/app/settings/page.tsx",
+  "src/app/settings/rest-default-setting.tsx",
+  "src/app/settings/rest-timer-toggle.tsx",
+  "src/app/settings/rpe-logging-toggle.tsx",
+  "src/app/settings/workout-reminders-toggle.tsx",
+];
+
 const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
@@ -66,6 +108,10 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     // Storybook's build output — bundled/minified vendor code, not ours.
     "storybook-static/**",
+    // Agent worktrees are full checkouts (their own node_modules included)
+    // living inside the repo — linting them buries real findings under tens
+    // of thousands of vendor warnings.
+    ".claude/**",
   ]),
   {
     files: ["src/**/*.{ts,tsx}"],
@@ -105,6 +151,41 @@ const eslintConfig = defineConfig([
     files: [...CARD_SHELL_KEEP, ...CARD_SHELL_RATCHET],
     rules: {
       "better-tailwindcss/no-restricted-classes": "off",
+    },
+  },
+  {
+    // jsx-only, not jsx-text-only: text alone let a file pass the gate while
+    // still shipping English in aria-labels, dialog props and ternary CTAs
+    // ({isPending ? "Creating…" : "Create goal"}). Migrated has to mean
+    // migrated, or the ratchet silences the very strings it should catch.
+    files: I18N_MIGRATED,
+    plugins: { i18next },
+    rules: {
+      "i18next/no-literal-string": [
+        "error",
+        {
+          mode: "jsx-only",
+          // The translator call itself, and class helpers, take string
+          // arguments that are identifiers rather than copy.
+          callees: { exclude: ["t", "t.rich", "cn", "clsx", "cva"] },
+          "jsx-attributes": {
+            exclude: [
+              "className", "id", "key", "type", "name", "href", "src", "role",
+              "htmlFor", "variant", "size", "autoComplete", "inputMode",
+              "data-.*", "aria-hidden", "width", "height", "viewBox", "fill",
+              "stroke", "d", "xmlns", "style", "step", "min", "max", "pattern",
+              "rel", "target", "method", "action", "encType", "dir", "lang",
+            ],
+          },
+        },
+      ],
+    },
+  },
+  {
+    files: I18N_TEXT_ONLY,
+    plugins: { i18next },
+    rules: {
+      "i18next/no-literal-string": ["error", { mode: "jsx-text-only" }],
     },
   },
 ]);

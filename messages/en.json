@@ -1,0 +1,195 @@
+{
+  "AnalyticsConsentToggle": {
+    "gpcHint": "Your browser sends a Global Privacy Control signal — this stays off."
+  },
+  "Common": {
+    "appDescription": "Log your workouts and review your training history.",
+    "appName": "Workout Tracker"
+  },
+  "ConsistencyProgress": {
+    "progressSummary": "{completed} of {target, plural, one {# week} other {# weeks}}",
+    "scheduleHint": "Schedule weekdays on your program days to start the streak.",
+    "targetSummary": "Target {weeks, plural, one {# week} other {# weeks}}",
+    "weeksUnit": "wks"
+  },
+  "DeleteAccount": {
+    "erased": {
+      "description": "your workouts, programs, templates, notes, goals, trophies, body measurements, progress photos, custom exercises, preferences, and coach conversations.",
+      "title": "Erased immediately:"
+    },
+    "permanenceWarning": "Deleting your account is permanent. There is no undo, and no grace period.",
+    "propagated": {
+      "description": "our analytics processor deletes your profile and events; your sign-in account is removed.",
+      "title": "Told to erase:"
+    },
+    "retained": {
+      "description": "consent records we are legally required to keep (at least 3 years), with your identity replaced by a random code that cannot be traced back to you.",
+      "title": "Retained:"
+    }
+  },
+  "DeleteAccountForm": {
+    "confirmInstruction": "Type <code>{phrase}</code> to confirm"
+  },
+  "GoalCardActions": {
+    "archiveAction": "Archive",
+    "delete": "Delete",
+    "deleteDialog": {
+      "body": "This removes the goal for good. Your training history is untouched.",
+      "confirm": "Delete",
+      "pending": "Deleting…"
+    }
+  },
+  "GoalCreate": {
+    "bodyweightLabel": "Target weight ({unit})",
+    "cancel": "Cancel",
+    "changeExerciseAction": "Change",
+    "createAction": "Create goal",
+    "creatingAction": "Creating…",
+    "deadlineLabel": "Deadline <optional>(optional)</optional>",
+    "direction": {
+      "down": "Cutting down to",
+      "up": "Building up to"
+    },
+    "directionGroupLabel": "Direction",
+    "e1rmLabel": "Target est. 1RM ({unit})",
+    "e1rmPlaceholder": "e.g. {example}",
+    "graceGroupLabel": "Streak grace",
+    "graceHint": "Misses forgiven per week before the streak breaks.",
+    "graceLabel": "Grace",
+    "graceOption": "{misses, plural, =0 {Strict} one {# miss / week} other {# misses / week}}",
+    "kind": {
+      "bodyweight": "Bodyweight",
+      "consistency": "Consistency",
+      "strength": "Strength"
+    },
+    "kindGroupLabel": "Goal kind",
+    "newGoalAction": "+ New goal",
+    "sectionTitle": "New goal",
+    "streakLengthLabel": "Streak length (weeks)",
+    "weightPlaceholder": "e.g. {example}"
+  },
+  "Goals": {
+    "achievedBadge": "Achieved",
+    "achievedOn": "Achieved {date}",
+    "activeGroupLabel": "Active goals",
+    "activeTitle": "Active",
+    "archivedGroupLabel": "Archived goals",
+    "archivedTitle": "Archived",
+    "bodyweightHint": "Log your bodyweight to track this goal.",
+    "bodyweightSeriesLabel": "Bodyweight",
+    "byDeadline": "By {date}",
+    "currentValue": "Now {value} {unit}",
+    "doneHeadline": "Done.",
+    "empty": "No goals yet. Set a strength target, a bodyweight target, or a training streak.",
+    "graceSummary": "{misses, plural, =0 {Strict} one {# miss/week grace} other {# misses/week grace}}",
+    "noEstimate": "No est. 1RM yet",
+    "onPace": "On pace for {date}{suffix}",
+    "percentValue": "{percent}%",
+    "progressLabel": "Progress to target",
+    "remaining": "<amount>{value}</amount> {unit} to go",
+    "targetSeriesLabel": "Target",
+    "title": "Goals",
+    "trendLabel": "Bodyweight trend",
+    "trophiesLinkLabel": "Trophies"
+  },
+  "HomeLayoutEditor": {
+    "hint": "Tap a tile to resize, reorder, or hide it — or press and hold to drag it. Hidden sections keep tracking — they just don’t show on Home.",
+    "lockedTileLabel": "Status",
+    "resetAction": "Reset to default",
+    "saveError": "Couldn’t save. Try again."
+  },
+  "Import": {
+    "batch": {
+      "fileNameSuffix": " — {fileName}",
+      "meta": "{scope}, {sets, plural, one {# set} other {# sets}} · {date}"
+    },
+    "empty": "Nothing imported yet. Imports you confirm will be listed here, each removable in one tap.",
+    "title": "Past imports"
+  },
+  "ImportFlow": {
+    "actions": {
+      "cancel": "Cancel",
+      "importAnother": "Import another",
+      "viewHistory": "View history"
+    },
+    "dropzone": {
+      "hint": "The export format is detected automatically — or drag the file here."
+    },
+    "preview": {
+      "datesLabel": "Dates",
+      "duplicatesNotice": "{count, plural, one {# workout} other {# workouts}} already in your history will be skipped.",
+      "matchedLabel": "Matched exercises",
+      "newExercisesCount": "{count, plural, one {# new custom exercise} other {# new custom exercises}}",
+      "newExercisesDescription": "These names weren’t in the catalog and will be created as your custom exercises:",
+      "reassurance": "Nothing is saved until you confirm the preview.",
+      "setsLabel": "Sets",
+      "sourceExport": "{source} export",
+      "workoutsLabel": "Workouts"
+    },
+    "skipped": {
+      "andMore": "…and {count} more",
+      "row": "Row {row}: {reason}",
+      "summary": "{count, plural, one {# row} other {# rows}} can’t be imported"
+    },
+    "status": {
+      "reading": "Reading file…"
+    },
+    "steps": {
+      "indicator": "Step {step} of 3 — {label}"
+    },
+    "success": {
+      "summary": "{workouts, plural, one {# workout} other {# workouts}} and {sets, plural, one {# set} other {# sets}} added to your history.",
+      "title": "Import complete"
+    },
+    "title": "Import from Strong or Hevy",
+    "unit": {
+      "hint": "Strong files don’t say kg or lb — pick the unit this account logged in."
+    }
+  },
+  "RemoveImportButton": {
+    "label": "Remove"
+  },
+  "RestDefaultSetting": {
+    "ariaLabel": "Default rest target: {seconds, plural, one {# second} other {# seconds}}",
+    "ariaLabelOff": "Default rest target: off",
+    "value": "{seconds}s",
+    "valueOff": "Off"
+  },
+  "RestTimerToggle": {
+    "saveError": "Couldn’t save. Try again."
+  },
+  "RpeLoggingToggle": {
+    "saveError": "Couldn’t save. Try again."
+  },
+  "Settings": {
+    "signedInLabel": "Signed in"
+  },
+  "SignOutButton": {
+    "action": "Sign out",
+    "pending": "Signing out…",
+    "ariaLabel": "Sign out"
+  },
+  "TileSheet": {
+    "move": {
+      "down": "Down",
+      "toTop": "To top",
+      "up": "Up"
+    },
+    "visibility": {
+      "hint": "Hidden sections keep tracking — they just don’t show.",
+      "label": "Show on Home"
+    }
+  },
+  "Trophies": {
+    "badge": "New",
+    "closest": {
+      "title": "Closest"
+    },
+    "empty": "No trophies yet. Every trophy is a lifting fact — plate clubs, workout counts, streaks. Train and they stamp themselves."
+  },
+  "WorkoutRemindersToggle": {
+    "blockedNotice": "Notifications are blocked for this app in your browser settings.",
+    "unsupportedNotice": "Not supported in this browser. On iPhone, add the app to your Home Screen first.",
+    "updateError": "Couldn’t update. Try again."
+  }
+}

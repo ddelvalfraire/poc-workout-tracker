@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { deleteAccountAction } from './actions'
 import { DELETE_CONFIRM_PHRASE } from './confirm-phrase'
+import { useTranslations } from 'next-intl'
 
 /**
  * The type-to-confirm gate: the destructive button stays disabled until the
@@ -15,6 +16,7 @@ import { DELETE_CONFIRM_PHRASE } from './confirm-phrase'
  * document load starts clean.
  */
 export function DeleteAccountForm() {
+  const t = useTranslations('DeleteAccountForm')
   const [phrase, setPhrase] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
@@ -42,8 +44,10 @@ export function DeleteAccountForm() {
       className="mt-6"
     >
       <label htmlFor="delete-confirm" className="block text-sm font-medium">
-        Type <span className="font-mono text-destructive">{DELETE_CONFIRM_PHRASE}</span> to
-        confirm
+        {t.rich('confirmInstruction', {
+          phrase: DELETE_CONFIRM_PHRASE,
+          code: (chunks) => <span className="font-mono text-destructive">{chunks}</span>,
+        })}
       </label>
       <Input
         id="delete-confirm"

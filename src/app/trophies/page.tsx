@@ -29,6 +29,8 @@ import { NavDrawer } from '@/components/nav/nav-drawer'
 import { ShareCardButton } from '@/components/share-card-button'
 import { DividerList } from '@/components/ui/divider-list'
 import { EmptyWords } from '@/components/ui/empty-words'
+import { getTranslations } from 'next-intl/server'
+import { useTranslations } from 'next-intl'
 
 // A stamp this fresh still carries the NEW tag — one week, then it's history.
 const NEW_TAG_DAYS = 7
@@ -46,6 +48,7 @@ const STAGGER_MAX_STEPS = 8
  * progress from the SAME evidence the hints read, never invented.
  */
 export default async function TrophiesPage() {
+  const t = await getTranslations('Trophies')
   const userId = await requireUserId()
   const [{ earned, locked, evidence }, unit] = await Promise.all([
     evaluateTrophies(userId),
@@ -64,15 +67,14 @@ export default async function TrophiesPage() {
       <main className="mx-auto w-full max-w-md flex-1 space-y-8 px-5 pb-safe pt-6">
         {earned.length === 0 && (
           <EmptyWords>
-            No trophies yet. Every trophy is a lifting fact — plate clubs, workout counts,
-            streaks. Train and they stamp themselves.
+            {t('empty')}
           </EmptyWords>
         )}
 
         {closest.length > 0 && (
           <section aria-label="Closest trophies">
             <h2 className="px-1 text-xs font-semibold uppercase tracking-widest text-primary">
-              Closest
+              {t('closest.title')}
             </h2>
             <DividerList className="mt-2">
               {closest.map((kind) => (
@@ -119,6 +121,7 @@ function EarnedMedal({
   unit: WeightUnit
   index: number
 }) {
+  const t = useTranslations('Trophies')
   const Icon = familyIcon(TROPHY_DEFS[row.kind])
   const context = trophyContextLine(row, unit)
   const glyph = trophyHeroGlyph(row.kind)
@@ -138,7 +141,7 @@ function EarnedMedal({
         <div className="flex items-center gap-1">
           {isNew && (
             <span className="text-[10px] font-semibold uppercase tracking-widest text-primary">
-              New
+              {t('badge')}
             </span>
           )}
           {/* Ships the rendered PNG via the OS sheet — never a URL. */}

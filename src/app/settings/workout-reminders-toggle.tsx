@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { urlBase64ToUint8Array } from '@/lib/push-client'
 import { cn } from '@/lib/utils'
+import { useTranslations } from 'next-intl'
 
 /**
  * The push-notification opt-in — same switch idiom as RestTimerToggle, but
@@ -22,6 +23,7 @@ type SupportState =
   | 'ready'
 
 export function WorkoutRemindersToggle() {
+  const t = useTranslations('WorkoutRemindersToggle')
   const [support, setSupport] = useState<SupportState>('pending')
   const [isOn, setIsOn] = useState(false)
   const [isBusy, setIsBusy] = useState(false)
@@ -118,7 +120,7 @@ export function WorkoutRemindersToggle() {
   if (support === 'unsupported') {
     return (
       <p className="max-w-40 text-right text-xs text-muted-foreground">
-        Not supported in this browser. On iPhone, add the app to your Home Screen first.
+        {t('unsupportedNotice')}
       </p>
     )
   }
@@ -152,12 +154,12 @@ export function WorkoutRemindersToggle() {
       </button>
       {isDenied && (
         <p className="max-w-40 text-right text-xs text-muted-foreground">
-          Notifications are blocked for this app in your browser settings.
+          {t('blockedNotice')}
         </p>
       )}
       {hasError && (
         <p className="text-xs text-destructive" role="status">
-          Couldn&rsquo;t update. Try again.
+          {t('updateError')}
         </p>
       )}
     </div>

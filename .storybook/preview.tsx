@@ -1,7 +1,9 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import type { Preview } from "@storybook/nextjs-vite";
+import { NextIntlClientProvider } from "next-intl";
+import type { Decorator, Preview } from "@storybook/nextjs-vite";
 import { storybookTheme } from "./theme";
 
+import messages from "../messages/en.json";
 import { fontVariables } from "../src/app/fonts";
 import "../src/app/globals.css";
 
@@ -70,8 +72,20 @@ function withQueryClient(Story: React.ComponentType) {
   );
 }
 
+/**
+ * Components that call useTranslations need next-intl's context, which only the
+ * app's provider supplies — without it they throw on render. The catalog is the
+ * REAL messages/en.json, so the catalog renders the copy users actually see and
+ * a missing key surfaces here rather than shipping.
+ */
+const withIntl: Decorator = (Story) => (
+  <NextIntlClientProvider locale="en" messages={messages}>
+    <Story />
+  </NextIntlClientProvider>
+);
+
 const preview: Preview = {
-  decorators: [withQueryClient],
+  decorators: [withIntl, withQueryClient],
   parameters: {
     // Accessibility is a test, not a panel you remember to open: every story
     // fails its Vitest run on a violation. Stories that still carry a known
