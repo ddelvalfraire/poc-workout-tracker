@@ -65,6 +65,17 @@ const CARD_SHELL_RATCHET = [
 // A file joins this list in the same PR that extracts its copy — never
 // before, or the rule is just noise a future PR learns to ignore.
 const I18N_MIGRATED = [
+  "src/app/goals/consistency-progress.tsx",
+  "src/app/goals/goal-card-actions.tsx",
+  "src/app/goals/goal-create.tsx",
+  "src/app/goals/page.tsx",
+];
+
+// TEXT-ONLY RATCHET: migrated before the rule covered attributes and JSX
+// expressions, so their aria-labels, dialog props and ternary CTAs are still
+// English. Held to the weaker rule so the gate does not claim they are done.
+// Only ever SHRINKS — a backfill PR moves files up into I18N_MIGRATED.
+const I18N_TEXT_ONLY = [
   "src/app/trophies/page.tsx",
   "src/app/settings/analytics-consent-toggle.tsx",
   "src/app/settings/delete-account/delete-account-form.tsx",
@@ -143,10 +154,35 @@ const eslintConfig = defineConfig([
     },
   },
   {
-    // jsx-text-only for now: visible copy first. Attributes (aria-label,
-    // title, placeholder) are a second pass — widening the mode before the
-    // text is done would flag every file at once and stall the ratchet.
+    // jsx-only, not jsx-text-only: text alone let a file pass the gate while
+    // still shipping English in aria-labels, dialog props and ternary CTAs
+    // ({isPending ? "Creating…" : "Create goal"}). Migrated has to mean
+    // migrated, or the ratchet silences the very strings it should catch.
     files: I18N_MIGRATED,
+    plugins: { i18next },
+    rules: {
+      "i18next/no-literal-string": [
+        "error",
+        {
+          mode: "jsx-only",
+          // The translator call itself, and class helpers, take string
+          // arguments that are identifiers rather than copy.
+          callees: { exclude: ["t", "t.rich", "cn", "clsx", "cva"] },
+          "jsx-attributes": {
+            exclude: [
+              "className", "id", "key", "type", "name", "href", "src", "role",
+              "htmlFor", "variant", "size", "autoComplete", "inputMode",
+              "data-.*", "aria-hidden", "width", "height", "viewBox", "fill",
+              "stroke", "d", "xmlns", "style", "step", "min", "max", "pattern",
+              "rel", "target", "method", "action", "encType", "dir", "lang",
+            ],
+          },
+        },
+      ],
+    },
+  },
+  {
+    files: I18N_TEXT_ONLY,
     plugins: { i18next },
     rules: {
       "i18next/no-literal-string": ["error", { mode: "jsx-text-only" }],

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { Flame } from 'lucide-react'
 import { streakWeekTicks, weeklyStreak, type WeekTickState } from '@/lib/goal-progress'
 import { cn } from '@/lib/utils'
+import { useTranslations } from 'next-intl'
 
 interface ConsistencyProgressProps {
   completedAtTimes: number[]
@@ -27,6 +28,7 @@ export function ConsistencyProgress({
   allowedMissesPerWeek,
   targetWeeks,
 }: ConsistencyProgressProps) {
+  const t = useTranslations('ConsistencyProgress')
   const [derived, setDerived] = useState<{ weeks: number; ticks: WeekTickState[] } | null>(null)
 
   useEffect(() => {
@@ -40,7 +42,11 @@ export function ConsistencyProgress({
   }, [completedAtTimes, scheduledWeekdays, allowedMissesPerWeek, targetWeeks])
 
   if (derived === null) {
-    return <p className="text-sm text-muted-foreground tnum">Target {targetWeeks} weeks</p>
+    return (
+      <p className="text-sm text-muted-foreground tnum">
+        {t('targetSummary', { weeks: targetWeeks })}
+      </p>
+    )
   }
 
   return (
@@ -48,7 +54,7 @@ export function ConsistencyProgress({
       {/* The one big number — real weeks survived, nothing invented. */}
       <p className="flex items-baseline gap-1.5">
         <span className="font-display text-4xl leading-none tnum">{derived.weeks}</span>
-        <span className="text-xl text-muted-foreground">wks</span>
+        <span className="text-xl text-muted-foreground">{t('weeksUnit')}</span>
         {derived.weeks > 0 && (
           <Flame aria-hidden="true" className="size-4 self-center text-primary" />
         )}
@@ -80,14 +86,14 @@ export function ConsistencyProgress({
       </div>
 
       <p className="mt-2 text-sm text-muted-foreground tnum">
-        {derived.weeks} of {targetWeeks} weeks
+        {t('progressSummary', { completed: derived.weeks, target: targetWeeks })}
       </p>
 
       {scheduledWeekdays.length === 0 && (
         // The honest empty state: without scheduled weekdays there is nothing
         // to adhere to — point at the fix instead of showing a dead zero.
         <p className="mt-2 text-xs text-muted-foreground">
-          Schedule weekdays on your program days to start the streak.
+          {t('scheduleHint')}
         </p>
       )}
     </div>

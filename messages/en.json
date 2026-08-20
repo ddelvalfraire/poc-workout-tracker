@@ -6,6 +6,12 @@
     "appDescription": "Log your workouts and review your training history.",
     "appName": "Workout Tracker"
   },
+  "ConsistencyProgress": {
+    "progressSummary": "{completed} of {target, plural, one {# week} other {# weeks}}",
+    "scheduleHint": "Schedule weekdays on your program days to start the streak.",
+    "targetSummary": "Target {weeks, plural, one {# week} other {# weeks}}",
+    "weeksUnit": "wks"
+  },
   "DeleteAccount": {
     "erased": {
       "description": "your workouts, programs, templates, notes, goals, trophies, body measurements, progress photos, custom exercises, preferences, and coach conversations.",
@@ -23,6 +29,68 @@
   },
   "DeleteAccountForm": {
     "confirmInstruction": "Type <code>{phrase}</code> to confirm"
+  },
+  "GoalCardActions": {
+    "archiveAction": "Archive",
+    "delete": "Delete",
+    "deleteDialog": {
+      "body": "This removes the goal for good. Your training history is untouched.",
+      "confirm": "Delete",
+      "pending": "Deleting…"
+    }
+  },
+  "GoalCreate": {
+    "bodyweightLabel": "Target weight ({unit})",
+    "cancel": "Cancel",
+    "changeExerciseAction": "Change",
+    "createAction": "Create goal",
+    "creatingAction": "Creating…",
+    "deadlineLabel": "Deadline <optional>(optional)</optional>",
+    "direction": {
+      "down": "Cutting down to",
+      "up": "Building up to"
+    },
+    "directionGroupLabel": "Direction",
+    "e1rmLabel": "Target est. 1RM ({unit})",
+    "e1rmPlaceholder": "e.g. {example}",
+    "graceGroupLabel": "Streak grace",
+    "graceHint": "Misses forgiven per week before the streak breaks.",
+    "graceLabel": "Grace",
+    "graceOption": "{misses, plural, =0 {Strict} one {# miss / week} other {# misses / week}}",
+    "kind": {
+      "bodyweight": "Bodyweight",
+      "consistency": "Consistency",
+      "strength": "Strength"
+    },
+    "kindGroupLabel": "Goal kind",
+    "newGoalAction": "+ New goal",
+    "sectionTitle": "New goal",
+    "streakLengthLabel": "Streak length (weeks)",
+    "weightPlaceholder": "e.g. {example}"
+  },
+  "Goals": {
+    "achievedBadge": "Achieved",
+    "achievedOn": "Achieved {date}",
+    "activeGroupLabel": "Active goals",
+    "activeTitle": "Active",
+    "archivedGroupLabel": "Archived goals",
+    "archivedTitle": "Archived",
+    "bodyweightHint": "Log your bodyweight to track this goal.",
+    "bodyweightSeriesLabel": "Bodyweight",
+    "byDeadline": "By {date}",
+    "currentValue": "Now {value} {unit}",
+    "doneHeadline": "Done.",
+    "empty": "No goals yet. Set a strength target, a bodyweight target, or a training streak.",
+    "graceSummary": "{misses, plural, =0 {Strict} one {# miss/week grace} other {# misses/week grace}}",
+    "noEstimate": "No est. 1RM yet",
+    "onPace": "On pace for {date}{suffix}",
+    "percentValue": "{percent}%",
+    "progressLabel": "Progress to target",
+    "remaining": "<amount>{value}</amount> {unit} to go",
+    "targetSeriesLabel": "Target",
+    "title": "Goals",
+    "trendLabel": "Bodyweight trend",
+    "trophiesLinkLabel": "Trophies"
   },
   "HomeLayoutEditor": {
     "hint": "Tap a tile to resize, reorder, or hide it — or press and hold to drag it. Hidden sections keep tracking — they just don’t show on Home.",
