@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { setBodyweightAction } from '@/app/actions'
 import type { WeightUnit } from '@/lib/units'
+import { useTranslations } from 'next-intl'
 
 /**
  * Quick-log island for the bodyweight page: one labeled decimal input in the
@@ -17,6 +18,7 @@ import type { WeightUnit } from '@/lib/units'
  * user just taps again.
  */
 export function BodyweightLogForm({ unit }: { unit: WeightUnit }) {
+  const t = useTranslations('BodyweightLogForm')
   const [value, setValue] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
@@ -26,7 +28,7 @@ export function BodyweightLogForm({ unit }: { unit: WeightUnit }) {
     e.preventDefault()
     const parsed = parseFloat(value.trim())
     if (!Number.isFinite(parsed) || parsed <= 0) {
-      setError(`Enter a weight above 0 ${unit}.`)
+      setError(t('validation', { unit }))
       return
     }
     setError(null)
@@ -37,7 +39,7 @@ export function BodyweightLogForm({ unit }: { unit: WeightUnit }) {
         router.refresh()
       } catch {
         // Keep the typed value: recovery is one more tap, not a re-type.
-        setError('Didn’t save. Check the value and try again.')
+        setError(t('saveError'))
       }
     })
   }
@@ -45,7 +47,7 @@ export function BodyweightLogForm({ unit }: { unit: WeightUnit }) {
   return (
     <form onSubmit={submit} noValidate>
       <label htmlFor="bodyweight-input" className="text-sm font-medium">
-        Today&rsquo;s weight ({unit})
+        {t('label', { unit })}
       </label>
       <div className="mt-1.5 flex gap-2">
         <Input
@@ -56,12 +58,12 @@ export function BodyweightLogForm({ unit }: { unit: WeightUnit }) {
           value={value}
           onChange={(e) => setValue(e.target.value)}
           aria-invalid={error !== null || undefined}
-          placeholder={unit === 'lb' ? 'e.g. 181.5' : 'e.g. 82.5'}
+          placeholder={t('placeholder', { example: unit === 'lb' ? 181.5 : 82.5 })}
           className="tnum"
         />
         {/* THE volt action on this page — everything else stays quiet. */}
         <Button type="submit" disabled={isPending} className="shrink-0">
-          {isPending ? 'Logging…' : 'Log weight'}
+          {isPending ? t('pendingAction') : t('action')}
         </Button>
       </div>
       {error && (

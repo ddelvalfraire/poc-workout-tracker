@@ -16,6 +16,7 @@ import {
 } from '@/lib/measurement-sites'
 import { cn } from '@/lib/utils'
 import { MeasurementEntryRow } from './measurement-entry-row'
+import { useTranslations } from 'next-intl'
 
 // The site delta's window — tape moves slowly; 90 days is a real change.
 const DELTA_DAYS = 90
@@ -50,6 +51,7 @@ export function MeasurementsSection({
   unit: LengthUnit
   entries: MeasurementEntry[]
 }) {
+  const t = useTranslations('MeasurementsSection')
   const [site, setSite] = useState<MeasurementSite>(entries[0]?.site ?? 'waist')
   const [value, setValue] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -82,7 +84,7 @@ export function MeasurementsSection({
     e.preventDefault()
     const parsed = parseFloat(value.trim())
     if (!Number.isFinite(parsed) || parsed <= 0) {
-      setError(`Enter a measurement above 0 ${unit}.`)
+      setError(t('validation', { unit }))
       return
     }
     setError(null)
@@ -93,7 +95,7 @@ export function MeasurementsSection({
         router.refresh()
       } catch {
         // Keep the typed value: recovery is one more tap, not a re-type.
-        setError('Didn’t save. Check the value and try again.')
+        setError(t('saveError'))
       }
     })
   }
@@ -104,7 +106,7 @@ export function MeasurementsSection({
           (one selection out of a fixed set), volt only on the active site. */}
       <div
         role="radiogroup"
-        aria-label="Measurement site"
+        aria-label={t('siteGroupLabel')}
         className="-mx-5 flex gap-2 overflow-x-auto px-5 pb-1"
       >
         {MEASUREMENT_SITES.map((s) => (
@@ -132,28 +134,39 @@ export function MeasurementsSection({
       {/* Status: latest reading + the honest window delta, when it exists. */}
       {latest !== null && (
         <p className="mt-4 text-sm text-muted-foreground tnum">
-          {siteLabel}:{' '}
-          <span className="font-medium text-foreground">
-            {latest.value} {unit}
-          </span>
-          {delta !== null && ` · ${formatSignedDelta(delta)} ${unit} / ${DELTA_DAYS}d`}
+          {/* One message: the reading, its emphasis tag and the optional
+              delta clause all move together when the sentence is translated. */}
+          {t.rich('latestSummary', {
+            site: siteLabel,
+            value: latest.value,
+            unit,
+            days: DELTA_DAYS,
+            delta: delta === null ? 'none' : formatSignedDelta(delta),
+            reading: (chunks) => <span className="font-medium text-foreground">{chunks}</span>,
+          })}
         </p>
       )}
 
       {trendPoints.length >= 2 && (
-        <div role="group" aria-label={`${siteLabel} trend`} className="mt-4">
+        <div role="group" aria-label={t('trendGroupLabel', { site: siteLabel })} className="mt-4">
           <TrendChart
             points={trendPoints}
             unit={unit}
             valueLabel={siteLabel}
-            ariaLabel={`${siteLabel} trend, ${trendPoints[0].value} to ${trendPoints[trendPoints.length - 1].value} ${unit} over ${trendPoints.length} entries`}
+            ariaLabel={t('chartLabel', {
+              site: siteLabel,
+              from: trendPoints[0].value,
+              to: trendPoints[trendPoints.length - 1].value,
+              unit,
+              count: trendPoints.length,
+            })}
           />
         </div>
       )}
 
       <form onSubmit={submit} noValidate className="mt-6">
         <label htmlFor="measurement-input" className="text-sm font-medium">
-          {siteLabel} ({unit})
+          {t('inputLabel', { site: siteLabel, unit })}
         </label>
         <div className="mt-1.5 flex gap-2">
           <Input
@@ -164,11 +177,11 @@ export function MeasurementsSection({
             value={value}
             onChange={(e) => setValue(e.target.value)}
             aria-invalid={error !== null || undefined}
-            placeholder={unit === 'in' ? 'e.g. 33.5' : 'e.g. 85'}
+            placeholder={t('placeholder', { example: unit === 'in' ? 33.5 : 85 })}
             className="tnum"
           />
           <Button type="submit" disabled={isPending} className="shrink-0">
-            {isPending ? 'Logging…' : 'Log measurement'}
+            {isPending ? t('pendingAction') : t('action')}
           </Button>
         </div>
         {error && (
@@ -182,7 +195,7 @@ export function MeasurementsSection({
       {siteEntries.length > 0 ? (
         <>
           <ul
-            aria-label={`${siteLabel} history`}
+            aria-label={t('historyGroupLabel', { site: siteLabel })}
             className="mt-6 divide-y divide-border/60 border-b border-b-border/60"
           >
             {siteEntries.slice(0, HISTORY_VISIBLE_ROWS).map((entry) => (
@@ -190,21 +203,21 @@ export function MeasurementsSection({
                 key={entry.id}
                 id={entry.id}
                 dateLabel={entry.dateLabel}
-                valueLabel={`${entry.value} ${unit}`}
+                valueLabel={t('value', { value: entry.value, unit })}
               />
             ))}
           </ul>
           {siteEntries.length > HISTORY_VISIBLE_ROWS && (
             <details className="group mt-2">
               <summary className="flex cursor-pointer list-none items-center gap-1 px-1 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground [&::-webkit-details-marker]:hidden">
-                All {siteLabel.toLowerCase()} entries · {siteEntries.length}
+                {t('showAll', { site: siteLabel.toLowerCase(), count: siteEntries.length })}
                 <ChevronRight
                   aria-hidden="true"
                   className="size-3.5 transition-transform group-open:rotate-90"
                 />
               </summary>
               <ul
-                aria-label={`Older ${siteLabel} entries`}
+                aria-label={t('olderGroupLabel', { site: siteLabel })}
                 className="mt-2 divide-y divide-border/60 border-b border-b-border/60"
               >
                 {siteEntries.slice(HISTORY_VISIBLE_ROWS).map((entry) => (
@@ -212,7 +225,7 @@ export function MeasurementsSection({
                     key={entry.id}
                     id={entry.id}
                     dateLabel={entry.dateLabel}
-                    valueLabel={`${entry.value} ${unit}`}
+                    valueLabel={t('value', { value: entry.value, unit })}
                   />
                 ))}
               </ul>
@@ -222,7 +235,7 @@ export function MeasurementsSection({
       ) : (
         // Honest empty state, per site — the tape teaches what the scale can't.
         <p className="mt-6 text-sm text-muted-foreground">
-          No {site} entries yet. Tape measurements catch changes the scale misses.
+          {t('empty', { site })}
         </p>
       )}
     </div>

@@ -4,7 +4,9 @@
     "filterGroupLabel": "Filter activity by type"
   },
   "AnalyticsConsentToggle": {
-    "gpcHint": "Your browser sends a Global Privacy Control signal — this stays off."
+    "ariaLabel": "Analytics identity",
+    "gpcHint": "Your browser sends a Global Privacy Control signal — this stays off.",
+    "saveError": "Could not save your choice. Please try again."
   },
   "AutoRefreshToggle": {
     "action": "Auto 60s"
@@ -15,6 +17,52 @@
   "BlockMap": {
     "deloadBadge": "DL",
     "segmentLabel": "Week {week}{days, select, yes {, {daysDone} of {daysTotal} days done} other {}}{deload, select, yes {, deload} other {}}{current, select, yes {, current week} other {}}{selected, select, yes {, selected} other {}}"
+  },
+  "Body": {
+    "bodyweight": {
+      "chartLabel": "Bodyweight trend, {from} to {to} {unit} over {count, plural, one {# entry} other {# entries}}",
+      "deltaSummary": "{direction, select, down {Trending down — {value} {unit} / {days}d} up {Trending up — {value} {unit} / {days}d} other {Holding steady / {days}d}}",
+      "empty": "Log your first weigh-in — bodyweight exercises use it for est. 1RM.",
+      "groupLabel": "Bodyweight",
+      "historyGroupLabel": "Weigh-in history",
+      "olderGroupLabel": "Older weigh-ins",
+      "rawReading": "Last weigh-in {value} {unit} · {date}",
+      "seriesRaw": "Weigh-in",
+      "seriesTarget": "Goal",
+      "seriesTrend": "Trend",
+      "showAll": "All weigh-ins · {count}",
+      "title": "Bodyweight",
+      "trendGroupLabel": "Bodyweight trend",
+      "trendLabel": "Trend weight",
+      "weightValue": "{value} {unit}"
+    },
+    "measurements": {
+      "groupLabel": "Measurements",
+      "title": "Measurements"
+    },
+    "photos": {
+      "groupLabel": "Progress photos",
+      "title": "Progress photos"
+    },
+    "title": "Body"
+  },
+  "BodyweightEntryRow": {
+    "confirm": {
+      "body": "Your current weight resyncs to the latest remaining one.",
+      "confirmLabel": "Delete",
+      "pendingLabel": "Deleting…",
+      "title": "Delete this entry?"
+    },
+    "deleteAriaLabel": "Delete entry from {date}",
+    "deleteError": "Could not delete this entry. Please try again."
+  },
+  "BodyweightLogForm": {
+    "action": "Log weight",
+    "label": "Today’s weight ({unit})",
+    "pendingAction": "Logging…",
+    "placeholder": "e.g. {example}",
+    "saveError": "Didn’t save. Check the value and try again.",
+    "validation": "Enter a weight above 0 {unit}."
   },
   "CheckInCard": {
     "action": "Check in",
@@ -95,7 +143,11 @@
     "sectionTitle": "Edit custom exercise",
     "validationName": "Give it a name."
   },
+  "CustomizeHome": {
+    "title": "Customize home"
+  },
   "DeleteAccount": {
+    "consequencesGroupLabel": "What deletion does",
     "erased": {
       "description": "your workouts, programs, templates, notes, goals, trophies, body measurements, progress photos, custom exercises, preferences, and coach conversations.",
       "title": "Erased immediately:"
@@ -108,10 +160,13 @@
     "retained": {
       "description": "consent records we are legally required to keep (at least 3 years), with your identity replaced by a random code that cannot be traced back to you.",
       "title": "Retained:"
-    }
+    },
+    "title": "Delete account"
   },
   "DeleteAccountForm": {
-    "confirmInstruction": "Type <code>{phrase}</code> to confirm"
+    "action": "Delete my account",
+    "confirmInstruction": "Type <code>{phrase}</code> to confirm",
+    "pendingAction": "Deleting your account…"
   },
   "DeliveryPanel": {
     "checksEmpty": "No checks configured.",
@@ -341,6 +396,7 @@
   },
   "HomeLayoutEditor": {
     "hint": "Tap a tile to resize, reorder, or hide it — or press and hold to drag it. Hidden sections keep tracking — they just don’t show on Home.",
+    "lockedTileAriaLabel": "Status — always shown, always first",
     "lockedTileLabel": "Status",
     "resetAction": "Reset to default",
     "saveError": "Couldn’t save. Try again."
@@ -358,23 +414,39 @@
   "Import": {
     "batch": {
       "fileNameSuffix": " — {fileName}",
-      "meta": "{scope}, {sets, plural, one {# set} other {# sets}} · {date}"
+      "meta": "{scope}, {sets, plural, one {# set} other {# sets}} · {date}",
+      "scope": "{count, plural, one {# workout} other {# workouts}}"
     },
     "empty": "Nothing imported yet. Imports you confirm will be listed here, each removable in one tap.",
+    "headerTitle": "Import history",
+    "historyGroupLabel": "Past imports",
+    "source": {
+      "hevy": "Hevy",
+      "strong": "Strong"
+    },
     "title": "Past imports"
   },
   "ImportFlow": {
     "actions": {
       "cancel": "Cancel",
+      "confirm": "{count, plural, one {Import # workout} other {Import # workouts}}",
+      "confirmPending": "Importing…",
       "importAnother": "Import another",
       "viewHistory": "View history"
     },
     "dropzone": {
+      "action": "Choose CSV — Strong or Hevy",
+      "actionSwap": "Choose a different CSV",
       "hint": "The export format is detected automatically — or drag the file here."
     },
+    "errorCommit": "Import failed.",
+    "errorRead": "Failed to read the file.",
+    "errorTooLarge": "File too large (20MB max).",
+    "fileInputLabel": "History CSV file",
     "preview": {
       "datesLabel": "Dates",
       "duplicatesNotice": "{count, plural, one {# workout} other {# workouts}} already in your history will be skipped.",
+      "fileNameSuffix": " — {fileName}",
       "matchedLabel": "Matched exercises",
       "newExercisesCount": "{count, plural, one {# new custom exercise} other {# new custom exercises}}",
       "newExercisesDescription": "These names weren’t in the catalog and will be created as your custom exercises:",
@@ -383,25 +455,36 @@
       "sourceExport": "{source} export",
       "workoutsLabel": "Workouts"
     },
+    "sectionLabel": "Import a history file",
     "skipped": {
       "andMore": "…and {count} more",
       "row": "Row {row}: {reason}",
       "summary": "{count, plural, one {# row} other {# rows}} can’t be imported"
     },
+    "source": {
+      "hevy": "Hevy",
+      "strong": "Strong"
+    },
     "status": {
       "reading": "Reading file…"
     },
     "steps": {
-      "indicator": "Step {step} of 3 — {label}"
+      "done": "Done",
+      "indicator": "Step {step} of 3 — {label}",
+      "review": "Review",
+      "upload": "Upload"
     },
     "success": {
+      "customsSuffix": " {count, plural, one {# custom exercise created.} other {# custom exercises created.}}",
+      "duplicatesSuffix": " {count, plural, one {# duplicate was skipped.} other {# duplicates were skipped.}}",
       "summary": "{workouts, plural, one {# workout} other {# workouts}} and {sets, plural, one {# set} other {# sets}} added to your history.",
       "title": "Import complete"
     },
     "title": "Import from Strong or Hevy",
     "unit": {
       "hint": "Strong files don’t say kg or lb — pick the unit this account logged in."
-    }
+    },
+    "unitGroupLabel": "File weight unit"
   },
   "ImportTemplateButton": {
     "importAction": "Add to my programs",
@@ -421,6 +504,33 @@
   },
   "Loading": {
     "label": "Loading"
+  },
+  "MeasurementEntryRow": {
+    "confirm": {
+      "body": "It disappears from the history and the trend.",
+      "confirmLabel": "Delete",
+      "pendingLabel": "Deleting…",
+      "title": "Delete this entry?"
+    },
+    "deleteAriaLabel": "Delete entry from {date}",
+    "deleteError": "Could not delete this entry. Please try again."
+  },
+  "MeasurementsSection": {
+    "action": "Log measurement",
+    "chartLabel": "{site} trend, {from} to {to} {unit} over {count, plural, one {# entry} other {# entries}}",
+    "empty": "No {site} entries yet. Tape measurements catch changes the scale misses.",
+    "historyGroupLabel": "{site} history",
+    "inputLabel": "{site} ({unit})",
+    "latestSummary": "{site}: <reading>{value} {unit}</reading>{delta, select, none {} other { · {delta} {unit} / {days}d}}",
+    "olderGroupLabel": "Older {site} entries",
+    "pendingAction": "Logging…",
+    "placeholder": "e.g. {example}",
+    "saveError": "Didn’t save. Check the value and try again.",
+    "showAll": "All {site} entries · {count}",
+    "siteGroupLabel": "Measurement site",
+    "trendGroupLabel": "{site} trend",
+    "validation": "Enter a measurement above 0 {unit}.",
+    "value": "{value} {unit}"
   },
   "MomentumPanel": {
     "emptyWeek": "The week is wide open — log a session.",
@@ -554,6 +664,52 @@
       "title": "Decline these changes?"
     },
     "declineError": "Could not decline this proposal. Please try again."
+  },
+  "PhotoCell": {
+    "alt": "{pose, select, none {Progress photo, {date}} other {Progress photo, {date}, {pose}}}",
+    "ariaLabel": "{intent, select, select {Select photo from {date}} deselect {Deselect photo from {date}} other {View photo from {date}}}",
+    "poseSuffix": " · {pose}"
+  },
+  "PhotoCompare": {
+    "alt": "{pose, select, none {Progress photo, {date}} other {Progress photo, {date}, {pose}}}",
+    "captionPair": "{left} → {right}",
+    "mode": {
+      "side": "Side by side",
+      "slider": "Slider"
+    },
+    "modeGroupLabel": "Compare mode",
+    "poseSuffix": " · {pose}",
+    "sideGroupLabel": "Comparing {left} with {right}",
+    "sliderLabel": "Reveal earlier photo"
+  },
+  "PhotoOverlay": {
+    "alt": "{pose, select, none {Progress photo, {date}} other {Progress photo, {date}, {pose}}}",
+    "close": "Close",
+    "confirm": {
+      "body": "It's removed from your account permanently — there's no undo.",
+      "confirmLabel": "Delete",
+      "pendingLabel": "Deleting…",
+      "title": "Delete this photo?"
+    },
+    "deleteAriaLabel": "Delete photo from {date}",
+    "deleteError": "Could not delete this photo. Please try again.",
+    "dialogLabel": "Photo from {date}",
+    "poseSuffix": " · {pose}"
+  },
+  "PhotosSection": {
+    "action": "Add photo",
+    "cadenceNudge": "Over a month since your last photo — monthly shots make the change visible.",
+    "compareAction": "Compare",
+    "compareDone": "Done comparing",
+    "comparePick": "{remaining, plural, one {Pick one more} other {Pick two photos}}",
+    "empty": "No photos yet. Progress photos live only in your account — never public. The scale misses what a monthly photo catches.",
+    "noteAriaLabel": "Photo note",
+    "notePlaceholder": "Note (optional)",
+    "pendingAction": "Uploading…",
+    "poseGroupLabel": "Pose (optional)",
+    "timelineGroupLabel": "Photo timeline",
+    "uploadError": "Didn’t upload. Try again.",
+    "uploadFailed": "Upload failed"
   },
   "PlanBulletList": {
     "noTarget": "{current} sets · no target",
@@ -903,7 +1059,14 @@
     "savingAction": "Saving…"
   },
   "RemoveImportButton": {
-    "label": "Remove"
+    "confirm": {
+      "body": "Deletes the {scope} this import added. Custom exercises it created are kept.",
+      "confirmLabel": "Remove",
+      "pendingLabel": "Removing…",
+      "title": "Remove this import?"
+    },
+    "label": "Remove",
+    "removeError": "Couldn't remove the import — try again."
   },
   "RestDefaultSetting": {
     "ariaLabel": "Default rest target: {seconds, plural, one {# second} other {# seconds}}",
@@ -912,6 +1075,7 @@
     "valueOff": "Off"
   },
   "RestTimerToggle": {
+    "ariaLabel": "Rest timer",
     "saveError": "Couldn’t save. Try again."
   },
   "RestartProgramButton": {
@@ -924,10 +1088,14 @@
     "restartError": "Could not restart this block. Please try again."
   },
   "RpeLoggingToggle": {
+    "ariaLabel": "Effort logging (RPE/RIR)",
     "saveError": "Couldn’t save. Try again."
   },
   "SchemeSubtitle": {
     "separator": "—"
+  },
+  "SectionTile": {
+    "ariaLabel": "{state, select, hidden {{section} — hidden. Edit section} sm {{section} — Small. Edit section} md {{section} — Medium. Edit section} lg {{section} — Large. Edit section} other {{section}. Edit section}}"
   },
   "SessionConflictDialog": {
     "cancel": "Cancel",
@@ -942,8 +1110,78 @@
     "untitledSession": "Unnamed session"
   },
   "Settings": {
+    "accountGroupLabel": "Account",
+    "analytics": {
+      "hint": "Link your usage (never your workout content) to your account. Turning this off also deletes your usage profile from our analytics provider.",
+      "label": "Analytics identity"
+    },
+    "body": {
+      "hint": "Your weight and measurements over time.",
+      "label": "Body",
+      "value": "{value} {unit}",
+      "valueUnset": "Not set"
+    },
+    "defaultRest": {
+      "hint": "Your countdown length between sets.",
+      "hintDisabled": "Turn the rest timer on to use this.",
+      "label": "Default rest"
+    },
+    "deleteAccount": {
+      "hint": "Erase your data and close your account.",
+      "label": "Delete account"
+    },
+    "effortLogging": {
+      "hint": "Rate how hard sets felt (RIR/RPE) after you complete them.",
+      "label": "Effort logging"
+    },
+    "healthPrivacy": {
+      "hint": "How your health data is handled, and your rights.",
+      "label": "Health Data Privacy"
+    },
+    "home": {
+      "hint": "Choose which sections show, and their order.",
+      "label": "Customize home"
+    },
+    "import": {
+      "hint": "Bring your Strong or Hevy workouts with you.",
+      "label": "Import history"
+    },
+    "ops": {
+      "hint": "Monitoring board — not part of the app.",
+      "label": "Ops"
+    },
+    "privacyPolicy": {
+      "hint": "What we collect and why.",
+      "label": "Privacy Policy"
+    },
+    "reminders": {
+      "hint": "A morning nudge on your program days.",
+      "label": "Workout reminders"
+    },
+    "restTimer": {
+      "hint": "Counts down your rest after each set.",
+      "label": "Rest timer"
+    },
     "signOutAction": "Sign out",
-    "signedInLabel": "Signed in"
+    "signedInLabel": "Signed in",
+    "terms": {
+      "hint": "The agreement for using the app.",
+      "label": "Terms of Service"
+    },
+    "title": "Settings",
+    "unit": {
+      "hint": "Shown everywhere you enter or read weight.",
+      "label": "Weight unit"
+    },
+    "version": "Build {sha}",
+    "versionLocal": "v{version}",
+    "zones": {
+      "data": "Data",
+      "internal": "Internal",
+      "legal": "Legal",
+      "privacy": "Privacy",
+      "training": "Training"
+    }
   },
   "ShareCardButton": {
     "ariaLabel": "Share {title}",
@@ -1111,12 +1349,25 @@
     }
   },
   "TileSheet": {
+    "close": "Close",
+    "dialogLabel": "{section} section",
     "move": {
       "down": "Down",
+      "downLabel": "Move {section} down",
       "toTop": "To top",
-      "up": "Up"
+      "toTopLabel": "Move {section} to top",
+      "up": "Up",
+      "upLabel": "Move {section} up"
     },
+    "sizeGroupLabel": "{section} size",
+    "sizeLabel": {
+      "lg": "L",
+      "md": "M",
+      "sm": "S"
+    },
+    "sizeOptionLabel": "{size, select, sm {Small {section}} md {Medium {section}} lg {Large {section}} other {{section}}}",
     "visibility": {
+      "ariaLabel": "Show {section} on Home",
       "hint": "Hidden sections keep tracking — they just don’t show.",
       "label": "Show on Home"
     }
@@ -1144,9 +1395,12 @@
   "Trophies": {
     "badge": "New",
     "closest": {
+      "groupLabel": "Closest trophies",
       "title": "Closest"
     },
-    "empty": "No trophies yet. Every trophy is a lifting fact — plate clubs, workout counts, streaks. Train and they stamp themselves."
+    "empty": "No trophies yet. Every trophy is a lifting fact — plate clubs, workout counts, streaks. Train and they stamp themselves.",
+    "progressLabel": "{percent}% toward {trophy}",
+    "title": "Trophies"
   },
   "UnitToggle": {
     "groupLabel": "Weight unit",
@@ -1177,6 +1431,7 @@
     }
   },
   "WorkoutRemindersToggle": {
+    "ariaLabel": "Workout reminders",
     "blockedNotice": "Notifications are blocked for this app in your browser settings.",
     "unsupportedNotice": "Not supported in this browser. On iPhone, add the app to your Home Screen first.",
     "updateError": "Couldn’t update. Try again."

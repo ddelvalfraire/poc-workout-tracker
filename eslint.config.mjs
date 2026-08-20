@@ -16,7 +16,6 @@ const CARD_SHELL_KEEP = [
   "src/components/session-conflict-dialog.tsx",
   "src/components/editor/quick-capture-sheet.tsx",
   "src/app/coach/coach-chat.tsx",
-  "src/app/body/photo-overlay.tsx",
   "src/app/programs/\\[id\\]/patch-proposal-card.tsx",
   "src/app/settings/home/tile-sheet.tsx",
   "src/app/templates/\\[id\\]/template-edit-sheet.tsx",
@@ -35,10 +34,6 @@ const CARD_SHELL_KEEP = [
 // only ever shrinks, never grows. New surfaces never join it; they use the
 // primitives from day one.
 const CARD_SHELL_RATCHET = [
-  "src/app/body/measurements-section.tsx",
-  "src/app/body/photo-cell.tsx",
-  "src/app/body/photo-compare.tsx",
-  "src/app/body/photos-section.tsx",
   "src/app/goals/goal-card-actions.tsx",
   "src/app/home-sections.tsx",
   "src/app/p/\\[token\\]/page.tsx",
@@ -66,6 +61,15 @@ const CARD_SHELL_RATCHET = [
 // before, or the rule is just noise a future PR learns to ignore.
 const I18N_MIGRATED = [
   "noise a future PR learns to ignore",
+  "src/app/body/entry-row.tsx",
+  "src/app/body/log-form.tsx",
+  "src/app/body/measurement-entry-row.tsx",
+  "src/app/body/measurements-section.tsx",
+  "src/app/body/page.tsx",
+  "src/app/body/photo-cell.tsx",
+  "src/app/body/photo-compare.tsx",
+  "src/app/body/photo-overlay.tsx",
+  "src/app/body/photos-section.tsx",
   "src/app/check-in-card.tsx",
   "src/app/error.tsx",
   "src/app/exercises/\\[source\\]/\\[id\\]/exercise-note-section.tsx",
@@ -114,6 +118,23 @@ const I18N_MIGRATED = [
   "src/app/programs/templates/unavailable.tsx",
   "src/app/programs/templates/use-template-button.tsx",
   "src/app/providers.tsx",
+  "src/app/settings/analytics-consent-toggle.tsx",
+  "src/app/settings/delete-account/delete-account-form.tsx",
+  "src/app/settings/delete-account/page.tsx",
+  "src/app/settings/home/editor-grid-dnd.tsx",
+  "src/app/settings/home/editor-grid.tsx",
+  "src/app/settings/home/home-layout-editor.tsx",
+  "src/app/settings/home/page.tsx",
+  "src/app/settings/home/section-tile.tsx",
+  "src/app/settings/home/tile-sheet.tsx",
+  "src/app/settings/import/import-flow.tsx",
+  "src/app/settings/import/page.tsx",
+  "src/app/settings/import/remove-import-button.tsx",
+  "src/app/settings/page.tsx",
+  "src/app/settings/rest-default-setting.tsx",
+  "src/app/settings/rest-timer-toggle.tsx",
+  "src/app/settings/rpe-logging-toggle.tsx",
+  "src/app/settings/workout-reminders-toggle.tsx",
   "src/app/stats/page.tsx",
   "src/app/stats/plan-bullet-list.tsx",
   "src/app/stats/window-toggle.tsx",
@@ -123,6 +144,7 @@ const I18N_MIGRATED = [
   "src/app/templates/\\[id\\]/template-edit-sheet.tsx",
   "src/app/templates/page.tsx",
   "src/app/today-recap.tsx",
+  "src/app/trophies/page.tsx",
   "src/app/up-next-anchor.tsx",
   "src/components/app-header.tsx",
   "src/components/auth/sign-out-button.tsx",
@@ -179,26 +201,11 @@ const I18N_MIGRATED = [
 // expressions, so their aria-labels, dialog props and ternary CTAs are still
 // English. Held to the weaker rule so the gate does not claim they are done.
 // Only ever SHRINKS — a backfill PR moves files up into I18N_MIGRATED.
-const I18N_TEXT_ONLY = [
-  "src/app/trophies/page.tsx",
-  "src/app/settings/analytics-consent-toggle.tsx",
-  "src/app/settings/delete-account/delete-account-form.tsx",
-  "src/app/settings/delete-account/page.tsx",
-  "src/app/settings/home/editor-grid-dnd.tsx",
-  "src/app/settings/home/editor-grid.tsx",
-  "src/app/settings/home/home-layout-editor.tsx",
-  "src/app/settings/home/page.tsx",
-  "src/app/settings/home/section-tile.tsx",
-  "src/app/settings/home/tile-sheet.tsx",
-  "src/app/settings/import/import-flow.tsx",
-  "src/app/settings/import/page.tsx",
-  "src/app/settings/import/remove-import-button.tsx",
-  "src/app/settings/page.tsx",
-  "src/app/settings/rest-default-setting.tsx",
-  "src/app/settings/rest-timer-toggle.tsx",
-  "src/app/settings/rpe-logging-toggle.tsx",
-  "src/app/settings/workout-reminders-toggle.tsx",
-];
+// Now EMPTY: settings + trophies were backfilled under the strict rule. The
+// seam stays so a future partial migration has somewhere to land, and the
+// block below is spread conditionally because ESLint rejects an empty
+// `files` array.
+const I18N_TEXT_ONLY = [];
 
 const eslintConfig = defineConfig([
   ...nextVitals,
@@ -278,19 +285,23 @@ const eslintConfig = defineConfig([
           "object-properties": { exclude: ["field", "mode", "type", "tag", "seed"] },
           callees: { exclude: ["t", "t.rich", "cn", "clsx", "cva", "tCommon"] },
           "jsx-attributes": {
-            exclude: ["className", "id", "key", "type", "name", "href", "src", "role", "htmlFor", "aria-describedby", "variant", "size", "autoComplete", "inputMode", "data-.*", "aria-hidden", "width", "height", "viewBox", "fill", "stroke", "d", "xmlns", "style", "step", "min", "max", "pattern", "rel", "target", "method", "action", "encType", "dir", "lang", "fallback", "confirmVariant", "page", "aria-current", "dataKey", "nameKey", "yAxisId", "orientation", "layout", "scale", "ifOverflow", "strokeDasharray", "direction", "default", "barClassName"],
+            exclude: ["className", "id", "key", "type", "name", "href", "src", "role", "htmlFor", "aria-describedby", "variant", "size", "autoComplete", "inputMode", "data-.*", "aria-hidden", "width", "height", "viewBox", "fill", "stroke", "d", "xmlns", "style", "step", "min", "max", "pattern", "rel", "target", "method", "action", "encType", "dir", "lang", "fallback", "confirmVariant", "page", "aria-current", "dataKey", "nameKey", "yAxisId", "orientation", "layout", "scale", "ifOverflow", "strokeDasharray", "direction", "default", "barClassName", "autoCapitalize"],
           },
         },
       ],
     },
   },
-  {
-    files: I18N_TEXT_ONLY,
-    plugins: { i18next },
-    rules: {
-      "i18next/no-literal-string": ["error", { mode: "jsx-text-only" }],
-    },
-  },
+  ...(I18N_TEXT_ONLY.length > 0
+    ? [
+        {
+          files: I18N_TEXT_ONLY,
+          plugins: { i18next },
+          rules: {
+            "i18next/no-literal-string": ["error", { mode: "jsx-text-only" }],
+          },
+        },
+      ]
+    : []),
 ]);
 
 export default eslintConfig;

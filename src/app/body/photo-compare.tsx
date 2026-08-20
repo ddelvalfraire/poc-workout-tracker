@@ -5,8 +5,24 @@ import { thumbHashToPlaceholderUrl } from '@/lib/photo-pipeline'
 import { photoPoseLabel } from '@/lib/photo-input'
 import { cn } from '@/lib/utils'
 import type { PhotoEntry } from './photo-cell'
+import { useTranslations } from 'next-intl'
 
 const SLIDER_STEP_PERCENT = 5
+
+/** The alt text for one rendition — three call sites, one message.
+ *  Typed to its OWN namespace: an unparameterised
+ *  ReturnType<typeof useTranslations> asks TypeScript to instantiate every
+ *  namespace in the catalog, which exceeds the depth limit now that the
+ *  catalog is app-wide. */
+function altFor(t: ReturnType<typeof useTranslations<'PhotoCompare'>>, entry: PhotoEntry): string {
+  return t('alt', {
+    date: entry.dateLabel,
+    pose: entry.pose === null ? 'none' : photoPoseLabel(entry.pose),
+  })
+}
+
+/** The two compare modes, as VALUES. Their words live in the catalog. */
+const COMPARE_MODES = ['slider', 'side'] as const
 
 /**
  * Compare — the retention moment: date A vs date B at display quality, in
@@ -18,31 +34,29 @@ const SLIDER_STEP_PERCENT = 5
  * rendition loads.
  */
 export function PhotoCompare({ left, right }: { left: PhotoEntry; right: PhotoEntry }) {
+  const t = useTranslations('PhotoCompare')
   const [mode, setMode] = useState<'slider' | 'side'>('slider')
 
   return (
     <div className="motion-safe:animate-rise-in">
-      <div role="radiogroup" aria-label="Compare mode" className="flex gap-1.5">
-        {(
-          [
-            { value: 'slider', label: 'Slider' },
-            { value: 'side', label: 'Side by side' },
-          ] as const
-        ).map((option) => (
+      <div role="radiogroup" aria-label={t('modeGroupLabel')} className="flex gap-1.5">
+        {/* Values only — a label built here would be fixed at module scope
+            for the whole session; the words come from the catalog at render. */}
+        {COMPARE_MODES.map((option) => (
           <button
-            key={option.value}
+            key={option}
             type="button"
             role="radio"
-            aria-checked={mode === option.value}
-            onClick={() => setMode(option.value)}
+            aria-checked={mode === option}
+            onClick={() => setMode(option)}
             className={cn(
               'rounded-full border px-3 py-1 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
-              mode === option.value
+              mode === option
                 ? 'border-primary bg-primary/10 text-primary'
                 : 'border-border text-muted-foreground',
             )}
           >
-            {option.label}
+            {t(`mode.${option}`)}
           </button>
         ))}
       </div>
@@ -51,7 +65,7 @@ export function PhotoCompare({ left, right }: { left: PhotoEntry; right: PhotoEn
         {mode === 'side' ? (
           <div
             role="group"
-            aria-label={`Comparing ${left.dateLabel} with ${right.dateLabel}`}
+            aria-label={t('sideGroupLabel', { left: left.dateLabel, right: right.dateLabel })}
             className="grid grid-cols-2 gap-1.5"
           >
             <ComparePane entry={left} />
@@ -72,6 +86,7 @@ export function PhotoCompare({ left, right }: { left: PhotoEntry; right: PhotoEn
  * capture keeps a drag alive off the handle.
  */
 function OverlaySlider({ left, right }: { left: PhotoEntry; right: PhotoEntry }) {
+  const t = useTranslations('PhotoCompare')
   const [percent, setPercent] = useState(50)
   const frameRef = useRef<HTMLDivElement>(null)
   const isDraggingRef = useRef(false)
@@ -122,7 +137,7 @@ function OverlaySlider({ left, right }: { left: PhotoEntry; right: PhotoEntry })
         <div
           role="slider"
           tabIndex={0}
-          aria-label="Reveal earlier photo"
+          aria-label={t('sliderLabel')}
           aria-valuemin={0}
           aria-valuemax={100}
           aria-valuenow={Math.round(percent)}
@@ -150,9 +165,9 @@ function OverlaySlider({ left, right }: { left: PhotoEntry; right: PhotoEntry })
         </span>
       </div>
       <figcaption className="mt-1 text-center text-xs font-medium text-muted-foreground">
-        {left.dateLabel} → {right.dateLabel}
+        {t('captionPair', { left: left.dateLabel, right: right.dateLabel })}
         {left.pose && left.pose === right.pose && (
-          <span className="opacity-75"> · {photoPoseLabel(left.pose)}</span>
+          <span className="opacity-75">{t('poseSuffix', { pose: photoPoseLabel(left.pose) })}</span>
         )}
       </figcaption>
     </figure>
@@ -160,6 +175,7 @@ function OverlaySlider({ left, right }: { left: PhotoEntry; right: PhotoEntry })
 }
 
 function SliderImage({ entry }: { entry: PhotoEntry }) {
+  const t = useTranslations('PhotoCompare')
   const placeholder = useMemo(() => thumbHashToPlaceholderUrl(entry.thumbHash), [entry.thumbHash])
   const imageUrl = entry.displayUrl ?? entry.thumbUrl
   return (
@@ -175,7 +191,7 @@ function SliderImage({ entry }: { entry: PhotoEntry }) {
         // eslint-disable-next-line @next/next/no-img-element -- signed expiring URL; the optimizer would cache-bust every render
         <img
           src={imageUrl}
-          alt={`Progress photo, ${entry.dateLabel}${entry.pose ? `, ${photoPoseLabel(entry.pose)}` : ''}`}
+          alt={altFor(t, entry)}
           width={540}
           height={720}
           draggable={false}
@@ -187,6 +203,7 @@ function SliderImage({ entry }: { entry: PhotoEntry }) {
 }
 
 function ComparePane({ entry }: { entry: PhotoEntry }) {
+  const t = useTranslations('PhotoCompare')
   const placeholder = useMemo(() => thumbHashToPlaceholderUrl(entry.thumbHash), [entry.thumbHash])
   const imageUrl = entry.displayUrl ?? entry.thumbUrl
 
@@ -204,7 +221,7 @@ function ComparePane({ entry }: { entry: PhotoEntry }) {
           // eslint-disable-next-line @next/next/no-img-element -- signed expiring URL; the optimizer would cache-bust every render
           <img
             src={imageUrl}
-            alt={`Progress photo, ${entry.dateLabel}${entry.pose ? `, ${photoPoseLabel(entry.pose)}` : ''}`}
+            alt={altFor(t, entry)}
             width={540}
             height={720}
             className="absolute inset-0 h-full w-full object-cover"
@@ -213,7 +230,9 @@ function ComparePane({ entry }: { entry: PhotoEntry }) {
       </div>
       <figcaption className="mt-1 text-center text-xs font-medium text-muted-foreground">
         {entry.dateLabel}
-        {entry.pose && <span className="opacity-75"> · {photoPoseLabel(entry.pose)}</span>}
+        {entry.pose && (
+          <span className="opacity-75">{t('poseSuffix', { pose: photoPoseLabel(entry.pose) })}</span>
+        )}
       </figcaption>
     </figure>
   )

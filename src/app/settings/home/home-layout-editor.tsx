@@ -155,7 +155,7 @@ export function HomeLayoutEditor({
           non-interactive — its stillness above the live tiles teaches the
           model faster than any explanation. */}
       <div
-        aria-label="Status — always shown, always first"
+        aria-label={t('lockedTileAriaLabel')}
         className="mt-6 mb-3 flex items-center gap-3 rounded-lg border border-border/60 px-3 py-3.5"
       >
         <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">

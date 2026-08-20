@@ -6,6 +6,7 @@ import {
   Lock,
   Medal,
   Weight,
+  type LucideIcon,
 } from 'lucide-react'
 import { requireUserId } from '@/lib/auth'
 import { getWeightUnit } from '@/db/preferences'
@@ -60,7 +61,7 @@ export default async function TrophiesPage() {
   return (
     <div className="flex min-h-[100dvh] flex-col">
       <AppHeader
-        title="Trophies"
+        title={t('title')}
         leading={<NavDrawer />}
       />
 
@@ -72,7 +73,7 @@ export default async function TrophiesPage() {
         )}
 
         {closest.length > 0 && (
-          <section aria-label="Closest trophies">
+          <section aria-label={t('closest.groupLabel')}>
             <h2 className="px-1 text-xs font-semibold uppercase tracking-widest text-primary">
               {t('closest.title')}
             </h2>
@@ -122,7 +123,7 @@ function EarnedMedal({
   index: number
 }) {
   const t = useTranslations('Trophies')
-  const Icon = familyIcon(TROPHY_DEFS[row.kind])
+  const Icon = FAMILY_ICONS[TROPHY_DEFS[row.kind].family]
   const context = trophyContextLine(row, unit)
   const glyph = trophyHeroGlyph(row.kind)
   const isNew = isNewTrophy(row.achievedAt)
@@ -171,7 +172,9 @@ function EarnedMedal({
   )
 }
 
-function LockedTrophyRow({
+// Exported for tests: the locked row owns the only interpolated copy on
+// this surface (the progress bar’s accessible name).
+export function LockedTrophyRow({
   kind,
   evidence,
   unit,
@@ -180,7 +183,8 @@ function LockedTrophyRow({
   evidence: TrophyEvidence
   unit: WeightUnit
 }) {
-  const Icon = familyIcon(TROPHY_DEFS[kind])
+  const t = useTranslations('Trophies')
+  const Icon = FAMILY_ICONS[TROPHY_DEFS[kind].family]
   const fraction = trophyFraction(kind, evidence)
 
   return (
@@ -197,7 +201,7 @@ function LockedTrophyRow({
             aria-valuenow={fraction.percent}
             aria-valuemin={0}
             aria-valuemax={100}
-            aria-label={`${fraction.percent}% toward ${trophyLabel(kind)}`}
+            aria-label={t('progressLabel', { percent: fraction.percent, trophy: trophyLabel(kind) })}
             className="mt-1.5 h-1 overflow-hidden rounded-full bg-muted"
           >
             <div
@@ -218,20 +222,14 @@ function isNewTrophy(achievedAt: Date, nowMs: number = Date.now()): boolean {
   return nowMs - achievedAt.getTime() < NEW_TAG_DAYS * MS_PER_DAY
 }
 
-/** One icon per kind family — markers, not decoration (matches /goals). */
-function familyIcon(def: TrophyDef) {
-  switch (def.family) {
-    case 'club':
-      return Dumbbell
-    case 'sum_club':
-      return Medal
-    case 'count':
-      return CalendarCheck
-    case 'streak':
-      return Flame
-    case 'block':
-      return Flag
-    case 'tonnage':
-      return Weight
-  }
+/** One icon per kind family — markers, not decoration (matches /goals). A
+ *  static map rather than a function: a call that RETURNS a component reads
+ *  to react-hooks/static-components as a component created during render. */
+const FAMILY_ICONS: Record<TrophyDef['family'], LucideIcon> = {
+  club: Dumbbell,
+  sum_club: Medal,
+  count: CalendarCheck,
+  streak: Flame,
+  block: Flag,
+  tonnage: Weight,
 }

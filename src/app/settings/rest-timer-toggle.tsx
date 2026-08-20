@@ -40,7 +40,7 @@ export function RestTimerToggle({ enabled }: { enabled: boolean }) {
         type="button"
         role="switch"
         aria-checked={isOn}
-        aria-label="Rest timer"
+        aria-label={t('ariaLabel')}
         disabled={isPending}
         onClick={toggle}
         // 44px effective target via the invisible inset on a compact track.

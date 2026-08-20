@@ -1,3 +1,4 @@
+import { useTranslations } from 'next-intl'
 import type { HomeSectionSize } from '@/lib/home/registry'
 import { cn } from '@/lib/utils'
 
@@ -18,13 +19,6 @@ export const TILE_SPAN: Record<HomeSectionSize, string> = {
   sm: 'col-span-1',
   md: 'col-span-2',
   lg: 'col-span-2',
-}
-
-export const SIZE_LABELS: Record<HomeSectionSize, string> = { sm: 'S', md: 'M', lg: 'L' }
-export const SIZE_NAMES: Record<HomeSectionSize, string> = {
-  sm: 'Small',
-  md: 'Medium',
-  lg: 'Large',
 }
 
 /** Shape-true footprints: sm is a compact half-width stat, md a full row,
@@ -51,11 +45,15 @@ export interface SectionTileProps {
 }
 
 export function SectionTile({ title, size, hidden, onOpen }: SectionTileProps) {
+  const t = useTranslations('SectionTile')
   return (
     <button
       type="button"
       onClick={onOpen}
-      aria-label={`${title} — ${hidden ? 'hidden' : SIZE_NAMES[size]}. Edit section`}
+      // One ICU message with a select, not a sentence assembled from a size
+      // word and a template literal: the size noun and the section name sit
+      // in different places once the sentence is translated.
+      aria-label={t('ariaLabel', { section: title, state: hidden ? 'hidden' : size })}
       className={cn(
         'flex w-full flex-col items-start gap-2.5 overflow-hidden rounded-lg border border-border/60 p-3 text-left',
         'transition-colors outline-none hover:bg-muted/50 focus-visible:ring-3 focus-visible:ring-ring/50',
