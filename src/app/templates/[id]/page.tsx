@@ -8,36 +8,45 @@ import { AppHeader } from '@/components/app-header'
 import { BackLink } from '@/components/back-link'
 import { MarkdownView } from '@/components/markdown-view'
 import { TemplateActions } from './template-actions'
+import { getTranslations } from 'next-intl/server'
 
 // Same guard as /workout/new's `?from`: a malformed path id must not reach
 // the uuid column (Postgres would throw and 500 the page).
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
-/** Human labels for the non-default logging types; the default stays silent
- *  (every plain weight×reps exercise would otherwise wear a redundant tag). */
-const LOGGING_TYPE_LABELS: Record<string, string> = {
-  bodyweight_reps: 'Bodyweight',
-  weighted_bodyweight: 'Weighted bodyweight',
-  assisted_bodyweight: 'Assisted bodyweight',
-}
+/** The non-default logging types that earn a tag; the default stays silent
+ *  (every plain weight×reps exercise would otherwise wear a redundant one).
+ *  A SET, not a label map: the words live in the catalog, keyed by the enum
+ *  value, and resolve at render where a locale exists. */
+const TAGGED_LOGGING_TYPES = [
+  'bodyweight_reps',
+  'weighted_bodyweight',
+  'assisted_bodyweight',
+] as const
 
-/** "3 sets", "3 × 8", or "3 × 8–12" — the sketch line for one exercise. */
-function formatSetPlan(plannedSets: number, repMin: number | null, repMax: number | null): string {
-  if (repMin === null && repMax === null) {
-    return `${plannedSets} set${plannedSets === 1 ? '' : 's'}`
-  }
-  const range = repMin !== null && repMax !== null && repMin !== repMax
-    ? `${repMin}–${repMax}`
-    : `${repMin ?? repMax}`
-  return `${plannedSets} × ${range}`
-}
+type TaggedLoggingType = (typeof TAGGED_LOGGING_TYPES)[number]
+
+const isTagged = (value: string): value is TaggedLoggingType =>
+  (TAGGED_LOGGING_TYPES as readonly string[]).includes(value)
 
 export default async function TemplateDetailPage({
   params,
 }: {
   params: Promise<{ id: string }>
 }) {
+  const t = await getTranslations('TemplateDetail')
   const userId = await requireUserId()
+
+  /** "3 sets", "3 × 8", or "3 × 8–12" — the sketch line for one exercise.
+   *  The bare-set case is an ICU plural; the ×-forms carry no words. */
+  const setPlan = (plannedSets: number, repMin: number | null, repMax: number | null): string => {
+    if (repMin === null && repMax === null) return t('setPlan.sets', { count: plannedSets })
+    const reps =
+      repMin !== null && repMax !== null && repMin !== repMax
+        ? `${repMin}–${repMax}`
+        : `${repMin ?? repMax}`
+    return t('setPlan.range', { sets: plannedSets, reps })
+  }
   const { id } = await params
   if (!UUID_RE.test(id)) notFound()
   const [template, summaries, drafts] = await Promise.all([
@@ -90,7 +99,9 @@ export default async function TemplateDetailPage({
             list surfaces. */}
         <div className="mt-2">
           {template.exercises.map((exercise) => {
-            const typeLabel = LOGGING_TYPE_LABELS[exercise.loggingType]
+            const typeLabel = isTagged(exercise.loggingType)
+              ? t(`loggingType.${exercise.loggingType}`)
+              : undefined
             return (
               <section key={exercise.id} className="border-b border-b-border/60 py-4">
                 <div className="flex items-baseline justify-between gap-3">
@@ -98,12 +109,17 @@ export default async function TemplateDetailPage({
                     {exercise.name}
                   </h3>
                   <span className="shrink-0 tnum text-base font-semibold">
-                    {formatSetPlan(exercise.plannedSets, exercise.repMin, exercise.repMax)}
+                    {setPlan(exercise.plannedSets, exercise.repMin, exercise.repMax)}
                   </span>
                 </div>
                 {(typeLabel !== undefined || exercise.restSec !== null) && (
                   <p className="mt-1 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-                    {[typeLabel, exercise.restSec !== null ? `Rest ${exercise.restSec}s` : null]
+                    {[
+                      typeLabel,
+                      exercise.restSec !== null
+                        ? t('restLabel', { seconds: exercise.restSec })
+                        : null,
+                    ]
                       .filter(Boolean)
                       .join(' · ')}
                   </p>

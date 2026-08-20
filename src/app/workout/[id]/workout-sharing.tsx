@@ -5,6 +5,7 @@ import { Check, Copy, Link2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import { createWorkoutShareAction, revokeWorkoutShareAction } from '@/app/workout/actions'
+import { useTranslations } from 'next-intl'
 
 const COPIED_RESET_MS = 2000
 
@@ -29,6 +30,7 @@ interface WorkoutSharingProps {
  * (the page redirects them to the logger before this mounts).
  */
 export function WorkoutSharing({ workoutId, shareToken }: WorkoutSharingProps) {
+  const t = useTranslations('WorkoutSharing')
   const [token, setToken] = useState<string | null>(shareToken)
   const [error, setError] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
@@ -60,7 +62,7 @@ export function WorkoutSharing({ workoutId, shareToken }: WorkoutSharingProps) {
         const result = await createWorkoutShareAction(workoutId)
         setToken(result.token)
       } catch {
-        setError('Could not create the link. Try again.')
+        setError(t('createError'))
       }
     })
   }
@@ -74,7 +76,7 @@ export function WorkoutSharing({ workoutId, shareToken }: WorkoutSharingProps) {
         if (copyTimer.current) clearTimeout(copyTimer.current)
         copyTimer.current = setTimeout(() => setCopied(false), COPIED_RESET_MS)
       })
-      .catch(() => setError('Could not copy the link.'))
+      .catch(() => setError(t('copyError')))
   }
 
   function revoke() {
@@ -86,36 +88,35 @@ export function WorkoutSharing({ workoutId, shareToken }: WorkoutSharingProps) {
         closeRef.current?.()
         setShowRevoke(false)
       } catch {
-        setError('Could not revoke the link. Try again.')
+        setError(t('revokeError'))
       }
     })
   }
 
   return (
-    <section aria-label="Sharing" className="mt-6">
+    <section aria-label={t('groupLabel')} className="mt-6">
       {token === null ? (
         <>
           {/* Outline: Repeat in WorkoutActions below keeps the one volt. */}
           <Button variant="outline" className="w-full gap-2" disabled={isPending} onClick={mint}>
             <Link2 aria-hidden="true" className="size-4" />
-            {isPending ? 'Creating link…' : 'Share workout'}
+            {isPending ? t('shareActionPending') : t('shareAction')}
           </Button>
           <p className="mt-2 text-sm text-muted-foreground">
-            Anyone with the link sees this summary — sets, volume, PRs. Your notes and body data
-            stay private.
+            {t('hint')}
           </p>
         </>
       ) : (
         <div className="border-b border-b-border/60 pb-4">
           <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
-            Share link
+            {t('linkLabel')}
           </p>
           <div className="mt-2 flex items-center gap-2">
             <p className="min-w-0 flex-1 truncate text-sm tnum">{shareUrl ?? `/w/${token}`}</p>
             <button
               type="button"
               onClick={copyLink}
-              aria-label={copied ? 'Link copied' : 'Copy share link'}
+              aria-label={copied ? t('copyAriaLabelCopied') : t('copyAriaLabel')}
               className="flex h-9 shrink-0 items-center gap-1.5 rounded-full border border-border px-3 text-sm font-semibold text-muted-foreground transition-colors hover:text-foreground"
             >
               {copied ? (
@@ -123,11 +124,11 @@ export function WorkoutSharing({ workoutId, shareToken }: WorkoutSharingProps) {
               ) : (
                 <Copy aria-hidden="true" className="size-4" />
               )}
-              {copied ? 'Copied' : 'Copy'}
+              {copied ? t('copyActionDone') : t('copyAction')}
             </button>
           </div>
           <p className="mt-2 text-sm text-muted-foreground">
-            Anyone with the link sees this summary. Notes and body data stay private.
+            {t('linkHint')}
           </p>
           <button
             type="button"
@@ -135,7 +136,7 @@ export function WorkoutSharing({ workoutId, shareToken }: WorkoutSharingProps) {
             onClick={() => setShowRevoke(true)}
             className="mt-3 text-sm text-muted-foreground underline underline-offset-2 transition-colors hover:text-destructive disabled:opacity-60"
           >
-            Revoke link
+            {t('revokeAction')}
           </button>
         </div>
       )}
@@ -144,10 +145,10 @@ export function WorkoutSharing({ workoutId, shareToken }: WorkoutSharingProps) {
 
       {showRevoke && (
         <ConfirmDialog
-          title="Revoke this link?"
-          body="Anyone holding the link loses access immediately. Sharing again creates a fresh link."
-          confirmLabel="Revoke"
-          pendingLabel="Revoking…"
+          title={t('revokeDialog.title')}
+          body={t('revokeDialog.body')}
+          confirmLabel={t('revokeDialog.confirm')}
+          pendingLabel={t('revokeDialog.pending')}
           error={error}
           isPending={isPending}
           onConfirm={revoke}

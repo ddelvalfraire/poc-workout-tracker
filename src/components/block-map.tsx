@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
 import { segmentFillPct, type BlockWeek } from './block-weeks'
+import { useTranslations } from 'next-intl'
 
 /**
  * The block map — the ONE shared mesocycle visualization (TrainerRoad/
@@ -72,17 +73,8 @@ interface BlockMapProps {
   className?: string
 }
 
-function segmentLabel(w: BlockWeek, isSelected: boolean): string {
-  return [
-    `Week ${w.week}`,
-    w.dayCountTotal > 0 ? `${w.dayCountDone} of ${w.dayCountTotal} days done` : null,
-    w.isDeload ? 'deload' : null,
-    w.isCurrent ? 'current week' : null,
-    isSelected ? 'selected' : null,
-  ]
-    .filter(Boolean)
-    .join(', ')
-}
+/** ICU `select` matches strings, not booleans. */
+const yesNo = (value: boolean): 'yes' | 'no' => (value ? 'yes' : 'no')
 
 /** The whole mesocycle as one strip of week segments. */
 export function BlockMap({
@@ -92,6 +84,23 @@ export function BlockMap({
   hrefForWeek,
   className,
 }: BlockMapProps) {
+  const t = useTranslations('BlockMap')
+
+  // ONE message with select arguments, not a joined list of fragments: the
+  // clause order and the separator are language-specific, and a translator
+  // handed five disconnected words can fix neither.
+  function segmentLabel(w: BlockWeek, isSelected: boolean): string {
+    return t('segmentLabel', {
+      week: w.week,
+      days: yesNo(w.dayCountTotal > 0),
+      daysDone: w.dayCountDone,
+      daysTotal: w.dayCountTotal,
+      deload: yesNo(w.isDeload),
+      current: yesNo(w.isCurrent),
+      selected: yesNo(isSelected),
+    })
+  }
+
   return (
     <div className={cn('flex gap-1.5', className)}>
       {weeks.map((w) => {
@@ -121,7 +130,7 @@ export function BlockMap({
                 )}
               >
                 {w.week}
-                {w.isDeload && <span aria-hidden="true">DL</span>}
+                {w.isDeload && <span aria-hidden="true">{t('deloadBadge')}</span>}
               </span>
             )}
           </>

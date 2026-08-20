@@ -5,6 +5,24 @@ import { defineConfig, devices } from '@playwright/test'
 // dev server started below also inherits this env (and Next re-reads .env.local).
 process.loadEnvFile('.env.local')
 
+// This suite PROVISIONS USERS AND WRITES WORKOUTS. .env.local points at the
+// live Supabase instance, so running it unguarded mutates production data —
+// and nothing in the config said so. Fail before the first test rather than
+// after a few hundred rows.
+//
+// Set E2E_ALLOW_REMOTE_DB=1 to override deliberately (a disposable branch
+// database, say); the check exists to make that a decision, not an accident.
+const directUrl = process.env.DATABASE_URL_DIRECT ?? ''
+const isLocalDb = /@(localhost|127\.0\.0\.1|host\.docker\.internal|db):/.test(directUrl)
+if (directUrl && !isLocalDb && process.env.E2E_ALLOW_REMOTE_DB !== '1') {
+  const host = directUrl.replace(/^.*@/, '').replace(/[/?].*$/, '')
+  throw new Error(
+    `Refusing to run e2e against a non-local database (${host}).\n` +
+      'This suite creates users and writes workouts. Point DATABASE_URL_DIRECT at a\n' +
+      'local or disposable database, or set E2E_ALLOW_REMOTE_DB=1 if you mean it.',
+  )
+}
+
 export default defineConfig({
   testDir: './e2e',
   fullyParallel: false,

@@ -4,10 +4,11 @@ import { useState } from 'react'
 import { Input } from '@/components/ui/input'
 import { DividerList, DividerRow } from '@/components/ui/divider-list'
 import { EmptyWords } from '@/components/ui/empty-words'
-import { ZONE_LABELS, ZONE_ORDER, type ExerciseZone } from '@/lib/exercise-library'
+import { ZONE_ORDER, type ExerciseZone } from '@/lib/exercise-library'
 import { cn } from '@/lib/utils'
 import { exerciseHref } from './exercise-ref'
 import type { ExerciseSource } from '@/lib/custom-exercise-input'
+import { useTranslations } from 'next-intl'
 
 /**
  * The library list with its name filter — the page's one client island. The
@@ -40,6 +41,7 @@ interface LibraryFilterProps {
 }
 
 export function LibraryFilter({ entries }: LibraryFilterProps) {
+  const t = useTranslations('LibraryFilter')
   const [query, setQuery] = useState('')
   const needle = query.trim().toLowerCase()
   const visible =
@@ -57,29 +59,27 @@ export function LibraryFilter({ entries }: LibraryFilterProps) {
         onChange={(e) => setQuery(e.target.value)}
         type="search"
         inputMode="search"
-        placeholder="Filter exercises"
-        aria-label="Filter exercises by name"
+        placeholder={t('searchPlaceholder')}
+        aria-label={t('searchLabel')}
       />
 
       {entries.length === 0 && (
-        <EmptyWords className="px-5 py-12">
-          Nothing here yet — finish a workout and your exercises show up with their stats.
-        </EmptyWords>
+        <EmptyWords className="px-5 py-12">{t('empty')}</EmptyWords>
       )}
 
       {entries.length > 0 && visible.length === 0 && (
-        <EmptyWords>No exercise matches “{query.trim()}”.</EmptyWords>
+        <EmptyWords>{t('emptyQuery', { query: query.trim() })}</EmptyWords>
       )}
 
       {zones.map(({ zone, items }) => (
-        <section key={zone} aria-label={ZONE_LABELS[zone]}>
+        <section key={zone} aria-label={t(`zone.${zone}`)}>
           <h2
             className={cn(
               'px-1 pb-2 pt-1 font-display text-sm uppercase tracking-widest',
               zone === 'moving' ? 'text-primary' : 'text-muted-foreground',
             )}
           >
-            {ZONE_LABELS[zone]}
+            {t(`zone.${zone}`)}
           </h2>
           {/* De-carded: divider rows on the page background, full-bleed
               hairlines — the shell did nothing the divider doesn't. */}

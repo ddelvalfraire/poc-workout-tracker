@@ -35,9 +35,6 @@ import {
 const ROOT = process.cwd()
 const CATALOG = join(ROOT, 'messages', 'en.json')
 
-/** Longest key we generate from a sentence — beyond this it stops reading like a key. */
-const MAX_KEY_WORDS = 5
-
 export interface Skip {
   file: string
   line: number

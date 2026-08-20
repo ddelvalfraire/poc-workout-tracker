@@ -4,6 +4,7 @@ import type { VercelSnapshot } from '@/lib/ops/vercel'
 import type { HealthchecksSnapshot } from '@/lib/ops/healthchecks'
 import { formatDurationMs, timeAgo } from '@/lib/ops/time'
 import { OpsPanel, statusOf, type OpsPanelStatus } from './panel'
+import { useTranslations } from 'next-intl'
 
 /**
  * Delivery panel: "did the deploy work, and is the cron alive?" — a deploys
@@ -11,6 +12,9 @@ import { OpsPanel, statusOf, type OpsPanelStatus } from './panel'
  * check's recent status flips. Two sources share the panel; each half
  * degrades on its own so a dead Vercel token can't hide a down cron.
  */
+
+/** Vendor deep link — an identifier, not copy. */
+const VERCEL_DASHBOARD_URL = 'https://vercel.com/dashboard'
 
 const STATE_DOT: Record<string, string> = {
   READY: 'bg-emerald-500',
@@ -46,10 +50,11 @@ function combinedStatus(
 }
 
 export function DeliveryPanel({ vercel, healthchecks, className }: DeliveryPanelProps) {
+  const t = useTranslations('DeliveryPanel')
   return (
     <OpsPanel
       id="delivery"
-      title="Delivery"
+      title={t('title')}
       status={combinedStatus(vercel, healthchecks)}
       // Two sources share this panel; surface whichever is served stale.
       staleAt={
@@ -57,18 +62,18 @@ export function DeliveryPanel({ vercel, healthchecks, className }: DeliveryPanel
         (healthchecks.ok ? healthchecks.staleAt : undefined)
       }
       envVar="VERCEL_API_TOKEN"
-      link={{ href: 'https://vercel.com/dashboard', label: 'Vercel' }}
+      link={{ href: VERCEL_DASHBOARD_URL, label: t('linkLabel') }}
       className={className}
     >
       <div className="space-y-5">
-        <section aria-label="Production deployments">
+        <section aria-label={t('deploysLabel')}>
           <h3 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-            Production deploys
+            {t('deploysTitle')}
           </h3>
           {!vercel.ok ? (
             <SourceDown reason={statusOf(vercel)} envVar="VERCEL_API_TOKEN" />
           ) : vercel.data.deployments.length === 0 ? (
-            <p className="mt-2 text-sm text-muted-foreground">No production deployments yet.</p>
+            <p className="mt-2 text-sm text-muted-foreground">{t('deploysEmpty')}</p>
           ) : (
             <div
                 /* A horizontally scrolling region must be reachable by keyboard:
@@ -79,10 +84,10 @@ export function DeliveryPanel({ vercel, healthchecks, className }: DeliveryPanel
               <table className="w-full text-sm">
                 <thead>
                   <tr className="text-left text-xs uppercase tracking-wider text-muted-foreground">
-                    <th className="pb-2 pr-3 font-medium">State</th>
-                    <th className="pb-2 pr-3 font-medium">Commit</th>
-                    <th className="pb-2 pr-3 text-right font-medium">Age</th>
-                    <th className="pb-2 text-right font-medium">Build</th>
+                    <th className="pb-2 pr-3 font-medium">{t('column.state')}</th>
+                    <th className="pb-2 pr-3 font-medium">{t('column.commit')}</th>
+                    <th className="pb-2 pr-3 text-right font-medium">{t('column.age')}</th>
+                    <th className="pb-2 text-right font-medium">{t('column.build')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/60">
@@ -137,14 +142,14 @@ export function DeliveryPanel({ vercel, healthchecks, className }: DeliveryPanel
           )}
         </section>
 
-        <section aria-label="Cron checks">
+        <section aria-label={t('checksLabel')}>
           <h3 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-            Cron checks
+            {t('checksTitle')}
           </h3>
           {!healthchecks.ok ? (
             <SourceDown reason={statusOf(healthchecks)} envVar="HEALTHCHECKS_API_KEY" />
           ) : healthchecks.data.checks.length === 0 ? (
-            <p className="mt-2 text-sm text-muted-foreground">No checks configured.</p>
+            <p className="mt-2 text-sm text-muted-foreground">{t('checksEmpty')}</p>
           ) : (
             <ul className="mt-2 space-y-3">
               {healthchecks.data.checks.map((check) => (
@@ -162,7 +167,7 @@ export function DeliveryPanel({ vercel, healthchecks, className }: DeliveryPanel
                       <span className="text-xs text-muted-foreground">{check.status}</span>
                     </span>
                     <span className="shrink-0 text-xs text-muted-foreground">
-                      ping {timeAgo(check.lastPing) || 'never'}
+                      {t('lastPing', { time: timeAgo(check.lastPing) || t('neverPinged') })}
                     </span>
                   </div>
                   {check.flips.length > 0 && (
@@ -173,7 +178,7 @@ export function DeliveryPanel({ vercel, healthchecks, className }: DeliveryPanel
                           className="flex items-baseline justify-between gap-3 text-xs text-muted-foreground"
                         >
                           <span className={cn(flip.up ? 'text-emerald-500' : 'text-red-400')}>
-                            {flip.up ? '↑ up' : '↓ down'}
+                            {flip.up ? t('flipUp') : t('flipDown')}
                           </span>
                           <span>{timeAgo(flip.timestamp)}</span>
                         </li>
@@ -192,17 +197,19 @@ export function DeliveryPanel({ vercel, healthchecks, className }: DeliveryPanel
 
 /** Inline degrade line for one half of the panel. */
 function SourceDown({ reason, envVar }: { reason: OpsPanelStatus; envVar: string }) {
+  const t = useTranslations('DeliveryPanel')
   return (
     <p className="mt-2 text-sm text-muted-foreground">
-      {reason === 'unconfigured' ? (
-        <>
-          Set{' '}
-          <code className="rounded bg-muted px-1.5 py-0.5 text-xs text-foreground">{envVar}</code>{' '}
-          to light this up.
-        </>
-      ) : (
-        'Upstream did not respond. It refreshes on reload.'
-      )}
+      {reason === 'unconfigured'
+        ? // ONE message with a tag: the env var sits mid-sentence in English
+          // and can move anywhere in translation.
+          t.rich('unconfigured', {
+            envVar,
+            code: (chunks) => (
+              <code className="rounded bg-muted px-1.5 py-0.5 text-xs text-foreground">{chunks}</code>
+            ),
+          })
+        : t('degraded')}
     </p>
   )
 }

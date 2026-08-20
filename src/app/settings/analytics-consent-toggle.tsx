@@ -35,7 +35,7 @@ export function AnalyticsConsentToggle({ granted }: { granted: boolean }) {
         await setAnalyticsConsentAction(!granted)
         router.refresh()
       } catch {
-        setError('Could not save your choice. Please try again.')
+        setError(t('saveError'))
       }
     })
   }
@@ -47,7 +47,7 @@ export function AnalyticsConsentToggle({ granted }: { granted: boolean }) {
         type="button"
         role="switch"
         aria-checked={shown}
-        aria-label="Analytics identity"
+        aria-label={t('ariaLabel')}
         aria-describedby={gpc ? 'settings-gpc-note' : undefined}
         disabled={isPending || gpc}
         onClick={toggle}

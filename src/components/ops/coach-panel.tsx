@@ -4,6 +4,7 @@ import { shortDayLabel, timeAgo } from '@/lib/ops/time'
 import { fillDailySeries } from '@/lib/ops/series'
 import { OpsPanel, statusOf } from './panel'
 import { CoachChart, type CoachChartPoint } from './coach-chart'
+import { useTranslations } from 'next-intl'
 
 /**
  * Coach panel: "what is the coach doing and costing?" — 14-day traces/cost
@@ -13,6 +14,11 @@ import { CoachChart, type CoachChartPoint } from './coach-chart'
  */
 
 const CHART_WINDOW_DAYS = 14
+
+/** Vendor deep link and the locale the ops board formats numbers in — both
+ *  identifiers, not copy. */
+const LANGFUSE_DASHBOARD_URL = 'https://cloud.langfuse.com/'
+const NUMBER_LOCALE = 'en-US'
 
 interface CoachPanelProps {
   daily: OpsResult<LangfuseSnapshot>
@@ -43,38 +49,45 @@ const timeFmt = new Intl.DateTimeFormat('en-US', {
 })
 
 export function CoachPanel({ daily, traces, className }: CoachPanelProps) {
+  const t = useTranslations('CoachPanel')
   return (
     <OpsPanel
       id="coach"
-      title="Coach"
+      title={t('title')}
       status={statusOf(daily)}
       staleAt={daily.ok ? daily.staleAt : undefined}
       envVar="LANGFUSE_PUBLIC_KEY"
-      link={{ href: 'https://cloud.langfuse.com/', label: 'Langfuse' }}
+      link={{ href: LANGFUSE_DASHBOARD_URL, label: t('linkLabel') }}
       className={className}
     >
       {daily.ok && (
         <>
           <dl className="flex flex-wrap gap-x-8 gap-y-2">
-            <Headline label="Traces 14d" value={String(daily.data.totalTraces)} />
-            <Headline label="Cost 14d" value={`$${daily.data.totalCost.toFixed(2)}`} />
-            <Headline label="Cost 7d" value={`$${daily.data.totalCost7d.toFixed(2)}`} />
+            <Headline label={t('traces14dLabel')} value={String(daily.data.totalTraces)} />
+            <Headline
+              label={t('cost14dLabel')}
+              value={t('costAmount', { amount: daily.data.totalCost.toFixed(2) })}
+            />
+            <Headline
+              label={t('cost7dLabel')}
+              value={t('costAmount', { amount: daily.data.totalCost7d.toFixed(2) })}
+            />
           </dl>
 
           <div className="mt-4">
             <CoachChart points={chartPoints(daily.data)} />
           </div>
 
-          <section aria-label="Recent generations" className="mt-5">
+          <section aria-label={t('generationsLabel')} className="mt-5">
             <h3 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-              Recent generations
+              {t('generationsTitle')}
             </h3>
             {!traces.ok ? (
               <p className="mt-2 text-sm text-muted-foreground">
-                Traces list unavailable. It refreshes on reload.
+                {t('tracesUnavailable')}
               </p>
             ) : traces.data.traces.length === 0 ? (
-              <p className="mt-2 text-sm text-muted-foreground">No generations yet.</p>
+              <p className="mt-2 text-sm text-muted-foreground">{t('empty')}</p>
             ) : (
               <div
                 /* A horizontally scrolling region must be reachable by keyboard:
@@ -85,12 +98,12 @@ export function CoachPanel({ daily, traces, className }: CoachPanelProps) {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="text-left text-xs uppercase tracking-wider text-muted-foreground">
-                      <th className="pb-2 pr-3 font-medium">When (UTC)</th>
-                      <th className="pb-2 pr-3 font-medium">Name</th>
-                      <th className="pb-2 pr-3 font-medium">Model</th>
-                      <th className="pb-2 pr-3 text-right font-medium">Latency</th>
-                      <th className="pb-2 pr-3 text-right font-medium">Tokens</th>
-                      <th className="pb-2 text-right font-medium">Cost</th>
+                      <th className="pb-2 pr-3 font-medium">{t('column.time')}</th>
+                      <th className="pb-2 pr-3 font-medium">{t('column.name')}</th>
+                      <th className="pb-2 pr-3 font-medium">{t('column.model')}</th>
+                      <th className="pb-2 pr-3 text-right font-medium">{t('column.latency')}</th>
+                      <th className="pb-2 pr-3 text-right font-medium">{t('column.tokens')}</th>
+                      <th className="pb-2 text-right font-medium">{t('column.cost')}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border/60">
@@ -108,14 +121,14 @@ export function CoachPanel({ daily, traces, className }: CoachPanelProps) {
                         </td>
                         <td className="whitespace-nowrap py-1.5 pr-3 text-right text-xs tnum">
                           {trace.latencyMs !== null
-                            ? `${(trace.latencyMs / 1000).toFixed(1)}s`
+                            ? t('latencyValue', { seconds: (trace.latencyMs / 1000).toFixed(1) })
                             : '—'}
                         </td>
                         <td className="whitespace-nowrap py-1.5 pr-3 text-right text-xs tnum">
-                          {trace.tokens.toLocaleString('en-US')}
+                          {trace.tokens.toLocaleString(NUMBER_LOCALE)}
                         </td>
                         <td className="whitespace-nowrap py-1.5 text-right text-xs tnum">
-                          ${trace.totalCost.toFixed(4)}
+                          {t('costAmount', { amount: trace.totalCost.toFixed(4) })}
                         </td>
                       </tr>
                     ))}

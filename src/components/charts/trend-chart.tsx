@@ -8,7 +8,20 @@ import {
   ChartTooltipContent,
   type ChartConfig,
 } from '@/components/ui/chart'
+import { useTranslations } from 'next-intl'
 import { cn } from '@/lib/utils'
+
+// Recharts geometry, hoisted out of the JSX: these are chart configuration
+// (axis domains, dot and label styling), never user-visible copy.
+const TIME_DOMAIN = ['dataMin', 'dataMax'] as const
+const AUTO_DOMAIN = ['auto', 'auto'] as const
+const TARGET_LABEL_STYLE = {
+  position: 'insideTopRight',
+  fill: 'var(--muted-foreground)',
+  fontSize: 10,
+} as const
+const RAW_DOT = { r: 1.5, fill: 'var(--color-raw)', strokeWidth: 0, fillOpacity: 0.45 }
+const RAW_ACTIVE_DOT = { r: 3, fill: 'var(--color-raw)' }
 
 /**
  * The app's one time-series chart: a single-series area trend with a
@@ -104,6 +117,7 @@ export function TrendChart({
   rawLabel,
   className,
 }: TrendChartProps) {
+  const t = useTranslations('TrendChart')
   const hasRaw = points.some((p) => p.raw !== undefined)
   const hasPr = points.some((p) => p.pr === true)
   // Time-true axis only when every point is stamped — a mixed series would
@@ -111,7 +125,7 @@ export function TrendChart({
   const isTimeAxis = points.length > 0 && points.every((p) => p.t !== undefined)
   const config: ChartConfig = {
     value: { label: valueLabel, color: 'var(--primary)' },
-    ...(hasRaw ? { raw: { label: rawLabel ?? 'Raw', color: 'var(--muted-foreground)' } } : {}),
+    ...(hasRaw ? { raw: { label: rawLabel ?? t('rawSeriesLabel'), color: 'var(--muted-foreground)' } } : {}),
   }
   return (
     <ChartContainer
@@ -130,7 +144,7 @@ export function TrendChart({
             dataKey="t"
             type="number"
             scale="time"
-            domain={['dataMin', 'dataMax']}
+            domain={TIME_DOMAIN}
             tickLine={false}
             axisLine={false}
             tickMargin={8}
@@ -153,7 +167,7 @@ export function TrendChart({
           tickLine={false}
           axisLine={false}
           tickMargin={4}
-          domain={['auto', 'auto']}
+          domain={AUTO_DOMAIN}
           tickFormatter={(v: number) => `${Math.round(v)}`}
         />
         <ChartTooltip
@@ -192,12 +206,7 @@ export function TrendChart({
             stroke="var(--color-value)"
             strokeDasharray="4 4"
             strokeOpacity={0.6}
-            label={{
-              value: targetLabel ?? 'Target',
-              position: 'insideTopRight',
-              fill: 'var(--muted-foreground)',
-              fontSize: 10,
-            }}
+            label={{ value: targetLabel ?? t('targetSeriesLabel'), ...TARGET_LABEL_STYLE }}
           />
         )}
         {hasRaw && (
@@ -205,8 +214,8 @@ export function TrendChart({
           <Line
             dataKey="raw"
             stroke="none"
-            dot={{ r: 1.5, fill: 'var(--color-raw)', strokeWidth: 0, fillOpacity: 0.45 }}
-            activeDot={{ r: 3, fill: 'var(--color-raw)' }}
+            dot={RAW_DOT}
+            activeDot={RAW_ACTIVE_DOT}
             isAnimationActive={false}
           />
         )}

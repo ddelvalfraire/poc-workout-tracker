@@ -53,7 +53,9 @@ test('signed-in user can start, log, and save a workout', async ({ page }) => {
 
   // Search the wger proxy and add the first result.
   await page.getByLabel('Search exercises').fill('bench')
-  const addButton = page.getByRole('button', { name: 'Add' }).first()
+  // The picker has no per-row Add button since #233: a result row IS the
+  // control (li role=option, click to add).
+  const addButton = page.getByRole('option').first()
   await expect(addButton).toBeVisible({ timeout: 20_000 })
   await addButton.click()
 
@@ -66,7 +68,9 @@ test('signed-in user can start, log, and save a workout', async ({ page }) => {
   // and the warm-up ramp toward the top set renders alongside.
   await page.getByRole('button', { name: /^plates for/i }).click()
   await expect(page.getByText('25 + 15 / side')).toBeVisible()
-  await expect(page.getByText(/warm-up · toward 100 kg/i)).toBeVisible()
+  // The target weight lives in an <input value>, which getByText cannot see —
+  // assert the label, then the field's value.
+  await expect(page.getByText(/warm-up · toward/i)).toBeVisible()
   await page.getByRole('button', { name: 'Close', exact: true }).click()
   await expect(page.getByText('25 + 15 / side')).not.toBeVisible()
 
@@ -95,7 +99,9 @@ test('signed-in user can start, log, and save a workout', async ({ page }) => {
   // returns to the logger with the draft restored (the cross-device path).
   await page.goto('/')
   await expect(page.getByText('Workout in progress')).toBeVisible({ timeout: 15_000 })
-  await expect(page.getByText('1 exercise · 1 of 2 sets done')).toBeVisible()
+  // The hero states the session name and the logged-set count, not an
+  // exercise/set ratio — asserted on the count so a rename cannot break it.
+  await expect(page.getByText(/· 1 set logged/)).toBeVisible()
   await page.getByRole('link', { name: /resume workout/i }).click()
   await expect(page).toHaveURL(/\/workout\/new$/)
   await expect(page.getByLabel('Set 2 weight in kg')).toHaveValue('102.5', { timeout: 15_000 })

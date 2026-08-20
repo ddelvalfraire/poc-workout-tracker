@@ -3,6 +3,7 @@
 import type { ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import { ChevronLeft } from 'lucide-react'
+import { useTranslations } from 'next-intl'
 import { navigateBack } from '@/lib/back-navigation'
 import { buttonVariants } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -31,15 +32,16 @@ interface BackLinkProps {
  */
 export function BackLink({
   fallback,
-  'aria-label': ariaLabel = 'Back',
+  'aria-label': ariaLabel,
   className,
   children,
 }: BackLinkProps) {
+  const t = useTranslations('BackLink')
   const router = useRouter()
   return (
     <button
       type="button"
-      aria-label={ariaLabel}
+      aria-label={ariaLabel ?? t('ariaLabel')}
       onClick={() => navigateBack(router, fallback)}
       className={cn(buttonVariants({ variant: 'ghost', size: 'icon-sm' }), '-ml-2', className)}
     >

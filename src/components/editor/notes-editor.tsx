@@ -5,6 +5,7 @@ import { Bold, Italic, Link2, List, ListOrdered } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { notesExtensions, type NotesEditorVariant } from './extensions'
+import { useTranslations } from 'next-intl'
 
 /**
  * The ONE rich-text editor, two variants (plan §7): `quick` (QuickCapture —
@@ -64,6 +65,7 @@ export function NotesEditor({
   ariaLabel,
   autofocus = false,
 }: NotesEditorProps) {
+  const t = useTranslations('NotesEditor')
   const editor = useEditor({
     extensions: notesExtensions(),
     content: initialMarkdown,
@@ -113,7 +115,7 @@ export function NotesEditor({
     const existing = editor.getAttributes('link').href as string | undefined
     // window.prompt is deliberate: a one-field URL ask doesn't earn a second
     // sheet, and it can't collide with the dialog vocabulary mid-edit.
-    const url = window.prompt('Link URL', existing ?? 'https://')
+    const url = window.prompt(t('linkPrompt'), existing ?? 'https://')
     if (url === null) return
     const trimmed = url.trim()
     if (trimmed === '' || trimmed === 'https://') {
@@ -132,58 +134,58 @@ export function NotesEditor({
           keyboard, where marks are reachable without covering the text. */}
       <div
         role="toolbar"
-        aria-label="Formatting"
+        aria-label={t('toolbarLabel')}
         className="flex items-center gap-1 border-t border-border px-1 py-0.5"
       >
         <ToolbarButton
-          label="Bold"
+          label={t('boldLabel')}
           active={active?.bold ?? false}
           onClick={() => editor?.chain().focus().toggleBold().run()}
         >
           <Bold aria-hidden="true" className="size-4" />
         </ToolbarButton>
         <ToolbarButton
-          label="Italic"
+          label={t('italicLabel')}
           active={active?.italic ?? false}
           onClick={() => editor?.chain().focus().toggleItalic().run()}
         >
           <Italic aria-hidden="true" className="size-4" />
         </ToolbarButton>
         <ToolbarButton
-          label="Bullet list"
+          label={t('bulletListLabel')}
           active={active?.bulletList ?? false}
           onClick={() => editor?.chain().focus().toggleBulletList().run()}
         >
           <List aria-hidden="true" className="size-4" />
         </ToolbarButton>
         <ToolbarButton
-          label="Numbered list"
+          label={t('numberedListLabel')}
           active={active?.orderedList ?? false}
           onClick={() => editor?.chain().focus().toggleOrderedList().run()}
         >
           <ListOrdered aria-hidden="true" className="size-4" />
         </ToolbarButton>
-        <ToolbarButton label="Link" active={active?.link ?? false} onClick={setLink}>
+        <ToolbarButton label={t('linkLabel')} active={active?.link ?? false} onClick={setLink}>
           <Link2 aria-hidden="true" className="size-4" />
         </ToolbarButton>
         {variant === 'full' && (
           <>
             <ToolbarButton
-              label="Heading"
+              label={t('headingLabel')}
               active={active?.h2 ?? false}
               onClick={() => editor?.chain().focus().toggleHeading({ level: 2 }).run()}
             >
               <span aria-hidden="true" className="text-xs font-bold">
-                H2
+                {t('headingAbbr')}
               </span>
             </ToolbarButton>
             <ToolbarButton
-              label="Subheading"
+              label={t('subheadingLabel')}
               active={active?.h3 ?? false}
               onClick={() => editor?.chain().focus().toggleHeading({ level: 3 }).run()}
             >
               <span aria-hidden="true" className="text-xs font-bold">
-                H3
+                {t('subheadingAbbr')}
               </span>
             </ToolbarButton>
           </>

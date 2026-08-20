@@ -11,6 +11,7 @@ import { buttonVariants } from '@/components/ui/button'
 import { EmptyWords } from '@/components/ui/empty-words'
 import { HistoryList } from '../history-list'
 import { historyStatusLine, monthBuckets } from './history-view'
+import { getTranslations } from 'next-intl/server'
 
 /**
  * /history — the full training log, moved off home (WHOOP tier discipline:
@@ -26,6 +27,7 @@ import { historyStatusLine, monthBuckets } from './history-view'
  * already in memory.
  */
 export default async function HistoryPage() {
+  const t = await getTranslations('History')
   const userId = await requireUserId()
   const [summaries, unit, drafts] = await Promise.all([
     listWorkoutSummaries(userId),
@@ -50,7 +52,7 @@ export default async function HistoryPage() {
   return (
     <div className="flex min-h-[100dvh] flex-col">
       <AppHeader
-        title="History"
+        title={t('title')}
         leading={
           <BackLink fallback="/" />
         }
@@ -60,7 +62,7 @@ export default async function HistoryPage() {
         {completed.length === 0 ? (
           <>
             <EmptyWords>
-              No workouts yet — finished sessions land here, your full training log.
+              {t('empty')}
             </EmptyWords>
             {/* The empty state is an invitation, not a dead end. Guarded like
                 every other start CTA (single-active-session rule). */}
@@ -70,7 +72,7 @@ export default async function HistoryPage() {
                 session={guardSession}
                 className={buttonVariants({ className: 'mt-2' })}
               >
-                Start your first workout
+                {t('startAction')}
               </GuardedStartLink>
             </div>
           </>
@@ -90,7 +92,7 @@ export default async function HistoryPage() {
                       {bucket.label}
                     </span>
                     <span className="text-sm text-muted-foreground tnum">
-                      · {bucket.sessions} session{bucket.sessions === 1 ? '' : 's'}
+                      {t('bucketSessions', { count: bucket.sessions })}
                       {bucket.volumeKg > 0 && <> · {formatVolume(bucket.volumeKg, unit)}</>}
                     </span>
                   </h2>

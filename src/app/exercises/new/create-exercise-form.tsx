@@ -12,6 +12,7 @@ import { CATALOG_MUSCLE_NAMES } from '@/lib/muscle-groups'
 import { markReplace, navigateBack } from '@/lib/back-navigation'
 import { storePendingPick, type PendingPickExercise } from '@/app/workout/new/pending-pick'
 import { cn } from '@/lib/utils'
+import { useTranslations } from 'next-intl'
 
 /**
  * The #218 create form: the picker's inline CreateCustomForm vocabulary
@@ -46,11 +47,6 @@ interface CatalogEntry {
   category: string
 }
 
-const PRIMARY_LABEL: Record<'swap' | 'add', string> = {
-  swap: 'Save & replace',
-  add: 'Save & add',
-}
-
 async function fetchExercises(url: string, signal: AbortSignal): Promise<CatalogEntry[]> {
   const res = await fetch(url, { signal })
   if (!res.ok) throw new Error(`request failed: ${res.status}`)
@@ -58,6 +54,7 @@ async function fetchExercises(url: string, signal: AbortSignal): Promise<Catalog
 }
 
 export function CreateExerciseForm({ initialName, returnMode, targetId }: CreateExerciseFormProps) {
+  const t = useTranslations('CreateExerciseForm')
   const router = useRouter()
   const queryClient = useQueryClient()
   const [name, setName] = useState(initialName)
@@ -126,11 +123,11 @@ export function CreateExerciseForm({ initialName, returnMode, targetId }: Create
   async function handleSave() {
     const trimmed = name.trim()
     if (trimmed.length === 0) {
-      setError('Give it a name.')
+      setError(t('validationName'))
       return
     }
     if (category === '') {
-      setError('Pick a category.')
+      setError(t('validationCategory'))
       return
     }
     setError(null)
@@ -166,7 +163,7 @@ export function CreateExerciseForm({ initialName, returnMode, targetId }: Create
       markReplace()
       router.replace(`/exercises/custom/${created.id}`)
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Could not create the exercise.')
+      setError(err instanceof Error ? err.message : t('createError'))
       setIsSaving(false)
     }
   }
@@ -182,19 +179,19 @@ export function CreateExerciseForm({ initialName, returnMode, targetId }: Create
           setName(e.target.value)
           setDupWarnedFor(null) // a new name gets a fresh guard pass
         }}
-        aria-label="Custom exercise name"
-        placeholder="Name"
+        aria-label={t('nameLabel')}
+        placeholder={t('namePlaceholder')}
       />
       <select
         value={category}
         onChange={(e) => setCategory(e.target.value)}
-        aria-label="Category"
+        aria-label={t('categoryLabel')}
         // The Input field vocabulary (44px, 16px text, ring focus) on a raw
         // select — the picker form's exact recipe.
         className="h-11 w-full rounded-lg border border-input bg-transparent px-3 text-base outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
       >
         <option value="" disabled>
-          Category…
+          {t('categoryPlaceholder')}
         </option>
         {EXERCISE_CATEGORIES.map((c) => (
           <option key={c} value={c}>
@@ -203,10 +200,8 @@ export function CreateExerciseForm({ initialName, returnMode, targetId }: Create
         ))}
       </select>
 
-      <Section title="Primary muscles" className="mt-6">
-        <p className="mt-1 text-xs text-muted-foreground">
-          Optional — they feed muscle volume and replacement suggestions.
-        </p>
+      <Section title={t('musclesTitle')} className="mt-6">
+        <p className="mt-1 text-xs text-muted-foreground">{t('musclesHint')}</p>
         <div className="mt-3 flex flex-wrap gap-1.5 border-b border-b-border/60 pb-4">
           {CATALOG_MUSCLE_NAMES.map((muscle) => (
             <button
@@ -235,11 +230,14 @@ export function CreateExerciseForm({ initialName, returnMode, targetId }: Create
         // button now reads as "create anyway".
         <div className="flex items-center justify-between gap-3 border-b border-b-border/60 pb-3">
           <p className="text-sm text-muted-foreground">
-            “{duplicate.name}” already exists
-            {(duplicate.source ?? 'wger') === 'custom' ? ' in your exercises' : ' in the catalog'}.
+            {/* A whole sentence per case: English appends the WHERE clause,
+                other languages will not. */}
+            {(duplicate.source ?? 'wger') === 'custom'
+              ? t('duplicateCustom', { name: duplicate.name })
+              : t('duplicateCatalog', { name: duplicate.name })}
           </p>
           <Button size="sm" variant="outline" onClick={() => handleUseExisting(duplicate)}>
-            Use existing
+            {t('useExistingAction')}
           </Button>
         </div>
       )}
@@ -248,10 +246,12 @@ export function CreateExerciseForm({ initialName, returnMode, targetId }: Create
 
       <Button className="mt-2 w-full" onClick={handleSave} disabled={isSaving}>
         {isSaving
-          ? 'Saving…'
+          ? t('saving')
           : returnMode !== null
-            ? PRIMARY_LABEL[returnMode]
-            : 'Save'}
+            ? // Keyed by return mode — the label map used to live at module
+              // scope, where no locale exists yet.
+              t(`primaryAction.${returnMode}`)
+            : t('save')}
       </Button>
     </div>
   )

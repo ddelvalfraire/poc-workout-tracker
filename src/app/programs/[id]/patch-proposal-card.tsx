@@ -8,6 +8,7 @@ import {
   confirmPatchProposalAction,
   declinePatchProposalAction,
 } from '@/app/programs/actions'
+import { useTranslations } from 'next-intl'
 
 /**
  * The approval card for a batch-patch proposal (proposals plan §3) — the chat
@@ -32,6 +33,7 @@ export function PatchProposalCard({
   ageLine: string
   sentences: string[]
 }) {
+  const t = useTranslations('PatchProposalCard')
   const [isPending, setIsPending] = useState(false)
   const [isDeclineOpen, setIsDeclineOpen] = useState(false)
   // Apply errors render on the card (its button lives here); decline's render
@@ -58,7 +60,7 @@ export function PatchProposalCard({
       setApplyError(
         error instanceof Error && error.message.length > 0
           ? error.message
-          : 'Could not apply these changes. Please try again.',
+          : t('applyError'),
       )
     } finally {
       // The card stays mounted (refresh, not push) — always re-enable.
@@ -76,7 +78,7 @@ export function PatchProposalCard({
       router.refresh()
     } catch {
       // The dialog stays open: the error renders inside it, retry in place.
-      setDeclineError('Could not decline this proposal. Please try again.')
+      setDeclineError(t('declineError'))
     } finally {
       setIsPending(false)
     }
@@ -84,7 +86,7 @@ export function PatchProposalCard({
 
   return (
     <section
-      aria-label="Proposed changes"
+      aria-label={t('ariaLabel')}
       className="mt-4 rounded-2xl border border-primary/40 bg-card p-4"
     >
       <p className="text-[11px] font-semibold uppercase tracking-widest text-primary">{eyebrow}</p>
@@ -100,7 +102,7 @@ export function PatchProposalCard({
       </ul>
       <div className="mt-3 flex items-center gap-2">
         <Button className="flex-1" disabled={isPending} onClick={handleConfirm}>
-          Apply all
+          {t('applyAction')}
         </Button>
         <Button
           variant="ghost"
@@ -111,16 +113,16 @@ export function PatchProposalCard({
             setIsDeclineOpen(true)
           }}
         >
-          Decline
+          {t('declineAction')}
         </Button>
       </div>
       {applyError && <p className="mt-2 text-sm text-destructive">{applyError}</p>}
       {isDeclineOpen && (
         <ConfirmDialog
-          title="Decline these changes?"
-          body="The proposed changes are discarded. Your program stays exactly as it is."
-          confirmLabel="Decline"
-          pendingLabel="Declining…"
+          title={t('declineDialog.title')}
+          body={t('declineDialog.body')}
+          confirmLabel={t('declineDialog.confirm')}
+          pendingLabel={t('declineDialog.pending')}
           error={declineError}
           isPending={isPending}
           onConfirm={handleDecline}

@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+import { withIntl } from '../../../../vitest.intl'
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -112,9 +113,11 @@ describe('note capture volt budget + dot legibility', () => {
     const client = new QueryClient({ defaultOptions: { queries: { enabled: false } } })
     act(() => {
       root.render(
-        <QueryClientProvider client={client}>
-          <WorkoutLogger title="New Workout" closeHref="/" initialDraft={draft()} />
-        </QueryClientProvider>,
+        withIntl(
+          <QueryClientProvider client={client}>
+            <WorkoutLogger title="New Workout" closeHref="/" initialDraft={draft()} />
+          </QueryClientProvider>,
+        ),
       )
     })
   })

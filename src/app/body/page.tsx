@@ -17,6 +17,7 @@ import { BodyweightEntryRow } from './entry-row'
 import { MeasurementsSection } from './measurements-section'
 import { PhotosSection } from './photos-section'
 import type { PhotoEntry } from './photo-cell'
+import { getTranslations } from 'next-intl/server'
 
 // The delta window the trend hero reports against ("Trending down — 1.2 lb / 30d").
 const DELTA_DAYS = 30
@@ -33,6 +34,7 @@ const HISTORY_VISIBLE_ROWS = 5
  * here. Server component — the interactive bits are small client islands.
  */
 export default async function BodyPage() {
+  const t = await getTranslations('Body')
   const userId = await requireUserId()
   const [unit, logs, measurements, photos, activeGoals] = await Promise.all([
     getWeightUnit(userId),
@@ -85,22 +87,22 @@ export default async function BodyPage() {
   return (
     <div className="flex min-h-[100dvh] flex-col">
       <AppHeader
-        title="Body"
+        title={t('title')}
         leading={<NavDrawer />}
       />
 
       <main className="mx-auto w-full max-w-md flex-1 px-5 pb-safe">
         {/* ── Bodyweight ─────────────────────────────────────────────── */}
-        <section aria-label="Bodyweight" className="mt-6">
+        <section aria-label={t('bodyweight.groupLabel')} className="mt-6">
           <h2 className="px-1 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-            Bodyweight
+            {t('bodyweight.title')}
           </h2>
 
           {/* Status: the TREND weight leads; the raw reading is context. */}
           <div className="mt-3">
             {current && trendNow ? (
               <>
-                <p className="text-sm text-muted-foreground">Trend weight</p>
+                <p className="text-sm text-muted-foreground">{t('bodyweight.trendLabel')}</p>
                 {/* Proportional figures at display size — tabular is for columns
                     (set tables, ticks), where digits must align vertically. */}
                 <p className="mt-1 font-display text-4xl leading-none">
@@ -109,33 +111,46 @@ export default async function BodyPage() {
                 </p>
                 {trendDeltaKg !== null && (
                   <p className="mt-1.5 text-sm text-muted-foreground">
-                    {directionLine(trendDeltaKg, unit)} / {DELTA_DAYS}d
+                    {t('bodyweight.deltaSummary', {
+                      direction: deltaDirection(trendDeltaKg, unit),
+                      value: roundDisplay(kgToDisplay(Math.abs(trendDeltaKg), unit)),
+                      unit,
+                      days: DELTA_DAYS,
+                    })}
                   </p>
                 )}
                 <p className="mt-1 text-xs text-muted-foreground tnum">
-                  Last weigh-in {kgToDisplay(current.weightKg, unit)} {unit} ·{' '}
-                  {formatWorkoutDate(current.weighedAt)}
+                  {t('bodyweight.rawReading', {
+                    value: kgToDisplay(current.weightKg, unit),
+                    unit,
+                    date: formatWorkoutDate(current.weighedAt),
+                  })}
                 </p>
               </>
             ) : (
               // Teach line, not a bare dash: the value exists to power est. 1RM.
               <p className="text-sm text-muted-foreground">
-                Log your first weigh-in — bodyweight exercises use it for est. 1RM.
+                {t('bodyweight.empty')}
               </p>
             )}
           </div>
 
           {/* Visualization — trend line over faint raw dots, goal as target. */}
           {trendPoints.length >= 2 && (
-            <div role="group" aria-label="Bodyweight trend" className="mt-6">
+            <div role="group" aria-label={t('bodyweight.trendGroupLabel')} className="mt-6">
               <TrendChart
                 points={trendPoints}
                 unit={unit}
-                valueLabel="Trend"
-                rawLabel="Weigh-in"
-                ariaLabel={`Bodyweight trend, ${trendPoints[0].value} to ${trendPoints[trendPoints.length - 1].value} ${unit} over ${trendPoints.length} entries`}
+                valueLabel={t('bodyweight.seriesTrend')}
+                rawLabel={t('bodyweight.seriesRaw')}
+                ariaLabel={t('bodyweight.chartLabel', {
+                  from: trendPoints[0].value,
+                  to: trendPoints[trendPoints.length - 1].value,
+                  unit,
+                  count: trendPoints.length,
+                })}
                 targetValue={targetKg !== null ? kgToDisplay(targetKg, unit) : undefined}
-                targetLabel="Goal"
+                targetLabel={t('bodyweight.seriesTarget')}
               />
             </div>
           )}
@@ -149,7 +164,7 @@ export default async function BodyPage() {
           {logs.length > 0 && (
             <>
               <ul
-                aria-label="Weigh-in history"
+                aria-label={t('bodyweight.historyGroupLabel')}
                 className="mt-6 divide-y divide-border/60 border-b border-b-border/60"
               >
                 {logs.slice(0, HISTORY_VISIBLE_ROWS).map((log) => (
@@ -157,21 +172,24 @@ export default async function BodyPage() {
                     key={log.id}
                     id={log.id}
                     dateLabel={formatWorkoutDate(log.weighedAt)}
-                    weightLabel={`${kgToDisplay(log.weightKg, unit)} ${unit}`}
+                    weightLabel={t('bodyweight.weightValue', {
+                      value: kgToDisplay(log.weightKg, unit),
+                      unit,
+                    })}
                   />
                 ))}
               </ul>
               {logs.length > HISTORY_VISIBLE_ROWS && (
                 <details className="group mt-2">
                   <summary className="flex cursor-pointer list-none items-center gap-1 px-1 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground [&::-webkit-details-marker]:hidden">
-                    All weigh-ins · {logs.length}
+                    {t('bodyweight.showAll', { count: logs.length })}
                     <ChevronRight
                       aria-hidden="true"
                       className="size-3.5 transition-transform group-open:rotate-90"
                     />
                   </summary>
                   <ul
-                    aria-label="Older weigh-ins"
+                    aria-label={t('bodyweight.olderGroupLabel')}
                     className="mt-2 divide-y divide-border/60 border-b border-b-border/60"
                   >
                     {logs.slice(HISTORY_VISIBLE_ROWS).map((log) => (
@@ -179,7 +197,10 @@ export default async function BodyPage() {
                         key={log.id}
                         id={log.id}
                         dateLabel={formatWorkoutDate(log.weighedAt)}
-                        weightLabel={`${kgToDisplay(log.weightKg, unit)} ${unit}`}
+                        weightLabel={t('bodyweight.weightValue', {
+                      value: kgToDisplay(log.weightKg, unit),
+                      unit,
+                    })}
                       />
                     ))}
                   </ul>
@@ -190,9 +211,9 @@ export default async function BodyPage() {
         </section>
 
         {/* ── Measurements ───────────────────────────────────────────── */}
-        <section aria-label="Measurements" className="mt-10">
+        <section aria-label={t('measurements.groupLabel')} className="mt-10">
           <h2 className="px-1 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-            Measurements
+            {t('measurements.title')}
           </h2>
           <div className="mt-3">
             <MeasurementsSection unit={lengthUnit} entries={measurementEntries} />
@@ -200,9 +221,9 @@ export default async function BodyPage() {
         </section>
 
         {/* ── Photos ─────────────────────────────────────────────────── */}
-        <section aria-label="Progress photos" className="mt-10">
+        <section aria-label={t('photos.groupLabel')} className="mt-10">
           <h2 className="px-1 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-            Progress photos
+            {t('photos.title')}
           </h2>
           <div className="mt-3">
             <PhotosSection entries={photoEntries} />
@@ -248,9 +269,11 @@ function roundDisplay(value: number): number {
   return Math.round(value * 10) / 10
 }
 
-/** "Trending down — 1.2 lb" / "Holding steady" — the editorial direction. */
-function directionLine(deltaKg: number, unit: WeightUnit): string {
+/** Which branch of the delta message applies. The sentence itself lives in
+ *  the catalog as one ICU select — a direction word built here could not be
+ *  translated, and gluing it to the rest fixes an English word order. */
+function deltaDirection(deltaKg: number, unit: WeightUnit): 'steady' | 'down' | 'up' {
   const display = Math.round(kgToDisplay(Math.abs(deltaKg), unit) * 10) / 10
-  if (display === 0) return 'Holding steady'
-  return `Trending ${deltaKg < 0 ? 'down' : 'up'} — ${display} ${unit}`
+  if (display === 0) return 'steady'
+  return deltaKg < 0 ? 'down' : 'up'
 }

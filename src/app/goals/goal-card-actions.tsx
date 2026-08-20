@@ -42,7 +42,7 @@ export function GoalCardActions({ id, label, archived }: GoalCardActionsProps) {
         await archiveGoalAction(id)
         router.refresh()
       } catch {
-        setError('Could not archive the goal.')
+        setError(t('archiveError'))
       }
     })
   }
@@ -55,7 +55,7 @@ export function GoalCardActions({ id, label, archived }: GoalCardActionsProps) {
         setConfirmingDelete(false)
         router.refresh()
       } catch {
-        setError('Could not delete the goal.')
+        setError(t('deleteError'))
       }
     })
   }
@@ -67,7 +67,7 @@ export function GoalCardActions({ id, label, archived }: GoalCardActionsProps) {
     <div className="relative shrink-0">
       <details ref={detailsRef} className="group">
         <summary
-          aria-label={`Actions for ${label}`}
+          aria-label={t('menuLabel', { label })}
           className="flex size-8 cursor-pointer list-none items-center justify-center rounded-full text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 group-open:bg-muted [&::-webkit-details-marker]:hidden"
         >
           <Ellipsis aria-hidden="true" className="size-4" />

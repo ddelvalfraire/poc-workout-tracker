@@ -15,6 +15,9 @@ import {
  * tooltip. Client island: recharts renders client-side.
  */
 
+/** Chart geometry, not copy — hoisted so the JSX carries no bare literals. */
+const MINI_DOMAIN = [0, 'auto'] as const
+
 export interface MiniBarPoint {
   /** Pre-formatted day label ("Jul 19"). */
   label: string
@@ -43,7 +46,7 @@ export function MiniBarChart({ points, valueLabel, ariaLabel }: MiniBarChartProp
           minTickGap={48}
           fontSize={10}
         />
-        <YAxis hide domain={[0, 'auto']} />
+        <YAxis hide domain={MINI_DOMAIN} />
         <ChartTooltip cursor={{ fillOpacity: 0.06 }} content={<ChartTooltipContent />} />
         <Bar dataKey="value" fill="var(--color-value)" radius={2} />
       </BarChart>

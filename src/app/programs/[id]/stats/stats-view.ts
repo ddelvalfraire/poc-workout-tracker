@@ -9,12 +9,18 @@ import type {
 import type { VolumeWeek } from '@/db/volume-progression'
 import type { VolumeGroup } from '@/db/muscle-volume'
 import type { MuscleVerdict } from '@/lib/volume-progression'
+import type { Message } from '@/lib/message'
+import { DEFAULT_LOCALE, type Locale } from '@/i18n/config'
 
 /**
  * Pure view logic for the program stats page — kept free of JSX so it
  * unit-tests as plain functions (same convention as ../week-view).
  * Everything stays in the kg domain; display conversion happens in the
  * page's format helpers.
+ *
+ * Copy is returned as message DESCRIPTORS (I18N-KEYS §9) and numbers through
+ * `Intl` — no translator is threaded in, so every function here stays pure
+ * and its tests assert the DECISION rather than an English sentence.
  */
 
 /** A week is "all-zero" when nothing was even started — a week with only an
@@ -105,10 +111,20 @@ export function volumeTrendSign(
   )
 }
 
-/** The verdict hero's two lines (CSS uppercases the headline). */
+export type VerdictHeadlineKey =
+  | 'verdict.headlineEarly'
+  | 'verdict.headlineStronger'
+  | 'verdict.headlineSteady'
+
+export type VerdictContextKey =
+  | 'verdict.contextEarly'
+  | 'verdict.contextStronger'
+  | 'verdict.contextSteady'
+
+/** The verdict hero's two lines as descriptors (CSS uppercases the headline). */
 export interface ProgramVerdict {
-  headline: string
-  context: string
+  headline: Message<VerdictHeadlineKey>
+  context: Message<VerdictContextKey>
 }
 
 /**
@@ -121,6 +137,11 @@ export interface ProgramVerdict {
  * A non-flat volume trend appends "· volume up/down week over week". The
  * context always carries the honest percentage — the headline motivates, the
  * sentence informs.
+ *
+ * The trend clause rides the context message as a `select` ARGUMENT rather
+ * than a suffix concatenated here: where that clause belongs in the sentence
+ * is the translator's call, and assembling it from fragments takes the
+ * decision away from them.
  */
 export function programVerdict(
   weeks: readonly ProgramWeekStats[],
@@ -129,21 +150,27 @@ export function programVerdict(
 ): ProgramVerdict {
   const adherence = blockAdherencePct(weeks, currentWeek)
   if (adherence === null) {
-    return { headline: 'Early days.', context: 'The block picture builds as you train.' }
-  }
-  const trend = volumeTrendSign(weeks, currentWeek)
-  const trendSuffix =
-    trend === null || trend === 0
-      ? ''
-      : ` · volume ${trend > 0 ? 'up' : 'down'} week over week`
-  const adherenceText = `${adherence}% of planned days trained`
-  if (prCount > 0) {
     return {
-      headline: 'Getting stronger.',
-      context: `${prCount} ${prCount === 1 ? 'lift' : 'lifts'} up this block · ${adherenceText}${trendSuffix}`,
+      headline: { key: 'verdict.headlineEarly' },
+      context: { key: 'verdict.contextEarly' },
     }
   }
-  return { headline: 'Showing up.', context: `${adherenceText}${trendSuffix}` }
+  const sign = volumeTrendSign(weeks, currentWeek)
+  const trend = sign === null || sign === 0 ? 'flat' : sign > 0 ? 'up' : 'down'
+  // A FRACTION, not the whole percent: the messages render it with ICU's
+  // `number, percent`, so Intl decides where the % sign sits and whether a
+  // space precedes it — both of which differ by locale.
+  const adherenceRatio = adherence / 100
+  if (prCount > 0) {
+    return {
+      headline: { key: 'verdict.headlineStronger' },
+      context: { key: 'verdict.contextStronger', values: { lifts: prCount, adherence: adherenceRatio, trend } },
+    }
+  }
+  return {
+    headline: { key: 'verdict.headlineSteady' },
+    context: { key: 'verdict.contextSteady', values: { adherence: adherenceRatio, trend } },
+  }
 }
 
 /** One plotted sparkline point (viewBox coordinates, 1dp). */
@@ -205,30 +232,34 @@ export function e1rmSparkline(
 
 /** The muscle chip's status word (CSS handles emphasis; volt is reserved for
  *  on-track — the quiet good state, per the volume-progression plan). */
-export function volumeStatusLabel(status: MuscleVerdict['status']): string {
+export function volumeStatusLabel(
+  status: MuscleVerdict['status'],
+): Message<'muscle.statusIncrease' | 'muscle.statusHold' | 'muscle.statusOnTrack'> {
   switch (status) {
     case 'increase':
-      return '+1 earned'
+      return { key: 'muscle.statusIncrease' }
     case 'hold':
-      return 'hold'
+      return { key: 'muscle.statusHold' }
     case 'on-track':
-      return 'on track'
+      return { key: 'muscle.statusOnTrack' }
   }
 }
 
 /**
  * The tier-2 evidence sentence: WHO drove the verdict, in words. Null for
  * on-track (nothing to explain — the trend below is the content).
+ *
+ * The driver names stay a joined string rather than a list rendered by the
+ * catalog: they are EXERCISE names — user- and seed-authored catalog content,
+ * never translated (I18N-KEYS §9, "what is NOT copy").
  */
-export function volumeDriversLine(verdict: MuscleVerdict): string | null {
+export function volumeDriversLine(
+  verdict: MuscleVerdict,
+): Message<'muscle.driversIncrease' | 'muscle.driversHold'> | null {
   if (verdict.drivers.length === 0) return null
   const names = verdict.drivers.join(', ')
-  if (verdict.status === 'increase') {
-    return `${names} beat top of range 2 weeks running`
-  }
-  if (verdict.status === 'hold') {
-    return `${names} stalled — hold volume while recovery catches up`
-  }
+  if (verdict.status === 'increase') return { key: 'muscle.driversIncrease', values: { names } }
+  if (verdict.status === 'hold') return { key: 'muscle.driversHold', values: { names } }
   return null
 }
 
@@ -249,9 +280,16 @@ export function muscleWeekSeries(
   return limit !== undefined ? series.slice(-limit) : series
 }
 
-/** Credited set counts render halves honestly ("7.5") and integers bare. */
-export function formatCreditedSets(sets: number): string {
-  return Number.isInteger(sets) ? String(sets) : sets.toFixed(1)
+/**
+ * Credited set counts render halves honestly ("7.5") and integers bare.
+ * A NUMBER, not copy — so it goes through `Intl.NumberFormat` rather than
+ * `toFixed`, which hardcodes the ASCII decimal point into every locale.
+ */
+export function formatCreditedSets(sets: number, locale: Locale = DEFAULT_LOCALE): string {
+  return new Intl.NumberFormat(locale, {
+    minimumFractionDigits: Number.isInteger(sets) ? 0 : 1,
+    maximumFractionDigits: 1,
+  }).format(sets)
 }
 
 /**

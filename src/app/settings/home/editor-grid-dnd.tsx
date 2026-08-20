@@ -20,6 +20,7 @@ import {
   type SortingStrategy,
 } from '@dnd-kit/sortable'
 import { HOME_SECTION_REGISTRY, type HomeSectionMeta } from '@/lib/home/registry'
+import { useTranslations } from 'next-intl'
 import type { ResolvedHomeSection } from '@/lib/home/layout'
 import { cn } from '@/lib/utils'
 import { SectionTile, TILE_SPAN } from './section-tile'
@@ -64,6 +65,7 @@ export function DndGrid({
   onDragCommit,
   onDragCancel,
 }: DndGridProps) {
+  const t = useTranslations('HomeSection')
   const [activeKind, setActiveKind] = useState<string | null>(null)
   const sensors = useSensors(
     // Long-press activation: 250ms hold, 5px slop — a scroll flick or a
@@ -131,7 +133,7 @@ export function DndGrid({
       <DragOverlay>
         {active !== undefined && activeMeta !== undefined ? (
           <SectionTile
-            title={activeMeta.title}
+            title={t(activeMeta.titleKey)}
             size={active.size}
             hidden={active.hidden}
             onOpen={() => {}}
@@ -151,6 +153,7 @@ function SortableTile({
   meta: HomeSectionMeta
   onOpen: () => void
 }) {
+  const t = useTranslations('HomeSection')
   const { attributes, listeners, setNodeRef, isDragging } = useSortable({
     id: section.kind,
   })
@@ -168,7 +171,7 @@ function SortableTile({
       )}
     >
       <SectionTile
-        title={meta.title}
+        title={t(meta.titleKey)}
         size={section.size}
         hidden={section.hidden}
         onOpen={onOpen}

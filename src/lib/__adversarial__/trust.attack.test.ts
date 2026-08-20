@@ -559,10 +559,12 @@ describe('#228 missing-data degradation: schemeSentence falls back to subtitles,
     ],
   ]
 
-  it.each(cases)('%s → the scheme subtitle, verbatim', (_name, progression) => {
-    const sentence = schemeSentence(progression, { unit: 'lb' })
-    expect(sentence).toBe(schemeSubtitle(progression.scheme))
-    expect(sentence).not.toMatch(/undefined|NaN|null/)
+  it.each(cases)('%s → the scheme subtitle descriptor, argument-free', (_name, progression) => {
+    const message = schemeSentence(progression, { unit: 'lb' })
+    expect(message).toEqual(schemeSubtitle(progression.scheme))
+    // The subtitle takes NO arguments, so there is nowhere for an undefined,
+    // a NaN or a null to ride into the rendered sentence.
+    expect(message.values).toBeUndefined()
   })
 
   it('repFillHoldReason with unknown top (0) stays imperative without inventing a count', () => {
@@ -578,12 +580,15 @@ describe("#228 unit fidelity: \"the exercise's ACTUAL numbers\" in a lb account"
     // whose one-increment floor turns +0.5 kg into "+2.5 lb" — 2.27× the
     // configured step. The direction doc's bar is "conditional sentences with
     // the lifter's ACTUAL numbers".
-    const sentence = schemeSentence(
+    const message = schemeSentence(
       { scheme: 'linear', incrementKg: 0.5 } as Progression,
       { unit: 'lb' },
     )
     const configuredLb = kgToDisplay(0.5, 'lb') // 1.1 lb
-    expect(sentence, `configured +${configuredLb} lb`).toContain(`+${configuredLb} lb`)
+    expect(message, `configured +${configuredLb} lb`).toEqual({
+      key: 'sentence.linear',
+      values: { increment: configuredLb, unit: 'lb' },
+    })
   })
 
   it('reason strings in a lb account always print on-grid lb (never 66.6 lb)', () => {

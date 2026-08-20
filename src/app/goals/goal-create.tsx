@@ -64,9 +64,9 @@ export function GoalCreate({
   function buildInput(): Record<string, unknown> | string {
     const common = deadline !== '' ? { deadline } : {}
     if (kind === 'strength') {
-      if (!exercise) return 'Pick an exercise first.'
+      if (!exercise) return t('validation.pickExercise')
       const e1rm = parseFloat(targetValue.trim())
-      if (!Number.isFinite(e1rm) || e1rm <= 0) return `Enter a target est. 1RM in ${unit}.`
+      if (!Number.isFinite(e1rm) || e1rm <= 0) return t('validation.enterE1rm', { unit })
       return {
         kind,
         target: { e1rm },
@@ -80,11 +80,11 @@ export function GoalCreate({
     }
     if (kind === 'bodyweight') {
       const weight = parseFloat(targetValue.trim())
-      if (!Number.isFinite(weight) || weight <= 0) return `Enter a target weight in ${unit}.`
+      if (!Number.isFinite(weight) || weight <= 0) return t('validation.enterWeight', { unit })
       return { kind, target: { weight, direction }, ...common }
     }
     const weeks = parseInt(targetWeeks.trim(), 10)
-    if (!Number.isInteger(weeks) || weeks < 1) return 'Enter a streak length in weeks.'
+    if (!Number.isInteger(weeks) || weeks < 1) return t('validation.enterWeeks')
     return { kind, target: { targetWeeks: weeks, allowedMissesPerWeek: grace }, ...common }
   }
 
@@ -102,7 +102,7 @@ export function GoalCreate({
         setIsOpen(false)
         router.refresh()
       } catch (err: unknown) {
-        setError(err instanceof Error ? err.message : 'Could not create the goal.')
+        setError(err instanceof Error ? err.message : t('createError'))
       }
     })
   }

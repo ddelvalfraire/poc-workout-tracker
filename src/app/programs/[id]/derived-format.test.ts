@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest'
+import { renderMessageIn } from '../../../../vitest.intl'
 import { formatTargetLine, groupDerivedSets } from './derived-format'
 import type { DerivedSet } from '@/lib/progression'
 
@@ -24,39 +25,78 @@ function derivedSet(overrides: Partial<DerivedSet> = {}): DerivedSet {
   }
 }
 
+/** The line the page renders: every segment through the real catalog, joined
+ *  with the middot the detail page joins them with. */
+const line = (...args: Parameters<typeof formatTargetLine>) =>
+  formatTargetLine(...args)
+    .map((segment) => renderMessageIn('ProgramDetail', segment))
+    .join(' · ')
+
 describe('formatTargetLine', () => {
+  it('decides the core segment and the tail segments, not a sentence', () => {
+    expect(formatTargetLine(derivedSet(), 3, 'kg')).toEqual([
+      { key: 'target.load', values: { count: 3, reps: '5', load: '105 kg' } },
+    ])
+    expect(formatTargetLine(derivedSet({ rpe: 8, rir: 2, tempo: '3-1-1' }), 3, 'kg').map(
+      (segment) => segment.key,
+    )).toEqual(['target.load', 'target.rpe', 'target.rir', 'target.tempo'])
+  })
+
   it('collapses an equal rep range and shows the load in the display unit', () => {
-    expect(formatTargetLine(derivedSet(), 3, 'kg')).toBe('3×5 @ 105 kg')
-    expect(formatTargetLine(derivedSet({ loadKg: 100 }), 1, 'lb')).toBe('1×5 @ 220.5 lb')
+    expect(line(derivedSet(), 3, 'kg')).toBe('3×5 @ 105 kg')
+    expect(line(derivedSet({ loadKg: 100 }), 1, 'lb')).toBe('1×5 @ 220.5 lb')
+  })
+
+  it('formats the load through Intl for the locale, not by concatenation', () => {
+    const expected = new Intl.NumberFormat('en', {
+      style: 'unit',
+      unit: 'kilogram',
+      unitDisplay: 'short',
+      useGrouping: false,
+    }).format(105)
+    expect(line(derivedSet(), 3, 'kg', 'en')).toContain(expected)
   })
 
   it('renders a true range and reps-only when the load is null (no crash)', () => {
     const set = derivedSet({ repMin: 8, repMax: 12, loadKg: null })
-    expect(formatTargetLine(set, 2, 'kg')).toBe('2×8–12 reps')
+    expect(line(set, 2, 'kg')).toBe('2×8–12 reps')
   })
 
+  // Singular and plural asserted separately — the count used to build its own
+  // `set`/`sets`, which no other language can repair downstream.
   it('pluralizes the bare-count fallback correctly', () => {
     const bare = derivedSet({ repMin: null, repMax: null, loadKg: null })
-    expect(formatTargetLine(bare, 1, 'kg')).toBe('1 set')
-    expect(formatTargetLine(bare, 3, 'kg')).toBe('3 sets')
+    expect(line(bare, 1, 'kg')).toBe('1 set')
+    expect(line(bare, 3, 'kg')).toBe('3 sets')
   })
 
   it('appends RPE, RIR, and tempo when present', () => {
     const set = derivedSet({ rpe: 8, rir: 2, tempo: '3-1-1' })
-    expect(formatTargetLine(set, 3, 'kg')).toBe('3×5 @ 105 kg · RPE 8 · RIR 2 · 3-1-1 tempo')
+    expect(line(set, 3, 'kg')).toBe('3×5 @ 105 kg · RPE 8 · RIR 2 · 3-1-1 tempo')
   })
 
   it('renders timed sets from durationSec (and distance when present)', () => {
-    expect(formatTargetLine(derivedSet({ metricMode: 'duration', durationSec: 60 }), 3, 'kg')).toBe(
-      '3×60s',
-    )
+    expect(line(derivedSet({ metricMode: 'duration', durationSec: 60 }), 3, 'kg')).toBe('3×60s')
     expect(
-      formatTargetLine(
+      line(
         derivedSet({ metricMode: 'duration_distance', durationSec: 120, distanceM: 400 }),
         1,
         'kg',
       ),
     ).toBe('1×120s / 400 m')
+  })
+
+  it('leaves no unresolved key path in any branch', () => {
+    for (const set of [
+      derivedSet(),
+      derivedSet({ repMin: 8, repMax: 12, loadKg: null }),
+      derivedSet({ repMin: null, repMax: null, loadKg: null }),
+      derivedSet({ rpe: 8, rir: 2, tempo: '3-1-1' }),
+      derivedSet({ metricMode: 'duration', durationSec: 60 }),
+      derivedSet({ metricMode: 'duration_distance', durationSec: 120, distanceM: 400 }),
+    ]) {
+      expect(line(set, 2, 'kg')).not.toMatch(/ProgramDetail\.[a-zA-Z.]+/)
+    }
   })
 })
 

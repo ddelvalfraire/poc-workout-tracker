@@ -10,6 +10,7 @@ import {
   sortTemplatesByUsage,
   templateStatusLine,
   templateUsageByName,
+  type TemplateStatusMessage,
 } from '@/lib/template-usage'
 import { AppHeader } from '@/components/app-header'
 import { GuardedStartLink } from '@/components/guarded-start-link'
@@ -18,6 +19,7 @@ import { DividerList } from '@/components/ui/divider-list'
 import { EmptyWords } from '@/components/ui/empty-words'
 import { buttonVariants } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import { getTranslations } from 'next-intl/server'
 
 /**
  * Standalone workout templates — reusable session sketches saved OUTSIDE any
@@ -34,6 +36,7 @@ import { cn } from '@/lib/utils'
  * surface — the hero Start; per-row Play affordances stay quiet ghosts.
  */
 export default async function TemplatesPage() {
+  const t = await getTranslations('Templates')
   const userId = await requireUserId() // middleware also guards; defense-in-depth
   const [templates, summaries, drafts, unit] = await Promise.all([
     listWorkoutTemplates(userId),
@@ -62,24 +65,21 @@ export default async function TemplatesPage() {
   return (
     <div className="flex min-h-[100dvh] flex-col">
       <AppHeader
-        title="Session templates"
+        title={t('title')}
         leading={<NavDrawer />}
       />
 
       <main className="mx-auto w-full max-w-md flex-1 px-5 pb-safe">
         {templates.length === 0 ? (
           <div className="mt-6">
-            <EmptyWords>
-              Finish a workout, tap “Save as template” on its summary, and it
-              lives here ready to start in one tap.
-            </EmptyWords>
+            <EmptyWords>{t('empty')}</EmptyWords>
             <GuardedStartLink
               href="/workout/new"
               session={guardSession}
               className={cn(buttonVariants(), 'mt-2 w-full gap-2')}
             >
               <Play aria-hidden="true" className="size-4" />
-              Start a workout
+              {t('startAction')}
             </GuardedStartLink>
           </div>
         ) : (
@@ -98,7 +98,15 @@ export default async function TemplatesPage() {
                     <span className="min-w-0 truncate">{hero.name}</span>
                   </span>
                   <span className="mt-1 block text-sm text-muted-foreground tnum">
-                    {templateStatusLine(usage.get(hero.name) ?? null, hero.exerciseCount, unit, now)}
+                    {renderStatus(
+                      t,
+                      templateStatusLine(
+                        usage.get(hero.name) ?? null,
+                        hero.exerciseCount,
+                        unit,
+                        now,
+                      ),
+                    )}
                   </span>
                 </Link>
                 <GuardedStartLink
@@ -107,7 +115,11 @@ export default async function TemplatesPage() {
                   className={cn(buttonVariants({ size: 'lg' }), 'mt-4 w-full gap-2')}
                 >
                   <Play aria-hidden="true" className="size-4" />
-                  <span className="min-w-0 truncate">Start {hero.name}</span>
+                  {/* One ICU message, not "Start" beside a name: the verb
+                      does not lead the phrase in every language. */}
+                  <span className="min-w-0 truncate">
+                    {t('startHeroAction', { name: hero.name })}
+                  </span>
                 </GuardedStartLink>
               </div>
             )}
@@ -132,11 +144,14 @@ export default async function TemplatesPage() {
                           {template.name}
                         </span>
                         <span className="mt-0.5 block truncate text-sm text-muted-foreground tnum">
-                          {templateStatusLine(
-                            usage.get(template.name) ?? null,
-                            template.exerciseCount,
-                            unit,
-                            now,
+                          {renderStatus(
+                            t,
+                            templateStatusLine(
+                              usage.get(template.name) ?? null,
+                              template.exerciseCount,
+                              unit,
+                              now,
+                            ),
                           )}
                         </span>
                       </span>
@@ -144,7 +159,7 @@ export default async function TemplatesPage() {
                     <GuardedStartLink
                       href={`/workout/new?template=${template.id}`}
                       session={guardSession}
-                      aria-label={`Start ${template.name}`}
+                      aria-label={t('startRowAriaLabel', { name: template.name })}
                       className={cn(
                         buttonVariants({ variant: 'ghost', size: 'icon-sm' }),
                         'relative shrink-0 text-muted-foreground before:absolute before:-inset-1',
@@ -161,4 +176,21 @@ export default async function TemplatesPage() {
       </main>
     </div>
   )
+}
+
+type TemplatesTranslator = Awaited<ReturnType<typeof getTranslations<'Templates'>>>
+
+/**
+ * Renders a row's status descriptor. The recency half arrives as its own
+ * message and is resolved FIRST, then handed to the outer sentence as an
+ * ICU argument — the outer message stays one whole sentence a translator can
+ * reorder, rather than two keys glued together.
+ */
+function renderStatus(t: TemplatesTranslator, status: TemplateStatusMessage): string {
+  if (status.key === 'status.neverRun') return t(status.key, status.values)
+  const { when } = status.values
+  const rendered = t(when.key, when.values)
+  return status.key === 'status.lastRun'
+    ? t(status.key, { when: rendered })
+    : t(status.key, { when: rendered, volume: status.values.volume, unit: status.values.unit })
 }

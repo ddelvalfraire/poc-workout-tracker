@@ -2,6 +2,7 @@
 
 import { useRef, useState, type ReactNode } from 'react'
 import { cn } from '@/lib/utils'
+import { useTranslations } from 'next-intl'
 
 /**
  * Swipe-left-to-remove wrapper for logger set rows (Hevy's set-row idiom).
@@ -24,6 +25,7 @@ const TRIGGER_PX = 72
 const LOCK_PX = 8
 
 export function SwipeToDelete({ onDelete, children }: SwipeToDeleteProps) {
+  const t = useTranslations('SwipeToDelete')
   const [dx, setDx] = useState(0)
   const [isDragging, setIsDragging] = useState(false)
   const start = useRef<{ id: number; x: number; y: number; locked: 'h' | 'v' | null } | null>(
@@ -50,7 +52,7 @@ export function SwipeToDelete({ onDelete, children }: SwipeToDeleteProps) {
           dx === 0 && 'invisible',
         )}
       >
-        Remove
+        {t('label')}
       </div>
       <div
         className={cn('px-2 py-1', !isDragging && 'transition-transform duration-150')}

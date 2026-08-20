@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { CoachDisclosure, acknowledgeCoachDisclosure } from './coach-disclosure'
+import { withIntl } from '../../../vitest.intl'
 
 /**
  * Interactive contract of the disclosure interstitial: appears when not
@@ -49,7 +50,7 @@ afterEach(() => {
 
 function render() {
   act(() => {
-    root.render(<CoachDisclosure />)
+    root.render(withIntl(<CoachDisclosure />))
   })
 }
 

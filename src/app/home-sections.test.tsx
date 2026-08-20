@@ -1,6 +1,15 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, test, vi } from 'vitest'
 import { HOME_SECTION_REGISTRY } from '@/lib/home/registry'
+import { renderStaticIntl } from '../../vitest.intl'
+import type { WorkoutSummary } from '@/db/workouts'
 import { renderHomeSections, type HomeSectionContext } from './home-sections'
+
+// The md/lg history rows render HistoryList's guarded Repeat control, which
+// calls useRouter — outside the app router that throws before any copy is
+// produced.
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn(), back: vi.fn() }),
+}))
 
 /**
  * Wire-level tests for the kind → renderer mapping. Renderers are stubbed
@@ -142,5 +151,112 @@ describe('renderHomeSections', () => {
       'col-span-2',
       'col-span-2 md:col-span-4',
     ])
+  })
+})
+
+/**
+ * Copy contract of the two sections this file owns. Both used to build their
+ * meta lines by template literal with a `=== 1 ? '' : 's'` tail, which is
+ * untranslatable anywhere with more than two plural forms — so each count is
+ * asserted at one AND at many, separately.
+ *
+ * Only `unfinished` and `history` are rendered: the other two renderers are
+ * MomentumPanel (an async RSC that reads the database) and TodayRecap (which
+ * renders nothing until it has mounted and can see the user's calendar day).
+ */
+function workout(over: Partial<WorkoutSummary> = {}): WorkoutSummary {
+  return {
+    id: 'w1',
+    name: 'Push A',
+    startedAt: new Date('2026-03-04T10:00:00Z'),
+    completedAt: new Date('2026-03-04T11:00:00Z'),
+    exerciseCount: 2,
+    setCount: 3,
+    completedSetCount: 1,
+    volumeKg: 1000,
+    ...over,
+  }
+}
+
+function renderSection(
+  kind: 'unfinished' | 'history',
+  size: 'sm' | 'md' | 'lg',
+  workouts: WorkoutSummary[],
+): string {
+  return renderStaticIntl(
+    renderHomeSections([{ kind, size, hidden: false }], {
+      userId: 'user_123',
+      nowMs: Date.parse('2026-03-05T09:00:00Z'),
+      unit: 'kg',
+      recentCompleted: [],
+      completed: kind === 'history' ? workouts : [],
+      unfinished: kind === 'unfinished' ? workouts : [],
+      guardSession: null,
+    }),
+  )
+}
+
+describe('HomeSections copy', () => {
+  test('names the unfinished section and its resume affordance', () => {
+    const html = renderSection('unfinished', 'md', [workout({ completedAt: null })])
+
+    expect(html).toContain('Unfinished')
+    expect(html).toContain('Resume')
+    expect(html).toContain('Push A')
+  })
+
+  test('reads the singular set form on a session with one set logged', () => {
+    const html = renderSection('unfinished', 'md', [
+      workout({ completedAt: null, completedSetCount: 1 }),
+    ])
+
+    expect(html).toContain('started · 1 set logged')
+    expect(html).not.toContain('sets logged')
+  })
+
+  test('reads the plural set form on a session with several sets logged', () => {
+    const html = renderSection('unfinished', 'md', [
+      workout({ completedAt: null, completedSetCount: 4 }),
+    ])
+
+    expect(html).toContain('started · 4 sets logged')
+  })
+
+  test('falls back to the untitled-workout name', () => {
+    const html = renderSection('unfinished', 'md', [workout({ completedAt: null, name: null })])
+
+    expect(html).toContain('Workout')
+  })
+
+  test('reads the singular workout form in the compact history line', () => {
+    const html = renderSection('history', 'sm', [workout()])
+
+    expect(html).toContain('1 workout')
+    expect(html).not.toContain('1 workouts')
+  })
+
+  test('reads the plural workout form in the compact history line', () => {
+    const html = renderSection('history', 'sm', [
+      workout(),
+      workout({ id: 'w2' }),
+      workout({ id: 'w3' }),
+    ])
+
+    expect(html).toContain('3 workouts')
+  })
+
+  test('offers the full log only once the size’s slice leaves rows unseen', () => {
+    const many = Array.from({ length: 6 }, (_, i) => workout({ id: `w${i}` }))
+
+    expect(renderSection('history', 'md', many)).toContain('All history')
+    expect(renderSection('history', 'md', [workout()])).not.toContain('All history')
+  })
+
+  test('resolves every key it references', () => {
+    const unfinished = renderSection('unfinished', 'md', [workout({ completedAt: null })])
+    const history = renderSection('history', 'sm', [workout()])
+
+    expect(unfinished).not.toMatch(/HomeSections\.[a-zA-Z.]+/)
+    expect(history).not.toMatch(/HomeSections\.[a-zA-Z.]+/)
   })
 })

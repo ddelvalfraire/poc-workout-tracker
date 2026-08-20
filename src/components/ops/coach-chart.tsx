@@ -9,6 +9,7 @@ import {
   ChartTooltipContent,
   type ChartConfig,
 } from '@/components/ui/chart'
+import { useTranslations } from 'next-intl'
 
 /**
  * The coach panel's 14-day usage/spend composite: traces per day as volt
@@ -26,18 +27,20 @@ export interface CoachChartPoint {
   cost: number
 }
 
-const chartConfig = {
-  traces: { label: 'Traces', color: 'var(--primary)' },
-  cost: { label: 'Cost (USD)', color: 'var(--muted-foreground)' },
-} satisfies ChartConfig
-
 export function CoachChart({ points }: { points: CoachChartPoint[] }) {
+  const t = useTranslations('CoachChart')
+  // Built at render, not module load: a label frozen at import time is
+  // evaluated before any request and can never be translated.
+  const chartConfig = {
+    traces: { label: t('series.traces'), color: 'var(--primary)' },
+    cost: { label: t('series.cost'), color: 'var(--muted-foreground)' },
+  } satisfies ChartConfig
   return (
     <ChartContainer
       config={chartConfig}
       className="h-48 w-full"
       role="img"
-      aria-label={`Coach traces and cost per day, last ${points.length} days`}
+      aria-label={t('ariaLabel', { days: points.length })}
     >
       <ComposedChart data={points} margin={{ top: 8, right: 0, bottom: 0, left: 0 }}>
         <CartesianGrid vertical={false} strokeOpacity={0.25} />

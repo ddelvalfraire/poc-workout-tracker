@@ -10,12 +10,14 @@ import { ProgramBuilder } from '@/app/programs/new/program-builder'
 import { AppHeader } from '@/components/app-header'
 import { buttonVariants } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import { getTranslations } from 'next-intl/server'
 
 export default async function EditProgramPage({
   params,
 }: {
   params: Promise<{ id: string }>
 }) {
+  const t = await getTranslations('ProgramEdit')
   const userId = await requireUserId()
   const { id } = await params
   const [program, unit] = await Promise.all([getProgramDetail(userId, id), getWeightUnit(userId)])
@@ -62,13 +64,13 @@ export default async function EditProgramPage({
   return (
     <div className="flex min-h-[100dvh] flex-col">
       <AppHeader
-        title="Edit Program"
+        title={t('title')}
         trailing={
           <Link
             href={`/programs/${id}`}
             className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }))}
           >
-            Close
+            {t('closeLink')}
           </Link>
         }
       />

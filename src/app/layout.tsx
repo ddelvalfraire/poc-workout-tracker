@@ -2,6 +2,8 @@ import type { Metadata, Viewport } from "next";
 import { NextIntlClientProvider } from "next-intl";
 import { getTranslations } from "next-intl/server";
 import { resolveLocale } from "@/i18n/request";
+import { CLIENT_NAMESPACES } from "@/i18n/client-namespaces";
+import messages from "../../messages/en.json";
 import { NavigationTracker } from "@/components/navigation-tracker";
 import { ServiceWorkerRegister } from "@/components/pwa/service-worker-register";
 import { ChunkRecoveryScript } from "@/components/pwa/chunk-recovery-script";
@@ -22,7 +24,7 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     title: t("appName"),
     description: t("appDescription"),
-    appleWebApp: { capable: true, statusBarStyle: "default", title: "Workouts" },
+    appleWebApp: { capable: true, statusBarStyle: "default", title: t("appShortName") },
     icons: { apple: "/icons/apple-touch-icon.png" },
   };
 }
@@ -50,6 +52,9 @@ export default async function RootLayout({
   // Async only to await the locale — NOT a request read, so this does not
   // opt any route out of static rendering.
   const locale = await resolveLocale();
+  const clientMessages = Object.fromEntries(
+    CLIENT_NAMESPACES.map((namespace) => [namespace, messages[namespace]]),
+  );
 
   return (
     <html
@@ -64,14 +69,12 @@ export default async function RootLayout({
         {/* Once, app-wide: the in-app history stack every BackLink reads
             (pop vs fallback-replace) — see lib/back-navigation. */}
         <NavigationTracker />
-        {/* No messages prop: client islands inherit what the server already
-            resolved. NOTE the cost of putting this at the root — getMessages()
-            returns the WHOLE catalog unscoped, so every route's payload
-            carries every namespace. Fine at this size; once extraction has
-            grown the catalog, scope it (pick() per route, or push providers
-            down to the islands that need them) or it becomes a bundle
-            regression no test will catch. */}
-        <NextIntlClientProvider>
+        {/* Scoped on purpose. Without a messages prop the provider hands the
+            browser the WHOLE catalog — ~78 KB of JSON in every route's HTML,
+            most of it copy that route cannot reach: /terms, a static legal
+            page, shipped the coach chat and the delete-account flow. Server
+            Components read through getTranslations and are unaffected. */}
+        <NextIntlClientProvider messages={clientMessages}>
           <Providers>
             <PageTransition>{children}</PageTransition>
           </Providers>

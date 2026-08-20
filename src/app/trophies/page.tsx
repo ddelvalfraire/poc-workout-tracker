@@ -6,6 +6,7 @@ import {
   Lock,
   Medal,
   Weight,
+  type LucideIcon,
 } from 'lucide-react'
 import { requireUserId } from '@/lib/auth'
 import { getWeightUnit } from '@/db/preferences'
@@ -30,7 +31,19 @@ import { ShareCardButton } from '@/components/share-card-button'
 import { DividerList } from '@/components/ui/divider-list'
 import { EmptyWords } from '@/components/ui/empty-words'
 import { getTranslations } from 'next-intl/server'
-import { useTranslations } from 'next-intl'
+import { useFormatter, useTranslations } from 'next-intl'
+
+/**
+ * The hero numeral is a NUMBER, not copy: "1,000" and "1M" are both
+ * `Intl.NumberFormat` output, so the reader's locale picks the separator and
+ * the compact suffix. Grouping stays off below the sum-club thresholds,
+ * matching the plain "315" the club medals have always shown.
+ */
+const GLYPH_FORMATS = {
+  standard: { useGrouping: false },
+  grouped: {},
+  compact: { notation: 'compact' },
+} as const satisfies Record<string, Intl.NumberFormatOptions>
 
 // A stamp this fresh still carries the NEW tag — one week, then it's history.
 const NEW_TAG_DAYS = 7
@@ -60,7 +73,7 @@ export default async function TrophiesPage() {
   return (
     <div className="flex min-h-[100dvh] flex-col">
       <AppHeader
-        title="Trophies"
+        title={t('title')}
         leading={<NavDrawer />}
       />
 
@@ -72,7 +85,7 @@ export default async function TrophiesPage() {
         )}
 
         {closest.length > 0 && (
-          <section aria-label="Closest trophies">
+          <section aria-label={t('closest.groupLabel')}>
             <h2 className="px-1 text-xs font-semibold uppercase tracking-widest text-primary">
               {t('closest.title')}
             </h2>
@@ -85,9 +98,9 @@ export default async function TrophiesPage() {
         )}
 
         {zones.map((zone) => (
-          <section key={zone.family} aria-label={zone.label}>
+          <section key={zone.family} aria-label={t(`family.${zone.family}`)}>
             <h2 className="px-1 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-              {zone.label}
+              {t(`family.${zone.family}`)}
             </h2>
 
             {zone.earned.length > 0 && (
@@ -122,8 +135,11 @@ function EarnedMedal({
   index: number
 }) {
   const t = useTranslations('Trophies')
-  const Icon = familyIcon(TROPHY_DEFS[row.kind])
+  const format = useFormatter()
+  const Icon = FAMILY_ICONS[TROPHY_DEFS[row.kind].family]
   const context = trophyContextLine(row, unit)
+  const label = trophyLabel(row.kind)
+  const name = t(label.key, label.values)
   const glyph = trophyHeroGlyph(row.kind)
   const isNew = isNewTrophy(row.achievedAt)
 
@@ -147,7 +163,7 @@ function EarnedMedal({
           {/* Ships the rendered PNG via the OS sheet — never a URL. */}
           <ShareCardButton
             cardUrl={`/api/cards/trophy/${row.kind}`}
-            shareTitle={trophyLabel(row.kind)}
+            shareTitle={name}
             size="icon-xs"
             className="-mr-2 -mt-2"
           />
@@ -158,20 +174,26 @@ function EarnedMedal({
           (#163 rule), so the NEW chip alone carries volt; block (no number)
           leans on its icon + name alone. */}
       {glyph !== null && (
-        <p className="mt-2 font-display text-5xl leading-none tnum">{glyph}</p>
+        <p className="mt-2 font-display text-5xl leading-none tnum">
+          {format.number(glyph.value, GLYPH_FORMATS[glyph.notation])}
+        </p>
       )}
       <h3 className={`${glyph !== null ? 'mt-1' : 'mt-2'} font-display text-lg uppercase leading-tight tracking-wide`}>
-        {trophyLabel(row.kind)}
+        {name}
       </h3>
       {context !== null && (
-        <p className="mt-1 text-xs text-muted-foreground tnum">{context}</p>
+        <p className="mt-1 text-xs text-muted-foreground tnum">
+          {t(context.key, context.values)}
+        </p>
       )}
       <p className="mt-1 text-xs text-muted-foreground">{formatWorkoutDate(row.achievedAt)}</p>
     </article>
   )
 }
 
-function LockedTrophyRow({
+// Exported for tests: the locked row owns the only interpolated copy on
+// this surface (the progress bar’s accessible name).
+export function LockedTrophyRow({
   kind,
   evidence,
   unit,
@@ -180,24 +202,26 @@ function LockedTrophyRow({
   evidence: TrophyEvidence
   unit: WeightUnit
 }) {
-  const Icon = familyIcon(TROPHY_DEFS[kind])
+  const t = useTranslations('Trophies')
+  const Icon = FAMILY_ICONS[TROPHY_DEFS[kind].family]
   const fraction = trophyFraction(kind, evidence)
+  const label = trophyLabel(kind)
+  const name = t(label.key, label.values)
+  const hint = trophyHint(kind, evidence, unit)
 
   return (
     <li className="flex items-center gap-3 py-4">
       <Icon aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium text-muted-foreground">{trophyLabel(kind)}</p>
-        <p className="mt-0.5 text-xs text-muted-foreground/80 tnum">
-          {trophyHint(kind, evidence, unit)}
-        </p>
+        <p className="truncate text-sm font-medium text-muted-foreground">{name}</p>
+        <p className="mt-0.5 text-xs text-muted-foreground/80 tnum">{t(hint.key, hint.values)}</p>
         {fraction !== null && fraction.percent > 0 && (
           <div
             role="progressbar"
             aria-valuenow={fraction.percent}
             aria-valuemin={0}
             aria-valuemax={100}
-            aria-label={`${fraction.percent}% toward ${trophyLabel(kind)}`}
+            aria-label={t('progressLabel', { percent: fraction.percent, trophy: name })}
             className="mt-1.5 h-1 overflow-hidden rounded-full bg-muted"
           >
             <div
@@ -218,20 +242,14 @@ function isNewTrophy(achievedAt: Date, nowMs: number = Date.now()): boolean {
   return nowMs - achievedAt.getTime() < NEW_TAG_DAYS * MS_PER_DAY
 }
 
-/** One icon per kind family — markers, not decoration (matches /goals). */
-function familyIcon(def: TrophyDef) {
-  switch (def.family) {
-    case 'club':
-      return Dumbbell
-    case 'sum_club':
-      return Medal
-    case 'count':
-      return CalendarCheck
-    case 'streak':
-      return Flame
-    case 'block':
-      return Flag
-    case 'tonnage':
-      return Weight
-  }
+/** One icon per kind family — markers, not decoration (matches /goals). A
+ *  static map rather than a function: a call that RETURNS a component reads
+ *  to react-hooks/static-components as a component created during render. */
+const FAMILY_ICONS: Record<TrophyDef['family'], LucideIcon> = {
+  club: Dumbbell,
+  sum_club: Medal,
+  count: CalendarCheck,
+  streak: Flame,
+  block: Flag,
+  tonnage: Weight,
 }

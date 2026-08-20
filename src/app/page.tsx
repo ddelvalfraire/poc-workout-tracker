@@ -18,8 +18,13 @@ import { NavDrawer } from "@/components/nav/nav-drawer";
 import { CheckInCard } from "./check-in-card";
 import { renderHomeSections } from "./home-sections";
 import { StatusHero } from "./status-hero";
+import { getTranslations } from 'next-intl/server';
 
 export default async function HomePage() {
+  const t = await getTranslations('Home');
+  // The product name is one string, not three: a brand cannot diverge by
+  // surface, and three copies are three chances to translate it apart.
+  const tCommon = await getTranslations('Common');
   const userId = await requireUserId(); // middleware also guards; this is defense-in-depth
   // Consent gate (4b): ALL required purposes must be currently granted —
   // gating on tos alone would strand a user whose health consent was
@@ -121,14 +126,14 @@ export default async function HomePage() {
             {/* The drawer trigger leads — home is the shell's root surface,
                 and the drawer is now the app's navigation (spike §7). */}
             <NavDrawer />
-            <h1 className="truncate text-2xl font-bold uppercase tracking-tight">Workout Tracker</h1>
+            <h1 className="truncate text-2xl font-bold uppercase tracking-tight">{tCommon('appName')}</h1>
           </div>
           <div className="flex items-center gap-2">
             {/* Preferences live on /settings now — the header keeps only
                 identity and the door to them. */}
             <Link
               href="/settings"
-              aria-label="Settings"
+              aria-label={t('settingsLink')}
               className={cn(
                 buttonVariants({ variant: "ghost", size: "icon-sm" }),
                 "relative text-muted-foreground before:absolute before:-inset-1",
@@ -203,7 +208,7 @@ export default async function HomePage() {
           href="/settings/home"
           className="mx-auto mt-12 mb-4 block w-fit text-[10px] font-semibold uppercase tracking-widest text-muted-foreground transition-colors outline-none hover:text-foreground focus-visible:text-foreground"
         >
-          Edit home
+          {t('editHomeLink')}
         </Link>
       </main>
     </div>

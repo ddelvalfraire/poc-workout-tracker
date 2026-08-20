@@ -13,6 +13,7 @@ import { templateToDraft } from '@/lib/workout-template'
 import { WorkoutLogger } from './workout-logger'
 import { detailToDraft } from './workout-draft'
 import { resolveDraftSeed, draftKey } from './draft-payload'
+import { getTranslations } from 'next-intl/server'
 
 // Guards a malformed `?from` value from hitting the uuid column (Postgres would
 // throw `invalid input syntax for type uuid` and 500 the page).
@@ -25,6 +26,7 @@ export default async function NewWorkoutPage({
   // allow it; only a single uuid string is treated as a valid source.
   searchParams: Promise<{ from?: string | string[]; template?: string | string[] }>
 }) {
+  const t = await getTranslations('NewWorkout')
   const userId = await requireUserId() // middleware also guards; defense-in-depth
   const { from, template } = await searchParams
   const fromId = typeof from === 'string' && UUID_RE.test(from) ? from : undefined
@@ -69,7 +71,7 @@ export default async function NewWorkoutPage({
           it) and the width-constrained main. Close still lands home — the
           autosaved draft survives and resumes from the home banner. */}
       <WorkoutLogger
-        title="New Workout"
+        title={t('title')}
         closeHref="/"
         unit={unit}
         initialDraft={seed?.draft ?? restored?.draft}

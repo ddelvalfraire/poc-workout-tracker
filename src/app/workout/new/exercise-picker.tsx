@@ -10,6 +10,7 @@ import { createCustomExerciseAction } from '@/app/exercises/actions'
 import { EXERCISE_CATEGORIES, type ExerciseSource } from '@/lib/custom-exercise-input'
 import { CATALOG_MUSCLE_NAMES } from '@/lib/muscle-groups'
 import { cn } from '@/lib/utils'
+import { useTranslations } from 'next-intl'
 
 /** The subset of the `/api/exercises` result this picker surfaces. The
  *  optional muscle/equipment fields are already present in the payload
@@ -101,6 +102,7 @@ export function ExercisePicker({
   includeCustom = false,
   onCreateNavigate,
 }: ExercisePickerProps) {
+  const t = useTranslations('ExercisePicker')
   const [query, setQuery] = useState('')
   const [activeIndex, setActiveIndex] = useState(0)
   const [isCreating, setIsCreating] = useState(false)
@@ -141,7 +143,7 @@ export function ExercisePicker({
     (catalogQuery.isError && catalogQuery.isFetching) ||
     (includeCustom && customsQuery.isPending)
   const error =
-    catalogQuery.isError && !catalogQuery.isFetching ? 'Could not load exercises.' : null
+    catalogQuery.isError && !catalogQuery.isFetching ? t('loadError') : null
 
   const term = query.trim().toLowerCase()
 
@@ -233,14 +235,14 @@ export function ExercisePicker({
         aria-controls={LISTBOX_ID}
         aria-autocomplete="list"
         aria-activedescendant={active >= 0 ? optionId(matches[active]) : undefined}
-        placeholder={loading ? 'Loading exercises…' : 'Add an exercise…'}
+        placeholder={loading ? t('placeholderLoading') : t('placeholder')}
         value={query}
         onChange={(e) => {
           setQuery(e.target.value)
           setActiveIndex(0)
         }}
         onKeyDown={handleKeyDown}
-        aria-label="Search exercises"
+        aria-label={t('searchAriaLabel')}
         disabled={loading || !!error}
       />
 
@@ -255,7 +257,7 @@ export function ExercisePicker({
               if (includeCustom) void customsQuery.refetch()
             }}
           >
-            Retry
+            {t('retry')}
           </Button>
         </div>
       )}
@@ -268,10 +270,10 @@ export function ExercisePicker({
       {!loading && !error && !isCreating && suggestions.length > 0 && (
         <div>
           <p className="px-1 pb-2 pt-1 font-display text-base uppercase leading-none tracking-wide text-muted-foreground">
-            Suggested
+            {t('suggestionsTitle')}
           </p>
           <ul
-            aria-label="Suggested replacements"
+            aria-label={t('suggestionsAriaLabel')}
             className="divide-y divide-border/60 border-b border-b-border/60"
           >
             {suggestions.map((result) => (
@@ -302,7 +304,7 @@ export function ExercisePicker({
               <ul
                 id={LISTBOX_ID}
                 role="listbox"
-                aria-label="Exercise results"
+                aria-label={t('resultsAriaLabel')}
                 // In fill mode the list takes all remaining sheet height and owns
                 // the scroll (the input above stays pinned); inline keeps the cap.
                 // Hairline divider list, not a card shell (DESIGN.md de-card
@@ -334,7 +336,7 @@ export function ExercisePicker({
                 ))}
               </ul>
             ) : (
-              <EmptyWords>No exercises found.</EmptyWords>
+              <EmptyWords>{t('empty')}</EmptyWords>
             ))}
           {/* The dedup-at-source escape hatch, creatable-select style: the
               final row under whatever is above it — the catalog's best
@@ -352,7 +354,7 @@ export function ExercisePicker({
                 onCreateNavigate ? onCreateNavigate(query.trim()) : setIsCreating(true)
               }
             >
-              {term.length > 0 ? <>+ Create “{query.trim()}”</> : <>+ Create custom exercise</>}
+              {term.length > 0 ? t('createQueryAction', { query: query.trim() }) : t('createAction')}
             </Button>
           )}
         </>
@@ -364,11 +366,12 @@ export function ExercisePicker({
 /** Shared row anatomy for results and suggestions: name over a muted
  *  metadata line (the library-filter row shape). */
 function ResultWords({ result }: { result: ExerciseResult }) {
+  const t = useTranslations('ExercisePicker')
   return (
     <span className="min-w-0">
       <span className="block truncate text-base leading-tight">{result.name}</span>
       <span className="mt-1 block truncate text-sm text-muted-foreground">
-        {sourceOf(result) === 'custom' ? 'Custom' : result.category}
+        {sourceOf(result) === 'custom' ? t('customSource') : result.category}
       </span>
     </span>
   )
@@ -390,6 +393,7 @@ function CreateCustomForm({
   onCancel: () => void
   onCreated: (created: ExerciseResult) => void
 }) {
+  const t = useTranslations('ExercisePicker')
   const [name, setName] = useState(initialName)
   const [category, setCategory] = useState<string>('')
   const [muscles, setMuscles] = useState<string[]>([])
@@ -404,11 +408,11 @@ function CreateCustomForm({
 
   async function handleCreate() {
     if (name.trim().length === 0) {
-      setFormError('Give it a name.')
+      setFormError(t('create.validationName'))
       return
     }
     if (category === '') {
-      setFormError('Pick a category.')
+      setFormError(t('create.validationCategory'))
       return
     }
     setFormError(null)
@@ -427,7 +431,7 @@ function CreateCustomForm({
         ...(created.muscles.length > 0 ? { muscles: created.muscles } : {}),
       })
     } catch (err: unknown) {
-      setFormError(err instanceof Error ? err.message : 'Could not create the exercise.')
+      setFormError(err instanceof Error ? err.message : t('create.error'))
       setIsSaving(false)
     }
   }
@@ -437,25 +441,25 @@ function CreateCustomForm({
     // closed by a hairline — no shell.
     <div className="space-y-3 border-b border-b-border/60 pb-4">
       <p className="font-display text-base uppercase leading-none tracking-wide text-muted-foreground">
-        New custom exercise
+        {t('create.title')}
       </p>
       <Input
         value={name}
         onChange={(e) => setName(e.target.value)}
-        aria-label="Custom exercise name"
-        placeholder="Name"
+        aria-label={t('create.nameAriaLabel')}
+        placeholder={t('create.namePlaceholder')}
       />
       <select
         value={category}
         onChange={(e) => setCategory(e.target.value)}
-        aria-label="Category"
+        aria-label={t('create.categoryAriaLabel')}
         // The Input field vocabulary (44px, 16px text, ring focus) on a raw
         // select — bg stays transparent (bg-card is the keep-listed field
         // primitive's own skin).
         className="h-11 w-full rounded-lg border border-input bg-transparent px-3 text-base outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
       >
         <option value="" disabled>
-          Category…
+          {t('create.categoryPlaceholder')}
         </option>
         {EXERCISE_CATEGORIES.map((c) => (
           <option key={c} value={c}>
@@ -464,7 +468,7 @@ function CreateCustomForm({
         ))}
       </select>
       <div>
-        <p className="text-xs text-muted-foreground">Primary muscles (optional)</p>
+        <p className="text-xs text-muted-foreground">{t('create.musclesLabel')}</p>
         <div className="mt-1.5 flex flex-wrap gap-1.5">
           {CATALOG_MUSCLE_NAMES.map((muscle) => (
             <button
@@ -489,10 +493,10 @@ function CreateCustomForm({
       {formError && <p className="text-sm text-destructive">{formError}</p>}
       <div className="flex gap-2">
         <Button size="sm" variant="outline" className="flex-1" onClick={onCancel}>
-          Cancel
+          {t('create.cancel')}
         </Button>
         <Button size="sm" className="flex-1" onClick={handleCreate} disabled={isSaving}>
-          {isSaving ? 'Creating…' : 'Create & add'}
+          {isSaving ? t('create.submitPending') : t('create.submit')}
         </Button>
       </div>
     </div>

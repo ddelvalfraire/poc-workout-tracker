@@ -7,8 +7,11 @@ import {
   finishHeadline,
   prHighlights,
   volumeVsLastLabel,
+  type FinishHeadline,
   type SummaryExerciseInput,
 } from './summary-view'
+import { createTranslator } from 'next-intl'
+import messages from '../../../../messages/en.json'
 
 function exercise(over: Partial<SummaryExerciseInput> = {}): SummaryExerciseInput {
   return {
@@ -145,34 +148,49 @@ describe('prHighlights', () => {
 
 describe('finishHeadline', () => {
   const base = { blockClosed: false, programWeek: null }
+  // Resolved through the REAL catalog, not a stub: the function now returns a
+  // message CHOICE, so the copy assertion has to travel the same path the
+  // page does — a key the catalog never got must fail here.
+  const t = createTranslator({ locale: 'en', messages, namespace: 'WorkoutDetail' })
+  const copy = (headline: FinishHeadline) => t(`headline.${headline.key}`, headline.values)
 
-  it('words small PR counts and numbers larger ones', () => {
-    expect(finishHeadline({ ...base, prNames: ['Bench', 'Squat'] })).toBe('Two PRs.')
-    expect(finishHeadline({ ...base, prNames: ['a', 'b', 'c', 'd', 'e'] })).toBe('Five PRs.')
-    expect(finishHeadline({ ...base, prNames: ['a', 'b', 'c', 'd', 'e', 'f', 'g'] })).toBe('7 PRs.')
+  it('picks the PR-count message, worded small and numeric large', () => {
+    expect(finishHeadline({ ...base, prNames: ['Bench', 'Squat'] })).toEqual({
+      key: 'prs',
+      values: { count: 2 },
+    })
+    expect(copy(finishHeadline({ ...base, prNames: ['Bench', 'Squat'] }))).toBe('Two PRs.')
+    expect(copy(finishHeadline({ ...base, prNames: ['a', 'b', 'c', 'd', 'e'] }))).toBe('Five PRs.')
+    expect(copy(finishHeadline({ ...base, prNames: ['a', 'b', 'c', 'd', 'e', 'f', 'g'] }))).toBe(
+      '7 PRs.',
+    )
   })
 
   it('names the exercise for a single PR', () => {
-    expect(finishHeadline({ ...base, prNames: ['Bench Press'] })).toBe('Bench Press PR.')
+    expect(finishHeadline({ ...base, prNames: ['Bench Press'] })).toEqual({
+      key: 'pr',
+      values: { exercise: 'Bench Press' },
+    })
+    expect(copy(finishHeadline({ ...base, prNames: ['Bench Press'] }))).toBe('Bench Press PR.')
   })
 
   it('celebrates a block-closing week when there are no PRs', () => {
-    expect(finishHeadline({ prNames: [], blockClosed: true, programWeek: 7 })).toBe(
-      'Week 7 closed.',
-    )
+    const headline = finishHeadline({ prNames: [], blockClosed: true, programWeek: 7 })
+    expect(headline).toEqual({ key: 'blockClosed', values: { week: 7 } })
+    expect(copy(headline)).toBe('Week 7 closed.')
   })
 
   it('lets PRs outrank the block close', () => {
-    expect(finishHeadline({ prNames: ['Bench'], blockClosed: true, programWeek: 7 })).toBe(
-      'Bench PR.',
-    )
+    expect(
+      copy(finishHeadline({ prNames: ['Bench'], blockClosed: true, programWeek: 7 })),
+    ).toBe('Bench PR.')
   })
 
   it('falls back to the generic stamp (block close without a stamped week too)', () => {
-    expect(finishHeadline({ ...base, prNames: [] })).toBe('Workout complete.')
-    expect(finishHeadline({ prNames: [], blockClosed: true, programWeek: null })).toBe(
-      'Workout complete.',
-    )
+    expect(copy(finishHeadline({ ...base, prNames: [] }))).toBe('Workout complete.')
+    expect(
+      copy(finishHeadline({ prNames: [], blockClosed: true, programWeek: null })),
+    ).toBe('Workout complete.')
   })
 })
 

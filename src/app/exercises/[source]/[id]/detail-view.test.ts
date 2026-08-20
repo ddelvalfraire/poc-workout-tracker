@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'vitest'
 import {
   buildTrendChartPoints,
-  formatStandingTime,
+  standingTime,
   prWorkoutIds,
   recentE1rmDelta,
   sessionSummary,
@@ -97,27 +97,27 @@ describe('buildTrendChartPoints', () => {
   })
 })
 
-describe('formatStandingTime', () => {
+describe('standingTime', () => {
   const now = new Date('2026-08-03T10:00:00Z')
   const daysBefore = (days: number) => new Date(now.getTime() - days * 24 * 60 * 60 * 1000)
 
   test('fresh records stay quiet', () => {
-    expect(formatStandingTime(daysBefore(13), now)).toBeNull()
+    expect(standingTime(daysBefore(13), now)).toBeNull()
   })
 
   test('weeks between two weeks and two months', () => {
-    expect(formatStandingTime(daysBefore(14), now)).toBe('held 2 weeks')
-    expect(formatStandingTime(daysBefore(45), now)).toBe('held 6 weeks')
+    expect(standingTime(daysBefore(14), now)).toEqual({ unit: 'week', count: 2 })
+    expect(standingTime(daysBefore(45), now)).toEqual({ unit: 'week', count: 6 })
   })
 
   test('months up to two years', () => {
-    expect(formatStandingTime(daysBefore(61), now)).toBe('held 2 months')
-    expect(formatStandingTime(daysBefore(244), now)).toBe('held 8 months')
+    expect(standingTime(daysBefore(61), now)).toEqual({ unit: 'month', count: 2 })
+    expect(standingTime(daysBefore(244), now)).toEqual({ unit: 'month', count: 8 })
   })
 
   test('years beyond that', () => {
-    expect(formatStandingTime(daysBefore(731), now)).toBe('held 2 years')
-    expect(formatStandingTime(daysBefore(1500), now)).toBe('held 4 years')
+    expect(standingTime(daysBefore(731), now)).toEqual({ unit: 'year', count: 2 })
+    expect(standingTime(daysBefore(1500), now)).toEqual({ unit: 'year', count: 4 })
   })
 })
 

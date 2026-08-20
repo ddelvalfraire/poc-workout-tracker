@@ -106,18 +106,25 @@ const WEEKS_CUTOFF_DAYS = 61
 const DAYS_PER_MONTH = 30.44
 const MONTHS_PER_YEAR = 12
 
+/** How long a record has stood: the bucket and its count, NOT a sentence.
+ *  English pluralises with an -s the page's ICU message owns; Polish needs
+ *  three forms and Arabic six, none of which a template literal can spell. */
+export interface StandingTime {
+  unit: 'week' | 'month' | 'year'
+  count: number
+}
+
 /**
- * How long a record has stood, as a caption fragment ("held 8 months"), or
- * null when it's too fresh (< 2 weeks) to be a reign worth naming.
+ * How long a record has stood, or null when it's too fresh (< 2 weeks) to be
+ * a reign worth naming.
  */
-export function formatStandingTime(since: Date, now: Date): string | null {
+export function standingTime(since: Date, now: Date): StandingTime | null {
   const days = Math.floor((now.getTime() - since.getTime()) / DAY_MS)
   if (days < MIN_STANDING_DAYS) return null
-  if (days < WEEKS_CUTOFF_DAYS) return `held ${Math.floor(days / 7)} weeks`
+  if (days < WEEKS_CUTOFF_DAYS) return { unit: 'week', count: Math.floor(days / 7) }
   const months = Math.floor(days / DAYS_PER_MONTH)
-  if (months < 2 * MONTHS_PER_YEAR) return `held ${months} month${months === 1 ? '' : 's'}`
-  const years = Math.floor(months / MONTHS_PER_YEAR)
-  return `held ${years} year${years === 1 ? '' : 's'}`
+  if (months < 2 * MONTHS_PER_YEAR) return { unit: 'month', count: months }
+  return { unit: 'year', count: Math.floor(months / MONTHS_PER_YEAR) }
 }
 
 export interface SessionSummary {

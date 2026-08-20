@@ -21,6 +21,9 @@ export function DeleteAccountForm() {
   const [error, setError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
   const armed = phrase === DELETE_CONFIRM_PHRASE
+  // Hoisted out of JSX: this is the error paragraph's element id, not copy —
+  // inline it would read to the extraction gate as an untranslated string.
+  const errorId = error ? 'delete-error' : undefined
 
   const handleDelete = () => {
     if (!armed || isPending) return
@@ -58,7 +61,7 @@ export function DeleteAccountForm() {
         spellCheck={false}
         disabled={isPending}
         className="mt-2"
-        aria-describedby={error ? 'delete-error' : undefined}
+        aria-describedby={errorId}
       />
       <Button
         type="submit"
@@ -66,7 +69,7 @@ export function DeleteAccountForm() {
         className="mt-4 w-full"
         disabled={!armed || isPending}
       >
-        {isPending ? 'Deleting your account…' : 'Delete my account'}
+        {isPending ? t('pendingAction') : t('action')}
       </Button>
       {error && (
         <p id="delete-error" role="alert" className="mt-3 text-sm text-destructive">

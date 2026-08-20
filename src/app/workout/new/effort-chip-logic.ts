@@ -37,17 +37,27 @@ export function nextRpeValue(current: string, chip: string): string {
   return chip
 }
 
+/**
+ * Which accessible name an RPE chip carries, plus its arguments — a message
+ * CHOICE, not a sentence. This module runs before any request, so a string
+ * assembled here could never be translated; EffortChips resolves it.
+ */
+export type RpeChipAriaLabel =
+  | { key: 'half'; values: { chip: string; half: string } }
+  | { key: 'clear'; values: { value: string } }
+  | { key: 'plain'; values: { value: string } }
+
 /** Names the chip's NEXT action for assistive tech, not just its value —
  *  the two-tap cycle is invisible without it. */
-export function rpeChipAriaLabel(current: string, chip: string): string {
+export function rpeChipAriaLabel(current: string, chip: string): RpeChipAriaLabel {
   const half = rpeHalfOf(chip)
   if (current === chip) {
     return half !== null
-      ? `RPE ${chip} — tap again for ${half}`
-      : `RPE ${chip} — tap again to clear`
+      ? { key: 'half', values: { chip, half } }
+      : { key: 'clear', values: { value: chip } }
   }
-  if (half !== null && current === half) return `RPE ${half} — tap again to clear`
-  return `RPE ${chip}`
+  if (half !== null && current === half) return { key: 'clear', values: { value: half } }
+  return { key: 'plain', values: { value: chip } }
 }
 
 /** The RPE chip that carries the target hairline ring, or null. A half-point

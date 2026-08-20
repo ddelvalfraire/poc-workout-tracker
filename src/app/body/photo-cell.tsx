@@ -4,6 +4,8 @@ import { useMemo } from 'react'
 import { thumbHashToPlaceholderUrl } from '@/lib/photo-pipeline'
 import { photoPoseLabel, type PhotoPose } from '@/lib/photo-input'
 import { cn } from '@/lib/utils'
+import { useTranslations } from 'next-intl'
+import { renderMessage } from '@/lib/message'
 
 /** One photo crossing the island boundary — dates pre-formatted server-side,
  *  URLs pre-signed at render (null when signing failed → placeholder only). */
@@ -36,17 +38,18 @@ interface PhotoCellProps {
  * owns the aspect ratio, so the image arriving never shifts layout.
  */
 export function PhotoCell({ entry, onSelect, isSelected, isCompareMode }: PhotoCellProps) {
+  const t = useTranslations('PhotoCell')
+  const tBody = useTranslations('Body')
   const placeholder = useMemo(() => thumbHashToPlaceholderUrl(entry.thumbHash), [entry.thumbHash])
 
   return (
     <button
       type="button"
       onClick={() => onSelect(entry.id)}
-      aria-label={
-        isCompareMode
-          ? `${isSelected ? 'Deselect' : 'Select'} photo from ${entry.dateLabel}`
-          : `View photo from ${entry.dateLabel}`
-      }
+      aria-label={t('ariaLabel', {
+        intent: isCompareMode ? (isSelected ? 'deselect' : 'select') : 'view',
+        date: entry.dateLabel,
+      })}
       aria-pressed={isCompareMode ? isSelected : undefined}
       className={cn(
         'relative aspect-[3/4] overflow-hidden rounded-xl bg-muted focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 motion-safe:animate-rise-in',
@@ -62,7 +65,10 @@ export function PhotoCell({ entry, onSelect, isSelected, isCompareMode }: PhotoC
         // eslint-disable-next-line @next/next/no-img-element -- signed expiring URL; the optimizer would cache-bust every render
         <img
           src={entry.thumbUrl}
-          alt={`Progress photo, ${entry.dateLabel}${entry.pose ? `, ${photoPoseLabel(entry.pose)}` : ''}`}
+          alt={t('alt', {
+            date: entry.dateLabel,
+            pose: entry.pose === null ? 'none' : renderMessage(tBody, photoPoseLabel(entry.pose)),
+          })}
           loading="lazy"
           width={320}
           height={427}
@@ -71,7 +77,9 @@ export function PhotoCell({ entry, onSelect, isSelected, isCompareMode }: PhotoC
       )}
       <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/55 to-transparent px-1.5 pb-1 pt-4 text-left text-[10px] font-medium leading-tight text-white">
         {entry.dateLabel}
-        {entry.pose && <span className="opacity-75"> · {photoPoseLabel(entry.pose)}</span>}
+        {entry.pose && (
+          <span className="opacity-75">{t('poseSuffix', { pose: renderMessage(tBody, photoPoseLabel(entry.pose)) })}</span>
+        )}
       </span>
     </button>
   )

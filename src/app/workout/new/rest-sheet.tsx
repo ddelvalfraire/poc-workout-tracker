@@ -9,6 +9,7 @@ import { MAX_REST_SEC } from '@/lib/program-input'
 import { isRestChimeEnabled, setRestChimeEnabled, unlockRestChime } from './rest-chime'
 import { useAnimatedSheetClose } from '@/components/use-animated-sheet-close'
 import { cn } from '@/lib/utils'
+import { useTranslations } from 'next-intl'
 
 /**
  * Bottom sheet for the session's rest target — the number the sticky bar's
@@ -43,6 +44,7 @@ interface RestSheetProps {
 }
 
 export function RestSheet({ currentSec, onClose, onSaved }: RestSheetProps) {
+  const t = useTranslations('RestSheet')
   // Pill selection is local until Save — mirroring the plate sheet's gear
   // editor, a cancelled sheet must not leak a half-picked target.
   const [selected, setSelected] = useState<number | null>(currentSec)
@@ -94,7 +96,7 @@ export function RestSheet({ currentSec, onClose, onSaved }: RestSheetProps) {
     if (customText.trim() !== '') {
       const parsed = parseCustomRest(customText)
       if (parsed === null) {
-        setError(`Custom rest must be a whole number of seconds, 0 to ${MAX_REST_SEC}.`)
+        setError(t('validation', { max: MAX_REST_SEC }))
         return
       }
       value = parsed
@@ -109,7 +111,7 @@ export function RestSheet({ currentSec, onClose, onSaved }: RestSheetProps) {
       requestClose()
     } catch {
       // Session state already applied — only the cross-session default failed.
-      setError('Set for this session, but saving your default failed. Try again.')
+      setError(t('saveError'))
       setIsSaving(false)
     }
   }
@@ -122,7 +124,7 @@ export function RestSheet({ currentSec, onClose, onSaved }: RestSheetProps) {
     // one dialog recipe, no per-sheet drift.
     <dialog
       ref={dialogRef}
-      aria-label="Rest target"
+      aria-label={t('title')}
       onCancel={(e) => {
         e.preventDefault() // keep open/closed state owned by React
         requestClose()
@@ -144,9 +146,9 @@ export function RestSheet({ currentSec, onClose, onSaved }: RestSheetProps) {
     >
       <div className="flex items-start justify-between gap-3 pb-1">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-widest text-primary">Rest target</p>
+          <p className="text-xs font-semibold uppercase tracking-widest text-primary">{t('title')}</p>
           <p className="mt-0.5 text-sm text-muted-foreground">
-            Fallback for sets without a planned rest. Off = count up only.
+            {t('lede')}
           </p>
         </div>
         <Button
@@ -155,7 +157,7 @@ export function RestSheet({ currentSec, onClose, onSaved }: RestSheetProps) {
           variant="ghost"
           className="-mr-1 text-muted-foreground"
           onClick={requestClose}
-          aria-label="Close"
+          aria-label={t('close')}
         >
           <X aria-hidden="true" className="size-4" />
         </Button>
@@ -179,7 +181,7 @@ export function RestSheet({ currentSec, onClose, onSaved }: RestSheetProps) {
                 : 'border-border bg-muted text-muted-foreground',
             )}
           >
-            {preset === null ? 'Off' : `${preset}s`}
+            {preset === null ? t('presetOff') : t('presetSeconds', { seconds: preset })}
           </button>
         ))}
       </div>
@@ -196,14 +198,14 @@ export function RestSheet({ currentSec, onClose, onSaved }: RestSheetProps) {
               handleSave()
             }
           }}
-          aria-label="Custom rest target in seconds"
-          placeholder="Custom s"
+          aria-label={t('customAriaLabel')}
+          placeholder={t('customPlaceholder')}
           type="text"
           inputMode="numeric"
           className="h-9 w-28 rounded-full text-center text-sm tnum"
         />
         <Button size="sm" className="flex-1" onClick={handleSave} disabled={isSaving}>
-          {isSaving ? 'Saving…' : 'Save'}
+          {isSaving ? t('savePending') : t('save')}
         </Button>
       </div>
 
@@ -215,9 +217,9 @@ export function RestSheet({ currentSec, onClose, onSaved }: RestSheetProps) {
           first rest-over after enabling can actually sound. */}
       <div className="flex items-center justify-between gap-3 border-t border-border pt-4 pb-4">
         <div className="min-w-0">
-          <p className="text-sm">End-of-rest chirp</p>
+          <p className="text-sm">{t('chimeLabel')}</p>
           <p className="mt-0.5 text-xs text-muted-foreground">
-            A short beep when the countdown hits zero. Vibration stays on either way.
+            {t('chimeHint')}
           </p>
         </div>
         <button
@@ -239,7 +241,7 @@ export function RestSheet({ currentSec, onClose, onSaved }: RestSheetProps) {
               : 'border-border bg-muted text-muted-foreground',
           )}
         >
-          {chimeOn ? 'On' : 'Off'}
+          {chimeOn ? t('chimeOn') : t('chimeOff')}
         </button>
       </div>
     </dialog>

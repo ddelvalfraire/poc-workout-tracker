@@ -25,6 +25,8 @@
     "tokens:check": "tsx scripts/build-tokens.ts --check",
     "legal": "tsx scripts/build-legal.ts",
     "legal:check": "tsx scripts/build-legal.ts --check",
+    "offline": "tsx scripts/build-offline.ts",
+    "offline:check": "tsx scripts/build-offline.ts --check",
     "i18n:report": "tsx scripts/i18n-extract.ts report",
     "i18n:extract": "tsx scripts/i18n-extract.ts apply",
     "db:seed-consent-docs": "tsx scripts/seed-consent-docs.ts",

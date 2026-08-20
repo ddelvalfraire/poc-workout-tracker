@@ -8,6 +8,7 @@ import {
   SessionConflictDialog,
   type SessionSummary,
 } from '@/components/session-conflict-dialog'
+import { useTranslations } from 'next-intl'
 
 /**
  * Per-day client island: instantiates the day into a real workout (week
@@ -20,6 +21,9 @@ interface StartDayButtonProps {
    *  selected week). Omitted → auto-derived from history (home hero). */
   week?: number
   size?: 'sm' | 'default' | 'lg'
+  /** Caller-supplied CTA text. Left out, the button says so itself — the
+   *  default cannot be a parameter default, because a literal in the
+   *  signature is built before the translator exists. */
   label?: string
   /** Demotes the button when another CTA owns the screen (e.g. a resume banner). */
   variant?: 'default' | 'outline'
@@ -37,10 +41,11 @@ export function StartDayButton({
   programDayId,
   week,
   size = 'sm',
-  label = 'Start this day',
+  label,
   variant = 'default',
   activeSession = null,
 }: StartDayButtonProps) {
+  const t = useTranslations('StartDayButton')
   const [isPending, setIsPending] = useState(false)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -66,7 +71,7 @@ export function StartDayButton({
       await instantiateAndGo()
     } catch {
       setIsPending(false)
-      setError('Could not start this day. Please try again.')
+      setError(t('startError'))
     }
   }
 
@@ -81,7 +86,7 @@ export function StartDayButton({
         // original one-tap start stands.
         onClick={activeSession ? () => setIsDialogOpen(true) : handleStart}
       >
-        {isPending ? 'Starting…' : label}
+        {isPending ? t('pending') : (label ?? t('startAction'))}
       </Button>
       {error && <p className="text-sm text-destructive">{error}</p>}
       {isDialogOpen && activeSession && (

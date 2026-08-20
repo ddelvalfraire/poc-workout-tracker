@@ -8,6 +8,7 @@ import { deleteWorkoutDraftAction, deleteWorkoutAction } from '@/app/workout/act
 import { activeSessionHref } from '@/lib/active-session'
 import { discardSession } from '@/lib/discard-session'
 import { useAnimatedSheetClose } from '@/components/use-animated-sheet-close'
+import { useTranslations } from 'next-intl'
 
 /**
  * Bottom sheet shown when starting a NEW workout would collide with a live
@@ -44,6 +45,7 @@ interface SessionConflictDialogProps {
 }
 
 export function SessionConflictDialog({ session, onClose, onProceed }: SessionConflictDialogProps) {
+  const t = useTranslations('SessionConflictDialog')
   const [isPending, setIsPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const dialogRef = useRef<HTMLDialogElement>(null)
@@ -120,13 +122,19 @@ export function SessionConflictDialog({ session, onClose, onProceed }: SessionCo
       // No "nothing was changed" claim: the discard is one server call per
       // surface, but onProceed can also fail after a successful discard —
       // the copy must stay honest for both.
-      setError('Could not finish discarding. Try again.')
+      setError(t('discardError'))
     }
   }
 
+  // ONE ICU message: the count, its plural form and the word order all move
+  // together between languages — a template literal with a `? '' : 's'` tail
+  // has no correct translation in Polish (3 forms) or Arabic (6).
   const meta =
     session.setCount > 0
-      ? `${session.completedSetCount} of ${session.setCount} set${session.setCount === 1 ? '' : 's'} done`
+      ? t('setProgress', {
+          completed: session.completedSetCount,
+          total: session.setCount,
+        })
       : null
 
   return (
@@ -135,7 +143,7 @@ export function SessionConflictDialog({ session, onClose, onProceed }: SessionCo
     // (children swallow their own clicks) — the standard light-dismiss trick.
     <dialog
       ref={dialogRef}
-      aria-label="Workout in progress"
+      aria-label={t('dialogLabel')}
       onCancel={(e) => {
         e.preventDefault() // keep open/closed state owned by React
         // Mid-discard, Esc must not dismiss: the actions are already fired
@@ -166,10 +174,10 @@ export function SessionConflictDialog({ session, onClose, onProceed }: SessionCo
               <span className="absolute inline-flex h-full w-full motion-safe:animate-ping rounded-full bg-primary opacity-60" />
               <span className="relative inline-flex size-2 rounded-full bg-primary" />
             </span>
-            Workout in progress
+            {t('liveBadge')}
           </p>
           <h3 className="mt-2 truncate font-display text-2xl uppercase leading-none tracking-wide">
-            {session.name ?? 'Unnamed session'}
+            {session.name ?? t('untitledSession')}
           </h3>
           {meta && <p className="mt-1.5 text-sm text-muted-foreground tnum">{meta}</p>}
         </div>
@@ -180,7 +188,7 @@ export function SessionConflictDialog({ session, onClose, onProceed }: SessionCo
           className="-mr-1 shrink-0 text-muted-foreground"
           onClick={requestClose}
           disabled={isPending}
-          aria-label="Close"
+          aria-label={t('close')}
         >
           <X aria-hidden="true" className="size-4" />
         </Button>
@@ -198,7 +206,7 @@ export function SessionConflictDialog({ session, onClose, onProceed }: SessionCo
           disabled={isPending}
           onClick={handleContinue}
         >
-          Continue workout
+          {t('continueAction')}
         </Button>
         <Button
           variant="outline"
@@ -206,10 +214,10 @@ export function SessionConflictDialog({ session, onClose, onProceed }: SessionCo
           disabled={isPending}
           onClick={handleDiscardAndProceed}
         >
-          {isPending ? 'Discarding…' : 'Discard & start new'}
+          {isPending ? t('discardingAction') : t('discardAction')}
         </Button>
         <Button variant="ghost" className="w-full" disabled={isPending} onClick={requestClose}>
-          Cancel
+          {t('cancel')}
         </Button>
         {error && <p className="text-sm text-destructive">{error}</p>}
       </div>
