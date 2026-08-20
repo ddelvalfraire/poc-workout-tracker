@@ -7,7 +7,8 @@ import { getRollingVolumeTotals } from '@/db/muscle-volume'
 import { getGoalsHomeSummary } from '@/lib/goals'
 import { goalLabel } from '@/lib/goal-progress'
 import { bucketDaySets } from '@/lib/drawer-status'
-import { momentumSessionsLine, momentumWeekDeltaLine } from '@/lib/home-status'
+import { momentumSessionsLine, momentumWeekDeltaLine, type MomentumKey } from '@/lib/home-status'
+import { renderLine } from '@/lib/i18n/message'
 import { Sparkbar } from '@/components/sparkbar'
 import { StreakChip } from '@/components/streak-chip'
 import { getTranslations } from 'next-intl/server'
@@ -114,14 +115,16 @@ export async function MomentumPanel({ userId, nowMs, size = 'md' }: MomentumPane
             </span>
             <span className="mt-1.5 block text-sm text-muted-foreground tnum">
               {weekSets > 0
-                ? momentumSessionsLine(weekSessions)
+                ? renderLine<MomentumKey>(t, momentumSessionsLine(weekSessions))
                 : t('emptyWeek')}
             </span>
             {/* lg only: the week-over-week fact, from the previous window the
                 totals read already fetched (zero new queries). Null (empty
                 last week) renders nothing — silence over a hollow compare. */}
             {size === 'lg' && weekDelta !== null && (
-              <span className="mt-0.5 block text-sm text-muted-foreground tnum">{weekDelta}</span>
+              <span className="mt-0.5 block text-sm text-muted-foreground tnum">
+                {renderLine<MomentumKey>(t, weekDelta)}
+              </span>
             )}
           </span>
           {daySets.length > 0 && (

@@ -52,7 +52,21 @@ describe('TileSheet', () => {
     const html = render({ kind: 'momentum', index: 0, count: 4 })
     expect(html).toContain('<dialog')
     expect(html).toContain('aria-label="Momentum section"')
-    expect(html).toContain(metaOf('momentum').description)
+    // The registry carries KEYS now, so this asserts the resolved copy — and
+    // that no key path leaked through unresolved.
+    expect(html).toContain('This week’s sets, activity, and goal progress.')
+    expect(html).not.toMatch(/HomeSection\.[a-zA-Z.]+/)
+    expect(html).not.toMatch(/TileSheet\.[a-zA-Z.]+/)
+  })
+
+  test('every registered section resolves both of its catalog keys', () => {
+    // The registry is data, so nothing renders these two keys except a
+    // section the editor happens to show — this walks all of them, which is
+    // what catches a new section added without its title or description.
+    for (const meta of HOME_SECTION_REGISTRY) {
+      const html = render({ kind: meta.kind, index: 0, count: HOME_SECTION_REGISTRY.length })
+      expect(html, meta.kind).not.toMatch(/HomeSection\.[a-zA-Z.]+/)
+    }
   })
 
   test('size control gating: only allowedSizes are enabled (unfinished is md-only)', () => {

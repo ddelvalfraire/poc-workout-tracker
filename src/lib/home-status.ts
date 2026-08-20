@@ -1,6 +1,7 @@
 import { isSameLocalDay } from '@/lib/local-day'
 import { scheduleAnchor } from '@/lib/schedule-anchor'
 import { formatVolume } from '@/lib/format'
+import type { Line, Message } from '@/lib/i18n/message'
 import type { WeightUnit } from '@/lib/units'
 
 /**
@@ -54,13 +55,48 @@ export type HomeState =
   | 'drifting'
   | 'fresh'
 
+/** Catalog keys the hero's three lines can resolve to — every one of them
+ *  lives under the `StatusHero` namespace, which is what renders them. */
+export type StatusHeroKey =
+  | 'eyebrow.live'
+  | 'eyebrow.logged'
+  | 'eyebrow.blockComplete'
+  | 'eyebrow.upNext'
+  | 'headline.live'
+  | 'headline.done'
+  | 'headline.due'
+  | 'headline.dueSelfNamed'
+  | 'headline.rest'
+  | 'headline.drifting'
+  | 'headline.ready'
+  | 'headline.dayOne'
+  | 'context.live'
+  | 'context.trained'
+  | 'context.trainedVolume'
+  | 'context.blockWeeks'
+  | 'context.week'
+  | 'context.weekWithLastTime'
+  | 'context.streak'
+  | 'context.driftNext'
+  | 'context.driftFallback'
+  | 'context.rest'
+  | 'context.freshReturning'
+  | 'context.freshDayOne'
+  | 'lastSession'
+  | 'unnamedSession'
+  | 'untitledWorkout'
+
+export type StatusHeroLine = Line<StatusHeroKey>
+
 export interface HomeStatus {
   state: HomeState
-  /** Small line above the headline (volt for live/achievement states); null = none. */
-  eyebrow: string | null
+  /** Small line above the headline (volt for live/achievement states); null =
+   *  none. A literal here is a fact in the user's own words — the program's
+   *  name, or the schedule anchor — not copy waiting for a translation. */
+  eyebrow: StatusHeroLine | null
   /** The poster line — rendered in font-display caps by the hero. */
-  headline: string
-  context: string
+  headline: StatusHeroLine
+  context: StatusHeroLine
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000
@@ -76,15 +112,23 @@ export function localDayDiff(fromMs: number, now: Date): number {
 }
 
 /** "Push" → "Push day." / "Leg Day" → "Leg Day." — never a stuttered
- *  "Leg Day day". The trailing period is the editorial voice, not grammar. */
-export function dueHeadline(dayName: string): string {
+ *  "Leg Day day". The DECISION (does the name already end in "day"?) is what
+ *  belongs here; both renderings are catalog messages, because the same fork
+ *  is a different rule in every language. */
+export function dueHeadline(dayName: string): Message<StatusHeroKey> {
   const name = dayName.trim()
-  return /(^|\s)day$/i.test(name) ? `${name}.` : `${name} day.`
+  return /(^|\s)day$/i.test(name)
+    ? { key: 'headline.dueSelfNamed', values: { day: name } }
+    : { key: 'headline.due', values: { day: name } }
 }
 
+/** Catalog keys for the momentum panel's sublines — rendered by
+ *  `MomentumPanel`, so they resolve against that namespace. */
+export type MomentumKey = 'sessionsLine' | 'weekDeltaLevel' | 'weekDeltaUp' | 'weekDeltaDown'
+
 /** The momentum panel's sessions subline: "3 sessions this week". */
-export function momentumSessionsLine(count: number): string {
-  return `${count} ${count === 1 ? 'session' : 'sessions'} this week`
+export function momentumSessionsLine(count: number): Message<MomentumKey> {
+  return { key: 'sessionsLine', values: { count } }
 }
 
 /** The lg momentum panel's week-over-week line ("Up 8 on last week").
@@ -92,33 +136,37 @@ export function momentumSessionsLine(count: number): string {
  *  window reads as noise (a brand-new user's first week isn't "up"),
  *  so silence over a hollow number. Counts are working sets, both from
  *  the rolling-window totals already fetched for the panel. */
-export function momentumWeekDeltaLine(currentSets: number, previousSets: number): string | null {
+export function momentumWeekDeltaLine(
+  currentSets: number,
+  previousSets: number,
+): Message<MomentumKey> | null {
   if (previousSets === 0) return null
   const delta = currentSets - previousSets
-  if (delta === 0) return 'Level with last week'
-  return delta > 0 ? `Up ${delta} on last week` : `Down ${-delta} on last week`
-}
-
-function pluralSets(count: number): string {
-  return `${count} set${count === 1 ? '' : 's'}`
+  if (delta === 0) return { key: 'weekDeltaLevel' }
+  return delta > 0
+    ? { key: 'weekDeltaUp', values: { delta } }
+    : { key: 'weekDeltaDown', values: { delta: -delta } }
 }
 
 function driftingStatus(
   facts: HomeStatusFacts,
   daysSince: number,
-  nextLine: string | null,
+  nextLine: StatusHeroLine | null,
 ): HomeStatus {
   // Warm by contract (never guilt-toned): the headline states the fact, the
   // context offers the stake (streak) or the way back in — nothing scolds.
-  const sinceName = facts.lastCompleted?.name ?? 'your last session'
-  const context =
+  const name = facts.lastCompleted?.name
+  const context: StatusHeroLine =
     facts.streakWeeks !== null && facts.streakWeeks > 0
-      ? `Your ${facts.streakWeeks}-week streak is on the line — one session keeps it.`
-      : (nextLine ?? 'Pick up where you left off.')
+      ? { key: 'context.streak', values: { weeks: facts.streakWeeks } }
+      : (nextLine ?? { key: 'context.driftFallback' })
   return {
     state: 'drifting',
     eyebrow: null,
-    headline: `${daysSince} days since ${sinceName}.`,
+    headline: {
+      key: 'headline.drifting',
+      values: { days: daysSince, session: name ?? { key: 'lastSession' } },
+    },
     context,
   }
 }
@@ -131,9 +179,15 @@ export function statusForHome(facts: HomeStatusFacts, unit: WeightUnit, now: Dat
   if (session !== null) {
     return {
       state: 'session-live',
-      eyebrow: 'Workout in progress',
-      headline: 'In the middle of it.',
-      context: `${session.name ?? 'Unnamed session'} · ${pluralSets(session.completedSetCount)} logged`,
+      eyebrow: { key: 'eyebrow.live' },
+      headline: { key: 'headline.live' },
+      context: {
+        key: 'context.live',
+        values: {
+          name: session.name ?? { key: 'unnamedSession' },
+          sets: session.completedSetCount,
+        },
+      },
     }
   }
 
@@ -141,25 +195,28 @@ export function statusForHome(facts: HomeStatusFacts, unit: WeightUnit, now: Dat
   if (trainedToday) {
     // PR counts aren't in the home reads (spike §5), so the fallback phrase
     // stands in whenever the volume fact is missing — never an empty slot.
-    const name = lastCompleted?.name ?? 'Workout'
-    const fact =
+    const name = lastCompleted?.name ?? { key: 'untitledWorkout' as const }
+    const volume =
       lastCompleted !== null && lastCompleted.volumeKg > 0
         ? formatVolume(lastCompleted.volumeKg, unit)
-        : 'showed up — that counts'
+        : null
     return {
       state: 'trained-today',
-      eyebrow: 'Session logged',
-      headline: 'Done for today.',
-      context: `${name} · ${fact}`,
+      eyebrow: { key: 'eyebrow.logged' },
+      headline: { key: 'headline.done' },
+      context:
+        volume !== null
+          ? { key: 'context.trainedVolume', values: { name, volume } }
+          : { key: 'context.trained', values: { name } },
     }
   }
 
   if (nextDay?.blockComplete) {
     return {
       state: 'block-complete',
-      eyebrow: 'Block complete',
-      headline: nextDay.programName,
-      context: `${nextDay.mesocycleWeeks} week${nextDay.mesocycleWeeks === 1 ? '' : 's'}`,
+      eyebrow: { key: 'eyebrow.blockComplete' },
+      headline: { literal: nextDay.programName },
+      context: { key: 'context.blockWeeks', values: { weeks: nextDay.mesocycleWeeks } },
     }
   }
 
@@ -170,29 +227,33 @@ export function statusForHome(facts: HomeStatusFacts, unit: WeightUnit, now: Dat
     // Unscheduled programs are always "due" — the pre-schedule "Up next"
     // semantics; scheduled ones are due only on their local calendar day.
     if (anchor === null || anchor === 'Today') {
-      const context = [
-        `Week ${nextDay.week} of ${nextDay.mesocycleWeeks}`,
-        facts.lastTimeVolumeKg !== null && facts.lastTimeVolumeKg > 0
-          ? `last time: ${formatVolume(facts.lastTimeVolumeKg, unit)}`
-          : null,
-      ]
-        .filter((p): p is string => p !== null)
-        .join(' · ')
+      const week = { week: nextDay.week, total: nextDay.mesocycleWeeks }
+      const hasLastTime = facts.lastTimeVolumeKg !== null && facts.lastTimeVolumeKg > 0
       return {
         state: 'program-due',
-        eyebrow: anchor ?? 'Up next',
+        // The anchor is a schedule word from lib/schedule-anchor.ts, passed
+        // through as a fact; "Up next" is this surface's own copy.
+        eyebrow: anchor !== null ? { literal: anchor } : { key: 'eyebrow.upNext' },
         headline: dueHeadline(nextDay.dayName),
-        context,
+        context: hasLastTime
+          ? {
+              key: 'context.weekWithLastTime',
+              values: { ...week, volume: formatVolume(facts.lastTimeVolumeKg ?? 0, unit) },
+            }
+          : { key: 'context.week', values: week },
       }
     }
     if (daysSince !== null && daysSince >= DRIFT_THRESHOLD_DAYS) {
-      return driftingStatus(facts, daysSince, `Next up: ${nextDay.dayName} · ${anchor}`)
+      return driftingStatus(facts, daysSince, {
+        key: 'context.driftNext',
+        values: { day: nextDay.dayName, anchor },
+      })
     }
     return {
       state: 'rest-day',
-      eyebrow: nextDay.programName,
-      headline: 'Rest day.',
-      context: `Next: ${nextDay.dayName} · ${anchor}`,
+      eyebrow: { literal: nextDay.programName },
+      headline: { key: 'headline.rest' },
+      context: { key: 'context.rest', values: { day: nextDay.dayName, anchor } },
     }
   }
 
@@ -207,14 +268,14 @@ export function statusForHome(facts: HomeStatusFacts, unit: WeightUnit, now: Dat
     return {
       state: 'fresh',
       eyebrow: null,
-      headline: 'Ready when you are.',
-      context: 'No plan today — quick-log a session, or pick a program.',
+      headline: { key: 'headline.ready' },
+      context: { key: 'context.freshReturning' },
     }
   }
   return {
     state: 'fresh',
     eyebrow: null,
-    headline: 'Day one.',
-    context: 'Log your first session — a program gives every set a target.',
+    headline: { key: 'headline.dayOne' },
+    context: { key: 'context.freshDayOne' },
   }
 }

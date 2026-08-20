@@ -1,4 +1,6 @@
 import { describe, it, expect } from 'vitest'
+import { catalogTranslator } from '../../vitest.intl'
+import { renderLine, renderLines } from './i18n/message'
 import {
   bodyStatusLine,
   bucketDaySets,
@@ -8,29 +10,50 @@ import {
   programStatusLine,
   recentWorkoutLine,
   relativeDayLabel,
+  relativeDayMessage,
   startContextLine,
   trendArrow,
   trophyStatusLine,
   volumeStatusLine,
 } from './drawer-status'
 
+/**
+ * The drawer's status functions return DESCRIPTORS, so each case asserts the
+ * decision (which message, what arguments) and — through the real catalog —
+ * what that decision reads as. Segment lists join with the row's " · ", which
+ * is punctuation the renderer owns, not a translated word.
+ */
+const t = catalogTranslator('NavDrawer')
+const read = (line: Parameters<typeof renderLine>[1]) => renderLine(t, line)
+const readAll = (lines: Parameters<typeof renderLines>[1]) => renderLines(t, lines)
+
 // Local-calendar fixture: a fixed midday "now" keeps day math unambiguous.
 const now = new Date(2026, 7, 3, 12, 0, 0) // Mon Aug 3 2026, local
 
 describe('startContextLine', () => {
   it('joins day, week and a lowercased anchor', () => {
-    expect(startContextLine('Legs', 3, 'Today')).toBe('Legs · Week 3 · today')
-    expect(startContextLine('Push', 1, 'Friday')).toBe('Push · Week 1 · friday')
+    expect(startContextLine('Legs', 3, 'Today')).toEqual({
+      key: 'startContextAnchor',
+      values: { day: 'Legs', week: 3, anchor: 'today' },
+    })
+    expect(read(startContextLine('Legs', 3, 'Today'))).toBe('Legs · Week 3 · today')
+    expect(read(startContextLine('Push', 1, 'Friday'))).toBe('Push · Week 1 · friday')
   })
 
   it('drops the anchor segment when unscheduled', () => {
-    expect(startContextLine('Legs', 3, null)).toBe('Legs · Week 3')
+    expect(startContextLine('Legs', 3, null)).toEqual({
+      key: 'startContext',
+      values: { day: 'Legs', week: 3 },
+    })
+    expect(read(startContextLine('Legs', 3, null))).toBe('Legs · Week 3')
   })
 })
 
 describe('programStatusLine', () => {
   it('renders name and week fraction', () => {
-    expect(programStatusLine('Upper/Lower Hybrid', 3, 7)).toBe('Upper/Lower Hybrid · Wk 3/7')
+    expect(read(programStatusLine('Upper/Lower Hybrid', 3, 7))).toBe(
+      'Upper/Lower Hybrid · Wk 3/7',
+    )
   })
 })
 
@@ -48,8 +71,9 @@ describe('programProgressPercent', () => {
 
 describe('volumeStatusLine', () => {
   it('pluralizes sets and nulls out at zero', () => {
-    expect(volumeStatusLine(42)).toBe('42 sets this week')
-    expect(volumeStatusLine(1)).toBe('1 set this week')
+    expect(volumeStatusLine(42)).toEqual({ key: 'status.volume', values: { count: 42 } })
+    expect(read(volumeStatusLine(42)!)).toBe('42 sets this week')
+    expect(read(volumeStatusLine(1)!)).toBe('1 set this week')
     expect(volumeStatusLine(0)).toBeNull()
   })
 })
@@ -69,41 +93,64 @@ describe('bodyStatusLine', () => {
       { weightKg: 83.9, deltaKg: -0.9, checkInDue: true, daysSinceLast: 8 },
       'lb',
     )
-    expect(line).toBe('185 lb ↘ · check-in due')
+    // The weight is a literal — a number, a unit and a glyph are data.
+    expect(line[0]).toEqual({ literal: '185 lb ↘' })
+    expect(line[1]).toEqual({ key: 'status.bodyCheckInDue' })
+    expect(readAll(line)).toBe('185 lb ↘ · check-in due')
   })
 
   it('reports the last check-in when not due', () => {
     expect(
-      bodyStatusLine({ weightKg: 80, deltaKg: null, checkInDue: false, daysSinceLast: 3 }, 'kg'),
+      readAll(
+        bodyStatusLine({ weightKg: 80, deltaKg: null, checkInDue: false, daysSinceLast: 3 }, 'kg'),
+      ),
     ).toBe('80 kg · last 3d ago')
     expect(
-      bodyStatusLine({ weightKg: 80, deltaKg: null, checkInDue: false, daysSinceLast: 0 }, 'kg'),
+      readAll(
+        bodyStatusLine({ weightKg: 80, deltaKg: null, checkInDue: false, daysSinceLast: 0 }, 'kg'),
+      ),
     ).toBe('80 kg · checked in today')
   })
 
   it('still speaks when only one half of the fact exists', () => {
     expect(
-      bodyStatusLine({ weightKg: null, deltaKg: null, checkInDue: true, daysSinceLast: null }, 'kg'),
+      readAll(
+        bodyStatusLine(
+          { weightKg: null, deltaKg: null, checkInDue: true, daysSinceLast: null },
+          'kg',
+        ),
+      ),
     ).toBe('check-in due')
     expect(
-      bodyStatusLine({ weightKg: 80, deltaKg: null, checkInDue: false, daysSinceLast: null }, 'kg'),
+      readAll(
+        bodyStatusLine(
+          { weightKg: 80, deltaKg: null, checkInDue: false, daysSinceLast: null },
+          'kg',
+        ),
+      ),
     ).toBe('80 kg')
   })
 
-  it('nulls out with nothing to report', () => {
+  it('says nothing at all when there is nothing to report', () => {
     expect(
       bodyStatusLine(
         { weightKg: null, deltaKg: null, checkInDue: false, daysSinceLast: null },
         'kg',
       ),
-    ).toBeNull()
+    ).toEqual([])
   })
 })
 
 describe('trophyStatusLine', () => {
   it('names the count and the newest', () => {
-    expect(trophyStatusLine(12, '315 Squat Club')).toBe('12 earned · newest: 315 Squat Club')
-    expect(trophyStatusLine(2, null)).toBe('2 earned')
+    expect(trophyStatusLine(12, '315 Squat Club')).toEqual({
+      key: 'status.trophiesNewest',
+      values: { count: 12, newest: '315 Squat Club' },
+    })
+    expect(read(trophyStatusLine(12, '315 Squat Club')!)).toBe(
+      '12 earned · newest: 315 Squat Club',
+    )
+    expect(read(trophyStatusLine(2, null)!)).toBe('2 earned')
   })
 
   it('nulls out when nothing is earned', () => {
@@ -113,20 +160,45 @@ describe('trophyStatusLine', () => {
 
 describe('exercisesStatusLine', () => {
   it('prefers the PR fact, falls back to the movement count', () => {
-    expect(exercisesStatusLine('315 Squat Club', 24)).toBe('Last PR: 315 Squat Club')
-    expect(exercisesStatusLine(null, 24)).toBe('24 logged movements')
-    expect(exercisesStatusLine(null, 1)).toBe('1 logged movement')
+    expect(exercisesStatusLine('315 Squat Club', 24)).toEqual({
+      key: 'status.lastPr',
+      values: { label: '315 Squat Club' },
+    })
+    expect(read(exercisesStatusLine('315 Squat Club', 24)!)).toBe('Last PR: 315 Squat Club')
+    expect(read(exercisesStatusLine(null, 24)!)).toBe('24 logged movements')
+    expect(read(exercisesStatusLine(null, 1)!)).toBe('1 logged movement')
     expect(exercisesStatusLine(null, 0)).toBeNull()
   })
 })
 
-describe('relativeDayLabel', () => {
+describe('relativeDayMessage', () => {
   it('speaks local-calendar words for today and yesterday', () => {
-    expect(relativeDayLabel(new Date(2026, 7, 3, 7).getTime(), now)).toBe('Today')
-    expect(relativeDayLabel(new Date(2026, 7, 2, 23).getTime(), now)).toBe('Yesterday')
+    expect(relativeDayMessage(new Date(2026, 7, 3, 7).getTime(), now)).toEqual({
+      key: 'day.today',
+    })
+    expect(relativeDayMessage(new Date(2026, 7, 2, 23).getTime(), now)).toEqual({
+      key: 'day.yesterday',
+    })
+    expect(read(relativeDayMessage(new Date(2026, 7, 3, 7).getTime(), now))).toBe('Today')
+    expect(read(relativeDayMessage(new Date(2026, 7, 2, 23).getTime(), now))).toBe('Yesterday')
   })
 
-  it('falls back to a short date beyond yesterday', () => {
+  it('hands the raw Date to ICU beyond yesterday, never a pre-formatted month', () => {
+    const at = new Date(2026, 6, 26, 18)
+    // The month name is a locale FORMAT, not a catalog string — the value
+    // travels as a Date so a second locale renders its own.
+    expect(relativeDayMessage(at.getTime(), now)).toEqual({
+      key: 'day.date',
+      values: { date: at },
+    })
+    expect(read(relativeDayMessage(at.getTime(), now))).toBe('Jul 26')
+  })
+})
+
+describe('relativeDayLabel', () => {
+  it('keeps English day words for the not-yet-migrated notes rows', () => {
+    expect(relativeDayLabel(new Date(2026, 7, 3, 7).getTime(), now)).toBe('Today')
+    expect(relativeDayLabel(new Date(2026, 7, 2, 23).getTime(), now)).toBe('Yesterday')
     expect(relativeDayLabel(new Date(2026, 6, 26, 18).getTime(), now)).toBe('Jul 26')
   })
 })
@@ -138,12 +210,20 @@ describe('recentWorkoutLine', () => {
       'lb',
       now,
     )
-    expect(line).toBe('Yesterday · 8,076 lb')
+    expect(line[0]).toEqual({ key: 'day.yesterday' })
+    expect(line[1]).toEqual({ literal: '8,076 lb' })
+    expect(readAll(line)).toBe('Yesterday · 8,076 lb')
   })
 
   it('drops zero volume', () => {
     expect(
-      recentWorkoutLine({ startedAtMs: new Date(2026, 7, 3, 8).getTime(), volumeKg: 0 }, 'kg', now),
+      readAll(
+        recentWorkoutLine(
+          { startedAtMs: new Date(2026, 7, 3, 8).getTime(), volumeKg: 0 },
+          'kg',
+          now,
+        ),
+      ),
     ).toBe('Today')
   })
 })

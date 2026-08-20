@@ -1,21 +1,33 @@
 import { describe, expect, test } from 'vitest'
 import type { UIMessage } from 'ai'
+import { catalogTranslator } from '../../../vitest.intl'
+import { renderLine } from '@/lib/i18n/message'
 import {
   chipsFor,
-  daySeparatorLabel,
+  daySeparatorMessage,
   DEFAULT_STARTERS,
   extractProgramProposal,
   formatToolInput,
   humanizeToolName,
   isPinnedToBottom,
+  LABELED_TOOLS,
   messageTimestamp,
   parseCoachError,
   parseContextParam,
   programIdFromContext,
   starterPrompts,
   toolInputDetail,
-  toolStatusLabel,
+  toolStatusMessage,
 } from './chat-ui'
+
+/**
+ * These functions return message DESCRIPTORS (docs/I18N-KEYS.md §9): the
+ * assertions name the key each branch chose, and the real catalog is asked
+ * what that key reads as. Asserting only the English would make a copy edit
+ * a test failure, which is exactly how translation work gets blocked.
+ */
+const t = catalogTranslator('CoachChat')
+const read = (line: Parameters<typeof renderLine>[1]) => renderLine(t, line)
 
 describe('humanizeToolName', () => {
   test('converts snake_case to sentence case', () => {
@@ -32,35 +44,57 @@ describe('humanizeToolName', () => {
   })
 })
 
-describe('toolStatusLabel', () => {
+describe('toolStatusMessage', () => {
   test('maps known read tools to friendly labels', () => {
-    expect(toolStatusLabel('get_program')).toBe('Reading your program')
-    expect(toolStatusLabel('list_workouts')).toBe('Looking through your workouts')
-    expect(toolStatusLabel('get_last_performance')).toBe('Checking your last numbers')
+    expect(toolStatusMessage('get_program')).toEqual({ key: 'toolRunning.get_program' })
+    expect(read(toolStatusMessage('get_program')!)).toBe('Reading your program')
+    expect(read(toolStatusMessage('list_workouts')!)).toBe('Looking through your workouts')
+    expect(read(toolStatusMessage('get_last_performance')!)).toBe('Checking your last numbers')
   })
 
   test('falls back to the humanized name for unknown tools', () => {
-    expect(toolStatusLabel('add_program_set')).toBe('Add program set')
+    // Null is the graceful-degradation signal: no catalog phrase exists, so
+    // the caller falls back to the humanized protocol identifier.
+    expect(toolStatusMessage('add_program_set')).toBeNull()
+    expect(humanizeToolName('add_program_set')).toBe('Add program set')
   })
 
   test('labels the drafting tool', () => {
-    expect(toolStatusLabel('upsert_program')).toBe('Drafting your program')
+    expect(read(toolStatusMessage('upsert_program')!)).toBe('Drafting your program')
   })
 
   test('uses past tense once the call is done', () => {
-    expect(toolStatusLabel('search_exercises', 'done')).toBe('Searched exercises')
-    expect(toolStatusLabel('get_program', 'done')).toBe('Read your program')
-    expect(toolStatusLabel('upsert_program', 'done')).toBe('Drafted a program')
+    expect(toolStatusMessage('search_exercises', 'done')).toEqual({
+      key: 'toolDone.search_exercises',
+    })
+    expect(read(toolStatusMessage('search_exercises', 'done')!)).toBe('Searched exercises')
+    expect(read(toolStatusMessage('get_program', 'done')!)).toBe('Read your program')
+    expect(read(toolStatusMessage('upsert_program', 'done')!)).toBe('Drafted a program')
   })
 
   test('failed calls fall back to the neutral humanized name', () => {
-    expect(toolStatusLabel('search_exercises', 'failed')).toBe('Search exercises')
+    expect(toolStatusMessage('search_exercises', 'failed')).toBeNull()
+    expect(humanizeToolName('search_exercises')).toBe('Search exercises')
   })
 
   test('unknown tools keep the humanized name in every phase', () => {
-    expect(toolStatusLabel('add_program_set', 'running')).toBe('Add program set')
-    expect(toolStatusLabel('add_program_set', 'done')).toBe('Add program set')
-    expect(toolStatusLabel('add_program_set', 'failed')).toBe('Add program set')
+    expect(toolStatusMessage('add_program_set', 'running')).toBeNull()
+    expect(toolStatusMessage('add_program_set', 'done')).toBeNull()
+    expect(toolStatusMessage('add_program_set', 'failed')).toBeNull()
+  })
+
+  test('every labelled tool has both phrases in the catalog', () => {
+    // The tool names are protocol identifiers, so nothing type-checks them
+    // against the catalog: this is what catches a tool added to the list
+    // without its running/done pair, which would otherwise ship a key path
+    // to a user as a status chip.
+    for (const toolName of LABELED_TOOLS) {
+      for (const phase of ['running', 'done'] as const) {
+        const message = toolStatusMessage(toolName, phase)
+        expect(message, toolName).not.toBeNull()
+        expect(read(message!), `${toolName} (${phase})`).not.toMatch(/^tool(Running|Done)\./)
+      }
+    }
   })
 })
 
@@ -151,9 +185,11 @@ describe('extractProgramProposal', () => {
 
   test('degrades missing presentation fields instead of failing', () => {
     const proposal = extractProgramProposal({ days: 'nope' }, PAYLOAD)
+    // An unnamed draft stays null here: the untitled fallback is the card's
+    // copy, not something this parser should invent in English.
     expect(proposal).toEqual({
       programId: PID,
-      name: 'New program',
+      name: null,
       icon: null,
       description: null,
       dayCount: 0,
@@ -181,27 +217,28 @@ describe('parseCoachError', () => {
     ).toBe('offline')
   })
 
-  test('falls back to a generic message for non-JSON bodies', () => {
-    expect(parseCoachError(new Error('<html>gateway timeout</html>'))).toEqual({
-      kind: 'server',
-      message: 'Something went wrong. Try again.',
-    })
+  test('carries no message of its own for the offline state', () => {
+    // The offline line is the composer's own catalog copy, so parsing a
+    // second English string out of the error would only be one more to
+    // keep in sync.
+    expect(parseCoachError(new TypeError('Failed to fetch'))).toEqual({ kind: 'offline' })
+    expect(t('offlineNotice')).toBe('Coach needs a connection.')
   })
 
-  test('falls back to a generic message for JSON without a string error field', () => {
-    expect(parseCoachError(new Error('{"detail":"nope"}')).message).toBe(
-      'Something went wrong. Try again.',
-    )
-    expect(parseCoachError(new Error('{"error":42}')).message).toBe(
-      'Something went wrong. Try again.',
-    )
+  test('falls back to the unknown kind for non-JSON bodies', () => {
+    expect(parseCoachError(new Error('<html>gateway timeout</html>'))).toEqual({
+      kind: 'unknown',
+    })
+    expect(t('errorGeneric')).toBe('Something went wrong. Try again.')
+  })
+
+  test('falls back to the unknown kind for JSON without a string error field', () => {
+    expect(parseCoachError(new Error('{"detail":"nope"}'))).toEqual({ kind: 'unknown' })
+    expect(parseCoachError(new Error('{"error":42}'))).toEqual({ kind: 'unknown' })
   })
 
   test('handles non-Error values', () => {
-    expect(parseCoachError('boom')).toEqual({
-      kind: 'server',
-      message: 'Something went wrong. Try again.',
-    })
+    expect(parseCoachError('boom')).toEqual({ kind: 'unknown' })
   })
 })
 
@@ -268,6 +305,11 @@ describe('programIdFromContext', () => {
 describe('starterPrompts', () => {
   test('personalizes with the program name', () => {
     expect(starterPrompts('Hypertrophy Block')).toEqual([
+      { key: 'starter.program', values: { name: 'Hypertrophy Block' } },
+      { key: 'starter.nextBlock' },
+      { key: 'starter.preview' },
+    ])
+    expect(starterPrompts('Hypertrophy Block').map(read)).toEqual([
       "How's Hypertrophy Block going?",
       'Plan my next block',
       'Preview next week',
@@ -278,6 +320,11 @@ describe('starterPrompts', () => {
     expect(starterPrompts(undefined)).toEqual([...DEFAULT_STARTERS])
     expect(starterPrompts(null)).toEqual([...DEFAULT_STARTERS])
     expect(starterPrompts('   ')).toEqual([...DEFAULT_STARTERS])
+    expect(DEFAULT_STARTERS.map(read)).toEqual([
+      'What did I train this week?',
+      "Swap tomorrow's pressing for more volume",
+      'Preview next week',
+    ])
   })
 })
 
@@ -304,7 +351,8 @@ describe('chipsFor', () => {
         output: {},
       },
     ] as UIMessage['parts'])
-    expect(chipsFor(turn)).toEqual(['Preview week 1', 'Why these numbers?'])
+    expect(chipsFor(turn)).toEqual([{ key: 'chip.previewFirstWeek' }, { key: 'chip.whyNumbers' }])
+    expect(chipsFor(turn).map(read)).toEqual(['Preview week 1', 'Why these numbers?'])
   })
 
   test('applied program change → change-log chips (static tool part shape)', () => {
@@ -318,7 +366,7 @@ describe('chipsFor', () => {
       },
       { type: 'text', text: 'Done — set 3 is now 8 reps.' },
     ] as UIMessage['parts'])
-    expect(chipsFor(turn)).toEqual(['Show the change log', 'Preview next week'])
+    expect(chipsFor(turn).map(read)).toEqual(['Show the change log', 'Preview next week'])
   })
 
   test('read-only or plain-text turn → generic chips', () => {
@@ -332,8 +380,11 @@ describe('chipsFor', () => {
       },
       { type: 'text', text: 'You trained 3 times.' },
     ] as UIMessage['parts'])
-    expect(chipsFor(readsOnly)).toEqual(['What should I focus on?', 'Any signs of stalling?'])
-    expect(chipsFor(assistantTurn([{ type: 'text', text: 'Hello!' }]))).toEqual([
+    expect(chipsFor(readsOnly).map(read)).toEqual([
+      'What should I focus on?',
+      'Any signs of stalling?',
+    ])
+    expect(chipsFor(assistantTurn([{ type: 'text', text: 'Hello!' }])).map(read)).toEqual([
       'What should I focus on?',
       'Any signs of stalling?',
     ])
@@ -348,7 +399,10 @@ describe('chipsFor', () => {
         input: {},
       },
     ] as unknown as UIMessage['parts'])
-    expect(chipsFor(pending)).toEqual(['What should I focus on?', 'Any signs of stalling?'])
+    expect(chipsFor(pending).map(read)).toEqual([
+      'What should I focus on?',
+      'Any signs of stalling?',
+    ])
   })
 })
 
@@ -366,36 +420,50 @@ describe('messageTimestamp', () => {
   })
 })
 
-describe('daySeparatorLabel', () => {
+describe('daySeparatorMessage', () => {
   // Local-time constructors on purpose: separators are wall-clock days.
   const at = (y: number, m: number, d: number, h = 12) => new Date(y, m, d, h).getTime()
   const now = at(2026, 6, 14) // Jul 14, 2026
 
   test('no timestamp on the current message → no separator (honest fallback)', () => {
-    expect(daySeparatorLabel(null, null, now)).toBeNull()
-    expect(daySeparatorLabel(at(2026, 6, 13), null, now)).toBeNull()
+    expect(daySeparatorMessage(null, null, now)).toBeNull()
+    expect(daySeparatorMessage(at(2026, 6, 13), null, now)).toBeNull()
   })
 
   test('same calendar day → no separator, even hours apart', () => {
-    expect(daySeparatorLabel(at(2026, 6, 13, 1), at(2026, 6, 13, 23), now)).toBeNull()
+    expect(daySeparatorMessage(at(2026, 6, 13, 1), at(2026, 6, 13, 23), now)).toBeNull()
   })
 
   test('crossing into today → "Today"', () => {
-    expect(daySeparatorLabel(at(2026, 6, 13), at(2026, 6, 14), now)).toBe('Today')
+    expect(daySeparatorMessage(at(2026, 6, 13), at(2026, 6, 14), now)).toEqual({
+      key: 'day.today',
+    })
+    expect(read(daySeparatorMessage(at(2026, 6, 13), at(2026, 6, 14), now)!)).toBe('Today')
   })
 
   test('crossing into yesterday → "Yesterday"', () => {
-    expect(daySeparatorLabel(at(2026, 6, 12), at(2026, 6, 13), now)).toBe('Yesterday')
+    expect(read(daySeparatorMessage(at(2026, 6, 12), at(2026, 6, 13), now)!)).toBe('Yesterday')
   })
 
-  test('older days → "Jul 12", with the year only when it differs', () => {
-    expect(daySeparatorLabel(at(2026, 6, 11), at(2026, 6, 12), now)).toBe('Jul 12')
-    expect(daySeparatorLabel(at(2025, 11, 30), at(2025, 11, 31), now)).toBe('Dec 31, 2025')
+  test('older days carry the Date itself, so ICU formats the month', () => {
+    // No English month table: the value is a Date and the catalog holds a
+    // skeleton, so a second locale gets its own month name and field order.
+    expect(daySeparatorMessage(at(2026, 6, 11), at(2026, 6, 12), now)).toEqual({
+      key: 'day.date',
+      values: { date: new Date(at(2026, 6, 12)) },
+    })
+    expect(read(daySeparatorMessage(at(2026, 6, 11), at(2026, 6, 12), now)!)).toBe('Jul 12')
+    expect(daySeparatorMessage(at(2025, 11, 30), at(2025, 11, 31), now)?.key).toBe(
+      'day.dateWithYear',
+    )
+    expect(read(daySeparatorMessage(at(2025, 11, 30), at(2025, 11, 31), now)!)).toBe(
+      'Dec 31, 2025',
+    )
   })
 
   test('first stamped message: labeled only when from before today', () => {
-    expect(daySeparatorLabel(null, at(2026, 6, 14), now)).toBeNull()
-    expect(daySeparatorLabel(null, at(2026, 6, 13), now)).toBe('Yesterday')
-    expect(daySeparatorLabel(null, at(2026, 6, 1), now)).toBe('Jul 1')
+    expect(daySeparatorMessage(null, at(2026, 6, 14), now)).toBeNull()
+    expect(read(daySeparatorMessage(null, at(2026, 6, 13), now)!)).toBe('Yesterday')
+    expect(read(daySeparatorMessage(null, at(2026, 6, 1), now)!)).toBe('Jul 1')
   })
 })

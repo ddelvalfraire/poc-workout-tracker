@@ -34,7 +34,10 @@ import {
   trophyStatusLine,
   volumeStatusLine,
   type DrawerData,
+  type NavDrawerKey,
+  type NavDrawerLine,
 } from '@/lib/drawer-status'
+import { renderLine, renderLines } from '@/lib/i18n/message'
 import { buttonVariants } from '@/components/ui/button'
 import { Ghost } from '@/components/ghost'
 import { Sparkbar } from '@/components/sparkbar'
@@ -239,13 +242,19 @@ export function NavDrawer() {
   // here can never cause a hydration mismatch.
   const now = new Date()
 
+  // The drawer's status language is decided in lib/drawer-status.ts as
+  // descriptors (docs/I18N-KEYS.md §9) and rendered here, where the
+  // translator lives. `lines` joins a segment list with the row's " · ".
+  const line = (l: NavDrawerLine | null) => (l === null ? null : renderLine<NavDrawerKey>(t, l))
+  const lines = (l: NavDrawerLine[]) => (l.length > 0 ? renderLines<NavDrawerKey>(t, l) : null)
+
   const surfaces: SurfaceRow[] = [
     {
       href: '/programs',
       label: t('label.programs'),
       icon: ClipboardList,
       status: data?.program
-        ? programStatusLine(data.program.name, data.program.week, data.program.mesocycleWeeks)
+        ? line(programStatusLine(data.program.name, data.program.week, data.program.mesocycleWeeks))
         : null,
       invitation: t('invitation.programs'),
       visual: data?.program ? (
@@ -266,7 +275,7 @@ export function NavDrawer() {
       href: '/stats',
       label: t('label.stats'),
       icon: BarChart3,
-      status: data?.stats ? volumeStatusLine(data.stats.weekSets) : null,
+      status: data?.stats ? line(volumeStatusLine(data.stats.weekSets)) : null,
       invitation: t('invitation.stats'),
       visual:
         data?.stats && data.stats.weekSets > 0 && data.stats.daySets.length > 0 ? (
@@ -296,7 +305,7 @@ export function NavDrawer() {
       label: t('label.trophies'),
       icon: Trophy,
       status: data?.trophies
-        ? trophyStatusLine(data.trophies.earned, data.trophies.newestLabel)
+        ? line(trophyStatusLine(data.trophies.earned, data.trophies.newestLabel))
         : null,
       invitation: t('invitation.trophies'),
     },
@@ -304,7 +313,7 @@ export function NavDrawer() {
       href: '/body',
       label: t('label.body'),
       icon: Scale,
-      status: data?.body ? bodyStatusLine(data.body, data.unit) : null,
+      status: data?.body ? lines(bodyStatusLine(data.body, data.unit)) : null,
       invitation: t('invitation.body'),
     },
     {
@@ -312,7 +321,7 @@ export function NavDrawer() {
       label: t('label.exercises'),
       icon: Dumbbell,
       status: data?.exercises
-        ? exercisesStatusLine(data.exercises.lastPrLabel, data.exercises.loggedCount)
+        ? line(exercisesStatusLine(data.exercises.lastPrLabel, data.exercises.loggedCount))
         : null,
       invitation: t('invitation.exercises'),
     },
@@ -421,10 +430,12 @@ export function NavDrawer() {
                     {isStarting ? t('startingAction') : t('startAction')}
                   </span>
                   <span className="text-xs font-medium normal-case opacity-80">
-                    {startContextLine(
-                      data.upNext.dayName,
-                      data.upNext.week,
-                      scheduleAnchor(data.upNext.weekdays, now),
+                    {line(
+                      startContextLine(
+                        data.upNext.dayName,
+                        data.upNext.week,
+                        scheduleAnchor(data.upNext.weekdays, now),
+                      ),
                     )}
                   </span>
                 </button>
@@ -555,7 +566,7 @@ export function NavDrawer() {
                       >
                         <span className="min-w-0 truncate text-sm">{recent.name ?? t('untitledWorkout')}</span>
                         <span className="shrink-0 text-xs text-muted-foreground tnum">
-                          {recentWorkoutLine(recent, data.unit, now)}
+                          {lines(recentWorkoutLine(recent, data.unit, now))}
                         </span>
                       </Link>
                     </li>

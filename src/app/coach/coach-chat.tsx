@@ -28,18 +28,21 @@ import { Button, buttonVariants } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import {
   chipsFor,
-  daySeparatorLabel,
+  daySeparatorMessage,
   extractProgramProposal,
   formatToolInput,
+  humanizeToolName,
   isPinnedToBottom,
   messageTimestamp,
   parseCoachError,
   starterPrompts,
   toolInputDetail,
-  toolStatusLabel,
+  toolStatusMessage,
   type ProgramProposal,
 } from '@/lib/coach/chat-ui'
 import { describeToolCall } from '@/lib/coach/describe-tool-call'
+import { renderToolCall } from '@/lib/coach/render-tool-call'
+import { renderLine } from '@/lib/i18n/message'
 import { useTranslations } from 'next-intl'
 
 /** Both static (`tool-*`) and dynamic tool parts, under one roof. */
@@ -89,6 +92,9 @@ function ToolChip({ part }: { part: AnyToolPart }) {
     part.state === 'approval-requested'
   const failed = part.state === 'output-error'
   const detail = toolInputDetail(name, part.input)
+  // No catalog phrase (unknown tool, or a failed call): the humanized
+  // protocol identifier stands in — never raw snake_case, never invented copy.
+  const status = toolStatusMessage(name, failed ? 'failed' : running ? 'running' : 'done')
   return (
     <p
       className={cn(
@@ -108,7 +114,7 @@ function ToolChip({ part }: { part: AnyToolPart }) {
         )}
       />
       <span className="min-w-0 truncate">
-        {toolStatusLabel(name, failed ? 'failed' : running ? 'running' : 'done')}
+        {status !== null ? t(status.key) : humanizeToolName(name)}
         {running ? '…' : ''}
         {detail && (
           <span className="text-muted-foreground/70"> {t('toolDetail', { detail })}</span>
@@ -134,6 +140,7 @@ function ApprovalCard({
   disabled: boolean
 }) {
   const t = useTranslations('CoachChat')
+  const tTool = useTranslations('CoachToolCall')
   const name = toolPartName(part)
   const args = formatToolInput(part.input)
   return (
@@ -144,7 +151,9 @@ function ApprovalCard({
       {/* The trust-critical line: a human sentence built from the tool input
           (describeToolCall), not the tool's name or raw JSON. Body text, not
           font-display — a change description is read, not shouted. */}
-      <p className="mt-1 text-[15px] font-medium leading-snug">{describeToolCall(name, part.input)}</p>
+      <p className="mt-1 text-[15px] font-medium leading-snug">
+        {renderToolCall(tTool, describeToolCall(name, part.input))}
+      </p>
       {args && (
         /* The raw args, demoted: still one tap away for anyone who wants to
            verify the exact payload, never the headline. */
@@ -197,7 +206,7 @@ function ProposalCard({ proposal }: { proposal: ProgramProposal }) {
       </p>
       <p className="mt-1 font-display text-lg uppercase leading-tight tracking-wide">
         {proposal.icon ? `${proposal.icon} ` : ''}
-        {proposal.name}
+        {proposal.name ?? t('proposalUntitled')}
       </p>
       <p className="mt-0.5 text-xs text-muted-foreground">{meta}</p>
       {proposal.description && (
@@ -224,7 +233,9 @@ function ToolPartView({
   responding: boolean
 }) {
   const t = useTranslations('CoachChat')
+  const tTool = useTranslations('CoachToolCall')
   const name = toolPartName(part)
+  const summary = () => renderToolCall(tTool, describeToolCall(name, part.input))
   switch (part.state) {
     case 'approval-requested':
       if (part.approval.isAutomatic) return <ToolChip part={part} />
@@ -239,14 +250,14 @@ function ToolPartView({
       return (
         <p className="text-xs text-muted-foreground">
           {part.approval.approved
-            ? t('approvalApplied', { tool: describeToolCall(name, part.input) })
-            : t('approvalCancelled', { tool: describeToolCall(name, part.input) })}
+            ? t('approvalApplied', { tool: summary() })
+            : t('approvalCancelled', { tool: summary() })}
         </p>
       )
     case 'output-denied':
       return (
         <p className="text-xs text-muted-foreground">
-          {t('approvalCancelled', { tool: describeToolCall(name, part.input) })}
+          {t('approvalCancelled', { tool: summary() })}
         </p>
       )
     case 'output-available': {
@@ -428,9 +439,11 @@ export function CoachChat({
               {t('capabilityDescription')}
             </p>
             <div className="mt-6 space-y-2">
-              {starters.map((prompt) => (
+              {starters.map((starter) => {
+                const prompt = renderLine(t, starter)
+                return (
                 <button
-                  key={prompt}
+                  key={starter.key}
                   type="button"
                   onClick={() => submit(prompt)}
                   disabled={busy || offline}
@@ -438,7 +451,8 @@ export function CoachChat({
                 >
                   {prompt}
                 </button>
-              ))}
+                )
+              })}
             </div>
           </div>
         ) : (
@@ -448,16 +462,16 @@ export function CoachChat({
                 {/* Calendar-day divider — only when messages carry createdAt
                     metadata (threads persisted before timestamps get none). */}
                 {(() => {
-                  const label = daySeparatorLabel(
+                  const separator = daySeparatorMessage(
                     messageIndex === 0
                       ? null
                       : messageTimestamp(messages[messageIndex - 1].metadata),
                     messageTimestamp(message.metadata),
                     mountedAt,
                   )
-                  return label ? (
+                  return separator ? (
                     <p className="py-2 text-center text-[11px] font-semibold uppercase tracking-widest text-muted-foreground/70">
-                      {label}
+                      {renderLine(t, separator)}
                     </p>
                   ) : null
                 })()}
@@ -506,17 +520,20 @@ export function CoachChat({
                 sends it as the next user message. */}
             {followUps.length > 0 && (
               <div className="flex flex-wrap gap-2">
-                {followUps.map((chip) => (
-                  <button
-                    key={chip}
-                    type="button"
-                    onClick={() => submit(chip)}
-                    disabled={busy || offline}
-                    className="rounded-full border border-border bg-card px-3.5 py-1.5 text-xs text-muted-foreground transition-colors active:bg-muted/60 disabled:opacity-50"
-                  >
-                    {chip}
-                  </button>
-                ))}
+                {followUps.map((followUp) => {
+                  const chip = renderLine(t, followUp)
+                  return (
+                    <button
+                      key={followUp.key}
+                      type="button"
+                      onClick={() => submit(chip)}
+                      disabled={busy || offline}
+                      className="rounded-full border border-border bg-card px-3.5 py-1.5 text-xs text-muted-foreground transition-colors active:bg-muted/60 disabled:opacity-50"
+                    >
+                      {chip}
+                    </button>
+                  )
+                })}
               </div>
             )}
 
@@ -546,7 +563,10 @@ export function CoachChat({
           ) : (
             coachError && (
               <p role="alert" className="pb-2 text-center text-sm text-destructive">
-                {coachError.message}
+                {/* The server's own message is text it authored (the 429
+                    daily-cap copy especially) and renders verbatim; anything
+                    unrecognised falls back to this surface's own line. */}
+                {coachError.kind === 'server' ? coachError.message : t('errorGeneric')}
               </p>
             )
           )}

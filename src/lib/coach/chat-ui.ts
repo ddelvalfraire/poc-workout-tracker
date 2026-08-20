@@ -8,6 +8,7 @@
  */
 
 import type { UIMessage } from 'ai'
+import type { Message } from '@/lib/i18n/message'
 import { COACH_APPROVAL_TOOLS } from './tool-policy'
 
 /** Mirrors the server bound in /api/chat — no point sending more. */
@@ -22,44 +23,54 @@ export function humanizeToolName(toolName: string): string {
 }
 
 /**
- * Friendly labels for the auto-running tools (reads plus the drafting tool),
- * keyed by MCP tool name: present-progressive while the call runs, past
- * tense once it lands ("the coach did X"). Anything unknown falls back to
- * the humanized name so a newly allowlisted tool degrades gracefully instead
- * of rendering raw snake_case.
+ * The auto-running tools (reads plus the drafting tool) that have a friendly
+ * phrase pair in the catalog: present-progressive while the call runs, past
+ * tense once it lands ("the coach did X").
+ *
+ * The MCP tool NAMES stay here as protocol identifiers — they are not copy
+ * and never enter the catalog; only the phrases do, under
+ * `CoachChat.toolRunning.*` / `CoachChat.toolDone.*`.
  */
-const AUTO_TOOL_LABELS: Record<string, { running: string; done: string }> = {
-  whoami: { running: 'Checking your account', done: 'Checked your account' },
-  list_workouts: { running: 'Looking through your workouts', done: 'Looked through your workouts' },
-  get_workout: { running: 'Reading a workout', done: 'Read a workout' },
-  search_exercises: { running: 'Searching exercises', done: 'Searched exercises' },
-  get_last_performance: { running: 'Checking your last numbers', done: 'Checked your last numbers' },
-  get_weight_unit: { running: 'Checking your units', done: 'Checked your units' },
-  get_program: { running: 'Reading your program', done: 'Read your program' },
-  list_programs: { running: 'Listing your programs', done: 'Listed your programs' },
-  get_program_stats: { running: 'Crunching program stats', done: 'Crunched program stats' },
-  list_custom_exercises: {
-    running: 'Checking your custom exercises',
-    done: 'Checked your custom exercises',
-  },
-  preview_program_week: { running: 'Previewing the week', done: 'Previewed the week' },
-  list_proposals: {
-    running: 'Checking outstanding proposals',
-    done: 'Checked outstanding proposals',
-  },
-  upsert_program: { running: 'Drafting your program', done: 'Drafted a program' },
-  propose_program_patches: { running: 'Proposing plan changes', done: 'Proposed plan changes' },
-}
+export const LABELED_TOOLS = [
+  'whoami',
+  'list_workouts',
+  'get_workout',
+  'search_exercises',
+  'get_last_performance',
+  'get_weight_unit',
+  'get_program',
+  'list_programs',
+  'get_program_stats',
+  'list_custom_exercises',
+  'preview_program_week',
+  'list_proposals',
+  'upsert_program',
+  'propose_program_patches',
+] as const
+
+type LabeledTool = (typeof LABELED_TOOLS)[number]
+
+const LABELED_TOOL_SET: ReadonlySet<string> = new Set(LABELED_TOOLS)
+
+export type ToolStatusKey = `toolRunning.${LabeledTool}` | `toolDone.${LabeledTool}`
 
 export type ToolPhase = 'running' | 'done' | 'failed'
 
-/** One-line status chip text for a tool call ("Reading your program…" while
- *  running, "Read your program" once done). Failed calls use the neutral
- *  humanized name — "Searching exercises — failed" reads wrong in either
- *  tense. */
-export function toolStatusLabel(toolName: string, phase: ToolPhase = 'running'): string {
-  if (phase === 'failed') return humanizeToolName(toolName)
-  return AUTO_TOOL_LABELS[toolName]?.[phase] ?? humanizeToolName(toolName)
+/**
+ * The status chip's phrase for a tool call ("Reading your program…" while
+ * running, "Read your program" once done), or NULL when there is no phrase to
+ * render: an unrecognised tool, or a failed call — "Searching exercises —
+ * failed" reads wrong in either tense. Null is the graceful-degradation
+ * signal, and the caller falls back to `humanizeToolName`, which turns the
+ * protocol identifier into something readable without inventing copy.
+ */
+export function toolStatusMessage(
+  toolName: string,
+  phase: ToolPhase = 'running',
+): Message<ToolStatusKey> | null {
+  if (phase === 'failed' || !LABELED_TOOL_SET.has(toolName)) return null
+  const tool = toolName as LabeledTool
+  return { key: phase === 'running' ? `toolRunning.${tool}` : `toolDone.${tool}` }
 }
 
 /** Longest input detail worth appending to a one-line chip. */
@@ -97,12 +108,16 @@ export function isPinnedToBottom(
   return scrollHeight - viewportHeight - scrollY <= PIN_THRESHOLD_PX
 }
 
-export interface CoachError {
-  kind: 'offline' | 'server'
-  message: string
-}
-
-const OFFLINE_MESSAGE = 'Coach needs a connection.'
+/**
+ * What went wrong, as a decision rather than a sentence. `server` carries the
+ * server's OWN message verbatim (the 429 daily-cap copy especially) — that
+ * text is produced elsewhere and is not a catalog key; `offline` and
+ * `unknown` name a catalog message the caller renders.
+ */
+export type CoachError =
+  | { kind: 'offline' }
+  | { kind: 'server'; message: string }
+  | { kind: 'unknown' }
 
 /**
  * Network-level fetch failures (no HTTP response at all). The transport
@@ -123,7 +138,7 @@ export function parseCoachError(error: unknown): CoachError {
   const message = error instanceof Error ? error.message : ''
   const lowered = message.toLowerCase()
   if (NETWORK_ERROR_PATTERNS.some((pattern) => lowered.includes(pattern))) {
-    return { kind: 'offline', message: OFFLINE_MESSAGE }
+    return { kind: 'offline' }
   }
   try {
     const parsed: unknown = JSON.parse(message)
@@ -138,7 +153,7 @@ export function parseCoachError(error: unknown): CoachError {
   } catch {
     // Not JSON — fall through to the generic message.
   }
-  return { kind: 'server', message: 'Something went wrong. Try again.' }
+  return { kind: 'unknown' }
 }
 
 /**
@@ -157,7 +172,9 @@ export function formatToolInput(input: unknown): string {
 /** What the chat proposal card renders for a coach-drafted program. */
 export interface ProgramProposal {
   programId: string
-  name: string
+  /** The drafted name, or null when the model sent none — the card renders
+   *  its own untitled fallback rather than this module inventing one. */
+  name: string | null
   icon: string | null
   description: string | null
   dayCount: number
@@ -216,7 +233,7 @@ export function extractProgramProposal(input: unknown, output: unknown): Program
   if (typeof programId !== 'string' || !UUID_RE.test(programId)) return null
 
   const args = asRecord(input) ?? {}
-  const name = typeof args.name === 'string' && args.name.trim() ? args.name.trim() : 'New program'
+  const name = typeof args.name === 'string' && args.name.trim() ? args.name.trim() : null
   const icon = typeof args.icon === 'string' && args.icon.trim() ? args.icon.trim() : null
   const description =
     typeof args.description === 'string' && args.description.trim()
@@ -258,22 +275,44 @@ export function programIdFromContext(context: string | undefined): string | null
   return UUID_RE.test(id) ? id : null
 }
 
+/** Catalog keys for the empty-state starters and the follow-up chips. Both
+ *  are copy the user SENDS, so they are translated like any other line — the
+ *  model reads whatever language the user is shown. */
+export type StarterKey =
+  | 'starter.recap'
+  | 'starter.swap'
+  | 'starter.preview'
+  | 'starter.program'
+  | 'starter.nextBlock'
+
+export type ChipKey =
+  | 'chip.previewFirstWeek'
+  | 'chip.whyNumbers'
+  | 'chip.changeLog'
+  | 'chip.nextWeek'
+  | 'chip.focus'
+  | 'chip.stalling'
+
 /** The generic empty-state starters (no app context). */
-export const DEFAULT_STARTERS = [
-  'What did I train this week?',
-  "Swap tomorrow's pressing for more volume",
-  'Preview next week',
-] as const
+export const DEFAULT_STARTERS: readonly Message<StarterKey>[] = [
+  { key: 'starter.recap' },
+  { key: 'starter.swap' },
+  { key: 'starter.preview' },
+]
 
 /**
  * Empty-state starter prompts, seeded from app context when the entry point
  * carried one: arriving from a program page ("program:<id>") makes the
  * starters about THAT program by name; otherwise the generic examples.
  */
-export function starterPrompts(programName: string | null | undefined): string[] {
+export function starterPrompts(programName: string | null | undefined): Message<StarterKey>[] {
   const name = programName?.trim()
   if (!name) return [...DEFAULT_STARTERS]
-  return [`How's ${name} going?`, 'Plan my next block', 'Preview next week']
+  return [
+    { key: 'starter.program', values: { name } },
+    { key: 'starter.nextBlock' },
+    { key: 'starter.preview' },
+  ]
 }
 
 /** Structural view of a tool part — enough for the chip heuristics without
@@ -305,14 +344,16 @@ function completedToolNames(message: UIMessage): string[] {
  * Empty when the last turn isn't a finished assistant message — the caller
  * additionally gates on stream status and pending approvals.
  */
-export function chipsFor(lastTurn: UIMessage | undefined): string[] {
+export function chipsFor(lastTurn: UIMessage | undefined): Message<ChipKey>[] {
   if (!lastTurn || lastTurn.role !== 'assistant') return []
   const completed = completedToolNames(lastTurn)
-  if (completed.includes('upsert_program')) return ['Preview week 1', 'Why these numbers?']
-  if (completed.some((name) => APPROVAL_TOOL_SET.has(name))) {
-    return ['Show the change log', 'Preview next week']
+  if (completed.includes('upsert_program')) {
+    return [{ key: 'chip.previewFirstWeek' }, { key: 'chip.whyNumbers' }]
   }
-  return ['What should I focus on?', 'Any signs of stalling?']
+  if (completed.some((name) => APPROVAL_TOOL_SET.has(name))) {
+    return [{ key: 'chip.changeLog' }, { key: 'chip.nextWeek' }]
+  }
+  return [{ key: 'chip.focus' }, { key: 'chip.stalling' }]
 }
 
 /** Narrows a message's metadata to the createdAt epoch-ms stamp, if present.
@@ -323,9 +364,6 @@ export function messageTimestamp(metadata: unknown): number | null {
   const createdAt = (metadata as Record<string, unknown>).createdAt
   return typeof createdAt === 'number' && Number.isFinite(createdAt) ? createdAt : null
 }
-
-/** Fixed English month labels — deterministic across machine locales. */
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
 /** Local-calendar-day equality (the separators are about the user's wall clock). */
 function sameLocalDay(a: Date, b: Date): boolean {
@@ -346,12 +384,18 @@ function sameLocalDay(a: Date, b: Date): boolean {
  *   (a "Today" header over a fresh chat is noise);
  * - label relative to `now`: "Today", "Yesterday", else "Jul 12" (with the
  *   year appended when it differs from now's).
+ *
+ * The dated branches carry the Date itself and are formatted by ICU under the
+ * reader's locale — a month name is not a catalog entry, and the fixed
+ * English month table this used to keep was the localization bug.
  */
-export function daySeparatorLabel(
+export type DaySeparatorKey = 'day.today' | 'day.yesterday' | 'day.date' | 'day.dateWithYear'
+
+export function daySeparatorMessage(
   previousTs: number | null,
   currentTs: number | null,
   now: number,
-): string | null {
+): Message<DaySeparatorKey> | null {
   if (currentTs === null) return null
   const current = new Date(currentTs)
   const today = new Date(now)
@@ -360,12 +404,12 @@ export function daySeparatorLabel(
   } else if (sameLocalDay(current, today)) {
     return null
   }
-  if (sameLocalDay(current, today)) return 'Today'
+  if (sameLocalDay(current, today)) return { key: 'day.today' }
   const yesterday = new Date(now)
   yesterday.setDate(yesterday.getDate() - 1)
-  if (sameLocalDay(current, yesterday)) return 'Yesterday'
-  const base = `${MONTHS[current.getMonth()]} ${current.getDate()}`
-  return current.getFullYear() === today.getFullYear()
-    ? base
-    : `${base}, ${current.getFullYear()}`
+  if (sameLocalDay(current, yesterday)) return { key: 'day.yesterday' }
+  return {
+    key: current.getFullYear() === today.getFullYear() ? 'day.date' : 'day.dateWithYear',
+    values: { date: current },
+  }
 }

@@ -4,7 +4,13 @@ import { useSyncExternalStore } from 'react'
 import Link from 'next/link'
 import { ChevronRight } from 'lucide-react'
 import { activeSessionHref } from '@/lib/active-session'
-import { statusForHome, type HomeStatusFacts } from '@/lib/home-status'
+import {
+  statusForHome,
+  type HomeStatusFacts,
+  type StatusHeroKey,
+  type StatusHeroLine,
+} from '@/lib/home-status'
+import { renderLine } from '@/lib/i18n/message'
 import { weeklyStreak } from '@/lib/goal-progress'
 import type { WeightUnit } from '@/lib/units'
 import { StartDayButton } from '@/app/programs/[id]/start-day-button'
@@ -99,6 +105,9 @@ export function StatusHero(props: StatusHeroProps) {
     streakWeeks,
   }
   const status = statusForHome(facts, props.unit, now)
+  // The status brain returns descriptors (docs/I18N-KEYS.md §9); the words
+  // are resolved here, where the translator lives.
+  const line = (l: StatusHeroLine) => renderLine<StatusHeroKey>(t, l)
 
   // Volt rides live/achievement eyebrows only (the narrow-vocabulary rule);
   // the rest-day eyebrow is the program name, a fact, and stays muted.
@@ -120,14 +129,14 @@ export function StatusHero(props: StatusHeroProps) {
               <span className="relative inline-flex size-2 rounded-full bg-primary" />
             </span>
           )}
-          {status.eyebrow}
+          {line(status.eyebrow)}
         </p>
       )}
 
       <h2 className="mt-2 font-display text-4xl uppercase leading-none tracking-wide">
-        {status.headline}
+        {line(status.headline)}
       </h2>
-      <p className="mt-2 text-sm text-muted-foreground tnum">{status.context}</p>
+      <p className="mt-2 text-sm text-muted-foreground tnum">{line(status.context)}</p>
 
       {status.state === 'session-live' && props.session && (
         <>

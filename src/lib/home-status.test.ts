@@ -1,4 +1,6 @@
 import { describe, it, expect } from 'vitest'
+import { catalogTranslator } from '../../vitest.intl'
+import { renderLine } from './i18n/message'
 import {
   DRIFT_THRESHOLD_DAYS,
   dueHeadline,
@@ -8,6 +10,16 @@ import {
   statusForHome,
   type HomeStatusFacts,
 } from './home-status'
+
+/**
+ * The status brain returns DESCRIPTORS, so these assert two separate things:
+ * WHICH message each state picked (the decision — stable across any copy
+ * edit), and, through the real catalog, what that message reads as. A test
+ * that only asserted the English would block every future rewording.
+ */
+const hero = catalogTranslator('StatusHero')
+const momentum = catalogTranslator('MomentumPanel')
+const read = (line: Parameters<typeof renderLine>[1]) => renderLine(hero, line)
 
 // Local-calendar fixture: a fixed midday LOCAL "now" keeps day math
 // unambiguous (same convention as drawer-status.test.ts).
@@ -49,8 +61,12 @@ describe('statusForHome', () => {
       now,
     )
     expect(status.state).toBe('session-live')
-    expect(status.headline).toBe('In the middle of it.')
-    expect(status.context).toBe('Push · 5 sets logged')
+    expect(status.headline).toEqual({ key: 'headline.live' })
+    expect(status.context).toEqual({
+      key: 'context.live',
+      values: { name: 'Push', sets: 5 },
+    })
+    expect(read(status.context)).toBe('Push · 5 sets logged')
   })
 
   it('session-live falls back to the unnamed label and singular set', () => {
@@ -59,7 +75,14 @@ describe('statusForHome', () => {
       'kg',
       now,
     )
-    expect(status.context).toBe('Unnamed session · 1 set logged')
+    // The unnamed fallback is a nested descriptor, not a baked-in noun, so
+    // one key covers both cases — and the plural is asserted at one AND many
+    // (above), which is where a broken ICU branch actually shows up.
+    expect(status.context).toEqual({
+      key: 'context.live',
+      values: { name: { key: 'unnamedSession' }, sets: 1 },
+    })
+    expect(read(status.context)).toBe('Unnamed session · 1 set logged')
   })
 
   it('trained-today fires only for completions on the LOCAL calendar day', () => {
@@ -76,8 +99,8 @@ describe('statusForHome', () => {
       now,
     )
     expect(today.state).toBe('trained-today')
-    expect(today.headline).toBe('Done for today.')
-    expect(today.context).toMatch(/^Push · [\d,]+ lb$/)
+    expect(today.headline).toEqual({ key: 'headline.done' })
+    expect(read(today.context)).toMatch(/^Push · [\d,]+ lb$/)
 
     // 12.5h ago but YESTERDAY locally — the old rolling-window bug this fork
     // exists to prevent: the program day must come back due.
@@ -103,7 +126,11 @@ describe('statusForHome', () => {
       'kg',
       now,
     )
-    expect(status.context).toBe('Workout · showed up — that counts')
+    expect(status.context).toEqual({
+      key: 'context.trained',
+      values: { name: { key: 'untitledWorkout' } },
+    })
+    expect(read(status.context)).toBe('Workout · showed up — that counts')
   })
 
   it('block-complete crowns the program, after the trained-today check', () => {
@@ -113,16 +140,18 @@ describe('statusForHome', () => {
       now,
     )
     expect(status.state).toBe('block-complete')
-    expect(status.headline).toBe('Upper/Lower')
-    expect(status.context).toBe('7 weeks')
+    // The program's name is the user's own word — a literal, never a key.
+    expect(status.headline).toEqual({ literal: 'Upper/Lower' })
+    expect(read(status.context)).toBe('7 weeks')
+    expect(read(statusForHome(facts({ nextDay: { ...legsDay, blockComplete: true, mesocycleWeeks: 1 } }), 'kg', now).context)).toBe('1 week')
   })
 
   it('program-due: unscheduled day is always due, with the Up next eyebrow', () => {
     const status = statusForHome(facts({ nextDay: legsDay }), 'kg', now)
     expect(status.state).toBe('program-due')
-    expect(status.eyebrow).toBe('Up next')
-    expect(status.headline).toBe('Legs day.')
-    expect(status.context).toBe('Week 3 of 7')
+    expect(status.eyebrow).toEqual({ key: 'eyebrow.upNext' })
+    expect(read(status.headline)).toBe('Legs day.')
+    expect(read(status.context)).toBe('Week 3 of 7')
   })
 
   it('program-due: a day scheduled today anchors the eyebrow to Today', () => {
@@ -133,7 +162,8 @@ describe('statusForHome', () => {
       now,
     )
     expect(status.state).toBe('program-due')
-    expect(status.eyebrow).toBe('Today')
+    // The anchor comes from lib/schedule-anchor.ts as a fact, not a key.
+    expect(status.eyebrow).toEqual({ literal: 'Today' })
   })
 
   it('program-due appends the last-time volume fact when derivable', () => {
@@ -142,7 +172,11 @@ describe('statusForHome', () => {
       'kg',
       now,
     )
-    expect(status.context).toBe('Week 3 of 7 · last time: 5,200 kg')
+    expect(status.context).toEqual({
+      key: 'context.weekWithLastTime',
+      values: { week: 3, total: 7, volume: '5,200 kg' },
+    })
+    expect(read(status.context)).toBe('Week 3 of 7 · last time: 5,200 kg')
   })
 
   it('rest-day: scheduled later this week, recently trained', () => {
@@ -155,9 +189,9 @@ describe('statusForHome', () => {
       now,
     )
     expect(status.state).toBe('rest-day')
-    expect(status.headline).toBe('Rest day.')
-    expect(status.eyebrow).toBe('Upper/Lower')
-    expect(status.context).toBe('Next: Legs · Friday')
+    expect(status.headline).toEqual({ key: 'headline.rest' })
+    expect(status.eyebrow).toEqual({ literal: 'Upper/Lower' })
+    expect(read(status.context)).toBe('Next: Legs · Friday')
   })
 
   it('drifting threshold: 3 whole local days off is still rest, 4 is drifting', () => {
@@ -191,8 +225,12 @@ describe('statusForHome', () => {
       now,
     )
     expect(drifting.state).toBe('drifting')
-    expect(drifting.headline).toBe('4 days since Push.')
-    expect(drifting.context).toBe('Next up: Legs · Friday')
+    expect(drifting.headline).toEqual({
+      key: 'headline.drifting',
+      values: { days: DRIFT_THRESHOLD_DAYS, session: 'Push' },
+    })
+    expect(read(drifting.headline)).toBe('4 days since Push.')
+    expect(read(drifting.context)).toBe('Next up: Legs · Friday')
   })
 
   it('drifting prefers the streak-at-risk fact when a streak exists', () => {
@@ -205,7 +243,10 @@ describe('statusForHome', () => {
       now,
     )
     expect(status.state).toBe('drifting')
-    expect(status.context).toBe('Your 6-week streak is on the line — one session keeps it.')
+    expect(status.context).toEqual({ key: 'context.streak', values: { weeks: 6 } })
+    expect(read(status.context)).toBe(
+      'Your 6-week streak is on the line — one session keeps it.',
+    )
   })
 
   it('drifting without program or streak stays warm and names the gap honestly', () => {
@@ -216,14 +257,19 @@ describe('statusForHome', () => {
       'kg',
       now,
     )
-    expect(status.headline).toBe('10 days since your last session.')
-    expect(status.context).toBe('Pick up where you left off.')
+    expect(status.headline).toEqual({
+      key: 'headline.drifting',
+      values: { days: 10, session: { key: 'lastSession' } },
+    })
+    expect(read(status.headline)).toBe('10 days since your last session.')
+    expect(read(status.context)).toBe('Pick up where you left off.')
   })
 
   it('fresh: true day one invites, a returning lifter gets the open door', () => {
     const dayOne = statusForHome(facts(), 'kg', now)
     expect(dayOne.state).toBe('fresh')
-    expect(dayOne.headline).toBe('Day one.')
+    expect(dayOne.headline).toEqual({ key: 'headline.dayOne' })
+    expect(read(dayOne.headline)).toBe('Day one.')
 
     const returning = statusForHome(
       facts({
@@ -233,7 +279,8 @@ describe('statusForHome', () => {
       now,
     )
     expect(returning.state).toBe('fresh')
-    expect(returning.headline).toBe('Ready when you are.')
+    expect(returning.headline).toEqual({ key: 'headline.ready' })
+    expect(read(returning.headline)).toBe('Ready when you are.')
   })
 })
 
@@ -249,26 +296,37 @@ describe('localDayDiff', () => {
 
 describe('dueHeadline', () => {
   it('appends the day suffix without stuttering', () => {
-    expect(dueHeadline('Push')).toBe('Push day.')
-    expect(dueHeadline('Leg Day')).toBe('Leg Day.')
-    expect(dueHeadline('leg day')).toBe('leg day.')
+    // The DECISION is which message the name earns; the suffix itself is
+    // catalog copy, so both halves are asserted.
+    expect(dueHeadline('Push')).toEqual({ key: 'headline.due', values: { day: 'Push' } })
+    expect(dueHeadline('Leg Day')).toEqual({
+      key: 'headline.dueSelfNamed',
+      values: { day: 'Leg Day' },
+    })
+    expect(read(dueHeadline('Push'))).toBe('Push day.')
+    expect(read(dueHeadline('Leg Day'))).toBe('Leg Day.')
+    expect(read(dueHeadline('leg day'))).toBe('leg day.')
     // "day" as part of a word is not a suffix.
-    expect(dueHeadline('Monday Squats')).toBe('Monday Squats day.')
+    expect(read(dueHeadline('Monday Squats'))).toBe('Monday Squats day.')
   })
 })
 
 describe('momentumSessionsLine', () => {
   it('pluralizes sessions', () => {
-    expect(momentumSessionsLine(1)).toBe('1 session this week')
-    expect(momentumSessionsLine(3)).toBe('3 sessions this week')
+    expect(momentumSessionsLine(3)).toEqual({ key: 'sessionsLine', values: { count: 3 } })
+    expect(renderLine(momentum, momentumSessionsLine(1))).toBe('1 session this week')
+    expect(renderLine(momentum, momentumSessionsLine(3))).toBe('3 sessions this week')
   })
 })
 
 describe('momentumWeekDeltaLine', () => {
   it('states the direction and magnitude against last week', () => {
-    expect(momentumWeekDeltaLine(20, 12)).toBe('Up 8 on last week')
-    expect(momentumWeekDeltaLine(9, 12)).toBe('Down 3 on last week')
-    expect(momentumWeekDeltaLine(12, 12)).toBe('Level with last week')
+    expect(momentumWeekDeltaLine(20, 12)).toEqual({ key: 'weekDeltaUp', values: { delta: 8 } })
+    expect(momentumWeekDeltaLine(9, 12)).toEqual({ key: 'weekDeltaDown', values: { delta: 3 } })
+    expect(momentumWeekDeltaLine(12, 12)).toEqual({ key: 'weekDeltaLevel' })
+    expect(renderLine(momentum, momentumWeekDeltaLine(20, 12)!)).toBe('Up 8 on last week')
+    expect(renderLine(momentum, momentumWeekDeltaLine(9, 12)!)).toBe('Down 3 on last week')
+    expect(renderLine(momentum, momentumWeekDeltaLine(12, 12)!)).toBe('Level with last week')
   })
 
   it('stays silent when last week has no sets (nothing honest to compare)', () => {

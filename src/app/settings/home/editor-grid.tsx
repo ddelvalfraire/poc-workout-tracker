@@ -1,6 +1,7 @@
 'use client'
 
 import { HOME_SECTION_REGISTRY } from '@/lib/home/registry'
+import { useTranslations } from 'next-intl'
 import type { ResolvedHomeSection } from '@/lib/home/layout'
 import { SectionTile, TILE_SPAN } from './section-tile'
 
@@ -25,6 +26,7 @@ export interface EditorGridProps {
 }
 
 export function EditorGrid({ sections, onOpen }: EditorGridProps) {
+  const t = useTranslations('HomeSection')
   return (
     <div className="grid grid-cols-2 gap-x-3 gap-y-3">
       {sections.map((section) => {
@@ -33,7 +35,7 @@ export function EditorGrid({ sections, onOpen }: EditorGridProps) {
         return (
           <div key={section.kind} className={TILE_SPAN[section.size]}>
             <SectionTile
-              title={meta.title}
+              title={t(meta.titleKey)}
               size={section.size}
               hidden={section.hidden}
               onOpen={() => onOpen(section.kind)}
