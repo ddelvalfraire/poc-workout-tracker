@@ -25,7 +25,29 @@ export async function generateMetadata(): Promise<Metadata> {
     title: t("appName"),
     description: t("appDescription"),
     appleWebApp: { capable: true, statusBarStyle: "default", title: t("appShortName") },
-    icons: { apple: "/icons/apple-touch-icon.png" },
+    // Two favicons, not one: the mark ships on its own green tile, which reads
+    // as a bright square against dark browser chrome, so dark mode gets the
+    // variant whose ground matches the chrome and shows the glyph alone.
+    // Home-screen icons (apple, manifest) stay on the green tile — they sit on
+    // the user's wallpaper, where the brand ground is the point. (That green is
+    // the artwork's own, not the volt in tokens.ts — see design/icons/README.)
+    icons: {
+      icon: [
+        {
+          url: "/icons/icon-32.png",
+          type: "image/png",
+          sizes: "32x32",
+          media: "(prefers-color-scheme: light)",
+        },
+        {
+          url: "/icons/icon-dark-32.png",
+          type: "image/png",
+          sizes: "32x32",
+          media: "(prefers-color-scheme: dark)",
+        },
+      ],
+      apple: "/icons/apple-touch-icon.png",
+    },
   };
 }
 
