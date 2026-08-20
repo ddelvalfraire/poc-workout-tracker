@@ -4,6 +4,16 @@ vi.mock('@/lib/auth', () => ({ requireUserId: vi.fn(async () => 'user_1') }))
 vi.mock('next/headers', () => ({
   headers: vi.fn(async () => new Headers({ 'x-forwarded-for': '203.0.113.9', 'user-agent': 'ua' })),
 }))
+// The real catalog, not a stub: the assertions below check the EXACT label
+// recorded as presentation proof, so a stub would let the wording drift from
+// what the consent row actually renders.
+vi.mock('next-intl/server', async () => {
+  const messages = (await import('../../../messages/en.json')).default
+  return {
+    getTranslations: async (namespace: keyof typeof messages) => (key: string) =>
+      (messages[namespace] as Record<string, string>)[key],
+  }
+})
 vi.mock('@/db/consent', () => ({
   getActiveConsentDocument: vi.fn(async (docType: string) => ({ id: `doc-${docType}` })),
   recordConsent: vi.fn(async () => ({ eventId: 'ev-1' })),
@@ -65,13 +75,24 @@ describe('recordSignupConsentsAction', () => {
     expect(purposes).toEqual(['health_collect', 'health_share', 'tos'])
   })
 
-  it('stores the exact rendered ToS control label as presentation proof', async () => {
+  it('stores the exact rendered control label for EVERY purpose as presentation proof', async () => {
+    // All four, not just the ToS row: presentation proof has to reproduce the
+    // affirmative act for each purpose, and a label that drifts from the row
+    // the user actually saw is the failure this evidence exists to prevent.
+    // Asserted against literal text, so editing the catalog wording without
+    // meaning to fails here.
     await expect(recordSignupConsentsAction(ALL_GRANTED)).resolves.toBeUndefined()
 
-    const tosCall = vi.mocked(recordConsent).mock.calls.find(([i]) => i.purpose === 'tos')
-    expect(tosCall?.[0].presentation.controlLabel).toBe(
+    const labelFor = (purpose: string) =>
+      vi.mocked(recordConsent).mock.calls.find(([i]) => i.purpose === purpose)?.[0].presentation
+        .controlLabel
+
+    expect(labelFor('health_collect')).toBe('Store your health data')
+    expect(labelFor('health_share')).toBe('Share with our service providers')
+    expect(labelFor('tos')).toBe(
       'I agree to the Terms of Service and have read the Privacy Notice and Health Data Privacy Policy.',
     )
+    expect(labelFor('analytics_identity')).toBe('Analytics identity')
   })
 
   it('declined analytics writes NO event — absent row is the ledger default', async () => {

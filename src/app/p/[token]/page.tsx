@@ -15,6 +15,7 @@ import { AppHeader } from '@/components/app-header'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { adoptSharedProgramAction } from './actions'
+import { getTranslations } from 'next-intl/server'
 
 /** Share tokens are 32 base64url chars (24 random bytes); anything shaped
  *  differently is a bad URL and 404s before touching the db — the same
@@ -37,6 +38,7 @@ export default async function SharedProgramPage({
 }: {
   params: Promise<{ token: string }>
 }) {
+  const t = await getTranslations('P')
   const { token } = await params
   if (!TOKEN_PATTERN.test(token)) notFound()
   const shared = await resolveShare(token)
@@ -71,13 +73,13 @@ export default async function SharedProgramPage({
   const cta = isOwner ? (
     <div className="border-t border-border pt-4">
       <p className="text-sm text-muted-foreground">
-        This is your program — this is what people with the link see.
+        {t('ownerNotice')}
       </p>
       <Link
         href={`/programs/${program.id}`}
         className={cn(buttonVariants({ variant: 'outline' }), 'mt-3 w-full')}
       >
-        Open your program
+        {t('openAction')}
       </Link>
     </div>
   ) : userId !== null ? (
@@ -85,7 +87,7 @@ export default async function SharedProgramPage({
     // proposal's page, where Adopt/Decline is the forced confirm.
     <form action={adoptSharedProgramAction.bind(null, token)}>
       <Button type="submit" className="w-full">
-        Add to my programs
+        {t('adoptAction')}
       </Button>
     </form>
   ) : (
@@ -95,13 +97,13 @@ export default async function SharedProgramPage({
       href={`/sign-in?redirect_url=${encodeURIComponent(`/p/${token}`)}`}
       className={cn(buttonVariants(), 'w-full')}
     >
-      Sign in to add this program
+      {t('signInAction')}
     </Link>
   )
 
   return (
     <div className="flex min-h-[100dvh] flex-col">
-      <AppHeader title="Shared program" />
+      <AppHeader title={t('pageTitle')} />
 
       <main className="mx-auto w-full max-w-md flex-1 px-5 pb-safe">
         {/* Article READ surface — the program page's visual language (hero +
@@ -137,8 +139,7 @@ export default async function SharedProgramPage({
           {/* Attribution: "Shared program", no owner name in v1 (no
               display-name plumbing) — the value space is ready for it. */}
           <p className="mt-1.5 text-xs font-semibold uppercase tracking-widest text-muted-foreground tnum">
-            Shared program · {dayCount} {dayCount === 1 ? 'day' : 'days'}/week ·{' '}
-            {program.mesocycleWeeks} {program.mesocycleWeeks === 1 ? 'week' : 'weeks'}
+            {t('attribution', { days: dayCount, weeks: program.mesocycleWeeks })}
           </p>
           {program.description !== null && (
             <p className="mt-3 whitespace-pre-line text-sm leading-relaxed text-muted-foreground">
@@ -149,7 +150,7 @@ export default async function SharedProgramPage({
 
         <div className="mt-5">{cta}</div>
 
-        <h2 className="mt-8 font-display text-xl uppercase leading-none tracking-wide">The plan</h2>
+        <h2 className="mt-8 font-display text-xl uppercase leading-none tracking-wide">{t('planTitle')}</h2>
         {/* Hairline day sections (programs/[id] vocabulary): the public read
             speaks the same de-carded language as the owner's detail page. */}
         <div className="mt-1">
@@ -157,7 +158,7 @@ export default async function SharedProgramPage({
             <section key={day.id} className="border-b border-b-border/60 py-4">
               <h3 className="flex min-w-0 items-baseline gap-2">
                 <span className="shrink-0 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground tnum">
-                  Day {dayIndex + 1}
+                  {t('dayLabel', { number: dayIndex + 1 })}
                 </span>
                 <span className="min-w-0 truncate font-display text-lg uppercase leading-tight tracking-wide">
                   {day.name}
@@ -198,7 +199,7 @@ export default async function SharedProgramPage({
                     >
                       {startsSuperset && (
                         <p className="mb-1 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
-                          Superset {supersetLabel}
+                          {t('supersetLabel', { label: supersetLabel })}
                         </p>
                       )}
                       <p className="text-sm font-medium">{exercise.name}</p>
@@ -245,7 +246,7 @@ export default async function SharedProgramPage({
               rel="noopener noreferrer"
               className="inline-flex items-center gap-1 underline underline-offset-2 transition-colors hover:text-foreground"
             >
-              Source
+              {t('sourceLabel')}
               <ExternalLink aria-hidden="true" className="size-3" />
             </a>
           </p>

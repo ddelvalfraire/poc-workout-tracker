@@ -24,21 +24,28 @@ const noop = () => {}
 
 type CatalogNamespace = 'StatsSheet' | 'RestPill' | 'PlateSheet' | 'RestSheet' | 'WeightStepper'
 
+/** The translator is typed structurally on purpose: this probe spans several
+ *  namespaces, and ReturnType<typeof useTranslations> with no parameter asks
+ *  TypeScript to instantiate every namespace in the catalog — which exceeds
+ *  its depth limit now that the catalog is app-wide. */
+type Translator = {
+  (key: string, values?: Record<string, unknown>): string
+  rich: (key: string, values?: Record<string, unknown>) => ReactNode
+}
+
 function Probe({
   namespace,
   render,
 }: {
   namespace: CatalogNamespace
-  render: (t: ReturnType<typeof useTranslations>) => ReactNode
+  render: (t: Translator) => ReactNode
 }) {
   const t = useTranslations(namespace)
-  return <>{render(t)}</>
+  return <>{render(t as unknown as Translator)}</>
 }
 
-const message = (
-  namespace: CatalogNamespace,
-  render: (t: ReturnType<typeof useTranslations>) => ReactNode,
-) => renderStaticIntl(<Probe namespace={namespace} render={render} />)
+const message = (namespace: CatalogNamespace, render: (t: Translator) => ReactNode) =>
+  renderStaticIntl(<Probe namespace={namespace} render={render} />)
 
 describe('EffortChips copy', () => {
   it('names both scales, the target caption and the chip labels', () => {
@@ -191,7 +198,7 @@ describe('StatsSheet rich messages', () => {
       t.rich('bestE1rmValue', {
         value: 142.5,
         unit: 'kg',
-        unitTag: (chunks) => <span className="unit">{chunks}</span>,
+        unitTag: (chunks: ReactNode) => <span className="unit">{chunks}</span>,
       }),
     )
 
@@ -206,7 +213,7 @@ describe('StatsSheet rich messages', () => {
         weight: 140,
         unit: 'kg',
         reps: 3,
-        repsTag: (chunks) => <span className="reps">{chunks}</span>,
+        repsTag: (chunks: ReactNode) => <span className="reps">{chunks}</span>,
       }),
     )
 

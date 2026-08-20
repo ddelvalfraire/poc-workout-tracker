@@ -15,6 +15,8 @@ const CARD_SHELL_KEEP = [
   "src/components/confirm-dialog.tsx",
   "src/components/session-conflict-dialog.tsx",
   "src/components/editor/quick-capture-sheet.tsx",
+  "src/app/welcome/consent-form.tsx",
+  "src/app/welcome/page.tsx",
   "src/app/coach/coach-chat.tsx",
   "src/app/body/photo-overlay.tsx",
   "src/app/programs/\\[id\\]/patch-proposal-card.tsx",
@@ -76,6 +78,9 @@ const I18N_MIGRATED = [
   "src/app/body/photo-overlay.tsx",
   "src/app/body/photos-section.tsx",
   "src/app/check-in-card.tsx",
+  "src/app/coach/coach-chat.tsx",
+  "src/app/coach/coach-disclosure.tsx",
+  "src/app/coach/page.tsx",
   "src/app/error.tsx",
   "src/app/exercises/\\[source\\]/\\[id\\]/exercise-note-section.tsx",
   "src/app/exercises/\\[source\\]/\\[id\\]/page.tsx",
@@ -90,6 +95,7 @@ const I18N_MIGRATED = [
   "src/app/goals/goal-create.tsx",
   "src/app/goals/page.tsx",
   "src/app/history-list.tsx",
+  "src/app/history/page.tsx",
   "src/app/home-sections.tsx",
   "src/app/layout.tsx",
   "src/app/loading.tsx",
@@ -97,6 +103,7 @@ const I18N_MIGRATED = [
   "src/app/notes/facet-select.tsx",
   "src/app/notes/notes-browser.tsx",
   "src/app/notes/page.tsx",
+  "src/app/p/\\[token\\]/page.tsx",
   "src/app/page.tsx",
   "src/app/programs/\\[id\\]/description-edit.tsx",
   "src/app/programs/\\[id\\]/diet-phase-card.tsx",
@@ -151,6 +158,9 @@ const I18N_MIGRATED = [
   "src/app/today-recap.tsx",
   "src/app/trophies/page.tsx",
   "src/app/up-next-anchor.tsx",
+  "src/app/w/\\[token\\]/page.tsx",
+  "src/app/welcome/consent-form.tsx",
+  "src/app/welcome/page.tsx",
   "src/app/workout/\\[id\\]/edit/page.tsx",
   "src/app/workout/\\[id\\]/finish-up-next-card.tsx",
   "src/app/workout/\\[id\\]/page.tsx",
@@ -319,13 +329,11 @@ const eslintConfig = defineConfig([
           mode: "jsx-only",
           // The translator call itself, and class helpers, take string
           // arguments that are identifiers rather than copy.
-          callees: { exclude: ["t", "t.rich", "cn", "clsx", "cva", "tCommon"] },
-          "jsx-attributes": {
-            exclude: ["className", "id", "key", "type", "name", "href", "src", "role", "htmlFor", "aria-describedby", "variant", "size", "autoComplete", "inputMode", "data-.*", "aria-hidden", "width", "height", "viewBox", "fill", "stroke", "d", "xmlns", "style", "step", "min", "max", "pattern", "rel", "target", "method", "action", "encType", "dir", "lang", "fallback", "confirmVariant", "page", "aria-current", "dataKey", "nameKey", "yAxisId", "orientation", "layout", "scale", "ifOverflow", "strokeDasharray", "direction", "default", "barClassName", "autoCapitalize", "enterKeyHint", "aria-autocomplete", "initialScope", "exit", "seed"],
-          },
-          // Reducer/action payload keys. Their values name a draft FIELD or a
-          // seed source — identifiers the reducer switches on, not words.
           "object-properties": { exclude: ["field", "mode", "type", "tag", "seed"] },
+          callees: { exclude: ["t", "t.rich", "cn", "clsx", "cva", "tCommon", "toolStatusLabel"] },
+          "jsx-attributes": {
+            exclude: ["className", "id", "key", "type", "name", "href", "src", "role", "htmlFor", "aria-describedby", "variant", "size", "autoComplete", "inputMode", "data-.*", "aria-hidden", "width", "height", "viewBox", "fill", "stroke", "d", "xmlns", "style", "step", "min", "max", "pattern", "rel", "target", "method", "action", "encType", "dir", "lang", "fallback", "confirmVariant", "page", "aria-current", "dataKey", "nameKey", "yAxisId", "orientation", "layout", "scale", "ifOverflow", "strokeDasharray", "direction", "default", "barClassName", "autoCapitalize", "enterKeyHint", "aria-autocomplete", "initialScope", "exit", "seed", "describedBy"],
+          },
         },
       ],
     },

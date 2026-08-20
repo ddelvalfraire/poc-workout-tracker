@@ -8,18 +8,15 @@ import messages from './messages/en.json'
  * in a test that reads as "context from NextIntlClientProvider was not
  * found", not as a missing translation.
  *
- * Deliberately feeds the REAL en.json rather than a stub: the assertions in
- * these tests are about user-visible copy, so a stub would let a component
- * reference a key the catalog never got and still pass.
+ * Both helpers deliberately feed the REAL en.json rather than a stub: these
+ * assertions are about user-visible copy, and a stub would let a component
+ * reference a key the catalog never received and still pass.
  */
-export function renderStaticIntl(node: ReactNode): string {
-  return renderToStaticMarkup(withIntl(node))
-}
 
 /**
- * The same provider as an ELEMENT, for tests that bring their own renderer —
- * Testing Library's `render`, or a static render already wrapped in other
- * providers (QueryClientProvider and friends).
+ * The provider as an ELEMENT, for tests that bring their own renderer —
+ * createRoot, Testing Library's `render`, or a static render already wrapped
+ * in other providers.
  */
 export function withIntl(node: ReactNode) {
   return (
@@ -27,4 +24,9 @@ export function withIntl(node: ReactNode) {
       {node}
     </NextIntlClientProvider>
   )
+}
+
+/** Static markup in one call, for tests that only read the output HTML. */
+export function renderStaticIntl(node: ReactNode): string {
+  return renderToStaticMarkup(withIntl(node))
 }
