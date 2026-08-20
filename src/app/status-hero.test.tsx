@@ -19,7 +19,19 @@ vi.mock('next/navigation', () => ({
 let container: HTMLDivElement
 let root: Root
 
+/**
+ * Mon 3 Aug 2026, local — the same instant home-status.test.ts pins, and a
+ * day that IS in the fixture's Mon/Wed/Fri schedule.
+ *
+ * StatusHero reads the real clock (`new Date()`) to decide whether a program
+ * day is due, so without this the day-name assertions passed only on Mondays,
+ * Wednesdays and Fridays and failed the rest of the week. Only Date is faked:
+ * faking timers as well would starve React's scheduler inside act().
+ */
+const MONDAY_NOON = new Date(2026, 7, 3, 12, 0, 0)
+
 beforeEach(() => {
+  vi.useFakeTimers({ toFake: ['Date'], now: MONDAY_NOON })
   container = document.createElement('div')
   document.body.appendChild(container)
   root = createRoot(container)
@@ -28,6 +40,7 @@ beforeEach(() => {
 afterEach(() => {
   act(() => root.unmount())
   container.remove()
+  vi.useRealTimers()
 })
 
 const base: StatusHeroProps = {

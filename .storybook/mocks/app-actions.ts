@@ -19,6 +19,7 @@ import type * as AppActions from "@/app/actions";
 import type * as ProgramActions from "@/app/programs/actions";
 import type * as WorkoutActions from "@/app/workout/actions";
 import type * as MfaActions from "@/app/settings/account/mfa/actions";
+import type * as AccountActions from "@/app/settings/account/actions";
 
 const LATENCY_MS = 600;
 
@@ -101,6 +102,15 @@ export async function disableMfaAction(): Promise<MfaActions.DisableResult> {
   return settle({ status: "removed" as const });
 }
 
+/** `@/app/settings/account/actions` — saves the display name. */
+export async function updateNameAction(
+  firstName: string,
+  lastName: string,
+): Promise<AccountActions.UpdateNameResult> {
+  console.info("[storybook] updateNameAction", firstName, lastName);
+  return settle({ status: "saved" as const });
+}
+
 // Compile-time fidelity checks — see the module doc above. Purely type-level:
 // no runtime value is produced. A stub whose signature drifts from the action
 // it stands in for makes `Matches` resolve to `false`, which fails `Assert`.
@@ -148,4 +158,7 @@ export type MockFidelity = [
     Matches<typeof cancelMfaSetupAction, typeof MfaActions.cancelMfaSetupAction>
   >,
   Assert<Matches<typeof disableMfaAction, typeof MfaActions.disableMfaAction>>,
+  Assert<
+    Matches<typeof updateNameAction, typeof AccountActions.updateNameAction>
+  >,
 ];

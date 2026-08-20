@@ -1,6 +1,7 @@
 import { useTranslations } from 'next-intl'
 import { Section } from '@/components/ui/section'
 import { DividerList, DividerRow } from '@/components/ui/divider-list'
+import { AccountAvatar } from './account-avatar'
 import {
   countSignInMethods,
   providerLabel,
@@ -31,11 +32,32 @@ export function AccountSurface({ account }: { account: AccountOverview }) {
 
   return (
     <>
+      {/* The provider's picture, read-only — WorkOS has no avatar upload, so
+          this identifies rather than invites. The name and email sit beside
+          it in the DOM, which is why the image itself is aria-hidden. */}
+      <div className="mt-6 flex items-center gap-4">
+        <AccountAvatar src={account.profilePictureUrl} name={name} email={account.email} />
+        <div className="min-w-0">
+          <p className="truncate font-medium">{name || t('valueNotSet')}</p>
+          <p className="truncate text-sm text-muted-foreground">{account.email}</p>
+        </div>
+      </div>
+
       <Section title={t('youZone')}>
         <DividerList className="mt-1">
-          <ValueRow label={t('nameLabel')} hint={t('nameHint')}>
-            {name || <Muted>{t('valueNotSet')}</Muted>}
-          </ValueRow>
+          <DividerRow
+            href="/settings/account/name"
+            trailing={
+              <span className="max-w-[10rem] truncate text-sm">
+                {name || <Muted>{t('valueNotSet')}</Muted>}
+              </span>
+            }
+          >
+            <div className="min-w-0">
+              <p className="font-medium">{t('nameLabel')}</p>
+              <p className="mt-0.5 text-sm text-muted-foreground">{t('nameHint')}</p>
+            </div>
+          </DividerRow>
           <ValueRow
             label={t('emailLabel')}
             hint={account.emailVerified ? t('emailHintVerified') : t('emailHintUnverified')}
