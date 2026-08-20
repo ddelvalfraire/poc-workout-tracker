@@ -18,27 +18,29 @@ for (const key of ['VAPID_PUBLIC_KEY', 'VAPID_PRIVATE_KEY', 'VAPID_SUBJECT']) {
 
 // next-intl resolves translations from React context that only the app's
 // provider supplies, so any component calling useTranslations throws in a bare
-// unit render. Rather than make every test wrap a provider, resolve against
-// the REAL catalog here: tests keep asserting the copy users actually see, and
-// a key deleted from messages/en.json fails the suite instead of silently
-// rendering its own name.
-vi.mock('next-intl', async () => {
-  const messages = (await import('./messages/en.json')).default as Record<string, unknown>
-  // Keys are dotted paths into nested namespaces ('visibility.label'), which is
-  // how next-intl addresses them.
-  const resolve = (path: string): unknown =>
-    path.split('.').reduce<unknown>((node, part) => {
-      return node && typeof node === 'object' ? (node as Record<string, unknown>)[part] : undefined
-    }, messages)
-  const lookup = (namespace: string) => (key: string) => {
-    const value = resolve(`${namespace}.${key}`)
-    if (typeof value !== 'string') {
-      throw new Error(`Missing translation: ${namespace}.${key} (messages/en.json)`)
-    }
-    return value
-  }
+// unit render. Rather than make every test wrap a provider, back the mock with
+// next-intl's OWN createTranslator over the real messages/en.json.
+//
+// Using the real translator rather than a hand-rolled key lookup is the whole
+// point: it gives genuine ICU behaviour — `{seconds}s` interpolates, plurals
+// pick the right branch, and `t.rich` exists. A lookup stub silently returns
+// the raw ICU pattern instead of the formatted string, so an assertion could
+// pass or fail for reasons that have nothing to do with the component under
+// test. A key missing from the catalog still fails loudly.
+vi.mock('next-intl', async (importActual) => {
+  const actual = await importActual<typeof import('next-intl')>()
+  const messages = (await import('./messages/en.json')).default
+
   return {
-    useTranslations: (namespace: string) => lookup(namespace),
+    ...actual,
+    // The namespace is whatever the component asked for; createTranslator types
+    // it against the catalog, which a generic harness cannot satisfy statically.
+    useTranslations: (namespace?: string) =>
+      actual.createTranslator({ locale: 'en', messages, namespace } as Parameters<
+        typeof actual.createTranslator
+      >[0]),
+    // The provider is a no-op here: the hook above is already bound to the
+    // catalog, so tests need not wrap anything.
     NextIntlClientProvider: ({ children }: { children: React.ReactNode }) => children,
   }
 })
