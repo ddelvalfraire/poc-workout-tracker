@@ -1,3 +1,4 @@
+import { createRequire } from 'node:module'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -6,6 +7,11 @@ import { playwright } from '@vitest/browser-playwright'
 import { defineConfig, configDefaults } from 'vitest/config'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
+// Where Node actually found the dependencies. Run from a git worktree that is
+// the primary checkout's node_modules, several levels above HERE.
+const NODE_MODULES = dirname(
+  dirname(createRequire(import.meta.url).resolve('storybook/package.json')),
+)
 const srcAlias = {
   '@': fileURLToPath(new URL('./src', import.meta.url)),
   // `server-only` throws outside RSC; stub it so server modules unit-test.
@@ -43,6 +49,13 @@ export default defineConfig({
         // a failing test. Real Chromium, because colour-contrast needs actual
         // layout and computed styles — jsdom would pass those silently.
         plugins: [storybookTest({ configDir: join(HERE, '.storybook') })],
+        // Chromium fetches every module from Vite's dev server, which serves
+        // only what `server.fs.allow` covers — by default the Vite root, HERE.
+        // The addon's own setup file lives in NODE_MODULES, so from a worktree
+        // it falls outside that root and every story 404s on import before a
+        // single play function runs. In a normal checkout NODE_MODULES is
+        // already under the root and this adds nothing.
+        server: { fs: { allow: [NODE_MODULES] } },
         test: {
           name: 'storybook',
           browser: {
