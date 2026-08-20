@@ -213,12 +213,18 @@ function lastPerformance(overrides: Partial<LastPerformance> = {}): LastPerforma
 }
 
 describe('WorkoutLogger notes three-tier IA (#211)', () => {
-  it('renders the note entry as an icon button while the exercise has no session note', () => {
+  it('renders ONE note affordance — a bare pen — while nothing is noted', () => {
+    // The roll-up and the entry are the same button. With nothing noted it is
+    // the entry: pen only, labelled as the add action, no count markup.
     const html = render()
     expect(html).toContain(`Add note for Squat`)
+    // A regex, not a substring: the count is an ICU plural, so "2 notes on
+    // Squat" would slip straight past `not.toContain('note on Squat')` and a
+    // double-count regression would read as green.
+    expect(html).not.toMatch(/for Squat, \d+ notes?/)
   })
 
-  it('keeps the entry affordance icon-only, in the header rail with its siblings', () => {
+  it('keeps the note affordance icon-only, in the header rail with its siblings', () => {
     // The rail is a cluster of ghost icon buttons (collapse, plates, replace,
     // skip, remove). A worded pill among them broke the rhythm and read
     // heavier than the destructive actions beside it, so the label lives in
@@ -231,9 +237,10 @@ describe('WorkoutLogger notes three-tier IA (#211)', () => {
   })
 
   it('keeps the 44px target (#236) even though icon-sm is 36px', () => {
-    // The worded chip carried hit-44-y; dropping to an icon button must not
-    // quietly shrink the target. hit-44-y extends vertically only, so it buys
-    // the 44px back without bleeding into the neighbours on either side.
+    // The worded chip carried hit-44-y; neither dropping to an icon button nor
+    // absorbing the roll-up may quietly shrink the target. hit-44-y extends
+    // vertically only, so it buys the 44px back without bleeding into the
+    // neighbours on either side.
     const html = render()
     // Just this button's own attributes: from its aria-label to the end of
     // its opening tag, so a neighbour's classes can never satisfy the assert.
@@ -243,14 +250,16 @@ describe('WorkoutLogger notes three-tier IA (#211)', () => {
 
   it('renders the note words as the tap target once a session note exists', () => {
     // Open-OR-has-notes invariant, new grammar: a non-empty note is never
-    // hidden — it renders as muted words that reopen the editor; the entry
-    // chip retires.
+    // hidden — it renders as muted words that reopen the editor. The header
+    // button stays put and flips from the add label to the roll-up count, so
+    // the rail never gains or loses a control mid-session.
     const draft = draftWithCompletedSet()
     draft.exercises[0].notes = 'felt heavy today'
     const html = render({ initialDraft: draft })
     expect(html).toContain('felt heavy today')
     expect(html).toContain('Edit note for Squat')
     expect(html).not.toContain('Add note for Squat')
+    expect(html).toContain('Edit note for Squat, 1 note')
   })
 
   it('a session note carries the pin-as-promotion affordance', () => {

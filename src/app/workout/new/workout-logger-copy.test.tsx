@@ -126,13 +126,17 @@ describe('WorkoutLogger copy resolves through the catalog', () => {
 })
 
 describe('WorkoutLogger plurals', () => {
-  it('counts exercise notes at one and at many', () => {
-    const one = message((t) => t('noteCountAriaLabel', { count: 1, name: 'Squat' }))
-    const many = message((t) => t('noteCountAriaLabel', { count: 3, name: 'Squat' }))
+  it('counts exercise notes at one and at many, behind the action word', () => {
+    const label = (count: number, hasNote: 'yes' | 'no' = 'no') =>
+      message((t) => t('noteButtonAriaLabel', { count, hasNote, name: 'Squat' }))
 
-    expect(one).toContain('1 note on Squat')
-    expect(one).not.toContain('1 notes')
-    expect(many).toContain('3 notes on Squat')
+    expect(label(0)).toBe('Add note for Squat')
+    expect(label(1)).toContain('1 note')
+    expect(label(1)).not.toContain('1 notes')
+    expect(label(3)).toContain('3 notes')
+    // The action leads in both branches — a count never becomes the name.
+    expect(label(1)).toMatch(/^Add note for Squat/)
+    expect(label(2, 'yes')).toMatch(/^Edit note for Squat/)
   })
 
   it('agrees the finish warning with its set count at one and at many', () => {

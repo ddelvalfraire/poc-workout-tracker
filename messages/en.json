@@ -2406,7 +2406,6 @@
   },
   "WorkoutLogger": {
     "addExerciseAction": "+ Exercise",
-    "addNoteAriaLabel": "Add note for {name}",
     "addSetAction": "+ Add set",
     "addedWeightAriaLabel": "Set {set} added weight in {unit}",
     "assistanceAriaLabel": "Set {set} assistance in {unit}",
@@ -2468,7 +2467,7 @@
     "namePlaceholderStatic": "Unnamed workout",
     "nextUp": "Next: <exercise>{name}</exercise> — set {set}",
     "noPreviousAriaLabel": "No previous performance for {set}",
-    "noteCountAriaLabel": "{count, plural, one {# note} other {# notes}} on {name}",
+    "noteButtonAriaLabel": "{hasNote, select, yes {Edit note for {name}} other {Add note for {name}}}{count, plural, =0 {} one {, # note} other {, # notes}}",
     "notePlaceholder": "Add note…",
     "notesAriaLabel": "Notes for {name}",
     "offlineNotice": "Offline — changes will sync when you're back.",
