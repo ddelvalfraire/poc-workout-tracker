@@ -5,7 +5,12 @@ import { requireUserId } from '@/lib/auth'
 import { isOpsUser } from '@/lib/ops/access'
 import { applyGrant, revokeGrant } from '@/db/entitlements'
 import { isTier, type Tier } from '@/lib/entitlements/tiers'
-import { endsAtFor, isGrantDuration } from '@/lib/entitlements/duration'
+import {
+  endsAtFor,
+  isGrantDuration,
+  MAX_GRANT_REASON_LENGTH,
+  MIN_GRANT_REASON_LENGTH,
+} from '@/lib/entitlements/duration'
 
 /**
  * The two write actions behind /ops/billing.
@@ -27,9 +32,6 @@ export type GrantActionResult =
   | { status: 'denied' }
   | { status: 'invalid'; field: 'user' | 'tier' | 'reason' | 'duration' }
   | { status: 'notFound' }
-
-/** Shortest reason that can still mean something to whoever reads it later. */
-const MIN_REASON_LENGTH = 3
 
 /**
  * Grants a tier by hand — a support comp, a refund make-good, or a tester
@@ -53,7 +55,9 @@ export async function grantTierAction(input: {
   if (!isGrantDuration(input.duration)) return { status: 'invalid', field: 'duration' }
 
   const reason = input.reason.trim()
-  if (reason.length < MIN_REASON_LENGTH) return { status: 'invalid', field: 'reason' }
+  if (reason.length < MIN_GRANT_REASON_LENGTH || reason.length > MAX_GRANT_REASON_LENGTH) {
+    return { status: 'invalid', field: 'reason' }
+  }
 
   const startsAt = new Date()
   const result = await applyGrant({
@@ -82,7 +86,9 @@ export async function revokeGrantAction(input: {
   if (!isOpsUser(actorId)) return { status: 'denied' }
 
   const reason = input.reason.trim()
-  if (reason.length < MIN_REASON_LENGTH) return { status: 'invalid', field: 'reason' }
+  if (reason.length < MIN_GRANT_REASON_LENGTH || reason.length > MAX_GRANT_REASON_LENGTH) {
+    return { status: 'invalid', field: 'reason' }
+  }
 
   const result = await revokeGrant({ grantId: input.grantId, reason, actorId })
   if (!result) return { status: 'notFound' }

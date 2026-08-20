@@ -7,7 +7,11 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { TIERS, type Tier } from '@/lib/entitlements/tiers'
 import { grantTierAction } from '@/app/ops/billing/actions'
-import { GRANT_DURATIONS, type GrantDuration } from '@/lib/entitlements/duration'
+import {
+  GRANT_DURATIONS,
+  MIN_GRANT_REASON_LENGTH,
+  type GrantDuration,
+} from '@/lib/entitlements/duration'
 
 /**
  * Granting a tier by hand.
@@ -55,7 +59,7 @@ export function GrantForm({ userId }: { userId: string }) {
 
   function submit() {
     if (!armed) {
-      if (reason.trim().length < 3) {
+      if (reason.trim().length < MIN_GRANT_REASON_LENGTH) {
         setError(t('reason.validation'))
         return
       }
@@ -70,7 +74,13 @@ export function GrantForm({ userId }: { userId: string }) {
         router.refresh()
         return
       }
-      setError(result.status === 'denied' ? t('errorDenied') : t('errorInvalid'))
+      setError(
+        result.status === 'denied'
+          ? t('errorDenied')
+          : result.status === 'notFound'
+            ? t('errorNotFound')
+            : t('errorInvalid'),
+      )
     })
   }
 
@@ -127,6 +137,14 @@ export function GrantForm({ userId }: { userId: string }) {
           {error}
         </p>
       )}
+
+      {/* Arming changes the button's accessible name, and a name change alone
+          is not announced. Without this a screen-reader user presses Grant,
+          hears nothing, presses again — and commits. The safety step would be
+          inverted for exactly the people least able to see it. */}
+      <p aria-live="polite" className="sr-only">
+        {armed ? t('armedStatus', { tier, duration: t(DURATION_KEY[duration]) }) : ''}
+      </p>
 
       <Button
         type="submit"

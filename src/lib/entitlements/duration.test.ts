@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { GRANT_DURATIONS, endsAtFor, isGrantDuration } from './duration'
+import { GRANT_DURATIONS, MIN_GRANT_REASON_LENGTH, endsAtFor, isGrantDuration } from './duration'
 
 const FROM = new Date('2026-08-20T12:00:00.000Z')
 const DAY = 86_400_000
@@ -37,5 +37,13 @@ describe('grant durations', () => {
       const end = endsAtFor(duration, FROM)
       if (end) expect(end.getTime()).toBeGreaterThan(FROM.getTime())
     }
+  })
+})
+
+describe('the shared reason floor', () => {
+  // Form and action both validate against this. Two independent literals drift,
+  // and the drift shows as a form that submits and an action that rejects.
+  test('is a positive length both sides can agree on', () => {
+    expect(MIN_GRANT_REASON_LENGTH).toBeGreaterThan(0)
   })
 })

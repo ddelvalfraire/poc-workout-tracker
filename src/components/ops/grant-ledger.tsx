@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import type { EntitlementGrant } from '@/db/entitlements'
 import { revokeGrantAction } from '@/app/ops/billing/actions'
+import { MIN_GRANT_REASON_LENGTH } from '@/lib/entitlements/duration'
 import { TierBadge, formatDate } from './tier-badge'
 
 /**
@@ -65,7 +66,7 @@ function GrantRow({ grant, now }: { grant: EntitlementGrant; now: number }) {
   const lapsed = !revoked && grant.endsAt !== null && grant.endsAt.getTime() <= now
 
   function revoke() {
-    if (reason.trim().length < 3) {
+    if (reason.trim().length < MIN_GRANT_REASON_LENGTH) {
       setError(t('reason.validation'))
       return
     }

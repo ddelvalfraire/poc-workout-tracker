@@ -34,6 +34,13 @@ const TIER_KEY = {
   max: { name: 'tier.max.name', summary: 'tier.max.summary', price: 'tier.max.price' },
 } as const
 
+/** Explicit for the same reason TIER_KEY is. */
+const CAPABILITY_KEY = {
+  coach: 'capability.coach',
+  autoreg: 'capability.autoreg',
+  unlimited_programs: 'capability.programsUnlimited',
+} as const satisfies Record<Feature, string>
+
 export function PlanSurface({ entitlement }: { entitlement: ResolvedEntitlement }) {
   const t = useTranslations('Plan')
 
@@ -97,7 +104,7 @@ function TierRow({ tier, isCurrent }: { tier: Tier; isCurrent: boolean }) {
         </li>
         {featuresFor(tier).map((feature: Feature) =>
           feature === 'unlimited_programs' ? null : (
-            <li key={feature}>{t(`capability.${feature}`)}</li>
+            <li key={feature}>{t(CAPABILITY_KEY[feature])}</li>
           ),
         )}
       </ul>

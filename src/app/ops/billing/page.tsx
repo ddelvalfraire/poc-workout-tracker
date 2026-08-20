@@ -87,7 +87,11 @@ export default async function OpsBillingPage({
             {snapshot?.ok && snapshot.data && (
               <div className="mt-4 flex flex-col">
                 <EntitlementSummary snapshot={snapshot.data} />
-                <GrantForm userId={snapshot.data.user.id} />
+                {/* Keyed by member: the form holds an armed confirm in client state, and
+                    searching a different member is a same-route navigation that
+                    would otherwise preserve it. One press could then grant to
+                    somebody the confirm was never about. */}
+                <GrantForm key={snapshot.data.user.id} userId={snapshot.data.user.id} />
                 <GrantLedger grants={snapshot.data.grants} now={Date.now()} />
               </div>
             )}

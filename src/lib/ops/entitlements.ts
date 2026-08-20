@@ -32,6 +32,13 @@ export interface BillingSnapshot {
   grants: EntitlementGrant[]
 }
 
+/**
+ * Ceiling on directory paging while resolving emails. Ten pages is 1,000 users
+ * — far past where this panel stops being the right tool, and a hard stop so a
+ * paging bug can never turn one render into an unbounded crawl.
+ */
+const MAX_DIRECTORY_PAGES = 10
+
 export interface PaidUserRow {
   userId: string
   email: string | null
@@ -110,7 +117,7 @@ export async function getBillingSnapshot(
 }
 
 /**
- * Everyone currently on a paid tier, with emails resolved in ONE batch call
+ * Everyone currently on a paid tier, with emails resolved in a bounded batch
  * rather than per row — a roster of 100 users must not become 100 round-trips
  * to WorkOS on every render of an always-dynamic page.
  *
@@ -136,15 +143,23 @@ export async function getPaidRoster(): Promise<OpsResult<PaidUserRow[]>> {
 
 async function resolveEmails(userIds: string[]): Promise<Map<string, string>> {
   const found = new Map<string, string>()
+  const wanted = new Set(userIds)
+
   try {
     const workos = getWorkOS()
-    // listUsers has no id-set filter, so page through and keep the ones asked
-    // for. Fine at this scale and still one network conversation rather than
-    // one per user; when the roster outgrows it, this is the seam to change.
-    const wanted = new Set(userIds)
-    const page = await workos.userManagement.listUsers({ limit: 100 })
-    for (const user of page.data) {
-      if (wanted.has(user.id)) found.set(user.id, user.email)
+    // listUsers has no id-set filter and caps a page at 100, so page until
+    // every wanted id is found. The bound matters: without it a directory that
+    // grew past one page would silently render paying members as raw ids —
+    // a defect that gets WORSE as the business grows, which is exactly when
+    // nobody is looking at this panel closely.
+    let after: string | undefined
+    for (let page = 0; page < MAX_DIRECTORY_PAGES && found.size < wanted.size; page += 1) {
+      const result = await workos.userManagement.listUsers({ limit: 100, after })
+      for (const user of result.data) {
+        if (wanted.has(user.id)) found.set(user.id, user.email)
+      }
+      after = result.listMetadata.after ?? undefined
+      if (!after) break
     }
   } catch {
     // Emails are decoration here; the entitlement rows are the answer.

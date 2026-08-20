@@ -1,5 +1,4 @@
-import { and, desc, eq, isNotNull } from 'drizzle-orm'
-import { sql } from 'drizzle-orm'
+import { and, desc, eq, isNotNull, sql } from 'drizzle-orm'
 import { db } from './index'
 import { entitlementGrants, entitlementsCurrent } from './schema'
 import {
@@ -68,8 +67,9 @@ export interface ApplyGrantResult {
   /** The user's tier AFTER this grant — not necessarily the tier granted. */
   effective: ResolvedEntitlement
   /**
-   * True when an identical live grant already existed and nothing was
-   * written. Redelivered webhooks land here.
+   * True when an identical live grant already existed, so no ledger row was
+   * appended. Redelivered webhooks land here. The projection is still
+   * rewritten — a redelivery is a free chance to heal one that drifted.
    */
   deduplicated: boolean
 }
@@ -103,6 +103,14 @@ export async function applyGrant(input: ApplyGrantInput): Promise<ApplyGrantResu
         .from(entitlementGrants)
         .where(
           and(
+            // Scoped to the user we hold the lock on. Without this a
+            // source_ref that resolved to a DIFFERENT local user — an account
+            // re-map, a support mix-up — would be superseded here and never
+            // reprojected, leaving that user's projection granting a tier
+            // whose grant is dead. Scoping it means a genuine cross-user
+            // collision hits the partial unique index and fails loudly
+            // instead of corrupting quietly.
+            eq(entitlementGrants.userId, input.userId),
             eq(entitlementGrants.source, input.source),
             eq(entitlementGrants.sourceRef, input.sourceRef),
             eq(entitlementGrants.status, 'active'),
@@ -308,7 +316,11 @@ export async function getEntitlement(userId: string): Promise<ResolvedEntitlemen
     if (!row) return FREE
     if (row.expiresAt && row.expiresAt.getTime() <= Date.now()) return FREE
     return { tier: row.tier, source: row.source, expiresAt: row.expiresAt }
-  } catch {
+  } catch (error) {
+    // Degrading to Free is the policy; doing it SILENTLY is not. A paying
+    // member dropped to Free by a transient fault is the single failure here
+    // most worth knowing about, and without this line it leaves no trace.
+    console.error('[entitlements] read failed, degrading to free', error)
     return FREE
   }
 }

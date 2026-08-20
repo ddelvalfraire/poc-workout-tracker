@@ -29,6 +29,7 @@ vi.mock('@/db/entitlements', () => ({
 }))
 
 import { grantTierAction, revokeGrantAction } from './actions'
+import { MAX_GRANT_REASON_LENGTH, MIN_GRANT_REASON_LENGTH } from '@/lib/entitlements/duration'
 
 const VALID = {
   userId: 'user_target',
@@ -101,6 +102,30 @@ describe('grantTierAction', () => {
       status: 'invalid',
       field: 'user',
     })
+  })
+
+  test('accepts a reason exactly at the shared floor, and refuses one below it', async () => {
+    const atFloor = 'x'.repeat(MIN_GRANT_REASON_LENGTH)
+    expect(await grantTierAction({ ...VALID, reason: atFloor })).toMatchObject({
+      status: 'granted',
+    })
+    applied.length = 0
+    const belowFloor = 'x'.repeat(MIN_GRANT_REASON_LENGTH - 1)
+    expect(await grantTierAction({ ...VALID, reason: belowFloor })).toEqual({
+      status: 'invalid',
+      field: 'reason',
+    })
+    expect(applied).toHaveLength(0)
+  })
+
+  // The column is unbounded text; nothing else stops a paste.
+  test('refuses a reason past the upper bound', async () => {
+    const tooLong = 'x'.repeat(MAX_GRANT_REASON_LENGTH + 1)
+    expect(await grantTierAction({ ...VALID, reason: tooLong })).toEqual({
+      status: 'invalid',
+      field: 'reason',
+    })
+    expect(applied).toHaveLength(0)
   })
 
   test('rejects a reason too short to mean anything later', async () => {

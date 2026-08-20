@@ -32,3 +32,17 @@ export function endsAtFor(duration: GrantDuration, from: Date): Date | null {
   if (duration === 'forever') return null
   return new Date(from.getTime() + DURATION_DAYS[duration] * 86_400_000)
 }
+
+/**
+ * Shortest reason that can still mean something to whoever reads the ledger
+ * later. Lives here rather than in the action so the form refuses exactly what
+ * the server refuses — two independent literals drift, and the drift shows up
+ * as a form that submits and an action that rejects.
+ */
+export const MIN_GRANT_REASON_LENGTH = 3
+
+/**
+ * Upper bound on a reason. Past this it is not a reason, it is a paste — and
+ * the column is unbounded `text`, so nothing else stops it.
+ */
+export const MAX_GRANT_REASON_LENGTH = 500
