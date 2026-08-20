@@ -1542,23 +1542,27 @@ export function WorkoutLogger({
               >
                 <ArrowLeftRight aria-hidden="true" className="size-4" />
               </Button>
-              {/* Note entry (one grammar, #211): a worded chip — pill skin
-                  mirrors the pinned chip because chips mean pressable. It
-                  renders only while there is nothing to show; once a session
-                  note exists the note words themselves are the reopen target
-                  below (open-OR-has-notes: a hidden note is a lost note).
-                  Trim-gated like every sibling: a whitespace-only draft is
-                  not a note yet (lastSessionEcho's definition), so the entry
-                  affordance must survive it. */}
+              {/* Note entry: an icon-sm ghost button like every other utility
+                  on this rail, so the cluster reads as one icon-only rhythm.
+                  It renders only while there is nothing to show; once a
+                  session note exists the note words themselves are the reopen
+                  target below (open-OR-has-notes: a hidden note is a lost
+                  note). Trim-gated like every sibling: a whitespace-only draft
+                  is not a note yet (lastSessionEcho's definition), so the
+                  entry affordance must survive it. Keeps the chip's hit-44-y
+                  (#236): icon-sm is 36px, and the vertical-only extension
+                  buys back the 44px target without shifting a pixel or
+                  bleeding into the neighbours it sits between. */}
               {exercise.notes.trim() === '' && !notesOpen.has(exercise.id) && (
-                <button
-                  type="button"
+                <Button
+                  size="icon-sm"
+                  variant="ghost"
+                  className="shrink-0 hit-44-y text-muted-foreground"
                   onClick={() => setNotesOpen((prev) => new Set(prev).add(exercise.id))}
                   aria-label={t('addNoteAriaLabel', { name: exercise.name })}
-                  className="mx-1 shrink-0 hit-44-y rounded-full border border-border bg-muted/40 px-3 py-2.5 text-xs text-muted-foreground transition-colors active:bg-muted"
                 >
-                  {t('noteAction')}
-                </button>
+                  <NotebookPen aria-hidden="true" className="size-4" />
+                </Button>
               )}
               {/* Hairline gap between the everyday utilities and the
                   destructive remove — adjacency invites mid-set slips. */}

@@ -213,10 +213,32 @@ function lastPerformance(overrides: Partial<LastPerformance> = {}): LastPerforma
 }
 
 describe('WorkoutLogger notes three-tier IA (#211)', () => {
-  it('renders the "Note" entry chip while the exercise has no session note', () => {
+  it('renders the note entry as an icon button while the exercise has no session note', () => {
     const html = render()
     expect(html).toContain(`Add note for Squat`)
-    expect(html).toContain('>Note<')
+  })
+
+  it('keeps the entry affordance icon-only, in the header rail with its siblings', () => {
+    // The rail is a cluster of ghost icon buttons (collapse, plates, replace,
+    // skip, remove). A worded pill among them broke the rhythm and read
+    // heavier than the destructive actions beside it, so the label lives in
+    // aria-label only. The rail's hairline divider fences off skip/remove, so
+    // the entry button must render BEFORE it — an everyday utility, not an
+    // opt-out.
+    const html = render()
+    expect(html).not.toContain('>Note<')
+    expect(html.indexOf('Add note for Squat')).toBeLessThan(html.indexOf('Skip Squat'))
+  })
+
+  it('keeps the 44px target (#236) even though icon-sm is 36px', () => {
+    // The worded chip carried hit-44-y; dropping to an icon button must not
+    // quietly shrink the target. hit-44-y extends vertically only, so it buys
+    // the 44px back without bleeding into the neighbours on either side.
+    const html = render()
+    // Just this button's own attributes: from its aria-label to the end of
+    // its opening tag, so a neighbour's classes can never satisfy the assert.
+    const at = html.indexOf('Add note for Squat')
+    expect(html.slice(at, html.indexOf('>', at))).toContain('hit-44-y')
   })
 
   it('renders the note words as the tap target once a session note exists', () => {
