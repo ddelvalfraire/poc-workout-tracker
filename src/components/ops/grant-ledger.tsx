@@ -56,6 +56,9 @@ export function GrantLedger({ grants, now }: { grants: EntitlementGrant[]; now: 
 
 function GrantRow({ grant, now }: { grant: EntitlementGrant; now: number }) {
   const t = useTranslations('GrantLedger')
+  // Shared chrome comes from Common — the catalog guard rejects a namespace
+  // re-declaring a string Common already holds.
+  const common = useTranslations('Common')
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [reason, setReason] = useState('')
@@ -150,7 +153,7 @@ function GrantRow({ grant, now }: { grant: EntitlementGrant; now: number }) {
                 onClick={() => setOpen(false)}
                 disabled={isPending}
               >
-                {t('cancel')}
+                {common('cancel')}
               </Button>
               <Button
                 type="button"
