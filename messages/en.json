@@ -1224,6 +1224,48 @@
     "uploadError": "Didn’t upload. Try again.",
     "uploadFailed": "Upload failed"
   },
+  "Plan": {
+    "title": "Plan",
+    "current": {
+      "title": "Your plan"
+    },
+    "tier": {
+      "free": {
+        "name": "Free",
+        "price": "Free",
+        "summary": "Log every workout you want, forever."
+      },
+      "pro": {
+        "name": "Pro",
+        "price": "$5 / month",
+        "summary": "Run as many programs as you like."
+      },
+      "max": {
+        "name": "Max",
+        "price": "$13 / month",
+        "summary": "Everything in Pro, plus the coach and automatic load adjustment."
+      }
+    },
+    "capability": {
+      "programs": "{count, plural, one {# active program} other {# active programs}}",
+      "programsUnlimited": "Unlimited active programs",
+      "coach": "AI coach",
+      "autoreg": "Automatic load adjustment"
+    },
+    "provenance": {
+      "granted": "Granted by support",
+      "purchased": "Billed through {source}"
+    },
+    "expiry": {
+      "on": "until {date}",
+      "never": "no expiry"
+    },
+    "compare": {
+      "title": "All plans",
+      "currentBadge": "Your plan"
+    },
+    "unavailableNotice": "Upgrading is not open yet. Nothing here can be bought, and nothing will be charged."
+  },
   "PlanBulletList": {
     "noTarget": "{current} sets · no target",
     "progress": "{current} / {planned} sets"
@@ -1834,6 +1876,10 @@
     "ops": {
       "hint": "Monitoring board — not part of the app.",
       "label": "Ops"
+    },
+    "plan": {
+      "label": "Plan",
+      "hint": "What you are on, and what the other plans include."
     },
     "privacyPolicy": {
       "hint": "What we collect and why.",

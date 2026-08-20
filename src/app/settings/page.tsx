@@ -104,6 +104,15 @@ export default async function SettingsPage() {
                 <p className="mt-0.5 text-sm text-muted-foreground">{t('account.hint')}</p>
               </div>
             </DividerRow>
+            {/* Plan sits beside identity rather than in a zone of its own:
+                it is a fact about the account, and a member checking what
+                they are on looks where their email is. */}
+            <DividerRow href="/settings/plan">
+              <div className="min-w-0">
+                <p className="font-medium">{t('plan.label')}</p>
+                <p className="mt-0.5 text-sm text-muted-foreground">{t('plan.hint')}</p>
+              </div>
+            </DividerRow>
             <li className="flex items-center justify-end py-2">
               <SignOutButton variant="full" />
             </li>
