@@ -15,7 +15,7 @@ import { useTranslations } from 'next-intl'
  * cached the parse). Nothing is written until Confirm.
  */
 
-interface PreviewResponse {
+export interface PreviewResponse {
   token: string
   source: 'strong' | 'hevy'
   sourceUnit: WeightUnit
@@ -33,7 +33,7 @@ interface PreviewResponse {
   warnings: string[]
 }
 
-interface CommitResponse {
+export interface CommitResponse {
   batchId: string
   workoutsImported: number
   setsImported: number
@@ -64,7 +64,7 @@ export function ImportFlow({ defaultUnit }: ImportFlowProps) {
 
   async function runPreview(nextFile: File, previewUnit: WeightUnit) {
     if (nextFile.size > MAX_IMPORT_BYTES) {
-      setError('File too large (20MB max).')
+      setError(t('errorTooLarge'))
       setPhase('idle')
       return
     }
@@ -77,12 +77,12 @@ export function ImportFlow({ defaultUnit }: ImportFlowProps) {
       const response = await fetch('/api/import/preview', { method: 'POST', body: form })
       const body: unknown = await response.json()
       if (!response.ok) {
-        throw new Error(errorMessage(body, 'Failed to read the file.'))
+        throw new Error(errorMessage(body, t('errorRead')))
       }
       setPreview(body as PreviewResponse)
       setPhase('preview')
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to read the file.')
+      setError(err instanceof Error ? err.message : t('errorRead'))
       setPhase('idle')
     }
   }
@@ -113,14 +113,14 @@ export function ImportFlow({ defaultUnit }: ImportFlowProps) {
       })
       const body: unknown = await response.json()
       if (!response.ok) {
-        throw new Error(errorMessage(body, 'Import failed.'))
+        throw new Error(errorMessage(body, t('errorCommit')))
       }
       setResult(body as CommitResponse)
       setPhase('done')
       // The batches list on this page is server-rendered — refresh it.
       router.refresh()
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Import failed.')
+      setError(err instanceof Error ? err.message : t('errorCommit'))
       setPhase('preview')
     }
   }
@@ -136,12 +136,12 @@ export function ImportFlow({ defaultUnit }: ImportFlowProps) {
 
   // The three-step arc the indicator narrates: upload → review → done.
   const step = phase === 'done' ? 3 : phase === 'preview' || phase === 'committing' ? 2 : 1
-  const stepLabel = step === 3 ? 'Done' : step === 2 ? 'Review' : 'Upload'
+  const stepLabel = step === 3 ? t('steps.done') : step === 2 ? t('steps.review') : t('steps.upload')
   const isBusy = phase === 'previewing' || phase === 'committing'
   const hasPreview = phase === 'preview' || phase === 'committing'
 
   return (
-    <section aria-label="Import a history file" className="mt-6">
+    <section aria-label={t('sectionLabel')} className="mt-6">
       <div>
         {/* Step indicator: where you are in the arc, in words + segments. */}
         <div className="flex items-center justify-between gap-3">
@@ -194,7 +194,7 @@ export function ImportFlow({ defaultUnit }: ImportFlowProps) {
               )}
             >
               <span className="text-sm font-medium">
-                {hasPreview ? 'Choose a different CSV' : 'Choose CSV — Strong or Hevy'}
+                {hasPreview ? t('dropzone.actionSwap') : t('dropzone.action')}
               </span>
               {!hasPreview && (
                 <span className="text-xs text-muted-foreground">
@@ -205,7 +205,7 @@ export function ImportFlow({ defaultUnit }: ImportFlowProps) {
                 ref={fileInputRef}
                 type="file"
                 accept=".csv,text/csv"
-                aria-label="History CSV file"
+                aria-label={t('fileInputLabel')}
                 disabled={isBusy}
                 onChange={(e) => onFilePicked(e.target.files?.[0] ?? null)}
                 className="sr-only"
@@ -238,7 +238,7 @@ export function ImportFlow({ defaultUnit }: ImportFlowProps) {
   )
 }
 
-interface PreviewSummaryProps {
+export interface PreviewSummaryProps {
   preview: PreviewResponse
   unit: WeightUnit
   isCommitting: boolean
@@ -247,7 +247,9 @@ interface PreviewSummaryProps {
   onCancel: () => void
 }
 
-function PreviewSummary({
+// Exported for tests: the confirm CTA and the skip notices carry the flow
+// plurals, and they are only reachable after a real upload round-trip.
+export function PreviewSummary({
   preview,
   unit,
   isCommitting,
@@ -256,12 +258,16 @@ function PreviewSummary({
   onCancel,
 }: PreviewSummaryProps) {
   const t = useTranslations('ImportFlow')
-  const sourceLabel = preview.source === 'strong' ? 'Strong' : 'Hevy'
+  const sourceLabel = preview.source === 'strong' ? t('source.strong') : t('source.hevy')
   return (
     <div className="mt-4 border-t border-t-border/60 pt-4">
       <p className="text-sm">
         <span className="font-medium">{t('preview.sourceExport', { source: sourceLabel })}</span>
-        {preview.fileName && <span className="text-muted-foreground"> — {preview.fileName}</span>}
+        {preview.fileName && (
+          <span className="text-muted-foreground">
+            {t('preview.fileNameSuffix', { fileName: preview.fileName })}
+          </span>
+        )}
       </p>
 
       {/* Unit picker only when the file doesn't declare one (Strong). */}
@@ -270,7 +276,7 @@ function PreviewSummary({
           <p className="text-sm text-muted-foreground">
             {t('unit.hint')}
           </p>
-          <div role="group" aria-label="File weight unit" className="flex shrink-0 gap-1">
+          <div role="group" aria-label={t('unitGroupLabel')} className="flex shrink-0 gap-1">
             {WEIGHT_UNITS.map((u) => (
               <Button
                 key={u}
@@ -360,15 +366,15 @@ function PreviewSummary({
           onClick={onConfirm}
         >
           {isCommitting
-            ? 'Importing…'
-            : `Import ${preview.workoutCount} workout${preview.workoutCount === 1 ? '' : 's'}`}
+            ? t('actions.confirmPending')
+            : t('actions.confirm', { count: preview.workoutCount })}
         </Button>
       </div>
     </div>
   )
 }
 
-function SuccessSummary({ result, onReset }: { result: CommitResponse; onReset: () => void }) {
+export function SuccessSummary({ result, onReset }: { result: CommitResponse; onReset: () => void }) {
   const t = useTranslations('ImportFlow')
   return (
     <div>
@@ -378,9 +384,10 @@ function SuccessSummary({ result, onReset }: { result: CommitResponse; onReset: 
           workouts: result.workoutsImported,
           sets: result.setsImported,
         })}
-        {result.duplicatesSkipped > 0 && ` ${result.duplicatesSkipped} duplicates were skipped.`}
+        {result.duplicatesSkipped > 0 &&
+          t('success.duplicatesSuffix', { count: result.duplicatesSkipped })}
         {result.customsCreated > 0 &&
-          ` ${result.customsCreated} custom exercise${result.customsCreated === 1 ? '' : 's'} created.`}
+          t('success.customsSuffix', { count: result.customsCreated })}
       </p>
       <div className="mt-4 flex gap-2">
         <Button variant="outline" className="flex-1" onClick={onReset}>

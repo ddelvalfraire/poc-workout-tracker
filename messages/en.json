@@ -1,6 +1,8 @@
 {
   "AnalyticsConsentToggle": {
-    "gpcHint": "Your browser sends a Global Privacy Control signal — this stays off."
+    "ariaLabel": "Analytics identity",
+    "gpcHint": "Your browser sends a Global Privacy Control signal — this stays off.",
+    "saveError": "Could not save your choice. Please try again."
   },
   "Common": {
     "appDescription": "Log your workouts and review your training history.",
@@ -12,7 +14,11 @@
     "targetSummary": "Target {weeks, plural, one {# week} other {# weeks}}",
     "weeksUnit": "wks"
   },
+  "CustomizeHome": {
+    "title": "Customize home"
+  },
   "DeleteAccount": {
+    "consequencesGroupLabel": "What deletion does",
     "erased": {
       "description": "your workouts, programs, templates, notes, goals, trophies, body measurements, progress photos, custom exercises, preferences, and coach conversations.",
       "title": "Erased immediately:"
@@ -25,10 +31,13 @@
     "retained": {
       "description": "consent records we are legally required to keep (at least 3 years), with your identity replaced by a random code that cannot be traced back to you.",
       "title": "Retained:"
-    }
+    },
+    "title": "Delete account"
   },
   "DeleteAccountForm": {
-    "confirmInstruction": "Type <code>{phrase}</code> to confirm"
+    "action": "Delete my account",
+    "confirmInstruction": "Type <code>{phrase}</code> to confirm",
+    "pendingAction": "Deleting your account…"
   },
   "GoalCardActions": {
     "archiveAction": "Archive",
@@ -94,6 +103,7 @@
   },
   "HomeLayoutEditor": {
     "hint": "Tap a tile to resize, reorder, or hide it — or press and hold to drag it. Hidden sections keep tracking — they just don’t show on Home.",
+    "lockedTileAriaLabel": "Status — always shown, always first",
     "lockedTileLabel": "Status",
     "resetAction": "Reset to default",
     "saveError": "Couldn’t save. Try again."
@@ -101,23 +111,39 @@
   "Import": {
     "batch": {
       "fileNameSuffix": " — {fileName}",
-      "meta": "{scope}, {sets, plural, one {# set} other {# sets}} · {date}"
+      "meta": "{scope}, {sets, plural, one {# set} other {# sets}} · {date}",
+      "scope": "{count, plural, one {# workout} other {# workouts}}"
     },
     "empty": "Nothing imported yet. Imports you confirm will be listed here, each removable in one tap.",
+    "headerTitle": "Import history",
+    "historyGroupLabel": "Past imports",
+    "source": {
+      "hevy": "Hevy",
+      "strong": "Strong"
+    },
     "title": "Past imports"
   },
   "ImportFlow": {
     "actions": {
       "cancel": "Cancel",
+      "confirm": "{count, plural, one {Import # workout} other {Import # workouts}}",
+      "confirmPending": "Importing…",
       "importAnother": "Import another",
       "viewHistory": "View history"
     },
     "dropzone": {
+      "action": "Choose CSV — Strong or Hevy",
+      "actionSwap": "Choose a different CSV",
       "hint": "The export format is detected automatically — or drag the file here."
     },
+    "errorCommit": "Import failed.",
+    "errorRead": "Failed to read the file.",
+    "errorTooLarge": "File too large (20MB max).",
+    "fileInputLabel": "History CSV file",
     "preview": {
       "datesLabel": "Dates",
       "duplicatesNotice": "{count, plural, one {# workout} other {# workouts}} already in your history will be skipped.",
+      "fileNameSuffix": " — {fileName}",
       "matchedLabel": "Matched exercises",
       "newExercisesCount": "{count, plural, one {# new custom exercise} other {# new custom exercises}}",
       "newExercisesDescription": "These names weren’t in the catalog and will be created as your custom exercises:",
@@ -126,28 +152,46 @@
       "sourceExport": "{source} export",
       "workoutsLabel": "Workouts"
     },
+    "sectionLabel": "Import a history file",
     "skipped": {
       "andMore": "…and {count} more",
       "row": "Row {row}: {reason}",
       "summary": "{count, plural, one {# row} other {# rows}} can’t be imported"
     },
+    "source": {
+      "hevy": "Hevy",
+      "strong": "Strong"
+    },
     "status": {
       "reading": "Reading file…"
     },
     "steps": {
-      "indicator": "Step {step} of 3 — {label}"
+      "done": "Done",
+      "indicator": "Step {step} of 3 — {label}",
+      "review": "Review",
+      "upload": "Upload"
     },
     "success": {
+      "customsSuffix": " {count, plural, one {# custom exercise created.} other {# custom exercises created.}}",
+      "duplicatesSuffix": " {count, plural, one {# duplicate was skipped.} other {# duplicates were skipped.}}",
       "summary": "{workouts, plural, one {# workout} other {# workouts}} and {sets, plural, one {# set} other {# sets}} added to your history.",
       "title": "Import complete"
     },
     "title": "Import from Strong or Hevy",
     "unit": {
       "hint": "Strong files don’t say kg or lb — pick the unit this account logged in."
-    }
+    },
+    "unitGroupLabel": "File weight unit"
   },
   "RemoveImportButton": {
-    "label": "Remove"
+    "confirm": {
+      "body": "Deletes the {scope} this import added. Custom exercises it created are kept.",
+      "confirmLabel": "Remove",
+      "pendingLabel": "Removing…",
+      "title": "Remove this import?"
+    },
+    "label": "Remove",
+    "removeError": "Couldn't remove the import — try again."
   },
   "RestDefaultSetting": {
     "ariaLabel": "Default rest target: {seconds, plural, one {# second} other {# seconds}}",
@@ -156,26 +200,114 @@
     "valueOff": "Off"
   },
   "RestTimerToggle": {
+    "ariaLabel": "Rest timer",
     "saveError": "Couldn’t save. Try again."
   },
   "RpeLoggingToggle": {
+    "ariaLabel": "Effort logging (RPE/RIR)",
     "saveError": "Couldn’t save. Try again."
   },
+  "SectionTile": {
+    "ariaLabel": "{state, select, hidden {{section} — hidden. Edit section} sm {{section} — Small. Edit section} md {{section} — Medium. Edit section} lg {{section} — Large. Edit section} other {{section}. Edit section}}"
+  },
   "Settings": {
-    "signedInLabel": "Signed in"
+    "accountGroupLabel": "Account",
+    "analytics": {
+      "hint": "Link your usage (never your workout content) to your account. Turning this off also deletes your usage profile from our analytics provider.",
+      "label": "Analytics identity"
+    },
+    "body": {
+      "hint": "Your weight and measurements over time.",
+      "label": "Body",
+      "value": "{value} {unit}",
+      "valueUnset": "Not set"
+    },
+    "defaultRest": {
+      "hint": "Your countdown length between sets.",
+      "hintDisabled": "Turn the rest timer on to use this.",
+      "label": "Default rest"
+    },
+    "deleteAccount": {
+      "hint": "Erase your data and close your account.",
+      "label": "Delete account"
+    },
+    "effortLogging": {
+      "hint": "Rate how hard sets felt (RIR/RPE) after you complete them.",
+      "label": "Effort logging"
+    },
+    "healthPrivacy": {
+      "hint": "How your health data is handled, and your rights.",
+      "label": "Health Data Privacy"
+    },
+    "home": {
+      "hint": "Choose which sections show, and their order.",
+      "label": "Customize home"
+    },
+    "import": {
+      "hint": "Bring your Strong or Hevy workouts with you.",
+      "label": "Import history"
+    },
+    "ops": {
+      "hint": "Monitoring board — not part of the app.",
+      "label": "Ops"
+    },
+    "privacyPolicy": {
+      "hint": "What we collect and why.",
+      "label": "Privacy Policy"
+    },
+    "reminders": {
+      "hint": "A morning nudge on your program days.",
+      "label": "Workout reminders"
+    },
+    "restTimer": {
+      "hint": "Counts down your rest after each set.",
+      "label": "Rest timer"
+    },
+    "signedInLabel": "Signed in",
+    "terms": {
+      "hint": "The agreement for using the app.",
+      "label": "Terms of Service"
+    },
+    "title": "Settings",
+    "unit": {
+      "hint": "Shown everywhere you enter or read weight.",
+      "label": "Weight unit"
+    },
+    "version": "Build {sha}",
+    "versionLocal": "v{version}",
+    "zones": {
+      "data": "Data",
+      "internal": "Internal",
+      "legal": "Legal",
+      "privacy": "Privacy",
+      "training": "Training"
+    }
   },
   "SignOutButton": {
     "action": "Sign out",
-    "pending": "Signing out…",
-    "ariaLabel": "Sign out"
+    "ariaLabel": "Sign out",
+    "pending": "Signing out…"
   },
   "TileSheet": {
+    "close": "Close",
+    "dialogLabel": "{section} section",
     "move": {
       "down": "Down",
+      "downLabel": "Move {section} down",
       "toTop": "To top",
-      "up": "Up"
+      "toTopLabel": "Move {section} to top",
+      "up": "Up",
+      "upLabel": "Move {section} up"
     },
+    "sizeGroupLabel": "{section} size",
+    "sizeLabel": {
+      "lg": "L",
+      "md": "M",
+      "sm": "S"
+    },
+    "sizeOptionLabel": "{size, select, sm {Small {section}} md {Medium {section}} lg {Large {section}} other {{section}}}",
     "visibility": {
+      "ariaLabel": "Show {section} on Home",
       "hint": "Hidden sections keep tracking — they just don’t show.",
       "label": "Show on Home"
     }
@@ -183,11 +315,15 @@
   "Trophies": {
     "badge": "New",
     "closest": {
+      "groupLabel": "Closest trophies",
       "title": "Closest"
     },
-    "empty": "No trophies yet. Every trophy is a lifting fact — plate clubs, workout counts, streaks. Train and they stamp themselves."
+    "empty": "No trophies yet. Every trophy is a lifting fact — plate clubs, workout counts, streaks. Train and they stamp themselves.",
+    "progressLabel": "{percent}% toward {trophy}",
+    "title": "Trophies"
   },
   "WorkoutRemindersToggle": {
+    "ariaLabel": "Workout reminders",
     "blockedNotice": "Notifications are blocked for this app in your browser settings.",
     "unsupportedNotice": "Not supported in this browser. On iPhone, add the app to your Home Screen first.",
     "updateError": "Couldn’t update. Try again."

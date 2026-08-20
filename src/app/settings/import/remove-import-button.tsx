@@ -34,7 +34,7 @@ export function RemoveImportButton({ batchId, scopeLabel }: RemoveImportButtonPr
       setIsOpen(false)
       router.refresh()
     } catch {
-      setError("Couldn't remove the import — try again.")
+      setError(t('removeError'))
     } finally {
       setIsPending(false)
     }
@@ -52,10 +52,10 @@ export function RemoveImportButton({ batchId, scopeLabel }: RemoveImportButtonPr
       </Button>
       {isOpen && (
         <ConfirmDialog
-          title="Remove this import?"
-          body={`Deletes the ${scopeLabel} this import added. Custom exercises it created are kept.`}
-          confirmLabel="Remove"
-          pendingLabel="Removing…"
+          title={t('confirm.title')}
+          body={t('confirm.body', { scope: scopeLabel })}
+          confirmLabel={t('confirm.confirmLabel')}
+          pendingLabel={t('confirm.pendingLabel')}
           error={error}
           isPending={isPending}
           onConfirm={() => void remove()}

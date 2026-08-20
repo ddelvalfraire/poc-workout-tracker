@@ -16,7 +16,6 @@ const CARD_SHELL_KEEP = [
   "src/components/session-conflict-dialog.tsx",
   "src/components/editor/quick-capture-sheet.tsx",
   "src/app/coach/coach-chat.tsx",
-  "src/app/body/photo-overlay.tsx",
   "src/app/programs/\\[id\\]/patch-proposal-card.tsx",
   "src/app/settings/home/tile-sheet.tsx",
   "src/app/templates/\\[id\\]/template-edit-sheet.tsx",
@@ -35,10 +34,6 @@ const CARD_SHELL_KEEP = [
 // only ever shrinks, never grows. New surfaces never join it; they use the
 // primitives from day one.
 const CARD_SHELL_RATCHET = [
-  "src/app/body/measurements-section.tsx",
-  "src/app/body/photo-cell.tsx",
-  "src/app/body/photo-compare.tsx",
-  "src/app/body/photos-section.tsx",
   "src/app/goals/goal-card-actions.tsx",
   "src/app/home-sections.tsx",
   "src/app/p/\\[token\\]/page.tsx",
@@ -69,14 +64,6 @@ const I18N_MIGRATED = [
   "src/app/goals/goal-card-actions.tsx",
   "src/app/goals/goal-create.tsx",
   "src/app/goals/page.tsx",
-];
-
-// TEXT-ONLY RATCHET: migrated before the rule covered attributes and JSX
-// expressions, so their aria-labels, dialog props and ternary CTAs are still
-// English. Held to the weaker rule so the gate does not claim they are done.
-// Only ever SHRINKS — a backfill PR moves files up into I18N_MIGRATED.
-const I18N_TEXT_ONLY = [
-  "src/app/trophies/page.tsx",
   "src/app/settings/analytics-consent-toggle.tsx",
   "src/app/settings/delete-account/delete-account-form.tsx",
   "src/app/settings/delete-account/page.tsx",
@@ -94,7 +81,18 @@ const I18N_TEXT_ONLY = [
   "src/app/settings/rest-timer-toggle.tsx",
   "src/app/settings/rpe-logging-toggle.tsx",
   "src/app/settings/workout-reminders-toggle.tsx",
+  "src/app/trophies/page.tsx",
 ];
+
+// TEXT-ONLY RATCHET: migrated before the rule covered attributes and JSX
+// expressions, so their aria-labels, dialog props and ternary CTAs are still
+// English. Held to the weaker rule so the gate does not claim they are done.
+// Only ever SHRINKS — a backfill PR moves files up into I18N_MIGRATED.
+// Now EMPTY: settings + trophies were backfilled under the strict rule. The
+// seam stays so a future partial migration has somewhere to land, and the
+// block below is spread conditionally because ESLint rejects an empty
+// `files` array.
+const I18N_TEXT_ONLY = [];
 
 const eslintConfig = defineConfig([
   ...nextVitals,
@@ -171,7 +169,8 @@ const eslintConfig = defineConfig([
           "jsx-attributes": {
             exclude: [
               "className", "id", "key", "type", "name", "href", "src", "role",
-              "htmlFor", "variant", "size", "autoComplete", "inputMode",
+              "htmlFor", "variant", "size", "autoComplete", "autoCapitalize",
+              "inputMode", "fallback",
               "data-.*", "aria-hidden", "width", "height", "viewBox", "fill",
               "stroke", "d", "xmlns", "style", "step", "min", "max", "pattern",
               "rel", "target", "method", "action", "encType", "dir", "lang",
@@ -181,13 +180,17 @@ const eslintConfig = defineConfig([
       ],
     },
   },
-  {
-    files: I18N_TEXT_ONLY,
-    plugins: { i18next },
-    rules: {
-      "i18next/no-literal-string": ["error", { mode: "jsx-text-only" }],
-    },
-  },
+  ...(I18N_TEXT_ONLY.length > 0
+    ? [
+        {
+          files: I18N_TEXT_ONLY,
+          plugins: { i18next },
+          rules: {
+            "i18next/no-literal-string": ["error", { mode: "jsx-text-only" }],
+          },
+        },
+      ]
+    : []),
 ]);
 
 export default eslintConfig;

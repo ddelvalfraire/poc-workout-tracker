@@ -21,7 +21,7 @@ export default async function ImportPage() {
   return (
     <div className="flex min-h-[100dvh] flex-col">
       <AppHeader
-        title="Import history"
+        title={t('headerTitle')}
         leading={
           <BackLink fallback="/settings" />
         }
@@ -30,7 +30,7 @@ export default async function ImportPage() {
       <main className="mx-auto w-full max-w-md flex-1 px-5 pb-safe">
         <ImportFlow defaultUnit={unit} />
 
-        <section aria-label="Past imports" className="mt-6">
+        <section aria-label={t('historyGroupLabel')} className="mt-6">
           <h2 className="text-sm font-medium text-muted-foreground">{t('title')}</h2>
           {batches.length === 0 ? (
             <p className="mt-2 text-sm text-muted-foreground">
@@ -39,12 +39,12 @@ export default async function ImportPage() {
           ) : (
             <ul className="mt-2 divide-y divide-border/60 border-b border-b-border/60">
               {batches.map((batch) => {
-                const scopeLabel = `${batch.workoutCount} workout${batch.workoutCount === 1 ? '' : 's'}`
+                const scopeLabel = t('batch.scope', { count: batch.workoutCount })
                 return (
                   <li key={batch.id} className="flex items-center justify-between gap-3 py-3">
                     <div className="min-w-0">
                       <p className="truncate font-medium">
-                        {batch.source === 'strong' ? 'Strong' : 'Hevy'}
+                        {batch.source === 'strong' ? t('source.strong') : t('source.hevy')}
                         {batch.fileName && (
                           <span className="font-normal text-muted-foreground">
                             {t('batch.fileNameSuffix', { fileName: batch.fileName })}
