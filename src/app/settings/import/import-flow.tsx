@@ -258,6 +258,7 @@ export function PreviewSummary({
   onCancel,
 }: PreviewSummaryProps) {
   const t = useTranslations('ImportFlow')
+  const tCommon = useTranslations('Common')
   const sourceLabel = preview.source === 'strong' ? t('source.strong') : t('source.hevy')
   return (
     <div className="mt-4 border-t border-t-border/60 pt-4">
@@ -358,7 +359,7 @@ export function PreviewSummary({
 
       <div className="mt-4 flex gap-2">
         <Button variant="outline" className="flex-1" disabled={isCommitting} onClick={onCancel}>
-          {t('actions.cancel')}
+          {tCommon('cancel')}
         </Button>
         <Button
           className="flex-1"

@@ -480,7 +480,6 @@
   },
   "ExercisePicker": {
     "create": {
-      "cancel": "Cancel",
       "categoryAriaLabel": "Category",
       "categoryPlaceholder": "Category…",
       "error": "Could not create the exercise.",
@@ -774,7 +773,6 @@
   },
   "ImportFlow": {
     "actions": {
-      "cancel": "Cancel",
       "confirm": "{count, plural, one {Import # workout} other {Import # workouts}}",
       "confirmPending": "Importing…",
       "importAnother": "Import another",
