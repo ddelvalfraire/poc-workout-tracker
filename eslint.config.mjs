@@ -66,6 +66,23 @@ const CARD_SHELL_RATCHET = [
 // before, or the rule is just noise a future PR learns to ignore.
 const I18N_MIGRATED = [
   "src/app/trophies/page.tsx",
+  "src/app/settings/analytics-consent-toggle.tsx",
+  "src/app/settings/delete-account/delete-account-form.tsx",
+  "src/app/settings/delete-account/page.tsx",
+  "src/app/settings/home/editor-grid-dnd.tsx",
+  "src/app/settings/home/editor-grid.tsx",
+  "src/app/settings/home/home-layout-editor.tsx",
+  "src/app/settings/home/page.tsx",
+  "src/app/settings/home/section-tile.tsx",
+  "src/app/settings/home/tile-sheet.tsx",
+  "src/app/settings/import/import-flow.tsx",
+  "src/app/settings/import/page.tsx",
+  "src/app/settings/import/remove-import-button.tsx",
+  "src/app/settings/page.tsx",
+  "src/app/settings/rest-default-setting.tsx",
+  "src/app/settings/rest-timer-toggle.tsx",
+  "src/app/settings/rpe-logging-toggle.tsx",
+  "src/app/settings/workout-reminders-toggle.tsx",
 ];
 
 const eslintConfig = defineConfig([

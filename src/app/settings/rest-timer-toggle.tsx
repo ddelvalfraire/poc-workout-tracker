@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { setRestTimerEnabledAction } from '@/app/actions'
 import { cn } from '@/lib/utils'
+import { useTranslations } from 'next-intl'
 
 /**
  * Feature switch for the rest timer — a real switch (role="switch"), not a
@@ -12,6 +13,7 @@ import { cn } from '@/lib/utils'
  * pages' server-fetched flag agrees on next visit.
  */
 export function RestTimerToggle({ enabled }: { enabled: boolean }) {
+  const t = useTranslations('RestTimerToggle')
   const [isOn, setIsOn] = useState(enabled)
   const [isPending, startTransition] = useTransition()
   const [hasError, setHasError] = useState(false)
@@ -58,7 +60,7 @@ export function RestTimerToggle({ enabled }: { enabled: boolean }) {
       </button>
       {hasError && (
         <p className="text-xs text-destructive" role="status">
-          Couldn&rsquo;t save. Try again.
+          {t('saveError')}
         </p>
       )}
     </div>

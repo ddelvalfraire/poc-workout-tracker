@@ -6,6 +6,7 @@ import { AppHeader } from '@/components/app-header'
 import { BackLink } from '@/components/back-link'
 import { ImportFlow } from './import-flow'
 import { RemoveImportButton } from './remove-import-button'
+import { getTranslations } from 'next-intl/server'
 
 /**
  * /settings/import — bring Strong/Hevy history in as first-class training
@@ -13,6 +14,7 @@ import { RemoveImportButton } from './remove-import-button'
  * of past imports with the batch-scoped undo.
  */
 export default async function ImportPage() {
+  const t = await getTranslations('Import')
   const userId = await requireUserId()
   const [unit, batches] = await Promise.all([getWeightUnit(userId), listImportBatches(userId)])
 
@@ -29,11 +31,10 @@ export default async function ImportPage() {
         <ImportFlow defaultUnit={unit} />
 
         <section aria-label="Past imports" className="mt-6">
-          <h2 className="text-sm font-medium text-muted-foreground">Past imports</h2>
+          <h2 className="text-sm font-medium text-muted-foreground">{t('title')}</h2>
           {batches.length === 0 ? (
             <p className="mt-2 text-sm text-muted-foreground">
-              Nothing imported yet. Imports you confirm will be listed here, each removable in
-              one tap.
+              {t('empty')}
             </p>
           ) : (
             <ul className="mt-2 divide-y divide-border/60 border-b border-b-border/60">
@@ -46,14 +47,16 @@ export default async function ImportPage() {
                         {batch.source === 'strong' ? 'Strong' : 'Hevy'}
                         {batch.fileName && (
                           <span className="font-normal text-muted-foreground">
-                            {' '}
-                            — {batch.fileName}
+                            {t('batch.fileNameSuffix', { fileName: batch.fileName })}
                           </span>
                         )}
                       </p>
                       <p className="mt-0.5 text-sm text-muted-foreground">
-                        {scopeLabel}, {batch.setCount} set{batch.setCount === 1 ? '' : 's'} ·{' '}
-                        {formatWorkoutDate(batch.createdAt)}
+                        {t('batch.meta', {
+                          scope: scopeLabel,
+                          sets: batch.setCount,
+                          date: formatWorkoutDate(batch.createdAt),
+                        })}
                       </p>
                     </div>
                     <RemoveImportButton batchId={batch.id} scopeLabel={scopeLabel} />

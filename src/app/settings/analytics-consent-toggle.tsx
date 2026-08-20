@@ -4,6 +4,7 @@ import { useState, useSyncExternalStore, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { setAnalyticsConsentAction } from './consent-actions'
+import { useTranslations } from 'next-intl'
 
 /**
  * The analytics-identity consent switch — same track+thumb vocabulary as the
@@ -13,6 +14,7 @@ import { setAnalyticsConsentAction } from './consent-actions'
  * only after the server confirms (router.refresh re-reads the projection).
  */
 export function AnalyticsConsentToggle({ granted }: { granted: boolean }) {
+  const t = useTranslations('AnalyticsConsentToggle')
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
   const router = useRouter()
@@ -65,7 +67,7 @@ export function AnalyticsConsentToggle({ granted }: { granted: boolean }) {
       </button>
       {gpc && (
         <p id="settings-gpc-note" className="max-w-56 text-right text-xs text-muted-foreground">
-          Your browser sends a Global Privacy Control signal — this stays off.
+          {t('gpcHint')}
         </p>
       )}
       {error && (

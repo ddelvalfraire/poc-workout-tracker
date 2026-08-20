@@ -67,14 +67,14 @@ export default async function TrophiesPage() {
       <main className="mx-auto w-full max-w-md flex-1 space-y-8 px-5 pb-safe pt-6">
         {earned.length === 0 && (
           <EmptyWords>
-            {t('noTrophiesYetEveryTrophy')}
+            {t('empty')}
           </EmptyWords>
         )}
 
         {closest.length > 0 && (
           <section aria-label="Closest trophies">
             <h2 className="px-1 text-xs font-semibold uppercase tracking-widest text-primary">
-              {t('closest')}
+              {t('closest.title')}
             </h2>
             <DividerList className="mt-2">
               {closest.map((kind) => (
@@ -141,7 +141,7 @@ function EarnedMedal({
         <div className="flex items-center gap-1">
           {isNew && (
             <span className="text-[10px] font-semibold uppercase tracking-widest text-primary">
-              {t('new')}
+              {t('badge')}
             </span>
           )}
           {/* Ships the rendered PNG via the OS sheet — never a URL. */}

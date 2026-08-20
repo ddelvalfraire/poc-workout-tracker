@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { Project, QuoteKind, IndentationText } from 'ts-morph'
-import { namespaceFor, keyFor, normalizeText, uniqueKey, extractFromFile } from './i18n-extract'
+import { namespaceFor, keyForRole, normalizeText, uniqueKey, extractFromFile } from './i18n-extract'
 
 /**
  * The codemod runs across ~100 files, so its mistakes are systematic rather
@@ -55,20 +55,21 @@ describe('namespaceFor', () => {
   })
 })
 
-describe('keyFor', () => {
-  it('builds a camelCase key from the copy itself', () => {
-    expect(keyFor('Closest')).toBe('closest')
-    expect(keyFor('No trophies yet')).toBe('noTrophiesYet')
+describe('keyForRole', () => {
+  it('names the role the markup gives the string, not its text', () => {
+    expect(keyForRole('h1')).toBe('title')
+    expect(keyForRole('p')).toBe('description')
+    expect(keyForRole('button')).toBe('action')
+    expect(keyForRole('summary')).toBe('summary')
   })
 
-  it('drops punctuation and caps length so a sentence still yields a key', () => {
-    expect(keyFor('No trophies yet. Every trophy is a lifting fact — plate clubs.')).toBe(
-      'noTrophiesYetEveryTrophy',
-    )
+  it('reads a component wrapper as the role', () => {
+    expect(keyForRole('EmptyWords')).toBe('empty')
   })
 
-  it('falls back rather than producing an empty key', () => {
-    expect(keyFor('—')).toBe('text')
+  it('falls back to a generic leaf rather than inventing meaning', () => {
+    expect(keyForRole('span')).toBe('label')
+    expect(keyForRole(undefined)).toBe('text')
   })
 })
 
@@ -96,10 +97,10 @@ export default async function Page() {
 `)
     const result = extractFromFile(file, 'Trophies')
 
-    expect(result.extracted).toEqual({ trophies: 'Trophies' })
+    expect(result.extracted).toEqual({ title: 'Trophies' })
     expect(file.getFullText()).toContain("const t = await getTranslations('Trophies')")
     expect(file.getFullText()).toContain("from 'next-intl/server'")
-    expect(file.getFullText()).toContain("{t('trophies')}")
+    expect(file.getFullText()).toContain("{t('title')}")
   })
 
   it('uses the hook in a sync component', () => {
@@ -195,7 +196,7 @@ export function List({ items }: { items: string[] }) {
     extractFromFile(file, 'List')
     const text = file.getFullText()
 
-    expect(text).toContain("{t('fixedLabel')}")
+    expect(text).toContain("{t('item')}")
     // The declaration belongs to the component, above the return.
     expect(text.indexOf('const t = useTranslations')).toBeLessThan(text.indexOf('items.map'))
     expect(text.match(/const t = useTranslations/g)).toHaveLength(1)
@@ -220,8 +221,8 @@ export function Page() {
     expect(text.match(/const t = useTranslations/g)).toHaveLength(1)
     // It sits in Page's body, before the handler that also needs it.
     expect(text.indexOf('const t = useTranslations')).toBeLessThan(text.indexOf('const onClick'))
-    expect(text).toContain("{t('go')}")
-    expect(text).toContain("{t('savedSuccessfully')}")
+    expect(text).toContain("{t('action')}")
+    expect(text).toContain("{t('description')}")
   })
 
   it('refuses a component already bound to a different namespace', () => {
@@ -255,7 +256,7 @@ export function Widget() {
 `)
     const result = extractFromFile(file, 'Widget')
 
-    expect(result.extracted).toEqual({ newStaticText: 'New static text' })
+    expect(result.extracted).toEqual({ description: 'New static text' })
     expect(file.getFullText().match(/const t = useTranslations/g)).toHaveLength(1)
   })
 

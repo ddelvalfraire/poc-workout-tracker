@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { ConfirmDialog } from '@/components/confirm-dialog'
+import { useTranslations } from 'next-intl'
 
 interface RemoveImportButtonProps {
   batchId: string
@@ -18,6 +19,7 @@ interface RemoveImportButtonProps {
  * re-logged history).
  */
 export function RemoveImportButton({ batchId, scopeLabel }: RemoveImportButtonProps) {
+  const t = useTranslations('RemoveImportButton')
   const router = useRouter()
   const [isOpen, setIsOpen] = useState(false)
   const [isPending, setIsPending] = useState(false)
@@ -46,7 +48,7 @@ export function RemoveImportButton({ batchId, scopeLabel }: RemoveImportButtonPr
         className="text-destructive"
         onClick={() => setIsOpen(true)}
       >
-        Remove
+        {t('label')}
       </Button>
       {isOpen && (
         <ConfirmDialog

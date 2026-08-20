@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 import { RestSheet } from '@/app/workout/new/rest-sheet'
 
@@ -12,6 +13,7 @@ import { RestSheet } from '@/app/workout/new/rest-sheet'
  * the server-rendered readout picks the change up.
  */
 export function RestDefaultSetting({ defaultRestSec }: { defaultRestSec: number | null }) {
+  const t = useTranslations('RestDefaultSetting')
   const [isOpen, setIsOpen] = useState(false)
   // Local echo so the row updates before the refresh round-trip lands.
   const [current, setCurrent] = useState<number | null>(defaultRestSec)
@@ -23,10 +25,12 @@ export function RestDefaultSetting({ defaultRestSec }: { defaultRestSec: number 
         size="sm"
         variant="outline"
         onClick={() => setIsOpen(true)}
-        aria-label={`Default rest target: ${current === null ? 'off' : `${current} seconds`}`}
+        aria-label={
+          current === null ? t('ariaLabelOff') : t('ariaLabel', { seconds: current })
+        }
       >
         <span aria-hidden="true" className="tnum">
-          {current === null ? 'Off' : `${current}s`}
+          {current === null ? t('valueOff') : t('value', { seconds: current })}
         </span>
       </Button>
       {isOpen && (
