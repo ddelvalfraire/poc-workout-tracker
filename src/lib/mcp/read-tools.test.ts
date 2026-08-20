@@ -219,6 +219,80 @@ describe('registerReadTools', () => {
       expect(body.hasMore).toBe(false)
     })
 
+    it('pages same-timestamp ties losslessly with the compound cursor', async () => {
+      // Arrange — three sessions imported with the same date-only timestamp,
+      // which is a supported state: import dedupes on (startedAt, name).
+      const tools = setup()
+      const sameInstant = new Date('2026-06-01T00:00:00.000Z')
+      mockedList.mockResolvedValue(
+        ['cccccccc', 'bbbbbbbb', 'aaaaaaaa'].map((prefix) => ({
+          id: `${prefix}-1111-4111-8111-111111111111`,
+          name: 'Imported',
+          startedAt: sameInstant,
+          completedAt: null,
+          exerciseCount: 1,
+          setCount: 1,
+          completedSetCount: 1,
+          volumeKg: 100,
+        })),
+      )
+
+      // Act — page past the first row using BOTH cursor halves.
+      const result = await tools.get('list_workouts')!({
+        before: sameInstant.toISOString(),
+        beforeId: 'cccccccc-1111-4111-8111-111111111111',
+      })
+
+      // Assert — the two remaining ties survive; without the id half of the
+      // cursor a strict `startedAt <` filter would have dropped both.
+      const body = payload(result) as { workouts: { id: string }[] }
+      expect(body.workouts.map((w) => w.id)).toEqual([
+        'bbbbbbbb-1111-4111-8111-111111111111',
+        'aaaaaaaa-1111-4111-8111-111111111111',
+      ])
+    })
+
+    it('orders same-timestamp rows deterministically regardless of query order', async () => {
+      // Arrange — the query orders by startedAt alone, so tied rows arrive in
+      // no fixed order; two calls must still agree.
+      const tools = setup()
+      const sameInstant = new Date('2026-06-01T00:00:00.000Z')
+      const row = (prefix: string) => ({
+        id: `${prefix}-1111-4111-8111-111111111111`,
+        name: 'Imported',
+        startedAt: sameInstant,
+        completedAt: null,
+        exerciseCount: 1,
+        setCount: 1,
+        completedSetCount: 1,
+        volumeKg: 100,
+      })
+
+      // Act
+      mockedList.mockResolvedValue([row('aaaaaaaa'), row('cccccccc'), row('bbbbbbbb')])
+      const first = payload(await tools.get('list_workouts')!({})) as { workouts: { id: string }[] }
+      mockedList.mockResolvedValue([row('cccccccc'), row('bbbbbbbb'), row('aaaaaaaa')])
+      const second = payload(await tools.get('list_workouts')!({})) as { workouts: { id: string }[] }
+
+      // Assert
+      expect(first.workouts.map((w) => w.id)).toEqual(second.workouts.map((w) => w.id))
+    })
+
+    it('never reorders the request-memoized array it was handed', async () => {
+      // Arrange — listWorkoutSummaries is React-cached, so an in-place sort
+      // would corrupt every other caller in the same request.
+      const tools = setup()
+      const rows = summaries(3).reverse() // oldest first, i.e. NOT the tool's order
+      const original = [...rows]
+      mockedList.mockResolvedValue(rows)
+
+      // Act
+      await tools.get('list_workouts')!({})
+
+      // Assert
+      expect(rows).toEqual(original)
+    })
+
     it('reports hasMore false when the page exactly drains the history', async () => {
       // Arrange
       const tools = setup()

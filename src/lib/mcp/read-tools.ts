@@ -49,6 +49,12 @@ import { buildProgramDayView, type ProgramDayView } from './program-tools'
  * to answer a question that "the last few workouts" almost always answers.
  * `before` is the escape hatch when the agent genuinely needs older history.
  */
+/** Descending string compare, so ids tiebreak the same way in the sort and in
+ *  the cursor filter below. */
+function compareDesc(a: string, b: string): number {
+  return a < b ? 1 : a > b ? -1 : 0
+}
+
 export const WORKOUT_LIST_DEFAULT_LIMIT = 20
 export const WORKOUT_LIST_MAX_LIMIT = 100
 
@@ -58,14 +64,15 @@ export function registerReadTools(server: McpServer): void {
     {
       title: 'List Workouts',
       description:
-        `Lists the user's workouts (most recent first) with exercise and set counts. Returns at most ${WORKOUT_LIST_DEFAULT_LIMIT} by default (${WORKOUT_LIST_MAX_LIMIT} max) — check \`hasMore\`, and to reach older sessions pass the LAST row's \`startedAt\` as \`before\`. Use to review recent training before drilling into one with get_workout.`,
+        `Lists the user's workouts (most recent first) with exercise and set counts. Returns at most ${WORKOUT_LIST_DEFAULT_LIMIT} by default (${WORKOUT_LIST_MAX_LIMIT} max) — check \`hasMore\`, and to page older sessions pass the LAST row's \`startedAt\` as \`before\` AND its id as \`beforeId\` (the compound cursor pages same-timestamp ties losslessly). Use to review recent training before drilling into one with get_workout.`,
       inputSchema: {
         limit: z.number().int().min(1).max(WORKOUT_LIST_MAX_LIMIT).optional(),
         before: z.string().datetime().optional(),
+        beforeId: z.string().optional(),
         userId: z.string().optional(),
       },
     },
-    async ({ limit, before, userId }, extra) => {
+    async ({ limit, before, beforeId, userId }, extra) => {
       try {
         const resolved = resolveUserId(extra, userId)
         // The db read is unchanged (and request-memoized): this bounds what
@@ -74,9 +81,31 @@ export function registerReadTools(server: McpServer): void {
         // whole history, which is what the history page and the home
         // momentum panel actually need.
         const rows = await listWorkoutSummaries(resolved)
+        // Copy before sorting: listWorkoutSummaries is request-memoized, so
+        // an in-place sort would reorder the array every other caller in this
+        // request is holding.
+        //
+        // The query orders by startedAt alone, which leaves same-timestamp
+        // rows in no fixed order — and same-timestamp rows are a SUPPORTED
+        // state, not a freak one: import dedupes on (startedAt, name), so two
+        // sessions imported with a date-only timestamp are two distinct
+        // workouts sharing an instant. Without a tiebreak the cursor below
+        // would skip one of them silently.
+        const ordered = [...rows].sort(
+          (a, b) => b.startedAt.getTime() - a.startedAt.getTime() || compareDesc(a.id, b.id),
+        )
         const cutoff = before === undefined ? undefined : new Date(before)
         const matching =
-          cutoff === undefined ? rows : rows.filter((r) => r.startedAt.getTime() < cutoff.getTime())
+          cutoff === undefined
+            ? ordered
+            : ordered.filter((r) => {
+                const delta = r.startedAt.getTime() - cutoff.getTime()
+                if (delta !== 0) return delta < 0
+                // Same instant as the cursor row: only the ids that sort after
+                // it survive, so a tie pages through losslessly instead of
+                // dropping every row that shares the timestamp.
+                return beforeId !== undefined && r.id < beforeId
+              })
         const take = Math.min(limit ?? WORKOUT_LIST_DEFAULT_LIMIT, WORKOUT_LIST_MAX_LIMIT)
         const page = matching.slice(0, take)
         return jsonResult({
