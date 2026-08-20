@@ -338,6 +338,11 @@ export async function listGrants(userId: string): Promise<EntitlementGrant[]> {
  * Every user currently on a paid tier, newest first. The ops board's "who is
  * actually paying" answer, and small enough to be a plain scan for a long
  * time yet.
+ *
+ * Lapsed rows are excluded in SQL rather than filtered afterwards: the
+ * projection is only rewritten when something happens to a grant, so a
+ * subscription that simply ran out still has tier 'max' sitting in the table
+ * until then.
  */
 export async function listPaidUsers(limit = 100): Promise<
   Array<{
@@ -357,7 +362,16 @@ export async function listPaidUsers(limit = 100): Promise<
       updatedAt: entitlementsCurrent.updatedAt,
     })
     .from(entitlementsCurrent)
-    .where(and(isNotNull(entitlementsCurrent.grantId), sql`${entitlementsCurrent.tier} <> 'free'`))
+    .where(
+      and(
+        isNotNull(entitlementsCurrent.grantId),
+        sql`${entitlementsCurrent.tier} <> 'free'`,
+        // The same clock check getEntitlement does. Without it the roster
+        // lists anyone whose projection has not been rewritten since their
+        // grant lapsed — an ops board that quietly overstates who is paying.
+        sql`(${entitlementsCurrent.expiresAt} is null or ${entitlementsCurrent.expiresAt} > now())`,
+      ),
+    )
     .orderBy(desc(entitlementsCurrent.updatedAt))
     .limit(limit)
 }
