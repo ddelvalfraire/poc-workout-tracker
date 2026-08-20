@@ -3,7 +3,9 @@
 Research and design for making `technique` (drop-set / rest-pause / myo-reps /
 cluster) a fact the app can actually *run*, not just store.
 
-Status: **design, not built.** Branch `feat/technique-logging`, cut from `main`.
+Status: **built.** Model A, as recommended below. The gap section describes
+what was true before; the "How it landed" section at the end records what
+shipped and how the three open questions were settled.
 
 ## The gap we found
 
@@ -120,8 +122,77 @@ rest timer about zero-rest stages. Not a new surface.
 - Drop sets have no planned load until the lifter drops — is stage `loadKg`
   authored, or captured?
 
+## How it landed
+
+Five commits on `claude/technique-logging-255118`, in the order the sketch
+proposed:
+
+1. **i18n** — `ProgramDetail.day.technique.*` plus a shared kind → key map
+   (`lib/technique.ts`). The standing bug, fixed first.
+2. **Expansion** — `expandTechniqueStages` turns a prescription into stage
+   rows; `sets` gains `technique_kind` / `technique_group` / `stage_index`
+   (migration `0050_sets_technique_grouping`), all nullable. Instantiation
+   AND the edit page's plan overlay call the same function, because plan
+   targets are positional: a technique set that seeds 3 rows must offer 3
+   targets or every later set wears the wrong ghosts and rest.
+3. **Round trip** — `DraftSet.technique` / `SetInput.technique`
+   (`{ kind, group, stageIndex }`, one object because the three facts are only
+   ever true together), persisted like `metricMode` rather than restored from
+   prior facts: a mid-session retag is the lifter's call. `parseWorkoutInput`
+   refuses a group that is split, mixes kinds, skips a stage, or opens
+   anywhere but stage 0 — and the draft renormalizes on every structural edit,
+   so the UI can only produce shapes the wire accepts.
+4. **Logger** — the set-row menu is now the n-way picker; a stage row wears
+   its glyph, names itself to assistive tech, and shares a left hairline with
+   its group. No rest period starts between stages.
+5. **Volume** — the counting rule below.
+
+### The open questions, settled
+
+**Does a group count as one set or N?** Neither — it is WEIGHTED. Top stage
+1.0, each later stage 0.5, applied on both the performed side
+(`db/muscle-volume.ts`) and the planned side (`db/planned-volume.ts`) so
+planned-vs-performed stays apples-to-apples.
+
+Volume landmarks count hard sets as a proxy for stimulus *and* recoverable
+fatigue, so both extremes are wrong: 3 rows would fire an MRV warning at a
+third of the real dose, and 1 would under-credit work that is demonstrably
+more than one set. The 0.5 rule reproduces what coaching practice already
+estimates — a rest-pause set ≈ 2 straight sets (DC training, rest-pause
+throughout, is programmed that way), a myo-rep set (activation + 3–5
+mini-sets) ≈ 3, a drop set ≈ 2–3.
+
+**Clusters are the exception** and count 1.0 whole, however many blocks: their
+mini-sets are submaximal with real intra-set rest — the technique exists to
+keep reps AWAY from failure — and the cluster literature counts a cluster as
+one set by definition ("you still count that as one cluster set").
+
+**Do myo-reps need a distinct kind at the logger?** No. The logger branches on
+one thing only — is the next row in this group? — and the kind is a LABEL
+(glyph, name, volume weight). Myo-reps and rest-pause differ in their stage
+parameters, which the plan already carries.
+
+**Is a drop's load authored or captured?** Both, and the schema already said
+so: `stages[].loadKg` is optional. Authored → it seeds the row's
+`prescribed_load_kg`; absent → the row starts blank and the lifter types what
+they actually dropped to. An unauthored stage load is never inherited from the
+top set, which would be a phantom prescription.
+
+### What is still open
+
+- **Authoring.** Nothing in the app WRITES a technique yet except the MCP
+  tools — the builder has no picker. The template canon can now author
+  techniques (the promise is no longer broken), but a human editing a program
+  in the UI cannot.
+- **History and share surfaces** render stage rows as ordinary sets: they are
+  correct (every row is a real logged set) but they don't yet SHOW the
+  grouping the logger does.
+
 ## Sources
 
 - Hevy, [Workout Set Types](https://www.hevyapp.com/features/workout-set-types/)
   and [How to change the set type](https://www.hevyapp.com/help/change-the-set-type/)
 - Hevy, [What Is a Drop Set](https://www.hevyapp.com/what-is-a-drop-set/)
+- Hevy, [How many sets per muscle group](https://www.hevyapp.com/how-many-sets/)
+- Chris Beardsley / cluster-set reviews on intra-set rest and why a cluster
+  counts as one set
