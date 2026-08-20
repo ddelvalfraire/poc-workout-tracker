@@ -111,13 +111,21 @@ export type StagedSet = DerivedSet & { techniqueStage?: TechniqueStage }
  */
 export function expandTechniqueStages(sets: readonly DerivedSet[]): StagedSet[] {
   const rows: StagedSet[] = []
+  // Keyed by the group's ORDER of appearance, never by sourceIndex: a
+  // weekly-volume resize CLONES its last working set (progression.ts
+  // `resizeWorkingSets`), and clones inherit both the technique and the
+  // source index — so a sourceIndex key would fuse two adjacent drop sets
+  // into one group with two stage 0s, which mis-weights volume and makes the
+  // session unsaveable (the wire refuses a non-contiguous group). Position is
+  // deterministic, so re-deriving the same week still yields the same keys.
+  let groupCount = 0
   for (const set of sets) {
     const technique = set.technique
     if (!technique || technique.stages.length === 0) {
       rows.push(set)
       continue
     }
-    const group = `t${set.sourceIndex}`
+    const group = `t${groupCount++}`
     const kind = technique.kind
     // The top set's own rest becomes the pause before stage 1; the between-set
     // rest moves to the LAST stage, where the technique set actually ends.

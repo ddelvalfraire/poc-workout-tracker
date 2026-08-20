@@ -1675,6 +1675,35 @@ describe('SET_SET_TECHNIQUE (the set-type picker\'s technique arm)', () => {
     ])
   })
 
+  it('degrades a stored group that lost its top set, rather than blocking the save', () => {
+    // A stage row whose stage 0 is gone can't be saved as-is (the wire refuses
+    // a group that doesn't open at stage 0), and an unsaveable session is a
+    // worse failure than a lost grouping.
+    const { draft } = detailToDraft({
+      notes: null,
+      exercises: [
+        {
+          id: 'ex1',
+          workoutId: 'w1',
+          wgerExerciseId: 73,
+          source: 'wger',
+          name: 'Squat',
+          position: 0,
+          loggingType: 'weight_reps',
+          notes: null,
+          skipped: false,
+          sets: [
+            persistedSet({ setNumber: 1, techniqueKind: 'drop-set', techniqueGroup: GROUP, stageIndex: 1 }),
+            persistedSet({ setNumber: 2, techniqueKind: 'drop-set', techniqueGroup: GROUP, stageIndex: 2 }),
+          ],
+        },
+      ],
+    } as unknown as WorkoutDetail)
+
+    expect(draft.exercises[0].sets.map((s) => s.technique?.stageIndex)).toEqual([0, 1])
+    expect(() => parseWorkoutInput(draftToInput(draft))).not.toThrow()
+  })
+
   it('degrades a half-written grouping to an ordinary set (stored rows are data)', () => {
     const { draft } = detailToDraft({
       notes: null,

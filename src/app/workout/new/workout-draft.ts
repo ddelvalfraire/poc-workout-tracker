@@ -762,7 +762,21 @@ export function detailToDraft(
         : {}),
     })),
   }))
-  return { draft: { exercises, notes: workout.notes ?? '' }, name: workout.name ?? '' }
+  return {
+    draft: {
+      // Renormalized on the way IN: stored rows are data, and a grouping that
+      // lost its shape (a stage whose top set was deleted by an older client,
+      // a hand-edited row) would otherwise ride into a save the wire refuses
+      // — an unsaveable session, which is a far worse failure than losing the
+      // grouping. Well-formed groups pass through untouched.
+      exercises: exercises.map((exercise) => ({
+        ...exercise,
+        sets: normalizeTechniqueGroups(exercise.sets),
+      })),
+      notes: workout.notes ?? '',
+    },
+    name: workout.name ?? '',
+  }
 }
 
 /**

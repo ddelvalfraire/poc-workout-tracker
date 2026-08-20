@@ -108,6 +108,21 @@ describe('expandTechniqueStages', () => {
     expect(groups[1]).not.toBe(groups[4])
   })
 
+  it('keeps CLONED technique sets in separate groups (the weekly-volume resize)', () => {
+    // resizeWorkingSets clones its last working set verbatim — same technique,
+    // same sourceIndex. Two adjacent drop sets must stay two groups, or the
+    // fused group counts wrong and the wire refuses to save the session.
+    const rows = expandTechniqueStages([
+      derivedSet({ sourceIndex: 1, technique: dropSet }),
+      derivedSet({ sourceIndex: 1, technique: dropSet }),
+    ])
+
+    const groups = rows.map((r) => r.techniqueStage?.group)
+    expect(new Set(groups).size).toBe(2)
+    expect(rows.map((r) => r.techniqueStage?.index)).toEqual([0, 1, 2, 0, 1, 2])
+    expect(groups[0]).not.toBe(groups[3])
+  })
+
   it('passes an empty-stage technique through as a single ordinary row', () => {
     // Defensive: the schema requires min(1) stages, but stored JSONB is data.
     const empty = { version: 1, kind: 'cluster', stages: [] } as unknown as Technique
