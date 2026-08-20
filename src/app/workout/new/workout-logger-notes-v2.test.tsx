@@ -123,8 +123,21 @@ describe('the exercise header roll-up', () => {
     return paths.reduce((longest, d) => (d.length > longest.length ? d : longest))
   })()
 
+  /**
+   * The rendered logger BELOW its app bar. The workout-level note entry lives
+   * up there and draws the same pen at a different scope (#283); these counts
+   * are about the EXERCISE rail, so the bar is sliced off deliberately — and
+   * the test below pins that it contributes exactly one pen, so the slice can
+   * never quietly absorb a second rail pen.
+   */
+  function belowAppBar(html: string): string {
+    const bar = html.indexOf('</header>')
+    if (bar === -1) throw new Error('the logger rendered no app bar to slice off')
+    return html.slice(bar)
+  }
+
   function pens(html: string): number {
-    return html.split(PEN).length - 1
+    return belowAppBar(html).split(PEN).length - 1
   }
 
   it('counts the instance note plus noted sets', () => {
@@ -164,6 +177,15 @@ describe('the exercise header roll-up', () => {
     // occupy the same width.
     const slot = /class="[^"]*w-3[^"]*tnum[^"]*"/
     expect(render(baseDraft({ note: 'pin 4' }))).toMatch(slot)
+  })
+
+  it('excludes exactly one pen — the app bar’s — and does so on purpose', () => {
+    // The slice above is only honest if the app bar holds ONE pen. If the
+    // workout-note entry ever moves, or gains a twin, this fails rather than
+    // letting the rail counts drift under a widening blind spot.
+    const html = render(baseDraft({}))
+    const all = html.split(PEN).length - 1
+    expect(all - pens(html)).toBe(1)
   })
 
   it('shows ONE pen when a set is noted but the exercise is not', () => {
