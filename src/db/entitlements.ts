@@ -3,7 +3,7 @@ import { db } from './index'
 import { entitlementGrants, entitlementsCurrent } from './schema'
 import {
   DEFAULT_TIER,
-  activeProgramLimitFor,
+  tierRequiredFor,
   resolveEntitlement,
   tierHasFeature,
   type Feature,
@@ -331,12 +331,6 @@ export async function hasFeature(userId: string, feature: Feature): Promise<bool
   return tierHasFeature(tier, feature)
 }
 
-/** `null` is unlimited. */
-export async function activeProgramLimit(userId: string): Promise<number | null> {
-  const { tier } = await getEntitlement(userId)
-  return activeProgramLimitFor(tier)
-}
-
 /** The full ledger for one user, newest first — the ops surface's spine. */
 export async function listGrants(userId: string): Promise<EntitlementGrant[]> {
   return db
@@ -387,3 +381,35 @@ export async function listPaidUsers(limit = 100): Promise<
     .orderBy(desc(entitlementsCurrent.updatedAt))
     .limit(limit)
 }
+
+// ---------------------------------------------------------------------------
+// Gates — the server-side boundary. See docs/ENTITLEMENTS.md.
+// ---------------------------------------------------------------------------
+
+/**
+ * Thrown when a caller asks for something their tier does not include.
+ *
+ * Carries the feature and the tier that WOULD grant it, because the useful
+ * response is never "no" on its own — the surface that catches this has to
+ * name the plan that says yes.
+ */
+export class FeatureRequiredError extends Error {
+  constructor(
+    readonly feature: Feature,
+    readonly requiredTier: Tier,
+  ) {
+    super(`feature "${feature}" requires the ${requiredTier} plan`)
+    this.name = 'FeatureRequiredError'
+  }
+}
+
+/**
+ * The enforcement boundary. Every server action and route handler that touches
+ * a paid capability calls this; the UI's disabled buttons and upgrade prompts
+ * are sales copy, not security, and a request that skips them still lands here.
+ */
+export async function requireFeature(userId: string, feature: Feature): Promise<void> {
+  if (await hasFeature(userId, feature)) return
+  throw new FeatureRequiredError(feature, tierRequiredFor(feature))
+}
+

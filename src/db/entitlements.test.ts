@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, test, expect, vi, beforeEach } from 'vitest'
 
 /**
  * Recording stubs for the Drizzle builders, mirroring consent.test.ts:
@@ -73,12 +73,13 @@ function makeDb() {
 vi.mock('./index', () => ({ db: makeDb() }))
 
 import {
+  FeatureRequiredError,
   applyGrant,
   revokeGrant,
   getEntitlement,
   hasFeature,
-  activeProgramLimit,
   listGrants,
+  requireFeature,
 } from './entitlements'
 
 const HOUR = 3_600_000
@@ -397,19 +398,11 @@ describe('the gates every call site uses', () => {
   it('withholds every paid feature when the database is down', async () => {
     selectThrows = true
     expect(await hasFeature('u1', 'coach')).toBe(false)
-    expect(await hasFeature('u1', 'unlimited_programs')).toBe(false)
   })
 
-  it('caps programs on free and lifts the cap on a paid tier', async () => {
-    selectQueue = [[]]
-    expect(await activeProgramLimit('u1')).toBe(2)
-    selectQueue = [[{ tier: 'pro', source: 'stripe', expiresAt: null }]]
-    expect(await activeProgramLimit('u1')).toBeNull()
-  })
-
-  it('caps programs at the free limit when the database is down', async () => {
+  it('withholds autoreg too when the database is down', async () => {
     selectThrows = true
-    expect(await activeProgramLimit('u1')).toBe(2)
+    expect(await hasFeature('u1', 'autoreg')).toBe(false)
   })
 })
 
@@ -420,3 +413,37 @@ describe('listGrants', () => {
     expect(rows.map((r) => r.id)).toEqual(['g2', 'g1'])
   })
 })
+
+describe('the enforcement boundary', () => {
+  test('requireFeature passes silently for an entitled user', async () => {
+    selectQueue = [[{ tier: 'max', source: 'stripe', expiresAt: null }]]
+    await expect(requireFeature('u1', 'coach')).resolves.toBeUndefined()
+  })
+
+  // The error has to name the plan that says yes — "no" alone cannot be
+  // rendered as an upgrade prompt.
+  test('requireFeature names the feature and the tier that would grant it', async () => {
+    selectQueue = [[{ tier: 'free', source: null, expiresAt: null }]]
+    await expect(requireFeature('u1', 'coach')).rejects.toThrow(FeatureRequiredError)
+
+    selectQueue = [[{ tier: 'free', source: null, expiresAt: null }]]
+    const error = await requireFeature('u1', 'coach').catch((e) => e)
+    expect(error.feature).toBe('coach')
+    expect(error.requiredTier).toBe('max')
+  })
+
+  test('pro is refused coach but allowed autoreg', async () => {
+    selectQueue = [[{ tier: 'pro', source: 'stripe', expiresAt: null }]]
+    await expect(requireFeature('u1', 'coach')).rejects.toThrow(FeatureRequiredError)
+    selectQueue = [[{ tier: 'pro', source: 'stripe', expiresAt: null }]]
+    await expect(requireFeature('u1', 'autoreg')).resolves.toBeUndefined()
+  })
+
+  // A database fault degrades to Free, so the boundary CLOSES rather than
+  // opening — the same direction as every other read here.
+  test('refuses a paid feature when the entitlement read fails', async () => {
+    selectThrows = true
+    await expect(requireFeature('u1', 'autoreg')).rejects.toThrow(FeatureRequiredError)
+  })
+})
+

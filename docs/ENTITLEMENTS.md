@@ -42,8 +42,16 @@ paid.
 ### Tiers are what we sell; features are what we check
 
 Call sites never ask "is this user Pro?". They ask `hasFeature(userId,
-'coach')` or `activeProgramLimit(userId)`. The tier → feature mapping lives in
-one table in `src/lib/entitlements/tiers.ts`.
+'coach')`. The tier → feature mapping lives in one table in
+`src/lib/entitlements/tiers.ts`.
+
+There is deliberately no program-count quota. An earlier draft capped Free at
+two active programs and sold "unlimited active programs" as Pro's headline —
+both nonsense, because the app is single-active by design: `setProgramStatus`
+and `adoptProgram` each archive every other active program on the way in. A
+tier cannot sell more of something the product intentionally allows exactly one
+of. Gate capabilities that have a real on/off state, not dimensions the product
+suppresses.
 
 This is what makes a comp, a grandfathered price, or a re-packaged plan a
 data change rather than a code change — the reason vendors of this
