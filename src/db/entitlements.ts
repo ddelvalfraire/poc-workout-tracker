@@ -1,9 +1,8 @@
 import { and, desc, eq, isNotNull, sql } from 'drizzle-orm'
 import { db } from './index'
-import { entitlementGrants, entitlementsCurrent, programs } from './schema'
+import { entitlementGrants, entitlementsCurrent } from './schema'
 import {
   DEFAULT_TIER,
-  activeProgramLimitFor,
   tierRequiredFor,
   resolveEntitlement,
   tierHasFeature,
@@ -332,12 +331,6 @@ export async function hasFeature(userId: string, feature: Feature): Promise<bool
   return tierHasFeature(tier, feature)
 }
 
-/** `null` is unlimited. */
-export async function activeProgramLimit(userId: string): Promise<number | null> {
-  const { tier } = await getEntitlement(userId)
-  return activeProgramLimitFor(tier)
-}
-
 /** The full ledger for one user, newest first — the ops surface's spine. */
 export async function listGrants(userId: string): Promise<EntitlementGrant[]> {
   return db
@@ -420,40 +413,3 @@ export async function requireFeature(userId: string, feature: Feature): Promise<
   throw new FeatureRequiredError(feature, tierRequiredFor(feature))
 }
 
-export interface ProgramQuota {
-  /** null = unlimited. */
-  limit: number | null
-  used: number
-  /** Whether ONE more active program is allowed right now. */
-  allowed: boolean
-}
-
-/**
- * How many active programs the user has against how many they may have.
- *
- * Counts 'active' only: drafts and proposals cost nothing to keep, and a cap
- * that counted them would punish planning rather than usage. Returned as a
- * quota rather than a boolean because the surface wants to say "2 of 2".
- */
-export async function programQuota(userId: string): Promise<ProgramQuota> {
-  const limit = await activeProgramLimit(userId)
-  if (limit === null) return { limit: null, used: 0, allowed: true }
-
-  const [row] = await db
-    .select({ n: sql<number>`count(*)::int` })
-    .from(programs)
-    .where(and(eq(programs.userId, userId), eq(programs.status, 'active')))
-
-  const used = row?.n ?? 0
-  return { limit, used, allowed: used < limit }
-}
-
-/**
- * Guards the transition INTO an active program — the moment the cap actually
- * means something. Creating and drafting stay free.
- */
-export async function requireProgramSlot(userId: string): Promise<void> {
-  const quota = await programQuota(userId)
-  if (quota.allowed) return
-  throw new FeatureRequiredError('unlimited_programs', tierRequiredFor('unlimited_programs'))
-}

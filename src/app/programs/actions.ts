@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { requireUserId } from '@/lib/auth'
-import { requireFeature, requireProgramSlot } from '@/db/entitlements'
+import { requireFeature } from '@/db/entitlements'
 import {
   parseProgramInput,
   statusSchema,
@@ -49,10 +49,9 @@ import type { RestartPreview } from './[id]/restart-view'
  */
 async function assertProgramEntitlements(
   userId: string,
-  parsed: { status?: string; autoregulation?: boolean },
+  parsed: { autoregulation?: boolean },
 ): Promise<void> {
   if (parsed.autoregulation) await requireFeature(userId, 'autoreg')
-  if (parsed.status === 'active') await requireProgramSlot(userId)
 }
 
 /**
@@ -144,11 +143,6 @@ export async function deleteProgramAction(id: string): Promise<void> {
 export async function setProgramStatusAction(id: string, status: unknown): Promise<{ id: string }> {
   const userId = await requireUserId()
   const parsed = statusSchema.parse(status)
-  // The cap bites HERE, on the way into 'active' — drafting and planning stay
-  // free, because a limit that counted drafts would punish thinking rather
-  // than use. Throws FeatureRequiredError, which the client renders as an
-  // upgrade prompt rather than an error.
-  if (parsed === 'active') await requireProgramSlot(userId)
   const result = await setProgramStatus(userId, id, parsed, 'ui')
   if (!result) throw new Error('program not found')
   // Activating an own-built program = starting it (the funnel's setup step).

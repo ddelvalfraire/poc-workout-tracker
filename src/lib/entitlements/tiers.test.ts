@@ -3,7 +3,6 @@ import {
   DEFAULT_TIER,
   tierRequiredFor,
   TIERS,
-  activeProgramLimitFor,
   compareTiers,
   featuresFor,
   isGrantSource,
@@ -51,11 +50,10 @@ describe('tier vocabulary', () => {
   test('free buys none of the paid features', () => {
     expect(featuresFor('free')).toEqual([])
     expect(tierHasFeature('free', 'coach')).toBe(false)
-    expect(tierHasFeature('free', 'unlimited_programs')).toBe(false)
+    expect(tierHasFeature('free', 'autoreg')).toBe(false)
   })
 
-  test('pro lifts the program cap and includes autoreg', () => {
-    expect(tierHasFeature('pro', 'unlimited_programs')).toBe(true)
+  test('pro includes autoreg', () => {
     expect(tierHasFeature('pro', 'autoreg')).toBe(true)
   })
 
@@ -89,11 +87,6 @@ describe('tier vocabulary', () => {
     }
   })
 
-  test('caps free at two active programs and lifts the cap for paid tiers', () => {
-    expect(activeProgramLimitFor('free')).toBe(2)
-    expect(activeProgramLimitFor('pro')).toBeNull()
-    expect(activeProgramLimitFor('max')).toBeNull()
-  })
 })
 
 describe('resolveEntitlement', () => {
@@ -201,7 +194,7 @@ describe('the feature type stays honest', () => {
   // sells is a gate that can never open.
   test('every feature is granted by at least one tier', () => {
     const granted = new Set<Feature>(TIERS.flatMap((t: Tier) => [...featuresFor(t)]))
-    for (const feature of ['coach', 'autoreg', 'unlimited_programs'] as const) {
+    for (const feature of ['coach', 'autoreg'] as const) {
       expect(granted.has(feature)).toBe(true)
     }
   })
@@ -211,13 +204,12 @@ describe('tierRequiredFor', () => {
   // What every paywall names. Derived from the map, so re-packaging a feature
   // cannot leave an upgrade prompt advertising the wrong plan.
   test('names the CHEAPEST tier that grants the feature', () => {
-    expect(tierRequiredFor('unlimited_programs')).toBe('pro')
     expect(tierRequiredFor('autoreg')).toBe('pro')
     expect(tierRequiredFor('coach')).toBe('max')
   })
 
   test('every feature resolves to a tier that actually grants it', () => {
-    for (const feature of ['coach', 'autoreg', 'unlimited_programs'] as const) {
+    for (const feature of ['coach', 'autoreg'] as const) {
       expect(tierHasFeature(tierRequiredFor(feature), feature)).toBe(true)
     }
   })

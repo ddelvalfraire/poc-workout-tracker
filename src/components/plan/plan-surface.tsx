@@ -4,7 +4,6 @@ import { DividerList } from '@/components/ui/divider-list'
 import { cn } from '@/lib/utils'
 import {
   TIERS,
-  activeProgramLimitFor,
   featuresFor,
   type Feature,
   type ResolvedEntitlement,
@@ -38,7 +37,6 @@ const TIER_KEY = {
 const CAPABILITY_KEY = {
   coach: 'capability.coach',
   autoreg: 'capability.autoreg',
-  unlimited_programs: 'capability.programsUnlimited',
 } as const satisfies Record<Feature, string>
 
 export function PlanSurface({ entitlement }: { entitlement: ResolvedEntitlement }) {
@@ -83,7 +81,6 @@ export function PlanSurface({ entitlement }: { entitlement: ResolvedEntitlement 
 
 function TierRow({ tier, isCurrent }: { tier: Tier; isCurrent: boolean }) {
   const t = useTranslations('Plan')
-  const limit = activeProgramLimitFor(tier)
 
   return (
     <li className="flex flex-col gap-1.5 py-3">
@@ -95,18 +92,11 @@ function TierRow({ tier, isCurrent }: { tier: Tier; isCurrent: boolean }) {
       </div>
 
       <ul className="flex flex-col gap-0.5 text-sm text-muted-foreground">
-        {/* The program cap is stated for every tier, including the ones where
-            it is lifted: "unlimited" only means something next to a number. */}
-        <li>
-          {limit === null
-            ? t('capability.programsUnlimited')
-            : t('capability.programs', { count: limit })}
-        </li>
-        {featuresFor(tier).map((feature: Feature) =>
-          feature === 'unlimited_programs' ? null : (
-            <li key={feature}>{t(CAPABILITY_KEY[feature])}</li>
-          ),
-        )}
+        {/* Free lists nothing here on purpose: what it gives is unlimited
+            logging, which is the product, not a bullet. */}
+        {featuresFor(tier).map((feature: Feature) => (
+          <li key={feature}>{t(CAPABILITY_KEY[feature])}</li>
+        ))}
       </ul>
     </li>
   )

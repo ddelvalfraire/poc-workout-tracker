@@ -1237,17 +1237,15 @@
       "pro": {
         "name": "Pro",
         "price": "$5 / month",
-        "summary": "Run as many programs as you like."
+        "summary": "Automatic load adjustment as your lifts progress."
       },
       "max": {
         "name": "Max",
         "price": "$13 / month",
-        "summary": "Everything in Pro, plus the coach and automatic load adjustment."
+        "summary": "Everything in Pro, plus the AI coach."
       }
     },
     "capability": {
-      "programs": "{count, plural, one {# active program} other {# active programs}}",
-      "programsUnlimited": "Unlimited active programs",
       "coach": "AI coach",
       "autoreg": "Automatic load adjustment"
     },

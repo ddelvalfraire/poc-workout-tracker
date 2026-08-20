@@ -78,11 +78,8 @@ import {
   revokeGrant,
   getEntitlement,
   hasFeature,
-  activeProgramLimit,
   listGrants,
-  programQuota,
   requireFeature,
-  requireProgramSlot,
 } from './entitlements'
 
 const HOUR = 3_600_000
@@ -401,19 +398,11 @@ describe('the gates every call site uses', () => {
   it('withholds every paid feature when the database is down', async () => {
     selectThrows = true
     expect(await hasFeature('u1', 'coach')).toBe(false)
-    expect(await hasFeature('u1', 'unlimited_programs')).toBe(false)
   })
 
-  it('caps programs on free and lifts the cap on a paid tier', async () => {
-    selectQueue = [[]]
-    expect(await activeProgramLimit('u1')).toBe(2)
-    selectQueue = [[{ tier: 'pro', source: 'stripe', expiresAt: null }]]
-    expect(await activeProgramLimit('u1')).toBeNull()
-  })
-
-  it('caps programs at the free limit when the database is down', async () => {
+  it('withholds autoreg too when the database is down', async () => {
     selectThrows = true
-    expect(await activeProgramLimit('u1')).toBe(2)
+    expect(await hasFeature('u1', 'autoreg')).toBe(false)
   })
 })
 
@@ -458,36 +447,3 @@ describe('the enforcement boundary', () => {
   })
 })
 
-describe('programQuota', () => {
-  test('reports usage against the cap on a free plan', async () => {
-    // 1st select: the projection read. 2nd: the active-program count.
-    selectQueue = [[], [{ n: 1 }]]
-    expect(await programQuota('u1')).toEqual({ limit: 2, used: 1, allowed: true })
-  })
-
-  test('closes the gate once the cap is reached', async () => {
-    selectQueue = [[], [{ n: 2 }]]
-    expect(await programQuota('u1')).toMatchObject({ used: 2, allowed: false })
-  })
-
-  // Never counts, never queries: an unlimited plan must not pay for a scan on
-  // every activation.
-  test('skips the count entirely when the plan is unlimited', async () => {
-    selectQueue = [[{ tier: 'pro', source: 'stripe', expiresAt: null }]]
-    expect(await programQuota('u1')).toEqual({ limit: null, used: 0, allowed: true })
-    expect(selectQueue).toHaveLength(0)
-  })
-
-  test('requireProgramSlot throws at the cap and passes below it', async () => {
-    selectQueue = [[], [{ n: 2 }]]
-    await expect(requireProgramSlot('u1')).rejects.toThrow(FeatureRequiredError)
-    selectQueue = [[], [{ n: 1 }]]
-    await expect(requireProgramSlot('u1')).resolves.toBeUndefined()
-  })
-
-  test('the slot refusal points at Pro, the tier that lifts the cap', async () => {
-    selectQueue = [[], [{ n: 2 }]]
-    const error = await requireProgramSlot('u1').catch((e) => e)
-    expect(error.requiredTier).toBe('pro')
-  })
-})

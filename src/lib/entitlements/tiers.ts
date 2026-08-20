@@ -42,17 +42,17 @@ export function compareTiers(a: Tier, b: Tier): number {
  * Nothing already shipped and free is listed — retroactively paywalling an
  * existing feature is a product decision, not a consequence of building this.
  */
-export type Feature = 'coach' | 'autoreg' | 'unlimited_programs'
+export type Feature = 'coach' | 'autoreg'
 
 const TIER_FEATURES: Record<Tier, readonly Feature[]> = {
   free: [],
   // Autoreg sits in Pro, not Max, because it costs nothing per use. Reserving
   // a zero-marginal-cost feature for the top tier is artificial scarcity; the
   // paid line belongs where our costs actually are.
-  pro: ['unlimited_programs', 'autoreg'],
+  pro: ['autoreg'],
   // Coach is the only thing Max adds, deliberately: it is the one feature with
   // a real per-message cost, so it is the one worth metering behind a price.
-  max: ['unlimited_programs', 'autoreg', 'coach'],
+  max: ['autoreg', 'coach'],
 }
 
 export function featuresFor(tier: Tier): readonly Feature[] {
@@ -73,23 +73,6 @@ export function tierRequiredFor(feature: Feature): Tier {
   // Unreachable while every feature is sold by some tier — pinned by a test.
   if (!tier) throw new Error(`no tier grants "${feature}"`)
   return tier
-}
-
-/**
- * How many programs may be active at once. `null` is unlimited.
- *
- * A quota rather than a boolean because the interesting answer is a number:
- * the surface that enforces it wants to say "2 of 2", and a caller that only
- * needs the yes/no can read `unlimited_programs`.
- */
-const PROGRAM_LIMIT: Record<Tier, number | null> = {
-  free: 2,
-  pro: null,
-  max: null,
-}
-
-export function activeProgramLimitFor(tier: Tier): number | null {
-  return PROGRAM_LIMIT[tier]
 }
 
 /**
