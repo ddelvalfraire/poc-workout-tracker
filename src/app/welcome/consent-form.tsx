@@ -7,6 +7,7 @@ import { Check, ChevronDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { recordSignupConsentsAction } from './actions'
+import { useTranslations } from 'next-intl'
 
 /**
  * The signup consent screen — implements docs/legal/in-product-copy.md §2
@@ -43,6 +44,7 @@ function ConsentRow({
   checked: boolean
   onChange: (checked: boolean) => void
 }) {
+  const t = useTranslations('ConsentForm')
   const [open, setOpen] = useState(false)
   return (
     <div className="border-b border-border py-4">
@@ -82,7 +84,7 @@ function ConsentRow({
         aria-expanded={open}
         className="mt-2 ml-[38px] flex items-center gap-1 text-xs font-medium text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
       >
-        What this means
+        {t('whatThisMeansAction')}
         <ChevronDown
           className={cn('size-3.5 transition-transform', open && 'rotate-180')}
           aria-hidden
@@ -107,12 +109,13 @@ function ConsentSwitch({
   describedBy?: string
   onChange: (checked: boolean) => void
 }) {
+  const t = useTranslations('ConsentForm')
   return (
     <button
       type="button"
       role="switch"
       aria-checked={checked}
-      aria-label="Analytics identity"
+      aria-label={t('analyticsControlLabel')}
       aria-describedby={describedBy}
       disabled={disabled}
       onClick={() => onChange(!checked)}
@@ -134,6 +137,7 @@ function ConsentSwitch({
 }
 
 export function ConsentForm() {
+  const t = useTranslations('ConsentForm')
   const [healthCollect, setHealthCollect] = useState(false)
   const [healthShare, setHealthShare] = useState(false)
   const [tos, setTos] = useState(false)
@@ -163,7 +167,7 @@ export function ConsentForm() {
         })
         router.push('/')
       } catch {
-        setError('Something went wrong saving your choices. Please try again.')
+        setError(t('saveError'))
       }
     })
   }
@@ -175,26 +179,26 @@ export function ConsentForm() {
           id="required-heading"
           className="border-b border-border pb-2 text-xs font-medium tracking-wider text-muted-foreground uppercase"
         >
-          Required to use the app
+          {t('requiredTitle')}
         </h2>
         <ConsentRow
           id="consent-health-collect"
-          label="Store your health data"
-          body="We collect the workouts, sets, and body-weight entries you record to show your training history and progress."
-          detail="This covers everything you log: sessions, exercises, sets and loads, body measurements, progress photos, and notes. It lives in our database, is visible only to you, and you can export or delete it at any time. Full details in the Health Data Privacy policy."
+          label={t('healthCollectLabel')}
+          body={t('healthCollectBody')}
+          detail={t('healthCollectDetail')}
           checked={healthCollect}
           onChange={setHealthCollect}
         />
         <ConsentRow
           id="consent-health-share"
-          label="Share with our service providers"
-          body="Your data passes through the services that run the app — hosting, database, and the AI coach provider. They process it only for us, never for ads."
-          detail="The processors: Vercel (application hosting), Supabase (database), our AI model provider (coach responses only), and Sentry (error reports). Each works under contract, for us alone. Our analytics provider is deliberately NOT on this list — analytics never receives your workout content."
+          label={t('healthShareLabel')}
+          body={t('healthShareBody')}
+          detail={t('healthShareDetail')}
           checked={healthShare}
           onChange={setHealthShare}
         />
         <p className="mt-3 text-xs text-muted-foreground">
-          Required because the app can&apos;t function without storing your training.
+          {t('requiredNote')}
         </p>
       </section>
 
@@ -203,18 +207,17 @@ export function ConsentForm() {
           id="optional-heading"
           className="border-b border-border pb-2 text-xs font-medium tracking-wider text-muted-foreground uppercase"
         >
-          Optional
+          {t('optionalTitle')}
         </h2>
         <div className="flex items-start justify-between gap-4 border-b border-border py-4">
           <div className="min-w-0">
-            <p className="font-medium">Analytics identity</p>
+            <p className="font-medium">{t('analyticsTitle')}</p>
             <p className="mt-0.5 text-sm leading-relaxed text-muted-foreground">
-              Link your usage (never your workout content) to your account so we can see which
-              features actually help. Change anytime in Settings.
+              {t('analyticsBody')}
             </p>
             {gpc && (
               <p id="gpc-note" className="mt-1.5 text-xs text-muted-foreground">
-                Your browser sent a Global Privacy Control signal — this stays off.
+                {t('gpcNotice')}
               </p>
             )}
           </div>
@@ -230,13 +233,13 @@ export function ConsentForm() {
       </section>
 
       <p className="mt-6 text-sm text-muted-foreground">
-        We never sell your health data. Ever. ·{' '}
+        {t('neverSell')}
         <Link
           href="/privacy"
           className="underline underline-offset-2 hover:text-foreground"
           target="_blank"
         >
-          Full privacy policy
+          {t('privacyPolicyLink')}
         </Link>
       </p>
 
@@ -264,22 +267,21 @@ export function ConsentForm() {
             />
           </span>
           <span className="text-sm leading-relaxed">
-            I agree to the Terms of Service and have read the Privacy Notice and Health Data
-            Privacy Policy.
+            {t('tosLabel')}
           </span>
         </button>
         <p className="mt-2 ml-[38px] text-xs text-muted-foreground">
-          Read them:{' '}
+          {t('readThem')}
           <Link href="/terms" target="_blank" className="underline underline-offset-2">
-            Terms
+            {t('termsLink')}
           </Link>
           {' · '}
           <Link href="/privacy" target="_blank" className="underline underline-offset-2">
-            Privacy
+            {t('privacyLink')}
           </Link>
           {' · '}
           <Link href="/health-privacy" target="_blank" className="underline underline-offset-2">
-            Health Data
+            {t('healthDataLink')}
           </Link>
         </p>
       </div>
@@ -297,7 +299,7 @@ export function ConsentForm() {
         disabled={!requiredComplete || pending}
         className="mt-8 w-full"
       >
-        {pending ? 'Saving…' : 'Continue'}
+        {pending ? t('savingAction') : t('continueAction')}
       </Button>
     </div>
   )

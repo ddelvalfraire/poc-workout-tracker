@@ -19,10 +19,10 @@ export default async function DeleteAccountPage() {
 
   return (
     <div className="flex min-h-[100dvh] flex-col">
-      <AppHeader title="Delete account" leading={<BackLink fallback="/settings" />} />
+      <AppHeader title={t('title')} leading={<BackLink fallback="/settings" />} />
 
       <main className="mx-auto w-full max-w-md flex-1 px-5 pb-safe">
-        <section aria-label="What deletion does" className="mt-6">
+        <section aria-label={t('consequencesGroupLabel')} className="mt-6">
           <p className="text-sm text-muted-foreground">
             {t('permanenceWarning')}
           </p>

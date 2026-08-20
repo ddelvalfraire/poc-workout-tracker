@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { Flame } from 'lucide-react'
 import { weeklyStreak } from '@/lib/goal-progress'
+import { useTranslations } from 'next-intl'
 
 interface StreakChipProps {
   /** Completion instants (epoch ms — stable RSC serialization). */
@@ -26,6 +27,7 @@ export function StreakChip({
   scheduledWeekdays,
   allowedMissesPerWeek,
 }: StreakChipProps) {
+  const t = useTranslations('StreakChip')
   const [weeks, setWeeks] = useState<number | null>(null)
 
   useEffect(() => {
@@ -44,10 +46,10 @@ export function StreakChip({
   return (
     <span className="flex shrink-0 items-center gap-1 rounded-full border border-primary/40 bg-primary/10 px-2 py-0.5 text-xs font-semibold uppercase tracking-wide text-primary tnum">
       <Flame aria-hidden="true" className="size-3.5" />
-      {weeks} wk
-      <span className="sr-only">
-        {weeks === 1 ? 'week' : 'weeks'} training streak
-      </span>
+      {t('countLabel', { weeks })}
+      {/* ICU plural, not a JSX ternary: Polish has three forms and Arabic
+          six, so a two-branch conditional has no correct translation. */}
+      <span className="sr-only">{t('srOnly', { weeks })}</span>
     </span>
   )
 }

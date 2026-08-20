@@ -45,7 +45,9 @@ test('logs a workout, then shows it as per-set ghost placeholders next time', as
   await expect(page).toHaveURL(/\/workout\/new$/)
 
   await page.getByLabel('Search exercises').fill('bench')
-  const addButton = page.getByRole('button', { name: 'Add' }).first()
+  // The picker has no per-row Add button since #233: a result row IS the
+  // control (li role=option, click to add).
+  const addButton = page.getByRole('option').first()
   await expect(addButton).toBeVisible({ timeout: 20_000 })
   await addButton.click()
 
@@ -64,7 +66,7 @@ test('logs a workout, then shows it as per-set ghost placeholders next time', as
   await page.getByRole('link', { name: /start workout/i }).click()
   await expect(page).toHaveURL(/\/workout\/new$/)
   await page.getByLabel('Search exercises').fill('bench')
-  const addAgain = page.getByRole('button', { name: 'Add' }).first()
+  const addAgain = page.getByRole('option').first()
   await expect(addAgain).toBeVisible({ timeout: 20_000 })
   await addAgain.click()
 

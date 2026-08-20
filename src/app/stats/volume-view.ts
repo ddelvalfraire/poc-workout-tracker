@@ -91,12 +91,12 @@ export function withPlanned(
   return merged
 }
 
-/** Signed "vs last week" caption for the sets tile; null when flat. */
-export function setsDeltaLabel(current: number, previous: number): string | null {
+/** Signed week-over-week set difference for the sets tile; null when flat.
+ *  Returns the NUMBER, not a sentence — the sign is a word-order decision the
+ *  message catalog owns (setsDeltaUp / setsDeltaDown). */
+export function setsDelta(current: number, previous: number): number | null {
   const delta = current - previous
-  if (delta === 0) return null
-  const sign = delta > 0 ? '+' : '−'
-  return `${sign}${Math.abs(delta)} vs last week`
+  return delta === 0 ? null : delta
 }
 
 /**
@@ -127,23 +127,33 @@ export function bulletWidthPct(value: number, plannedSets: number): number {
   return Math.round(Math.min(value / plannedSets, 1) * 100)
 }
 
-/** The verdict zone's two lines: editorial headline (CSS uppercases it) plus
- *  one muted context sentence. */
-export interface StatsVerdict {
-  headline: string
-  context: string
-}
+/**
+ * Which verdict the week earns, plus the numbers that verdict needs. A
+ * DESCRIPTOR, not two rendered sentences: the headline and context are whole
+ * ICU messages in the catalog, so the page picks the message and this module
+ * stays language-free (and stays pure enough to unit-test without a locale).
+ */
+export type StatsVerdict =
+  | { kind: 'noPlan'; currentSets: number; delta: number | null }
+  | { kind: 'onPlan'; daysLeft: number | null }
+  | {
+      kind: 'behind'
+      group: MuscleGroupVolume['group']
+      performedSets: number
+      plannedSets: number
+      daysLeft: number | null
+    }
 
 /**
  * The /stats verdict — the week's status told in words before any chart.
- * Copy table (derived from the plan comparisons already computed for the
+ * Decision table (derived from the plan comparisons already computed for the
  * flag lines; no new queries):
- *   no plan            → "No plan set."       + sets this week (± vs last)
- *   plan, none under   → "On plan."           + every-group line
- *   plan, some under   → "{Group} is behind." (the single WORST shortfall) +
- *                        "{performed} of {planned} planned sets"
- * `daysLeft` (calendar mode only, null otherwise) appends "· N days left
- * this week" — rolling windows have no end to count to.
+ *   no plan            → 'noPlan'  + sets this week (± vs last)
+ *   plan, none under   → 'onPlan'
+ *   plan, some under   → 'behind', naming the single WORST shortfall
+ * `daysLeft` (calendar mode only, null otherwise) rides along so the page can
+ * pick the "· N days left this week" variant — rolling windows have no end to
+ * count to.
  */
 export function verdictForStats(input: {
   planned: PlannedVolume | null
@@ -152,23 +162,15 @@ export function verdictForStats(input: {
   previousSets: number
   daysLeft: number | null
 }): StatsVerdict {
-  const daysLeftSuffix =
-    input.daysLeft !== null
-      ? ` · ${input.daysLeft} ${input.daysLeft === 1 ? 'day' : 'days'} left this week`
-      : ''
   if (input.planned === null) {
-    const delta = setsDeltaLabel(input.currentSets, input.previousSets)
-    const sets = `${input.currentSets} ${input.currentSets === 1 ? 'set' : 'sets'} this week`
     return {
-      headline: 'No plan set.',
-      context: `${sets}${delta !== null ? ` · ${delta}` : ''}`,
+      kind: 'noPlan',
+      currentSets: input.currentSets,
+      delta: setsDelta(input.currentSets, input.previousSets),
     }
   }
   if (input.under.length === 0) {
-    return {
-      headline: 'On plan.',
-      context: `Every planned group at its weekly target${daysLeftSuffix}`,
-    }
+    return { kind: 'onPlan', daysLeft: input.daysLeft }
   }
   // The single worst gap names the verdict — one clear instruction, not a
   // list. Ties keep the earlier (catalog-order) group.
@@ -179,7 +181,10 @@ export function verdictForStats(input: {
     }
   }
   return {
-    headline: `${worst.group} is behind.`,
-    context: `${worst.performedSets} of ${worst.plannedSets} planned sets${daysLeftSuffix}`,
+    kind: 'behind',
+    group: worst.group,
+    performedSets: worst.performedSets,
+    plannedSets: worst.plannedSets,
+    daysLeft: input.daysLeft,
   }
 }

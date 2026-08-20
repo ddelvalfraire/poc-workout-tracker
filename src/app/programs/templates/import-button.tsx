@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { importWgerTemplateAction } from './actions'
+import { useTranslations } from 'next-intl'
 
 /**
  * "Add to my programs" — imports one wger template as the user's own draft
@@ -15,6 +16,7 @@ import { importWgerTemplateAction } from './actions'
  * rationale). isPending stays true on success — navigation unmounts this card.
  */
 export function ImportTemplateButton({ templateId }: { templateId: number }) {
+  const t = useTranslations('ImportTemplateButton')
   const [isPending, setIsPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const router = useRouter()
@@ -27,14 +29,14 @@ export function ImportTemplateButton({ templateId }: { templateId: number }) {
       router.push(`/programs/${id}`)
     } catch {
       setIsPending(false)
-      setError('Could not import this template. Please try again.')
+      setError(t('importError'))
     }
   }
 
   return (
     <div className="flex flex-col gap-2">
       <Button size="sm" disabled={isPending} onClick={handleImport}>
-        {isPending ? 'Adding…' : 'Add to my programs'}
+        {isPending ? t('pending') : t('importAction')}
       </Button>
       {error !== null && (
         <p role="alert" className="text-xs text-destructive">

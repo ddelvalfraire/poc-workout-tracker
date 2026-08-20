@@ -5,6 +5,7 @@ import { getWeightUnit } from '@/db/preferences'
 import { parseExerciseRef } from '@/app/exercises/exercise-ref'
 import { sparklinePath, trendCardData } from '@/lib/cards/card-data'
 import { CardFrame, cardImage, CARD_COLORS, HEADLINE_STYLE } from '@/lib/cards/chrome'
+import { getMessages } from '@/i18n/translate'
 
 /** Sparkline canvas inside the 1200-wide card (72px side padding each side). */
 const SPARK_WIDTH = 1056
@@ -35,12 +36,13 @@ export async function GET(
       getExerciseStats(userId, ref.source, ref.wgerExerciseId),
       getWeightUnit(userId),
     ])
+    const tCard = await getMessages('ShareCard')
     const data = trendCardData(stats, unit)
     if (data === null) {
       return NextResponse.json({ error: 'Not found' }, { status: 404 })
     }
     return cardImage(
-      <CardFrame eyebrow="Progress">
+      <CardFrame eyebrow={tCard('progress')}>
         <div style={{ display: 'flex', fontSize: 56, ...HEADLINE_STYLE }}>{data.exerciseName}</div>
         <div style={{ display: 'flex', alignItems: 'baseline', marginTop: 16 }}>
           <div

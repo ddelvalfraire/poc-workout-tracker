@@ -7,6 +7,7 @@ import { AppHeader } from '@/components/app-header'
 import { BackLink } from '@/components/back-link'
 import { cn } from '@/lib/utils'
 import { UseTemplateButton } from '../use-template-button'
+import { getTranslations } from 'next-intl/server'
 
 /**
  * Detail surface for one CURATED system template — the uuid branch of
@@ -25,6 +26,7 @@ export async function SystemTemplateDetail({
   templateId: string
   userId: string
 }) {
+  const t = await getTranslations('SystemTemplateDetail')
   const [detail, unit] = await Promise.all([
     getTemplate(userId, templateId),
     getWeightUnit(userId),
@@ -63,9 +65,13 @@ export async function SystemTemplateDetail({
             </span>
           </p>
           <p className="mt-1.5 text-xs font-semibold uppercase tracking-widest text-muted-foreground tnum">
-            {dayCount} {dayCount === 1 ? 'day' : 'days'}/week · {detail.mesocycleWeeks}{' '}
-            {detail.mesocycleWeeks === 1 ? 'week' : 'weeks'}
-            {detail.deloadWeek !== null && <> · deload wk {detail.deloadWeek}</>}
+            {detail.deloadWeek !== null
+              ? t('metaDeload', {
+                  days: dayCount,
+                  weeks: detail.mesocycleWeeks,
+                  deloadWeek: detail.deloadWeek,
+                })
+              : t('meta', { days: dayCount, weeks: detail.mesocycleWeeks })}
           </p>
           {detail.description !== null && (
             <p className="mt-3 whitespace-pre-line text-sm leading-relaxed text-muted-foreground">
@@ -74,7 +80,7 @@ export async function SystemTemplateDetail({
           )}
         </header>
 
-        <h2 className="mt-8 font-display text-xl uppercase leading-none tracking-wide">The plan</h2>
+        <h2 className="mt-8 font-display text-xl uppercase leading-none tracking-wide">{t('planTitle')}</h2>
         {/* Hairline day sections (programs/[id] vocabulary): each day on a
             muted hairline, no shells. */}
         <div className="mt-1">
@@ -82,7 +88,7 @@ export async function SystemTemplateDetail({
             <section key={day.id} className="border-b border-b-border/60 py-4">
               <h3 className="flex min-w-0 items-baseline gap-2">
                 <span className="shrink-0 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground tnum">
-                  Day {dayIndex + 1}
+                  {t('dayNumber', { position: dayIndex + 1 })}
                 </span>
                 <span className="min-w-0 truncate font-display text-lg uppercase leading-tight tracking-wide">
                   {day.name}
@@ -106,7 +112,7 @@ export async function SystemTemplateDetail({
                     >
                       {startsSuperset && (
                         <p className="mb-1 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
-                          Superset {supersetLabel}
+                          {t('supersetLabel', { letter: supersetLabel })}
                         </p>
                       )}
                       <p className="text-sm font-medium">{exercise.name}</p>
@@ -144,16 +150,21 @@ export async function SystemTemplateDetail({
 
         {detail.sourceUrl !== null && (
           <p className="mt-6 pb-2 text-xs text-muted-foreground">
-            About this program ·{' '}
-            <a
-              href={detail.sourceUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 underline underline-offset-2 transition-colors hover:text-foreground"
-            >
-              View source
-              <ExternalLink aria-hidden="true" className="size-3" />
-            </a>
+            {/* One message, not a sentence beside a link: where the link
+                sits in the line is a translator's decision. */}
+            {t.rich('attribution', {
+              source: (chunks) => (
+                <a
+                  href={detail.sourceUrl as string}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 underline underline-offset-2 transition-colors hover:text-foreground"
+                >
+                  {chunks}
+                  <ExternalLink aria-hidden="true" className="size-3" />
+                </a>
+              ),
+            })}
           </p>
         )}
       </main>

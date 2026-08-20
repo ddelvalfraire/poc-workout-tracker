@@ -2,6 +2,7 @@ import { requireUserId } from '@/lib/auth'
 import { AppHeader } from '@/components/app-header'
 import { BackLink } from '@/components/back-link'
 import { CreateExerciseForm, type ReturnMode } from './create-exercise-form'
+import { getTranslations } from 'next-intl/server'
 
 /**
  * Full-page custom exercise creation (#218) — the picker's create row lands
@@ -29,6 +30,7 @@ export default async function NewExercisePage({
     target?: string | string[]
   }>
 }) {
+  const t = await getTranslations('NewExercise')
   await requireUserId() // middleware also guards; defense-in-depth
   const params = await searchParams
   const name = (one(params.name) ?? '').slice(0, MAX_NAME)
@@ -39,13 +41,17 @@ export default async function NewExercisePage({
   const returnMode: ReturnMode =
     rawReturn === 'add' ? 'add' : rawReturn === 'swap' && target ? 'swap' : null
 
+  // A route, not copy: hoisted so the strict i18n gate does not read it as
+  // a translatable string inside the markup.
+  const backFallback = returnMode !== null ? '/workout/new' : '/exercises'
+
   return (
     <div className="flex min-h-[100dvh] flex-col">
       <AppHeader
-        title="New custom exercise"
+        title={t('title')}
         // Warm entries pop back to the logger (or library) with state intact;
         // the fallback only fires on a cold deep link.
-        leading={<BackLink fallback={returnMode !== null ? '/workout/new' : '/exercises'} />}
+        leading={<BackLink fallback={backFallback} />}
       />
       <main className="mx-auto w-full max-w-md flex-1 px-5 pb-safe pt-6">
         <CreateExerciseForm

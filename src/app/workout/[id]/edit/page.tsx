@@ -16,6 +16,7 @@ import { autoregReason } from '@/lib/autoregulate'
 import { detailToDraft } from '@/app/workout/new/workout-draft'
 import { WorkoutLogger } from '@/app/workout/new/workout-logger'
 import { resolveDraftSeed } from '@/app/workout/new/draft-payload'
+import { getTranslations } from 'next-intl/server'
 
 /**
  * Per-exercise plan targets (keyed by the composite `source:wgerExerciseId`)
@@ -114,6 +115,7 @@ export default async function EditWorkoutPage({
 }: {
   params: Promise<{ id: string }>
 }) {
+  const t = await getTranslations('WorkoutEdit')
   const userId = await requireUserId()
   const { id } = await params
   const [workout, unit] = await Promise.all([
@@ -155,7 +157,7 @@ export default async function EditWorkoutPage({
       <WorkoutLogger
         workoutId={id}
         isLive={workout.completedAt === null}
-        title={workout.completedAt === null ? 'Log Workout' : 'Edit Workout'}
+        title={workout.completedAt === null ? t('titleLive') : t('titleCompleted')}
         closeHref={workout.completedAt === null ? '/' : `/workout/${id}`}
         initialDraft={draft}
         initialName={name}
@@ -167,7 +169,7 @@ export default async function EditWorkoutPage({
         // at start, so the logger surfaces it instead of hiding it.
         programContext={
           plan && workout.programWeek !== null
-            ? `${plan.dayName} · Week ${workout.programWeek}`
+            ? t('programContext', { day: plan.dayName, week: workout.programWeek })
             : undefined
         }
         // When the draft seeds the session, its openedAt must also seed the

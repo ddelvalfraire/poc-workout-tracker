@@ -3,8 +3,9 @@ import { kgToDisplay, type WeightUnit } from './units'
 import { LOAD_INCREMENT_KG, LOAD_INCREMENT_LB, quantizeDisplayLoad } from './load-quantize'
 
 /**
- * Plain-English voice for every progression scheme (#228) — ONE module owns
- * the templates so the three consumers can never drift apart:
+ * The voice for every progression scheme (#228) — ONE module decides which
+ * sentence each consumer gets (the `SchemeCopy` catalog namespace owns the
+ * words), so the three can never drift apart:
  *  1. the builder's scheme line (name + one-line subtitle — Liftosaur's
  *     picker pattern),
  *  2. the program detail's muted "how this progresses" sentence with the
@@ -26,41 +27,42 @@ export type ProgressionScheme = Progression['scheme']
  *  shared reason clauses without an import cycle. */
 const DEFAULT_STEP_KG = 2.5
 
-const NAMES: Record<ProgressionScheme, string> = {
-  linear: 'Linear',
-  'double-progression': 'Double progression',
-  'percent-1rm': 'Percent of 1RM',
-  'rpe-target': 'RPE target',
-  'weekly-volume': 'Weekly volume',
-  'rep-progression': 'Rep progression',
-  'amrap-cycle': 'AMRAP cycle',
-}
+/**
+ * Message DESCRIPTORS for the `SchemeCopy` namespace (docs/I18N-KEYS.md §9).
+ * The voice moved into `messages/en.json` word for word; this module keeps
+ * only the DECISION — which scheme, which branch, which numbers — so a copy
+ * edit can no longer break its tests, and a second locale gets the whole
+ * voice rather than translated chrome around English sentences.
+ */
+/**
+ * The catalog leaf per scheme. The discriminator itself is kebab-case because
+ * it is DATA (it round-trips through the program jsonb); message keys must
+ * stay camelCase, since an Android `strings.xml` export turns each one into a
+ * Java identifier and hyphens are illegal there (I18N-KEYS.md §3).
+ */
+const SCHEME_LEAF = {
+  linear: 'linear',
+  'double-progression': 'doubleProgression',
+  'percent-1rm': 'percent1rm',
+  'rpe-target': 'rpeTarget',
+  'weekly-volume': 'weeklyVolume',
+  'rep-progression': 'repProgression',
+  'amrap-cycle': 'amrapCycle',
+} as const satisfies Record<ProgressionScheme, string>
 
-/** The researched one-liners (issue #228 comment) — no numbers needed, the
- *  picker/degradation voice. */
-const SUBTITLES: Record<ProgressionScheme, string> = {
-  linear: 'Add weight every session you complete all sets.',
-  'double-progression':
-    'Work up to the top of your rep range, then the weight goes up and reps start over.',
-  'percent-1rm':
-    'Weights are percentages of your training max, which bumps a small fixed amount each cycle.',
-  'rpe-target':
-    'Loads are picked from your estimated max to hit a target effort — heavier on good days, lighter on bad.',
-  'weekly-volume':
-    'Start at minimum growth volume, add sets weekly until recovery caps, then deload.',
-  'rep-progression': 'Same weight, more reps each session.',
-  'amrap-cycle':
-    'Each week ends with an as-many-reps-as-possible set; beat your record to earn the next training-max bump.',
-}
+type SchemeLeaf = (typeof SCHEME_LEAF)[ProgressionScheme]
+
+export type SchemeNameMessage = { key: `name.${SchemeLeaf}`; values?: undefined }
+export type SchemeSubtitleMessage = { key: `subtitle.${SchemeLeaf}`; values?: undefined }
 
 /** Human name for the scheme discriminator (the technical id stays in data). */
-export function schemeName(scheme: ProgressionScheme): string {
-  return NAMES[scheme]
+export function schemeName(scheme: ProgressionScheme): SchemeNameMessage {
+  return { key: `name.${SCHEME_LEAF[scheme]}` }
 }
 
 /** The picker one-liner — plain language, no numbers required. */
-export function schemeSubtitle(scheme: ProgressionScheme): string {
-  return SUBTITLES[scheme]
+export function schemeSubtitle(scheme: ProgressionScheme): SchemeSubtitleMessage {
+  return { key: `subtitle.${SCHEME_LEAF[scheme]}` }
 }
 
 /** What `schemeSentence` needs beyond the progression config itself. */
@@ -76,24 +78,52 @@ function positive(value: number | null | undefined): number | null {
   return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : null
 }
 
-/** `"5 lb"` / `"2.5 kg"` — the quantized display form of a kg load. */
-function load(kg: number, unit: WeightUnit): string {
-  return `${quantizeDisplayLoad(kg, unit)} ${unit}`
+/** The quantized display NUMBER for a kg load. The unit rides as its own ICU
+ *  argument and the digits are formatted by `Intl` at render, so nothing here
+ *  bakes in a decimal separator. */
+function load(kg: number, unit: WeightUnit): number {
+  return quantizeDisplayLoad(kg, unit)
 }
 
 /**
- * The display form of an INCREMENT (a delta, not a bar load). Increments of
+ * The display value of an INCREMENT (a delta, not a bar load). Increments of
  * at least one display increment keep the quantized grid form (#226); a
- * configured micro-increment BELOW one increment prints its exact converted
- * value (2 dp, trimmed) — "+1.1 lb" for 0.5 kg, never the one-increment
- * floor's "+2.5 lb" (2.27× the configured step, #228's actual-numbers bar).
+ * configured micro-increment BELOW one increment yields its exact converted
+ * value (2 dp, trimmed) — 1.1 lb for 0.5 kg, never the one-increment floor's
+ * 2.5 lb (2.27× the configured step, #228's actual-numbers bar).
  */
-function increment(kg: number, unit: WeightUnit): string {
+function increment(kg: number, unit: WeightUnit): number {
   const display = kgToDisplay(kg, unit)
   const grid = unit === 'kg' ? LOAD_INCREMENT_KG : LOAD_INCREMENT_LB
-  if (display < grid) return `${Number(display.toFixed(2))} ${unit}`
+  if (display < grid) return Number(display.toFixed(2))
   return load(kg, unit)
 }
+
+/** Every branch of the "how this progresses" sentence, plus the subtitle it
+ *  degrades to when the config can't support one. */
+export type SchemeSentenceMessage =
+  | SchemeSubtitleMessage
+  | { key: 'sentence.linear'; values: { increment: number; unit: WeightUnit } }
+  | {
+      key: 'sentence.doubleProgression'
+      values: { reps: number; increment: number; unit: WeightUnit }
+    }
+  | {
+      key: 'sentence.doubleProgressionAtLoad'
+      values: { reps: number; load: number; increment: number; unit: WeightUnit }
+    }
+  | { key: 'sentence.percent1rm'; values: { percent: number; trainingMax: number; unit: WeightUnit } }
+  | {
+      key: 'sentence.percent1rmRange'
+      values: { min: number; max: number; trainingMax: number; unit: WeightUnit }
+    }
+  | { key: 'sentence.rpeTarget'; values: { rpe: number } }
+  | { key: 'sentence.weeklyVolume'; values: { mev: number; mrv: number } }
+  | { key: 'sentence.repProgression'; values: { reps: number } }
+  | { key: 'sentence.repProgressionCapped'; values: { reps: number; cap: number } }
+  | { key: 'sentence.secProgression'; values: { seconds: number } }
+  | { key: 'sentence.secProgressionCapped'; values: { seconds: number; cap: number } }
+  | { key: 'sentence.amrapCycle'; values: { increment: number; unit: WeightUnit } }
 
 /**
  * The "how this progresses" conditional sentence with the exercise's ACTUAL
@@ -101,21 +131,28 @@ function increment(kg: number, unit: WeightUnit): string {
  * Loads quantize to the display unit (#226). Missing/partial config degrades
  * to the scheme's subtitle — never "undefined", never raw kg in a lb account.
  */
-export function schemeSentence(progression: Progression, context: SchemeSentenceContext): string {
+export function schemeSentence(
+  progression: Progression,
+  context: SchemeSentenceContext,
+): SchemeSentenceMessage {
   const { unit } = context
   switch (progression.scheme) {
     case 'linear': {
       const inc = positive(progression.incrementKg)
       if (inc === null) break
-      return `Complete all sets → +${increment(inc, unit)} next session.`
+      return { key: 'sentence.linear', values: { increment: increment(inc, unit), unit } }
     }
     case 'double-progression': {
       const top = positive(progression.repMax)
       if (top === null) break
-      const inc = positive(progression.incrementKg) ?? DEFAULT_STEP_KG
+      const inc = increment(positive(progression.incrementKg) ?? DEFAULT_STEP_KG, unit)
       const at = positive(context.currentLoadKg)
-      const atClause = at === null ? '' : ` at ${load(at, unit)}`
-      return `Hit ${top} reps on every set${atClause} → +${increment(inc, unit)} next session.`
+      return at === null
+        ? { key: 'sentence.doubleProgression', values: { reps: top, increment: inc, unit } }
+        : {
+            key: 'sentence.doubleProgressionAtLoad',
+            values: { reps: top, load: load(at, unit), increment: inc, unit },
+          }
     }
     case 'percent-1rm': {
       const tm = positive(progression.trainingMaxKg)
@@ -123,37 +160,43 @@ export function schemeSentence(progression: Progression, context: SchemeSentence
       if (tm === null || percents.length === 0) break
       const min = Math.min(...percents)
       const max = Math.max(...percents)
-      const span = min === max ? `${min}%` : `${min}–${max}%`
-      return `Week loads are ${span} of your ${load(tm, unit)} training max.`
+      const trainingMax = load(tm, unit)
+      return min === max
+        ? { key: 'sentence.percent1rm', values: { percent: min, trainingMax, unit } }
+        : { key: 'sentence.percent1rmRange', values: { min, max, trainingMax, unit } }
     }
     case 'rpe-target': {
       const rpe = positive(progression.targetRpe)
       if (rpe === null) break
-      return `Loads picked from your estimated max to land at RPE ${rpe}.`
+      return { key: 'sentence.rpeTarget', values: { rpe } }
     }
     case 'weekly-volume': {
       const mev = positive(progression.mevSets)
       const mrv = positive(progression.mrvSets)
       if (mev === null || mrv === null || mrv < mev) break
-      return `${mev} → ${mrv} sets across the block, added weekly.`
+      return { key: 'sentence.weeklyVolume', values: { mev, mrv } }
     }
     case 'rep-progression': {
       const reps = positive(progression.incrementReps)
       if (reps !== null) {
         const cap = positive(progression.maxReps)
-        return `+${reps} rep${reps === 1 ? '' : 's'} each session${cap === null ? '' : `, up to ${cap}`}.`
+        return cap === null
+          ? { key: 'sentence.repProgression', values: { reps } }
+          : { key: 'sentence.repProgressionCapped', values: { reps, cap } }
       }
       const sec = positive(progression.incrementSec)
       if (sec !== null) {
         const cap = positive(progression.maxSec)
-        return `+${sec} sec each session${cap === null ? '' : `, up to ${cap} sec`}.`
+        return cap === null
+          ? { key: 'sentence.secProgression', values: { seconds: sec } }
+          : { key: 'sentence.secProgressionCapped', values: { seconds: sec, cap } }
       }
       break
     }
     case 'amrap-cycle': {
       const inc = positive(progression.incrementKg)
       if (inc === null) break
-      return `Beat your rep record on the last set to earn the next training-max bump (+${increment(inc, unit)}).`
+      return { key: 'sentence.amrapCycle', values: { increment: increment(inc, unit), unit } }
     }
   }
   return schemeSubtitle(progression.scheme)

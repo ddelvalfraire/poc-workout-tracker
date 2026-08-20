@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { useAnimatedSheetClose } from '@/components/use-animated-sheet-close'
 import { updateTemplateMetaAction } from '@/app/templates/actions'
 import { cn } from '@/lib/utils'
+import { useTranslations } from 'next-intl'
 
 /**
  * Bottom-sheet editor for a template's name/icon/description — the inline
@@ -45,6 +46,7 @@ interface TemplateEditSheetProps {
 }
 
 export function TemplateEditSheet({ template, onClose }: TemplateEditSheetProps) {
+  const t = useTranslations('TemplateEditSheet')
   const [name, setName] = useState(template.name)
   const [icon, setIcon] = useState(template.icon ?? '')
   const [description, setDescription] = useState(template.description ?? '')
@@ -88,7 +90,7 @@ export function TemplateEditSheet({ template, onClose }: TemplateEditSheetProps)
       savedRef.current = true
       requestClose()
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Could not save changes. Please try again.')
+      setError(e instanceof Error ? e.message : t('saveError'))
     } finally {
       setIsPending(false)
     }
@@ -97,7 +99,7 @@ export function TemplateEditSheet({ template, onClose }: TemplateEditSheetProps)
   return (
     <dialog
       ref={dialogRef}
-      aria-label={`Edit ${template.name}`}
+      aria-label={t('ariaLabel', { name: template.name })}
       onCancel={(e) => {
         e.preventDefault() // keep open/closed state owned by React
         requestClose()
@@ -120,7 +122,7 @@ export function TemplateEditSheet({ template, onClose }: TemplateEditSheetProps)
       <div className="flex items-start justify-between gap-3 pb-1">
         <div>
           <p className="text-xs font-semibold uppercase tracking-widest text-primary">
-            Edit template
+            {t('eyebrow')}
           </p>
           <h3 className="mt-0.5 text-lg leading-tight">{template.name}</h3>
         </div>
@@ -130,14 +132,14 @@ export function TemplateEditSheet({ template, onClose }: TemplateEditSheetProps)
           variant="ghost"
           className="-mr-1 text-muted-foreground"
           onClick={requestClose}
-          aria-label="Close"
+          aria-label={t('close')}
         >
           <X aria-hidden="true" className="size-4" />
         </Button>
       </div>
 
       <label className="mt-3 block text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-        Name
+        {t('nameLabel')}
         <Input
           value={name}
           onChange={(e) => setName(e.target.value)}
@@ -148,7 +150,7 @@ export function TemplateEditSheet({ template, onClose }: TemplateEditSheetProps)
 
       <fieldset className="mt-3">
         <legend className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-          Icon
+          {t('iconLabel')}
         </legend>
         <div className="mt-1.5 flex flex-wrap items-center gap-2">
           {ICON_CHOICES.map((choice) => (
@@ -157,7 +159,7 @@ export function TemplateEditSheet({ template, onClose }: TemplateEditSheetProps)
               type="button"
               onClick={() => setIcon(icon === choice ? '' : choice)}
               aria-pressed={icon === choice}
-              aria-label={`Use ${choice} as the icon`}
+              aria-label={t('iconChoiceAriaLabel', { icon: choice })}
               className={cn(
                 'rounded-xl border px-2.5 py-1.5 text-xl leading-none transition-colors',
                 icon === choice
@@ -172,8 +174,8 @@ export function TemplateEditSheet({ template, onClose }: TemplateEditSheetProps)
             value={icon}
             onChange={(e) => setIcon(e.target.value)}
             maxLength={16}
-            placeholder="💪"
-            aria-label="Icon"
+            placeholder={t('iconPlaceholder')}
+            aria-label={t('iconFieldLabel')}
             className="w-20"
           />
         </div>
@@ -181,14 +183,14 @@ export function TemplateEditSheet({ template, onClose }: TemplateEditSheetProps)
 
       <div className="mt-3">
         <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-          Description
+          {t('descriptionLabel')}
         </p>
         <div className="mt-1">
           <NotesEditor
             variant="quick"
             initialMarkdown={description}
             onChangeMarkdown={setDescription}
-            ariaLabel={`Description for ${template.name}`}
+            ariaLabel={t('descriptionAriaLabel', { name: template.name })}
           />
         </div>
       </div>
@@ -197,14 +199,14 @@ export function TemplateEditSheet({ template, onClose }: TemplateEditSheetProps)
 
       <div className="mt-4 flex gap-2 pb-2">
         <Button variant="outline" className="flex-1" disabled={isPending} onClick={requestClose}>
-          Cancel
+          {t('cancel')}
         </Button>
         <Button
           className="flex-1"
           disabled={isPending || name.trim().length === 0}
           onClick={handleSave}
         >
-          {isPending ? 'Saving…' : 'Save'}
+          {isPending ? t('saving') : t('save')}
         </Button>
       </div>
     </dialog>

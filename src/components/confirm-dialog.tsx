@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, type RefObject } from 'react'
 import { Button } from '@/components/ui/button'
+import { useTranslations } from 'next-intl'
 
 /**
  * Centered destructive-confirm modal — a TRUE modal, unlike the inline
@@ -55,6 +56,7 @@ export function ConfirmDialog({
   onClose,
   closeRef,
 }: ConfirmDialogProps) {
+  const t = useTranslations('ConfirmDialog')
   const dialogRef = useRef<HTMLDialogElement>(null)
   const keepButtonRef = useRef<HTMLButtonElement>(null)
 
@@ -144,7 +146,7 @@ export function ConfirmDialog({
           onClick={onClose}
           autoFocus
         >
-          Keep it
+          {t('cancel')}
         </Button>
         <Button
           variant={confirmVariant}

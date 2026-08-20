@@ -1,6 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import { notesHref, type NotesFilterParams } from '@/components/notes/note-view'
 import { cn } from '@/lib/utils'
 
@@ -12,21 +13,23 @@ import { cn } from '@/lib/utils'
  * the empty option clears the facet.
  */
 export function FacetSelect({
-  label,
   param,
   params,
   options,
 }: {
-  label: string
   param: 'exercise' | 'program'
   params: NotesFilterParams
   options: string[]
 }) {
+  // Keyed off `param`, not a label prop: the accessible name and the trigger
+  // are one sentence each per facet, so neither can be assembled from a
+  // lowercased noun the way the English original did.
+  const t = useTranslations('FacetSelect')
   const router = useRouter()
   const value = params[param]
   return (
     <select
-      aria-label={`Filter by ${label.toLowerCase()}`}
+      aria-label={t(`ariaLabel.${param}`)}
       value={value ?? ''}
       onChange={(event) => {
         const next = event.target.value === '' ? null : event.target.value
@@ -39,7 +42,7 @@ export function FacetSelect({
           : 'bg-muted text-muted-foreground active:bg-muted/60',
       )}
     >
-      <option value="">{label} ▾</option>
+      <option value="">{t(`trigger.${param}`)}</option>
       {options.map((option) => (
         <option key={option} value={option}>
           {option}

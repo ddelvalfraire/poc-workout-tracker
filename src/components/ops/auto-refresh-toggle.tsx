@@ -3,6 +3,7 @@
 import { useEffect, useSyncExternalStore } from 'react'
 import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
+import { useTranslations } from 'next-intl'
 
 /**
  * Opt-in 60s polling for the ops board. Off by default — the board is a
@@ -46,6 +47,7 @@ function writeEnabled(next: boolean): void {
 }
 
 export function AutoRefreshToggle() {
+  const t = useTranslations('AutoRefreshToggle')
   const router = useRouter()
   const enabled = useSyncExternalStore(subscribe, readEnabled, () => false)
 
@@ -70,7 +72,7 @@ export function AutoRefreshToggle() {
           enabled ? 'bg-primary' : 'bg-muted-foreground/40',
         )}
       />
-      Auto 60s
+      {t('action')}
     </button>
   )
 }

@@ -23,7 +23,14 @@ import { BackLink } from '@/components/back-link'
 import { BlockMap } from '@/components/block-map'
 import { buildBlockWeeks } from '@/components/block-weeks'
 import { cn } from '@/lib/utils'
-import { formatE1RM, formatVolume, formatWorkoutDate, formatWorkoutDuration } from '@/lib/format'
+import {
+  formatE1RM,
+  formatVolumeParts,
+  formatWorkoutDate,
+  formatWorkoutDuration,
+} from '@/lib/format'
+import { renderMessage } from '@/lib/message'
+import { resolveLocale } from '@/i18n/request'
 import { formatTargetLine, groupDerivedSets } from './derived-format'
 import { parseWeekParam, resolveDayState } from './week-view'
 import {
@@ -42,6 +49,7 @@ import { listPatchProposals } from '@/db/patch-proposals'
 import { ensureVolumeProposals } from '@/db/volume-progression'
 import { ensureReactiveDeloadProposals } from '@/db/reactive-deload'
 import { describeToolCall } from '@/lib/coach/describe-tool-call'
+import { renderToolCall } from '@/lib/coach/render-tool-call'
 import { patchForDisplay } from '@/lib/patch-proposal'
 import { proposalAgeLine } from '../list-view'
 import { PatchProposalCard } from './patch-proposal-card'
@@ -58,17 +66,16 @@ import { DietPhaseCard } from './diet-phase-card'
 import { OvershootPolicyControl } from './overshoot-policy-control'
 import { ExerciseOvershootControl } from './exercise-overshoot-control'
 import { cuttingStalenessWeeks } from '@/lib/diet-phase-staleness'
+import { getTranslations } from 'next-intl/server'
 
-/** Chip labels for the change log — WHO edited, in the user's own terms. */
-const ACTOR_LABELS: Record<ProgramEventActor, string> = {
-  ui: 'You',
-  mcp: 'Claude',
-  coach: 'Coach',
-  wger: 'wger',
-  // Seed-script writes exist only on the system account's template rows, so
-  // this label renders for no real user; the record stays total for TS.
-  seed: 'System',
-}
+/** Chip labels for the change log — WHO edited, in the user's own terms —
+ *  live in the catalog under `actor.<value>`. A label built here would be
+ *  frozen at module load, before any request, so it could never be
+ *  translated. Seed-script writes exist only on the system account's
+ *  template rows, so `actor.seed` renders for no real user; the catalog
+ *  keeps it so the actor union stays total.
+ *
+ *  The chip TREATMENT below is presentation, not copy, and stays here. */
 
 /** Distinct chip treatments per actor: your own edits stay quiet (muted),
  *  agent/coach edits carry an outline so "someone else touched the plan"
@@ -92,6 +99,16 @@ export default async function ProgramDetailPage({
   params: Promise<{ id: string }>
   searchParams: Promise<{ week?: string | string[]; expand?: string | string[] }>
 }) {
+  const t = await getTranslations('ProgramDetail')
+  const tFormat = await getTranslations('Format')
+  // The progression sentence belongs to the scheme vocabulary, not to this
+  // surface — one voice shared with the builder's picker line.
+  const tScheme = await getTranslations('SchemeCopy')
+  // The patch diff's sentences come from the coach tool-call vocabulary, so
+  // they resolve against that namespace — server-side here, client-side in
+  // the chat's approval card, from the same descriptors.
+  const tTool = await getTranslations('CoachToolCall')
+  const locale = await resolveLocale()
   const userId = await requireUserId()
   const [{ id }, sp] = await Promise.all([params, searchParams])
   // coachEnabled rides the same Promise.all so the flag lookup (env
@@ -265,7 +282,7 @@ export default async function ProgramDetailPage({
               isProposed || status === 'active' ? 'text-primary' : 'text-muted-foreground',
             )}
           >
-            {isProposed ? 'proposed' : status}
+            {isProposed ? t('status.proposed') : t(`status.${status}`)}
           </span>
         }
       />
@@ -341,7 +358,7 @@ export default async function ProgramDetailPage({
                   rel="noopener noreferrer"
                   className="underline underline-offset-2 transition-colors hover:text-foreground"
                 >
-                  Source
+                  {t('sourceLinkLabel')}
                 </a>
               </p>
             )}
@@ -365,7 +382,7 @@ export default async function ProgramDetailPage({
             read-only preview until adopted. */}
         {isProposed && (
           <section
-            aria-label="Proposed program"
+            aria-label={t('proposal.ariaLabel')}
             // De-carded: the quiet volt hairline (block-complete vocabulary)
             // frames the proposal — volt lives in the label and hairline;
             // the page's volt BUTTON stays with ProposalActions' adopt CTA.
@@ -377,19 +394,18 @@ export default async function ProgramDetailPage({
                   via a share link) and reads "Shared program" — no Clerk
                   display-name lookup in v1. */}
               {program.authorActor === 'coach'
-                ? 'Proposed by your coach'
+                ? t('proposal.eyebrowCoach')
                 : program.authorActor === 'owner'
-                  ? 'Proposed for you'
-                  : 'Shared program'}
+                  ? t('proposal.eyebrowOwner')
+                  : t('proposal.eyebrowShared')}
             </p>
             {/* Staleness affordance: the proposal's age as muted words —
                 never an auto-expiry (a coach draft must not silently die). */}
             <p className="mt-0.5 text-xs text-muted-foreground first-letter:uppercase">
-              {proposalAgeLine(program.createdAt, new Date())}
+              {renderMessage(t, proposalAgeLine(program.createdAt, new Date()))}
             </p>
             <p className="mt-1 text-sm text-muted-foreground">
-              Review the plan below, then adopt it as a draft, start it right away, or decline.
-              Nothing trains until you confirm.
+              {t('proposal.description')}
             </p>
             <ProposalActions id={program.id} />
           </section>
@@ -410,12 +426,20 @@ export default async function ProgramDetailPage({
         )}
 
         <p className="mt-5 font-display text-2xl uppercase leading-none tracking-wide">
-          {statusLine}
+          {renderMessage(t, statusLine)}
         </p>
         <div className="mt-1.5 flex items-baseline justify-between gap-3">
           <p className="min-w-0 truncate text-sm text-muted-foreground">
-            Week {currentWeek} of {program.mesocycleWeeks}
-            {program.deloadWeek !== null && ` · deload wk ${program.deloadWeek}`}
+            {/* One whole ICU message per shape, never a sentence plus a
+                trailing fragment: the deload clause does not land at the end
+                of the line in every language. */}
+            {program.deloadWeek !== null
+              ? t('weekMetaDeload', {
+                  week: currentWeek,
+                  total: program.mesocycleWeeks,
+                  deloadWeek: program.deloadWeek,
+                })
+              : t('weekMeta', { week: currentWeek, total: program.mesocycleWeeks })}
           </p>
           <div className="flex shrink-0 items-center gap-4">
             {/* Coach opens with this program as context, so "swap tomorrow's
@@ -427,14 +451,14 @@ export default async function ProgramDetailPage({
                 className="flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground"
               >
                 <MessageCircle aria-hidden="true" className="size-4" />
-                Coach
+                {t('coachLink')}
               </Link>
             )}
             <Link
               href={`/programs/${program.id}/stats`}
               className="flex items-center gap-0.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
             >
-              Stats
+              {t('statsLink')}
               <ChevronRight aria-hidden="true" className="size-4" />
             </Link>
           </div>
@@ -452,14 +476,14 @@ export default async function ProgramDetailPage({
             id={proposal.id}
             eyebrow={
               proposal.authorActor === 'coach'
-                ? 'Proposed by your coach'
-                : 'Proposed changes'
+                ? t('patchProposal.eyebrowCoach')
+                : t('patchProposal.eyebrowOther')
             }
             summary={proposal.summary}
-            ageLine={proposalAgeLine(proposal.createdAt, new Date())}
+            ageLine={renderMessage(t, proposalAgeLine(proposal.createdAt, new Date()))}
             sentences={proposal.patches.map((patch) => {
               const display = patchForDisplay(patch, unit)
-              return describeToolCall(display.tool, display.args)
+              return renderToolCall(tTool, describeToolCall(display.tool, display.args))
             })}
           />
         ))}
@@ -470,7 +494,7 @@ export default async function ProgramDetailPage({
             hollow + DL, the current week is ringed. Same visualization as the
             list hero and the stats week rows — learn once, read everywhere.
             Replaces the old scrolling pill row: all weeks now fit one line. */}
-        <nav aria-label="Mesocycle week" className="mt-4 py-1">
+        <nav aria-label={t('weekNavLabel')} className="mt-4 py-1">
           <BlockMap
             weeks={blockWeeks}
             size="default"
@@ -487,12 +511,11 @@ export default async function ProgramDetailPage({
             in this section. */}
         {blockComplete && (
           <section
-            aria-label="Block complete"
+            aria-label={t('blockComplete.ariaLabel')}
             className="mt-8 border-b border-b-primary/30 pb-4"
           >
             <p className="text-[11px] font-semibold uppercase tracking-widest text-primary tnum">
-              Block complete · {program.mesocycleWeeks} week
-              {program.mesocycleWeeks === 1 ? '' : 's'}
+              {t('blockComplete.eyebrow', { weeks: program.mesocycleWeeks })}
             </p>
             {prs.length > 0 && (
               <ul className="mt-2 space-y-1.5">
@@ -504,17 +527,17 @@ export default async function ProgramDetailPage({
                     <span className="min-w-0 truncate font-medium">{exercise.name}</span>
                     <span className="shrink-0 tnum">
                       <span aria-hidden="true" className="text-muted-foreground">
-                        ~
+                        {t('pr.approx')}
                       </span>
-                      {formatE1RM(exercise.pr.baseline.e1rm, unit)}
+                      {formatE1RM(exercise.pr.baseline.e1rm, unit, locale)}
                       <span aria-hidden="true" className="text-muted-foreground">
-                        {' → '}
+                        {` ${t('pr.arrow')} `}
                       </span>
-                      <span className="sr-only"> to </span>
+                      <span className="sr-only"> {t('pr.srTo')} </span>
                       <span aria-hidden="true" className="text-muted-foreground">
-                        ~
+                        {t('pr.approx')}
                       </span>
-                      {formatE1RM(exercise.pr.best.e1rm, unit)}
+                      {formatE1RM(exercise.pr.best.e1rm, unit, locale)}
                     </span>
                   </li>
                 ))}
@@ -530,7 +553,7 @@ export default async function ProgramDetailPage({
                 href={`/programs/${program.id}/stats`}
                 className="flex items-center gap-0.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
               >
-                Stats
+                {t('blockComplete.statsLink')}
                 <ChevronRight aria-hidden="true" className="size-4" />
               </Link>
               {status !== 'draft' && <RestartProgramButton id={program.id} size="sm" />}
@@ -544,11 +567,11 @@ export default async function ProgramDetailPage({
             heading opens the week's divider list past its own hairline. */}
         <div className="mt-8 flex items-baseline justify-between gap-3 border-t border-border pt-6">
           <h2 className="font-display text-xl uppercase leading-none tracking-wide">
-            Week {selectedWeek}
+            {t('weekTitle', { week: selectedWeek })}
           </h2>
           {selectedWeek === program.deloadWeek && (
             <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-              Deload week
+              {t('deloadBadge')}
             </span>
           )}
         </div>
@@ -574,18 +597,18 @@ export default async function ProgramDetailPage({
             verdict it didn't compute. */}
         {(autoregNotes.length > 0 || tmProposals.length > 0) && (
           <section
-            aria-label="Auto-regulation"
+            aria-label={t('autoreg.ariaLabel')}
             className="mt-3 border-b border-border/60 pb-4"
           >
             <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
-              Auto-regulation
+              {t('autoreg.title')}
             </p>
             {autoregNotes.length > 0 && (
               <ul className="mt-2 space-y-1.5">
                 {autoregNotes.map((note) => (
                   <li key={note.exerciseName} className="text-sm text-muted-foreground">
                     <span className="font-medium text-foreground">{note.exerciseName}</span>
-                    <span aria-hidden="true"> — </span>
+                    <span aria-hidden="true"> {t('autoreg.separator')} </span>
                     <span className="tnum">{autoregReason(note.adjustment, unit)}</span>
                   </li>
                 ))}
@@ -606,11 +629,14 @@ export default async function ProgramDetailPage({
                       <span className="font-medium text-foreground">
                         {proposal.exerciseName}
                       </span>
-                      <span aria-hidden="true"> — </span>
+                      <span aria-hidden="true"> {t('autoreg.separator')} </span>
                       <span className="tnum">
-                        Week {selectedWeek}: TM {kgToDisplay(proposal.currentTmKg, unit)} →{' '}
-                        {kgToDisplay(proposal.proposedTmKg, unit)} {unit} — 3 straight stalls,
-                        training max likely set too high
+                        {t('autoreg.tmProposal', {
+                          week: selectedWeek,
+                          currentTm: kgToDisplay(proposal.currentTmKg, unit),
+                          proposedTm: kgToDisplay(proposal.proposedTmKg, unit),
+                          unit,
+                        })}
                       </span>
                     </p>
                     {!isProposed && (
@@ -649,7 +675,7 @@ export default async function ProgramDetailPage({
               const header = (
                 <h3 className="flex min-w-0 items-baseline gap-2">
                   <span className="shrink-0 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground tnum">
-                    Day {dayIndex + 1}
+                    {t('day.number', { position: dayIndex + 1 })}
                   </span>
                   <span
                     className={cn(
@@ -667,17 +693,23 @@ export default async function ProgramDetailPage({
                 // days) as the big numeral — the app's established pattern
                 // (program list weeks, history date blocks) — with duration/
                 // sets demoted to a muted secondary line and the date smallest.
-                // formatVolume renders "9,210 kg"; split once so numeral and
-                // unit label can take different type scales.
-                const [numeral, numeralLabel] =
-                  workout.volumeKg > 0
-                    ? formatVolume(workout.volumeKg, unit).split(' ')
-                    : [String(workout.setCount), workout.setCount === 1 ? 'set' : 'sets']
+                // formatVolumeParts renders "9,210" + "kg" through Intl, so
+                // numeral and unit label can take different type scales
+                // without splitting on a space the locale may not use.
+                const volumeParts =
+                  workout.volumeKg > 0 ? formatVolumeParts(workout.volumeKg, unit, locale) : null
+                const [numeral, numeralLabel] = volumeParts
+                  ? [volumeParts.value, volumeParts.unit]
+                  : [
+                      new Intl.NumberFormat(locale).format(workout.setCount),
+                      t('day.setsUnit', { count: workout.setCount }),
+                    ]
                 const secondary = [
-                  formatWorkoutDuration(workout.startedAt, workout.completedAt),
-                  workout.volumeKg > 0
-                    ? `${workout.setCount} set${workout.setCount === 1 ? '' : 's'}`
-                    : null,
+                  renderMessage(
+                    tFormat,
+                    formatWorkoutDuration(workout.startedAt, workout.completedAt),
+                  ),
+                  workout.volumeKg > 0 ? t('day.setSummary', { count: workout.setCount }) : null,
                 ]
                   .filter(Boolean)
                   .join(' · ')
@@ -696,10 +728,10 @@ export default async function ProgramDetailPage({
                     <Link href={`/workout/${workout.id}`} className="block">
                       <div className="flex items-baseline justify-between gap-3">
                         <p className="text-[11px] font-semibold uppercase tracking-widest text-primary">
-                          Done
+                          {t('day.doneBadge')}
                         </p>
                         <span className="shrink-0 text-xs text-muted-foreground tnum">
-                          {formatWorkoutDate(workout.completedAt)}
+                          {formatWorkoutDate(workout.completedAt, locale)}
                         </span>
                       </div>
                       <div className="mt-1">{header}</div>
@@ -740,12 +772,14 @@ export default async function ProgramDetailPage({
                           <span className="absolute inline-flex h-full w-full motion-safe:animate-ping rounded-full bg-primary opacity-60" />
                           <span className="relative inline-flex size-2 rounded-full bg-primary" />
                         </span>
-                        In progress
+                        {t('day.inProgressBadge')}
                       </p>
                       <div className="mt-1">{header}</div>
                       <p className="mt-1 text-sm text-muted-foreground tnum">
-                        {workout.completedSetCount} of {workout.setCount} set
-                        {workout.setCount === 1 ? '' : 's'}
+                        {t('day.setProgress', {
+                          completed: workout.completedSetCount,
+                          total: workout.setCount,
+                        })}
                       </p>
                     </Link>
                     {/* No target list here: the live session (one tap away)
@@ -777,7 +811,7 @@ export default async function ProgramDetailPage({
                         expandable targets) so missed days can be made up. */}
                     {isPastWeek && (
                       <span className="shrink-0 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-                        Skipped
+                        {t('day.skippedBadge')}
                       </span>
                     )}
                   </div>
@@ -815,14 +849,16 @@ export default async function ProgramDetailPage({
                                   className="flex items-baseline gap-2 text-sm text-muted-foreground"
                                 >
                                   <span className="tnum">
-                                    {formatTargetLine(group.set, group.count, unit)}
+                                    {formatTargetLine(group.set, group.count, unit, locale)
+                                      .map((segment) => renderMessage(t, segment))
+                                      .join(' · ')}
                                   </span>
                                   {/* Chips → words: deload/technique are labels
                                       on the set line, not controls — quiet caps
                                       text, no pill shell. */}
                                   {group.set.derivedFrom === 'deload' && (
                                     <span className="text-[10px] font-semibold uppercase tracking-widest">
-                                      Deload
+                                      {t('day.deloadLabel')}
                                     </span>
                                   )}
                                   {group.set.technique && (
@@ -834,7 +870,9 @@ export default async function ProgramDetailPage({
                               ))}
                             </div>
                             {howLine !== null && (
-                              <p className="mt-1 text-sm text-muted-foreground">{howLine}</p>
+                              <p className="mt-1 text-sm text-muted-foreground">
+                                {tScheme(howLine.key, howLine.values)}
+                              </p>
                             )}
                             {/* Per-exercise overshoot override (#239's data,
                                 now with UI): owner-only quiet select; never
@@ -858,10 +896,12 @@ export default async function ProgramDetailPage({
                     // Names come from the program rows already loaded — only
                     // the engine-derived TARGETS need the history reads.
                     <p className="mt-2 min-w-0 truncate text-sm text-muted-foreground">
-                      {day.exercises.length} exercise{day.exercises.length === 1 ? '' : 's'}
-                      {day.exercises.length > 0 && (
-                        <> · {day.exercises.map((e) => e.name).join(' · ')}</>
-                      )}
+                      {day.exercises.length > 0
+                        ? t('day.exerciseSummary', {
+                            count: day.exercises.length,
+                            names: day.exercises.map((e) => e.name).join(' · '),
+                          })
+                        : t('day.exerciseCount', { count: day.exercises.length })}
                     </p>
                   )}
 
@@ -894,7 +934,7 @@ export default async function ProgramDetailPage({
                         href={`/programs/${program.id}?week=${selectedWeek}&expand=${encodeURIComponent(withExpanded(expanded, day.id))}`}
                         className="flex shrink-0 items-center gap-0.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
                       >
-                        Targets
+                        {t('day.targetsLink')}
                         <ChevronRight aria-hidden="true" className="size-4" />
                       </Link>
                     )}
@@ -907,7 +947,7 @@ export default async function ProgramDetailPage({
                         }`}
                         className="shrink-0 text-sm text-muted-foreground transition-colors hover:text-foreground"
                       >
-                        Hide targets
+                        {t('day.hideTargetsLink')}
                       </Link>
                     )}
                   </div>
@@ -928,8 +968,8 @@ export default async function ProgramDetailPage({
             one shared read path. Absent entirely for untouched programs (no
             empty-state filler); capped at CHANGE_LOG_LIMIT, no pager in v1. */}
         {changeEvents.length > 0 && (
-          <section aria-label="Changes" className="mt-10 border-t border-border pt-8">
-            <h2 className="font-display text-xl uppercase leading-none tracking-wide">Changes</h2>
+          <section aria-label={t('changes.ariaLabel')} className="mt-10 border-t border-border pt-8">
+            <h2 className="font-display text-xl uppercase leading-none tracking-wide">{t('changes.title')}</h2>
             <div className="mt-3 space-y-4">
               {groupEventsByDay(changeEvents, formatWorkoutDate).map((group) => (
                 <div key={group.label}>
@@ -945,7 +985,7 @@ export default async function ProgramDetailPage({
                             ACTOR_CHIP_CLASSES[event.actor],
                           )}
                         >
-                          {ACTOR_LABELS[event.actor]}
+                          {t(`actor.${event.actor}`)}
                         </span>
                         <span className="min-w-0 flex-1 text-sm leading-snug line-clamp-2">
                           {event.summary}

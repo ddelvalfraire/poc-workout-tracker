@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+import { withIntl } from '../../../../vitest.intl'
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -128,14 +129,16 @@ async function renderLogger(
   root = createRoot(container)
   await act(async () => {
     root.render(
-      <QueryClientProvider client={client}>
-        <WorkoutLogger
-          title="New Workout"
-          closeHref="/"
-          initialDraft={cleanDraft()}
-          {...props}
-        />
-      </QueryClientProvider>,
+      withIntl(
+        <QueryClientProvider client={client}>
+          <WorkoutLogger
+            title="New Workout"
+            closeHref="/"
+            initialDraft={cleanDraft()}
+            {...props}
+          />
+        </QueryClientProvider>,
+      ),
     )
   })
 }

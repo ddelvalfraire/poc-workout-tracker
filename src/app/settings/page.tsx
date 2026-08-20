@@ -63,8 +63,8 @@ export default async function SettingsPage() {
   const buildId = process.env.NEXT_PUBLIC_BUILD_ID
   const versionLabel =
     buildId !== undefined && !buildId.startsWith('local-')
-      ? `Build ${buildId.slice(0, 7)}`
-      : `v${packageJson.version}`
+      ? t('version', { sha: buildId.slice(0, 7) })
+      : t('versionLocal', { version: packageJson.version })
 
   return (
     <div className="flex min-h-[100dvh] flex-col">
@@ -76,18 +76,18 @@ export default async function SettingsPage() {
         granted={Boolean(consent.analytics_identity?.granted)}
       />
       <AppHeader
-        title="Settings"
+        title={t('title')}
         leading={
           <BackLink fallback="/" />
         }
       />
 
       <main className="mx-auto w-full max-w-md flex-1 px-5 pb-safe">
-        {/* Identity: who's signed in, the way into account management, and the
-            way out. The row drills into /settings/account (name, sign-in
+        {/* Identity: who's signed in, the way into account management, and
+            the way out. The row drills into /settings/account (name, sign-in
             methods, deletion); sign-out stays here rather than behind that
             drill-down, because the exit should never cost an extra tap. */}
-        <section aria-label="Account" className="mt-6">
+        <section aria-label={t('accountGroupLabel')} className="mt-6">
           {/* De-carded: identity is the grouped list's first rows — muted
               hairlines between and under them, no shell. */}
           <DividerList>
@@ -100,8 +100,8 @@ export default async function SettingsPage() {
               }
             >
               <div className="min-w-0">
-                <p className="font-medium">{t('accountLabel')}</p>
-                <p className="mt-0.5 text-sm text-muted-foreground">{t('accountHint')}</p>
+                <p className="font-medium">{t('account.label')}</p>
+                <p className="mt-0.5 text-sm text-muted-foreground">{t('account.hint')}</p>
               </div>
             </DividerRow>
             <li className="flex items-center justify-end py-2">
@@ -110,32 +110,25 @@ export default async function SettingsPage() {
           </DividerList>
         </section>
 
-        <SettingsZone title="Training">
-          <SettingRow label="Weight unit" hint="Shown everywhere you enter or read weight.">
+        <SettingsZone title={t('zones.training')}>
+          <SettingRow label={t('unit.label')} hint={t('unit.hint')}>
             <UnitToggle unit={unit} />
           </SettingRow>
-          <SettingRow label="Rest timer" hint="Counts down your rest after each set.">
+          <SettingRow label={t('restTimer.label')} hint={t('restTimer.hint')}>
             <RestTimerToggle enabled={restTimerEnabled} />
           </SettingRow>
-          <SettingRow
-            label="Effort logging"
-            hint="Rate how hard sets felt (RIR/RPE) after you complete them."
-          >
+          <SettingRow label={t('effortLogging.label')} hint={t('effortLogging.hint')}>
             <RpeLoggingToggle enabled={rpeLoggingEnabled} />
           </SettingRow>
           {/* The switch's truth is the BROWSER's push subscription (probed on
               mount), not a server flag — and the permission prompt only ever
               fires from the toggle gesture (iOS grants it exactly once). */}
-          <SettingRow label="Workout reminders" hint="A morning nudge on your program days.">
+          <SettingRow label={t('reminders.label')} hint={t('reminders.hint')}>
             <WorkoutRemindersToggle />
           </SettingRow>
           <SettingRow
-            label="Default rest"
-            hint={
-              restTimerEnabled
-                ? 'Your countdown length between sets.'
-                : 'Turn the rest timer on to use this.'
-            }
+            label={t('defaultRest.label')}
+            hint={restTimerEnabled ? t('defaultRest.hint') : t('defaultRest.hintDisabled')}
           >
             <RestDefaultSetting defaultRestSec={defaultRestSec} />
           </SettingRow>
@@ -144,26 +137,28 @@ export default async function SettingsPage() {
               tile for size/visibility/reorder, long-press to drag). */}
           <LinkRow
             href="/settings/home"
-            label="Customize home"
-            hint="Choose which sections show, and their order."
+            label={t('home.label')}
+            hint={t('home.hint')}
           />
         </SettingsZone>
 
-        <SettingsZone title="Data">
+        <SettingsZone title={t('zones.data')}>
           {/* Link row, not an inline editor: body tracking grew its own surface
               (weight + tape history and trends at /body); settings only shows
               the current weight scoring reads and hands off. */}
-          <LinkRow href="/body" label="Body" hint="Your weight and measurements over time.">
+          <LinkRow href="/body" label={t('body.label')} hint={t('body.hint')}>
             <span className="text-sm tnum">
-              {bodyweightKg !== null ? `${kgToDisplay(bodyweightKg, unit)} ${unit}` : 'Not set'}
+              {bodyweightKg !== null
+                ? t('body.value', { value: kgToDisplay(bodyweightKg, unit), unit })
+                : t('body.valueUnset')}
             </span>
           </LinkRow>
           {/* Link row, like Body: the import flow (upload → preview → confirm
               → undo) grew its own surface at /settings/import. */}
           <LinkRow
             href="/settings/import"
-            label="Import history"
-            hint="Bring your Strong or Hevy workouts with you."
+            label={t('import.label')}
+            hint={t('import.hint')}
           />
           {/* Deletion's entry point moved to /settings/account's terminal
               Danger zone, where identity actions belong — beside DATA's
@@ -178,31 +173,28 @@ export default async function SettingsPage() {
             allowlisted operators; the route 404s for everyone else, so a
             leaked link reveals nothing. */}
         {showOps && (
-          <SettingsZone title="Internal" quarantined>
-            <LinkRow href="/ops" label="Ops" hint="Monitoring board — not part of the app." />
+          <SettingsZone title={t('zones.internal')} quarantined>
+            <LinkRow href="/ops" label={t('ops.label')} hint={t('ops.hint')} />
           </SettingsZone>
         )}
 
         {/* Privacy: the MHMDA withdrawal path — consent must be revocable
             here as easily as it was granted at signup. */}
-        <SettingsZone title="Privacy">
-          <SettingRow
-            label="Analytics identity"
-            hint="Link your usage (never your workout content) to your account. Turning this off also deletes your usage profile from our analytics provider."
-          >
+        <SettingsZone title={t('zones.privacy')}>
+          <SettingRow label={t('analytics.label')} hint={t('analytics.hint')}>
             <AnalyticsConsentToggle granted={Boolean(consent.analytics_identity?.granted)} />
           </SettingRow>
         </SettingsZone>
 
         {/* Legal links: the health-privacy link's prominence is an MHMDA
             requirement, not footer decoration. */}
-        <SettingsZone title="Legal">
-          <LinkRow href="/terms" label="Terms of Service" hint="The agreement for using the app." />
-          <LinkRow href="/privacy" label="Privacy Policy" hint="What we collect and why." />
+        <SettingsZone title={t('zones.legal')}>
+          <LinkRow href="/terms" label={t('terms.label')} hint={t('terms.hint')} />
+          <LinkRow href="/privacy" label={t('privacyPolicy.label')} hint={t('privacyPolicy.hint')} />
           <LinkRow
             href="/health-privacy"
-            label="Health Data Privacy"
-            hint="How your health data is handled, and your rights."
+            label={t('healthPrivacy.label')}
+            hint={t('healthPrivacy.hint')}
           />
         </SettingsZone>
 

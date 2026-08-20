@@ -28,11 +28,14 @@ import { cn } from '@/lib/utils'
 import { parseExerciseRef } from '../../exercise-ref'
 import {
   buildTrendChartPoints,
-  formatStandingTime,
+  standingTime,
   prWorkoutIds,
   recentE1rmDelta,
   sessionSummary,
 } from './detail-view'
+import { getTranslations } from 'next-intl/server'
+import { renderMessage } from '@/lib/message'
+import { resolveLocale } from '@/i18n/request'
 
 /** Sessions per history page. length === HISTORY_PAGE drives the "Older" link —
  *  at an exact multiple that shows one empty final page; accepted POC trade-off
@@ -52,6 +55,9 @@ export default async function ExerciseStatsPage({
   params: Promise<{ source: string; id: string }>
   searchParams: Promise<{ page?: string | string[]; from?: string | string[] }>
 }) {
+  const t = await getTranslations('ExerciseStats')
+  const tFormat = await getTranslations('Format')
+  const locale = await resolveLocale()
   const userId = await requireUserId()
   const [{ source, id }, { page: rawPage, from: rawFrom }] = await Promise.all([
     params,
@@ -127,21 +133,33 @@ export default async function ExerciseStatsPage({
   const e1rmDelta: StatDelta | undefined =
     delta !== null
       ? {
-          text:
-            `+${kgToDisplay(delta.gainKg, unit)} ${unit} ` +
-            (delta.basis === 'first'
-              ? 'vs first session'
+          // Three whole messages: the basis is not a phrase appended to a
+          // gain, it changes the shape of the sentence.
+          text: t(
+            delta.basis === 'first'
+              ? 'deltaFirst'
               : delta.withinMonth
-                ? 'this month'
-                : 'vs earlier sessions'),
+                ? 'deltaMonth'
+                : 'deltaEarlier',
+            { gain: kgToDisplay(delta.gainKg, unit), unit },
+          ),
           tone: 'positive',
         }
       : undefined
-  /** "· held N months" caption suffix, or '' while a record is still news. */
-  const standing = (since: Date): string => {
-    const held = formatStandingTime(since, now)
-    return held !== null ? ` · ${held}` : ''
+  /** The "held N months" caption segment, or null while a record is news. */
+  const standing = (since: Date): string | null => {
+    const held = standingTime(since, now)
+    return held === null ? null : t(`standing.${held.unit}`, { count: held.count })
   }
+  /** Caption segments joined by the app's dot separator — a LIST, so each
+   *  piece stays a whole message and order is the only thing composed. */
+  const caption = (...parts: (string | null)[]) => parts.filter(Boolean).join(' · ')
+  // Same rounding + grouping as formatVolume, minus the unit suffix — StatTile
+  // renders the unit slot itself. Hoisted out of the markup because the locale
+  // tag is an identifier, not copy.
+  const bestSessionVolume = records.bestSessionVolumeKg
+    ? Math.round(kgToDisplay(records.bestSessionVolumeKg.volumeKg, unit)).toLocaleString('en-US')
+    : null
   // Reverse-index rows, session-threaded like the /notes browser. The
   // exercise segment drops from breadcrumbs — this page IS the exercise.
   const noteThreads = groupNotesByThread(
@@ -168,7 +186,11 @@ export default async function ExerciseStatsPage({
                   ? `/api/cards/trend/${ref.source}/${ref.wgerExerciseId}`
                   : `/api/cards/pr/${ref.source}/${ref.wgerExerciseId}`
               }
-              shareTitle={`${stats.exercise.name} ${trend.length >= 2 ? 'progress' : 'PR'}`}
+              shareTitle={
+                trend.length >= 2
+                  ? t('shareTitleProgress', { name: stats.exercise.name })
+                  : t('shareTitlePr', { name: stats.exercise.name })
+              }
               className="-mr-2"
             />
           ) : undefined
@@ -198,9 +220,9 @@ export default async function ExerciseStatsPage({
         {/* All-time records. Lifting records stay reps_weight-only; duration
             work claims the cardio trio (longest duration/distance, best
             pace) instead — the two families never double-claim a set. */}
-        <section aria-label="All-time records">
+        <section aria-label={t('records.ariaLabel')}>
           <h2 className="px-1 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-            All-time records
+            {t('records.title')}
           </h2>
           {hasLoadRecords || records.mostReps !== null || hasCardioRecords ? (
             <dl className="mt-2 grid grid-cols-2 gap-3">
@@ -213,7 +235,7 @@ export default async function ExerciseStatsPage({
                 // #163 precedent; the delta TEXT already carries the volt).
                 <div className="col-span-2 border-b border-b-border/60 pb-4 motion-safe:animate-rise-in">
                   <dt className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-                    Best est. 1RM
+                    {t('records.bestE1rmLabel')}
                   </dt>
                   <dd className="mt-2 font-display text-6xl leading-none tracking-tight">
                     {kgToDisplay(records.bestE1rm.e1rm, unit)}
@@ -230,38 +252,48 @@ export default async function ExerciseStatsPage({
                     </dd>
                   )}
                   <dd className="mt-1 text-xs text-muted-foreground tnum">
-                    {(records.bestE1rm.reps > MAX_RELIABLE_REPS ? 'High-rep est. · ' : '') +
-                      `${kgToDisplay(records.bestE1rm.weightKg, unit)} ${unit} × ${records.bestE1rm.reps} · ` +
-                      formatWorkoutDate(records.bestE1rm.performedAt) +
-                      standing(records.bestE1rm.performedAt)}
+                    {caption(
+                      records.bestE1rm.reps > MAX_RELIABLE_REPS
+                        ? t('records.highRepEstimate')
+                        : null,
+                      `${kgToDisplay(records.bestE1rm.weightKg, unit)} ${unit} × ${records.bestE1rm.reps}`,
+                      formatWorkoutDate(records.bestE1rm.performedAt, locale),
+                      standing(records.bestE1rm.performedAt),
+                    )}
                   </dd>
                 </div>
               )}
               {records.heaviestLoadKg && (
                 <StatTile
-                  label="Heaviest load"
+                  label={t('records.heaviestLoadLabel')}
                   value={String(kgToDisplay(records.heaviestLoadKg.weightKg, unit))}
                   unit={unit}
-                  caption={`×${records.heaviestLoadKg.reps} · ${formatWorkoutDate(records.heaviestLoadKg.performedAt)}${standing(records.heaviestLoadKg.performedAt)}`}
+                  caption={caption(
+                    `×${records.heaviestLoadKg.reps}`,
+                    formatWorkoutDate(records.heaviestLoadKg.performedAt, locale),
+                    standing(records.heaviestLoadKg.performedAt),
+                  )}
                 />
               )}
               {records.mostReps && (
                 <StatTile
-                  label="Most reps"
+                  label={t('records.mostRepsLabel')}
                   value={String(records.mostReps.reps)}
-                  caption={`${formatWorkoutDate(records.mostReps.performedAt)}${standing(records.mostReps.performedAt)}`}
+                  caption={caption(
+                    formatWorkoutDate(records.mostReps.performedAt, locale),
+                    standing(records.mostReps.performedAt),
+                  )}
                 />
               )}
               {records.bestSessionVolumeKg && (
                 <StatTile
-                  label="Best session volume"
-                  // Same rounding + grouping as formatVolume, minus the unit
-                  // suffix — StatTile renders the unit slot itself.
-                  value={Math.round(
-                    kgToDisplay(records.bestSessionVolumeKg.volumeKg, unit),
-                  ).toLocaleString('en-US')}
+                  label={t('records.bestVolumeLabel')}
+                  value={bestSessionVolume ?? ''}
                   unit={unit}
-                  caption={`${formatWorkoutDate(records.bestSessionVolumeKg.performedAt)}${standing(records.bestSessionVolumeKg.performedAt)}`}
+                  caption={caption(
+                    formatWorkoutDate(records.bestSessionVolumeKg.performedAt, locale),
+                    standing(records.bestSessionVolumeKg.performedAt),
+                  )}
                 />
               )}
               {/* Cardio trio. With no e1RM headline the longest duration
@@ -270,55 +302,69 @@ export default async function ExerciseStatsPage({
               {longestDuration && records.bestE1rm === null && (
                 <div className="col-span-2 border-b border-b-border/60 pb-4 motion-safe:animate-rise-in">
                   <dt className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-                    Longest duration
+                    {t('records.longestDurationLabel')}
                   </dt>
                   <dd className="mt-2 font-display text-6xl leading-none tracking-tight tnum">
                     {formatDurationInput(longestDuration.durationSec)}
                   </dd>
                   <dd className="mt-1 text-xs text-muted-foreground tnum">
-                    {formatWorkoutDate(longestDuration.performedAt) +
-                      standing(longestDuration.performedAt)}
+                    {caption(
+                      formatWorkoutDate(longestDuration.performedAt, locale),
+                      standing(longestDuration.performedAt),
+                    )}
                   </dd>
                 </div>
               )}
               {longestDuration && records.bestE1rm !== null && (
                 <StatTile
-                  label="Longest duration"
+                  label={t('records.longestDurationLabel')}
                   value={formatDurationInput(longestDuration.durationSec)}
-                  caption={`${formatWorkoutDate(longestDuration.performedAt)}${standing(longestDuration.performedAt)}`}
+                  caption={caption(
+                    formatWorkoutDate(longestDuration.performedAt, locale),
+                    standing(longestDuration.performedAt),
+                  )}
                 />
               )}
               {longestDistance && (
                 <StatTile
-                  label="Longest distance"
+                  label={t('records.longestDistanceLabel')}
                   value={formatDistanceInput(longestDistance.distanceM)}
-                  unit="km"
-                  caption={`${formatWorkoutDate(longestDistance.performedAt)}${standing(longestDistance.performedAt)}`}
+                  unit={t('records.distanceUnit')}
+                  caption={caption(
+                    formatWorkoutDate(longestDistance.performedAt, locale),
+                    standing(longestDistance.performedAt),
+                  )}
                 />
               )}
               {bestPace && (
                 <StatTile
-                  label="Best pace"
+                  label={t('records.bestPaceLabel')}
                   value={formatDurationInput(Math.round(bestPace.secPerKm))}
-                  unit="/km"
-                  caption={`${formatWorkoutDate(bestPace.performedAt)}${standing(bestPace.performedAt)}`}
+                  unit={t('records.paceUnit')}
+                  caption={caption(
+                    formatWorkoutDate(bestPace.performedAt, locale),
+                    standing(bestPace.performedAt),
+                  )}
                 />
               )}
             </dl>
           ) : (
             <p className="mt-2 border-b border-b-border/60 px-1 py-8 text-center text-sm text-muted-foreground">
-              No load records yet — log weight (or set your bodyweight in Settings for bodyweight
-              movements) and PRs land here.
+              {t('records.empty')}
             </p>
           )}
         </section>
 
         {/* Trend — needs at least two points to be a line. */}
         {trendPoints.length >= 2 && (
-          <section aria-label="Estimated 1RM trend">
+          <section aria-label={t('trend.ariaLabel')}>
             <h2 className="px-1 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-              Est. 1RM trend · {trend.length} sessions
-              {goalTargetKg !== null && ` · target ${kgToDisplay(goalTargetKg, unit)} ${unit}`}
+              {caption(
+                t('trend.title', { sessions: trend.length }),
+                goalTargetKg !== null
+                  ? t('trend.target', { value: kgToDisplay(goalTargetKg, unit), unit })
+                  : null,
+              )}
             </h2>
             {/* De-carded: the chart sits between its header and a muted
                 hairline — the divider does the framing the shell used to. */}
@@ -326,10 +372,16 @@ export default async function ExerciseStatsPage({
               <TrendChart
                 points={trendPoints}
                 unit={unit}
-                valueLabel="Est. 1RM"
-                ariaLabel={`Estimated 1RM across ${trend.length} sessions, currently ${formatE1RM(trend[trend.length - 1].e1rm, unit)}`}
+                valueLabel={t('trend.valueLabel')}
+                ariaLabel={t('trend.chartAriaLabel', {
+                  sessions: trend.length,
+                  current: formatE1RM(trend[trend.length - 1].e1rm, unit, locale),
+                })}
                 {...(goalTargetKg !== null
-                  ? { targetValue: kgToDisplay(goalTargetKg, unit), targetLabel: 'Target' }
+                  ? {
+                      targetValue: kgToDisplay(goalTargetKg, unit),
+                      targetLabel: t('trend.targetLabel'),
+                    }
                   : {})}
               />
             </div>
@@ -338,13 +390,13 @@ export default async function ExerciseStatsPage({
 
         {/* Session history — display truth: every set of each completed
             workout, including unchecked and duration rows. */}
-        <section aria-label="Session history">
+        <section aria-label={t('history.ariaLabel')}>
           <h2 className="px-1 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-            History
+            {t('history.title')}
           </h2>
           {sessions.length === 0 ? (
             <EmptyWords className="mt-2">
-              {page > 1 ? 'No older sessions.' : 'No sessions yet.'}
+              {page > 1 ? t('history.emptyOlder') : t('history.empty')}
             </EmptyWords>
           ) : (
             <ul className="mt-2">
@@ -370,7 +422,7 @@ export default async function ExerciseStatsPage({
                     >
                       <div className="flex items-baseline gap-3">
                         <span className="shrink-0 text-sm font-semibold">
-                          {formatWorkoutDate(session.performedAt)}
+                          {formatWorkoutDate(session.performedAt, locale)}
                         </span>
                         <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
                           {session.workoutName}
@@ -384,21 +436,29 @@ export default async function ExerciseStatsPage({
                           >
                             {isPr && (
                               <>
-                                PR<span className="sr-only"> (personal record)</span> ·{' '}
+                                {t.rich('history.prChip', {
+                                  sr: (chunks) => <span className="sr-only">{chunks}</span>,
+                                })}
+                                {' · '}
                               </>
                             )}
-                            {formatE1RM(best.e1rmKg, unit)} e1RM
+                            {t('history.e1rmChip', {
+                              value: formatE1RM(best.e1rmKg, unit, locale),
+                            })}
                           </span>
                         )}
                       </div>
                       <p className="mt-1 flex items-baseline gap-2 text-sm tnum">
                         {bestSet !== null && (
                           <span className="min-w-0 truncate">
-                            {formatLoggedSet(bestSet, unit, stats.exercise.loggingType)}
+                            {renderMessage(
+                              tFormat,
+                              formatLoggedSet(bestSet, unit, stats.exercise.loggingType, locale),
+                            )}
                           </span>
                         )}
                         <span className="shrink-0 text-xs text-muted-foreground">
-                          {setCount} set{setCount === 1 ? '' : 's'}
+                          {t('history.setCount', { count: setCount })}
                         </span>
                       </p>
                     </Link>
@@ -416,7 +476,7 @@ export default async function ExerciseStatsPage({
                 className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }), '-ml-2')}
               >
                 <ChevronLeft aria-hidden="true" className="size-4" />
-                Newer
+                {t('history.newer')}
               </Link>
             ) : (
               <span />
@@ -426,7 +486,7 @@ export default async function ExerciseStatsPage({
                 href={withFrom(page + 1)}
                 className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }), '-mr-2')}
               >
-                Older
+                {t('history.older')}
                 <ChevronRight aria-hidden="true" className="size-4" />
               </Link>
             )}
@@ -438,9 +498,9 @@ export default async function ExerciseStatsPage({
             exercise with no notes shows no section — the identity note block
             above already owns authoring. */}
         {noteThreads.length > 0 && (
-          <section aria-label="Session notes">
+          <section aria-label={t('notes.ariaLabel')}>
             <h2 className="px-1 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-              Notes
+              {t('notes.title')}
             </h2>
             {noteThreads.map((thread) => (
               <div key={thread.key}>

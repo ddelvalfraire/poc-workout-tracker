@@ -5,6 +5,7 @@ import { X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useAnimatedSheetClose } from '@/components/use-animated-sheet-close'
 import { ExercisePicker, type PickedExercise } from './exercise-picker'
+import { useTranslations } from 'next-intl'
 
 /**
  * Bottom sheet wrapping the exercise search — the picker moved out of the
@@ -32,10 +33,14 @@ interface ExerciseSheetProps {
 export function ExerciseSheet({
   onAdd,
   onClose,
-  heading = 'Add exercise',
+  heading,
   suggestFor,
   onCreateNavigate,
 }: ExerciseSheetProps) {
+  const t = useTranslations('ExerciseSheet')
+  // Default resolved at RENDER, not in the parameter list: a default built
+  // at module evaluation would never see a locale.
+  const title = heading ?? t('title')
   const dialogRef = useRef<HTMLDialogElement>(null)
   const closeButtonRef = useRef<HTMLButtonElement>(null)
   const requestClose = useAnimatedSheetClose(dialogRef, onClose)
@@ -77,7 +82,7 @@ export function ExerciseSheet({
     // max-h + scroll: the search results list can exceed a phone viewport.
     <dialog
       ref={dialogRef}
-      aria-label={heading}
+      aria-label={title}
       onCancel={(e) => {
         e.preventDefault() // keep open/closed state owned by React
         requestClose()
@@ -109,7 +114,7 @@ export function ExerciseSheet({
         {/* Muted eyebrow (one-volt rule): the sheet's single volt is the
             primary commit action inside the picker, not its title. */}
         <p className="min-w-0 truncate text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-          {heading}
+          {title}
         </p>
         <Button
           ref={closeButtonRef}
@@ -117,7 +122,7 @@ export function ExerciseSheet({
           variant="ghost"
           className="-mr-1 text-muted-foreground"
           onClick={requestClose}
-          aria-label="Close"
+          aria-label={t('close')}
         >
           <X aria-hidden="true" className="size-4" />
         </Button>

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import { adoptProgramAction, declineProgramAction } from '@/app/programs/actions'
+import { useTranslations } from 'next-intl'
 
 /**
  * The forced confirm for a coach-drafted proposal — the ONLY controls a
@@ -15,6 +16,7 @@ import { adoptProgramAction, declineProgramAction } from '@/app/programs/actions
  * path behind a ConfirmDialog — it hard-deletes the proposal.
  */
 export function ProposalActions({ id }: { id: string }) {
+  const t = useTranslations('ProposalActions')
   const [isPending, setIsPending] = useState(false)
   const [isDeclineOpen, setIsDeclineOpen] = useState(false)
   // Adopt errors render on the page (their buttons live there); decline's
@@ -37,7 +39,7 @@ export function ProposalActions({ id }: { id: string }) {
       await adoptProgramAction(id, activate)
       router.refresh()
     } catch {
-      setAdoptError('Could not adopt this proposal. Please try again.')
+      setAdoptError(t('adoptError'))
     } finally {
       // This island stays mounted (refresh, not push) — always re-enable.
       setIsPending(false)
@@ -56,7 +58,7 @@ export function ProposalActions({ id }: { id: string }) {
     } catch {
       setIsPending(false)
       // The dialog stays open: the error renders inside it, retry in place.
-      setDeclineError('Could not decline this proposal. Please try again.')
+      setDeclineError(t('declineError'))
     }
   }
 
@@ -64,7 +66,7 @@ export function ProposalActions({ id }: { id: string }) {
     <div className="mt-4 space-y-2">
       <div className="flex items-center gap-2">
         <Button className="flex-1" disabled={isPending} onClick={() => handleAdopt(true)}>
-          Adopt &amp; activate
+          {t('adoptActivateAction')}
         </Button>
         <Button
           variant="outline"
@@ -72,7 +74,7 @@ export function ProposalActions({ id }: { id: string }) {
           disabled={isPending}
           onClick={() => handleAdopt(false)}
         >
-          Adopt as draft
+          {t('adoptDraftAction')}
         </Button>
         <Button
           variant="ghost"
@@ -83,16 +85,16 @@ export function ProposalActions({ id }: { id: string }) {
             setIsDeclineOpen(true)
           }}
         >
-          Decline
+          {t('declineAction')}
         </Button>
       </div>
       {adoptError && <p className="text-sm text-destructive">{adoptError}</p>}
       {isDeclineOpen && (
         <ConfirmDialog
-          title="Decline this proposal?"
-          body="The proposed plan is deleted. Your coach can always draft a new one."
-          confirmLabel="Decline"
-          pendingLabel="Declining…"
+          title={t('declineDialog.title')}
+          body={t('declineDialog.body')}
+          confirmLabel={t('declineDialog.confirm')}
+          pendingLabel={t('declineDialog.pending')}
           error={declineError}
           isPending={isPending}
           onConfirm={handleDecline}

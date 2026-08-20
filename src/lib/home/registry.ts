@@ -18,13 +18,34 @@ export type HomeSectionSize = 'sm' | 'md' | 'lg'
 
 export const HOME_SECTION_SIZES = ['sm', 'md', 'lg'] as const satisfies readonly HomeSectionSize[]
 
+/** The `HomeSection` catalog keys, written out rather than derived from
+ *  `kind` — a template-literal type would type-check against nothing, and the
+ *  point of the generated key types is that a missing message is a compile
+ *  error. */
+export type HomeSectionTitleKey =
+  | 'title.momentum'
+  | 'title.todayRecap'
+  | 'title.unfinished'
+  | 'title.history'
+
+export type HomeSectionDescriptionKey =
+  | 'description.momentum'
+  | 'description.todayRecap'
+  | 'description.unfinished'
+  | 'description.history'
+
+/** The registry's copy is CATALOG KEYS, not sentences: entries are data
+ *  shared by the editor grid, the tile sheet and (later) native clients, none
+ *  of which can be handed an English string. Both resolve against the
+ *  `HomeSection` namespace, and they are written out per entry rather than
+ *  derived from `kind` so the generated key types still check them. */
 export interface HomeSectionMeta {
   /** Stable semantic id — what the layout document stores. Never rename. */
   kind: string
   /** Short label for the editor row. */
-  title: string
+  titleKey: HomeSectionTitleKey
   /** One benefit-first clause for the editor row's hint. */
-  description: string
+  descriptionKey: HomeSectionDescriptionKey
   /** Sizes this section knows how to render — the write boundary rejects
    *  anything else; reads normalize to `defaultSize`. */
   allowedSizes: readonly HomeSectionSize[]
@@ -36,29 +57,29 @@ export interface HomeSectionMeta {
 export const HOME_SECTION_REGISTRY = [
   {
     kind: 'momentum',
-    title: 'Momentum',
-    description: 'This week’s sets, activity, and goal progress.',
+    titleKey: 'title.momentum',
+    descriptionKey: 'description.momentum',
     allowedSizes: ['sm', 'md', 'lg'],
     defaultSize: 'md',
   },
   {
     kind: 'today-recap',
-    title: 'Today',
-    description: 'Celebration cards for sessions you finished today.',
+    titleKey: 'title.todayRecap',
+    descriptionKey: 'description.todayRecap',
     allowedSizes: ['sm', 'md'],
     defaultSize: 'md',
   },
   {
     kind: 'unfinished',
-    title: 'Unfinished',
-    description: 'Stalled sessions waiting to be resumed or finished.',
+    titleKey: 'title.unfinished',
+    descriptionKey: 'description.unfinished',
     allowedSizes: ['md'],
     defaultSize: 'md',
   },
   {
     kind: 'history',
-    title: 'History',
-    description: 'Your latest completed workouts.',
+    titleKey: 'title.history',
+    descriptionKey: 'description.history',
     allowedSizes: ['sm', 'md', 'lg'],
     // lg, not md: today's home shows HOME_HISTORY_LIMIT (5) rows, which is
     // the lg rendering — the default-parity contract pins the default to it.

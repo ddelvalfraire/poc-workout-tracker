@@ -9,6 +9,8 @@ import { useHistoryDismissable } from '@/lib/use-history-dismissable'
 import { thumbHashToPlaceholderUrl } from '@/lib/photo-pipeline'
 import { photoPoseLabel } from '@/lib/photo-input'
 import type { PhotoEntry } from './photo-cell'
+import { useTranslations } from 'next-intl'
+import { renderMessage } from '@/lib/message'
 
 interface PhotoOverlayProps {
   entry: PhotoEntry
@@ -24,6 +26,8 @@ interface PhotoOverlayProps {
  * so the server-rendered grid drops the cell.
  */
 export function PhotoOverlay({ entry, onClose }: PhotoOverlayProps) {
+  const t = useTranslations('PhotoOverlay')
+  const tBody = useTranslations('Body')
   const dialogRef = useRef<HTMLDialogElement>(null)
   const [isConfirmOpen, setIsConfirmOpen] = useState(false)
   const [isPending, setIsPending] = useState(false)
@@ -60,7 +64,7 @@ export function PhotoOverlay({ entry, onClose }: PhotoOverlayProps) {
       onClose()
       router.refresh()
     } catch {
-      setError('Could not delete this photo. Please try again.')
+      setError(t('deleteError'))
     } finally {
       setIsPending(false)
     }
@@ -71,7 +75,7 @@ export function PhotoOverlay({ entry, onClose }: PhotoOverlayProps) {
       ref={dialogRef}
       onClose={onClose}
       onCancel={onClose}
-      aria-label={`Photo from ${entry.dateLabel}`}
+      aria-label={t('dialogLabel', { date: entry.dateLabel })}
       className="m-auto w-[min(92vw,28rem)] rounded-2xl border border-border bg-card p-0 text-foreground backdrop:bg-black/60 motion-safe:animate-rise-in"
     >
       <div className="relative aspect-[3/4] w-full overflow-hidden rounded-t-2xl bg-muted">
@@ -88,7 +92,10 @@ export function PhotoOverlay({ entry, onClose }: PhotoOverlayProps) {
           // eslint-disable-next-line @next/next/no-img-element -- signed expiring URL; the optimizer would cache-bust every render
           <img
             src={imageUrl}
-            alt={`Progress photo, ${entry.dateLabel}${entry.pose ? `, ${photoPoseLabel(entry.pose)}` : ''}`}
+            alt={t('alt', {
+              date: entry.dateLabel,
+              pose: entry.pose === null ? 'none' : renderMessage(tBody, photoPoseLabel(entry.pose)),
+            })}
             width={810}
             height={1080}
             className="absolute inset-0 h-full w-full object-cover"
@@ -97,7 +104,7 @@ export function PhotoOverlay({ entry, onClose }: PhotoOverlayProps) {
         <button
           type="button"
           onClick={onClose}
-          aria-label="Close"
+          aria-label={t('close')}
           className="absolute right-2 top-2 rounded-full bg-black/50 p-1.5 text-white focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
         >
           <X aria-hidden="true" className="size-4" />
@@ -109,7 +116,9 @@ export function PhotoOverlay({ entry, onClose }: PhotoOverlayProps) {
           <p className="text-sm font-medium">
             {entry.dateLabel}
             {entry.pose && (
-              <span className="text-muted-foreground"> · {photoPoseLabel(entry.pose)}</span>
+              <span className="text-muted-foreground">
+                {t('poseSuffix', { pose: renderMessage(tBody, photoPoseLabel(entry.pose)) })}
+              </span>
             )}
           </p>
           {entry.note && (
@@ -124,7 +133,7 @@ export function PhotoOverlay({ entry, onClose }: PhotoOverlayProps) {
             setError(null) // a stale failure must not reopen with the dialog
             setIsConfirmOpen(true)
           }}
-          aria-label={`Delete photo from ${entry.dateLabel}`}
+          aria-label={t('deleteAriaLabel', { date: entry.dateLabel })}
           className="shrink-0 text-muted-foreground hover:text-destructive focus-visible:text-destructive"
         >
           <Trash2 aria-hidden="true" className="size-4" />
@@ -133,10 +142,10 @@ export function PhotoOverlay({ entry, onClose }: PhotoOverlayProps) {
 
       {isConfirmOpen && (
         <ConfirmDialog
-          title="Delete this photo?"
-          body="It's removed from your account permanently — there's no undo."
-          confirmLabel="Delete"
-          pendingLabel="Deleting…"
+          title={t('confirm.title')}
+          body={t('confirm.body')}
+          confirmLabel={t('confirm.confirmLabel')}
+          pendingLabel={t('confirm.pendingLabel')}
           error={error}
           isPending={isPending}
           onConfirm={handleDelete}

@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest'
+import { renderMessageIn } from '../../../../../vitest.intl'
 import { MAX_RELIABLE_REPS } from '@/lib/one-rep-max'
 import type {
   ExerciseWeekPoint,
@@ -246,16 +247,47 @@ describe('programVerdict', () => {
     week({ week: 1, daysStarted: 4, daysCompleted: 4, plannedDays: 4, tonnageKg: 4000 }),
     week({ week: 2, daysStarted: 3, daysCompleted: 3, plannedDays: 4, tonnageKg: 5000 }),
   ]
+  /** The hero as the page renders it: both descriptors through en.json. */
+  const hero = (
+    weeks: Parameters<typeof programVerdict>[0],
+    currentWeek: number,
+    prCount: number,
+  ) => {
+    const verdict = programVerdict(weeks, currentWeek, prCount)
+    return {
+      headline: renderMessageIn('ProgramStats', verdict.headline),
+      context: renderMessageIn('ProgramStats', verdict.context),
+    }
+  }
+
+  it('picks the gains branch and carries count, adherence ratio and trend', () => {
+    expect(programVerdict(trainedWeeks, 3, 2)).toEqual({
+      headline: { key: 'verdict.headlineStronger' },
+      context: {
+        key: 'verdict.contextStronger',
+        // A RATIO, not a whole percent: ICU's `number, percent` places the
+        // sign, so 0.88 is what the message wants.
+        values: { lifts: 2, adherence: 0.88, trend: 'up' },
+      },
+    })
+  })
 
   it('celebrates gains with count, adherence, and trend in the context', () => {
-    expect(programVerdict(trainedWeeks, 3, 2)).toEqual({
+    expect(hero(trainedWeeks, 3, 2)).toEqual({
       headline: 'Getting stronger.',
       context: '2 lifts up this block · 88% of planned days trained · volume up week over week',
     })
   })
 
+  // Singular and plural separately: the lift count was hand-pluralized before.
+  it('agrees the lift count at one', () => {
+    const oneWeek = [week({ week: 1, daysStarted: 4, daysCompleted: 4, plannedDays: 4 })]
+    expect(hero(oneWeek, 2, 1).context).toBe('1 lift up this block · 100% of planned days trained')
+  })
+
   it('credits consistency without gains (singular lift handled elsewhere)', () => {
-    expect(programVerdict(trainedWeeks, 3, 0)).toEqual({
+    expect(programVerdict(trainedWeeks, 3, 0).headline).toEqual({ key: 'verdict.headlineSteady' })
+    expect(hero(trainedWeeks, 3, 0)).toEqual({
       headline: 'Showing up.',
       context: '88% of planned days trained · volume up week over week',
     })
@@ -263,17 +295,39 @@ describe('programVerdict', () => {
 
   it('falls back to early days before any completed week', () => {
     expect(programVerdict(zeroedBlock(5), 1, 0)).toEqual({
+      headline: { key: 'verdict.headlineEarly' },
+      context: { key: 'verdict.contextEarly' },
+    })
+    expect(hero(zeroedBlock(5), 1, 0)).toEqual({
       headline: 'Early days.',
       context: 'The block picture builds as you train.',
     })
   })
 
-  it('omits the trend suffix when there is no trend to sign', () => {
+  it('omits the trend clause when there is no trend to sign', () => {
     const oneWeek = [week({ week: 1, daysStarted: 4, daysCompleted: 4, plannedDays: 4 })]
 
-    expect(programVerdict(oneWeek, 2, 1).context).toBe(
+    expect(programVerdict(oneWeek, 2, 1).context.values).toMatchObject({ trend: 'flat' })
+    expect(hero(oneWeek, 2, 1).context).toBe(
       '1 lift up this block · 100% of planned days trained',
     )
+  })
+
+  it('renders the adherence as an Intl percentage, not a hand-written sign', () => {
+    const expected = new Intl.NumberFormat('en', { style: 'percent' }).format(0.88)
+    expect(hero(trainedWeeks, 3, 2).context).toContain(expected)
+  })
+
+  it('leaves no unresolved key path in either line', () => {
+    for (const args of [
+      [trainedWeeks, 3, 2],
+      [trainedWeeks, 3, 0],
+      [zeroedBlock(5), 1, 0],
+    ] as const) {
+      const rendered = hero(args[0], args[1], args[2])
+      expect(rendered.headline).not.toMatch(/ProgramStats\.[a-zA-Z.]+/)
+      expect(rendered.context).not.toMatch(/ProgramStats\.[a-zA-Z.]+/)
+    }
   })
 })
 
@@ -323,17 +377,37 @@ describe('volume status view helpers', () => {
     drivers: string[] = [],
   ): MuscleVerdict => ({ group: 'Chest', status, drivers, candidate: null })
 
+  const render = (message: Parameters<typeof renderMessageIn>[1]) =>
+    renderMessageIn('ProgramStats', message)
+
+  it('picks one status key per verdict', () => {
+    expect(volumeStatusLabel('increase')).toEqual({ key: 'muscle.statusIncrease' })
+    expect(volumeStatusLabel('hold')).toEqual({ key: 'muscle.statusHold' })
+    expect(volumeStatusLabel('on-track')).toEqual({ key: 'muscle.statusOnTrack' })
+  })
+
   it('status words per the chip contract', () => {
-    expect(volumeStatusLabel('increase')).toBe('+1 earned')
-    expect(volumeStatusLabel('hold')).toBe('hold')
-    expect(volumeStatusLabel('on-track')).toBe('on track')
+    expect(render(volumeStatusLabel('increase'))).toBe('+1 earned')
+    expect(render(volumeStatusLabel('hold'))).toBe('hold')
+    expect(render(volumeStatusLabel('on-track'))).toBe('on track')
+  })
+
+  it('passes the driver NAMES as an argument — exercise names are never copy', () => {
+    expect(volumeDriversLine(verdict('increase', ['Bench Press']))).toEqual({
+      key: 'muscle.driversIncrease',
+      values: { names: 'Bench Press' },
+    })
+    expect(volumeDriversLine(verdict('hold', ['Squat', 'Leg Press']))).toEqual({
+      key: 'muscle.driversHold',
+      values: { names: 'Squat, Leg Press' },
+    })
   })
 
   it('drivers line names the movements; on-track stays silent', () => {
-    expect(volumeDriversLine(verdict('increase', ['Bench Press']))).toBe(
+    expect(render(volumeDriversLine(verdict('increase', ['Bench Press']))!)).toBe(
       'Bench Press beat top of range 2 weeks running',
     )
-    expect(volumeDriversLine(verdict('hold', ['Squat', 'Leg Press']))).toBe(
+    expect(render(volumeDriversLine(verdict('hold', ['Squat', 'Leg Press']))!)).toBe(
       'Squat, Leg Press stalled — hold volume while recovery catches up',
     )
     expect(volumeDriversLine(verdict('on-track'))).toBe(null)
@@ -356,5 +430,13 @@ describe('volume status view helpers', () => {
   it('formatCreditedSets renders halves honestly and integers bare', () => {
     expect(formatCreditedSets(7)).toBe('7')
     expect(formatCreditedSets(7.5)).toBe('7.5')
+  })
+
+  it('formatCreditedSets is Intl, so the decimal separator follows the locale', () => {
+    expect(formatCreditedSets(7.5, 'en')).toBe(
+      new Intl.NumberFormat('en', { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(
+        7.5,
+      ),
+    )
   })
 })

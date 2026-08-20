@@ -4,6 +4,7 @@ import { getWorkoutDetail } from '@/db/workouts'
 import { getWeightUnit } from '@/db/preferences'
 import { workoutCardData } from '@/lib/cards/card-data'
 import { CardFrame, cardImage, CARD_COLORS, HEADLINE_STYLE } from '@/lib/cards/chrome'
+import { getMessages } from '@/i18n/translate'
 
 /**
  * GET /api/cards/workout/[id] — 1200×630 PNG of one of the CURRENT user's
@@ -27,12 +28,13 @@ export async function GET(
       getWorkoutDetail(userId, id),
       getWeightUnit(userId),
     ])
+    const tCard = await getMessages('ShareCard')
     const data = workout ? workoutCardData(workout, unit) : null
     if (data === null) {
       return NextResponse.json({ error: 'Not found' }, { status: 404 })
     }
     return cardImage(
-      <CardFrame eyebrow="Session">
+      <CardFrame eyebrow={tCard('session')}>
         <div style={{ display: 'flex', fontSize: 64, ...HEADLINE_STYLE }}>{data.title}</div>
         <div style={{ display: 'flex', alignItems: 'baseline', marginTop: 20 }}>
           <div

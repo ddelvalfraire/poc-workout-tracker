@@ -3,6 +3,7 @@
 import { headers } from 'next/headers'
 import { requireUserId } from '@/lib/auth'
 import { getActiveConsentDocument, recordConsent } from '@/db/consent'
+import { getTranslations } from 'next-intl/server'
 
 /**
  * Records the signup consent set — the server half of the /welcome screen.
@@ -53,6 +54,7 @@ export async function recordSignupConsentsAction(input: {
   const ip = h.get('x-forwarded-for')?.split(',')[0]?.trim() ?? null
   const userAgent = h.get('user-agent')
   const base = { userId, ip, userAgent }
+  const t = await getTranslations('ConsentForm')
   const presentation = (controlLabel: string) => ({
     route: '/welcome',
     surface: 'signup' as const,
@@ -64,25 +66,26 @@ export async function recordSignupConsentsAction(input: {
     purpose: 'health_collect',
     action: 'granted',
     documentId: healthDoc.id,
-    presentation: presentation('Store your health data'),
+    presentation: presentation(t('healthCollectLabel')),
   })
   await recordConsent({
     ...base,
     purpose: 'health_share',
     action: 'granted',
     documentId: healthDoc.id,
-    presentation: presentation('Share with our service providers'),
+    presentation: presentation(t('healthShareLabel')),
   })
   await recordConsent({
     ...base,
     purpose: 'tos',
     action: 'granted',
     documentId: tosDoc.id,
-    // MUST match the rendered control text exactly — the presentation proof
-    // exists to reproduce the affirmative act (consent-form.tsx ToS row).
-    presentation: presentation(
-      'I agree to the Terms of Service and have read the Privacy Notice and Health Data Privacy Policy.',
-    ),
+    // Read from the SAME catalog key the row renders, so the recorded proof
+    // and the control the user actually saw cannot drift — they were two
+    // copies of one sentence, kept in step by a comment and one test. Once a
+    // second locale ships this also records the wording in the language the
+    // user consented in, which is what presentation proof has to mean.
+    presentation: presentation(t('tosLabel')),
   })
   if (grantAnalytics && analyticsDoc) {
     await recordConsent({
@@ -90,7 +93,7 @@ export async function recordSignupConsentsAction(input: {
       purpose: 'analytics_identity',
       action: 'granted',
       documentId: analyticsDoc.id,
-      presentation: presentation('Analytics identity'),
+      presentation: presentation(t('analyticsControlLabel')),
     })
   }
   // No redirect() here on purpose: a server action invoked as a plain

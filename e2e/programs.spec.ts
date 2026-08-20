@@ -50,7 +50,7 @@ test('signed-in user can build a program, browse targets, and start a day', asyn
   await expect(programsLink).toBeVisible({ timeout: 15_000 })
   await programsLink.click()
   await expect(page).toHaveURL(/\/programs$/)
-  await expect(page.getByText('No programs yet')).toBeVisible()
+  await expect(page.getByText('Day one.')).toBeVisible()
   await page.getByRole('link', { name: /new program/i }).click()
   await expect(page).toHaveURL(/\/programs\/new$/)
 
@@ -63,7 +63,9 @@ test('signed-in user can build a program, browse targets, and start a day', asyn
 
   // Search the wger proxy and add the first result (seeds one empty set).
   await page.getByLabel('Search exercises').fill('bench')
-  const addButton = page.getByRole('button', { name: 'Add', exact: true }).first()
+  // The picker has no per-row Add button since #233: a result row IS the
+  // control (li role=option, click to add).
+  const addButton = page.getByRole('option').first()
   await expect(addButton).toBeVisible({ timeout: 20_000 })
   await addButton.click()
 
@@ -130,5 +132,5 @@ test('signed-in user can build a program, browse targets, and start a day', asyn
   await expect(page.getByText('Delete this program?')).toBeVisible()
   await page.getByRole('button', { name: /^delete$/i }).click()
   await expect(page).toHaveURL(/\/programs$/, { timeout: 15_000 })
-  await expect(page.getByText('No programs yet')).toBeVisible()
+  await expect(page.getByText('Day one.')).toBeVisible()
 })

@@ -4,6 +4,8 @@
  * adding a site is a code change, not user config.
  */
 
+import type { Message } from './message'
+
 export type MeasurementSite =
   | 'neck'
   | 'shoulders'
@@ -31,7 +33,14 @@ export function isMeasurementSite(value: unknown): value is MeasurementSite {
   return (MEASUREMENT_SITES as readonly unknown[]).includes(value)
 }
 
-/** UI label for a site ("waist" → "Waist"). */
-export function measurementSiteLabel(site: MeasurementSite): string {
-  return site.charAt(0).toUpperCase() + site.slice(1)
+/**
+ * The catalog key for a site's UI label, in the `Body` namespace.
+ *
+ * Title-casing the stored enum value only ever produced English, and the
+ * value is a database fact that must never be written in the creating user's
+ * language. The enum stays here, the words live in `Body.site.*`, and the
+ * picker, the history heading and the chart label all read the same one.
+ */
+export function measurementSiteLabel(site: MeasurementSite): Message<`site.${MeasurementSite}`> {
+  return { key: `site.${site}` }
 }

@@ -19,6 +19,8 @@ import { AppHeader } from '@/components/app-header'
 import { NavDrawer } from '@/components/nav/nav-drawer'
 import { cn } from '@/lib/utils'
 import { LibraryFilter, type LibraryEntry } from './library-filter'
+import { getTranslations } from 'next-intl/server'
+import { useTranslations } from 'next-intl'
 
 /**
  * The exercise library: every movement the user has trained in a completed
@@ -39,6 +41,7 @@ export default async function ExercisesPage({
 }: {
   searchParams: Promise<{ muscle?: string | string[]; sort?: string | string[] }>
 }) {
+  const t = await getTranslations('Exercises')
   const userId = await requireUserId()
   const params = parseLibraryParams(await searchParams)
   const [exercises, resolveMuscles, unit] = await Promise.all([
@@ -58,16 +61,18 @@ export default async function ExercisesPage({
       if (group !== null) groups.add(group)
     }
     const delta = e1rmDeltaChip(e.trendDeltaKg, unit)
+    const status = e1rmStatusBase(e.bestE1rmKg, unit) ?? sessionCountLine(e.sessionCount)
+    const recency = recencyLabel(e.lastPerformedAt, now)
     return {
       entry: {
         source: e.source,
         wgerExerciseId: e.wgerExerciseId,
         name: e.name,
         zone: exerciseZone(e, now),
-        statusBase: e1rmStatusBase(e.bestE1rmKg, unit) ?? sessionCountLine(e.sessionCount),
-        deltaText: delta?.text ?? null,
+        statusBase: t(status.key, status.values),
+        deltaText: delta === null ? null : t(delta.message.key, delta.message.values),
         deltaDirection: delta?.direction ?? null,
-        recencyLabel: recencyLabel(e.lastPerformedAt, now),
+        recencyLabel: t(recency.key, recency.values),
       } satisfies LibraryEntry,
       sessionCount: e.sessionCount,
       lastPerformedAtMs: e.lastPerformedAt.getTime(),
@@ -95,7 +100,7 @@ export default async function ExercisesPage({
   return (
     <div className="flex min-h-[100dvh] flex-col">
       <AppHeader
-        title="Exercises"
+        title={t('title')}
         leading={<NavDrawer />}
       />
 
@@ -105,12 +110,12 @@ export default async function ExercisesPage({
             {/* -mx-5/px-5: the chip row scrolls edge-to-edge while the rail
                 stays on the page grid. Links, not buttons — URL as state. */}
             <nav
-              aria-label="Filter by muscle group"
+              aria-label={t('facets.ariaLabel')}
               className="-mx-5 flex gap-2 overflow-x-auto px-5 pb-1 [scrollbar-width:none]"
             >
               <FacetChip
                 href={libraryHref({ ...params, muscle: null })}
-                label="All"
+                label={t('facets.all')}
                 isActive={params.muscle === null}
               />
               {facetGroups.map((group) => (
@@ -122,9 +127,10 @@ export default async function ExercisesPage({
                 />
               ))}
             </nav>
-            <nav aria-label="Sort" className="flex gap-4 px-1">
-              <SortLink params={params} sort="recent" label="Recent" />
-              <SortLink params={params} sort="trained" label="Most trained" />
+            <nav aria-label={t('sort.ariaLabel')} className="flex gap-4 px-1">
+              {SORT_OPTIONS.map((sort) => (
+                <SortLink key={sort} params={params} sort={sort} />
+              ))}
             </nav>
           </div>
         )}
@@ -136,6 +142,12 @@ export default async function ExercisesPage({
     </div>
   )
 }
+
+/** ARIA token values are part of the HTML vocabulary, never copy. */
+const ARIA_CURRENT_PAGE = 'page'
+
+/** The sort toggle's two sides, in render order. */
+const SORT_OPTIONS = ['recent', 'trained'] as const
 
 /** One muscle facet chip — the app's pill vocabulary; active = volt tint. */
 function FacetChip({
@@ -150,7 +162,7 @@ function FacetChip({
   return (
     <Link
       href={href}
-      aria-current={isActive ? 'page' : undefined}
+      aria-current={isActive ? ARIA_CURRENT_PAGE : undefined}
       className={cn(
         'shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold uppercase tracking-wide transition-colors',
         isActive ? 'bg-primary/15 text-primary' : 'bg-muted text-muted-foreground active:bg-muted/60',
@@ -161,27 +173,22 @@ function FacetChip({
   )
 }
 
-/** One side of the sort toggle — quiet text links, the active one lit. */
-function SortLink({
-  params,
-  sort,
-  label,
-}: {
-  params: LibraryParams
-  sort: LibraryParams['sort']
-  label: string
-}) {
+/** One side of the sort toggle — quiet text links, the active one lit.
+ *  Keyed by the sort VALUE, so the label resolves from the catalog at render
+ *  rather than travelling as a prop the parent had to spell in English. */
+function SortLink({ params, sort }: { params: LibraryParams; sort: LibraryParams['sort'] }) {
+  const t = useTranslations('Exercises')
   const isActive = params.sort === sort
   return (
     <Link
       href={libraryHref({ ...params, sort })}
-      aria-current={isActive ? 'page' : undefined}
+      aria-current={isActive ? ARIA_CURRENT_PAGE : undefined}
       className={cn(
         'text-xs font-semibold uppercase tracking-widest transition-colors',
         isActive ? 'text-primary' : 'text-muted-foreground',
       )}
     >
-      {label}
+      {t(`sort.${sort}`)}
     </Link>
   )
 }

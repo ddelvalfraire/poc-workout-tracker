@@ -1,7 +1,8 @@
 'use client'
 
 import { useSyncExternalStore } from 'react'
-import { scheduleAnchor } from '@/lib/schedule-anchor'
+import { useTranslations } from 'next-intl'
+import { scheduleAnchor, scheduleAnchorToken } from '@/lib/schedule-anchor'
 
 /**
  * The hero eyebrow's text for a SCHEDULED next day: "Today · Week N",
@@ -23,11 +24,13 @@ const useMounted = () =>
   )
 
 export function UpNextAnchor({ weekdays, week }: { weekdays: number[]; week: number }) {
+  const t = useTranslations('UpNextAnchor')
   const mounted = useMounted()
   const anchor = mounted ? scheduleAnchor(weekdays, new Date()) : null
-  return (
-    <>
-      {anchor ?? 'Up next'} · Week {week}
-    </>
-  )
+  // ONE message: the anchor word, the separator and the week number sit in a
+  // language-specific order — concatenating them here would freeze English.
+  // scheduleAnchor returns a KIND, so the word is resolved here: the eyebrow
+  // owns its copy of the day names, and nothing downstream compares them.
+  const word = anchor !== null ? t('anchor', { anchor: scheduleAnchorToken(anchor) }) : null
+  return <>{t('summary', { anchor: word ?? t('fallbackAnchor'), week })}</>
 }

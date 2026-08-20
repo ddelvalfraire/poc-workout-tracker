@@ -41,7 +41,7 @@ export function RpeLoggingToggle({ enabled }: { enabled: boolean }) {
         type="button"
         role="switch"
         aria-checked={isOn}
-        aria-label="Effort logging (RPE/RIR)"
+        aria-label={t('ariaLabel')}
         disabled={isPending}
         onClick={toggle}
         // 44px effective target via the invisible inset on a compact track.

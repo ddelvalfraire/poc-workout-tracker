@@ -15,6 +15,8 @@ import type { ExerciseSource } from '@/lib/custom-exercise-input'
 import { Ghost } from '@/components/ghost'
 import { useAnimatedSheetClose } from '@/components/use-animated-sheet-close'
 import { cn } from '@/lib/utils'
+import { useLocale, useTranslations } from 'next-intl'
+import { renderMessage } from '@/lib/message'
 
 /**
  * Bottom sheet for an exercise's all-time story mid-session: records, the
@@ -39,6 +41,9 @@ interface StatsSheetProps {
 }
 
 export function StatsSheet({ wgerExerciseId, source, name, unit, onClose }: StatsSheetProps) {
+  const t = useTranslations('StatsSheet')
+  const tFormat = useTranslations('Format')
+  const locale = useLocale()
   const dialogRef = useRef<HTMLDialogElement>(null)
   const closeButtonRef = useRef<HTMLButtonElement>(null)
   const requestClose = useAnimatedSheetClose(dialogRef, onClose)
@@ -84,7 +89,7 @@ export function StatsSheet({ wgerExerciseId, source, name, unit, onClose }: Stat
   return (
     <dialog
       ref={dialogRef}
-      aria-label={`Stats for ${name}`}
+      aria-label={t('ariaLabel', { name })}
       onCancel={(e) => {
         e.preventDefault() // keep open/closed state owned by React
         requestClose()
@@ -107,7 +112,7 @@ export function StatsSheet({ wgerExerciseId, source, name, unit, onClose }: Stat
       <div className="flex items-start justify-between gap-3 pb-1">
         <div className="min-w-0">
           <p className="text-xs font-semibold uppercase tracking-widest text-primary">
-            All-time stats
+            {t('title')}
           </p>
           <p className="mt-0.5 truncate text-sm text-muted-foreground">{name}</p>
         </div>
@@ -117,7 +122,7 @@ export function StatsSheet({ wgerExerciseId, source, name, unit, onClose }: Stat
           variant="ghost"
           className="-mr-1 text-muted-foreground"
           onClick={requestClose}
-          aria-label="Close"
+          aria-label={t('close')}
         >
           <X aria-hidden="true" className="size-4" />
         </Button>
@@ -161,14 +166,13 @@ export function StatsSheet({ wgerExerciseId, source, name, unit, onClose }: Stat
 
       {isError && (
         <p className="py-6 text-center text-sm text-muted-foreground">
-          Couldn&apos;t load stats. Close and reopen to retry.
+          {t('error')}
         </p>
       )}
 
       {!isPending && !isError && data === null && (
         <p className="py-6 text-center text-sm text-muted-foreground">
-          No completed sessions yet — finish a workout with this movement and its records land
-          here.
+          {t('empty')}
         </p>
       )}
 
@@ -182,22 +186,31 @@ export function StatsSheet({ wgerExerciseId, source, name, unit, onClose }: Stat
           {records.bestE1rm ? (
             <div className="mt-3">
               <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
-                Best est. 1RM
+                {t('bestE1rmLabel')}
               </p>
               <p className="mt-1 font-display text-5xl leading-none tracking-tight">
-                {kgToDisplay(records.bestE1rm.e1rm, unit)}
-                <span className="ml-1.5 text-lg text-muted-foreground">{unit}</span>
+                {t.rich('bestE1rmValue', {
+                  value: kgToDisplay(records.bestE1rm.e1rm, unit),
+                  unit,
+                  unitTag: (chunks) => (
+                    <span className="ml-1.5 text-lg text-muted-foreground">{chunks}</span>
+                  ),
+                })}
               </p>
               <p className="mt-1.5 text-xs text-muted-foreground tnum">
-                {kgToDisplay(records.bestE1rm.weightKg, unit)} {unit} × {records.bestE1rm.reps} ·{' '}
-                {formatWorkoutDate(records.bestE1rm.performedAt)}
+                {t('bestE1rmDetail', {
+                  weight: kgToDisplay(records.bestE1rm.weightKg, unit),
+                  unit,
+                  reps: records.bestE1rm.reps,
+                  date: formatWorkoutDate(records.bestE1rm.performedAt, locale),
+                })}
               </p>
             </div>
           ) : (
             !records.heaviestLoadKg &&
             !records.mostReps && (
               <p className="mt-2 text-sm text-muted-foreground">
-                No load records yet — log weight and PRs land here.
+                {t('emptyRecords')}
               </p>
             )
           )}
@@ -207,20 +220,24 @@ export function StatsSheet({ wgerExerciseId, source, name, unit, onClose }: Stat
               {records.heaviestLoadKg && (
                 <div className="rounded-xl border border-border px-2.5 py-2">
                   <dt className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
-                    Heaviest
+                    {t('heaviestLabel')}
                   </dt>
                   <dd className="mt-0.5 text-sm font-semibold tnum">
-                    {kgToDisplay(records.heaviestLoadKg.weightKg, unit)} {unit}
-                    <span className="ml-1 font-normal text-muted-foreground">
-                      ×{records.heaviestLoadKg.reps}
-                    </span>
+                    {t.rich('heaviestValue', {
+                      weight: kgToDisplay(records.heaviestLoadKg.weightKg, unit),
+                      unit,
+                      reps: records.heaviestLoadKg.reps,
+                      repsTag: (chunks) => (
+                        <span className="ml-1 font-normal text-muted-foreground">{chunks}</span>
+                      ),
+                    })}
                   </dd>
                 </div>
               )}
               {records.mostReps && (
                 <div className="rounded-xl border border-border px-2.5 py-2">
                   <dt className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
-                    Most reps
+                    {t('mostRepsLabel')}
                   </dt>
                   <dd className="mt-0.5 text-sm font-semibold tnum">{records.mostReps.reps}</dd>
                 </div>
@@ -228,10 +245,10 @@ export function StatsSheet({ wgerExerciseId, source, name, unit, onClose }: Stat
               {records.bestSessionVolumeKg && (
                 <div className="rounded-xl border border-border px-2.5 py-2">
                   <dt className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
-                    Top volume
+                    {t('topVolumeLabel')}
                   </dt>
                   <dd className="mt-0.5 text-sm font-semibold tnum">
-                    {formatVolume(records.bestSessionVolumeKg.volumeKg, unit)}
+                    {formatVolume(records.bestSessionVolumeKg.volumeKg, unit, locale)}
                   </dd>
                 </div>
               )}
@@ -244,7 +261,7 @@ export function StatsSheet({ wgerExerciseId, source, name, unit, onClose }: Stat
           {data.recent.length > 0 && (
             <div className="mt-5">
               <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-                Recent
+                {t('recentTitle')}
               </p>
               <ul className="mt-2 space-y-2">
                 {data.recent.map((session) => {
@@ -258,18 +275,21 @@ export function StatsSheet({ wgerExerciseId, source, name, unit, onClose }: Stat
                       className="flex items-baseline gap-3 text-sm"
                     >
                       <span className="w-24 shrink-0 text-xs text-muted-foreground">
-                        {formatWorkoutDate(session.performedAt)}
+                        {formatWorkoutDate(session.performedAt, locale)}
                       </span>
                       <span className="min-w-0 tnum">
                         {shown.length === 0
-                          ? '—'
+                          ? t('recentEmpty')
                           : shown.map(({ set, index }, position) => (
                               <span key={index}>
-                                {position > 0 && ', '}
+                                {position > 0 && t('setSeparator')}
                                 <span
                                   className={cn(index === best?.index && 'font-semibold')}
                                 >
-                                  {formatLoggedSet(set, unit, data.stats.exercise.loggingType)}
+                                  {renderMessage(
+                                    tFormat,
+                                    formatLoggedSet(set, unit, data.stats.exercise.loggingType, locale),
+                                  )}
                                 </span>
                               </span>
                             ))}
@@ -288,7 +308,7 @@ export function StatsSheet({ wgerExerciseId, source, name, unit, onClose }: Stat
           href={`${exerciseHref({ source, wgerExerciseId })}?from=${encodeURIComponent(pathname)}`}
           className={cn(buttonVariants({ variant: 'outline' }), 'w-full font-semibold uppercase')}
         >
-          View full stats
+          {t('action')}
         </Link>
       </div>
     </dialog>

@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { QuickCaptureSheet } from '@/components/editor/quick-capture-sheet'
 import { updateProgramDescriptionAction } from '@/app/programs/actions'
+import { useTranslations } from 'next-intl'
 
 /**
  * The program article's first human authoring surface (plan §7): a quiet text
@@ -18,6 +19,7 @@ interface DescriptionEditProps {
 }
 
 export function DescriptionEdit({ programId, programName, description }: DescriptionEditProps) {
+  const t = useTranslations('DescriptionEdit')
   const [isEditing, setIsEditing] = useState(false)
   const router = useRouter()
 
@@ -28,12 +30,12 @@ export function DescriptionEdit({ programId, programName, description }: Descrip
         onClick={() => setIsEditing(true)}
         className="mt-2 text-xs font-semibold uppercase tracking-widest text-muted-foreground underline-offset-4 transition-colors hover:text-foreground active:underline"
       >
-        {description !== null ? 'Edit description' : 'Add description'}
+        {description !== null ? t('editAction') : t('addAction')}
       </button>
       {isEditing && (
         <QuickCaptureSheet
           title={programName}
-          eyebrow="Program article"
+          eyebrow={t('sheetEyebrow')}
           variant="full"
           initialBody={description ?? ''}
           initialPinned={false}

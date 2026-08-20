@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Trash2 } from 'lucide-react'
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import { deleteMeasurementAction } from '@/app/actions'
+import { useTranslations } from 'next-intl'
 
 interface MeasurementEntryRowProps {
   id: string
@@ -21,6 +22,7 @@ interface MeasurementEntryRowProps {
  * server-fed. Same imperative dialog-close-before-refresh contract.
  */
 export function MeasurementEntryRow({ id, dateLabel, valueLabel }: MeasurementEntryRowProps) {
+  const t = useTranslations('MeasurementEntryRow')
   const [isPending, setIsPending] = useState(false)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -38,7 +40,7 @@ export function MeasurementEntryRow({ id, dateLabel, valueLabel }: MeasurementEn
       setIsModalOpen(false)
       router.refresh()
     } catch {
-      setError('Could not delete this entry. Please try again.')
+      setError(t('deleteError'))
     } finally {
       setIsPending(false)
     }
@@ -55,7 +57,7 @@ export function MeasurementEntryRow({ id, dateLabel, valueLabel }: MeasurementEn
           setError(null) // a stale failure must not reopen with the dialog
           setIsModalOpen(true)
         }}
-        aria-label={`Delete entry from ${dateLabel}`}
+        aria-label={t('deleteAriaLabel', { date: dateLabel })}
         // before:-inset-1 grows the invisible hit target past the small
         // glyph (the app's compact-row tap-target idiom); destructive tokens
         // only — delete never wears volt.
@@ -65,10 +67,10 @@ export function MeasurementEntryRow({ id, dateLabel, valueLabel }: MeasurementEn
       </button>
       {isModalOpen && (
         <ConfirmDialog
-          title="Delete this entry?"
-          body="It disappears from the history and the trend."
-          confirmLabel="Delete"
-          pendingLabel="Deleting…"
+          title={t('confirm.title')}
+          body={t('confirm.body')}
+          confirmLabel={t('confirm.confirmLabel')}
+          pendingLabel={t('confirm.pendingLabel')}
           error={error}
           isPending={isPending}
           onConfirm={handleDelete}

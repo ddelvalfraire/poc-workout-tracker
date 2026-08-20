@@ -1,3 +1,4 @@
+import { useTranslations } from 'next-intl'
 import type { MuscleGroupVolume } from '@/db/muscle-volume'
 import { cn } from '@/lib/utils'
 import { bulletWidthPct } from './volume-view'
@@ -20,6 +21,7 @@ interface PlanBulletListProps {
 }
 
 export function PlanBulletList({ rows }: PlanBulletListProps) {
+  const t = useTranslations('PlanBulletList')
   return (
     <ul className="space-y-3">
       {rows.map((row) => {
@@ -31,9 +33,9 @@ export function PlanBulletList({ rows }: PlanBulletListProps) {
               <span className="font-medium">{row.group}</span>
               <span className="text-muted-foreground tnum">
                 {hasTarget
-                  ? `${row.currentSets} / ${row.plannedSets} sets`
+                  ? t('progress', { current: row.currentSets, planned: row.plannedSets })
                   : // Trained off-plan: real work, no target to track against.
-                    `${row.currentSets} sets · no target`}
+                    t('noTarget', { current: row.currentSets })}
               </span>
             </div>
             {hasTarget && (

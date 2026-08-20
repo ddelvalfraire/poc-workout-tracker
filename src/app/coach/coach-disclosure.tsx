@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { Button } from '@/components/ui/button'
+import { useTranslations } from 'next-intl'
 
 /**
  * The coach AI disclosure (in-product-copy.md §3; Utah AI Act's proactive
@@ -79,6 +80,7 @@ function DisclosureDialog({
   onAcknowledge: () => void
   onDismiss: () => void
 }) {
+  const t = useTranslations('CoachDisclosure')
   const dialogRef = useRef<HTMLDialogElement>(null)
   const gotItRef = useRef<HTMLButtonElement>(null)
 
@@ -118,18 +120,16 @@ function DisclosureDialog({
     >
       <div>
         <p className="text-xs font-medium tracking-wider text-muted-foreground uppercase">
-          Before you start
+          {t('eyebrow')}
         </p>
         <h2 id="coach-disclosure-title" className="mt-2 text-xl font-semibold tracking-tight">
-          Coach is an AI
+          {t('title')}
         </h2>
         <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-          It knows your training history and can suggest changes to your program — but it can
-          make mistakes, and it isn&apos;t a doctor. Check anything that matters, and see a
-          physician before making health decisions.
+          {t('body')}
         </p>
         <Button ref={gotItRef} type="button" size="lg" className="mt-6 w-full" onClick={onAcknowledge}>
-          Got it
+          {t('acknowledgeAction')}
         </Button>
       </div>
     </dialog>

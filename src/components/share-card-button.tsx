@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { Share } from 'lucide-react'
+import { useTranslations } from 'next-intl'
 import { cardFileName, pickShareStrategy } from '@/lib/share-card'
 import { buttonVariants } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -30,6 +31,7 @@ export function ShareCardButton({
   size = 'icon-sm',
   className,
 }: ShareCardButtonProps) {
+  const t = useTranslations('ShareCardButton')
   const [busy, setBusy] = useState(false)
   const [hint, setHint] = useState<string | null>(null)
   const hintTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -71,10 +73,10 @@ export function ShareCardButton({
         anchor.click()
         // Revoke after the download has had time to start.
         setTimeout(() => URL.revokeObjectURL(objectUrl), HINT_DISMISS_MS)
-        showHint('Image saved — post it anywhere')
+        showHint(t('savedHint'))
       }
     } catch {
-      showHint("Couldn't create the share image")
+      showHint(t('error'))
     } finally {
       setBusy(false)
     }
@@ -86,7 +88,7 @@ export function ShareCardButton({
         type="button"
         onClick={handleShare}
         disabled={busy}
-        aria-label={`Share ${shareTitle}`}
+        aria-label={t('ariaLabel', { title: shareTitle })}
         className={cn(
           buttonVariants({ variant: 'ghost', size }),
           'text-muted-foreground',

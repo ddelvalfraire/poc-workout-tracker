@@ -20,36 +20,44 @@ const ALL_SCHEMES: ProgressionScheme[] = [
   'amrap-cycle',
 ]
 
+/**
+ * The voice itself now lives in `messages/en.json` under `SchemeCopy`, and is
+ * proved rendered word for word in scheme-copy-i18n.test.tsx. What is
+ * asserted here is the DECISION: which message a config earns, and the
+ * numbers it carries, quantized into the display unit.
+ */
 describe('schemeSubtitle / schemeName', () => {
-  it('covers every scheme with a non-empty plain sentence and name', () => {
-    for (const scheme of ALL_SCHEMES) {
-      expect(schemeSubtitle(scheme).length).toBeGreaterThan(0)
-      expect(schemeName(scheme).length).toBeGreaterThan(0)
-    }
+  it('gives every scheme its own camelCase catalog leaf', () => {
+    const leaves = ALL_SCHEMES.map((scheme) => schemeName(scheme).key)
+    expect(leaves).toEqual([
+      'name.linear',
+      'name.doubleProgression',
+      'name.percent1rm',
+      'name.rpeTarget',
+      'name.weeklyVolume',
+      'name.repProgression',
+      'name.amrapCycle',
+    ])
+    // The kebab-case discriminator is DATA; a message key must stay a legal
+    // identifier for an Android / xcstrings export (I18N-KEYS.md §3).
+    for (const key of leaves) expect(key).not.toContain('-')
   })
 
-  it('speaks the researched picker one-liners (issue #228 comment)', () => {
-    expect(schemeSubtitle('double-progression')).toBe(
-      'Work up to the top of your rep range, then the weight goes up and reps start over.',
-    )
-    expect(schemeSubtitle('linear')).toBe('Add weight every session you complete all sets.')
-    expect(schemeSubtitle('rep-progression')).toBe('Same weight, more reps each session.')
-  })
-
-  it('never leaks engine vocabulary into a subtitle', () => {
+  it('pairs each scheme with the matching subtitle leaf', () => {
     for (const scheme of ALL_SCHEMES) {
-      const subtitle = schemeSubtitle(scheme)
-      expect(subtitle).not.toMatch(/anchor|quorum|load steps/i)
-      expect(subtitle).not.toContain('undefined')
+      expect(schemeSubtitle(scheme).key).toBe(schemeName(scheme).key.replace('name.', 'subtitle.'))
     }
   })
 })
 
 describe('schemeSentence — actual numbers, quantized, in the display unit', () => {
   it('linear: names the quantized increment in lb', () => {
-    // 2.27 kg is 5.0 lb — the sentence prints the loadable 5 lb, never kg.
+    // 2.27 kg is 5.0 lb — the message carries the loadable 5, never kg.
     const p: Progression = { scheme: 'linear', incrementKg: 2.27 }
-    expect(schemeSentence(p, { unit: 'lb' })).toBe('Complete all sets → +5 lb next session.')
+    expect(schemeSentence(p, { unit: 'lb' })).toEqual({
+      key: 'sentence.linear',
+      values: { increment: 5, unit: 'lb' },
+    })
   })
 
   it('double progression: rep top, current load, and increment', () => {
@@ -60,36 +68,34 @@ describe('schemeSentence — actual numbers, quantized, in the display unit', ()
       incrementKg: 2.27,
     }
     // 29.48 kg = 65.0 lb.
-    expect(schemeSentence(p, { unit: 'lb', currentLoadKg: 29.48 })).toBe(
-      'Hit 12 reps on every set at 65 lb → +5 lb next session.',
-    )
+    expect(schemeSentence(p, { unit: 'lb', currentLoadKg: 29.48 })).toEqual({
+      key: 'sentence.doubleProgressionAtLoad',
+      values: { reps: 12, load: 65, increment: 5, unit: 'lb' },
+    })
   })
 
-  it('double progression: omits the load clause when no current load is known', () => {
+  it('double progression: drops to the load-less message when no load is known', () => {
     const p: Progression = {
       scheme: 'double-progression',
       repMin: 8,
       repMax: 12,
       incrementKg: 2.5,
     }
-    expect(schemeSentence(p, { unit: 'kg' })).toBe(
-      'Hit 12 reps on every set → +2.5 kg next session.',
-    )
-  })
-
-  it('double progression: a zero increment speaks the engine default step (2.5 kg)', () => {
-    const p: Progression = { scheme: 'double-progression', repMin: 8, repMax: 12, incrementKg: 0 }
-    expect(schemeSentence(p, { unit: 'kg' })).toBe(
-      'Hit 12 reps on every set → +2.5 kg next session.',
-    )
+    expect(schemeSentence(p, { unit: 'kg' })).toEqual({
+      key: 'sentence.doubleProgression',
+      values: { reps: 12, increment: 2.5, unit: 'kg' },
+    })
   })
 
   it("guards the local DEFAULT_STEP_KG mirror against the engine's AUTOREG_DEFAULT_STEP_KG", () => {
     // scheme-copy cannot import autoregulate (autoregulate imports it), so
     // the default step is mirrored locally — this test (no cycle here) pins
-    // the copy's zero-increment sentence to the engine's actual default step.
+    // the zero-increment branch to the engine's actual default step.
     const p: Progression = { scheme: 'double-progression', repMin: 8, repMax: 12, incrementKg: 0 }
-    expect(schemeSentence(p, { unit: 'kg' })).toContain(`+${AUTOREG_DEFAULT_STEP_KG} kg`)
+    expect(schemeSentence(p, { unit: 'kg' })).toEqual({
+      key: 'sentence.doubleProgression',
+      values: { reps: 12, increment: AUTOREG_DEFAULT_STEP_KG, unit: 'kg' },
+    })
   })
 
   it('percent-1rm: the percent span of a quantized training max', () => {
@@ -98,69 +104,85 @@ describe('schemeSentence — actual numbers, quantized, in the display unit', ()
       trainingMaxKg: 63.5, // 140.0 lb
       weekPercents: [0.7, 0.8, 0.9],
     }
-    expect(schemeSentence(p, { unit: 'lb' })).toBe(
-      'Week loads are 70–90% of your 140 lb training max.',
-    )
+    expect(schemeSentence(p, { unit: 'lb' })).toEqual({
+      key: 'sentence.percent1rmRange',
+      values: { min: 70, max: 90, trainingMax: 140, unit: 'lb' },
+    })
   })
 
-  it('percent-1rm: a single percent collapses the span', () => {
+  it('percent-1rm: a single percent collapses to the span-less message', () => {
     const p: Progression = { scheme: 'percent-1rm', trainingMaxKg: 100, weekPercents: [0.75] }
-    expect(schemeSentence(p, { unit: 'kg' })).toBe(
-      'Week loads are 75% of your 100 kg training max.',
-    )
+    expect(schemeSentence(p, { unit: 'kg' })).toEqual({
+      key: 'sentence.percent1rm',
+      values: { percent: 75, trainingMax: 100, unit: 'kg' },
+    })
   })
 
-  it('rep-progression: reps with a cap', () => {
-    const p: Progression = {
+  it('rep-progression: one rep with a cap, and many without', () => {
+    const capped: Progression = {
       scheme: 'rep-progression',
       incrementReps: 1,
       incrementSec: 0,
       maxReps: 20,
     }
-    expect(schemeSentence(p, { unit: 'lb' })).toBe('+1 rep each session, up to 20.')
-  })
-
-  it('rep-progression: seconds variant, capless plural', () => {
-    const timed: Progression = { scheme: 'rep-progression', incrementReps: 0, incrementSec: 30 }
-    expect(schemeSentence(timed, { unit: 'kg' })).toBe('+30 sec each session.')
+    expect(schemeSentence(capped, { unit: 'lb' })).toEqual({
+      key: 'sentence.repProgressionCapped',
+      values: { reps: 1, cap: 20 },
+    })
     const uncapped: Progression = { scheme: 'rep-progression', incrementReps: 2, incrementSec: 0 }
-    expect(schemeSentence(uncapped, { unit: 'kg' })).toBe('+2 reps each session.')
+    expect(schemeSentence(uncapped, { unit: 'kg' })).toEqual({
+      key: 'sentence.repProgression',
+      values: { reps: 2 },
+    })
   })
 
-  it('amrap-cycle: the researched sentence with the actual bump', () => {
+  it('rep-progression: seconds variant', () => {
+    const timed: Progression = { scheme: 'rep-progression', incrementReps: 0, incrementSec: 30 }
+    expect(schemeSentence(timed, { unit: 'kg' })).toEqual({
+      key: 'sentence.secProgression',
+      values: { seconds: 30 },
+    })
+  })
+
+  it('amrap-cycle: the actual bump', () => {
     const p: Progression = {
       scheme: 'amrap-cycle',
       trainingMaxKg: 100,
       incrementKg: 2.5,
       wave: [[0.65, 0.75, 0.85]],
     }
-    expect(schemeSentence(p, { unit: 'kg' })).toBe(
-      'Beat your rep record on the last set to earn the next training-max bump (+2.5 kg).',
-    )
+    expect(schemeSentence(p, { unit: 'kg' })).toEqual({
+      key: 'sentence.amrapCycle',
+      values: { increment: 2.5, unit: 'kg' },
+    })
   })
 
   it('weekly-volume: the set ramp', () => {
     const p: Progression = { scheme: 'weekly-volume', mevSets: 12, mrvSets: 20 }
-    expect(schemeSentence(p, { unit: 'lb' })).toBe('12 → 20 sets across the block, added weekly.')
+    expect(schemeSentence(p, { unit: 'lb' })).toEqual({
+      key: 'sentence.weeklyVolume',
+      values: { mev: 12, mrv: 20 },
+    })
   })
 
   it('rpe-target: the target effort', () => {
     const p: Progression = { scheme: 'rpe-target', targetRpe: 8 }
-    expect(schemeSentence(p, { unit: 'lb' })).toBe(
-      'Loads picked from your estimated max to land at RPE 8.',
-    )
+    expect(schemeSentence(p, { unit: 'lb' })).toEqual({
+      key: 'sentence.rpeTarget',
+      values: { rpe: 8 },
+    })
   })
 })
 
 describe('schemeSentence — missing data degrades to the subtitle', () => {
   it('linear with no increment falls back', () => {
     const p: Progression = { scheme: 'linear', incrementKg: 0 }
-    expect(schemeSentence(p, { unit: 'lb' })).toBe(schemeSubtitle('linear'))
+    expect(schemeSentence(p, { unit: 'lb' })).toEqual(schemeSubtitle('linear'))
   })
 
   it('percent-1rm with a zero training max falls back', () => {
     const p: Progression = { scheme: 'percent-1rm', trainingMaxKg: 0, weekPercents: [0.7] }
-    expect(schemeSentence(p, { unit: 'lb' })).toBe(schemeSubtitle('percent-1rm'))
+    expect(schemeSentence(p, { unit: 'lb' })).toEqual(schemeSubtitle('percent-1rm'))
   })
 
   it('amrap-cycle with no bump falls back (static wave loading)', () => {
@@ -170,10 +192,10 @@ describe('schemeSentence — missing data degrades to the subtitle', () => {
       incrementKg: 0,
       wave: [[0.65]],
     }
-    expect(schemeSentence(p, { unit: 'kg' })).toBe(schemeSubtitle('amrap-cycle'))
+    expect(schemeSentence(p, { unit: 'kg' })).toEqual(schemeSubtitle('amrap-cycle'))
   })
 
-  it('never renders "undefined", "NaN", or a raw-kg load in a lb account', () => {
+  it('degrades structurally, so no NaN or raw-kg load can reach a lb account', () => {
     const configs: Progression[] = [
       { scheme: 'linear', incrementKg: Number.NaN },
       { scheme: 'double-progression', repMin: 0, repMax: 0, incrementKg: 2.5 },
@@ -181,11 +203,11 @@ describe('schemeSentence — missing data degrades to the subtitle', () => {
       { scheme: 'rep-progression', incrementReps: 0, incrementSec: 0 },
     ]
     for (const p of configs) {
-      const sentence = schemeSentence(p, { unit: 'lb', currentLoadKg: 30.21 })
-      expect(sentence).not.toContain('undefined')
-      expect(sentence).not.toContain('NaN')
-      expect(sentence).not.toContain('66.6') // 30.21 kg raw — must never surface
-      expect(sentence).toBe(schemeSubtitle(p.scheme))
+      const message = schemeSentence(p, { unit: 'lb', currentLoadKg: 30.21 })
+      // The subtitle takes NO arguments, so neither NaN nor the raw 30.21 kg
+      // has anywhere to go — the degradation is structural, not cosmetic.
+      expect(message).toEqual(schemeSubtitle(p.scheme))
+      expect(message.values).toBeUndefined()
     }
   })
 })

@@ -5,6 +5,7 @@ import type { FinishUpNext } from '@/lib/finish-up-next'
 import { UpNextAnchor } from '@/app/up-next-anchor'
 import { buttonVariants } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import { useTranslations } from 'next-intl'
 
 /**
  * The just-finished summary's follow-up card: the home hero's "up next"
@@ -21,13 +22,14 @@ export function FinishUpNextCard({
 }: {
   state: Exclude<FinishUpNext<NextProgramDay>, { kind: 'none' }>
 }) {
+  const t = useTranslations('FinishUpNextCard')
   const { next } = state
 
   if (state.kind === 'block-complete') {
     return (
       <section className="mt-4 border-b border-b-border/60 py-5 motion-safe:animate-rise-in">
         <p className="text-xs font-semibold uppercase tracking-widest text-primary">
-          Block complete
+          {t('blockComplete.badge')}
         </p>
 
         {/* The achievement is the PROGRAM — same poster type as the home
@@ -38,14 +40,13 @@ export function FinishUpNextCard({
 
         <div className="mt-3 flex items-baseline justify-between gap-3">
           <p className="text-sm text-muted-foreground tnum">
-            Every week trained · {next.mesocycleWeeks} week
-            {next.mesocycleWeeks === 1 ? '' : 's'}
+            {t('blockComplete.summary', { weeks: next.mesocycleWeeks })}
           </p>
           <Link
             href={`/programs/${next.programId}/stats`}
             className="flex shrink-0 items-center gap-0.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
           >
-            See results
+            {t('blockComplete.action')}
             <ChevronRight aria-hidden="true" className="size-4" />
           </Link>
         </div>
@@ -62,7 +63,7 @@ export function FinishUpNextCard({
         {next.weekdays.length > 0 ? (
           <UpNextAnchor weekdays={next.weekdays} week={next.week} />
         ) : (
-          <>Up next · Week {next.week}</>
+          t('upNext.anchor', { week: next.week })
         )}
       </p>
 
@@ -71,7 +72,7 @@ export function FinishUpNextCard({
       </h2>
 
       <p className="mt-2 text-sm text-muted-foreground tnum">
-        {exerciseCount} exercise{exerciseCount === 1 ? '' : 's'} · {next.programName}
+        {t('upNext.summary', { count: exerciseCount, programName: next.programName })}
       </p>
 
       <div className="mt-4">
@@ -79,7 +80,7 @@ export function FinishUpNextCard({
           href="/"
           className={cn(buttonVariants({ variant: 'outline' }), 'w-full')}
         >
-          Start when ready
+          {t('upNext.action')}
         </Link>
       </div>
     </section>

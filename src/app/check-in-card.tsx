@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { checkInCardDetail, checkInDismissKey, shouldShowCheckInCard } from '@/lib/check-in-card'
 import { buttonVariants } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import { useTranslations } from 'next-intl'
 
 interface CheckInCardProps {
   /** Whole days since the last check-in; null = never checked in. */
@@ -21,6 +22,7 @@ interface CheckInCardProps {
  * client HTML identical.
  */
 export function CheckInCard({ daysSinceLast }: CheckInCardProps) {
+  const t = useTranslations('CheckInCard')
   const [isVisible, setIsVisible] = useState(false)
 
   useEffect(() => {
@@ -48,10 +50,10 @@ export function CheckInCard({ daysSinceLast }: CheckInCardProps) {
   return (
     <div className="mt-6 border-b border-b-border/60 pb-4 motion-safe:animate-rise-in">
       <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-        Body check-in due
+        {t('title')}
       </p>
       <p className="mt-1 text-sm text-muted-foreground">
-        Weight, tape, or a progress photo — {checkInCardDetail(daysSinceLast)}.
+        {t('lede', { detail: checkInCardDetail(daysSinceLast) })}
       </p>
       <div className="mt-3 flex items-center justify-between gap-3">
         <Link
@@ -61,7 +63,7 @@ export function CheckInCard({ daysSinceLast }: CheckInCardProps) {
             'text-xs font-semibold uppercase',
           )}
         >
-          Check in
+          {t('action')}
         </Link>
         {/* A quiet text control, not a button variant: dismissal
             must read as an afterthought, never a competing action. */}
@@ -70,7 +72,7 @@ export function CheckInCard({ daysSinceLast }: CheckInCardProps) {
           onClick={dismiss}
           className="relative text-xs text-muted-foreground outline-none underline-offset-2 transition-colors before:absolute before:-inset-2 hover:underline focus-visible:underline"
         >
-          Not today
+          {t('dismiss')}
         </button>
       </div>
     </div>

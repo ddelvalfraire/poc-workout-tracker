@@ -133,7 +133,7 @@ export function WorkoutRemindersToggle() {
         type="button"
         role="switch"
         aria-checked={isOn}
-        aria-label="Workout reminders"
+        aria-label={t('ariaLabel')}
         disabled={isBusy || isDenied || support === 'pending'}
         onClick={toggle}
         // 44px effective target via the invisible inset on a compact track.

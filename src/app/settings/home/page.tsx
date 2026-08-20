@@ -3,6 +3,7 @@ import { getHomeLayout } from '@/db/preferences'
 import { AppHeader } from '@/components/app-header'
 import { BackLink } from '@/components/back-link'
 import { HomeLayoutEditor } from './home-layout-editor'
+import { getTranslations } from 'next-intl/server'
 
 /**
  * The home layout editor surface: a miniature grid preview that teaches the
@@ -17,12 +18,13 @@ import { HomeLayoutEditor } from './home-layout-editor'
  * component in the settings max-width column.
  */
 export default async function CustomizeHomePage() {
+  const t = await getTranslations('CustomizeHome')
   const userId = await requireUserId()
   const sections = await getHomeLayout(userId)
 
   return (
     <div className="flex min-h-[100dvh] flex-col">
-      <AppHeader title="Customize home" leading={<BackLink fallback="/settings" />} />
+      <AppHeader title={t('title')} leading={<BackLink fallback="/settings" />} />
       <main className="mx-auto w-full max-w-md flex-1 px-5 pb-safe">
         <HomeLayoutEditor initialSections={sections} />
       </main>

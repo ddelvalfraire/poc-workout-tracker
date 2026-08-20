@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import { requireUserId } from '@/lib/auth'
 import { getConsentState } from '@/db/consent'
 import { ConsentForm } from './consent-form'
+import { getTranslations } from 'next-intl/server'
 
 export const metadata: Metadata = { title: 'Your data, your call' }
 
@@ -13,6 +14,7 @@ export const metadata: Metadata = { title: 'Your data, your call' }
  * harmless).
  */
 export default async function WelcomePage() {
+  const t = await getTranslations('Welcome')
   const userId = await requireUserId()
   // Mirror of the home gate: bounce to the app only when EVERY required
   // purpose is granted, so a withdrawn health consent re-opens this screen.
@@ -31,19 +33,17 @@ export default async function WelcomePage() {
     <main className="mx-auto w-full max-w-md px-[clamp(1.25rem,4vw,2.5rem)] pt-[clamp(2rem,1rem+4vw,5rem)] pb-16 lg:grid lg:max-w-5xl lg:grid-cols-[minmax(0,1fr)_26rem] lg:items-start lg:gap-20">
       <header className="lg:sticky lg:top-16">
         <h1 className="text-[clamp(1.875rem,1.3rem+2.4vw,3rem)] leading-tight font-semibold tracking-tight text-balance">
-          Your data, your call
+          {t('title')}
         </h1>
         {/* Jurisdiction-neutral on purpose: the consent set satisfies MHMDA,
             GDPR, and the rest, but we honor the same choices for EVERYONE —
             the specific statutes are named where they must be, in the Health
             Data Privacy policy. */}
         <p className="mt-3 max-w-[42ch] text-muted-foreground lg:mt-4 lg:text-lg lg:leading-relaxed">
-          Your training data is health data, and you get real choices about it — each one in
-          plain English.
+          {t('lede')}
         </p>
         <p className="mt-6 hidden max-w-[42ch] text-sm leading-relaxed text-muted-foreground lg:block">
-          Two of these are required — they are what the app is. One is optional and off by
-          default. All of them can be revisited in Settings.
+          {t('requirementNote')}
         </p>
       </header>
       <div className="mt-8 lg:mt-1">

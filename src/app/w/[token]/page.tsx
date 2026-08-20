@@ -16,6 +16,9 @@ import { AppHeader } from '@/components/app-header'
 import { PrBadge } from '@/components/pr-badge'
 import { buttonVariants } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import { getTranslations } from 'next-intl/server'
+import { renderMessage } from '@/lib/message'
+import { resolveLocale } from '@/i18n/request'
 
 /** Share tokens are 32 base64url chars (24 random bytes); anything shaped
  *  differently is a bad URL and 404s before touching the db — the /p/[token]
@@ -39,6 +42,9 @@ export default async function SharedWorkoutPage({
 }: {
   params: Promise<{ token: string }>
 }) {
+  const t = await getTranslations('SharedWorkout')
+  const tFormat = await getTranslations('Format')
+  const locale = await resolveLocale()
   const { token } = await params
   if (!TOKEN_PATTERN.test(token)) notFound()
   const shared = await resolveWorkoutShare(token)
@@ -59,20 +65,23 @@ export default async function SharedWorkoutPage({
     (sum, e) => sum + e.sets.reduce((s, set) => s + (set.reps ?? 0) * (set.weight ?? 0), 0),
     0,
   )
-  const duration = formatWorkoutDuration(workout.startedAt, workout.completedAt)
+  const duration = renderMessage(
+    tFormat,
+    formatWorkoutDuration(workout.startedAt, workout.completedAt),
+  )
 
   // De-carded notices: a plain sentence over the page background, opening
   // past a hairline — the button, not a shell, carries the affordance.
   const footer = isOwner ? (
     <div className="border-t border-border pt-4">
       <p className="text-sm text-muted-foreground">
-        This is your workout — this is what people with the link see.
+        {t('ownerNotice')}
       </p>
       <Link
         href={`/workout/${workout.id}`}
         className={cn(buttonVariants({ variant: 'outline' }), 'mt-3 w-full')}
       >
-        Open your workout
+        {t('openAction')}
       </Link>
     </div>
   ) : userId === null ? (
@@ -80,33 +89,33 @@ export default async function SharedWorkoutPage({
     // visitor lands back on the session that brought them in.
     <div className="border-t border-border pt-4">
       <p className="text-sm text-muted-foreground">
-        Logged with this app — track your own sessions, PRs, and programs.
+        {t('promoDescription')}
       </p>
       <Link
         href={`/sign-in?redirect_url=${encodeURIComponent(`/w/${token}`)}`}
         className={cn(buttonVariants(), 'mt-3 w-full')}
       >
-        Sign in to start tracking
+        {t('signInAction')}
       </Link>
     </div>
   ) : null
 
   return (
     <div className="flex min-h-[100dvh] flex-col">
-      <AppHeader title={workout.name ?? 'Shared workout'} />
+      <AppHeader title={workout.name ?? t('sharedLabel')} />
 
       <main className="mx-auto w-full max-w-md flex-1 px-5 pb-safe">
         <div className="mt-4 flex items-center gap-2">
-          <p className="text-sm text-muted-foreground">{formatWorkoutDate(workout.startedAt)}</p>
+          <p className="text-sm text-muted-foreground">{formatWorkoutDate(workout.startedAt, locale)}</p>
           <span className="rounded-full border border-border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
-            Shared workout
+            {t('sharedLabel')}
           </span>
         </div>
 
         <dl className="mt-3 grid grid-cols-3 overflow-hidden rounded-2xl border border-border bg-card">
-          <Stat label="Duration" value={duration ?? '—'} />
-          <Stat label="Volume" value={volumeKg > 0 ? formatVolume(volumeKg, unit) : '—'} />
-          <Stat label={totalSets === 1 ? 'Set' : 'Sets'} value={String(totalSets)} />
+          <Stat label={t('durationLabel')} value={duration ?? '—'} />
+          <Stat label={t('volumeLabel')} value={volumeKg > 0 ? formatVolume(volumeKg, unit, locale) : '—'} />
+          <Stat label={t('setsLabel', { count: totalSets })} value={String(totalSets)} />
         </dl>
 
         {/* De-carded (owner-summary vocabulary): exercises sit on hairline
@@ -135,7 +144,7 @@ export default async function SharedWorkoutPage({
                   </h2>
                   {exercise.skipped ? (
                     <span className="rounded-full border border-border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
-                      Skipped
+                      {t('skippedLabel')}
                     </span>
                   ) : (
                     isPR && <PrBadge />
@@ -143,7 +152,7 @@ export default async function SharedWorkoutPage({
                 </div>
                 <div className="mt-3 space-y-2">
                   {exercise.sets.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">No sets logged.</p>
+                    <p className="text-sm text-muted-foreground">{t('emptySets')}</p>
                   ) : (
                     exercise.sets.map((set, setIndex) => (
                       <div key={set.id} className="flex items-center gap-3">
@@ -161,11 +170,11 @@ export default async function SharedWorkoutPage({
                               : 'font-medium text-foreground/80',
                           )}
                         >
-                          {formatLoggedSet(set, unit, exercise.loggingType)}
+                          {renderMessage(tFormat, formatLoggedSet(set, unit, exercise.loggingType, locale))}
                         </span>
                         {setIndex === bestIndex && (
                           <span className="rounded-full border border-border px-1.5 py-px text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
-                            Top set
+                            {t('topSetLabel')}
                           </span>
                         )}
                       </div>
@@ -175,18 +184,18 @@ export default async function SharedWorkoutPage({
                 {current && (
                   <div className="mt-3 flex items-baseline justify-between gap-3 border-t border-border pt-3">
                     <span className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
-                      {current.kind === 'e1rm' ? 'Est. 1RM' : 'Top set'}
+                      {current.kind === 'e1rm' ? t('e1rmLabel') : t('topSetLabel')}
                     </span>
                     {current.kind === 'e1rm' ? (
                       <span className="font-display text-3xl leading-none tnum">
                         <span aria-hidden="true" className="text-muted-foreground">
-                          ~
+                          {t('approxPrefix')}
                         </span>
                         {formatE1RM(current.e1rm, unit)}
                       </span>
                     ) : (
                       <span className="font-display text-3xl leading-none tnum">
-                        {current.reps} reps
+                        {t('repsValue', { reps: current.reps })}
                       </span>
                     )}
                   </div>

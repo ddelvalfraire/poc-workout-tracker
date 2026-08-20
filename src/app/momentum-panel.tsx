@@ -7,9 +7,11 @@ import { getRollingVolumeTotals } from '@/db/muscle-volume'
 import { getGoalsHomeSummary } from '@/lib/goals'
 import { goalLabel } from '@/lib/goal-progress'
 import { bucketDaySets } from '@/lib/drawer-status'
-import { momentumSessionsLine, momentumWeekDeltaLine } from '@/lib/home-status'
+import { momentumSessionsLine, momentumWeekDeltaLine, type MomentumKey } from '@/lib/home-status'
+import { renderLine } from '@/lib/message'
 import { Sparkbar } from '@/components/sparkbar'
 import { StreakChip } from '@/components/streak-chip'
+import { getTranslations } from 'next-intl/server'
 
 /**
  * The MOMENTUM panel — ONE designed surface replacing the goals + this-week
@@ -37,6 +39,8 @@ export interface MomentumPanelProps {
 }
 
 export async function MomentumPanel({ userId, nowMs, size = 'md' }: MomentumPanelProps) {
+  const t = await getTranslations('MomentumPanel')
+  const tGoals = await getTranslations('Goals')
   const [summaries, unit, goalsSummary, weekTotals] = await Promise.all([
     listWorkoutSummaries(userId),
     getWeightUnit(userId),
@@ -54,27 +58,31 @@ export async function MomentumPanel({ userId, nowMs, size = 'md' }: MomentumPane
   const weekSessions = weekTotals.currentSessions
   const weekDelta = momentumWeekDeltaLine(weekTotals.currentSets, weekTotals.previousSets)
   const daySets = bucketDaySets(summaries, new Date(nowMs))
-  const goal = goalsSummary?.topGoal
-    ? {
-        activeCount: goalsSummary.activeCount,
-        label: goalLabel(goalsSummary.topGoal, unit),
-        streak: goalsSummary.streak,
-      }
-    : null
+  const topGoal = goalsSummary?.topGoal ? goalLabel(goalsSummary.topGoal, unit) : null
+  const goal =
+    goalsSummary !== null && topGoal !== null
+      ? {
+          activeCount: goalsSummary.activeCount,
+          // Rendered from the GOALS namespace, not this panel's: the label is
+          // the goals feature's copy, merely displayed here.
+          label: tGoals(topGoal.key, topGoal.values),
+          streak: goalsSummary.streak,
+        }
+      : null
 
   // sm: the one big number + streak flame ONLY — same card, same type
   // styles, everything else (sparkbar, sessions line, goal line) dropped.
   if (size === 'sm') {
     return (
-      <section aria-label="This week" className="mt-6 border-b border-b-border/60 md:mt-10">
+      <section aria-label={t('title')} className="mt-6 border-b border-b-border/60 md:mt-10">
         <Link href="/stats" className="block py-5 transition-colors active:bg-muted/60">
           <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-            This week
+            {t('title')}
           </span>
           <span className="mt-3 flex items-baseline gap-2">
             <span className="font-display text-6xl leading-none tnum">{weekSets}</span>
             <span className="text-sm font-medium text-muted-foreground">
-              {weekSets === 1 ? 'set' : 'sets'}
+              {t('setsUnit', { count: weekSets })}
             </span>
           </span>
           {goal?.streak && (
@@ -92,11 +100,11 @@ export async function MomentumPanel({ userId, nowMs, size = 'md' }: MomentumPane
   }
 
   return (
-    <section aria-label="This week" className="mt-6 border-b border-b-border/60 md:mt-10">
+    <section aria-label={t('title')} className="mt-6 border-b border-b-border/60 md:mt-10">
       <Link href="/stats" className="block py-5 transition-colors active:bg-muted/60">
         <span className="flex items-center justify-between gap-3">
           <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-            This week
+            {t('title')}
           </span>
           <ChevronRight aria-hidden="true" className="size-5 shrink-0 text-muted-foreground" />
         </span>
@@ -107,19 +115,21 @@ export async function MomentumPanel({ userId, nowMs, size = 'md' }: MomentumPane
                   move, scaled to a phone card). tnum keeps it steady. */}
               <span className="font-display text-6xl leading-none tnum">{weekSets}</span>
               <span className="text-sm font-medium text-muted-foreground">
-                {weekSets === 1 ? 'set' : 'sets'}
+                {t('setsUnit', { count: weekSets })}
               </span>
             </span>
             <span className="mt-1.5 block text-sm text-muted-foreground tnum">
               {weekSets > 0
-                ? momentumSessionsLine(weekSessions)
-                : 'The week is wide open — log a session.'}
+                ? renderLine<MomentumKey>(t, momentumSessionsLine(weekSessions))
+                : t('emptyWeek')}
             </span>
             {/* lg only: the week-over-week fact, from the previous window the
                 totals read already fetched (zero new queries). Null (empty
                 last week) renders nothing — silence over a hollow compare. */}
             {size === 'lg' && weekDelta !== null && (
-              <span className="mt-0.5 block text-sm text-muted-foreground tnum">{weekDelta}</span>
+              <span className="mt-0.5 block text-sm text-muted-foreground tnum">
+                {renderLine<MomentumKey>(t, weekDelta)}
+              </span>
             )}
           </span>
           {daySets.length > 0 && (
@@ -135,7 +145,7 @@ export async function MomentumPanel({ userId, nowMs, size = 'md' }: MomentumPane
         >
           <span className="min-w-0">
             <span className="block text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-              {goal.activeCount === 1 ? 'Goal' : `Goals · ${goal.activeCount}`}
+              {t('goalLabel', { count: goal.activeCount })}
             </span>
             <span className="mt-0.5 block truncate text-sm">{goal.label}</span>
           </span>

@@ -7,6 +7,7 @@ import { MarkdownView } from '@/components/markdown-view'
 import { QuickCaptureSheet } from '@/components/editor/quick-capture-sheet'
 import { upsertExerciseNoteAction, deleteExerciseNoteAction } from '@/app/exercises/actions'
 import type { ExerciseSource } from '@/lib/custom-exercise-input'
+import { useTranslations } from 'next-intl'
 
 /**
  * The exercise-identity note on the detail page: read via MarkdownView (zero
@@ -27,35 +28,38 @@ export function ExerciseNoteSection({
   exerciseName,
   note,
 }: ExerciseNoteSectionProps) {
+  const t = useTranslations('ExerciseNoteSection')
   const [isEditing, setIsEditing] = useState(false)
   const router = useRouter()
 
   return (
-    <section aria-label="Exercise note">
+    <section aria-label={t('ariaLabel')}>
       <div className="flex items-baseline justify-between px-1">
         <h2 className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-          Note
-          {note?.pinned && <Pin aria-label="Pinned in logger" className="size-3 text-primary" />}
+          {t('title')}
+          {note?.pinned && (
+            <Pin aria-label={t('pinnedAriaLabel')} className="size-3 text-primary" />
+          )}
         </h2>
         <button
           type="button"
           onClick={() => setIsEditing(true)}
           className="text-xs font-semibold uppercase tracking-widest text-muted-foreground underline-offset-4 transition-colors hover:text-foreground active:underline"
         >
-          {note ? 'Edit' : 'Add note'}
+          {note ? t('edit') : t('add')}
         </button>
       </div>
       {note ? (
         <MarkdownView markdown={note.body} className="mt-2 px-1 text-muted-foreground" />
       ) : (
         <p className="mt-2 px-1 text-sm text-muted-foreground/70">
-          Setup that follows this exercise everywhere — seat pins, grip, cues.
+          {t('empty')}
         </p>
       )}
       {isEditing && (
         <QuickCaptureSheet
           title={exerciseName}
-          eyebrow="Exercise note"
+          eyebrow={t('eyebrow')}
           variant="full"
           initialBody={note?.body ?? ''}
           initialPinned={note?.pinned ?? true}

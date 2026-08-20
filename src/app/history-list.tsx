@@ -8,6 +8,8 @@ import { DividerList } from '@/components/ui/divider-list'
 import { GuardedStartLink } from '@/components/guarded-start-link'
 import type { SessionSummary } from '@/components/session-conflict-dialog'
 import { rowEmphasisPct } from './history/history-view'
+import { useLocale, useTranslations } from 'next-intl'
+import { renderMessage } from '@/lib/message'
 import { cn } from '@/lib/utils'
 
 // en-US matches formatWorkoutDate — one locale for all date display.
@@ -39,6 +41,9 @@ export function HistoryList({
    *  emphasis bar; omit (home) to render rows without it. */
   maxVolumeKg?: number
 }) {
+  const t = useTranslations('HistoryList')
+  const tFormat = useTranslations('Format')
+  const locale = useLocale()
   return (
     <DividerList>
       {workouts.map((w) => (
@@ -62,12 +67,12 @@ export function HistoryList({
               </span>
             </span>
             <span className="min-w-0 flex-1">
-              <span className="block truncate font-medium">{w.name ?? 'Workout'}</span>
+              <span className="block truncate font-medium">{w.name ?? t('untitledWorkout')}</span>
               <span className="mt-0.5 block truncate text-sm text-muted-foreground tnum">
                 {[
-                  formatWorkoutDuration(w.startedAt, w.completedAt),
-                  `${w.setCount} set${w.setCount === 1 ? '' : 's'}`,
-                  w.volumeKg > 0 ? formatVolume(w.volumeKg, unit) : null,
+                  renderMessage(tFormat, formatWorkoutDuration(w.startedAt, w.completedAt)),
+                  t('setCount', { count: w.setCount }),
+                  w.volumeKg > 0 ? formatVolume(w.volumeKg, unit, locale) : null,
                 ]
                   .filter(Boolean)
                   .join(' · ')}
@@ -95,7 +100,7 @@ export function HistoryList({
           <GuardedStartLink
             href={`/workout/new?from=${w.id}`}
             session={guardSession}
-            aria-label={`Repeat ${w.name ?? 'Workout'}`}
+            aria-label={t('repeatLabel', { name: w.name ?? t('untitledWorkout') })}
             className={cn(
               buttonVariants({ variant: 'ghost', size: 'icon-sm' }),
               // Invisible inset lifts the 36px visual button toward the

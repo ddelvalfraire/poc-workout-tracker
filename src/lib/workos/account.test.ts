@@ -53,6 +53,10 @@ beforeEach(() => {
   getUserIdentities.mockReset().mockResolvedValue([{ provider: 'GoogleOAuth' }])
   listUserAuthFactors.mockReset().mockResolvedValue({ data: [] })
   vi.unstubAllEnvs()
+  // Pinned empty rather than merely unstubbed: unstubbing restores the REAL
+  // process.env, and a developer with WORKOS_MFA_MODE set in .env.local would
+  // otherwise see the fail-closed cases pass locally and break in CI.
+  vi.stubEnv('WORKOS_MFA_MODE', '')
 })
 
 describe('readMfaMode', () => {

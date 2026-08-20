@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { setWeightUnitAction } from '@/app/actions'
 import { WEIGHT_UNITS, type WeightUnit } from '@/lib/units'
+import { useTranslations } from 'next-intl'
 
 interface UnitToggleProps {
   /** The user's current weight unit (server-read), highlighted as active. */
@@ -17,6 +18,7 @@ interface UnitToggleProps {
  * weight re-renders in the new unit. Selecting the active unit is a no-op.
  */
 export function UnitToggle({ unit }: UnitToggleProps) {
+  const t = useTranslations('UnitToggle')
   const [isPending, startTransition] = useTransition()
   const [hasError, setHasError] = useState(false)
   const router = useRouter()
@@ -38,7 +40,7 @@ export function UnitToggle({ unit }: UnitToggleProps) {
   }
 
   return (
-    <div role="group" aria-label="Weight unit" className="flex items-center gap-1">
+    <div role="group" aria-label={t('groupLabel')} className="flex items-center gap-1">
       {WEIGHT_UNITS.map((u) => (
         <Button
           key={u}
@@ -55,7 +57,7 @@ export function UnitToggle({ unit }: UnitToggleProps) {
         // Visible words, not a "!" with a title tooltip: title is unreachable
         // on touch and a bare glyph is meaningless to a screen reader.
         <span role="alert" className="text-xs font-medium text-destructive">
-          Didn&rsquo;t save — tap again
+          {t('saveError')}
         </span>
       )}
     </div>
