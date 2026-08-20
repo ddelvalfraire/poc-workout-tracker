@@ -12,7 +12,10 @@ import { parseProgramInput } from '@/lib/program-input'
  */
 const records: { values: unknown }[] = []
 const updateSets: unknown[] = []
-let updateReturning: unknown[] = [{ id: 'p1' }]
+// Typed to updateProgram's real `.returning({ id, status })` shape so a
+// fixture can't silently omit `status` — toEqual ignores undefined-valued
+// properties, which would let a stale assertion stop guarding the echo.
+let updateReturning: { id: string; status: string }[] = [{ id: 'p1', status: 'draft' }]
 let idCounter = 0
 const ID_SEQUENCE = ['p1', 'd1', 'e1', 'e2', 'd2', 'e3']
 
@@ -88,7 +91,7 @@ const USER = 'user_123'
 beforeEach(() => {
   records.length = 0
   updateSets.length = 0
-  updateReturning = [{ id: 'p1' }]
+  updateReturning = [{ id: 'p1', status: 'draft' }]
   selectQueue.length = 0
   selectCalls = 0
   idCounter = 0
@@ -148,8 +151,8 @@ describe('saveProgram (transactional, user-scoped)', () => {
       expect.objectContaining({ programExerciseId: 'e1', setNumber: 2 }),
     ])
 
-    // Assert — resolves to the new program id
-    expect(result).toEqual({ id: 'p1' })
+    // Assert — resolves to the new program id + the effective status
+    expect(result).toEqual({ id: 'p1', status: 'draft' })
   })
 
   it('persists a day weekday schedule (normalized by parse) on the day row', async () => {
@@ -282,7 +285,7 @@ describe('saveProgram (transactional, user-scoped)', () => {
     const result = await updateProgram(USER, 'p1', input, 'ui')
 
     // Assert — day insert first, then the exercise carrying both fields
-    expect(result).toEqual({ id: 'p1' })
+    expect(result).toEqual({ id: 'p1', status: 'draft' })
     const exerciseInsert = records.find(
       (r) => (r.values as { wgerExerciseId?: number }).wgerExerciseId !== undefined,
     )
@@ -437,14 +440,16 @@ describe('coach drafting policy (actor = coach)', () => {
   })
 
   it("updateProgram keeps a coach replace at status 'proposed' (never a promotion path)", async () => {
-    // Arrange — the coach-scoped gate matched (its own proposal)
-    updateReturning = [{ id: 'p1' }]
+    // Arrange — the coach-scoped gate matched (its own proposal); the row
+    // stays 'proposed', and that is what the gate row reports back.
+    updateReturning = [{ id: 'p1', status: 'proposed' }]
 
     // Act
     const result = await updateProgram(USER, 'p1', INPUT, 'coach')
 
-    // Assert — the metadata update writes 'proposed', not the input's 'active'
-    expect(result).toEqual({ id: 'p1' })
+    // Assert — the metadata update writes 'proposed', not the input's
+    // 'active', and the return echoes the forced status.
+    expect(result).toEqual({ id: 'p1', status: 'proposed' })
     expect(updateSets[0]).toMatchObject({ status: 'proposed' })
   })
 
@@ -566,6 +571,78 @@ describe('updateProgram per-week override preservation', () => {
     // Assert — only the snapshot select ran; nothing override-shaped inserted
     expect(selectCalls).toBe(1)
     expect(findOverrideInsert()).toBeUndefined()
+  })
+})
+
+describe('status lifecycle integrity', () => {
+  const MINIMAL = {
+    name: 'P',
+    days: [{ name: 'D', exercises: [{ wgerExerciseId: 1, name: 'X', sets: [{}] }] }],
+  }
+
+  it("saveProgram defaults an omitted status to 'draft' at create (and reports it)", async () => {
+    // Act
+    const result = await saveProgram(USER, parseProgramInput(MINIMAL), 'ui')
+
+    // Assert — the insert writes the create-time default; the return reports it
+    expect(records[0].values).toMatchObject({ status: 'draft' })
+    expect(result).toEqual({ id: 'p1', status: 'draft' })
+  })
+
+  it('saveProgram writes an explicit status through at create (and reports it)', async () => {
+    // Act
+    const result = await saveProgram(USER, parseProgramInput({ ...MINIMAL, status: 'active' }), 'ui')
+
+    // Assert
+    expect(records[0].values).toMatchObject({ status: 'active' })
+    expect(result).toEqual({ id: 'p1', status: 'active' })
+  })
+
+  it('updateProgram PRESERVES the stored status when the input omits it (omit ≠ draft)', async () => {
+    // Arrange — an upsert that never mentions status: a stored ACTIVE program
+    // must not be silently deactivated back to 'draft' by the round trip. The
+    // gate row reports what stayed true.
+    updateReturning = [{ id: 'p1', status: 'active' }]
+
+    // Act
+    const result = await updateProgram(USER, 'p1', parseProgramInput(MINIMAL), 'mcp')
+
+    // Assert — the update payload does not touch the column at all; the
+    // return reports the PRESERVED stored status (what the upsert echo says).
+    expect(updateSets).toHaveLength(1)
+    expect('status' in (updateSets[0] as Record<string, unknown>)).toBe(false)
+    expect(result).toEqual({ id: 'p1', status: 'active' })
+  })
+
+  it('updateProgram writes an explicit status through', async () => {
+    // Arrange — the gate row reports what the write made true
+    updateReturning = [{ id: 'p1', status: 'archived' }]
+
+    // Act
+    const result = await updateProgram(
+      USER,
+      'p1',
+      parseProgramInput({ ...MINIMAL, status: 'archived' }),
+      'ui',
+    )
+
+    // Assert
+    expect(updateSets[0]).toMatchObject({ status: 'archived' })
+    expect(result).toEqual({ id: 'p1', status: 'archived' })
+  })
+
+  it('updateProgram stamps the replace event with the stored status, not the absent input', async () => {
+    // Arrange
+    updateReturning = [{ id: 'p1', status: 'active' }]
+
+    // Act
+    await updateProgram(USER, 'p1', parseProgramInput(MINIMAL), 'mcp')
+
+    // Assert — the change-log line records what is actually true after the write
+    const event = records
+      .map((r) => r.values as Record<string, unknown>)
+      .find((v) => v.action === 'upsert_program')
+    expect(event).toMatchObject({ payload: { after: { name: 'P', status: 'active' } } })
   })
 })
 
@@ -900,7 +977,7 @@ describe('saveProgram muscle tagging (Phase 5)', () => {
     const result = await saveProgram(USER, INPUT, 'ui')
 
     // Assert
-    expect(result).toEqual({ id: 'p1' })
+    expect(result).toEqual({ id: 'p1', status: 'draft' })
     expect(records).toHaveLength(5)
   })
 
@@ -949,7 +1026,7 @@ describe('saveProgram muscle tagging (Phase 5)', () => {
     const result = await saveProgram(USER, CUSTOM_INPUT, 'ui')
 
     // Assert
-    expect(result).toEqual({ id: 'p1' })
+    expect(result).toEqual({ id: 'p1', status: 'draft' })
     expect(records[4].values).toEqual([
       { programExerciseId: 'e1', muscle: 'Shoulders', role: 'primary' },
     ])

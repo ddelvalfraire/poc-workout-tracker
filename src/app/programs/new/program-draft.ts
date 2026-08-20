@@ -2,8 +2,8 @@ import type {
   DeloadPolicy,
   DietPhase,
   MetricMode,
-  ProgramInput,
   ProgramInputUnparsed,
+  ProgramStatus,
   Progression,
   SetType,
   Technique,
@@ -130,8 +130,11 @@ export interface ProgramDraft {
    *  suggestion (see programs.checkInEveryDays). */
   checkInEveryDays: string
   days: DraftProgramDay[]
-  // Pass-through fields (lifecycle/notes aren't edited by the builder).
-  status: ProgramInput['status']
+  // Pass-through fields (lifecycle/notes aren't edited by the builder). The
+  // draft's status is always CONCRETE (ProgramStatus, not the input schema's
+  // optional field): the builder round-trips a full replace, so it must
+  // re-state the loaded status rather than lean on preserve-on-omit.
+  status: ProgramStatus
   notes: string | null
   // Pass-through article metadata (PRD §3): authored by the coach/import
   // paths, not the builder — but a UI edit is a full replace, so dropping
@@ -736,7 +739,7 @@ export function draftToProgramInput(
 }
 
 /** Narrows the loose `text` status column to the schema's status union. */
-function toStatus(status: string): ProgramInput['status'] {
+function toStatus(status: string): ProgramStatus {
   return status === 'active' || status === 'archived' ? status : 'draft'
 }
 
