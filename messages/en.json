@@ -1,6 +1,11 @@
 {
   "Common": {
-    "appName": "Workout Tracker",
-    "appDescription": "Log your workouts and review your training history."
+    "appDescription": "Log your workouts and review your training history.",
+    "appName": "Workout Tracker"
+  },
+  "Trophies": {
+    "closest": "Closest",
+    "new": "New",
+    "noTrophiesYetEveryTrophy": "No trophies yet. Every trophy is a lifting fact — plate clubs, workout counts, streaks. Train and they stamp themselves."
   }
 }

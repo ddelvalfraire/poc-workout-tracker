@@ -2,6 +2,7 @@ import { defineConfig, globalIgnores } from "eslint/config";
 import nextVitals from "eslint-config-next/core-web-vitals";
 import nextTs from "eslint-config-next/typescript";
 import betterTailwindcss from "eslint-plugin-better-tailwindcss";
+import i18next from "eslint-plugin-i18next";
 
 // Keep-list: surfaces where the card shell IS the intended vocabulary
 // (sheets/dialogs/overlays, coach chat, StatTile, control clusters, form
@@ -54,6 +55,19 @@ const CARD_SHELL_RATCHET = [
   "src/components/share-card-button.tsx",
 ];
 
+
+// I18N RATCHET — deliberately INVERTED relative to CARD_SHELL_RATCHET above.
+// That list grandfathers the files still to convert, which works because the
+// codebase was already mostly compliant when the ban landed. Extraction
+// starts from zero, so an exemption list would have to name every file under
+// src/. This names the MIGRATED files instead: it only ever GROWS, one
+// directory per PR, until it covers src/** and collapses into a single glob.
+// A file joins this list in the same PR that extracts its copy — never
+// before, or the rule is just noise a future PR learns to ignore.
+const I18N_MIGRATED = [
+  "src/app/trophies/page.tsx",
+];
+
 const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
@@ -66,6 +80,10 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     // Storybook's build output — bundled/minified vendor code, not ours.
     "storybook-static/**",
+    // Agent worktrees are full checkouts (their own node_modules included)
+    // living inside the repo — linting them buries real findings under tens
+    // of thousands of vendor warnings.
+    ".claude/**",
   ]),
   {
     files: ["src/**/*.{ts,tsx}"],
@@ -105,6 +123,16 @@ const eslintConfig = defineConfig([
     files: [...CARD_SHELL_KEEP, ...CARD_SHELL_RATCHET],
     rules: {
       "better-tailwindcss/no-restricted-classes": "off",
+    },
+  },
+  {
+    // jsx-text-only for now: visible copy first. Attributes (aria-label,
+    // title, placeholder) are a second pass — widening the mode before the
+    // text is done would flag every file at once and stall the ratchet.
+    files: I18N_MIGRATED,
+    plugins: { i18next },
+    rules: {
+      "i18next/no-literal-string": ["error", { mode: "jsx-text-only" }],
     },
   },
 ]);
