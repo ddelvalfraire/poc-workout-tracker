@@ -263,6 +263,13 @@ const eslintConfig = defineConfig([
     // living inside the repo — linting them buries real findings under tens
     // of thousands of vendor warnings.
     ".claude/**",
+    // Vendored agent skills (21 Clerk packages, tracked but not authored
+    // here). Every .ts/.tsx under them is sample code in a `templates/`
+    // directory, written for OTHER frameworks — TanStack, Astro, Vue, Expo —
+    // so our Next.js rules judge it against a target it was never for, and
+    // none of it reaches our bundle. Linting it can only produce findings
+    // nobody is allowed to act on.
+    ".agents/**",
   ]),
   {
     files: ["src/**/*.{ts,tsx}"],
