@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { withAuth } from "@workos-inc/authkit-nextjs";
 import { AuthKitProvider } from "@workos-inc/authkit-nextjs/components";
 import { NavigationTracker } from "@/components/navigation-tracker";
 import { ServiceWorkerRegister } from "@/components/pwa/service-worker-register";
@@ -29,11 +30,22 @@ export const viewport: Viewport = {
   interactiveWidget: "resizes-content",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // Read the session HERE and hand it to the provider as `initialAuth`.
+  // Without it the provider fetches the session from a client effect on
+  // mount — and that fetch is a SERVER ACTION, which makes Next refetch the
+  // route, which re-runs the effect: every page reloaded forever, spinner
+  // restarting, while the server logged nothing but 200s.
+  //
+  // accessToken is destructured off deliberately: it is a live credential and
+  // the provider's own prop type omits it from what reaches the client.
+  const { accessToken, ...initialAuth } = await withAuth();
+  void accessToken; // stays on the server; never serialized to the client
+
   return (
     <html
       lang="en"
@@ -46,7 +58,7 @@ export default function RootLayout({
         {/* AuthKit's client-side session context (useAuth) plus its handling
             for auth edge cases — the hosted sign-in page is themed in the
             WorkOS dashboard, so no appearance config lives in code. */}
-        <AuthKitProvider>
+        <AuthKitProvider initialAuth={initialAuth}>
           {/* Once, app-wide: the in-app history stack every BackLink reads
               (pop vs fallback-replace) — see lib/back-navigation. */}
           <NavigationTracker />
