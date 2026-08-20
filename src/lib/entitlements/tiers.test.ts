@@ -53,18 +53,26 @@ describe('tier vocabulary', () => {
     expect(tierHasFeature('free', 'unlimited_programs')).toBe(false)
   })
 
-  test('pro lifts the program cap but not the AI features', () => {
+  test('pro lifts the program cap and includes autoreg', () => {
     expect(tierHasFeature('pro', 'unlimited_programs')).toBe(true)
-    expect(tierHasFeature('pro', 'coach')).toBe(false)
-    expect(tierHasFeature('pro', 'autoreg')).toBe(false)
+    expect(tierHasFeature('pro', 'autoreg')).toBe(true)
   })
 
-  test('max buys everything pro buys, plus coach and autoreg', () => {
+  // The packaging rule, pinned: only the feature with a real per-use cost is
+  // held back. Anything free to serve belongs lower down — reserving it for
+  // the top tier is artificial scarcity, not differentiation.
+  test('coach is the only thing max adds over pro', () => {
+    const proFeatures = new Set(featuresFor('pro'))
+    const maxOnly = featuresFor('max').filter((f) => !proFeatures.has(f))
+
+    expect(maxOnly).toEqual(['coach'])
+    expect(tierHasFeature('pro', 'coach')).toBe(false)
+  })
+
+  test('max buys everything pro buys', () => {
     for (const feature of featuresFor('pro')) {
       expect(tierHasFeature('max', feature)).toBe(true)
     }
-    expect(tierHasFeature('max', 'coach')).toBe(true)
-    expect(tierHasFeature('max', 'autoreg')).toBe(true)
   })
 
   // Guards the invariant rather than the current contents: a higher tier

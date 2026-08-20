@@ -46,8 +46,13 @@ export type Feature = 'coach' | 'autoreg' | 'unlimited_programs'
 
 const TIER_FEATURES: Record<Tier, readonly Feature[]> = {
   free: [],
-  pro: ['unlimited_programs'],
-  max: ['unlimited_programs', 'coach', 'autoreg'],
+  // Autoreg sits in Pro, not Max, because it costs nothing per use. Reserving
+  // a zero-marginal-cost feature for the top tier is artificial scarcity; the
+  // paid line belongs where our costs actually are.
+  pro: ['unlimited_programs', 'autoreg'],
+  // Coach is the only thing Max adds, deliberately: it is the one feature with
+  // a real per-message cost, so it is the one worth metering behind a price.
+  max: ['unlimited_programs', 'autoreg', 'coach'],
 }
 
 export function featuresFor(tier: Tier): readonly Feature[] {
