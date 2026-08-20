@@ -25,20 +25,28 @@ export const DEFAULT_COACH_MODEL = 'anthropic/claude-sonnet-4.5'
  * cacheable block and ADVANCES it as the conversation grows, so settled
  * history joins the cache instead of being re-billed at full price.
  *
- * Reads cost 0.1x input. Writes cost 1.25x at the default 5-minute TTL, or 2x
- * at one hour — and one hour is the right trade HERE specifically. The coach
- * is used in a gym: ask, do a set, rest three minutes, ask again. A session
- * sprawls across an hour with gaps, and every gap past five minutes would
- * expire the cache and charge a fresh write — repeatedly paying 1.25x is worse
- * than paying 2x once. Pick the TTL from how the thing is actually used, not
- * from the default.
+ * TTL stays at the 5-minute default, and that is a cost decision rather than
+ * laziness. Reads cost 0.1x; writes cost 1.25x at five minutes or 2x at one
+ * hour, so the break-even turn count differs:
+ *
+ *   5 min:  1 turn 1.25x (worse) | 2 turns 1.35x vs 2x (better)
+ *   1 hour: 1 turn 2.00x (worse) | 2 turns 2.10x vs 2x (STILL worse)
+ *
+ * An hour does not pay for itself until the third turn. A one-question session
+ * — "what did I lift last week?" — costs DOUBLE under it. Five minutes also
+ * fits the actual usage better than it first appears: rest between sets runs
+ * two to four minutes, inside the window, and the gaps long enough to break it
+ * are usually gaps where the session has ended anyway.
+ *
+ * Raise it to `ttl: '1h'` if Langfuse ever shows sessions averaging three or
+ * more turns. Today there is one trace total, so that would be a guess.
  *
  * Sent via extraBody rather than providerOptions.openrouter.cacheControl:
  * that typed path has an open report of not applying reliably
  * (OpenRouterTeam/ai-sdk-provider#35), and extraBody goes straight into the
  * request body where the API contract is unambiguous.
  */
-const OPENROUTER_CACHE_CONTROL = { type: 'ephemeral', ttl: '1h' } as const
+const OPENROUTER_CACHE_CONTROL = { type: 'ephemeral' } as const
 
 /** Operator-facing remedy for the "no provider configured" 503. */
 export const COACH_MODEL_SETUP_HINT =

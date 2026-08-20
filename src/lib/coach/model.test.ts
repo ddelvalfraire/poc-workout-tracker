@@ -66,18 +66,19 @@ describe('prompt caching', () => {
     const body = (config?.model as { settings?: { extraBody?: Record<string, unknown> } })?.settings
       ?.extraBody
 
-    expect(body?.cache_control).toEqual({ type: 'ephemeral', ttl: '1h' })
+    expect(body?.cache_control).toEqual({ type: 'ephemeral' })
   })
 
-  // Not the default five minutes, deliberately: a gym session is intermittent
-  // across an hour, and every gap past the default would expire the cache and
-  // charge a fresh write. Paying 1.25x repeatedly is worse than 2x once.
-  it('holds the cache for an hour rather than the five-minute default', () => {
+  // The five-minute default is a COST decision: a one-hour TTL writes at 2x and
+  // does not break even until the third turn, so a single-question session
+  // costs double under it. Pinned so nobody "upgrades" the TTL without the
+  // session-length data that would justify it.
+  it('does not opt into the 2x one-hour write premium', () => {
     const config = resolveCoachModel({ OPENROUTER_API_KEY: 'or-key' })
     const body = (config?.model as { settings?: { extraBody?: Record<string, unknown> } })?.settings
       ?.extraBody
     const cacheControl = body?.cache_control as { ttl?: string } | undefined
 
-    expect(cacheControl?.ttl).toBe('1h')
+    expect(cacheControl?.ttl).toBeUndefined()
   })
 })
