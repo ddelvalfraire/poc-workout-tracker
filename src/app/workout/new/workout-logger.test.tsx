@@ -330,12 +330,12 @@ describe('technique stage rows', () => {
   it('rules the group together so three rows do not read as three straight sets', () => {
     const html = render({ initialDraft: DROPPED })
 
-    expect(html).toContain('border-l-muted-foreground/40')
+    expect(html).toContain('before:bg-muted-foreground/40')
   })
 
   it('leaves an ordinary draft free of any group rule', () => {
     const html = render()
 
-    expect(html).not.toContain('border-l-muted-foreground/40')
+    expect(html).not.toContain('before:bg-muted-foreground/40')
   })
 })

@@ -1888,9 +1888,17 @@ export function WorkoutLogger({
                     'group/setrow flex items-center gap-2',
                     // Hairline, not a shell: the rows of one technique set
                     // share a left rule and an indent for as long as the
-                    // group runs.
-                    (groupsWithPrevious || groupsWithNext) &&
-                      'border-l-2 border-l-muted-foreground/40 pl-2',
+                    // group runs. Drawn as a pseudo-element rather than a
+                    // border so it can bridge the gap between rows — each row
+                    // sits in its own swipe wrapper, and three stubs of rule
+                    // read as three sets again. It reaches into the wrapper's
+                    // padding (py-1) only: further would be clipped.
+                    (groupsWithPrevious || groupsWithNext) && [
+                      'relative pl-2',
+                      'before:absolute before:left-0 before:w-0.5 before:bg-muted-foreground/40',
+                      groupsWithPrevious ? 'before:-top-1' : 'before:top-0',
+                      groupsWithNext ? 'before:-bottom-1' : 'before:bottom-0',
+                    ],
                     riseInArmed && 'motion-safe:animate-rise-in',
                   )}
                   id={`set-row-${set.id}`}
