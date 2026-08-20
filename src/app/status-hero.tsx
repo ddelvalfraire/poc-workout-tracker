@@ -12,6 +12,7 @@ import { GuardedStartLink } from '@/components/guarded-start-link'
 import type { SessionSummary } from '@/components/session-conflict-dialog'
 import { buttonVariants } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import { useTranslations } from 'next-intl'
 
 /**
  * The STATUS zone — home's always-rendered hero (spike §3): an editorial
@@ -70,6 +71,7 @@ export interface StatusHeroProps {
 }
 
 export function StatusHero(props: StatusHeroProps) {
+  const t = useTranslations('StatusHero')
   const mounted = useMounted()
   if (!mounted) {
     // Hold the slot (approx. hero height) so MomentumPanel doesn't jump when
@@ -103,7 +105,7 @@ export function StatusHero(props: StatusHeroProps) {
   const eyebrowIsVolt = status.state !== 'rest-day'
 
   return (
-    <section aria-label="Training status" className="mt-6 motion-safe:animate-rise-in">
+    <section aria-label={t('sectionLabel')} className="mt-6 motion-safe:animate-rise-in">
       {status.eyebrow !== null && (
         <p
           className={cn(
@@ -132,7 +134,7 @@ export function StatusHero(props: StatusHeroProps) {
           {props.session.setCount > 0 && (
             <div
               role="progressbar"
-              aria-label="Sets completed"
+              aria-label={t('setsProgressLabel')}
               aria-valuemin={0}
               aria-valuemax={props.session.setCount}
               aria-valuenow={props.session.completedSetCount}
@@ -153,7 +155,7 @@ export function StatusHero(props: StatusHeroProps) {
               'mt-4 w-full font-semibold uppercase tracking-wide',
             )}
           >
-            Resume workout
+            {t('resumeAction')}
           </Link>
         </>
       )}
@@ -165,7 +167,7 @@ export function StatusHero(props: StatusHeroProps) {
           <StartDayButton
             programDayId={props.nextDay.dayId}
             size="lg"
-            label={`Start ${props.nextDay.dayName}`}
+            label={t('startDayAction', { day: props.nextDay.dayName })}
           />
         </div>
       )}
@@ -176,7 +178,7 @@ export function StatusHero(props: StatusHeroProps) {
             <StartDayButton
               programDayId={props.nextDay.dayId}
               size="lg"
-              label={`Start ${props.nextDay.dayName}`}
+              label={t('startDayAction', { day: props.nextDay.dayName })}
             />
           </div>
         ) : (
@@ -188,7 +190,7 @@ export function StatusHero(props: StatusHeroProps) {
               'mt-4 w-full font-semibold uppercase tracking-wide',
             )}
           >
-            Start workout
+            {t('startAction')}
           </GuardedStartLink>
         ))}
 
@@ -202,7 +204,7 @@ export function StatusHero(props: StatusHeroProps) {
               'mt-4 w-full text-base font-semibold uppercase tracking-wide',
             )}
           >
-            + Start Workout
+            {t('startActionFresh')}
           </GuardedStartLink>
           {/* The old ProgramReminderCard's door, demoted to a quiet line —
               its copy lives in the context sentence above. */}
@@ -210,7 +212,7 @@ export function StatusHero(props: StatusHeroProps) {
             href="/programs"
             className="mt-3 flex w-fit items-center gap-0.5 text-sm text-muted-foreground underline-offset-2 active:underline"
           >
-            Browse programs
+            {t('programsLink')}
             <ChevronRight aria-hidden="true" className="size-4" />
           </Link>
         </>
@@ -222,7 +224,7 @@ export function StatusHero(props: StatusHeroProps) {
           href={`/workout/${props.lastCompleted.id}`}
           className="mt-4 flex w-fit items-center gap-0.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
         >
-          See today&apos;s session
+          {t('sessionLink')}
           <ChevronRight aria-hidden="true" className="size-4" />
         </Link>
       )}
@@ -239,7 +241,7 @@ export function StatusHero(props: StatusHeroProps) {
             status.state === 'trained-today' ? 'mt-2' : 'mt-4',
           )}
         >
-          {status.state === 'trained-today' ? 'Log more' : 'Quick log'}
+          {status.state === 'trained-today' ? t('logMoreLink') : t('quickLogLink')}
           <ChevronRight aria-hidden="true" className="size-4" />
         </GuardedStartLink>
       )}
@@ -249,7 +251,7 @@ export function StatusHero(props: StatusHeroProps) {
           href={`/programs/${props.nextDay.programId}/stats`}
           className="mt-4 flex w-fit items-center gap-0.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
         >
-          See results
+          {t('resultsLink')}
           <ChevronRight aria-hidden="true" className="size-4" />
         </Link>
       )}

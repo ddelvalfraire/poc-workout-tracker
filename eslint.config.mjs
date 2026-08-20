@@ -65,10 +65,79 @@ const CARD_SHELL_RATCHET = [
 // A file joins this list in the same PR that extracts its copy — never
 // before, or the rule is just noise a future PR learns to ignore.
 const I18N_MIGRATED = [
+  // Root-level route files (src/app/*.tsx); the subdirectory routes join
+  // as their own conversion PRs land.
+  "src/app/check-in-card.tsx",
+  "src/app/error.tsx",
+  "src/app/global-error.tsx",
+  "src/app/history-list.tsx",
+  "src/app/home-sections.tsx",
+  "src/app/layout.tsx",
+  "src/app/loading.tsx",
+  "src/app/momentum-panel.tsx",
+  "src/app/page.tsx",
+  "src/app/providers.tsx",
+  "src/app/status-hero.tsx",
+  "src/app/today-recap.tsx",
+  "src/app/up-next-anchor.tsx",
   "src/app/goals/consistency-progress.tsx",
   "src/app/goals/goal-card-actions.tsx",
   "src/app/goals/goal-create.tsx",
   "src/app/goals/page.tsx",
+  // Shared components. Listed file-by-file rather than as a
+  // src/components/**/*.tsx glob on purpose: a glob would also swallow the
+  // colocated .stories.tsx and .test.tsx files, whose literals are fixtures
+  // rather than shipped copy — exempting them wholesale is exactly the
+  // "noise a future PR learns to ignore" this ratchet exists to prevent.
+  "src/components/app-header.tsx",
+  "src/components/auth/sign-out-button.tsx",
+  "src/components/back-link.tsx",
+  "src/components/block-map.tsx",
+  "src/components/charts/trend-chart.tsx",
+  "src/components/charts/volume-bar-chart.tsx",
+  "src/components/confirm-dialog.tsx",
+  "src/components/consent-identity.tsx",
+  "src/components/editor/notes-editor.tsx",
+  "src/components/editor/quick-capture-sheet.tsx",
+  "src/components/ghost.tsx",
+  "src/components/guarded-start-link.tsx",
+  "src/components/markdown-view.tsx",
+  "src/components/nav/nav-drawer.tsx",
+  "src/components/navigation-tracker.tsx",
+  "src/components/notes/note-row.tsx",
+  "src/components/ops/activity-log.tsx",
+  "src/components/ops/auto-refresh-toggle.tsx",
+  "src/components/ops/coach-chart.tsx",
+  "src/components/ops/coach-panel.tsx",
+  "src/components/ops/delivery-panel.tsx",
+  "src/components/ops/errors-panel.tsx",
+  "src/components/ops/loading-ghosts.tsx",
+  "src/components/ops/mini-bar-chart.tsx",
+  "src/components/ops/ops-header.tsx",
+  "src/components/ops/panel.tsx",
+  "src/components/ops/refresh-button.tsx",
+  "src/components/ops/status-strip.tsx",
+  "src/components/ops/tab-pending.tsx",
+  "src/components/page-transition.tsx",
+  "src/components/pr-badge.tsx",
+  "src/components/pwa/chunk-recovery-script.tsx",
+  "src/components/pwa/service-worker-register.tsx",
+  "src/components/pwa/update-on-resume.tsx",
+  "src/components/session-conflict-dialog.tsx",
+  "src/components/share-card-button.tsx",
+  "src/components/sparkbar.tsx",
+  "src/components/stat-tile.tsx",
+  "src/components/streak-chip.tsx",
+  "src/components/ui/button-group.tsx",
+  "src/components/ui/button.tsx",
+  "src/components/ui/card.tsx",
+  "src/components/ui/chart.tsx",
+  "src/components/ui/divider-list.tsx",
+  "src/components/ui/empty-words.tsx",
+  "src/components/ui/input.tsx",
+  "src/components/ui/section.tsx",
+  "src/components/ui/textarea.tsx",
+  "src/components/unit-toggle.tsx",
 ];
 
 // TEXT-ONLY RATCHET: migrated before the rule covered attributes and JSX
@@ -175,6 +244,15 @@ const eslintConfig = defineConfig([
               "data-.*", "aria-hidden", "width", "height", "viewBox", "fill",
               "stroke", "d", "xmlns", "style", "step", "min", "max", "pattern",
               "rel", "target", "method", "action", "encType", "dir", "lang",
+              // aria-current takes the ARIA token "page", never prose.
+              "aria-current",
+              // Recharts addresses series and axes by name; these are data
+              // and geometry identifiers, not copy.
+              "dataKey", "nameKey", "yAxisId", "orientation", "layout",
+              "scale", "ifOverflow", "strokeDasharray",
+              // vaul's slide direction, React's ViewTransition class name,
+              // and the class-name twin our chart primitives take.
+              "direction", "default", "barClassName",
             ],
           },
         },

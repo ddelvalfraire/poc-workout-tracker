@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { useAnimatedSheetClose } from '@/components/use-animated-sheet-close'
 import { cn } from '@/lib/utils'
 import type { NotesEditorVariant } from './extensions'
+import { useTranslations } from 'next-intl'
 
 /**
  * Bottom-sheet note editor (QuickCapture) — the app's one dialog vocabulary
@@ -56,6 +57,7 @@ export function QuickCaptureSheet({
   onDelete,
   onClose,
 }: QuickCaptureSheetProps) {
+  const t = useTranslations('QuickCaptureSheet')
   const [body, setBody] = useState(initialBody)
   const [pinned, setPinned] = useState(initialPinned)
   const [isPending, setIsPending] = useState(false)
@@ -93,7 +95,7 @@ export function QuickCaptureSheet({
       savedRef.current = true
       requestClose()
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Could not save the note. Please try again.')
+      setError(e instanceof Error ? e.message : t('saveError'))
     } finally {
       setIsPending(false)
     }
@@ -108,7 +110,7 @@ export function QuickCaptureSheet({
       savedRef.current = true
       requestClose()
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Could not delete the note. Please try again.')
+      setError(e instanceof Error ? e.message : t('deleteError'))
     } finally {
       setIsPending(false)
     }
@@ -117,7 +119,7 @@ export function QuickCaptureSheet({
   return (
     <dialog
       ref={dialogRef}
-      aria-label={`${eyebrow}: ${title}`}
+      aria-label={t('dialogLabel', { eyebrow, title })}
       onCancel={(e) => {
         e.preventDefault() // keep open/closed state owned by React
         requestClose()
@@ -147,7 +149,7 @@ export function QuickCaptureSheet({
           variant="ghost"
           className="-mr-1 text-muted-foreground"
           onClick={requestClose}
-          aria-label="Close"
+          aria-label={t('close')}
         >
           <X aria-hidden="true" className="size-4" />
         </Button>
@@ -158,7 +160,7 @@ export function QuickCaptureSheet({
           variant={variant}
           initialMarkdown={initialBody}
           onChangeMarkdown={setBody}
-          ariaLabel={`${eyebrow} for ${title}`}
+          ariaLabel={t('editorLabel', { eyebrow, title })}
           autofocus
         />
       </div>
@@ -174,7 +176,7 @@ export function QuickCaptureSheet({
           )}
         >
           <Pin aria-hidden="true" className="size-3.5" />
-          {pinned ? 'Pinned in logger' : 'Pin in logger'}
+          {pinned ? t('pinActionActive') : t('pinAction')}
         </button>
       )}
 
@@ -188,18 +190,18 @@ export function QuickCaptureSheet({
             disabled={isPending}
             onClick={handleDelete}
           >
-            Delete
+            {t('delete')}
           </Button>
         )}
         <Button variant="outline" className="flex-1" disabled={isPending} onClick={requestClose}>
-          Cancel
+          {t('cancel')}
         </Button>
         <Button
           className="flex-1"
           disabled={isPending || body.trim().length === 0}
           onClick={handleSave}
         >
-          {isPending ? 'Saving…' : 'Save'}
+          {isPending ? t('savingAction') : t('save')}
         </Button>
       </div>
     </dialog>

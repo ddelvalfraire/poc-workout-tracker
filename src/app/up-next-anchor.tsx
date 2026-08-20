@@ -1,6 +1,7 @@
 'use client'
 
 import { useSyncExternalStore } from 'react'
+import { useTranslations } from 'next-intl'
 import { scheduleAnchor } from '@/lib/schedule-anchor'
 
 /**
@@ -23,11 +24,10 @@ const useMounted = () =>
   )
 
 export function UpNextAnchor({ weekdays, week }: { weekdays: number[]; week: number }) {
+  const t = useTranslations('UpNextAnchor')
   const mounted = useMounted()
   const anchor = mounted ? scheduleAnchor(weekdays, new Date()) : null
-  return (
-    <>
-      {anchor ?? 'Up next'} · Week {week}
-    </>
-  )
+  // ONE message: the anchor word, the separator and the week number sit in a
+  // language-specific order — concatenating them here would freeze English.
+  return <>{t('summary', { anchor: anchor ?? t('fallbackAnchor'), week })}</>
 }

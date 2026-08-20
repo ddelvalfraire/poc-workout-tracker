@@ -7,6 +7,10 @@ import type { TooltipValueType } from "recharts"
 import { cn } from "@/lib/utils"
 
 // Format: { THEME_NAME: CSS_SELECTOR }
+// Recharts falls back to this data key when no series name is given — a
+// data-shape identifier, not copy.
+const FALLBACK_SERIES_KEY = "value"
+
 const THEMES = { light: "", dark: ".dark" } as const
 
 const INITIAL_DIMENSION = { width: 320, height: 200 } as const
@@ -200,7 +204,7 @@ function ChartTooltipContent({
         {payload
           .filter((item) => item.type !== "none")
           .map((item, index) => {
-            const key = `${nameKey ?? item.name ?? item.dataKey ?? "value"}`
+            const key = `${nameKey ?? item.name ?? item.dataKey ?? FALLBACK_SERIES_KEY}`
             const itemConfig = getPayloadConfigFromPayload(config, item, key)
             const indicatorColor = color ?? item.payload?.fill ?? item.color
 
@@ -299,7 +303,7 @@ function ChartLegendContent({
       {payload
         .filter((item) => item.type !== "none")
         .map((item, index) => {
-          const key = `${nameKey ?? item.dataKey ?? "value"}`
+          const key = `${nameKey ?? item.dataKey ?? FALLBACK_SERIES_KEY}`
           const itemConfig = getPayloadConfigFromPayload(config, item, key)
 
           return (

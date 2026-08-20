@@ -10,6 +10,7 @@ import {
   type ActivityType,
 } from '@/lib/ops/activity'
 import { timeAgo } from '@/lib/ops/time'
+import { useTranslations } from 'next-intl'
 
 /**
  * The /ops/product activity log: filter chips over the pre-merged cross-source
@@ -35,6 +36,7 @@ const BADGE: Record<ActivityType, string> = {
 }
 
 export function ActivityLog({ items }: ActivityLogProps) {
+  const t = useTranslations('ActivityLog')
   const [active, setActive] = useState<ReadonlySet<ActivityType>>(new Set())
 
   const toggle = (type: ActivityType) => {
@@ -50,7 +52,7 @@ export function ActivityLog({ items }: ActivityLogProps) {
 
   return (
     <div>
-      <div role="group" aria-label="Filter activity by type" className="flex flex-wrap gap-1.5">
+      <div role="group" aria-label={t('filterGroupLabel')} className="flex flex-wrap gap-1.5">
         {ACTIVITY_TYPES.map((type) => (
           <button
             key={type}
@@ -70,7 +72,7 @@ export function ActivityLog({ items }: ActivityLogProps) {
       </div>
 
       {visible.length === 0 ? (
-        <p className="mt-3 text-sm text-muted-foreground">No activity yet.</p>
+        <p className="mt-3 text-sm text-muted-foreground">{t('empty')}</p>
       ) : (
         <ul className="mt-3 space-y-1.5">
           {visible.map((item, index) => (

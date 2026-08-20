@@ -88,4 +88,14 @@ describe('NoteRow', () => {
     expect(html).not.toContain('was ')
     expect(html).not.toContain('×')
   })
+
+  test('resolves every catalog key it references', () => {
+    // The assertions above read the copy the catalog produced; this one
+    // catches the other failure — a key the catalog never got, which
+    // next-intl renders as the key path itself.
+    const html = renderToStaticMarkup(
+      <NoteRow note={view({ author: 'coach', outdated: true })} />,
+    )
+    expect(html).not.toMatch(/NoteRow\.[a-zA-Z.]+/)
+  })
 })

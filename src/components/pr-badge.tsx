@@ -1,4 +1,5 @@
 import { Trophy } from 'lucide-react'
+import { useTranslations } from 'next-intl'
 import { cn } from '@/lib/utils'
 
 /**
@@ -6,17 +7,18 @@ import { cn } from '@/lib/utils'
  * collapsed cards, and the workout summary all render this exact chip so the
  * record moment never drifts into competing treatments per surface.
  */
-export function PrBadge({ label = 'PR', className }: { label?: string; className?: string }) {
+export function PrBadge({ label, className }: { label?: string; className?: string }) {
+  const t = useTranslations('PrBadge')
   return (
     <span
-      aria-label="Personal record"
+      aria-label={t('ariaLabel')}
       className={cn(
         'inline-flex shrink-0 items-center gap-1 rounded-full bg-primary px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-primary-foreground',
         className,
       )}
     >
       <Trophy aria-hidden="true" className="size-3" />
-      {label}
+      {label ?? t('label')}
     </span>
   )
 }

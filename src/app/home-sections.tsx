@@ -10,6 +10,7 @@ import { DividerList } from '@/components/ui/divider-list'
 import { HistoryList } from './history-list'
 import { MomentumPanel } from './momentum-panel'
 import { TodayRecap } from './today-recap'
+import { useTranslations } from 'next-intl'
 
 /**
  * The WEB side of the home customization contract: kind → section renderer.
@@ -125,10 +126,11 @@ export function renderHomeSections(
  *  anything here is a stale abandonment. Rows reopen the logger, never the
  *  read-only summary (which would present them as completed). */
 function UnfinishedSection({ workouts }: { workouts: WorkoutSummary[] }) {
+  const t = useTranslations('HomeSections')
   if (workouts.length === 0) return null
   return (
     <>
-      <h2 className="mt-10 mb-3 text-lg">Unfinished</h2>
+      <h2 className="mt-10 mb-3 text-lg">{t('unfinishedTitle')}</h2>
       <DividerList>
         {workouts.map((w) => (
           <li key={w.id}>
@@ -148,16 +150,16 @@ function UnfinishedSection({ workouts }: { workouts: WorkoutSummary[] }) {
                 </span>
               </span>
               <span className="min-w-0 flex-1">
-                <span className="block truncate font-medium">{w.name ?? 'Workout'}</span>
+                <span className="block truncate font-medium">{w.name ?? t('untitledWorkout')}</span>
                 <span className="mt-0.5 block truncate text-sm text-muted-foreground tnum">
-                  {`started · ${w.completedSetCount} set${w.completedSetCount === 1 ? '' : 's'} logged`}
+                  {t('startedSummary', { sets: w.completedSetCount })}
                 </span>
               </span>
               {/* A quiet word instead of the chevron: "resume" says what
                   tapping does; a bare chevron would read like a detail
                   disclosure. */}
               <span className="shrink-0 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
-                Resume
+                {t('resumeLabel')}
               </span>
             </Link>
           </li>
@@ -189,23 +191,28 @@ function HistorySection({
   guardSession: SessionSummary | null
   size?: HomeSectionSize
 }) {
+  const t = useTranslations('HomeSections')
   if (workouts.length === 0) return null
 
   if (size === 'sm') {
     const latest = workouts[0]
     return (
       <>
-        <h2 className="mt-10 mb-3 text-lg">History</h2>
+        <h2 className="mt-10 mb-3 text-lg">{t('historyTitle')}</h2>
         <Link
           href="/history"
           className="flex min-w-0 items-center gap-4 overflow-hidden rounded-2xl border border-border bg-card px-4 py-3.5 transition-colors active:bg-muted/60"
         >
           <span className="min-w-0 flex-1">
             <span className="block truncate font-medium tnum">
-              {`${workouts.length} workout${workouts.length === 1 ? '' : 's'}`}
+              {t('workoutCount', { count: workouts.length })}
             </span>
             <span className="mt-0.5 block truncate text-sm text-muted-foreground tnum">
-              {`${latest.name ?? 'Workout'} · ${latest.startedAt.getDate()} ${monthFormat.format(latest.startedAt)}`}
+              {t('latestSummary', {
+                name: latest.name ?? t('untitledWorkout'),
+                day: latest.startedAt.getDate(),
+                month: monthFormat.format(latest.startedAt),
+              })}
             </span>
           </span>
           <ChevronRight aria-hidden="true" className="size-5 shrink-0 text-muted-foreground" />
@@ -218,13 +225,13 @@ function HistorySection({
   return (
     <>
       <div className="mt-10 mb-3 flex items-baseline justify-between gap-3">
-        <h2 className="text-lg">History</h2>
+        <h2 className="text-lg">{t('historyTitle')}</h2>
         {workouts.length > limit && (
           <Link
             href="/history"
             className="flex shrink-0 items-center gap-0.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
           >
-            All history
+            {t('allHistoryLink')}
             <ChevronRight aria-hidden="true" className="size-4" />
           </Link>
         )}

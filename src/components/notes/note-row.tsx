@@ -1,5 +1,6 @@
 import { cn } from '@/lib/utils'
 import { tokenizeNoteBody, type NoteView } from './note-view'
+import { useTranslations } from 'next-intl'
 
 /**
  * One note row in the de-card vocabulary: caps anchor breadcrumb with the
@@ -33,6 +34,7 @@ export function NoteBody({ body, className }: { body: string; className?: string
 }
 
 export function NoteRow({ note }: { note: NoteView }) {
+  const t = useTranslations('NoteRow')
   const isCoach = note.author === 'coach'
   return (
     <li className={cn('space-y-1 py-3', isCoach && 'border-l-2 border-l-primary pl-3')}>
@@ -42,9 +44,9 @@ export function NoteRow({ note }: { note: NoteView }) {
             aria-hidden="true"
             className="flex size-[17px] shrink-0 items-center justify-center rounded-full bg-primary/15 text-[9px] font-bold text-primary"
           >
-            C
+            {t('coachInitial')}
           </span>
-          Coach
+          {t('coachAuthor')}
         </p>
       )}
       <p className="flex items-baseline gap-2">
@@ -55,7 +57,7 @@ export function NoteRow({ note }: { note: NoteView }) {
           // Chips are controls, words are labels: "outdated" is a fact, so
           // it renders as the quiet caps word (the "Skipped" treatment).
           <span className="shrink-0 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
-            Outdated
+            {t('outdatedBadge')}
           </span>
         )}
         <span className="ml-auto shrink-0 text-xs text-muted-foreground tnum">
@@ -68,7 +70,7 @@ export function NoteRow({ note }: { note: NoteView }) {
           {note.outdated
             ? // GitHub outdated-comment semantics: the frozen context is the
               // evidence — "was 35 lb × 8" — because the anchor was edited away.
-              `was ${note.snapshotLine} — set edited after`
+              t('outdatedSnapshot', { snapshot: note.snapshotLine })
             : note.snapshotLine}
         </p>
       )}
