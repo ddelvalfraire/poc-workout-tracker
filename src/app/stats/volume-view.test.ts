@@ -5,7 +5,7 @@ import {
   lowVolumeGroups,
   OVER_PLAN_RATIO,
   overPlanGroups,
-  setsDeltaLabel,
+  setsDelta,
   sortGroupsForDisplay,
   underPlanGroups,
   verdictForStats,
@@ -184,20 +184,22 @@ describe('verdictForStats', () => {
       daysLeft: null,
     })
 
-    expect(verdict.headline).toBe('Back is behind.')
-    expect(verdict.context).toBe('6 of 12 planned sets')
+    expect(verdict).toEqual({
+      kind: 'behind',
+      group: 'Back',
+      performedSets: 6,
+      plannedSets: 12,
+      daysLeft: null,
+    })
   })
 
-  it('appends days-left only when provided (calendar mode)', () => {
+  it('carries days-left through only when provided (calendar mode)', () => {
     const under = [{ group: 'Back' as const, performedSets: 6, plannedSets: 12 }]
     const base = { planned: plan([]), under, currentSets: 6, previousSets: 0 }
 
-    expect(verdictForStats({ ...base, daysLeft: 3 }).context).toBe(
-      '6 of 12 planned sets · 3 days left this week',
-    )
-    expect(verdictForStats({ ...base, daysLeft: 1 }).context).toBe(
-      '6 of 12 planned sets · 1 day left this week',
-    )
+    expect(verdictForStats({ ...base, daysLeft: 3 })).toMatchObject({ daysLeft: 3 })
+    expect(verdictForStats({ ...base, daysLeft: 1 })).toMatchObject({ daysLeft: 1 })
+    expect(verdictForStats({ ...base, daysLeft: null })).toMatchObject({ daysLeft: null })
   })
 
   it('reads on plan when nothing is under', () => {
@@ -209,8 +211,7 @@ describe('verdictForStats', () => {
       daysLeft: 2,
     })
 
-    expect(verdict.headline).toBe('On plan.')
-    expect(verdict.context).toBe('Every planned group at its weekly target · 2 days left this week')
+    expect(verdict).toEqual({ kind: 'onPlan', daysLeft: 2 })
   })
 
   it('falls back to no-plan copy with the week total and delta', () => {
@@ -222,11 +223,10 @@ describe('verdictForStats', () => {
       daysLeft: null,
     })
 
-    expect(verdict.headline).toBe('No plan set.')
-    expect(verdict.context).toBe('24 sets this week · +6 vs last week')
+    expect(verdict).toEqual({ kind: 'noPlan', currentSets: 24, delta: 6 })
   })
 
-  it('omits the delta when flat and handles the singular set', () => {
+  it('reports no delta when the week is flat', () => {
     const verdict = verdictForStats({
       planned: null,
       under: [],
@@ -235,17 +235,17 @@ describe('verdictForStats', () => {
       daysLeft: null,
     })
 
-    expect(verdict.context).toBe('1 set this week')
+    expect(verdict).toEqual({ kind: 'noPlan', currentSets: 1, delta: null })
   })
 })
 
-describe('setsDeltaLabel', () => {
-  it('signs the difference and names the period', () => {
-    expect(setsDeltaLabel(24, 18)).toBe('+6 vs last week')
-    expect(setsDeltaLabel(12, 20)).toBe('−8 vs last week')
+describe('setsDelta', () => {
+  it('returns the signed difference, leaving the sign glyph to the catalog', () => {
+    expect(setsDelta(24, 18)).toBe(6)
+    expect(setsDelta(12, 20)).toBe(-8)
   })
 
   it('returns null when flat', () => {
-    expect(setsDeltaLabel(10, 10)).toBeNull()
+    expect(setsDelta(10, 10)).toBeNull()
   })
 })

@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { renderToStaticMarkup } from 'react-dom/server'
+import { renderStaticIntl } from '../../../vitest.intl'
 
 import type { NoteView } from '@/components/notes/note-view'
 import { NotesBrowser } from './notes-browser'
@@ -29,7 +29,7 @@ function view(overrides: Partial<NoteView> = {}): NoteView {
 
 describe('NotesBrowser', () => {
   test('groups rows under SESSION headers: title left, relative date right', () => {
-    const html = renderToStaticMarkup(
+    const html = renderStaticIntl(
       <NotesBrowser
         corpusEmpty={false}
         notes={[
@@ -62,18 +62,18 @@ describe('NotesBrowser', () => {
   })
 
   test('empty corpus: the EmptyWords sentence, no shells', () => {
-    const html = renderToStaticMarkup(<NotesBrowser corpusEmpty notes={[]} />)
+    const html = renderStaticIntl(<NotesBrowser corpusEmpty notes={[]} />)
     expect(html).toContain('Notes you write while training land here.')
     expect(html).not.toContain('rounded-2xl')
   })
 
   test('filters matching nothing (corpus non-empty) reads as a filter miss', () => {
-    const html = renderToStaticMarkup(<NotesBrowser corpusEmpty={false} notes={[]} />)
+    const html = renderStaticIntl(<NotesBrowser corpusEmpty={false} notes={[]} />)
     expect(html).toContain('No note matches these filters.')
   })
 
   test('the chip rail (children) renders between search and the list', () => {
-    const html = renderToStaticMarkup(
+    const html = renderStaticIntl(
       <NotesBrowser corpusEmpty={false} notes={[view()]}>
         <nav aria-label="Filter notes">chips</nav>
       </NotesBrowser>,

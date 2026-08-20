@@ -7,7 +7,7 @@ import {
   type VolumeWindowMode,
 } from '@/lib/volume-window'
 import { AppHeader } from '@/components/app-header'
-import { StatTile } from '@/components/stat-tile'
+import { StatTile, type StatDelta } from '@/components/stat-tile'
 import { VolumeBarChart } from '@/components/charts/volume-bar-chart'
 import { NavDrawer } from '@/components/nav/nav-drawer'
 import { WindowToggle } from './window-toggle'
@@ -16,12 +16,14 @@ import {
   lowVolumeGroups,
   LOW_VOLUME_FLOOR,
   overPlanGroups,
-  setsDeltaLabel,
+  setsDelta,
   sortGroupsForDisplay,
   underPlanGroups,
   verdictForStats,
   withPlanned,
+  type StatsVerdict,
 } from './volume-view'
+import { getTranslations } from 'next-intl/server'
 
 /** getTimezoneOffset is bounded by real-world zones (±14h); clamp to ±16h so
  *  a forged tz param can't fling week boundaries around. */
@@ -40,6 +42,7 @@ export default async function StatsPage({
 }: {
   searchParams: Promise<{ window?: string | string[]; tz?: string | string[] }>
 }) {
+  const t = await getTranslations('Stats')
   const userId = await requireUserId()
   const params = await searchParams
   const rawWindow = Array.isArray(params.window) ? params.window[0] : params.window
@@ -79,7 +82,25 @@ export default async function StatsPage({
       )
     : null
   const chartGroups = sortGroupsForDisplay(volume.groups, false)
-  const delta = setsDeltaLabel(volume.totals.currentSets, volume.totals.previousSets)
+  const delta = setsDelta(volume.totals.currentSets, volume.totals.previousSets)
+  // Tile deltas built here rather than inline: `tone` is a design token name,
+  // not copy, and the strict i18n gate reads bare strings inside JSX as copy.
+  const setsTileDelta: StatDelta | undefined =
+    delta !== null
+      ? {
+          // Two whole messages rather than a sign glued onto a number: the
+          // sign leads the phrase in English and need not lead it elsewhere.
+          text:
+            delta > 0
+              ? t('totals.setsDeltaUp', { amount: delta })
+              : t('totals.setsDeltaDown', { amount: Math.abs(delta) }),
+          tone: 'neutral',
+        }
+      : undefined
+  const cardioTileDelta: StatDelta | undefined =
+    previousCardioMinutes > 0
+      ? { text: t('totals.cardioDelta', { minutes: previousCardioMinutes }), tone: 'neutral' }
+      : undefined
   // Days-left is only meaningful against a fixed week end — calendar mode.
   const verdict = verdictForStats({
     planned,
@@ -92,7 +113,7 @@ export default async function StatsPage({
   return (
     <div className="flex min-h-[100dvh] flex-col">
       <AppHeader
-        title="This Week"
+        title={t('title')}
         leading={<NavDrawer />}
       />
 
@@ -101,11 +122,19 @@ export default async function StatsPage({
             words before any chart. The window toggle is demoted below it —
             a preference, not the page's opening move. */}
         {hasAnyVolume && (
-          <section aria-label="Week verdict">
+          <section aria-label={t('verdict.ariaLabel')}>
             <h2 className="font-display text-4xl uppercase leading-none tracking-wide">
-              {verdict.headline}
+              {verdict.kind === 'behind'
+                ? // The muscle group is CATALOG data, not copy — it arrives as
+                  // an argument, never as part of the message.
+                  t('verdict.behindTitle', { group: verdict.group })
+                : verdict.kind === 'onPlan'
+                  ? t('verdict.onPlanTitle')
+                  : t('verdict.noPlanTitle')}
             </h2>
-            <p className="mt-1.5 text-sm text-muted-foreground tnum">{verdict.context}</p>
+            <p className="mt-1.5 text-sm text-muted-foreground tnum">
+              {verdictContext(t, verdict)}
+            </p>
           </section>
         )}
 
@@ -114,33 +143,29 @@ export default async function StatsPage({
         {!hasAnyVolume ? (
           // De-carded teach state: plain muted words (the program-stats
           // empty-state voice), no shell.
-          <p className="text-sm text-muted-foreground">
-            No completed sets in the last two weeks — finish a workout and the balance picture
-            builds itself.
-          </p>
+          <p className="text-sm text-muted-foreground">{t('empty')}</p>
         ) : (
           <>
-            <section aria-label="Weekly totals">
+            <section aria-label={t('totals.ariaLabel')}>
               <dl className="grid grid-cols-2 gap-3">
                 <StatTile
-                  label="Sets"
+                  label={t('totals.setsLabel')}
                   value={String(volume.totals.currentSets)}
-                  delta={delta ? { text: delta, tone: 'neutral' } : undefined}
+                  delta={setsTileDelta}
                 />
-                <StatTile label="Sessions" value={String(volume.totals.currentSessions)} />
+                <StatTile
+                  label={t('totals.sessionsLabel')}
+                  value={String(volume.totals.currentSessions)}
+                />
                 {/* Weekly cardio minutes (cardio v1): rendered only when a
                     window has any — lifting-only weeks keep the two-tile
                     grid byte-identical. */}
                 {(cardioMinutes > 0 || previousCardioMinutes > 0) && (
                   <StatTile
-                    label="Cardio"
+                    label={t('totals.cardioLabel')}
                     value={String(cardioMinutes)}
-                    unit="min"
-                    delta={
-                      previousCardioMinutes > 0
-                        ? { text: `vs ${previousCardioMinutes} min last week`, tone: 'neutral' }
-                        : undefined
-                    }
+                    unit={t('totals.cardioUnit')}
+                    delta={cardioTileDelta}
                   />
                 )}
               </dl>
@@ -148,10 +173,11 @@ export default async function StatsPage({
 
             {low.length > 0 && (
               <p className="px-1 text-sm text-muted-foreground">
-                <span className="font-semibold text-foreground">
-                  Low this week (&lt;{LOW_VOLUME_FLOOR} sets):
-                </span>{' '}
-                {low.map((g) => g.group).join(', ')}
+                {t.rich('lowNotice', {
+                  floor: LOW_VOLUME_FLOOR,
+                  groups: low.map((g) => g.group).join(', '),
+                  lead: (chunks) => <span className="font-semibold text-foreground">{chunks}</span>,
+                })}
               </p>
             )}
 
@@ -159,17 +185,20 @@ export default async function StatsPage({
                 worst gap and every bullet row below shows its own. */}
             {over.length > 0 && (
               <p className="px-1 text-xs text-muted-foreground">
-                Well over plan:{' '}
-                {over.map((e) => `${e.group} ${e.performedSets} / ${e.plannedSets}`).join(', ')}
+                {t('overPlanNotice', {
+                  groups: over
+                    .map((e) => `${e.group} ${e.performedSets} / ${e.plannedSets}`)
+                    .join(', '),
+                })}
               </p>
             )}
 
             {/* De-carded: condensed-caps header over open content, closed by
                 a muted hairline — the shell card is gone (settings-zone
                 shape); chart/bullet internals untouched. */}
-            <section aria-label="Sets per muscle group">
+            <section aria-label={t('groups.ariaLabel')}>
               <h2 className="font-display text-base uppercase leading-none tracking-wide text-muted-foreground">
-                Sets per muscle group
+                {t('groups.title')}
               </h2>
               <div className="mt-3 border-b border-b-border/60 pb-4">
                 {planRows !== null ? (
@@ -181,9 +210,11 @@ export default async function StatsPage({
                 )}
               </div>
               <p className="mt-2 text-xs text-muted-foreground">
-                Primary muscles count a full set, secondaries half.
-                {planned &&
-                  ` The track is one full pass through ${planned.programName}'s days; both window views compare against that same weekly figure. The thin mark is last week.`}
+                {/* A whole message per case — the plan sentence is not appended
+                    to the base one, because a translator needs to move it. */}
+                {planned
+                  ? t('groups.hintPlanned', { program: planned.programName })
+                  : t('groups.hint')}
               </p>
             </section>
           </>
@@ -191,4 +222,37 @@ export default async function StatsPage({
       </main>
     </div>
   )
+}
+
+/** The verdict's second line: one whole ICU message per case, with the
+ *  days-left variants spelled out rather than suffixed onto a shorter one. */
+function verdictContext(
+  t: Awaited<ReturnType<typeof getTranslations<'Stats'>>>,
+  verdict: StatsVerdict,
+): string {
+  if (verdict.kind === 'noPlan') {
+    return verdict.delta === null
+      ? t('verdict.noPlanContext', { sets: verdict.currentSets })
+      : verdict.delta > 0
+        ? t('verdict.noPlanContextUp', { sets: verdict.currentSets, amount: verdict.delta })
+        : t('verdict.noPlanContextDown', {
+            sets: verdict.currentSets,
+            amount: Math.abs(verdict.delta),
+          })
+  }
+  if (verdict.kind === 'onPlan') {
+    return verdict.daysLeft === null
+      ? t('verdict.onPlanContext')
+      : t('verdict.onPlanContextDays', { days: verdict.daysLeft })
+  }
+  return verdict.daysLeft === null
+    ? t('verdict.behindContext', {
+        performed: verdict.performedSets,
+        planned: verdict.plannedSets,
+      })
+    : t('verdict.behindContextDays', {
+        performed: verdict.performedSets,
+        planned: verdict.plannedSets,
+        days: verdict.daysLeft,
+      })
 }

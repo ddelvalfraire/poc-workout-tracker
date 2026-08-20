@@ -10,6 +10,7 @@ import type { SessionSummary } from '@/components/session-conflict-dialog'
 import { cn } from '@/lib/utils'
 import { deleteTemplateAction } from '@/app/templates/actions'
 import { TemplateEditSheet } from './template-edit-sheet'
+import { useTranslations } from 'next-intl'
 
 interface TemplateActionsProps {
   template: {
@@ -31,6 +32,7 @@ interface TemplateActionsProps {
  * a transition — see workout-actions.tsx).
  */
 export function TemplateActions({ template, session }: TemplateActionsProps) {
+  const t = useTranslations('TemplateActions')
   const router = useRouter()
   const [isEditing, setIsEditing] = useState(false)
   const [isDeleteOpen, setIsDeleteOpen] = useState(false)
@@ -51,7 +53,7 @@ export function TemplateActions({ template, session }: TemplateActionsProps) {
       // isDeleting stays true on success: navigation unmounts this screen.
     } catch {
       setIsDeleting(false)
-      setDeleteError('Could not delete template. Please try again.')
+      setDeleteError(t('deleteError'))
     }
   }
 
@@ -63,12 +65,12 @@ export function TemplateActions({ template, session }: TemplateActionsProps) {
         className={cn(buttonVariants(), 'w-full gap-2')}
       >
         <Play aria-hidden="true" className="size-4" />
-        Start workout
+        {t('startAction')}
       </GuardedStartLink>
 
       <div className="flex items-center gap-2">
         <Button variant="outline" className="flex-1" onClick={() => setIsEditing(true)}>
-          Edit details
+          {t('editAction')}
         </Button>
         {/* Demoted on purpose: destructive never carries the same weight
             as the everyday action beside it. */}
@@ -81,7 +83,7 @@ export function TemplateActions({ template, session }: TemplateActionsProps) {
             setIsDeleteOpen(true)
           }}
         >
-          Delete
+          {t('delete')}
         </Button>
       </div>
 
@@ -97,10 +99,10 @@ export function TemplateActions({ template, session }: TemplateActionsProps) {
 
       {isDeleteOpen && (
         <ConfirmDialog
-          title="Delete this template?"
-          body="Your logged workouts are untouched — only the template goes."
-          confirmLabel="Delete"
-          pendingLabel="Deleting…"
+          title={t('deleteDialog.title')}
+          body={t('deleteDialog.body')}
+          confirmLabel={t('deleteDialog.confirm')}
+          pendingLabel={t('deleteDialog.pending')}
           error={deleteError}
           isPending={isDeleting}
           onConfirm={handleDelete}

@@ -12,6 +12,38 @@
     "targetSummary": "Target {weeks, plural, one {# week} other {# weeks}}",
     "weeksUnit": "wks"
   },
+  "CreateExerciseForm": {
+    "categoryLabel": "Category",
+    "categoryPlaceholder": "Category…",
+    "createError": "Could not create the exercise.",
+    "duplicateCatalog": "“{name}” already exists in the catalog.",
+    "duplicateCustom": "“{name}” already exists in your exercises.",
+    "musclesHint": "Optional — they feed muscle volume and replacement suggestions.",
+    "musclesTitle": "Primary muscles",
+    "nameLabel": "Custom exercise name",
+    "namePlaceholder": "Name",
+    "primaryAction": {
+      "add": "Save & add",
+      "swap": "Save & replace"
+    },
+    "save": "Save",
+    "saving": "Saving…",
+    "useExistingAction": "Use existing",
+    "validationCategory": "Pick a category.",
+    "validationName": "Give it a name."
+  },
+  "CustomExerciseEditor": {
+    "cancel": "Cancel",
+    "categoryLabel": "Category",
+    "musclesLabel": "Primary muscles",
+    "nameLabel": "Custom exercise name",
+    "openAction": "Edit custom exercise",
+    "save": "Save",
+    "saveError": "Could not save changes.",
+    "saving": "Saving…",
+    "sectionTitle": "Edit custom exercise",
+    "validationName": "Give it a name."
+  },
   "DeleteAccount": {
     "erased": {
       "description": "your workouts, programs, templates, notes, goals, trophies, body measurements, progress photos, custom exercises, preferences, and coach conversations.",
@@ -29,6 +61,87 @@
   },
   "DeleteAccountForm": {
     "confirmInstruction": "Type <code>{phrase}</code> to confirm"
+  },
+  "ExerciseNoteSection": {
+    "add": "Add note",
+    "ariaLabel": "Exercise note",
+    "edit": "Edit",
+    "empty": "Setup that follows this exercise everywhere — seat pins, grip, cues.",
+    "eyebrow": "Exercise note",
+    "pinnedAriaLabel": "Pinned in logger",
+    "title": "Note"
+  },
+  "ExerciseStats": {
+    "deltaEarlier": "+{gain} {unit} vs earlier sessions",
+    "deltaFirst": "+{gain} {unit} vs first session",
+    "deltaMonth": "+{gain} {unit} this month",
+    "history": {
+      "ariaLabel": "Session history",
+      "e1rmChip": "{value} e1RM",
+      "empty": "No sessions yet.",
+      "emptyOlder": "No older sessions.",
+      "newer": "Newer",
+      "older": "Older",
+      "prChip": "PR<sr> (personal record)</sr>",
+      "setCount": "{count, plural, one {# set} other {# sets}}",
+      "title": "History"
+    },
+    "notes": {
+      "ariaLabel": "Session notes",
+      "title": "Notes"
+    },
+    "records": {
+      "ariaLabel": "All-time records",
+      "bestE1rmLabel": "Best est. 1RM",
+      "bestPaceLabel": "Best pace",
+      "bestVolumeLabel": "Best session volume",
+      "distanceUnit": "km",
+      "empty": "No load records yet — log weight (or set your bodyweight in Settings for bodyweight movements) and PRs land here.",
+      "heaviestLoadLabel": "Heaviest load",
+      "highRepEstimate": "High-rep est.",
+      "longestDistanceLabel": "Longest distance",
+      "longestDurationLabel": "Longest duration",
+      "mostRepsLabel": "Most reps",
+      "paceUnit": "/km",
+      "title": "All-time records"
+    },
+    "shareTitlePr": "{name} PR",
+    "shareTitleProgress": "{name} progress",
+    "standing": {
+      "month": "held {count, plural, one {# month} other {# months}}",
+      "week": "held {count, plural, one {# week} other {# weeks}}",
+      "year": "held {count, plural, one {# year} other {# years}}"
+    },
+    "trend": {
+      "ariaLabel": "Estimated 1RM trend",
+      "chartAriaLabel": "Estimated 1RM across {sessions, plural, one {# session} other {# sessions}}, currently {current}",
+      "target": "target {value} {unit}",
+      "targetLabel": "Target",
+      "title": "Est. 1RM trend · {sessions, plural, one {# session} other {# sessions}}",
+      "valueLabel": "Est. 1RM"
+    }
+  },
+  "Exercises": {
+    "facets": {
+      "all": "All",
+      "ariaLabel": "Filter by muscle group"
+    },
+    "sort": {
+      "ariaLabel": "Sort",
+      "recent": "Recent",
+      "trained": "Most trained"
+    },
+    "title": "Exercises"
+  },
+  "FacetSelect": {
+    "ariaLabel": {
+      "exercise": "Filter by exercise",
+      "program": "Filter by program"
+    },
+    "trigger": {
+      "exercise": "Exercise ▾",
+      "program": "Program ▾"
+    }
   },
   "GoalCardActions": {
     "archiveAction": "Archive",
@@ -146,6 +259,41 @@
       "hint": "Strong files don’t say kg or lb — pick the unit this account logged in."
     }
   },
+  "LibraryFilter": {
+    "empty": "Nothing here yet — finish a workout and your exercises show up with their stats.",
+    "emptyQuery": "No exercise matches “{query}”.",
+    "searchLabel": "Filter exercises by name",
+    "searchPlaceholder": "Filter exercises",
+    "zone": {
+      "dormant": "Dormant",
+      "moving": "Moving",
+      "training": "Training"
+    }
+  },
+  "NewExercise": {
+    "title": "New custom exercise"
+  },
+  "Notes": {
+    "filters": {
+      "all": "All",
+      "ariaLabel": "Filter notes",
+      "coach": "Coach",
+      "mine": "Mine"
+    },
+    "title": "Notes",
+    "windowNotice": "Showing your latest {count, plural, one {# note} other {# notes}}."
+  },
+  "NotesBrowser": {
+    "empty": "Notes you write while training land here.",
+    "emptyFiltered": "No note matches these filters.",
+    "emptyQuery": "No note matches “{query}”.",
+    "searchLabel": "Search notes",
+    "searchPlaceholder": "Search notes"
+  },
+  "PlanBulletList": {
+    "noTarget": "{current} sets · no target",
+    "progress": "{current} / {planned} sets"
+  },
   "RemoveImportButton": {
     "label": "Remove"
   },
@@ -166,8 +314,90 @@
   },
   "SignOutButton": {
     "action": "Sign out",
-    "pending": "Signing out…",
-    "ariaLabel": "Sign out"
+    "ariaLabel": "Sign out",
+    "pending": "Signing out…"
+  },
+  "Stats": {
+    "empty": "No completed sets in the last two weeks — finish a workout and the balance picture builds itself.",
+    "groups": {
+      "ariaLabel": "Sets per muscle group",
+      "hint": "Primary muscles count a full set, secondaries half.",
+      "hintPlanned": "Primary muscles count a full set, secondaries half. The track is one full pass through {program}'s days; both window views compare against that same weekly figure. The thin mark is last week.",
+      "title": "Sets per muscle group"
+    },
+    "lowNotice": "<lead>Low this week (<{floor} sets):</lead> {groups}",
+    "overPlanNotice": "Well over plan: {groups}",
+    "title": "This Week",
+    "totals": {
+      "ariaLabel": "Weekly totals",
+      "cardioDelta": "vs {minutes} min last week",
+      "cardioLabel": "Cardio",
+      "cardioUnit": "min",
+      "sessionsLabel": "Sessions",
+      "setsDeltaDown": "−{amount} vs last week",
+      "setsDeltaUp": "+{amount} vs last week",
+      "setsLabel": "Sets"
+    },
+    "verdict": {
+      "ariaLabel": "Week verdict",
+      "behindContext": "{performed} of {planned} planned sets",
+      "behindContextDays": "{performed} of {planned} planned sets · {days, plural, one {# day} other {# days}} left this week",
+      "behindTitle": "{group} is behind.",
+      "noPlanContext": "{sets, plural, one {# set} other {# sets}} this week",
+      "noPlanContextDown": "{sets, plural, one {# set} other {# sets}} this week · −{amount} vs last week",
+      "noPlanContextUp": "{sets, plural, one {# set} other {# sets}} this week · +{amount} vs last week",
+      "noPlanTitle": "No plan set.",
+      "onPlanContext": "Every planned group at its weekly target",
+      "onPlanContextDays": "Every planned group at its weekly target · {days, plural, one {# day} other {# days}} left this week",
+      "onPlanTitle": "On plan."
+    }
+  },
+  "TemplateActions": {
+    "delete": "Delete",
+    "deleteDialog": {
+      "body": "Your logged workouts are untouched — only the template goes.",
+      "confirm": "Delete",
+      "pending": "Deleting…",
+      "title": "Delete this template?"
+    },
+    "deleteError": "Could not delete template. Please try again.",
+    "editAction": "Edit details",
+    "startAction": "Start workout"
+  },
+  "TemplateDetail": {
+    "loggingType": {
+      "assisted_bodyweight": "Assisted bodyweight",
+      "bodyweight_reps": "Bodyweight",
+      "weighted_bodyweight": "Weighted bodyweight"
+    },
+    "restLabel": "Rest {seconds}s",
+    "setPlan": {
+      "range": "{sets} × {reps}",
+      "sets": "{count, plural, one {# set} other {# sets}}"
+    }
+  },
+  "TemplateEditSheet": {
+    "ariaLabel": "Edit {name}",
+    "cancel": "Cancel",
+    "close": "Close",
+    "descriptionAriaLabel": "Description for {name}",
+    "descriptionLabel": "Description",
+    "eyebrow": "Edit template",
+    "iconChoiceAriaLabel": "Use {icon} as the icon",
+    "iconFieldLabel": "Icon",
+    "iconLabel": "Icon",
+    "iconPlaceholder": "💪",
+    "nameLabel": "Name",
+    "save": "Save",
+    "saveError": "Could not save changes. Please try again.",
+    "saving": "Saving…"
+  },
+  "Templates": {
+    "empty": "Finish a workout, tap “Save as template” on its summary, and it lives here ready to start in one tap.",
+    "startAction": "Start a workout",
+    "startHeroAction": "Start {name}",
+    "startRowAriaLabel": "Start {name}",
+    "title": "Session templates"
   },
   "TileSheet": {
     "move": {
@@ -186,6 +416,13 @@
       "title": "Closest"
     },
     "empty": "No trophies yet. Every trophy is a lifting fact — plate clubs, workout counts, streaks. Train and they stamp themselves."
+  },
+  "WindowToggle": {
+    "ariaLabel": "Week window",
+    "option": {
+      "calendar": "This week",
+      "rolling": "Last 7 days"
+    }
   },
   "WorkoutRemindersToggle": {
     "blockedNotice": "Notifications are blocked for this app in your browser settings.",

@@ -9,6 +9,7 @@ import { updateCustomExerciseAction } from './actions'
 import { EXERCISE_CATEGORIES } from '@/lib/custom-exercise-input'
 import { CATALOG_MUSCLE_NAMES } from '@/lib/muscle-groups'
 import { cn } from '@/lib/utils'
+import { useTranslations } from 'next-intl'
 
 /**
  * Edit island for a CUSTOM exercise's definition, collapsed behind one
@@ -33,6 +34,7 @@ export function CustomExerciseEditor({
   muscles: initialMuscles,
   musclesSecondary,
 }: CustomExerciseEditorProps) {
+  const t = useTranslations('CustomExerciseEditor')
   const router = useRouter()
   const [isOpen, setIsOpen] = useState(false)
   const [name, setName] = useState(initialName)
@@ -49,7 +51,7 @@ export function CustomExerciseEditor({
 
   async function handleSave() {
     if (name.trim().length === 0) {
-      setError('Give it a name.')
+      setError(t('validationName'))
       return
     }
     setError(null)
@@ -66,7 +68,7 @@ export function CustomExerciseEditor({
       setIsOpen(false)
       setIsSaving(false)
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Could not save changes.')
+      setError(err instanceof Error ? err.message : t('saveError'))
       setIsSaving(false)
     }
   }
@@ -74,7 +76,7 @@ export function CustomExerciseEditor({
   if (!isOpen) {
     return (
       <Button size="sm" variant="outline" className="w-full" onClick={() => setIsOpen(true)}>
-        Edit custom exercise
+        {t('openAction')}
       </Button>
     )
   }
@@ -83,17 +85,17 @@ export function CustomExerciseEditor({
     // De-carded: the form sits under a caps header and closes on a muted
     // hairline — no shell. The header drops its volt: the accent belongs to
     // achievements and primary actions, not an editing label.
-    <Section title="Edit custom exercise" className="mt-0">
+    <Section title={t('sectionTitle')} className="mt-0">
       <div className="mt-3 space-y-3 border-b border-b-border/60 pb-4">
         <Input
           value={name}
           onChange={(e) => setName(e.target.value)}
-          aria-label="Custom exercise name"
+          aria-label={t('nameLabel')}
         />
         <select
           value={category}
           onChange={(e) => setCategory(e.target.value)}
-          aria-label="Category"
+          aria-label={t('categoryLabel')}
           className="h-9 w-full rounded-lg border border-border bg-transparent px-2 text-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
         >
           {EXERCISE_CATEGORIES.map((c) => (
@@ -103,7 +105,7 @@ export function CustomExerciseEditor({
           ))}
         </select>
         <div>
-          <p className="text-xs text-muted-foreground">Primary muscles</p>
+          <p className="text-xs text-muted-foreground">{t('musclesLabel')}</p>
           <div className="mt-1.5 flex flex-wrap gap-1.5">
             {CATALOG_MUSCLE_NAMES.map((muscle) => (
               <button
@@ -138,10 +140,10 @@ export function CustomExerciseEditor({
               setIsOpen(false)
             }}
           >
-            Cancel
+            {t('cancel')}
           </Button>
           <Button size="sm" className="flex-1" onClick={handleSave} disabled={isSaving}>
-            {isSaving ? 'Saving…' : 'Save'}
+            {isSaving ? t('saving') : t('save')}
           </Button>
         </div>
       </div>

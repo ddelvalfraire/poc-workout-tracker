@@ -10,6 +10,7 @@ import {
   type NoteView,
 } from '@/components/notes/note-view'
 import { NoteRow } from '@/components/notes/note-row'
+import { useTranslations } from 'next-intl'
 
 /**
  * The browser's one client island (the library-filter recipe): the server
@@ -33,6 +34,7 @@ export function NotesBrowser({
   /** The server-rendered filter-chip rail, slotted under the search field. */
   children?: ReactNode
 }) {
+  const t = useTranslations('NotesBrowser')
   const [query, setQuery] = useState('')
   const visible = notes.filter((note) => matchesNoteSearch(note, query))
   const threads = groupNotesByThread(visible)
@@ -44,17 +46,20 @@ export function NotesBrowser({
         onChange={(event) => setQuery(event.target.value)}
         type="search"
         inputMode="search"
-        placeholder="Search notes"
-        aria-label="Search notes"
+        placeholder={t('searchPlaceholder')}
+        aria-label={t('searchLabel')}
       />
 
       {children}
 
       {corpusEmpty ? (
-        <EmptyWords className="py-12">Notes you write while training land here.</EmptyWords>
+        <EmptyWords className="py-12">{t('empty')}</EmptyWords>
       ) : visible.length === 0 ? (
         <EmptyWords>
-          No note matches{query.trim() !== '' ? ` “${query.trim()}”` : ' these filters'}.
+          {/* One whole ICU message per case, never a fragment beside an
+              expression: the quoted needle sits mid-sentence in English and
+              will not in every language. */}
+          {query.trim() !== '' ? t('emptyQuery', { query: query.trim() }) : t('emptyFiltered')}
         </EmptyWords>
       ) : (
         threads.map((thread) => (

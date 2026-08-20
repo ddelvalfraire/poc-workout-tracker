@@ -14,6 +14,18 @@ import { NavDrawer } from '@/components/nav/nav-drawer'
 import { cn } from '@/lib/utils'
 import { FacetSelect } from './facet-select'
 import { NotesBrowser } from './notes-browser'
+import { getTranslations } from 'next-intl/server'
+
+/** Facet identifiers, not copy — the select's own labels come from the
+ *  catalog inside FacetSelect. */
+const EXERCISE_FACET = 'exercise'
+const PROGRAM_FACET = 'program'
+
+/** ARIA token values are part of the HTML vocabulary, never copy. */
+const ARIA_CURRENT_PAGE = 'page'
+
+/** listNotes' row ceiling — the window the page can honestly claim to show. */
+const NOTES_WINDOW = 200
 
 /**
  * The notes browser: one corpus, many lenses. The server renders everything —
@@ -31,6 +43,7 @@ export default async function NotesPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>
 }) {
+  const t = await getTranslations('Notes')
   const userId = await requireUserId()
   const params = parseNotesFilterParams(await searchParams)
   const [rows, unit] = await Promise.all([listNotes(userId), getWeightUnit(userId)])
@@ -47,7 +60,7 @@ export default async function NotesPage({
 
   return (
     <div className="flex min-h-[100dvh] flex-col">
-      <AppHeader title="Notes" leading={<NavDrawer />} />
+      <AppHeader title={t('title')} leading={<NavDrawer />} />
 
       <main className="mx-auto w-full max-w-md flex-1 px-5 pb-safe pt-4">
         <NotesBrowser notes={filtered} corpusEmpty={views.length === 0}>
@@ -56,17 +69,17 @@ export default async function NotesPage({
                URL state; active chips link back to their cleared state.
                Edge-to-edge scroll on the page grid (exercises precedent). */
             <nav
-              aria-label="Filter notes"
+              aria-label={t('filters.ariaLabel')}
               className="-mx-5 mt-3 flex gap-2 overflow-x-auto px-5 pb-1 [scrollbar-width:none]"
             >
               <FilterChip
                 href={notesHref({ ...params, author: 'all' })}
-                label="All"
+                label={t('filters.all')}
                 isActive={params.author === 'all'}
               />
               <FilterChip
                 href={notesHref({ ...params, author: 'mine' })}
-                label="Mine"
+                label={t('filters.mine')}
                 isActive={params.author === 'mine'}
               />
               {/* The Coach lens appears once a coach has ever written — a
@@ -74,7 +87,7 @@ export default async function NotesPage({
               {hasCoachNotes && (
                 <FilterChip
                   href={notesHref({ ...params, author: 'coach' })}
-                  label="Coach"
+                  label={t('filters.coach')}
                   isActive={params.author === 'coach'}
                 />
               )}
@@ -90,24 +103,19 @@ export default async function NotesPage({
                 )
               })}
               {exercises.length > 0 && (
-                <FacetSelect
-                  label="Exercise"
-                  param="exercise"
-                  params={params}
-                  options={exercises}
-                />
+                <FacetSelect param={EXERCISE_FACET} params={params} options={exercises} />
               )}
               {programs.length > 0 && (
-                <FacetSelect label="Program" param="program" params={params} options={programs} />
+                <FacetSelect param={PROGRAM_FACET} params={params} options={programs} />
               )}
             </nav>
           )}
         </NotesBrowser>
         {/* No silent caps: listNotes windows at 200 — when the window is
             full, older notes exist beyond it and the reader must know. */}
-        {rows.length >= 200 && (
+        {rows.length >= NOTES_WINDOW && (
           <p className="px-1 py-4 text-center text-xs text-muted-foreground">
-            Showing your latest 200 notes.
+            {t('windowNotice', { count: NOTES_WINDOW })}
           </p>
         )}
       </main>
@@ -141,7 +149,7 @@ function FilterChip({
   return (
     <Link
       href={href}
-      aria-current={isActive ? 'page' : undefined}
+      aria-current={isActive ? ARIA_CURRENT_PAGE : undefined}
       className={cn(
         'shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold uppercase tracking-wide transition-colors',
         isActive
