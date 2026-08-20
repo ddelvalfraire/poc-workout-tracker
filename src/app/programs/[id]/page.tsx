@@ -49,6 +49,7 @@ import { listPatchProposals } from '@/db/patch-proposals'
 import { ensureVolumeProposals } from '@/db/volume-progression'
 import { ensureReactiveDeloadProposals } from '@/db/reactive-deload'
 import { describeToolCall } from '@/lib/coach/describe-tool-call'
+import { renderToolCall } from '@/lib/coach/render-tool-call'
 import { patchForDisplay } from '@/lib/patch-proposal'
 import { proposalAgeLine } from '../list-view'
 import { PatchProposalCard } from './patch-proposal-card'
@@ -103,6 +104,10 @@ export default async function ProgramDetailPage({
   // The progression sentence belongs to the scheme vocabulary, not to this
   // surface — one voice shared with the builder's picker line.
   const tScheme = await getTranslations('SchemeCopy')
+  // The patch diff's sentences come from the coach tool-call vocabulary, so
+  // they resolve against that namespace — server-side here, client-side in
+  // the chat's approval card, from the same descriptors.
+  const tTool = await getTranslations('CoachToolCall')
   const locale = await resolveLocale()
   const userId = await requireUserId()
   const [{ id }, sp] = await Promise.all([params, searchParams])
@@ -478,7 +483,7 @@ export default async function ProgramDetailPage({
             ageLine={renderMessage(t, proposalAgeLine(proposal.createdAt, new Date()))}
             sentences={proposal.patches.map((patch) => {
               const display = patchForDisplay(patch, unit)
-              return describeToolCall(display.tool, display.args)
+              return renderToolCall(tTool, describeToolCall(display.tool, display.args))
             })}
           />
         ))}

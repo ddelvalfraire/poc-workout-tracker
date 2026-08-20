@@ -138,6 +138,51 @@ describe('NavDrawer warm cache (real QueryClient, preseeded [drawer] data)', () 
   })
 })
 
+/** A fully populated account — every status line has a fact to state, so this
+ *  is where the drawer's descriptors (lib/drawer-status.ts) get RENDERED
+ *  through the real catalog. `weekdays: []` keeps the up-next line
+ *  anchor-free, and the recent workout is stamped now, so both are
+ *  independent of the clock the suite happens to run on. */
+const fullDrawerData: DrawerData = {
+  ...warmDrawerData,
+  upNext: { dayId: 'd1', dayName: 'Legs', week: 3, weekdays: [] },
+  program: { name: 'Upper/Lower Hybrid', week: 3, mesocycleWeeks: 7 },
+  stats: { weekSets: 42, daySets: [1, 2, 3, 4, 5, 6, 7] },
+  trophies: { earned: 12, newestLabel: '315 Squat Club' },
+  body: { weightKg: 83.9, deltaKg: -0.9, checkInDue: true, daysSinceLast: 8 },
+  exercises: { lastPrLabel: '315 Squat Club', loggedCount: 24 },
+  recents: [{ id: 'w1', name: 'Push A', startedAtMs: Date.now(), volumeKg: 3663 }],
+  unit: 'lb',
+}
+
+function renderDrawerFull(): string {
+  const client = new QueryClient()
+  client.setQueryData(['drawer'], fullDrawerData)
+  return renderToStaticMarkup(
+    <QueryClientProvider client={client}>
+      <NavDrawer />
+    </QueryClientProvider>,
+  )
+}
+
+describe('NavDrawer status lines (descriptors rendered through the real catalog)', () => {
+  test('every row states its fact in words, not in key paths', () => {
+    const html = renderDrawerFull()
+    expect(html).toContain('Upper/Lower Hybrid · Wk 3/7')
+    expect(html).toContain('42 sets this week')
+    expect(html).toContain('12 earned · newest: 315 Squat Club')
+    expect(html).toContain('185 lb ↘ · check-in due')
+    expect(html).toContain('Last PR: 315 Squat Club')
+    expect(html).toContain('Legs · Week 3')
+    expect(html).toContain('Today · 8,076 lb')
+  })
+
+  test('resolves every key it references', () => {
+    expect(renderDrawerFull()).not.toMatch(/NavDrawer\.[a-zA-Z.]+/)
+    expect(renderDrawerWarm()).not.toMatch(/NavDrawer\.[a-zA-Z.]+/)
+  })
+})
+
 describe('planDrawerOpen (open/reopen contract — the drawer wires this verbatim)', () => {
   test('first open with a cold cache: enable the query, ghosts + arrival for this open', () => {
     expect(planDrawerOpen({ hasOpened: false, hasData: false, isStale: false })).toEqual({

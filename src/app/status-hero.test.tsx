@@ -90,5 +90,40 @@ describe('StatusHero copy', () => {
   test('resolves every key it references', () => {
     expect(render({ nextDay })).not.toMatch(/StatusHero\.[a-zA-Z.]+/)
     expect(render()).not.toMatch(/StatusHero\.[a-zA-Z.]+/)
+    expect(
+      render({ session: { key: 'new', name: 'Push A', setCount: 4, completedSetCount: 2 } }),
+    ).not.toMatch(/StatusHero\.[a-zA-Z.]+/)
+  })
+
+  // The eyebrow, headline and context are DECIDED in lib/home-status.ts and
+  // rendered here (docs/I18N-KEYS.md §9) — these are the assertions that the
+  // hero actually speaks, rather than handing the user a descriptor.
+  test('day one speaks the fresh invitation', () => {
+    const html = render()
+
+    expect(html).toContain('Day one.')
+    expect(html).toContain('Log your first session — a program gives every set a target.')
+  })
+
+  test('a live session names it and counts its sets, singular and plural', () => {
+    expect(
+      render({ session: { key: 'new', name: 'Push A', setCount: 4, completedSetCount: 1 } }),
+    ).toContain('Push A · 1 set logged')
+    expect(
+      render({ session: { key: 'new', name: 'Push A', setCount: 4, completedSetCount: 2 } }),
+    ).toContain('Push A · 2 sets logged')
+  })
+
+  test('an unnamed session falls back to the untitled noun, not to a blank', () => {
+    const html = render({ session: { key: 'new', name: null, setCount: 1, completedSetCount: 1 } })
+
+    expect(html).toContain('Unnamed session · 1 set logged')
+  })
+
+  test('a due program day states the day and the week', () => {
+    const html = render({ nextDay })
+
+    expect(html).toContain('Push A day.')
+    expect(html).toContain('Week 2 of 4')
   })
 })

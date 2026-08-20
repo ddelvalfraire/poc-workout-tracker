@@ -98,23 +98,78 @@
     "approvalCancelled": "{tool} — cancelled",
     "cancel": "Cancel",
     "capabilityDescription": "It can read your workouts and programs, and propose plan changes — nothing is applied without your OK.",
+    "chip": {
+      "changeLog": "Show the change log",
+      "focus": "What should I focus on?",
+      "nextWeek": "Preview next week",
+      "previewFirstWeek": "Preview week 1",
+      "stalling": "Any signs of stalling?",
+      "whyNumbers": "Why these numbers?"
+    },
     "composerLabel": "Message the coach",
     "composerPlaceholder": "Ask about your training…",
+    "day": {
+      "date": "{date, date, ::MMMd}",
+      "dateWithYear": "{date, date, ::MMMdy}",
+      "today": "Today",
+      "yesterday": "Yesterday"
+    },
     "detailsSummary": "Details",
     "disclosureStrip": "AI coach — responses are AI-generated and can be wrong. Not medical advice.",
+    "errorGeneric": "Something went wrong. Try again.",
     "newChatAction": "New chat",
     "offlineNotice": "Coach needs a connection.",
     "pageTitle": "Coach",
     "pendingApprovalLabel": "Needs your OK",
     "proposalDays": "{days, plural, one {# day} other {# days}}/week",
     "proposalTitle": "Proposed program",
+    "proposalUntitled": "New program",
     "proposalWeeks": "{weeks, plural, one {# week} other {# weeks}}",
     "reviewAction": "Review & adopt",
     "sendLabel": "Send",
+    "starter": {
+      "nextBlock": "Plan my next block",
+      "preview": "Preview next week",
+      "program": "How's {name} going?",
+      "recap": "What did I train this week?",
+      "swap": "Swap tomorrow's pressing for more volume"
+    },
     "thinkingStatus": "Thinking",
     "title": "Ask your coach",
     "toolDetail": "· ‘{detail}’",
-    "toolFailed": " — failed"
+    "toolDone": {
+      "get_last_performance": "Checked your last numbers",
+      "get_program": "Read your program",
+      "get_program_stats": "Crunched program stats",
+      "get_weight_unit": "Checked your units",
+      "get_workout": "Read a workout",
+      "list_custom_exercises": "Checked your custom exercises",
+      "list_programs": "Listed your programs",
+      "list_proposals": "Checked outstanding proposals",
+      "list_workouts": "Looked through your workouts",
+      "preview_program_week": "Previewed the week",
+      "propose_program_patches": "Proposed plan changes",
+      "search_exercises": "Searched exercises",
+      "upsert_program": "Drafted a program",
+      "whoami": "Checked your account"
+    },
+    "toolFailed": " — failed",
+    "toolRunning": {
+      "get_last_performance": "Checking your last numbers",
+      "get_program": "Reading your program",
+      "get_program_stats": "Crunching program stats",
+      "get_weight_unit": "Checking your units",
+      "get_workout": "Reading a workout",
+      "list_custom_exercises": "Checking your custom exercises",
+      "list_programs": "Listing your programs",
+      "list_proposals": "Checking outstanding proposals",
+      "list_workouts": "Looking through your workouts",
+      "preview_program_week": "Previewing the week",
+      "propose_program_patches": "Proposing plan changes",
+      "search_exercises": "Searching exercises",
+      "upsert_program": "Drafting your program",
+      "whoami": "Checking your account"
+    }
   },
   "CoachDisclosure": {
     "acknowledgeAction": "Got it",
@@ -142,6 +197,63 @@
     "title": "Coach",
     "traces14dLabel": "Traces 14d",
     "tracesUnavailable": "Traces list unavailable. It refreshes on reload."
+  },
+  "CoachToolCall": {
+    "change": {
+      "addDay": "add a training day",
+      "addDayNamed": "add day “{name}”",
+      "addExercise": "add “{name}”",
+      "addSet": "add a set",
+      "autoregulationOff": "turn auto-regulation off",
+      "autoregulationOn": "turn auto-regulation on",
+      "deloadPolicy": "set the deload policy → {mode, select, none {none} reactive {reactive} scheduled {scheduled} other {{mode}}}",
+      "deloadPolicyClear": "clear the deload policy (back to the default behavior)",
+      "dietPhase": "set the diet phase → {phase, select, cutting {cutting} maintaining {maintaining} bulking {bulking} other {{phase}}}",
+      "dietPhaseClear": "clear the diet phase",
+      "dropOverride": "drop the week {week} override",
+      "moveDay": "move day {from} → day {to}",
+      "moveExercise": "move exercise {from} → {to}",
+      "moveSet": "move set {from} → set {to}",
+      "notesClear": "clear notes",
+      "notesUpdate": "update notes",
+      "overshoot": "set the overshoot policy → {policy, select, strictLoad {strict-load} e1rmEquivalent {e1rm-equivalent} anyMetric {any-metric} other {{policy}}}",
+      "overshootClear": "clear the overshoot policy (back to scheme defaults)",
+      "planSyncDisabled": "turn plan sync off",
+      "planSyncEnabled": "turn plan sync on",
+      "program": "{mode, select, replace {replace a program} other {create a program}}",
+      "programNamed": "{mode, select, replace {replace program “{name}”} other {create program “{name}”}}",
+      "progressionClear": "clear progression",
+      "progressionUpdate": "update progression",
+      "removeDay": "remove day {day} and everything in it",
+      "removeExercise": "remove exercise {exercise} and its sets",
+      "removeSet": "remove set {set}",
+      "rename": "rename to “{name}”",
+      "source": "source → {source}",
+      "substitute": "substitute “{name}” (old loads cleared)",
+      "substituteMovement": "substitute the movement (old loads cleared)",
+      "supersetGroup": "superset group → {group}",
+      "supersetUngroup": "ungroup superset",
+      "swapMovement": "swap movement (id {id})",
+      "swapTo": "swap to “{name}”",
+      "trainingMax": "set the training max → {load}",
+      "trainingMaxWithReason": "set the training max → {load} ({reason})"
+    },
+    "location": {
+      "day": "day {day}",
+      "exercise": "exercise {exercise}",
+      "set": "set {set}",
+      "week": "week {week} only"
+    },
+    "meta": {
+      "days": "{days, plural, one {# day} other {# days}}",
+      "weeks": "{weeks, plural, one {# week} other {# weeks}}"
+    },
+    "target": {
+      "cleared": "{field, select, type {type cleared} mode {mode cleared} reps {reps cleared} minReps {min reps cleared} maxReps {max reps cleared} rir {RIR cleared} rpe {RPE cleared} load {load cleared} duration {duration cleared} distance {distance cleared} rest {rest cleared} tempo {tempo cleared} technique {technique cleared} other {{field} cleared}}",
+      "techniqueUpdated": "technique updated",
+      "unpinned": "{field, select, type {type unpinned} mode {mode unpinned} reps {reps unpinned} minReps {min reps unpinned} maxReps {max reps unpinned} rir {RIR unpinned} rpe {RPE unpinned} load {load unpinned} duration {duration unpinned} distance {distance unpinned} rest {rest unpinned} tempo {tempo unpinned} technique {technique unpinned} other {{field} unpinned}}",
+      "value": "{field, select, type {type} mode {mode} reps {reps} minReps {min reps} maxReps {max reps} rir {RIR} rpe {RPE} load {load} duration {duration} distance {distance} rest {rest} tempo {tempo} technique {technique} other {{field}}} → {value}"
+    }
   },
   "Common": {
     "appDescription": "Log your workouts and review your training history.",
@@ -585,6 +697,20 @@
     "resetAction": "Reset to default",
     "saveError": "Couldn’t save. Try again."
   },
+  "HomeSection": {
+    "description": {
+      "history": "Your latest completed workouts.",
+      "momentum": "This week’s sets, activity, and goal progress.",
+      "todayRecap": "Celebration cards for sessions you finished today.",
+      "unfinished": "Stalled sessions waiting to be resumed or finished."
+    },
+    "title": {
+      "history": "History",
+      "momentum": "Momentum",
+      "todayRecap": "Today",
+      "unfinished": "Unfinished"
+    }
+  },
   "HomeSections": {
     "allHistoryLink": "All history",
     "historyTitle": "History",
@@ -719,10 +845,20 @@
   "MomentumPanel": {
     "emptyWeek": "The week is wide open — log a session.",
     "goalLabel": "{count, plural, one {Goal} other {Goals · #}}",
+    "sessionsLine": "{count, plural, one {# session} other {# sessions}} this week",
     "setsUnit": "{count, plural, one {set} other {sets}}",
-    "title": "This week"
+    "title": "This week",
+    "weekDeltaDown": "Down {delta} on last week",
+    "weekDeltaLevel": "Level with last week",
+    "weekDeltaUp": "Up {delta} on last week"
   },
   "NavDrawer": {
+    "anchor": "{anchor, select, today {today} tomorrow {tomorrow} sunday {sunday} monday {monday} tuesday {tuesday} wednesday {wednesday} thursday {thursday} friday {friday} saturday {saturday} other {{anchor}}}",
+    "day": {
+      "date": "{date, date, ::MMMd}",
+      "today": "Today",
+      "yesterday": "Yesterday"
+    },
     "invitation": {
       "body": "Log a weigh-in",
       "coach": "Ask about your training",
@@ -753,8 +889,21 @@
     "resumeContext": "Workout in progress",
     "settingsLink": "Settings",
     "startAction": "Start Workout",
+    "startContext": "{day} · Week {week}",
+    "startContextAnchor": "{day} · Week {week} · {anchor}",
     "startError": "Could not start — try again.",
     "startingAction": "Starting…",
+    "status": {
+      "bodyCheckInDue": "check-in due",
+      "bodyCheckedInDaysAgo": "last {days}d ago",
+      "bodyCheckedInToday": "checked in today",
+      "lastPr": "Last PR: {label}",
+      "movements": "{count, plural, one {# logged movement} other {# logged movements}}",
+      "program": "{name} · Wk {week}/{total}",
+      "trophies": "{count} earned",
+      "trophiesNewest": "{count} earned · newest: {newest}",
+      "volume": "{count, plural, one {# set} other {# sets}} this week"
+    },
     "title": "Navigation",
     "triggerLabel": "Open navigation",
     "untitledWorkout": "Workout"
@@ -1103,6 +1252,8 @@
       "fromE1rmNote": "from your e1RM",
       "label": "Training max ({unit})"
     },
+    "weekday": "{weekday, select, sunday {Sunday} monday {Monday} tuesday {Tuesday} wednesday {Wednesday} thursday {Thursday} friday {Friday} saturday {Saturday} other {{weekday}}}",
+    "weekdayInitial": "{weekday, select, sunday {S} monday {M} tuesday {T} wednesday {W} thursday {T} friday {F} saturday {S} other {{weekday}}}",
     "weeksAriaLabel": "Program length in weeks",
     "weeksPlaceholder": "Weeks (default 1)"
   },
@@ -1674,6 +1825,38 @@
     "topVolumeLabel": "Top volume"
   },
   "StatusHero": {
+    "anchor": "{anchor, select, today {Today} tomorrow {Tomorrow} sunday {Sunday} monday {Monday} tuesday {Tuesday} wednesday {Wednesday} thursday {Thursday} friday {Friday} saturday {Saturday} other {{anchor}}}",
+    "context": {
+      "blockWeeks": "{weeks, plural, one {# week} other {# weeks}}",
+      "driftFallback": "Pick up where you left off.",
+      "driftNext": "Next up: {day} · {anchor}",
+      "freshDayOne": "Log your first session — a program gives every set a target.",
+      "freshReturning": "No plan today — quick-log a session, or pick a program.",
+      "live": "{name} · {sets, plural, one {# set} other {# sets}} logged",
+      "rest": "Next: {day} · {anchor}",
+      "streak": "Your {weeks}-week streak is on the line — one session keeps it.",
+      "trained": "{name} · showed up — that counts",
+      "trainedVolume": "{name} · {volume}",
+      "week": "Week {week} of {total}",
+      "weekWithLastTime": "Week {week} of {total} · last time: {volume}"
+    },
+    "eyebrow": {
+      "blockComplete": "Block complete",
+      "live": "Workout in progress",
+      "logged": "Session logged",
+      "upNext": "Up next"
+    },
+    "headline": {
+      "dayOne": "Day one.",
+      "done": "Done for today.",
+      "drifting": "{days, plural, one {# day} other {# days}} since {session}.",
+      "due": "{day} day.",
+      "dueSelfNamed": "{day}.",
+      "live": "In the middle of it.",
+      "ready": "Ready when you are.",
+      "rest": "Rest day."
+    },
+    "lastSession": "your last session",
     "logMoreLink": "Log more",
     "programsLink": "Browse programs",
     "quickLogLink": "Quick log",
@@ -1684,7 +1867,9 @@
     "setsProgressLabel": "Sets completed",
     "startAction": "Start workout",
     "startActionFresh": "+ Start Workout",
-    "startDayAction": "Start {day}"
+    "startDayAction": "Start {day}",
+    "unnamedSession": "Unnamed session",
+    "untitledWorkout": "Workout"
   },
   "StatusStrip": {
     "navLabel": "System status"
@@ -1870,6 +2055,7 @@
     "saveError": "Didn’t save — tap again"
   },
   "UpNextAnchor": {
+    "anchor": "{anchor, select, today {Today} tomorrow {Tomorrow} sunday {Sunday} monday {Monday} tuesday {Tuesday} wednesday {Wednesday} thursday {Thursday} friday {Friday} saturday {Saturday} other {{anchor}}}",
     "fallbackAnchor": "Up next",
     "summary": "{anchor} · Week {week}"
   },

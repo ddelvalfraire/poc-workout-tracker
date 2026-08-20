@@ -33,11 +33,21 @@ describe('CoachChat messages', () => {
   })
 
   it('carries no HTML entity that a JSON message would ship literally', () => {
-    for (const [key, value] of Object.entries(messages.CoachChat)) {
-      expect(value, `CoachChat.${key}`).not.toMatch(/&[a-z]+;/i)
-    }
-    for (const [key, value] of Object.entries(messages.CoachDisclosure)) {
-      expect(value, `CoachDisclosure.${key}`).not.toMatch(/&[a-z]+;/i)
+    // Grouped keys (toolRunning.*, starter.*, chip.*) make the namespace a
+    // tree, so the walk recurses rather than assuming one flat level.
+    const leaves = (node: object, prefix: string): [string, string][] =>
+      Object.entries(node).flatMap(([key, value]) =>
+        typeof value === 'string'
+          ? [[`${prefix}.${key}`, value] as [string, string]]
+          : leaves(value as object, `${prefix}.${key}`),
+      )
+
+    for (const [path, value] of [
+      ...leaves(messages.CoachChat, 'CoachChat'),
+      ...leaves(messages.CoachToolCall, 'CoachToolCall'),
+      ...leaves(messages.CoachDisclosure, 'CoachDisclosure'),
+    ]) {
+      expect(value, path).not.toMatch(/&[a-z]+;/i)
     }
   })
 })
