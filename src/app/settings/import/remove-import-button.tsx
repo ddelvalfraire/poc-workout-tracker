@@ -48,7 +48,7 @@ export function RemoveImportButton({ batchId, scopeLabel }: RemoveImportButtonPr
         className="text-destructive"
         onClick={() => setIsOpen(true)}
       >
-        {t('remove')}
+        {t('label')}
       </Button>
       {isOpen && (
         <ConfirmDialog

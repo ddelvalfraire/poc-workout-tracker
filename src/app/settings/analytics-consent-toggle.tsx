@@ -67,7 +67,7 @@ export function AnalyticsConsentToggle({ granted }: { granted: boolean }) {
       </button>
       {gpc && (
         <p id="settings-gpc-note" className="max-w-56 text-right text-xs text-muted-foreground">
-          {t('yourBrowserSendsAGlobal')}
+          {t('gpcHint')}
         </p>
       )}
       {error && (

@@ -18,6 +18,19 @@ function readCatalog(locale: string): Record<string, Record<string, string>> {
   return JSON.parse(readFileSync(path, 'utf8'))
 }
 
+/** [dotted path, message] for every leaf, so guards can read both. */
+function flattenEntries(
+  catalog: Record<string, unknown>,
+  prefix = '',
+): Array<[string, string]> {
+  return Object.entries(catalog).flatMap(([key, value]) => {
+    const path = prefix ? `${prefix}.${key}` : key
+    return typeof value === 'object' && value !== null
+      ? flattenEntries(value as Record<string, unknown>, path)
+      : ([[path, String(value)]] as Array<[string, string]>)
+  })
+}
+
 function flattenKeys(catalog: Record<string, unknown>, prefix = ''): string[] {
   return Object.entries(catalog).flatMap(([key, value]) => {
     const path = prefix ? `${prefix}.${key}` : key
@@ -86,13 +99,45 @@ describe('message catalogs', () => {
     }
   })
 
+  it('has no key derived from its own message text', () => {
+    // Content-derived keys drift: rewording the copy makes the key a lie, and
+    // translators read the key as context. See docs/I18N-KEYS.md.
+    const offenders: string[] = []
+    for (const locale of SUPPORTED_LOCALES) {
+      for (const [path, value] of flattenEntries(readCatalog(locale))) {
+        const leaf = path.split('.').pop() ?? ''
+        const words = leaf.split(/(?=[A-Z])/).map((w) => w.toLowerCase())
+        if (words.length < 3) continue
+        const haystack = value.toLowerCase()
+        let cursor = 0
+        const derived = words.every((word) => {
+          const at = haystack.indexOf(word, cursor)
+          if (at === -1) return false
+          cursor = at + word.length
+          return true
+        })
+        if (derived) offenders.push(`${path} = "${value.slice(0, 40)}…"`)
+      }
+    }
+    expect(offenders).toEqual([])
+  })
+
+  it('has no HTML entities in message values', () => {
+    // JSX renders &rsquo; as a character; a JSON message does not — it ships
+    // the raw entity to the user. Catalog values carry real characters.
+    const offenders: string[] = []
+    for (const locale of SUPPORTED_LOCALES) {
+      for (const [path, value] of flattenEntries(readCatalog(locale))) {
+        if (/&[a-z]+;/i.test(value)) offenders.push(`${path} = "${value}"`)
+      }
+    }
+    expect(offenders).toEqual([])
+  })
+
   it('has no empty message values', () => {
     for (const locale of SUPPORTED_LOCALES) {
-      const catalog = readCatalog(locale)
-      for (const [namespace, messages] of Object.entries(catalog)) {
-        for (const [key, value] of Object.entries(messages)) {
-          expect(value.trim(), `${locale}: ${namespace}.${key} is empty`).not.toBe('')
-        }
+      for (const [path, value] of flattenEntries(readCatalog(locale))) {
+        expect(value.trim(), `${locale}: ${path} is empty`).not.toBe('')
       }
     }
   })

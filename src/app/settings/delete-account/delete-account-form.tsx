@@ -44,7 +44,10 @@ export function DeleteAccountForm() {
       className="mt-6"
     >
       <label htmlFor="delete-confirm" className="block text-sm font-medium">
-        {t('type')} <span className="font-mono text-destructive">{DELETE_CONFIRM_PHRASE}</span> {t('toConfirm')}
+        {t.rich('confirmInstruction', {
+          phrase: DELETE_CONFIRM_PHRASE,
+          code: (chunks) => <span className="font-mono text-destructive">{chunks}</span>,
+        })}
       </label>
       <Input
         id="delete-confirm"

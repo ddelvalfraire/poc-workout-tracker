@@ -1,88 +1,115 @@
 {
   "AnalyticsConsentToggle": {
-    "yourBrowserSendsAGlobal": "Your browser sends a Global Privacy Control signal — this stays off."
+    "gpcHint": "Your browser sends a Global Privacy Control signal — this stays off."
   },
   "Common": {
     "appDescription": "Log your workouts and review your training history.",
     "appName": "Workout Tracker"
   },
   "DeleteAccount": {
-    "consentRecordsWeAreLegally": "consent records we are legally required to keep (at least 3 years), with your identity replaced by a random code that cannot be traced back to you.",
-    "deletingYourAccountIsPermanent": "Deleting your account is permanent. There is no undo, and no grace period.",
-    "erasedImmediately": "Erased immediately:",
-    "ourAnalyticsProcessorDeletesYour": "our analytics processor deletes your profile and events; your sign-in account is removed.",
-    "retained": "Retained:",
-    "toldToErase": "Told to erase:",
-    "yourWorkoutsProgramsTemplatesNotes": "your workouts, programs, templates, notes, goals, trophies, body measurements, progress photos, custom exercises, preferences, and coach conversations."
+    "erased": {
+      "description": "your workouts, programs, templates, notes, goals, trophies, body measurements, progress photos, custom exercises, preferences, and coach conversations.",
+      "title": "Erased immediately:"
+    },
+    "permanenceWarning": "Deleting your account is permanent. There is no undo, and no grace period.",
+    "propagated": {
+      "description": "our analytics processor deletes your profile and events; your sign-in account is removed.",
+      "title": "Told to erase:"
+    },
+    "retained": {
+      "description": "consent records we are legally required to keep (at least 3 years), with your identity replaced by a random code that cannot be traced back to you.",
+      "title": "Retained:"
+    }
   },
   "DeleteAccountForm": {
-    "toConfirm": "to confirm",
-    "type": "Type"
+    "confirmInstruction": "Type <code>{phrase}</code> to confirm"
   },
   "HomeLayoutEditor": {
-    "couldnRsquoTSaveTry": "Couldn&rsquo;t save. Try again.",
-    "resetToDefault": "Reset to default",
-    "status": "Status",
-    "tapATileToResize": "Tap a tile to resize, reorder, or hide it &mdash; or press and hold to drag it. Hidden sections keep tracking &mdash; they just don&rsquo;t show on Home."
+    "hint": "Tap a tile to resize, reorder, or hide it — or press and hold to drag it. Hidden sections keep tracking — they just don’t show on Home.",
+    "lockedTileLabel": "Status",
+    "resetAction": "Reset to default",
+    "saveError": "Couldn’t save. Try again."
   },
   "Import": {
-    "batchMeta": "{scope}, {sets, plural, one {# set} other {# sets}} · {date}",
-    "fileNameSuffix": " — {fileName}",
-    "nothingImportedYetImportsYou": "Nothing imported yet. Imports you confirm will be listed here, each removable in one tap.",
-    "pastImports": "Past imports"
+    "batch": {
+      "fileNameSuffix": " — {fileName}",
+      "meta": "{scope}, {sets, plural, one {# set} other {# sets}} · {date}"
+    },
+    "empty": "Nothing imported yet. Imports you confirm will be listed here, each removable in one tap.",
+    "title": "Past imports"
   },
   "ImportFlow": {
-    "andMore": "…and {count} more",
-    "cancel": "Cancel",
-    "dates": "Dates",
-    "duplicatesSkipped": "{count, plural, one {# workout} other {# workouts}} already in your history will be skipped.",
-    "importAnother": "Import another",
-    "importComplete": "Import complete",
-    "importFromStrongOrHevy": "Import from Strong or Hevy",
-    "importSummary": "{workouts, plural, one {# workout} other {# workouts}} and {sets, plural, one {# set} other {# sets}} added to your history.",
-    "matchedExercises": "Matched exercises",
-    "newCustomExercises": "{count, plural, one {# new custom exercise} other {# new custom exercises}}",
-    "nothingIsSavedUntilYou": "Nothing is saved until you confirm the preview.",
-    "readingFile": "Reading file…",
-    "rowsNotImported": "{count, plural, one {# row} other {# rows}} can’t be imported",
-    "sets": "Sets",
-    "skippedRow": "Row {row}: {reason}",
-    "sourceExport": "{source} export",
-    "stepIndicator": "Step {step} of 3 — {label}",
-    "strongFilesDonRsquoT": "Strong files don&rsquo;t say kg or lb — pick the unit this account logged in.",
-    "theExportFormatIsDetected": "The export format is detected automatically — or drag the file here.",
-    "theseNamesWerenRsquoT": "These names weren&rsquo;t in the catalog and will be created as your custom exercises:",
-    "viewHistory": "View history",
-    "workouts": "Workouts"
+    "actions": {
+      "cancel": "Cancel",
+      "importAnother": "Import another",
+      "viewHistory": "View history"
+    },
+    "dropzone": {
+      "hint": "The export format is detected automatically — or drag the file here."
+    },
+    "preview": {
+      "datesLabel": "Dates",
+      "duplicatesNotice": "{count, plural, one {# workout} other {# workouts}} already in your history will be skipped.",
+      "matchedLabel": "Matched exercises",
+      "newExercisesCount": "{count, plural, one {# new custom exercise} other {# new custom exercises}}",
+      "newExercisesDescription": "These names weren’t in the catalog and will be created as your custom exercises:",
+      "reassurance": "Nothing is saved until you confirm the preview.",
+      "setsLabel": "Sets",
+      "sourceExport": "{source} export",
+      "workoutsLabel": "Workouts"
+    },
+    "skipped": {
+      "andMore": "…and {count} more",
+      "row": "Row {row}: {reason}",
+      "summary": "{count, plural, one {# row} other {# rows}} can’t be imported"
+    },
+    "status": {
+      "reading": "Reading file…"
+    },
+    "steps": {
+      "indicator": "Step {step} of 3 — {label}"
+    },
+    "success": {
+      "summary": "{workouts, plural, one {# workout} other {# workouts}} and {sets, plural, one {# set} other {# sets}} added to your history.",
+      "title": "Import complete"
+    },
+    "title": "Import from Strong or Hevy",
+    "unit": {
+      "hint": "Strong files don’t say kg or lb — pick the unit this account logged in."
+    }
   },
   "RemoveImportButton": {
-    "remove": "Remove"
+    "label": "Remove"
   },
   "RestTimerToggle": {
-    "couldnRsquoTSaveTry": "Couldn&rsquo;t save. Try again."
+    "saveError": "Couldn’t save. Try again."
   },
   "RpeLoggingToggle": {
-    "couldnRsquoTSaveTry": "Couldn&rsquo;t save. Try again."
+    "saveError": "Couldn’t save. Try again."
   },
   "Settings": {
-    "signOut": "Sign out",
-    "signedIn": "Signed in"
+    "signOutAction": "Sign out",
+    "signedInLabel": "Signed in"
   },
   "TileSheet": {
-    "down": "Down",
-    "hiddenSectionsKeepTrackingMdash": "Hidden sections keep tracking &mdash; they just don&rsquo;t show.",
-    "showOnHome": "Show on Home",
-    "toTop": "To top",
-    "up": "Up"
+    "move": {
+      "down": "Down",
+      "toTop": "To top",
+      "up": "Up"
+    },
+    "visibility": {
+      "hint": "Hidden sections keep tracking — they just don’t show.",
+      "label": "Show on Home"
+    }
   },
   "Trophies": {
-    "closest": "Closest",
-    "new": "New",
-    "noTrophiesYetEveryTrophy": "No trophies yet. Every trophy is a lifting fact — plate clubs, workout counts, streaks. Train and they stamp themselves."
+    "closestTitle": "Closest",
+    "empty": "No trophies yet. Every trophy is a lifting fact — plate clubs, workout counts, streaks. Train and they stamp themselves.",
+    "newBadge": "New"
   },
   "WorkoutRemindersToggle": {
-    "couldnRsquoTUpdateTry": "Couldn&rsquo;t update. Try again.",
-    "notSupportedInThisBrowser": "Not supported in this browser. On iPhone, add the app to your Home Screen first.",
-    "notificationsAreBlockedForThis": "Notifications are blocked for this app in your browser settings."
+    "blockedNotice": "Notifications are blocked for this app in your browser settings.",
+    "unsupportedNotice": "Not supported in this browser. On iPhone, add the app to your Home Screen first.",
+    "updateError": "Couldn’t update. Try again."
   }
 }

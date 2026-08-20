@@ -160,9 +160,9 @@ export function TileSheet({
           its place in the order, dimmed on the grid. */}
       <div className="mt-4 flex items-center justify-between gap-3 border-t border-border/60 pt-4">
         <div className="min-w-0">
-          <p className="text-sm">{t('showOnHome')}</p>
+          <p className="text-sm">{t('visibility.label')}</p>
           <p className="mt-0.5 text-xs text-muted-foreground">
-            {t('hiddenSectionsKeepTrackingMdash')}
+            {t('visibility.hint')}
           </p>
         </div>
         <VisibilitySwitch
@@ -181,7 +181,7 @@ export function TileSheet({
           onClick={() => onMove('up')}
         >
           <ArrowUp aria-hidden="true" className="size-4" />
-          {t('up')}
+          {t('move.up')}
         </MoveButton>
         <MoveButton
           label={`Move ${meta.title} down`}
@@ -189,7 +189,7 @@ export function TileSheet({
           onClick={() => onMove('down')}
         >
           <ArrowDown aria-hidden="true" className="size-4" />
-          {t('down')}
+          {t('move.down')}
         </MoveButton>
         <MoveButton
           label={`Move ${meta.title} to top`}
@@ -197,7 +197,7 @@ export function TileSheet({
           onClick={onMoveToTop}
         >
           <ArrowUpToLine aria-hidden="true" className="size-4" />
-          {t('toTop')}
+          {t('move.toTop')}
         </MoveButton>
       </div>
     </dialog>

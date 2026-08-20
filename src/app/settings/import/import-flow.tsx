@@ -146,7 +146,7 @@ export function ImportFlow({ defaultUnit }: ImportFlowProps) {
         {/* Step indicator: where you are in the arc, in words + segments. */}
         <div className="flex items-center justify-between gap-3">
           <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-            {t('stepIndicator', { step, label: stepLabel })}
+            {t('steps.indicator', { step, label: stepLabel })}
           </p>
           <div aria-hidden="true" className="flex shrink-0 gap-1">
             {[1, 2, 3].map((s) => (
@@ -167,9 +167,9 @@ export function ImportFlow({ defaultUnit }: ImportFlowProps) {
           </div>
         ) : (
           <>
-            <p className="mt-3 font-medium">{t('importFromStrongOrHevy')}</p>
+            <p className="mt-3 font-medium">{t('title')}</p>
             <p className="mt-0.5 text-sm text-muted-foreground">
-              {t('nothingIsSavedUntilYou')}
+              {t('preview.reassurance')}
             </p>
             {/* Drop-zone label wrapping the hidden input: the whole dashed
                 target opens the picker, and a dragged file lands the same
@@ -198,7 +198,7 @@ export function ImportFlow({ defaultUnit }: ImportFlowProps) {
               </span>
               {!hasPreview && (
                 <span className="text-xs text-muted-foreground">
-                  {t('theExportFormatIsDetected')}
+                  {t('dropzone.hint')}
                 </span>
               )}
               <input
@@ -213,7 +213,7 @@ export function ImportFlow({ defaultUnit }: ImportFlowProps) {
             </label>
             {phase === 'previewing' && (
               <p className="mt-3 text-sm text-muted-foreground" role="status">
-                {t('readingFile')}
+                {t('status.reading')}
               </p>
             )}
             {error && (
@@ -260,7 +260,7 @@ function PreviewSummary({
   return (
     <div className="mt-4 border-t border-t-border/60 pt-4">
       <p className="text-sm">
-        <span className="font-medium">{t('sourceExport', { source: sourceLabel })}</span>
+        <span className="font-medium">{t('preview.sourceExport', { source: sourceLabel })}</span>
         {preview.fileName && <span className="text-muted-foreground"> — {preview.fileName}</span>}
       </p>
 
@@ -268,7 +268,7 @@ function PreviewSummary({
       {!preview.unitFromFile && (
         <div className="mt-3 flex items-center justify-between gap-3">
           <p className="text-sm text-muted-foreground">
-            {t('strongFilesDonRsquoT')}
+            {t('unit.hint')}
           </p>
           <div role="group" aria-label="File weight unit" className="flex shrink-0 gap-1">
             {WEIGHT_UNITS.map((u) => (
@@ -288,29 +288,29 @@ function PreviewSummary({
       )}
 
       <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
-        <dt className="text-muted-foreground">{t('workouts')}</dt>
+        <dt className="text-muted-foreground">{t('preview.workoutsLabel')}</dt>
         <dd className="text-right tnum">{preview.workoutCount}</dd>
-        <dt className="text-muted-foreground">{t('sets')}</dt>
+        <dt className="text-muted-foreground">{t('preview.setsLabel')}</dt>
         <dd className="text-right tnum">{preview.setCount}</dd>
         {preview.dateRange && (
           <>
-            <dt className="text-muted-foreground">{t('dates')}</dt>
+            <dt className="text-muted-foreground">{t('preview.datesLabel')}</dt>
             <dd className="text-right">
               {formatDay(preview.dateRange.from)} – {formatDay(preview.dateRange.to)}
             </dd>
           </>
         )}
-        <dt className="text-muted-foreground">{t('matchedExercises')}</dt>
+        <dt className="text-muted-foreground">{t('preview.matchedLabel')}</dt>
         <dd className="text-right tnum">{preview.matched.length}</dd>
       </dl>
 
       {preview.toCreate.length > 0 && (
         <div className="mt-3 border-t border-t-border/60 pt-3">
           <p className="text-sm font-medium tnum">
-            {t('newCustomExercises', { count: preview.toCreate.length })}
+            {t('preview.newExercisesCount', { count: preview.toCreate.length })}
           </p>
           <p className="mt-0.5 text-xs text-muted-foreground">
-            {t('theseNamesWerenRsquoT')}
+            {t('preview.newExercisesDescription')}
           </p>
           <ul className="mt-1.5 space-y-0.5 text-xs text-muted-foreground">
             {preview.toCreate.map((name) => (
@@ -322,22 +322,22 @@ function PreviewSummary({
 
       {preview.duplicateCount > 0 && (
         <p className="mt-3 text-sm text-muted-foreground">
-          {t('duplicatesSkipped', { count: preview.duplicateCount })}
+          {t('preview.duplicatesNotice', { count: preview.duplicateCount })}
         </p>
       )}
 
       {preview.skippedCount > 0 && (
         <details className="mt-3">
           <summary className="cursor-pointer text-sm text-muted-foreground">
-            {t('rowsNotImported', { count: preview.skippedCount })}
+            {t('skipped.summary', { count: preview.skippedCount })}
           </summary>
           <ul className="mt-1.5 space-y-0.5 text-xs text-muted-foreground">
             {preview.skipped.map((s) => (
-              <li key={s.row}>{t('skippedRow', { row: s.row, reason: s.reason })}</li>
+              <li key={s.row}>{t('skipped.row', { row: s.row, reason: s.reason })}</li>
             ))}
             {preview.skippedCount > preview.skipped.length && (
               <li>
-                {t('andMore', { count: preview.skippedCount - preview.skipped.length })}
+                {t('skipped.andMore', { count: preview.skippedCount - preview.skipped.length })}
               </li>
             )}
           </ul>
@@ -352,7 +352,7 @@ function PreviewSummary({
 
       <div className="mt-4 flex gap-2">
         <Button variant="outline" className="flex-1" disabled={isCommitting} onClick={onCancel}>
-          {t('cancel')}
+          {t('actions.cancel')}
         </Button>
         <Button
           className="flex-1"
@@ -372,9 +372,9 @@ function SuccessSummary({ result, onReset }: { result: CommitResponse; onReset: 
   const t = useTranslations('ImportFlow')
   return (
     <div>
-      <p className="font-medium">{t('importComplete')}</p>
+      <p className="font-medium">{t('success.title')}</p>
       <p className="mt-0.5 text-sm text-muted-foreground">
-        {t('importSummary', {
+        {t('success.summary', {
           workouts: result.workoutsImported,
           sets: result.setsImported,
         })}
@@ -384,13 +384,13 @@ function SuccessSummary({ result, onReset }: { result: CommitResponse; onReset: 
       </p>
       <div className="mt-4 flex gap-2">
         <Button variant="outline" className="flex-1" onClick={onReset}>
-          {t('importAnother')}
+          {t('actions.importAnother')}
         </Button>
         <Link
           href="/"
           className="flex flex-1 items-center justify-center rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground"
         >
-          {t('viewHistory')}
+          {t('actions.viewHistory')}
         </Link>
       </div>
     </div>

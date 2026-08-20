@@ -31,10 +31,10 @@ export default async function ImportPage() {
         <ImportFlow defaultUnit={unit} />
 
         <section aria-label="Past imports" className="mt-6">
-          <h2 className="text-sm font-medium text-muted-foreground">{t('pastImports')}</h2>
+          <h2 className="text-sm font-medium text-muted-foreground">{t('title')}</h2>
           {batches.length === 0 ? (
             <p className="mt-2 text-sm text-muted-foreground">
-              {t('nothingImportedYetImportsYou')}
+              {t('empty')}
             </p>
           ) : (
             <ul className="mt-2 divide-y divide-border/60 border-b border-b-border/60">
@@ -47,12 +47,12 @@ export default async function ImportPage() {
                         {batch.source === 'strong' ? 'Strong' : 'Hevy'}
                         {batch.fileName && (
                           <span className="font-normal text-muted-foreground">
-                            {t('fileNameSuffix', { fileName: batch.fileName })}
+                            {t('batch.fileNameSuffix', { fileName: batch.fileName })}
                           </span>
                         )}
                       </p>
                       <p className="mt-0.5 text-sm text-muted-foreground">
-                        {t('batchMeta', {
+                        {t('batch.meta', {
                           scope: scopeLabel,
                           sets: batch.setCount,
                           date: formatWorkoutDate(batch.createdAt),

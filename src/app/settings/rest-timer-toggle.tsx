@@ -60,7 +60,7 @@ export function RestTimerToggle({ enabled }: { enabled: boolean }) {
       </button>
       {hasError && (
         <p className="text-xs text-destructive" role="status">
-          {t('couldnRsquoTSaveTry')}
+          {t('saveError')}
         </p>
       )}
     </div>

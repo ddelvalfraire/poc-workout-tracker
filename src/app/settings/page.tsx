@@ -92,14 +92,14 @@ export default async function SettingsPage() {
           <div className="flex items-center gap-3 border-b border-b-border/60 py-4">
             <UserButton />
             <p className="min-w-0 flex-1 truncate text-sm">
-              {email ?? <span className="text-muted-foreground">{t('signedIn')}</span>}
+              {email ?? <span className="text-muted-foreground">{t('signedInLabel')}</span>}
             </p>
             <SignOutButton>
               <button
                 type="button"
                 className="shrink-0 rounded-lg px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors outline-none hover:bg-muted/50 focus-visible:ring-3 focus-visible:ring-ring/50"
               >
-                {t('signOut')}
+                {t('signOutAction')}
               </button>
             </SignOutButton>
           </div>

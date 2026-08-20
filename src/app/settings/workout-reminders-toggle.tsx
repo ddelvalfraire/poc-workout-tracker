@@ -120,7 +120,7 @@ export function WorkoutRemindersToggle() {
   if (support === 'unsupported') {
     return (
       <p className="max-w-40 text-right text-xs text-muted-foreground">
-        {t('notSupportedInThisBrowser')}
+        {t('unsupportedNotice')}
       </p>
     )
   }
@@ -154,12 +154,12 @@ export function WorkoutRemindersToggle() {
       </button>
       {isDenied && (
         <p className="max-w-40 text-right text-xs text-muted-foreground">
-          {t('notificationsAreBlockedForThis')}
+          {t('blockedNotice')}
         </p>
       )}
       {hasError && (
         <p className="text-xs text-destructive" role="status">
-          {t('couldnRsquoTUpdateTry')}
+          {t('updateError')}
         </p>
       )}
     </div>

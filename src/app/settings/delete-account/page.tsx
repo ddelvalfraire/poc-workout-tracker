@@ -24,17 +24,17 @@ export default async function DeleteAccountPage() {
       <main className="mx-auto w-full max-w-md flex-1 px-5 pb-safe">
         <section aria-label="What deletion does" className="mt-6">
           <p className="text-sm text-muted-foreground">
-            {t('deletingYourAccountIsPermanent')}
+            {t('permanenceWarning')}
           </p>
           <ul className="mt-4 space-y-2 border-b border-b-border/60 pb-4 text-sm text-muted-foreground">
             <li>
-              <span className="font-medium text-foreground">{t('erasedImmediately')}</span> {t('yourWorkoutsProgramsTemplatesNotes')}
+              <span className="font-medium text-foreground">{t('erased.title')}</span> {t('erased.description')}
             </li>
             <li>
-              <span className="font-medium text-foreground">{t('toldToErase')}</span> {t('ourAnalyticsProcessorDeletesYour')}
+              <span className="font-medium text-foreground">{t('propagated.title')}</span> {t('propagated.description')}
             </li>
             <li>
-              <span className="font-medium text-foreground">{t('retained')}</span> {t('consentRecordsWeAreLegally')}
+              <span className="font-medium text-foreground">{t('retained.title')}</span> {t('retained.description')}
             </li>
           </ul>
         </section>

@@ -80,18 +80,52 @@ function pascalCase(value: string): string {
     .join('')
 }
 
-/** camelCase key from the message itself, so keys read like the copy. */
-export function keyFor(text: string): string {
-  const words = text
-    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, MAX_KEY_WORDS)
-  if (words.length === 0) return 'text'
-  const [first, ...rest] = words
-  return (
-    first.toLowerCase() + rest.map((w) => w[0].toUpperCase() + w.slice(1).toLowerCase()).join('')
-  )
+/**
+ * A key from the string's ROLE in the markup, never from its text.
+ *
+ * Content-derived keys drift: reword the copy and the key becomes a lie,
+ * while translators read the key as context and existing translations lose
+ * their link to it. See docs/I18N-KEYS.md.
+ *
+ * The tag only narrows the role — <p> is a description, <button> is an
+ * action — so `apply` prints every generated key for renaming. This is a
+ * starting point for a human, not a finished name.
+ */
+const ROLE_BY_TAG: Record<string, string> = {
+  h1: 'title',
+  h2: 'title',
+  h3: 'title',
+  h4: 'title',
+  h5: 'title',
+  h6: 'title',
+  p: 'description',
+  button: 'action',
+  summary: 'summary',
+  label: 'label',
+  li: 'item',
+  legend: 'legend',
+  caption: 'caption',
+  figcaption: 'caption',
+  th: 'columnHeader',
+  td: 'cell',
+  a: 'linkLabel',
+  option: 'option',
+  strong: 'emphasis',
+  em: 'emphasis',
+}
+
+export function keyForRole(tagName: string | undefined): string {
+  if (tagName === undefined) return 'text'
+  const lower = tagName.toLowerCase()
+  if (ROLE_BY_TAG[lower] !== undefined) return ROLE_BY_TAG[lower]
+  // A component wrapper names the role better than a bare span: EmptyWords
+  // is an empty state, SectionTitle is a title.
+  if (/^[A-Z]/.test(tagName)) {
+    const words = tagName.split(/(?=[A-Z])/).filter(Boolean)
+    const head = words[0].toLowerCase()
+    return head === 'empty' ? 'empty' : head
+  }
+  return 'label'
 }
 
 /** Collapses the whitespace JSX preserves across wrapped source lines. */
@@ -277,7 +311,10 @@ export function extractFromFile(file: SourceFile, namespace: string): ApplyResul
       continue
     }
 
-    const key = uniqueKey(keyFor(text), taken)
+    const parent = node.getParent()
+    const tagName =
+      parent && (Node.isJsxElement(parent) ? parent.getOpeningElement().getTagNameNode().getText() : undefined)
+    const key = uniqueKey(keyForRole(tagName), taken)
     taken.add(key)
     extracted[key] = text
     keys.push(key)
@@ -434,6 +471,13 @@ function main(): void {
 
   saveCatalog(catalog)
   console.log(`\n${messages} messages from ${changed} files`)
+  if (messages > 0) {
+    console.log(
+      '\nGenerated keys name the ROLE of each string, not its text — they are a\n' +
+        'starting point. Rename each to what it means before committing, and keep\n' +
+        'call sites in step. See docs/I18N-KEYS.md.',
+    )
+  }
 
   if (allSkips.length > 0) {
     console.log(`\n${allSkips.length} left for a human:`)
