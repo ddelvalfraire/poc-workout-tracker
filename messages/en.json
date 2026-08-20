@@ -2521,7 +2521,7 @@
     "warmupGlyph": "W",
     "warmupHint": "Hold a set's number to tag it a warm-up — warm-ups never score.",
     "weightAriaLabel": "Set {set} weight in {unit}",
-    "workoutNoteAction": "Workout note",
+    "workoutNoteAriaLabel": "Add workout note",
     "workoutNotesAriaLabel": "Workout notes"
   },
   "WorkoutRemindersToggle": {

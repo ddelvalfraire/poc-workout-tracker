@@ -121,9 +121,7 @@ describe('NoteSheet copy', () => {
   it('builds the breadcrumb and the scope chips at render, not at import', () => {
     const html = renderStaticIntl(
       <NoteSheet
-        exerciseName="Bench Press"
-        setNumber={3}
-        snapshot="100 kg × 5"
+        anchor={{ exerciseName: 'Bench Press', setNumber: 3, snapshot: '100 kg × 5' }}
         initialScope="set"
         onSave={noop}
         onClose={noop}
@@ -137,6 +135,16 @@ describe('NoteSheet copy', () => {
     expect(html).toContain('Workout')
     expect(html).toContain('Add note…')
     expect(html).toContain('Insert #form tag')
+    expect(html).not.toMatch(/NoteSheet\.[a-zA-Z.]+/)
+  })
+
+  it('an unanchored sheet still localizes the workout breadcrumb', () => {
+    const html = renderStaticIntl(
+      <NoteSheet anchor={null} initialScope="workout" onSave={noop} onClose={noop} />,
+    )
+
+    expect(html).toContain('Note for Workout')
+    expect(html).toContain('Add note…')
     expect(html).not.toMatch(/NoteSheet\.[a-zA-Z.]+/)
   })
 })

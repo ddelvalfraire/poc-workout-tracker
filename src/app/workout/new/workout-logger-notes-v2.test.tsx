@@ -185,9 +185,7 @@ describe('NoteSheet markup (the capture sheet)', () => {
   function renderSheet(props: Partial<Parameters<typeof NoteSheet>[0]> = {}): string {
     return renderStaticIntl(
       <NoteSheet
-        exerciseName="Bench Press"
-        setNumber={3}
-        snapshot="185 lb × 6 · RPE 9"
+        anchor={{ exerciseName: 'Bench Press', setNumber: 3, snapshot: '185 lb × 6 · RPE 9' }}
         initialScope="set"
         onSave={() => {}}
         onClose={() => {}}
@@ -225,5 +223,23 @@ describe('NoteSheet markup (the capture sheet)', () => {
     expect(renderSheet({ initialBody: 'left shoulder clicked' })).toContain(
       'left shoulder clicked',
     )
+  })
+
+  it('drops the scope chips when there is no anchor to narrow down to', () => {
+    // Opened from the app bar: no set under the finger, so "Set 3"/"Exercise"
+    // would address nothing. A chip means pressable — a lone un-switchable
+    // one would be a lie, so the row goes and the breadcrumb carries scope.
+    const html = renderSheet({ anchor: null, initialScope: 'workout' })
+    expect(html).not.toContain('aria-pressed')
+    expect(html).not.toContain('Bench Press')
+    expect(html).not.toContain('185 lb × 6 · RPE 9')
+    expect(html).toContain('Workout')
+    // Still the same capture surface, tags and volt Save included.
+    expect(html).toContain('Insert #form tag')
+    expect(html).toContain('Save')
+  })
+
+  it('ignores a set initialScope without an anchor — workout is the only scope left', () => {
+    expect(renderSheet({ anchor: null, initialScope: 'set' })).toContain('Note for Workout')
   })
 })

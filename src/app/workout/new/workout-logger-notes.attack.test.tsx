@@ -113,15 +113,17 @@ describe('ATTACK: whitespace-only session note vs the one-entry grammar (#211)',
     expect(html).toContain('Add note for Squat')
   })
 
-  it('the workout-level entry chip shares the strict-empty gate: "   " retires it too', () => {
+  it('the workout-level note shares the strict-empty gate: "   " renders no textarea', () => {
     const draft = baseDraft()
     draft.notes = '   '
     const html = render({ initialDraft: draft })
-    // Same claim as the per-exercise chip: whitespace is not a note yet, so
-    // the labelled entry affordance must survive. NB: the assertion must be
-    // the chip's text NODE — the textarea's aria-label "Workout notes"
-    // contains the bare substring and false-passes it.
-    expect(html).toContain('>Workout note<')
+    // Whitespace is not a note yet, so the bottom block stays closed — no
+    // invisible field parked above Discard. NB: assert the textarea's
+    // aria-label, which only the open block emits.
+    expect(html).not.toContain('Workout notes')
+    // The way in is unaffected: the app-bar entry is unconditional (given
+    // exercises), so there is no state where the note is unreachable.
+    expect(html).toContain('Add workout note')
   })
 })
 
