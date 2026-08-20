@@ -83,18 +83,31 @@ export default async function SettingsPage() {
       />
 
       <main className="mx-auto w-full max-w-md flex-1 px-5 pb-safe">
-        {/* Identity: who's signed in, and the way out. AuthKit hosts account
-            management on its own page, so this row is just the email and the
-            explicit exit. */}
+        {/* Identity: who's signed in, the way into account management, and
+            the way out. The row drills into /settings/account (name, sign-in
+            methods, deletion); sign-out stays here rather than behind that
+            drill-down, because the exit should never cost an extra tap. */}
         <section aria-label={t('accountGroupLabel')} className="mt-6">
-          {/* De-carded: identity is the grouped list's first row — a muted
-              hairline under it, no shell. */}
-          <div className="flex items-center gap-3 border-b border-b-border/60 py-4">
-            <p className="min-w-0 flex-1 truncate text-sm">
-              {email ?? <span className="text-muted-foreground">{t('signedInLabel')}</span>}
-            </p>
-            <SignOutButton variant="full" />
-          </div>
+          {/* De-carded: identity is the grouped list's first rows — muted
+              hairlines between and under them, no shell. */}
+          <DividerList>
+            <DividerRow
+              href="/settings/account"
+              trailing={
+                <span className="max-w-[12rem] truncate text-sm">
+                  {email ?? <span className="text-muted-foreground">{t('signedInLabel')}</span>}
+                </span>
+              }
+            >
+              <div className="min-w-0">
+                <p className="font-medium">{t('account.label')}</p>
+                <p className="mt-0.5 text-sm text-muted-foreground">{t('account.hint')}</p>
+              </div>
+            </DividerRow>
+            <li className="flex items-center justify-end py-2">
+              <SignOutButton variant="full" />
+            </li>
+          </DividerList>
         </section>
 
         <SettingsZone title={t('zones.training')}>
@@ -147,15 +160,12 @@ export default async function SettingsPage() {
             label={t('import.label')}
             hint={t('import.hint')}
           />
-          {/* The app-store-mandated deletion entry point. Lives in DATA (it
-              is a data action, not an identity toggle); the destructive label
-              is the row's only warning — the /settings/delete-account surface
-              carries the full consequences and the type-to-confirm gate. */}
-          <LinkRow
-            href="/settings/delete-account"
-            label={t('deleteAccount.label')}
-            hint={t('deleteAccount.hint')}
-          />
+          {/* Deletion's entry point moved to /settings/account's terminal
+              Danger zone, where identity actions belong — beside DATA's
+              "Import history" it read as a routine data chore of the same
+              weight. Still one tap from here (Account → last row), so it
+              stays easily discoverable; kept to ONE canonical entry so
+              analytics and tests have a single path to assert on. */}
         </SettingsZone>
 
         {/* Internal-only, visually quarantined (dashed, muted) so operator
