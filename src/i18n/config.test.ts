@@ -174,3 +174,47 @@ describe('catalog has no orphaned keys', () => {
     expect(orphans).toEqual([])
   })
 })
+
+/**
+ * Copy that already lives in `Common` must not be written out again.
+ *
+ * The naming doc reserves `Common` for context-free furniture on three or
+ * more unrelated surfaces, and deliberately does NOT ask for every repeated
+ * string to be shared — the same English word often translates differently by
+ * context, which is why `Save` and `Delete` stay per-surface. So this does not
+ * police duplication in general. It polices the narrower, unambiguous case: a
+ * word was consolidated into `Common`, and a later change wrote it out again
+ * somewhere else. That is how the rule erodes, and it happened within a day of
+ * the consolidation landing — a new namespace arrived carrying its own
+ * "Cancel".
+ *
+ * A collision can still be coincidental: two unrelated strings that happen to
+ * match. Those go in EXPECTED with the reason, rather than being shared.
+ */
+const COINCIDENTAL_MATCHES: Record<string, string> = {
+  'ImportFlow.preview.workoutsLabel':
+    'A column label for a count of workouts, not the product name it happens to match.',
+}
+
+describe('Common is the only home for shared chrome', () => {
+  it('no namespace repeats a string that Common already holds', () => {
+    const catalog = readCatalog(DEFAULT_LOCALE)
+    const entries = (node: Record<string, unknown>, prefix = ''): Array<[string, string]> =>
+      Object.entries(node).flatMap(([key, value]) => {
+        const path = prefix ? `${prefix}.${key}` : key
+        return typeof value === 'object' && value !== null
+          ? entries(value as Record<string, unknown>, path)
+          : ([[path, String(value)]] as Array<[string, string]>)
+      })
+
+    const all = entries(catalog)
+    const shared = new Set(all.filter(([p]) => p.startsWith('Common.')).map(([, v]) => v))
+
+    const repeats = all
+      .filter(([path, value]) => !path.startsWith('Common.') && shared.has(value))
+      .filter(([path]) => !(path in COINCIDENTAL_MATCHES))
+      .map(([path, value]) => `${path} = ${JSON.stringify(value)}`)
+
+    expect(repeats, 'render these from Common, or record why the match is coincidental').toEqual([])
+  })
+})
