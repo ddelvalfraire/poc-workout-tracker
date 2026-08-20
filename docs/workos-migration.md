@@ -1,8 +1,9 @@
 # Clerk → WorkOS AuthKit: cutover runbook
 
-The code is migrated and green (unit tests + typecheck). Nothing below can be
-verified until a WorkOS account exists, so this is the ordered list of what a
-human has to do, and what each step unblocks.
+The code is migrated and green (unit tests + typecheck), and the login loop is
+verified against a live staging environment — see "Verified against the live
+environment" below. This is the ordered list of what a human still has to do,
+and what each step unblocks.
 
 ## The identity decision
 
@@ -18,7 +19,7 @@ of user id.
 
 `scripts/migrate-user-id.ts` performs it, in one transaction, dry-run by default.
 
-## What I need from you
+## Setup steps
 
 ### 1. Create the WorkOS account and application
 
@@ -115,22 +116,35 @@ real users, WorkOS imports Clerk's bcrypt digests via `password_hash` plus
 `password_hash_type: 'bcrypt'` at user creation, and matches social users by
 verified email.
 
+## Verified against the live environment
+
+Confirmed with the WorkOS CLI (`npx workos@latest`) against the staging
+environment:
+
+- `doctor` — integration healthy, 11 auth-pattern checks passed. Its only
+  warning is `COOKIE_DOMAIN_NOT_SET`, which is correct to ignore here: the app
+  is single-domain, and `WORKOS_COOKIE_DOMAIN` is for sharing a session across
+  subdomains.
+- `verify-login --client-id <id>` — the whole loop, with a throwaway user
+  created and deleted: user creation, **password grant**, and access + refresh
+  tokens all pass.
+- The signed-out redirect from `/` to the hosted AuthKit page, driven in a real
+  browser.
+- OAuth metadata advertises `client_id_metadata_document_supported: true` and a
+  `registration_endpoint`, so the MCP handshake has what it needs.
+- The AuthKit page's sign-in form matches what the e2e helper targets: an
+  "Email" label and a "Continue with email" submit button.
+
+`verify-login` is also the answer to provisioning e2e test users — API-created
+users authenticate via the password grant, which is what the suite assumes.
+
 ## Still unverified
 
-Everything below compiles and unit-tests, but nothing has touched a live WorkOS
-instance:
-
-- The **hosted AuthKit sign-in page's DOM** — the e2e suite drives it by role and
-  label, and those locators are the one place to correct if the real page
-  differs.
-- **MCP token verification end to end** — the JWKS fetch, the issuer, and the
-  `aud`/Resource Indicator match are asserted against mocks.
+- **The e2e suite has never been executed** against a live WorkOS environment.
+  Its sign-in helper is now known to target the right form controls, but the
+  full run is still unproven.
+- **MCP token verification end to end** — issuer and JWKS are confirmed live and
+  RS256-signed, but no real bearer token has been round-tripped through
+  `/api/mcp`. The `aud`/Resource Indicator match is the piece to watch.
 - **The migration script against real rows** — run the dry run and read the
   counts before committing.
-- **The visual-regression baselines** — the home header changed (the vendor
-  avatar button became a first-party sign-out control), so
-  `e2e/visual.spec.ts-snapshots/` will fail until regenerated. Look at the first
-  diff deliberately before running `--update-snapshots`; that suite exists to
-  catch exactly this kind of change, so a blind regen wastes it.
-- **Password sign-in must be enabled** in the WorkOS environment, or the e2e
-  suite can provision users it can never sign in as.
