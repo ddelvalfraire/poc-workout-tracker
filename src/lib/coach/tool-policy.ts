@@ -171,7 +171,20 @@ export function requiresApproval(toolName: string): boolean {
  * Filters an MCP tool set down to the coach allowlist. Allowlist-based on
  * purpose: tools added to the registry later are excluded until explicitly
  * admitted here.
+ *
+ * Sorted by name, and that is load-bearing rather than tidiness. These 44
+ * schemas are the head of the prompt-cache prefix (Anthropic caches
+ * tools → system → messages in that order). The MCP client makes no promise
+ * about iteration order, and a prefix that serializes differently between two
+ * requests never matches the cache — so we would pay the 2x cache WRITE on
+ * every turn and take zero reads, which is strictly worse than not caching at
+ * all. Sorting is what makes the prefix byte-stable. OpenCode learned the same
+ * thing; see src/lib/coach/model.ts for the caching setup this feeds.
  */
 export function filterCoachTools<T>(tools: Record<string, T>): Record<string, T> {
-  return Object.fromEntries(Object.entries(tools).filter(([name]) => COACH_ALLOWED_TOOLS.has(name)))
+  return Object.fromEntries(
+    Object.entries(tools)
+      .filter(([name]) => COACH_ALLOWED_TOOLS.has(name))
+      .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)),
+  )
 }
