@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'vitest'
 import {
   DEFAULT_TIER,
+  tierRequiredFor,
   TIERS,
   activeProgramLimitFor,
   compareTiers,
@@ -202,6 +203,22 @@ describe('the feature type stays honest', () => {
     const granted = new Set<Feature>(TIERS.flatMap((t: Tier) => [...featuresFor(t)]))
     for (const feature of ['coach', 'autoreg', 'unlimited_programs'] as const) {
       expect(granted.has(feature)).toBe(true)
+    }
+  })
+})
+
+describe('tierRequiredFor', () => {
+  // What every paywall names. Derived from the map, so re-packaging a feature
+  // cannot leave an upgrade prompt advertising the wrong plan.
+  test('names the CHEAPEST tier that grants the feature', () => {
+    expect(tierRequiredFor('unlimited_programs')).toBe('pro')
+    expect(tierRequiredFor('autoreg')).toBe('pro')
+    expect(tierRequiredFor('coach')).toBe('max')
+  })
+
+  test('every feature resolves to a tier that actually grants it', () => {
+    for (const feature of ['coach', 'autoreg', 'unlimited_programs'] as const) {
+      expect(tierHasFeature(tierRequiredFor(feature), feature)).toBe(true)
     }
   })
 })

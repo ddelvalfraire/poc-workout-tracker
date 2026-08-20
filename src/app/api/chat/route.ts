@@ -2,7 +2,7 @@ import { NextResponse, after } from 'next/server'
 import { getUserId } from '@/lib/auth'
 import { convertToModelMessages, stepCountIs, streamText, type UIMessage } from 'ai'
 import { getWeightUnit } from '@/db/preferences'
-import { isCoachEnabled } from '@/lib/coach/access'
+import { coachAccess } from '@/lib/coach/access'
 import {
   MAX_BODY_BYTES,
   MAX_MESSAGES,
@@ -53,10 +53,20 @@ export async function POST(request: Request): Promise<Response> {
   if (!userId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
-  // Gate: env allowlist OR the 'coach-access' flag (fail-closed). Server-side
-  // like every other guard — hiding the UI entry points is cosmetics.
-  if (!(await isCoachEnabled(userId))) {
+  // Gate: rollout (env allowlist OR the 'coach-access' flag, fail-closed),
+  // then entitlement. Server-side like every other guard — hiding the UI entry
+  // points is cosmetics. 402 rather than 403 for the unentitled case: the
+  // client can tell "you must pay" from "you may not", and only one of those
+  // is worth showing a plan link for.
+  const access = await coachAccess(userId)
+  if (access === 'unreleased') {
     return NextResponse.json({ error: 'The coach is not enabled for this account.' }, { status: 403 })
+  }
+  if (access === 'unentitled') {
+    return NextResponse.json(
+      { error: 'The coach is part of the Max plan.', upgrade: '/settings/plan' },
+      { status: 402 },
+    )
   }
 
   // Provider selection lives entirely in @/lib/coach/model — this route does
