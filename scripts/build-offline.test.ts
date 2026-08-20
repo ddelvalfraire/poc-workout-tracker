@@ -47,6 +47,22 @@ describe('offline page generator', () => {
     expect(html).toContain('Self-heal')
   })
 
+  it('cannot be broken out of by a message containing a closing script tag', () => {
+    // JSON.stringify leaves `/` alone, so `</script>` inside a message would
+    // end the payload block early and make everything after it executable.
+    // Proven reachable by review with jsdom before this escape existed.
+    const hostile = { ...EN, body: 'x</script><script>window.pwned=1</script>' }
+    const html = render(base, EN, { en: hostile })
+
+    // The text survives as inert data; what must not survive is the parser
+    // seeing a real tag boundary.
+    expect(html).not.toContain('<script>window.pwned')
+    expect(html).not.toContain('x</script>')
+    expect(html).toContain('\\u003c/script>')
+    // Exactly one payload block and one picker — nothing spliced in between.
+    expect(html.match(/id="offline-copy"/g)).toHaveLength(1)
+  })
+
   it('escapes characters that would break the markup', () => {
     const html = render(base, { ...EN, heading: 'Fish & <chips>' }, { en: EN })
 

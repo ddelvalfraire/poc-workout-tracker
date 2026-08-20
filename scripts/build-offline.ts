@@ -58,7 +58,12 @@ export function render(
   copy: Record<string, string>,
   byLocale: Record<string, Record<string, string>> = {},
 ): string {
-  const payload = `${COPY_SCRIPT_START}${JSON.stringify(byLocale)}</script>`
+  // `<` escaped, not just quoted: JSON.stringify leaves `/` alone, so a
+  // message containing `</script>` would close this block early and turn
+  // whatever follows into executable script. Unreachable while the catalog is
+  // ours and English-only — and exactly the assumption that stops holding the
+  // day translations arrive from outside.
+  const payload = `${COPY_SCRIPT_START}${JSON.stringify(byLocale).replace(/</g, '\\u003c')}</script>`
   const picker = `<script>
       // Same NEXT_LOCALE cookie the app sets. No network, no framework — this
       // page exists precisely because neither is available.
