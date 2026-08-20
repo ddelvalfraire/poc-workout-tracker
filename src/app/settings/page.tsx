@@ -23,6 +23,7 @@ import { getConsentState } from '@/db/consent'
 import { ConsentIdentity } from '@/components/consent-identity'
 import { RpeLoggingToggle } from './rpe-logging-toggle'
 import { WorkoutRemindersToggle } from './workout-reminders-toggle'
+import { getTranslations } from 'next-intl/server'
 
 /**
  * The preferences surface: everything that tunes how the app behaves for
@@ -34,6 +35,7 @@ import { WorkoutRemindersToggle } from './workout-reminders-toggle'
  * fired on page load.
  */
 export default async function SettingsPage() {
+  const t = await getTranslations('Settings')
   const userId = await requireUserId()
   const [unit, bodyweightKg, defaultRestSec, restTimerEnabled, rpeLoggingEnabled, user, consent] =
     await Promise.all([
@@ -90,14 +92,14 @@ export default async function SettingsPage() {
           <div className="flex items-center gap-3 border-b border-b-border/60 py-4">
             <UserButton />
             <p className="min-w-0 flex-1 truncate text-sm">
-              {email ?? <span className="text-muted-foreground">Signed in</span>}
+              {email ?? <span className="text-muted-foreground">{t('signedIn')}</span>}
             </p>
             <SignOutButton>
               <button
                 type="button"
                 className="shrink-0 rounded-lg px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors outline-none hover:bg-muted/50 focus-visible:ring-3 focus-visible:ring-ring/50"
               >
-                Sign out
+                {t('signOut')}
               </button>
             </SignOutButton>
           </div>

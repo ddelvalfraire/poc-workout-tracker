@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { WEIGHT_UNITS, type WeightUnit } from '@/lib/units'
 import { cn } from '@/lib/utils'
+import { useTranslations } from 'next-intl'
 
 /**
  * The upload → dry-run preview → forced-confirm flow. The file stays in
@@ -50,6 +51,7 @@ type Phase = 'idle' | 'previewing' | 'preview' | 'committing' | 'done'
 const MAX_IMPORT_BYTES = 20 * 1024 * 1024
 
 export function ImportFlow({ defaultUnit }: ImportFlowProps) {
+  const t = useTranslations('ImportFlow')
   const router = useRouter()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [file, setFile] = useState<File | null>(null)
@@ -144,7 +146,7 @@ export function ImportFlow({ defaultUnit }: ImportFlowProps) {
         {/* Step indicator: where you are in the arc, in words + segments. */}
         <div className="flex items-center justify-between gap-3">
           <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-            Step {step} of 3 — {stepLabel}
+            {t('stepIndicator', { step, label: stepLabel })}
           </p>
           <div aria-hidden="true" className="flex shrink-0 gap-1">
             {[1, 2, 3].map((s) => (
@@ -165,9 +167,9 @@ export function ImportFlow({ defaultUnit }: ImportFlowProps) {
           </div>
         ) : (
           <>
-            <p className="mt-3 font-medium">Import from Strong or Hevy</p>
+            <p className="mt-3 font-medium">{t('importFromStrongOrHevy')}</p>
             <p className="mt-0.5 text-sm text-muted-foreground">
-              Nothing is saved until you confirm the preview.
+              {t('nothingIsSavedUntilYou')}
             </p>
             {/* Drop-zone label wrapping the hidden input: the whole dashed
                 target opens the picker, and a dragged file lands the same
@@ -196,7 +198,7 @@ export function ImportFlow({ defaultUnit }: ImportFlowProps) {
               </span>
               {!hasPreview && (
                 <span className="text-xs text-muted-foreground">
-                  The export format is detected automatically — or drag the file here.
+                  {t('theExportFormatIsDetected')}
                 </span>
               )}
               <input
@@ -211,7 +213,7 @@ export function ImportFlow({ defaultUnit }: ImportFlowProps) {
             </label>
             {phase === 'previewing' && (
               <p className="mt-3 text-sm text-muted-foreground" role="status">
-                Reading file…
+                {t('readingFile')}
               </p>
             )}
             {error && (
@@ -253,11 +255,12 @@ function PreviewSummary({
   onConfirm,
   onCancel,
 }: PreviewSummaryProps) {
+  const t = useTranslations('ImportFlow')
   const sourceLabel = preview.source === 'strong' ? 'Strong' : 'Hevy'
   return (
     <div className="mt-4 border-t border-t-border/60 pt-4">
       <p className="text-sm">
-        <span className="font-medium">{sourceLabel} export</span>
+        <span className="font-medium">{t('sourceExport', { source: sourceLabel })}</span>
         {preview.fileName && <span className="text-muted-foreground"> — {preview.fileName}</span>}
       </p>
 
@@ -265,7 +268,7 @@ function PreviewSummary({
       {!preview.unitFromFile && (
         <div className="mt-3 flex items-center justify-between gap-3">
           <p className="text-sm text-muted-foreground">
-            Strong files don&rsquo;t say kg or lb — pick the unit this account logged in.
+            {t('strongFilesDonRsquoT')}
           </p>
           <div role="group" aria-label="File weight unit" className="flex shrink-0 gap-1">
             {WEIGHT_UNITS.map((u) => (
@@ -285,29 +288,29 @@ function PreviewSummary({
       )}
 
       <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
-        <dt className="text-muted-foreground">Workouts</dt>
+        <dt className="text-muted-foreground">{t('workouts')}</dt>
         <dd className="text-right tnum">{preview.workoutCount}</dd>
-        <dt className="text-muted-foreground">Sets</dt>
+        <dt className="text-muted-foreground">{t('sets')}</dt>
         <dd className="text-right tnum">{preview.setCount}</dd>
         {preview.dateRange && (
           <>
-            <dt className="text-muted-foreground">Dates</dt>
+            <dt className="text-muted-foreground">{t('dates')}</dt>
             <dd className="text-right">
               {formatDay(preview.dateRange.from)} – {formatDay(preview.dateRange.to)}
             </dd>
           </>
         )}
-        <dt className="text-muted-foreground">Matched exercises</dt>
+        <dt className="text-muted-foreground">{t('matchedExercises')}</dt>
         <dd className="text-right tnum">{preview.matched.length}</dd>
       </dl>
 
       {preview.toCreate.length > 0 && (
         <div className="mt-3 border-t border-t-border/60 pt-3">
           <p className="text-sm font-medium tnum">
-            {preview.toCreate.length} new custom exercise{preview.toCreate.length === 1 ? '' : 's'}
+            {t('newCustomExercises', { count: preview.toCreate.length })}
           </p>
           <p className="mt-0.5 text-xs text-muted-foreground">
-            These names weren&rsquo;t in the catalog and will be created as your custom exercises:
+            {t('theseNamesWerenRsquoT')}
           </p>
           <ul className="mt-1.5 space-y-0.5 text-xs text-muted-foreground">
             {preview.toCreate.map((name) => (
@@ -319,25 +322,23 @@ function PreviewSummary({
 
       {preview.duplicateCount > 0 && (
         <p className="mt-3 text-sm text-muted-foreground">
-          {preview.duplicateCount} workout{preview.duplicateCount === 1 ? '' : 's'} already in
-          your history will be skipped.
+          {t('duplicatesSkipped', { count: preview.duplicateCount })}
         </p>
       )}
 
       {preview.skippedCount > 0 && (
         <details className="mt-3">
           <summary className="cursor-pointer text-sm text-muted-foreground">
-            {preview.skippedCount} row{preview.skippedCount === 1 ? '' : 's'} can&rsquo;t be
-            imported
+            {t('rowsNotImported', { count: preview.skippedCount })}
           </summary>
           <ul className="mt-1.5 space-y-0.5 text-xs text-muted-foreground">
             {preview.skipped.map((s) => (
-              <li key={s.row}>
-                Row {s.row}: {s.reason}
-              </li>
+              <li key={s.row}>{t('skippedRow', { row: s.row, reason: s.reason })}</li>
             ))}
             {preview.skippedCount > preview.skipped.length && (
-              <li>…and {preview.skippedCount - preview.skipped.length} more</li>
+              <li>
+                {t('andMore', { count: preview.skippedCount - preview.skipped.length })}
+              </li>
             )}
           </ul>
         </details>
@@ -351,7 +352,7 @@ function PreviewSummary({
 
       <div className="mt-4 flex gap-2">
         <Button variant="outline" className="flex-1" disabled={isCommitting} onClick={onCancel}>
-          Cancel
+          {t('cancel')}
         </Button>
         <Button
           className="flex-1"
@@ -368,25 +369,28 @@ function PreviewSummary({
 }
 
 function SuccessSummary({ result, onReset }: { result: CommitResponse; onReset: () => void }) {
+  const t = useTranslations('ImportFlow')
   return (
     <div>
-      <p className="font-medium">Import complete</p>
+      <p className="font-medium">{t('importComplete')}</p>
       <p className="mt-0.5 text-sm text-muted-foreground">
-        {result.workoutsImported} workout{result.workoutsImported === 1 ? '' : 's'} and{' '}
-        {result.setsImported} set{result.setsImported === 1 ? '' : 's'} added to your history.
+        {t('importSummary', {
+          workouts: result.workoutsImported,
+          sets: result.setsImported,
+        })}
         {result.duplicatesSkipped > 0 && ` ${result.duplicatesSkipped} duplicates were skipped.`}
         {result.customsCreated > 0 &&
           ` ${result.customsCreated} custom exercise${result.customsCreated === 1 ? '' : 's'} created.`}
       </p>
       <div className="mt-4 flex gap-2">
         <Button variant="outline" className="flex-1" onClick={onReset}>
-          Import another
+          {t('importAnother')}
         </Button>
         <Link
           href="/"
           className="flex flex-1 items-center justify-center rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground"
         >
-          View history
+          {t('viewHistory')}
         </Link>
       </div>
     </div>

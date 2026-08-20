@@ -18,6 +18,7 @@ import { EditorGrid } from './editor-grid'
 import { TileSheet } from './tile-sheet'
 import { createDragController } from './drag-controller'
 import type { DndGridProps } from './editor-grid-dnd'
+import { useTranslations } from 'next-intl'
 
 /**
  * The grid-preview home layout editor: a miniature of home's own 2-col flow
@@ -42,6 +43,7 @@ export function HomeLayoutEditor({
 }: {
   initialSections: ResolvedHomeSection[]
 }) {
+  const t = useTranslations('HomeLayoutEditor')
   const [sections, setSections] = useState<readonly ResolvedHomeSection[]>(initialSections)
   const [activeKind, setActiveKind] = useState<string | null>(null)
   const [hasError, setHasError] = useState(false)
@@ -157,7 +159,7 @@ export function HomeLayoutEditor({
         className="mt-6 mb-3 flex items-center gap-3 rounded-lg border border-border/60 px-3 py-3.5"
       >
         <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
-          Status
+          {t('status')}
         </span>
         <span aria-hidden="true" className="h-2 flex-1 rounded bg-muted" />
         <Lock aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
@@ -177,13 +179,11 @@ export function HomeLayoutEditor({
       )}
 
       <p className="mt-4 text-sm text-muted-foreground">
-        Tap a tile to resize, reorder, or hide it &mdash; or press and hold to
-        drag it. Hidden sections keep
-        tracking &mdash; they just don&rsquo;t show on Home.
+        {t('tapATileToResize')}
       </p>
       {hasError && (
         <p className="mt-2 text-sm text-destructive" role="status">
-          Couldn&rsquo;t save. Try again.
+          {t('couldnRsquoTSaveTry')}
         </p>
       )}
 
@@ -192,7 +192,7 @@ export function HomeLayoutEditor({
         onClick={onReset}
         className="mt-8 rounded-lg px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors outline-none hover:bg-muted/50 focus-visible:ring-3 focus-visible:ring-ring/50"
       >
-        Reset to default
+        {t('resetToDefault')}
       </button>
 
       {activeSection !== null && activeMeta !== null && (

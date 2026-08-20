@@ -12,6 +12,7 @@ import {
 import type { ResolvedHomeSection } from '@/lib/home/layout'
 import { cn } from '@/lib/utils'
 import { SIZE_LABELS, SIZE_NAMES } from './section-tile'
+import { useTranslations } from 'next-intl'
 
 /**
  * Bottom sheet for one home section, opened by tapping its tile in the grid
@@ -51,6 +52,7 @@ export function TileSheet({
   onMove,
   onMoveToTop,
 }: TileSheetProps) {
+  const t = useTranslations('TileSheet')
   const dialogRef = useRef<HTMLDialogElement>(null)
   const closeButtonRef = useRef<HTMLButtonElement>(null)
   const requestClose = useAnimatedSheetClose(dialogRef, onClose)
@@ -158,9 +160,9 @@ export function TileSheet({
           its place in the order, dimmed on the grid. */}
       <div className="mt-4 flex items-center justify-between gap-3 border-t border-border/60 pt-4">
         <div className="min-w-0">
-          <p className="text-sm">Show on Home</p>
+          <p className="text-sm">{t('showOnHome')}</p>
           <p className="mt-0.5 text-xs text-muted-foreground">
-            Hidden sections keep tracking &mdash; they just don&rsquo;t show.
+            {t('hiddenSectionsKeepTrackingMdash')}
           </p>
         </div>
         <VisibilitySwitch
@@ -179,7 +181,7 @@ export function TileSheet({
           onClick={() => onMove('up')}
         >
           <ArrowUp aria-hidden="true" className="size-4" />
-          Up
+          {t('up')}
         </MoveButton>
         <MoveButton
           label={`Move ${meta.title} down`}
@@ -187,7 +189,7 @@ export function TileSheet({
           onClick={() => onMove('down')}
         >
           <ArrowDown aria-hidden="true" className="size-4" />
-          Down
+          {t('down')}
         </MoveButton>
         <MoveButton
           label={`Move ${meta.title} to top`}
@@ -195,7 +197,7 @@ export function TileSheet({
           onClick={onMoveToTop}
         >
           <ArrowUpToLine aria-hidden="true" className="size-4" />
-          To top
+          {t('toTop')}
         </MoveButton>
       </div>
     </dialog>

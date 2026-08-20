@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { setRpeLoggingEnabledAction } from '@/app/actions'
 import { cn } from '@/lib/utils'
+import { useTranslations } from 'next-intl'
 
 /**
  * Opt-in switch for RPE/RIR effort logging — the preference arm of the
@@ -13,6 +14,7 @@ import { cn } from '@/lib/utils'
  * flag agrees on next visit.
  */
 export function RpeLoggingToggle({ enabled }: { enabled: boolean }) {
+  const t = useTranslations('RpeLoggingToggle')
   const [isOn, setIsOn] = useState(enabled)
   const [isPending, startTransition] = useTransition()
   const [hasError, setHasError] = useState(false)
@@ -59,7 +61,7 @@ export function RpeLoggingToggle({ enabled }: { enabled: boolean }) {
       </button>
       {hasError && (
         <p className="text-xs text-destructive" role="status">
-          Couldn&rsquo;t save. Try again.
+          {t('couldnRsquoTSaveTry')}
         </p>
       )}
     </div>

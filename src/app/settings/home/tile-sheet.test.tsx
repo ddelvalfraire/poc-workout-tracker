@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { renderToStaticMarkup } from 'react-dom/server'
+import { renderStaticIntl } from '../../../../vitest.intl'
 import { HOME_SECTION_REGISTRY } from '@/lib/home/registry'
 import type { ResolvedHomeSection } from '@/lib/home/layout'
 import { TileSheet } from './tile-sheet'
@@ -36,7 +36,7 @@ function render(overrides: {
     size: overrides.size ?? meta.defaultSize,
     hidden: overrides.hidden ?? false,
   }
-  return renderToStaticMarkup(
+  return renderStaticIntl(
     <TileSheet
       meta={meta}
       section={section}
