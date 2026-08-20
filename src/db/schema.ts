@@ -638,7 +638,10 @@ export const programs = pgTable(
     // coach-drafted plan behind the forced owner confirm: it derives nothing,
     // instantiates nothing, never joins the single-active sweep, and exits
     // ONLY via adoptProgram/declineProgram (db/programs.ts).
-    status: text('status').notNull().default('draft'),
+    status: text('status')
+      .$type<'draft' | 'active' | 'archived' | 'proposed'>()
+      .notNull()
+      .default('draft'),
     // Who drafted this row — 'owner' | 'coach' today; open value space (a
     // human coach's user id, a group id) so future actors need data, not
     // schema. Mirrors program_events.actor's philosophy.
