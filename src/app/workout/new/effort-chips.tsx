@@ -13,6 +13,7 @@ import {
   rirTargetChip,
   createIdleCollapse,
 } from './effort-chip-logic'
+import { useTranslations } from 'next-intl'
 
 /**
  * Post-completion effort chip row — the opt-in RPE/RIR capture surface.
@@ -61,6 +62,7 @@ export function EffortChips({
   onSelectRpe,
   onIdleCollapse,
 }: EffortChipsProps) {
+  const t = useTranslations('EffortChips')
   // Advanced affordance: RPE chips replace the RIR row while open. Opens
   // pre-expanded when RPE is the scale already logged on this set.
   const [showRpe, setShowRpe] = useState(rpe !== '' && rir === '')
@@ -101,20 +103,28 @@ export function EffortChips({
           narrowest supported viewport without scroll or wrap. */}
       <div className="flex items-center justify-between pl-22">
         <span className="shrink-0 text-[0.65rem] font-semibold uppercase tracking-widest text-muted-foreground">
-          {showRpe ? 'RPE' : 'RIR'}
+          {showRpe ? t('scaleRpe') : t('scaleRir')}
         </span>
         <button
           type="button"
           onClick={() => setShowRpe((prev) => !prev)}
-          aria-label={showRpe ? `Switch to RIR for ${setLabel}` : `Switch to RPE for ${setLabel}`}
+          aria-label={
+            showRpe
+              ? t('switchToRirAriaLabel', { set: setLabel })
+              : t('switchToRpeAriaLabel', { set: setLabel })
+          }
           className="shrink-0 text-xs font-semibold uppercase tracking-wide text-muted-foreground underline-offset-2 active:underline"
         >
-          {showRpe ? 'RIR' : 'RPE'}
+          {showRpe ? t('scaleRir') : t('scaleRpe')}
         </button>
       </div>
       <div
         role="group"
-        aria-label={`${showRpe ? 'RPE' : 'Reps in reserve'} for ${setLabel}`}
+        aria-label={
+          showRpe
+            ? t('groupAriaLabelRpe', { set: setLabel })
+            : t('groupAriaLabelRir', { set: setLabel })
+        }
         // py-1.5 keeps the chips' hit-44-y vertical extensions inside the
         // strip so they never overlap the line above or the caption below
         // (nothing scrolls here anymore — both strips fit).
@@ -131,6 +141,7 @@ export function EffortChips({
             ? rpe === chip || (half !== null && rpe === half)
             : rir === chip
           const isTarget = chip === targetChip
+          const rpeLabel = rpeChipAriaLabel(rpe, chip)
           return (
             <button
               key={chip}
@@ -140,7 +151,11 @@ export function EffortChips({
               }
               aria-pressed={isSelected}
               aria-label={
-                showRpe ? rpeChipAriaLabel(rpe, chip) : `RIR ${chip}${chip === '5' ? ' or more' : ''}`
+                showRpe
+                  ? t(`rpeChipAriaLabel.${rpeLabel.key}`, rpeLabel.values)
+                  : chip === '5'
+                    ? t('rirChipAriaLabelMax', { chip })
+                    : t('rirChipAriaLabel', { chip })
               }
               className={cn(
                 // Vertical-only inset: gap-1 neighbors sit closer than the
@@ -162,7 +177,11 @@ export function EffortChips({
               )}
             >
               {/* A selected half-point shows on its whole chip ("8.5"). */}
-              {showRpe && half !== null && rpe === half ? half : !showRpe && chip === '5' ? '5+' : chip}
+              {showRpe && half !== null && rpe === half
+                ? half
+                : !showRpe && chip === '5'
+                  ? t('rirChipMax')
+                  : chip}
             </button>
           )
         })}
@@ -170,7 +189,9 @@ export function EffortChips({
       {/* The prescribed target restated as words — the loop the chips close.
           Quiet caption, same grammar as the plan target caption above. */}
       {targetLabel && (
-        <p className="mt-0.5 pl-22 text-xs text-muted-foreground tnum">Target {targetLabel}</p>
+        <p className="mt-0.5 pl-22 text-xs text-muted-foreground tnum">
+          {t('targetCaption', { label: targetLabel })}
+        </p>
       )}
     </div>
   )

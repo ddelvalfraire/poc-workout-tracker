@@ -3,6 +3,7 @@
 import { useEffect, useRef } from 'react'
 import { NotebookPen, Trash2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useTranslations } from 'next-intl'
 
 /**
  * The set-row long-press context menu (notes v2 grammar): a small anchored
@@ -48,6 +49,7 @@ export function SetRowMenu({
   onRemove,
   onClose,
 }: SetRowMenuProps) {
+  const t = useTranslations('SetRowMenu')
   const firstItemRef = useRef<HTMLButtonElement>(null)
 
   // Focus the first item so keyboard users aren't stranded; Escape closes.
@@ -87,7 +89,7 @@ export function SetRowMenu({
       />
       <div
         role="menu"
-        aria-label={`Actions for ${setLabel}`}
+        aria-label={t('ariaLabel', { set: setLabel })}
         style={{ left, top, width: MENU_WIDTH }}
         className={cn(
           // bg-popover + rounded-lg: popover elevation on the popover token —
@@ -107,16 +109,16 @@ export function SetRowMenu({
           onClick={onNote}
         >
           <NotebookPen aria-hidden="true" className="size-4 text-muted-foreground" />
-          {hasNote ? 'Note · view' : 'Add note'}
+          {hasNote ? t('noteView') : t('noteAdd')}
         </button>
         <button type="button" role="menuitem" className={itemClass} onClick={onTagWarmup}>
           <span
             aria-hidden="true"
             className="grid size-4 place-items-center text-xs font-semibold text-muted-foreground"
           >
-            W
+            {t('warmupGlyph')}
           </span>
-          {isWarmup ? 'Untag warm-up' : 'Tag warm-up'}
+          {isWarmup ? t('warmupUntag') : t('warmupTag')}
         </button>
         <button
           type="button"
@@ -125,7 +127,7 @@ export function SetRowMenu({
           onClick={onRemove}
         >
           <Trash2 aria-hidden="true" className="size-4" />
-          Remove set
+          {t('remove')}
         </button>
       </div>
     </>

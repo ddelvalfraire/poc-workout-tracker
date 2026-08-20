@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+import { withIntl } from '../../../../vitest.intl'
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 
@@ -154,6 +155,7 @@ function renderChips({ rir = '', rpe = '', targetRir = null, targetRpe = null }:
   root = createRoot(container)
   act(() => {
     root!.render(
+      withIntl(
       <EffortChips
         setLabel="set 1"
         rir={rir}
@@ -165,6 +167,7 @@ function renderChips({ rir = '', rpe = '', targetRir = null, targetRpe = null }:
         onSelectRpe={onSelectRpe}
         onIdleCollapse={onIdleCollapse}
       />,
+      ),
     )
   })
   return { onSelectRir, onSelectRpe, onIdleCollapse }

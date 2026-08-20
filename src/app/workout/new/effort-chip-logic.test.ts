@@ -67,23 +67,26 @@ describe('nextRpeValue (the two-tap cycle)', () => {
 
 describe('rpeChipAriaLabel (names the next action)', () => {
   it('unselected chip names its value', () => {
-    expect(rpeChipAriaLabel('', '8')).toBe('RPE 8')
+    expect(rpeChipAriaLabel('', '8')).toEqual({ key: 'plain', values: { value: '8' } })
   })
 
   it('selected whole names the half-point next step', () => {
-    expect(rpeChipAriaLabel('8', '8')).toBe('RPE 8 — tap again for 8.5')
+    expect(rpeChipAriaLabel('8', '8')).toEqual({
+      key: 'half',
+      values: { chip: '8', half: '8.5' },
+    })
   })
 
   it('selected half names the clear next step', () => {
-    expect(rpeChipAriaLabel('8.5', '8')).toBe('RPE 8.5 — tap again to clear')
+    expect(rpeChipAriaLabel('8.5', '8')).toEqual({ key: 'clear', values: { value: '8.5' } })
   })
 
   it('selected 10 names clear directly (no half exists)', () => {
-    expect(rpeChipAriaLabel('10', '10')).toBe('RPE 10 — tap again to clear')
+    expect(rpeChipAriaLabel('10', '10')).toEqual({ key: 'clear', values: { value: '10' } })
   })
 
   it('legacy half-point values name the clear next step on their whole chip', () => {
-    expect(rpeChipAriaLabel('6.5', '6')).toBe('RPE 6.5 — tap again to clear')
+    expect(rpeChipAriaLabel('6.5', '6')).toEqual({ key: 'clear', values: { value: '6.5' } })
   })
 })
 

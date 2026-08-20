@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { renderToStaticMarkup } from 'react-dom/server'
+import { renderStaticIntl } from '../../../../vitest.intl'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 /**
@@ -70,7 +70,7 @@ function render(
   if (seedLastPerformance !== undefined) {
     client.setQueryData(['last-performance', 'wger', 73, null], seedLastPerformance)
   }
-  return renderToStaticMarkup(
+  return renderStaticIntl(
     <QueryClientProvider client={client}>
       <WorkoutLogger
         title="New Workout"
@@ -148,7 +148,7 @@ describe('SessionToast (#210)', () => {
   const countdown = { durationMs: 8000, resetKey: 0, onExpire: () => {} }
 
   it('undo mode renders role=status with the message and the countdown drain', () => {
-    const html = renderToStaticMarkup(
+    const html = renderStaticIntl(
       <SessionToast open countdown={countdown}>
         <p>
           Removed <span className="font-medium">Squat</span>
@@ -162,7 +162,7 @@ describe('SessionToast (#210)', () => {
   })
 
   it('prompt mode renders both action labels and NO countdown element', () => {
-    const html = renderToStaticMarkup(
+    const html = renderStaticIntl(
       <SessionToast open>
         <p>Use Front Squat for the rest of the block?</p>
         <button type="button">Just today</button>
@@ -176,7 +176,7 @@ describe('SessionToast (#210)', () => {
   })
 
   it('stays a hairline strip — never a card shell', () => {
-    const html = renderToStaticMarkup(
+    const html = renderStaticIntl(
       <SessionToast open countdown={countdown}>
         <p>Removed set</p>
       </SessionToast>,
@@ -186,7 +186,7 @@ describe('SessionToast (#210)', () => {
   })
 
   it('renders nothing when closed', () => {
-    const html = renderToStaticMarkup(<SessionToast open={false}>{null}</SessionToast>)
+    const html = renderStaticIntl(<SessionToast open={false}>{null}</SessionToast>)
     expect(html).toBe('')
   })
 })

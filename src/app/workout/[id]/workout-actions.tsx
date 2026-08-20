@@ -9,6 +9,7 @@ import { ConfirmDialog } from '@/components/confirm-dialog'
 import { cn } from '@/lib/utils'
 import { deleteWorkoutAction } from '@/app/workout/actions'
 import { saveWorkoutAsTemplateAction } from '@/app/templates/actions'
+import { useTranslations } from 'next-intl'
 
 /**
  * Detail-page action island: an Edit link to the edit route and a Delete
@@ -18,6 +19,7 @@ import { saveWorkoutAsTemplateAction } from '@/app/templates/actions'
  * detail page itself stays a Server Component.
  */
 export function WorkoutActions({ id }: { id: string }) {
+  const t = useTranslations('WorkoutActions')
   const [isPending, setIsPending] = useState(false)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -46,7 +48,7 @@ export function WorkoutActions({ id }: { id: string }) {
     } catch {
       setIsPending(false)
       // The dialog stays open: the error renders inside it, retry in place.
-      setError('Could not delete workout. Please try again.')
+      setError(t('deleteError'))
     }
   }
 
@@ -62,7 +64,7 @@ export function WorkoutActions({ id }: { id: string }) {
       // isTemplatePending stays true on success: navigation unmounts this screen.
     } catch {
       setIsTemplatePending(false)
-      setTemplateError('Could not save the template. Please try again.')
+      setTemplateError(t('templateError'))
     }
   }
 
@@ -70,7 +72,7 @@ export function WorkoutActions({ id }: { id: string }) {
     <div className="mt-6 space-y-2">
       <Link href={`/workout/new?from=${id}`} className={cn(buttonVariants(), 'w-full gap-2')}>
         <RotateCcw aria-hidden="true" className="size-4" />
-        Repeat workout
+        {t('repeatAction')}
       </Link>
       {/* Save the session's shape for reuse OUTSIDE any program — lands on
           the new template's page. Outline: Repeat above keeps the one volt. */}
@@ -81,7 +83,7 @@ export function WorkoutActions({ id }: { id: string }) {
         onClick={handleSaveAsTemplate}
       >
         <BookmarkPlus aria-hidden="true" className="size-4" />
-        {isTemplatePending ? 'Saving template…' : 'Save as template'}
+        {isTemplatePending ? t('templateActionPending') : t('templateAction')}
       </Button>
       {templateError && <p className="text-sm text-destructive">{templateError}</p>}
       <div className="flex items-center gap-2">
@@ -89,7 +91,7 @@ export function WorkoutActions({ id }: { id: string }) {
           href={`/workout/${id}/edit`}
           className={cn(buttonVariants({ variant: 'outline' }), 'flex-1')}
         >
-          Edit
+          {t('editAction')}
         </Link>
         {/* Demoted on purpose: a destructive action should never carry the
             same visual weight as the everyday one beside it. */}
@@ -102,15 +104,15 @@ export function WorkoutActions({ id }: { id: string }) {
             setIsModalOpen(true)
           }}
         >
-          Delete
+          {t('delete')}
         </Button>
       </div>
       {isModalOpen && (
         <ConfirmDialog
-          title="Delete this workout?"
-          body="Every logged set goes with it. This cannot be undone."
-          confirmLabel="Delete"
-          pendingLabel="Deleting…"
+          title={t('deleteDialog.title')}
+          body={t('deleteDialog.body')}
+          confirmLabel={t('deleteDialog.confirm')}
+          pendingLabel={t('deleteDialog.pending')}
           error={error}
           isPending={isPending}
           onConfirm={handleDelete}

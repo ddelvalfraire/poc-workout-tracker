@@ -203,6 +203,23 @@
     "title": "Still cutting?",
     "updateError": "Could not update the diet phase. Please try again."
   },
+  "EffortChips": {
+    "groupAriaLabelRir": "Reps in reserve for {set}",
+    "groupAriaLabelRpe": "RPE for {set}",
+    "rirChipAriaLabel": "RIR {chip}",
+    "rirChipAriaLabelMax": "RIR {chip} or more",
+    "rirChipMax": "5+",
+    "rpeChipAriaLabel": {
+      "clear": "RPE {value} — tap again to clear",
+      "half": "RPE {chip} — tap again for {half}",
+      "plain": "RPE {value}"
+    },
+    "scaleRir": "RIR",
+    "scaleRpe": "RPE",
+    "switchToRirAriaLabel": "Switch to RIR for {set}",
+    "switchToRpeAriaLabel": "Switch to RPE for {set}",
+    "targetCaption": "Target {label}"
+  },
   "ErrorBoundary": {
     "description": "The app hit an unexpected error. Your saved workouts are safe — try again or reload.",
     "errorRef": "Error ref: {digest}",
@@ -244,6 +261,38 @@
     },
     "selectAriaLabel": "Overshoot policy for {exerciseName}",
     "updateError": "Could not update the overshoot override. Please try again."
+  },
+  "ExercisePicker": {
+    "create": {
+      "cancel": "Cancel",
+      "categoryAriaLabel": "Category",
+      "categoryPlaceholder": "Category…",
+      "error": "Could not create the exercise.",
+      "musclesLabel": "Primary muscles (optional)",
+      "nameAriaLabel": "Custom exercise name",
+      "namePlaceholder": "Name",
+      "submit": "Create & add",
+      "submitPending": "Creating…",
+      "title": "New custom exercise",
+      "validationCategory": "Pick a category.",
+      "validationName": "Give it a name."
+    },
+    "createAction": "+ Create custom exercise",
+    "createQueryAction": "+ Create “{query}”",
+    "customSource": "Custom",
+    "empty": "No exercises found.",
+    "loadError": "Could not load exercises.",
+    "placeholder": "Add an exercise…",
+    "placeholderLoading": "Loading exercises…",
+    "resultsAriaLabel": "Exercise results",
+    "retry": "Retry",
+    "searchAriaLabel": "Search exercises",
+    "suggestionsAriaLabel": "Suggested replacements",
+    "suggestionsTitle": "Suggested"
+  },
+  "ExerciseSheet": {
+    "close": "Close",
+    "title": "Add exercise"
   },
   "ExerciseStats": {
     "deltaEarlier": "+{gain} {unit} vs earlier sessions",
@@ -317,6 +366,18 @@
       "program": "Program ▾"
     }
   },
+  "FinishUpNextCard": {
+    "blockComplete": {
+      "action": "See results",
+      "badge": "Block complete",
+      "summary": "Every week trained · {weeks, plural, one {# week} other {# weeks}}"
+    },
+    "upNext": {
+      "action": "Start when ready",
+      "anchor": "Up next · Week {week}",
+      "summary": "{count, plural, one {# exercise} other {# exercises}} · {programName}"
+    }
+  },
   "GlobalError": {
     "description": "The app hit an unexpected error. Your saved workouts are safe — reload to continue.",
     "errorRef": "Error ref: {digest}",
@@ -384,6 +445,9 @@
     "title": "Goals",
     "trendLabel": "Bodyweight trend",
     "trophiesLinkLabel": "Trophies"
+  },
+  "HeaderClock": {
+    "ariaLabel": "Session time {elapsed}"
   },
   "HistoryList": {
     "repeatLabel": "Repeat {name}",
@@ -578,11 +642,31 @@
   "NewExercise": {
     "title": "New custom exercise"
   },
+  "NewWorkout": {
+    "title": "New Workout"
+  },
   "NoteRow": {
     "coachAuthor": "Coach",
     "coachInitial": "C",
     "outdatedBadge": "Outdated",
     "outdatedSnapshot": "was {snapshot} — set edited after"
+  },
+  "NoteSheet": {
+    "ariaLabel": "Note for {anchor}",
+    "bodyAriaLabel": "Note text",
+    "breadcrumb": {
+      "set": "{exercise} · Set {number}",
+      "workout": "Workout"
+    },
+    "label": "Note",
+    "option": {
+      "exercise": "Exercise",
+      "set": "Set {number}",
+      "workout": "Workout"
+    },
+    "placeholder": "Add note…",
+    "save": "Save",
+    "tagAriaLabel": "Insert {token} tag"
   },
   "Notes": {
     "filters": {
@@ -714,6 +798,47 @@
   "PlanBulletList": {
     "noTarget": "{current} sets · no target",
     "progress": "{current} / {planned} sets"
+  },
+  "PlateSheet": {
+    "add": "Add",
+    "addPlateAriaLabel": "Add a {weight} {unit} plate",
+    "ariaLabel": "Bar and plates for {name}",
+    "barOption": "{weight} {unit} bar",
+    "barsLegend": "Bars ({unit})",
+    "belowBar": "below the bar",
+    "cancel": "Cancel",
+    "clear": "Clear",
+    "close": "Close",
+    "closest": "closest {weight} — {perSide}",
+    "countHint": "Tap the plates on one side of the bar.",
+    "countedPlate": "{weight} ×",
+    "customAriaLabel": "Add a custom weight to {group}",
+    "customPlaceholder": "Custom",
+    "editGearAction": "Edit your bars & plates ({unit})",
+    "emptyWeights": "Enter a weight on a set to see the plate math.",
+    "mode": {
+      "build": "Load bar",
+      "count": "Count plates"
+    },
+    "noBar": "No bar",
+    "perSide": "{plates} / side",
+    "perSideBarOnly": "bar only",
+    "platesLegend": "Plates ({unit})",
+    "rampStep": "{weight} × {reps}",
+    "removePlateAriaLabel": "Remove the {weight} {unit} plate",
+    "saveError": "Could not save your gear. Please try again.",
+    "saveGear": "Save gear",
+    "saveGearPending": "Saving…",
+    "title": "Bar & plates",
+    "useWeightAction": "Use {weight} {unit}",
+    "validationCustom": "Custom weight must be a positive number.",
+    "validationGear": "Pick at least one bar and one plate.",
+    "warmupFallbackNone": "Not a weight — showing no ramp.",
+    "warmupFallbackTopSet": "Not a weight — showing your top set ({weight} {unit}).",
+    "warmupHint": "Type a target weight to preview the ramp.",
+    "warmupLabel": "Warm-up · toward",
+    "warmupResetAction": "Back to your top set ({weight} {unit})",
+    "weightValue": "{weight} {unit}"
   },
   "PrBadge": {
     "ariaLabel": "Personal record",
@@ -1068,11 +1193,49 @@
     "label": "Remove",
     "removeError": "Couldn't remove the import — try again."
   },
+  "ReplaceConfirmDialog": {
+    "addInstead": "Add instead",
+    "body": "Replacing discards its logged sets. Add {name} as a separate exercise to keep them.",
+    "replace": "Replace",
+    "titleCompleted": "{name} is fully completed",
+    "titlePartial": "{name} is partially completed"
+  },
   "RestDefaultSetting": {
     "ariaLabel": "Default rest target: {seconds, plural, one {# second} other {# seconds}}",
     "ariaLabelOff": "Default rest target: off",
     "value": "{seconds}s",
     "valueOff": "Off"
+  },
+  "RestPill": {
+    "extend": "+{seconds}",
+    "extendAriaLabel": "Extend this rest by {seconds} seconds",
+    "eyebrow": "Rest",
+    "label": {
+      "countUp": "Rest time {time}. Set rest target",
+      "over": "Rest {time} over the {target} second target — go. Change rest target",
+      "remaining": "Rest {time} remaining of {target} second target. Change rest target"
+    },
+    "shorten": "−{seconds}",
+    "shortenAriaLabel": "Shorten this rest by {seconds} seconds",
+    "skip": "Skip",
+    "skipAriaLabel": "Skip rest"
+  },
+  "RestSheet": {
+    "chimeHint": "A short beep when the countdown hits zero. Vibration stays on either way.",
+    "chimeLabel": "End-of-rest chirp",
+    "chimeOff": "Off",
+    "chimeOn": "On",
+    "close": "Close",
+    "customAriaLabel": "Custom rest target in seconds",
+    "customPlaceholder": "Custom s",
+    "lede": "Fallback for sets without a planned rest. Off = count up only.",
+    "presetOff": "Off",
+    "presetSeconds": "{seconds}s",
+    "save": "Save",
+    "saveError": "Set for this session, but saving your default failed. Try again.",
+    "savePending": "Saving…",
+    "title": "Rest target",
+    "validation": "Custom rest must be a whole number of seconds, 0 to {max}."
   },
   "RestTimerToggle": {
     "ariaLabel": "Rest timer",
@@ -1108,6 +1271,18 @@
     "liveBadge": "Workout in progress",
     "setProgress": "{completed} of {total, plural, one {# set} other {# sets}} done",
     "untitledSession": "Unnamed session"
+  },
+  "SessionToast": {
+    "countdown": "· {seconds}s"
+  },
+  "SetRowMenu": {
+    "ariaLabel": "Actions for {set}",
+    "noteAdd": "Add note",
+    "noteView": "Note · view",
+    "remove": "Remove set",
+    "warmupGlyph": "W",
+    "warmupTag": "Tag warm-up",
+    "warmupUntag": "Untag warm-up"
   },
   "Settings": {
     "accountGroupLabel": "Account",
@@ -1263,6 +1438,25 @@
       "onPlanTitle": "On plan."
     }
   },
+  "StatsSheet": {
+    "action": "View full stats",
+    "ariaLabel": "Stats for {name}",
+    "bestE1rmDetail": "{weight} {unit} × {reps} · {date}",
+    "bestE1rmLabel": "Best est. 1RM",
+    "bestE1rmValue": "{value}<unitTag>{unit}</unitTag>",
+    "close": "Close",
+    "empty": "No completed sessions yet — finish a workout with this movement and its records land here.",
+    "emptyRecords": "No load records yet — log weight and PRs land here.",
+    "error": "Couldn't load stats. Close and reopen to retry.",
+    "heaviestLabel": "Heaviest",
+    "heaviestValue": "{weight} {unit}<repsTag>×{reps}</repsTag>",
+    "mostRepsLabel": "Most reps",
+    "recentEmpty": "—",
+    "recentTitle": "Recent",
+    "setSeparator": ", ",
+    "title": "All-time stats",
+    "topVolumeLabel": "Top volume"
+  },
   "StatusHero": {
     "logMoreLink": "Log more",
     "programsLink": "Browse programs",
@@ -1282,6 +1476,9 @@
   "StreakChip": {
     "countLabel": "{weeks} wk",
     "srOnly": "{weeks, plural, one {week} other {weeks}} training streak"
+  },
+  "SwipeToDelete": {
+    "label": "Remove"
   },
   "SystemTemplateDetail": {
     "attribution": "About this program · <source>View source</source>",
@@ -1423,6 +1620,18 @@
       "previous": "Last week"
     }
   },
+  "WeightStepper": {
+    "decreaseAriaLabel": "Decrease set {set} {noun} by {step} {unit}",
+    "increaseAriaLabel": "Increase set {set} {noun} by {step} {unit}",
+    "noun": {
+      "addedWeight": "added weight",
+      "assistance": "assistance",
+      "weight": "weight"
+    },
+    "plateChipAriaLabel": "Plates for this weight: {chip}. Open plate calculator",
+    "stepDecrease": "−{step}",
+    "stepIncrease": "+{step}"
+  },
   "WindowToggle": {
     "ariaLabel": "Week window",
     "option": {
@@ -1430,10 +1639,216 @@
       "rolling": "Last 7 days"
     }
   },
+  "WorkoutActions": {
+    "delete": "Delete",
+    "deleteDialog": {
+      "body": "Every logged set goes with it. This cannot be undone.",
+      "confirm": "Delete",
+      "pending": "Deleting…",
+      "title": "Delete this workout?"
+    },
+    "deleteError": "Could not delete workout. Please try again.",
+    "editAction": "Edit",
+    "repeatAction": "Repeat workout",
+    "templateAction": "Save as template",
+    "templateActionPending": "Saving template…",
+    "templateError": "Could not save the template. Please try again."
+  },
+  "WorkoutDetail": {
+    "comparisonCaption": "vs last {name}",
+    "complete": {
+      "badge": "Session logged",
+      "groupLabel": "Workout complete",
+      "prE1rm": "<approx>~</approx>{value} e1RM (+{delta})",
+      "prReps": "{reps} reps (+{delta})"
+    },
+    "exercise": {
+      "approx": "~",
+      "e1rmLabel": "Est. 1RM",
+      "empty": "No sets logged.",
+      "repsValue": "{reps} reps",
+      "setAriaLabel": "Set {number}",
+      "skippedBadge": "Skipped",
+      "topSetBadge": "Top set",
+      "topSetLabel": "Top set"
+    },
+    "goalProgress": {
+      "groupLabel": "Goal progress",
+      "percent": "{percent}%",
+      "summary": "{exercise} · {current} of {target}",
+      "title": "Goal progress"
+    },
+    "goals": {
+      "action": "See your goals",
+      "groupLabel": "Goals reached",
+      "title": "{count, plural, one {Goal reached} other {Goals reached}}"
+    },
+    "headline": {
+      "blockClosed": "Week {week} closed.",
+      "complete": "Workout complete.",
+      "pr": "{exercise} PR.",
+      "prs": "{count, plural, =2 {Two PRs.} =3 {Three PRs.} =4 {Four PRs.} =5 {Five PRs.} other {# PRs.}}"
+    },
+    "meta": {
+      "summary": "{date} <separator>·</separator> <weekLabel>Week {week}</weekLabel>"
+    },
+    "notes": {
+      "groupLabel": "Notes",
+      "title": "Notes"
+    },
+    "stats": {
+      "duration": "Duration",
+      "empty": "—",
+      "sets": "{count, plural, one {Set} other {Sets}}",
+      "volume": "Volume"
+    },
+    "titleFallback": "Workout",
+    "trophies": {
+      "action": "See your trophies",
+      "groupLabel": "Trophies earned",
+      "title": "{count, plural, one {Trophy earned} other {Trophies earned}}"
+    }
+  },
+  "WorkoutEdit": {
+    "programContext": "{day} · Week {week}",
+    "titleCompleted": "Edit Workout",
+    "titleLive": "Log Workout"
+  },
+  "WorkoutLogger": {
+    "addExerciseAction": "+ Exercise",
+    "addNoteAriaLabel": "Add note for {name}",
+    "addSetAction": "+ Add set",
+    "addedWeightAriaLabel": "Set {set} added weight in {unit}",
+    "assistanceAriaLabel": "Set {set} assistance in {unit}",
+    "autoregGlyph": "⟳",
+    "autoregRevertAction": "Use plan as written",
+    "autoregReverted": "Using plan as written.",
+    "bodyweightAriaLabel": "Set {set} uses bodyweight",
+    "bodyweightGlyph": "BW",
+    "changeEffortAriaLabel": "Change effort for {set}: {effort}",
+    "close": "Close",
+    "collapseAriaLabel": "Collapse {name}",
+    "column": {
+      "distance": "km",
+      "prev": "Prev",
+      "reps": "Reps",
+      "time": "Time"
+    },
+    "deloadNudge": "Consider pulling the deload forward.",
+    "discardAction": "Discard workout",
+    "discardDialog": {
+      "body": "Logged sets and the session go with it. This cannot be undone.",
+      "confirm": "Discard",
+      "pending": "Discarding…",
+      "title": "Discard this workout?"
+    },
+    "discardError": "Could not discard. Please try again.",
+    "distanceAriaLabel": "Set {set} distance in kilometers",
+    "durationAriaLabel": "Set {set} duration, minutes and seconds",
+    "durationPlaceholder": "mm:ss",
+    "echoNote": "Last time: {note}",
+    "echoNoteAriaLabel": "Copy last session's note for {name}",
+    "echoNoteSkipped": "Last time (skipped): {note}",
+    "editNoteAriaLabel": "Edit note for {name}",
+    "effortSlot": "Effort",
+    "empty": "Empty bar.",
+    "emptyHint": "Tap + Exercise below to add your first movement.",
+    "expandAriaLabel": "Expand {name} — completed, {summary}{pr, select, yes {, new PR} other {}}{superset, select, none {} other {, superset {superset}}}",
+    "fillAriaLabel": "Fill {set} from previous: {previous}",
+    "finish": "Finish workout <arrow>→</arrow>",
+    "finishDialog": {
+      "body": "{count, plural, one {# set has} other {# sets have}} no reps logged and will save as skipped. Sets with reps are checked off for you.",
+      "confirm": "Finish",
+      "pending": "Finishing…",
+      "title": "Finish workout?"
+    },
+    "identityNoteAriaLabel": "Exercise note for {name}: {note}",
+    "identityNoteEyebrow": "Exercise note",
+    "logEffortAriaLabel": "Log effort for {set}",
+    "loggingType": {
+      "assisted_bodyweight": "BW − assist",
+      "bodyweight_reps": "Bodyweight",
+      "weight_reps": "Weight × reps",
+      "weighted_bodyweight": "BW + weight"
+    },
+    "loggingTypeAriaLabel": "Logging type for {name}",
+    "markCompleteAriaLabel": "Mark {set} complete",
+    "markIncompleteAriaLabel": "Mark {set} incomplete",
+    "nameLabel": "Workout name",
+    "namePlaceholder": "Optional — e.g. Lower",
+    "namePlaceholderStatic": "Unnamed workout",
+    "nextUp": "Next: <exercise>{name}</exercise> — set {set}",
+    "noPreviousAriaLabel": "No previous performance for {set}",
+    "noteAction": "Note",
+    "noteCountAriaLabel": "{count, plural, one {# note} other {# notes}} on {name}",
+    "notePlaceholder": "Add note…",
+    "notesAriaLabel": "Notes for {name}",
+    "offlineNotice": "Offline — changes will sync when you're back.",
+    "pinNoteAriaLabel": "Pin note for {name}",
+    "platesAriaLabel": "Plates for {name}",
+    "prBadge": "All-time PR",
+    "prevEmpty": "—",
+    "pulseAriaLabel": "{completed} of {total} working sets done",
+    "rememberError": "Could not update the program. Please try again.",
+    "rememberForBlock": "Use for block",
+    "rememberHint": "Replaces {name} in the plan — your history stays.",
+    "rememberJustToday": "Just today",
+    "rememberPending": "Saving…",
+    "rememberPrompt": "Use <substitute>{name}</substitute> for the rest of the block?",
+    "removeExerciseAriaLabel": "Remove {name}",
+    "removeSetAriaLabel": "Remove {set}",
+    "replaceAriaLabel": "Replace {name}",
+    "replaceHeading": "Replace {name}",
+    "replaceHeadingFallback": "exercise",
+    "repsAriaLabel": "Set {set} reps",
+    "saveChanges": "Save changes",
+    "saveError": "Could not save workout. Please try again.",
+    "savePending": "Saving…",
+    "sessionDone": "All sets done.",
+    "setLabel": "set {number}",
+    "setLabelWarmup": "warm-up set {number}",
+    "skipAriaLabel": "Skip {name}",
+    "skippedBadge": "Skipped",
+    "statsAriaLabel": "Stats for {name}",
+    "supersetLabel": "Superset {group}",
+    "undo": "Undo",
+    "undoCount": "Undo ({count})",
+    "undoRemoved": "Removed <name>{subject}</name>",
+    "undoReplaced": "Replaced <name>{subject}</name>",
+    "undoSetSubject": "set {number} · {name}",
+    "unskipAriaLabel": "Unskip {name}",
+    "warmupGlyph": "W",
+    "warmupHint": "Hold a set's number to tag it a warm-up — warm-ups never score.",
+    "weightAriaLabel": "Set {set} weight in {unit}",
+    "workoutNoteAction": "Workout note",
+    "workoutNotesAriaLabel": "Workout notes"
+  },
   "WorkoutRemindersToggle": {
     "ariaLabel": "Workout reminders",
     "blockedNotice": "Notifications are blocked for this app in your browser settings.",
     "unsupportedNotice": "Not supported in this browser. On iPhone, add the app to your Home Screen first.",
     "updateError": "Couldn’t update. Try again."
+  },
+  "WorkoutSharing": {
+    "copyAction": "Copy",
+    "copyActionDone": "Copied",
+    "copyAriaLabel": "Copy share link",
+    "copyAriaLabelCopied": "Link copied",
+    "copyError": "Could not copy the link.",
+    "createError": "Could not create the link. Try again.",
+    "groupLabel": "Sharing",
+    "hint": "Anyone with the link sees this summary — sets, volume, PRs. Your notes and body data stay private.",
+    "linkHint": "Anyone with the link sees this summary. Notes and body data stay private.",
+    "linkLabel": "Share link",
+    "revokeAction": "Revoke link",
+    "revokeDialog": {
+      "body": "Anyone holding the link loses access immediately. Sharing again creates a fresh link.",
+      "confirm": "Revoke",
+      "pending": "Revoking…",
+      "title": "Revoke this link?"
+    },
+    "revokeError": "Could not revoke the link. Try again.",
+    "shareAction": "Share workout",
+    "shareActionPending": "Creating link…"
   }
 }

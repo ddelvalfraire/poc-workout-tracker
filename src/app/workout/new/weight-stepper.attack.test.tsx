@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+import { withIntl } from '../../../../vitest.intl'
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 
@@ -66,6 +67,7 @@ function renderStepper({ weight = '60', ghostWeight = undefined }: RenderProps =
   const render = (w: string) =>
     act(() => {
       root!.render(
+        withIntl(
         <WeightStepper
           setIndex={0}
           inputId="weight-input-attack"
@@ -78,6 +80,7 @@ function renderStepper({ weight = '60', ghostWeight = undefined }: RenderProps =
           onWeightChange={onWeightChange}
           onOpenPlateSheet={() => {}}
         />,
+        ),
       )
     })
   render(weight)

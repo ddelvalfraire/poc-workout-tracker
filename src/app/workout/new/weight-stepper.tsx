@@ -9,6 +9,7 @@ import type { WeightUnit } from '@/lib/units'
 import type { LoggingType } from '@/lib/workout-input'
 import { cn } from '@/lib/utils'
 import { vibrate } from './haptics'
+import { useTranslations } from 'next-intl'
 
 /**
  * The weight-input accessory rail: a hairline ButtonGroup ± pair (signed
@@ -165,6 +166,7 @@ export function WeightStepper({
   onWeightChange,
   onOpenPlateSheet,
 }: WeightStepperProps) {
+  const t = useTranslations('WeightStepper')
   // The hold chain outlives renders: repeats read the freshest value/handler
   // through refs so a 150ms tick never steps from a stale prop.
   const weightRef = useRef(weight)
@@ -237,10 +239,10 @@ export function WeightStepper({
 
   const weightNoun =
     loggingType === 'weighted_bodyweight'
-      ? 'added weight'
+      ? t('noun.addedWeight')
       : loggingType === 'assisted_bodyweight'
-        ? 'assistance'
-        : 'weight'
+        ? t('noun.assistance')
+        : t('noun.weight')
 
   return (
     // Full-width rail aligned to the input columns (left inset = circle +
@@ -300,10 +302,25 @@ export function WeightStepper({
                 if (isFloored) return
                 applyStep(direction, 1)
               }}
-              aria-label={`${direction === 1 ? 'Increase' : 'Decrease'} set ${setIndex + 1} ${weightNoun} by ${WEIGHT_STEP[unit]} ${unit}`}
+              aria-label={
+                direction === 1
+                  ? t('increaseAriaLabel', {
+                      set: setIndex + 1,
+                      noun: weightNoun,
+                      step: WEIGHT_STEP[unit],
+                      unit,
+                    })
+                  : t('decreaseAriaLabel', {
+                      set: setIndex + 1,
+                      noun: weightNoun,
+                      step: WEIGHT_STEP[unit],
+                      unit,
+                    })
+              }
             >
-              {direction === 1 ? '+' : '−'}
-              {WEIGHT_STEP[unit]}
+              {direction === 1
+                ? t('stepIncrease', { step: WEIGHT_STEP[unit] })
+                : t('stepDecrease', { step: WEIGHT_STEP[unit] })}
             </Button>
           )
         })}
@@ -323,7 +340,7 @@ export function WeightStepper({
               type="button"
               onPointerDown={(e) => e.preventDefault()}
               onClick={onOpenPlateSheet}
-              aria-label={`Plates for this weight: ${chip}. Open plate calculator`}
+              aria-label={t('plateChipAriaLabel', { chip })}
               className="self-start text-xs text-muted-foreground tnum underline-offset-2 active:underline"
             >
               {chip}

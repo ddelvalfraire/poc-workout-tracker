@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from 'react'
 import { Button } from '@/components/ui/button'
+import { useTranslations } from 'next-intl'
 
 /**
  * The logged-work guard for a mid-session exercise swap: replacing an
@@ -35,6 +36,7 @@ export function ReplaceConfirmDialog({
   onAddInstead,
   onClose,
 }: ReplaceConfirmDialogProps) {
+  const t = useTranslations('ReplaceConfirmDialog')
   const dialogRef = useRef<HTMLDialogElement>(null)
   const addInsteadButtonRef = useRef<HTMLButtonElement>(null)
 
@@ -65,7 +67,11 @@ export function ReplaceConfirmDialog({
     }
   }, [])
 
-  const title = `${oldName} is ${hasAllCompleted ? 'fully' : 'partially'} completed`
+  // Two whole messages, not one with a swapped adverb: "fully"/"partially"
+  // do not sit in the same slot in every language.
+  const title = hasAllCompleted
+    ? t('titleCompleted', { name: oldName })
+    : t('titlePartial', { name: oldName })
 
   return (
     // Centered in the top layer: m-auto centers a <dialog> on BOTH axes.
@@ -93,7 +99,7 @@ export function ReplaceConfirmDialog({
     >
       <p className="font-medium">{title}</p>
       <p className="mt-1 text-sm text-muted-foreground">
-        Replacing discards its logged sets. Add {newName} as a separate exercise to keep them.
+        {t('body', { name: newName })}
       </p>
       {/* Two-button row, both size-default: ≥44px targets. Add-instead is the
           outline safe exit that ACTS; the destructive replace never wears volt. */}
@@ -105,10 +111,10 @@ export function ReplaceConfirmDialog({
           onClick={onAddInstead}
           autoFocus
         >
-          Add instead
+          {t('addInstead')}
         </Button>
         <Button variant="destructive" className="flex-1" onClick={onReplace}>
-          Replace
+          {t('replace')}
         </Button>
       </div>
     </dialog>

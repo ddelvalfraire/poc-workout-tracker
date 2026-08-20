@@ -1,7 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
 import {
   insertToken,
-  noteBreadcrumb,
   setSnapshotLabel,
   setHasNote,
   exerciseNoteCount,
@@ -58,14 +57,6 @@ describe('insertToken', () => {
   it('clamps out-of-range caret positions instead of throwing', () => {
     expect(insertToken('ab', 99, 120, '#pr').text).toBe('ab #pr ')
     expect(insertToken('ab', -5, -1, '#pr').text).toBe('#pr ab')
-  })
-})
-
-describe('noteBreadcrumb', () => {
-  it('speaks each scope', () => {
-    expect(noteBreadcrumb('set', 'Bench Press', 3)).toBe('Bench Press · Set 3')
-    expect(noteBreadcrumb('exercise', 'Bench Press', 3)).toBe('Bench Press')
-    expect(noteBreadcrumb('workout', 'Bench Press', 3)).toBe('Workout')
   })
 })
 

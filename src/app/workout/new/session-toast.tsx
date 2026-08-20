@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { cn } from '@/lib/utils'
+import { useTranslations } from 'next-intl'
 
 /**
  * SessionToast — the in-session status strip family (#210). ONE component,
@@ -72,6 +73,7 @@ function usePrefersReducedMotion(): boolean {
 }
 
 export function SessionToast({ open, countdown, exit = 'default', children }: SessionToastProps) {
+  const t = useTranslations('SessionToast')
   const [phase, setPhase] = useState<'open' | 'exiting' | 'closed'>(open ? 'open' : 'closed')
   const reducedMotion = usePrefersReducedMotion()
 
@@ -200,7 +202,7 @@ export function SessionToast({ open, countdown, exit = 'default', children }: Se
           aria-hidden="true"
           className="mt-1 block text-right text-xs text-muted-foreground tnum"
         >
-          · {remainingSec}s
+          {t('countdown', { seconds: remainingSec })}
         </span>
       )}
       {/* The drain hairline: 2px of volt emptying left-to-right over the undo

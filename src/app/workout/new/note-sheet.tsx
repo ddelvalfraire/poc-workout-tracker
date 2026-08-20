@@ -5,9 +5,9 @@ import { cn } from '@/lib/utils'
 import {
   NOTE_TAG_TOKENS,
   insertToken,
-  noteBreadcrumb,
   type NoteScope,
 } from './note-capture'
+import { useTranslations } from 'next-intl'
 
 /**
  * The notes-v2 capture sheet: a half-height NON-MODAL bottom sheet over the
@@ -52,6 +52,7 @@ export function NoteSheet({
   onSave,
   onClose,
 }: NoteSheetProps) {
+  const t = useTranslations('NoteSheet')
   const [scope, setScope] = useState<NoteScope>(initialScope)
   const [body, setBody] = useState(initialBody)
   const [dragY, setDragY] = useState(0)
@@ -80,7 +81,16 @@ export function NoteSheet({
   }
 
   const scopeLabel = (s: NoteScope) =>
-    s === 'set' ? `Set ${setNumber}` : s === 'exercise' ? 'Exercise' : 'Workout'
+    s === 'set' ? t('option.set', { number: setNumber }) : t(`option.${s}`)
+
+  // The anchor breadcrumb, resolved HERE rather than by a helper: a string
+  // assembled in a module runs before any request and can never localize.
+  const breadcrumb =
+    scope === 'set'
+      ? t('breadcrumb.set', { exercise: exerciseName, number: setNumber })
+      : scope === 'exercise'
+        ? exerciseName
+        : t('breadcrumb.workout')
 
   return (
     // Non-modal: fixed above the sticky bar, session live behind it. The
@@ -89,7 +99,7 @@ export function NoteSheet({
     <div
       role="dialog"
       aria-modal="false"
-      aria-label={`Note for ${noteBreadcrumb(scope, exerciseName, setNumber)}`}
+      aria-label={t('ariaLabel', { anchor: breadcrumb })}
       className={cn(
         // bg-popover (not bg-card): overlay elevation is this surface's
         // point — the popover token is the ratchet-clean way to say it.
@@ -134,10 +144,10 @@ export function NoteSheet({
         />
         <div className="flex items-baseline gap-2 pt-3">
           <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-            Note
+            {t('label')}
           </span>
           <span className="min-w-0 truncate font-display text-sm font-semibold uppercase tracking-wider">
-            {noteBreadcrumb(scope, exerciseName, setNumber)}
+            {breadcrumb}
           </span>
         </div>
         {scope === 'set' && snapshot !== null && (
@@ -177,8 +187,8 @@ export function NoteSheet({
         rows={3}
         value={body}
         onChange={(e) => setBody(e.target.value)}
-        placeholder="Add note…"
-        aria-label="Note text"
+        placeholder={t('placeholder')}
+        aria-label={t('bodyAriaLabel')}
         className="mt-2 block w-full resize-none border-0 bg-transparent px-0 py-2 text-base leading-relaxed outline-none placeholder:text-muted-foreground"
       />
 
@@ -191,7 +201,7 @@ export function NoteSheet({
               key={token}
               type="button"
               onClick={() => handleTagTap(token)}
-              aria-label={`Insert ${token} tag`}
+              aria-label={t('tagAriaLabel', { token })}
               className="relative h-9 shrink-0 rounded-full border border-border bg-muted px-3 text-sm text-muted-foreground transition-colors before:absolute before:-inset-1 active:bg-muted/60"
             >
               {token}
@@ -203,7 +213,7 @@ export function NoteSheet({
           onClick={dismiss}
           className="relative ml-auto h-9 shrink-0 rounded-full bg-primary px-4 text-sm font-semibold text-primary-foreground before:absolute before:-inset-1"
         >
-          Save
+          {t('save')}
         </button>
       </div>
     </div>

@@ -16,6 +16,7 @@ const CARD_SHELL_KEEP = [
   "src/components/session-conflict-dialog.tsx",
   "src/components/editor/quick-capture-sheet.tsx",
   "src/app/coach/coach-chat.tsx",
+  "src/app/body/photo-overlay.tsx",
   "src/app/programs/\\[id\\]/patch-proposal-card.tsx",
   "src/app/settings/home/tile-sheet.tsx",
   "src/app/templates/\\[id\\]/template-edit-sheet.tsx",
@@ -34,6 +35,10 @@ const CARD_SHELL_KEEP = [
 // only ever shrinks, never grows. New surfaces never join it; they use the
 // primitives from day one.
 const CARD_SHELL_RATCHET = [
+  "src/app/body/measurements-section.tsx",
+  "src/app/body/photo-cell.tsx",
+  "src/app/body/photo-compare.tsx",
+  "src/app/body/photos-section.tsx",
   "src/app/goals/goal-card-actions.tsx",
   "src/app/home-sections.tsx",
   "src/app/p/\\[token\\]/page.tsx",
@@ -146,6 +151,27 @@ const I18N_MIGRATED = [
   "src/app/today-recap.tsx",
   "src/app/trophies/page.tsx",
   "src/app/up-next-anchor.tsx",
+  "src/app/workout/\\[id\\]/edit/page.tsx",
+  "src/app/workout/\\[id\\]/finish-up-next-card.tsx",
+  "src/app/workout/\\[id\\]/page.tsx",
+  "src/app/workout/\\[id\\]/workout-actions.tsx",
+  "src/app/workout/\\[id\\]/workout-sharing.tsx",
+  "src/app/workout/new/effort-chips.tsx",
+  "src/app/workout/new/exercise-picker.tsx",
+  "src/app/workout/new/exercise-sheet.tsx",
+  "src/app/workout/new/note-sheet.tsx",
+  "src/app/workout/new/page.tsx",
+  "src/app/workout/new/plate-sheet.tsx",
+  "src/app/workout/new/replace-confirm-dialog.tsx",
+  "src/app/workout/new/rest-pill.tsx",
+  "src/app/workout/new/rest-sheet.tsx",
+  "src/app/workout/new/session-clock.tsx",
+  "src/app/workout/new/session-toast.tsx",
+  "src/app/workout/new/set-row-menu.tsx",
+  "src/app/workout/new/stats-sheet.tsx",
+  "src/app/workout/new/swipe-to-delete.tsx",
+  "src/app/workout/new/weight-stepper.tsx",
+  "src/app/workout/new/workout-logger.tsx",
   "src/components/app-header.tsx",
   "src/components/auth/sign-out-button.tsx",
   "src/components/back-link.tsx",
@@ -201,11 +227,26 @@ const I18N_MIGRATED = [
 // expressions, so their aria-labels, dialog props and ternary CTAs are still
 // English. Held to the weaker rule so the gate does not claim they are done.
 // Only ever SHRINKS — a backfill PR moves files up into I18N_MIGRATED.
-// Now EMPTY: settings + trophies were backfilled under the strict rule. The
-// seam stays so a future partial migration has somewhere to land, and the
-// block below is spread conditionally because ESLint rejects an empty
-// `files` array.
-const I18N_TEXT_ONLY = [];
+const I18N_TEXT_ONLY = [
+  "src/app/trophies/page.tsx",
+  "src/app/settings/analytics-consent-toggle.tsx",
+  "src/app/settings/delete-account/delete-account-form.tsx",
+  "src/app/settings/delete-account/page.tsx",
+  "src/app/settings/home/editor-grid-dnd.tsx",
+  "src/app/settings/home/editor-grid.tsx",
+  "src/app/settings/home/home-layout-editor.tsx",
+  "src/app/settings/home/page.tsx",
+  "src/app/settings/home/section-tile.tsx",
+  "src/app/settings/home/tile-sheet.tsx",
+  "src/app/settings/import/import-flow.tsx",
+  "src/app/settings/import/page.tsx",
+  "src/app/settings/import/remove-import-button.tsx",
+  "src/app/settings/page.tsx",
+  "src/app/settings/rest-default-setting.tsx",
+  "src/app/settings/rest-timer-toggle.tsx",
+  "src/app/settings/rpe-logging-toggle.tsx",
+  "src/app/settings/workout-reminders-toggle.tsx",
+];
 
 const eslintConfig = defineConfig([
   ...nextVitals,
@@ -278,30 +319,24 @@ const eslintConfig = defineConfig([
           mode: "jsx-only",
           // The translator call itself, and class helpers, take string
           // arguments that are identifiers rather than copy.
-          // Reducer-action discriminants and field descriptors: `field`,
-          // `mode`, `type` and `tag` name a slot in the data, never anything
-          // a user reads. Without this the gate flags every dispatch payload
-          // written inline in JSX, which trains people to disable the rule.
-          "object-properties": { exclude: ["field", "mode", "type", "tag", "seed"] },
           callees: { exclude: ["t", "t.rich", "cn", "clsx", "cva", "tCommon"] },
           "jsx-attributes": {
-            exclude: ["className", "id", "key", "type", "name", "href", "src", "role", "htmlFor", "aria-describedby", "variant", "size", "autoComplete", "inputMode", "data-.*", "aria-hidden", "width", "height", "viewBox", "fill", "stroke", "d", "xmlns", "style", "step", "min", "max", "pattern", "rel", "target", "method", "action", "encType", "dir", "lang", "fallback", "confirmVariant", "page", "aria-current", "dataKey", "nameKey", "yAxisId", "orientation", "layout", "scale", "ifOverflow", "strokeDasharray", "direction", "default", "barClassName", "autoCapitalize"],
+            exclude: ["className", "id", "key", "type", "name", "href", "src", "role", "htmlFor", "aria-describedby", "variant", "size", "autoComplete", "inputMode", "data-.*", "aria-hidden", "width", "height", "viewBox", "fill", "stroke", "d", "xmlns", "style", "step", "min", "max", "pattern", "rel", "target", "method", "action", "encType", "dir", "lang", "fallback", "confirmVariant", "page", "aria-current", "dataKey", "nameKey", "yAxisId", "orientation", "layout", "scale", "ifOverflow", "strokeDasharray", "direction", "default", "barClassName", "autoCapitalize", "enterKeyHint", "aria-autocomplete", "initialScope", "exit", "seed"],
           },
+          // Reducer/action payload keys. Their values name a draft FIELD or a
+          // seed source — identifiers the reducer switches on, not words.
+          "object-properties": { exclude: ["field", "mode", "type", "tag", "seed"] },
         },
       ],
     },
   },
-  ...(I18N_TEXT_ONLY.length > 0
-    ? [
-        {
-          files: I18N_TEXT_ONLY,
-          plugins: { i18next },
-          rules: {
-            "i18next/no-literal-string": ["error", { mode: "jsx-text-only" }],
-          },
-        },
-      ]
-    : []),
+  {
+    files: I18N_TEXT_ONLY,
+    plugins: { i18next },
+    rules: {
+      "i18next/no-literal-string": ["error", { mode: "jsx-text-only" }],
+    },
+  },
 ]);
 
 export default eslintConfig;

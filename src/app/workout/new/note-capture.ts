@@ -56,22 +56,6 @@ export function insertToken(
   }
 }
 
-/** The sheet's anchor breadcrumb: "Bench Press · Set 3" / "Bench Press" /
- *  "Workout" — which entity the pending note will hang on. */
-export function noteBreadcrumb(
-  scope: NoteScope,
-  exerciseName: string,
-  setNumber: number,
-): string {
-  switch (scope) {
-    case 'set':
-      return `${exerciseName} · Set ${setNumber}`
-    case 'exercise':
-      return exerciseName
-    case 'workout':
-      return 'Workout'
-  }
-}
 
 /**
  * The anchored set's snapshot subtitle, from the DRAFT row (typed values,

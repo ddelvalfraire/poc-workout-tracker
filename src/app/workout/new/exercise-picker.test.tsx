@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { withIntl } from '../../../../vitest.intl'
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -52,9 +53,11 @@ function renderPicker(props: Partial<Parameters<typeof ExercisePicker>[0]> = {})
   root = createRoot(container)
   act(() => {
     root.render(
-      <QueryClientProvider client={queryClient}>
-        <ExercisePicker onAdd={(e) => picks.push(e)} {...props} />
-      </QueryClientProvider>,
+      withIntl(
+        <QueryClientProvider client={queryClient}>
+          <ExercisePicker onAdd={(e) => picks.push(e)} {...props} />
+        </QueryClientProvider>,
+      ),
     )
   })
   return { picks }

@@ -13,9 +13,18 @@ import messages from './messages/en.json'
  * reference a key the catalog never got and still pass.
  */
 export function renderStaticIntl(node: ReactNode): string {
-  return renderToStaticMarkup(
+  return renderToStaticMarkup(withIntl(node))
+}
+
+/**
+ * The same provider as an ELEMENT, for tests that bring their own renderer —
+ * Testing Library's `render`, or a static render already wrapped in other
+ * providers (QueryClientProvider and friends).
+ */
+export function withIntl(node: ReactNode) {
+  return (
     <NextIntlClientProvider locale="en" messages={messages}>
       {node}
-    </NextIntlClientProvider>,
+    </NextIntlClientProvider>
   )
 }
