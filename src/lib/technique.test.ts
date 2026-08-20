@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest'
-import { expandTechniqueStages, isTechniqueKind } from './technique'
+import {
+  continuesTechniqueGroup,
+  expandTechniqueStages,
+  isTechniqueKind,
+  startsRestPeriod,
+} from './technique'
 import type { DerivedSet } from './progression'
 import type { Technique } from './program-input'
 
@@ -120,5 +125,33 @@ describe('isTechniqueKind', () => {
     expect(isTechniqueKind('myo-reps')).toBe(true)
     expect(isTechniqueKind('giant-set')).toBe(false)
     expect(isTechniqueKind(null)).toBe(false)
+  })
+})
+
+describe('the rest rule between stages', () => {
+  const stage = (group: string, stageIndex: number) =>
+    ({ kind: 'drop-set', group, stageIndex }) as const
+
+  it('reads two rows of one group as continuing, and anything else as not', () => {
+    expect(continuesTechniqueGroup(stage('g1', 0), stage('g1', 1))).toBe(true)
+    expect(continuesTechniqueGroup(stage('g1', 1), stage('g2', 0))).toBe(false)
+    expect(continuesTechniqueGroup(stage('g1', 0), undefined)).toBe(false)
+    expect(continuesTechniqueGroup(undefined, stage('g1', 0))).toBe(false)
+  })
+
+  it('starts no rest period between stages with no prescribed pause', () => {
+    // The drop set's whole point — and the ad-hoc case, where there is no
+    // plan at all, so the session default must not sneak a 2-minute clock in.
+    expect(startsRestPeriod(stage('g1', 0), stage('g1', 1), null)).toBe(false)
+    expect(startsRestPeriod(stage('g1', 0), stage('g1', 1), 0)).toBe(false)
+  })
+
+  it('counts down an authored intra-set pause (rest-pause / cluster)', () => {
+    expect(startsRestPeriod(stage('g1', 0), stage('g1', 1), 20)).toBe(true)
+  })
+
+  it('always starts a rest period after the LAST stage and after ordinary sets', () => {
+    expect(startsRestPeriod(stage('g1', 1), undefined, null)).toBe(true)
+    expect(startsRestPeriod(undefined, undefined, null)).toBe(true)
   })
 })

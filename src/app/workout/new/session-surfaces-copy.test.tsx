@@ -81,7 +81,10 @@ describe('SetRowMenu copy', () => {
         setLabel="set 2"
         hasNote={false}
         isWarmup={false}
+        techniqueKind={null}
+        canTagTechnique
         onNote={noop}
+        onTagTechnique={noop}
         onTagWarmup={noop}
         onRemove={noop}
         onClose={noop}
@@ -94,7 +97,10 @@ describe('SetRowMenu copy', () => {
         setLabel="set 2"
         hasNote
         isWarmup
+        techniqueKind={null}
+        canTagTechnique
         onNote={noop}
+        onTagTechnique={noop}
         onTagWarmup={noop}
         onRemove={noop}
         onClose={noop}

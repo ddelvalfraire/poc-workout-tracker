@@ -15,7 +15,13 @@
  */
 
 import { isValidRir, isValidRpe, RIR_MIN, RIR_MAX, RPE_MIN, RPE_MAX } from './effort'
-import { isTechniqueKind, TECHNIQUE_KINDS, type TechniqueKind } from './technique'
+import {
+  isTechniqueKind,
+  TECHNIQUE_KINDS,
+  type SetTechnique,
+  type TechniqueKind,
+} from './technique'
+export type { SetTechnique }
 
 /**
  * How an exercise's sets are logged and how their `weight` column reads
@@ -98,15 +104,6 @@ export interface SetInput {
    *  loose fields, because the three facts are only ever true together — a
    *  kind without a group would be an ungroupable stage. */
   technique?: SetTechnique
-}
-
-/** A logged row's place in a technique group. `group` is equal across the
- *  rows of ONE technique set and unique within the exercise; `stageIndex` is
- *  0-based (0 = the top / activation set). */
-export interface SetTechnique {
-  kind: TechniqueKind
-  group: string
-  stageIndex: number
 }
 
 /** One exercise within a workout, with its logged sets. */

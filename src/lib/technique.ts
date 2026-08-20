@@ -42,7 +42,47 @@ export const TECHNIQUE_LABEL_KEY = {
   cluster: 'cluster',
 } as const satisfies Record<TechniqueKind, string>
 
-/** Where a row sits inside its technique group. Absent on ordinary sets. */
+/**
+ * A LOGGED row's place in a technique group (the `sets` columns, the wire
+ * field, and the draft field all speak this shape). `group` is equal across
+ * the rows of ONE technique set and unique within the exercise; `stageIndex`
+ * is 0-based (0 = the top / activation set).
+ */
+export interface SetTechnique {
+  kind: TechniqueKind
+  group: string
+  stageIndex: number
+}
+
+/**
+ * True when `next` continues `current`'s technique group — the rows are one
+ * set, not two. The logger's rest rule (Hevy's, and the reason the technique
+ * works): no rest period starts between stages unless the plan prescribed an
+ * intra-set pause, because zero rest IS the stimulus.
+ */
+export function continuesTechniqueGroup(
+  current: SetTechnique | undefined,
+  next: SetTechnique | undefined,
+): boolean {
+  return current !== undefined && next !== undefined && current.group === next.group
+}
+
+/**
+ * Whether checking off this set should start a rest period at all.
+ * `planRestSec` is the prescription for THIS position (null = unprescribed):
+ * a rest-pause's authored 20 s pause still counts down, but a drop set's
+ * zero — and an ad-hoc group with no plan at all — starts no clock.
+ */
+export function startsRestPeriod(
+  current: SetTechnique | undefined,
+  next: SetTechnique | undefined,
+  planRestSec: number | null,
+): boolean {
+  if (!continuesTechniqueGroup(current, next)) return true
+  return planRestSec !== null && planRestSec > 0
+}
+
+/** Where a DERIVED row sits inside its technique group. Absent on ordinary sets. */
 export interface TechniqueStage {
   /** Group key — equal across the rows of ONE technique set, unique within
    *  the exercise. Derived from the source set (never random) so a second

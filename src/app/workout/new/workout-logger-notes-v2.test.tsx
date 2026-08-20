@@ -128,7 +128,10 @@ describe('SetRowMenu markup', () => {
         setLabel="set 2 of Squat"
         hasNote={false}
         isWarmup={false}
+        techniqueKind={null}
+        canTagTechnique
         onNote={() => {}}
+        onTagTechnique={() => {}}
         onTagWarmup={() => {}}
         onRemove={() => {}}
         onClose={() => {}}
@@ -151,6 +154,30 @@ describe('SetRowMenu markup', () => {
 
   it('a warm-up set gets the way back', () => {
     expect(renderMenu({ isWarmup: true })).toContain('Untag warm-up')
+  })
+
+  it('offers every intensity technique as a radio item', () => {
+    const html = renderMenu()
+
+    expect(html).toContain('Drop set')
+    expect(html).toContain('Rest-pause')
+    expect(html).toContain('Myo-reps')
+    expect(html).toContain('Cluster')
+    expect(html).toContain('role="menuitemradio"')
+    expect(html).not.toMatch(/SetRowMenu\.[a-zA-Z.]+/)
+  })
+
+  it('marks the row\'s current technique checked (the toggle back)', () => {
+    const html = renderMenu({ techniqueKind: 'drop-set' })
+
+    expect(html).toMatch(/aria-checked="true"[^>]*>[\s\S]{0,200}Drop set/)
+  })
+
+  it('hides the technique items on the first set — nothing to continue', () => {
+    const html = renderMenu({ canTagTechnique: false })
+
+    expect(html).not.toContain('Drop set')
+    expect(html).toContain('Tag warm-up')
   })
 })
 

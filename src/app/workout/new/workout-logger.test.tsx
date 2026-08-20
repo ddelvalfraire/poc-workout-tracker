@@ -282,3 +282,60 @@ describe('WorkoutLogger notes three-tier IA (#211)', () => {
     expect(html).toContain('Skipped')
   })
 })
+
+describe('technique stage rows', () => {
+  /** One exercise logged as a 2-stage drop set (top set + one drop). */
+  const DROPPED: WorkoutDraft = {
+    notes: '',
+    exercises: [
+      {
+        id: 'ex1',
+        wgerExerciseId: 73,
+        source: 'wger',
+        name: 'Squat',
+        category: 'Legs',
+        loggingType: 'weight_reps',
+        notes: '',
+        skipped: false,
+        sets: [
+          {
+            id: 's1',
+            reps: '8',
+            weight: '100',
+            completed: false,
+            tag: 'working',
+            technique: { kind: 'drop-set', group: 'g1', stageIndex: 0 },
+          },
+          {
+            id: 's2',
+            reps: '6',
+            weight: '80',
+            completed: false,
+            tag: 'working',
+            technique: { kind: 'drop-set', group: 'g1', stageIndex: 1 },
+          },
+        ],
+      },
+    ],
+  }
+
+  it('marks the stage row with the technique glyph instead of a set number', () => {
+    const html = render({ initialDraft: DROPPED })
+
+    // The top set keeps its number; the drop wears 'D'.
+    expect(html).toContain('drop set stage 2 of set 2')
+    expect(html).not.toMatch(/WorkoutLogger\.setLabelStage/)
+  })
+
+  it('rules the group together so three rows do not read as three straight sets', () => {
+    const html = render({ initialDraft: DROPPED })
+
+    expect(html).toContain('border-l-muted-foreground/40')
+  })
+
+  it('leaves an ordinary draft free of any group rule', () => {
+    const html = render()
+
+    expect(html).not.toContain('border-l-muted-foreground/40')
+  })
+})
