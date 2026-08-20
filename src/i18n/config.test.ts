@@ -107,6 +107,10 @@ describe('message catalogs', () => {
       for (const [path, value] of flattenEntries(readCatalog(locale))) {
         const leaf = path.split('.').pop() ?? ''
         const words = leaf.split(/(?=[A-Z])/).map((w) => w.toLowerCase())
+        // Three words, not two: at two this flags legitimate action names
+        // whose label naturally matches them ('importAnother' → "Import
+        // another"). A gate that blocks correct names costs more than the
+        // narrow miss it would catch, which naming review covers.
         if (words.length < 3) continue
         const haystack = value.toLowerCase()
         let cursor = 0

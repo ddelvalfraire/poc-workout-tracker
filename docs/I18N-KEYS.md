@@ -11,7 +11,7 @@ copy from the key, the key is wrong.
 // BAD  — key is a slug of the sentence
 "nothingImportedYetImportsYou": "Nothing imported yet. Imports you confirm…"
 // GOOD — key names the slot the sentence sits in
-"emptyBody": "Nothing imported yet. Imports you confirm…"
+"empty": "Nothing imported yet. Imports you confirm…"
 ```
 
 Rewrite the copy and the GOOD key still fits. That is the whole test.
@@ -28,7 +28,7 @@ Rewrite the copy and the GOOD key still fits. That is the whole test.
   You get `save`, `save2`, or an accidental merge.
 - **Translators lose context.** `deletingYourAccountIsPermanent` tells a translator
   nothing about where it renders, how much room it has, or whether it's a heading
-  or a warning. `dangerLede` does.
+  or a warning. `permanenceWarning` does.
 - **Grep breaks.** Searching the codebase for the copy finds the key, not the usage.
 
 Sources: [Locize](https://www.locize.com/blog/guide-to-i18n-key-naming) calls
@@ -94,7 +94,7 @@ same concept is how a catalog rots.
 | `description` | Explanatory body copy for an item or field |
 | `label` | Form field / control label, and visible button-adjacent labels |
 | `placeholder` | Input placeholder |
-| `helpText` | Hint under a field (non-error) |
+| `hint` | Hint under a field (non-error) |
 | `action` | The primary button/link on the surface |
 | `actionSecondary` | The secondary button |
 | `cancel`, `confirm`, `save`, `delete`, `retry`, `close` | Standard controls, when literally that |
@@ -102,7 +102,7 @@ same concept is how a catalog rots.
 | `errorX` | Named failure — `errorNotFound`, `errorTooLarge`, `errorUnsupported` |
 | `validation` | Field-level validation message |
 | `empty` | Empty-state heading |
-| `emptyBody` | Empty-state body copy |
+| `empty` | Empty-state copy |
 | `loading` | Loading / pending copy |
 | `success` | Success confirmation / toast |
 | `tooltip` | Tooltip content |
@@ -237,11 +237,11 @@ For each string, in order. Stop at the first rule that fires.
    - `<h1>/<h2>` primary → `title`; the one right under it → `subtitle`
    - first `<p>` under the heading → `lede`; other explanatory `<p>` → `description`
    - `<label>` / `aria-label` on a field → `label` / `ariaLabel`
-   - `placeholder=` → `placeholder`; hint under a field → `helpText`
+   - `placeholder=` → `placeholder`; hint under a field → `hint`
    - primary `<button>` → `action`; the other one → `actionSecondary`;
      a literal Cancel/Save/Delete → `cancel`/`save`/`delete`
    - error/alert region → `error` or `errorX`
-   - empty state → `empty` + `emptyBody`
+   - empty state → `empty`
    - pending copy → `loading`; toast → `success`
    - `<option>` / enum → `option.<enumValue>`
 4. **Disambiguate only if the leaf collides** inside the namespace. In order:
@@ -264,27 +264,34 @@ For each string, in order. Stop at the first rule that fires.
 
 ## 8. Worked examples
 
-Real keys from `messages/en.json`.
+Real keys from `messages/en.json` — kept in step with the catalog, since a
+doc that contradicts the code is the same rot this page argues against.
+
+Two families the vocabulary above formalizes, both used verbatim in the
+catalog: `<verb>Error` for a failed action (`saveError`, `updateError`) and
+`<condition>Notice` for a standing state the user cannot act away
+(`unsupportedNotice`, `blockedNotice`). An error is a thing that just went
+wrong; a notice is a condition that is simply true.
 
 | # | BAD (content-derived) | GOOD (semantic) |
 |---|---|---|
-| 1 | `Import.nothingImportedYetImportsYou` | `Import.emptyBody` |
-| 2 | `ImportFlow.theExportFormatIsDetected` | `ImportFlow.dropzoneHelpText` |
-| 3 | `ImportFlow.nothingIsSavedUntilYou` | `ImportFlow.previewReassurance` |
+| 1 | `Import.nothingImportedYetImportsYou` | `Import.empty` |
+| 2 | `ImportFlow.theExportFormatIsDetected` | `ImportFlow.dropzone.hint` |
+| 3 | `ImportFlow.nothingIsSavedUntilYou` | `ImportFlow.preview.reassurance` |
 | 4 | `ImportFlow.importFromStrongOrHevy` | `ImportFlow.title` |
-| 5 | `ImportFlow.strongFilesDonRsquoT` | `ImportFlow.unitHelpText` |
-| 6 | `ImportFlow.stepIndicator` | `ImportFlow.steps.indicator` |
-| 7 | `DeleteAccount.deletingYourAccountIsPermanent` | `DeleteAccount.dangerLede` |
-| 8 | `DeleteAccount.yourWorkoutsProgramsTemplatesNotes` | `DeleteAccount.erasedDescription` |
-| 9 | `DeleteAccount.consentRecordsWeAreLegally` | `DeleteAccount.retainedDescription` |
-| 10 | `DeleteAccount.ourAnalyticsProcessorDeletesYour` | `DeleteAccount.processorDescription` |
-| 11 | `DeleteAccount.erasedImmediately` | `DeleteAccount.erasedTitle` |
-| 12 | `HomeLayoutEditor.couldnRsquoTSaveTry` | `HomeLayoutEditor.errorSaveFailed` |
-| 13 | `HomeLayoutEditor.tapATileToResize` | `HomeLayoutEditor.helpText` |
-| 14 | `TileSheet.hiddenSectionsKeepTrackingMdash` | `TileSheet.hiddenHelpText` |
-| 15 | `WorkoutRemindersToggle.notSupportedInThisBrowser` | `WorkoutRemindersToggle.errorUnsupported` |
-| 16 | `WorkoutRemindersToggle.notificationsAreBlockedForThis` | `WorkoutRemindersToggle.errorBlocked` |
-| 17 | `AnalyticsConsentToggle.yourBrowserSendsAGlobal` | `AnalyticsConsentToggle.gpcHelpText` |
+| 5 | `ImportFlow.strongFilesDonRsquoT` | `ImportFlow.unit.hint` |
+| 6 | `ImportFlow.steps.indicator` | `ImportFlow.steps.indicator` |
+| 7 | `DeleteAccount.deletingYourAccountIsPermanent` | `DeleteAccount.permanenceWarning` |
+| 8 | `DeleteAccount.yourWorkoutsProgramsTemplatesNotes` | `DeleteAccount.erased.description` |
+| 9 | `DeleteAccount.consentRecordsWeAreLegally` | `DeleteAccount.retained.description` |
+| 10 | `DeleteAccount.ourAnalyticsProcessorDeletesYour` | `DeleteAccount.propagated.description` |
+| 11 | `DeleteAccount.erasedImmediately` | `DeleteAccount.erased.title` |
+| 12 | `HomeLayoutEditor.couldnRsquoTSaveTry` | `HomeLayoutEditor.saveError` |
+| 13 | `HomeLayoutEditor.tapATileToResize` | `HomeLayoutEditor.hint` |
+| 14 | `TileSheet.hiddenSectionsKeepTrackingMdash` | `TileSheet.visibility.hint` |
+| 15 | `WorkoutRemindersToggle.notSupportedInThisBrowser` | `WorkoutRemindersToggle.unsupportedNotice` |
+| 16 | `WorkoutRemindersToggle.notificationsAreBlockedForThis` | `WorkoutRemindersToggle.blockedNotice` |
+| 17 | `AnalyticsConsentToggle.yourBrowserSendsAGlobal` | `AnalyticsConsentToggle.gpcHint` |
 
 Note #6: `stepIndicator` was *already* semantic — it's kept, just regrouped.
 Not every existing key is wrong; only the ones that echo the sentence.

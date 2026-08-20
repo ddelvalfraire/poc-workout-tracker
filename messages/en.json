@@ -81,6 +81,12 @@
   "RemoveImportButton": {
     "label": "Remove"
   },
+  "RestDefaultSetting": {
+    "ariaLabel": "Default rest target: {seconds, plural, one {# second} other {# seconds}}",
+    "ariaLabelOff": "Default rest target: off",
+    "value": "{seconds}s",
+    "valueOff": "Off"
+  },
   "RestTimerToggle": {
     "saveError": "Couldn’t save. Try again."
   },
@@ -103,9 +109,11 @@
     }
   },
   "Trophies": {
-    "closestTitle": "Closest",
-    "empty": "No trophies yet. Every trophy is a lifting fact — plate clubs, workout counts, streaks. Train and they stamp themselves.",
-    "newBadge": "New"
+    "badge": "New",
+    "closest": {
+      "title": "Closest"
+    },
+    "empty": "No trophies yet. Every trophy is a lifting fact — plate clubs, workout counts, streaks. Train and they stamp themselves."
   },
   "WorkoutRemindersToggle": {
     "blockedNotice": "Notifications are blocked for this app in your browser settings.",

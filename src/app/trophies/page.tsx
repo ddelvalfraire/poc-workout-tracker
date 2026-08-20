@@ -74,7 +74,7 @@ export default async function TrophiesPage() {
         {closest.length > 0 && (
           <section aria-label="Closest trophies">
             <h2 className="px-1 text-xs font-semibold uppercase tracking-widest text-primary">
-              {t('closestTitle')}
+              {t('closest.title')}
             </h2>
             <DividerList className="mt-2">
               {closest.map((kind) => (
@@ -141,7 +141,7 @@ function EarnedMedal({
         <div className="flex items-center gap-1">
           {isNew && (
             <span className="text-[10px] font-semibold uppercase tracking-widest text-primary">
-              {t('newBadge')}
+              {t('badge')}
             </span>
           )}
           {/* Ships the rendered PNG via the OS sheet — never a URL. */}
