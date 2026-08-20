@@ -209,6 +209,32 @@ interface WorkoutLoggerProps {
   rpeLoggingEnabled?: boolean
 }
 
+/** What the notes-v2 capture sheet is open for: a pressed set (which the
+ *  scope chips can then retarget up to its exercise or the workout), or the
+ *  workout itself — the app-bar entry, which has no set under the finger. */
+type NoteCaptureTarget =
+  | { kind: 'set'; exerciseIndex: number; setIndex: number }
+  | { kind: 'workout' }
+
+/** The two targets, built here rather than inline in JSX — `kind` values are
+ *  state discriminants, not words anyone reads, and the i18n lint rule reads
+ *  every string literal in JSX as copy (nextSetTag exists for the same
+ *  reason). */
+const workoutNoteCapture = (): NoteCaptureTarget => ({ kind: 'workout' })
+const setNoteCapture = (exerciseIndex: number, setIndex: number): NoteCaptureTarget => ({
+  kind: 'set',
+  exerciseIndex,
+  setIndex,
+})
+
+/** Identity of an open capture, so switching targets REMOUNTS the sheet. The
+ *  sheet is non-modal by design, so the app-bar entry stays tappable while a
+ *  set-anchored sheet is mid-edit; without a fresh key React would keep the
+ *  same instance and its half-typed body, and the save would file that text
+ *  under the new target. */
+const noteCaptureKey = (target: NoteCaptureTarget): string =>
+  target.kind === 'set' ? `set-${target.exerciseIndex}-${target.setIndex}` : 'workout'
+
 export function WorkoutLogger({
   workoutId,
   isLive = true,
@@ -453,10 +479,7 @@ export function WorkoutLogger({
   } | null>(null)
   // Which set the capture sheet is open for (the sheet's DEFAULT scope is
   // the pressed set; scope chips can retarget before saving).
-  const [noteCaptureFor, setNoteCaptureFor] = useState<{
-    exerciseIndex: number
-    setIndex: number
-  } | null>(null)
+  const [noteCaptureFor, setNoteCaptureFor] = useState<NoteCaptureTarget | null>(null)
   // The save receipt: the set whose volt dot pops in (150ms, motion-safe).
   const [notePopSetId, setNotePopSetId] = useState<string | null>(null)
 
@@ -515,10 +538,6 @@ export function WorkoutLogger({
   // open-OR-has-notes: a card with a note always shows it (a hidden note is
   // a lost note), so stale ids are harmless here too.
   const [notesOpen, setNotesOpen] = useState<Set<string>>(new Set())
-  // Whether the workout-level notes textarea is open (same open-OR-has-notes
-  // visibility rule as the per-exercise ones).
-  const [isWorkoutNotesOpen, setIsWorkoutNotesOpen] = useState(false)
-
   // Mount-time content must not animate as a wall; only cards/rows appearing
   // AFTER the session settles (adds, restores, swaps) ease in.
   const [riseInArmed, setRiseInArmed] = useState(false)
@@ -1224,6 +1243,33 @@ export function WorkoutLogger({
               </span>
             )}
             {isLive && <HeaderClock startedAt={openedAt} />}
+            {/* Workout-note entry. It lives up here because a session note
+                ("cut short — gym closing") is about the whole workout, and
+                the old worded pill at the very bottom of the scroll was only
+                findable by scrolling past every card to reach it. Same
+                icon-only grammar as the exercise-level entry (NotebookPen,
+                icon-sm ghost, hit-44-y for the 44px target #236) — one note
+                vocabulary everywhere.
+
+                It opens the capture SHEET, not the textarea below: an entry
+                point at the top must never scroll-jump the session to an
+                editor at the bottom. The sheet appends; the textarea below
+                still owns display and inline editing.
+
+                Gated on !isEmpty in lockstep with that textarea — on an
+                exercise-less draft the note would have nowhere to show, and
+                an unshowable note is a lost note. */}
+            {!isEmpty && (
+              <Button
+                size="icon-sm"
+                variant="ghost"
+                className="shrink-0 hit-44-y text-muted-foreground"
+                onClick={() => setNoteCaptureFor(workoutNoteCapture())}
+                aria-label={t('workoutNoteAriaLabel')}
+              >
+                <NotebookPen aria-hidden="true" className="size-4" />
+              </Button>
+            )}
             {/* Back affordance, so it must pop-or-replace, never push
                 (spike §3d): closeHref demotes from destination to cold-entry
                 fallback. The draft still survives — Close ≠ Cancel. */}
@@ -2554,28 +2600,21 @@ export function WorkoutLogger({
 
         {/* Workout-level note, above the destructive tail: session context
             ("cut short — gym closing") belongs to the whole workout, not one
-            card. Same open-OR-has-notes visibility as the per-exercise ones. */}
-        {!isEmpty &&
-          (isWorkoutNotesOpen || draft.notes.trim() !== '' ? (
-            <Textarea
-              rows={2}
-              placeholder={t('notePlaceholder')}
-              value={draft.notes}
-              onChange={(e) => dispatch({ type: 'SET_WORKOUT_NOTES', value: e.target.value })}
-              aria-label={t('workoutNotesAriaLabel')}
-              className="motion-safe:animate-rise-in"
-            />
-          ) : (
-            /* Same entry grammar as the per-exercise chip (#211): a worded
-               pill, muted — one way to start a note everywhere. */
-            <button
-              type="button"
-              onClick={() => setIsWorkoutNotesOpen(true)}
-              className="hit-44-y rounded-full border border-border bg-muted/40 px-3 py-2.5 text-xs text-muted-foreground transition-colors active:bg-muted"
-            >
-              {t('workoutNoteAction')}
-            </button>
-          ))}
+            card. This is where the note LIVES — has-notes, so a workout note
+            is always on screen and always editable in place (a hidden note is
+            a lost note). No entry affordance beside it any more: the app-bar
+            NotebookPen is the one door in, and a second worded pill down here
+            would be a second door to the same note. */}
+        {!isEmpty && draft.notes.trim() !== '' && (
+          <Textarea
+            rows={2}
+            placeholder={t('notePlaceholder')}
+            value={draft.notes}
+            onChange={(e) => dispatch({ type: 'SET_WORKOUT_NOTES', value: e.target.value })}
+            aria-label={t('workoutNotesAriaLabel')}
+            className="motion-safe:animate-rise-in"
+          />
+        )}
 
         {/* Discard lives at the END of the scrolling content, not in the
             sticky bar: a destructive exit must be sought out, never sit one
@@ -2981,10 +3020,7 @@ export function WorkoutLogger({
               // exercise has nothing to continue, so it isn't offered.
               canTagTechnique={rowMenu.setIndex > 0}
               onNote={() => {
-                setNoteCaptureFor({
-                  exerciseIndex: rowMenu.exerciseIndex,
-                  setIndex: rowMenu.setIndex,
-                })
+                setNoteCaptureFor(setNoteCapture(rowMenu.exerciseIndex, rowMenu.setIndex))
                 setRowMenu(null)
               }}
               onTagWarmup={() => {
@@ -3026,42 +3062,68 @@ export function WorkoutLogger({
           route into the existing #211 note tiers this sheet absorbs
           (appended, never clobbering words already there). */}
       {noteCaptureFor &&
-        draft.exercises[noteCaptureFor.exerciseIndex]?.sets[noteCaptureFor.setIndex] &&
         (() => {
-          const exercise = draft.exercises[noteCaptureFor.exerciseIndex]
-          const set = exercise.sets[noteCaptureFor.setIndex]
+          // The set anchor, re-resolved every render: the draft can shift
+          // under an open sheet (undo, restore, remove). A workout capture has
+          // no anchor to lose, so it survives whatever the draft does.
+          const anchored =
+            noteCaptureFor.kind === 'set' &&
+            draft.exercises[noteCaptureFor.exerciseIndex]?.sets[noteCaptureFor.setIndex]
+              ? {
+                  exerciseIndex: noteCaptureFor.exerciseIndex,
+                  setIndex: noteCaptureFor.setIndex,
+                  exercise: draft.exercises[noteCaptureFor.exerciseIndex],
+                  set: draft.exercises[noteCaptureFor.exerciseIndex].sets[noteCaptureFor.setIndex],
+                }
+              : null
+          // An anchored sheet whose set vanished has nothing left to address.
+          if (noteCaptureFor.kind === 'set' && anchored === null) return null
+
+          /** Appends rather than replaces: the exercise/workout tiers are
+           *  journals, and a capture must never clobber words already there. */
+          const append = (existing: string, body: string) =>
+            existing.trim() === '' ? body : `${existing.trim()}\n${body}`
+
           const handleCaptureSave = (scope: NoteScope, body: string) => {
-            if (scope === 'set') {
+            if (scope === 'set' && anchored !== null) {
               dispatch({
                 type: 'SET_SET_NOTE',
-                exerciseIndex: noteCaptureFor.exerciseIndex,
-                setIndex: noteCaptureFor.setIndex,
+                exerciseIndex: anchored.exerciseIndex,
+                setIndex: anchored.setIndex,
                 note: body,
-                clientKey: set.noteClientKey ?? crypto.randomUUID(),
+                clientKey: anchored.set.noteClientKey ?? crypto.randomUUID(),
               })
-              setNotePopSetId(set.id) // the receipt: the dot pops in
-            } else if (scope === 'exercise') {
-              const existing = exercise.notes.trim()
+              setNotePopSetId(anchored.set.id) // the receipt: the dot pops in
+            } else if (scope === 'exercise' && anchored !== null) {
               dispatch({
                 type: 'SET_EXERCISE_NOTES',
-                exerciseIndex: noteCaptureFor.exerciseIndex,
-                value: existing === '' ? body : `${existing}\n${body}`,
+                exerciseIndex: anchored.exerciseIndex,
+                value: append(anchored.exercise.notes, body),
               })
             } else {
-              const existing = draft.notes.trim()
-              dispatch({
-                type: 'SET_WORKOUT_NOTES',
-                value: existing === '' ? body : `${existing}\n${body}`,
-              })
+              // Workout scope — and the only scope an unanchored sheet has.
+              dispatch({ type: 'SET_WORKOUT_NOTES', value: append(draft.notes, body) })
             }
           }
           return (
             <NoteSheet
-              exerciseName={exercise.name}
-              setNumber={noteCaptureFor.setIndex + 1}
-              snapshot={setSnapshotLabel(set, exercise.loggingType, unit)}
-              initialScope="set"
-              initialBody={set.note ?? ''}
+              // Remount on retarget — see noteCaptureKey.
+              key={noteCaptureKey(noteCaptureFor)}
+              anchor={
+                anchored === null
+                  ? null
+                  : {
+                      exerciseName: anchored.exercise.name,
+                      setNumber: anchored.setIndex + 1,
+                      snapshot: setSnapshotLabel(
+                        anchored.set,
+                        anchored.exercise.loggingType,
+                        unit,
+                      ),
+                    }
+              }
+              initialScope={anchored === null ? 'workout' : 'set'}
+              initialBody={anchored?.set.note ?? ''}
               onSave={handleCaptureSave}
               onClose={() => setNoteCaptureFor(null)}
             />

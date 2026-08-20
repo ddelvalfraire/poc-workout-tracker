@@ -21,14 +21,24 @@ import { useTranslations } from 'next-intl'
  * row's dot popping in (the logger owns that) — no toast.
  */
 
-interface NoteSheetProps {
+/** The set the sheet was opened from — the thing the scope chips can narrow
+ *  DOWN to. Absent when the sheet is opened workout-scoped from the app bar:
+ *  there is no set under the finger then, and "Set 3"/"Exercise" would be
+ *  chips addressing nothing. */
+export interface NoteSheetAnchor {
   /** The anchored exercise's name, for the breadcrumb. */
   exerciseName: string
   /** 1-based set number of the pressed row, for the breadcrumb. */
   setNumber: number
   /** The anchored set's snapshot subtitle ("185 lb × 6 · RPE 9"), or null. */
   snapshot: string | null
-  /** Scope the sheet opens on (where you pressed — most specific wins). */
+}
+
+interface NoteSheetProps {
+  /** The pressed set, or null for an unanchored (workout-only) capture. */
+  anchor: NoteSheetAnchor | null
+  /** Scope the sheet opens on (where you pressed — most specific wins).
+   *  Ignored without an anchor: workout is then the only scope there is. */
   initialScope: NoteScope
   /** Text seeding the field (an existing set note reopened for viewing/edit). */
   initialBody?: string
@@ -44,16 +54,14 @@ const DRAG_DISMISS_PX = 64
 const SCOPES: NoteScope[] = ['set', 'exercise', 'workout']
 
 export function NoteSheet({
-  exerciseName,
-  setNumber,
-  snapshot,
+  anchor,
   initialScope,
   initialBody = '',
   onSave,
   onClose,
 }: NoteSheetProps) {
   const t = useTranslations('NoteSheet')
-  const [scope, setScope] = useState<NoteScope>(initialScope)
+  const [scope, setScope] = useState<NoteScope>(anchor === null ? 'workout' : initialScope)
   const [body, setBody] = useState(initialBody)
   const [dragY, setDragY] = useState(0)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -81,16 +89,16 @@ export function NoteSheet({
   }
 
   const scopeLabel = (s: NoteScope) =>
-    s === 'set' ? t('option.set', { number: setNumber }) : t(`option.${s}`)
+    s === 'set' && anchor !== null ? t('option.set', { number: anchor.setNumber }) : t(`option.${s}`)
 
   // The anchor breadcrumb, resolved HERE rather than by a helper: a string
   // assembled in a module runs before any request and can never localize.
   const breadcrumb =
-    scope === 'set'
-      ? t('breadcrumb.set', { exercise: exerciseName, number: setNumber })
-      : scope === 'exercise'
-        ? exerciseName
-        : t('breadcrumb.workout')
+    anchor === null || scope === 'workout'
+      ? t('breadcrumb.workout')
+      : scope === 'set'
+        ? t('breadcrumb.set', { exercise: anchor.exerciseName, number: anchor.setNumber })
+        : anchor.exerciseName
 
   return (
     // Non-modal: fixed above the sticky bar, session live behind it. The
@@ -150,14 +158,17 @@ export function NoteSheet({
             {breadcrumb}
           </span>
         </div>
-        {scope === 'set' && snapshot !== null && (
-          <p className="mt-0.5 text-xs text-muted-foreground tnum">{snapshot}</p>
+        {scope === 'set' && anchor?.snapshot != null && (
+          <p className="mt-0.5 text-xs text-muted-foreground tnum">{anchor.snapshot}</p>
         )}
       </div>
 
       {/* Scope chips: default = where you pressed; switching changes the
           pending anchor, the text follows. Muted On state (effort-chips
-          precedent) — Save below is this sheet's one volt. */}
+          precedent) — Save below is this sheet's one volt. Suppressed without
+          an anchor: a lone un-switchable "Workout" chip would be a pressable
+          shape that presses nothing, and the breadcrumb already says it. */}
+      {anchor !== null && (
       <div className="mt-3 flex gap-2">
         {SCOPES.map((s) => (
           <button
@@ -176,6 +187,7 @@ export function NoteSheet({
           </button>
         ))}
       </div>
+      )}
 
       {/* Borderless field, autofocused during the present animation.
           text-base = 16px — under that iOS zooms the whole page on focus. */}

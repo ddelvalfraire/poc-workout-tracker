@@ -260,9 +260,31 @@ describe('WorkoutLogger notes three-tier IA (#211)', () => {
     expect(html).toContain('Pin note for Squat')
   })
 
-  it('the workout-level entry keeps its label on the chip skin', () => {
+  it('the workout-level note entry is an app-bar icon button, not a pill in the scroll', () => {
     const html = render()
-    expect(html).toContain('Workout note')
+    // Icon-only, labelled for screen readers — the same grammar as the
+    // exercise-level entry, and reachable without scrolling past every card.
+    expect(html).toContain('Add workout note')
+    // The old worded pill is gone: one door in, and it is not at the bottom.
+    expect(html).not.toContain('>Workout note<')
+  })
+
+  it('a non-empty workout note still shows and edits inline at the bottom', () => {
+    // The entry moved; the note did not. A hidden note is a lost note, so the
+    // textarea stays the place the words live once there are any.
+    const draft = draftWithCompletedSet()
+    draft.notes = 'cut short — gym closing'
+    const html = render({ initialDraft: draft })
+    expect(html).toContain('cut short — gym closing')
+    expect(html).toContain('Workout notes')
+    // …and the app-bar entry stays live beside it: the sheet appends.
+    expect(html).toContain('Add workout note')
+  })
+
+  it('an exercise-less draft gets no workout-note entry at all', () => {
+    // Nowhere for the note to show means nowhere for it to be found again.
+    const html = render({ initialDraft: { ...draftWithCompletedSet(), exercises: [] } })
+    expect(html).not.toContain('Add workout note')
   })
 
   it("echoes last session's note when this session has none", () => {
