@@ -1,114 +1,106 @@
 # Coach tool-surface refactor
 
-Parked work. Start here; nothing else in this worktree is set up yet.
+The coach exposed **40 MCP tools**. This is the record of what we cut, what we
+didn't, and why.
 
-**Do this after PR #275 (entitlement gates + coach prompt caching) lands** — it
-touches `filterCoachTools`, which #275 just made order-sensitive.
+## What shipped
 
-## Why
+### 1. `list_workouts` is bounded
 
-The coach exposes **40 distinct MCP tools** (17 read, 21 approval, 2 draft),
-22 of them program mutations. Measured from `COACH_ALLOWED_TOOLS`.
+The original brief called for turning eight `list_*` tools into `search_*`.
+Auditing them first showed the premise didn't hold — only one was actually
+unbounded:
 
-Benchmark data (late 2025): at ~50 tools frontier models hold **84–95%**
-selection accuracy; at 200 it is 41–83%; at 740 it collapses. Practitioner
-reports put noticeable degradation at **15–20 tools in active rotation**. So 40
-is costing something — plausibly 5–16% of selections — without being
-catastrophic. Degradation is non-linear, so the goal is distance from the
-cliff, not a round number.
+| tool | bounded before? |
+|---|---|
+| `list_workouts` | **no — every workout ever logged** |
+| `list_notes` | yes — filters + `limit` (max 200) |
+| `list_program_changes` | yes — `limit` + compound cursor |
+| `list_programs`, `list_proposals`, `list_templates`, `list_custom_exercises`, `list_goals` | bounded by reality (a handful of each) |
 
-Note what is NOT a reason: token cost. #275 added prompt caching, so the tool
-block costs 0.1x after the first turn of a session. This refactor is about
-**selection accuracy and tool-result volume**, not the size of the prefix.
+`list_workouts` was the one that grows forever. Four sessions a week for a year
+is ~200 rows — roughly 12k tokens in a single tool result. Tool results live in
+message history, which is exactly the half of the prompt that prompt caching
+can't settle, so that cost re-bills at full price on every later turn of the
+session, and the noise crowds out the reasoning besides.
 
-## The three moves, in order of expected value
+Now: default 20, max 100, `hasMore`, and `before` to page into older history —
+the cursor vocabulary `list_program_changes` already established. The bound is
+at the tool boundary, not in the query: app callers still get the whole history
+because the history page and the momentum panel need it.
 
-### 1. `list_*` → `search_*` (8 tools)
+Renaming `list_*` → `search_*` was dropped. It doesn't reduce the tool count,
+and these tools are the external MCP contract too. The win was never the name.
 
-Anthropic's own MCP guidance:
-
-> Implement search-focused tools (like `search_contacts`) rather than list-all
-> tools (`list_contacts`).
-
-We have eight: `list_workouts`, `list_programs`, `list_notes`, `list_goals`,
-`list_templates`, `list_proposals`, `list_custom_exercises`,
-`list_program_changes`.
-
-This is the biggest win because it cuts **two** things: the tool count, and the
-unbounded tool *results* that flood message history — which is the other half
-of the 73k-token context, and the half caching does not fix (history changes
-every turn; only the settled prefix caches).
-
-### 2. Collapse the CRUD matrix (12 tools → ~3)
-
-```
-{add,update,remove,move}_program_{day,exercise,set}
-```
-
-4 verbs x 3 entity types. A controlled study on tool misuse found that
-descriptive renaming plus grouping by structural similarity cut cardinality
-13 → 5 without capability loss.
-
-Check first whether `propose_program_patches` already subsumes these — it sits
-alongside all 22 granular mutators and may make some redundant.
-
-### 3. Collapse the policy setters (5 tools → 1)
+### 2. The five policy setters are one tool
 
 `set_program_{autoregulation,deload_policy,diet_phase,overshoot_policy,plan_sync}`
-→ `set_program_policy(policy, value)`.
+→ `set_program_policy`, a discriminated union on `policy.name`.
 
-Target: **40 → ~26.**
+This is the one merge where the standing objection to collapsing tools — that a
+tight per-tool schema guides a model better than a polymorphic one — doesn't
+bite, because there was no per-tool nuance to lose. All five were a program id
+plus one value.
 
-## The counter-argument, which is real
+**The collapse stops at the tool layer, deliberately.** The change-log `action`
+names in `db/program-patches.ts` and the proposal op name in
+`lib/patch-proposal.ts` are persisted — historical events and pending proposals
+reference them — so those keep the original per-policy names.
 
-Tight single-purpose schemas guide a model better than one polymorphic tool
-with a discriminated union. Consolidation can *reduce* selection accuracy even
-as it reduces count. Moves 2 and 3 are therefore hypotheses, not conclusions.
-Move 1 is safe — it changes tool *shape*, not tool *granularity*.
+**40 → 36.**
 
-Also keep AWS's guidance in view: tool parameter counts around eight or fewer.
-A collapsed CRUD tool that needs twelve parameters has traded one problem for
-another.
+## What we deliberately did not do
 
-## How to verify: promptfoo
+### The CRUD matrix stays as it is
 
-Not installed. `promptfoo` has an `eval-tool-use` example, `tool_choice`
-control, `tool_calls` finish-reason assertions, custom JS assertions, and
-native cost/latency assertions.
+`{add,update,remove,move}_program_{day,exercise,set}` — 12 tools.
 
-```
-~30 realistic coach turns, each with an expected tool:
-  "add a set to bench on day 2"   -> add_program_set
-  "what did I lift last week"      -> get_last_performance
-  "make my program 4 days"         -> propose_program_patches
-  "why did my squat stall"         -> get_program_stats
+The original brief said to check whether `propose_program_patches` already
+subsumes them. It doesn't: it accepts 7 ops (set-level, training max, diet
+phase), overlapping 3 of the 12, and even those aren't redundant — a proposal
+is inert until the owner confirms on the program page, while the direct tools
+apply immediately after in-chat approval. Different semantics, not duplication.
 
-variants:  A. 40 tools (baseline, today)
-           B. + list_* -> search_*
-           C. + CRUD and policy collapsed  (~26)
+So there's nothing free to delete, and merging 12 tight schemas into 3
+polymorphic ones is a coin flip: you'd cut the count and possibly cut selection
+accuracy at the same time, and land on a tool with a dozen parameters. Not
+worth doing on a guess — and unnecessary if the next section happens.
 
-assert:    correct tool name, plus cost and latency thresholds
-```
+## The endgame, blocked on a feature
 
-Run A first — the current number is what makes B and C judgeable. Pin the model
-version; the point is detecting regressions.
+The coach still has **17 approval-gated direct mutators**. Every one is a tool
+the model must select correctly *and* a tap the user makes mid-workout.
 
-Two costs to keep in mind: the eval runs real inference against OpenRouter
-credits, so keep the case count tight; and `tool_choice: 'auto'` is the setting
-under test — forcing a tool measures nothing.
+The structurally right answer is that the coach's write path is proposals, not
+direct mutation: inert until confirmed, one confirm for a whole batch, reviewed
+where the user can see what changes. That would take the coach to ~20 tools by
+*removing* tools rather than merging them — no polymorphic-schema risk at all —
+and unify two competing confirmation gestures into one.
+
+It is blocked on **in-chat proposal UI**, which does not exist. Today "propose"
+means "go to the program page", so removing the direct mutators would strand
+the coach mid-conversation. That UI is its own feature: a proposal component
+inline in chat for small changes, escalating to a full review surface for
+larger ones (a whole program, or a batch spanning several exercises).
+
+Sequence: build in-chat proposal UI → move the coach's writes onto proposals →
+the tool count falls out of it. Don't collapse the CRUD matrix first; that
+means refactoring twice.
 
 ## Landmine
 
-`filterCoachTools` now sorts by name, and that is load-bearing for the prompt
+`filterCoachTools` sorts by name, and that is load-bearing for the prompt
 cache, not cosmetic. Any rewrite must keep the output order deterministic or
 the cache silently stops matching and every turn pays the 2x write. There is a
 test pinning it.
 
-## Not decided
+## If a measurement is ever wanted
 
-Whether to go further to hierarchical tool selection (a router agent
-delegating to subagents with tool subsets) or Tool RAG (retrieving relevant
-tools per query). Both are named production patterns for this problem. Both
-cost extra inference per turn and add latency, which is the wrong trade for a
-coach used between sets in a gym — revisit only if 26 tools still measures
-badly.
+`promptfoo` (not installed) has `tool_choice` control, `tool_calls`
+finish-reason assertions, and native cost/latency assertions. ~30 realistic
+coach turns, each with an expected tool, run against variants of the tool set,
+asserting the correct tool name. `tool_choice: 'auto'` is the setting under
+test — forcing a tool measures nothing.
+
+Worth building to validate the proposals migration when it happens. It was not
+needed for either change above: both are correct on their own terms.
