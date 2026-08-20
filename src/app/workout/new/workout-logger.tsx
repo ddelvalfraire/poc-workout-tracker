@@ -1475,22 +1475,49 @@ export function WorkoutLogger({
                 )}
               </h3>
               <div className="-mr-1 flex shrink-0 items-center">
-              {/* Notes-v2 roll-up: the exercise's instance note + its noted
-                  sets, as glyph + count (the drafts' header grammar). Quiet
-                  and non-interactive — the notes themselves are reached from
-                  their anchors; zero markup when the count is 0 (the
-                  fast-path discipline). */}
+              {/* Notes affordance (one per exercise): the notes-v2 roll-up and
+                  the note entry are the SAME button. They used to be two —
+                  and because exerciseNoteCount counts noted SETS as well as
+                  the exercise's own note, one noted set lit the roll-up while
+                  the entry still showed, putting two identical pens in the
+                  rail with no cue which one was pressable. Merged: pen + count
+                  when anything is noted, bare pen when nothing is; either way
+                  it opens this session's note editor. Chips mean pressable, so
+                  a count that can be pressed wears a control's skin — the
+                  rail's own ghost button, sized to fit the number. Keeps the
+                  entry's hit-44-y (#236): the rail's buttons are 36px, and the
+                  vertical-only extension buys the 44px target back without
+                  bleeding into the neighbours it sits between. */}
               {(() => {
                 const noteCount = exerciseNoteCount(exercise)
-                if (noteCount === 0) return null
                 return (
-                  <span
-                    aria-label={t('noteCountAriaLabel', { count: noteCount, name: exercise.name })}
-                    className="mr-1 flex shrink-0 items-center gap-1 text-xs text-muted-foreground tnum"
+                  <Button
+                    // A count needs a content-width box, so it switches to the
+                    // `sm` size rather than overriding `icon-sm`'s `size-9`:
+                    // both are h-9 with the same radius, so the rail's rhythm
+                    // is identical either way, and no width utility has to win
+                    // a stylesheet-order race against `size-*`. px-2 trims
+                    // `sm`'s px-3 back to the rail's tighter gutter.
+                    size={noteCount > 0 ? 'sm' : 'icon-sm'}
+                    variant="ghost"
+                    className={cn(
+                      'mr-1 shrink-0 hit-44-y text-muted-foreground',
+                      noteCount > 0 && 'gap-1 px-2',
+                    )}
+                    onClick={() => setNotesOpen((prev) => new Set(prev).add(exercise.id))}
+                    aria-label={
+                      noteCount > 0
+                        ? t('noteCountAriaLabel', { count: noteCount, name: exercise.name })
+                        : t('addNoteAriaLabel', { name: exercise.name })
+                    }
                   >
-                    <NotebookPen aria-hidden="true" className="size-3.5" />
-                    <span aria-hidden="true">{noteCount}</span>
-                  </span>
+                    <NotebookPen aria-hidden="true" className="size-4" />
+                    {noteCount > 0 && (
+                      <span aria-hidden="true" className="text-xs tnum">
+                        {noteCount}
+                      </span>
+                    )}
+                  </Button>
                 )
               })()}
               {/* A done card auto-collapses; once re-expanded for corrections
@@ -1542,28 +1569,6 @@ export function WorkoutLogger({
               >
                 <ArrowLeftRight aria-hidden="true" className="size-4" />
               </Button>
-              {/* Note entry: an icon-sm ghost button like every other utility
-                  on this rail, so the cluster reads as one icon-only rhythm.
-                  It renders only while there is nothing to show; once a
-                  session note exists the note words themselves are the reopen
-                  target below (open-OR-has-notes: a hidden note is a lost
-                  note). Trim-gated like every sibling: a whitespace-only draft
-                  is not a note yet (lastSessionEcho's definition), so the
-                  entry affordance must survive it. Keeps the chip's hit-44-y
-                  (#236): icon-sm is 36px, and the vertical-only extension
-                  buys back the 44px target without shifting a pixel or
-                  bleeding into the neighbours it sits between. */}
-              {exercise.notes.trim() === '' && !notesOpen.has(exercise.id) && (
-                <Button
-                  size="icon-sm"
-                  variant="ghost"
-                  className="shrink-0 hit-44-y text-muted-foreground"
-                  onClick={() => setNotesOpen((prev) => new Set(prev).add(exercise.id))}
-                  aria-label={t('addNoteAriaLabel', { name: exercise.name })}
-                >
-                  <NotebookPen aria-hidden="true" className="size-4" />
-                </Button>
-              )}
               {/* Hairline gap between the everyday utilities and the
                   destructive remove — adjacency invites mid-set slips. */}
               <span aria-hidden="true" className="h-5 w-px shrink-0 self-center bg-border" />
@@ -1673,7 +1678,8 @@ export function WorkoutLogger({
                 (Strong's pin-as-promotion); the session copy stays.
                 Trim-gated: a whitespace-only draft is not a note, so closing
                 the editor over one hides this block rather than leaving an
-                invisible reopen target (the entry chip above returns). */}
+                invisible reopen target (the header's note button reopens it,
+                and unlike the old entry it never went away). */}
             {(notesOpen.has(exercise.id) || exercise.notes.trim() !== '') && (
               <div className="flex items-start gap-1">
                 {notesOpen.has(exercise.id) ? (

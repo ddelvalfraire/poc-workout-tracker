@@ -105,6 +105,11 @@ describe('the volt dot (a noted set’s whole in-logger footprint)', () => {
 })
 
 describe('the exercise header roll-up', () => {
+  /** Occurrences of the NotebookPen glyph in the rendered markup. */
+  function pens(html: string): number {
+    return html.split('lucide-notebook-pen').length - 1
+  }
+
   it('counts the instance note plus noted sets', () => {
     const html = render(baseDraft({ note: 'pin 4', exerciseNotes: 'felt heavy' }))
     expect(html).toContain('2 notes on Squat')
@@ -114,8 +119,34 @@ describe('the exercise header roll-up', () => {
     expect(render(baseDraft({ note: 'pin 4' }))).toContain('1 note on Squat')
   })
 
-  it('renders zero roll-up markup when nothing is noted', () => {
-    expect(render(baseDraft({}))).not.toContain('note on Squat')
+  it('renders no count when nothing is noted — the bare entry pen remains', () => {
+    const html = render(baseDraft({}))
+    expect(html).not.toContain('note on Squat')
+    expect(html).toContain('Add note for Squat')
+    expect(pens(html)).toBe(1)
+  })
+
+  it('shows ONE pen when a set is noted but the exercise is not', () => {
+    // The regression this merge exists for, and a common state: the count
+    // rolls up noted SETS as well as the exercise's own note, so a single
+    // noted set lit the roll-up while the exercise note was still empty —
+    // which also rendered the entry button. Two identical pens, one of them
+    // inert, with nothing to say which was pressable.
+    const html = render(baseDraft({ note: 'left shoulder clicked' }))
+    expect(pens(html)).toBe(1)
+    expect(html).toContain('1 note on Squat')
+    expect(html).not.toContain('Add note for Squat')
+  })
+
+  it('the roll-up IS the control — a count is never inert metadata', () => {
+    // Chips mean pressable (DESIGN.md): the count wears the rail's ghost
+    // button skin and opens this session's note editor, rather than sitting
+    // as a quiet span that says notes exist but refuses to show them.
+    const html = render(baseDraft({ note: 'left shoulder clicked' }))
+    const at = html.indexOf('1 note on Squat')
+    const tag = html.slice(html.lastIndexOf('<', at), html.indexOf('>', at))
+    expect(tag).toContain('<button')
+    expect(tag).toContain('hit-44-y')
   })
 })
 
