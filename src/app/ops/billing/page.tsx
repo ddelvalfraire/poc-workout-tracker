@@ -92,7 +92,7 @@ export default async function OpsBillingPage({
                     would otherwise preserve it. One press could then grant to
                     somebody the confirm was never about. */}
                 <GrantForm key={snapshot.data.user.id} userId={snapshot.data.user.id} />
-                <GrantLedger grants={snapshot.data.grants} now={Date.now()} />
+                <GrantLedger grants={snapshot.data.grants} now={snapshot.data.asOfMs} />
               </div>
             )}
           </OpsPanel>

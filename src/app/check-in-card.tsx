@@ -1,10 +1,11 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import Link from 'next/link'
 import { checkInCardDetail, checkInDismissKey, shouldShowCheckInCard } from '@/lib/check-in-card'
 import { buttonVariants } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import { useMounted } from '@/lib/use-mounted'
 import { useTranslations } from 'next-intl'
 
 interface CheckInCardProps {
@@ -23,21 +24,17 @@ interface CheckInCardProps {
  */
 export function CheckInCard({ daysSinceLast }: CheckInCardProps) {
   const t = useTranslations('CheckInCard')
-  const [isVisible, setIsVisible] = useState(false)
-
-  useEffect(() => {
-    let dismissedToday = false
-    try {
-      dismissedToday = sessionStorage.getItem(checkInDismissKey(new Date())) !== null
-    } catch {
-      // Storage denied (private mode) → treat as not dismissed; the card is
-      // quiet enough that showing it is the safe fallback.
-    }
-    setIsVisible(shouldShowCheckInCard(true, dismissedToday))
-  }, [])
+  // Two separate facts, deliberately: what STORAGE says (dismissed on an
+  // earlier visit today) and what THIS session's tap said. Storage is read at
+  // render behind the mounted gate rather than copied into state by an
+  // effect — the copy is what cascaded a second render on every mount — while
+  // the tap is real local state, because writing to sessionStorage cannot
+  // re-render anything on its own.
+  const mounted = useMounted()
+  const [isDismissedNow, setIsDismissedNow] = useState(false)
 
   function dismiss() {
-    setIsVisible(false)
+    setIsDismissedNow(true)
     try {
       sessionStorage.setItem(checkInDismissKey(new Date()), '1')
     } catch {
@@ -45,7 +42,17 @@ export function CheckInCard({ daysSinceLast }: CheckInCardProps) {
     }
   }
 
-  if (!isVisible) return null
+  let dismissedToday = isDismissedNow
+  if (mounted && !dismissedToday) {
+    try {
+      dismissedToday = sessionStorage.getItem(checkInDismissKey(new Date())) !== null
+    } catch {
+      // Storage denied (private mode) → treat as not dismissed; the card is
+      // quiet enough that showing it is the safe fallback.
+    }
+  }
+
+  if (!mounted || !shouldShowCheckInCard(true, dismissedToday)) return null
 
   return (
     <div className="mt-6 border-b border-b-border/60 pb-4 motion-safe:animate-rise-in">

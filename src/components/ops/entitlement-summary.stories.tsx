@@ -31,8 +31,12 @@ const USER: BillingSnapshot['user'] = {
   createdAt: '2026-01-04T09:00:00.000Z',
 }
 
+/** A fixed instant, never Date.now(): a story that moves with the clock is a
+ *  story that cannot be diffed. */
+const AS_OF_MS = Date.parse('2026-02-01T12:00:00.000Z')
+
 function snapshot(effective: BillingSnapshot['effective']): BillingSnapshot {
-  return { user: USER, effective, grants: [] }
+  return { user: USER, effective, grants: [], asOfMs: AS_OF_MS }
 }
 
 /** Nothing granted — the default tier, with no provenance line at all. */
@@ -77,6 +81,7 @@ export const NoName: Story = {
       user: { ...USER, firstName: null, lastName: null },
       effective: { tier: 'free', source: null, expiresAt: null },
       grants: [],
+      asOfMs: AS_OF_MS,
     },
   },
 }

@@ -1,8 +1,8 @@
 'use client'
 
-import { useEffect, useState } from 'react'
 import { Flame } from 'lucide-react'
 import { streakWeekTicks, weeklyStreak, type WeekTickState } from '@/lib/goal-progress'
+import { useMounted } from '@/lib/use-mounted'
 import { cn } from '@/lib/utils'
 import { useTranslations } from 'next-intl'
 
@@ -29,17 +29,21 @@ export function ConsistencyProgress({
   targetWeeks,
 }: ConsistencyProgressProps) {
   const t = useTranslations('ConsistencyProgress')
-  const [derived, setDerived] = useState<{ weeks: number; ticks: WeekTickState[] } | null>(null)
-
-  useEffect(() => {
+  // Derived at render behind the mounted gate, not pushed into state by an
+  // effect: both readouts are pure functions of the props and the user's
+  // clock. Count and ticks still come from ONE walk of the same input, so
+  // they cannot disagree.
+  const mounted = useMounted()
+  const derived: { weeks: number; ticks: WeekTickState[] } | null = (() => {
+    if (!mounted) return null
     const input = {
       scheduledWeekdays,
       completions: completedAtTimes.map((t) => new Date(t)),
       allowedMissesPerWeek,
       now: new Date(),
     }
-    setDerived({ weeks: weeklyStreak(input), ticks: streakWeekTicks(input, targetWeeks) })
-  }, [completedAtTimes, scheduledWeekdays, allowedMissesPerWeek, targetWeeks])
+    return { weeks: weeklyStreak(input), ticks: streakWeekTicks(input, targetWeeks) }
+  })()
 
   if (derived === null) {
     return (
@@ -69,7 +73,6 @@ export function ConsistencyProgress({
         {derived.ticks.map((state, i) => (
           <span
             // Position IS the identity — a tick row has no stable ids.
-            // eslint-disable-next-line react/no-array-index-key
             key={i}
             className={cn(
               'h-2.5 min-w-2.5 flex-1 rounded-full',
