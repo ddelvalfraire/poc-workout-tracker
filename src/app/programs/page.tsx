@@ -15,6 +15,7 @@ import { buttonVariants } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { NavDrawer } from '@/components/nav/nav-drawer'
 import { zonePrograms, programStatusLabel, proposalAgeLine } from './list-view'
+import { renderMessage } from '@/lib/message'
 import { getTranslations } from 'next-intl/server'
 
 /** The list-row program shape (listPrograms row). */
@@ -90,7 +91,7 @@ async function ProgramRow({ program }: { program: ProgramRowData }) {
       : t('row.weeks', { weeks: program.mesocycleWeeks }),
     // Staleness affordance: a pending proposal wears its age as muted
     // words — never an auto-expiry.
-    isProposed ? proposalAgeLine(program.createdAt, new Date()) : null,
+    isProposed ? renderMessage(t, proposalAgeLine(program.createdAt, new Date())) : null,
   ]
     .filter((part) => part !== null)
     .join(' · ')
@@ -199,7 +200,7 @@ export default async function ProgramsPage() {
                   </span>
                   <span className="flex shrink-0 items-center gap-1.5 text-xs font-semibold uppercase tracking-widest text-primary">
                     <span aria-hidden="true" className="size-1.5 rounded-full bg-primary" />
-                    {programStatusLabel(hero.status)}
+                    {renderMessage(t, programStatusLabel(hero.status)) ?? hero.status}
                   </span>
                 </span>
                 {heroData && (

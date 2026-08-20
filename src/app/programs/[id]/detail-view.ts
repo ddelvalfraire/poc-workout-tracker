@@ -2,6 +2,7 @@ import { backoffKg, AUTOREG_DEFAULT_STEP_KG, type AutoregAdjustment } from '@/li
 import type { Progression } from '@/lib/program-input'
 import { schemeSentence } from '@/lib/scheme-copy'
 import type { WeightUnit } from '@/lib/units'
+import type { Message } from '@/lib/message'
 
 /**
  * Pure view logic for the program detail page's Arc C additions (editorial
@@ -28,21 +29,37 @@ export interface StatusLineInput {
  *   "Week 3 of 7 · 2 days to go."
  *   "Week 3 of 7 · week trained · deload next week."
  *   "Week 4 of 7 · deload week · 1 day to go."
+ *
+ * ONE message with `select` arms rather than clauses joined here: the
+ * sentence's four moving parts are grammatically entangled, so the whole
+ * line is the translator's unit. This function decides WHICH arms are on;
+ * the catalog decides how they read and in what order.
  */
-export function programStatusLine(input: StatusLineInput): string {
-  if (input.blockComplete) return 'Block complete.'
-  const parts = [`Week ${input.currentWeek} of ${input.mesocycleWeeks}`]
-  if (input.currentWeek === input.deloadWeek) parts.push('deload week')
-  if (input.dayCountTotal > 0) {
-    const remaining = Math.max(0, input.dayCountTotal - input.daysDoneThisWeek)
-    parts.push(
-      remaining === 0 ? 'week trained' : `${remaining} day${remaining === 1 ? '' : 's'} to go`,
-    )
+export type StatusLineKey =
+  | 'statusLine.complete'
+  | 'statusLine.week'
+  | 'statusLine.weekTrained'
+  | 'statusLine.weekRemaining'
+
+export function programStatusLine(input: StatusLineInput): Message<StatusLineKey> {
+  if (input.blockComplete) return { key: 'statusLine.complete' }
+  // null when the program has no days at all — a distinct case from "0 days
+  // left", which reads "week trained".
+  const remaining =
+    input.dayCountTotal > 0 ? Math.max(0, input.dayCountTotal - input.daysDoneThisWeek) : null
+  const values = {
+    week: input.currentWeek,
+    total: input.mesocycleWeeks,
+    deload: input.currentWeek === input.deloadWeek ? 'yes' : 'no',
+    deloadNext:
+      input.deloadWeek !== null && input.deloadWeek === input.currentWeek + 1 ? 'yes' : 'no',
   }
-  if (input.deloadWeek !== null && input.deloadWeek === input.currentWeek + 1) {
-    parts.push('deload next week')
-  }
-  return `${parts.join(' · ')}.`
+  if (remaining === null) return { key: 'statusLine.week', values }
+  if (remaining === 0) return { key: 'statusLine.weekTrained', values }
+  // The day count is its own key rather than a `select` arm inside one
+  // message: a plural nested in an unselected arm is a plural no reviewer and
+  // no catalog test can reach, so it silently ships one English form.
+  return { key: 'statusLine.weekRemaining', values: { ...values, remaining } }
 }
 
 /**
@@ -193,12 +210,17 @@ export function collectTmResetProposals(
  * at derivation, and `schemeSentence` quantizes again at display). Null when
  * the exercise has no progression — the row renders nothing rather than
  * inventing copy.
+ *
+ * The return type FORWARDS `schemeSentence`'s: this function only picks the
+ * anchor load, it owns none of the words. scheme-copy.ts is the one module
+ * allowed to decide how that sentence is localized, and this pass-through
+ * must not fork that decision.
  */
 export function progressionLine(
   progression: Progression | null,
   derivedSets: readonly { loadKg: number | null; setType?: string | null }[],
   unit: WeightUnit,
-): string | null {
+): ReturnType<typeof schemeSentence> | null {
   if (progression === null) return null
   let currentLoadKg: number | null = null
   for (const set of derivedSets) {

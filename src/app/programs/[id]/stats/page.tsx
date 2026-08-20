@@ -23,6 +23,8 @@ import {
   formatCreditedSets,
 } from './stats-view'
 import { getTranslations } from 'next-intl/server'
+import { renderMessage } from '@/lib/message'
+import { resolveLocale } from '@/i18n/request'
 
 /**
  * The one-screen block check-in: week position + adherence, per-week volume,
@@ -43,6 +45,10 @@ export default async function ProgramStatsPage({
   params: Promise<{ id: string }>
 }) {
   const t = await getTranslations('ProgramStats')
+  // lib/format speaks its own namespace: the words it owns ("reps",
+  // "BW") belong to the formatter, not to this page.
+  const tFormat = await getTranslations('Format')
+  const locale = await resolveLocale()
   const userId = await requireUserId()
   const { id } = await params
   const [stats, unit, volume] = await Promise.all([
@@ -106,9 +112,9 @@ export default async function ProgramStatsPage({
         <section aria-label={t('verdict.ariaLabel')} className="mt-6">
           <p className="text-sm text-muted-foreground">{stats.program.name}</p>
           <h2 className="mt-1 font-display text-4xl uppercase leading-none tracking-wide">
-            {verdict.headline}
+            {renderMessage(t, verdict.headline)}
           </h2>
-          <p className="mt-1.5 text-sm text-muted-foreground tnum">{verdict.context}</p>
+          <p className="mt-1.5 text-sm text-muted-foreground tnum">{renderMessage(t, verdict.context)}</p>
           <p className="mt-0.5 text-sm text-muted-foreground tnum">
             {t('weekMeta', {
               week: stats.currentWeek,
@@ -261,7 +267,7 @@ export default async function ProgramStatsPage({
                         <span className="ml-auto shrink-0 text-sm text-muted-foreground tnum">
                           {w.tonnageKg > 0
                             ? t('weeks.volumeAndSets', {
-                                volume: formatVolume(w.tonnageKg, unit),
+                                volume: formatVolume(w.tonnageKg, unit, locale),
                                 sets: w.completedSets,
                               })
                             : t('weeks.sets', { sets: w.completedSets })}
@@ -308,7 +314,7 @@ export default async function ProgramStatsPage({
                     {volume.verdicts.map((verdict) => {
                       const series = muscleWeekSeries(volume.weeks, verdict.group)
                       const trend = series.slice(-4)
-                      const drivers = volumeDriversLine(verdict)
+                      const drivers = renderMessage(t, volumeDriversLine(verdict))
                       return (
                         <li key={verdict.group}>
                           <details className="group">
@@ -322,7 +328,7 @@ export default async function ProgramStatsPage({
                                     : 'text-muted-foreground',
                                 )}
                               >
-                                {volumeStatusLabel(verdict.status)}
+                                {renderMessage(t, volumeStatusLabel(verdict.status))}
                               </span>
                             </summary>
                             <div className="space-y-2 pb-3">
@@ -335,7 +341,7 @@ export default async function ProgramStatsPage({
                                 <p className="text-sm tnum">
                                   {t.rich('muscle.trend', {
                                     values: trend
-                                      .map((p) => formatCreditedSets(p.sets))
+                                      .map((p) => formatCreditedSets(p.sets, locale))
                                       .join(' → '),
                                     muted: (chunks) => (
                                       <span className="text-muted-foreground">{chunks}</span>
@@ -356,7 +362,7 @@ export default async function ProgramStatsPage({
                                     </span>
                                     <span className="tnum">
                                       {t('muscle.setCount', {
-                                        value: formatCreditedSets(point.sets),
+                                        value: formatCreditedSets(point.sets, locale),
                                         count: point.sets,
                                       })}
                                     </span>
@@ -434,12 +440,24 @@ export default async function ProgramStatsPage({
                                       assist, which must not read as a barbell
                                       line; the rep count is the honest fact. */}
                                   {exercise.loggingType === 'weight_reps'
-                                    ? formatSet(point.best.reps, point.best.weightKg, unit)
+                                    ? renderMessage(
+                                        tFormat,
+                                        // The branch above already narrowed this to 'weight_reps'; passing
+                                        // the value rather than the literal keeps the
+                                        // logging type in one place.
+                                        formatSet(
+                                          point.best.reps,
+                                          point.best.weightKg,
+                                          unit,
+                                          exercise.loggingType,
+                                          locale,
+                                        ),
+                                      )
                                     : t('progression.reps', { reps: point.best.reps })}
                                 </span>
                                 <span className="text-muted-foreground tnum">
                                   <span aria-hidden="true">{t('pr.approx')}</span>
-                                  {formatE1RM(point.best.e1rm, unit)}
+                                  {formatE1RM(point.best.e1rm, unit, locale)}
                                 </span>
                               </>
                             ) : point.best ? (

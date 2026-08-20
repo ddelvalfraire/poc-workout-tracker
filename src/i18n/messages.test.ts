@@ -27,14 +27,22 @@ function entries(node: Record<string, unknown>, prefix = ''): Array<[string, str
   })
 }
 
-/** Argument names the message needs, and the plural/tag ones separately. */
+/** Argument names the message needs, and the plural/numeric/tag ones separately. */
 function inspect(ast: MessageFormatElement[]) {
   const args: string[] = []
   const plurals: string[] = []
+  /** Arguments with a FORMAT attached — `{pct, number, percent}`, `{at, date}`.
+   *  They were invisible here until a message used one, at which point the
+   *  harness fed it no value at all and the format threw. */
+  const numeric: string[] = []
   const tags: string[] = []
   const walk = (nodes: MessageFormatElement[]) => {
     for (const node of nodes) {
       if (node.type === TYPE.argument) args.push(node.value)
+      if (node.type === TYPE.number || node.type === TYPE.date || node.type === TYPE.time) {
+        args.push(node.value)
+        numeric.push(node.value)
+      }
       if (node.type === TYPE.plural || node.type === TYPE.select) {
         args.push(node.value)
         if (node.type === TYPE.plural) plurals.push(node.value)
@@ -47,7 +55,7 @@ function inspect(ast: MessageFormatElement[]) {
     }
   }
   walk(ast)
-  return { args: [...new Set(args)], plurals, tags }
+  return { args: [...new Set(args)], plurals, numeric, tags }
 }
 
 describe('catalog ICU messages', () => {
@@ -60,14 +68,17 @@ describe('catalog ICU messages', () => {
 
     it(`formats every plural at 0, 1 and 2 in ${locale}`, () => {
       for (const [path, message] of entries(readCatalog(locale))) {
-        const { args, plurals, tags } = inspect(parse(message))
+        const { args, plurals, numeric, tags } = inspect(parse(message))
         if (plurals.length === 0 || tags.length > 0) continue
 
         const formatter = new IntlMessageFormat(message, locale)
         const rendered = new Set<string>()
         for (const count of [0, 1, 2]) {
           const values = Object.fromEntries(
-            args.map((name) => [name, plurals.includes(name) ? count : 'x']),
+            args.map((name) => [
+              name,
+              plurals.includes(name) ? count : numeric.includes(name) ? 1 : 'x',
+            ]),
           )
           const out = formatter.format(values)
           expect(typeof out, `${path} did not format at ${count}`).toBe('string')

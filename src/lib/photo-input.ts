@@ -5,6 +5,8 @@
  * of these constants, so they live in one file both sides import.
  */
 
+import type { Message } from './message'
+
 export const PHOTO_POSES = ['front', 'side', 'back'] as const
 export type PhotoPose = (typeof PHOTO_POSES)[number]
 
@@ -12,9 +14,18 @@ export function isPhotoPose(value: string): value is PhotoPose {
   return (PHOTO_POSES as readonly string[]).includes(value)
 }
 
-/** Human label for a pose ("front" → "Front"). */
-export function photoPoseLabel(pose: PhotoPose): string {
-  return pose.charAt(0).toUpperCase() + pose.slice(1)
+/**
+ * The catalog key for a pose's human label, in the `Body` namespace.
+ *
+ * Title-casing the stored enum value only ever produced English, and the
+ * value itself is a database fact that must never be written in the creating
+ * user's language. So the label is a descriptor: the pose whitelist stays
+ * here, the words live in `Body.pose.*`, and the four photo surfaces that
+ * render it share one vocabulary — the same pose reading differently on the
+ * cell and in the overlay would be a bug, not a translation choice.
+ */
+export function photoPoseLabel(pose: PhotoPose): Message<`pose.${PhotoPose}`> {
+  return { key: `pose.${pose}` }
 }
 
 export const PHOTO_NOTE_MAX_LENGTH = 500

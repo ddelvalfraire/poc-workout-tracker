@@ -1,9 +1,11 @@
 import { describe, it, expect } from 'vitest'
+import { renderMessageIn } from '../../vitest.intl'
 import {
   base64ToBytes,
   bytesToBase64,
   isPhotoPose,
   isValidThumbHash,
+  PHOTO_POSES,
   photoPoseLabel,
   sniffImageContentType,
 } from './photo-input'
@@ -17,8 +19,22 @@ describe('pose whitelist', () => {
     expect(isPhotoPose('')).toBe(false)
   })
 
-  it('labels a pose with a leading capital', () => {
-    expect(photoPoseLabel('front')).toBe('Front')
+  // The label is a DESCRIPTOR: title-casing the stored enum only ever
+  // produced English, and the value itself is a db fact that must never be
+  // written in the creating user's language.
+  it('names the catalog key for each pose rather than title-casing the value', () => {
+    expect(photoPoseLabel('front')).toEqual({ key: 'pose.front' })
+    expect(photoPoseLabel('side')).toEqual({ key: 'pose.side' })
+    expect(photoPoseLabel('back')).toEqual({ key: 'pose.back' })
+  })
+
+  it('resolves every pose key against the real catalog', () => {
+    for (const pose of PHOTO_POSES) {
+      const label = renderMessageIn('Body', photoPoseLabel(pose))
+      expect(label).not.toMatch(/Body\.[a-zA-Z.]+/)
+      expect(label.length).toBeGreaterThan(0)
+    }
+    expect(renderMessageIn('Body', photoPoseLabel('front'))).toBe('Front')
   })
 })
 

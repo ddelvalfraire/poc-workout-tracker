@@ -23,7 +23,14 @@ import { BackLink } from '@/components/back-link'
 import { BlockMap } from '@/components/block-map'
 import { buildBlockWeeks } from '@/components/block-weeks'
 import { cn } from '@/lib/utils'
-import { formatE1RM, formatVolume, formatWorkoutDate, formatWorkoutDuration } from '@/lib/format'
+import {
+  formatE1RM,
+  formatVolumeParts,
+  formatWorkoutDate,
+  formatWorkoutDuration,
+} from '@/lib/format'
+import { renderMessage } from '@/lib/message'
+import { resolveLocale } from '@/i18n/request'
 import { formatTargetLine, groupDerivedSets } from './derived-format'
 import { parseWeekParam, resolveDayState } from './week-view'
 import {
@@ -92,6 +99,8 @@ export default async function ProgramDetailPage({
   searchParams: Promise<{ week?: string | string[]; expand?: string | string[] }>
 }) {
   const t = await getTranslations('ProgramDetail')
+  const tFormat = await getTranslations('Format')
+  const locale = await resolveLocale()
   const userId = await requireUserId()
   const [{ id }, sp] = await Promise.all([params, searchParams])
   // coachEnabled rides the same Promise.all so the flag lookup (env
@@ -385,7 +394,7 @@ export default async function ProgramDetailPage({
             {/* Staleness affordance: the proposal's age as muted words —
                 never an auto-expiry (a coach draft must not silently die). */}
             <p className="mt-0.5 text-xs text-muted-foreground first-letter:uppercase">
-              {proposalAgeLine(program.createdAt, new Date())}
+              {renderMessage(t, proposalAgeLine(program.createdAt, new Date()))}
             </p>
             <p className="mt-1 text-sm text-muted-foreground">
               {t('proposal.description')}
@@ -409,7 +418,7 @@ export default async function ProgramDetailPage({
         )}
 
         <p className="mt-5 font-display text-2xl uppercase leading-none tracking-wide">
-          {statusLine}
+          {renderMessage(t, statusLine)}
         </p>
         <div className="mt-1.5 flex items-baseline justify-between gap-3">
           <p className="min-w-0 truncate text-sm text-muted-foreground">
@@ -463,7 +472,7 @@ export default async function ProgramDetailPage({
                 : t('patchProposal.eyebrowOther')
             }
             summary={proposal.summary}
-            ageLine={proposalAgeLine(proposal.createdAt, new Date())}
+            ageLine={renderMessage(t, proposalAgeLine(proposal.createdAt, new Date()))}
             sentences={proposal.patches.map((patch) => {
               const display = patchForDisplay(patch, unit)
               return describeToolCall(display.tool, display.args)
@@ -512,7 +521,7 @@ export default async function ProgramDetailPage({
                       <span aria-hidden="true" className="text-muted-foreground">
                         {t('pr.approx')}
                       </span>
-                      {formatE1RM(exercise.pr.baseline.e1rm, unit)}
+                      {formatE1RM(exercise.pr.baseline.e1rm, unit, locale)}
                       <span aria-hidden="true" className="text-muted-foreground">
                         {` ${t('pr.arrow')} `}
                       </span>
@@ -520,7 +529,7 @@ export default async function ProgramDetailPage({
                       <span aria-hidden="true" className="text-muted-foreground">
                         {t('pr.approx')}
                       </span>
-                      {formatE1RM(exercise.pr.best.e1rm, unit)}
+                      {formatE1RM(exercise.pr.best.e1rm, unit, locale)}
                     </span>
                   </li>
                 ))}
@@ -676,14 +685,22 @@ export default async function ProgramDetailPage({
                 // days) as the big numeral — the app's established pattern
                 // (program list weeks, history date blocks) — with duration/
                 // sets demoted to a muted secondary line and the date smallest.
-                // formatVolume renders "9,210 kg"; split once so numeral and
-                // unit label can take different type scales.
-                const [numeral, numeralLabel] =
-                  workout.volumeKg > 0
-                    ? formatVolume(workout.volumeKg, unit).split(' ')
-                    : [String(workout.setCount), t('day.setsUnit', { count: workout.setCount })]
+                // formatVolumeParts renders "9,210" + "kg" through Intl, so
+                // numeral and unit label can take different type scales
+                // without splitting on a space the locale may not use.
+                const volumeParts =
+                  workout.volumeKg > 0 ? formatVolumeParts(workout.volumeKg, unit, locale) : null
+                const [numeral, numeralLabel] = volumeParts
+                  ? [volumeParts.value, volumeParts.unit]
+                  : [
+                      new Intl.NumberFormat(locale).format(workout.setCount),
+                      t('day.setsUnit', { count: workout.setCount }),
+                    ]
                 const secondary = [
-                  formatWorkoutDuration(workout.startedAt, workout.completedAt),
+                  renderMessage(
+                    tFormat,
+                    formatWorkoutDuration(workout.startedAt, workout.completedAt),
+                  ),
                   workout.volumeKg > 0 ? t('day.setSummary', { count: workout.setCount }) : null,
                 ]
                   .filter(Boolean)
@@ -706,7 +723,7 @@ export default async function ProgramDetailPage({
                           {t('day.doneBadge')}
                         </p>
                         <span className="shrink-0 text-xs text-muted-foreground tnum">
-                          {formatWorkoutDate(workout.completedAt)}
+                          {formatWorkoutDate(workout.completedAt, locale)}
                         </span>
                       </div>
                       <div className="mt-1">{header}</div>
@@ -824,7 +841,9 @@ export default async function ProgramDetailPage({
                                   className="flex items-baseline gap-2 text-sm text-muted-foreground"
                                 >
                                   <span className="tnum">
-                                    {formatTargetLine(group.set, group.count, unit)}
+                                    {formatTargetLine(group.set, group.count, unit, locale)
+                                      .map((segment) => renderMessage(t, segment))
+                                      .join(' · ')}
                                   </span>
                                   {/* Chips → words: deload/technique are labels
                                       on the set line, not controls — quiet caps

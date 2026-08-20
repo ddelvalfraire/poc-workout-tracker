@@ -121,6 +121,7 @@ import {
 } from '@/lib/format'
 import type { LastPerformance } from '@/db/workouts'
 import { useTranslations } from 'next-intl'
+import { renderMessage } from '@/lib/message'
 
 /** How long the inline "Removed — Undo" affordance stays actionable. 8s per
  *  the #210 direction: action-bearing snackbars sit at the long end of M3's
@@ -222,6 +223,9 @@ export function WorkoutLogger({
   rpeLoggingEnabled = false,
 }: WorkoutLoggerProps) {
   const t = useTranslations('WorkoutLogger')
+  // The collapsed-card summary is built by lib/format, which owns its
+  // own words ("set", "top", "BW") in the Format namespace.
+  const tFormat = useTranslations('Format')
   const [draft, dispatch] = useReducer(workoutDraftReducer, initialDraft)
   const [name, setName] = useState(initialName)
   const [error, setError] = useState<string | null>(null)
@@ -1419,7 +1423,10 @@ export function WorkoutLogger({
               aria-expanded={false}
               aria-label={t('expandAriaLabel', {
                 name: exercise.name,
-                summary: completedSetsSummary(exercise.sets, exercise.loggingType),
+                summary: renderMessage(
+                  tFormat,
+                  completedSetsSummary(exercise.sets, exercise.loggingType),
+                ),
                 pr: hasPR ? 'yes' : 'no',
                 superset: supersetLabel ?? 'none',
               })}
@@ -1440,7 +1447,10 @@ export function WorkoutLogger({
                 <span className="truncate text-base leading-tight">{exercise.name}</span>
               </span>
               <span className="flex shrink-0 items-center gap-2 text-sm text-muted-foreground tnum">
-                {completedSetsSummary(exercise.sets, exercise.loggingType)}
+                {renderMessage(
+                  tFormat,
+                  completedSetsSummary(exercise.sets, exercise.loggingType),
+                )}
                 {hasPR && <PrBadge />}
               </span>
             </button>
