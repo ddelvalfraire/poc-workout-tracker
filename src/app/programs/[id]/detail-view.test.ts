@@ -334,15 +334,17 @@ describe('progressionLine (#228 — the "how this progresses" row line)', () => 
       { loadKg: 29.48, setType: 'working' }, // 65.0 lb
       { loadKg: 27, setType: 'working' },
     ]
-    expect(progressionLine(progression, sets, 'lb')).toBe(
-      'Hit 12 reps on every set at 65 lb → +5 lb next session.',
-    )
+    expect(progressionLine(progression, sets, 'lb')).toEqual({
+      key: 'sentence.doubleProgressionAtLoad',
+      values: { reps: 12, load: 65, increment: 5, unit: 'lb' },
+    })
   })
 
-  it('degrades to the subtitle voice when the derived sets carry no load', () => {
+  it('anchors no load clause when the sets carry no load', () => {
     const progression = { scheme: 'rpe-target', targetRpe: 8 } as const
-    expect(progressionLine(progression, [{ loadKg: null, setType: 'working' }], 'lb')).toBe(
-      'Loads picked from your estimated max to land at RPE 8.',
-    )
+    expect(progressionLine(progression, [{ loadKg: null, setType: 'working' }], 'lb')).toEqual({
+      key: 'sentence.rpeTarget',
+      values: { rpe: 8 },
+    })
   })
 })

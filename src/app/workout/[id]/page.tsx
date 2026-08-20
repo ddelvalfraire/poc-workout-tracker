@@ -58,6 +58,10 @@ export default async function WorkoutDetailPage({
 }) {
   const t = await getTranslations('WorkoutDetail');
   const tFormat = await getTranslations('Format');
+  // Goal and trophy names belong to their own features' namespaces — this
+  // surface only displays them, so it borrows their translators.
+  const tGoals = await getTranslations('Goals');
+  const tTrophies = await getTranslations('Trophies');
   const locale = await resolveLocale();
   const userId = await requireUserId();
   const [{ id }, { finished }] = await Promise.all([params, searchParams]);
@@ -338,14 +342,17 @@ export default async function WorkoutDetailPage({
               {t("goals.title", { count: achievedGoals.length })}
             </p>
             <ul className="mt-2 space-y-1">
-              {achievedGoals.map((goal) => (
-                <li
-                  key={goal.id}
-                  className="font-display text-3xl uppercase leading-none tracking-wide"
-                >
-                  {goalLabel(goal, unit)}
-                </li>
-              ))}
+              {achievedGoals.map((goal) => {
+                const label = goalLabel(goal, unit)
+                return (
+                  <li
+                    key={goal.id}
+                    className="font-display text-3xl uppercase leading-none tracking-wide"
+                  >
+                    {tGoals(label.key, label.values)}
+                  </li>
+                )
+              })}
             </ul>
             <Link
               href="/goals"
@@ -367,22 +374,26 @@ export default async function WorkoutDetailPage({
               {t("trophies.title", { count: earnedTrophies.length })}
             </p>
             <ul className="mt-2 space-y-1">
-              {earnedTrophies.map((trophy) => (
-                <li
-                  key={trophy.id}
-                  className="flex items-center justify-between gap-2"
-                >
-                  <span className="min-w-0 font-display text-3xl uppercase leading-none tracking-wide">
-                    {trophyLabel(trophy.kind)}
-                  </span>
-                  {/* Shares the rendered card PNG via the OS sheet. */}
-                  <ShareCardButton
-                    cardUrl={`/api/cards/trophy/${trophy.kind}`}
-                    shareTitle={trophyLabel(trophy.kind)}
-                    className="-my-1 shrink-0"
-                  />
-                </li>
-              ))}
+              {earnedTrophies.map((trophy) => {
+                const label = trophyLabel(trophy.kind)
+                const name = tTrophies(label.key, label.values)
+                return (
+                  <li
+                    key={trophy.id}
+                    className="flex items-center justify-between gap-2"
+                  >
+                    <span className="min-w-0 font-display text-3xl uppercase leading-none tracking-wide">
+                      {name}
+                    </span>
+                    {/* Shares the rendered card PNG via the OS sheet. */}
+                    <ShareCardButton
+                      cardUrl={`/api/cards/trophy/${trophy.kind}`}
+                      shareTitle={name}
+                      className="-my-1 shrink-0"
+                    />
+                  </li>
+                )
+              })}
             </ul>
             <Link
               href="/trophies"

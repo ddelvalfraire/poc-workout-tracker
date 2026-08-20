@@ -286,30 +286,61 @@ describe('isAttributedToFinish', () => {
   })
 })
 
-describe('labels, context lines, hints', () => {
-  it('names trophies in lb lifting culture for every user', () => {
-    expect(trophyLabel('club_squat_315')).toBe('315 Squat Club')
-    expect(trophyLabel('club_ohp_135')).toBe('135 OHP Club')
-    expect(trophyLabel('club_1000')).toBe('1,000 lb Club')
-    expect(trophyLabel('workouts_1')).toBe('First Workout')
-    expect(trophyLabel('workouts_250')).toBe('250 Workouts')
-    expect(trophyLabel('streak_26')).toBe('26-Week Streak')
-    expect(trophyLabel('block_complete')).toBe('Block Complete')
-    expect(trophyLabel('tonnage_2m')).toBe('2M lb Lifted')
+/**
+ * The words live in `messages/en.json` under `Trophies` and are proved
+ * rendered through the real catalog in app/trophies/page.test.tsx. What is
+ * pinned here is the DECISION: which message a kind earns, and which numbers
+ * travel with it — as NUMBERS, so the reader's locale rather than this
+ * module picks the grouping separator.
+ */
+describe('label, context and hint descriptors', () => {
+  it('keeps clubs in lb lifting culture and lift names out of the catalog', () => {
+    expect(trophyLabel('club_squat_315')).toEqual({
+      key: 'label.club',
+      values: { lb: 315, lift: 'Squat' },
+    })
+    expect(trophyLabel('club_ohp_135')).toEqual({
+      key: 'label.club',
+      values: { lb: 135, lift: 'OHP' },
+    })
+    expect(trophyLabel('club_1000')).toEqual({ key: 'label.sumClub', values: { lb: 1000 } })
+    expect(trophyLabel('block_complete')).toEqual({ key: 'label.block' })
+    expect(trophyLabel('tonnage_2m')).toEqual({ key: 'label.tonnage', values: { millions: 2 } })
   })
 
-  it('speaks the recorded fact in the user unit on earned cards', () => {
+  it('carries the count and the week span so the plural resolves at render', () => {
+    expect(trophyLabel('workouts_1')).toEqual({ key: 'label.count', values: { count: 1 } })
+    expect(trophyLabel('workouts_250')).toEqual({ key: 'label.count', values: { count: 250 } })
+    expect(trophyLabel('streak_26')).toEqual({ key: 'label.streak', values: { weeks: 26 } })
+  })
+
+  it('names the recorded fact in the user unit on earned cards', () => {
     const row = (kind: TrophyKind, context: TrophyRow['context']): TrophyRow => ({
       id: 't1',
       kind,
       achievedAt: new Date('2026-08-01T00:00:00Z'),
       context,
     })
-    expect(trophyContextLine(row('club_squat_315', { e1rmKg: 143.79 }), 'lb')).toBe('e1RM 317 lb')
-    expect(trophyContextLine(row('club_1000', { e1rmKg: 455 }), 'lb')).toBe('Total 1003.1 lb')
-    expect(trophyContextLine(row('workouts_1', { count: 1 }), 'lb')).toBe('First session logged')
-    expect(trophyContextLine(row('workouts_50', { count: 50 }), 'lb')).toBe('Workout #50')
-    expect(trophyContextLine(row('streak_4', { weeks: 4 }), 'kg')).toBe('4 consecutive weeks')
+    expect(trophyContextLine(row('club_squat_315', { e1rmKg: 143.79 }), 'lb')).toEqual({
+      key: 'context.clubE1rm',
+      values: { value: 317, unit: 'lb' },
+    })
+    expect(trophyContextLine(row('club_1000', { e1rmKg: 455 }), 'lb')).toEqual({
+      key: 'context.sumTotal',
+      values: { value: 1003.1, unit: 'lb' },
+    })
+    expect(trophyContextLine(row('workouts_1', { count: 1 }), 'lb')).toEqual({
+      key: 'context.count',
+      values: { count: 1 },
+    })
+    expect(trophyContextLine(row('workouts_50', { count: 50 }), 'lb')).toEqual({
+      key: 'context.count',
+      values: { count: 50 },
+    })
+    expect(trophyContextLine(row('streak_4', { weeks: 4 }), 'kg')).toEqual({
+      key: 'context.streak',
+      values: { weeks: 4 },
+    })
     expect(trophyContextLine(row('block_complete', {}), 'kg')).toBe(null)
   })
 
@@ -317,33 +348,49 @@ describe('labels, context lines, hints', () => {
     const at285 = evidence({
       bestByLift: { squat: { e1rmKg: displayToKg(285, 'lb'), workoutId: 'w1' } },
     })
-    expect(trophyHint('club_squat_315', at285, 'lb')).toBe('285/315 lb — 30 lb to go')
-    expect(trophyHint('club_deadlift_495', evidence({}), 'lb')).toBe('No Deadlift e1RM yet')
+    expect(trophyHint('club_squat_315', at285, 'lb')).toEqual({
+      key: 'hint.weightProgress',
+      values: { current: 285, target: 315, remaining: 30, unit: 'lb' },
+    })
+    expect(trophyHint('club_deadlift_495', evidence({}), 'lb')).toEqual({
+      key: 'hint.clubNoLift',
+      values: { lift: 'Deadlift' },
+    })
   })
 
-  it('lists the missing lifts for the sum club', () => {
+  it('lists the missing lifts for the sum club as one content argument', () => {
     const partial = evidence({ bestByLift: { squat: { e1rmKg: 160, workoutId: 'w1' } } })
-    expect(trophyHint('club_1000', partial, 'lb')).toBe('Needs a Bench, Deadlift e1RM')
+    expect(trophyHint('club_1000', partial, 'lb')).toEqual({
+      key: 'hint.sumMissing',
+      values: { lifts: 'Bench, Deadlift' },
+    })
   })
 
-  it('shows count, streak and tonnage fractions', () => {
-    expect(trophyHint('workouts_50', evidence({ completedCount: 37 }), 'lb')).toBe('37/50 workouts')
+  it('shows count, streak and tonnage fractions as raw numbers', () => {
+    expect(trophyHint('workouts_50', evidence({ completedCount: 37 }), 'lb')).toEqual({
+      key: 'hint.count',
+      values: { current: 37, target: 50 },
+    })
     expect(
       trophyHint('streak_4', evidence({ streakWeeks: 2, scheduledWeekdays: [1, 3] }), 'lb'),
-    ).toBe('2/4 weeks')
-    expect(trophyHint('streak_4', evidence({}), 'lb')).toBe(
-      'Schedule program days to start a streak',
-    )
+    ).toEqual({ key: 'hint.streak', values: { current: 2, target: 4 } })
+    expect(trophyHint('streak_4', evidence({}), 'lb')).toEqual({ key: 'hint.streakUnscheduled' })
+    // Unformatted on purpose: 612340 renders "612,340" or "612.340" per locale.
     expect(
       trophyHint('tonnage_1m', evidence({ tonnageKg: displayToKg(612_340, 'lb') }), 'lb'),
-    ).toBe('612,340/1,000,000 lb lifted')
+    ).toEqual({
+      key: 'hint.tonnage',
+      values: { current: 612_340, target: 1_000_000, unit: 'lb' },
+    })
   })
 
   it('hints block completion against the active-program state', () => {
-    expect(trophyHint('block_complete', evidence({}), 'lb')).toBe('Start a program')
-    expect(trophyHint('block_complete', evidence({ hasActiveProgram: true }), 'lb')).toBe(
-      "Train every day of your program's final week",
-    )
+    expect(trophyHint('block_complete', evidence({}), 'lb')).toEqual({
+      key: 'hint.blockNoProgram',
+    })
+    expect(trophyHint('block_complete', evidence({ hasActiveProgram: true }), 'lb')).toEqual({
+      key: 'hint.blockActive',
+    })
   })
 })
 
@@ -610,12 +657,12 @@ describe('groupTrophiesByFamily + hero glyphs', () => {
     const locked: TrophyKind[] = ['club_squat_315', 'workouts_50', 'streak_4']
     const zones = groupTrophiesByFamily(earned, locked)
 
+    // The family IS the header key (`family.<family>`), so no English zone
+    // label travels out of this module any more.
     expect(zones.map((z) => z.family)).toEqual(['club', 'count', 'streak'])
-    expect(zones[0].label).toBe('Plate Clubs')
     // Newest achievement first within the zone.
     expect(zones[0].earned.map((r) => r.kind)).toEqual(['club_squat_225', 'club_bench_135'])
     expect(zones[0].locked).toEqual(['club_squat_315'])
-    expect(zones[1].label).toBe('Showing Up')
     expect(zones[2].locked).toEqual(['streak_4'])
   })
 
@@ -626,11 +673,14 @@ describe('groupTrophiesByFamily + hero glyphs', () => {
   })
 
   it('the threshold number IS the trophy glyph; block has none', () => {
-    expect(trophyHeroGlyph('club_squat_315')).toBe('315')
-    expect(trophyHeroGlyph('club_1000')).toBe('1,000')
-    expect(trophyHeroGlyph('workouts_50')).toBe('50')
-    expect(trophyHeroGlyph('streak_12')).toBe('12')
-    expect(trophyHeroGlyph('tonnage_1m')).toBe('1M')
+    // A number plus a notation, never a formatted string — "1,000" and "1M"
+    // are Intl output, and which separator or suffix appears is the reader's
+    // locale, not this module's.
+    expect(trophyHeroGlyph('club_squat_315')).toEqual({ value: 315, notation: 'standard' })
+    expect(trophyHeroGlyph('club_1000')).toEqual({ value: 1000, notation: 'grouped' })
+    expect(trophyHeroGlyph('workouts_50')).toEqual({ value: 50, notation: 'standard' })
+    expect(trophyHeroGlyph('streak_12')).toEqual({ value: 12, notation: 'standard' })
+    expect(trophyHeroGlyph('tonnage_1m')).toEqual({ value: 1_000_000, notation: 'compact' })
     expect(trophyHeroGlyph('block_complete')).toBe(null)
   })
 })

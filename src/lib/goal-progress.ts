@@ -290,21 +290,36 @@ export function sortGoalsByTension<T extends TensionSortable>(entries: readonly 
 // ── Pace vs deadline ─────────────────────────────────────────────────────────
 
 /**
- * The suffix promoting a pace projection against the goal's deadline:
- * "3 weeks early" / "2 weeks late", or null when there's no deadline or the
- * projection lands within the same week (close enough that a verdict would
- * be noise). `deadline` is YYYY-MM-DD, parsed as LOCAL midnight (a deadline
- * is a calendar date, not an instant).
+ * The pace verdict against the goal's deadline, as the `Goals` key carrying
+ * the WHOLE "on pace" sentence — early, late, or (null) neither.
+ *
+ * A key rather than a suffix on purpose: "On pace for {date} — 3 weeks early"
+ * is one sentence, and which half leads is a language's decision, not ours.
+ * The caller supplies the `date` argument.
  */
-export function paceVsDeadline(projectedAt: Date, deadline: string | null): string | null {
+export type PaceVerdictMessage = {
+  key: 'paceAhead' | 'paceBehind'
+  values: { weeks: number }
+}
+
+/**
+ * A pace projection judged against the goal's deadline — null when there's no
+ * deadline or the projection lands within the same week (close enough that a
+ * verdict would be noise). `deadline` is YYYY-MM-DD, parsed as LOCAL midnight
+ * (a deadline is a calendar date, not an instant).
+ */
+export function paceVsDeadline(
+  projectedAt: Date,
+  deadline: string | null,
+): PaceVerdictMessage | null {
   if (deadline === null) return null
   const [y, m, d] = deadline.split('-').map(Number)
   if (!Number.isInteger(y) || !Number.isInteger(m) || !Number.isInteger(d)) return null
   const deadlineMs = new Date(y, m - 1, d).getTime()
   if (Number.isNaN(deadlineMs)) return null
   const diffWeeks = Math.trunc((deadlineMs - projectedAt.getTime()) / (7 * MS_PER_DAY))
-  if (diffWeeks >= 1) return `${diffWeeks} week${diffWeeks === 1 ? '' : 's'} early`
-  if (diffWeeks <= -1) return `${-diffWeeks} week${diffWeeks === -1 ? '' : 's'} late`
+  if (diffWeeks >= 1) return { key: 'paceAhead', values: { weeks: diffWeeks } }
+  if (diffWeeks <= -1) return { key: 'paceBehind', values: { weeks: -diffWeeks } }
   return null
 }
 
@@ -318,21 +333,38 @@ export interface GoalLabelInput {
 }
 
 /**
- * One human line naming the goal ("Squat 315 lb", "Bodyweight 80 kg",
- * "8-week streak") — shared by cards, the completion surface, the push and
- * the MCP payload so every surface says the same words.
+ * The goal's name as a `Goals` message descriptor ("Squat 315 lb",
+ * "Bodyweight 80 kg", "8-week streak") — shared by cards, the completion
+ * surface, the push and the MCP payload so every surface says the same words
+ * in the reader's language.
+ *
+ * The exercise name rides as an ICU ARGUMENT, never a catalog entry: it is
+ * wger catalog content or the user's own custom exercise, and translating a
+ * lifter's movement names is not localization, it's rewriting their data.
  */
-export function goalLabel(goal: GoalLabelInput, unit: WeightUnit): string {
+export type GoalLabelMessage =
+  | { key: 'label.strength'; values: { exercise: string; value: number; unit: WeightUnit } }
+  | { key: 'label.strengthUnnamed'; values: { value: number; unit: WeightUnit } }
+  | { key: 'label.bodyweight'; values: { value: number; unit: WeightUnit } }
+  | { key: 'label.consistency'; values: { weeks: number } }
+  | { key: 'label.unknown'; values?: undefined }
+
+export function goalLabel(goal: GoalLabelInput, unit: WeightUnit): GoalLabelMessage {
   if (goal.kind === 'strength' && 'e1rmKg' in goal.target) {
     const value = kgToDisplay(goal.target.e1rmKg, unit)
-    return `${goal.exerciseName ?? 'Exercise'} ${value} ${unit}`
+    return goal.exerciseName === null
+      ? { key: 'label.strengthUnnamed', values: { value, unit } }
+      : { key: 'label.strength', values: { exercise: goal.exerciseName, value, unit } }
   }
   if (goal.kind === 'bodyweight' && 'weightKg' in goal.target) {
-    return `Bodyweight ${kgToDisplay(goal.target.weightKg, unit)} ${unit}`
+    return {
+      key: 'label.bodyweight',
+      values: { value: kgToDisplay(goal.target.weightKg, unit), unit },
+    }
   }
   if (goal.kind === 'consistency' && 'targetWeeks' in goal.target) {
-    return `${goal.target.targetWeeks}-week streak`
+    return { key: 'label.consistency', values: { weeks: goal.target.targetWeeks } }
   }
   // Corrupt kind/target pairing (jsonb is only app-validated): stay quiet.
-  return 'Goal'
+  return { key: 'label.unknown' }
 }

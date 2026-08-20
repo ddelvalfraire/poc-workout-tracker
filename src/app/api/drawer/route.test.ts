@@ -18,7 +18,12 @@ vi.mock('@/db/exercise-stats', () => ({
 // the route imports (their pure siblings, e.g. bodyweight-trend, stay real).
 vi.mock('@/lib/goals', () => ({ getGoalsHomeSummary: vi.fn(async () => null) }))
 vi.mock('@/lib/check-in', () => ({ getCheckInStatus: vi.fn(async () => null) }))
-vi.mock('@/lib/trophies', () => ({ trophyLabel: vi.fn(() => '315 Squat Club') }))
+// The label is a DESCRIPTOR now; the route resolves it against the real
+// en.json, so this stub proves the key and its arguments reach the catalog
+// intact rather than asserting a sentence the route no longer builds.
+vi.mock('@/lib/trophies', () => ({
+  trophyLabel: vi.fn(() => ({ key: 'label.club', values: { lb: 315, lift: 'Squat' } })),
+}))
 vi.mock('@/lib/active-session', () => ({ resolveActiveSession: vi.fn(() => null) }))
 vi.mock('@/lib/coach/access', () => ({ isCoachEnabled: vi.fn(async () => false) }))
 

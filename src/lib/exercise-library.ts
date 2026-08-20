@@ -5,8 +5,9 @@ import { MUSCLE_GROUPS, type MuscleGroup } from '@/lib/muscle-groups'
  * The /exercises library's alive-row language — zoning, status lines,
  * recency words, and the URL-facet codec. Pure functions only (the drawer-
  * status.ts discipline) so the voice unit-tests without React or the DB;
- * the server page feeds them `listLoggedExercises` entries and renders the
- * returned strings, keeping the client island display-string-only.
+ * the server page feeds them `listLoggedExercises` entries, renders the
+ * returned message descriptors against the catalog, and hands the client
+ * island display strings only.
  */
 
 const DAY_MS = 24 * 60 * 60 * 1000
@@ -20,13 +21,6 @@ const MOVING_PR_WINDOW_DAYS = 30
 export type ExerciseZone = 'moving' | 'training' | 'dormant'
 
 export const ZONE_ORDER: readonly ExerciseZone[] = ['moving', 'training', 'dormant']
-
-/** Zone header copy — rendered font-display uppercase by the page. */
-export const ZONE_LABELS: Record<ExerciseZone, string> = {
-  moving: 'Moving',
-  training: 'Training',
-  dormant: 'Dormant',
-}
 
 /**
  * The zoning rule: DORMANT past the 4-week silence line no matter what
@@ -47,11 +41,30 @@ export function exerciseZone(
   return 'training'
 }
 
-/** "142 kg e1RM" (display unit); null when no scorable history —
+/**
+ * Row status as a message DESCRIPTOR for the `Exercises` namespace
+ * (docs/I18N-KEYS.md §9): this module decides WHICH line a row shows and
+ * with which numbers, the catalog owns the words, and `Intl` — through the
+ * ICU `number` argument — owns the digits. Nothing here can hardcode English
+ * or a locale, and the tests assert the decision rather than a sentence.
+ */
+export type ExerciseStatusMessage =
+  | { key: 'status.best'; values: { value: number; unit: WeightUnit } }
+  | { key: 'status.sessionCount'; values: { count: number } }
+
+/** The row's best e1RM in the display unit; null when no scorable history —
  *  the row degrades to its session-count line (the drawer contract). */
-export function e1rmStatusBase(bestE1rmKg: number | null, unit: WeightUnit): string | null {
+export function e1rmStatusBase(
+  bestE1rmKg: number | null,
+  unit: WeightUnit,
+): ExerciseStatusMessage | null {
   if (bestE1rmKg === null) return null
-  return `${Math.round(kgToDisplay(bestE1rmKg, unit))} ${unit} e1RM`
+  return { key: 'status.best', values: { value: Math.round(kgToDisplay(bestE1rmKg, unit)), unit } }
+}
+
+export type ExerciseTrendMessage = {
+  key: 'status.trendUp' | 'status.trendDown'
+  values: { magnitude: number }
 }
 
 /** The row's trend chip: "↑ +5 this month" / "↓ −5 this month", or null when
@@ -61,22 +74,19 @@ export function e1rmStatusBase(bestE1rmKg: number | null, unit: WeightUnit): str
 export function e1rmDeltaChip(
   trendDeltaKg: number | null,
   unit: WeightUnit,
-): { text: string; direction: 'up' | 'down' } | null {
+): { message: ExerciseTrendMessage; direction: 'up' | 'down' } | null {
   if (trendDeltaKg === null) return null
   const magnitude = Math.round(Math.abs(kgToDisplay(trendDeltaKg, unit)))
   if (magnitude === 0) return null
   return trendDeltaKg > 0
-    ? { text: `↑ +${magnitude} this month`, direction: 'up' }
-    : { text: `↓ −${magnitude} this month`, direction: 'down' }
+    ? { message: { key: 'status.trendUp', values: { magnitude } }, direction: 'up' }
+    : { message: { key: 'status.trendDown', values: { magnitude } }, direction: 'down' }
 }
 
-/** Fallback status when nothing is e1RM-scorable: "8 sessions". */
-export function sessionCountLine(sessionCount: number): string {
-  return `${sessionCount} ${sessionCount === 1 ? 'session' : 'sessions'}`
+/** Fallback status when nothing is e1RM-scorable: the session count. */
+export function sessionCountLine(sessionCount: number): ExerciseStatusMessage {
+  return { key: 'status.sessionCount', values: { count: sessionCount } }
 }
-
-// en-US matches formatWorkoutDate — one locale for all date display.
-const recentDateFormat = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' })
 
 /** Past the fresh-date window, recency switches to relative words. */
 const RECENT_DATE_DAYS = 28
@@ -84,22 +94,33 @@ const RECENT_DATE_DAYS = 28
 const MAX_WEEKS_AGO_DAYS = 84
 const AVG_DAYS_PER_MONTH = 30.44
 
+export type ExerciseRecencyMessage =
+  | { key: 'recency.today' | 'recency.yesterday'; values?: undefined }
+  | { key: 'recency.onDate'; values: { date: Date } }
+  | { key: 'recency.weeksAgo'; values: { weeks: number } }
+  | { key: 'recency.monthsAgo'; values: { months: number } }
+
 /**
  * Row recency: dates while fresh ("Today" / "Yesterday" / "Jul 12"), relative
  * words past the threshold ("5 wks ago", "4 mo ago") — a precise date on a
  * months-old row is bookkeeping; "5 wks ago" is status.
+ *
+ * The fresh-date branch hands back the Date itself rather than a formatted
+ * string: month/day ORDER is a locale fact, so it belongs in the catalog's
+ * ICU date skeleton, never in an `Intl.DateTimeFormat('en-US')` here.
  */
-export function recencyLabel(lastPerformedAt: Date, now: Date): string {
+export function recencyLabel(lastPerformedAt: Date, now: Date): ExerciseRecencyMessage {
   const days = Math.floor((now.getTime() - lastPerformedAt.getTime()) / DAY_MS)
-  if (days <= 0) return 'Today'
-  if (days === 1) return 'Yesterday'
-  if (days <= RECENT_DATE_DAYS) return recentDateFormat.format(lastPerformedAt)
+  if (days <= 0) return { key: 'recency.today' }
+  if (days === 1) return { key: 'recency.yesterday' }
+  if (days <= RECENT_DATE_DAYS) return { key: 'recency.onDate', values: { date: lastPerformedAt } }
   if (days <= MAX_WEEKS_AGO_DAYS) {
-    const weeks = Math.round(days / 7)
-    return `${weeks} ${weeks === 1 ? 'wk' : 'wks'} ago`
+    return { key: 'recency.weeksAgo', values: { weeks: Math.round(days / 7) } }
   }
-  const months = Math.max(2, Math.round(days / AVG_DAYS_PER_MONTH))
-  return `${months} mo ago`
+  return {
+    key: 'recency.monthsAgo',
+    values: { months: Math.max(2, Math.round(days / AVG_DAYS_PER_MONTH)) },
+  }
 }
 
 /** The two list orders the sort toggle offers. */

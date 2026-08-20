@@ -100,6 +100,9 @@ export default async function ProgramDetailPage({
 }) {
   const t = await getTranslations('ProgramDetail')
   const tFormat = await getTranslations('Format')
+  // The progression sentence belongs to the scheme vocabulary, not to this
+  // surface — one voice shared with the builder's picker line.
+  const tScheme = await getTranslations('SchemeCopy')
   const locale = await resolveLocale()
   const userId = await requireUserId()
   const [{ id }, sp] = await Promise.all([params, searchParams])
@@ -862,7 +865,9 @@ export default async function ProgramDetailPage({
                               ))}
                             </div>
                             {howLine !== null && (
-                              <p className="mt-1 text-sm text-muted-foreground">{howLine}</p>
+                              <p className="mt-1 text-sm text-muted-foreground">
+                                {tScheme(howLine.key, howLine.values)}
+                              </p>
                             )}
                             {/* Per-exercise overshoot override (#239's data,
                                 now with UI): owner-only quiet select; never

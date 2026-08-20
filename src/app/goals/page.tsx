@@ -10,7 +10,7 @@ import {
   type GoalWithProgress,
   type StreakEvidence,
 } from '@/lib/goals'
-import { formatE1RM, formatWorkoutDate } from '@/lib/format'
+import { formatWorkoutDate } from '@/lib/format'
 import { kgToDisplay, type WeightUnit } from '@/lib/units'
 import { TrendChart, type TrendPoint } from '@/components/charts/trend-chart'
 import { AppHeader } from '@/components/app-header'
@@ -122,21 +122,25 @@ export default async function GoalsPage() {
               {t('archivedTitle')}
             </h2>
             <DividerList className="mt-2">
-              {archived.map((goal) => (
-                <li key={goal.id} className="py-4 text-muted-foreground">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="min-w-0 truncate text-sm font-medium">
-                      {goalLabel(goal, unit)}
-                    </span>
-                    <div className="flex shrink-0 items-center gap-1">
-                      {goal.achievedAt !== null && (
-                        <span className="text-xs uppercase tracking-widest">{t('achievedBadge')}</span>
-                      )}
-                      <GoalCardActions id={goal.id} label={goalLabel(goal, unit)} archived />
+              {archived.map((goal) => {
+                const label = goalLabel(goal, unit)
+                const text = t(label.key, label.values)
+                return (
+                  <li key={goal.id} className="py-4 text-muted-foreground">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="min-w-0 truncate text-sm font-medium">{text}</span>
+                      <div className="flex shrink-0 items-center gap-1">
+                        {goal.achievedAt !== null && (
+                          <span className="text-xs uppercase tracking-widest">
+                            {t('achievedBadge')}
+                          </span>
+                        )}
+                        <GoalCardActions id={goal.id} label={text} archived />
+                      </div>
                     </div>
-                  </div>
-                </li>
-              ))}
+                  </li>
+                )
+              })}
             </DividerList>
           </section>
         )}
@@ -161,7 +165,8 @@ function GoalCard({
   const t = useTranslations('Goals')
   const { goal, progress } = entry
   const Icon = KIND_ICONS[goal.kind]
-  const label = goalLabel(goal, unit)
+  const labelMessage = goalLabel(goal, unit)
+  const label = t(labelMessage.key, labelMessage.values)
   const isAchieved = goal.achievedAt !== null
 
   return (
@@ -206,7 +211,7 @@ function GoalCard({
                 </p>
                 <p className="mt-1.5 text-sm text-muted-foreground tnum">
                   {progress.bestE1rmKg !== null
-                    ? `Best ${formatE1RM(progress.bestE1rmKg, unit)}`
+                    ? t('bestValue', { value: kgToDisplay(progress.bestE1rmKg, unit), unit })
                     : t('noEstimate')}
                 </p>
                 <div
@@ -234,10 +239,7 @@ function GoalCard({
                     silence. Promoted to a full sentence against the deadline. */}
                 {progress.projectedAt !== null && (
                   <p className="mt-2 text-xs text-muted-foreground">
-                    {t('onPace', {
-                      date: formatWorkoutDate(progress.projectedAt),
-                      suffix: paceSuffix(progress.projectedAt, goal.deadline),
-                    })}
+                    {paceSentence(t, progress.projectedAt, goal.deadline)}
                   </p>
                 )}
               </div>
@@ -276,7 +278,11 @@ function GoalCard({
                       points={bodyweightPoints}
                       unit={unit}
                       valueLabel={t('bodyweightSeriesLabel')}
-                      ariaLabel={`Bodyweight trend over ${bodyweightPoints.length} entries against the ${kgToDisplay(goal.target.weightKg, unit)} ${unit} target`}
+                      ariaLabel={t('trendChartAriaLabel', {
+                        count: bodyweightPoints.length,
+                        target: kgToDisplay(goal.target.weightKg, unit),
+                        unit,
+                      })}
                       targetValue={kgToDisplay(goal.target.weightKg, unit)}
                       targetLabel={t('targetSeriesLabel')}
                       className="h-24"
@@ -313,10 +319,19 @@ function GoalCard({
   )
 }
 
-/** " — 3 weeks early" (or late), empty when no deadline / within a week. */
-function paceSuffix(projectedAt: Date, deadline: string | null): string {
+/**
+ * "On pace for {date}", promoted to the early/late verdict when the deadline
+ * supports one. Three whole sentences rather than a base plus a glued-on
+ * suffix: which half leads is a language's call, not the layout's.
+ */
+function paceSentence(
+  t: ReturnType<typeof useTranslations<'Goals'>>,
+  projectedAt: Date,
+  deadline: string | null,
+): string {
+  const date = formatWorkoutDate(projectedAt)
   const verdict = paceVsDeadline(projectedAt, deadline)
-  return verdict === null ? '' : ` — ${verdict}`
+  return verdict === null ? t('pace', { date }) : t(verdict.key, { date, ...verdict.values })
 }
 
 /** YYYY-MM-DD → the app's one date wording, parsed as LOCAL midnight (a

@@ -1,7 +1,15 @@
 import type { ExerciseAllTimeStats } from '@/db/exercise-stats'
 import type { TrophyRow } from '@/db/trophies'
+// workoutDurationMinutes, not formatWorkoutDuration: the formatter now
+// returns a message descriptor, and this module renders into an IMAGE with no
+// translator in scope. It composes from the number instead.
 import { workoutDurationMinutes } from '@/lib/format'
-import { trophyContextLine, trophyLabel } from '@/lib/trophies'
+import {
+  trophyContextLine,
+  trophyLabel,
+  type TrophyContextMessage,
+  type TrophyLabelMessage,
+} from '@/lib/trophies'
 import { TROPHY_KINDS, type TrophyKind } from '@/lib/trophy-kinds'
 import { kgToDisplay, type WeightUnit } from '@/lib/units'
 
@@ -39,17 +47,29 @@ export interface TrophyCardData {
  * into one constant-shape 404 (an unknown kind and an unearned one must be
  * indistinguishable to a probing client).
  */
+/**
+ * Renders a `Trophies` descriptor. A card is an IMAGE — the words have to be
+ * resolved before it rasterizes — so the route hands its own translator in
+ * rather than this mapper reaching for one; that keeps the mapper testable
+ * without a request and lets the test feed the real catalog.
+ */
+export type RenderTrophyMessage = (message: TrophyLabelMessage | TrophyContextMessage) => string
+
 export function trophyCardData(
   rows: readonly TrophyRow[],
   kindParam: string,
   unit: WeightUnit,
+  render: RenderTrophyMessage,
 ): TrophyCardData | null {
   if (!isTrophyKind(kindParam)) return null
   const row = rows.find((r) => r.kind === kindParam)
   if (!row) return null
   const fact = trophyContextLine(row, unit)
   const date = formatCardMonthYear(row.achievedAt)
-  return { title: trophyLabel(row.kind), context: fact !== null ? `${fact} · ${date}` : date }
+  return {
+    title: render(trophyLabel(row.kind)),
+    context: fact === null ? date : `${render(fact)} · ${date}`,
+  }
 }
 
 /** The completed-session facts the workout card reads (weights kg). */
