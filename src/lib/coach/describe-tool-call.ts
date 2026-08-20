@@ -396,54 +396,64 @@ export function describeToolCall(toolName: string, input: unknown): ToolCallDesc
         changes: [{ key: 'change.dropOverride', values: { week } }],
       })
     }
-    case 'set_program_autoregulation':
-      return typeof args.enabled === 'boolean'
-        ? described(toolName, {
-            changes: [
-              { key: args.enabled ? 'change.autoregulationOn' : 'change.autoregulationOff' },
-            ],
-          })
-        : nothing(toolName)
-    case 'set_program_deload_policy': {
-      if (args.policy === null) {
-        return described(toolName, { changes: [{ key: 'change.deloadPolicyClear' }] })
+    case 'set_program_policy': {
+      // One tool, five policies — the phrasing stays per-policy, so the
+      // approval card reads exactly as it did when these were five tools.
+      const policy = asRecord(args.policy)
+      const value = policy.value
+      switch (policy.name) {
+        case 'autoregulation':
+          return typeof value === 'boolean'
+            ? described(toolName, {
+                changes: [{ key: value ? 'change.autoregulationOn' : 'change.autoregulationOff' }],
+              })
+            : nothing(toolName)
+        case 'planSync':
+          return typeof value === 'boolean'
+            ? described(toolName, {
+                changes: [{ key: value ? 'change.planSyncEnabled' : 'change.planSyncDisabled' }],
+              })
+            : nothing(toolName)
+        case 'deload': {
+          if (value === null) {
+            return described(toolName, { changes: [{ key: 'change.deloadPolicyClear' }] })
+          }
+          const mode =
+            typeof value === 'object' && value !== null && 'mode' in value
+              ? String((value as { mode: unknown }).mode)
+              : null
+          return mode === 'none' || mode === 'reactive' || mode === 'scheduled'
+            ? described(toolName, { changes: [{ key: 'change.deloadPolicy', values: { mode } }] })
+            : nothing(toolName)
+        }
+        case 'dietPhase': {
+          if (value === null) {
+            return described(toolName, { changes: [{ key: 'change.dietPhaseClear' }] })
+          }
+          const phase = str(value)
+          return phase === 'cutting' || phase === 'maintaining' || phase === 'bulking'
+            ? described(toolName, { changes: [{ key: 'change.dietPhase', values: { phase } }] })
+            : nothing(toolName)
+        }
+        case 'overshoot': {
+          if (value === null) {
+            return described(toolName, { changes: [{ key: 'change.overshootClear' }] })
+          }
+          const id = str(value)
+          // ICU `select` arm names must be alphanumeric, so the hyphenated
+          // policy ids travel as camelCase tokens; the message still renders
+          // the id the settings UI shows.
+          const arm = id !== null ? OVERSHOOT_ARMS[id] : undefined
+          return arm !== undefined
+            ? described(toolName, {
+                changes: [{ key: 'change.overshoot', values: { policy: arm } }],
+              })
+            : nothing(toolName)
+        }
+        default:
+          return nothing(toolName)
       }
-      const mode =
-        typeof args.policy === 'object' && args.policy !== null && 'mode' in args.policy
-          ? String((args.policy as { mode: unknown }).mode)
-          : null
-      return mode === 'none' || mode === 'reactive' || mode === 'scheduled'
-        ? described(toolName, { changes: [{ key: 'change.deloadPolicy', values: { mode } }] })
-        : nothing(toolName)
     }
-    case 'set_program_diet_phase': {
-      if (args.phase === null) {
-        return described(toolName, { changes: [{ key: 'change.dietPhaseClear' }] })
-      }
-      const phase = str(args.phase)
-      return phase === 'cutting' || phase === 'maintaining' || phase === 'bulking'
-        ? described(toolName, { changes: [{ key: 'change.dietPhase', values: { phase } }] })
-        : nothing(toolName)
-    }
-    case 'set_program_overshoot_policy': {
-      if (args.policy === null) {
-        return described(toolName, { changes: [{ key: 'change.overshootClear' }] })
-      }
-      const policy = str(args.policy)
-      // ICU `select` arm names must be alphanumeric, so the hyphenated policy
-      // ids travel as camelCase tokens; the message still renders the id the
-      // settings UI shows.
-      const arm = policy !== null ? OVERSHOOT_ARMS[policy] : undefined
-      return arm !== undefined
-        ? described(toolName, { changes: [{ key: 'change.overshoot', values: { policy: arm } }] })
-        : nothing(toolName)
-    }
-    case 'set_program_plan_sync':
-      return typeof args.enabled === 'boolean'
-        ? described(toolName, {
-            changes: [{ key: args.enabled ? 'change.planSyncEnabled' : 'change.planSyncDisabled' }],
-          })
-        : nothing(toolName)
     case 'set_training_max': {
       const tm = num(args.trainingMax)
       if (tm === null) return nothing(toolName)

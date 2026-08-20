@@ -189,30 +189,10 @@ const CASES: Record<
     changes: ['change.dropOverride'],
     expected: 'Day 1, exercise 1, set 1: drop the week 4 override',
   },
-  set_program_autoregulation: {
-    input: { programId: PROGRAM_ID, enabled: false },
+  set_program_policy: {
+    input: { programId: PROGRAM_ID, policy: { name: 'autoregulation', value: false } },
     changes: ['change.autoregulationOff'],
     expected: 'Turn auto-regulation off',
-  },
-  set_program_deload_policy: {
-    input: { programId: PROGRAM_ID, policy: { mode: 'scheduled', shape: {} } },
-    changes: ['change.deloadPolicy'],
-    expected: 'Set the deload policy → scheduled',
-  },
-  set_program_diet_phase: {
-    input: { programId: PROGRAM_ID, phase: 'cutting' },
-    changes: ['change.dietPhase'],
-    expected: 'Set the diet phase → cutting',
-  },
-  set_program_overshoot_policy: {
-    input: { programId: PROGRAM_ID, policy: 'e1rm-equivalent' },
-    changes: ['change.overshoot'],
-    expected: 'Set the overshoot policy → e1rm-equivalent',
-  },
-  set_program_plan_sync: {
-    input: { programId: PROGRAM_ID, enabled: true },
-    changes: ['change.planSyncEnabled'],
-    expected: 'Turn plan sync on',
   },
   set_training_max: {
     input: {
@@ -248,6 +228,61 @@ describe('describeToolCall', () => {
       expect(sentence(toolName, validated(toolName, input))).toBe(expected)
     })
   }
+
+  // The CASES table holds one row per gated tool, but set_program_policy
+  // carries five policies behind that single row — so the other four arms get
+  // their own coverage here. Each must keep the exact sentence it rendered
+  // when it was its own tool.
+  describe('set_program_policy: the arms beyond the CASES row', () => {
+    const ARMS: { policy: Record<string, unknown>; changes: string[]; expected: string }[] = [
+      {
+        policy: { name: 'deload', value: { mode: 'scheduled', shape: {} } },
+        changes: ['change.deloadPolicy'],
+        expected: 'Set the deload policy → scheduled',
+      },
+      {
+        policy: { name: 'deload', value: null },
+        changes: ['change.deloadPolicyClear'],
+        expected: 'Clear the deload policy (back to the default behavior)',
+      },
+      {
+        policy: { name: 'dietPhase', value: 'cutting' },
+        changes: ['change.dietPhase'],
+        expected: 'Set the diet phase → cutting',
+      },
+      {
+        policy: { name: 'dietPhase', value: null },
+        changes: ['change.dietPhaseClear'],
+        expected: 'Clear the diet phase',
+      },
+      {
+        policy: { name: 'overshoot', value: 'e1rm-equivalent' },
+        changes: ['change.overshoot'],
+        expected: 'Set the overshoot policy → e1rm-equivalent',
+      },
+      {
+        policy: { name: 'planSync', value: true },
+        changes: ['change.planSyncEnabled'],
+        expected: 'Turn plan sync on',
+      },
+    ]
+
+    for (const { policy, changes, expected } of ARMS) {
+      it(`${String(policy.name)}=${JSON.stringify(policy.value)} → ${expected}`, () => {
+        // Arrange
+        const input = { programId: PROGRAM_ID, policy }
+
+        // Act
+        const parsed = validated('set_program_policy', input)
+
+        // Assert
+        expect(describeToolCall('set_program_policy', parsed).changes.map((c) => c.key)).toEqual(
+          changes,
+        )
+        expect(sentence('set_program_policy', parsed)).toBe(expected)
+      })
+    }
+  })
 
   it('never leaks snake_case or ids into a valid gated summary', () => {
     for (const toolName of COACH_APPROVAL_TOOLS) {
