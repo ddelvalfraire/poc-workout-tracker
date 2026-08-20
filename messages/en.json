@@ -707,6 +707,67 @@
     "trendLabel": "Bodyweight trend",
     "trophiesLinkLabel": "Trophies"
   },
+  "GrantForm": {
+    "action": "Grant",
+    "actionArmed": "Confirm: grant {tier}, {duration}",
+    "armedStatus": "Ready to grant {tier}, {duration}. Press again to confirm.",
+    "duration": {
+      "label": "Duration",
+      "option": {
+        "7d": "7 days",
+        "30d": "30 days",
+        "90d": "90 days",
+        "1y": "1 year",
+        "forever": "No expiry"
+      }
+    },
+    "errorDenied": "You are not allowed to grant tiers.",
+    "errorInvalid": "That grant was rejected. Check the fields and try again.",
+    "errorNotFound": "That member no longer exists.",
+    "loading": "Granting…",
+    "reason": {
+      "label": "Reason",
+      "placeholder": "Refund make-good for #1183",
+      "validation": "Say why — this is what the ledger shows later."
+    },
+    "tier": {
+      "label": "Tier"
+    },
+    "title": "Grant a tier"
+  },
+  "GrantLedger": {
+    "title": "Grant history",
+    "empty": "No grants on file. This member is on the default tier.",
+    "col": {
+      "granted": "Granted",
+      "tier": "Tier",
+      "source": "Source",
+      "window": "Until",
+      "reason": "Reason",
+      "state": "State"
+    },
+    "expiry": {
+      "never": "never expires"
+    },
+    "byActor": "by {actor}",
+    "revokedBecause": "Revoked: {reason}",
+    "state": {
+      "revoked": "Revoked",
+      "lapsed": "Lapsed"
+    },
+    "revoke": {
+      "action": "Revoke",
+      "confirm": "Confirm revoke",
+      "loading": "Revoking…"
+    },
+    "reason": {
+      "label": "Reason for revoking",
+      "placeholder": "Refunded on request",
+      "validation": "Say why — this is what the ledger shows later."
+    },
+    "cancel": "Cancel",
+    "error": "That did not go through. Try again."
+  },
   "HeaderClock": {
     "ariaLabel": "Session time {elapsed}"
   },
@@ -1040,11 +1101,38 @@
     "retry": "Try again now",
     "title": "Offline — Workout Tracker"
   },
+  "OpsBilling": {
+    "title": "Billing",
+    "lede": "Look up a member to see what they hold and why.",
+    "lookup": {
+      "label": "Email or user id",
+      "placeholder": "someone@example.com",
+      "action": "Look up"
+    },
+    "empty": "No member matches that.",
+    "prompt": "Search by email, or pick a member from the roster.",
+    "effective": {
+      "viaSource": "via {source}",
+      "default": "no grant on file"
+    },
+    "expiry": {
+      "on": "until {date}",
+      "never": "never expires"
+    },
+    "roster": {
+      "title": "Paying members",
+      "empty": "Nobody is on a paid tier yet.",
+      "colUser": "Member",
+      "colTier": "Tier",
+      "colExpires": "Expires"
+    }
+  },
   "OpsHeader": {
     "navLabel": "Ops sections",
     "tab": {
       "ops": "Ops",
-      "product": "Product"
+      "product": "Product",
+      "billing": "Billing"
     },
     "title": "Ops"
   },
@@ -1135,6 +1223,48 @@
     "timelineGroupLabel": "Photo timeline",
     "uploadError": "Didn’t upload. Try again.",
     "uploadFailed": "Upload failed"
+  },
+  "Plan": {
+    "title": "Plan",
+    "current": {
+      "title": "Your plan"
+    },
+    "tier": {
+      "free": {
+        "name": "Free",
+        "price": "Free",
+        "summary": "Log every workout you want, forever."
+      },
+      "pro": {
+        "name": "Pro",
+        "price": "$5 / month",
+        "summary": "Run as many programs as you like."
+      },
+      "max": {
+        "name": "Max",
+        "price": "$13 / month",
+        "summary": "Everything in Pro, plus the coach and automatic load adjustment."
+      }
+    },
+    "capability": {
+      "programs": "{count, plural, one {# active program} other {# active programs}}",
+      "programsUnlimited": "Unlimited active programs",
+      "coach": "AI coach",
+      "autoreg": "Automatic load adjustment"
+    },
+    "provenance": {
+      "granted": "Granted by support",
+      "purchased": "Billed through {source}"
+    },
+    "expiry": {
+      "on": "until {date}",
+      "never": "no expiry"
+    },
+    "compare": {
+      "title": "All plans",
+      "currentBadge": "Your plan"
+    },
+    "unavailableNotice": "Upgrading is not open yet. Nothing here can be bought, and nothing will be charged."
   },
   "PlanBulletList": {
     "noTarget": "{current} sets · no target",
@@ -1746,6 +1876,10 @@
     "ops": {
       "hint": "Monitoring board — not part of the app.",
       "label": "Ops"
+    },
+    "plan": {
+      "label": "Plan",
+      "hint": "What you are on, and what the other plans include."
     },
     "privacyPolicy": {
       "hint": "What we collect and why.",
