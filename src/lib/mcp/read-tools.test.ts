@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach, type Mock } from 'vitest'
+import { z, type ZodRawShape } from 'zod'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 
 vi.mock('@/db/workouts', () => ({
@@ -21,7 +22,11 @@ vi.mock('@/db/program-events', () => ({
   PROGRAM_EVENTS_MAX_LIMIT: 100,
 }))
 
-import { registerReadTools } from './read-tools'
+import {
+  registerReadTools,
+  WORKOUT_LIST_DEFAULT_LIMIT,
+  WORKOUT_LIST_MAX_LIMIT,
+} from './read-tools'
 import { listWorkoutSummaries, getWorkoutDetail, getLastPerformance } from '@/db/workouts'
 import { getProgramDayDetail } from '@/db/programs'
 import { getProgramStats, type ProgramStats } from '@/db/program-stats'
@@ -53,18 +58,38 @@ type ToolHandler = (args: Record<string, unknown>) => Promise<ToolResult>
 function fakeServer(): { server: McpServer; tools: Map<string, ToolHandler> } {
   const tools = new Map<string, ToolHandler>()
   const server = {
-    registerTool: (name: string, _config: unknown, handler: ToolHandler) => {
+    registerTool: (name: string, config: { inputSchema?: ZodRawShape }, handler: ToolHandler) => {
       tools.set(name, handler)
+      if (config.inputSchema) schemas.set(name, config.inputSchema)
     },
   }
   return { server: server as unknown as McpServer, tools }
 }
+
+/** The registered input schemas, so a test can assert the PUBLIC contract the
+ *  MCP SDK enforces — the handler harness below invokes handlers directly, so
+ *  without this the schema is never exercised. */
+const schemas = new Map<string, ZodRawShape>()
 
 /** Registers the read tools on a fresh fake server and returns the handler map. */
 function setup(): Map<string, ToolHandler> {
   const { server, tools } = fakeServer()
   registerReadTools(server)
   return tools
+}
+
+/** `n` workout summaries, newest first, one calendar day apart from 2026-06-01. */
+function summaries(n: number) {
+  return Array.from({ length: n }, (_, i) => ({
+    id: `1111111${i}-1111-4111-8111-111111111111`,
+    name: 'Push Day',
+    startedAt: new Date(Date.UTC(2026, 5, n - i, 10)),
+    completedAt: null,
+    exerciseCount: 3,
+    setCount: 9,
+    completedSetCount: 9,
+    volumeKg: 1000,
+  }))
 }
 
 /** Parses the JSON text payload of a (success) tool result. */
@@ -126,6 +151,8 @@ describe('registerReadTools', () => {
       expect(mockedList).toHaveBeenCalledWith('user_env')
       expect(payload(result)).toEqual({
         userId: 'user_env',
+        count: 1,
+        hasMore: false,
         workouts: [
           {
             id: '11111111-1111-4111-8111-111111111111',
@@ -151,6 +178,165 @@ describe('registerReadTools', () => {
 
       // Assert
       expect(mockedList).toHaveBeenCalledWith('user_arg')
+    })
+
+    it('caps the payload at the default page size and flags that more exist', async () => {
+      // Arrange
+      const tools = setup()
+      mockedList.mockResolvedValue(summaries(WORKOUT_LIST_DEFAULT_LIMIT + 5))
+
+      // Act
+      const result = await tools.get('list_workouts')!({})
+
+      // Assert
+      const body = payload(result) as { count: number; hasMore: boolean; workouts: unknown[] }
+      expect(body.workouts).toHaveLength(WORKOUT_LIST_DEFAULT_LIMIT)
+      expect(body.count).toBe(WORKOUT_LIST_DEFAULT_LIMIT)
+      expect(body.hasMore).toBe(true)
+    })
+
+    it('rejects an over-large limit at the schema boundary', () => {
+      // Arrange — the handler harness invokes handlers directly, so the public
+      // contract only shows up by parsing with the registered schema.
+      setup()
+      const shape = schemas.get('list_workouts')
+      expect(shape).toBeDefined()
+
+      // Act
+      const parsed = z.object(shape!).safeParse({ limit: WORKOUT_LIST_MAX_LIMIT + 1 })
+
+      // Assert
+      expect(parsed.success).toBe(false)
+    })
+
+    it('accepts a limit at exactly the maximum', () => {
+      // Arrange
+      setup()
+
+      // Act
+      const parsed = z
+        .object(schemas.get('list_workouts')!)
+        .safeParse({ limit: WORKOUT_LIST_MAX_LIMIT })
+
+      // Assert
+      expect(parsed.success).toBe(true)
+    })
+
+    it('clamps defensively if an over-large limit ever reaches the handler', async () => {
+      // Arrange
+      const tools = setup()
+      mockedList.mockResolvedValue(summaries(WORKOUT_LIST_MAX_LIMIT + 10))
+
+      // Act
+      const result = await tools.get('list_workouts')!({ limit: WORKOUT_LIST_MAX_LIMIT + 10 })
+
+      // Assert
+      const body = payload(result) as { workouts: unknown[]; hasMore: boolean }
+      expect(body.workouts).toHaveLength(WORKOUT_LIST_MAX_LIMIT)
+      expect(body.hasMore).toBe(true)
+    })
+
+    it('pages older history with `before`, excluding the cursor row itself', async () => {
+      // Arrange — three workouts, one per day, newest first.
+      const tools = setup()
+      mockedList.mockResolvedValue(summaries(3))
+
+      // Act — page past the newest row.
+      const result = await tools.get('list_workouts')!({ before: '2026-06-03T10:00:00.000Z' })
+
+      // Assert
+      const body = payload(result) as { workouts: { startedAt: string }[]; hasMore: boolean }
+      expect(body.workouts.map((w) => w.startedAt)).toEqual([
+        '2026-06-02T10:00:00.000Z',
+        '2026-06-01T10:00:00.000Z',
+      ])
+      expect(body.hasMore).toBe(false)
+    })
+
+    it('pages same-timestamp ties losslessly with the compound cursor', async () => {
+      // Arrange — three sessions imported with the same date-only timestamp,
+      // which is a supported state: import dedupes on (startedAt, name).
+      const tools = setup()
+      const sameInstant = new Date('2026-06-01T00:00:00.000Z')
+      mockedList.mockResolvedValue(
+        ['cccccccc', 'bbbbbbbb', 'aaaaaaaa'].map((prefix) => ({
+          id: `${prefix}-1111-4111-8111-111111111111`,
+          name: 'Imported',
+          startedAt: sameInstant,
+          completedAt: null,
+          exerciseCount: 1,
+          setCount: 1,
+          completedSetCount: 1,
+          volumeKg: 100,
+        })),
+      )
+
+      // Act — page past the first row using BOTH cursor halves.
+      const result = await tools.get('list_workouts')!({
+        before: sameInstant.toISOString(),
+        beforeId: 'cccccccc-1111-4111-8111-111111111111',
+      })
+
+      // Assert — the two remaining ties survive; without the id half of the
+      // cursor a strict `startedAt <` filter would have dropped both.
+      const body = payload(result) as { workouts: { id: string }[] }
+      expect(body.workouts.map((w) => w.id)).toEqual([
+        'bbbbbbbb-1111-4111-8111-111111111111',
+        'aaaaaaaa-1111-4111-8111-111111111111',
+      ])
+    })
+
+    it('orders same-timestamp rows deterministically regardless of query order', async () => {
+      // Arrange — the query orders by startedAt alone, so tied rows arrive in
+      // no fixed order; two calls must still agree.
+      const tools = setup()
+      const sameInstant = new Date('2026-06-01T00:00:00.000Z')
+      const row = (prefix: string) => ({
+        id: `${prefix}-1111-4111-8111-111111111111`,
+        name: 'Imported',
+        startedAt: sameInstant,
+        completedAt: null,
+        exerciseCount: 1,
+        setCount: 1,
+        completedSetCount: 1,
+        volumeKg: 100,
+      })
+
+      // Act
+      mockedList.mockResolvedValue([row('aaaaaaaa'), row('cccccccc'), row('bbbbbbbb')])
+      const first = payload(await tools.get('list_workouts')!({})) as { workouts: { id: string }[] }
+      mockedList.mockResolvedValue([row('cccccccc'), row('bbbbbbbb'), row('aaaaaaaa')])
+      const second = payload(await tools.get('list_workouts')!({})) as { workouts: { id: string }[] }
+
+      // Assert
+      expect(first.workouts.map((w) => w.id)).toEqual(second.workouts.map((w) => w.id))
+    })
+
+    it('never reorders the request-memoized array it was handed', async () => {
+      // Arrange — listWorkoutSummaries is React-cached, so an in-place sort
+      // would corrupt every other caller in the same request.
+      const tools = setup()
+      const rows = summaries(3).reverse() // oldest first, i.e. NOT the tool's order
+      const original = [...rows]
+      mockedList.mockResolvedValue(rows)
+
+      // Act
+      await tools.get('list_workouts')!({})
+
+      // Assert
+      expect(rows).toEqual(original)
+    })
+
+    it('reports hasMore false when the page exactly drains the history', async () => {
+      // Arrange
+      const tools = setup()
+      mockedList.mockResolvedValue(summaries(2))
+
+      // Act
+      const result = await tools.get('list_workouts')!({ limit: 2 })
+
+      // Assert
+      expect((payload(result) as { hasMore: boolean }).hasMore).toBe(false)
     })
 
     it('returns a generic isError and logs (no internals leaked) when the db rejects', async () => {

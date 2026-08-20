@@ -50,6 +50,23 @@ import {
 } from '@/lib/program-input'
 import { overshootPolicySchema } from '@/lib/overshoot-policy'
 
+/** The five program behavior policies, as one discriminated union: every arm
+ *  is `name` + `value`, so the model picks a policy the same way it would
+ *  pick a tool — without five near-identical schemas in the prompt. */
+const programPolicyArg = z.discriminatedUnion('name', [
+  z.object({
+    name: z.literal('autoregulation'),
+    value: z.boolean(),
+    stallPolicy: z.enum(['all-sets', 'first-set']).optional(),
+  }),
+  z.object({ name: z.literal('deload'), value: deloadPolicySchema.nullable() }),
+  z.object({ name: z.literal('dietPhase'), value: dietPhaseSchema.nullable() }),
+  z.object({ name: z.literal('overshoot'), value: overshootPolicySchema.nullable() }),
+  z.object({ name: z.literal('planSync'), value: z.boolean() }),
+])
+
+type ProgramPolicyArg = z.infer<typeof programPolicyArg>
+
 /** Optional explicit unit override; absent → the user's stored unit. */
 const unitArg = z.enum(['kg', 'lb']).optional()
 /** Names are required columns — non-blank, trimmed (mirrors programDaySchema/programExerciseSchema). */
@@ -135,6 +152,67 @@ async function runOp<T>(op: () => Promise<T>): Promise<T> {
   }
 }
 
+/**
+ * One program policy, applied.
+ *
+ * The five policies used to be five MCP tools with identical shapes
+ * (programId + one value). Collapsing them is the one merge on the coach's
+ * surface that costs nothing in selection accuracy: the arms are structurally
+ * identical, so there is no schema nuance for a tight per-tool description to
+ * convey that the discriminated union doesn't.
+ *
+ * The collapse stops at the TOOL layer, deliberately. The change-log `action`
+ * names in db/program-patches.ts and the proposal op name in
+ * lib/patch-proposal.ts are PERSISTED — historical events and pending
+ * proposals reference them — so those keep the original per-policy names.
+ *
+ * Returns the echo fields for the tool payload, or null when the program
+ * isn't the user's.
+ */
+async function applyProgramPolicy(
+  userId: string,
+  programId: string,
+  policy: ProgramPolicyArg,
+  actor: ReturnType<typeof resolveActor>,
+): Promise<Record<string, unknown> | null> {
+  switch (policy.name) {
+    case 'autoregulation': {
+      const result = await setProgramAutoregulation(
+        userId,
+        programId,
+        policy.value,
+        actor,
+        policy.stallPolicy,
+      )
+      if (!result) return null
+      return {
+        autoregulation: policy.value,
+        ...(policy.stallPolicy !== undefined ? { autoregStallPolicy: policy.stallPolicy } : {}),
+      }
+    }
+    case 'deload': {
+      const result = await runOp(() =>
+        setProgramDeloadPolicy(userId, programId, policy.value, actor),
+      )
+      return result ? { deloadPolicy: policy.value } : null
+    }
+    case 'dietPhase': {
+      const result = await runOp(() => setProgramDietPhase(userId, programId, policy.value, actor))
+      return result ? { dietPhase: policy.value } : null
+    }
+    case 'overshoot': {
+      const result = await runOp(() =>
+        setProgramOvershootPolicy(userId, programId, policy.value, actor),
+      )
+      return result ? { overshootPolicy: policy.value } : null
+    }
+    case 'planSync': {
+      const result = await setProgramPlanSync(userId, programId, policy.value, actor)
+      return result ? { planSync: policy.value } : null
+    }
+  }
+}
+
 /** runOp's twin for the proposal layer: `PatchProposalError` (invalid batch /
  *  non-active program) surfaces verbatim instead of being genericized. */
 async function runProposalOp<T>(op: () => Promise<T>): Promise<T> {
@@ -207,51 +285,14 @@ export function registerProgramPatchTools(server: McpServer): void {
   // -------------------------------------------------------------------------
 
   server.registerTool(
-    'set_program_autoregulation',
+    'set_program_policy',
     {
-      title: 'Set Program Auto-Regulation',
+      title: 'Set Program Policy',
       description:
-        "Turns a program's auto-regulation on or off without touching its days/exercises/sets. When on (the default), week previews and instantiated sessions propose stall-reactive load adjustments (repeat after one stalled session, ~10% back-off after two) with a visible reason; explicit per-week overrides always win. Optional `stallPolicy` sets the fixed-mode stall rule alongside the toggle: 'all-sets' (the default — any working set missing its rep floor stalls the session) or 'first-set' (only the first working set decides; its miss stalls, other sets' misses don't). Omitting `stallPolicy` preserves the stored policy. Errors if the program isn't found or owned.",
+        "Sets one of a program's behavior policies without touching its days/exercises/sets. Pass `policy.name` plus its `value`:\n\n- `autoregulation` (value: boolean) — when on (the default), week previews and instantiated sessions propose stall-reactive load adjustments (repeat after one stalled session, ~10% back-off after two) with a visible reason; explicit per-week overrides always win. Optional `stallPolicy` sets the fixed-mode stall rule alongside the toggle: 'all-sets' (the default — any working set missing its rep floor stalls the session) or 'first-set' (only the first working set decides). Omitting `stallPolicy` preserves the stored policy.\n- `deload` (value: object or null to clear) — `mode`: 'none' (the deload week, if any, derives as a normal training week and the early-deload suggestion is suppressed), 'reactive' (no scheduled back-off; deload only when the stall-driven early-deload flag suggests it), or 'scheduled' with a `shape` ({ loadFactor 0–1 default 0.85, setFactor 0–1 default 0.5, rpeCap 5–10 or null, timedExercises 'untouched' (default) | 'scaled' }) applied to the deload week's progressed sets. `deloadWeek` still shapes the progression axis in every mode. Clearing restores the legacy behavior: a set deloadWeek backs off at the historical factors, none otherwise.\n- `dietPhase` (value: 'cutting' | 'maintaining' | 'bulking', or null to clear) — null means no phase. 'cutting' never changes loads or suppresses signals; it reframes three-stall verdicts (stalls are expected in a deficit — holding is the win) and routes the automatic three-stall back-off through an owner-confirmable proposal instead of applying it. 'maintaining'/'bulking' are stored context only. Every explicit set — including a clear — stamps dietPhaseSetAt (exposed by get_program as the staleness signal).\n- `overshoot` (value: policy id or null to clear) — how a completed set that beat its prescription on a different axis (more reps at a lighter load) is credited. 'strict-load': counts only at the prescribed load. 'e1rm-equivalent': counts when its estimated 1RM meets the prescription's e1RM. 'any-metric': permissive. Null restores the per-scheme defaults. Overshoot never auto-accelerates a training max or skips progression steps.\n- `planSync` (value: boolean) — when on (the default), finishing a session that outperformed the plan's suggested loads writes the performed loads back into the plan (each change appears in the change log). Turn off for deliberate-percentage programs (5/3/1-style waves) where lifting past the listed number is by design.\n\nErrors if the program isn't found or owned.",
       inputSchema: {
         programId: z.string(),
-        enabled: z.boolean(),
-        stallPolicy: z.enum(['all-sets', 'first-set']).optional(),
-        userId: z.string().optional(),
-      },
-    },
-    async ({ programId, enabled, stallPolicy, userId }, extra) => {
-      try {
-        const resolved = resolveUserId(extra, userId)
-        assertProgramIdShape(programId)
-        const result = await setProgramAutoregulation(
-          resolved,
-          programId,
-          enabled,
-          resolveActor(extra),
-          stallPolicy,
-        )
-        if (!result) throw new ToolError(`Program ${programId} not found for user ${resolved}`)
-        return jsonResult({
-          userId: resolved,
-          programId,
-          autoregulation: enabled,
-          ...(stallPolicy !== undefined ? { autoregStallPolicy: stallPolicy } : {}),
-        })
-      } catch (error: unknown) {
-        return errorResult(error)
-      }
-    },
-  )
-
-  server.registerTool(
-    'set_program_deload_policy',
-    {
-      title: 'Set Program Deload Policy',
-      description:
-        "Sets (or clears, with `policy: null`) a program's deload policy without touching its days/exercises/sets. `policy.mode`: 'none' (the deload week — if any — derives as a normal training week and the early-deload suggestion is suppressed), 'reactive' (no scheduled back-off; deload only when the stall-driven early-deload flag suggests it), or 'scheduled' with a `shape` ({ loadFactor 0–1 default 0.85, setFactor 0–1 default 0.5, rpeCap 5–10 or null, timedExercises 'untouched' (default — duration sets never resize or stamp; a fully-timed exercise deloads as a normal week) | 'scaled' (timed sets join the back-off; durations are never multiplied) }) applied to the deload week's progressed sets. `deloadWeek` still shapes the progression axis in every mode. Clearing (null) restores the legacy behavior: a set deloadWeek backs off at the historical factors, none otherwise. Errors if the program isn't found or owned.",
-      inputSchema: {
-        programId: z.string(),
-        policy: deloadPolicySchema.nullable(),
+        policy: programPolicyArg,
         userId: z.string().optional(),
       },
     },
@@ -259,90 +300,10 @@ export function registerProgramPatchTools(server: McpServer): void {
       try {
         const resolved = resolveUserId(extra, userId)
         assertProgramIdShape(programId)
-        const result = await runOp(() =>
-          setProgramDeloadPolicy(resolved, programId, policy, resolveActor(extra)),
-        )
-        if (!result) throw new ToolError(`Program ${programId} not found for user ${resolved}`)
-        return jsonResult({ userId: resolved, programId, deloadPolicy: policy })
-      } catch (error: unknown) {
-        return errorResult(error)
-      }
-    },
-  )
-
-  server.registerTool(
-    'set_program_diet_phase',
-    {
-      title: 'Set Program Diet Phase',
-      description:
-        "Sets (or clears, with `phase: null`) a program's diet-phase context: 'cutting' | 'maintaining' | 'bulking'. Null means no phase — the engine behaves exactly as if the field never existed. 'cutting' never changes loads or suppresses signals; it reframes three-stall verdicts (stalls are expected in a deficit — holding is the win) and routes the automatic three-stall back-off through an owner-confirmable proposal instead of applying it (declining holds). 'maintaining'/'bulking' are stored context only. Every explicit set — including a clear — stamps dietPhaseSetAt (exposed by get_program as the staleness signal). Errors if the program isn't found or owned.",
-      inputSchema: {
-        programId: z.string(),
-        phase: dietPhaseSchema.nullable(),
-        userId: z.string().optional(),
-      },
-    },
-    async ({ programId, phase, userId }, extra) => {
-      try {
-        const resolved = resolveUserId(extra, userId)
-        assertProgramIdShape(programId)
-        const result = await runOp(() =>
-          setProgramDietPhase(resolved, programId, phase, resolveActor(extra)),
-        )
-        if (!result) throw new ToolError(`Program ${programId} not found for user ${resolved}`)
-        return jsonResult({ userId: resolved, programId, dietPhase: phase })
-      } catch (error: unknown) {
-        return errorResult(error)
-      }
-    },
-  )
-
-  server.registerTool(
-    'set_program_overshoot_policy',
-    {
-      title: 'Set Program Overshoot Policy',
-      description:
-        "Sets (or clears, with `policy: null`) a program's overshoot / goal-met policy — how a completed set that beat its prescription on a different axis (more reps at a lighter load) is credited. 'strict-load': a goal counts only at the prescribed load (the load-anchored doctrine). 'e1rm-equivalent': a set counts when its estimated 1RM meets the prescription's e1RM. 'any-metric': permissive — reps ≥ target reps OR load ≥ target load OR e1RM ≥ target e1RM. Null restores the per-scheme defaults (strict for linear / double-progression / rep-progression / percent-1rm / amrap-cycle; e1rm-equivalent for rpe-target; weekly-volume is set-count scored, so the policy is inert there). Under every policy, overshoot never auto-accelerates a training max or skips progression steps. Errors if the program isn't found or owned.",
-      inputSchema: {
-        programId: z.string(),
-        policy: overshootPolicySchema.nullable(),
-        userId: z.string().optional(),
-      },
-    },
-    async ({ programId, policy, userId }, extra) => {
-      try {
-        const resolved = resolveUserId(extra, userId)
-        assertProgramIdShape(programId)
-        const result = await runOp(() =>
-          setProgramOvershootPolicy(resolved, programId, policy, resolveActor(extra)),
-        )
-        if (!result) throw new ToolError(`Program ${programId} not found for user ${resolved}`)
-        return jsonResult({ userId: resolved, programId, overshootPolicy: policy })
-      } catch (error: unknown) {
-        return errorResult(error)
-      }
-    },
-  )
-
-  server.registerTool(
-    'set_program_plan_sync',
-    {
-      title: 'Set Program Plan Sync',
-      description:
-        "Turns a program's performance→plan auto-sync on or off without touching its days/exercises/sets. When on (the default), finishing a session that outperformed the plan's suggested loads writes the performed loads back into the plan (each change appears in the program change log). Turn off for deliberate-percentage programs (5/3/1-style waves) where lifting past the listed number is by design. Errors if the program isn't found or owned.",
-      inputSchema: {
-        programId: z.string(),
-        enabled: z.boolean(),
-        userId: z.string().optional(),
-      },
-    },
-    async ({ programId, enabled, userId }, extra) => {
-      try {
-        const resolved = resolveUserId(extra, userId)
-        assertProgramIdShape(programId)
-        const result = await setProgramPlanSync(resolved, programId, enabled, resolveActor(extra))
-        if (!result) throw new ToolError(`Program ${programId} not found for user ${resolved}`)
-        return jsonResult({ userId: resolved, programId, planSync: enabled })
+        const actor = resolveActor(extra)
+        const applied = await applyProgramPolicy(resolved, programId, policy, actor)
+        if (!applied) throw new ToolError(`Program ${programId} not found for user ${resolved}`)
+        return jsonResult({ userId: resolved, programId, ...applied })
       } catch (error: unknown) {
         return errorResult(error)
       }
