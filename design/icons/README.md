@@ -6,13 +6,22 @@ and regenerate, never hand-edit a derived file.
 
 | Variant | Ground | Used for |
 | --- | --- | --- |
-| `icon.png` | volt `#92d702` | home screen (manifest + apple-touch), light-mode favicon |
+| `icon.png` | icon green `#92d702` | home screen (manifest + apple-touch), light-mode favicon |
 | `icon-dark.png` | `#1a1c18` | dark-mode favicon only |
 
-The volt tile is the app icon proper: on a home screen it sits over the user's
+The green tile is the app icon proper: on a home screen it sits over the user's
 wallpaper, where the brand ground carries the recognition. The dark variant
 exists for browser chrome that is already dark, where a bright tile would read
 as a lit square instead of a mark.
+
+**The icon green is not the volt.** `--primary` — the volt, the app's one
+accent — is `oklch(0.86 0.19 128)`, which resolves to `#ade74e`; the icon
+ground is `#92d702`, a deeper green. The two are close enough to be mistaken
+for each other and are NOT the same value. That is tolerable because the mark
+is supplied artwork with its own palette, not a token consumer: no code reads
+this hex, and `src/design/tokens.ts` remains the only source of UI colour. If
+the two should ever converge, recolour the masters here and regenerate — never
+by writing a colour into `src/`.
 
 ## Regenerating
 

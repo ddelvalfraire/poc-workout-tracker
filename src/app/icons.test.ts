@@ -67,7 +67,7 @@ describe('app icons', () => {
   })
 
   it('offers a favicon for both colour schemes', () => {
-    // The mark ships on a volt tile; against dark browser chrome that reads as
+    // The mark ships on a green tile; against dark browser chrome that reads as
     // a lit square, so the dark variant has to be wired or the swap is lost.
     const layout = readFileSync(join(ROOT, 'src/app/layout.tsx'), 'utf8')
     expect(layout).toMatch(/media: "\(prefers-color-scheme: light\)"/)
