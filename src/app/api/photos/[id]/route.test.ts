@@ -1,21 +1,21 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { auth } from '@clerk/nextjs/server'
+import { getUserId } from '@/lib/auth'
 import { deleteProgressPhoto } from '@/db/progress-photos'
 import { deleteObjects } from '@/lib/supabase-storage'
 import { DELETE } from './route'
 
-vi.mock('@clerk/nextjs/server', () => ({ auth: vi.fn() }))
+vi.mock('@/lib/auth', () => ({ getUserId: vi.fn() }))
 vi.mock('@/db/progress-photos', () => ({ deleteProgressPhoto: vi.fn() }))
 vi.mock('@/lib/supabase-storage', () => ({ deleteObjects: vi.fn() }))
 
-const mockedAuth = vi.mocked(auth)
+const mockedGetUserId = vi.mocked(getUserId)
 const mockedDeleteRow = vi.mocked(deleteProgressPhoto)
 const mockedDeleteObjects = vi.mocked(deleteObjects)
 
 const VALID_ID = '11111111-2222-3333-4444-555555555555'
 
 function signedIn(userId: string | null): void {
-  mockedAuth.mockResolvedValue({ userId } as unknown as Awaited<ReturnType<typeof auth>>)
+  mockedGetUserId.mockResolvedValue(userId)
 }
 
 function del(id: string): Promise<Response> {

@@ -7,7 +7,7 @@ vi.mock('next/og', () => ({
     }
   },
 }))
-vi.mock('@clerk/nextjs/server', () => ({ auth: vi.fn() }))
+vi.mock('@/lib/auth', () => ({ getUserId: vi.fn() }))
 vi.mock('@/db/preferences', () => ({ getWeightUnit: vi.fn(async () => 'lb') }))
 vi.mock('@/db/exercise-stats', () => ({
   getExerciseStats: vi.fn(async () => null),
@@ -34,7 +34,7 @@ vi.mock('@/lib/push', () => ({
   sendPushToUser: vi.fn(async () => ({ configured: true, sent: 0, pruned: 0, failed: 0 })),
 }))
 
-import { auth } from '@clerk/nextjs/server'
+import { getUserId } from '@/lib/auth'
 import {
   getExerciseStats,
   type ExerciseAllTimeStats,
@@ -42,11 +42,11 @@ import {
 } from '@/db/exercise-stats'
 import { GET } from './route'
 
-const mockedAuth = vi.mocked(auth)
+const mockedGetUserId = vi.mocked(getUserId)
 const mockedStats = vi.mocked(getExerciseStats)
 
 function signedIn(userId: string | null): void {
-  mockedAuth.mockResolvedValue({ userId } as unknown as Awaited<ReturnType<typeof auth>>)
+  mockedGetUserId.mockResolvedValue(userId)
 }
 
 function get(source: string, id: string): Promise<Response> {

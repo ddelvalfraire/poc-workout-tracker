@@ -22,7 +22,7 @@ import { PostHog } from 'posthog-node'
  * tracking plan (onboarding_completed, pwa_*, paywall_viewed) live with their
  * UI when those surfaces ship.
  *
- * distinct_id is the Clerk user id — an identifier WE own, so history can be
+ * distinct_id is the WorkOS user id — an identifier WE own, so history can be
  * joined/merged across analytics projects or vendors later (the batch-export
  * escape hatch). Pre-signup anonymous activity stitches when the consent step
  * lands and identify() is called client-side with the same id.
@@ -166,7 +166,7 @@ export async function isServerFeatureEnabled(
  * fire-and-forget (`void captureServerEvent(...)`) — failures never throw.
  */
 export async function captureServerEvent(
-  clerkUserId: string,
+  userId: string,
   event: AnalyticsEvent,
 ): Promise<void> {
   const posthog = getClient()
@@ -175,7 +175,7 @@ export async function captureServerEvent(
     // captureImmediate resolves once the transport accepted the event —
     // required in serverless where a queued send may never flush.
     await posthog.captureImmediate({
-      distinctId: clerkUserId,
+      distinctId: userId,
       event: event.name,
       properties: event.properties,
     })

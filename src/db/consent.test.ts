@@ -380,7 +380,7 @@ describe('markDownstreamAction', () => {
   })
 
   it('records a failure with completedAt null — the honest still-owed marker', async () => {
-    await markDownstreamAction('ev-1', 'clerk', 'failed')
+    await markDownstreamAction('ev-1', 'workos', 'failed')
 
     expect(updates).toHaveLength(1)
     const set = updates[0].set as { status: string; completedAt: Date | null }

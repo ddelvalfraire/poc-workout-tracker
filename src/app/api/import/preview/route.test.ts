@@ -1,11 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { auth } from '@clerk/nextjs/server'
+import { getUserId } from '@/lib/auth'
 import { getWeightUnit } from '@/db/preferences'
 import { planImport, ImportPlanError, type ImportPlan } from '@/db/import'
 import { storePreview } from '@/lib/import/preview-cache'
 import { POST } from './route'
 
-vi.mock('@clerk/nextjs/server', () => ({ auth: vi.fn() }))
+vi.mock('@/lib/auth', () => ({ getUserId: vi.fn() }))
 vi.mock('@/db/preferences', () => ({ getWeightUnit: vi.fn() }))
 vi.mock('@/db/import', async (importOriginal) => {
   const original = await importOriginal<typeof import('@/db/import')>()
@@ -17,13 +17,13 @@ vi.mock('@/lib/import/preview-cache', () => ({
   deletePreview: vi.fn(),
 }))
 
-const mockedAuth = vi.mocked(auth)
+const mockedGetUserId = vi.mocked(getUserId)
 const mockedUnit = vi.mocked(getWeightUnit)
 const mockedPlan = vi.mocked(planImport)
 const mockedStore = vi.mocked(storePreview)
 
 function signedIn(userId: string | null): void {
-  mockedAuth.mockResolvedValue({ userId } as unknown as Awaited<ReturnType<typeof auth>>)
+  mockedGetUserId.mockResolvedValue(userId)
 }
 
 // Synthetic fixture — never a real export.

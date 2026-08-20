@@ -1,5 +1,5 @@
-import { auth } from '@clerk/nextjs/server'
 import { NextResponse } from 'next/server'
+import { getUserId } from '@/lib/auth'
 import { commitImport, ImportPlanError, planImport } from '@/db/import'
 import { deletePreview, loadPreview } from '@/lib/import/preview-cache'
 
@@ -14,7 +14,7 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{
  * token is single-use: deleted after a successful commit.
  */
 export async function POST(request: Request): Promise<NextResponse> {
-  const { userId } = await auth()
+  const userId = await getUserId()
   if (!userId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }

@@ -1,5 +1,5 @@
-import { auth } from '@clerk/nextjs/server'
 import { NextResponse } from 'next/server'
+import { getUserId } from '@/lib/auth'
 import { getWeightUnit } from '@/db/preferences'
 import { listTrophies } from '@/db/trophies'
 import { trophyCardData } from '@/lib/cards/card-data'
@@ -16,7 +16,7 @@ export async function GET(
   _request: Request,
   { params }: { params: Promise<{ kind: string }> },
 ): Promise<Response> {
-  const { userId } = await auth()
+  const userId = await getUserId()
   if (!userId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }

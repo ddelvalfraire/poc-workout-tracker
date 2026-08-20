@@ -1,5 +1,5 @@
-import { auth } from '@clerk/nextjs/server'
 import { NextResponse, after } from 'next/server'
+import { getUserId } from '@/lib/auth'
 import { convertToModelMessages, stepCountIs, streamText, type UIMessage } from 'ai'
 import { getWeightUnit } from '@/db/preferences'
 import { isCoachEnabled } from '@/lib/coach/access'
@@ -46,10 +46,10 @@ function buildSystemPrompt(weightUnit: string, context?: string): string {
  * MCP tools through an in-memory bridge (see @/lib/coach/mcp-bridge). The tool
  * set is filtered server-side to the coach allowlist (@/lib/coach/tool-policy);
  * allowed program mutations additionally go through the AI SDK user-approval
- * flow. Clerk-gated like the other API routes (middleware + explicit check).
+ * flow. Session-gated like the other API routes (middleware + explicit check).
  */
 export async function POST(request: Request): Promise<Response> {
-  const { userId } = await auth()
+  const userId = await getUserId()
   if (!userId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }

@@ -7,20 +7,12 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 
 /**
  * `'use server'` modules can't be bundled for the browser — they pull in
- * Drizzle, Postgres and Clerk auth. UnitToggle, NavDrawer and
+ * Drizzle, Postgres and the AuthKit session. UnitToggle, NavDrawer and
  * SessionConflictDialog each call one, so the catalog swaps them for the
  * stubs in ./mocks/app-actions.ts. `.storybook/mocks.test.ts` enforces that
  * this list covers every action module the components import, and that the
  * stub file exports every symbol they pull from it.
  */
-/**
- * `@clerk/nextjs` components throw outside a ClerkProvider, and standing one up
- * would mean a publishable key and a network call just to render the catalog.
- * NavDrawer's `<UserButton />` is the only such component under
- * src/components/**; `.storybook/mocks/clerk.tsx` stands in for it.
- */
-export const VENDOR_MODULES = ["@clerk/nextjs"];
-
 export const SERVER_ACTION_MODULES = [
   "@/app/actions",
   "@/app/programs/actions",
@@ -72,10 +64,6 @@ const config: StorybookConfig = {
       ...SERVER_ACTION_MODULES.map((find) => ({
         find,
         replacement: join(HERE, "mocks/app-actions.ts"),
-      })),
-      ...VENDOR_MODULES.map((find) => ({
-        find,
-        replacement: join(HERE, "mocks/clerk.tsx"),
       })),
       ...inheritedEntries,
     ];

@@ -3,14 +3,14 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { SERVER_ACTION_MODULES, VENDOR_MODULES } from "./main";
+import { SERVER_ACTION_MODULES } from "./main";
 import * as mocks from "./mocks/app-actions";
-import * as clerkMock from "./mocks/clerk";
 
 /**
  * The alias list in main.ts is the only thing keeping Drizzle, Postgres and
- * Clerk auth out of the Storybook browser bundle. It used to be maintained by
- * hand against a grep in a comment; these tests are that grep, enforced.
+ * the AuthKit session out of the Storybook browser bundle. It used to be
+ * maintained by hand against a grep in a comment; these tests are that grep,
+ * enforced.
  */
 const COMPONENTS = join(process.cwd(), "src/components");
 
@@ -69,23 +69,19 @@ describe("storybook server-action mocks", () => {
     expect(missing).toEqual([]);
   });
 
-  it("stubs every vendor module that needs a provider", () => {
-    // NavDrawer's <UserButton /> throws outside a ClerkProvider. Standing up a
-    // real provider would mean a publishable key and a network call to render
-    // a catalog, so the specifier is aliased. This test is what stops a new
-    // Clerk import from silently reintroducing the crash — and the crash only
-    // reproduces when the drawer is OPEN, which is why NavDrawer has an
-    // `Opened` story with a play function.
-    const pattern = /import\s*\{([^}]+)\}\s*from\s*['"]@clerk\/nextjs['"]/g;
-    const used = walk(COMPONENTS).flatMap((file) =>
-      [...readFileSync(file, "utf8").matchAll(pattern)].flatMap((m) =>
-        m[1].split(",").map((sym) => sym.trim().split(/\s+as\s+/)[0].trim()),
+  it("imports no auth-vendor component that would need a provider", () => {
+    // The drawer footer used to render a vendor account widget that threw
+    // outside its provider — a crash that only reproduced with the drawer
+    // OPEN, which is why NavDrawer still has an `Opened` story with a play
+    // function. AuthKit's session is reached through a server action instead,
+    // so no component needs a provider standing up in the catalog. This test
+    // is what stops a vendor component from reintroducing that class of crash.
+    const offenders = walk(COMPONENTS).filter((file) =>
+      /from\s*['"]@(?:clerk\/nextjs|workos-inc\/authkit-nextjs)[^'"]*['"]/.test(
+        readFileSync(file, "utf8"),
       ),
     );
-    expect(VENDOR_MODULES).toContain("@clerk/nextjs");
-    expect(used.length).toBeGreaterThan(0);
-    const missing = used.filter((symbol) => !(symbol in clerkMock));
-    expect(missing).toEqual([]);
+    expect(offenders).toEqual([]);
   });
 
   it("has no stale entries in the alias list", () => {

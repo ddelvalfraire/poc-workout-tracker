@@ -1,5 +1,5 @@
-import { auth } from '@clerk/nextjs/server'
 import { NextResponse } from 'next/server'
+import { getUserId } from '@/lib/auth'
 import { deleteProgressPhoto } from '@/db/progress-photos'
 import { deleteObjects } from '@/lib/supabase-storage'
 
@@ -19,7 +19,7 @@ export async function DELETE(
   _request: Request,
   { params }: { params: Promise<{ id: string }> },
 ): Promise<NextResponse> {
-  const { userId } = await auth()
+  const userId = await getUserId()
   if (!userId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }

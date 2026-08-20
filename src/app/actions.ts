@@ -1,6 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { signOut } from '@workos-inc/authkit-nextjs'
 import { requireUserId } from '@/lib/auth'
 import {
   setWeightUnit,
@@ -191,5 +192,15 @@ export async function setRpeLoggingEnabledAction(enabled: unknown): Promise<void
   }
   await setRpeLoggingEnabled(userId, enabled)
   revalidatePath('/', 'layout')
+}
+
+/**
+ * Ends the session and sends the user to AuthKit's logout, which clears the
+ * WorkOS session before returning them to the app signed out. Lives here
+ * rather than beside the component so the button can stay a client component
+ * — a `'use server'` module is the only thing a client form action may call.
+ */
+export async function signOutAction(): Promise<void> {
+  await signOut()
 }
 

@@ -1,41 +1,26 @@
 import { test, expect } from '@playwright/test'
-import { clerk } from '@clerk/testing/playwright'
 import postgres from 'postgres'
+import { createTestUser, deleteTestUser, signIn, type TestUser } from './auth'
 
 /**
  * End-to-end happy path for the Phase 3 core logging loop, against the LIVE
- * Clerk dev instance and Supabase DB.
+ * WorkOS environment and Supabase DB.
  *
- * A disposable `+clerk_test` user is provisioned via the Clerk Backend API,
- * signed in through the real UI (Testing Token bypasses bot protection), drives
- * the logger, and the resulting row tree is asserted directly in Postgres. Both
- * the workout rows (cascade) and the Clerk user are removed in teardown, so the
- * test leaves nothing behind.
+ * A disposable user is provisioned via the WorkOS User Management API, signed
+ * in through the real hosted AuthKit page, drives the logger, and the resulting
+ * row tree is asserted directly in Postgres. Both the workout rows (cascade)
+ * and the WorkOS user are removed in teardown, so the test leaves nothing
+ * behind.
  */
 
-const CLERK_API = 'https://api.clerk.com/v1'
-const SECRET = process.env.CLERK_SECRET_KEY!
-const STAMP = Date.now()
-const TEST_EMAIL = `e2e+clerk_test_${STAMP}@example.com`
-const TEST_PASSWORD = `Pw-e2e-${STAMP}-aZ9!`
-
+let user: TestUser
 let userId: string
 let sql: ReturnType<typeof postgres>
 
 test.beforeAll(async () => {
   // Provision a disposable, pre-verified test user with a password.
-  const res = await fetch(`${CLERK_API}/users`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${SECRET}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      email_address: [TEST_EMAIL],
-      password: TEST_PASSWORD,
-      skip_password_checks: true,
-    }),
-  })
-  const body = await res.json()
-  if (!res.ok) throw new Error(`Clerk create user failed (${res.status}): ${JSON.stringify(body)}`)
-  userId = body.id
+  user = await createTestUser('workout')
+  userId = user.id
 
   // Direct connection (session pooler, 5432) for assertions + cleanup.
   sql = postgres(process.env.DATABASE_URL_DIRECT!, { prepare: false })
@@ -51,20 +36,13 @@ test.afterAll(async () => {
     await sql`delete from user_preferences where user_id = ${userId}`
     await sql.end()
   }
-  if (userId) {
-    await fetch(`${CLERK_API}/users/${userId}`, {
-      method: 'DELETE',
-      headers: { Authorization: `Bearer ${SECRET}` },
-    })
-  }
+  if (userId) await deleteTestUser(userId)
 })
 
 test('signed-in user can start, log, and save a workout', async ({ page }) => {
-  // Sign in via Clerk on a page that loads it (home redirects to /sign-in).
-  // Email/ticket-based sign-in mints a sign-in token server-side and activates
-  // the session — robust for a freshly Backend-API-created user.
-  await page.goto('/sign-in')
-  await clerk.signIn({ page, emailAddress: TEST_EMAIL })
+  // Sign in through the hosted AuthKit page (home redirects to /sign-in, which
+  // hands off to AuthKit); the callback returns with an active session.
+  await signIn(page, user)
 
   // Home -> confirm the session actually took, then Start Workout.
   await page.goto('/')

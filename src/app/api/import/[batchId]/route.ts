@@ -1,5 +1,5 @@
-import { auth } from '@clerk/nextjs/server'
 import { NextResponse } from 'next/server'
+import { getUserId } from '@/lib/auth'
 import { undoImport } from '@/db/import'
 
 // Guarding the uuid shape keeps a garbage id as a clean 404 instead of a
@@ -16,7 +16,7 @@ export async function DELETE(
   _request: Request,
   { params }: { params: Promise<{ batchId: string }> },
 ): Promise<NextResponse> {
-  const { userId } = await auth()
+  const userId = await getUserId()
   if (!userId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }

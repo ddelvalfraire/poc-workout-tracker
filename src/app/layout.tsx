@@ -1,5 +1,4 @@
 import type { Metadata, Viewport } from "next";
-import { ClerkProvider } from "@clerk/nextjs";
 import { NextIntlClientProvider } from "next-intl";
 import { getTranslations } from "next-intl/server";
 import { resolveLocale } from "@/i18n/request";
@@ -39,6 +38,10 @@ export const viewport: Viewport = {
   interactiveWidget: "resizes-content",
 };
 
+// NO auth provider and NO session read belong in this layout. It wraps the
+// public routes too, so reading request data here opts /terms, /privacy and
+// /health-privacy out of static rendering — which is exactly what happened
+// once already. src/app/layout.test.ts fails if either creeps back.
 export default async function RootLayout({
   children,
 }: Readonly<{
@@ -49,50 +52,35 @@ export default async function RootLayout({
   const locale = await resolveLocale();
 
   return (
-    <ClerkProvider
-      appearance={{
-        variables: {
-          colorBackground: BRAND,
-          colorPrimary: "oklch(0.86 0.19 128)",
-          colorPrimaryForeground: "oklch(0.16 0.03 128)",
-          colorForeground: "oklch(0.97 0 0)",
-          colorMutedForeground: "oklch(0.72 0 0)",
-          colorInput: "oklch(0.205 0 0)",
-          colorInputForeground: "oklch(0.97 0 0)",
-          colorNeutral: "oklch(0.97 0 0)",
-        },
-      }}
+    <html
+      lang={locale}
+      dir="ltr"
+      className={`dark ${fontVariables} h-full antialiased`}
     >
-      <html
-        lang={locale}
-        dir="ltr"
-        className={`dark ${fontVariables} h-full antialiased`}
-      >
-        <body className="bg-background text-foreground min-h-[100dvh] flex flex-col">
-          {/* Must be first in <body>: attaches chunk-failure listeners before
-              any /_next script can 404 (stale deploy), when React never boots. */}
-          <ChunkRecoveryScript />
-          {/* Once, app-wide: the in-app history stack every BackLink reads
-              (pop vs fallback-replace) — see lib/back-navigation. */}
-          <NavigationTracker />
-          {/* No messages prop: client islands inherit what the server already
-              resolved. NOTE the cost of putting this at the root — getMessages()
-              returns the WHOLE catalog unscoped, so every route's payload
-              carries every namespace. Fine at this size; once extraction has
-              grown the catalog, scope it (pick() per route, or push providers
-              down to the islands that need them) or it becomes a bundle
-              regression no test will catch. */}
-          <NextIntlClientProvider>
-            <Providers>
-              <PageTransition>{children}</PageTransition>
-            </Providers>
-          </NextIntlClientProvider>
-          <ServiceWorkerRegister />
-          {/* Proactive stale-build reload on resume — the counterpart to the
-              reactive ChunkRecoveryScript above. */}
-          <UpdateOnResume />
-        </body>
-      </html>
-    </ClerkProvider>
+      <body className="bg-background text-foreground min-h-[100dvh] flex flex-col">
+        {/* Must be first in <body>: attaches chunk-failure listeners before
+            any /_next script can 404 (stale deploy), when React never boots. */}
+        <ChunkRecoveryScript />
+        {/* Once, app-wide: the in-app history stack every BackLink reads
+            (pop vs fallback-replace) — see lib/back-navigation. */}
+        <NavigationTracker />
+        {/* No messages prop: client islands inherit what the server already
+            resolved. NOTE the cost of putting this at the root — getMessages()
+            returns the WHOLE catalog unscoped, so every route's payload
+            carries every namespace. Fine at this size; once extraction has
+            grown the catalog, scope it (pick() per route, or push providers
+            down to the islands that need them) or it becomes a bundle
+            regression no test will catch. */}
+        <NextIntlClientProvider>
+          <Providers>
+            <PageTransition>{children}</PageTransition>
+          </Providers>
+        </NextIntlClientProvider>
+        <ServiceWorkerRegister />
+        {/* Proactive stale-build reload on resume — the counterpart to the
+            reactive ChunkRecoveryScript above. */}
+        <UpdateOnResume />
+      </body>
+    </html>
   );
 }

@@ -1,39 +1,24 @@
 import { test, expect } from '@playwright/test'
-import { clerk } from '@clerk/testing/playwright'
 import postgres from 'postgres'
+import { createTestUser, deleteTestUser, signIn, type TestUser } from './auth'
 
 /**
- * End-to-end for Phase 3 "repeat last workout", against the LIVE Clerk dev
- * instance and Supabase DB. Mirrors the Phase 2 harness: a disposable
- * `+clerk_test` user (pinned to kg for deterministic values) logs a workout,
- * repeats it from the detail page, and the logger opens pre-seeded with the
- * source workout's exercises and sets as real input values (not ghosts). Editing
- * and saving the seed creates a distinct second workout, leaving the source
- * untouched. Teardown removes all rows and the Clerk user.
+ * End-to-end for Phase 3 "repeat last workout", against the LIVE WorkOS
+ * environment and Supabase DB. Mirrors the Phase 2 harness: a disposable user
+ * (pinned to kg for deterministic values) logs a workout, repeats it from the
+ * detail page, and the logger opens pre-seeded with the source workout's
+ * exercises and sets as real input values (not ghosts). Editing and saving the
+ * seed creates a distinct second workout, leaving the source untouched.
+ * Teardown removes all rows and the WorkOS user.
  */
 
-const CLERK_API = 'https://api.clerk.com/v1'
-const SECRET = process.env.CLERK_SECRET_KEY!
-const STAMP = Date.now()
-const TEST_EMAIL = `e2e+clerk_test_rep_${STAMP}@example.com`
-const TEST_PASSWORD = `Pw-e2e-${STAMP}-aZ9!`
-
+let user: TestUser
 let userId: string
 let sql: ReturnType<typeof postgres>
 
 test.beforeAll(async () => {
-  const res = await fetch(`${CLERK_API}/users`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${SECRET}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      email_address: [TEST_EMAIL],
-      password: TEST_PASSWORD,
-      skip_password_checks: true,
-    }),
-  })
-  const body = await res.json()
-  if (!res.ok) throw new Error(`Clerk create user failed (${res.status}): ${JSON.stringify(body)}`)
-  userId = body.id
+  user = await createTestUser('rep')
+  userId = user.id
 
   sql = postgres(process.env.DATABASE_URL_DIRECT!, { prepare: false })
   // Pin to kg so seeded values round-trip exactly (kg is the canonical identity).
@@ -46,19 +31,13 @@ test.afterAll(async () => {
     await sql`delete from user_preferences where user_id = ${userId}`
     await sql.end()
   }
-  if (userId) {
-    await fetch(`${CLERK_API}/users/${userId}`, {
-      method: 'DELETE',
-      headers: { Authorization: `Bearer ${SECRET}` },
-    })
-  }
+  if (userId) await deleteTestUser(userId)
 })
 
 test('repeats a logged workout, seeding its values, and saves a distinct new workout', async ({
   page,
 }) => {
-  await page.goto('/sign-in')
-  await clerk.signIn({ page, emailAddress: TEST_EMAIL })
+  await signIn(page, user)
 
   // --- Workout 1: log bench with two sets. ---
   await page.goto('/')

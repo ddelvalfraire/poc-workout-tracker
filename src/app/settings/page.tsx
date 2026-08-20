@@ -1,5 +1,5 @@
-import { currentUser } from '@clerk/nextjs/server'
-import { SignOutButton, UserButton } from '@clerk/nextjs'
+import { withAuth } from '@workos-inc/authkit-nextjs'
+import { SignOutButton } from '@/components/auth/sign-out-button'
 import { requireUserId } from '@/lib/auth'
 import {
   getWeightUnit,
@@ -37,14 +37,14 @@ import { getTranslations } from 'next-intl/server'
 export default async function SettingsPage() {
   const t = await getTranslations('Settings')
   const userId = await requireUserId()
-  const [unit, bodyweightKg, defaultRestSec, restTimerEnabled, rpeLoggingEnabled, user, consent] =
+  const [unit, bodyweightKg, defaultRestSec, restTimerEnabled, rpeLoggingEnabled, session, consent] =
     await Promise.all([
       getWeightUnit(userId),
       getBodyweightKg(userId),
       getDefaultRestSec(userId),
       getRestTimerEnabled(userId),
       getRpeLoggingEnabled(userId),
-      currentUser(),
+      withAuth(),
       getConsentState(userId),
     ])
 
@@ -53,10 +53,9 @@ export default async function SettingsPage() {
   // enforces the gate itself (404s otherwise); this just hides the entry.
   const showOps = isOpsUser(userId)
 
-  const email =
-    user?.emailAddresses.find((e) => e.id === user.primaryEmailAddressId)?.emailAddress ??
-    user?.emailAddresses[0]?.emailAddress ??
-    null
+  // AuthKit's user carries a single, already-primary email — no address list
+  // to pick a primary out of.
+  const email = session.user?.email ?? null
 
   // Version truth: the deployed git SHA baked at build (NEXT_PUBLIC_BUILD_ID
   // in next.config.ts); local builds get a `local-` id, where the package
@@ -84,24 +83,17 @@ export default async function SettingsPage() {
       />
 
       <main className="mx-auto w-full max-w-md flex-1 px-5 pb-safe">
-        {/* Identity: who's signed in, and the way out. UserButton carries
-            Clerk's account management; sign-out gets its own explicit exit. */}
+        {/* Identity: who's signed in, and the way out. AuthKit hosts account
+            management on its own page, so this row is just the email and the
+            explicit exit. */}
         <section aria-label="Account" className="mt-6">
           {/* De-carded: identity is the grouped list's first row — a muted
               hairline under it, no shell. */}
           <div className="flex items-center gap-3 border-b border-b-border/60 py-4">
-            <UserButton />
             <p className="min-w-0 flex-1 truncate text-sm">
               {email ?? <span className="text-muted-foreground">{t('signedInLabel')}</span>}
             </p>
-            <SignOutButton>
-              <button
-                type="button"
-                className="shrink-0 rounded-lg px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors outline-none hover:bg-muted/50 focus-visible:ring-3 focus-visible:ring-ring/50"
-              >
-                {t('signOutAction')}
-              </button>
-            </SignOutButton>
+            <SignOutButton variant="full" />
           </div>
         </section>
 

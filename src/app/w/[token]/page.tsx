@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { auth } from '@clerk/nextjs/server'
+import { getUserId } from '@/lib/auth'
 import { resolveWorkoutShare } from '@/db/workout-shares'
 import { getWeightUnit } from '@/db/preferences'
 import { DEFAULT_WEIGHT_UNIT } from '@/lib/units'
@@ -23,7 +23,7 @@ import { cn } from '@/lib/utils'
 const TOKEN_PATTERN = /^[A-Za-z0-9_-]{16,128}$/
 
 /**
- * The public workout share page — a Clerk-PUBLIC route (proxy.ts) that gates
+ * The public workout share page — a PUBLIC route (proxy.ts) that gates
  * itself: `resolveWorkoutShare` collapses every failure (unknown token,
  * revoked, unfinished session) into the same null → constant-shape
  * notFound(), never acknowledging which gate refused. Renders the summary
@@ -47,7 +47,7 @@ export default async function SharedWorkoutPage({
 
   // Who's looking decides the footer — signed-out visitors still get the
   // full read (this page is the acquisition surface).
-  const { userId } = await auth()
+  const userId = await getUserId()
   const isOwner = userId !== null && userId === ownerUserId
   // Loads render in the VIEWER's unit when signed in; anonymous visitors get
   // the app default.
@@ -76,7 +76,7 @@ export default async function SharedWorkoutPage({
       </Link>
     </div>
   ) : userId === null ? (
-    // Post-sign-in returns here (Clerk honors redirect_url) so a curious
+    // Post-sign-in returns here (validated via safeReturnPath) so a curious
     // visitor lands back on the session that brought them in.
     <div className="border-t border-border pt-4">
       <p className="text-sm text-muted-foreground">

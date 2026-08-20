@@ -5,7 +5,7 @@ import { useState, type ComponentType, type ReactNode } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { useQuery } from '@tanstack/react-query'
 import { Drawer } from 'vaul'
-import { UserButton } from '@clerk/nextjs'
+import { SignOutButton } from '@/components/auth/sign-out-button'
 import {
   BarChart3,
   ClipboardList,
@@ -573,7 +573,7 @@ export function NavDrawer() {
               <Settings aria-hidden="true" className="size-5" />
               Settings
             </Link>
-            <UserButton />
+            <SignOutButton />
           </div>
         </Drawer.Content>
       </Drawer.Portal>

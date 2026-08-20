@@ -1,17 +1,17 @@
-import { auth } from '@clerk/nextjs/server'
 import { NextResponse } from 'next/server'
+import { getUserId } from '@/lib/auth'
 import { parsePushSubscriptionInput } from '@/lib/push-input'
 import { upsertPushSubscription } from '@/db/push-subscriptions'
 
 /**
  * POST /api/push/subscribe — stores the browser's push subscription for the
- * signed-in user. Clerk-gated like the other API routes (middleware + explicit
+ * signed-in user. Session-gated like the other API routes (middleware + explicit
  * check); the body is the untrusted `PushSubscription.toJSON()` shape,
  * validated at the boundary (lib/push-input.ts). Upsert on endpoint: a
  * re-subscribe (or another user on the same device) takes the row over.
  */
 export async function POST(request: Request): Promise<NextResponse> {
-  const { userId } = await auth()
+  const userId = await getUserId()
   if (!userId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }

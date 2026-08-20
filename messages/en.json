@@ -162,8 +162,12 @@
     "saveError": "Couldn’t save. Try again."
   },
   "Settings": {
-    "signOutAction": "Sign out",
     "signedInLabel": "Signed in"
+  },
+  "SignOutButton": {
+    "action": "Sign out",
+    "pending": "Signing out…",
+    "ariaLabel": "Sign out"
   },
   "TileSheet": {
     "move": {

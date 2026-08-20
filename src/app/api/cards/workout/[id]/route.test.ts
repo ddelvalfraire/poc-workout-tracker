@@ -7,7 +7,7 @@ vi.mock('next/og', () => ({
     }
   },
 }))
-vi.mock('@clerk/nextjs/server', () => ({ auth: vi.fn() }))
+vi.mock('@/lib/auth', () => ({ getUserId: vi.fn() }))
 vi.mock('@/db/preferences', () => ({ getWeightUnit: vi.fn(async () => 'kg') }))
 vi.mock('@/db/workouts', () => ({ getWorkoutDetail: vi.fn(async () => null) }))
 // lib/cards/card-data reaches lib/trophies' module graph — same mock boundary
@@ -31,15 +31,15 @@ vi.mock('@/lib/push', () => ({
   sendPushToUser: vi.fn(async () => ({ configured: true, sent: 0, pruned: 0, failed: 0 })),
 }))
 
-import { auth } from '@clerk/nextjs/server'
+import { getUserId } from '@/lib/auth'
 import { getWorkoutDetail } from '@/db/workouts'
 import { GET } from './route'
 
-const mockedAuth = vi.mocked(auth)
+const mockedGetUserId = vi.mocked(getUserId)
 const mockedDetail = vi.mocked(getWorkoutDetail)
 
 function signedIn(userId: string | null): void {
-  mockedAuth.mockResolvedValue({ userId } as unknown as Awaited<ReturnType<typeof auth>>)
+  mockedGetUserId.mockResolvedValue(userId)
 }
 
 function get(id: string): Promise<Response> {

@@ -1,11 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { auth } from '@clerk/nextjs/server'
+import { getUserId } from '@/lib/auth'
 import { bytesToBase64 } from '@/lib/photo-input'
 import { countProgressPhotos, insertProgressPhoto } from '@/db/progress-photos'
 import { uploadObject, deleteObjects } from '@/lib/supabase-storage'
 import { POST } from './route'
 
-vi.mock('@clerk/nextjs/server', () => ({ auth: vi.fn() }))
+vi.mock('@/lib/auth', () => ({ getUserId: vi.fn() }))
 vi.mock('@/db/progress-photos', () => ({
   countProgressPhotos: vi.fn(),
   insertProgressPhoto: vi.fn(),
@@ -15,14 +15,14 @@ vi.mock('@/lib/supabase-storage', () => ({
   deleteObjects: vi.fn(),
 }))
 
-const mockedAuth = vi.mocked(auth)
+const mockedGetUserId = vi.mocked(getUserId)
 const mockedCount = vi.mocked(countProgressPhotos)
 const mockedInsert = vi.mocked(insertProgressPhoto)
 const mockedUpload = vi.mocked(uploadObject)
 const mockedDelete = vi.mocked(deleteObjects)
 
 function signedIn(userId: string | null): void {
-  mockedAuth.mockResolvedValue({ userId } as unknown as Awaited<ReturnType<typeof auth>>)
+  mockedGetUserId.mockResolvedValue(userId)
 }
 
 /** A valid 16-byte WEBP header (RIFF....WEBP) — enough to pass the sniffer. */

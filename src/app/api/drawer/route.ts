@@ -1,5 +1,5 @@
-import { auth } from '@clerk/nextjs/server'
 import { NextResponse } from 'next/server'
+import { getUserId } from '@/lib/auth'
 import { listWorkoutDrafts } from '@/db/workout-drafts'
 import { listWorkoutSummaries } from '@/db/workouts'
 import { getNextProgramDay } from '@/db/programs'
@@ -40,12 +40,12 @@ async function orNull<T>(read: Promise<T>, slice: string): Promise<T | null> {
  * GET /api/drawer — the nav drawer's one status fetch: every zone's live
  * facts in a single authed round-trip (spike §7: the drawer TELLS YOU YOUR
  * STATUS before you tap anything). One Promise.all over the same cheap reads
- * the home page already runs, each individually degradable to null. The Clerk
- * middleware (src/proxy.ts) already gates this route; the explicit auth()
+ * the home page already runs, each individually degradable to null. The AuthKit
+ * middleware (src/proxy.ts) already gates this route; the explicit session
  * check is defense-in-depth.
  */
 export async function GET(): Promise<NextResponse> {
-  const { userId } = await auth()
+  const userId = await getUserId()
   if (!userId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
