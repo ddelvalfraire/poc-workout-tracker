@@ -5,7 +5,7 @@ import { upsertPushSubscription } from '@/db/push-subscriptions'
 
 /**
  * POST /api/push/subscribe — stores the browser's push subscription for the
- * signed-in user. Clerk-gated like the other API routes (middleware + explicit
+ * signed-in user. Session-gated like the other API routes (middleware + explicit
  * check); the body is the untrusted `PushSubscription.toJSON()` shape,
  * validated at the boundary (lib/push-input.ts). Upsert on endpoint: a
  * re-subscribe (or another user on the same device) takes the row over.

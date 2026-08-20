@@ -23,7 +23,7 @@ import { adoptSharedProgramAction } from './actions'
 const TOKEN_PATTERN = /^[A-Za-z0-9_-]{16,128}$/
 
 /**
- * The public share page — a Clerk-PUBLIC route (proxy.ts) that gates itself:
+ * The public share page — a PUBLIC route (proxy.ts) that gates itself:
  * `resolveShare` collapses every failure (unknown token, revoked, private,
  * proposed) into the same null → constant-shape notFound(), never
  * acknowledging which gate refused. Renders program CONTENT only — the full
@@ -89,7 +89,7 @@ export default async function SharedProgramPage({
       </Button>
     </form>
   ) : (
-    // Post-sign-in returns here (Clerk honors redirect_url) so the add flow
+    // Post-sign-in returns here (validated via safeReturnPath) so the add flow
     // continues where it started.
     <Link
       href={`/sign-in?redirect_url=${encodeURIComponent(`/p/${token}`)}`}
@@ -134,7 +134,7 @@ export default async function SharedProgramPage({
               {program.name}
             </span>
           </p>
-          {/* Attribution: "Shared program", no owner name in v1 (no Clerk
+          {/* Attribution: "Shared program", no owner name in v1 (no
               display-name plumbing) — the value space is ready for it. */}
           <p className="mt-1.5 text-xs font-semibold uppercase tracking-widest text-muted-foreground tnum">
             Shared program · {dayCount} {dayCount === 1 ? 'day' : 'days'}/week ·{' '}

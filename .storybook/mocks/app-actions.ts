@@ -3,7 +3,7 @@
  *
  * Three components call server actions directly (`UnitToggle`, `NavDrawer`,
  * `SessionConflictDialog`). Importing the real modules into the browser bundle
- * would drag in Drizzle, Postgres and Clerk auth — none of which belong in a
+ * would drag in Drizzle, Postgres and the AuthKit session — none of which belong in a
  * component catalog. `.storybook/main.ts` aliases those specifiers here.
  *
  * Each stub resolves after a short delay so the pending states these
@@ -73,13 +73,26 @@ type Assert<T extends true> = T;
  * fails the `Assert` constraint.
  */
 export type MockFidelity = [
-  Assert<Matches<typeof setWeightUnitAction, typeof AppActions.setWeightUnitAction>>,
+  Assert<
+    Matches<typeof setWeightUnitAction, typeof AppActions.setWeightUnitAction>
+  >,
   Assert<Matches<typeof signOutAction, typeof AppActions.signOutAction>>,
   Assert<
-    Matches<typeof startProgramDayAction, typeof ProgramActions.startProgramDayAction>
+    Matches<
+      typeof startProgramDayAction,
+      typeof ProgramActions.startProgramDayAction
+    >
   >,
   Assert<
-    Matches<typeof deleteWorkoutDraftAction, typeof WorkoutActions.deleteWorkoutDraftAction>
+    Matches<
+      typeof deleteWorkoutDraftAction,
+      typeof WorkoutActions.deleteWorkoutDraftAction
+    >
   >,
-  Assert<Matches<typeof deleteWorkoutAction, typeof WorkoutActions.deleteWorkoutAction>>,
+  Assert<
+    Matches<
+      typeof deleteWorkoutAction,
+      typeof WorkoutActions.deleteWorkoutAction
+    >
+  >,
 ];

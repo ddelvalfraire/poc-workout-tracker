@@ -4,7 +4,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
  * Orchestration test — every external is mocked, the assertions are about
  * SEQUENCE and EVIDENCE: the ledger event lands first (with both fan-out
  * rows), the purge precedes storage, pseudonymization spares the deletion
- * event, and Clerk dies last.
+ * event, and the auth user dies last.
  */
 const calls: string[] = []
 
