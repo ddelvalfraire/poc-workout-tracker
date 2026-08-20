@@ -52,6 +52,7 @@ export function TileSheet({
   onMoveToTop,
 }: TileSheetProps) {
   const t = useTranslations('TileSheet')
+  const tCommon = useTranslations('Common')
   // The section's own name and blurb are registry copy, so they resolve
   // against the registry's namespace, not this sheet's.
   const tSection = useTranslations('HomeSection')
@@ -123,7 +124,7 @@ export function TileSheet({
           variant="ghost"
           className="-mr-1 text-muted-foreground"
           onClick={requestClose}
-          aria-label={t('close')}
+          aria-label={tCommon('close')}
         >
           <X aria-hidden="true" className="size-4" />
         </Button>

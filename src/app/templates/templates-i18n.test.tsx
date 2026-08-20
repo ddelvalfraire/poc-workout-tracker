@@ -18,7 +18,9 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn(), back: vi.fn() }),
 }))
 
-const t = (namespace: 'Templates' | 'TemplateDetail' | 'TemplateActions' | 'TemplateEditSheet') =>
+const t = (
+  namespace: 'Templates' | 'TemplateDetail' | 'TemplateActions' | 'TemplateEditSheet' | 'Common',
+) =>
   createTranslator({ locale: 'en', messages: en, namespace })
 
 describe('Templates list copy', () => {
@@ -142,14 +144,20 @@ describe('TemplateEditSheet copy', () => {
     expect(sheet('iconChoiceAriaLabel', { icon: '💪' })).toBe('Use 💪 as the icon')
   })
 
+  test('dismissal chrome comes from the shared namespace, not this one', () => {
+    // Close and Cancel moved to Common: context-free furniture on a dozen
+    // surfaces, which is the one case the naming doc allows sharing.
+    const common = t('Common')
+    expect(common('close')).toBe('Close')
+    expect(common('cancel')).toBe('Cancel')
+  })
+
   test('field labels, controls and the failure message resolve', () => {
     expect(sheet('eyebrow')).toBe('Edit template')
-    expect(sheet('close')).toBe('Close')
     expect(sheet('nameLabel')).toBe('Name')
     expect(sheet('iconLabel')).toBe('Icon')
     expect(sheet('iconFieldLabel')).toBe('Icon')
     expect(sheet('descriptionLabel')).toBe('Description')
-    expect(sheet('cancel')).toBe('Cancel')
     expect(sheet('save')).toBe('Save')
     expect(sheet('saving')).toBe('Saving…')
     expect(sheet('saveError')).toBe('Could not save changes. Please try again.')

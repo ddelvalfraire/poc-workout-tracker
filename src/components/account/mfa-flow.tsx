@@ -45,6 +45,7 @@ interface MfaFlowProps {
 
 export function MfaFlow({ mode, pending = null }: MfaFlowProps) {
   const t = useTranslations('Mfa')
+  const tCommon = useTranslations('Common')
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
 
@@ -206,7 +207,7 @@ export function MfaFlow({ mode, pending = null }: MfaFlowProps) {
               {isPending ? t('checking') : t('turnOnAction')}
             </Button>
             <Button variant="ghost" onClick={cancel} disabled={isPending}>
-              {t('cancelAction')}
+              {tCommon('cancel')}
             </Button>
           </div>
         </>

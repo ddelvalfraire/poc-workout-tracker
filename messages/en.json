@@ -1,4 +1,35 @@
 {
+  "Account": {
+    "connectedAccountsHintMultiple": "The accounts you can sign in with.",
+    "connectedAccountsHintSoleMethod": "Your only way in — keep it, or add a password first.",
+    "connectedAccountsLabel": "Connected accounts",
+    "connectedAccountsNone": "None",
+    "dangerZone": "Danger zone",
+    "deleteHint": "Erase your data and close your account.",
+    "deleteLabel": "Delete account",
+    "emailHintUnverified": "Unverified — check your inbox to confirm it.",
+    "emailHintVerified": "Where account and security messages go.",
+    "emailLabel": "Email",
+    "firstNameLabel": "First name",
+    "lastNameLabel": "Last name",
+    "loadErrorBody": "We could not reach the service that holds your account details. Your workouts are safe.",
+    "loadErrorRetry": "Try again",
+    "loadErrorTitle": "Couldn't load your account",
+    "mfaHintOptional": "Ask for a code from your phone when you sign in.",
+    "mfaHintRequired": "Required here — a code from your phone every time you sign in.",
+    "mfaLabel": "Two-step verification",
+    "mfaStateOff": "Off",
+    "mfaStateOn": "On",
+    "nameHint": "How the app greets you.",
+    "nameLabel": "Name",
+    "nameLengthError": "That name is too long — keep it under 100 characters.",
+    "saveAction": "Save",
+    "saving": "Saving…",
+    "signingInZone": "Signing in",
+    "title": "Account",
+    "valueNotSet": "Not set",
+    "youZone": "You"
+  },
   "ActivityLog": {
     "empty": "No activity yet.",
     "filterGroupLabel": "Filter activity by type"
@@ -96,7 +127,6 @@
     "applyAction": "Apply",
     "approvalApplied": "{tool} — applying…",
     "approvalCancelled": "{tool} — cancelled",
-    "cancel": "Cancel",
     "capabilityDescription": "It can read your workouts and programs, and propose plan changes — nothing is applied without your OK.",
     "chip": {
       "changeLog": "Show the change log",
@@ -258,7 +288,9 @@
   "Common": {
     "appDescription": "Log your workouts and review your training history.",
     "appName": "Workout Tracker",
-    "appShortName": "Workouts"
+    "appShortName": "Workouts",
+    "cancel": "Cancel",
+    "close": "Close"
   },
   "ConfirmDialog": {
     "cancel": "Keep it"
@@ -317,7 +349,6 @@
     "validationName": "Give it a name."
   },
   "CustomExerciseEditor": {
-    "cancel": "Cancel",
     "categoryLabel": "Category",
     "musclesLabel": "Primary muscles",
     "nameLabel": "Custom exercise name",
@@ -476,7 +507,6 @@
     "suggestionsTitle": "Suggested"
   },
   "ExerciseSheet": {
-    "close": "Close",
     "title": "Add exercise"
   },
   "ExerciseStats": {
@@ -606,7 +636,6 @@
   },
   "GoalCreate": {
     "bodyweightLabel": "Target weight ({unit})",
-    "cancel": "Cancel",
     "changeExerciseAction": "Change",
     "createAction": "Create goal",
     "createError": "Could not create the goal.",
@@ -849,6 +878,39 @@
     "validation": "Enter a measurement above 0 {unit}.",
     "value": "{value} {unit}"
   },
+  "Mfa": {
+    "authenticatorCodeLabel": "Code from your authenticator app",
+    "beginAction": "Set up two-step verification",
+    "checking": "Checking…",
+    "copiedLabel": "Copied",
+    "copyKeyAction": "Copy key",
+    "doneAction": "Back to account",
+    "doneDisableBody": "You will sign in with just your connected account from now on.",
+    "doneDisableTitle": "Two-step verification is off",
+    "doneEnrollBody": "From now on you will enter a code from your authenticator app when you sign in.",
+    "doneEnrollTitle": "Two-step verification is on",
+    "errorAlreadyEnrolled": "Two-step verification is already on for this account.",
+    "errorGeneric": "Something went wrong. Try again.",
+    "errorReauthRequired": "For your security, sign in again before changing this.",
+    "errorRequiredHere": "Two-step verification is required for every account here, so it cannot be turned off.",
+    "errorSetupExpired": "Setup timed out. Start again to get a fresh key.",
+    "errorUnavailable": "Two-step verification is not available on this account right now.",
+    "errorWrongCode": "That code did not match. Codes change every 30 seconds — try the current one.",
+    "introDisable": "You will sign in with just your connected account after this.",
+    "introEnroll": "Add a code from your phone to every sign-in.",
+    "manualKeyLabel": "Or enter this key by hand:",
+    "openAuthenticatorAction": "Open in authenticator app",
+    "qrAlt": "QR code for setting up two-step verification",
+    "qrToggle": "Scan a QR code from another device",
+    "recoveryNotice": "If you lose your phone you will need to contact support to get back in — there are no backup codes.",
+    "setupInstructions": "Add this to your authenticator app, then enter the 6-digit code it shows.",
+    "setupUnavailable": "Two-step setup is temporarily unavailable. Try again in a few minutes.",
+    "titleDisable": "Turn off two-step",
+    "titleEnroll": "Two-step verification",
+    "turnOffAction": "Turn off two-step verification",
+    "turnOnAction": "Turn on",
+    "working": "Working…"
+  },
   "MomentumPanel": {
     "emptyWeek": "The week is wide open — log a session.",
     "goalLabel": "{count, plural, one {Goal} other {Goals · #}}",
@@ -1050,7 +1112,6 @@
   },
   "PhotoOverlay": {
     "alt": "{pose, select, none {Progress photo, {date}} other {Progress photo, {date}, {pose}}}",
-    "close": "Close",
     "confirm": {
       "body": "It's removed from your account permanently — there's no undo.",
       "confirmLabel": "Delete",
@@ -1088,9 +1149,7 @@
     "barOption": "{weight} {unit} bar",
     "barsLegend": "Bars ({unit})",
     "belowBar": "below the bar",
-    "cancel": "Cancel",
     "clear": "Clear",
-    "close": "Close",
     "closest": "closest {weight} — {perSide}",
     "countHint": "Tap the plates on one side of the bar.",
     "countedPlate": "{weight} ×",
@@ -1349,11 +1408,9 @@
     "weekTitle": "Week {week}"
   },
   "ProgramEdit": {
-    "closeLink": "Close",
     "title": "Edit Program"
   },
   "ProgramNew": {
-    "closeLink": "Close",
     "title": "New Program"
   },
   "ProgramStats": {
@@ -1501,8 +1558,6 @@
     "declineError": "Could not decline this proposal. Please try again."
   },
   "QuickCaptureSheet": {
-    "cancel": "Cancel",
-    "close": "Close",
     "delete": "Delete",
     "deleteError": "Could not delete the note. Please try again.",
     "dialogLabel": "{eyebrow}: {title}",
@@ -1555,7 +1610,6 @@
     "chimeLabel": "End-of-rest chirp",
     "chimeOff": "Off",
     "chimeOn": "On",
-    "close": "Close",
     "customAriaLabel": "Custom rest target in seconds",
     "customPlaceholder": "Custom s",
     "lede": "Fallback for sets without a planned rest. Off = count up only.",
@@ -1629,8 +1683,6 @@
     "ariaLabel": "{state, select, hidden {{section} — hidden. Edit section} sm {{section} — Small. Edit section} md {{section} — Medium. Edit section} lg {{section} — Large. Edit section} other {{section}. Edit section}}"
   },
   "SessionConflictDialog": {
-    "cancel": "Cancel",
-    "close": "Close",
     "continueAction": "Continue workout",
     "dialogLabel": "Workout in progress",
     "discardAction": "Discard & start new",
@@ -1653,6 +1705,10 @@
     "warmupUntag": "Untag warm-up"
   },
   "Settings": {
+    "account": {
+      "hint": "Your name, how you sign in, and closing your account.",
+      "label": "Account"
+    },
     "accountGroupLabel": "Account",
     "analytics": {
       "hint": "Link your usage (never your workout content) to your account. Turning this off also deletes your usage profile from our analytics provider.",
@@ -1723,10 +1779,6 @@
       "legal": "Legal",
       "privacy": "Privacy",
       "training": "Training"
-    },
-    "account": {
-      "label": "Account",
-      "hint": "Your name, how you sign in, and closing your account."
     }
   },
   "ShareCard": {
@@ -1849,7 +1901,6 @@
     "bestE1rmDetail": "{weight} {unit} × {reps} · {date}",
     "bestE1rmLabel": "Best est. 1RM",
     "bestE1rmValue": "{value}<unitTag>{unit}</unitTag>",
-    "close": "Close",
     "empty": "No completed sessions yet — finish a workout with this movement and its records land here.",
     "emptyRecords": "No load records yet — log weight and PRs land here.",
     "error": "Couldn't load stats. Close and reopen to retry.",
@@ -1953,8 +2004,6 @@
   },
   "TemplateEditSheet": {
     "ariaLabel": "Edit {name}",
-    "cancel": "Cancel",
-    "close": "Close",
     "descriptionAriaLabel": "Description for {name}",
     "descriptionLabel": "Description",
     "eyebrow": "Edit template",
@@ -1997,7 +2046,6 @@
     }
   },
   "TileSheet": {
-    "close": "Close",
     "dialogLabel": "{section} section",
     "move": {
       "down": "Down",
@@ -2221,7 +2269,6 @@
     "bodyweightAriaLabel": "Set {set} uses bodyweight",
     "bodyweightGlyph": "BW",
     "changeEffortAriaLabel": "Change effort for {set}: {effort}",
-    "close": "Close",
     "collapseAriaLabel": "Collapse {name}",
     "column": {
       "distance": "km",
@@ -2345,70 +2392,5 @@
     "revokeError": "Could not revoke the link. Try again.",
     "shareAction": "Share workout",
     "shareActionPending": "Creating link…"
-  },
-  "Account": {
-    "title": "Account",
-    "youZone": "You",
-    "signingInZone": "Signing in",
-    "dangerZone": "Danger zone",
-    "nameLabel": "Name",
-    "nameHint": "How the app greets you.",
-    "firstNameLabel": "First name",
-    "lastNameLabel": "Last name",
-    "saveAction": "Save",
-    "saving": "Saving…",
-    "nameLengthError": "That name is too long — keep it under 100 characters.",
-    "valueNotSet": "Not set",
-    "emailLabel": "Email",
-    "emailHintVerified": "Where account and security messages go.",
-    "emailHintUnverified": "Unverified — check your inbox to confirm it.",
-    "connectedAccountsLabel": "Connected accounts",
-    "connectedAccountsHintSoleMethod": "Your only way in — keep it, or add a password first.",
-    "connectedAccountsHintMultiple": "The accounts you can sign in with.",
-    "connectedAccountsNone": "None",
-    "mfaLabel": "Two-step verification",
-    "mfaHintRequired": "Required here — a code from your phone every time you sign in.",
-    "mfaHintOptional": "Ask for a code from your phone when you sign in.",
-    "mfaStateOn": "On",
-    "mfaStateOff": "Off",
-    "deleteLabel": "Delete account",
-    "deleteHint": "Erase your data and close your account.",
-    "loadErrorTitle": "Couldn't load your account",
-    "loadErrorBody": "We could not reach the service that holds your account details. Your workouts are safe.",
-    "loadErrorRetry": "Try again"
-  },
-  "Mfa": {
-    "titleEnroll": "Two-step verification",
-    "titleDisable": "Turn off two-step",
-    "introEnroll": "Add a code from your phone to every sign-in.",
-    "introDisable": "You will sign in with just your connected account after this.",
-    "recoveryNotice": "If you lose your phone you will need to contact support to get back in — there are no backup codes.",
-    "authenticatorCodeLabel": "Code from your authenticator app",
-    "checking": "Checking…",
-    "setupInstructions": "Add this to your authenticator app, then enter the 6-digit code it shows.",
-    "openAuthenticatorAction": "Open in authenticator app",
-    "manualKeyLabel": "Or enter this key by hand:",
-    "copyKeyAction": "Copy key",
-    "copiedLabel": "Copied",
-    "qrToggle": "Scan a QR code from another device",
-    "qrAlt": "QR code for setting up two-step verification",
-    "turnOnAction": "Turn on",
-    "cancelAction": "Cancel",
-    "doneEnrollTitle": "Two-step verification is on",
-    "doneEnrollBody": "From now on you will enter a code from your authenticator app when you sign in.",
-    "doneDisableTitle": "Two-step verification is off",
-    "doneDisableBody": "You will sign in with just your connected account from now on.",
-    "doneAction": "Back to account",
-    "errorWrongCode": "That code did not match. Codes change every 30 seconds — try the current one.",
-    "errorSetupExpired": "Setup timed out. Start again to get a fresh key.",
-    "errorAlreadyEnrolled": "Two-step verification is already on for this account.",
-    "errorRequiredHere": "Two-step verification is required for every account here, so it cannot be turned off.",
-    "errorGeneric": "Something went wrong. Try again.",
-    "setupUnavailable": "Two-step setup is temporarily unavailable. Try again in a few minutes.",
-    "beginAction": "Set up two-step verification",
-    "turnOffAction": "Turn off two-step verification",
-    "working": "Working…",
-    "errorUnavailable": "Two-step verification is not available on this account right now.",
-    "errorReauthRequired": "For your security, sign in again before changing this."
   }
 }

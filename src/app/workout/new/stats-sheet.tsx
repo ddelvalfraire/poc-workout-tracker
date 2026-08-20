@@ -42,6 +42,7 @@ interface StatsSheetProps {
 
 export function StatsSheet({ wgerExerciseId, source, name, unit, onClose }: StatsSheetProps) {
   const t = useTranslations('StatsSheet')
+  const tCommon = useTranslations('Common')
   const tFormat = useTranslations('Format')
   const locale = useLocale()
   const dialogRef = useRef<HTMLDialogElement>(null)
@@ -122,7 +123,7 @@ export function StatsSheet({ wgerExerciseId, source, name, unit, onClose }: Stat
           variant="ghost"
           className="-mr-1 text-muted-foreground"
           onClick={requestClose}
-          aria-label={t('close')}
+          aria-label={tCommon('close')}
         >
           <X aria-hidden="true" className="size-4" />
         </Button>

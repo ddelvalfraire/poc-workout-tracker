@@ -39,6 +39,7 @@ export function GoalCreate({
   compact?: boolean
 }) {
   const t = useTranslations('GoalCreate')
+  const tCommon = useTranslations('Common')
   const [isOpen, setIsOpen] = useState(false)
   const [kind, setKind] = useState<GoalKind>('strength')
   const [exercise, setExercise] = useState<PickedExercise | null>(null)
@@ -307,7 +308,7 @@ export function GoalCreate({
             setIsOpen(false)
           }}
         >
-          {t('cancel')}
+          {tCommon('cancel')}
         </Button>
         <Button className="flex-1" disabled={isPending} onClick={submit}>
           {isPending ? t('creatingAction') : t('createAction')}

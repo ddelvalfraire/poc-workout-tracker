@@ -38,6 +38,7 @@ export function ExerciseSheet({
   onCreateNavigate,
 }: ExerciseSheetProps) {
   const t = useTranslations('ExerciseSheet')
+  const tCommon = useTranslations('Common')
   // Default resolved at RENDER, not in the parameter list: a default built
   // at module evaluation would never see a locale.
   const title = heading ?? t('title')
@@ -122,7 +123,7 @@ export function ExerciseSheet({
           variant="ghost"
           className="-mr-1 text-muted-foreground"
           onClick={requestClose}
-          aria-label={t('close')}
+          aria-label={tCommon('close')}
         >
           <X aria-hidden="true" className="size-4" />
         </Button>

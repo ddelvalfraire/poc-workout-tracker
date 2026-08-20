@@ -249,12 +249,14 @@ describe('Template shelf and detail messages', () => {
 function ChromeProbe() {
   const newProgram = useTranslations('ProgramNew')
   const editProgram = useTranslations('ProgramEdit')
+  // Both close links read the shared chrome word now.
+  const tCommon = useTranslations('Common')
   return (
     <div>
       <p>{newProgram('title')}</p>
-      <p>{newProgram('closeLink')}</p>
+      <p>{tCommon('close')}</p>
       <p>{editProgram('title')}</p>
-      <p>{editProgram('closeLink')}</p>
+      <p>{tCommon('close')}</p>
     </div>
   )
 }
