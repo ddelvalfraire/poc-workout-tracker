@@ -145,6 +145,41 @@ Pill/chip styling means "you can press me" (toggle chips, segmented controls,
 the rest pill). Metadata is words in the muted ink — never decorate a label
 as a chip.
 
+### One glyph, one meaning, many scopes
+
+A glyph may carry the same meaning at more than one scope — the NotebookPen
+marks "note" in the app bar (the workout) and in the exercise rail (the
+movement). Reuse is the point: one vocabulary beats a second invented icon
+nobody has learned.
+
+Two conditions make it safe, and both are load-bearing:
+
+- **Every instance is pressable.** The failure that motivated #282 was not the
+  repeated glyph; it was a repeated glyph where one copy was *inert* — a
+  roll-up count wearing a control's clothes. Same glyph, same band, one
+  pressable and one not, is the banned shape.
+- **The scopes sit in different bands.** Two of the same glyph inside ONE band
+  is a duplicate, not a scope.
+
+The bands, outermost in:
+
+| Band | Owns | Note scope today |
+|---|---|---|
+| **App bar** | the session | the workout note |
+| **Card rail** | one exercise | the exercise note |
+| **Row** | one set | (the dot — a mark, not a control) |
+| **Overlay** | whatever opened it | the set note, via the row menu |
+
+An overlay is always a band of its own: it is summoned, it names its subject,
+and it cannot be mistaken for the surface underneath. So the third pen — the
+set-row menu's — is in the clear by construction, and an overlay never needs
+this test run against it. The rule bites between the three *standing* bands,
+where two glyphs can be on screen at once.
+
+Assistive tech gets the scope from the name, so the labels must differ and
+must lead with the action ("Add workout note" vs. "Add note for Squat, 1
+note") — a name that is pure state leaves a control that announces no verb.
+
 ### Keep-list (do not de-card)
 
 Card shells stay where the shell *is* the meaning:
