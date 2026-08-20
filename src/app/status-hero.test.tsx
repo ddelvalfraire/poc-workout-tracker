@@ -19,13 +19,23 @@ vi.mock('next/navigation', () => ({
 let container: HTMLDivElement
 let root: Root
 
+// The hero picks its copy from the schedule RELATIVE TO TODAY, and the
+// fixture below trains Mon/Wed/Fri — so these assertions passed on a
+// training day and failed on a rest day. It was green when written and went
+// red the moment the clock rolled past midnight into a Thursday, which is a
+// test that reports the calendar rather than the code.
+const MONDAY = new Date('2026-08-17T12:00:00')
+
 beforeEach(() => {
+  vi.useFakeTimers()
+  vi.setSystemTime(MONDAY)
   container = document.createElement('div')
   document.body.appendChild(container)
   root = createRoot(container)
 })
 
 afterEach(() => {
+  vi.useRealTimers()
   act(() => root.unmount())
   container.remove()
 })

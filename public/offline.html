@@ -61,6 +61,25 @@
       <p>Workout Tracker will reconnect automatically. Your in-progress draft is safe and will sync when you&rsquo;re back.</p>
       <button type="button" onclick="location.reload()">Try again now</button>
     </main>
+    <script id="offline-copy" type="application/json">{"en":{"body":"Workout Tracker will reconnect automatically. Your in-progress draft is safe and will sync when you’re back.","heading":"You’re offline","retry":"Try again now","title":"Offline — Workout Tracker"}}</script>
+    <script>
+      // Same NEXT_LOCALE cookie the app sets. No network, no framework — this
+      // page exists precisely because neither is available.
+      ;(function () {
+        try {
+          var copy = JSON.parse(document.getElementById('offline-copy').textContent)
+          var m = document.cookie.match(/(?:^|; )NEXT_LOCALE=([^;]+)/)
+          var want = m ? decodeURIComponent(m[1]) : (navigator.language || '').slice(0, 2)
+          var t = copy[want]
+          if (!t) return
+          document.documentElement.lang = want
+          document.title = t.title
+          document.querySelector('h1').textContent = t.heading
+          document.querySelector('main p').textContent = t.body
+          document.querySelector('main button').textContent = t.retry
+        } catch (e) {}
+      })()
+    </script>
     <script>
       // Self-heal: this page is often shown WRONGLY — a post-deploy reload
       // racing a just-woken radio, not a real outage — so it must recover by

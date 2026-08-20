@@ -18,6 +18,7 @@ export default async function EditProgramPage({
   params: Promise<{ id: string }>
 }) {
   const t = await getTranslations('ProgramEdit')
+  const tCommon = await getTranslations('Common')
   const userId = await requireUserId()
   const { id } = await params
   const [program, unit] = await Promise.all([getProgramDetail(userId, id), getWeightUnit(userId)])
@@ -70,7 +71,7 @@ export default async function EditProgramPage({
             href={`/programs/${id}`}
             className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }))}
           >
-            {t('closeLink')}
+            {tCommon('close')}
           </Link>
         }
       />

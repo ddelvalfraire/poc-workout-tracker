@@ -96,7 +96,6 @@
     "applyAction": "Apply",
     "approvalApplied": "{tool} — applying…",
     "approvalCancelled": "{tool} — cancelled",
-    "cancel": "Cancel",
     "capabilityDescription": "It can read your workouts and programs, and propose plan changes — nothing is applied without your OK.",
     "chip": {
       "changeLog": "Show the change log",
@@ -258,7 +257,9 @@
   "Common": {
     "appDescription": "Log your workouts and review your training history.",
     "appName": "Workout Tracker",
-    "appShortName": "Workouts"
+    "appShortName": "Workouts",
+    "cancel": "Cancel",
+    "close": "Close"
   },
   "ConfirmDialog": {
     "cancel": "Keep it"
@@ -317,7 +318,6 @@
     "validationName": "Give it a name."
   },
   "CustomExerciseEditor": {
-    "cancel": "Cancel",
     "categoryLabel": "Category",
     "musclesLabel": "Primary muscles",
     "nameLabel": "Custom exercise name",
@@ -476,7 +476,6 @@
     "suggestionsTitle": "Suggested"
   },
   "ExerciseSheet": {
-    "close": "Close",
     "title": "Add exercise"
   },
   "ExerciseStats": {
@@ -606,7 +605,6 @@
   },
   "GoalCreate": {
     "bodyweightLabel": "Target weight ({unit})",
-    "cancel": "Cancel",
     "changeExerciseAction": "Change",
     "createAction": "Create goal",
     "createError": "Could not create the goal.",
@@ -1050,7 +1048,6 @@
   },
   "PhotoOverlay": {
     "alt": "{pose, select, none {Progress photo, {date}} other {Progress photo, {date}, {pose}}}",
-    "close": "Close",
     "confirm": {
       "body": "It's removed from your account permanently — there's no undo.",
       "confirmLabel": "Delete",
@@ -1088,9 +1085,7 @@
     "barOption": "{weight} {unit} bar",
     "barsLegend": "Bars ({unit})",
     "belowBar": "below the bar",
-    "cancel": "Cancel",
     "clear": "Clear",
-    "close": "Close",
     "closest": "closest {weight} — {perSide}",
     "countHint": "Tap the plates on one side of the bar.",
     "countedPlate": "{weight} ×",
@@ -1349,11 +1344,9 @@
     "weekTitle": "Week {week}"
   },
   "ProgramEdit": {
-    "closeLink": "Close",
     "title": "Edit Program"
   },
   "ProgramNew": {
-    "closeLink": "Close",
     "title": "New Program"
   },
   "ProgramStats": {
@@ -1501,8 +1494,6 @@
     "declineError": "Could not decline this proposal. Please try again."
   },
   "QuickCaptureSheet": {
-    "cancel": "Cancel",
-    "close": "Close",
     "delete": "Delete",
     "deleteError": "Could not delete the note. Please try again.",
     "dialogLabel": "{eyebrow}: {title}",
@@ -1555,7 +1546,6 @@
     "chimeLabel": "End-of-rest chirp",
     "chimeOff": "Off",
     "chimeOn": "On",
-    "close": "Close",
     "customAriaLabel": "Custom rest target in seconds",
     "customPlaceholder": "Custom s",
     "lede": "Fallback for sets without a planned rest. Off = count up only.",
@@ -1629,8 +1619,6 @@
     "ariaLabel": "{state, select, hidden {{section} — hidden. Edit section} sm {{section} — Small. Edit section} md {{section} — Medium. Edit section} lg {{section} — Large. Edit section} other {{section}. Edit section}}"
   },
   "SessionConflictDialog": {
-    "cancel": "Cancel",
-    "close": "Close",
     "continueAction": "Continue workout",
     "dialogLabel": "Workout in progress",
     "discardAction": "Discard & start new",
@@ -1845,7 +1833,6 @@
     "bestE1rmDetail": "{weight} {unit} × {reps} · {date}",
     "bestE1rmLabel": "Best est. 1RM",
     "bestE1rmValue": "{value}<unitTag>{unit}</unitTag>",
-    "close": "Close",
     "empty": "No completed sessions yet — finish a workout with this movement and its records land here.",
     "emptyRecords": "No load records yet — log weight and PRs land here.",
     "error": "Couldn't load stats. Close and reopen to retry.",
@@ -1949,8 +1936,6 @@
   },
   "TemplateEditSheet": {
     "ariaLabel": "Edit {name}",
-    "cancel": "Cancel",
-    "close": "Close",
     "descriptionAriaLabel": "Description for {name}",
     "descriptionLabel": "Description",
     "eyebrow": "Edit template",
@@ -1993,7 +1978,6 @@
     }
   },
   "TileSheet": {
-    "close": "Close",
     "dialogLabel": "{section} section",
     "move": {
       "down": "Down",
@@ -2217,7 +2201,6 @@
     "bodyweightAriaLabel": "Set {set} uses bodyweight",
     "bodyweightGlyph": "BW",
     "changeEffortAriaLabel": "Change effort for {set}: {effort}",
-    "close": "Close",
     "collapseAriaLabel": "Collapse {name}",
     "column": {
       "distance": "km",

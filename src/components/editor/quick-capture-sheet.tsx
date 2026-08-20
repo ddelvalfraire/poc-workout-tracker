@@ -58,6 +58,7 @@ export function QuickCaptureSheet({
   onClose,
 }: QuickCaptureSheetProps) {
   const t = useTranslations('QuickCaptureSheet')
+  const tCommon = useTranslations('Common')
   const [body, setBody] = useState(initialBody)
   const [pinned, setPinned] = useState(initialPinned)
   const [isPending, setIsPending] = useState(false)
@@ -149,7 +150,7 @@ export function QuickCaptureSheet({
           variant="ghost"
           className="-mr-1 text-muted-foreground"
           onClick={requestClose}
-          aria-label={t('close')}
+          aria-label={tCommon('close')}
         >
           <X aria-hidden="true" className="size-4" />
         </Button>
@@ -194,7 +195,7 @@ export function QuickCaptureSheet({
           </Button>
         )}
         <Button variant="outline" className="flex-1" disabled={isPending} onClick={requestClose}>
-          {t('cancel')}
+          {tCommon('cancel')}
         </Button>
         <Button
           className="flex-1"

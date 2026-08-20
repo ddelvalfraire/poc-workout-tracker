@@ -223,6 +223,7 @@ export function WorkoutLogger({
   rpeLoggingEnabled = false,
 }: WorkoutLoggerProps) {
   const t = useTranslations('WorkoutLogger')
+  const tCommon = useTranslations('Common')
   // The collapsed-card summary is built by lib/format, which owns its
   // own words ("set", "top", "BW") in the Format namespace.
   const tFormat = useTranslations('Format')
@@ -1226,7 +1227,7 @@ export function WorkoutLogger({
               onClick={() => navigateBack(router, closeHref)}
               className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }))}
             >
-              {t('close')}
+              {tCommon('close')}
             </button>
           </>
         }

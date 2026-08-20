@@ -35,6 +35,7 @@ export function CustomExerciseEditor({
   musclesSecondary,
 }: CustomExerciseEditorProps) {
   const t = useTranslations('CustomExerciseEditor')
+  const tCommon = useTranslations('Common')
   const router = useRouter()
   const [isOpen, setIsOpen] = useState(false)
   const [name, setName] = useState(initialName)
@@ -140,7 +141,7 @@ export function CustomExerciseEditor({
               setIsOpen(false)
             }}
           >
-            {t('cancel')}
+            {tCommon('cancel')}
           </Button>
           <Button size="sm" className="flex-1" onClick={handleSave} disabled={isSaving}>
             {isSaving ? t('saving') : t('save')}

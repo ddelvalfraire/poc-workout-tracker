@@ -140,6 +140,7 @@ function ApprovalCard({
   disabled: boolean
 }) {
   const t = useTranslations('CoachChat')
+  const tCommon = useTranslations('Common')
   const tTool = useTranslations('CoachToolCall')
   const name = toolPartName(part)
   const args = formatToolInput(part.input)
@@ -173,7 +174,7 @@ function ApprovalCard({
           disabled={disabled}
           onClick={() => onRespond(part.approval.id, false)}
         >
-          {t('cancel')}
+          {tCommon('cancel')}
         </Button>
         {/* The approval Apply is a live state, not the page's volt CTA — it
             borrows the primary variant only while a decision is pending. */}

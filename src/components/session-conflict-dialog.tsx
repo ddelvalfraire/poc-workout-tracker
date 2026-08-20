@@ -46,6 +46,7 @@ interface SessionConflictDialogProps {
 
 export function SessionConflictDialog({ session, onClose, onProceed }: SessionConflictDialogProps) {
   const t = useTranslations('SessionConflictDialog')
+  const tCommon = useTranslations('Common')
   const [isPending, setIsPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const dialogRef = useRef<HTMLDialogElement>(null)
@@ -188,7 +189,7 @@ export function SessionConflictDialog({ session, onClose, onProceed }: SessionCo
           className="-mr-1 shrink-0 text-muted-foreground"
           onClick={requestClose}
           disabled={isPending}
-          aria-label={t('close')}
+          aria-label={tCommon('close')}
         >
           <X aria-hidden="true" className="size-4" />
         </Button>
@@ -217,7 +218,7 @@ export function SessionConflictDialog({ session, onClose, onProceed }: SessionCo
           {isPending ? t('discardingAction') : t('discardAction')}
         </Button>
         <Button variant="ghost" className="w-full" disabled={isPending} onClick={requestClose}>
-          {t('cancel')}
+          {tCommon('cancel')}
         </Button>
         {error && <p className="text-sm text-destructive">{error}</p>}
       </div>
