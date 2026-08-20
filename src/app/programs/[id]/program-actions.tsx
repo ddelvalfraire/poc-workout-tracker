@@ -8,6 +8,7 @@ import { ConfirmDialog } from '@/components/confirm-dialog'
 import { cn } from '@/lib/utils'
 import { deleteProgramAction, setProgramStatusAction } from '@/app/programs/actions'
 import { RestartProgramButton } from './restart-program-button'
+import { useTranslations } from 'next-intl'
 
 /**
  * Detail-page action island: an Edit link to the builder in edit mode, a status
@@ -30,6 +31,7 @@ export function ProgramActions({
   currentWeek: number
   mesocycleWeeks: number
 }) {
+  const t = useTranslations('ProgramActions')
   const [isPending, setIsPending] = useState(false)
   const [isModalOpen, setIsModalOpen] = useState(false)
   // Two error surfaces on purpose: a status-toggle failure renders on the
@@ -61,7 +63,7 @@ export function ProgramActions({
       await setProgramStatusAction(id, 'active')
       router.refresh()
     } catch {
-      setStatusError('Could not update program status. Please try again.')
+      setStatusError(t('statusError'))
     } finally {
       // This handler stays mounted (refresh, not push) — always re-enable.
       setIsPending(false)
@@ -82,7 +84,7 @@ export function ProgramActions({
     } catch {
       setIsPending(false)
       // The dialog stays open: the error renders inside it, retry in place.
-      setLeaveError('Could not leave this program. Please try again.')
+      setLeaveError(t('leaveError'))
     }
   }
 
@@ -100,7 +102,7 @@ export function ProgramActions({
     } catch {
       setIsPending(false)
       // The dialog stays open: the error renders inside it, retry in place.
-      setDeleteError('Could not delete program. Please try again.')
+      setDeleteError(t('deleteError'))
     }
   }
 
@@ -111,7 +113,7 @@ export function ProgramActions({
           href={`/programs/${id}/edit`}
           className={cn(buttonVariants({ variant: 'outline' }), 'flex-1')}
         >
-          Edit
+          {t('editLink')}
         </Link>
         <Button
           variant="outline"
@@ -126,7 +128,7 @@ export function ProgramActions({
               : handleActivate
           }
         >
-          {isActive ? 'Leave program' : 'Activate'}
+          {isActive ? t('leaveAction') : t('activateAction')}
         </Button>
         {/* Restart REPLACES the block (clone + archive) where Leave merely
             archives — different questions, so both stay. Never for drafts:
@@ -143,16 +145,19 @@ export function ProgramActions({
             setIsModalOpen(true)
           }}
         >
-          Delete
+          {t('delete')}
         </Button>
       </div>
       {statusError && <p className="text-sm text-destructive">{statusError}</p>}
       {isLeaveModalOpen && (
         <ConfirmDialog
-          title="Leave this program?"
-          body={`Your workouts and stats are kept. You're in week ${currentWeek} of ${mesocycleWeeks} — you can reactivate it any time from Programs.`}
-          confirmLabel="Leave program"
-          pendingLabel="Leaving…"
+          title={t('leaveDialog.title')}
+          body={t('leaveDialog.body', {
+            week: currentWeek,
+            total: mesocycleWeeks,
+          })}
+          confirmLabel={t('leaveDialog.confirm')}
+          pendingLabel={t('leaveDialog.pending')}
           error={leaveError}
           isPending={isPending}
           onConfirm={handleLeave}
@@ -162,10 +167,10 @@ export function ProgramActions({
       )}
       {isModalOpen && (
         <ConfirmDialog
-          title="Delete this program?"
-          body="Its days and targets go with it. This cannot be undone."
-          confirmLabel="Delete"
-          pendingLabel="Deleting…"
+          title={t('deleteDialog.title')}
+          body={t('deleteDialog.body')}
+          confirmLabel={t('deleteDialog.confirm')}
+          pendingLabel={t('deleteDialog.pending')}
           error={deleteError}
           isPending={isPending}
           onConfirm={handleDelete}

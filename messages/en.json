@@ -30,6 +30,30 @@
   "DeleteAccountForm": {
     "confirmInstruction": "Type <code>{phrase}</code> to confirm"
   },
+  "DescriptionEdit": {
+    "addAction": "Add description",
+    "editAction": "Edit description",
+    "sheetEyebrow": "Program article"
+  },
+  "DietPhaseCard": {
+    "affirmAction": "Still cutting",
+    "ariaLabel": "Diet phase check",
+    "endAction": "End cut",
+    "stalenessNote": "This cut was set {weeks, plural, one {# week} other {# weeks}} ago — stall verdicts are still being read through it.",
+    "title": "Still cutting?",
+    "updateError": "Could not update the diet phase. Please try again."
+  },
+  "ExerciseOvershootControl": {
+    "label": "Overshoot:",
+    "option": {
+      "anyMetric": "any metric",
+      "default": "default",
+      "e1rmEquivalent": "e1RM-equivalent",
+      "strictLoad": "strict"
+    },
+    "selectAriaLabel": "Overshoot policy for {exerciseName}",
+    "updateError": "Could not update the overshoot override. Please try again."
+  },
   "GoalCardActions": {
     "archiveAction": "Archive",
     "delete": "Delete",
@@ -146,6 +170,368 @@
       "hint": "Strong files don’t say kg or lb — pick the unit this account logged in."
     }
   },
+  "ImportTemplateButton": {
+    "importAction": "Add to my programs",
+    "importError": "Could not import this template. Please try again.",
+    "pending": "Adding…"
+  },
+  "OvershootPolicyControl": {
+    "ariaLabel": "Overshoot policy",
+    "hint": {
+      "anyMetric": "Reps, load, or e1RM — beating any one of them counts.",
+      "default": "Strict for load-anchored schemes; e1RM-equivalent for RPE targets.",
+      "e1rmEquivalent": "More reps at a lighter load count when the estimated 1RM matches the target.",
+      "strictLoad": "A goal counts only at the prescribed weight — master it before it moves."
+    },
+    "label": "Beating a target counts when…",
+    "option": {
+      "anyMetric": "Any metric",
+      "default": "Scheme default",
+      "e1rmEquivalent": "e1RM equivalent",
+      "strictLoad": "Strict load"
+    },
+    "updateError": "Could not update the overshoot policy. Please try again."
+  },
+  "PatchProposalCard": {
+    "applyAction": "Apply all",
+    "applyError": "Could not apply these changes. Please try again.",
+    "ariaLabel": "Proposed changes",
+    "declineAction": "Decline",
+    "declineDialog": {
+      "body": "The proposed changes are discarded. Your program stays exactly as it is.",
+      "confirm": "Decline",
+      "pending": "Declining…",
+      "title": "Decline these changes?"
+    },
+    "declineError": "Could not decline this proposal. Please try again."
+  },
+  "ProgramActions": {
+    "activateAction": "Activate",
+    "delete": "Delete",
+    "deleteDialog": {
+      "body": "Its days and targets go with it. This cannot be undone.",
+      "confirm": "Delete",
+      "pending": "Deleting…",
+      "title": "Delete this program?"
+    },
+    "deleteError": "Could not delete program. Please try again.",
+    "editLink": "Edit",
+    "leaveAction": "Leave program",
+    "leaveDialog": {
+      "body": "Your workouts and stats are kept. You're in week {week} of {total} — you can reactivate it any time from Programs.",
+      "confirm": "Leave program",
+      "pending": "Leaving…",
+      "title": "Leave this program?"
+    },
+    "leaveError": "Could not leave this program. Please try again.",
+    "statusError": "Could not update program status. Please try again."
+  },
+  "ProgramBuilder": {
+    "addDayAction": "+ Add day",
+    "addSetAction": "+ Add set",
+    "autoreg": {
+      "description": "After missed reps, sessions say what to do next — “Stay at 100 kg” or, after repeated stalls, “Drop to 90 kg” — with the reason shown. You can always use the plan as written.",
+      "label": "Auto-regulate loads"
+    },
+    "checkIn": {
+      "ariaLabel": "Suggested days between body check-ins",
+      "hint": "Nudges a weigh-in, tape, or progress photo on that cadence (3–90 days). Leave blank for no suggestion.",
+      "label": "Suggest a body check-in every",
+      "placeholder": "—",
+      "unit": "days"
+    },
+    "column": {
+      "km": "Km",
+      "repMax": "Rep max",
+      "repMin": "Rep min",
+      "rest": "Rest s",
+      "rpe": "RPE",
+      "time": "Time"
+    },
+    "day": {
+      "ariaLabel": "Day {position}",
+      "defaultName": "Day {position}",
+      "nameAriaLabel": "Day {position} name",
+      "namePlaceholder": "Day {position} name",
+      "removeAriaLabel": "Remove day {position}",
+      "scheduleAriaLabel": "{dayName} schedule",
+      "title": "Day {position}"
+    },
+    "deloadHint": "A deload week eases the load partway through so you recover before the next block.",
+    "deloadPolicy": {
+      "legend": "How should the deload week behave?",
+      "none": "None — train it like any other week",
+      "reactive": "Reactive — only when stalls suggest one",
+      "scheduled": "Scheduled — back off on the deload week",
+      "shape": "{load}% of the load · {sets}% of the sets",
+      "shapeWithCap": "{load}% of the load · {sets}% of the sets · effort capped at RPE {rpeCap}"
+    },
+    "deloadWeekAriaLabel": "Deload week",
+    "deloadWeekPlaceholder": "Deload week (optional)",
+    "dietPhase": {
+      "bulking": "Bulking",
+      "cutting": "Cutting — stalls are expected; hold, don’t auto-back-off",
+      "legend": "Diet phase (optional)",
+      "maintaining": "Maintaining",
+      "none": "None"
+    },
+    "discardAction": "Discard",
+    "empty": {
+      "days": "Add a training day to start building your program.",
+      "exercises": "Search above to add an exercise to this day."
+    },
+    "exercise": {
+      "metricModeAriaLabel": "Tracking mode for {exerciseName}",
+      "removeAriaLabel": "Remove {exerciseName}"
+    },
+    "field": {
+      "distance": "distance in km",
+      "duration": "duration, minutes and seconds",
+      "load": "load in {unit}",
+      "repMax": "rep max",
+      "repMin": "rep min",
+      "rest": "rest in seconds",
+      "rpe": "RPE"
+    },
+    "keepAction": "Keep",
+    "metricMode": {
+      "duration": "Duration",
+      "durationDistance": "Duration + distance",
+      "repsWeight": "Reps × weight"
+    },
+    "nameAriaLabel": "Program name",
+    "namePlaceholder": "Program name",
+    "placeholder": {
+      "duration": "mm:ss",
+      "rest": "Rest s"
+    },
+    "planSync": {
+      "description": "When you finish a session lifting more than the plan calls for, the plan adopts your loads (logged in the change log). Turn off for percentage-wave programs where lifting past the listed number is intentional.",
+      "label": "Sync plan to performance"
+    },
+    "restoredNotice": "Restored your unsaved draft.",
+    "saveAction": "Save program",
+    "saveChangesAction": "Save changes",
+    "saveError": "Could not save program. Please try again.",
+    "saving": "Saving…",
+    "set": {
+      "ariaLabel": "{exerciseName} set {position} {field}",
+      "removeAriaLabel": "Remove {exerciseName} set {position}"
+    },
+    "stallPolicy": {
+      "allSets": "Every set must hit its reps",
+      "firstSet": "Top set decides",
+      "legend": "When does a session count as stalled?"
+    },
+    "timedExercises": {
+      "legend": "Timed exercises on the deload week?",
+      "scaled": "Scaled — fewer timed sets too",
+      "untouched": "Untouched — timed work trains as written"
+    },
+    "trainingMax": {
+      "ariaLabel": "{exerciseName} training max in {unit}",
+      "fromE1rmNote": "from your e1RM",
+      "label": "Training max ({unit})"
+    },
+    "weeksAriaLabel": "Program length in weeks",
+    "weeksPlaceholder": "Weeks (default 1)"
+  },
+  "ProgramDetail": {
+    "actor": {
+      "coach": "Coach",
+      "mcp": "Claude",
+      "seed": "System",
+      "ui": "You",
+      "wger": "wger"
+    },
+    "autoreg": {
+      "ariaLabel": "Auto-regulation",
+      "separator": "—",
+      "title": "Auto-regulation",
+      "tmProposal": "Week {week}: TM {currentTm} → {proposedTm} {unit} — 3 straight stalls, training max likely set too high"
+    },
+    "blockComplete": {
+      "ariaLabel": "Block complete",
+      "eyebrow": "Block complete · {weeks, plural, one {# week} other {# weeks}}",
+      "statsLink": "Stats"
+    },
+    "changes": {
+      "ariaLabel": "Changes",
+      "title": "Changes"
+    },
+    "coachLink": "Coach",
+    "day": {
+      "deloadLabel": "Deload",
+      "doneBadge": "Done",
+      "exerciseCount": "{count, plural, one {# exercise} other {# exercises}}",
+      "exerciseSummary": "{count, plural, one {# exercise} other {# exercises}} · {names}",
+      "hideTargetsLink": "Hide targets",
+      "inProgressBadge": "In progress",
+      "number": "Day {position}",
+      "setProgress": "{completed} of {total, plural, one {# set} other {# sets}}",
+      "setSummary": "{count, plural, one {# set} other {# sets}}",
+      "setsUnit": "{count, plural, one {set} other {sets}}",
+      "skippedBadge": "Skipped",
+      "targetsLink": "Targets"
+    },
+    "deloadBadge": "Deload week",
+    "patchProposal": {
+      "eyebrowCoach": "Proposed by your coach",
+      "eyebrowOther": "Proposed changes"
+    },
+    "pr": {
+      "approx": "~",
+      "arrow": "→",
+      "srTo": "to"
+    },
+    "proposal": {
+      "ariaLabel": "Proposed program",
+      "description": "Review the plan below, then adopt it as a draft, start it right away, or decline. Nothing trains until you confirm.",
+      "eyebrowCoach": "Proposed by your coach",
+      "eyebrowOwner": "Proposed for you",
+      "eyebrowShared": "Shared program"
+    },
+    "sourceLinkLabel": "Source",
+    "statsLink": "Stats",
+    "status": {
+      "active": "active",
+      "archived": "archived",
+      "draft": "draft",
+      "proposed": "proposed"
+    },
+    "weekMeta": "Week {week} of {total}",
+    "weekMetaDeload": "Week {week} of {total} · deload wk {deloadWeek}",
+    "weekNavLabel": "Mesocycle week",
+    "weekTitle": "Week {week}"
+  },
+  "ProgramEdit": {
+    "closeLink": "Close",
+    "title": "Edit Program"
+  },
+  "ProgramNew": {
+    "closeLink": "Close",
+    "title": "New Program"
+  },
+  "ProgramStats": {
+    "empty": "No sessions from this program yet — start a day and stats build themselves.",
+    "muscle": {
+      "ariaLabel": "Muscle volume",
+      "deloadBadge": "DL",
+      "lede": "Verdicts from week {week} — sets credited per muscle",
+      "setCount": "{value} {count, plural, one {set} other {sets}}",
+      "title": "Muscle volume",
+      "trend": "{values} <muted>sets/week</muted>"
+    },
+    "pr": {
+      "approx": "~",
+      "arrow": "→",
+      "srTo": "to"
+    },
+    "progression": {
+      "ariaLabel": "Progression",
+      "reps": "{reps, plural, one {# rep} other {# reps}}",
+      "sets": "{sets, plural, one {# set} other {# sets}}",
+      "title": "Progression"
+    },
+    "prs": {
+      "ariaLabel": "PRs",
+      "estimateNote": "est. from {reps, plural, one {# rep} other {# reps}}",
+      "gain": "+{value}",
+      "title": "PRs",
+      "weekNote": " · wk {week}"
+    },
+    "status": {
+      "active": "active",
+      "archived": "archived",
+      "draft": "draft",
+      "proposed": "proposed"
+    },
+    "title": "Program Stats",
+    "verdict": {
+      "ariaLabel": "Block verdict"
+    },
+    "weekMeta": "Week {week} of {total}",
+    "weekShort": "Wk {week}",
+    "weeks": {
+      "ariaLabel": "Weeks",
+      "dayRatio": "{done}/{planned}",
+      "deloadBadge": "DL",
+      "sets": "{sets, plural, one {# set} other {# sets}}",
+      "title": "Weeks",
+      "unfinished": "+{count} unfinished",
+      "volumeAndSets": "{volume} · {sets, plural, one {# set} other {# sets}}"
+    }
+  },
+  "ProgramTemplateDetail": {
+    "attribution": "From the wger community · <source>View on wger</source>",
+    "dayNumber": "Day {position}",
+    "fallbackTitle": "Template",
+    "meta": "{days, plural, one {# day} other {# days}}/week · {weeks, plural, one {# week} other {# weeks}}",
+    "planTitle": "The plan",
+    "skipped": {
+      "ariaLabel": "Not included",
+      "title": "Couldn't map"
+    },
+    "supersetLabel": "Superset {letter}"
+  },
+  "ProgramTemplates": {
+    "adoptedLink": "In your programs",
+    "curated": {
+      "meta": "{days, plural, one {# day} other {# days}}/week · {weeks, plural, one {# week} other {# weeks}}",
+      "tag": "/ curated",
+      "title": "The classics"
+    },
+    "empty": "No templates to show — wger has no importable public templates right now. Check back later.",
+    "group": {
+      "tag": "/ week",
+      "weeks": "{weeks, plural, one {# week} other {# weeks}}"
+    },
+    "lede": "Ready-made plans — the classics, plus community templates from wger. Adding one makes it your own draft — edit anything, then activate.",
+    "title": "Program templates"
+  },
+  "Programs": {
+    "archived": {
+      "summary": "Archived · {count}"
+    },
+    "empty": {
+      "description": "Every block starts as a plan. Build your own, or start from a community template.",
+      "newLink": "+ New Program",
+      "templatesLink": "Browse program templates",
+      "title": "Day one."
+    },
+    "hero": {
+      "blockComplete": "Block complete — restart or review from the program page.",
+      "next": "Next: {dayName}",
+      "nextWithDay": "Next: Day {position} · {dayName}",
+      "noDays": "No days planned yet.",
+      "weekPosition": "<big>Wk {week}</big> <small>of {total}</small>"
+    },
+    "newLink": "+ New Program",
+    "row": {
+      "weeks": "{weeks, plural, one {# week} other {# weeks}}",
+      "weeksDeload": "{weeks, plural, one {# week} other {# weeks}} · deload wk {deloadWeek}"
+    },
+    "templatesLink": "Browse program templates",
+    "title": "Programs",
+    "zone": {
+      "drafts": "Drafts",
+      "otherActive": "Also active",
+      "proposed": "Needs your decision"
+    }
+  },
+  "ProposalActions": {
+    "adoptActivateAction": "Adopt & activate",
+    "adoptDraftAction": "Adopt as draft",
+    "adoptError": "Could not adopt this proposal. Please try again.",
+    "declineAction": "Decline",
+    "declineDialog": {
+      "body": "The proposed plan is deleted. Your coach can always draft a new one.",
+      "confirm": "Decline",
+      "pending": "Declining…",
+      "title": "Decline this proposal?"
+    },
+    "declineError": "Could not decline this proposal. Please try again."
+  },
   "RemoveImportButton": {
     "label": "Remove"
   },
@@ -158,12 +544,77 @@
   "RestTimerToggle": {
     "saveError": "Couldn’t save. Try again."
   },
+  "RestartProgramButton": {
+    "dialog": {
+      "confirm": "Restart block",
+      "pending": "Restarting…",
+      "title": "Start the next block?"
+    },
+    "restartAction": "Restart block",
+    "restartError": "Could not restart this block. Please try again."
+  },
   "RpeLoggingToggle": {
     "saveError": "Couldn’t save. Try again."
+  },
+  "SchemeSubtitle": {
+    "separator": "—"
   },
   "Settings": {
     "signOutAction": "Sign out",
     "signedInLabel": "Signed in"
+  },
+  "SharingSection": {
+    "ariaLabel": "Sharing",
+    "copiedAction": "Copied",
+    "copiedAriaLabel": "Link copied",
+    "copyAction": "Copy",
+    "copyAriaLabel": "Copy share link",
+    "copyError": "Could not copy the link.",
+    "option": {
+      "link": "Shared via link",
+      "private": "Private",
+      "public": "Public"
+    },
+    "optionDescription": {
+      "link": "Anyone with the link can read the plan. Your history and stats stay private.",
+      "private": "Only you can see this program.",
+      "public": "Readable via the link today; eligible for browse surfaces later. History stays private."
+    },
+    "rotateAction": "Revoke & rotate link",
+    "rotateDialog": {
+      "body": "Anyone holding the current link loses access immediately. A fresh link replaces it.",
+      "confirm": "Revoke & rotate",
+      "pending": "Rotating…",
+      "title": "Revoke this link?"
+    },
+    "rotateError": "Could not rotate the link. Try again.",
+    "shareLinkLabel": "Share link",
+    "title": "Sharing",
+    "updateError": "Could not update sharing. Try again.",
+    "visibilityGroupLabel": "Program visibility"
+  },
+  "StartDayButton": {
+    "pending": "Starting…",
+    "startAction": "Start this day",
+    "startError": "Could not start this day. Please try again."
+  },
+  "SystemTemplateDetail": {
+    "attribution": "About this program · <source>View source</source>",
+    "dayNumber": "Day {position}",
+    "meta": "{days, plural, one {# day} other {# days}}/week · {weeks, plural, one {# week} other {# weeks}}",
+    "metaDeload": "{days, plural, one {# day} other {# days}}/week · {weeks, plural, one {# week} other {# weeks}} · deload wk {deloadWeek}",
+    "planTitle": "The plan",
+    "supersetLabel": "Superset {letter}"
+  },
+  "TemplatesUnavailable": {
+    "body": {
+      "unavailable": "The template catalog could not be loaded. Try again in a minute.",
+      "unconfigured": "Connecting to the wger template catalog needs a WGER_API_KEY. Add one and reload."
+    },
+    "title": {
+      "unavailable": "wger is not answering right now",
+      "unconfigured": "Template browsing is not configured"
+    }
   },
   "TileSheet": {
     "move": {
@@ -176,12 +627,27 @@
       "label": "Show on Home"
     }
   },
+  "TmResetButton": {
+    "adjustError": "Could not adjust the training max. Please try again.",
+    "dialog": {
+      "body": "{exerciseName}: training max {currentTm} → {proposedTm} {unit} (~10% off). Future weeks derive from the lower number; the change is logged.",
+      "confirm": "Reduce training max",
+      "pending": "Reducing…",
+      "title": "Reduce the training max?"
+    },
+    "reduceAction": "Reduce"
+  },
   "Trophies": {
     "badge": "New",
     "closest": {
       "title": "Closest"
     },
     "empty": "No trophies yet. Every trophy is a lifting fact — plate clubs, workout counts, streaks. Train and they stamp themselves."
+  },
+  "UseTemplateButton": {
+    "adoptAction": "Use this program",
+    "adoptError": "Could not add this program. Please try again.",
+    "pending": "Adding…"
   },
   "WorkoutRemindersToggle": {
     "blockedNotice": "Notifications are blocked for this app in your browser settings.",

@@ -12,6 +12,7 @@ import { cn } from '@/lib/utils'
 import { ImportTemplateButton } from '../import-button'
 import { TemplatesUnavailable } from '../unavailable'
 import { SystemTemplateDetail } from './system-template-detail'
+import { getTranslations } from 'next-intl/server'
 
 /** wger routine ids are small positive integers; anything else is a bad URL. */
 const TEMPLATE_ID_PATTERN = /^\d{1,9}$/
@@ -34,6 +35,7 @@ export default async function TemplateDetailPage({
 }: {
   params: Promise<{ id: string }>
 }) {
+  const t = await getTranslations('ProgramTemplateDetail')
   const userId = await requireUserId() // middleware also guards; defense-in-depth
   const { id } = await params
   // Curated branch: a uuid is a system template (db-backed detail + adopt).
@@ -46,7 +48,7 @@ export default async function TemplateDetailPage({
     return (
       <div className="flex min-h-[100dvh] flex-col">
         <AppHeader
-          title="Template"
+          title={t('fallbackTitle')}
           leading={
             <BackLink fallback="/programs/templates" />
           }
@@ -107,8 +109,10 @@ export default async function TemplateDetailPage({
             </span>
           </p>
           <p className="mt-1.5 text-xs font-semibold uppercase tracking-widest text-muted-foreground tnum">
-            {dayCount} {dayCount === 1 ? 'day' : 'days'}/week · {input.mesocycleWeeks}{' '}
-            {input.mesocycleWeeks === 1 ? 'week' : 'weeks'}
+            {/* Unparsed input types mesocycleWeeks as optional; the mapper
+                always sets it, and 1 is the schema's own default for an
+                absent value — an ICU plural cannot take undefined. */}
+            {t('meta', { days: dayCount, weeks: input.mesocycleWeeks ?? 1 })}
           </p>
           {typeof input.description === 'string' && (
             <p className="mt-3 whitespace-pre-line text-sm leading-relaxed text-muted-foreground">
@@ -119,7 +123,7 @@ export default async function TemplateDetailPage({
 
         {/* One CTA per surface (Arc D): the Add lives at the bottom, after
             the plan has made its case — no duplicate above the fold. */}
-        <h2 className="mt-8 font-display text-xl uppercase leading-none tracking-wide">The plan</h2>
+        <h2 className="mt-8 font-display text-xl uppercase leading-none tracking-wide">{t('planTitle')}</h2>
         {/* Hairline day sections (programs/[id] vocabulary): each day sits on
             a muted hairline, no shells — the preview reads like the detail
             page it becomes after import. */}
@@ -128,7 +132,7 @@ export default async function TemplateDetailPage({
             <section key={dayIndex} className="border-b border-b-border/60 py-4">
               <h3 className="flex min-w-0 items-baseline gap-2">
                 <span className="shrink-0 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground tnum">
-                  Day {dayIndex + 1}
+                  {t('dayNumber', { position: dayIndex + 1 })}
                 </span>
                 <span className="min-w-0 truncate font-display text-lg uppercase leading-tight tracking-wide">
                   {day.name}
@@ -154,7 +158,7 @@ export default async function TemplateDetailPage({
                     >
                       {startsSuperset && (
                         <p className="mb-1 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
-                          Superset {supersetLabel}
+                          {t('supersetLabel', { letter: supersetLabel })}
                         </p>
                       )}
                       <p className="text-sm font-medium">{exercise.name}</p>
@@ -192,9 +196,9 @@ export default async function TemplateDetailPage({
         {/* The mapper's honesty ledger: what an import would drop and why.
             Quiet — a skipped accessory must not read like an error. */}
         {skipped.length > 0 && (
-          <section aria-label="Not included" className="mt-6">
+          <section aria-label={t('skipped.ariaLabel')} className="mt-6">
             <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-              Couldn&apos;t map
+              {t('skipped.title')}
             </p>
             <ul className="mt-1.5 space-y-1">
               {skipped.map((note) => (
@@ -214,16 +218,21 @@ export default async function TemplateDetailPage({
             demoted from the browse card's action row to quiet small print. */}
         {typeof input.sourceUrl === 'string' && (
           <p className="mt-6 pb-2 text-xs text-muted-foreground">
-            From the wger community ·{' '}
-            <a
-              href={input.sourceUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 underline underline-offset-2 transition-colors hover:text-foreground"
-            >
-              View on wger
-              <ExternalLink aria-hidden="true" className="size-3" />
-            </a>
+            {/* One message, not a sentence beside a link: where the link
+                sits in the line is a translator's decision. */}
+            {t.rich('attribution', {
+              source: (chunks) => (
+                <a
+                  href={input.sourceUrl as string}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 underline underline-offset-2 transition-colors hover:text-foreground"
+                >
+                  {chunks}
+                  <ExternalLink aria-hidden="true" className="size-3" />
+                </a>
+              ),
+            })}
           </p>
         )}
       </main>

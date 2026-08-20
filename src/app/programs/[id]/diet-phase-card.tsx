@@ -4,6 +4,12 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { setDietPhaseAction } from '@/app/programs/actions'
+import { useTranslations } from 'next-intl'
+
+/** The two answers the card offers, as VALUES — each button's copy is a
+ *  catalog lookup (`affirmAction` / `endAction`). */
+const AFFIRM_PHASE = 'cutting'
+const END_PHASE = 'maintaining'
 
 /**
  * The "still cutting?" staleness ask (lib/diet-phase-staleness.ts decides
@@ -15,6 +21,7 @@ import { setDietPhaseAction } from '@/app/programs/actions'
  * Hairline framing, no shell, no volt — a quiet question, not an alarm.
  */
 export function DietPhaseCard({ programId, weeks }: { programId: string; weeks: number }) {
+  const t = useTranslations('DietPhaseCard')
   const [isPending, setIsPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const router = useRouter()
@@ -26,17 +33,17 @@ export function DietPhaseCard({ programId, weeks }: { programId: string; weeks: 
       await setDietPhaseAction(programId, phase)
       router.refresh() // the card gates on set_at — the refresh clears it
     } catch {
-      setError('Could not update the diet phase. Please try again.')
+      setError(t('updateError'))
     } finally {
       setIsPending(false)
     }
   }
 
   return (
-    <section aria-label="Diet phase check" className="mt-6 border-b border-b-border/60 pb-4">
-      <p className="text-sm font-medium">Still cutting?</p>
+    <section aria-label={t('ariaLabel')} className="mt-6 border-b border-b-border/60 pb-4">
+      <p className="text-sm font-medium">{t('title')}</p>
       <p className="mt-1 text-sm text-muted-foreground tnum">
-        This cut was set {weeks} weeks ago — stall verdicts are still being read through it.
+        {t('stalenessNote', { weeks })}
       </p>
       <div className="mt-3 flex gap-2">
         <Button
@@ -44,18 +51,18 @@ export function DietPhaseCard({ programId, weeks }: { programId: string; weeks: 
           variant="outline"
           size="sm"
           disabled={isPending}
-          onClick={() => answer('cutting')}
+          onClick={() => answer(AFFIRM_PHASE)}
         >
-          Still cutting
+          {t('affirmAction')}
         </Button>
         <Button
           type="button"
           variant="outline"
           size="sm"
           disabled={isPending}
-          onClick={() => answer('maintaining')}
+          onClick={() => answer(END_PHASE)}
         >
-          End cut
+          {t('endAction')}
         </Button>
       </div>
       {error !== null && <p className="mt-2 text-sm text-destructive">{error}</p>}

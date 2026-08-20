@@ -7,6 +7,7 @@ import { ConfirmDialog } from '@/components/confirm-dialog'
 import { cn } from '@/lib/utils'
 import { restartProgramAction, restartPreviewAction } from '@/app/programs/actions'
 import { restartDialogBody, type RestartPreview } from './restart-view'
+import { useTranslations } from 'next-intl'
 
 /**
  * "Restart block": clones the program into a fresh week-1 copy ("Name —
@@ -26,6 +27,7 @@ export function RestartProgramButton({
   size?: 'sm' | 'default'
   className?: string
 }) {
+  const t = useTranslations('RestartProgramButton')
   const [isOpen, setIsOpen] = useState(false)
   const [isPending, setIsPending] = useState(false)
   // Renders INSIDE the dialog so the user retries in place (two-surface
@@ -72,7 +74,7 @@ export function RestartProgramButton({
     } catch {
       setIsPending(false)
       // The dialog stays open: the error renders inside it, retry in place.
-      setError('Could not restart this block. Please try again.')
+      setError(t('restartError'))
     }
   }
 
@@ -88,14 +90,14 @@ export function RestartProgramButton({
           setIsOpen(true)
         }}
       >
-        Restart block
+        {t('restartAction')}
       </Button>
       {isOpen && (
         <ConfirmDialog
-          title="Start the next block?"
+          title={t('dialog.title')}
           body={restartDialogBody(preview)}
-          confirmLabel="Restart block"
-          pendingLabel="Restarting…"
+          confirmLabel={t('dialog.confirm')}
+          pendingLabel={t('dialog.pending')}
           confirmVariant="default"
           error={error}
           isPending={isPending}

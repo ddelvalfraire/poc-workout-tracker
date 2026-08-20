@@ -23,14 +23,45 @@ import { SchemeSubtitle } from './scheme-subtitle'
 import { type WeightUnit } from '@/lib/units'
 import { WEEKDAY_NAMES } from '@/lib/schedule-anchor'
 import { metricModeSchema, type DeloadPolicy, type MetricMode } from '@/lib/program-input'
+import { useTranslations } from 'next-intl'
 
-/** Compact labels for the per-exercise metric-mode select (same ghost-quiet
- *  native-select idiom as the logger's logging-type control). */
-const METRIC_MODE_LABELS: Record<MetricMode, string> = {
-  reps_weight: 'Reps × weight',
-  duration: 'Duration',
-  duration_distance: 'Duration + distance',
-}
+/** The per-exercise metric-mode select (same ghost-quiet native-select
+ *  idiom as the logger's logging-type control), as VALUES only. A label
+ *  built here would be built at module load, before any request, so it
+ *  could never be translated; the copy lives in the catalog under
+ *  `metricMode.<key>`. The keys are camelCase rather than the snake_case
+ *  enum values so a catalog leaf survives an Android strings.xml export. */
+const METRIC_MODE_KEYS = {
+  reps_weight: 'repsWeight',
+  duration: 'duration',
+  duration_distance: 'durationDistance',
+} as const
+
+const METRIC_MODES = Object.keys(METRIC_MODE_KEYS) as MetricMode[]
+
+/** A set with no stored mode measures reps × weight, as it always has. */
+const DEFAULT_METRIC_MODE: MetricMode = 'reps_weight'
+
+/** Option VALUES for the three radio groups; every label is a catalog
+ *  lookup at render (see `deloadPolicy.*`, `timedExercises.*`,
+ *  `dietPhase.*`). */
+const DELOAD_MODES = ['none', 'reactive', 'scheduled'] as const
+const TIMED_EXERCISE_ARMS = ['untouched', 'scaled'] as const
+const DIET_PHASES = [null, 'cutting', 'maintaining', 'bulking'] as const
+
+/** Catalog key per editable set field. The accessible name of each input
+ *  is one ICU sentence with the field name as an ARGUMENT, so a language
+ *  that orders it differently still reads correctly — the old code glued
+ *  an English label onto the end of a template string. */
+const FIELD_LABEL_KEYS = {
+  duration: 'duration',
+  distance: 'distance',
+  rpe: 'rpe',
+  restSec: 'rest',
+  repMin: 'repMin',
+  repMax: 'repMax',
+  load: 'load',
+} as const
 
 /** The scheduled shape at the historical defaults — what a never-set policy
  *  resolves to, and the seed when the picker writes an explicit one. */
@@ -41,12 +72,12 @@ const DEFAULT_DELOAD_SHAPE = {
   timedExercises: 'untouched',
 } as const
 
-/** The read-only shape caption for the scheduled mode: the stored shape when
- *  one exists (agent-configured), the historical defaults otherwise. */
-function deloadShapeLine(policy: DeloadPolicy | null): string {
-  const shape = policy?.mode === 'scheduled' ? policy.shape : DEFAULT_DELOAD_SHAPE
-  const base = `${Math.round(shape.loadFactor * 100)}% of the load · ${Math.round(shape.setFactor * 100)}% of the sets`
-  return shape.rpeCap !== null ? `${base} · effort capped at RPE ${shape.rpeCap}` : base
+/** The shape the read-only scheduled caption describes: the stored shape
+ *  when one exists (agent-configured), the historical defaults otherwise.
+ *  The caption itself is assembled at RENDER from the catalog — a sentence
+ *  built here would be built before the translator exists. */
+function deloadShapeOf(policy: DeloadPolicy | null) {
+  return policy?.mode === 'scheduled' ? policy.shape : DEFAULT_DELOAD_SHAPE
 }
 
 /** The scheduled shape's timedExercises arm as the picker shows it. A
@@ -70,6 +101,7 @@ export function ProgramBuilder({
   initialDraft = emptyProgramDraft,
   unit = 'kg',
 }: ProgramBuilderProps) {
+  const t = useTranslations('ProgramBuilder')
   const [draft, dispatch] = useReducer(programDraftReducer, initialDraft)
   const [error, setError] = useState<string | null>(null)
   const [isPending, setIsPending] = useState(false)
@@ -171,7 +203,7 @@ export function ProgramBuilder({
       }
     } catch {
       setIsPending(false)
-      setError('Could not save program. Please try again.')
+      setError(t('saveError'))
     }
   }
 
@@ -183,52 +215,52 @@ export function ProgramBuilder({
             role="status"
             className="flex items-center justify-between gap-3 rounded-xl border border-border bg-card px-4 py-2.5"
           >
-            <p className="min-w-0 text-sm">Restored your unsaved draft.</p>
+            <p className="min-w-0 text-sm">{t('restoredNotice')}</p>
             <div className="flex shrink-0 gap-2">
               <Button size="sm" variant="outline" onClick={handleDiscardRestored}>
-                Discard
+                {t('discardAction')}
               </Button>
               <Button size="sm" variant="outline" onClick={() => setWasRestored(false)}>
-                Keep
+                {t('keepAction')}
               </Button>
             </div>
           </div>
         )}
 
         <Input
-          placeholder="Program name"
+          placeholder={t('namePlaceholder')}
           value={draft.name}
           onChange={(e) => dispatch({ type: 'SET_META', field: 'name', value: e.target.value })}
-          aria-label="Program name"
+          aria-label={t('nameAriaLabel')}
         />
 
         <div className="flex gap-2">
           <Input
             type="text"
             inputMode="numeric"
-            placeholder="Weeks (default 1)"
+            placeholder={t('weeksPlaceholder')}
             value={draft.mesocycleWeeks}
             onChange={(e) =>
               dispatch({ type: 'SET_META', field: 'mesocycleWeeks', value: e.target.value })
             }
-            aria-label="Program length in weeks"
+            aria-label={t('weeksAriaLabel')}
             className="flex-1 tnum"
           />
           <Input
             type="text"
             inputMode="numeric"
-            placeholder="Deload week (optional)"
+            placeholder={t('deloadWeekPlaceholder')}
             value={draft.deloadWeek}
             onChange={(e) =>
               dispatch({ type: 'SET_META', field: 'deloadWeek', value: e.target.value })
             }
-            aria-label="Deload week"
+            aria-label={t('deloadWeekAriaLabel')}
             aria-describedby="deload-hint"
             className="flex-1 tnum"
           />
         </div>
         <p id="deload-hint" className="px-1 text-sm text-muted-foreground">
-          A deload week eases the load partway through so you recover before the next block.
+          {t('deloadHint')}
         </p>
 
         {/* Deload policy: the same compact radio idiom as the stall policy
@@ -238,15 +270,9 @@ export function ProgramBuilder({
             writes an explicit policy. Scheduled's shape is read-only here —
             the historical back-off unless an agent configured otherwise. */}
         <fieldset className="px-1">
-          <legend className="text-sm">How should the deload week behave?</legend>
+          <legend className="text-sm">{t('deloadPolicy.legend')}</legend>
           <div className="mt-1 flex flex-col gap-1">
-            {(
-              [
-                ['none', 'None — train it like any other week'],
-                ['reactive', 'Reactive — only when stalls suggest one'],
-                ['scheduled', 'Scheduled — back off on the deload week'],
-              ] as const
-            ).map(([mode, label]) => (
+            {DELOAD_MODES.map((mode) => (
               <label key={mode} className="flex items-center gap-2.5">
                 <input
                   type="radio"
@@ -269,15 +295,23 @@ export function ProgramBuilder({
                   }
                   className="size-4 shrink-0 accent-primary"
                 />
-                <span className="text-sm text-muted-foreground">{label}</span>
+                <span className="text-sm text-muted-foreground">{t(`deloadPolicy.${mode}`)}</span>
               </label>
             ))}
           </div>
-          {resolvedDeloadMode === 'scheduled' && (
-            <p className="mt-1 pl-6.5 text-sm text-muted-foreground">
-              {deloadShapeLine(draft.deloadPolicy)}
-            </p>
-          )}
+          {resolvedDeloadMode === 'scheduled' &&
+            (() => {
+              const shape = deloadShapeOf(draft.deloadPolicy)
+              const load = Math.round(shape.loadFactor * 100)
+              const sets = Math.round(shape.setFactor * 100)
+              return (
+                <p className="mt-1 pl-6.5 text-sm text-muted-foreground">
+                  {shape.rpeCap !== null
+                    ? t('deloadPolicy.shapeWithCap', { load, sets, rpeCap: shape.rpeCap })
+                    : t('deloadPolicy.shape', { load, sets })}
+                </p>
+              )
+            })()}
           {/* Timed exercises on the deload week (D3, "creator decides"):
               the same compact radio idiom, nested under Scheduled like the
               stall policy under auto-regulation. Untouched is the default —
@@ -286,14 +320,9 @@ export function ProgramBuilder({
               writes an explicit policy (seeding the current/default shape). */}
           {resolvedDeloadMode === 'scheduled' && (
             <fieldset className="mt-2 pl-6.5">
-              <legend className="text-sm">Timed exercises on the deload week?</legend>
+              <legend className="text-sm">{t('timedExercises.legend')}</legend>
               <div className="mt-1 flex flex-col gap-1">
-                {(
-                  [
-                    ['untouched', 'Untouched — timed work trains as written'],
-                    ['scaled', 'Scaled — fewer timed sets too'],
-                  ] as const
-                ).map(([arm, label]) => (
+                {TIMED_EXERCISE_ARMS.map((arm) => (
                   <label key={arm} className="flex items-center gap-2.5">
                     <input
                       type="radio"
@@ -315,7 +344,7 @@ export function ProgramBuilder({
                       }
                       className="size-4 shrink-0 accent-primary"
                     />
-                    <span className="text-sm text-muted-foreground">{label}</span>
+                    <span className="text-sm text-muted-foreground">{t(`timedExercises.${arm}`)}</span>
                   </label>
                 ))}
               </div>
@@ -329,16 +358,9 @@ export function ProgramBuilder({
             verdicts (holding is the win) and asks before backing off; it
             never changes a load. */}
         <fieldset className="px-1">
-          <legend className="text-sm">Diet phase (optional)</legend>
+          <legend className="text-sm">{t('dietPhase.legend')}</legend>
           <div className="mt-1 flex flex-col gap-1">
-            {(
-              [
-                [null, 'None'],
-                ['cutting', 'Cutting — stalls are expected; hold, don’t auto-back-off'],
-                ['maintaining', 'Maintaining'],
-                ['bulking', 'Bulking'],
-              ] as const
-            ).map(([phase, label]) => (
+            {DIET_PHASES.map((phase) => (
               <label key={phase ?? 'none'} className="flex items-center gap-2.5">
                 <input
                   type="radio"
@@ -347,7 +369,7 @@ export function ProgramBuilder({
                   onChange={() => dispatch({ type: 'SET_DIET_PHASE', value: phase })}
                   className="size-4 shrink-0 accent-primary"
                 />
-                <span className="text-sm text-muted-foreground">{label}</span>
+                <span className="text-sm text-muted-foreground">{t(`dietPhase.${phase ?? 'none'}`)}</span>
               </label>
             ))}
           </div>
@@ -364,11 +386,9 @@ export function ProgramBuilder({
             className="mt-0.5 size-4 shrink-0 accent-primary"
           />
           <span className="text-sm">
-            Auto-regulate loads
+            {t('autoreg.label')}
             <span className="mt-0.5 block text-muted-foreground">
-              After missed reps, sessions say what to do next — “Stay at 100 kg” or, after
-              repeated stalls, “Drop to 90 kg” — with the reason shown. You can always use the
-              plan as written.
+              {t('autoreg.description')}
             </span>
           </span>
         </label>
@@ -379,7 +399,7 @@ export function ProgramBuilder({
             (the stored value is preserved either way). */}
         {draft.autoregulation && (
           <fieldset className="px-1 pl-7">
-            <legend className="text-sm">When does a session count as stalled?</legend>
+            <legend className="text-sm">{t('stallPolicy.legend')}</legend>
             <div className="mt-1 flex flex-col gap-1">
               <label className="flex items-center gap-2.5">
                 <input
@@ -391,7 +411,7 @@ export function ProgramBuilder({
                   }
                   className="size-4 shrink-0 accent-primary"
                 />
-                <span className="text-sm text-muted-foreground">Every set must hit its reps</span>
+                <span className="text-sm text-muted-foreground">{t('stallPolicy.allSets')}</span>
               </label>
               <label className="flex items-center gap-2.5">
                 <input
@@ -403,7 +423,7 @@ export function ProgramBuilder({
                   }
                   className="size-4 shrink-0 accent-primary"
                 />
-                <span className="text-sm text-muted-foreground">Top set decides</span>
+                <span className="text-sm text-muted-foreground">{t('stallPolicy.firstSet')}</span>
               </label>
             </div>
           </fieldset>
@@ -421,11 +441,9 @@ export function ProgramBuilder({
             className="mt-0.5 size-4 shrink-0 accent-primary"
           />
           <span className="text-sm">
-            Sync plan to performance
+            {t('planSync.label')}
             <span className="mt-0.5 block text-muted-foreground">
-              When you finish a session lifting more than the plan calls for, the plan adopts your
-              loads (logged in the change log). Turn off for percentage-wave programs where lifting
-              past the listed number is intentional.
+              {t('planSync.description')}
             </span>
           </span>
         </label>
@@ -435,31 +453,30 @@ export function ProgramBuilder({
             so there's no second control to keep in sync. */}
         <div className="space-y-1 px-1">
           <label className="flex items-center gap-2.5 text-sm" htmlFor="check-in-every-days">
-            <span className="flex-1">Suggest a body check-in every</span>
+            <span className="flex-1">{t('checkIn.label')}</span>
             <Input
               id="check-in-every-days"
               type="text"
               inputMode="numeric"
-              placeholder="—"
+              placeholder={t('checkIn.placeholder')}
               value={draft.checkInEveryDays}
               onChange={(e) =>
                 dispatch({ type: 'SET_META', field: 'checkInEveryDays', value: e.target.value })
               }
-              aria-label="Suggested days between body check-ins"
+              aria-label={t('checkIn.ariaLabel')}
               aria-describedby="check-in-hint"
               className="w-16 shrink-0 text-center tnum"
             />
-            <span className="shrink-0">days</span>
+            <span className="shrink-0">{t('checkIn.unit')}</span>
           </label>
           <p id="check-in-hint" className="text-sm text-muted-foreground">
-            Nudges a weigh-in, tape, or progress photo on that cadence (3–90 days). Leave blank for
-            no suggestion.
+            {t('checkIn.hint')}
           </p>
         </div>
 
         {draft.days.length === 0 && (
           <p className="px-1 py-6 text-center text-sm text-muted-foreground">
-            Add a training day to start building your program.
+            {t('empty.days')}
           </p>
         )}
 
@@ -470,30 +487,30 @@ export function ProgramBuilder({
           // only the shell around it changed.
           <section
             key={day.id}
-            aria-label={`Day ${dayIndex + 1}`}
+            aria-label={t('day.ariaLabel', { position: dayIndex + 1 })}
             className="space-y-3 border-b border-b-border/60 pb-6 pt-2"
           >
             <div className="flex items-center justify-between gap-2">
               <h2 className="font-display text-base uppercase leading-none tracking-wide text-muted-foreground tnum">
-                Day {dayIndex + 1}
+                {t('day.title', { position: dayIndex + 1 })}
               </h2>
               <Button
                 size="icon-sm"
                 variant="ghost"
                 className="-mr-1 shrink-0 text-muted-foreground"
                 onClick={() => dispatch({ type: 'REMOVE_DAY', index: dayIndex })}
-                aria-label={`Remove day ${dayIndex + 1}`}
+                aria-label={t('day.removeAriaLabel', { position: dayIndex + 1 })}
               >
                 <Trash2 aria-hidden="true" className="size-4" />
               </Button>
             </div>
             <Input
-              placeholder={`Day ${dayIndex + 1} name`}
+              placeholder={t('day.namePlaceholder', { position: dayIndex + 1 })}
               value={day.name}
               onChange={(e) =>
                 dispatch({ type: 'RENAME_DAY', index: dayIndex, name: e.target.value })
               }
-              aria-label={`Day ${dayIndex + 1} name`}
+              aria-label={t('day.nameAriaLabel', { position: dayIndex + 1 })}
               className="min-w-0"
             />
 
@@ -504,7 +521,9 @@ export function ProgramBuilder({
                 single letter can't. */}
             <div
               role="group"
-              aria-label={`${day.name || `Day ${dayIndex + 1}`} schedule`}
+              aria-label={t('day.scheduleAriaLabel', {
+                dayName: day.name || t('day.title', { position: dayIndex + 1 }),
+              })}
               className="flex gap-1.5 px-0.5"
             >
               {WEEKDAY_NAMES.map((weekdayName, weekday) => {
@@ -547,7 +566,7 @@ export function ProgramBuilder({
 
             {day.exercises.length === 0 && (
               <p className="px-1 py-3 text-center text-sm text-muted-foreground">
-                Search above to add an exercise to this day.
+                {t('empty.exercises')}
               </p>
             )}
 
@@ -557,7 +576,7 @@ export function ProgramBuilder({
               // What this slot's sets measure — one control per exercise
               // (the builder edits sets uniformly; per-set drift stays an
               // agent affordance). First set speaks for the slot.
-              const exerciseMode: MetricMode = exercise.sets[0]?.metricMode ?? 'reps_weight'
+              const exerciseMode: MetricMode = exercise.sets[0]?.metricMode ?? DEFAULT_METRIC_MODE
               const isCardioExercise = exerciseMode !== 'reps_weight'
               return (
               <div key={exercise.id} className="space-y-2 border-t border-t-border/60 pt-3">
@@ -577,7 +596,7 @@ export function ProgramBuilder({
                     onClick={() =>
                       dispatch({ type: 'REMOVE_EXERCISE', dayIndex, index: exerciseIndex })
                     }
-                    aria-label={`Remove ${exercise.name}`}
+                    aria-label={t('exercise.removeAriaLabel', { exerciseName: exercise.name })}
                   >
                     {/* Trash2 = container (day, exercise); X = single row
                         (set) — one glyph per meaning, matching the logger. */}
@@ -605,12 +624,14 @@ export function ProgramBuilder({
                         })
                       }
                     }}
-                    aria-label={`Tracking mode for ${exercise.name}`}
+                    aria-label={t('exercise.metricModeAriaLabel', {
+                      exerciseName: exercise.name,
+                    })}
                     className="h-9 appearance-none rounded-lg bg-transparent pl-1 pr-5 text-xs font-semibold uppercase tracking-wide text-muted-foreground outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
                   >
-                    {(Object.keys(METRIC_MODE_LABELS) as MetricMode[]).map((mode) => (
+                    {METRIC_MODES.map((mode) => (
                       <option key={mode} value={mode}>
-                        {METRIC_MODE_LABELS[mode]}
+                        {t(`metricMode.${METRIC_MODE_KEYS[mode]}`)}
                       </option>
                     ))}
                   </select>
@@ -636,7 +657,7 @@ export function ProgramBuilder({
                 {(exercise.progression?.scheme === 'percent-1rm' ||
                   exercise.progression?.scheme === 'amrap-cycle') && (
                   <label className="flex items-center gap-2.5 px-0.5 text-sm">
-                    <span className="shrink-0">Training max ({unit})</span>
+                    <span className="shrink-0">{t('trainingMax.label', { unit })}</span>
                     <Input
                       type="text"
                       inputMode="decimal"
@@ -649,11 +670,14 @@ export function ProgramBuilder({
                           value: e.target.value,
                         })
                       }
-                      aria-label={`${exercise.name} training max in ${unit}`}
+                      aria-label={t('trainingMax.ariaLabel', {
+                        exerciseName: exercise.name,
+                        unit,
+                      })}
                       className="w-24 shrink-0 text-center tnum"
                     />
                     {exercise.trainingMaxFromE1rm && (
-                      <span className="text-xs text-muted-foreground">from your e1RM</span>
+                      <span className="text-xs text-muted-foreground">{t('trainingMax.fromE1rmNote')}</span>
                     )}
                   </label>
                 )}
@@ -669,20 +693,20 @@ export function ProgramBuilder({
                           {/* Cardio columns: mm:ss + optional km replace the
                               rep/load trio; RPE stays (effort cap) and rest
                               keeps its slot. */}
-                          <span className="flex-[1.4] text-center">Time</span>
+                          <span className="flex-[1.4] text-center">{t('column.time')}</span>
                           {exerciseMode === 'duration_distance' && (
-                            <span className="flex-[1.4] text-center">Km</span>
+                            <span className="flex-[1.4] text-center">{t('column.km')}</span>
                           )}
-                          <span className="flex-1 text-center">RPE</span>
-                          <span className="flex-1 text-center">Rest s</span>
+                          <span className="flex-1 text-center">{t('column.rpe')}</span>
+                          <span className="flex-1 text-center">{t('column.rest')}</span>
                         </>
                       ) : (
                         <>
-                          <span className="flex-1 text-center">Rep min</span>
-                          <span className="flex-1 text-center">Rep max</span>
+                          <span className="flex-1 text-center">{t('column.repMin')}</span>
+                          <span className="flex-1 text-center">{t('column.repMax')}</span>
                           <span className="flex-[1.4] text-center">{unit}</span>
-                          <span className="flex-1 text-center">RPE</span>
-                          <span className="flex-1 text-center">Rest s</span>
+                          <span className="flex-1 text-center">{t('column.rpe')}</span>
+                          <span className="flex-1 text-center">{t('column.rest')}</span>
                         </>
                       )}
                       <span className="size-9 shrink-0" aria-hidden="true" />
@@ -702,7 +726,6 @@ export function ProgramBuilder({
                               // optional effort cap, rest keeps its slot.
                               {
                                 field: 'duration',
-                                label: 'duration, minutes and seconds',
                                 mode: 'numeric',
                                 value: set.duration,
                               },
@@ -710,41 +733,37 @@ export function ProgramBuilder({
                                 ? ([
                                     {
                                       field: 'distance',
-                                      label: 'distance in km',
                                       mode: 'decimal',
                                       value: set.distance,
                                     },
                                   ] as const)
                                 : []),
-                              { field: 'rpe', label: 'RPE', mode: 'decimal', value: set.rpe },
+                              { field: 'rpe', mode: 'decimal', value: set.rpe },
                               {
                                 field: 'restSec',
-                                label: 'rest in seconds',
                                 mode: 'numeric',
                                 value: set.restSec,
                               },
                             ] as const)
                           : ([
-                            { field: 'repMin', label: 'rep min', mode: 'numeric', value: set.repMin },
-                            { field: 'repMax', label: 'rep max', mode: 'numeric', value: set.repMax },
+                            { field: 'repMin', mode: 'numeric', value: set.repMin },
+                            { field: 'repMax', mode: 'numeric', value: set.repMax },
                             {
                               field: 'load',
-                              label: `load in ${unit}`,
                               mode: 'decimal',
                               value: set.load,
                             },
-                            { field: 'rpe', label: 'RPE', mode: 'decimal', value: set.rpe },
+                            { field: 'rpe', mode: 'decimal', value: set.rpe },
                             // Per-set rest target in seconds — the granularity
                             // the product asked for ("per exercise per set").
                             // Rides the same UPDATE_SET path as its siblings.
                             {
                               field: 'restSec',
-                              label: 'rest in seconds',
                               mode: 'numeric',
                               value: set.restSec,
                             },
                           ] as const)
-                        ).map(({ field, label, mode, value }) => (
+                        ).map(({ field, mode, value }) => (
                           <Input
                             key={field}
                             type="text"
@@ -754,9 +773,9 @@ export function ProgramBuilder({
                             // Duration hints its dialect the same quiet way.
                             placeholder={
                               field === 'restSec'
-                                ? 'Rest s'
+                                ? t('placeholder.rest')
                                 : field === 'duration'
-                                  ? 'mm:ss'
+                                  ? t('placeholder.duration')
                                   : undefined
                             }
                             value={value}
@@ -770,7 +789,14 @@ export function ProgramBuilder({
                                 value: e.target.value,
                               })
                             }
-                            aria-label={`${exercise.name} set ${setIndex + 1} ${label}`}
+                            aria-label={t('set.ariaLabel', {
+                              exerciseName: exercise.name,
+                              position: setIndex + 1,
+                              field:
+                                field === 'load'
+                                  ? t('field.load', { unit })
+                                  : t(`field.${FIELD_LABEL_KEYS[field]}`),
+                            })}
                             // The load column gets extra width: 3-digit values +
                             // a decimal must not clip at the 390px PWA viewport
                             // — and so do cardio's mm:ss / km columns.
@@ -788,7 +814,10 @@ export function ProgramBuilder({
                           onClick={() =>
                             dispatch({ type: 'REMOVE_SET', dayIndex, exerciseIndex, setIndex })
                           }
-                          aria-label={`Remove ${exercise.name} set ${setIndex + 1}`}
+                          aria-label={t('set.removeAriaLabel', {
+                            exerciseName: exercise.name,
+                            position: setIndex + 1,
+                          })}
                         >
                           <X aria-hidden="true" className="size-4" />
                         </Button>
@@ -810,7 +839,7 @@ export function ProgramBuilder({
                       })
                     }
                   >
-                    + Add set
+                    {t('addSetAction')}
                   </Button>
                 </div>
               </div>
@@ -824,10 +853,15 @@ export function ProgramBuilder({
           variant="outline"
           className="w-full"
           onClick={() =>
-            dispatch({ type: 'ADD_DAY', day: newDraftProgramDay(`Day ${draft.days.length + 1}`) })
+            dispatch({
+              type: 'ADD_DAY',
+              // The seeded day NAME is stored data, so it is translated at
+              // the moment of creation like any other copy the user sees.
+              day: newDraftProgramDay(t('day.defaultName', { position: draft.days.length + 1 })),
+            })
           }
         >
-          + Add day
+          {t('addDayAction')}
         </Button>
 
         {error && <p className="text-sm text-destructive">{error}</p>}
@@ -840,7 +874,7 @@ export function ProgramBuilder({
           disabled={isIncomplete || isPending}
           onClick={handleSave}
         >
-          {isPending ? 'Saving…' : programId ? 'Save changes' : 'Save program'}
+          {isPending ? t('saving') : programId ? t('saveChangesAction') : t('saveAction')}
         </Button>
       </div>
     </>

@@ -15,6 +15,7 @@ import { buttonVariants } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { NavDrawer } from '@/components/nav/nav-drawer'
 import { zonePrograms, programStatusLabel, proposalAgeLine } from './list-view'
+import { getTranslations } from 'next-intl/server'
 
 /** The list-row program shape (listPrograms row). */
 type ProgramRowData = Awaited<ReturnType<typeof listPrograms>>[number]
@@ -38,6 +39,7 @@ interface HeroData {
  * the active program has no derivable next day).
  */
 async function loadHeroData(userId: string, program: ProgramRowData): Promise<HeroData | null> {
+  const t = await getTranslations('Programs')
   const [detail, workouts, nextDay] = await Promise.all([
     getProgramDetail(userId, program.id),
     listProgramWorkouts(userId, program.id),
@@ -62,7 +64,9 @@ async function loadHeroData(userId: string, program: ProgramRowData): Promise<He
       workouts,
     }),
     nextLine: next
-      ? `Next: ${dayIndex >= 0 ? `Day ${dayIndex + 1} · ` : ''}${next.dayName}`
+      ? dayIndex >= 0
+        ? t('hero.nextWithDay', { position: dayIndex + 1, dayName: next.dayName })
+        : t('hero.next', { dayName: next.dayName })
       : null,
   }
 }
@@ -72,8 +76,24 @@ async function loadHeroData(userId: string, program: ProgramRowData): Promise<He
  *  DASHED hairline — dashed still reads "not settled", but muted, because
  *  per-item volt on a list surface stacks (the #163 review precedent) and
  *  the "Needs your decision" zone heading already carries the ask. */
-function ProgramRow({ program }: { program: ProgramRowData }) {
+async function ProgramRow({ program }: { program: ProgramRowData }) {
+  const t = await getTranslations('Programs')
   const isProposed = program.status === 'proposed'
+  // Middot-joined facts, not a sentence: each fact is its own whole ICU
+  // message, so no translator is handed a dangling fragment.
+  const meta = [
+    program.deloadWeek !== null
+      ? t('row.weeksDeload', {
+          weeks: program.mesocycleWeeks,
+          deloadWeek: program.deloadWeek,
+        })
+      : t('row.weeks', { weeks: program.mesocycleWeeks }),
+    // Staleness affordance: a pending proposal wears its age as muted
+    // words — never an auto-expiry.
+    isProposed ? proposalAgeLine(program.createdAt, new Date()) : null,
+  ]
+    .filter((part) => part !== null)
+    .join(' · ')
   return (
     <li>
       <Link
@@ -93,11 +113,7 @@ function ProgramRow({ program }: { program: ProgramRowData }) {
             <span className="min-w-0 truncate">{program.name}</span>
           </span>
           <span className="mt-1 block text-xs text-muted-foreground tnum">
-            {program.mesocycleWeeks} week{program.mesocycleWeeks === 1 ? '' : 's'}
-            {program.deloadWeek !== null && ` · deload wk ${program.deloadWeek}`}
-            {/* Staleness affordance: a pending proposal wears its age as
-                muted words — never an auto-expiry. */}
-            {isProposed && ` · ${proposalAgeLine(program.createdAt, new Date())}`}
+            {meta}
           </span>
         </span>
         <ChevronRight aria-hidden="true" className="size-5 shrink-0 text-muted-foreground" />
@@ -116,6 +132,7 @@ function ZoneHeading({ children }: { children: React.ReactNode }) {
 }
 
 export default async function ProgramsPage() {
+  const t = await getTranslations('Programs')
   const userId = await requireUserId() // middleware also guards; defense-in-depth
   const programs = await listPrograms(userId)
   const zones = zonePrograms(programs)
@@ -125,7 +142,7 @@ export default async function ProgramsPage() {
   return (
     <div className="flex min-h-[100dvh] flex-col">
       <AppHeader
-        title="Programs"
+        title={t('title')}
         leading={<NavDrawer />}
       />
 
@@ -136,10 +153,10 @@ export default async function ProgramsPage() {
         {programs.length === 0 ? (
           <div className="mt-12">
             <p className="font-display text-5xl uppercase leading-none tracking-wide text-primary">
-              Day one.
+              {t('empty.title')}
             </p>
             <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-              Every block starts as a plan. Build your own, or start from a community template.
+              {t('empty.description')}
             </p>
             <Link
               href="/programs/new"
@@ -148,13 +165,13 @@ export default async function ProgramsPage() {
                 'mt-6 w-full text-base font-semibold uppercase tracking-wide',
               )}
             >
-              + New Program
+              {t('empty.newLink')}
             </Link>
             <Link
               href="/programs/templates"
               className={cn(buttonVariants({ variant: 'outline', size: 'lg' }), 'mt-3 w-full')}
             >
-              Browse program templates
+              {t('empty.templatesLink')}
             </Link>
           </div>
         ) : (
@@ -188,16 +205,24 @@ export default async function ProgramsPage() {
                 {heroData && (
                   <>
                     <span className="mt-4 flex items-baseline gap-2 font-display uppercase tracking-wide">
-                      <span className="text-5xl leading-none tnum">Wk {heroData.currentWeek}</span>
-                      <span className="text-xl leading-none text-muted-foreground tnum">
-                        of {hero.mesocycleWeeks}
-                      </span>
+                      {t.rich('hero.weekPosition', {
+                        week: heroData.currentWeek,
+                        total: hero.mesocycleWeeks,
+                        big: (chunks) => (
+                          <span className="text-5xl leading-none tnum">{chunks}</span>
+                        ),
+                        small: (chunks) => (
+                          <span className="text-xl leading-none text-muted-foreground tnum">
+                            {chunks}
+                          </span>
+                        ),
+                      })}
                     </span>
                     <BlockMap weeks={heroData.blockWeeks} size="compact" className="mt-3" />
                     <span className="mt-3 block text-sm text-muted-foreground">
                       {heroData.blockComplete
-                        ? 'Block complete — restart or review from the program page.'
-                        : (heroData.nextLine ?? 'No days planned yet.')}
+                        ? t('hero.blockComplete')
+                        : (heroData.nextLine ?? t('hero.noDays'))}
                     </span>
                   </>
                 )}
@@ -212,13 +237,13 @@ export default async function ProgramsPage() {
                 href="/programs/new"
                 className={cn(buttonVariants({ variant: hero ? 'outline' : 'default' }), 'flex-1')}
               >
-                + New Program
+                {t('newLink')}
               </Link>
               <Link
                 href="/programs/templates"
                 className={cn(buttonVariants({ variant: 'outline' }), 'flex-1')}
               >
-                Browse program templates
+                {t('templatesLink')}
               </Link>
             </div>
 
@@ -226,7 +251,7 @@ export default async function ProgramsPage() {
                 top — they're still live commitments, just not the hero. */}
             {zones.otherActive.length > 0 && (
               <>
-                <ZoneHeading>Also active</ZoneHeading>
+                <ZoneHeading>{t('zone.otherActive')}</ZoneHeading>
                 <ul>
                   {zones.otherActive.map((program) => (
                     <ProgramRow key={program.id} program={program} />
@@ -239,7 +264,7 @@ export default async function ProgramsPage() {
                 dashed-volt border keeps the established "pending" voice. */}
             {zones.proposed.length > 0 && (
               <>
-                <ZoneHeading>Needs your decision</ZoneHeading>
+                <ZoneHeading>{t('zone.proposed')}</ZoneHeading>
                 <ul>
                   {zones.proposed.map((program) => (
                     <ProgramRow key={program.id} program={program} />
@@ -250,7 +275,7 @@ export default async function ProgramsPage() {
 
             {zones.drafts.length > 0 && (
               <>
-                <ZoneHeading>Drafts</ZoneHeading>
+                <ZoneHeading>{t('zone.drafts')}</ZoneHeading>
                 <ul>
                   {zones.drafts.map((program) => (
                     <ProgramRow key={program.id} program={program} />
@@ -264,7 +289,7 @@ export default async function ProgramsPage() {
             {zones.archived.length > 0 && (
               <details className="group mt-8">
                 <summary className="flex cursor-pointer list-none items-center gap-1 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground [&::-webkit-details-marker]:hidden">
-                  Archived · {zones.archived.length}
+                  {t('archived.summary', { count: zones.archived.length })}
                   <ChevronRight
                     aria-hidden="true"
                     className="size-3.5 transition-transform group-open:rotate-90"
