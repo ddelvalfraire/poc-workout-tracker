@@ -3,6 +3,7 @@ import { createTranslator } from 'next-intl'
 
 import en from '../../../messages/en.json'
 import { renderStaticIntl } from '../../../vitest.intl'
+import { templateStatusLine, type TemplateStatusMessage } from '@/lib/template-usage'
 import { TemplateActions } from './[id]/template-actions'
 
 /**
@@ -32,6 +33,57 @@ describe('Templates list copy', () => {
   test('the hero CTA and the row accessible name are whole messages', () => {
     expect(templates('startHeroAction', { name: 'Push A' })).toBe('Start Push A')
     expect(templates('startRowAriaLabel', { name: 'Push A' })).toBe('Start Push A')
+  })
+})
+
+/**
+ * lib/template-usage decides WHICH status sentence a row earns; these render
+ * that decision through the real catalog. The recency half is its own message,
+ * resolved first and passed in as an argument exactly as the page does it — so
+ * a broken nesting surfaces here rather than as "Last: Templates.lastRun…" on
+ * someone's screen.
+ */
+describe('Templates row status, rendered from descriptors', () => {
+  const templates = t('Templates')
+  const NOW = new Date('2026-07-20T12:00:00Z')
+  const daysAgo = (days: number) => new Date(NOW.getTime() - days * 24 * 60 * 60 * 1000)
+
+  function render(status: TemplateStatusMessage): string {
+    if (status.key === 'status.neverRun') return templates(status.key, status.values)
+    const when = templates(status.values.when.key, status.values.when.values as never)
+    return status.key === 'status.lastRun'
+      ? templates(status.key, { when })
+      : templates(status.key, { when, volume: status.values.volume, unit: status.values.unit })
+  }
+
+  test('a run with volume reads as one sentence in the display unit', () => {
+    const usage = { lastPerformedAt: daysAgo(4), lastVolumeKg: 3663.2 }
+    expect(render(templateStatusLine(usage, 5, 'lb', NOW))).toBe('Last: 4d ago · 8,076 lb')
+    expect(render(templateStatusLine(usage, 5, 'kg', NOW))).toBe('Last: 4d ago · 3,663 kg')
+  })
+
+  test('a zero-volume run drops the segment', () => {
+    const usage = { lastPerformedAt: daysAgo(1), lastVolumeKg: 0 }
+    expect(render(templateStatusLine(usage, 5, 'kg', NOW))).toBe('Last: Yesterday')
+  })
+
+  test('Never run pluralises the exercise count at one and at many', () => {
+    expect(render(templateStatusLine(null, 1, 'kg', NOW))).toBe('1 exercise · Never run')
+    expect(render(templateStatusLine(null, 8, 'kg', NOW))).toBe('8 exercises · Never run')
+  })
+
+  test('every recency word resolves, and no key path leaks', () => {
+    const lines = [0, 1, 6, 35, 120].map((days) =>
+      render(templateStatusLine({ lastPerformedAt: daysAgo(days), lastVolumeKg: 0 }, 1, 'kg', NOW)),
+    )
+    expect(lines).toEqual([
+      'Last: Today',
+      'Last: Yesterday',
+      'Last: 6d ago',
+      'Last: 5 wks ago',
+      'Last: 4 mo ago',
+    ])
+    expect(lines.join(' ')).not.toMatch(/Templates\.[a-zA-Z.]+/)
   })
 })
 

@@ -404,10 +404,23 @@
       "all": "All",
       "ariaLabel": "Filter by muscle group"
     },
+    "recency": {
+      "monthsAgo": "{months} mo ago",
+      "onDate": "{date, date, ::MMMd}",
+      "today": "Today",
+      "weeksAgo": "{weeks, plural, one {# wk ago} other {# wks ago}}",
+      "yesterday": "Yesterday"
+    },
     "sort": {
       "ariaLabel": "Sort",
       "recent": "Recent",
       "trained": "Most trained"
+    },
+    "status": {
+      "best": "{value, number, ::group-off} {unit} e1RM",
+      "sessionCount": "{count, plural, one {# session} other {# sessions}}",
+      "trendDown": "↓ −{magnitude} this month",
+      "trendUp": "↑ +{magnitude} this month"
     },
     "title": "Exercises"
   },
@@ -484,6 +497,7 @@
     "activeTitle": "Active",
     "archivedGroupLabel": "Archived goals",
     "archivedTitle": "Archived",
+    "bestValue": "Best {value, number, ::group-off} {unit}",
     "bodyweightHint": "Log your bodyweight to track this goal.",
     "bodyweightSeriesLabel": "Bodyweight",
     "byDeadline": "By {date}",
@@ -491,13 +505,27 @@
     "doneHeadline": "Done.",
     "empty": "No goals yet. Set a strength target, a bodyweight target, or a training streak.",
     "graceSummary": "{misses, plural, =0 {Strict} one {# miss/week grace} other {# misses/week grace}}",
+    "label": {
+      "bodyweight": "Bodyweight {value, number, ::group-off} {unit}",
+      "consistency": "{weeks}-week streak",
+      "strength": "{exercise} {value, number, ::group-off} {unit}",
+      "strengthUnnamed": "Exercise {value, number, ::group-off} {unit}",
+      "unknown": "Goal"
+    },
     "noEstimate": "No est. 1RM yet",
-    "onPace": "On pace for {date}{suffix}",
+    "pace": "On pace for {date}",
+    "paceAhead": "On pace for {date} — {weeks, plural, one {# week} other {# weeks}} early",
+    "paceBehind": "On pace for {date} — {weeks, plural, one {# week} other {# weeks}} late",
     "percentValue": "{percent}%",
     "progressLabel": "Progress to target",
+    "push": {
+      "body": "Target hit — see your goals.",
+      "title": "Goal reached: {name}"
+    },
     "remaining": "<amount>{value}</amount> {unit} to go",
     "targetSeriesLabel": "Target",
     "title": "Goals",
+    "trendChartAriaLabel": "Bodyweight trend over {count, plural, one {# entry} other {# entries}} against the {target, number, ::group-off} {unit} target",
     "trendLabel": "Bodyweight trend",
     "trophiesLinkLabel": "Trophies"
   },
@@ -1327,6 +1355,40 @@
     "ariaLabel": "Effort logging (RPE/RIR)",
     "saveError": "Couldn’t save. Try again."
   },
+  "SchemeCopy": {
+    "name": {
+      "amrapCycle": "AMRAP cycle",
+      "doubleProgression": "Double progression",
+      "linear": "Linear",
+      "percent1rm": "Percent of 1RM",
+      "repProgression": "Rep progression",
+      "rpeTarget": "RPE target",
+      "weeklyVolume": "Weekly volume"
+    },
+    "sentence": {
+      "amrapCycle": "Beat your rep record on the last set to earn the next training-max bump (+{increment, number, ::group-off} {unit}).",
+      "doubleProgression": "Hit {reps} reps on every set → +{increment, number, ::group-off} {unit} next session.",
+      "doubleProgressionAtLoad": "Hit {reps} reps on every set at {load, number, ::group-off} {unit} → +{increment, number, ::group-off} {unit} next session.",
+      "linear": "Complete all sets → +{increment, number, ::group-off} {unit} next session.",
+      "percent1rm": "Week loads are {percent}% of your {trainingMax, number, ::group-off} {unit} training max.",
+      "percent1rmRange": "Week loads are {min}–{max}% of your {trainingMax, number, ::group-off} {unit} training max.",
+      "repProgression": "+{reps, plural, one {# rep} other {# reps}} each session.",
+      "repProgressionCapped": "+{reps, plural, one {# rep} other {# reps}} each session, up to {cap}.",
+      "rpeTarget": "Loads picked from your estimated max to land at RPE {rpe, number, ::group-off}.",
+      "secProgression": "+{seconds} sec each session.",
+      "secProgressionCapped": "+{seconds} sec each session, up to {cap} sec.",
+      "weeklyVolume": "{mev} → {mrv} sets across the block, added weekly."
+    },
+    "subtitle": {
+      "amrapCycle": "Each week ends with an as-many-reps-as-possible set; beat your record to earn the next training-max bump.",
+      "doubleProgression": "Work up to the top of your rep range, then the weight goes up and reps start over.",
+      "linear": "Add weight every session you complete all sets.",
+      "percent1rm": "Weights are percentages of your training max, which bumps a small fixed amount each cycle.",
+      "repProgression": "Same weight, more reps each session.",
+      "rpeTarget": "Loads are picked from your estimated max to hit a target effort — heavier on good days, lighter on bad.",
+      "weeklyVolume": "Start at minimum growth volume, add sets weekly until recovery caps, then deload."
+    }
+  },
   "SchemeSubtitle": {
     "separator": "—"
   },
@@ -1603,9 +1665,21 @@
   },
   "Templates": {
     "empty": "Finish a workout, tap “Save as template” on its summary, and it lives here ready to start in one tap.",
+    "lastRun": {
+      "daysAgo": "{days}d ago",
+      "monthsAgo": "{months} mo ago",
+      "today": "Today",
+      "weeksAgo": "{weeks, plural, one {# wk ago} other {# wks ago}}",
+      "yesterday": "Yesterday"
+    },
     "startAction": "Start a workout",
     "startHeroAction": "Start {name}",
     "startRowAriaLabel": "Start {name}",
+    "status": {
+      "lastRun": "Last: {when}",
+      "lastRunVolume": "Last: {when} · {volume, number} {unit}",
+      "neverRun": "{count, plural, one {# exercise} other {# exercises}} · Never run"
+    },
     "title": "Session templates"
   },
   "TemplatesUnavailable": {
@@ -1668,8 +1742,46 @@
       "groupLabel": "Closest trophies",
       "title": "Closest"
     },
+    "context": {
+      "clubE1rm": "e1RM {value, number, ::group-off} {unit}",
+      "count": "{count, plural, =1 {First session logged} other {Workout '#'{count}}}",
+      "streak": "{weeks, plural, one {# consecutive week} other {# consecutive weeks}}",
+      "sumTotal": "Total {value, number, ::group-off} {unit}",
+      "tonnage": "{value, number} {unit} lifted"
+    },
     "empty": "No trophies yet. Every trophy is a lifting fact — plate clubs, workout counts, streaks. Train and they stamp themselves.",
+    "family": {
+      "block": "Blocks",
+      "club": "Plate Clubs",
+      "count": "Showing Up",
+      "streak": "Streaks",
+      "sum_club": "Totals",
+      "tonnage": "Tonnage"
+    },
+    "hint": {
+      "blockActive": "Train every day of your program's final week",
+      "blockNoProgram": "Start a program",
+      "clubNoLift": "No {lift} e1RM yet",
+      "count": "{current}/{target} workouts",
+      "streak": "{current}/{target} weeks",
+      "streakUnscheduled": "Schedule program days to start a streak",
+      "sumMissing": "Needs a {lifts} e1RM",
+      "tonnage": "{current, number}/{target, number} {unit} lifted",
+      "weightProgress": "{current, number}/{target, number} {unit} — {remaining, number} {unit} to go"
+    },
+    "label": {
+      "block": "Block Complete",
+      "club": "{lb} {lift} Club",
+      "count": "{count, plural, =1 {First Workout} other {# Workouts}}",
+      "streak": "{weeks}-Week Streak",
+      "sumClub": "{lb, number} lb Club",
+      "tonnage": "{millions}M lb Lifted"
+    },
     "progressLabel": "{percent}% toward {trophy}",
+    "push": {
+      "body": "Earned — see your trophies.",
+      "title": "Trophy: {name}"
+    },
     "title": "Trophies"
   },
   "UnitToggle": {

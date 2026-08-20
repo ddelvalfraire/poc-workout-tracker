@@ -11,11 +11,16 @@ import { useTranslations } from 'next-intl'
  */
 export function SchemeSubtitle({ scheme }: { scheme: ProgressionScheme }) {
   const t = useTranslations('SchemeSubtitle')
+  // The name and the one-liner are scheme vocabulary shared with the program
+  // detail's "how this progresses" line; only the separator belongs to this row.
+  const tScheme = useTranslations('SchemeCopy')
+  const name = schemeName(scheme)
+  const subtitle = schemeSubtitle(scheme)
   return (
     <p className="px-0.5 text-sm text-muted-foreground">
-      <span className="font-medium text-foreground">{schemeName(scheme)}</span>
+      <span className="font-medium text-foreground">{tScheme(name.key)}</span>
       <span aria-hidden="true"> {t('separator')} </span>
-      {schemeSubtitle(scheme)}
+      {tScheme(subtitle.key)}
     </p>
   )
 }

@@ -27,6 +27,9 @@ vi.mock('@/lib/push', () => ({
 
 import type { ExerciseAllTimeStats, ExerciseTrendPoint } from '@/db/exercise-stats'
 import type { TrophyRow } from '@/db/trophies'
+import { createTranslator } from 'next-intl'
+import en from '../../../messages/en.json'
+import { TROPHY_KINDS } from '@/lib/trophy-kinds'
 import {
   formatCardMonthYear,
   isTrophyKind,
@@ -35,6 +38,7 @@ import {
   trendCardData,
   trophyCardData,
   workoutCardData,
+  type RenderTrophyMessage,
   type WorkoutCardInput,
 } from './card-data'
 
@@ -88,23 +92,28 @@ describe('isTrophyKind', () => {
 })
 
 describe('trophyCardData', () => {
+  // The REAL catalog, not a stub: a card is an image, so an unresolved key
+  // would ship as a key path burned into a PNG the user then shares.
+  const t = createTranslator({ locale: 'en', messages: en, namespace: 'Trophies' })
+  const render: RenderTrophyMessage = (message) => t(message.key, message.values)
+
   it('returns null for an unknown kind param', () => {
-    expect(trophyCardData([trophyRow()], 'not_a_kind', 'lb')).toBeNull()
+    expect(trophyCardData([trophyRow()], 'not_a_kind', 'lb', render)).toBeNull()
   })
 
   it('returns null when the kind is real but not earned', () => {
-    expect(trophyCardData([trophyRow()], 'club_bench_225', 'lb')).toBeNull()
+    expect(trophyCardData([trophyRow()], 'club_bench_225', 'lb', render)).toBeNull()
   })
 
   it('builds title + fact + coarse date in lb', () => {
-    expect(trophyCardData([trophyRow()], 'club_squat_315', 'lb')).toEqual({
+    expect(trophyCardData([trophyRow()], 'club_squat_315', 'lb', render)).toEqual({
       title: '315 Squat Club',
       context: 'e1RM 317 lb · Aug 2026',
     })
   })
 
   it('speaks kg for kg users while the club name stays lb-cultured', () => {
-    expect(trophyCardData([trophyRow()], 'club_squat_315', 'kg')).toEqual({
+    expect(trophyCardData([trophyRow()], 'club_squat_315', 'kg', render)).toEqual({
       title: '315 Squat Club',
       context: 'e1RM 143.79 kg · Aug 2026',
     })
@@ -112,10 +121,18 @@ describe('trophyCardData', () => {
 
   it('falls back to date-only context for kinds without a recorded number', () => {
     const row = trophyRow({ kind: 'block_complete', context: { workoutId: 'w1' } })
-    expect(trophyCardData([row], 'block_complete', 'lb')).toEqual({
+    expect(trophyCardData([row], 'block_complete', 'lb', render)).toEqual({
       title: 'Block Complete',
       context: 'Aug 2026',
     })
+  })
+
+  it('never bakes an unresolved key path into a card, for any kind', () => {
+    for (const kind of TROPHY_KINDS) {
+      const data = trophyCardData([trophyRow({ kind })], kind, 'lb', render)
+      expect(data).not.toBeNull()
+      expect(`${data?.title} ${data?.context}`).not.toMatch(/Trophies\.[a-zA-Z.]+/)
+    }
   })
 })
 

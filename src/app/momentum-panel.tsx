@@ -39,6 +39,7 @@ export interface MomentumPanelProps {
 
 export async function MomentumPanel({ userId, nowMs, size = 'md' }: MomentumPanelProps) {
   const t = await getTranslations('MomentumPanel')
+  const tGoals = await getTranslations('Goals')
   const [summaries, unit, goalsSummary, weekTotals] = await Promise.all([
     listWorkoutSummaries(userId),
     getWeightUnit(userId),
@@ -56,13 +57,17 @@ export async function MomentumPanel({ userId, nowMs, size = 'md' }: MomentumPane
   const weekSessions = weekTotals.currentSessions
   const weekDelta = momentumWeekDeltaLine(weekTotals.currentSets, weekTotals.previousSets)
   const daySets = bucketDaySets(summaries, new Date(nowMs))
-  const goal = goalsSummary?.topGoal
-    ? {
-        activeCount: goalsSummary.activeCount,
-        label: goalLabel(goalsSummary.topGoal, unit),
-        streak: goalsSummary.streak,
-      }
-    : null
+  const topGoal = goalsSummary?.topGoal ? goalLabel(goalsSummary.topGoal, unit) : null
+  const goal =
+    goalsSummary !== null && topGoal !== null
+      ? {
+          activeCount: goalsSummary.activeCount,
+          // Rendered from the GOALS namespace, not this panel's: the label is
+          // the goals feature's copy, merely displayed here.
+          label: tGoals(topGoal.key, topGoal.values),
+          streak: goalsSummary.streak,
+        }
+      : null
 
   // sm: the one big number + streak flame ONLY — same card, same type
   // styles, everything else (sparkbar, sessions line, goal line) dropped.

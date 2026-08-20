@@ -34,7 +34,18 @@ function inspect(ast: MessageFormatElement[]) {
   const tags: string[] = []
   const walk = (nodes: MessageFormatElement[]) => {
     for (const node of nodes) {
-      if (node.type === TYPE.argument) args.push(node.value)
+      // Typed arguments count too: a `{value, number, ::group-off}` sitting
+      // beside a plural is still an argument the formatter demands, and
+      // missing it made this walk throw "not provided" instead of reaching
+      // the assertion it exists for.
+      if (
+        node.type === TYPE.argument ||
+        node.type === TYPE.number ||
+        node.type === TYPE.date ||
+        node.type === TYPE.time
+      ) {
+        args.push(node.value)
+      }
       if (node.type === TYPE.plural || node.type === TYPE.select) {
         args.push(node.value)
         if (node.type === TYPE.plural) plurals.push(node.value)

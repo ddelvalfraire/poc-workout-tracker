@@ -1,6 +1,6 @@
 import { backoffKg, AUTOREG_DEFAULT_STEP_KG, type AutoregAdjustment } from '@/lib/autoregulate'
 import type { Progression } from '@/lib/program-input'
-import { schemeSentence } from '@/lib/scheme-copy'
+import { schemeSentence, type SchemeSentenceMessage } from '@/lib/scheme-copy'
 import type { WeightUnit } from '@/lib/units'
 
 /**
@@ -198,7 +198,7 @@ export function progressionLine(
   progression: Progression | null,
   derivedSets: readonly { loadKg: number | null; setType?: string | null }[],
   unit: WeightUnit,
-): string | null {
+): SchemeSentenceMessage | null {
   if (progression === null) return null
   let currentLoadKg: number | null = null
   for (const set of derivedSets) {

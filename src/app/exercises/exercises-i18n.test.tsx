@@ -3,6 +3,12 @@ import { createTranslator, useTranslations } from 'next-intl'
 
 import en from '../../../messages/en.json'
 import { renderStaticIntl } from '../../../vitest.intl'
+import {
+  e1rmDeltaChip,
+  e1rmStatusBase,
+  recencyLabel,
+  sessionCountLine,
+} from '@/lib/exercise-library'
 import { LibraryFilter, type LibraryEntry } from './library-filter'
 import { CustomExerciseEditor } from './custom-exercise-editor'
 import { ExerciseNoteSection } from './[source]/[id]/exercise-note-section'
@@ -97,6 +103,51 @@ describe('Exercises library copy', () => {
 
   test('the searched-miss message quotes the needle inside one message', () => {
     expect(t('LibraryFilter')('emptyQuery', { query: 'squat' })).toBe('No exercise matches “squat”.')
+  })
+})
+
+/**
+ * A row's own words come from lib/exercise-library's DESCRIPTORS, which carry
+ * a key and raw numbers and nothing else. These render them through the real
+ * catalog — the half the descriptor tests deliberately cannot cover.
+ */
+describe('Exercises row status, rendered from descriptors', () => {
+  const exercises = t('Exercises')
+  const render = (message: { key: string; values?: object }) =>
+    exercises(message.key as never, message.values as never)
+  const NOW = new Date('2026-07-20T12:00:00Z')
+  const at = (days: number) => new Date(NOW.getTime() - days * 24 * 60 * 60 * 1000)
+
+  test('the e1RM status and the session-count fallback resolve', () => {
+    expect(render(e1rmStatusBase(142, 'kg')!)).toBe('142 kg e1RM')
+    expect(render(e1rmStatusBase(100, 'lb')!)).toBe('221 lb e1RM')
+    // Singular and plural asserted separately — one branch passing proves
+    // nothing at all about the other.
+    expect(render(sessionCountLine(1))).toBe('1 session')
+    expect(render(sessionCountLine(8))).toBe('8 sessions')
+  })
+
+  test('the trend chip keeps its arrows and its sign', () => {
+    expect(render(e1rmDeltaChip(2.5, 'kg')!.message)).toBe('↑ +3 this month')
+    expect(render(e1rmDeltaChip(-2.5, 'kg')!.message)).toBe('↓ −3 this month')
+  })
+
+  test('recency renders words, and the fresh date through the ICU skeleton', () => {
+    expect(render(recencyLabel(at(0), NOW))).toBe('Today')
+    expect(render(recencyLabel(at(1), NOW))).toBe('Yesterday')
+    expect(render(recencyLabel(at(10), NOW))).toBe('Jul 10')
+    expect(render(recencyLabel(at(35), NOW))).toBe('5 wks ago')
+    expect(render(recencyLabel(at(120), NOW))).toBe('4 mo ago')
+  })
+
+  test('no row status can leak a key path', () => {
+    const rendered = [
+      render(e1rmStatusBase(142, 'kg')!),
+      render(sessionCountLine(1)),
+      render(e1rmDeltaChip(2.5, 'kg')!.message),
+      render(recencyLabel(at(40), NOW)),
+    ].join(' ')
+    expect(rendered).not.toMatch(/Exercises\.[a-zA-Z.]+/)
   })
 })
 
