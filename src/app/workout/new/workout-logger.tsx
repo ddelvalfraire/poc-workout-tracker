@@ -1504,16 +1504,36 @@ export function WorkoutLogger({
                       'mr-1 shrink-0 hit-44-y text-muted-foreground',
                       noteCount > 0 && 'gap-1 px-2',
                     )}
+                    // The editor below closes on blur, so a plain press
+                    // while it is open would tear it down and the click would
+                    // rebuild it — same words, remounted field, caret thrown
+                    // to the end mid-sentence. Preventing the default on
+                    // mousedown keeps focus in the field (the toolbar-button
+                    // pattern), which also makes the press a no-op instead of
+                    // a flicker.
+                    onMouseDown={(event) => event.preventDefault()}
                     onClick={() => setNotesOpen((prev) => new Set(prev).add(exercise.id))}
-                    aria-label={
-                      noteCount > 0
-                        ? t('noteCountAriaLabel', { count: noteCount, name: exercise.name })
-                        : t('addNoteAriaLabel', { name: exercise.name })
-                    }
+                    // The name has to say what pressing DOES. A pure-state
+                    // name ("1 note on Squat") strands a screen-reader user
+                    // twice: nothing marks it as an opener, and since the
+                    // count rolls up SET notes, the note it names may not be
+                    // the one the editor shows. Action first, count behind
+                    // it — and `Edit` only when there is an exercise note to
+                    // edit, because a lone set note opens an empty field.
+                    aria-label={t('noteButtonAriaLabel', {
+                      count: noteCount,
+                      hasNote: exercise.notes.trim() === '' ? 'no' : 'yes',
+                      name: exercise.name,
+                    })}
                   >
                     <NotebookPen aria-hidden="true" className="size-4" />
                     {noteCount > 0 && (
-                      <span aria-hidden="true" className="text-xs tnum">
+                      // Fixed slot + tabular numerals: the box grows once,
+                      // when the first note appears (a deliberate act), and
+                      // never creeps again at the second or the tenth — the
+                      // rail's other controls sit under a thumb already
+                      // reaching for them.
+                      <span aria-hidden="true" className="w-3 text-center text-xs tnum">
                         {noteCount}
                       </span>
                     )}

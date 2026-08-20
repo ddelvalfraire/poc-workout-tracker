@@ -5,8 +5,9 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 /**
  * Notes-v2 render contracts (slice 2), in the workout-logger.test.tsx
  * static-markup convention (no DOM, queries disabled): the volt dot renders
- * for a noted set and ONLY for a noted set; the exercise header rolls up its
- * count (and renders zero note markup on the untouched fast path); the
+ * for a noted set and ONLY for a noted set; the exercise header rolls that
+ * count into its note button (which on the untouched fast path is a bare pen,
+ * no count); the
  * context menu and capture sheet speak the drafts' grammar. The gesture flows
  * themselves (long-press timers, drag-down) are pointer-event territory —
  * their pure logic is covered in note-capture.test.ts and the reducer tests.
@@ -36,6 +37,8 @@ vi.mock('@/app/notes/actions', () => ({
   createFallbackSetNoteAction: vi.fn(),
   createSetNotesForWorkoutAction: vi.fn(),
 }))
+
+import { NotebookPen } from 'lucide-react'
 
 import { WorkoutLogger } from './workout-logger'
 import { SetRowMenu } from './set-row-menu'
@@ -105,25 +108,62 @@ describe('the volt dot (a noted set’s whole in-logger footprint)', () => {
 })
 
 describe('the exercise header roll-up', () => {
-  /** Occurrences of the NotebookPen glyph in the rendered markup. */
+  /**
+   * Occurrences of the NotebookPen glyph in the rendered markup. The probe is
+   * taken FROM lucide at test time (its longest path, the shape no sibling
+   * icon repeats) rather than hardcoding a class name: if the icon library
+   * renames its classes the signature moves with it, so this counts pens for
+   * as long as pens are what the rail draws.
+   */
+  const PEN = (() => {
+    const paths = Array.from(renderStaticIntl(<NotebookPen />).matchAll(/ d="([^"]+)"/g)).map(
+      (m) => m[1],
+    )
+    if (paths.length === 0) throw new Error('NotebookPen rendered no path to probe')
+    return paths.reduce((longest, d) => (d.length > longest.length ? d : longest))
+  })()
+
   function pens(html: string): number {
-    return html.split('lucide-notebook-pen').length - 1
+    return html.split(PEN).length - 1
   }
 
   it('counts the instance note plus noted sets', () => {
     const html = render(baseDraft({ note: 'pin 4', exerciseNotes: 'felt heavy' }))
-    expect(html).toContain('2 notes on Squat')
+    expect(html).toContain('Edit note for Squat, 2 notes')
   })
 
   it('speaks singular for one note', () => {
-    expect(render(baseDraft({ note: 'pin 4' }))).toContain('1 note on Squat')
+    expect(render(baseDraft({ note: 'pin 4' }))).toContain('Add note for Squat, 1 note')
+  })
+
+  it('names the ACTION first, and only then the count', () => {
+    // The label has to say what pressing does. A name that is pure state ("1
+    // note on Squat") strands a screen-reader user twice over: nothing says
+    // the control opens anything, and because the count rolls up SET notes,
+    // the promised note is one the editor it opens will not show. The action
+    // word leads; the count rides behind it. `Edit` only when there is an
+    // exercise note to edit — a lone set note still opens an empty field.
+    expect(render(baseDraft({ note: 'pin 4' }))).toMatch(/Add note for Squat, 1 note/)
+    expect(render(baseDraft({ exerciseNotes: 'felt heavy' }))).toMatch(
+      /Edit note for Squat, 1 note/,
+    )
   })
 
   it('renders no count when nothing is noted — the bare entry pen remains', () => {
     const html = render(baseDraft({}))
-    expect(html).not.toContain('note on Squat')
+    expect(html).not.toMatch(/for Squat, \d+ notes?/)
     expect(html).toContain('Add note for Squat')
     expect(pens(html)).toBe(1)
+  })
+
+  it('holds the count in a fixed-width slot, so the rail settles once', () => {
+    // The box grows when the first note appears — that follows a deliberate
+    // act by the user. What it must NOT do is creep again at the second, or
+    // at ten: the rail's other controls sit under a thumb already reaching
+    // for them. A fixed slot plus tabular numerals means one digit and two
+    // occupy the same width.
+    const slot = /class="[^"]*w-3[^"]*tnum[^"]*"/
+    expect(render(baseDraft({ note: 'pin 4' }))).toMatch(slot)
   })
 
   it('shows ONE pen when a set is noted but the exercise is not', () => {
@@ -134,8 +174,7 @@ describe('the exercise header roll-up', () => {
     // inert, with nothing to say which was pressable.
     const html = render(baseDraft({ note: 'left shoulder clicked' }))
     expect(pens(html)).toBe(1)
-    expect(html).toContain('1 note on Squat')
-    expect(html).not.toContain('Add note for Squat')
+    expect(html).toContain('Add note for Squat, 1 note')
   })
 
   it('the roll-up IS the control — a count is never inert metadata', () => {
@@ -143,7 +182,7 @@ describe('the exercise header roll-up', () => {
     // button skin and opens this session's note editor, rather than sitting
     // as a quiet span that says notes exist but refuses to show them.
     const html = render(baseDraft({ note: 'left shoulder clicked' }))
-    const at = html.indexOf('1 note on Squat')
+    const at = html.indexOf('Add note for Squat, 1 note')
     const tag = html.slice(html.lastIndexOf('<', at), html.indexOf('>', at))
     expect(tag).toContain('<button')
     expect(tag).toContain('hit-44-y')

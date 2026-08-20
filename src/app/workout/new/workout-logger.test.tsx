@@ -218,7 +218,10 @@ describe('WorkoutLogger notes three-tier IA (#211)', () => {
     // the entry: pen only, labelled as the add action, no count markup.
     const html = render()
     expect(html).toContain(`Add note for Squat`)
-    expect(html).not.toContain('note on Squat')
+    // A regex, not a substring: the count is an ICU plural, so "2 notes on
+    // Squat" would slip straight past `not.toContain('note on Squat')` and a
+    // double-count regression would read as green.
+    expect(html).not.toMatch(/for Squat, \d+ notes?/)
   })
 
   it('keeps the note affordance icon-only, in the header rail with its siblings', () => {
@@ -256,7 +259,7 @@ describe('WorkoutLogger notes three-tier IA (#211)', () => {
     expect(html).toContain('felt heavy today')
     expect(html).toContain('Edit note for Squat')
     expect(html).not.toContain('Add note for Squat')
-    expect(html).toContain('1 note on Squat')
+    expect(html).toContain('Edit note for Squat, 1 note')
   })
 
   it('a session note carries the pin-as-promotion affordance', () => {
