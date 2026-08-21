@@ -61,7 +61,7 @@ export function GoalCardActions({ id, label, archived }: GoalCardActionsProps) {
   }
 
   const item =
-    'block w-full rounded-lg px-3 py-2 text-left text-sm transition-colors hover:bg-muted focus-visible:bg-muted focus-visible:outline-none'
+    'block w-full rounded-lg px-3 py-2 text-left text-sm transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50'
 
   return (
     <div className="relative shrink-0">
