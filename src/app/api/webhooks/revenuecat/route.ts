@@ -1,5 +1,12 @@
 import { NextResponse } from 'next/server'
-import { recordEvent, markIgnored } from '@/db/rc-webhook-events'
+import {
+  recordEvent,
+  markFailed,
+  markIgnored,
+  markOrphaned,
+  markProcessed,
+} from '@/db/rc-webhook-events'
+import { processRcEvent } from '@/lib/billing/revenuecat/processor'
 import { verifyAuthorization, verifySignature } from '@/lib/billing/revenuecat/verify'
 import { rcWebhookBodySchema } from '@/lib/billing/revenuecat/types'
 
@@ -18,12 +25,10 @@ export const dynamic = 'force-dynamic'
  * - 401 unauthenticated, 400 unparseable — RC retries; if it is truly not
  *   RC, retries exhaust harmlessly.
  * - 200 for everything we accepted responsibility for, including events we
- *   deliberately ignore — a 5xx would burn retries on a decision, not a
- *   failure.
- *
- * NOTE: processing is stubbed in this PR. Accepted events stay `received` in
- * the inbox — deliberately, so the reconciliation backstop (PR 3) can sweep
- * anything that arrives before the processor (PR 2) ships.
+ *   deliberately ignore and events we cannot ever process (orphans) — a 5xx
+ *   would burn retries on a decision, not a failure.
+ * - 503 ONLY for transient processing failures (RC API weather, a DB blip):
+ *   the inbox row is marked failed and RC's redelivery is the retry loop.
  */
 export async function POST(request: Request): Promise<NextResponse> {
   const authToken = process.env.RC_WEBHOOK_AUTH_TOKEN
@@ -76,8 +81,25 @@ export async function POST(request: Request): Promise<NextResponse> {
     return NextResponse.json({ ok: true, ignored: 'environment' })
   }
 
-  // PR 2 replaces this with the processor (classify → fetch truth → project).
-  return NextResponse.json({ ok: true, accepted: true })
+  const outcome = await processRcEvent(event)
+  switch (outcome.kind) {
+    case 'processed':
+      await markProcessed(event.id)
+      return NextResponse.json({ ok: true, accepted: true })
+    case 'ignored':
+      await markIgnored(event.id)
+      return NextResponse.json({ ok: true, ignored: 'event-type' })
+    case 'orphaned':
+      // Permanently unprocessable — a 200, or RC burns retries on something
+      // retrying cannot fix. The row keeps the note for the ops surface.
+      console.error(`[revenuecat] orphaned event ${event.id}: ${outcome.note}`)
+      await markOrphaned(event.id, outcome.note)
+      return NextResponse.json({ ok: true, orphaned: true })
+    case 'retryable':
+      console.error(`[revenuecat] event ${event.id} failed, RC will retry: ${outcome.error}`)
+      await markFailed(event.id, outcome.error)
+      return NextResponse.json({ error: 'Processing failed' }, { status: 503 })
+  }
 }
 
 /** PRODUCTION on the prod deployment, SANDBOX everywhere else (preview,

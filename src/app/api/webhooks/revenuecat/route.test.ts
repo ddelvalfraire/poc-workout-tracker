@@ -9,10 +9,21 @@ import { createHmac } from 'node:crypto'
 
 const recordEvent = vi.fn()
 const markIgnored = vi.fn()
+const markProcessed = vi.fn()
+const markOrphaned = vi.fn()
+const markFailed = vi.fn()
+const processRcEvent = vi.fn()
 
 vi.mock('@/db/rc-webhook-events', () => ({
   recordEvent: (...args: unknown[]) => recordEvent(...args),
   markIgnored: (...args: unknown[]) => markIgnored(...args),
+  markProcessed: (...args: unknown[]) => markProcessed(...args),
+  markOrphaned: (...args: unknown[]) => markOrphaned(...args),
+  markFailed: (...args: unknown[]) => markFailed(...args),
+}))
+
+vi.mock('@/lib/billing/revenuecat/processor', () => ({
+  processRcEvent: (...args: unknown[]) => processRcEvent(...args),
 }))
 
 import { POST } from './route'
@@ -50,6 +61,10 @@ function eventBody(event: Record<string, unknown> = {}): string {
 beforeEach(() => {
   recordEvent.mockReset().mockResolvedValue('new')
   markIgnored.mockReset().mockResolvedValue(undefined)
+  markProcessed.mockReset().mockResolvedValue(undefined)
+  markOrphaned.mockReset().mockResolvedValue(undefined)
+  markFailed.mockReset().mockResolvedValue(undefined)
+  processRcEvent.mockReset().mockResolvedValue({ kind: 'processed' })
   vi.stubEnv('RC_WEBHOOK_AUTH_TOKEN', AUTH)
   // Local test runs have no VERCEL_ENV → expected environment is SANDBOX.
   vi.stubEnv('RC_WEBHOOK_HMAC_SECRET', '')
@@ -155,5 +170,32 @@ describe('POST /api/webhooks/revenuecat', () => {
     expect(res.status).toBe(200)
     expect(await res.json()).toMatchObject({ accepted: true })
     expect(recordEvent).toHaveBeenCalledWith(expect.objectContaining({ appUserId: null }))
+  })
+
+  it('marks a processed event processed', async () => {
+    await POST(makeRequest({}))
+    expect(markProcessed).toHaveBeenCalledWith('evt-synthetic-1')
+  })
+
+  it('marks a log-only event ignored with a 200', async () => {
+    processRcEvent.mockResolvedValue({ kind: 'ignored' })
+    const res = await POST(makeRequest({}))
+    expect(res.status).toBe(200)
+    expect(await res.json()).toMatchObject({ ignored: 'event-type' })
+    expect(markIgnored).toHaveBeenCalledWith('evt-synthetic-1')
+  })
+
+  it('marks an orphaned event with its note and still 200s — retrying cannot fix it', async () => {
+    processRcEvent.mockResolvedValue({ kind: 'orphaned', note: 'no resolvable user id' })
+    const res = await POST(makeRequest({}))
+    expect(res.status).toBe(200)
+    expect(markOrphaned).toHaveBeenCalledWith('evt-synthetic-1', 'no resolvable user id')
+  })
+
+  it('503s a transient failure so RC redelivers, and records the error', async () => {
+    processRcEvent.mockResolvedValue({ kind: 'retryable', error: 'RC API 503' })
+    const res = await POST(makeRequest({}))
+    expect(res.status).toBe(503)
+    expect(markFailed).toHaveBeenCalledWith('evt-synthetic-1', 'RC API 503')
   })
 })
