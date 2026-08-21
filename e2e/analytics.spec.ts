@@ -1,4 +1,5 @@
-import { test, expect } from '@playwright/test'
+import { test, expect, type Response } from '@playwright/test'
+import { gunzipSync } from 'node:zlib'
 
 /**
  * PostHog pipeline, end to end and signed OUT — the anonymous acquisition
@@ -9,20 +10,12 @@ import { test, expect } from '@playwright/test'
  *     browser): a capture POST through the proxy is ACCEPTED (status 1).
  *     This exercises the middleware public-route entry, the trailing-slash
  *     passthrough, and the rewrite in one shot.
- *  2. The browser boots posthog-js through the proxy: the SDK's lazy chunks
- *     arrive from /_i/static and its first POST round-trips 200. This proves
- *     the proxy path from the BROWSER, which layer 1 cannot. It does NOT
- *     assert a $pageview capture — but the reason is narrower than "no
- *     pageview is sent", and the earlier note here overstated it. What was
- *     actually observed is no POST to /_i/e/ specifically, and that path is
- *     not fixed: posthog-js initialises analyticsDefaultEndpoint to '/e/'
- *     and then lets the REMOTE CONFIG replace it
- *     (analyticsDefaultEndpoint = response.analytics.endpoint), so a watcher
- *     pinned to /_i/e/ can miss a capture that really did go out on another
- *     path. Nothing is broken in production either way: the /_i/:path*
- *     rewrite in next.config.ts is a catch-all. Before pinning a pageview
- *     here, watch EVERY POST under /_i/ against a project with real keys and
- *     see which path the SDK picks.
+ *  2. The browser boots posthog-js through the proxy AND captures through it:
+ *     the SDK's lazy chunks arrive from /_i/static, the automatic $pageview
+ *     round-trips 200 on load, and an in-app navigation produces a second one.
+ *     This proves the proxy path from the BROWSER, which layer 1 cannot, and
+ *     it is the anonymous acquisition funnel itself — the whole reason the
+ *     proxy exists. Read the bot-signal note on that test before touching it.
  *  3. (Gated on POSTHOG_PERSONAL_API_KEY) the Query API reads the layer-1
  *     event back out — proof of ingestion, not just acceptance.
  *
@@ -55,19 +48,83 @@ test.describe('PostHog analytics pipeline', () => {
     expect([1, 'Ok']).toContain(body.status)
   })
 
-  test('browser boots posthog-js through the proxy on a signed-out page', async ({ page }) => {
+  // A capture body is compressed (gzip, or base64 when gzip is unavailable),
+  // so the event name is not readable in the raw POST data.
+  const captureBodyText = (body: Buffer | null): string => {
+    if (!body) return ''
+    try {
+      return gunzipSync(body).toString('utf8')
+    } catch {
+      const raw = body.toString('utf8')
+      const encoded = /^data=([\s\S]*)$/.exec(raw)
+      if (!encoded) return raw
+      try {
+        return Buffer.from(decodeURIComponent(encoded[1]), 'base64').toString('utf8')
+      } catch {
+        return raw
+      }
+    }
+  }
+
+  // Ingest is /_i/e/ until PostHog's remote config lands and moves it to
+  // /_i/i/v0/e/ — that switch happens mid-page-load, so a matcher pinned to
+  // either path alone is a race.
+  const isCaptureUrl = (url: string) => /\/_i\/(i\/v0\/)?e\//.test(url)
+
+  // The round-tripped $pageview for one path. Matching $current_url as well as
+  // the event name is what separates "the pageview for THIS navigation" from
+  // one still in flight for the previous page. Compare parsed pathnames rather
+  // than substrings: the legal nav also links /health-privacy, which a
+  // suffix or `includes` match on '/privacy' would happily accept.
+  const pageviewFor = (pathname: string) => (r: Response) => {
+    const req = r.request()
+    if (req.method() !== 'POST' || !isCaptureUrl(r.url()) || r.status() !== 200) return false
+    const body = captureBodyText(req.postDataBuffer())
+    if (!body.includes('"$pageview"')) return false
+    // A request can carry a batch, so check every $current_url it contains.
+    return [...body.matchAll(/"\$current_url"\s*:\s*"([^"]+)"/g)].some((m) => {
+      try {
+        return new URL(m[1]).pathname === pathname
+      } catch {
+        return false
+      }
+    })
+  }
+
+  test('browser captures the automatic $pageview through the proxy', async ({ page }) => {
+    // posthog-js drops EVERY event when it decides the visitor is a bot, and
+    // it decides that from navigator.webdriver plus the UA and userAgentData
+    // brands — all of which Playwright sets, headless AND headed. The drop is
+    // SILENT (capture() just returns: no log, no request), so without this
+    // override the SDK boots, fetches flags, loads its extensions and sends
+    // nothing at all, which reads exactly like a broken client. Clearing the
+    // signals is what makes the assertions below exercise the real visitor
+    // path instead of PostHog's bot filter.
+    //
+    // This does NOT weaken production: opt_out_useragent_filter stays off in
+    // instrumentation-client.ts, so genuine bots are still dropped there.
+    // Delete this block and the waits below time out — if you land here from a
+    // red build, restore the override rather than relaxing the assertions.
+    await page.addInitScript(() => {
+      Object.defineProperty(navigator, 'webdriver', { get: () => false, configurable: true })
+      Object.defineProperty(navigator, 'userAgentData', {
+        configurable: true,
+        get: () => ({
+          brands: [
+            { brand: 'Chromium', version: '141' },
+            { brand: 'Google Chrome', version: '141' },
+          ],
+          mobile: false,
+          platform: 'macOS',
+        }),
+      })
+    })
+
     const sdkChunk = page.waitForResponse(
       (r) => r.url().includes('/_i/static/') && r.status() === 200,
       { timeout: 20_000 },
     )
-    const roundTrip = page.waitForResponse(
-      (r) =>
-        r.url().includes('/_i/') &&
-        !r.url().includes('/_i/static/') &&
-        r.request().method() === 'POST' &&
-        r.status() === 200,
-      { timeout: 20_000 },
-    )
+    const initialPageview = page.waitForResponse(pageviewFor('/privacy'), { timeout: 20_000 })
 
     // A public APP page, not /sign-in. /sign-in is public but it 307s straight
     // to the identity provider, so the browser ends up on a foreign origin and
@@ -77,13 +134,21 @@ test.describe('PostHog analytics pipeline', () => {
     // a legal requirement, and it renders our own layout.
     await page.goto('/privacy')
 
-    // Two independent proofs that the first-party proxy path works end to end:
-    // the SDK's lazy sub-chunks arrive from /_i/static/, and its first POST
-    // (the flags call) is accepted. Deliberately NOT asserted here: the
-    // $pageview capture itself — see the layer-2 note above for why the
-    // absence of /_i/e/ traffic is not evidence that no pageview was sent.
+    // The SDK's lazy sub-chunks arrive from /_i/static/, and the pageview it
+    // fires on init round-trips 200 through the proxy. That initial capture is
+    // not a history change, so this also pins that `defaults: '2026-06-25'`
+    // (which sets capture_pageview: 'history_change') still captures on load.
     await sdkChunk
-    await roundTrip
+    await initialPageview
+
+    // The other half of that preset. This link is a next/link, so the second
+    // pageview exists only because the SDK patches the History API — no
+    // document load happens. A regression that silenced SPA pageviews would
+    // take most of the in-app funnel with it and be invisible above.
+    const spaPageview = page.waitForResponse(pageviewFor('/terms'), { timeout: 20_000 })
+    await page.locator('a[href="/terms"]').first().click()
+    await expect(page).toHaveURL(/\/terms$/)
+    await spaPageview
   })
 
   test('event reads back out of the Query API', async ({ request }) => {
