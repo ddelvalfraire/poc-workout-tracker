@@ -124,23 +124,87 @@ describe('WorkoutLogger effort-row parity', () => {
   })
 })
 
-describe('WorkoutLogger name lock (#207)', () => {
-  it('live session renders the name as static text, never an input', () => {
+describe('WorkoutLogger name block (#207)', () => {
+  it('live session renders NO name block — no label, no input, no fallback line', () => {
+    // Mid-session the name is a fact the app bar and summary already carry;
+    // the logger spends none of the first viewport restating it.
     const html = render({ initialName: 'Legs', isLive: true })
-    expect(html).toContain('Legs')
-    // The name input's placeholder is the tell for the editable field.
+    expect(html).not.toContain('Workout name')
     expect(html).not.toContain('Optional — e.g. Lower')
+    expect(html).not.toContain('Unnamed workout')
   })
 
-  it('live session with no name shows the muted fallback', () => {
-    const html = render({ isLive: true })
-    expect(html).toContain('Unnamed workout')
+  it('live program session keeps the provenance stamp without the name block', () => {
+    // The (day · week) stamp survives the de-duplication: provenance is the
+    // one identity line that catches a wrong-day start mid-session.
+    const html = render({ isLive: true, programContext: 'Pull A · Week 2' })
+    expect(html).toContain('Pull A · Week 2')
+    expect(html).not.toContain('Workout name')
   })
 
-  it('edit mode (finished workout) keeps the editable name input', () => {
+  it('edit mode (finished workout) keeps the labeled editable name input', () => {
     const html = render({ workoutId: 'w1', isLive: false, initialName: 'Legs' })
+    expect(html).toContain('Workout name')
     expect(html).toContain('Optional — e.g. Lower')
     expect(html).not.toContain('Unnamed workout')
+  })
+})
+
+describe('WorkoutLogger PREV column gate', () => {
+  it('reserves the column from first paint for a user with history, queries unresolved', () => {
+    // hasWorkoutHistory is server truth; no seeded cache means every
+    // last-performance query is still in flight. The header cell AND the
+    // per-row chips (dashes, labelled "no previous yet") must ALREADY be
+    // there — history resolving swaps dash→label inside the reserved cell
+    // instead of inserting a w-10 column after first paint, which is the
+    // returning-user cold-load geometry shift this gate exists to prevent.
+    const html = render({ hasWorkoutHistory: true })
+    expect(html).toContain('>Prev<')
+    expect(html).toContain('No previous performance for')
+  })
+
+  it('fills the reserved cells in place once history resolves', () => {
+    const html = render(
+      { hasWorkoutHistory: true },
+      lastPerformance({ sets: [{ reps: 12, weight: 100 }] }),
+    )
+    expect(html).toContain('>Prev<')
+    expect(html).toContain('100×12')
+  })
+
+  it('never renders the column for a user with no completed workout', () => {
+    // The strong form: even with per-exercise data sitting resolved in the
+    // cache (an abandoned session can leave some), the first-ever cohort
+    // keeps the width — header and chips both, so the two renderers cannot
+    // disagree and the column cannot appear mid-session.
+    const html = render(
+      { hasWorkoutHistory: false },
+      lastPerformance({ sets: [{ reps: 12, weight: 100 }] }),
+    )
+    expect(html).not.toContain('>Prev<')
+    expect(html).not.toContain('No previous performance for')
+    expect(html).not.toContain('100×12')
+  })
+
+  it('defaults to reserving the column when the caller does not know', () => {
+    // Fail open: a consumer that cannot know the cohort gets the pre-gate
+    // behavior (cell reserved, dashes until data resolve) — never silently
+    // hidden history.
+    const html = render()
+    expect(html).toContain('>Prev<')
+  })
+})
+
+describe('sticky-bar Add Exercise demotion', () => {
+  it('keeps the 44px target even though sm is 36px (the #236 discipline)', () => {
+    // The sm demotion is visual only: hit-44-y buys the PRODUCT.md thumb-bar
+    // floor back, and both vertical neighbours sit a full gap-2 away. Sliced
+    // to this button's own opening tag so a neighbour's classes can never
+    // satisfy the assert.
+    const html = render()
+    const at = html.indexOf('>+ Exercise<')
+    expect(at).toBeGreaterThan(-1)
+    expect(html.slice(html.lastIndexOf('<button', at), at)).toContain('hit-44-y')
   })
 })
 

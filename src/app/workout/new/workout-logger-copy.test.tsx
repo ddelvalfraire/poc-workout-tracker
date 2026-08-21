@@ -60,8 +60,21 @@ function draft(): WorkoutDraft {
   }
 }
 
-function renderLogger(props: Partial<Parameters<typeof WorkoutLogger>[0]> = {}): string {
+function renderLogger(
+  props: Partial<Parameters<typeof WorkoutLogger>[0]> = {},
+  // Cache-seeded prior performance (the workout-logger.test.tsx convention):
+  // the PREV column only renders when the session has history to show.
+  opts: { seedPrev?: boolean } = {},
+): string {
   const client = new QueryClient({ defaultOptions: { queries: { enabled: false } } })
+  if (opts.seedPrev) {
+    client.setQueryData(['last-performance', 'wger', 73, null], {
+      performedAt: new Date('2026-08-01T12:00:00Z'),
+      sets: [{ reps: 8, weight: 100 }],
+      note: null,
+      sessionNote: null,
+    })
+  }
   return renderStaticIntl(
     <QueryClientProvider client={client}>
       <WorkoutLogger title="New Workout" closeHref="/" initialDraft={draft()} {...props} />
@@ -79,14 +92,21 @@ const message = (render: (t: ReturnType<typeof useTranslations<'WorkoutLogger'>>
 
 describe('WorkoutLogger copy resolves through the catalog', () => {
   it('renders the chrome, the columns and the actions as words', () => {
-    const html = renderLogger({ isLive: true })
+    // seedPrev: the PREV heading only renders when the session has history.
+    const html = renderLogger({ isLive: true }, { seedPrev: true })
 
-    expect(html).toContain('Workout name')
     expect(html).toContain('Prev')
     expect(html).toContain('Reps')
     expect(html).toContain('+ Add set')
     expect(html).toContain('+ Exercise')
     expect(html).toContain('Discard workout')
+    expect(html).not.toMatch(UNRESOLVED)
+  })
+
+  it('renders the name label in edit mode (live sessions drop the name block)', () => {
+    const html = renderLogger({ isLive: false, workoutId: 'w1' })
+
+    expect(html).toContain('Workout name')
     expect(html).not.toMatch(UNRESOLVED)
   })
 

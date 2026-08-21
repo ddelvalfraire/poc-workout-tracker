@@ -13,9 +13,10 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
  *   (identity-note.test.ts) defines a whitespace-only value as NOT a note
  *   yet — so a "   " draft value must still offer an entry affordance.
  * - "The echo never duplicates the pinned chip" — judged by what renders.
- * - #207: live name is static, "Unnamed workout" fallback; edit mode keeps
- *   the input. isLive=false without a workoutId (an unsaved non-live render)
- *   is exercised to document which side of the lock it falls on.
+ * - #207: a live session renders NO name block at all (the name is a fact
+ *   the app bar and summary carry); edit mode keeps the input. isLive=false
+ *   without a workoutId (an unsaved non-live render) is exercised to
+ *   document which side of the lock it falls on.
  */
 
 vi.mock('next/navigation', () => ({
@@ -169,17 +170,21 @@ describe('skipped-session echo label (the honest "Last time")', () => {
   })
 })
 
-describe('ATTACK: #207 name-lock edges', () => {
-  it('a whitespace-only name in a live session falls back to "Unnamed workout"', () => {
+describe('ATTACK: #207 name-block edges', () => {
+  it('a whitespace-only name in a live session renders no fallback line at all', () => {
+    // The old static line showed "Unnamed workout" here; the block is gone,
+    // so neither the fallback nor the input may appear.
     const html = render({ isLive: true, initialName: '   ' })
-    expect(html).toContain('Unnamed workout')
+    expect(html).not.toContain('Unnamed workout')
     expect(html).not.toContain('Optional — e.g. Lower')
   })
 
-  it('a long (200-char) live name renders in full as static text (no input leaks in)', () => {
+  it('a long (200-char) live name stays out of the markup entirely — no static leak', () => {
+    // Live drops the WHOLE block: the name must not resurface through some
+    // other element (a title attribute, a stray echo).
     const longName = 'A'.repeat(200)
     const html = render({ isLive: true, initialName: longName })
-    expect(html).toContain(longName)
+    expect(html).not.toContain(longName)
     expect(html).not.toContain('Optional — e.g. Lower')
   })
 
@@ -195,6 +200,6 @@ describe('ATTACK: #207 name-lock edges', () => {
   it('live session never renders the name input even when a workoutId exists (program session)', () => {
     const html = render({ isLive: true, workoutId: 'w1', initialName: 'Legs' })
     expect(html).not.toContain('Optional — e.g. Lower')
-    expect(html).toContain('Legs')
+    expect(html).not.toContain('Workout name')
   })
 })
