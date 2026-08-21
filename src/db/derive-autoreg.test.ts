@@ -28,7 +28,7 @@ vi.mock('./autoreg-history', () => ({
   getRecentTrainedSessions: trainedSessions,
 }))
 
-import { deriveDayPrescription, type DayForDerivation } from './programs'
+import { deriveDayPrescription, type DayForDerivation } from './prescriptions'
 import { autoregReason, type AutoregStallPolicy } from '@/lib/autoregulate'
 import { kgToDisplay } from '@/lib/units'
 

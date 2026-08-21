@@ -8,7 +8,8 @@ import {
   getRestTimerEnabled,
   getRpeLoggingEnabled,
 } from '@/db/preferences'
-import { getProgramDayDetail, deriveDayPrescription } from '@/db/programs'
+import { getProgramDayDetail } from '@/db/programs'
+import { deriveDayPrescription } from '@/db/prescriptions'
 import { expandTechniqueStages } from '@/lib/technique'
 import { getWorkoutDraft } from '@/db/workout-drafts'
 import type { PlanSetTarget } from '@/lib/format'

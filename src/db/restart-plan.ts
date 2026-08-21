@@ -1,4 +1,5 @@
-import { getProgramDetail, programWeekState, deriveDayPrescription } from './programs'
+import { getProgramDetail, programWeekState } from './programs'
+import { deriveDayPrescription } from './prescriptions'
 import {
   collectTmRestartFlags,
   collectTmIncrements,

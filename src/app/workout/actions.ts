@@ -14,7 +14,8 @@ import {
   type LastPerformance,
 } from '@/db/workouts'
 import { captureServerEvent, durationMin, workoutInputCounts } from '@/lib/analytics'
-import { getProgramDayDetail, deriveDayPrescription } from '@/db/programs'
+import { getProgramDayDetail } from '@/db/programs'
+import { deriveDayPrescription } from '@/db/prescriptions'
 import { substituteProgramExercise } from '@/db/program-patches'
 import { autoSyncPlanToPerformance } from '@/lib/auto-plan-sync'
 import { checkGoalAchievements } from '@/lib/goals'

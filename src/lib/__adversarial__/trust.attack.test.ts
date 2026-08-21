@@ -467,7 +467,7 @@ describe('#228 appliedLoadKg stamping: multi-load decrement', () => {
     expect(verdict?.action).toBe('decrement')
     expect(verdict?.evidence.loadKg).toBe(80) // heaviest MISSED set
 
-    // Reproduce the derive layer exactly (db/programs.ts quantizeAdjustedSet
+    // Reproduce the derive layer exactly (db/prescriptions.ts quantizeAdjustedSet
     // + the stampAppliedLoad call): apply → per-set anti-fixed-point
     // quantization → stamp the EVIDENCE bucket's adjusted landing load.
     const scheme = [

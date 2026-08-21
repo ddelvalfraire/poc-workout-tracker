@@ -101,12 +101,8 @@ vi.mock('./workouts', () => ({
   getExerciseHistoryBefore: historyBefore,
 }))
 
-import {
-  instantiateProgramDay,
-  nextProgramWeek,
-  programWeekState,
-  getNextProgramDay,
-} from './programs'
+import { instantiateProgramDay } from './prescriptions'
+import { nextProgramWeek, programWeekState, getNextProgramDay } from './programs'
 
 const USER = 'user_123'
 

@@ -18,11 +18,11 @@ import {
   setProgramStatus,
   updateProgramDescription,
   cloneProgram,
-  instantiateProgramDay,
   adoptProgram,
   declineProgram,
   countProgramDays,
 } from '@/db/programs'
+import { instantiateProgramDay } from '@/db/prescriptions'
 import { captureServerEvent } from '@/lib/analytics'
 import { setProgramVisibility, createShare, revokeShare } from '@/db/program-shares'
 import {

@@ -17,7 +17,8 @@ import {
 } from '@/lib/effort-step'
 import { db } from './index'
 import { createPatchProposal, listPatchProposals } from './patch-proposals'
-import { getProgramDetail, nextProgramWeek, deriveDayPrescription } from './programs'
+import { getProgramDetail, nextProgramWeek } from './programs'
+import { deriveDayPrescription } from './prescriptions'
 import { getWeightUnit } from './preferences'
 import { programs, programDays, workouts } from './schema'
 

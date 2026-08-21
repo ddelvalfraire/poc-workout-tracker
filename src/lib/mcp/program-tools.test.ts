@@ -10,8 +10,10 @@ vi.mock('@/db/programs', () => ({
   listPrograms: vi.fn(),
   listProposals: vi.fn(),
   getProgramDetail: vi.fn(),
-  instantiateProgramDay: vi.fn(),
   nextProgramWeek: vi.fn(),
+}))
+vi.mock('@/db/prescriptions', () => ({
+  instantiateProgramDay: vi.fn(),
   deriveDayPrescription: vi.fn(),
 }))
 vi.mock('@/db/preferences', () => ({ getWeightUnit: vi.fn() }))
@@ -29,10 +31,9 @@ import {
   listPrograms,
   listProposals,
   getProgramDetail,
-  instantiateProgramDay,
   nextProgramWeek,
-  deriveDayPrescription,
 } from '@/db/programs'
+import { instantiateProgramDay, deriveDayPrescription } from '@/db/prescriptions'
 import { getWeightUnit } from '@/db/preferences'
 import { listPatchProposals } from '@/db/patch-proposals'
 import { listTemplates, adoptTemplate } from '@/db/templates'

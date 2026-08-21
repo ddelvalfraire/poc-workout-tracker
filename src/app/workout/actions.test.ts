@@ -58,8 +58,8 @@ vi.mock('@/lib/analytics', async (importOriginal) => ({
 }))
 vi.mock('@/db/programs', () => ({
   getProgramDayDetail: vi.fn(),
-  deriveDayPrescription: vi.fn(),
 }))
+vi.mock('@/db/prescriptions', () => ({ deriveDayPrescription: vi.fn() }))
 vi.mock('@/db/program-patches', () => ({
   updateProgramExercise: vi.fn(),
   substituteProgramExercise: vi.fn(),
