@@ -96,7 +96,12 @@ import { WeightStepper } from './weight-stepper'
 import { SessionToast } from './session-toast'
 import { fireRestOverAlert } from './rest-over-alert'
 import { unlockRestChime } from './rest-chime'
-import { EXERCISE_COMPLETE_VIBRATION, SET_COMPLETE_VIBRATION, vibrate } from './haptics'
+import {
+  EXERCISE_COMPLETE_VIBRATION,
+  SESSION_COMPLETE_VIBRATION,
+  SET_COMPLETE_VIBRATION,
+  vibrate,
+} from './haptics'
 import { resolveRestTarget } from '@/lib/rest-target'
 import {
   continuesTechniqueGroup,
@@ -1143,6 +1148,11 @@ export function WorkoutLogger({
         // the same stranded-::backdrop race the discard dialog guards.
         closeFinishDialogRef.current?.()
         setPendingFinish(null)
+        // The finish gets the same sensory answer a set-check does, scaled
+        // up (session > exercise > set). Success path only — a failed save
+        // stays silent — and live only: edit-mode "Save changes" is
+        // paperwork, not a moment. iOS has no navigator.vibrate; no-op there.
+        if (isLive) vibrate(SESSION_COMPLETE_VIBRATION)
         // `finished=1` is presentation-only: the summary swaps its plain
         // header for the completion moment. Gated on isLive because this
         // update branch is shared with edit-mode "Save changes" — a
@@ -1169,6 +1179,8 @@ export function WorkoutLogger({
         // Same success-path close-before-push as the update branch above.
         closeFinishDialogRef.current?.()
         setPendingFinish(null)
+        // Same live-only finish buzz as the update branch above.
+        if (isLive) vibrate(SESSION_COMPLETE_VIBRATION)
         // Land on the session summary (duration, volume, PR badges) — the
         // finish deserves a readout, not a home-screen redirect. This create
         // branch only exists for live sessions, but the isLive gate keeps the
