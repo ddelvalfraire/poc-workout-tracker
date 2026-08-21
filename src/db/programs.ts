@@ -24,6 +24,7 @@ import { expandTechniqueStages } from '@/lib/technique'
 import { quantizeAdjustedLoadKg, quantizeSetLoads } from '@/lib/load-quantize'
 import type { WeightUnit } from '@/lib/units'
 import { getWeightUnit } from './preferences'
+import { requireFeature } from './entitlements'
 import { applyEffortToAdjustment, sustainedUndershoot } from '@/lib/effort-gate'
 import {
   autoregulate,
@@ -279,12 +280,25 @@ async function insertProgramChildren(
  * 'coach' actor always creates `status = 'proposed'` + `authorActor = 'coach'`,
  * whatever status the input carries — the only exits from 'proposed' are the
  * owner's adoptProgram/declineProgram ("we always force the user to confirm").
+ *
+ * Paid-capability gate (same enforced-HERE stance as the drafting policy):
+ * an input asking for `autoregulation: true` requires the 'autoreg' feature,
+ * checked before any work. Gating only in the server action left every other
+ * adapter — MCP's upsert_program above all — writing the flag ungated; and
+ * gating creation alone would let anyone save a Free program and then edit
+ * autoregulation onto it, so updateProgram (and the narrow toggle op in
+ * program-patches.ts) run the same check. Explicit `true` is what is gated —
+ * an omitted flag rides the defaults (create = ON, update = preserve),
+ * exactly the predicate the action-level gate always enforced. Throws
+ * FeatureRequiredError (db/entitlements.ts), which names the plan that says
+ * yes.
  */
 export async function saveProgram(
   userId: string,
   input: ProgramInput,
   actor: ProgramEventActor,
 ): Promise<{ id: string }> {
+  if (input.autoregulation) await requireFeature(userId, 'autoreg')
   const status = actor === 'coach' ? 'proposed' : input.status
   const catalog = await loadExerciseCatalog(userId) // network read stays outside the tx
   return db.transaction(async (tx) => {
@@ -467,6 +481,11 @@ export async function updateProgram(
   input: ProgramInput,
   actor: ProgramEventActor,
 ): Promise<{ id: string } | null> {
+  // The autoreg paid gate — see saveProgram's doc: a full replace can edit
+  // the flag onto a Free program, so the create-side check alone is not a
+  // gate. Runs before the ownership read, matching the action-era ordering
+  // (an unentitled ask fails as an entitlement refusal, not a not-found).
+  if (input.autoregulation) await requireFeature(userId, 'autoreg')
   const isCoach = actor === 'coach'
   const status = isCoach ? 'proposed' : input.status
   const catalog = await loadExerciseCatalog(userId) // network read stays outside the tx

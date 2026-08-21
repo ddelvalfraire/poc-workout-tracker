@@ -80,8 +80,18 @@ vi.mock('@/lib/wger', () => ({ getAllExercises }))
 const { listCustomExercises } = vi.hoisted(() => ({ listCustomExercises: vi.fn() }))
 vi.mock('./custom-exercises', () => ({ listCustomExercises }))
 
+// The autoreg paid gate rides the write path itself; entitled by default (the
+// mock resolves) so every pre-gate assertion stays untouched. importOriginal
+// keeps FeatureRequiredError's real identity for the refusal tests.
+const { requireFeature } = vi.hoisted(() => ({ requireFeature: vi.fn() }))
+vi.mock('./entitlements', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./entitlements')>()),
+  requireFeature,
+}))
+
 import { saveProgram, updateProgram } from './programs'
 import { NotCoachProposalError, ProposedProgramError } from './program-errors'
+import { FeatureRequiredError } from './entitlements'
 
 const USER = 'user_123'
 
@@ -94,6 +104,8 @@ beforeEach(() => {
   idCounter = 0
   getAllExercises.mockResolvedValue([])
   listCustomExercises.mockResolvedValue([])
+  // Reset calls AND implementation: default = entitled (resolves undefined).
+  requireFeature.mockReset()
 })
 
 describe('saveProgram (transactional, user-scoped)', () => {
@@ -602,6 +614,71 @@ describe('autoregulation toggle integrity', () => {
 
     // Assert
     expect(updateSets[0]).toMatchObject({ autoregulation: false })
+  })
+})
+
+describe('autoreg entitlement gate (db-layer, beneath every adapter)', () => {
+  const MINIMAL = {
+    name: 'P',
+    days: [{ name: 'D', exercises: [{ wgerExerciseId: 1, name: 'X', sets: [{}] }] }],
+  }
+  const WITH_AUTOREG = parseProgramInput({ ...MINIMAL, autoregulation: true })
+
+  it('saveProgram refuses an explicit autoregulation:true for an unentitled user before ANY work', async () => {
+    // Arrange — the gate says no (Free tier). Call history is cleared here
+    // (the shared beforeEach re-primes implementations only) so the
+    // no-catalog-read assertion sees just THIS test's calls.
+    getAllExercises.mockClear()
+    requireFeature.mockRejectedValueOnce(new FeatureRequiredError('autoreg', 'pro'))
+
+    // Act + Assert — the refusal surfaces as-is (it names the plan that says
+    // yes), and nothing ran: no catalog read, no insert, no event.
+    await expect(saveProgram(USER, WITH_AUTOREG, 'mcp')).rejects.toThrow(FeatureRequiredError)
+    expect(requireFeature).toHaveBeenCalledWith(USER, 'autoreg')
+    expect(getAllExercises).not.toHaveBeenCalled()
+    expect(records).toHaveLength(0)
+  })
+
+  it('saveProgram writes the flag through for an entitled user', async () => {
+    // Act — requireFeature resolves (the beforeEach default)
+    const result = await saveProgram(USER, WITH_AUTOREG, 'ui')
+
+    // Assert
+    expect(result).toEqual({ id: 'p1' })
+    expect(requireFeature).toHaveBeenCalledWith(USER, 'autoreg')
+    expect(records[0].values).toMatchObject({ autoregulation: true })
+  })
+
+  it('saveProgram never consults the gate when the flag is omitted or false', async () => {
+    // Act — omitted rides the create default (ON) exactly as the action-level
+    // gate always allowed; explicit false is an opt-out, not a paid ask.
+    await saveProgram(USER, parseProgramInput(MINIMAL), 'ui')
+    await saveProgram(USER, parseProgramInput({ ...MINIMAL, autoregulation: false }), 'ui')
+
+    // Assert — the wger-import and plain-Free-program paths stay ungated
+    expect(requireFeature).not.toHaveBeenCalled()
+  })
+
+  it('updateProgram refuses an explicit autoregulation:true for an unentitled user before ANY write', async () => {
+    // Arrange — a Free program cannot have the feature edited onto it (the
+    // "same feature obtained one request later" hole).
+    requireFeature.mockRejectedValueOnce(new FeatureRequiredError('autoreg', 'pro'))
+
+    // Act + Assert — no metadata update, no child wipe/re-insert
+    await expect(updateProgram(USER, 'p1', WITH_AUTOREG, 'mcp')).rejects.toThrow(
+      FeatureRequiredError,
+    )
+    expect(updateSets).toHaveLength(0)
+    expect(records).toHaveLength(0)
+  })
+
+  it('updateProgram never consults the gate on an omitted flag (preserve-on-omit stays free)', async () => {
+    // Act — an upsert that never mentions autoregulation must round-trip a
+    // stored ON without demanding the entitlement.
+    await updateProgram(USER, 'p1', parseProgramInput(MINIMAL), 'mcp')
+
+    // Assert
+    expect(requireFeature).not.toHaveBeenCalled()
   })
 })
 

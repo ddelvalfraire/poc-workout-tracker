@@ -18,6 +18,7 @@ import type { AutoregStallPolicy } from '@/lib/autoregulate'
 import { overshootPolicySchema, type OvershootPolicy } from '@/lib/overshoot-policy'
 import { TM_BASED_SCHEMES } from '@/lib/substitute-slot'
 import { db } from './index'
+import { requireFeature } from './entitlements'
 import { recordProgramEvent, type ProgramEventActor } from './program-events'
 import { loadExerciseCatalog, muscleRowsFor, type ExerciseCatalog } from './programs'
 import {
@@ -246,6 +247,12 @@ export async function setProgramAutoregulation(
   actor: ProgramEventActor,
   stallPolicy?: AutoregStallPolicy,
 ): Promise<{ id: string } | null> {
+  // The autoreg paid gate — same check as saveProgram/updateProgram
+  // (db/programs.ts): this narrow op is the third write path to
+  // programs.autoregulation (MCP's set_program_policy rides it), and leaving
+  // it open would hand back the bypass the upsert gate closes. Turning the
+  // switch OFF is always allowed.
+  if (enabled) await requireFeature(userId, 'autoreg')
   return db.transaction(async (tx) => {
     const [owned] = await tx
       .select({ id: programs.id, autoregStallPolicy: programs.autoregStallPolicy })
