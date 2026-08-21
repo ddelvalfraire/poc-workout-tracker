@@ -159,4 +159,15 @@ describe('warm-up hint expiry', () => {
     expect(hintShown()).toBe(false)
     expect(window.localStorage.getItem(SESSIONS_KEY)).toBeNull()
   })
+
+  it('a corrupt stored counter reads as zero and self-heals on the next write', () => {
+    // NaN-guarded read (warmupHintSessionsSeen): garbage must not pin the
+    // hint on forever (NaN < 3 is false — the gate would hide it for good)
+    // NOR freeze the count — the render's own write overwrites the garbage
+    // with a real number and the budget resumes from there.
+    window.localStorage.setItem(SESSIONS_KEY, 'garbage')
+    mount()
+    expect(hintShown()).toBe(true)
+    expect(window.localStorage.getItem(SESSIONS_KEY)).toBe('1')
+  })
 })
