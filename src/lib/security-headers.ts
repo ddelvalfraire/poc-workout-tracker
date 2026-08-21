@@ -145,7 +145,16 @@ export function securityHeaders(
     { key: 'Content-Security-Policy', value: buildContentSecurityPolicy(input) },
     // Browsers ignore HSTS over plain http, so dev is unaffected; sending it
     // unconditionally keeps the output deterministic.
-    { key: 'Strict-Transport-Security', value: 'max-age=31536000; includeSubDomains; preload' },
+    //
+    // `preload` is deliberately absent — do not "helpfully" re-add it. That
+    // token is the opt-in signal for hstspreload.org submission, and the
+    // preload list is close to a one-way door: removal propagates slowly,
+    // max-age changes stop mattering once listed, and browsers keep enforcing
+    // from their shipped copy long after a delist request. The established
+    // path is to enforce HSTS (done here), prove includeSubDomains holds
+    // across every subdomain for ~6 months, and only then add the token and
+    // submit — a deliberate domain-lifecycle decision, not a header tweak.
+    { key: 'Strict-Transport-Security', value: 'max-age=31536000; includeSubDomains' },
     // Redundant with frame-ancestors for every evergreen browser; kept for
     // the engines that predate CSP2.
     { key: 'X-Frame-Options', value: 'DENY' },

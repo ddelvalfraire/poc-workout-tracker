@@ -25,9 +25,7 @@ describe('next.config security headers', () => {
   it('mounts the full security header set on every route', async () => {
     const headers = await headersForAllRoutes()
     const byKey = Object.fromEntries(headers.map((h) => [h.key, h.value]))
-    expect(byKey['Strict-Transport-Security']).toBe(
-      'max-age=31536000; includeSubDomains; preload',
-    )
+    expect(byKey['Strict-Transport-Security']).toBe('max-age=31536000; includeSubDomains')
     expect(byKey['X-Frame-Options']).toBe('DENY')
     expect(byKey['X-Content-Type-Options']).toBe('nosniff')
     expect(byKey['Referrer-Policy']).toBe('strict-origin-when-cross-origin')

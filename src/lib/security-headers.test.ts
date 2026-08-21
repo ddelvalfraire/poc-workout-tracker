@@ -154,9 +154,9 @@ describe('securityHeaders', () => {
     ])
     const byKey = Object.fromEntries(headers.map((h) => [h.key, h.value]))
     expect(byKey['Content-Security-Policy']).toBe(buildContentSecurityPolicy(PROD))
-    expect(byKey['Strict-Transport-Security']).toBe(
-      'max-age=31536000; includeSubDomains; preload',
-    )
+    // No `preload` token: withheld on purpose until subdomain coverage is
+    // proven — see the comment on securityHeaders before re-adding it.
+    expect(byKey['Strict-Transport-Security']).toBe('max-age=31536000; includeSubDomains')
     expect(byKey['X-Frame-Options']).toBe('DENY')
     expect(byKey['X-Content-Type-Options']).toBe('nosniff')
     expect(byKey['Referrer-Policy']).toBe('strict-origin-when-cross-origin')
