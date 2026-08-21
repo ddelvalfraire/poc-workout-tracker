@@ -331,7 +331,7 @@ const eslintConfig = defineConfig([
           "object-properties": { exclude: ["field", "mode", "type", "tag", "seed"] },
           callees: { exclude: ["t", "t.rich", "cn", "clsx", "cva", "tCommon", "toolStatusLabel"] },
           "jsx-attributes": {
-            exclude: ["className", "id", "key", "type", "name", "href", "src", "role", "htmlFor", "aria-describedby", "variant", "size", "autoComplete", "inputMode", "data-.*", "aria-hidden", "width", "height", "viewBox", "fill", "stroke", "d", "xmlns", "style", "step", "min", "max", "pattern", "rel", "target", "method", "action", "encType", "dir", "lang", "fallback", "confirmVariant", "page", "aria-current", "dataKey", "nameKey", "yAxisId", "orientation", "layout", "scale", "ifOverflow", "strokeDasharray", "direction", "default", "barClassName", "autoCapitalize", "enterKeyHint", "aria-autocomplete", "initialScope", "exit", "seed", "describedBy"],
+            exclude: ["className", "id", "key", "type", "name", "href", "src", "role", "htmlFor", "aria-describedby", "variant", "size", "autoComplete", "inputMode", "data-.*", "aria-hidden", "width", "height", "viewBox", "fill", "stroke", "d", "xmlns", "style", "step", "min", "max", "pattern", "rel", "target", "method", "action", "encType", "dir", "lang", "fallback", "confirmVariant", "page", "aria-current", "dataKey", "nameKey", "yAxisId", "orientation", "layout", "scale", "ifOverflow", "strokeDasharray", "direction", "default", "barClassName", "autoCapitalize", "enterKeyHint", "aria-keyshortcuts", "aria-autocomplete", "initialScope", "exit", "seed", "describedBy"],
           },
         },
       ],

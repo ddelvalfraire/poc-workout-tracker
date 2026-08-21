@@ -122,6 +122,7 @@ import { discardSession } from '@/lib/discard-session'
 import { effortLabel, shouldShowEffortRow } from '@/lib/effort'
 import {
   planSetGhost,
+  stepWeightValue,
   placeholderForSet,
   planPlaceholderForSet,
   adoptableGhostValue,
@@ -2563,10 +2564,41 @@ export function WorkoutLogger({
                         // auto-complete — checking off stays a deliberate tap.
                         enterKeyHint="done"
                         onKeyDown={(e) => {
-                          if (e.key !== 'Enter') return
+                          if (e.key === 'Enter') {
+                            e.preventDefault()
+                            e.currentTarget.blur()
+                            return
+                          }
+                          // Stepping belongs on the INPUT — the spinbutton
+                          // model, which the ± rail is the pointer half of
+                          // (see weight-stepper.tsx). These arrows are the
+                          // keyboard path, not a fallback for one. Same
+                          // stepWeightValue the rail calls, so the 0 floor and
+                          // the ghost seeding cannot drift between them: an
+                          // untouched field adopts the ghost and steps from
+                          // there, exactly like tapping +. Hold-to-repeat
+                          // stays the rail's; key repeat is the OS's job.
+                          if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return
                           e.preventDefault()
-                          e.currentTarget.blur()
+                          const stepped = stepWeightValue(
+                            set.weight,
+                            ghost.weight,
+                            e.key === 'ArrowUp' ? 1 : -1,
+                            unit,
+                          )
+                          // null = the field holds non-numeric text. Leave it
+                          // alone rather than clobbering what was typed —
+                          // same refusal the rail makes.
+                          if (stepped === null) return
+                          dispatch({
+                            type: 'UPDATE_SET',
+                            exerciseIndex,
+                            setIndex,
+                            field: 'weight',
+                            value: stepped,
+                          })
                         }}
+                        aria-keyshortcuts="ArrowUp ArrowDown"
                         onFocus={(e) => {
                           // Select-all (type-over, same rAF-deferred WebKit
                           // dance as reps), then arm this row's ± steppers.

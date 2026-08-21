@@ -26,6 +26,23 @@ import { useTranslations } from 'next-intl'
  * is bottom-anchored, so the rail grows it upward and nothing moves. See the
  * mount site in workout-logger.tsx; pinned by e2e/sticky-cta.spec.ts.
  *
+ * KEYBOARD MODEL. This rail is the POINTER half of a spinbutton and is
+ * deliberately outside the tab sequence — every control below carries
+ * tabIndex={-1}. That is the standard shape rather than a concession to the
+ * docking: WAI-ARIA's spinbutton pattern and Base UI's own NumberField (a
+ * dependency already — its change reasons are 'keyboard' for arrow/Home/End
+ * stepping alongside 'increment-press') both put stepping on the INPUT and
+ * treat ± as pointer affordances. So the keyboard path is ArrowUp/ArrowDown
+ * on the weight input, calling the same stepWeightValue this does
+ * (workout-logger.tsx; pinned by
+ * workout-logger-weight-keyboard.component.test.tsx).
+ *
+ * Nothing here is the only door to anything — the plate chip duplicates the
+ * exercise card's Dumbbell button. And tabIndex={-1} removes these from the
+ * TAB SEQUENCE only, not the accessibility tree: AT on touch still reaches
+ * them by explore-then-double-tap, which the pointerdown preventDefault
+ * below survives.
+ *
  * Load-bearing contracts, do not touch:
  * - `onPointerDown` preventDefault on every control keeps the weight input
  *   focused so the row (and the iOS keyboard) don't dismiss mid-tap.
@@ -270,6 +287,9 @@ export function WeightStepper({
               // Not `disabled`: that kills pointer events and would shrink
               // the hit area exactly where a fat-thumbed miss is likeliest.
               aria-disabled={isFloored || undefined}
+              // Pointer half of the spinbutton: not a tab stop. See the
+              // keyboard-model note at the top of this file.
+              tabIndex={-1}
               className={cn(
                 'hit-44-y min-w-16 font-semibold tnum',
                 'motion-safe:active:scale-[0.97]',
@@ -348,6 +368,7 @@ export function WeightStepper({
           return (
             <button
               type="button"
+              tabIndex={-1}
               onPointerDown={(e) => e.preventDefault()}
               onClick={onOpenPlateSheet}
               aria-label={t('plateChipAriaLabel', { chip })}
