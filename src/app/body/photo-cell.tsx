@@ -52,7 +52,7 @@ export function PhotoCell({ entry, onSelect, isSelected, isCompareMode }: PhotoC
       })}
       aria-pressed={isCompareMode ? isSelected : undefined}
       className={cn(
-        'relative aspect-[3/4] overflow-hidden rounded-xl bg-muted focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 motion-safe:animate-rise-in',
+        'relative aspect-[3/4] overflow-hidden rounded-xl bg-muted focus-visible:outline-hidden focus-visible:ring-3 focus-visible:ring-ring/50 motion-safe:animate-rise-in',
         isCompareMode && isSelected && 'ring-3 ring-primary',
       )}
       style={

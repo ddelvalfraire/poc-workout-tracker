@@ -630,7 +630,7 @@ export function ProgramBuilder({
                     aria-label={t('exercise.metricModeAriaLabel', {
                       exerciseName: exercise.name,
                     })}
-                    className="h-9 appearance-none rounded-lg bg-transparent pl-1 pr-5 text-xs font-semibold uppercase tracking-wide text-muted-foreground outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+                    className="h-9 appearance-none rounded-lg bg-transparent pl-1 pr-5 text-xs font-semibold uppercase tracking-wide text-muted-foreground outline-none focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-hidden"
                   >
                     {METRIC_MODES.map((mode) => (
                       <option key={mode} value={mode}>

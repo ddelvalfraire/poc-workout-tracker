@@ -190,7 +190,7 @@ export function HomeLayoutEditor({
       <button
         type="button"
         onClick={onReset}
-        className="mt-8 rounded-lg px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors outline-none hover:bg-muted/50 focus-visible:ring-3 focus-visible:ring-ring/50"
+        className="mt-8 rounded-lg px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors outline-none hover:bg-muted/50 focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-hidden"
       >
         {t('resetAction')}
       </button>

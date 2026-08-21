@@ -151,7 +151,7 @@ export function TileSheet({
               onClick={() => onSize(size)}
               className={cn(
                 'relative w-11 rounded-lg border py-1.5 text-xs font-semibold uppercase tracking-wide transition-colors before:absolute before:-inset-1',
-                'outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
+                'outline-none focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-hidden',
                 section.size === size
                   ? 'border-primary bg-primary/10 text-primary'
                   : 'border-border text-muted-foreground',
@@ -233,7 +233,7 @@ function MoveButton({
       onClick={onClick}
       className={cn(
         'flex h-11 items-center justify-center gap-1.5 rounded-lg border border-border text-sm font-medium transition-colors',
-        'outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
+        'outline-none focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-hidden',
         disabled ? 'opacity-30' : 'hover:bg-muted/50 active:bg-muted/60',
       )}
     >
@@ -263,7 +263,7 @@ function VisibilitySwitch({
       // 44px effective target via the invisible inset on a compact track.
       className={cn(
         'relative h-7 w-12 shrink-0 rounded-full border transition-colors before:absolute before:-inset-2',
-        'outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
+        'outline-none focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-hidden',
         checked ? 'border-primary bg-primary' : 'border-border bg-muted',
       )}
     >

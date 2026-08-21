@@ -1756,7 +1756,7 @@ export function WorkoutLogger({
                     }
                   }}
                   aria-label={t('loggingTypeAriaLabel', { name: exercise.name })}
-                  className="h-9 appearance-none rounded-lg bg-transparent pl-1 pr-5 text-xs font-semibold uppercase tracking-wide text-muted-foreground outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+                  className="h-9 appearance-none rounded-lg bg-transparent pl-1 pr-5 text-xs font-semibold uppercase tracking-wide text-muted-foreground outline-none focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-hidden"
                 >
                   {LOGGING_TYPES.map((type) => (
                     <option key={type} value={type}>

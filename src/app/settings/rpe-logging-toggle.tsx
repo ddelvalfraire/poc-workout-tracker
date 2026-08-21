@@ -47,7 +47,7 @@ export function RpeLoggingToggle({ enabled }: { enabled: boolean }) {
         // 44px effective target via the invisible inset on a compact track.
         className={cn(
           'relative h-7 w-12 rounded-full border transition-colors before:absolute before:-inset-2',
-          'outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
+          'outline-none focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-hidden',
           isOn ? 'border-primary bg-primary' : 'border-border bg-muted',
         )}
       >

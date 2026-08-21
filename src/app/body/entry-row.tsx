@@ -63,7 +63,7 @@ export function BodyweightEntryRow({ id, dateLabel, weightLabel }: BodyweightEnt
         // before:-inset-1 grows the invisible hit target past the small
         // glyph (the app's compact-row tap-target idiom); destructive tokens
         // only — delete never wears volt.
-        className="relative shrink-0 rounded-lg p-1.5 text-muted-foreground transition-colors before:absolute before:-inset-1 hover:text-destructive focus-visible:text-destructive focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50"
+        className="relative shrink-0 rounded-lg p-1.5 text-muted-foreground transition-colors before:absolute before:-inset-1 hover:text-destructive focus-visible:text-destructive focus-visible:outline-hidden focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50"
       >
         <Trash2 aria-hidden="true" className="size-4" />
       </button>

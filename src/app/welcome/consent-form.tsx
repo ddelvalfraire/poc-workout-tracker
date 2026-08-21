@@ -54,7 +54,7 @@ function ConsentRow({
         role="checkbox"
         aria-checked={checked}
         onClick={() => onChange(!checked)}
-        className="group flex w-full cursor-pointer items-start gap-3.5 text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+        className="group flex w-full cursor-pointer items-start gap-3.5 text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-hidden"
       >
         <span
           aria-hidden="true"
@@ -82,7 +82,7 @@ function ConsentRow({
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
-        className="mt-2 ml-[38px] flex items-center gap-1 text-xs font-medium text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
+        className="mt-2 ml-[38px] flex items-center gap-1 text-xs font-medium text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-hidden"
       >
         {t('whatThisMeansAction')}
         <ChevronDown
@@ -121,7 +121,7 @@ function ConsentSwitch({
       onClick={() => onChange(!checked)}
       className={cn(
         'relative h-7 w-12 shrink-0 rounded-full border transition-colors before:absolute before:-inset-2',
-        'outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-40',
+        'outline-none focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-hidden disabled:opacity-40',
         checked ? 'border-primary bg-primary' : 'border-border bg-muted',
       )}
     >
@@ -250,7 +250,7 @@ export function ConsentForm() {
           role="checkbox"
           aria-checked={tos}
           onClick={() => setTos((v) => !v)}
-          className="group flex w-full cursor-pointer items-start gap-3.5 text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+          className="group flex w-full cursor-pointer items-start gap-3.5 text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-hidden"
         >
           <span
             aria-hidden="true"
