@@ -70,6 +70,23 @@ if (posthogKey) {
         // Explicit even though it's the default: this is the anonymous-until-
         // consent posture in one line.
         person_profiles: 'identified_only',
+        // Opts OUT of the preset's internal_or_test_user_hostname, which from
+        // '2026-01-30' on is /^(localhost|127\.0\.0\.1)$/. On a matching host
+        // posthog-js calls setInternalOrTestUser() during init — before the
+        // first pageview — and that goes through _requirePersonProcessing(),
+        // which only declines when person_profiles is 'never'. On
+        // 'identified_only' it instead persists $epp in localStorage, so every
+        // event from then on carries $process_person_profile: true and a person
+        // profile exists WITHOUT identify() ever being called. Dev machines
+        // only, but it makes the line above false, and this is health data.
+        //
+        // Empty string, NOT undefined: posthog's extend() copies config with
+        // `if (void 0 !== source[prop])`, so an undefined here is silently
+        // dropped and the preset's regex survives. '' is falsy, so the init
+        // guard (`if (this.config.internal_or_test_user_hostname && ...)`)
+        // skips the whole block. Filter dev traffic on $host instead — it is
+        // captured on every event ('localhost:3000').
+        internal_or_test_user_hostname: '',
       })
     })
     .catch((error: unknown) => console.error('[posthog] client init failed', error))
