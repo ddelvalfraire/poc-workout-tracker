@@ -62,9 +62,14 @@ afterEach(() => {
 })
 
 describe('POST /api/webhooks/revenuecat', () => {
-  it('accepts a valid event and records it in the inbox', async () => {
+  it('accepts a valid event down the ACCEPTED path and records it in the inbox', async () => {
     const res = await POST(makeRequest({}))
     expect(res.status).toBe(200)
+    // The body discriminant matters: an ignored-environment response is also
+    // a 200, and an env-handling bug once sent every event down that path
+    // while these assertions stayed green on status alone.
+    expect(await res.json()).toMatchObject({ accepted: true })
+    expect(markIgnored).not.toHaveBeenCalled()
     expect(recordEvent).toHaveBeenCalledWith(
       expect.objectContaining({
         id: 'evt-synthetic-1',
@@ -73,6 +78,12 @@ describe('POST /api/webhooks/revenuecat', () => {
         environment: 'SANDBOX',
       }),
     )
+  })
+
+  it('treats an empty RC_EXPECTED_ENVIRONMENT as unset, not as "expect nothing"', async () => {
+    vi.stubEnv('RC_EXPECTED_ENVIRONMENT', '')
+    const res = await POST(makeRequest({}))
+    expect(await res.json()).toMatchObject({ accepted: true })
   })
 
   it('401s a wrong Authorization header without touching the inbox', async () => {
@@ -102,6 +113,7 @@ describe('POST /api/webhooks/revenuecat', () => {
     const v1 = createHmac('sha256', 'whsec_test').update(`${t}.${body}`).digest('hex')
     const signed = await POST(makeRequest({ body, signature: `t=${t},v1=${v1}` }))
     expect(signed.status).toBe(200)
+    expect(await signed.json()).toMatchObject({ accepted: true })
   })
 
   it('400s malformed JSON', async () => {
@@ -141,6 +153,7 @@ describe('POST /api/webhooks/revenuecat', () => {
     const body = eventBody({ app_user_id: undefined })
     const res = await POST(makeRequest({ body }))
     expect(res.status).toBe(200)
+    expect(await res.json()).toMatchObject({ accepted: true })
     expect(recordEvent).toHaveBeenCalledWith(expect.objectContaining({ appUserId: null }))
   })
 })

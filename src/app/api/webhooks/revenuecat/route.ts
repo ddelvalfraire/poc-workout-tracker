@@ -83,8 +83,10 @@ export async function POST(request: Request): Promise<NextResponse> {
 /** PRODUCTION on the prod deployment, SANDBOX everywhere else (preview,
  *  local dev), overridable for e2e harnesses. */
 function expectedEnvironment(): string {
+  // || not ??: an empty-string env var must mean "unset", not "expect ''" —
+  // expecting '' would silently ignore every event.
   return (
-    process.env.RC_EXPECTED_ENVIRONMENT ??
+    process.env.RC_EXPECTED_ENVIRONMENT ||
     (process.env.VERCEL_ENV === 'production' ? 'PRODUCTION' : 'SANDBOX')
   )
 }
