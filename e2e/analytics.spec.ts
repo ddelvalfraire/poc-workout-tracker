@@ -139,7 +139,18 @@ test.describe('PostHog analytics pipeline', () => {
     // not a history change, so this also pins that `defaults: '2026-06-25'`
     // (which sets capture_pageview: 'history_change') still captures on load.
     await sdkChunk
-    await initialPageview
+    const pageview = await initialPageview
+
+    // The anonymous-until-consent posture, pinned on the host that used to
+    // break it. `defaults: '2026-06-25'` would otherwise set
+    // internal_or_test_user_hostname to /^(localhost|127\.0\.0\.1)$/, and the
+    // setInternalOrTestUser() that fires on a match persists $epp — after
+    // which every event is person-processed and a profile exists with no
+    // identify() ever called. instrumentation-client.ts opts out; this fails
+    // if that opt-out is dropped or a future `defaults` bump re-enables it.
+    expect(captureBodyText(pageview.request().postDataBuffer())).toMatch(
+      /"\$process_person_profile"\s*:\s*false/,
+    )
 
     // The other half of that preset. This link is a next/link, so the second
     // pageview exists only because the SDK patches the History API — no
