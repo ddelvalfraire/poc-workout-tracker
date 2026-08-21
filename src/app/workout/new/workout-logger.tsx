@@ -139,8 +139,26 @@ const LONG_PRESS_MS = 500
 /** Pointer travel past this cancels the hold — it's a scroll, not a press. */
 const LONG_PRESS_SLOP_PX = 8
 
-/** One-time hint flag: set after the user's first-ever warm-up tag. */
+/** Hint flag: set after the user's first-ever warm-up tag — the gesture
+ *  itself retires the hint for good. */
 const WARMUP_HINT_KEY = 'logger:warmup-hint-seen'
+/** How many sessions have RENDERED the warm-up hint (same localStorage
+ *  precedent as WARMUP_HINT_KEY). The hint has no dismiss affordance, so
+ *  exposure is the only other way out: a lifter who reads it this many
+ *  sessions running and never long-presses has answered. */
+const WARMUP_HINT_SESSIONS_KEY = 'logger:warmup-hint-sessions'
+/** Three exposures: one to notice, one to try or ignore, one to confirm the
+ *  ignoring is a choice — the standard coach-mark budget, and more generous
+ *  than the single showing a first-run tooltip would get, because a
+ *  long-press has no visual affordance to rediscover later. */
+const WARMUP_HINT_MAX_SESSIONS = 3
+
+/** Sessions the warm-up hint has been shown in (0 when unset/blocked). */
+function warmupHintSessionsSeen(): number {
+  const raw = window.localStorage.getItem(WARMUP_HINT_SESSIONS_KEY)
+  const parsed = raw === null ? 0 : Number.parseInt(raw, 10)
+  return Number.isFinite(parsed) ? parsed : 0
+}
 
 /* The per-exercise logging-type select's option LABELS live in the catalog
    (WorkoutLogger.loggingType.*) and are read at render — a label baked into
@@ -441,13 +459,17 @@ export function WorkoutLogger({
   // one-shot animation replays only when the class re-attaches (uncheck →
   // recheck flips `completed`, which drops and re-adds it).
   const [completionPop, setCompletionPop] = useState<{ setId: string; big: boolean } | null>(null)
-  // One-time warm-up gesture hint: shown until the user tags their first-ever
-  // warm-up set (localStorage flag, read post-mount — SSR can't know it).
+  // Warm-up gesture hint: shown until the user tags their first-ever warm-up
+  // set OR it has rendered for WARMUP_HINT_MAX_SESSIONS sessions unanswered
+  // (localStorage flag + counter, read post-mount — SSR can't know them).
   const [showWarmupHint, setShowWarmupHint] = useState(false)
   useEffect(() => {
     try {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- one-shot mount sync from localStorage (external system)
-      setShowWarmupHint(window.localStorage.getItem(WARMUP_HINT_KEY) !== '1')
+      setShowWarmupHint(
+        window.localStorage.getItem(WARMUP_HINT_KEY) !== '1' &&
+          warmupHintSessionsSeen() < WARMUP_HINT_MAX_SESSIONS,
+      )
     } catch {
       // Storage blocked: keep the hint hidden rather than nag forever.
     }
@@ -460,6 +482,23 @@ export function WorkoutLogger({
       // Best-effort: the hint just reappears next session.
     }
   }
+  // What the hint's render actually requires (first exercise has rows) — the
+  // JSX below and the session counter share this, so an empty ad-hoc session
+  // can never burn an exposure on a hint that was never on screen.
+  const warmupHintVisible = showWarmupHint && (draft.exercises[0]?.sets.length ?? 0) > 0
+  const warmupHintCountedRef = useRef(false)
+  useEffect(() => {
+    if (!warmupHintVisible || warmupHintCountedRef.current) return
+    // Count at most once per mount (the ref also absorbs Strict Mode's
+    // doubled effect): one session that showed the hint = one strike
+    // toward WARMUP_HINT_MAX_SESSIONS.
+    warmupHintCountedRef.current = true
+    try {
+      window.localStorage.setItem(WARMUP_HINT_SESSIONS_KEY, String(warmupHintSessionsSeen() + 1))
+    } catch {
+      // Best-effort: an uncounted session merely delays the expiry.
+    }
+  }, [warmupHintVisible])
   // Long-press on a set circle toggles its warm-up tag. One primary pointer
   // at a time, so component-level refs suffice — no per-row state. The fired
   // flag suppresses the press's own click (the completion toggle).
@@ -1880,10 +1919,12 @@ export function WorkoutLogger({
                 <span className="size-9 shrink-0" aria-hidden="true" />
               </div>
             )}
-            {/* One-time warm-up gesture hint (first card only — a teaching
-                caption, not chrome): retired forever after the first real
-                warm-up tag, via the localStorage flag. */}
-            {showWarmupHint && exerciseIndex === 0 && exercise.sets.length > 0 && (
+            {/* Warm-up gesture hint (first card only — a teaching caption,
+                not chrome): retired forever by the first real warm-up tag,
+                or after WARMUP_HINT_MAX_SESSIONS sessions of being read and
+                ignored — a lifter who never tags warm-ups must not carry a
+                permanent caption with no dismiss affordance. */}
+            {warmupHintVisible && exerciseIndex === 0 && (
               <p className="px-0.5 text-xs text-muted-foreground">
                 {t('warmupHint')}
               </p>
