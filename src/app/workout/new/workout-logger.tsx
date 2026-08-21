@@ -230,6 +230,16 @@ interface WorkoutLoggerProps {
    *  this is true — with both false the render is untouched (fast-path
    *  parity for opted-out users is a hard contract). */
   rpeLoggingEnabled?: boolean
+  /** Server truth (db hasAnyCompletedWorkout): does ANY completed workout
+   *  exist for this user? Gates the PREV column's PRESENCE, which must be
+   *  decided at first paint — deriving it from the in-flight last-performance
+   *  queries makes the w-10 column insert (returning user) or collapse
+   *  (first-ever user) when they settle, a geometry shift either way. With
+   *  history the cell is reserved up front and chips resolve dash→label in
+   *  place; without it the column never appears for the session. Defaults
+   *  ON: reserving the cell is the no-shift, nothing-hidden fallback for a
+   *  caller that cannot know. */
+  hasWorkoutHistory?: boolean
 }
 
 /** What the notes-v2 capture sheet is open for: a pressed set (which the
@@ -275,6 +285,7 @@ export function WorkoutLogger({
   defaultRestSec = null,
   restTimerEnabled = true,
   rpeLoggingEnabled = false,
+  hasWorkoutHistory = true,
 }: WorkoutLoggerProps) {
   const t = useTranslations('WorkoutLogger')
   const tCommon = useTranslations('Common')
@@ -331,19 +342,11 @@ export function WorkoutLogger({
     const result = lastPerformanceQueries[i].data
     if (result !== undefined) lastByExercise[`${ref.source}:${ref.wgerExerciseId}`] = result
   })
-  // Whether ANY set in the session has a Prev chip to show. Gates the whole
-  // PREV column: a first-ever session (or a brand-new plan) otherwise renders
-  // a fixed w-10 of disabled em dashes exactly where the inputs are tightest.
-  // Same helpers as the row chips, so the gate and the chips cannot disagree;
-  // resolved history only — while the queries are in flight the column stays
-  // down, the same pop-in the chips' own labels already do.
-  const sessionHasPrev = draft.exercises.some((exercise) => {
-    const last = lastByExercise[`${exercise.source}:${exercise.wgerExerciseId}`] ?? null
-    return exercise.sets.some(
-      (_, setIndex) =>
-        previousChipLabel(placeholderForSet(last, setIndex, unit), exercise.loggingType) !== null,
-    )
-  })
+  // The PREV column's presence is NOT derived here: these queries resolve
+  // after first paint, so any gate computed from them inserts or collapses
+  // the w-10 column when they settle — a geometry shift, unlike the chips'
+  // own dash→label swap which happens inside an already-reserved cell. The
+  // column keys off hasWorkoutHistory (server truth, known before paint).
   // All-time best e1RM per exercise — the baseline the live PR flag compares
   // against. LIVE sessions only (correcting a finished workout is not "the
   // moment it happens"), and deliberately frozen for the session
@@ -1903,11 +1906,15 @@ export function WorkoutLogger({
             {exercise.sets.length > 0 && (
               <div className="flex items-center gap-2 px-0.5 text-[0.7rem] font-semibold uppercase tracking-wider text-muted-foreground">
                 <span className="w-8 shrink-0" aria-hidden="true" />
-                {/* PREV earns its w-10 only when the session has history to
-                    show (see sessionHasPrev) — a first-ever session otherwise
-                    heads a full column of disabled em dashes, and the inputs
-                    are exactly where that width is tightest. */}
-                {sessionHasPrev && (
+                {/* PREV's w-10 is server-known geometry (hasWorkoutHistory,
+                    same gate as the row chips): reserved from first paint for
+                    a user with any completed history — chips resolve
+                    dash→label inside the cell — and never rendered for a
+                    first-ever user, who takes the width back where the
+                    inputs are tightest. Gating on the in-flight queries
+                    instead would insert this column after paint on every
+                    returning cold load. */}
+                {hasWorkoutHistory && (
                   <span className="w-10 shrink-0 text-center">{t('column.prev')}</span>
                 )}
                 {/* Cardio exercises head their columns Time/km; the first
@@ -2291,11 +2298,12 @@ export function WorkoutLogger({
                       />
                     )}
                   </button>
-                  {/* The chip renders only while the SESSION has any history
-                      (sessionHasPrev, same gate as the column header) — rows
-                      without their own prevLabel keep the disabled em dash so
-                      the column stays aligned. */}
-                  {sessionHasPrev && (
+                  {/* Same server-known gate as the column header
+                      (hasWorkoutHistory) — the two must agree or the header
+                      and rows misalign. Rows without their own prevLabel
+                      (query in flight, or genuinely no prior) keep the
+                      disabled em dash so the cell's geometry never moves. */}
+                  {hasWorkoutHistory && (
                     <button
                       type="button"
                       disabled={!prevLabel || !chipCanFill}

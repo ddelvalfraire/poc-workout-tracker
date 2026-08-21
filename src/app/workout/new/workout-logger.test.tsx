@@ -151,26 +151,47 @@ describe('WorkoutLogger name block (#207)', () => {
 })
 
 describe('WorkoutLogger PREV column gate', () => {
-  it('hides the whole PREV column when nothing in the session has history', () => {
-    // No seeded last-performance: a first-ever session. The header cell and
-    // every disabled em-dash chip disappear; the inputs take the width back.
-    const html = render()
-    expect(html).not.toContain('>Prev<')
-    expect(html).not.toContain('No previous performance for')
+  it('reserves the column from first paint for a user with history, queries unresolved', () => {
+    // hasWorkoutHistory is server truth; no seeded cache means every
+    // last-performance query is still in flight. The header cell AND the
+    // per-row chips (dashes, labelled "no previous yet") must ALREADY be
+    // there — history resolving swaps dash→label inside the reserved cell
+    // instead of inserting a w-10 column after first paint, which is the
+    // returning-user cold-load geometry shift this gate exists to prevent.
+    const html = render({ hasWorkoutHistory: true })
+    expect(html).toContain('>Prev<')
+    expect(html).toContain('No previous performance for')
   })
 
-  it('renders the PREV column once any exercise has prior performance', () => {
-    const html = render({}, lastPerformance({ sets: [{ reps: 12, weight: 100 }] }))
+  it('fills the reserved cells in place once history resolves', () => {
+    const html = render(
+      { hasWorkoutHistory: true },
+      lastPerformance({ sets: [{ reps: 12, weight: 100 }] }),
+    )
     expect(html).toContain('>Prev<')
     expect(html).toContain('100×12')
   })
 
-  it('keeps the column hidden when history exists but yields no label', () => {
-    // weight_reps requires BOTH fields for a chip (see previousChipLabel):
-    // reps-less history would render only fragments, so the gate must agree
-    // with the chips and keep the column down.
-    const html = render({}, lastPerformance({ sets: [{ reps: null, weight: 100 }] }))
+  it('never renders the column for a user with no completed workout', () => {
+    // The strong form: even with per-exercise data sitting resolved in the
+    // cache (an abandoned session can leave some), the first-ever cohort
+    // keeps the width — header and chips both, so the two renderers cannot
+    // disagree and the column cannot appear mid-session.
+    const html = render(
+      { hasWorkoutHistory: false },
+      lastPerformance({ sets: [{ reps: 12, weight: 100 }] }),
+    )
     expect(html).not.toContain('>Prev<')
+    expect(html).not.toContain('No previous performance for')
+    expect(html).not.toContain('100×12')
+  })
+
+  it('defaults to reserving the column when the caller does not know', () => {
+    // Fail open: a consumer that cannot know the cohort gets the pre-gate
+    // behavior (cell reserved, dashes until data resolve) — never silently
+    // hidden history.
+    const html = render()
+    expect(html).toContain('>Prev<')
   })
 })
 

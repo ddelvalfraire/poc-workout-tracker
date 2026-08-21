@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation'
 import { requireUserId } from '@/lib/auth'
-import { getWorkoutDetail, type WorkoutDetail } from '@/db/workouts'
+import { getWorkoutDetail, hasAnyCompletedWorkout, type WorkoutDetail } from '@/db/workouts'
 import {
   getWeightUnit,
   getEquipment,
@@ -123,9 +123,15 @@ export default async function EditWorkoutPage({
   const t = await getTranslations('WorkoutEdit')
   const userId = await requireUserId()
   const { id } = await params
-  const [workout, unit] = await Promise.all([
+  const [workout, unit, hasWorkoutHistory] = await Promise.all([
     getWorkoutDetail(userId, id),
     getWeightUnit(userId),
+    // Server truth for the logger's PREV column: decided BEFORE first paint
+    // so the column's presence never shifts when client queries settle. A
+    // live session's own row is uncompleted and never counts itself; a
+    // finished workout being corrected IS completed history — stable both
+    // ways.
+    hasAnyCompletedWorkout(userId),
   ])
   if (!workout) notFound()
 
@@ -185,6 +191,7 @@ export default async function EditWorkoutPage({
         defaultRestSec={defaultRestSec}
         restTimerEnabled={restTimerEnabled}
         rpeLoggingEnabled={rpeLoggingEnabled}
+        hasWorkoutHistory={hasWorkoutHistory}
       />
     </div>
   )

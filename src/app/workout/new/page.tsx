@@ -6,7 +6,7 @@ import {
   getRestTimerEnabled,
   getRpeLoggingEnabled,
 } from '@/db/preferences'
-import { getWorkoutDetail } from '@/db/workouts'
+import { getWorkoutDetail, hasAnyCompletedWorkout } from '@/db/workouts'
 import { getWorkoutTemplateDetail } from '@/db/workout-templates'
 import { getWorkoutDraft } from '@/db/workout-drafts'
 import { templateToDraft } from '@/lib/workout-template'
@@ -36,11 +36,14 @@ export default async function NewWorkoutPage({
   // stale or deleted id falls back to the stored draft rather than presenting
   // an empty logger while a live draft exists. `from` outranks `template` —
   // repeating a concrete session is the more specific intent.
-  const [unit, source, templateSource, draftRow] = await Promise.all([
+  const [unit, source, templateSource, draftRow, hasWorkoutHistory] = await Promise.all([
     getWeightUnit(userId),
     fromId ? getWorkoutDetail(userId, fromId) : Promise.resolve(undefined),
     templateId ? getWorkoutTemplateDetail(userId, templateId) : Promise.resolve(undefined),
     getWorkoutDraft(userId, draftKey()),
+    // Server truth for the logger's PREV column: decided BEFORE first paint
+    // so the column's presence never shifts when client queries settle.
+    hasAnyCompletedWorkout(userId),
   ])
   // Equipment and the rest default are independent preference reads — one
   // round-trip of latency instead of two.
@@ -83,6 +86,7 @@ export default async function NewWorkoutPage({
         defaultRestSec={defaultRestSec}
         restTimerEnabled={restTimerEnabled}
         rpeLoggingEnabled={rpeLoggingEnabled}
+        hasWorkoutHistory={hasWorkoutHistory}
       />
     </div>
   )
