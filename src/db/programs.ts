@@ -836,6 +836,11 @@ export async function cloneProgram(
         status: 'draft',
         mesocycleWeeks: source.mesocycleWeeks,
         deloadWeek: source.deloadWeek,
+        // Deliberately NOT clamped to the adopter-entitlement check that
+        // adoptTemplate/adoptShared apply: a block restart CONTINUES the
+        // owner's own stored flag rather than ACQUIRING a new one, and
+        // clamping here would flip live prescriptions for a lifter mid-block
+        // after a lapse — worse than carrying the stored value forward.
         autoregulation: source.autoregulation,
         autoregStallPolicy: source.autoregStallPolicy,
         deloadPolicy: source.deloadPolicy,
