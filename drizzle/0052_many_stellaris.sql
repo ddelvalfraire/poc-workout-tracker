@@ -1,0 +1,1 @@
+ALTER TABLE "user_preferences" ADD COLUMN "weight_step" numeric(5, 2);

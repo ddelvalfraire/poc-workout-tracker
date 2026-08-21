@@ -74,6 +74,7 @@ function renderStepper({ weight = '60', ghostWeight = undefined }: RenderProps =
           weight={w}
           ghostWeight={ghostWeight}
           unit="kg"
+      step={2.5}
           loggingType="weight_reps"
           bar={20}
           plates={[20, 10, 5, 2.5, 1.25]}

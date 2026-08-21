@@ -5,6 +5,7 @@ import {
   getWeightUnit,
   getEquipment,
   getDefaultRestSec,
+  getWeightStep,
   getRestTimerEnabled,
   getRpeLoggingEnabled,
 } from '@/db/preferences'
@@ -136,12 +137,13 @@ export default async function EditWorkoutPage({
   ])
   if (!workout) notFound()
 
-  const [plan, equipment, defaultRestSec, restTimerEnabled, rpeLoggingEnabled, draftRow] = await Promise.all([
+  const [plan, equipment, defaultRestSec, restTimerEnabled, rpeLoggingEnabled, weightStep, draftRow] = await Promise.all([
     loadPlanTargets(userId, workout, unit),
     getEquipment(userId, unit),
     getDefaultRestSec(userId),
     getRestTimerEnabled(userId),
     getRpeLoggingEnabled(userId),
+    getWeightStep(userId),
     // The logger's autosave key for this surface is the workout id; the write
     // path lower-cases keys at the action boundary, so read the same form.
     getWorkoutDraft(userId, id.toLowerCase()),
@@ -190,6 +192,7 @@ export default async function EditWorkoutPage({
         startedAt={restored?.openedAt ?? workout.startedAt}
         equipment={equipment}
         defaultRestSec={defaultRestSec}
+        weightStep={weightStep}
         restTimerEnabled={restTimerEnabled}
         rpeLoggingEnabled={rpeLoggingEnabled}
         hasWorkoutHistory={hasWorkoutHistory}

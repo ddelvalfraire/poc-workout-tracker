@@ -16,6 +16,9 @@ import {
   previousChipLabel,
   completedSetsSummary as summaryMessage,
   stepWeightValue,
+  resolveWeightStep,
+  WEIGHT_STEP,
+  WEIGHT_STEP_CHOICES,
 } from './format'
 
 /**
@@ -631,5 +634,51 @@ describe('Intl, not hand-assembly', () => {
     // locale that groups with a narrow no-break space.
     expect(formatVolumeParts(5200.4, 'kg', 'en')).toEqual({ value: '5,200', unit: 'kg' })
     expect(formatVolumeParts(0, 'lb', 'en')).toEqual({ value: '0', unit: 'lb' })
+  })
+})
+
+describe('resolveWeightStep', () => {
+  it('uses the unit default when nothing is stored', () => {
+    expect(resolveWeightStep(null, 'kg')).toBe(WEIGHT_STEP.kg)
+    expect(resolveWeightStep(undefined, 'lb')).toBe(WEIGHT_STEP.lb)
+  })
+
+  it('honours a stored step this unit actually offers', () => {
+    expect(resolveWeightStep(1.25, 'kg')).toBe(1.25)
+    expect(resolveWeightStep(10, 'lb')).toBe(10)
+  })
+
+  it('falls back when the stored step belongs to the OTHER unit', () => {
+    // The preference is unit-native and never converted, so a kg user's 1.25
+    // must not survive a switch to lb as "1.25 lb" - lb does not offer it.
+    expect(WEIGHT_STEP_CHOICES.lb).not.toContain(1.25)
+    expect(resolveWeightStep(1.25, 'lb')).toBe(WEIGHT_STEP.lb)
+    // 5 is on BOTH lists, so it legitimately survives the switch.
+    expect(resolveWeightStep(5, 'kg')).toBe(5)
+    expect(resolveWeightStep(5, 'lb')).toBe(5)
+  })
+
+  it('refuses junk rather than stepping by it', () => {
+    for (const junk of [0, -2.5, Number.NaN, Number.POSITIVE_INFINITY, 3.7]) {
+      expect(resolveWeightStep(junk, 'kg')).toBe(WEIGHT_STEP.kg)
+    }
+  })
+})
+
+describe('stepWeightValue with a custom step', () => {
+  it('steps by the step it is given, not the unit default', () => {
+    expect(stepWeightValue('60', undefined, 1, 'kg', 1)).toBe('61')
+    expect(stepWeightValue('60', undefined, -1, 'kg', 0.5)).toBe('59.5')
+  })
+
+  it('still floors at 0 and still seeds from the ghost', () => {
+    expect(stepWeightValue('0.5', undefined, -1, 'kg', 1)).toBe('0')
+    expect(stepWeightValue('', '100', 1, 'kg', 1)).toBe('101')
+  })
+
+  it('defaults to the unit step so existing callers are unchanged', () => {
+    expect(stepWeightValue('60', undefined, 1, 'kg')).toBe(
+      stepWeightValue('60', undefined, 1, 'kg', WEIGHT_STEP.kg),
+    )
   })
 })

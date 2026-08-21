@@ -95,7 +95,7 @@ describe('weight input arrow stepping', () => {
     container.remove()
   })
 
-  function mount(weight: string): HTMLInputElement {
+  function mount(weight: string, weightStep: number | null = null): HTMLInputElement {
     const client = new QueryClient({ defaultOptions: { queries: { enabled: false } } })
     act(() => {
       root.render(
@@ -106,6 +106,7 @@ describe('weight input arrow stepping', () => {
               closeHref="/"
               initialDraft={draft(weight)}
               unit="kg"
+              weightStep={weightStep}
             />
           </QueryClientProvider>,
         ),
@@ -159,6 +160,29 @@ describe('weight input arrow stepping', () => {
   it('announces the shortcut, which is its only discoverability', () => {
     const input = mount('100')
     expect(input.getAttribute('aria-keyshortcuts')).toBe('ArrowUp ArrowDown')
+  })
+
+  it('steps by the configured step, not the unit default', () => {
+    // The settings preference has to reach BOTH halves of the spinbutton.
+    // This is the keyboard half; the rail's labels read the same resolved
+    // number, which is why the logger resolves it exactly once.
+    const input = mount('100', 1)
+    press(input, 'ArrowUp')
+    expect(input.value).toBe('101')
+  })
+
+  it('honours a fractional step this unit offers', () => {
+    const input = mount('100', 1.25)
+    press(input, 'ArrowUp')
+    expect(input.value).toBe('101.25')
+  })
+
+  it('falls back to the unit default when the stored step is not on offer', () => {
+    // 3.7 is not a kg choice - a corrupt row, or one written under another
+    // unit. resolveWeightStep drops it rather than stepping by nonsense.
+    const input = mount('100', 3.7)
+    press(input, 'ArrowUp')
+    expect(input.value).toBe('102.5')
   })
 
   it('keeps the rail out of the tab sequence but not out of the a11y tree', () => {

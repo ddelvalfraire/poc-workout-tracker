@@ -123,6 +123,7 @@ import { effortLabel, shouldShowEffortRow } from '@/lib/effort'
 import {
   planSetGhost,
   stepWeightValue,
+  resolveWeightStep,
   placeholderForSet,
   planPlaceholderForSet,
   adoptableGhostValue,
@@ -223,6 +224,9 @@ interface WorkoutLoggerProps {
   /** The user's stored default rest target (seconds) — seeds the session
    *  default the countdown falls back to when a set has no plan restSec. */
   defaultRestSec?: number | null
+  /** The lifter's stored ± step, RAW and unit-native (null = unit default).
+   *  Resolved here rather than at the page so the guard lives in one place. */
+  weightStep?: number | null
   /** Feature switch: false suppresses the whole rest surface — no readout,
    *  no countdown, plan targets ignored. The elapsed clock is unaffected. */
   restTimerEnabled?: boolean
@@ -284,11 +288,16 @@ export function WorkoutLogger({
   startedAt,
   equipment,
   defaultRestSec = null,
+  weightStep = null,
   restTimerEnabled = true,
   rpeLoggingEnabled = false,
   hasWorkoutHistory = true,
 }: WorkoutLoggerProps) {
   const t = useTranslations('WorkoutLogger')
+  // One resolved step for both halves of the spinbutton: the rail's labels
+  // and math, and the input's arrow keys. Resolving once is what stops them
+  // ever offering different numbers.
+  const step = resolveWeightStep(weightStep, unit)
   const tCommon = useTranslations('Common')
   // The collapsed-card summary is built by lib/format, which owns its
   // own words ("set", "top", "BW") in the Format namespace.
@@ -2585,6 +2594,7 @@ export function WorkoutLogger({
                             ghost.weight,
                             e.key === 'ArrowUp' ? 1 : -1,
                             unit,
+                            step,
                           )
                           // null = the field holds non-numeric text. Leave it
                           // alone rather than clobbering what was typed —
@@ -2983,6 +2993,7 @@ export function WorkoutLogger({
             weight={stepperTarget.set.weight}
             ghostWeight={stepperTarget.ghost.weight}
             unit={unit}
+            step={step}
             loggingType={stepperTarget.exercise.loggingType}
             bar={gear.bars[0] ?? 0}
             plates={gear.plates}

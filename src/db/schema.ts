@@ -198,6 +198,13 @@ export const userPreferences = pgTable('user_preferences', {
   // null means no target, so the rest readout stays a plain count-up. The
   // action boundary enforces the 0..3600 range; reads still guard stored data.
   defaultRestSec: integer('default_rest_sec'),
+  // The lifter's ± step for the weight field, stored UNIT-NATIVE and never
+  // converted: 2.5 means 2.5 kg to a kg user and 2.5 lb to an lb user. Null
+  // means "use the unit default" (WEIGHT_STEP). Readers run it through
+  // resolveWeightStep, which also drops a value the current unit does not
+  // offer — so switching kg→lb falls back to the lb default instead of
+  // inheriting a kg number.
+  weightStep: numeric('weight_step', { precision: 5, scale: 2, mode: 'number' }),
   // Feature switch for the whole rest-timer surface: off means no rest
   // readout at all (no countdown, no count-up) and per-set plan targets are
   // ignored. Default ON — the timer is the feature's normal state; the

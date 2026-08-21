@@ -5,6 +5,7 @@ import {
   getWeightUnit,
   getBodyweightKg,
   getDefaultRestSec,
+  getWeightStep,
   getRestTimerEnabled,
   getRpeLoggingEnabled,
 } from '@/db/preferences'
@@ -17,6 +18,7 @@ import { Section } from '@/components/ui/section'
 import { DividerList, DividerRow } from '@/components/ui/divider-list'
 import packageJson from '../../../package.json'
 import { RestDefaultSetting } from './rest-default-setting'
+import { WeightStepSetting } from './weight-step-setting'
 import { RestTimerToggle } from './rest-timer-toggle'
 import { AnalyticsConsentToggle } from './analytics-consent-toggle'
 import { getConsentState } from '@/db/consent'
@@ -37,13 +39,14 @@ import { getTranslations } from 'next-intl/server'
 export default async function SettingsPage() {
   const t = await getTranslations('Settings')
   const userId = await requireUserId()
-  const [unit, bodyweightKg, defaultRestSec, restTimerEnabled, rpeLoggingEnabled, session, consent] =
+  const [unit, bodyweightKg, defaultRestSec, restTimerEnabled, rpeLoggingEnabled, weightStep, session, consent] =
     await Promise.all([
       getWeightUnit(userId),
       getBodyweightKg(userId),
       getDefaultRestSec(userId),
       getRestTimerEnabled(userId),
       getRpeLoggingEnabled(userId),
+      getWeightStep(userId),
       withAuth(),
       getConsentState(userId),
     ])
@@ -140,6 +143,13 @@ export default async function SettingsPage() {
             hint={restTimerEnabled ? t('defaultRest.hint') : t('defaultRest.hintDisabled')}
           >
             <RestDefaultSetting defaultRestSec={defaultRestSec} />
+          </SettingRow>
+          {/* The ± step the logger's rail and the weight field's arrow keys
+              both use. Unit-native and not converted on a unit switch — the
+              picker offers this unit's sizes, and a stored value from the
+              other unit falls back to this one's default. */}
+          <SettingRow label={t('weightStep.label')} hint={t('weightStep.hint', { unit })}>
+            <WeightStepSetting weightStep={weightStep} unit={unit} />
           </SettingRow>
           {/* Link row, like Body: the home layout editor grew its own surface
               at /settings/home (locked hero bar over a grid preview; tap a

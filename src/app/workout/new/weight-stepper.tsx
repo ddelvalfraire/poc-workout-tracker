@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import { ButtonGroup } from '@/components/ui/button-group'
-import { adoptableGhostValue, stepWeightValue, WEIGHT_STEP } from '@/lib/format'
+import { adoptableGhostValue, stepWeightValue } from '@/lib/format'
 import { plateChipLabel } from '@/lib/plate-chip'
 import type { WeightUnit } from '@/lib/units'
 import type { LoggingType } from '@/lib/workout-input'
@@ -46,7 +46,7 @@ import { useTranslations } from 'next-intl'
  * Load-bearing contracts, do not touch:
  * - `onPointerDown` preventDefault on every control keeps the weight input
  *   focused so the row (and the iOS keyboard) don't dismiss mid-tap.
- * - Step math is `stepWeightValue` + `WEIGHT_STEP[unit]` (ghost-seeded, no
+ * - Step math is `stepWeightValue` + the resolved `step` (ghost-seeded, no
  *   float drift, floors at 0) — accelerated holds CHAIN it rather than
  *   multiplying, so clamping semantics can never diverge.
  * - Segments use hit-44-y (vertical-only insets — see button-group.tsx for
@@ -140,10 +140,11 @@ export function stepWeightValueBy(
   direction: 1 | -1,
   unit: WeightUnit,
   times: number,
+  step?: number,
 ): string | null {
   let value = current
   for (let i = 0; i < times; i++) {
-    const next = stepWeightValue(value, ghost, direction, unit)
+    const next = stepWeightValue(value, ghost, direction, unit, step)
     if (next === null) return null
     value = next
   }
@@ -171,6 +172,8 @@ interface WeightStepperProps {
    *  (their steppers step the typed value or from zero). */
   ghostWeight: string | undefined
   unit: WeightUnit
+  /** The lifter's resolved ± step, unit-native (see resolveWeightStep). */
+  step: number
   loggingType: LoggingType
   /** Default (heaviest) bar + owned plates for the per-side chip. */
   bar: number
@@ -185,6 +188,7 @@ export function WeightStepper({
   weight,
   ghostWeight,
   unit,
+  step,
   loggingType,
   bar,
   plates,
@@ -205,7 +209,7 @@ export function WeightStepper({
 
   const applyStep = useCallback(
     (direction: 1 | -1, multiplier: number) => {
-      const next = stepWeightValueBy(weightRef.current, ghostWeight, direction, unit, multiplier)
+      const next = stepWeightValueBy(weightRef.current, ghostWeight, direction, unit, multiplier, step)
       // No-op steps (non-numeric text, or holding − at the 0 floor) get no
       // feedback — a vibration for nothing would read as a phantom change.
       if (next === null || next === weightRef.current) return
@@ -216,7 +220,7 @@ export function WeightStepper({
       vibrate(STEP_VIBRATION)
       dipWeightValue(inputId)
     },
-    [ghostWeight, unit, inputId],
+    [ghostWeight, unit, step, inputId],
   )
 
   const holdRef = useRef<HoldRepeater | null>(null)
@@ -337,20 +341,20 @@ export function WeightStepper({
                   ? t('increaseAriaLabel', {
                       set: setIndex + 1,
                       noun: weightNoun,
-                      step: WEIGHT_STEP[unit],
+                      step: step,
                       unit,
                     })
                   : t('decreaseAriaLabel', {
                       set: setIndex + 1,
                       noun: weightNoun,
-                      step: WEIGHT_STEP[unit],
+                      step: step,
                       unit,
                     })
               }
             >
               {direction === 1
-                ? t('stepIncrease', { step: WEIGHT_STEP[unit] })
-                : t('stepDecrease', { step: WEIGHT_STEP[unit] })}
+                ? t('stepIncrease', { step: step })
+                : t('stepDecrease', { step: step })}
             </Button>
           )
         })}

@@ -82,6 +82,7 @@ export const CLIENT_NAMESPACES = [
   'RemoveImportButton',
   'ReplaceConfirmDialog',
   'RestDefaultSetting',
+  'WeightStepSetting',
   'RestPill',
   'RestSheet',
   'RestTimerToggle',
