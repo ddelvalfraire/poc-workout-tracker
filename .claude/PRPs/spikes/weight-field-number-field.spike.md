@@ -85,7 +85,53 @@ bar. The Group shape fights the decision we just shipped.
 **4. Blast radius.** This is the hottest surface in the product and it changed
 twice today.
 
-## Options
+## The blocker that actually decides this: Root context
+
+**Option B is not possible.** `NumberField.Increment` and `.Decrement` are not
+standalone buttons — they read the field through React context:
+
+```
+NumberFieldIncrement → useNumberFieldStepperButton → useNumberFieldRootContext
+```
+
+So every stepper part must render INSIDE the `NumberField.Root` that owns the
+input. Our input lives in the set row; the rail is docked in the sticky bar.
+One `Root` cannot span both without wrapping most of the page — and it would
+have to be per-focused-set, which is incoherent when every set row has a
+field.
+
+That removes the option this spike recommended. What is left is a real choice,
+not a migration plan:
+
+- **A** — full adopt, `Root + Group + Input + Increment/Decrement` all adjacent
+  and ALWAYS MOUNTED in the set row. This genuinely kills the bug class:
+  nothing focus-gated means nothing reflows mid-tap. But it undoes the docking
+  we shipped to fix that bug, and it has to find room in
+  `circle | prev | reps | weight | X` at 390px.
+- **D** — `Root + Input` only, no stepper parts; the docked rail stays
+  hand-rolled and writes state directly. Structurally fine, but the gain is
+  now small: arrow-key stepping already exists (we built it), leaving
+  formatting and clamping — bought with the string→number migration and the
+  ghost interceptor.
+- **C** — stay.
+
+## Verdict
+
+**C for now; A is the deliberate future call, and D is not worth it.**
+
+The reasoning is not "NumberField is bad" — it is that the two things that
+made it attractive have already been obtained by cheaper means. Arrow-key
+stepping shipped. The swallowed-tap bug class is fixed and pinned by
+`e2e/sticky-cta.spec.ts` on two viewports. What remains — locale formatting,
+clamping, `smallStep`/`largeStep` we explicitly do not want — does not pay for
+migrating the draft's value model on the hottest surface in the app.
+
+Revisit **A** if the set row is ever redesigned with room for an inline
+stepper. At that point A is strictly better than what we have, because it
+makes the reflow bug impossible by construction rather than by a docking
+decision that a future refactor could quietly undo.
+
+## Options (as originally framed)
 
 | | Shape | Gets | Costs |
 |---|---|---|---|
@@ -116,11 +162,10 @@ there.
 is an explicit `'input-clear'` change reason for "the field became empty". The
 "empty means not logged" contract survives.
 
-**Q4 — non-numeric passthrough? LOST.** `number | null` cannot hold
-`"bodyweight"`. Today `stepWeightValue` returns `null` and refuses to clobber
-whatever was typed. **Owner question**: does anyone actually type text into a
-weight field? If not this is a non-loss, and the refusal is just defensive
-code we can retire.
+**Q4 — non-numeric passthrough? LOST, AND THAT IS FINE.** `number | null`
+cannot hold `"bodyweight"`. Owner ruled on it: weight fields only ever take
+numbers, so `stepWeightValue`'s refusal is defensive code we could retire, not
+a behaviour to preserve. **Not a blocker.**
 
 **Q2 — ghost adoption? YES. PROVEN, not assumed.** Written and run against
 the installed package (5/5 green): ghost adoption survives the seam, from the
