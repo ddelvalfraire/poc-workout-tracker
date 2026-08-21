@@ -1,15 +1,26 @@
 import { test, expect } from '@playwright/test'
 import postgres from 'postgres'
 import { createTestUser, deleteTestUser, signIn, type TestUser } from './auth'
+import { addExercise, finishWorkout, startWorkout, typeInto } from './logger'
 
 /**
- * End-to-end for Phase 2 "last time" ghost inputs, against the LIVE WorkOS
- * environment and Supabase DB. Mirrors the Phase 3 harness: a disposable user
- * (pinned to kg for deterministic values) logs a workout, then starts another
- * with the same exercise and the set inputs should show the prior performance
- * as placeholder ghosts. Covers first-time (no ghosts) and more-sets-than-
- * history (extra set stays blank). Teardown removes all rows and the WorkOS
- * user.
+ * End-to-end for how the logger surfaces LAST TIME's performance.
+ *
+ * Rewritten for the post-#96 contract, which this spec used to contradict:
+ * previous performance appears in exactly ONE place, the Prev chip. The grey
+ * input placeholders ("ghosts") carry the program's week-N target and nothing
+ * else. Ghosting history into the inputs was removed deliberately — it
+ * duplicated the Prev column with a second meaning and produced mixed-source
+ * fragments (a last-time rep count beside a plan load). Two surfaces, two
+ * meanings, and this spec now pins that separation rather than the behaviour
+ * that was retired: an ad-hoc exercise has no plan, so its inputs stay EMPTY
+ * however much history exists, and the chip is where last time lives.
+ *
+ * A disposable user (pinned to kg so values round-trip exactly) logs a
+ * workout, then starts another with the same exercise. Covers first-time (no
+ * history → an inert "—" chip), the populated chip, its one-tap adopt, and
+ * more-sets-than-history (the extra set's chip stays empty). Teardown removes
+ * all rows and the WorkOS user.
  */
 
 let user: TestUser
@@ -34,55 +45,61 @@ test.afterAll(async () => {
   if (userId) await deleteTestUser(userId)
 })
 
-test('logs a workout, then shows it as per-set ghost placeholders next time', async ({ page }) => {
+test('logs a workout, then offers it on the Prev chip next time', async ({ page }) => {
   await signIn(page, user)
 
-  // --- Workout 1: a fresh user has no history, so no ghosts yet. ---
-  await page.goto('/')
-  const startLink = page.getByRole('link', { name: /start workout/i })
-  await expect(startLink).toBeVisible({ timeout: 15_000 })
-  await startLink.click()
-  await expect(page).toHaveURL(/\/workout\/new$/)
+  // --- Workout 1: a fresh user has no history, so nothing to offer. ---
+  await startWorkout(page)
+  await addExercise(page, 'bench')
 
-  await page.getByLabel('Search exercises').fill('bench')
-  // The picker has no per-row Add button since #233: a result row IS the
-  // control (li role=option, click to add).
-  const addButton = page.getByRole('option').first()
-  await expect(addButton).toBeVisible({ timeout: 20_000 })
-  await addButton.click()
-
-  // First time: no prior performance → the reps input has no ghost placeholder.
-  await expect(page.getByLabel('Set 1 reps')).toBeVisible()
+  // First time: no prior performance → the chip is the inert em-dash, and the
+  // inputs are blank because an ad-hoc exercise has no plan to ghost either.
+  await expect(page.getByRole('button', { name: /^no previous.*set 1/i })).toBeDisabled()
+  await expect(page.getByLabel('Set 1 reps')).toHaveValue('')
   expect(await page.getByLabel('Set 1 reps').getAttribute('placeholder')).toBeNull()
 
-  await page.getByLabel('Set 1 reps').fill('5')
-  await page.getByLabel('Set 1 weight in kg').fill('100')
-  await page.getByRole('button', { name: /finish workout/i }).click()
-  // Save lands on the session summary (detail page); return home.
-  await expect(page).toHaveURL(/\/workout\/[0-9a-f-]+$/)
-  await page.goto('/')
+  await typeInto(page.getByLabel('Set 1 reps'), '5')
+  await typeInto(page.getByLabel('Set 1 weight in kg'), '100')
+  await finishWorkout(page)
 
-  // --- Workout 2: same exercise → set 1 inputs ghost last time's values. ---
-  await page.getByRole('link', { name: /start workout/i }).click()
-  await expect(page).toHaveURL(/\/workout\/new$/)
-  await page.getByLabel('Search exercises').fill('bench')
-  const addAgain = page.getByRole('option').first()
-  await expect(addAgain).toBeVisible({ timeout: 20_000 })
-  await addAgain.click()
+  // --- Workout 2: same exercise → set 1's chip carries last time's pair. ---
+  await startWorkout(page)
+  await addExercise(page, 'bench')
 
-  // Ghosts arrive once the server action resolves (toHaveAttribute auto-retries).
-  await expect(page.getByLabel('Set 1 reps')).toHaveAttribute('placeholder', '5')
-  await expect(page.getByLabel('Set 1 weight in kg')).toHaveAttribute('placeholder', '100')
+  // The chip arrives once the server action resolves (the locator retries).
+  // "100×5" is weight×reps — weight_reps needs BOTH, so a complete pair here
+  // also proves workout 1 saved both fields, not just one.
+  const prevChip = page.getByRole('button', { name: /fill set 1 from previous: 100×5/i })
+  await expect(prevChip).toBeVisible({ timeout: 15_000 })
 
-  // More sets than history: set 2 has no prior data → no ghost.
+  // History does NOT reach the inputs — that is the whole point of the split.
+  await expect(page.getByLabel('Set 1 reps')).toHaveValue('')
+  expect(await page.getByLabel('Set 1 reps').getAttribute('placeholder')).toBeNull()
+  expect(await page.getByLabel('Set 1 weight in kg').getAttribute('placeholder')).toBeNull()
+
+  // More sets than history: set 2 has no prior data → nothing to offer there.
   await page.getByRole('button', { name: /add set/i }).click()
-  await expect(page.getByLabel('Set 2 reps')).toBeVisible()
-  expect(await page.getByLabel('Set 2 reps').getAttribute('placeholder')).toBeNull()
-  expect(await page.getByLabel('Set 2 weight in kg').getAttribute('placeholder')).toBeNull()
+  await expect(page.getByRole('button', { name: /^no previous.*set 2/i })).toBeDisabled()
 
-  // The ghost is only a hint — an untouched field saves nothing for it.
-  await page.getByLabel('Set 1 reps').fill('5')
-  await page.getByLabel('Set 1 weight in kg').fill('102.5')
-  await page.getByRole('button', { name: /finish workout/i }).click()
-  await expect(page).toHaveURL(/\/workout\/[0-9a-f-]+$/)
+  // The chip is an offer, and tapping it is how last time becomes this set —
+  // the one-tap adopt that replaced the ghost.
+  await prevChip.click()
+  await expect(page.getByLabel('Set 1 reps')).toHaveValue('5')
+  await expect(page.getByLabel('Set 1 weight in kg')).toHaveValue('100')
+
+  // Adopted values are REAL input, so they save like anything typed.
+  await finishWorkout(page)
+
+  const sets = await sql<{ weight: number; reps: number }[]>`
+    select s.weight::float8 as weight, s.reps
+    from sets s
+    join workout_exercises we on we.id = s.workout_exercise_id
+    join workouts w on w.id = we.workout_id
+    where w.user_id = ${userId} and s.set_number = 1
+    order by w.started_at
+  `
+  expect(sets).toEqual([
+    { weight: 100, reps: 5 },
+    { weight: 100, reps: 5 },
+  ])
 })

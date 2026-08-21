@@ -1,6 +1,7 @@
 import { test, expect, type Page } from '@playwright/test'
 import postgres from 'postgres'
 import { createTestUser, deleteTestUser, signIn, type TestUser } from './auth'
+import { addExercise, FINISHED_URL, startWorkout, typeInto } from './logger'
 
 /**
  * End-to-end for Phase 4 "PRs + estimated 1RM", against the LIVE WorkOS
@@ -35,24 +36,14 @@ test.afterAll(async () => {
 
 /** Logs a single-set Bench workout at the given kg weight, returning to home. */
 async function logBench(page: Page, weight: string) {
-  await page.goto('/')
-  const startLink = page.getByRole('link', { name: /start workout/i })
-  await expect(startLink).toBeVisible({ timeout: 15_000 })
-  await startLink.click()
-  await expect(page).toHaveURL(/\/workout\/new$/)
+  await startWorkout(page)
+  await addExercise(page, 'bench')
 
-  await page.getByLabel('Search exercises').fill('bench')
-  // The picker has no per-row Add button since #233: a result row IS the
-  // control (li role=option, click to add).
-  const addButton = page.getByRole('option').first()
-  await expect(addButton).toBeVisible({ timeout: 20_000 })
-  await addButton.click()
-
-  await page.getByLabel('Set 1 reps').fill('5')
-  await page.getByLabel('Set 1 weight in kg').fill(weight)
+  await typeInto(page.getByLabel('Set 1 reps'), '5')
+  await typeInto(page.getByLabel('Set 1 weight in kg'), weight)
   await page.getByRole('button', { name: /finish workout/i }).click()
   // Save lands on the session summary (detail page); return home.
-  await expect(page).toHaveURL(/\/workout\/[0-9a-f-]+$/)
+  await expect(page).toHaveURL(FINISHED_URL)
   await page.goto('/')
 }
 
@@ -69,14 +60,14 @@ test('shows a PR badge on the heavier later workout, not the first', async ({ pa
 
   // --- Detail of the heavier (most recent) workout → PR badge + Est. 1RM. ---
   await page.getByText('Workout', { exact: true }).first().click()
-  await expect(page).toHaveURL(/\/workout\/[0-9a-f-]+$/)
+  await expect(page).toHaveURL(FINISHED_URL)
   await expect(page.getByText('PR', { exact: true })).toBeVisible()
   await expect(page.getByText(/Est\. 1RM/)).toBeVisible()
 
   // --- Detail of the first (older) workout → Est. 1RM but NO PR badge. ---
   await page.goto('/')
   await page.getByText('Workout', { exact: true }).last().click()
-  await expect(page).toHaveURL(/\/workout\/[0-9a-f-]+$/)
+  await expect(page).toHaveURL(FINISHED_URL)
   await expect(page.getByText(/Est\. 1RM/)).toBeVisible()
   await expect(page.getByText('PR', { exact: true })).toHaveCount(0)
 })
