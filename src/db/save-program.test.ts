@@ -81,12 +81,18 @@ const { listCustomExercises } = vi.hoisted(() => ({ listCustomExercises: vi.fn()
 vi.mock('./custom-exercises', () => ({ listCustomExercises }))
 
 // The autoreg paid gate rides the write path itself; entitled by default (the
-// mock resolves) so every pre-gate assertion stays untouched. importOriginal
+// mocks resolve/return true) so every pre-gate assertion stays untouched.
+// `requireFeature` is the explicit-true refusal; `hasFeature` resolves the
+// OMITTED-flag create default (entitled = ON, Free = OFF). importOriginal
 // keeps FeatureRequiredError's real identity for the refusal tests.
-const { requireFeature } = vi.hoisted(() => ({ requireFeature: vi.fn() }))
+const { requireFeature, hasFeature } = vi.hoisted(() => ({
+  requireFeature: vi.fn(),
+  hasFeature: vi.fn(),
+}))
 vi.mock('./entitlements', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./entitlements')>()),
   requireFeature,
+  hasFeature,
 }))
 
 import { saveProgram, updateProgram } from './programs'
@@ -104,8 +110,11 @@ beforeEach(() => {
   idCounter = 0
   getAllExercises.mockResolvedValue([])
   listCustomExercises.mockResolvedValue([])
-  // Reset calls AND implementation: default = entitled (resolves undefined).
+  // Reset calls AND implementations: default = entitled (requireFeature
+  // resolves undefined, hasFeature answers true).
   requireFeature.mockReset()
+  hasFeature.mockReset()
+  hasFeature.mockResolvedValue(true)
 })
 
 describe('saveProgram (transactional, user-scoped)', () => {
@@ -587,11 +596,12 @@ describe('autoregulation toggle integrity', () => {
     days: [{ name: 'D', exercises: [{ wgerExerciseId: 1, name: 'X', sets: [{}] }] }],
   }
 
-  it('saveProgram defaults an omitted toggle to ON at create', async () => {
-    // Act
+  it('saveProgram defaults an omitted toggle to ON at create for an entitled user', async () => {
+    // Act — hasFeature answers true (the beforeEach default)
     await saveProgram(USER, parseProgramInput(MINIMAL), 'ui')
 
-    // Assert
+    // Assert — the propose-don't-impose ON default, resolved via hasFeature
+    expect(hasFeature).toHaveBeenCalledWith(USER, 'autoreg')
     expect(records[0].values).toMatchObject({ autoregulation: true })
   })
 
@@ -649,14 +659,33 @@ describe('autoreg entitlement gate (db-layer, beneath every adapter)', () => {
     expect(records[0].values).toMatchObject({ autoregulation: true })
   })
 
-  it('saveProgram never consults the gate when the flag is omitted or false', async () => {
-    // Act — omitted rides the create default (ON) exactly as the action-level
-    // gate always allowed; explicit false is an opt-out, not a paid ask.
+  it('saveProgram never hard-refuses an omitted or false flag', async () => {
+    // Act — explicit false is an opt-out, not a paid ask; omitted resolves
+    // through the hasFeature default instead of the refusal gate.
     await saveProgram(USER, parseProgramInput(MINIMAL), 'ui')
     await saveProgram(USER, parseProgramInput({ ...MINIMAL, autoregulation: false }), 'ui')
 
-    // Assert — the wger-import and plain-Free-program paths stay ungated
+    // Assert — the wger-import and plain-Free-program paths can never be
+    // FAILED by the gate; the opt-out consults nothing at all (only the
+    // omission resolves its default).
     expect(requireFeature).not.toHaveBeenCalled()
+    expect(hasFeature).toHaveBeenCalledTimes(1)
+  })
+
+  it('saveProgram lands an omitted flag OFF for an unentitled user (omission is not an acquisition path)', async () => {
+    // Arrange — Free tier. The refusal gate must stay silent on omission,
+    // but the create default has to fail-to-Free: "just don't mention the
+    // flag" (the MCP upsert_program shape) must not hand out what an
+    // explicit autoregulation:true is refused.
+    hasFeature.mockResolvedValue(false)
+
+    // Act
+    await saveProgram(USER, parseProgramInput(MINIMAL), 'mcp')
+
+    // Assert — the save succeeds, with the paid engine OFF and no refusal
+    expect(requireFeature).not.toHaveBeenCalled()
+    expect(hasFeature).toHaveBeenCalledWith(USER, 'autoreg')
+    expect(records[0].values).toMatchObject({ autoregulation: false })
   })
 
   it('updateProgram refuses an explicit autoregulation:true for an unentitled user before ANY write', async () => {

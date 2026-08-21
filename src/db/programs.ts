@@ -24,7 +24,7 @@ import { expandTechniqueStages } from '@/lib/technique'
 import { quantizeAdjustedLoadKg, quantizeSetLoads } from '@/lib/load-quantize'
 import type { WeightUnit } from '@/lib/units'
 import { getWeightUnit } from './preferences'
-import { requireFeature } from './entitlements'
+import { hasFeature, requireFeature } from './entitlements'
 import { applyEffortToAdjustment, sustainedUndershoot } from '@/lib/effort-gate'
 import {
   autoregulate,
@@ -287,11 +287,19 @@ async function insertProgramChildren(
  * adapter — MCP's upsert_program above all — writing the flag ungated; and
  * gating creation alone would let anyone save a Free program and then edit
  * autoregulation onto it, so updateProgram (and the narrow toggle op in
- * program-patches.ts) run the same check. Explicit `true` is what is gated —
- * an omitted flag rides the defaults (create = ON, update = preserve),
- * exactly the predicate the action-level gate always enforced. Throws
- * FeatureRequiredError (db/entitlements.ts), which names the plan that says
- * yes.
+ * program-patches.ts) run the same check. An explicit `true` is a hard
+ * refusal — FeatureRequiredError (db/entitlements.ts), which names the plan
+ * that says yes — never a silent downgrade of what the caller asked for.
+ *
+ * An OMITTED flag on create follows the entitlement instead of riding a flat
+ * ON default: the web builder always submits the boolean explicitly, so the
+ * old `?? true` was only ever exercised by adapters that can omit — exactly
+ * the MCP tool this gate exists for, where "just don't mention the flag"
+ * must not hand out what "autoregulation: true" refuses. Entitled users keep
+ * the propose-don't-impose ON default; Free users land OFF (fail-to-Free,
+ * same stance as getEntitlement). updateProgram's omitted flag still
+ * PRESERVES the stored value — round-tripping an existing fact is not an
+ * acquisition.
  */
 export async function saveProgram(
   userId: string,
@@ -299,6 +307,9 @@ export async function saveProgram(
   actor: ProgramEventActor,
 ): Promise<{ id: string }> {
   if (input.autoregulation) await requireFeature(userId, 'autoreg')
+  // `??` short-circuits on an explicit boolean — the extra entitlement read
+  // happens only on the omission path the gate above cannot see.
+  const autoregulation = input.autoregulation ?? (await hasFeature(userId, 'autoreg'))
   const status = actor === 'coach' ? 'proposed' : input.status
   const catalog = await loadExerciseCatalog(userId) // network read stays outside the tx
   return db.transaction(async (tx) => {
@@ -310,9 +321,10 @@ export async function saveProgram(
         status,
         mesocycleWeeks: input.mesocycleWeeks,
         deloadWeek: input.deloadWeek ?? null,
-        // Omitted on create = ON: propose-don't-impose delivery is the
-        // softener, not an opt-in gate.
-        autoregulation: input.autoregulation ?? true,
+        // Entitlement-resolved above: explicit input verbatim (true already
+        // passed the gate), omitted = ON for entitled users (propose-don't-
+        // impose delivery is the softener, not an opt-in gate), OFF for Free.
+        autoregulation,
         // Omitted on create = the column default ('all-sets' — C1's rule).
         // No materialization, same discipline as `visibility` below.
         ...(input.autoregStallPolicy !== undefined
