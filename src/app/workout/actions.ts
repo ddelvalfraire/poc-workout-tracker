@@ -253,9 +253,9 @@ export interface ExerciseSheetData {
 /**
  * All-time records + the last few sessions of an exercise, for the logger's
  * stats sheet. Null = no completed history (the sheet shows an empty state).
- * Read-only — no revalidate. Draft exercises carry no `source` (see
- * DraftExercise), so this reads the 'wger' identity — the same limitation as
- * getLastPerformanceAction; custom exercises join when drafts learn source.
+ * Read-only — no revalidate. Identity is the composite (source, id): callers
+ * pass the draft exercise's `source`, and an absent one falls back to 'wger'
+ * (parseSourceParam) for pre-discriminator payloads.
  */
 export async function getExerciseSheetAction(
   wgerExerciseId: unknown,
@@ -279,8 +279,9 @@ export async function getExerciseSheetAction(
  * The exercise's all-time best estimated 1RM in kg, or null when no
  * e1rm-scorable history — the lean baseline for the logger's live PR watch.
  * A live session can't be its own baseline: its workout has completedAt null,
- * so the completed-only stats query excludes it by construction. Same wger
- * identity limitation as the sheet action.
+ * so the completed-only stats query excludes it by construction. Same
+ * composite-identity treatment as the sheet action (an absent `source` falls
+ * back to 'wger').
  */
 export async function getExerciseBestAction(
   wgerExerciseId: unknown,

@@ -23,7 +23,7 @@ export function humanizeToolName(toolName: string): string {
 }
 
 /**
- * The auto-running tools (reads plus the drafting tool) that have a friendly
+ * The auto-running tools (reads plus the drafting tools) that have a friendly
  * phrase pair in the catalog: present-progressive while the call runs, past
  * tense once it lands ("the coach did X").
  *

@@ -34,8 +34,11 @@ import { buildProgramDayView, type ProgramDayView } from './program-tools'
  * authorization boundary) and echoes the resolved id back so the agent can
  * confirm whose data it read. Weights are stored in kg and converted to the
  * user's unit at this boundary via `kgToDisplay`; the `unit` is echoed in every
- * payload so the agent isn't guessing the basis. `search_exercises` is the lone
- * exception — the catalog is public reference data, so it takes no `userId`.
+ * payload so the agent isn't guessing the basis. `search_exercises` is the
+ * partial exception — the wger catalog is public reference data, so it
+ * resolves its `userId` best-effort: no identity degrades to the public
+ * catalog instead of failing, while a resolved user gets their custom
+ * exercises merged in.
  */
 /**
  * Page size for `list_workouts` when the caller doesn't ask for one, and the

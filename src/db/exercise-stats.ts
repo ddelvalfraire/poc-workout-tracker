@@ -33,7 +33,8 @@ export interface ExerciseStatsRow {
   weight: number | null // kg
   completed: boolean
   metricMode: string
-  /** 'working' | 'warmup' — warm-ups are display truth, never scoring truth. */
+  /** Set-role tag (warmup | working | backoff | amrap) — warm-ups are display
+   *  truth, never scoring truth; backoff/amrap score like working sets. */
   setType: string
   /** Cardio facts (duration/duration_distance rows) — optional so pre-cardio
    *  fixtures keep their shape; reps_weight rows carry nulls. */
@@ -307,8 +308,9 @@ export interface ExerciseSession {
     weight: number | null // kg
     completed: boolean
     metricMode: string
-    /** 'working' | 'warmup' — lets display surfaces keep the "warm-ups never
-     *  score" invariant when marking a session's best set. */
+    /** Set-role tag (warmup | working | backoff | amrap) — lets display
+     *  surfaces keep the "warm-ups never score" invariant when marking a
+     *  session's best set (backoff/amrap rows do score). */
     setType: string
     durationSec: number | null
     distanceM: number | null
