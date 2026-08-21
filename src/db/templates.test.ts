@@ -59,6 +59,12 @@ const { getProgramDetail, copyProgramTree } = vi.hoisted(() => ({
 }))
 vi.mock('./programs', () => ({ getProgramDetail, copyProgramTree }))
 
+// The adopter-entitlement clamp on the copied autoregulation flag; entitled by
+// default so the pre-clamp row-fact assertions stay untouched. Mocked rather
+// than real: the real read would consume the select queue above.
+const { hasFeature } = vi.hoisted(() => ({ hasFeature: vi.fn() }))
+vi.mock('./entitlements', () => ({ hasFeature }))
+
 import { adoptTemplate, getTemplate } from './templates'
 import { TEMPLATE_OWNER_USER_ID } from '@/lib/template-owner'
 import { programs, programEvents } from './schema'
@@ -104,6 +110,9 @@ beforeEach(() => {
   insertReturningQueue = []
   getProgramDetail.mockReset()
   copyProgramTree.mockReset()
+  // Reset calls AND implementation: default = entitled (answers true).
+  hasFeature.mockReset()
+  hasFeature.mockResolvedValue(true)
 })
 
 describe('adoptTemplate (the library pull — copy, never link)', () => {
@@ -176,6 +185,50 @@ describe('adoptTemplate (the library pull — copy, never link)', () => {
     expect(result).toBeNull()
     expect(inserts).toHaveLength(0)
     expect(getProgramDetail).not.toHaveBeenCalled()
+  })
+
+  it('keeps the template-authored autoregulation for an ENTITLED adopter', async () => {
+    // Arrange — hasFeature answers true (the beforeEach default)
+    selectQueue.push([templateRow()])
+    getProgramDetail.mockResolvedValue(sourceDetail({ autoregulation: true }))
+    insertReturningQueue = [[{ id: 'copy-1' }]]
+
+    // Act
+    await adoptTemplate(VISITOR, TEMPLATE_ID)
+
+    // Assert — the authored value travels, checked against the ADOPTER
+    expect(hasFeature).toHaveBeenCalledWith(VISITOR, 'autoreg')
+    expect(inserts[0].values).toMatchObject({ autoregulation: true })
+  })
+
+  it('clamps autoregulation OFF for an unentitled adopter — the copy is not an acquisition path', async () => {
+    // Arrange — Free tier: templates are seeded under the system account
+    // with no gate in their path, so the flag must not travel verbatim.
+    hasFeature.mockResolvedValue(false)
+    selectQueue.push([templateRow()])
+    getProgramDetail.mockResolvedValue(sourceDetail({ autoregulation: true }))
+    insertReturningQueue = [[{ id: 'copy-1' }]]
+
+    // Act — clamped, never refused: the library stays adoptable on Free
+    const result = await adoptTemplate(VISITOR, TEMPLATE_ID)
+
+    // Assert
+    expect(result).toEqual({ id: 'copy-1' })
+    expect(inserts[0].values).toMatchObject({ autoregulation: false })
+  })
+
+  it('never consults the entitlement for a template authored with autoregulation OFF', async () => {
+    // Arrange
+    selectQueue.push([templateRow()])
+    getProgramDetail.mockResolvedValue(sourceDetail({ autoregulation: false }))
+    insertReturningQueue = [[{ id: 'copy-1' }]]
+
+    // Act
+    await adoptTemplate(VISITOR, TEMPLATE_ID)
+
+    // Assert — && short-circuits: OFF stays OFF for everyone, no read
+    expect(hasFeature).not.toHaveBeenCalled()
+    expect(inserts[0].values).toMatchObject({ autoregulation: false })
   })
 
   it('returns null when the template does not exist', async () => {
