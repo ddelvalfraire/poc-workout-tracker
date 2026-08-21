@@ -1297,7 +1297,18 @@ export function WorkoutLogger({
           the sticky bar's -mx-5 bleed is calibrated against this px-5, so
           the pair must live in the same component. Pages keep the outer
           min-h flex column. */}
-      <main className="mx-auto w-full max-w-md flex-1 px-5">
+      {/* A flex column so the sticky bar below can take `mt-auto` — that is
+          what decouples the bar's position from how tall the scrolling
+          content happens to be. `sticky bottom-0` alone does NOT: sticky only
+          ever pulls a box UP off the fold, never pushes it down, so on short
+          content the bar sat at its flow position with dead space beneath it,
+          and every content-height change moved it. The focus-gated
+          WeightStepper is the one that bites: it unmounts on the mousedown
+          that blurs the weight input, the bar jumps up by the rail's height,
+          and mouseup lands somewhere else — so the browser never synthesizes
+          a click and the first tap on Finish is eaten. Pinned by
+          e2e/sticky-cta.spec.ts. */}
+      <main className="mx-auto flex w-full max-w-md flex-1 flex-col px-5">
       <div className="space-y-4 py-5">
         <div>
           {/* A real label, not placeholder-as-label: the placeholder vanishes
@@ -2689,7 +2700,15 @@ export function WorkoutLogger({
       <div
         data-volt-muted={noteCaptureFor !== null || undefined}
         className={cn(
-          'sticky bottom-0 z-10 -mx-5 border-t border-border bg-background/85 px-5 pt-3 pb-safe backdrop-blur-md',
+          // `mt-auto` is load-bearing, not cosmetic: it parks the bar on
+          // main's bottom edge, which is the viewport's whenever the content
+          // is short. Sticky then only has work to do once the page actually
+          // scrolls — so the bar renders flush with the bottom either way and
+          // content growing or shrinking above it (the WeightStepper rail,
+          // the rest pill, a toast) can no longer shift it out from under a
+          // finger mid-tap. See the <main> comment for the swallowed-tap
+          // mechanism.
+          'sticky bottom-0 z-10 mt-auto -mx-5 border-t border-border bg-background/85 px-5 pt-3 pb-safe backdrop-blur-md',
           // One volt while the capture sheet is open: the bar recedes
           // (opacity + desaturation — still readable, still tappable per the
           // sheet's non-modal contract) so the sheet's Save is the screen's
