@@ -33,7 +33,7 @@ export function StatusStrip({ pills }: { pills: StatusPill[] }) {
         <a
           key={pill.href}
           href={pill.href}
-          className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-3.5 py-1.5 outline-none transition-colors hover:border-muted-foreground/40 focus-visible:border-primary"
+          className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-3.5 py-1.5 outline-none transition-colors hover:border-muted-foreground/40 focus-visible:ring-3 focus-visible:ring-ring/50"
         >
           <span className={cn('size-2 shrink-0 rounded-full', DOT[pill.tone])} aria-hidden="true" />
           <span className="text-xs uppercase tracking-wider text-muted-foreground">

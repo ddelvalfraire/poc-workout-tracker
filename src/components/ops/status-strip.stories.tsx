@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
+import { expect, userEvent, within } from "storybook/test";
 
 import { StatusStrip, type StatusPill } from "./status-strip";
 
@@ -75,5 +76,24 @@ export const AllTones: Story = {
       pill("Bad", "broken", "bad"),
       pill("Muted", "—", "muted"),
     ],
+  },
+}
+
+/**
+ * Keyboard focus must be visible (WCAG 2.4.7). These pills paired
+ * `outline-none` with `focus-visible:border-primary` — a 1px border swap, and
+ * the last ops control still doing that after the chips moved to the ring.
+ * They now take the same volt ring, so focus looks identical everywhere.
+ */
+export const KeyboardFocus: Story = {
+  args: { pills: [pill("Errors", "0", "ok"), pill("Deploys", "READY", "ok")] },
+  play: async ({ canvasElement }) => {
+    const [first] = within(canvasElement).getAllByRole("link");
+    // Unfocused, the pill paints no ring…
+    await expect(getComputedStyle(first).boxShadow).toBe("none");
+    await userEvent.tab();
+    await expect(first).toHaveFocus();
+    // …and keyboard focus paints the 3px volt ring (ring-3 ring-ring/50).
+    await expect(getComputedStyle(first).boxShadow).toContain("3px");
   },
 }
