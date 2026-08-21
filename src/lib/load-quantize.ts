@@ -60,6 +60,14 @@ export function quantizeAdjustedLoadKg(
   return displayToKg(stepped, unit)
 }
 
+/** Attempted-at-load tolerance (the engine's C2 epsilon). 0.05 kg absorbs
+ *  lb→kg round-trip drift (an executed sweep showed stored-vs-prescribed
+ *  drift up to 0.02 kg; the prior 0.011 excluded ~17% of legitimate at-load
+ *  attempts) while micro-loading noise still can't hide a stall. Single home
+ *  on purpose: the autoreg engine's scoring, the effort gate, and note
+ *  re-anchoring must move together or not at all. */
+export const LOAD_EPSILON_KG = 0.05
+
 /**
  * Epsilon-or-increment load identity: raw values within `epsilonKg` always
  * match; with a unit, values that quantize to the SAME display increment

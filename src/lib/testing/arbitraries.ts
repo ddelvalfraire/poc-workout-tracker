@@ -16,8 +16,9 @@ import type { Progression } from '@/lib/program-input'
  * `startedAtMs` is always generated.
  *
  * Loads are generated on a 0.5 kg lattice so evidence classification
- * (at-load / lighter / outperform, ε = 0.05 kg in the engine) is unambiguous
- * by construction — properties never need the private epsilon.
+ * (at-load / lighter / outperform, ε = load-quantize's LOAD_EPSILON_KG in
+ * the engine) is unambiguous by construction — properties never need the
+ * epsilon itself.
  */
 
 /** Loads on a 0.5 kg lattice within [min, max] kg. */

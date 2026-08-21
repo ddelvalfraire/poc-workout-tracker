@@ -3,7 +3,12 @@ import type { WeightUnit } from './units'
 // never read an unloadable number like 66.6 lb in the transparency copy.
 // `loadsMatch` widens the C2 evidence identity across the quantization
 // deploy boundary (raw epsilon OR same display increment).
-import { loadsMatch, quantizeAdjustedLoadKg, quantizeDisplayLoad } from './load-quantize'
+import {
+  LOAD_EPSILON_KG,
+  loadsMatch,
+  quantizeAdjustedLoadKg,
+  quantizeDisplayLoad,
+} from './load-quantize'
 import { kgToDisplay } from './units'
 // Reason lines share the double-progression hold clause with the scheme-copy
 // module (#228) — one voice for "hit N reps, then the weight goes up".
@@ -219,12 +224,6 @@ export interface AutoregAdjustment {
     stalls: number
   }
 }
-
-/** Attempted-at-load tolerance. 0.05 kg absorbs lb→kg round-trip drift (an
- *  executed sweep showed stored-vs-prescribed drift up to 0.02 kg; the prior
- *  0.011 excluded ~17% of legitimate at-load attempts) while micro-loading
- *  noise still can't hide a stall. */
-const LOAD_EPSILON_KG = 0.05
 
 /** Outperform margin: performed must beat prescribed by ≥5% on EVERY scorable
  *  set before the program follows the lifter up — micro-loading past the plan
