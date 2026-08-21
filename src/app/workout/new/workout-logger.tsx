@@ -94,7 +94,7 @@ import { StatsSheet } from './stats-sheet'
 import { RestPill } from './rest-pill'
 import { WeightStepper } from './weight-stepper'
 import { SessionToast } from './session-toast'
-import { fireRestOverAlert } from './rest-over-alert'
+import { clearRestOverNotification, fireRestOverAlert } from './rest-over-alert'
 import { unlockRestChime } from './rest-chime'
 import { EXERCISE_COMPLETE_VIBRATION, SET_COMPLETE_VIBRATION, vibrate } from './haptics'
 import { resolveRestTarget } from '@/lib/rest-target'
@@ -616,6 +616,9 @@ export function WorkoutLogger({
    *  rest pill disappears, no overage counts up), the plan capture and
    *  offset go with it. Defaults and plan values are untouched. */
   function handleSkipRest() {
+    // Ending the period by action also retires its posted notification — a
+    // lock-screen "Rest over" outliving the rest it announced is noise.
+    clearRestOverNotification()
     setRestStartedAt(null)
     setRestPlanSec(null)
     setRestOffsetSec(0)
@@ -2133,6 +2136,10 @@ export function WorkoutLogger({
                         // This tap is also the lazy AudioContext unlock for
                         // the optional rest chirp (gesture-gated autoplay).
                         unlockRestChime()
+                        // The next set starting retires the PREVIOUS rest
+                        // period's posted notification (skip does the same);
+                        // with none posted this is a cheap no-op.
+                        clearRestOverNotification()
                       }
                       // Checking off starts the rest clock; unchecking is a
                       // correction, not a new rest period. The plan component
