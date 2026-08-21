@@ -64,13 +64,18 @@ async function expectCtaAnchoredAcrossBlur(
   weight: Locator,
   cta: Locator,
 ): Promise<void> {
+  // The rail IS the reflow, so wait on the rail rather than on a clock: its
+  // presence and absence are the two states whose geometry must match. A
+  // fixed timeout here would either race the unmount (reading the old box and
+  // passing a regression) or pad every run to cover the slowest machine.
+  const rail = page.getByRole('button', { name: /^decrease set 1 /i })
+
   await expect(weight).toBeFocused()
+  await expect(rail).toBeVisible()
   const focused = await cta.boundingBox()
 
   await weight.blur()
-  // Let the unmount + any rise-in settle before re-measuring; a race here
-  // would read the old box and pass a regression.
-  await page.waitForTimeout(400)
+  await expect(rail).toHaveCount(0)
   const blurred = await cta.boundingBox()
 
   expect(focused).not.toBeNull()
@@ -78,9 +83,11 @@ async function expectCtaAnchoredAcrossBlur(
   expect(blurred!.y).toBeCloseTo(focused!.y, 0)
   expect(blurred!.height).toBeCloseTo(focused!.height, 0)
 
+  // Hand the caller a focused field again, so the tap it tests is the real
+  // "first tap with the keyboard still up" case.
   await weight.click()
-  await page.waitForTimeout(300)
   await expect(weight).toBeFocused()
+  await expect(rail).toBeVisible()
 }
 
 /** Fills Set 1 of a fresh session and leaves focus in the weight field. */
