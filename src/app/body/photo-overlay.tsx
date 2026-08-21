@@ -106,7 +106,7 @@ export function PhotoOverlay({ entry, onClose }: PhotoOverlayProps) {
           type="button"
           onClick={onClose}
           aria-label={tCommon('close')}
-          className="absolute right-2 top-2 rounded-full bg-black/50 p-1.5 text-white focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+          className="absolute right-2 top-2 rounded-full bg-black/50 p-1.5 text-white focus-visible:outline-hidden focus-visible:ring-3 focus-visible:ring-ring/50"
         >
           <X aria-hidden="true" className="size-4" />
         </button>

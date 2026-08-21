@@ -457,7 +457,7 @@ function CreateCustomForm({
         // The Input field vocabulary (44px, 16px text, ring focus) on a raw
         // select — bg stays transparent (bg-card is the keep-listed field
         // primitive's own skin).
-        className="h-11 w-full rounded-lg border border-input bg-transparent px-3 text-base outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+        className="h-11 w-full rounded-lg border border-input bg-transparent px-3 text-base outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-hidden"
       >
         <option value="" disabled>
           {t('create.categoryPlaceholder')}

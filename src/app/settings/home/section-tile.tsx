@@ -56,7 +56,7 @@ export function SectionTile({ title, size, hidden, onOpen }: SectionTileProps) {
       aria-label={t('ariaLabel', { section: title, state: hidden ? 'hidden' : size })}
       className={cn(
         'flex w-full flex-col items-start gap-2.5 overflow-hidden rounded-lg border border-border/60 p-3 text-left',
-        'transition-colors outline-none hover:bg-muted/50 focus-visible:ring-3 focus-visible:ring-ring/50',
+        'transition-colors outline-none hover:bg-muted/50 focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-hidden',
         'motion-safe:transition-all motion-safe:duration-200',
         TILE_HEIGHT[size],
         hidden && 'opacity-40',

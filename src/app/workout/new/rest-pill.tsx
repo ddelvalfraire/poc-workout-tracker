@@ -230,7 +230,7 @@ export function RestPill({
         type="button"
         onClick={onTimeClick}
         aria-label={t(`label.${readout.label.key}`, readout.label.values)}
-        className="relative flex min-w-0 flex-1 items-baseline gap-1.5 rounded-lg px-2 py-1.5 text-left focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+        className="relative flex min-w-0 flex-1 items-baseline gap-1.5 rounded-lg px-2 py-1.5 text-left focus-visible:outline-hidden focus-visible:ring-3 focus-visible:ring-ring/50"
       >
         <span
           aria-hidden="true"

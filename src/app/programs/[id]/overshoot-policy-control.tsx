@@ -68,7 +68,7 @@ export function OvershootPolicyControl({
           value={selected}
           disabled={isPending}
           onChange={(e) => apply(e.target.value as '' | OvershootPolicy)}
-          className="h-9 rounded-lg border border-border bg-transparent px-2 text-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+          className="h-9 rounded-lg border border-border bg-transparent px-2 text-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-hidden"
         >
           {OPTIONS.map((option) => (
             <option key={option} value={option}>
