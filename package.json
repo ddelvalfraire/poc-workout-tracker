@@ -39,6 +39,8 @@
     "@ai-sdk/react": "^4.0.34",
     "@base-ui/react": "^1.5.0",
     "@casl/ability": "^7.0.1",
+    "@dnd-kit/core": "^6.3.1",
+    "@dnd-kit/sortable": "^10.0.0",
     "@langfuse/otel": "^5.10.0",
     "@modelcontextprotocol/sdk": "^1.26.0",
     "@openrouter/ai-sdk-provider": "^3.0.0",
@@ -68,7 +70,6 @@
     "react-dom": "19.2.8",
     "recharts": "^3.8.0",
     "serwist": "^9.5.11",
-    "shadcn": "^4.11.0",
     "streamdown": "^2.5.0",
     "tailwind-merge": "^3.6.0",
     "thumbhash": "^0.1.1",
@@ -78,8 +79,6 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
-    "@dnd-kit/core": "^6.3.1",
-    "@dnd-kit/sortable": "^10.0.0",
     "@fast-check/vitest": "^0.4.1",
     "@playwright/test": "^1.60.0",
     "@serwist/turbopack": "^9.5.11",
