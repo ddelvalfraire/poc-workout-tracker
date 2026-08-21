@@ -1,4 +1,5 @@
 import { defineConfig, devices } from '@playwright/test'
+import { APP_ORIGIN, APP_PORT } from './e2e/app-origin'
 
 // Load the same local secrets the app uses (WORKOS_* keys, DATABASE_URL_DIRECT)
 // so the test-user provisioning and the DB assertions have what they need. The
@@ -32,7 +33,7 @@ export default defineConfig({
   timeout: 60_000,
   reporter: [['list']],
   use: {
-    baseURL: 'http://localhost:3000',
+    baseURL: APP_ORIGIN,
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
   },
@@ -56,8 +57,8 @@ export default defineConfig({
       timeout: 120_000,
     },
     {
-      command: 'npm run dev',
-      url: 'http://localhost:3000',
+      command: `npm run dev -- --port ${APP_PORT}`,
+      url: APP_ORIGIN,
       reuseExistingServer: false,
       timeout: 120_000,
       // The app needs NO code change to talk to the emulator — authkit-nextjs
@@ -70,7 +71,7 @@ export default defineConfig({
         WORKOS_API_KEY: 'sk_test_default',
         WORKOS_CLIENT_ID: 'client_local_authkit',
         WORKOS_AUTHKIT_DOMAIN: 'http://localhost:4100',
-        NEXT_PUBLIC_WORKOS_REDIRECT_URI: 'http://localhost:3000/callback',
+        NEXT_PUBLIC_WORKOS_REDIRECT_URI: `${APP_ORIGIN}/callback`,
       },
     },
   ],

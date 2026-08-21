@@ -1,4 +1,5 @@
 import { type Page } from '@playwright/test'
+import { APP_ORIGIN } from './app-origin'
 
 /**
  * Disposable-user provisioning and UI sign-in for the e2e suite, against the
@@ -27,9 +28,6 @@ const EMULATOR_ORIGIN = process.env.WORKOS_E2E_API_BASE ?? 'http://localhost:410
 const EMULATOR_API_KEY = 'sk_test_default'
 
 const WORKOS_API = `${EMULATOR_ORIGIN}/user_management`
-
-/** Matches `use.baseURL` in playwright.config.ts. */
-const APP_ORIGIN = 'http://localhost:3000'
 
 export type TestUser = {
   /** WorkOS user id — also the `user_id` the app writes on every row. */
@@ -136,6 +134,18 @@ async function acceptRequiredConsents(page: Page): Promise<void> {
   // bounces an already-consented account home), so asking is free.
   await page.goto('/welcome')
   const tos = page.locator('#consent-tos')
+
+  // Let /welcome commit to one of its two outcomes before reading the DOM: it
+  // either renders the gate or bounces an already-consented account home. A
+  // bare count() is single-shot, so if the gate ever became client-rendered a
+  // transient 0 would skip consent SILENTLY here and surface much later as a
+  // mysterious bounce back to /welcome mid-spec. Both branches swallow their
+  // timeout because either outcome is legitimate — the count() below is what
+  // decides, it just no longer races the render.
+  await Promise.race([
+    tos.waitFor({ state: 'visible', timeout: 15_000 }).catch(() => {}),
+    page.waitForURL((url) => new URL(url).pathname === '/', { timeout: 15_000 }).catch(() => {}),
+  ])
   if ((await tos.count()) === 0) return // already consented
 
   for (const id of ['#consent-health-collect', '#consent-health-share', '#consent-tos']) {
