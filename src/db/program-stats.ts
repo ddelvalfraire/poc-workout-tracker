@@ -9,7 +9,7 @@ import { programs, programDays, workouts, workoutExercises, sets } from './schem
 
 /**
  * Read-only aggregates for ONE program's workout history, always scoped to a
- * Clerk userId.
+ * WorkOS userId.
  *
  * Like `db/workouts.ts`, this module sits on the authorization boundary: the
  * app has no Postgres row-level security, so the program read gates ownership

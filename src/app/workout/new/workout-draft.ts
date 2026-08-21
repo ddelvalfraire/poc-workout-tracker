@@ -185,7 +185,8 @@ export type DraftAction =
   /** Flips an exercise's skipped flag. Sets are untouched either way —
    *  skipping records "didn't do this", it never rewrites what WAS done. */
   | { type: 'TOGGLE_SKIP_EXERCISE'; exerciseIndex: number }
-  /** Mount-time restore from the localStorage snapshot — replaces the whole draft. */
+  /** Whole-draft replace: the server-draft restore (cross-device resume) and
+   *  the finish pass (`finishWith`) both land through this. */
   | { type: 'RESTORE_DRAFT'; draft: WorkoutDraft }
 
 export const emptyDraft: WorkoutDraft = { exercises: [], notes: '' }
@@ -221,9 +222,10 @@ export function nextSetMetricMode(exercise: DraftExercise): WorkoutMetricMode {
 }
 
 /** Builds a draft exercise from a picked exercise, seeded with one empty set.
- *  `source` defaults to 'wger' — the picker only offers catalog entries until
- *  the merged-catalog phase labels its results. A Cardio-category pick seeds
- *  its set in duration_distance mode. */
+ *  `source` defaults to 'wger' — the merged catalog labels customs
+ *  explicitly, while wger rows may arrive unlabeled on the wire
+ *  (/api/exercises labels only customs). A Cardio-category pick seeds its
+ *  set in duration_distance mode. */
 export function newDraftExercise(picked: {
   wgerExerciseId: number
   source?: ExerciseSource

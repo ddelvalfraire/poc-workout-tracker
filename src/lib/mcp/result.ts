@@ -1,4 +1,5 @@
 import { ToolError } from './errors'
+import { FeatureRequiredError } from '@/db/entitlements'
 
 /**
  * Shared shaping for MCP tool results.
@@ -22,6 +23,13 @@ export function jsonResult(value: unknown) {
  */
 export function errorResult(error: unknown) {
   if (error instanceof ToolError) {
+    return { content: [{ type: 'text' as const, text: error.message }], isError: true as const }
+  }
+  // Entitlement refusals are user-facing by design — the error's own contract
+  // is that the catching surface "has to name the plan that says yes" — so
+  // they surface verbatim wherever a db-layer gate throws one, instead of
+  // being genericized into an unactionable "MCP tool failed".
+  if (error instanceof FeatureRequiredError) {
     return { content: [{ type: 'text' as const, text: error.message }], isError: true as const }
   }
   console.error('MCP tool error:', error)

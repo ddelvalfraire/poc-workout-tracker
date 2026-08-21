@@ -60,7 +60,10 @@ export function ActivityLog({ items }: ActivityLogProps) {
             aria-pressed={active.has(type)}
             onClick={() => toggle(type)}
             className={cn(
-              'rounded-full border px-2.5 py-1 text-xs outline-none transition-colors',
+              // Focus on the SHARED string: a pressed chip stays tabbable (it
+              // toggles back off), and the branch-only indicator left it with
+              // outline-none and nothing else (invisible, WCAG 2.4.7).
+              'rounded-full border px-2.5 py-1 text-xs outline-none transition-colors focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-hidden',
               active.has(type)
                 ? 'border-primary/40 bg-primary/10 font-medium text-foreground'
                 : 'border-border text-muted-foreground hover:border-muted-foreground/40 focus-visible:border-primary',

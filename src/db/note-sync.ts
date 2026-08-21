@@ -1,6 +1,6 @@
 import { and, desc, eq, inArray, isNull, sql } from 'drizzle-orm'
 import type { NoteAnchorSnapshot } from '@/lib/note-input'
-import { loadsMatch } from '@/lib/load-quantize'
+import { LOAD_EPSILON_KG, loadsMatch } from '@/lib/load-quantize'
 import { db } from './index'
 import { notes, sets, workoutExercises } from './schema'
 
@@ -59,10 +59,6 @@ export interface InsertedChildIds {
   /** `${exerciseKey}:${setNumber}` -> new set row (id + content). */
   setIdByKey: Map<string, InsertedSetRow>
 }
-
-/** Load-identity tolerance for the affinity gate — autoregulate.ts's
- *  LOAD_EPSILON_KG convention (float dust, not a real load difference). */
-const LOAD_EPSILON_KG = 0.05
 
 /**
  * The content-affinity gate (never misattribute): a parked set note may only

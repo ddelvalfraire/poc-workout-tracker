@@ -94,7 +94,7 @@ import { StatsSheet } from './stats-sheet'
 import { RestPill } from './rest-pill'
 import { WeightStepper } from './weight-stepper'
 import { SessionToast } from './session-toast'
-import { fireRestOverAlert } from './rest-over-alert'
+import { clearRestOverNotification, fireRestOverAlert } from './rest-over-alert'
 import { unlockRestChime } from './rest-chime'
 import { EXERCISE_COMPLETE_VIBRATION, SET_COMPLETE_VIBRATION, vibrate } from './haptics'
 import { resolveRestTarget } from '@/lib/rest-target'
@@ -284,9 +284,9 @@ export function WorkoutLogger({
   // calls it BEFORE router.push (the #25 stranded-::backdrop race).
   const closeDiscardDialogRef = useRef<(() => void) | null>(null)
   // Prior performance per distinct exercise, for the per-set ghost
-  // placeholders. TanStack Query owns dedupe/caching/retry (this replaced a
-  // hand-rolled requestedRef cache); provider defaults keep ghosts fresh per
-  // session and a tab refocus picks up sets logged elsewhere (e.g. via MCP).
+  // placeholders. TanStack Query owns dedupe/caching/retry; provider
+  // defaults keep ghosts fresh per session and a tab refocus picks up sets
+  // logged elsewhere (e.g. via MCP).
   // Deduped by the COMPOSITE identity — a custom exercise's id can collide
   // with a wger id, and the two must never share ghosts, bests, or caches.
   const exerciseRefs = Array.from(
@@ -616,10 +616,21 @@ export function WorkoutLogger({
    *  rest pill disappears, no overage counts up), the plan capture and
    *  offset go with it. Defaults and plan values are untouched. */
   function handleSkipRest() {
+    // Ending the period by action also retires its posted notification — a
+    // lock-screen "Rest over" outliving the rest it announced is noise.
+    clearRestOverNotification()
     setRestStartedAt(null)
     setRestPlanSec(null)
     setRestOffsetSec(0)
   }
+
+  // Leaving the logger retires a posted notification too: finish, close and
+  // abandon-delete all exit by navigation (router.replace / navigateBack),
+  // so unmount is the one seam that covers every terminal exit — without it
+  // the common "check off the last set, wander off, come back and Finish"
+  // flow strands a stale "Rest over" in the tray with no skip or check-off
+  // left to clear it. Cheap no-op when nothing is posted.
+  useEffect(() => () => clearRestOverNotification(), [])
 
   // The set whose post-completion effort chip row is open — the just-checked
   // set (when its show rule passes) or a logged caption re-opened for a
@@ -780,7 +791,6 @@ export function WorkoutLogger({
 
   function handleRememberJustToday() {
     if (!pendingRemember) return
-    // Copy-then-add: never mutate state in place.
     setRememberSnoozed((prev) =>
       new Set(prev).add(`${pendingRemember.originalSource}:${pendingRemember.originalId}`),
     )
@@ -921,8 +931,8 @@ export function WorkoutLogger({
   // session started on the phone resumes on the laptop). In edit mode this
   // intentionally wins over the server-seeded workout rows: a live draft is
   // newer than the row it was seeded from. Last writer wins across devices.
-  // The PAGES now pre-seed this same draft server-side (no content swap on
-  // mount); this fetch remains as the cross-device race net — a draft
+  // The PAGES pre-seed this same draft server-side (no content swap on
+  // mount); this fetch is the cross-device race net — a draft
   // written after the page rendered still lands here. When both saw the same
   // draft, the RESTORE_DRAFT dispatch is a same-values no-op for the
   // autosave snapshot; dirtyRef keeps it from clobbering in-flight typing.
@@ -1287,7 +1297,18 @@ export function WorkoutLogger({
           the sticky bar's -mx-5 bleed is calibrated against this px-5, so
           the pair must live in the same component. Pages keep the outer
           min-h flex column. */}
-      <main className="mx-auto w-full max-w-md flex-1 px-5">
+      {/* A flex column so the sticky bar below can take `mt-auto` — that is
+          what decouples the bar's position from how tall the scrolling
+          content happens to be. `sticky bottom-0` alone does NOT: sticky only
+          ever pulls a box UP off the fold, never pushes it down, so on short
+          content the bar sat at its flow position with dead space beneath it,
+          and every content-height change moved it. The focus-gated
+          WeightStepper is the one that bites: it unmounts on the mousedown
+          that blurs the weight input, the bar jumps up by the rail's height,
+          and mouseup lands somewhere else — so the browser never synthesizes
+          a click and the first tap on Finish is eaten. Pinned by
+          e2e/sticky-cta.spec.ts. */}
+      <main className="mx-auto flex w-full max-w-md flex-1 flex-col px-5">
       <div className="space-y-4 py-5">
         <div>
           {/* A real label, not placeholder-as-label: the placeholder vanishes
@@ -1533,13 +1554,11 @@ export function WorkoutLogger({
               </h3>
               <div className="-mr-1 flex shrink-0 items-center">
               {/* Notes affordance (one per exercise): the notes-v2 roll-up and
-                  the note entry are the SAME button. They used to be two —
-                  and because exerciseNoteCount counts noted SETS as well as
-                  the exercise's own note, one noted set lit the roll-up while
-                  the entry still showed, putting two identical pens in the
-                  rail with no cue which one was pressable. Merged: pen + count
-                  when anything is noted, bare pen when nothing is; either way
-                  it opens this session's note editor. Chips mean pressable, so
+                  the note entry are the SAME button — pen + count when
+                  anything is noted, bare pen when nothing is; either way it
+                  opens this session's note editor. One merged affordance on
+                  purpose: two identical pens in the rail would give no cue
+                  which one is pressable. Chips mean pressable, so
                   a count that can be pressed wears a control's skin — the
                   rail's own ghost button, sized to fit the number. Keeps the
                   entry's hit-44-y (#236): the rail's buttons are 36px, and the
@@ -2133,6 +2152,10 @@ export function WorkoutLogger({
                         // This tap is also the lazy AudioContext unlock for
                         // the optional rest chirp (gesture-gated autoplay).
                         unlockRestChime()
+                        // The next set starting retires the PREVIOUS rest
+                        // period's posted notification (skip does the same);
+                        // with none posted this is a cheap no-op.
+                        clearRestOverNotification()
                       }
                       // Checking off starts the rest clock; unchecking is a
                       // correction, not a new rest period. The plan component
@@ -2677,7 +2700,15 @@ export function WorkoutLogger({
       <div
         data-volt-muted={noteCaptureFor !== null || undefined}
         className={cn(
-          'sticky bottom-0 z-10 -mx-5 border-t border-border bg-background/85 px-5 pt-3 pb-safe backdrop-blur-md',
+          // `mt-auto` is load-bearing, not cosmetic: it parks the bar on
+          // main's bottom edge, which is the viewport's whenever the content
+          // is short. Sticky then only has work to do once the page actually
+          // scrolls — so the bar renders flush with the bottom either way and
+          // content growing or shrinking above it (the WeightStepper rail,
+          // the rest pill, a toast) can no longer shift it out from under a
+          // finger mid-tap. See the <main> comment for the swallowed-tap
+          // mechanism.
+          'sticky bottom-0 z-10 mt-auto -mx-5 border-t border-border bg-background/85 px-5 pt-3 pb-safe backdrop-blur-md',
           // One volt while the capture sheet is open: the bar recedes
           // (opacity + desaturation — still readable, still tappable per the
           // sheet's non-modal contract) so the sheet's Save is the screen's

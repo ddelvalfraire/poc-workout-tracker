@@ -31,9 +31,9 @@ import {
 } from './note-sync'
 
 /**
- * Data access for workouts, always scoped to a Clerk userId.
+ * Data access for workouts, always scoped to a WorkOS userId.
  *
- * The app has no Postgres row-level security (Clerk issues the identity, not
+ * The app has no Postgres row-level security (WorkOS issues the identity, not
  * Supabase), so this module is the authorization boundary: every query filters
  * by user_id. Route handlers must go through these helpers rather than querying
  * `workouts` directly, so a caller can never read or mutate another user's data.
@@ -923,7 +923,8 @@ function assertPatchedSetCompletable(
 }
 
 /**
- * Updates one set (reps and/or weight) of an owned workout's exercise, addressed
+ * Updates one set of an owned workout's exercise — any `SetPatch` field:
+ * reps/weight, completion, rir/rpe, metric mode, duration, distance — addressed
  * by 0-based exercise `position` and 1-based `setNumber`. Returns null when the
  * patch is empty, the workout isn't owned, the position is absent, or no such set
  * exists — the tool layer turns that into a not-found. Throws
@@ -1083,9 +1084,10 @@ export interface WorkoutMeta {
 }
 
 /**
- * Updates only a workout's name and/or startedAt — no child changes — gated on
- * ownership via the `update ... returning`. Returns null when the patch is empty
- * or the user doesn't own the workout.
+ * Updates only a workout's own metadata — name, startedAt, and/or the session
+ * note (reconciled into its canonical notes-v2 row) — no exercise/set changes.
+ * Ownership-gated even for a notes-only patch (see the in-body gate). Returns
+ * null when the patch is empty or the user doesn't own the workout.
  */
 export async function updateWorkoutMeta(
   userId: string,

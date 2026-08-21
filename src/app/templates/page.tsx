@@ -132,7 +132,7 @@ export default async function TemplatesPage() {
                   <li key={template.id} className="flex items-center gap-1">
                     <Link
                       href={`/templates/${template.id}`}
-                      className="flex min-w-0 flex-1 items-center gap-3 py-4 transition-colors outline-none hover:bg-muted/50 focus-visible:bg-muted/50"
+                      className="flex min-w-0 flex-1 items-center gap-3 py-4 transition-colors outline-none hover:bg-muted/50 focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-hidden"
                     >
                       {template.icon !== null && (
                         <span aria-hidden="true" className="shrink-0 text-2xl leading-none">

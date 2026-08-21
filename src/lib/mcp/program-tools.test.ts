@@ -10,8 +10,10 @@ vi.mock('@/db/programs', () => ({
   listPrograms: vi.fn(),
   listProposals: vi.fn(),
   getProgramDetail: vi.fn(),
-  instantiateProgramDay: vi.fn(),
   nextProgramWeek: vi.fn(),
+}))
+vi.mock('@/db/prescriptions', () => ({
+  instantiateProgramDay: vi.fn(),
   deriveDayPrescription: vi.fn(),
 }))
 vi.mock('@/db/preferences', () => ({ getWeightUnit: vi.fn() }))
@@ -29,10 +31,9 @@ import {
   listPrograms,
   listProposals,
   getProgramDetail,
-  instantiateProgramDay,
   nextProgramWeek,
-  deriveDayPrescription,
 } from '@/db/programs'
+import { instantiateProgramDay, deriveDayPrescription } from '@/db/prescriptions'
 import { getWeightUnit } from '@/db/preferences'
 import { listPatchProposals } from '@/db/patch-proposals'
 import { listTemplates, adoptTemplate } from '@/db/templates'
@@ -40,6 +41,8 @@ import { restartTmPlan } from '@/db/restart-plan'
 // Real classes (module NOT mocked): the instanceof in surfaceProposalGuard must
 // see the same identities the db layer throws.
 import { NotCoachProposalError, ProposedProgramError } from '@/db/program-errors'
+// Real class too (errorResult's instanceof must see the db layer's identity).
+import { FeatureRequiredError } from '@/db/entitlements'
 import { displayToKg, kgToDisplay } from '@/lib/units'
 import { MAX_WEIGHT as MAX_WEIGHT_KG } from '@/lib/workout-input'
 
@@ -214,7 +217,7 @@ describe('registerProgramTools', () => {
     it('converts suggestedLoad to kg, applies defaults, echoes userId/unit/programId', async () => {
       // Arrange
       const tools = setup()
-      mockedSave.mockResolvedValue({ id: PID })
+      mockedSave.mockResolvedValue({ id: PID, status: 'draft' })
 
       // Act
       const result = await tools.get('upsert_program')!(BODY)
@@ -225,7 +228,6 @@ describe('registerProgramTools', () => {
         'user_env',
         expect.objectContaining({
           name: 'PPL',
-          status: 'draft',
           mesocycleWeeks: 1,
           days: [
             expect.objectContaining({
@@ -247,6 +249,9 @@ describe('registerProgramTools', () => {
           ],
         }), 'mcp'
       )
+      // No materialized status rides the parse — create-time 'draft' is the
+      // db layer's default; the echo reports what saveProgram said it wrote.
+      expect(mockedSave.mock.calls[0][1].status).toBeUndefined()
       expect(payload(result)).toEqual({
         userId: 'user_env',
         unit: 'lb',
@@ -258,7 +263,7 @@ describe('registerProgramTools', () => {
     it('passes composite identity and supersetGroup through to the persist', async () => {
       // Arrange
       const tools = setup()
-      mockedSave.mockResolvedValue({ id: PID })
+      mockedSave.mockResolvedValue({ id: PID, status: 'draft' })
       const body = {
         name: 'PPL',
         days: [
@@ -300,7 +305,7 @@ describe('registerProgramTools', () => {
     it('passes day weekdays through to the persist, normalized by the shared parse', async () => {
       // Arrange
       const tools = setup()
-      mockedSave.mockResolvedValue({ id: PID })
+      mockedSave.mockResolvedValue({ id: PID, status: 'draft' })
       const body = {
         name: 'PPL',
         days: [
@@ -328,7 +333,7 @@ describe('registerProgramTools', () => {
     it('acts as the authenticated user, ignoring a conflicting userId arg (no impersonation)', async () => {
       // Arrange
       const tools = setup()
-      mockedSave.mockResolvedValue({ id: PID })
+      mockedSave.mockResolvedValue({ id: PID, status: 'draft' })
 
       // Act
       const result = await tools.get('upsert_program')!(
@@ -344,7 +349,7 @@ describe('registerProgramTools', () => {
     it('uses an explicit unit:kg without converting and without reading the stored unit', async () => {
       // Arrange
       const tools = setup()
-      mockedSave.mockResolvedValue({ id: PID })
+      mockedSave.mockResolvedValue({ id: PID, status: 'draft' })
 
       // Act
       const result = await tools.get('upsert_program')!({ ...BODY, unit: 'kg' })
@@ -447,7 +452,7 @@ describe('registerProgramTools', () => {
     it('updates an owned program when id is given, echoing the programId', async () => {
       // Arrange
       const tools = setup()
-      mockedUpdate.mockResolvedValue({ id: PID })
+      mockedUpdate.mockResolvedValue({ id: PID, status: 'draft' })
 
       // Act
       const result = await tools.get('upsert_program')!({ id: PID, ...BODY })
@@ -461,6 +466,23 @@ describe('registerProgramTools', () => {
         programId: PID,
         status: 'draft',
       })
+    })
+
+    it('echoes the PRESERVED stored status when the replace omits status', async () => {
+      // Arrange — the row is ACTIVE and the replace never mentions status:
+      // the parse must forward no status (preserve-on-omit reaches the db
+      // layer) and the echo must report what is actually stored, never a
+      // materialized 'draft'.
+      const tools = setup()
+      mockedUpdate.mockResolvedValue({ id: PID, status: 'active' })
+
+      // Act
+      const result = await tools.get('upsert_program')!({ id: PID, ...BODY })
+
+      // Assert
+      expect(mockedUpdate).toHaveBeenCalledWith('user_env', PID, expect.anything(), 'mcp')
+      expect(mockedUpdate.mock.calls[0][2].status).toBeUndefined()
+      expect(payload(result).status).toBe('active')
     })
 
     it('returns isError /not found/ when the program is not owned', async () => {
@@ -491,6 +513,34 @@ describe('registerProgramTools', () => {
     })
   })
 
+  describe('upsert_program autoreg entitlement gate (db-layer refusal surfaces)', () => {
+    it('surfaces the plan-naming refusal verbatim when an unentitled create asks for autoregulation', async () => {
+      // Arrange — the db-layer gate (saveProgram) refused the paid capability
+      const tools = setup()
+      mockedSave.mockRejectedValue(new FeatureRequiredError('autoreg', 'pro'))
+
+      // Act
+      const result = await tools.get('upsert_program')!({ ...BODY, autoregulation: true })
+
+      // Assert — the agent sees WHICH plan says yes, not "MCP tool failed"
+      expect(result.isError).toBe(true)
+      expect(result.content[0]?.text).toMatch(/"autoreg" requires the pro plan/)
+    })
+
+    it('surfaces the same refusal on a replace that edits autoregulation onto a program', async () => {
+      // Arrange — the gate closes the "same feature one request later" hole
+      const tools = setup()
+      mockedUpdate.mockRejectedValue(new FeatureRequiredError('autoreg', 'pro'))
+
+      // Act
+      const result = await tools.get('upsert_program')!({ id: PID, ...BODY, autoregulation: true })
+
+      // Assert
+      expect(result.isError).toBe(true)
+      expect(result.content[0]?.text).toMatch(/"autoreg" requires the pro plan/)
+    })
+  })
+
   describe('upsert_program coach drafting policy (bridge clientId → coach actor)', () => {
     // Exactly what mcp-bridge.ts stamps: clientId 'coach-chat' + the session
     // user. The model cannot fabricate this — authInfo rides the transport.
@@ -499,7 +549,8 @@ describe('registerProgramTools', () => {
     it("threads the coach actor into saveProgram and echoes status 'proposed' even when the model asks for active", async () => {
       // Arrange
       const tools = setup()
-      mockedSave.mockResolvedValue({ id: PID })
+      // The db layer forces 'proposed' on the coach path and reports it back.
+      mockedSave.mockResolvedValue({ id: PID, status: 'proposed' })
 
       // Act — the model tries to create straight to 'active'
       const result = await tools.get('upsert_program')!({ ...BODY, status: 'active' }, COACH)
@@ -520,9 +571,9 @@ describe('registerProgramTools', () => {
     })
 
     it("threads the coach actor into updateProgram on replace and echoes 'proposed'", async () => {
-      // Arrange
+      // Arrange — the db keeps a coach replace at 'proposed' and reports it.
       const tools = setup()
-      mockedUpdate.mockResolvedValue({ id: PID })
+      mockedUpdate.mockResolvedValue({ id: PID, status: 'proposed' })
 
       // Act
       const result = await tools.get('upsert_program')!({ id: PID, ...BODY }, COACH)
@@ -871,7 +922,7 @@ describe('registerProgramTools', () => {
     it('passes the four fields through validation to saveProgram', async () => {
       // Arrange
       const tools = setup()
-      mockedSave.mockResolvedValue({ id: PID })
+      mockedSave.mockResolvedValue({ id: PID, status: 'draft' })
 
       // Act — trimmed values, one blank (→ null after validation)
       await tools.get('upsert_program')!({
@@ -916,7 +967,7 @@ describe('registerProgramTools', () => {
     it('passes an explicit visibility through to saveProgram', async () => {
       // Arrange
       const tools = setup()
-      mockedSave.mockResolvedValue({ id: PID })
+      mockedSave.mockResolvedValue({ id: PID, status: 'draft' })
 
       // Act
       await tools.get('upsert_program')!({ ...BODY, visibility: 'public' })
@@ -932,7 +983,7 @@ describe('registerProgramTools', () => {
     it('omits the field entirely when absent (preserve-on-omit reaches the db layer)', async () => {
       // Arrange
       const tools = setup()
-      mockedUpdate.mockResolvedValue({ id: PID })
+      mockedUpdate.mockResolvedValue({ id: PID, status: 'draft' })
 
       // Act — a replace that never mentions visibility
       await tools.get('upsert_program')!({ id: PID, ...BODY })

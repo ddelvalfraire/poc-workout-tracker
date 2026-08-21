@@ -11,9 +11,8 @@ import { useTranslations } from 'next-intl'
 /**
  * The unified rest pill — ONE bottom-anchored surface (Dynamic Island /
  * Live Activity direction) carrying the rest time, a depleting progress
- * fill, and the −15 · Skip · +15 controls together in the sticky bar. It
- * replaced the split rest UI: the header's rest readout (session-clock now
- * keeps only the elapsed clock) and the separate RestAdjustStrip.
+ * fill, and the −15 · Skip · +15 controls together in the sticky bar
+ * (session-clock keeps only the elapsed clock).
  *
  * The pill renders only while a rest period is running (the logger gates on
  * restStartedAt); it owns the ONE 1 s tick that drives digits, fill, and the
@@ -42,13 +41,6 @@ import { useTranslations } from 'next-intl'
  * previous dual render).
  */
 
-/**
- * Remaining fraction of the rest target, for the depleting fill: clamped to
- * 0..1 so an overage never scales negative and a +15 past the original
- * target never overflows the pill. Null target (count-up mode) → null — no
- * fill at all, digits only. A zero/negative target has nothing to deplete
- * and is treated the same.
- */
 /** The countdown's final stretch: digits flip to volt for these last seconds
  *  before the overage/warning flip — the "wrap it up" color moment. */
 export const REST_CLOSING_WINDOW_SEC = 10
@@ -63,6 +55,13 @@ export function isRestClosing(remainingSec: number, targetSec: number | null): b
   return remainingSec > 0 && remainingSec <= REST_CLOSING_WINDOW_SEC
 }
 
+/**
+ * Remaining fraction of the rest target, for the depleting fill: clamped to
+ * 0..1 so an overage never scales negative and a +15 past the original
+ * target never overflows the pill. Null target (count-up mode) → null — no
+ * fill at all, digits only. A zero/negative target has nothing to deplete
+ * and is treated the same.
+ */
 export function restProgressFraction(
   remainingSec: number,
   targetSec: number | null,

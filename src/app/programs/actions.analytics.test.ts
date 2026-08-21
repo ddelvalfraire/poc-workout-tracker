@@ -14,11 +14,11 @@ vi.mock('@/db/programs', () => ({
   setProgramStatus: vi.fn(),
   updateProgramDescription: vi.fn(),
   cloneProgram: vi.fn(),
-  instantiateProgramDay: vi.fn(),
   adoptProgram: vi.fn(),
   declineProgram: vi.fn(),
   countProgramDays: vi.fn(async () => 4),
 }))
+vi.mock('@/db/prescriptions', () => ({ instantiateProgramDay: vi.fn() }))
 vi.mock('@/db/program-shares', () => ({
   setProgramVisibility: vi.fn(),
   createShare: vi.fn(),
@@ -45,7 +45,8 @@ import {
   startProgramDayAction,
 } from './actions'
 import { requireUserId } from '@/lib/auth'
-import { setProgramStatus, adoptProgram, instantiateProgramDay } from '@/db/programs'
+import { setProgramStatus, adoptProgram } from '@/db/programs'
+import { instantiateProgramDay } from '@/db/prescriptions'
 import { captureServerEvent } from '@/lib/analytics'
 
 const USER = 'user_123'

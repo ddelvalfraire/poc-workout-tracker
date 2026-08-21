@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 import { withSerwist } from "@serwist/turbopack";
 import createNextIntlPlugin from "next-intl/plugin";
+import { securityHeaders } from "./src/lib/security-headers";
 
 // Baked into BOTH bundles at build time: the client compares its copy against
 // /api/version (answered by the newest deployment) to detect a stale build —
@@ -38,6 +39,23 @@ const nextConfig: NextConfig = {
   // GLOBAL flag — src/proxy.ts re-provides the 308 for every non-/_i path, so
   // the rest of the app (share links especially) keeps its old behavior.
   skipTrailingSlashRedirect: true,
+  // CSP + the transport/framing/sniffing set, on every response. The policy
+  // and its rationale (why 'unsafe-inline' and not a nonce, which env var
+  // feeds which allowance) live in src/lib/security-headers.ts; env is read
+  // here at call time so the wiring test can exercise real values.
+  async headers() {
+    return [
+      {
+        source: "/(.*)",
+        headers: securityHeaders({
+          isDev: process.env.NODE_ENV === "development",
+          isPreview: process.env.VERCEL_ENV === "preview",
+          supabaseUrl: process.env.SUPABASE_URL,
+          sentryDsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
+        }),
+      },
+    ];
+  },
   experimental: {
     // Enables React's <ViewTransition> for animated route changes.
     viewTransition: true,

@@ -2,7 +2,7 @@
  * The template library's system account. Curated templates are ordinary
  * `programs` rows owned by this pseudo-user with `visibility: 'public'` — no
  * new tables; the existing sharing/visibility model does the work. The id is
- * a well-known constant rather than an env var: Clerk user ids always start
+ * a well-known constant rather than an env var: WorkOS user ids always start
  * with `user_`, so no real account can ever collide with it, and every
  * environment (dev, prod, CI) addresses the same owner without config drift.
  *

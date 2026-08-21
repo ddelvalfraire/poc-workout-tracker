@@ -12,7 +12,7 @@ import { registerTools } from '@/lib/mcp/tools'
  * SAME McpServer in-process via the existing `registerTools` and links it to
  * the AI SDK's MCP client with `InMemoryTransport.createLinkedPair()`.
  *
- * Auth: the HTTP route's `withMcpAuth` stashes the Clerk user in
+ * Auth: the HTTP route's `withMcpAuth` stashes the WorkOS user in
  * `AuthInfo.extra.userId`, which `resolveUserId` reads with top precedence.
  * We replicate exactly that in-process: the client-side transport's `send` is
  * wrapped so every message crosses the pair with
@@ -28,7 +28,7 @@ export async function createCoachMcpClient(userId: string): Promise<MCPClient> {
 
   // Not a real OAuth token — token/clientId/scopes are required by the AuthInfo
   // shape; only `extra.userId` is read (by resolveUserId). The id comes from
-  // the route's Clerk session, never from the model.
+  // the route's WorkOS session, never from the model.
   const authInfo: AuthInfo = {
     token: 'in-memory',
     clientId: 'coach-chat',

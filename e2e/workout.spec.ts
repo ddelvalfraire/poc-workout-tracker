@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test'
 import postgres from 'postgres'
 import { createTestUser, deleteTestUser, signIn, type TestUser } from './auth'
+import { addExercise, finishWorkout, startWorkout, typeInto } from './logger'
 
 /**
  * End-to-end happy path for the Phase 3 core logging loop, against the LIVE
@@ -45,39 +46,43 @@ test('signed-in user can start, log, and save a workout', async ({ page }) => {
   await signIn(page, user)
 
   // Home -> confirm the session actually took, then Start Workout.
-  await page.goto('/')
-  const startLink = page.getByRole('link', { name: /start workout/i })
-  await expect(startLink).toBeVisible({ timeout: 15_000 })
-  await startLink.click()
-  await expect(page).toHaveURL(/\/workout\/new$/)
+  await startWorkout(page)
 
   // Search the wger proxy and add the first result.
-  await page.getByLabel('Search exercises').fill('bench')
-  // The picker has no per-row Add button since #233: a result row IS the
-  // control (li role=option, click to add).
-  const addButton = page.getByRole('option').first()
-  await expect(addButton).toBeVisible({ timeout: 20_000 })
-  await addButton.click()
+  await addExercise(page, 'bench')
 
-  // Log set 1 and check it off in-session.
-  await page.getByLabel('Set 1 reps').fill('5')
-  await page.getByLabel('Set 1 weight in kg').fill('100')
-  await page.getByRole('button', { name: 'Mark set 1 complete' }).click()
+  // Log set 1.
+  await typeInto(page.getByLabel('Set 1 reps'), '5')
+  await typeInto(page.getByLabel('Set 1 weight in kg'), '100')
 
   // Plate calculator: 100 kg on the default 20 kg bar = 25 + 15 per side,
-  // and the warm-up ramp toward the top set renders alongside.
-  await page.getByRole('button', { name: /^plates for/i }).click()
+  // and the warm-up ramp toward the top set renders alongside. Its trigger
+  // lives in the exercise card's header, which is why this has to happen
+  // while the card is still open — see the ordering note below.
+  // Named for the EXERCISE, not the chip: the focused weight field also
+  // raises the stepper rail, whose per-side plate chip is labelled
+  // "Plates for 25 + 15 / side" — an unscoped /^plates for/ matches both.
+  await page.getByRole('button', { name: /^plates for bench/i }).click()
   await expect(page.getByText('25 + 15 / side')).toBeVisible()
   // The target weight lives in an <input value>, which getByText cannot see —
   // assert the label, then the field's value.
   await expect(page.getByText(/warm-up · toward/i)).toBeVisible()
-  await page.getByRole('button', { name: 'Close', exact: true }).click()
+  // Scoped to the sheet: the logger's own app-bar "Close" stays in the tree
+  // behind it, so an unscoped exact "Close" matches two.
+  await page.getByRole('dialog').getByRole('button', { name: 'Close', exact: true }).click()
   await expect(page.getByText('25 + 15 / side')).not.toBeVisible()
 
-  // Add and log a second set.
+  // Add and log a second set BEFORE checking set 1 off. Ordering is
+  // load-bearing, not taste: completing every set in an exercise folds its
+  // card to a one-line summary (done work gets out of the way), and a folded
+  // card takes "+ Add set" and the header's plate button with it. With a
+  // second, unfinished set present the card stays open.
   await page.getByRole('button', { name: /add set/i }).click()
-  await page.getByLabel('Set 2 reps').fill('5')
-  await page.getByLabel('Set 2 weight in kg').fill('102.5')
+  await typeInto(page.getByLabel('Set 2 reps'), '5')
+  await typeInto(page.getByLabel('Set 2 weight in kg'), '102.5')
+
+  // Now check set 1 off in-session.
+  await page.getByRole('button', { name: 'Mark set 1 complete' }).click()
 
   // Cross-device draft sync: the logger autosaves (debounced) to the server.
   // Wait until the draft payload contains the LAST value typed — an earlier
@@ -115,7 +120,7 @@ test('signed-in user can start, log, and save a workout', async ({ page }) => {
   // appears once a sync fails; coming back online flushes the queued snapshot
   // (the `online` event, no page interaction needed).
   await page.context().setOffline(true)
-  await page.getByLabel('Set 2 reps').fill('6')
+  await typeInto(page.getByLabel('Set 2 reps'), '6')
   await expect(page.getByText(/offline — changes will sync/i)).toBeVisible({ timeout: 15_000 })
   await page.context().setOffline(false)
   await expect
@@ -133,8 +138,7 @@ test('signed-in user can start, log, and save a workout', async ({ page }) => {
     .toBe(1)
 
   // Save -> lands on the session summary (detail page).
-  await page.getByRole('button', { name: /finish workout/i }).click()
-  await expect(page).toHaveURL(/\/workout\/[0-9a-f-]+$/)
+  await finishWorkout(page)
 
   // Assert the persisted row tree for this user.
   const rows = await sql<{ name: string | null; exercise_count: number; set_count: number }[]>`
@@ -151,7 +155,13 @@ test('signed-in user can start, log, and save a workout', async ({ page }) => {
   expect(rows[0].exercise_count).toBe(1)
   expect(rows[0].set_count).toBe(2)
 
-  // Assert the in-session check-off persisted: set 1 completed, set 2 not.
+  // Both sets land completed, and set 2 is the interesting one: it was never
+  // checked off by hand. Finishing completes every set that has reps — the
+  // promise the finish confirm makes in so many words ("Sets with reps are
+  // checked off for you") — so a logged set cannot be saved as skipped just
+  // because the lifter never tapped its circle. The in-session check-off of
+  // set 1 is asserted in the UI above, where it survived the resume with
+  // aria-pressed=true.
   const setRows = await sql<{ set_number: number; completed: boolean }[]>`
     select s.set_number, s.completed
     from sets s
@@ -162,7 +172,7 @@ test('signed-in user can start, log, and save a workout', async ({ page }) => {
   `
   expect(setRows).toEqual([
     { set_number: 1, completed: true },
-    { set_number: 2, completed: false },
+    { set_number: 2, completed: true },
   ])
 
   // The save supersedes the draft — the server row must be gone.

@@ -2,8 +2,8 @@ import type {
   DeloadPolicy,
   DietPhase,
   MetricMode,
-  ProgramInput,
   ProgramInputUnparsed,
+  ProgramStatus,
   Progression,
   SetType,
   Technique,
@@ -130,8 +130,11 @@ export interface ProgramDraft {
    *  suggestion (see programs.checkInEveryDays). */
   checkInEveryDays: string
   days: DraftProgramDay[]
-  // Pass-through fields (lifecycle/notes aren't edited by the builder).
-  status: ProgramInput['status']
+  // Pass-through fields (lifecycle/notes aren't edited by the builder). The
+  // draft's status is always CONCRETE (ProgramStatus, not the input schema's
+  // optional field): the builder round-trips a full replace, so it must
+  // re-state the loaded status rather than lean on preserve-on-omit.
+  status: ProgramStatus
   notes: string | null
   // Pass-through article metadata (PRD §3): authored by the coach/import
   // paths, not the builder — but a UI edit is a full replace, so dropping
@@ -736,19 +739,10 @@ export function draftToProgramInput(
 }
 
 /** Narrows the loose `text` status column to the schema's status union. */
-function toStatus(status: string): ProgramInput['status'] {
+function toStatus(status: string): ProgramStatus {
   return status === 'active' || status === 'archived' ? status : 'draft'
 }
 
-/**
- * Seeds an editable draft from a persisted program (the inverse of
- * draftToProgramInput). Numbers become input strings (`null` → `''`); the
- * persisted row UUIDs are reused as the draft's client ids (stable React keys).
- * `category` is not a persisted column, so it comes back empty. Stored kg loads
- * are converted to `unit` for display. Pass-through fields (progression,
- * technique, set types, timed metrics, notes, status) are carried verbatim.
- * Pure (no `crypto`), so the edit Server Component can call it safely.
- */
 /** Display-unit string for a TM input, rounded to 1 decimal (kg passes
  *  through kgToDisplay unrounded, so an e1RM-derived prefill needs its own
  *  rounding — 97.75000001 must read "97.8"). */
@@ -780,6 +774,15 @@ export function e1rmKey(source: ExerciseSource, wgerExerciseId: number): string 
   return `${source}:${wgerExerciseId}`
 }
 
+/**
+ * Seeds an editable draft from a persisted program (the inverse of
+ * draftToProgramInput). Numbers become input strings (`null` → `''`); the
+ * persisted row UUIDs are reused as the draft's client ids (stable React keys).
+ * `category` is not a persisted column, so it comes back empty. Stored kg loads
+ * are converted to `unit` for display. Pass-through fields (progression,
+ * technique, set types, timed metrics, notes, status) are carried verbatim.
+ * Pure (no `crypto`), so the edit Server Component can call it safely.
+ */
 export function detailToProgramDraft(
   detail: ProgramDetail,
   unit: WeightUnit = 'kg',

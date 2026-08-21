@@ -61,14 +61,14 @@ export function GoalCardActions({ id, label, archived }: GoalCardActionsProps) {
   }
 
   const item =
-    'block w-full rounded-lg px-3 py-2 text-left text-sm transition-colors hover:bg-muted focus-visible:bg-muted focus-visible:outline-none'
+    'block w-full rounded-lg px-3 py-2 text-left text-sm transition-colors hover:bg-muted focus-visible:outline-hidden focus-visible:ring-3 focus-visible:ring-ring/50'
 
   return (
     <div className="relative shrink-0">
       <details ref={detailsRef} className="group">
         <summary
           aria-label={t('menuLabel', { label })}
-          className="flex size-8 cursor-pointer list-none items-center justify-center rounded-full text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 group-open:bg-muted [&::-webkit-details-marker]:hidden"
+          className="flex size-8 cursor-pointer list-none items-center justify-center rounded-full text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-hidden focus-visible:ring-3 focus-visible:ring-ring/50 group-open:bg-muted [&::-webkit-details-marker]:hidden"
         >
           <Ellipsis aria-hidden="true" className="size-4" />
         </summary>

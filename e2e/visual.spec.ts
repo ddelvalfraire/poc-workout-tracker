@@ -54,11 +54,16 @@ test('key surfaces match their committed baselines', async ({ page }) => {
   })
   await expect(page).toHaveScreenshot('programs-empty-phone.png', { fullPage: true })
 
-  // The curated program-template library (seeded canon — stable between
-  // seed script runs; a seed change legitimately regenerates this baseline).
+  // The program-template shelf gets a render check, NOT a baseline. It used to
+  // have one, under a comment calling it "seeded canon — stable between seed
+  // script runs". That was never true: the shelf is listPublicTemplates(),
+  // a live fetch of wger's public routines, so the committed PNG was a
+  // fullPage snapshot of a third-party feed and went red whenever strangers
+  // renamed their routines. A baseline that fails on someone else's schedule
+  // is a change detector, not a regression test. The zoning it was meant to
+  // guard is unit-tested in lib/wger-template-shelf.ts, against fixtures.
   await page.goto('/programs/templates')
   await expect(page.getByText('Program templates')).toBeVisible({ timeout: 15_000 })
-  await expect(page).toHaveScreenshot('program-templates-phone.png', { fullPage: true })
 
   // Session templates, empty state.
   await page.goto('/templates')

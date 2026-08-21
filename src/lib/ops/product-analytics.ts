@@ -1,6 +1,5 @@
 /**
- * First-party product analytics for /ops/product — the successor to
- * app-vitals.ts, widened from "one panel" to a full tab. Cross-user admin
+ * First-party product analytics for /ops/product. Cross-user admin
  * aggregates (no userId scope), same rules as the rest of the ops layer:
  *
  * - Every query is a filtered count over one small table, a day-bucketed

@@ -4,7 +4,7 @@ import 'server-only'
  * PostHog person deletion for account deletion (MHMDA propagation). This is
  * the PRIVATE API (personal key + project id), not the public ingest key the
  * analytics seam uses — capture and deletion are different trust levels on
- * purpose. Distinct id is the Clerk user id (analytics.ts sets it as
+ * purpose. Distinct id is the WorkOS user id (analytics.ts sets it as
  * distinct_id on every event).
  *
  * Flow: look the person up by distinct_id, then

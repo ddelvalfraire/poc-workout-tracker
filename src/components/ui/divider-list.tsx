@@ -50,7 +50,7 @@ function DividerRow({ href, trailing, className, children }: DividerRowProps) {
       <Link
         href={href}
         className={cn(
-          'flex items-center justify-between gap-4 py-4 transition-colors outline-none hover:bg-muted/50 focus-visible:bg-muted/50',
+          'flex items-center justify-between gap-4 py-4 transition-colors outline-none hover:bg-muted/50 focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-hidden',
           className,
         )}
       >

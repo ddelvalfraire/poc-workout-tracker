@@ -1,5 +1,5 @@
 /**
- * Coach access gate. The feature is in development: only allowlisted Clerk
+ * Coach access gate. The feature is in development: only allowlisted WorkOS
  * user ids may reach /coach or /api/chat, and everyone else never sees the
  * entry points. COACH_ALLOWED_USER_IDS (comma-separated) is the explicit
  * list; absent, it falls back to MCP_DEV_USER_ID — the developer's own id,

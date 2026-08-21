@@ -9,8 +9,12 @@ import { test, expect } from '@playwright/test'
  *     browser): a capture POST through the proxy is ACCEPTED (status 1).
  *     This exercises the middleware public-route entry, the trailing-slash
  *     passthrough, and the rewrite in one shot.
- *  2. The browser boots posthog-js through the proxy: the SDK chunk arrives
- *     from /_i/static and the automatic $pageview capture round-trips 200.
+ *  2. The browser boots posthog-js through the proxy: the SDK's lazy chunks
+ *     arrive from /_i/static and its first POST round-trips 200. This proves
+ *     the proxy path from the BROWSER, which layer 1 cannot. It does NOT
+ *     assert a $pageview capture: locally the SDK issues /_i/flags/ but no
+ *     /_i/e/ within 12s of load or of a second navigation, so pinning one
+ *     here would be pinning a behaviour this suite cannot currently observe.
  *  3. (Gated on POSTHOG_PERSONAL_API_KEY) the Query API reads the layer-1
  *     event back out — proof of ingestion, not just acceptance.
  *
@@ -43,14 +47,12 @@ test.describe('PostHog analytics pipeline', () => {
     expect([1, 'Ok']).toContain(body.status)
   })
 
-  test('browser loads posthog-js via the proxy and the $pageview round-trips', async ({
-    page,
-  }) => {
+  test('browser boots posthog-js through the proxy on a signed-out page', async ({ page }) => {
     const sdkChunk = page.waitForResponse(
       (r) => r.url().includes('/_i/static/') && r.status() === 200,
       { timeout: 20_000 },
     )
-    const capture = page.waitForResponse(
+    const roundTrip = page.waitForResponse(
       (r) =>
         r.url().includes('/_i/') &&
         !r.url().includes('/_i/static/') &&
@@ -59,11 +61,20 @@ test.describe('PostHog analytics pipeline', () => {
       { timeout: 20_000 },
     )
 
-    // Sign-in is public — this is the anonymous visitor path.
-    await page.goto('/sign-in')
+    // A public APP page, not /sign-in. /sign-in is public but it 307s straight
+    // to the identity provider, so the browser ends up on a foreign origin and
+    // NONE of our client code runs — including instrumentation-client.ts,
+    // which is what boots the SDK. The old spec waited 20s for traffic that
+    // could never happen. /privacy is public because signed-out readability is
+    // a legal requirement, and it renders our own layout.
+    await page.goto('/privacy')
 
+    // Two independent proofs that the first-party proxy path works end to end:
+    // the SDK's lazy sub-chunks arrive from /_i/static/, and its first POST
+    // (the flags call) is accepted. Deliberately NOT asserted here: the
+    // $pageview capture itself — see the note on layer 2 above.
     await sdkChunk
-    await capture
+    await roundTrip
   })
 
   test('event reads back out of the Query API', async ({ request }) => {

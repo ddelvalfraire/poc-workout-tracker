@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
+import { expect, userEvent, within } from "storybook/test";
 
 import { DividerList, DividerRow } from "./divider-list";
 
@@ -114,5 +115,34 @@ export const LongLabel: Story = {
         </span>
       </DividerRow>
     ),
+  },
+}
+
+/**
+ * Keyboard focus must actually be visible (WCAG 2.4.7). The first recipe
+ * paired `outline-none` with a `focus-visible:bg-muted/50` wash — ~1.1:1
+ * against the page background, so tabbing through a list showed nothing at
+ * all. The row now takes the app-wide volt ring, and this story proves it in
+ * a real browser: tab onto the row and assert the ring PAINTS (a computed
+ * box-shadow), not merely that a class is present.
+ */
+export const KeyboardFocus: Story = {
+  args: {
+    children: (
+      <DividerRow href="#" trailing="kg">
+        Weight unit
+      </DividerRow>
+    ),
+  },
+  play: async ({ canvasElement }) => {
+    const row = within(canvasElement).getByRole("link", { name: /weight unit/i });
+    // Unfocused, the row paints no ring…
+    await expect(getComputedStyle(row).boxShadow).toBe("none");
+    await userEvent.tab();
+    await expect(row).toHaveFocus();
+    // …and keyboard focus paints the 3px volt ring (ring-3 ring-ring/50).
+    const shadow = getComputedStyle(row).boxShadow;
+    await expect(shadow).not.toBe("none");
+    await expect(shadow).toContain("3px");
   },
 }

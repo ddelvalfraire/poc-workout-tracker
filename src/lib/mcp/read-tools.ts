@@ -34,9 +34,18 @@ import { buildProgramDayView, type ProgramDayView } from './program-tools'
  * authorization boundary) and echoes the resolved id back so the agent can
  * confirm whose data it read. Weights are stored in kg and converted to the
  * user's unit at this boundary via `kgToDisplay`; the `unit` is echoed in every
- * payload so the agent isn't guessing the basis. `search_exercises` is the lone
- * exception — the catalog is public reference data, so it takes no `userId`.
+ * payload so the agent isn't guessing the basis. `search_exercises` is the
+ * partial exception — the wger catalog is public reference data, so it
+ * resolves its `userId` best-effort: no identity degrades to the public
+ * catalog instead of failing, while a resolved user gets their custom
+ * exercises merged in.
  */
+/** Descending string compare, so ids tiebreak the same way in the sort and in
+ *  the cursor filter below. */
+function compareDesc(a: string, b: string): number {
+  return a < b ? 1 : a > b ? -1 : 0
+}
+
 /**
  * Page size for `list_workouts` when the caller doesn't ask for one, and the
  * ceiling when it asks for too much.
@@ -49,12 +58,6 @@ import { buildProgramDayView, type ProgramDayView } from './program-tools'
  * to answer a question that "the last few workouts" almost always answers.
  * `before` is the escape hatch when the agent genuinely needs older history.
  */
-/** Descending string compare, so ids tiebreak the same way in the sort and in
- *  the cursor filter below. */
-function compareDesc(a: string, b: string): number {
-  return a < b ? 1 : a > b ? -1 : 0
-}
-
 export const WORKOUT_LIST_DEFAULT_LIMIT = 20
 export const WORKOUT_LIST_MAX_LIMIT = 100
 
@@ -75,9 +78,8 @@ export function registerReadTools(server: McpServer): void {
     async ({ limit, before, beforeId, userId }, extra) => {
       try {
         const resolved = resolveUserId(extra, userId)
-        // The db read is unchanged (and request-memoized): this bounds what
-        // crosses the tool boundary into an agent's context, not what the
-        // query costs. App callers of listWorkoutSummaries still get the
+        // The db read is request-memoized: this bounds what crosses the
+        // tool boundary into an agent's context, not what the query costs. App callers of listWorkoutSummaries still get the
         // whole history, which is what the history page and the home
         // momentum panel actually need.
         const rows = await listWorkoutSummaries(resolved)

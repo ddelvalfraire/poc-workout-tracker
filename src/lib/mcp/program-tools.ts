@@ -28,12 +28,11 @@ import {
   listPrograms,
   listProposals,
   getProgramDetail,
-  instantiateProgramDay,
   nextProgramWeek,
-  deriveDayPrescription,
   type ProgramDetail,
   type ProgramDayDetail,
 } from '@/db/programs'
+import { instantiateProgramDay, deriveDayPrescription } from '@/db/prescriptions'
 import { NotCoachProposalError, ProposedProgramError } from '@/db/program-errors'
 import { listPatchProposals } from '@/db/patch-proposals'
 import { listTemplates, adoptTemplate } from '@/db/templates'
@@ -89,6 +88,9 @@ const toolDaySchema = z.object({
 /** The program body (display units), reused as the upsert input shape minus id/unit/userId. */
 const rawProgramSchema = z.object({
   name: z.string(),
+  // Lifecycle status. Omitted → 'draft' at create (saveProgram's default),
+  // PRESERVED on replace — same no-default discipline as the switches below,
+  // or a replace that omits it would deactivate an active program.
   status: statusSchema.optional(),
   mesocycleWeeks: z.number().int().optional(),
   deloadWeek: z.number().int().nullable().optional(),
@@ -488,7 +490,7 @@ export function registerProgramTools(server: McpServer): void {
     {
       title: 'Upsert Program',
       description:
-        "Creates a training program, or fully replaces one when `id` is given (coarse create/replace, not a partial edit). Exercise identity is the composite (source, wgerExerciseId); `source` defaults to 'wger', pass 'custom' for custom exercises. `supersetGroup` (same non-null value within a day) survives replace. Each day may carry `weekdays` (integers 0–6, Sunday-first) scheduling it on those weekdays — the home screen then anchors it in time (Today/Tomorrow); omitted or empty = unscheduled, and like the rest of the day tree it is full-replace (an upsert that omits it unschedules the day). Per-week set overrides survive replace for sets that keep the same day/exercise/setNumber position; overrides on removed slots are dropped. `suggestedLoad` is in the user's unit (or the `unit` arg) and stored as kg; `technique`/`progression` JSONB are in kg. When called by the in-app coach, the program is ALWAYS saved as a 'proposed' draft (whatever `status` says) that only the owner can adopt or decline, and a replace may target only the coach's own still-proposed drafts. `planSync` (default true) auto-updates the plan's suggested loads to what the lifter actually performed after each finished session; set false for deliberate-percentage programs (5/3/1-style waves). `checkInEveryDays` (3–90, or null) makes the program suggest a body check-in (weigh-in/tape/photo, the /body page) every N days — a due check-in shows a home card and rides the daily reminder push. `visibility` ('private' | 'link' | 'public', default 'private') controls sharing: 'link'/'public' make the program readable via a share URL the owner mints in the app; proposals can never be made sharable. `autoregStallPolicy` ('all-sets' | 'first-set', default 'all-sets') picks the fixed-mode stall rule: 'all-sets' stalls when ANY working set misses its rep floor; 'first-set' lets only the first working set decide. `deloadPolicy` ({ mode: 'none' | 'reactive' | 'scheduled' (+ shape { loadFactor, setFactor, rpeCap, timedExercises: 'untouched' (default; duration sets never back off) | 'scaled' }) }, or null) governs the deload week's back-off: 'none' derives it as a normal week, 'reactive' leaves deloads to the stall-driven early-deload suggestion, 'scheduled' applies the shape; null/omitted keeps the legacy behavior (a set `deloadWeek` backs off at the historical factors). `dietPhase` ('cutting' | 'maintaining' | 'bulking', or null = no phase) stores the lifter's diet context: 'cutting' reframes stall verdicts (stalls expected, holding is the win) and routes the automatic three-stall back-off through an owner-confirmable proposal; it never changes loads. Omitting `planSync`, `autoregulation`, `autoregStallPolicy`, `deloadPolicy`, `dietPhase`, `checkInEveryDays`, or `visibility` on a replace PRESERVES the stored value. Returns the programId and effective status. Errors if a given id isn't found or owned.",
+        "Creates a training program, or fully replaces one when `id` is given (coarse create/replace, not a partial edit). Exercise identity is the composite (source, wgerExerciseId); `source` defaults to 'wger', pass 'custom' for custom exercises. `supersetGroup` (same non-null value within a day) survives replace. Each day may carry `weekdays` (integers 0–6, Sunday-first) scheduling it on those weekdays — the home screen then anchors it in time (Today/Tomorrow); omitted or empty = unscheduled, and like the rest of the day tree it is full-replace (an upsert that omits it unschedules the day). Per-week set overrides survive replace for sets that keep the same day/exercise/setNumber position; overrides on removed slots are dropped. `suggestedLoad` is in the user's unit (or the `unit` arg) and stored as kg; `technique`/`progression` JSONB are in kg. When called by the in-app coach, the program is ALWAYS saved as a 'proposed' draft (whatever `status` says) that only the owner can adopt or decline, and a replace may target only the coach's own still-proposed drafts. `planSync` (default true) auto-updates the plan's suggested loads to what the lifter actually performed after each finished session; set false for deliberate-percentage programs (5/3/1-style waves). `checkInEveryDays` (3–90, or null) makes the program suggest a body check-in (weigh-in/tape/photo, the /body page) every N days — a due check-in shows a home card and rides the daily reminder push. `visibility` ('private' | 'link' | 'public', default 'private') controls sharing: 'link'/'public' make the program readable via a share URL the owner mints in the app; proposals can never be made sharable. `autoregStallPolicy` ('all-sets' | 'first-set', default 'all-sets') picks the fixed-mode stall rule: 'all-sets' stalls when ANY working set misses its rep floor; 'first-set' lets only the first working set decide. `deloadPolicy` ({ mode: 'none' | 'reactive' | 'scheduled' (+ shape { loadFactor, setFactor, rpeCap, timedExercises: 'untouched' (default; duration sets never back off) | 'scaled' }) }, or null) governs the deload week's back-off: 'none' derives it as a normal week, 'reactive' leaves deloads to the stall-driven early-deload suggestion, 'scheduled' applies the shape; null/omitted keeps the legacy behavior (a set `deloadWeek` backs off at the historical factors). `dietPhase` ('cutting' | 'maintaining' | 'bulking', or null = no phase) stores the lifter's diet context: 'cutting' reframes stall verdicts (stalls expected, holding is the win) and routes the automatic three-stall back-off through an owner-confirmable proposal; it never changes loads. Omitting `status`, `planSync`, `autoregulation`, `autoregStallPolicy`, `deloadPolicy`, `dietPhase`, `checkInEveryDays`, or `visibility` on a replace PRESERVES the stored value (an omitted `status` at create lands as 'draft'). Returns the programId and effective status. Errors if a given id isn't found or owned.",
       inputSchema: {
         id: z.string().optional(),
         ...rawProgramSchema.shape,
@@ -554,7 +556,10 @@ export function registerProgramTools(server: McpServer): void {
           },
           basis,
         )
-        const effectiveStatus = actor === 'coach' ? 'proposed' : parsed.status
+        // The echoed status is the db layer's report of what it actually
+        // persisted — the only party that knows it: a replace omitting
+        // `status` PRESERVES the stored value (which the input can't state),
+        // create defaults to 'draft', and the coach path forces 'proposed'.
         if (id !== undefined) {
           const result = await updateProgram(resolved, id, parsed, actor)
           if (!result) throw new ToolError(`Program ${id} not found for user ${resolved}`)
@@ -562,11 +567,11 @@ export function registerProgramTools(server: McpServer): void {
             userId: resolved,
             unit: basis,
             programId: result.id,
-            status: effectiveStatus,
+            status: result.status,
           })
         }
-        const { id: newId } = await saveProgram(resolved, parsed, actor)
-        return jsonResult({ userId: resolved, unit: basis, programId: newId, status: effectiveStatus })
+        const saved = await saveProgram(resolved, parsed, actor)
+        return jsonResult({ userId: resolved, unit: basis, programId: saved.id, status: saved.status })
       } catch (error: unknown) {
         return errorResult(surfaceProposalGuard(error))
       }

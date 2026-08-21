@@ -2,6 +2,7 @@ import { and, asc, eq, ne } from 'drizzle-orm'
 import { can } from '@/lib/authz'
 import { TEMPLATE_OWNER_USER_ID } from '@/lib/template-owner'
 import { db } from './index'
+import { hasFeature } from './entitlements'
 import { programs } from './schema'
 import { recordProgramEvent } from './program-events'
 import { copyProgramTree, getProgramDetail, type ProgramDetail } from './programs'
@@ -91,6 +92,14 @@ export async function adoptTemplate(
   // read this module performs, and only after the adopt gate passed.
   const source = await getProgramDetail(TEMPLATE_OWNER_USER_ID, templateId)
   if (!source) return null
+  // The paid autoreg capability does not travel with the copy unless the
+  // ADOPTER is entitled: a template row is seeded under the system account
+  // with no gate in its path, so copying its flag verbatim handed Free users
+  // what saveProgram's requireFeature refuses. Clamping (not refusing) is
+  // deliberate — the user asked for the template, not the paid engine, and
+  // the library must stay adoptable on the free tier (fail-to-Free). An
+  // entitled adopter keeps the template's authored value either way.
+  const autoregulation = source.autoregulation && (await hasFeature(userId, 'autoreg'))
   return db.transaction(async (tx) => {
     const [program] = await tx
       .insert(programs)
@@ -101,7 +110,7 @@ export async function adoptTemplate(
         authorActor: TEMPLATE_OWNER_USER_ID,
         mesocycleWeeks: source.mesocycleWeeks,
         deloadWeek: source.deloadWeek,
-        autoregulation: source.autoregulation,
+        autoregulation,
         autoregStallPolicy: source.autoregStallPolicy,
         deloadPolicy: source.deloadPolicy,
         planSync: source.planSync,

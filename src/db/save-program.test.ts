@@ -12,7 +12,10 @@ import { parseProgramInput } from '@/lib/program-input'
  */
 const records: { values: unknown }[] = []
 const updateSets: unknown[] = []
-let updateReturning: unknown[] = [{ id: 'p1' }]
+// Typed to updateProgram's real `.returning({ id, status })` shape so a
+// fixture can't silently omit `status` — toEqual ignores undefined-valued
+// properties, which would let a stale assertion stop guarding the echo.
+let updateReturning: { id: string; status: string }[] = [{ id: 'p1', status: 'draft' }]
 let idCounter = 0
 const ID_SEQUENCE = ['p1', 'd1', 'e1', 'e2', 'd2', 'e3']
 
@@ -80,20 +83,41 @@ vi.mock('@/lib/wger', () => ({ getAllExercises }))
 const { listCustomExercises } = vi.hoisted(() => ({ listCustomExercises: vi.fn() }))
 vi.mock('./custom-exercises', () => ({ listCustomExercises }))
 
+// The autoreg paid gate rides the write path itself; entitled by default (the
+// mocks resolve/return true) so every pre-gate assertion stays untouched.
+// `requireFeature` is the explicit-true refusal; `hasFeature` resolves the
+// OMITTED-flag create default (entitled = ON, Free = OFF). importOriginal
+// keeps FeatureRequiredError's real identity for the refusal tests.
+const { requireFeature, hasFeature } = vi.hoisted(() => ({
+  requireFeature: vi.fn(),
+  hasFeature: vi.fn(),
+}))
+vi.mock('./entitlements', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./entitlements')>()),
+  requireFeature,
+  hasFeature,
+}))
+
 import { saveProgram, updateProgram } from './programs'
 import { NotCoachProposalError, ProposedProgramError } from './program-errors'
+import { FeatureRequiredError } from './entitlements'
 
 const USER = 'user_123'
 
 beforeEach(() => {
   records.length = 0
   updateSets.length = 0
-  updateReturning = [{ id: 'p1' }]
+  updateReturning = [{ id: 'p1', status: 'draft' }]
   selectQueue.length = 0
   selectCalls = 0
   idCounter = 0
   getAllExercises.mockResolvedValue([])
   listCustomExercises.mockResolvedValue([])
+  // Reset calls AND implementations: default = entitled (requireFeature
+  // resolves undefined, hasFeature answers true).
+  requireFeature.mockReset()
+  hasFeature.mockReset()
+  hasFeature.mockResolvedValue(true)
 })
 
 describe('saveProgram (transactional, user-scoped)', () => {
@@ -148,8 +172,8 @@ describe('saveProgram (transactional, user-scoped)', () => {
       expect.objectContaining({ programExerciseId: 'e1', setNumber: 2 }),
     ])
 
-    // Assert — resolves to the new program id
-    expect(result).toEqual({ id: 'p1' })
+    // Assert — resolves to the new program id + the effective status
+    expect(result).toEqual({ id: 'p1', status: 'draft' })
   })
 
   it('persists a day weekday schedule (normalized by parse) on the day row', async () => {
@@ -282,7 +306,7 @@ describe('saveProgram (transactional, user-scoped)', () => {
     const result = await updateProgram(USER, 'p1', input, 'ui')
 
     // Assert — day insert first, then the exercise carrying both fields
-    expect(result).toEqual({ id: 'p1' })
+    expect(result).toEqual({ id: 'p1', status: 'draft' })
     const exerciseInsert = records.find(
       (r) => (r.values as { wgerExerciseId?: number }).wgerExerciseId !== undefined,
     )
@@ -437,14 +461,16 @@ describe('coach drafting policy (actor = coach)', () => {
   })
 
   it("updateProgram keeps a coach replace at status 'proposed' (never a promotion path)", async () => {
-    // Arrange — the coach-scoped gate matched (its own proposal)
-    updateReturning = [{ id: 'p1' }]
+    // Arrange — the coach-scoped gate matched (its own proposal); the row
+    // stays 'proposed', and that is what the gate row reports back.
+    updateReturning = [{ id: 'p1', status: 'proposed' }]
 
     // Act
     const result = await updateProgram(USER, 'p1', INPUT, 'coach')
 
-    // Assert — the metadata update writes 'proposed', not the input's 'active'
-    expect(result).toEqual({ id: 'p1' })
+    // Assert — the metadata update writes 'proposed', not the input's
+    // 'active', and the return echoes the forced status.
+    expect(result).toEqual({ id: 'p1', status: 'proposed' })
     expect(updateSets[0]).toMatchObject({ status: 'proposed' })
   })
 
@@ -569,17 +595,90 @@ describe('updateProgram per-week override preservation', () => {
   })
 })
 
+describe('status lifecycle integrity', () => {
+  const MINIMAL = {
+    name: 'P',
+    days: [{ name: 'D', exercises: [{ wgerExerciseId: 1, name: 'X', sets: [{}] }] }],
+  }
+
+  it("saveProgram defaults an omitted status to 'draft' at create (and reports it)", async () => {
+    // Act
+    const result = await saveProgram(USER, parseProgramInput(MINIMAL), 'ui')
+
+    // Assert — the insert writes the create-time default; the return reports it
+    expect(records[0].values).toMatchObject({ status: 'draft' })
+    expect(result).toEqual({ id: 'p1', status: 'draft' })
+  })
+
+  it('saveProgram writes an explicit status through at create (and reports it)', async () => {
+    // Act
+    const result = await saveProgram(USER, parseProgramInput({ ...MINIMAL, status: 'active' }), 'ui')
+
+    // Assert
+    expect(records[0].values).toMatchObject({ status: 'active' })
+    expect(result).toEqual({ id: 'p1', status: 'active' })
+  })
+
+  it('updateProgram PRESERVES the stored status when the input omits it (omit ≠ draft)', async () => {
+    // Arrange — an upsert that never mentions status: a stored ACTIVE program
+    // must not be silently deactivated back to 'draft' by the round trip. The
+    // gate row reports what stayed true.
+    updateReturning = [{ id: 'p1', status: 'active' }]
+
+    // Act
+    const result = await updateProgram(USER, 'p1', parseProgramInput(MINIMAL), 'mcp')
+
+    // Assert — the update payload does not touch the column at all; the
+    // return reports the PRESERVED stored status (what the upsert echo says).
+    expect(updateSets).toHaveLength(1)
+    expect('status' in (updateSets[0] as Record<string, unknown>)).toBe(false)
+    expect(result).toEqual({ id: 'p1', status: 'active' })
+  })
+
+  it('updateProgram writes an explicit status through', async () => {
+    // Arrange — the gate row reports what the write made true
+    updateReturning = [{ id: 'p1', status: 'archived' }]
+
+    // Act
+    const result = await updateProgram(
+      USER,
+      'p1',
+      parseProgramInput({ ...MINIMAL, status: 'archived' }),
+      'ui',
+    )
+
+    // Assert
+    expect(updateSets[0]).toMatchObject({ status: 'archived' })
+    expect(result).toEqual({ id: 'p1', status: 'archived' })
+  })
+
+  it('updateProgram stamps the replace event with the stored status, not the absent input', async () => {
+    // Arrange
+    updateReturning = [{ id: 'p1', status: 'active' }]
+
+    // Act
+    await updateProgram(USER, 'p1', parseProgramInput(MINIMAL), 'mcp')
+
+    // Assert — the change-log line records what is actually true after the write
+    const event = records
+      .map((r) => r.values as Record<string, unknown>)
+      .find((v) => v.action === 'upsert_program')
+    expect(event).toMatchObject({ payload: { after: { name: 'P', status: 'active' } } })
+  })
+})
+
 describe('autoregulation toggle integrity', () => {
   const MINIMAL = {
     name: 'P',
     days: [{ name: 'D', exercises: [{ wgerExerciseId: 1, name: 'X', sets: [{}] }] }],
   }
 
-  it('saveProgram defaults an omitted toggle to ON at create', async () => {
-    // Act
+  it('saveProgram defaults an omitted toggle to ON at create for an entitled user', async () => {
+    // Act — hasFeature answers true (the beforeEach default)
     await saveProgram(USER, parseProgramInput(MINIMAL), 'ui')
 
-    // Assert
+    // Assert — the propose-don't-impose ON default, resolved via hasFeature
+    expect(hasFeature).toHaveBeenCalledWith(USER, 'autoreg')
     expect(records[0].values).toMatchObject({ autoregulation: true })
   })
 
@@ -602,6 +701,90 @@ describe('autoregulation toggle integrity', () => {
 
     // Assert
     expect(updateSets[0]).toMatchObject({ autoregulation: false })
+  })
+})
+
+describe('autoreg entitlement gate (db-layer, beneath every adapter)', () => {
+  const MINIMAL = {
+    name: 'P',
+    days: [{ name: 'D', exercises: [{ wgerExerciseId: 1, name: 'X', sets: [{}] }] }],
+  }
+  const WITH_AUTOREG = parseProgramInput({ ...MINIMAL, autoregulation: true })
+
+  it('saveProgram refuses an explicit autoregulation:true for an unentitled user before ANY work', async () => {
+    // Arrange — the gate says no (Free tier). Call history is cleared here
+    // (the shared beforeEach re-primes implementations only) so the
+    // no-catalog-read assertion sees just THIS test's calls.
+    getAllExercises.mockClear()
+    requireFeature.mockRejectedValueOnce(new FeatureRequiredError('autoreg', 'pro'))
+
+    // Act + Assert — the refusal surfaces as-is (it names the plan that says
+    // yes), and nothing ran: no catalog read, no insert, no event.
+    await expect(saveProgram(USER, WITH_AUTOREG, 'mcp')).rejects.toThrow(FeatureRequiredError)
+    expect(requireFeature).toHaveBeenCalledWith(USER, 'autoreg')
+    expect(getAllExercises).not.toHaveBeenCalled()
+    expect(records).toHaveLength(0)
+  })
+
+  it('saveProgram writes the flag through for an entitled user', async () => {
+    // Act — requireFeature resolves (the beforeEach default)
+    const result = await saveProgram(USER, WITH_AUTOREG, 'ui')
+
+    // Assert — MINIMAL omits status, so the write defaults it to draft.
+    expect(result).toEqual({ id: 'p1', status: 'draft' })
+    expect(requireFeature).toHaveBeenCalledWith(USER, 'autoreg')
+    expect(records[0].values).toMatchObject({ autoregulation: true })
+  })
+
+  it('saveProgram never hard-refuses an omitted or false flag', async () => {
+    // Act — explicit false is an opt-out, not a paid ask; omitted resolves
+    // through the hasFeature default instead of the refusal gate.
+    await saveProgram(USER, parseProgramInput(MINIMAL), 'ui')
+    await saveProgram(USER, parseProgramInput({ ...MINIMAL, autoregulation: false }), 'ui')
+
+    // Assert — the wger-import and plain-Free-program paths can never be
+    // FAILED by the gate; the opt-out consults nothing at all (only the
+    // omission resolves its default).
+    expect(requireFeature).not.toHaveBeenCalled()
+    expect(hasFeature).toHaveBeenCalledTimes(1)
+  })
+
+  it('saveProgram lands an omitted flag OFF for an unentitled user (omission is not an acquisition path)', async () => {
+    // Arrange — Free tier. The refusal gate must stay silent on omission,
+    // but the create default has to fail-to-Free: "just don't mention the
+    // flag" (the MCP upsert_program shape) must not hand out what an
+    // explicit autoregulation:true is refused.
+    hasFeature.mockResolvedValue(false)
+
+    // Act
+    await saveProgram(USER, parseProgramInput(MINIMAL), 'mcp')
+
+    // Assert — the save succeeds, with the paid engine OFF and no refusal
+    expect(requireFeature).not.toHaveBeenCalled()
+    expect(hasFeature).toHaveBeenCalledWith(USER, 'autoreg')
+    expect(records[0].values).toMatchObject({ autoregulation: false })
+  })
+
+  it('updateProgram refuses an explicit autoregulation:true for an unentitled user before ANY write', async () => {
+    // Arrange — a Free program cannot have the feature edited onto it (the
+    // "same feature obtained one request later" hole).
+    requireFeature.mockRejectedValueOnce(new FeatureRequiredError('autoreg', 'pro'))
+
+    // Act + Assert — no metadata update, no child wipe/re-insert
+    await expect(updateProgram(USER, 'p1', WITH_AUTOREG, 'mcp')).rejects.toThrow(
+      FeatureRequiredError,
+    )
+    expect(updateSets).toHaveLength(0)
+    expect(records).toHaveLength(0)
+  })
+
+  it('updateProgram never consults the gate on an omitted flag (preserve-on-omit stays free)', async () => {
+    // Act — an upsert that never mentions autoregulation must round-trip a
+    // stored ON without demanding the entitlement.
+    await updateProgram(USER, 'p1', parseProgramInput(MINIMAL), 'mcp')
+
+    // Assert
+    expect(requireFeature).not.toHaveBeenCalled()
   })
 })
 
@@ -900,7 +1083,7 @@ describe('saveProgram muscle tagging (Phase 5)', () => {
     const result = await saveProgram(USER, INPUT, 'ui')
 
     // Assert
-    expect(result).toEqual({ id: 'p1' })
+    expect(result).toEqual({ id: 'p1', status: 'draft' })
     expect(records).toHaveLength(5)
   })
 
@@ -949,7 +1132,7 @@ describe('saveProgram muscle tagging (Phase 5)', () => {
     const result = await saveProgram(USER, CUSTOM_INPUT, 'ui')
 
     // Assert
-    expect(result).toEqual({ id: 'p1' })
+    expect(result).toEqual({ id: 'p1', status: 'draft' })
     expect(records[4].values).toEqual([
       { programExerciseId: 'e1', muscle: 'Shoulders', role: 'primary' },
     ])

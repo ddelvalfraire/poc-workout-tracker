@@ -2,7 +2,6 @@
 
 import { revalidatePath } from 'next/cache'
 import { requireUserId } from '@/lib/auth'
-import { requireFeature } from '@/db/entitlements'
 import {
   parseProgramInput,
   statusSchema,
@@ -18,11 +17,11 @@ import {
   setProgramStatus,
   updateProgramDescription,
   cloneProgram,
-  instantiateProgramDay,
   adoptProgram,
   declineProgram,
   countProgramDays,
 } from '@/db/programs'
+import { instantiateProgramDay } from '@/db/prescriptions'
 import { captureServerEvent } from '@/lib/analytics'
 import { setProgramVisibility, createShare, revokeShare } from '@/db/program-shares'
 import {
@@ -40,19 +39,11 @@ import type { TmIncrement } from '@/lib/tm-restart'
 import { proposedTrainingMaxKg } from './[id]/detail-view'
 import type { RestartPreview } from './[id]/restart-view'
 
-/**
- * The paid capabilities a program can carry, checked before it is written.
- *
- * Both create and full-replace edit route through here: gating creation alone
- * would let anyone save a Free program and then edit autoregulation onto it,
- * which is the same feature obtained one request later.
- */
-async function assertProgramEntitlements(
-  userId: string,
-  parsed: { autoregulation?: boolean },
-): Promise<void> {
-  if (parsed.autoregulation) await requireFeature(userId, 'autoreg')
-}
+// The paid-capability gate (autoregulation → requireFeature) lives in the db
+// write path now — saveProgram/updateProgram in db/programs.ts and the narrow
+// toggle op in db/program-patches.ts — beneath every adapter, so the MCP
+// tools can't slip past an action-level check. FeatureRequiredError still
+// surfaces through these actions unchanged.
 
 /**
  * Validates and persists a new program for the signed-in user, returning its id.
@@ -66,7 +57,6 @@ async function assertProgramEntitlements(
 export async function saveProgramAction(input: unknown): Promise<{ id: string }> {
   const userId = await requireUserId()
   const parsed = parseProgramInput(input)
-  await assertProgramEntitlements(userId, parsed)
   const result = await saveProgram(userId, parsed, 'ui')
   revalidatePath('/programs')
   return result
@@ -87,7 +77,6 @@ export async function saveProgramAction(input: unknown): Promise<{ id: string }>
 export async function updateProgramAction(id: string, input: unknown): Promise<{ id: string }> {
   const userId = await requireUserId()
   const parsed = parseProgramInput(input)
-  await assertProgramEntitlements(userId, parsed)
   const result = await updateProgram(userId, id, parsed, 'ui')
   if (!result) throw new Error('program not found')
   revalidatePath('/programs')
@@ -95,15 +84,6 @@ export async function updateProgramAction(id: string, input: unknown): Promise<{
   return result
 }
 
-/**
- * Deletes an owned program (children cascade). Returns void — the client
- * navigates to the list after; we must NOT redirect() here, as the client wraps
- * the call in try/catch and would mistake NEXT_REDIRECT for a failure.
- *
- * A missing result means the program isn't owned (or was already deleted); we
- * throw so the client surfaces an error rather than navigating away as if it
- * had worked — mirroring deleteWorkoutAction's ownership handling.
- */
 /**
  * Updates the program article's description (the FullEditor save path —
  * markdown string, blank clears to null). Narrow on purpose: the builder's
@@ -128,6 +108,15 @@ export async function updateProgramDescriptionAction(
   revalidatePath(`/programs/${id}`)
 }
 
+/**
+ * Deletes an owned program (children cascade). Returns void — the client
+ * navigates to the list after; we must NOT redirect() here, as the client wraps
+ * the call in try/catch and would mistake NEXT_REDIRECT for a failure.
+ *
+ * A missing result means the program isn't owned (or was already deleted); we
+ * throw so the client surfaces an error rather than navigating away as if it
+ * had worked — mirroring deleteWorkoutAction's ownership handling.
+ */
 export async function deleteProgramAction(id: string): Promise<void> {
   const userId = await requireUserId()
   const [deleted] = await deleteProgram(userId, id)
@@ -177,13 +166,6 @@ async function captureProgramStarted(
   }
 }
 
-/**
- * The owner's explicit confirm on a coach-drafted proposal ("we always force
- * the user to confirm"): promotes a 'proposed' program to 'draft', or straight
- * to 'active' (running the single-active sweep) when `activate` is true. The
- * db layer is the guard — this is the ONLY path off 'proposed'. A null result
- * means not owned or not a proposal; throw for the client's try/catch.
- */
 /**
  * Sets (or clears, with null) the program's diet phase from an owner surface
  * (the staleness card's "Still cutting" / "End cut"). Every explicit write —
@@ -240,6 +222,13 @@ export async function setExerciseOvershootPolicyAction(
   return { id }
 }
 
+/**
+ * The owner's explicit confirm on a coach-drafted proposal ("we always force
+ * the user to confirm"): promotes a 'proposed' program to 'draft', or straight
+ * to 'active' (running the single-active sweep) when `activate` is true. The
+ * db layer is the guard — this is the ONLY path off 'proposed'. A null result
+ * means not owned or not a proposal; throw for the client's try/catch.
+ */
 export async function adoptProgramAction(
   id: unknown,
   activate: unknown,

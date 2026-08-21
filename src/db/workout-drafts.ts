@@ -4,7 +4,7 @@ import { db } from './index'
 import { workoutDrafts } from './schema'
 
 /**
- * Data access for cross-device workout drafts, always scoped to a Clerk
+ * Data access for cross-device workout drafts, always scoped to a WorkOS
  * userId. Like `db/preferences.ts`, this module is the authorization
  * boundary: every query filters by `user_id`, and the composite (user_id,
  * key) primary key makes a draft addressable only through its owner.

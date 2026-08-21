@@ -411,7 +411,14 @@ export const programDaySchema = z.object({
 export const programInputSchema = z
   .object({
     name: z.string().trim().min(1).max(MAX_NAME),
-    status: statusSchema.default('draft'),
+    // Lifecycle status. Genuinely OPTIONAL — no .default('draft'): a
+    // materialized default would ride the full-replace update path and
+    // silently reset a stored ACTIVE program to 'draft' (deactivating it)
+    // whenever an upsert omits the field. Same preserve-on-omit discipline
+    // as the switches below: saveProgram defaults omitted-on-create to
+    // 'draft' (the coach path forces 'proposed' either way); updateProgram
+    // preserves the stored status when omitted.
+    status: statusSchema.optional(),
     mesocycleWeeks: z.number().int().min(1).max(52).default(1),
     deloadWeek: z.number().int().min(1).nullable().optional(),
     // Auto-regulation switch (programs.autoregulation). Genuinely OPTIONAL —
@@ -482,6 +489,9 @@ export const programInputSchema = z
   })
 
 export type SetType = z.infer<typeof setTypeSchema>
+/** The concrete input-settable status union — for signatures that must not
+ *  inherit the optionality `ProgramInput['status']` now carries. */
+export type ProgramStatus = z.infer<typeof statusSchema>
 export type ProgramVisibility = z.infer<typeof visibilitySchema>
 export type MetricMode = z.infer<typeof metricModeSchema>
 export type Technique = z.infer<typeof techniqueSchema>

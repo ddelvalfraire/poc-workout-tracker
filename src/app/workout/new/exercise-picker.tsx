@@ -37,9 +37,10 @@ export interface PickedExercise {
 }
 
 const RESULT_LIMIT = 20
-// A 401 right after returning to a backgrounded tab usually means the Clerk
-// session token expired while the tab was hidden; Clerk refreshes it moments
-// after the tab becomes visible, so one delayed retry normally recovers.
+// A 401 right after returning to a backgrounded tab usually means the AuthKit
+// session's access token expired while the tab was hidden; the middleware
+// (src/proxy.ts) refreshes it on the next request, so one delayed retry
+// normally recovers.
 const AUTH_RETRY_DELAY_MS = 1500
 const LISTBOX_ID = 'exercise-search-results'
 // Composite in the DOM id/key too: a custom's id can collide with a wger id.
@@ -67,7 +68,7 @@ async function fetchExercises(url: string, signal: AbortSignal): Promise<Exercis
   return (await res.json()) as ExerciseResult[]
 }
 
-/** One delayed retry on 401 only — the Clerk token-refresh window (see
+/** One delayed retry on 401 only — the AuthKit token-refresh window (see
  *  AUTH_RETRY_DELAY_MS above); any other failure surfaces immediately. */
 const retryOn401 = (failureCount: number, error: Error) =>
   failureCount === 0 && error instanceof RequestError && error.status === 401
@@ -281,7 +282,7 @@ export function ExercisePicker({
                 <button
                   type="button"
                   onClick={() => addExercise(result)}
-                  className="flex w-full items-center gap-4 py-4 text-left transition-colors outline-none hover:bg-muted/50 focus-visible:bg-muted/50"
+                  className="flex w-full items-center gap-4 py-4 text-left transition-colors outline-none hover:bg-muted/50 focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-hidden"
                 >
                   <ResultWords result={result} />
                 </button>
