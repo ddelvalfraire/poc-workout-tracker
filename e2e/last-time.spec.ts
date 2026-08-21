@@ -52,9 +52,16 @@ test('logs a workout, then offers it on the Prev chip next time', async ({ page 
   await startWorkout(page)
   await addExercise(page, 'bench')
 
-  // First time: no prior performance → the chip is the inert em-dash, and the
-  // inputs are blank because an ad-hoc exercise has no plan to ghost either.
-  await expect(page.getByRole('button', { name: /^no previous.*set 1/i })).toBeDisabled()
+  // First time: a brand-new user has no completed workout, so the PREV column
+  // does not exist at all. Header cell and row chips are gated together on
+  // server truth (hasWorkoutHistory), which hands the w-10 back to the inputs
+  // rather than heading a column of em dashes — so assert BOTH are absent,
+  // which is also what pins them to the same gate. Workout 2 below asserts the
+  // column returns once history exists, and that a set with no prior of its
+  // own still gets the disabled em dash inside it. The inputs are blank
+  // because an ad-hoc exercise has no plan to ghost either.
+  await expect(page.getByRole('button', { name: /^no previous.*set 1/i })).toHaveCount(0)
+  await expect(page.getByText('Prev', { exact: true })).toHaveCount(0)
   await expect(page.getByLabel('Set 1 reps')).toHaveValue('')
   expect(await page.getByLabel('Set 1 reps').getAttribute('placeholder')).toBeNull()
 
