@@ -122,13 +122,18 @@ function OverlaySlider({ left, right }: { left: PhotoEntry; right: PhotoEntry })
 
   return (
     <figure className="m-0">
+      {/* No overflow-hidden here, deliberately: the handle is a control sitting
+          ON the media, and at either end of the track its centre lands exactly
+          on the frame's edge — cropping ate half the grip and half its focus
+          ring. The corner radius the crop used to enforce now lives on the
+          photo layers themselves. FocusRingAtExtremes guards this. */}
       <div
         ref={frameRef}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerUp}
-        className="relative aspect-[3/4] touch-none select-none overflow-hidden rounded-xl bg-muted"
+        className="relative aspect-[3/4] touch-none select-none rounded-xl bg-muted"
       >
         <SliderImage entry={right} />
         {/* The earlier photo, clipped at the divider — clip-path only. */}
@@ -195,7 +200,7 @@ function SliderImage({ entry }: { entry: PhotoEntry }) {
   const imageUrl = entry.displayUrl ?? entry.thumbUrl
   return (
     <div
-      className="absolute inset-0"
+      className="absolute inset-0 overflow-hidden rounded-xl"
       style={
         placeholder
           ? { backgroundImage: `url(${placeholder})`, backgroundSize: 'cover' }

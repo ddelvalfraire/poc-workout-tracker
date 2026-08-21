@@ -83,3 +83,57 @@ export const KeyboardFocus: Story = {
     await expect(shadow).toContain("4px");
   },
 }
+
+/** `ring-3` — the grip's ring width, which getBoundingClientRect never includes. */
+const RING_PX = 3;
+
+/** The grip's border box grown by the ring, i.e. what the eye actually sees. */
+function ringBox(el: HTMLElement) {
+  const r = el.getBoundingClientRect();
+  return { left: r.left - RING_PX, right: r.right + RING_PX };
+}
+
+/** Every ancestor up to `stop` that would crop the ring horizontally. */
+function horizontalClippers(el: HTMLElement, stop: HTMLElement) {
+  const found: HTMLElement[] = [];
+  for (let p = el.parentElement; p && p !== stop.parentElement; p = p.parentElement) {
+    if (getComputedStyle(p).overflowX !== "visible") found.push(p);
+  }
+  return found;
+}
+
+/**
+ * The focus ring must survive the ends of the track. The grip is centred on the
+ * divider, so at value 0 its centre sits exactly on the frame's left edge — and
+ * the frame used to be `overflow-hidden`, which cropped half the grip and half
+ * its ring. Half an indicator is still 2.4.7-conformant, but it is not what the
+ * rest of the app looks like when focused.
+ *
+ * Asserted by geometry rather than by class: whatever the implementation, the
+ * ring box has to fit inside every ancestor that crops horizontally.
+ */
+export const FocusRingAtExtremes: Story = {
+  play: async ({ canvasElement }) => {
+    const slider = within(canvasElement).getByRole("slider");
+    const grip = slider.querySelector('[data-slot="compare-grip"]');
+    if (!(grip instanceof HTMLElement)) throw new Error("compare-grip not found");
+
+    const doc = canvasElement.ownerDocument;
+    for (let i = 0; i < 8 && doc.activeElement !== slider; i++) await userEvent.tab();
+    await expect(slider).toHaveFocus();
+
+    // 20 steps of SLIDER_STEP_PERCENT (5) carries 50 to either end.
+    for (const [end, key] of [["0", "{ArrowLeft}"], ["100", "{ArrowRight}"]] as const) {
+      for (let i = 0; i < 20; i++) await userEvent.keyboard(key);
+      await expect(slider).toHaveAttribute("aria-valuenow", end);
+
+      const box = ringBox(grip);
+      const clippers = horizontalClippers(grip, canvasElement);
+      for (const clipper of clippers) {
+        const edge = clipper.getBoundingClientRect();
+        await expect(box.left).toBeGreaterThanOrEqual(Math.floor(edge.left));
+        await expect(box.right).toBeLessThanOrEqual(Math.ceil(edge.right));
+      }
+    }
+  },
+}
