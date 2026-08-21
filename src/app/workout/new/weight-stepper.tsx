@@ -13,10 +13,18 @@ import { useTranslations } from 'next-intl'
 
 /**
  * The weight-input accessory rail: a hairline ButtonGroup ± pair (signed
- * step chips, never bare icons) plus the per-side plate chip, riding under
- * whichever weight input holds focus (the logger owns that gating via
- * stepperSetId). Extracted from workout-logger.tsx (#216); precedent:
- * rest-pill.tsx.
+ * step chips, never bare icons) plus the per-side plate chip, shown while a
+ * weight input holds focus (the logger owns that gating via stepperSetId).
+ * Extracted from workout-logger.tsx (#216); precedent: rest-pill.tsx.
+ *
+ * It DOCKS IN THE STICKY BAR — that is a correctness contract, not a
+ * placement preference, so do not move it back under the focused row.
+ * Focus-gated content inside the scrolling flow changes the height of
+ * everything below it at the exact moment a tap begins: mousedown blurs the
+ * input, the rail unmounts, the control under the finger jumps, mouseup
+ * lands elsewhere, and the browser never synthesizes a click at all. The bar
+ * is bottom-anchored, so the rail grows it upward and nothing moves. See the
+ * mount site in workout-logger.tsx; pinned by e2e/sticky-cta.spec.ts.
  *
  * Load-bearing contracts, do not touch:
  * - `onPointerDown` preventDefault on every control keeps the weight input
@@ -245,10 +253,12 @@ export function WeightStepper({
         : t('noun.weight')
 
   return (
-    // Full-width rail aligned to the input columns (left inset = circle +
-    // prev + gaps, right = the row's X) — one control, not two orphaned
-    // buttons floating right. Hairline ButtonGroup skin only, no card shell.
-    <div className="flex flex-col gap-1.5 pl-22 pr-11 motion-safe:animate-rise-in">
+    // Full-width rail — one control, not two orphaned buttons floating
+    // right. Hairline ButtonGroup skin only, no card shell. No column
+    // insets: docked in the bar it spans the bar's width, where the old
+    // pl-22/pr-11 (calibrated to a set row's circle + prev + X columns)
+    // would read as an arbitrary indent.
+    <div className="flex flex-col gap-1.5 motion-safe:animate-rise-in">
       <ButtonGroup>
         {([-1, 1] as const).map((direction) => {
           const isFloored = direction === -1 && atFloor

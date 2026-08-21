@@ -89,6 +89,7 @@ Contrast-axis pairing (condensed display + neutral UI sans), not two similar san
 - **Inputs**: 16px font (`text-base`) to eliminate iOS tap-zoom; height ≥44px (`h-11`); clear focus ring in the volt/ring color.
 - **Buttons**: primary/default and `lg` are ≥44px tall for touch; compact `sm`/`xs`/`icon` retained for inline affordances (e.g. remove-set). One consistent shape app-wide. States: default/hover/focus/active/disabled/loading all defined.
 - **App shell**: sticky top header with brand title + user button, padded for `env(safe-area-inset-top)`. Primary actions (Start / Save) are full-width and thumb-reachable; the logger's Save sits in a bottom action bar padded for `env(safe-area-inset-bottom)`.
+- **Bottom action bar**: the logger's thumb bar is also the DOCK for focus-gated accessories — the weight ± rail, the rest pill, the next-up glance. Nothing focus-gated may live in the scrolling flow: it mounts and unmounts on the same mousedown that begins a tap, so whatever sits below it jumps and the browser never synthesizes the click. The bar is bottom-anchored (`mt-auto` on a flex-column `main` plus `sticky bottom-0`), so anything stacked into it grows the bar UPWARD and displaces neither its own buttons nor the page. Pinned by `e2e/sticky-cta.spec.ts`.
 - **List rows**: lifted surface, hairline dividers, generous vertical padding for touch.
 
 ## Layout & Mobile

@@ -4,11 +4,11 @@ import { createTestUser, deleteTestUser, signIn, type TestUser } from './auth'
 import { addExercise, detailUrl, FINISHED_URL, typeInto, workoutIdFrom } from './logger'
 
 /**
- * The logger's sticky bar must not move when focus leaves a set input.
+ * Nothing the user is about to tap may move when focus leaves a set input.
  *
  * The bug this pins: the WeightStepper rail is focus-gated (it mounts on the
- * weight input's focus, unmounts on its blur) and lives in the scrolling
- * content ABOVE the bar. The bar used to render at its flow position, so the
+ * weight input's focus, unmounts on its blur) and used to live in the
+ * scrolling content ABOVE the bar. The bar used to render at its flow position, so the
  * rail's ~57px was part of what decided where the bar sat. Pressing Finish
  * with the weight field still focused blurred the field on mousedown, the
  * rail vanished, the bar jumped up, and mouseup landed off the button — so
@@ -29,6 +29,13 @@ import { addExercise, detailUrl, FINISHED_URL, typeInto, workoutIdFrom } from '.
  * first, and a narrow viewport reflows the rail differently. What this still
  * cannot cover is a real software keyboard dismissing under the same tap —
  * that needs a device, and it compounds this reflow rather than replacing it.
+ *
+ * TWO controls are covered, because they needed two different fixes. The bar
+ * was ANCHORED (#294, mt-auto on a flex-column main) so its position stops
+ * depending on content height. That did nothing for "+ Add set", which sits
+ * BELOW the rail in the scrolling flow — for that, the rail had to leave the
+ * flow altogether, which is why it now mounts inside the bar. Undo either
+ * half and one of the tests below goes red.
  */
 
 const PHONE = { width: 390, height: 844 }
@@ -167,3 +174,46 @@ test('Save changes takes the first tap on the edit surface', async ({ page }) =>
   `
   expect(sets).toEqual([{ weight: 105 }])
 })
+
+/**
+ * The same reflow, one control further down. "+ Add set" sits BELOW the rail
+ * in the scrolling flow, so anchoring the bar never protected it: mousedown
+ * blurred the weight field, the rail unmounted, the button jumped up by the
+ * rail's height (measured: y 453 -> 393), mouseup landed on nothing, and the
+ * browser never synthesized a click. Set 2 was simply never added — no error,
+ * and Playwright reported the click as having succeeded.
+ *
+ * Both halves again, for the same reasons as above: GEOMETRY says the button
+ * is genuinely out of the rail's reflow, BEHAVIOUR says a real tap lands.
+ * This is the test that fails if the rail is ever moved back under the
+ * focused row.
+ */
+for (const [label, viewport] of [
+  ['phone', PHONE],
+  ['desktop', DESKTOP],
+] as const) {
+  test(`+ Add set takes the first tap with a set input still focused (${label})`, async ({
+    page,
+  }) => {
+    await page.setViewportSize(viewport)
+    await signIn(page, user)
+
+    await page.goto('/workout/new')
+    const weight = await logOneSet(page)
+
+    // Scoped to the logger: the program builder has a "+ Add set" of its own,
+    // and a locator that could match either would rot silently.
+    const addSet = page.getByRole('button', { name: /^\+ add set$/i })
+    await expect(addSet).toHaveCount(1)
+    const secondSet = page.getByLabel('Set 2 reps')
+    await expect(secondSet).toHaveCount(0)
+
+    await expectCtaAnchoredAcrossBlur(page, weight, addSet)
+
+    // The tap itself: one real click, focus still in the weight field. The
+    // blur it fires unmounts the rail — if that reflow can still reach this
+    // button, mouseup lands elsewhere and no row is ever added.
+    await addSet.click()
+    await expect(secondSet).toBeVisible()
+  })
+}
