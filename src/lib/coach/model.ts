@@ -18,8 +18,8 @@ export const DEFAULT_COACH_MODEL = 'anthropic/claude-sonnet-4.5'
 /**
  * Anthropic prompt caching, applied at the request root.
  *
- * The coach re-sends a large, byte-identical prefix on every turn: 44 MCP tool
- * schemas, then the system prompt. Anthropic caches in tools → system →
+ * The coach re-sends a large, byte-identical prefix on every turn: the MCP
+ * tool schemas, then the system prompt. Anthropic caches in tools → system →
  * messages order, so that prefix is the whole win. Root-level `cache_control`
  * is OpenRouter's multi-turn mode — it puts the breakpoint on the last
  * cacheable block and ADVANCES it as the conversation grows, so settled

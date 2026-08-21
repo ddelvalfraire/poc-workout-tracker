@@ -3,7 +3,7 @@ import { db } from './index'
 import { bodyweightLogs, userPreferences } from './schema'
 
 /**
- * Data access for bodyweight logs, always scoped to a Clerk userId.
+ * Data access for bodyweight logs, always scoped to a WorkOS userId.
  *
  * Like the workouts module, this is the authorization boundary: every query
  * filters by user_id. The table is the measurement HISTORY;

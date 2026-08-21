@@ -24,7 +24,7 @@ import {
 
 /**
  * Account deletion's Postgres sweep: every ownership-root table keyed by the
- * Clerk user id, in ONE transaction. Child tables (workout_exercises, sets,
+ * WorkOS user id, in ONE transaction. Child tables (workout_exercises, sets,
  * program_days/exercises/sets/overrides/muscles, template exercises, shares)
  * all reference their roots with onDelete:'cascade' (verified in schema.ts)
  * — deleting the roots deletes everything. program_patch_proposals and

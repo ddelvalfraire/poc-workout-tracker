@@ -169,7 +169,7 @@ export function requiresApproval(toolName: string): boolean {
  * purpose: tools added to the registry later are excluded until explicitly
  * admitted here.
  *
- * Sorted by name, and that is load-bearing rather than tidiness. These 44
+ * Sorted by name, and that is load-bearing rather than tidiness. These
  * schemas are the head of the prompt-cache prefix (Anthropic caches
  * tools → system → messages in that order). The MCP client makes no promise
  * about iteration order, and a prefix that serializes differently between two

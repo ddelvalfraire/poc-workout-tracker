@@ -4,7 +4,7 @@ import { bodyMeasurements } from './schema'
 import { isMeasurementSite, type MeasurementSite } from '@/lib/measurement-sites'
 
 /**
- * Data access for tape measurements, always scoped to a Clerk userId — the
+ * Data access for tape measurements, always scoped to a WorkOS userId — the
  * same authorization-boundary contract as db/bodyweight.ts. Unlike bodyweight
  * there is NO denormalized current value to resync (nothing scores off a
  * girth), so writes are single statements, not transactions.

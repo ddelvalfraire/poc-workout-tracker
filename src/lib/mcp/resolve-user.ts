@@ -3,7 +3,7 @@ import type { ProgramEventActor } from '@/db/program-events'
 
 /**
  * The slice of an MCP tool/resource `extra` we read: the authenticated identity
- * the route's `verifyToken` stashed in `AuthInfo.extra.userId`, plus the
+ * the route's `verifyAccessToken` stashed in `AuthInfo.extra.userId`, plus the
  * `clientId` the coach's in-memory bridge stamps (`'coach-chat'`). Kept minimal
  * (not the SDK's full `RequestHandlerExtra`) so tests can pass a plain object.
  */

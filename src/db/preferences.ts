@@ -7,7 +7,7 @@ import { equipmentForUnit, type Equipment, type StoredEquipment } from '@/lib/eq
 import { resolveHomeLayout, type HomeLayout, type ResolvedHomeSection } from '@/lib/home/layout'
 
 /**
- * Data access for per-user preferences, always scoped to a Clerk userId.
+ * Data access for per-user preferences, always scoped to a WorkOS userId.
  *
  * Like the workouts module, this is the authorization boundary: every query
  * filters by user_id. The `unit` column is loose `text`, so reads guard it with

@@ -4,7 +4,7 @@ import { db } from './index'
 import { workoutTemplates, workoutTemplateExercises } from './schema'
 
 /**
- * Data access for standalone workout templates, always scoped to a Clerk
+ * Data access for standalone workout templates, always scoped to a WorkOS
  * userId. Like `db/workouts.ts`, this module is the authorization boundary:
  * no Postgres RLS exists, so every query filters by user_id on the
  * `workout_templates` root; children inherit ownership through template_id.

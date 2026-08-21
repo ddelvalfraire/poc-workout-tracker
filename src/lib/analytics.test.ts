@@ -122,7 +122,7 @@ describe('captureServerEvent', () => {
     expect(captureImmediate).not.toHaveBeenCalled()
   })
 
-  it('captures with the Clerk user id as distinct_id and serverless flush options', async () => {
+  it('captures with the WorkOS user id as distinct_id and serverless flush options', async () => {
     vi.stubEnv('NEXT_PUBLIC_POSTHOG_KEY', 'phc_test')
     const { captureServerEvent } = await importAnalytics()
 

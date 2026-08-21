@@ -5,7 +5,7 @@ import { db } from './index'
 import { exerciseNotes } from './schema'
 
 /**
- * Data access for exercise-IDENTITY notes, always scoped to a Clerk userId.
+ * Data access for exercise-IDENTITY notes, always scoped to a WorkOS userId.
  *
  * Like `db/custom-exercises.ts`, this module is the authorization boundary:
  * every query filters by `user_id`, and route/MCP handlers must go through

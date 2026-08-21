@@ -97,14 +97,6 @@ import { workouts, workoutExercises, sets } from './schema'
  * never re-derived — the writers above change the FUTURE, never the record.
  */
 
-/**
- * The engine-derived week-N prescription for every exercise of a loaded day,
- * in exercise order: history reads (batched all-time rows for e1RM; last
- * performance only for double-progression exercises), `deriveWeekSets`, then
- * per-set overrides merged on top (override > deload > scheme > template).
- * Shared by `instantiateProgramDay` and `preview_program_week` so what the
- * preview shows is exactly what instantiation seeds.
- */
 /** The slice of a loaded day the prescription derivation needs — satisfied by
  *  both `getProgramDayDetail` (instantiation) and a `getProgramDetail` day
  *  paired with its program row (preview). */
@@ -246,6 +238,14 @@ function quantizeAdjustedSet(set: DerivedSet, unit: WeightUnit): DerivedSet {
   return loadKg === set.loadKg ? set : { ...set, loadKg }
 }
 
+/**
+ * The engine-derived week-N prescription for every exercise of a loaded day,
+ * in exercise order: history reads (batched all-time rows for e1RM; last
+ * performance only for double-progression exercises), `deriveWeekSets`, then
+ * per-set overrides merged on top (override > deload > scheme > template).
+ * Shared by `instantiateProgramDay` and `preview_program_week` so what the
+ * preview shows is exactly what instantiation seeds.
+ */
 export async function deriveDayPrescription(
   userId: string,
   day: DayForDerivation,

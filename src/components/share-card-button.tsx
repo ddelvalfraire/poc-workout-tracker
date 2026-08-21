@@ -11,7 +11,7 @@ const HINT_DISMISS_MS = 4000
 
 interface ShareCardButtonProps {
   /** Same-origin authed card route, e.g. /api/cards/trophy/club_squat_315.
-   *  The Clerk session cookie rides the fetch — the PNG never has a public URL. */
+   *  The WorkOS session cookie rides the fetch — the PNG never has a public URL. */
   cardUrl: string
   /** Share-sheet title; also seeds the fallback download filename. */
   shareTitle: string

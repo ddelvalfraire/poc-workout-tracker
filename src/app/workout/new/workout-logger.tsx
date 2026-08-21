@@ -284,9 +284,9 @@ export function WorkoutLogger({
   // calls it BEFORE router.push (the #25 stranded-::backdrop race).
   const closeDiscardDialogRef = useRef<(() => void) | null>(null)
   // Prior performance per distinct exercise, for the per-set ghost
-  // placeholders. TanStack Query owns dedupe/caching/retry (this replaced a
-  // hand-rolled requestedRef cache); provider defaults keep ghosts fresh per
-  // session and a tab refocus picks up sets logged elsewhere (e.g. via MCP).
+  // placeholders. TanStack Query owns dedupe/caching/retry; provider
+  // defaults keep ghosts fresh per session and a tab refocus picks up sets
+  // logged elsewhere (e.g. via MCP).
   // Deduped by the COMPOSITE identity — a custom exercise's id can collide
   // with a wger id, and the two must never share ghosts, bests, or caches.
   const exerciseRefs = Array.from(
@@ -780,7 +780,6 @@ export function WorkoutLogger({
 
   function handleRememberJustToday() {
     if (!pendingRemember) return
-    // Copy-then-add: never mutate state in place.
     setRememberSnoozed((prev) =>
       new Set(prev).add(`${pendingRemember.originalSource}:${pendingRemember.originalId}`),
     )
@@ -921,8 +920,8 @@ export function WorkoutLogger({
   // session started on the phone resumes on the laptop). In edit mode this
   // intentionally wins over the server-seeded workout rows: a live draft is
   // newer than the row it was seeded from. Last writer wins across devices.
-  // The PAGES now pre-seed this same draft server-side (no content swap on
-  // mount); this fetch remains as the cross-device race net — a draft
+  // The PAGES pre-seed this same draft server-side (no content swap on
+  // mount); this fetch is the cross-device race net — a draft
   // written after the page rendered still lands here. When both saw the same
   // draft, the RESTORE_DRAFT dispatch is a same-values no-op for the
   // autosave snapshot; dirtyRef keeps it from clobbering in-flight typing.
@@ -1533,13 +1532,11 @@ export function WorkoutLogger({
               </h3>
               <div className="-mr-1 flex shrink-0 items-center">
               {/* Notes affordance (one per exercise): the notes-v2 roll-up and
-                  the note entry are the SAME button. They used to be two —
-                  and because exerciseNoteCount counts noted SETS as well as
-                  the exercise's own note, one noted set lit the roll-up while
-                  the entry still showed, putting two identical pens in the
-                  rail with no cue which one was pressable. Merged: pen + count
-                  when anything is noted, bare pen when nothing is; either way
-                  it opens this session's note editor. Chips mean pressable, so
+                  the note entry are the SAME button — pen + count when
+                  anything is noted, bare pen when nothing is; either way it
+                  opens this session's note editor. One merged affordance on
+                  purpose: two identical pens in the rail would give no cue
+                  which one is pressable. Chips mean pressable, so
                   a count that can be pressed wears a control's skin — the
                   rail's own ghost button, sized to fit the number. Keeps the
                   entry's hit-44-y (#236): the rail's buttons are 36px, and the

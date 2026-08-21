@@ -39,7 +39,7 @@ export const workouts = pgTable(
   'workouts',
   {
     id: uuid('id').defaultRandom().primaryKey(),
-    userId: text('user_id').notNull(), // Clerk user id, e.g. "user_2abc..."
+    userId: text('user_id').notNull(), // WorkOS user id, e.g. "user_01JXYZ..."
     name: text('name'),
     startedAt: timestamp('started_at', { withTimezone: true }).defaultNow().notNull(),
     completedAt: timestamp('completed_at', { withTimezone: true }),
@@ -76,7 +76,7 @@ export const importBatches = pgTable(
   'import_batches',
   {
     id: uuid('id').defaultRandom().primaryKey(),
-    userId: text('user_id').notNull(), // Clerk user id — ownership root
+    userId: text('user_id').notNull(), // WorkOS user id — ownership root
     source: text('source').$type<'strong' | 'hevy'>().notNull(),
     fileName: text('file_name'), // nullable — uploads may carry no name
     workoutCount: integer('workout_count').notNull(),
@@ -183,7 +183,7 @@ export const sets = pgTable(
 )
 
 export const userPreferences = pgTable('user_preferences', {
-  userId: text('user_id').primaryKey(), // Clerk user id; one row per user
+  userId: text('user_id').primaryKey(), // WorkOS user id; one row per user
   unit: text('unit').notNull().default('lb'), // weight display unit: 'kg' | 'lb'; product default lb
   // Plate-calculator gear ({ unit, bars, plates } — see lib/equipment.ts).
   // Nullable: readers default per unit; stored unit-native, never converted.
@@ -233,7 +233,7 @@ export const bodyweightLogs = pgTable(
   'bodyweight_logs',
   {
     id: uuid('id').defaultRandom().primaryKey(),
-    userId: text('user_id').notNull(), // Clerk user id — ownership root
+    userId: text('user_id').notNull(), // WorkOS user id — ownership root
     weighedAt: timestamp('weighed_at', { withTimezone: true }).defaultNow().notNull(),
     // Canonical kg, same precision as user_preferences.bodyweight_kg so the
     // synced current value is always exactly one log row's value.
@@ -256,7 +256,7 @@ export const bodyMeasurements = pgTable(
   'body_measurements',
   {
     id: uuid('id').defaultRandom().primaryKey(),
-    userId: text('user_id').notNull(), // Clerk user id — ownership root
+    userId: text('user_id').notNull(), // WorkOS user id — ownership root
     measuredAt: timestamp('measured_at', { withTimezone: true }).defaultNow().notNull(),
     site: text('site').$type<MeasurementSite>().notNull(),
     // Canonical cm. numeric(5,2) caps at 999.99; the data layer enforces the
@@ -281,7 +281,7 @@ export const progressPhotos = pgTable(
   'progress_photos',
   {
     id: uuid('id').defaultRandom().primaryKey(),
-    userId: text('user_id').notNull(), // Clerk user id — ownership root
+    userId: text('user_id').notNull(), // WorkOS user id — ownership root
     takenAt: timestamp('taken_at', { withTimezone: true }).defaultNow().notNull(),
     // Bucket object keys, stored (not derived) so a delete removes exactly
     // what was uploaded even if the key scheme ever changes.
@@ -313,7 +313,7 @@ export const goals = pgTable(
   'goals',
   {
     id: uuid('id').defaultRandom().primaryKey(),
-    userId: text('user_id').notNull(), // Clerk user id — ownership root
+    userId: text('user_id').notNull(), // WorkOS user id — ownership root
     kind: text('kind').$type<GoalKind>().notNull(),
     // Narrow, kind-discriminated jsonb (validated at the boundary): nothing
     // aggregates over target fields, so the column-vs-JSON rule allows it.
@@ -345,7 +345,7 @@ export const trophies = pgTable(
   'trophies',
   {
     id: uuid('id').defaultRandom().primaryKey(),
-    userId: text('user_id').notNull(), // Clerk user id — ownership root
+    userId: text('user_id').notNull(), // WorkOS user id — ownership root
     kind: text('kind').$type<TrophyKind>().notNull(),
     achievedAt: timestamp('achieved_at', { withTimezone: true }).defaultNow().notNull(),
     context: jsonb('context').$type<TrophyContext>().notNull().default({}),
@@ -369,7 +369,7 @@ export const trophies = pgTable(
 export const workoutDrafts = pgTable(
   'workout_drafts',
   {
-    userId: text('user_id').notNull(), // Clerk user id — ownership root
+    userId: text('user_id').notNull(), // WorkOS user id — ownership root
     key: text('key').notNull(), // 'new' | workout uuid
     payload: jsonb('payload').notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
@@ -390,7 +390,7 @@ export const customExercises = pgTable(
   'custom_exercises',
   {
     id: integer('id').primaryKey().generatedAlwaysAsIdentity(),
-    userId: text('user_id').notNull(), // Clerk user id — ownership root, like `workouts`/`programs`
+    userId: text('user_id').notNull(), // WorkOS user id — ownership root, like `workouts`/`programs`
     name: text('name').notNull(),
     category: text('category').$type<ExerciseCategory>().notNull(), // wger's fixed 8-category set, enforced at the input boundary
     equipment: text('equipment').array(),
@@ -419,7 +419,7 @@ export const exerciseNotes = pgTable(
   'exercise_notes',
   {
     id: uuid('id').defaultRandom().primaryKey(),
-    userId: text('user_id').notNull(), // Clerk user id — ownership root, like `workouts`/`programs`
+    userId: text('user_id').notNull(), // WorkOS user id — ownership root, like `workouts`/`programs`
     // 'wger' | 'custom' — exercise identity is the composite (source, id).
     source: text('source').$type<ExerciseSource>().notNull().default('wger'),
     // Exercise ref, always positive (CHECK) — holds a custom_exercises.id when
@@ -463,7 +463,7 @@ export const notes = pgTable(
   'notes',
   {
     id: uuid('id').defaultRandom().primaryKey(),
-    userId: text('user_id').notNull(), // Clerk user id — ownership root
+    userId: text('user_id').notNull(), // WorkOS user id — ownership root
     // Who wrote it: 'user' | 'coach' (text + app-level union, validated at
     // the boundary like `status`/`source` everywhere else).
     author: text('author').$type<NoteAuthor>().notNull().default('user'),
@@ -519,7 +519,7 @@ export const workoutTemplates = pgTable(
   'workout_templates',
   {
     id: uuid('id').defaultRandom().primaryKey(),
-    userId: text('user_id').notNull(), // Clerk user id — ownership root, like `workouts`
+    userId: text('user_id').notNull(), // WorkOS user id — ownership root, like `workouts`
     name: text('name').notNull(),
     description: text('description'),
     // Emoji/short token for list rows, same convention as programs.icon.
@@ -611,7 +611,7 @@ export const pushSubscriptions = pgTable(
   'push_subscriptions',
   {
     id: uuid('id').defaultRandom().primaryKey(),
-    userId: text('user_id').notNull(), // Clerk user id — ownership root
+    userId: text('user_id').notNull(), // WorkOS user id — ownership root
     endpoint: text('endpoint').notNull().unique(),
     p256dh: text('p256dh').notNull(),
     auth: text('auth').notNull(),
@@ -632,7 +632,7 @@ export const programs = pgTable(
   'programs',
   {
     id: uuid('id').defaultRandom().primaryKey(),
-    userId: text('user_id').notNull(), // Clerk user id
+    userId: text('user_id').notNull(), // WorkOS user id
     name: text('name').notNull(),
     // 'draft' | 'active' | 'archived' | 'proposed'. A 'proposed' row is a
     // coach-drafted plan behind the forced owner confirm: it derives nothing,
@@ -740,7 +740,7 @@ export const programPatchProposals = pgTable(
     programId: uuid('program_id')
       .notNull()
       .references(() => programs.id, { onDelete: 'cascade' }),
-    userId: text('user_id').notNull(), // Clerk user id — ownership root, like `programs`
+    userId: text('user_id').notNull(), // WorkOS user id — ownership root, like `programs`
     // Who proposed — same open value space philosophy as programs.authorActor
     // ('coach' | 'mcp' today; a human coach's user id later needs data, not
     // schema).
@@ -981,7 +981,7 @@ export const programEvents = pgTable(
     programId: uuid('program_id')
       .notNull()
       .references(() => programs.id, { onDelete: 'cascade' }),
-    userId: text('user_id').notNull(), // Clerk user id — ownership root, like `programs`
+    userId: text('user_id').notNull(), // WorkOS user id — ownership root, like `programs`
     occurredAt: timestamp('occurred_at', { withTimezone: true }).defaultNow().notNull(),
     actor: text('actor').$type<'ui' | 'mcp' | 'coach' | 'wger' | 'seed'>().notNull(),
     action: text('action').notNull(),
@@ -1089,7 +1089,7 @@ export const consentEvents = pgTable(
   'consent_events',
   {
     id: uuid('id').defaultRandom().primaryKey(),
-    userId: text('user_id').notNull(), // Clerk user id (pseudonymized on account deletion)
+    userId: text('user_id').notNull(), // WorkOS user id (pseudonymized on account deletion)
     purpose: text('purpose').$type<ConsentPurpose>().notNull(),
     action: text('action').$type<'granted' | 'withdrawn' | 'reconfirmed'>().notNull(),
     // Null on withdrawals — you withdraw a purpose, not a document version.

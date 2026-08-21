@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { resolveUserId, resolveActor, type AuthCtx } from './resolve-user'
 import { ToolError } from './errors'
 
-/** Builds a tool `extra` carrying an authenticated userId, as verifyToken stashes it. */
+/** Builds a tool `extra` carrying an authenticated userId, as verifyAccessToken stashes it. */
 function authed(userId: unknown): AuthCtx {
   return { authInfo: { extra: { userId } } }
 }

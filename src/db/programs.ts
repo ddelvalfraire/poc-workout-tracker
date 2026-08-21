@@ -28,7 +28,7 @@ import {
 } from './schema'
 
 /**
- * Data access for training programs, always scoped to a Clerk userId.
+ * Data access for training programs, always scoped to a WorkOS userId.
  *
  * Like `db/workouts.ts`, this module is the authorization boundary: the app has
  * no Postgres row-level security, so every query filters by `user_id` on the
@@ -1006,10 +1006,12 @@ export interface ProgramWeekState {
 /**
  * The week `instantiate_program_day` should default to, derived from the
  * program's own workout history (no stored counter to drift): the highest
- * `programWeek` already instantiated is the current week; once every day of
- * the program has a workout at that week, the cycle is complete and the next
- * week begins — clamped to `mesocycleWeeks` so a finished meso re-runs its
- * last week rather than extrapolating. No history → week 1.
+ * `programWeek` actually TRAINED (≥1 completed set — instantiating alone
+ * counts for nothing, see the predicate below) is the current week; once
+ * every day of the program has a completed, trained workout at that week, the
+ * cycle is complete and the next week begins — clamped to `mesocycleWeeks` so
+ * a finished meso re-runs its last week rather than extrapolating. No trained
+ * history → week 1.
  *
  * `blockComplete` is that same rule firing AT the boundary: the observed week
  * is at (or past) `mesocycleWeeks` and every day of it is done. Accepted
@@ -1156,10 +1158,13 @@ export interface NextProgramDay {
  * home screen widget needs, or null when there's nothing to suggest (no
  * active program, or an active program with no days).
  *
- * "Active" is the most recently updated program with status 'active' (nothing
- * enforces a single active program; recency is the tiebreak). The week comes
- * from `nextProgramWeek`; the day rotates forward from the last day trained at
- * that week, wrapping to make up skipped days (`pickNextProgramDay`).
+ * "Active" is the most recently updated program with status 'active'. The
+ * activate paths (`setProgramStatus`, `adoptProgram`) sweep sibling actives to
+ * 'archived', but the sweep is best-effort and no DB constraint enforces
+ * uniqueness — recency is the tiebreak for a brief two-active state. The week
+ * comes from `programWeekState`; the day rotates forward from the last day
+ * trained at that week, wrapping to make up skipped days
+ * (`pickNextProgramDay`).
  */
 async function getNextProgramDayUncached(userId: string): Promise<NextProgramDay | null> {
   const [program] = await db
