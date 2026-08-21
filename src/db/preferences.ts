@@ -120,6 +120,35 @@ export async function setDefaultRestSec(userId: string, sec: number | null): Pro
 }
 
 /**
+ * The lifter's ± step for the weight field, unit-native, or null when never
+ * set. Returned RAW — callers resolve it with `resolveWeightStep`, which is
+ * also what drops a value the current unit does not offer. Keeping the guard
+ * at the caller means the stored number survives a round trip through the
+ * other unit and back.
+ */
+export async function getWeightStep(userId: string): Promise<number | null> {
+  const [row] = await db
+    .select({ weightStep: userPreferences.weightStep })
+    .from(userPreferences)
+    .where(eq(userPreferences.userId, userId))
+    .limit(1)
+  const value = row?.weightStep ?? null
+  return value !== null && Number.isFinite(value) && value > 0 ? value : null
+}
+
+/** Upserts the lifter's ± step (validated by setWeightStepAction); null
+ *  reverts to the unit default. */
+export async function setWeightStep(userId: string, step: number | null): Promise<void> {
+  await db
+    .insert(userPreferences)
+    .values({ userId, weightStep: step })
+    .onConflictDoUpdate({
+      target: userPreferences.userId,
+      set: { weightStep: step, updatedAt: new Date() },
+    })
+}
+
+/**
  * Whether the rest-timer surface is enabled at all (readout + targets).
  * Defaults to true — the timer is the feature's normal state — and only a
  * literal stored `false` disables it, so a missing row or corrupt value can

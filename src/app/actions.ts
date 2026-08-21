@@ -7,12 +7,14 @@ import {
   setWeightUnit,
   setEquipment,
   setDefaultRestSec,
+  setWeightStep,
   setRestTimerEnabled,
   setHomeLayout,
   setRpeLoggingEnabled,
   getWeightUnit,
 } from '@/db/preferences'
 import { parseHomeLayoutInput } from '@/lib/home/layout'
+import { WEIGHT_STEP_CHOICES } from '@/lib/format'
 import { logBodyweight, deleteBodyweightLog } from '@/db/bodyweight'
 import { checkGoalAchievements } from '@/lib/goals'
 import { logMeasurement, deleteMeasurement } from '@/db/body-measurements'
@@ -157,6 +159,24 @@ export async function setDefaultRestSecAction(sec: unknown): Promise<void> {
     throw new Error(`rest target must be null or an integer between 0 and ${MAX_REST_SEC} seconds`)
   }
   await setDefaultRestSec(userId, sec)
+  revalidatePath('/', 'layout')
+}
+
+/**
+ * Persists the lifter's ± step for the weight field. Boundary-validated
+ * against the CURRENT unit's choices rather than a range: the picker offers a
+ * fixed list per unit, so anything else is either a stale client or a forged
+ * call. null clears it back to the unit default.
+ */
+export async function setWeightStepAction(step: unknown): Promise<void> {
+  const userId = await requireUserId()
+  if (step !== null) {
+    const unit = await getWeightUnit(userId)
+    if (typeof step !== 'number' || !WEIGHT_STEP_CHOICES[unit].includes(step)) {
+      throw new Error(`weight step must be null or one of ${WEIGHT_STEP_CHOICES[unit].join(', ')} ${unit}`)
+    }
+  }
+  await setWeightStep(userId, step)
   revalidatePath('/', 'layout')
 }
 

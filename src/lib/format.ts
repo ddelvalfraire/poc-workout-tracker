@@ -437,6 +437,25 @@ export function completedSetsSummary(
  *  BOTH sides (2×1.25 kg / 2×2.5 lb). */
 export const WEIGHT_STEP: Record<WeightUnit, number> = { kg: 2.5, lb: 5 }
 
+/** What the settings picker offers, unit-native. The defaults above are the
+ *  middle of each list: the smallest plate pair most gyms have (2.5 kg / 5 lb).
+ *  Smaller suits microloading and machines; larger suits a lifter who only
+ *  ever jumps in whole plates. */
+export const WEIGHT_STEP_CHOICES: Record<WeightUnit, readonly number[]> = {
+  kg: [0.5, 1, 1.25, 2.5, 5],
+  lb: [1, 2.5, 5, 10],
+}
+
+/** The step to actually use: the user's stored preference when it is one this
+ *  unit offers, the unit default otherwise. Guards stored data the way
+ *  getDefaultRestSec does — a row written under the other unit, or corrupted,
+ *  degrades to the default rather than stepping by something nonsensical.
+ *  The preference is stored unit-native and NOT converted on a unit switch,
+ *  so this is also what makes a kg step stop applying to lb. */
+export function resolveWeightStep(stored: number | null | undefined, unit: WeightUnit): number {
+  return stored != null && WEIGHT_STEP_CHOICES[unit].includes(stored) ? stored : WEIGHT_STEP[unit]
+}
+
 /**
  * Next weight-input value for a ± stepper tap. A typed value steps in place;
  * an empty field adopts the ghost first and steps from there (tapping + on an
@@ -450,10 +469,13 @@ export function stepWeightValue(
   ghost: string | undefined,
   direction: 1 | -1,
   unit: WeightUnit,
+  /** The user's step, already resolved. Defaults to the unit's own so every
+   *  existing caller and test keeps its exact behaviour. */
+  step: number = WEIGHT_STEP[unit],
 ): string | null {
   const base = current.trim() !== '' ? current.trim() : (adoptableGhostValue(ghost) ?? '0')
   if (!/^\d+(\.\d+)?$/.test(base)) return null
-  const cents = Math.round(Number(base) * 100) + direction * WEIGHT_STEP[unit] * 100
+  const cents = Math.round(Number(base) * 100) + direction * step * 100
   return String(Math.max(0, cents) / 100)
 }
 

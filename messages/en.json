@@ -1926,6 +1926,10 @@
       "legal": "Legal",
       "privacy": "Privacy",
       "training": "Training"
+    },
+    "weightStep": {
+      "label": "Weight step",
+      "hint": "How much + and − move the weight, in {unit}."
     }
   },
   "ShareCard": {
@@ -2549,5 +2553,8 @@
     "revokeError": "Could not revoke the link. Try again.",
     "shareAction": "Share workout",
     "shareActionPending": "Creating link…"
+  },
+  "WeightStepSetting": {
+    "ariaLabel": "Step by {step} {unit}"
   }
 }

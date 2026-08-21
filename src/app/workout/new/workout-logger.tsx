@@ -122,6 +122,8 @@ import { discardSession } from '@/lib/discard-session'
 import { effortLabel, shouldShowEffortRow } from '@/lib/effort'
 import {
   planSetGhost,
+  stepWeightValue,
+  resolveWeightStep,
   placeholderForSet,
   planPlaceholderForSet,
   adoptableGhostValue,
@@ -222,6 +224,9 @@ interface WorkoutLoggerProps {
   /** The user's stored default rest target (seconds) — seeds the session
    *  default the countdown falls back to when a set has no plan restSec. */
   defaultRestSec?: number | null
+  /** The lifter's stored ± step, RAW and unit-native (null = unit default).
+   *  Resolved here rather than at the page so the guard lives in one place. */
+  weightStep?: number | null
   /** Feature switch: false suppresses the whole rest surface — no readout,
    *  no countdown, plan targets ignored. The elapsed clock is unaffected. */
   restTimerEnabled?: boolean
@@ -283,11 +288,16 @@ export function WorkoutLogger({
   startedAt,
   equipment,
   defaultRestSec = null,
+  weightStep = null,
   restTimerEnabled = true,
   rpeLoggingEnabled = false,
   hasWorkoutHistory = true,
 }: WorkoutLoggerProps) {
   const t = useTranslations('WorkoutLogger')
+  // One resolved step for both halves of the spinbutton: the rail's labels
+  // and math, and the input's arrow keys. Resolving once is what stops them
+  // ever offering different numbers.
+  const step = resolveWeightStep(weightStep, unit)
   const tCommon = useTranslations('Common')
   // The collapsed-card summary is built by lib/format, which owns its
   // own words ("set", "top", "BW") in the Format namespace.
@@ -2563,10 +2573,42 @@ export function WorkoutLogger({
                         // auto-complete — checking off stays a deliberate tap.
                         enterKeyHint="done"
                         onKeyDown={(e) => {
-                          if (e.key !== 'Enter') return
+                          if (e.key === 'Enter') {
+                            e.preventDefault()
+                            e.currentTarget.blur()
+                            return
+                          }
+                          // Stepping belongs on the INPUT — the spinbutton
+                          // model, which the ± rail is the pointer half of
+                          // (see weight-stepper.tsx). These arrows are the
+                          // keyboard path, not a fallback for one. Same
+                          // stepWeightValue the rail calls, so the 0 floor and
+                          // the ghost seeding cannot drift between them: an
+                          // untouched field adopts the ghost and steps from
+                          // there, exactly like tapping +. Hold-to-repeat
+                          // stays the rail's; key repeat is the OS's job.
+                          if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return
                           e.preventDefault()
-                          e.currentTarget.blur()
+                          const stepped = stepWeightValue(
+                            set.weight,
+                            ghost.weight,
+                            e.key === 'ArrowUp' ? 1 : -1,
+                            unit,
+                            step,
+                          )
+                          // null = the field holds non-numeric text. Leave it
+                          // alone rather than clobbering what was typed —
+                          // same refusal the rail makes.
+                          if (stepped === null) return
+                          dispatch({
+                            type: 'UPDATE_SET',
+                            exerciseIndex,
+                            setIndex,
+                            field: 'weight',
+                            value: stepped,
+                          })
                         }}
+                        aria-keyshortcuts="ArrowUp ArrowDown"
                         onFocus={(e) => {
                           // Select-all (type-over, same rAF-deferred WebKit
                           // dance as reps), then arm this row's ± steppers.
@@ -2951,6 +2993,7 @@ export function WorkoutLogger({
             weight={stepperTarget.set.weight}
             ghostWeight={stepperTarget.ghost.weight}
             unit={unit}
+            step={step}
             loggingType={stepperTarget.exercise.loggingType}
             bar={gear.bars[0] ?? 0}
             plates={gear.plates}

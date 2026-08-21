@@ -3,6 +3,7 @@ import {
   getWeightUnit,
   getEquipment,
   getDefaultRestSec,
+  getWeightStep,
   getRestTimerEnabled,
   getRpeLoggingEnabled,
 } from '@/db/preferences'
@@ -47,11 +48,12 @@ export default async function NewWorkoutPage({
   ])
   // Equipment and the rest default are independent preference reads — one
   // round-trip of latency instead of two.
-  const [equipment, defaultRestSec, restTimerEnabled, rpeLoggingEnabled] = await Promise.all([
+  const [equipment, defaultRestSec, restTimerEnabled, rpeLoggingEnabled, weightStep] = await Promise.all([
     getEquipment(userId, unit),
     getDefaultRestSec(userId),
     getRestTimerEnabled(userId),
     getRpeLoggingEnabled(userId),
+    getWeightStep(userId),
   ])
   // resetCompleted: repeating an old workout starts a fresh session — no
   // checked-off sets carried over from the source. A template seeds
@@ -84,6 +86,7 @@ export default async function NewWorkoutPage({
         startedAt={restored?.openedAt}
         equipment={equipment}
         defaultRestSec={defaultRestSec}
+        weightStep={weightStep}
         restTimerEnabled={restTimerEnabled}
         rpeLoggingEnabled={rpeLoggingEnabled}
         hasWorkoutHistory={hasWorkoutHistory}
