@@ -40,9 +40,12 @@ describe('DividerRow', () => {
     const html = renderToStaticMarkup(<DividerRow href="/body">Body</DividerRow>)
     expect(html).toContain('<li>')
     expect(html).toContain('href="/body"')
-    // The shipped row recipe, verbatim.
+    // The shipped row recipe, verbatim. Focus is the volt ring, not a muted
+    // wash — bg-muted/50 over the page background is ~1.1:1, invisible. The
+    // trailing outline-hidden is the forced-colors fallback: WHCM drops
+    // box-shadow, so focus paints a system-color outline there instead.
     expect(html).toContain(
-      'flex items-center justify-between gap-4 py-4 transition-colors outline-none hover:bg-muted/50 focus-visible:bg-muted/50',
+      'flex items-center justify-between gap-4 py-4 transition-colors outline-none hover:bg-muted/50 focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-hidden',
     )
     // Trailing cluster + decorative chevron.
     expect(html).toContain('flex shrink-0 items-center gap-1 text-muted-foreground')

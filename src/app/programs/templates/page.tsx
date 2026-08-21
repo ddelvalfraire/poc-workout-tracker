@@ -88,7 +88,7 @@ export default async function TemplatesPage() {
                 <li key={template.id} className="py-4">
                   <Link
                     href={`/programs/templates/${template.id}`}
-                    className="group flex min-w-0 items-start justify-between gap-3 outline-none focus-visible:bg-muted/50"
+                    className="group flex min-w-0 items-start justify-between gap-3 outline-none focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-hidden"
                   >
                     <span className="min-w-0">
                       <span className="flex items-baseline gap-2 font-display text-xl uppercase leading-tight tracking-wide">
@@ -158,7 +158,7 @@ export default async function TemplatesPage() {
                           stays outside it so the CTA doesn't nest in an anchor. */}
                       <Link
                         href={`/programs/templates/${wgerId}`}
-                        className="group flex min-w-0 items-start justify-between gap-3 outline-none focus-visible:bg-muted/50"
+                        className="group flex min-w-0 items-start justify-between gap-3 outline-none focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-hidden"
                       >
                         <span className="min-w-0">
                           <span className="flex items-baseline gap-2 font-display text-xl uppercase leading-tight tracking-wide">

@@ -282,7 +282,7 @@ export function ExercisePicker({
                 <button
                   type="button"
                   onClick={() => addExercise(result)}
-                  className="flex w-full items-center gap-4 py-4 text-left transition-colors outline-none hover:bg-muted/50 focus-visible:bg-muted/50"
+                  className="flex w-full items-center gap-4 py-4 text-left transition-colors outline-none hover:bg-muted/50 focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-hidden"
                 >
                   <ResultWords result={result} />
                 </button>

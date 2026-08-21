@@ -40,7 +40,10 @@ export function OpsHeader({ active }: { active: OpsTab }) {
               href={href}
               aria-current={active === tab ? 'page' : undefined}
               className={cn(
-                'rounded-full border px-3.5 py-1.5 text-xs uppercase tracking-wider outline-none transition-colors',
+                // Focus lives on the SHARED string: the active chip is just as
+                // tabbable as the rest, and a branch-only indicator left it
+                // with outline-none and nothing else (invisible, WCAG 2.4.7).
+                'rounded-full border px-3.5 py-1.5 text-xs uppercase tracking-wider outline-none transition-colors focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-hidden',
                 active === tab
                   ? 'border-primary/40 bg-primary/10 font-semibold text-foreground'
                   : 'border-transparent text-muted-foreground hover:border-muted-foreground/40 focus-visible:border-primary',

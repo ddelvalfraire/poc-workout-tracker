@@ -124,9 +124,17 @@ the keep-list below. Prefer the primitives in `src/components/ui/`
   on the `ul` (`DividerList`); the dashed variant (`divide-dashed
   border-dashed`) is the quarantined / pending voice.
 - **Divider row**: `flex items-center justify-between gap-4 py-4
-  transition-colors outline-none hover:bg-muted/50 focus-visible:bg-muted/50`
-  with a trailing `text-muted-foreground` value + `size-4` chevron cluster
-  (`DividerRow`).
+  transition-colors outline-none hover:bg-muted/50 focus-visible:ring-3
+  focus-visible:ring-ring/50 focus-visible:outline-hidden` with a trailing
+  `text-muted-foreground` value + `size-4` chevron cluster (`DividerRow`).
+  Keyboard focus is the volt ring — the same pair buttons and inputs use —
+  never a `bg-muted` wash: muted over the page background is ~1.1:1,
+  invisible as an indicator (WCAG 2.4.7), and `outline-none` has already
+  removed the UA fallback. The trailing `focus-visible:outline-hidden` is the
+  forced-colors safety net: WHCM drops `box-shadow` (the ring paints
+  nothing), and outline-hidden's transparent outline is repainted there in a
+  system color, so keyboard focus survives high-contrast mode too. The `/50`
+  wash stays hover-only.
 - **Empty words**: `px-1 py-6 text-center text-sm text-muted-foreground` —
   an empty state is a plain sentence, not a boxed apology (`EmptyWords`).
 - **Ghost / pending**: once the loading-states pass lands, skeletons use the
