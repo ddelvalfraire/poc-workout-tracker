@@ -140,12 +140,57 @@ plausible rather than proven — it is the first thing to write.
 
 ## Open questions for the owner
 
-- **Scrub area**: drag-to-change on a weight field — nice touch, or an
-  accidental-change hazard with a sweaty thumb mid-session?
+- **Large/small step** is settled: one step size, user-configurable in
+  settings (see the separate change). No shift/alt modifiers.
 - **Large/small step**: is `shift`/`alt` stepping wanted, or is one step size
   (2.5kg / 5lb) the product's opinion?
 - If ghost adoption cannot survive the migration, is losing it acceptable? (I
   would say no — it is the behaviour that makes an untouched set one tap.)
+
+## Scrub area (drag-to-change): researched, and the answer is "yes, but not there"
+
+I first dismissed this on instinct. That was wrong; here is the evidence.
+
+**What it is.** Press and drag sideways on a target element — usually the
+label, not the input — to change the value. A desktop design-tool idiom
+(Figma, Blender, After Effects). Base UI's `ScrubArea` is a separate `<span>`,
+so it is a deliberate target, not the whole field.
+
+**Three concrete reasons NOT to put it on the set row:**
+
+1. **The gesture is already taken.** `swipe-to-delete.tsx` owns horizontal
+   drag on every set row — `touch-action: pan-y`, an axis lock after N px, and
+   an explicit "never start from an input or button". A horizontal scrub in
+   the same rows would compete with delete for the same finger movement.
+2. **`ScrubArea` sets `touchAction: 'none'`.** Wherever it lands becomes a
+   region the page cannot be scrolled from. In a phone-first scrolling logger
+   that is a dead zone under the thumb.
+3. **It degrades on our primary platform.** The virtual cursor uses the
+   Pointer Lock API, which Base UI **disables in Safari** (the browser's
+   pointer-lock notification causes a layout shift there) — and pointer lock
+   does not exist on touch at all.
+
+**But docking the rail created the right home for it.** The sticky bar is
+outside the scrolling flow, is not a set row, and does not scroll — so
+`touch-action: none` costs nothing there, and there is no swipe-to-delete to
+collide with. A scrub strip living in the docked rail is the one placement
+where all three objections evaporate.
+
+**Industry check.** Scrub-on-label is a desktop idiom; the established MOBILE
+pattern for weight entry is the ruler / tape picker, and the repeated advice
+is to pair any drag mechanism with numeric entry for precision rather than
+replacing it. Google Fit's drag-based weight entry drew criticism for exactly
+the failure mode worth avoiding — adjusting a column the user did not intend
+to touch. `pixelSensitivity` (default 2px) is the tunable that makes this
+survivable; it wants to be much higher than the default here.
+
+Sources: [UX of number inputs](https://luhr.co/blog/2025/07/01/a-deep-dive-on-the-ux-of-number-inputs/) ·
+[slider UI patterns](https://www.eleken.co/blog-posts/slider-ui) ·
+[ruler picker rationale](https://theadityatiwari.medium.com/building-a-custom-ruler-picker-for-android-why-i-ended-up-open-sourcing-it-0f06a6f5d123)
+
+**Recommendation**: keep it out of scope for the NumberField migration itself,
+then evaluate it as a follow-up **in the docked rail only**, with a raised
+`pixelSensitivity` and the numeric field always available beside it.
 
 ## Not in scope
 
