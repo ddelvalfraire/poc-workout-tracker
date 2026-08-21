@@ -156,11 +156,19 @@ function OverlaySlider({ left, right }: { left: PhotoEntry; right: PhotoEntry })
               setPercent((p) => Math.min(100, p + SLIDER_STEP_PERCENT))
             }
           }}
-          className="absolute inset-y-0 -ml-3 w-6 cursor-ew-resize focus-visible:outline-none"
+          className="group absolute inset-y-0 -ml-3 w-6 cursor-ew-resize focus-visible:outline-none"
           style={{ left: `${percent}%` }}
         >
           <span className="absolute inset-y-0 left-1/2 w-0.5 -translate-x-1/2 bg-white/90 shadow-[0_0_4px_rgba(0,0,0,0.5)]" />
-          <span className="absolute left-1/2 top-1/2 size-5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white bg-black/40 shadow-[0_0_4px_rgba(0,0,0,0.5)]" />
+          {/* The focus ring rides the GRIP, not the strip: the strip is a
+              full-height 24px slice over the photos, so a ring on it would
+              outline the whole image edge. On the grip the volt hugs a 20px
+              circle that already carries a white border, so it reads over
+              any photo underneath. */}
+          <span
+            data-slot="compare-grip"
+            className="absolute left-1/2 top-1/2 size-5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white bg-black/40 shadow-[0_0_4px_rgba(0,0,0,0.5)] group-focus-visible:ring-3 group-focus-visible:ring-ring/50"
+          />
         </div>
         {/* Corner date tags — which side is which, always visible. */}
         <span className="absolute left-1.5 top-1.5 rounded-full bg-black/55 px-2 py-0.5 text-[10px] font-medium text-white">

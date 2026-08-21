@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
+import { expect, userEvent, within } from "storybook/test";
 
 import { OpsHeader } from "./ops-header";
 
@@ -58,4 +59,37 @@ export const BothStates: Story = {
       </section>
     </div>
   ),
+}
+
+/**
+ * Both tab branches must show keyboard focus (WCAG 2.4.7). The recipe gave
+ * `focus-visible:border-primary` to the inactive branch only, so tabbing onto
+ * the tab you are already on showed nothing — and the shared `outline-none`
+ * had already cancelled the app-wide fallback. The volt ring is now the single
+ * indicator on the unconditional half of the recipe, so this asserts it paints
+ * for the active AND inactive tab rather than trusting the class string.
+ */
+export const KeyboardFocus: Story = {
+  args: { active: "ops" },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const activeTab = canvas.getByRole("link", { current: "page" });
+    const inactiveTab = canvas.getByRole("link", { name: /product/i });
+
+    // Unfocused, the active chip paints no ring…
+    await expect(getComputedStyle(activeTab).boxShadow).toBe("none");
+
+    // The back link comes first in the tab order; walk to the tab rather than
+    // hard-coding how many stops that is.
+    const doc = canvasElement.ownerDocument;
+    for (let i = 0; i < 8 && doc.activeElement !== activeTab; i++) await userEvent.tab();
+    await expect(activeTab).toHaveFocus();
+    // …and keyboard focus paints the 3px volt ring (ring-3 ring-ring/50).
+    await expect(getComputedStyle(activeTab).boxShadow).toContain("3px");
+
+    await userEvent.tab();
+    await expect(inactiveTab).toHaveFocus();
+    await expect(getComputedStyle(inactiveTab).boxShadow).toContain("3px");
+    await expect(getComputedStyle(activeTab).boxShadow).toBe("none");
+  },
 }

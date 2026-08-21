@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
+import { expect, userEvent, within } from "storybook/test";
 
 import { AutoRefreshToggle } from "./auto-refresh-toggle";
 
@@ -27,4 +28,22 @@ export const InToolbar: Story = {
       <AutoRefreshToggle />
     </div>
   ),
+}
+
+/**
+ * Keyboard focus must be visible (WCAG 2.4.7). This switch paired
+ * `outline-none` with `focus-visible:border-primary` — a 1px border swap, and
+ * the last ops control still doing that after the chips moved to the ring. It
+ * now takes the same volt ring, so focus looks identical everywhere.
+ */
+export const KeyboardFocus: Story = {
+  play: async ({ canvasElement }) => {
+    const toggle = within(canvasElement).getByRole("switch");
+    // Unfocused, the switch paints no ring…
+    await expect(getComputedStyle(toggle).boxShadow).toBe("none");
+    await userEvent.tab();
+    await expect(toggle).toHaveFocus();
+    // …and keyboard focus paints the 3px volt ring (ring-3 ring-ring/50).
+    await expect(getComputedStyle(toggle).boxShadow).toContain("3px");
+  },
 }

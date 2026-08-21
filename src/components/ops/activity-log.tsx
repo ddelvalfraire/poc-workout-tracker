@@ -60,10 +60,10 @@ export function ActivityLog({ items }: ActivityLogProps) {
             aria-pressed={active.has(type)}
             onClick={() => toggle(type)}
             className={cn(
-              'rounded-full border px-2.5 py-1 text-xs outline-none transition-colors',
+              'rounded-full border px-2.5 py-1 text-xs outline-none transition-colors focus-visible:ring-3 focus-visible:ring-ring/50',
               active.has(type)
                 ? 'border-primary/40 bg-primary/10 font-medium text-foreground'
-                : 'border-border text-muted-foreground hover:border-muted-foreground/40 focus-visible:border-primary',
+                : 'border-border text-muted-foreground hover:border-muted-foreground/40',
             )}
           >
             {ACTIVITY_TYPE_LABELS[type]}

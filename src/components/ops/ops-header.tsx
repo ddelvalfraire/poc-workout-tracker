@@ -40,10 +40,10 @@ export function OpsHeader({ active }: { active: OpsTab }) {
               href={href}
               aria-current={active === tab ? 'page' : undefined}
               className={cn(
-                'rounded-full border px-3.5 py-1.5 text-xs uppercase tracking-wider outline-none transition-colors',
+                'rounded-full border px-3.5 py-1.5 text-xs uppercase tracking-wider outline-none transition-colors focus-visible:ring-3 focus-visible:ring-ring/50',
                 active === tab
                   ? 'border-primary/40 bg-primary/10 font-semibold text-foreground'
-                  : 'border-transparent text-muted-foreground hover:border-muted-foreground/40 focus-visible:border-primary',
+                  : 'border-transparent text-muted-foreground hover:border-muted-foreground/40',
               )}
             >
               {/* Pending hint (useLinkStatus): the label dims after 150ms of
