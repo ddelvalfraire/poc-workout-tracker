@@ -22,10 +22,18 @@ test('manifest is public and well-formed', async ({ request }) => {
   expect(body.icons.length).toBeGreaterThanOrEqual(2)
 })
 
-test('service worker is served as JavaScript', async ({ request }) => {
-  const res = await request.get('/sw.js')
+test('service worker is served as JavaScript, scoped to the root', async ({ request }) => {
+  // /serwist/sw.js, not /sw.js: the worker is compiled from src/app/sw.ts and
+  // served by the src/app/serwist/[path] route, which is also what
+  // service-worker-register.tsx registers. There is no file in public/ any
+  // more, so the old path 404s as HTML — and did so silently, because a 404
+  // page is still a 200-shaped response to nothing this spec checked.
+  const res = await request.get('/serwist/sw.js')
   expect(res.status()).toBe(200)
   expect(res.headers()['content-type']).toContain('javascript')
+  // The route sets this itself so a worker served from /serwist/ can still
+  // control the whole origin. Without it the registration's scope is rejected.
+  expect(res.headers()['service-worker-allowed']).toBe('/')
 })
 
 for (const icon of ['icon-192.png', 'icon-512.png', 'icon-maskable-512.png', 'apple-touch-icon.png']) {

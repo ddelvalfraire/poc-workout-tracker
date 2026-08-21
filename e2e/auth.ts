@@ -129,7 +129,14 @@ export async function signIn(page: Page, user: TestUser): Promise<void> {
  * Idempotent: a session that already consented never lands here.
  */
 async function acceptRequiredConsents(page: Page): Promise<void> {
-  if (!new URL(page.url()).pathname.startsWith('/welcome')) return
+  // Ask for the gate instead of inferring it from the post-callback URL: the
+  // redirect chain can still be settling when the sign-in above returns, so
+  // the address bar reads '/' while the consent screen is what renders — and
+  // the old pathname check skipped the whole step. /welcome is idempotent (it
+  // bounces an already-consented account home), so asking is free.
+  await page.goto('/welcome')
+  const tos = page.locator('#consent-tos')
+  if ((await tos.count()) === 0) return // already consented
 
   for (const id of ['#consent-health-collect', '#consent-health-share', '#consent-tos']) {
     const box = page.locator(id)

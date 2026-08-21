@@ -730,8 +730,7 @@ describe('autoreg entitlement gate (db-layer, beneath every adapter)', () => {
     // Act — requireFeature resolves (the beforeEach default)
     const result = await saveProgram(USER, WITH_AUTOREG, 'ui')
 
-    // Assert — the echoed status comes from the preserve-on-omit contract
-    // (omitted on create = 'draft'), same shape every other case asserts.
+    // Assert — MINIMAL omits status, so the write defaults it to draft.
     expect(result).toEqual({ id: 'p1', status: 'draft' })
     expect(requireFeature).toHaveBeenCalledWith(USER, 'autoreg')
     expect(records[0].values).toMatchObject({ autoregulation: true })

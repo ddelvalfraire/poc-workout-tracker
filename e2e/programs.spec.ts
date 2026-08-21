@@ -44,9 +44,11 @@ test('signed-in user can build a program, browse targets, and start a day', asyn
   // Sign in through the hosted AuthKit page (home redirects to /sign-in).
   await signIn(page, user)
 
-  // Home → Programs → empty state → New Program.
+  // Home → Programs → empty state → New Program. Home has no bare "Programs"
+  // link any more: navigation moved into the drawer, where a row's accessible
+  // name carries its status line too. The first-run hero's CTA is the way in.
   await page.goto('/')
-  const programsLink = page.getByRole('link', { name: /^programs$/i })
+  const programsLink = page.getByRole('link', { name: /browse programs/i })
   await expect(programsLink).toBeVisible({ timeout: 15_000 })
   await programsLink.click()
   await expect(page).toHaveURL(/\/programs$/)
@@ -74,12 +76,25 @@ test('signed-in user can build a program, browse targets, and start a day', asyn
   await page.getByLabel(/set 1 rep max$/i).fill('5')
   await page.getByLabel(/set 1 load in kg$/i).fill('100')
 
+  // Auto-regulation is a PRO feature and the builder defaults it on, so a
+  // Free account's save is rejected outright (requireFeature('autoreg') in
+  // programs/actions.ts) and the form only says "Could not save program".
+  // This spec is about building a program, not about autoreg — turn it off
+  // and stay on the path a Free account can actually walk.
+  await page.getByRole('checkbox', { name: /auto-regulate loads/i }).uncheck()
+
   // Save → redirected to the program detail page.
   await page.getByRole('button', { name: /save program/i }).click()
   await expect(page).toHaveURL(/\/programs\/[0-9a-f-]{36}$/, { timeout: 15_000 })
 
-  // Detail shows week 1 and the engine-derived target line for the set.
-  await expect(page.getByText(/week 1 of 1/i)).toBeVisible()
+  // Detail shows week 1 and the engine-derived target line for the set. The
+  // week phrase now appears twice (the hero's "· N days to go." sentence and
+  // the quiet meta line), so this anchors on the meta line's exact text.
+  await expect(page.getByText('Week 1 of 1', { exact: true })).toBeVisible()
+  // The engine-derived target lines moved behind the day's "Targets" toggle
+  // (?expand=<exerciseId>) — a day card leads with "N exercise · <names>" now.
+  // Opening it IS this spec's "browse targets" step.
+  await page.getByRole('link', { name: /^targets$/i }).click()
   await expect(page.getByText('1×5 @ 100 kg')).toBeVisible()
 
   // Assert the persisted program tree for this user.
@@ -103,7 +118,12 @@ test('signed-in user can build a program, browse targets, and start a day', asyn
   // titled after the day, load seeded.
   await page.getByRole('button', { name: /start this day/i }).click()
   await expect(page).toHaveURL(/\/workout\/[0-9a-f-]{36}\/edit$/, { timeout: 15_000 })
-  await expect(page.getByLabel('Workout name')).toHaveValue('Push')
+  // A live session renders no name field: mid-session the name is a fact, not
+  // a field (#207), and the block that said so is gone too. What the UI still
+  // carries is the provenance stamp — the better assertion anyway, since it
+  // pins the (day · week) this session is stamped to, which is exactly what a
+  // wrong-day start would break. The name itself is asserted in Postgres below.
+  await expect(page.getByText('Push · Week 1')).toBeVisible()
 
   const workoutRows = await sql<{ name: string; program_week: number; weight: number }[]>`
     select w.name, w.program_week, s.weight::float as weight
@@ -117,20 +137,25 @@ test('signed-in user can build a program, browse targets, and start a day', asyn
   expect(workoutRows[0].program_week).toBe(1)
   expect(workoutRows[0].weight).toBe(100)
 
-  // Cleanup through the UI: delete the workout, then the program. Deletes
-  // confirm inline (two-step), not via a native dialog. The Delete button
-  // lives on the detail page — drop the /edit suffix from the logger URL.
-  await page.goto(page.url().replace(/\/edit$/, ''))
-  await page.getByRole('button', { name: /^delete$/i }).click()
-  await expect(page.getByText('Delete this workout?')).toBeVisible()
-  await page.getByRole('button', { name: /^delete$/i }).click()
+  // Cleanup through the UI: discard the session, then delete the program.
+  // The session is still LIVE, and an unfinished workout has no summary page
+  // to delete from — /workout/{id} bounces it straight back to the logger.
+  // Discard is the live session's own exit, and for a program-started row it
+  // deletes the workout along with the draft. Both confirms are centered
+  // modals (ConfirmDialog), not the inline two-step cards they replaced.
+  await page.getByRole('button', { name: /discard workout/i }).click()
+  await expect(page.getByText('Discard this workout?')).toBeVisible()
+  await page.getByRole('button', { name: /^discard$/i }).click()
   await expect(page).toHaveURL('http://localhost:3000/', { timeout: 15_000 })
 
   await page.goto(`/programs`)
   await page.getByRole('link', { name: /e2e push day program/i }).click()
   await page.getByRole('button', { name: /^delete$/i }).click()
-  await expect(page.getByText('Delete this program?')).toBeVisible()
-  await page.getByRole('button', { name: /^delete$/i }).click()
+  // Scoped to the dialog: the page's own Delete button is still in the tree
+  // behind the modal, so an unscoped /^delete$/ matches two elements.
+  const confirm = page.getByLabel('Delete this program?')
+  await expect(confirm).toBeVisible()
+  await confirm.getByRole('button', { name: /^delete$/i }).click()
   await expect(page).toHaveURL(/\/programs$/, { timeout: 15_000 })
   await expect(page.getByText('Day one.')).toBeVisible()
 })
