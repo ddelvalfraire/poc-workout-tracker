@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test'
 import postgres from 'postgres'
 import { createTestUser, deleteTestUser, signIn, type TestUser } from './auth'
+import { APP_ORIGIN } from './app-origin'
 import { addExercise, FINISHED_URL, typeInto } from './logger'
 
 /**
@@ -74,7 +75,7 @@ test('signed-in user can edit a set and delete a workout', async ({ page }) => {
   // than matching the whole URL.
   await expect(page).toHaveURL(FINISHED_URL)
   const id = new URL(page.url()).pathname.split('/').pop()!
-  const detailUrl = `http://localhost:3000/workout/${id}`
+  const detailUrl = `${APP_ORIGIN}/workout/${id}`
 
   // Edit the FINISHED workout. This is the surface that still has a labeled
   // name input (isLive=false — renaming is the point of a correction), so the
@@ -121,7 +122,7 @@ test('signed-in user can edit a set and delete a workout', async ({ page }) => {
   const confirm = page.getByLabel('Delete this workout?')
   await expect(confirm).toBeVisible()
   await confirm.getByRole('button', { name: /^delete$/i }).click()
-  await expect(page).toHaveURL('http://localhost:3000/')
+  await expect(page).toHaveURL(`${APP_ORIGIN}/`)
 
   // Assert the workout (and its children, via cascade) are gone.
   const remaining = await sql<{ count: number }[]>`

@@ -746,6 +746,23 @@ export function WorkoutLogger({
     )
   }
 
+  /**
+   * The plan ghost for one set — the ONE definition of it.
+   *
+   * Three surfaces read it and they must agree: the set row renders it as the
+   * input placeholder, the docked ± rail seeds its steps from it, and next-up
+   * falls back to it for a label. The row and the rail used to SHARE a local
+   * inside the row map; the rail moving to the sticky bar split them into two
+   * copies of this expression, which is exactly how a row comes to show one
+   * target while the rail steps from another. `.weight` is undefined for
+   * BW-relative types by design (a total-load ghost would be a phantom).
+   */
+  const ghostForSet = (exercise: DraftExercise, setIndex: number) =>
+    planSetGhost(
+      planPlaceholderForSet(planFor(exercise.source, exercise.wgerExerciseId), setIndex, unit),
+      exercise.loggingType,
+    )
+
   // "Next up" for the sticky bar: the first incomplete set in workout order,
   // labeled from typed values first, ghost targets as fallback — the
   // thumb-zone glance that replaces scroll-hunting between sets.
@@ -756,10 +773,8 @@ export function WorkoutLogger({
       const setIndex = exercise.sets.findIndex((set) => !set.completed)
       if (setIndex === -1) continue
       const set = exercise.sets[setIndex]
-      const plan = planPlaceholderForSet(planFor(exercise.source, exercise.wgerExerciseId), setIndex, unit)
-      // Typed values win per field; the fallback ghost is the plan target
-      // (same planSetGhost rule as the set rows).
-      const ghost = planSetGhost(plan, exercise.loggingType)
+      // Typed values win per field; the fallback ghost is the plan target.
+      const ghost = ghostForSet(exercise, setIndex)
       const label = previousChipLabel(
         {
           reps: set.reps || ghost.reps,
@@ -773,6 +788,24 @@ export function WorkoutLogger({
         exercise.loggingType,
       )
       return { exercise, setIndex, label }
+    }
+    return null
+  })()
+
+  // The ± rail's subject: the set whose weight input currently holds focus.
+  // The rail is docked in the sticky bar (see its mount there for why it may
+  // never sit in the scrolling flow), so the exercise and plan context the
+  // set rows get lexically has to be looked up from stepperSetId instead.
+  // Same shape as nextUp above — a plain per-render scan, no memo: the draft
+  // is already this render's input and a session's set list is tiny.
+  const stepperTarget = (() => {
+    if (stepperSetId === null) return null
+    for (let exerciseIndex = 0; exerciseIndex < draft.exercises.length; exerciseIndex++) {
+      const exercise = draft.exercises[exerciseIndex]
+      const setIndex = exercise.sets.findIndex((set) => set.id === stepperSetId)
+      if (setIndex === -1) continue
+      const ghost = ghostForSet(exercise, setIndex)
+      return { exercise, exerciseIndex, set: exercise.sets[setIndex], setIndex, ghost }
     }
     return null
   })()
@@ -1978,12 +2011,7 @@ export function WorkoutLogger({
                   setIndex,
                   unit,
                 )
-                const plan = planPlaceholderForSet(
-                  planFor(exercise.source, exercise.wgerExerciseId),
-                  setIndex,
-                  unit,
-                )
-                const ghost = planSetGhost(plan, exercise.loggingType)
+                const ghost = ghostForSet(exercise, setIndex)
                 // Effort show rule (spec-exact): prescribed target on THIS
                 // set, or the opt-in preference. False = zero effort UI and
                 // zero new state writes — the fast path stays byte-identical.
@@ -2659,35 +2687,10 @@ export function WorkoutLogger({
                       )
                     })()
                   ))}
-                {/* Steppers ride under the focused weight row only —
-                    extracted to WeightStepper (#216), which owns the ± rail,
-                    hold-to-autorepeat, and the per-side plate chip. The
-                    focus-gating (stepperSetId) and blur-to-dismiss lifecycle
-                    stay here. ghost.weight is undefined for BW-relative
-                    types by design (a total-load ghost would be a phantom),
-                    so their steppers step the typed value or from zero. */}
-                {stepperSetId === set.id && (
-                  <WeightStepper
-                    setIndex={setIndex}
-                    inputId={`weight-input-${set.id}`}
-                    weight={set.weight}
-                    ghostWeight={ghost.weight}
-                    unit={unit}
-                    loggingType={exercise.loggingType}
-                    bar={gear.bars[0] ?? 0}
-                    plates={gear.plates}
-                    onWeightChange={(value) =>
-                      dispatch({
-                        type: 'UPDATE_SET',
-                        exerciseIndex,
-                        setIndex,
-                        field: 'weight',
-                        value,
-                      })
-                    }
-                    onOpenPlateSheet={() => setPlateSheetFor(exerciseIndex)}
-                  />
-                )}
+                {/* The ± rail does NOT mount here, under the focused row.
+                    Focus-gated content in the scrolling flow moves every
+                    control below it mid-tap; it docks in the sticky bar
+                    instead — see the mount there for the mechanism. */}
                 {/* The record moment, recognized as it happens: this set's
                     e1RM strictly beats the all-time best the session opened
                     with. Presentation-only — nothing is stored. */}
@@ -2928,6 +2931,41 @@ export function WorkoutLogger({
             </div>
           )}
         </SessionToast>
+        {/* The ± rail, docked. It may NOT sit in the scrolling flow: it is
+            focus-gated (mounts on a weight input's focus, unmounts on its
+            blur), so inline it changed the height of the content above every
+            control below it at the exact moment a tap began — mousedown
+            blurred the field, the rail vanished, the target jumped, mouseup
+            landed elsewhere, and the browser never synthesized a click. #294
+            anchored the bar against that; the same reflow still ate taps on
+            "+ Add set" until the rail moved in here. The bar is
+            bottom-anchored (mt-auto + sticky bottom-0), so mounting the rail
+            ABOVE the button cluster grows the bar upward: Finish keeps its
+            position and the scrolling flow never moves at all. Same
+            thumb-zone slot vocabulary as the rest pill and next-up glance
+            above. Pinned by e2e/sticky-cta.spec.ts. */}
+        {stepperTarget && (
+          <WeightStepper
+            setIndex={stepperTarget.setIndex}
+            inputId={`weight-input-${stepperTarget.set.id}`}
+            weight={stepperTarget.set.weight}
+            ghostWeight={stepperTarget.ghost.weight}
+            unit={unit}
+            loggingType={stepperTarget.exercise.loggingType}
+            bar={gear.bars[0] ?? 0}
+            plates={gear.plates}
+            onWeightChange={(value) =>
+              dispatch({
+                type: 'UPDATE_SET',
+                exerciseIndex: stepperTarget.exerciseIndex,
+                setIndex: stepperTarget.setIndex,
+                field: 'weight',
+                value,
+              })
+            }
+            onOpenPlateSheet={() => setPlateSheetFor(stepperTarget.exerciseIndex)}
+          />
+        )}
         <div className="flex flex-col gap-2">
           {/* Adding an exercise is the second-most-frequent act mid-session,
               so it keeps a permanent slot in the thumb bar — but a demoted

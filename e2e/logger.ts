@@ -1,4 +1,5 @@
 import { expect, type Locator, type Page } from '@playwright/test'
+import { APP_ORIGIN } from './app-origin'
 
 /**
  * Shared logger interactions for the e2e suite — the steps every spec that
@@ -88,17 +89,24 @@ export async function finishWorkout(page: Page): Promise<string> {
     confirm.waitFor({ state: 'visible', timeout: 20_000 }).catch(() => {}),
     page.waitForURL(FINISHED_URL, { timeout: 20_000 }).catch(() => {}),
   ])
-  if (await confirm.isVisible().catch(() => false)) {
+  const confirmed = await confirm.isVisible().catch(() => false)
+  if (confirmed) {
     await confirm.getByRole('button', { name: /^finish$/i }).click()
   }
 
-  await expect(page).toHaveURL(FINISHED_URL, { timeout: 20_000 })
+  // Budget only where waiting can still pay off. The race above already spent
+  // up to 20s; if it ended with NEITHER the dialog nor the URL then nothing is
+  // in flight, and a second full budget just doubles the time to the same
+  // failure (40s). Only the dialog branch has a fresh round-trip left to wait
+  // for. On the already-landed path this assertion resolves immediately, so
+  // the short timeout costs a passing run nothing.
+  await expect(page).toHaveURL(FINISHED_URL, { timeout: confirmed ? 20_000 : 2_000 })
   return workoutIdFrom(page.url())
 }
 
 /** The summary URL for `id`, without the completion-moment query. */
 export function detailUrl(id: string): string {
-  return `http://localhost:3000/workout/${id}`
+  return `${APP_ORIGIN}/workout/${id}`
 }
 
 /** Reads the workout id out of a summary or logger URL. */

@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test'
 import postgres from 'postgres'
 import { createTestUser, deleteTestUser, signIn, type TestUser } from './auth'
+import { APP_ORIGIN } from './app-origin'
 
 /**
  * End-to-end happy path for the Phase 6 program UI: build a program in the
@@ -146,7 +147,7 @@ test('signed-in user can build a program, browse targets, and start a day', asyn
   await page.getByRole('button', { name: /discard workout/i }).click()
   await expect(page.getByText('Discard this workout?')).toBeVisible()
   await page.getByRole('button', { name: /^discard$/i }).click()
-  await expect(page).toHaveURL('http://localhost:3000/', { timeout: 15_000 })
+  await expect(page).toHaveURL(`${APP_ORIGIN}/`, { timeout: 15_000 })
 
   await page.goto(`/programs`)
   await page.getByRole('link', { name: /e2e push day program/i }).click()

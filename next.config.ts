@@ -67,10 +67,10 @@ const nextConfig: NextConfig = {
   // browsers bypass the HTTP cache for service-worker scripts by spec.
 };
 
-// Serwist (spike): enables the /serwist/[path] route that compiles app/sw.ts
-// with the precache manifest injected. INERT until registration points at it
-// (service-worker-register.tsx still registers /public/sw.js) — the wrapper
-// only wires the build-asset manifest plumbing.
+// Serwist: enables the /serwist/[path] route that compiles app/sw.ts with the
+// precache manifest injected. This is the LIVE worker, not a spike —
+// components/pwa/service-worker-register.tsx registers '/serwist/sw.js'
+// through @serwist/window, and public/ holds no service worker at all.
 // Locale lives on the user, not the URL — so there is no [locale] segment and
 // no intl middleware. The plugin's only job here is to wire src/i18n/request.ts
 // into the build; routing, rewrites and the /_i proxy above are untouched.
