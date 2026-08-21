@@ -16,9 +16,7 @@ import {
 import { captureServerEvent, durationMin, workoutInputCounts } from '@/lib/analytics'
 import { getProgramDayDetail, deriveDayPrescription } from '@/db/programs'
 import { substituteProgramExercise } from '@/db/program-patches'
-import { autoSyncPlanToPerformance } from '@/lib/auto-plan-sync'
-import { checkGoalAchievements } from '@/lib/goals'
-import { checkTrophies } from '@/lib/trophies'
+import { completeWorkoutSideEffects } from '@/lib/workout-completion'
 import { substituteSlot } from '@/lib/substitute-slot'
 import type { PlanSetTarget } from '@/lib/format'
 import {
@@ -86,17 +84,12 @@ export async function saveWorkoutAction(input: unknown): Promise<{ id: string }>
   )
   // The saved workout supersedes the /workout/new draft on every device.
   await deleteWorkoutDraft(userId, draftKey())
-  // Quick logs carry no program provenance today, so this is a guaranteed
-  // no-op — kept symmetric with updateWorkoutAction so a future provenance-
-  // carrying save path can't silently miss the sync. Fails soft inside.
-  await autoSyncPlanToPerformance(userId, result.id)
-  // Post-save goal check (same seam as the plan sync, fails soft inside):
-  // a finished session can complete a strength target or extend a streak.
-  await checkGoalAchievements(userId, ['strength', 'consistency'])
-  // Trophy check AFTER the goal check, same seam, fails soft inside: a live
-  // finish may celebrate + push; anything not attributable to this workout
-  // stamps quietly (the retroactive rule).
-  await checkTrophies(userId, { kind: 'finish', workoutId: result.id })
+  // The shared post-save domain pipeline (plan sync → goals → trophies) —
+  // lib/workout-completion.ts owns the ordering and the fail-soft contract,
+  // and the MCP write tools ride the same seam. A quick log is a guaranteed
+  // plan-sync no-op (no provenance), but the seam always fires so a future
+  // provenance-carrying save path can't silently miss it.
+  await completeWorkoutSideEffects(userId, result.id)
   revalidatePath('/') // keep the (future) home history list fresh
   return result
 }
@@ -134,18 +127,12 @@ export async function updateWorkoutAction(id: string, input: unknown): Promise<{
   })
   // The saved edit supersedes this workout's draft on every device.
   await deleteWorkoutDraft(userId, draftKey(id))
-  // Live program finishes land here (updateWorkout stamps completedAt), so the
-  // plan silently adopts outperformed loads — the program change-log is the
-  // audit surface. Edits to an OLDER workout no-op inside the helper (its
-  // latest-for-day guard); a thrown sync never fails the save (fails soft
-  // inside the helper).
-  await autoSyncPlanToPerformance(userId, id)
-  // Live program finishes land here too — the goal check rides the same
-  // post-save seam as the plan sync (fails soft inside; never fails the save).
-  await checkGoalAchievements(userId, ['strength', 'consistency'])
-  // Live program finishes celebrate here too — same trophy seam as the save
-  // path (fails soft inside; never fails the save).
-  await checkTrophies(userId, { kind: 'finish', workoutId: id })
+  // Live program finishes land here (updateWorkout stamps completedAt) — the
+  // shared post-save pipeline (lib/workout-completion.ts) adopts outperformed
+  // loads into the plan, completes goals, and stamps trophies, exactly as the
+  // save path does. Edits to an OLDER workout no-op inside the sync's
+  // latest-for-day guard; nothing in the pipeline can fail the save.
+  await completeWorkoutSideEffects(userId, id)
   revalidatePath('/')
   revalidatePath(`/workout/${id}`)
   return result

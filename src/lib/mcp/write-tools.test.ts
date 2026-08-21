@@ -6,6 +6,10 @@ vi.mock('@/db/workouts', () => ({
   updateWorkout: vi.fn(),
   deleteWorkout: vi.fn(),
 }))
+// The shared post-save pipeline (plan sync → goals → trophies) is unit-tested
+// in lib/workout-completion.test.ts; here we assert the MCP writes ride the
+// same seam the web actions do — the cross-client parity contract.
+vi.mock('@/lib/workout-completion', () => ({ completeWorkoutSideEffects: vi.fn() }))
 vi.mock('@/db/preferences', () => ({ getWeightUnit: vi.fn(), setWeightUnit: vi.fn() }))
 vi.mock('@/db/exercise-notes', () => ({
   getExerciseNote: vi.fn(),
@@ -15,6 +19,7 @@ vi.mock('@/db/exercise-notes', () => ({
 
 import { registerWriteTools } from './write-tools'
 import { saveWorkout, updateWorkout, deleteWorkout } from '@/db/workouts'
+import { completeWorkoutSideEffects } from '@/lib/workout-completion'
 import { getWeightUnit, setWeightUnit } from '@/db/preferences'
 import { getExerciseNote, upsertExerciseNote, deleteExerciseNote } from '@/db/exercise-notes'
 import { displayToKg, kgToDisplay } from '@/lib/units'
@@ -23,6 +28,7 @@ import { MAX_WEIGHT as MAX_WEIGHT_KG } from '@/lib/workout-input'
 const mockedSave = vi.mocked(saveWorkout)
 const mockedUpdate = vi.mocked(updateWorkout)
 const mockedDelete = vi.mocked(deleteWorkout)
+const mockedSideEffects = vi.mocked(completeWorkoutSideEffects)
 const mockedGetUnit = vi.mocked(getWeightUnit)
 const mockedSetUnit = vi.mocked(setWeightUnit)
 const mockedGetNote = vi.mocked(getExerciseNote)
@@ -151,6 +157,37 @@ describe('registerWriteTools', () => {
           ],
         }),
       )
+    })
+
+    it('runs the shared completion pipeline after the save (MCP logs sync the plan, complete goals, earn trophies)', async () => {
+      // Arrange
+      const tools = setup()
+      mockedSave.mockResolvedValue({ id: '11111111-1111-4111-8111-111111111111' })
+
+      // Act
+      const result = await tools.get('create_workout')!(BODY)
+
+      // Assert — the same seam the web save action fires, AFTER the save
+      expect(mockedSideEffects).toHaveBeenCalledWith('user_env', '11111111-1111-4111-8111-111111111111')
+      expect(mockedSideEffects.mock.invocationCallOrder[0]).toBeGreaterThan(
+        mockedSave.mock.invocationCallOrder[0],
+      )
+      expect(result.isError).toBeUndefined()
+    })
+
+    it('does not run the completion pipeline when the save itself fails', async () => {
+      // Arrange
+      const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
+      const tools = setup()
+      mockedSave.mockRejectedValue(new Error('db down'))
+
+      // Act
+      const result = await tools.get('create_workout')!(BODY)
+
+      // Assert — nothing committed, so nothing to side-effect
+      expect(result.isError).toBe(true)
+      expect(mockedSideEffects).not.toHaveBeenCalled()
+      spy.mockRestore()
     })
 
     it('acts as the authenticated user, ignoring a conflicting userId arg (no impersonation)', async () => {
@@ -394,6 +431,18 @@ describe('registerWriteTools', () => {
       expect(payload(result)).toEqual({ userId: 'user_env', unit: 'lb', workoutId: '11111111-1111-4111-8111-111111111111' })
     })
 
+    it('runs the shared completion pipeline after a replace (MCP finishes ride the same seam as web edits)', async () => {
+      // Arrange
+      const tools = setup()
+      mockedUpdate.mockResolvedValue({ id: '11111111-1111-4111-8111-111111111111' })
+
+      // Act
+      await tools.get('update_workout')!({ id: '11111111-1111-4111-8111-111111111111', ...BODY })
+
+      // Assert
+      expect(mockedSideEffects).toHaveBeenCalledWith('user_env', '11111111-1111-4111-8111-111111111111')
+    })
+
     it('returns isError matching /not found/ when the workout is not owned', async () => {
       // Arrange
       const tools = setup()
@@ -402,9 +451,10 @@ describe('registerWriteTools', () => {
       // Act
       const result = await tools.get('update_workout')!({ id: '11111111-1111-4111-8111-111111111111', ...BODY })
 
-      // Assert
+      // Assert — and no pipeline: nothing was written
       expect(result.isError).toBe(true)
       expect(result.content[0]?.text).toMatch(/not found/)
+      expect(mockedSideEffects).not.toHaveBeenCalled()
     })
 
     it('surfaces not-found for a malformed (non-UUID) id without hitting the db', async () => {
