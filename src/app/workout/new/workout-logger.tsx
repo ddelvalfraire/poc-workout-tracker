@@ -746,6 +746,23 @@ export function WorkoutLogger({
     )
   }
 
+  /**
+   * The plan ghost for one set — the ONE definition of it.
+   *
+   * Three surfaces read it and they must agree: the set row renders it as the
+   * input placeholder, the docked ± rail seeds its steps from it, and next-up
+   * falls back to it for a label. The row and the rail used to SHARE a local
+   * inside the row map; the rail moving to the sticky bar split them into two
+   * copies of this expression, which is exactly how a row comes to show one
+   * target while the rail steps from another. `.weight` is undefined for
+   * BW-relative types by design (a total-load ghost would be a phantom).
+   */
+  const ghostForSet = (exercise: DraftExercise, setIndex: number) =>
+    planSetGhost(
+      planPlaceholderForSet(planFor(exercise.source, exercise.wgerExerciseId), setIndex, unit),
+      exercise.loggingType,
+    )
+
   // "Next up" for the sticky bar: the first incomplete set in workout order,
   // labeled from typed values first, ghost targets as fallback — the
   // thumb-zone glance that replaces scroll-hunting between sets.
@@ -756,10 +773,8 @@ export function WorkoutLogger({
       const setIndex = exercise.sets.findIndex((set) => !set.completed)
       if (setIndex === -1) continue
       const set = exercise.sets[setIndex]
-      const plan = planPlaceholderForSet(planFor(exercise.source, exercise.wgerExerciseId), setIndex, unit)
-      // Typed values win per field; the fallback ghost is the plan target
-      // (same planSetGhost rule as the set rows).
-      const ghost = planSetGhost(plan, exercise.loggingType)
+      // Typed values win per field; the fallback ghost is the plan target.
+      const ghost = ghostForSet(exercise, setIndex)
       const label = previousChipLabel(
         {
           reps: set.reps || ghost.reps,
@@ -789,14 +804,7 @@ export function WorkoutLogger({
       const exercise = draft.exercises[exerciseIndex]
       const setIndex = exercise.sets.findIndex((set) => set.id === stepperSetId)
       if (setIndex === -1) continue
-      const plan = planPlaceholderForSet(
-        planFor(exercise.source, exercise.wgerExerciseId),
-        setIndex,
-        unit,
-      )
-      // Same planSetGhost rule the set rows use: undefined for BW-relative
-      // types by design (a total-load ghost would be a phantom).
-      const ghost = planSetGhost(plan, exercise.loggingType)
+      const ghost = ghostForSet(exercise, setIndex)
       return { exercise, exerciseIndex, set: exercise.sets[setIndex], setIndex, ghost }
     }
     return null
@@ -2003,12 +2011,7 @@ export function WorkoutLogger({
                   setIndex,
                   unit,
                 )
-                const plan = planPlaceholderForSet(
-                  planFor(exercise.source, exercise.wgerExerciseId),
-                  setIndex,
-                  unit,
-                )
-                const ghost = planSetGhost(plan, exercise.loggingType)
+                const ghost = ghostForSet(exercise, setIndex)
                 // Effort show rule (spec-exact): prescribed target on THIS
                 // set, or the opt-in preference. False = zero effort UI and
                 // zero new state writes — the fast path stays byte-identical.
