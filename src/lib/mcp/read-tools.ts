@@ -78,9 +78,8 @@ export function registerReadTools(server: McpServer): void {
     async ({ limit, before, beforeId, userId }, extra) => {
       try {
         const resolved = resolveUserId(extra, userId)
-        // The db read is unchanged (and request-memoized): this bounds what
-        // crosses the tool boundary into an agent's context, not what the
-        // query costs. App callers of listWorkoutSummaries still get the
+        // The db read is request-memoized: this bounds what crosses the
+        // tool boundary into an agent's context, not what the query costs. App callers of listWorkoutSummaries still get the
         // whole history, which is what the history page and the home
         // momentum panel actually need.
         const rows = await listWorkoutSummaries(resolved)

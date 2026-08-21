@@ -11,9 +11,8 @@ import { useTranslations } from 'next-intl'
 /**
  * The unified rest pill — ONE bottom-anchored surface (Dynamic Island /
  * Live Activity direction) carrying the rest time, a depleting progress
- * fill, and the −15 · Skip · +15 controls together in the sticky bar. It
- * replaced the split rest UI: the header's rest readout (session-clock now
- * keeps only the elapsed clock) and the separate RestAdjustStrip.
+ * fill, and the −15 · Skip · +15 controls together in the sticky bar
+ * (session-clock keeps only the elapsed clock).
  *
  * The pill renders only while a rest period is running (the logger gates on
  * restStartedAt); it owns the ONE 1 s tick that drives digits, fill, and the

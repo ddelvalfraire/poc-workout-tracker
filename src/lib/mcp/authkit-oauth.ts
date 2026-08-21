@@ -8,9 +8,9 @@ import type { AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js'
 /**
  * OAuth glue between the MCP endpoint (/api/mcp) and WorkOS AuthKit.
  *
- * AuthKit is itself a spec-compatible OAuth 2.1 authorization server, so unlike
- * the Clerk setup this app carries no authorization-server code and needs no
- * pre-registered client: MCP clients register themselves through AuthKit's
+ * AuthKit is itself a spec-compatible OAuth 2.1 authorization server, so this
+ * app carries no authorization-server code and needs no pre-registered
+ * client: MCP clients register themselves through AuthKit's
  * Client ID Metadata Document (or Dynamic Client Registration for older ones).
  * All this module does is the RESOURCE-SERVER half — verify the access token
  * AuthKit issued, and publish the two discovery documents that point clients at

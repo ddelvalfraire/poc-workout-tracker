@@ -19,7 +19,6 @@ import { notes, programs, sets, workoutExercises, workouts } from './schema'
  * at the boundary, same as every other db module.
  */
 
-/** Row type for consumers. */
 export type NoteRow = typeof notes.$inferSelect
 
 /** A note with its anchor breadcrumb context (the browser row shape). */

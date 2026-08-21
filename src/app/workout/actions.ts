@@ -97,7 +97,7 @@ export async function saveWorkoutAction(input: unknown): Promise<{ id: string }>
   // finish may celebrate + push; anything not attributable to this workout
   // stamps quietly (the retroactive rule).
   await checkTrophies(userId, { kind: 'finish', workoutId: result.id })
-  revalidatePath('/') // keep the (future) home history list fresh
+  revalidatePath('/') // keep the home history list fresh
   return result
 }
 
