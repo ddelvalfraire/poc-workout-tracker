@@ -50,6 +50,51 @@ import { workouts, workoutExercises, sets } from './schema'
  * pipeline. The authorization boundary is unchanged — every entry point here
  * either takes an ownership-checked slice (`DayForDerivation`) or does its own
  * userId-scoped read via `getProgramDayDetail`.
+ *
+ * THE LOAD-WRITERS MAP — every mechanism that can change a future load, and
+ * where it acts. Two layers, different in kind.
+ *
+ * Derive-time composition (per call, enforced ONCE in deriveDayPrescription's
+ * exercise loop; precedence as stated in lib/progression.ts):
+ *   1. template row        — the authored base (program_sets).
+ *   2. progression SCHEME  — deriveWeekSets' week-N math, deload modifier
+ *                            included (override > deload > scheme > template
+ *                            inside the pure engine).
+ *   3. autoreg ADJUSTMENT  — Layer 1 verdicts between scheme and override:
+ *                            fixed stall step/decrement, range rules,
+ *                            performed-load anchors, the advisory early-deload
+ *                            flag; the diet-phase gate and then the effort
+ *                            gate may hold (annotate) a verdict but never add
+ *                            a load change of their own. Applied via
+ *                            applyAutoregToSets, then the anti-fixed-point
+ *                            re-quantization (quantizeAdjustedSet).
+ *   4. per-week OVERRIDE   — applyOverride LAST: the owner's explicit number
+ *                            outranks every adjustment and is never rounded.
+ *
+ * Plan writers (mutate the STORED plan between derivations — they surface as
+ * the next derivation's scheme inputs, never as a bypass of the order above):
+ *   - TM banking at start  — instantiateProgramDay's wave-boundary persist
+ *                            (setTrainingMax 'cycle-end', tmBumpTiming-gated)
+ *                            and cloneProgram's block-restart carry-forward
+ *                            ('block-restart', db/programs.ts).
+ *   - plan-sync            — autoSyncPlanToPerformance silently adopts
+ *                            performed loads into the plan after an
+ *                            outperforming completed session
+ *                            (programs.planSync gate, change-logged;
+ *                            lib/auto-plan-sync.ts).
+ *   - accepted proposals   — reactive-deload / effort-step
+ *                            (db/reactive-deload.ts) and volume
+ *                            (db/volume-progression.ts) create patch
+ *                            PROPOSALS; loads change only at the owner's
+ *                            confirm (db/patch-proposals.ts), never
+ *                            auto-applied.
+ *   - owner edits          — the program-patches setters (training max, set
+ *                            rows, per-week overrides): the plain authoring
+ *                            path every mechanism above is audited against.
+ *
+ * Prescriptions themselves are snapshotted facts: what a set was seeded with
+ * (prescribed load / rep-min / rir / rpe) is stamped at instantiation and
+ * never re-derived — the writers above change the FUTURE, never the record.
  */
 
 /**
