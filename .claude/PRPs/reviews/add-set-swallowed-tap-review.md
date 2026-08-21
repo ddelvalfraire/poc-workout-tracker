@@ -23,7 +23,8 @@ and comments.
 | `944b24e` | test(e2e): one origin for the harness, and two waits that were wrong |
 | `0b9bb89` | test(e2e): match the PREV column's server-truth gate |
 | `a5b3db4` | docs: correct two comments that describe behaviour that is not current |
-| `(this)` | refactor(logger): one definition for a set's plan ghost |
+| `ed38b32` | refactor(logger): one definition for a set's plan ghost |
+| `5b62bb7` | merge main; conflict in `e2e/analytics.spec.ts` resolved to main's version (see M2/O1) |
 
 ## Prior review, item by item
 
@@ -31,11 +32,11 @@ and comments.
 |---|---|
 | H1 — swallowed tap on "+ Add set" | **FIXED.** Rail docks in the bar; the bar is bottom-anchored, so it grows upward and the scrolling flow never moves. Pinned on phone and desktop. |
 | M1 — `detailUrl()` hardcodes the origin | **FIXED.** Five hardcoded copies now derive from `e2e/app-origin.ts`; `E2E_PORT` moves the whole harness, dev server included. |
-| M2 — analytics `$pageview` assertion retired | **PARTLY.** The comment claimed more than was observed and is corrected (see O1). No assertion re-added: the spec skips without real keys, so one could not be verified here. |
+| M2 — analytics `$pageview` assertion retired | **FIXED ON MAIN, not here.** `1c7e643` landed a real assertion while this branch was in flight. That supersedes the comment correction this branch had made, so the merge takes main's `e2e/analytics.spec.ts` wholesale and this branch contributes nothing to that file. |
 | M2 — `program-templates-phone` baseline deleted | **STANDS.** It was a fullPage snapshot of a live wger fetch; it went red when strangers renamed routines. The zoning is unit-tested against fixtures. Deleting it was right. |
 | L1 — `finishWorkout()` 40s failure path | **FIXED.** Full budget only on the branch that still has a round-trip left. ~40s → ~22s worst case; passing runs unaffected. |
 | L2 — non-retrying `count()` on the consent gate | **FIXED.** Waits for /welcome to commit to one of its two outcomes before reading the DOM. |
-| O1 — "no client-side `$pageview` capture at all" | **NOT CLOSED — but the conclusion was unsafe.** What was observed is no POST to `/_i/e/` *specifically*. posthog-js sets `analyticsDefaultEndpoint = '/e/'` and then lets the REMOTE CONFIG replace it (`response.analytics.endpoint`), so a watcher pinned to that path can miss a capture that went out elsewhere. Production is unaffected either way — the `/_i/:path*` rewrite is a catch-all. Closing this needs one run against a project with real keys, watching every POST under `/_i/`. |
+| O1 — "no client-side `$pageview` capture at all" | **CLOSED ON MAIN (`1c7e643`), and it was not a product gap.** The root cause is `isLikelyBot()`: posthog-js silently drops every event when it fires, and Playwright always trips it (`navigator.webdriver`, HeadlessChrome UA and brands) — the SDK boots fully while sending nothing. Clearing those signals in an `addInitScript` makes the real visitor path observable, and the `$pageview` round-trips 200. Independently, this branch's own reading of the SDK found the second half of the puzzle and main's commit confirms it: remote config moves ingest from `/_i/e/` to `/_i/i/v0/e/` mid-load, so the original watcher was pinned to a path the SDK had already left. The acquisition funnel was never blind. |
 | O2 — stale `next.config.ts` comment | **FIXED.** Both halves were stale: the worker is live, and it is `/serwist/sw.js`, not `/public/sw.js` (public/ has no worker at all). |
 
 ## New findings
