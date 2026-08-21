@@ -2464,7 +2464,6 @@
     "markIncompleteAriaLabel": "Mark {set} incomplete",
     "nameLabel": "Workout name",
     "namePlaceholder": "Optional — e.g. Lower",
-    "namePlaceholderStatic": "Unnamed workout",
     "nextUp": "Next: <exercise>{name}</exercise> — set {set}",
     "noPreviousAriaLabel": "No previous performance for {set}",
     "noteButtonAriaLabel": "{hasNote, select, yes {Edit note for {name}} other {Add note for {name}}}{count, plural, =0 {} one {, # note} other {, # notes}}",

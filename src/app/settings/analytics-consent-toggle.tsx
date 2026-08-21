@@ -53,7 +53,7 @@ export function AnalyticsConsentToggle({ granted }: { granted: boolean }) {
         onClick={toggle}
         className={cn(
           'relative h-7 w-12 rounded-full border transition-colors before:absolute before:-inset-2',
-          'outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-50',
+          'outline-none focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-hidden disabled:opacity-50',
           shown ? 'border-primary bg-primary' : 'border-border bg-muted',
         )}
       >

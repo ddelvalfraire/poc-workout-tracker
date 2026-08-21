@@ -31,6 +31,14 @@ export function DeleteAccountForm() {
     startTransition(async () => {
       const result = await deleteAccountAction(phrase)
       if (result.ok) {
+        // Deliberate full-document navigation (flagged by Next 16.3's new
+        // no-location-assign rule): the account and its session no longer
+        // exist, so every scrap of client state — query caches, the hydrated
+        // tree, anything session-bound — must die with the document.
+        // router.push() would soft-navigate a dead session's in-memory state
+        // onto /sign-in. No basePath here, so the rule's relative-resolution
+        // hazard doesn't apply.
+        // eslint-disable-next-line @next/next/no-location-assign-relative-destination
         window.location.assign('/sign-in')
         return
       }

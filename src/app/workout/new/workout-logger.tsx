@@ -96,7 +96,12 @@ import { WeightStepper } from './weight-stepper'
 import { SessionToast } from './session-toast'
 import { clearRestOverNotification, fireRestOverAlert } from './rest-over-alert'
 import { unlockRestChime } from './rest-chime'
-import { EXERCISE_COMPLETE_VIBRATION, SET_COMPLETE_VIBRATION, vibrate } from './haptics'
+import {
+  EXERCISE_COMPLETE_VIBRATION,
+  SESSION_COMPLETE_VIBRATION,
+  SET_COMPLETE_VIBRATION,
+  vibrate,
+} from './haptics'
 import { resolveRestTarget } from '@/lib/rest-target'
 import {
   continuesTechniqueGroup,
@@ -139,8 +144,26 @@ const LONG_PRESS_MS = 500
 /** Pointer travel past this cancels the hold — it's a scroll, not a press. */
 const LONG_PRESS_SLOP_PX = 8
 
-/** One-time hint flag: set after the user's first-ever warm-up tag. */
+/** Hint flag: set after the user's first-ever warm-up tag — the gesture
+ *  itself retires the hint for good. */
 const WARMUP_HINT_KEY = 'logger:warmup-hint-seen'
+/** How many sessions have RENDERED the warm-up hint (same localStorage
+ *  precedent as WARMUP_HINT_KEY). The hint has no dismiss affordance, so
+ *  exposure is the only other way out: a lifter who reads it this many
+ *  sessions running and never long-presses has answered. */
+const WARMUP_HINT_SESSIONS_KEY = 'logger:warmup-hint-sessions'
+/** Three exposures: one to notice, one to try or ignore, one to confirm the
+ *  ignoring is a choice — the standard coach-mark budget, and more generous
+ *  than the single showing a first-run tooltip would get, because a
+ *  long-press has no visual affordance to rediscover later. */
+const WARMUP_HINT_MAX_SESSIONS = 3
+
+/** Sessions the warm-up hint has been shown in (0 when unset/blocked). */
+function warmupHintSessionsSeen(): number {
+  const raw = window.localStorage.getItem(WARMUP_HINT_SESSIONS_KEY)
+  const parsed = raw === null ? 0 : Number.parseInt(raw, 10)
+  return Number.isFinite(parsed) ? parsed : 0
+}
 
 /* The per-exercise logging-type select's option LABELS live in the catalog
    (WorkoutLogger.loggingType.*) and are read at render — a label baked into
@@ -207,6 +230,16 @@ interface WorkoutLoggerProps {
    *  this is true — with both false the render is untouched (fast-path
    *  parity for opted-out users is a hard contract). */
   rpeLoggingEnabled?: boolean
+  /** Server truth (db hasAnyCompletedWorkout): does ANY completed workout
+   *  exist for this user? Gates the PREV column's PRESENCE, which must be
+   *  decided at first paint — deriving it from the in-flight last-performance
+   *  queries makes the w-10 column insert (returning user) or collapse
+   *  (first-ever user) when they settle, a geometry shift either way. With
+   *  history the cell is reserved up front and chips resolve dash→label in
+   *  place; without it the column never appears for the session. Defaults
+   *  ON: reserving the cell is the no-shift, nothing-hidden fallback for a
+   *  caller that cannot know. */
+  hasWorkoutHistory?: boolean
 }
 
 /** What the notes-v2 capture sheet is open for: a pressed set (which the
@@ -252,6 +285,7 @@ export function WorkoutLogger({
   defaultRestSec = null,
   restTimerEnabled = true,
   rpeLoggingEnabled = false,
+  hasWorkoutHistory = true,
 }: WorkoutLoggerProps) {
   const t = useTranslations('WorkoutLogger')
   const tCommon = useTranslations('Common')
@@ -308,6 +342,11 @@ export function WorkoutLogger({
     const result = lastPerformanceQueries[i].data
     if (result !== undefined) lastByExercise[`${ref.source}:${ref.wgerExerciseId}`] = result
   })
+  // The PREV column's presence is NOT derived here: these queries resolve
+  // after first paint, so any gate computed from them inserts or collapses
+  // the w-10 column when they settle — a geometry shift, unlike the chips'
+  // own dash→label swap which happens inside an already-reserved cell. The
+  // column keys off hasWorkoutHistory (server truth, known before paint).
   // All-time best e1RM per exercise — the baseline the live PR flag compares
   // against. LIVE sessions only (correcting a finished workout is not "the
   // moment it happens"), and deliberately frozen for the session
@@ -428,13 +467,17 @@ export function WorkoutLogger({
   // one-shot animation replays only when the class re-attaches (uncheck →
   // recheck flips `completed`, which drops and re-adds it).
   const [completionPop, setCompletionPop] = useState<{ setId: string; big: boolean } | null>(null)
-  // One-time warm-up gesture hint: shown until the user tags their first-ever
-  // warm-up set (localStorage flag, read post-mount — SSR can't know it).
+  // Warm-up gesture hint: shown until the user tags their first-ever warm-up
+  // set OR it has rendered for WARMUP_HINT_MAX_SESSIONS sessions unanswered
+  // (localStorage flag + counter, read post-mount — SSR can't know them).
   const [showWarmupHint, setShowWarmupHint] = useState(false)
   useEffect(() => {
     try {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- one-shot mount sync from localStorage (external system)
-      setShowWarmupHint(window.localStorage.getItem(WARMUP_HINT_KEY) !== '1')
+      setShowWarmupHint(
+        window.localStorage.getItem(WARMUP_HINT_KEY) !== '1' &&
+          warmupHintSessionsSeen() < WARMUP_HINT_MAX_SESSIONS,
+      )
     } catch {
       // Storage blocked: keep the hint hidden rather than nag forever.
     }
@@ -447,6 +490,23 @@ export function WorkoutLogger({
       // Best-effort: the hint just reappears next session.
     }
   }
+  // What the hint's render actually requires (first exercise has rows) — the
+  // JSX below and the session counter share this, so an empty ad-hoc session
+  // can never burn an exposure on a hint that was never on screen.
+  const warmupHintVisible = showWarmupHint && (draft.exercises[0]?.sets.length ?? 0) > 0
+  const warmupHintCountedRef = useRef(false)
+  useEffect(() => {
+    if (!warmupHintVisible || warmupHintCountedRef.current) return
+    // Count at most once per mount (the ref also absorbs Strict Mode's
+    // doubled effect): one session that showed the hint = one strike
+    // toward WARMUP_HINT_MAX_SESSIONS.
+    warmupHintCountedRef.current = true
+    try {
+      window.localStorage.setItem(WARMUP_HINT_SESSIONS_KEY, String(warmupHintSessionsSeen() + 1))
+    } catch {
+      // Best-effort: an uncounted session merely delays the expiry.
+    }
+  }, [warmupHintVisible])
   // Long-press on a set circle toggles its warm-up tag. One primary pointer
   // at a time, so component-level refs suffice — no per-row state. The fired
   // flag suppresses the press's own click (the completion toggle).
@@ -1126,6 +1186,11 @@ export function WorkoutLogger({
         // the same stranded-::backdrop race the discard dialog guards.
         closeFinishDialogRef.current?.()
         setPendingFinish(null)
+        // The finish gets the same sensory answer a set-check does, scaled
+        // up (session > exercise > set). Success path only — a failed save
+        // stays silent — and live only: edit-mode "Save changes" is
+        // paperwork, not a moment. iOS has no navigator.vibrate; no-op there.
+        if (isLive) vibrate(SESSION_COMPLETE_VIBRATION)
         // `finished=1` is presentation-only: the summary swaps its plain
         // header for the completion moment. Gated on isLive because this
         // update branch is shared with edit-mode "Save changes" — a
@@ -1152,6 +1217,8 @@ export function WorkoutLogger({
         // Same success-path close-before-push as the update branch above.
         closeFinishDialogRef.current?.()
         setPendingFinish(null)
+        // Same live-only finish buzz as the update branch above.
+        if (isLive) vibrate(SESSION_COMPLETE_VIBRATION)
         // Land on the session summary (duration, volume, PR badges) — the
         // finish deserves a readout, not a home-screen redirect. This create
         // branch only exists for live sessions, but the isLive gate keeps the
@@ -1335,48 +1402,38 @@ export function WorkoutLogger({
           e2e/sticky-cta.spec.ts. */}
       <main className="mx-auto flex w-full max-w-md flex-1 flex-col px-5">
       <div className="space-y-4 py-5">
-        <div>
-          {/* A real label, not placeholder-as-label: the placeholder vanishes
-              the moment typing starts, and an unlabeled box at the top of the
-              screen reads as a mystery field. */}
-          <div className="flex items-baseline justify-between gap-3 px-1">
-            {/* A <label> only when there is a control to label — the live
-                session shows static text, and htmlFor on a <p> is invalid. */}
-            {isLive ? (
-              <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-                {t('nameLabel')}
-              </span>
-            ) : (
+        {/* Mid-session the name is a fact, not a field (#207) — and one the
+            app bar and the post-save summary already carry, so a live session
+            renders NO name block at all: the old caps label + h-11 static
+            line spent ~70px of the first viewport restating identity before
+            any work appeared. Only the session's fixed (day · week) stamp
+            stays — renaming or swapping exercises never moves a workout to
+            another day, and keeping the stamp visible is what catches a
+            wrong-day start before it absorbs a session. Editing a COMPLETED
+            workout is where renaming is the point, so that mode keeps the
+            labeled input. */}
+        {isLive ? (
+          programContext ? (
+            <p className="px-1 text-right text-xs text-muted-foreground tnum">{programContext}</p>
+          ) : null
+        ) : (
+          <div>
+            {/* A real label, not placeholder-as-label: the placeholder
+                vanishes the moment typing starts, and an unlabeled box at the
+                top of the screen reads as a mystery field. */}
+            <div className="flex items-baseline justify-between gap-3 px-1">
               <label
                 htmlFor="workout-name"
                 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground"
               >
                 {t('nameLabel')}
               </label>
-            )}
-            {/* The session's fixed (day · week) stamp: renaming or swapping
-                exercises never moves a workout to another day, so the stamp
-                stays visible while logging. */}
-            {programContext && (
-              <span className="shrink-0 text-xs text-muted-foreground tnum">{programContext}</span>
-            )}
-          </div>
-          {isLive ? (
-            // Mid-session the name is a fact, not a field (#207): renaming
-            // belongs to the edit surface after the workout is saved. Static
-            // text with the input's exact metrics (h-11, px-1, border slot
-            // kept transparent) so edit mode swaps in the input without a
-            // layout shift.
-            <p
-              id="workout-name"
-              className={cn(
-                'mt-1.5 flex h-11 items-center border-b-2 border-transparent px-1 text-base',
-                name.trim() === '' && 'text-muted-foreground',
+              {/* The same (day · week) stamp, beside the label here: a
+                  completed program workout keeps its provenance too. */}
+              {programContext && (
+                <span className="shrink-0 text-xs text-muted-foreground tnum">{programContext}</span>
               )}
-            >
-              {name.trim() === '' ? t('namePlaceholderStatic') : name}
-            </p>
-          ) : (
+            </div>
             <Input
               id="workout-name"
               placeholder={t('namePlaceholder')}
@@ -1386,8 +1443,8 @@ export function WorkoutLogger({
               // same h-11 hit area, px-1 keeps horizontal hit padding.
               className="mt-1.5 rounded-none border-0 border-b-2 border-input bg-transparent px-1"
             />
-          )}
-        </div>
+          </div>
+        )}
 
         {syncStatus === 'failed' && (
           <p className="px-1 text-sm text-warning" role="status">
@@ -1735,7 +1792,7 @@ export function WorkoutLogger({
                     }
                   }}
                   aria-label={t('loggingTypeAriaLabel', { name: exercise.name })}
-                  className="h-9 appearance-none rounded-lg bg-transparent pl-1 pr-5 text-xs font-semibold uppercase tracking-wide text-muted-foreground outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+                  className="h-9 appearance-none rounded-lg bg-transparent pl-1 pr-5 text-xs font-semibold uppercase tracking-wide text-muted-foreground outline-none focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-hidden"
                 >
                   {LOGGING_TYPES.map((type) => (
                     <option key={type} value={type}>
@@ -1893,7 +1950,17 @@ export function WorkoutLogger({
             {exercise.sets.length > 0 && (
               <div className="flex items-center gap-2 px-0.5 text-[0.7rem] font-semibold uppercase tracking-wider text-muted-foreground">
                 <span className="w-8 shrink-0" aria-hidden="true" />
-                <span className="w-10 shrink-0 text-center">{t('column.prev')}</span>
+                {/* PREV's w-10 is server-known geometry (hasWorkoutHistory,
+                    same gate as the row chips): reserved from first paint for
+                    a user with any completed history — chips resolve
+                    dash→label inside the cell — and never rendered for a
+                    first-ever user, who takes the width back where the
+                    inputs are tightest. Gating on the in-flight queries
+                    instead would insert this column after paint on every
+                    returning cold load. */}
+                {hasWorkoutHistory && (
+                  <span className="w-10 shrink-0 text-center">{t('column.prev')}</span>
+                )}
                 {/* Cardio exercises head their columns Time/km; the first
                     set's metric mode speaks for the card (rows still render
                     per their OWN mode). */}
@@ -1915,10 +1982,12 @@ export function WorkoutLogger({
                 <span className="size-9 shrink-0" aria-hidden="true" />
               </div>
             )}
-            {/* One-time warm-up gesture hint (first card only — a teaching
-                caption, not chrome): retired forever after the first real
-                warm-up tag, via the localStorage flag. */}
-            {showWarmupHint && exerciseIndex === 0 && exercise.sets.length > 0 && (
+            {/* Warm-up gesture hint (first card only — a teaching caption,
+                not chrome): retired forever by the first real warm-up tag,
+                or after WARMUP_HINT_MAX_SESSIONS sessions of being read and
+                ignored — a lifter who never tags warm-ups must not carry a
+                permanent caption with no dismiss affordance. */}
+            {warmupHintVisible && exerciseIndex === 0 && (
               <p className="px-0.5 text-xs text-muted-foreground">
                 {t('warmupHint')}
               </p>
@@ -2277,22 +2346,29 @@ export function WorkoutLogger({
                       />
                     )}
                   </button>
-                  <button
-                    type="button"
-                    disabled={!prevLabel || !chipCanFill}
-                    onClick={() => {
-                      dispatch({ type: 'FILL_SET', exerciseIndex, setIndex, fill: chipFill })
-                      flashFilledSet(set.id)
-                    }}
-                    aria-label={
-                      prevLabel
-                        ? t('fillAriaLabel', { set: setLabel, previous: prevLabel })
-                        : t('noPreviousAriaLabel', { set: setLabel })
-                    }
-                    className="relative w-10 shrink-0 truncate text-center text-xs font-medium tnum text-muted-foreground before:absolute before:-inset-1.5 disabled:opacity-40"
-                  >
-                    {prevLabel ?? t('prevEmpty')}
-                  </button>
+                  {/* Same server-known gate as the column header
+                      (hasWorkoutHistory) — the two must agree or the header
+                      and rows misalign. Rows without their own prevLabel
+                      (query in flight, or genuinely no prior) keep the
+                      disabled em dash so the cell's geometry never moves. */}
+                  {hasWorkoutHistory && (
+                    <button
+                      type="button"
+                      disabled={!prevLabel || !chipCanFill}
+                      onClick={() => {
+                        dispatch({ type: 'FILL_SET', exerciseIndex, setIndex, fill: chipFill })
+                        flashFilledSet(set.id)
+                      }}
+                      aria-label={
+                        prevLabel
+                          ? t('fillAriaLabel', { set: setLabel, previous: prevLabel })
+                          : t('noPreviousAriaLabel', { set: setLabel })
+                      }
+                      className="relative w-10 shrink-0 truncate text-center text-xs font-medium tnum text-muted-foreground before:absolute before:-inset-1.5 disabled:opacity-40"
+                    >
+                      {prevLabel ?? t('prevEmpty')}
+                    </button>
+                  )}
                   {isCardioSet ? (
                     <>
                       {/* Cardio row: mm:ss + km replace reps/weight. Same
@@ -2889,13 +2965,21 @@ export function WorkoutLogger({
         )}
         <div className="flex flex-col gap-2">
           {/* Adding an exercise is the second-most-frequent act mid-session,
-              so it earns a permanent slot in the thumb bar — outline, so the
-              volt Finish stays the unmistakable primary. Disabled while
-              saving: the draft is frozen once the save barrier engages. */}
+              so it keeps a permanent slot in the thumb bar — but a demoted
+              one: sm, not lg. The bar already stacks the rest pill, next-up
+              line and toasts above these buttons; two full-height rows under
+              that pushed it toward a third of a small viewport. The demotion
+              is VISUAL only: hit-44-y buys the ≥44px target back (PRODUCT.md
+              thumb-bar floor — sm alone is 36px, an inline-affordance size),
+              and both vertical neighbours sit a full gap-2 away with no
+              extensions of their own. Outline + full width keep it
+              thumb-sized while the volt Finish stays the unmistakable
+              primary. Disabled while saving: the draft is frozen once the
+              save barrier engages. */}
           <Button
-            size="lg"
+            size="sm"
             variant="outline"
-            className="w-full"
+            className="hit-44-y w-full"
             // Also frozen while discarding: the settle barrier has engaged
             // and the draft is on its way out — no more edits.
             disabled={isSaving || isDiscarding}

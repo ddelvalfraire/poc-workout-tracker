@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
+import { expect, userEvent, within } from "storybook/test";
 
 import type { ActivityItem } from "@/lib/ops/activity";
 
@@ -72,5 +73,38 @@ export const EveryType: Story = {
       line: `A ${type} event`,
       at: ago(30 + i * 120),
     })),
+  },
+}
+
+/**
+ * Both chip branches must show keyboard focus (WCAG 2.4.7). The recipe gave
+ * `focus-visible:border-primary` to the unpressed branch only, so tabbing onto
+ * a filter you had already switched on showed nothing — and the shared
+ * `outline-none` had already cancelled the app-wide fallback. The volt ring is
+ * now the single indicator on the unconditional half of the recipe, so this
+ * asserts it paints for pressed AND unpressed rather than trusting the string.
+ */
+export const KeyboardFocus: Story = {
+  args: { items: ITEMS },
+  play: async ({ canvasElement }) => {
+    const [pressed, unpressed] = within(canvasElement).getAllByRole("button");
+
+    // No chip starts pressed, so switch one on — that is the branch that
+    // carried no focus-visible treatment at all.
+    await userEvent.click(pressed);
+    await expect(pressed).toHaveAttribute("aria-pressed", "true");
+
+    // A pointer click does not arm :focus-visible, so arrive by keyboard —
+    // that is the journey the bug broke.
+    await userEvent.tab();
+    await expect(unpressed).toHaveFocus();
+    await expect(getComputedStyle(unpressed).boxShadow).toContain("3px");
+
+    await userEvent.tab({ shift: true });
+    await expect(pressed).toHaveFocus();
+    await expect(getComputedStyle(pressed).boxShadow).toContain("3px");
+
+    // …and the chip that just lost focus paints nothing.
+    await expect(getComputedStyle(unpressed).boxShadow).toBe("none");
   },
 }

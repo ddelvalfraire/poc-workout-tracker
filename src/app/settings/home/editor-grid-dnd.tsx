@@ -164,7 +164,7 @@ function SortableTile({
       {...listeners}
       className={cn(
         TILE_SPAN[section.size],
-        'rounded-lg touch-manipulation outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
+        'rounded-lg touch-manipulation outline-none focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-hidden',
         // The original stays in the grid as the drop slot while the
         // DragOverlay carries the visual.
         isDragging && 'opacity-30',

@@ -27,7 +27,7 @@ consumer health data.
 
 **You provide:**
 - **Account information** — email address and sign-in credentials, handled by
-  our authentication provider (Clerk); we never see or store your password.
+  our authentication provider (WorkOS); we never see or store your password.
 - **Training data** — workouts, sets, exercises, programs, training maxes,
   and related notes.
 - **Body data** — bodyweight entries, body measurements, and progress photos
@@ -74,7 +74,7 @@ under contract:
 
 | Provider | Role | Data involved |
 |---|---|---|
-| Clerk | Authentication | Email, sign-in metadata |
+| WorkOS | Authentication | Email, sign-in metadata |
 | Vercel | Application hosting | All Service traffic |
 | Supabase | Database hosting | Training and body data |
 | Upstash | Cache/queues | Operational data (e.g., rate-limit counters) |
@@ -120,7 +120,7 @@ if we learn we have, we will delete it.
 ## 8. Security
 
 Data is encrypted in transit; production access is restricted; passwords are
-never stored by us (authentication is delegated to Clerk). No system is
+never stored by us (authentication is delegated to WorkOS). No system is
 perfectly secure — if a breach affects your data, we will notify you as the
 law requires (including under the FTC's Health Breach Notification Rule
 where it applies).

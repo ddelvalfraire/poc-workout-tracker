@@ -8,6 +8,10 @@
 export const SET_COMPLETE_VIBRATION = 10
 /** The set that completes its exercise: a stronger double pulse. */
 export const EXERCISE_COMPLETE_VIBRATION = [20, 60, 40]
+/** The whole session saved: a rising triple — the biggest pattern in the
+ *  family, because the finish outranks any single set or exercise. Fired on
+ *  handleSave's success path only; a failed save stays silent. */
+export const SESSION_COMPLETE_VIBRATION = [20, 60, 40, 60, 80]
 
 export function vibrate(pattern: number | number[]): void {
   if (typeof navigator === 'undefined' || !('vibrate' in navigator)) return

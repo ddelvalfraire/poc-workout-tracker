@@ -97,7 +97,7 @@ export function CustomExerciseEditor({
           value={category}
           onChange={(e) => setCategory(e.target.value)}
           aria-label={t('categoryLabel')}
-          className="h-9 w-full rounded-lg border border-border bg-transparent px-2 text-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+          className="h-9 w-full rounded-lg border border-border bg-transparent px-2 text-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-hidden"
         >
           {EXERCISE_CATEGORIES.map((c) => (
             <option key={c} value={c}>

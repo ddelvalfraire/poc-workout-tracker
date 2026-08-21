@@ -17,7 +17,7 @@ At account creation, beneath the sign-up action:
 
 Requirements:
 - Links go to the live documents.
-- The action is an affirmative click (Clerk's sign-up flow satisfies this);
+- The action is an affirmative click (WorkOS AuthKit's sign-up flow satisfies this);
   record the acceptance timestamp and Terms version against the user
   (California ARL: keep consent records 3 years).
 

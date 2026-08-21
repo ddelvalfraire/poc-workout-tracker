@@ -63,7 +63,7 @@ export function AutoRefreshToggle() {
       role="switch"
       aria-checked={enabled}
       onClick={() => writeEnabled(!enabled)}
-      className="inline-flex items-center gap-2 rounded-full border border-border px-3 py-1.5 text-xs uppercase tracking-wider text-muted-foreground outline-none transition-colors hover:border-muted-foreground/40 focus-visible:border-primary"
+      className="inline-flex items-center gap-2 rounded-full border border-border px-3 py-1.5 text-xs uppercase tracking-wider text-muted-foreground outline-none transition-colors hover:border-muted-foreground/40 focus-visible:ring-3 focus-visible:ring-ring/50"
     >
       <span
         aria-hidden="true"
