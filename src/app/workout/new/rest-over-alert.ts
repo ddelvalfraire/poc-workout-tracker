@@ -13,11 +13,22 @@ import { playRestChime } from './rest-chime'
  * NO permission prompts, ever — any permission ask stays gesture-driven from
  * /settings, never ambushed from a timer. The notifications decision has
  * NARROWED, not reversed: a user who already granted permission (via the
- * /settings opt-in) also gets a LOCAL notification here, because on an iOS
- * home-screen install with the phone locked it is the only rest-over output
- * that exists (no navigator.vibrate, no tab title to flash, and a suspended
- * AudioContext cannot chirp). Without granted permission the vibrate/chirp/
- * flash trio below is the whole alert, exactly as before.
+ * /settings opt-in) also gets a LOCAL notification here. Without granted
+ * permission the vibrate/chirp/flash trio below is the whole alert, exactly
+ * as before.
+ *
+ * DELIVERY HONESTY — where this actually lands. The reliable wins are a
+ * BACKGROUNDED Android or desktop app: throttled timers still tick there,
+ * so the edge fires while hidden and the banner posts. On a locked iOS
+ * standalone install a notification would be the only channel that exists
+ * (no navigator.vibrate, no tab title to flash, a suspended AudioContext
+ * cannot chirp) — but iOS suspends the page's JS within seconds of locking,
+ * so a multi-minute rest usually crosses zero while nothing runs and the
+ * edge is only observed at RESUME, where the visibility gate rightly
+ * swallows the now-pointless banner. iOS benefits only when rest runs out
+ * inside that short pre-suspension runway; real locked-phone coverage needs
+ * server push (or notification triggers, which don't exist), and push stays
+ * deferred.
  */
 
 // Untranslated like FLASH_TITLE below: this module runs outside any intl
@@ -75,11 +86,13 @@ function canUseRestOverNotifications(): boolean {
 }
 
 /**
- * The locked/backgrounded channel, visibility-gated like the title flash: a
- * visible app already shows the volt "+overage" readout (and the trio just
- * fired), so a banner on top would double-alert. getRegistration (not
- * .ready) so environments that never register a worker — dev builds — get
- * undefined and fall through instead of hanging forever.
+ * The backgrounded channel (see DELIVERY HONESTY above for what that means
+ * per platform), visibility-gated like the title flash: a visible app
+ * already shows the volt "+overage" readout (and the trio just fired), so a
+ * banner on top would double-alert — and the gate is also what keeps the
+ * iOS resume-time edge silent. getRegistration (not .ready) so environments
+ * that never register a worker — dev builds — get undefined and fall
+ * through instead of hanging forever.
  */
 function postRestOverNotification(): void {
   if (!canUseRestOverNotifications()) return
