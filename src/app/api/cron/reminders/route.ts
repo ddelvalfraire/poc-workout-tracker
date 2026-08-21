@@ -1,3 +1,4 @@
+import { timingSafeEqual } from 'node:crypto'
 import { NextResponse } from 'next/server'
 import { getNextProgramDay } from '@/db/programs'
 import { listPushSubscribedUserIds } from '@/db/push-subscriptions'
@@ -65,10 +66,21 @@ async function pingHeartbeat(): Promise<void> {
   }
 }
 
+/** Constant-time check of the Authorization header against `Bearer <secret>`.
+ *  timingSafeEqual throws on length mismatch, so lengths are compared first —
+ *  that leaks only the header's length, which the attacker already knows. */
+function bearerMatches(header: string | null, secret: string): boolean {
+  const expected = Buffer.from(`Bearer ${secret}`)
+  const actual = Buffer.from(header ?? '')
+  return actual.length === expected.length && timingSafeEqual(actual, expected)
+}
+
 export async function GET(request: Request): Promise<NextResponse> {
   const secret = process.env.CRON_SECRET
-  // Fail closed: no configured secret means nobody is authorized.
-  if (!secret || request.headers.get('authorization') !== `Bearer ${secret}`) {
+  // Fail closed: no configured secret means nobody is authorized. The
+  // comparison is constant-time — the endpoint is public, so a plain !==
+  // would leak the secret's prefix length through response timing.
+  if (!secret || !bearerMatches(request.headers.get('authorization'), secret)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
