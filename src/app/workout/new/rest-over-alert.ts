@@ -42,10 +42,11 @@ export function fireRestOverAlert(): void {
 
 /**
  * Closes any posted rest-over notification. The logger calls this when the
- * rest period ends by ACTION — skip, or the next set's check-off — because a
- * stale "Rest over" on the lock screen after the user is already lifting
- * again is noise, not signal. Best-effort: a failure leaves nothing worse
- * than a user-dismissible notification.
+ * session moves past the notification — skip, the next set's check-off, and
+ * the logger unmounting (finish/close/abandon) — because a stale "Rest over"
+ * on the lock screen after the user is already lifting again (or done) is
+ * noise, not signal. Best-effort: a failure leaves nothing worse than a
+ * user-dismissible notification.
  */
 export function clearRestOverNotification(): void {
   if (!canUseRestOverNotifications()) return

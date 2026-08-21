@@ -624,6 +624,14 @@ export function WorkoutLogger({
     setRestOffsetSec(0)
   }
 
+  // Leaving the logger retires a posted notification too: finish, close and
+  // abandon-delete all exit by navigation (router.replace / navigateBack),
+  // so unmount is the one seam that covers every terminal exit — without it
+  // the common "check off the last set, wander off, come back and Finish"
+  // flow strands a stale "Rest over" in the tray with no skip or check-off
+  // left to clear it. Cheap no-op when nothing is posted.
+  useEffect(() => () => clearRestOverNotification(), [])
+
   // The set whose post-completion effort chip row is open — the just-checked
   // set (when its show rule passes) or a logged caption re-opened for a
   // correction. One at a time; skip-by-ignoring means the next check-off

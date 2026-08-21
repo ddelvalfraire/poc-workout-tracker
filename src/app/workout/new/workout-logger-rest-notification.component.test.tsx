@@ -8,10 +8,11 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 /**
  * Wiring contract for the rest-over notification's CANCEL path (the module's
  * own behavior is unit-tested in rest-over-alert.test.ts; here the alert
- * module is mocked): the logger must retire a posted notification at both
- * moments the rest period ends by action — Skip on the pill, and the next
- * set's check-off — so a stale "Rest over" never lingers on the lock screen
- * while the user is already lifting again.
+ * module is mocked): the logger must retire a posted notification at every
+ * moment the session moves past it — Skip on the pill, the next set's
+ * check-off, and the logger unmounting (finish/close/abandon all exit by
+ * navigation) — so a stale "Rest over" never lingers on the lock screen
+ * while the user is already lifting again, or after the workout is over.
  */
 
 vi.mock('next/navigation', () => ({
@@ -157,5 +158,19 @@ describe('rest-over notification cancel wiring', () => {
 
     // Assert
     expect(clearRestOverNotification).not.toHaveBeenCalled()
+  })
+
+  it('unmounting the logger retires it — finish, close and abandon all exit by navigation', () => {
+    // Arrange — a running rest period whose banner could be up (the
+    // check-off's own clear is counted, so unmount must add exactly one).
+    checkOffFirstSet()
+    expect(clearRestOverNotification).toHaveBeenCalledTimes(1)
+
+    // Act — leaving the route unmounts the logger (afterEach's second
+    // unmount is a guarded no-op on an already-unmounted root)
+    act(() => root.unmount())
+
+    // Assert
+    expect(clearRestOverNotification).toHaveBeenCalledTimes(2)
   })
 })
