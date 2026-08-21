@@ -21,7 +21,7 @@ import {
 } from 'ai'
 import Link from 'next/link'
 import { ArrowUp, RotateCcw } from 'lucide-react'
-import { Streamdown } from 'streamdown'
+import { CoachMarkdown } from './coach-markdown'
 import { AppHeader } from '@/components/app-header'
 import { CoachDisclosure } from './coach-disclosure'
 import { Button, buttonVariants } from '@/components/ui/button'
@@ -495,8 +495,10 @@ export function CoachChat({
                       >
                         {/* Streaming-aware markdown (tables, lists, code) —
                             the coach quotes numbers and set schemes, and raw
-                            asterisks read as bugs. */}
-                        <Streamdown>{part.text}</Streamdown>
+                            asterisks read as bugs. Hardened wrapper, never
+                            bare <Streamdown>: model output is untrusted (see
+                            coach-markdown.tsx). */}
+                        <CoachMarkdown>{part.text}</CoachMarkdown>
                       </div>
                     )
                   }
