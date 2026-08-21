@@ -2608,6 +2608,13 @@ export function WorkoutLogger({
                             value: stepped,
                           })
                         }}
+                        // Deliberately NOT role="spinbutton": the field also
+                        // accepts free text (partial decimals mid-edit, the
+                        // empty ghost-adoption state), which the spinbutton
+                        // role's aria-valuenow contract cannot represent
+                        // honestly. The keyshortcuts hint plus the text
+                        // field's own value announcements are the chosen
+                        // trade-off.
                         aria-keyshortcuts="ArrowUp ArrowDown"
                         onFocus={(e) => {
                           // Select-all (type-over, same rAF-deferred WebKit

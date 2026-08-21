@@ -69,12 +69,37 @@ export function SetRowMenu({
 }: SetRowMenuProps) {
   const t = useTranslations('SetRowMenu')
   const firstItemRef = useRef<HTMLButtonElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
 
   // Focus the first item so keyboard users aren't stranded; Escape closes.
+  // Arrow keys rove between items (wrapping) — role="menu" promises the
+  // ARIA menu keyboard model, not just Tab order.
   useEffect(() => {
     firstItemRef.current?.focus()
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
+      if (e.key === 'Escape') {
+        onClose()
+        return
+      }
+      if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return
+      const menu = menuRef.current
+      if (!menu) return
+      e.preventDefault()
+      const items = Array.from(
+        menu.querySelectorAll<HTMLButtonElement>('[role^="menuitem"]'),
+      )
+      if (items.length === 0) return
+      const current = items.indexOf(document.activeElement as HTMLButtonElement)
+      const delta = e.key === 'ArrowDown' ? 1 : -1
+      // A focus outside the menu (current === -1) enters at the first item
+      // going down and the last going up, matching the ARIA pattern.
+      const next =
+        current === -1
+          ? delta === 1
+            ? 0
+            : items.length - 1
+          : (current + delta + items.length) % items.length
+      items[next]?.focus()
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
@@ -108,6 +133,7 @@ export function SetRowMenu({
         }}
       />
       <div
+        ref={menuRef}
         role="menu"
         aria-label={t('ariaLabel', { set: setLabel })}
         style={{ left, top, width: MENU_WIDTH }}
