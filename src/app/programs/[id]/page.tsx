@@ -6,10 +6,10 @@ import { isCoachEnabled } from '@/lib/coach/access'
 import {
   getProgramDetail,
   programWeekState,
-  deriveDayPrescription,
   getNextProgramDay,
   listProgramWorkouts,
 } from '@/db/programs'
+import { deriveDayPrescription } from '@/db/prescriptions'
 import { getProgramStats } from '@/db/program-stats'
 import { getActiveShare } from '@/db/program-shares'
 import { listProgramEvents, type ProgramEventActor } from '@/db/program-events'

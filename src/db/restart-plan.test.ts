@@ -9,8 +9,8 @@ const { detailMock, weekStateMock, deriveMock } = vi.hoisted(() => ({
 vi.mock('./programs', () => ({
   getProgramDetail: detailMock,
   programWeekState: weekStateMock,
-  deriveDayPrescription: deriveMock,
 }))
+vi.mock('./prescriptions', () => ({ deriveDayPrescription: deriveMock }))
 
 import { restartTmPlan } from './restart-plan'
 

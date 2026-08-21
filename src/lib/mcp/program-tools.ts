@@ -28,12 +28,11 @@ import {
   listPrograms,
   listProposals,
   getProgramDetail,
-  instantiateProgramDay,
   nextProgramWeek,
-  deriveDayPrescription,
   type ProgramDetail,
   type ProgramDayDetail,
 } from '@/db/programs'
+import { instantiateProgramDay, deriveDayPrescription } from '@/db/prescriptions'
 import { NotCoachProposalError, ProposedProgramError } from '@/db/program-errors'
 import { listPatchProposals } from '@/db/patch-proposals'
 import { listTemplates, adoptTemplate } from '@/db/templates'

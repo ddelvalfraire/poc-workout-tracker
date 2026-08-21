@@ -2,7 +2,7 @@ import type { AutoregAdjustment, AutoregSession } from './autoregulate'
 import type { WeightUnit } from './units'
 // ε-or-increment identity so a pre-quantization snapshot still matches its
 // quantized re-derivation (#226 transitional bridge).
-import { loadsMatch } from './load-quantize'
+import { LOAD_EPSILON_KG, loadsMatch } from './load-quantize'
 import { estimate1RM } from './one-rep-max'
 
 /**
@@ -120,7 +120,6 @@ export function sustainedUndershoot(
   }).length
   if (loggedCount < EFFORT_GATE_MIN_SESSIONS) return null
 
-  const LOAD_EPSILON_KG = 0.05 // engine's C2 epsilon
   let caseLoadKg: number | null = null
   for (const s of ordered.slice(0, 2)) {
     const pair = topPair(s)
