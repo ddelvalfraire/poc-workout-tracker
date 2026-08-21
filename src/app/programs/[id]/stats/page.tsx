@@ -318,7 +318,7 @@ export default async function ProgramStatsPage({
                       return (
                         <li key={verdict.group}>
                           <details className="group">
-                            <summary className="flex cursor-pointer list-none items-center justify-between gap-4 py-3 outline-none transition-colors hover:bg-muted/50 focus-visible:ring-3 focus-visible:ring-ring/50 [&::-webkit-details-marker]:hidden">
+                            <summary className="flex cursor-pointer list-none items-center justify-between gap-4 py-3 outline-none transition-colors hover:bg-muted/50 focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-hidden [&::-webkit-details-marker]:hidden">
                               <span className="text-sm font-medium">{verdict.group}</span>
                               <span
                                 className={cn(
