@@ -124,23 +124,53 @@ describe('WorkoutLogger effort-row parity', () => {
   })
 })
 
-describe('WorkoutLogger name lock (#207)', () => {
-  it('live session renders the name as static text, never an input', () => {
+describe('WorkoutLogger name block (#207)', () => {
+  it('live session renders NO name block — no label, no input, no fallback line', () => {
+    // Mid-session the name is a fact the app bar and summary already carry;
+    // the logger spends none of the first viewport restating it.
     const html = render({ initialName: 'Legs', isLive: true })
-    expect(html).toContain('Legs')
-    // The name input's placeholder is the tell for the editable field.
+    expect(html).not.toContain('Workout name')
     expect(html).not.toContain('Optional — e.g. Lower')
+    expect(html).not.toContain('Unnamed workout')
   })
 
-  it('live session with no name shows the muted fallback', () => {
-    const html = render({ isLive: true })
-    expect(html).toContain('Unnamed workout')
+  it('live program session keeps the provenance stamp without the name block', () => {
+    // The (day · week) stamp survives the de-duplication: provenance is the
+    // one identity line that catches a wrong-day start mid-session.
+    const html = render({ isLive: true, programContext: 'Pull A · Week 2' })
+    expect(html).toContain('Pull A · Week 2')
+    expect(html).not.toContain('Workout name')
   })
 
-  it('edit mode (finished workout) keeps the editable name input', () => {
+  it('edit mode (finished workout) keeps the labeled editable name input', () => {
     const html = render({ workoutId: 'w1', isLive: false, initialName: 'Legs' })
+    expect(html).toContain('Workout name')
     expect(html).toContain('Optional — e.g. Lower')
     expect(html).not.toContain('Unnamed workout')
+  })
+})
+
+describe('WorkoutLogger PREV column gate', () => {
+  it('hides the whole PREV column when nothing in the session has history', () => {
+    // No seeded last-performance: a first-ever session. The header cell and
+    // every disabled em-dash chip disappear; the inputs take the width back.
+    const html = render()
+    expect(html).not.toContain('>Prev<')
+    expect(html).not.toContain('No previous performance for')
+  })
+
+  it('renders the PREV column once any exercise has prior performance', () => {
+    const html = render({}, lastPerformance({ sets: [{ reps: 12, weight: 100 }] }))
+    expect(html).toContain('>Prev<')
+    expect(html).toContain('100×12')
+  })
+
+  it('keeps the column hidden when history exists but yields no label', () => {
+    // weight_reps requires BOTH fields for a chip (see previousChipLabel):
+    // reps-less history would render only fragments, so the gate must agree
+    // with the chips and keep the column down.
+    const html = render({}, lastPerformance({ sets: [{ reps: null, weight: 100 }] }))
+    expect(html).not.toContain('>Prev<')
   })
 })
 

@@ -308,6 +308,19 @@ export function WorkoutLogger({
     const result = lastPerformanceQueries[i].data
     if (result !== undefined) lastByExercise[`${ref.source}:${ref.wgerExerciseId}`] = result
   })
+  // Whether ANY set in the session has a Prev chip to show. Gates the whole
+  // PREV column: a first-ever session (or a brand-new plan) otherwise renders
+  // a fixed w-10 of disabled em dashes exactly where the inputs are tightest.
+  // Same helpers as the row chips, so the gate and the chips cannot disagree;
+  // resolved history only — while the queries are in flight the column stays
+  // down, the same pop-in the chips' own labels already do.
+  const sessionHasPrev = draft.exercises.some((exercise) => {
+    const last = lastByExercise[`${exercise.source}:${exercise.wgerExerciseId}`] ?? null
+    return exercise.sets.some(
+      (_, setIndex) =>
+        previousChipLabel(placeholderForSet(last, setIndex, unit), exercise.loggingType) !== null,
+    )
+  })
   // All-time best e1RM per exercise — the baseline the live PR flag compares
   // against. LIVE sessions only (correcting a finished workout is not "the
   // moment it happens"), and deliberately frozen for the session
@@ -1289,48 +1302,38 @@ export function WorkoutLogger({
           min-h flex column. */}
       <main className="mx-auto w-full max-w-md flex-1 px-5">
       <div className="space-y-4 py-5">
-        <div>
-          {/* A real label, not placeholder-as-label: the placeholder vanishes
-              the moment typing starts, and an unlabeled box at the top of the
-              screen reads as a mystery field. */}
-          <div className="flex items-baseline justify-between gap-3 px-1">
-            {/* A <label> only when there is a control to label — the live
-                session shows static text, and htmlFor on a <p> is invalid. */}
-            {isLive ? (
-              <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-                {t('nameLabel')}
-              </span>
-            ) : (
+        {/* Mid-session the name is a fact, not a field (#207) — and one the
+            app bar and the post-save summary already carry, so a live session
+            renders NO name block at all: the old caps label + h-11 static
+            line spent ~70px of the first viewport restating identity before
+            any work appeared. Only the session's fixed (day · week) stamp
+            stays — renaming or swapping exercises never moves a workout to
+            another day, and keeping the stamp visible is what catches a
+            wrong-day start before it absorbs a session. Editing a COMPLETED
+            workout is where renaming is the point, so that mode keeps the
+            labeled input. */}
+        {isLive ? (
+          programContext ? (
+            <p className="px-1 text-right text-xs text-muted-foreground tnum">{programContext}</p>
+          ) : null
+        ) : (
+          <div>
+            {/* A real label, not placeholder-as-label: the placeholder
+                vanishes the moment typing starts, and an unlabeled box at the
+                top of the screen reads as a mystery field. */}
+            <div className="flex items-baseline justify-between gap-3 px-1">
               <label
                 htmlFor="workout-name"
                 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground"
               >
                 {t('nameLabel')}
               </label>
-            )}
-            {/* The session's fixed (day · week) stamp: renaming or swapping
-                exercises never moves a workout to another day, so the stamp
-                stays visible while logging. */}
-            {programContext && (
-              <span className="shrink-0 text-xs text-muted-foreground tnum">{programContext}</span>
-            )}
-          </div>
-          {isLive ? (
-            // Mid-session the name is a fact, not a field (#207): renaming
-            // belongs to the edit surface after the workout is saved. Static
-            // text with the input's exact metrics (h-11, px-1, border slot
-            // kept transparent) so edit mode swaps in the input without a
-            // layout shift.
-            <p
-              id="workout-name"
-              className={cn(
-                'mt-1.5 flex h-11 items-center border-b-2 border-transparent px-1 text-base',
-                name.trim() === '' && 'text-muted-foreground',
+              {/* The same (day · week) stamp, beside the label here: a
+                  completed program workout keeps its provenance too. */}
+              {programContext && (
+                <span className="shrink-0 text-xs text-muted-foreground tnum">{programContext}</span>
               )}
-            >
-              {name.trim() === '' ? t('namePlaceholderStatic') : name}
-            </p>
-          ) : (
+            </div>
             <Input
               id="workout-name"
               placeholder={t('namePlaceholder')}
@@ -1340,8 +1343,8 @@ export function WorkoutLogger({
               // same h-11 hit area, px-1 keeps horizontal hit padding.
               className="mt-1.5 rounded-none border-0 border-b-2 border-input bg-transparent px-1"
             />
-          )}
-        </div>
+          </div>
+        )}
 
         {syncStatus === 'failed' && (
           <p className="px-1 text-sm text-warning" role="status">
@@ -1849,7 +1852,13 @@ export function WorkoutLogger({
             {exercise.sets.length > 0 && (
               <div className="flex items-center gap-2 px-0.5 text-[0.7rem] font-semibold uppercase tracking-wider text-muted-foreground">
                 <span className="w-8 shrink-0" aria-hidden="true" />
-                <span className="w-10 shrink-0 text-center">{t('column.prev')}</span>
+                {/* PREV earns its w-10 only when the session has history to
+                    show (see sessionHasPrev) — a first-ever session otherwise
+                    heads a full column of disabled em dashes, and the inputs
+                    are exactly where that width is tightest. */}
+                {sessionHasPrev && (
+                  <span className="w-10 shrink-0 text-center">{t('column.prev')}</span>
+                )}
                 {/* Cardio exercises head their columns Time/km; the first
                     set's metric mode speaks for the card (rows still render
                     per their OWN mode). */}
@@ -2229,22 +2238,28 @@ export function WorkoutLogger({
                       />
                     )}
                   </button>
-                  <button
-                    type="button"
-                    disabled={!prevLabel || !chipCanFill}
-                    onClick={() => {
-                      dispatch({ type: 'FILL_SET', exerciseIndex, setIndex, fill: chipFill })
-                      flashFilledSet(set.id)
-                    }}
-                    aria-label={
-                      prevLabel
-                        ? t('fillAriaLabel', { set: setLabel, previous: prevLabel })
-                        : t('noPreviousAriaLabel', { set: setLabel })
-                    }
-                    className="relative w-10 shrink-0 truncate text-center text-xs font-medium tnum text-muted-foreground before:absolute before:-inset-1.5 disabled:opacity-40"
-                  >
-                    {prevLabel ?? t('prevEmpty')}
-                  </button>
+                  {/* The chip renders only while the SESSION has any history
+                      (sessionHasPrev, same gate as the column header) — rows
+                      without their own prevLabel keep the disabled em dash so
+                      the column stays aligned. */}
+                  {sessionHasPrev && (
+                    <button
+                      type="button"
+                      disabled={!prevLabel || !chipCanFill}
+                      onClick={() => {
+                        dispatch({ type: 'FILL_SET', exerciseIndex, setIndex, fill: chipFill })
+                        flashFilledSet(set.id)
+                      }}
+                      aria-label={
+                        prevLabel
+                          ? t('fillAriaLabel', { set: setLabel, previous: prevLabel })
+                          : t('noPreviousAriaLabel', { set: setLabel })
+                      }
+                      className="relative w-10 shrink-0 truncate text-center text-xs font-medium tnum text-muted-foreground before:absolute before:-inset-1.5 disabled:opacity-40"
+                    >
+                      {prevLabel ?? t('prevEmpty')}
+                    </button>
+                  )}
                   {isCardioSet ? (
                     <>
                       {/* Cardio row: mm:ss + km replace reps/weight. Same
