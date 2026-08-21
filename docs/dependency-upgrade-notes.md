@@ -11,9 +11,26 @@
 |---|---|
 | `506858c` | 38 minor/patch bumps within existing ranges (lockfile only) |
 | `193d6d0` | Next 16.2.9 → **16.3.1**, React 19.2.4 → **19.2.8** |
-| `ca36987` | Dependency misclassification fixes |
+| `ca36987` | Dependency misclassification fixes (one of them wrong — see below) |
 
 Final state: **0 tsc errors, lint clean, 4,862 tests across 401 files green.**
+
+### Correction: shadcn is NOT import-free — review restored it
+
+`ca36987` dropped `shadcn` entirely on the claim it "is never imported from
+src". That grep only covered TS/TSX: `src/app/globals.css:3` does
+`@import "shadcn/tailwind.css"`, which Tailwind resolves to
+`node_modules/shadcn/dist/tailwind.css` at build time. With the package gone,
+`next build` (and `next dev`) died in Turbopack's CSS pass —
+`FileSystemPath("").join(".../node_modules/shadcn/dist/tailwind.css") leaves
+the filesystem root` — while `tsc`, `lint` and the test suite all stayed green,
+because none of them compile the app's CSS entry through Next.
+
+The review restored it as a **devDependency** (build-time stylesheet source,
+same tier as `tailwindcss`/`@tailwindcss/postcss`), which keeps it out of the
+runtime graph — the part of `ca36987` that was right. Lesson recorded: **the
+sweep's verification list lacked `npm run build`**, and that is the only local
+check that compiles `globals.css`.
 
 ## New work created by these updates
 
@@ -27,10 +44,34 @@ channel, which ships `<ViewTransition>` natively, so
 one.
 
 Removed the flag and recorded the reasoning in place so nobody re-adds it.
-**Worth a runtime smoke check** that route-change animation still plays, since
-the app has documented behaviour riding on it (the "`<ViewTransition>` strand"
-comments across the programs surfaces, and the reduced-motion disable in
-`globals.css:108-113`).
+
+The review verified the "canary ships it" claim against the installed
+packages rather than taking it on faith:
+
+- npm `react@19.2.8` does **not** export `ViewTransition` — the import in
+  `page-transition.tsx` only works because the App Router aliases `react` to
+  Next's vendored copy, `next/dist/compiled/react` @
+  `19.3.0-canary-cbb046ab-20260731`, which exports it (and whose bundled
+  `react-dom` client contains the live `ownerDocument.startViewTransition(…)`
+  machinery — the feature flag is compiled on in the default channel, not
+  just the experimental one).
+- Next 16.3.1's `needsExperimentalReact()` now keys on
+  `blockingSSR || taint || transitionIndicator || gestureTransition` only, so
+  a no-flags config gets that default channel; nothing else in
+  `next/dist/client` gates view transitions on config.
+- The Storybook run is covered too: `vite-plugin-storybook-nextjs` hardcodes
+  the same `next/dist/compiled/react` alias, so `page-transition.stories.tsx`
+  renders the real element.
+
+And observed live, not just statically: against the production build
+(`next start`), a headless-Chromium probe that wrapped
+`document.startViewTransition` in a counter measured two App Router soft
+navigations across the public legal pages — both invoked the API and both
+transitions ran to `finished`. (Caveat for anyone repeating this: React
+skips view transitions in a **hidden** document, so the check must run with
+the page visible.) The behaviour riding on this — the "`<ViewTransition>`
+strand" comments across the programs surfaces, and the reduced-motion
+disable in `globals.css:108-113` — is intact.
 
 ### 2. Playwright browsers need reinstalling after the 1.60 → 1.62 bump
 
