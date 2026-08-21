@@ -105,8 +105,12 @@ export function buildContentSecurityPolicy(input: SecurityHeaderInput): string {
       ],
     ],
     // next/font self-hosts Google Fonts at build time; nothing loads from
-    // fonts.gstatic.com at runtime.
-    ['font-src', ["'self'", ...(isPreview ? [VERCEL_TOOLBAR] : [])]],
+    // fonts.gstatic.com at runtime. The preview pair is verbatim from
+    // Vercel's toolbar CSP doc — its fonts live on assets.vercel.com.
+    [
+      'font-src',
+      ["'self'", ...(isPreview ? [VERCEL_TOOLBAR, 'https://assets.vercel.com'] : [])],
+    ],
     [
       'connect-src',
       [

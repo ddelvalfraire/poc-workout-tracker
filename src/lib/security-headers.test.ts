@@ -131,6 +131,11 @@ describe('buildContentSecurityPolicy', () => {
     expect(directive(csp, 'connect-src')).toBe(
       "connect-src 'self' https://o111.ingest.us.sentry.io https://vercel.live wss://*.pusher.com",
     )
+    // Verbatim from Vercel's toolbar CSP doc: toolbar fonts come from
+    // assets.vercel.com, everything else it needs rides vercel.live.
+    expect(directive(csp, 'font-src')).toBe(
+      "font-src 'self' https://vercel.live https://assets.vercel.com",
+    )
     // The clickjacking stance never loosens, preview or not.
     expect(directive(csp, 'frame-ancestors')).toBe("frame-ancestors 'none'")
   })
