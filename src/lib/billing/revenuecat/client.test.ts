@@ -78,10 +78,31 @@ describe('fetchCustomerSnapshot', () => {
     expect(headers.authorization).toBe('Bearer sk_test_synthetic')
   })
 
-  it('treats a 404 customer as an empty snapshot, not an error', async () => {
-    fetchMock.mockResolvedValueOnce(new Response('', { status: 404 }))
+  it('treats a 404 customer as an empty snapshot once the catalog proves the config sees the project', async () => {
+    fetchMock
+      .mockResolvedValueOnce(new Response('', { status: 404 }))
+      .mockResolvedValueOnce(jsonResponse(200, CATALOG))
     const snapshot = await fetchCustomerSnapshot('user_01UNKNOWN')
     expect(snapshot.entitlements).toEqual([])
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('REFUSES an empty snapshot when the catalog 404s — a wrong project id must not revoke anyone', async () => {
+    fetchMock
+      .mockResolvedValueOnce(new Response('', { status: 404 })) // customer fetch: wrong project 404s like unknown customer
+      .mockResolvedValueOnce(new Response('', { status: 404 })) // catalog: proves the config cannot see the project
+    await expect(fetchCustomerSnapshot('user_01SYNTHETIC')).rejects.toBeInstanceOf(
+      RetryableBillingError,
+    )
+  })
+
+  it('REFUSES an empty snapshot when the catalog is empty — half-configured project, nothing attestable', async () => {
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse(200, activeEntitlements([])))
+      .mockResolvedValueOnce(jsonResponse(200, { object: 'list', items: [], next_page: null }))
+    await expect(fetchCustomerSnapshot('user_01SYNTHETIC')).rejects.toBeInstanceOf(
+      RetryableBillingError,
+    )
   })
 
   it('treats a missing expires_at as lifetime', async () => {

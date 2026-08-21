@@ -112,68 +112,66 @@ export async function applyGrantInTx(
     throw new Error('a grant cannot end before it starts')
   }
 
-  {
-    if (input.sourceRef) {
-      const [existing] = await tx
-        .select()
-        .from(entitlementGrants)
-        .where(
-          and(
-            // Scoped to the user we hold the lock on. Without this a
-            // source_ref that resolved to a DIFFERENT local user — an account
-            // re-map, a support mix-up — would be superseded here and never
-            // reprojected, leaving that user's projection granting a tier
-            // whose grant is dead. Scoping it means a genuine cross-user
-            // collision hits the partial unique index and fails loudly
-            // instead of corrupting quietly.
-            eq(entitlementGrants.userId, input.userId),
-            eq(entitlementGrants.source, input.source),
-            eq(entitlementGrants.sourceRef, input.sourceRef),
-            eq(entitlementGrants.status, 'active'),
-          ),
-        )
-        .limit(1)
+  if (input.sourceRef) {
+    const [existing] = await tx
+      .select()
+      .from(entitlementGrants)
+      .where(
+        and(
+          // Scoped to the user we hold the lock on. Without this a
+          // source_ref that resolved to a DIFFERENT local user — an account
+          // re-map, a support mix-up — would be superseded here and never
+          // reprojected, leaving that user's projection granting a tier
+          // whose grant is dead. Scoping it means a genuine cross-user
+          // collision hits the partial unique index and fails loudly
+          // instead of corrupting quietly.
+          eq(entitlementGrants.userId, input.userId),
+          eq(entitlementGrants.source, input.source),
+          eq(entitlementGrants.sourceRef, input.sourceRef),
+          eq(entitlementGrants.status, 'active'),
+        ),
+      )
+      .limit(1)
 
-      if (existing) {
-        const unchanged =
-          existing.tier === input.tier &&
-          existing.startsAt.getTime() === startsAt.getTime() &&
-          (existing.endsAt?.getTime() ?? null) === (endsAt?.getTime() ?? null)
-        if (unchanged) {
-          return { grantId: existing.id, deduplicated: true }
-        }
-        // A genuine change to the same subscription. Supersede rather than
-        // update: the previous terms stay readable in the ledger, and the
-        // partial unique index on live (source, source_ref) stays satisfied.
-        await tx
-          .update(entitlementGrants)
-          .set({
-            status: 'revoked',
-            revokedAt: new Date(),
-            revokedReason: 'superseded by a newer grant for the same subscription',
-            revokedByActorId: input.actorId ?? null,
-          })
-          .where(eq(entitlementGrants.id, existing.id))
+    if (existing) {
+      const unchanged =
+        existing.tier === input.tier &&
+        existing.startsAt.getTime() === startsAt.getTime() &&
+        (existing.endsAt?.getTime() ?? null) === (endsAt?.getTime() ?? null)
+      if (unchanged) {
+        return { grantId: existing.id, deduplicated: true }
       }
+      // A genuine change to the same subscription. Supersede rather than
+      // update: the previous terms stay readable in the ledger, and the
+      // partial unique index on live (source, source_ref) stays satisfied.
+      await tx
+        .update(entitlementGrants)
+        .set({
+          status: 'revoked',
+          revokedAt: new Date(),
+          revokedReason: 'superseded by a newer grant for the same subscription',
+          revokedByActorId: input.actorId ?? null,
+        })
+        .where(eq(entitlementGrants.id, existing.id))
     }
-
-    const [row] = await tx
-      .insert(entitlementGrants)
-      .values({
-        userId: input.userId,
-        tier: input.tier,
-        source: input.source,
-        sourceRef: input.sourceRef ?? null,
-        status: 'active',
-        startsAt,
-        endsAt,
-        reason: input.reason.trim(),
-        actorId: input.actorId ?? null,
-      })
-      .returning({ id: entitlementGrants.id })
-
-    return { grantId: row.id, deduplicated: false }
   }
+
+  const [row] = await tx
+    .insert(entitlementGrants)
+    .values({
+      userId: input.userId,
+      tier: input.tier,
+      source: input.source,
+      sourceRef: input.sourceRef ?? null,
+      status: 'active',
+      startsAt,
+      endsAt,
+      reason: input.reason.trim(),
+      actorId: input.actorId ?? null,
+    })
+    .returning({ id: entitlementGrants.id })
+
+  return { grantId: row.id, deduplicated: false }
 }
 
 /**

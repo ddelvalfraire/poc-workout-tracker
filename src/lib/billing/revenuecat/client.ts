@@ -96,7 +96,11 @@ async function entitlementLookupKeys(
   let path: string | null = `/v2/projects/${projectId}/entitlements?limit=100`
   while (path) {
     const raw = await rcGet(path, apiKey)
-    if (raw === null) break
+    if (raw === null) {
+      // A 404 on the CATALOG is not a fact about any customer — it means our
+      // project id or key cannot see the project. Never cache it.
+      throw new RetryableBillingError('RC entitlement catalog not found — check RC_PROJECT_ID')
+    }
     const page = entitlementCatalogSchema.parse(raw)
     for (const item of page.items) byId.set(item.id, item.lookup_key)
     path = page.next_page ?? null
@@ -146,6 +150,22 @@ export async function fetchCustomerSnapshot(userId: string): Promise<Entitlement
       }
     }
     path = page.next_page ?? null
+  }
+
+  if (entitlements.length === 0) {
+    // An empty snapshot REVOKES still-granting rows downstream, so it must
+    // be a fact about the customer, not an artifact of misconfiguration: a
+    // wrong project id makes the customer fetch 404 exactly like an unknown
+    // customer. The catalog is the cheap, cached proof that our credentials
+    // can see the project at all — unreachable or empty means nothing this
+    // project sells could be attested, so fail retryable instead of
+    // attesting "holds nothing".
+    const catalog = await entitlementLookupKeys(apiKey, projectId)
+    if (catalog.size === 0) {
+      throw new RetryableBillingError(
+        'empty snapshot with an empty entitlement catalog — refusing to attest; check RC config',
+      )
+    }
   }
 
   return { userId, source: 'revenuecat', entitlements }
