@@ -12,9 +12,17 @@ import { test, expect } from '@playwright/test'
  *  2. The browser boots posthog-js through the proxy: the SDK's lazy chunks
  *     arrive from /_i/static and its first POST round-trips 200. This proves
  *     the proxy path from the BROWSER, which layer 1 cannot. It does NOT
- *     assert a $pageview capture: locally the SDK issues /_i/flags/ but no
- *     /_i/e/ within 12s of load or of a second navigation, so pinning one
- *     here would be pinning a behaviour this suite cannot currently observe.
+ *     assert a $pageview capture — but the reason is narrower than "no
+ *     pageview is sent", and the earlier note here overstated it. What was
+ *     actually observed is no POST to /_i/e/ specifically, and that path is
+ *     not fixed: posthog-js initialises analyticsDefaultEndpoint to '/e/'
+ *     and then lets the REMOTE CONFIG replace it
+ *     (analyticsDefaultEndpoint = response.analytics.endpoint), so a watcher
+ *     pinned to /_i/e/ can miss a capture that really did go out on another
+ *     path. Nothing is broken in production either way: the /_i/:path*
+ *     rewrite in next.config.ts is a catch-all. Before pinning a pageview
+ *     here, watch EVERY POST under /_i/ against a project with real keys and
+ *     see which path the SDK picks.
  *  3. (Gated on POSTHOG_PERSONAL_API_KEY) the Query API reads the layer-1
  *     event back out — proof of ingestion, not just acceptance.
  *
@@ -72,7 +80,8 @@ test.describe('PostHog analytics pipeline', () => {
     // Two independent proofs that the first-party proxy path works end to end:
     // the SDK's lazy sub-chunks arrive from /_i/static/, and its first POST
     // (the flags call) is accepted. Deliberately NOT asserted here: the
-    // $pageview capture itself — see the note on layer 2 above.
+    // $pageview capture itself — see the layer-2 note above for why the
+    // absence of /_i/e/ traffic is not evidence that no pageview was sent.
     await sdkChunk
     await roundTrip
   })
