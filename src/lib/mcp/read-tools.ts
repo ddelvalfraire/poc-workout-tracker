@@ -40,6 +40,12 @@ import { buildProgramDayView, type ProgramDayView } from './program-tools'
  * catalog instead of failing, while a resolved user gets their custom
  * exercises merged in.
  */
+/** Descending string compare, so ids tiebreak the same way in the sort and in
+ *  the cursor filter below. */
+function compareDesc(a: string, b: string): number {
+  return a < b ? 1 : a > b ? -1 : 0
+}
+
 /**
  * Page size for `list_workouts` when the caller doesn't ask for one, and the
  * ceiling when it asks for too much.
@@ -52,12 +58,6 @@ import { buildProgramDayView, type ProgramDayView } from './program-tools'
  * to answer a question that "the last few workouts" almost always answers.
  * `before` is the escape hatch when the agent genuinely needs older history.
  */
-/** Descending string compare, so ids tiebreak the same way in the sort and in
- *  the cursor filter below. */
-function compareDesc(a: string, b: string): number {
-  return a < b ? 1 : a > b ? -1 : 0
-}
-
 export const WORKOUT_LIST_DEFAULT_LIMIT = 20
 export const WORKOUT_LIST_MAX_LIMIT = 100
 

@@ -740,15 +740,6 @@ function toStatus(status: string): ProgramInput['status'] {
   return status === 'active' || status === 'archived' ? status : 'draft'
 }
 
-/**
- * Seeds an editable draft from a persisted program (the inverse of
- * draftToProgramInput). Numbers become input strings (`null` → `''`); the
- * persisted row UUIDs are reused as the draft's client ids (stable React keys).
- * `category` is not a persisted column, so it comes back empty. Stored kg loads
- * are converted to `unit` for display. Pass-through fields (progression,
- * technique, set types, timed metrics, notes, status) are carried verbatim.
- * Pure (no `crypto`), so the edit Server Component can call it safely.
- */
 /** Display-unit string for a TM input, rounded to 1 decimal (kg passes
  *  through kgToDisplay unrounded, so an e1RM-derived prefill needs its own
  *  rounding — 97.75000001 must read "97.8"). */
@@ -780,6 +771,15 @@ export function e1rmKey(source: ExerciseSource, wgerExerciseId: number): string 
   return `${source}:${wgerExerciseId}`
 }
 
+/**
+ * Seeds an editable draft from a persisted program (the inverse of
+ * draftToProgramInput). Numbers become input strings (`null` → `''`); the
+ * persisted row UUIDs are reused as the draft's client ids (stable React keys).
+ * `category` is not a persisted column, so it comes back empty. Stored kg loads
+ * are converted to `unit` for display. Pass-through fields (progression,
+ * technique, set types, timed metrics, notes, status) are carried verbatim.
+ * Pure (no `crypto`), so the edit Server Component can call it safely.
+ */
 export function detailToProgramDraft(
   detail: ProgramDetail,
   unit: WeightUnit = 'kg',

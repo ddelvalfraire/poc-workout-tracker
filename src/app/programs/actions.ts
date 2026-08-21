@@ -96,15 +96,6 @@ export async function updateProgramAction(id: string, input: unknown): Promise<{
 }
 
 /**
- * Deletes an owned program (children cascade). Returns void — the client
- * navigates to the list after; we must NOT redirect() here, as the client wraps
- * the call in try/catch and would mistake NEXT_REDIRECT for a failure.
- *
- * A missing result means the program isn't owned (or was already deleted); we
- * throw so the client surfaces an error rather than navigating away as if it
- * had worked — mirroring deleteWorkoutAction's ownership handling.
- */
-/**
  * Updates the program article's description (the FullEditor save path —
  * markdown string, blank clears to null). Narrow on purpose: the builder's
  * full-replace update would race a quick description edit against unsaved
@@ -128,6 +119,15 @@ export async function updateProgramDescriptionAction(
   revalidatePath(`/programs/${id}`)
 }
 
+/**
+ * Deletes an owned program (children cascade). Returns void — the client
+ * navigates to the list after; we must NOT redirect() here, as the client wraps
+ * the call in try/catch and would mistake NEXT_REDIRECT for a failure.
+ *
+ * A missing result means the program isn't owned (or was already deleted); we
+ * throw so the client surfaces an error rather than navigating away as if it
+ * had worked — mirroring deleteWorkoutAction's ownership handling.
+ */
 export async function deleteProgramAction(id: string): Promise<void> {
   const userId = await requireUserId()
   const [deleted] = await deleteProgram(userId, id)
@@ -177,13 +177,6 @@ async function captureProgramStarted(
   }
 }
 
-/**
- * The owner's explicit confirm on a coach-drafted proposal ("we always force
- * the user to confirm"): promotes a 'proposed' program to 'draft', or straight
- * to 'active' (running the single-active sweep) when `activate` is true. The
- * db layer is the guard — this is the ONLY path off 'proposed'. A null result
- * means not owned or not a proposal; throw for the client's try/catch.
- */
 /**
  * Sets (or clears, with null) the program's diet phase from an owner surface
  * (the staleness card's "Still cutting" / "End cut"). Every explicit write —
@@ -240,6 +233,13 @@ export async function setExerciseOvershootPolicyAction(
   return { id }
 }
 
+/**
+ * The owner's explicit confirm on a coach-drafted proposal ("we always force
+ * the user to confirm"): promotes a 'proposed' program to 'draft', or straight
+ * to 'active' (running the single-active sweep) when `activate` is true. The
+ * db layer is the guard — this is the ONLY path off 'proposed'. A null result
+ * means not owned or not a proposal; throw for the client's try/catch.
+ */
 export async function adoptProgramAction(
   id: unknown,
   activate: unknown,

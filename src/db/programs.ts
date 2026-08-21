@@ -1261,14 +1261,6 @@ async function getNextProgramDayUncached(userId: string): Promise<NextProgramDay
  *  cache-key-safe primitives. */
 export const getNextProgramDay = cache(getNextProgramDayUncached)
 
-/**
- * The engine-derived week-N prescription for every exercise of a loaded day,
- * in exercise order: history reads (batched all-time rows for e1RM; last
- * performance only for double-progression exercises), `deriveWeekSets`, then
- * per-set overrides merged on top (override > deload > scheme > template).
- * Shared by `instantiateProgramDay` and `preview_program_week` so what the
- * preview shows is exactly what instantiation seeds.
- */
 /** The slice of a loaded day the prescription derivation needs — satisfied by
  *  both `getProgramDayDetail` (instantiation) and a `getProgramDetail` day
  *  paired with its program row (preview). */
@@ -1410,6 +1402,14 @@ function quantizeAdjustedSet(set: DerivedSet, unit: WeightUnit): DerivedSet {
   return loadKg === set.loadKg ? set : { ...set, loadKg }
 }
 
+/**
+ * The engine-derived week-N prescription for every exercise of a loaded day,
+ * in exercise order: history reads (batched all-time rows for e1RM; last
+ * performance only for double-progression exercises), `deriveWeekSets`, then
+ * per-set overrides merged on top (override > deload > scheme > template).
+ * Shared by `instantiateProgramDay` and `preview_program_week` so what the
+ * preview shows is exactly what instantiation seeds.
+ */
 export async function deriveDayPrescription(
   userId: string,
   day: DayForDerivation,
@@ -1662,20 +1662,6 @@ export async function deriveDayPrescription(
 }
 
 /**
- * Instantiates a program day into a new dated workout for the user — the
- * author→log bridge. The workout is stamped with provenance (`programDayId`,
- * `programWeek`) and its sets are seeded from the ENGINE-DERIVED week-N
- * prescription (`deriveDayPrescription`), not the raw template: the derived
- * load goes into `weight` (only for `reps_weight` sets), while reps/duration/
- * distance are left blank for the user to log. Planned targets stay on the
- * program and are read back via the `get_workout` plan overlay.
- *
- * `week` omitted/null → auto-derived via `nextProgramWeek` (`weekDerived: true`
- * in the result). Returns null when the day isn't found or owned.
- * The day + history are read first, then the whole tree is seeded in one
- * transaction, mirroring `saveWorkout`.
- */
-/**
  * Day count for one owned program — the program_started analytics event's
  * day_count property. 0 when the program isn't found/owned (the capture
  * helper treats that as fine; analytics never gates on ownership errors).
@@ -1689,6 +1675,20 @@ export async function countProgramDays(userId: string, programId: string): Promi
   return row?.value ?? 0
 }
 
+/**
+ * Instantiates a program day into a new dated workout for the user — the
+ * author→log bridge. The workout is stamped with provenance (`programDayId`,
+ * `programWeek`) and its sets are seeded from the ENGINE-DERIVED week-N
+ * prescription (`deriveDayPrescription`), not the raw template: the derived
+ * load goes into `weight` (only for `reps_weight` sets), while reps/duration/
+ * distance are left blank for the user to log. Planned targets stay on the
+ * program and are read back via the `get_workout` plan overlay.
+ *
+ * `week` omitted/null → auto-derived via `nextProgramWeek` (`weekDerived: true`
+ * in the result). Returns null when the day isn't found or owned.
+ * The day + history are read first, then the whole tree is seeded in one
+ * transaction, mirroring `saveWorkout`.
+ */
 export async function instantiateProgramDay(
   userId: string,
   programDayId: string,
