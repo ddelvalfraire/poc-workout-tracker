@@ -2891,11 +2891,15 @@ export function WorkoutLogger({
         </SessionToast>
         <div className="flex flex-col gap-2">
           {/* Adding an exercise is the second-most-frequent act mid-session,
-              so it earns a permanent slot in the thumb bar — outline, so the
-              volt Finish stays the unmistakable primary. Disabled while
-              saving: the draft is frozen once the save barrier engages. */}
+              so it keeps a permanent slot in the thumb bar — but a demoted
+              one: sm, not lg. The bar already stacks the rest pill, next-up
+              line and toasts above these buttons; two full-height rows under
+              that pushed it toward a third of a small viewport. Outline +
+              full width keep it thumb-sized while the volt Finish stays the
+              unmistakable primary. Disabled while saving: the draft is frozen
+              once the save barrier engages. */}
           <Button
-            size="lg"
+            size="sm"
             variant="outline"
             className="w-full"
             // Also frozen while discarding: the settle barrier has engaged
