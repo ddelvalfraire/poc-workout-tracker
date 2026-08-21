@@ -3,6 +3,7 @@ import { and, desc, eq, isNull } from 'drizzle-orm'
 import type { ProgramVisibility } from '@/lib/program-input'
 import { can } from '@/lib/authz'
 import { db } from './index'
+import { hasFeature } from './entitlements'
 import { programs, programShares } from './schema'
 import {
   NotSharableProgramError,
@@ -221,6 +222,17 @@ export async function adoptShared(userId: string, token: string): Promise<{ id: 
   // module performs, and only after the adopt gate passed.
   const source = await getProgramDetail(row.ownerUserId, row.programId)
   if (!source) return null
+  // The paid autoreg capability does not travel with the clone unless the
+  // ADOPTER is entitled — the same clamp as adoptTemplate (db/templates.ts),
+  // this function's acquisition-shaped sibling; the two must stay in step.
+  // The sharer's flag passed THEIR gate, not the visitor's, so copying it
+  // verbatim handed Free users what saveProgram's requireFeature refuses.
+  // Clamping (not refusing) is deliberate — the visitor asked for the
+  // program, not the paid engine, and a shared link must stay adoptable on
+  // the free tier (fail-to-Free). && short-circuits: an authored-OFF source
+  // performs no entitlement read, and an entitled adopter keeps the sharer's
+  // authored value either way.
+  const autoregulation = source.autoregulation && (await hasFeature(userId, 'autoreg'))
   return db.transaction(async (tx) => {
     const [program] = await tx
       .insert(programs)
@@ -231,7 +243,7 @@ export async function adoptShared(userId: string, token: string): Promise<{ id: 
         authorActor: row.ownerUserId,
         mesocycleWeeks: source.mesocycleWeeks,
         deloadWeek: source.deloadWeek,
-        autoregulation: source.autoregulation,
+        autoregulation,
         autoregStallPolicy: source.autoregStallPolicy,
         deloadPolicy: source.deloadPolicy,
         planSync: source.planSync,

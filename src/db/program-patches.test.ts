@@ -97,6 +97,16 @@ vi.mock('./programs', async (importOriginal) => ({
   loadExerciseCatalog: catalogMock,
 }))
 
+// The autoreg paid gate rides setProgramAutoregulation itself; entitled by
+// default (the mock resolves) so the existing toggle tests stay untouched.
+// importOriginal keeps FeatureRequiredError's real identity for the refusal.
+const { requireFeature } = vi.hoisted(() => ({ requireFeature: vi.fn() }))
+vi.mock('./entitlements', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./entitlements')>()),
+  requireFeature,
+}))
+
+import { FeatureRequiredError } from './entitlements'
 import {
   ProgramPatchError,
   setProgramAutoregulation,
@@ -143,6 +153,8 @@ const CURRENT_SET = {
 beforeEach(() => {
   catalogMock.mockReset()
   catalogMock.mockResolvedValue(null)
+  // Reset calls AND implementation: default = entitled (resolves undefined).
+  requireFeature.mockReset()
   records.length = 0
   selectQueue = []
   updatedRows = [{ id: 'row1' }]
@@ -317,6 +329,32 @@ describe('setProgramAutoregulation stall policy', () => {
     // Assert
     expect('autoregStallPolicy' in programsUpdate()).toBe(false)
     expect(eventInsert()).toMatchObject({ summary: 'Auto-regulation off' })
+  })
+
+  it('refuses turning autoregulation ON for an unentitled user before ANY write', async () => {
+    // Arrange — the paid gate says no: set_program_policy must not hand back
+    // the bypass the upsert_program gate closes.
+    requireFeature.mockRejectedValueOnce(new FeatureRequiredError('autoreg', 'pro'))
+    selectQueue = [[{ id: PID, autoregStallPolicy: 'all-sets' }]]
+
+    // Act + Assert — no column write, no change-log event
+    await expect(setProgramAutoregulation(USER, PID, true, 'mcp')).rejects.toThrow(
+      FeatureRequiredError,
+    )
+    expect(requireFeature).toHaveBeenCalledWith(USER, 'autoreg')
+    expect(records).toHaveLength(0)
+  })
+
+  it('never consults the gate when turning autoregulation OFF', async () => {
+    // Arrange
+    selectQueue = [[{ id: PID, autoregStallPolicy: 'all-sets' }]]
+
+    // Act — opting out is always allowed, entitled or not
+    await setProgramAutoregulation(USER, PID, false, 'mcp')
+
+    // Assert
+    expect(requireFeature).not.toHaveBeenCalled()
+    expect(programsUpdate()).toMatchObject({ autoregulation: false })
   })
 })
 

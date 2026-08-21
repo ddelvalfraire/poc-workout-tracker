@@ -41,6 +41,8 @@ import { restartTmPlan } from '@/db/restart-plan'
 // Real classes (module NOT mocked): the instanceof in surfaceProposalGuard must
 // see the same identities the db layer throws.
 import { NotCoachProposalError, ProposedProgramError } from '@/db/program-errors'
+// Real class too (errorResult's instanceof must see the db layer's identity).
+import { FeatureRequiredError } from '@/db/entitlements'
 import { displayToKg, kgToDisplay } from '@/lib/units'
 import { MAX_WEIGHT as MAX_WEIGHT_KG } from '@/lib/workout-input'
 
@@ -508,6 +510,34 @@ describe('registerProgramTools', () => {
       expect(result.content[0]?.text).toMatch(/not found/)
       expect(mockedUpdate).not.toHaveBeenCalled()
       expect(mockedGetUnit).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('upsert_program autoreg entitlement gate (db-layer refusal surfaces)', () => {
+    it('surfaces the plan-naming refusal verbatim when an unentitled create asks for autoregulation', async () => {
+      // Arrange — the db-layer gate (saveProgram) refused the paid capability
+      const tools = setup()
+      mockedSave.mockRejectedValue(new FeatureRequiredError('autoreg', 'pro'))
+
+      // Act
+      const result = await tools.get('upsert_program')!({ ...BODY, autoregulation: true })
+
+      // Assert — the agent sees WHICH plan says yes, not "MCP tool failed"
+      expect(result.isError).toBe(true)
+      expect(result.content[0]?.text).toMatch(/"autoreg" requires the pro plan/)
+    })
+
+    it('surfaces the same refusal on a replace that edits autoregulation onto a program', async () => {
+      // Arrange — the gate closes the "same feature one request later" hole
+      const tools = setup()
+      mockedUpdate.mockRejectedValue(new FeatureRequiredError('autoreg', 'pro'))
+
+      // Act
+      const result = await tools.get('upsert_program')!({ id: PID, ...BODY, autoregulation: true })
+
+      // Assert
+      expect(result.isError).toBe(true)
+      expect(result.content[0]?.text).toMatch(/"autoreg" requires the pro plan/)
     })
   })
 

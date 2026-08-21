@@ -9,6 +9,7 @@ import { getAllExercises, type Exercise } from '@/lib/wger'
 // module init.
 import { setTrainingMax, withTx, ProgramPatchError } from './program-patches'
 import type { TmIncrement } from '@/lib/tm-restart'
+import { hasFeature, requireFeature } from './entitlements'
 import { pickNextProgramDay } from '@/lib/next-program-day'
 import { nextBlockName } from '@/lib/block-name'
 import { db } from './index'
@@ -247,12 +248,36 @@ async function insertProgramChildren(
  * 'coach' actor always creates `status = 'proposed'` + `authorActor = 'coach'`,
  * whatever status the input carries — the only exits from 'proposed' are the
  * owner's adoptProgram/declineProgram ("we always force the user to confirm").
+ *
+ * Paid-capability gate (same enforced-HERE stance as the drafting policy):
+ * an input asking for `autoregulation: true` requires the 'autoreg' feature,
+ * checked before any work. Gating only in the server action left every other
+ * adapter — MCP's upsert_program above all — writing the flag ungated; and
+ * gating creation alone would let anyone save a Free program and then edit
+ * autoregulation onto it, so updateProgram (and the narrow toggle op in
+ * program-patches.ts) run the same check. An explicit `true` is a hard
+ * refusal — FeatureRequiredError (db/entitlements.ts), which names the plan
+ * that says yes — never a silent downgrade of what the caller asked for.
+ *
+ * An OMITTED flag on create follows the entitlement instead of riding a flat
+ * ON default: the web builder always submits the boolean explicitly, so the
+ * old `?? true` was only ever exercised by adapters that can omit — exactly
+ * the MCP tool this gate exists for, where "just don't mention the flag"
+ * must not hand out what "autoregulation: true" refuses. Entitled users keep
+ * the propose-don't-impose ON default; Free users land OFF (fail-to-Free,
+ * same stance as getEntitlement). updateProgram's omitted flag still
+ * PRESERVES the stored value — round-tripping an existing fact is not an
+ * acquisition.
  */
 export async function saveProgram(
   userId: string,
   input: ProgramInput,
   actor: ProgramEventActor,
 ): Promise<{ id: string; status: string }> {
+  if (input.autoregulation) await requireFeature(userId, 'autoreg')
+  // `??` short-circuits on an explicit boolean — the extra entitlement read
+  // happens only on the omission path the gate above cannot see.
+  const autoregulation = input.autoregulation ?? (await hasFeature(userId, 'autoreg'))
   // Omitted on create = 'draft' (the column default, materialized here so the
   // event payload and the returned echo state it); the coach path forces
   // 'proposed' regardless. The input schema deliberately carries NO default —
@@ -269,9 +294,10 @@ export async function saveProgram(
         status,
         mesocycleWeeks: input.mesocycleWeeks,
         deloadWeek: input.deloadWeek ?? null,
-        // Omitted on create = ON: propose-don't-impose delivery is the
-        // softener, not an opt-in gate.
-        autoregulation: input.autoregulation ?? true,
+        // Entitlement-resolved above: explicit input verbatim (true already
+        // passed the gate), omitted = ON for entitled users (propose-don't-
+        // impose delivery is the softener, not an opt-in gate), OFF for Free.
+        autoregulation,
         // Omitted on create = the column default ('all-sets' — C1's rule).
         // No materialization, same discipline as `visibility` below.
         ...(input.autoregStallPolicy !== undefined
@@ -442,6 +468,11 @@ export async function updateProgram(
   input: ProgramInput,
   actor: ProgramEventActor,
 ): Promise<{ id: string; status: string } | null> {
+  // The autoreg paid gate — see saveProgram's doc: a full replace can edit
+  // the flag onto a Free program, so the create-side check alone is not a
+  // gate. Runs before the ownership read, matching the action-era ordering
+  // (an unentitled ask fails as an entitlement refusal, not a not-found).
+  if (input.autoregulation) await requireFeature(userId, 'autoreg')
   const isCoach = actor === 'coach'
   const status = isCoach ? 'proposed' : input.status
   const catalog = await loadExerciseCatalog(userId) // network read stays outside the tx
@@ -790,6 +821,11 @@ export async function cloneProgram(
         status: 'draft',
         mesocycleWeeks: source.mesocycleWeeks,
         deloadWeek: source.deloadWeek,
+        // Deliberately NOT clamped to the adopter-entitlement check that
+        // adoptTemplate/adoptShared apply: a block restart CONTINUES the
+        // owner's own stored flag rather than ACQUIRING a new one, and
+        // clamping here would flip live prescriptions for a lifter mid-block
+        // after a lapse — worse than carrying the stored value forward.
         autoregulation: source.autoregulation,
         autoregStallPolicy: source.autoregStallPolicy,
         deloadPolicy: source.deloadPolicy,

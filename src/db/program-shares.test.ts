@@ -76,6 +76,13 @@ const { getProgramDetail, copyProgramTree } = vi.hoisted(() => ({
 }))
 vi.mock('./programs', () => ({ getProgramDetail, copyProgramTree }))
 
+// The adopter-entitlement clamp on the cloned autoregulation flag (the
+// templates.test.ts idiom); entitled by default so the pre-clamp row-fact
+// assertions stay untouched. Mocked rather than real: the real read would
+// consume the select queue above.
+const { hasFeature } = vi.hoisted(() => ({ hasFeature: vi.fn() }))
+vi.mock('./entitlements', () => ({ hasFeature }))
+
 import {
   mintShareToken,
   setProgramVisibility,
@@ -151,6 +158,9 @@ beforeEach(() => {
   updateReturningQueue = []
   getProgramDetail.mockReset()
   copyProgramTree.mockReset()
+  // Reset calls AND implementation: default = entitled (answers true).
+  hasFeature.mockReset()
+  hasFeature.mockResolvedValue(true)
 })
 
 describe('mintShareToken', () => {
@@ -429,5 +439,49 @@ describe('adoptShared (cross-account clone)', () => {
       action: 'adopt_shared_program',
       payload: { sourceProgramId: PROGRAM_ID, sharedBy: OWNER },
     })
+  })
+
+  it('keeps the sharer-authored autoregulation for an ENTITLED adopter', async () => {
+    // Arrange — hasFeature answers true (the beforeEach default)
+    selectQueue.push([shareRow()])
+    getProgramDetail.mockResolvedValue(sourceDetail({ autoregulation: true }))
+    insertReturningQueue.push([{ id: 'clone-1' }])
+
+    // Act
+    await adoptShared(VISITOR, TOKEN)
+
+    // Assert — the authored value travels, checked against the ADOPTER
+    expect(hasFeature).toHaveBeenCalledWith(VISITOR, 'autoreg')
+    expect(inserts[0].values).toMatchObject({ autoregulation: true })
+  })
+
+  it('clamps autoregulation OFF for an unentitled adopter — the clone is not an acquisition path', async () => {
+    // Arrange — Free tier: the sharer's flag passed THEIR gate, not the
+    // visitor's, so it must not travel verbatim (adoptTemplate's sibling).
+    hasFeature.mockResolvedValue(false)
+    selectQueue.push([shareRow()])
+    getProgramDetail.mockResolvedValue(sourceDetail({ autoregulation: true }))
+    insertReturningQueue.push([{ id: 'clone-1' }])
+
+    // Act — clamped, never refused: the adoption itself still succeeds
+    const result = await adoptShared(VISITOR, TOKEN)
+
+    // Assert
+    expect(result).toEqual({ id: 'clone-1' })
+    expect(inserts[0].values).toMatchObject({ autoregulation: false })
+  })
+
+  it('never consults the entitlement for a source authored with autoregulation OFF', async () => {
+    // Arrange
+    selectQueue.push([shareRow()])
+    getProgramDetail.mockResolvedValue(sourceDetail({ autoregulation: false }))
+    insertReturningQueue.push([{ id: 'clone-1' }])
+
+    // Act
+    await adoptShared(VISITOR, TOKEN)
+
+    // Assert — && short-circuits: OFF stays OFF for everyone, no read
+    expect(hasFeature).not.toHaveBeenCalled()
+    expect(inserts[0].values).toMatchObject({ autoregulation: false })
   })
 })

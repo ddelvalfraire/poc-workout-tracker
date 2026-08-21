@@ -7,6 +7,7 @@ import { assertWorkoutIdShape } from './workout-id'
 import { parseWorkoutInput, MAX_WEIGHT as MAX_WEIGHT_KG, MAX_DURATION_SEC, MAX_DISTANCE_M, METRIC_MODES, type WorkoutInput } from '@/lib/workout-input'
 import { displayToKg, kgToDisplay, type WeightUnit } from '@/lib/units'
 import { saveWorkout, updateWorkout, deleteWorkout } from '@/db/workouts'
+import { completeWorkoutSideEffects } from '@/lib/workout-completion'
 import { getWeightUnit, setWeightUnit } from '@/db/preferences'
 import { getExerciseNote, upsertExerciseNote, deleteExerciseNote } from '@/db/exercise-notes'
 import { parseExerciseNoteInput } from '@/lib/exercise-note-input'
@@ -129,6 +130,16 @@ function validate(raw: RawWorkout, unit: WeightUnit): WorkoutInput {
  * `parseWorkoutInput` bounds weights in kg. Validation and not-owned conditions
  * surface as `ToolError` (so the agent sees the message); real DB failures fall
  * through to `errorResult`, which logs and genericizes them.
+ *
+ * Post-save side effects, and what deliberately does NOT ride here:
+ * - The DOMAIN pipeline (plan sync → goals → trophies) is shared with the web
+ *   actions via lib/workout-completion.ts — an MCP-logged finish syncs the
+ *   plan, completes goals, and earns trophies exactly like a web finish.
+ * - ANALYTICS stays web-only: MCP tool writes fire no product events, by the
+ *   documented decision in lib/analytics.ts.
+ * - The logger's cross-device DRAFT is untouched: a draft is the web logger's
+ *   own in-progress session, and an agent-logged workout is not that session —
+ *   deleting it here would destroy work the user may still resume.
  */
 export function registerWriteTools(server: McpServer): void {
   server.registerTool(
@@ -152,6 +163,10 @@ export function registerWriteTools(server: McpServer): void {
         const basis = unit ?? (await getWeightUnit(resolved))
         const parsed = validate({ name, notes, exercises, startedAt }, basis)
         const { id } = await saveWorkout(resolved, parsed)
+        // An MCP log IS a completion (saveWorkout stamps completedAt), so the
+        // shared post-save pipeline rides here exactly as in the web save
+        // action. Fails soft inside — it can never fail the committed save.
+        await completeWorkoutSideEffects(resolved, id)
         return jsonResult({ userId: resolved, unit: basis, workoutId: id })
       } catch (error: unknown) {
         return errorResult(error)
@@ -185,6 +200,10 @@ export function registerWriteTools(server: McpServer): void {
         if (!result) {
           throw new ToolError(`Workout ${id} not found for user ${resolved}`)
         }
+        // Same shared post-save pipeline as create_workout (and the web edit
+        // action): a replaced session must sync the plan, complete goals, and
+        // stamp trophies like any other finish. Fails soft inside.
+        await completeWorkoutSideEffects(resolved, result.id)
         return jsonResult({ userId: resolved, unit: basis, workoutId: result.id })
       } catch (error: unknown) {
         return errorResult(error)
