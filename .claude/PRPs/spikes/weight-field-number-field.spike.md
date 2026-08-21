@@ -122,21 +122,59 @@ whatever was typed. **Owner question**: does anyone actually type text into a
 weight field? If not this is a non-loss, and the refusal is just defensive
 code we can retire.
 
-**Q2 — ghost adoption? NOT FREE, BUT THERE IS A SEAM.** With `value === null`
-an increment steps from `min`/0, not from the ghost. But `onValueChange`
-reports a **reason**, so the interception point exists: when the reason is
-`'increment-press' | 'decrement-press' | 'keyboard'` AND our value is empty,
-substitute `ghost + step` instead of taking the component's number. That is
-plausible rather than proven — it is the first thing to write.
+**Q2 — ghost adoption? YES. PROVEN, not assumed.** Written and run against
+the installed package (5/5 green): ghost adoption survives the seam, from the
+increment button, the decrement button, and the keyboard.
+
+Direction is the crux, and it must come from the REASON — never from the
+`next` value the component reports, which is already its own step-from-empty
+and cannot express intent. `'increment-press'` and `'decrement-press'` give
+direction directly; `'keyboard'` carries the `KeyboardEvent`, so `event.key`
+gives it:
+
+```tsx
+onValueChange={(next, details) => {
+  let dir: 1 | -1 | 0 = 0
+  if (details.reason === 'increment-press') dir = 1
+  else if (details.reason === 'decrement-press') dir = -1
+  else if (details.reason === 'keyboard') {
+    if (details.event.key === 'ArrowUp') dir = 1
+    else if (details.event.key === 'ArrowDown') dir = -1
+  }
+  // Empty means "not logged", so the component's arithmetic is never right
+  // here — see the finding below. We own the step from empty entirely.
+  if (dir !== 0 && value === null) {
+    setValue(Math.max(0, (ghost ?? 0) + dir * step))
+    return
+  }
+  setValue(next)
+}}
+```
+
+**New finding, and the reason the interceptor cannot be ghost-only:** from
+`value === null` with `min={0}`, NumberField hands back **`min` (0), not
+`0 + step`**. Our `stepWeightValue` returns `2.5` in that case. So the
+substitution has to cover the no-ghost empty case as well — one expression
+covers both, as above. The consequence worth stating plainly: **when the field
+is empty, stepping is entirely ours**; NumberField's own arithmetic only takes
+over once a value exists. That is a maintenance fact, not a blocker.
+
+Home/End and PageUp/PageDown also arrive as `'keyboard'`. They jump rather
+than step, so they fall through to `next` — which is correct, but means a
+future large/small-step decision has to revisit this branch.
 
 ## What is left to prove, in order
 
-1. **Ghost adoption** through the `onValueChange` reason seam above. If this
-   cannot be made clean, stop and stay at **C**.
+1. ~~Ghost adoption through the reason seam~~ — **done, it works** (above).
 2. Partial entry (`"10."`) survives typing without the parse fighting the
-   caret.
+   caret. This is now the riskiest unknown.
 3. `loggingType` semantics: per-row min/format without a global assumption.
 4. Only then: layout, and whether the rail stays docked.
+
+**Status after this round: the migration is viable.** The blocker that was
+raised (Safari incrementers) does not apply, and the behaviour feared to be
+inexpressible is expressible. What remains is real work, not open questions —
+except partial entry, which is worth one more experiment before committing.
 
 ## Open questions for the owner
 
