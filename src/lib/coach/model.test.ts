@@ -56,10 +56,10 @@ describe('resolveCoachModel', () => {
 
 describe('prompt caching', () => {
   /**
-   * The coach re-sends 44 tool schemas plus the system prompt every turn, so
-   * the cache prefix is most of the bill. These assert the REQUEST carries the
-   * caching instruction — without it the flag is silently absent and the only
-   * symptom is an invoice.
+   * The coach re-sends the MCP tool schemas plus the system prompt every
+   * turn, so the cache prefix is most of the bill. These assert the REQUEST
+   * carries the caching instruction — without it the flag is silently absent
+   * and the only symptom is an invoice.
    */
   it('sends root-level cache_control on the OpenRouter request body', () => {
     const config = resolveCoachModel({ OPENROUTER_API_KEY: 'or-key' })
