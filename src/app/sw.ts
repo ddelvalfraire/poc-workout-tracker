@@ -104,14 +104,21 @@ self.addEventListener('push', (event) => {
 self.addEventListener('notificationclick', (event) => {
   event.notification.close()
   const raw: unknown = event.notification.data
-  const url =
-    typeof raw === 'object' && raw !== null && typeof (raw as { url?: unknown }).url === 'string'
-      ? (raw as { url: string }).url
-      : '/'
+  const data = (typeof raw === 'object' && raw !== null ? raw : {}) as {
+    url?: unknown
+    focusExisting?: unknown
+  }
+  const url = typeof data.url === 'string' ? data.url : '/'
+  // Local notifications (the logger's rest-over alert) set focusExisting:
+  // with the app already open they must FOCUS it — navigating would reload
+  // the live logger and drop its in-memory session state. `url` still
+  // serves the no-window cold start below.
+  const focusExisting = data.focusExisting === true
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
       const existing = clients.find((c) => 'focus' in c)
       if (existing) {
+        if (focusExisting) return existing.focus()
         return existing.navigate(url).then((c) => c?.focus())
       }
       return self.clients.openWindow(url)
