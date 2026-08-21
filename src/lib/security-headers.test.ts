@@ -75,6 +75,40 @@ describe('buildContentSecurityPolicy', () => {
     expect(directive(csp, 'connect-src')).toBe("connect-src 'self'")
   })
 
+  it('an env value can never rewrite the policy grammar', () => {
+    // new URL() ACCEPTS all three of these; a CSP cannot carry any of them.
+    // ';' ends a directive and starts a new one, ',' splits the header into a
+    // second policy, and a non-special scheme (the pasted-connection-string
+    // mistake) serializes its origin as the literal string "null".
+    const csp = buildContentSecurityPolicy({
+      isDev: false,
+      isPreview: false,
+      supabaseUrl: 'https://evil.example;sandbox',
+      sentryDsn: 'postgres://user:pass@db.evil.example:5432/app',
+    })
+    expect(directive(csp, 'img-src')).toBe("img-src 'self' blob: data:")
+    expect(directive(csp, 'connect-src')).toBe("connect-src 'self'")
+    expect(csp).not.toContain('sandbox')
+    expect(csp).not.toContain('null')
+
+    const comma = buildContentSecurityPolicy({
+      isDev: false,
+      isPreview: false,
+      supabaseUrl: 'https://evil.example,default-src',
+    })
+    expect(directive(comma, 'img-src')).toBe("img-src 'self' blob: data:")
+    expect(comma).not.toContain(',')
+  })
+
+  it('still admits the local-stack Supabase origin (http + port)', () => {
+    const csp = buildContentSecurityPolicy({
+      isDev: true,
+      isPreview: false,
+      supabaseUrl: 'http://127.0.0.1:54321',
+    })
+    expect(directive(csp, 'img-src')).toBe("img-src 'self' blob: data: http://127.0.0.1:54321")
+  })
+
   it('dev adds eval (react-refresh) and the HMR websocket, nothing more', () => {
     const dev = buildContentSecurityPolicy({ ...PROD, isDev: true })
     expect(directive(dev, 'script-src')).toBe("script-src 'self' 'unsafe-inline' 'unsafe-eval'")

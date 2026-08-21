@@ -47,15 +47,29 @@ export interface SecurityHeaderInput {
 const VERCEL_TOOLBAR = 'https://vercel.live'
 
 /**
+ * The only shape ever emitted into the policy: an http(s) origin whose host
+ * is plain LDH-with-dots (plus an optional port). Everything else a URL
+ * parser can produce is excluded on purpose — `;` and `,` survive inside a
+ * parsed hostname but are directive/policy separators in a CSP string, and
+ * a non-special scheme (SUPABASE_URL pasted as postgres://…) serializes its
+ * origin as the literal string "null". http stays allowed for local
+ * Supabase (http://127.0.0.1:54321).
+ */
+const CSP_SAFE_ORIGIN = /^https?:\/\/[a-z0-9.-]+(:\d+)?$/
+
+/**
  * A malformed or absent env var narrows the policy instead of throwing:
  * the feature that reads the same var is equally dead in that build, so the
  * missing allowance costs nothing — and a headers() throw would fail every
- * build for a reason unrelated to what is being built.
+ * build for a reason unrelated to what is being built. Narrowing is also the
+ * stance for values new URL() ACCEPTS but a CSP cannot carry (see
+ * CSP_SAFE_ORIGIN): a weird env var must never rewrite the policy's grammar.
  */
 function originOf(url: string | undefined): string | undefined {
   if (!url) return undefined
   try {
-    return new URL(url).origin
+    const origin = new URL(url).origin
+    return CSP_SAFE_ORIGIN.test(origin) ? origin : undefined
   } catch {
     return undefined
   }
