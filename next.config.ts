@@ -38,10 +38,12 @@ const nextConfig: NextConfig = {
   // GLOBAL flag — src/proxy.ts re-provides the 308 for every non-/_i path, so
   // the rest of the app (share links especially) keeps its old behavior.
   skipTrailingSlashRedirect: true,
-  experimental: {
-    // Enables React's <ViewTransition> for animated route changes.
-    viewTransition: true,
-  },
+  // `experimental.viewTransition` was REMOVED in Next 16.3 — the key no longer
+  // exists on ExperimentalConfig and setting it is a type error. The feature
+  // did not go away: the App Router runs React's canary channel, which ships
+  // <ViewTransition> natively, so components/page-transition.tsx keeps working
+  // with no opt-in. (16.3 adds unrelated `gestureTransition` and
+  // `transitionIndicator` keys — neither is a rename of this one.)
   // No SW headers entry needed anymore: the worker is served by the
   // /serwist/[path] route, which sets Service-Worker-Allowed: / itself, and
   // browsers bypass the HTTP cache for service-worker scripts by spec.
