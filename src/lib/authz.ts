@@ -35,7 +35,7 @@ import { TEMPLATE_OWNER_USER_ID } from './template-owner'
 export type AuthzAction = 'view' | 'adopt' | 'manage'
 
 export interface AuthzActor {
-  /** Clerk user id; null = anonymous (signed-out) visitor. */
+  /** WorkOS user id; null = anonymous (signed-out) visitor. */
   userId: string | null
 }
 

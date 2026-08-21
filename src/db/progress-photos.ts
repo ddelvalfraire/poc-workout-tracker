@@ -10,7 +10,7 @@ import {
 } from '@/lib/photo-input'
 
 /**
- * Data access for progress-photo rows, always scoped to a Clerk userId — the
+ * Data access for progress-photo rows, always scoped to a WorkOS userId — the
  * same authorization-boundary contract as db/body-measurements.ts. This layer
  * owns METADATA only; the blobs live in Supabase Storage and are written/
  * removed by the route (lib/supabase-storage.ts), which is why insert takes

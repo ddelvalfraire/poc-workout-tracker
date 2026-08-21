@@ -8,7 +8,7 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), refresh: vi.fn(), replace: vi.fn() }),
 }))
 // Server actions cannot be imported into a node test (they pull the db and
-// Clerk); the islands only reference them inside handlers.
+// WorkOS); the islands only reference them inside handlers.
 vi.mock('@/app/programs/actions', () => ({
   adjustTrainingMaxAction: vi.fn(),
   adoptProgramAction: vi.fn(),

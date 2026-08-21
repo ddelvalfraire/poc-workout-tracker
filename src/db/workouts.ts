@@ -31,9 +31,9 @@ import {
 } from './note-sync'
 
 /**
- * Data access for workouts, always scoped to a Clerk userId.
+ * Data access for workouts, always scoped to a WorkOS userId.
  *
- * The app has no Postgres row-level security (Clerk issues the identity, not
+ * The app has no Postgres row-level security (WorkOS issues the identity, not
  * Supabase), so this module is the authorization boundary: every query filters
  * by user_id. Route handlers must go through these helpers rather than querying
  * `workouts` directly, so a caller can never read or mutate another user's data.

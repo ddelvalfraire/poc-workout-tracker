@@ -11,7 +11,7 @@ import { useTranslations } from 'next-intl'
  * The type-to-confirm gate: the destructive button stays disabled until the
  * user types the exact phrase — a deliberate speed bump where a two-tap
  * dialog is too easy to sleepwalk through (this one erases an account). On
- * success we hard-navigate to /sign-in: the Clerk user is gone, so any
+ * success we hard-navigate to /sign-in: the WorkOS user is gone, so any
  * client-side route change would just bounce off dead auth state; a full
  * document load starts clean.
  */

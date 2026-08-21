@@ -6,7 +6,7 @@ import { ShareCardButton } from "./share-card-button";
  * Shares a rendered card PNG through the OS share sheet.
  *
  * The privacy design is the whole point: it fetches the card from a
- * same-origin **authed** route (the Clerk session cookie rides the fetch, so
+ * same-origin **authed** route (the WorkOS session cookie rides the fetch, so
  * the PNG never has a public URL), then hands the FILE to
  * `navigator.share({ files })` — the iOS PWA path. The share verb ships the
  * pixels, never a link. Where file sharing is unavailable it falls back to

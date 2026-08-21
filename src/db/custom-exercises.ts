@@ -4,7 +4,7 @@ import { db } from './index'
 import { customExercises } from './schema'
 
 /**
- * Data access for custom exercises, always scoped to a Clerk userId.
+ * Data access for custom exercises, always scoped to a WorkOS userId.
  *
  * Like `db/programs.ts`, this module is the authorization boundary: the app has
  * no Postgres row-level security, so every query filters by `user_id` on the

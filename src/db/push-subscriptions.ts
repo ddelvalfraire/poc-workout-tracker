@@ -3,7 +3,7 @@ import { db } from './index'
 import { pushSubscriptions } from './schema'
 
 /**
- * Data access for web-push subscriptions, scoped to a Clerk userId like every
+ * Data access for web-push subscriptions, scoped to a WorkOS userId like every
  * other db module (the authorization boundary is here, not the route).
  *
  * The endpoint is the subscription's identity at the push service, so the

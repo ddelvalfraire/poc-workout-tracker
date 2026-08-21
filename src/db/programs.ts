@@ -61,7 +61,7 @@ import {
 } from './schema'
 
 /**
- * Data access for training programs, always scoped to a Clerk userId.
+ * Data access for training programs, always scoped to a WorkOS userId.
  *
  * Like `db/workouts.ts`, this module is the authorization boundary: the app has
  * no Postgres row-level security, so every query filters by `user_id` on the

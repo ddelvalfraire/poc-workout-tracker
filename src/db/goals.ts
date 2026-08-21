@@ -5,7 +5,7 @@ import { db } from './index'
 import { goals, programDays, programs, workouts } from './schema'
 
 /**
- * Data access for goals, always scoped to a Clerk userId — the authorization
+ * Data access for goals, always scoped to a WorkOS userId — the authorization
  * boundary, like every module here. Thin on purpose: rows in and out plus the
  * evidence reads the streak needs; all progress/achievement POLICY lives in
  * lib/goal-progress.ts (pure) composed by lib/goals.ts.

@@ -4,7 +4,7 @@ import { db } from './index'
 import { programs, sets, trophies, workoutExercises, workouts } from './schema'
 
 /**
- * Data access for trophies, always scoped to a Clerk userId — the
+ * Data access for trophies, always scoped to a WorkOS userId — the
  * authorization boundary, like every module here. Thin on purpose: rows in
  * and out plus the evidence aggregates the detector needs; all RULE policy
  * (thresholds, canonical lifts, attribution) lives in lib/trophies.ts.

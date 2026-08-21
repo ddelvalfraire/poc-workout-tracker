@@ -63,7 +63,7 @@ describe('purgeUserData', () => {
   it('sweeps every user-scoped ownership root (consent tables excluded by design)', async () => {
     await purgeUserData('user_1')
 
-    // The complete roster of tables whose rows carry the Clerk user id.
+    // The complete roster of tables whose rows carry the WorkOS user id.
     // Child tables ride the onDelete:'cascade' FKs; consent tables must
     // survive (pseudonymized) so their absence here is the contract.
     expect([...deletedTables].sort()).toEqual(

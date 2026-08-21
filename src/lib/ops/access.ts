@@ -1,6 +1,6 @@
 /**
  * Ops-dashboard access gate — a clone of the coach gate (src/lib/coach/access.ts).
- * /ops is an internal surface: only allowlisted Clerk user ids may reach it,
+ * /ops is an internal surface: only allowlisted WorkOS user ids may reach it,
  * and everyone else gets a 404 (the route never acknowledges it exists).
  * OPS_ALLOWED_USER_IDS (comma-separated) is the explicit list; absent, it
  * falls back to MCP_DEV_USER_ID — the developer's own id, already configured
