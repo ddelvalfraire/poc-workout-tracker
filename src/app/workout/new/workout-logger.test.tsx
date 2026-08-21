@@ -174,6 +174,19 @@ describe('WorkoutLogger PREV column gate', () => {
   })
 })
 
+describe('sticky-bar Add Exercise demotion', () => {
+  it('keeps the 44px target even though sm is 36px (the #236 discipline)', () => {
+    // The sm demotion is visual only: hit-44-y buys the PRODUCT.md thumb-bar
+    // floor back, and both vertical neighbours sit a full gap-2 away. Sliced
+    // to this button's own opening tag so a neighbour's classes can never
+    // satisfy the assert.
+    const html = render()
+    const at = html.indexOf('>+ Exercise<')
+    expect(at).toBeGreaterThan(-1)
+    expect(html.slice(html.lastIndexOf('<button', at), at)).toContain('hit-44-y')
+  })
+})
+
 describe('SessionToast (#210)', () => {
   const countdown = { durationMs: 8000, resetKey: 0, onExpire: () => {} }
 

@@ -2894,14 +2894,18 @@ export function WorkoutLogger({
               so it keeps a permanent slot in the thumb bar — but a demoted
               one: sm, not lg. The bar already stacks the rest pill, next-up
               line and toasts above these buttons; two full-height rows under
-              that pushed it toward a third of a small viewport. Outline +
-              full width keep it thumb-sized while the volt Finish stays the
-              unmistakable primary. Disabled while saving: the draft is frozen
-              once the save barrier engages. */}
+              that pushed it toward a third of a small viewport. The demotion
+              is VISUAL only: hit-44-y buys the ≥44px target back (PRODUCT.md
+              thumb-bar floor — sm alone is 36px, an inline-affordance size),
+              and both vertical neighbours sit a full gap-2 away with no
+              extensions of their own. Outline + full width keep it
+              thumb-sized while the volt Finish stays the unmistakable
+              primary. Disabled while saving: the draft is frozen once the
+              save barrier engages. */}
           <Button
             size="sm"
             variant="outline"
-            className="w-full"
+            className="hit-44-y w-full"
             // Also frozen while discarding: the settle barrier has engaged
             // and the draft is on its way out — no more edits.
             disabled={isSaving || isDiscarding}
