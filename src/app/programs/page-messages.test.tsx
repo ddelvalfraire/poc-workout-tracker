@@ -326,6 +326,70 @@ describe('Template shelf and detail messages', () => {
   })
 })
 
+function BuilderSummaryProbe({
+  weeks,
+  deloadWeek,
+  autoreg,
+}: {
+  weeks: string
+  deloadWeek: string
+  autoreg: 'on' | 'off'
+}) {
+  const t = useTranslations('ProgramBuilder')
+  return <p>{t('settings.summary', { weeks, deloadWeek, autoreg })}</p>
+}
+
+/**
+ * The settings summary is a NESTED ICU select whose `other` arm re-uses its own
+ * selector as a value ("deload wk {deloadWeek}") — the one construct in this
+ * catalog a plural sweep skips entirely, since it has no plural. It is also
+ * the single line the redesigned builder hangs on: the eleven controls behind
+ * the row are only defensible if this sentence says where they stand.
+ *
+ * The arguments are the ones `program-builder.tsx` passes: `weeks` and
+ * `deloadWeek` as the trimmed input STRINGS, `autoreg` as 'on' | 'off'.
+ */
+describe('Program builder settings summary', () => {
+  test('no deload — the arm a never-set policy takes', () => {
+    const html = renderStaticIntl(<BuilderSummaryProbe weeks="6" deloadWeek="none" autoreg="off" />)
+    expect(html).toContain('6 wk · no deload · autoreg off')
+  })
+
+  test('reactive names the mode instead of claiming there is no deload', () => {
+    // The arm exists because "no deload" reported the opposite of what a
+    // reactive program does: it backs off, just not on a fixed week.
+    const html = renderStaticIntl(
+      <BuilderSummaryProbe weeks="6" deloadWeek="reactive" autoreg="on" />,
+    )
+    expect(html).toContain('6 wk · reactive deload · autoreg on')
+    expect(html).not.toContain('no deload')
+  })
+
+  test('a scheduled week falls to the other arm, which prints the week itself', () => {
+    // The nested `{deloadWeek}` inside the `other` branch is the fragile part:
+    // the selector and the value are the same argument.
+    const html = renderStaticIntl(<BuilderSummaryProbe weeks="8" deloadWeek="6" autoreg="on" />)
+    expect(html).toContain('8 wk · deload wk 6 · autoreg on')
+  })
+
+  test('the weeks argument is echoed verbatim, non-numeric input included', () => {
+    // `mesocycleWeeks` is a free-text field parsed (and floored at 1) only at
+    // save time, so mid-typing the summary can read "abc wk". PINNED, not
+    // guarded: the summary is a live echo of the field sitting open directly
+    // beneath it, and a display rule that silently substituted a number would
+    // hide from the user that what they typed is not what will be saved.
+    const html = renderStaticIntl(
+      <BuilderSummaryProbe weeks="abc" deloadWeek="none" autoreg="on" />,
+    )
+    expect(html).toContain('abc wk · no deload · autoreg on')
+  })
+
+  test('no key renders unresolved', () => {
+    const html = renderStaticIntl(<BuilderSummaryProbe weeks="6" deloadWeek="4" autoreg="on" />)
+    expect(html).not.toMatch(/ProgramBuilder\.[a-zA-Z.]+/)
+  })
+})
+
 function ChromeProbe() {
   const newProgram = useTranslations('ProgramNew')
   const editProgram = useTranslations('ProgramEdit')
