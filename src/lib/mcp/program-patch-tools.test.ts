@@ -319,7 +319,11 @@ describe('registerProgramPatchTools', () => {
       ])('forwards %s alone, leaving every other field undefined', async (field, patch) => {
         // Arrange
         const tools = setup()
-        mockedUpdateMeta.mockResolvedValue({ id: PID, changed: [field as never] })
+        mockedUpdateMeta.mockResolvedValue({
+          id: PID,
+          changed: [field as never],
+          trainedWeeksBeyond: 0,
+        })
 
         // Act
         const result = await tools.get('update_program_meta')!({ programId: PID, ...patch })
@@ -331,7 +335,12 @@ describe('registerProgramPatchTools', () => {
         )
         expect(defined).toEqual(patch)
         expect(mockedUpdateMeta).toHaveBeenCalledWith('user_env', PID, forwarded, 'mcp')
-        expect(payload(result)).toEqual({ userId: 'user_env', programId: PID, changed: [field] })
+        expect(payload(result)).toEqual({
+          userId: 'user_env',
+          programId: PID,
+          changed: [field],
+          trainedWeeksBeyond: 0,
+        })
       })
 
       it.each([
@@ -345,7 +354,11 @@ describe('registerProgramPatchTools', () => {
       ])('passes an explicit null through to clear %s', async (field, patch) => {
         // Arrange
         const tools = setup()
-        mockedUpdateMeta.mockResolvedValue({ id: PID, changed: [field as never] })
+        mockedUpdateMeta.mockResolvedValue({
+          id: PID,
+          changed: [field as never],
+          trainedWeeksBeyond: 0,
+        })
 
         // Act
         await tools.get('update_program_meta')!({ programId: PID, ...patch })
@@ -400,6 +413,33 @@ describe('registerProgramPatchTools', () => {
         // Assert — the message names the fix, not just the failure
         expect(result.isError).toBe(true)
         expect(result.content[0]?.text).toMatch(/remove_program_set_override/)
+      })
+
+      it('reports trained weeks past a successful shrink instead of refusing it', async () => {
+        // Arrange — the db op ALLOWS a shrink under already-trained weeks
+        // (logged sessions are facts, not authored config) and hands back the
+        // count so the coach can relay it.
+        const tools = setup()
+        mockedUpdateMeta.mockResolvedValue({
+          id: PID,
+          changed: ['mesocycleWeeks'],
+          trainedWeeksBeyond: 2,
+        })
+
+        // Act
+        const result = await tools.get('update_program_meta')!({
+          programId: PID,
+          mesocycleWeeks: 6,
+        })
+
+        // Assert — success, with the fact attached
+        expect(result.isError).toBeFalsy()
+        expect(payload(result)).toEqual({
+          userId: 'user_env',
+          programId: PID,
+          changed: ['mesocycleWeeks'],
+          trainedWeeksBeyond: 2,
+        })
       })
 
       it('surfaces not-found when the program is not owned', async () => {

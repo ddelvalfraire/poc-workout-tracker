@@ -321,7 +321,7 @@ export function registerProgramPatchTools(server: McpServer): void {
     {
       title: 'Update Program Details',
       description:
-        "Edits a program's own details — its name, article metadata (icon, description, heroImageUrl, sourceUrl), notes, and mesocycle shape (mesocycleWeeks, deloadWeek, checkInEveryDays) — WITHOUT touching a single day, exercise, set or per-week override. Use this instead of upsert_program to rename or re-scope a plan: a full replace has to resend the whole tree and drops any per-week override addressed to a slot the payload no longer carries. Only the named fields change; pass null to clear a nullable one (icon, description, heroImageUrl, sourceUrl, notes, deloadWeek, checkInEveryDays). heroImageUrl/sourceUrl must be http(s) URLs; blank text clears. `deloadWeek` must not exceed `mesocycleWeeks` — the rule is checked against the MERGED program, so setting either one alone is validated against the other as stored. SHRINKING `mesocycleWeeks` is REFUSED while any per-week override pins a week beyond the new length: the error names the count and the highest pinned week, and you clear them with remove_program_set_override first (a details edit never silently deletes or strands pinned targets). Growing the mesocycle is always fine. Lifecycle status (set_program_status), sharing visibility, the behavior policies (set_program_policy) and the day tree are deliberately NOT here. Errors if the program isn't found or owned.",
+        "Edits a program's own details — its name, article metadata (icon, description, heroImageUrl, sourceUrl), notes, and mesocycle shape (mesocycleWeeks, deloadWeek, checkInEveryDays) — WITHOUT touching a single day, exercise, set or per-week override. Use this instead of upsert_program to rename or re-scope a plan: a full replace has to resend the whole tree and drops any per-week override addressed to a slot the payload no longer carries. Only the named fields change; pass null to clear a nullable one (icon, description, heroImageUrl, sourceUrl, notes, deloadWeek, checkInEveryDays). heroImageUrl/sourceUrl must be http(s) URLs; blank text clears. `deloadWeek` must not exceed `mesocycleWeeks` — the rule is checked against the MERGED program, so setting either one alone is validated against the other as stored. SHRINKING `mesocycleWeeks` is REFUSED while any per-week override pins a week beyond the new length: the error names the count and the highest pinned week, and you clear them with remove_program_set_override first (a details edit never silently deletes or strands pinned targets). That rule looks at authored overrides ONLY: shrinking below weeks the user has already TRAINED is allowed and never refused — logged sessions are facts, their prescriptions were snapshotted when instantiated, and the edit is reversible by growing the mesocycle back. A successful shrink returns `trainedWeeksBeyond`, the number of distinct already-trained weeks past the new length; when it is above 0, tell the user plainly (e.g. \"you have workouts logged in 2 weeks past the new end — the block now ends at 6\"). Growing the mesocycle is always fine. Lifecycle status (set_program_status), sharing visibility, the behavior policies (set_program_policy) and the day tree are deliberately NOT here. Errors if the program isn't found or owned.",
       inputSchema: {
         programId: z.string(),
         // Bounds mirror programMetaPatchSchema (lib/program-input.ts), which is
@@ -355,7 +355,12 @@ export function registerProgramPatchTools(server: McpServer): void {
           updateProgramMeta(resolved, programId, meta, resolveActor(extra)),
         )
         if (!result) throw new ToolError(`Program ${programId} not found for user ${resolved}`)
-        return jsonResult({ userId: resolved, programId, changed: result.changed })
+        return jsonResult({
+          userId: resolved,
+          programId,
+          changed: result.changed,
+          trainedWeeksBeyond: result.trainedWeeksBeyond,
+        })
       } catch (error: unknown) {
         return errorResult(error)
       }

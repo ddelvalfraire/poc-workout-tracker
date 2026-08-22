@@ -1482,8 +1482,8 @@ describe('updateProgramMeta (granular program scalars)', () => {
     })
 
     it('accepts both halves moving together', async () => {
-      // Arrange — reads: owned-program → orphan count (none)
-      selectQueue = [owned(), [{ n: 0, maxWeek: null }]]
+      // Arrange — reads: owned-program → orphan count (none) → trained weeks
+      selectQueue = [owned(), [{ n: 0, maxWeek: null }], [{ n: 0 }]]
 
       // Act
       const result = await updateProgramMeta(USER, PID, { mesocycleWeeks: 4, deloadWeek: 4 }, 'mcp')
@@ -1509,15 +1509,42 @@ describe('updateProgramMeta (granular program scalars)', () => {
     })
 
     it('allows the shrink once no override reaches past the new length', async () => {
-      // Arrange
-      selectQueue = [owned({ deloadWeek: null }), [{ n: 0, maxWeek: null }]]
+      // Arrange — reads: owned-program → orphan count → trained weeks
+      selectQueue = [owned({ deloadWeek: null }), [{ n: 0, maxWeek: null }], [{ n: 0 }]]
 
       // Act
       const result = await updateProgramMeta(USER, PID, { mesocycleWeeks: 3 }, 'mcp')
 
       // Assert
       expect(result?.changed).toEqual(['mesocycleWeeks'])
+      expect(result?.trainedWeeksBeyond).toBe(0)
       expect(records.some((r) => r.op === 'delete:program_set_overrides')).toBe(false)
+    })
+
+    it('ALLOWS a shrink below already-TRAINED weeks and reports the count', async () => {
+      // Arrange — reads: owned-program → orphan count (none) → trained weeks
+      // beyond the new length (2 of them — say weeks 4 and 5 are logged).
+      selectQueue = [owned({ deloadWeek: null }), [{ n: 0, maxWeek: null }], [{ n: 2 }]]
+
+      // Act — the stored block is 6 weeks; shrink it to 3, under that history
+      const result = await updateProgramMeta(USER, PID, { mesocycleWeeks: 3 }, 'mcp')
+
+      // Assert — the DECISION: authored overrides are config and block a
+      // shrink; logged workouts are facts and do not. Prescriptions were
+      // snapshotted at instantiation, and growing the mesocycle back restores
+      // the prior state exactly, so the shrink is reported, not refused.
+      expect(result?.changed).toEqual(['mesocycleWeeks'])
+      expect(result?.trainedWeeksBeyond).toBe(2)
+      expect(programUpdate()).toMatchObject({ mesocycleWeeks: 3 })
+      // Not one logged workout is touched — no write reaches history.
+      expect(records.some((r) => r.op.endsWith(':workouts'))).toBe(false)
+      expect(records.some((r) => r.op.endsWith(':sets'))).toBe(false)
+      expect(records.some((r) => r.op.endsWith(':workout_exercises'))).toBe(false)
+      // And the fact lands in the change log for after-the-fact explanation.
+      expect(eventInsert()).toMatchObject({
+        action: 'update_program_meta',
+        payload: { after: { mesocycleWeeks: 3, trainedWeeksBeyond: 2 } },
+      })
     })
 
     it('never runs the orphan check when the mesocycle GROWS', async () => {
