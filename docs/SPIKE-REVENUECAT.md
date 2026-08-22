@@ -473,13 +473,20 @@ method. If a second adapter reveals real shared structure, extract it then
 
 ## Open decisions (not resolved by this spike)
 
-1. **Which web engine.** RC Web now has three: **RC Web Billing** (RC-hosted
-   catalog, Stripe processing, we are merchant of record), **Stripe Billing
-   integration** (our own Stripe catalog surfaced through RC flows; optionally
-   Stripe Managed Payments as MoR — shipped Apr 2026), or **Paddle** (MoR).
-   RC Web Billing is the least glue; Stripe Billing keeps the catalog in
-   Stripe if we ever want direct-Stripe independence; Managed Payments
-   offloads tax/compliance. Needs a product-level call.
+1. **Which web engine — RESOLVED 2026-08-21: none of them. Web sells Stripe
+   DIRECT, with no RC in the web path.** The deciding facts from RC's docs:
+   every RC engine puts web revenue into RC's 1% MTR, and the
+   Stripe-Billing-through-RC engine additionally bears Stripe Billing's own
+   0.7% fee — while Stripe direct pays processing only (2.9% + 30¢). Owning
+   the entitlement store makes this the cheap option: the web side becomes a
+   Stripe adapter (its own verify/client/inbox folder) into the same
+   EntitlementSnapshot → reconcileSnapshot → projectFromVendor contract, and
+   RC never needs to see web subscribers because cross-platform status lives
+   in our projection. RC is thereby scoped to IAP only — this adapter — and
+   its account/dashboard setup defers to iOS-port scoping. (Original
+   comparison, for the record: RC Web Billing = RC-hosted catalog, Stripe
+   processing, least glue; Stripe Billing integration = catalog in Stripe,
+   optional Managed Payments as merchant of record.)
 2. **Whether to sell inside the iOS app** — unchanged from the decision
    record (US link-out commission still unsettled after the Dec 2025 Ninth
    Circuit partial reversal; EU external-link entitlement forbids mixing with
