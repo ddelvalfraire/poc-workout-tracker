@@ -1,6 +1,6 @@
 import { describe, expect, test, vi } from 'vitest'
 
-import { renderStaticIntl } from '../../../../vitest.intl'
+import { catalogTranslator, renderStaticIntl } from '../../../../vitest.intl'
 import {
   emptyProgramDraft,
   newDraftProgramDay,
@@ -58,18 +58,21 @@ describe('ProgramBuilder form copy', () => {
   test('every deload-policy and diet-phase option is worded, not enum-named', () => {
     const html = renderStaticIntl(<ProgramBuilder unit="kg" />)
     // Each option is a name plus the sentence that makes it mean something.
-    // Those are separate message keys now (`.label` / `.hint`) so the new
-    // choice list can set them on their own lines; this surface joins them
-    // with an em dash. Either way an option must never read as a bare enum.
-    for (const label of [
-      'None — Every week is a working week.',
-      'Reactive — Only backs off when stalls suggest one.',
-      'Scheduled — Backs off on the deload week, every block.',
-      'Cutting — Stalls are expected; hold the load instead of auto-backing-off.',
-      'Maintaining',
-      'Bulking',
+    // `ChoiceList` renders those two on their OWN lines (the hint is a second
+    // line inside the label, so it is part of the announced name) rather than
+    // gluing them together with an em dash, so they are asserted as the
+    // separate strings they now are. Either way an option must never read as
+    // a bare enum: the name is always accompanied by its sentence.
+    for (const [label, hint] of [
+      ['None', 'Every week is a working week.'],
+      ['Reactive', 'Only backs off when stalls suggest one.'],
+      ['Scheduled', 'Backs off on the deload week, every block.'],
+      ['Cutting', 'Stalls are expected; hold the load instead of auto-backing-off.'],
+      ['Maintaining', 'Normal progression.'],
+      ['Bulking', 'Normal progression.'],
     ]) {
-      expect(html).toContain(label)
+      expect(html).toContain(`>${label}</span>`)
+      expect(html).toContain(hint)
     }
     // The values behind those labels must never surface as copy.
     expect(html).not.toContain('reps_weight')
@@ -78,8 +81,21 @@ describe('ProgramBuilder form copy', () => {
 
   test('the metric-mode select shows worded modes', () => {
     const html = renderStaticIntl(<ProgramBuilder unit="kg" initialDraft={draftWithOneSet()} />)
+    // The trigger shows the SELECTED mode worded — the reason `items` is
+    // passed to `Select` at all; without it the trigger renders the wire
+    // value (`reps_weight`) straight at the user.
     expect(html).toContain('Reps × weight')
-    expect(html).toContain('Duration + distance')
+    // The unselected modes live in the popup, which Base UI portals only once
+    // mounted, so a static render cannot contain them. What matters here is
+    // that the mode a user can SEE is never a wire identifier — the values
+    // themselves still ride the control's hidden form input, which is markup
+    // rather than copy, so this reads text nodes rather than the whole string.
+    expect(html).not.toMatch(/>[^<]*reps_weight/)
+    expect(html).not.toMatch(/>[^<]*duration_distance/)
+    // Every mode is worded in the catalog, selected or not.
+    const t = catalogTranslator('ProgramBuilder')
+    expect(t('metricMode.duration')).toBe('Duration')
+    expect(t('metricMode.durationDistance')).toBe('Duration + distance')
     expectNoUnresolvedKeys(html)
   })
 

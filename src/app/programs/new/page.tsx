@@ -23,7 +23,10 @@ export default async function NewProgramPage() {
           </Link>
         }
       />
-      <main className="mx-auto w-full max-w-md flex-1 px-5">
+      {/* The editor widens at the editor-pane breakpoint (840px, tokens.ts):
+          a comfortable centred column, not the three-pane editor — that is
+          later work. */}
+      <main className="mx-auto w-full max-w-md flex-1 px-5 min-[840px]:max-w-2xl">
         <ProgramBuilder unit={unit} />
       </main>
     </div>

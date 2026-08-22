@@ -1359,11 +1359,16 @@
     },
     "day": {
       "ariaLabel": "Day {position}",
+      "exerciseCount": "{count, plural, =0 {Nothing in it yet} one {# movement} other {# movements}}",
       "nameAriaLabel": "Day {position} name",
       "namePlaceholder": "Day {position} name",
       "removeAriaLabel": "Remove day {position}",
       "scheduleAriaLabel": "{dayName} schedule",
-      "title": "Day {position}"
+      "title": "Day {position}",
+      "titleNamed": "Day {position} · {name}"
+    },
+    "days": {
+      "legend": "Days"
     },
     "deloadHint": "A deload week eases the load partway through so you recover before the next block.",
     "deloadPolicy": {
@@ -1429,7 +1434,6 @@
       "repsWeight": "Reps × weight"
     },
     "nameAriaLabel": "Program name",
-    "namePlaceholder": "Program name",
     "placeholder": {
       "duration": "mm:ss",
       "rest": "Rest s"
@@ -1447,6 +1451,10 @@
       "ariaLabel": "{exerciseName} set {position} {field}",
       "removeAriaLabel": "Remove {exerciseName} set {position}"
     },
+    "settings": {
+      "legend": "Program settings",
+      "summary": "{weeks} wk · {deloadWeek, select, none {no deload} other {deload wk {deloadWeek}}} · {autoreg, select, on {autoreg on} other {autoreg off}}"
+    },
     "stallPolicy": {
       "allSets": "Every set must hit its reps",
       "firstSet": "Top set decides",
@@ -1462,6 +1470,7 @@
       "fromE1rmNote": "from your e1RM",
       "label": "Training max ({unit})"
     },
+    "untitled": "Untitled block",
     "weekday": "{weekday, select, sunday {Sunday} monday {Monday} tuesday {Tuesday} wednesday {Wednesday} thursday {Thursday} friday {Friday} saturday {Saturday} other {{weekday}}}",
     "weekdayInitial": "{weekday, select, sunday {S} monday {M} tuesday {T} wednesday {W} thursday {T} friday {F} saturday {S} other {{weekday}}}",
     "weeksAriaLabel": "Program length in weeks",
