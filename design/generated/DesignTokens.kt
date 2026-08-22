@@ -169,11 +169,20 @@ object DesignTokens {
     }
 
     object Layout {
-        /** The single phone column (28rem). Every surface except HOME. */
+        /** The single phone column (28rem). Every reading surface. */
         val ContentMaxWidth = 448.dp
 
         /** HOME only (42rem), from the md breakpoint up. */
         val ContentMaxWidthWide = 672.dp
+
+        /** The ONE architectural breakpoint: below it the editor is the phone column and drilling down navigates; at or above it the same routes project into panes and drilling down SELECTS. Matches Material's expanded window class, and it is a WINDOW measure, not a device one — split-screen and Stage Manager cross it. */
+        val EditorPaneBreakpoint = 840.dp
+
+        /** Editor pane 1 — weeks and days. Fixed: it is a table of contents, so it must not grow with the window. */
+        val EditorStructurePaneWidth = 244.dp
+
+        /** Editor pane 3 — the inspector for whatever is selected (Apple: beside the content, never a popover). Fixed, and collapses to nothing when the selection is empty so it never costs width for silence. */
+        val EditorInspectorWidth = 316.dp
 
         /** Sticky top app bar, excluding the status-bar safe area. */
         val AppBarHeight = 56.dp
