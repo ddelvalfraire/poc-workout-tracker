@@ -1607,15 +1607,11 @@
   },
   "ProgramTemplateDetail": {
     "attribution": "From the wger community · <source>View on wger</source>",
-    "dayNumber": "Day {position}",
     "fallbackTitle": "Template",
-    "meta": "{days, plural, one {# day} other {# days}}/week · {weeks, plural, one {# week} other {# weeks}}",
-    "planTitle": "The plan",
     "skipped": {
       "ariaLabel": "Not included",
       "title": "Couldn't map"
-    },
-    "supersetLabel": "Superset {letter}"
+    }
   },
   "ProgramTemplates": {
     "adoptedLink": "In your programs",
@@ -2122,12 +2118,7 @@
     "label": "Remove"
   },
   "SystemTemplateDetail": {
-    "attribution": "About this program · <source>View source</source>",
-    "dayNumber": "Day {position}",
-    "meta": "{days, plural, one {# day} other {# days}}/week · {weeks, plural, one {# week} other {# weeks}}",
-    "metaDeload": "{days, plural, one {# day} other {# days}}/week · {weeks, plural, one {# week} other {# weeks}} · deload wk {deloadWeek}",
-    "planTitle": "The plan",
-    "supersetLabel": "Superset {letter}"
+    "attribution": "About this program · <source>View source</source>"
   },
   "TemplateActions": {
     "delete": "Delete",
@@ -2166,6 +2157,17 @@
     "save": "Save",
     "saveError": "Could not save changes. Please try again.",
     "saving": "Saving…"
+  },
+  "TemplatePreview": {
+    "aboutTitle": "About",
+    "ctaHint": "Starts with day 1 — nothing is scheduled until you train.",
+    "dayNumber": "Day {position}",
+    "exerciseCount": "{count, plural, one {# exercise} other {# exercises}}",
+    "factDaysPerWeek": "Days / week",
+    "factExercisesPerDay": "Exercises / day",
+    "factWeeks": "Weeks",
+    "planTitle": "The plan",
+    "supersetLabel": "Superset {letter}"
   },
   "Templates": {
     "empty": "Finish a workout, tap “Save as template” on its summary, and it lives here ready to start in one tap.",
@@ -2308,6 +2310,9 @@
       "planned": "Planned / week",
       "previous": "Last week"
     }
+  },
+  "WeightStepSetting": {
+    "ariaLabel": "Step by {step} {unit}"
   },
   "WeightStepper": {
     "decreaseAriaLabel": "Decrease set {set} {noun} by {step} {unit}",
@@ -2553,8 +2558,5 @@
     "revokeError": "Could not revoke the link. Try again.",
     "shareAction": "Share workout",
     "shareActionPending": "Creating link…"
-  },
-  "WeightStepSetting": {
-    "ariaLabel": "Step by {step} {unit}"
   }
 }

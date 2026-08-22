@@ -192,15 +192,20 @@ function TemplateProbe({ days, weeks }: { days: number; weeks: number }) {
   const shelf = useTranslations('ProgramTemplates')
   const wger = useTranslations('ProgramTemplateDetail')
   const curated = useTranslations('SystemTemplateDetail')
+  // The shared preview body owns the plan vocabulary both detail branches
+  // render (day labels, superset letters, fact-strip captions, counts).
+  const preview = useTranslations('TemplatePreview')
   return (
     <div>
       <p>{shelf('curated.meta', { days, weeks })}</p>
       <p>{shelf('group.weeks', { weeks })}</p>
-      <p>{wger('meta', { days, weeks })}</p>
-      <p>{wger('dayNumber', { position: 1 })}</p>
-      <p>{wger('supersetLabel', { letter: 'A' })}</p>
-      <p>{curated('meta', { days, weeks })}</p>
-      <p>{curated('metaDeload', { days, weeks, deloadWeek: 4 })}</p>
+      <p>{preview('dayNumber', { position: 1 })}</p>
+      <p>{preview('supersetLabel', { letter: 'A' })}</p>
+      <p>{preview('exerciseCount', { count: days })}</p>
+      <p>{preview('factWeeks')}</p>
+      <p>{preview('factDaysPerWeek')}</p>
+      <p>{preview('factExercisesPerDay')}</p>
+      <p>{preview('ctaHint')}</p>
       <p>
         {wger.rich('attribution', {
           source: (chunks) => <a href="https://wger.de">{chunks}</a>,
@@ -218,16 +223,14 @@ function TemplateProbe({ days, weeks }: { days: number; weeks: number }) {
 describe('Template shelf and detail messages', () => {
   test('day and week counts read singular at one', () => {
     const html = renderStaticIntl(<TemplateProbe days={1} weeks={1} />)
-    expect(html).toContain('1 day/week · 1 week')
     expect(html).toContain('<p>1 week</p>')
-    expect(html).toContain('1 day/week · 1 week · deload wk 4')
+    expect(html).toContain('<p>1 exercise</p>')
   })
 
   test('day and week counts read plural past one', () => {
     const html = renderStaticIntl(<TemplateProbe days={4} weeks={8} />)
-    expect(html).toContain('4 days/week · 8 weeks')
     expect(html).toContain('<p>8 weeks</p>')
-    expect(html).toContain('4 days/week · 8 weeks · deload wk 4')
+    expect(html).toContain('<p>4 exercises</p>')
   })
 
   test('both attribution footers wrap only the link text in the anchor', () => {
@@ -236,13 +239,18 @@ describe('Template shelf and detail messages', () => {
     expect(html).toContain('About this program · <a href="https://example.test">View source</a>')
   })
 
-  test('day and superset labels resolve', () => {
+  test('preview labels resolve', () => {
     const html = renderStaticIntl(<TemplateProbe days={4} weeks={8} />)
     expect(html).toContain('Day 1')
     expect(html).toContain('Superset A')
+    expect(html).toContain('Weeks')
+    expect(html).toContain('Days / week')
+    expect(html).toContain('Exercises / day')
+    expect(html).toContain('nothing is scheduled until you train')
     expect(html).not.toMatch(/ProgramTemplates\.[a-zA-Z.]+/)
     expect(html).not.toMatch(/ProgramTemplateDetail\.[a-zA-Z.]+/)
     expect(html).not.toMatch(/SystemTemplateDetail\.[a-zA-Z.]+/)
+    expect(html).not.toMatch(/TemplatePreview\.[a-zA-Z.]+/)
   })
 })
 
