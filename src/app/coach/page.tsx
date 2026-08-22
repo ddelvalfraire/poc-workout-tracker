@@ -20,14 +20,16 @@ export default async function CoachPage({
   searchParams: Promise<{ context?: string | string[] }>
 }) {
   const userId = await requireUserId() // middleware also guards; this is defense-in-depth
-  // The coach is released. Entitled users are unlimited; unentitled users get
-  // a free taste (FREE_COACH_MESSAGE_QUOTA messages) and only get sent to the
-  // paywall once it is used up — so the taste is actually reachable. Access is
-  // enforced server-side in /api/chat regardless; this is the UX gate.
-  if ((await coachAccess(userId)) === 'unentitled') {
-    if ((await freeCoachMessagesUsed(userId)) >= FREE_COACH_MESSAGE_QUOTA) {
-      redirect('/settings/plan')
-    }
+  // The coach is released. Entitled users are unlimited (no counter);
+  // unentitled users get a free taste (FREE_COACH_MESSAGE_QUOTA messages) and
+  // are sent to the paywall only once it is used up — so the taste is
+  // reachable. Access is enforced server-side in /api/chat regardless.
+  const entitled = (await coachAccess(userId)) === 'available'
+  let freeMessagesRemaining: number | null = null
+  if (!entitled) {
+    const used = await freeCoachMessagesUsed(userId)
+    if (used >= FREE_COACH_MESSAGE_QUOTA) redirect('/settings/plan')
+    freeMessagesRemaining = FREE_COACH_MESSAGE_QUOTA - used
   }
   const sp = await searchParams
   const context = parseContextParam(sp.context)
@@ -51,6 +53,7 @@ export default async function CoachPage({
         programName={programName}
         initialMessages={initialMessages}
         clearAction={clearCoachChatAction}
+        freeMessagesRemaining={freeMessagesRemaining}
       />
     </div>
   )
