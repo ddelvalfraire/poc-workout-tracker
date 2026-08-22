@@ -258,15 +258,37 @@ beforeEach(() => {
 })
 
 describe('program change log completeness (program-patches.ts)', () => {
+  /**
+   * Exports that are NOT ops, and so carry no event of their own. Every name
+   * here needs a reason, because the whole point of the check below is that
+   * adding an op without registering a happy path fails the suite — an
+   * unexplained entry would switch the ratchet off one name at a time.
+   *
+   * - ProgramPatchError — the invalid-edit error class, not a call.
+   * - withTx — transaction plumbing: wraps an already-open tx for the batch
+   *   confirm / clone carry-forward, and mutates nothing itself.
+   * - findOwnedProgramId / findOwnedDayId / findOwnedExercise — READ-only
+   *   ownership gates, shared with the bulk ops in db/program-bulk.ts (which
+   *   has its own event coverage in program-bulk.test.ts).
+   * - assertSetRowIntegrity — a pure cross-field validator (throws or returns).
+   * - bumpUpdatedAt — the `programs.updatedAt` touch every op performs as PART
+   *   of its own transaction; a step inside an op, never an op itself, so it
+   *   deliberately carries no event of its own.
+   */
+  const NON_OP_EXPORTS = new Set([
+    'ProgramPatchError',
+    'withTx',
+    'findOwnedProgramId',
+    'findOwnedDayId',
+    'findOwnedExercise',
+    'assertSetRowIntegrity',
+    'bumpUpdatedAt',
+  ])
+
   it('the invocation map covers every mutating export — a new op must be registered here', () => {
-    // Arrange — every exported function except the error class and the
-    // transaction-plumbing helper (withTx wraps an open tx for the batch
-    // confirm / clone carry-forward; it mutates nothing itself) is a mutator.
+    // Arrange — every exported function that is not a documented non-op helper.
     const mutatingExports = Object.entries(patches)
-      .filter(
-        ([name, value]) =>
-          typeof value === 'function' && name !== 'ProgramPatchError' && name !== 'withTx',
-      )
+      .filter(([name, value]) => typeof value === 'function' && !NON_OP_EXPORTS.has(name))
       .map(([name]) => name)
       .sort()
 

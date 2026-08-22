@@ -160,6 +160,22 @@ export const COACH_EXCLUDED_TOOLS = [
   // ever needs to suggest a longer block, that lands as its own narrow,
   // proposable op — never this one wholesale.
   'update_program_meta',
+  // The bulk authoring ops (db/program-bulk.ts). Excluded PENDING APPROVAL
+  // COPY, not because they are unsafe — by reach and effect they belong in
+  // COACH_APPROVAL_TOOLS beside the granular patch ops, and each is one
+  // ownership-gated, event-logged transaction. But a tool in the approval tier
+  // must have a `describeToolCall` descriptor and its `CoachToolCall` message
+  // keys (enforced by describe-tool-call.test.ts), and without them the
+  // approval card would render a BLANK sentence and ask the user to say yes to
+  // it — the precise trust failure this module's header warns about. So they
+  // stay fail-closed for the coach until that copy lands; external MCP agents
+  // (which have no approval card) get them today.
+  'duplicate_program_day',
+  'duplicate_program_week',
+  'fill_program_sets',
+  'fill_program_weeks',
+  'apply_set_scheme',
+  'apply_progression_scope',
 ] as const
 
 export const COACH_ALLOWED_TOOLS: ReadonlySet<string> = new Set([
