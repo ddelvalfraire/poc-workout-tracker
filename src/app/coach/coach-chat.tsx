@@ -595,7 +595,13 @@ export function CoachChat({
           ) : remaining === 0 ? (
             // Spent the last free message this session — surface the upsell
             // proactively instead of waiting for the next send to 402.
-            <p className="flex flex-wrap items-center justify-center gap-2 pb-2 text-center text-sm">
+            // role=status so a screen reader hears the upsell moment (parity
+            // with the offline/error notices); the silent per-send counter
+            // below stays unannounced to avoid chattiness.
+            <p
+              role="status"
+              className="flex flex-wrap items-center justify-center gap-2 pb-2 text-center text-sm"
+            >
               <span className="text-muted-foreground">{t('freeMessagesGone')}</span>
               <Link href="/settings/plan" className="font-medium underline">
                 {t('paywallCta')}
