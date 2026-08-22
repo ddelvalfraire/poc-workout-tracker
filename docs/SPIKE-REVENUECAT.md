@@ -473,20 +473,21 @@ method. If a second adapter reveals real shared structure, extract it then
 
 ## Open decisions (not resolved by this spike)
 
-1. **Which web engine — RESOLVED 2026-08-21: none of them. Web sells Stripe
-   DIRECT, with no RC in the web path.** The deciding facts from RC's docs:
-   every RC engine puts web revenue into RC's 1% MTR, and the
-   Stripe-Billing-through-RC engine additionally bears Stripe Billing's own
-   0.7% fee — while Stripe direct pays processing only (2.9% + 30¢). Owning
-   the entitlement store makes this the cheap option: the web side becomes a
-   Stripe adapter (its own verify/client/inbox folder) into the same
-   EntitlementSnapshot → reconcileSnapshot → projectFromVendor contract, and
-   RC never needs to see web subscribers because cross-platform status lives
-   in our projection. RC is thereby scoped to IAP only — this adapter — and
-   its account/dashboard setup defers to iOS-port scoping. (Original
-   comparison, for the record: RC Web Billing = RC-hosted catalog, Stripe
-   processing, least glue; Stripe Billing integration = catalog in Stripe,
-   optional Managed Payments as merchant of record.)
+1. **Which web engine — RESOLVED 2026-08-21 (after a same-day detour
+   through Stripe-direct): RC Web Billing.** The detour's fee logic was
+   correct but mis-weighted: Stripe-direct saves 1% of MTR, which is $0
+   until $2,500/mo revenue, at the price of building and maintaining a
+   second (Stripe) adapter while the already-built RC receiver sat dormant.
+   RC Web Billing purchases emit the same webhook events (`store:
+   RC_BILLING`) into this adapter, so selling web through RC makes the
+   whole stack live immediately — only the purchase surface and dashboard
+   setup remain. **Stripe-direct stays the recorded exit** if 1% at scale
+   ever stings: owning the entitlement store means the exit is one new
+   adapter folder against the same snapshot contract, nothing more. (Engine
+   comparison for the record: RC Web Billing = RC-hosted catalog, Stripe
+   processing underneath, 2.9%+30¢, least glue; Stripe-Billing-through-RC =
+   catalog in Stripe, adds Stripe Billing's own 0.7%, optional Managed
+   Payments as merchant of record.)
 2. **Whether to sell inside the iOS app** — unchanged from the decision
    record (US link-out commission still unsettled after the Dec 2025 Ninth
    Circuit partial reversal; EU external-link entitlement forbids mixing with
