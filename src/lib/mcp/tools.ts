@@ -6,6 +6,7 @@ import { registerWriteTools } from './write-tools'
 import { registerPatchTools } from './patch-tools'
 import { registerProgramTools } from './program-tools'
 import { registerProgramPatchTools } from './program-patch-tools'
+import { registerProgramBulkTools } from './program-bulk-tools'
 import { registerCustomExerciseTools } from './custom-exercise-tools'
 import { registerGoalTools } from './goal-tools'
 import { registerNoteTools } from './note-tools'
@@ -20,7 +21,9 @@ import { registerResources } from './resources'
  * delegates the Phase 2 read tools to `registerReadTools`, the Phase 3 write tools
  * to `registerWriteTools`, the partial-edit tools to `registerPatchTools`, the
  * program authoring/read tools to `registerProgramTools`, the granular program
- * patch tools to `registerProgramPatchTools`, and the `workout://{id}` /
+ * patch tools to `registerProgramPatchTools`, the bulk authoring ops
+ * (duplicate day/week, fill down/right, scheme apply, scope broadcast) to
+ * `registerProgramBulkTools`, and the `workout://{id}` /
  * `program://{id}` resources to `registerResources`.
  */
 export function registerTools(server: McpServer): void {
@@ -59,6 +62,7 @@ export function registerTools(server: McpServer): void {
   registerPatchTools(server)
   registerProgramTools(server)
   registerProgramPatchTools(server)
+  registerProgramBulkTools(server)
   registerCustomExerciseTools(server)
   registerGoalTools(server)
   registerNoteTools(server)

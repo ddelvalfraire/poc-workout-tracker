@@ -60,8 +60,10 @@ export class ProgramPatchError extends Error {}
 type SetType = z.infer<typeof setTypeSchema>
 type MetricMode = z.infer<typeof metricModeSchema>
 
-/** The transaction handle, lifted from the callback signature (no internal import). */
-type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0]
+/** The transaction handle, lifted from the callback signature (no internal import).
+ *  Exported for the sibling bulk ops in db/program-bulk.ts, which run on the
+ *  same handles and reuse the ownership finders below. */
+export type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0]
 
 /**
  * Where a patch op runs: the root `db` (the default — each op owns its own
@@ -115,7 +117,7 @@ function parseProgression(value: Progression): Progression {
  * as `programSetSchema`, applied here because a partial edit merges against the
  * stored row, outside Zod's reach.
  */
-function assertSetRowIntegrity(row: {
+export function assertSetRowIntegrity(row: {
   metricMode: string
   durationSec: number | null
   repMin: number | null
@@ -126,7 +128,7 @@ function assertSetRowIntegrity(row: {
 }
 
 /** Marks the program as just-edited; ownership was already verified by the finder. */
-async function bumpUpdatedAt(tx: Tx, programId: string): Promise<void> {
+export async function bumpUpdatedAt(tx: Tx, programId: string): Promise<void> {
   await tx.update(programs).set({ updatedAt: new Date() }).where(eq(programs.id, programId))
 }
 
@@ -134,7 +136,7 @@ async function bumpUpdatedAt(tx: Tx, programId: string): Promise<void> {
  * Resolves the program's own id only when owned by the user — the ownership gate
  * for the day-level ops that don't address an existing day (add).
  */
-async function findOwnedProgramId(
+export async function findOwnedProgramId(
   tx: Tx,
   userId: string,
   programId: string,
@@ -152,7 +154,7 @@ async function findOwnedProgramId(
  * to `programs.userId` is the ownership gate for every day-level edit. Returns
  * null when the program isn't owned or no day sits at that 0-based position.
  */
-async function findOwnedDayId(
+export async function findOwnedDayId(
   tx: Tx,
   userId: string,
   programId: string,
@@ -178,7 +180,7 @@ async function findOwnedDayId(
  * when the program is owned by the user — one join deeper than the workout twin:
  * program_exercises → program_days → programs.user_id.
  */
-async function findOwnedExercise(
+export async function findOwnedExercise(
   tx: Tx,
   userId: string,
   programId: string,
