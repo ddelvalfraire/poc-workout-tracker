@@ -1443,6 +1443,7 @@
     "weeksPlaceholder": "Weeks (default 1)"
   },
   "ProgramDetail": {
+    "aboutTitle": "About this program",
     "actor": {
       "coach": "Coach",
       "mcp": "Claude",
@@ -1486,7 +1487,9 @@
         "cluster": "Cluster"
       }
     },
+    "daysEmpty": "No training days yet.",
     "deloadBadge": "Deload week",
+    "manageTitle": "Manage",
     "patchProposal": {
       "eyebrowCoach": "Proposed by your coach",
       "eyebrowOther": "Proposed changes"
@@ -1632,16 +1635,23 @@
     "archived": {
       "summary": "Archived · {count}"
     },
+    "blockSoFar": {
+      "daysDone": "{done}/{planned}",
+      "daysLabel": "Days done",
+      "heading": "Block so far",
+      "volumeLabel": "Volume",
+      "weeksLeftLabel": "Wks left"
+    },
     "empty": {
       "description": "Every block starts as a plan. Build your own, or start from a community template.",
       "newLink": "+ New Program",
       "templatesLink": "Browse program templates",
       "title": "Day one."
     },
+    "fullPlan": "Full plan & settings",
     "hero": {
       "blockComplete": "Block complete — restart or review from the program page.",
       "next": "Next: {dayName}",
-      "nextWithDay": "Next: Day {position} · {dayName}",
       "noDays": "No days planned yet.",
       "weekPosition": "<big>Wk {week}</big> <small>of {total}</small>"
     },
@@ -1664,11 +1674,17 @@
       "proposed": "Proposed"
     },
     "templatesLink": "Browse program templates",
+    "thisWeek": {
+      "done": "done",
+      "doneCount": "{done} of {total} done",
+      "heading": "This week"
+    },
     "title": "Programs",
     "zone": {
       "drafts": "Drafts",
       "otherActive": "Also active",
-      "proposed": "Needs your decision"
+      "proposed": "Needs your decision",
+      "withCount": "{label} · {count}"
     }
   },
   "ProposalActions": {

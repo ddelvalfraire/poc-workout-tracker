@@ -24,9 +24,18 @@ function ProgramsProbe({ weeks }: { weeks: number }) {
     <div>
       <p>{t('row.weeks', { weeks })}</p>
       <p>{t('row.weeksDeload', { weeks, deloadWeek: 4 })}</p>
-      <p>{t('hero.nextWithDay', { position: 2, dayName: 'Legs' })}</p>
       <p>{t('hero.next', { dayName: 'Legs' })}</p>
       <p>{t('archived.summary', { count: weeks })}</p>
+      <p>{t('thisWeek.heading')}</p>
+      <p>{t('thisWeek.doneCount', { done: 2, total: weeks })}</p>
+      <p>{t('thisWeek.done')}</p>
+      <p>{t('fullPlan')}</p>
+      <p>{t('zone.withCount', { label: 'Drafts', count: weeks })}</p>
+      <p>{t('blockSoFar.heading')}</p>
+      <p>{t('blockSoFar.daysDone', { done: 9, planned: 12 })}</p>
+      <p>{t('blockSoFar.daysLabel')}</p>
+      <p>{t('blockSoFar.volumeLabel')}</p>
+      <p>{t('blockSoFar.weeksLeftLabel')}</p>
       <p>
         {t.rich('hero.weekPosition', {
           week: 3,
@@ -59,11 +68,24 @@ describe('Programs list messages', () => {
     expect(html).toContain('<i data-testid="small">of 8</i>')
   })
 
-  test('the next-day line names the day with and without a position', () => {
+  test('the next-day line names the day', () => {
     const html = renderStaticIntl(<ProgramsProbe weeks={8} />)
-    expect(html).toContain('Next: Day 2 · Legs')
     expect(html).toContain('Next: Legs')
     expect(html).not.toMatch(/Programs\.[a-zA-Z.]+/)
+  })
+
+  test('the block-dashboard bands resolve their headings and counts', () => {
+    const html = renderStaticIntl(<ProgramsProbe weeks={4} />)
+    expect(html).toContain('This week')
+    expect(html).toContain('2 of 4 done')
+    expect(html).toContain('<p>done</p>')
+    expect(html).toContain('Full plan &amp; settings')
+    expect(html).toContain('Drafts · 4')
+    expect(html).toContain('Block so far')
+    expect(html).toContain('9/12')
+    expect(html).toContain('Days done')
+    expect(html).toContain('Volume')
+    expect(html).toContain('Wks left')
   })
 })
 
