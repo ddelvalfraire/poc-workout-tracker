@@ -471,6 +471,21 @@ method. If a second adapter reveals real shared structure, extract it then
 3. **PR 3**: `reconcile.ts` + cron rider + dead-letter alerting + ops re-sync.
 4. **PR 4** (needs creds + engine decision): purchase surface + sandbox E2E.
 
+## Launch preconditions (found during sandbox build, 2026-08-21)
+
+- **The API-snapshot path cannot filter sandbox.** The webhook drops
+  SANDBOX events, but `customer.active_entitlement` carries no environment
+  field — a Test Store purchase grants a REAL tier through the self-sync
+  action, the ops re-sync, and the nightly reconcile. Fine while every
+  purchase is our own test purchase; **before live launch, move production
+  to its own RC project** (RC's normal pattern) or delete the Test Store
+  app from this one.
+- The current catalog runs on RC's **Test Store** (no Stripe connected):
+  entitlements `pro`/`max`, products `pro_monthly`/`max_monthly` (P1M),
+  default offering with exactly those two packages. Real Web Billing
+  products with real prices replace them at launch; the code reads
+  whatever the offering holds, so no code change.
+
 ## Open decisions (not resolved by this spike)
 
 1. **Which web engine — RESOLVED 2026-08-21 (after a same-day detour

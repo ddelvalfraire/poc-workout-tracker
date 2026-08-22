@@ -2576,5 +2576,21 @@
     "reasonValidation": "A reason is required.",
     "errorDenied": "Not authorized.",
     "errorFailed": "Could not resolve — try again."
+  },
+  "UpgradePanel": {
+    "title": "Upgrade",
+    "loading": "Loading plans…",
+    "loadError": "Plans could not be loaded.",
+    "retry": "Retry",
+    "empty": "No plans are available right now.",
+    "buy": "Get it — {price}",
+    "activating": "Payment received — activating your plan…",
+    "purchased": "You are upgraded. This page will reflect it in a moment.",
+    "purchaseError": "The purchase did not complete. You were not charged twice — try again.",
+    "period": {
+      "monthly": "Billed monthly",
+      "yearly": "Billed yearly",
+      "lifetime": "One-time purchase"
+    }
   }
 }

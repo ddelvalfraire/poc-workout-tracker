@@ -113,6 +113,7 @@ export const CLIENT_NAMESPACES = [
   'Trophies',
   'UnitToggle',
   'UpNextAnchor',
+  'UpgradePanel',
   'UseTemplateButton',
   'VolumeBarChart',
   'WeightStepper',
