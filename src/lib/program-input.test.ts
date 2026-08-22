@@ -2,6 +2,8 @@ import { describe, it, expect } from 'vitest'
 import {
   deloadPolicySchema,
   parseProgramInput,
+  programMesocycleViolation,
+  programMetaPatchSchema,
   programSetIntegrityViolation,
   progressionSchema,
   setOverrideSchema,
@@ -382,6 +384,76 @@ describe('parseProgramInput', () => {
     expect(() => parseProgramInput({ ...VALID, mesocycleWeeks: 4, deloadWeek: 5 })).toThrow(
       /deloadWeek/i,
     )
+  })
+
+  describe('programMesocycleViolation (shared by the full replace and the meta patch)', () => {
+    it.each([
+      [{ mesocycleWeeks: 4, deloadWeek: 4 }],
+      [{ mesocycleWeeks: 4, deloadWeek: 1 }],
+      [{ mesocycleWeeks: 4, deloadWeek: null }],
+      [{ mesocycleWeeks: 4 }],
+    ])('accepts %o', (row) => {
+      expect(programMesocycleViolation(row)).toBeNull()
+    })
+
+    it('blames deloadWeek when it falls past the mesocycle', () => {
+      expect(programMesocycleViolation({ mesocycleWeeks: 4, deloadWeek: 5 })).toEqual({
+        path: 'deloadWeek',
+        message: 'deloadWeek must not exceed mesocycleWeeks',
+      })
+    })
+
+    it('is the rule the full-replace schema actually raises', () => {
+      // The refine delegates, so the two paths can never drift on the message.
+      expect(() => parseProgramInput({ ...VALID, mesocycleWeeks: 4, deloadWeek: 5 })).toThrow(
+        /deloadWeek must not exceed mesocycleWeeks/,
+      )
+    })
+  })
+
+  describe('programMetaPatchSchema (the granular program-scalar patch)', () => {
+    it('treats every field as optional — an empty patch parses', () => {
+      expect(programMetaPatchSchema.parse({})).toEqual({})
+    })
+
+    it('never materializes a mesocycleWeeks default (omitted must mean unchanged)', () => {
+      // The full schema defaults this to 1; on a patch that would silently
+      // re-scope a 12-week block whenever a caller only fixed the name.
+      expect(programMetaPatchSchema.parse({ name: 'PPL v2' })).not.toHaveProperty('mesocycleWeeks')
+    })
+
+    it('keeps explicit nulls as clears, distinct from omission', () => {
+      expect(programMetaPatchSchema.parse({ deloadWeek: null, notes: null })).toEqual({
+        deloadWeek: null,
+        notes: null,
+      })
+    })
+
+    it('collapses blank metadata text to null, exactly like the full replace', () => {
+      expect(programMetaPatchSchema.parse({ icon: '   ', description: '' })).toEqual({
+        icon: null,
+        description: null,
+      })
+    })
+
+    it.each([
+      ['heroImageUrl', { heroImageUrl: 'javascript:alert(1)' }],
+      ['sourceUrl', { sourceUrl: 'not a url' }],
+      ['name', { name: '   ' }],
+      ['mesocycleWeeks', { mesocycleWeeks: 0 }],
+      ['mesocycleWeeks', { mesocycleWeeks: 53 }],
+      ['deloadWeek', { deloadWeek: 0 }],
+      ['checkInEveryDays', { checkInEveryDays: 2 }],
+      ['checkInEveryDays', { checkInEveryDays: 91 }],
+    ])('rejects an out-of-bounds %s', (_field, patch) => {
+      expect(() => programMetaPatchSchema.parse(patch)).toThrow()
+    })
+
+    it('carries NO deloadWeek/mesocycleWeeks refinement — that runs on the merged row', () => {
+      // A patch may legitimately carry only one half of the pair; the rule is
+      // enforced in db/program-patches.ts against patch-over-stored.
+      expect(programMetaPatchSchema.parse({ deloadWeek: 40 })).toEqual({ deloadWeek: 40 })
+    })
   })
 
   it('throws on an unknown progression scheme', () => {

@@ -98,6 +98,7 @@ describe('registerTools', () => {
       'update_note',
       'update_program_day',
       'update_program_exercise',
+      'update_program_meta',
       'update_program_set',
       'update_set',
       'update_workout',

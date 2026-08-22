@@ -135,6 +135,7 @@ import {
   setProgramSetOverride,
   removeProgramSetOverride,
   setTrainingMax,
+  updateProgramMeta,
 } from './program-patches'
 
 const USER = 'user_123'
@@ -1393,5 +1394,243 @@ describe('removeProgramSetOverride', () => {
 
     // Act + Assert
     expect(await removeProgramSetOverride(USER, PID, 0, 1, 2, 3, 'mcp')).toBeNull()
+  })
+})
+
+describe('updateProgramMeta (granular program scalars)', () => {
+  const eventInsert = () =>
+    records.find((r) => r.op === 'insert:program_events')?.values as Record<string, unknown>
+  const programUpdate = () =>
+    records.find((r) => r.op === 'update:programs')?.values as Record<string, unknown>
+
+  /** The stored scalars, as the op's owned-program read returns them. */
+  const STORED = {
+    name: 'PPL',
+    mesocycleWeeks: 6,
+    deloadWeek: 5 as number | null,
+    checkInEveryDays: null as number | null,
+    icon: null as string | null,
+    description: null as string | null,
+    heroImageUrl: null as string | null,
+    sourceUrl: null as string | null,
+    notes: null as string | null,
+  }
+  const owned = (over: Partial<typeof STORED> = {}) => [{ ...STORED, ...over }]
+
+  it('returns null when the program is not owned', async () => {
+    // Arrange
+    selectQueue = [[]]
+
+    // Act + Assert — no write, no event
+    expect(await updateProgramMeta(USER, PID, { name: 'Hijack' }, 'mcp')).toBeNull()
+    expect(records).toEqual([])
+  })
+
+  it('refuses an all-omitted patch before touching the database', async () => {
+    // Arrange + Act + Assert
+    await expect(updateProgramMeta(USER, PID, {}, 'mcp')).rejects.toBeInstanceOf(ProgramPatchError)
+    expect(records).toEqual([])
+  })
+
+  it.each([
+    ['name', { name: 'PPL v2' }],
+    ['mesocycleWeeks (grow)', { mesocycleWeeks: 8 }],
+    ['deloadWeek', { deloadWeek: 4 }],
+    ['checkInEveryDays', { checkInEveryDays: 14 }],
+    ['icon', { icon: '🏋️' }],
+    ['description', { description: 'A push/pull/legs block.' }],
+    ['heroImageUrl', { heroImageUrl: 'https://example.com/hero.jpg' }],
+    ['sourceUrl', { sourceUrl: 'https://example.com/article' }],
+    ['notes', { notes: 'Bar speed over load.' }],
+  ])('sets %s and writes that field alone', async (_label, patch) => {
+    // Arrange — reads: owned-program scalars
+    selectQueue = [owned()]
+
+    // Act
+    const result = await updateProgramMeta(USER, PID, patch, 'mcp')
+
+    // Assert — only the named field rides the update (plus the updatedAt bump)
+    expect(result?.id).toBe(PID)
+    expect(programUpdate()).toMatchObject(patch)
+    expect(Object.keys(programUpdate()).sort()).toEqual(
+      [...Object.keys(patch), 'updatedAt'].sort(),
+    )
+  })
+
+  it.each([
+    ['deloadWeek', { deloadWeek: null }],
+    ['checkInEveryDays', { checkInEveryDays: null }],
+    ['icon', { icon: null }],
+    ['description', { description: null }],
+    ['heroImageUrl', { heroImageUrl: null }],
+    ['sourceUrl', { sourceUrl: null }],
+    ['notes', { notes: null }],
+  ])('clears %s with an explicit null', async (field, patch) => {
+    // Arrange — every nullable field starts non-null so the clear is a real change
+    selectQueue = [
+      owned({
+        deloadWeek: 5,
+        checkInEveryDays: 7,
+        icon: '🏋️',
+        description: 'x',
+        heroImageUrl: 'https://example.com/a.png',
+        sourceUrl: 'https://example.com/b',
+        notes: 'x',
+      }),
+    ]
+
+    // Act
+    const result = await updateProgramMeta(USER, PID, patch, 'mcp')
+
+    // Assert
+    expect(programUpdate()[field]).toBeNull()
+    expect(result?.changed).toEqual([field])
+  })
+
+  it('leaves every omitted field untouched (omitted = unchanged)', async () => {
+    // Arrange
+    selectQueue = [owned()]
+
+    // Act
+    await updateProgramMeta(USER, PID, { name: 'PPL v2' }, 'mcp')
+
+    // Assert — no key for a field the caller never mentioned
+    expect(programUpdate()).not.toHaveProperty('mesocycleWeeks')
+    expect(programUpdate()).not.toHaveProperty('notes')
+  })
+
+  it('collapses blank metadata text to null and rejects a non-http hero URL', async () => {
+    // Arrange
+    selectQueue = [owned({ icon: '🏋️' })]
+
+    // Act
+    await updateProgramMeta(USER, PID, { icon: '   ' }, 'mcp')
+
+    // Assert — the shared trimmedText/httpUrlText builders, as the full replace
+    expect(programUpdate().icon).toBeNull()
+    await expect(
+      updateProgramMeta(USER, PID, { heroImageUrl: 'javascript:alert(1)' }, 'mcp'),
+    ).rejects.toBeInstanceOf(ProgramPatchError)
+  })
+
+  it('logs exactly one actor-stamped event naming only the changed fields', async () => {
+    // Arrange — name changes; mesocycleWeeks is passed but identical
+    selectQueue = [owned()]
+
+    // Act
+    const result = await updateProgramMeta(USER, PID, { name: 'PPL v2', mesocycleWeeks: 6 }, 'ui')
+
+    // Assert
+    expect(result?.changed).toEqual(['name'])
+    expect(eventInsert()).toMatchObject({
+      programId: PID,
+      userId: USER,
+      actor: 'ui',
+      action: 'update_program_meta',
+      summary: 'Program details: renamed to "PPL v2"',
+      payload: { before: { name: 'PPL' }, after: { name: 'PPL v2' } },
+    })
+    expect(records.filter((r) => r.op === 'insert:program_events')).toHaveLength(1)
+  })
+
+  describe('deloadWeek <= mesocycleWeeks (the shared rule, merged)', () => {
+    it('rejects a deloadWeek past the STORED mesocycle', async () => {
+      // Arrange — stored mesocycle is 6
+      selectQueue = [owned()]
+
+      // Act + Assert
+      await expect(updateProgramMeta(USER, PID, { deloadWeek: 9 }, 'mcp')).rejects.toThrow(
+        'deloadWeek must not exceed mesocycleWeeks',
+      )
+      expect(records).toEqual([])
+    })
+
+    it('rejects a mesocycle shrink that strands the STORED deloadWeek', async () => {
+      // Arrange — stored deloadWeek is 5; shrinking to 4 would orphan it
+      selectQueue = [owned()]
+
+      // Act + Assert
+      await expect(updateProgramMeta(USER, PID, { mesocycleWeeks: 4 }, 'mcp')).rejects.toThrow(
+        'deloadWeek must not exceed mesocycleWeeks',
+      )
+    })
+
+    it('accepts both halves moving together', async () => {
+      // Arrange — reads: owned-program → orphan count (none) → trained weeks
+      selectQueue = [owned(), [{ n: 0, maxWeek: null }], [{ n: 0 }]]
+
+      // Act
+      const result = await updateProgramMeta(USER, PID, { mesocycleWeeks: 4, deloadWeek: 4 }, 'mcp')
+
+      // Assert
+      expect(result?.changed).toEqual(['mesocycleWeeks', 'deloadWeek'])
+      expect(programUpdate()).toMatchObject({ mesocycleWeeks: 4, deloadWeek: 4 })
+    })
+  })
+
+  describe('shrinking mesocycleWeeks with per-week overrides beyond it', () => {
+    it('REFUSES the shrink, naming the count and the highest pinned week', async () => {
+      // Arrange — reads: owned-program → orphan count (2 pins, highest week 6)
+      selectQueue = [owned({ deloadWeek: null }), [{ n: 2, maxWeek: 6 }]]
+
+      // Act + Assert — the deliberate choice: never silently delete a pinned
+      // target, never silently strand one.
+      await expect(updateProgramMeta(USER, PID, { mesocycleWeeks: 3 }, 'mcp')).rejects.toThrow(
+        /Cannot shrink mesocycleWeeks to 3: 2 per-week overrides pin a week beyond it \(highest: week 6\)/,
+      )
+      // Nothing written, nothing deleted.
+      expect(records).toEqual([])
+    })
+
+    it('allows the shrink once no override reaches past the new length', async () => {
+      // Arrange — reads: owned-program → orphan count → trained weeks
+      selectQueue = [owned({ deloadWeek: null }), [{ n: 0, maxWeek: null }], [{ n: 0 }]]
+
+      // Act
+      const result = await updateProgramMeta(USER, PID, { mesocycleWeeks: 3 }, 'mcp')
+
+      // Assert
+      expect(result?.changed).toEqual(['mesocycleWeeks'])
+      expect(result?.trainedWeeksBeyond).toBe(0)
+      expect(records.some((r) => r.op === 'delete:program_set_overrides')).toBe(false)
+    })
+
+    it('ALLOWS a shrink below already-TRAINED weeks and reports the count', async () => {
+      // Arrange — reads: owned-program → orphan count (none) → trained weeks
+      // beyond the new length (2 of them — say weeks 4 and 5 are logged).
+      selectQueue = [owned({ deloadWeek: null }), [{ n: 0, maxWeek: null }], [{ n: 2 }]]
+
+      // Act — the stored block is 6 weeks; shrink it to 3, under that history
+      const result = await updateProgramMeta(USER, PID, { mesocycleWeeks: 3 }, 'mcp')
+
+      // Assert — the DECISION: authored overrides are config and block a
+      // shrink; logged workouts are facts and do not. Prescriptions were
+      // snapshotted at instantiation, and growing the mesocycle back restores
+      // the prior state exactly, so the shrink is reported, not refused.
+      expect(result?.changed).toEqual(['mesocycleWeeks'])
+      expect(result?.trainedWeeksBeyond).toBe(2)
+      expect(programUpdate()).toMatchObject({ mesocycleWeeks: 3 })
+      // Not one logged workout is touched — no write reaches history.
+      expect(records.some((r) => r.op.endsWith(':workouts'))).toBe(false)
+      expect(records.some((r) => r.op.endsWith(':sets'))).toBe(false)
+      expect(records.some((r) => r.op.endsWith(':workout_exercises'))).toBe(false)
+      // And the fact lands in the change log for after-the-fact explanation.
+      expect(eventInsert()).toMatchObject({
+        action: 'update_program_meta',
+        payload: { after: { mesocycleWeeks: 3, trainedWeeksBeyond: 2 } },
+      })
+    })
+
+    it('never runs the orphan check when the mesocycle GROWS', async () => {
+      // Arrange — a poisoned second read: if the op ever counted orphans on a
+      // GROW it would consume this row and refuse. Growing can't strand a pin.
+      selectQueue = [owned({ deloadWeek: null }), [{ n: 3, maxWeek: 99 }]]
+
+      // Act
+      const result = await updateProgramMeta(USER, PID, { mesocycleWeeks: 12 }, 'mcp')
+
+      // Assert
+      expect(result?.changed).toEqual(['mesocycleWeeks'])
+    })
   })
 })

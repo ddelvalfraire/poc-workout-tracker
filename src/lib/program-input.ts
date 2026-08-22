@@ -290,6 +290,30 @@ export const progressionSchema = z
       : p,
   )
 
+/** The mesocycle length ceiling — a year of weeks; past that it isn't a block. */
+export const MAX_MESOCYCLE_WEEKS = 52
+/** Body check-in cadence bounds, days: under 3 is nagging, over 90 isn't a cadence. */
+export const MIN_CHECK_IN_DAYS = 3
+export const MAX_CHECK_IN_DAYS = 90
+
+/**
+ * The one cross-field rule a program's own scalars must satisfy: a deload can
+ * only fall WITHIN the mesocycle. Shared verbatim by `programInputSchema`'s
+ * refinement (full replace) and the granular meta patch op (`updateProgramMeta`
+ * in db/program-patches.ts), which checks the MERGED row — patch over stored —
+ * outside Zod's reach. The set-level twin is `programSetIntegrityViolation`
+ * below: same shape, same reason.
+ */
+export function programMesocycleViolation(row: {
+  mesocycleWeeks: number
+  deloadWeek?: number | null
+}): { path: 'deloadWeek'; message: string } | null {
+  if (row.deloadWeek != null && row.deloadWeek > row.mesocycleWeeks) {
+    return { path: 'deloadWeek', message: 'deloadWeek must not exceed mesocycleWeeks' }
+  }
+  return null
+}
+
 /**
  * The cross-field rules a planned-set row must satisfy, shared verbatim by
  * `programSetSchema`'s refinement and the patch layer's merge revalidation
@@ -419,7 +443,7 @@ export const programInputSchema = z
     // 'draft' (the coach path forces 'proposed' either way); updateProgram
     // preserves the stored status when omitted.
     status: statusSchema.optional(),
-    mesocycleWeeks: z.number().int().min(1).max(52).default(1),
+    mesocycleWeeks: z.number().int().min(1).max(MAX_MESOCYCLE_WEEKS).default(1),
     deloadWeek: z.number().int().min(1).nullable().optional(),
     // Auto-regulation switch (programs.autoregulation). Genuinely OPTIONAL —
     // no .default(true): a materialized default would ride the full-replace
@@ -462,7 +486,13 @@ export const programInputSchema = z
     // default, or an upsert that omits the field would wipe a stored cadence.
     // saveProgram treats omitted-on-create as null; updateProgram preserves
     // when omitted, and an explicit null clears the suggestion.
-    checkInEveryDays: z.number().int().min(3).max(90).nullable().optional(),
+    checkInEveryDays: z
+      .number()
+      .int()
+      .min(MIN_CHECK_IN_DAYS)
+      .max(MAX_CHECK_IN_DAYS)
+      .nullable()
+      .optional(),
     // Sharing visibility (programs.visibility). Same preserve-on-omit
     // discipline as the switches above: no .default('private'), or an upsert
     // that omits the field would flip a shared program back to private (or a
@@ -482,11 +512,56 @@ export const programInputSchema = z
     sourceUrl: httpUrlText(MAX_METADATA_TEXT),
     days: z.array(programDaySchema).min(1),
   })
-  // A deload can only fall within the mesocycle (defaults applied before this runs).
-  .refine((p) => p.deloadWeek == null || p.deloadWeek <= p.mesocycleWeeks, {
-    message: 'deloadWeek must not exceed mesocycleWeeks',
-    path: ['deloadWeek'],
+  // A deload can only fall within the mesocycle (defaults applied before this
+  // runs) — the shared rule, so the full replace and the granular meta patch
+  // can never drift apart on it.
+  .superRefine((p, ctx) => {
+    const violation = programMesocycleViolation(p)
+    if (violation) {
+      ctx.addIssue({ code: 'custom', message: violation.message, path: [violation.path] })
+    }
   })
+
+/**
+ * A PARTIAL edit of a program's own scalars — the granular twin of the
+ * program-level half of `programInputSchema`, for `updateProgramMeta`
+ * (db/program-patches.ts) and the `update_program_meta` MCP tool.
+ *
+ * Field-for-field the SAME builders as the full schema above (same bounds,
+ * same trim/blank→null collapse, same http(s) URL rule), so the two paths can
+ * never drift on what a valid value is. Two deliberate differences:
+ *  - `mesocycleWeeks` carries NO `.default(1)` — on a patch, omitted must mean
+ *    "unchanged", and a materialized default would silently re-scope a
+ *    12-week block to 1 whenever a caller only wanted to fix a typo in the
+ *    name. Every field here is preserve-on-omit.
+ *  - No `deloadWeek ≤ mesocycleWeeks` refinement: a patch may legitimately
+ *    carry only one half of that pair, so the rule can only be checked
+ *    against the MERGED row (patch over stored) in the db layer, via the
+ *    shared `programMesocycleViolation`.
+ *
+ * Deliberately EXCLUDED: `status` (set_program_status owns the lifecycle),
+ * `visibility` (setProgramVisibility in db/program-shares.ts owns it — it is a
+ * manage-gated outbound-sharing decision, refused on proposals, not
+ * metadata), the five behavior policies (set_program_policy), and the day
+ * tree (the add/update/remove/move ops).
+ */
+export const programMetaPatchSchema = z.object({
+  name: z.string().trim().min(1).max(MAX_NAME).optional(),
+  mesocycleWeeks: z.number().int().min(1).max(MAX_MESOCYCLE_WEEKS).optional(),
+  deloadWeek: z.number().int().min(1).nullable().optional(),
+  checkInEveryDays: z
+    .number()
+    .int()
+    .min(MIN_CHECK_IN_DAYS)
+    .max(MAX_CHECK_IN_DAYS)
+    .nullable()
+    .optional(),
+  notes: z.string().max(2000).nullable().optional(),
+  description: trimmedText(MAX_DESCRIPTION),
+  icon: trimmedText(MAX_METADATA_TEXT),
+  heroImageUrl: httpUrlText(MAX_METADATA_TEXT),
+  sourceUrl: httpUrlText(MAX_METADATA_TEXT),
+})
 
 export type SetType = z.infer<typeof setTypeSchema>
 /** The concrete input-settable status union — for signatures that must not
@@ -504,6 +579,8 @@ export type ProgramSetInput = z.infer<typeof programSetSchema>
 export type ProgramExerciseInput = z.infer<typeof programExerciseSchema>
 export type ProgramDayInput = z.infer<typeof programDaySchema>
 export type ProgramInput = z.infer<typeof programInputSchema>
+/** A partial edit of the program's own scalars (see programMetaPatchSchema). */
+export type ProgramMetaPatch = z.infer<typeof programMetaPatchSchema>
 /** The PRE-parse shape (defaults like `source` not yet applied) — what lenient
  *  client mappers emit; `parseProgramInput` normalizes it server-side. */
 export type ProgramInputUnparsed = z.input<typeof programInputSchema>
