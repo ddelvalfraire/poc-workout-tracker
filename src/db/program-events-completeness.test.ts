@@ -138,6 +138,25 @@ const INVOCATIONS: Record<string, { selects: unknown[][]; run: () => Promise<unk
     selects: [OWNED_PROGRAM],
     run: () => patches.setProgramDietPhase(USER, PID, 'cutting', 'mcp'),
   },
+  updateProgramMeta: {
+    // Reads: the owned program's current scalars (no shrink → no second read).
+    selects: [
+      [
+        {
+          name: 'PPL',
+          mesocycleWeeks: 6,
+          deloadWeek: null,
+          checkInEveryDays: null,
+          icon: null,
+          description: null,
+          heroImageUrl: null,
+          sourceUrl: null,
+          notes: null,
+        },
+      ],
+    ],
+    run: () => patches.updateProgramMeta(USER, PID, { name: 'PPL v2' }, 'mcp'),
+  },
   setTrainingMax: {
     // Reads: owned-exercise → current progression (a TM-bearing scheme).
     selects: [

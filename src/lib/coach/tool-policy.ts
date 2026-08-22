@@ -149,6 +149,17 @@ export const COACH_EXCLUDED_TOOLS = [
   // Lands a DRAFT directly (no 'proposed' gate) — the coach's route to a
   // template is upsert_program → proposed → the owner's adopt.
   'adopt_template',
+  // A program's name, icon, hero image, source URL, description and notes are
+  // the OWNER's framing of their own plan — the same reasoning as
+  // set_exercise_note and the notes-v2 writes: a coach rewriting them would be
+  // imposing, not proposing, and heroImageUrl/sourceUrl would make an approval
+  // card into a URL-injection surface. The rest of the tool
+  // (mesocycleWeeks/deloadWeek) RE-SCOPES the block, which is lifecycle-shaped
+  // — the neighbour of restart_program and set_program_status, both excluded.
+  // External MCP agents (which act AS the user) keep the tool. If the coach
+  // ever needs to suggest a longer block, that lands as its own narrow,
+  // proposable op — never this one wholesale.
+  'update_program_meta',
 ] as const
 
 export const COACH_ALLOWED_TOOLS: ReadonlySet<string> = new Set([

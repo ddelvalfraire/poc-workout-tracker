@@ -27,6 +27,7 @@ vi.mock('@/db/program-patches', () => {
     setProgramDietPhase: vi.fn(),
     setProgramOvershootPolicy: vi.fn(),
     setProgramPlanSync: vi.fn(),
+    updateProgramMeta: vi.fn(),
   }
 })
 vi.mock('@/db/preferences', () => ({ getWeightUnit: vi.fn() }))
@@ -55,6 +56,7 @@ import {
   setProgramDietPhase,
   setProgramOvershootPolicy,
   setProgramPlanSync,
+  updateProgramMeta,
 } from '@/db/program-patches'
 import { getWeightUnit } from '@/db/preferences'
 import { createPatchProposal } from '@/db/patch-proposals'
@@ -81,6 +83,7 @@ const mockedSetOvershootPolicy = vi.mocked(setProgramOvershootPolicy)
 const mockedSetPlanSync = vi.mocked(setProgramPlanSync)
 const mockedSetOverride = vi.mocked(setProgramSetOverride)
 const mockedRemoveOverride = vi.mocked(removeProgramSetOverride)
+const mockedUpdateMeta = vi.mocked(updateProgramMeta)
 const mockedGetUnit = vi.mocked(getWeightUnit)
 
 type ToolResult = { content: { type: string; text: string }[]; isError?: boolean }
@@ -122,7 +125,7 @@ describe('registerProgramPatchTools', () => {
     else process.env.MCP_DEV_USER_ID = original
   })
 
-  it('registers exactly the eighteen program patch tools', () => {
+  it('registers exactly the nineteen program patch tools', () => {
     expect([...setup().keys()].sort()).toEqual([
       'add_program_day',
       'add_program_exercise',
@@ -141,6 +144,7 @@ describe('registerProgramPatchTools', () => {
       'substitute_program_exercise',
       'update_program_day',
       'update_program_exercise',
+      'update_program_meta',
       'update_program_set',
     ])
   })
@@ -299,6 +303,117 @@ describe('registerProgramPatchTools', () => {
         expect(result.isError, policy.name).toBe(true)
         expect(result.content[0]?.text).toMatch(/not found/)
       }
+    })
+
+    describe('update_program_meta', () => {
+      it.each([
+        ['name', { name: 'PPL v2' }],
+        ['mesocycleWeeks', { mesocycleWeeks: 8 }],
+        ['deloadWeek', { deloadWeek: 4 }],
+        ['checkInEveryDays', { checkInEveryDays: 14 }],
+        ['icon', { icon: '🏋️' }],
+        ['description', { description: 'A push/pull/legs block.' }],
+        ['heroImageUrl', { heroImageUrl: 'https://example.com/hero.jpg' }],
+        ['sourceUrl', { sourceUrl: 'https://example.com/article' }],
+        ['notes', { notes: 'Bar speed over load.' }],
+      ])('forwards %s alone, leaving every other field undefined', async (field, patch) => {
+        // Arrange
+        const tools = setup()
+        mockedUpdateMeta.mockResolvedValue({ id: PID, changed: [field as never] })
+
+        // Act
+        const result = await tools.get('update_program_meta')!({ programId: PID, ...patch })
+
+        // Assert — the db op receives the patch verbatim; omitted stays omitted
+        const forwarded = mockedUpdateMeta.mock.calls[0]![2] as Record<string, unknown>
+        const defined = Object.fromEntries(
+          Object.entries(forwarded).filter(([, value]) => value !== undefined),
+        )
+        expect(defined).toEqual(patch)
+        expect(mockedUpdateMeta).toHaveBeenCalledWith('user_env', PID, forwarded, 'mcp')
+        expect(payload(result)).toEqual({ userId: 'user_env', programId: PID, changed: [field] })
+      })
+
+      it.each([
+        ['deloadWeek', { deloadWeek: null }],
+        ['checkInEveryDays', { checkInEveryDays: null }],
+        ['icon', { icon: null }],
+        ['description', { description: null }],
+        ['heroImageUrl', { heroImageUrl: null }],
+        ['sourceUrl', { sourceUrl: null }],
+        ['notes', { notes: null }],
+      ])('passes an explicit null through to clear %s', async (field, patch) => {
+        // Arrange
+        const tools = setup()
+        mockedUpdateMeta.mockResolvedValue({ id: PID, changed: [field as never] })
+
+        // Act
+        await tools.get('update_program_meta')!({ programId: PID, ...patch })
+
+        // Assert — null is a value (clear), not an omission
+        expect(mockedUpdateMeta.mock.calls[0]![2]).toMatchObject({ [field]: null })
+      })
+
+      it('errors on an empty patch without touching the db', async () => {
+        // Arrange
+        const tools = setup()
+
+        // Act
+        const result = await tools.get('update_program_meta')!({ programId: PID })
+
+        // Assert
+        expect(result.isError).toBe(true)
+        expect(result.content[0]?.text).toMatch(/at least one/i)
+        expect(mockedUpdateMeta).not.toHaveBeenCalled()
+      })
+
+      it('surfaces the deloadWeek/mesocycleWeeks rule verbatim', async () => {
+        // Arrange — the shared refine, raised by the db op against the merged row
+        const tools = setup()
+        mockedUpdateMeta.mockRejectedValue(
+          new ProgramPatchError('deloadWeek must not exceed mesocycleWeeks'),
+        )
+
+        // Act
+        const result = await tools.get('update_program_meta')!({ programId: PID, deloadWeek: 9 })
+
+        // Assert
+        expect(result.isError).toBe(true)
+        expect(result.content[0]?.text).toMatch(/deloadWeek must not exceed mesocycleWeeks/)
+      })
+
+      it('surfaces the shrink refusal so the agent can go clear the overrides', async () => {
+        // Arrange
+        const tools = setup()
+        mockedUpdateMeta.mockRejectedValue(
+          new ProgramPatchError(
+            'Cannot shrink mesocycleWeeks to 3: 2 per-week overrides pin a week beyond it (highest: week 6). Remove them with remove_program_set_override first, or keep the longer mesocycle.',
+          ),
+        )
+
+        // Act
+        const result = await tools.get('update_program_meta')!({
+          programId: PID,
+          mesocycleWeeks: 3,
+        })
+
+        // Assert — the message names the fix, not just the failure
+        expect(result.isError).toBe(true)
+        expect(result.content[0]?.text).toMatch(/remove_program_set_override/)
+      })
+
+      it('surfaces not-found when the program is not owned', async () => {
+        // Arrange
+        const tools = setup()
+        mockedUpdateMeta.mockResolvedValue(null)
+
+        // Act
+        const result = await tools.get('update_program_meta')!({ programId: PID, name: 'Hijack' })
+
+        // Assert
+        expect(result.isError).toBe(true)
+        expect(result.content[0]?.text).toMatch(/not found/)
+      })
     })
   })
 

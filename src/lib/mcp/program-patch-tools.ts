@@ -14,6 +14,7 @@ import {
   setProgramOvershootPolicy,
   setProgramPlanSync,
   setTrainingMax,
+  updateProgramMeta,
   addProgramDay,
   updateProgramDay,
   removeProgramDay,
@@ -47,6 +48,11 @@ import {
   progressionSchema,
   deloadPolicySchema,
   dietPhaseSchema,
+  MAX_DESCRIPTION,
+  MAX_METADATA_TEXT,
+  MAX_MESOCYCLE_WEEKS,
+  MIN_CHECK_IN_DAYS,
+  MAX_CHECK_IN_DAYS,
 } from '@/lib/program-input'
 import { overshootPolicySchema } from '@/lib/overshoot-policy'
 
@@ -304,6 +310,52 @@ export function registerProgramPatchTools(server: McpServer): void {
         const applied = await applyProgramPolicy(resolved, programId, policy, actor)
         if (!applied) throw new ToolError(`Program ${programId} not found for user ${resolved}`)
         return jsonResult({ userId: resolved, programId, ...applied })
+      } catch (error: unknown) {
+        return errorResult(error)
+      }
+    },
+  )
+
+  server.registerTool(
+    'update_program_meta',
+    {
+      title: 'Update Program Details',
+      description:
+        "Edits a program's own details — its name, article metadata (icon, description, heroImageUrl, sourceUrl), notes, and mesocycle shape (mesocycleWeeks, deloadWeek, checkInEveryDays) — WITHOUT touching a single day, exercise, set or per-week override. Use this instead of upsert_program to rename or re-scope a plan: a full replace has to resend the whole tree and drops any per-week override addressed to a slot the payload no longer carries. Only the named fields change; pass null to clear a nullable one (icon, description, heroImageUrl, sourceUrl, notes, deloadWeek, checkInEveryDays). heroImageUrl/sourceUrl must be http(s) URLs; blank text clears. `deloadWeek` must not exceed `mesocycleWeeks` — the rule is checked against the MERGED program, so setting either one alone is validated against the other as stored. SHRINKING `mesocycleWeeks` is REFUSED while any per-week override pins a week beyond the new length: the error names the count and the highest pinned week, and you clear them with remove_program_set_override first (a details edit never silently deletes or strands pinned targets). Growing the mesocycle is always fine. Lifecycle status (set_program_status), sharing visibility, the behavior policies (set_program_policy) and the day tree are deliberately NOT here. Errors if the program isn't found or owned.",
+      inputSchema: {
+        programId: z.string(),
+        // Bounds mirror programMetaPatchSchema (lib/program-input.ts), which is
+        // the parse the db op actually runs — these are the agent-facing hints.
+        name: nameArg.optional(),
+        mesocycleWeeks: z.number().int().min(1).max(MAX_MESOCYCLE_WEEKS).optional(),
+        deloadWeek: z.number().int().min(1).nullable().optional(),
+        checkInEveryDays: z
+          .number()
+          .int()
+          .min(MIN_CHECK_IN_DAYS)
+          .max(MAX_CHECK_IN_DAYS)
+          .nullable()
+          .optional(),
+        icon: z.string().max(MAX_METADATA_TEXT).nullable().optional(),
+        description: z.string().max(MAX_DESCRIPTION).nullable().optional(),
+        heroImageUrl: z.string().max(MAX_METADATA_TEXT).nullable().optional(),
+        sourceUrl: z.string().max(MAX_METADATA_TEXT).nullable().optional(),
+        notes: notesArg,
+        userId: z.string().optional(),
+      },
+    },
+    async ({ programId, userId, ...meta }, extra) => {
+      try {
+        const resolved = resolveUserId(extra, userId)
+        assertProgramIdShape(programId)
+        if (isEmptyPatch(meta)) {
+          throw new ToolError('update_program_meta needs at least one field to change')
+        }
+        const result = await runOp(() =>
+          updateProgramMeta(resolved, programId, meta, resolveActor(extra)),
+        )
+        if (!result) throw new ToolError(`Program ${programId} not found for user ${resolved}`)
+        return jsonResult({ userId: resolved, programId, changed: result.changed })
       } catch (error: unknown) {
         return errorResult(error)
       }
