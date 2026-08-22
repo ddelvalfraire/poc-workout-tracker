@@ -25,9 +25,13 @@ vi.mock('@/db/rc-webhook-events', () => ({
 }))
 
 const fetchCustomerSnapshot = vi.fn()
-vi.mock('./client', () => ({
-  fetchCustomerSnapshot: (...args: unknown[]) => fetchCustomerSnapshot(...args),
-}))
+vi.mock('./client', async (importOriginal) => {
+  const original = await importOriginal<typeof import('./client')>()
+  return {
+    expectedRcEnvironment: original.expectedRcEnvironment,
+    fetchCustomerSnapshot: (...args: unknown[]) => fetchCustomerSnapshot(...args),
+  }
+})
 
 const processRcEvent = vi.fn()
 vi.mock('./processor', () => ({
@@ -75,6 +79,9 @@ beforeEach(() => {
   processRcEvent.mockReset().mockResolvedValue({ kind: 'processed' })
   vi.stubEnv('RC_API_V2_KEY', 'sk_test_synthetic')
   vi.stubEnv('RC_PROJECT_ID', 'proj_synthetic')
+  // The synthetic inbox rows say PRODUCTION; without this the sweep's
+  // environment door would skip them all (local default is SANDBOX).
+  vi.stubEnv('RC_EXPECTED_ENVIRONMENT', 'PRODUCTION')
 })
 
 afterEach(() => {
@@ -114,6 +121,14 @@ describe('reconcileRevenueCat', () => {
     await reconcileRevenueCat(NOW)
     const arg = listReprocessable.mock.calls[0][0] as { staleReceivedBefore: Date }
     expect(arg.staleReceivedBefore.getTime()).toBe(NOW.getTime() - 3 * 60 * 60 * 1000)
+  })
+
+  it('ignores a stranded row from the wrong environment instead of reprocessing it', async () => {
+    listReprocessable.mockResolvedValue([inboxRow({ environment: 'SANDBOX' })])
+    const report = await reconcileRevenueCat(NOW)
+    expect(markIgnored).toHaveBeenCalledWith('evt-stale-1')
+    expect(processRcEvent).not.toHaveBeenCalled()
+    expect(report).toMatchObject({ reprocessed: 1 })
   })
 
   it('orphans a row whose payload is gone (trimmed) instead of crashing', async () => {

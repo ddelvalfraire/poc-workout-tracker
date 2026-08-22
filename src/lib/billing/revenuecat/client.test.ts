@@ -120,7 +120,7 @@ describe('fetchCustomerSnapshot', () => {
     expect(snapshot.entitlements[0].endsAt).toBeNull()
   })
 
-  it('skips an entitlement whose id maps to no tier instead of failing the customer', async () => {
+  it('REFUSES a snapshot containing an unmappable entitlement — a rename must not become a mass revoke', async () => {
     fetchMock
       .mockResolvedValueOnce(
         jsonResponse(
@@ -128,7 +128,7 @@ describe('fetchCustomerSnapshot', () => {
           activeEntitlements([
             {
               object: 'customer.active_entitlement',
-              entitlement_id: 'entl_typo',
+              entitlement_id: 'entl_renamed',
               expires_at: 1789999999000,
             },
             {
@@ -140,9 +140,11 @@ describe('fetchCustomerSnapshot', () => {
         ),
       )
       .mockResolvedValueOnce(jsonResponse(200, CATALOG))
-    const snapshot = await fetchCustomerSnapshot('user_01SYNTHETIC')
-    expect(snapshot.entitlements).toHaveLength(1)
-    expect(snapshot.entitlements[0].tier).toBe('max')
+    // A partial snapshot would revoke the incumbent grants for whatever got
+    // dropped; failing retryable freezes the user's projection instead.
+    await expect(fetchCustomerSnapshot('user_01SYNTHETIC')).rejects.toBeInstanceOf(
+      RetryableBillingError,
+    )
   })
 
   it('throws RetryableBillingError on 429/5xx', async () => {

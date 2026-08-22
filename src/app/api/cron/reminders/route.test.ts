@@ -5,6 +5,12 @@ vi.mock('@/db/push-subscriptions', () => ({ listPushSubscribedUserIds: vi.fn() }
 vi.mock('@/lib/check-in', () => ({ getCheckInStatus: vi.fn() }))
 vi.mock('@/lib/push', () => ({ sendPushToUser: vi.fn() }))
 vi.mock('@/lib/redis', () => ({ getRedis: vi.fn() }))
+// The RC rider is its own unit (reconcile.test.ts); here it must never run
+// for real regardless of what env leaks in — unconfigured resolves to null,
+// which is what every response assertion below expects.
+vi.mock('@/lib/billing/revenuecat/reconcile', () => ({
+  reconcileRevenueCat: vi.fn(async () => null),
+}))
 
 import { GET, checkInMarkerKey, reminderMarkerKey } from './route'
 import { getNextProgramDay } from '@/db/programs'

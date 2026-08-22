@@ -8,7 +8,7 @@ import {
   markProcessed,
   trimPayloads,
 } from '@/db/rc-webhook-events'
-import { fetchCustomerSnapshot } from './client'
+import { expectedRcEnvironment, fetchCustomerSnapshot } from './client'
 import { processRcEvent } from './processor'
 import { rcWebhookBodySchema } from './types'
 
@@ -70,6 +70,14 @@ export async function reconcileRevenueCat(now = new Date()): Promise<ReconcileRe
     staleReceivedBefore: new Date(now.getTime() - STALE_RECEIVED_MS),
   })
   for (const row of rows) {
+    // Same door policy as the route: a crash-stranded SANDBOX row must not
+    // get reprocessed into prod grants by the sweep (review finding,
+    // pr-295-review.md MEDIUM-1).
+    if (row.environment !== expectedRcEnvironment()) {
+      await markIgnored(row.id)
+      reprocessed += 1
+      continue
+    }
     const parsed = rcWebhookBodySchema.safeParse(row.payload)
     if (!parsed.success) {
       // Trimmed or malformed payload: nothing left to reprocess from. The

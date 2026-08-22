@@ -25,6 +25,17 @@ const RC_API_BASE = 'https://api.revenuecat.com'
 const FETCH_TIMEOUT_MS = 10_000
 const CATALOG_TTL_MS = 5 * 60 * 1000
 
+/** The webhook environment this deployment accepts: PRODUCTION on the prod
+ *  deployment, SANDBOX everywhere else, overridable for harnesses. Shared by
+ *  the route filter and the reconcile inbox sweep — a sandbox event must not
+ *  slip through either door. `||` not `??`: empty-string means unset. */
+export function expectedRcEnvironment(): string {
+  return (
+    process.env.RC_EXPECTED_ENVIRONMENT ||
+    (process.env.VERCEL_ENV === 'production' ? 'PRODUCTION' : 'SANDBOX')
+  )
+}
+
 /** Transient RC-side failure (429/5xx/network/timeout): the caller returns a
  *  5xx so RC's redelivery schedule becomes the retry loop. */
 export class RetryableBillingError extends Error {
@@ -136,10 +147,16 @@ export async function fetchCustomerSnapshot(userId: string): Promise<Entitlement
         const lookupKey = lookupKeys.get(item.entitlement_id)
         const tier = lookupKey ? RC_ENTITLEMENT_TIERS[lookupKey] : undefined
         if (!lookupKey || !tier) {
-          console.error(
-            `[revenuecat] entitlement ${item.entitlement_id} (${lookupKey ?? 'unknown key'}) maps to no tier; skipping`,
+          // NEVER skip: an attested entitlement missing from the snapshot is
+          // how the set diff REVOKES — a dashboard rename or unmapped id
+          // would silently strip every affected subscriber via the nightly
+          // sweep. Failing retryable freezes this user's projection (they
+          // keep what they have) until the mapping is fixed, and the
+          // dead-letter view makes the mismatch loud. (Review finding,
+          // pr-295-review.md HIGH-2.)
+          throw new RetryableBillingError(
+            `RC entitlement ${item.entitlement_id} (${lookupKey ?? 'unknown key'}) maps to no tier — fix RC_ENTITLEMENT_TIERS or the dashboard before projecting`,
           )
-          continue
         }
         entitlements.push({
           tier,

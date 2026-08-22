@@ -24,12 +24,26 @@ vi.mock('@/lib/billing/revenuecat/client', () => ({
   fetchCustomerSnapshot: async () => ({ userId: 'unused', source: 'revenuecat', entitlements: [] }),
 }))
 
+let redisSetResult: string | null = 'OK'
+const redisSet = vi.fn(async () => redisSetResult)
+let redisAvailable = false
+vi.mock('@/lib/redis', () => ({
+  getRedis: () => (redisAvailable ? { set: redisSet } : null),
+}))
+
+vi.mock('@/db/entitlements', () => ({
+  getEntitlement: async () => ({ tier: 'max', source: 'revenuecat', expiresAt: null }),
+}))
+
 import { syncMyRcEntitlementsAction } from './actions'
 
 beforeEach(() => {
   sessionUserId = 'user_01SELF'
   projected.length = 0
   projectThrows = false
+  redisAvailable = false
+  redisSetResult = 'OK'
+  redisSet.mockClear()
   vi.stubEnv('RC_API_V2_KEY', 'sk_test_synthetic')
   vi.stubEnv('RC_PROJECT_ID', 'proj_synthetic')
 })
@@ -53,5 +67,19 @@ describe('syncMyRcEntitlementsAction', () => {
   test('maps a projection failure to unavailable, never a throw — the webhook still delivers the purchase', async () => {
     projectThrows = true
     expect(await syncMyRcEntitlementsAction()).toEqual({ status: 'unavailable' })
+  })
+
+  test('inside the cooldown it answers from OUR store without spending RC budget', async () => {
+    redisAvailable = true
+    redisSetResult = null // marker already claimed
+    expect(await syncMyRcEntitlementsAction()).toEqual({ status: 'synced', tier: 'max' })
+    expect(projected).toHaveLength(0)
+  })
+
+  test('claims the cooldown marker before the first RC call', async () => {
+    redisAvailable = true
+    expect(await syncMyRcEntitlementsAction()).toEqual({ status: 'synced', tier: 'pro' })
+    expect(redisSet).toHaveBeenCalledWith('rcsync:user_01SELF', '1', { nx: true, ex: 30 })
+    expect(projected).toHaveLength(1)
   })
 })

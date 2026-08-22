@@ -6,6 +6,7 @@ import {
   markOrphaned,
   markProcessed,
 } from '@/db/rc-webhook-events'
+import { expectedRcEnvironment } from '@/lib/billing/revenuecat/client'
 import { processRcEvent } from '@/lib/billing/revenuecat/processor'
 import { verifyAuthorization, verifySignature } from '@/lib/billing/revenuecat/verify'
 import { rcWebhookBodySchema } from '@/lib/billing/revenuecat/types'
@@ -76,7 +77,7 @@ export async function POST(request: Request): Promise<NextResponse> {
 
   // Sandbox and production share one webhook stream; only this field says
   // which is which. A sandbox purchase must never touch prod entitlements.
-  if (event.environment !== expectedEnvironment()) {
+  if (event.environment !== expectedRcEnvironment()) {
     await markIgnored(event.id)
     return NextResponse.json({ ok: true, ignored: 'environment' })
   }
@@ -102,13 +103,3 @@ export async function POST(request: Request): Promise<NextResponse> {
   }
 }
 
-/** PRODUCTION on the prod deployment, SANDBOX everywhere else (preview,
- *  local dev), overridable for e2e harnesses. */
-function expectedEnvironment(): string {
-  // || not ??: an empty-string env var must mean "unset", not "expect ''" —
-  // expecting '' would silently ignore every event.
-  return (
-    process.env.RC_EXPECTED_ENVIRONMENT ||
-    (process.env.VERCEL_ENV === 'production' ? 'PRODUCTION' : 'SANDBOX')
-  )
-}

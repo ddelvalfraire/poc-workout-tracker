@@ -3,8 +3,16 @@
 import { revalidatePath } from 'next/cache'
 import { requireUserId } from '@/lib/auth'
 import { projectFromVendor } from '@/db/billing'
+import { getEntitlement } from '@/db/entitlements'
 import { fetchCustomerSnapshot } from '@/lib/billing/revenuecat/client'
+import { getRedis } from '@/lib/redis'
 import type { Tier } from '@/lib/entitlements/tiers'
+
+/** One RC re-projection per user per cooldown window. The action exists to
+ *  close a seconds-wide gap after checkout; anything faster is either a
+ *  double-click or a script, and RC's customer-read budget (480/min, shared
+ *  with webhook processing) must not be burnable from a browser console. */
+const SYNC_COOLDOWN_SECONDS = 30
 
 export type PlanSyncResult = { status: 'synced'; tier: Tier } | { status: 'unavailable' }
 
@@ -25,6 +33,24 @@ export async function syncMyRcEntitlementsAction(): Promise<PlanSyncResult> {
 
   if (!process.env.RC_API_V2_KEY || !process.env.RC_PROJECT_ID) {
     return { status: 'unavailable' }
+  }
+
+  // Cooldown BEFORE the RC call. Inside the window the action answers from
+  // our own store — which the webhook keeps converging anyway — so a repeat
+  // click still gets a truthful tier without spending RC budget. No Redis →
+  // no limiter; the action stays usable (review finding, pr-295-review.md
+  // MEDIUM-2 — the budget matters more than the edge case of Redis being
+  // down during a purchase).
+  const redis = getRedis()
+  if (redis) {
+    const claimed = await redis.set(`rcsync:${userId}`, '1', {
+      nx: true,
+      ex: SYNC_COOLDOWN_SECONDS,
+    })
+    if (claimed === null) {
+      const effective = await getEntitlement(userId)
+      return { status: 'synced', tier: effective.tier }
+    }
   }
 
   try {
