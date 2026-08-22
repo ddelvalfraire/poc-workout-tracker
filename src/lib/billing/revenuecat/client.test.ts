@@ -64,6 +64,7 @@ describe('fetchCustomerSnapshot', () => {
     expect(snapshot).toEqual({
       userId: 'user_01SYNTHETIC',
       source: 'revenuecat',
+      customerKnown: true,
       entitlements: [
         {
           tier: 'max',
@@ -85,6 +86,50 @@ describe('fetchCustomerSnapshot', () => {
     const snapshot = await fetchCustomerSnapshot('user_01UNKNOWN')
     expect(snapshot.entitlements).toEqual([])
     expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('marks a 404 customer as NOT known, so an empty snapshot cannot revoke a live grant (M1)', async () => {
+    fetchMock
+      .mockResolvedValueOnce(new Response('', { status: 404 }))
+      .mockResolvedValueOnce(jsonResponse(200, CATALOG))
+    const snapshot = await fetchCustomerSnapshot('user_01UNKNOWN')
+    expect(snapshot.customerKnown).toBe(false)
+  })
+
+  it('marks a 200-with-empty-items customer as KNOWN — a real cancel that may revoke', async () => {
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse(200, activeEntitlements([]))) // customer: known, empty
+      .mockResolvedValueOnce(jsonResponse(200, CATALOG)) // empty-snapshot guard's fresh catalog
+    const snapshot = await fetchCustomerSnapshot('user_01CANCELLED')
+    expect(snapshot.entitlements).toEqual([])
+    expect(snapshot.customerKnown).toBe(true)
+  })
+
+  it('forces a FRESH catalog read for the empty-snapshot guard — a warm cache must not rubber-stamp a 404 (M1)', async () => {
+    // Warm the cache with a real customer.
+    fetchMock
+      .mockResolvedValueOnce(
+        jsonResponse(
+          200,
+          activeEntitlements([
+            {
+              object: 'customer.active_entitlement',
+              entitlement_id: 'entl_max',
+              expires_at: 1789999999000,
+            },
+          ]),
+        ),
+      )
+      .mockResolvedValueOnce(jsonResponse(200, CATALOG))
+    await fetchCustomerSnapshot('user_01WARM')
+    const callsAfterWarm = fetchMock.mock.calls.length
+
+    // A second customer 404s: the guard must hit the catalog LIVE, not cache.
+    fetchMock.mockResolvedValueOnce(new Response('', { status: 404 }))
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, CATALOG))
+    await fetchCustomerSnapshot('user_01OTHER')
+    // customer fetch + a fresh catalog fetch = 2 more calls, not 1.
+    expect(fetchMock.mock.calls.length).toBe(callsAfterWarm + 2)
   })
 
   it('REFUSES an empty snapshot when the catalog 404s — a wrong project id must not revoke anyone', async () => {

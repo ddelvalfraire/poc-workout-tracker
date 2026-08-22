@@ -100,8 +100,15 @@ let catalogCache: { at: number; byId: Map<string, string> } | null = null
 async function entitlementLookupKeys(
   apiKey: string,
   projectId: string,
+  fresh = false,
 ): Promise<Map<string, string>> {
-  if (catalogCache && Date.now() - catalogCache.at < CATALOG_TTL_MS) return catalogCache.byId
+  // `fresh` bypasses the cache: the empty-snapshot guard needs a LIVE proof
+  // the project is reachable right now, not a cached one a warm cache would
+  // rubber-stamp (that gap let a customer 404 revoke a paying user — see the
+  // guard below).
+  if (!fresh && catalogCache && Date.now() - catalogCache.at < CATALOG_TTL_MS) {
+    return catalogCache.byId
+  }
 
   const byId = new Map<string, string>()
   let path: string | null = `/v2/projects/${projectId}/entitlements?limit=100`
@@ -135,11 +142,16 @@ export async function fetchCustomerSnapshot(userId: string): Promise<Entitlement
   const { apiKey, projectId } = config()
 
   const entitlements: EntitlementSnapshot['entitlements'] = []
+  // A 404 on the first page means RC has never heard of this customer —
+  // materially different from a 200 with an empty list ("known, holds
+  // nothing"). Only the latter may revoke a live grant; see the return.
+  let customerKnown = false
   let path: string | null =
     `/v2/projects/${projectId}/customers/${encodeURIComponent(userId)}/active_entitlements?limit=100`
   while (path) {
     const raw = await rcGet(path, apiKey)
-    if (raw === null) break // unknown customer → empty snapshot
+    if (raw === null) break // 404: unknown customer — customerKnown stays false
+    customerKnown = true
     const page = activeEntitlementsSchema.parse(raw)
     if (page.items.length > 0) {
       const lookupKeys = await entitlementLookupKeys(apiKey, projectId)
@@ -171,13 +183,15 @@ export async function fetchCustomerSnapshot(userId: string): Promise<Entitlement
 
   if (entitlements.length === 0) {
     // An empty snapshot REVOKES still-granting rows downstream, so it must
-    // be a fact about the customer, not an artifact of misconfiguration: a
-    // wrong project id makes the customer fetch 404 exactly like an unknown
-    // customer. The catalog is the cheap, cached proof that our credentials
-    // can see the project at all — unreachable or empty means nothing this
-    // project sells could be attested, so fail retryable instead of
-    // attesting "holds nothing".
-    const catalog = await entitlementLookupKeys(apiKey, projectId)
+    // be a fact about the customer, not an artifact of misconfiguration. A
+    // customer 404 (unknown customer, a wrong project id, or an id that was
+    // migrated without the RC-side transfer) reads exactly like "holds
+    // nothing". The guard is a LIVE catalog fetch (fresh, never the cache):
+    // a wrong/unreachable project 404s or empties it → RetryableBillingError,
+    // which freezes the user's projection instead of revoking. `fresh` is the
+    // point — a cached catalog would rubber-stamp every 404 in a nightly
+    // sweep after the first user warmed it. (Adversarial finding M1.)
+    const catalog = await entitlementLookupKeys(apiKey, projectId, true)
     if (catalog.size === 0) {
       throw new RetryableBillingError(
         'empty snapshot with an empty entitlement catalog — refusing to attest; check RC config',
@@ -185,5 +199,9 @@ export async function fetchCustomerSnapshot(userId: string): Promise<Entitlement
     }
   }
 
-  return { userId, source: 'revenuecat', entitlements }
+  // customerKnown rides along: an empty snapshot for an UNKNOWN customer
+  // (404) must not revoke a live grant — projectFromVendor turns that into a
+  // freeze. An empty snapshot for a KNOWN customer (200, empty list) is a
+  // real cancel/expire and revokes as normal.
+  return { userId, source: 'revenuecat', entitlements, customerKnown }
 }

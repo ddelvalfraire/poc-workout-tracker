@@ -28,6 +28,19 @@ export interface EntitlementSnapshot {
   userId: string
   source: GrantSource
   entitlements: SnapshotEntitlement[]
+  /**
+   * Whether the vendor actually KNOWS this customer. `false` means the
+   * vendor returned "no such customer" (an RC 404) rather than "this
+   * customer holds nothing" (a 200 with an empty list). The two look
+   * identical as an empty `entitlements`, but only the CONFIRMED-empty one
+   * may revoke a live grant — an unknown customer with a live grant is a
+   * contradiction (a migrated id, a skipped transfer), and revoking on it
+   * strips a paying user. projectFromVendor refuses that. Optional and
+   * defaulting to known (true), so a confirmed-empty snapshot is the safe
+   * default and only an explicit 404 is ever treated as unknown.
+   * (Adversarial finding M1.)
+   */
+  customerKnown?: boolean
 }
 
 export interface ReconcilePlan {

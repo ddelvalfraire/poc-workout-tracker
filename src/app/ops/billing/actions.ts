@@ -124,7 +124,10 @@ export async function resyncFromRevenueCatAction(input: {
   }
 
   const targetUserId = input.userId.trim()
-  if (!targetUserId) return { status: 'failed' }
+  // Shape-check before projecting: a mistyped id that happens to be another
+  // valid user's would otherwise run a real re-projection against the wrong
+  // account. WorkOS user ids are `user_`-prefixed. (Adversarial finding L4.)
+  if (!targetUserId.startsWith('user_')) return { status: 'failed' }
 
   try {
     const effective = await projectFromVendor(targetUserId, 'revenuecat', () =>

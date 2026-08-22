@@ -243,6 +243,13 @@ describe('resyncFromRevenueCatAction', () => {
       status: 'failed',
     })
   })
+
+  test('rejects a non-user_-shaped id before projecting anything (L4)', async () => {
+    expect(await resyncFromRevenueCatAction({ userId: 'someone@example.com' })).toEqual({
+      status: 'failed',
+    })
+    expect(projected).toHaveLength(0)
+  })
 })
 
 describe('resolveRcEventAction', () => {

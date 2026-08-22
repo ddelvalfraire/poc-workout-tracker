@@ -47,6 +47,21 @@ export async function projectFromVendor(
     }
 
     const live = await listLiveGrantsInTx(tx, userId, source)
+
+    // An UNKNOWN customer (vendor 404) that nonetheless has a live grant is a
+    // contradiction — we granted from vendor truth that has since gone
+    // missing (a migrated id whose customer was never transferred, a vendor
+    // read blip). Revoking on it would strip a paying user, so freeze the
+    // projection instead: the throw rolls this tx back untouched, every
+    // caller maps it to retryable/failed, and the dead-letter view surfaces
+    // it for the transfer runbook. A truly free user (no live grant) hits
+    // none of this — the empty plan is a harmless no-op. (Adversarial M1.)
+    if (snapshot.customerKnown === false && live.length > 0) {
+      throw new Error(
+        `refusing to project ${userId} from ${source}: customer unknown to vendor but ${live.length} live grant(s) exist — freezing instead of revoking`,
+      )
+    }
+
     const plan = reconcileSnapshot(live, snapshot, new Date())
 
     for (const grant of plan.toGrant) {
