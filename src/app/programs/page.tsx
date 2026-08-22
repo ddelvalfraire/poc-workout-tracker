@@ -24,9 +24,12 @@ import {
   proposalAgeLine,
   buildThisWeekRows,
   blockSoFar,
+  noProgramState,
   type ThisWeekRow,
   type BlockSoFar,
 } from './list-view'
+import { listTemplates, type TemplateListRow } from '@/db/templates'
+import { isCoachEnabled } from '@/lib/coach/access'
 import { renderMessage } from '@/lib/message'
 import { getTranslations } from 'next-intl/server'
 import { resolveLocale } from '@/i18n/request'
@@ -341,6 +344,100 @@ function ZoneHeading({ children }: { children: React.ReactNode }) {
   )
 }
 
+/** What the no-active-program page needs beyond the zones themselves. */
+interface DoorsData {
+  state: ReturnType<typeof noProgramState>
+  templates: readonly TemplateListRow[]
+  coachEnabled: boolean
+}
+
+/**
+ * The activation doors — the way INTO training when nothing is in flight.
+ * Three routes as peers, ordered by effort: adopt a proven program (named
+ * entries inline, not a bare "browse" button — a real name and its shape is
+ * what makes the choice), have the coach build one, or start from scratch.
+ *
+ * The coach sits in the fork as a peer option rather than a banner: an
+ * option a user is choosing between is product surface, an interruption
+ * selling the same thing is an ad. It states its tier plainly instead of
+ * springing the gate after the tap, and it renders only where coach is
+ * actually reachable (the server enforces the same gate).
+ */
+async function ActivationDoors({ doors }: { doors: DoorsData }) {
+  const t = await getTranslations('Programs')
+  return (
+    <>
+      {doors.templates.length > 0 && (
+        <section className="mt-8">
+          <h2 className="font-display text-base uppercase leading-none tracking-wide text-muted-foreground">
+            {t('doors.libraryHeading')}
+          </h2>
+          <DividerList className="mt-1">
+            {doors.templates.map((template) => (
+              <DividerRow key={template.id} href={`/programs/templates/${template.id}`}>
+                <span className="flex min-w-0 flex-col gap-0.5">
+                  <span className="flex min-w-0 items-baseline gap-2">
+                    {template.icon !== null && (
+                      <span aria-hidden="true" className="shrink-0 text-sm leading-none">
+                        {template.icon}
+                      </span>
+                    )}
+                    <span className="min-w-0 truncate font-display text-lg uppercase leading-tight tracking-wide">
+                      {template.name}
+                    </span>
+                  </span>
+                  <span className="text-xs text-muted-foreground tnum">
+                    {t('doors.templateMeta', {
+                      weeks: template.mesocycleWeeks,
+                      days: template.days.length,
+                    })}
+                  </span>
+                </span>
+              </DividerRow>
+            ))}
+            <DividerRow href="/programs/templates">
+              <span className="text-sm text-muted-foreground">{t('doors.libraryAll')}</span>
+            </DividerRow>
+          </DividerList>
+        </section>
+      )}
+
+      {doors.coachEnabled && (
+        <section className="mt-8">
+          <h2 className="font-display text-base uppercase leading-none tracking-wide text-muted-foreground">
+            {t('doors.coachHeading')}
+          </h2>
+          <DividerList className="mt-1">
+            <DividerRow href="/coach?context=program:new">
+              <span className="flex min-w-0 flex-col gap-1">
+                <span className="flex items-baseline gap-2">
+                  <span className="font-display text-lg uppercase leading-tight tracking-wide">
+                    {t('doors.coachName')}
+                  </span>
+                  {/* The tier as a muted WORD, not a chip: a label nobody can
+                      press must not wear a control's shape. */}
+                  <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                    {t('doors.coachTier')}
+                  </span>
+                </span>
+                <span className="text-sm leading-snug text-muted-foreground">
+                  {t('doors.coachBody')}
+                </span>
+              </span>
+            </DividerRow>
+          </DividerList>
+        </section>
+      )}
+
+      <DividerList className="mt-8">
+        <DividerRow href="/programs/new">
+          <span className="text-sm">{t('doors.buildOwn')}</span>
+        </DividerRow>
+      </DividerList>
+    </>
+  )
+}
+
 export default async function ProgramsPage() {
   const t = await getTranslations('Programs')
   const userId = await requireUserId() // middleware also guards; defense-in-depth
@@ -348,6 +445,18 @@ export default async function ProgramsPage() {
   const zones = zonePrograms(programs)
   const hero = zones.hero
   const heroData = hero ? await loadHeroData(userId, hero) : null
+  // Activation data — only the no-active-program path pays for it: the
+  // curated library lead (small public table) and the coach gate (env
+  // short-circuit, else a bounded flag lookup).
+  const doors = hero
+    ? null
+    : await Promise.all([listTemplates(), isCoachEnabled(userId)]).then(
+        ([templates, coachEnabled]) => ({
+          state: noProgramState(zones),
+          templates: templates.slice(0, 3),
+          coachEnabled,
+        }),
+      )
 
   return (
     <div className="flex min-h-[100dvh] flex-col">
@@ -357,36 +466,23 @@ export default async function ProgramsPage() {
       />
 
       <main className="mx-auto w-full max-w-md flex-1 px-5 pb-safe">
-        {/* Empty state = invitation, not apology: the editorial volt moment
-            owns the screen and the CTAs live inside it — no duplicate button
-            stack above. */}
-        {programs.length === 0 ? (
+        {/* No active program: the page is an ACTIVATION surface. The lede
+            names the state honestly — cold start ("Day one.") or between
+            blocks — while a pending proposal or a half-set-up draft leads
+            with its own zone below instead of a headline. Shopping edge
+            cases land here too: adopting a template mints a DRAFT, so the
+            post-preview state is 'drafts', never a false cold start. */}
+        {doors !== null && (doors.state === 'cold' || doors.state === 'archived') && (
           <div className="mt-12">
             <p className="font-display text-5xl uppercase leading-none tracking-wide text-primary">
-              {t('empty.title')}
+              {doors.state === 'cold' ? t('empty.title') : t('empty.betweenTitle')}
             </p>
             <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-              {t('empty.description')}
+              {doors.state === 'cold' ? t('empty.description') : t('empty.betweenDescription')}
             </p>
-            <Link
-              href="/programs/new"
-              className={cn(
-                buttonVariants({ size: 'lg' }),
-                'mt-6 w-full text-base font-semibold uppercase tracking-wide',
-              )}
-            >
-              {t('empty.newLink')}
-            </Link>
-            <Link
-              href="/programs/templates"
-              className={cn(buttonVariants({ variant: 'outline', size: 'lg' }), 'mt-3 w-full')}
-            >
-              {t('empty.templatesLink')}
-            </Link>
           </div>
-        ) : (
-          <>
-            {/* The active hero — keep-listed as shipped: the one commitment in
+        )}
+        {/* The active hero — keep-listed as shipped: the one commitment in
                 flight gets the big "WK N OF M" numeral and the block map strip
                 on the page's one quiet VOLT hairline, no shell. Its "Next:"
                 status line moved DOWN into the this-week band (same fact, said
@@ -457,23 +553,26 @@ export default async function ProgramsPage() {
               <BlockSoFarBand hero={hero} heroData={heroData} userId={userId} />
             )}
 
-            {/* Creation, demoted: below the dashboard when one exists, compact
-                side-by-side row either way — starting something new is a
-                secondary path once training is in flight. */}
-            <div className="mt-6 flex gap-2">
-              <Link
-                href="/programs/new"
-                className={cn(buttonVariants({ variant: hero ? 'outline' : 'default' }), 'flex-1')}
-              >
-                {t('newLink')}
-              </Link>
-              <Link
-                href="/programs/templates"
-                className={cn(buttonVariants({ variant: 'outline' }), 'flex-1')}
-              >
-                {t('templatesLink')}
-              </Link>
-            </div>
+            {/* Creation, demoted: below the dashboard — starting something new
+                is a secondary path once training is in flight. With no active
+                program the activation doors carry these same two routes, so
+                this row would only say them twice. */}
+            {hero && (
+              <div className="mt-6 flex gap-2">
+                <Link
+                  href="/programs/new"
+                  className={cn(buttonVariants({ variant: 'outline' }), 'flex-1')}
+                >
+                  {t('newLink')}
+                </Link>
+                <Link
+                  href="/programs/templates"
+                  className={cn(buttonVariants({ variant: 'outline' }), 'flex-1')}
+                >
+                  {t('libraryLink')}
+                </Link>
+              </div>
+            )}
 
             {/* Extra actives (nothing enforces a single one) stay near the
                 top — they're still live commitments, just not the hero. */}
@@ -524,6 +623,14 @@ export default async function ProgramsPage() {
               </>
             )}
 
+            {/* The activation doors, in ONE position that reads correctly for
+                every no-program state: after the zones that demand a decision
+                (a pending proposal or a half-finished draft leads — they are
+                the shortest path back to training), before the archived
+                roll-up. On a cold start there are no zones, so the doors sit
+                directly under the lede. */}
+            {doors !== null && <ActivationDoors doors={doors} />}
+
             {/* Archived collapses to a count — past blocks are reference, not
                 a scroll cost. Native details: no client island needed. */}
             {zones.archived.length > 0 && (
@@ -542,8 +649,6 @@ export default async function ProgramsPage() {
                 </DividerList>
               </details>
             )}
-          </>
-        )}
       </main>
     </div>
   )

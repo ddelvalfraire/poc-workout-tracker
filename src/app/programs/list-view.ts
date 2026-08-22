@@ -27,6 +27,26 @@ export function programStatusLabel(status: string): Message<ProgramStatusKey> | 
     : null
 }
 
+/**
+ * Which activation lede the no-active-program page leads with. Priority is
+ * decision-first: a pending proposal outranks a half-set-up draft, which
+ * outranks the between-blocks nudge; a truly empty account gets the cold
+ * start. Only meaningful when the hero slot is empty — an active program
+ * renders the dashboard instead.
+ */
+export type NoProgramState = 'proposed' | 'drafts' | 'archived' | 'cold'
+
+export function noProgramState(zones: {
+  proposed: readonly unknown[]
+  drafts: readonly unknown[]
+  archived: readonly unknown[]
+}): NoProgramState {
+  if (zones.proposed.length > 0) return 'proposed'
+  if (zones.drafts.length > 0) return 'drafts'
+  if (zones.archived.length > 0) return 'archived'
+  return 'cold'
+}
+
 const DAY_MS = 24 * 60 * 60 * 1000
 
 /**

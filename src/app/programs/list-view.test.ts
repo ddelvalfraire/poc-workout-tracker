@@ -6,6 +6,7 @@ import {
   zonePrograms,
   buildThisWeekRows,
   blockSoFar,
+  noProgramState,
 } from './list-view'
 
 /** The catalog half of a descriptor assertion: the key the view-model chose
@@ -220,5 +221,31 @@ describe('blockSoFar (block-so-far figures)', () => {
     expect(stats.daysDone).toBe(0)
     expect(stats.daysPlanned).toBe(2)
     expect(stats.volumeKg).toBe(300)
+  })
+})
+
+describe('noProgramState (which lede an idle programs page leads with)', () => {
+  const none = { proposed: [], drafts: [], archived: [] }
+
+  it('reads cold when the account has nothing at all', () => {
+    expect(noProgramState(none)).toBe('cold')
+  })
+
+  it('reads drafts after adopting from the library — a draft is not a cold start', () => {
+    // Adoption mints a DRAFT copy, so the shopper who just previewed and
+    // adopted must land on "finish this", never on "day one".
+    expect(noProgramState({ ...none, drafts: [{}] })).toBe('drafts')
+  })
+
+  it('reads archived between blocks, so a finished block is not a cold start', () => {
+    expect(noProgramState({ ...none, archived: [{}] })).toBe('archived')
+  })
+
+  it('lets a pending proposal outrank a draft — the decision comes first', () => {
+    expect(noProgramState({ proposed: [{}], drafts: [{}], archived: [{}] })).toBe('proposed')
+  })
+
+  it('lets a draft outrank archived history', () => {
+    expect(noProgramState({ proposed: [], drafts: [{}], archived: [{}] })).toBe('drafts')
   })
 })

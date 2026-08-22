@@ -36,6 +36,20 @@ function ProgramsProbe({ weeks }: { weeks: number }) {
       <p>{t('blockSoFar.daysLabel')}</p>
       <p>{t('blockSoFar.volumeLabel')}</p>
       <p>{t('blockSoFar.weeksLeftLabel')}</p>
+      <p>{t('empty.title')}</p>
+      <p>{t('empty.description')}</p>
+      <p>{t('empty.betweenTitle')}</p>
+      <p>{t('empty.betweenDescription')}</p>
+      <p>{t('doors.libraryHeading')}</p>
+      <p>{t('doors.libraryAll')}</p>
+      <p>{t('doors.templateMeta', { weeks, days: 4 })}</p>
+      <p>{t('doors.coachHeading')}</p>
+      <p>{t('doors.coachName')}</p>
+      <p>{t('doors.coachTier')}</p>
+      <p>{t('doors.coachBody')}</p>
+      <p>{t('doors.buildOwn')}</p>
+      <p>{t('newLink')}</p>
+      <p>{t('libraryLink')}</p>
       <p>
         {t.rich('hero.weekPosition', {
           week: 3,
@@ -86,6 +100,30 @@ describe('Programs list messages', () => {
     expect(html).toContain('Days done')
     expect(html).toContain('Volume')
     expect(html).toContain('Wks left')
+  })
+
+  test('the activation doors read as programs, never as workout templates', () => {
+    const html = renderStaticIntl(<ProgramsProbe weeks={5} />)
+    expect(html).toContain('Start with a proven program')
+    expect(html).toContain('All programs in the library')
+    expect(html).toContain('Program library')
+    expect(html).toContain('5 wk · 4 d/wk')
+    // "Template" is the workout-template feature's word (a saved one-tap
+    // session). Programs must never borrow it, or the two features read as
+    // one thing on two screens.
+    expect(html).not.toMatch(/[Tt]emplate/)
+  })
+
+  test('the idle ledes distinguish a cold start from between blocks', () => {
+    const html = renderStaticIntl(<ProgramsProbe weeks={5} />)
+    expect(html).toContain('Day one.')
+    expect(html).toContain('Between blocks.')
+  })
+
+  test('the coach door sells the outcome and states its tier', () => {
+    const html = renderStaticIntl(<ProgramsProbe weeks={5} />)
+    expect(html).toContain('built around your schedule, equipment and logged lifts')
+    expect(html).toContain('Free to start')
   })
 })
 

@@ -1642,10 +1642,20 @@
       "volumeLabel": "Volume",
       "weeksLeftLabel": "Wks left"
     },
+    "doors": {
+      "buildOwn": "Build your own from scratch",
+      "coachBody": "Answer a few questions — get a block built around your schedule, equipment and logged lifts.",
+      "coachHeading": "Or have it built for you",
+      "coachName": "Coach",
+      "coachTier": "Free to start",
+      "libraryAll": "All programs in the library",
+      "libraryHeading": "Start with a proven program",
+      "templateMeta": "{weeks} wk · {days} d/wk"
+    },
     "empty": {
-      "description": "Every block starts as a plan. Build your own, or start from a community template.",
-      "newLink": "+ New Program",
-      "templatesLink": "Browse program templates",
+      "betweenDescription": "Your last block is in the books. Line up the next one.",
+      "betweenTitle": "Between blocks.",
+      "description": "Every block starts as a plan. Pick one that's proven, or build your own.",
       "title": "Day one."
     },
     "fullPlan": "Full plan & settings",
@@ -1654,6 +1664,7 @@
       "noDays": "No days planned yet.",
       "weekPosition": "<big>Wk {week}</big> <small>of {total}</small>"
     },
+    "libraryLink": "Program library",
     "newLink": "+ New Program",
     "proposalAge": {
       "days": "proposed {days, plural, one {# day} other {# days}} ago",
@@ -1672,7 +1683,6 @@
       "draft": "Draft",
       "proposed": "Proposed"
     },
-    "templatesLink": "Browse program templates",
     "thisWeek": {
       "done": "done",
       "doneCount": "{done} of {total} done",
