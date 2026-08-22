@@ -467,7 +467,12 @@ describe('registerProgramPatchTools', () => {
 
     it('substitute_program_exercise swaps the movement via the load-stripping op', async () => {
       const tools = setup()
-      mockedSubstituteExercise.mockResolvedValue({ id: 'pe1' })
+      mockedSubstituteExercise.mockResolvedValue({
+        id: 'pe1',
+        clearedTemplateLoads: 3,
+        clearedOverrideLoads: 5,
+        progressionCleared: true,
+      })
 
       const result = await tools.get('substitute_program_exercise')!({
         programId: PID,
@@ -485,17 +490,51 @@ describe('registerProgramPatchTools', () => {
         { wgerExerciseId: 99, source: 'wger', name: 'Incline Press' },
         'mcp',
       )
+      // The destruction is REPORTED, not silent: the counts ride the result so
+      // the coach can tell the user what the swap erased.
       expect(payload(result)).toEqual({
         userId: 'user_env',
         programId: PID,
         dayPosition: 1,
         exercisePosition: 0,
+        clearedTemplateLoads: 3,
+        clearedOverrideLoads: 5,
+        progressionCleared: true,
+      })
+    })
+
+    it('substitute_program_exercise reports zeroes when the slot carried no loads', async () => {
+      const tools = setup()
+      mockedSubstituteExercise.mockResolvedValue({
+        id: 'pe1',
+        clearedTemplateLoads: 0,
+        clearedOverrideLoads: 0,
+        progressionCleared: false,
+      })
+
+      const result = await tools.get('substitute_program_exercise')!({
+        programId: PID,
+        dayPosition: 0,
+        exercisePosition: 0,
+        wgerExerciseId: 99,
+        name: 'Incline Press',
+      })
+
+      expect(payload(result)).toMatchObject({
+        clearedTemplateLoads: 0,
+        clearedOverrideLoads: 0,
+        progressionCleared: false,
       })
     })
 
     it('substitute_program_exercise passes source through (composite identity)', async () => {
       const tools = setup()
-      mockedSubstituteExercise.mockResolvedValue({ id: 'pe1' })
+      mockedSubstituteExercise.mockResolvedValue({
+        id: 'pe1',
+        clearedTemplateLoads: 0,
+        clearedOverrideLoads: 0,
+        progressionCleared: false,
+      })
 
       await tools.get('substitute_program_exercise')!({
         programId: PID,

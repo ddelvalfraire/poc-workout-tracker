@@ -619,7 +619,7 @@ export function registerProgramPatchTools(server: McpServer): void {
     {
       title: 'Substitute Program Exercise',
       description:
-        "Swaps a slot's movement for a different exercise (by programId + 0-based dayPosition + 0-based exercisePosition). Use THIS tool to swap a movement: it clears the old movement's suggested loads (template and per-week overrides) and drops a TM-based progression so the plan re-derives loads for the substitute — rep ranges, RIR/RPE, rest, tempo, and technique survive, and muscle tags re-derive from the new identity. For a load-preserving relabel of a mislabeled exercise, use update_program_exercise instead. `source` defaults to 'wger'; pass 'custom' for custom exercises. Errors if the exercise isn't found or owned.",
+        "Swaps a slot's movement for a different exercise (by programId + 0-based dayPosition + 0-based exercisePosition). Use THIS tool to swap a movement: it clears the old movement's suggested loads — the template `suggestedLoadKg` AND the `suggestedLoadKg` of every per-week override — and drops a TM-based progression so the plan re-derives loads for the substitute. Per-week override ROWS are NOT deleted: rep ranges, RIR/RPE, rest, tempo and technique survive on both the template sets and their per-week overrides, and muscle tags re-derive from the new identity. Clearing hand-authored loads is destructive, so the result reports `clearedTemplateLoads`, `clearedOverrideLoads` and `progressionCleared` — say what was erased when you report the swap. For a load-preserving relabel of a mislabeled exercise, use update_program_exercise instead. `source` defaults to 'wger'; pass 'custom' for custom exercises. Errors if the exercise isn't found or owned.",
       inputSchema: {
         programId: z.string(),
         dayPosition: positionArg,
@@ -653,7 +653,17 @@ export function registerProgramPatchTools(server: McpServer): void {
             `Exercise ${exercisePosition} of day ${dayPosition} in program ${programId} not found for user ${resolved}`,
           )
         }
-        return jsonResult({ userId: resolved, programId, dayPosition, exercisePosition })
+        // The counts ride the result so the coach can name the cost of the
+        // swap ("cleared 4 week overrides") instead of silently erasing them.
+        return jsonResult({
+          userId: resolved,
+          programId,
+          dayPosition,
+          exercisePosition,
+          clearedTemplateLoads: result.clearedTemplateLoads,
+          clearedOverrideLoads: result.clearedOverrideLoads,
+          progressionCleared: result.progressionCleared,
+        })
       } catch (error: unknown) {
         return errorResult(error)
       }

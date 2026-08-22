@@ -2552,7 +2552,7 @@
     "pulseAriaLabel": "{completed} of {total} working sets done",
     "rememberError": "Could not update the program. Please try again.",
     "rememberForBlock": "Use for block",
-    "rememberHint": "Replaces {name} in the plan — your history stays.",
+    "rememberHint": "Replaces {name} in the plan. Reps, rest and technique stay; its planned weights reset. Your history stays.",
     "rememberJustToday": "Just today",
     "rememberPending": "Saving…",
     "rememberPrompt": "Use <substitute>{name}</substitute> for the rest of the block?",

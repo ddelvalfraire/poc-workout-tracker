@@ -12,6 +12,9 @@ import { getTableName, type Table } from 'drizzle-orm'
 const records: { op: string; values?: unknown }[] = []
 let selectQueue: unknown[][] = []
 let updatedRows: { id: string }[] = [{ id: 'row1' }]
+/** Per-table override for `.returning()` on updates — an op that clears loads
+ *  across two tables needs each table's row count to differ. */
+let updatedRowsByTable: Record<string, { id: string }[]> = {}
 let deletedRows: { id: string }[] = [{ id: 'ps1' }]
 let insertedRows: { id: string }[] = [{ id: 'pe-new' }]
 
@@ -39,7 +42,10 @@ function updateChain(table: unknown) {
       return obj
     },
     where: () => obj,
-    returning: () => ({ then: (resolve: Resolve) => Promise.resolve(updatedRows).then(resolve) }),
+    returning: () => ({
+      then: (resolve: Resolve) =>
+        Promise.resolve(updatedRowsByTable[name] ?? updatedRows).then(resolve),
+    }),
     // The renumber/bump paths await .where() directly (no .returning()).
     then: (resolve: Resolve) => Promise.resolve(undefined).then(resolve),
   }
@@ -158,6 +164,7 @@ beforeEach(() => {
   records.length = 0
   selectQueue = []
   updatedRows = [{ id: 'row1' }]
+  updatedRowsByTable = {}
   deletedRows = [{ id: 'ps1' }]
   insertedRows = [{ id: 'pe-new' }]
 })
@@ -754,7 +761,74 @@ describe('exercise ops (user-scoped)', () => {
     })
     expect(records[2]!.values).toEqual({ suggestedLoadKg: null })
     expect(records[3]!.values).toEqual({ suggestedLoadKg: null })
-    expect(result).toEqual({ id: 'row1' })
+    expect(result).toEqual({
+      id: 'row1',
+      clearedTemplateLoads: 1,
+      clearedOverrideLoads: 1,
+      progressionCleared: false,
+    })
+  })
+
+  // The load-bearing contract: a per-week override is HAND-AUTHORED intent and
+  // the most expensive data in the tree. A swap must null exactly ONE column of
+  // it — never the row, never a rep range, RIR, rest, tempo or technique.
+  it('substituteProgramExercise nulls only suggestedLoadKg on per-week overrides — never deletes the rows', async () => {
+    selectQueue = [OWNED_EXERCISE, [{ progression: null }], [{ id: 'ps1' }, { id: 'ps2' }]]
+
+    await substituteProgramExercise(
+      USER,
+      PID,
+      0,
+      0,
+      { wgerExerciseId: 4, source: 'custom', name: 'Elevated Lunge' },
+      'ui',
+    )
+
+    const overrideWrites = records.filter((r) => r.op.endsWith(':program_set_overrides'))
+    // Exactly one write, and it is an UPDATE — no delete:program_set_overrides.
+    expect(overrideWrites.map((r) => r.op)).toEqual(['update:program_set_overrides'])
+    // The patch touches the load column and nothing else: week, repMin/repMax,
+    // rir, rpe, tempo, durationSec, distanceM, restSec and technique all keep
+    // whatever the user authored.
+    expect(Object.keys(overrideWrites[0]!.values as object)).toEqual(['suggestedLoadKg'])
+    expect(overrideWrites[0]!.values).toEqual({ suggestedLoadKg: null })
+  })
+
+  it('substituteProgramExercise reports how many template and override loads it erased', async () => {
+    selectQueue = [
+      OWNED_EXERCISE,
+      [{ progression: { scheme: 'percent-1rm', trainingMaxKg: 140, weekPercents: [0.7] } }],
+      [{ id: 'ps1' }, { id: 'ps2' }, { id: 'ps3' }],
+    ]
+    // Distinct per-table counts: 3 template loads, 5 hand-authored week loads.
+    updatedRowsByTable = {
+      program_sets: [{ id: 'ps1' }, { id: 'ps2' }, { id: 'ps3' }],
+      program_set_overrides: [{ id: 'o1' }, { id: 'o2' }, { id: 'o3' }, { id: 'o4' }, { id: 'o5' }],
+    }
+
+    const result = await substituteProgramExercise(
+      USER,
+      PID,
+      0,
+      0,
+      { wgerExerciseId: 4, source: 'custom', name: 'X' },
+      'mcp',
+    )
+
+    expect(result).toEqual({
+      id: 'row1',
+      clearedTemplateLoads: 3,
+      clearedOverrideLoads: 5,
+      progressionCleared: true,
+    })
+    // The same counts land in the audit event, so history can explain the loss.
+    const event = records.at(-1)!.values as { payload: { after: Record<string, unknown> } }
+    expect(event.payload.after).toMatchObject({
+      loadsCleared: true,
+      clearedTemplateLoads: 3,
+      clearedOverrideLoads: 5,
+      progressionCleared: true,
+    })
   })
 
   it('substituteProgramExercise drops a TM-based progression with the swap', async () => {
