@@ -895,7 +895,11 @@ export const programExerciseMuscles = pgTable(
  * undulating models the derived-progression engine can't express. A non-null
  * column here WINS over the engine (and the deload modifier) for that week;
  * null means "not overridden". `setType`/`metricMode` are deliberately absent:
- * changing a set's shape is an edit, not a week override.
+ * changing a set's shape is an edit, not a week override. Set COUNT is absent
+ * for the same reason and stays that way — per-week count is owned by the RULE
+ * layer (the deload policy's setFactor, the weekly-volume ramp) through the one
+ * resize step in lib/progression.ts. See docs/specs/per-week-set-count.md for
+ * the decision and for what a per-week editing surface may promise.
  */
 export const programSetOverrides = pgTable(
   'program_set_overrides',
