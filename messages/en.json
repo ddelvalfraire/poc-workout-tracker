@@ -765,7 +765,8 @@
       "placeholder": "Refunded on request",
       "validation": "Say why — this is what the ledger shows later."
     },
-    "error": "That did not go through. Try again."
+    "error": "That did not go through. Try again.",
+    "vendorManaged": "Managed by the store"
   },
   "HeaderClock": {
     "ariaLabel": "Session time {elapsed}"
@@ -2556,5 +2557,41 @@
   },
   "WeightStepSetting": {
     "ariaLabel": "Step by {step} {unit}"
+  },
+  "RcResync": {
+    "action": "Re-sync from RevenueCat",
+    "pending": "Re-syncing…",
+    "synced": "Synced — effective tier is now {tier}.",
+    "unconfigured": "RevenueCat is not configured in this environment.",
+    "denied": "Not authorized.",
+    "failed": "Re-sync failed — RevenueCat may be unreachable. Try again."
+  },
+  "RcDeadLetters": {
+    "title": "RevenueCat dead letters",
+    "empty": "No unresolved webhook events.",
+    "statusFailed": "failed · {attempts, plural, one {# delivery} other {# deliveries}}",
+    "statusOrphaned": "orphaned",
+    "resolve": "Resolve",
+    "confirmResolve": "Confirm resolve",
+    "reasonPlaceholder": "Why is this done?",
+    "reasonValidation": "A reason is required.",
+    "errorDenied": "Not authorized.",
+    "errorFailed": "Could not resolve — try again."
+  },
+  "UpgradePanel": {
+    "title": "Upgrade",
+    "loading": "Loading plans…",
+    "loadError": "Plans could not be loaded.",
+    "retry": "Retry",
+    "empty": "No plans are available right now.",
+    "buy": "Get it — {price}",
+    "activating": "Payment received — activating your plan…",
+    "purchased": "You are upgraded. This page will reflect it in a moment.",
+    "purchaseError": "The purchase did not complete. You were not charged twice — try again.",
+    "period": {
+      "monthly": "Billed monthly",
+      "yearly": "Billed yearly",
+      "lifetime": "One-time purchase"
+    }
   }
 }

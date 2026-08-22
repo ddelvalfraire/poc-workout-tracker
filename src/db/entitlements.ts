@@ -87,6 +87,24 @@ export interface ApplyGrantResult {
  * grant is superseded rather than edited, so the change stays legible.
  */
 export async function applyGrant(input: ApplyGrantInput): Promise<ApplyGrantResult> {
+  return db.transaction(async (tx) => {
+    await lockUserInTx(tx, input.userId)
+    const { grantId, deduplicated } = await applyGrantInTx(tx, input)
+    return { grantId, deduplicated, effective: await reprojectInTx(tx, input.userId) }
+  })
+}
+
+/**
+ * The transactional core of applyGrant, for callers composing several ledger
+ * writes under ONE user lock and ONE projection rewrite (projectFromVendor
+ * in src/db/billing.ts). The caller owns the transaction, MUST already hold
+ * the user's advisory lock, and MUST reprojectInTx before committing — this
+ * function only appends to the ledger.
+ */
+export async function applyGrantInTx(
+  tx: Tx,
+  input: ApplyGrantInput,
+): Promise<{ grantId: string; deduplicated: boolean }> {
   if (!input.reason.trim()) throw new Error('a grant requires a reason')
   const startsAt = input.startsAt ?? new Date()
   const endsAt = input.endsAt ?? null
@@ -94,78 +112,66 @@ export async function applyGrant(input: ApplyGrantInput): Promise<ApplyGrantResu
     throw new Error('a grant cannot end before it starts')
   }
 
-  return db.transaction(async (tx) => {
-    await lockUser(tx, input.userId)
+  if (input.sourceRef) {
+    const [existing] = await tx
+      .select()
+      .from(entitlementGrants)
+      .where(
+        and(
+          // Scoped to the user we hold the lock on. Without this a
+          // source_ref that resolved to a DIFFERENT local user — an account
+          // re-map, a support mix-up — would be superseded here and never
+          // reprojected, leaving that user's projection granting a tier
+          // whose grant is dead. Scoping it means a genuine cross-user
+          // collision hits the partial unique index and fails loudly
+          // instead of corrupting quietly.
+          eq(entitlementGrants.userId, input.userId),
+          eq(entitlementGrants.source, input.source),
+          eq(entitlementGrants.sourceRef, input.sourceRef),
+          eq(entitlementGrants.status, 'active'),
+        ),
+      )
+      .limit(1)
 
-    if (input.sourceRef) {
-      const [existing] = await tx
-        .select()
-        .from(entitlementGrants)
-        .where(
-          and(
-            // Scoped to the user we hold the lock on. Without this a
-            // source_ref that resolved to a DIFFERENT local user — an account
-            // re-map, a support mix-up — would be superseded here and never
-            // reprojected, leaving that user's projection granting a tier
-            // whose grant is dead. Scoping it means a genuine cross-user
-            // collision hits the partial unique index and fails loudly
-            // instead of corrupting quietly.
-            eq(entitlementGrants.userId, input.userId),
-            eq(entitlementGrants.source, input.source),
-            eq(entitlementGrants.sourceRef, input.sourceRef),
-            eq(entitlementGrants.status, 'active'),
-          ),
-        )
-        .limit(1)
-
-      if (existing) {
-        const unchanged =
-          existing.tier === input.tier &&
-          existing.startsAt.getTime() === startsAt.getTime() &&
-          (existing.endsAt?.getTime() ?? null) === (endsAt?.getTime() ?? null)
-        if (unchanged) {
-          return {
-            grantId: existing.id,
-            effective: await reproject(tx, input.userId),
-            deduplicated: true,
-          }
-        }
-        // A genuine change to the same subscription. Supersede rather than
-        // update: the previous terms stay readable in the ledger, and the
-        // partial unique index on live (source, source_ref) stays satisfied.
-        await tx
-          .update(entitlementGrants)
-          .set({
-            status: 'revoked',
-            revokedAt: new Date(),
-            revokedReason: 'superseded by a newer grant for the same subscription',
-            revokedByActorId: input.actorId ?? null,
-          })
-          .where(eq(entitlementGrants.id, existing.id))
+    if (existing) {
+      const unchanged =
+        existing.tier === input.tier &&
+        existing.startsAt.getTime() === startsAt.getTime() &&
+        (existing.endsAt?.getTime() ?? null) === (endsAt?.getTime() ?? null)
+      if (unchanged) {
+        return { grantId: existing.id, deduplicated: true }
       }
+      // A genuine change to the same subscription. Supersede rather than
+      // update: the previous terms stay readable in the ledger, and the
+      // partial unique index on live (source, source_ref) stays satisfied.
+      await tx
+        .update(entitlementGrants)
+        .set({
+          status: 'revoked',
+          revokedAt: new Date(),
+          revokedReason: 'superseded by a newer grant for the same subscription',
+          revokedByActorId: input.actorId ?? null,
+        })
+        .where(eq(entitlementGrants.id, existing.id))
     }
+  }
 
-    const [row] = await tx
-      .insert(entitlementGrants)
-      .values({
-        userId: input.userId,
-        tier: input.tier,
-        source: input.source,
-        sourceRef: input.sourceRef ?? null,
-        status: 'active',
-        startsAt,
-        endsAt,
-        reason: input.reason.trim(),
-        actorId: input.actorId ?? null,
-      })
-      .returning({ id: entitlementGrants.id })
+  const [row] = await tx
+    .insert(entitlementGrants)
+    .values({
+      userId: input.userId,
+      tier: input.tier,
+      source: input.source,
+      sourceRef: input.sourceRef ?? null,
+      status: 'active',
+      startsAt,
+      endsAt,
+      reason: input.reason.trim(),
+      actorId: input.actorId ?? null,
+    })
+    .returning({ id: entitlementGrants.id })
 
-    return {
-      grantId: row.id,
-      effective: await reproject(tx, input.userId),
-      deduplicated: false,
-    }
-  })
+  return { grantId: row.id, deduplicated: false }
 }
 
 /**
@@ -194,34 +200,73 @@ export async function revokeGrant(input: {
       .limit(1)
     if (!grant) return null
 
-    await lockUser(tx, grant.userId)
-
-    // Re-read under the lock: a concurrent revoke must not double-stamp and
-    // overwrite the first operator's reason.
-    const [current] = await tx
-      .select({ status: entitlementGrants.status })
-      .from(entitlementGrants)
-      .where(eq(entitlementGrants.id, input.grantId))
-      .limit(1)
-
-    if (current?.status === 'active') {
-      await tx
-        .update(entitlementGrants)
-        .set({
-          status: 'revoked',
-          revokedAt: new Date(),
-          revokedReason: input.reason.trim(),
-          revokedByActorId: input.actorId,
-        })
-        .where(eq(entitlementGrants.id, input.grantId))
-    }
+    await lockUserInTx(tx, grant.userId)
+    await revokeGrantInTx(tx, input)
 
     return {
       userId: grant.userId,
-      effective: await reproject(tx, grant.userId),
+      effective: await reprojectInTx(tx, grant.userId),
     }
   })
 }
+
+/**
+ * The transactional core of revokeGrant — same contract as applyGrantInTx:
+ * the caller owns the transaction, already holds the user's lock, and
+ * reprojects before committing.
+ */
+export async function revokeGrantInTx(
+  tx: Tx,
+  input: { grantId: string; reason: string; actorId: string | null },
+): Promise<void> {
+  if (!input.reason.trim()) throw new Error('a revocation requires a reason')
+
+  // Re-read under the lock: a concurrent revoke must not double-stamp and
+  // overwrite the first operator's reason.
+  const [current] = await tx
+    .select({ status: entitlementGrants.status })
+    .from(entitlementGrants)
+    .where(eq(entitlementGrants.id, input.grantId))
+    .limit(1)
+
+  if (current?.status === 'active') {
+    await tx
+      .update(entitlementGrants)
+      .set({
+        status: 'revoked',
+        revokedAt: new Date(),
+        revokedReason: input.reason.trim(),
+        revokedByActorId: input.actorId,
+      })
+      .where(eq(entitlementGrants.id, input.grantId))
+  }
+}
+
+/**
+ * The live ledger rows for one (user, source) — the "ours" side of the
+ * set-diff a vendor re-projection computes. Status-active only: whether a
+ * row still GRANTS anything (endsAt vs the clock) is the reconciler's
+ * question, not this query's.
+ */
+export async function listLiveGrantsInTx(
+  tx: Tx,
+  userId: string,
+  source: GrantSource,
+): Promise<EntitlementGrant[]> {
+  return tx
+    .select()
+    .from(entitlementGrants)
+    .where(
+      and(
+        eq(entitlementGrants.userId, userId),
+        eq(entitlementGrants.source, source),
+        eq(entitlementGrants.status, 'active'),
+      ),
+    )
+}
+
+/** The transaction handle the composable *InTx functions take. */
+export type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0]
 
 /**
  * Recomputes the projection from the WHOLE ledger rather than patching it
@@ -229,11 +274,11 @@ export async function revokeGrant(input: {
  * self-correction: a projection that ever drifted — a crashed process, a
  * hand-written row, a bug since fixed — heals on the next write instead of
  * compounding.
+ *
+ * Exported for the same composition seam as the other *InTx functions: run
+ * once at the end of a multi-write transaction, under the user's lock.
  */
-async function reproject(
-  tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
-  userId: string,
-): Promise<ResolvedEntitlement> {
+export async function reprojectInTx(tx: Tx, userId: string): Promise<ResolvedEntitlement> {
   const grants = await tx
     .select({
       tier: entitlementGrants.tier,
@@ -282,11 +327,11 @@ async function reproject(
   return effective
 }
 
-/** Transaction-scoped, released on commit or rollback. */
-async function lockUser(
-  tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
-  userId: string,
-): Promise<void> {
+/** Transaction-scoped, released on commit or rollback. Exported for
+ *  projectFromVendor, which takes the lock BEFORE fetching vendor truth so
+ *  every projection derives from a fetch made after the previous writer
+ *  committed. */
+export async function lockUserInTx(tx: Tx, userId: string): Promise<void> {
   await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${'entitlement:' + userId}))`)
 }
 

@@ -28,6 +28,7 @@ export const SERVER_ACTION_MODULES = [
   "@/app/settings/account/mfa/actions",
   "@/app/settings/account/actions",
   "@/app/ops/billing/actions",
+  "@/app/settings/plan/actions",
 ];
 
 /**

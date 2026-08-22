@@ -39,7 +39,17 @@ const CAPABILITY_KEY = {
   autoreg: 'capability.autoreg',
 } as const satisfies Record<Feature, string>
 
-export function PlanSurface({ entitlement }: { entitlement: ResolvedEntitlement }) {
+export function PlanSurface({
+  entitlement,
+  checkout,
+}: {
+  entitlement: ResolvedEntitlement
+  /** The purchase panel, when checkout is configured (env-gated by the
+   *  page). A slot so this component stays server-renderable while checkout
+   *  is a client island; absent, the honest "nothing can be bought" notice
+   *  stays. */
+  checkout?: React.ReactNode
+}) {
   const t = useTranslations('Plan')
 
   return (
@@ -74,7 +84,7 @@ export function PlanSurface({ entitlement }: { entitlement: ResolvedEntitlement 
         </DividerList>
       </Section>
 
-      <p className="text-sm text-muted-foreground">{t('unavailableNotice')}</p>
+      {checkout ?? <p className="text-sm text-muted-foreground">{t('unavailableNotice')}</p>}
     </div>
   )
 }

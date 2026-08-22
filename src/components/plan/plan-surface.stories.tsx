@@ -7,8 +7,9 @@ import { PlanSurface } from './plan-surface'
  * came from — which is exactly the information a member needs before an expiry
  * they did not choose arrives.
  *
- * There is no upgrade button in any story, deliberately. Nothing can be bought
- * yet, and a disabled control that never works reads worse than saying so.
+ * Checkout is a SLOT (see WithCheckout): without it the honest "nothing can
+ * be bought" notice renders, which is every story below except that one. The
+ * slot's own states live in Plan/UpgradePanel.
  */
 const meta = {
   title: 'Plan/PlanSurface',
@@ -65,4 +66,17 @@ export const Comped: Story = {
 /** A lifetime purchase — no expiry, and the copy says so rather than blanking. */
 export const Lifetime: Story = {
   args: { entitlement: { tier: 'pro', source: 'promo', expiresAt: null } },
+}
+
+/** The checkout slot filled (env-gated in the real page). The panel here is
+ *  a placeholder — the slot's real states live in Plan/UpgradePanel. */
+export const WithCheckout: Story = {
+  args: {
+    entitlement: { tier: 'free', source: null, expiresAt: null },
+    checkout: (
+      <div className="border-t border-border pt-4 text-sm text-muted-foreground">
+        Upgrade panel renders here
+      </div>
+    ),
+  },
 }

@@ -4,6 +4,9 @@ import { revalidatePath } from 'next/cache'
 import { requireUserId } from '@/lib/auth'
 import { isOpsUser } from '@/lib/ops/access'
 import { applyGrant, revokeGrant } from '@/db/entitlements'
+import { projectFromVendor } from '@/db/billing'
+import { resolveEvent } from '@/db/rc-webhook-events'
+import { fetchCustomerSnapshot } from '@/lib/billing/revenuecat/client'
 import { isTier, type Tier } from '@/lib/entitlements/tiers'
 import {
   endsAtFor,
@@ -95,4 +98,76 @@ export async function revokeGrantAction(input: {
 
   revalidatePath('/ops/billing')
   return { status: 'revoked' }
+}
+
+export type RcResyncResult =
+  | { status: 'synced'; tier: Tier }
+  | { status: 'denied' }
+  | { status: 'unconfigured' }
+  | { status: 'failed' }
+
+/**
+ * The support runbook button: re-project one member from RevenueCat's
+ * current truth, through the exact same fetch-inside-lock path the webhook
+ * and the nightly reconcile use. This is how a "I paid but have no access"
+ * ticket resolves without a DB session — and the recovery path for the one
+ * blind spot (an event never received at all, retries exhausted).
+ */
+export async function resyncFromRevenueCatAction(input: {
+  userId: string
+}): Promise<RcResyncResult> {
+  const actorId = await requireUserId()
+  if (!isOpsUser(actorId)) return { status: 'denied' }
+
+  if (!process.env.RC_API_V2_KEY || !process.env.RC_PROJECT_ID) {
+    return { status: 'unconfigured' }
+  }
+
+  const targetUserId = input.userId.trim()
+  // Shape-check before projecting: a mistyped id that happens to be another
+  // valid user's would otherwise run a real re-projection against the wrong
+  // account. WorkOS user ids are `user_`-prefixed. (Adversarial finding L4.)
+  if (!targetUserId.startsWith('user_')) return { status: 'failed' }
+
+  try {
+    const effective = await projectFromVendor(targetUserId, 'revenuecat', () =>
+      fetchCustomerSnapshot(targetUserId),
+    )
+    revalidatePath('/ops/billing')
+    return { status: 'synced', tier: effective.tier }
+  } catch (error: unknown) {
+    console.error(`[ops] revenuecat re-sync failed for ${targetUserId}`, error)
+    return { status: 'failed' }
+  }
+}
+
+export type RcResolveResult =
+  | { status: 'resolved' }
+  | { status: 'denied' }
+  | { status: 'invalid' }
+  | { status: 'notFound' }
+
+/**
+ * Closes a dead-letter webhook row once a human has dealt with it (or
+ * decided it needs no dealing). Reason required and the actor is stamped
+ * into the note — the inbox has no actor column, so the note IS the
+ * attribution, same discipline as the grant ledger.
+ */
+export async function resolveRcEventAction(input: {
+  eventId: string
+  reason: string
+}): Promise<RcResolveResult> {
+  const actorId = await requireUserId()
+  if (!isOpsUser(actorId)) return { status: 'denied' }
+
+  const reason = input.reason.trim()
+  if (reason.length < MIN_GRANT_REASON_LENGTH || reason.length > MAX_GRANT_REASON_LENGTH) {
+    return { status: 'invalid' }
+  }
+
+  const resolved = await resolveEvent(input.eventId, `resolved by ${actorId}: ${reason}`)
+  if (!resolved) return { status: 'notFound' }
+
+  revalidatePath('/ops/billing')
+  return { status: 'resolved' }
 }

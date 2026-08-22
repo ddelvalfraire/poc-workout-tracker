@@ -87,6 +87,7 @@ describe('purgeUserData', () => {
         'user_preferences',
         'entitlements_current',
         'entitlement_grants',
+        'rc_webhook_events',
       ].sort(),
     )
     expect(deletedTables).not.toContain('consent_events')
@@ -115,7 +116,9 @@ describe('purgeUserData', () => {
       .map((t) => t as InstanceType<typeof PgTable>)
       .filter((t) => {
         const columns = getTableColumns(t) as Record<string, { name: string }>
-        return Object.values(columns).some((c) => c.name === 'user_id')
+        // app_user_id: the RC webhook inbox carries our user id under the
+        // vendor's column name — the drift guard must see it too.
+        return Object.values(columns).some((c) => c.name === 'user_id' || c.name === 'app_user_id')
       })
       .map((t) => getTableName(t))
 
