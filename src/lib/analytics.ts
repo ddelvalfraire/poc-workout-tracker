@@ -77,6 +77,16 @@ export type AnalyticsEvent =
       name: 'subscription_cancelled'
       properties: { plan: 'pro' | 'max'; tenure_days: number }
     }
+  | {
+      // A non-entitled user spent one of their free coach messages (the taste).
+      name: 'coach_free_message_consumed'
+      properties: { used: number; limit: number }
+    }
+  | {
+      // A non-entitled user hit the wall — the paywall impression for the coach.
+      name: 'coach_free_quota_exhausted'
+      properties: { limit: number }
+    }
 
 /**
  * Whole minutes between two instants, clamped to >= 0; 0 when either side is
