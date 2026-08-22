@@ -78,11 +78,16 @@ function Choice({ value, hint, trailing, disabled, children }: ChoiceProps) {
   return (
     <label
       className={cn(
-        'flex min-h-11 cursor-pointer items-start gap-3 rounded-sm py-3 text-base',
+        'flex min-h-11 items-start gap-3 rounded-sm py-3 text-base',
+        disabled ? 'cursor-default' : 'cursor-pointer',
         // Focus lands on the inner control, so the ring is drawn on the ROW —
         // otherwise an 18px ring floats beside the thing actually selected.
         'focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-ring',
-        disabled && 'pointer-events-none opacity-50',
+        // Disabled dims the DOT, never the text. WCAG exempts text inside an
+        // inactive control from contrast, so axe passes a blanket opacity here
+        // — but the hint on a disabled option is the sentence saying why it is
+        // disabled, and at 2.7:1 nobody can read it. Exempt is not legible.
+        disabled && 'pointer-events-none',
       )}
     >
       <Radio.Root
@@ -94,6 +99,7 @@ function Choice({ value, hint, trailing, disabled, children }: ChoiceProps) {
           // Input's field vocabulary for something that is not a field.
           'mt-0.5 flex size-[18px] shrink-0 items-center justify-center rounded-full border border-input p-0 outline-none',
           'data-checked:border-primary data-checked:text-primary',
+          disabled && 'opacity-50',
         )}
       >
         <Radio.Indicator className="flex items-center justify-center before:size-2.5 before:rounded-full before:bg-current data-unchecked:hidden" />

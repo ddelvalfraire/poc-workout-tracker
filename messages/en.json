@@ -1367,21 +1367,42 @@
     },
     "deloadHint": "A deload week eases the load partway through so you recover before the next block.",
     "deloadPolicy": {
-      "legend": "How should the deload week behave?",
-      "none": "None — train it like any other week",
-      "reactive": "Reactive — only when stalls suggest one",
-      "scheduled": "Scheduled — back off on the deload week",
+      "legend": "Deload",
+      "none": {
+        "label": "None",
+        "hint": "Every week is a working week."
+      },
+      "reactive": {
+        "label": "Reactive",
+        "hint": "Only backs off when stalls suggest one."
+      },
+      "scheduled": {
+        "label": "Scheduled",
+        "hint": "Backs off on the deload week, every block."
+      },
       "shape": "{load}% of the load · {sets}% of the sets",
       "shapeWithCap": "{load}% of the load · {sets}% of the sets · effort capped at RPE {rpeCap}"
     },
     "deloadWeekAriaLabel": "Deload week",
     "deloadWeekPlaceholder": "Deload week (optional)",
     "dietPhase": {
-      "bulking": "Bulking",
-      "cutting": "Cutting — stalls are expected; hold, don’t auto-back-off",
-      "legend": "Diet phase (optional)",
-      "maintaining": "Maintaining",
-      "none": "None"
+      "legend": "Diet phase",
+      "none": {
+        "label": "None",
+        "hint": "No phase — the engine behaves exactly as it always has."
+      },
+      "cutting": {
+        "label": "Cutting",
+        "hint": "Stalls are expected; hold the load instead of auto-backing-off."
+      },
+      "maintaining": {
+        "label": "Maintaining",
+        "hint": "Normal progression."
+      },
+      "bulking": {
+        "label": "Bulking",
+        "hint": "Normal progression."
+      }
     },
     "discardAction": "Discard",
     "empty": {

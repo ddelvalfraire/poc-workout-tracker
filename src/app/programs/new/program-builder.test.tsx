@@ -57,11 +57,15 @@ describe('ProgramBuilder form copy', () => {
 
   test('every deload-policy and diet-phase option is worded, not enum-named', () => {
     const html = renderStaticIntl(<ProgramBuilder unit="kg" />)
+    // Each option is a name plus the sentence that makes it mean something.
+    // Those are separate message keys now (`.label` / `.hint`) so the new
+    // choice list can set them on their own lines; this surface joins them
+    // with an em dash. Either way an option must never read as a bare enum.
     for (const label of [
-      'None — train it like any other week',
-      'Reactive — only when stalls suggest one',
-      'Scheduled — back off on the deload week',
-      'Cutting — stalls are expected; hold, don’t auto-back-off',
+      'None — Every week is a working week.',
+      'Reactive — Only backs off when stalls suggest one.',
+      'Scheduled — Backs off on the deload week, every block.',
+      'Cutting — Stalls are expected; hold the load instead of auto-backing-off.',
       'Maintaining',
       'Bulking',
     ]) {

@@ -295,7 +295,9 @@ export function ProgramBuilder({
                   }
                   className="size-4 shrink-0 accent-primary"
                 />
-                <span className="text-sm text-muted-foreground">{t(`deloadPolicy.${mode}`)}</span>
+                <span className="text-sm text-muted-foreground">
+                  {t(`deloadPolicy.${mode}.label`)} &mdash; {t(`deloadPolicy.${mode}.hint`)}
+                </span>
               </label>
             ))}
           </div>
@@ -369,7 +371,10 @@ export function ProgramBuilder({
                   onChange={() => dispatch({ type: 'SET_DIET_PHASE', value: phase })}
                   className="size-4 shrink-0 accent-primary"
                 />
-                <span className="text-sm text-muted-foreground">{t(`dietPhase.${phase ?? 'none'}`)}</span>
+                <span className="text-sm text-muted-foreground">
+                  {t(`dietPhase.${phase ?? 'none'}.label`)} &mdash;{' '}
+                  {t(`dietPhase.${phase ?? 'none'}.hint`)}
+                </span>
               </label>
             ))}
           </div>
