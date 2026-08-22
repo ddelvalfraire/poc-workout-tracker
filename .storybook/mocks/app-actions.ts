@@ -359,6 +359,23 @@ export async function revokeGrantAction(input: {
   return { status: "revoked" };
 }
 
+export async function resyncFromRevenueCatAction(input: {
+  userId: string;
+}): Promise<OpsBillingActions.RcResyncResult> {
+  console.info("[storybook] resyncFromRevenueCatAction", input);
+  await settle(undefined);
+  return { status: "synced", tier: "max" };
+}
+
+export async function resolveRcEventAction(input: {
+  eventId: string;
+  reason: string;
+}): Promise<OpsBillingActions.RcResolveResult> {
+  console.info("[storybook] resolveRcEventAction", input);
+  await settle(undefined);
+  return { status: "resolved" };
+}
+
 
 type Assert<T extends true> = T;
 
@@ -501,6 +518,18 @@ export type MockFidelity = [
     Matches<
       typeof revokeGrantAction,
       typeof OpsBillingActions.revokeGrantAction
+    >
+  >,
+  Assert<
+    Matches<
+      typeof resyncFromRevenueCatAction,
+      typeof OpsBillingActions.resyncFromRevenueCatAction
+    >
+  >,
+  Assert<
+    Matches<
+      typeof resolveRcEventAction,
+      typeof OpsBillingActions.resolveRcEventAction
     >
   >,
 ];

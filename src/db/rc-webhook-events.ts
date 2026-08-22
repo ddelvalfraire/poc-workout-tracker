@@ -1,4 +1,4 @@
-import { and, eq, isNotNull, lt, or, sql } from 'drizzle-orm'
+import { and, desc, eq, isNotNull, lt, or, sql } from 'drizzle-orm'
 import { db } from './index'
 import { rcWebhookEvents, type RcWebhookEventStatus } from './schema'
 
@@ -154,6 +154,55 @@ export async function trimPayloads(olderThan: Date): Promise<number> {
     )
     .returning({ id: rcWebhookEvents.id })
   return trimmed.length
+}
+
+/**
+ * Ops resolution: closes a dead-letter row so the alerting tally stops
+ * counting it. Terminal-ignored rather than a new status — a resolved row
+ * behaves exactly like any other finished event (redeliveries dedupe against
+ * it). The note carries who resolved it and why; there is no actor column,
+ * so attribution lives in the note by contract (the ops action writes it).
+ */
+export async function resolveEvent(id: string, note: string): Promise<boolean> {
+  const updated = await db
+    .update(rcWebhookEvents)
+    .set({ status: 'ignored', lastError: note, processedAt: new Date() })
+    .where(
+      and(
+        eq(rcWebhookEvents.id, id),
+        or(eq(rcWebhookEvents.status, 'failed'), eq(rcWebhookEvents.status, 'orphaned')),
+      ),
+    )
+    .returning({ id: rcWebhookEvents.id })
+  return updated.length > 0
+}
+
+/** The dead-letter rows themselves, newest first — the ops panel's list. */
+export async function listDeadLetterRows(limit = 50): Promise<
+  Array<{
+    id: string
+    type: string
+    appUserId: string | null
+    status: RcWebhookEventStatus
+    attempts: number
+    lastError: string | null
+    receivedAt: Date
+  }>
+> {
+  return db
+    .select({
+      id: rcWebhookEvents.id,
+      type: rcWebhookEvents.type,
+      appUserId: rcWebhookEvents.appUserId,
+      status: rcWebhookEvents.status,
+      attempts: rcWebhookEvents.attempts,
+      lastError: rcWebhookEvents.lastError,
+      receivedAt: rcWebhookEvents.receivedAt,
+    })
+    .from(rcWebhookEvents)
+    .where(or(eq(rcWebhookEvents.status, 'failed'), eq(rcWebhookEvents.status, 'orphaned')))
+    .orderBy(desc(rcWebhookEvents.receivedAt))
+    .limit(limit)
 }
 
 /** The alerting tally: rows a human should know about. */

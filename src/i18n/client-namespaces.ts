@@ -78,6 +78,8 @@ export const CLIENT_NAMESPACES = [
   'ProgramActions',
   'ProgramBuilder',
   'ProposalActions',
+  'RcDeadLetters',
+  'RcResync',
   'QuickCaptureSheet',
   'RemoveImportButton',
   'ReplaceConfirmDialog',

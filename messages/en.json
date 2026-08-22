@@ -2556,5 +2556,25 @@
   },
   "WeightStepSetting": {
     "ariaLabel": "Step by {step} {unit}"
+  },
+  "RcResync": {
+    "action": "Re-sync from RevenueCat",
+    "pending": "Re-syncing…",
+    "synced": "Synced — effective tier is now {tier}.",
+    "unconfigured": "RevenueCat is not configured in this environment.",
+    "denied": "Not authorized.",
+    "failed": "Re-sync failed — RevenueCat may be unreachable. Try again."
+  },
+  "RcDeadLetters": {
+    "title": "RevenueCat dead letters",
+    "empty": "No unresolved webhook events.",
+    "statusFailed": "failed · {attempts, plural, one {# delivery} other {# deliveries}}",
+    "statusOrphaned": "orphaned",
+    "resolve": "Resolve",
+    "confirmResolve": "Confirm resolve",
+    "reasonPlaceholder": "Why is this done?",
+    "reasonValidation": "A reason is required.",
+    "errorDenied": "Not authorized.",
+    "errorFailed": "Could not resolve — try again."
   }
 }
