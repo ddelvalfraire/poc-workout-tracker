@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { ChevronRight, MessageCircle } from 'lucide-react'
+import { ChevronRight } from 'lucide-react'
 import { requireUserId } from '@/lib/auth'
 import {
   getProgramDetail,
@@ -57,14 +57,12 @@ import { TmResetButton } from './tm-reset-button'
 import { topPRs } from './stats/stats-view'
 import { StartDayButton } from './start-day-button'
 import { ProgramActions } from './program-actions'
-import { DescriptionEdit } from './description-edit'
-import { MarkdownView } from '@/components/markdown-view'
 import { ProposalActions } from './proposal-actions'
 import { SharingSection } from './sharing-section'
 import { RestartProgramButton } from './restart-program-button'
 import { DietPhaseCard } from './diet-phase-card'
 import { Section } from '@/components/ui/section'
-import { DividerList, DividerRow } from '@/components/ui/divider-list'
+import { NavList, NavRow } from '@/components/ui/nav-list'
 import { EmptyWords } from '@/components/ui/empty-words'
 import { cuttingStalenessWeeks } from '@/lib/diet-phase-staleness'
 import { getTranslations } from 'next-intl/server'
@@ -259,16 +257,9 @@ export default async function ProgramDetailPage({
   const status = (
     program.status === 'active' || program.status === 'archived' ? program.status : 'draft'
   ) as 'draft' | 'active' | 'archived'
-  // The About row's article content — hero, description, attribution, and
-  // the program document note all fold into one collapsed region. With none
-  // of it AND no authoring path (a proposal hides DescriptionEdit), the row
-  // would open onto nothing, so only then does it stay off the page.
-  const hasAboutContent =
-    program.heroImageUrl !== null ||
-    program.description !== null ||
-    program.notes !== null ||
-    program.sourceUrl !== null
-  const showAbout = hasAboutContent || !isProposed
+  // About is its own route now, so the row always leads somewhere: an
+  // undescribed program still gets a page carrying its facts, and for the
+  // owner that page's empty state IS the invitation to write one.
   // Manage renders only when it has content: the change log shows for anyone,
   // the owner controls never render on a proposal.
   const showManage = changeEvents.length > 0 || !isProposed
@@ -349,97 +340,21 @@ export default async function ProgramDetailPage({
           />
         </nav>
 
-        {/* About + navigation: one hairline group. The article READ surface
-            (PRD §3) lives behind the collapsed About row — hero, markdown
-            description, the DescriptionEdit authoring path, licensing
-            attribution, and the program document note in one region — and
-            the Coach/Stats rows follow in the same divider idiom. */}
-        <div className="mt-6">
-          {showAbout && (
-            <details className="group border-b border-b-border/60">
-              <summary className="flex cursor-pointer list-none items-center justify-between gap-4 py-4 text-sm font-medium transition-colors outline-none hover:bg-muted/50 focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-hidden [&::-webkit-details-marker]:hidden">
-                {t('aboutTitle')}
-                <ChevronRight
-                  aria-hidden="true"
-                  className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-90"
-                />
-              </summary>
-              <div className="pb-4">
-                {program.heroImageUrl !== null && (
-                  <div className="-mx-5 sm:mx-0">
-                    {/* Plain <img>: remote hosts aren't in the next/image
-                        allowlist, and the URL is validated http(s) at the
-                        input boundary. Decorative — the title above carries
-                        the name. No rounded shell (de-card: media sits above
-                        hairlines, not inside frames, on this surface). */}
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={program.heroImageUrl}
-                      alt=""
-                      className="h-44 w-full object-cover"
-                    />
-                  </div>
-                )}
-                {program.description !== null && (
-                  // Markdown article lead (trusted-subset renderer — zero
-                  // client JS; plain-text descriptions are valid markdown).
-                  <MarkdownView
-                    markdown={program.description}
-                    className="mt-3 text-muted-foreground"
-                  />
-                )}
-                {!isProposed && (
-                  <DescriptionEdit
-                    programId={program.id}
-                    programName={program.name}
-                    description={program.description}
-                  />
-                )}
-                {/* The program DOCUMENT note (notes v2 catch-up): authored
-                    once (upsert_program takes plain text ≤2000 — no markdown
-                    contract, so no MarkdownView), read at program start,
-                    never in the logger. The muted quote rail is the
-                    workout-detail session-note treatment; it reads below the
-                    description as the article's closing aside. */}
-                {program.notes !== null && (
-                  <p className="mt-3 whitespace-pre-wrap border-l-2 border-border pl-3 text-sm text-muted-foreground">
-                    {program.notes}
-                  </p>
-                )}
-              </div>
-            </details>
-          )}
-          {program.sourceUrl !== null && (
-            <p className="border-b border-b-border/60 py-2 text-xs text-muted-foreground">
-              {/* Attribution is a licensing requirement for imported
-                  templates, not decoration — it stays OUTSIDE the collapsed
-                  About fold so it is always visible when present. */}
-              <a
-                href={program.sourceUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="underline underline-offset-2 transition-colors hover:text-foreground"
-              >
-                {t('sourceLinkLabel')}
-              </a>
-            </p>
-          )}
-          <DividerList>
-            {/* Coach opens with this program as context, so "swap tomorrow's
-                pressing" needs no preamble about which program is meant. Shown
-                to everyone — the coach is released; the entitlement gates use,
-                and an unentitled click is the Max upsell. */}
-            <DividerRow href={`/coach?context=${encodeURIComponent(`program:${program.id}`)}`}>
-              <span className="flex min-w-0 items-center gap-2 text-sm font-medium">
-                <MessageCircle aria-hidden="true" className="size-4 text-muted-foreground" />
-                {t('coachLink')}
-              </span>
-            </DividerRow>
-            <DividerRow href={`/programs/${program.id}/stats`}>
-              <span className="text-sm font-medium">{t('statsLink')}</span>
-            </DividerRow>
-          </DividerList>
-        </div>
+        {/* Attribution is a licensing requirement for imported templates, not
+            decoration — it stays on the program page rather than moving to the
+            About route, so it is visible without a tap when present. */}
+        {program.sourceUrl !== null && (
+          <p className="mt-6 border-b border-b-border/60 py-2 text-xs text-muted-foreground">
+            <a
+              href={program.sourceUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline underline-offset-2 transition-colors hover:text-foreground"
+            >
+              {t('sourceLinkLabel')}
+            </a>
+          </p>
+        )}
 
         {/* The forced confirm: a proposal page leads with WHO drafted it and
             the owner's three explicit choices — it demands a decision, so it
@@ -590,74 +505,6 @@ export default async function ProgramDetailPage({
             )
             return weeks !== null ? <DietPhaseCard programId={program.id} weeks={weeks} /> : null
           })()}
-
-        {/* Auto-regulation visibility: when the engine is holding or backing
-            off a lift this week, say so — quietly and honestly (muted card,
-            the engine's own reason line, no volt, links nothing new). Only
-            derived days can contribute, so a collapsed day never fakes a
-            verdict it didn't compute. */}
-        {(autoregNotes.length > 0 || tmProposals.length > 0) && (
-          <section
-            aria-label={t('autoreg.ariaLabel')}
-            className="mt-3 border-b border-border/60 pb-4"
-          >
-            <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
-              {t('autoreg.title')}
-            </p>
-            {autoregNotes.length > 0 && (
-              <ul className="mt-2 space-y-1.5">
-                {autoregNotes.map((note) => (
-                  <li key={note.exerciseName} className="text-sm text-muted-foreground">
-                    <span className="font-medium text-foreground">{note.exerciseName}</span>
-                    <span aria-hidden="true"> {t('autoreg.separator')} </span>
-                    <span className="tnum">{autoregReason(note.adjustment, unit)}</span>
-                  </li>
-                ))}
-              </ul>
-            )}
-            {/* M4 TM proposals: the approval-card sentence ("Week 5, Squat:
-                TM 140 → 126 kg — 3 straight stalls") plus an explicit
-                owner confirm. Proposed-status pages read the sentence but
-                get no button — nothing on a proposal may write. */}
-            {tmProposals.length > 0 && (
-              <ul className="mt-2 space-y-2">
-                {tmProposals.map((proposal) => (
-                  <li
-                    key={proposal.exerciseName}
-                    className="flex items-center justify-between gap-3"
-                  >
-                    <p className="min-w-0 text-sm text-muted-foreground">
-                      <span className="font-medium text-foreground">
-                        {proposal.exerciseName}
-                      </span>
-                      <span aria-hidden="true"> {t('autoreg.separator')} </span>
-                      <span className="tnum">
-                        {t('autoreg.tmProposal', {
-                          week: selectedWeek,
-                          currentTm: kgToDisplay(proposal.currentTmKg, unit),
-                          proposedTm: kgToDisplay(proposal.proposedTmKg, unit),
-                          unit,
-                        })}
-                      </span>
-                    </p>
-                    {!isProposed && (
-                      <TmResetButton
-                        programId={program.id}
-                        dayPosition={proposal.dayPosition}
-                        exercisePosition={proposal.exercisePosition}
-                        exerciseName={proposal.exerciseName}
-                        currentTm={kgToDisplay(proposal.currentTmKg, unit)}
-                        proposedTm={kgToDisplay(proposal.proposedTmKg, unit)}
-                        proposedTmKg={proposal.proposedTmKg}
-                        unit={unit}
-                      />
-                    )}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
-        )}
 
         {/* A brand-new program says so instead of trailing off silently — a
             plain sentence, no box, no illustration (EmptyWords). */}
@@ -950,13 +797,102 @@ export default async function ProgramDetailPage({
             })}
         </div>
 
+        {/* Auto-regulation sits BELOW the plan, not above it. It is a claim
+            about loads that apply the moment you hit Start — near the plan,
+            never ahead of it, because the day list is why the page was
+            opened. Quiet and honest: the engine's own reason line, no volt.
+            Only derived days can contribute, so a collapsed day never fakes a
+            verdict it didn't compute. */}
+        {(autoregNotes.length > 0 || tmProposals.length > 0) && (
+          <section
+            aria-label={t('autoreg.ariaLabel')}
+            className="mt-8 border-t border-border pt-6"
+          >
+            <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
+              {t('autoreg.title')}
+            </p>
+            {autoregNotes.length > 0 && (
+              <ul className="mt-2 space-y-1.5">
+                {autoregNotes.map((note) => (
+                  <li key={note.exerciseName} className="text-sm text-muted-foreground">
+                    <span className="font-medium text-foreground">{note.exerciseName}</span>
+                    <span aria-hidden="true"> {t('autoreg.separator')} </span>
+                    <span className="tnum">{autoregReason(note.adjustment, unit)}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {/* M4 TM proposals: the approval-card sentence ("Week 5, Squat:
+                TM 140 → 126 kg — 3 straight stalls") plus an explicit
+                owner confirm. Proposed-status pages read the sentence but
+                get no button — nothing on a proposal may write. */}
+            {tmProposals.length > 0 && (
+              <ul className="mt-2 space-y-2">
+                {tmProposals.map((proposal) => (
+                  <li
+                    key={proposal.exerciseName}
+                    className="flex items-center justify-between gap-3"
+                  >
+                    <p className="min-w-0 text-sm text-muted-foreground">
+                      <span className="font-medium text-foreground">
+                        {proposal.exerciseName}
+                      </span>
+                      <span aria-hidden="true"> {t('autoreg.separator')} </span>
+                      <span className="tnum">
+                        {t('autoreg.tmProposal', {
+                          week: selectedWeek,
+                          currentTm: kgToDisplay(proposal.currentTmKg, unit),
+                          proposedTm: kgToDisplay(proposal.proposedTmKg, unit),
+                          unit,
+                        })}
+                      </span>
+                    </p>
+                    {!isProposed && (
+                      <TmResetButton
+                        programId={program.id}
+                        dayPosition={proposal.dayPosition}
+                        exercisePosition={proposal.exercisePosition}
+                        exerciseName={proposal.exerciseName}
+                        currentTm={kgToDisplay(proposal.currentTmKg, unit)}
+                        proposedTm={kgToDisplay(proposal.proposedTmKg, unit)}
+                        proposedTmKg={proposal.proposedTmKg}
+                        unit={unit}
+                      />
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        )}
+
+        {/* The doors out of this page. A NavList, not a DividerList: NavRow
+            has no trailing slot, so these rows cannot carry a value — on a
+            screen already stacking several divider lists, density is the only
+            differentiator left, and content rows are dense. Headerless
+            deliberately: the three share only "not the plan", and every
+            honest name for that set (More, Other, Details) is a zero-scent
+            label. Manage follows at a short gap so its header peeks — a
+            full-width hairline group after a big gap reads as the page end. */}
+        <NavList label={t('navLabel')}>
+          {/* Coach opens with this program as context, so "swap tomorrow's
+              pressing" needs no preamble about which program is meant. Shown
+              to everyone — the coach is released; the entitlement gates use,
+              and an unentitled click is the Max upsell. */}
+          <NavRow href={`/coach?context=${encodeURIComponent(`program:${program.id}`)}`}>
+            {t('coachLink')}
+          </NavRow>
+          <NavRow href={`/programs/${program.id}/stats`}>{t('statsLink')}</NavRow>
+          <NavRow href={`/programs/${program.id}/about`}>{t('aboutTitle')}</NavRow>
+        </NavList>
+
         {/* ── Band 3: manage ────────────────────────────────────────────────
             The plan's back office under one Section header: the paper trail,
             the owner settings, distribution, and the danger tail — different
             registers, so each block still opens past its own hairline, but
             they read as one "Manage" zone instead of a loose stack. */}
         {showManage && (
-          <Section title={t('manageTitle')} className="mt-12 border-t border-border pt-8">
+          <Section title={t('manageTitle')} className="mt-8 pt-2">
             {/* The plan's paper trail: who changed what, newest first, grouped
                 under calendar-day headers (the date leaves the row, so
                 summaries get the full width and wrap to two lines instead of

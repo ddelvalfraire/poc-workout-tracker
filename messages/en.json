@@ -1286,6 +1286,15 @@
     "ariaLabel": "Personal record",
     "label": "PR"
   },
+  "ProgramAbout": {
+    "eyebrow": "About",
+    "meta": "{weeks, plural, one {# week} other {# weeks}} · {days, plural, one {# day} other {# days}} / wk",
+    "empty": "Nobody has written this one up yet.",
+    "backLink": "Back to program",
+    "weekMeta": "Week {week} of {total}",
+    "notesLabel": "From the program document",
+    "sourceLinkLabel": "Source"
+  },
   "ProgramActions": {
     "activateAction": "Activate",
     "delete": "Delete",
@@ -1466,6 +1475,7 @@
     "daysEmpty": "No training days yet.",
     "deloadBadge": "Deload week",
     "manageTitle": "Manage",
+    "navLabel": "Program",
     "patchProposal": {
       "eyebrowCoach": "Proposed by your coach",
       "eyebrowOther": "Proposed changes"
