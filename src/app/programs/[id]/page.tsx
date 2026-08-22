@@ -2,7 +2,6 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { ChevronRight, MessageCircle } from 'lucide-react'
 import { requireUserId } from '@/lib/auth'
-import { isCoachEnabled } from '@/lib/coach/access'
 import {
   getProgramDetail,
   programWeekState,
@@ -112,12 +111,9 @@ export default async function ProgramDetailPage({
   const locale = await resolveLocale()
   const userId = await requireUserId()
   const [{ id }, sp] = await Promise.all([params, searchParams])
-  // coachEnabled rides the same Promise.all so the flag lookup (env
-  // short-circuit, else PostHog with a bounded timeout) adds no waterfall.
-  const [program, unit, coachEnabled] = await Promise.all([
+  const [program, unit] = await Promise.all([
     getProgramDetail(userId, id),
     getWeightUnit(userId),
-    isCoachEnabled(userId),
   ])
   if (!program) notFound()
 
@@ -444,17 +440,16 @@ export default async function ProgramDetailPage({
           </p>
           <div className="flex shrink-0 items-center gap-4">
             {/* Coach opens with this program as context, so "swap tomorrow's
-                pressing" needs no preamble about which program is meant.
-                Gated: env allowlist or the coach-access flag (server enforces too). */}
-            {coachEnabled && (
-              <Link
-                href={`/coach?context=${encodeURIComponent(`program:${program.id}`)}`}
-                className="flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground"
-              >
-                <MessageCircle aria-hidden="true" className="size-4" />
-                {t('coachLink')}
-              </Link>
-            )}
+                pressing" needs no preamble about which program is meant. Shown
+                to everyone — the coach is released; the entitlement gates use,
+                and an unentitled click is the Max upsell. */}
+            <Link
+              href={`/coach?context=${encodeURIComponent(`program:${program.id}`)}`}
+              className="flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground"
+            >
+              <MessageCircle aria-hidden="true" className="size-4" />
+              {t('coachLink')}
+            </Link>
             <Link
               href={`/programs/${program.id}/stats`}
               className="flex items-center gap-0.5 text-sm text-muted-foreground transition-colors hover:text-foreground"

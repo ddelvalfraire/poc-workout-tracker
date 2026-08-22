@@ -53,16 +53,11 @@ export async function POST(request: Request): Promise<Response> {
   if (!userId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
-  // Gate: rollout (env allowlist OR the 'coach-access' flag, fail-closed),
-  // then entitlement. Server-side like every other guard — hiding the UI entry
-  // points is cosmetics. 402 rather than 403 for the unentitled case: the
-  // client can tell "you must pay" from "you may not", and only one of those
-  // is worth showing a plan link for.
-  const access = await coachAccess(userId)
-  if (access === 'unreleased') {
-    return NextResponse.json({ error: 'The coach is not enabled for this account.' }, { status: 403 })
-  }
-  if (access === 'unentitled') {
+  // The coach is released; the entitlement is the only gate. Server-side like
+  // every other guard — hiding the UI entry points is cosmetics. 402, not 403:
+  // the client distinguishes "you must pay" (worth a plan link) from "you may
+  // not".
+  if ((await coachAccess(userId)) === 'unentitled') {
     return NextResponse.json(
       { error: 'The coach is part of the Max plan.', upgrade: '/settings/plan' },
       { status: 402 },
