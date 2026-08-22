@@ -75,7 +75,11 @@ export default async function EditProgramPage({
           </Link>
         }
       />
-      <main className="mx-auto w-full max-w-md flex-1 px-5">
+      {/* Same column as /programs/new: it widens at the editor-pane
+          breakpoint (840px, tokens.ts) without becoming a second layout, and
+          is a flex column for the same reason — the sticky Save bar's
+          `mt-auto` needs one. */}
+      <main className="mx-auto flex w-full max-w-md flex-1 flex-col px-5 min-[840px]:max-w-2xl">
         <ProgramBuilder programId={id} initialDraft={draft} unit={unit} />
       </main>
     </div>
