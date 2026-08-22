@@ -45,7 +45,7 @@ function ProgramsProbe({ weeks }: { weeks: number }) {
       <p>{t('doors.templateMeta', { weeks, days: 4 })}</p>
       <p>{t('doors.coachHeading')}</p>
       <p>{t('doors.coachName')}</p>
-      <p>{t('doors.coachTier')}</p>
+      <p>{t('doors.coachTier', { tier: 'Max' })}</p>
       <p>{t('doors.coachBody')}</p>
       <p>{t('doors.buildOwn')}</p>
       <p>{t('newLink')}</p>
@@ -120,10 +120,14 @@ describe('Programs list messages', () => {
     expect(html).toContain('Between blocks.')
   })
 
-  test('the coach door sells the outcome and states its tier', () => {
+  test('the coach door sells the outcome and names the plan that grants it', () => {
     const html = renderStaticIntl(<ProgramsProbe weeks={5} />)
     expect(html).toContain('built around your schedule, equipment and logged lifts')
-    expect(html).toContain('Free to start')
+    // The tier word is interpolated from tierRequiredFor('coach'), never
+    // hardcoded: a door that promises "free" and lands on a paywall is the
+    // sprung-gate pattern this surface exists to avoid.
+    expect(html).toContain('Max plan')
+    expect(html).not.toMatch(/[Ff]ree to start/)
   })
 })
 

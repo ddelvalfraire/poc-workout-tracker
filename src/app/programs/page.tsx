@@ -29,7 +29,8 @@ import {
   type BlockSoFar,
 } from './list-view'
 import { listTemplates, type TemplateListRow } from '@/db/templates'
-import { isCoachEnabled } from '@/lib/coach/access'
+import { coachAccess } from '@/lib/coach/access'
+import { tierRequiredFor } from '@/lib/entitlements/tiers'
 import { renderMessage } from '@/lib/message'
 import { getTranslations } from 'next-intl/server'
 import { resolveLocale } from '@/i18n/request'
@@ -344,11 +345,17 @@ function ZoneHeading({ children }: { children: React.ReactNode }) {
   )
 }
 
+/** How many library programs the door names before deferring to the shelf —
+ *  enough to make the choice concrete, few enough to stay a fork. */
+const TEMPLATE_DOOR_COUNT = 3
+
 /** What the no-active-program page needs beyond the zones themselves. */
 interface DoorsData {
   state: ReturnType<typeof noProgramState>
   templates: readonly TemplateListRow[]
-  coachEnabled: boolean
+  /** Rollout AND entitlement, not just the rollout flag: the door has to name
+   *  the right tier, and 'unreleased' must not admit the feature exists. */
+  coach: Awaited<ReturnType<typeof coachAccess>>
 }
 
 /**
@@ -364,7 +371,12 @@ interface DoorsData {
  * actually reachable (the server enforces the same gate).
  */
 async function ActivationDoors({ doors }: { doors: DoorsData }) {
-  const t = await getTranslations('Programs')
+  const [t, tPlan] = await Promise.all([
+    getTranslations('Programs'),
+    // The plan NAMES live with the plan surface: one place decides what a
+    // tier is called, so this door and the paywall can never disagree.
+    getTranslations('Plan'),
+  ])
   return (
     <>
       {doors.templates.length > 0 && (
@@ -402,23 +414,36 @@ async function ActivationDoors({ doors }: { doors: DoorsData }) {
         </section>
       )}
 
-      {doors.coachEnabled && (
+      {/* 'unreleased' renders nothing: /coach 404s for those users, and a door
+          must not admit a feature exists that they cannot reach. */}
+      {doors.coach !== 'unreleased' && (
         <section className="mt-8">
           <h2 className="font-display text-base uppercase leading-none tracking-wide text-muted-foreground">
             {t('doors.coachHeading')}
           </h2>
           <DividerList className="mt-1">
-            <DividerRow href="/coach?context=program:new">
+            {/* Unentitled goes to the plan page, not into a chat that would
+                bounce them there — the gate is NAMED before the tap, never
+                sprung after it. */}
+            <DividerRow
+              href={doors.coach === 'available' ? '/coach?context=program:new' : '/settings/plan'}
+            >
               <span className="flex min-w-0 flex-col gap-1">
                 <span className="flex items-baseline gap-2">
                   <span className="font-display text-lg uppercase leading-tight tracking-wide">
                     {t('doors.coachName')}
                   </span>
                   {/* The tier as a muted WORD, not a chip: a label nobody can
-                      press must not wear a control's shape. */}
-                  <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-                    {t('doors.coachTier')}
-                  </span>
+                      press must not wear a control's shape. The plan name is
+                      derived from the feature map, so re-packaging coach can
+                      never leave this door advertising the wrong tier. */}
+                  {doors.coach === 'unentitled' && (
+                    <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                      {t('doors.coachTier', {
+                        tier: tPlan(`tier.${tierRequiredFor('coach')}.name`),
+                      })}
+                    </span>
+                  )}
                 </span>
                 <span className="text-sm leading-snug text-muted-foreground">
                   {t('doors.coachBody')}
@@ -450,13 +475,11 @@ export default async function ProgramsPage() {
   // short-circuit, else a bounded flag lookup).
   const doors = hero
     ? null
-    : await Promise.all([listTemplates(), isCoachEnabled(userId)]).then(
-        ([templates, coachEnabled]) => ({
-          state: noProgramState(zones),
-          templates: templates.slice(0, 3),
-          coachEnabled,
-        }),
-      )
+    : await Promise.all([listTemplates(), coachAccess(userId)]).then(([templates, coach]) => ({
+        state: noProgramState(zones),
+        templates: templates.slice(0, TEMPLATE_DOOR_COUNT),
+        coach,
+      }))
 
   return (
     <div className="flex min-h-[100dvh] flex-col">

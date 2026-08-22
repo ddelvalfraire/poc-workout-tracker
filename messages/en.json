@@ -1647,7 +1647,7 @@
       "coachBody": "Answer a few questions — get a block built around your schedule, equipment and logged lifts.",
       "coachHeading": "Or have it built for you",
       "coachName": "Coach",
-      "coachTier": "Free to start",
+      "coachTier": "{tier} plan",
       "libraryAll": "All programs in the library",
       "libraryHeading": "Start with a proven program",
       "templateMeta": "{weeks} wk · {days} d/wk"
