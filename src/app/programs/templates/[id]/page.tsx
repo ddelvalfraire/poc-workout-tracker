@@ -4,11 +4,10 @@ import { requireUserId } from '@/lib/auth'
 import { getAllExercises } from '@/lib/wger'
 import { listPublicTemplates } from '@/lib/wger-templates'
 import { mapWgerRoutineToProgram } from '@/lib/wger-template-map'
-import { formatPlannedScheme, groupPlannedSets, plannedSetChips } from '@/lib/planned-set-format'
 import { getWeightUnit } from '@/db/preferences'
 import { AppHeader } from '@/components/app-header'
 import { BackLink } from '@/components/back-link'
-import { cn } from '@/lib/utils'
+import { TemplatePreview } from '@/components/template-preview/template-preview'
 import { ImportTemplateButton } from '../import-button'
 import { TemplatesUnavailable } from '../unavailable'
 import { SystemTemplateDetail } from './system-template-detail'
@@ -69,20 +68,6 @@ export default async function TemplateDetailPage({
   if (!mapped) notFound()
 
   const { input, skipped } = mapped
-  const dayCount = input.days.length
-
-  // Superset letters (A, B…) in order of first appearance — group NUMBERS are
-  // plan-internal; letters are what a lifter reads (the logger's convention).
-  const supersetLetters: Record<number, string> = {}
-  let nextLetter = 0
-  for (const day of input.days) {
-    for (const exercise of day.exercises) {
-      const group = exercise.supersetGroup
-      if (typeof group === 'number' && supersetLetters[group] === undefined) {
-        supersetLetters[group] = String.fromCharCode(65 + nextLetter++)
-      }
-    }
-  }
 
   return (
     <div className="flex min-h-[100dvh] flex-col">
@@ -93,148 +78,73 @@ export default async function TemplateDetailPage({
         }
       />
 
-      <main className="mx-auto w-full max-w-md flex-1 px-5 pb-safe">
-        {/* Article READ surface — the program detail page's visual language
-            (icon + poster title + description lead), because this page shows
-            the same object one step earlier in its life. */}
-        <header className="mt-4">
-          <p className="flex items-baseline gap-2">
-            {typeof input.icon === 'string' && (
-              <span aria-hidden="true" className="text-2xl leading-none">
-                {input.icon}
-              </span>
-            )}
-            <span className="min-w-0 truncate font-display text-3xl uppercase leading-none tracking-wide">
-              {input.name}
-            </span>
-          </p>
-          <p className="mt-1.5 text-xs font-semibold uppercase tracking-widest text-muted-foreground tnum">
-            {/* Unparsed input types mesocycleWeeks as optional; the mapper
-                always sets it, and 1 is the schema's own default for an
-                absent value — an ICU plural cannot take undefined. */}
-            {t('meta', { days: dayCount, weeks: input.mesocycleWeeks ?? 1 })}
-          </p>
-          {typeof input.description === 'string' && (
-            <p className="mt-3 whitespace-pre-line text-sm leading-relaxed text-muted-foreground">
-              {input.description}
-            </p>
-          )}
-        </header>
-
-        {/* One CTA per surface (Arc D): the Add lives at the bottom, after
-            the plan has made its case — no duplicate above the fold. */}
-        <h2 className="mt-8 font-display text-xl uppercase leading-none tracking-wide">{t('planTitle')}</h2>
-        {/* Hairline day sections (programs/[id] vocabulary): each day sits on
-            a muted hairline, no shells — the preview reads like the detail
-            page it becomes after import. */}
-        <div className="mt-1">
-          {input.days.map((day, dayIndex) => (
-            <section key={dayIndex} className="border-b border-b-border/60 py-4">
-              <h3 className="flex min-w-0 items-baseline gap-2">
-                <span className="shrink-0 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground tnum">
-                  {t('dayNumber', { position: dayIndex + 1 })}
-                </span>
-                <span className="min-w-0 truncate font-display text-lg uppercase leading-tight tracking-wide">
-                  {day.name}
-                </span>
-              </h3>
-
-              <div className="mt-3 space-y-3">
-                {day.exercises.map((exercise, exerciseIndex) => {
-                  const group = exercise.supersetGroup
-                  const supersetLabel =
-                    typeof group === 'number' ? supersetLetters[group] : undefined
-                  const previousGroup = day.exercises[exerciseIndex - 1]?.supersetGroup
-                  const startsSuperset = supersetLabel !== undefined && previousGroup !== group
-                  return (
-                    <div
-                      key={exerciseIndex}
-                      className={cn(
-                        // Muted rail = grouping is structure, not a live
-                        // state (the logger's superset treatment).
-                        supersetLabel !== undefined &&
-                          'border-l-2 border-l-muted-foreground/40 pl-3',
-                      )}
-                    >
-                      {startsSuperset && (
-                        <p className="mb-1 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
-                          {t('supersetLabel', { letter: supersetLabel })}
-                        </p>
-                      )}
-                      <p className="text-sm font-medium">{exercise.name}</p>
-                      <div className="mt-1 space-y-0.5">
-                        {groupPlannedSets(exercise.sets).map((run, runIndex) => (
-                          <p
-                            key={runIndex}
-                            className="flex items-baseline gap-2 text-sm text-muted-foreground"
-                          >
-                            <span className="tnum">
-                              {formatPlannedScheme(run.set, run.count, unit)}
-                            </span>
-                            {/* Chips → words: set qualifiers are labels on
-                                the line, not controls — quiet caps text, no
-                                pill shell (programs/[id] target-line rule). */}
-                            {plannedSetChips(run.set).map((chip) => (
-                              <span
-                                key={chip}
-                                className="text-[10px] font-semibold uppercase tracking-widest tnum"
-                              >
-                                {chip}
-                              </span>
-                            ))}
-                          </p>
-                        ))}
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            </section>
-          ))}
-        </div>
-
-        {/* The mapper's honesty ledger: what an import would drop and why.
-            Quiet — a skipped accessory must not read like an error. */}
-        {skipped.length > 0 && (
-          <section aria-label={t('skipped.ariaLabel')} className="mt-6">
-            <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-              {t('skipped.title')}
-            </p>
-            <ul className="mt-1.5 space-y-1">
-              {skipped.map((note) => (
-                <li key={note} className="text-sm text-muted-foreground">
-                  {note}
-                </li>
-              ))}
-            </ul>
-          </section>
-        )}
-
-        <div className="mt-8">
-          <ImportTemplateButton templateId={wgerId} />
-        </div>
-
-        {/* Attribution footer — a licensing requirement (wger content is CC),
-            demoted from the browse card's action row to quiet small print. */}
-        {typeof input.sourceUrl === 'string' && (
-          <p className="mt-6 pb-2 text-xs text-muted-foreground">
-            {/* One message, not a sentence beside a link: where the link
-                sits in the line is a translator's decision. */}
-            {t.rich('attribution', {
-              source: (chunks) => (
-                <a
-                  href={input.sourceUrl as string}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 underline underline-offset-2 transition-colors hover:text-foreground"
-                >
-                  {chunks}
-                  <ExternalLink aria-hidden="true" className="size-3" />
-                </a>
-              ),
-            })}
-          </p>
-        )}
+      <main className="mx-auto w-full max-w-md flex-1 px-5">
+        {/* Shared preview body (fact strip, block map, day-1-expanded plan,
+            sticky adopt bar) — the MAPPED shape, so what you read is what
+            "Add to my programs" creates. Branch-specific pieces ride the
+            slots: the import island, and a footer of the mapper's honesty
+            ledger plus the CC attribution wger requires. */}
+        <TemplatePreview
+          name={input.name}
+          icon={typeof input.icon === 'string' ? input.icon : null}
+          description={typeof input.description === 'string' ? input.description : null}
+          /* Unparsed input types mesocycleWeeks as optional; the mapper
+             always sets it, and 1 is the schema's own default. */
+          mesocycleWeeks={input.mesocycleWeeks ?? 1}
+          deloadWeek={null}
+          unit={unit}
+          days={input.days.map((day, dayIndex) => ({
+            key: String(dayIndex),
+            name: day.name,
+            exercises: day.exercises.map((exercise, exerciseIndex) => ({
+              key: String(exerciseIndex),
+              name: exercise.name,
+              supersetGroup: exercise.supersetGroup,
+              sets: exercise.sets,
+            })),
+          }))}
+          cta={<ImportTemplateButton templateId={wgerId} />}
+          footer={
+            <>
+              {/* The mapper's honesty ledger: what an import would drop and
+                  why. Quiet — a skipped accessory must not read like an
+                  error. */}
+              {skipped.length > 0 && (
+                <section aria-label={t('skipped.ariaLabel')} className="mt-6">
+                  <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                    {t('skipped.title')}
+                  </p>
+                  <ul className="mt-1.5 space-y-1">
+                    {skipped.map((note) => (
+                      <li key={note} className="text-sm text-muted-foreground">
+                        {note}
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              )}
+              {typeof input.sourceUrl === 'string' && (
+                <p className="mt-6 text-xs text-muted-foreground">
+                  {/* One message, not a sentence beside a link: where the
+                      link sits in the line is a translator's decision. */}
+                  {t.rich('attribution', {
+                    source: (chunks) => (
+                      <a
+                        href={input.sourceUrl as string}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 underline underline-offset-2 transition-colors hover:text-foreground"
+                      >
+                        {chunks}
+                        <ExternalLink aria-hidden="true" className="size-3" />
+                      </a>
+                    ),
+                  })}
+                </p>
+              )}
+            </>
+          }
+        />
       </main>
     </div>
   )

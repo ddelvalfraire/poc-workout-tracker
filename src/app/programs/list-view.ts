@@ -7,6 +7,7 @@
  */
 
 import type { Message } from '@/lib/message'
+import { resolveDayState } from './[id]/week-view'
 
 /** The statuses the catalog has words for. Anything else is a value the
  *  schema grew without the UI noticing. */
@@ -24,6 +25,26 @@ export function programStatusLabel(status: string): Message<ProgramStatusKey> | 
   return (KNOWN_STATUSES as readonly string[]).includes(status)
     ? { key: `status.${status}` as ProgramStatusKey }
     : null
+}
+
+/**
+ * Which activation lede the no-active-program page leads with. Priority is
+ * decision-first: a pending proposal outranks a half-set-up draft, which
+ * outranks the between-blocks nudge; a truly empty account gets the cold
+ * start. Only meaningful when the hero slot is empty — an active program
+ * renders the dashboard instead.
+ */
+export type NoProgramState = 'proposed' | 'drafts' | 'archived' | 'cold'
+
+export function noProgramState(zones: {
+  proposed: readonly unknown[]
+  drafts: readonly unknown[]
+  archived: readonly unknown[]
+}): NoProgramState {
+  if (zones.proposed.length > 0) return 'proposed'
+  if (zones.drafts.length > 0) return 'drafts'
+  if (zones.archived.length > 0) return 'archived'
+  return 'cold'
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000
@@ -51,6 +72,88 @@ export function proposalAgeLine(createdAt: Date, now: Date): Message<ProposalAge
   if (days < 7) return { key: 'proposalAge.days', values: { days } }
   if (days < 30) return { key: 'proposalAge.weeks', values: { weeks: Math.floor(days / 7) } }
   return { key: 'proposalAge.months', values: { months: Math.floor(days / 30) } }
+}
+
+/** The workout facts the week/block derivations read — a subset of the
+ *  listProgramWorkouts row (already paid for by the hero; no new reads). */
+export interface WorkoutFact {
+  programDayId: string | null
+  programWeek: number | null
+  startedAt: Date
+  completedAt: Date | null
+}
+
+export type ThisWeekState = 'done' | 'next' | 'upcoming'
+
+export interface ThisWeekRow<D> {
+  day: D
+  state: ThisWeekState
+}
+
+/**
+ * The "This week" band's rows: one per program day, in plan order, each
+ * resolved against the current week's workouts. `done` comes from
+ * resolveDayState (the detail page's exact rule — completed beats a lingering
+ * in-progress duplicate); `next` is getNextProgramDay's pick, passed in so the
+ * band and the home hero never disagree; everything else is `upcoming`.
+ * An in-progress day intentionally reads as not-done rather than growing a
+ * fourth state the band has no words for.
+ */
+export function buildThisWeekRows<D extends { id: string }>(
+  days: readonly D[],
+  workouts: readonly WorkoutFact[],
+  currentWeek: number,
+  nextDayId: string | null,
+): { rows: ThisWeekRow<D>[]; doneCount: number } {
+  const rows = days.map((day): ThisWeekRow<D> => {
+    const dayWorkouts = workouts.filter(
+      (w) => w.programDayId === day.id && w.programWeek === currentWeek,
+    )
+    if (resolveDayState(dayWorkouts)?.state === 'completed') return { day, state: 'done' }
+    return { day, state: day.id === nextDayId ? 'next' : 'upcoming' }
+  })
+  return { rows, doneCount: rows.filter((r) => r.state === 'done').length }
+}
+
+/** The "Block so far" figures — all derivable from data the hero already
+ *  loads (listProgramWorkouts + the detail's day count). */
+export interface BlockSoFar {
+  daysDone: number
+  daysPlanned: number
+  volumeKg: number
+}
+
+/**
+ * Days done = DISTINCT completed (day, week) pairs within weeks 1..currentWeek
+ * — the resume-on-start era still allows historical duplicate rows, and a
+ * redone day must not count twice. Planned = day count × weeks elapsed
+ * (including the current one — same retroactive-denominator drift the stats
+ * page accepts). Volume = Σ volumeKg over completed workouts, all weeks.
+ */
+export function blockSoFar(
+  dayCount: number,
+  workouts: readonly (WorkoutFact & { volumeKg: number })[],
+  currentWeek: number,
+): BlockSoFar {
+  const donePairs = new Set<string>()
+  let volumeKg = 0
+  for (const w of workouts) {
+    if (w.completedAt === null) continue
+    volumeKg += w.volumeKg
+    if (
+      w.programDayId !== null &&
+      w.programWeek !== null &&
+      w.programWeek >= 1 &&
+      w.programWeek <= currentWeek
+    ) {
+      donePairs.add(`${w.programDayId}:${w.programWeek}`)
+    }
+  }
+  return {
+    daysDone: donePairs.size,
+    daysPlanned: dayCount * Math.max(1, currentWeek),
+    volumeKg,
+  }
 }
 
 /** The list's zones, in render order. `hero` is the one program that gets the

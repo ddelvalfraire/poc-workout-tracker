@@ -20,13 +20,41 @@ import { renderStaticIntl } from '../../../vitest.intl'
 
 function ProgramsProbe({ weeks }: { weeks: number }) {
   const t = useTranslations('Programs')
+  // The coach door borrows the chat's counter words, so the probe resolves
+  // them from the same namespace the door does.
+  const tCoach = useTranslations('CoachChat')
   return (
     <div>
       <p>{t('row.weeks', { weeks })}</p>
       <p>{t('row.weeksDeload', { weeks, deloadWeek: 4 })}</p>
-      <p>{t('hero.nextWithDay', { position: 2, dayName: 'Legs' })}</p>
-      <p>{t('hero.next', { dayName: 'Legs' })}</p>
       <p>{t('archived.summary', { count: weeks })}</p>
+      <p>{t('thisWeek.heading')}</p>
+      <p>{t('thisWeek.doneCount', { done: 2, total: weeks })}</p>
+      <p>{t('thisWeek.done')}</p>
+      <p>{t('thisWeek.startLink', { dayName: 'Legs' })}</p>
+      <p>{t('fullPlan')}</p>
+      <p>{t('zone.withCount', { label: 'Drafts', count: weeks })}</p>
+      <p>{t('blockSoFar.heading')}</p>
+      <p>{t('blockSoFar.daysDone', { done: 9, planned: 12 })}</p>
+      <p>{t('blockSoFar.daysLabel')}</p>
+      <p>{t('blockSoFar.volumeLabel')}</p>
+      <p>{t('blockSoFar.weeksLeftLabel')}</p>
+      <p>{t('empty.title')}</p>
+      <p>{t('empty.description')}</p>
+      <p>{t('empty.betweenTitle')}</p>
+      <p>{t('empty.betweenDescription')}</p>
+      <p>{t('doors.libraryHeading')}</p>
+      <p>{t('doors.libraryAll')}</p>
+      <p>{t('doors.templateMeta', { weeks, days: 4 })}</p>
+      <p>{t('doors.coachHeading')}</p>
+      <p>{t('doors.coachName')}</p>
+      <p>{t('doors.coachTier', { tier: 'Max' })}</p>
+      <p>{tCoach('tasteRemaining', { count: 2 })}</p>
+      <p>{tCoach('tasteRemaining', { count: 1 })}</p>
+      <p>{t('doors.coachBody')}</p>
+      <p>{t('doors.buildOwn')}</p>
+      <p>{t('newLink')}</p>
+      <p>{t('libraryLink')}</p>
       <p>
         {t.rich('hero.weekPosition', {
           week: 3,
@@ -59,11 +87,55 @@ describe('Programs list messages', () => {
     expect(html).toContain('<i data-testid="small">of 8</i>')
   })
 
-  test('the next-day line names the day with and without a position', () => {
+  test('no key on the page renders unresolved', () => {
     const html = renderStaticIntl(<ProgramsProbe weeks={8} />)
-    expect(html).toContain('Next: Day 2 · Legs')
-    expect(html).toContain('Next: Legs')
     expect(html).not.toMatch(/Programs\.[a-zA-Z.]+/)
+  })
+
+  test('the block-dashboard bands resolve their headings and counts', () => {
+    const html = renderStaticIntl(<ProgramsProbe weeks={4} />)
+    expect(html).toContain('This week')
+    expect(html).toContain('2 of 4 done')
+    expect(html).toContain('<p>done</p>')
+    expect(html).toContain('Open Legs to start')
+    expect(html).toContain('Full plan &amp; settings')
+    expect(html).toContain('Drafts · 4')
+    expect(html).toContain('Block so far')
+    expect(html).toContain('9/12')
+    expect(html).toContain('Days done')
+    expect(html).toContain('Volume')
+    expect(html).toContain('Wks left')
+  })
+
+  test('the activation doors read as programs, never as workout templates', () => {
+    const html = renderStaticIntl(<ProgramsProbe weeks={5} />)
+    expect(html).toContain('Start with a proven program')
+    expect(html).toContain('All programs in the library')
+    expect(html).toContain('Program library')
+    expect(html).toContain('5 wk · 4 d/wk')
+    // "Template" is the workout-template feature's word (a saved one-tap
+    // session). Programs must never borrow it, or the two features read as
+    // one thing on two screens.
+    expect(html).not.toMatch(/[Tt]emplate/)
+  })
+
+  test('the idle ledes distinguish a cold start from between blocks', () => {
+    const html = renderStaticIntl(<ProgramsProbe weeks={5} />)
+    expect(html).toContain('Day one.')
+    expect(html).toContain('Between blocks.')
+  })
+
+  test('the coach door sells the outcome, then names the state the user is in', () => {
+    const html = renderStaticIntl(<ProgramsProbe weeks={5} />)
+    expect(html).toContain('built around your schedule, equipment and logged lifts')
+    // A taste left reads as the live count (the chat's own words); a spent
+    // taste names the plan, interpolated from tierRequiredFor('coach') and
+    // never hardcoded. A door that promises "free" and lands on a paywall is
+    // the sprung-gate pattern this surface exists to avoid.
+    expect(html).toContain('2 free coach messages left')
+    expect(html).toContain('1 free coach message left')
+    expect(html).toContain('Max plan')
+    expect(html).not.toMatch(/[Ff]ree to start/)
   })
 })
 
@@ -192,15 +264,20 @@ function TemplateProbe({ days, weeks }: { days: number; weeks: number }) {
   const shelf = useTranslations('ProgramTemplates')
   const wger = useTranslations('ProgramTemplateDetail')
   const curated = useTranslations('SystemTemplateDetail')
+  // The shared preview body owns the plan vocabulary both detail branches
+  // render (day labels, superset letters, fact-strip captions, counts).
+  const preview = useTranslations('TemplatePreview')
   return (
     <div>
       <p>{shelf('curated.meta', { days, weeks })}</p>
       <p>{shelf('group.weeks', { weeks })}</p>
-      <p>{wger('meta', { days, weeks })}</p>
-      <p>{wger('dayNumber', { position: 1 })}</p>
-      <p>{wger('supersetLabel', { letter: 'A' })}</p>
-      <p>{curated('meta', { days, weeks })}</p>
-      <p>{curated('metaDeload', { days, weeks, deloadWeek: 4 })}</p>
+      <p>{preview('dayNumber', { position: 1 })}</p>
+      <p>{preview('supersetLabel', { letter: 'A' })}</p>
+      <p>{preview('exerciseCount', { count: days })}</p>
+      <p>{preview('factWeeks')}</p>
+      <p>{preview('factDaysPerWeek')}</p>
+      <p>{preview('factExercisesPerDay')}</p>
+      <p>{preview('ctaHint')}</p>
       <p>
         {wger.rich('attribution', {
           source: (chunks) => <a href="https://wger.de">{chunks}</a>,
@@ -218,16 +295,14 @@ function TemplateProbe({ days, weeks }: { days: number; weeks: number }) {
 describe('Template shelf and detail messages', () => {
   test('day and week counts read singular at one', () => {
     const html = renderStaticIntl(<TemplateProbe days={1} weeks={1} />)
-    expect(html).toContain('1 day/week · 1 week')
     expect(html).toContain('<p>1 week</p>')
-    expect(html).toContain('1 day/week · 1 week · deload wk 4')
+    expect(html).toContain('<p>1 exercise</p>')
   })
 
   test('day and week counts read plural past one', () => {
     const html = renderStaticIntl(<TemplateProbe days={4} weeks={8} />)
-    expect(html).toContain('4 days/week · 8 weeks')
     expect(html).toContain('<p>8 weeks</p>')
-    expect(html).toContain('4 days/week · 8 weeks · deload wk 4')
+    expect(html).toContain('<p>4 exercises</p>')
   })
 
   test('both attribution footers wrap only the link text in the anchor', () => {
@@ -236,13 +311,18 @@ describe('Template shelf and detail messages', () => {
     expect(html).toContain('About this program · <a href="https://example.test">View source</a>')
   })
 
-  test('day and superset labels resolve', () => {
+  test('preview labels resolve', () => {
     const html = renderStaticIntl(<TemplateProbe days={4} weeks={8} />)
     expect(html).toContain('Day 1')
     expect(html).toContain('Superset A')
+    expect(html).toContain('Weeks')
+    expect(html).toContain('Days / week')
+    expect(html).toContain('Exercises / day')
+    expect(html).toContain('nothing is scheduled until you train')
     expect(html).not.toMatch(/ProgramTemplates\.[a-zA-Z.]+/)
     expect(html).not.toMatch(/ProgramTemplateDetail\.[a-zA-Z.]+/)
     expect(html).not.toMatch(/SystemTemplateDetail\.[a-zA-Z.]+/)
+    expect(html).not.toMatch(/TemplatePreview\.[a-zA-Z.]+/)
   })
 })
 

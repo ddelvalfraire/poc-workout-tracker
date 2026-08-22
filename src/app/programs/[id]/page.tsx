@@ -65,27 +65,28 @@ import { RestartProgramButton } from './restart-program-button'
 import { DietPhaseCard } from './diet-phase-card'
 import { OvershootPolicyControl } from './overshoot-policy-control'
 import { ExerciseOvershootControl } from './exercise-overshoot-control'
+import { Section } from '@/components/ui/section'
+import { DividerList, DividerRow } from '@/components/ui/divider-list'
+import { EmptyWords } from '@/components/ui/empty-words'
 import { cuttingStalenessWeeks } from '@/lib/diet-phase-staleness'
 import { getTranslations } from 'next-intl/server'
 
-/** Chip labels for the change log — WHO edited, in the user's own terms —
- *  live in the catalog under `actor.<value>`. A label built here would be
- *  frozen at module load, before any request, so it could never be
- *  translated. Seed-script writes exist only on the system account's
- *  template rows, so `actor.seed` renders for no real user; the catalog
- *  keeps it so the actor union stays total.
+/** Labels for the change log — WHO edited, in the user's own terms — live in
+ *  the catalog under `actor.<value>`. A label built here would be frozen at
+ *  module load, before any request, so it could never be translated.
+ *  Seed-script writes exist only on the system account's template rows, so
+ *  `actor.seed` renders for no real user; the catalog keeps it so the actor
+ *  union stays total.
  *
- *  The chip TREATMENT below is presentation, not copy, and stays here. */
-
-/** Distinct chip treatments per actor: your own edits stay quiet (muted),
- *  agent/coach edits carry an outline so "someone else touched the plan"
- *  reads at a glance without shouting. */
-const ACTOR_CHIP_CLASSES: Record<ProgramEventActor, string> = {
-  ui: 'bg-muted text-muted-foreground',
-  mcp: 'border border-primary/50 text-primary',
-  coach: 'border border-foreground/40 text-foreground',
-  wger: 'border border-border text-muted-foreground',
-  seed: 'border border-border text-muted-foreground',
+ *  Words, not chips ("chips are controls, words are labels"): your own edits
+ *  stay muted; agent/coach edits read in the foreground ink so "someone else
+ *  touched the plan" still registers — no pill shell, no volt. */
+const ACTOR_WORD_CLASSES: Record<ProgramEventActor, string> = {
+  ui: 'text-muted-foreground',
+  mcp: 'text-foreground',
+  coach: 'text-foreground',
+  wger: 'text-muted-foreground',
+  seed: 'text-muted-foreground',
 }
 
 /** v1 cap: no pagination UI — older history stays reachable via the MCP
@@ -260,8 +261,19 @@ export default async function ProgramDetailPage({
   const status = (
     program.status === 'active' || program.status === 'archived' ? program.status : 'draft'
   ) as 'draft' | 'active' | 'archived'
-  const hasArticleHeader =
-    program.heroImageUrl !== null || program.icon !== null || program.description !== null
+  // The About row's article content — hero, description, attribution, and
+  // the program document note all fold into one collapsed region. With none
+  // of it AND no authoring path (a proposal hides DescriptionEdit), the row
+  // would open onto nothing, so only then does it stay off the page.
+  const hasAboutContent =
+    program.heroImageUrl !== null ||
+    program.description !== null ||
+    program.notes !== null ||
+    program.sourceUrl !== null
+  const showAbout = hasAboutContent || !isProposed
+  // Manage renders only when it has content: the change log shows for anyone,
+  // the owner controls never render on a proposal.
+  const showManage = changeEvents.length > 0 || !isProposed
 
   return (
     <div className="flex min-h-[100dvh] flex-col">
@@ -285,97 +297,155 @@ export default async function ProgramDetailPage({
       />
 
       <main className="mx-auto w-full max-w-md flex-1 px-5 pb-safe">
-        {/* Article READ surface (PRD §3): hero + icon/title + description
-            lead. Renders ONLY when metadata exists; an unadorned program's
-            page keeps the pre-article layout plus the quiet Add-description
-            control below (the article's first human authoring path). */}
-        {hasArticleHeader && (
-          <header className="mt-4">
-            {program.heroImageUrl !== null && (
-              <div className="relative -mx-5 h-44 overflow-hidden sm:mx-0 sm:rounded-2xl">
-                {/* Plain <img>: remote hosts aren't in the next/image
-                    allowlist, and the URL is validated http(s) at the input
-                    boundary. Decorative — the title below carries the name. */}
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={program.heroImageUrl}
-                  alt=""
-                  className="absolute inset-0 size-full object-cover"
-                />
-                {/* Bottom-weighted scrim so the overlaid title keeps contrast
-                    on any image. */}
-                <div
-                  aria-hidden="true"
-                  className="absolute inset-0 bg-gradient-to-t from-background via-background/40 to-transparent"
-                />
-                <p className="absolute inset-x-5 bottom-3 flex items-baseline gap-2 sm:inset-x-4">
-                  {program.icon !== null && (
-                    <span aria-hidden="true" className="text-2xl leading-none">
-                      {program.icon}
-                    </span>
-                  )}
-                  <span className="min-w-0 truncate font-display text-3xl uppercase leading-none tracking-wide">
-                    {program.name}
-                  </span>
-                </p>
-              </div>
+        {/* ── Band 1: identity ──────────────────────────────────────────────
+            Who this plan is and where the block stands, then the week
+            switcher. The article content (hero, description, notes,
+            attribution) folds into the About row so the PLAN — not the
+            prose — leads the page. */}
+        <header className="mt-4">
+          {/* A <p>, not a second <h1>: AppHeader already renders the page's
+              h1 from the same name — two identical top-level headings would
+              double up the screen-reader heading list. */}
+          <p className="flex items-baseline gap-2">
+            {program.icon !== null && (
+              <span aria-hidden="true" className="text-2xl leading-none">
+                {program.icon}
+              </span>
             )}
-            {program.heroImageUrl === null && program.icon !== null && (
-              <p className="flex items-baseline gap-2">
-                <span aria-hidden="true" className="text-2xl leading-none">
-                  {program.icon}
-                </span>
-                <span className="min-w-0 truncate font-display text-3xl uppercase leading-none tracking-wide">
-                  {program.name}
-                </span>
-              </p>
-            )}
-            {program.description !== null && (
-              // Markdown article lead (trusted-subset renderer — zero client
-              // JS; existing plain-text descriptions are valid markdown).
-              <MarkdownView
-                markdown={program.description}
-                className="mt-3 text-muted-foreground"
-              />
-            )}
-            {!isProposed && (
-              <DescriptionEdit
-                programId={program.id}
-                programName={program.name}
-                description={program.description}
-              />
-            )}
-            {program.sourceUrl !== null && (
-              <p className="mt-2 text-xs text-muted-foreground">
-                {/* Attribution is a licensing requirement for imported
-                    templates, not decoration — always rendered when present. */}
-                <a
-                  href={program.sourceUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="underline underline-offset-2 transition-colors hover:text-foreground"
-                >
-                  {t('sourceLinkLabel')}
-                </a>
-              </p>
-            )}
-          </header>
-        )}
+            <span className="min-w-0 truncate font-display text-3xl uppercase leading-none tracking-wide">
+              {program.name}
+            </span>
+          </p>
+          {/* The editorial status line: where the block ACTUALLY stands, in
+              the font-display voice — anchored to the current week even while
+              browsing another one (the strip says what's selected, this says
+              what's real). The muted meta beneath keeps the raw numbers. */}
+          <p className="mt-3 font-display text-2xl uppercase leading-none tracking-wide">
+            {renderMessage(t, statusLine)}
+          </p>
+          <p className="mt-1.5 text-sm text-muted-foreground">
+            {/* One whole ICU message per shape, never a sentence plus a
+                trailing fragment: the deload clause does not land at the end
+                of the line in every language. */}
+            {program.deloadWeek !== null
+              ? t('weekMetaDeload', {
+                  week: currentWeek,
+                  total: program.mesocycleWeeks,
+                  deloadWeek: program.deloadWeek,
+                })
+              : t('weekMeta', { week: currentWeek, total: program.mesocycleWeeks })}
+          </p>
+        </header>
 
-        {/* No article yet: the same authoring control stands alone so every
-            owned program can grow its article without going through MCP. */}
-        {!hasArticleHeader && !isProposed && (
-          <div className="mt-4">
-            <DescriptionEdit
-              programId={program.id}
-              programName={program.name}
-              description={program.description}
-            />
-          </div>
-        )}
+        {/* The block map, as the week switcher: every segment is a link (the
+            browser owns the state — share, back button, reload all work), the
+            fill is each week's days-completed fraction, deload weeks render
+            hollow + DL, the current week is ringed. Same visualization as the
+            list hero and the stats week rows — learn once, read everywhere. */}
+        <nav aria-label={t('weekNavLabel')} className="mt-4 py-1">
+          <BlockMap
+            weeks={blockWeeks}
+            size="default"
+            selectedWeek={selectedWeek}
+            hrefForWeek={(week) => `/programs/${program.id}?week=${week}`}
+          />
+        </nav>
+
+        {/* About + navigation: one hairline group. The article READ surface
+            (PRD §3) lives behind the collapsed About row — hero, markdown
+            description, the DescriptionEdit authoring path, licensing
+            attribution, and the program document note in one region — and
+            the Coach/Stats rows follow in the same divider idiom. */}
+        <div className="mt-6">
+          {showAbout && (
+            <details className="group border-b border-b-border/60">
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-4 py-4 text-sm font-medium transition-colors outline-none hover:bg-muted/50 focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-hidden [&::-webkit-details-marker]:hidden">
+                {t('aboutTitle')}
+                <ChevronRight
+                  aria-hidden="true"
+                  className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-90"
+                />
+              </summary>
+              <div className="pb-4">
+                {program.heroImageUrl !== null && (
+                  <div className="-mx-5 sm:mx-0">
+                    {/* Plain <img>: remote hosts aren't in the next/image
+                        allowlist, and the URL is validated http(s) at the
+                        input boundary. Decorative — the title above carries
+                        the name. No rounded shell (de-card: media sits above
+                        hairlines, not inside frames, on this surface). */}
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={program.heroImageUrl}
+                      alt=""
+                      className="h-44 w-full object-cover"
+                    />
+                  </div>
+                )}
+                {program.description !== null && (
+                  // Markdown article lead (trusted-subset renderer — zero
+                  // client JS; plain-text descriptions are valid markdown).
+                  <MarkdownView
+                    markdown={program.description}
+                    className="mt-3 text-muted-foreground"
+                  />
+                )}
+                {!isProposed && (
+                  <DescriptionEdit
+                    programId={program.id}
+                    programName={program.name}
+                    description={program.description}
+                  />
+                )}
+                {/* The program DOCUMENT note (notes v2 catch-up): authored
+                    once (upsert_program takes plain text ≤2000 — no markdown
+                    contract, so no MarkdownView), read at program start,
+                    never in the logger. The muted quote rail is the
+                    workout-detail session-note treatment; it reads below the
+                    description as the article's closing aside. */}
+                {program.notes !== null && (
+                  <p className="mt-3 whitespace-pre-wrap border-l-2 border-border pl-3 text-sm text-muted-foreground">
+                    {program.notes}
+                  </p>
+                )}
+              </div>
+            </details>
+          )}
+          {program.sourceUrl !== null && (
+            <p className="border-b border-b-border/60 py-2 text-xs text-muted-foreground">
+              {/* Attribution is a licensing requirement for imported
+                  templates, not decoration — it stays OUTSIDE the collapsed
+                  About fold so it is always visible when present. */}
+              <a
+                href={program.sourceUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline underline-offset-2 transition-colors hover:text-foreground"
+              >
+                {t('sourceLinkLabel')}
+              </a>
+            </p>
+          )}
+          <DividerList>
+            {/* Coach opens with this program as context, so "swap tomorrow's
+                pressing" needs no preamble about which program is meant. Shown
+                to everyone — the coach is released; the entitlement gates use,
+                and an unentitled click is the Max upsell. */}
+            <DividerRow href={`/coach?context=${encodeURIComponent(`program:${program.id}`)}`}>
+              <span className="flex min-w-0 items-center gap-2 text-sm font-medium">
+                <MessageCircle aria-hidden="true" className="size-4 text-muted-foreground" />
+                {t('coachLink')}
+              </span>
+            </DividerRow>
+            <DividerRow href={`/programs/${program.id}/stats`}>
+              <span className="text-sm font-medium">{t('statsLink')}</span>
+            </DividerRow>
+          </DividerList>
+        </div>
 
         {/* The forced confirm: a proposal page leads with WHO drafted it and
-            the owner's three explicit choices. Everything below stays a
+            the owner's three explicit choices — it demands a decision, so it
+            sits ahead of the week's content. Everything below stays a
             read-only preview until adopted. */}
         {isProposed && (
           <section
@@ -383,7 +453,7 @@ export default async function ProgramDetailPage({
             // De-carded: the quiet volt hairline (block-complete vocabulary)
             // frames the proposal — volt lives in the label and hairline;
             // the page's volt BUTTON stays with ProposalActions' adopt CTA.
-            className="mt-6 border-b border-b-primary/30 pb-5"
+            className="mt-8 border-b border-b-primary/30 pb-5"
           >
             <p className="text-[11px] font-semibold uppercase tracking-widest text-primary">
               {/* authorActor is an OPEN value space: 'coach' and 'owner' get
@@ -408,63 +478,12 @@ export default async function ProgramDetailPage({
           </section>
         )}
 
-        {/* The editorial status line: where the block ACTUALLY stands, in the
-            font-display voice — anchored to the current week even while
-            browsing another one (the strip says what's selected, this says
-            what's real). The muted meta beneath keeps the raw numbers. */}
-        {/* The program DOCUMENT note (notes v2 catch-up): authored once
-            (upsert_program takes plain text ≤2000 — no markdown contract, so
-            no MarkdownView), read at program start, never in the logger. The
-            muted quote rail is the workout-detail session-note treatment. */}
-        {program.notes !== null && (
-          <p className="mt-4 whitespace-pre-wrap border-l-2 border-border pl-3 text-sm text-muted-foreground">
-            {program.notes}
-          </p>
-        )}
-
-        <p className="mt-5 font-display text-2xl uppercase leading-none tracking-wide">
-          {renderMessage(t, statusLine)}
-        </p>
-        <div className="mt-1.5 flex items-baseline justify-between gap-3">
-          <p className="min-w-0 truncate text-sm text-muted-foreground">
-            {/* One whole ICU message per shape, never a sentence plus a
-                trailing fragment: the deload clause does not land at the end
-                of the line in every language. */}
-            {program.deloadWeek !== null
-              ? t('weekMetaDeload', {
-                  week: currentWeek,
-                  total: program.mesocycleWeeks,
-                  deloadWeek: program.deloadWeek,
-                })
-              : t('weekMeta', { week: currentWeek, total: program.mesocycleWeeks })}
-          </p>
-          <div className="flex shrink-0 items-center gap-4">
-            {/* Coach opens with this program as context, so "swap tomorrow's
-                pressing" needs no preamble about which program is meant. Shown
-                to everyone — the coach is released; the entitlement gates use,
-                and an unentitled click is the Max upsell. */}
-            <Link
-              href={`/coach?context=${encodeURIComponent(`program:${program.id}`)}`}
-              className="flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground"
-            >
-              <MessageCircle aria-hidden="true" className="size-4" />
-              {t('coachLink')}
-            </Link>
-            <Link
-              href={`/programs/${program.id}/stats`}
-              className="flex items-center gap-0.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
-            >
-              {t('statsLink')}
-              <ChevronRight aria-hidden="true" className="size-4" />
-            </Link>
-          </div>
-        </div>
-
         {/* Batch-patch proposals (proposals plan §3): the chat approval-card
             idiom on the program page — the proposal's summary, one sentence
             diff per patch (describeToolCall over the stored kg-canonical args,
-            re-expressed in the user's unit), and ONE combined confirm. Only an
-            active program can carry these (the db layer gates propose AND
+            re-expressed in the user's unit), and ONE combined confirm. They
+            demand a decision, so they stay ahead of the week's content. Only
+            an active program can carry these (the db layer gates propose AND
             confirm), so they never render beside the adopt banner above. */}
         {patchProposals.map((proposal) => (
           <PatchProposalCard
@@ -483,21 +502,6 @@ export default async function ProgramDetailPage({
             })}
           />
         ))}
-
-        {/* The block map, as the week switcher: every segment is a link (the
-            browser owns the state — share, back button, reload all work), the
-            fill is each week's days-completed fraction, deload weeks render
-            hollow + DL, the current week is ringed. Same visualization as the
-            list hero and the stats week rows — learn once, read everywhere.
-            Replaces the old scrolling pill row: all weeks now fit one line. */}
-        <nav aria-label={t('weekNavLabel')} className="mt-4 py-1">
-          <BlockMap
-            weeks={blockWeeks}
-            size="default"
-            selectedWeek={selectedWeek}
-            hrefForWeek={(week) => `/programs/${program.id}?week=${week}`}
-          />
-        </nav>
 
         {/* The block's payoff moment: the advancement rule fired at the final
             week, so say so — with the biggest e1RM wins as evidence. De-carded
@@ -557,6 +561,9 @@ export default async function ProgramDetailPage({
           </section>
         )}
 
+        {/* ── Band 2: this week ─────────────────────────────────────────────
+            The selected week's heading, its week-scoped verdicts (diet-phase
+            staleness, auto-regulation, TM proposals), then the day list. */}
         {/* Breathing room before the week's content — the selector belongs to
             the header, the heading opens the body. Deliberately non-uniform. */}
         {/* Hairline section header (logger grammar): the condensed-caps
@@ -654,6 +661,10 @@ export default async function ProgramDetailPage({
           </section>
         )}
 
+        {/* A brand-new program says so instead of trailing off silently — a
+            plain sentence, no box, no illustration (EmptyWords). */}
+        {program.days.length === 0 && <EmptyWords>{t('daysEmpty')}</EmptyWords>}
+
         {/* The day list is a divider list (Things-3 shape): rows separated by
             hairlines, no shells — each row's bottom border does the work the
             card stack's gaps used to. */}
@@ -676,7 +687,7 @@ export default async function ProgramDetailPage({
                   <span
                     className={cn(
                       'min-w-0 truncate font-display uppercase leading-tight tracking-wide',
-                      isNextUp ? 'text-2xl' : 'text-lg',
+                      isNextUp ? 'text-4xl' : 'text-lg',
                     )}
                   >
                     {day.name}
@@ -796,7 +807,7 @@ export default async function ProgramDetailPage({
                 <section
                   key={day.id}
                   // Untouched days sit on the muted hairline — next-up is
-                  // marked by scale (2xl name) and the page's one volt Start,
+                  // marked by scale (4xl name) and the page's one volt Start,
                   // not by a border treatment.
                   className="border-b border-border/60 py-4"
                 >
@@ -954,92 +965,98 @@ export default async function ProgramDetailPage({
             })}
         </div>
 
-        {/* The zoned tail: Changes / Sharing / danger actions are different
-            registers (paper trail, distribution, destruction) — each opens
-            past a hairline with real breathing room instead of running
-            together as one undifferentiated stack. */}
-
-        {/* The plan's paper trail: who changed what, newest first, grouped
-            under calendar-day headers (the date leaves the row, so summaries
-            get the full width and wrap to two lines instead of truncating
-            mid-sentence). Same rows the coach reads via list_program_changes —
-            one shared read path. Absent entirely for untouched programs (no
-            empty-state filler); capped at CHANGE_LOG_LIMIT, no pager in v1. */}
-        {changeEvents.length > 0 && (
-          <section aria-label={t('changes.ariaLabel')} className="mt-10 border-t border-border pt-8">
-            <h2 className="font-display text-xl uppercase leading-none tracking-wide">{t('changes.title')}</h2>
-            <div className="mt-3 space-y-4">
-              {groupEventsByDay(changeEvents, formatWorkoutDate).map((group) => (
-                <div key={group.label}>
-                  <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground tnum">
-                    {group.label}
-                  </p>
-                  <ul className="mt-1.5 space-y-1.5">
-                    {group.events.map((event) => (
-                      <li key={event.id} className="flex items-baseline gap-2">
-                        <span
-                          className={cn(
-                            'shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-widest',
-                            ACTOR_CHIP_CLASSES[event.actor],
-                          )}
-                        >
-                          {t(`actor.${event.actor}`)}
-                        </span>
-                        <span className="min-w-0 flex-1 text-sm leading-snug line-clamp-2">
-                          {event.summary}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
+        {/* ── Band 3: manage ────────────────────────────────────────────────
+            The plan's back office under one Section header: the paper trail,
+            the owner settings, distribution, and the danger tail — different
+            registers, so each block still opens past its own hairline, but
+            they read as one "Manage" zone instead of a loose stack. */}
+        {showManage && (
+          <Section title={t('manageTitle')} className="mt-12 border-t border-border pt-8">
+            {/* The plan's paper trail: who changed what, newest first, grouped
+                under calendar-day headers (the date leaves the row, so
+                summaries get the full width and wrap to two lines instead of
+                truncating mid-sentence). Same rows the coach reads via
+                list_program_changes — one shared read path. Absent entirely
+                for untouched programs (no empty-state filler); capped at
+                CHANGE_LOG_LIMIT, no pager in v1. */}
+            {changeEvents.length > 0 && (
+              <section aria-label={t('changes.ariaLabel')} className="mt-5">
+                <h3 className="text-sm font-medium">{t('changes.title')}</h3>
+                <div className="mt-3 space-y-4">
+                  {groupEventsByDay(changeEvents, formatWorkoutDate).map((group) => (
+                    <div key={group.label}>
+                      <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground tnum">
+                        {group.label}
+                      </p>
+                      <ul className="mt-1.5 space-y-1.5">
+                        {group.events.map((event) => (
+                          <li key={event.id} className="flex items-baseline gap-2">
+                            <span
+                              className={cn(
+                                'shrink-0 text-xs font-semibold uppercase tracking-widest',
+                                ACTOR_WORD_CLASSES[event.actor],
+                              )}
+                            >
+                              {t(`actor.${event.actor}`)}
+                            </span>
+                            <span className="min-w-0 flex-1 text-sm leading-snug line-clamp-2">
+                              {event.summary}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-          </section>
-        )}
+              </section>
+            )}
 
-        {/* Overshoot / goal-met policy (#227): an OWNER setting like sharing
-            below — how a beaten-on-a-different-axis target is credited.
-            Null = per-scheme defaults; the change-logged narrow op rides the
-            same patch conventions as the diet phase. */}
-        {!isProposed && (
-          <div className="mt-10 border-t border-border">
-            <OvershootPolicyControl
-              programId={program.id}
-              policy={program.overshootPolicy}
-            />
-          </div>
-        )}
+            {/* Overshoot / goal-met policy (#227): an OWNER setting like
+                sharing below — how a beaten-on-a-different-axis target is
+                credited. Null = per-scheme defaults; the change-logged narrow
+                op rides the same patch conventions as the diet phase. */}
+            {!isProposed && (
+              <div className={cn(changeEvents.length > 0 && 'mt-8 border-t border-border')}>
+                <OvershootPolicyControl
+                  programId={program.id}
+                  policy={program.overshootPolicy}
+                />
+              </div>
+            )}
 
-        {/* Sharing is an OWNER control and never appears on a proposal — a
-            pending proposal can't be made sharable (adopt or decline first;
-            the db layer refuses regardless, this keeps the UI honest). */}
-        {/* SharingSection carries its own mt-10 — the wrapper only draws
-            the hairline. */}
-        {!isProposed && (
-          <div className="mt-10 border-t border-border">
-            <SharingSection
-              programId={program.id}
-              visibility={program.visibility}
-              shareToken={activeShare?.token ?? null}
-            />
-          </div>
-        )}
+            {/* Sharing is an OWNER control and never appears on a proposal —
+                a pending proposal can't be made sharable (adopt or decline
+                first; the db layer refuses regardless, this keeps the UI
+                honest). SharingSection carries its own mt-10 — the wrapper
+                only draws the hairline. */}
+            {!isProposed && (
+              <div className="mt-10 border-t border-border">
+                <SharingSection
+                  programId={program.id}
+                  visibility={program.visibility}
+                  shareToken={activeShare?.token ?? null}
+                />
+              </div>
+            )}
 
-        {/* A proposal's only actions are the banner's Adopt/Decline above —
-            Edit/Activate/Restart/Delete stay off until the owner confirms.
-            The page's danger tail: separated behind its own hairline so
-            Delete never sits shoulder-to-shoulder with reading content. */}
-        {/* ProgramActions carries its own mt-6 — the wrapper only draws the
-            hairline and closes the page with bottom breathing room. */}
-        {!isProposed && (
-          <div className="mt-10 border-t border-border pb-4">
-            <ProgramActions
-              id={program.id}
-              status={status}
-              currentWeek={currentWeek}
-              mesocycleWeeks={program.mesocycleWeeks}
-            />
-          </div>
+            {/* A proposal's only actions are the banner's Adopt/Decline above
+                — Edit/Activate/Restart/Delete stay off until the owner
+                confirms. The page's danger tail: separated behind its own
+                hairline so Delete never sits shoulder-to-shoulder with
+                reading content. ProgramActions carries its own mt-6 — the
+                wrapper only draws the hairline and closes the page with
+                bottom breathing room. */}
+            {!isProposed && (
+              <div className="mt-10 border-t border-border pb-4">
+                <ProgramActions
+                  id={program.id}
+                  status={status}
+                  currentWeek={currentWeek}
+                  mesocycleWeeks={program.mesocycleWeeks}
+                />
+              </div>
+            )}
+          </Section>
         )}
       </main>
     </div>

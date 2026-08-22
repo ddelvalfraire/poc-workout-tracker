@@ -160,6 +160,12 @@ object DesignTokens {
 
         /** Logger numerals — sized for glanceability mid-set. */
         val Size3xl = 30.sp to 36.sp
+
+        /** Display headlines — next-up day name on the program detail. */
+        val Size4xl = 36.sp to 40.sp
+
+        /** Hero numerals — programs-hero week count, fact-strip figures, empty-state headline. Display face, uppercase, one per screen. */
+        val Size5xl = 48.sp to 48.sp
     }
 
     object Layout {

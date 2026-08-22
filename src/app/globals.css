@@ -64,6 +64,13 @@
     /* Mobile-native: no auto text inflation, no grey tap flash on touch. */
     -webkit-text-size-adjust: 100%;
     -webkit-tap-highlight-color: transparent;
+    /* Sticky chrome vs keyboard focus (WCAG 2.4.11): sequential-focus
+       scrolling aligns to the LAYOUT viewport, so without these a focused
+       row lands entirely behind the sticky app bar (top) or a sticky
+       bottom action bar (e.g. the template preview's Start bar). Sized to
+       the app bar and the tallest bottom bar plus safe areas. */
+    scroll-padding-block-start: calc(72px + env(safe-area-inset-top, 0px));
+    scroll-padding-block-end: calc(104px + env(safe-area-inset-bottom, 0px));
   }
   body {
     @apply bg-background text-foreground;

@@ -163,6 +163,12 @@ public enum DesignTokens {
 
         /// Logger numerals — sized for glanceability mid-set.
         public static let size3xl: (size: CGFloat, lineHeight: CGFloat) = (30, 36)
+
+        /// Display headlines — next-up day name on the program detail.
+        public static let size4xl: (size: CGFloat, lineHeight: CGFloat) = (36, 40)
+
+        /// Hero numerals — programs-hero week count, fact-strip figures, empty-state headline. Display face, uppercase, one per screen.
+        public static let size5xl: (size: CGFloat, lineHeight: CGFloat) = (48, 48)
     }
 
     // MARK: - Layout (points)

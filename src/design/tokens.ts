@@ -345,6 +345,8 @@ export const TYPE_SCALE: readonly TypeScaleToken[] = [
   { name: "text-xl", size: 20, lineHeight: 28, doc: "App bar title." },
   { name: "text-2xl", size: 24, lineHeight: 32, doc: "StatTile value." },
   { name: "text-3xl", size: 30, lineHeight: 36, doc: "Logger numerals — sized for glanceability mid-set." },
+  { name: "text-4xl", size: 36, lineHeight: 40, doc: "Display headlines — next-up day name on the program detail." },
+  { name: "text-5xl", size: 48, lineHeight: 48, doc: "Hero numerals — programs-hero week count, fact-strip figures, empty-state headline. Display face, uppercase, one per screen." },
 ];
 
 export interface LayoutToken {

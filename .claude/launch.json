@@ -11,6 +11,20 @@
       "port": 3000
     },
     {
+      "name": "rc-spike",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "dev",
+        "--prefix",
+        "/Users/daviddelval/code/github.com/ddelvalfraire/poc-workout-tracker/.claude/worktrees/rc-spike",
+        "--",
+        "--port",
+        "3210"
+      ],
+      "port": 3210
+    },
+    {
       "name": "storybook",
       "runtimeExecutable": "npm",
       "runtimeArgs": [

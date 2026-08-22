@@ -1,6 +1,13 @@
 import { describe, it, expect } from 'vitest'
 import { renderMessageIn } from '../../../vitest.intl'
-import { programStatusLabel, proposalAgeLine, zonePrograms } from './list-view'
+import {
+  programStatusLabel,
+  proposalAgeLine,
+  zonePrograms,
+  buildThisWeekRows,
+  blockSoFar,
+  noProgramState,
+} from './list-view'
 
 /** The catalog half of a descriptor assertion: the key the view-model chose
  *  resolves, with its arguments, against the real en.json. */
@@ -122,5 +129,123 @@ describe('proposalAgeLine (staleness affordance)', () => {
         /Programs\.[a-zA-Z.]+/,
       )
     }
+  })
+})
+
+const day = (id: string) => ({ id })
+
+const workout = (
+  programDayId: string | null,
+  programWeek: number | null,
+  completed: boolean,
+  startedAt = new Date('2026-08-01T10:00:00Z'),
+  volumeKg = 0,
+) => ({
+  programDayId,
+  programWeek,
+  startedAt,
+  completedAt: completed ? new Date(startedAt.getTime() + 3_600_000) : null,
+  volumeKg,
+})
+
+describe('buildThisWeekRows (this-week band)', () => {
+  it('marks a day done only for a completed workout in the CURRENT week', () => {
+    const { rows, doneCount } = buildThisWeekRows(
+      [day('a'), day('b'), day('c')],
+      [
+        workout('a', 2, true), // this week, done
+        workout('b', 1, true), // last week — does not count
+        workout('c', 2, false), // in progress — not done
+      ],
+      2,
+      'b',
+    )
+    expect(rows.map((r) => r.state)).toEqual(['done', 'next', 'upcoming'])
+    expect(doneCount).toBe(1)
+  })
+
+  it('lets a completed row beat a lingering in-progress duplicate (resolveDayState rule)', () => {
+    const { rows } = buildThisWeekRows(
+      [day('a')],
+      [workout('a', 1, false), workout('a', 1, true)],
+      1,
+      null,
+    )
+    expect(rows[0].state).toBe('done')
+  })
+
+  it('is all-upcoming with no next day and no workouts', () => {
+    const { rows, doneCount } = buildThisWeekRows([day('a'), day('b')], [], 1, null)
+    expect(rows.map((r) => r.state)).toEqual(['upcoming', 'upcoming'])
+    expect(doneCount).toBe(0)
+  })
+
+  it('never marks the next day done AND next at once — done wins', () => {
+    const { rows } = buildThisWeekRows([day('a')], [workout('a', 3, true)], 3, 'a')
+    expect(rows[0].state).toBe('done')
+  })
+})
+
+describe('blockSoFar (block-so-far figures)', () => {
+  it('counts distinct completed (day, week) pairs against days × weeks elapsed', () => {
+    const stats = blockSoFar(
+      3,
+      [
+        workout('a', 1, true, new Date('2026-08-01T10:00:00Z'), 1000),
+        workout('a', 1, true, new Date('2026-08-01T12:00:00Z'), 500), // duplicate pair
+        workout('b', 1, true, new Date('2026-08-02T10:00:00Z'), 2000),
+        workout('a', 2, true, new Date('2026-08-08T10:00:00Z'), 1500),
+        workout('c', 1, false), // in progress — not done
+      ],
+      2,
+    )
+    expect(stats.daysDone).toBe(3)
+    expect(stats.daysPlanned).toBe(6)
+  })
+
+  it('sums volume over COMPLETED workouts only, all weeks', () => {
+    const stats = blockSoFar(
+      2,
+      [
+        workout('a', 1, true, new Date('2026-08-01T10:00:00Z'), 1000),
+        workout('b', 1, false, new Date('2026-08-02T10:00:00Z'), 999), // abandoned
+        workout('a', 2, true, new Date('2026-08-08T10:00:00Z'), 250),
+      ],
+      2,
+    )
+    expect(stats.volumeKg).toBe(1250)
+  })
+
+  it('ignores provenance-less rows for days-done but keeps their volume', () => {
+    const stats = blockSoFar(2, [workout(null, null, true, new Date(), 300)], 1)
+    expect(stats.daysDone).toBe(0)
+    expect(stats.daysPlanned).toBe(2)
+    expect(stats.volumeKg).toBe(300)
+  })
+})
+
+describe('noProgramState (which lede an idle programs page leads with)', () => {
+  const none = { proposed: [], drafts: [], archived: [] }
+
+  it('reads cold when the account has nothing at all', () => {
+    expect(noProgramState(none)).toBe('cold')
+  })
+
+  it('reads drafts after adopting from the library — a draft is not a cold start', () => {
+    // Adoption mints a DRAFT copy, so the shopper who just previewed and
+    // adopted must land on "finish this", never on "day one".
+    expect(noProgramState({ ...none, drafts: [{}] })).toBe('drafts')
+  })
+
+  it('reads archived between blocks, so a finished block is not a cold start', () => {
+    expect(noProgramState({ ...none, archived: [{}] })).toBe('archived')
+  })
+
+  it('lets a pending proposal outrank a draft — the decision comes first', () => {
+    expect(noProgramState({ proposed: [{}], drafts: [{}], archived: [{}] })).toBe('proposed')
+  })
+
+  it('lets a draft outrank archived history', () => {
+    expect(noProgramState({ proposed: [], drafts: [{}], archived: [{}] })).toBe('drafts')
   })
 })
