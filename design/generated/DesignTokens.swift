@@ -174,11 +174,20 @@ public enum DesignTokens {
     // MARK: - Layout (points)
 
     public enum Layout {
-        /// The single phone column (28rem). Every surface except HOME.
+        /// The single phone column (28rem). Every reading surface.
         public static let contentMaxWidth: CGFloat = 448
 
         /// HOME only (42rem), from the md breakpoint up.
         public static let contentMaxWidthWide: CGFloat = 672
+
+        /// The ONE architectural breakpoint: below it the editor is the phone column and drilling down navigates; at or above it the same routes project into panes and drilling down SELECTS. Matches Material's expanded window class, and it is a WINDOW measure, not a device one — split-screen and Stage Manager cross it.
+        public static let editorPaneBreakpoint: CGFloat = 840
+
+        /// Editor pane 1 — weeks and days. Fixed: it is a table of contents, so it must not grow with the window.
+        public static let editorStructurePaneWidth: CGFloat = 244
+
+        /// Editor pane 3 — the inspector for whatever is selected (Apple: beside the content, never a popover). Fixed, and collapses to nothing when the selection is empty so it never costs width for silence.
+        public static let editorInspectorWidth: CGFloat = 316
 
         /// Sticky top app bar, excluding the status-bar safe area.
         public static let appBarHeight: CGFloat = 56
