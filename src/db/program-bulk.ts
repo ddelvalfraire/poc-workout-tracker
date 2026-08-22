@@ -1,5 +1,6 @@
 import { and, asc, eq, gt, inArray, sql } from 'drizzle-orm'
 import type { Progression, Technique } from '@/lib/program-input'
+import { TM_BASED_SCHEMES } from '@/lib/substitute-slot'
 import { db } from './index'
 import { recordProgramEvent, type ProgramEventActor } from './program-events'
 import {
@@ -756,8 +757,11 @@ export async function applyProgramSetScheme(
 /** How far an "also apply to" reaches: the source exercise's day, or the whole program. */
 export type ProgressionScope = 'day' | 'program'
 
-/** The schemes whose config is anchored to ONE lift's training max. */
-const TM_ANCHORED_SCHEMES = new Set(['percent-1rm', 'amrap-cycle'])
+// The schemes anchored to ONE lift's training max come from `substitute-slot`,
+// shared with the swap path rather than re-declared here: both guards exist to
+// stop a training max reaching a lift it was never measured on, and a second
+// copy would let a newly added TM scheme be guarded in one place and not the
+// other — silently reopening exactly this bug.
 
 /**
  * Broadcasts one exercise's progression rule to its siblings — the "also apply
@@ -799,7 +803,7 @@ export async function applyProgressionToScope(
       .limit(1)
     if (!row) return null
     const progression = (row.progression ?? null) as Progression | null
-    if (progression !== null && TM_ANCHORED_SCHEMES.has(progression.scheme)) {
+    if (progression !== null && TM_BASED_SCHEMES.has(progression.scheme)) {
       throw new ProgramPatchError(
         `${found.name} uses ${progression.scheme}, whose training max belongs to that lift alone — set each exercise's training max instead of copying this rule across the ${scope}`,
       )
