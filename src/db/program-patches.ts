@@ -1,4 +1,4 @@
-import { and, count, eq, gt, gte, inArray, lt, lte, max, sql } from 'drizzle-orm'
+import { and, count, eq, gt, gte, inArray, isNotNull, lt, lte, max, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import {
   setTypeSchema,
@@ -918,9 +918,17 @@ export async function updateProgramExercise(
  * template `suggestedLoadKg`, per-week override `suggestedLoadKg`, and a
  * TM-based progression (`percent-1rm`/`amrap-cycle` would keep prescribing
  * the ORIGINAL lift's training max to the substitute). Rep ranges, RIR/RPE,
- * rest, technique, and non-load overrides all survive — structure transfers,
- * loads don't (#215). `updateProgramExercise` deliberately keeps loads: it
- * is the general patch op, not a movement swap.
+ * rest, tempo, technique, and every other per-week override COLUMN survive —
+ * an override row is never deleted, only its `suggestedLoadKg` is nulled, so
+ * hand-authored week intent (rep_min/rep_max, rir, rpe, rest_sec, tempo,
+ * duration_sec, distance_m, technique) is kept. Structure transfers, loads
+ * don't (#215). `updateProgramExercise` deliberately keeps loads: it is the
+ * general patch op, not a movement swap.
+ *
+ * Both clears are narrowed to rows that actually CARRY a load, and the row
+ * counts come back in the result: a swap is destructive to real user data, so
+ * the caller (coach turn, UI toast) can say exactly how much was erased
+ * instead of leaving the user to discover it in week 4.
  * Reads, in order: owned-exercise, current-progression, set-ids.
  */
 export async function substituteProgramExercise(
@@ -930,7 +938,15 @@ export async function substituteProgramExercise(
   exercisePosition: number,
   substitute: { wgerExerciseId: number; source: ExerciseSource; name: string },
   actor: ProgramEventActor,
-): Promise<{ id: string } | null> {
+): Promise<{
+  id: string
+  /** Template `program_sets` rows whose suggestedLoadKg was nulled. */
+  clearedTemplateLoads: number
+  /** Per-week `program_set_overrides` rows whose suggestedLoadKg was nulled. */
+  clearedOverrideLoads: number
+  /** True when a TM-anchored progression was dropped with the swap. */
+  progressionCleared: boolean
+} | null> {
   const catalog = await loadExerciseCatalog(userId)
   return db.transaction(async (tx) => {
     const found = await findOwnedExercise(tx, userId, programId, dayPosition, exercisePosition)
@@ -964,21 +980,34 @@ export async function substituteProgramExercise(
       .select({ id: programSets.id })
       .from(programSets)
       .where(eq(programSets.programExerciseId, found.exerciseId))
-    await tx
+    // isNotNull narrows the clear to rows that actually carried a load, so the
+    // returned count is what was ERASED, not what was visited.
+    const clearedTemplate = await tx
       .update(programSets)
       .set({ suggestedLoadKg: null })
-      .where(eq(programSets.programExerciseId, found.exerciseId))
-    if (setRows.length > 0) {
-      await tx
-        .update(programSetOverrides)
-        .set({ suggestedLoadKg: null })
-        .where(
-          inArray(
-            programSetOverrides.programSetId,
-            setRows.map((row) => row.id),
-          ),
-        )
-    }
+      .where(
+        and(
+          eq(programSets.programExerciseId, found.exerciseId),
+          isNotNull(programSets.suggestedLoadKg),
+        ),
+      )
+      .returning({ id: programSets.id })
+    const clearedOverrides =
+      setRows.length > 0
+        ? await tx
+            .update(programSetOverrides)
+            .set({ suggestedLoadKg: null })
+            .where(
+              and(
+                inArray(
+                  programSetOverrides.programSetId,
+                  setRows.map((row) => row.id),
+                ),
+                isNotNull(programSetOverrides.suggestedLoadKg),
+              ),
+            )
+            .returning({ id: programSetOverrides.id })
+        : []
     await bumpUpdatedAt(tx, programId)
     await recordProgramEvent(tx, {
       programId,
@@ -991,11 +1020,18 @@ export async function substituteProgramExercise(
         after: {
           ...substitute,
           loadsCleared: true,
+          clearedTemplateLoads: clearedTemplate.length,
+          clearedOverrideLoads: clearedOverrides.length,
           ...(dropProgression && { progressionCleared: true }),
         },
       },
     })
-    return updated
+    return {
+      id: updated.id,
+      clearedTemplateLoads: clearedTemplate.length,
+      clearedOverrideLoads: clearedOverrides.length,
+      progressionCleared: dropProgression,
+    }
   })
 }
 
