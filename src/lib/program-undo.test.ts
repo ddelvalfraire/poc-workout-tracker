@@ -57,9 +57,22 @@ describe('guardFor', () => {
 
   it('never claims an engine-authored write is a user edit', () => {
     // sync_plan_to_performance and the autoregulation writes are the engine's,
-    // so there is nothing to take back and no undo may be offered.
-    expect(guardFor('sync_plan_to_performance')).not.toBe('undo')
+    // so there is nothing to take back and no undo may be offered. Asserted as
+    // 'none' rather than merely "not undo": the confirm fallback is a policy for
+    // destructive USER edits, and reaching it here would be a misclassification
+    // by omission, not a safe default.
+    expect(guardFor('sync_plan_to_performance')).toBe('none')
     expect(guardFor('set_program_autoregulation')).toBe('none')
+  })
+
+  it('classifies both per-week override ops deliberately, not by fallback', () => {
+    // They want undo eventually; they cannot have it until the tagged
+    // before-image (row-absent vs. row-with-null-fields) is built, so they are
+    // listed at confirm on purpose rather than left to the fallback.
+    expect(guardFor('set_program_set_override')).toBe('confirm')
+    expect(guardFor('remove_program_set_override')).toBe('confirm')
+    expect(EDIT_GUARDS).toHaveProperty('set_program_set_override')
+    expect(EDIT_GUARDS).toHaveProperty('remove_program_set_override')
   })
 
   it('classifies every action in the table as exactly one of the three guards', () => {
@@ -232,7 +245,7 @@ describe('precheckTicket', () => {
     const forged = ticket({
       action: 'remove_program_day' as UndoTicket['action'],
     })
-    expect(precheckTicket(forged, REVISION)).toBe('not-found')
+    expect(precheckTicket(forged, REVISION)).toBe('not-undoable')
   })
 })
 

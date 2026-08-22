@@ -33,8 +33,11 @@ The change log is a **narrative, not a journal**. Auditing every `recordProgramE
 | `remove_program_exercise` | `before: { name }` | **No.** Every set beneath it is gone |
 | `remove_program_day` | `{ dayPosition }` | **No.** The whole subtree is gone |
 | `set_program_*` policies | `after` only | No |
+| `set_program_set_override` | `{ week, setNumber, after: values, cleared }` | **No.** `after` is the partial patch; it is merged over a row the log never captured, and `cleared: true` means the row was deleted outright |
+| `remove_program_set_override` | `{ week, setNumber }` | **No.** The whole override row is gone |
+| `sync_plan_to_performance` | `after` | n/a — engine-authored, nothing to take back |
 
-So the log records enough to **describe** a change and not enough to **undo** one. Two ops out of fourteen carry a usable before-image, and the three destructive ops — precisely the ones a user most wants back — carry the least.
+So the log records enough to **describe** a change and not enough to **undo** one. Two ops out of seventeen carry a usable before-image, and the destructive ops — precisely the ones a user most wants back — carry the least.
 
 This is not an oversight to correct. `src/db/program-events.ts` says so in its own contract: *"Minimal before/after of the touched fields — never a whole-program snapshot."* Making removals log their subtree would turn an append-only human-readable narrative into a backup mechanism, changing what the table is, inflating every destructive write, and inviting "undo something from last Tuesday" — which collides head-on with the standing law that **prescriptions are snapshotted facts, never re-derived**.
 
@@ -71,6 +74,18 @@ Deliberately coarse — it compares the **whole program**, not the touched subtr
 
 The id anchors are belt to the CAS's braces: CAS alone would let a numeric inverse work, but anchors make a mis-applied inverse impossible to *express* rather than merely unlikely to occur.
 
+### One ticket per gesture — the CAS in a batch
+
+Comparing the whole program has a consequence worth stating outright rather than leaving anyone to discover it: in a **multi-op batch** — a multi-patch coach proposal, or a single UI gesture that fires several moves — op 2's bump invalidates op 1's ticket the moment it lands. Only the last op in a batch can ever produce a usable ticket.
+
+> **That is the intended semantics.** Undo takes back **the last thing**, never a fragment of a compound edit. A partially-undone batch is a worse outcome than an un-undoable one, and reasoning about per-op tickets inside a batch is exactly the interleaving-writer analysis the coarse CAS exists to avoid.
+
+It obliges callers, so it is a rule:
+
+1. A caller running several ops as one gesture mints **at most one ticket**, computed after the final bump and describing the gesture as a whole. Minting per-op and keeping the last is the same rule done wastefully; keeping the **first** is a bug that hands back a ticket guaranteed to refuse as `stale`.
+2. A gesture whose reversal is not expressible as a single `InverseOp` mints **nothing**, and takes the guard its most expensive op takes.
+3. Batch proposal application is out of scope: `confirm_patch_proposal` is not in `EDIT_GUARDS`, falls to `confirm`, and never mints.
+
 ### Not reusing the proposal vocabulary
 
 `src/lib/patch-proposal.ts` already models a patch as `{ tool, args }`, and `src/db/patch-proposals.ts` already applies batches. Reusing it would be wrong: that vocabulary is position-addressed by construction (`positionField`), so it would inherit the exact bug above. Proposals describe an edit nobody has made yet; inverses describe an edit that already happened to specific rows.
@@ -86,12 +101,37 @@ A ticket travels through the client, so **every uuid inside it is attacker-contr
 | Guard | Meaning | Actions |
 |---|---|---|
 | `undo` | Apply immediately, offer a timed Undo | `move_program_day` · `move_program_exercise` · `move_program_set` |
-| `confirm` | Modal **before** applying, no Undo | `remove_program_day` — its whole subtree (exercises, sets, per-week overrides, muscle tags) dies with it |
-| `none` | No guard; the control itself is the way back | the five `set_program_*` policies · `adjust_training_max` |
+| `confirm` | Modal **before** applying, no Undo | `remove_program_day` — its whole subtree (exercises, sets, per-week overrides, muscle tags) dies with it · `set_program_set_override` · `remove_program_set_override` — see the override note below |
+| `none` | No guard; the control itself is the way back, or it is not a user edit | the five `set_program_*` policies · `adjust_training_max` · `sync_plan_to_performance` |
 
 Unclassified actions **fall to `confirm`**. A new mutating op nobody has classified is treated as the expensive kind until someone decides otherwise, so forgetting the table fails safe rather than shipping an unguarded edit.
 
-Engine-authored actions (`sync_plan_to_performance`, the autoregulation writes) are absent by design — they are not edits anyone made, so there is nothing to take back, and a stray Undo would fight the engine.
+Engine-authored actions are classified **`none` explicitly, never by omission**. `sync_plan_to_performance` and the autoregulation write are not edits anyone made, so there is nothing to take back and a stray Undo would fight the engine — but `confirm` is a policy for destructive *user* edits, and letting an engine write reach it through the fallback would be the wrong answer arrived at by accident. Sitting in the table is what makes the classification reviewable.
+
+Scope of the table is every action `src/db/program-patches.ts` emits. Program-**lifecycle** actions emitted elsewhere in `src/db/` (`upsert_program`, `set_program_status`, `adopt_program`, `decline_program`, `restart_program`, `update_description`, `adopt_template`, `set_program_visibility`, `adopt_shared_program`, `propose_program_patches`, `confirm_patch_proposal`, `decline_patch_proposal`) are out of scope — they are not granular editor ops, they own their own confirmation surfaces, and the `confirm` fallback is the right answer for them.
+
+### The per-week overrides: absence is not a null
+
+`set_program_set_override` and `remove_program_set_override` sit at **`confirm` deliberately**, not by fallback. Both *want* `undo` — a pinned week's targets are exactly the kind of thing that is painful to retype — and neither may have it until the before-image below exists.
+
+`program_set_overrides` is keyed `(program_set_id, week)`, and every field on it is nullable. So an inverse must distinguish two states that a flat field bag renders identically:
+
+- **no row existed** for that week (the week runs on the engine-derived prescription), versus
+- **a row existed whose fields were explicitly null** (a partial pin, with the rest deliberately unset).
+
+Restore the wrong one and the week silently keeps — or silently loses — a pin, with no error anywhere. The forward op makes it worse in both directions: `setProgramSetOverride` **merges** a partial patch over whatever it finds, and **deletes** the row outright once every merged field lands null (`cleared: true`). One call can move between the two states either way.
+
+> **Decision — the before-image is tagged, and applied absolutely.**
+>
+> ```ts
+> type OverrideBefore =
+>   | { existed: false }
+>   | { existed: true; fields: Record<OverrideField, ... | null> } // all ten, nulls included
+> ```
+>
+> Absence is carried **out of band on a discriminant**, never inferred from nullness. The inverse applies it **absolutely** — `existed: false` deletes any row at `(program_set_id, week)`; `existed: true` upserts the full field set, nulls and all — and **never re-merges**, because merging would resurrect a value the forward op nulled.
+
+Until that lands, both ops keep `confirm`. Nothing reads `guardFor()` yet, so the conservative placeholder costs nothing today; it must be revisited before the override editor ships, since a modal on every week-pin is precisely the tax on the common case this design otherwise rejects.
 
 ### Roadmap
 
@@ -101,8 +141,9 @@ Only the `move_*` family is classified `undo` today. Remaining ops move there as
 |---|---|---|
 | `add_program_{day,exercise,set}` | `delete` | none — the new row's id |
 | `update_program_{day,exercise,set}` | `restoreFields` | touched fields' prior values **and** the values the op wrote, for a per-field CAS |
-| `remove_program_set` | `reinsertSet` | the full set row + its `program_set_overrides`; needs `.returning()` widened from `{ id }` |
-| `remove_program_exercise` | `reinsertExercise` | the exercise + every set + overrides. Muscle tags are **not** snapshotted — they re-derive from `(source, wgerExerciseId)`, so a stale copy can't outlive a catalog correction |
+| `remove_program_set` | `reinsertSet` | the full set row + its `program_set_overrides`; needs `.returning()` widened from `{ id }`. Each week's overrides carry the **same absence-vs-value trap** as above: snapshot the rows that existed, keyed by week, and reinsert only those — a week with no row must come back with no row, not with a row of nulls |
+| `remove_program_exercise` | `reinsertExercise` | the exercise + every set + overrides (same per-week absence-vs-value rule). Muscle tags are **not** snapshotted — they re-derive from `(source, wgerExerciseId)`, so a stale copy can't outlive a catalog correction |
+| `set_program_set_override` · `remove_program_set_override` | `restoreOverride` | the tagged `OverrideBefore` above — `{ existed: false }`, or `{ existed: true; fields }` with all ten fields including nulls — applied absolutely, never merged |
 
 `remove_program_day` stays on `confirm` permanently. That subtree does not belong in a toast.
 
@@ -118,13 +159,15 @@ Only the `move_*` family is classified `undo` today. Remaining ops move there as
 
 4. **The server never writes the sentence.** A ticket carries `subject` and `toPosition`, not display copy — locale lives on the user (next-intl), so each surface renders "Moved Lat Pulldown to 4th" from its own catalogue keyed by `action`. This is also what keeps the wording identical across surfaces.
 
-5. **Refusals are quiet, not errors.** `stale` (window closed or someone else wrote), `vanished` (anchor gone — undone twice, or deleted since) and `not-found` render as one calm line in the toast's place. None of them means the user did anything wrong.
+5. **Refusals are quiet, not errors.** `stale` (window closed or someone else wrote), `vanished` (anchor or row gone — undone twice, or deleted since) and `not-undoable` (the ticket's action is not classified `undo`: policy changed under it, or a client forged it) render as one calm line in the toast's place. None of them means the user did anything wrong.
+
+   There is deliberately **no ownership verdict** in the vocabulary. `precheckTicket()` checks policy and freshness only; the ownership re-resolve lives in the db apply path and reports **`vanished`**, because a distinct "not yours" would confirm that a guessed uuid exists, and the repo's not-found economy already answers unowned and absent identically everywhere else.
 
 6. **A `confirm` action must not show an Undo bar**, and an `undo` action must not show a confirm dialog. The two are alternatives, never layered.
 
 ## 07 · What is landed
 
-- `src/lib/program-undo.ts` — the guard table, the id-anchoring translation, the CAS freshness gate, ticket minting, and the refusal vocabulary. Pure; 26 tests in `src/lib/program-undo.test.ts`.
+- `src/lib/program-undo.ts` — the guard table, the id-anchoring translation, the CAS freshness gate, ticket minting, and the refusal vocabulary. Pure; 27 tests in `src/lib/program-undo.test.ts`.
 
 Outstanding, in order:
 

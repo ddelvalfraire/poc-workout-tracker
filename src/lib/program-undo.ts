@@ -49,6 +49,27 @@
  * inverse work, but anchors make a mis-applied inverse impossible to express
  * rather than merely unlikely to occur.
  *
+ * ## One ticket per gesture — what the CAS means for a batch
+ *
+ * A consequence of comparing the WHOLE program's `updated_at`: in a multi-op
+ * batch — a multi-patch coach proposal, or one UI gesture firing several
+ * moves — op 2's bump invalidates op 1's ticket the instant it lands, so only
+ * the last op of a batch could ever mint a usable ticket. That is the intended
+ * semantics, not an accident: **undo takes back the last thing, never a
+ * fragment of a compound edit.**
+ *
+ * It obliges callers, so it is stated as a rule rather than left emergent:
+ *
+ * - A caller running several ops as one gesture mints AT MOST ONE ticket, after
+ *   the final bump, describing the gesture as a whole. Minting per-op and
+ *   keeping the last is that same rule done wastefully; keeping the FIRST is a
+ *   bug that hands back a ticket guaranteed to refuse as `stale`.
+ * - A gesture whose reversal is not expressible as one {@link InverseOp} mints
+ *   NOTHING and takes the guard its most expensive op takes. Half an undo is
+ *   worse than none.
+ * - Batch proposal application is out of scope entirely: `confirm_patch_proposal`
+ *   is not in {@link EDIT_GUARDS}, so it falls to `confirm` and never mints.
+ *
  * ## Security note for the apply path
  *
  * A ticket travels through the client, so every uuid inside it is
@@ -68,10 +89,12 @@
  *
  * ## Scope today
  *
- * Only the `move_*` family is wired. Every other mutating action falls to the
- * fail-safe `confirm` default in {@link guardFor} until it is wired here
- * deliberately. `docs/specs/program-edit-undo.md` carries the roadmap and the
- * inverse shapes the remaining ops will need.
+ * Only the `move_*` family is wired. Every other mutating action either sits in
+ * {@link EDIT_GUARDS} at a deliberate non-`undo` guard or falls to the fail-safe
+ * `confirm` default in {@link guardFor} until it is wired here on purpose.
+ * `docs/specs/program-edit-undo.md` carries the roadmap and the inverse shapes
+ * the remaining ops will need — including the tagged before-image the per-week
+ * override ops are waiting on.
  */
 
 // ---------------------------------------------------------------------------
@@ -99,9 +122,22 @@ export type EditGuard = 'undo' | 'confirm' | 'none'
  * {@link guardFor} and never decides locally. That is what stops one layout
  * growing an Undo bar the other lacks.
  *
- * Engine-authored actions (`sync_plan_to_performance`, the autoregulation
- * writes) are absent by design — they are not edits anyone made, so there is
- * nothing to take back, and a stray Undo on one would fight the engine.
+ * Engine-authored actions are classified `none` EXPLICITLY, never left to the
+ * fallback: they are not edits anyone made, so there is nothing to take back,
+ * and `confirm` — a policy meant for destructive user edits — would be the
+ * wrong answer arrived at by omission.
+ *
+ * The scope of this table is every `action` `src/db/program-patches.ts` emits —
+ * the granular editor ops. The `add_*` / `update_*` / `remove_program_{set,
+ * exercise}` families are the only ones still unlisted, and they sit on the
+ * `confirm` fallback ON PURPOSE until their before-images are designed; the
+ * spec's roadmap names the inverse each one needs. Program-LIFECYCLE actions
+ * emitted elsewhere in `src/db/` (`upsert_program`, `set_program_status`,
+ * `adopt_program`, `decline_program`, `restart_program`, `update_description`,
+ * `adopt_template`, `set_program_visibility`, `adopt_shared_program`,
+ * `propose_program_patches`, `confirm_patch_proposal`, `decline_patch_proposal`)
+ * are out of scope entirely — they are not editor ops, they own their own
+ * confirmation surfaces, and the fallback is the right answer for them.
  */
 export const EDIT_GUARDS = {
   // Order changes: the archetypal cheap, reversible, frequent edit — and the
@@ -123,6 +159,30 @@ export const EDIT_GUARDS = {
   // read back by the progression engine. Re-entering the prior number is the
   // reversal; a silent one would muddy the reason trail.
   adjust_training_max: 'none',
+  // The engine's own write, not a user edit. Listed explicitly so it takes the
+  // engine policy rather than the destructive-edit fallback: a stray Undo bar
+  // on a plan sync would offer to fight the thing that wrote it.
+  sync_plan_to_performance: 'none',
+  // The per-week override pair. `confirm` is a DELIBERATE placeholder, not the
+  // fallback: both ops want `undo` eventually, and neither can have it until
+  // the before-image below is built.
+  //
+  // `program_set_overrides` is keyed `(program_set_id, week)` and every field on
+  // it is nullable, so the inverse must distinguish two states that a flat
+  // field bag renders identically: NO ROW existed for this week, versus a row
+  // existed whose fields were explicitly null. Restore the wrong one and the
+  // week silently keeps — or silently loses — a pin. Worse, `setProgramSetOverride`
+  // MERGES a partial patch over whatever it finds, and deletes the row outright
+  // once every field lands null, so a single call can move between those states
+  // in either direction.
+  //
+  // The fix is a tagged before-image, `{ existed: false } | { existed: true;
+  // fields: <all ten, nulls included> }` — absence carried out of band on a
+  // discriminant, never inferred from nullness — applied ABSOLUTELY (delete, or
+  // upsert the full field set) and never re-merged. The spec's §05 roadmap
+  // fixes the shape; these two move to `undo` once it exists.
+  set_program_set_override: 'confirm',
+  remove_program_set_override: 'confirm',
 } as const satisfies Record<string, EditGuard>
 
 /** An action this table classifies explicitly. */
@@ -327,10 +387,22 @@ export function mintUndoTicket(input: TicketInput): UndoTicket | null {
 export type UndoRefusal =
   /** The window closed, or another writer touched the program. */
   | 'stale'
-  /** The anchor, or the row itself, is gone — undone twice, or deleted since. */
+  /**
+   * The anchor, or the row itself, is gone — undone twice, or deleted since.
+   *
+   * Also the refusal an OWNERSHIP failure takes in the apply path. There is no
+   * separate "not yours" verdict on purpose: a distinct one would confirm that
+   * a guessed uuid exists, and this repo's not-found economy already answers
+   * unowned and absent identically everywhere else.
+   */
   | 'vanished'
-  /** The ticket names a program or row that is not this user's. */
-  | 'not-found'
+  /**
+   * The ticket's action is not classified `undo` — a ticket minted before a
+   * policy change, or one forged by a client. NOT an ownership verdict: the
+   * ownership re-resolve lives in the db apply path (see the security note) and
+   * reports `vanished`.
+   */
+  | 'not-undoable'
 
 export type UndoOutcome = { ok: true } | { ok: false; reason: UndoRefusal }
 
@@ -339,9 +411,10 @@ export type UndoOutcome = { ok: true } | { ok: false; reason: UndoRefusal }
  * work. Returns null when the ticket is still worth a try.
  *
  * Freshness is re-checked inside the apply transaction as well — this is the
- * cheap early out, not the gate.
+ * cheap early out, not the gate. It checks POLICY and FRESHNESS only: ownership
+ * is unreachable from here and remains the apply path's job.
  */
 export function precheckTicket(ticket: UndoTicket, currentRevision: string): UndoRefusal | null {
-  if (!isUndoable(ticket.action)) return 'not-found'
+  if (!isUndoable(ticket.action)) return 'not-undoable'
   return isTicketFresh(ticket, currentRevision) ? null : 'stale'
 }
