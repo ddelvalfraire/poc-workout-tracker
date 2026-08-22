@@ -287,6 +287,10 @@ interface CoachChatProps {
   initialMessages?: UIMessage[]
   /** Server action dropping the persisted thread ("New chat"). */
   clearAction?: () => Promise<void>
+  /** Free coach messages left for an UNENTITLED user (server value at load);
+   *  null = entitled/unlimited → no counter. Decrements live per send; the
+   *  server stays authoritative (the 402 wall is the real boundary). */
+  freeMessagesRemaining?: number | null
 }
 
 export function CoachChat({
@@ -295,9 +299,11 @@ export function CoachChat({
   programName,
   initialMessages,
   clearAction,
+  freeMessagesRemaining = null,
 }: CoachChatProps) {
   const t = useTranslations('CoachChat')
   const [input, setInput] = useState('')
+  const [remaining, setRemaining] = useState<number | null>(freeMessagesRemaining)
   const online = useOnline()
   const bottomRef = useRef<HTMLDivElement>(null)
   // "Now" for the day-separator labels, pinned at mount (render must stay
@@ -386,6 +392,10 @@ export function CoachChat({
     // Sending always re-pins: the user asked a question, show the answer.
     pinnedRef.current = true
     void sendMessage(stampedUserMessage(trimmed))
+    // Advisory live decrement for the free-taste counter (unentitled only).
+    // Server-authoritative: the atomic consume + the 402 wall are the real
+    // boundary; this just keeps the "N left" hint honest within the session.
+    setRemaining((r) => (r === null ? r : Math.max(0, r - 1)))
     setInput('')
     bottomRef.current?.scrollIntoView({ block: 'end' })
   }
@@ -575,16 +585,33 @@ export function CoachChat({
                 {t('paywallCta')}
               </Link>
             </p>
-          ) : (
-            coachError && (
-              <p role="alert" className="pb-2 text-center text-sm text-destructive">
-                {/* The server's own message is text it authored (the 429
-                    daily-cap copy especially) and renders verbatim; anything
-                    unrecognised falls back to this surface's own line. */}
-                {coachError.kind === 'server' ? coachError.message : t('errorGeneric')}
-              </p>
-            )
-          )}
+          ) : coachError ? (
+            <p role="alert" className="pb-2 text-center text-sm text-destructive">
+              {/* The server's own message is text it authored (the 429
+                  daily-cap copy especially) and renders verbatim; anything
+                  unrecognised falls back to this surface's own line. */}
+              {coachError.kind === 'server' ? coachError.message : t('errorGeneric')}
+            </p>
+          ) : remaining === 0 ? (
+            // Spent the last free message this session — surface the upsell
+            // proactively instead of waiting for the next send to 402.
+            // role=status so a screen reader hears the upsell moment (parity
+            // with the offline/error notices); the silent per-send counter
+            // below stays unannounced to avoid chattiness.
+            <p
+              role="status"
+              className="flex flex-wrap items-center justify-center gap-2 pb-2 text-center text-sm"
+            >
+              <span className="text-muted-foreground">{t('freeMessagesGone')}</span>
+              <Link href="/settings/plan" className="font-medium underline">
+                {t('paywallCta')}
+              </Link>
+            </p>
+          ) : remaining !== null ? (
+            <p className="pb-2 text-center text-sm text-muted-foreground">
+              {t('tasteRemaining', { count: remaining })}
+            </p>
+          ) : null}
           <form
             className="flex items-end gap-2"
             onSubmit={(event) => {

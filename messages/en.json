@@ -200,7 +200,9 @@
       "upsert_program": "Drafting your program",
       "whoami": "Checking your account"
     },
-    "paywallCta": "Upgrade to Max"
+    "paywallCta": "Upgrade to Max",
+    "freeMessagesGone": "That was your last free coach message.",
+    "tasteRemaining": "{count, plural, one {# free coach message left} other {# free coach messages left}}"
   },
   "CoachDisclosure": {
     "acknowledgeAction": "Got it",
