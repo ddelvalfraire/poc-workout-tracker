@@ -1,4 +1,6 @@
+import { and, eq } from 'drizzle-orm'
 import { db } from './index'
+import { entitlementGrants } from './schema'
 import {
   applyGrantInTx,
   listLiveGrantsInTx,
@@ -56,4 +58,18 @@ export async function projectFromVendor(
 
     return reprojectInTx(tx, userId)
   })
+}
+
+/**
+ * Every user with a status-active grant from one vendor — the reconcile
+ * sweep's worklist. Status-active deliberately includes lapsed-but-open
+ * rows: cheap at this scale, and it lets the sweep close rows for
+ * subscriptions that ended while we were unreachable.
+ */
+export async function listVendorGrantUserIds(source: GrantSource): Promise<string[]> {
+  const rows = await db
+    .selectDistinct({ userId: entitlementGrants.userId })
+    .from(entitlementGrants)
+    .where(and(eq(entitlementGrants.source, source), eq(entitlementGrants.status, 'active')))
+  return rows.map((r) => r.userId)
 }

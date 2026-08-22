@@ -1,4 +1,4 @@
-import { and, eq, lt, or, sql } from 'drizzle-orm'
+import { and, eq, isNotNull, lt, or, sql } from 'drizzle-orm'
 import { db } from './index'
 import { rcWebhookEvents, type RcWebhookEventStatus } from './schema'
 
@@ -137,6 +137,23 @@ export async function listReprocessable(opts: {
     )
     .orderBy(rcWebhookEvents.receivedAt)
     .limit(opts.limit ?? 100)
+}
+
+/**
+ * Retention trim: null out raw payloads past their useful life. The METADATA
+ * row stays forever — it is the dedupe record — but payloads can carry
+ * subscriber-attribute PII and have no replay value once RC's retries and
+ * our backstop are long past. Returns how many were trimmed.
+ */
+export async function trimPayloads(olderThan: Date): Promise<number> {
+  const trimmed = await db
+    .update(rcWebhookEvents)
+    .set({ payload: null })
+    .where(
+      and(isNotNull(rcWebhookEvents.payload), lt(rcWebhookEvents.receivedAt, olderThan)),
+    )
+    .returning({ id: rcWebhookEvents.id })
+  return trimmed.length
 }
 
 /** The alerting tally: rows a human should know about. */

@@ -137,6 +137,7 @@ describe('GET /api/cron/reminders window', () => {
       checkinSent: 0,
       checkinSkipped: 0,
       window: true,
+      reconcile: null,
     })
     expect(mockedSend).not.toHaveBeenCalled()
     errorSpy.mockRestore()
@@ -160,6 +161,7 @@ describe('GET /api/cron/reminders sends', () => {
       checkinSent: 0,
       checkinSkipped: 1,
       window: true,
+      reconcile: null,
     })
     expect(set).toHaveBeenCalledWith('reminder:user_123:2026-07-30', '1', {
       nx: true,
@@ -185,6 +187,7 @@ describe('GET /api/cron/reminders sends', () => {
       checkinSent: 0,
       checkinSkipped: 1,
       window: true,
+      reconcile: null,
     })
     expect(mockedSend).not.toHaveBeenCalled()
   })
@@ -202,6 +205,7 @@ describe('GET /api/cron/reminders sends', () => {
       checkinSent: 0,
       checkinSkipped: 1,
       window: true,
+      reconcile: null,
     })
     expect(set).not.toHaveBeenCalled()
     expect(mockedSend).not.toHaveBeenCalled()
@@ -224,6 +228,7 @@ describe('GET /api/cron/reminders sends', () => {
       checkinSent: 0,
       checkinSkipped: 3,
       window: true,
+      reconcile: null,
     })
     expect(mockedSend).not.toHaveBeenCalled()
   })
@@ -242,6 +247,7 @@ describe('GET /api/cron/reminders sends', () => {
       checkinSent: 0,
       checkinSkipped: 1,
       window: true,
+      reconcile: null,
     })
   })
 })
@@ -264,6 +270,7 @@ describe('GET /api/cron/reminders check-in rider', () => {
       checkinSent: 1,
       checkinSkipped: 0,
       window: true,
+      reconcile: null,
     })
     expect(set).toHaveBeenCalledWith('checkin:user_123:2026-07-30', '1', {
       nx: true,
@@ -293,6 +300,7 @@ describe('GET /api/cron/reminders check-in rider', () => {
       checkinSent: 1,
       checkinSkipped: 0,
       window: true,
+      reconcile: null,
     })
     expect(mockedSend).toHaveBeenCalledTimes(1)
     expect(mockedSend).toHaveBeenCalledWith('user_123', {
@@ -319,6 +327,7 @@ describe('GET /api/cron/reminders check-in rider', () => {
       checkinSent: 0,
       checkinSkipped: 1,
       window: true,
+      reconcile: null,
     })
     expect(set).not.toHaveBeenCalled()
     expect(mockedSend).not.toHaveBeenCalled()
@@ -344,6 +353,7 @@ describe('GET /api/cron/reminders check-in rider', () => {
       checkinSent: 0,
       checkinSkipped: 1,
       window: true,
+      reconcile: null,
     })
     expect(mockedSend).toHaveBeenCalledTimes(1)
     expect(mockedSend).toHaveBeenCalledWith('user_123', expect.objectContaining({ url: '/' }))
@@ -365,6 +375,7 @@ describe('GET /api/cron/reminders check-in rider', () => {
       checkinSent: 0,
       checkinSkipped: 1,
       window: true,
+      reconcile: null,
     })
     expect(mockedSend).toHaveBeenCalledTimes(1)
     expect(mockedSend).toHaveBeenCalledWith('user_123', expect.objectContaining({ url: '/' }))
