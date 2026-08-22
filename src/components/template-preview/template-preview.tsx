@@ -173,24 +173,26 @@ export function TemplatePreview({
       {/* Fact strip — the commitment, at hero scale (text-5xl is a recorded
           token as of the type-scale extension; one numeral register per
           screen, shared across the three figures). */}
+      {/* dt precedes dd per the dl content model; flex-col-reverse keeps the
+          numeral visually on top without inverting the semantics. */}
       <dl className="mt-5 flex gap-9 border-y border-y-border/60 py-4">
-        <div>
-          <dd className="font-display text-5xl leading-none tnum">{mesocycleWeeks}</dd>
-          <dt className="mt-1.5 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
+        <div className="flex flex-col-reverse gap-1.5">
+          <dt className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
             {t('factWeeks')}
           </dt>
+          <dd className="font-display text-5xl leading-none tnum">{mesocycleWeeks}</dd>
         </div>
-        <div>
-          <dd className="font-display text-5xl leading-none tnum">{dayCount}</dd>
-          <dt className="mt-1.5 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
+        <div className="flex flex-col-reverse gap-1.5">
+          <dt className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
             {t('factDaysPerWeek')}
           </dt>
+          <dd className="font-display text-5xl leading-none tnum">{dayCount}</dd>
         </div>
-        <div>
-          <dd className="font-display text-5xl leading-none tnum">{exercisesPerDay}</dd>
-          <dt className="mt-1.5 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
+        <div className="flex flex-col-reverse gap-1.5">
+          <dt className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
             {t('factExercisesPerDay')}
           </dt>
+          <dd className="font-display text-5xl leading-none tnum">{exercisesPerDay}</dd>
         </div>
       </dl>
 
@@ -230,14 +232,17 @@ export function TemplatePreview({
         <details key={day.key} className="group border-b border-b-border/60">
           <summary className="flex cursor-pointer list-none items-center justify-between gap-4 py-4 outline-none transition-colors [&::-webkit-details-marker]:hidden hover:bg-muted/50 focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-hidden">
             <span className="flex min-w-0 flex-col gap-0.5">
-              <span className="flex min-w-0 items-baseline gap-2">
+              {/* A real heading, so every day — not just day 1 — appears in
+                  heading navigation. Valid inside <summary>, which keeps its
+                  button + expanded semantics. */}
+              <h3 className="flex min-w-0 items-baseline gap-2 font-normal">
                 <span className="shrink-0 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground tnum">
                   {t('dayNumber', { position: index + 2 })}
                 </span>
                 <span className="min-w-0 truncate font-display text-lg uppercase leading-tight tracking-wide">
                   {day.name}
                 </span>
-              </span>
+              </h3>
               <span className="truncate text-xs text-muted-foreground">
                 {day.exercises.map((exercise) => exercise.name).join(' · ')}
               </span>
@@ -268,7 +273,7 @@ export function TemplatePreview({
 
       {/* Sticky start bar — the surface's one volt moment, in the thumb zone.
           Full-bleed across the host gutter; carries its own safe-area pad. */}
-      <div className="sticky bottom-0 z-10 -mx-5 mt-8 border-t border-border bg-background/90 px-5 pt-3 pb-safe backdrop-blur-md">
+      <div className="sticky bottom-0 z-10 -mx-5 mt-8 border-t border-border bg-background/95 px-5 pt-3 pb-safe backdrop-blur-md">
         {cta}
         <p className="mt-2 pb-1 text-center text-xs text-muted-foreground">{t('ctaHint')}</p>
       </div>

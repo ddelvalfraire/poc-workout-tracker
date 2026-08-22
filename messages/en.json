@@ -1651,7 +1651,6 @@
     "fullPlan": "Full plan & settings",
     "hero": {
       "blockComplete": "Block complete — restart or review from the program page.",
-      "next": "Next: {dayName}",
       "noDays": "No days planned yet.",
       "weekPosition": "<big>Wk {week}</big> <small>of {total}</small>"
     },
@@ -1677,7 +1676,8 @@
     "thisWeek": {
       "done": "done",
       "doneCount": "{done} of {total} done",
-      "heading": "This week"
+      "heading": "This week",
+      "startLink": "Open {dayName} to start"
     },
     "title": "Programs",
     "zone": {

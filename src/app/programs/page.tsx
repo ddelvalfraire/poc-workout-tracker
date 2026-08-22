@@ -115,18 +115,13 @@ async function ThisWeekBand({
   heroData: HeroData
 }) {
   const t = await getTranslations('Programs')
-  // The Start affordance reuses the start island's words — same ask, same
-  // key. Resolved outside the JSX: the i18n lint's callee allowlist only
-  // knows `t`/`tCommon`, and this page is not the place to grow it.
-  const tStart = await getTranslations('StartDayButton')
-  const startLabel = tStart('startAction')
   const { rows, doneCount } = heroData.thisWeek
   // Deep-link grammar matches the detail page: ?week=N selects the week,
   // ?expand=<dayId> opens that day's targets (detail-view.parseExpandParam).
   const dayHref = (day: ProgramDayData) =>
     `/programs/${hero.id}?week=${heroData.currentWeek}&expand=${encodeURIComponent(day.id)}`
   return (
-    <section aria-label={t('thisWeek.heading')} className="mt-8">
+    <section className="mt-8">
       <div className="flex items-baseline justify-between gap-4">
         <h2 className="font-display text-base uppercase leading-none tracking-wide text-muted-foreground">
           {t('thisWeek.heading')}
@@ -176,11 +171,16 @@ async function ThisWeekBand({
                     needs — an unguarded inline start could mint a second
                     active session. The detail page's next-up day is already
                     expanded with the guarded Start. */}
+                {/* A LINK, labelled as one: it opens the detail (where the
+                    conflict-guarded Start lives) rather than minting a
+                    workout here. The label says so — a control reading
+                    "Start" that navigates fails consistent identification
+                    for voice-control and screen-reader users. */}
                 <Link
                   href={`/programs/${hero.id}`}
                   className={cn(buttonVariants(), 'mt-3 h-12 w-full')}
                 >
-                  {startLabel}
+                  {t('thisWeek.startLink', { dayName: day.name })}
                 </Link>
               </li>
             )
@@ -216,8 +216,11 @@ async function ThisWeekBand({
 function BlockFigure({ value, label }: { value: string; label: string }) {
   return (
     <div className="min-w-0">
-      <div className="truncate font-display text-2xl leading-none tnum">{value}</div>
-      <div className="mt-1 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
+      {/* No truncate: an ellipsized NUMBER is a wrong number — long localized
+          volumes wrap instead. Label at text-xs: it is the numeral's only
+          meaning-carrier, so it stays off the micro-caps floor. */}
+      <div className="break-words font-display text-2xl leading-none tnum">{value}</div>
+      <div className="mt-1 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
         {label}
       </div>
     </div>
@@ -245,7 +248,7 @@ async function BlockSoFarBand({
   const { stats } = heroData
   const weeksLeft = Math.max(0, hero.mesocycleWeeks - heroData.currentWeek)
   return (
-    <section aria-label={t('blockSoFar.heading')} className="mt-8">
+    <section className="mt-8">
       <h2 className="font-display text-base uppercase leading-none tracking-wide text-muted-foreground">
         {t('blockSoFar.heading')}
       </h2>

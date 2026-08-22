@@ -24,11 +24,11 @@ function ProgramsProbe({ weeks }: { weeks: number }) {
     <div>
       <p>{t('row.weeks', { weeks })}</p>
       <p>{t('row.weeksDeload', { weeks, deloadWeek: 4 })}</p>
-      <p>{t('hero.next', { dayName: 'Legs' })}</p>
       <p>{t('archived.summary', { count: weeks })}</p>
       <p>{t('thisWeek.heading')}</p>
       <p>{t('thisWeek.doneCount', { done: 2, total: weeks })}</p>
       <p>{t('thisWeek.done')}</p>
+      <p>{t('thisWeek.startLink', { dayName: 'Legs' })}</p>
       <p>{t('fullPlan')}</p>
       <p>{t('zone.withCount', { label: 'Drafts', count: weeks })}</p>
       <p>{t('blockSoFar.heading')}</p>
@@ -68,9 +68,8 @@ describe('Programs list messages', () => {
     expect(html).toContain('<i data-testid="small">of 8</i>')
   })
 
-  test('the next-day line names the day', () => {
+  test('no key on the page renders unresolved', () => {
     const html = renderStaticIntl(<ProgramsProbe weeks={8} />)
-    expect(html).toContain('Next: Legs')
     expect(html).not.toMatch(/Programs\.[a-zA-Z.]+/)
   })
 
@@ -79,6 +78,7 @@ describe('Programs list messages', () => {
     expect(html).toContain('This week')
     expect(html).toContain('2 of 4 done')
     expect(html).toContain('<p>done</p>')
+    expect(html).toContain('Open Legs to start')
     expect(html).toContain('Full plan &amp; settings')
     expect(html).toContain('Drafts · 4')
     expect(html).toContain('Block so far')

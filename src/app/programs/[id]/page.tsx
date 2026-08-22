@@ -307,7 +307,10 @@ export default async function ProgramDetailPage({
             attribution) folds into the About row so the PLAN — not the
             prose — leads the page. */}
         <header className="mt-4">
-          <h1 className="flex items-baseline gap-2">
+          {/* A <p>, not a second <h1>: AppHeader already renders the page's
+              h1 from the same name — two identical top-level headings would
+              double up the screen-reader heading list. */}
+          <p className="flex items-baseline gap-2">
             {program.icon !== null && (
               <span aria-hidden="true" className="text-2xl leading-none">
                 {program.icon}
@@ -316,7 +319,7 @@ export default async function ProgramDetailPage({
             <span className="min-w-0 truncate font-display text-3xl uppercase leading-none tracking-wide">
               {program.name}
             </span>
-          </h1>
+          </p>
           {/* The editorial status line: where the block ACTUALLY stands, in
               the font-display voice — anchored to the current week even while
               browsing another one (the strip says what's selected, this says
@@ -398,21 +401,6 @@ export default async function ProgramDetailPage({
                     description={program.description}
                   />
                 )}
-                {program.sourceUrl !== null && (
-                  <p className="mt-2 text-xs text-muted-foreground">
-                    {/* Attribution is a licensing requirement for imported
-                        templates, not decoration — always rendered when
-                        present. */}
-                    <a
-                      href={program.sourceUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="underline underline-offset-2 transition-colors hover:text-foreground"
-                    >
-                      {t('sourceLinkLabel')}
-                    </a>
-                  </p>
-                )}
                 {/* The program DOCUMENT note (notes v2 catch-up): authored
                     once (upsert_program takes plain text ≤2000 — no markdown
                     contract, so no MarkdownView), read at program start,
@@ -426,6 +414,21 @@ export default async function ProgramDetailPage({
                 )}
               </div>
             </details>
+          )}
+          {program.sourceUrl !== null && (
+            <p className="border-b border-b-border/60 py-2 text-xs text-muted-foreground">
+              {/* Attribution is a licensing requirement for imported
+                  templates, not decoration — it stays OUTSIDE the collapsed
+                  About fold so it is always visible when present. */}
+              <a
+                href={program.sourceUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline underline-offset-2 transition-colors hover:text-foreground"
+              >
+                {t('sourceLinkLabel')}
+              </a>
+            </p>
           )}
           <DividerList>
             {/* Coach opens with this program as context, so "swap tomorrow's
