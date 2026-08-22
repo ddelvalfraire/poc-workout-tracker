@@ -20,8 +20,6 @@ vi.mock('@/app/programs/actions', () => ({
   restartProgramAction: vi.fn(),
   rotateProgramShareAction: vi.fn(),
   setDietPhaseAction: vi.fn(),
-  setExerciseOvershootPolicyAction: vi.fn(),
-  setOvershootPolicyAction: vi.fn(),
   setProgramStatusAction: vi.fn(),
   setProgramVisibilityAction: vi.fn(),
   startProgramDayAction: vi.fn(),
@@ -30,8 +28,6 @@ vi.mock('@/app/programs/actions', () => ({
 
 import { DescriptionEdit } from './description-edit'
 import { DietPhaseCard } from './diet-phase-card'
-import { ExerciseOvershootControl } from './exercise-overshoot-control'
-import { OvershootPolicyControl } from './overshoot-policy-control'
 import { PatchProposalCard } from './patch-proposal-card'
 import { ProgramActions } from './program-actions'
 import { ProposalActions } from './proposal-actions'
@@ -71,39 +67,6 @@ describe('DietPhaseCard copy', () => {
   test('staleness note reads plural past one week', () => {
     const html = renderStaticIntl(<DietPhaseCard programId="p1" weeks={6} />)
     expect(html).toContain('This cut was set 6 weeks ago')
-  })
-})
-
-describe('overshoot controls copy', () => {
-  test('per-exercise control names every option and the exercise it governs', () => {
-    const html = renderStaticIntl(
-      <ExerciseOvershootControl
-        programId="p1"
-        dayPosition={1}
-        exercisePosition={1}
-        exerciseName="Back Squat"
-        policy={null}
-      />,
-    )
-    expect(html).toContain('Overshoot:')
-    expect(html).toContain('Overshoot policy for Back Squat')
-    for (const option of ['default', 'strict', 'e1RM-equivalent', 'any metric']) {
-      expect(html).toContain(option)
-    }
-    expectNoUnresolvedKeys(html, 'ExerciseOvershootControl')
-  })
-
-  test('program-level control shows the selected option’s hint', () => {
-    const html = renderStaticIntl(<OvershootPolicyControl programId="p1" policy="any-metric" />)
-    expect(html).toContain('Beating a target counts when…')
-    expect(html).toContain('Any metric')
-    expect(html).toContain('Reps, load, or e1RM — beating any one of them counts.')
-    expectNoUnresolvedKeys(html, 'OvershootPolicyControl')
-  })
-
-  test('an unset policy falls back to the scheme-default hint', () => {
-    const html = renderStaticIntl(<OvershootPolicyControl programId="p1" policy={null} />)
-    expect(html).toContain('Strict for load-anchored schemes; e1RM-equivalent for RPE targets.')
   })
 })
 

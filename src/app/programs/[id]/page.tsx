@@ -63,8 +63,6 @@ import { ProposalActions } from './proposal-actions'
 import { SharingSection } from './sharing-section'
 import { RestartProgramButton } from './restart-program-button'
 import { DietPhaseCard } from './diet-phase-card'
-import { OvershootPolicyControl } from './overshoot-policy-control'
-import { ExerciseOvershootControl } from './exercise-overshoot-control'
 import { Section } from '@/components/ui/section'
 import { DividerList, DividerRow } from '@/components/ui/divider-list'
 import { EmptyWords } from '@/components/ui/empty-words'
@@ -883,19 +881,6 @@ export default async function ProgramDetailPage({
                                 {tScheme(howLine.key, howLine.values)}
                               </p>
                             )}
-                            {/* Per-exercise overshoot override (#239's data,
-                                now with UI): owner-only quiet select; never
-                                on a proposal (adopt first — same gate as the
-                                program-level control below). */}
-                            {!isProposed && (
-                              <ExerciseOvershootControl
-                                programId={program.id}
-                                dayPosition={day.position}
-                                exercisePosition={exercise.position}
-                                exerciseName={exercise.name}
-                                policy={exercise.overshootPolicy}
-                              />
-                            )}
                           </div>
                         )
                       })}
@@ -1009,19 +994,6 @@ export default async function ProgramDetailPage({
                   ))}
                 </div>
               </section>
-            )}
-
-            {/* Overshoot / goal-met policy (#227): an OWNER setting like
-                sharing below — how a beaten-on-a-different-axis target is
-                credited. Null = per-scheme defaults; the change-logged narrow
-                op rides the same patch conventions as the diet phase. */}
-            {!isProposed && (
-              <div className={cn(changeEvents.length > 0 && 'mt-8 border-t border-border')}>
-                <OvershootPolicyControl
-                  programId={program.id}
-                  policy={program.overshootPolicy}
-                />
-              </div>
             )}
 
             {/* Sharing is an OWNER control and never appears on a proposal —

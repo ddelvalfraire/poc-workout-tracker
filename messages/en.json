@@ -470,17 +470,6 @@
     "pinnedAriaLabel": "Pinned in logger",
     "title": "Note"
   },
-  "ExerciseOvershootControl": {
-    "label": "Overshoot:",
-    "option": {
-      "anyMetric": "any metric",
-      "default": "default",
-      "e1rmEquivalent": "e1RM-equivalent",
-      "strictLoad": "strict"
-    },
-    "selectAriaLabel": "Overshoot policy for {exerciseName}",
-    "updateError": "Could not update the overshoot override. Please try again."
-  },
   "ExercisePicker": {
     "create": {
       "categoryAriaLabel": "Category",
@@ -1151,23 +1140,6 @@
   },
   "OpsRefreshButton": {
     "ariaLabel": "Refresh"
-  },
-  "OvershootPolicyControl": {
-    "ariaLabel": "Overshoot policy",
-    "hint": {
-      "anyMetric": "Reps, load, or e1RM — beating any one of them counts.",
-      "default": "Strict for load-anchored schemes; e1RM-equivalent for RPE targets.",
-      "e1rmEquivalent": "More reps at a lighter load count when the estimated 1RM matches the target.",
-      "strictLoad": "A goal counts only at the prescribed weight — master it before it moves."
-    },
-    "label": "Beating a target counts when…",
-    "option": {
-      "anyMetric": "Any metric",
-      "default": "Scheme default",
-      "e1rmEquivalent": "e1RM equivalent",
-      "strictLoad": "Strict load"
-    },
-    "updateError": "Could not update the overshoot policy. Please try again."
   },
   "PatchProposalCard": {
     "applyAction": "Apply all",
