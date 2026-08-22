@@ -262,6 +262,12 @@ export function ProgramSettings({ draft, dispatch }: ProgramSettingsProps) {
           toggle — blank IS the off state (programs.checkInEveryDays null), so
           there is no second control to keep in sync. */}
       <div className="space-y-1">
+        {/* NO `aria-label` here. The wrapping label already names the field,
+            and an aria-label OVERRIDES it — which is how the accessible name
+            drifted to "Suggested days between body check-ins" while the screen
+            read "Suggest a body check-in every". A voice-control user saying
+            what they can see then matches nothing (WCAG 2.5.3, Label in
+            Name). The visible words are the name. */}
         <label className="flex items-center gap-2.5 text-sm" htmlFor="check-in-every-days">
           <span className="flex-1">{t('checkIn.label')}</span>
           <Input
@@ -273,7 +279,6 @@ export function ProgramSettings({ draft, dispatch }: ProgramSettingsProps) {
             onChange={(event) =>
               dispatch({ type: 'SET_META', field: 'checkInEveryDays', value: event.target.value })
             }
-            aria-label={t('checkIn.ariaLabel')}
             aria-describedby="check-in-hint"
             className="w-16 shrink-0 text-center tnum"
           />

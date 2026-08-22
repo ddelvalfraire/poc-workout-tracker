@@ -316,6 +316,10 @@ function ExerciseEditor({ exercise, dayIndex, exerciseIndex, dispatch, unit }: E
                 value: event.target.value,
               })
             }
+            // The name STARTS with the visible label, then disambiguates —
+            // one day renders several of these and "Training max (kg)" alone
+            // would name them all identically. Leading with the visible words
+            // is what keeps voice control able to target it (WCAG 2.5.3).
             aria-label={t('trainingMax.ariaLabel', { exerciseName: exercise.name, unit })}
             className="w-24 shrink-0 text-center tnum"
           />

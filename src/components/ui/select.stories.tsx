@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
-import { expect, userEvent, within } from "storybook/test";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 
 import {
   Select,
@@ -251,7 +251,13 @@ export const KeyboardOperable: Story = {
 
     await step("Escape closes and returns focus to the trigger", async () => {
       await userEvent.keyboard("{Escape}");
-      await expect(trigger).toHaveFocus();
+      // Base UI returns focus AFTER the close animation completes (its
+      // `finalFocus` default, sequenced with `onOpenChangeComplete`), and the
+      // popup carries a 150ms exit transition. Asserting on the tick after
+      // Escape therefore catches focus still on the highlighted option about
+      // two runs in three. Wait for the settled state, not the next tick.
+      await waitFor(() => expect(trigger).toHaveFocus());
+      await expect(within(document.body).queryByRole("listbox")).not.toBeInTheDocument();
     });
   },
 };

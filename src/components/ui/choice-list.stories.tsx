@@ -100,6 +100,14 @@ export const KeyboardAndAnnouncement: Story = {
     const canvas = within(canvasElement);
     const [none, reactive] = canvas.getAllByRole("radio");
 
+    await step("the caption NAMES the group, it is not just text above it", async () => {
+      // axe does not flag an unnamed radiogroup, so this assertion is the only
+      // thing standing between the caption and going back to a bare <div>.
+      // Without it a user arrowing through hears "Reactive, radio, 2 of 3"
+      // with no idea which of the four groups in the settings panel they are in.
+      await expect(canvas.getByRole("radiogroup")).toHaveAccessibleName("Deload");
+    });
+
     await step("the hint is part of the announced name, not orphaned beside it", async () => {
       await expect(reactive).toHaveAccessibleName(/stalls three sessions/i);
     });

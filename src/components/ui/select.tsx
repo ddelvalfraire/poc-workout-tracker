@@ -164,17 +164,23 @@ function SelectItem({ className, children, hint, trailing, ...props }: SelectIte
       className={cn(
         // The indicator column is reserved on EVERY row, selected or not, so
         // labels do not shift sideways as the selection moves.
-        'grid min-h-11 cursor-default grid-cols-[1rem_1fr_auto] items-center gap-x-2.5 rounded-lg px-2.5 py-2 text-base outline-hidden select-none',
+        'group grid min-h-11 cursor-default grid-cols-[1rem_1fr_auto] items-center gap-x-2.5 rounded-lg px-2.5 py-2 text-base outline-hidden select-none',
         'data-highlighted:bg-accent data-highlighted:text-accent-foreground',
-        'data-disabled:pointer-events-none data-disabled:opacity-50',
+        // Disabled dims the INDICATOR and the LABEL, never the hint — the
+        // same rule `choice-list.tsx` and `switch-row.tsx` already carry. WCAG
+        // exempts text inside an inactive control from contrast, so a blanket
+        // `data-disabled:opacity-50` on the row passes axe; but the hint on a
+        // disabled option is the sentence saying WHY it is disabled, and at
+        // ~2.7:1 nobody can read it. Exempt is not legible.
+        'data-disabled:pointer-events-none',
         className,
       )}
       {...props}
     >
-      <SelectPrimitive.ItemIndicator className="col-start-1 row-start-1 text-primary">
+      <SelectPrimitive.ItemIndicator className="col-start-1 row-start-1 text-primary group-data-disabled:opacity-50">
         <Check className="size-4" aria-hidden />
       </SelectPrimitive.ItemIndicator>
-      <SelectPrimitive.ItemText className="col-start-2 row-start-1 truncate">
+      <SelectPrimitive.ItemText className="col-start-2 row-start-1 truncate group-data-disabled:opacity-50">
         {children}
       </SelectPrimitive.ItemText>
       {trailing ? (

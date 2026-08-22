@@ -1,5 +1,6 @@
 'use client'
 
+import { useId } from 'react'
 import { Radio } from '@base-ui/react/radio'
 import { RadioGroup } from '@base-ui/react/radio-group'
 
@@ -45,15 +46,26 @@ function ChoiceList<T extends string>({
   onValueChange,
   ...props
 }: ChoiceListProps<T>) {
+  // The caption is the group's NAME, not decoration beside it. Without the
+  // wiring a user arrowing through hears "Reactive, radio, 2 of 3" with no
+  // idea which group they are in — and axe does not flag an unnamed
+  // radiogroup, so nothing else catches this.
+  const labelId = useId()
+
   return (
     <RadioGroup
+      aria-labelledby={labelId}
       className={cn('block', className)}
       onValueChange={(value) => onValueChange?.(value as T)}
       {...props}
     >
-      {/* Section's caption recipe (DESIGN.md), so a choice list and a section
-          heading in the same column speak the same grammar. */}
-      <div className="text-xs font-semibold tracking-wide uppercase text-muted-foreground">
+      {/* Section's caption recipe verbatim (DESIGN.md, src/components/ui/section.tsx),
+          so a choice list and a section heading in the same column speak the
+          same grammar rather than two caps grammars side by side. */}
+      <div
+        id={labelId}
+        className="font-display text-base uppercase leading-none tracking-wide text-muted-foreground"
+      >
         {label}
       </div>
       <div className="mt-1.5 divide-y divide-border/60 border-b border-b-border/60">{children}</div>

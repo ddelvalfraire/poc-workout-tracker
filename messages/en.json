@@ -1343,7 +1343,6 @@
       "label": "Auto-regulate loads"
     },
     "checkIn": {
-      "ariaLabel": "Suggested days between body check-ins",
       "hint": "Nudges a weigh-in, tape, or progress photo on that cadence (3–90 days). Leave blank for no suggestion.",
       "label": "Suggest a body check-in every",
       "placeholder": "—",
@@ -1410,6 +1409,7 @@
       }
     },
     "discardAction": "Discard",
+    "draftStatus": "Draft — nothing is scheduled. Your changes stay on this device until you save.",
     "empty": {
       "days": "Add a training day to start building your program.",
       "exercises": "Search above to add an exercise to this day."
@@ -1453,7 +1453,7 @@
     },
     "settings": {
       "legend": "Program settings",
-      "summary": "{weeks} wk · {deloadWeek, select, none {no deload} other {deload wk {deloadWeek}}} · {autoreg, select, on {autoreg on} other {autoreg off}}"
+      "summary": "{weeks} wk · {deloadWeek, select, none {no deload} reactive {reactive deload} other {deload wk {deloadWeek}}} · {autoreg, select, on {autoreg on} other {autoreg off}}"
     },
     "stallPolicy": {
       "allSets": "Every set must hit its reps",
@@ -1466,7 +1466,7 @@
       "untouched": "Untouched — timed work trains as written"
     },
     "trainingMax": {
-      "ariaLabel": "{exerciseName} training max in {unit}",
+      "ariaLabel": "Training max ({unit}) for {exerciseName}",
       "fromE1rmNote": "from your e1RM",
       "label": "Training max ({unit})"
     },

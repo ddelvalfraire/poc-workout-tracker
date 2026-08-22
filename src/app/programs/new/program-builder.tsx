@@ -11,6 +11,7 @@ import { EditableTitle } from '@/components/program-form/editable-title'
 import { SummaryRow } from '@/components/program-form/summary-row'
 import { saveProgramAction, updateProgramAction } from '@/app/programs/actions'
 import { type WeightUnit } from '@/lib/units'
+import { cn } from '@/lib/utils'
 import { DayEditor } from './day-editor'
 import { ProgramSettings, resolvedDeloadMode } from './program-settings'
 import {
@@ -28,6 +29,10 @@ const DEFAULT_MESOCYCLE_WEEKS = '1'
 
 /** The select arm the summary takes when there is no deload week to name. */
 const NO_DELOAD = 'none'
+
+/** The arm for a deload that is armed but has no week: it fires on a stall, so
+ *  saying "no deload" would report the opposite of what the program will do. */
+const REACTIVE_DELOAD = 'reactive'
 
 interface ProgramBuilderProps {
   /** When set, the builder is in edit mode: Save updates this program and returns to its detail page. */
@@ -168,19 +173,30 @@ export function ProgramBuilder({
     deloadWeek:
       deloadMode === 'scheduled' && draft.deloadWeek.trim() !== ''
         ? draft.deloadWeek.trim()
-        : NO_DELOAD,
+        : deloadMode === 'reactive'
+          ? REACTIVE_DELOAD
+          : NO_DELOAD,
     autoreg: draft.autoregulation ? 'on' : 'off',
   })
 
   return (
     <>
       <div className="py-5">
-        {wasRestored && (
-          <div
-            role="status"
-            className="flex items-center justify-between gap-3 border-b border-b-border/60 pb-3"
-          >
-            <p className="min-w-0 text-sm">{t('restoredNotice')}</p>
+        {/* The live region is ALWAYS mounted and only its text is swapped. A
+            `role="status"` injected into the DOM together with its content is
+            commonly not announced — the region has to exist before the text
+            arrives for the assistive tech to have anything to watch. The
+            border and padding come and go with the notice so an empty region
+            leaves no hairline behind. */}
+        <div
+          role="status"
+          className={cn(
+            'flex items-center justify-between gap-3',
+            wasRestored && 'border-b border-b-border/60 pb-3',
+          )}
+        >
+          <p className="min-w-0 text-sm">{wasRestored ? t('restoredNotice') : ''}</p>
+          {wasRestored && (
             <div className="flex shrink-0 gap-2">
               <Button size="sm" variant="outline" onClick={handleDiscardRestored}>
                 {t('discardAction')}
@@ -189,8 +205,8 @@ export function ProgramBuilder({
                 {t('keepAction')}
               </Button>
             </div>
-          </div>
-        )}
+          )}
+        </div>
 
         {/* The title is the only thing that says "new" — and it is a heading
             you can press, not a field to clear before starting. */}
@@ -243,11 +259,35 @@ export function ProgramBuilder({
           </Button>
         </Section>
 
-        {error && <p className="mt-4 text-sm text-destructive">{error}</p>}
+        {/* Same always-mounted-region rule as the restore notice, assertive
+            here because it reports a submission that just failed. */}
+        <p role="alert" className={cn('text-sm text-destructive', error && 'mt-4')}>
+          {error ?? ''}
+        </p>
       </div>
 
-      {/* The screen's one volt. */}
-      <div className="sticky bottom-0 z-10 -mx-5 border-t border-border bg-background/85 px-5 pt-3 pb-safe backdrop-blur-md">
+      {/* Says what this thing IS and what it is not doing — a draft exists from
+          the first tap, so the state has to be legible. Create only: an
+          existing program is already saved, so calling it a draft would lie.
+          `mt-auto` pins the pair to the bottom on short content (the empty
+          create state), which is the same reason the bar below carries it. */}
+      {!programId && (
+        <p className="mt-auto border-t border-border/60 pt-4 pb-1 text-sm text-muted-foreground">
+          {t('draftStatus')}
+        </p>
+      )}
+
+      {/* The screen's one volt.
+
+          `mt-auto` is what actually bottom-anchors this, not `sticky` —
+          sticky only ever pulls a box UP off the fold, never pushes it down,
+          so on short content the bar would sit at its flow position with dead
+          space beneath it and move every time the content height changed.
+          That height-coupling is also what ate the first tap on the logger's
+          Finish button (see workout-logger.tsx, pinned by
+          e2e/sticky-cta.spec.ts). Requires the page's <main> to be
+          `flex flex-col`; both /programs/new and /programs/[id]/edit are. */}
+      <div className="sticky bottom-0 z-10 mt-auto -mx-5 border-t border-border bg-background/85 px-5 pt-3 pb-safe backdrop-blur-md">
         <Button
           size="lg"
           className="w-full font-semibold uppercase tracking-wide"
