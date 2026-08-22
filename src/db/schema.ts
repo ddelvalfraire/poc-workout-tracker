@@ -1270,3 +1270,32 @@ export const rcWebhookEvents = pgTable(
     index('rc_webhook_events_status_idx').on(t.status, t.receivedAt),
   ],
 )
+
+/**
+ * Usage meters — how much of a metered, capped thing a user has consumed. The
+ * first (and for now only) meter is the free coach-message taste for
+ * non-entitled users; the shape is deliberately general so a second meter is
+ * a new `meter` value, not a new table.
+ *
+ * The LIMIT is NOT stored here — it is resolved from the user's tier at check
+ * time (the same "features not tiers" indirection entitlements use), so
+ * changing a plan's allowance is a code/data change in one place, never a
+ * migration of every row.
+ *
+ * `periodKey` carries the reset semantics WITHOUT a cron: `'lifetime'` never
+ * resets; a periodic meter would use e.g. `'2026-08'`, and the next period is
+ * simply a fresh row starting at zero.
+ */
+export const usageCounters = pgTable(
+  'usage_counters',
+  {
+    userId: text('user_id').notNull(),
+    /** What is being metered, e.g. 'coach_message'. */
+    meter: text('meter').notNull(),
+    /** 'lifetime' or a period stamp like '2026-08'. */
+    periodKey: text('period_key').notNull(),
+    used: integer('used').notNull().default(0),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.meter, t.periodKey] })],
+)

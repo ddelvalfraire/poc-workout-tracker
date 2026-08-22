@@ -88,6 +88,7 @@ describe('purgeUserData', () => {
         'entitlements_current',
         'entitlement_grants',
         'rc_webhook_events',
+        'usage_counters',
       ].sort(),
     )
     expect(deletedTables).not.toContain('consent_events')

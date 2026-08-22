@@ -19,6 +19,37 @@ export const MAX_BODY_BYTES = 120_000
  *  input being approved, so it is not tiny). */
 export const MAX_MESSAGE_BYTES = 32_000
 
+/** A user's typed prompt is capped to a paragraph. The byte cap above must
+ *  stay large for approval tails (they carry tool JSON), so this narrower cap
+ *  applies ONLY to the text a user writes: it keeps each metered coach turn's
+ *  input — and therefore its per-turn inference cost — bounded, and blocks
+ *  prompt-stuffing. Measured in characters over the concatenated text parts. */
+export const MAX_USER_MESSAGE_CHARS = 1_200
+
+/**
+ * Total length of the text a USER wrote in a message (sum of text parts).
+ * Non-user messages and non-text parts contribute nothing — the cap is about
+ * human-typed prompt length, not tool payloads. Returns 0 for anything that
+ * isn't a user message with text.
+ */
+export function userMessageTextLength(message: unknown): number {
+  if (typeof message !== 'object' || message === null) return 0
+  const candidate = message as Record<string, unknown>
+  if (candidate.role !== 'user' || !Array.isArray(candidate.parts)) return 0
+  let total = 0
+  for (const part of candidate.parts) {
+    if (
+      typeof part === 'object' &&
+      part !== null &&
+      (part as Record<string, unknown>).type === 'text' &&
+      typeof (part as Record<string, unknown>).text === 'string'
+    ) {
+      total += ((part as Record<string, unknown>).text as string).length
+    }
+  }
+  return total
+}
+
 const ROLES = new Set(['user', 'assistant', 'system'])
 
 export type ChatMessagesResult =
