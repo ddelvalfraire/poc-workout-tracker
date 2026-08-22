@@ -12,7 +12,6 @@ import { getExerciseStats, listLoggedExercises } from '@/db/exercise-stats'
 import { resolveActiveSession } from '@/lib/active-session'
 import { bodyweightDeltaKg } from '@/lib/bodyweight-trend'
 import { getCheckInStatus } from '@/lib/check-in'
-import { isCoachEnabled } from '@/lib/coach/access'
 import { getGoalsHomeSummary } from '@/lib/goals'
 import { goalLabel, strengthPercent } from '@/lib/goal-progress'
 import { trophyLabel } from '@/lib/trophies'
@@ -52,7 +51,7 @@ export async function GET(): Promise<NextResponse> {
   }
 
   const now = new Date()
-  const [drafts, summaries, nextDay, unitRead, weekTotals, goalsSummary, trophyRows, logged, bodyLogs, checkIn, coachEnabled] =
+  const [drafts, summaries, nextDay, unitRead, weekTotals, goalsSummary, trophyRows, logged, bodyLogs, checkIn] =
     await Promise.all([
       orNull(listWorkoutDrafts(userId), 'drafts'),
       orNull(listWorkoutSummaries(userId), 'workouts'),
@@ -66,11 +65,6 @@ export async function GET(): Promise<NextResponse> {
       orNull(listLoggedExercises(userId), 'exercises'),
       orNull(listBodyweightLogs(userId), 'bodyweight'),
       orNull(getCheckInStatus(userId, now.getTime()), 'check-in'),
-      // The gate rides the same batch: the drawer is a hot nav surface, and a
-      // sequential flag round-trip here would be a per-open waterfall for
-      // every non-allowlisted user. isCoachEnabled never throws (env
-      // short-circuit, else fail-closed flag), so no orNull wrapper needed.
-      isCoachEnabled(userId),
     ])
 
   const unit = unitRead ?? DEFAULT_WEIGHT_UNIT
@@ -175,7 +169,9 @@ export async function GET(): Promise<NextResponse> {
             loggedCount: logged?.length ?? 0,
           }
         : null,
-    coach: coachEnabled,
+    // The coach is released — the nav entry shows for everyone; the entitlement
+    // gates use, and clicking through unentitled is the Max upsell.
+    coach: true,
     recents:
       summaries
         ?.filter((workout) => workout.completedAt !== null)

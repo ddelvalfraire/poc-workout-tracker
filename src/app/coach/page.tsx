@@ -1,4 +1,4 @@
-import { notFound, redirect } from 'next/navigation'
+import { redirect } from 'next/navigation'
 import { requireUserId } from '@/lib/auth'
 import { NavDrawer } from '@/components/nav/nav-drawer'
 import { getProgramName } from '@/db/programs'
@@ -19,13 +19,10 @@ export default async function CoachPage({
   searchParams: Promise<{ context?: string | string[] }>
 }) {
   const userId = await requireUserId() // middleware also guards; this is defense-in-depth
-  // Gate: env allowlist OR the 'coach-access' PostHog flag (fail-closed).
-  // 404, not 403 — the page simply doesn't exist for everyone else.
-  const access = await coachAccess(userId)
-  // Unreleased stays a 404 — the route must not admit it exists. Unentitled
-  // is a sale, not an error, so it gets the paywall instead.
-  if (access === 'unreleased') notFound()
-  if (access === 'unentitled') redirect('/settings/plan')
+  // The coach is released; the only gate is the entitlement. Unentitled is a
+  // sale, not an error — send them to the paywall. (Server enforces on
+  // /api/chat too; this redirect is the UX.)
+  if ((await coachAccess(userId)) === 'unentitled') redirect('/settings/plan')
   const sp = await searchParams
   const context = parseContextParam(sp.context)
   // Program context personalizes the empty-state starters. Deliberately a
