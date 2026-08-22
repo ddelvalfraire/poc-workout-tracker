@@ -25,7 +25,6 @@ vi.mock('@/lib/trophies', () => ({
   trophyLabel: vi.fn(() => ({ key: 'label.club', values: { lb: 315, lift: 'Squat' } })),
 }))
 vi.mock('@/lib/active-session', () => ({ resolveActiveSession: vi.fn(() => null) }))
-vi.mock('@/lib/coach/access', () => ({ isCoachEnabled: vi.fn(async () => false) }))
 
 import { getUserId } from '@/lib/auth'
 import { listWorkoutSummaries, type WorkoutSummary } from '@/db/workouts'
@@ -36,7 +35,6 @@ import { getExerciseStats, type ExerciseAllTimeStats } from '@/db/exercise-stats
 import { getGoalsHomeSummary } from '@/lib/goals'
 import { getCheckInStatus } from '@/lib/check-in'
 import { resolveActiveSession } from '@/lib/active-session'
-import { isCoachEnabled } from '@/lib/coach/access'
 import type { GoalRow } from '@/db/goals'
 import type { DrawerData } from '@/lib/drawer-status'
 import { GET } from './route'
@@ -128,7 +126,6 @@ beforeEach(() => {
   vi.mocked(listBodyweightLogs).mockResolvedValue([])
   vi.mocked(getExerciseStats).mockResolvedValue(null)
   vi.mocked(resolveActiveSession).mockReturnValue(null)
-  vi.mocked(isCoachEnabled).mockResolvedValue(false)
 })
 
 describe('GET /api/drawer', () => {
@@ -157,7 +154,6 @@ describe('GET /api/drawer', () => {
       { id: 'b1', weighedAt: new Date(now - HOUR_MS), weightKg: 84 },
       { id: 'b2', weighedAt: new Date(now - 10 * DAY_MS), weightKg: 85 },
     ])
-    vi.mocked(isCoachEnabled).mockResolvedValue(true)
 
     const { res, data } = await getData()
 

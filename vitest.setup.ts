@@ -13,7 +13,22 @@ process.env.DATABASE_URL_DIRECT ??= 'postgres://user:password@localhost:5432/tes
 // the configured one against a real key. Clear them here so the suite is
 // hermetic no matter what else populates the environment; the tests that need
 // them set their own via vi.stubEnv.
-for (const key of ['VAPID_PUBLIC_KEY', 'VAPID_PRIVATE_KEY', 'VAPID_SUBJECT']) {
+for (const key of [
+  'VAPID_PUBLIC_KEY',
+  'VAPID_PRIVATE_KEY',
+  'VAPID_SUBJECT',
+  // The RevenueCat adapter is env-gated everywhere (webhook auth, API client,
+  // reconcile, sync action) — with real keys inherited from .env.local the
+  // "unconfigured" paths would silently stop being tested and the reconcile
+  // rider would sweep against the REAL RC API from inside unit tests.
+  'RC_API_V2_KEY',
+  'RC_PROJECT_ID',
+  'RC_WEBHOOK_AUTH_TOKEN',
+  'RC_WEBHOOK_HMAC_SECRET',
+  'RC_WEBHOOK_HMAC_SECRET_OLD',
+  'RC_EXPECTED_ENVIRONMENT',
+  'NEXT_PUBLIC_RC_WEB_BILLING_KEY',
+]) {
   delete process.env[key]
 }
 

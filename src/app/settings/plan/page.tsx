@@ -4,6 +4,7 @@ import { getTranslations } from 'next-intl/server'
 import { requireUserId } from '@/lib/auth'
 import { getEntitlement } from '@/db/entitlements'
 import { PlanSurface } from '@/components/plan/plan-surface'
+import { UpgradePanel } from '@/components/plan/upgrade-panel'
 
 /** Cold-entry destination for the back chevron — a route, not copy. */
 const SETTINGS_PATH = '/settings'
@@ -21,12 +22,21 @@ export default async function PlanPage() {
   const userId = await requireUserId()
   const entitlement = await getEntitlement(userId)
 
+  // Checkout is env-gated: without the Web Billing key the page keeps its
+  // honest "nothing can be bought" notice instead of a broken panel. The
+  // panel gets the SIGNED-IN user id — an anonymous RC purchase can never be
+  // healed into an account, so checkout only exists behind auth.
+  const rcKey = process.env.NEXT_PUBLIC_RC_WEB_BILLING_KEY
+
   return (
     <div className="flex min-h-[100dvh] flex-col">
       <AppHeader title={t('title')} leading={<BackLink fallback={SETTINGS_PATH} />} />
 
       <main className="mx-auto w-full max-w-md flex-1 px-5 pb-safe">
-        <PlanSurface entitlement={entitlement} />
+        <PlanSurface
+          entitlement={entitlement}
+          checkout={rcKey ? <UpgradePanel apiKey={rcKey} userId={userId} /> : undefined}
+        />
       </main>
     </div>
   )

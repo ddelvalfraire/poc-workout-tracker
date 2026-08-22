@@ -20,6 +20,8 @@ import {
   programEvents,
   entitlementGrants,
   entitlementsCurrent,
+  rcWebhookEvents,
+  usageCounters,
 } from './schema'
 
 /**
@@ -94,6 +96,15 @@ export async function purgeUserData(userId: string): Promise<{ photoBlobKeys: st
     // real payment. Projection first: it points at the grants.
     await tx.delete(entitlementsCurrent).where(eq(entitlementsCurrent.userId, userId))
     await tx.delete(entitlementGrants).where(eq(entitlementGrants.userId, userId))
+    // The RevenueCat webhook inbox: raw payloads can carry subscriber
+    // attributes (PII). Keyed by app_user_id, which is our user id whenever
+    // it is resolvable at all — orphan rows for other ids are not ours to
+    // key on and age out via the payload trim instead.
+    await tx.delete(rcWebhookEvents).where(eq(rcWebhookEvents.appUserId, userId))
+    // Usage meters (the free coach-message counter). Deleting these resets a
+    // user's free taste on re-registration — an accepted pre-launch trade
+    // (see metering decisions); the counter carries no legal weight.
+    await tx.delete(usageCounters).where(eq(usageCounters.userId, userId))
 
     return { photoBlobKeys }
   })

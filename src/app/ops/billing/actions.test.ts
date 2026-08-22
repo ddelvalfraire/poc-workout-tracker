@@ -28,7 +28,35 @@ vi.mock('@/db/entitlements', () => ({
   },
 }))
 
-import { grantTierAction, revokeGrantAction } from './actions'
+const projected: unknown[] = []
+let projectThrows = false
+vi.mock('@/db/billing', () => ({
+  projectFromVendor: async (userId: string, source: string) => {
+    if (projectThrows) throw new Error('RC API 503')
+    projected.push({ userId, source })
+    return { tier: 'max', source: 'revenuecat', expiresAt: null }
+  },
+}))
+
+const resolvedEvents: unknown[] = []
+let resolveReturns = true
+vi.mock('@/db/rc-webhook-events', () => ({
+  resolveEvent: async (id: string, note: string) => {
+    resolvedEvents.push({ id, note })
+    return resolveReturns
+  },
+}))
+
+vi.mock('@/lib/billing/revenuecat/client', () => ({
+  fetchCustomerSnapshot: async () => ({ userId: 'unused', source: 'revenuecat', entitlements: [] }),
+}))
+
+import {
+  grantTierAction,
+  revokeGrantAction,
+  resyncFromRevenueCatAction,
+  resolveRcEventAction,
+} from './actions'
 import { MAX_GRANT_REASON_LENGTH, MIN_GRANT_REASON_LENGTH } from '@/lib/entitlements/duration'
 
 const VALID = {
@@ -44,6 +72,12 @@ beforeEach(() => {
   applied.length = 0
   revoked.length = 0
   revokeReturns = { userId: 'user_target', effective: { tier: 'free' } }
+  projected.length = 0
+  projectThrows = false
+  resolvedEvents.length = 0
+  resolveReturns = true
+  vi.stubEnv('RC_API_V2_KEY', 'sk_test_synthetic')
+  vi.stubEnv('RC_PROJECT_ID', 'proj_synthetic')
 })
 
 describe('grantTierAction', () => {
@@ -175,5 +209,77 @@ describe('revokeGrantAction', () => {
     expect(await revokeGrantAction({ grantId: 'nope', reason: 'typo' })).toEqual({
       status: 'notFound',
     })
+  })
+})
+
+describe('resyncFromRevenueCatAction', () => {
+  test('refuses a caller off the ops allowlist, and fetches nothing', async () => {
+    sessionUserId = 'user_stranger'
+    expect(await resyncFromRevenueCatAction({ userId: 'user_target' })).toEqual({
+      status: 'denied',
+    })
+    expect(projected).toHaveLength(0)
+  })
+
+  test('reports unconfigured instead of failing when RC env is absent', async () => {
+    vi.stubEnv('RC_API_V2_KEY', '')
+    expect(await resyncFromRevenueCatAction({ userId: 'user_target' })).toEqual({
+      status: 'unconfigured',
+    })
+    expect(projected).toHaveLength(0)
+  })
+
+  test('re-projects the member through the revenuecat vendor path', async () => {
+    expect(await resyncFromRevenueCatAction({ userId: 'user_target' })).toEqual({
+      status: 'synced',
+      tier: 'max',
+    })
+    expect(projected).toEqual([{ userId: 'user_target', source: 'revenuecat' }])
+  })
+
+  test('maps a projection failure to failed, never a throw', async () => {
+    projectThrows = true
+    expect(await resyncFromRevenueCatAction({ userId: 'user_target' })).toEqual({
+      status: 'failed',
+    })
+  })
+
+  test('rejects a non-user_-shaped id before projecting anything (L4)', async () => {
+    expect(await resyncFromRevenueCatAction({ userId: 'someone@example.com' })).toEqual({
+      status: 'failed',
+    })
+    expect(projected).toHaveLength(0)
+  })
+})
+
+describe('resolveRcEventAction', () => {
+  const VALID_RESOLVE = { eventId: 'evt-synthetic-1', reason: 'store sub belongs to a deleted account' }
+
+  test('refuses a caller off the ops allowlist, and resolves nothing', async () => {
+    sessionUserId = 'user_stranger'
+    expect(await resolveRcEventAction(VALID_RESOLVE)).toEqual({ status: 'denied' })
+    expect(resolvedEvents).toHaveLength(0)
+  })
+
+  test('requires a reason of substance', async () => {
+    expect(await resolveRcEventAction({ eventId: 'evt-synthetic-1', reason: '  ' })).toEqual({
+      status: 'invalid',
+    })
+    expect(resolvedEvents).toHaveLength(0)
+  })
+
+  test('stamps the session actor into the note — attribution is never caller input', async () => {
+    expect(await resolveRcEventAction(VALID_RESOLVE)).toEqual({ status: 'resolved' })
+    expect(resolvedEvents).toEqual([
+      {
+        id: 'evt-synthetic-1',
+        note: 'resolved by user_ops: store sub belongs to a deleted account',
+      },
+    ])
+  })
+
+  test('reports notFound for a row that is not a dead letter', async () => {
+    resolveReturns = false
+    expect(await resolveRcEventAction(VALID_RESOLVE)).toEqual({ status: 'notFound' })
   })
 })

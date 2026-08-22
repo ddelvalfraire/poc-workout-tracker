@@ -24,6 +24,7 @@ import type * as WorkoutActions from "@/app/workout/actions";
 import type * as MfaActions from "@/app/settings/account/mfa/actions";
 import type * as AccountActions from "@/app/settings/account/actions";
 import type * as OpsBillingActions from "@/app/ops/billing/actions";
+import type * as PlanActions from "@/app/settings/plan/actions";
 
 const LATENCY_MS = 600;
 
@@ -359,6 +360,29 @@ export async function revokeGrantAction(input: {
   return { status: "revoked" };
 }
 
+export async function resyncFromRevenueCatAction(input: {
+  userId: string;
+}): Promise<OpsBillingActions.RcResyncResult> {
+  console.info("[storybook] resyncFromRevenueCatAction", input);
+  await settle(undefined);
+  return { status: "synced", tier: "max" };
+}
+
+export async function resolveRcEventAction(input: {
+  eventId: string;
+  reason: string;
+}): Promise<OpsBillingActions.RcResolveResult> {
+  console.info("[storybook] resolveRcEventAction", input);
+  await settle(undefined);
+  return { status: "resolved" };
+}
+
+export async function syncMyRcEntitlementsAction(): Promise<PlanActions.PlanSyncResult> {
+  console.info("[storybook] syncMyRcEntitlementsAction");
+  await settle(undefined);
+  return { status: "synced", tier: "max" };
+}
+
 
 type Assert<T extends true> = T;
 
@@ -501,6 +525,24 @@ export type MockFidelity = [
     Matches<
       typeof revokeGrantAction,
       typeof OpsBillingActions.revokeGrantAction
+    >
+  >,
+  Assert<
+    Matches<
+      typeof resyncFromRevenueCatAction,
+      typeof OpsBillingActions.resyncFromRevenueCatAction
+    >
+  >,
+  Assert<
+    Matches<
+      typeof resolveRcEventAction,
+      typeof OpsBillingActions.resolveRcEventAction
+    >
+  >,
+  Assert<
+    Matches<
+      typeof syncMyRcEntitlementsAction,
+      typeof PlanActions.syncMyRcEntitlementsAction
     >
   >,
 ];

@@ -148,8 +148,10 @@
     "disclosureStrip": "AI coach — responses are AI-generated and can be wrong. Not medical advice.",
     "emptyTitle": "Ask your coach",
     "errorGeneric": "Something went wrong. Try again.",
+    "freeMessagesGone": "That was your last free coach message.",
     "newChatAction": "New chat",
     "offlineNotice": "Coach needs a connection.",
+    "paywallCta": "Upgrade to Max",
     "pendingApprovalLabel": "Needs your OK",
     "proposalDays": "{days, plural, one {# day} other {# days}}/week",
     "proposalTitle": "Proposed program",
@@ -164,6 +166,7 @@
       "recap": "What did I train this week?",
       "swap": "Swap tomorrow's pressing for more volume"
     },
+    "tasteRemaining": "{count, plural, one {# free coach message left} other {# free coach messages left}}",
     "thinkingStatus": "Thinking",
     "title": "Coach",
     "toolDetail": "· ‘{detail}’",
@@ -714,10 +717,10 @@
     "duration": {
       "label": "Duration",
       "option": {
-        "7d": "7 days",
-        "30d": "30 days",
-        "90d": "90 days",
         "1y": "1 year",
+        "30d": "30 days",
+        "7d": "7 days",
+        "90d": "90 days",
         "forever": "No expiry"
       }
     },
@@ -736,36 +739,37 @@
     "title": "Grant a tier"
   },
   "GrantLedger": {
-    "title": "Grant history",
-    "empty": "No grants on file. This member is on the default tier.",
+    "byActor": "by {actor}",
     "col": {
       "granted": "Granted",
-      "tier": "Tier",
-      "source": "Source",
-      "window": "Until",
       "reason": "Reason",
-      "state": "State"
+      "source": "Source",
+      "state": "State",
+      "tier": "Tier",
+      "window": "Until"
     },
+    "empty": "No grants on file. This member is on the default tier.",
+    "error": "That did not go through. Try again.",
     "expiry": {
       "never": "never expires"
-    },
-    "byActor": "by {actor}",
-    "revokedBecause": "Revoked: {reason}",
-    "state": {
-      "revoked": "Revoked",
-      "lapsed": "Lapsed"
-    },
-    "revoke": {
-      "action": "Revoke",
-      "confirm": "Confirm revoke",
-      "loading": "Revoking…"
     },
     "reason": {
       "label": "Reason for revoking",
       "placeholder": "Refunded on request",
       "validation": "Say why — this is what the ledger shows later."
     },
-    "error": "That did not go through. Try again."
+    "revoke": {
+      "action": "Revoke",
+      "confirm": "Confirm revoke",
+      "loading": "Revoking…"
+    },
+    "revokedBecause": "Revoked: {reason}",
+    "state": {
+      "lapsed": "Lapsed",
+      "revoked": "Revoked"
+    },
+    "title": "Grant history",
+    "vendorManaged": "Managed by the store"
   },
   "HeaderClock": {
     "ariaLabel": "Session time {elapsed}"
@@ -1101,37 +1105,37 @@
     "title": "Offline — Workout Tracker"
   },
   "OpsBilling": {
-    "title": "Billing",
-    "lede": "Look up a member to see what they hold and why.",
-    "lookup": {
-      "label": "Email or user id",
-      "placeholder": "someone@example.com",
-      "action": "Look up"
+    "effective": {
+      "default": "no grant on file",
+      "viaSource": "via {source}"
     },
     "empty": "No member matches that.",
-    "prompt": "Search by email, or pick a member from the roster.",
-    "effective": {
-      "viaSource": "via {source}",
-      "default": "no grant on file"
-    },
     "expiry": {
-      "on": "until {date}",
-      "never": "never expires"
+      "never": "never expires",
+      "on": "until {date}"
     },
+    "lede": "Look up a member to see what they hold and why.",
+    "lookup": {
+      "action": "Look up",
+      "label": "Email or user id",
+      "placeholder": "someone@example.com"
+    },
+    "prompt": "Search by email, or pick a member from the roster.",
     "roster": {
-      "title": "Paying members",
-      "empty": "Nobody is on a paid tier yet.",
-      "colUser": "Member",
+      "colExpires": "Expires",
       "colTier": "Tier",
-      "colExpires": "Expires"
-    }
+      "colUser": "Member",
+      "empty": "Nobody is on a paid tier yet.",
+      "title": "Paying members"
+    },
+    "title": "Billing"
   },
   "OpsHeader": {
     "navLabel": "Ops sections",
     "tab": {
+      "billing": "Billing",
       "ops": "Ops",
-      "product": "Product",
-      "billing": "Billing"
+      "product": "Product"
     },
     "title": "Ops"
   },
@@ -1224,9 +1228,24 @@
     "uploadFailed": "Upload failed"
   },
   "Plan": {
-    "title": "Plan",
+    "capability": {
+      "autoreg": "Automatic load adjustment",
+      "coach": "AI coach"
+    },
+    "compare": {
+      "currentBadge": "Your plan",
+      "title": "All plans"
+    },
     "current": {
       "title": "Your plan"
+    },
+    "expiry": {
+      "never": "no expiry",
+      "on": "until {date}"
+    },
+    "provenance": {
+      "granted": "Granted by support",
+      "purchased": "Billed through {source}"
     },
     "tier": {
       "free": {
@@ -1234,33 +1253,18 @@
         "price": "Free",
         "summary": "Log every workout you want, forever."
       },
-      "pro": {
-        "name": "Pro",
-        "price": "$5 / month",
-        "summary": "Automatic load adjustment as your lifts progress."
-      },
       "max": {
         "name": "Max",
         "price": "$13 / month",
         "summary": "Everything in Pro, plus the AI coach."
+      },
+      "pro": {
+        "name": "Pro",
+        "price": "$5 / month",
+        "summary": "Automatic load adjustment as your lifts progress."
       }
     },
-    "capability": {
-      "coach": "AI coach",
-      "autoreg": "Automatic load adjustment"
-    },
-    "provenance": {
-      "granted": "Granted by support",
-      "purchased": "Billed through {source}"
-    },
-    "expiry": {
-      "on": "until {date}",
-      "never": "no expiry"
-    },
-    "compare": {
-      "title": "All plans",
-      "currentBadge": "Your plan"
-    },
+    "title": "Plan",
     "unavailableNotice": "Upgrading is not open yet. Nothing here can be bought, and nothing will be charged."
   },
   "PlanBulletList": {
@@ -1481,10 +1485,10 @@
       "skippedBadge": "Skipped",
       "targetsLink": "Targets",
       "technique": {
+        "cluster": "Cluster",
         "dropSet": "Drop set",
-        "restPause": "Rest-pause",
         "myoReps": "Myo-reps",
-        "cluster": "Cluster"
+        "restPause": "Rest-pause"
       }
     },
     "daysEmpty": "No training days yet.",
@@ -1721,6 +1725,26 @@
     "saveError": "Could not save the note. Please try again.",
     "savingAction": "Saving…"
   },
+  "RcDeadLetters": {
+    "confirmResolve": "Confirm resolve",
+    "empty": "No unresolved webhook events.",
+    "errorDenied": "Not authorized.",
+    "errorFailed": "Could not resolve — try again.",
+    "reasonPlaceholder": "Why is this done?",
+    "reasonValidation": "A reason is required.",
+    "resolve": "Resolve",
+    "statusFailed": "failed · {attempts, plural, one {# delivery} other {# deliveries}}",
+    "statusOrphaned": "orphaned",
+    "title": "RevenueCat dead letters"
+  },
+  "RcResync": {
+    "action": "Re-sync from RevenueCat",
+    "denied": "Not authorized.",
+    "failed": "Re-sync failed — RevenueCat may be unreachable. Try again.",
+    "pending": "Re-syncing…",
+    "synced": "Synced — effective tier is now {tier}.",
+    "unconfigured": "RevenueCat is not configured in this environment."
+  },
   "RemoveImportButton": {
     "confirm": {
       "body": "Deletes the {scope} this import added. Custom exercises it created are kept.",
@@ -1915,8 +1939,8 @@
       "label": "Ops"
     },
     "plan": {
-      "label": "Plan",
-      "hint": "What you are on, and what the other plans include."
+      "hint": "What you are on, and what the other plans include.",
+      "label": "Plan"
     },
     "privacyPolicy": {
       "hint": "What we collect and why.",
@@ -1942,16 +1966,16 @@
     },
     "version": "Build {sha}",
     "versionLocal": "v{version}",
+    "weightStep": {
+      "hint": "How much + and − move the weight, in {unit}.",
+      "label": "Weight step"
+    },
     "zones": {
       "data": "Data",
       "internal": "Internal",
       "legal": "Legal",
       "privacy": "Privacy",
       "training": "Training"
-    },
-    "weightStep": {
-      "label": "Weight step",
-      "hint": "How much + and − move the weight, in {unit}."
     }
   },
   "ShareCard": {
@@ -2323,6 +2347,22 @@
     "anchor": "{anchor, select, today {Today} tomorrow {Tomorrow} sunday {Sunday} monday {Monday} tuesday {Tuesday} wednesday {Wednesday} thursday {Thursday} friday {Friday} saturday {Saturday} other {{anchor}}}",
     "fallbackAnchor": "Up next",
     "summary": "{anchor} · Week {week}"
+  },
+  "UpgradePanel": {
+    "activating": "Payment received — activating your plan…",
+    "buy": "Get it — {price}",
+    "empty": "No plans are available right now.",
+    "loadError": "Plans could not be loaded.",
+    "loading": "Loading plans…",
+    "period": {
+      "lifetime": "One-time purchase",
+      "monthly": "Billed monthly",
+      "yearly": "Billed yearly"
+    },
+    "purchaseError": "The purchase did not complete. You were not charged twice — try again.",
+    "purchased": "You are upgraded. This page will reflect it in a moment.",
+    "retry": "Retry",
+    "title": "Upgrade"
   },
   "UseTemplateButton": {
     "adoptAction": "Use this program",

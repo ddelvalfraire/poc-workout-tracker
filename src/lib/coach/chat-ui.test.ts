@@ -209,6 +209,26 @@ describe('parseCoachError', () => {
     })
   })
 
+  test('maps the quota-exhausted 402 to a paywall error carrying the upgrade path', () => {
+    const error = new Error(
+      JSON.stringify({
+        error: "You've used your 3 free coach messages. The coach is part of the Max plan.",
+        upgrade: '/settings/plan',
+        quotaExhausted: true,
+      }),
+    )
+    expect(parseCoachError(error)).toEqual({
+      kind: 'paywall',
+      message: "You've used your 3 free coach messages. The coach is part of the Max plan.",
+      upgrade: '/settings/plan',
+    })
+  })
+
+  test('a plain server error without quotaExhausted stays a server error', () => {
+    const error = new Error(JSON.stringify({ error: 'nope', upgrade: '/settings/plan' }))
+    expect(parseCoachError(error).kind).toBe('server')
+  })
+
   test('classifies browser network failures as offline', () => {
     expect(parseCoachError(new TypeError('Failed to fetch')).kind).toBe('offline')
     expect(parseCoachError(new TypeError('Load failed')).kind).toBe('offline')

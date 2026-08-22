@@ -50,6 +50,7 @@
     "@modelcontextprotocol/sdk": "^1.26.0",
     "@openrouter/ai-sdk-provider": "^3.0.0",
     "@opentelemetry/sdk-trace-node": "^2.10.0",
+    "@revenuecat/purchases-js": "^1.53.1",
     "@sentry/nextjs": "^10.69.0",
     "@serwist/window": "^9.5.11",
     "@tanstack/react-query": "^5.101.2",

@@ -30,6 +30,7 @@ import {
 } from './list-view'
 import { listTemplates, type TemplateListRow } from '@/db/templates'
 import { coachAccess } from '@/lib/coach/access'
+import { freeCoachMessagesUsed, FREE_COACH_MESSAGE_QUOTA } from '@/lib/coach/quota'
 import { tierRequiredFor } from '@/lib/entitlements/tiers'
 import { renderMessage } from '@/lib/message'
 import { getTranslations } from 'next-intl/server'
@@ -353,9 +354,32 @@ const TEMPLATE_DOOR_COUNT = 3
 interface DoorsData {
   state: ReturnType<typeof noProgramState>
   templates: readonly TemplateListRow[]
-  /** Rollout AND entitlement, not just the rollout flag: the door has to name
-   *  the right tier, and 'unreleased' must not admit the feature exists. */
-  coach: Awaited<ReturnType<typeof coachAccess>>
+  /** The coach door's state, mirroring what /coach itself would do on arrival:
+   *  entitled, or unentitled with N free messages left (0 = the paywall). */
+  coach: { entitled: boolean; freeLeft: number }
+}
+
+/**
+ * The activation path's extra reads — paid for ONLY when no program is
+ * active, never by the dashboard. The free-taste count is read for
+ * unentitled users only: entitled users bypass the meter entirely, so
+ * asking for their usage would be a query about a number nobody reads.
+ */
+async function loadDoors(
+  userId: string,
+  zones: ReturnType<typeof zonePrograms>,
+): Promise<DoorsData> {
+  const [templates, access] = await Promise.all([listTemplates(), coachAccess(userId)])
+  const entitled = access === 'available'
+  const used = entitled ? 0 : await freeCoachMessagesUsed(userId)
+  return {
+    state: noProgramState(zones),
+    templates: templates.slice(0, TEMPLATE_DOOR_COUNT),
+    coach: {
+      entitled,
+      freeLeft: entitled ? 0 : Math.max(0, FREE_COACH_MESSAGE_QUOTA - used),
+    },
+  }
 }
 
 /**
@@ -371,12 +395,24 @@ interface DoorsData {
  * actually reachable (the server enforces the same gate).
  */
 async function ActivationDoors({ doors }: { doors: DoorsData }) {
-  const [t, tPlan] = await Promise.all([
+  const [t, tPlan, tCoach] = await Promise.all([
     getTranslations('Programs'),
-    // The plan NAMES live with the plan surface: one place decides what a
-    // tier is called, so this door and the paywall can never disagree.
+    // The plan NAMES live with the plan surface, and the free-taste counter's
+    // words live with the chat that shows it live: one place decides how each
+    // fact is said, so this door can never disagree with the screen it opens.
     getTranslations('Plan'),
+    getTranslations('CoachChat'),
   ])
+  // The coach door's state word, resolved outside the JSX: the i18n lint's
+  // callee allowlist knows `t`, and this line reaches for two other
+  // namespaces on purpose (see above). Entitled users get no word at all.
+  const coachWord = doors.coach.entitled
+    ? null
+    : doors.coach.freeLeft > 0
+      ? // The counter's own words, from the chat that shows it live — one
+        // phrasing for one fact, never two that can drift apart.
+        tCoach('tasteRemaining', { count: doors.coach.freeLeft })
+      : t('doors.coachTier', { tier: tPlan(`tier.${tierRequiredFor('coach')}.name`) })
   return (
     <>
       {doors.templates.length > 0 && (
@@ -414,45 +450,47 @@ async function ActivationDoors({ doors }: { doors: DoorsData }) {
         </section>
       )}
 
-      {/* 'unreleased' renders nothing: /coach 404s for those users, and a door
-          must not admit a feature exists that they cannot reach. */}
-      {doors.coach !== 'unreleased' && (
-        <section className="mt-8">
-          <h2 className="font-display text-base uppercase leading-none tracking-wide text-muted-foreground">
-            {t('doors.coachHeading')}
-          </h2>
-          <DividerList className="mt-1">
-            {/* Unentitled goes to the plan page, not into a chat that would
-                bounce them there — the gate is NAMED before the tap, never
-                sprung after it. */}
-            <DividerRow
-              href={doors.coach === 'available' ? '/coach?context=program:new' : '/settings/plan'}
-            >
-              <span className="flex min-w-0 flex-col gap-1">
-                <span className="flex items-baseline gap-2">
-                  <span className="font-display text-lg uppercase leading-tight tracking-wide">
-                    {t('doors.coachName')}
+      {/* Shown to everyone — the coach is released and discovery IS the Max
+          upsell. What differs is the word beside it and where it lands. */}
+      <section className="mt-8">
+        <h2 className="font-display text-base uppercase leading-none tracking-wide text-muted-foreground">
+          {t('doors.coachHeading')}
+        </h2>
+        <DividerList className="mt-1">
+          {/* Mirrors what /coach does on arrival: a taste still left opens the
+              chat, a spent taste goes to the plan page. Naming the state here
+              means the door never promises something the next screen takes
+              back. */}
+          <DividerRow
+            href={
+              doors.coach.entitled || doors.coach.freeLeft > 0
+                ? '/coach?context=program:new'
+                : '/settings/plan'
+            }
+          >
+            <span className="flex min-w-0 flex-col gap-1">
+              <span className="flex items-baseline gap-2">
+                <span className="font-display text-lg uppercase leading-tight tracking-wide">
+                  {t('doors.coachName')}
+                </span>
+                {/* A muted WORD, not a chip: a label nobody can press must not
+                    wear a control's shape. Entitled users get none — the count
+                    is the unentitled user's fact, and the plan name is derived
+                    from the feature map so re-packaging coach can never leave
+                    this door advertising a tier we don't sell it in. */}
+                {coachWord !== null && (
+                  <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                    {coachWord}
                   </span>
-                  {/* The tier as a muted WORD, not a chip: a label nobody can
-                      press must not wear a control's shape. The plan name is
-                      derived from the feature map, so re-packaging coach can
-                      never leave this door advertising the wrong tier. */}
-                  {doors.coach === 'unentitled' && (
-                    <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-                      {t('doors.coachTier', {
-                        tier: tPlan(`tier.${tierRequiredFor('coach')}.name`),
-                      })}
-                    </span>
-                  )}
-                </span>
-                <span className="text-sm leading-snug text-muted-foreground">
-                  {t('doors.coachBody')}
-                </span>
+                )}
               </span>
-            </DividerRow>
-          </DividerList>
-        </section>
-      )}
+              <span className="text-sm leading-snug text-muted-foreground">
+                {t('doors.coachBody')}
+              </span>
+            </span>
+          </DividerRow>
+        </DividerList>
+      </section>
 
       <DividerList className="mt-8">
         <DividerRow href="/programs/new">
@@ -473,13 +511,7 @@ export default async function ProgramsPage() {
   // Activation data — only the no-active-program path pays for it: the
   // curated library lead (small public table) and the coach gate (env
   // short-circuit, else a bounded flag lookup).
-  const doors = hero
-    ? null
-    : await Promise.all([listTemplates(), coachAccess(userId)]).then(([templates, coach]) => ({
-        state: noProgramState(zones),
-        templates: templates.slice(0, TEMPLATE_DOOR_COUNT),
-        coach,
-      }))
+  const doors = hero ? null : await loadDoors(userId, zones)
 
   return (
     <div className="flex min-h-[100dvh] flex-col">

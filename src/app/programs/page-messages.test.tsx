@@ -20,6 +20,9 @@ import { renderStaticIntl } from '../../../vitest.intl'
 
 function ProgramsProbe({ weeks }: { weeks: number }) {
   const t = useTranslations('Programs')
+  // The coach door borrows the chat's counter words, so the probe resolves
+  // them from the same namespace the door does.
+  const tCoach = useTranslations('CoachChat')
   return (
     <div>
       <p>{t('row.weeks', { weeks })}</p>
@@ -46,6 +49,8 @@ function ProgramsProbe({ weeks }: { weeks: number }) {
       <p>{t('doors.coachHeading')}</p>
       <p>{t('doors.coachName')}</p>
       <p>{t('doors.coachTier', { tier: 'Max' })}</p>
+      <p>{tCoach('tasteRemaining', { count: 2 })}</p>
+      <p>{tCoach('tasteRemaining', { count: 1 })}</p>
       <p>{t('doors.coachBody')}</p>
       <p>{t('doors.buildOwn')}</p>
       <p>{t('newLink')}</p>
@@ -120,12 +125,15 @@ describe('Programs list messages', () => {
     expect(html).toContain('Between blocks.')
   })
 
-  test('the coach door sells the outcome and names the plan that grants it', () => {
+  test('the coach door sells the outcome, then names the state the user is in', () => {
     const html = renderStaticIntl(<ProgramsProbe weeks={5} />)
     expect(html).toContain('built around your schedule, equipment and logged lifts')
-    // The tier word is interpolated from tierRequiredFor('coach'), never
-    // hardcoded: a door that promises "free" and lands on a paywall is the
-    // sprung-gate pattern this surface exists to avoid.
+    // A taste left reads as the live count (the chat's own words); a spent
+    // taste names the plan, interpolated from tierRequiredFor('coach') and
+    // never hardcoded. A door that promises "free" and lands on a paywall is
+    // the sprung-gate pattern this surface exists to avoid.
+    expect(html).toContain('2 free coach messages left')
+    expect(html).toContain('1 free coach message left')
     expect(html).toContain('Max plan')
     expect(html).not.toMatch(/[Ff]ree to start/)
   })

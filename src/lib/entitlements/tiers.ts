@@ -77,13 +77,16 @@ export function tierRequiredFor(feature: Feature): Tier {
 
 /**
  * Where a grant came from. `manual` is a support/ops comp; `promo` is a
- * campaign code. The two payment sources that do not exist yet are named
- * anyway, because the resolution rules below have to be right about them
- * before the adapters are written, not after.
+ * campaign code. `revenuecat` is the RC adapter — it covers every store RC
+ * fronts (App Store / Play / RC web billing), with the per-store origin
+ * recorded in the grant's reason; see docs/SPIKE-REVENUECAT.md. The direct
+ * payment sources that do not exist yet stay named anyway, because the
+ * resolution rules below have to be right about them before the adapters
+ * are written, not after.
  */
-export type GrantSource = 'stripe' | 'apple' | 'google' | 'manual' | 'promo'
+export type GrantSource = 'stripe' | 'apple' | 'google' | 'revenuecat' | 'manual' | 'promo'
 
-export const GRANT_SOURCES = ['stripe', 'apple', 'google', 'manual', 'promo'] as const
+export const GRANT_SOURCES = ['stripe', 'apple', 'google', 'revenuecat', 'manual', 'promo'] as const
 
 export function isGrantSource(value: string): value is GrantSource {
   return (GRANT_SOURCES as readonly string[]).includes(value)

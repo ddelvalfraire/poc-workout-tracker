@@ -1,8 +1,9 @@
-import { notFound, redirect } from 'next/navigation'
+import { redirect } from 'next/navigation'
 import { requireUserId } from '@/lib/auth'
 import { NavDrawer } from '@/components/nav/nav-drawer'
 import { getProgramName } from '@/db/programs'
 import { coachAccess } from '@/lib/coach/access'
+import { freeCoachMessagesUsed, FREE_COACH_MESSAGE_QUOTA } from '@/lib/coach/quota'
 import { loadCoachChat } from '@/lib/coach/chat-store'
 import { parseContextParam, programIdFromContext } from '@/lib/coach/chat-ui'
 import { clearCoachChatAction } from './actions'
@@ -19,13 +20,17 @@ export default async function CoachPage({
   searchParams: Promise<{ context?: string | string[] }>
 }) {
   const userId = await requireUserId() // middleware also guards; this is defense-in-depth
-  // Gate: env allowlist OR the 'coach-access' PostHog flag (fail-closed).
-  // 404, not 403 — the page simply doesn't exist for everyone else.
-  const access = await coachAccess(userId)
-  // Unreleased stays a 404 — the route must not admit it exists. Unentitled
-  // is a sale, not an error, so it gets the paywall instead.
-  if (access === 'unreleased') notFound()
-  if (access === 'unentitled') redirect('/settings/plan')
+  // The coach is released. Entitled users are unlimited (no counter);
+  // unentitled users get a free taste (FREE_COACH_MESSAGE_QUOTA messages) and
+  // are sent to the paywall only once it is used up — so the taste is
+  // reachable. Access is enforced server-side in /api/chat regardless.
+  const entitled = (await coachAccess(userId)) === 'available'
+  let freeMessagesRemaining: number | null = null
+  if (!entitled) {
+    const used = await freeCoachMessagesUsed(userId)
+    if (used >= FREE_COACH_MESSAGE_QUOTA) redirect('/settings/plan')
+    freeMessagesRemaining = FREE_COACH_MESSAGE_QUOTA - used
+  }
   const sp = await searchParams
   const context = parseContextParam(sp.context)
   // Program context personalizes the empty-state starters. Deliberately a
@@ -48,6 +53,7 @@ export default async function CoachPage({
         programName={programName}
         initialMessages={initialMessages}
         clearAction={clearCoachChatAction}
+        freeMessagesRemaining={freeMessagesRemaining}
       />
     </div>
   )

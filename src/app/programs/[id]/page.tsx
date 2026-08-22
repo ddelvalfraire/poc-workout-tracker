@@ -2,7 +2,6 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { ChevronRight, MessageCircle } from 'lucide-react'
 import { requireUserId } from '@/lib/auth'
-import { isCoachEnabled } from '@/lib/coach/access'
 import {
   getProgramDetail,
   programWeekState,
@@ -113,12 +112,9 @@ export default async function ProgramDetailPage({
   const locale = await resolveLocale()
   const userId = await requireUserId()
   const [{ id }, sp] = await Promise.all([params, searchParams])
-  // coachEnabled rides the same Promise.all so the flag lookup (env
-  // short-circuit, else PostHog with a bounded timeout) adds no waterfall.
-  const [program, unit, coachEnabled] = await Promise.all([
+  const [program, unit] = await Promise.all([
     getProgramDetail(userId, id),
     getWeightUnit(userId),
-    isCoachEnabled(userId),
   ])
   if (!program) notFound()
 
@@ -432,17 +428,15 @@ export default async function ProgramDetailPage({
           )}
           <DividerList>
             {/* Coach opens with this program as context, so "swap tomorrow's
-                pressing" needs no preamble about which program is meant.
-                Gated: env allowlist or the coach-access flag (server enforces
-                too). */}
-            {coachEnabled && (
-              <DividerRow href={`/coach?context=${encodeURIComponent(`program:${program.id}`)}`}>
-                <span className="flex min-w-0 items-center gap-2 text-sm font-medium">
-                  <MessageCircle aria-hidden="true" className="size-4 text-muted-foreground" />
-                  {t('coachLink')}
-                </span>
-              </DividerRow>
-            )}
+                pressing" needs no preamble about which program is meant. Shown
+                to everyone — the coach is released; the entitlement gates use,
+                and an unentitled click is the Max upsell. */}
+            <DividerRow href={`/coach?context=${encodeURIComponent(`program:${program.id}`)}`}>
+              <span className="flex min-w-0 items-center gap-2 text-sm font-medium">
+                <MessageCircle aria-hidden="true" className="size-4 text-muted-foreground" />
+                {t('coachLink')}
+              </span>
+            </DividerRow>
             <DividerRow href={`/programs/${program.id}/stats`}>
               <span className="text-sm font-medium">{t('statsLink')}</span>
             </DividerRow>

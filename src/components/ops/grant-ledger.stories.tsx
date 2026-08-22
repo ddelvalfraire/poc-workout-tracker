@@ -111,3 +111,24 @@ export const MixedHistory: Story = {
     ],
   },
 }
+
+/**
+ * A live RevenueCat grant: no revoke button, only a "managed by the store"
+ * note. Revoking it here would be futile — the next webhook or nightly
+ * reconcile re-projects from RC truth and re-grants it. The lever is a
+ * refund/cancel on the vendor side.
+ */
+export const VendorManaged: Story = {
+  args: {
+    now: NOW,
+    grants: [
+      grant({
+        id: 'g_rc',
+        tier: 'max',
+        source: 'revenuecat',
+        sourceRef: 'user_01JQZ9X7K2N4M6P8R0T2V4W6Y8:max',
+        reason: 'revenuecat re-project: entitlement=max',
+      }),
+    ],
+  },
+}

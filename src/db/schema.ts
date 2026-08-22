@@ -1227,3 +1227,75 @@ export const entitlementsCurrent = pgTable('entitlements_current', {
   grantId: uuid('grant_id').references(() => entitlementGrants.id, { onDelete: 'set null' }),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull(),
 })
+
+/** Where a RevenueCat webhook event stands. `orphaned` = permanently
+ *  unprocessable (unknown user) — retrying cannot fix it, so RC got a 200. */
+export type RcWebhookEventStatus = 'received' | 'processed' | 'ignored' | 'failed' | 'orphaned'
+
+/**
+ * Insert-first inbox for RevenueCat webhook deliveries — dedupe, retry
+ * bookkeeping, and the dead-letter record, in one table. RC redelivers with
+ * the SAME event id (5 retries), so the primary key is the dedupe guard:
+ * `INSERT ... ON CONFLICT DO NOTHING`, then the status decides whether this
+ * delivery is a duplicate (processed/ignored → 200 immediately) or a retry
+ * (received/failed → process again). See docs/SPIKE-REVENUECAT.md.
+ *
+ * The raw payload is kept because RC has no self-serve replay once its
+ * retries exhaust; a retention trim nulls it after 90 days, and account
+ * deletion purges rows by app_user_id (payloads can carry subscriber PII).
+ */
+export const rcWebhookEvents = pgTable(
+  'rc_webhook_events',
+  {
+    /** RC's event id. Retries reuse it — this IS the dedupe key. */
+    id: text('id').primaryKey(),
+    type: text('type').notNull(),
+    /** Null for events that carry no user (some paywall/test events). */
+    appUserId: text('app_user_id'),
+    /** SANDBOX | PRODUCTION — one shared stream, filtered per deployment. */
+    environment: text('environment').notNull(),
+    /** Full raw event. Nulled by the retention trim, never the row itself. */
+    payload: jsonb('payload'),
+    status: text('status').$type<RcWebhookEventStatus>().notNull().default('received'),
+    /** Deliveries seen (first + RC's redeliveries). RC stops after 6 total. */
+    attempts: integer('attempts').notNull().default(1),
+    lastError: text('last_error'),
+    receivedAt: timestamp('received_at', { withTimezone: true }).defaultNow().notNull(),
+    processedAt: timestamp('processed_at', { withTimezone: true }),
+  },
+  (t) => [
+    // The account-deletion purge and the backstop sweep both look up by user.
+    index('rc_webhook_events_user_idx').on(t.appUserId),
+    // The backstop cron scans for failed/stale-received rows.
+    index('rc_webhook_events_status_idx').on(t.status, t.receivedAt),
+  ],
+)
+
+/**
+ * Usage meters — how much of a metered, capped thing a user has consumed. The
+ * first (and for now only) meter is the free coach-message taste for
+ * non-entitled users; the shape is deliberately general so a second meter is
+ * a new `meter` value, not a new table.
+ *
+ * The LIMIT is NOT stored here — it is resolved from the user's tier at check
+ * time (the same "features not tiers" indirection entitlements use), so
+ * changing a plan's allowance is a code/data change in one place, never a
+ * migration of every row.
+ *
+ * `periodKey` carries the reset semantics WITHOUT a cron: `'lifetime'` never
+ * resets; a periodic meter would use e.g. `'2026-08'`, and the next period is
+ * simply a fresh row starting at zero.
+ */
+export const usageCounters = pgTable(
+  'usage_counters',
+  {
+    userId: text('user_id').notNull(),
+    /** What is being metered, e.g. 'coach_message'. */
+    meter: text('meter').notNull(),
+    /** 'lifetime' or a period stamp like '2026-08'. */
+    periodKey: text('period_key').notNull(),
+    used: integer('used').notNull().default(0),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.meter, t.periodKey] })],
+)

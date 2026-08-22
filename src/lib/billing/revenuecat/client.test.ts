@@ -1,0 +1,234 @@
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import {
+  fetchCustomerSnapshot,
+  clearCatalogCacheForTests,
+  RetryableBillingError,
+} from './client'
+
+/**
+ * The API v2 read against a mocked global fetch: response shapes are the
+ * documented ones (customer.active_entitlement items carry the entitlement
+ * OBJECT id; the catalog resolves ids to lookup keys).
+ */
+
+const fetchMock = vi.fn()
+
+function jsonResponse(status: number, body: unknown): Response {
+  return new Response(JSON.stringify(body), { status })
+}
+
+const CATALOG = {
+  object: 'list',
+  items: [
+    { object: 'entitlement', id: 'entl_max', lookup_key: 'max' },
+    { object: 'entitlement', id: 'entl_pro', lookup_key: 'pro' },
+  ],
+  next_page: null,
+}
+
+function activeEntitlements(items: unknown[]): unknown {
+  return { object: 'list', items, next_page: null }
+}
+
+beforeEach(() => {
+  clearCatalogCacheForTests()
+  fetchMock.mockReset()
+  vi.stubGlobal('fetch', fetchMock)
+  vi.stubEnv('RC_API_V2_KEY', 'sk_test_synthetic')
+  vi.stubEnv('RC_PROJECT_ID', 'proj_synthetic')
+})
+
+afterEach(() => {
+  vi.unstubAllGlobals()
+  vi.unstubAllEnvs()
+})
+
+describe('fetchCustomerSnapshot', () => {
+  it('maps active entitlements through the catalog to tiers and sourceRefs', async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        jsonResponse(
+          200,
+          activeEntitlements([
+            {
+              object: 'customer.active_entitlement',
+              entitlement_id: 'entl_max',
+              expires_at: 1789999999000,
+            },
+          ]),
+        ),
+      )
+      .mockResolvedValueOnce(jsonResponse(200, CATALOG))
+
+    const snapshot = await fetchCustomerSnapshot('user_01SYNTHETIC')
+    expect(snapshot).toEqual({
+      userId: 'user_01SYNTHETIC',
+      source: 'revenuecat',
+      customerKnown: true,
+      entitlements: [
+        {
+          tier: 'max',
+          sourceRef: 'user_01SYNTHETIC:max',
+          endsAt: new Date(1789999999000),
+          detail: 'entitlement=max',
+        },
+      ],
+    })
+    // Bearer auth on every call.
+    const headers = fetchMock.mock.calls[0][1].headers
+    expect(headers.authorization).toBe('Bearer sk_test_synthetic')
+  })
+
+  it('treats a 404 customer as an empty snapshot once the catalog proves the config sees the project', async () => {
+    fetchMock
+      .mockResolvedValueOnce(new Response('', { status: 404 }))
+      .mockResolvedValueOnce(jsonResponse(200, CATALOG))
+    const snapshot = await fetchCustomerSnapshot('user_01UNKNOWN')
+    expect(snapshot.entitlements).toEqual([])
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('marks a 404 customer as NOT known, so an empty snapshot cannot revoke a live grant (M1)', async () => {
+    fetchMock
+      .mockResolvedValueOnce(new Response('', { status: 404 }))
+      .mockResolvedValueOnce(jsonResponse(200, CATALOG))
+    const snapshot = await fetchCustomerSnapshot('user_01UNKNOWN')
+    expect(snapshot.customerKnown).toBe(false)
+  })
+
+  it('marks a 200-with-empty-items customer as KNOWN — a real cancel that may revoke', async () => {
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse(200, activeEntitlements([]))) // customer: known, empty
+      .mockResolvedValueOnce(jsonResponse(200, CATALOG)) // empty-snapshot guard's fresh catalog
+    const snapshot = await fetchCustomerSnapshot('user_01CANCELLED')
+    expect(snapshot.entitlements).toEqual([])
+    expect(snapshot.customerKnown).toBe(true)
+  })
+
+  it('forces a FRESH catalog read for the empty-snapshot guard — a warm cache must not rubber-stamp a 404 (M1)', async () => {
+    // Warm the cache with a real customer.
+    fetchMock
+      .mockResolvedValueOnce(
+        jsonResponse(
+          200,
+          activeEntitlements([
+            {
+              object: 'customer.active_entitlement',
+              entitlement_id: 'entl_max',
+              expires_at: 1789999999000,
+            },
+          ]),
+        ),
+      )
+      .mockResolvedValueOnce(jsonResponse(200, CATALOG))
+    await fetchCustomerSnapshot('user_01WARM')
+    const callsAfterWarm = fetchMock.mock.calls.length
+
+    // A second customer 404s: the guard must hit the catalog LIVE, not cache.
+    fetchMock.mockResolvedValueOnce(new Response('', { status: 404 }))
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, CATALOG))
+    await fetchCustomerSnapshot('user_01OTHER')
+    // customer fetch + a fresh catalog fetch = 2 more calls, not 1.
+    expect(fetchMock.mock.calls.length).toBe(callsAfterWarm + 2)
+  })
+
+  it('REFUSES an empty snapshot when the catalog 404s — a wrong project id must not revoke anyone', async () => {
+    fetchMock
+      .mockResolvedValueOnce(new Response('', { status: 404 })) // customer fetch: wrong project 404s like unknown customer
+      .mockResolvedValueOnce(new Response('', { status: 404 })) // catalog: proves the config cannot see the project
+    await expect(fetchCustomerSnapshot('user_01SYNTHETIC')).rejects.toBeInstanceOf(
+      RetryableBillingError,
+    )
+  })
+
+  it('REFUSES an empty snapshot when the catalog is empty — half-configured project, nothing attestable', async () => {
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse(200, activeEntitlements([])))
+      .mockResolvedValueOnce(jsonResponse(200, { object: 'list', items: [], next_page: null }))
+    await expect(fetchCustomerSnapshot('user_01SYNTHETIC')).rejects.toBeInstanceOf(
+      RetryableBillingError,
+    )
+  })
+
+  it('treats a missing expires_at as lifetime', async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        jsonResponse(
+          200,
+          activeEntitlements([
+            { object: 'customer.active_entitlement', entitlement_id: 'entl_pro' },
+          ]),
+        ),
+      )
+      .mockResolvedValueOnce(jsonResponse(200, CATALOG))
+    const snapshot = await fetchCustomerSnapshot('user_01SYNTHETIC')
+    expect(snapshot.entitlements[0].endsAt).toBeNull()
+  })
+
+  it('REFUSES a snapshot containing an unmappable entitlement — a rename must not become a mass revoke', async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        jsonResponse(
+          200,
+          activeEntitlements([
+            {
+              object: 'customer.active_entitlement',
+              entitlement_id: 'entl_renamed',
+              expires_at: 1789999999000,
+            },
+            {
+              object: 'customer.active_entitlement',
+              entitlement_id: 'entl_max',
+              expires_at: 1789999999000,
+            },
+          ]),
+        ),
+      )
+      .mockResolvedValueOnce(jsonResponse(200, CATALOG))
+    // A partial snapshot would revoke the incumbent grants for whatever got
+    // dropped; failing retryable freezes the user's projection instead.
+    await expect(fetchCustomerSnapshot('user_01SYNTHETIC')).rejects.toBeInstanceOf(
+      RetryableBillingError,
+    )
+  })
+
+  it('throws RetryableBillingError on 429/5xx', async () => {
+    fetchMock.mockResolvedValueOnce(new Response('', { status: 429 }))
+    await expect(fetchCustomerSnapshot('user_01SYNTHETIC')).rejects.toBeInstanceOf(
+      RetryableBillingError,
+    )
+  })
+
+  it('throws RetryableBillingError on network failure', async () => {
+    fetchMock.mockRejectedValueOnce(new TypeError('fetch failed'))
+    await expect(fetchCustomerSnapshot('user_01SYNTHETIC')).rejects.toBeInstanceOf(
+      RetryableBillingError,
+    )
+  })
+
+  it('throws RetryableBillingError when unconfigured — fail the event, never grant nothing silently', async () => {
+    vi.stubEnv('RC_API_V2_KEY', '')
+    await expect(fetchCustomerSnapshot('user_01SYNTHETIC')).rejects.toBeInstanceOf(
+      RetryableBillingError,
+    )
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('caches the catalog across calls', async () => {
+    const items = activeEntitlements([
+      {
+        object: 'customer.active_entitlement',
+        entitlement_id: 'entl_max',
+        expires_at: 1789999999000,
+      },
+    ])
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse(200, items))
+      .mockResolvedValueOnce(jsonResponse(200, CATALOG))
+      .mockResolvedValueOnce(jsonResponse(200, items))
+    await fetchCustomerSnapshot('user_01SYNTHETIC')
+    await fetchCustomerSnapshot('user_01SYNTHETIC')
+    // 3 calls total: entitlements + catalog + entitlements — no second catalog fetch.
+    expect(fetchMock).toHaveBeenCalledTimes(3)
+  })
+})

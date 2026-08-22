@@ -31,7 +31,10 @@ export function GrantLedger({ grants, now }: { grants: EntitlementGrant[]; now: 
   }
 
   return (
-    <div className="mt-4 overflow-x-auto">
+    // tabIndex on the scroll container: when no row has a focusable control
+    // (all revoked/lapsed, or a lone vendor-managed grant) the horizontally
+    // scrollable region would otherwise be unreachable by keyboard.
+    <div className="mt-4 overflow-x-auto" tabIndex={0} role="group" aria-label={t('title')}>
       <p className="text-xs uppercase tracking-wider text-muted-foreground">{t('title')}</p>
       <table className="mt-2 w-full min-w-[44rem] text-sm">
         <thead className="text-xs uppercase tracking-wider text-muted-foreground">
@@ -67,6 +70,12 @@ function GrantRow({ grant, now }: { grant: EntitlementGrant; now: number }) {
 
   const revoked = grant.status === 'revoked'
   const lapsed = !revoked && grant.endsAt !== null && grant.endsAt.getTime() <= now
+  // Vendor-reconciled grants (anything projectFromVendor owns) cannot be
+  // ended here: a manual revoke lands, then the next webhook / self-sync /
+  // nightly reconcile re-projects from vendor truth and re-grants it. The
+  // real lever is a refund/cancel on the vendor side. Only ops-owned grants
+  // (manual comps, promos) are revocable in this table.
+  const vendorManaged = grant.source === 'revenuecat'
 
   function revoke() {
     if (reason.trim().length < MIN_GRANT_REASON_LENGTH) {
@@ -126,6 +135,8 @@ function GrantRow({ grant, now }: { grant: EntitlementGrant; now: number }) {
           <span className="text-xs uppercase tracking-wider text-muted-foreground">
             {t('state.lapsed')}
           </span>
+        ) : vendorManaged ? (
+          <span className="text-xs text-muted-foreground">{t('vendorManaged')}</span>
         ) : open ? (
           <div className="flex flex-col items-end gap-2">
             <Input

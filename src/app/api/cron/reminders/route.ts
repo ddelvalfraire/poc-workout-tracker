@@ -2,6 +2,7 @@ import { timingSafeEqual } from 'node:crypto'
 import { NextResponse } from 'next/server'
 import { getNextProgramDay } from '@/db/programs'
 import { listPushSubscribedUserIds } from '@/db/push-subscriptions'
+import { reconcileRevenueCat } from '@/lib/billing/revenuecat/reconcile'
 import { getCheckInStatus } from '@/lib/check-in'
 import { sendPushToUser } from '@/lib/push'
 import { getRedis } from '@/lib/redis'
@@ -75,6 +76,25 @@ function bearerMatches(header: string | null, secret: string): boolean {
   return actual.length === expected.length && timingSafeEqual(actual, expected)
 }
 
+/**
+ * RevenueCat backstop rider (Hobby = one daily cron, no second schedule):
+ * re-project RC-granted users from vendor truth, reprocess dead inbox rows,
+ * trim aged payloads. Its failure never fails the reminder run — reconcile
+ * is idempotent and tomorrow's run covers it — but it is reported, and the
+ * dead-letter log line inside it is the alerting seam. Null = RC not
+ * configured in this environment.
+ */
+async function runReconcileRider(
+  now: Date,
+): Promise<Awaited<ReturnType<typeof reconcileRevenueCat>> | 'failed'> {
+  try {
+    return await reconcileRevenueCat(now)
+  } catch (error: unknown) {
+    console.error('[reminders] revenuecat reconcile failed', error)
+    return 'failed'
+  }
+}
+
 export async function GET(request: Request): Promise<NextResponse> {
   const secret = process.env.CRON_SECRET
   // Fail closed: no configured secret means nobody is authorized. The
@@ -100,7 +120,8 @@ export async function GET(request: Request): Promise<NextResponse> {
   const redis = getRedis()
   if (!redis) {
     // Without the idempotency marker a retry could double-send; silence is
-    // the safer failure.
+    // the safer failure. The RC rider still runs — reconcile is idempotent
+    // by construction and needs no Redis.
     console.error('[reminders] Redis not configured; skipping all sends')
     return NextResponse.json({
       sent: 0,
@@ -109,6 +130,7 @@ export async function GET(request: Request): Promise<NextResponse> {
       checkinSent: 0,
       checkinSkipped: 0,
       window: true,
+      reconcile: await runReconcileRider(now),
     })
   }
 
@@ -178,6 +200,16 @@ export async function GET(request: Request): Promise<NextResponse> {
     return NextResponse.json({ error: 'Reminder run failed' }, { status: 500 })
   }
 
+  const reconcile = await runReconcileRider(now)
+
   await pingHeartbeat()
-  return NextResponse.json({ sent, skipped, pruned, checkinSent, checkinSkipped, window: true })
+  return NextResponse.json({
+    sent,
+    skipped,
+    pruned,
+    checkinSent,
+    checkinSkipped,
+    window: true,
+    reconcile,
+  })
 }

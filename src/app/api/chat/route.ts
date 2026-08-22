@@ -3,11 +3,15 @@ import { getUserId } from '@/lib/auth'
 import { convertToModelMessages, stepCountIs, streamText, type UIMessage } from 'ai'
 import { getWeightUnit } from '@/db/preferences'
 import { coachAccess } from '@/lib/coach/access'
+import { consumeFreeCoachMessage } from '@/lib/coach/quota'
+import { captureServerEvent } from '@/lib/analytics'
 import {
   MAX_BODY_BYTES,
   MAX_MESSAGES,
+  MAX_USER_MESSAGE_CHARS,
   parseChatMessage,
   parseChatMessages,
+  userMessageTextLength,
 } from '@/lib/coach/chat-request'
 import { reconcileThread } from '@/lib/coach/chat-thread'
 import { loadCoachChat, saveCoachChat } from '@/lib/coach/chat-store'
@@ -53,21 +57,11 @@ export async function POST(request: Request): Promise<Response> {
   if (!userId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
-  // Gate: rollout (env allowlist OR the 'coach-access' flag, fail-closed),
-  // then entitlement. Server-side like every other guard — hiding the UI entry
-  // points is cosmetics. 402 rather than 403 for the unentitled case: the
-  // client can tell "you must pay" from "you may not", and only one of those
-  // is worth showing a plan link for.
-  const access = await coachAccess(userId)
-  if (access === 'unreleased') {
-    return NextResponse.json({ error: 'The coach is not enabled for this account.' }, { status: 403 })
-  }
-  if (access === 'unentitled') {
-    return NextResponse.json(
-      { error: 'The coach is part of the Max plan.', upgrade: '/settings/plan' },
-      { status: 402 },
-    )
-  }
+  // The coach is released. Entitled (Max) users are unlimited; everyone else
+  // gets a small free taste, then the paywall. The free message is charged
+  // BELOW with the other spend-guards (rate limit), so a request rejected
+  // earlier never burns one.
+  const entitled = (await coachAccess(userId)) === 'available'
 
   // Provider selection lives entirely in @/lib/coach/model — this route does
   // not know or care which vendor serves the tokens. Checked at request time
@@ -112,6 +106,12 @@ export async function POST(request: Request): Promise<Response> {
     if (!parsedTail.ok) {
       return NextResponse.json({ error: parsedTail.error }, { status: 400 })
     }
+    if (userMessageTextLength(parsedTail.message) > MAX_USER_MESSAGE_CHARS) {
+      return NextResponse.json(
+        { error: `Message too long — keep it under ${MAX_USER_MESSAGE_CHARS} characters.` },
+        { status: 400 },
+      )
+    }
     const reconciled = reconcileThread(await loadCoachChat(userId), parsedTail.message)
     if (!reconciled.ok) {
       return NextResponse.json({ error: reconciled.error }, { status: 400 })
@@ -127,6 +127,33 @@ export async function POST(request: Request): Promise<Response> {
       { error: `Daily coach limit reached (${rate.limit} messages). Try again tomorrow.` },
       { status: 429 },
     )
+  }
+
+  // Free-taste quota for the unentitled — charged here (last, with the rate
+  // limit) so only a request that will actually reach the model spends one.
+  // Reserve BEFORE the model call caps cost; the atomic consume means
+  // concurrent sends can never exceed the cap. Not refunded on a later model
+  // failure (accepted at this scale — the cap is what matters).
+  if (!entitled) {
+    const quota = await consumeFreeCoachMessage(userId)
+    if (!quota.allowed) {
+      void captureServerEvent(userId, {
+        name: 'coach_free_quota_exhausted',
+        properties: { limit: quota.limit },
+      })
+      return NextResponse.json(
+        {
+          error: `You've used your ${quota.limit} free coach messages. The coach is part of the Max plan.`,
+          upgrade: '/settings/plan',
+          quotaExhausted: true,
+        },
+        { status: 402 },
+      )
+    }
+    void captureServerEvent(userId, {
+      name: 'coach_free_message_consumed',
+      properties: { used: quota.used, limit: quota.limit },
+    })
   }
   const context =
     typeof body.context === 'string' && body.context.trim()

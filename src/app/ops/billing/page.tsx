@@ -9,6 +9,9 @@ import { EntitlementSummary } from '@/components/ops/entitlement-summary'
 import { GrantForm } from '@/components/ops/grant-form'
 import { GrantLedger } from '@/components/ops/grant-ledger'
 import { PaidRoster } from '@/components/ops/paid-roster'
+import { RcDeadLetters, type DeadLetterRow } from '@/components/ops/rc-dead-letters'
+import { RcResyncButton } from '@/components/ops/rc-resync-button'
+import { listDeadLetterRows } from '@/db/rc-webhook-events'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 
@@ -42,10 +45,27 @@ export default async function OpsBillingPage({
 
   // The roster is worth loading either way — it is how an operator finds
   // somebody when they do not have an email to hand.
-  const [snapshot, roster] = await Promise.all([
+  const [snapshot, roster, deadLetterRows] = await Promise.all([
     query ? getBillingSnapshot(query) : Promise.resolve(null),
     getPaidRoster(),
+    // Dead letters degrade to an empty list rather than failing the page —
+    // the support lookup must work even if the RC inbox table is having a day.
+    listDeadLetterRows().catch((error: unknown) => {
+      console.error('[ops/billing] dead-letter read failed', error)
+      return []
+    }),
   ])
+  const deadLetters: DeadLetterRow[] = deadLetterRows
+    .filter((row) => row.status === 'failed' || row.status === 'orphaned')
+    .map((row) => ({
+      id: row.id,
+      type: row.type,
+      appUserId: row.appUserId,
+      status: row.status as 'failed' | 'orphaned',
+      attempts: row.attempts,
+      lastError: row.lastError,
+      receivedAtMs: row.receivedAt.getTime(),
+    }))
 
   return (
     <div className="flex min-h-[100dvh] flex-col">
@@ -87,6 +107,9 @@ export default async function OpsBillingPage({
             {snapshot?.ok && snapshot.data && (
               <div className="mt-4 flex flex-col">
                 <EntitlementSummary snapshot={snapshot.data} />
+                {/* Keyed by member, like GrantForm below: a pending result line
+                    must not survive a same-route navigation to a different member. */}
+                <RcResyncButton key={`rc-${snapshot.data.user.id}`} userId={snapshot.data.user.id} />
                 {/* Keyed by member: the form holds an armed confirm in client state, and
                     searching a different member is a same-route navigation that
                     would otherwise preserve it. One press could then grant to
@@ -97,7 +120,10 @@ export default async function OpsBillingPage({
             )}
           </OpsPanel>
 
-          <PaidRoster result={roster} className="xl:col-span-5" />
+          <div className="flex flex-col gap-4 xl:col-span-5">
+            <PaidRoster result={roster} />
+            <RcDeadLetters rows={deadLetters} />
+          </div>
         </div>
       </main>
     </div>
