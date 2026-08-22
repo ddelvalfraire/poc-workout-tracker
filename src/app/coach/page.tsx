@@ -3,6 +3,7 @@ import { requireUserId } from '@/lib/auth'
 import { NavDrawer } from '@/components/nav/nav-drawer'
 import { getProgramName } from '@/db/programs'
 import { coachAccess } from '@/lib/coach/access'
+import { freeCoachMessagesUsed, FREE_COACH_MESSAGE_QUOTA } from '@/lib/coach/quota'
 import { loadCoachChat } from '@/lib/coach/chat-store'
 import { parseContextParam, programIdFromContext } from '@/lib/coach/chat-ui'
 import { clearCoachChatAction } from './actions'
@@ -19,10 +20,15 @@ export default async function CoachPage({
   searchParams: Promise<{ context?: string | string[] }>
 }) {
   const userId = await requireUserId() // middleware also guards; this is defense-in-depth
-  // The coach is released; the only gate is the entitlement. Unentitled is a
-  // sale, not an error — send them to the paywall. (Server enforces on
-  // /api/chat too; this redirect is the UX.)
-  if ((await coachAccess(userId)) === 'unentitled') redirect('/settings/plan')
+  // The coach is released. Entitled users are unlimited; unentitled users get
+  // a free taste (FREE_COACH_MESSAGE_QUOTA messages) and only get sent to the
+  // paywall once it is used up — so the taste is actually reachable. Access is
+  // enforced server-side in /api/chat regardless; this is the UX gate.
+  if ((await coachAccess(userId)) === 'unentitled') {
+    if ((await freeCoachMessagesUsed(userId)) >= FREE_COACH_MESSAGE_QUOTA) {
+      redirect('/settings/plan')
+    }
+  }
   const sp = await searchParams
   const context = parseContextParam(sp.context)
   // Program context personalizes the empty-state starters. Deliberately a

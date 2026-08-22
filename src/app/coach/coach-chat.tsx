@@ -563,6 +563,18 @@ export function CoachChat({
             <p role="status" className="pb-2 text-center text-sm text-warning">
               {t('offlineNotice')}
             </p>
+          ) : coachError?.kind === 'paywall' ? (
+            // The free-taste is used up: the message is the sell, and the CTA
+            // is the whole point — a plain error line would waste the moment.
+            <p
+              role="alert"
+              className="flex flex-wrap items-center justify-center gap-2 pb-2 text-center text-sm"
+            >
+              <span className="text-muted-foreground">{coachError.message}</span>
+              <Link href={coachError.upgrade} className="font-medium underline">
+                {t('paywallCta')}
+              </Link>
+            </p>
           ) : (
             coachError && (
               <p role="alert" className="pb-2 text-center text-sm text-destructive">

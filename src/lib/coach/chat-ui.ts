@@ -117,6 +117,7 @@ export function isPinnedToBottom(
 export type CoachError =
   | { kind: 'offline' }
   | { kind: 'server'; message: string }
+  | { kind: 'paywall'; message: string; upgrade: string }
   | { kind: 'unknown' }
 
 /**
@@ -148,7 +149,13 @@ export function parseCoachError(error: unknown): CoachError {
       'error' in parsed &&
       typeof (parsed as { error: unknown }).error === 'string'
     ) {
-      return { kind: 'server', message: (parsed as { error: string }).error }
+      const obj = parsed as { error: string; upgrade?: unknown; quotaExhausted?: unknown }
+      // The free-quota wall (402): carries an upgrade path so the UI shows a
+      // plan CTA rather than a generic error banner.
+      if (obj.quotaExhausted === true && typeof obj.upgrade === 'string') {
+        return { kind: 'paywall', message: obj.error, upgrade: obj.upgrade }
+      }
+      return { kind: 'server', message: obj.error }
     }
   } catch {
     // Not JSON — fall through to the generic message.

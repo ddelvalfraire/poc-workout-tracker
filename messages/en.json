@@ -199,7 +199,8 @@
       "search_exercises": "Searching exercises",
       "upsert_program": "Drafting your program",
       "whoami": "Checking your account"
-    }
+    },
+    "paywallCta": "Upgrade to Max"
   },
   "CoachDisclosure": {
     "acknowledgeAction": "Got it",
