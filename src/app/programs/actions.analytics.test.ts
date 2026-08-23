@@ -27,7 +27,6 @@ vi.mock('@/db/program-shares', () => ({
 vi.mock('@/db/program-patches', () => ({
   setTrainingMax: vi.fn(),
   setProgramDietPhase: vi.fn(),
-  setProgramOvershootPolicy: vi.fn(),
   updateProgramExercise: vi.fn(),
 }))
 vi.mock('@/db/patch-proposals', () => ({
