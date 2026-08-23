@@ -206,6 +206,7 @@ async function insertProgramChildren(
           position: exPosition,
           supersetGroup: exercise.supersetGroup ?? null,
           progression: exercise.progression ?? null,
+          overshootPolicy: exercise.overshootPolicy ?? null,
         })
         .returning({ id: programExercises.id })
 

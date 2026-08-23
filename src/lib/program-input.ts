@@ -18,6 +18,7 @@
 import { z } from 'zod'
 import { MAX_WEIGHT } from './workout-input'
 import { exerciseSourceSchema } from './custom-exercise-input'
+import { overshootPolicySchema } from './overshoot-policy'
 
 // Mirror the bounds in `workout-input.ts` (they aren't exported there).
 const MAX_NAME = 200
@@ -407,6 +408,12 @@ export const programExerciseSchema = z
     // Same non-null value within a day = perform as a superset. Carried through
     // the full-replace path so groupings survive upsert/edit round-trips.
     supersetGroup: z.number().int().min(0).nullable().optional(),
+    // How a target beaten on a different axis is credited for THIS movement;
+    // null falls back to the program policy, then the scheme's own default.
+    // Carried on the full-replace path for the same reason supersetGroup is:
+    // without it, every builder save silently cleared a policy the agent had
+    // set, because the insert simply never wrote the column.
+    overshootPolicy: overshootPolicySchema.nullable().optional(),
     sets: z.array(programSetSchema).min(1),
   })
   // Metric-mode × scheme integrity is enforced at the DERIVATION layer only

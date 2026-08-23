@@ -1390,6 +1390,16 @@
     },
     "nameAriaLabel": "Program name",
     "namePlaceholder": "Program name",
+    "overshoot": {
+      "label": "Beating the target",
+      "ariaLabel": "What counts as beating the target for {exerciseName}",
+      "option": {
+        "default": "Scheme default",
+        "strictLoad": "More weight only",
+        "e1rmEquivalent": "Reps or weight (e1RM)",
+        "anyMetric": "Any metric"
+      }
+    },
     "placeholder": {
       "duration": "mm:ss",
       "rest": "Rest s"

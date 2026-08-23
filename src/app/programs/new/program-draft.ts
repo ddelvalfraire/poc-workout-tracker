@@ -10,6 +10,7 @@ import type {
 } from '@/lib/program-input'
 import type { ProgramDetail } from '@/db/programs'
 import type { AutoregStallPolicy } from '@/lib/autoregulate'
+import type { OvershootPolicy } from '@/lib/overshoot-policy'
 import type { ExerciseSource } from '@/lib/custom-exercise-input'
 import { displayToKg, kgToDisplay, type WeightUnit } from '@/lib/units'
 import { trainingMaxFromE1rm } from '@/lib/one-rep-max'
@@ -90,6 +91,9 @@ export interface DraftProgramExercise {
   /** Pass-through: superset grouping isn't edited by the builder, but must
    *  survive the edit round-trip (a save is a full replace). */
   supersetGroup: number | null
+  /** What counts as beating this movement's target — null defers to the
+   *  program policy, then to the scheme's own default. */
+  overshootPolicy: OvershootPolicy | null
   sets: DraftProgramSet[]
 }
 
@@ -163,6 +167,15 @@ export type ProgramDraftAction =
   | { type: 'ADD_EXERCISE'; dayIndex: number; exercise: DraftProgramExercise }
   | { type: 'REMOVE_EXERCISE'; dayIndex: number; index: number }
   | { type: 'UPDATE_EXERCISE_TM'; dayIndex: number; index: number; value: string }
+  /** What counts as beating this movement's target. null defers to the program
+   *  policy, then to the scheme's own default — so "unset" is a real choice
+   *  and not a missing one. */
+  | {
+      type: 'UPDATE_EXERCISE_OVERSHOOT'
+      dayIndex: number
+      index: number
+      value: OvershootPolicy | null
+    }
   /** The exercise-level metric-mode control: stamps every set of the slot
    *  (per-set drift inside one slot is an agent affordance, not a builder
    *  one). Typed values survive — they re-read under the new mode's columns
@@ -238,6 +251,8 @@ export function newDraftProgramExercise(picked: {
     progression: null,
     trainingMax: '',
     trainingMaxFromE1rm: false,
+    // A new movement defers: the program policy, then the scheme default.
+    overshootPolicy: null,
     supersetGroup: null,
     sets: [newDraftProgramSet(defaultMetricModeForCategory(picked.category))],
   }
@@ -336,6 +351,17 @@ export function programDraftReducer(
         })),
       }
 
+    case 'UPDATE_EXERCISE_OVERSHOOT':
+      return {
+        ...state,
+        days: mapDayAt(state.days, action.dayIndex, (day) => ({
+          ...day,
+          exercises: mapExerciseAt(day.exercises, action.index, (exercise) => ({
+            ...exercise,
+            overshootPolicy: action.value,
+          })),
+        })),
+      }
     case 'UPDATE_EXERCISE_TM':
       return {
         ...state,
@@ -577,6 +603,8 @@ export function parseStoredProgramDraft(raw: string, now: Date): ProgramDraft | 
         // Pre-composite-identity drafts restore as plain wger, ungrouped.
         source: exercise.source ?? 'wger',
         supersetGroup: exercise.supersetGroup ?? null,
+        // Pre-overshoot snapshots restore deferring to the program policy.
+        overshootPolicy: exercise.overshootPolicy ?? null,
         // Pre-TM-field snapshots restore with the stored TM untouched.
         trainingMax: exercise.trainingMax ?? '',
         trainingMaxFromE1rm: exercise.trainingMaxFromE1rm ?? false,
@@ -679,6 +707,7 @@ export function draftToProgramInput(
       name: exercise.name,
       progression: withDraftTrainingMax(exercise.progression, exercise.trainingMax, unit),
       supersetGroup: exercise.supersetGroup,
+      overshootPolicy: exercise.overshootPolicy,
       sets: exercise.sets.map((set) => {
         const load = toDecimal(set.load)
         return {
@@ -824,6 +853,7 @@ export function detailToProgramDraft(
           unit,
         ),
         supersetGroup: exercise.supersetGroup,
+        overshootPolicy: exercise.overshootPolicy,
         sets: exercise.sets.map((set) => ({
           id: set.id,
           repMin: set.repMin?.toString() ?? '',

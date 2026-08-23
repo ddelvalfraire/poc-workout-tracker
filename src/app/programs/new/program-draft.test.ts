@@ -63,7 +63,7 @@ const NESTED: ProgramDraft = {
       notes: null,
       weekdays: [1, 3, 5],
       exercises: [
-        { id: 'ex1', ...BENCH, progression: null, trainingMax: '', trainingMaxFromE1rm: false, supersetGroup: null, sets: [draftSet('s1'), draftSet('s2')] },
+        { id: 'ex1', ...BENCH, progression: null, trainingMax: '', trainingMaxFromE1rm: false, supersetGroup: null, overshootPolicy: null, sets: [draftSet('s1'), draftSet('s2')] },
       ],
     },
     { id: 'd2', name: 'Pull', notes: null, weekdays: [], exercises: [] },
@@ -118,7 +118,7 @@ describe('programDraftReducer', () => {
 
   it('ADD_EXERCISE and REMOVE_EXERCISE are day-scoped', () => {
     // Arrange
-    const exercise = { id: 'ex2', ...BENCH, progression: null, trainingMax: '', trainingMaxFromE1rm: false, supersetGroup: null, sets: [] }
+    const exercise = { id: 'ex2', ...BENCH, progression: null, trainingMax: '', trainingMaxFromE1rm: false, supersetGroup: null, overshootPolicy: null, sets: [] }
 
     // Act
     const added = programDraftReducer(NESTED, { type: 'ADD_EXERCISE', dayIndex: 1, exercise })
@@ -356,6 +356,7 @@ describe('legacy stored drafts (pre-composite-identity)', () => {
     expect(restored?.days[0].exercises[0]).toMatchObject({
       source: 'wger',
       supersetGroup: null,
+      overshootPolicy: null,
     })
   })
 
@@ -386,7 +387,7 @@ describe('draftToProgramInput', () => {
           notes: null,
           weekdays: [],
           exercises: [
-            { id: 'ex1', ...BENCH, progression: null, trainingMax: '', trainingMaxFromE1rm: false, supersetGroup: null, sets: [draftSet('s1', { load: '220.5' })] },
+            { id: 'ex1', ...BENCH, progression: null, trainingMax: '', trainingMaxFromE1rm: false, supersetGroup: null, overshootPolicy: null, sets: [draftSet('s1', { load: '220.5' })] },
           ],
         },
       ],
@@ -431,6 +432,7 @@ describe('draftToProgramInput', () => {
               trainingMax: '',
               trainingMaxFromE1rm: false,
               supersetGroup: null,
+              overshootPolicy: null,
               sets: [draftSet('s1', { repMin: '', repMax: '', load: '', rpe: '', restSec: '' })],
             },
           ],
@@ -532,6 +534,7 @@ describe('draftToProgramInput', () => {
               trainingMax: '',
               trainingMaxFromE1rm: false,
               supersetGroup: null,
+              overshootPolicy: null,
               sets: [
                 draftSet('s1', {
                   setType: 'amrap',
@@ -571,6 +574,7 @@ describe('draftToProgramInput', () => {
 })
 
 describe('detailToProgramDraft', () => {
+
   /** A minimal persisted program with one day/exercise/set + JSONB tails. */
   const DETAIL: ProgramDetail = {
     id: 'p1',
@@ -837,6 +841,29 @@ describe('detailToProgramDraft', () => {
     // Assert
     expect(edited.days[0].exercises[0].trainingMax).toBe('105')
     expect(edited.days[0].exercises[0].trainingMaxFromE1rm).toBe(false)
+  })
+
+  it('carries overshootPolicy through detail → draft → input', () => {
+    // The bug this closes: the full-replace insert never wrote the column and
+    // the input schema had no field for it, so opening a program in the
+    // builder and saving SILENTLY cleared any per-exercise policy the agent
+    // had set. A pass-through, exactly like supersetGroup beside it.
+    const detail = structuredClone(DETAIL)
+    detail.days[0].exercises[0].overshootPolicy = 'e1rm-equivalent'
+
+    const draft = detailToProgramDraft(detail)
+    expect(draft.days[0].exercises[0].overshootPolicy).toBe('e1rm-equivalent')
+
+    const input = draftToProgramInput(draft, 'kg')
+    expect(input.days[0].exercises[0].overshootPolicy).toBe('e1rm-equivalent')
+  })
+
+  it('leaves overshootPolicy null when the exercise defers', () => {
+    // null is a real choice — defer to the program policy, then to the
+    // scheme's own default — not a missing value to be filled in.
+    const draft = detailToProgramDraft(DETAIL)
+    expect(draft.days[0].exercises[0].overshootPolicy).toBeNull()
+    expect(draftToProgramInput(draft, 'kg').days[0].exercises[0].overshootPolicy).toBeNull()
   })
 })
 
