@@ -70,6 +70,7 @@ describe('purgeUserData', () => {
       [
         'program_patch_proposals',
         'program_events',
+        'workout_events',
         'workouts',
         'import_batches',
         'programs',

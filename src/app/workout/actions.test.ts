@@ -110,7 +110,7 @@ describe('saveWorkoutAction', () => {
 
     // Assert
     expect(result).toEqual({ id: ID })
-    expect(mockedSave).toHaveBeenCalledWith(USER, expect.objectContaining({ exercises: expect.any(Array) }))
+    expect(mockedSave).toHaveBeenCalledWith(USER, expect.objectContaining({ exercises: expect.any(Array) }), { actor: 'ui', kind: 'original' })
     // The saved workout supersedes the /workout/new draft on every device.
     expect(mockedDeleteDraft).toHaveBeenCalledWith(USER, 'new')
     // The shared post-save pipeline runs against the saved workout (plan sync
@@ -265,7 +265,7 @@ describe('updateWorkoutAction', () => {
 
     // Assert
     expect(result).toEqual({ id: ID })
-    expect(mockedUpdate).toHaveBeenCalledWith(USER, ID, expect.objectContaining({ exercises: expect.any(Array) }))
+    expect(mockedUpdate).toHaveBeenCalledWith(USER, ID, expect.objectContaining({ exercises: expect.any(Array) }), { actor: 'ui', kind: 'amendment' })
     // The saved edit supersedes this workout's cross-device draft.
     expect(mockedDeleteDraft).toHaveBeenCalledWith(USER, ID)
     // The finish path: a live program session completes through this action,

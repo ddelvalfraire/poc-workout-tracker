@@ -122,7 +122,7 @@ describe('registerWriteTools', () => {
             }),
           ],
         }),
-      )
+      { actor: 'mcp', kind: 'original' })
       expect(payload(result)).toEqual({ userId: 'user_env', unit: 'lb', workoutId: '11111111-1111-4111-8111-111111111111' })
     })
 
@@ -156,7 +156,7 @@ describe('registerWriteTools', () => {
             }),
           ],
         }),
-      )
+      { actor: 'mcp', kind: 'original' })
     })
 
     it('runs the shared completion pipeline after the save (MCP logs sync the plan, complete goals, earn trophies)', async () => {
@@ -203,7 +203,7 @@ describe('registerWriteTools', () => {
 
       // Assert — the token wins everywhere the resolved id surfaces
       expect(mockedGetUnit).toHaveBeenCalledWith('user_token')
-      expect(mockedSave).toHaveBeenCalledWith('user_token', expect.anything())
+      expect(mockedSave).toHaveBeenCalledWith('user_token', expect.anything(), { actor: 'mcp', kind: 'original' })
       expect(payload(result).userId).toBe('user_token')
     })
 
@@ -229,7 +229,7 @@ describe('registerWriteTools', () => {
             }),
           ],
         }),
-      )
+      { actor: 'mcp', kind: 'original' })
       expect(payload(result)).toEqual({ userId: 'user_env', unit: 'kg', workoutId: '11111111-1111-4111-8111-111111111111' })
     })
 
@@ -297,7 +297,7 @@ describe('registerWriteTools', () => {
             expect.objectContaining({ notes: 'shoulder twinge on set 1', skipped: true }),
           ],
         }),
-      )
+      { actor: 'mcp', kind: 'original' })
     })
 
     it('rejects over-long workout notes (>2000 chars) and never saves', async () => {
@@ -343,7 +343,7 @@ describe('registerWriteTools', () => {
       expect(mockedSave).toHaveBeenCalledWith(
         'user_env',
         expect.objectContaining({ startedAt: new Date(when) }),
-      )
+      { actor: 'mcp', kind: 'original' })
     })
 
     it('rejects a future startedAt with /future/ and never saves', async () => {
@@ -427,7 +427,7 @@ describe('registerWriteTools', () => {
             }),
           ],
         }),
-      )
+      { actor: 'mcp', kind: 'amendment' })
       expect(payload(result)).toEqual({ userId: 'user_env', unit: 'lb', workoutId: '11111111-1111-4111-8111-111111111111' })
     })
 

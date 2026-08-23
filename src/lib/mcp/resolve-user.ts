@@ -1,5 +1,6 @@
 import { ToolError } from './errors'
 import type { ProgramEventActor } from '@/db/program-events'
+import type { WorkoutEventActor } from '@/db/workout-events'
 
 /**
  * The slice of an MCP tool/resource `extra` we read: the authenticated identity
@@ -18,6 +19,15 @@ export type AuthCtx = { authInfo?: { clientId?: string; extra?: Record<string, u
  */
 export function resolveActor(extra?: AuthCtx): Exclude<ProgramEventActor, 'ui'> {
   return extra?.authInfo?.clientId === 'coach-chat' ? 'coach' : 'mcp'
+}
+
+/**
+ * The same WHO, narrowed for the workout change log. Its actor union has no
+ * 'wger'/'seed' — a catalog import and the template seed script never touch a
+ * logged session — so the workout writers take only what can reach them.
+ */
+export function resolveWorkoutActor(extra?: AuthCtx): WorkoutEventActor {
+  return resolveActor(extra) === 'coach' ? 'coach' : 'mcp'
 }
 
 /**

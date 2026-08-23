@@ -18,6 +18,7 @@ import {
   programs,
   programPatchProposals,
   programEvents,
+  workoutEvents,
   entitlementGrants,
   entitlementsCurrent,
   rcWebhookEvents,
@@ -75,6 +76,10 @@ export async function purgeUserData(userId: string): Promise<{ photoBlobKeys: st
 
     await tx.delete(programPatchProposals).where(eq(programPatchProposals.userId, userId))
     await tx.delete(programEvents).where(eq(programEvents.userId, userId))
+    // Same posture as program_events: workout_events cascades from `workouts`
+    // but carries its own user_id, so it gets an explicit delete — rows that
+    // ever pointed at an already-deleted workout cannot linger.
+    await tx.delete(workoutEvents).where(eq(workoutEvents.userId, userId))
     await tx.delete(workouts).where(eq(workouts.userId, userId))
     await tx.delete(importBatches).where(eq(importBatches.userId, userId))
     await tx.delete(programs).where(eq(programs.userId, userId))

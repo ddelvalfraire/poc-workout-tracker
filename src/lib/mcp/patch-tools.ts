@@ -1,6 +1,6 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
-import { resolveUserId } from './resolve-user'
+import { resolveUserId, resolveWorkoutActor } from './resolve-user'
 import { jsonResult, errorResult } from './result'
 import { ToolError } from './errors'
 import { assertWorkoutIdShape } from './workout-id'
@@ -188,7 +188,11 @@ export function registerPatchTools(server: McpServer): void {
         }
         let result: Awaited<ReturnType<typeof updateSet>>
         try {
-          result = await updateSet(resolved, workoutId, exercisePosition, setNumber, patch)
+          // Correcting a recorded set contradicts prior content.
+          result = await updateSet(resolved, workoutId, exercisePosition, setNumber, patch, {
+            actor: resolveWorkoutActor(extra),
+            kind: 'amendment',
+          })
         } catch (error: unknown) {
           // The db layer's invalid-edit channel (post-patch completed set with
           // no required metric) — surface the message verbatim.
@@ -245,16 +249,24 @@ export function registerPatchTools(server: McpServer): void {
         const basis =
           weight === undefined || weight === null ? undefined : (unit ?? (await getWeightUnit(resolved)))
         const kgWeight = basis === undefined ? (weight ?? null) : toKgWeight(weight, basis)
-        const result = await addSet(resolved, workoutId, exercisePosition, {
-          reps: reps ?? null,
-          weight: kgWeight ?? null,
-          ...(completed !== undefined && { completed }),
-          ...(rir !== undefined && { rir }),
-          ...(rpe !== undefined && { rpe }),
-          ...(metricMode !== undefined && { metricMode }),
-          ...(durationSec !== undefined && { durationSec }),
-          ...(distanceM !== undefined && { distanceM }),
-        })
+        const result = await addSet(
+          resolved,
+          workoutId,
+          exercisePosition,
+          {
+            reps: reps ?? null,
+            weight: kgWeight ?? null,
+            ...(completed !== undefined && { completed }),
+            ...(rir !== undefined && { rir }),
+            ...(rpe !== undefined && { rpe }),
+            ...(metricMode !== undefined && { metricMode }),
+            ...(durationSec !== undefined && { durationSec }),
+            ...(distanceM !== undefined && { distanceM }),
+          },
+          // An appended set ADDS to the record without contradicting it — the
+          // late-entry case, whether it lands mid-session or a week later.
+          { actor: resolveWorkoutActor(extra), kind: 'late_entry' },
+        )
         if (!result) {
           throw new ToolError(`Exercise ${exercisePosition} in workout ${workoutId} not found`)
         }
@@ -288,7 +300,11 @@ export function registerPatchTools(server: McpServer): void {
       try {
         const resolved = resolveUserId(extra, userId)
         assertWorkoutIdShape(workoutId)
-        const result = await removeSet(resolved, workoutId, exercisePosition, setNumber)
+        // Striking a recorded set contradicts what the record said.
+        const result = await removeSet(resolved, workoutId, exercisePosition, setNumber, {
+          actor: resolveWorkoutActor(extra),
+          kind: 'amendment',
+        })
         if (!result) {
           throw new ToolError(
             `Set ${setNumber} of exercise ${exercisePosition} in workout ${workoutId} not found`,

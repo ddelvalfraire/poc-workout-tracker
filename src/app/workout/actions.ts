@@ -70,7 +70,9 @@ export async function saveWorkoutAction(input: unknown): Promise<{ id: string }>
   const parsed = parseWorkoutInput(input)
   // Read BEFORE the save so the workout being logged doesn't count itself.
   const isFirstPromise = safeRead(async () => !(await hasAnyCompletedWorkout(userId)), false)
-  const result = await saveWorkout(userId, parsed)
+  // A manual log is the session's ORIGINAL record — first persist, nothing
+  // to contradict. The UI is the actor.
+  const result = await saveWorkout(userId, parsed, { actor: 'ui', kind: 'original' })
   // A manual log IS a completion (saveWorkout stamps completedAt) — this is
   // the activation metric's event. Counts only; no workout content.
   void captureWorkoutEvent(async () =>
@@ -109,7 +111,13 @@ export async function updateWorkoutAction(id: string, input: unknown): Promise<{
   // event" inside captureWorkoutEvent.
   const preStatePromise = safeRead(() => getWorkoutAnalyticsState(userId, id), null)
   const isFirstPromise = safeRead(async () => !(await hasAnyCompletedWorkout(userId)), false)
-  const result = await updateWorkout(userId, id, parsed)
+  // An edit of an already-persisted session CONTRADICTS what was recorded.
+  // KNOWN GAP: the logger reaches this same action when it FINISHES an
+  // instantiated program day, which is really that session's original
+  // persist — the logger must pass its own kind once the UI slice lands.
+  // Deriving it from completedAt here is exactly the inference this log
+  // exists to avoid.
+  const result = await updateWorkout(userId, id, parsed, { actor: 'ui', kind: 'amendment' })
   if (!result) throw new Error('workout not found')
   void captureWorkoutEvent(async () => {
     const pre = await preStatePromise

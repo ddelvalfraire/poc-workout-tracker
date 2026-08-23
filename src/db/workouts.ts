@@ -29,6 +29,19 @@ import {
   setCanonicalWorkoutNote,
   type InsertedChildIds,
 } from './note-sync'
+import {
+  recordWorkoutEvent,
+  recordWorkoutEvents,
+  type WorkoutChangeContext,
+  type WorkoutEventInput,
+} from './workout-events'
+import {
+  describeSetChange,
+  describeSetSubject,
+  diffSetSnapshots,
+  setSnapshotKey,
+  type WorkoutSetSnapshot,
+} from './workout-set-diff'
 
 /**
  * Data access for workouts, always scoped to a WorkOS userId.
@@ -465,8 +478,37 @@ interface PriorSetFacts {
   prescribedRpe: number | null
 }
 
+/** Delegates to the change log's key so the before-image and the
+ *  replace-surviving facts can never drift apart on identity. */
 function priorFactKey(source: string, wgerExerciseId: number, setNumber: number): string {
-  return `${source}:${wgerExerciseId}:${setNumber}`
+  return setSnapshotKey(source, wgerExerciseId, setNumber)
+}
+
+/**
+ * The after-image of a wire set, normalised to what `insertWorkoutChildren`
+ * will actually store: an omitted field lands as its column default, so the
+ * diff must compare against that default and not against `undefined` — every
+ * omission would otherwise read as a change.
+ */
+function snapshotFromInput(
+  exercise: WorkoutInput['exercises'][number],
+  set: WorkoutInput['exercises'][number]['sets'][number],
+  setNumber: number,
+): WorkoutSetSnapshot {
+  return {
+    source: exercise.source ?? 'wger',
+    wgerExerciseId: exercise.wgerExerciseId,
+    exerciseName: exercise.name,
+    setNumber,
+    reps: set.reps ?? null,
+    weight: set.weight ?? null,
+    completed: set.completed ?? false,
+    rir: set.rir ?? null,
+    rpe: set.rpe ?? null,
+    metricMode: set.metricMode ?? 'reps_weight',
+    durationSec: set.durationSec ?? null,
+    distanceM: set.distanceM ?? null,
+  }
 }
 
 /** Inserts a workout's exercises + sets (shared by saveWorkout and
@@ -612,8 +654,16 @@ async function insertWorkoutChildren(
  * `position` is the 0-based order an exercise was added; `setNumber` is the
  * 1-based order of a set within its exercise. Runs on the Supabase transaction
  * pooler (single connection per checkout; `prepare:false` set in ./index).
+ *
+ * `context` declares WHO wrote it and WHAT the write meant; this path persists
+ * a session for the first time, so callers declare kind 'original'. The
+ * changelog row rides the same transaction — a rolled-back save logs nothing.
  */
-export async function saveWorkout(userId: string, input: WorkoutInput): Promise<{ id: string }> {
+export async function saveWorkout(
+  userId: string,
+  input: WorkoutInput,
+  context: WorkoutChangeContext,
+): Promise<{ id: string }> {
   return db.transaction(async (tx) => {
     const [workout] = await tx
       .insert(workouts)
@@ -636,6 +686,21 @@ export async function saveWorkout(userId: string, input: WorkoutInput): Promise<
 
     const ids = await insertWorkoutChildren(tx, workout.id, input.exercises)
     await syncWireNotes(tx, userId, workout.id, input, ids, { fresh: true })
+
+    // ONE row for the whole creation: the record being created is a single
+    // intent, so there is nothing to diff and nothing in `changed`. The
+    // subject is the session itself, which is why `after` counts rather than
+    // snapshotting a tree the workout rows already hold verbatim.
+    const setCount = input.exercises.reduce((total, e) => total + e.sets.length, 0)
+    await recordWorkoutEvent(tx, {
+      workoutId: workout.id,
+      userId,
+      kind: context.kind,
+      actor: context.actor,
+      action: 'create_workout',
+      summary: `Logged ${input.name ?? 'workout'} — ${input.exercises.length} exercises, ${setCount} sets`,
+      after: { name: input.name ?? null, exerciseCount: input.exercises.length, setCount },
+    })
 
     return { id: workout.id }
   })
@@ -693,6 +758,79 @@ async function syncWireNotes(
   }
 }
 
+/**
+ * Turns a pre-delete before-image plus the incoming wire tree into changelog
+ * rows — ONE row per set the edit actually touched, never one per column and
+ * never one per re-inserted row. A full replace that changed nothing yields an
+ * empty array, and `recordWorkoutEvents` then writes nothing.
+ *
+ * Sets pair by the (source, exerciseId, setNumber) composite, with the same
+ * first-slot-wins rule the prior facts use: on a duplicated exercise identity
+ * only the first occurrence is keyed, on both sides, so a set can never be
+ * diffed against a different slot's history.
+ *
+ * The declared `kind` carries onto every derived row — a set added inside an
+ * amendment is part of that one declared intent, not a separate late entry the
+ * db decided on its own.
+ */
+function deriveSetEvents(
+  workoutId: string,
+  userId: string,
+  context: WorkoutChangeContext,
+  priorSnapshots: Map<string, WorkoutSetSnapshot>,
+  input: WorkoutInput,
+): WorkoutEventInput[] {
+  const events: WorkoutEventInput[] = []
+  const seen = new Set<string>()
+  for (const exercise of input.exercises) {
+    for (const [index, set] of exercise.sets.entries()) {
+      const after = snapshotFromInput(exercise, set, index + 1)
+      const key = setSnapshotKey(after.source, after.wgerExerciseId, after.setNumber)
+      if (seen.has(key)) continue
+      seen.add(key)
+      const before = priorSnapshots.get(key)
+      if (before === undefined) {
+        events.push({
+          workoutId,
+          userId,
+          kind: context.kind,
+          actor: context.actor,
+          action: 'add_set',
+          summary: `${describeSetSubject(after)} added`,
+          after,
+        })
+        continue
+      }
+      const changed = diffSetSnapshots(before, after)
+      if (changed.length === 0) continue
+      events.push({
+        workoutId,
+        userId,
+        kind: context.kind,
+        actor: context.actor,
+        action: 'update_set',
+        summary: describeSetChange(before, after, changed),
+        changed,
+        before,
+        after,
+      })
+    }
+  }
+  for (const [key, before] of priorSnapshots) {
+    if (seen.has(key)) continue
+    events.push({
+      workoutId,
+      userId,
+      kind: context.kind,
+      actor: context.actor,
+      action: 'remove_set',
+      summary: `${describeSetSubject(before)} removed`,
+      before,
+    })
+  }
+  return events
+}
+
 /** Deletes a workout (and its children, via FK cascade) only if owned by the user. */
 export function deleteWorkout(userId: string, id: string) {
   return db
@@ -706,11 +844,18 @@ export function deleteWorkout(userId: string, id: string) {
  * user. The `update ... returning` doubles as the ownership gate: if no row
  * comes back the caller doesn't own it (or it's gone) and nothing is mutated.
  * Children are deleted (cascade removes their sets) and re-inserted from input.
+ *
+ * `context` declares WHO edited and WHAT the edit meant (see workout-events.ts
+ * — the db layer must never guess). The changelog rows are derived from a
+ * pre-delete before-image diffed against the incoming wire sets, so the full
+ * replace still records the handful of sets the lifter actually meant to
+ * change rather than "everything was rewritten".
  */
 export async function updateWorkout(
   userId: string,
   id: string,
   input: WorkoutInput,
+  context: WorkoutChangeContext,
 ): Promise<{ id: string } | null> {
   return db.transaction(async (tx) => {
     const [owned] = await tx
@@ -744,22 +889,40 @@ export async function updateWorkout(
     // backoff/amrap typing has no draft-UI representation — a full replace
     // must not silently erase either. First slot wins on a duplicated
     // exercise (position order), mirroring the logger's keying.
+    // WIDENED for the change log: `priorFacts` alone is provenance only
+    // (setType + prescribed_*) and cannot answer "what did the lifter
+    // change?" — the performed columns (reps/weight/completed/rir/rpe and the
+    // cardio trio) plus the exercise name ride along so the before-image
+    // costs no second query.
     const priorRows = await tx
       .select({
         wgerExerciseId: workoutExercises.wgerExerciseId,
         source: workoutExercises.source,
+        exerciseName: workoutExercises.name,
         setNumber: sets.setNumber,
         setType: sets.setType,
         prescribedLoadKg: sets.prescribedLoadKg,
         prescribedRepMin: sets.prescribedRepMin,
         prescribedRir: sets.prescribedRir,
         prescribedRpe: sets.prescribedRpe,
+        reps: sets.reps,
+        weight: sets.weight,
+        completed: sets.completed,
+        rir: sets.rir,
+        rpe: sets.rpe,
+        metricMode: sets.metricMode,
+        durationSec: sets.durationSec,
+        distanceM: sets.distanceM,
       })
       .from(sets)
       .innerJoin(workoutExercises, eq(workoutExercises.id, sets.workoutExerciseId))
       .where(eq(workoutExercises.workoutId, id))
       .orderBy(asc(workoutExercises.position), asc(sets.setNumber))
     const priorFacts = new Map<string, PriorSetFacts>()
+    // The change log's before-image, keyed and first-slot-gated IDENTICALLY to
+    // priorFacts: a duplicated exercise resolves to its first slot in both, so
+    // the diff can never pair a set with another slot's history.
+    const priorSnapshots = new Map<string, WorkoutSetSnapshot>()
     // Sets captured per exercise (first slot) — the structure-unchanged gate
     // in insertWorkoutChildren compares against the incoming set count.
     const priorSetCounts = new Map<string, number>()
@@ -772,6 +935,20 @@ export async function updateWorkout(
           prescribedRepMin: row.prescribedRepMin,
           prescribedRir: row.prescribedRir,
           prescribedRpe: row.prescribedRpe,
+        })
+        priorSnapshots.set(key, {
+          source: row.source,
+          wgerExerciseId: row.wgerExerciseId,
+          exerciseName: row.exerciseName,
+          setNumber: row.setNumber,
+          reps: row.reps,
+          weight: row.weight,
+          completed: row.completed,
+          rir: row.rir,
+          rpe: row.rpe,
+          metricMode: row.metricMode,
+          durationSec: row.durationSec,
+          distanceM: row.distanceM,
         })
         const exerciseKey = `${row.source}:${row.wgerExerciseId}`
         priorSetCounts.set(exerciseKey, (priorSetCounts.get(exerciseKey) ?? 0) + 1)
@@ -801,25 +978,41 @@ export async function updateWorkout(
     // Finally reconcile the wire's one-string note tiers against the
     // (re-anchored) canonical rows.
     await syncWireNotes(tx, userId, id, input, ids)
+
+    // The change log LAST: everything above has to have succeeded for the
+    // events to describe reality, and they ride the same transaction anyway.
+    await recordWorkoutEvents(tx, deriveSetEvents(id, userId, context, priorSnapshots, input))
     return { id }
   })
 }
 
 /**
- * Resolves a workout-exercise id only when the workout is owned by the user. The
+ * Resolves a workout-exercise (id + the identity the change log addresses it
+ * by) only when the workout is owned by the user. The
  * join to `workouts.userId` is the ownership gate for every set-level edit below:
  * a caller can address a set only through an exercise that belongs to a workout
  * they own. Returns null when the workout isn't owned or no exercise sits at that
  * 0-based position.
  */
-async function findOwnedExerciseId(
+async function findOwnedExercise(
   tx: Tx,
   userId: string,
   workoutId: string,
   position: number,
-): Promise<string | null> {
+): Promise<{
+  id: string
+  name: string
+  source: ExerciseSource
+  wgerExerciseId: number
+} | null> {
   const [we] = await tx
-    .select({ id: workoutExercises.id })
+    .select({
+      id: workoutExercises.id,
+      // The changelog's addressing — same query, no extra round trip.
+      name: workoutExercises.name,
+      source: workoutExercises.source,
+      wgerExerciseId: workoutExercises.wgerExerciseId,
+    })
     .from(workoutExercises)
     .innerJoin(workouts, eq(workouts.id, workoutExercises.workoutId))
     .where(
@@ -830,7 +1023,7 @@ async function findOwnedExerciseId(
       ),
     )
     .limit(1)
-  return we?.id ?? null
+  return we ?? null
 }
 
 /** A single-set edit. An omitted key is left unchanged; an explicit `null` clears it. */
@@ -929,8 +1122,17 @@ function assertPatchedSetCompletable(
  * patch is empty, the workout isn't owned, the position is absent, or no such set
  * exists — the tool layer turns that into a not-found. Throws
  * `SetCompletionError` when the patch would leave a completed set without its
- * required metric (see `assertPatchedSetCompletable`); patches that can't
- * produce that state keep the original no-read fast path.
+ * required metric (see `assertPatchedSetCompletable`).
+ *
+ * The pre-write read is now UNCONDITIONAL (it used to run only for patches
+ * that could break completion). A change log has no honest way around it: the
+ * before-image of the row is the whole point, and `RETURNING` only ever sees
+ * the after state. One indexed row read inside a transaction the call already
+ * opens is the price of the record.
+ *
+ * `context` declares WHO and WHAT the write meant — this layer cannot tell an
+ * agent logging mid-session from an agent correcting a week later, so it does
+ * not try. A patch whose values all match the stored row logs nothing.
  */
 export async function updateSet(
   userId: string,
@@ -938,6 +1140,7 @@ export async function updateSet(
   exercisePosition: number,
   setNumber: number,
   patch: SetPatch,
+  context: WorkoutChangeContext,
 ): Promise<{ id: string } | null> {
   const values = {
     ...(patch.reps !== undefined ? { reps: patch.reps } : {}),
@@ -951,31 +1154,67 @@ export async function updateSet(
   }
   if (Object.keys(values).length === 0) return null
   return db.transaction(async (tx) => {
-    const exerciseId = await findOwnedExerciseId(tx, userId, workoutId, exercisePosition)
-    if (!exerciseId) return null
-    if (patchCanBreakCompletion(patch)) {
-      const [row] = await tx
-        .select({
-          completed: sets.completed,
-          weight: sets.weight,
-          durationSec: sets.durationSec,
-          metricMode: sets.metricMode,
-          loggingType: workoutExercises.loggingType,
-        })
-        .from(sets)
-        .innerJoin(workoutExercises, eq(workoutExercises.id, sets.workoutExerciseId))
-        .where(and(eq(sets.workoutExerciseId, exerciseId), eq(sets.setNumber, setNumber)))
-        .limit(1)
-      if (!row) return null
-      assertPatchedSetCompletable(row, patch)
-    }
+    const exercise = await findOwnedExercise(tx, userId, workoutId, exercisePosition)
+    if (!exercise) return null
+    const [row] = await tx
+      .select({
+        completed: sets.completed,
+        reps: sets.reps,
+        weight: sets.weight,
+        rir: sets.rir,
+        rpe: sets.rpe,
+        durationSec: sets.durationSec,
+        distanceM: sets.distanceM,
+        metricMode: sets.metricMode,
+        loggingType: workoutExercises.loggingType,
+      })
+      .from(sets)
+      .innerJoin(workoutExercises, eq(workoutExercises.id, sets.workoutExerciseId))
+      .where(and(eq(sets.workoutExerciseId, exercise.id), eq(sets.setNumber, setNumber)))
+      .limit(1)
+    if (!row) return null
+    if (patchCanBreakCompletion(patch)) assertPatchedSetCompletable(row, patch)
     const [updated] = await tx
       .update(sets)
       .set(values)
-      .where(and(eq(sets.workoutExerciseId, exerciseId), eq(sets.setNumber, setNumber)))
+      .where(and(eq(sets.workoutExerciseId, exercise.id), eq(sets.setNumber, setNumber)))
       .returning({ id: sets.id })
     if (!updated) return null
     await stampWorkoutCompleted(tx, workoutId)
+
+    // loggingType is the completion gate's input, not a performed value —
+    // it stays out of the snapshot.
+    const before: WorkoutSetSnapshot = {
+      source: exercise.source,
+      wgerExerciseId: exercise.wgerExerciseId,
+      exerciseName: exercise.name,
+      setNumber,
+      reps: row.reps,
+      weight: row.weight,
+      completed: row.completed,
+      rir: row.rir,
+      rpe: row.rpe,
+      metricMode: row.metricMode,
+      durationSec: row.durationSec,
+      distanceM: row.distanceM,
+    }
+    // `values` is exactly the patch's present keys, so spreading it produces
+    // the row the UPDATE just wrote — omitted keys keep the before value.
+    const after: WorkoutSetSnapshot = { ...before, ...values }
+    const changed = diffSetSnapshots(before, after)
+    if (changed.length > 0) {
+      await recordWorkoutEvent(tx, {
+        workoutId,
+        userId,
+        kind: context.kind,
+        actor: context.actor,
+        action: 'update_set',
+        summary: describeSetChange(before, after, changed),
+        changed,
+        before,
+        after,
+      })
+    }
     return updated
   })
 }
@@ -994,10 +1233,12 @@ export async function addSet(
   // prescribed_* snapshot — they were never prescribed, so the autoreg
   // engine treats them as unscorable.
   patch: SetPatch & { setType?: 'working' | 'warmup' | 'backoff' | 'amrap' },
+  context: WorkoutChangeContext,
 ): Promise<{ setNumber: number } | null> {
   return db.transaction(async (tx) => {
-    const exerciseId = await findOwnedExerciseId(tx, userId, workoutId, exercisePosition)
-    if (!exerciseId) return null
+    const exercise = await findOwnedExercise(tx, userId, workoutId, exercisePosition)
+    if (!exercise) return null
+    const exerciseId = exercise.id
     const [{ value: lastNumber }] = await tx
       .select({ value: max(sets.setNumber) })
       .from(sets)
@@ -1017,6 +1258,32 @@ export async function addSet(
       ...(patch.distanceM !== undefined ? { distanceM: patch.distanceM } : {}),
     })
     await stampWorkoutCompleted(tx, workoutId)
+
+    // A creation has no before-image and nothing in `changed` — the whole
+    // subject IS the change. Values mirror the insert's own defaults.
+    const after: WorkoutSetSnapshot = {
+      source: exercise.source,
+      wgerExerciseId: exercise.wgerExerciseId,
+      exerciseName: exercise.name,
+      setNumber,
+      reps: patch.reps ?? null,
+      weight: patch.weight ?? null,
+      completed: patch.completed ?? false,
+      rir: patch.rir ?? null,
+      rpe: patch.rpe ?? null,
+      metricMode: patch.metricMode ?? 'reps_weight',
+      durationSec: patch.durationSec ?? null,
+      distanceM: patch.distanceM ?? null,
+    }
+    await recordWorkoutEvent(tx, {
+      workoutId,
+      userId,
+      kind: context.kind,
+      actor: context.actor,
+      action: 'add_set',
+      summary: `${describeSetSubject(after)} added`,
+      after,
+    })
     return { setNumber }
   })
 }
@@ -1031,10 +1298,12 @@ export async function removeSet(
   workoutId: string,
   exercisePosition: number,
   setNumber: number,
+  context: WorkoutChangeContext,
 ): Promise<{ removed: true } | null> {
   return db.transaction(async (tx) => {
-    const exerciseId = await findOwnedExerciseId(tx, userId, workoutId, exercisePosition)
-    if (!exerciseId) return null
+    const exercise = await findOwnedExercise(tx, userId, workoutId, exercisePosition)
+    if (!exercise) return null
+    const exerciseId = exercise.id
     // Capture the doomed set's facts BEFORE the delete: its notes must fall
     // back to the workout anchor (the cascade would eat them — the same
     // landmine updateWorkout's park/re-attach guards), with a snapshot
@@ -1044,7 +1313,12 @@ export async function removeSet(
         id: sets.id,
         weight: sets.weight,
         reps: sets.reps,
+        completed: sets.completed,
+        rir: sets.rir,
+        rpe: sets.rpe,
+        metricMode: sets.metricMode,
         durationSec: sets.durationSec,
+        distanceM: sets.distanceM,
         exerciseName: workoutExercises.name,
       })
       .from(sets)
@@ -1071,6 +1345,32 @@ export async function removeSet(
       .set({ setNumber: sql`${sets.setNumber} - 1` })
       .where(and(eq(sets.workoutExerciseId, exerciseId), gt(sets.setNumber, setNumber)))
     await stampWorkoutCompleted(tx, workoutId)
+
+    // A removal has no after-image; the before snapshot is the only record
+    // the set ever existed, which is exactly why it must be captured.
+    const before: WorkoutSetSnapshot = {
+      source: exercise.source,
+      wgerExerciseId: exercise.wgerExerciseId,
+      exerciseName: target.exerciseName,
+      setNumber,
+      reps: target.reps,
+      weight: target.weight,
+      completed: target.completed,
+      rir: target.rir,
+      rpe: target.rpe,
+      metricMode: target.metricMode,
+      durationSec: target.durationSec,
+      distanceM: target.distanceM,
+    }
+    await recordWorkoutEvent(tx, {
+      workoutId,
+      userId,
+      kind: context.kind,
+      actor: context.actor,
+      action: 'remove_set',
+      summary: `${describeSetSubject(before)} removed`,
+      before,
+    })
     return { removed: true }
   })
 }
@@ -1148,7 +1448,7 @@ export async function updateExerciseMeta(
 ): Promise<{ id: string } | null> {
   if (meta.notes === undefined && meta.skipped === undefined) return null
   return db.transaction(async (tx) => {
-    const exerciseId = await findOwnedExerciseId(tx, userId, workoutId, exercisePosition)
+    const exerciseId = (await findOwnedExercise(tx, userId, workoutId, exercisePosition))?.id
     if (!exerciseId) return null
     let updated: { id: string; name: string } | undefined
     if (meta.skipped !== undefined) {

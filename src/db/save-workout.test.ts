@@ -40,6 +40,8 @@ beforeEach(() => {
   idCounter = 0
 })
 
+const CTX = { actor: 'ui', kind: 'original' } as const
+
 describe('saveWorkout (transactional, user-scoped)', () => {
   it('writes the workout, exercises, and sets in order with correct linkage', async () => {
     // Act
@@ -55,7 +57,7 @@ describe('saveWorkout (transactional, user-scoped)', () => {
           ],
         },
       ],
-    })
+    }, CTX)
 
     // Assert — recorded inserts in call order
     // Saving a manual log IS completing it — completedAt is stamped at save.
@@ -89,7 +91,7 @@ describe('saveWorkout (transactional, user-scoped)', () => {
           sets: [{ reps: 5, weight: 100, completed: true }, { reps: 5, weight: 100 }],
         },
       ],
-    })
+    }, CTX)
 
     // Assert
     expect(records[2].values).toEqual([
@@ -108,7 +110,7 @@ describe('saveWorkout (transactional, user-scoped)', () => {
           sets: [{ reps: 5, weight: 60, setType: 'warmup' }, { reps: 5, weight: 100 }],
         },
       ],
-    })
+    }, CTX)
 
     // Assert
     expect(records[2].values).toEqual([
@@ -122,7 +124,7 @@ describe('saveWorkout (transactional, user-scoped)', () => {
     const startedAt = new Date('2026-06-01T10:00:00.000Z')
 
     // Act
-    await saveWorkout(USER, { name: 'Backdated', startedAt, exercises: [] })
+    await saveWorkout(USER, { name: 'Backdated', startedAt, exercises: [] }, CTX)
 
     // Assert — the session completed when it happened, not when it was saved
     expect(records[0].values).toEqual({
@@ -139,7 +141,7 @@ describe('saveWorkout (transactional, user-scoped)', () => {
     const completedAt = new Date('2026-06-01T10:42:00.000Z')
 
     // Act
-    await saveWorkout(USER, { name: 'Live', startedAt, completedAt, exercises: [] })
+    await saveWorkout(USER, { name: 'Live', startedAt, completedAt, exercises: [] }, CTX)
 
     // Assert
     expect(records[0].values).toEqual({
@@ -157,10 +159,11 @@ describe('saveWorkout (transactional, user-scoped)', () => {
         { wgerExerciseId: 1, name: 'Bench', sets: [] },
         { wgerExerciseId: 2, name: 'Row', sets: [] },
       ],
-    })
+    }, CTX)
 
-    // Assert — only workout + two exercise inserts (no sets)
-    expect(records).toHaveLength(3)
+    // Assert — workout + two exercise inserts (no sets), then the one
+    // 'original' changelog row every creation writes.
+    expect(records).toHaveLength(4)
     expect(records[1].values).toMatchObject({ position: 0, wgerExerciseId: 1 })
     expect(records[2].values).toMatchObject({ position: 1, wgerExerciseId: 2 })
   })
@@ -172,7 +175,7 @@ describe('saveWorkout (transactional, user-scoped)', () => {
         { wgerExerciseId: 1, name: 'Pull-up', loggingType: 'weighted_bodyweight', sets: [] },
         { wgerExerciseId: 2, name: 'Bench', sets: [] },
       ],
-    })
+    }, CTX)
 
     // Assert — the provided type is written; the absent one leaves the key off
     // entirely so the DB default ('weight_reps') applies.
@@ -186,7 +189,7 @@ describe('saveWorkout (transactional, user-scoped)', () => {
       name: 'Leg Day',
       notes: 'good session',
       exercises: [{ wgerExerciseId: 73, name: 'Squat', notes: 'felt heavy', sets: [] }],
-    })
+    }, CTX)
 
     // Assert — no notes column on the workout or exercise inserts; one
     // batched notes-table insert instead, exercise note with its snapshot.
@@ -208,9 +211,9 @@ describe('saveWorkout (transactional, user-scoped)', () => {
     // Act
     await saveWorkout(USER, {
       exercises: [{ wgerExerciseId: 1, name: 'Plank', sets: [] }],
-    })
+    }, CTX)
 
-    // Assert — workout + exercise only
-    expect(records).toHaveLength(2)
+    // Assert — workout + exercise, plus the creation's changelog row
+    expect(records).toHaveLength(3)
   })
 })
