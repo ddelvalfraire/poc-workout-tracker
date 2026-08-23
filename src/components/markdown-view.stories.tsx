@@ -94,3 +94,75 @@ export const CoachNote: Story = {
 
 /** Empty input renders nothing rather than an empty box. */
 export const Empty: Story = { args: { markdown: "" } }
+
+/**
+ * The five GitHub alert types, each mapped onto a status colour the app
+ * already ships. No new palette enters a document.
+ */
+export const Alerts: Story = {
+  args: {
+    markdown: [
+      "> [!NOTE]",
+      "> Days are ordered but not dated. Run them in sequence.",
+      "",
+      "> [!TIP]",
+      "> Set the bar height once and leave it. Fiddling costs a working set.",
+      "",
+      "> [!IMPORTANT]",
+      "> Seed your training maxes before week 1 or every percentage is guesswork.",
+      "",
+      "> [!WARNING]",
+      "> Do not run this block into a meet.",
+      "",
+      "> [!CAUTION]",
+      "> Skipping the deload week will end this block early. It is not optional.",
+    ].join("\n"),
+  },
+}
+
+/**
+ * Tables get hairlines only — no vertical rules, no zebra — and a trailing
+ * colon in the delimiter row marks a column numeric, which buys it tabular
+ * figures and right alignment so digits compare down the column.
+ */
+export const Table: Story = {
+  args: {
+    markdown: [
+      "| Week | Focus | Top set | Sets |",
+      "| --- | --- | ---: | ---: |",
+      "| 1–2 | Accumulate | 70% | 18 |",
+      "| 3–4 | Intensify | 80% | 22 |",
+      "| 5 | Deload | 60% | 10 |",
+      "| 6 | Test | 90%+ | 12 |",
+    ].join("\n"),
+  },
+}
+
+/** A blockquote is a left rule and an indent: no fill, no italic. */
+export const Blockquote: Story = {
+  args: {
+    markdown:
+      "> The deficit is the stimulus you are managing. The barbell is just how you keep what you have.",
+  },
+}
+
+/**
+ * The program article at its reading step — the About route passes a larger
+ * type scale, so the subset has to hold up at 18px as well as at 14px.
+ */
+export const ProgramArticle: Story = {
+  args: {
+    className: "max-w-prose text-lg leading-7 text-foreground/90",
+    markdown: [
+      "Six weeks of high-frequency squat volume, run in a deficit. The point is not to add weight to the bar — it is to **hold your strength while the scale moves**.",
+      "## How to run it",
+      "Four days a week, two upper and two lower. Weeks 1–4 build, week 5 deloads, week 6 tests.",
+      "- Squat and bench carry a training max. Everything else is double progression.",
+      "- Leave the last set of accessories one rep short.",
+      "> [!WARNING]",
+      "> Do not run this block into a meet.",
+      "#### Substitutions",
+      "Swap freely inside a pattern. Keep the `rep range` and the RIR.",
+    ].join("\n\n"),
+  },
+}
