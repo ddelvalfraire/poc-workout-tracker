@@ -1,3 +1,4 @@
+import { Fragment } from 'react'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { ChevronRight } from 'lucide-react'
@@ -17,7 +18,6 @@ import { listWorkoutSummaries } from '@/db/workouts'
 import { listWorkoutDrafts } from '@/db/workout-drafts'
 import { resolveActiveSession } from '@/lib/active-session'
 import { autoregReason } from '@/lib/autoregulate'
-import { TECHNIQUE_LABEL_KEY } from '@/lib/technique'
 import { AppHeader } from '@/components/app-header'
 import { BackLink } from '@/components/back-link'
 import { BlockMap } from '@/components/block-map'
@@ -31,7 +31,7 @@ import {
 } from '@/lib/format'
 import { renderMessage } from '@/lib/message'
 import { resolveLocale } from '@/i18n/request'
-import { formatTargetLine, groupDerivedSets } from './derived-format'
+import { targetCells, groupDerivedSets, type TargetMarkKey } from './derived-format'
 import { parseWeekParam, resolveDayState } from './week-view'
 import {
   programStatusLine,
@@ -88,6 +88,16 @@ const ACTOR_WORD_CLASSES: Record<ProgramEventActor, string> = {
 /** v1 cap: no pagination UI — older history stays reachable via the MCP
  *  tool's `before` cursor (list_program_changes). */
 const CHANGE_LOG_LIMIT = 10
+
+/** The day table's two class recipes. Micro-caps for the column headers,
+ *  tabular right-aligned figures for every cell under them — magnitudes get
+ *  compared down a column, which only works if the digits line up. */
+const DAY_TABLE_HEAD_CELL =
+  'pb-1.5 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground'
+const DAY_TABLE_NUM_CELL = 'tnum py-2 pl-2 text-right align-baseline text-[15px]'
+
+/** The effort dialect a day speaks, when it speaks only one. */
+const RPE_KIND = 'rpe'
 
 export default async function ProgramDetailPage({
   params,
@@ -679,59 +689,190 @@ export default async function ProgramDetailPage({
                   )}
 
                   {showTargets ? (
-                    <div className="mt-3 space-y-3">
-                      {day.exercises.map((exercise, exerciseIndex) => {
-                        // The scheme's plain-English conditional sentence with
-                        // THIS exercise's numbers (#228) — words not chips,
-                        // quiet, skipped when there is no progression.
-                        const howLine = progressionLine(
-                          exercise.progression,
-                          prescriptions[dayIndex][exerciseIndex]?.sets ?? [],
-                          unit,
-                        )
-                        return (
-                          <div key={exercise.id}>
-                            <p className="text-sm font-medium">{exercise.name}</p>
-                            <div className="mt-1 space-y-0.5">
-                              {groupDerivedSets(
-                                prescriptions[dayIndex][exerciseIndex]?.sets ?? [],
-                              ).map((group, groupIndex) => (
-                                <p
-                                  key={groupIndex}
-                                  className="flex items-baseline gap-2 text-sm text-muted-foreground"
-                                >
-                                  <span className="tnum">
-                                    {formatTargetLine(group.set, group.count, unit, locale)
-                                      .map((segment) => renderMessage(t, segment))
-                                      .join(' · ')}
-                                  </span>
-                                  {/* Chips → words: deload/technique are labels
-                                      on the set line, not controls — quiet caps
-                                      text, no pill shell. */}
-                                  {group.set.derivedFrom === 'deload' && (
-                                    <span className="text-[10px] font-semibold uppercase tracking-widest">
-                                      {t('day.deloadLabel')}
-                                    </span>
-                                  )}
-                                  {group.set.technique && (
-                                    <span className="text-[10px] font-semibold uppercase tracking-widest">
-                                      {t(
-                                        `day.technique.${TECHNIQUE_LABEL_KEY[group.set.technique.kind]}`,
-                                      )}
-                                    </span>
-                                  )}
-                                </p>
-                              ))}
-                            </div>
-                            {howLine !== null && (
-                              <p className="mt-1 text-sm text-muted-foreground">
-                                {tScheme(howLine.key, howLine.values)}
-                              </p>
-                            )}
-                          </div>
-                        )
-                      })}
-                    </div>
+                    (() => {
+                      // The day's plan as a TABLE. The string this replaces —
+                      // "3×5 @ 105 kg · RPE 8 · RIR 2" — was ambiguous by
+                      // construction: sets-versus-reps ordering is contested
+                      // enough that gyms publish explainers about it. Under a
+                      // declared header no number needs a decoder, and figures
+                      // line up down their columns where they get compared.
+                      const rows = day.exercises.map((exercise, exerciseIndex) => {
+                        const sets = prescriptions[dayIndex][exerciseIndex]?.sets ?? []
+                        return {
+                          exercise,
+                          runs: groupDerivedSets(sets).map((group) =>
+                            targetCells(group.set, group.count, unit, locale),
+                          ),
+                          // The scheme's plain-English conditional sentence
+                          // with THIS exercise's numbers (#228) — words not
+                          // chips, quiet, skipped when there is no progression.
+                          howLine: progressionLine(exercise.progression, sets, unit),
+                        }
+                      })
+                      // One autoregulation dialect per day. RIR and RPE are the
+                      // same axis inverted, so the column takes whichever the
+                      // plan speaks; only a day that genuinely mixes them falls
+                      // back to labelling each cell.
+                      const effortKinds = new Set(
+                        rows.flatMap((row) =>
+                          row.runs.flatMap((run) => (run.effort ? [run.effort.kind] : [])),
+                        ),
+                      )
+                      const mixedEffort = effortKinds.size > 1
+                      // Legend covers only the marks actually present — a
+                      // standing key for marks this day never uses is noise.
+                      const legend = new Map<string, TargetMarkKey>()
+                      for (const row of rows) {
+                        for (const run of row.runs) {
+                          for (const mark of run.marks) legend.set(mark.letter, mark.key)
+                        }
+                      }
+                      // Same non-null supersetGroup within a day = perform as a
+                      // superset. The column only exists when one does.
+                      const hasSuperset = day.exercises.some((e) => e.supersetGroup !== null)
+                      const bodyCols = 5
+                      return (
+                        <div className="mt-4">
+                          <table className="w-full table-fixed border-collapse text-left">
+                            <caption className="sr-only">{t('day.tableCaption')}</caption>
+                            <thead>
+                              <tr className="border-b border-b-border/60">
+                                {hasSuperset && (
+                                  <th scope="col" className="w-5">
+                                    <span className="sr-only">{t('day.colGroup')}</span>
+                                  </th>
+                                )}
+                                <th scope="col" className={DAY_TABLE_HEAD_CELL}>
+                                  {t('day.colExercise')}
+                                </th>
+                                <th scope="col" className={`w-9 pl-2 text-right ${DAY_TABLE_HEAD_CELL}`}>
+                                  {t('day.colSets')}
+                                </th>
+                                <th scope="col" className={`w-14 pl-2 text-right ${DAY_TABLE_HEAD_CELL}`}>
+                                  {t('day.colReps')}
+                                </th>
+                                <th scope="col" className={`w-[4.5rem] pl-2 text-right ${DAY_TABLE_HEAD_CELL}`}>
+                                  {t('day.colLoad')}
+                                </th>
+                                <th scope="col" className={`w-9 pl-2 text-right ${DAY_TABLE_HEAD_CELL}`}>
+                                  {mixedEffort
+                                    ? t('day.colEffort')
+                                    : effortKinds.has(RPE_KIND)
+                                      ? t('day.colRpe')
+                                      : t('day.colRir')}
+                                </th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {rows.map(({ exercise, runs, howLine }, exerciseIndex) => {
+                                const group = exercise.supersetGroup
+                                const isMember = group !== null
+                                const opensGroup =
+                                  isMember &&
+                                  day.exercises[exerciseIndex - 1]?.supersetGroup !== group
+                                // The rail is a cell border, so consecutive
+                                // member rows draw one continuous rule — a
+                                // bracket and a word, never a letter code. A1/A2
+                                // is real coaching notation, but it is WRITTEN
+                                // notation: learned from PDFs, not teachable in
+                                // passing by a screen.
+                                const rail = hasSuperset ? (
+                                  <td className={isMember ? 'border-l-2 border-border' : ''} />
+                                ) : null
+                                const detail = [
+                                  howLine !== null ? tScheme(howLine.key, howLine.values) : null,
+                                  ...runs.flatMap((run) =>
+                                    run.tempo !== null
+                                      ? [t('target.tempo', { tempo: run.tempo })]
+                                      : [],
+                                  ),
+                                ].filter((part) => part !== null)
+                                return (
+                                  <Fragment key={exercise.id}>
+                                    {opensGroup && (
+                                      <tr>
+                                        {rail}
+                                        <td
+                                          colSpan={bodyCols}
+                                          className="pt-3 pl-2 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground"
+                                        >
+                                          {t('day.supersetLabel')}
+                                        </td>
+                                      </tr>
+                                    )}
+                                    {runs.map((run, runIndex) => (
+                                      <tr
+                                        key={runIndex}
+                                        className={
+                                          runIndex === 0 && !opensGroup && exerciseIndex > 0
+                                            ? 'border-t border-t-border/60'
+                                            : ''
+                                        }
+                                      >
+                                        {rail}
+                                        <td className="py-2 align-baseline">
+                                          {runIndex === 0 && (
+                                            <span className="block truncate pl-2 text-[15px] font-medium">
+                                              {exercise.name}
+                                            </span>
+                                          )}
+                                        </td>
+                                        <td className={DAY_TABLE_NUM_CELL}>
+                                          {run.sets}
+                                          {run.marks.map((mark) => (
+                                            <span
+                                              key={mark.letter}
+                                              className="ml-0.5 text-[10px] font-semibold text-muted-foreground"
+                                            >
+                                              {mark.letter}
+                                            </span>
+                                          ))}
+                                        </td>
+                                        {run.span !== null ? (
+                                          <td className={DAY_TABLE_NUM_CELL} colSpan={2}>
+                                            {run.span}
+                                          </td>
+                                        ) : (
+                                          <>
+                                            <td className={DAY_TABLE_NUM_CELL}>{run.reps ?? '—'}</td>
+                                            <td className={DAY_TABLE_NUM_CELL}>{run.load ?? '—'}</td>
+                                          </>
+                                        )}
+                                        <td className={DAY_TABLE_NUM_CELL}>
+                                          {run.effort === null
+                                            ? '—'
+                                            : mixedEffort
+                                              ? t(`target.${run.effort.kind}`, {
+                                                  [run.effort.kind]: run.effort.value,
+                                                })
+                                              : run.effort.value}
+                                        </td>
+                                      </tr>
+                                    ))}
+                                    {detail.length > 0 && (
+                                      <tr>
+                                        {rail}
+                                        <td
+                                          colSpan={bodyCols}
+                                          className="tnum pb-3 pl-2 text-xs leading-[1.4] text-muted-foreground"
+                                        >
+                                          {detail.join(' · ')}
+                                        </td>
+                                      </tr>
+                                    )}
+                                  </Fragment>
+                                )
+                              })}
+                            </tbody>
+                          </table>
+                          {legend.size > 0 && (
+                            <p className="mt-2 border-t border-t-border/60 pt-2 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+                              {[...legend].map(([letter, key]) => `${letter} ${t(key)}`).join(' · ')}
+                            </p>
+                          )}
+                        </div>
+                      )
+                    })()
                   ) : (
                     // Collapsed: the plan's shape without the derivation cost.
                     // Names come from the program rows already loaded — only

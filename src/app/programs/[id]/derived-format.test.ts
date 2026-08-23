@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { renderMessageIn } from '../../../../vitest.intl'
-import { formatTargetLine, groupDerivedSets } from './derived-format'
+import { targetCells, targetMarks, groupDerivedSets } from './derived-format'
 import type { DerivedSet } from '@/lib/progression'
 
 /** A derived working set with every optional target nulled, for overriding. */
@@ -25,26 +25,25 @@ function derivedSet(overrides: Partial<DerivedSet> = {}): DerivedSet {
   }
 }
 
-/** The line the page renders: every segment through the real catalog, joined
- *  with the middot the detail page joins them with. */
-const line = (...args: Parameters<typeof formatTargetLine>) =>
-  formatTargetLine(...args)
-    .map((segment) => renderMessageIn('ProgramDetail', segment))
-    .join(' · ')
-
-describe('formatTargetLine', () => {
-  it('decides the core segment and the tail segments, not a sentence', () => {
-    expect(formatTargetLine(derivedSet(), 3, 'kg')).toEqual([
-      { key: 'target.load', values: { count: 3, reps: '5', load: '105 kg' } },
-    ])
-    expect(formatTargetLine(derivedSet({ rpe: 8, rir: 2, tempo: '3-1-1' }), 3, 'kg').map(
-      (segment) => segment.key,
-    )).toEqual(['target.load', 'target.rpe', 'target.rir', 'target.tempo'])
+describe('targetCells', () => {
+  it('resolves a run into CELLS, not a compound string', () => {
+    // The whole point of the redesign: "3×5 @ 105 kg" was ambiguous by
+    // construction (sets-vs-reps ordering is genuinely contested), so each
+    // number now lands under its own declared column header.
+    expect(targetCells(derivedSet(), 3, 'kg')).toMatchObject({
+      sets: '3',
+      reps: '5',
+      load: '105 kg',
+      effort: null,
+      span: null,
+      tempo: null,
+      marks: [],
+    })
   })
 
-  it('collapses an equal rep range and shows the load in the display unit', () => {
-    expect(line(derivedSet(), 3, 'kg')).toBe('3×5 @ 105 kg')
-    expect(line(derivedSet({ loadKg: 100 }), 1, 'lb')).toBe('1×5 @ 220.5 lb')
+  it('collapses an equal rep range and converts the load to the display unit', () => {
+    expect(targetCells(derivedSet({ repMin: 8, repMax: 12 }), 2, 'kg').reps).toBe('8–12')
+    expect(targetCells(derivedSet({ loadKg: 100 }), 1, 'lb').load).toBe('220.5 lb')
   })
 
   it('formats the load through Intl for the locale, not by concatenation', () => {
@@ -52,50 +51,101 @@ describe('formatTargetLine', () => {
       style: 'unit',
       unit: 'kilogram',
       unitDisplay: 'short',
-      useGrouping: false,
     }).format(105)
-    expect(line(derivedSet(), 3, 'kg', 'en')).toContain(expected)
+    expect(targetCells(derivedSet(), 3, 'kg', 'en').load).toBe(expected)
   })
 
-  it('renders a true range and reps-only when the load is null (no crash)', () => {
-    const set = derivedSet({ repMin: 8, repMax: 12, loadKg: null })
-    expect(line(set, 2, 'kg')).toBe('2×8–12 reps')
-  })
-
-  // Singular and plural asserted separately — the count used to build its own
-  // `set`/`sets`, which no other language can repair downstream.
-  it('pluralizes the bare-count fallback correctly', () => {
+  it('leaves reps and load null rather than inventing a placeholder', () => {
+    // The table renders the em dash; the formatter refuses to decide what an
+    // absent value LOOKS like, which is the caller's business.
     const bare = derivedSet({ repMin: null, repMax: null, loadKg: null })
-    expect(line(bare, 1, 'kg')).toBe('1 set')
-    expect(line(bare, 3, 'kg')).toBe('3 sets')
+    expect(targetCells(bare, 1, 'kg')).toMatchObject({ sets: '1', reps: null, load: null })
   })
 
-  it('appends RPE, RIR, and tempo when present', () => {
-    const set = derivedSet({ rpe: 8, rir: 2, tempo: '3-1-1' })
-    expect(line(set, 3, 'kg')).toBe('3×5 @ 105 kg · RPE 8 · RIR 2 · 3-1-1 tempo')
+  it('speaks ONE effort dialect, preferring RIR when a row carries both', () => {
+    // RPE 8 and 2 RIR are the same fact stated twice — a row showing both
+    // says nothing extra and costs a column.
+    expect(targetCells(derivedSet({ rir: 2 }), 3, 'kg').effort).toEqual({
+      value: '2',
+      kind: 'rir',
+    })
+    expect(targetCells(derivedSet({ rpe: 8 }), 3, 'kg').effort).toEqual({
+      value: '8',
+      kind: 'rpe',
+    })
+    expect(targetCells(derivedSet({ rpe: 8, rir: 2 }), 3, 'kg').effort).toEqual({
+      value: '2',
+      kind: 'rir',
+    })
   })
 
-  it('renders timed sets from durationSec (and distance when present)', () => {
-    expect(line(derivedSet({ metricMode: 'duration', durationSec: 60 }), 3, 'kg')).toBe('3×60s')
-    expect(
-      line(
-        derivedSet({ metricMode: 'duration_distance', durationSec: 120, distanceM: 400 }),
-        1,
-        'kg',
-      ),
-    ).toBe('1×120s / 400 m')
-  })
+  it('gives timed and distance runs a span instead of empty rep/load columns', () => {
+    const timed = targetCells(derivedSet({ metricMode: 'duration', durationSec: 60 }), 3, 'kg')
+    expect(timed).toMatchObject({ sets: '3', reps: null, load: null, span: '60s' })
 
-  it('leaves no unresolved key path in any branch', () => {
-    for (const set of [
-      derivedSet(),
-      derivedSet({ repMin: 8, repMax: 12, loadKg: null }),
-      derivedSet({ repMin: null, repMax: null, loadKg: null }),
-      derivedSet({ rpe: 8, rir: 2, tempo: '3-1-1' }),
-      derivedSet({ metricMode: 'duration', durationSec: 60 }),
+    const both = targetCells(
       derivedSet({ metricMode: 'duration_distance', durationSec: 120, distanceM: 400 }),
-    ]) {
-      expect(line(set, 2, 'kg')).not.toMatch(/ProgramDetail\.[a-zA-Z.]+/)
+      1,
+      'kg',
+    )
+    expect(both.span).toBe('120s / 400 m')
+  })
+
+  it('keeps tempo out of the columns — it is rare and belongs subordinate', () => {
+    expect(targetCells(derivedSet({ tempo: '3-1-1-0' }), 3, 'kg').tempo).toBe('3-1-1-0')
+  })
+})
+
+describe('targetMarks', () => {
+  it('marks a deload run with the pair the block map already uses', () => {
+    // One glyph, one meaning: DL means deload in the week strip, so it means
+    // deload here too.
+    expect(targetMarks(derivedSet({ derivedFrom: 'deload' }))).toEqual([
+      { letter: 'DL', key: 'day.deloadLabel' },
+    ])
+  })
+
+  it('marks each technique with a distinct two-letter pair', () => {
+    const kinds = ['drop-set', 'rest-pause', 'myo-reps', 'cluster'] as const
+    const letters = kinds.map(
+      (kind) =>
+        targetMarks(
+          derivedSet({ technique: { version: 1, kind, stages: [{ loadKg: 80, reps: 8 }] } }),
+        )[0].letter,
+    )
+    // Two letters rather than one because "drop set" and "deload" both start
+    // with D — a mark that collides teaches nothing.
+    expect(new Set(letters).size).toBe(kinds.length)
+    expect(letters.every((letter) => letter.length === 2)).toBe(true)
+  })
+
+  it('carries deload AND technique together — they are different axes', () => {
+    const marks = targetMarks(
+      derivedSet({
+        derivedFrom: 'deload',
+        technique: { version: 1, kind: 'myo-reps', stages: [{ loadKg: 80, reps: 8 }] },
+      }),
+    )
+    expect(marks.map((m) => m.letter)).toEqual(['DL', 'MR'])
+  })
+
+  it('stays silent for every derivedFrom that is not a deload', () => {
+    // 'scheme'/'template'/'override' are HOW the number was computed — the
+    // progression sentence's job — and 'autoreg' speaks at week level in its
+    // own section rather than whispering on a row.
+    for (const derivedFrom of ['template', 'scheme', 'override', 'autoreg'] as const) {
+      expect(targetMarks(derivedSet({ derivedFrom }))).toEqual([])
+    }
+  })
+
+  it('resolves every mark label through the real catalog', () => {
+    for (const kind of ['drop-set', 'rest-pause', 'myo-reps', 'cluster'] as const) {
+      const [mark] = targetMarks(
+        derivedSet({ technique: { version: 1, kind, stages: [{ loadKg: 80, reps: 8 }] } }),
+      )
+      expect(renderMessageIn('ProgramDetail', { key: mark.key, values: {} })).not.toMatch(
+        /ProgramDetail\.[a-zA-Z.]+/,
+      )
     }
   })
 })

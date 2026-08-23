@@ -1453,6 +1453,14 @@
     },
     "coachLink": "Coach",
     "day": {
+      "colEffort": "Effort",
+      "colExercise": "Exercise",
+      "colGroup": "Superset group",
+      "colLoad": "Load",
+      "colReps": "Reps",
+      "colRir": "RIR",
+      "colRpe": "RPE",
+      "colSets": "Sets",
       "deloadLabel": "Deload",
       "doneBadge": "Done",
       "exerciseCount": "{count, plural, one {# exercise} other {# exercises}}",
@@ -1464,6 +1472,8 @@
       "setSummary": "{count, plural, one {# set} other {# sets}}",
       "setsUnit": "{count, plural, one {set} other {sets}}",
       "skippedBadge": "Skipped",
+      "supersetLabel": "Superset · alternate, rest after the pair",
+      "tableCaption": "Planned sets",
       "targetsLink": "Targets",
       "technique": {
         "cluster": "Cluster",
@@ -1514,13 +1524,9 @@
       "weekTrained": "Week {week} of {total}{deload, select, yes { · deload week} other {}} · week trained{deloadNext, select, yes { · deload next week} other {}}."
     },
     "target": {
-      "load": "{count}×{reps, select, none {?} other {{reps}}} @ {load}",
-      "reps": "{count}×{reps} reps",
       "rir": "RIR {rir}",
       "rpe": "RPE {rpe}",
-      "sets": "{count, plural, one {# set} other {# sets}}",
-      "tempo": "{tempo} tempo",
-      "timed": "{count}×{duration, select, none {—} other {{duration}}}{distance, select, none {} other { / {distance}}}"
+      "tempo": "{tempo} tempo"
     },
     "weekMeta": "Week {week} of {total}",
     "weekMetaDeload": "Week {week} of {total} · deload wk {deloadWeek}",
