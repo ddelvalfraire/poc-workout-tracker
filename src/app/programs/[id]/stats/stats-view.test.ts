@@ -10,6 +10,8 @@ import type {
 import type { MuscleVerdict } from '@/lib/volume-progression'
 import {
   blockAdherencePct,
+  blockAttendance,
+  volumeCandidateLine,
   e1rmSparkline,
   visibleWeeks,
   volumeBarWidthPct,
@@ -438,5 +440,67 @@ describe('volume status view helpers', () => {
         7.5,
       ),
     )
+  })
+
+  it('blockAttendance counts the SAME window blockAdherencePct scores', () => {
+    // If the ratio and the percentage disagreed, one of them would be lying
+    // on a screen whose whole job is being honest about the block.
+    const weeks = [
+      { week: 1, daysCompleted: 4, plannedDays: 4, daysStarted: 4, tonnageKg: 100, completedSets: 10 },
+      { week: 2, daysCompleted: 3, plannedDays: 4, daysStarted: 4, tonnageKg: 90, completedSets: 9 },
+      { week: 3, daysCompleted: 2, plannedDays: 4, daysStarted: 2, tonnageKg: 50, completedSets: 5 },
+    ] as unknown as Parameters<typeof blockAttendance>[0]
+    // Week 3 is the CURRENT week and is excluded from both: a week in progress
+    // is not yet a week you missed.
+    expect(blockAttendance(weeks, 3)).toEqual({ completed: 7, planned: 8 })
+    expect(blockAdherencePct(weeks, 3)).toBe(88)
+  })
+
+  it('blockAttendance stays null before any week has closed', () => {
+    // Week one has no denominator, so there is no adherence to state — the
+    // page shows counts instead of inventing a percentage.
+    const weeks = [
+      { week: 1, daysCompleted: 0, plannedDays: 4, daysStarted: 0, tonnageKg: 0, completedSets: 0 },
+    ] as unknown as Parameters<typeof blockAttendance>[0]
+    expect(blockAttendance(weeks, 1)).toBeNull()
+    expect(blockAdherencePct(weeks, 1)).toBeNull()
+  })
+
+  it('volumeCandidateLine names the movement a +1 would actually patch', () => {
+    // The engine computes this and the page used to drop it, so "+1 earned"
+    // named no action the reader could take.
+    expect(
+      volumeCandidateLine({
+        group: 'back',
+        status: 'increase',
+        drivers: ['Barbell Row'],
+        candidate: {
+          key: 'wger:123',
+          name: 'Barbell Row',
+          address: { dayPosition: 2, exercisePosition: 1 },
+          setTemplate: { repMin: 8, repMax: 12, restSec: 120 },
+        },
+      } as unknown as Parameters<typeof volumeCandidateLine>[0]),
+    ).toEqual({ key: 'muscle.candidate', values: { name: 'Barbell Row', day: 2 } })
+  })
+
+  it('volumeCandidateLine stays silent when there is nothing to propose', () => {
+    // A hold has no +1, and an increase whose beaters are all scheme-owned has
+    // no patchable movement — a chip without a proposal behind it.
+    const base = { group: 'back', drivers: ['Barbell Row'] }
+    expect(
+      volumeCandidateLine({
+        ...base,
+        status: 'increase',
+        candidate: null,
+      } as unknown as Parameters<typeof volumeCandidateLine>[0]),
+    ).toBeNull()
+    expect(
+      volumeCandidateLine({
+        ...base,
+        status: 'hold',
+        candidate: { key: 'k', name: 'X', address: { dayPosition: 1, exercisePosition: 1 } },
+      } as unknown as Parameters<typeof volumeCandidateLine>[0]),
+    ).toBeNull()
   })
 })

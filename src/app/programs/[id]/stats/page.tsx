@@ -19,6 +19,9 @@ import {
   topPRs,
   volumeStatusLabel,
   volumeDriversLine,
+  volumeCandidateLine,
+  blockAttendance,
+  blockAdherencePct,
   muscleWeekSeries,
   formatCreditedSets,
 } from './stats-view'
@@ -83,6 +86,9 @@ export default async function ProgramStatsPage({
     ...prExercises.filter((e) => !gainKeys.has(`${e.source}:${e.wgerExerciseId}`)),
   ]
   const verdict = programVerdict(stats.weeks, stats.currentWeek, gains.length)
+  const attendance = blockAttendance(stats.weeks, stats.currentWeek)
+  const adherence = blockAdherencePct(stats.weeks, stats.currentWeek)
+  const weeksLeft = Math.max(0, stats.program.mesocycleWeeks - stats.currentWeek)
 
   return (
     <div className="flex min-h-[100dvh] flex-col">
@@ -92,14 +98,11 @@ export default async function ProgramStatsPage({
           <BackLink fallback={`/programs/${stats.program.id}`} />
         }
         trailing={
-          <span
-            className={cn(
-              'shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold uppercase tracking-wide',
-              status === 'active'
-                ? 'bg-primary text-primary-foreground'
-                : 'bg-muted text-muted-foreground',
-            )}
-          >
+          // A word, not a chip: nothing here is pressable, and a pill that
+          // cannot be pressed teaches the wrong thing about every pill that
+          // can. It also stays muted — an ACTIVE badge in the accent spends
+          // the screen's one volt on a fact you knew by navigating here.
+          <span className="shrink-0 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
             {isStatusKey(status) ? t(`status.${status}`) : status}
           </span>
         }
@@ -115,13 +118,42 @@ export default async function ProgramStatsPage({
             {renderMessage(t, verdict.headline)}
           </h2>
           <p className="mt-1.5 text-sm text-muted-foreground tnum">{renderMessage(t, verdict.context)}</p>
-          <p className="mt-0.5 text-sm text-muted-foreground tnum">
-            {t('weekMeta', {
-              week: stats.currentWeek,
-              total: stats.program.mesocycleWeeks,
-            })}
-          </p>
         </section>
+
+        {/* The adherence FACT, beside the verdict rather than buried inside
+            its sentence. blockAdherencePct and blockAttendance score the same
+            window, so the ratio and the percentage can never disagree — and
+            both are countable in week one, which a trend is not. */}
+        <dl className="mt-5 flex gap-9 border-y border-y-border/60 py-4">
+          {attendance !== null && (
+            <div className="flex flex-col-reverse gap-1.5">
+              <dt className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                {t('facts.sessions')}
+              </dt>
+              <dd className="font-display text-3xl leading-none tnum">
+                {attendance.completed}
+                <span className="text-base text-muted-foreground">/{attendance.planned}</span>
+              </dd>
+            </div>
+          )}
+          {adherence !== null && (
+            <div className="flex flex-col-reverse gap-1.5">
+              <dt className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                {t('facts.adherence')}
+              </dt>
+              <dd className="font-display text-3xl leading-none tnum">
+                {adherence}
+                <span className="text-base text-muted-foreground">%</span>
+              </dd>
+            </div>
+          )}
+          <div className="flex flex-col-reverse gap-1.5">
+            <dt className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+              {t('facts.weeksLeft')}
+            </dt>
+            <dd className="font-display text-3xl leading-none tnum">{weeksLeft}</dd>
+          </div>
+        </dl>
 
         {!trained ? (
           // Whole-page teach state, not a stack of zeroed sections.
@@ -184,7 +216,7 @@ export default async function ProgramStatsPage({
                             earned here — a PR is the page's one celebration,
                             and it now leads the page at display scale. */}
                         {!isSingleWeek && delta > 0 && (
-                          <p className="mt-0.5 text-right font-display text-2xl uppercase leading-none tracking-wide text-primary tnum">
+                          <p className="mt-0.5 text-right font-display text-2xl uppercase leading-none tracking-wide tnum">
                             {t('prs.gain', { value: formatE1RM(delta, unit) })}
                           </p>
                         )}
@@ -216,18 +248,17 @@ export default async function ProgramStatsPage({
                   return (
                     <li
                       key={w.week}
-                      className={cn(
-                        '-mx-2 rounded-xl border border-transparent px-2 py-1.5',
-                        // "You are here" ring — matches the program page's
-                        // anchored current-week voice.
-                        isCurrent && 'border-primary/40',
-                      )}
+                      // No shell: the row is framed by the list's own
+                      // hairlines. "You are here" is carried by the volt bar
+                      // below rather than by a rounded border, which is what
+                      // kept this file on the card-shell ratchet.
+                      className="py-1.5"
                     >
                       <div className="flex items-center gap-3">
                         <span
                           className={cn(
                             'w-11 shrink-0 text-[11px] font-semibold uppercase tracking-widest tnum',
-                            isCurrent ? 'text-primary' : 'text-muted-foreground',
+                            isCurrent ? 'text-foreground' : 'text-muted-foreground',
                           )}
                         >
                           {t('weekShort', { week: w.week })}
@@ -282,7 +313,11 @@ export default async function ProgramStatsPage({
                         <div
                           className={cn(
                             'h-full rounded-full',
-                            isDeload ? 'border border-primary/60 bg-transparent' : 'bg-primary',
+                            isDeload
+                              ? 'border border-border bg-transparent'
+                              : isCurrent
+                                ? 'bg-primary'
+                                : 'bg-muted-foreground/50',
                           )}
                           style={{ width: `${volumeBarWidthPct(w.tonnageKg, maxTonnage)}%` }}
                         />
@@ -315,6 +350,7 @@ export default async function ProgramStatsPage({
                       const series = muscleWeekSeries(volume.weeks, verdict.group)
                       const trend = series.slice(-4)
                       const drivers = renderMessage(t, volumeDriversLine(verdict))
+                      const candidate = volumeCandidateLine(verdict)
                       return (
                         <li key={verdict.group}>
                           <details className="group">
@@ -324,7 +360,7 @@ export default async function ProgramStatsPage({
                                 className={cn(
                                   'text-[11px] font-semibold uppercase tracking-widest',
                                   verdict.status === 'increase'
-                                    ? 'text-primary'
+                                    ? 'text-foreground'
                                     : 'text-muted-foreground',
                                 )}
                               >
@@ -334,6 +370,16 @@ export default async function ProgramStatsPage({
                             <div className="space-y-2 pb-3">
                               {drivers !== null && (
                                 <p className="text-sm text-muted-foreground">{drivers}</p>
+                              )}
+                              {/* The verdict names its ACTION. The engine
+                                  already picks the movement a +1 would patch;
+                                  the page used to fetch it and drop it, so
+                                  "+1 earned" named nothing the reader could
+                                  act on. */}
+                              {candidate !== null && (
+                                <p className="text-sm text-muted-foreground">
+                                  {renderMessage(t, candidate)}
+                                </p>
                               )}
                               {/* Tier 2: the trend at a glance — last weeks'
                                   credited sets, oldest → newest. */}
@@ -398,6 +444,17 @@ export default async function ProgramStatsPage({
                     <div key={`${exercise.source}:${exercise.wgerExerciseId}`}>
                       <div className="flex items-center justify-between gap-3">
                         <p className="min-w-0 truncate text-sm font-medium">{exercise.name}</p>
+                        {/* MINIMUM-n GATE. Below two scorable weeks there is
+                            no trend to draw, and a two-point line is a claim
+                            the data cannot support. Say "calibrating" and let
+                            the countable rows below carry the facts — the
+                            posture Oura and Apple Health take before their
+                            baselines exist. */}
+                        {spark === null && (
+                          <span className="shrink-0 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
+                            {t('progression.calibrating')}
+                          </span>
+                        )}
                         {spark && (
                           <svg
                             viewBox="0 0 120 32"

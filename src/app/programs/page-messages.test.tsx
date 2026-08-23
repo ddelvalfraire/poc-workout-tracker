@@ -215,7 +215,11 @@ function ProgramStatsProbe({ count }: { count: number }) {
       <p>{t('progression.reps', { reps: count })}</p>
       <p>{t('progression.sets', { sets: count })}</p>
       <p>{t('weekShort', { week: 3 })}</p>
-      <p>{t('weekMeta', { week: 3, total: 8 })}</p>
+      <p>{t('facts.sessions')}</p>
+      <p>{t('facts.adherence')}</p>
+      <p>{t('facts.weeksLeft')}</p>
+      <p>{t('muscle.candidate', { name: 'Barbell Row', day: 2 })}</p>
+      <p>{t('progression.calibrating')}</p>
       <p>
         {t.rich('muscle.trend', {
           values: '8 → 10 → 12',
@@ -254,7 +258,11 @@ describe('Program stats messages', () => {
     expect(html).toContain('· wk 3')
     expect(html).toContain('+5 kg')
     expect(html).toContain('Wk 3')
-    expect(html).toContain('Week 3 of 8')
+    // Week position left the stats page with the fact strip: "Weeks left" is
+    // the figure that survived, because it is the one that changes what you do.
+    expect(html).toContain('Weeks left')
+    expect(html).toContain('The next set would go to Barbell Row on day 2.')
+    expect(html).toContain('Calibrating')
     expect(html).toContain('Verdicts from week 3 — sets credited per muscle')
     expect(html).not.toMatch(/ProgramStats\.[a-zA-Z.]+/)
   })

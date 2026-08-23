@@ -80,6 +80,43 @@ export function isHighRepEstimate(point: ProgramExercisePRPoint): boolean {
  * Null when there's nothing behind you yet (week 1, or a dayless program) —
  * that's the early-block signal, not a zero.
  */
+/** Sessions actually completed against sessions the plan asked for, up to but
+ *  excluding the current week — the same window blockAdherencePct scores, so
+ *  the figure and the percentage can never disagree.
+ *
+ *  A countable fact, which is what an early block HAS. Adherence is a ratio
+ *  and needs a denominator; "3 of 4" is honest in week one and a slope is not.
+ */
+export function blockAttendance(
+  weeks: readonly ProgramWeekStats[],
+  currentWeek: number,
+): { completed: number; planned: number } | null {
+  let completed = 0
+  let planned = 0
+  for (const w of weeks) {
+    if (w.week >= currentWeek) continue
+    completed += w.daysCompleted
+    planned += w.plannedDays
+  }
+  return planned > 0 ? { completed, planned } : null
+}
+
+/** The movement a +1 would actually patch. The engine computes this and the
+ *  page used to throw it away, so "+1 earned" named no action — a verdict the
+ *  reader could not act on. */
+export function volumeCandidateLine(
+  verdict: MuscleVerdict,
+): Message<'muscle.candidate'> | null {
+  if (verdict.status !== 'increase' || verdict.candidate === null) return null
+  return {
+    key: 'muscle.candidate',
+    values: {
+      name: verdict.candidate.name,
+      day: verdict.candidate.address.dayPosition,
+    },
+  }
+}
+
 export function blockAdherencePct(
   weeks: readonly ProgramWeekStats[],
   currentWeek: number,

@@ -1541,8 +1541,14 @@
   },
   "ProgramStats": {
     "empty": "No sessions from this program yet — start a day and stats build themselves.",
+    "facts": {
+      "sessions": "Sessions",
+      "adherence": "Adherence",
+      "weeksLeft": "Weeks left"
+    },
     "muscle": {
       "ariaLabel": "Muscle volume",
+      "candidate": "The next set would go to {name} on day {day}.",
       "deloadBadge": "DL",
       "driversHold": "{names} stalled — hold volume while recovery catches up",
       "driversIncrease": "{names} beat top of range 2 weeks running",
@@ -1561,7 +1567,9 @@
     },
     "progression": {
       "ariaLabel": "Progression",
+      "calibrating": "Calibrating",
       "reps": "{reps, plural, one {# rep} other {# reps}}",
+      "sessionCount": "{count, plural, one {# session} other {# sessions}} logged",
       "sets": "{sets, plural, one {# set} other {# sets}}",
       "title": "Progression"
     },
@@ -1588,7 +1596,6 @@
       "headlineSteady": "Showing up.",
       "headlineStronger": "Getting stronger."
     },
-    "weekMeta": "Week {week} of {total}",
     "weekShort": "Wk {week}",
     "weeks": {
       "ariaLabel": "Weeks",
