@@ -16,10 +16,12 @@ import { workouts, programDays } from './schema'
  * NULL, so the wipe still nulls it; the re-attach is what makes that transient
  * instead of permanent.
  *
- * This suite began life as `program-provenance-loss.test.ts`, which recorded
- * the loss (delete → re-insert with no id carried over) as characterization.
- * Every assertion here is the inversion of one of those: what documented the
- * bug now prevents its return.
+ * A sibling branch (`test/provenance-loss`, not an ancestor of this one) has a
+ * `program-provenance-loss.test.ts` that recorded the loss (delete → re-insert
+ * with no id carried over) as characterization. This suite was written against
+ * the same mechanism rather than derived from that file: it pins the
+ * preservation the fix introduces, not a literal inversion of those
+ * assertions.
  *
  * Layer note: these db tests run against a recording Drizzle stub (the
  * established convention in save-program.test.ts / save-workout.test.ts) — no
@@ -367,6 +369,64 @@ describe('matchDaySlots', () => {
       undefined,
       undefined,
     ])
+  })
+
+  it('refuses the fallback when two stored days share a name, even in order', () => {
+    // Arrange — `program_days` only enforces unique(programId, position), so one
+    // program can legally hold two days called Legs. The unkeyed plan re-sends
+    // them unchanged.
+    const duplicated = [
+      { slotKey: SLOT_LEGS, position: 0, name: 'Legs' },
+      { slotKey: SLOT_PUSH, position: 1, name: 'Legs' },
+    ]
+    const incoming = [{ name: 'Legs' }, { name: 'Legs' }]
+
+    // Act / Assert — the names match at every position, but names cannot tell
+    // these two days apart, so "unchanged" is unprovable and nothing is carried
+    expect(matchDaySlots(duplicated, incoming)).toEqual([undefined, undefined])
+  })
+
+  it('refuses the fallback when two stored days share a name and are swapped', () => {
+    // Arrange — THE failure this clause exists for: the squat Legs day and the
+    // deadlift Legs day trade places in an unkeyed save
+    const duplicated = [
+      { slotKey: SLOT_LEGS, position: 0, name: 'Legs' }, // squat day
+      { slotKey: SLOT_PUSH, position: 1, name: 'Legs' }, // deadlift day
+    ]
+    const incoming = [{ name: 'Legs' }, { name: 'Legs' }]
+
+    // Act / Assert — a positional carry would re-point every squat session at
+    // the deadlift day and present it as recorded fact. Losing the link is
+    // recoverable; that is not.
+    expect(matchDaySlots(duplicated, incoming)).toEqual([undefined, undefined])
+  })
+
+  it('refuses the fallback when a plan with duplicate names renames one of them', () => {
+    // Arrange — one of the two Legs days is renamed; which one is unknowable
+    const duplicated = [
+      { slotKey: SLOT_LEGS, position: 0, name: 'Legs' },
+      { slotKey: SLOT_PUSH, position: 1, name: 'Legs' },
+    ]
+    const incoming = [{ name: 'Legs' }, { name: 'Legs (deadlift)' }]
+
+    // Act / Assert
+    expect(matchDaySlots(duplicated, incoming)).toEqual([undefined, undefined])
+  })
+
+  it('still carries KEYS across days that share a name', () => {
+    // Arrange — duplicate names only defeat the nameless fallback; a
+    // round-tripped key is direct evidence of identity
+    const duplicated = [
+      { slotKey: SLOT_LEGS, position: 0, name: 'Legs' },
+      { slotKey: SLOT_PUSH, position: 1, name: 'Legs' },
+    ]
+    const incoming = [
+      { slotKey: SLOT_PUSH, name: 'Legs' },
+      { slotKey: SLOT_LEGS, name: 'Legs' },
+    ]
+
+    // Act / Assert — the swap follows the keys, not the positions
+    expect(matchDaySlots(duplicated, incoming)).toEqual([SLOT_PUSH, SLOT_LEGS])
   })
 
   it('does not fall back for the unkeyed days of a PARTIALLY keyed plan', () => {

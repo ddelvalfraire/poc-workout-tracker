@@ -393,10 +393,20 @@ export interface DaySlotCandidate {
  * (MCP `upsert_program` before an agent learns to echo it, a program draft
  * snapshotted before the field existed). It is a DEGRADATION, and deliberately
  * the narrowest one that is still safe: only when NO day carried a key, the
- * day count is unchanged, and every position's name is identical does each day
- * keep the slot at its own position. Under those conditions the mapping is the
- * identity — a reorder permutes the names and a add/remove changes the count,
- * so both refuse the fallback and lose the links honestly instead of guessing.
+ * day count is unchanged, every position's name is identical, AND those names
+ * are distinct does each day keep the slot at its own position. Under those
+ * conditions the mapping is the identity — a reorder permutes the names and an
+ * add/remove changes the count, so both refuse the fallback and lose the links
+ * honestly instead of guessing.
+ *
+ * The distinctness clause is the load-bearing one. `program_days` has no
+ * uniqueness on `name` (only `unique(programId, position)`), so one program can
+ * hold two days called "Legs". Comparing names position by position then proves
+ * name-identity, not day-identity: stored [Legs(squat), Legs(deadlift)] sent
+ * back swapped still reads as ["Legs","Legs"] === ["Legs","Legs"], and every
+ * squat session would be re-pointed at the deadlift day. Names alone cannot
+ * distinguish those days, so with a duplicate name present the fallback is
+ * refused wholesale and no key is carried.
  */
 export function matchDaySlots(
   existing: readonly DaySlotSnapshot[],
@@ -411,7 +421,11 @@ export function matchDaySlots(
     })
   }
   const byPosition = [...existing].sort((a, b) => a.position - b.position)
+  // Two days may legally share a name, and then no comparison of names can say
+  // which of them an incoming day is. Unprovable, so refused outright.
+  const namesAreDistinct = new Set(byPosition.map((slot) => slot.name)).size === byPosition.length
   const isUnchangedShape =
+    namesAreDistinct &&
     byPosition.length === incoming.length &&
     byPosition.every((slot, i) => slot.name === incoming[i].name)
   return incoming.map((_, i) => (isUnchangedShape ? byPosition[i].slotKey : undefined))
