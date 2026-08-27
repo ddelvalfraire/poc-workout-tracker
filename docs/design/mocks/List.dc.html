@@ -1,0 +1,102 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap">
+  <style>
+    body { margin: 0; background: oklch(0.145 0 0); font-family: Inter, system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+    a { color: oklch(0.86 0.19 128); } a:hover { color: oklch(0.9 0.19 128); }
+  </style>
+</helmet>
+<div style="width: 448px; min-height: 1080px; display: flex; flex-direction: column; background: oklch(0.145 0 0); color: oklch(0.97 0 0)">
+
+  <!-- app bar -->
+  <div style="display: flex; align-items: center; gap: 12px; height: 56px; padding: 0 20px; border-bottom: 1px solid oklch(1 0 0 / 0.12); background: oklch(0.145 0 0 / 0.8)">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="oklch(0.72 0 0)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M3 12h18M3 18h18"></path></svg>
+    <div style="flex: 1; font-family: Oswald, 'Arial Narrow', sans-serif; font-weight: 600; font-size: 20px; text-transform: uppercase; letter-spacing: -0.01em; color: oklch(0.97 0 0)">Programs</div>
+  </div>
+
+  <div style="flex: 1; display: flex; flex-direction: column; padding: 0 20px 48px">
+
+    <!-- active hero — keep-listed, unchanged shape: volt hairline, not a shell -->
+    <div style="margin-top: 24px; border-bottom: 1px solid oklch(0.86 0.19 128 / 0.3); padding-bottom: 20px; display: flex; flex-direction: column; gap: 10px">
+      <div style="display: flex; align-items: center; gap: 8px">
+        <span style="width: 7px; height: 7px; border-radius: 9999px; background: oklch(0.86 0.19 128)"></span>
+        <div style="font-family: Oswald, 'Arial Narrow', sans-serif; font-weight: 600; font-size: 20px; line-height: 28px; text-transform: uppercase; color: oklch(0.97 0 0)">Volume Cut &middot; Block 2</div>
+      </div>
+      <div style="font-family: Oswald, 'Arial Narrow', sans-serif; font-weight: 600; font-size: 48px; line-height: 48px; text-transform: uppercase; font-variant-numeric: tabular-nums; color: oklch(0.97 0 0)">WK 3 <span style="color: oklch(0.72 0 0)">of 6</span></div>
+      <div style="font-size: 14px; color: oklch(0.72 0 0)">Next: Day 2 &middot; Pull</div>
+      <div style="display: flex; gap: 6px; padding-top: 4px">
+        <div style="flex: 1; height: 6px; border-radius: 9999px; background: oklch(0.86 0.19 128)"></div>
+        <div style="flex: 1; height: 6px; border-radius: 9999px; background: oklch(0.86 0.19 128)"></div>
+        <div style="flex: 1; border-radius: 9999px; padding: 1px; box-shadow: 0 0 0 1px oklch(0.86 0.19 128 / 0.7)"><div style="height: 6px; border-radius: 9999px; background: oklch(0.269 0 0); overflow: hidden"><div style="width: 25%; height: 100%; border-radius: 9999px; background: oklch(0.86 0.19 128)"></div></div></div>
+        <div style="flex: 1; height: 6px; border-radius: 9999px; background: oklch(0.269 0 0)"></div>
+        <div style="flex: 1; height: 6px; border-radius: 9999px; border: 1px solid oklch(1 0 0 / 0.12); background: transparent; box-sizing: border-box"></div>
+        <div style="flex: 1; height: 6px; border-radius: 9999px; background: oklch(0.269 0 0)"></div>
+      </div>
+    </div>
+
+    <!-- CTA row -->
+    <div style="display: flex; gap: 10px; padding: 18px 0 6px">
+      <div style="flex: 1; display: flex; align-items: center; justify-content: center; height: 44px; border-radius: 12px; border: 1px solid oklch(1 0 0 / 0.15); background: oklch(1 0 0 / 0.03); font-size: 14px; font-weight: 500; color: oklch(0.97 0 0)">New program</div>
+      <div style="flex: 1; display: flex; align-items: center; justify-content: center; height: 44px; border-radius: 12px; border: 1px solid oklch(1 0 0 / 0.15); background: oklch(1 0 0 / 0.03); font-size: 14px; font-weight: 500; color: oklch(0.97 0 0)">Templates</div>
+    </div>
+
+    <!-- PROPOSED zone: dashed = pending voice, count in the heading -->
+    <div style="margin-top: 22px">
+      <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; color: oklch(0.72 0 0)">Proposed &middot; 1</div>
+      <div style="margin-top: 2px; border-bottom: 1px dashed oklch(1 0 0 / 0.072)">
+        <div style="display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 0; border-top: 1px dashed oklch(1 0 0 / 0.072)">
+          <div style="display: flex; flex-direction: column; gap: 2px; min-width: 0">
+            <div style="font-size: 18px; font-weight: 500; line-height: 24px; color: oklch(0.97 0 0)">Block 3 &middot; Volume Cut</div>
+            <div style="font-size: 12px; color: oklch(0.72 0 0)">from coach &middot; 6 wk &middot; 4 d/wk &middot; proposed 2d ago</div>
+          </div>
+          <div style="display: flex; align-items: center; gap: 4px; color: oklch(0.72 0 0); flex-shrink: 0">
+            <span style="font-size: 12px">review</span>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"></path></svg>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- DRAFTS zone: demoted voice — smaller, muted names -->
+    <div style="margin-top: 26px">
+      <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; color: oklch(0.72 0 0)">Drafts &middot; 2</div>
+      <div style="margin-top: 2px; border-bottom: 1px solid oklch(1 0 0 / 0.072)">
+        <div style="display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 13px 0; border-top: 1px solid oklch(1 0 0 / 0.072)">
+          <div style="display: flex; flex-direction: column; gap: 2px; min-width: 0">
+            <div style="font-size: 15px; font-weight: 500; line-height: 22px; color: oklch(0.72 0 0)">Upper / Lower experiment</div>
+            <div style="font-size: 12px; color: oklch(0.72 0 0); opacity: 0.75">draft &middot; 4 wk sketched &middot; edited 1w ago</div>
+          </div>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="oklch(0.72 0 0)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0"><path d="M9 18l6-6-6-6"></path></svg>
+        </div>
+        <div style="display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 13px 0; border-top: 1px solid oklch(1 0 0 / 0.072)">
+          <div style="display: flex; flex-direction: column; gap: 2px; min-width: 0">
+            <div style="font-size: 15px; font-weight: 500; line-height: 22px; color: oklch(0.72 0 0)">Kettlebell conditioning</div>
+            <div style="font-size: 12px; color: oklch(0.72 0 0); opacity: 0.75">draft &middot; 2 days sketched &middot; edited 3w ago</div>
+          </div>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="oklch(0.72 0 0)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0"><path d="M9 18l6-6-6-6"></path></svg>
+        </div>
+      </div>
+    </div>
+
+    <!-- ARCHIVED roll-up -->
+    <div style="margin-top: 26px; display: flex; align-items: center; gap: 8px; color: oklch(0.72 0 0)">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"></path></svg>
+      <span style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em">Archived &middot; 4</span>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script data-dc-script data-props='{}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

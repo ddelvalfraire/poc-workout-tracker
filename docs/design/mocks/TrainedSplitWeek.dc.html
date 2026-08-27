@@ -1,0 +1,154 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap">
+  <style>
+    body { margin: 0; background: oklch(0.145 0 0); font-family: Inter, system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+    .cap { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; color: oklch(0.72 0 0); }
+    .osw { font-family: Oswald, 'Arial Narrow', sans-serif; font-weight: 600; text-transform: uppercase; }
+    .num { font-variant-numeric: tabular-nums; }
+    .row { border-bottom: 1px solid oklch(1 0 0 / 0.072); }
+    /* A settled row is a LOG: values as text, no field chrome, FULL contrast.
+       Never disabled, never dimmed — this is the content people most want to
+       read, and dimming it is the WCAG 1.4.3 exemption trap. */
+    .val { font-size: 14px; }
+    /* An editable row is a FIELD: it looks like one because it is one. */
+    .fld { display: inline-flex; align-items: center; justify-content: center; min-width: 52px; height: 32px; padding: 0 8px; border: 1px solid oklch(1 0 0 / 0.15); border-radius: 8px; font-size: 14px; font-variant-numeric: tabular-nums; }
+  </style>
+</helmet>
+<div style="width: 448px; min-height: 1500px; display: flex; flex-direction: column; background: oklch(0.145 0 0); color: oklch(0.97 0 0)">
+
+  <div style="display: flex; align-items: center; gap: 10px; height: 56px; padding: 0 20px; border-bottom: 1px solid oklch(1 0 0 / 0.12)">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="oklch(0.72 0 0)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"></path></svg>
+    <div class="osw" style="flex: 1; font-size: 20px; letter-spacing: -0.01em">Edit plan</div>
+    <span class="cap" style="display: flex; align-items: center; gap: 5px">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="oklch(0.72 0 0)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"></path></svg>Saved
+    </span>
+  </div>
+
+  <div style="flex: 1; padding: 0 20px 40px">
+
+    <div style="padding-top: 20px; display: flex; align-items: baseline; gap: 8px">
+      <span style="font-size: 20px; line-height: 1">🏋️</span>
+      <div class="osw" style="font-size: 26px; line-height: 32px">Volume Cut &middot; Block 3</div>
+    </div>
+
+    <!-- D4 · SCOPE BEFORE THE EDIT. Persistent, not a dialog — editing a plan is
+         a frequent action and a modal would be habituated away within days.
+         D6 · Domain terms: what you lifted, not "prescriptions are snapshotted". -->
+    <div style="margin-top: 16px; padding: 13px 0; border-top: 1px solid oklch(1 0 0 / 0.12); border-bottom: 1px solid oklch(1 0 0 / 0.12)">
+      <div style="display: flex; gap: 9px">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="oklch(0.72 0 0)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:2px"><circle cx="12" cy="12" r="9"></circle><path d="M12 8v5M12 16.5v.01"></path></svg>
+        <div style="font-size: 13.5px; line-height: 20px; color: oklch(0.72 0 0)">
+          You&rsquo;ve trained <span style="color: oklch(0.97 0 0)">9 of 24 sessions</span> in this block. Editing changes the sessions you haven&rsquo;t started &mdash; it won&rsquo;t change what you already lifted.
+        </div>
+      </div>
+    </div>
+
+    <!-- D5 · The week header REPORTS a count. It is not a control, and it is
+         certainly not a tri-state checkbox: "mixed" is a state you can leave but
+         never enter, and its whole semantic is "toggle my children" — the exact
+         operation that must be forbidden here. -->
+    <div style="margin-top: 24px; display: flex; align-items: baseline; justify-content: space-between">
+      <div class="osw" style="font-size: 17px; letter-spacing: 0.02em">Week 3</div>
+      <span class="num" style="font-size: 12px; color: oklch(0.72 0 0)">2 of 4 sessions trained</span>
+    </div>
+
+    <div style="margin-top: 12px; border-top: 1px solid oklch(1 0 0 / 0.12)">
+
+      <!-- SETTLED · completed. Rendered as a LOG. The word carries the state
+           (D3, channel 3) and it is the app's existing copy, not a new word. -->
+      <div class="row" style="padding: 13px 0">
+        <div style="display: flex; align-items: baseline; gap: 9px">
+          <div style="flex: 1; font-size: 15.5px">Day 1 &middot; Pull</div>
+          <span class="cap" style="font-size: 10px; color: oklch(0.97 0 0)">Done</span>
+        </div>
+        <!-- TrainHeroic's encoding: the plan struck through, the actual beneath.
+             Both facts visible, neither pretending to be a field. -->
+        <div style="margin-top: 7px; display: flex; flex-direction: column; gap: 4px">
+          <div style="display: flex; justify-content: space-between">
+            <span class="val" style="color: oklch(0.72 0 0)">Barbell Row</span>
+            <span class="val num">3&times;8 @ 80</span>
+          </div>
+          <div style="display: flex; justify-content: space-between">
+            <span class="val" style="color: oklch(0.72 0 0)">Lat Pulldown</span>
+            <span class="val num"><span style="color: oklch(0.52 0 0); text-decoration: line-through">65</span> &nbsp;60 kg</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- SETTLED · in progress. The counter-intuitive one: a started session is
+           AS FROZEN AS a finished one. Its sets were written at start time and
+           resuming returns them untouched — there is no re-sync path. -->
+      <div class="row" style="padding: 13px 0">
+        <div style="display: flex; align-items: baseline; gap: 9px">
+          <div style="flex: 1; font-size: 15.5px">Day 2 &middot; Push</div>
+          <span class="cap" style="font-size: 10px; color: oklch(0.97 0 0)">In progress</span>
+        </div>
+        <div style="margin-top: 5px; font-size: 12.5px; line-height: 18px; color: oklch(0.72 0 0)">
+          Started today. Its targets were set when you began, so edits won&rsquo;t reach this one either.
+        </div>
+      </div>
+
+      <!-- ══ THE SEAM ══ D3 channel 1: a labelled rule, in words. The one
+           encoding every reader already knows from every timeline. NOT dimness —
+           lightness alone under 3:1 is not a distinction under WCAG 1.4.1. -->
+      <div style="display: flex; align-items: center; gap: 10px; padding: 18px 0 4px">
+        <span style="height: 1px; flex: 1; background: oklch(0.86 0.19 128 / 0.5)"></span>
+        <span class="cap" style="font-size: 10px; color: oklch(0.86 0.19 128)">Edits start here</span>
+        <span style="height: 1px; flex: 1; background: oklch(0.86 0.19 128 / 0.5)"></span>
+      </div>
+
+      <!-- LIVE · same week, opposite behaviour. This is why the encoding cannot
+           live on the week: day 3 and day 1 are in Week 3 together and do not
+           agree about what an edit reaches. -->
+      <div class="row" style="padding: 13px 0 15px">
+        <div style="display: flex; align-items: baseline; gap: 9px">
+          <div style="flex: 1; font-size: 15.5px">Day 3 &middot; Legs</div>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="oklch(0.72 0 0)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"></path></svg>
+        </div>
+        <div style="margin-top: 9px; display: flex; flex-direction: column; gap: 8px">
+          <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px">
+            <span class="val" style="flex: 1; min-width: 0">Back Squat</span>
+            <span class="fld num">4&times;6</span>
+            <span class="fld num">100</span>
+          </div>
+          <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px">
+            <span class="val" style="flex: 1; min-width: 0">Romanian Deadlift</span>
+            <span class="fld num">3&times;10</span>
+            <span class="fld num">80</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="row" style="padding: 13px 0">
+        <div style="display: flex; align-items: baseline; gap: 9px">
+          <div style="flex: 1; font-size: 15.5px">Day 4 &middot; Upper</div>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="oklch(0.72 0 0)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"></path></svg>
+        </div>
+      </div>
+    </div>
+
+    <!-- Later weeks: nothing instantiated, so nothing settled. No badges at all
+         — a trained-state indicator computed from nothing is noise. -->
+    <div style="margin-top: 26px; display: flex; align-items: baseline; justify-content: space-between">
+      <div class="osw" style="font-size: 17px; letter-spacing: 0.02em; color: oklch(0.72 0 0)">Weeks 4&ndash;6</div>
+      <span style="font-size: 12px; color: oklch(0.72 0 0)">not started</span>
+    </div>
+    <div style="margin-top: 10px; border-top: 1px solid oklch(1 0 0 / 0.12); border-bottom: 1px solid oklch(1 0 0 / 0.072); padding: 13px 0; font-size: 13px; line-height: 19px; color: oklch(0.72 0 0)">
+      Every session here follows the plan as you leave it. Week 6 is the deload.
+    </div>
+  </div>
+</div>
+</x-dc>
+<script data-dc-script data-props='{}'>
+class Component extends DCLogic { renderVals() { return {}; } }
+</script>
+</body>
+</html>

@@ -1,0 +1,103 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap">
+  <style>
+    body { margin: 0; background: oklch(0.145 0 0); font-family: Inter, system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+    a { color: oklch(0.86 0.19 128); } a:hover { color: oklch(0.9 0.19 128); }
+    .cap { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; color: oklch(0.72 0 0); }
+    .osw { font-family: Oswald, 'Arial Narrow', sans-serif; font-weight: 600; text-transform: uppercase; }
+    .num { font-variant-numeric: tabular-nums; }
+    .wk { font-size: 12px; font-variant-numeric: tabular-nums; color: oklch(0.72 0 0); }
+    .wkb { font-size: 12px; font-variant-numeric: tabular-nums; color: oklch(0.97 0 0); font-weight: 600; }
+  </style>
+</helmet>
+<div style="width: 448px; min-height: 1180px; display: flex; flex-direction: column; background: oklch(0.145 0 0); color: oklch(0.97 0 0)">
+
+  <div style="display: flex; align-items: center; gap: 10px; height: 56px; padding: 0 20px; border-bottom: 1px solid oklch(1 0 0 / 0.12)">
+    <div class="osw" style="flex: 1; font-size: 20px; letter-spacing: -0.01em">Edit plan</div>
+    <span class="cap" style="display: flex; align-items: center; gap: 5px">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="oklch(0.72 0 0)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"></path></svg>Saved
+    </span>
+  </div>
+
+  <div style="flex: 1; padding: 20px; opacity: 0.32">
+    <div class="cap" style="font-size: 10px">Week 3 &middot; Day 1 Pull</div>
+    <div style="margin-top: 14px; display: flex; flex-direction: column; gap: 13px">
+      <div style="display: flex; justify-content: space-between"><span style="font-size: 15px">Weighted Pull-Up</span><span class="num" style="font-size: 13px; color: oklch(0.72 0 0)">4&times;6 @ +10</span></div>
+      <div style="display: flex; justify-content: space-between"><span style="font-size: 15px">Barbell Row</span><span class="num" style="font-size: 13px; color: oklch(0.72 0 0)">3&times;8 @ 80</span></div>
+      <div style="display: flex; justify-content: space-between"><span style="font-size: 15px">Lat Pulldown</span><span class="num" style="font-size: 13px">4&times;10 @ 65</span></div>
+      <div style="display: flex; justify-content: space-between"><span style="font-size: 15px">Cable Face Pull</span><span class="num" style="font-size: 13px; color: oklch(0.72 0 0)">3&times;15 @ 25</span></div>
+    </div>
+  </div>
+
+  <!-- TWO options, not three. The engine settled it: a per-week pin holds
+       FIELD VALUES only, and nothing in the schema is week-ranged — so
+       "week 3 onward" was never expressible, and set COUNT belongs to the
+       rule layer (deload setFactor, or a weekly-volume ramp), which already
+       varies it. The edit shown here is a LOAD change, which a pin can hold. -->
+  <div style="border-top: 1px solid oklch(1 0 0 / 0.12); background: oklch(0.205 0 0); border-radius: 22px 22px 0 0; padding: 20px 20px 28px">
+    <div style="width: 36px; height: 4px; border-radius: 9999px; background: oklch(1 0 0 / 0.2); margin: 0 auto 18px"></div>
+
+    <div class="osw" style="font-size: 24px; line-height: 30px">You changed a weight</div>
+    <div style="margin-top: 7px; font-size: 14px; line-height: 21px; color: oklch(0.72 0 0)">
+      Lat Pulldown in week 3 went from <span class="num" style="color: oklch(0.97 0 0)">60</span> to <span class="num" style="color: oklch(0.97 0 0)">65 kg</span>. That&rsquo;s saved. How far should it reach?
+    </div>
+
+    <div style="margin-top: 20px; border-top: 1px solid oklch(1 0 0 / 0.12)">
+
+      <div style="display: flex; gap: 12px; padding: 15px 0; border-bottom: 1px solid oklch(1 0 0 / 0.072)">
+        <span style="width: 18px; height: 18px; margin-top: 2px; border-radius: 9999px; border: 5px solid oklch(0.86 0.19 128); flex-shrink: 0"></span>
+        <div style="flex: 1; min-width: 0">
+          <div style="font-size: 15px; font-weight: 500">This week only</div>
+          <div style="font-size: 13px; color: oklch(0.72 0 0); margin-top: 2px">Pins week 3. Every other week keeps following the rule.</div>
+          <div style="display: flex; gap: 9px; margin-top: 9px">
+            <span class="wk">55</span><span class="wk">57.5</span><span class="wkb">65</span><span class="wk">62.5</span><span class="wk">45</span><span class="wk">67.5</span>
+          </div>
+        </div>
+      </div>
+
+      <div style="display: flex; gap: 12px; padding: 15px 0; border-bottom: 1px solid oklch(1 0 0 / 0.072)">
+        <span style="width: 18px; height: 18px; margin-top: 2px; border-radius: 9999px; border: 1px solid oklch(1 0 0 / 0.25); flex-shrink: 0"></span>
+        <div style="flex: 1; min-width: 0">
+          <div style="font-size: 15px; font-weight: 500">The plan</div>
+          <div style="font-size: 13px; color: oklch(0.72 0 0); margin-top: 2px">Moves the rule&rsquo;s starting load. Applies to every week you haven&rsquo;t logged yet.</div>
+          <div style="display: flex; gap: 9px; margin-top: 9px">
+            <span class="wk" style="opacity: 0.5">55</span><span class="wk" style="opacity: 0.5">57.5</span><span class="wkb">65</span><span class="wkb">67.5</span><span class="wk">48</span><span class="wkb">72.5</span>
+          </div>
+          <div class="cap" style="font-size: 10px; margin-top: 7px">Weeks 1&ndash;2 are trained &mdash; they don&rsquo;t change</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="cap" style="margin-top: 12px; font-size: 10px; display: flex; gap: 14px">
+      <span>Wk 1&ndash;6, left to right</span>
+      <span style="color: oklch(0.97 0 0)">bold = changes</span>
+    </div>
+
+    <div style="margin-top: 20px; display: flex; gap: 10px">
+      <div style="flex: 1; display: flex; align-items: center; justify-content: center; height: 48px; border-radius: 12px; border: 1px solid oklch(1 0 0 / 0.15); font-size: 15px; font-weight: 500">Leave it</div>
+      <div style="flex: 1.3; display: flex; align-items: center; justify-content: center; height: 48px; border-radius: 12px; background: oklch(0.86 0.19 128); color: oklch(0.16 0.03 128); font-size: 15px; font-weight: 500">Apply</div>
+    </div>
+
+    <!-- Where a set-COUNT change would land: not here. The sheet routes it to
+         the rule that already expresses it. -->
+    <div style="margin-top: 16px; padding-top: 14px; border-top: 1px solid oklch(1 0 0 / 0.072); font-size: 12px; line-height: 18px; color: oklch(0.72 0 0)">
+      Want <span style="color: oklch(0.97 0 0)">fewer sets in one week</span>? That&rsquo;s the deload policy. Want them to <span style="color: oklch(0.97 0 0)">climb across the block</span>? That&rsquo;s a weekly-volume progression.
+    </div>
+  </div>
+</div>
+</x-dc>
+<script data-dc-script data-props='{}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>
