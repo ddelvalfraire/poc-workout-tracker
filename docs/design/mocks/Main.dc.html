@@ -1,0 +1,153 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap">
+  <style>
+    body { margin: 0; background: oklch(0.145 0 0); font-family: Inter, system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+    a { color: oklch(0.86 0.19 128); } a:hover { color: oklch(0.9 0.19 128); }
+  </style>
+</helmet>
+<div style="width: 448px; min-height: 1560px; display: flex; flex-direction: column; background: oklch(0.145 0 0); color: oklch(0.97 0 0); position: relative">
+
+  <!-- app bar -->
+  <div style="display: flex; align-items: center; gap: 8px; height: 56px; padding: 0 20px; border-bottom: 1px solid oklch(1 0 0 / 0.12); background: oklch(0.145 0 0 / 0.8)">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="oklch(0.72 0 0)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"></path></svg>
+    <div style="flex: 1; font-family: Oswald, 'Arial Narrow', sans-serif; font-weight: 600; font-size: 20px; text-transform: uppercase; letter-spacing: -0.01em; color: oklch(0.97 0 0)">Template</div>
+  </div>
+
+  <div style="flex: 1; display: flex; flex-direction: column; padding: 0 20px 120px">
+
+    <!-- identity -->
+    <div style="display: flex; flex-direction: column; gap: 10px; padding-top: 28px">
+      <div style="font-family: Oswald, 'Arial Narrow', sans-serif; font-weight: 600; font-size: 36px; line-height: 40px; text-transform: uppercase; letter-spacing: 0.005em; color: oklch(0.97 0 0)">GZCLP &middot; 4-Day</div>
+      <div style="font-size: 16px; line-height: 24px; color: oklch(0.72 0 0); max-width: 40ch">Tiered linear progression for lifters past the newbie phase &mdash; heavy triples up top, volume underneath.</div>
+    </div>
+
+    <!-- fact strip: commitment is the largest thing on screen -->
+    <div style="display: flex; gap: 36px; border-top: 1px solid oklch(1 0 0 / 0.072); border-bottom: 1px solid oklch(1 0 0 / 0.072); padding: 18px 0; margin-top: 22px">
+      <div style="display: flex; flex-direction: column; gap: 6px">
+        <div style="font-family: Oswald, 'Arial Narrow', sans-serif; font-weight: 600; font-size: 48px; line-height: 48px; font-variant-numeric: tabular-nums; color: oklch(0.97 0 0)">5</div>
+        <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; color: oklch(0.72 0 0)">Weeks</div>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 6px">
+        <div style="font-family: Oswald, 'Arial Narrow', sans-serif; font-weight: 600; font-size: 48px; line-height: 48px; font-variant-numeric: tabular-nums; color: oklch(0.97 0 0)">4</div>
+        <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; color: oklch(0.72 0 0)">Days / wk</div>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 6px">
+        <div style="font-family: Oswald, 'Arial Narrow', sans-serif; font-weight: 600; font-size: 48px; line-height: 48px; font-variant-numeric: tabular-nums; color: oklch(0.97 0 0)">~60</div>
+        <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; color: oklch(0.72 0 0)">Min / session</div>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 6px">
+        <div style="font-family: Oswald, 'Arial Narrow', sans-serif; font-weight: 600; font-size: 48px; line-height: 48px; color: oklch(0.97 0 0)">Gym</div>
+        <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; color: oklch(0.72 0 0)">Barbell + cable</div>
+      </div>
+    </div>
+
+    <!-- block map: the program's shape, pre-adoption -->
+    <div style="display: flex; flex-direction: column; gap: 8px; padding: 16px 0 4px">
+      <div style="display: flex; gap: 6px">
+        <div style="flex: 1; display: flex; flex-direction: column; gap: 4px">
+          <div style="height: 10px; border-radius: 9999px; background: oklch(0.269 0 0)"></div>
+          <div style="text-align: center; font-size: 10px; font-weight: 600; letter-spacing: 0.1em; font-variant-numeric: tabular-nums; color: oklch(0.72 0 0)">1</div>
+        </div>
+        <div style="flex: 1; display: flex; flex-direction: column; gap: 4px">
+          <div style="height: 10px; border-radius: 9999px; background: oklch(0.269 0 0)"></div>
+          <div style="text-align: center; font-size: 10px; font-weight: 600; letter-spacing: 0.1em; font-variant-numeric: tabular-nums; color: oklch(0.72 0 0)">2</div>
+        </div>
+        <div style="flex: 1; display: flex; flex-direction: column; gap: 4px">
+          <div style="height: 10px; border-radius: 9999px; background: oklch(0.269 0 0)"></div>
+          <div style="text-align: center; font-size: 10px; font-weight: 600; letter-spacing: 0.1em; font-variant-numeric: tabular-nums; color: oklch(0.72 0 0)">3</div>
+        </div>
+        <div style="flex: 1; display: flex; flex-direction: column; gap: 4px">
+          <div style="height: 10px; border-radius: 9999px; border: 1px solid oklch(1 0 0 / 0.12); background: transparent; box-sizing: border-box"></div>
+          <div style="text-align: center; font-size: 10px; font-weight: 600; letter-spacing: 0.1em; font-variant-numeric: tabular-nums; color: oklch(0.72 0 0)">4 DL</div>
+        </div>
+        <div style="flex: 1; display: flex; flex-direction: column; gap: 4px">
+          <div style="height: 10px; border-radius: 9999px; background: oklch(0.269 0 0)"></div>
+          <div style="text-align: center; font-size: 10px; font-weight: 600; letter-spacing: 0.1em; font-variant-numeric: tabular-nums; color: oklch(0.72 0 0)">5</div>
+        </div>
+      </div>
+      <div style="font-size: 12px; line-height: 16px; color: oklch(0.72 0 0)">Deload week 4 &mdash; planned, not optional.</div>
+    </div>
+
+    <!-- the plan: day 1 fully, the rest summarized -->
+    <div style="margin-top: 28px">
+      <div style="font-family: Oswald, 'Arial Narrow', sans-serif; font-weight: 600; font-size: 16px; line-height: 1; text-transform: uppercase; letter-spacing: 0.025em; color: oklch(0.72 0 0)">The plan &middot; Week 1</div>
+
+      <!-- Day 1: expanded, the next-up treatment -->
+      <div style="border-bottom: 1px solid oklch(1 0 0 / 0.072); padding: 18px 0 20px; display: flex; flex-direction: column; gap: 14px">
+        <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 16px">
+          <div style="font-family: Oswald, 'Arial Narrow', sans-serif; font-weight: 600; font-size: 24px; line-height: 32px; text-transform: uppercase; color: oklch(0.97 0 0)">Day 1 &middot; Squat</div>
+          <div style="font-size: 12px; color: oklch(0.72 0 0); font-variant-numeric: tabular-nums">3 exercises &middot; ~60 min</div>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 12px">
+          <div style="display: flex; flex-direction: column; gap: 2px">
+            <div style="font-size: 14px; font-weight: 500; color: oklch(0.97 0 0)">Back Squat <span style="font-weight: 400; color: oklch(0.72 0 0)">&middot; T1</span></div>
+            <div style="font-size: 14px; line-height: 20px; color: oklch(0.72 0 0); font-variant-numeric: tabular-nums">5&times;3+ &middot; starts at 85% of 5RM</div>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 2px">
+            <div style="font-size: 14px; font-weight: 500; color: oklch(0.97 0 0)">Bench Press <span style="font-weight: 400; color: oklch(0.72 0 0)">&middot; T2</span></div>
+            <div style="font-size: 14px; line-height: 20px; color: oklch(0.72 0 0); font-variant-numeric: tabular-nums">3&times;10 &middot; moderate, add 2.5 kg on completion</div>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 2px">
+            <div style="font-size: 14px; font-weight: 500; color: oklch(0.97 0 0)">Lat Pulldown <span style="font-weight: 400; color: oklch(0.72 0 0)">&middot; T3</span></div>
+            <div style="font-size: 14px; line-height: 20px; color: oklch(0.72 0 0); font-variant-numeric: tabular-nums">3&times;15+ &middot; last set AMRAP</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Days 2-4: one-line summaries -->
+      <div style="border-bottom: 1px solid oklch(1 0 0 / 0.072); padding: 16px 0; display: flex; align-items: center; justify-content: space-between; gap: 16px">
+        <div style="display: flex; flex-direction: column; gap: 2px; min-width: 0">
+          <div style="font-family: Oswald, 'Arial Narrow', sans-serif; font-weight: 600; font-size: 18px; line-height: 24px; text-transform: uppercase; color: oklch(0.97 0 0)">Day 2 &middot; Overhead Press</div>
+          <div style="font-size: 12px; color: oklch(0.72 0 0); white-space: nowrap; overflow: hidden; text-overflow: ellipsis">OHP &middot; Deadlift &middot; Dumbbell Row &middot; ~55 min</div>
+        </div>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="oklch(0.72 0 0)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0"><path d="M9 18l6-6-6-6"></path></svg>
+      </div>
+      <div style="border-bottom: 1px solid oklch(1 0 0 / 0.072); padding: 16px 0; display: flex; align-items: center; justify-content: space-between; gap: 16px">
+        <div style="display: flex; flex-direction: column; gap: 2px; min-width: 0">
+          <div style="font-family: Oswald, 'Arial Narrow', sans-serif; font-weight: 600; font-size: 18px; line-height: 24px; text-transform: uppercase; color: oklch(0.97 0 0)">Day 3 &middot; Bench</div>
+          <div style="font-size: 12px; color: oklch(0.72 0 0); white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Bench &middot; Squat &middot; Cable Face Pull &middot; ~60 min</div>
+        </div>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="oklch(0.72 0 0)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0"><path d="M9 18l6-6-6-6"></path></svg>
+      </div>
+      <div style="border-bottom: 1px solid oklch(1 0 0 / 0.072); padding: 16px 0; display: flex; align-items: center; justify-content: space-between; gap: 16px">
+        <div style="display: flex; flex-direction: column; gap: 2px; min-width: 0">
+          <div style="font-family: Oswald, 'Arial Narrow', sans-serif; font-weight: 600; font-size: 18px; line-height: 24px; text-transform: uppercase; color: oklch(0.97 0 0)">Day 4 &middot; Deadlift</div>
+          <div style="font-size: 12px; color: oklch(0.72 0 0); white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Deadlift &middot; OHP &middot; Lat Pulldown &middot; ~55 min</div>
+        </div>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="oklch(0.72 0 0)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0"><path d="M9 18l6-6-6-6"></path></svg>
+      </div>
+
+      <!-- the progression rule, once, in words -->
+      <div style="padding: 16px 0 0; font-size: 14px; line-height: 20px; color: oklch(0.72 0 0); max-width: 42ch">Weeks 2&ndash;5 repeat these days &mdash; T1 lifts add 5 kg when you hit all reps, T2 add 2.5 kg, T3 chase the AMRAP. Week 4 backs everything off.</div>
+    </div>
+
+    <!-- description: article treatment -->
+    <div style="margin-top: 32px; display: flex; flex-direction: column; gap: 4px">
+      <div style="font-family: Oswald, 'Arial Narrow', sans-serif; font-weight: 600; font-size: 16px; line-height: 1; text-transform: uppercase; letter-spacing: 0.025em; color: oklch(0.72 0 0)">Who it&rsquo;s for</div>
+      <div style="font-size: 14px; line-height: 22px; color: oklch(0.72 0 0); max-width: 44ch; padding-top: 8px">You&rsquo;ve run a beginner LP and stalled. GZCLP keeps the linear engine but adds a second and third tier so volume doesn&rsquo;t vanish when the top sets get heavy. Miss a day &mdash; the plan waits; nothing resets.</div>
+      <div style="font-size: 12px; line-height: 16px; color: oklch(0.72 0 0); opacity: 0.7; padding-top: 12px">Adapted from the GZCL method. Weights shown seed from your logged lifts.</div>
+    </div>
+  </div>
+
+  <!-- sticky start bar -->
+  <div style="position: sticky; bottom: 0; margin-top: auto; border-top: 1px solid oklch(1 0 0 / 0.12); background: oklch(0.145 0 0 / 0.92); backdrop-filter: blur(12px); padding: 12px 20px 20px; display: flex; flex-direction: column; gap: 8px">
+    <div style="display: flex; align-items: center; justify-content: center; height: 48px; border-radius: 12px; background: oklch(0.86 0.19 128); color: oklch(0.16 0.03 128); font-size: 16px; font-weight: 500">Start this program</div>
+    <div style="text-align: center; font-size: 12px; color: oklch(0.72 0 0)">Starts with Day 1 &mdash; nothing is scheduled until you train.</div>
+  </div>
+</div>
+</x-dc>
+<script data-dc-script data-props='{}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

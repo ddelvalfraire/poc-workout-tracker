@@ -1,0 +1,157 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap">
+  <style>
+    body { margin: 0; background: oklch(0.145 0 0); font-family: Inter, system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+    a { color: oklch(0.86 0.19 128); } a:hover { color: oklch(0.9 0.19 128); }
+    .cap { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; color: oklch(0.72 0 0); }
+    .osw { font-family: Oswald, 'Arial Narrow', sans-serif; font-weight: 600; text-transform: uppercase; }
+    .num { font-variant-numeric: tabular-nums; }
+    .fld { font-size: 16px; font-variant-numeric: tabular-nums; background: oklch(1 0 0 / 0.04); border: 1px solid oklch(1 0 0 / 0.15); border-radius: 8px; height: 44px; display: flex; align-items: center; justify-content: center; }
+  </style>
+</helmet>
+<div style="width: 448px; min-height: 1480px; display: flex; flex-direction: column; background: oklch(0.145 0 0); color: oklch(0.97 0 0)">
+
+  <div style="display: flex; align-items: center; gap: 10px; height: 56px; padding: 0 20px; border-bottom: 1px solid oklch(1 0 0 / 0.12)">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="oklch(0.72 0 0)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"></path></svg>
+    <div class="osw" style="flex: 1; font-size: 20px; letter-spacing: -0.01em">Progression</div>
+    <span class="cap" style="display: flex; align-items: center; gap: 5px">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="oklch(0.72 0 0)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"></path></svg>Saved
+    </span>
+  </div>
+
+  <div style="flex: 1; padding: 0 20px 40px">
+    <div style="padding-top: 14px; font-size: 13px; color: oklch(0.72 0 0)">Barbell Row &middot; Day 1 Pull</div>
+
+    <div style="margin-top: 20px">
+      <div class="cap" style="font-size: 10px">How it moves</div>
+      <div style="margin-top: 8px; border-bottom: 1px solid oklch(1 0 0 / 0.072)">
+        <div style="display: flex; align-items: center; gap: 12px; padding: 13px 0; border-top: 1px solid oklch(1 0 0 / 0.072)">
+          <span style="width: 16px; height: 16px; border-radius: 9999px; border: 1px solid oklch(1 0 0 / 0.25); flex-shrink: 0"></span>
+          <div style="flex: 1; min-width: 0">
+            <div style="font-size: 15px; font-weight: 500">Linear</div>
+            <div style="font-size: 12px; color: oklch(0.72 0 0); margin-top: 1px">Add weight every week</div>
+          </div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 12px; padding: 13px 0; border-top: 1px solid oklch(1 0 0 / 0.072)">
+          <span style="width: 16px; height: 16px; border-radius: 9999px; border: 5px solid oklch(0.86 0.19 128); flex-shrink: 0"></span>
+          <div style="flex: 1; min-width: 0">
+            <div style="font-size: 15px; font-weight: 500">Double progression</div>
+            <div style="font-size: 12px; color: oklch(0.72 0 0); margin-top: 1px">Add reps to the top of the range, then add weight</div>
+          </div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 12px; padding: 13px 0; border-top: 1px solid oklch(1 0 0 / 0.072)">
+          <span style="width: 16px; height: 16px; border-radius: 9999px; border: 1px solid oklch(1 0 0 / 0.25); flex-shrink: 0"></span>
+          <div style="flex: 1; min-width: 0">
+            <div style="font-size: 15px; font-weight: 500">Percent of 1RM</div>
+            <div style="font-size: 12px; color: oklch(0.72 0 0); margin-top: 1px">Waves off a training max</div>
+          </div>
+        </div>
+        <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 13px 0; border-top: 1px solid oklch(1 0 0 / 0.072)">
+          <span style="font-size: 14px; color: oklch(0.72 0 0)">4 more schemes</span>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="oklch(0.72 0 0)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"></path></svg>
+        </div>
+      </div>
+    </div>
+
+    <div style="margin-top: 26px">
+      <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 12px">
+        <div class="osw" style="font-size: 16px; line-height: 1; letter-spacing: 0.025em; color: oklch(0.72 0 0)">What you&rsquo;ll lift</div>
+        <span style="font-size: 12px; color: oklch(0.72 0 0)">updates as you tune</span>
+      </div>
+
+      <div style="margin-top: 10px; border-top: 1px solid oklch(1 0 0 / 0.12)">
+        <div style="display: grid; grid-template-columns: 54px 1fr 1fr; align-items: center; padding: 9px 0; border-bottom: 1px solid oklch(1 0 0 / 0.072)">
+          <div class="cap" style="font-size: 10px">Week</div>
+          <div class="cap" style="font-size: 10px">Target</div>
+          <div class="cap" style="font-size: 10px; text-align: right">Change</div>
+        </div>
+        <div style="display: grid; grid-template-columns: 54px 1fr 1fr; align-items: center; padding: 9px 0; border-bottom: 1px solid oklch(1 0 0 / 0.072)">
+          <div class="num" style="font-size: 13px; color: oklch(0.72 0 0)">1</div>
+          <div class="num" style="font-size: 15px">3&times;8 @ 80 kg</div>
+          <div class="num" style="font-size: 12px; color: oklch(0.72 0 0); text-align: right">start</div>
+        </div>
+        <div style="display: grid; grid-template-columns: 54px 1fr 1fr; align-items: center; padding: 9px 0; border-bottom: 1px solid oklch(1 0 0 / 0.072)">
+          <div class="num" style="font-size: 13px; color: oklch(0.72 0 0)">2</div>
+          <div class="num" style="font-size: 15px">3&times;10 @ 80 kg</div>
+          <div class="num" style="font-size: 12px; color: oklch(0.72 0 0); text-align: right">+2 reps</div>
+        </div>
+        <div style="display: grid; grid-template-columns: 54px 1fr 1fr; align-items: center; padding: 9px 0; border-bottom: 1px solid oklch(1 0 0 / 0.072)">
+          <div class="num" style="font-size: 13px; color: oklch(0.72 0 0)">3</div>
+          <div class="num" style="font-size: 15px">3&times;12 @ 80 kg</div>
+          <div class="num" style="font-size: 12px; color: oklch(0.72 0 0); text-align: right">+2 reps</div>
+        </div>
+        <div style="display: grid; grid-template-columns: 54px 1fr 1fr; align-items: center; padding: 9px 0; border-bottom: 1px solid oklch(1 0 0 / 0.072)">
+          <div class="num" style="font-size: 13px; color: oklch(0.72 0 0)">4</div>
+          <div class="num" style="font-size: 15px">3&times;8 @ 82.5 kg</div>
+          <div class="num" style="font-size: 12px; color: oklch(0.97 0 0); text-align: right">top of range &rarr; +2.5 kg</div>
+        </div>
+        <div style="display: grid; grid-template-columns: 54px 1fr 1fr; align-items: center; padding: 9px 0; border-bottom: 1px solid oklch(1 0 0 / 0.072)">
+          <div class="num cap" style="font-size: 10px">5 DL</div>
+          <div class="num" style="font-size: 15px; color: oklch(0.72 0 0)">2&times;8 @ 60 kg</div>
+          <div class="num" style="font-size: 12px; color: oklch(0.72 0 0); text-align: right">deload policy</div>
+        </div>
+        <div style="display: grid; grid-template-columns: 54px 1fr 1fr; align-items: center; padding: 9px 0; border-bottom: 1px solid oklch(1 0 0 / 0.072)">
+          <div class="num" style="font-size: 13px; color: oklch(0.72 0 0)">6</div>
+          <div class="num" style="font-size: 15px">3&times;10 @ 82.5 kg</div>
+          <div class="num" style="font-size: 12px; color: oklch(0.72 0 0); text-align: right">+2 reps</div>
+        </div>
+      </div>
+    </div>
+
+    <div style="margin-top: 26px">
+      <div class="cap" style="font-size: 10px">The rule</div>
+      <div style="margin-top: 10px; display: flex; flex-direction: column; gap: 12px">
+        <div style="display: flex; align-items: center; gap: 12px">
+          <label style="flex: 1; font-size: 14px">Rep range</label>
+          <div style="display: flex; align-items: center; gap: 8px">
+            <div class="fld" style="width: 62px">8</div>
+            <span style="font-size: 14px; color: oklch(0.72 0 0)">to</span>
+            <div class="fld" style="width: 62px">12</div>
+          </div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 12px">
+          <label style="flex: 1; font-size: 14px">Then add</label>
+          <div style="display: flex; align-items: center; gap: 8px">
+            <div class="fld" style="width: 78px">2.5</div>
+            <span style="font-size: 14px; color: oklch(0.72 0 0)">kg</span>
+          </div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 12px">
+          <label style="flex: 1; font-size: 14px">Reps added per week</label>
+          <div class="fld" style="width: 62px">2</div>
+        </div>
+      </div>
+      <div style="margin-top: 16px; border-left: 2px solid oklch(1 0 0 / 0.15); padding-left: 12px; font-size: 13px; line-height: 20px; color: oklch(0.72 0 0)">
+        Work from <span style="color: oklch(0.97 0 0)">8 up to 12 reps</span> at the same weight, then add <span style="color: oklch(0.97 0 0)">2.5&nbsp;kg</span> and drop back to 8.
+      </div>
+    </div>
+
+    <div style="margin-top: 26px; display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 14px 0; border-top: 1px solid oklch(1 0 0 / 0.072); border-bottom: 1px solid oklch(1 0 0 / 0.072)">
+      <span style="font-size: 14px; font-weight: 500">Also apply to</span>
+      <span style="display: flex; align-items: center; gap: 4px; color: oklch(0.72 0 0)">
+        <span style="font-size: 12px">this exercise only</span>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"></path></svg>
+      </span>
+    </div>
+
+    <div style="margin-top: 18px; font-size: 12px; line-height: 18px; color: oklch(0.72 0 0)">
+      Weeks you have pinned by hand keep their own numbers &mdash; the rule fills in every week you haven&rsquo;t touched.
+    </div>
+  </div>
+</div>
+</x-dc>
+<script data-dc-script data-props='{}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

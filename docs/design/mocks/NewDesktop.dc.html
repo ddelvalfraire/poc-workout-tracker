@@ -1,0 +1,116 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap">
+  <style>
+    body { margin: 0; background: oklch(0.145 0 0); font-family: Inter, system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+    .cap { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; color: oklch(0.72 0 0); }
+    .osw { font-family: Oswald, 'Arial Narrow', sans-serif; font-weight: 600; text-transform: uppercase; }
+    .num { font-variant-numeric: tabular-nums; }
+  </style>
+</helmet>
+<div style="width: 1280px; height: 860px; display: flex; flex-direction: column; background: oklch(0.145 0 0); color: oklch(0.97 0 0); overflow: hidden">
+
+  <!-- Same chrome, same routes. At >=840 the panes are a PROJECTION of the
+       phone column, never a second implementation. -->
+  <div style="display: flex; align-items: center; gap: 12px; height: 56px; padding: 0 24px; border-bottom: 1px solid oklch(1 0 0 / 0.12); flex-shrink: 0">
+    <span style="font-size: 14px; color: oklch(0.72 0 0)">Close</span>
+    <div style="width: 1px; height: 18px; background: oklch(1 0 0 / 0.12)"></div>
+    <span style="font-size: 20px; opacity: 0.35">🏋️</span>
+    <div class="osw" style="font-size: 19px; letter-spacing: -0.005em; color: oklch(0.52 0 0); display: flex; align-items: center; gap: 7px">Untitled block
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="oklch(0.52 0 0)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"></path></svg>
+    </div>
+    <div style="flex: 1"></div>
+    <span class="cap" style="display: flex; align-items: center; gap: 5px">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="oklch(0.72 0 0)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"></path></svg>Saved
+    </span>
+  </div>
+
+  <div style="flex: 1; display: flex; min-height: 0">
+
+    <!-- STRUCTURE PANE — 244px, the same day list the phone shows as its root.
+         Drilling here SELECTS rather than navigating; that is the whole
+         difference across the breakpoint. -->
+    <div style="width: 244px; flex-shrink: 0; border-right: 1px solid oklch(1 0 0 / 0.12); padding: 16px 16px 0; overflow: hidden">
+      <div class="cap" style="font-size: 10px">Days</div>
+
+      <div style="margin-top: 11px">
+        <!-- Selected: marked by POSITION (a rail), not by intensity — the same
+             encoding EditorPivot settled on for authored-vs-derived. -->
+        <div style="position: relative; display: flex; align-items: center; min-height: 32px; padding: 7px 0 7px 11px">
+          <span style="position: absolute; left: 0; top: 5px; bottom: 5px; width: 2px; border-radius: 1px; background: oklch(0.86 0.19 128)"></span>
+          <div style="min-width: 0; flex: 1">
+            <div style="font-size: 13px; font-weight: 600; color: oklch(0.52 0 0)">Day 1</div>
+            <div style="font-size: 11px; color: oklch(0.72 0 0); margin-top: 1px">empty</div>
+          </div>
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 8px; min-height: 32px; padding: 7px 0 7px 11px; margin-top: 2px">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="oklch(0.72 0 0)" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>
+          <span style="font-size: 13px; color: oklch(0.72 0 0)">Add a day</span>
+        </div>
+      </div>
+
+      <div style="margin-top: 22px; padding-top: 14px; border-top: 1px solid oklch(1 0 0 / 0.072)">
+        <div class="cap" style="font-size: 10px">Settings</div>
+        <div style="margin-top: 9px; display: flex; flex-direction: column; gap: 7px; font-size: 12px; color: oklch(0.72 0 0)">
+          <div style="display: flex; justify-content: space-between"><span>Length</span><span class="num" style="color: oklch(0.97 0 0)">6 wk</span></div>
+          <div style="display: flex; justify-content: space-between"><span>Deload</span><span class="num" style="color: oklch(0.97 0 0)">wk 6</span></div>
+          <div style="display: flex; justify-content: space-between"><span>Autoreg</span><span style="color: oklch(0.97 0 0)">Off</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CANVAS — the day. Empty, so it carries the one volt and nothing else.
+         The grid header is absent on purpose: columns with no rows under them
+         are furniture pretending to be content. -->
+    <div style="flex: 1; min-width: 0; padding: 18px 24px; overflow: hidden; display: flex; flex-direction: column">
+      <div style="display: flex; align-items: baseline; gap: 10px">
+        <div class="osw" style="font-size: 17px; letter-spacing: 0.02em; color: oklch(0.52 0 0)">Day 1</div>
+        <span style="font-size: 12px; color: oklch(0.72 0 0)">no movements</span>
+      </div>
+
+      <div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; padding-bottom: 60px">
+        <!-- A plain sentence, then the action. No boxed apology, no illustration. -->
+        <div style="max-width: 340px; text-align: center; font-size: 14px; line-height: 21px; color: oklch(0.72 0 0)">
+          A day is a list of movements. Add one and its sets, weeks and progression appear here.
+        </div>
+        <a style="display: flex; align-items: center; justify-content: center; gap: 8px; height: 42px; padding: 0 20px; border-radius: 10px; background: oklch(0.86 0.19 128); color: oklch(0.16 0.03 128); font-size: 14px; font-weight: 600; text-decoration: none">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="oklch(0.16 0.03 128)" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>
+          Add your first movement
+        </a>
+        <div style="font-size: 12.5px; color: oklch(0.72 0 0)">
+          or copy <span style="color: oklch(0.97 0 0); text-decoration: underline; text-underline-offset: 3px">a template</span> &middot; <span style="color: oklch(0.97 0 0); text-decoration: underline; text-underline-offset: 3px">ask the coach</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- INSPECTOR — 316px, EMPTY because nothing is selected. DESIGN.md: an
+         inspector beside the content, never a popover, and it says what would
+         fill it rather than showing a blank frame. -->
+    <div style="width: 316px; flex-shrink: 0; border-left: 1px solid oklch(1 0 0 / 0.12); padding: 18px 20px; overflow: hidden; display: flex; flex-direction: column">
+      <div class="cap" style="font-size: 10px">Inspector</div>
+      <div style="margin-top: 14px; font-size: 13px; line-height: 20px; color: oklch(0.72 0 0)">
+        Select a movement to set its progression, technique and per-week targets.
+      </div>
+
+      <div style="flex: 1"></div>
+
+      <div style="padding-top: 14px; border-top: 1px solid oklch(1 0 0 / 0.072); font-size: 12px; line-height: 18px; color: oklch(0.52 0 0)">
+        Draft &mdash; nothing is scheduled. Leave without adding anything and it won&rsquo;t be kept.
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script data-dc-script data-props='{}'>
+class Component extends DCLogic { renderVals() { return {}; } }
+</script>
+</body>
+</html>

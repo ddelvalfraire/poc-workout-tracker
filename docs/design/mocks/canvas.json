@@ -1,0 +1,290 @@
+{
+  "artboards": [
+    {
+      "file": "Main.dc.html",
+      "x": 0,
+      "y": 0,
+      "w": 448,
+      "h": 1560,
+      "title": "A · Preview — The Pitch",
+      "page": "page-1"
+    },
+    {
+      "file": "Detail.dc.html",
+      "x": 560,
+      "y": 0,
+      "w": 448,
+      "h": 1560,
+      "title": "B · Detail — Plan First",
+      "page": "page-1"
+    },
+    {
+      "file": "List.dc.html",
+      "x": 1120,
+      "y": 0,
+      "w": 448,
+      "h": 1080,
+      "title": "C · List — Legible Zones",
+      "page": "page-1"
+    },
+    {
+      "file": "Dashboard.dc.html",
+      "x": 1680,
+      "y": 0,
+      "w": 448,
+      "h": 1620,
+      "title": "D · List — Block Dashboard",
+      "page": "page-1"
+    },
+    {
+      "file": "Empty.dc.html",
+      "x": 2240,
+      "y": 0,
+      "w": 448,
+      "h": 1180,
+      "title": "E · List — No Program Yet",
+      "page": "page-1"
+    },
+    {
+      "file": "EditorMobile.dc.html",
+      "x": 0,
+      "y": 0,
+      "w": 448,
+      "h": 1700,
+      "title": "E1 · Editor — Mobile structure",
+      "page": "page-2"
+    },
+    {
+      "file": "EditorSets.dc.html",
+      "x": 560,
+      "y": 0,
+      "w": 448,
+      "h": 1560,
+      "title": "E2 · Editor — Mobile sets & depth",
+      "page": "page-2"
+    },
+    {
+      "file": "EditorDesktop.dc.html",
+      "x": 1120,
+      "y": 0,
+      "w": 1280,
+      "h": 860,
+      "title": "E3 · Editor — Desktop ≥840px",
+      "page": "page-2"
+    },
+    {
+      "file": "EditorPivot.dc.html",
+      "x": 1120,
+      "y": 960,
+      "w": 1280,
+      "h": 860,
+      "title": "E4 · Editor — Progression View",
+      "page": "page-2"
+    },
+    {
+      "file": "SubProgression.dc.html",
+      "x": 0,
+      "y": 0,
+      "w": 448,
+      "h": 1480,
+      "title": "S1 · Progression — preview is the document",
+      "page": "page-3"
+    },
+    {
+      "file": "SubTechnique.dc.html",
+      "x": 560,
+      "y": 0,
+      "w": 448,
+      "h": 1440,
+      "title": "S2 · Technique — a stack, not a form",
+      "page": "page-3"
+    },
+    {
+      "file": "SubInference.dc.html",
+      "x": 1120,
+      "y": 0,
+      "w": 448,
+      "h": 1180,
+      "title": "S3 · Rule inference — offered, never guessed",
+      "page": "page-3"
+    },
+    {
+      "file": "NewMobile.dc.html",
+      "x": 2480,
+      "y": 0,
+      "w": 448,
+      "h": 1180,
+      "title": "E5 · New — Mobile (empty program)",
+      "page": "page-2"
+    },
+    {
+      "file": "NewDesktop.dc.html",
+      "x": 3040,
+      "y": 0,
+      "w": 1280,
+      "h": 860,
+      "title": "E6 · New — Desktop (empty program)",
+      "page": "page-2"
+    },
+    {
+      "file": "TrainedSplitWeek.dc.html",
+      "x": 0,
+      "y": 0,
+      "w": 448,
+      "h": 1500,
+      "title": "T1 · Split week — the case a week strip gets wrong",
+      "page": "page-4"
+    },
+    {
+      "file": "TrainedEdgeCases.dc.html",
+      "x": 560,
+      "y": 0,
+      "w": 900,
+      "h": 1180,
+      "title": "T2 · Edge states — draft, complete, shortened, archived",
+      "page": "page-4"
+    },
+    {
+      "file": "WorkoutChangelog.dc.html",
+      "x": 0,
+      "y": 0,
+      "w": 448,
+      "h": 1240,
+      "title": "C1 · Workout changelog — amendments only",
+      "page": "page-5"
+    },
+    {
+      "file": "CorrectionGuards.dc.html",
+      "x": 560,
+      "y": 0,
+      "w": 960,
+      "h": 1080,
+      "title": "C2 · The modal and the disclosure",
+      "page": "page-5"
+    }
+  ],
+  "annotations": [
+    {
+      "id": "note-pitch",
+      "x": 0,
+      "y": -150,
+      "w": 400,
+      "text": "A · PREVIEW: commitment becomes the biggest text on screen (fact strip), block map shows the program's shape pre-adoption, Day 1 rendered fully with the rest summarized, progression rule stated once, sticky Start bar in the thumb zone. One volt = the CTA.",
+      "page": "page-1"
+    },
+    {
+      "id": "note-detail",
+      "x": 560,
+      "y": -150,
+      "w": 400,
+      "text": "B · DETAIL: three bands — identity (title, WK 3 of 6, block map, About/Stats rows), this week (day list promoted; next-up day gets the legalized 36px display step + the screen's one volt), manage (everything else demoted to nav rows).",
+      "page": "page-1"
+    },
+    {
+      "id": "note-list",
+      "x": 1120,
+      "y": -150,
+      "w": 400,
+      "text": "C · LIST: hero untouched (keep-listed). Zones now self-identify — headings carry counts, proposals speak dashed with an age line, drafts drop to smaller muted rows, every row states weeks · days/wk · state word.",
+      "page": "page-1"
+    },
+    {
+      "id": "note-dashboard",
+      "x": 1680,
+      "y": -190,
+      "w": 400,
+      "text": "D · BLOCK DASHBOARD (the chosen flow fix): /programs stops being a pass-through. This week's day list is pulled up under the hero — Day 2 is startable right here — plus a Block So Far stat line for revisit value. Detail specializes into full plan & manage. Proposals stay a zone; New/Templates demote to the tail; drafts/archived become roll-ups. Compare against C: same bones, page now carries the plan.",
+      "page": "page-1"
+    },
+    {
+      "id": "note-empty",
+      "x": 2240,
+      "y": -230,
+      "w": 400,
+      "text": "E · NO PROGRAM YET (research-backed): never a bare blank — status + benefit sentence, then THREE DOORS as peers on the Hevy/Boostcamp/Runna effort spectrum: templates inline (real entries with metadata, the primary path), the COACH as a peer option — not a banner (peer placement + benefit-led 'get a block built around your lifts' copy is the documented no-dark-pattern promo pattern; tier word stays honest), and build-your-own (quiet). Ghost preview shows what the page becomes. One volt = the headline. No modals, no interstitials — the empty state IS the promo.",
+      "page": "page-1"
+    },
+    {
+      "id": "note-e-mobile",
+      "x": 0,
+      "y": -250,
+      "w": 420,
+      "page": "page-2",
+      "text": "E1 · MOBILE — week state is TOUCHED, not past (Everfit groups in-progress with completed, not with future). Weeks 1–2 are Spent and render as RECORDS: outcomes not targets, no controls, and crucially NOT dimmed — dimming a record forfeits the WCAG contrast exemption that only covers disabled controls, and reads as 'broken' rather than 'done'. A row showing what you actually did is self-evidently a record; no lock icon, which would wrongly imply you lack permission. Week 3 is Live: edits reach its untrained days only. Settings collapse to one row so the plan leads; supersets are a tinted rail; reorder is a MODE, not a long-press; no Save button — granular ops persist and the bar carries Undo."
+    },
+    {
+      "id": "note-e-sets",
+      "x": 560,
+      "y": -250,
+      "w": 420,
+      "page": "page-2",
+      "text": "E2 · SETS & DEPTH. Column headers ARE the controls (Hevy): tap Reps to switch fixed/range, Kg for unit or %1RM. Quick entry parses 5,5,3,3,1 — 80% of the spreadsheet win at 5% of the ARIA-grid cost. Cells sit at 16px because iOS zooms below the COMPUTED size. Everything the agent could author and the UI couldn't — progression, technique, tempo, superset, swap-keeping-sets — becomes a quiet row stating its current value."
+    },
+    {
+      "id": "note-e-desktop",
+      "x": 1120,
+      "y": -250,
+      "w": 460,
+      "page": "page-2",
+      "text": "E3 · DESKTOP, ≥840px — the inspector is GONE. Cloudscape's own rule says a details panel must not duplicate table columns, and at 316px it sat below every published floor (Salesforce 320, Chrome 360, Emplifi 420). The middle pane takes that width and becomes a real aligned table: sets/reps/load/RIR are homogeneous and compared down columns, which is what tables exist for — the middot summary strings destroyed the alignment that IS the mechanism. Rules (progression, technique) open from the row menu: heterogeneous, non-comparable, set once, so they never earned a permanent column. Still not a widened phone column — drilling in SELECTS rather than navigates, and rows drop to ~32px at pointer density."
+    },
+    {
+      "id": "note-e-pivot",
+      "x": 1120,
+      "y": 710,
+      "w": 460,
+      "page": "page-2",
+      "text": "E4 · PROGRESSION VIEW — re-encoded after measurement. The old muted-vs-bright pair measured 2.27:1 against each other, under the 3:1 WCAG requires for a non-colour distinction, and unfixable by tuning: reaching 3:1 would push the muted state below 4.5:1 against the ground. Polarity now inverts (Excel's hardcode convention): DERIVED is unmarked at full contrast; AUTHORED carries a 2px volt rule on the cell's leading edge — position, the top-ranked channel for categorical detection, where luminance ranks last. Focus separates by GEOMETRY not intensity (enclosing ring vs leading edge), so a focused authored cell shows both. Two-line cells cut the minimum column 95px→72px, fitting 14 weeks unscrolled at 1280px; two-row header from Gantt; unit declared once; numbers never truncate."
+    },
+    {
+      "id": "note-s-prog",
+      "x": 0,
+      "y": -260,
+      "w": 430,
+      "page": "page-3",
+      "text": "S1 · PROGRESSION. The form is DEMOTED, not deleted. A parameter form asks you to mentally simulate 'increment 2.5, TM 180 → what do I lift in week 5?' — a gulf-of-evaluation failure, since your object of interest is the series, not the generating function. So the projected weeks ARE the document and the rule is the formula bar. Presets first (most lifters never see a wave matrix). Only the parameter region swaps when the scheme changes — header and preview hold still, so the page never jumps."
+    },
+    {
+      "id": "note-s-tech",
+      "x": 560,
+      "y": -260,
+      "w": 430,
+      "page": "page-3",
+      "text": "S2 · TECHNIQUE. Blender's modifier stack, not a repeated fieldset: stages are ordered, individually toggleable, and a disabled stage stays visible with its numbers intact. 'The set becomes' shows the stack's output in the logger's own grammar — five rows, one set for volume, mini-sets at 0.5 — so the authoring surface and the training surface agree before you ever train it."
+    },
+    {
+      "id": "note-s-infer",
+      "x": 1120,
+      "y": -260,
+      "w": 430,
+      "page": "page-3",
+      "text": "S3 · RULE INFERENCE — the piece nobody ships well. Flash Fill guesses silently and users don't notice; CMU's verdict after a decade is that inference WILL guess wrong and the open problem is how users correct it. So this is Gmail's 'filter messages like these': the edit is already saved as the safe one-week pin, each candidate spells out its own consequence as a six-week strip, and the default is the option that changes least. Declining costs nothing."
+    }
+  ],
+  "launch": {
+    "view": "canvas",
+    "page": "page-5"
+  },
+  "pages": [
+    {
+      "id": "page-1",
+      "name": "Programs surfaces"
+    },
+    {
+      "id": "page-2",
+      "name": "Editor"
+    },
+    {
+      "id": "page-3",
+      "name": "Sub-surfaces"
+    },
+    {
+      "id": "page-4",
+      "name": "Trained history"
+    },
+    {
+      "id": "page-5",
+      "name": "Changelog & guards"
+    }
+  ]
+}

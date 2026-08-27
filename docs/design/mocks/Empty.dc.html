@@ -1,0 +1,117 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap">
+  <style>
+    body { margin: 0; background: oklch(0.145 0 0); font-family: Inter, system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+    a { color: oklch(0.86 0.19 128); } a:hover { color: oklch(0.9 0.19 128); }
+  </style>
+</helmet>
+<div style="width: 448px; min-height: 1180px; display: flex; flex-direction: column; background: oklch(0.145 0 0); color: oklch(0.97 0 0)">
+
+  <!-- app bar -->
+  <div style="display: flex; align-items: center; gap: 12px; height: 56px; padding: 0 20px; border-bottom: 1px solid oklch(1 0 0 / 0.12); background: oklch(0.145 0 0 / 0.8)">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="oklch(0.72 0 0)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M3 12h18M3 18h18"></path></svg>
+    <div style="flex: 1; font-family: Oswald, 'Arial Narrow', sans-serif; font-weight: 600; font-size: 20px; text-transform: uppercase; letter-spacing: -0.01em; color: oklch(0.97 0 0)">Programs</div>
+  </div>
+
+  <div style="flex: 1; display: flex; flex-direction: column; padding: 0 20px 48px">
+
+    <!-- editorial headline: the page's one volt, kept from the shipped empty state -->
+    <div style="padding-top: 40px; display: flex; flex-direction: column; gap: 12px">
+      <div style="font-family: Oswald, 'Arial Narrow', sans-serif; font-weight: 600; font-size: 48px; line-height: 48px; text-transform: uppercase; letter-spacing: 0.005em; color: oklch(0.86 0.19 128)">Train<br>with a plan</div>
+      <div style="font-size: 14px; line-height: 21px; color: oklch(0.72 0 0); max-width: 40ch">No programs yet. A program turns single sessions into a block that progresses week to week.</div>
+    </div>
+
+    <!-- DOOR 1 · templates, the primary path: real entries inline, not a button -->
+    <div style="margin-top: 34px">
+      <div style="font-family: Oswald, 'Arial Narrow', sans-serif; font-weight: 600; font-size: 16px; line-height: 1; text-transform: uppercase; letter-spacing: 0.025em; color: oklch(0.72 0 0)">Start with a proven program</div>
+      <div style="margin-top: 2px; border-bottom: 1px solid oklch(1 0 0 / 0.072)">
+        <div style="display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 15px 0; border-top: 1px solid oklch(1 0 0 / 0.072)">
+          <div style="display: flex; flex-direction: column; gap: 2px; min-width: 0">
+            <div style="font-family: Oswald, 'Arial Narrow', sans-serif; font-weight: 600; font-size: 18px; line-height: 24px; text-transform: uppercase; color: oklch(0.97 0 0)">GZCLP &middot; 4-Day</div>
+            <div style="font-size: 12px; color: oklch(0.72 0 0)">5 wk &middot; 4 d/wk &middot; past-beginner strength</div>
+          </div>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="oklch(0.72 0 0)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0"><path d="M9 18l6-6-6-6"></path></svg>
+        </div>
+        <div style="display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 15px 0; border-top: 1px solid oklch(1 0 0 / 0.072)">
+          <div style="display: flex; flex-direction: column; gap: 2px; min-width: 0">
+            <div style="font-family: Oswald, 'Arial Narrow', sans-serif; font-weight: 600; font-size: 18px; line-height: 24px; text-transform: uppercase; color: oklch(0.97 0 0)">Upper / Lower</div>
+            <div style="font-size: 12px; color: oklch(0.72 0 0)">6 wk &middot; 4 d/wk &middot; hypertrophy</div>
+          </div>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="oklch(0.72 0 0)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0"><path d="M9 18l6-6-6-6"></path></svg>
+        </div>
+        <div style="display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 15px 0; border-top: 1px solid oklch(1 0 0 / 0.072)">
+          <div style="display: flex; flex-direction: column; gap: 2px; min-width: 0">
+            <div style="font-family: Oswald, 'Arial Narrow', sans-serif; font-weight: 600; font-size: 18px; line-height: 24px; text-transform: uppercase; color: oklch(0.97 0 0)">Full Body &middot; 3-Day</div>
+            <div style="font-size: 12px; color: oklch(0.72 0 0)">4 wk &middot; 3 d/wk &middot; time-strapped basics</div>
+          </div>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="oklch(0.72 0 0)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0"><path d="M9 18l6-6-6-6"></path></svg>
+        </div>
+        <div style="display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 13px 0; border-top: 1px solid oklch(1 0 0 / 0.072)">
+          <div style="font-size: 14px; font-weight: 500; color: oklch(0.72 0 0)">All programs in the library</div>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="oklch(0.72 0 0)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0"><path d="M9 18l6-6-6-6"></path></svg>
+        </div>
+      </div>
+    </div>
+
+    <!-- DOOR 2 · the coach: a peer option in the fork, not a banner.
+         Benefit-led copy sells the artifact; the tier word is honest about the gate. -->
+    <div style="margin-top: 30px">
+      <div style="font-family: Oswald, 'Arial Narrow', sans-serif; font-weight: 600; font-size: 16px; line-height: 1; text-transform: uppercase; letter-spacing: 0.025em; color: oklch(0.72 0 0)">Or have it built for you</div>
+      <div style="margin-top: 2px; border-bottom: 1px solid oklch(1 0 0 / 0.072)">
+        <div style="display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 0; border-top: 1px solid oklch(1 0 0 / 0.072)">
+          <div style="display: flex; flex-direction: column; gap: 3px; min-width: 0">
+            <div style="display: flex; align-items: baseline; gap: 8px">
+              <div style="font-family: Oswald, 'Arial Narrow', sans-serif; font-weight: 600; font-size: 18px; line-height: 24px; text-transform: uppercase; color: oklch(0.97 0 0)">Coach</div>
+              <div style="font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; color: oklch(0.72 0 0)">Included free to start</div>
+            </div>
+            <div style="font-size: 13px; line-height: 19px; color: oklch(0.72 0 0); max-width: 38ch">Answer a few questions &mdash; get a block built around your schedule, equipment and logged lifts.</div>
+          </div>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="oklch(0.72 0 0)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0"><path d="M9 18l6-6-6-6"></path></svg>
+        </div>
+      </div>
+    </div>
+
+    <!-- DOOR 3 · blank path, quiet but present -->
+    <div style="margin-top: 26px; border-bottom: 1px solid oklch(1 0 0 / 0.072)">
+      <div style="display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 0; border-top: 1px solid oklch(1 0 0 / 0.072)">
+        <div style="font-size: 14px; font-weight: 500; color: oklch(0.72 0 0)">Build your own from scratch</div>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="oklch(0.72 0 0)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0"><path d="M9 18l6-6-6-6"></path></svg>
+      </div>
+    </div>
+
+    <!-- what this page becomes: honest ghost preview, labeled -->
+    <div style="margin-top: 38px; display: flex; flex-direction: column; gap: 10px; opacity: 0.45" aria-hidden="true">
+      <div style="font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; color: oklch(0.72 0 0)">Once you start, this page becomes your block</div>
+      <div style="display: flex; flex-direction: column; gap: 8px">
+        <div style="width: 40%; height: 12px; border-radius: 9999px; background: oklch(0.269 0 0)"></div>
+        <div style="width: 62%; height: 26px; border-radius: 4px; background: oklch(0.269 0 0)"></div>
+        <div style="display: flex; gap: 6px; padding-top: 2px">
+          <div style="flex: 1; height: 6px; border-radius: 9999px; background: oklch(0.269 0 0)"></div>
+          <div style="flex: 1; height: 6px; border-radius: 9999px; background: oklch(0.269 0 0)"></div>
+          <div style="flex: 1; height: 6px; border-radius: 9999px; border: 1px solid oklch(1 0 0 / 0.12); background: transparent; box-sizing: border-box"></div>
+          <div style="flex: 1; height: 6px; border-radius: 9999px; background: oklch(0.269 0 0)"></div>
+        </div>
+        <div style="width: 100%; height: 1px; background: oklch(1 0 0 / 0.072); margin-top: 8px"></div>
+        <div style="width: 55%; height: 14px; border-radius: 4px; background: oklch(0.269 0 0)"></div>
+        <div style="width: 100%; height: 1px; background: oklch(1 0 0 / 0.072); margin-top: 4px"></div>
+        <div style="width: 48%; height: 14px; border-radius: 4px; background: oklch(0.269 0 0)"></div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script data-dc-script data-props='{}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>
