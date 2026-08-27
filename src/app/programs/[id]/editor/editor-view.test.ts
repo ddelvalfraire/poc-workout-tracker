@@ -2,9 +2,12 @@ import { describe, it, expect } from 'vitest'
 import {
   editorDayDetail,
   editorDays,
+  editorLoggedExercises,
   editorSetForWeek,
   editorSetLoadKg,
   editorWeeks,
+  type SourceLoggedExercise,
+  type SourceLoggedSet,
   type SourceOverride,
   type SourceSet,
 } from './editor-view'
@@ -153,7 +156,13 @@ describe('editorDayDetail', () => {
   })
 
   it('carries the trained state and session it is given', () => {
-    const session = { href: '/workout/w1', completedSetCount: 10, setCount: 12, volume: 4820 }
+    const session = {
+      href: '/workout/w1',
+      completedSetCount: 10,
+      setCount: 12,
+      volume: 4820,
+      exercises: [],
+    }
     expect(editorDayDetail(day, 0, 1, 'kg', 'in-progress', session)).toMatchObject({
       trained: 'in-progress',
       session,
@@ -163,5 +172,91 @@ describe('editorDayDetail', () => {
   it('returns null for an unaddressed day rather than substituting a neighbour', () => {
     expect(editorDayDetail(null, null, 1, 'kg')).toBeNull()
     expect(editorDayDetail(day, null, 1, 'kg')).toBeNull()
+  })
+})
+
+describe('editorLoggedExercises', () => {
+  const logged = (patch: Partial<SourceLoggedSet> = {}): SourceLoggedSet => ({
+    setNumber: 1,
+    completed: true,
+    reps: 8,
+    weight: 80,
+    metricMode: 'reps_weight',
+    durationSec: null,
+    distanceM: null,
+    prescribedLoadKg: 80,
+    prescribedRepMin: 8,
+    ...patch,
+  })
+
+  const exercise = (patch: Partial<SourceLoggedExercise> = {}): SourceLoggedExercise => ({
+    name: 'Barbell Row',
+    loggingType: 'weight_reps',
+    sets: [logged()],
+    ...patch,
+  })
+
+  it('carries the session\'s own names and order, not the plan\'s', () => {
+    // The plan may have been reordered or a lift swapped since the session
+    // started. Aligning to it would put one movement's numbers under another
+    // movement's name.
+    const rows = editorLoggedExercises([exercise(), exercise({ name: 'Lat Pulldown' })])
+    expect(rows.map((row) => row.name)).toEqual(['Barbell Row', 'Lat Pulldown'])
+    expect(rows.map((row) => row.position)).toEqual([0, 1])
+  })
+
+  it('does not call a set diverged when it went exactly as prescribed', () => {
+    // Drawing the struck-through target on every row would bury the handful
+    // that actually moved, which is the whole signal.
+    expect(editorLoggedExercises([exercise()])[0].sets[0].diverged).toBe(false)
+  })
+
+  it('marks a set diverged when the load moved', () => {
+    const rows = editorLoggedExercises([exercise({ sets: [logged({ weight: 60 })] })])
+    expect(rows[0].sets[0]).toMatchObject({
+      diverged: true,
+      weight: 60,
+      prescribedWeight: 80,
+    })
+  })
+
+  it('marks a set diverged when the reps moved', () => {
+    const rows = editorLoggedExercises([exercise({ sets: [logged({ reps: 5 })] })])
+    expect(rows[0].sets[0]).toMatchObject({ diverged: true, reps: 5, prescribedReps: 8 })
+  })
+
+  it('never claims a prescription for a set that had none', () => {
+    // Ad-hoc sets, and everything logged before the snapshot columns existed.
+    // Null is not a target of zero, and a struck-through blank would invent one.
+    const rows = editorLoggedExercises([
+      exercise({ sets: [logged({ prescribedLoadKg: null, prescribedRepMin: null })] }),
+    ])
+    expect(rows[0].sets[0]).toMatchObject({
+      diverged: false,
+      prescribedReps: null,
+      prescribedWeight: null,
+    })
+  })
+
+  it('diverges on a half-prescribed set where the prescribed half moved', () => {
+    const rows = editorLoggedExercises([
+      exercise({ sets: [logged({ prescribedLoadKg: null, reps: 5 })] }),
+    ])
+    expect(rows[0].sets[0].diverged).toBe(true)
+  })
+
+  it('keeps an uncompleted set rather than dropping it from the log', () => {
+    // A set that was never logged is a fact about the session too, and
+    // silently omitting it would make the log disagree with the set counts
+    // shown right above it.
+    const rows = editorLoggedExercises([
+      exercise({ sets: [logged({ completed: false, reps: null, weight: null })] }),
+    ])
+    expect(rows[0].sets[0]).toMatchObject({ completed: false, reps: null })
+  })
+
+  it("carries the exercise's logging type, which decides how weight reads", () => {
+    const rows = editorLoggedExercises([exercise({ loggingType: 'weighted_bodyweight' })])
+    expect(rows[0].loggingType).toBe('weighted_bodyweight')
   })
 })

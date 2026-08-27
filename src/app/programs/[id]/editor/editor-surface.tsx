@@ -15,6 +15,7 @@ import { buildBlockWeeks } from '@/components/block-weeks'
 import { buttonVariants } from '@/components/ui/button'
 import { getWeightUnit } from '@/db/preferences'
 import { getProgramDetail, listProgramWorkouts, programWeekState } from '@/db/programs'
+import { workoutDetailQuery } from '@/db/workouts'
 import { requireUserId } from '@/lib/auth'
 import { renderMessage } from '@/lib/message'
 import { TECHNIQUE_LABEL_KEY } from '@/lib/technique'
@@ -23,7 +24,13 @@ import { kgToDisplay } from '@/lib/units'
 import { progressionLine, programStatusLine } from '../detail-view'
 import { applyReachToPlanAction, saveSetOverrideAction } from './actions'
 import { editorHref, resolveEditorAddress, type RawParam } from './editor-address'
-import { editorDayDetail, editorDays, editorSetLoadKg, editorWeeks } from './editor-view'
+import {
+  editorDayDetail,
+  editorDays,
+  editorLoggedExercises,
+  editorSetLoadKg,
+  editorWeeks,
+} from './editor-view'
 import { pivotRows } from './pivot-view'
 import {
   parseReachParam,
@@ -137,6 +144,14 @@ export async function EditorSurface({ programId, daySegment, searchParams }: Edi
       ? (workoutsFor(sourceDay.id)[0] ?? null)
       : null
 
+  // The settled day's LOG — the sets as the session recorded them, with the
+  // prescription each was seeded with. Read here rather than reconstructed from
+  // the plan: `instantiateProgramDay` froze `prescribed*` at start time and no
+  // edit path updates them, so the template on screen today may be a different
+  // number from the one this session was actually given. Showing the template
+  // under "you trained this" would present a plan figure as something lifted.
+  const session = sessionRow === null ? null : await workoutDetailQuery(userId, sessionRow.id)
+
   const day = editorDayDetail(
     sourceDay,
     address.day,
@@ -150,6 +165,7 @@ export async function EditorSurface({ programId, daySegment, searchParams }: Edi
           completedSetCount: sessionRow.completedSetCount,
           setCount: sessionRow.setCount,
           volume: kgToDisplay(sessionRow.volumeKg, unit),
+          exercises: editorLoggedExercises(session?.exercises ?? []),
         },
   )
 

@@ -1,4 +1,5 @@
-import type { SetType } from '@/lib/program-input'
+import type { MetricMode, SetType } from '@/lib/program-input'
+import type { LoggingType } from '@/lib/workout-input'
 import type { TrainedDayState } from '@/app/programs/[id]/editor/trained-view'
 
 /**
@@ -66,6 +67,53 @@ export interface EditorDay {
   trained: TrainedDayState
 }
 
+/**
+ * One logged set — what the user actually did, beside what they were asked to.
+ *
+ * Both halves are stored on the same row by `instantiateProgramDay`, which
+ * freezes `prescribed*` at start time under a comment reading "no edit path may
+ * ever update these". That is what makes the pair comparable: the prescription
+ * shown here is the one this session was seeded with, not today's template,
+ * which may have moved since.
+ *
+ * Weights are the STORED kg in the `weight` column's own semantics, left for
+ * the component to format with the exercise's `loggingType` — the same
+ * `formatSet` the workout detail page uses. Both numbers come from that one
+ * column, so comparing them is like for like.
+ */
+export interface EditorLoggedSet {
+  /** 1-based. */
+  setNumber: number
+  completed: boolean
+  reps: number | null
+  /** kg as stored; the component converts and formats. */
+  weight: number | null
+  metricMode: MetricMode
+  durationSec: number | null
+  distanceM: number | null
+  /** The frozen target, or null on an ad-hoc set and all pre-snapshot history. */
+  prescribedReps: number | null
+  prescribedWeight: number | null
+  /**
+   * True when the set was prescribed something AND what was logged differs.
+   *
+   * Only then is the struck-through prescription drawn. Repeating the same
+   * numbers twice on every row would bury the handful that actually moved.
+   */
+  diverged: boolean
+}
+
+/** One exercise as the SESSION recorded it — not as the plan describes it. */
+export interface EditorLoggedExercise {
+  /** 0-based position within the session. */
+  position: number
+  /** The session's own name for it; the plan may have been edited since. */
+  name: string
+  /** How this exercise's `weight` column reads. */
+  loggingType: LoggingType
+  sets: readonly EditorLoggedSet[]
+}
+
 /** The session a settled day already produced — facts, not plan. */
 export interface EditorSession {
   /** Link to the workout itself; the log points at the real thing. */
@@ -74,6 +122,12 @@ export interface EditorSession {
   setCount: number
   /** Total logged volume in the user's display unit, already converted. */
   volume: number
+  /**
+   * What was actually logged. Read from the SESSION rather than aligned to
+   * today's plan: an exercise reordered or swapped since would otherwise put
+   * one movement's numbers under another movement's name.
+   */
+  exercises: readonly EditorLoggedExercise[]
 }
 
 /** The addressed day, with everything the day pane renders. */

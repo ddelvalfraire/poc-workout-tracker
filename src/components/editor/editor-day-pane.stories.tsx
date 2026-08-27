@@ -1,7 +1,12 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 
 import { EditorDayPane } from "./editor-day-pane";
-import type { EditorDayDetail, EditorSet } from "./editor-model";
+import type {
+  EditorDayDetail,
+  EditorLoggedExercise,
+  EditorLoggedSet,
+  EditorSet,
+} from "./editor-model";
 
 /**
  * Pane 2 — the addressed day and the sets it prescribes for the selected week.
@@ -56,6 +61,41 @@ const day: EditorDayDetail = {
   ],
 };
 
+const loggedSet = (
+  patch: Partial<EditorLoggedSet> & { setNumber: number },
+): EditorLoggedSet => ({
+  completed: true,
+  reps: 8,
+  weight: 80,
+  metricMode: "reps_weight",
+  durationSec: null,
+  distanceM: null,
+  prescribedReps: 8,
+  prescribedWeight: 80,
+  diverged: false,
+  ...patch,
+});
+
+/** Two movements: one exactly as prescribed, one that came in under it. */
+const loggedExercises: EditorLoggedExercise[] = [
+  {
+    position: 0,
+    name: "Barbell Row",
+    loggingType: "weight_reps",
+    sets: [loggedSet({ setNumber: 1 }), loggedSet({ setNumber: 2 })],
+  },
+  {
+    position: 1,
+    name: "Lat Pulldown",
+    loggingType: "weight_reps",
+    sets: [
+      loggedSet({ setNumber: 1, reps: 10, weight: 60, prescribedReps: 10, prescribedWeight: 65, diverged: true }),
+      loggedSet({ setNumber: 2, reps: 10, weight: 60, prescribedReps: 10, prescribedWeight: 65, diverged: true }),
+      loggedSet({ setNumber: 3, reps: 8, weight: 60, prescribedReps: 10, prescribedWeight: 65, diverged: true }),
+    ],
+  },
+];
+
 const base = {
   day,
   week: 3,
@@ -73,10 +113,15 @@ export const Default: Story = { args: base };
 export const ExerciseSelected: Story = { args: { ...base, selectedExercise: 0 } };
 
 /**
- * A completed session. The same values, now a LOG: text, no field chrome, full
- * contrast — this is the content people most want to read. The sentence says
- * what is true (the edit lands on the plan, and the plan is not what was
- * lifted) rather than claiming a lock nothing enforces.
+ * A completed session, rendered as a LOG of what was actually lifted.
+ *
+ * These are the SESSION's numbers, not the plan's. Where the two differ the
+ * prescription is struck through beside the actual — TrainHeroic's encoding,
+ * both facts visible and neither pretending to be a field. Where they agree the
+ * row shows one number, so the handful that moved is not buried.
+ *
+ * Full contrast, no field chrome, never `disabled`: this is the content people
+ * most want to read, and dimming it is the WCAG 1.4.3 exemption trap.
  */
 export const TrainedDone: Story = {
   args: {
@@ -86,9 +131,10 @@ export const TrainedDone: Story = {
       trained: "done",
       session: {
         href: "/workout/example",
-        completedSetCount: 12,
-        setCount: 12,
+        completedSetCount: 5,
+        setCount: 5,
         volume: 4820,
+        exercises: loggedExercises,
       },
     },
   },
@@ -105,17 +151,94 @@ export const TrainedInProgress: Story = {
     day: {
       ...day,
       trained: "in-progress",
-      session: { href: "/workout/example", completedSetCount: 5, setCount: 12, volume: 1960 },
+      session: {
+        href: "/workout/example",
+        completedSetCount: 2,
+        setCount: 5,
+        volume: 1960,
+        exercises: loggedExercises.map((exercise) => ({
+          ...exercise,
+          sets: exercise.sets.map((entry, index) =>
+            index < 2 ? entry : { ...entry, completed: false, reps: null, weight: null },
+          ),
+        })),
+      },
     },
   },
 };
 
 /**
- * A settled session with no summary to show. The log still renders; only the
- * facts line is absent, because inventing one would be worse than omitting it.
+ * A settled day whose session could not be read.
+ *
+ * The plan's rows are NOT substituted here. A template number under "you
+ * trained this" would present something the user never lifted as though they
+ * had, and no summary at all is the honest answer.
  */
 export const TrainedWithoutSession: Story = {
   args: { ...base, day: { ...day, trained: "done", session: null } },
+};
+
+/**
+ * A session with no sets recorded at all — started, then abandoned.
+ *
+ * Still settled: its rows were written when it began, so an edit made today
+ * cannot reach it either.
+ */
+export const TrainedSessionEmpty: Story = {
+  args: {
+    ...base,
+    day: {
+      ...day,
+      trained: "in-progress",
+      session: {
+        href: "/workout/example",
+        completedSetCount: 0,
+        setCount: 0,
+        volume: 0,
+        exercises: [],
+      },
+    },
+  },
+};
+
+/**
+ * A bodyweight movement — the log reads "BW+10 × 6", the same wording the
+ * workout page uses, because both go through the shipped formatter rather than
+ * a second one written here.
+ */
+export const TrainedBodyweight: Story = {
+  args: {
+    ...base,
+    day: {
+      ...day,
+      trained: "done",
+      session: {
+        href: "/workout/example",
+        completedSetCount: 3,
+        setCount: 3,
+        volume: 900,
+        exercises: [
+          {
+            position: 0,
+            name: "Weighted Pull-Up",
+            loggingType: "weighted_bodyweight",
+            sets: [
+              loggedSet({ setNumber: 1, reps: 6, weight: 10, prescribedWeight: 10 }),
+              loggedSet({ setNumber: 2, reps: 6, weight: 10, prescribedWeight: 10 }),
+              loggedSet({
+                setNumber: 3,
+                reps: 5,
+                weight: 10,
+                prescribedReps: 6,
+                prescribedWeight: 10,
+                diverged: true,
+              }),
+            ],
+          },
+        ],
+      },
+    },
+  },
 };
 
 /** A past week's untouched day: "Skipped", and still editable. */

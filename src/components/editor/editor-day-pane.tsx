@@ -5,8 +5,9 @@ import { isSettled } from '@/app/programs/[id]/editor/trained-view'
 import { EmptyWords } from '@/components/ui/empty-words'
 import type { WeightUnit } from '@/lib/units'
 import { cn } from '@/lib/utils'
-import type { EditorDayDetail, EditorSet } from './editor-model'
-import { PinRail } from './editor-pin-rail'
+import { formatLoggedSet, formatSet } from '@/lib/format'
+import { renderMessage } from '@/lib/message'
+import type { EditorDayDetail, EditorLoggedExercise, EditorLoggedSet } from './editor-model'
 import { EditorSetForm } from './editor-set-form'
 
 /**
@@ -48,38 +49,61 @@ interface EditorDayPaneProps {
   className?: string
 }
 
-/** One set's prescription as words — the LOG row for a settled session. */
-function SetLine({ set, week, unit }: { set: EditorSet; week: number; unit: WeightUnit }) {
+/**
+ * One LOGGED set: what was lifted, and — only when they differ — the target it
+ * was given, struck through beside it.
+ *
+ * The struck prescription is the frozen `prescribed*` snapshot from this
+ * session's own row, not today's template. Those are different numbers whenever
+ * the plan moved after the session started, and the one the reader wants is the
+ * one they were actually asked for on the day.
+ *
+ * A set that went exactly as prescribed shows ONE number. Drawing the pair on
+ * every row would bury the handful that actually moved, which is the entire
+ * signal.
+ *
+ * Both halves go through the SHIPPED `formatSet`/`formatLoggedSet`, so a
+ * bodyweight or assisted exercise reads here exactly as it reads on the workout
+ * page — and both numbers come from the same `weight` column, so comparing them
+ * is like for like.
+ */
+function LoggedSetLine({
+  set,
+  loggingType,
+  unit,
+}: {
+  set: EditorLoggedSet
+  loggingType: EditorLoggedExercise['loggingType']
+  unit: WeightUnit
+}) {
   const t = useTranslations('ProgramEditor')
+  const tFormat = useTranslations('Format')
 
-  const facts: string[] = []
-  if (set.repMin !== null || set.repMax !== null) {
-    facts.push(
-      set.repMin !== null && set.repMax !== null && set.repMin !== set.repMax
-        ? t('setReps', { min: set.repMin, max: set.repMax })
-        : t('setRepsExact', { reps: set.repMax ?? set.repMin ?? 0 }),
-    )
-  }
-  if (set.load !== null) facts.push(t('setLoad', { load: set.load, unit }))
-  if (set.rir !== null) facts.push(t('setRir', { rir: set.rir }))
-  if (set.rpe !== null) facts.push(t('setRpe', { rpe: set.rpe }))
+  const actual = renderMessage(tFormat, formatLoggedSet(set, unit, loggingType))
+  const prescribed = set.diverged
+    ? renderMessage(tFormat, formatSet(set.prescribedReps, set.prescribedWeight, unit, loggingType))
+    : null
 
   return (
-    // No `text-muted-foreground`, no opacity: a settled row is the content
+    // No `text-muted-foreground`, no opacity: a logged row is the content
     // people most want to read, so it keeps primary ink.
-    <li className="relative flex min-h-11 items-baseline gap-3 py-2 pl-3 text-sm [@media(pointer:fine)_and_(min-width:840px)]:min-h-8 [@media(pointer:fine)_and_(min-width:840px)]:py-1">
-      {/* Pinned reads as POSITION — a leading rule — with the word beside it.
-          Never as a dimmer derived row: lightness alone under 3:1 is not a
-          distinction (WCAG 1.4.1). */}
-      {set.overridden && <PinRail />}
+    <li className="flex min-h-11 items-baseline gap-3 py-2 text-sm [@media(pointer:fine)_and_(min-width:840px)]:min-h-8 [@media(pointer:fine)_and_(min-width:840px)]:py-1">
       <span className="w-14 shrink-0 text-xs uppercase tracking-widest text-muted-foreground tnum">
         {t('setNumber', { number: set.setNumber })}
       </span>
       <span className="min-w-0 flex-1 tnum">
-        {facts.length > 0 ? facts.join(' · ') : t('setUnset')}
+        {prescribed !== null && (
+          <>
+            {/* The plan struck through, the actual beside it. Both facts
+                visible, neither pretending to be a field — and the strike is
+                a shape, so it does not rely on the grey to be read. */}
+            <s className="text-muted-foreground">{prescribed}</s>{' '}
+          </>
+        )}
+        {actual}
       </span>
-      {set.overridden && (
-        <span className="shrink-0 text-xs text-muted-foreground">{t('setPinned', { week })}</span>
+      {!set.completed && (
+        <span className="shrink-0 text-xs text-muted-foreground">{t('setNotLogged')}</span>
       )}
     </li>
   )
@@ -157,7 +181,35 @@ function EditorDayPane({
         </div>
       )}
 
-      {day.exercises.length === 0 ? (
+      {settled && day.session !== null ? (
+        // A settled day is a LOG, and it is the SESSION's log: its own
+        // exercises, in its own order, under its own names. Aligning the rows
+        // to today's plan would put one movement's numbers under another
+        // movement's name the moment the plan was reordered or a lift swapped.
+        day.session.exercises.length === 0 ? (
+          <EmptyWords>{t('sessionEmpty')}</EmptyWords>
+        ) : (
+          <ul className="mt-4 divide-y divide-border/60 border-b border-b-border/60">
+            {day.session.exercises.map((exercise) => (
+              <li key={exercise.position} className="py-3">
+                <p className="flex min-h-11 items-center px-1 font-medium [@media(pointer:fine)_and_(min-width:840px)]:min-h-8">
+                  {exercise.name}
+                </p>
+                <ul className="mt-1 pl-1">
+                  {exercise.sets.map((set) => (
+                    <LoggedSetLine
+                      key={set.setNumber}
+                      set={set}
+                      loggingType={exercise.loggingType}
+                      unit={unit}
+                    />
+                  ))}
+                </ul>
+              </li>
+            ))}
+          </ul>
+        )
+      ) : day.exercises.length === 0 ? (
         <EmptyWords>{t('exercisesEmpty')}</EmptyWords>
       ) : (
         <ul className="mt-4 divide-y divide-border/60 border-b border-b-border/60">
@@ -180,28 +232,20 @@ function EditorDayPane({
                     {t('setCount', { count: exercise.sets.length })}
                   </span>
                 </Link>
-                {settled ? (
-                  <ul className="mt-1 pl-1">
-                    {exercise.sets.map((set) => (
-                      <SetLine key={set.setNumber} set={set} week={week} unit={unit} />
-                    ))}
-                  </ul>
-                ) : (
-                  <div className="mt-1 pl-1">
-                    {exercise.sets.map((set) => (
-                      <EditorSetForm
-                        key={set.setNumber}
-                        set={set}
-                        programId={programId}
-                        day={day.position}
-                        exercise={exercise.position}
-                        week={week}
-                        unit={unit}
-                        action={saveSetAction}
-                      />
-                    ))}
-                  </div>
-                )}
+                <div className="mt-1 pl-1">
+                  {exercise.sets.map((set) => (
+                    <EditorSetForm
+                      key={set.setNumber}
+                      set={set}
+                      programId={programId}
+                      day={day.position}
+                      exercise={exercise.position}
+                      week={week}
+                      unit={unit}
+                      action={saveSetAction}
+                    />
+                  ))}
+                </div>
               </li>
             )
           })}

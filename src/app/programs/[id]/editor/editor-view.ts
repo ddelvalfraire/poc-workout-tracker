@@ -2,10 +2,12 @@ import type {
   EditorDay,
   EditorDayDetail,
   EditorExercise,
+  EditorLoggedExercise,
   EditorSession,
   EditorSet,
   EditorWeek,
 } from '@/components/editor/editor-model'
+import type { LoggingType } from '@/lib/workout-input'
 import type { SetType } from '@/lib/program-input'
 import { kgToDisplay, type WeightUnit } from '@/lib/units'
 import type { TrainedDayState } from './trained-view'
@@ -152,6 +154,64 @@ export function editorSetForWeek(set: SourceSet, week: number, unit: WeightUnit)
  */
 export function editorSetLoadKg(set: SourceSet, week: number): number | null {
   return set.overrides.find((row) => row.week === week)?.suggestedLoadKg ?? set.suggestedLoadKg
+}
+
+/** A logged set row, as the `sets` table stores it. */
+export interface SourceLoggedSet {
+  setNumber: number
+  completed: boolean
+  reps: number | null
+  weight: number | null
+  metricMode: string
+  durationSec: number | null
+  distanceM: number | null
+  prescribedLoadKg: number | null
+  prescribedRepMin: number | null
+}
+
+/** A logged exercise row, as `workoutExercises` stores it. */
+export interface SourceLoggedExercise {
+  name: string
+  loggingType: LoggingType
+  sets: readonly SourceLoggedSet[]
+}
+
+/**
+ * What a settled session actually recorded.
+ *
+ * Read from the SESSION, never aligned to today's plan. The two can disagree —
+ * an exercise reordered or swapped since the session started — and aligning by
+ * position would put one movement's numbers under another movement's name. The
+ * session carries its own names, so it is asked directly.
+ *
+ * `diverged` is the whole reason both halves are kept. A set that went exactly
+ * as prescribed says so by showing ONE number; drawing the struck-through
+ * target on every row would bury the handful that actually moved. And a set
+ * with no prescription at all — an ad-hoc set, or anything logged before the
+ * snapshot columns existed — never claims one: null is not a target of zero.
+ */
+export function editorLoggedExercises(
+  exercises: readonly SourceLoggedExercise[],
+): EditorLoggedExercise[] {
+  return exercises.map((exercise, position) => ({
+    position,
+    name: exercise.name,
+    loggingType: exercise.loggingType,
+    sets: exercise.sets.map((set) => ({
+      setNumber: set.setNumber,
+      completed: set.completed,
+      reps: set.reps,
+      weight: set.weight,
+      metricMode: set.metricMode as EditorLoggedExercise['sets'][number]['metricMode'],
+      durationSec: set.durationSec,
+      distanceM: set.distanceM,
+      prescribedReps: set.prescribedRepMin,
+      prescribedWeight: set.prescribedLoadKg,
+      diverged:
+        (set.prescribedRepMin !== null || set.prescribedLoadKg !== null) &&
+        (set.prescribedRepMin !== set.reps || set.prescribedLoadKg !== set.weight),
+    })),
+  }))
 }
 
 /** One exercise's sets, resolved for the selected week. */
