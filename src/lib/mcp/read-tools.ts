@@ -516,6 +516,14 @@ export interface WorkoutPayload {
     // ad-hoc workouts). `plan` carries that day's prescription as a read overlay.
     programDayId: string | null
     programWeek: number | null
+    // What the day was CALLED when this session was trained, frozen at
+    // instantiation. Still names the session after the day is deleted (when
+    // `programDayId` and `plan` are both gone), and never re-labels history
+    // when the plan is renamed. Null on ad-hoc sessions and on rows logged
+    // before the column existed — deliberately never backfilled from the
+    // day's current name, which is not evidence of its name back then.
+    programDayName: string | null
+    programDayPosition: number | null
     plan?: ProgramDayView
     exercises: {
       id: string
@@ -586,6 +594,8 @@ export function buildWorkoutPayload(
       startedAt: workout.startedAt.toISOString(),
       programDayId: workout.programDayId,
       programWeek: workout.programWeek,
+      programDayName: workout.programDayName,
+      programDayPosition: workout.programDayPosition,
       ...(programDay ? { plan: buildProgramDayView(programDay, unit) } : {}),
       exercises: workout.exercises.map((exercise) => ({
         id: exercise.id,

@@ -539,11 +539,14 @@ describe('updateProgram per-week override preservation', () => {
   }
 
   it('re-attaches overrides to the recreated set at the same address', async () => {
-    // Arrange — first select: the pre-wipe snapshot; second: the new set rows
+    // Arrange — the reads updateProgram issues, in order: the override
+    // snapshot, the day-slot snapshot (empty here: no slot to carry, so the
+    // workout re-attach reads nothing either), then the new set rows.
     selectQueue.push([
       snapshotRow({ setNumber: 1, week: 3, repMin: 5, repMax: 5, suggestedLoadKg: 100 }),
       snapshotRow({ setNumber: 2, week: 4, rir: 0 }),
     ])
+    selectQueue.push([])
     selectQueue.push([
       { id: 'new-s1', dayPosition: 0, exercisePosition: 0, setNumber: 1 },
       { id: 'new-s2', dayPosition: 0, exercisePosition: 0, setNumber: 2 },
@@ -571,6 +574,7 @@ describe('updateProgram per-week override preservation', () => {
       snapshotRow({ setNumber: 1, week: 2, suggestedLoadKg: 80 }),
       snapshotRow({ setNumber: 3, week: 2, suggestedLoadKg: 90 }),
     ])
+    selectQueue.push([]) // day-slot snapshot
     selectQueue.push([
       { id: 'new-s1', dayPosition: 0, exercisePosition: 0, setNumber: 1 },
       { id: 'new-s2', dayPosition: 0, exercisePosition: 0, setNumber: 2 },
@@ -586,11 +590,13 @@ describe('updateProgram per-week override preservation', () => {
   })
 
   it('skips the re-key read and insert entirely when the program had no overrides', async () => {
-    // Act — empty selectQueue: the snapshot read returns []
+    // Act — empty selectQueue: every read returns []
     await updateProgram(USER, 'p1', REPLACE_INPUT, 'ui')
 
-    // Assert — only the snapshot select ran; nothing override-shaped inserted
-    expect(selectCalls).toBe(1)
+    // Assert — only the two snapshots ran (overrides, then day slots): with no
+    // overrides there is no re-key read, and with no carried slot there is no
+    // workout re-attach read either
+    expect(selectCalls).toBe(2)
     expect(findOverrideInsert()).toBeUndefined()
   })
 })
