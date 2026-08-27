@@ -98,9 +98,9 @@ vi.mock('./index', () => ({
 // network. `muscleRowsFor` stays real (pure) so tag rows are asserted as
 // production would write them.
 const { catalogMock } = vi.hoisted(() => ({ catalogMock: vi.fn() }))
-vi.mock('./programs', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('./programs')>()),
-  loadExerciseCatalog: catalogMock,
+vi.mock('./exercise-catalog', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./exercise-catalog')>()),
+  getExerciseCatalog: catalogMock,
 }))
 
 // The autoreg paid gate rides setProgramAutoregulation itself; entitled by

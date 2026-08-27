@@ -6,6 +6,9 @@ import type {
   WorkoutSetType,
 } from '@/lib/workout-input'
 import type { ExerciseSource } from '@/lib/custom-exercise-input'
+// lib/, never db/: this module is bundled with the client logger, and the
+// loader's Postgres import would ride along into the browser.
+import { catalogCategory, type ExerciseCatalog } from '@/lib/exercise-catalog'
 import type { WorkoutDetail } from '@/db/workouts'
 import { displayToKg, kgToDisplay, type WeightUnit } from '@/lib/units'
 import { defaultMetricModeForCategory, isMetricMode } from '@/lib/workout-input'
@@ -700,26 +703,6 @@ export function draftToInput(
 }
 
 /**
- * The catalog lookup the seeding functions need to fill `category` — the merged
- * (wger + customs) catalog, keyed by the composite `${source}:${id}` exactly as
- * `db/programs.ts`'s `catalogKey` writes it. Structural on purpose: this module
- * is bundled with the client logger and must not import the db layer. Null (a
- * catalog outage) degrades to an empty category, which is what every seeded
- * draft carried before.
- */
-export type DraftCategoryCatalog = ReadonlyMap<string, { category: string }>
-
-/** `category` is not a persisted column on a workout/template exercise — it is
- *  catalog data, looked up by the composite identity. */
-export function draftCategoryFor(
-  catalog: DraftCategoryCatalog | null | undefined,
-  source: ExerciseSource,
-  wgerExerciseId: number,
-): string {
-  return catalog?.get(`${source}:${wgerExerciseId}`)?.category ?? ''
-}
-
-/**
  * Seeds an editable draft from a persisted workout (the inverse of
  * draftToInput). Numbers become input strings (`null` → `''`); the persisted
  * row UUIDs are reused as the draft's client ids (stable React keys). `category`
@@ -734,14 +717,14 @@ export function draftCategoryFor(
 export function detailToDraft(
   workout: WorkoutDetail,
   unit: WeightUnit = 'kg',
-  options: { resetCompleted?: boolean; catalog?: DraftCategoryCatalog | null } = {},
+  options: { resetCompleted?: boolean; catalog?: ExerciseCatalog | null } = {},
 ): { draft: WorkoutDraft; name: string } {
   const exercises = workout.exercises.map((exercise) => ({
     id: exercise.id,
     wgerExerciseId: exercise.wgerExerciseId,
     source: exercise.source,
     name: exercise.name,
-    category: draftCategoryFor(options.catalog, exercise.source, exercise.wgerExerciseId),
+    category: catalogCategory(options.catalog, exercise.source, exercise.wgerExerciseId),
     loggingType: exercise.loggingType,
     notes: exercise.notes ?? '',
     skipped: exercise.skipped,

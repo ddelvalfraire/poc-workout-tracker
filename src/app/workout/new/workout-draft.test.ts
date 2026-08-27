@@ -1774,9 +1774,9 @@ describe('detailToDraft category lookup', () => {
     // Arrange — the same composite keying db/programs.ts writes; a wger id and
     // a custom id that collide must not read each other's category.
     const catalog = new Map([
-      ['wger:73', { category: 'Chest' }],
-      ['custom:1', { category: 'Shoulders' }],
-      ['wger:1', { category: 'Legs' }],
+      ['wger:73', { id: 73, name: 'Bench Press', category: 'Chest' }],
+      ['custom:1', { id: 1, name: 'Cable Face Pull', category: 'Shoulders' }],
+      ['wger:1', { id: 1, name: 'Decoy', category: 'Legs' }],
     ])
 
     // Act
@@ -1795,7 +1795,7 @@ describe('detailToDraft category lookup', () => {
     ).toEqual(['', ''])
     expect(
       detailToDraft(workoutWithTwoExercises(), 'kg', {
-        catalog: new Map([['wger:73', { category: 'Chest' }]]),
+        catalog: new Map([['wger:73', { id: 73, name: 'Bench Press', category: 'Chest' }]]),
       }).draft.exercises.map((e) => e.category),
     ).toEqual(['Chest', ''])
   })
