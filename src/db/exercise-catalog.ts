@@ -20,6 +20,13 @@ import { listCustomExercises } from './custom-exercises'
  * wger outage still resolves custom slots (and vice versa); both failing yields
  * null and callers proceed unenriched. Never called inside a transaction — the
  * wger half can reach the network on a cold instance.
+ *
+ * MEMOIZATION HAZARD: the memo is per REQUEST, so a request that CREATES a
+ * custom exercise and then reads the catalog gets the pre-write copy, and the
+ * new exercise resolves as unknown (untagged muscles, empty category). No
+ * current flow does this — the create action and the MCP create tool both
+ * return immediately — but a future write-then-read path must re-read
+ * listCustomExercises directly rather than reaching for this loader.
  */
 export const getExerciseCatalog = cache(async (userId: string): Promise<ExerciseCatalog | null> => {
   // Async wrappers so even a synchronous throw lands as a rejection.
