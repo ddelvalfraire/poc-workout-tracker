@@ -3,6 +3,7 @@ import {
   editorHref,
   parseDaySegment,
   parseExerciseParam,
+  parseViewParam,
   resolveEditorAddress,
   type AddressBounds,
 } from './editor-address'
@@ -83,11 +84,17 @@ describe('resolveEditorAddress', () => {
       day: 0,
       exercise: 2,
       week: 4,
+      view: 'day',
     })
   })
 
   it('falls back to the structure view and the current week when the URL says nothing', () => {
-    expect(resolveEditorAddress({}, bounds)).toEqual({ day: null, exercise: null, week: 3 })
+    expect(resolveEditorAddress({}, bounds)).toEqual({
+      day: null,
+      exercise: null,
+      week: 3,
+      view: 'day',
+    })
   })
 
   it('checks the exercise against the ADDRESSED day, not another one', () => {
@@ -100,7 +107,7 @@ describe('resolveEditorAddress', () => {
 
   it('drops the exercise when the day segment itself is unresolvable', () => {
     const address = resolveEditorAddress({ day: '9', exercise: '1' }, bounds)
-    expect(address).toEqual({ day: null, exercise: null, week: 3 })
+    expect(address).toEqual({ day: null, exercise: null, week: 3, view: 'day' })
   })
 
   it('clamps an out-of-range week into the block rather than 404ing a shared link', () => {
@@ -136,6 +143,21 @@ describe('resolveEditorAddress', () => {
   })
 })
 
+/** Mints a URL from an address and resolves it back, which must be identity. */
+function roundTrip(address: Parameters<typeof editorHref>[1]) {
+  const [path, query] = editorHref('p1', address).split('?')
+  const search = new URLSearchParams(query)
+  return resolveEditorAddress(
+    {
+      day: path.split('/').pop(),
+      exercise: search.get('exercise') ?? undefined,
+      week: search.get('week') ?? undefined,
+      view: search.get('view') ?? undefined,
+    },
+    bounds,
+  )
+}
+
 describe('editorHref', () => {
   it('addresses the structure view when no day is given', () => {
     expect(editorHref('p1', { day: null })).toBe('/programs/p1/editor')
@@ -164,19 +186,38 @@ describe('editorHref', () => {
 
   it('round-trips an address through the URL it builds', () => {
     // The two projections agree only if minting and resolving are inverses.
-    const address = { day: 1, exercise: 1, week: 5 }
-    const href = editorHref('p1', address)
-    const [path, query] = href.split('?')
-    const search = new URLSearchParams(query)
-    expect(
-      resolveEditorAddress(
-        {
-          day: path.split('/').pop(),
-          exercise: search.get('exercise') ?? undefined,
-          week: search.get('week') ?? undefined,
-        },
-        bounds,
-      ),
-    ).toEqual(address)
+    const address = { day: 1, exercise: 1, week: 5, view: 'day' as const }
+    expect(roundTrip(address)).toEqual(address)
+  })
+
+  it('round-trips the exercise-wise reading too', () => {
+    const address = { day: 1, exercise: 1, week: 5, view: 'exercise' as const }
+    expect(roundTrip(address)).toEqual(address)
+  })
+
+  it('omits the default reading from the URL', () => {
+    // Same reason `?week=1` is omitted: the ordinary address stays short.
+    expect(editorHref('p1', { day: 0, view: 'day' })).toBe('/programs/p1/editor/0')
+    expect(editorHref('p1', { day: 0, view: 'exercise' })).toBe(
+      '/programs/p1/editor/0?view=exercise',
+    )
+  })
+})
+
+describe('parseViewParam', () => {
+  it('resolves the exercise-wise reading', () => {
+    expect(parseViewParam('exercise')).toBe('exercise')
+  })
+
+  it('falls back to the day reading for junk rather than throwing', () => {
+    // A user-editable URL. The day reading is also the one that works with no
+    // day addressed, so it is the safe landing.
+    for (const raw of ['', 'Exercise', 'pivot', undefined, ['nope']]) {
+      expect(parseViewParam(raw)).toBe('day')
+    }
+  })
+
+  it('takes the first value when the param repeats', () => {
+    expect(parseViewParam(['exercise', 'day'])).toBe('exercise')
   })
 })
