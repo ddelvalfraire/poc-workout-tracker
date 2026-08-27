@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { BookmarkPlus, RotateCcw } from 'lucide-react'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { ConfirmDialog } from '@/components/confirm-dialog'
+import { UncompleteSession } from '@/components/workout/uncomplete-session'
 import { cn } from '@/lib/utils'
 import { deleteWorkoutAction } from '@/app/workout/actions'
 import { saveWorkoutAsTemplateAction } from '@/app/templates/actions'
@@ -17,6 +18,11 @@ import { useTranslations } from 'next-intl'
  * replacing the old inline card the user read as "shows up near the bottom of
  * the phone"), deletes (cascade), then navigates home. Kept small so the
  * detail page itself stays a Server Component.
+ *
+ * Un-complete sits BELOW delete's row and owns its own guard: it is the one
+ * action here whose consequence reaches past this workout (a rolled-back
+ * block week), and that guard is gated on the cascade actually existing —
+ * see `UncompleteSession`.
  */
 export function WorkoutActions({ id }: { id: string }) {
   const t = useTranslations('WorkoutActions')
@@ -107,6 +113,9 @@ export function WorkoutActions({ id }: { id: string }) {
           {t('delete')}
         </Button>
       </div>
+      {/* Reopening a finished session. Its own dialog, its own undo — the
+          consequence that needs guarding is the cascade, not the delete. */}
+      <UncompleteSession workoutId={id} />
       {isModalOpen && (
         <ConfirmDialog
           title={t('deleteDialog.title')}

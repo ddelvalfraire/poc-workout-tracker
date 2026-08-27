@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Pencil } from "lucide-react";
 import { notFound, redirect } from "next/navigation";
 import { requireUserId } from "@/lib/auth";
 import {
@@ -43,6 +44,13 @@ import { ShareCardButton } from "@/components/share-card-button";
 import { cn } from "@/lib/utils";
 import { getActiveWorkoutShare } from "@/db/workout-shares";
 import { WorkoutActions } from "./workout-actions";
+import {
+  WorkoutAmendedMark,
+  WorkoutChangelog,
+} from "@/components/workout/workout-changelog";
+import { listWorkoutEvents } from "@/db/workout-events";
+import { setSnapshotKey } from "@/db/workout-set-diff";
+import { amendedSetKeys } from "./amended-sets";
 import { WorkoutSharing } from "./workout-sharing";
 import { FinishUpNextCard } from "./finish-up-next-card";
 import { getTranslations } from 'next-intl/server';
@@ -98,6 +106,7 @@ export default async function WorkoutDetailPage({
     activeShare,
     lastSameName,
     sessionNotes,
+    changeEvents,
   ] =
     await Promise.all([
       getExerciseHistoryBefore(userId, exerciseIds, workout.startedAt),
@@ -123,6 +132,11 @@ export default async function WorkoutDetailPage({
       // Every note anchored anywhere in this session (workout, exercises,
       // sets — plus outdated fallbacks), for the consolidated Notes section.
       notesForWorkout(userId, id),
+      // The session's paper trail — the FULL stream, unfiltered. Narrowing to
+      // amendments is a PRESENTATION decision the changelog makes once (it is
+      // also what decides whether the section exists at all), and the same
+      // rows feed the per-set amended marks below.
+      listWorkoutEvents(userId, id),
     ]);
   // Same session-window honesty as the goals block, PLUS the attribution
   // mark: only trophies whose stored context names THIS workout celebrate —
@@ -171,6 +185,10 @@ export default async function WorkoutDetailPage({
       ];
     },
   );
+
+  // Which set rows carry the small "Edited" mark. Derived from the log's own
+  // snapshots, so the mark and the changelog can never disagree.
+  const amendedSets = amendedSetKeys(changeEvents);
 
   const totalSets = workout.exercises.reduce((n, e) => n + e.sets.length, 0);
   const volumeKg = workout.exercises.reduce(
@@ -323,6 +341,17 @@ export default async function WorkoutDetailPage({
             {t("comparisonCaption", { name: workout.name ?? "" })}
           </p>
         )}
+
+        {/* The permanent amended mark, above the record it is about: a reader
+            meets "these numbers were changed" before the numbers, never after
+            them. Absent on an untouched session — the component owns that
+            rule, and it is the same fact that decides whether the change log
+            at the bottom exists at all. */}
+        <WorkoutAmendedMark
+          entries={changeEvents}
+          sessionAt={workout.startedAt}
+          className="mt-5"
+        />
 
         {/* What comes after the finish: the next program day, or the block-
             complete banner when this session closed the mesocycle. Quick
@@ -539,6 +568,32 @@ export default async function WorkoutDetailPage({
                             {t('exercise.topSetBadge')}
                           </span>
                         )}
+                        {/* The amended mark, at the row that moved: you can
+                            see WHICH numbers a correction touched without
+                            opening the change log. The same pencil the
+                            session-level mark wears — one glyph, one meaning,
+                            two scopes (session band, row band), inert in
+                            both, exactly like the row's note dot. A word here
+                            would compete with the numbers it is about.
+                            NEUTRAL ink, not the session mark's volt: this one
+                            repeats per set row down a scannable list, and
+                            per-item volt is what DESIGN.md #163 bans. The
+                            accent stays upstream, once, on the mark. */}
+                        {amendedSets.has(
+                          setSnapshotKey(
+                            exercise.source,
+                            exercise.wgerExerciseId,
+                            set.setNumber,
+                          ),
+                        ) && (
+                          <>
+                            <Pencil
+                              aria-hidden="true"
+                              className="size-3 shrink-0 text-muted-foreground"
+                            />
+                            <span className="sr-only">{t('exercise.amendedMark')}</span>
+                          </>
+                        )}
                       </div>
                     ))
                   )}
@@ -602,6 +657,16 @@ export default async function WorkoutDetailPage({
             </DividerList>
           </section>
         )}
+
+        {/* The session's change log: what was amended after the fact, who did
+            it and when. Absent entirely for an untouched record — the
+            component owns that rule, along with the amendments-only default
+            and the full-log disclosure. */}
+        <WorkoutChangelog
+          entries={changeEvents}
+          sessionAt={workout.startedAt}
+          locale={locale}
+        />
 
         {/* Share control above the action stack: this page only renders
             COMPLETED workouts (live sessions redirected to the logger above),

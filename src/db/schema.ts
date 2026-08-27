@@ -43,6 +43,19 @@ export const workouts = pgTable(
     name: text('name'),
     startedAt: timestamp('started_at', { withTimezone: true }).defaultNow().notNull(),
     completedAt: timestamp('completed_at', { withTimezone: true }),
+    // When this session's ORIGINAL record was persisted by a session-scoped
+    // write (saveWorkout, or updateWorkout's first full persist of an
+    // instantiated shell). Null means the session has never been recorded as
+    // a whole — it is still being logged.
+    //
+    // This exists BECAUSE `completedAt` cannot answer that question. The MCP
+    // patch tools stamp `completedAt` via coalesce(…, now()) on the first set
+    // they touch, so a coach patching one set of a LIVE session flips it
+    // non-null; a surface reading `completedAt` would then call that session's
+    // real first persist a correction. Set-level writes never touch this
+    // column, and `uncompleteWorkout` never clears it — an original record
+    // that happened stays happened.
+    originalRecordedAt: timestamp('original_recorded_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     // Provenance: when this workout was instantiated from a program day. SET NULL
     // (not cascade) so editing/deleting a plan never destroys logged history.
@@ -1007,6 +1020,60 @@ export const workoutShares = pgTable(
   // Same access paths as program_shares: owner reads workout-first, token
   // lookups ride the unique index.
   (t) => [index('workout_shares_workout_id_idx').on(t.workoutId)],
+)
+
+/**
+ * Append-only change log for a logged SESSION — the workout counterpart of
+ * `program_events`, written by the db seam (workouts.ts) inside the same
+ * transaction as the change it describes: a failed save logs nothing, a logged
+ * event implies the write committed. No update or delete path exists.
+ *
+ * `kind` is the discriminator the clinical-record vocabulary turns on, and it
+ * is DECLARED BY THE CALLING CODE PATH — never inferred here. It cannot be
+ * inferred: `workouts.completedAt` is stamped by `coalesce(completedAt, now())`
+ * on the FIRST set-level touch, so an agent logging one rep mid-session and an
+ * agent correcting a set a week later are indistinguishable at this layer.
+ *   - 'original'   — the session's first persist. The record being CREATED.
+ *   - 'late_entry' — something that happened but was never logged, ADDED after
+ *                    the fact. It does not contradict what is already there.
+ *   - 'amendment'  — a correction of something recorded wrong. It CONTRADICTS
+ *                    prior content. This is the log's headline view.
+ *   - 'system'     — the app's own writes (autoregulation, recalculation).
+ *
+ * Grain is one row per user INTENT, not per field: "fix the weight and reps on
+ * set 3" is ONE row whose `changed` array lists both columns. `changed` is
+ * denormalised on write so the renderer never has to diff the JSONB to decide
+ * what to show. `before`/`after` snapshot the SUBJECT ONLY (a set is ~6 scalar
+ * fields — the snapshot is tiny); `before` is null for a creation, `after` is
+ * null for a removal, and the subject's addressing (exercise identity + set
+ * number) rides inside whichever snapshot exists, so at least one always names
+ * what the row is about. Cascade delete: a session's history dies with it.
+ */
+export const workoutEvents = pgTable(
+  'workout_events',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    workoutId: uuid('workout_id')
+      .notNull()
+      .references(() => workouts.id, { onDelete: 'cascade' }),
+    userId: text('user_id').notNull(), // WorkOS user id — ownership root, like `workouts`
+    occurredAt: timestamp('occurred_at', { withTimezone: true }).defaultNow().notNull(),
+    kind: text('kind').$type<'original' | 'late_entry' | 'amendment' | 'system'>().notNull(),
+    actor: text('actor').$type<'ui' | 'mcp' | 'coach' | 'system'>().notNull(),
+    action: text('action').notNull(),
+    summary: text('summary').notNull(),
+    /** Column names the intent touched — empty for a creation or a removal,
+     *  where the whole subject IS the change. */
+    changed: text('changed')
+      .array()
+      .notNull()
+      .default(sql`'{}'::text[]`),
+    before: jsonb('before'),
+    after: jsonb('after'),
+  },
+  // Same access path as program_events: the timeline filters by workout and
+  // orders newest-first, so the composite serves the sort too.
+  (t) => [index('workout_events_workout_occurred_idx').on(t.workoutId, t.occurredAt.desc())],
 )
 
 /**

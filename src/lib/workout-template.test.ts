@@ -56,6 +56,7 @@ function makeWorkout(overrides: Partial<WorkoutDetail> = {}): WorkoutDetail {
     name: 'Leg Day',
     startedAt: new Date(),
     completedAt: new Date(),
+    originalRecordedAt: new Date(),
     createdAt: new Date(),
     programDayId: null,
     programWeek: null,

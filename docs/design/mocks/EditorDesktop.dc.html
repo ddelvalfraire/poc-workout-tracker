@@ -1,0 +1,197 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap">
+  <style>
+    body { margin: 0; background: oklch(0.145 0 0); font-family: Inter, system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+    a { color: oklch(0.86 0.19 128); } a:hover { color: oklch(0.9 0.19 128); }
+    .cap { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; color: oklch(0.72 0 0); }
+    .osw { font-family: Oswald, 'Arial Narrow', sans-serif; font-weight: 600; text-transform: uppercase; }
+    .num { font-variant-numeric: tabular-nums; }
+    .prow { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 7px 0; border-bottom: 1px solid oklch(1 0 0 / 0.072); }
+    .field { font-size: 13px; font-variant-numeric: tabular-nums; background: oklch(1 0 0 / 0.04); border: 1px solid oklch(1 0 0 / 0.15); border-radius: 6px; height: 30px; display: flex; align-items: center; justify-content: center; }
+  </style>
+</helmet>
+<div style="width: 1280px; height: 860px; display: flex; flex-direction: column; background: oklch(0.145 0 0); color: oklch(0.97 0 0); overflow: hidden">
+
+  <div style="display: flex; align-items: center; gap: 16px; height: 52px; padding: 0 20px; border-bottom: 1px solid oklch(1 0 0 / 0.12); flex-shrink: 0">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="oklch(0.72 0 0)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"></path></svg>
+    <div class="osw" style="font-size: 18px; letter-spacing: -0.01em">Volume Cut &middot; Block 3</div>
+    <span class="cap" style="display: flex; align-items: center; gap: 5px">
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="oklch(0.72 0 0)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"></path></svg>
+      Saved
+    </span>
+    <div style="flex: 1"></div>
+    <div style="display: flex; border: 1px solid oklch(1 0 0 / 0.15); border-radius: 8px; overflow: hidden">
+      <div style="padding: 6px 13px; font-size: 12px; font-weight: 500; background: oklch(1 0 0 / 0.09)">By day</div>
+      <div style="padding: 6px 13px; font-size: 12px; color: oklch(0.72 0 0); border-left: 1px solid oklch(1 0 0 / 0.15)">By exercise</div>
+    </div>
+    <div style="display: flex; align-items: center; gap: 7px; padding: 6px 11px; border: 1px solid oklch(1 0 0 / 0.15); border-radius: 8px; color: oklch(0.72 0 0)">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="M21 21l-4.3-4.3"></path></svg>
+      <span style="font-size: 12px">Command</span>
+      <span class="num cap" style="font-size: 10px; letter-spacing: 0.02em">&#8984;K</span>
+    </div>
+  </div>
+
+  <div style="flex: 1; display: flex; min-height: 0">
+
+    <div style="width: 244px; flex-shrink: 0; border-right: 1px solid oklch(1 0 0 / 0.12); padding: 16px 16px 0; overflow: hidden">
+      <div class="cap" style="font-size: 10px">Weeks</div>
+      <div style="display: flex; flex-wrap: wrap; gap: 5px; margin-top: 9px">
+        <div style="padding: 4px 9px; border-radius: 6px; border: 1px solid oklch(1 0 0 / 0.15); font-size: 12px; color: oklch(0.72 0 0)">All</div>
+        <div style="padding: 4px 9px; border-radius: 6px; border: 1px solid oklch(1 0 0 / 0.15); font-size: 12px; color: oklch(0.72 0 0)" class="num">1</div>
+        <div style="padding: 4px 9px; border-radius: 6px; border: 1px solid oklch(1 0 0 / 0.15); font-size: 12px; color: oklch(0.72 0 0)" class="num">2</div>
+        <div style="padding: 4px 9px; border-radius: 6px; background: oklch(0.86 0.19 128); color: oklch(0.16 0.03 128); font-size: 12px; font-weight: 600" class="num">3</div>
+        <div style="padding: 4px 9px; border-radius: 6px; border: 1px solid oklch(1 0 0 / 0.15); font-size: 12px; color: oklch(0.72 0 0)" class="num">4</div>
+        <div style="padding: 4px 9px; border-radius: 6px; border: 1px dashed oklch(1 0 0 / 0.2); font-size: 12px; color: oklch(0.72 0 0)" class="num">5</div>
+        <div style="padding: 4px 9px; border-radius: 6px; border: 1px solid oklch(1 0 0 / 0.15); font-size: 12px; color: oklch(0.72 0 0)" class="num">6</div>
+      </div>
+
+      <div class="cap" style="font-size: 10px; margin-top: 22px">Days</div>
+      <div style="margin-top: 7px">
+        <div style="display: flex; align-items: center; gap: 9px; padding: 9px 10px 9px 8px; margin-left: -10px; border-left: 2px solid oklch(0.86 0.19 128); background: oklch(1 0 0 / 0.04)">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="oklch(0.72 0 0)" stroke-width="2" stroke-linecap="round"><circle cx="9" cy="6" r="1"></circle><circle cx="9" cy="12" r="1"></circle><circle cx="9" cy="18" r="1"></circle><circle cx="15" cy="6" r="1"></circle><circle cx="15" cy="12" r="1"></circle><circle cx="15" cy="18" r="1"></circle></svg>
+          <div style="min-width: 0; flex: 1">
+            <div style="font-size: 13px; font-weight: 500">Day 1 &middot; Pull</div>
+            <div class="num" style="font-size: 11px; color: oklch(0.72 0 0); margin-top: 1px">6 exercises &middot; Mon, Thu</div>
+          </div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 9px; padding: 9px 10px 9px 8px; margin-left: -10px; border-left: 2px solid transparent">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="oklch(0.72 0 0)" stroke-width="2" stroke-linecap="round"><circle cx="9" cy="6" r="1"></circle><circle cx="9" cy="12" r="1"></circle><circle cx="9" cy="18" r="1"></circle><circle cx="15" cy="6" r="1"></circle><circle cx="15" cy="12" r="1"></circle><circle cx="15" cy="18" r="1"></circle></svg>
+          <div style="min-width: 0; flex: 1">
+            <div style="font-size: 13px; font-weight: 500">Day 2 &middot; Push</div>
+            <div class="num" style="font-size: 11px; color: oklch(0.72 0 0); margin-top: 1px">5 exercises &middot; Tue, Fri</div>
+          </div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 9px; padding: 9px 10px 9px 8px; margin-left: -10px; border-left: 2px solid transparent">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="oklch(0.72 0 0)" stroke-width="2" stroke-linecap="round"><circle cx="9" cy="6" r="1"></circle><circle cx="9" cy="12" r="1"></circle><circle cx="9" cy="18" r="1"></circle><circle cx="15" cy="6" r="1"></circle><circle cx="15" cy="12" r="1"></circle><circle cx="15" cy="18" r="1"></circle></svg>
+          <div style="min-width: 0; flex: 1">
+            <div style="font-size: 13px; font-weight: 500">Day 3 &middot; Legs</div>
+            <div class="num" style="font-size: 11px; color: oklch(0.72 0 0); margin-top: 1px">6 exercises &middot; Sat</div>
+          </div>
+        </div>
+      </div>
+
+      <div style="display: flex; align-items: center; gap: 7px; padding: 11px 0; margin-top: 4px; border-top: 1px solid oklch(1 0 0 / 0.072); color: oklch(0.72 0 0)">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>
+        <span style="font-size: 13px">Add day</span>
+      </div>
+
+      <div class="cap" style="font-size: 10px; margin-top: 18px">Program</div>
+      <div style="margin-top: 5px">
+        <div class="prow" style="border-bottom: none; padding: 6px 0"><span style="font-size: 13px">Settings</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="oklch(0.72 0 0)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"></path></svg></div>
+        <div class="prow" style="border-bottom: none; padding: 6px 0"><span style="font-size: 13px">Description</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="oklch(0.72 0 0)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"></path></svg></div>
+      </div>
+    </div>
+
+    <div style="flex: 1; min-width: 0; padding: 18px 24px; overflow: hidden">
+      <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 16px">
+        <div class="osw" style="font-size: 24px; line-height: 30px">Day 1 &middot; Pull</div>
+        <div style="display: flex; align-items: center; gap: 8px">
+          <span style="display: flex; align-items: center; gap: 6px; padding: 5px 11px; border: 1px solid oklch(1 0 0 / 0.15); border-radius: 8px; font-size: 12px">Duplicate</span>
+          <span style="display: flex; align-items: center; gap: 6px; padding: 5px 11px; border: 1px solid oklch(1 0 0 / 0.15); border-radius: 8px; font-size: 12px">Reorder</span>
+          <span style="display: flex; align-items: center; gap: 6px; padding: 5px 11px; border: 1px solid oklch(0.65 0.2 25 / 0.35); border-radius: 8px; font-size: 12px; color: oklch(0.775 0.13 25)">Delete day</span>
+        </div>
+      </div>
+      <div class="num" style="margin-top: 4px; font-size: 12px; color: oklch(0.72 0 0)">Editing week 3 &middot; 2 exercises pinned this week &middot; kg</div>
+
+      <!-- A REAL TABLE: sets/reps/load/RIR/rest are homogeneous and compared
+           down columns, which is what tables exist for. The middot summary
+           strings destroyed the alignment that IS the mechanism. -->
+      <div style="margin-top: 16px; border-top: 1px solid oklch(1 0 0 / 0.12)">
+        <div style="display: grid; grid-template-columns: 1fr 74px 82px 74px 68px 84px 150px 28px; align-items: center">
+          <div class="cap" style="font-size: 10px; padding: 8px 10px 8px 0; border-bottom: 2px solid oklch(1 0 0 / 0.12)">Movement</div>
+          <div class="cap" style="font-size: 10px; padding: 8px 10px; text-align: right; border-bottom: 2px solid oklch(1 0 0 / 0.12)">Sets</div>
+          <div class="cap" style="font-size: 10px; padding: 8px 10px; text-align: right; border-bottom: 2px solid oklch(1 0 0 / 0.12)">Reps</div>
+          <div class="cap" style="font-size: 10px; padding: 8px 10px; text-align: right; border-bottom: 2px solid oklch(1 0 0 / 0.12)">Load</div>
+          <div class="cap" style="font-size: 10px; padding: 8px 10px; text-align: right; border-bottom: 2px solid oklch(1 0 0 / 0.12)">RIR</div>
+          <div class="cap" style="font-size: 10px; padding: 8px 10px; text-align: right; border-bottom: 2px solid oklch(1 0 0 / 0.12)">Rest</div>
+          <div class="cap" style="font-size: 10px; padding: 8px 10px; border-bottom: 2px solid oklch(1 0 0 / 0.12)">Progression</div>
+          <div style="border-bottom: 2px solid oklch(1 0 0 / 0.12)"></div>
+          <div style="position: relative; padding: 9px 10px 9px 0; border-bottom: 1px solid oklch(1 0 0 / 0.072); display: flex; align-items: center"><span><span style="font-size: 13px; font-weight: 500">Weighted Pull-Up</span></span></div>
+          <div class="num" style="font-size: 13px; font-weight: 400; padding: 9px 10px; text-align: right; border-bottom: 1px solid oklch(1 0 0 / 0.072)">4</div>
+          <div class="num" style="font-size: 13px; font-weight: 400; padding: 9px 10px; text-align: right; border-bottom: 1px solid oklch(1 0 0 / 0.072)">6</div>
+          <div class="num" style="font-size: 13px; font-weight: 400; padding: 9px 10px; text-align: right; border-bottom: 1px solid oklch(1 0 0 / 0.072)">+10</div>
+          <div class="num" style="font-size: 13px; padding: 9px 10px; text-align: right; border-bottom: 1px solid oklch(1 0 0 / 0.072)">3</div>
+          <div class="num" style="font-size: 13px; padding: 9px 10px; text-align: right; border-bottom: 1px solid oklch(1 0 0 / 0.072); color: oklch(0.72 0 0)">3 min</div>
+          <div style="font-size: 12px; padding: 9px 10px; border-bottom: 1px solid oklch(1 0 0 / 0.072); color: oklch(0.72 0 0)">Linear +2.5</div>
+          <div style="border-bottom: 1px solid oklch(1 0 0 / 0.072); display: flex; justify-content: center"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="oklch(0.72 0 0)" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="5" r="1"></circle><circle cx="12" cy="12" r="1"></circle><circle cx="12" cy="19" r="1"></circle></svg></div>
+          <div style="position: relative; padding: 9px 10px 9px 0; border-bottom: 1px solid oklch(1 0 0 / 0.072); display: flex; align-items: center"><span style="position:absolute;left:-9px;top:6px;bottom:6px;width:2px;background:oklch(0.72 0 0 / 0.4)"></span><span class="cap" style="font-size:10px;margin-right:6px">A</span><span><span style="font-size: 13px; font-weight: 500">Barbell Row</span></span></div>
+          <div class="num" style="font-size: 13px; font-weight: 400; padding: 9px 10px; text-align: right; border-bottom: 1px solid oklch(1 0 0 / 0.072)">3</div>
+          <div class="num" style="font-size: 13px; font-weight: 400; padding: 9px 10px; text-align: right; border-bottom: 1px solid oklch(1 0 0 / 0.072)">8</div>
+          <div class="num" style="font-size: 13px; font-weight: 400; padding: 9px 10px; text-align: right; border-bottom: 1px solid oklch(1 0 0 / 0.072)">80</div>
+          <div class="num" style="font-size: 13px; padding: 9px 10px; text-align: right; border-bottom: 1px solid oklch(1 0 0 / 0.072)">3</div>
+          <div class="num" style="font-size: 13px; padding: 9px 10px; text-align: right; border-bottom: 1px solid oklch(1 0 0 / 0.072); color: oklch(0.72 0 0)">90s</div>
+          <div style="font-size: 12px; padding: 9px 10px; border-bottom: 1px solid oklch(1 0 0 / 0.072); color: oklch(0.72 0 0)">Double 8&ndash;12</div>
+          <div style="border-bottom: 1px solid oklch(1 0 0 / 0.072); display: flex; justify-content: center"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="oklch(0.72 0 0)" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="5" r="1"></circle><circle cx="12" cy="12" r="1"></circle><circle cx="12" cy="19" r="1"></circle></svg></div>
+          <div style="position: relative; padding: 9px 10px 9px 0; border-bottom: 1px solid oklch(1 0 0 / 0.072); display: flex; align-items: center"><span style="position:absolute;left:-9px;top:6px;bottom:6px;width:2px;background:oklch(0.72 0 0 / 0.4)"></span><span class="cap" style="font-size:10px;margin-right:6px">A</span><span><span style="font-size: 13px; font-weight: 500">Cable Face Pull</span><div class="cap" style="font-size:10px;margin-top:2px">myo-reps</div></span></div>
+          <div class="num" style="font-size: 13px; font-weight: 400; padding: 9px 10px; text-align: right; border-bottom: 1px solid oklch(1 0 0 / 0.072)">3</div>
+          <div class="num" style="font-size: 13px; font-weight: 400; padding: 9px 10px; text-align: right; border-bottom: 1px solid oklch(1 0 0 / 0.072)">15</div>
+          <div class="num" style="font-size: 13px; font-weight: 400; padding: 9px 10px; text-align: right; border-bottom: 1px solid oklch(1 0 0 / 0.072)">25</div>
+          <div class="num" style="font-size: 13px; padding: 9px 10px; text-align: right; border-bottom: 1px solid oklch(1 0 0 / 0.072)">2</div>
+          <div class="num" style="font-size: 13px; padding: 9px 10px; text-align: right; border-bottom: 1px solid oklch(1 0 0 / 0.072); color: oklch(0.72 0 0)">60s</div>
+          <div style="font-size: 12px; padding: 9px 10px; border-bottom: 1px solid oklch(1 0 0 / 0.072); color: oklch(0.72 0 0)">Double 12&ndash;20</div>
+          <div style="border-bottom: 1px solid oklch(1 0 0 / 0.072); display: flex; justify-content: center"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="oklch(0.72 0 0)" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="5" r="1"></circle><circle cx="12" cy="12" r="1"></circle><circle cx="12" cy="19" r="1"></circle></svg></div>
+          <div style="position: relative; padding: 9px 10px 9px 0; border-bottom: 1px solid oklch(1 0 0 / 0.072); display: flex; align-items: center"><span style="position:absolute;left:-13px;top:7px;bottom:7px;width:2px;border-radius:1px;background:oklch(0.86 0.19 128)"></span><span><span style="font-size: 13px; font-weight: 500">Lat Pulldown</span></span></div>
+          <div class="num" style="font-size: 13px; font-weight: 600; padding: 9px 10px; text-align: right; border-bottom: 1px solid oklch(1 0 0 / 0.072)">5</div>
+          <div class="num" style="font-size: 13px; font-weight: 600; padding: 9px 10px; text-align: right; border-bottom: 1px solid oklch(1 0 0 / 0.072)">10</div>
+          <div class="num" style="font-size: 13px; font-weight: 600; padding: 9px 10px; text-align: right; border-bottom: 1px solid oklch(1 0 0 / 0.072)">60</div>
+          <div class="num" style="font-size: 13px; padding: 9px 10px; text-align: right; border-bottom: 1px solid oklch(1 0 0 / 0.072)">2</div>
+          <div class="num" style="font-size: 13px; padding: 9px 10px; text-align: right; border-bottom: 1px solid oklch(1 0 0 / 0.072); color: oklch(0.72 0 0)">90s</div>
+          <div style="font-size: 12px; padding: 9px 10px; border-bottom: 1px solid oklch(1 0 0 / 0.072); color: oklch(0.72 0 0)">Linear +2.5</div>
+          <div style="border-bottom: 1px solid oklch(1 0 0 / 0.072); display: flex; justify-content: center"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="oklch(0.72 0 0)" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="5" r="1"></circle><circle cx="12" cy="12" r="1"></circle><circle cx="12" cy="19" r="1"></circle></svg></div>
+          <div style="position: relative; padding: 9px 10px 9px 0; border-bottom: 1px solid oklch(1 0 0 / 0.072); display: flex; align-items: center"><span><span style="font-size: 13px; font-weight: 500">Hammer Curl</span></span></div>
+          <div class="num" style="font-size: 13px; font-weight: 400; padding: 9px 10px; text-align: right; border-bottom: 1px solid oklch(1 0 0 / 0.072)">3</div>
+          <div class="num" style="font-size: 13px; font-weight: 400; padding: 9px 10px; text-align: right; border-bottom: 1px solid oklch(1 0 0 / 0.072)">12</div>
+          <div class="num" style="font-size: 13px; font-weight: 400; padding: 9px 10px; text-align: right; border-bottom: 1px solid oklch(1 0 0 / 0.072)">14</div>
+          <div class="num" style="font-size: 13px; padding: 9px 10px; text-align: right; border-bottom: 1px solid oklch(1 0 0 / 0.072)">1</div>
+          <div class="num" style="font-size: 13px; padding: 9px 10px; text-align: right; border-bottom: 1px solid oklch(1 0 0 / 0.072); color: oklch(0.72 0 0)">60s</div>
+          <div style="font-size: 12px; padding: 9px 10px; border-bottom: 1px solid oklch(1 0 0 / 0.072); color: oklch(0.72 0 0)">Double 10&ndash;15</div>
+          <div style="border-bottom: 1px solid oklch(1 0 0 / 0.072); display: flex; justify-content: center"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="oklch(0.72 0 0)" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="5" r="1"></circle><circle cx="12" cy="12" r="1"></circle><circle cx="12" cy="19" r="1"></circle></svg></div>
+          <div style="position: relative; padding: 9px 10px 9px 0; border-bottom: none; display: flex; align-items: center"><span><span style="font-size: 13px; font-weight: 500">Rear Delt Fly</span></span></div>
+          <div class="num" style="font-size: 13px; font-weight: 400; padding: 9px 10px; text-align: right; border-bottom: none">3</div>
+          <div class="num" style="font-size: 13px; font-weight: 400; padding: 9px 10px; text-align: right; border-bottom: none">15</div>
+          <div class="num" style="font-size: 13px; font-weight: 400; padding: 9px 10px; text-align: right; border-bottom: none">9</div>
+          <div class="num" style="font-size: 13px; padding: 9px 10px; text-align: right; border-bottom: none">1</div>
+          <div class="num" style="font-size: 13px; padding: 9px 10px; text-align: right; border-bottom: none; color: oklch(0.72 0 0)">45s</div>
+          <div style="font-size: 12px; padding: 9px 10px; border-bottom: none; color: oklch(0.72 0 0)">Weekly volume</div>
+          <div style="border-bottom: none; display: flex; justify-content: center"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="oklch(0.72 0 0)" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="5" r="1"></circle><circle cx="12" cy="12" r="1"></circle><circle cx="12" cy="19" r="1"></circle></svg></div>
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 16px; padding: 11px 0; color: oklch(0.72 0 0)">
+          <span style="display: flex; align-items: center; gap: 7px">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>
+            <span style="font-size: 13px">Add exercise</span>
+            <span class="cap" style="font-size: 10px">&#8984;N</span>
+          </span>
+        </div>
+      </div>
+
+      <div style="margin-top: 14px; display: flex; align-items: center; gap: 26px; font-size: 12px; color: oklch(0.72 0 0)">
+        <span style="display: flex; align-items: center; gap: 9px">
+          <span style="position: relative; width: 26px; height: 18px; border: 1px solid oklch(1 0 0 / 0.072)"><span style="position: absolute; left: 3px; top: 3px; bottom: 3px; width: 2px; border-radius: 1px; background: oklch(0.86 0.19 128)"></span></span>
+          <span style="color: oklch(0.97 0 0)">Pinned to week 3</span>
+        </span>
+        <span style="display: flex; align-items: center; gap: 9px">
+          <span style="width: 26px; height: 18px; border-left: 2px solid oklch(0.72 0 0 / 0.4)"></span>
+          Superset
+        </span>
+        <span style="margin-left: auto">Rules open from the row menu &mdash; they are set once, not compared.</span>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script data-dc-script data-props='{}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

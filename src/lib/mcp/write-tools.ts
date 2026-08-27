@@ -1,6 +1,6 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
-import { resolveUserId } from './resolve-user'
+import { resolveUserId, resolveWorkoutActor } from './resolve-user'
 import { jsonResult, errorResult } from './result'
 import { ToolError } from './errors'
 import { assertWorkoutIdShape } from './workout-id'
@@ -162,7 +162,12 @@ export function registerWriteTools(server: McpServer): void {
         const resolved = resolveUserId(extra, userId)
         const basis = unit ?? (await getWeightUnit(resolved))
         const parsed = validate({ name, notes, exercises, startedAt }, basis)
-        const { id } = await saveWorkout(resolved, parsed)
+        // An agent logging a session is that session's ORIGINAL record —
+        // it is being created here, not corrected.
+        const { id } = await saveWorkout(resolved, parsed, {
+          actor: resolveWorkoutActor(extra),
+          kind: 'original',
+        })
         // An MCP log IS a completion (saveWorkout stamps completedAt), so the
         // shared post-save pipeline rides here exactly as in the web save
         // action. Fails soft inside — it can never fail the committed save.
@@ -196,7 +201,12 @@ export function registerWriteTools(server: McpServer): void {
         assertWorkoutIdShape(id)
         const basis = unit ?? (await getWeightUnit(resolved))
         const parsed = validate({ name, notes, exercises, startedAt }, basis)
-        const result = await updateWorkout(resolved, id, parsed)
+        // A full replace of an already-persisted session CONTRADICTS what
+        // was recorded — that is an amendment, whatever the values.
+        const result = await updateWorkout(resolved, id, parsed, {
+          actor: resolveWorkoutActor(extra),
+          kind: 'amendment',
+        })
         if (!result) {
           throw new ToolError(`Workout ${id} not found for user ${resolved}`)
         }

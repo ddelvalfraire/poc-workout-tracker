@@ -7,6 +7,8 @@ import {
   saveWorkout,
   updateWorkout,
   deleteWorkout,
+  uncompleteWorkout,
+  recompleteWorkout,
   getLastPerformance,
   getWorkoutDetail,
   hasAnyCompletedWorkout,
@@ -29,6 +31,11 @@ import {
 import { getWorkoutDraft, putWorkoutDraft, deleteWorkoutDraft } from '@/db/workout-drafts'
 import { createWorkoutShare, revokeWorkoutShare } from '@/db/workout-shares'
 import { isDraftPayload, DRAFT_TTL_MS, draftKey } from '@/app/workout/new/draft-payload'
+import type { WorkoutEventKind } from '@/db/workout-events'
+import { uncompleteCascade, type UncompleteCascade } from '@/db/uncomplete-cascade'
+import { correctionReachFor, type SetCorrection } from '@/db/correction-reach'
+import { settledTrainingMax } from '@/db/settled-training-max'
+import type { CorrectionReach } from '@/lib/record-reach'
 
 /**
  * Validates and persists a workout for the signed-in user, returning the new id.
@@ -70,7 +77,9 @@ export async function saveWorkoutAction(input: unknown): Promise<{ id: string }>
   const parsed = parseWorkoutInput(input)
   // Read BEFORE the save so the workout being logged doesn't count itself.
   const isFirstPromise = safeRead(async () => !(await hasAnyCompletedWorkout(userId)), false)
-  const result = await saveWorkout(userId, parsed)
+  // A manual log is the session's ORIGINAL record — first persist, nothing
+  // to contradict. The UI is the actor.
+  const result = await saveWorkout(userId, parsed, { actor: 'ui', kind: 'original' })
   // A manual log IS a completion (saveWorkout stamps completedAt) — this is
   // the activation metric's event. Counts only; no workout content.
   void captureWorkoutEvent(async () =>
@@ -96,20 +105,59 @@ export async function saveWorkoutAction(input: unknown): Promise<{ id: string }>
 }
 
 /**
+ * What a save through `updateWorkoutAction` MEANS, in the change log's terms.
+ *
+ * The action serves two callers that are indistinguishable from the server's
+ * side: the logger FINISHING an instantiated program day — that session's
+ * first real persist, an 'original' — and edit mode's "Save changes", which
+ * contradicts what was already recorded, an 'amendment'. Only the caller
+ * knows which it is, so it declares it; `workouts.completedAt` (or any other
+ * timestamp) cannot discriminate, and inferring from one is precisely the
+ * guesswork this log exists to replace.
+ *
+ * The other two event kinds are deliberately out of reach here: 'system' is
+ * the app's own writes, never a UI action, and 'late_entry' belongs to a
+ * backdated-capture path this action is not.
+ */
+export type WorkoutUpdateKind = Extract<WorkoutEventKind, 'original' | 'amendment'>
+
+const UPDATE_KINDS: readonly string[] = ['original', 'amendment'] satisfies WorkoutUpdateKind[]
+
+/** Server-actions are a public boundary: the declared kind arrives as
+ *  whatever the browser sent, so it is validated here rather than trusted
+ *  from the parameter's type. An unrecognised value is a bug or an attack —
+ *  either way, refusing beats writing a mislabelled fact into the log. */
+function parseUpdateKind(kind: unknown): WorkoutUpdateKind {
+  if (typeof kind !== 'string' || !UPDATE_KINDS.includes(kind)) {
+    throw new Error('invalid workout change kind')
+  }
+  return kind as WorkoutUpdateKind
+}
+
+/**
  * Validates and applies an edit to an owned workout, returning its id. A missing
  * result means the workout isn't owned (or was concurrently deleted); we throw
  * so the client's try/catch surfaces an inline error.
  */
-export async function updateWorkoutAction(id: string, input: unknown): Promise<{ id: string }> {
+export async function updateWorkoutAction(
+  id: string,
+  input: unknown,
+  kind: unknown,
+): Promise<{ id: string }> {
   const userId = await requireUserId()
   const parsed = parseWorkoutInput(input)
+  const changeKind = parseUpdateKind(kind)
   // Pre-reads for the completion-transition event (updateWorkout's coalesce
   // means only a first edit completes): both race the write harmlessly —
   // they describe the BEFORE state by design, and failures degrade to "no
   // event" inside captureWorkoutEvent.
   const preStatePromise = safeRead(() => getWorkoutAnalyticsState(userId, id), null)
   const isFirstPromise = safeRead(async () => !(await hasAnyCompletedWorkout(userId)), false)
-  const result = await updateWorkout(userId, id, parsed)
+  // The caller DECLARES what its save means (see parseUpdateKind): the logger
+  // finishing a live program day is that session's 'original' persist, while
+  // edit mode's "Save changes" is an 'amendment'. The UI is the actor either
+  // way.
+  const result = await updateWorkout(userId, id, parsed, { actor: 'ui', kind: changeKind })
   if (!result) throw new Error('workout not found')
   void captureWorkoutEvent(async () => {
     const pre = await preStatePromise
@@ -480,4 +528,115 @@ export async function putWorkoutDraftAction(key: unknown, payload: unknown): Pro
 export async function deleteWorkoutDraftAction(key: unknown): Promise<void> {
   const userId = await requireUserId()
   await deleteWorkoutDraft(userId, parseDraftKey(key))
+}
+
+/**
+ * The cascade of un-completing a session, WITHOUT performing it — what the
+ * guard dialog needs before it decides whether to exist.
+ *
+ * Split from the write on purpose: the modal is gated on the cascade being
+ * real, so the answer has to arrive before anything is written. It is one
+ * round-trip on a rare action, which beats paying for the dry run on every
+ * summary-page render.
+ */
+export async function previewUncompleteAction(id: string): Promise<UncompleteCascade> {
+  const userId = await requireUserId()
+  return uncompleteCascade(userId, id)
+}
+
+/**
+ * Clears an owned session's completion stamp, returning the instant that was
+ * cleared so the client can offer a truthful undo.
+ *
+ * The ISO string, not a Date: this crosses the server-action boundary, and a
+ * caller handing the instant back to `recompleteWorkoutAction` must send back
+ * exactly what it was given. Throws when nothing was un-completed, so a
+ * client never shows an undo for a write that did not happen.
+ */
+export async function uncompleteWorkoutAction(id: string): Promise<{ completedAt: string }> {
+  const userId = await requireUserId()
+  const result = await uncompleteWorkout(userId, id, { actor: 'ui', kind: 'amendment' })
+  if (!result) throw new Error('workout not found')
+  revalidatePath('/')
+  revalidatePath(`/workout/${id}`)
+  return { completedAt: result.completedAt.toISOString() }
+}
+
+/**
+ * Puts a cleared completion stamp back — the undo half.
+ *
+ * The instant is re-validated here rather than trusted: a server action is a
+ * public boundary, and an unparseable or absent stamp must be refused rather
+ * than silently become `now()`, which would move the session to today.
+ */
+export async function recompleteWorkoutAction(id: string, completedAt: unknown): Promise<void> {
+  const userId = await requireUserId()
+  if (typeof completedAt !== 'string') throw new Error('invalid completion time')
+  const stamp = new Date(completedAt)
+  if (Number.isNaN(stamp.getTime())) throw new Error('invalid completion time')
+  const result = await recompleteWorkout(userId, id, stamp, { actor: 'ui', kind: 'amendment' })
+  if (!result) throw new Error('workout not found')
+  revalidatePath('/')
+  revalidatePath(`/workout/${id}`)
+}
+
+/**
+ * GUARD 2's read — how far a proposed correction would reach, at SAVE-INTENT.
+ *
+ * Never per keystroke: the aggregation is a scan of the exercise's history,
+ * and a disclosure that re-renders on every digit is one the reader learns to
+ * ignore before they have finished typing the number.
+ *
+ * Null means the correction reaches nothing — an ordinary typo fix, which
+ * gets no disclosure at all. Failures are NOT swallowed here: a guard that
+ * silently returns "nothing moves" when it could not tell would be worse than
+ * no guard, so the client surfaces the error instead.
+ */
+export async function previewCorrectionReachAction(
+  workoutId: string,
+  source: unknown,
+  wgerExerciseId: unknown,
+  edit: unknown,
+): Promise<CorrectionReach | null> {
+  const userId = await requireUserId()
+  // A server action is a public boundary: the exercise identity and the set
+  // address arrive as whatever the browser sent. parseSourceParam is this
+  // module's existing gate — one validator, not a second spelling of it.
+  const exerciseSource = parseSourceParam(source)
+  if (typeof wgerExerciseId !== 'number' || !Number.isInteger(wgerExerciseId)) {
+    throw new Error('invalid exercise id')
+  }
+  const correction = parseSetCorrection(workoutId, edit)
+  // The settled decision is read alongside the reach, not inside it: a
+  // training max lives in the program's progression, and the reach module is
+  // deliberately about the record board alone.
+  const settled = await settledTrainingMax(userId, workoutId, exerciseSource, wgerExerciseId)
+  return correctionReachFor(userId, exerciseSource, wgerExerciseId, correction, settled)
+}
+
+/** The set address + the proposed values, validated at the boundary. An
+ *  omitted `reps`/`weightKg` means "unchanged"; an explicit null means
+ *  cleared, which is a different fact and must survive the round-trip. */
+function parseSetCorrection(workoutId: string, edit: unknown): SetCorrection {
+  if (typeof edit !== 'object' || edit === null) throw new Error('invalid correction')
+  const record = edit as Record<string, unknown>
+  const { exercisePosition, setNumber, reps, weightKg } = record
+  if (!Number.isInteger(exercisePosition) || !Number.isInteger(setNumber)) {
+    throw new Error('invalid correction address')
+  }
+  const optionalNumber = (value: unknown, field: string): number | null | undefined => {
+    if (value === undefined) return undefined
+    if (value === null) return null
+    if (typeof value !== 'number' || !Number.isFinite(value)) {
+      throw new Error(`invalid correction ${field}`)
+    }
+    return value
+  }
+  return {
+    workoutId,
+    exercisePosition: exercisePosition as number,
+    setNumber: setNumber as number,
+    reps: optionalNumber(reps, 'reps'),
+    weightKg: optionalNumber(weightKg, 'weight'),
+  }
 }

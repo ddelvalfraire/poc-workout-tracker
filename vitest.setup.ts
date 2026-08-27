@@ -60,6 +60,13 @@ vi.mock('next-intl', async (importActual) => {
     // answer that too — `useLocale` is context-backed like `useTranslations`,
     // and the no-op provider below supplies no context.
     useLocale: () => DEFAULT_LOCALE,
+    // Same treatment for the formatter: `useFormatter` is context-backed too,
+    // so without this a component that formats a relative time throws the
+    // "context from NextIntlClientProvider was not found" error rather than
+    // rendering. Backed by next-intl's OWN createFormatter, for the same
+    // reason as the translator above — real Intl behaviour, so a test that
+    // asserts "3 days ago" fails when the component would render otherwise.
+    useFormatter: () => actual.createFormatter({ locale: DEFAULT_LOCALE }),
     // The provider is a no-op here: the hooks above are already bound to the
     // catalog, so tests need not wrap anything.
     NextIntlClientProvider: ({ children }: { children: React.ReactNode }) => children,

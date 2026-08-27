@@ -91,7 +91,7 @@ describe('registerPatchTools', () => {
       expect(mockedUpdateSet).toHaveBeenCalledWith('user_env', WID, 0, 3, {
         reps: 5,
         weight: displayToKg(225, 'lb'),
-      })
+      }, { actor: 'mcp', kind: 'amendment', blankSubjectKind: 'original' })
       expect(payload(result)).toEqual({
         userId: 'user_env',
         unit: 'lb',
@@ -122,7 +122,7 @@ describe('registerPatchTools', () => {
         metricMode: 'duration_distance',
         durationSec: 1800,
         distanceM: 5000,
-      })
+      }, { actor: 'mcp', kind: 'amendment', blankSubjectKind: 'original' })
       expect(payload(result)).not.toHaveProperty('unit')
     })
 
@@ -141,7 +141,7 @@ describe('registerPatchTools', () => {
 
       // Assert — no weight → no unit lookup, no unit echoed
       expect(mockedGetUnit).not.toHaveBeenCalled()
-      expect(mockedUpdateSet).toHaveBeenCalledWith('user_env', WID, 1, 2, { reps: 8 })
+      expect(mockedUpdateSet).toHaveBeenCalledWith('user_env', WID, 1, 2, { reps: 8 }, { actor: 'mcp', kind: 'amendment', blankSubjectKind: 'original' })
       expect(payload(result)).not.toHaveProperty('unit')
     })
 
@@ -227,7 +227,7 @@ describe('registerPatchTools', () => {
       expect(mockedUpdateSet).toHaveBeenCalledWith(expect.any(String), WID, 0, 1, {
         completed: true,
         weight: 100,
-      })
+      }, { actor: 'mcp', kind: 'amendment', blankSubjectKind: 'original' })
     })
 
     it("surfaces the db layer's SetCompletionError message verbatim", async () => {
@@ -267,7 +267,7 @@ describe('registerPatchTools', () => {
       // Assert
       expect(result.isError).toBeUndefined()
       expect(mockedGetUnit).not.toHaveBeenCalled()
-      expect(mockedUpdateSet).toHaveBeenCalledWith('user_env', WID, 0, 2, { rir: 2, rpe: 8.5 })
+      expect(mockedUpdateSet).toHaveBeenCalledWith('user_env', WID, 0, 2, { rir: 2, rpe: 8.5 }, { actor: 'mcp', kind: 'amendment', blankSubjectKind: 'original' })
     })
 
     it('accepts explicit nulls to clear logged effort', async () => {
@@ -285,7 +285,7 @@ describe('registerPatchTools', () => {
       })
 
       // Assert
-      expect(mockedUpdateSet).toHaveBeenCalledWith('user_env', WID, 0, 1, { rir: null, rpe: null })
+      expect(mockedUpdateSet).toHaveBeenCalledWith('user_env', WID, 0, 1, { rir: null, rpe: null }, { actor: 'mcp', kind: 'amendment', blankSubjectKind: 'original' })
     })
 
     it.each([
@@ -323,7 +323,7 @@ describe('registerPatchTools', () => {
       )
 
       // Assert
-      expect(mockedUpdateSet).toHaveBeenCalledWith('user_token', WID, 0, 1, { reps: 5 })
+      expect(mockedUpdateSet).toHaveBeenCalledWith('user_token', WID, 0, 1, { reps: 5 }, { actor: 'mcp', kind: 'amendment', blankSubjectKind: 'original' })
       expect(payload(result).userId).toBe('user_token')
     })
   })
@@ -338,7 +338,7 @@ describe('registerPatchTools', () => {
       const result = await tools.get('add_set')!({ workoutId: WID, exercisePosition: 0 })
 
       // Assert
-      expect(mockedAddSet).toHaveBeenCalledWith('user_env', WID, 0, { reps: null, weight: null })
+      expect(mockedAddSet).toHaveBeenCalledWith('user_env', WID, 0, { reps: null, weight: null }, { actor: 'mcp', kind: 'late_entry' })
       expect(payload(result)).toMatchObject({ workoutId: WID, exercisePosition: 0, setNumber: 4 })
     })
 
@@ -363,7 +363,7 @@ describe('registerPatchTools', () => {
         completed: true,
         metricMode: 'duration',
         durationSec: 600,
-      })
+      }, { actor: 'mcp', kind: 'late_entry' })
     })
 
     it('converts a provided weight with the stored unit', async () => {
@@ -378,7 +378,7 @@ describe('registerPatchTools', () => {
       expect(mockedAddSet).toHaveBeenCalledWith('user_env', WID, 0, {
         reps: 5,
         weight: displayToKg(135, 'lb'),
-      })
+      }, { actor: 'mcp', kind: 'late_entry' })
     })
 
     it('omits the unit and does not read the stored unit for an explicit blank weight', async () => {
@@ -391,7 +391,7 @@ describe('registerPatchTools', () => {
 
       // Assert — null weight needs no conversion, so no unit lookup or echo
       expect(mockedGetUnit).not.toHaveBeenCalled()
-      expect(mockedAddSet).toHaveBeenCalledWith('user_env', WID, 0, { reps: null, weight: null })
+      expect(mockedAddSet).toHaveBeenCalledWith('user_env', WID, 0, { reps: null, weight: null }, { actor: 'mcp', kind: 'late_entry' })
       expect(payload(result)).not.toHaveProperty('unit')
     })
 
@@ -409,7 +409,7 @@ describe('registerPatchTools', () => {
         weight: null,
         rir: 1,
         rpe: 9,
-      })
+      }, { actor: 'mcp', kind: 'late_entry' })
 
       // Act — an off-grid rpe is rejected before the db
       mockedAddSet.mockClear()
@@ -444,7 +444,7 @@ describe('registerPatchTools', () => {
       const result = await tools.get('remove_set')!({ workoutId: WID, exercisePosition: 0, setNumber: 2 })
 
       // Assert
-      expect(mockedRemoveSet).toHaveBeenCalledWith('user_env', WID, 0, 2)
+      expect(mockedRemoveSet).toHaveBeenCalledWith('user_env', WID, 0, 2, { actor: 'mcp', kind: 'amendment' })
       expect(payload(result)).toEqual({
         userId: 'user_env',
         workoutId: WID,

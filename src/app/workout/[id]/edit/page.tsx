@@ -20,6 +20,7 @@ import { autoregReason } from '@/lib/autoregulate'
 import { detailToDraft } from '@/app/workout/new/workout-draft'
 import { WorkoutLogger } from '@/app/workout/new/workout-logger'
 import { resolveDraftSeed } from '@/app/workout/new/draft-payload'
+import { isLiveSession } from '@/lib/workout-session-mode'
 import { getTranslations } from 'next-intl/server'
 
 /**
@@ -162,6 +163,10 @@ export default async function EditWorkoutPage({
   // cross-device race net.
   const restored = resolveDraftSeed(draftRow, { unit, now: new Date() })
   const { draft, name } = restored ?? detailToDraft(workout, unit, { catalog })
+  // Which of this surface's two modes is on screen — one decision, read from
+  // the session's original-record stamp rather than inferred from a timestamp
+  // any writer can move. See lib/workout-session-mode.ts.
+  const isLive = isLiveSession(workout)
 
   return (
     <div className="flex min-h-[100dvh] flex-col">
@@ -173,13 +178,19 @@ export default async function EditWorkoutPage({
           came from its summary, so Close returns there; a live (unfinished)
           session goes home, where the in-progress banner owns it — its
           read-only summary would present it as completed. isLive follows the
-          same split: an unfinished workout is a session being logged now
-          (volt Finish), a finished one is a correction (Save changes). */}
+          same split: a session with no original record yet is being logged now
+          (volt Finish), a recorded one is a correction (Save changes).
+
+          isLiveSession, NOT `workout.completedAt === null`: the MCP patch
+          tools stamp completedAt on the first set they touch, so a coach
+          patching a live session would otherwise flip this page into
+          correction mode mid-session and file the lifter's own Finish as an
+          amendment. See lib/workout-session-mode.ts. */}
       <WorkoutLogger
         workoutId={id}
-        isLive={workout.completedAt === null}
-        title={workout.completedAt === null ? t('titleLive') : t('titleCompleted')}
-        closeHref={workout.completedAt === null ? '/' : `/workout/${id}`}
+        isLive={isLive}
+        title={isLive ? t('titleLive') : t('titleCompleted')}
+        closeHref={isLive ? '/' : `/workout/${id}`}
         initialDraft={draft}
         initialName={name}
         unit={unit}

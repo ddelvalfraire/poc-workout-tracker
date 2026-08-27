@@ -95,16 +95,24 @@ const WID = '11111111-1111-1111-1111-111111111111'
 function rowRead(
   overrides: Partial<{
     completed: boolean
+    reps: number | null
     weight: number | null
+    rir: number | null
+    rpe: number | null
     durationSec: number | null
+    distanceM: number | null
     metricMode: string
     loggingType: string
   }> = {},
 ) {
   return {
     completed: false,
+    reps: null,
     weight: null,
+    rir: null,
+    rpe: null,
     durationSec: null,
+    distanceM: null,
     metricMode: 'reps_weight',
     loggingType: 'weight_reps',
     ...overrides,
@@ -119,17 +127,22 @@ beforeEach(() => {
   ownedWorkoutRows = [{ id: 'w1' }]
 })
 
+const CTX = { actor: 'mcp', kind: 'amendment' } as const
+
 describe('updateSet (user-scoped)', () => {
   it('updates the addressed set, then stamps workout completion', async () => {
-    // Arrange — ownership lookup resolves an exercise
-    selectQueue = [[{ id: 'ex1' }]]
+    // Arrange — ownership lookup, then the (now unconditional) before-image
+    selectQueue = [[{ id: 'ex1' }], [rowRead()]]
 
     // Act
-    const result = await updateSet(USER, WID, 0, 3, { reps: 5, weight: 100 })
+    const result = await updateSet(USER, WID, 0, 3, { reps: 5, weight: 100 }, CTX)
 
-    // Assert — set write first, then the coalescing completedAt stamp
-    expect(records.map((r) => r.op)).toEqual(['update:sets', 'update:workouts'])
+    // Assert — set write, completedAt stamp, then the changelog row
+    expect(records.map((r) => r.op)).toEqual(['update:sets', 'update:workouts', 'insert'])
     expect(records[0].values).toEqual({ reps: 5, weight: 100 })
+    // completedAt and NOTHING ELSE: a set-level touch must never move
+    // `originalRecordedAt`, or an agent patching one set of a live session
+    // would make the lifter's own first persist look like a correction.
     expect(Object.keys(records[1].values as object)).toEqual(['completedAt'])
     expect(result).toEqual({ id: 's9' })
   })
@@ -139,7 +152,7 @@ describe('updateSet (user-scoped)', () => {
     selectQueue = [[{ id: 'ex1' }], [rowRead({ weight: 100 })]]
 
     // Act
-    const result = await updateSet(USER, WID, 0, 3, { completed: true })
+    const result = await updateSet(USER, WID, 0, 3, { completed: true }, CTX)
 
     // Assert — only the flag written, and it still counts as a non-empty patch
     expect(records[0].values).toEqual({ completed: true })
@@ -151,7 +164,7 @@ describe('updateSet (user-scoped)', () => {
     selectQueue = [[{ id: 'ex1' }], [rowRead({ weight: null })]]
 
     // Act + Assert — #206 at the db boundary
-    await expect(updateSet(USER, WID, 0, 3, { completed: true })).rejects.toBeInstanceOf(
+    await expect(updateSet(USER, WID, 0, 3, { completed: true }, CTX)).rejects.toBeInstanceOf(
       SetCompletionError,
     )
     expect(records).toEqual([])
@@ -162,7 +175,7 @@ describe('updateSet (user-scoped)', () => {
     selectQueue = [[{ id: 'ex1' }], [rowRead({ completed: true, weight: 80 })]]
 
     // Act + Assert
-    await expect(updateSet(USER, WID, 0, 3, { weight: null })).rejects.toBeInstanceOf(
+    await expect(updateSet(USER, WID, 0, 3, { weight: null }, CTX)).rejects.toBeInstanceOf(
       SetCompletionError,
     )
     expect(records).toEqual([])
@@ -174,7 +187,7 @@ describe('updateSet (user-scoped)', () => {
     ]
 
     // Act
-    const result = await updateSet(USER, WID, 0, 3, { weight: null })
+    const result = await updateSet(USER, WID, 0, 3, { weight: null }, CTX)
 
     // Assert
     expect(result).toEqual({ id: 's9' })
@@ -188,7 +201,7 @@ describe('updateSet (user-scoped)', () => {
     ]
 
     // Act + Assert
-    await expect(updateSet(USER, WID, 0, 3, { durationSec: null })).rejects.toBeInstanceOf(
+    await expect(updateSet(USER, WID, 0, 3, { durationSec: null }, CTX)).rejects.toBeInstanceOf(
       SetCompletionError,
     )
 
@@ -196,22 +209,25 @@ describe('updateSet (user-scoped)', () => {
     selectQueue = [[{ id: 'ex1' }], [rowRead({ completed: true, weight: 100 })]]
 
     // Act + Assert
-    await expect(updateSet(USER, WID, 0, 3, { metricMode: 'duration' })).rejects.toBeInstanceOf(
+    await expect(updateSet(USER, WID, 0, 3, { metricMode: 'duration' }, CTX)).rejects.toBeInstanceOf(
       SetCompletionError,
     )
   })
 
-  it('skips the pre-write read when the patch cannot break completion (fast path)', async () => {
-    // Arrange — ONLY the ownership lookup is queued; a second select would
-    // shift an empty result and null the update, so success proves no read.
-    selectQueue = [[{ id: 'ex1' }]]
+  it('reads the before-image even when the patch cannot break completion', async () => {
+    // The old fast path skipped this read. The change log killed it: an
+    // amendment without a before-image is not a record of anything, and
+    // RETURNING only ever sees the after state. An unqueued read would shift
+    // an empty result and null the call, so success proves the read happened.
+    // Arrange
+    selectQueue = [[{ id: 'ex1' }], [rowRead()]]
 
     // Act
-    const result = await updateSet(USER, WID, 0, 3, { reps: 5, weight: 100 })
+    const result = await updateSet(USER, WID, 0, 3, { reps: 5, weight: 100 }, CTX)
 
     // Assert
     expect(result).toEqual({ id: 's9' })
-    expect(records.map((r) => r.op)).toEqual(['update:sets', 'update:workouts'])
+    expect(records.map((r) => r.op)).toEqual(['update:sets', 'update:workouts', 'insert'])
   })
 
   it('returns null (not-found) when the completion read finds no such set', async () => {
@@ -219,7 +235,7 @@ describe('updateSet (user-scoped)', () => {
     selectQueue = [[{ id: 'ex1' }], []]
 
     // Act
-    const result = await updateSet(USER, WID, 0, 9, { completed: true })
+    const result = await updateSet(USER, WID, 0, 9, { completed: true }, CTX)
 
     // Assert — no write, no completion stamp
     expect(result).toBeNull()
@@ -227,12 +243,12 @@ describe('updateSet (user-scoped)', () => {
   })
 
   it('does not stamp completion when no such set exists', async () => {
-    // Arrange — owned, but the update matches no row
-    selectQueue = [[{ id: 'ex1' }]]
+    // Arrange — owned, the row exists, but the update matches no row
+    selectQueue = [[{ id: 'ex1' }], [rowRead()]]
     updatedSetRows = []
 
     // Act
-    const result = await updateSet(USER, WID, 0, 9, { reps: 5 })
+    const result = await updateSet(USER, WID, 0, 9, { reps: 5 }, CTX)
 
     // Assert — the failed set write must not mark the workout completed
     expect(result).toBeNull()
@@ -244,7 +260,7 @@ describe('updateSet (user-scoped)', () => {
     selectQueue = [[]]
 
     // Act
-    const result = await updateSet(USER, WID, 0, 3, { reps: 5 })
+    const result = await updateSet(USER, WID, 0, 3, { reps: 5 }, CTX)
 
     // Assert — security-critical: no update issued
     expect(result).toBeNull()
@@ -253,7 +269,7 @@ describe('updateSet (user-scoped)', () => {
 
   it('returns null for an empty patch without querying', async () => {
     // Act
-    const result = await updateSet(USER, WID, 0, 3, {})
+    const result = await updateSet(USER, WID, 0, 3, {}, CTX)
 
     // Assert
     expect(result).toBeNull()
@@ -267,10 +283,10 @@ describe('addSet (user-scoped)', () => {
     selectQueue = [[{ id: 'ex1' }], [{ value: 3 }]]
 
     // Act
-    const result = await addSet(USER, WID, 0, { reps: 8, weight: 60 })
+    const result = await addSet(USER, WID, 0, { reps: 8, weight: 60 }, CTX)
 
-    // Assert
-    expect(records.map((r) => r.op)).toEqual(['insert', 'update:workouts'])
+    // Assert — the row, the completion stamp, then the changelog row
+    expect(records.map((r) => r.op)).toEqual(['insert', 'update:workouts', 'insert'])
     expect(records[0].values).toEqual({
       workoutExerciseId: 'ex1',
       setNumber: 4,
@@ -286,7 +302,7 @@ describe('addSet (user-scoped)', () => {
     selectQueue = [[{ id: 'ex1' }], [{ value: 0 }]]
 
     // Act
-    await addSet(USER, WID, 0, { reps: 8, weight: 60, completed: true })
+    await addSet(USER, WID, 0, { reps: 8, weight: 60, completed: true }, CTX)
 
     // Assert
     expect(records[0].values).toMatchObject({ setNumber: 1, completed: true })
@@ -297,7 +313,7 @@ describe('addSet (user-scoped)', () => {
     selectQueue = [[{ id: 'ex1' }], [{ value: null }]]
 
     // Act
-    const result = await addSet(USER, WID, 0, { reps: null, weight: null })
+    const result = await addSet(USER, WID, 0, { reps: null, weight: null }, CTX)
 
     // Assert
     expect(result).toEqual({ setNumber: 1 })
@@ -309,7 +325,7 @@ describe('addSet (user-scoped)', () => {
     selectQueue = [[{ id: 'ex1' }], [{ value: 1 }]]
 
     // Act
-    await addSet(USER, WID, 0, { reps: 5, weight: 100 })
+    await addSet(USER, WID, 0, { reps: 5, weight: 100 }, CTX)
 
     // Assert — the stamp must be a SQL coalesce expression, not a raw Date
     const stamp = (records[1].values as { completedAt: unknown }).completedAt
@@ -322,7 +338,7 @@ describe('addSet (user-scoped)', () => {
     selectQueue = [[]]
 
     // Act
-    const result = await addSet(USER, WID, 9, { reps: 5, weight: null })
+    const result = await addSet(USER, WID, 9, { reps: 5, weight: null }, CTX)
 
     // Assert
     expect(result).toBeNull()
@@ -339,7 +355,7 @@ describe('removeSet (user-scoped)', () => {
     selectQueue = [[{ id: 'ex1' }], [targetSetRow]]
 
     // Act
-    const result = await removeSet(USER, WID, 0, 2)
+    const result = await removeSet(USER, WID, 0, 2, CTX)
 
     // Assert — the notes fallback update runs FIRST (the cascade would eat
     // set notes otherwise), then delete, renumber, completion stamp.
@@ -348,6 +364,7 @@ describe('removeSet (user-scoped)', () => {
       'delete',
       'update:sets',
       'update:workouts',
+      'insert',
     ])
     const fallback = records[0].values as Record<string, unknown>
     expect(fallback).toMatchObject({ workoutId: WID, setId: null })
@@ -363,7 +380,7 @@ describe('removeSet (user-scoped)', () => {
     deletedSetRows = []
 
     // Act
-    const result = await removeSet(USER, WID, 0, 9)
+    const result = await removeSet(USER, WID, 0, 9, CTX)
 
     // Assert — the not-found gate fires before any write
     expect(records).toEqual([])
@@ -375,7 +392,7 @@ describe('removeSet (user-scoped)', () => {
     selectQueue = [[]]
 
     // Act
-    const result = await removeSet(USER, WID, 0, 1)
+    const result = await removeSet(USER, WID, 0, 1, CTX)
 
     // Assert
     expect(result).toBeNull()
@@ -520,7 +537,136 @@ describe('patchCanBreakCompletion zero-duration guard (review follow-up)', () =>
 
     // Act + Assert
     await expect(
-      updateSet(USER, WID, 0, 1, { durationSec: 0 }),
+      updateSet(USER, WID, 0, 1, { durationSec: 0 }, CTX),
     ).rejects.toThrow(/duration/)
+  })
+})
+
+/**
+ * The set-level paths' changelog rows. The kind is the CALLER's declaration —
+ * these tests pin that the db layer records it verbatim and never re-derives
+ * it, and that a patch which changes nothing writes no history.
+ */
+describe('set-level change log', () => {
+  /** The changelog insert — identified by shape, since the mock's insert
+   *  recorder is table-blind and addSet also inserts a `sets` row. */
+  function event(): Record<string, unknown> | undefined {
+    return records.find((r) => r.op === 'insert' && (r.values as { kind?: string })?.kind)
+      ?.values as Record<string, unknown> | undefined
+  }
+
+  it('records an updateSet correction with its before/after and changed fields', async () => {
+    // Arrange — the stored set is 5 reps at 100 kg on a Squat
+    selectQueue = [
+      [{ id: 'ex1', name: 'Squat', source: 'wger', wgerExerciseId: 73 }],
+      [rowRead({ weight: 100 })],
+    ]
+
+    // Act
+    await updateSet(USER, WID, 0, 3, { weight: 102.5 }, CTX)
+
+    // Assert
+    expect(event()).toMatchObject({
+      workoutId: WID,
+      userId: USER,
+      kind: 'amendment',
+      actor: 'mcp',
+      action: 'update_set',
+      changed: ['weight'],
+      summary: 'Set 3 of Squat — weight 100 → 102.5',
+    })
+    expect((event()!.before as Record<string, unknown>).weight).toBe(100)
+    expect((event()!.after as Record<string, unknown>).weight).toBe(102.5)
+  })
+
+  // A caller that cannot see the before-image declares BOTH words; the write
+  // path picks between them from the row it already read. This is what makes a
+  // program day logged entirely through MCP produce originals instead of a log
+  // of pure corrections.
+  const FILL_CTX = { actor: 'mcp', kind: 'amendment', blankSubjectKind: 'original' } as const
+
+  it("records the first fill of a blank prescribed set as that set's original", async () => {
+    // Arrange — the shape instantiate_program_day writes: nothing performed
+    selectQueue = [[{ id: 'ex1', name: 'Squat', source: 'wger', wgerExerciseId: 73 }], [rowRead()]]
+
+    // Act
+    await updateSet(USER, WID, 0, 3, { reps: 5, weight: 100 }, FILL_CTX)
+
+    // Assert
+    expect(event()).toMatchObject({ kind: 'original', action: 'update_set' })
+  })
+
+  it('still calls a write over a logged value an amendment', async () => {
+    // Arrange — same caller, same two declared words; this set holds a value
+    selectQueue = [
+      [{ id: 'ex1', name: 'Squat', source: 'wger', wgerExerciseId: 73 }],
+      [rowRead({ reps: 5, weight: 100 })],
+    ]
+
+    // Act
+    await updateSet(USER, WID, 0, 3, { weight: 102.5 }, FILL_CTX)
+
+    // Assert
+    expect(event()).toMatchObject({ kind: 'amendment' })
+  })
+
+  it('leaves a single-word caller alone: no blankSubjectKind, no substitution', async () => {
+    // Arrange — blank row, but the caller declared one intent only
+    selectQueue = [[{ id: 'ex1', name: 'Squat', source: 'wger', wgerExerciseId: 73 }], [rowRead()]]
+
+    // Act
+    await updateSet(USER, WID, 0, 3, { reps: 5, weight: 100 }, CTX)
+
+    // Assert
+    expect(event()).toMatchObject({ kind: 'amendment' })
+  })
+
+  it('writes NO event when the patch re-asserts the stored values', async () => {
+    // A no-op write is not a correction; manufacturing a row would put an
+    // amendment in the record that never contradicted anything.
+    // Arrange
+    selectQueue = [[{ id: 'ex1', name: 'Squat' }], [rowRead({ weight: 100 })]]
+
+    // Act
+    const result = await updateSet(USER, WID, 0, 3, { weight: 100 }, CTX)
+
+    // Assert — the row was still written (idempotent), the log was not
+    expect(result).toEqual({ id: 's9' })
+    expect(event()).toBeUndefined()
+  })
+
+  it('records addSet as the caller-declared late entry, with no before-image', async () => {
+    // Arrange
+    selectQueue = [
+      [{ id: 'ex1', name: 'Squat', source: 'wger', wgerExerciseId: 73 }],
+      [{ value: 3 }],
+    ]
+
+    // Act
+    await addSet(USER, WID, 0, { reps: 8, weight: 60 }, { actor: 'mcp', kind: 'late_entry' })
+
+    // Assert
+    expect(event()).toMatchObject({
+      kind: 'late_entry',
+      action: 'add_set',
+      changed: [],
+      before: null,
+      summary: 'Set 4 of Squat added',
+    })
+  })
+
+  it('records removeSet with a before-image only — the sole record it existed', async () => {
+    // Arrange
+    selectQueue = [
+      [{ id: 'ex1', name: 'Squat', source: 'wger', wgerExerciseId: 73 }],
+      [{ id: 's7', weight: 100, reps: 5, completed: true, durationSec: null, exerciseName: 'Squat' }],
+    ]
+
+    // Act
+    await removeSet(USER, WID, 0, 2, CTX)
+
+    // Assert
+    expect(event()).toMatchObject({ action: 'remove_set', changed: [], after: null })
+    expect((event()!.before as Record<string, unknown>).weight).toBe(100)
   })
 })

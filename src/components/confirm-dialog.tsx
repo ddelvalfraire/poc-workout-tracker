@@ -28,7 +28,14 @@ import { useTranslations } from 'next-intl'
  */
 interface ConfirmDialogProps {
   title: string
-  body: string
+  /** The prose half. Optional so an ITEMISED dialog can omit it: a cascade
+   *  the user must weigh reads as a list, and a paragraph above the list
+   *  saying the same thing is the "Are you sure?" this shape replaces. */
+  body?: string
+  /** The consequences, one per line, between hairlines. For a dialog whose
+   *  whole job is "here is what else moves" — prose buries exactly the
+   *  itemisation the reader needs to count. */
+  items?: readonly string[]
   /** Idle label for the destructive button (e.g. "Delete"). */
   confirmLabel: string
   /** In-flight label (e.g. "Deleting…") shown while isPending. */
@@ -40,6 +47,9 @@ interface ConfirmDialogProps {
   confirmVariant?: 'destructive' | 'default'
   onConfirm: () => void
   onClose: () => void
+  /** Names the SAFE outcome when "Keep it" is too vague to be an outcome
+   *  ("Keep it completed"). Defaults to the shared cancel copy. */
+  cancelLabel?: string
   /** Populated with an imperative close; call it before navigating on success. */
   closeRef?: RefObject<(() => void) | null>
 }
@@ -47,11 +57,13 @@ interface ConfirmDialogProps {
 export function ConfirmDialog({
   title,
   body,
+  items,
   confirmLabel,
   pendingLabel,
   error,
   isPending,
   confirmVariant = 'destructive',
+  cancelLabel,
   onConfirm,
   onClose,
   closeRef,
@@ -132,7 +144,22 @@ export function ConfirmDialog({
       className="m-auto w-[calc(100%-2.5rem)] max-w-sm rounded-2xl border border-border bg-card p-5 text-foreground backdrop:bg-black/60"
     >
       <p className="font-medium">{title}</p>
-      <p className="mt-1 text-sm text-muted-foreground">{body}</p>
+      {body !== undefined && <p className="mt-1 text-sm text-muted-foreground">{body}</p>}
+      {/* Itemised consequences, between hairlines — the de-card list shape,
+          not a shell inside a shell. One line per thing that moves, so the
+          reader can count them. */}
+      {items !== undefined && items.length > 0 && (
+        <ul className="mt-3.5 space-y-2 border-y border-border py-3 text-sm leading-snug">
+          {items.map((item) => (
+            <li key={item} className="flex gap-2.5">
+              <span aria-hidden="true" className="text-muted-foreground">
+                &bull;
+              </span>
+              <span className="min-w-0 flex-1">{item}</span>
+            </li>
+          ))}
+        </ul>
+      )}
       {/* Two-button row, both size-default: ≥44px targets. "Keep it" is the
           outline safe exit; a DESTRUCTIVE confirm never wears volt — an
           affirmative confirm (confirmVariant="default") may, and is then the
@@ -146,7 +173,7 @@ export function ConfirmDialog({
           onClick={onClose}
           autoFocus
         >
-          {t('cancel')}
+          {cancelLabel ?? t('cancel')}
         </Button>
         <Button
           variant={confirmVariant}

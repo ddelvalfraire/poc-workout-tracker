@@ -517,7 +517,7 @@ export async function instantiateProgramDay(
   programDayId: string,
   week: number | null | undefined,
   // WHO triggered the start — threaded into the wave-boundary TM persist's
-  // change-log event below, so a bump reads "You"/"Claude" like any edit.
+  // change-log event below, so a bump reads "You"/"Coach" like any edit.
   actor: ProgramEventActor,
 ): Promise<{ id: string; week: number; weekDerived: boolean; resumed: boolean } | null> {
   const day = await getProgramDayDetail(userId, programDayId)

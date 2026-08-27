@@ -103,13 +103,15 @@ beforeEach(() => {
   capturedNoteRows = []
 })
 
+const CTX = { actor: 'ui', kind: 'amendment' } as const
+
 describe('updateWorkout (transactional, user-scoped)', () => {
   it('updates the name, clears children, then re-inserts in order', async () => {
     // Act
     const result = await updateWorkout(USER, ID, {
       name: 'New name',
       exercises: [{ wgerExerciseId: 73, name: 'Squat', sets: [{ reps: 5, weight: 100 }] }],
-    })
+    }, CTX)
 
     // Assert — ownership gate runs first, then delete, then ordered re-insert.
     // completedAt is a coalesce-to-now() SQL expression (first edit completes
@@ -129,13 +131,28 @@ describe('updateWorkout (transactional, user-scoped)', () => {
     expect(result).toEqual({ id: ID })
   })
 
+  it('stamps the original-record marker on the same update, coalesced', async () => {
+    // The marker `/workout/[id]/edit` reads to tell a live session from a
+    // correction. It must ride the session-scoped persist — NOT completedAt,
+    // which the MCP patch tools also move — and coalesce, so the first
+    // persist's moment stands for the life of the workout.
+    // Act
+    await updateWorkout(USER, ID, {
+      exercises: [{ wgerExerciseId: 73, name: 'Squat', sets: [{ reps: 5, weight: 100 }] }],
+    }, CTX)
+
+    // Assert — present as an opaque coalesce fragment, like completedAt
+    const values = records[0].values as Record<string, unknown>
+    expect(values.originalRecordedAt).toBeDefined()
+  })
+
   it('round-trips a checked-off set through the re-insert path', async () => {
     // Act — edit mode replaces children; the check-off must survive
     await updateWorkout(USER, ID, {
       exercises: [
         { wgerExerciseId: 73, name: 'Squat', sets: [{ reps: 5, weight: 100, completed: true }] },
       ],
-    })
+    }, CTX)
 
     // Assert — the re-inserted set keeps completed: true
     expect(records[3]).toEqual({
@@ -161,7 +178,7 @@ describe('updateWorkout (transactional, user-scoped)', () => {
     await updateWorkout(USER, ID, {
       startedAt: new Date('2026-07-04T20:43:20.856Z'),
       exercises: [{ wgerExerciseId: 1, name: 'Plank', sets: [] }],
-    })
+    }, CTX)
 
     // Assert
     const completedAt = (records[0].values as Record<string, unknown>).completedAt
@@ -171,7 +188,7 @@ describe('updateWorkout (transactional, user-scoped)', () => {
 
   it('clears the name to null when input has none', async () => {
     // Act
-    await updateWorkout(USER, ID, { exercises: [{ wgerExerciseId: 1, name: 'Plank', sets: [] }] })
+    await updateWorkout(USER, ID, { exercises: [{ wgerExerciseId: 1, name: 'Plank', sets: [] }] }, CTX)
 
     // Assert
     expect(records[0].op).toBe('update')
@@ -195,7 +212,7 @@ describe('updateWorkout (transactional, user-scoped)', () => {
     // Act
     await updateWorkout(USER, ID, {
       exercises: [{ wgerExerciseId: 73, name: 'Squat', sets: [{ reps: 5, weight: 102.5 }] }],
-    })
+    }, CTX)
 
     // Assert — the replaced row still carries the facts
     expect(records[3].values).toEqual([
@@ -238,7 +255,7 @@ describe('updateWorkout (transactional, user-scoped)', () => {
           sets: [{ reps: 8, weight: 80 }, { reps: 5, weight: 60, setType: 'warmup' }],
         },
       ],
-    })
+    }, CTX)
 
     // Assert — backoff survives; the explicit warmup wins over the prior type
     const values = records[3].values as Record<string, unknown>[]
@@ -268,7 +285,7 @@ describe('updateWorkout (transactional, user-scoped)', () => {
           ],
         },
       ],
-    })
+    }, CTX)
 
     // Assert — no snapshot, no inherited backoff typing on either row
     const inserted = records[3].values as Record<string, unknown>[]
@@ -297,7 +314,7 @@ describe('updateWorkout (transactional, user-scoped)', () => {
       exercises: [
         { wgerExerciseId: 73, name: 'Squat', sets: [{ reps: 5, weight: 100 }, { reps: 5, weight: 100 }] },
       ],
-    })
+    }, CTX)
 
     // Assert — set 2 carries no snapshot keys at all
     const values = records[3].values as Record<string, unknown>[]
@@ -313,7 +330,7 @@ describe('updateWorkout (transactional, user-scoped)', () => {
       exercises: [
         { wgerExerciseId: 73, name: 'Squat', notes: 'felt heavy', sets: [{ reps: 5, weight: 100 }] },
       ],
-    })
+    }, CTX)
 
     // Assert — neither the workouts update nor the exercise insert carries a
     // notes column; the words arrive as notes-table inserts instead.
@@ -358,7 +375,7 @@ describe('updateWorkout (transactional, user-scoped)', () => {
     // Act
     await updateWorkout(USER, ID, {
       exercises: [{ wgerExerciseId: 73, name: 'Squat', sets: [{ reps: 5, weight: 100 }] }],
-    })
+    }, CTX)
 
     // Assert — park BEFORE the child delete (or the cascade eats the notes)…
     const parkIndex = records.findIndex(
@@ -397,7 +414,7 @@ describe('updateWorkout (transactional, user-scoped)', () => {
     // Act — only one set comes back
     await updateWorkout(USER, ID, {
       exercises: [{ wgerExerciseId: 73, name: 'Squat', sets: [{ reps: 8, weight: 80 }] }],
-    })
+    }, CTX)
 
     // Assert — the exercise note re-attaches; the set note stays parked on
     // the workout (no update carries a setId), and nothing ever touches
@@ -422,7 +439,7 @@ describe('updateWorkout (transactional, user-scoped)', () => {
         { wgerExerciseId: 99, name: 'Row', sets: [] },
         { wgerExerciseId: 73, name: 'Squat', sets: [] },
       ],
-    })
+    }, CTX)
 
     // Assert — each note followed its identity, not its old position.
     const updates = records.filter((r) => r.op === 'update').map((r) => r.values)
@@ -460,7 +477,7 @@ describe('updateWorkout (transactional, user-scoped)', () => {
           ],
         },
       ],
-    })
+    }, CTX)
 
     // Wait — position 2 now holds 100×5 (the SAME content), so this attach
     // is correct; the misattribution case is the inverse: note on set 1.
@@ -496,7 +513,7 @@ describe('updateWorkout (transactional, user-scoped)', () => {
           ],
         },
       ],
-    })
+    }, CTX)
 
     // The note stays parked on the workout anchor — no setId update at all.
     const updates2 = records.filter((r) => r.op === 'update').map((r) => r.values as Record<string, unknown>)
@@ -510,12 +527,254 @@ describe('updateWorkout (transactional, user-scoped)', () => {
     // Act
     const result = await updateWorkout(USER, ID, {
       exercises: [{ wgerExerciseId: 1, name: 'Plank', sets: [] }],
-    })
+    }, CTX)
 
     // Assert — early return before any delete/insert (security-critical)
     expect(result).toBeNull()
     expect(records).toHaveLength(1)
     expect(records[0].op).toBe('update')
     expect(records[0].values).toMatchObject({ name: null })
+  })
+})
+
+/**
+ * The change log's before-image. updateWorkout is a full delete-and-reinsert,
+ * so "what did the lifter change?" can only be answered by diffing a
+ * PRE-DELETE snapshot against the incoming wire tree — and the answer must be
+ * one row per touched SET, never one per column and never one per re-inserted
+ * row. `priorFacts` alone cannot do it: it holds provenance (setType,
+ * prescribed_*) and no performed values at all.
+ */
+describe('updateWorkout change log (pre/post diff)', () => {
+  /** A full prior row as the widened priorRows select returns it. */
+  function priorRow(overrides: Record<string, unknown> = {}) {
+    return {
+      wgerExerciseId: 73,
+      source: 'wger',
+      exerciseName: 'Squat',
+      setNumber: 1,
+      setType: 'working',
+      prescribedLoadKg: null,
+      prescribedRepMin: null,
+      prescribedRir: null,
+      prescribedRpe: null,
+      reps: 5,
+      weight: 100,
+      completed: true,
+      rir: null,
+      rpe: null,
+      metricMode: 'reps_weight',
+      durationSec: null,
+      distanceM: null,
+      ...overrides,
+    }
+  }
+
+  /** The changelog batch. The mock's insert recorder is table-blind, so the
+   *  batch is identified by SHAPE (`kind` is unique to event rows) — an
+   *  index-based pick would silently read the sets insert on the runs where
+   *  no event is written at all, which is exactly what several of these
+   *  tests assert. */
+  function events(): Record<string, unknown>[] {
+    const batch = records.find(
+      (r) =>
+        r.op === 'insert' &&
+        Array.isArray(r.values) &&
+        (r.values as Record<string, unknown>[])[0]?.kind !== undefined,
+    )
+    return (batch?.values as Record<string, unknown>[] | undefined) ?? []
+  }
+
+  it('records ONE row with ONE changed entry for a single-field edit', async () => {
+    // Arrange — the set was 5 × 100 kg; only the weight is corrected.
+    priorFactRows = [priorRow()]
+
+    // Act
+    await updateWorkout(USER, ID, {
+      exercises: [
+        { wgerExerciseId: 73, name: 'Squat', sets: [{ reps: 5, weight: 102.5, completed: true }] },
+      ],
+    }, CTX)
+
+    // Assert — grain is the intent, not the column
+    const rows = events()
+    expect(rows).toHaveLength(1)
+    expect(rows[0]).toMatchObject({
+      workoutId: ID,
+      userId: USER,
+      kind: 'amendment',
+      actor: 'ui',
+      action: 'update_set',
+      changed: ['weight'],
+    })
+    expect(rows[0].before).toMatchObject({ weight: 100, setNumber: 1, exerciseName: 'Squat' })
+    expect(rows[0].after).toMatchObject({ weight: 102.5 })
+  })
+
+  it('records ONE row with TWO changed entries for a two-field edit', async () => {
+    // Arrange
+    priorFactRows = [priorRow()]
+
+    // Act — weight AND reps corrected in the same save
+    await updateWorkout(USER, ID, {
+      exercises: [
+        { wgerExerciseId: 73, name: 'Squat', sets: [{ reps: 6, weight: 102.5, completed: true }] },
+      ],
+    }, CTX)
+
+    // Assert — still ONE row; field-per-row is what makes a history tab unreadable
+    const rows = events()
+    expect(rows).toHaveLength(1)
+    expect(rows[0].changed).toEqual(['reps', 'weight'])
+  })
+
+  it('writes NOTHING when the replace re-asserts identical values', async () => {
+    // A full delete-and-reinsert rewrites every row; that is not history.
+    // Arrange
+    priorFactRows = [priorRow()]
+
+    // Act
+    await updateWorkout(USER, ID, {
+      exercises: [
+        { wgerExerciseId: 73, name: 'Squat', sets: [{ reps: 5, weight: 100, completed: true }] },
+      ],
+    }, CTX)
+
+    // Assert
+    expect(events()).toEqual([])
+  })
+
+  it('treats an omitted wire field as its column default, not as a change', async () => {
+    // rir/metricMode/etc. are absent on the wire and land as the column
+    // default — comparing against `undefined` would report every omission.
+    // Arrange
+    priorFactRows = [priorRow({ completed: false, reps: null, weight: null })]
+
+    // Act
+    await updateWorkout(USER, ID, {
+      exercises: [{ wgerExerciseId: 73, name: 'Squat', sets: [{ reps: null, weight: null }] }],
+    }, CTX)
+
+    // Assert
+    expect(events()).toEqual([])
+  })
+
+  it('records an added set with an after-image and no changed entries', async () => {
+    // Arrange — one prior set, two incoming
+    priorFactRows = [priorRow()]
+
+    // Act
+    await updateWorkout(USER, ID, {
+      exercises: [
+        {
+          wgerExerciseId: 73,
+          name: 'Squat',
+          sets: [
+            { reps: 5, weight: 100, completed: true },
+            { reps: 5, weight: 100, completed: true },
+          ],
+        },
+      ],
+    }, CTX)
+
+    // Assert — set 1 unchanged (no row), set 2 is a creation
+    const rows = events()
+    expect(rows).toHaveLength(1)
+    expect(rows[0]).toMatchObject({ action: 'add_set', changed: [], before: null })
+    expect(rows[0].after).toMatchObject({ setNumber: 2 })
+  })
+
+  it('records a removed set with a before-image only — the sole record it existed', async () => {
+    // Arrange — two prior sets, one incoming
+    priorFactRows = [priorRow(), priorRow({ setNumber: 2 })]
+
+    // Act
+    await updateWorkout(USER, ID, {
+      exercises: [
+        { wgerExerciseId: 73, name: 'Squat', sets: [{ reps: 5, weight: 100, completed: true }] },
+      ],
+    }, CTX)
+
+    // Assert
+    const rows = events()
+    expect(rows).toHaveLength(1)
+    expect(rows[0]).toMatchObject({ action: 'remove_set', changed: [], after: null })
+    expect(rows[0].before).toMatchObject({ setNumber: 2, weight: 100 })
+  })
+
+  it('emits one row per touched set when several sets change', async () => {
+    // Arrange
+    priorFactRows = [priorRow(), priorRow({ setNumber: 2, weight: 90 })]
+
+    // Act — set 1 keeps its values, set 2 is corrected
+    await updateWorkout(USER, ID, {
+      exercises: [
+        {
+          wgerExerciseId: 73,
+          name: 'Squat',
+          sets: [
+            { reps: 5, weight: 100, completed: true },
+            { reps: 5, weight: 95, completed: true },
+          ],
+        },
+      ],
+    }, CTX)
+
+    // Assert
+    const rows = events()
+    expect(rows).toHaveLength(1)
+    expect(rows[0]).toMatchObject({ action: 'update_set', changed: ['weight'] })
+    expect(rows[0].after).toMatchObject({ setNumber: 2, weight: 95 })
+  })
+
+  it('keeps first-slot-wins on a duplicated exercise, exactly as priorFacts does', async () => {
+    // Arrange — the before-image keys by (source, exerciseId, setNumber), so a
+    // second slot of the SAME exercise collides with the first and is skipped
+    // on both sides. Diffing it against another slot's history would attribute
+    // one set's past to a different set.
+    priorFactRows = [priorRow(), priorRow({ setNumber: 1, weight: 60 })]
+
+    // Act — two Squat entries, each with one set
+    await updateWorkout(USER, ID, {
+      exercises: [
+        { wgerExerciseId: 73, name: 'Squat', sets: [{ reps: 5, weight: 100, completed: true }] },
+        { wgerExerciseId: 73, name: 'Squat', sets: [{ reps: 5, weight: 60, completed: true }] },
+      ],
+    }, CTX)
+
+    // Assert — only the first slot is keyed, and it matches: no events at all.
+    // The second slot is neither diffed against the first nor reported as an add.
+    expect(events()).toEqual([])
+  })
+
+  it('carries the caller-declared kind onto every derived row', async () => {
+    // The db layer never re-decides: a set added inside a declared amendment
+    // is part of that one intent, not a late entry the db invented.
+    // Arrange
+    priorFactRows = [priorRow()]
+
+    // Act
+    await updateWorkout(
+      USER,
+      ID,
+      {
+        exercises: [
+          {
+            wgerExerciseId: 73,
+            name: 'Squat',
+            sets: [
+              { reps: 6, weight: 100, completed: true },
+              { reps: 5, weight: 100, completed: true },
+            ],
+          },
+        ],
+      },
+      { actor: 'coach', kind: 'late_entry' },
+    )
+
+    // Assert
+    const rows = events()
+    expect(rows).toHaveLength(2)
+    expect(rows.every((r) => r.kind === 'late_entry' && r.actor === 'coach')).toBe(true)
   })
 })

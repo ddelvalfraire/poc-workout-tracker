@@ -243,6 +243,54 @@ export function aggregateExerciseStats(
  * All-time stats for one exercise, or null when the user has no completed
  * history of it (callers render an empty state, never a zeroed record board).
  */
+/**
+ * Every completed set of one exercise, ascending by session start then
+ * position then set number — the single scan `aggregateExerciseStats` folds.
+ *
+ * Extracted and exported so a caller that needs the SAME rows twice (the
+ * correction-reach guard runs the aggregation against the stored rows and
+ * against an edited copy) pays for one scan rather than two. `position` and
+ * `setNumber` ride along for exactly that caller: they are what makes a row
+ * addressable, and the aggregation ignores them.
+ */
+export function exerciseStatsRows(
+  userId: string,
+  source: ExerciseSource,
+  wgerExerciseId: number,
+) {
+  return db
+    .select({
+      workoutId: workouts.id,
+      startedAt: workouts.startedAt,
+      exerciseName: workoutExercises.name,
+      loggingType: workoutExercises.loggingType,
+      exercisePosition: workoutExercises.position,
+      setNumber: sets.setNumber,
+      reps: sets.reps,
+      weight: sets.weight,
+      completed: sets.completed,
+      metricMode: sets.metricMode,
+      setType: sets.setType,
+      durationSec: sets.durationSec,
+      distanceM: sets.distanceM,
+    })
+    .from(sets)
+    .innerJoin(workoutExercises, eq(workoutExercises.id, sets.workoutExerciseId))
+    .innerJoin(workouts, eq(workouts.id, workoutExercises.workoutId))
+    .where(
+      and(
+        eq(workouts.userId, userId),
+        eq(workoutExercises.wgerExerciseId, wgerExerciseId),
+        eq(workoutExercises.source, source),
+        isNotNull(workouts.completedAt),
+      ),
+    )
+    .orderBy(asc(workouts.startedAt), asc(workoutExercises.position), asc(sets.setNumber))
+}
+
+/** One addressable row of that scan. */
+export type ExerciseStatsQueryRow = Awaited<ReturnType<typeof exerciseStatsRows>>[number]
+
 export async function getExerciseStats(
   userId: string,
   source: ExerciseSource,
@@ -250,32 +298,7 @@ export async function getExerciseStats(
 ): Promise<ExerciseAllTimeStats | null> {
   const [bodyweightKg, rows] = await Promise.all([
     getBodyweightKg(userId),
-    db
-      .select({
-        workoutId: workouts.id,
-        startedAt: workouts.startedAt,
-        exerciseName: workoutExercises.name,
-        loggingType: workoutExercises.loggingType,
-        reps: sets.reps,
-        weight: sets.weight,
-        completed: sets.completed,
-        metricMode: sets.metricMode,
-        setType: sets.setType,
-        durationSec: sets.durationSec,
-        distanceM: sets.distanceM,
-      })
-      .from(sets)
-      .innerJoin(workoutExercises, eq(workoutExercises.id, sets.workoutExerciseId))
-      .innerJoin(workouts, eq(workouts.id, workoutExercises.workoutId))
-      .where(
-        and(
-          eq(workouts.userId, userId),
-          eq(workoutExercises.wgerExerciseId, wgerExerciseId),
-          eq(workoutExercises.source, source),
-          isNotNull(workouts.completedAt),
-        ),
-      )
-      .orderBy(asc(workouts.startedAt), asc(workoutExercises.position), asc(sets.setNumber)),
+    exerciseStatsRows(userId, source, wgerExerciseId),
   ])
   if (rows.length === 0) return null
 

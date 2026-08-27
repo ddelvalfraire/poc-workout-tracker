@@ -1,0 +1,115 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap">
+  <style>
+    body { margin: 0; background: oklch(0.145 0 0); font-family: Inter, system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+    .cap { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; color: oklch(0.72 0 0); }
+    .osw { font-family: Oswald, 'Arial Narrow', sans-serif; font-weight: 600; text-transform: uppercase; }
+    .num { font-variant-numeric: tabular-nums; }
+    .case { border: 1px solid oklch(1 0 0 / 0.12); border-radius: 12px; padding: 18px 18px 20px; }
+    .tag { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.12em; color: oklch(0.16 0.03 128); background: oklch(0.86 0.19 128); padding: 3px 7px; border-radius: 4px; }
+    .note { font-size: 12px; line-height: 18px; color: oklch(0.72 0 0); }
+    .scope { padding: 12px 0; border-top: 1px solid oklch(1 0 0 / 0.12); border-bottom: 1px solid oklch(1 0 0 / 0.12); font-size: 13px; line-height: 19px; color: oklch(0.72 0 0); }
+  </style>
+</helmet>
+<div style="width: 900px; min-height: 1180px; background: oklch(0.145 0 0); color: oklch(0.97 0 0); padding: 26px 28px 34px">
+
+  <div class="osw" style="font-size: 24px; letter-spacing: -0.005em">The states a week strip gets wrong</div>
+  <div class="note" style="margin-top: 6px; max-width: 620px">Each of these is a case where the obvious implementation &mdash; loop <span class="num">1&hellip;mesocycleWeeks</span>, mark trained weeks &mdash; reports something false. The scope line is the same component in every one; only its sentence changes.</div>
+
+  <div style="margin-top: 24px; display: grid; grid-template-columns: 1fr 1fr; gap: 18px">
+
+    <!-- ── 1 · DRAFT ───────────────────────────────────────────────── -->
+    <div class="case">
+      <div style="display: flex; align-items: center; gap: 9px">
+        <span class="tag">1</span>
+        <div class="osw" style="font-size: 15px; letter-spacing: 0.02em">Draft &mdash; never started</div>
+      </div>
+      <div class="scope" style="margin-top: 13px">
+        Nothing scheduled yet. Every session follows the plan as you leave it.
+      </div>
+      <div class="note" style="margin-top: 11px">
+        <span style="color: oklch(0.97 0 0)">No badges at all.</span> There are no workout rows, so a trained-state indicator here would be computed from nothing &mdash; noise dressed as information. The scope line still appears, so the surface never changes shape between states.
+      </div>
+    </div>
+
+    <!-- ── 2 · BLOCK COMPLETE ──────────────────────────────────────── -->
+    <div class="case">
+      <div style="display: flex; align-items: center; gap: 9px">
+        <span class="tag">2</span>
+        <div class="osw" style="font-size: 15px; letter-spacing: 0.02em">Block complete</div>
+      </div>
+      <div class="scope" style="margin-top: 13px">
+        Block complete &mdash; all <span class="num" style="color: oklch(0.97 0 0)">24 sessions</span> trained. Edits apply the next time you run this block.
+      </div>
+      <div class="note" style="margin-top: 11px">
+        The trap: complete does <span style="color: oklch(0.97 0 0)">not</span> mean read-only. The program stays active, the final week is re-runnable, and a re-run is a fresh instantiation &mdash; so edits made now <span style="color: oklch(0.97 0 0)">do</span> land. Saying &ldquo;this block is finished, nothing to edit&rdquo; would be wrong twice over.
+      </div>
+    </div>
+
+    <!-- ── 3 · SHRUNK BELOW TRAINED ────────────────────────────────── -->
+    <div class="case" style="border-color: oklch(0.86 0.19 128 / 0.45)">
+      <div style="display: flex; align-items: center; gap: 9px">
+        <span class="tag">3</span>
+        <div class="osw" style="font-size: 15px; letter-spacing: 0.02em">Shortened below trained weeks</div>
+      </div>
+      <div class="scope" style="margin-top: 13px">
+        This block is now <span class="num" style="color: oklch(0.97 0 0)">4 weeks</span>, but you trained into <span class="num" style="color: oklch(0.97 0 0)">weeks 5&ndash;6</span> before it was shortened. That training still counts and still shows in your history.
+      </div>
+      <div style="margin-top: 12px; display: flex; gap: 6px; align-items: center">
+        <span class="num cap" style="font-size: 10px; padding: 4px 8px; border: 1px solid oklch(1 0 0 / 0.15); border-radius: 6px">WK 1&ndash;4</span>
+        <span style="color: oklch(0.52 0 0); font-size: 13px">+</span>
+        <span class="num cap" style="font-size: 10px; padding: 4px 8px; border: 1px dashed oklch(0.86 0.19 128 / 0.6); border-radius: 6px; color: oklch(0.86 0.19 128)">WK 5&ndash;6 &middot; TRAINED, PAST THE END</span>
+      </div>
+      <div class="note" style="margin-top: 11px">
+        <span style="color: oklch(0.97 0 0)">The one that silently loses data.</span> Anything that iterates <span class="num">1&hellip;mesocycleWeeks</span> drops weeks 5&ndash;6 from view entirely &mdash; real sessions, invisible. The list has to be driven by trained history, not by the bound.
+      </div>
+    </div>
+
+    <!-- ── 4 · ARCHIVED ────────────────────────────────────────────── -->
+    <div class="case">
+      <div style="display: flex; align-items: center; gap: 9px">
+        <span class="tag">4</span>
+        <div class="osw" style="font-size: 15px; letter-spacing: 0.02em">Archived</div>
+      </div>
+      <div class="scope" style="margin-top: 13px">
+        Archived. Edits are saved, and take effect if you make this program active again.
+      </div>
+      <div class="note" style="margin-top: 11px">
+        Nothing in the code blocks editing an archived program &mdash; no status check exists on any patch path. So the surface may <span style="color: oklch(0.97 0 0)">not</span> say &ldquo;archived programs are read-only&rdquo;; that would describe a lock that was never built. Either state what actually happens, as above, or build the guard first.
+      </div>
+    </div>
+  </div>
+
+  <!-- ── THE RULE THAT PRODUCES ALL FOUR ───────────────────────────── -->
+  <div style="margin-top: 24px; padding-top: 18px; border-top: 1px solid oklch(1 0 0 / 0.12)">
+    <div class="cap" style="font-size: 10px">One predicate behind every state</div>
+    <div style="margin-top: 10px; display: flex; gap: 26px; align-items: flex-start">
+      <div style="flex: 1">
+        <div style="font-size: 15px; line-height: 22px">A session is <span style="color: oklch(0.86 0.19 128)">settled</span> when it has been started &mdash; not when its week has passed, and not when the block is over.</div>
+        <div class="note" style="margin-top: 8px">
+          Everfit ships the same rule in production: changes reach workouts &ldquo;today and onwards that have not yet been logged.&rdquo; Per-session, gated on started-ness. It is the only published prior art that matches, and it matches exactly.
+        </div>
+      </div>
+      <div style="width: 300px; flex-shrink: 0; font-size: 12.5px; line-height: 19px; color: oklch(0.72 0 0)">
+        <div style="display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid oklch(1 0 0 / 0.072)"><span>Completed</span><span style="color: oklch(0.97 0 0)">settled</span></div>
+        <div style="display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid oklch(1 0 0 / 0.072)"><span>In progress</span><span style="color: oklch(0.97 0 0)">settled</span></div>
+        <div style="display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid oklch(1 0 0 / 0.072)"><span>Not started, past week</span><span style="color: oklch(0.86 0.19 128)">editable</span></div>
+        <div style="display: flex; justify-content: space-between; padding: 5px 0"><span>Not started, future</span><span style="color: oklch(0.86 0.19 128)">editable</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script data-dc-script data-props='{}'>
+class Component extends DCLogic { renderVals() { return {}; } }
+</script>
+</body>
+</html>

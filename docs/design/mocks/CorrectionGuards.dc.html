@@ -1,0 +1,142 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap">
+  <style>
+    body { margin: 0; background: oklch(0.145 0 0); font-family: Inter, system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+    .cap { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; color: oklch(0.72 0 0); }
+    .osw { font-family: Oswald, 'Arial Narrow', sans-serif; font-weight: 600; text-transform: uppercase; }
+    .num { font-variant-numeric: tabular-nums; }
+    .note { font-size: 12px; line-height: 18px; color: oklch(0.72 0 0); }
+    .panel { width: 408px; background: oklch(0.205 0 0); border: 1px solid oklch(1 0 0 / 0.12); border-radius: 16px; padding: 22px 22px 20px; }
+    .tag { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.12em; color: oklch(0.16 0.03 128); background: oklch(0.86 0.19 128); padding: 3px 7px; border-radius: 4px; }
+  </style>
+</helmet>
+<div style="width: 960px; min-height: 1080px; background: oklch(0.145 0 0); color: oklch(0.97 0 0); padding: 26px 28px 34px">
+
+  <div class="osw" style="font-size: 23px; letter-spacing: -0.005em">Two guards, deliberately different shapes</div>
+  <div class="note" style="margin-top: 6px; max-width: 640px">One is a decision, so it interrupts. The other is information, so it never does. Getting these the same way round is how a warning becomes wallpaper.</div>
+
+  <div style="margin-top: 26px; display: flex; gap: 24px; align-items: flex-start">
+
+    <!-- ══ 1 · THE MODAL ══ Only for the cascade. -->
+    <div style="flex: 1">
+      <div style="display: flex; align-items: center; gap: 9px">
+        <span class="tag">1</span>
+        <div class="osw" style="font-size: 15px; letter-spacing: 0.02em">Un-complete &mdash; the cascade</div>
+      </div>
+
+      <div class="panel" style="margin-top: 13px">
+        <div class="osw" style="font-size: 20px; line-height: 26px">Un-complete Wednesday&rsquo;s session?</div>
+
+        <!-- Itemised, never prose. The consequence is the CASCADE, which the
+             user cannot predict — not the un-complete, which they just asked
+             for. Naming what they already intended would be "Are you sure?" -->
+        <div style="margin-top: 14px; border-top: 1px solid oklch(1 0 0 / 0.12); border-bottom: 1px solid oklch(1 0 0 / 0.12); padding: 13px 0; display: flex; flex-direction: column; gap: 9px">
+          <div style="display: flex; gap: 9px; font-size: 14px; line-height: 20px">
+            <span style="color: oklch(0.86 0.19 128)">&bull;</span>
+            <span>Your block goes back to <span class="num">week 3</span>. It&rsquo;s on week 4 now.</span>
+          </div>
+          <div style="display: flex; gap: 9px; font-size: 14px; line-height: 20px">
+            <span style="color: oklch(0.86 0.19 128)">&bull;</span>
+            <span>Next session&rsquo;s targets are worked out again.</span>
+          </div>
+        </div>
+
+        <!-- Buttons name outcomes. Never Yes/No — "of course I want the thing
+             I just asked for" is what makes Yes/No useless. -->
+        <div style="margin-top: 18px; display: flex; gap: 10px">
+          <div style="flex: 1; display: flex; align-items: center; justify-content: center; height: 44px; border-radius: 11px; border: 1px solid oklch(1 0 0 / 0.15); font-size: 14.5px">Keep it completed</div>
+          <div style="flex: 1.15; display: flex; align-items: center; justify-content: center; height: 44px; border-radius: 11px; background: oklch(0.86 0.19 128); color: oklch(0.16 0.03 128); font-size: 14.5px; font-weight: 600">Un-complete</div>
+        </div>
+      </div>
+
+      <div class="note" style="margin-top: 13px">
+        <span style="color: oklch(0.97 0 0)">Gated on the cascade existing.</span> If un-completing moves nothing, there is no dialog at all &mdash; a modal that fires every time is a modal nobody reads. No type-to-confirm: that is reserved for breaking infrastructure, and using it here is exactly the overuse that trains people to click through.
+      </div>
+
+      <!-- Modal AND undo. Habituation beats any dialog given a year. -->
+      <div style="margin-top: 18px; width: 408px; display: flex; align-items: center; gap: 12px; padding: 13px 15px; border-radius: 12px; background: oklch(0.205 0 0); border: 1px solid oklch(1 0 0 / 0.12)">
+        <span style="flex: 1; font-size: 13.5px">Session un-completed &middot; block back to week 3</span>
+        <span style="font-size: 13.5px; text-decoration: underline; text-underline-offset: 4px">Undo</span>
+      </div>
+      <div class="note" style="margin-top: 9px">And an undo after it. The dialog handles the moment; undo handles the year, when the dialog has become furniture.</div>
+    </div>
+
+    <!-- ══ 2 · THE DISCLOSURE ══ Information, not a decision. -->
+    <div style="flex: 1">
+      <div style="display: flex; align-items: center; gap: 9px">
+        <span class="tag">2</span>
+        <div class="osw" style="font-size: 15px; letter-spacing: 0.02em">Correcting a weight &mdash; the reach</div>
+      </div>
+
+      <!-- Inline at the edit surface, NOT a modal. It is informational, so
+           interrupting for it would spend the interruption budget the modal
+           above actually needs. -->
+      <div style="margin-top: 13px; width: 408px; border: 1px solid oklch(1 0 0 / 0.12); border-radius: 16px; padding: 20px 20px 18px">
+        <div class="cap" style="font-size: 10px">Editing set 3</div>
+        <div style="margin-top: 11px; display: flex; align-items: center; gap: 10px">
+          <span class="num" style="display: inline-flex; align-items: center; justify-content: center; min-width: 74px; height: 40px; border: 1px solid oklch(1 0 0 / 0.15); border-radius: 9px; font-size: 15px">6</span>
+          <span style="color: oklch(0.52 0 0)">&times;</span>
+          <span class="num" style="display: inline-flex; align-items: center; justify-content: center; min-width: 90px; height: 40px; border: 1px solid oklch(0.86 0.19 128); border-radius: 9px; font-size: 15px">102.5</span>
+          <span style="font-size: 13px; color: oklch(0.72 0 0)">kg</span>
+        </div>
+
+        <!-- ONE column, phrased POSITIVELY. The two-column will/won't layout
+             was rejected: it is not a real pattern, and negations ("won't",
+             "can't") are hardest to parse exactly when the reader is anxious.
+             The last line carries the same information without a negation. -->
+        <div style="margin-top: 16px; border-top: 1px solid oklch(1 0 0 / 0.12); padding-top: 13px">
+          <div class="cap" style="font-size: 10px">This changes</div>
+          <div style="margin-top: 10px; display: flex; flex-direction: column; gap: 8px">
+            <div style="display: flex; gap: 9px; font-size: 13.5px; line-height: 19px">
+              <span style="color: oklch(0.72 0 0)">&bull;</span><span>Your best bench set &mdash; <span class="num">100 kg</span> from 14 Aug is no longer your top lift.</span>
+            </div>
+            <div style="display: flex; gap: 9px; font-size: 13.5px; line-height: 19px">
+              <span style="color: oklch(0.72 0 0)">&bull;</span><span>Next week&rsquo;s bench target.</span>
+            </div>
+          </div>
+
+          <!-- Separated by TREATMENT, below a hairline — not by building a
+               second column of negations. -->
+          <div style="margin-top: 13px; padding-top: 11px; border-top: 1px solid oklch(1 0 0 / 0.072); font-size: 13.5px; line-height: 19px; color: oklch(0.72 0 0)">
+            Your training max stays at <span class="num" style="color: oklch(0.97 0 0)">102.5 kg</span>. It went up on 14 Aug and you&rsquo;ve trained three sessions there since.
+          </div>
+        </div>
+      </div>
+
+      <div class="note" style="margin-top: 13px">
+        <span style="color: oklch(0.97 0 0)">Shown only when a settled decision is affected.</span> An ordinary typo fix gets nothing &mdash; put this on every edit and it becomes the thing people scroll past to reach the save button.
+      </div>
+
+      <div class="note" style="margin-top: 14px; padding-top: 12px; border-top: 1px solid oklch(1 0 0 / 0.072)">
+        The training-max line is the whole reason this exists. Losing a personal record is obvious and expected. A number quietly <span style="color: oklch(0.97 0 0)">not</span> moving is the one nobody predicts, and the one that makes the app look wrong three weeks later.
+      </div>
+    </div>
+  </div>
+
+  <!-- The rule that produced both shapes -->
+  <div style="margin-top: 28px; padding-top: 18px; border-top: 1px solid oklch(1 0 0 / 0.12); display: flex; gap: 28px; align-items: flex-start">
+    <div style="flex: 1">
+      <div class="cap" style="font-size: 10px">Why they differ</div>
+      <div style="margin-top: 9px; font-size: 14.5px; line-height: 21px">A modal is a <span style="color: oklch(0.86 0.19 128)">decision</span>. A disclosure is <span style="color: oklch(0.86 0.19 128)">information</span>. Spend an interruption only where the user must choose.</div>
+    </div>
+    <div style="width: 420px; flex-shrink: 0; font-size: 12.5px; line-height: 19px; color: oklch(0.72 0 0)">
+      <div style="display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid oklch(1 0 0 / 0.072)"><span>Cascade the user can&rsquo;t predict</span><span style="color: oklch(0.97 0 0)">modal + undo</span></div>
+      <div style="display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid oklch(1 0 0 / 0.072)"><span>A settled decision stays put</span><span style="color: oklch(0.97 0 0)">inline disclosure</span></div>
+      <div style="display: flex; justify-content: space-between; padding: 5px 0"><span>Ordinary typo fix</span><span style="color: oklch(0.97 0 0)">nothing at all</span></div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script data-dc-script data-props='{}'>
+class Component extends DCLogic { renderVals() { return {}; } }
+</script>
+</body>
+</html>

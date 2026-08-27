@@ -331,6 +331,18 @@
     "targetSummary": "Target {weeks, plural, one {# week} other {# weeks}}",
     "weeksUnit": "wks"
   },
+  "CorrectionReach": {
+    "title": "This changes",
+    "item": {
+      "bestE1rm": "{dated, select, yes {Your best {name} set — {value} from {date} is no longer your top lift.} other {Your best {name} set — {value} is no longer your top lift.}}",
+      "heaviestLoad": "{dated, select, yes {Your heaviest {name} — {value} from {date}.} other {Your heaviest {name} — {value}.}}",
+      "mostReps": "{dated, select, yes {Your most {name} reps in a set — {value} from {date}.} other {Your most {name} reps in a set — {value}.}}",
+      "bestSessionVolume": "{dated, select, yes {Your biggest {name} session — {value} of work on {date}.} other {Your biggest {name} session — {value} of work.}}"
+    },
+    "settled": {
+      "trainingMax": "Your training max stays at {value}. It went up on {date} and you’ve trained {sessions, plural, one {one session} other {# sessions}} there since."
+    }
+  },
   "CreateExerciseForm": {
     "categoryLabel": "Category",
     "categoryPlaceholder": "Category…",
@@ -1488,7 +1500,7 @@
     "aboutTitle": "About this program",
     "actor": {
       "coach": "Coach",
-      "mcp": "Claude",
+      "mcp": "Connected app",
       "seed": "System",
       "ui": "You",
       "wger": "wger"
@@ -2390,6 +2402,27 @@
     },
     "title": "Trophies"
   },
+  "UncompleteSession": {
+    "action": "Mark not finished",
+    "pending": "Checking…",
+    "error": "Could not change this session. Please try again.",
+    "cascade": {
+      "week": "Your block goes back to week {to}. It's on week {from} now.",
+      "targets": "Next session's targets are worked out again.",
+      "blockReopens": "Your block stops counting as finished."
+    },
+    "dialog": {
+      "title": "Un-complete this session?",
+      "confirm": "Un-complete",
+      "cancel": "Keep it completed",
+      "pending": "Un-completing…"
+    },
+    "undo": {
+      "action": "Undo",
+      "message": "Session marked not finished",
+      "messageWithWeek": "Session marked not finished · block back to week {week}"
+    }
+  },
   "UnitToggle": {
     "groupLabel": "Weight unit",
     "saveError": "Didn’t save — tap again"
@@ -2470,6 +2503,27 @@
     "templateActionPending": "Saving template…",
     "templateError": "Could not save the template. Please try again."
   },
+  "WorkoutChangelog": {
+    "actor": {
+      "coach": "Coach",
+      "mcp": "Connected app",
+      "system": "System",
+      "ui": "You"
+    },
+    "amendedMark": "{count, plural, =1 {Edited once} =2 {Edited twice} other {Edited # times}}, {days, plural, =0 {later the same day} =1 {a day after the session} other {# days after the session}}",
+    "footnote": "Corrections never overwrite what was first recorded. The original stays in the log.",
+    "kind": {
+      "amendment": "Corrected",
+      "late_entry": "Added afterwards",
+      "original": "Recorded",
+      "system": "Automatic"
+    },
+    "markLink": "See what changed",
+    "showAmendments": "Show amendments only",
+    "showFull": "Show the full log",
+    "showFullHint": "— every set as it was first recorded.",
+    "title": "What changed"
+  },
   "WorkoutDetail": {
     "comparisonCaption": "vs last {name}",
     "complete": {
@@ -2479,6 +2533,7 @@
       "prReps": "{reps} reps (+{delta})"
     },
     "exercise": {
+      "amendedMark": "Edited",
       "approx": "~",
       "e1rmLabel": "Est. 1RM",
       "empty": "No sets logged.",
