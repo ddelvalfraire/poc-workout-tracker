@@ -10,6 +10,7 @@ import {
 import { getWorkoutDetail, hasAnyCompletedWorkout } from '@/db/workouts'
 import { getWorkoutTemplateDetail } from '@/db/workout-templates'
 import { getWorkoutDraft } from '@/db/workout-drafts'
+import { loadExerciseCatalog } from '@/db/programs'
 import { templateToDraft } from '@/lib/workout-template'
 import { WorkoutLogger } from './workout-logger'
 import { detailToDraft } from './workout-draft'
@@ -48,21 +49,27 @@ export default async function NewWorkoutPage({
   ])
   // Equipment and the rest default are independent preference reads — one
   // round-trip of latency instead of two.
-  const [equipment, defaultRestSec, restTimerEnabled, rpeLoggingEnabled, weightStep] = await Promise.all([
-    getEquipment(userId, unit),
-    getDefaultRestSec(userId),
-    getRestTimerEnabled(userId),
-    getRpeLoggingEnabled(userId),
-    getWeightStep(userId),
-  ])
+  const [equipment, defaultRestSec, restTimerEnabled, rpeLoggingEnabled, weightStep, catalog] =
+    await Promise.all([
+      getEquipment(userId, unit),
+      getDefaultRestSec(userId),
+      getRestTimerEnabled(userId),
+      getRpeLoggingEnabled(userId),
+      getWeightStep(userId),
+      // Only the seeded paths need it: the muscle line under each exercise
+      // name is catalog data, not a persisted column, so a repeated or
+      // template-seeded session would otherwise show it only for exercises
+      // picked in-session. A restored draft already carries its own.
+      source || templateSource ? loadExerciseCatalog(userId) : null,
+    ])
   // resetCompleted: repeating an old workout starts a fresh session — no
   // checked-off sets carried over from the source. A template seeds
   // plannedSets empty sets per exercise instead (no values to carry — ghosts
   // come from history at log time, like any fresh session).
   const seed = source
-    ? detailToDraft(source, unit, { resetCompleted: true })
+    ? detailToDraft(source, unit, { resetCompleted: true, catalog })
     : templateSource
-      ? templateToDraft(templateSource)
+      ? templateToDraft(templateSource, catalog)
       : undefined
   // Server-side draft seeding: resolving the interrupted session HERE kills
   // the mount-time content swap (empty logger flashes, then the restore

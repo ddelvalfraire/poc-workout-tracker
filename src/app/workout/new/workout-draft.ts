@@ -700,12 +700,32 @@ export function draftToInput(
 }
 
 /**
+ * The catalog lookup the seeding functions need to fill `category` — the merged
+ * (wger + customs) catalog, keyed by the composite `${source}:${id}` exactly as
+ * `db/programs.ts`'s `catalogKey` writes it. Structural on purpose: this module
+ * is bundled with the client logger and must not import the db layer. Null (a
+ * catalog outage) degrades to an empty category, which is what every seeded
+ * draft carried before.
+ */
+export type DraftCategoryCatalog = ReadonlyMap<string, { category: string }>
+
+/** `category` is not a persisted column on a workout/template exercise — it is
+ *  catalog data, looked up by the composite identity. */
+export function draftCategoryFor(
+  catalog: DraftCategoryCatalog | null | undefined,
+  source: ExerciseSource,
+  wgerExerciseId: number,
+): string {
+  return catalog?.get(`${source}:${wgerExerciseId}`)?.category ?? ''
+}
+
+/**
  * Seeds an editable draft from a persisted workout (the inverse of
  * draftToInput). Numbers become input strings (`null` → `''`); the persisted
  * row UUIDs are reused as the draft's client ids (stable React keys). `category`
- * is not a persisted column, so it comes back empty. Stored kg weights are
- * converted to `unit` (default kg) for display. Pure (no `crypto`), so the edit
- * Server Component can call it safely.
+ * is not a persisted column, so it is looked up in `options.catalog` (absent →
+ * empty, as before). Stored kg weights are converted to `unit` (default kg) for
+ * display. Pure (no `crypto`), so the edit Server Component can call it safely.
  *
  * `resetCompleted` clears the check-off state — the repeat flow (`?from=`)
  * seeds a NEW session from an old workout, and yesterday's checks aren't
@@ -714,14 +734,14 @@ export function draftToInput(
 export function detailToDraft(
   workout: WorkoutDetail,
   unit: WeightUnit = 'kg',
-  options: { resetCompleted?: boolean } = {},
+  options: { resetCompleted?: boolean; catalog?: DraftCategoryCatalog | null } = {},
 ): { draft: WorkoutDraft; name: string } {
   const exercises = workout.exercises.map((exercise) => ({
     id: exercise.id,
     wgerExerciseId: exercise.wgerExerciseId,
     source: exercise.source,
     name: exercise.name,
-    category: '',
+    category: draftCategoryFor(options.catalog, exercise.source, exercise.wgerExerciseId),
     loggingType: exercise.loggingType,
     notes: exercise.notes ?? '',
     skipped: exercise.skipped,

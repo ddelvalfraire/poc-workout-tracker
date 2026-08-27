@@ -299,6 +299,18 @@ describe('templateToDraft', () => {
     expect(templateToDraft(template)).toEqual(templateToDraft(template))
   })
 
+  it('fills the category from the catalog (absent → empty, as before)', () => {
+    // Arrange — category is catalog data, not a persisted template column.
+    const template = makeTemplate([{}])
+
+    // Act + Assert
+    expect(
+      templateToDraft(template, new Map([['wger:73', { category: 'Legs' }]])).draft.exercises[0]
+        .category,
+    ).toBe('Legs')
+    expect(templateToDraft(template, null).draft.exercises[0].category).toBe('')
+  })
+
   it('re-clamps a corrupt stored plannedSets on read (never 0, never 500 rows)', () => {
     // Arrange
     const zero = makeTemplate([{ plannedSets: 0 }])
