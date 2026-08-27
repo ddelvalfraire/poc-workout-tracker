@@ -51,7 +51,21 @@ export interface EditorAddress {
   exercise: number | null
   /** 1-based week, always resolved — the editor always shows some week. */
   week: number
+  /** Which reading pane 2 renders. Always resolved; 'day' is the default. */
+  view: EditorView
 }
+
+/**
+ * The two readings of one block, and the reason the pivot is a PARAM rather
+ * than a route.
+ *
+ * "By day" is one day across one week; "by exercise" is one day across every
+ * week. They are the same selection seen along different axes — the day, the
+ * week and the inspected exercise are unchanged by the switch — so making the
+ * pivot its own route would fork the address and hand the two readings separate
+ * state to drift apart, which is precisely what the pane rule forbids.
+ */
+export type EditorView = 'day' | 'exercise'
 
 /** First value of a possibly-repeated param; undefined when absent or empty. */
 function first(raw: RawParam): string | undefined {
@@ -109,6 +123,17 @@ export function parseExerciseParam(
   return parsed < exerciseCount ? parsed : null
 }
 
+/**
+ * The reading pane 2 renders, from its param.
+ *
+ * Anything unrecognised falls back to 'day' rather than throwing: this is a
+ * user-editable URL, and the day reading is the one that works with no day
+ * addressed, so it is the safe landing for junk.
+ */
+export function parseViewParam(raw: RawParam): EditorView {
+  return first(raw) === 'exercise' ? 'exercise' : 'day'
+}
+
 /** The counts the address is resolved against — the program's real shape. */
 export interface AddressBounds {
   /** How many days the program has. */
@@ -131,7 +156,7 @@ export interface AddressBounds {
  * there.
  */
 export function resolveEditorAddress(
-  params: { day?: string; exercise?: RawParam; week?: RawParam },
+  params: { day?: string; exercise?: RawParam; week?: RawParam; view?: RawParam },
   bounds: AddressBounds,
 ): EditorAddress {
   const day = parseDaySegment(params.day, bounds.dayCount)
@@ -141,7 +166,7 @@ export function resolveEditorAddress(
     day === null ? 0 : bounds.exerciseCountForDay(day),
   )
   const week = parseWeekParam(params.week, bounds.currentWeek, bounds.mesocycleWeeks)
-  return { day, exercise, week }
+  return { day, exercise, week, view: parseViewParam(params.view) }
 }
 
 /**
@@ -155,7 +180,12 @@ export function resolveEditorAddress(
  */
 export function editorHref(
   programId: string,
-  address: { day?: number | null; exercise?: number | null; week?: number },
+  address: {
+    day?: number | null
+    exercise?: number | null
+    week?: number
+    view?: EditorView
+  },
 ): string {
   const path =
     address.day === null || address.day === undefined
@@ -167,6 +197,9 @@ export function editorHref(
   if (address.exercise !== null && address.exercise !== undefined) {
     search.set('exercise', String(address.exercise))
   }
+  // Only the non-default reading is written, for the same reason `?week=1` is
+  // not: the ordinary URL stays short enough to read and to share.
+  if (address.view === 'exercise') search.set('view', 'exercise')
   const query = search.toString()
   return query === '' ? path : `${path}?${query}`
 }

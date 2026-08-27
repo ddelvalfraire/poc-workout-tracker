@@ -6,8 +6,10 @@ import { AppHeader } from '@/components/app-header'
 import { EditorDayPane } from '@/components/editor/editor-day-pane'
 import { EditorInspector, type EditorInspectorExercise } from '@/components/editor/editor-inspector'
 import { EditorPanes } from '@/components/editor/editor-panes'
+import { EditorPivotGrid } from '@/components/editor/editor-pivot-grid'
 import { EditorScopeLine } from '@/components/editor/editor-scope-line'
 import { EditorStructurePane } from '@/components/editor/editor-structure-pane'
+import { EditorViewToggle } from '@/components/editor/editor-view-toggle'
 import { buildBlockWeeks } from '@/components/block-weeks'
 import { buttonVariants } from '@/components/ui/button'
 import { getWeightUnit } from '@/db/preferences'
@@ -21,6 +23,7 @@ import { progressionLine, programStatusLine } from '../detail-view'
 import { saveSetOverrideAction } from './actions'
 import { editorHref, resolveEditorAddress, type RawParam } from './editor-address'
 import { editorDayDetail, editorDays, editorSetLoadKg, editorWeeks } from './editor-view'
+import { pivotRows } from './pivot-view'
 import { isSettled, trainedDayState, trainedSeamIndex, weekTrainedReport } from './trained-view'
 
 /**
@@ -42,7 +45,7 @@ interface EditorSurfaceProps {
   programId: string
   /** The `[day]` path segment; undefined on the structure-only route. */
   daySegment?: string
-  searchParams: { week?: RawParam; exercise?: RawParam }
+  searchParams: { week?: RawParam; exercise?: RawParam; view?: RawParam }
 }
 
 export async function EditorSurface({ programId, daySegment, searchParams }: EditorSurfaceProps) {
@@ -78,7 +81,12 @@ export async function EditorSurface({ programId, daySegment, searchParams }: Edi
   const weekBound = Math.max(program.mesocycleWeeks, ...weeksWithWorkouts, 1)
 
   const address = resolveEditorAddress(
-    { day: daySegment, exercise: searchParams.exercise, week: searchParams.week },
+    {
+      day: daySegment,
+      exercise: searchParams.exercise,
+      week: searchParams.week,
+      view: searchParams.view,
+    },
     {
       dayCount: program.days.length,
       exerciseCountForDay: (day) => program.days[day]?.exercises.length ?? 0,
@@ -169,8 +177,18 @@ export async function EditorSurface({ programId, daySegment, searchParams }: Edi
     }
   }
 
-  const href = (next: { day?: number | null; exercise?: number | null }) =>
-    editorHref(program.id, { week: address.week, ...next })
+  // Every link the surface mints carries the current READING, so switching to
+  // the pivot and then picking a day does not silently drop you back into the
+  // day-wise one. The reading is part of the address; it travels like the rest
+  // of it.
+  const href = (next: { day?: number | null; exercise?: number | null; week?: number }) =>
+    editorHref(program.id, { week: address.week, view: address.view, ...next })
+
+  // One week list for both panes. The structure list and the pivot's columns
+  // MUST be the same weeks: `editorWeeks` keeps weeks trained above a shrunken
+  // `mesocycleWeeks`, and a grid that re-derived its own range would drop them
+  // while the list beside it still showed them.
+  const weeks = editorWeeks(program.mesocycleWeeks, program.deloadWeek, weeksWithWorkouts)
 
   // The block's sentence is the SHIPPED one — "Block complete." included —
   // rather than a second opinion about where the block stands.
@@ -205,23 +223,38 @@ export async function EditorSurface({ programId, daySegment, searchParams }: Edi
       />
       <main aria-label={t('surfaceLabel')} className="flex flex-1 flex-col">
         {/* Scope stated BEFORE the edit, not confirmed at save. */}
-        <EditorScopeLine
-          className="mx-auto w-full max-w-md min-[840px]:max-w-none"
-          statusLine={renderMessage(tDetail, statusLine)}
-          week={address.week}
-          report={weekTrainedReport(trainedStates)}
-          hasHistory={workouts.length > 0}
-        />
+        <div className="mx-auto flex w-full max-w-md flex-col gap-3 min-[840px]:max-w-none min-[840px]:flex-row min-[840px]:items-start min-[840px]:justify-between">
+          <EditorScopeLine
+            className="min-w-0 flex-1 border-b-0 min-[840px]:border-b"
+            statusLine={renderMessage(tDetail, statusLine)}
+            week={address.week}
+            report={weekTrainedReport(trainedStates)}
+            hasHistory={workouts.length > 0}
+          />
+          {/* The reading, beside the scope it applies to. Both readings answer
+              for the SAME selection, so this is a lens control and not
+              navigation to somewhere else. */}
+          <EditorViewToggle
+            className="border-b border-b-border/60 px-5 pb-3 min-[840px]:border-b-0 min-[840px]:pt-3"
+            view={address.view}
+            hrefForView={(view) =>
+              editorHref(program.id, {
+                week: address.week,
+                day: address.day,
+                exercise: address.exercise,
+                view,
+              })
+            }
+          />
+        </div>
         <EditorPanes
           className="mx-auto w-full max-w-md min-[840px]:max-w-none"
           hasDay={address.day !== null}
           structure={
             <EditorStructurePane
-              weeks={editorWeeks(program.mesocycleWeeks, program.deloadWeek, weeksWithWorkouts)}
+              weeks={weeks}
               selectedWeek={address.week}
-              hrefForWeek={(week) =>
-                editorHref(program.id, { week, day: address.day, exercise: address.exercise })
-              }
+              hrefForWeek={(week) => href({ week, day: address.day, exercise: address.exercise })}
               days={editorDays(program.days, trainedStates)}
               selectedDay={address.day}
               hrefForDay={(dayPosition) => href({ day: dayPosition })}
@@ -229,15 +262,34 @@ export async function EditorSurface({ programId, daySegment, searchParams }: Edi
             />
           }
           day={
-            <EditorDayPane
-              day={day}
-              week={address.week}
-              unit={unit}
-              selectedExercise={address.exercise}
-              hrefForExercise={(exercise) => href({ day: address.day, exercise })}
-              programId={program.id}
-              saveSetAction={saveSetOverrideAction}
-            />
+            // Pane 2's two faces. Same address, same day, same week — only the
+            // axis differs, which is why this is a branch here and not a
+            // second route with its own state to keep in step.
+            address.view === 'exercise' ? (
+              <EditorPivotGrid
+                dayName={sourceDay?.name ?? null}
+                weeks={weeks}
+                rows={pivotRows(
+                  sourceDay?.exercises ?? [],
+                  weeks.map((entry) => entry.week),
+                  unit,
+                )}
+                selectedWeek={address.week}
+                selectedExercise={address.exercise}
+                hrefForCell={(exercise, week) => href({ day: address.day, exercise, week })}
+                unit={unit}
+              />
+            ) : (
+              <EditorDayPane
+                day={day}
+                week={address.week}
+                unit={unit}
+                selectedExercise={address.exercise}
+                hrefForExercise={(exercise) => href({ day: address.day, exercise })}
+                programId={program.id}
+                saveSetAction={saveSetOverrideAction}
+              />
+            )
           }
           inspector={
             inspected === null ? null : (
