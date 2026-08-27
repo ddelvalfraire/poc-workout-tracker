@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Pencil } from "lucide-react";
 import { notFound, redirect } from "next/navigation";
 import { requireUserId } from "@/lib/auth";
 import {
@@ -43,7 +44,10 @@ import { ShareCardButton } from "@/components/share-card-button";
 import { cn } from "@/lib/utils";
 import { getActiveWorkoutShare } from "@/db/workout-shares";
 import { WorkoutActions } from "./workout-actions";
-import { WorkoutChangelog } from "@/components/workout/workout-changelog";
+import {
+  WorkoutAmendedMark,
+  WorkoutChangelog,
+} from "@/components/workout/workout-changelog";
 import { listWorkoutEvents } from "@/db/workout-events";
 import { setSnapshotKey } from "@/db/workout-set-diff";
 import { amendedSetKeys } from "./amended-sets";
@@ -338,6 +342,17 @@ export default async function WorkoutDetailPage({
           </p>
         )}
 
+        {/* The permanent amended mark, above the record it is about: a reader
+            meets "these numbers were changed" before the numbers, never after
+            them. Absent on an untouched session — the component owns that
+            rule, and it is the same fact that decides whether the change log
+            at the bottom exists at all. */}
+        <WorkoutAmendedMark
+          entries={changeEvents}
+          sessionAt={workout.startedAt}
+          className="mt-5"
+        />
+
         {/* What comes after the finish: the next program day, or the block-
             complete banner when this session closed the mesocycle. Quick
             logs (upNext 'none') get just the celebration above. */}
@@ -555,11 +570,11 @@ export default async function WorkoutDetailPage({
                         )}
                         {/* The amended mark, at the row that moved: you can
                             see WHICH numbers a correction touched without
-                            opening the change log. Same quiet caps word as
-                            the rest of this row's metadata — a fact, not a
-                            control — but in the volt, because "this number
-                            is not what was first recorded" is the one thing
-                            on the row worth interrupting a scan for. */}
+                            opening the change log. The same volt pencil the
+                            session-level mark wears — one glyph, one meaning,
+                            two scopes (session band, row band), inert in
+                            both, exactly like the row's note dot. A word here
+                            would compete with the numbers it is about. */}
                         {amendedSets.has(
                           setSnapshotKey(
                             exercise.source,
@@ -567,9 +582,13 @@ export default async function WorkoutDetailPage({
                             set.setNumber,
                           ),
                         ) && (
-                          <span className="text-[10px] font-semibold uppercase tracking-widest text-primary">
-                            {t('exercise.amendedMark')}
-                          </span>
+                          <>
+                            <Pencil
+                              aria-hidden="true"
+                              className="size-3 shrink-0 text-primary"
+                            />
+                            <span className="sr-only">{t('exercise.amendedMark')}</span>
+                          </>
                         )}
                       </div>
                     ))
@@ -642,7 +661,6 @@ export default async function WorkoutDetailPage({
         <WorkoutChangelog
           entries={changeEvents}
           sessionAt={workout.startedAt}
-          now={now}
           locale={locale}
         />
 

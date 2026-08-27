@@ -69,3 +69,42 @@ export function amendedMark(
   )
   return { count: amendments.length, days: daysBetween(sessionAt, latest.occurredAt) }
 }
+
+/** A summary split into the SUBJECT and the deltas that follow it. */
+export interface SummaryParts {
+  subject: string
+  /** The change itself — null when the line is a whole sentence with no
+   *  delta tail ("Set 3 of Squat added"). */
+  detail: string | null
+}
+
+/** The em-dash the write path composes summaries around
+ *  (`describeSetChange`): `Set 3 of Squat — weight 100 → 102.5`. */
+const SUMMARY_SEPARATOR = ' — '
+
+/**
+ * Splits one summary into what changed and what it changed TO, so the row can
+ * ink them differently — the subject in the reading ink, the numbers muted
+ * behind it. A line without the separator is all subject: an add or a removal
+ * is a whole statement, not a delta, and greying half of it would be a lie
+ * about where the sentence divides.
+ */
+export function splitSummary(summary: string): SummaryParts {
+  const at = summary.indexOf(SUMMARY_SEPARATOR)
+  if (at === -1) return { subject: summary, detail: null }
+  return {
+    subject: summary.slice(0, at),
+    detail: summary.slice(at + SUMMARY_SEPARATOR.length),
+  }
+}
+
+/**
+ * The clock time a change landed, e.g. "9:12 AM".
+ *
+ * Clock time rather than a relative phrase because the rows are already
+ * grouped under a calendar-day header: "2 days ago" under "16 Aug" says the
+ * same thing twice and reads less precisely than the log register wants.
+ */
+export function formatClockTime(date: Date, locale: string): string {
+  return new Intl.DateTimeFormat(locale, { timeStyle: 'short' }).format(date)
+}

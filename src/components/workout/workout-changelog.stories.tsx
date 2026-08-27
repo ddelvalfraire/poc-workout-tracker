@@ -1,24 +1,22 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 import { expect, userEvent, within } from "storybook/test";
 
-import { STORY_NOW, daysBefore, hoursBefore } from "@/components/story-time";
+import { daysBefore, hoursBefore } from "@/components/story-time";
 
-import { WorkoutChangelog } from "./workout-changelog";
+import { WorkoutAmendedMark, WorkoutChangelog } from "./workout-changelog";
 import type { WorkoutChangelogEntry } from "./workout-changelog-view";
 
 /**
  * The completed session's paper trail, as it sits under the set rows on the
  * workout summary.
  *
- * Two things carry the design: the permanent amended mark under the header
- * ("Edited twice, 2 days after the session" — a reader must know the numbers
- * above moved without opening anything), and the amendments-only default with
- * "Show the full log" behind it. The `original` stream is not a log entry; it
- * IS the workout, already rendered as set rows above, so it stays behind the
- * disclosure.
+ * The amendments-only default carries the design: the `original` stream is
+ * not a log entry; it IS the workout, already rendered as set rows above, so
+ * it stays behind "Show the full log". The permanent amended mark that sends
+ * a reader here lives above the record — see `AmendedMark` below.
  *
- * Fixtures are anchored to STORY_NOW, never Date.now() — "3 days ago" has to
- * mean the same pixels tomorrow.
+ * Fixtures are anchored to the frozen story clock, never Date.now() — "16
+ * Aug · 9:12 AM" has to mean the same pixels tomorrow.
  */
 const meta = {
   title: "Components/WorkoutChangelog",
@@ -26,7 +24,6 @@ const meta = {
   parameters: { layout: "padded" },
   args: {
     sessionAt: new Date(daysBefore(4)),
-    now: new Date(STORY_NOW),
     locale: "en" as const,
   },
   decorators: [
@@ -72,7 +69,8 @@ export const OneAmendment: Story = {
  * Several corrections across two days. The date leaves the row into a group
  * header, so every summary gets the full width and wraps rather than
  * truncating mid-sentence — and one continuous volt edge runs down the zone
- * instead of a per-item accent.
+ * instead of a per-item accent. Each row reads what changed first, with the
+ * numbers muted behind it, then who and when underneath.
  */
 export const AmendmentsOnly: Story = {
   args: {
@@ -115,9 +113,10 @@ export const EditedByAnAgent: Story = {
 };
 
 /**
- * The full log opened: three kinds, three rails. Amendment on the volt, the
- * late entry on a muted rail with "Added afterwards" in words, and the app's
- * own writes on the faintest rail in the system voice.
+ * The full log opened: three kinds, three rails, three words. Amendment on
+ * the volt reading "Corrected", the late entry a step brighter than the
+ * hairline reading "Added afterwards", and the app's own writes on the
+ * ordinary rail in the system voice — "Automatic", with no actor beside it.
  */
 export const FullLogExpanded: Story = {
   args: {
@@ -143,6 +142,7 @@ export const FullLogExpanded: Story = {
     const canvas = within(canvasElement);
     await userEvent.click(canvas.getByRole("button", { name: /show the full log/i }));
     await expect(canvas.getByText(/Added afterwards/i)).toBeInTheDocument();
+    await expect(canvas.getByText(/Automatic/i)).toBeInTheDocument();
     await expect(canvas.getByText(/Logged 4 exercises/i)).toBeInTheDocument();
   },
 };
@@ -164,5 +164,30 @@ export const NeverAmended: Story = {
         summary: "Stamped the Consistency trophy",
       }),
     ],
+  },
+};
+
+/**
+ * The permanent amended mark, as it sits above the record on the workout
+ * summary — the one thing a reader must meet before the numbers it is about.
+ * The volt pencil is the same glyph the amended set rows wear.
+ */
+export const AmendedMark: StoryObj<typeof WorkoutAmendedMark> = {
+  render: (args) => <WorkoutAmendedMark {...args} />,
+  args: {
+    sessionAt: new Date(daysBefore(4)),
+    entries: [entry({ id: "a" }), entry({ id: "b", occurredAt: new Date(daysBefore(2)) }), original],
+  },
+};
+
+/**
+ * One correction, later the same day: the mark says so without a day count —
+ * "2 days" when it was four hours would be a small lie on the record.
+ */
+export const AmendedMarkSameDay: StoryObj<typeof WorkoutAmendedMark> = {
+  render: (args) => <WorkoutAmendedMark {...args} />,
+  args: {
+    sessionAt: new Date(daysBefore(4)),
+    entries: [entry({ id: "a", occurredAt: new Date(daysBefore(4) + 3 * 3_600_000) }), original],
   },
 };

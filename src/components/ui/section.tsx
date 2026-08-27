@@ -3,6 +3,8 @@ import { cn } from '@/lib/utils'
 interface SectionProps {
   /** Condensed-caps group header. Omit for a headerless section. */
   title?: string
+  /** Anchor id, for an in-page link that targets this section's heading. */
+  id?: string
   className?: string
   children: React.ReactNode
 }
@@ -13,9 +15,10 @@ interface SectionProps {
  * content (usually a DividerList) carries its own hairlines. The header
  * recipe is the shipped one from /settings, verbatim.
  */
-function Section({ title, className, children }: SectionProps) {
+function Section({ title, id, className, children }: SectionProps) {
   return (
     <section
+      {...(id !== undefined ? { id } : {})}
       {...(title !== undefined ? { 'aria-label': title } : {})}
       className={cn('mt-8', className)}
     >

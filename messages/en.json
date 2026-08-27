@@ -2457,10 +2457,18 @@
       "ui": "You"
     },
     "amendedMark": "{count, plural, =1 {Edited once} =2 {Edited twice} other {Edited # times}}, {days, plural, =0 {later the same day} =1 {a day after the session} other {# days after the session}}",
-    "lateEntryLabel": "Added afterwards",
+    "footnote": "Corrections never overwrite what was first recorded. The original stays in the log.",
+    "kind": {
+      "amendment": "Corrected",
+      "late_entry": "Added afterwards",
+      "original": "Recorded",
+      "system": "Automatic"
+    },
+    "markLink": "See what changed",
     "showAmendments": "Show amendments only",
     "showFull": "Show the full log",
-    "title": "Change log"
+    "showFullHint": "— every set as it was first recorded.",
+    "title": "What changed"
   },
   "WorkoutDetail": {
     "comparisonCaption": "vs last {name}",

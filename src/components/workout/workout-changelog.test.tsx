@@ -3,19 +3,18 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { renderStaticIntl, withIntl } from '../../../vitest.intl'
-import { WorkoutChangelog } from './workout-changelog'
+import { WorkoutAmendedMark, WorkoutChangelog } from './workout-changelog'
 import type { WorkoutChangelogEntry } from './workout-changelog-view'
 
 /**
- * The surface's contract, in the order a reader meets it: it is ABSENT for an
- * untouched record; it leads with the permanent amended mark; it shows
- * amendments only until asked for the rest.
+ * The surface's contract, in the order a reader meets it: the permanent
+ * amended mark sits above the record, the log below it is ABSENT for an
+ * untouched session, and it shows amendments only until asked for the rest.
  */
 
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
 const SESSION_AT = new Date('2026-01-10T18:00:00Z')
-const NOW = new Date('2026-01-15T09:00:00Z')
 
 function entry(overrides: Partial<WorkoutChangelogEntry> = {}): WorkoutChangelogEntry {
   return {
@@ -30,8 +29,12 @@ function entry(overrides: Partial<WorkoutChangelogEntry> = {}): WorkoutChangelog
 
 function markup(entries: readonly WorkoutChangelogEntry[]): string {
   return renderStaticIntl(
-    <WorkoutChangelog entries={entries} sessionAt={SESSION_AT} now={NOW} locale="en" />,
+    <WorkoutChangelog entries={entries} sessionAt={SESSION_AT} locale="en" />,
   )
+}
+
+function markMarkup(entries: readonly WorkoutChangelogEntry[]): string {
+  return renderStaticIntl(<WorkoutAmendedMark entries={entries} sessionAt={SESSION_AT} />)
 }
 
 describe('WorkoutChangelog markup', () => {
@@ -46,18 +49,8 @@ describe('WorkoutChangelog markup', () => {
     expect(html).toBe('')
   })
 
-  it('leads with the permanent amended mark', () => {
-    const html = markup([
-      entry({ id: 'a' }),
-      entry({ id: 'b', occurredAt: new Date('2026-01-11T18:00:00Z') }),
-    ])
-
-    expect(html).toContain('Edited twice, 2 days after the session')
-  })
-
-  it('phrases a single same-day correction without a day count', () => {
-    const html = markup([entry({ occurredAt: new Date('2026-01-10T21:00:00Z') })])
-    expect(html).toContain('Edited once, later the same day')
+  it('names the promise the append-only log exists to keep', () => {
+    expect(markup([entry()])).toContain('The original stays in the log.')
   })
 
   it('renders one row per intent, not one per changed field', () => {
@@ -93,15 +86,61 @@ describe('WorkoutChangelog markup', () => {
     expect(html).toContain('text-foreground')
   })
 
+  it('names the kind in words, not only in a rail', () => {
+    expect(markup([entry()])).toContain('Corrected')
+  })
+
   it('gives the three kinds three distinct rails', () => {
     const full = markup([
       entry({ id: 'a', kind: 'amendment' }),
       entry({ id: 'b', kind: 'late_entry' }),
       entry({ id: 'c', kind: 'system' }),
     ])
-    // Only the amendment is visible by default, and it wears the volt rail.
+    // Only the amendment is visible by default, and it wears the volt rail —
+    // one continuous volt edge down the zone, no competing accent.
     expect(full).toContain('border-l-primary')
-    expect(full).not.toContain('border-l-border/40')
+    expect(full).not.toContain('border-l-foreground/25')
+    expect(full).not.toContain('border-l-border')
+  })
+
+  it('inks the delta behind the subject it belongs to', () => {
+    const html = markup([entry({ summary: 'Set 3 of Squat — weight 100 → 102.5' })])
+    expect(html).toContain('Set 3 of Squat')
+    expect(html).toContain('— weight 100 → 102.5')
+  })
+
+  it('says what the disclosure opens', () => {
+    const html = markup([
+      entry({ id: 'a' }),
+      entry({ id: 'b', kind: 'original', summary: 'Logged 4 exercises' }),
+    ])
+    expect(html).toContain('every set as it was first recorded.')
+  })
+})
+
+describe('WorkoutAmendedMark', () => {
+  it('is absent when the record was never amended', () => {
+    expect(markMarkup([entry({ kind: 'original', occurredAt: SESSION_AT })])).toBe('')
+  })
+
+  it('states how many corrections and how long after the session', () => {
+    const html = markMarkup([
+      entry({ id: 'a' }),
+      entry({ id: 'b', occurredAt: new Date('2026-01-11T18:00:00Z') }),
+    ])
+    expect(html).toContain('Edited twice, 2 days after the session')
+  })
+
+  it('phrases a single same-day correction without a day count', () => {
+    expect(markMarkup([entry({ occurredAt: new Date('2026-01-10T21:00:00Z') })])).toContain(
+      'Edited once, later the same day',
+    )
+  })
+
+  it('offers the way into the log it is about', () => {
+    const html = markMarkup([entry()])
+    expect(html).toContain('See what changed')
+    expect(html).toContain('href="#workout-change-log"')
   })
 })
 
@@ -138,7 +177,6 @@ describe('WorkoutChangelog disclosure', () => {
               entry({ id: 'c', kind: 'original', summary: 'Logged 4 exercises' }),
             ]}
             sessionAt={SESSION_AT}
-            now={NOW}
             locale="en"
           />,
         ),

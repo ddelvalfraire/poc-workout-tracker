@@ -3,7 +3,9 @@ import { AMENDMENT_KINDS, type WorkoutEventKind } from '@/db/workout-events'
 import {
   amendedMark,
   daysBetween,
+  formatClockTime,
   isAmendmentKind,
+  splitSummary,
   type WorkoutChangelogEntry,
 } from './workout-changelog-view'
 
@@ -83,5 +85,36 @@ describe('amendedMark', () => {
   it('reports a same-day correction as zero days', () => {
     const entries = [entry({ occurredAt: new Date('2026-01-10T21:00:00Z') })]
     expect(amendedMark(entries, sessionAt)).toEqual({ count: 1, days: 0 })
+  })
+})
+
+describe('splitSummary', () => {
+  it('divides a correction into its subject and its numbers', () => {
+    expect(splitSummary('Set 3 of Squat — weight 100 → 102.5, reps 5 → 6')).toEqual({
+      subject: 'Set 3 of Squat',
+      detail: 'weight 100 → 102.5, reps 5 → 6',
+    })
+  })
+
+  it('keeps a whole-sentence line intact — an add is not a delta', () => {
+    expect(splitSummary('Set 4 of Cable Fly added')).toEqual({
+      subject: 'Set 4 of Cable Fly added',
+      detail: null,
+    })
+  })
+
+  it('splits at the FIRST separator, so a dash inside the numbers stays put', () => {
+    expect(splitSummary('Set 1 of Row — note a — b').detail).toBe('note a — b')
+  })
+})
+
+describe('formatClockTime', () => {
+  // The instant is written WITHOUT a `Z`, so it is 09:12 in whatever zone the
+  // runner sits in — and the formatter renders in that same local zone. A UTC
+  // instant would assert 09:12 only on a UTC machine and drift everywhere
+  // else; local-in/local-out is also what the surface actually does, since a
+  // reader wants the clock time they logged at, not UTC.
+  it('reads as a clock time, not a relative phrase', () => {
+    expect(formatClockTime(new Date('2026-01-12T09:12:00'), 'en-GB')).toBe('09:12')
   })
 })
