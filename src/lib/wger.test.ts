@@ -359,7 +359,7 @@ describe('searchExercises (wger proxy)', () => {
       // Arrange — a v1-shaped bare array (or any junk) has no fetchedAt, so its
       // age is unknowable; discard it and refresh.
       redisRef.current = {
-        get: vi.fn().mockResolvedValue([{ id: 73, name: 'Stale Shape', category: 'Chest' }]),
+        get: vi.fn(async (key: string) => (key.endsWith(':v2') ? { junk: true } : null)),
         set: vi.fn(),
       }
       mockFetchPages([[makeInfo(1, 'Deadlift', 'Legs', [])]])
@@ -473,10 +473,51 @@ describe('searchExercises (wger proxy)', () => {
       )
     })
 
+    it('rescues a failed refresh with the legacy v1 snapshot during the key transition', async () => {
+      // Arrange — the deploy that ships v2: only v1 exists, and wger is down.
+      // Without the fallback this is the very outage the change exists to fix.
+      const legacy: Exercise[] = [{ id: 73, name: 'Bench Press', category: 'Chest' }]
+      redisRef.current = {
+        get: vi.fn(async (key: string) => (key.endsWith(':v1') ? legacy : null)),
+        set: vi.fn(),
+      }
+      mockFetchFailing()
+      vi.spyOn(console, 'error').mockImplementation(() => {})
+
+      // Act
+      const result = await searchExercises()
+
+      // Assert
+      expect(result).toEqual(legacy)
+    })
+
+    it('never lets the legacy snapshot suppress a refresh (it is always stale)', async () => {
+      // Arrange — v1 present, wger healthy: the undated legacy copy must lose.
+      const redis = {
+        get: vi.fn(async (key: string) =>
+          key.endsWith(':v1') ? [{ id: 73, name: 'Old Name', category: 'Chest' }] : null,
+        ),
+        set: vi.fn().mockResolvedValue('OK'),
+      }
+      redisRef.current = redis
+      mockFetchPages([[makeInfo(73, 'Bench Press', 'Chest', [])]])
+
+      // Act
+      const result = await searchExercises()
+
+      // Assert — refreshed, and written forward under v2.
+      expect(result.map((e) => e.name)).toEqual(['Bench Press'])
+      expect(redis.set).toHaveBeenCalledWith(
+        'wger:exercise-catalog:v2',
+        expect.objectContaining({ data: result }),
+        expect.anything(),
+      )
+    })
+
     it('still throws when the refresh fails and nothing is cached anywhere', async () => {
       // Arrange — the one remaining hole: cold Redis + a down upstream. An
       // error is correct here; there is genuinely nothing to serve.
-      redisRef.current = redisHolding(null)
+      redisRef.current = { get: vi.fn().mockResolvedValue(null), set: vi.fn() }
       mockFetchFailing()
 
       // Act + Assert

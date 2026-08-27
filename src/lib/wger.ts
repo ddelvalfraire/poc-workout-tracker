@@ -37,6 +37,12 @@ const MAX_LIMIT = 100
 // small, so we cache that in Redis. Bump the version suffix if the stored
 // shape changes — v2 wraps the array in a `fetchedAt` envelope.
 const REDIS_CATALOG_KEY = 'wger:exercise-catalog:v2'
+// The shape this replaced: a bare Exercise[] with no timestamp. Read ONLY as a
+// last resort, and only until v2 is written. Without it the deploy that ships
+// v2 opens the exact window this change exists to close — v2 absent, a good v1
+// snapshot sitting right there in Redis, and a wger outage taking the catalog
+// down anyway. Safe to delete once every environment has served a v2 write.
+const REDIS_CATALOG_LEGACY_KEY = 'wger:exercise-catalog:v1'
 // Retention, NOT freshness. v1 gave the key a 24h TTL, which destroyed the
 // snapshot at exactly the moment it stopped being fresh — so a cold instance
 // during a wger outage had nothing to fall back on and the catalog (and with
@@ -223,13 +229,21 @@ function isCatalogSnapshot(value: unknown): value is CatalogSnapshot {
 }
 
 /** Reads the catalog snapshot from Redis. Never throws — returns null on miss,
- *  malformed payload, or error. May be STALE; the caller decides. */
+ *  malformed payload, or error. May be STALE; the caller decides.
+ *
+ *  Falls back to the v1 key when v2 is absent, dating it to the epoch: a bare
+ *  array carries no age, so it is permanently stale — it can never suppress a
+ *  refresh, only rescue one that fails. */
 async function readCatalogFromRedis(): Promise<CatalogSnapshot | null> {
   const redis = getRedis()
   if (!redis) return null
   try {
     const stored = await redis.get<unknown>(REDIS_CATALOG_KEY)
-    return isCatalogSnapshot(stored) ? stored : null
+    if (isCatalogSnapshot(stored)) return stored
+    const legacy = await redis.get<unknown>(REDIS_CATALOG_LEGACY_KEY)
+    return Array.isArray(legacy) && legacy.length > 0
+      ? { data: legacy as Exercise[], fetchedAt: 0 }
+      : null
   } catch (error: unknown) {
     console.error('Redis read failed for exercise catalog', error)
     return null
