@@ -305,7 +305,8 @@ describe('templateToDraft', () => {
 
     // Act + Assert
     expect(
-      templateToDraft(template, new Map([['wger:73', { category: 'Legs' }]])).draft.exercises[0]
+      templateToDraft(template, new Map([['wger:73', { id: 73, name: 'Squat', category: 'Legs' }]]))
+        .draft.exercises[0]
         .category,
     ).toBe('Legs')
     expect(templateToDraft(template, null).draft.exercises[0].category).toBe('')

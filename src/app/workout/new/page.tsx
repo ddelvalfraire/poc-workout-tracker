@@ -10,7 +10,7 @@ import {
 import { getWorkoutDetail, hasAnyCompletedWorkout } from '@/db/workouts'
 import { getWorkoutTemplateDetail } from '@/db/workout-templates'
 import { getWorkoutDraft } from '@/db/workout-drafts'
-import { loadExerciseCatalog } from '@/db/programs'
+import { getExerciseCatalog } from '@/db/exercise-catalog'
 import { templateToDraft } from '@/lib/workout-template'
 import { WorkoutLogger } from './workout-logger'
 import { detailToDraft } from './workout-draft'
@@ -38,7 +38,7 @@ export default async function NewWorkoutPage({
   // stale or deleted id falls back to the stored draft rather than presenting
   // an empty logger while a live draft exists. `from` outranks `template` —
   // repeating a concrete session is the more specific intent.
-  const [unit, source, templateSource, draftRow, hasWorkoutHistory] = await Promise.all([
+  const [unit, source, templateSource, draftRow, hasWorkoutHistory, catalog] = await Promise.all([
     getWeightUnit(userId),
     fromId ? getWorkoutDetail(userId, fromId) : Promise.resolve(undefined),
     templateId ? getWorkoutTemplateDetail(userId, templateId) : Promise.resolve(undefined),
@@ -46,21 +46,22 @@ export default async function NewWorkoutPage({
     // Server truth for the logger's PREV column: decided BEFORE first paint
     // so the column's presence never shifts when client queries settle.
     hasAnyCompletedWorkout(userId),
+    // Category (the muscle line under each exercise name) is catalog data, not
+    // a persisted column, so a repeated or template-seeded session would show
+    // it only for exercises picked in-session. Unconditional and in THIS
+    // batch: gating it on the seed would make it wait for this very batch's
+    // results, and the wger half is a warm in-memory read anyway.
+    getExerciseCatalog(userId),
   ])
   // Equipment and the rest default are independent preference reads — one
   // round-trip of latency instead of two.
-  const [equipment, defaultRestSec, restTimerEnabled, rpeLoggingEnabled, weightStep, catalog] =
+  const [equipment, defaultRestSec, restTimerEnabled, rpeLoggingEnabled, weightStep] =
     await Promise.all([
       getEquipment(userId, unit),
       getDefaultRestSec(userId),
       getRestTimerEnabled(userId),
       getRpeLoggingEnabled(userId),
       getWeightStep(userId),
-      // Only the seeded paths need it: the muscle line under each exercise
-      // name is catalog data, not a persisted column, so a repeated or
-      // template-seeded session would otherwise show it only for exercises
-      // picked in-session. A restored draft already carries its own.
-      source || templateSource ? loadExerciseCatalog(userId) : null,
     ])
   // resetCompleted: repeating an old workout starts a fresh session — no
   // checked-off sets carried over from the source. A template seeds

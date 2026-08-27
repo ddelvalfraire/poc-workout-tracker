@@ -14,11 +14,8 @@
  */
 import type { WorkoutDetail } from '@/db/workouts'
 import type { WorkoutTemplateDetail } from '@/db/workout-templates'
-import {
-  draftCategoryFor,
-  type DraftCategoryCatalog,
-  type WorkoutDraft,
-} from '@/app/workout/new/workout-draft'
+import type { WorkoutDraft } from '@/app/workout/new/workout-draft'
+import { catalogCategory, type ExerciseCatalog } from '@/lib/exercise-catalog'
 import {
   MIN_PLANNED_SETS,
   MAX_PLANNED_SETS,
@@ -120,7 +117,7 @@ export function deriveTemplateFromWorkout(workout: WorkoutDetail): WorkoutTempla
  */
 export function templateToDraft(
   template: WorkoutTemplateDetail,
-  catalog?: DraftCategoryCatalog | null,
+  catalog?: ExerciseCatalog | null,
 ): {
   draft: WorkoutDraft
   name: string
@@ -131,7 +128,7 @@ export function templateToDraft(
     source: exercise.source,
     name: exercise.name,
     // Not persisted on templates — catalog data, same lookup as detailToDraft.
-    category: draftCategoryFor(catalog, exercise.source, exercise.wgerExerciseId),
+    category: catalogCategory(catalog, exercise.source, exercise.wgerExerciseId),
     loggingType: exercise.loggingType,
     notes: exercise.notes ?? '',
     skipped: false,
