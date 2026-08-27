@@ -1,7 +1,8 @@
-# Diet phase is an episode, not a flag on a block
+# Diet phase: fix what it does, then where it lives
 
-Why the "Still cutting?" card cannot fire for the lifter it was built for, where
-the state belongs instead, and why we ask rather than infer.
+The suppression rests on a premise the evidence does not support; the flag is
+also in the wrong place and cannot fire for the lifter it was built for. Both
+are fixable, and the first one matters more.
 
 - Status: design decision / pending implementation
 - Date: 2026-08-27
@@ -70,6 +71,7 @@ the lifter. It is stored on the plan.
 diet_phase_episode
   user_id
   phase              'cutting' | 'maintaining' | 'bulking'
+  target_rate_pct_per_week  numeric | null  -- see 08a; Garthe's 0.7 vs 1.4
   started_on         date          -- valid time; user-editable
   ended_on           date | null   -- null = ongoing
   source             'declared' | 'confirmed' | 'auto_closed'
@@ -133,11 +135,12 @@ Evidence-led, and **the evidence comes from training data, not bodyweight** —
 which is 100% covered by definition, is the thing actually being suppressed,
 and couples nothing:
 
-> Backoffs held on Squat and Bench 4 times over 9 weeks. Still cutting?
+> Volume trimmed instead of load on Squat and Bench 4 times over 9 weeks.
+> Still cutting?
 
 Buttons state the consequence, not the state change, matching `OvershootField`:
 
-> **Still cutting — keep holding backoffs** · **Cut's over — resume automatic backoffs**
+> **Still cutting — keep protecting load** · **Cut's over — back to normal progression**
 
 Card, not modal: this is a state refresh, not a destructive confirmation, and a
 routine modal trains dismissal.
@@ -147,8 +150,9 @@ re-prompt at +2 and +4, then **auto-close to `maintaining` at ~14–16 weeks wit
 a visible one-tap undo**. Back off on repeated confirmation rather than
 escalating — the iOS background-location model, which also shows its evidence
 before asking. Auto-close is safe because the failure is asymmetric: wrongly
-ending a cut re-arms a rule the lifter can decline, wrongly leaving one open
-disables safety logic indefinitely. Fail toward the observable state.
+ending a cut restores ordinary progression the lifter can see and correct,
+wrongly leaving one open alters the engine indefinitely. Fail toward the
+observable state.
 
 **Bodyweight, if present, may only ever bring the prompt EARLIER** and add a
 line to it — gated on real density (≥12 weighings in the last 28 days, and a
@@ -163,35 +167,94 @@ post-cut stall — almost certainly refeed noise while glycogen returns —
 triggers a load cut on a lifter who is about to start progressing again. This
 is Oura's Rest Mode easing period, and the current design has no equivalent.
 
-## 08 · Fix the copy regardless
+## 08 · The premise is wrong, so change the remedy — not just the copy
 
 `autoregulate.ts` currently says:
 
 > Hold {load} — 3 stalls is expected while cutting and holding is the win.
 
-The claim is not supported. The meta-analytic finding (Murphy & Koehler 2022)
-is that an energy deficit impairs **lean mass** gains but **not** strength — so
-strength is the resilient adaptation in a deficit, and three consecutive
-failures to *add* load are expected while *losing* load is a warning sign. The
-adjacent folk claim that reducing load during a cut is harmful is lore; a 10%
-reduction leaves the lifter far above any intensity threshold where the
-strength stimulus disappears.
+**"Holding is the win" is well supported. "3 stalls is expected" is not, and is
+contradicted by the only trial that reports session-level load behaviour under
+restriction.**
 
-The honest justification is a control-systems one, and it is stronger:
+- **Murphy & Koehler 2022** (*Scand J Med Sci Sports*, PMID 34623696): an energy
+  deficit impairs lean-mass gains (ES −0.57, p = 0.02) but **not** strength
+  gains (ES −0.31, p = 0.28). Across 52 studies both conditions gained strength
+  with near-identical effects (0.84 vs 0.81). Our stall detector keys on *load
+  progression* — the variable a deficit affects least.
+- **Roth 2023** (PMID 36114738): trained males, six weeks at 30 kcal/kg,
+  **both groups continuously increased training loads**. There is no
+  quantitative literature on stall frequency in a deficit, and the one direct
+  observation runs the other way.
+- **Spiering 2021** (PMID 33629972), **Bickel 2011** (PMID 21131862),
+  **Mujika & Padilla 2000** (PMID 10999420): strength and size are maintained
+  on as little as one session a week and one set per exercise — *provided
+  relative load is maintained*. Volume is the disposable variable; **load is
+  the protected one.**
 
-> While cutting we hold automatic backoffs — otherwise a normal flat patch
-> ratchets your training max down for a reason that was never fatigue. Deload
-> if sessions feel grindy.
+A ~10% training-max cut attacks the protected variable. So the current
+suppression reaches a defensible outcome by the wrong route: it mutes the
+signal rather than acting on it.
 
-This is the copy change to make even if nothing else here ships.
+**Decision: on a stall while the lifter is in a deficit, cut VOLUME, not load.**
+
+That is what the maintenance literature actually supports, it is what Helms and
+RP prescribe in practice, and it is strictly better than suppression because it
+*responds* to the stall instead of ignoring it. Secondarily, **slow the
+increment** during a declared deficit so fewer stalls are generated at all.
+
+The copy follows from the mechanism rather than asserting physiology:
+
+> While cutting we trim volume instead of cutting your load — load is the thing
+> worth protecting. Deload if sessions feel grindy.
+
+Keep the "deload only if grindy" clause verbatim. It re-routes the decision from
+a *progression* signal (uninformative in a deficit) to a *fatigue* signal (still
+informative), and it is the best-designed part of the current system.
+
+### 08a · Rate is a better input than a binary flag
+
+**Garthe 2011** (PMID 21558571) is the cleanest evidence in the area: elite
+athletes losing at **0.7%/wk gained** lean mass and 1RM; at **1.4%/wk they did
+not**. The outcome tracks the *rate of loss*, not the existence of a deficit.
+
+So the episode carries `target_rate_pct_per_week`, and where the lifter has
+enough weigh-ins to estimate an actual rate (§05's density gate), the stall
+verdict can say the useful thing instead of the vague one:
+
+> You've stalled three times and you're losing at ~1.2%/wk. Slow the loss before
+> we touch the bar.
+
+That is the diagnosis-before-programming order every coaching source teaches,
+computed. **It is also the only place bodyweight earns a role: estimating a
+rate the lifter has already declared, never inferring the phase itself.**
+
+### 08b · The flagless alternative, recorded because it may be better
+
+Stronger by Science's templates contain no diet vocabulary at all. They handle
+the deficit with **asymmetric autoregulation**: the training max drops 5% below
+the lower threshold but rises only 2% above the upper one. A cut self-corrects
+downward faster than a surplus ratchets up, **without the system ever being told
+a cut is happening** — no flag, no timer, no card, no coupling.
+
+If we ever want to delete this whole surface, that is the shape to replace it
+with. Recorded deliberately: it is the cheapest correct thing in the survey.
 
 ## 09 · What is thin
 
 Stated plainly so nobody quotes this doc as settled:
 
-- **No trial answers the load-bearing question** — whether a deficit changes
-  the correct *response* to a stall, or only its expected *frequency*. Our read
-  is "mostly frequency, plus the ratcheting argument". That is a judgement.
+- **No trial has ever compared "reduce load on stall" versus "hold load through
+  stall"**, in a deficit or otherwise. §08's remedy is inference from adjacent
+  maintenance/detraining work, not a direct test.
+- **The weakest link in §08 is volume.** The maintenance literature is strong
+  that volume is disposable and load is protected — but the *deficit* literature
+  is genuinely contested. Stronger by Science found volume didn't meaningfully
+  change body composition in a deficit; RP prescribes high volume precisely to
+  retain muscle while cutting; Roth 2022 found studies that *increased* volume
+  fared better. "Cut volume on a stall" is our best read, not a settled answer.
+- **No quantitative data on stall frequency in a deficit exists at all.** The
+  current copy asserts something nobody has measured.
 - **`3` has no evidentiary basis.** It descends from the Starting Strength
   reset convention and 5/3/1's TM reset. It is a reasonable Schelling point
   trading false positives against wasted weeks; keep it, but do not defend it
@@ -199,18 +262,26 @@ Stated plainly so nobody quotes this doc as settled:
 - **The physiology citations were not re-verified** against primary sources
   when this was written. Check Murphy & Koehler, Garthe 2011, Longland 2016 and
   Helms 2014 before any of it reaches user-facing copy.
-- **The app survey is weak.** We could not confirm whether RP Hypertrophy or
-  Juggernaut AI branch training output on diet phase. The structural claim —
-  that diet phase is universally modelled as a time-boxed entity and never
-  inferred-then-applied-to-training — is a confident inference, not a survey.
+- **The app survey found almost no prior art for coupling at all**, which cuts
+  against the whole feature rather than just against inference. RP Hypertrophy —
+  from the company that wrote the book on diet phases — has **no diet field
+  anywhere**; its deloads are a pure timer. MacroFactor shipped a training app in
+  January 2026 and **deliberately decoupled it**, sharing body metrics but no
+  automatic program adjustments. Juggernaut's only nutrition→training link is a
+  daily readiness check-in, not a phase. The one product claiming phase-aware
+  training thresholds is a small indie app whose mechanism is undisclosed.
+  Treat "should this coupling exist at all" as genuinely open.
 - **Auto-close at 14–16 weeks is a judgement call** on asymmetric failure
   costs, not a researched pattern. Leaving the episode open and continuing to
   prompt is a defensible alternative.
 
 ## 10 · Order of work
 
-The copy fix (§08) is independent and should land first — it is a string, and
-the current one makes a claim we cannot support.
+**§08 lands first and is the highest-value change** — and it is more than a
+string. The copy is unsupported, and the remedy behind it attacks the one
+variable the evidence says to protect. Changing the stall response in a deficit
+from a load cut to a volume cut is a small, self-contained engine change that
+does not need the schema work.
 
 Everything else is one change: the episode table, a backfill from `diet_phase`
 + `diet_phase_set_at` (where the true `started_on` is genuinely unknown for
