@@ -21,6 +21,8 @@ import type * as NoteActions from "@/app/notes/actions";
 import type { NoteRow } from "@/db/notes";
 import type * as ProgramActions from "@/app/programs/actions";
 import type * as WorkoutActions from "@/app/workout/actions";
+// Type-only, erased at build: the cascade shape the un-complete guard reads.
+import type { UncompleteCascade } from "@/lib/uncomplete-cascade";
 import type * as MfaActions from "@/app/settings/account/mfa/actions";
 import type * as AccountActions from "@/app/settings/account/actions";
 import type * as OpsBillingActions from "@/app/ops/billing/actions";
@@ -53,6 +55,33 @@ export async function startProgramDayAction(
 /** `@/app/workout/actions` — discards an in-progress draft. */
 export async function deleteWorkoutDraftAction(key: unknown): Promise<void> {
   console.info("[storybook] deleteWorkoutDraftAction", key);
+  await settle(undefined);
+}
+
+/** `@/app/workout/actions` — the un-complete dry run. Resolves to a REAL
+ * cascade so the guard's dialog is reachable in the catalog; the stories that
+ * need the empty answer pass `previewOverride` instead. */
+export async function previewUncompleteAction(
+  id: string,
+): Promise<UncompleteCascade> {
+  console.info("[storybook] previewUncompleteAction", id);
+  return settle({ weekRollback: { from: 4, to: 3 }, blockReopens: false });
+}
+
+/** `@/app/workout/actions` — clears a session's completion stamp. */
+export async function uncompleteWorkoutAction(
+  id: string,
+): Promise<{ completedAt: string }> {
+  console.info("[storybook] uncompleteWorkoutAction", id);
+  return settle({ completedAt: "2026-08-14T17:04:00.000Z" });
+}
+
+/** `@/app/workout/actions` — puts a cleared completion stamp back (the undo). */
+export async function recompleteWorkoutAction(
+  id: string,
+  completedAt: unknown,
+): Promise<void> {
+  console.info("[storybook] recompleteWorkoutAction", id, completedAt);
   await settle(undefined);
 }
 
@@ -412,6 +441,24 @@ export type MockFidelity = [
     Matches<
       typeof deleteWorkoutAction,
       typeof WorkoutActions.deleteWorkoutAction
+    >
+  >,
+  Assert<
+    Matches<
+      typeof previewUncompleteAction,
+      typeof WorkoutActions.previewUncompleteAction
+    >
+  >,
+  Assert<
+    Matches<
+      typeof uncompleteWorkoutAction,
+      typeof WorkoutActions.uncompleteWorkoutAction
+    >
+  >,
+  Assert<
+    Matches<
+      typeof recompleteWorkoutAction,
+      typeof WorkoutActions.recompleteWorkoutAction
     >
   >,
   Assert<

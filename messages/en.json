@@ -2369,6 +2369,27 @@
     },
     "title": "Trophies"
   },
+  "UncompleteSession": {
+    "action": "Mark not finished",
+    "pending": "Checking…",
+    "error": "Could not change this session. Please try again.",
+    "cascade": {
+      "week": "Your block goes back to week {to}. It's on week {from} now.",
+      "targets": "Next session's targets are worked out again.",
+      "blockReopens": "Your block stops counting as finished."
+    },
+    "dialog": {
+      "title": "Un-complete this session?",
+      "confirm": "Un-complete",
+      "cancel": "Keep it completed",
+      "pending": "Un-completing…"
+    },
+    "undo": {
+      "action": "Undo",
+      "message": "Session marked not finished",
+      "messageWithWeek": "Session marked not finished · block back to week {week}"
+    }
+  },
   "UnitToggle": {
     "groupLabel": "Weight unit",
     "saveError": "Didn’t save — tap again"

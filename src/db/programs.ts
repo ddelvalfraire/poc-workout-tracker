@@ -1060,7 +1060,21 @@ export async function programWeekState(
   userId: string,
   programId: string,
   mesocycleWeeks: number,
+  // A DRY RUN of the same rule with one session held out. There is no stored
+  // week counter to simulate against, so the only honest way to answer "where
+  // would this block sit if that workout stopped counting?" is to re-run the
+  // rule with the row excluded and diff the two answers — see
+  // `uncompleteCascade`. Omitted, this is the shipped behaviour exactly.
+  options: { excludeWorkoutId?: string } = {},
 ): Promise<ProgramWeekState> {
+  // Folded into BOTH predicates below, never just one: the held-out row has
+  // to vanish from the max() read and from the days-done count together, or
+  // the two halves disagree about what exists and the dry run reports a week
+  // that no un-complete could ever produce.
+  const included =
+    options.excludeWorkoutId === undefined
+      ? undefined
+      : ne(workouts.id, options.excludeWorkoutId)
   // A workout counts toward the week axis only when it was actually TRAINED:
   // ≥1 completed set. `completedAt` alone is a weak proxy — MCP-created and
   // legacy rows can carry completedAt with zero completed sets, and such
@@ -1077,7 +1091,14 @@ export async function programWeekState(
     .select({ current: max(workouts.programWeek) })
     .from(workouts)
     .innerJoin(programDays, eq(programDays.id, workouts.programDayId))
-    .where(and(eq(programDays.programId, programId), eq(workouts.userId, userId), trainedWorkout))
+    .where(
+      and(
+        eq(programDays.programId, programId),
+        eq(workouts.userId, userId),
+        trainedWorkout,
+        included,
+      ),
+    )
   const current = agg?.current ?? null
   if (current === null) return { currentWeek: 1, blockComplete: false }
 
@@ -1102,6 +1123,7 @@ export async function programWeekState(
           // completedAt stamp (see trainedWorkout above).
           isNotNull(workouts.completedAt),
           trainedWorkout,
+          included,
         ),
       ),
   ])

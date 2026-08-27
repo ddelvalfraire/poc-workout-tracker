@@ -8,6 +8,7 @@ import {
   gt,
   inArray,
   isNotNull,
+  isNull,
   lt,
   max,
   ne,
@@ -829,6 +830,96 @@ function deriveSetEvents(
     })
   }
   return events
+}
+
+/**
+ * Clears an owned workout's completion stamp, and says so in the log.
+ *
+ * The ONLY write in this module that walks `completedAt` backwards —
+ * everything else coalesces, so completion has been set-once until now. The
+ * instant that was cleared comes back, and it is what `recompleteWorkout`
+ * must be handed to undo this: re-stamping with `now()` would quietly move a
+ * session to today, the wrong-day corruption the provenance rules exist to
+ * prevent.
+ *
+ * Null back means nothing was un-completed — missing, not owned, or already
+ * incomplete. Idempotent by construction, so a double-tap writes one event.
+ */
+export async function uncompleteWorkout(
+  userId: string,
+  id: string,
+  context: WorkoutChangeContext,
+): Promise<{ completedAt: Date } | null> {
+  return db.transaction(async (tx) => {
+    // Read the stamp before clearing it: `returning()` gives the AFTER image,
+    // and the whole point of this call is to hand the before image back for
+    // the undo. Inside the transaction, so the read and the write agree.
+    const [before] = await tx
+      .select({ completedAt: workouts.completedAt })
+      .from(workouts)
+      .where(and(eq(workouts.id, id), eq(workouts.userId, userId)))
+    if (!before || before.completedAt === null) return null
+
+    const [row] = await tx
+      .update(workouts)
+      .set({ completedAt: null })
+      .where(and(eq(workouts.id, id), eq(workouts.userId, userId), isNotNull(workouts.completedAt)))
+      .returning({ id: workouts.id })
+    if (!row) return null
+
+    await recordWorkoutEvent(tx, {
+      workoutId: id,
+      userId,
+      // An AMENDMENT, not a system write: this contradicts what the record
+      // said — the session was finished, and now it is not.
+      kind: 'amendment',
+      actor: context.actor,
+      action: 'uncomplete_workout',
+      summary: 'Session marked not finished',
+      changed: ['completedAt'],
+      before: { completedAt: before.completedAt.toISOString() },
+      after: { completedAt: null },
+    })
+    return { completedAt: before.completedAt }
+  })
+}
+
+/**
+ * Restores a completion stamp cleared by `uncompleteWorkout` — the undo half.
+ *
+ * `completedAt` is passed IN rather than defaulted to now(): the undo has to
+ * put the session back on the day it happened, and the append-only log keeps
+ * both moves rather than pretending neither did.
+ *
+ * Null back when the row is missing, not owned, or already complete.
+ */
+export async function recompleteWorkout(
+  userId: string,
+  id: string,
+  completedAt: Date,
+  context: WorkoutChangeContext,
+): Promise<{ id: string } | null> {
+  return db.transaction(async (tx) => {
+    const [row] = await tx
+      .update(workouts)
+      .set({ completedAt })
+      .where(and(eq(workouts.id, id), eq(workouts.userId, userId), isNull(workouts.completedAt)))
+      .returning({ id: workouts.id })
+    if (!row) return null
+
+    await recordWorkoutEvent(tx, {
+      workoutId: id,
+      userId,
+      kind: 'amendment',
+      actor: context.actor,
+      action: 'recomplete_workout',
+      summary: 'Session marked finished again',
+      changed: ['completedAt'],
+      before: { completedAt: null },
+      after: { completedAt: completedAt.toISOString() },
+    })
+    return { id: row.id }
+  })
 }
 
 /** Deletes a workout (and its children, via FK cascade) only if owned by the user. */

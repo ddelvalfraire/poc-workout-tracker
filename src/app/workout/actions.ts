@@ -7,6 +7,8 @@ import {
   saveWorkout,
   updateWorkout,
   deleteWorkout,
+  uncompleteWorkout,
+  recompleteWorkout,
   getLastPerformance,
   getWorkoutDetail,
   hasAnyCompletedWorkout,
@@ -30,6 +32,7 @@ import { getWorkoutDraft, putWorkoutDraft, deleteWorkoutDraft } from '@/db/worko
 import { createWorkoutShare, revokeWorkoutShare } from '@/db/workout-shares'
 import { isDraftPayload, DRAFT_TTL_MS, draftKey } from '@/app/workout/new/draft-payload'
 import type { WorkoutEventKind } from '@/db/workout-events'
+import { uncompleteCascade, type UncompleteCascade } from '@/db/uncomplete-cascade'
 
 /**
  * Validates and persists a workout for the signed-in user, returning the new id.
@@ -522,4 +525,54 @@ export async function putWorkoutDraftAction(key: unknown, payload: unknown): Pro
 export async function deleteWorkoutDraftAction(key: unknown): Promise<void> {
   const userId = await requireUserId()
   await deleteWorkoutDraft(userId, parseDraftKey(key))
+}
+
+/**
+ * The cascade of un-completing a session, WITHOUT performing it — what the
+ * guard dialog needs before it decides whether to exist.
+ *
+ * Split from the write on purpose: the modal is gated on the cascade being
+ * real, so the answer has to arrive before anything is written. It is one
+ * round-trip on a rare action, which beats paying for the dry run on every
+ * summary-page render.
+ */
+export async function previewUncompleteAction(id: string): Promise<UncompleteCascade> {
+  const userId = await requireUserId()
+  return uncompleteCascade(userId, id)
+}
+
+/**
+ * Clears an owned session's completion stamp, returning the instant that was
+ * cleared so the client can offer a truthful undo.
+ *
+ * The ISO string, not a Date: this crosses the server-action boundary, and a
+ * caller handing the instant back to `recompleteWorkoutAction` must send back
+ * exactly what it was given. Throws when nothing was un-completed, so a
+ * client never shows an undo for a write that did not happen.
+ */
+export async function uncompleteWorkoutAction(id: string): Promise<{ completedAt: string }> {
+  const userId = await requireUserId()
+  const result = await uncompleteWorkout(userId, id, { actor: 'ui', kind: 'amendment' })
+  if (!result) throw new Error('workout not found')
+  revalidatePath('/')
+  revalidatePath(`/workout/${id}`)
+  return { completedAt: result.completedAt.toISOString() }
+}
+
+/**
+ * Puts a cleared completion stamp back — the undo half.
+ *
+ * The instant is re-validated here rather than trusted: a server action is a
+ * public boundary, and an unparseable or absent stamp must be refused rather
+ * than silently become `now()`, which would move the session to today.
+ */
+export async function recompleteWorkoutAction(id: string, completedAt: unknown): Promise<void> {
+  const userId = await requireUserId()
+  if (typeof completedAt !== 'string') throw new Error('invalid completion time')
+  const stamp = new Date(completedAt)
+  if (Number.isNaN(stamp.getTime())) throw new Error('invalid completion time')
+  const result = await recompleteWorkout(userId, id, stamp, { actor: 'ui', kind: 'amendment' })
+  if (!result) throw new Error('workout not found')
+  revalidatePath('/')
+  revalidatePath(`/workout/${id}`)
 }

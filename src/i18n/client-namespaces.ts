@@ -111,6 +111,7 @@ export const CLIENT_NAMESPACES = [
   'TodayRecap',
   'TrendChart',
   'Trophies',
+  'UncompleteSession',
   'UnitToggle',
   'UpNextAnchor',
   'UpgradePanel',
