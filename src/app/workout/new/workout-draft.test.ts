@@ -722,6 +722,9 @@ describe('detailToDraft', () => {
       programDayId: null,
       programWeek: null,
       importBatchId: null,
+      programDaySlotKey: null,
+      programDayName: null,
+      programDayPosition: null,
       notes: null,
       exercises: [
         {
@@ -777,6 +780,9 @@ describe('detailToDraft', () => {
       programDayId: null,
       programWeek: null,
       importBatchId: null,
+      programDaySlotKey: null,
+      programDayName: null,
+      programDayPosition: null,
       notes: null,
       exercises: [
         {
@@ -820,6 +826,9 @@ describe('detailToDraft', () => {
       programDayId: null,
       programWeek: null,
       importBatchId: null,
+      programDaySlotKey: null,
+      programDayName: null,
+      programDayPosition: null,
       notes: 'cut short',
       exercises: [
         {
@@ -878,6 +887,9 @@ describe('detailToDraft', () => {
       programDayId: null,
       programWeek: null,
       importBatchId: null,
+      programDaySlotKey: null,
+      programDayName: null,
+      programDayPosition: null,
       notes: null,
       exercises: [
         {
@@ -917,6 +929,9 @@ describe('detailToDraft', () => {
       programDayId: null,
       programWeek: null,
       importBatchId: null,
+      programDaySlotKey: null,
+      programDayName: null,
+      programDayPosition: null,
       notes: null,
       exercises: [
         {
@@ -956,6 +971,9 @@ describe('detailToDraft', () => {
       programDayId: null,
       programWeek: null,
       importBatchId: null,
+      programDaySlotKey: null,
+      programDayName: null,
+      programDayPosition: null,
       notes: null,
       exercises: [],
     }
@@ -1253,6 +1271,9 @@ describe('detailToDraft effort round-trip', () => {
       id: 'w1', userId: 'u1', name: null, startedAt: new Date(), completedAt: null,
       originalRecordedAt: null,
       createdAt: new Date(), programDayId: null, programWeek: null, importBatchId: null,
+      programDaySlotKey: null,
+      programDayName: null,
+      programDayPosition: null,
       notes: null,
       exercises: [
         {
@@ -1437,6 +1458,9 @@ describe('cardio metric modes (slice 1)', () => {
       programDayId: null,
       programWeek: null,
       importBatchId: null,
+      programDaySlotKey: null,
+      programDayName: null,
+      programDayPosition: null,
       notes: null,
       exercises: [
         {
@@ -1658,6 +1682,9 @@ describe('SET_SET_TECHNIQUE (the set-type picker\'s technique arm)', () => {
       programDayId: null,
       programWeek: null,
       importBatchId: null,
+      programDaySlotKey: null,
+      programDayName: null,
+      programDayPosition: null,
       notes: null,
       exercises: [
         {

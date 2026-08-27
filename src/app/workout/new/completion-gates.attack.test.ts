@@ -253,6 +253,9 @@ describe('#206 at the trust boundary (legacy/stale drafts cannot re-persist the 
     programDayId: null,
     programWeek: null,
     importBatchId: null,
+      programDaySlotKey: null,
+      programDayName: null,
+      programDayPosition: null,
     notes: null,
     exercises: [
       {

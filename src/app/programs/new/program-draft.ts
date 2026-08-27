@@ -97,6 +97,12 @@ export interface DraftProgramExercise {
 export interface DraftProgramDay {
   /** Stable client id, used only for React keys — never persisted. */
   id: string
+  /** Pass-through: the day's DURABLE slot identity (program_days.slot_key),
+   *  carried from the stored program and re-emitted at save time so a save —
+   *  which is a full replace — can re-attach the workouts logged against this
+   *  day instead of orphaning them. Absent on days the builder just added
+   *  (nothing to preserve) and on drafts snapshotted before the field existed. */
+  slotKey?: string
   name: string
   /** Pass-through: day notes aren't edited by the builder. */
   notes: string | null
@@ -670,6 +676,9 @@ export function draftToProgramInput(
 ): ProgramInputPayload {
   const trimmedName = draft.name.trim()
   const days = draft.days.map((day) => ({
+    // Provenance, not content: re-emitted verbatim so updateProgram can match
+    // this day to the slot it came from (db/programs.ts matchDaySlots).
+    slotKey: day.slotKey,
     name: day.name,
     notes: day.notes,
     weekdays: day.weekdays,
@@ -808,6 +817,7 @@ export function detailToProgramDraft(
     sourceUrl: detail.sourceUrl,
     days: detail.days.map((day) => ({
       id: day.id,
+      slotKey: day.slotKey,
       name: day.name,
       notes: day.notes,
       weekdays: day.weekdays,

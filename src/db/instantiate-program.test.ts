@@ -130,6 +130,7 @@ function dayFixture(options: {
 }) {
   return {
     id: 'd1',
+    slotKey: 'slot-d1',
     name: 'Push',
     position: 0,
     program: {
@@ -293,12 +294,18 @@ describe('instantiateProgramDay (engine-driven)', () => {
     // Act
     const result = await instantiateProgramDay(USER, 'd1', 3, 'ui')
 
-    // Assert — provenance stamps the explicit week
+    // Assert — provenance stamps the explicit week, the DURABLE slot key (the
+    // identity that survives a full-replace program save, which re-mints
+    // `programDayId`), and the frozen plan facts: what the day was called and
+    // where it sat AT THE TIME IT WAS TRAINED.
     expect(records[0].values).toEqual({
       userId: USER,
       name: 'Push',
       programDayId: 'd1',
       programWeek: 3,
+      programDaySlotKey: 'slot-d1',
+      programDayName: 'Push',
+      programDayPosition: 0,
     })
     // reps_weight set carries the DERIVED load; duration set seeds no weight.
     expect(seededSets()).toEqual([
