@@ -688,6 +688,36 @@ export default async function ProgramDetailPage({
                     </p>
                   )}
 
+                  {/* HANDOFF — for the editor rework, three things this
+                      change left behind. Deliberate, not forgotten:
+
+                      1. THIS TABLE SHOULD BE A COMPONENT. It is ~170 lines
+                         inside a page that is now 1113 lines, over the 800
+                         ceiling in CLAUDE.md. Because it lives in an RSC it
+                         has NO Storybook coverage, so its riskiest cases —
+                         a 39-char exercise name, "402.5 lb", bodyweight,
+                         timed/distance, a one-day week, the conditional
+                         superset column that changes the column count — are
+                         asserted in tests but have never been SEEN rendering.
+                         Extracting it fixes the file size and the coverage
+                         gap in one move.
+
+                      2. VOLT IS INCONSISTENT BETWEEN THIS PAGE AND STATS.
+                         The stats page now renders its status word muted, on
+                         the reasoning that an ACTIVE badge spends the screen's
+                         one volt on a fact you knew by navigating there. This
+                         page still renders it volt (see the AppHeader trailing
+                         above), and also carries per-item volt on the Done
+                         badge and the in-progress dot inside the day map —
+                         which is the stacking #163 bans. All of that predates
+                         this change and was left alone to avoid a drive-by,
+                         but the two pages now disagree and one of them should
+                         move.
+
+                      3. src/app/programs/new/program-settings.tsx is still
+                         absent from I18N_MIGRATED because of pre-existing
+                         enum-value literals (value="all-sets" / "first-set").
+                         It joins the list in whichever PR fixes those. */}
                   {showTargets ? (
                     (() => {
                       // The day's plan as a TABLE. The string this replaces —
