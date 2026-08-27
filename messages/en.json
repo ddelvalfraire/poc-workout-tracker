@@ -1578,6 +1578,36 @@
   "ProgramEdit": {
     "title": "Edit Program"
   },
+  "ProgramEditor": {
+    "beyondBlock": "past the block",
+    "dayNumber": "Day {position}",
+    "dayUnaddressed": "Pick a day to see its sets.",
+    "daysEmpty": "No training days yet.",
+    "daysLabel": "Training days",
+    "daysTitle": "Days",
+    "deload": "Deload",
+    "exerciseCount": "{count, plural, one {# exercise} other {# exercises}}",
+    "exercisesEmpty": "No exercises in this day.",
+    "inspectorClose": "Close inspector",
+    "inspectorTitle": "Exercise",
+    "progressionEmpty": "This exercise has no progression set.",
+    "progressionTitle": "Progression",
+    "setCount": "{count, plural, one {# set} other {# sets}}",
+    "setLoad": "{load} {unit}",
+    "setNumber": "Set {number}",
+    "setOverridden": "this week only",
+    "setReps": "{min}–{max} reps",
+    "setRepsExact": "{reps, plural, one {# rep} other {# reps}}",
+    "setRir": "{rir} RIR",
+    "setRpe": "RPE {rpe}",
+    "setUnset": "Nothing prescribed",
+    "surfaceLabel": "Program editor",
+    "techniqueEmpty": "No intensity techniques on these sets.",
+    "techniqueTitle": "Technique",
+    "week": "Week {week}",
+    "weeksLabel": "Mesocycle weeks",
+    "weeksTitle": "Weeks"
+  },
   "ProgramNew": {
     "title": "New Program"
   },
