@@ -32,6 +32,7 @@ export const CLIENT_NAMESPACES = [
   'ConfirmDialog',
   'ConsentForm',
   'ConsistencyProgress',
+  'CorrectionReach',
   'CreateExerciseForm',
   'CustomExerciseEditor',
   'DeleteAccountForm',

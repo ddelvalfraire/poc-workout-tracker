@@ -331,6 +331,18 @@
     "targetSummary": "Target {weeks, plural, one {# week} other {# weeks}}",
     "weeksUnit": "wks"
   },
+  "CorrectionReach": {
+    "title": "This changes",
+    "item": {
+      "bestE1rm": "{dated, select, yes {Your best {name} set — {value} from {date} is no longer your top lift.} other {Your best {name} set — {value} is no longer your top lift.}}",
+      "heaviestLoad": "{dated, select, yes {Your heaviest {name} — {value} from {date}.} other {Your heaviest {name} — {value}.}}",
+      "mostReps": "{dated, select, yes {Your most {name} reps in a set — {value} from {date}.} other {Your most {name} reps in a set — {value}.}}",
+      "bestSessionVolume": "{dated, select, yes {Your biggest {name} session — {value} of work on {date}.} other {Your biggest {name} session — {value} of work.}}"
+    },
+    "settled": {
+      "trainingMax": "Your training max stays at {value}. It went up on {date} and you’ve trained {sessions, plural, one {one session} other {# sessions}} there since."
+    }
+  },
   "CreateExerciseForm": {
     "categoryLabel": "Category",
     "categoryPlaceholder": "Category…",

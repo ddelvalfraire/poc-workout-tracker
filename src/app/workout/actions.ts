@@ -33,6 +33,9 @@ import { createWorkoutShare, revokeWorkoutShare } from '@/db/workout-shares'
 import { isDraftPayload, DRAFT_TTL_MS, draftKey } from '@/app/workout/new/draft-payload'
 import type { WorkoutEventKind } from '@/db/workout-events'
 import { uncompleteCascade, type UncompleteCascade } from '@/db/uncomplete-cascade'
+import { correctionReachFor, type SetCorrection } from '@/db/correction-reach'
+import { settledTrainingMax } from '@/db/settled-training-max'
+import type { CorrectionReach } from '@/lib/record-reach'
 
 /**
  * Validates and persists a workout for the signed-in user, returning the new id.
@@ -575,4 +578,65 @@ export async function recompleteWorkoutAction(id: string, completedAt: unknown):
   if (!result) throw new Error('workout not found')
   revalidatePath('/')
   revalidatePath(`/workout/${id}`)
+}
+
+/**
+ * GUARD 2's read — how far a proposed correction would reach, at SAVE-INTENT.
+ *
+ * Never per keystroke: the aggregation is a scan of the exercise's history,
+ * and a disclosure that re-renders on every digit is one the reader learns to
+ * ignore before they have finished typing the number.
+ *
+ * Null means the correction reaches nothing — an ordinary typo fix, which
+ * gets no disclosure at all. Failures are NOT swallowed here: a guard that
+ * silently returns "nothing moves" when it could not tell would be worse than
+ * no guard, so the client surfaces the error instead.
+ */
+export async function previewCorrectionReachAction(
+  workoutId: string,
+  source: unknown,
+  wgerExerciseId: unknown,
+  edit: unknown,
+): Promise<CorrectionReach | null> {
+  const userId = await requireUserId()
+  // A server action is a public boundary: the exercise identity and the set
+  // address arrive as whatever the browser sent. parseSourceParam is this
+  // module's existing gate — one validator, not a second spelling of it.
+  const exerciseSource = parseSourceParam(source)
+  if (typeof wgerExerciseId !== 'number' || !Number.isInteger(wgerExerciseId)) {
+    throw new Error('invalid exercise id')
+  }
+  const correction = parseSetCorrection(workoutId, edit)
+  // The settled decision is read alongside the reach, not inside it: a
+  // training max lives in the program's progression, and the reach module is
+  // deliberately about the record board alone.
+  const settled = await settledTrainingMax(userId, workoutId, exerciseSource, wgerExerciseId)
+  return correctionReachFor(userId, exerciseSource, wgerExerciseId, correction, settled)
+}
+
+/** The set address + the proposed values, validated at the boundary. An
+ *  omitted `reps`/`weightKg` means "unchanged"; an explicit null means
+ *  cleared, which is a different fact and must survive the round-trip. */
+function parseSetCorrection(workoutId: string, edit: unknown): SetCorrection {
+  if (typeof edit !== 'object' || edit === null) throw new Error('invalid correction')
+  const record = edit as Record<string, unknown>
+  const { exercisePosition, setNumber, reps, weightKg } = record
+  if (!Number.isInteger(exercisePosition) || !Number.isInteger(setNumber)) {
+    throw new Error('invalid correction address')
+  }
+  const optionalNumber = (value: unknown, field: string): number | null | undefined => {
+    if (value === undefined) return undefined
+    if (value === null) return null
+    if (typeof value !== 'number' || !Number.isFinite(value)) {
+      throw new Error(`invalid correction ${field}`)
+    }
+    return value
+  }
+  return {
+    workoutId,
+    exercisePosition: exercisePosition as number,
+    setNumber: setNumber as number,
+    reps: optionalNumber(reps, 'reps'),
+    weightKg: optionalNumber(weightKg, 'weight'),
+  }
 }
