@@ -9,7 +9,7 @@ import {
   getRestTimerEnabled,
   getRpeLoggingEnabled,
 } from '@/db/preferences'
-import { getProgramDayDetail } from '@/db/programs'
+import { getProgramDayDetail, loadExerciseCatalog } from '@/db/programs'
 import { deriveDayPrescription } from '@/db/prescriptions'
 import { expandTechniqueStages } from '@/lib/technique'
 import { getWorkoutDraft } from '@/db/workout-drafts'
@@ -137,7 +137,7 @@ export default async function EditWorkoutPage({
   ])
   if (!workout) notFound()
 
-  const [plan, equipment, defaultRestSec, restTimerEnabled, rpeLoggingEnabled, weightStep, draftRow] = await Promise.all([
+  const [plan, equipment, defaultRestSec, restTimerEnabled, rpeLoggingEnabled, weightStep, draftRow, catalog] = await Promise.all([
     loadPlanTargets(userId, workout, unit),
     getEquipment(userId, unit),
     getDefaultRestSec(userId),
@@ -147,6 +147,10 @@ export default async function EditWorkoutPage({
     // The logger's autosave key for this surface is the workout id; the write
     // path lower-cases keys at the action boundary, so read the same form.
     getWorkoutDraft(userId, id.toLowerCase()),
+    // The muscle line under each exercise name is catalog data, not a
+    // persisted workout column — without this lookup only exercises picked
+    // in-session (a replace) carried one. Failure-tolerant (null → no line).
+    loadExerciseCatalog(userId),
   ])
   // Server-side draft seeding: a live draft is newer than the workout rows it
   // was seeded from, so it wins over detailToDraft — resolved HERE to kill the
@@ -154,7 +158,7 @@ export default async function EditWorkoutPage({
   // draft). Shared TTL+codec helper; the client restore effect stays as the
   // cross-device race net.
   const restored = resolveDraftSeed(draftRow, { unit, now: new Date() })
-  const { draft, name } = restored ?? detailToDraft(workout, unit)
+  const { draft, name } = restored ?? detailToDraft(workout, unit, { catalog })
 
   return (
     <div className="flex min-h-[100dvh] flex-col">
