@@ -37,6 +37,9 @@ const POLICY_KEYS = {
 
 const POLICIES = Object.keys(POLICY_KEYS) as OvershootPolicy[]
 
+/** Catalog suffix for "no explicit policy". A key fragment, not copy. */
+const DEFAULT_KEY = 'default'
+
 /** What a movement is actually asked for, for the sheet's closing line. Null
  *  when the caller has no concrete prescription to show — a program-level
  *  default, or an exercise with no load-bearing set yet. */
@@ -104,7 +107,11 @@ export function OvershootField({
     }
   }, [isOpen])
 
-  const currentKey = value === null ? 'default' : POLICY_KEYS[value]
+  const currentKey = value === null ? DEFAULT_KEY : POLICY_KEYS[value]
+  // The preview always names a REAL rule, so it resolves the deferral rather
+  // than restating it. Derived from the policy, not from currentKey, so the
+  // unreachable 'default' branch never enters the key's type.
+  const previewKey = POLICY_KEYS[value ?? resolvesTo]
   const scope = exerciseName ?? null
   const sheetLabel =
     scope === null ? t('ariaLabelProgram') : t('ariaLabelExercise', { exerciseName: scope })
@@ -163,7 +170,10 @@ export function OvershootField({
               ref={closeButtonRef}
               size="icon-sm"
               variant="ghost"
-              className="-mr-1 shrink-0 text-muted-foreground"
+              // icon-sm is the shared sheet-dismiss size, so hit-44 recovers
+              // the touch floor instead of breaking the pattern. Safe here:
+              // its only neighbour is the heading block, a gap-3 away.
+              className="hit-44 -mr-1 shrink-0 text-muted-foreground"
               onClick={requestClose}
               aria-label={tCommon('close')}
             >
@@ -173,7 +183,7 @@ export function OvershootField({
 
           <ul className="mt-4 divide-y divide-border/60 border-y border-y-border/60">
             {[null, ...POLICIES].map((policy) => {
-              const key = policy === null ? 'default' : POLICY_KEYS[policy]
+              const key = policy === null ? DEFAULT_KEY : POLICY_KEYS[policy]
               const selected = policy === value
               return (
                 <li key={key}>
@@ -216,7 +226,11 @@ export function OvershootField({
               </p>
               <p className="tnum mt-1.5 text-sm leading-5 text-muted-foreground">
                 {t('preview.ask', { reps: preview.reps, load: preview.load })}{' '}
-                {t(`preview.${currentKey}`, { load: preview.load })}
+                {/* Deferring still shows a RULE. Saying "it follows the plan"
+                    here would move the question one level down — the whole
+                    failure this sheet exists to fix — so the default resolves
+                    to what it actually means for this movement. */}
+                {t(`preview.${previewKey}`, { load: preview.load })}
               </p>
             </div>
           )}

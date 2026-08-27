@@ -73,13 +73,6 @@ export function isHighRepEstimate(point: ProgramExercisePRPoint): boolean {
   return point.reps > MAX_RELIABLE_REPS
 }
 
-/**
- * Adherence over the COMPLETED portion of the block: Σ daysCompleted / Σ
- * plannedDays across weeks 1..currentWeek−1 as a whole percent. The current,
- * partial week is excluded — an honest Tuesday must not read as slacking.
- * Null when there's nothing behind you yet (week 1, or a dayless program) —
- * that's the early-block signal, not a zero.
- */
 /** Sessions actually completed against sessions the plan asked for, up to but
  *  excluding the current week — the same window blockAdherencePct scores, so
  *  the figure and the percentage can never disagree.
@@ -117,19 +110,24 @@ export function volumeCandidateLine(
   }
 }
 
+/**
+ * Adherence over the COMPLETED portion of the block: Σ daysCompleted / Σ
+ * plannedDays across weeks 1..currentWeek−1 as a whole percent. The current,
+ * partial week is excluded — an honest Tuesday must not read as slacking.
+ * Null when there's nothing behind you yet (week 1, or a dayless program) —
+ * that's the early-block signal, not a zero.
+ */
 export function blockAdherencePct(
   weeks: readonly ProgramWeekStats[],
   currentWeek: number,
 ): number | null {
-  let done = 0
-  let planned = 0
-  for (const w of weeks) {
-    if (w.week >= currentWeek) continue
-    done += w.daysCompleted
-    planned += w.plannedDays
-  }
-  if (planned <= 0) return null
-  return Math.round((done / planned) * 100)
+  // Derived from blockAttendance rather than re-walking the weeks: the page
+  // shows the ratio and this percentage side by side, so "they score the same
+  // window" has to be structural. Two loops agreeing is a fact a future edit
+  // to one of them can silently undo.
+  const attendance = blockAttendance(weeks, currentWeek)
+  if (attendance === null) return null
+  return Math.round((attendance.completed / attendance.planned) * 100)
 }
 
 /**

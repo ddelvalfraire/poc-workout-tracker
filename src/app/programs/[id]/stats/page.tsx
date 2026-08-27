@@ -477,7 +477,10 @@ export default async function ProgramStatsPage({
                                   cx={p.x}
                                   cy={p.y}
                                   r={2.5}
-                                  className="fill-primary"
+                                  // Foreground, not volt: a running-max dot per exercise
+                                  // across a scannable list is per-item accent, which #163
+                                  // bans. The current week's bar is this screen's one volt.
+                                  className="fill-foreground"
                                 />
                               ))}
                           </svg>

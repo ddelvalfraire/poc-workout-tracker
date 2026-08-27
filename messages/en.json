@@ -1163,7 +1163,6 @@
     "preview": {
       "title": "Right now",
       "ask": "This asks for {reps} × {load}.",
-      "default": "It follows whatever the rest of the plan uses.",
       "strictLoad": "Only more than {load} counts — extra reps at {load} do not.",
       "e1rmEquivalent": "Extra reps at {load} count, and so does more than {load}.",
       "anyMetric": "Anything past {reps} × {load} counts."
@@ -1627,7 +1626,6 @@
       "ariaLabel": "Progression",
       "calibrating": "Calibrating",
       "reps": "{reps, plural, one {# rep} other {# reps}}",
-      "sessionCount": "{count, plural, one {# session} other {# sessions}} logged",
       "sets": "{sets, plural, one {# set} other {# sets}}",
       "title": "Progression"
     },

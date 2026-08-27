@@ -12,6 +12,7 @@ import { ExercisePicker } from '@/app/workout/new/exercise-picker'
 import { WEEKDAY_TOKENS } from '@/lib/schedule-anchor'
 import { metricModeSchema, type MetricMode } from '@/lib/program-input'
 import { type WeightUnit } from '@/lib/units'
+import { DEFAULT_LOCALE, type Locale } from '@/i18n/config'
 import { cn } from '@/lib/utils'
 import { resolveOvershootPolicy, type OvershootPolicy } from '@/lib/overshoot-policy'
 import { OvershootField, type OvershootPreview } from '@/components/overshoot-field'
@@ -59,11 +60,15 @@ const FIELD_LABEL_KEYS = {
  *  prescription the overshoot sheet reasons about. Null when no set carries a
  *  load yet, in which case the sheet shows options without inventing an
  *  example. */
-function overshootPreview(
+export function overshootPreview(
   exercise: DraftProgramExercise,
   unit: WeightUnit,
+  locale: Locale = DEFAULT_LOCALE,
 ): OvershootPreview | null {
-  const loaded = exercise.sets.filter((set) => set.load.trim() !== '')
+  // Number() on a half-typed draft string yields NaN, and every NaN comparison
+  // is false — which would make "heaviest" whichever row happened to be first.
+  // Filter to real numbers before reducing.
+  const loaded = exercise.sets.filter((set) => Number.isFinite(Number(set.load.trim())) && set.load.trim() !== '')
   if (loaded.length === 0) return null
   const top = loaded.reduce((best, set) => (Number(set.load) > Number(best.load) ? set : best))
   if (top.repMin.trim() === '') return null
@@ -71,7 +76,16 @@ function overshootPreview(
     top.repMax.trim() === '' || top.repMax === top.repMin
       ? top.repMin
       : `${top.repMin}\u2013${top.repMax}`
-  return { reps, load: `${top.load} ${unit}` }
+  // Through Intl like every other load on this branch, so the unit label and
+  // decimal separator follow the locale instead of being concatenated.
+  return {
+    reps,
+    load: new Intl.NumberFormat(locale, {
+      style: 'unit',
+      unit: unit === 'kg' ? 'kilogram' : 'pound',
+      unitDisplay: 'short',
+    }).format(Number(top.load)),
+  }
 }
 
 interface DayEditorProps {
