@@ -10,6 +10,7 @@ import {
   getRpeLoggingEnabled,
 } from '@/db/preferences'
 import { getProgramDayDetail } from '@/db/programs'
+import { getExerciseCatalog } from '@/db/exercise-catalog'
 import { deriveDayPrescription } from '@/db/prescriptions'
 import { expandTechniqueStages } from '@/lib/technique'
 import { getWorkoutDraft } from '@/db/workout-drafts'
@@ -125,7 +126,7 @@ export default async function EditWorkoutPage({
   const t = await getTranslations('WorkoutEdit')
   const userId = await requireUserId()
   const { id } = await params
-  const [workout, unit, hasWorkoutHistory] = await Promise.all([
+  const [workout, unit, hasWorkoutHistory, catalog] = await Promise.all([
     getWorkoutDetail(userId, id),
     getWeightUnit(userId),
     // Server truth for the logger's PREV column: decided BEFORE first paint
@@ -134,6 +135,12 @@ export default async function EditWorkoutPage({
     // finished workout being corrected IS completed history — stable both
     // ways.
     hasAnyCompletedWorkout(userId),
+    // The muscle line under each exercise name is catalog data, not a
+    // persisted workout column — without it only exercises picked in-session
+    // (a replace) carried one. Needs nothing but the user id, so it belongs
+    // in THIS batch: parking it behind the workout read would be a waterfall
+    // for a lookup that could have been in flight all along.
+    getExerciseCatalog(userId),
   ])
   if (!workout) notFound()
 
@@ -154,7 +161,7 @@ export default async function EditWorkoutPage({
   // draft). Shared TTL+codec helper; the client restore effect stays as the
   // cross-device race net.
   const restored = resolveDraftSeed(draftRow, { unit, now: new Date() })
-  const { draft, name } = restored ?? detailToDraft(workout, unit)
+  const { draft, name } = restored ?? detailToDraft(workout, unit, { catalog })
 
   return (
     <div className="flex min-h-[100dvh] flex-col">

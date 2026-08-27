@@ -2,7 +2,6 @@ import { and, asc, count, countDistinct, desc, eq, isNotNull, max, ne, sql } fro
 import { cache } from 'react'
 import type { ProgramInput, ProgramStatus } from '@/lib/program-input'
 import type { ExerciseSource } from '@/lib/custom-exercise-input'
-import { getAllExercises, type Exercise } from '@/lib/wger'
 // Runtime-only cycle with ./program-patches (it imports our catalog helpers,
 // we call its TM setter in cloneProgram's block-restart carry-forward) — safe
 // because both directions are used strictly inside function bodies, never at
@@ -13,9 +12,10 @@ import { hasFeature, requireFeature } from './entitlements'
 import { pickNextProgramDay } from '@/lib/next-program-day'
 import { nextBlockName } from '@/lib/block-name'
 import { db } from './index'
+import { catalogMuscles, type ExerciseCatalog } from '@/lib/exercise-catalog'
+import { getExerciseCatalog } from './exercise-catalog'
 import { NotCoachProposalError, ProposedProgramError } from './program-errors'
 import { recordProgramEvent, type ProgramEventActor } from './program-events'
-import { listCustomExercises } from './custom-exercises'
 import {
   programs,
   programDays,
@@ -103,50 +103,6 @@ export type ProgramDetail = NonNullable<Awaited<ReturnType<typeof getProgramDeta
 /** The transaction handle, lifted from the callback signature (no internal import). */
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0]
 
-/** The merged (wger + the user's customs) catalog keyed by the composite
- *  `${source}:${id}`; null = neither source available. */
-export type ExerciseCatalog = Map<string, Exercise>
-
-/** The composite catalog key — exercise identity is (source, id). Exported
- *  for db/prescriptions.ts, which keys history rows the same way. */
-export function catalogKey(source: ExerciseSource, exerciseId: number): string {
-  return `${source}:${exerciseId}`
-}
-
-/**
- * Fetches the merged exercise catalog — the (in-memory cached) wger catalog
- * plus the user's custom exercises — for author-time muscle tagging. Never
- * called inside a transaction, and failure-tolerant PER SOURCE: muscle tags
- * are enrichment, not integrity, so a wger outage still tags custom slots (and
- * vice versa); both failing yields null and the save proceeds untagged.
- */
-export async function loadExerciseCatalog(userId: string): Promise<ExerciseCatalog | null> {
-  // Async wrappers so even a synchronous throw lands as a rejection.
-  const [wger, customs] = await Promise.allSettled([
-    (async () => getAllExercises())(),
-    (async () => listCustomExercises(userId))(),
-  ])
-  if (wger.status === 'rejected' && customs.status === 'rejected') return null
-  const catalog: ExerciseCatalog = new Map()
-  if (wger.status === 'fulfilled') {
-    for (const e of wger.value) catalog.set(catalogKey('wger', e.id), e)
-  }
-  if (customs.status === 'fulfilled') {
-    for (const c of customs.value) {
-      catalog.set(catalogKey('custom', c.id), {
-        id: c.id,
-        name: c.name,
-        category: c.category,
-        ...(c.muscles && c.muscles.length > 0 ? { muscles: c.muscles } : {}),
-        ...(c.musclesSecondary && c.musclesSecondary.length > 0
-          ? { musclesSecondary: c.musclesSecondary }
-          : {}),
-      })
-    }
-  }
-  return catalog
-}
-
 /**
  * The `program_exercise_muscles` rows for one exercise slot, from the merged
  * catalog. Primary names win when a muscle is listed on both sides (the unique
@@ -159,10 +115,8 @@ export function muscleRowsFor(
   exerciseId: number,
   catalog: ExerciseCatalog | null,
 ): { programExerciseId: string; muscle: string; role: 'primary' | 'secondary' }[] {
-  const entry = catalog?.get(catalogKey(source, exerciseId))
-  if (!entry) return []
-  const primary = entry.muscles ?? []
-  const secondary = (entry.musclesSecondary ?? []).filter((m) => !primary.includes(m))
+  const { primary, secondary: allSecondary } = catalogMuscles(catalog, source, exerciseId)
+  const secondary = allSecondary.filter((m) => !primary.includes(m))
   return [
     ...primary.map((muscle) => ({ programExerciseId, muscle, role: 'primary' as const })),
     ...secondary.map((muscle) => ({ programExerciseId, muscle, role: 'secondary' as const })),
@@ -285,7 +239,7 @@ export async function saveProgram(
   // it would ride updateProgram's full-replace path and deactivate an active
   // program whose upsert omits the field.
   const status = actor === 'coach' ? 'proposed' : (input.status ?? 'draft')
-  const catalog = await loadExerciseCatalog(userId) // network read stays outside the tx
+  const catalog = await getExerciseCatalog(userId) // network read stays outside the tx
   return db.transaction(async (tx) => {
     const [program] = await tx
       .insert(programs)
@@ -478,7 +432,7 @@ export async function updateProgram(
   if (input.autoregulation) await requireFeature(userId, 'autoreg')
   const isCoach = actor === 'coach'
   const status = isCoach ? 'proposed' : input.status
-  const catalog = await loadExerciseCatalog(userId) // network read stays outside the tx
+  const catalog = await getExerciseCatalog(userId) // network read stays outside the tx
   return db.transaction(async (tx) => {
     const [owned] = await tx
       .update(programs)

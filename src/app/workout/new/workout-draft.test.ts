@@ -1727,6 +1727,80 @@ describe('SET_SET_TECHNIQUE (the set-type picker\'s technique arm)', () => {
   })
 })
 
+describe('detailToDraft category lookup', () => {
+  /** A two-exercise persisted workout: one wger movement, one custom. */
+  function workoutWithTwoExercises(): WorkoutDetail {
+    return {
+      id: 'w1',
+      userId: 'user_123',
+      name: 'Push',
+      startedAt: new Date(),
+      completedAt: null,
+      createdAt: new Date(),
+      programDayId: null,
+      programWeek: null,
+      importBatchId: null,
+      notes: null,
+      exercises: [
+        {
+          id: 'ex1',
+          workoutId: 'w1',
+          wgerExerciseId: 73,
+          source: 'wger',
+          name: 'Bench Press',
+          position: 0,
+          loggingType: 'weight_reps',
+          notes: null,
+          skipped: false,
+          sets: [persistedSet({ setNumber: 1 })],
+        },
+        {
+          id: 'ex2',
+          workoutId: 'w1',
+          wgerExerciseId: 1,
+          source: 'custom',
+          name: 'Cable Face Pull',
+          position: 1,
+          loggingType: 'weight_reps',
+          notes: null,
+          skipped: false,
+          sets: [persistedSet({ setNumber: 1 })],
+        },
+      ],
+    } as unknown as WorkoutDetail
+  }
+
+  it('fills each exercise category from the catalog, keyed by (source, id)', () => {
+    // Arrange — the same composite keying db/programs.ts writes; a wger id and
+    // a custom id that collide must not read each other's category.
+    const catalog = new Map([
+      ['wger:73', { id: 73, name: 'Bench Press', category: 'Chest' }],
+      ['custom:1', { id: 1, name: 'Cable Face Pull', category: 'Shoulders' }],
+      ['wger:1', { id: 1, name: 'Decoy', category: 'Legs' }],
+    ])
+
+    // Act
+    const { draft } = detailToDraft(workoutWithTwoExercises(), 'kg', { catalog })
+
+    // Assert
+    expect(draft.exercises.map((e) => e.category)).toEqual(['Chest', 'Shoulders'])
+  })
+
+  it('leaves the category empty when the catalog is missing or lacks the exercise', () => {
+    // A catalog outage is enrichment lost, never a broken seed.
+    expect(
+      detailToDraft(workoutWithTwoExercises(), 'kg', { catalog: null }).draft.exercises.map(
+        (e) => e.category,
+      ),
+    ).toEqual(['', ''])
+    expect(
+      detailToDraft(workoutWithTwoExercises(), 'kg', {
+        catalog: new Map([['wger:73', { id: 73, name: 'Bench Press', category: 'Chest' }]]),
+      }).draft.exercises.map((e) => e.category),
+    ).toEqual(['Chest', ''])
+  })
+})
+
 /** A persisted set row with every optional column nulled, for overriding. */
 function persistedSet(overrides: Record<string, unknown>) {
   return {

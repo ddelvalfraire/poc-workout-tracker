@@ -15,6 +15,7 @@
 import type { WorkoutDetail } from '@/db/workouts'
 import type { WorkoutTemplateDetail } from '@/db/workout-templates'
 import type { WorkoutDraft } from '@/app/workout/new/workout-draft'
+import { catalogCategory, type ExerciseCatalog } from '@/lib/exercise-catalog'
 import {
   MIN_PLANNED_SETS,
   MAX_PLANNED_SETS,
@@ -114,7 +115,10 @@ export function deriveTemplateFromWorkout(workout: WorkoutDetail): WorkoutTempla
  * stored rows are still data, and a corrupt value must not mint 0 or 500
  * set rows.
  */
-export function templateToDraft(template: WorkoutTemplateDetail): {
+export function templateToDraft(
+  template: WorkoutTemplateDetail,
+  catalog?: ExerciseCatalog | null,
+): {
   draft: WorkoutDraft
   name: string
 } {
@@ -123,7 +127,8 @@ export function templateToDraft(template: WorkoutTemplateDetail): {
     wgerExerciseId: exercise.wgerExerciseId,
     source: exercise.source,
     name: exercise.name,
-    category: '', // not persisted on templates, same as detailToDraft
+    // Not persisted on templates — catalog data, same lookup as detailToDraft.
+    category: catalogCategory(catalog, exercise.source, exercise.wgerExerciseId),
     loggingType: exercise.loggingType,
     notes: exercise.notes ?? '',
     skipped: false,

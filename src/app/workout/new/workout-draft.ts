@@ -6,6 +6,9 @@ import type {
   WorkoutSetType,
 } from '@/lib/workout-input'
 import type { ExerciseSource } from '@/lib/custom-exercise-input'
+// lib/, never db/: this module is bundled with the client logger, and the
+// loader's Postgres import would ride along into the browser.
+import { catalogCategory, type ExerciseCatalog } from '@/lib/exercise-catalog'
 import type { WorkoutDetail } from '@/db/workouts'
 import { displayToKg, kgToDisplay, type WeightUnit } from '@/lib/units'
 import { defaultMetricModeForCategory, isMetricMode } from '@/lib/workout-input'
@@ -703,9 +706,9 @@ export function draftToInput(
  * Seeds an editable draft from a persisted workout (the inverse of
  * draftToInput). Numbers become input strings (`null` → `''`); the persisted
  * row UUIDs are reused as the draft's client ids (stable React keys). `category`
- * is not a persisted column, so it comes back empty. Stored kg weights are
- * converted to `unit` (default kg) for display. Pure (no `crypto`), so the edit
- * Server Component can call it safely.
+ * is not a persisted column, so it is looked up in `options.catalog` (absent →
+ * empty, as before). Stored kg weights are converted to `unit` (default kg) for
+ * display. Pure (no `crypto`), so the edit Server Component can call it safely.
  *
  * `resetCompleted` clears the check-off state — the repeat flow (`?from=`)
  * seeds a NEW session from an old workout, and yesterday's checks aren't
@@ -714,14 +717,14 @@ export function draftToInput(
 export function detailToDraft(
   workout: WorkoutDetail,
   unit: WeightUnit = 'kg',
-  options: { resetCompleted?: boolean } = {},
+  options: { resetCompleted?: boolean; catalog?: ExerciseCatalog | null } = {},
 ): { draft: WorkoutDraft; name: string } {
   const exercises = workout.exercises.map((exercise) => ({
     id: exercise.id,
     wgerExerciseId: exercise.wgerExerciseId,
     source: exercise.source,
     name: exercise.name,
-    category: '',
+    category: catalogCategory(options.catalog, exercise.source, exercise.wgerExerciseId),
     loggingType: exercise.loggingType,
     notes: exercise.notes ?? '',
     skipped: exercise.skipped,

@@ -36,7 +36,9 @@ import { TM_BASED_SCHEMES } from '@/lib/substitute-slot'
 import { db } from './index'
 import { requireFeature } from './entitlements'
 import { recordProgramEvent, type ProgramEventActor } from './program-events'
-import { loadExerciseCatalog, muscleRowsFor, type ExerciseCatalog } from './programs'
+import { muscleRowsFor } from './programs'
+import type { ExerciseCatalog } from '@/lib/exercise-catalog'
+import { getExerciseCatalog } from './exercise-catalog'
 import {
   programs,
   programDays,
@@ -1070,7 +1072,7 @@ export async function addProgramExercise(
 ): Promise<{ position: number } | null> {
   const source = exercise.source ?? 'wger'
   const progression = exercise.progression == null ? null : parseProgression(exercise.progression)
-  const catalog = await loadExerciseCatalog(userId) // network read stays outside the tx
+  const catalog = await getExerciseCatalog(userId) // network read stays outside the tx
   return db.transaction(async (tx) => {
     const dayId = await findOwnedDayId(tx, userId, programId, dayPosition)
     if (!dayId) return null
@@ -1154,7 +1156,7 @@ export async function updateProgramExercise(
   // A change to either identity half re-derives the muscle tags; fetch the
   // catalog outside the tx.
   const identityChanged = values.wgerExerciseId !== undefined || values.source !== undefined
-  const catalog = identityChanged ? await loadExerciseCatalog(userId) : null
+  const catalog = identityChanged ? await getExerciseCatalog(userId) : null
   return db.transaction(async (tx) => {
     const found = await findOwnedExercise(tx, userId, programId, dayPosition, exercisePosition)
     if (!found) return null
@@ -1230,7 +1232,7 @@ export async function substituteProgramExercise(
   /** True when a TM-anchored progression was dropped with the swap. */
   progressionCleared: boolean
 } | null> {
-  const catalog = await loadExerciseCatalog(userId)
+  const catalog = await getExerciseCatalog(userId)
   return db.transaction(async (tx) => {
     const found = await findOwnedExercise(tx, userId, programId, dayPosition, exercisePosition)
     if (!found) return null

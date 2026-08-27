@@ -83,9 +83,9 @@ vi.mock('./index', () => ({
 
 // No network in tests: the catalog fetch behind muscle tagging resolves empty.
 const { catalogMock } = vi.hoisted(() => ({ catalogMock: vi.fn() }))
-vi.mock('./programs', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('./programs')>()),
-  loadExerciseCatalog: catalogMock,
+vi.mock('./exercise-catalog', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./exercise-catalog')>()),
+  getExerciseCatalog: catalogMock,
 }))
 
 import * as patches from './program-patches'

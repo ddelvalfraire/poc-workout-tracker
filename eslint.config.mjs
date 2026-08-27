@@ -15,6 +15,7 @@ const CARD_SHELL_KEEP = [
   "src/components/confirm-dialog.tsx",
   "src/components/session-conflict-dialog.tsx",
   "src/components/overshoot-field.tsx",
+  "src/components/ui/select.tsx",
   // A true modal <dialog> wearing the same skin as the three dialogs above —
   // a KEEP, not a ratchet entry: a modal IS a shell by design. It only
   // missed the list because it landed after the list was written.
@@ -50,6 +51,7 @@ const CARD_SHELL_RATCHET = [
   "src/app/home-sections.tsx",
   "src/app/p/\\[token\\]/page.tsx",
   "src/app/programs/new/program-builder.tsx",
+  "src/app/programs/\\[id\\]/stats/page.tsx",
   "src/app/settings/import/import-flow.tsx",
   "src/app/w/\\[token\\]/page.tsx",
   "src/app/workout/new/workout-logger.tsx",

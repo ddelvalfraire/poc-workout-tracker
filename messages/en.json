@@ -1145,18 +1145,20 @@
     "ariaLabelExercise": "What counts as beating the target for {exerciseName}",
     "ariaLabelProgram": "What counts as beating the target, for the whole program",
     "consequence": {
+      "anyMetric": "More reps, more weight, more time — all of it counts.",
       "default": "Uses {resolved} — whatever the rest of the plan says. Changes if that changes.",
-      "strictLoad": "Only a heavier bar counts. Extra reps at the same weight do not.",
+      "defaultProgram": "Load-anchored schemes want more weight; RPE targets accept a rep gain that raises your estimated max.",
       "e1rmEquivalent": "Whichever moves your estimated max. 8 × 100 kg beats 5 × 105 kg.",
-      "anyMetric": "More reps, more weight, more time — all of it counts."
+      "strictLoad": "Only a heavier bar counts. Extra reps at the same weight do not."
     },
     "label": "Beating the target",
     "lede": "When a set goes past what was asked, what counts as beating it?",
     "option": {
+      "anyMetric": "Anything past the target",
       "default": "Follow the plan",
-      "strictLoad": "More weight only",
+      "defaultProgram": "Each scheme decides",
       "e1rmEquivalent": "Reps or weight",
-      "anyMetric": "Anything past the target"
+      "strictLoad": "More weight only"
     },
     "preview": {
       "title": "Right now",
@@ -1350,7 +1352,6 @@
       "label": "Auto-regulate loads"
     },
     "checkIn": {
-      "ariaLabel": "Suggested days between body check-ins",
       "hint": "Nudges a weigh-in, tape, or progress photo on that cadence (3–90 days). Leave blank for no suggestion.",
       "label": "Suggest a body check-in every",
       "placeholder": "—",
@@ -1366,31 +1367,58 @@
     },
     "day": {
       "ariaLabel": "Day {position}",
+      "exerciseCount": "{count, plural, =0 {Nothing in it yet} one {# movement} other {# movements}}",
       "nameAriaLabel": "Day {position} name",
       "namePlaceholder": "Day {position} name",
       "removeAriaLabel": "Remove day {position}",
       "scheduleAriaLabel": "{dayName} schedule",
-      "title": "Day {position}"
+      "title": "Day {position}",
+      "titleNamed": "Day {position} · {name}"
+    },
+    "days": {
+      "legend": "Days"
     },
     "deloadHint": "A deload week eases the load partway through so you recover before the next block.",
     "deloadPolicy": {
-      "legend": "How should the deload week behave?",
-      "none": "None — train it like any other week",
-      "reactive": "Reactive — only when stalls suggest one",
-      "scheduled": "Scheduled — back off on the deload week",
+      "legend": "Deload",
+      "none": {
+        "label": "None",
+        "hint": "Every week is a working week."
+      },
+      "reactive": {
+        "label": "Reactive",
+        "hint": "Only backs off when stalls suggest one."
+      },
+      "scheduled": {
+        "label": "Scheduled",
+        "hint": "Backs off on the deload week, every block."
+      },
       "shape": "{load}% of the load · {sets}% of the sets",
       "shapeWithCap": "{load}% of the load · {sets}% of the sets · effort capped at RPE {rpeCap}"
     },
     "deloadWeekAriaLabel": "Deload week",
     "deloadWeekPlaceholder": "Deload week (optional)",
     "dietPhase": {
-      "bulking": "Bulking",
-      "cutting": "Cutting — stalls are expected; hold, don’t auto-back-off",
-      "legend": "Diet phase (optional)",
-      "maintaining": "Maintaining",
-      "none": "None"
+      "legend": "Diet phase",
+      "none": {
+        "label": "None",
+        "hint": "No phase — the engine behaves exactly as it always has."
+      },
+      "cutting": {
+        "label": "Cutting",
+        "hint": "Stalls are expected; hold the load instead of auto-backing-off."
+      },
+      "maintaining": {
+        "label": "Maintaining",
+        "hint": "Normal progression."
+      },
+      "bulking": {
+        "label": "Bulking",
+        "hint": "Normal progression."
+      }
     },
     "discardAction": "Discard",
+    "draftStatus": "Draft — nothing is scheduled. Your changes stay on this device until you save.",
     "empty": {
       "days": "Add a training day to start building your program.",
       "exercises": "Search above to add an exercise to this day."
@@ -1415,7 +1443,6 @@
       "repsWeight": "Reps × weight"
     },
     "nameAriaLabel": "Program name",
-    "namePlaceholder": "Program name",
     "placeholder": {
       "duration": "mm:ss",
       "rest": "Rest s"
@@ -1433,6 +1460,10 @@
       "ariaLabel": "{exerciseName} set {position} {field}",
       "removeAriaLabel": "Remove {exerciseName} set {position}"
     },
+    "settings": {
+      "legend": "Program settings",
+      "summary": "{weeks} wk · {deloadWeek, select, none {no deload} reactive {reactive deload} other {deload wk {deloadWeek}}} · {autoreg, select, on {autoreg on} other {autoreg off}}"
+    },
     "stallPolicy": {
       "allSets": "Every set must hit its reps",
       "firstSet": "Top set decides",
@@ -1444,10 +1475,11 @@
       "untouched": "Untouched — timed work trains as written"
     },
     "trainingMax": {
-      "ariaLabel": "{exerciseName} training max in {unit}",
+      "ariaLabel": "Training max ({unit}) for {exerciseName}",
       "fromE1rmNote": "from your e1RM",
       "label": "Training max ({unit})"
     },
+    "untitled": "Untitled block",
     "weekday": "{weekday, select, sunday {Sunday} monday {Monday} tuesday {Tuesday} wednesday {Wednesday} thursday {Thursday} friday {Friday} saturday {Saturday} other {{weekday}}}",
     "weekdayInitial": "{weekday, select, sunday {S} monday {M} tuesday {T} wednesday {W} thursday {T} friday {F} saturday {S} other {{weekday}}}",
     "weeksAriaLabel": "Program length in weeks",

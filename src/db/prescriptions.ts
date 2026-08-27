@@ -39,7 +39,8 @@ import { db } from './index'
 import { ProposedProgramError } from './program-errors'
 import type { ProgramEventActor } from './program-events'
 import { getLastPerformance, getExerciseHistoryBefore } from './workouts'
-import { catalogKey, getProgramDayDetail, nextProgramWeek } from './programs'
+import { getProgramDayDetail, nextProgramWeek } from './programs'
+import { catalogKey } from '@/lib/exercise-catalog'
 import { workouts, workoutExercises, sets } from './schema'
 
 /**
