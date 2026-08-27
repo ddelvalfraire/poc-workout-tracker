@@ -23,16 +23,33 @@ import { getRedis } from './redis'
 const WGER_BASE_URL = process.env.WGER_API_BASE_URL ?? 'https://wger.de/api/v2'
 const WGER_ENGLISH_LANGUAGE_ID = 2
 const WGER_PAGE_SIZE = 999 // wger's max page size (catalog ~1275 → 2 pages)
-const CACHE_TTL_MS = 24 * 60 * 60 * 1000 // exercise list changes rarely
+const CACHE_TTL_MS = 24 * 60 * 60 * 1000 // how long a snapshot counts as FRESH
+// After a failed refresh, serve the stale snapshot and don't re-attempt for
+// this long — otherwise every request re-hammers an upstream that is already
+// known to be down.
+const STALE_RETRY_MS = 5 * 60 * 1000
 const MAX_PAGES = 20 // safety bound on the pagination loop
 const UPSTREAM_REVALIDATE_S = 86400 // Next.js Data Cache TTL for upstream pages
 const DEFAULT_LIMIT = 50
 const MAX_LIMIT = 100
 // Shared cross-instance cache of the mapped catalog. The raw wger payload is
 // ~4.6MB (too large for Next's 2MB Data Cache), but the mapped Exercise[] is
-// small, so we cache that in Redis. Bump the version suffix if Exercise changes.
-const REDIS_CATALOG_KEY = 'wger:exercise-catalog:v1'
-const REDIS_CATALOG_TTL_S = 86400
+// small, so we cache that in Redis. Bump the version suffix if the stored
+// shape changes — v2 wraps the array in a `fetchedAt` envelope.
+const REDIS_CATALOG_KEY = 'wger:exercise-catalog:v2'
+// The shape this replaced: a bare Exercise[] with no timestamp. Read ONLY as a
+// last resort, and only until v2 is written. Without it the deploy that ships
+// v2 opens the exact window this change exists to close — v2 absent, a good v1
+// snapshot sitting right there in Redis, and a wger outage taking the catalog
+// down anyway. Safe to delete once every environment has served a v2 write.
+const REDIS_CATALOG_LEGACY_KEY = 'wger:exercise-catalog:v1'
+// Retention, NOT freshness. v1 gave the key a 24h TTL, which destroyed the
+// snapshot at exactly the moment it stopped being fresh — so a cold instance
+// during a wger outage had nothing to fall back on and the catalog (and with
+// it the exercise picker) failed outright. Freshness is now derived from
+// `fetchedAt`, and the key outlives it by a month so a stale-but-usable
+// snapshot is always there to serve.
+const REDIS_CATALOG_RETAIN_S = 30 * 24 * 60 * 60
 
 /** A single exercise, mapped to the minimal shape this app surfaces. */
 export interface Exercise {
@@ -183,7 +200,10 @@ async function fetchAllExercises(): Promise<Exercise[]> {
 
 // Cache the catalog across requests (and dev HMR reloads) via a globalThis
 // singleton, mirroring the DB client in src/db/index.ts.
-type CatalogCache = { data: Exercise[]; expiresAt: number }
+/** A catalog snapshot and when it was taken. `retryAfter` is set only after a
+ *  FAILED refresh: it holds the stale snapshot in service, and keeps the next
+ *  requests off an upstream already known to be down. */
+type CatalogCache = { data: Exercise[]; fetchedAt: number; retryAfter?: number }
 const globalForWger = globalThis as unknown as {
   exerciseCache?: CatalogCache
   // Shared promise for an in-progress load, so concurrent cold callers collapse
@@ -191,50 +211,115 @@ const globalForWger = globalThis as unknown as {
   catalogInflight?: Promise<Exercise[]>
 }
 
-/** Reads the mapped catalog from Redis. Never throws — returns null on miss or error. */
-async function readCatalogFromRedis(): Promise<Exercise[] | null> {
+/** Whether a snapshot is still inside the freshness window. */
+function isFresh(snapshot: { fetchedAt: number }, now: number): boolean {
+  return now - snapshot.fetchedAt < CACHE_TTL_MS
+}
+
+/** The stored Redis envelope — an array plus the time it was fetched. */
+type CatalogSnapshot = { data: Exercise[]; fetchedAt: number }
+
+/** Narrows the un-$typed Redis payload. Stored JSON is data like any other:
+ *  a missing or junk `fetchedAt` means we can't reason about age, so the
+ *  snapshot is discarded rather than trusted as fresh. */
+function isCatalogSnapshot(value: unknown): value is CatalogSnapshot {
+  if (typeof value !== 'object' || value === null) return false
+  const { data, fetchedAt } = value as { data?: unknown; fetchedAt?: unknown }
+  return Array.isArray(data) && data.length > 0 && typeof fetchedAt === 'number'
+}
+
+/** Reads the catalog snapshot from Redis. Never throws — returns null on miss,
+ *  malformed payload, or error. May be STALE; the caller decides.
+ *
+ *  Falls back to the v1 key when v2 is absent, dating it to the epoch: a bare
+ *  array carries no age, so it is permanently stale — it can never suppress a
+ *  refresh, only rescue one that fails. */
+async function readCatalogFromRedis(): Promise<CatalogSnapshot | null> {
   const redis = getRedis()
   if (!redis) return null
   try {
-    const data = await redis.get<Exercise[]>(REDIS_CATALOG_KEY)
-    return Array.isArray(data) && data.length > 0 ? data : null
+    const stored = await redis.get<unknown>(REDIS_CATALOG_KEY)
+    if (isCatalogSnapshot(stored)) return stored
+    const legacy = await redis.get<unknown>(REDIS_CATALOG_LEGACY_KEY)
+    return Array.isArray(legacy) && legacy.length > 0
+      ? { data: legacy as Exercise[], fetchedAt: 0 }
+      : null
   } catch (error: unknown) {
     console.error('Redis read failed for exercise catalog', error)
     return null
   }
 }
 
-/** Writes the mapped catalog to Redis with a TTL. Never throws — caching is best-effort. */
-async function writeCatalogToRedis(data: Exercise[]): Promise<void> {
+/** Writes a snapshot to Redis under the retention TTL. Never throws — caching
+ *  is best-effort. */
+async function writeCatalogToRedis(snapshot: CatalogSnapshot): Promise<void> {
   const redis = getRedis()
   if (!redis) return
   try {
-    await redis.set(REDIS_CATALOG_KEY, data, { ex: REDIS_CATALOG_TTL_S })
+    await redis.set(REDIS_CATALOG_KEY, snapshot, { ex: REDIS_CATALOG_RETAIN_S })
   } catch (error: unknown) {
     console.error('Redis write failed for exercise catalog', error)
   }
 }
 
+/** The newer of two snapshots — the best thing to fall back on. */
+function newer(a: CatalogCache | null, b: CatalogSnapshot | null): CatalogSnapshot | null {
+  if (!a) return b
+  if (!b) return a
+  return a.fetchedAt >= b.fetchedAt ? a : b
+}
+
 /**
- * Resolves the catalog through three cache layers, fastest first:
+ * Resolves the catalog through three layers, fastest first:
  *   1. in-memory singleton (same warm instance),
  *   2. Redis (shared across all instances — survives cold starts),
  *   3. wger upstream (then backfills Redis + memory).
+ *
+ * STALE BEATS NOTHING. A snapshot going stale is not a reason to discard it:
+ * this is a public list of exercise names and categories that changes a few
+ * times a year, and the alternative to a slightly-old catalog is a dead
+ * exercise picker — mid-workout, you can't add or swap a movement. So a failed
+ * refresh serves the newest snapshot we hold and schedules a retry, and only a
+ * failure with NOTHING cached propagates. The remaining hole is a cold Redis
+ * and a down upstream at the same moment; a committed seed file would close it,
+ * at the cost of a snapshot that rots in the repo.
  */
 async function getCatalog(): Promise<Exercise[]> {
+  const now = Date.now()
   const cached = globalForWger.exerciseCache
-  if (cached && cached.expiresAt > Date.now()) return cached.data
+  // Serve memory while it is fresh — or while a failed refresh's retry floor
+  // still holds, which keeps a down upstream from being hammered per request.
+  if (cached && (isFresh(cached, now) || (cached.retryAfter ?? 0) > now)) return cached.data
 
   // Collapse concurrent cold loads onto one shared promise.
   if (globalForWger.catalogInflight) return globalForWger.catalogInflight
 
   const load = (async () => {
     const fromRedis = await readCatalogFromRedis()
-    const data = fromRedis ?? (await fetchAllExercises())
-    globalForWger.exerciseCache = { data, expiresAt: Date.now() + CACHE_TTL_MS }
-    // Backfill Redis only when the data came from upstream, not from Redis.
-    if (!fromRedis) await writeCatalogToRedis(data)
-    return data
+    if (fromRedis && isFresh(fromRedis, Date.now())) {
+      globalForWger.exerciseCache = fromRedis
+      return fromRedis.data
+    }
+
+    // Neither layer is fresh, so refresh — holding on to the best stale copy
+    // as the fallback rather than dropping it on the way to upstream.
+    const fallback = newer(cached ?? null, fromRedis)
+    try {
+      const snapshot: CatalogSnapshot = { data: await fetchAllExercises(), fetchedAt: Date.now() }
+      globalForWger.exerciseCache = snapshot
+      await writeCatalogToRedis(snapshot)
+      return snapshot.data
+    } catch (error: unknown) {
+      if (!fallback) throw error
+      // Logged, not swallowed: serving stale indefinitely would otherwise hide
+      // a permanently broken upstream. The age is the signal worth watching.
+      console.error('wger catalog refresh failed; serving stale snapshot', {
+        ageMs: Date.now() - fallback.fetchedAt,
+        error,
+      })
+      globalForWger.exerciseCache = { ...fallback, retryAfter: Date.now() + STALE_RETRY_MS }
+      return fallback.data
+    }
   })()
 
   globalForWger.catalogInflight = load
