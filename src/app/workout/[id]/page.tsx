@@ -43,6 +43,10 @@ import { ShareCardButton } from "@/components/share-card-button";
 import { cn } from "@/lib/utils";
 import { getActiveWorkoutShare } from "@/db/workout-shares";
 import { WorkoutActions } from "./workout-actions";
+import { WorkoutChangelog } from "@/components/workout/workout-changelog";
+import { listWorkoutEvents } from "@/db/workout-events";
+import { setSnapshotKey } from "@/db/workout-set-diff";
+import { amendedSetKeys } from "./amended-sets";
 import { WorkoutSharing } from "./workout-sharing";
 import { FinishUpNextCard } from "./finish-up-next-card";
 import { getTranslations } from 'next-intl/server';
@@ -98,6 +102,7 @@ export default async function WorkoutDetailPage({
     activeShare,
     lastSameName,
     sessionNotes,
+    changeEvents,
   ] =
     await Promise.all([
       getExerciseHistoryBefore(userId, exerciseIds, workout.startedAt),
@@ -123,6 +128,11 @@ export default async function WorkoutDetailPage({
       // Every note anchored anywhere in this session (workout, exercises,
       // sets — plus outdated fallbacks), for the consolidated Notes section.
       notesForWorkout(userId, id),
+      // The session's paper trail — the FULL stream, unfiltered. Narrowing to
+      // amendments is a PRESENTATION decision the changelog makes once (it is
+      // also what decides whether the section exists at all), and the same
+      // rows feed the per-set amended marks below.
+      listWorkoutEvents(userId, id),
     ]);
   // Same session-window honesty as the goals block, PLUS the attribution
   // mark: only trophies whose stored context names THIS workout celebrate —
@@ -171,6 +181,10 @@ export default async function WorkoutDetailPage({
       ];
     },
   );
+
+  // Which set rows carry the small "Edited" mark. Derived from the log's own
+  // snapshots, so the mark and the changelog can never disagree.
+  const amendedSets = amendedSetKeys(changeEvents);
 
   const totalSets = workout.exercises.reduce((n, e) => n + e.sets.length, 0);
   const volumeKg = workout.exercises.reduce(
@@ -539,6 +553,24 @@ export default async function WorkoutDetailPage({
                             {t('exercise.topSetBadge')}
                           </span>
                         )}
+                        {/* The amended mark, at the row that moved: you can
+                            see WHICH numbers a correction touched without
+                            opening the change log. Same quiet caps word as
+                            the rest of this row's metadata — a fact, not a
+                            control — but in the volt, because "this number
+                            is not what was first recorded" is the one thing
+                            on the row worth interrupting a scan for. */}
+                        {amendedSets.has(
+                          setSnapshotKey(
+                            exercise.source,
+                            exercise.wgerExerciseId,
+                            set.setNumber,
+                          ),
+                        ) && (
+                          <span className="text-[10px] font-semibold uppercase tracking-widest text-primary">
+                            {t('exercise.amendedMark')}
+                          </span>
+                        )}
                       </div>
                     ))
                   )}
@@ -602,6 +634,17 @@ export default async function WorkoutDetailPage({
             </DividerList>
           </section>
         )}
+
+        {/* The session's change log: what was amended after the fact, who did
+            it and when. Absent entirely for an untouched record — the
+            component owns that rule, along with the amendments-only default
+            and the full-log disclosure. */}
+        <WorkoutChangelog
+          entries={changeEvents}
+          sessionAt={workout.startedAt}
+          now={now}
+          locale={locale}
+        />
 
         {/* Share control above the action stack: this page only renders
             COMPLETED workouts (live sessions redirected to the logger above),

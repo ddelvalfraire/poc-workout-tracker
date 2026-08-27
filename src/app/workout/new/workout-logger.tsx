@@ -1192,7 +1192,17 @@ export function WorkoutLogger({
       // The save actions delete this surface's server draft themselves —
       // the saved workout supersedes it on every device.
       if (workoutId) {
-        await updateWorkoutAction(workoutId, draftToInput(finalDraft, name, unit))
+        // The change log's kind is DECLARED here, because only this surface
+        // knows which of its two modes is saving: a live session finishing an
+        // instantiated program day is that workout's ORIGINAL persist, while
+        // edit mode's "Save changes" contradicts a session already recorded.
+        // The server cannot tell the two apart from the payload or from any
+        // timestamp — see WorkoutUpdateKind.
+        await updateWorkoutAction(
+          workoutId,
+          draftToInput(finalDraft, name, unit),
+          isLive ? 'original' : 'amendment',
+        )
         // Capture-sheet set notes land AFTER the replace, against the
         // re-inserted rows (their positional address) — creating them before
         // would hand them to rows the replace is about to delete.

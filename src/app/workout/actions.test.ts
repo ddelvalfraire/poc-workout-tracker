@@ -261,7 +261,7 @@ describe('updateWorkoutAction', () => {
     mockedUpdate.mockResolvedValue({ id: ID })
 
     // Act
-    const result = await updateWorkoutAction(ID, VALID_INPUT)
+    const result = await updateWorkoutAction(ID, VALID_INPUT, 'amendment')
 
     // Assert
     expect(result).toEqual({ id: ID })
@@ -285,7 +285,7 @@ describe('updateWorkoutAction', () => {
     })
 
     // Act
-    await updateWorkoutAction(ID, VALID_INPUT)
+    await updateWorkoutAction(ID, VALID_INPUT, 'amendment')
 
     // Assert — fire-and-forget, so wait for the microtask
     await vi.waitFor(() => {
@@ -306,7 +306,7 @@ describe('updateWorkoutAction', () => {
     })
 
     // Act
-    await updateWorkoutAction(ID, VALID_INPUT)
+    await updateWorkoutAction(ID, VALID_INPUT, 'amendment')
     // Give the void capture chain its microtask before asserting the negative.
     await new Promise((r) => setTimeout(r, 0))
 
@@ -319,14 +319,47 @@ describe('updateWorkoutAction', () => {
     mockedUpdate.mockResolvedValue(null)
 
     // Act + Assert — no post-save pipeline either: nothing was written
-    await expect(updateWorkoutAction(ID, VALID_INPUT)).rejects.toThrow('workout not found')
+    await expect(updateWorkoutAction(ID, VALID_INPUT, 'amendment')).rejects.toThrow('workout not found')
     expect(mockedSideEffects).not.toHaveBeenCalled()
     expect(mockedRevalidate).not.toHaveBeenCalled()
   })
 
   it('rejects malformed input before touching the database', async () => {
     // Act + Assert — no exercises fails parseWorkoutInput
-    await expect(updateWorkoutAction(ID, { exercises: [] })).rejects.toThrow()
+    await expect(updateWorkoutAction(ID, { exercises: [] }, 'amendment')).rejects.toThrow()
+    expect(mockedUpdate).not.toHaveBeenCalled()
+  })
+
+  /**
+   * The change log's kind is DECLARED by the caller, never derived here. The
+   * logger reaches this same action twice over: finishing an instantiated
+   * program day (that session's ORIGINAL persist) and edit mode's "Save
+   * changes" (an AMENDMENT). Both were logged as amendments before this;
+   * these pin the pass-through and the boundary refusal that keeps a
+   * mislabelled fact out of the log.
+   */
+  it('logs a live program finish as the session original, not an amendment', async () => {
+    // Arrange
+    mockedUpdate.mockResolvedValue({ id: ID })
+
+    // Act
+    await updateWorkoutAction(ID, VALID_INPUT, 'original')
+
+    // Assert
+    expect(mockedUpdate).toHaveBeenCalledWith(USER, ID, expect.anything(), {
+      actor: 'ui',
+      kind: 'original',
+    })
+  })
+
+  it('refuses a kind it does not recognise before touching the database', async () => {
+    // Act + Assert — 'system' and 'late_entry' are real event kinds but are
+    // not this action's to declare, and garbage is garbage.
+    for (const bad of ['system', 'late_entry', '', 'AMENDMENT', 7, null, undefined]) {
+      await expect(updateWorkoutAction(ID, VALID_INPUT, bad)).rejects.toThrow(
+        'invalid workout change kind',
+      )
+    }
     expect(mockedUpdate).not.toHaveBeenCalled()
   })
 })

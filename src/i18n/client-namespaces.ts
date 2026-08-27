@@ -119,6 +119,7 @@ export const CLIENT_NAMESPACES = [
   'WeightStepper',
   'WindowToggle',
   'WorkoutActions',
+  'WorkoutChangelog',
   'WorkoutLogger',
   'WorkoutRemindersToggle',
   'WorkoutSharing',

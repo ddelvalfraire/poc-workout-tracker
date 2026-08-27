@@ -2449,6 +2449,19 @@
     "templateActionPending": "Saving template…",
     "templateError": "Could not save the template. Please try again."
   },
+  "WorkoutChangelog": {
+    "actor": {
+      "coach": "Coach",
+      "mcp": "Claude",
+      "system": "System",
+      "ui": "You"
+    },
+    "amendedMark": "{count, plural, =1 {Edited once} =2 {Edited twice} other {Edited # times}}, {days, plural, =0 {later the same day} =1 {a day after the session} other {# days after the session}}",
+    "lateEntryLabel": "Added afterwards",
+    "showAmendments": "Show amendments only",
+    "showFull": "Show the full log",
+    "title": "Change log"
+  },
   "WorkoutDetail": {
     "comparisonCaption": "vs last {name}",
     "complete": {
@@ -2458,6 +2471,7 @@
       "prReps": "{reps} reps (+{delta})"
     },
     "exercise": {
+      "amendedMark": "Edited",
       "approx": "~",
       "e1rmLabel": "Est. 1RM",
       "empty": "No sets logged.",

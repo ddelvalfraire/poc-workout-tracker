@@ -29,6 +29,7 @@ import {
 import { getWorkoutDraft, putWorkoutDraft, deleteWorkoutDraft } from '@/db/workout-drafts'
 import { createWorkoutShare, revokeWorkoutShare } from '@/db/workout-shares'
 import { isDraftPayload, DRAFT_TTL_MS, draftKey } from '@/app/workout/new/draft-payload'
+import type { WorkoutEventKind } from '@/db/workout-events'
 
 /**
  * Validates and persists a workout for the signed-in user, returning the new id.
@@ -98,26 +99,59 @@ export async function saveWorkoutAction(input: unknown): Promise<{ id: string }>
 }
 
 /**
+ * What a save through `updateWorkoutAction` MEANS, in the change log's terms.
+ *
+ * The action serves two callers that are indistinguishable from the server's
+ * side: the logger FINISHING an instantiated program day — that session's
+ * first real persist, an 'original' — and edit mode's "Save changes", which
+ * contradicts what was already recorded, an 'amendment'. Only the caller
+ * knows which it is, so it declares it; `workouts.completedAt` (or any other
+ * timestamp) cannot discriminate, and inferring from one is precisely the
+ * guesswork this log exists to replace.
+ *
+ * The other two event kinds are deliberately out of reach here: 'system' is
+ * the app's own writes, never a UI action, and 'late_entry' belongs to a
+ * backdated-capture path this action is not.
+ */
+export type WorkoutUpdateKind = Extract<WorkoutEventKind, 'original' | 'amendment'>
+
+const UPDATE_KINDS: readonly string[] = ['original', 'amendment'] satisfies WorkoutUpdateKind[]
+
+/** Server-actions are a public boundary: the declared kind arrives as
+ *  whatever the browser sent, so it is validated here rather than trusted
+ *  from the parameter's type. An unrecognised value is a bug or an attack —
+ *  either way, refusing beats writing a mislabelled fact into the log. */
+function parseUpdateKind(kind: unknown): WorkoutUpdateKind {
+  if (typeof kind !== 'string' || !UPDATE_KINDS.includes(kind)) {
+    throw new Error('invalid workout change kind')
+  }
+  return kind as WorkoutUpdateKind
+}
+
+/**
  * Validates and applies an edit to an owned workout, returning its id. A missing
  * result means the workout isn't owned (or was concurrently deleted); we throw
  * so the client's try/catch surfaces an inline error.
  */
-export async function updateWorkoutAction(id: string, input: unknown): Promise<{ id: string }> {
+export async function updateWorkoutAction(
+  id: string,
+  input: unknown,
+  kind: unknown,
+): Promise<{ id: string }> {
   const userId = await requireUserId()
   const parsed = parseWorkoutInput(input)
+  const changeKind = parseUpdateKind(kind)
   // Pre-reads for the completion-transition event (updateWorkout's coalesce
   // means only a first edit completes): both race the write harmlessly —
   // they describe the BEFORE state by design, and failures degrade to "no
   // event" inside captureWorkoutEvent.
   const preStatePromise = safeRead(() => getWorkoutAnalyticsState(userId, id), null)
   const isFirstPromise = safeRead(async () => !(await hasAnyCompletedWorkout(userId)), false)
-  // An edit of an already-persisted session CONTRADICTS what was recorded.
-  // KNOWN GAP: the logger reaches this same action when it FINISHES an
-  // instantiated program day, which is really that session's original
-  // persist — the logger must pass its own kind once the UI slice lands.
-  // Deriving it from completedAt here is exactly the inference this log
-  // exists to avoid.
-  const result = await updateWorkout(userId, id, parsed, { actor: 'ui', kind: 'amendment' })
+  // The caller DECLARES what its save means (see parseUpdateKind): the logger
+  // finishing a live program day is that session's 'original' persist, while
+  // edit mode's "Save changes" is an 'amendment'. The UI is the actor either
+  // way.
+  const result = await updateWorkout(userId, id, parsed, { actor: 'ui', kind: changeKind })
   if (!result) throw new Error('workout not found')
   void captureWorkoutEvent(async () => {
     const pre = await preStatePromise
