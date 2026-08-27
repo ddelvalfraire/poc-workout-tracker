@@ -1,12 +1,15 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { redirect } from 'next/navigation'
 import { z } from 'zod'
 
 import { getWeightUnit } from '@/db/preferences'
-import { setProgramSetOverride } from '@/db/program-patches'
+import { getProgramDetail } from '@/db/programs'
+import { setProgramSetOverride, updateProgramSet } from '@/db/program-patches'
 import { requireUserId } from '@/lib/auth'
 import { displayToKg } from '@/lib/units'
+import { editorHref } from './editor-address'
 
 /**
  * The editor's one write: a per-WEEK override on a single set.
@@ -77,6 +80,79 @@ export async function saveSetOverrideAction(formData: FormData): Promise<void> {
   // 'layout' so both editor routes refresh — the structure-only one and the
   // day segment beneath it. The detail page reads the same plan, so it goes
   // stale on the same write.
+  revalidatePath(`/programs/${input.programId}/editor`, 'layout')
+  revalidatePath(`/programs/${input.programId}`)
+
+  // A LOAD change is the one edit that raises a question the surface can
+  // answer: this week, or the plan. The param only NAMES the set — whether
+  // there is anything to ask is decided by `reachDivergence` when the surface
+  // renders, so a pin that matches the rule opens nothing and this costs no
+  // extra read here. Reps, RIR and a cleared field ask nothing and redirect
+  // nowhere.
+  if (input.load !== null) {
+    redirect(
+      editorHref(input.programId, {
+        day: input.day,
+        exercise: input.exercise,
+        week: input.week,
+        reach: { exercise: input.exercise, setNumber: input.setNumber },
+      }),
+    )
+  }
+}
+
+/**
+ * The reach sheet's one write: widen a per-week pin to the PLAN.
+ *
+ * The pin already exists — the set row wrote it, and this is the follow-up
+ * offer, not a confirmation gate in front of it. So the action reads the week's
+ * pinned load and moves the TEMPLATE to it. There is no third scope to
+ * implement: nothing in the schema is week-ranged, so "this week onward" has
+ * nowhere to be stored (docs/specs/per-week-set-count.md).
+ *
+ * The per-week pin is deliberately LEFT IN PLACE afterwards. Removing it would
+ * be indistinguishable in the data — the week now resolves to the same number
+ * either way — right up until the rule moves again, at which point a week the
+ * user pinned by hand would silently follow it. "Pinned weeks stay pinned even
+ * when you change the rule" is the promise every editor surface makes, and this
+ * is where it would be quietly broken.
+ *
+ * Sessions already instantiated are untouched by construction: their set rows
+ * were copied at start time and no edit path updates them.
+ */
+const reachSchema = z.object({
+  programId: z.string().uuid(),
+  day: z.coerce.number().int().min(0),
+  exercise: z.coerce.number().int().min(0),
+  setNumber: z.coerce.number().int().min(1),
+  week: z.coerce.number().int().min(1),
+})
+
+export async function applyReachToPlanAction(formData: FormData): Promise<void> {
+  const userId = await requireUserId()
+  const input = reachSchema.parse(Object.fromEntries(formData))
+
+  // The load comes from the STORED pin rather than the form. A hidden field
+  // carrying the number would let a stale sheet — one rendered before another
+  // edit landed — write back a weight nobody is looking at.
+  const program = await getProgramDetail(userId, input.programId)
+  const set = program?.days[input.day]?.exercises[input.exercise]?.sets.find(
+    (row) => row.setNumber === input.setNumber,
+  )
+  const pinned = set?.overrides.find((row) => row.week === input.week)?.suggestedLoadKg
+  if (pinned == null) throw new Error('no pinned load to apply')
+
+  const result = await updateProgramSet(
+    userId,
+    input.programId,
+    input.day,
+    input.exercise,
+    input.setNumber,
+    { suggestedLoadKg: pinned },
+    'ui',
+  )
+  if (!result) throw new Error('set not found')
+
   revalidatePath(`/programs/${input.programId}/editor`, 'layout')
   revalidatePath(`/programs/${input.programId}`)
 }

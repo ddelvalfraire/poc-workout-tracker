@@ -7,6 +7,7 @@ import { EditorDayPane } from '@/components/editor/editor-day-pane'
 import { EditorInspector, type EditorInspectorExercise } from '@/components/editor/editor-inspector'
 import { EditorPanes } from '@/components/editor/editor-panes'
 import { EditorPivotGrid } from '@/components/editor/editor-pivot-grid'
+import { EditorReachSheet } from '@/components/editor/editor-reach-sheet'
 import { EditorScopeLine } from '@/components/editor/editor-scope-line'
 import { EditorStructurePane } from '@/components/editor/editor-structure-pane'
 import { EditorViewToggle } from '@/components/editor/editor-view-toggle'
@@ -20,10 +21,16 @@ import { TECHNIQUE_LABEL_KEY } from '@/lib/technique'
 import { cn } from '@/lib/utils'
 import { kgToDisplay } from '@/lib/units'
 import { progressionLine, programStatusLine } from '../detail-view'
-import { saveSetOverrideAction } from './actions'
+import { applyReachToPlanAction, saveSetOverrideAction } from './actions'
 import { editorHref, resolveEditorAddress, type RawParam } from './editor-address'
 import { editorDayDetail, editorDays, editorSetLoadKg, editorWeeks } from './editor-view'
 import { pivotRows } from './pivot-view'
+import {
+  parseReachParam,
+  reachDivergence,
+  reachWeeks,
+  type ReachScope,
+} from './reach-view'
 import { isSettled, trainedDayState, trainedSeamIndex, weekTrainedReport } from './trained-view'
 
 /**
@@ -41,11 +48,19 @@ import { isSettled, trainedDayState, trainedSeamIndex, weekTrainedReport } from 
  * a sheet over it; at or above it the same two facts light up pane 2 and pane 3.
  * Nothing here branches on width: `EditorPanes` owns the projection in CSS.
  */
+/**
+ * The two scopes the sheet offers, in order. There is deliberately no third:
+ * nothing in the schema is week-ranged, so "this week onward" has nowhere to be
+ * stored (docs/specs/per-week-set-count.md), and the do-nothing branch comes
+ * first because the edit is already saved.
+ */
+const REACH_SCOPES = ['week', 'plan'] as const satisfies readonly ReachScope[]
+
 interface EditorSurfaceProps {
   programId: string
   /** The `[day]` path segment; undefined on the structure-only route. */
   daySegment?: string
-  searchParams: { week?: RawParam; exercise?: RawParam; view?: RawParam }
+  searchParams: { week?: RawParam; exercise?: RawParam; view?: RawParam; reach?: RawParam }
 }
 
 export async function EditorSurface({ programId, daySegment, searchParams }: EditorSurfaceProps) {
@@ -189,6 +204,38 @@ export async function EditorSurface({ programId, daySegment, searchParams }: Edi
   // `mesocycleWeeks`, and a grid that re-derived its own range would drop them
   // while the list beside it still showed them.
   const weeks = editorWeeks(program.mesocycleWeeks, program.deloadWeek, weeksWithWorkouts)
+  const weekNumbers = weeks.map((entry) => entry.week)
+
+  // The reach sheet — "you changed a weight, how far should it reach?".
+  //
+  // The `?reach=` param only NAMES a set; whether there is anything to ask is
+  // decided here by `reachDivergence`, which is silent unless this week's pin
+  // really differs from the template. So a pin equal to the rule, a reps-only
+  // edit, or a hand-typed param all open nothing.
+  const reachTarget = parseReachParam(searchParams.reach)
+  const reachSet =
+    reachTarget === null || sourceDay === null
+      ? null
+      : (sourceDay.exercises[reachTarget.exercise]?.sets.find(
+          (row) => row.setNumber === reachTarget.setNumber,
+        ) ?? null)
+  const reachSubject = reachSet === null ? null : { set: reachSet, week: address.week }
+  const divergence = reachSubject === null ? null : reachDivergence(reachSubject)
+
+  // Which weeks of THIS day already have a session. Any workout row means the
+  // day was started, and a started session is as settled as a finished one —
+  // its sets were written at start time and resuming returns them untouched.
+  const settledWeeksForDay =
+    sourceDay === null
+      ? []
+      : [
+          ...new Set(
+            workouts
+              .filter((workout) => workout.programDayId === sourceDay.id)
+              .map((workout) => workout.programWeek)
+              .filter((weekNumber): weekNumber is number => weekNumber !== null),
+          ),
+        ]
 
   // The block's sentence is the SHIPPED one — "Block complete." included —
   // rather than a second opinion about where the block stands.
@@ -269,11 +316,7 @@ export async function EditorSurface({ programId, daySegment, searchParams }: Edi
               <EditorPivotGrid
                 dayName={sourceDay?.name ?? null}
                 weeks={weeks}
-                rows={pivotRows(
-                  sourceDay?.exercises ?? [],
-                  weeks.map((entry) => entry.week),
-                  unit,
-                )}
+                rows={pivotRows(sourceDay?.exercises ?? [], weekNumbers, unit)}
                 selectedWeek={address.week}
                 selectedExercise={address.exercise}
                 hrefForCell={(exercise, week) => href({ day: address.day, exercise, week })}
@@ -297,6 +340,34 @@ export async function EditorSurface({ programId, daySegment, searchParams }: Edi
             )
           }
         />
+        {reachSubject !== null &&
+          divergence !== null &&
+          reachTarget !== null &&
+          address.day !== null && (
+            <EditorReachSheet
+              className="mx-auto w-full max-w-md min-[840px]:max-w-none"
+              exerciseName={sourceDay?.exercises[reachTarget.exercise]?.name ?? ''}
+              week={address.week}
+              toLoad={kgToDisplay(divergence.toKg, unit)}
+              fromLoad={
+                divergence.fromKg === null ? null : kgToDisplay(divergence.fromKg, unit)
+              }
+              unit={unit}
+              options={REACH_SCOPES.map((scope) => ({
+                scope,
+                weeks: reachWeeks(reachSubject, weekNumbers, scope, settledWeeksForDay, unit),
+              }))}
+              dismissHref={href({ day: address.day, exercise: address.exercise })}
+              applyToPlanAction={applyReachToPlanAction}
+              subject={{
+                programId: program.id,
+                day: address.day,
+                exercise: reachTarget.exercise,
+                setNumber: reachTarget.setNumber,
+                week: address.week,
+              }}
+            />
+          )}
       </main>
     </div>
   )

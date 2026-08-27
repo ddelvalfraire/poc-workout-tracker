@@ -185,6 +185,14 @@ export function editorHref(
     exercise?: number | null
     week?: number
     view?: EditorView
+    /**
+     * The set the reach sheet should ask about, as `<exercise>.<setNumber>`.
+     *
+     * A transient NOTICE rather than part of the address — it selects nothing
+     * and survives one render — but it is minted here so the one place that
+     * builds editor URLs stays the one place. `./reach-view` reads it back.
+     */
+    reach?: { exercise: number; setNumber: number }
   },
 ): string {
   const path =
@@ -200,6 +208,9 @@ export function editorHref(
   // Only the non-default reading is written, for the same reason `?week=1` is
   // not: the ordinary URL stays short enough to read and to share.
   if (address.view === 'exercise') search.set('view', 'exercise')
+  if (address.reach !== undefined) {
+    search.set('reach', `${address.reach.exercise}.${address.reach.setNumber}`)
+  }
   const query = search.toString()
   return query === '' ? path : `${path}?${query}`
 }
