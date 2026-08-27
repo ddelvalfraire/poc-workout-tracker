@@ -38,18 +38,25 @@ export const WORKOUT_CHANGELOG_ANCHOR = 'workout-change-log'
 /**
  * Provenance as a RAIL, not a chip: a left hairline down the row, the shipped
  * treatment from NoteRow's coach presence. Three kinds, three rails, ranked
- * by how much they contradict the record — the volt marks the one the reader
- * came for, a late entry sits above the ordinary hairline because it still
- * adds something to the session, and the app's own writes fall back to it.
+ * by how much they contradict the record — an amendment reads strongest, a
+ * late entry a step back because it adds rather than contradicts, and the
+ * app's own writes fall to the ordinary hairline.
  *
- * The volt is spent on a ZONE, not on items: the default view is amendments
- * only, so every visible rail is volt and the edge reads as one continuous
- * line down the group. Opening the full log is the reader asking for the
- * distinction, and the ranking is then what they asked for.
+ * The ranking is NEUTRAL INK, never the volt. The rail used to be volt on the
+ * defence that "amendments-only means every visible rail is volt, so it is
+ * one continuous zone edge rather than a per-item accent" — and that defence
+ * fails on this component's own rendering: `groupEventsByDay` splits the
+ * entries into a separate <ul> under each date header, so a correction set
+ * spanning three days paints three volt segments, not one line. Opened to the
+ * full log it is worse still — volt rails interleaved with two neutral ones,
+ * which is per-item volt distinguishing items in a scannable list, exactly
+ * the shape DESIGN.md precedent #163 bans. The accent this surface is allowed
+ * lives once, on `WorkoutAmendedMark`: the single element whose whole job is
+ * to assert that the record was changed.
  */
 const RAIL_CLASSES: Record<WorkoutChangelogEntry['kind'], string> = {
-  amendment: 'border-l-primary',
-  late_entry: 'border-l-foreground/25',
+  amendment: 'border-l-foreground/40',
+  late_entry: 'border-l-foreground/20',
   original: 'border-l-border',
   system: 'border-l-border',
 }
@@ -126,6 +133,13 @@ interface WorkoutAmendedMarkProps {
  * Absent entirely on an untouched session — silence over noise — and its
  * presence is the same fact that decides whether the change log below exists
  * at all, so the two can never disagree.
+ *
+ * This mark also holds the summary's ONE volt for the correction story, on
+ * the pencil: the glyph that says "changed". Everything downstream of it —
+ * the log's rails, the full-log toggle, the per-set pencils on the record —
+ * renders in neutral ink, because those are all per-item marks in scannable
+ * lists and per-item volt is what DESIGN.md #163 bans. The way in beside it
+ * is a link in the reading ink, not a second accent.
  */
 export function WorkoutAmendedMark({ entries, sessionAt, className }: WorkoutAmendedMarkProps) {
   const t = useTranslations('WorkoutChangelog')
@@ -143,10 +157,12 @@ export function WorkoutAmendedMark({ entries, sessionAt, className }: WorkoutAme
         {t('amendedMark', { ...mark })}
       </p>
       {/* The way in. A link, not a button: it moves the reader to something
-          already on the page. */}
+          already on the page. Reading ink + the standing underline — the
+          pencil beside it is already this zone's accent, and two volt items
+          in one row is the stacking the rule exists to prevent. */}
       <a
         href={`#${WORKOUT_CHANGELOG_ANCHOR}`}
-        className="-my-3 shrink-0 rounded-sm py-3 text-sm text-primary underline underline-offset-[3px] outline-none transition-colors hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-hidden"
+        className="-my-3 shrink-0 rounded-sm py-3 text-sm text-foreground underline underline-offset-[3px] outline-none transition-colors hover:text-muted-foreground focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-hidden"
       >
         {t('markLink')}
       </a>
@@ -206,7 +222,7 @@ export function WorkoutChangelog({ entries, sessionAt, locale }: WorkoutChangelo
             type="button"
             aria-expanded={showFullLog}
             onClick={() => setShowFullLog((open) => !open)}
-            className="-my-3 inline-flex min-h-11 items-center rounded-sm py-3 text-foreground underline underline-offset-[3px] outline-none transition-colors hover:text-primary focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-hidden"
+            className="-my-3 inline-flex min-h-11 items-center rounded-sm py-3 text-foreground underline underline-offset-[3px] outline-none transition-colors hover:text-muted-foreground focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-hidden"
           >
             {showFullLog ? t('showAmendments') : t('showFull')}
           </button>

@@ -570,11 +570,15 @@ export default async function WorkoutDetailPage({
                         )}
                         {/* The amended mark, at the row that moved: you can
                             see WHICH numbers a correction touched without
-                            opening the change log. The same volt pencil the
+                            opening the change log. The same pencil the
                             session-level mark wears — one glyph, one meaning,
                             two scopes (session band, row band), inert in
                             both, exactly like the row's note dot. A word here
-                            would compete with the numbers it is about. */}
+                            would compete with the numbers it is about.
+                            NEUTRAL ink, not the session mark's volt: this one
+                            repeats per set row down a scannable list, and
+                            per-item volt is what DESIGN.md #163 bans. The
+                            accent stays upstream, once, on the mark. */}
                         {amendedSets.has(
                           setSnapshotKey(
                             exercise.source,
@@ -585,7 +589,7 @@ export default async function WorkoutDetailPage({
                           <>
                             <Pencil
                               aria-hidden="true"
-                              className="size-3 shrink-0 text-primary"
+                              className="size-3 shrink-0 text-muted-foreground"
                             />
                             <span className="sr-only">{t('exercise.amendedMark')}</span>
                           </>

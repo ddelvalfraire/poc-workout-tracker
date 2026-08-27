@@ -59,7 +59,9 @@ const original = entry({
 
 /**
  * The common case: one correction, made by you, two days after the session.
- * The rail is volt because an amendment is the kind the reader came for.
+ * The rail is the strongest of three NEUTRAL steps — an amendment is the kind
+ * the reader came for, but the accent for that is spent once, upstream, on
+ * the amended mark.
  */
 export const OneAmendment: Story = {
   args: { entries: [entry(), original] },
@@ -68,8 +70,12 @@ export const OneAmendment: Story = {
 /**
  * Several corrections across two days. The date leaves the row into a group
  * header, so every summary gets the full width and wraps rather than
- * truncating mid-sentence — and one continuous volt edge runs down the zone
- * instead of a per-item accent. Each row reads what changed first, with the
+ * truncating mid-sentence.
+ *
+ * This story is why the rails are not volt: the day grouping renders a
+ * SEPARATE list under each header, so a volt rail here would paint two
+ * disconnected marks rather than one zone edge — per-item accent down a
+ * scannable list (DESIGN.md #163). Each row reads what changed first, the
  * numbers muted behind it, then who and when underneath.
  */
 export const AmendmentsOnly: Story = {
@@ -113,10 +119,11 @@ export const EditedByAnAgent: Story = {
 };
 
 /**
- * The full log opened: three kinds, three rails, three words. Amendment on
- * the volt reading "Corrected", the late entry a step brighter than the
- * hairline reading "Added afterwards", and the app's own writes on the
- * ordinary rail in the system voice — "Automatic", with no actor beside it.
+ * The full log opened: three kinds, three rails, three words — and the rails
+ * interleave, which is the second reason they rank in ink rather than accent.
+ * Amendment on the strongest neutral rail reading "Corrected", the late entry
+ * a step back reading "Added afterwards", and the app's own writes on the
+ * ordinary hairline in the system voice — "Automatic", no actor beside it.
  */
 export const FullLogExpanded: Story = {
   args: {
@@ -169,8 +176,10 @@ export const NeverAmended: Story = {
 
 /**
  * The permanent amended mark, as it sits above the record on the workout
- * summary — the one thing a reader must meet before the numbers it is about.
- * The volt pencil is the same glyph the amended set rows wear.
+ * summary — the one thing a reader must meet before the numbers it is about,
+ * and the SINGLE volt moment in the whole correction story. The pencil is the
+ * same glyph the amended set rows wear; there it renders in neutral ink,
+ * because it repeats per row and the accent may not.
  */
 export const AmendedMark: StoryObj<typeof WorkoutAmendedMark> = {
   render: (args) => <WorkoutAmendedMark {...args} />,

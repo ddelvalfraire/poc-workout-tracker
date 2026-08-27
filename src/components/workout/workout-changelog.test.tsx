@@ -90,17 +90,29 @@ describe('WorkoutChangelog markup', () => {
     expect(markup([entry()])).toContain('Corrected')
   })
 
-  it('gives the three kinds three distinct rails', () => {
+  it('ranks the kinds in neutral ink, never the volt', () => {
     const full = markup([
       entry({ id: 'a', kind: 'amendment' }),
       entry({ id: 'b', kind: 'late_entry' }),
       entry({ id: 'c', kind: 'system' }),
     ])
-    // Only the amendment is visible by default, and it wears the volt rail —
-    // one continuous volt edge down the zone, no competing accent.
-    expect(full).toContain('border-l-primary')
-    expect(full).not.toContain('border-l-foreground/25')
-    expect(full).not.toContain('border-l-border')
+    // The amendment reads strongest of the three, but the ranking is INK, not
+    // accent: day grouping splits these rows into one <ul> per date, so a volt
+    // rail paints N segments rather than one zone edge — per-item volt down a
+    // scannable list, which DESIGN.md #163 bans. The accent lives once,
+    // upstream, on WorkoutAmendedMark.
+    expect(full).toContain('border-l-foreground/40')
+    expect(full).not.toContain('border-l-primary')
+  })
+
+  it('spends no volt anywhere in the log, closed or opened', () => {
+    const full = markup([
+      entry({ id: 'a', kind: 'amendment' }),
+      entry({ id: 'b', kind: 'late_entry' }),
+      entry({ id: 'c', kind: 'original', summary: 'Logged 4 exercises' }),
+    ])
+    expect(full).not.toContain('text-primary')
+    expect(full).not.toContain('border-l-primary')
   })
 
   it('inks the delta behind the subject it belongs to', () => {
@@ -141,6 +153,14 @@ describe('WorkoutAmendedMark', () => {
     const html = markMarkup([entry()])
     expect(html).toContain('See what changed')
     expect(html).toContain('href="#workout-change-log"')
+  })
+
+  it('carries the correction story’s one volt, on the glyph', () => {
+    // The pencil is the accent; the link beside it reads in foreground ink.
+    // Exactly one volt site in the mark, and it is the "changed" glyph.
+    const html = markMarkup([entry()])
+    expect(html.match(/text-primary/g) ?? []).toHaveLength(1)
+    expect(html).toMatch(/<svg[^>]*text-primary/)
   })
 })
 
