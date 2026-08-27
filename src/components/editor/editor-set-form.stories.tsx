@@ -77,3 +77,14 @@ export const NothingPrescribed: Story = {
 export const FixedReps: Story = {
   args: { ...base, set: { ...set, setNumber: 2, repMin: 5, repMax: 5 } },
 };
+
+/**
+ * A set already PINNED to this week — the rail, plus the word.
+ *
+ * The fields are identical to Default on purpose. A pin says where the numbers
+ * came from, not that they are locked or special: this row is exactly where the
+ * pin was made and is exactly where it is unmade, by emptying the box.
+ */
+export const Pinned: Story = {
+  args: { ...base, set: { ...set, overridden: true } },
+};

@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input'
 import type { WeightUnit } from '@/lib/units'
 import { cn } from '@/lib/utils'
 import type { EditorSet } from './editor-model'
+import { PinRail } from './editor-pin-rail'
 
 /**
  * One editable set — the INPUT side of the boundary.
@@ -98,7 +99,15 @@ function EditorSetForm({
     // No `aria-label` on the form: a named form is a LANDMARK, and one per set
     // row would be a column of indistinguishable landmarks. The scoping lives
     // on the fields instead (see `Field`).
-    <form action={action} className={cn('flex flex-wrap items-center gap-2 py-2', className)}>
+    <form
+      action={action}
+      className={cn('relative flex flex-wrap items-center gap-2 py-2 pl-3', className)}
+    >
+      {/* The SAME pin encoding the log rows and the pivot use — position, not
+          intensity. It belongs on the editable side too: a week you pinned by
+          hand looks identical to one the rule derived until something marks it,
+          and this row is exactly where the pin was made. */}
+      {set.overridden && <PinRail />}
       {/* The address travels with the row, so the action needs no session
           state to know which set it is writing. */}
       <input type="hidden" name="programId" value={programId} />
@@ -123,14 +132,14 @@ function EditorSetForm({
       {/* The accessible name is scoped for the same reason the fields are, and
           it CONTAINS the visible word so speech input still reaches it
           (WCAG 2.5.3). */}
-      <Button
-        type="submit"
-        variant="ghost"
-        size="sm"
-        aria-label={`${scope} · ${t('setSave')}`}
-      >
+      <Button type="submit" variant="ghost" size="sm" aria-label={`${scope} · ${t('setSave')}`}>
         {t('setSave')}
       </Button>
+      {/* The rail's other half. Visible when there is room and announced
+          always: the mark is decoration, the word is the fact. */}
+      {set.overridden && (
+        <span className="text-xs text-muted-foreground">{t('setPinned', { week })}</span>
+      )}
     </form>
   )
 }

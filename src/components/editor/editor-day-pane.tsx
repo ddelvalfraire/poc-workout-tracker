@@ -6,6 +6,7 @@ import { EmptyWords } from '@/components/ui/empty-words'
 import type { WeightUnit } from '@/lib/units'
 import { cn } from '@/lib/utils'
 import type { EditorDayDetail, EditorSet } from './editor-model'
+import { PinRail } from './editor-pin-rail'
 import { EditorSetForm } from './editor-set-form'
 
 /**
@@ -48,7 +49,7 @@ interface EditorDayPaneProps {
 }
 
 /** One set's prescription as words — the LOG row for a settled session. */
-function SetLine({ set, unit }: { set: EditorSet; unit: WeightUnit }) {
+function SetLine({ set, week, unit }: { set: EditorSet; week: number; unit: WeightUnit }) {
   const t = useTranslations('ProgramEditor')
 
   const facts: string[] = []
@@ -66,7 +67,11 @@ function SetLine({ set, unit }: { set: EditorSet; unit: WeightUnit }) {
   return (
     // No `text-muted-foreground`, no opacity: a settled row is the content
     // people most want to read, so it keeps primary ink.
-    <li className="flex min-h-11 items-baseline gap-3 py-2 text-sm [@media(pointer:fine)_and_(min-width:840px)]:min-h-8 [@media(pointer:fine)_and_(min-width:840px)]:py-1">
+    <li className="relative flex min-h-11 items-baseline gap-3 py-2 pl-3 text-sm [@media(pointer:fine)_and_(min-width:840px)]:min-h-8 [@media(pointer:fine)_and_(min-width:840px)]:py-1">
+      {/* Pinned reads as POSITION — a leading rule — with the word beside it.
+          Never as a dimmer derived row: lightness alone under 3:1 is not a
+          distinction (WCAG 1.4.1). */}
+      {set.overridden && <PinRail />}
       <span className="w-14 shrink-0 text-xs uppercase tracking-widest text-muted-foreground tnum">
         {t('setNumber', { number: set.setNumber })}
       </span>
@@ -74,7 +79,7 @@ function SetLine({ set, unit }: { set: EditorSet; unit: WeightUnit }) {
         {facts.length > 0 ? facts.join(' · ') : t('setUnset')}
       </span>
       {set.overridden && (
-        <span className="shrink-0 text-xs text-muted-foreground">{t('setOverridden')}</span>
+        <span className="shrink-0 text-xs text-muted-foreground">{t('setPinned', { week })}</span>
       )}
     </li>
   )
@@ -178,7 +183,7 @@ function EditorDayPane({
                 {settled ? (
                   <ul className="mt-1 pl-1">
                     {exercise.sets.map((set) => (
-                      <SetLine key={set.setNumber} set={set} unit={unit} />
+                      <SetLine key={set.setNumber} set={set} week={week} unit={unit} />
                     ))}
                   </ul>
                 ) : (

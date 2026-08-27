@@ -1607,7 +1607,7 @@
     "setCount": "{count, plural, one {# set} other {# sets}}",
     "setLoad": "{load} {unit}",
     "setNumber": "Set {number}",
-    "setOverridden": "this week only",
+    "setPinned": "Pinned to week {week}",
     "setReps": "{min}–{max} reps",
     "setRepsExact": "{reps, plural, one {# rep} other {# reps}}",
     "setRir": "{rir} RIR",

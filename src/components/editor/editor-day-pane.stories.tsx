@@ -124,9 +124,15 @@ export const Skipped: Story = {
 };
 
 /**
- * A week whose sets carry per-week overrides. The override is announced in
- * words on the row, not as a chip: it is metadata, and pill styling would claim
- * it is pressable.
+ * A week whose sets are PINNED by hand rather than derived from the rule.
+ *
+ * The mark is a leading rail plus the word, never a dimmer derived row: the
+ * pinned/derived split is a non-colour distinction (WCAG 1.4.1) and lightness
+ * alone does not carry one. The word is announced in prose rather than a chip,
+ * because it is metadata and pill styling would claim it is pressable.
+ *
+ * Compare against PinnedEditable below: the same fact, the same rail, on the
+ * input side of the settled boundary.
  */
 export const WithWeekOverrides: Story = {
   args: {
@@ -210,3 +216,32 @@ export const NoExercises: Story = {
  * apology.
  */
 export const EmptyCanvas: Story = { args: { ...base, day: null } };
+
+/**
+ * The same pins on an UNTRAINED day, so the rows are fields rather than a log.
+ *
+ * Both projections carry the identical rail in the identical place. That is the
+ * point: the settled/editable boundary is a change in FORM, and the
+ * pinned/derived one is a change in POSITION, so the two never have to be told
+ * apart by the same channel.
+ */
+export const PinnedEditable: Story = {
+  args: {
+    ...base,
+    day: {
+      ...day,
+      trained: null,
+      exercises: [
+        {
+          ...day.exercises[0],
+          sets: [
+            set({ setNumber: 1, load: 90, overridden: true }),
+            set({ setNumber: 2, load: 90, overridden: true }),
+            set({ setNumber: 3 }),
+          ],
+        },
+        day.exercises[1],
+      ],
+    },
+  },
+};
