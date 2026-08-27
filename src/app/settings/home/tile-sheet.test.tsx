@@ -49,7 +49,7 @@ function render(overrides: {
 
 describe('TileSheet', () => {
   test('renders a bottom-sheet dialog with the section title and description', () => {
-    const html = render({ kind: 'momentum', index: 0, count: 4 })
+    const html = render({ kind: 'momentum', index: 0, count: 3 })
     expect(html).toContain('<dialog')
     expect(html).toContain('aria-label="Momentum section"')
     // The registry carries KEYS now, so this asserts the resolved copy — and
@@ -87,23 +87,27 @@ describe('TileSheet', () => {
   })
 
   test('move gating at the top edge: Up and To top disable, Down stays live', () => {
-    const html = render({ kind: 'momentum', index: 0, count: 4 })
+    const html = render({ kind: 'momentum', index: 0, count: 3 })
     expect(html).toContain('aria-label="Move Momentum up" disabled=""')
     expect(html).toContain('aria-label="Move Momentum to top" disabled=""')
     expect(html).not.toContain('aria-label="Move Momentum down" disabled=""')
   })
 
   test('move gating at the bottom edge: Down disables, Up and To top stay live', () => {
-    const html = render({ kind: 'history', index: 3, count: 4 })
-    expect(html).toContain('aria-label="Move History down" disabled=""')
-    expect(html).not.toContain('aria-label="Move History up" disabled=""')
-    expect(html).not.toContain('aria-label="Move History to top" disabled=""')
+    const html = render({ kind: 'unfinished', index: 2, count: 3 })
+    expect(html).toContain('aria-label="Move Unfinished down" disabled=""')
+    expect(html).not.toContain('aria-label="Move Unfinished up" disabled=""')
+    expect(html).not.toContain('aria-label="Move Unfinished to top" disabled=""')
   })
 
   test('visibility switch mirrors hidden state (switch role, settings vocabulary)', () => {
-    const shown = render({ kind: 'history', index: 3, count: 4 })
-    expect(shown).toContain('role="switch" aria-checked="true" aria-label="Show History on Home"')
-    const hidden = render({ kind: 'history', hidden: true, index: 3, count: 4 })
-    expect(hidden).toContain('role="switch" aria-checked="false" aria-label="Show History on Home"')
+    const shown = render({ kind: 'unfinished', index: 2, count: 3 })
+    expect(shown).toContain(
+      'role="switch" aria-checked="true" aria-label="Show Unfinished on Home"',
+    )
+    const hidden = render({ kind: 'unfinished', hidden: true, index: 2, count: 3 })
+    expect(hidden).toContain(
+      'role="switch" aria-checked="false" aria-label="Show Unfinished on Home"',
+    )
   })
 })

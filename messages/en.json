@@ -799,27 +799,21 @@
   },
   "HomeSection": {
     "description": {
-      "history": "Your latest completed workouts.",
       "momentum": "This week’s sets, activity, and goal progress.",
       "todayRecap": "Celebration cards for sessions you finished today.",
       "unfinished": "Stalled sessions waiting to be resumed or finished."
     },
     "title": {
-      "history": "History",
       "momentum": "Momentum",
       "todayRecap": "Today",
       "unfinished": "Unfinished"
     }
   },
   "HomeSections": {
-    "allHistoryLink": "All history",
-    "historyTitle": "History",
-    "latestSummary": "{name} · {day} {month}",
     "resumeLabel": "Resume",
     "startedSummary": "started · {sets, plural, one {# set} other {# sets}} logged",
     "unfinishedTitle": "Unfinished",
-    "untitledWorkout": "Workout",
-    "workoutCount": "{count, plural, one {# workout} other {# workouts}}"
+    "untitledWorkout": "Workout"
   },
   "Import": {
     "batch": {
@@ -996,6 +990,7 @@
       "coach": "Ask about your training",
       "exercises": "Browse the catalog",
       "goals": "Set your first target",
+      "history": "Every session you have finished",
       "notes": "Everything you wrote, by session",
       "programs": "Start a plan",
       "stats": "Log a session to see volume",
@@ -1007,6 +1002,7 @@
       "coach": "Coach",
       "exercises": "Exercises",
       "goals": "Goals",
+      "history": "History",
       "notes": "Notes",
       "programs": "Programs",
       "stats": "Stats",

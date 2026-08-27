@@ -81,8 +81,9 @@ export default async function HomePage() {
   const recentCompleted = summaries.filter(
     (w) => w.completedAt !== null && now.getTime() - w.completedAt.getTime() <= GATE_WINDOW_MS,
   );
-  // History is a record of finished sessions; unfinished rows get their own
-  // quiet section (stale abandonments to resume or finish, not live state).
+  // Completed sessions feed the hero's memory below; unfinished rows get
+  // their own quiet section (stale abandonments, not live state). The full
+  // log lives at /history — home no longer renders it.
   const completed = summaries.filter((w) => w.completedAt !== null);
   const unfinished = summaries.filter((w) => w.completedAt === null);
 
@@ -196,9 +197,7 @@ export default async function HomePage() {
           nowMs: now.getTime(),
           unit,
           recentCompleted,
-          completed,
           unfinished,
-          guardSession: guardSession ?? null,
         })}
 
         {/* The quiet door to the layout editor — a whisper at the very

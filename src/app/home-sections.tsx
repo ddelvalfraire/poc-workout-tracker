@@ -1,13 +1,10 @@
 import Link from 'next/link'
 import type { ReactNode } from 'react'
-import { ChevronRight } from 'lucide-react'
 import type { WorkoutSummary } from '@/db/workouts'
 import type { WeightUnit } from '@/lib/units'
-import type { SessionSummary } from '@/components/session-conflict-dialog'
 import type { HomeSectionKind, HomeSectionSize } from '@/lib/home/registry'
 import type { ResolvedHomeSection } from '@/lib/home/layout'
 import { DividerList } from '@/components/ui/divider-list'
-import { HistoryList } from './history-list'
 import { MomentumPanel } from './momentum-panel'
 import { TodayRecap } from './today-recap'
 import { useTranslations } from 'next-intl'
@@ -28,10 +25,6 @@ import { useTranslations } from 'next-intl'
 // en-US matches formatWorkoutDate — one locale for all date display.
 const monthFormat = new Intl.DateTimeFormat('en-US', { month: 'short' })
 
-/** Home keeps the freshest handful; the full log lives on /history (WHOOP
- *  tier discipline — history is tier-3 data on tier-1 real estate). */
-const HOME_HISTORY_LIMIT = 5
-
 export interface HomeSectionContext {
   userId: string
   /** The page's request "now" (epoch ms) — one instant for every section. */
@@ -39,12 +32,8 @@ export interface HomeSectionContext {
   unit: WeightUnit
   /** Completed within the 48h gate window (TodayRecap filters to local today). */
   recentCompleted: WorkoutSummary[]
-  /** All completed sessions, newest-first slice rendered by History. */
-  completed: WorkoutSummary[]
   /** Started-but-unfinished sessions (stale abandonments, not live state). */
   unfinished: WorkoutSummary[]
-  /** Single-active-session guard for Repeat starts. */
-  guardSession: SessionSummary | null
 }
 
 type HomeSectionRenderer = (ctx: HomeSectionContext, size: HomeSectionSize) => ReactNode
@@ -65,14 +54,6 @@ const HOME_SECTION_RENDERERS: Record<HomeSectionKind, HomeSectionRenderer> = {
     />
   ),
   unfinished: (ctx) => <UnfinishedSection workouts={ctx.unfinished} />,
-  history: (ctx, size) => (
-    <HistorySection
-      workouts={ctx.completed}
-      unit={ctx.unit}
-      guardSession={ctx.guardSession}
-      size={size}
-    />
-  ),
 }
 
 /** The web mapping of the abstract 4-unit row: on the phone column a 2-col
@@ -121,8 +102,8 @@ export function renderHomeSections(
   )
 }
 
-/** Unfinished sits above History by default: these rows still need an action
- *  (resume or finish). Deliberately quiet — the live session owns the hero;
+/** Unfinished: rows that still need an action (resume or finish).
+ *  Deliberately quiet — the live session owns the hero;
  *  anything here is a stale abandonment. Rows reopen the logger, never the
  *  read-only summary (which would present them as completed). */
 function UnfinishedSection({ workouts }: { workouts: WorkoutSummary[] }) {
@@ -138,9 +119,8 @@ function UnfinishedSection({ workouts }: { workouts: WorkoutSummary[] }) {
               href={`/workout/${w.id}/edit`}
               className="flex min-w-0 items-center gap-4 py-3.5 transition-colors active:bg-muted/60"
             >
-              {/* Same calendar anchor as History for scan continuity, but
-                  muted — these dates mark where a session stalled, not an
-                  achievement. */}
+              {/* A calendar anchor, muted — these dates mark where a session
+                  stalled, not an achievement. */}
               <span className="flex w-9 shrink-0 flex-col items-center text-muted-foreground">
                 <span className="font-display text-xl leading-none tnum">
                   {w.startedAt.getDate()}
@@ -165,82 +145,6 @@ function UnfinishedSection({ workouts }: { workouts: WorkoutSummary[] }) {
           </li>
         ))}
       </DividerList>
-    </>
-  )
-}
-
-/** Rows shown at md — the demoted middle size; lg keeps the classic
- *  HOME_HISTORY_LIMIT handful. */
-const HISTORY_MD_LIMIT = 3
-
-/** History, demoted (WHOOP tier discipline): the last few compact rows; the
- *  full log lives on /history. No empty-state card — with nothing completed,
- *  the fresh hero already owns the invite.
- *
- *  Sizes: sm is one line (count + latest name/date) linking to /history;
- *  md shows 3 rows; lg the classic 5. The "All history" link appears whenever
- *  the size's slice leaves rows unseen. */
-function HistorySection({
-  workouts,
-  unit,
-  guardSession,
-  size = 'md',
-}: {
-  workouts: WorkoutSummary[]
-  unit: WeightUnit
-  guardSession: SessionSummary | null
-  size?: HomeSectionSize
-}) {
-  const t = useTranslations('HomeSections')
-  if (workouts.length === 0) return null
-
-  if (size === 'sm') {
-    const latest = workouts[0]
-    return (
-      <>
-        <h2 className="mt-10 mb-3 text-lg">{t('historyTitle')}</h2>
-        <Link
-          href="/history"
-          className="flex min-w-0 items-center gap-4 overflow-hidden rounded-2xl border border-border bg-card px-4 py-3.5 transition-colors active:bg-muted/60"
-        >
-          <span className="min-w-0 flex-1">
-            <span className="block truncate font-medium tnum">
-              {t('workoutCount', { count: workouts.length })}
-            </span>
-            <span className="mt-0.5 block truncate text-sm text-muted-foreground tnum">
-              {t('latestSummary', {
-                name: latest.name ?? t('untitledWorkout'),
-                day: latest.startedAt.getDate(),
-                month: monthFormat.format(latest.startedAt),
-              })}
-            </span>
-          </span>
-          <ChevronRight aria-hidden="true" className="size-5 shrink-0 text-muted-foreground" />
-        </Link>
-      </>
-    )
-  }
-
-  const limit = size === 'lg' ? HOME_HISTORY_LIMIT : HISTORY_MD_LIMIT
-  return (
-    <>
-      <div className="mt-10 mb-3 flex items-baseline justify-between gap-3">
-        <h2 className="text-lg">{t('historyTitle')}</h2>
-        {workouts.length > limit && (
-          <Link
-            href="/history"
-            className="flex shrink-0 items-center gap-0.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
-          >
-            {t('allHistoryLink')}
-            <ChevronRight aria-hidden="true" className="size-4" />
-          </Link>
-        )}
-      </div>
-      <HistoryList
-        workouts={workouts.slice(0, limit)}
-        unit={unit}
-        guardSession={guardSession}
-      />
     </>
   )
 }

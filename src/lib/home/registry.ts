@@ -9,6 +9,10 @@
  * StatusHero and CheckInCard are deliberately NOT here: they always render,
  * always first, and are never customizable.
  *
+ * History is deliberately NOT here either: the full log lives at /history.
+ * Stored documents that still name it resolve fine (unknown kinds round-trip
+ * and are skipped at render), so removal needed no migration.
+ *
  * Array order IS the default home order.
  */
 
@@ -26,13 +30,11 @@ export type HomeSectionTitleKey =
   | 'title.momentum'
   | 'title.todayRecap'
   | 'title.unfinished'
-  | 'title.history'
 
 export type HomeSectionDescriptionKey =
   | 'description.momentum'
   | 'description.todayRecap'
   | 'description.unfinished'
-  | 'description.history'
 
 /** The registry's copy is CATALOG KEYS, not sentences: entries are data
  *  shared by the editor grid, the tile sheet and (later) native clients, none
@@ -75,15 +77,6 @@ export const HOME_SECTION_REGISTRY = [
     descriptionKey: 'description.unfinished',
     allowedSizes: ['md'],
     defaultSize: 'md',
-  },
-  {
-    kind: 'history',
-    titleKey: 'title.history',
-    descriptionKey: 'description.history',
-    allowedSizes: ['sm', 'md', 'lg'],
-    // lg, not md: today's home shows HOME_HISTORY_LIMIT (5) rows, which is
-    // the lg rendering — the default-parity contract pins the default to it.
-    defaultSize: 'lg',
   },
 ] as const satisfies readonly HomeSectionMeta[]
 

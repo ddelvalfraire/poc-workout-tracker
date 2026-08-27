@@ -18,7 +18,6 @@ const sections: ResolvedHomeSection[] = [
   { kind: 'momentum', size: 'sm', hidden: false },
   { kind: 'today-recap', size: 'md', hidden: true },
   { kind: 'unfinished', size: 'md', hidden: false },
-  { kind: 'history', size: 'lg', hidden: false },
 ]
 
 describe('HomeLayoutEditor (grid preview)', () => {
@@ -35,13 +34,13 @@ describe('HomeLayoutEditor (grid preview)', () => {
     expect(html).toContain('grid grid-cols-2 gap-x-3')
     // One sm tile → exactly one half-width wrapper; the other three span full.
     expect(html.match(/col-span-1/g)).toHaveLength(1)
-    expect(html.match(/col-span-2/g)).toHaveLength(3)
+    expect(html.match(/col-span-2/g)).toHaveLength(2)
   })
 
   test('every tile is a schematic button (title + bg-muted bars, aria size state)', () => {
     const html = renderStaticIntl(<HomeLayoutEditor initialSections={sections} />)
     expect(html).toContain('aria-label="Momentum — Small. Edit section"')
-    expect(html).toContain('aria-label="History — Large. Edit section"')
+    expect(html).toContain('aria-label="Unfinished — Medium. Edit section"')
     expect(html).toContain('bg-muted')
   })
 

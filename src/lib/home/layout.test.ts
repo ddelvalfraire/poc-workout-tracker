@@ -36,7 +36,7 @@ describe('resolveHomeLayout', () => {
   })
 
   it('degrades to the default on an unknown version', () => {
-    const resolved = resolveHomeLayout({ version: 99, sections: [{ kind: 'history' }] })
+    const resolved = resolveHomeLayout({ version: 99, sections: [{ kind: 'momentum' }] })
     expect(resolved.map((s) => s.kind)).toEqual(REGISTRY_KINDS)
   })
 
@@ -44,26 +44,20 @@ describe('resolveHomeLayout', () => {
     const resolved = resolveHomeLayout({
       version: 2,
       sections: [
-        { kind: 'history' },
+        { kind: 'unfinished' },
         { kind: 'momentum', hidden: true },
         { kind: 'today-recap' },
-        { kind: 'unfinished' },
       ],
     })
-    expect(resolved.map((s) => s.kind)).toEqual([
-      'history',
-      'momentum',
-      'today-recap',
-      'unfinished',
-    ])
+    expect(resolved.map((s) => s.kind)).toEqual(['unfinished', 'momentum', 'today-recap'])
     expect(resolved.find((s) => s.kind === 'momentum')?.hidden).toBe(true)
-    expect(resolved.find((s) => s.kind === 'history')?.hidden).toBe(false)
+    expect(resolved.find((s) => s.kind === 'unfinished')?.hidden).toBe(false)
   })
 
   it('keeps unknown kinds in place (render skips them, resolution round-trips them)', () => {
     const resolved = resolveHomeLayout({
       version: 2,
-      sections: [{ kind: 'from-the-future' }, { kind: 'history' }],
+      sections: [{ kind: 'from-the-future' }, { kind: 'momentum' }],
     })
     expect(resolved[0]).toEqual({ kind: 'from-the-future', size: 'md', hidden: false })
   })
@@ -71,14 +65,9 @@ describe('resolveHomeLayout', () => {
   it('appends registry kinds missing from the stored doc, visible, in registry order', () => {
     const resolved = resolveHomeLayout({
       version: 2,
-      sections: [{ kind: 'history', hidden: true }],
+      sections: [{ kind: 'unfinished', hidden: true }],
     })
-    expect(resolved.map((s) => s.kind)).toEqual([
-      'history',
-      'momentum',
-      'today-recap',
-      'unfinished',
-    ])
+    expect(resolved.map((s) => s.kind)).toEqual(['unfinished', 'momentum', 'today-recap'])
     expect(resolved.slice(1).every((s) => !s.hidden)).toBe(true)
   })
 
@@ -86,15 +75,14 @@ describe('resolveHomeLayout', () => {
     const resolved = resolveHomeLayout({
       version: 2,
       sections: [
-        { kind: 'history', hidden: true },
-        { kind: 'history' },
+        { kind: 'unfinished', hidden: true },
+        { kind: 'unfinished' },
         { kind: 'momentum' },
         { kind: 'today-recap' },
-        { kind: 'unfinished' },
       ],
     })
-    expect(resolved.filter((s) => s.kind === 'history')).toEqual([
-      { kind: 'history', size: 'lg', hidden: true },
+    expect(resolved.filter((s) => s.kind === 'unfinished')).toEqual([
+      { kind: 'unfinished', size: 'md', hidden: true },
     ])
   })
 
@@ -105,10 +93,9 @@ describe('resolveHomeLayout', () => {
         { kind: 'momentum', size: 'lg' },
         { kind: 'today-recap', size: 'sm' },
         { kind: 'unfinished' },
-        { kind: 'history', size: 'sm' },
       ],
     })
-    expect(resolved.map((s) => s.size)).toEqual(['lg', 'sm', 'md', 'sm'])
+    expect(resolved.map((s) => s.size)).toEqual(['lg', 'sm', 'md'])
   })
 
   it('normalizes an unknown, missing, or not-allowed size to the kind default', () => {
@@ -118,42 +105,36 @@ describe('resolveHomeLayout', () => {
         { kind: 'momentum', size: 'xl' }, // unknown size value
         { kind: 'today-recap', size: 'lg' }, // not in today-recap's allowedSizes
         { kind: 'unfinished', size: 'sm' }, // unfinished is md-only
-        { kind: 'history' }, // missing — history's own default is lg
       ],
     })
-    expect(resolved.map((s) => s.size)).toEqual(['md', 'md', 'md', 'lg'])
+    // Every surviving kind defaults to md, so normalization lands there in
+    // all three cases; the per-kind lookup is still what produced it.
+    expect(resolved.map((s) => s.size)).toEqual(['md', 'md', 'md'])
   })
 
   it('auto-upgrades a v1 document in memory: order and hidden survive, sizes are registry defaults', () => {
     const resolved = resolveHomeLayout({
       version: 1,
       sections: [
-        { kind: 'history' },
+        { kind: 'unfinished' },
         { kind: 'momentum', hidden: true },
         { kind: 'today-recap' },
-        { kind: 'unfinished' },
       ],
     })
     expect(resolved).toEqual([
-      { kind: 'history', size: 'lg', hidden: false },
+      { kind: 'unfinished', size: 'md', hidden: false },
       { kind: 'momentum', size: 'md', hidden: true },
       { kind: 'today-recap', size: 'md', hidden: false },
-      { kind: 'unfinished', size: 'md', hidden: false },
     ])
   })
 
   it('a v1 document still gains newly shipped sections and sheds duplicates', () => {
     const resolved = resolveHomeLayout({
       version: 1,
-      sections: [{ kind: 'history', hidden: true }, { kind: 'history' }],
+      sections: [{ kind: 'unfinished', hidden: true }, { kind: 'unfinished' }],
     })
-    expect(resolved.map((s) => s.kind)).toEqual([
-      'history',
-      'momentum',
-      'today-recap',
-      'unfinished',
-    ])
-    expect(resolved[0]).toEqual({ kind: 'history', size: 'lg', hidden: true })
+    expect(resolved.map((s) => s.kind)).toEqual(['unfinished', 'momentum', 'today-recap'])
+    expect(resolved[0]).toEqual({ kind: 'unfinished', size: 'md', hidden: true })
   })
 })
 
@@ -161,10 +142,9 @@ describe('parseHomeLayoutInput', () => {
   const valid = {
     version: 2,
     sections: [
-      { kind: 'history' },
+      { kind: 'unfinished' },
       { kind: 'momentum', hidden: true },
       { kind: 'today-recap' },
-      { kind: 'unfinished' },
     ],
   }
 
@@ -172,10 +152,9 @@ describe('parseHomeLayoutInput', () => {
     const doc = parseHomeLayoutInput(valid)
     expect(doc.version).toBe(2)
     expect(doc.sections).toEqual([
-      { kind: 'history' },
+      { kind: 'unfinished' },
       { kind: 'momentum', hidden: true },
       { kind: 'today-recap' },
-      { kind: 'unfinished' },
     ])
   })
 
@@ -205,14 +184,14 @@ describe('parseHomeLayoutInput', () => {
     expect(() =>
       parseHomeLayoutInput({
         ...valid,
-        sections: [...valid.sections.slice(0, 3), { kind: 'history' }],
+        sections: [...valid.sections.slice(0, 2), { kind: 'unfinished' }],
       }),
     ).toThrow('duplicate home section kind')
   })
 
   it('rejects a document missing registry kinds', () => {
     expect(() =>
-      parseHomeLayoutInput({ version: 2, sections: [{ kind: 'history' }] }),
+      parseHomeLayoutInput({ version: 2, sections: [{ kind: 'unfinished' }] }),
     ).toThrow('home layout must include every section')
   })
 
@@ -222,15 +201,13 @@ describe('parseHomeLayoutInput', () => {
       sections: [
         { kind: 'momentum', size: 'sm' },
         { kind: 'today-recap', size: 'md' }, // default — serialized away
-        { kind: 'unfinished', size: 'md' },
-        { kind: 'history', size: 'lg' }, // history's default IS lg — serialized away
+        { kind: 'unfinished', size: 'md' }, // default — serialized away
       ],
     })
     expect(doc.sections).toEqual([
       { kind: 'momentum', size: 'sm' },
       { kind: 'today-recap' },
       { kind: 'unfinished' },
-      { kind: 'history' },
     ])
   })
 
@@ -256,28 +233,18 @@ describe('moveSection', () => {
 
   it('swaps a section with its neighbor without mutating the input', () => {
     const next = moveSection(sections, 'today-recap', 'up')
-    expect(next.map((s) => s.kind)).toEqual([
-      'today-recap',
-      'momentum',
-      'unfinished',
-      'history',
-    ])
+    expect(next.map((s) => s.kind)).toEqual(['today-recap', 'momentum', 'unfinished'])
     expect(sections.map((s) => s.kind)).toEqual(REGISTRY_KINDS) // untouched
   })
 
   it('moves down past a neighbor', () => {
     const next = moveSection(sections, 'momentum', 'down')
-    expect(next.map((s) => s.kind)).toEqual([
-      'today-recap',
-      'momentum',
-      'unfinished',
-      'history',
-    ])
+    expect(next.map((s) => s.kind)).toEqual(['today-recap', 'momentum', 'unfinished'])
   })
 
   it('is a no-op at the edges and for unknown kinds', () => {
     expect(moveSection(sections, 'momentum', 'up')).toBe(sections)
-    expect(moveSection(sections, 'history', 'down')).toBe(sections)
+    expect(moveSection(sections, 'unfinished', 'down')).toBe(sections)
     expect(moveSection(sections, 'nope', 'up')).toBe(sections)
   })
 })
@@ -287,19 +254,14 @@ describe('moveSectionToTop', () => {
 
   it('moves a section to the front, preserving relative order, without mutating', () => {
     const next = moveSectionToTop(sections, 'unfinished')
-    expect(next.map((s) => s.kind)).toEqual([
-      'unfinished',
-      'momentum',
-      'today-recap',
-      'history',
-    ])
+    expect(next.map((s) => s.kind)).toEqual(['unfinished', 'momentum', 'today-recap'])
     expect(sections.map((s) => s.kind)).toEqual(REGISTRY_KINDS) // untouched
   })
 
   it('carries the moved section intact (size and hidden survive the move)', () => {
-    const customized = toggleSection(setSectionSize(sections, 'history', 'sm'), 'history')
-    const next = moveSectionToTop(customized, 'history')
-    expect(next[0]).toEqual({ kind: 'history', size: 'sm', hidden: true })
+    const customized = toggleSection(setSectionSize(sections, 'momentum', 'sm'), 'momentum')
+    const next = moveSectionToTop(customized, 'momentum')
+    expect(next[0]).toEqual({ kind: 'momentum', size: 'sm', hidden: true })
   })
 
   it('is a no-op (same reference) when already first or for unknown kinds', () => {
@@ -313,29 +275,19 @@ describe('reorderSection', () => {
 
   it("moves the active section to the over section's slot, downward, without mutating", () => {
     const next = reorderSection(sections, 'momentum', 'unfinished')
-    expect(next.map((s) => s.kind)).toEqual([
-      'today-recap',
-      'unfinished',
-      'momentum',
-      'history',
-    ])
+    expect(next.map((s) => s.kind)).toEqual(['today-recap', 'unfinished', 'momentum'])
     expect(sections.map((s) => s.kind)).toEqual(REGISTRY_KINDS) // untouched
   })
 
   it("moves the active section to the over section's slot, upward", () => {
-    const next = reorderSection(sections, 'history', 'today-recap')
-    expect(next.map((s) => s.kind)).toEqual([
-      'momentum',
-      'history',
-      'today-recap',
-      'unfinished',
-    ])
+    const next = reorderSection(sections, 'unfinished', 'today-recap')
+    expect(next.map((s) => s.kind)).toEqual(['momentum', 'unfinished', 'today-recap'])
   })
 
   it('is a no-op (same reference) for unknown kinds and self-targets', () => {
-    expect(reorderSection(sections, 'nope', 'history')).toBe(sections)
-    expect(reorderSection(sections, 'history', 'nope')).toBe(sections)
-    expect(reorderSection(sections, 'history', 'history')).toBe(sections)
+    expect(reorderSection(sections, 'nope', 'unfinished')).toBe(sections)
+    expect(reorderSection(sections, 'unfinished', 'nope')).toBe(sections)
+    expect(reorderSection(sections, 'unfinished', 'unfinished')).toBe(sections)
   })
 })
 
@@ -343,12 +295,12 @@ describe('toggleSection', () => {
   const sections = resolveHomeLayout(null)
 
   it('flips hidden without mutating the input', () => {
-    const next = toggleSection(sections, 'history')
-    expect(next.find((s) => s.kind === 'history')?.hidden).toBe(true)
-    expect(toggleSection(next, 'history').find((s) => s.kind === 'history')?.hidden).toBe(
+    const next = toggleSection(sections, 'unfinished')
+    expect(next.find((s) => s.kind === 'unfinished')?.hidden).toBe(true)
+    expect(toggleSection(next, 'unfinished').find((s) => s.kind === 'unfinished')?.hidden).toBe(
       false,
     )
-    expect(sections.find((s) => s.kind === 'history')?.hidden).toBe(false)
+    expect(sections.find((s) => s.kind === 'unfinished')?.hidden).toBe(false)
   })
 
   it('is a no-op for unknown kinds', () => {
@@ -376,15 +328,14 @@ describe('setSectionSize', () => {
 describe('toLayoutDoc', () => {
   it('serializes resolved sections into a version-2 document, omitting hidden:false and default sizes', () => {
     const doc = toLayoutDoc(
-      setSectionSize(toggleSection(resolveHomeLayout(null), 'momentum'), 'history', 'sm'),
+      setSectionSize(toggleSection(resolveHomeLayout(null), 'momentum'), 'today-recap', 'sm'),
     )
     expect(doc).toEqual({
       version: 2,
       sections: [
         { kind: 'momentum', hidden: true },
-        { kind: 'today-recap' },
+        { kind: 'today-recap', size: 'sm' },
         { kind: 'unfinished' },
-        { kind: 'history', size: 'sm' },
       ],
     })
   })

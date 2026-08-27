@@ -4,13 +4,6 @@ import { renderStaticIntl } from '../../vitest.intl'
 import type { WorkoutSummary } from '@/db/workouts'
 import { renderHomeSections, type HomeSectionContext } from './home-sections'
 
-// The md/lg history rows render HistoryList's guarded Repeat control, which
-// calls useRouter — outside the app router that throws before any copy is
-// produced.
-vi.mock('next/navigation', () => ({
-  useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn(), back: vi.fn() }),
-}))
-
 /**
  * Wire-level tests for the kind → renderer mapping. Renderers are stubbed
  * (the real ones are async RSCs), so these assert the map's CONTRACT: hidden
@@ -44,7 +37,6 @@ describe('renderHomeSections', () => {
     const renderers = stubRenderers()
     renderHomeSections(
       [
-        { kind: 'history', size: 'md', hidden: false },
         { kind: 'momentum', size: 'md', hidden: false },
         { kind: 'today-recap', size: 'md', hidden: false },
         { kind: 'unfinished', size: 'md', hidden: false },
@@ -63,13 +55,13 @@ describe('renderHomeSections', () => {
     renderHomeSections(
       [
         { kind: 'momentum', size: 'md', hidden: true },
-        { kind: 'history', size: 'md', hidden: false },
+        { kind: 'today-recap', size: 'md', hidden: false },
       ],
       ctx,
       renderers,
     )
     expect(renderers['momentum']).not.toHaveBeenCalled()
-    expect(renderers['history']).toHaveBeenCalledTimes(1)
+    expect(renderers['today-recap']).toHaveBeenCalledTimes(1)
   })
 
   it('silently skips unknown kinds (no renderer, no error)', () => {
@@ -78,13 +70,13 @@ describe('renderHomeSections', () => {
       renderHomeSections(
         [
           { kind: 'from-the-future', size: 'md', hidden: false },
-          { kind: 'history', size: 'md', hidden: false },
+          { kind: 'momentum', size: 'md', hidden: false },
         ],
         ctx,
         renderers,
       ),
     ).not.toThrow()
-    expect(renderers['history']).toHaveBeenCalledTimes(1)
+    expect(renderers['momentum']).toHaveBeenCalledTimes(1)
   })
 
   it('the default renderer map covers every registry kind', () => {
@@ -102,9 +94,7 @@ describe('renderHomeSections', () => {
         nowMs: 0,
         unit: 'lb',
         recentCompleted: [],
-        completed: [],
         unfinished: [],
-        guardSession: null,
       }),
     )
     expect(wrappers).toHaveLength(HOME_SECTION_REGISTRY.length)
@@ -136,17 +126,15 @@ describe('renderHomeSections', () => {
     const { wrappers } = wrappersOf(
       renderHomeSections(
         [
-          { kind: 'momentum', size: 'sm', hidden: false },
           { kind: 'today-recap', size: 'sm', hidden: false },
           { kind: 'unfinished', size: 'md', hidden: false },
-          { kind: 'history', size: 'lg', hidden: false },
+          { kind: 'momentum', size: 'lg', hidden: false },
         ],
         ctx,
         stubRenderers(),
       ),
     )
     expect(wrappers.map((w) => w.props.className)).toEqual([
-      'col-span-1',
       'col-span-1',
       'col-span-2',
       'col-span-2 md:col-span-4',
@@ -160,7 +148,7 @@ describe('renderHomeSections', () => {
  * untranslatable anywhere with more than two plural forms — so each count is
  * asserted at one AND at many, separately.
  *
- * Only `unfinished` and `history` are rendered: the other two renderers are
+ * Only `unfinished` is rendered here: the other two renderers are
  * MomentumPanel (an async RSC that reads the database) and TodayRecap (which
  * renders nothing until it has mounted and can see the user's calendar day).
  */
@@ -179,7 +167,7 @@ function workout(over: Partial<WorkoutSummary> = {}): WorkoutSummary {
 }
 
 function renderSection(
-  kind: 'unfinished' | 'history',
+  kind: 'unfinished',
   size: 'sm' | 'md' | 'lg',
   workouts: WorkoutSummary[],
 ): string {
@@ -189,9 +177,7 @@ function renderSection(
       nowMs: Date.parse('2026-03-05T09:00:00Z'),
       unit: 'kg',
       recentCompleted: [],
-      completed: kind === 'history' ? workouts : [],
-      unfinished: kind === 'unfinished' ? workouts : [],
-      guardSession: null,
+      unfinished: workouts,
     }),
   )
 }
@@ -228,35 +214,9 @@ describe('HomeSections copy', () => {
     expect(html).toContain('Workout')
   })
 
-  test('reads the singular workout form in the compact history line', () => {
-    const html = renderSection('history', 'sm', [workout()])
-
-    expect(html).toContain('1 workout')
-    expect(html).not.toContain('1 workouts')
-  })
-
-  test('reads the plural workout form in the compact history line', () => {
-    const html = renderSection('history', 'sm', [
-      workout(),
-      workout({ id: 'w2' }),
-      workout({ id: 'w3' }),
-    ])
-
-    expect(html).toContain('3 workouts')
-  })
-
-  test('offers the full log only once the size’s slice leaves rows unseen', () => {
-    const many = Array.from({ length: 6 }, (_, i) => workout({ id: `w${i}` }))
-
-    expect(renderSection('history', 'md', many)).toContain('All history')
-    expect(renderSection('history', 'md', [workout()])).not.toContain('All history')
-  })
-
   test('resolves every key it references', () => {
     const unfinished = renderSection('unfinished', 'md', [workout({ completedAt: null })])
-    const history = renderSection('history', 'sm', [workout()])
 
     expect(unfinished).not.toMatch(/HomeSections\.[a-zA-Z.]+/)
-    expect(history).not.toMatch(/HomeSections\.[a-zA-Z.]+/)
   })
 })

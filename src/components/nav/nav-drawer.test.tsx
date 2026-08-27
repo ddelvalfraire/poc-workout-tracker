@@ -90,12 +90,12 @@ afterEach(() => {
 })
 
 describe('NavDrawer pending state (data === null)', () => {
-  test('renders one ghost per status slot: 8 surface rows + the hero context line', () => {
+  test('renders one ghost per status slot: 9 surface rows + the hero context line', () => {
     const html = renderDrawer()
     const ghosts = html.match(/animate-ghost-in/g) ?? []
-    // Programs, Templates, Stats, Goals, Trophies, Body, Exercises, Notes
-    // (no Coach row before data), plus the ACT hero's context line.
-    expect(ghosts).toHaveLength(9)
+    // Programs, Templates, Stats, History, Goals, Trophies, Body, Exercises,
+    // Notes (no Coach row before data), plus the ACT hero's context line.
+    expect(ghosts).toHaveLength(10)
   })
 
   test('ghosts sit in the status line’s exact h-4 line box (zero-shift contract)', () => {
@@ -114,7 +114,7 @@ describe('NavDrawer pending state (data === null)', () => {
     expect(html).not.toContain('Recent')
     // The arrival rise-in wraps status content only once data exists; while
     // pending only the row <li>s carry rise-in (one per surface row).
-    expect(html.match(/animate-rise-in/g) ?? []).toHaveLength(8)
+    expect(html.match(/animate-rise-in/g) ?? []).toHaveLength(9)
   })
 
   test('hero pending variant still renders the quick-log CTA label (no copy change)', () => {

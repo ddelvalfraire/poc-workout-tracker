@@ -302,10 +302,9 @@ describe('setHomeLayoutAction', () => {
   const validLayout = {
     version: 2,
     sections: [
-      { kind: 'history' },
+      { kind: 'unfinished' },
       { kind: 'momentum', hidden: true },
       { kind: 'today-recap' },
-      { kind: 'unfinished' },
     ],
   }
 
@@ -341,7 +340,7 @@ describe('setHomeLayoutAction', () => {
     await expect(
       setHomeLayoutAction({
         version: 2,
-        sections: [...validLayout.sections.slice(0, 3), { kind: 'history' }],
+        sections: [...validLayout.sections.slice(0, 2), { kind: 'unfinished' }],
       }),
     ).rejects.toThrow('duplicate home section kind')
     expect(setHomeLayout).not.toHaveBeenCalled()
@@ -349,7 +348,7 @@ describe('setHomeLayoutAction', () => {
 
   it('rejects a document missing sections without writing', async () => {
     await expect(
-      setHomeLayoutAction({ version: 2, sections: [{ kind: 'history' }] }),
+      setHomeLayoutAction({ version: 2, sections: [{ kind: 'unfinished' }] }),
     ).rejects.toThrow('home layout must include every section')
     expect(setHomeLayout).not.toHaveBeenCalled()
   })

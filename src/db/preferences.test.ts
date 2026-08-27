@@ -178,7 +178,7 @@ describe('setDefaultRestSec', () => {
 })
 
 describe('getHomeLayout', () => {
-  const DEFAULT_KINDS = ['momentum', 'today-recap', 'unfinished', 'history']
+  const DEFAULT_KINDS = ['momentum', 'today-recap', 'unfinished']
 
   it('resolves to the default order when no row exists', async () => {
     selectRows = []
@@ -196,28 +196,22 @@ describe('getHomeLayout', () => {
         homeLayout: {
           version: 1,
           sections: [
-            { kind: 'history' },
+            { kind: 'unfinished' },
             { kind: 'momentum', hidden: true },
             { kind: 'today-recap' },
-            { kind: 'unfinished' },
           ],
         },
       },
     ]
     const resolved = await getHomeLayout(USER)
-    expect(resolved.map((s) => s.kind)).toEqual([
-      'history',
-      'momentum',
-      'today-recap',
-      'unfinished',
-    ])
+    expect(resolved.map((s) => s.kind)).toEqual(['unfinished', 'momentum', 'today-recap'])
     expect(resolved[1].hidden).toBe(true)
   })
 })
 
 describe('setHomeLayout', () => {
   it('upserts the layout document by user id', async () => {
-    const layout = { version: 2 as const, sections: [{ kind: 'history' }] }
+    const layout = { version: 2 as const, sections: [{ kind: 'unfinished' }] }
     await setHomeLayout(USER, layout)
 
     expect(upserts).toHaveLength(1)
