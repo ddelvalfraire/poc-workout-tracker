@@ -307,6 +307,8 @@ export async function saveProgram(
         // Omitted on create = null (legacy read-time resolution — see
         // resolveDeloadPolicy). Same no-materialization discipline.
         ...(input.deloadPolicy !== undefined ? { deloadPolicy: input.deloadPolicy } : {}),
+        // Omitted on create = null, i.e. fall back to the per-scheme defaults.
+        ...(input.overshootPolicy !== undefined ? { overshootPolicy: input.overshootPolicy } : {}),
         // Diet phase: omitted/null on create = no phase (null IS the off
         // state). An explicit phase stamps set_at — the staleness anchor.
         ...(input.dietPhase !== undefined && input.dietPhase !== null
@@ -500,6 +502,11 @@ export async function updateProgram(
         // Same preserve rule for the deload policy; explicit null clears it
         // back to legacy read-time resolution.
         ...(input.deloadPolicy !== undefined ? { deloadPolicy: input.deloadPolicy } : {}),
+        // Same preserve rule for the overshoot policy; explicit null restores
+        // the per-scheme defaults. Without this the builder's full replace
+        // silently reset a policy the agent had set — the program-level twin
+        // of the per-exercise bug fixed alongside it.
+        ...(input.overshootPolicy !== undefined ? { overshootPolicy: input.overshootPolicy } : {}),
         // Same preserve rule for the diet phase; explicit null clears it.
         // set_at bumps ONLY when the stored value actually changes (IS
         // DISTINCT FROM — null-safe), so a full-replace save that round-trips

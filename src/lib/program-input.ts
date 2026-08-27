@@ -473,6 +473,11 @@ export const programInputSchema = z
     // null (= legacy resolution); updateProgram preserves when omitted, and
     // an explicit null clears the policy back to legacy resolution.
     deloadPolicy: deloadPolicySchema.nullable().optional(),
+    // The program-wide default for "what counts as beating a target", which
+    // an exercise may override. Same preserve/clear discipline as
+    // deloadPolicy: omitted leaves the stored value alone, explicit null
+    // restores the per-scheme defaults.
+    overshootPolicy: overshootPolicySchema.nullable().optional(),
     // Diet-phase context (programs.dietPhase — see dietPhaseSchema above).
     // Same preserve-on-omit discipline as the switches: NO default, or an
     // upsert that omits the field would wipe a stored phase. saveProgram

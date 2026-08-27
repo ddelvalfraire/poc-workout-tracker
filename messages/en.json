@@ -1141,6 +1141,32 @@
   "OpsRefreshButton": {
     "ariaLabel": "Refresh"
   },
+  "OvershootField": {
+    "ariaLabelExercise": "What counts as beating the target for {exerciseName}",
+    "ariaLabelProgram": "What counts as beating the target, for the whole program",
+    "consequence": {
+      "default": "Uses {resolved} — whatever the rest of the plan says. Changes if that changes.",
+      "strictLoad": "Only a heavier bar counts. Extra reps at the same weight do not.",
+      "e1rmEquivalent": "Whichever moves your estimated max. 8 × 100 kg beats 5 × 105 kg.",
+      "anyMetric": "More reps, more weight, more time — all of it counts."
+    },
+    "label": "Beating the target",
+    "lede": "When a set goes past what was asked, what counts as beating it?",
+    "option": {
+      "default": "Follow the plan",
+      "strictLoad": "More weight only",
+      "e1rmEquivalent": "Reps or weight",
+      "anyMetric": "Anything past the target"
+    },
+    "preview": {
+      "title": "Right now",
+      "ask": "This asks for {reps} × {load}.",
+      "default": "It follows whatever the rest of the plan uses.",
+      "strictLoad": "Only more than {load} counts — extra reps at {load} do not.",
+      "e1rmEquivalent": "Extra reps at {load} count, and so does more than {load}.",
+      "anyMetric": "Anything past {reps} × {load} counts."
+    }
+  },
   "PatchProposalCard": {
     "applyAction": "Apply all",
     "applyError": "Could not apply these changes. Please try again.",
@@ -1390,16 +1416,6 @@
     },
     "nameAriaLabel": "Program name",
     "namePlaceholder": "Program name",
-    "overshoot": {
-      "label": "Beating the target",
-      "ariaLabel": "What counts as beating the target for {exerciseName}",
-      "option": {
-        "default": "Scheme default",
-        "strictLoad": "More weight only",
-        "e1rmEquivalent": "Reps or weight (e1RM)",
-        "anyMetric": "Any metric"
-      }
-    },
     "placeholder": {
       "duration": "mm:ss",
       "rest": "Rest s"

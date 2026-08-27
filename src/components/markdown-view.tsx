@@ -209,34 +209,50 @@ interface MarkdownViewProps {
 /** Read-only markdown display; typography follows the muted prose idiom. */
 export function MarkdownView({ markdown, className }: MarkdownViewProps) {
   const blocks = parseBlocks(markdown)
+  // Heading LEVELS are normalized; heading LOOKS are not. An author who jumps
+  // from ## straight to #### would otherwise have that skip rendered
+  // faithfully as h3 → h5, which is a real axe heading-order violation
+  // shipped into the app by someone else's typing. So the emitted level never
+  // climbs by more than one, while the visual tier stays keyed to what was
+  // actually written — the document still reads the way its author meant.
+  const headingLevels = new Map<number, 3 | 4 | 5>()
+  let previous = 2
+  blocks.forEach((block, i) => {
+    if (block.kind !== 'heading') return
+    const desired = block.level + 1
+    const level = Math.min(desired, previous + 1) as 3 | 4 | 5
+    headingLevels.set(i, level)
+    previous = level
+  })
   return (
     <div className={cn('space-y-2 text-sm leading-relaxed', className)}>
       {blocks.map((block, i) => {
         if (block.kind === 'heading') {
+          const Heading = `h${headingLevels.get(i) ?? 3}` as 'h3' | 'h4' | 'h5'
           if (block.level === 2) {
             return (
-              <h3 key={i} className="pt-1 font-semibold text-foreground">
+              <Heading key={i} className="pt-1 font-semibold text-foreground">
                 {renderInline(block.text)}
-              </h3>
+              </Heading>
             )
           }
           if (block.level === 3) {
             return (
-              <h4 key={i} className="pt-0.5 text-[0.95em] font-semibold text-foreground">
+              <Heading key={i} className="pt-0.5 text-[0.95em] font-semibold text-foreground">
                 {renderInline(block.text)}
-              </h4>
+              </Heading>
             )
           }
           // The fourth tier leaves the heading ladder entirely and becomes a
           // micro-caps label — another size of the same voice would be a
           // distinction nobody can see.
           return (
-            <h5
+            <Heading
               key={i}
               className="pt-1 text-[0.8em] font-semibold uppercase tracking-widest text-muted-foreground"
             >
               {renderInline(block.text)}
-            </h5>
+            </Heading>
           )
         }
         if (block.kind === 'ul') {

@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation'
 import { ChevronDown, Trash2, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { overshootPolicySchema, type OvershootPolicy } from '@/lib/overshoot-policy'
+import { resolveOvershootPolicy } from '@/lib/overshoot-policy'
+import { OvershootField, type OvershootPreview } from '@/components/overshoot-field'
 import { ExercisePicker } from '@/app/workout/new/exercise-picker'
 import { saveProgramAction, updateProgramAction } from '@/app/programs/actions'
 import {
@@ -19,6 +20,7 @@ import {
   parseStoredProgramDraft,
   toggleWeekday,
   type ProgramDraft,
+  type DraftProgramExercise,
 } from './program-draft'
 import { SchemeSubtitle } from './scheme-subtitle'
 import { type WeightUnit } from '@/lib/units'
@@ -40,19 +42,29 @@ const METRIC_MODE_KEYS = {
 
 const METRIC_MODES = Object.keys(METRIC_MODE_KEYS) as MetricMode[]
 
-/** Overshoot option VALUES are enum members, not copy — every label is a
- *  catalog lookup at render, same as the metric-mode select above. */
-const OVERSHOOT_POLICY_KEYS = {
-  'strict-load': 'strictLoad',
-  'e1rm-equivalent': 'e1rmEquivalent',
-  'any-metric': 'anyMetric',
-} as const
+/** The heaviest load the movement asks for, with its reps — the concrete
+ *  prescription the overshoot sheet reasons about. Null when the draft has no
+ *  load-bearing set yet, in which case the sheet shows options only rather
+ *  than inventing an example. */
+function overshootPreview(
+  exercise: DraftProgramExercise,
+  unit: WeightUnit,
+): OvershootPreview | null {
+  const loaded = exercise.sets.filter((set) => set.load.trim() !== '')
+  if (loaded.length === 0) return null
+  const top = loaded.reduce((best, set) =>
+    Number(set.load) > Number(best.load) ? set : best,
+  )
+  const reps =
+    top.repMin.trim() === ''
+      ? null
+      : top.repMax.trim() === '' || top.repMax === top.repMin
+        ? top.repMin
+        : `${top.repMin}\u2013${top.repMax}`
+  if (reps === null) return null
+  return { reps, load: `${top.load} ${unit}` }
+}
 
-const OVERSHOOT_POLICIES = Object.keys(OVERSHOOT_POLICY_KEYS) as OvershootPolicy[]
-
-/** The empty option's value: "defer to the program policy", which is a real
- *  choice rather than an absent one. */
-const OVERSHOOT_DEFAULT_VALUE = ''
 
 /** A set with no stored mode measures reps × weight, as it always has. */
 const DEFAULT_METRIC_MODE: MetricMode = 'reps_weight'
@@ -366,6 +378,18 @@ export function ProgramBuilder({
             </fieldset>
           )}
         </fieldset>
+
+        {/* The program-wide default an exercise may override. It went missing
+            when the old detail-page control was deleted, which left it
+            settable only through MCP — a capability regression this closes. */}
+        <OvershootField
+          value={draft.overshootPolicy}
+          onChange={(value) => dispatch({ type: 'SET_OVERSHOOT_POLICY', value })}
+          // No exercise and no single scheme here, so "follow the plan"
+          // resolves to the scheme default for a program with no scheme.
+          resolvesTo={resolveOvershootPolicy(null, null, null)}
+          className="border-t border-border"
+        />
 
         {/* Diet phase: the same compact radio idiom as the deload policy
             above. None is first and the default — no phase means the engine
@@ -704,44 +728,31 @@ export function ProgramBuilder({
                     Authoring, which is why it lives here and not on the
                     active-program page: an active plan is a thing you read
                     and execute, and changing how it scores you is editing it.
-                    Named for the decision rather than the jargon — the row
-                    has to read to someone who has never seen the
-                    autoregulation code. Unset is a real choice: it defers to
-                    the program policy, then to the scheme's own default. */}
-                <label className="flex items-center gap-2.5 px-0.5 text-sm">
-                  <span className="shrink-0">{t('overshoot.label')}</span>
-                  <span className="relative">
-                    <select
-                      value={exercise.overshootPolicy ?? OVERSHOOT_DEFAULT_VALUE}
-                      onChange={(e) => {
-                        // The DOM only offers whitelisted options; a failed
-                        // parse is the empty option, which means "defer".
-                        const parsed = overshootPolicySchema.safeParse(e.target.value)
-                        dispatch({
-                          type: 'UPDATE_EXERCISE_OVERSHOOT',
-                          dayIndex,
-                          index: exerciseIndex,
-                          value: parsed.success ? parsed.data : null,
-                        })
-                      }}
-                      aria-label={t('overshoot.ariaLabel', { exerciseName: exercise.name })}
-                      className="h-9 appearance-none bg-transparent pr-5 text-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-hidden"
-                    >
-                      <option value={OVERSHOOT_DEFAULT_VALUE}>
-                        {t('overshoot.option.default')}
-                      </option>
-                      {OVERSHOOT_POLICIES.map((policy) => (
-                        <option key={policy} value={policy}>
-                          {t(`overshoot.option.${OVERSHOOT_POLICY_KEYS[policy]}`)}
-                        </option>
-                      ))}
-                    </select>
-                    <ChevronDown
-                      aria-hidden="true"
-                      className="pointer-events-none absolute right-0.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground"
-                    />
-                  </span>
-                </label>
+                    A sheet rather than a select — four words of jargon in a
+                    dropdown is not a decision surface, so each option states
+                    what it DOES and the sheet closes with the rule applied to
+                    this movement's own prescription. */}
+                <OvershootField
+                  value={exercise.overshootPolicy}
+                  onChange={(value) =>
+                    dispatch({
+                      type: 'UPDATE_EXERCISE_OVERSHOOT',
+                      dayIndex,
+                      index: exerciseIndex,
+                      value,
+                    })
+                  }
+                  exerciseName={exercise.name}
+                  // What "follow the plan" resolves to for THIS exercise: the
+                  // program's own policy, else the scheme's default.
+                  resolvesTo={resolveOvershootPolicy(
+                    draft.overshootPolicy,
+                    null,
+                    exercise.progression?.scheme ?? null,
+                  )}
+                  preview={overshootPreview(exercise, unit)}
+                  className="px-0.5"
+                />
 
                 {/* The set group: indentation + the exercise hairline carry
                     the grouping the removed inner box used to. */}

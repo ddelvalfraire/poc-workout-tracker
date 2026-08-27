@@ -139,6 +139,25 @@ describe('MarkdownView', () => {
       expect(html).toContain('Substitutions')
     })
 
+    it('normalizes heading LEVELS so an author cannot ship a skipped level', () => {
+      // ## then #### would render h3 → h5, which axe flags as heading-order.
+      // The visual tier still follows what was written; only the element
+      // level is clamped, so the document reads as its author meant.
+      const html = render('## How to run it\n\n#### Substitutions')
+      expect(html).toContain('<h3')
+      expect(html).toContain('<h4')
+      expect(html).not.toContain('<h5')
+      // Still the micro-caps LOOK, despite being an h4.
+      expect(html).toMatch(/<h4[^>]*uppercase[^>]*>Substitutions<\/h4>/)
+    })
+
+    it('keeps the full ladder when the author uses every level', () => {
+      const html = render('## Two\n\n### Three\n\n#### Four')
+      expect(html).toContain('<h3')
+      expect(html).toContain('<h4')
+      expect(html).toContain('<h5')
+    })
+
     it('stays sanitized by construction across every new block', () => {
       // Same guarantee as the rest of the renderer: every piece of input
       // becomes a React TEXT node, so there is nothing to inject into.

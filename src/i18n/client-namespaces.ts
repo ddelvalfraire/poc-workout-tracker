@@ -66,6 +66,7 @@ export const CLIENT_NAMESPACES = [
   'NotesEditor',
   'OpsPanel',
   'OpsRefreshButton',
+  'OvershootField',
   'PatchProposalCard',
   'PhotoCell',
   'PhotoCompare',

@@ -125,6 +125,9 @@ export interface ProgramDraft {
    *  read-time resolver keeps legacy behavior; the mode picker shows the
    *  RESOLVED mode but only writes a policy when the user picks one. */
   deloadPolicy: DeloadPolicy | null
+  /** The program-wide default for what counts as beating a target; an
+   *  exercise may override it. Null = fall back to the per-scheme defaults. */
+  overshootPolicy: OvershootPolicy | null
   /** Diet-phase context (see programs.dietPhase). Null = None (the default
    *  forever) — no phase, byte-identical engine behavior. */
   dietPhase: DietPhase | null
@@ -158,6 +161,7 @@ export type ProgramDraftAction =
   | { type: 'SET_AUTOREGULATION'; value: boolean }
   | { type: 'SET_AUTOREG_STALL_POLICY'; value: AutoregStallPolicy }
   | { type: 'SET_DELOAD_POLICY'; value: DeloadPolicy }
+  | { type: 'SET_OVERSHOOT_POLICY'; value: OvershootPolicy | null }
   | { type: 'SET_DIET_PHASE'; value: DietPhase | null }
   | { type: 'SET_PLAN_SYNC'; value: boolean }
   | { type: 'ADD_DAY'; day: DraftProgramDay }
@@ -201,6 +205,7 @@ export const emptyProgramDraft: ProgramDraft = {
   autoregulation: true,
   autoregStallPolicy: 'all-sets',
   deloadPolicy: null,
+  overshootPolicy: null,
   dietPhase: null,
   planSync: true,
   checkInEveryDays: '',
@@ -308,6 +313,8 @@ export function programDraftReducer(
 
     case 'SET_DELOAD_POLICY':
       return { ...state, deloadPolicy: action.value }
+    case 'SET_OVERSHOOT_POLICY':
+      return { ...state, overshootPolicy: action.value }
 
     case 'SET_DIET_PHASE':
       return { ...state, dietPhase: action.value }
@@ -587,6 +594,8 @@ export function parseStoredProgramDraft(raw: string, now: Date): ProgramDraft | 
     autoregStallPolicy: envelope.draft.autoregStallPolicy ?? 'all-sets',
     // Pre-deload-policy snapshots restore on legacy resolution, not discarded.
     deloadPolicy: envelope.draft.deloadPolicy ?? null,
+    // Pre-overshoot snapshots restore on the per-scheme defaults.
+    overshootPolicy: envelope.draft.overshootPolicy ?? null,
     // Pre-diet-phase snapshots restore phase-less, not discarded.
     dietPhase: envelope.draft.dietPhase ?? null,
     // Pre-article-metadata snapshots restore with the fields absent → null.
@@ -746,6 +755,7 @@ export function draftToProgramInput(
     // mode persists. Full-replace safe: the draft always carries the stored
     // value via detailToProgramDraft.
     deloadPolicy: draft.deloadPolicy,
+    overshootPolicy: draft.overshootPolicy,
     // Null round-trips to null when nothing was ever set; picking None on a
     // phased program sends an explicit null, which clears (full-replace
     // safe: the draft always carries the stored value via
@@ -826,6 +836,7 @@ export function detailToProgramDraft(
     autoregulation: detail.autoregulation,
     autoregStallPolicy: detail.autoregStallPolicy,
     deloadPolicy: detail.deloadPolicy,
+    overshootPolicy: detail.overshootPolicy,
     dietPhase: detail.dietPhase,
     planSync: detail.planSync,
     checkInEveryDays: detail.checkInEveryDays?.toString() ?? '',
