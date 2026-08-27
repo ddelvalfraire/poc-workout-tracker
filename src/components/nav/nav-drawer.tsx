@@ -8,9 +8,9 @@ import { Drawer } from 'vaul'
 import { SignOutButton } from '@/components/auth/sign-out-button'
 import {
   BarChart3,
-  History,
   ClipboardList,
   Dumbbell,
+  History,
   LayoutTemplate,
   Menu,
   MessageCircle,
@@ -286,14 +286,13 @@ export function NavDrawer() {
     {
       // The full log's only nav entry: home no longer renders history, so the
       // drawer is how you reach it. Status reuses the newest recent already
-      // in DrawerData - no new read for the row.
+      // in DrawerData — no new read for the row.
       href: '/history',
       label: t('label.history'),
       icon: History,
-      status:
-        data && data.recents.length > 0
-          ? lines(recentWorkoutLine(data.recents[0], data.unit, now))
-          : null,
+      status: data?.recents[0]
+        ? lines(recentWorkoutLine(data.recents[0], data.unit, now))
+        : null,
       invitation: t('invitation.history'),
     },
     {

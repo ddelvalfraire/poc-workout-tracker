@@ -165,6 +165,23 @@ function renderDrawerFull(): string {
   )
 }
 
+describe('NavDrawer history row', () => {
+  // Home no longer renders a history section, so this row is the only way to
+  // reach the full log. If it goes, the route is orphaned.
+  test('links to /history and states the newest session as its status', () => {
+    const html = renderDrawerFull()
+    expect(html).toContain('href="/history"')
+    expect(html).toContain('History')
+    expect(html).toContain('Push A')
+  })
+
+  test('falls back to its invitation when nothing has been logged', () => {
+    const html = renderDrawerWarm()
+    expect(html).toContain('href="/history"')
+    expect(html).toContain('Every session you have finished')
+  })
+})
+
 describe('NavDrawer status lines (descriptors rendered through the real catalog)', () => {
   test('every row states its fact in words, not in key paths', () => {
     const html = renderDrawerFull()
