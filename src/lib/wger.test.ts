@@ -319,9 +319,12 @@ describe('searchExercises (wger proxy)', () => {
 
   describe('Redis catalog cache', () => {
     it('serves from Redis without hitting wger on a cache hit', async () => {
-      // Arrange — Redis has the mapped catalog; wger must not be called.
+      // Arrange — Redis holds a FRESH snapshot; wger must not be called.
       const cached: Exercise[] = [{ id: 73, name: 'Bench Press', category: 'Chest' }]
-      redisRef.current = { get: vi.fn().mockResolvedValue(cached), set: vi.fn() }
+      redisRef.current = {
+        get: vi.fn().mockResolvedValue({ data: cached, fetchedAt: Date.now() }),
+        set: vi.fn(),
+      }
       const fetchMock = mockFetchPages([[makeInfo(1, 'Should Not Fetch', 'Chest', [])]])
 
       // Act
@@ -346,10 +349,26 @@ describe('searchExercises (wger proxy)', () => {
         { id: 73, name: 'Bench Press', category: 'Chest', equipment: ['Barbell'] },
       ])
       expect(set).toHaveBeenCalledWith(
-        'wger:exercise-catalog:v1',
-        result,
+        'wger:exercise-catalog:v2',
+        expect.objectContaining({ data: result, fetchedAt: expect.any(Number) }),
         expect.objectContaining({ ex: expect.any(Number) }),
       )
+    })
+
+    it('ignores a malformed stored payload rather than trusting it as fresh', async () => {
+      // Arrange — a v1-shaped bare array (or any junk) has no fetchedAt, so its
+      // age is unknowable; discard it and refresh.
+      redisRef.current = {
+        get: vi.fn().mockResolvedValue([{ id: 73, name: 'Stale Shape', category: 'Chest' }]),
+        set: vi.fn(),
+      }
+      mockFetchPages([[makeInfo(1, 'Deadlift', 'Legs', [])]])
+
+      // Act
+      const result = await searchExercises()
+
+      // Assert
+      expect(result.map((e) => e.name)).toEqual(['Deadlift'])
     })
 
     it('falls back to wger when the Redis read throws', async () => {
@@ -362,6 +381,106 @@ describe('searchExercises (wger proxy)', () => {
 
       // Assert
       expect(result.map((e) => e.name)).toEqual(['Deadlift'])
+    })
+  })
+
+  describe('stale-if-error (a stale catalog beats no catalog)', () => {
+    const DAY_MS = 24 * 60 * 60 * 1000
+
+    /** A Redis client holding one stored snapshot, with `set` observable. */
+    function redisHolding(stored: unknown) {
+      return { get: vi.fn().mockResolvedValue(stored), set: vi.fn().mockResolvedValue('OK') }
+    }
+
+    /** Stubs fetch to reject, as a wger outage does. */
+    function mockFetchFailing(): ReturnType<typeof vi.fn> {
+      const fetchMock = vi.fn().mockRejectedValue(new Error('wger down'))
+      vi.stubGlobal('fetch', fetchMock)
+      return fetchMock
+    }
+
+    it('serves the stale Redis snapshot when the refresh fails', async () => {
+      // Arrange — the snapshot is two days old (past the 24h freshness line)
+      // and wger is down. Under the old TTL the key would simply be gone.
+      const stale: Exercise[] = [{ id: 73, name: 'Bench Press', category: 'Chest' }]
+      redisRef.current = redisHolding({ data: stale, fetchedAt: Date.now() - 2 * DAY_MS })
+      mockFetchFailing()
+      vi.spyOn(console, 'error').mockImplementation(() => {})
+
+      // Act
+      const result = await searchExercises()
+
+      // Assert — the picker keeps working on slightly-old data.
+      expect(result).toEqual(stale)
+    })
+
+    it('logs the age when it serves stale, so a frozen catalog stays visible', async () => {
+      // Arrange
+      redisRef.current = redisHolding({
+        data: [{ id: 73, name: 'Bench Press', category: 'Chest' }],
+        fetchedAt: Date.now() - 3 * DAY_MS,
+      })
+      mockFetchFailing()
+      const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+      // Act
+      await searchExercises()
+
+      // Assert
+      expect(errorSpy).toHaveBeenCalledWith(
+        expect.stringContaining('serving stale snapshot'),
+        expect.objectContaining({ ageMs: expect.any(Number) }),
+      )
+    })
+
+    it('does not re-hammer a down upstream while the retry floor holds', async () => {
+      // Arrange — same outage, two consecutive reads.
+      redisRef.current = redisHolding({
+        data: [{ id: 73, name: 'Bench Press', category: 'Chest' }],
+        fetchedAt: Date.now() - 2 * DAY_MS,
+      })
+      const fetchMock = mockFetchFailing()
+      vi.spyOn(console, 'error').mockImplementation(() => {})
+
+      // Act
+      await searchExercises()
+      const callsAfterFirst = fetchMock.mock.calls.length
+      const second = await searchExercises()
+
+      // Assert — the second read is served from the held stale copy.
+      expect(second.map((e) => e.name)).toEqual(['Bench Press'])
+      expect(fetchMock.mock.calls.length).toBe(callsAfterFirst)
+    })
+
+    it('refreshes past a stale snapshot when upstream is healthy, and rewrites it', async () => {
+      // Arrange — stale in Redis, wger up: the stale copy must NOT win.
+      const redis = redisHolding({
+        data: [{ id: 73, name: 'Old Name', category: 'Chest' }],
+        fetchedAt: Date.now() - 2 * DAY_MS,
+      })
+      redisRef.current = redis
+      mockFetchPages([[makeInfo(73, 'Bench Press', 'Chest', [])]])
+
+      // Act
+      const result = await searchExercises()
+
+      // Assert
+      expect(result.map((e) => e.name)).toEqual(['Bench Press'])
+      expect(redis.set).toHaveBeenCalledWith(
+        'wger:exercise-catalog:v2',
+        expect.objectContaining({ data: result }),
+        expect.objectContaining({ ex: expect.any(Number) }),
+      )
+    })
+
+    it('still throws when the refresh fails and nothing is cached anywhere', async () => {
+      // Arrange — the one remaining hole: cold Redis + a down upstream. An
+      // error is correct here; there is genuinely nothing to serve.
+      redisRef.current = redisHolding(null)
+      mockFetchFailing()
+
+      // Act + Assert
+      await expect(searchExercises()).rejects.toThrow('wger down')
     })
   })
 })
