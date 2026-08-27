@@ -1,4 +1,5 @@
 import type { SetType } from '@/lib/program-input'
+import type { TrainedDayState } from '@/app/programs/[id]/editor/trained-view'
 
 /**
  * The presentational shapes the editor panes render. Types only — every
@@ -57,9 +58,27 @@ export interface EditorDay {
   position: number
   name: string
   exerciseCount: number
+  /**
+   * This day's state for the SELECTED week, in the shipped vocabulary. The
+   * freeze unit is a workout instantiation — one (day × week) — so the state
+   * belongs here on the day row and never on the week.
+   */
+  trained: TrainedDayState
+}
+
+/** The session a settled day already produced — facts, not plan. */
+export interface EditorSession {
+  /** Link to the workout itself; the log points at the real thing. */
+  href: string
+  completedSetCount: number
+  setCount: number
+  /** Total logged volume in the user's display unit, already converted. */
+  volume: number
 }
 
 /** The addressed day, with everything the day pane renders. */
 export interface EditorDayDetail extends EditorDay {
   exercises: readonly EditorExercise[]
+  /** The settled day's session, or null when nothing has been logged. */
+  session: EditorSession | null
 }

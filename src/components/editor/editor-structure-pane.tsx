@@ -1,9 +1,23 @@
+import { Fragment } from 'react'
 import Link from 'next/link'
 import { useTranslations } from 'next-intl'
 
 import { EmptyWords } from '@/components/ui/empty-words'
+import type { TrainedDayState } from '@/app/programs/[id]/editor/trained-view'
 import { cn } from '@/lib/utils'
 import type { EditorDay, EditorWeek } from './editor-model'
+
+/**
+ * The shipped word for each day state. The editor introduces a FIRST vocabulary
+ * for this, not a second, so it borrows the detail page's keys verbatim rather
+ * than minting synonyms — and none of them is "locked", because nothing
+ * enforces a lock.
+ */
+const STATE_KEY = {
+  done: 'day.doneBadge',
+  'in-progress': 'day.inProgressBadge',
+  skipped: 'day.skippedBadge',
+} as const satisfies Record<Exclude<TrainedDayState, null>, string>
 
 /**
  * Pane 1 — the editor's table of contents: the block's weeks, then the
@@ -28,6 +42,14 @@ interface EditorStructurePaneProps {
   /** 0-based position of the addressed day, or null for the structure-only view. */
   selectedDay: number | null
   hrefForDay: (day: number) => string
+  /**
+   * Index of the first still-editable day row, or null to draw no rule.
+   * `trainedSeamIndex` returns null whenever a single rule could not tell the
+   * truth — nothing settled, everything settled, or settled days that are not a
+   * contiguous prefix — and in those cases the boundary is carried by the word
+   * on each row and by the day pane's change in form instead.
+   */
+  seamIndex?: number | null
   className?: string
 }
 
@@ -42,9 +64,11 @@ function EditorStructurePane({
   days,
   selectedDay,
   hrefForDay,
+  seamIndex = null,
   className,
 }: EditorStructurePaneProps) {
   const t = useTranslations('ProgramEditor')
+  const tDetail = useTranslations('ProgramDetail')
 
   return (
     <div className={cn('px-4 pb-10', className)}>
@@ -89,25 +113,45 @@ function EditorStructurePane({
             {days.map((day) => {
               const isSelected = day.position === selectedDay
               return (
-                <li key={day.position}>
-                  <Link
-                    href={hrefForDay(day.position)}
-                    aria-current={isSelected ? 'page' : undefined}
-                    className={cn(
-                      ROW,
-                      'justify-between',
-                      // The surface's ONE volt moment: which day you are on.
-                      // Weeks and exercises mark selection with weight and a
-                      // rule instead, so the accent never stacks.
-                      isSelected && 'font-semibold text-primary',
-                    )}
-                  >
-                    <span className="min-w-0 truncate">{day.name}</span>
-                    <span className="shrink-0 text-xs text-muted-foreground tnum">
-                      {t('exerciseCount', { count: day.exerciseCount })}
-                    </span>
-                  </Link>
-                </li>
+                <Fragment key={day.position}>
+                  {/* The labelled "now" seam — the encoding every reader knows
+                      from every timeline. A rule plus words, never dimness:
+                      lightness alone under 3:1 is not a distinction (WCAG
+                      1.4.1). The list item is presentational so it never
+                      lands in the day list's semantics. */}
+                  {seamIndex === day.position && (
+                    <li aria-hidden="true" className="flex items-center gap-2 py-2">
+                      <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+                        {t('seamLabel')}
+                      </span>
+                      <span className="h-px flex-1 bg-border" />
+                    </li>
+                  )}
+                  <li>
+                    <Link
+                      href={hrefForDay(day.position)}
+                      aria-current={isSelected ? 'page' : undefined}
+                      className={cn(
+                        ROW,
+                        'justify-between',
+                        // The surface's ONE volt moment: which day you are on.
+                        // Weeks and exercises mark selection with weight and a
+                        // rule instead, so the accent never stacks.
+                        isSelected && 'font-semibold text-primary',
+                      )}
+                    >
+                      <span className="min-w-0 truncate">{day.name}</span>
+                      <span className="shrink-0 text-xs text-muted-foreground tnum">
+                        {/* A settled day says so in the shipped word. Full
+                            contrast is deliberate: this is the content people
+                            most want to read, and it is not disabled. */}
+                        {day.trained === null
+                          ? t('exerciseCount', { count: day.exerciseCount })
+                          : tDetail(STATE_KEY[day.trained])}
+                      </span>
+                    </Link>
+                  </li>
+                </Fragment>
               )
             })}
           </ul>

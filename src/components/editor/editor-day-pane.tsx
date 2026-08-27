@@ -1,25 +1,35 @@
 import Link from 'next/link'
 import { useTranslations } from 'next-intl'
 
+import { isSettled } from '@/app/programs/[id]/editor/trained-view'
 import { EmptyWords } from '@/components/ui/empty-words'
 import type { WeightUnit } from '@/lib/units'
 import { cn } from '@/lib/utils'
 import type { EditorDayDetail, EditorSet } from './editor-model'
+import { EditorSetForm } from './editor-set-form'
 
 /**
- * Pane 2 — the addressed day: its exercises, each with the sets the template
+ * Pane 2 — the addressed day: its exercises, and the sets the template
  * prescribes for the selected week.
  *
- * With no day addressed this pane is the wide layout's empty canvas (the phone
- * never sees it — there the structure list occupies the column instead). It
- * says what to do rather than apologising for being empty, which is the
- * `EmptyWords` voice.
+ * THE ONE BRANCH THAT MATTERS is whether this day's session for this week is
+ * already settled. `instantiateProgramDay` froze that session's prescription
+ * when it started, so an edit made today cannot reach it — and an in-progress
+ * session counts, because its sets were written at start time and resuming
+ * returns them untouched.
  *
- * Selecting an exercise is a link to the SAME address with `?exercise=` set, so
- * the inspector opens as a sheet on phone and as pane 3 at width from one
- * href. The selected exercise is marked with a rule and weight, not the accent:
- * the surface's one volt moment is the selected DAY in pane 1, and DESIGN.md
- * forbids stacking a second.
+ * A settled day renders as a LOG: values as text, no field chrome, FULL
+ * contrast. Not a disabled form — `disabled` would drop the most-read content
+ * on the screen out of the tab order and invite WCAG 1.4.3's inactive-component
+ * exemption, leaving it technically conformant and unreadable. And not dimmed:
+ * lightness alone under 3:1 is not a distinction (1.4.1), so the boundary is
+ * carried by a change in FORM, by the word on the row, and by the labelled seam
+ * in pane 1.
+ *
+ * Nothing here says "locked". Nothing enforces a lock: the write succeeds and
+ * is merely inert, and claiming otherwise would describe behaviour that does
+ * not exist. The copy says what is true instead — the edit lands on the plan,
+ * and the plan is not what you already lifted.
  */
 interface EditorDayPaneProps {
   /** The addressed day, or null for the wide layout's empty canvas. */
@@ -31,10 +41,13 @@ interface EditorDayPaneProps {
   /** 0-based position of the inspected exercise, or null. */
   selectedExercise: number | null
   hrefForExercise: (exercise: number) => string
+  programId: string
+  /** The per-week override write, for the editable rows only. */
+  saveSetAction: (formData: FormData) => void | Promise<void>
   className?: string
 }
 
-/** One set's prescription as words — the row both projections read. */
+/** One set's prescription as words — the LOG row for a settled session. */
 function SetLine({ set, unit }: { set: EditorSet; unit: WeightUnit }) {
   const t = useTranslations('ProgramEditor')
 
@@ -51,6 +64,8 @@ function SetLine({ set, unit }: { set: EditorSet; unit: WeightUnit }) {
   if (set.rpe !== null) facts.push(t('setRpe', { rpe: set.rpe }))
 
   return (
+    // No `text-muted-foreground`, no opacity: a settled row is the content
+    // people most want to read, so it keeps primary ink.
     <li className="flex min-h-11 items-baseline gap-3 py-2 text-sm [@media(pointer:fine)_and_(min-width:840px)]:min-h-8 [@media(pointer:fine)_and_(min-width:840px)]:py-1">
       <span className="w-14 shrink-0 text-xs uppercase tracking-widest text-muted-foreground tnum">
         {t('setNumber', { number: set.setNumber })}
@@ -71,9 +86,12 @@ function EditorDayPane({
   unit,
   selectedExercise,
   hrefForExercise,
+  programId,
+  saveSetAction,
   className,
 }: EditorDayPaneProps) {
   const t = useTranslations('ProgramEditor')
+  const tDetail = useTranslations('ProgramDetail')
 
   if (day === null) {
     return (
@@ -82,6 +100,8 @@ function EditorDayPane({
       </div>
     )
   }
+
+  const settled = isSettled(day.trained)
 
   return (
     <div className={cn('px-5 pb-10', className)}>
@@ -92,8 +112,45 @@ function EditorDayPane({
         <h1 className="mt-1 font-display text-2xl uppercase leading-tight tracking-wide">
           {day.name}
         </h1>
-        <p className="mt-1 text-sm text-muted-foreground tnum">{t('week', { week })}</p>
+        <p className="mt-1 text-sm text-muted-foreground tnum">
+          {day.trained === null
+            ? t('week', { week })
+            : `${t('week', { week })} · ${tDetail(
+                day.trained === 'done'
+                  ? 'day.doneBadge'
+                  : day.trained === 'in-progress'
+                    ? 'day.inProgressBadge'
+                    : 'day.skippedBadge',
+              )}`}
+        </p>
       </header>
+
+      {settled && (
+        <div className="mt-4 border-t border-t-border/60 pt-3">
+          <p className="text-sm">
+            {/* The in-progress sentence is its own, because the intuition runs
+                backwards: an unfinished session is as settled as a finished
+                one, and nobody would guess that. */}
+            {t(day.trained === 'in-progress' ? 'settledInProgress' : 'settledDone')}
+          </p>
+          {day.session !== null && (
+            <p className="mt-1 text-sm text-muted-foreground tnum">
+              {t('sessionFacts', {
+                completed: day.session.completedSetCount,
+                total: day.session.setCount,
+                volume: Math.round(day.session.volume),
+                unit,
+              })}{' '}
+              <Link
+                href={day.session.href}
+                className="underline underline-offset-4 outline-none focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-hidden"
+              >
+                {t('sessionLink')}
+              </Link>
+            </p>
+          )}
+        </div>
+      )}
 
       {day.exercises.length === 0 ? (
         <EmptyWords>{t('exercisesEmpty')}</EmptyWords>
@@ -118,11 +175,28 @@ function EditorDayPane({
                     {t('setCount', { count: exercise.sets.length })}
                   </span>
                 </Link>
-                <ul className="mt-1 pl-1">
-                  {exercise.sets.map((set) => (
-                    <SetLine key={set.setNumber} set={set} unit={unit} />
-                  ))}
-                </ul>
+                {settled ? (
+                  <ul className="mt-1 pl-1">
+                    {exercise.sets.map((set) => (
+                      <SetLine key={set.setNumber} set={set} unit={unit} />
+                    ))}
+                  </ul>
+                ) : (
+                  <div className="mt-1 pl-1">
+                    {exercise.sets.map((set) => (
+                      <EditorSetForm
+                        key={set.setNumber}
+                        set={set}
+                        programId={programId}
+                        day={day.position}
+                        exercise={exercise.position}
+                        week={week}
+                        unit={unit}
+                        action={saveSetAction}
+                      />
+                    ))}
+                  </div>
+                )}
               </li>
             )
           })}

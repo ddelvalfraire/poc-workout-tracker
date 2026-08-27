@@ -2,11 +2,13 @@ import type {
   EditorDay,
   EditorDayDetail,
   EditorExercise,
+  EditorSession,
   EditorSet,
   EditorWeek,
 } from '@/components/editor/editor-model'
 import type { SetType } from '@/lib/program-input'
 import { kgToDisplay, type WeightUnit } from '@/lib/units'
+import type { TrainedDayState } from './trained-view'
 
 /**
  * Pure view logic for the program editor — the row-to-view-model mapping the
@@ -85,12 +87,24 @@ export function editorWeeks(
     }))
 }
 
-/** The structure pane's day rows — position is the address's path segment. */
-export function editorDays(days: readonly SourceDay[]): EditorDay[] {
+/**
+ * The structure pane's day rows — position is the address's path segment.
+ *
+ * `trainedStates` is positional and parallel to `days` because that is how the
+ * caller already has it (one `resolveDayState` per day for the selected week).
+ * A day with no entry reads as untouched rather than throwing: a shorter array
+ * is a caller bug, and inventing "trained" from a missing value is the worse of
+ * the two failures.
+ */
+export function editorDays(
+  days: readonly SourceDay[],
+  trainedStates: readonly TrainedDayState[],
+): EditorDay[] {
   return days.map((day, position) => ({
     position,
     name: day.name,
     exerciseCount: day.exercises.length,
+    trained: trainedStates[position] ?? null,
   }))
 }
 
@@ -164,12 +178,16 @@ export function editorDayDetail(
   position: number | null,
   week: number,
   unit: WeightUnit,
+  trained: TrainedDayState = null,
+  session: EditorSession | null = null,
 ): EditorDayDetail | null {
   if (day === null || position === null) return null
   return {
     position,
     name: day.name,
     exerciseCount: day.exercises.length,
+    trained,
+    session,
     exercises: day.exercises.map((exercise, index) => editorExercise(exercise, index, week, unit)),
   }
 }

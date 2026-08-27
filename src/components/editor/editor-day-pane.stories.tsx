@@ -6,10 +6,12 @@ import type { EditorDayDetail, EditorSet } from "./editor-model";
 /**
  * Pane 2 — the addressed day and the sets it prescribes for the selected week.
  *
- * Selecting an exercise is a link to the same address with `?exercise=` set, so
- * one href opens the sheet on phone and pane 3 at width. Selection here reads
- * as a rule plus weight, never the accent: the volt is spent on the selected
- * day in pane 1.
+ * The pair that matters is Default versus Trained. An editable day renders
+ * FIELDS; a settled one renders the same values as TEXT at full contrast. That
+ * change in form — not a change in lightness — is what encodes the boundary,
+ * because lightness alone under 3:1 is not a distinction. Nothing is ever
+ * `disabled`, and nothing says "locked": the write would succeed, it would just
+ * be inert.
  */
 const meta = {
   title: "Editor/EditorDayPane",
@@ -35,6 +37,8 @@ const day: EditorDayDetail = {
   position: 0,
   name: "Push",
   exerciseCount: 2,
+  trained: null,
+  session: null,
   exercises: [
     {
       position: 0,
@@ -58,13 +62,66 @@ const base = {
   unit: "kg" as const,
   selectedExercise: null,
   hrefForExercise: (exercise: number) => `?exercise=${exercise}`,
+  programId: "00000000-0000-0000-0000-000000000000",
+  saveSetAction: () => {},
 };
 
-/** The ordinary case: a day, its exercises, and the week's numbers. */
+/** Not yet trained: the sets are FIELDS, because the edit will reach them. */
 export const Default: Story = { args: base };
 
 /** With an exercise inspected — a rule and weight, no second accent. */
 export const ExerciseSelected: Story = { args: { ...base, selectedExercise: 0 } };
+
+/**
+ * A completed session. The same values, now a LOG: text, no field chrome, full
+ * contrast — this is the content people most want to read. The sentence says
+ * what is true (the edit lands on the plan, and the plan is not what was
+ * lifted) rather than claiming a lock nothing enforces.
+ */
+export const TrainedDone: Story = {
+  args: {
+    ...base,
+    day: {
+      ...day,
+      trained: "done",
+      session: {
+        href: "/workout/example",
+        completedSetCount: 12,
+        setCount: 12,
+        volume: 4820,
+      },
+    },
+  },
+};
+
+/**
+ * An IN-PROGRESS session — as frozen as a finished one, because its sets were
+ * written when it started and resuming returns them untouched. Nobody would
+ * guess that, so the copy says it outright.
+ */
+export const TrainedInProgress: Story = {
+  args: {
+    ...base,
+    day: {
+      ...day,
+      trained: "in-progress",
+      session: { href: "/workout/example", completedSetCount: 5, setCount: 12, volume: 1960 },
+    },
+  },
+};
+
+/**
+ * A settled session with no summary to show. The log still renders; only the
+ * facts line is absent, because inventing one would be worse than omitting it.
+ */
+export const TrainedWithoutSession: Story = {
+  args: { ...base, day: { ...day, trained: "done", session: null } },
+};
+
+/** A past week's untouched day: "Skipped", and still editable. */
+export const Skipped: Story = {
+  args: { ...base, week: 1, day: { ...day, trained: "skipped" } },
+};
 
 /**
  * A week whose sets carry per-week overrides. The override is announced in
@@ -76,6 +133,7 @@ export const WithWeekOverrides: Story = {
     ...base,
     day: {
       ...day,
+      trained: "done",
       exercises: [
         {
           ...day.exercises[0],
@@ -93,7 +151,11 @@ export const WithWeekOverrides: Story = {
 
 /** Pounds — loads arrive already converted; the pane never converts. */
 export const Pounds: Story = {
-  args: { ...base, unit: "lb", day: { ...day, exercises: [day.exercises[0]] } },
+  args: {
+    ...base,
+    unit: "lb",
+    day: { ...day, trained: "done", exercises: [day.exercises[0]] },
+  },
 };
 
 /** A set the template leaves blank says so rather than rendering an empty row. */
@@ -102,6 +164,7 @@ export const SetWithNothingPrescribed: Story = {
     ...base,
     day: {
       ...day,
+      trained: "done",
       exerciseCount: 1,
       exercises: [
         {
@@ -128,7 +191,17 @@ export const SetWithNothingPrescribed: Story = {
 
 /** A day with no exercises yet — plain words. */
 export const NoExercises: Story = {
-  args: { ...base, day: { position: 1, name: "Pull", exerciseCount: 0, exercises: [] } },
+  args: {
+    ...base,
+    day: {
+      position: 1,
+      name: "Pull",
+      exerciseCount: 0,
+      trained: null,
+      session: null,
+      exercises: [],
+    },
+  },
 };
 
 /**

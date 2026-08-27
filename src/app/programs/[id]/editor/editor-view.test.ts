@@ -65,16 +65,20 @@ describe('editorWeeks', () => {
 })
 
 describe('editorDays', () => {
-  it('numbers days by position and counts their exercises', () => {
-    expect(
-      editorDays([
-        { name: 'Push', exercises: [{ name: 'Bench', sets: [] }] },
-        { name: 'Pull', exercises: [] },
-      ]),
-    ).toEqual([
-      { position: 0, name: 'Push', exerciseCount: 1 },
-      { position: 1, name: 'Pull', exerciseCount: 0 },
+  const days = [
+    { name: 'Push', exercises: [{ name: 'Bench', sets: [] }] },
+    { name: 'Pull', exercises: [] },
+  ]
+
+  it('numbers days by position, counts exercises, and carries trained state', () => {
+    expect(editorDays(days, ['done', null])).toEqual([
+      { position: 0, name: 'Push', exerciseCount: 1, trained: 'done' },
+      { position: 1, name: 'Pull', exerciseCount: 0, trained: null },
     ])
+  })
+
+  it('reads a missing state as untouched rather than inventing trained', () => {
+    expect(editorDays(days, []).map((day) => day.trained)).toEqual([null, null])
   })
 })
 
@@ -141,6 +145,19 @@ describe('editorDayDetail', () => {
     expect(detail?.position).toBe(1)
     expect(detail?.exercises.map((e) => e.position)).toEqual([0, 1])
     expect(detail?.exercises[0].sets.map((s) => s.setNumber)).toEqual([1, 2])
+  })
+
+  it('defaults to no trained state and no session, so a draft claims neither', () => {
+    const detail = editorDayDetail(day, 0, 1, 'kg')
+    expect(detail).toMatchObject({ trained: null, session: null })
+  })
+
+  it('carries the trained state and session it is given', () => {
+    const session = { href: '/workout/w1', completedSetCount: 10, setCount: 12, volume: 4820 }
+    expect(editorDayDetail(day, 0, 1, 'kg', 'in-progress', session)).toMatchObject({
+      trained: 'in-progress',
+      session,
+    })
   })
 
   it('returns null for an unaddressed day rather than substituting a neighbour', () => {

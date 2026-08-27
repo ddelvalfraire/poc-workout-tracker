@@ -37,9 +37,9 @@ const weeks: EditorWeek[] = [
 ];
 
 const days: EditorDay[] = [
-  { position: 0, name: "Push", exerciseCount: 5 },
-  { position: 1, name: "Pull", exerciseCount: 5 },
-  { position: 2, name: "Legs", exerciseCount: 4 },
+  { position: 0, name: "Push", exerciseCount: 5, trained: null },
+  { position: 1, name: "Pull", exerciseCount: 5, trained: null },
+  { position: 2, name: "Legs", exerciseCount: 4, trained: null },
 ];
 
 const base = {
@@ -80,4 +80,54 @@ export const NoDays: Story = { args: { ...base, days: [] } };
 /** A one-week block: the week list still exists and still says which week. */
 export const SingleWeek: Story = {
   args: { ...base, weeks: [weeks[0]], selectedWeek: 1, selectedDay: 0 },
+};
+
+/**
+ * A part-done week — the case a week-level indicator gets half right.
+ *
+ * Days 1 and 2 are settled and say so in the shipped words; the labelled seam
+ * marks where editing begins. Note that "In progress" sits ABOVE the seam: an
+ * unfinished session's sets were written when it started, so it is as settled
+ * as a finished one. Nothing is dimmed and nothing says "locked".
+ */
+export const SplitWeekWithSeam: Story = {
+  args: {
+    ...base,
+    days: [
+      { ...days[0], trained: "done" },
+      { ...days[1], trained: "in-progress" },
+      { ...days[2], trained: null },
+    ],
+    seamIndex: 2,
+  },
+};
+
+/**
+ * Settled days that are NOT contiguous. No single rule could say "everything
+ * below this line is editable" without lying about day 3, so `trainedSeamIndex`
+ * returns null and the words on the rows carry the boundary alone.
+ */
+export const SplitWeekNoHonestSeam: Story = {
+  args: {
+    ...base,
+    days: [
+      { ...days[0], trained: "done" },
+      { ...days[1], trained: null },
+      { ...days[2], trained: "done" },
+    ],
+    seamIndex: null,
+  },
+};
+
+/** A past week's untouched days — the only place "Skipped" may be said. */
+export const PastWeekSkipped: Story = {
+  args: {
+    ...base,
+    selectedWeek: 1,
+    days: [
+      { ...days[0], trained: "done" },
+      { ...days[1], trained: "skipped" },
+      { ...days[2], trained: "skipped" },
+    ],
+  },
 };

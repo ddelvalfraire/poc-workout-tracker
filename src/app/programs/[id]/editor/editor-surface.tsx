@@ -6,7 +6,9 @@ import { AppHeader } from '@/components/app-header'
 import { EditorDayPane } from '@/components/editor/editor-day-pane'
 import { EditorInspector, type EditorInspectorExercise } from '@/components/editor/editor-inspector'
 import { EditorPanes } from '@/components/editor/editor-panes'
+import { EditorScopeLine } from '@/components/editor/editor-scope-line'
 import { EditorStructurePane } from '@/components/editor/editor-structure-pane'
+import { buildBlockWeeks } from '@/components/block-weeks'
 import { buttonVariants } from '@/components/ui/button'
 import { getWeightUnit } from '@/db/preferences'
 import { getProgramDetail, listProgramWorkouts, programWeekState } from '@/db/programs'
@@ -14,9 +16,12 @@ import { requireUserId } from '@/lib/auth'
 import { renderMessage } from '@/lib/message'
 import { TECHNIQUE_LABEL_KEY } from '@/lib/technique'
 import { cn } from '@/lib/utils'
-import { progressionLine } from '../detail-view'
+import { kgToDisplay } from '@/lib/units'
+import { progressionLine, programStatusLine } from '../detail-view'
+import { saveSetOverrideAction } from './actions'
 import { editorHref, resolveEditorAddress, type RawParam } from './editor-address'
 import { editorDayDetail, editorDays, editorSetLoadKg, editorWeeks } from './editor-view'
+import { isSettled, trainedDayState, trainedSeamIndex, weekTrainedReport } from './trained-view'
 
 /**
  * The program editor, for BOTH of its routes: `/programs/[id]/editor` and
@@ -53,7 +58,7 @@ export async function EditorSurface({ programId, daySegment, searchParams }: Edi
   ])
   if (!program) notFound()
 
-  const [{ currentWeek }, workouts] = await Promise.all([
+  const [{ currentWeek, blockComplete }, workouts] = await Promise.all([
     programWeekState(userId, program.id, program.mesocycleWeeks),
     listProgramWorkouts(userId, program.id),
   ])
@@ -82,8 +87,48 @@ export async function EditorSurface({ programId, daySegment, searchParams }: Edi
     },
   )
 
+  // Trained state, per DAY, for the selected week. The freeze unit is a workout
+  // instantiation — one (day × week) — so this is a state per day and never a
+  // property of the week; `resolveDayState` inside `trainedDayState` is the
+  // shipped decision point, not a second predicate written here.
+  //
+  // "Skipped" is gated on the week being behind the user: saying it of the
+  // current or a future week would accuse them of missing a session they can
+  // still train.
+  const isPastWeek = address.week < currentWeek
+  const workoutsFor = (dayId: string) =>
+    workouts.filter(
+      (workout) => workout.programDayId === dayId && workout.programWeek === address.week,
+    )
+  const trainedStates = program.days.map((programDay) =>
+    trainedDayState(workoutsFor(programDay.id), isPastWeek),
+  )
+
   const sourceDay = address.day === null ? null : (program.days[address.day] ?? null)
-  const day = editorDayDetail(sourceDay, address.day, address.week, unit)
+
+  // The settled day's SESSION — real facts, from aggregates the week read
+  // already carried. No extra query, and nothing here presents the plan's
+  // numbers as though they were the logged ones.
+  const sessionRow =
+    sourceDay !== null && address.day !== null && isSettled(trainedStates[address.day])
+      ? (workoutsFor(sourceDay.id)[0] ?? null)
+      : null
+
+  const day = editorDayDetail(
+    sourceDay,
+    address.day,
+    address.week,
+    unit,
+    address.day === null ? null : trainedStates[address.day],
+    sessionRow === null
+      ? null
+      : {
+          href: `/workout/${sessionRow.id}`,
+          completedSetCount: sessionRow.completedSetCount,
+          setCount: sessionRow.setCount,
+          volume: kgToDisplay(sessionRow.volumeKg, unit),
+        },
+  )
 
   const sourceExercise =
     sourceDay !== null && address.exercise !== null
@@ -127,6 +172,24 @@ export async function EditorSurface({ programId, daySegment, searchParams }: Edi
   const href = (next: { day?: number | null; exercise?: number | null }) =>
     editorHref(program.id, { week: address.week, ...next })
 
+  // The block's sentence is the SHIPPED one — "Block complete." included —
+  // rather than a second opinion about where the block stands.
+  const blockWeeks = buildBlockWeeks({
+    mesocycleWeeks: program.mesocycleWeeks,
+    deloadWeek: program.deloadWeek,
+    currentWeek,
+    dayCountTotal: program.days.length,
+    workouts,
+  })
+  const statusLine = programStatusLine({
+    currentWeek,
+    mesocycleWeeks: program.mesocycleWeeks,
+    deloadWeek: program.deloadWeek,
+    daysDoneThisWeek: blockWeeks.find((w) => w.week === currentWeek)?.dayCountDone ?? 0,
+    dayCountTotal: program.days.length,
+    blockComplete,
+  })
+
   return (
     <div className="flex min-h-[100dvh] flex-col">
       <AppHeader
@@ -141,6 +204,14 @@ export async function EditorSurface({ programId, daySegment, searchParams }: Edi
         }
       />
       <main aria-label={t('surfaceLabel')} className="flex flex-1 flex-col">
+        {/* Scope stated BEFORE the edit, not confirmed at save. */}
+        <EditorScopeLine
+          className="mx-auto w-full max-w-md min-[840px]:max-w-none"
+          statusLine={renderMessage(tDetail, statusLine)}
+          week={address.week}
+          report={weekTrainedReport(trainedStates)}
+          hasHistory={workouts.length > 0}
+        />
         <EditorPanes
           className="mx-auto w-full max-w-md min-[840px]:max-w-none"
           hasDay={address.day !== null}
@@ -151,9 +222,10 @@ export async function EditorSurface({ programId, daySegment, searchParams }: Edi
               hrefForWeek={(week) =>
                 editorHref(program.id, { week, day: address.day, exercise: address.exercise })
               }
-              days={editorDays(program.days)}
+              days={editorDays(program.days, trainedStates)}
               selectedDay={address.day}
               hrefForDay={(dayPosition) => href({ day: dayPosition })}
+              seamIndex={trainedSeamIndex(trainedStates)}
             />
           }
           day={
@@ -163,6 +235,8 @@ export async function EditorSurface({ programId, daySegment, searchParams }: Edi
               unit={unit}
               selectedExercise={address.exercise}
               hrefForExercise={(exercise) => href({ day: address.day, exercise })}
+              programId={program.id}
+              saveSetAction={saveSetOverrideAction}
             />
           }
           inspector={
