@@ -21,8 +21,8 @@ import { SectionTile, TILE_SPAN } from './section-tile'
 
 export interface EditorGridProps {
   sections: readonly ResolvedHomeSection[]
-  /** Tap intent — the editor opens the tile sheet for this kind. */
-  onOpen: (kind: string) => void
+  /** Tap intent — the editor opens the tile sheet for this section. */
+  onOpen: (id: string) => void
 }
 
 export function EditorGrid({ sections, onOpen }: EditorGridProps) {
@@ -33,12 +33,12 @@ export function EditorGrid({ sections, onOpen }: EditorGridProps) {
         const meta = HOME_SECTION_REGISTRY.find((s) => s.kind === section.kind)
         if (!meta) return null // unknown kind (future client): not editable here
         return (
-          <div key={section.kind} className={TILE_SPAN[section.size]}>
+          <div key={section.id} className={TILE_SPAN[section.size]}>
             <SectionTile
               title={t(meta.titleKey)}
               size={section.size}
               hidden={section.hidden}
-              onOpen={() => onOpen(section.kind)}
+              onOpen={() => onOpen(section.id)}
             />
           </div>
         )

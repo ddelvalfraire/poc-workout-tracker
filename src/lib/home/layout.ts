@@ -29,16 +29,39 @@ import {
  * to the kind's default) and strict on WRITE (must be in the kind's
  * allowedSizes). Serialization omits a size equal to the kind's default, so
  * the default document stays byte-minimal.
+ *
+ * IDENTITY (v3): a section is addressed by `id`, not by `kind`. Kinds marked
+ * `repeatable` may appear more than once — a layout can hold two lift-trend
+ * charts pinned to different lifts — so `kind` stopped being a unique key and
+ * every mutation helper takes an id. For the once-only kinds that are all we
+ * ship today the id simply IS the kind, which is why the stored document omits
+ * it in that case and the default document is byte-identical to v2's.
  */
 
-export const HOME_LAYOUT_VERSION = 2
+export const HOME_LAYOUT_VERSION = 3
 
 const homeLayoutSchema = z.object({
   version: z.literal(HOME_LAYOUT_VERSION),
   sections: z.array(
     z.object({
       kind: z.string(),
+      /** Instance identity. Omitted when it equals `kind` (the once-only
+       *  case), so the common document carries no ids at all. */
+      id: z.string().optional(),
       // Loose on read — normalization (not the schema) owns size validity.
+      size: z.string().optional(),
+      hidden: z.boolean().optional(),
+    }),
+  ),
+})
+
+/** The pre-identity document, accepted on READ only (in-memory upgrade):
+ *  identical to v3 minus `id`, which resolution fills in from `kind`. */
+const homeLayoutV2Schema = z.object({
+  version: z.literal(2),
+  sections: z.array(
+    z.object({
+      kind: z.string(),
       size: z.string().optional(),
       hidden: z.boolean().optional(),
     }),
@@ -61,6 +84,10 @@ export type HomeLayout = z.infer<typeof homeLayoutSchema>
 /** One resolved row: hidden normalized to a required boolean, size to a
  *  valid class (the kind's default when the doc doesn't say). */
 export interface ResolvedHomeSection {
+  /** Stable instance identity — what every mutation helper addresses. Equals
+   *  `kind` for the once-only kinds; distinct per instance for repeatable
+   *  ones. Unique within a layout, always. */
+  id: string
   kind: string
   size: HomeSectionSize
   hidden: boolean
@@ -99,10 +126,22 @@ export const DEFAULT_HOME_LAYOUT: HomeLayout = {
   sections: HOME_SECTION_REGISTRY.map((s) => ({ kind: s.kind })),
 }
 
+function isRepeatable(kind: string): boolean {
+  return REGISTRY_BY_KIND.get(kind)?.repeatable === true
+}
+
 /**
  * Resolves an untrusted stored document into the section list home renders.
- * Never throws: every failure mode lands on the default. A v1 document is
- * upgraded in memory (sizes default per kind) — never written back.
+ * Never throws: every failure mode lands on the default. v1 and v2 documents
+ * are upgraded in memory (v1 gains per-kind sizes, v2 gains ids from kinds) —
+ * never written back.
+ *
+ * Identity is resolved defensively, because the stored id is untrusted: a
+ * duplicate id is dropped (the first wins), and a repeated NON-repeatable
+ * kind is dropped even when its ids differ, so a corrupt document can't put
+ * two Momentum panels on the page. A repeatable kind therefore needs an
+ * EXPLICIT id on every instance past the first — two bare `{kind}` rows both
+ * resolve to the same id, and the second is dropped as the duplicate it is.
  */
 export function resolveHomeLayout(stored: unknown): ResolvedHomeSection[] {
   const parsed = homeLayoutSchema.safeParse(stored)
@@ -110,24 +149,36 @@ export function resolveHomeLayout(stored: unknown): ResolvedHomeSection[] {
   if (parsed.success) {
     doc = parsed.data
   } else {
-    const v1 = homeLayoutV1Schema.safeParse(stored)
-    doc = v1.success
-      ? { version: HOME_LAYOUT_VERSION, sections: v1.data.sections }
-      : DEFAULT_HOME_LAYOUT
+    const v2 = homeLayoutV2Schema.safeParse(stored)
+    if (v2.success) {
+      doc = { version: HOME_LAYOUT_VERSION, sections: v2.data.sections }
+    } else {
+      const v1 = homeLayoutV1Schema.safeParse(stored)
+      doc = v1.success
+        ? { version: HOME_LAYOUT_VERSION, sections: v1.data.sections }
+        : DEFAULT_HOME_LAYOUT
+    }
   }
-  const seen = new Set<string>()
+  const seenIds = new Set<string>()
+  const seenKinds = new Set<string>()
   const sections: ResolvedHomeSection[] = []
   for (const s of doc.sections) {
-    if (seen.has(s.kind)) continue // defensive: writes reject dupes, reads shrug
-    seen.add(s.kind)
+    // An empty stored id is absent, not an id — `??` alone would let '' through
+    // and hand every such section the same blank identity.
+    const id = s.id !== undefined && s.id.length > 0 ? s.id : s.kind
+    if (seenIds.has(id)) continue
+    if (seenKinds.has(s.kind) && !isRepeatable(s.kind)) continue
+    seenIds.add(id)
+    seenKinds.add(s.kind)
     sections.push({
+      id,
       kind: s.kind,
       size: normalizeSize(s.kind, s.size),
       hidden: s.hidden === true,
     })
   }
   for (const { kind, defaultSize } of HOME_SECTION_REGISTRY) {
-    if (!seen.has(kind)) sections.push({ kind, size: defaultSize, hidden: false })
+    if (!seenKinds.has(kind)) sections.push({ id: kind, kind, size: defaultSize, hidden: false })
   }
   return sections
 }
@@ -143,6 +194,7 @@ export function parseHomeLayoutInput(input: unknown): HomeLayout {
     sections: z.array(
       z.object({
         kind: z.string(),
+        id: z.string().min(1).optional(),
         size: z.enum(HOME_SECTION_SIZES).optional(),
         hidden: z.boolean().optional(),
       }),
@@ -157,10 +209,20 @@ export function parseHomeLayoutInput(input: unknown): HomeLayout {
   if (kinds.some((k) => !known.has(k))) {
     throw new Error('unknown home section kind')
   }
-  if (new Set(kinds).size !== kinds.length) {
+  // Identity is what must be unique now. A repeated kind is legal only when
+  // the registry says the kind repeats; ids are unique unconditionally, which
+  // is what forces a repeatable kind's extra instances to carry explicit ids.
+  const ids = parsed.data.sections.map((s) => s.id ?? s.kind)
+  if (new Set(ids).size !== ids.length) {
+    throw new Error('duplicate home section id')
+  }
+  const onceOnly = kinds.filter((k) => !isRepeatable(k))
+  if (new Set(onceOnly).size !== onceOnly.length) {
     throw new Error('duplicate home section kind')
   }
-  if (kinds.length !== known.size) {
+  // Every registry kind must still appear at least once — a repeatable kind
+  // may appear more, which is why this counts distinct kinds, not sections.
+  if (new Set(kinds).size !== known.size) {
     throw new Error('home layout must include every section')
   }
   for (const s of parsed.data.sections) {
@@ -170,32 +232,36 @@ export function parseHomeLayoutInput(input: unknown): HomeLayout {
   }
   return {
     version: HOME_LAYOUT_VERSION,
-    sections: parsed.data.sections.map((s) => toStoredSection(s.kind, s.size, s.hidden)),
+    sections: parsed.data.sections.map((s) =>
+      toStoredSection(s.kind, s.id ?? s.kind, s.size, s.hidden),
+    ),
   }
 }
 
-/** One stored row, byte-minimal: size omitted when it equals the kind's
- *  default, hidden omitted when false. */
+/** One stored row, byte-minimal: id omitted when it equals the kind, size
+ *  omitted when it equals the kind's default, hidden omitted when false. */
 function toStoredSection(
   kind: string,
+  id: string,
   size: HomeSectionSize | undefined,
   hidden: boolean | undefined,
 ): HomeLayout['sections'][number] {
   return {
     kind,
+    ...(id !== kind ? { id } : {}),
     ...(size !== undefined && size !== defaultSizeFor(kind) ? { size } : {}),
     ...(hidden === true ? { hidden: true } : {}),
   }
 }
 
-/** Swaps `kind` with its neighbor. Returns the input array unchanged (same
- *  reference) when the move is impossible — edges or an unknown kind. */
+/** Swaps the section with its neighbor. Returns the input array unchanged
+ *  (same reference) when the move is impossible — edges or an unknown id. */
 export function moveSection(
   sections: readonly ResolvedHomeSection[],
-  kind: string,
+  id: string,
   direction: 'up' | 'down',
 ): readonly ResolvedHomeSection[] {
-  const index = sections.findIndex((s) => s.kind === kind)
+  const index = sections.findIndex((s) => s.id === id)
   const target = direction === 'up' ? index - 1 : index + 1
   if (index === -1 || target < 0 || target >= sections.length) {
     return sections
@@ -205,14 +271,14 @@ export function moveSection(
   return next
 }
 
-/** Moves `kind` to the front, preserving everyone else's relative order.
+/** Moves the section to the front, preserving everyone else's relative order.
  *  Returns the input unchanged (same reference) when the section is already
- *  first or the kind is unknown. */
+ *  first or the id is unknown. */
 export function moveSectionToTop(
   sections: readonly ResolvedHomeSection[],
-  kind: string,
+  id: string,
 ): readonly ResolvedHomeSection[] {
-  const index = sections.findIndex((s) => s.kind === kind)
+  const index = sections.findIndex((s) => s.id === id)
   if (index <= 0) return sections
   const next = [...sections]
   const [moved] = next.splice(index, 1)
@@ -220,16 +286,16 @@ export function moveSectionToTop(
   return next
 }
 
-/** Moves `activeKind` to `overKind`'s position (the drag preview's reorder),
+/** Moves `activeId` to `overId`'s position (the drag preview's reorder),
  *  preserving everyone else's relative order. Returns the input unchanged
- *  (same reference) when either kind is unknown or they already coincide. */
+ *  (same reference) when either id is unknown or they already coincide. */
 export function reorderSection(
   sections: readonly ResolvedHomeSection[],
-  activeKind: string,
-  overKind: string,
+  activeId: string,
+  overId: string,
 ): readonly ResolvedHomeSection[] {
-  const from = sections.findIndex((s) => s.kind === activeKind)
-  const to = sections.findIndex((s) => s.kind === overKind)
+  const from = sections.findIndex((s) => s.id === activeId)
+  const to = sections.findIndex((s) => s.id === overId)
   if (from === -1 || to === -1 || from === to) return sections
   const next = [...sections]
   const [moved] = next.splice(from, 1)
@@ -237,29 +303,29 @@ export function reorderSection(
   return next
 }
 
-/** Flips a section's visibility. Returns the input unchanged for unknown kinds. */
+/** Flips a section's visibility. Returns the input unchanged for unknown ids. */
 export function toggleSection(
   sections: readonly ResolvedHomeSection[],
-  kind: string,
+  id: string,
 ): readonly ResolvedHomeSection[] {
-  if (!sections.some((s) => s.kind === kind)) {
+  if (!sections.some((s) => s.id === id)) {
     return sections
   }
-  return sections.map((s) => (s.kind === kind ? { ...s, hidden: !s.hidden } : s))
+  return sections.map((s) => (s.id === id ? { ...s, hidden: !s.hidden } : s))
 }
 
 /** Sets a section's size class. Returns the input unchanged (same reference)
- *  for unknown kinds, sizes the kind doesn't allow, and no-op sets. */
+ *  for unknown ids, sizes the kind doesn't allow, and no-op sets. */
 export function setSectionSize(
   sections: readonly ResolvedHomeSection[],
-  kind: string,
+  id: string,
   size: HomeSectionSize,
 ): readonly ResolvedHomeSection[] {
-  const current = sections.find((s) => s.kind === kind)
+  const current = sections.find((s) => s.id === id)
   if (current === undefined || current.size === size) return sections
-  const allowed = REGISTRY_BY_KIND.get(kind)?.allowedSizes
+  const allowed = REGISTRY_BY_KIND.get(current.kind)?.allowedSizes
   if (allowed === undefined || !allowed.includes(size)) return sections
-  return sections.map((s) => (s.kind === kind ? { ...s, size } : s))
+  return sections.map((s) => (s.id === id ? { ...s, size } : s))
 }
 
 /** Serializes resolved sections back into the stored document shape, omitting
@@ -267,6 +333,6 @@ export function setSectionSize(
 export function toLayoutDoc(sections: readonly ResolvedHomeSection[]): HomeLayout {
   return {
     version: HOME_LAYOUT_VERSION,
-    sections: sections.map((s) => toStoredSection(s.kind, s.size, s.hidden)),
+    sections: sections.map((s) => toStoredSection(s.kind, s.id, s.size, s.hidden)),
   }
 }

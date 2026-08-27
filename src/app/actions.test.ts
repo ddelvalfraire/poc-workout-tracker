@@ -300,7 +300,7 @@ describe('setRestTimerEnabledAction', () => {
 
 describe('setHomeLayoutAction', () => {
   const validLayout = {
-    version: 2,
+    version: 3,
     sections: [
       { kind: 'unfinished' },
       { kind: 'momentum', hidden: true },
@@ -329,26 +329,26 @@ describe('setHomeLayoutAction', () => {
   it('rejects unknown kinds without writing', async () => {
     await expect(
       setHomeLayoutAction({
-        version: 2,
+        version: 3,
         sections: [...validLayout.sections, { kind: 'mystery' }],
       }),
     ).rejects.toThrow('unknown home section kind')
     expect(setHomeLayout).not.toHaveBeenCalled()
   })
 
-  it('rejects duplicate kinds without writing', async () => {
+  it('rejects a duplicate id without writing', async () => {
     await expect(
       setHomeLayoutAction({
-        version: 2,
+        version: 3,
         sections: [...validLayout.sections.slice(0, 2), { kind: 'unfinished' }],
       }),
-    ).rejects.toThrow('duplicate home section kind')
+    ).rejects.toThrow('duplicate home section id')
     expect(setHomeLayout).not.toHaveBeenCalled()
   })
 
   it('rejects a document missing sections without writing', async () => {
     await expect(
-      setHomeLayoutAction({ version: 2, sections: [{ kind: 'unfinished' }] }),
+      setHomeLayoutAction({ version: 3, sections: [{ kind: 'unfinished' }] }),
     ).rejects.toThrow('home layout must include every section')
     expect(setHomeLayout).not.toHaveBeenCalled()
   })

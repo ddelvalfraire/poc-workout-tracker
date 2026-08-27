@@ -42,7 +42,7 @@ describe('resolveHomeLayout', () => {
 
   it('honors stored order and hidden flags', () => {
     const resolved = resolveHomeLayout({
-      version: 2,
+      version: 3,
       sections: [
         { kind: 'unfinished' },
         { kind: 'momentum', hidden: true },
@@ -56,15 +56,15 @@ describe('resolveHomeLayout', () => {
 
   it('keeps unknown kinds in place (render skips them, resolution round-trips them)', () => {
     const resolved = resolveHomeLayout({
-      version: 2,
+      version: 3,
       sections: [{ kind: 'from-the-future' }, { kind: 'momentum' }],
     })
-    expect(resolved[0]).toEqual({ kind: 'from-the-future', size: 'md', hidden: false })
+    expect(resolved[0]).toEqual({ id: 'from-the-future', kind: 'from-the-future', size: 'md', hidden: false })
   })
 
   it('appends registry kinds missing from the stored doc, visible, in registry order', () => {
     const resolved = resolveHomeLayout({
-      version: 2,
+      version: 3,
       sections: [{ kind: 'unfinished', hidden: true }],
     })
     expect(resolved.map((s) => s.kind)).toEqual(['unfinished', 'momentum', 'today-recap'])
@@ -73,7 +73,7 @@ describe('resolveHomeLayout', () => {
 
   it('drops duplicate kinds, keeping the first occurrence', () => {
     const resolved = resolveHomeLayout({
-      version: 2,
+      version: 3,
       sections: [
         { kind: 'unfinished', hidden: true },
         { kind: 'unfinished' },
@@ -82,13 +82,13 @@ describe('resolveHomeLayout', () => {
       ],
     })
     expect(resolved.filter((s) => s.kind === 'unfinished')).toEqual([
-      { kind: 'unfinished', size: 'md', hidden: true },
+      { id: 'unfinished', kind: 'unfinished', size: 'md', hidden: true },
     ])
   })
 
   it('honors a stored size the kind allows', () => {
     const resolved = resolveHomeLayout({
-      version: 2,
+      version: 3,
       sections: [
         { kind: 'momentum', size: 'lg' },
         { kind: 'today-recap', size: 'sm' },
@@ -100,7 +100,7 @@ describe('resolveHomeLayout', () => {
 
   it('normalizes an unknown, missing, or not-allowed size to the kind default', () => {
     const resolved = resolveHomeLayout({
-      version: 2,
+      version: 3,
       sections: [
         { kind: 'momentum', size: 'xl' }, // unknown size value
         { kind: 'today-recap', size: 'lg' }, // not in today-recap's allowedSizes
@@ -122,9 +122,9 @@ describe('resolveHomeLayout', () => {
       ],
     })
     expect(resolved).toEqual([
-      { kind: 'unfinished', size: 'md', hidden: false },
-      { kind: 'momentum', size: 'md', hidden: true },
-      { kind: 'today-recap', size: 'md', hidden: false },
+      { id: 'unfinished', kind: 'unfinished', size: 'md', hidden: false },
+      { id: 'momentum', kind: 'momentum', size: 'md', hidden: true },
+      { id: 'today-recap', kind: 'today-recap', size: 'md', hidden: false },
     ])
   })
 
@@ -134,13 +134,79 @@ describe('resolveHomeLayout', () => {
       sections: [{ kind: 'unfinished', hidden: true }, { kind: 'unfinished' }],
     })
     expect(resolved.map((s) => s.kind)).toEqual(['unfinished', 'momentum', 'today-recap'])
-    expect(resolved[0]).toEqual({ kind: 'unfinished', size: 'md', hidden: true })
+    expect(resolved[0]).toEqual({ id: 'unfinished', kind: 'unfinished', size: 'md', hidden: true })
+  })
+})
+
+describe('resolveHomeLayout identity (v3)', () => {
+  it('upgrades a v2 document in memory: every id comes from its kind', () => {
+    const resolved = resolveHomeLayout({
+      version: 2,
+      sections: [{ kind: 'unfinished' }, { kind: 'momentum', hidden: true }],
+    })
+    expect(resolved.map((s) => [s.id, s.kind])).toEqual([
+      ['unfinished', 'unfinished'],
+      ['momentum', 'momentum'],
+      ['today-recap', 'today-recap'],
+    ])
+  })
+
+  it('honors a stored id that differs from the kind', () => {
+    const resolved = resolveHomeLayout({
+      version: 3,
+      sections: [{ kind: 'momentum', id: 'momentum-pinned' }],
+    })
+    expect(resolved[0]).toEqual({
+      id: 'momentum-pinned',
+      kind: 'momentum',
+      size: 'md',
+      hidden: false,
+    })
+  })
+
+  it('drops a duplicate id, keeping the first occurrence', () => {
+    const resolved = resolveHomeLayout({
+      version: 3,
+      sections: [
+        { kind: 'momentum', hidden: true },
+        { kind: 'momentum' },
+      ],
+    })
+    expect(resolved.filter((s) => s.kind === 'momentum')).toEqual([
+      { id: 'momentum', kind: 'momentum', size: 'md', hidden: true },
+    ])
+  })
+
+  it('drops a repeated NON-repeatable kind even when the ids are distinct', () => {
+    // Reads shrug rather than throw, but a corrupt document must not put two
+    // Momentum panels on the page — nothing shipped today is `repeatable`.
+    const resolved = resolveHomeLayout({
+      version: 3,
+      sections: [
+        { kind: 'momentum' },
+        { kind: 'momentum', id: 'momentum-2' },
+      ],
+    })
+    expect(resolved.filter((s) => s.kind === 'momentum')).toHaveLength(1)
+  })
+
+  it('treats an empty stored id as absent rather than as an identity', () => {
+    const resolved = resolveHomeLayout({
+      version: 3,
+      sections: [{ kind: 'momentum', id: '' }],
+    })
+    expect(resolved[0].id).toBe('momentum')
+  })
+
+  it('gives every section a unique id, always', () => {
+    const ids = resolveHomeLayout(null).map((s) => s.id)
+    expect(new Set(ids).size).toBe(ids.length)
   })
 })
 
 describe('parseHomeLayoutInput', () => {
   const valid = {
-    version: 2,
+    version: 3,
     sections: [
       { kind: 'unfinished' },
       { kind: 'momentum', hidden: true },
@@ -150,7 +216,7 @@ describe('parseHomeLayoutInput', () => {
 
   it('accepts a complete valid document and normalizes hidden flags', () => {
     const doc = parseHomeLayoutInput(valid)
-    expect(doc.version).toBe(2)
+    expect(doc.version).toBe(3)
     expect(doc.sections).toEqual([
       { kind: 'unfinished' },
       { kind: 'momentum', hidden: true },
@@ -180,24 +246,53 @@ describe('parseHomeLayoutInput', () => {
     ).toThrow('unknown home section kind')
   })
 
-  it('rejects duplicate kinds', () => {
+  it('rejects a duplicate id', () => {
     expect(() =>
       parseHomeLayoutInput({
         ...valid,
         sections: [...valid.sections.slice(0, 2), { kind: 'unfinished' }],
       }),
+    ).toThrow('duplicate home section id')
+  })
+
+  it('rejects a repeated non-repeatable kind even when the ids differ', () => {
+    // Distinct ids clear the id rule, so this is the kind rule doing the work:
+    // nothing shipped today is `repeatable`, so one Momentum is the maximum.
+    expect(() =>
+      parseHomeLayoutInput({
+        ...valid,
+        sections: [...valid.sections, { kind: 'momentum', id: 'momentum-2' }],
+      }),
     ).toThrow('duplicate home section kind')
+  })
+
+  it('keeps an id that differs from the kind, and omits one that matches', () => {
+    const doc = parseHomeLayoutInput({
+      version: 3,
+      sections: [
+        { kind: 'momentum', id: 'momentum' },
+        { kind: 'today-recap' },
+        { kind: 'unfinished' },
+      ],
+    })
+    // Every id here equals its kind, so the stored document carries none —
+    // byte-identical to what v2 stored.
+    expect(doc.sections).toEqual([
+      { kind: 'momentum' },
+      { kind: 'today-recap' },
+      { kind: 'unfinished' },
+    ])
   })
 
   it('rejects a document missing registry kinds', () => {
     expect(() =>
-      parseHomeLayoutInput({ version: 2, sections: [{ kind: 'unfinished' }] }),
+      parseHomeLayoutInput({ version: 3, sections: [{ kind: 'unfinished' }] }),
     ).toThrow('home layout must include every section')
   })
 
   it('accepts sizes the kind allows and omits a size equal to the default', () => {
     const doc = parseHomeLayoutInput({
-      version: 2,
+      version: 3,
       sections: [
         { kind: 'momentum', size: 'sm' },
         { kind: 'today-recap', size: 'md' }, // default — serialized away
@@ -213,7 +308,7 @@ describe('parseHomeLayoutInput', () => {
 
   it('rejects a size outside the kind allowedSizes (strict, unlike the read guard)', () => {
     const withSize = (kind: string, size: string) => ({
-      version: 2,
+      version: 3,
       sections: valid.sections.map((s) => (s.kind === kind ? { ...s, size } : s)),
     })
     expect(() => parseHomeLayoutInput(withSize('today-recap', 'lg'))).toThrow(
@@ -261,7 +356,7 @@ describe('moveSectionToTop', () => {
   it('carries the moved section intact (size and hidden survive the move)', () => {
     const customized = toggleSection(setSectionSize(sections, 'momentum', 'sm'), 'momentum')
     const next = moveSectionToTop(customized, 'momentum')
-    expect(next[0]).toEqual({ kind: 'momentum', size: 'sm', hidden: true })
+    expect(next[0]).toEqual({ id: 'momentum', kind: 'momentum', size: 'sm', hidden: true })
   })
 
   it('is a no-op (same reference) when already first or for unknown kinds', () => {
@@ -331,7 +426,7 @@ describe('toLayoutDoc', () => {
       setSectionSize(toggleSection(resolveHomeLayout(null), 'momentum'), 'today-recap', 'sm'),
     )
     expect(doc).toEqual({
-      version: 2,
+      version: 3,
       sections: [
         { kind: 'momentum', hidden: true },
         { kind: 'today-recap', size: 'sm' },

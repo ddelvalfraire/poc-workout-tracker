@@ -93,7 +93,7 @@ export function renderHomeSections(
         .map((s) => {
           const render = renderers[s.kind]
           return render ? (
-            <div key={s.kind} className={SIZE_SPAN[s.size]}>
+            <div key={s.id} className={SIZE_SPAN[s.size]}>
               {render(ctx, s.size)}
             </div>
           ) : null

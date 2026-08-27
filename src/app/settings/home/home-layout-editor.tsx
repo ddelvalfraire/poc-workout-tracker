@@ -45,7 +45,7 @@ export function HomeLayoutEditor({
 }) {
   const t = useTranslations('HomeLayoutEditor')
   const [sections, setSections] = useState<readonly ResolvedHomeSection[]>(initialSections)
-  const [activeKind, setActiveKind] = useState<string | null>(null)
+  const [activeId, setActiveId] = useState<string | null>(null)
   const [hasError, setHasError] = useState(false)
   const [, startTransition] = useTransition()
   const router = useRouter()
@@ -138,11 +138,11 @@ export function HomeLayoutEditor({
   }
 
   function onReset() {
-    setActiveKind(null)
+    setActiveId(null)
     persist(resolveHomeLayout(null), { reset: true })
   }
 
-  const activeIndex = sections.findIndex((s) => s.kind === activeKind)
+  const activeIndex = sections.findIndex((s) => s.id === activeId)
   const activeSection = activeIndex === -1 ? null : sections[activeIndex]
   const activeMeta =
     activeSection === null
@@ -168,14 +168,14 @@ export function HomeLayoutEditor({
       {DndGrid !== null ? (
         <DndGrid
           sections={sections}
-          onOpen={setActiveKind}
+          onOpen={setActiveId}
           onDragStart={dragController.onDragStart}
           onDragPreview={dragController.onDragPreview}
           onDragCommit={dragController.onDragCommit}
           onDragCancel={dragController.onDragCancel}
         />
       ) : (
-        <EditorGrid sections={sections} onOpen={setActiveKind} />
+        <EditorGrid sections={sections} onOpen={setActiveId} />
       )}
 
       <p className="mt-4 text-sm text-muted-foreground">
@@ -201,11 +201,11 @@ export function HomeLayoutEditor({
           section={activeSection}
           index={activeIndex}
           count={sections.length}
-          onClose={() => setActiveKind(null)}
-          onSize={(size) => onSize(activeSection.kind, size)}
-          onToggle={() => onToggle(activeSection.kind)}
-          onMove={(direction) => onMove(activeSection.kind, direction)}
-          onMoveToTop={() => onMoveToTop(activeSection.kind)}
+          onClose={() => setActiveId(null)}
+          onSize={(size) => onSize(activeSection.id, size)}
+          onToggle={() => onToggle(activeSection.id)}
+          onMove={(direction) => onMove(activeSection.id, direction)}
+          onMoveToTop={() => onMoveToTop(activeSection.id)}
         />
       )}
     </>

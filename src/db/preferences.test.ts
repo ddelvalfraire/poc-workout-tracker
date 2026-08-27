@@ -211,7 +211,7 @@ describe('getHomeLayout', () => {
 
 describe('setHomeLayout', () => {
   it('upserts the layout document by user id', async () => {
-    const layout = { version: 2 as const, sections: [{ kind: 'unfinished' }] }
+    const layout = { version: 3 as const, sections: [{ kind: 'unfinished' }] }
     await setHomeLayout(USER, layout)
 
     expect(upserts).toHaveLength(1)

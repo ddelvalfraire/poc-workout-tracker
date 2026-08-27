@@ -32,6 +32,7 @@ function render(overrides: {
 }) {
   const meta = metaOf(overrides.kind)
   const section: ResolvedHomeSection = {
+    id: overrides.kind,
     kind: overrides.kind,
     size: overrides.size ?? meta.defaultSize,
     hidden: overrides.hidden ?? false,

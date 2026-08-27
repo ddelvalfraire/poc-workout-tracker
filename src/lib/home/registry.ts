@@ -54,6 +54,11 @@ export interface HomeSectionMeta {
   /** The size a section gets when the document doesn't say (and what
    *  serialization omits) — each kind's pre-bento rendering. */
   defaultSize: HomeSectionSize
+  /** Whether a layout may hold MORE THAN ONE instance of this kind. Only
+   *  meaningful for sections that carry per-instance config — a pinned lift
+   *  trend is the motivating case (two charts, two different lifts). Absent
+   *  means once-only, which is every kind shipped today. */
+  repeatable?: boolean
 }
 
 export const HOME_SECTION_REGISTRY = [

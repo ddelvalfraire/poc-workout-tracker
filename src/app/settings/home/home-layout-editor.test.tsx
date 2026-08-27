@@ -15,9 +15,9 @@ vi.mock('@/app/actions', () => ({
 import { HomeLayoutEditor } from './home-layout-editor'
 
 const sections: ResolvedHomeSection[] = [
-  { kind: 'momentum', size: 'sm', hidden: false },
-  { kind: 'today-recap', size: 'md', hidden: true },
-  { kind: 'unfinished', size: 'md', hidden: false },
+  { id: 'momentum', kind: 'momentum', size: 'sm', hidden: false },
+  { id: 'today-recap', kind: 'today-recap', size: 'md', hidden: true },
+  { id: 'unfinished', kind: 'unfinished', size: 'md', hidden: false },
 ]
 
 describe('HomeLayoutEditor (grid preview)', () => {

@@ -37,9 +37,9 @@ describe('renderHomeSections', () => {
     const renderers = stubRenderers()
     renderHomeSections(
       [
-        { kind: 'momentum', size: 'md', hidden: false },
-        { kind: 'today-recap', size: 'md', hidden: false },
-        { kind: 'unfinished', size: 'md', hidden: false },
+        { id: 'momentum', kind: 'momentum', size: 'md', hidden: false },
+        { id: 'today-recap', kind: 'today-recap', size: 'md', hidden: false },
+        { id: 'unfinished', kind: 'unfinished', size: 'md', hidden: false },
       ],
       ctx,
       renderers,
@@ -54,8 +54,8 @@ describe('renderHomeSections', () => {
     const renderers = stubRenderers()
     renderHomeSections(
       [
-        { kind: 'momentum', size: 'md', hidden: true },
-        { kind: 'today-recap', size: 'md', hidden: false },
+        { id: 'momentum', kind: 'momentum', size: 'md', hidden: true },
+        { id: 'today-recap', kind: 'today-recap', size: 'md', hidden: false },
       ],
       ctx,
       renderers,
@@ -69,8 +69,8 @@ describe('renderHomeSections', () => {
     expect(() =>
       renderHomeSections(
         [
-          { kind: 'from-the-future', size: 'md', hidden: false },
-          { kind: 'momentum', size: 'md', hidden: false },
+          { id: 'from-the-future', kind: 'from-the-future', size: 'md', hidden: false },
+          { id: 'momentum', kind: 'momentum', size: 'md', hidden: false },
         ],
         ctx,
         renderers,
@@ -84,6 +84,7 @@ describe('renderHomeSections', () => {
     // with a full context and asserting nothing is skipped: every section
     // produces a non-null wrapper element.
     const sections = HOME_SECTION_REGISTRY.map((s) => ({
+      id: s.kind,
       kind: s.kind,
       size: s.defaultSize,
       hidden: false,
@@ -107,6 +108,7 @@ describe('renderHomeSections', () => {
     // additions and never touch the base rendering. gap-x only: vertical
     // rhythm stays owned by each section's own mt-* margins.
     const sections = HOME_SECTION_REGISTRY.map((s) => ({
+      id: s.kind,
       kind: s.kind,
       size: s.defaultSize,
       hidden: false,
@@ -126,9 +128,9 @@ describe('renderHomeSections', () => {
     const { wrappers } = wrappersOf(
       renderHomeSections(
         [
-          { kind: 'today-recap', size: 'sm', hidden: false },
-          { kind: 'unfinished', size: 'md', hidden: false },
-          { kind: 'momentum', size: 'lg', hidden: false },
+          { id: 'today-recap', kind: 'today-recap', size: 'sm', hidden: false },
+          { id: 'unfinished', kind: 'unfinished', size: 'md', hidden: false },
+          { id: 'momentum', kind: 'momentum', size: 'lg', hidden: false },
         ],
         ctx,
         stubRenderers(),
@@ -172,7 +174,7 @@ function renderSection(
   workouts: WorkoutSummary[],
 ): string {
   return renderStaticIntl(
-    renderHomeSections([{ kind, size, hidden: false }], {
+    renderHomeSections([{ id: kind, kind, size, hidden: false }], {
       userId: 'user_123',
       nowMs: Date.parse('2026-03-05T09:00:00Z'),
       unit: 'kg',
