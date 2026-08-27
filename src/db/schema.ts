@@ -43,6 +43,19 @@ export const workouts = pgTable(
     name: text('name'),
     startedAt: timestamp('started_at', { withTimezone: true }).defaultNow().notNull(),
     completedAt: timestamp('completed_at', { withTimezone: true }),
+    // When this session's ORIGINAL record was persisted by a session-scoped
+    // write (saveWorkout, or updateWorkout's first full persist of an
+    // instantiated shell). Null means the session has never been recorded as
+    // a whole — it is still being logged.
+    //
+    // This exists BECAUSE `completedAt` cannot answer that question. The MCP
+    // patch tools stamp `completedAt` via coalesce(…, now()) on the first set
+    // they touch, so a coach patching one set of a LIVE session flips it
+    // non-null; a surface reading `completedAt` would then call that session's
+    // real first persist a correction. Set-level writes never touch this
+    // column, and `uncompleteWorkout` never clears it — an original record
+    // that happened stays happened.
+    originalRecordedAt: timestamp('original_recorded_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     // Provenance: when this workout was instantiated from a program day. SET NULL
     // (not cascade) so editing/deleting a plan never destroys logged history.

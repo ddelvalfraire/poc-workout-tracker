@@ -40,6 +40,7 @@ import {
   describeSetChange,
   describeSetSubject,
   diffSetSnapshots,
+  isBlankSetSnapshot,
   setSnapshotKey,
   type WorkoutSetSnapshot,
 } from './workout-set-diff'
@@ -681,6 +682,11 @@ export async function saveWorkout(
         // The session note goes to the notes table below (notes v2); the
         // legacy workouts.notes column is no longer written.
         completedAt: input.completedAt ?? input.startedAt ?? new Date(),
+        // This call IS the session's original record, so the marker is stamped
+        // with it. Wall-clock deliberately, even on a backdated save: the
+        // column says WHEN THE RECORD WAS WRITTEN, not when the training
+        // happened — `startedAt`/`completedAt` already own that.
+        originalRecordedAt: new Date(),
         ...(input.startedAt !== undefined ? { startedAt: input.startedAt } : {}),
       })
       .returning({ id: workouts.id })
@@ -969,6 +975,15 @@ export async function updateWorkout(
             ? sql`coalesce(${workouts.completedAt}, ${explicit.toISOString()})`
             : sql`coalesce(${workouts.completedAt}, now())`
         })(),
+        // The first FULL persist of this workout's contents is its original
+        // record — an instantiated program day is a blank shell until one
+        // lands. Coalesced, so later saves leave the first one standing, and
+        // wall-clock for the same reason as saveWorkout. Unlike `completedAt`,
+        // no set-level write touches this: `stampWorkoutCompleted` (the MCP
+        // patch path) moves completion only, so an agent patching a live
+        // session can never make the session's own first persist look like a
+        // correction.
+        originalRecordedAt: sql`coalesce(${workouts.originalRecordedAt}, now())`,
         ...(input.startedAt !== undefined ? { startedAt: input.startedAt } : {}),
       })
       .where(and(eq(workouts.id, id), eq(workouts.userId, userId)))
@@ -1297,7 +1312,15 @@ export async function updateSet(
       await recordWorkoutEvent(tx, {
         workoutId,
         userId,
-        kind: context.kind,
+        // Which of the caller's two DECLARED words applies (see
+        // `blankSubjectKind`): filling a set that held nothing records it for
+        // the first time, writing over a logged value contradicts it. Read
+        // off the before-image this call already fetched — a caller that
+        // declared only `kind` gets `kind`, unchanged.
+        kind:
+          context.blankSubjectKind !== undefined && isBlankSetSnapshot(before)
+            ? context.blankSubjectKind
+            : context.kind,
         actor: context.actor,
         action: 'update_set',
         summary: describeSetChange(before, after, changed),

@@ -3,6 +3,7 @@ import {
   describeSetChange,
   describeSetSubject,
   diffSetSnapshots,
+  isBlankSetSnapshot,
   setSnapshotKey,
   type WorkoutSetSnapshot,
 } from './workout-set-diff'
@@ -114,5 +115,40 @@ describe('describeSetSubject', () => {
   it('names the set by its number and exercise', () => {
     // Act + Assert
     expect(describeSetSubject(snapshot())).toBe('Set 3 of Squat')
+  })
+})
+
+describe('isBlankSetSnapshot', () => {
+  /** The shape `instantiate_program_day` writes: prescribed targets only. */
+  const BLANK = {
+    reps: null,
+    weight: null,
+    completed: false,
+    rir: null,
+    rpe: null,
+    durationSec: null,
+    distanceM: null,
+  } as const
+
+  it('calls a prescribed-only row blank', () => {
+    expect(isBlankSetSnapshot(snapshot(BLANK))).toBe(true)
+  })
+
+  it('counts effort as something logged, even with no reps or weight', () => {
+    expect(isBlankSetSnapshot(snapshot({ ...BLANK, rir: 2 }))).toBe(false)
+  })
+
+  it('counts a check-off as something logged', () => {
+    expect(isBlankSetSnapshot(snapshot({ ...BLANK, completed: true }))).toBe(false)
+  })
+
+  it('ignores metricMode: how a set reads is not a performed value', () => {
+    // Set at instantiation and NOT NULL, so it could never be blank — reading
+    // it would make every cardio row look logged before anyone touched it.
+    expect(isBlankSetSnapshot(snapshot({ ...BLANK, metricMode: 'duration' }))).toBe(true)
+  })
+
+  it('calls a logged row not blank', () => {
+    expect(isBlankSetSnapshot(snapshot())).toBe(false)
   })
 })

@@ -91,7 +91,7 @@ describe('registerPatchTools', () => {
       expect(mockedUpdateSet).toHaveBeenCalledWith('user_env', WID, 0, 3, {
         reps: 5,
         weight: displayToKg(225, 'lb'),
-      }, { actor: 'mcp', kind: 'amendment' })
+      }, { actor: 'mcp', kind: 'amendment', blankSubjectKind: 'original' })
       expect(payload(result)).toEqual({
         userId: 'user_env',
         unit: 'lb',
@@ -122,7 +122,7 @@ describe('registerPatchTools', () => {
         metricMode: 'duration_distance',
         durationSec: 1800,
         distanceM: 5000,
-      }, { actor: 'mcp', kind: 'amendment' })
+      }, { actor: 'mcp', kind: 'amendment', blankSubjectKind: 'original' })
       expect(payload(result)).not.toHaveProperty('unit')
     })
 
@@ -141,7 +141,7 @@ describe('registerPatchTools', () => {
 
       // Assert — no weight → no unit lookup, no unit echoed
       expect(mockedGetUnit).not.toHaveBeenCalled()
-      expect(mockedUpdateSet).toHaveBeenCalledWith('user_env', WID, 1, 2, { reps: 8 }, { actor: 'mcp', kind: 'amendment' })
+      expect(mockedUpdateSet).toHaveBeenCalledWith('user_env', WID, 1, 2, { reps: 8 }, { actor: 'mcp', kind: 'amendment', blankSubjectKind: 'original' })
       expect(payload(result)).not.toHaveProperty('unit')
     })
 
@@ -227,7 +227,7 @@ describe('registerPatchTools', () => {
       expect(mockedUpdateSet).toHaveBeenCalledWith(expect.any(String), WID, 0, 1, {
         completed: true,
         weight: 100,
-      }, { actor: 'mcp', kind: 'amendment' })
+      }, { actor: 'mcp', kind: 'amendment', blankSubjectKind: 'original' })
     })
 
     it("surfaces the db layer's SetCompletionError message verbatim", async () => {
@@ -267,7 +267,7 @@ describe('registerPatchTools', () => {
       // Assert
       expect(result.isError).toBeUndefined()
       expect(mockedGetUnit).not.toHaveBeenCalled()
-      expect(mockedUpdateSet).toHaveBeenCalledWith('user_env', WID, 0, 2, { rir: 2, rpe: 8.5 }, { actor: 'mcp', kind: 'amendment' })
+      expect(mockedUpdateSet).toHaveBeenCalledWith('user_env', WID, 0, 2, { rir: 2, rpe: 8.5 }, { actor: 'mcp', kind: 'amendment', blankSubjectKind: 'original' })
     })
 
     it('accepts explicit nulls to clear logged effort', async () => {
@@ -285,7 +285,7 @@ describe('registerPatchTools', () => {
       })
 
       // Assert
-      expect(mockedUpdateSet).toHaveBeenCalledWith('user_env', WID, 0, 1, { rir: null, rpe: null }, { actor: 'mcp', kind: 'amendment' })
+      expect(mockedUpdateSet).toHaveBeenCalledWith('user_env', WID, 0, 1, { rir: null, rpe: null }, { actor: 'mcp', kind: 'amendment', blankSubjectKind: 'original' })
     })
 
     it.each([
@@ -323,7 +323,7 @@ describe('registerPatchTools', () => {
       )
 
       // Assert
-      expect(mockedUpdateSet).toHaveBeenCalledWith('user_token', WID, 0, 1, { reps: 5 }, { actor: 'mcp', kind: 'amendment' })
+      expect(mockedUpdateSet).toHaveBeenCalledWith('user_token', WID, 0, 1, { reps: 5 }, { actor: 'mcp', kind: 'amendment', blankSubjectKind: 'original' })
       expect(payload(result).userId).toBe('user_token')
     })
   })

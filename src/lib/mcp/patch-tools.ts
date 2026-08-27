@@ -188,10 +188,18 @@ export function registerPatchTools(server: McpServer): void {
         }
         let result: Awaited<ReturnType<typeof updateSet>>
         try {
-          // Correcting a recorded set contradicts prior content.
+          // Two declared words, because this one tool does two jobs and the
+          // before-image — not a clock, and not this layer — says which.
+          // Writing over a logged value contradicts it: an amendment. Filling
+          // a set `instantiate_program_day` left blank is that set's FIRST
+          // record: an original. Live-logging a program day through these
+          // tools is nothing but the second case, so a flat 'amendment' would
+          // give such a session a log of pure corrections and no record at
+          // all, and empty the amendments-only view of its meaning.
           result = await updateSet(resolved, workoutId, exercisePosition, setNumber, patch, {
             actor: resolveWorkoutActor(extra),
             kind: 'amendment',
+            blankSubjectKind: 'original',
           })
         } catch (error: unknown) {
           // The db layer's invalid-edit channel (post-patch completed set with

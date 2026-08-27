@@ -82,7 +82,8 @@ describe('WorkoutChangelog markup', () => {
 
   it("reads an agent's edit in the foreground ink", () => {
     const html = markup([entry({ actor: 'mcp' })])
-    expect(html).toContain('Claude')
+    // Generic, never a vendor: 'mcp' is the whole MCP surface, any client.
+    expect(html).toContain('Connected app')
     expect(html).toContain('text-foreground')
   })
 

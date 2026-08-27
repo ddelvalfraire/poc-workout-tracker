@@ -28,6 +28,20 @@ export type WorkoutEventActor = 'ui' | 'mcp' | 'coach' | 'system'
 export interface WorkoutChangeContext {
   actor: WorkoutEventActor
   kind: WorkoutEventKind
+  /**
+   * The kind to use when the SUBJECT HELD NO LOGGED VALUE before this write —
+   * a first fill of a blank prescribed set is that set's own original record,
+   * not a correction of one. Omitted → `kind` stands for both cases.
+   *
+   * This is still a DECLARATION, not a derivation: the caller supplies both
+   * words and the write path only picks which of the caller's two sentences is
+   * true, from the before-image it already reads for the diff — never from a
+   * clock. It exists for `instantiate_program_day` + the MCP patch tools, the
+   * documented way to live-log a program day: every set starts blank, so a
+   * tool that could only say 'amendment' would produce a session whose log is
+   * all corrections and no record.
+   */
+  blankSubjectKind?: WorkoutEventKind
 }
 
 /** Any handle that can run the insert — normally a transaction, so the event

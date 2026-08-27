@@ -59,6 +59,30 @@ export function diffSetSnapshots(
   return WORKOUT_SET_DIFF_FIELDS.filter((field) => before[field] !== after[field])
 }
 
+/**
+ * True when the snapshot carries NO logged fact — the shape
+ * `instantiate_program_day` writes: addressing and prescribed_* targets only,
+ * nothing performed. Writing into one of these RECORDS a set for the first
+ * time; writing over anything else CONTRADICTS what was recorded, and that is
+ * the whole difference between an original and an amendment.
+ *
+ * Every performed field counts, effort and cardio included: an rir with no
+ * reps is still something the lifter logged. `metricMode` deliberately does
+ * NOT — it is how the set reads, fixed at instantiation, not a performed
+ * value (it is also NOT NULL, so it could never be blank).
+ */
+export function isBlankSetSnapshot(snapshot: WorkoutSetSnapshot): boolean {
+  return (
+    snapshot.reps === null &&
+    snapshot.weight === null &&
+    snapshot.rir === null &&
+    snapshot.rpe === null &&
+    snapshot.durationSec === null &&
+    snapshot.distanceM === null &&
+    !snapshot.completed
+  )
+}
+
 function formatValue(value: unknown): string {
   if (value === null || value === undefined) return '—'
   if (typeof value === 'boolean') return value ? 'yes' : 'no'

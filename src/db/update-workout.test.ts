@@ -131,6 +131,21 @@ describe('updateWorkout (transactional, user-scoped)', () => {
     expect(result).toEqual({ id: ID })
   })
 
+  it('stamps the original-record marker on the same update, coalesced', async () => {
+    // The marker `/workout/[id]/edit` reads to tell a live session from a
+    // correction. It must ride the session-scoped persist — NOT completedAt,
+    // which the MCP patch tools also move — and coalesce, so the first
+    // persist's moment stands for the life of the workout.
+    // Act
+    await updateWorkout(USER, ID, {
+      exercises: [{ wgerExerciseId: 73, name: 'Squat', sets: [{ reps: 5, weight: 100 }] }],
+    }, CTX)
+
+    // Assert — present as an opaque coalesce fragment, like completedAt
+    const values = records[0].values as Record<string, unknown>
+    expect(values.originalRecordedAt).toBeDefined()
+  })
+
   it('round-trips a checked-off set through the re-insert path', async () => {
     // Act — edit mode replaces children; the check-off must survive
     await updateWorkout(USER, ID, {

@@ -95,16 +95,24 @@ const WID = '11111111-1111-1111-1111-111111111111'
 function rowRead(
   overrides: Partial<{
     completed: boolean
+    reps: number | null
     weight: number | null
+    rir: number | null
+    rpe: number | null
     durationSec: number | null
+    distanceM: number | null
     metricMode: string
     loggingType: string
   }> = {},
 ) {
   return {
     completed: false,
+    reps: null,
     weight: null,
+    rir: null,
+    rpe: null,
     durationSec: null,
+    distanceM: null,
     metricMode: 'reps_weight',
     loggingType: 'weight_reps',
     ...overrides,
@@ -132,6 +140,9 @@ describe('updateSet (user-scoped)', () => {
     // Assert — set write, completedAt stamp, then the changelog row
     expect(records.map((r) => r.op)).toEqual(['update:sets', 'update:workouts', 'insert'])
     expect(records[0].values).toEqual({ reps: 5, weight: 100 })
+    // completedAt and NOTHING ELSE: a set-level touch must never move
+    // `originalRecordedAt`, or an agent patching one set of a live session
+    // would make the lifter's own first persist look like a correction.
     expect(Object.keys(records[1].values as object)).toEqual(['completedAt'])
     expect(result).toEqual({ id: 's9' })
   })
@@ -566,6 +577,48 @@ describe('set-level change log', () => {
     })
     expect((event()!.before as Record<string, unknown>).weight).toBe(100)
     expect((event()!.after as Record<string, unknown>).weight).toBe(102.5)
+  })
+
+  // A caller that cannot see the before-image declares BOTH words; the write
+  // path picks between them from the row it already read. This is what makes a
+  // program day logged entirely through MCP produce originals instead of a log
+  // of pure corrections.
+  const FILL_CTX = { actor: 'mcp', kind: 'amendment', blankSubjectKind: 'original' } as const
+
+  it("records the first fill of a blank prescribed set as that set's original", async () => {
+    // Arrange — the shape instantiate_program_day writes: nothing performed
+    selectQueue = [[{ id: 'ex1', name: 'Squat', source: 'wger', wgerExerciseId: 73 }], [rowRead()]]
+
+    // Act
+    await updateSet(USER, WID, 0, 3, { reps: 5, weight: 100 }, FILL_CTX)
+
+    // Assert
+    expect(event()).toMatchObject({ kind: 'original', action: 'update_set' })
+  })
+
+  it('still calls a write over a logged value an amendment', async () => {
+    // Arrange — same caller, same two declared words; this set holds a value
+    selectQueue = [
+      [{ id: 'ex1', name: 'Squat', source: 'wger', wgerExerciseId: 73 }],
+      [rowRead({ reps: 5, weight: 100 })],
+    ]
+
+    // Act
+    await updateSet(USER, WID, 0, 3, { weight: 102.5 }, FILL_CTX)
+
+    // Assert
+    expect(event()).toMatchObject({ kind: 'amendment' })
+  })
+
+  it('leaves a single-word caller alone: no blankSubjectKind, no substitution', async () => {
+    // Arrange — blank row, but the caller declared one intent only
+    selectQueue = [[{ id: 'ex1', name: 'Squat', source: 'wger', wgerExerciseId: 73 }], [rowRead()]]
+
+    // Act
+    await updateSet(USER, WID, 0, 3, { reps: 5, weight: 100 }, CTX)
+
+    // Assert
+    expect(event()).toMatchObject({ kind: 'amendment' })
   })
 
   it('writes NO event when the patch re-asserts the stored values', async () => {

@@ -65,6 +65,7 @@ describe('saveWorkout (transactional, user-scoped)', () => {
       userId: USER,
       name: 'Leg Day',
       completedAt: expect.any(Date),
+      originalRecordedAt: expect.any(Date),
     })
     expect(records[1].values).toEqual({
       workoutId: 'w1',
@@ -132,6 +133,9 @@ describe('saveWorkout (transactional, user-scoped)', () => {
       name: 'Backdated',
       startedAt,
       completedAt: startedAt,
+      // The backdate moves the SESSION, never the record-keeping stamp: this
+      // says when the original record was written, which is now.
+      originalRecordedAt: expect.any(Date),
     })
   })
 
@@ -149,6 +153,7 @@ describe('saveWorkout (transactional, user-scoped)', () => {
       name: 'Live',
       startedAt,
       completedAt,
+      originalRecordedAt: expect.any(Date),
     })
   })
 

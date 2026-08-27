@@ -68,7 +68,7 @@ describe('MCP patch tools — completion-gate probes', () => {
       durationSec: 3600,
     })
     expect(result.isError).toBeUndefined()
-    expect(mockedUpdateSet).toHaveBeenCalledWith('user_env', WID, 0, 1, { durationSec: 3600 }, { actor: 'mcp', kind: 'amendment' })
+    expect(mockedUpdateSet).toHaveBeenCalledWith('user_env', WID, 0, 1, { durationSec: 3600 }, { actor: 'mcp', kind: 'amendment', blankSubjectKind: 'original' })
   })
 
   it('OBSERVATION (green): update_set accepts durationSec + weight + reps together (no cross-field rule)', async () => {
@@ -88,7 +88,7 @@ describe('MCP patch tools — completion-gate probes', () => {
       0,
       1,
       expect.objectContaining({ metricMode: 'duration', durationSec: 1800, reps: 10 }),
-    { actor: 'mcp', kind: 'amendment' })
+    { actor: 'mcp', kind: 'amendment', blankSubjectKind: 'original' })
   })
 
   it('update_set refuses completed:true as the ONLY change (blind completion)', async () => {

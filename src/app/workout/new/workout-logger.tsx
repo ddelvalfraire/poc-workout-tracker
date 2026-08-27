@@ -15,6 +15,7 @@ import {
   Trash2,
   X,
 } from 'lucide-react'
+import { declaredSaveKind } from '@/lib/workout-session-mode'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -1197,11 +1198,13 @@ export function WorkoutLogger({
         // instantiated program day is that workout's ORIGINAL persist, while
         // edit mode's "Save changes" contradicts a session already recorded.
         // The server cannot tell the two apart from the payload or from any
-        // timestamp — see WorkoutUpdateKind.
+        // timestamp — see WorkoutUpdateKind. The mapping lives in
+        // lib/workout-session-mode.ts alongside the rule that SOURCES
+        // `isLive`, so the mode and the word for it can never drift apart.
         await updateWorkoutAction(
           workoutId,
           draftToInput(finalDraft, name, unit),
-          isLive ? 'original' : 'amendment',
+          declaredSaveKind(isLive),
         )
         // Capture-sheet set notes land AFTER the replace, against the
         // re-inserted rows (their positional address) — creating them before

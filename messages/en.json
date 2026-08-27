@@ -1492,7 +1492,7 @@
     "aboutTitle": "About this program",
     "actor": {
       "coach": "Coach",
-      "mcp": "Claude",
+      "mcp": "Connected app",
       "seed": "System",
       "ui": "You",
       "wger": "wger"
@@ -2485,7 +2485,7 @@
   "WorkoutChangelog": {
     "actor": {
       "coach": "Coach",
-      "mcp": "Claude",
+      "mcp": "Connected app",
       "system": "System",
       "ui": "You"
     },

@@ -248,6 +248,7 @@ describe('#206 at the trust boundary (legacy/stale drafts cannot re-persist the 
     name: 'Legs',
     startedAt: new Date('2026-08-10T10:00:00Z'),
     completedAt: null,
+    originalRecordedAt: null,
     createdAt: new Date('2026-08-10T10:00:00Z'),
     programDayId: null,
     programWeek: null,
