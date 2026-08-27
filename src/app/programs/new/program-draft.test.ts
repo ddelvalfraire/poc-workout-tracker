@@ -606,6 +606,7 @@ describe('detailToProgramDraft', () => {
       {
         id: 'd1',
         programId: 'p1',
+        slotKey: 'slot-d1',
         name: 'Push',
         position: 0,
         notes: 'day notes',
@@ -866,6 +867,32 @@ describe('detailToProgramDraft', () => {
     const draft = detailToProgramDraft(DETAIL)
     expect(draft.days[0].exercises[0].overshootPolicy).toBeNull()
     expect(draftToProgramInput(draft, 'kg').days[0].exercises[0].overshootPolicy).toBeNull()
+  })
+
+  it('carries the durable day slot key through an edit, so a save keeps history', () => {
+    // Arrange — the stored program, loaded into the editor
+    const draft = detailToProgramDraft(DETAIL)
+
+    // Act
+    const input = draftToProgramInput(draft)
+
+    // Assert — the key is pass-through provenance, not content: without it the
+    // full-replace save (db/programs.ts updateProgram) reads the day as brand
+    // new and orphans every workout logged against it.
+    expect(draft.days[0].slotKey).toBe('slot-d1')
+    expect(input.days?.[0]).toMatchObject({ slotKey: 'slot-d1' })
+  })
+
+  it('emits no slot key for a day the builder just added', () => {
+    // Arrange — a day with nothing stored behind it
+    const day = { id: 'd9', name: 'Legs', notes: null, weekdays: [], exercises: [] }
+    const draft = programDraftReducer(detailToProgramDraft(DETAIL), { type: 'ADD_DAY', day })
+
+    // Act
+    const input = draftToProgramInput(draft)
+
+    // Assert — an absent key means "new day", which is exactly what it is
+    expect(input.days?.at(-1)?.slotKey).toBeUndefined()
   })
 })
 

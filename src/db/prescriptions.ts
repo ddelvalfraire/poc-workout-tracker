@@ -619,7 +619,22 @@ export async function instantiateProgramDay(
   return db.transaction(async (tx) => {
     const [workout] = await tx
       .insert(workouts)
-      .values({ userId, name: day.name, programDayId, programWeek: targetWeek })
+      .values({
+        userId,
+        name: day.name,
+        programDayId,
+        programWeek: targetWeek,
+        // Durable provenance + the frozen plan facts, stamped once here and
+        // never updated (same contract as the prescribed* columns below).
+        // `programDayId` is only the live link — a full-replace program save
+        // deletes the row it points at — so the slot key is what survives, and
+        // the name/position are what still describe the session when the day
+        // is genuinely gone. Recording today's name today also means a later
+        // rename cannot silently re-label history.
+        programDaySlotKey: day.slotKey,
+        programDayName: day.name,
+        programDayPosition: day.position,
+      })
       .returning({ id: workouts.id })
 
     for (const [position, exercise] of day.exercises.entries()) {

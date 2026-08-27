@@ -135,12 +135,20 @@ async function insertProgramChildren(
   programId: string,
   days: ProgramInput['days'],
   catalog: ExerciseCatalog | null,
+  /** Slot key to carry onto each day, parallel to `days` (see matchDaySlots).
+   *  `undefined` at a position = a genuinely new day, which mints its own. */
+  carriedSlotKeys: readonly (string | undefined)[] = [],
 ) {
   for (const [dayPosition, day] of days.entries()) {
+    const carriedSlotKey = carriedSlotKeys[dayPosition]
     const [pd] = await tx
       .insert(programDays)
       .values({
         programId,
+        // The whole point of the replace-safe path: a day matched to an
+        // existing slot is re-inserted UNDER THAT SLOT KEY, so the workouts
+        // trained from it can find their way back. Omitted = a fresh uuid.
+        ...(carriedSlotKey !== undefined ? { slotKey: carriedSlotKey } : {}),
         name: day.name,
         position: dayPosition,
         notes: day.notes ?? null,
@@ -314,6 +322,121 @@ export async function saveProgram(
   })
 }
 
+/** One existing day slot, as snapshotted before a full replace wipes the rows. */
+export interface DaySlotSnapshot {
+  slotKey: string
+  position: number
+  name: string
+}
+
+/** The half of a `ProgramInput` day that slot matching looks at. */
+export interface DaySlotCandidate {
+  slotKey?: string | undefined
+  name: string
+}
+
+/**
+ * Decides which existing slot key (if any) each incoming day inherits — the
+ * identity that carries workout provenance across the delete/re-insert.
+ *
+ * Keys win outright: a day that round-trips `slotKey` keeps that slot, each
+ * slot claimed at most once, and an unknown key (another program's, a stale
+ * one) simply matches nothing and becomes a new slot. No day is ever matched
+ * to a DIFFERENT day's slot — re-pointing a trained session at a day it was
+ * not trained from would be worse than losing the link, because it would read
+ * as recorded fact.
+ *
+ * The fallback exists for adapters that cannot round-trip the key at all
+ * (MCP `upsert_program` before an agent learns to echo it, a program draft
+ * snapshotted before the field existed). It is a DEGRADATION, and deliberately
+ * the narrowest one that is still safe: only when NO day carried a key, the
+ * day count is unchanged, every position's name is identical, AND those names
+ * are distinct does each day keep the slot at its own position. Under those
+ * conditions the mapping is the identity — a reorder permutes the names and an
+ * add/remove changes the count, so both refuse the fallback and lose the links
+ * honestly instead of guessing.
+ *
+ * The distinctness clause is the load-bearing one. `program_days` has no
+ * uniqueness on `name` (only `unique(programId, position)`), so one program can
+ * hold two days called "Legs". Comparing names position by position then proves
+ * name-identity, not day-identity: stored [Legs(squat), Legs(deadlift)] sent
+ * back swapped still reads as ["Legs","Legs"] === ["Legs","Legs"], and every
+ * squat session would be re-pointed at the deadlift day. Names alone cannot
+ * distinguish those days, so with a duplicate name present the fallback is
+ * refused wholesale and no key is carried.
+ */
+export function matchDaySlots(
+  existing: readonly DaySlotSnapshot[],
+  incoming: readonly DaySlotCandidate[],
+): (string | undefined)[] {
+  if (incoming.some((d) => d.slotKey !== undefined)) {
+    const available = new Set(existing.map((e) => e.slotKey))
+    return incoming.map((day) => {
+      if (day.slotKey === undefined || !available.has(day.slotKey)) return undefined
+      available.delete(day.slotKey) // one slot, one day
+      return day.slotKey
+    })
+  }
+  const byPosition = [...existing].sort((a, b) => a.position - b.position)
+  // Two days may legally share a name, and then no comparison of names can say
+  // which of them an incoming day is. Unprovable, so refused outright.
+  const namesAreDistinct = new Set(byPosition.map((slot) => slot.name)).size === byPosition.length
+  const isUnchangedShape =
+    namesAreDistinct &&
+    byPosition.length === incoming.length &&
+    byPosition.every((slot, i) => slot.name === incoming[i].name)
+  return incoming.map((_, i) => (isUnchangedShape ? byPosition[i].slotKey : undefined))
+}
+
+/** Snapshots the program's day slots before the wipe — the identities
+ *  `matchDaySlots` hands back to the days being re-inserted. */
+function snapshotDaySlots(tx: Tx, programId: string): Promise<DaySlotSnapshot[]> {
+  return tx
+    .select({
+      slotKey: programDays.slotKey,
+      position: programDays.position,
+      name: programDays.name,
+    })
+    .from(programDays)
+    .where(eq(programDays.programId, programId))
+}
+
+/**
+ * Re-points the user's workouts at the RECREATED day rows, by slot key.
+ *
+ * `workouts.programDayId` is ON DELETE SET NULL, so the child wipe nulls every
+ * session ever logged against this program — including days the edit never
+ * touched. This is the repair, run inside the same transaction, so no reader
+ * ever observes the gap: for each slot that survived the replace, the workouts
+ * carrying that slot key get the new row id back.
+ *
+ * What is NOT repaired, by design: a slot the new plan no longer has (the user
+ * really did delete that day), and rows logged before the slot key existed
+ * (null key — nothing recorded to match on, and inferring a link would dress a
+ * guess up as provenance). Those keep a null `programDayId`; the frozen
+ * `programDayName`/`programDayPosition` are what still name them.
+ */
+async function reattachWorkoutProvenance(
+  tx: Tx,
+  userId: string,
+  programId: string,
+  carriedSlotKeys: readonly (string | undefined)[],
+): Promise<void> {
+  const carried = new Set(carriedSlotKeys.filter((k): k is string => k !== undefined))
+  if (carried.size === 0) return
+  const newDays = await tx
+    .select({ id: programDays.id, slotKey: programDays.slotKey })
+    .from(programDays)
+    .where(eq(programDays.programId, programId))
+  for (const day of newDays) {
+    if (!carried.has(day.slotKey)) continue
+    await tx
+      .update(workouts)
+      .set({ programDayId: day.id })
+      .where(and(eq(workouts.userId, userId), eq(workouts.programDaySlotKey, day.slotKey)))
+  }
+}
+
 /** Structural address of one planned set within a program tree. Row ids die
  *  in a full replace; this address is the identity a preserved override
  *  re-keys on. */
@@ -411,6 +534,14 @@ async function reattachSetOverrides(
  * Per-week set overrides — inexpressible in `ProgramInput` — are preserved by
  * re-keying onto the recreated rows at the same (day, exercise, setNumber)
  * address; overrides on removed slots die with them.
+ *
+ * WORKOUT PROVENANCE survives the same wipe, but on identity rather than
+ * address: each day carries a durable `slotKey` that the replace hands back to
+ * the day inheriting the slot (`matchDaySlots`), and the workouts logged
+ * against that slot are re-pointed at the recreated row before the transaction
+ * commits (`reattachWorkoutProvenance`). Address-matching is NOT used here —
+ * deleting or reordering a day would slide history onto the wrong session,
+ * and a wrong day reads as recorded fact where a null reads as a gap.
  *
  * Coach drafting policy (the write-side twin of saveProgram's): a 'coach'
  * actor may replace ONLY its own still-unadopted drafts — rows with
@@ -518,12 +649,18 @@ export async function updateProgram(
       return null
     }
 
-    // Snapshot → wipe → re-attach: overrides can't ride ProgramInput, so
-    // they'd otherwise cascade away with the deleted set rows.
+    // Snapshot → wipe → re-attach, twice over. Overrides can't ride
+    // ProgramInput, so they'd otherwise cascade away with the deleted set
+    // rows; day SLOT KEYS can't be minted twice, so without carrying them the
+    // wipe would re-mint every day id and orphan every workout ever logged
+    // against the program (ON DELETE SET NULL), not just the edited days.
     const overrides = await snapshotSetOverrides(tx, id)
+    const slots = await snapshotDaySlots(tx, id)
+    const carriedSlotKeys = matchDaySlots(slots, input.days)
     await tx.delete(programDays).where(eq(programDays.programId, id))
-    await insertProgramChildren(tx, id, input.days, catalog)
+    await insertProgramChildren(tx, id, input.days, catalog, carriedSlotKeys)
     await reattachSetOverrides(tx, id, overrides)
+    await reattachWorkoutProvenance(tx, userId, id, carriedSlotKeys)
     // Full-replace is deliberately ONE coarse event, not a per-slot diff —
     // the granular story lives on the patch ops.
     await recordProgramEvent(tx, {

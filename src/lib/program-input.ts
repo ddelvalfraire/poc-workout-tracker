@@ -424,6 +424,14 @@ export const programExerciseSchema = z
 
 /** One training day (e.g. "Push") — an ordered list of exercises. */
 export const programDaySchema = z.object({
+  // The day's DURABLE slot identity (program_days.slot_key), round-tripped by
+  // whoever is editing so a full replace can carry provenance across the wipe:
+  // a day whose key matches an existing slot keeps it, and the workouts logged
+  // against that slot are re-attached to the re-inserted row. Omitted = a NEW
+  // day (nothing to preserve) — never an error, since adapters that cannot
+  // round-trip it must still be able to save. Unknown keys are treated the
+  // same way: a key from another program can only fail to match.
+  slotKey: z.string().uuid().optional(),
   name: z.string().trim().min(1).max(MAX_NAME),
   notes: z.string().max(2000).nullable().optional(),
   // Weekday schedule (0–6, Sunday-first), normalized to a deduped ascending

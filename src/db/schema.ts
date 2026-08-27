@@ -46,11 +46,30 @@ export const workouts = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     // Provenance: when this workout was instantiated from a program day. SET NULL
     // (not cascade) so editing/deleting a plan never destroys logged history.
+    // This is the LIVE link every read joins on, and it is only as durable as
+    // the row it points at — `updateProgram`'s full replace drops and recreates
+    // every day, so the column is re-attached from `programDaySlotKey` below,
+    // inside the same transaction that nulled it.
     programDayId: uuid('program_day_id').references(() => programDays.id, {
       onDelete: 'set null',
     }),
     // 1-based week within the program's mesocycle this session belongs to.
     programWeek: integer('program_week'),
+    // Durable provenance: the SLOT this session was trained from, which
+    // outlives the `program_days` row (`programDays.slotKey`). Deliberately no
+    // FK — a foreign key would be nulled by the very delete this column exists
+    // to survive, and the slot is a logical identity, not a row reference.
+    // Null on rows written before the slot key existed, and on ad-hoc sessions.
+    programDaySlotKey: uuid('program_day_slot_key'),
+    // Frozen plan facts, stamped at instantiation and NEVER updated: what the
+    // day was called and where it sat in the week AT THE TIME IT WAS TRAINED.
+    // Facts of the session, like `sets.prescribedLoadKg` — so a log surface can
+    // still name what was trained after the day is genuinely deleted, and does
+    // not silently re-label old history when the plan is renamed. Null on
+    // ad-hoc sessions and on rows written before these columns existed (never
+    // backfilled: today's day name is not evidence of yesterday's).
+    programDayName: text('program_day_name'),
+    programDayPosition: integer('program_day_position'),
     // Free-form session note. Nullable: null = no note, same as programs.notes.
     notes: text('notes'),
     // Provenance: which history import created this workout. SET NULL (not
@@ -61,7 +80,11 @@ export const workouts = pgTable(
       onDelete: 'set null',
     }),
   },
-  (t) => [index('workouts_user_id_idx').on(t.userId)],
+  (t) => [
+    index('workouts_user_id_idx').on(t.userId),
+    // Drives the post-replace re-attach in `updateProgram`.
+    index('workouts_program_day_slot_key_idx').on(t.programDaySlotKey),
+  ],
 )
 
 /**
@@ -783,6 +806,13 @@ export const programDays = pgTable(
     programId: uuid('program_id')
       .notNull()
       .references(() => programs.id, { onDelete: 'cascade' }),
+    // The day's DURABLE identity, distinct from `id`: a full-replace save
+    // (updateProgram) deletes and re-inserts every row, so `id` is re-minted
+    // and cannot carry provenance across an edit. The slot key is snapshotted
+    // before the wipe and written back onto the matching re-inserted day, so
+    // `workouts.programDaySlotKey` still names the slot afterwards. New days
+    // (and every clone/copy, which lists columns explicitly) mint a fresh one.
+    slotKey: uuid('slot_key').defaultRandom().notNull(),
     name: text('name').notNull(),
     position: integer('position').notNull().default(0), // 0-based order
     notes: text('notes'),
@@ -795,7 +825,12 @@ export const programDays = pgTable(
   // the position-addressed patch ops against racing duplicates. DEFERRABLE
   // INITIALLY DEFERRED (hand-edited migration, same as program_sets) so the
   // Phase-4 move splice-renumber, which transiently collides, still commits.
-  (t) => [unique('program_days_program_position_unique').on(t.programId, t.position)],
+  (t) => [
+    unique('program_days_program_position_unique').on(t.programId, t.position),
+    // Globally unique so the slot key alone identifies a slot; the replace
+    // deletes before it re-inserts, so carrying a key forward never collides.
+    unique('program_days_slot_key_unique').on(t.slotKey),
+  ],
 )
 
 export const programExercises = pgTable(
