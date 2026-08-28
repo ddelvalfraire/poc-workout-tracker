@@ -1,10 +1,10 @@
 import Link from 'next/link'
-import type { CSSProperties, ReactNode } from 'react'
+import type { ReactNode } from 'react'
 import type { WorkoutSummary } from '@/db/workouts'
 import type { WeightUnit } from '@/lib/units'
-import type { HomeSectionKind, HomeSectionShape } from '@/lib/home/registry'
+import { SHAPE_UNITS, type HomeSectionKind, type HomeSectionShape } from '@/lib/home/registry'
 import type { HomeSectionConfig, ResolvedHomeSection } from '@/lib/home/layout'
-import { packSections } from '@/lib/home/pack'
+import { HomeBento, type HomeBentoItem } from '@/components/home/home-bento'
 import { DividerList } from '@/components/ui/divider-list'
 import { BigThree } from './big-three'
 import { CardioWeek } from './cardio-week'
@@ -58,9 +58,22 @@ type HomeSectionRenderer = (
   config: HomeSectionConfig | undefined,
 ) => ReactNode
 
+/**
+ * Which body variant a tile of this shape can hold — compact for a one-row
+ * tile, the full multi-row body above that.
+ *
+ * Keyed on the shape's ROW COUNT, not on a named shape. Testing `=== 'micro'`
+ * looked equivalent and was not: `wide` is also one row tall, so the full
+ * body went into a one-row tile where the only thing that could happen to it
+ * was being clipped.
+ */
+export function bodySizeForShape(shape: HomeSectionShape): 'sm' | 'md' {
+  return SHAPE_UNITS[shape].rows === 1 ? 'sm' : 'md'
+}
+
 const HOME_SECTION_RENDERERS: Record<HomeSectionKind, HomeSectionRenderer> = {
   momentum: (ctx, shape) => (
-    <MomentumPanel userId={ctx.userId} nowMs={ctx.nowMs} size={shape === 'micro' ? 'sm' : 'md'} />
+    <MomentumPanel userId={ctx.userId} nowMs={ctx.nowMs} size={bodySizeForShape(shape)} />
   ),
   'today-recap': (ctx, shape) => (
     <TodayRecap
@@ -72,10 +85,13 @@ const HOME_SECTION_RENDERERS: Record<HomeSectionKind, HomeSectionRenderer> = {
         volumeKg: w.volumeKg,
       }))}
       unit={ctx.unit}
-      size={shape === 'micro' ? 'sm' : 'md'}
+      size={bodySizeForShape(shape)}
     />
   ),
-  unfinished: (ctx) => <UnfinishedSection workouts={ctx.unfinished} />,
+  // Returns NOTHING rather than an empty section: a cell that renders nothing
+  // is not invisible, it is a reserved hole with a closing hairline in it.
+  unfinished: (ctx) =>
+    ctx.unfinished.length === 0 ? null : <UnfinishedSection workouts={ctx.unfinished} />,
   'cardio-week': (ctx, shape) => <CardioWeek userId={ctx.userId} shape={shape} />,
   'big-three': (ctx, shape) => <BigThree userId={ctx.userId} shape={shape} />,
   'pace-record': (ctx, shape) => <PaceRecord userId={ctx.userId} shape={shape} />,
@@ -98,77 +114,39 @@ const HOME_SECTION_RENDERERS: Record<HomeSectionKind, HomeSectionRenderer> = {
 }
 
 /**
- * The bento grid. Columns widen with the viewport — 2 on the phone, 4 from
- * `md`, 6 from `xl` — and `packSections` places every cell for that column
- * count. Rows are a fixed unit (`--home-cell-row`) because a bento needs real
- * row spans: a tall cell that runs past its neighbour is the whole reason the
- * grid stops reading as a list.
+ * Maps the resolved layout to the bento shell's items.
  *
- * Placement is emitted as inline `grid-row` / `grid-column` rather than
- * Tailwind classes for two reasons: the values are computed per layout, so
- * they cannot be enumerated for the JIT compiler; and pinning them explicitly
- * means the browser never re-derives a placement of its own that could drift
- * from what a native client will compute from the same packer.
- */
-/** The column count at each breakpoint. The packer runs once per tier and
- *  every cell carries all three placements; the stylesheet picks one. */
-const COLUMN_TIERS = [
-  { columns: 2, prefix: '2' },
-  { columns: 4, prefix: '4' },
-  { columns: 6, prefix: '6' },
-] as const
-
-/**
- * Maps the resolved layout to rendered sections inside ONE packed grid.
- * Hidden sections are filtered BEFORE packing (so they occupy no space) and
- * before any renderer runs; unknown kinds — a future client's sections — are
- * dropped just as silently, and never error.
+ * Three filters, in this order, and the order is the contract:
+ *   1. HIDDEN sections go first, so a hidden section's renderer never runs and
+ *      a hidden Momentum panel's queries never happen.
+ *   2. UNKNOWN kinds — a future client's sections — are dropped just as
+ *      silently, and never error.
+ *   3. EMPTY bodies are dropped AFTER rendering, because emptiness is
+ *      something only the renderer knows (nothing unfinished, no goals yet).
+ *
+ * All three happen before packing, so a dropped section reserves no space:
+ * the cell shell paints a closing hairline, which would otherwise leave a
+ * stray rule floating in a gap every later cell was routed around.
+ *
+ * Geometry lives in the shell (components/home/home-bento.tsx). This file
+ * owns only the kind → renderer map — the WEB half of the customization
+ * contract, and the reason the shell may not import it.
  */
 export function renderHomeSections(
   sections: readonly ResolvedHomeSection[],
   ctx: HomeSectionContext,
   renderers: Partial<Record<string, HomeSectionRenderer>> = HOME_SECTION_RENDERERS,
 ): ReactNode {
-  // Filtering unknown kinds before packing matters: a section nothing can
-  // render must not reserve a hole in the grid.
-  const visible = sections.filter((s) => !s.hidden && renderers[s.kind] !== undefined)
-  // One pass per breakpoint, keyed by section id so the three placements can
-  // be attached to the same cell.
-  const placements = new Map<string, Record<string, string>>()
-  for (const { columns, prefix } of COLUMN_TIERS) {
-    for (const cell of packSections(visible, columns).cells) {
-      const vars = placements.get(cell.section.id) ?? {}
-      vars[`--r${prefix}`] = `${cell.row + 1} / span ${cell.rowSpan}`
-      vars[`--c${prefix}`] = `${cell.col + 1} / span ${cell.colSpan}`
-      placements.set(cell.section.id, vars)
-    }
+  const items: HomeBentoItem[] = []
+  for (const section of sections) {
+    if (section.hidden) continue
+    const render = renderers[section.kind]
+    if (render === undefined) continue
+    const body = render(ctx, section.shape, section.config)
+    if (body === null || body === undefined || body === false) continue
+    items.push({ id: section.id, shape: section.shape, body })
   }
-  return (
-    <div className="home-bento">
-      {visible.map((section) => {
-        const render = renderers[section.kind]!
-        return (
-          <div key={section.id} style={placements.get(section.id) as CSSProperties}>
-            <HomeCell>{render(ctx, section.shape, section.config)}</HomeCell>
-          </div>
-        )
-      })}
-    </div>
-  )
-}
-
-/**
- * The cell shell — every widget is a body, never a body plus hand-tuned
- * chrome. Frameless by default: no border, no fill, no radius. A bento gets
- * its compartments from the jump in type scale, the gutters, and the closing
- * hairline; drawing a box around each one is a card grid with the fill turned
- * off, which is what the de-card vocabulary in DESIGN.md already forbids.
- *
- * Every value it paints with is a token (globals.css `.home-cell`), so a
- * future theme can turn fills and radii back on without touching a widget.
- */
-function HomeCell({ children }: { children: ReactNode }) {
-  return <div className="home-cell">{children}</div>
+  return <HomeBento items={items} />
 }
 
 /** Unfinished: rows that still need an action (resume or finish).
@@ -180,7 +158,7 @@ function UnfinishedSection({ workouts }: { workouts: WorkoutSummary[] }) {
   if (workouts.length === 0) return null
   return (
     <>
-      <h2 className="mt-10 mb-3 text-lg">{t('unfinishedTitle')}</h2>
+      <h2 className="mb-3 text-lg">{t('unfinishedTitle')}</h2>
       <DividerList>
         {workouts.map((w) => (
           <li key={w.id}>

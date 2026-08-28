@@ -44,6 +44,66 @@ export const SHAPE_UNITS: Record<HomeSectionShape, { cols: number; rows: number 
   hero: { cols: 2, rows: 3 },
 }
 
+/** The column count at each breakpoint the stylesheet renders (globals.css
+ *  `.home-bento`). Lives here rather than beside the CSS because the packer
+ *  runs once per tier on every client, and a native home has no stylesheet to
+ *  read it from. */
+export const HOME_COLUMN_TIERS = [2, 4, 6] as const
+
+export type HomeColumnTier = (typeof HOME_COLUMN_TIERS)[number]
+
+/**
+ * Spans per tier.
+ *
+ * `SHAPE_UNITS` is the PHONE table, and reusing it verbatim at 4 and 6
+ * columns is a bug with a tidy disguise: the spans stay legal, so nothing
+ * errors, but `block` — the anchor every preset is composed around — becomes
+ * two columns of six, and the widest viewport renders the smallest-looking
+ * anchor. The shapes are relative weights, so they have to be re-expressed
+ * against each grid rather than carried across unchanged.
+ *
+ * ROW spans are deliberately NOT scaled: a row is a fixed height in the
+ * stylesheet, and doubling a `tall` cell's rows would make it taller on a
+ * desktop rather than proportionally so. Only width is a fraction of the
+ * grid; height is an absolute number of rows.
+ */
+const SHAPE_UNITS_BY_TIER: Record<HomeColumnTier, Record<HomeSectionShape, { cols: number; rows: number }>> = {
+  2: SHAPE_UNITS,
+  4: {
+    micro: { cols: 1, rows: 1 },
+    wide: { cols: 2, rows: 1 },
+    tall: { cols: 1, rows: 2 },
+    block: { cols: 2, rows: 2 },
+    // The one shape that has to widen here: a hero at 2-of-4 is indistinguishable
+    // from a block, which is the distinction the shape exists to draw.
+    hero: { cols: 4, rows: 3 },
+  },
+  6: {
+    micro: { cols: 2, rows: 1 },
+    wide: { cols: 3, rows: 1 },
+    tall: { cols: 2, rows: 2 },
+    block: { cols: 3, rows: 2 },
+    hero: { cols: 6, rows: 3 },
+  },
+}
+
+function isTier(columns: number): columns is HomeColumnTier {
+  return (HOME_COLUMN_TIERS as readonly number[]).includes(columns)
+}
+
+/**
+ * The span lookup for a grid of `columns` columns, in the shape `packSections`
+ * takes. An unrecognised column count falls back to the phone table rather
+ * than returning undefined spans — a new tier should render a bit off, not
+ * crash, until it is given a row here.
+ */
+export function unitsForColumns(
+  columns: number,
+): (shape: HomeSectionShape) => { cols: number; rows: number } {
+  const table = isTier(columns) ? SHAPE_UNITS_BY_TIER[columns] : SHAPE_UNITS
+  return (shape) => table[shape]
+}
+
 /** The `HomeSection` catalog keys, written out rather than derived from
  *  `kind` — a template-literal type would type-check against nothing, and the
  *  point of the generated key types is that a missing message is a compile

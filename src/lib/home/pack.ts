@@ -1,5 +1,4 @@
 import { SHAPE_UNITS, type HomeSectionShape } from './registry'
-import type { ResolvedHomeSection } from './layout'
 
 /**
  * The bento packer — turns the one-dimensional layout document into explicit
@@ -28,8 +27,15 @@ import type { ResolvedHomeSection } from './layout'
  * care can see it in `clamped`.
  */
 
-export interface PackedSection {
-  section: ResolvedHomeSection
+/** All the packer needs of a section. Stated structurally rather than as
+ *  `ResolvedHomeSection` so the bento shell can pack ALREADY-RENDERED items
+ *  without inventing the layout-document fields it has no use for. */
+export interface Packable {
+  shape: HomeSectionShape
+}
+
+export interface PackedSection<T extends Packable = Packable> {
+  section: T
   /** Zero-based. Add 1 for CSS `grid-row` / `grid-column`, which are 1-based. */
   row: number
   col: number
@@ -39,8 +45,8 @@ export interface PackedSection {
   clamped: boolean
 }
 
-export interface PackedGrid {
-  cells: PackedSection[]
+export interface PackedGrid<T extends Packable = Packable> {
+  cells: PackedSection<T>[]
   /** Total rows occupied — what a fixed-height container needs to size itself. */
   rows: number
 }
@@ -89,15 +95,15 @@ function occupy(
  * structures and never mutates its input. Hidden sections are the caller's
  * problem — filter before packing, or they take up space.
  */
-export function packSections(
-  sections: readonly ResolvedHomeSection[],
+export function packSections<T extends Packable>(
+  sections: readonly T[],
   columns: number,
   unitsFor: (shape: HomeSectionShape) => { cols: number; rows: number } = (shape) =>
     SHAPE_UNITS[shape],
-): PackedGrid {
+): PackedGrid<T> {
   if (columns < 1) return { cells: [], rows: 0 }
   const grid: boolean[][] = []
-  const cells: PackedSection[] = []
+  const cells: PackedSection<T>[] = []
   // The scan floor: never look at a position earlier than the previous
   // section's own start, which is what stops a later cell jumping the queue.
   let cursorRow = 0

@@ -506,6 +506,15 @@
 .home-cell {
   display: flex;
   flex-direction: column;
+  /* The cell must ADOPT its grid track, not size to its own content. The
+     track is a fixed unit (--home-cell-row x the shape's row span), so a cell
+     left at auto height ignores it twice over: a short body leaves a void
+     inside its own track with the closing hairline floating mid-gap, and a
+     tall one grows past the track and paints over the row beneath it —
+     `overflow: hidden` never fires, because the box doing the hiding is the
+     box doing the growing. It is also what `h-full` and `mt-auto` inside a
+     body resolve against. Pinned by home-bento.stories.tsx. */
+  height: 100%;
   min-width: 0;
   min-height: 0;
   overflow: hidden;

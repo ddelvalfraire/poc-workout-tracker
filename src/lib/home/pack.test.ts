@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { packSections } from './pack'
+import { packSections, type PackedSection } from './pack'
 import type { ResolvedHomeSection } from './layout'
 import type { HomeSectionShape } from './registry'
 
@@ -14,8 +14,10 @@ function s(id: string, shape: HomeSectionShape): ResolvedHomeSection {
   return { id, kind: id, shape, hidden: false }
 }
 
-/** Compact placement view: [id, row, col, rowSpan, colSpan]. */
-function placement(cells: ReturnType<typeof packSections>['cells']) {
+/** Compact placement view: [id, row, col, rowSpan, colSpan]. `packSections`
+ *  is generic over what it packs, so this names the section type it is given
+ *  rather than reaching for the return type's unresolved constraint. */
+function placement(cells: readonly PackedSection<ResolvedHomeSection>[]) {
   return cells.map((c) => [c.section.id, c.row, c.col, c.rowSpan, c.colSpan])
 }
 

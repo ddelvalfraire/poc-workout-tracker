@@ -59,7 +59,7 @@ export function TodayRecap({
   if (size === 'sm') {
     const latest = today[0]
     return (
-      <section aria-label={t('sectionLabel')} className="mt-6 md:mt-10">
+      <section aria-label={t('sectionLabel')}>
         <h2 className="text-xs font-semibold uppercase tracking-widest text-primary">{t('title')}</h2>
         <DividerList className="mt-2">
           <li>
@@ -88,7 +88,7 @@ export function TodayRecap({
   }
 
   return (
-    <section aria-label={t('sectionLabel')} className="mt-6 md:mt-10">
+    <section aria-label={t('sectionLabel')}>
       <h2 className="text-xs font-semibold uppercase tracking-widest text-primary">{t('title')}</h2>
       <DividerList className="mt-2">
         {today.map((w) => {

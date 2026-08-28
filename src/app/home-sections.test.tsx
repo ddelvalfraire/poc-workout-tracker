@@ -2,7 +2,12 @@ import { describe, it, expect, test, vi } from 'vitest'
 import { HOME_SECTION_REGISTRY, SHAPE_UNITS, type HomeSectionShape } from '@/lib/home/registry'
 import { renderStaticIntl } from '../../vitest.intl'
 import type { WorkoutSummary } from '@/db/workouts'
-import { renderHomeSections, type HomeSectionContext } from './home-sections'
+import { HomeBento, type HomeBentoItem } from '@/components/home/home-bento'
+import {
+  bodySizeForShape,
+  renderHomeSections,
+  type HomeSectionContext,
+} from './home-sections'
 
 /**
  * Wire-level tests for the kind → renderer mapping. Renderers are stubbed
@@ -13,21 +18,32 @@ import { renderHomeSections, type HomeSectionContext } from './home-sections'
 
 const ctx = { userId: 'user_123', nowMs: 0 } as unknown as HomeSectionContext
 
+/** Neutral placeholders. They must render something NON-EMPTY: a renderer
+ *  that returns nothing is dropped before packing (its own test below), which
+ *  would silently empty the grid these structural tests measure. */
 function stubRenderers() {
   return Object.fromEntries(
-    HOME_SECTION_REGISTRY.map((s) => [s.kind, vi.fn(() => null)]),
+    HOME_SECTION_REGISTRY.map((s) => [s.kind, vi.fn(() => s.kind)]),
   )
 }
 
-/** The grid container is a single React element; its children are the
- *  per-section span wrappers (nulls for skipped kinds filtered out here). */
+/**
+ * `renderHomeSections` returns the bento SHELL element, which owns the
+ * geometry; the span wrappers are one level inside it. `HomeBento` is a pure
+ * function of its props with no hooks, so calling it directly is the cheapest
+ * way to see the placements without a renderer — these tests are about which
+ * items reach the shell, not about how a browser lays them out (that is
+ * components/home/home-bento.stories.tsx, which needs real layout).
+ */
 function wrappersOf(rendered: ReturnType<typeof renderHomeSections>) {
-  const container = rendered as React.ReactElement<{
+  const shell = rendered as React.ReactElement<{ items: HomeBentoItem[] }>
+  const container = HomeBento(shell.props) as React.ReactElement<{
     className: string
     children: (React.ReactElement<{ style: Record<string, string> }> | null)[]
   }>
   return {
     container,
+    items: shell.props.items,
     wrappers: container.props.children.filter((c) => c !== null),
   }
 }
@@ -95,7 +111,10 @@ describe('renderHomeSections', () => {
         nowMs: 0,
         unit: 'lb',
         recentCompleted: [],
-        unfinished: [],
+        // Unfinished renders nothing when there is nothing unfinished, and a
+        // dropped section is indistinguishable from a missing renderer here —
+        // so give it a row to render.
+        unfinished: [workout({ completedAt: null })],
       }),
     )
     expect(wrappers).toHaveLength(HOME_SECTION_REGISTRY.length)
@@ -164,6 +183,57 @@ describe('renderHomeSections', () => {
     )
     expect(wrappers).toHaveLength(1)
     expect(wrappers[0].props.style['--r2']).toBe('1 / span 1')
+  })
+
+  /**
+   * A section that renders NOTHING must not reserve a cell. The wrapper is
+   * not invisible when it is empty: the cell shell paints a closing hairline,
+   * so an empty section leaves a stray rule floating in a gap the packer
+   * still routed every later cell around.
+   */
+  it('a section that renders nothing reserves no space in the grid', () => {
+    const renderers = { ...stubRenderers(), unfinished: () => null }
+    const { wrappers } = wrappersOf(
+      renderHomeSections(
+        [
+          // Renders nothing — must be dropped entirely, not left as a hole.
+          { id: 'unfinished', kind: 'unfinished', shape: 'wide', hidden: false },
+          { id: 'momentum', kind: 'momentum', shape: 'wide', hidden: false },
+        ],
+        ctx,
+        renderers,
+      ),
+    )
+    expect(wrappers).toHaveLength(1)
+    // And the survivor is packed as if the empty one had never been there —
+    // it takes the first row, not the second.
+    expect(wrappers[0].props.style['--r2']).toBe('1 / span 1')
+  })
+
+  /**
+   * A tile's body variant follows the tile's HEIGHT, not one named shape.
+   * `wide` and `micro` are both one row tall, so both need the compact body;
+   * picking on `micro` alone put the full multi-row list inside a one-row
+   * `wide` tile, where it could only ever be clipped.
+   */
+  it('asks for the compact body in every one-row shape, and the full one above', () => {
+    expect(bodySizeForShape('micro')).toBe('sm')
+    expect(bodySizeForShape('wide')).toBe('sm')
+    expect(bodySizeForShape('tall')).toBe('md')
+    expect(bodySizeForShape('block')).toBe('md')
+    expect(bodySizeForShape('hero')).toBe('md')
+  })
+
+  /** The motivating case: Unfinished is a list of stale sessions, and an
+   *  account with none of them must not pay a cell for the empty list. */
+  it('renders no cell for Unfinished when there is nothing unfinished', () => {
+    const { wrappers } = wrappersOf(
+      renderHomeSections(
+        [{ id: 'unfinished', kind: 'unfinished', shape: 'wide', hidden: false }],
+        { ...ctx, unfinished: [], recentCompleted: [], unit: 'kg' },
+      ),
+    )
+    expect(wrappers).toHaveLength(0)
   })
 
 })
