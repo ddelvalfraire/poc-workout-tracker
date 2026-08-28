@@ -9,14 +9,40 @@
  * StatusHero and CheckInCard are deliberately NOT here: they always render,
  * always first, and are never customizable.
  *
+ * History is deliberately NOT here either: the full log lives at /history.
+ * Stored documents that still name it resolve fine (unknown kinds round-trip
+ * and are skipped at render), so removal needed no migration.
+ *
  * Array order IS the default home order.
  */
 
-/** Abstract size classes over a 4-unit row: sm=1, md=2, lg=4. Each platform
- *  maps them to its own grid (web: home-sections.tsx). */
-export type HomeSectionSize = 'sm' | 'md' | 'lg'
+/**
+ * Abstract TILE SHAPES, two-dimensional by construction. A one-dimensional
+ * size ('sm' | 'md' | 'lg') could only ever vary a tile's width, which is a
+ * responsive card list rather than a bento — the vertical break is what stops
+ * a grid reading as a stack. Each platform maps these to its own grid (web:
+ * home-sections.tsx); the units below are columns x rows on the phone's
+ * 2-column grid, and wider breakpoints re-map them.
+ */
+export type HomeSectionShape = 'micro' | 'wide' | 'tall' | 'block' | 'hero'
 
-export const HOME_SECTION_SIZES = ['sm', 'md', 'lg'] as const satisfies readonly HomeSectionSize[]
+export const HOME_SECTION_SHAPES = [
+  'micro',
+  'wide',
+  'tall',
+  'block',
+  'hero',
+] as const satisfies readonly HomeSectionShape[]
+
+/** Columns x rows per shape on the phone grid. The single source for spans —
+ *  every platform reads these rather than hard-coding its own. */
+export const SHAPE_UNITS: Record<HomeSectionShape, { cols: number; rows: number }> = {
+  micro: { cols: 1, rows: 1 },
+  wide: { cols: 2, rows: 1 },
+  tall: { cols: 1, rows: 2 },
+  block: { cols: 2, rows: 2 },
+  hero: { cols: 2, rows: 3 },
+}
 
 /** The `HomeSection` catalog keys, written out rather than derived from
  *  `kind` — a template-literal type would type-check against nothing, and the
@@ -26,13 +52,35 @@ export type HomeSectionTitleKey =
   | 'title.momentum'
   | 'title.todayRecap'
   | 'title.unfinished'
-  | 'title.history'
+  | 'title.cardioWeek'
+  | 'title.bigThree'
+  | 'title.paceRecord'
+  | 'title.strengthRetention'
+  | 'title.planAdherence'
+  | 'title.muscleBalance'
+  | 'title.laggingGroup'
+  | 'title.streak'
+  | 'title.closestGoal'
+  | 'title.trophyCase'
+  | 'title.weightTrend'
+  | 'title.liftTrend'
 
 export type HomeSectionDescriptionKey =
   | 'description.momentum'
   | 'description.todayRecap'
   | 'description.unfinished'
-  | 'description.history'
+  | 'description.cardioWeek'
+  | 'description.bigThree'
+  | 'description.paceRecord'
+  | 'description.strengthRetention'
+  | 'description.planAdherence'
+  | 'description.muscleBalance'
+  | 'description.laggingGroup'
+  | 'description.streak'
+  | 'description.closestGoal'
+  | 'description.trophyCase'
+  | 'description.weightTrend'
+  | 'description.liftTrend'
 
 /** The registry's copy is CATALOG KEYS, not sentences: entries are data
  *  shared by the editor grid, the tile sheet and (later) native clients, none
@@ -46,12 +94,22 @@ export interface HomeSectionMeta {
   titleKey: HomeSectionTitleKey
   /** One benefit-first clause for the editor row's hint. */
   descriptionKey: HomeSectionDescriptionKey
-  /** Sizes this section knows how to render — the write boundary rejects
-   *  anything else; reads normalize to `defaultSize`. */
-  allowedSizes: readonly HomeSectionSize[]
-  /** The size a section gets when the document doesn't say (and what
-   *  serialization omits) — each kind's pre-bento rendering. */
-  defaultSize: HomeSectionSize
+  /** Shapes this section knows how to render — the write boundary rejects
+   *  anything else; reads normalize to `defaultShape`. */
+  allowedShapes: readonly HomeSectionShape[]
+  /** The shape a section gets when the document doesn't say (and what
+   *  serialization omits). */
+  defaultShape: HomeSectionShape
+  /** Whether a layout may hold MORE THAN ONE instance of this kind. Only
+   *  meaningful for sections that carry per-instance config — a pinned lift
+   *  trend is the motivating case (two charts, two different lifts). Absent
+   *  means once-only, which is every kind shipped today. */
+  repeatable?: boolean
+  /** The SUBJECT this kind pins per instance, when it pins one. Declarative
+   *  like everything else here, so a native client reads the same field and
+   *  offers the same picker. Absent means the kind takes no config at all,
+   *  and the write boundary rejects a document that gives it one. */
+  configKind?: 'exercise'
 }
 
 export const HOME_SECTION_REGISTRY = [
@@ -59,31 +117,111 @@ export const HOME_SECTION_REGISTRY = [
     kind: 'momentum',
     titleKey: 'title.momentum',
     descriptionKey: 'description.momentum',
-    allowedSizes: ['sm', 'md', 'lg'],
-    defaultSize: 'md',
+    allowedShapes: ['micro', 'wide', 'block'],
+    defaultShape: 'wide',
   },
   {
     kind: 'today-recap',
     titleKey: 'title.todayRecap',
     descriptionKey: 'description.todayRecap',
-    allowedSizes: ['sm', 'md'],
-    defaultSize: 'md',
+    allowedShapes: ['micro', 'wide'],
+    defaultShape: 'wide',
   },
   {
     kind: 'unfinished',
     titleKey: 'title.unfinished',
     descriptionKey: 'description.unfinished',
-    allowedSizes: ['md'],
-    defaultSize: 'md',
+    allowedShapes: ['wide'],
+    defaultShape: 'wide',
   },
   {
-    kind: 'history',
-    titleKey: 'title.history',
-    descriptionKey: 'description.history',
-    allowedSizes: ['sm', 'md', 'lg'],
-    // lg, not md: today's home shows HOME_HISTORY_LIMIT (5) rows, which is
-    // the lg rendering — the default-parity contract pins the default to it.
-    defaultSize: 'lg',
+    kind: 'cardio-week',
+    titleKey: 'title.cardioWeek',
+    descriptionKey: 'description.cardioWeek',
+    allowedShapes: ['micro', 'wide'],
+    defaultShape: 'micro',
+  },
+  {
+    kind: 'big-three',
+    titleKey: 'title.bigThree',
+    descriptionKey: 'description.bigThree',
+    allowedShapes: ['wide', 'block', 'hero'],
+    defaultShape: 'block',
+  },
+  {
+    kind: 'pace-record',
+    titleKey: 'title.paceRecord',
+    descriptionKey: 'description.paceRecord',
+    allowedShapes: ['micro', 'tall'],
+    defaultShape: 'micro',
+  },
+  {
+    kind: 'strength-retention',
+    titleKey: 'title.strengthRetention',
+    descriptionKey: 'description.strengthRetention',
+    allowedShapes: ['micro', 'tall'],
+    defaultShape: 'tall',
+  },
+  {
+    kind: 'plan-adherence',
+    titleKey: 'title.planAdherence',
+    descriptionKey: 'description.planAdherence',
+    allowedShapes: ['micro', 'wide'],
+    defaultShape: 'micro',
+  },
+  {
+    kind: 'muscle-balance',
+    titleKey: 'title.muscleBalance',
+    descriptionKey: 'description.muscleBalance',
+    allowedShapes: ['wide', 'block', 'hero'],
+    defaultShape: 'block',
+  },
+  {
+    kind: 'lagging-group',
+    titleKey: 'title.laggingGroup',
+    descriptionKey: 'description.laggingGroup',
+    allowedShapes: ['micro'],
+    defaultShape: 'micro',
+  },
+  {
+    kind: 'weight-trend',
+    titleKey: 'title.weightTrend',
+    descriptionKey: 'description.weightTrend',
+    allowedShapes: ['micro', 'wide'],
+    defaultShape: 'micro',
+  },
+  {
+    kind: 'streak',
+    titleKey: 'title.streak',
+    descriptionKey: 'description.streak',
+    allowedShapes: ['micro'],
+    defaultShape: 'micro',
+  },
+  {
+    kind: 'closest-goal',
+    titleKey: 'title.closestGoal',
+    descriptionKey: 'description.closestGoal',
+    allowedShapes: ['micro', 'wide'],
+    defaultShape: 'wide',
+  },
+  {
+    kind: 'trophy-case',
+    titleKey: 'title.trophyCase',
+    descriptionKey: 'description.trophyCase',
+    allowedShapes: ['micro', 'tall'],
+    defaultShape: 'micro',
+  },
+  {
+    // The one repeatable kind: two instances pinned to two lifts is the whole
+    // reason sections carry ids. `configKind` is what the picker reads to know
+    // it has an exercise to offer.
+    kind: 'lift-trend',
+    titleKey: 'title.liftTrend',
+    descriptionKey: 'description.liftTrend',
+    allowedShapes: ['tall', 'wide', 'block'],
+    defaultShape: 'tall',
+    repeatable: true,
+    configKind: 'exercise',
   },
 ] as const satisfies readonly HomeSectionMeta[]
 

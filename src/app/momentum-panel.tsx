@@ -1,6 +1,5 @@
 import Link from 'next/link'
 import { ChevronRight } from 'lucide-react'
-import type { HomeSectionSize } from '@/lib/home/registry'
 import { listWorkoutSummaries } from '@/db/workouts'
 import { getWeightUnit } from '@/db/preferences'
 import { getRollingVolumeTotals } from '@/db/muscle-volume'
@@ -35,7 +34,9 @@ export interface MomentumPanelProps {
   /** Layout size class: sm renders only the one big number + streak flame;
    *  md (default) renders the full panel; lg adds the week-over-week line
    *  (from the previous rolling window the totals read already carries). */
-  size?: HomeSectionSize
+  /** Presentational density, chosen by the renderer from the cell's
+   *  shape — not the layout vocabulary itself. */
+  size?: 'sm' | 'md' | 'lg'
 }
 
 export async function MomentumPanel({ userId, nowMs, size = 'md' }: MomentumPanelProps) {

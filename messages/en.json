@@ -45,6 +45,16 @@
   "BackLink": {
     "ariaLabel": "Back"
   },
+  "BigThree": {
+    "lift": {
+      "bench": "Bench",
+      "deadlift": "Deadlift",
+      "ohp": "Overhead press",
+      "squat": "Squat"
+    },
+    "more": "Records",
+    "title": "Estimated total"
+  },
   "BlockMap": {
     "deloadBadge": "DL",
     "segmentLabel": "Week {week}{days, select, yes {, {daysDone} of {daysTotal} days done} other {}}{deload, select, yes {, deload} other {}}{current, select, yes {, current week} other {}}{selected, select, yes {, selected} other {}}"
@@ -110,11 +120,20 @@
     "saveError": "Didn’t save. Check the value and try again.",
     "validation": "Enter a weight above 0 {unit}."
   },
+  "CardioWeek": {
+    "delta": "{direction, select, up {+{count} vs last week} down {-{count} vs last week} other {}}",
+    "firstWeek": "first week logged",
+    "title": "Cardio",
+    "unit": "min"
+  },
   "CheckInCard": {
     "action": "Check in",
     "dismiss": "Not today",
     "lede": "Weight, tape, or a progress photo — {detail}.",
     "title": "Body check-in due"
+  },
+  "ClosestGoal": {
+    "title": "{count, plural, one {Goal} other {Top goal}}"
   },
   "CoachChart": {
     "ariaLabel": "Coach traces and cost per day, last {days, plural, one {# day} other {# days}}",
@@ -625,6 +644,15 @@
     "summaryTopLoad": "{count, plural, one {# set} other {# sets}} · top {kind, select, added {BW+{load}} assisted {BW−{load}} other {{load}}}",
     "summaryTopReps": "{count, plural, one {# set} other {# sets}} · top ×{reps}"
   },
+  "GallerySheet": {
+    "addAnotherAriaLabel": "Add another {section}",
+    "addAriaLabel": "Add {section}",
+    "anotherLabel": "Another {section}",
+    "dialogLabel": "Add a widget",
+    "empty": "Every widget is already on your home.",
+    "hint": "Anything not on your home right now.",
+    "title": "Add a widget"
+  },
   "GoalCardActions": {
     "archiveAction": "Archive",
     "archiveError": "Could not archive the goal.",
@@ -791,35 +819,65 @@
     "settingsLink": "Settings"
   },
   "HomeLayoutEditor": {
+    "addAction": "Add a widget",
     "hint": "Tap a tile to resize, reorder, or hide it — or press and hold to drag it. Hidden sections keep tracking — they just don’t show on Home.",
     "lockedTileAriaLabel": "Status — always shown, always first",
     "lockedTileLabel": "Status",
     "resetAction": "Reset to default",
     "saveError": "Couldn’t save. Try again."
   },
+  "HomePreset": {
+    "label": {
+      "bulk": "Bulk",
+      "conditioning": "Conditioning",
+      "consistency": "Consistency",
+      "cut": "Cut",
+      "hypertrophy": "Hypertrophy",
+      "powerlifting": "Powerlifting",
+      "volume": "Volume"
+    }
+  },
   "HomeSection": {
     "description": {
-      "history": "Your latest completed workouts.",
+      "bigThree": "Squat, bench and deadlift e1RM, and the total.",
+      "cardioWeek": "Conditioning minutes this week, against last.",
+      "closestGoal": "The goal you are working toward.",
+      "laggingGroup": "The muscle group furthest behind its plan.",
+      "liftTrend": "One lift’s estimated 1RM curve, with PR marks.",
       "momentum": "This week’s sets, activity, and goal progress.",
+      "muscleBalance": "Weekly sets per muscle group against your program.",
+      "paceRecord": "Best pace, longest distance and longest session.",
+      "planAdherence": "Prescribed sets met over the last four weeks.",
+      "streak": "Scheduled-day consistency, with your grace setting.",
+      "strengthRetention": "How much strength survived the current diet phase.",
       "todayRecap": "Celebration cards for sessions you finished today.",
-      "unfinished": "Stalled sessions waiting to be resumed or finished."
+      "trophyCase": "Recently stamped milestones.",
+      "unfinished": "Stalled sessions waiting to be resumed or finished.",
+      "weightTrend": "Bodyweight as a rate, over a 7-day average."
     },
     "title": {
-      "history": "History",
+      "bigThree": "Estimated total",
+      "cardioWeek": "Cardio",
+      "closestGoal": "Top goal",
+      "laggingGroup": "Lagging",
+      "liftTrend": "Lift trend",
       "momentum": "Momentum",
+      "muscleBalance": "Volume vs plan",
+      "paceRecord": "Records",
+      "planAdherence": "On target",
+      "streak": "Streak",
+      "strengthRetention": "Holding",
       "todayRecap": "Today",
-      "unfinished": "Unfinished"
+      "trophyCase": "Trophies",
+      "unfinished": "Unfinished",
+      "weightTrend": "Weight trend"
     }
   },
   "HomeSections": {
-    "allHistoryLink": "All history",
-    "historyTitle": "History",
-    "latestSummary": "{name} · {day} {month}",
     "resumeLabel": "Resume",
     "startedSummary": "started · {sets, plural, one {# set} other {# sets}} logged",
     "unfinishedTitle": "Unfinished",
-    "untitledWorkout": "Workout",
-    "workoutCount": "{count, plural, one {# workout} other {# workouts}}"
+    "untitledWorkout": "Workout"
   },
   "Import": {
     "batch": {
@@ -900,6 +958,11 @@
     "importError": "Could not import this template. Please try again.",
     "pending": "Adding…"
   },
+  "LaggingGroup": {
+    "caption": "{done} of {planned} planned",
+    "title": "Lagging",
+    "unit": "{group} sets"
+  },
   "LibraryFilter": {
     "empty": "Nothing here yet — finish a workout and your exercises show up with their stats.",
     "emptyQuery": "No exercise matches “{query}”.",
@@ -910,6 +973,14 @@
       "moving": "Moving",
       "training": "Training"
     }
+  },
+  "LiftTrend": {
+    "caption": "{name} · est. 1RM",
+    "chartLabel": "{name} estimated 1RM over the last {count} sessions",
+    "newBest": "new best",
+    "since": "{delta} {unit} this block",
+    "steady": "holding steady",
+    "title": "Lift trend"
   },
   "Loading": {
     "label": "Loading"
@@ -984,6 +1055,12 @@
     "weekDeltaLevel": "Level with last week",
     "weekDeltaUp": "Up {delta} on last week"
   },
+  "MuscleBalance": {
+    "behind": "{group} {count, plural, one {# set behind} other {# sets behind}}",
+    "more": "Stats",
+    "ofPlanned": "of {total} sets",
+    "title": "Volume vs plan"
+  },
   "NavDrawer": {
     "anchor": "{anchor, select, today {today} tomorrow {tomorrow} sunday {sunday} monday {monday} tuesday {tuesday} wednesday {wednesday} thursday {thursday} friday {friday} saturday {saturday} other {{anchor}}}",
     "day": {
@@ -996,6 +1073,7 @@
       "coach": "Ask about your training",
       "exercises": "Browse the catalog",
       "goals": "Set your first target",
+      "history": "Every session you have finished",
       "notes": "Everything you wrote, by session",
       "programs": "Start a plan",
       "stats": "Log a session to see volume",
@@ -1007,6 +1085,7 @@
       "coach": "Coach",
       "exercises": "Exercises",
       "goals": "Goals",
+      "history": "History",
       "notes": "Notes",
       "programs": "Programs",
       "stats": "Stats",
@@ -1180,6 +1259,20 @@
       "anyMetric": "Anything past {reps} × {load} counts."
     }
   },
+  "PaceRecord": {
+    "longest": "longest session",
+    "perDistance": "per {unit}",
+    "row": {
+      "distance": "Distance",
+      "duration": "Duration"
+    },
+    "title": "Best pace",
+    "titleRecords": "Records",
+    "unit": {
+      "km": "km",
+      "miles": "mi"
+    }
+  },
   "PatchProposalCard": {
     "applyAction": "Apply all",
     "applyError": "Could not apply these changes. Please try again.",
@@ -1278,6 +1371,13 @@
     "title": "Plan",
     "unavailableNotice": "Upgrading is not open yet. Nothing here can be bought, and nothing will be charged."
   },
+  "PlanAdherence": {
+    "allHit": "every prescribed set met",
+    "missed": "{count, plural, one {# set short of plan} other {# sets short of plan}}",
+    "of": "of {total}",
+    "title": "On target",
+    "window": "last 4 weeks"
+  },
   "PlanBulletList": {
     "noTarget": "{current} sets · no target",
     "progress": "{current} / {planned} sets"
@@ -1324,6 +1424,17 @@
   "PrBadge": {
     "ariaLabel": "Personal record",
     "label": "PR"
+  },
+  "PresetRow": {
+    "derived": {
+      "evidence": "Median {reps} reps · {groups, plural, one {# muscle group} other {# muscle groups}} · last {weeks} weeks",
+      "evidenceWithoutReps": "{groups, plural, one {# muscle group} other {# muscle groups}} · last {weeks} weeks",
+      "firewall": "Read from your logged sets only — never from what you tap on this screen.",
+      "heading": "What we read from your training",
+      "useAction": "Use"
+    },
+    "heading": "Layouts",
+    "hint": "A layout is a starting point. Change anything below and it becomes yours."
   },
   "ProgramAbout": {
     "eyebrow": "About",
@@ -1393,16 +1504,16 @@
     "deloadPolicy": {
       "legend": "Deload",
       "none": {
-        "label": "None",
-        "hint": "Every week is a working week."
+        "hint": "Every week is a working week.",
+        "label": "None"
       },
       "reactive": {
-        "label": "Reactive",
-        "hint": "Only backs off when stalls suggest one."
+        "hint": "Only backs off when stalls suggest one.",
+        "label": "Reactive"
       },
       "scheduled": {
-        "label": "Scheduled",
-        "hint": "Backs off on the deload week, every block."
+        "hint": "Backs off on the deload week, every block.",
+        "label": "Scheduled"
       },
       "shape": "{load}% of the load · {sets}% of the sets",
       "shapeWithCap": "{load}% of the load · {sets}% of the sets · effort capped at RPE {rpeCap}"
@@ -1410,22 +1521,22 @@
     "deloadWeekAriaLabel": "Deload week",
     "deloadWeekPlaceholder": "Deload week (optional)",
     "dietPhase": {
-      "legend": "Diet phase",
-      "none": {
-        "label": "None",
-        "hint": "No phase — the engine behaves exactly as it always has."
+      "bulking": {
+        "hint": "Normal progression.",
+        "label": "Bulking"
       },
       "cutting": {
-        "label": "Cutting",
-        "hint": "On a stall we trim volume and hold the load — in a deficit the load is the thing worth protecting."
+        "hint": "On a stall we trim volume and hold the load — in a deficit the load is the thing worth protecting.",
+        "label": "Cutting"
       },
+      "legend": "Diet phase",
       "maintaining": {
-        "label": "Maintaining",
-        "hint": "Normal progression."
+        "hint": "Normal progression.",
+        "label": "Maintaining"
       },
-      "bulking": {
-        "label": "Bulking",
-        "hint": "Normal progression."
+      "none": {
+        "hint": "No phase — the engine behaves exactly as it always has.",
+        "label": "None"
       }
     },
     "discardAction": "Discard",
@@ -1995,7 +2106,7 @@
     "separator": "—"
   },
   "SectionTile": {
-    "ariaLabel": "{state, select, hidden {{section} — hidden. Edit section} sm {{section} — Small. Edit section} md {{section} — Medium. Edit section} lg {{section} — Large. Edit section} other {{section}. Edit section}}"
+    "ariaLabel": "{state, select, hidden {{section} — hidden. Edit section} micro {{section} — Small. Edit section} wide {{section} — Wide. Edit section} tall {{section} — Tall. Edit section} block {{section} — Block. Edit section} hero {{section} — Hero. Edit section} other {{section}. Edit section}}"
   },
   "SessionConflictDialog": {
     "continueAction": "Continue workout",
@@ -2298,9 +2409,30 @@
   "StatusStrip": {
     "navLabel": "System status"
   },
+  "StreakCard": {
+    "title": "Streak"
+  },
   "StreakChip": {
     "countLabel": "{weeks} wk",
     "srOnly": "{weeks, plural, one {week} other {weeks}} training streak"
+  },
+  "StrengthRetention": {
+    "caption": {
+      "cutting": "of your bests since the cut began",
+      "phase": "of your bests since this phase began"
+    },
+    "dir": {
+      "down": "down",
+      "level": "level",
+      "up": "up"
+    },
+    "lift": {
+      "bench": "Bench",
+      "deadlift": "Dead",
+      "ohp": "Press",
+      "squat": "Squat"
+    },
+    "title": "Holding"
   },
   "SwipeToDelete": {
     "label": "Remove"
@@ -2396,13 +2528,20 @@
       "up": "Up",
       "upLabel": "Move {section} up"
     },
-    "sizeGroupLabel": "{section} size",
-    "sizeLabel": {
-      "lg": "L",
-      "md": "M",
-      "sm": "S"
+    "remove": {
+      "ariaLabel": "Remove {section} from your home",
+      "hint": "This one was added, so removing it deletes it. The rest can be hidden and brought back.",
+      "label": "Remove"
     },
-    "sizeOptionLabel": "{size, select, sm {Small {section}} md {Medium {section}} lg {Large {section}} other {{section}}}",
+    "shapeGroupLabel": "{section} shape",
+    "shapeLabel": {
+      "block": "B",
+      "hero": "H",
+      "micro": "S",
+      "tall": "T",
+      "wide": "W"
+    },
+    "shapeOptionLabel": "{shape, select, micro {Small {section}} wide {Wide {section}} tall {Tall {section}} block {Block {section}} hero {Hero {section}} other {{section}}}",
     "visibility": {
       "ariaLabel": "Show {section} on Home",
       "hint": "Hidden sections keep tracking — they just don’t show.",
@@ -2477,6 +2616,10 @@
     },
     "title": "Trophies"
   },
+  "TrophyCase": {
+    "title": "Trophies",
+    "unit": "earned"
+  },
   "UncompleteSession": {
     "action": "Mark not finished",
     "pending": "Checking…",
@@ -2550,6 +2693,13 @@
     "plateChipAriaLabel": "Plates for this weight: {chip}. Open plate calculator",
     "stepDecrease": "−{step}",
     "stepIncrease": "+{step}"
+  },
+  "WeightTrend": {
+    "caption": "{weight} {unit} · 7-day average",
+    "holding": "Holding",
+    "perWeek": "{unit} / week",
+    "title": "Weight trend",
+    "window": "7 d"
   },
   "Welcome": {
     "lede": "Your training data is health data, and you get real choices about it — each one in plain English.",

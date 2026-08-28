@@ -175,6 +175,21 @@ export const getHomeLayout = cache(async (userId: string): Promise<ResolvedHomeS
   return resolveHomeLayout(row?.homeLayout ?? null)
 })
 
+/**
+ * Whether the user has a home layout of their own.
+ *
+ * `getHomeLayout` cannot answer this: degrading an absent or corrupt document
+ * to the default is precisely its job, so by the time it returns, "saved" and
+ * "never touched" look identical. The seeding path needs that difference — a
+ * saved layout outranks the derived read, and nothing else does.
+ *
+ * Rides the same memoized row, so asking costs no extra query.
+ */
+export const hasStoredHomeLayout = cache(async (userId: string): Promise<boolean> => {
+  const row = await getPreferencesRow(userId)
+  return row?.homeLayout != null
+})
+
 /** Upserts the user's home layout (validated by setHomeLayoutAction); null
  *  clears it — degrade-to-default IS the "Reset to default" path. */
 export async function setHomeLayout(userId: string, layout: HomeLayout | null): Promise<void> {

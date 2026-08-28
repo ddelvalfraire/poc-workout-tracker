@@ -26,6 +26,7 @@ const CARD_SHELL_KEEP = [
   "src/app/coach/coach-chat.tsx",
   "src/app/body/photo-overlay.tsx",
   "src/app/programs/\\[id\\]/patch-proposal-card.tsx",
+  "src/app/settings/home/gallery-sheet.tsx",
   "src/app/settings/home/tile-sheet.tsx",
   "src/app/templates/\\[id\\]/template-edit-sheet.tsx",
   "src/app/workout/new/exercise-sheet.tsx",

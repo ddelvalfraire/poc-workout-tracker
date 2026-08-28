@@ -1,13 +1,23 @@
 import Link from 'next/link'
-import type { ReactNode } from 'react'
-import { ChevronRight } from 'lucide-react'
+import type { CSSProperties, ReactNode } from 'react'
 import type { WorkoutSummary } from '@/db/workouts'
 import type { WeightUnit } from '@/lib/units'
-import type { SessionSummary } from '@/components/session-conflict-dialog'
-import type { HomeSectionKind, HomeSectionSize } from '@/lib/home/registry'
-import type { ResolvedHomeSection } from '@/lib/home/layout'
+import type { HomeSectionKind, HomeSectionShape } from '@/lib/home/registry'
+import type { HomeSectionConfig, ResolvedHomeSection } from '@/lib/home/layout'
+import { packSections } from '@/lib/home/pack'
 import { DividerList } from '@/components/ui/divider-list'
-import { HistoryList } from './history-list'
+import { BigThree } from './big-three'
+import { CardioWeek } from './cardio-week'
+import { ClosestGoal } from './closest-goal'
+import { LaggingGroup } from './lagging-group'
+import { LiftTrend } from './lift-trend'
+import { MuscleBalance } from './muscle-balance'
+import { PaceRecord } from './pace-record'
+import { StreakCard } from './streak-card'
+import { TrophyCase } from './trophy-case'
+import { WeightTrend } from './weight-trend'
+import { PlanAdherence } from './plan-adherence'
+import { StrengthRetention } from './strength-retention'
 import { MomentumPanel } from './momentum-panel'
 import { TodayRecap } from './today-recap'
 import { useTranslations } from 'next-intl'
@@ -28,10 +38,6 @@ import { useTranslations } from 'next-intl'
 // en-US matches formatWorkoutDate — one locale for all date display.
 const monthFormat = new Intl.DateTimeFormat('en-US', { month: 'short' })
 
-/** Home keeps the freshest handful; the full log lives on /history (WHOOP
- *  tier discipline — history is tier-3 data on tier-1 real estate). */
-const HOME_HISTORY_LIMIT = 5
-
 export interface HomeSectionContext {
   userId: string
   /** The page's request "now" (epoch ms) — one instant for every section. */
@@ -39,19 +45,24 @@ export interface HomeSectionContext {
   unit: WeightUnit
   /** Completed within the 48h gate window (TodayRecap filters to local today). */
   recentCompleted: WorkoutSummary[]
-  /** All completed sessions, newest-first slice rendered by History. */
-  completed: WorkoutSummary[]
   /** Started-but-unfinished sessions (stale abandonments, not live state). */
   unfinished: WorkoutSummary[]
-  /** Single-active-session guard for Repeat starts. */
-  guardSession: SessionSummary | null
 }
 
-type HomeSectionRenderer = (ctx: HomeSectionContext, size: HomeSectionSize) => ReactNode
+/** `config` is the section's own pinned subject — only kinds the registry
+ *  marks with a `configKind` ever receive one, and they treat its absence as
+ *  "derive a default" rather than as an error. */
+type HomeSectionRenderer = (
+  ctx: HomeSectionContext,
+  shape: HomeSectionShape,
+  config: HomeSectionConfig | undefined,
+) => ReactNode
 
 const HOME_SECTION_RENDERERS: Record<HomeSectionKind, HomeSectionRenderer> = {
-  momentum: (ctx, size) => <MomentumPanel userId={ctx.userId} nowMs={ctx.nowMs} size={size} />,
-  'today-recap': (ctx, size) => (
+  momentum: (ctx, shape) => (
+    <MomentumPanel userId={ctx.userId} nowMs={ctx.nowMs} size={shape === 'micro' ? 'sm' : 'md'} />
+  ),
+  'today-recap': (ctx, shape) => (
     <TodayRecap
       workouts={ctx.recentCompleted.map((w) => ({
         id: w.id,
@@ -61,68 +72,107 @@ const HOME_SECTION_RENDERERS: Record<HomeSectionKind, HomeSectionRenderer> = {
         volumeKg: w.volumeKg,
       }))}
       unit={ctx.unit}
-      size={size === 'sm' ? 'sm' : 'md'}
+      size={shape === 'micro' ? 'sm' : 'md'}
     />
   ),
   unfinished: (ctx) => <UnfinishedSection workouts={ctx.unfinished} />,
-  history: (ctx, size) => (
-    <HistorySection
-      workouts={ctx.completed}
-      unit={ctx.unit}
-      guardSession={ctx.guardSession}
-      size={size}
+  'cardio-week': (ctx, shape) => <CardioWeek userId={ctx.userId} shape={shape} />,
+  'big-three': (ctx, shape) => <BigThree userId={ctx.userId} shape={shape} />,
+  'pace-record': (ctx, shape) => <PaceRecord userId={ctx.userId} shape={shape} />,
+  'strength-retention': (ctx, shape) => <StrengthRetention userId={ctx.userId} shape={shape} />,
+  'plan-adherence': (ctx, shape) => <PlanAdherence userId={ctx.userId} shape={shape} />,
+  'muscle-balance': (ctx, shape) => <MuscleBalance userId={ctx.userId} shape={shape} />,
+  'lagging-group': (ctx) => <LaggingGroup userId={ctx.userId} />,
+  'weight-trend': (ctx) => <WeightTrend userId={ctx.userId} />,
+  streak: (ctx) => <StreakCard userId={ctx.userId} />,
+  'closest-goal': (ctx) => <ClosestGoal userId={ctx.userId} />,
+  'trophy-case': (ctx, shape) => <TrophyCase userId={ctx.userId} shape={shape} />,
+  'lift-trend': (ctx, shape, config) => (
+    <LiftTrend
+      userId={ctx.userId}
+      nowMs={ctx.nowMs}
+      shape={shape}
+      pinned={config?.exercise}
     />
   ),
 }
 
-/** The web mapping of the abstract 4-unit row: on the phone column a 2-col
- *  grid (sm = half width, md/lg = full width); from the md breakpoint the
- *  full 4-unit row renders literally (sm=1, md=2, lg=4 of 4 columns) — the
- *  desktop bento, same layout document. Flow is row-major with NO dense
- *  back-fill — a gap left by a lone sm before a full-width section stays
- *  visible (predictability over density). */
-const SIZE_SPAN: Record<HomeSectionSize, string> = {
-  sm: 'col-span-1',
-  md: 'col-span-2',
-  lg: 'col-span-2 md:col-span-4',
-}
+/**
+ * The bento grid. Columns widen with the viewport — 2 on the phone, 4 from
+ * `md`, 6 from `xl` — and `packSections` places every cell for that column
+ * count. Rows are a fixed unit (`--home-cell-row`) because a bento needs real
+ * row spans: a tall cell that runs past its neighbour is the whole reason the
+ * grid stops reading as a list.
+ *
+ * Placement is emitted as inline `grid-row` / `grid-column` rather than
+ * Tailwind classes for two reasons: the values are computed per layout, so
+ * they cannot be enumerated for the JIT compiler; and pinning them explicitly
+ * means the browser never re-derives a placement of its own that could drift
+ * from what a native client will compute from the same packer.
+ */
+/** The column count at each breakpoint. The packer runs once per tier and
+ *  every cell carries all three placements; the stylesheet picks one. */
+const COLUMN_TIERS = [
+  { columns: 2, prefix: '2' },
+  { columns: 4, prefix: '4' },
+  { columns: 6, prefix: '6' },
+] as const
 
 /**
- * Maps the resolved layout to rendered sections inside ONE flow grid. Hidden
- * sections are filtered BEFORE any renderer runs; unknown kinds (a future
- * client's sections) are silently skipped — never an error.
- *
- * gap-x only, deliberately: vertical rhythm stays owned by each section's own
- * mt-* margins (grid items don't collapse margins, but nothing here used
- * collapsing — every section spaces itself with a single top margin), so the
- * all-md default renders byte-identical to the pre-grid stacked home. From
- * the md breakpoint sections can sit side-by-side, so every section's top
- * margin normalizes to md:mt-10 (DESIGN.md) — differing phone margins would
- * misalign adjacent tile tops.
+ * Maps the resolved layout to rendered sections inside ONE packed grid.
+ * Hidden sections are filtered BEFORE packing (so they occupy no space) and
+ * before any renderer runs; unknown kinds — a future client's sections — are
+ * dropped just as silently, and never error.
  */
 export function renderHomeSections(
   sections: readonly ResolvedHomeSection[],
   ctx: HomeSectionContext,
   renderers: Partial<Record<string, HomeSectionRenderer>> = HOME_SECTION_RENDERERS,
 ): ReactNode {
+  // Filtering unknown kinds before packing matters: a section nothing can
+  // render must not reserve a hole in the grid.
+  const visible = sections.filter((s) => !s.hidden && renderers[s.kind] !== undefined)
+  // One pass per breakpoint, keyed by section id so the three placements can
+  // be attached to the same cell.
+  const placements = new Map<string, Record<string, string>>()
+  for (const { columns, prefix } of COLUMN_TIERS) {
+    for (const cell of packSections(visible, columns).cells) {
+      const vars = placements.get(cell.section.id) ?? {}
+      vars[`--r${prefix}`] = `${cell.row + 1} / span ${cell.rowSpan}`
+      vars[`--c${prefix}`] = `${cell.col + 1} / span ${cell.colSpan}`
+      placements.set(cell.section.id, vars)
+    }
+  }
   return (
-    <div className="grid grid-cols-2 gap-x-3 md:grid-cols-4 md:gap-x-6">
-      {sections
-        .filter((s) => !s.hidden)
-        .map((s) => {
-          const render = renderers[s.kind]
-          return render ? (
-            <div key={s.kind} className={SIZE_SPAN[s.size]}>
-              {render(ctx, s.size)}
-            </div>
-          ) : null
-        })}
+    <div className="home-bento">
+      {visible.map((section) => {
+        const render = renderers[section.kind]!
+        return (
+          <div key={section.id} style={placements.get(section.id) as CSSProperties}>
+            <HomeCell>{render(ctx, section.shape, section.config)}</HomeCell>
+          </div>
+        )
+      })}
     </div>
   )
 }
 
-/** Unfinished sits above History by default: these rows still need an action
- *  (resume or finish). Deliberately quiet — the live session owns the hero;
+/**
+ * The cell shell — every widget is a body, never a body plus hand-tuned
+ * chrome. Frameless by default: no border, no fill, no radius. A bento gets
+ * its compartments from the jump in type scale, the gutters, and the closing
+ * hairline; drawing a box around each one is a card grid with the fill turned
+ * off, which is what the de-card vocabulary in DESIGN.md already forbids.
+ *
+ * Every value it paints with is a token (globals.css `.home-cell`), so a
+ * future theme can turn fills and radii back on without touching a widget.
+ */
+function HomeCell({ children }: { children: ReactNode }) {
+  return <div className="home-cell">{children}</div>
+}
+
+/** Unfinished: rows that still need an action (resume or finish).
+ *  Deliberately quiet — the live session owns the hero;
  *  anything here is a stale abandonment. Rows reopen the logger, never the
  *  read-only summary (which would present them as completed). */
 function UnfinishedSection({ workouts }: { workouts: WorkoutSummary[] }) {
@@ -138,9 +188,8 @@ function UnfinishedSection({ workouts }: { workouts: WorkoutSummary[] }) {
               href={`/workout/${w.id}/edit`}
               className="flex min-w-0 items-center gap-4 py-3.5 transition-colors active:bg-muted/60"
             >
-              {/* Same calendar anchor as History for scan continuity, but
-                  muted — these dates mark where a session stalled, not an
-                  achievement. */}
+              {/* A calendar anchor, muted — these dates mark where a session
+                  stalled, not an achievement. */}
               <span className="flex w-9 shrink-0 flex-col items-center text-muted-foreground">
                 <span className="font-display text-xl leading-none tnum">
                   {w.startedAt.getDate()}
@@ -165,82 +214,6 @@ function UnfinishedSection({ workouts }: { workouts: WorkoutSummary[] }) {
           </li>
         ))}
       </DividerList>
-    </>
-  )
-}
-
-/** Rows shown at md — the demoted middle size; lg keeps the classic
- *  HOME_HISTORY_LIMIT handful. */
-const HISTORY_MD_LIMIT = 3
-
-/** History, demoted (WHOOP tier discipline): the last few compact rows; the
- *  full log lives on /history. No empty-state card — with nothing completed,
- *  the fresh hero already owns the invite.
- *
- *  Sizes: sm is one line (count + latest name/date) linking to /history;
- *  md shows 3 rows; lg the classic 5. The "All history" link appears whenever
- *  the size's slice leaves rows unseen. */
-function HistorySection({
-  workouts,
-  unit,
-  guardSession,
-  size = 'md',
-}: {
-  workouts: WorkoutSummary[]
-  unit: WeightUnit
-  guardSession: SessionSummary | null
-  size?: HomeSectionSize
-}) {
-  const t = useTranslations('HomeSections')
-  if (workouts.length === 0) return null
-
-  if (size === 'sm') {
-    const latest = workouts[0]
-    return (
-      <>
-        <h2 className="mt-10 mb-3 text-lg">{t('historyTitle')}</h2>
-        <Link
-          href="/history"
-          className="flex min-w-0 items-center gap-4 overflow-hidden rounded-2xl border border-border bg-card px-4 py-3.5 transition-colors active:bg-muted/60"
-        >
-          <span className="min-w-0 flex-1">
-            <span className="block truncate font-medium tnum">
-              {t('workoutCount', { count: workouts.length })}
-            </span>
-            <span className="mt-0.5 block truncate text-sm text-muted-foreground tnum">
-              {t('latestSummary', {
-                name: latest.name ?? t('untitledWorkout'),
-                day: latest.startedAt.getDate(),
-                month: monthFormat.format(latest.startedAt),
-              })}
-            </span>
-          </span>
-          <ChevronRight aria-hidden="true" className="size-5 shrink-0 text-muted-foreground" />
-        </Link>
-      </>
-    )
-  }
-
-  const limit = size === 'lg' ? HOME_HISTORY_LIMIT : HISTORY_MD_LIMIT
-  return (
-    <>
-      <div className="mt-10 mb-3 flex items-baseline justify-between gap-3">
-        <h2 className="text-lg">{t('historyTitle')}</h2>
-        {workouts.length > limit && (
-          <Link
-            href="/history"
-            className="flex shrink-0 items-center gap-0.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
-          >
-            {t('allHistoryLink')}
-            <ChevronRight aria-hidden="true" className="size-4" />
-          </Link>
-        )}
-      </div>
-      <HistoryList
-        workouts={workouts.slice(0, limit)}
-        unit={unit}
-        guardSession={guardSession}
-      />
     </>
   )
 }

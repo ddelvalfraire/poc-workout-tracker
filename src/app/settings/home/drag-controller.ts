@@ -32,7 +32,7 @@ export interface DragControllerDeps {
 
 export interface DragController {
   onDragStart: () => void
-  onDragPreview: (activeKind: string, overKind: string) => void
+  onDragPreview: (activeId: string, overId: string) => void
   onDragCommit: () => void
   onDragCancel: () => void
 }
@@ -45,10 +45,10 @@ export function createDragController(deps: DragControllerDeps): DragController {
     onDragStart() {
       snapshot = deps.getSections()
     },
-    onDragPreview(activeKind, overKind) {
+    onDragPreview(activeId, overId) {
       // Preview only — the grid reflows live; nothing persists until drop.
       const current = deps.getSections()
-      const next = reorderSection(current, activeKind, overKind)
+      const next = reorderSection(current, activeId, overId)
       if (next !== current) deps.setSections(next)
     },
     onDragCommit() {
@@ -57,7 +57,7 @@ export function createDragController(deps: DragControllerDeps): DragController {
       if (start === null) return
       const current = deps.getSections()
       const unchanged =
-        start.length === current.length && start.every((s, i) => s.kind === current[i].kind)
+        start.length === current.length && start.every((s, i) => s.id === current[i].id)
       if (unchanged) return
       deps.persist(current, { rollbackTo: start })
     },

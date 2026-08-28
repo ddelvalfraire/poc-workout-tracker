@@ -2,23 +2,38 @@
 
 import { useEffect, useRef, useState, useTransition, type ComponentType } from 'react'
 import { useRouter } from 'next/navigation'
-import { Lock } from 'lucide-react'
+import { Lock, Plus } from 'lucide-react'
 import { setHomeLayoutAction } from '@/app/actions'
-import { HOME_SECTION_REGISTRY, type HomeSectionSize } from '@/lib/home/registry'
+import {
+  HOME_SECTION_REGISTRY,
+  type HomeSectionMeta,
+  type HomeSectionShape,
+} from '@/lib/home/registry'
 import {
   moveSection,
   moveSectionToTop,
   toggleSection,
-  setSectionSize,
+  setSectionShape,
+  addSection,
+  removeSection,
+  isExtraInstance,
   toLayoutDoc,
-  resolveHomeLayout,
   type ResolvedHomeSection,
 } from '@/lib/home/layout'
+import { applyPreset, layoutForPreset, matchPreset, type HomePresetId } from '@/lib/home/presets'
+import type { TrainingSignal } from '@/lib/home/signal'
 import { EditorGrid } from './editor-grid'
+import { GallerySheet } from './gallery-sheet'
+import { PresetRow } from './preset-row'
 import { TileSheet } from './tile-sheet'
 import { createDragController } from './drag-controller'
 import type { DndGridProps } from './editor-grid-dnd'
 import { useTranslations } from 'next-intl'
+
+/** The registry widened to its declared interface — the `as const satisfies`
+ *  literal type drops OPTIONAL fields (`repeatable`) from the entries that
+ *  omit them, and the gallery is entirely a question about those. */
+const REGISTRY: readonly HomeSectionMeta[] = HOME_SECTION_REGISTRY
 
 /**
  * The grid-preview home layout editor: a miniature of home's own 2-col flow
@@ -40,12 +55,17 @@ import { useTranslations } from 'next-intl'
  */
 export function HomeLayoutEditor({
   initialSections,
+  signal = null,
 }: {
   initialSections: ResolvedHomeSection[]
+  /** The app's read of how this person trains — passive, never rendered on
+   *  home, and null when it reads nothing. */
+  signal?: TrainingSignal | null
 }) {
   const t = useTranslations('HomeLayoutEditor')
   const [sections, setSections] = useState<readonly ResolvedHomeSection[]>(initialSections)
-  const [activeKind, setActiveKind] = useState<string | null>(null)
+  const [activeId, setActiveId] = useState<string | null>(null)
+  const [galleryOpen, setGalleryOpen] = useState(false)
   const [hasError, setHasError] = useState(false)
   const [, startTransition] = useTransition()
   const router = useRouter()
@@ -132,17 +152,57 @@ export function HomeLayoutEditor({
     if (next !== sections) persist(next)
   }
 
-  function onSize(kind: string, size: HomeSectionSize) {
-    const next = setSectionSize(sections, kind, size)
+  function onShape(kind: string, size: HomeSectionShape) {
+    const next = setSectionShape(sections, kind, size)
     if (next !== sections) persist(next)
   }
 
+  /** Reset stores NULL — the read path's degrade-to-default IS the reset. The
+   *  optimistic state must therefore be what an unsaved home RENDERS, which is
+   *  the seeded layout and not the bare registry order: showing fifteen tiles
+   *  here while home falls back to a six-tile preset would be the editor lying
+   *  about the thing it is a miniature of. */
   function onReset() {
-    setActiveKind(null)
-    persist(resolveHomeLayout(null), { reset: true })
+    setActiveId(null)
+    persist(layoutForPreset(signal?.preset ?? null), { reset: true })
   }
 
-  const activeIndex = sections.findIndex((s) => s.kind === activeKind)
+  function onAdd(kind: string) {
+    setGalleryOpen(false)
+    const next = addSection(sections, kind)
+    if (next !== sections) persist(next)
+  }
+
+  function onRemove(id: string) {
+    setActiveId(null)
+    const next = removeSection(sections, id)
+    if (next !== sections) persist(next)
+  }
+
+  /** Applying a preset REPLACES the whole document — that is what makes it a
+   *  shortcut rather than a merge with rules of its own. Any open sheet is
+   *  closed first: it was showing a section whose shape and position have
+   *  just changed underneath it. */
+  function onApplyPreset(id: HomePresetId) {
+    setActiveId(null)
+    persist(applyPreset(id))
+  }
+
+  /**
+   * What the gallery can offer. A once-only kind qualifies while it is
+   * hidden; a REPEATABLE kind always qualifies, because adding another
+   * instance is a different act from un-hiding the one you have.
+   */
+  const addable = REGISTRY.filter((meta) => {
+    const present = sections.filter((s) => s.kind === meta.kind)
+    if (meta.repeatable === true) return true
+    return present.length === 0 || present[0].hidden
+  }).map((meta) => ({
+    meta,
+    isAnother: meta.repeatable === true && sections.some((s) => s.kind === meta.kind && !s.hidden),
+  }))
+
+  const activeIndex = sections.findIndex((s) => s.id === activeId)
   const activeSection = activeIndex === -1 ? null : sections[activeIndex]
   const activeMeta =
     activeSection === null
@@ -151,6 +211,12 @@ export function HomeLayoutEditor({
 
   return (
     <>
+      <PresetRow
+        activePreset={matchPreset(sections)}
+        signal={signal}
+        onApply={onApplyPreset}
+      />
+
       {/* The locked bar: Status always renders, always first. Present but
           non-interactive — its stillness above the live tiles teaches the
           model faster than any explanation. */}
@@ -168,15 +234,24 @@ export function HomeLayoutEditor({
       {DndGrid !== null ? (
         <DndGrid
           sections={sections}
-          onOpen={setActiveKind}
+          onOpen={setActiveId}
           onDragStart={dragController.onDragStart}
           onDragPreview={dragController.onDragPreview}
           onDragCommit={dragController.onDragCommit}
           onDragCancel={dragController.onDragCancel}
         />
       ) : (
-        <EditorGrid sections={sections} onOpen={setActiveKind} />
+        <EditorGrid sections={sections} onOpen={setActiveId} />
       )}
+
+      <button
+        type="button"
+        onClick={() => setGalleryOpen(true)}
+        className="mt-4 flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-border py-3 text-sm font-medium text-muted-foreground transition-colors outline-none hover:bg-muted/50 focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-hidden"
+      >
+        <Plus aria-hidden="true" className="size-4" />
+        {t('addAction')}
+      </button>
 
       <p className="mt-4 text-sm text-muted-foreground">
         {t('hint')}
@@ -201,11 +276,23 @@ export function HomeLayoutEditor({
           section={activeSection}
           index={activeIndex}
           count={sections.length}
-          onClose={() => setActiveKind(null)}
-          onSize={(size) => onSize(activeSection.kind, size)}
-          onToggle={() => onToggle(activeSection.kind)}
-          onMove={(direction) => onMove(activeSection.kind, direction)}
-          onMoveToTop={() => onMoveToTop(activeSection.kind)}
+          onClose={() => setActiveId(null)}
+          onShape={(size) => onShape(activeSection.id, size)}
+          onToggle={() => onToggle(activeSection.id)}
+          onMove={(direction) => onMove(activeSection.id, direction)}
+          onMoveToTop={() => onMoveToTop(activeSection.id)}
+          onRemove={() => onRemove(activeSection.id)}
+          /* An EXTRA instance is deleted rather than hidden — the sheet says
+             so, because "Remove" and "Hide" are not the same promise. */
+          removesPermanently={isExtraInstance(sections, activeSection.id)}
+        />
+      )}
+
+      {galleryOpen && (
+        <GallerySheet
+          addable={addable}
+          onAdd={onAdd}
+          onClose={() => setGalleryOpen(false)}
         />
       )}
     </>

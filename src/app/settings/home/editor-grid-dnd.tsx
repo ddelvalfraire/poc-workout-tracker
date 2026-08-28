@@ -49,8 +49,8 @@ const noOpStrategy: SortingStrategy = () => null
 
 export interface DndGridProps extends EditorGridProps {
   onDragStart: () => void
-  /** Live preview: move `activeKind` to `overKind`'s slot in editor state. */
-  onDragPreview: (activeKind: string, overKind: string) => void
+  /** Live preview: move `activeId` to `overId`'s slot in editor state. */
+  onDragPreview: (activeId: string, overId: string) => void
   /** Drop: persist the previewed order (once). */
   onDragCommit: () => void
   /** Escape/interruption: restore the pre-drag snapshot. */
@@ -66,7 +66,7 @@ export function DndGrid({
   onDragCancel,
 }: DndGridProps) {
   const t = useTranslations('HomeSection')
-  const [activeKind, setActiveKind] = useState<string | null>(null)
+  const [activeId, setActiveId] = useState<string | null>(null)
   const sensors = useSensors(
     // Long-press activation: 250ms hold, 5px slop — a scroll flick or a
     // quick tap never becomes a drag. PointerSensor alone covers mouse,
@@ -77,7 +77,7 @@ export function DndGrid({
   )
 
   function handleDragStart(event: DragStartEvent) {
-    setActiveKind(String(event.active.id))
+    setActiveId(String(event.active.id))
     onDragStart()
   }
 
@@ -88,7 +88,7 @@ export function DndGrid({
     }
   }
 
-  const active = sections.find((s) => s.kind === activeKind)
+  const active = sections.find((s) => s.id === activeId)
   const activeMeta =
     active === undefined
       ? undefined
@@ -104,25 +104,25 @@ export function DndGrid({
       onDragStart={handleDragStart}
       onDragOver={handleDragOver}
       onDragEnd={() => {
-        setActiveKind(null)
+        setActiveId(null)
         onDragCommit()
       }}
       onDragCancel={() => {
-        setActiveKind(null)
+        setActiveId(null)
         onDragCancel()
       }}
     >
-      <SortableContext items={sections.map((s) => s.kind)} strategy={noOpStrategy}>
+      <SortableContext items={sections.map((s) => s.id)} strategy={noOpStrategy}>
         <div className="grid grid-cols-2 gap-x-3 gap-y-3">
           {sections.map((section) => {
             const meta = HOME_SECTION_REGISTRY.find((s) => s.kind === section.kind)
             if (!meta) return null // unknown kind (future client): not editable here
             return (
               <SortableTile
-                key={section.kind}
+                key={section.id}
                 section={section}
                 meta={meta}
-                onOpen={() => onOpen(section.kind)}
+                onOpen={() => onOpen(section.id)}
               />
             )
           })}
@@ -134,7 +134,7 @@ export function DndGrid({
         {active !== undefined && activeMeta !== undefined ? (
           <SectionTile
             title={t(activeMeta.titleKey)}
-            size={active.size}
+            shape={active.shape}
             hidden={active.hidden}
             onOpen={() => {}}
           />
@@ -155,7 +155,7 @@ function SortableTile({
 }) {
   const t = useTranslations('HomeSection')
   const { attributes, listeners, setNodeRef, isDragging } = useSortable({
-    id: section.kind,
+    id: section.id,
   })
   return (
     <div
@@ -163,7 +163,7 @@ function SortableTile({
       {...attributes}
       {...listeners}
       className={cn(
-        TILE_SPAN[section.size],
+        TILE_SPAN[section.shape],
         'rounded-lg touch-manipulation outline-none focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-hidden',
         // The original stays in the grid as the drop slot while the
         // DragOverlay carries the visual.
@@ -172,7 +172,7 @@ function SortableTile({
     >
       <SectionTile
         title={t(meta.titleKey)}
-        size={section.size}
+        shape={section.shape}
         hidden={section.hidden}
         onOpen={onOpen}
       />

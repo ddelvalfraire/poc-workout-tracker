@@ -10,6 +10,7 @@ import {
   BarChart3,
   ClipboardList,
   Dumbbell,
+  History,
   LayoutTemplate,
   Menu,
   MessageCircle,
@@ -281,6 +282,18 @@ export function NavDrawer() {
         data?.stats && data.stats.weekSets > 0 && data.stats.daySets.length > 0 ? (
           <Sparkbar daySets={data.stats.daySets} className="mt-1.5" />
         ) : undefined,
+    },
+    {
+      // The full log's only nav entry: home no longer renders history, so the
+      // drawer is how you reach it. Status reuses the newest recent already
+      // in DrawerData — no new read for the row.
+      href: '/history',
+      label: t('label.history'),
+      icon: History,
+      status: data?.recents[0]
+        ? lines(recentWorkoutLine(data.recents[0], data.unit, now))
+        : null,
+      invitation: t('invitation.history'),
     },
     {
       href: '/goals',

@@ -1,6 +1,20 @@
 import { describe, expect, test, vi } from 'vitest'
 import { renderStaticIntl } from '../../../../vitest.intl'
-import type { ResolvedHomeSection } from '@/lib/home/layout'
+import { resolveHomeLayout, type ResolvedHomeSection } from '@/lib/home/layout'
+import { defaultLayoutFor } from '@/lib/home/signal'
+import { applyPreset, HOME_PRESETS, type HomePresetId } from '@/lib/home/presets'
+
+/** The chip copy, derived from the preset table rather than hand-listed, so a
+ *  new preset fails here instead of being silently untested. */
+const LABELS: Record<HomePresetId, string> = {
+  cut: 'Cut',
+  bulk: 'Bulk',
+  powerlifting: 'Powerlifting',
+  hypertrophy: 'Hypertrophy',
+  conditioning: 'Conditioning',
+  consistency: 'Consistency',
+  volume: 'Volume',
+}
 
 // The editor only touches the router and the server action inside handlers,
 // so a static server render with both stubbed covers the markup contract —
@@ -15,16 +29,17 @@ vi.mock('@/app/actions', () => ({
 import { HomeLayoutEditor } from './home-layout-editor'
 
 const sections: ResolvedHomeSection[] = [
-  { kind: 'momentum', size: 'sm', hidden: false },
-  { kind: 'today-recap', size: 'md', hidden: true },
-  { kind: 'unfinished', size: 'md', hidden: false },
-  { kind: 'history', size: 'lg', hidden: false },
+  { id: 'momentum', kind: 'momentum', shape: 'micro', hidden: false },
+  { id: 'today-recap', kind: 'today-recap', shape: 'wide', hidden: true },
+  { id: 'unfinished', kind: 'unfinished', shape: 'wide', hidden: false },
 ]
 
 describe('HomeLayoutEditor (grid preview)', () => {
   test('leads with the locked Status bar — labeled, lock icon, no button', () => {
     const html = renderStaticIntl(<HomeLayoutEditor initialSections={sections} />)
-    const statusBar = html.slice(0, html.indexOf('grid-cols-2'))
+    // Scoped to the bar itself rather than to everything above the grid: the
+    // preset chips legitimately sit above it, and they are very much buttons.
+    const statusBar = html.slice(html.indexOf('aria-label="Status'), html.indexOf('grid-cols-2'))
     expect(statusBar).toContain('aria-label="Status — always shown, always first"')
     expect(statusBar).toContain('<svg') // the Lock icon
     expect(statusBar).not.toContain('<button') // present but non-interactive
@@ -35,13 +50,13 @@ describe('HomeLayoutEditor (grid preview)', () => {
     expect(html).toContain('grid grid-cols-2 gap-x-3')
     // One sm tile → exactly one half-width wrapper; the other three span full.
     expect(html.match(/col-span-1/g)).toHaveLength(1)
-    expect(html.match(/col-span-2/g)).toHaveLength(3)
+    expect(html.match(/col-span-2/g)).toHaveLength(2)
   })
 
-  test('every tile is a schematic button (title + bg-muted bars, aria size state)', () => {
+  test('every tile is a schematic button (title + bg-muted bars, aria shape state)', () => {
     const html = renderStaticIntl(<HomeLayoutEditor initialSections={sections} />)
     expect(html).toContain('aria-label="Momentum — Small. Edit section"')
-    expect(html).toContain('aria-label="History — Large. Edit section"')
+    expect(html).toContain('aria-label="Unfinished — Wide. Edit section"')
     expect(html).toContain('bg-muted')
   })
 
@@ -58,6 +73,76 @@ describe('HomeLayoutEditor (grid preview)', () => {
     const html = renderStaticIntl(<HomeLayoutEditor initialSections={sections} />)
     expect(html).not.toContain('<dialog')
     expect(html).toContain('Reset to default')
+  })
+
+  test('offers every named layout as a chip', () => {
+    const html = renderStaticIntl(<HomeLayoutEditor initialSections={sections} />)
+    for (const preset of HOME_PRESETS) {
+      expect(html).toContain(`>${LABELS[preset.id]}</button>`)
+    }
+  })
+
+  test('marks the chip pressed only while the layout still IS that preset', () => {
+    const applied = applyPreset('cut')
+    const onCut = renderStaticIntl(<HomeLayoutEditor initialSections={applied} />)
+    expect(onCut).toContain('aria-pressed="true"')
+    // An arbitrary layout is nobody's preset, so no chip claims it.
+    const custom = renderStaticIntl(<HomeLayoutEditor initialSections={sections} />)
+    expect(custom).not.toContain('aria-pressed="true"')
+  })
+
+  test('says nothing about the derived read when there is none', () => {
+    const html = renderStaticIntl(<HomeLayoutEditor initialSections={sections} signal={null} />)
+    expect(html).not.toContain('What we read from your training')
+    expect(html).not.toContain('>Use</button>')
+  })
+
+  test('reports the derived read passively, with its evidence and a Use action', () => {
+    const html = renderStaticIntl(
+      <HomeLayoutEditor
+        initialSections={sections}
+        signal={{
+          preset: 'hypertrophy',
+          medianWorkingReps: 11,
+          muscleGroupCount: 7,
+          windowWeeks: 8,
+        }}
+      />,
+    )
+    expect(html).toContain('What we read from your training')
+    expect(html).toContain('Median 11 reps')
+    expect(html).toContain('7 muscle groups')
+    // It offers; it never applies itself. And it says where it did NOT look.
+    expect(html).toContain('>Use</button>')
+    expect(html).toContain('never from what you tap on this screen')
+  })
+
+  test('does not suggest the layout you are already on', () => {
+    const html = renderStaticIntl(
+      <HomeLayoutEditor
+        initialSections={applyPreset('cut')}
+        signal={{ preset: 'cut', medianWorkingReps: 8, muscleGroupCount: 6, windowWeeks: 8 }}
+      />,
+    )
+    expect(html).not.toContain('What we read from your training')
+  })
+
+  test('Reset falls back to what an unsaved home RENDERS, not the bare registry order', () => {
+    // The editor is a miniature of home. Reset stores NULL, so what it shows
+    // afterwards must be the SEEDED layout — every widget here while home
+    // falls back to a preset is the editor lying about the thing it mirrors.
+    const seeded = defaultLayoutFor(null)
+    expect(seeded).not.toEqual(resolveHomeLayout(null))
+    const html = renderStaticIntl(<HomeLayoutEditor initialSections={[...seeded]} />)
+    // A seeded layout hides most of the catalog, and the miniature labels
+    // hidden tiles as such.
+    expect(html).toContain('— hidden')
+  })
+
+  test('offers the gallery, but does not open it until asked', () => {
+    const html = renderStaticIntl(<HomeLayoutEditor initialSections={sections} />)
+    expect(html).toContain('Add a widget')
+    expect(html).not.toContain('<dialog')
   })
 
   test('server render is the STATIC grid — no drag attributes before the dnd chunk loads', () => {

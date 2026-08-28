@@ -1,3 +1,4 @@
+import { HOME_SECTION_REGISTRY } from '@/lib/home/registry'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 /**
@@ -300,13 +301,12 @@ describe('setRestTimerEnabledAction', () => {
 
 describe('setHomeLayoutAction', () => {
   const validLayout = {
-    version: 2,
-    sections: [
-      { kind: 'history' },
-      { kind: 'momentum', hidden: true },
-      { kind: 'today-recap' },
-      { kind: 'unfinished' },
-    ],
+    version: 3,
+    // Derived: a write must name every registry kind, so a hand-listed
+    // fixture breaks each time a widget ships.
+    sections: HOME_SECTION_REGISTRY.map((s) =>
+      s.kind === 'momentum' ? { kind: s.kind, hidden: true } : { kind: s.kind },
+    ),
   }
 
   it('persists a valid full layout document and revalidates the layout', async () => {
@@ -330,26 +330,26 @@ describe('setHomeLayoutAction', () => {
   it('rejects unknown kinds without writing', async () => {
     await expect(
       setHomeLayoutAction({
-        version: 2,
+        version: 3,
         sections: [...validLayout.sections, { kind: 'mystery' }],
       }),
     ).rejects.toThrow('unknown home section kind')
     expect(setHomeLayout).not.toHaveBeenCalled()
   })
 
-  it('rejects duplicate kinds without writing', async () => {
+  it('rejects a duplicate id without writing', async () => {
     await expect(
       setHomeLayoutAction({
-        version: 2,
-        sections: [...validLayout.sections.slice(0, 3), { kind: 'history' }],
+        version: 3,
+        sections: [...validLayout.sections, { kind: 'unfinished' }],
       }),
-    ).rejects.toThrow('duplicate home section kind')
+    ).rejects.toThrow('duplicate home section id')
     expect(setHomeLayout).not.toHaveBeenCalled()
   })
 
   it('rejects a document missing sections without writing', async () => {
     await expect(
-      setHomeLayoutAction({ version: 2, sections: [{ kind: 'history' }] }),
+      setHomeLayoutAction({ version: 3, sections: [{ kind: 'unfinished' }] }),
     ).rejects.toThrow('home layout must include every section')
     expect(setHomeLayout).not.toHaveBeenCalled()
   })
