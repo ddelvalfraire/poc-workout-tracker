@@ -84,7 +84,19 @@ regression.
 | Type check (`tsc --noEmit`) | Pass |
 | Lint (`eslint .`) | Pass |
 | Tests (`vitest run`) | Pass — 471 files, 5763 tests |
-| Build (`next build`) | Skipped — this worktree has no local `node_modules`; the build fails at Next.js workspace-root resolution before compiling any source. Must be verified from the primary checkout / CI. |
+| Build (`next build`) | Pass — compiled in ~30s, TypeScript clean, 47 static pages generated, service worker precache built |
+
+**Getting the build to run in a worktree** (it does not work out of the box, and the
+failure mode looks like a code error when it is not): the worktree carries its own
+`package-lock.json`, so Turbopack pins the workspace root here and refuses to resolve
+`next` from the primary checkout's `node_modules` — while Node's own resolution walks up,
+which is why `tsc` and `vitest` pass and only `next build` fails. Symlinking is rejected
+too ("Symlink [project]/node_modules is invalid, it points out of the filesystem root"),
+and `npm ci` refuses because the repo's lockfile is out of sync with `package.json`
+(`Missing: @emnapi/runtime@1.11.3` — pre-existing, unrelated to this PR). What works:
+`cp -a <primary>/node_modules ./node_modules`, then run the build with a synthetic
+`DATABASE_URL` — page-data collection reads it at module scope, and the primary
+checkout's `.env.local` points at LIVE PRODUCTION, so it must not be borrowed for this.
 
 ## Files Reviewed
 
