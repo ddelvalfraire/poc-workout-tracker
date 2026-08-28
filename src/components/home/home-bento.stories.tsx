@@ -40,16 +40,19 @@ interface BentoProps {
   /** Body height, in lines of big type — how a widget's content is varied
    *  without giving the shell a real widget to import. */
   lines?: (kind: string) => number
+  /** Renders this kind's body as NOTHING — the state a widget with no data
+   *  reaches on its own, after the shell has already been handed it. */
+  empty?: (kind: string) => boolean
 }
 
 /** The default home, which is the layout a brand-new account gets. */
-function Bento({ lines = () => 1 }: BentoProps) {
+function Bento({ lines = () => 1, empty = () => false }: BentoProps) {
   const items: HomeBentoItem[] = applyPreset(GENERAL_PRESET_ID)
     .filter((s) => !s.hidden)
     .map((s) => ({
       id: s.id,
       shape: s.shape,
-      body: <Body label={s.kind} lines={lines(s.kind)} />,
+      body: empty(s.kind) ? null : <Body label={s.kind} lines={lines(s.kind)} />,
     }))
   return (
     // The home container, verbatim from page.tsx — the bento's column count
@@ -79,6 +82,10 @@ function measured() {
 /** Sub-pixel tolerance: track heights are rem-derived and rarely integral. */
 const EPSILON = 0.5
 
+/** The kind used as the empty one below — a `micro` in the general preset, so
+ *  it has a neighbour beside it and cells after it. */
+const EMPTY_KIND = 'streak'
+
 const meta = {
   title: 'Home/Bento shell',
   component: Bento,
@@ -103,6 +110,54 @@ export const FillsItsTrack: Story = {
         { label, fills: Math.abs(cell.height - track.height) < EPSILON },
         `${label} is ${cell.height}px in a ${track.height}px track`,
       ).toEqual({ label, fills: true })
+    }
+  },
+}
+
+/**
+ * WHY AN EMPTY BODY MUST NEVER REACH THE SHELL.
+ *
+ * The shell places what it is given, and a cell whose body renders nothing is
+ * not invisible — it is a reserved hole: it keeps a full-height grid track, it
+ * paints `.home-cell`'s closing hairline into it, and every later cell is
+ * routed around a gap with a stray rule in it. Nothing in the shell can fix
+ * that, because by the time the widget decides it has nothing to say the
+ * placement has already been computed.
+ *
+ * So this story does not assert a bug is gone; it pins the COST that makes
+ * `renderHomeSections` drop empty sections BEFORE packing. If the shell ever
+ * learns to collapse an empty cell on its own, this is the test that should
+ * fail and be rewritten.
+ */
+export const AnEmptyBodyStillCostsATrack: Story = {
+  args: { empty: (kind: string) => kind === EMPTY_KIND },
+  play: async () => {
+    const grid = document.querySelector('.home-bento')
+    expect(grid).not.toBeNull()
+    const tracks = [...grid!.children]
+    const emptyIndex = tracks.findIndex((t) => t.querySelector('.home-cell')?.textContent === '')
+    expect(emptyIndex, `no empty cell rendered — is '${EMPTY_KIND}' still in the preset?`)
+      .toBeGreaterThan(-1)
+
+    const cell = tracks[emptyIndex].querySelector('.home-cell')!
+    const box = cell.getBoundingClientRect()
+    // A reserved hole, not a collapsed one: it still owns a full row.
+    expect(box.height, 'an empty cell collapsed — the packer no longer pays for it').toBeGreaterThan(
+      EPSILON,
+    )
+    // And it paints the closing hairline into that hole, which is the visible
+    // artefact: a rule floating in a gap with nothing above it.
+    const rule = getComputedStyle(cell).borderBottomWidth
+    expect(parseFloat(rule), 'the empty cell paints no hairline').toBeGreaterThan(0)
+
+    // Later cells are routed around it rather than filling it.
+    const after = tracks
+      .slice(emptyIndex + 1)
+      .map((t) => t.getBoundingClientRect())
+      .filter((r) => r.height > EPSILON)
+    for (const next of after) {
+      const fillsTheHole = next.top < box.bottom - EPSILON && next.left < box.right - EPSILON
+      expect(fillsTheHole, 'a later cell reclaimed the empty track').toBe(false)
     }
   },
 }

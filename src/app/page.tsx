@@ -198,7 +198,7 @@ export default async function HomePage() {
             already in hand (zero extra queries). Sections render exactly as
             before; only the sequence became data-driven. Hidden sections'
             renderers never run, so a hidden Momentum panel costs no reads. */}
-        {renderHomeSections(layout, {
+        {await renderHomeSections(layout, {
           userId,
           nowMs: now.getTime(),
           unit,

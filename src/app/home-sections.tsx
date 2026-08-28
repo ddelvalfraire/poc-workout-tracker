@@ -6,20 +6,21 @@ import { SHAPE_UNITS, type HomeSectionKind, type HomeSectionShape } from '@/lib/
 import type { HomeSectionConfig, ResolvedHomeSection } from '@/lib/home/layout'
 import { HomeBento, type HomeBentoItem } from '@/components/home/home-bento'
 import { DividerList } from '@/components/ui/divider-list'
-import { BigThree } from './big-three'
-import { CardioWeek } from './cardio-week'
-import { ClosestGoal } from './closest-goal'
-import { LaggingGroup } from './lagging-group'
-import { LiftTrend } from './lift-trend'
-import { MuscleBalance } from './muscle-balance'
-import { PaceRecord } from './pace-record'
-import { StreakCard } from './streak-card'
-import { TrophyCase } from './trophy-case'
-import { WeightTrend } from './weight-trend'
-import { PlanAdherence } from './plan-adherence'
-import { StrengthRetention } from './strength-retention'
-import { MomentumPanel } from './momentum-panel'
+import { BigThree, bigThreeContent } from './big-three'
+import { CardioWeek, cardioWeekContent } from './cardio-week'
+import { ClosestGoal, closestGoalContent } from './closest-goal'
+import { LaggingGroup, laggingGroupContent } from './lagging-group'
+import { LiftTrend, liftTrendContent } from './lift-trend'
+import { MuscleBalance, muscleBalanceContent } from './muscle-balance'
+import { PaceRecord, paceRecordContent } from './pace-record'
+import { StreakCard, streakCardContent } from './streak-card'
+import { TrophyCase, trophyCaseContent } from './trophy-case'
+import { WeightTrend, weightTrendContent } from './weight-trend'
+import { PlanAdherence, planAdherenceContent } from './plan-adherence'
+import { StrengthRetention, strengthRetentionContent } from './strength-retention'
+import { MomentumPanel, momentumContent } from './momentum-panel'
 import { TodayRecap } from './today-recap'
+import { HomeCellBoundary } from './home-cell-boundary'
 import { useTranslations } from 'next-intl'
 
 /**
@@ -71,50 +72,160 @@ export function bodySizeForShape(shape: HomeSectionShape): 'sm' | 'md' {
   return SHAPE_UNITS[shape].rows === 1 ? 'sm' : 'md'
 }
 
-const HOME_SECTION_RENDERERS: Record<HomeSectionKind, HomeSectionRenderer> = {
-  momentum: (ctx, shape) => (
-    <MomentumPanel userId={ctx.userId} nowMs={ctx.nowMs} size={bodySizeForShape(shape)} />
-  ),
-  'today-recap': (ctx, shape) => (
-    <TodayRecap
-      workouts={ctx.recentCompleted.map((w) => ({
-        id: w.id,
-        name: w.name,
-        startedAtMs: w.startedAt.getTime(),
-        completedAtMs: w.completedAt!.getTime(),
-        volumeKg: w.volumeKg,
-      }))}
-      unit={ctx.unit}
-      size={bodySizeForShape(shape)}
-    />
-  ),
-  // Returns NOTHING rather than an empty section: a cell that renders nothing
-  // is not invisible, it is a reserved hole with a closing hairline in it.
-  unfinished: (ctx, shape) =>
-    ctx.unfinished.length === 0 ? null : bodySizeForShape(shape) === 'sm' ? (
-      <UnfinishedTile workouts={ctx.unfinished} />
-    ) : (
-      <UnfinishedSection workouts={ctx.unfinished} />
+/**
+ * A section's TWO questions, answered together in one entry per kind: does
+ * this widget have anything to say, and what does it render?
+ *
+ * They are one entry rather than two parallel maps because they must agree.
+ * `hasContent` is asked BEFORE the grid packs anything, and a widget the grid
+ * believes has content but which then renders nothing costs a reserved cell
+ * with a closing hairline in it — the exact hole this pair exists to close.
+ * So no `hasContent` below restates a widget's emptiness condition: each one
+ * defers to the same `…Content` function the component itself awaits, which
+ * is what makes the two impossible to drift apart.
+ */
+export interface HomeSectionWidget {
+  /** Answered from `ctx` alone where the page already holds the fact, and
+   *  otherwise from the widget's own request-memoized content read — which
+   *  the component then awaits a second time for free. */
+  hasContent: (
+    ctx: HomeSectionContext,
+    config: HomeSectionConfig | undefined,
+  ) => boolean | Promise<boolean>
+  render: HomeSectionRenderer
+}
+
+/** Every content function's own emptiness contract is `null`. */
+const present = (content: unknown) => content !== null
+
+export const HOME_SECTION_WIDGETS: Record<HomeSectionKind, HomeSectionWidget> = {
+  momentum: {
+    hasContent: (ctx) => momentumContent(ctx.userId).then(present),
+    render: (ctx, shape) => (
+      <MomentumPanel userId={ctx.userId} nowMs={ctx.nowMs} size={bodySizeForShape(shape)} />
     ),
-  'cardio-week': (ctx, shape) => <CardioWeek userId={ctx.userId} shape={shape} />,
-  'big-three': (ctx, shape) => <BigThree userId={ctx.userId} shape={shape} />,
-  'pace-record': (ctx, shape) => <PaceRecord userId={ctx.userId} shape={shape} />,
-  'strength-retention': (ctx, shape) => <StrengthRetention userId={ctx.userId} shape={shape} />,
-  'plan-adherence': (ctx, shape) => <PlanAdherence userId={ctx.userId} shape={shape} />,
-  'muscle-balance': (ctx, shape) => <MuscleBalance userId={ctx.userId} shape={shape} />,
-  'lagging-group': (ctx) => <LaggingGroup userId={ctx.userId} />,
-  'weight-trend': (ctx) => <WeightTrend userId={ctx.userId} />,
-  streak: (ctx) => <StreakCard userId={ctx.userId} />,
-  'closest-goal': (ctx) => <ClosestGoal userId={ctx.userId} />,
-  'trophy-case': (ctx, shape) => <TrophyCase userId={ctx.userId} shape={shape} />,
-  'lift-trend': (ctx, shape, config) => (
-    <LiftTrend
-      userId={ctx.userId}
-      nowMs={ctx.nowMs}
-      shape={shape}
-      pinned={config?.exercise}
-    />
-  ),
+  },
+  'today-recap': {
+    // The ONE widget whose emptiness the server cannot fully decide: TodayRecap
+    // filters to the user's LOCAL calendar day, which is a client fact by the
+    // local-day principle. What the server can decide is the one-way half — no
+    // completions in the 48h window means none today in ANY timezone — and that
+    // is the case this filter exists for (a brand-new account). A session
+    // completed 30h ago but not today still reserves a cell; closing that needs
+    // the cell itself to collapse client-side, which the grid's explicit
+    // placement does not support today.
+    hasContent: (ctx) => ctx.recentCompleted.length > 0,
+    render: (ctx, shape) => (
+      <TodayRecap
+        workouts={ctx.recentCompleted.map((w) => ({
+          id: w.id,
+          name: w.name,
+          startedAtMs: w.startedAt.getTime(),
+          completedAtMs: w.completedAt!.getTime(),
+          volumeKg: w.volumeKg,
+        }))}
+        unit={ctx.unit}
+        size={bodySizeForShape(shape)}
+      />
+    ),
+  },
+  unfinished: {
+    hasContent: (ctx) => ctx.unfinished.length > 0,
+    render: (ctx, shape) =>
+      bodySizeForShape(shape) === 'sm' ? (
+        <UnfinishedTile workouts={ctx.unfinished} />
+      ) : (
+        <UnfinishedSection workouts={ctx.unfinished} />
+      ),
+  },
+  'cardio-week': {
+    hasContent: (ctx) => cardioWeekContent(ctx.userId).then(present),
+    render: (ctx, shape) => <CardioWeek userId={ctx.userId} shape={shape} />,
+  },
+  'big-three': {
+    hasContent: (ctx) => bigThreeContent(ctx.userId).then(present),
+    render: (ctx, shape) => <BigThree userId={ctx.userId} shape={shape} />,
+  },
+  'pace-record': {
+    hasContent: (ctx) => paceRecordContent(ctx.userId).then(present),
+    render: (ctx, shape) => <PaceRecord userId={ctx.userId} shape={shape} />,
+  },
+  'strength-retention': {
+    hasContent: (ctx) => strengthRetentionContent(ctx.userId).then(present),
+    render: (ctx, shape) => <StrengthRetention userId={ctx.userId} shape={shape} />,
+  },
+  'plan-adherence': {
+    hasContent: (ctx) => planAdherenceContent(ctx.userId).then(present),
+    render: (ctx, shape) => <PlanAdherence userId={ctx.userId} shape={shape} />,
+  },
+  'muscle-balance': {
+    hasContent: (ctx) => muscleBalanceContent(ctx.userId).then(present),
+    render: (ctx, shape) => <MuscleBalance userId={ctx.userId} shape={shape} />,
+  },
+  'lagging-group': {
+    hasContent: (ctx) => laggingGroupContent(ctx.userId).then(present),
+    render: (ctx) => <LaggingGroup userId={ctx.userId} />,
+  },
+  'weight-trend': {
+    hasContent: (ctx) => weightTrendContent(ctx.userId).then(present),
+    render: (ctx) => <WeightTrend userId={ctx.userId} />,
+  },
+  streak: {
+    hasContent: (ctx) => streakCardContent(ctx.userId).then(present),
+    render: (ctx) => <StreakCard userId={ctx.userId} />,
+  },
+  'closest-goal': {
+    hasContent: (ctx) => closestGoalContent(ctx.userId).then(present),
+    render: (ctx) => <ClosestGoal userId={ctx.userId} />,
+  },
+  'trophy-case': {
+    hasContent: (ctx) => trophyCaseContent(ctx.userId).then(present),
+    render: (ctx, shape) => <TrophyCase userId={ctx.userId} shape={shape} />,
+  },
+  'lift-trend': {
+    // Passed as PARTS, matching the content function's cache key — handing it
+    // `config.exercise` would key on object identity and read the trend twice.
+    hasContent: (ctx, config) =>
+      liftTrendContent(
+        ctx.userId,
+        ctx.nowMs,
+        config?.exercise?.source ?? null,
+        config?.exercise?.wgerExerciseId ?? null,
+      ).then(present),
+    render: (ctx, shape, config) => (
+      <LiftTrend
+        userId={ctx.userId}
+        nowMs={ctx.nowMs}
+        shape={shape}
+        pinned={config?.exercise}
+      />
+    ),
+  },
+}
+
+/**
+ * Is this section worth a cell?
+ *
+ * A rejected `hasContent` KEEPS the section, and that is not a fallback — it
+ * is the only honest answer. The read that just failed is the same
+ * request-memoized promise the component is about to await, so the widget will
+ * throw the identical error inside its own cell, where `HomeCellBoundary`
+ * renders it as a failed tile. Dropping the section here instead would take a
+ * database error and make it indistinguishable from "you have no trophies
+ * yet": the tile would simply not be there, and nobody — user or log — would
+ * ever learn a read had failed. The `catch` moves WHERE the error surfaces,
+ * never whether it does.
+ */
+async function sectionHasContent(
+  widget: HomeSectionWidget,
+  ctx: HomeSectionContext,
+  config: HomeSectionConfig | undefined,
+): Promise<boolean> {
+  try {
+    return await widget.hasContent(ctx, config)
+  } catch {
+    return true
+  }
 }
 
 /**
@@ -125,38 +236,58 @@ const HOME_SECTION_RENDERERS: Record<HomeSectionKind, HomeSectionRenderer> = {
  *      a hidden Momentum panel's queries never happen.
  *   2. UNKNOWN kinds — a future client's sections — are dropped just as
  *      silently, and never error.
- *   3. EMPTY bodies are dropped, so the section reserves no space — the cell
- *      shell paints a closing hairline, and an empty one leaves a stray rule
- *      in a gap every later cell was routed around.
+ *   3. EMPTY sections are dropped, so they reserve no space — the cell shell
+ *      paints a closing hairline, and an empty one leaves a stray rule in a
+ *      gap every later cell was routed around.
  *
- * WHAT (3) DOES NOT COVER, because it is easy to read it as more than it is.
- * A renderer returns an ELEMENT, not rendered output. Most kinds here return
- * `<SomeWidget …/>` for an async RSC that decides its own emptiness inside
- * its body (`if (rows.length === 0) return null`), and that decision has not
- * happened yet — the element is truthy either way, so those sections are
- * still packed a cell they may not fill. Only a renderer that can answer
- * from `ctx` alone, synchronously, benefits; `unfinished` is the one that
- * does today. Closing the rest means resolving the widget subtrees before
- * packing, which is a change to how home renders, not to this filter.
+ * (3) IS ASKED BEFORE PACKING, WHICH IS WHY IT WORKS. A renderer returns an
+ * ELEMENT, not rendered output: `<TrophyCase/>` is truthy whether or not the
+ * async RSC behind it will render anything, so testing the element could only
+ * ever catch the kinds that answer from `ctx` synchronously. The emptiness
+ * decision is therefore hoisted OUT of the widgets and into `hasContent`,
+ * which resolves the same memoized read the component awaits — and does it
+ * for every section at once, so home still costs one round of queries rather
+ * than thirteen in series.
+ *
+ * Each surviving body is wrapped in its own error boundary. Home fans out a
+ * dozen independent database reads, and without a boundary between them any
+ * one of them failing unwinds past every sibling to the route's error.tsx —
+ * one bad trophy query, no home screen.
  *
  * Geometry lives in the shell (components/home/home-bento.tsx). This file
- * owns only the kind → renderer map — the WEB half of the customization
+ * owns only the kind → widget map — the WEB half of the customization
  * contract, and the reason the shell may not import it.
  */
-export function renderHomeSections(
+export async function renderHomeSections(
   sections: readonly ResolvedHomeSection[],
   ctx: HomeSectionContext,
-  renderers: Partial<Record<string, HomeSectionRenderer>> = HOME_SECTION_RENDERERS,
-): ReactNode {
+  widgets: Partial<Record<string, HomeSectionWidget>> = HOME_SECTION_WIDGETS,
+): Promise<ReactNode> {
+  const candidates = sections.flatMap((section) => {
+    if (section.hidden) return []
+    const widget = widgets[section.kind]
+    return widget === undefined ? [] : [{ section, widget }]
+  })
+  // In PARALLEL: these are a dozen independent reads, and awaiting them in the
+  // loop below would turn one round trip into a dozen in series.
+  const kept = await Promise.all(
+    candidates.map(({ section, widget }) => sectionHasContent(widget, ctx, section.config)),
+  )
+
   const items: HomeBentoItem[] = []
-  for (const section of sections) {
-    if (section.hidden) continue
-    const render = renderers[section.kind]
-    if (render === undefined) continue
-    const body = render(ctx, section.shape, section.config)
-    if (body === null || body === undefined || body === false) continue
-    items.push({ id: section.id, shape: section.shape, body })
-  }
+  candidates.forEach(({ section, widget }, i) => {
+    if (!kept[i]) return
+    const body = widget.render(ctx, section.shape, section.config)
+    // Belt and braces: `hasContent` has already answered for every kind, so a
+    // renderer returning nothing here means the two have drifted apart. Drop
+    // the cell rather than reserve a hole for it either way.
+    if (body === null || body === undefined || body === false) return
+    items.push({
+      id: section.id,
+      shape: section.shape,
+      body: <HomeCellBoundary>{body}</HomeCellBoundary>,
+    })
+  })
   return <HomeBento items={items} />
 }
 
