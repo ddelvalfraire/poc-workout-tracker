@@ -55,7 +55,7 @@ window.matchMedia = (() => ({
 const KEY = 'wger:73'
 
 /** The trimmed session: the cut left two of the plan's three working sets. */
-function draft(): WorkoutDraft {
+function draft(rows = 2): WorkoutDraft {
   return {
     notes: '',
     exercises: [
@@ -68,10 +68,13 @@ function draft(): WorkoutDraft {
         loggingType: 'weight_reps',
         notes: '',
         skipped: false,
-        sets: [
-          { id: 's1', reps: '', weight: '', completed: false, tag: 'working' },
-          { id: 's2', reps: '', weight: '', completed: false, tag: 'working' },
-        ],
+        sets: Array.from({ length: rows }, (_, i) => ({
+          id: `s${i + 1}`,
+          reps: '',
+          weight: '',
+          completed: false,
+          tag: 'working' as const,
+        })),
       },
     ],
   }
@@ -99,7 +102,7 @@ describe('autoreg revert restores a cutting volume cut', () => {
     container.remove()
   })
 
-  function mount(trimmedTargets?: (typeof TRIMMED)[]) {
+  function mount(trimmedTargets?: (typeof TRIMMED)[], rows = 2) {
     const client = new QueryClient({ defaultOptions: { queries: { enabled: false } } })
     act(() => {
       root.render(
@@ -108,7 +111,7 @@ describe('autoreg revert restores a cutting volume cut', () => {
             <WorkoutLogger
               title="New Workout"
               closeHref="/"
-              initialDraft={draft()}
+              initialDraft={draft(rows)}
               planTargets={{ [KEY]: [HELD, HELD] }}
               planAutoreg={{
                 [KEY]: {
@@ -154,6 +157,18 @@ describe('autoreg revert restores a cutting volume cut', () => {
     expect(inputs).toHaveLength(3)
     expect(inputs.map((i) => i.getAttribute('placeholder'))).toEqual(['102.5', '102.5', '102.5'])
     expect(container.textContent).toContain('Using plan as written.')
+  })
+
+  it('ghosts a restored row even without the revert flag — a reload keeps rows, not state', () => {
+    // The flag lives in component state; the rows it added are persisted in
+    // the draft. After a reload the row is there and the flag is not, so the
+    // trimmed target must ghost it anyway or the set comes back blank.
+    mount([TRIMMED], 3)
+    expect(weightInputs().map((i) => i.getAttribute('placeholder'))).toEqual([
+      '100',
+      '100',
+      '102.5',
+    ])
   })
 
   it('adds nothing when the verdict trimmed nothing (load-only adjustments)', () => {

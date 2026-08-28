@@ -758,17 +758,21 @@ export function WorkoutLogger({
   const planFor = (source: ExerciseSource, id: number) => {
     const key = `${source}:${id}`
     const targets = planOverrides[key] ?? planTargets?.[key]
-    if (!targets || !autoregReverted.has(key)) return targets
-    // Reverting is two moves, because a cutting stall adjusts in two ways:
-    // the ghosts go back to the plan's loads, and the sets the volume cut
-    // removed come back on the end (the revert handler adds the rows that
-    // wear these). A substituted exercise keeps its overlay untouched — its
-    // targets aren't this plan's.
-    const reverted = targets.map((t) =>
-      t.planLoadKg !== undefined ? { ...t, loadKg: t.planLoadKg } : t,
-    )
+    if (!targets) return targets
+    // The rows a cutting volume cut removed, as the plan wrote them. They
+    // ride on the END, unconditionally — targets are POSITIONAL, so an entry
+    // past the last row is inert, and the moment a row exists at that index
+    // it is the plan's own set coming back (the revert handler adds them;
+    // so does + Add set; so does a reload, which keeps the ROWS while the
+    // in-memory revert flag is gone). Gating this on the flag is what left a
+    // restored row ghost-less after a reload. A substituted exercise keeps
+    // its overlay untouched — those targets aren't this plan's.
     const trimmed = planOverrides[key] ? undefined : planAutoreg?.[key]?.trimmedTargets
-    return trimmed && trimmed.length > 0 ? [...reverted, ...trimmed] : reverted
+    const withTrimmed = trimmed && trimmed.length > 0 ? [...targets, ...trimmed] : targets
+    if (!autoregReverted.has(key)) return withTrimmed
+    // "Use plan as written": the ghosts go back to the plan's loads. The
+    // trimmed rows already carry theirs (autoreg never touched them).
+    return withTrimmed.map((t) => (t.planLoadKg !== undefined ? { ...t, loadKg: t.planLoadKg } : t))
   }
 
   /**
