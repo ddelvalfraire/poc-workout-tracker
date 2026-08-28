@@ -208,10 +208,17 @@ interface WorkoutLoggerProps {
   planSupersets?: Record<string, number>
   /** Per-exercise auto-regulation reasons keyed `source:id` (reason already in
    *  the display unit). Display-only + one optional escape: the ghosts arrive
-   *  pre-adjusted in planTargets; "Use plan as written" reverts them. */
+   *  pre-adjusted in planTargets; "Use plan as written" reverts them — and
+   *  re-adds `trimmedTargets`, the rows a cutting volume cut removed, so the
+   *  escape can undo every adjustment it labels, not just the load ones. */
   planAutoreg?: Record<
     string,
-    { reason: string; suggestEarlyDeload: boolean; phaseContext?: 'cutting' }
+    {
+      reason: string
+      suggestEarlyDeload: boolean
+      phaseContext?: 'cutting'
+      trimmedTargets?: PlanSetTarget[]
+    }
   >
   /** Which program (day · week) this session is stamped to, e.g. "Legs ·
    *  Week 1". Provenance is fixed at start and can't be edited — surfacing
@@ -752,9 +759,16 @@ export function WorkoutLogger({
     const key = `${source}:${id}`
     const targets = planOverrides[key] ?? planTargets?.[key]
     if (!targets || !autoregReverted.has(key)) return targets
-    return targets.map((t) =>
+    // Reverting is two moves, because a cutting stall adjusts in two ways:
+    // the ghosts go back to the plan's loads, and the sets the volume cut
+    // removed come back on the end (the revert handler adds the rows that
+    // wear these). A substituted exercise keeps its overlay untouched — its
+    // targets aren't this plan's.
+    const reverted = targets.map((t) =>
       t.planLoadKg !== undefined ? { ...t, loadKg: t.planLoadKg } : t,
     )
+    const trimmed = planOverrides[key] ? undefined : planAutoreg?.[key]?.trimmedTargets
+    return trimmed && trimmed.length > 0 ? [...reverted, ...trimmed] : reverted
   }
 
   /**
@@ -1956,9 +1970,22 @@ export function WorkoutLogger({
                     {autoregInfo.reason}
                     <button
                       type="button"
-                      onClick={() =>
+                      onClick={() => {
                         setAutoregReverted((prev) => new Set(prev).add(autoregKey))
-                      }
+                        // "As written" means the plan's SET COUNT too: a
+                        // cutting stall trims volume, so reverting must put
+                        // those rows back or the label overstates what it
+                        // did. Blank rows, like + Add set — the restored
+                        // ghosts come from `planFor`.
+                        const restored = autoregInfo.trimmedTargets?.length ?? 0
+                        for (let i = 0; i < restored; i++) {
+                          dispatch({
+                            type: 'ADD_SET',
+                            exerciseIndex,
+                            set: newDraftSet(nextSetMetricMode(exercise)),
+                          })
+                        }
+                      }}
                       className="ml-2 underline underline-offset-2"
                     >
                       {t('autoregRevertAction')}

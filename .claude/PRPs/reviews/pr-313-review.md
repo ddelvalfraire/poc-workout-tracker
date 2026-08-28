@@ -10,8 +10,9 @@
 The change is well-scoped and lands exactly the §08 decision: the cutting gate stops
 holding a load backoff behind an unsupported physiology claim and instead trims loaded
 working-set volume, with the reason line stamped from what the application actually
-produced. No CRITICAL or HIGH issues. Three MEDIUM/LOW notes below concern honesty of
-the surrounding affordances and a load-bearing invariant that is currently implicit.
+produced. No CRITICAL or HIGH issues. The MEDIUM/LOW notes below concerned honesty of the
+surrounding affordances and a load-bearing invariant that was implicit; all are now
+fixed in follow-up commits.
 
 ## Findings
 
@@ -23,14 +24,18 @@ None.
 
 ### MEDIUM
 
-**M1 — "Use the plan as written" cannot restore a trimmed set.**
-`src/lib/progression.ts` `DerivedSet.schemeLoadKg` and the logger's revert
-(`workout-logger.tsx:752`) are LOAD-only: reverting replaces `loadKg` with `planLoadKg`.
-A cutting hold changes no load, so the revert is a no-op — and the one thing the
-adjustment *did* change (the set count) has no escape hatch at all. The lifter can still
-`+ Add set` manually, and the reason line names the trim ("2 sets instead of 3"), so this
-is disclosed rather than hidden. Worth a follow-up if the transparency contract is meant
-to cover every adjustment type; not worth blocking this PR.
+**M1 — "Use the plan as written" could not restore a trimmed set. FIXED.**
+The logger's revert (`workout-logger.tsx:752`) was LOAD-only: it replaced `loadKg` with
+`planLoadKg`. A cutting hold changes no load, so the revert was a no-op — while the one
+thing the adjustment *did* change, the set count, had no escape at all. The label
+therefore announced "Using plan as written." over a plan that was still a set short.
+
+Fixed by carrying the dropped rows to the surface that offers the escape:
+`partitionVolumeCut` now returns them, `ExercisePrescription.trimmedSets` carries them as
+the plan wrote them (unadjusted load, overrides on top), `loadPlanTargets` hands them to
+the logger as `planAutoreg[key].trimmedTargets`, and reverting re-adds a row per trimmed
+target — each wearing that target's ghost. Pinned by
+`workout-logger-autoreg-revert.component.test.tsx`.
 
 **M2 — A per-week override on a dropped set silently disappears.**
 `deriveDayPrescription` merges overrides by `sourceIndex` AFTER `applyAutoregToSets`

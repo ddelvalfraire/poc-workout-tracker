@@ -227,6 +227,21 @@ describe('deriveDayPrescription auto-regulation', () => {
       heldBackoffKg: 10,
       volumeCut: { fromSets: 3, toSets: 2 },
     })
+    // And the row it removed rides along as the PLAN wrote it (week 4's
+    // 107.5, not the held 100) — that is what "use plan as written" restores.
+    expect(exercise.trimmedSets.map((s) => s.loadKg)).toEqual([107.5])
+    expect(exercise.trimmedSets[0].derivedFrom).toBe('scheme')
+  })
+
+  it('carries NO trimmed sets when the verdict is not a cutting stall', async () => {
+    trainedSessions.mockResolvedValue([
+      trained('w3', 3, [6, 6, 5], 100),
+      trained('w2', 2, [6, 6, 5], 100),
+      trained('w1', 1, [6, 6, 7], 100),
+    ])
+    const [exercise] = await deriveDayPrescription(USER, day({}), 4)
+    expect(exercise.autoreg).toMatchObject({ action: 'decrement' })
+    expect(exercise.trimmedSets).toEqual([])
   })
 
   it("diet phase 'cutting' annotates the M4 flag without suppressing it", async () => {

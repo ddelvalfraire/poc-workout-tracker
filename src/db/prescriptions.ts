@@ -25,6 +25,7 @@ import {
   autoregulateAnchor,
   autoregulateEarlyDeload,
   applyAutoregToSets,
+  partitionVolumeCut,
   applyDietPhaseToAdjustment,
   stampAppliedLoad,
   stampVolumeCut,
@@ -147,6 +148,11 @@ export interface DayForDerivation {
 export interface ExercisePrescription {
   sets: DerivedSet[]
   autoreg: AutoregAdjustment | null
+  /** The working sets a CUTTING volume cut removed from `sets`, as the plan
+   *  would have written them (overrides merged, no adjustment) — empty for
+   *  every other verdict. The logger's "use plan as written" escape re-adds
+   *  exactly these, so the escape can undo the adjustment it labels. */
+  trimmedSets: DerivedSet[]
   /** Sustained-undershoot signal (RPE plan slice 4): the ε-comparable top
    *  load two consecutive easy sessions worked, or null. Consumed by the
    *  effort-step proposal trigger — NEVER auto-applied. */
@@ -497,13 +503,20 @@ export async function deriveDayPrescription(
             : quantizeSetLoads(s, unit),
         )
       : scheme
+    // The rows a cutting volume cut removed, kept as the PLAN wrote them —
+    // unadjusted loads, plainly quantized, overrides still on top. They are
+    // what "use plan as written" restores, so they must be the plan, not the
+    // adjustment (lib/autoregulate.ts `partitionVolumeCut`).
+    const trimmed = adjustment
+      ? partitionVolumeCut(scheme, adjustment.volumeKeepFraction).dropped.map((s) =>
+          quantizeSetLoads(s, unit),
+        )
+      : []
+    const withOverride = (s: DerivedSet) =>
+      applyOverride(s, exercise.sets[s.sourceIndex]?.overrides.find((o) => o.week === week))
     results.push({
-      sets: adjusted.map((s) =>
-        applyOverride(
-          s,
-          exercise.sets[s.sourceIndex]?.overrides.find((o) => o.week === week),
-        ),
-      ),
+      sets: adjusted.map(withOverride),
+      trimmedSets: trimmed.map(withOverride),
       // The reason line must speak from what the application actually
       // produced (`stampApplication`) — per exercise instance, never back
       // into the shared cache.

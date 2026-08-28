@@ -1406,7 +1406,7 @@ export function applyAutoregToSets(
       : 1
   // The deficit response (§08): trim volume, never the load. Runs BEFORE the
   // per-set caps below so the surviving sets are capped exactly as a hold.
-  const kept = cutWorkingVolume(sets, adjustment.volumeKeepFraction)
+  const { kept } = partitionVolumeCut(sets, adjustment.volumeKeepFraction)
   const adjusted: DerivedSet[] = kept.map((set) => {
     if (set.setType === 'warmup' || set.derivedFrom !== 'scheme') return set
     const anchorKg = anchorLoadFor(adjustment.anchorLoads, set.loadKg, unit)
@@ -1454,7 +1454,7 @@ export function applyAutoregToSets(
 }
 
 /**
- * The cutting volume trim: keeps `ceil(count × keepFraction)` of the
+ * The cutting volume trim, as a PARTITION: keeps `ceil(count × keepFraction)` of the
  * exercise's LOADED, scheme-derived working sets (floor
  * `MIN_CUTTING_WORKING_SETS`), dropping from the END — the same shape and
  * direction as a deload's `setFactor` resize, so one vocabulary of "less
@@ -1465,28 +1465,32 @@ export function applyAutoregToSets(
  * template/override rows are never eligible: the stall evidence comes from
  * loaded working sets, so that is the only volume it may spend. Identity
  * (===) when no fraction is asked for or nothing is droppable, which keeps
- * every non-cutting verdict byte-identical.
+ * every non-cutting verdict byte-identical. The DROPPED rows come back too:
+ * the logger's "use plan as written" escape restores them, and an escape
+ * that cannot undo the adjustment it labels is a lie (PR #313 review, M1).
  */
-function cutWorkingVolume(
+export function partitionVolumeCut(
   sets: readonly DerivedSet[],
   keepFraction: number | undefined,
-): readonly DerivedSet[] {
-  if (keepFraction === undefined) return sets
+): { kept: readonly DerivedSet[]; dropped: readonly DerivedSet[] } {
+  if (keepFraction === undefined) return { kept: sets, dropped: [] }
   const eligible = (set: DerivedSet) =>
     set.setType === 'working' && set.derivedFrom === 'scheme' && set.metricMode === 'reps_weight'
   const count = sets.filter(eligible).length
   const target = Math.max(MIN_CUTTING_WORKING_SETS, Math.ceil(count * keepFraction))
   let toDrop = count - target
-  if (toDrop <= 0) return sets
+  if (toDrop <= 0) return { kept: sets, dropped: [] }
   const kept: DerivedSet[] = []
+  const dropped: DerivedSet[] = []
   for (let i = sets.length - 1; i >= 0; i--) {
     if (toDrop > 0 && eligible(sets[i])) {
       toDrop--
+      dropped.unshift(sets[i])
       continue
     }
     kept.unshift(sets[i])
   }
-  return kept
+  return { kept, dropped }
 }
 
 /**
