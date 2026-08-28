@@ -5,6 +5,9 @@ import { getTranslations } from 'next-intl/server'
 import { AppHeader } from '@/components/app-header'
 import { EditorDayPane } from '@/components/editor/editor-day-pane'
 import { EditorInspector, type EditorInspectorExercise } from '@/components/editor/editor-inspector'
+import { deriveDayPrescription } from '@/db/prescriptions'
+import { TECHNIQUE_LABEL_KEY } from '@/lib/technique'
+import { saveTechniqueAction } from './actions'
 import { EditorPanes } from '@/components/editor/editor-panes'
 import { EditorPivotGrid } from '@/components/editor/editor-pivot-grid'
 import { EditorReachSheet } from '@/components/editor/editor-reach-sheet'
@@ -18,7 +21,6 @@ import { getProgramDetail, listProgramWorkouts, programWeekState } from '@/db/pr
 import { workoutDetailQuery } from '@/db/workouts'
 import { requireUserId } from '@/lib/auth'
 import { renderMessage } from '@/lib/message'
-import { TECHNIQUE_LABEL_KEY } from '@/lib/technique'
 import { cn } from '@/lib/utils'
 import { kgToDisplay } from '@/lib/units'
 import { progressionLine, programStatusLine } from '../detail-view'
@@ -188,23 +190,55 @@ export async function EditorSurface({ programId, daySegment, searchParams }: Edi
       })),
       unit,
     )
+    // The technique preview resolves percentage stages against the top set, so
+    // it needs the DERIVED load — scheme, then autoreg, then the per-week
+    // override — not `editorSetLoadKg`, which only applies the override. A
+    // preview built on the template would quote a weight the gym never gives.
+    // One extra read, and only when an exercise is actually inspected.
+    const derived =
+      sourceDay === null
+        ? []
+        : ((
+            await deriveDayPrescription(
+              userId,
+              {
+                exercises: sourceDay.exercises,
+                program: {
+                  id: program.id,
+                  mesocycleWeeks: program.mesocycleWeeks,
+                  deloadWeek: program.deloadWeek,
+                  autoregulation: program.autoregulation,
+                  autoregStallPolicy: program.autoregStallPolicy,
+                  deloadPolicy: program.deloadPolicy,
+                  dietPhase: program.dietPhase,
+                  overshootPolicy: program.overshootPolicy,
+                },
+              },
+              address.week,
+            )
+          )[address.exercise]?.sets ?? [])
+
     inspected = {
       position: address.exercise,
       name: sourceExercise.name,
       setCount: sourceExercise.sets.length,
       progressionSentence: renderMessage(tScheme, howLine),
-      // Technique labels borrow the detail page's shipped vocabulary rather
-      // than minting a second set of words for the same four techniques.
-      techniques: sourceExercise.sets.flatMap((set) =>
-        set.technique === null
-          ? []
-          : [
-              {
-                setNumber: set.setNumber,
-                label: tDetail(`day.technique.${TECHNIQUE_LABEL_KEY[set.technique.kind]}`),
-              },
-            ],
-      ),
+      // Every set is authorable, each carrying the derived set its percentage
+      // stages resolve against. Derivation is NOT stage-expanded here — that
+      // happens at instantiation — so rows map to template sets by
+      // `sourceIndex`, which survives a weekly-volume resize cloning rows.
+      editableSets: sourceExercise.sets.map((set) => ({
+        setNumber: set.setNumber,
+        technique: set.technique,
+        // The collapsed summary borrows the detail page's shipped vocabulary
+        // rather than minting a second set of words for the same four
+        // techniques — the same reason the label list did before it collapsed.
+        label:
+          set.technique === null
+            ? null
+            : tDetail(`day.technique.${TECHNIQUE_LABEL_KEY[set.technique.kind]}`),
+        topSet: derived.find((row) => row.sourceIndex === set.setNumber - 1) ?? null,
+      })),
     }
   }
 
@@ -352,7 +386,14 @@ export async function EditorSurface({ programId, daySegment, searchParams }: Edi
           }
           inspector={
             inspected === null ? null : (
-              <EditorInspector exercise={inspected} closeHref={href({ day: address.day })} />
+              <EditorInspector
+                exercise={inspected}
+                closeHref={href({ day: address.day })}
+                programId={programId}
+                day={address.day ?? 0}
+                unit={unit}
+                saveTechnique={saveTechniqueAction}
+              />
             )
           }
         />

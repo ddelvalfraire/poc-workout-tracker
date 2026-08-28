@@ -639,6 +639,11 @@ export async function instantiateProgramDay(
   }
 
   const prescription = await deriveDayPrescription(userId, day, targetWeek)
+  // The stage expansion below resolves percentage stage loads against the top
+  // set, and a resolved load has to land on the grid the lifter will read —
+  // the same rule deriveDayPrescription applies to its own loads. The read is
+  // request-memoized, so this is the same value it just used.
+  const unit = await getWeightUnit(userId)
 
   // Read-then-seed: the ownership read is outside the transaction. In the narrow
   // window before the insert, a concurrent delete_program would make the workout
@@ -685,7 +690,7 @@ export async function instantiateProgramDay(
       // ROWS — one per stage — so the lifter logs what actually happened
       // and every row-reading consumer stays correct. Technique-free
       // exercises pass through unchanged.
-      const derived = expandTechniqueStages(prescription[position].sets)
+      const derived = expandTechniqueStages(prescription[position].sets, unit)
       if (derived.length > 0) {
         await tx.insert(sets).values(
           derived.map((s) => ({

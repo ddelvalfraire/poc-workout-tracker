@@ -17,7 +17,7 @@
     .fld { font-size: 16px; font-variant-numeric: tabular-nums; background: oklch(1 0 0 / 0.04); border: 1px solid oklch(1 0 0 / 0.15); border-radius: 8px; height: 44px; display: flex; align-items: center; justify-content: center; }
   </style>
 </helmet>
-<div style="width: 448px; min-height: 1480px; display: flex; flex-direction: column; background: oklch(0.145 0 0); color: oklch(0.97 0 0)">
+<div style="width: 448px; min-height: 1820px; display: flex; flex-direction: column; background: oklch(0.145 0 0); color: oklch(0.97 0 0)">
 
   <div style="display: flex; align-items: center; gap: 10px; height: 56px; padding: 0 20px; border-bottom: 1px solid oklch(1 0 0 / 0.12)">
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="oklch(0.72 0 0)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"></path></svg>
@@ -31,35 +31,74 @@
     <div style="padding-top: 14px; font-size: 13px; color: oklch(0.72 0 0)">Barbell Row &middot; Day 1 Pull</div>
 
     <div style="margin-top: 20px">
-      <div class="cap" style="font-size: 10px">How it moves</div>
-      <div style="margin-top: 8px; border-bottom: 1px solid oklch(1 0 0 / 0.072)">
-        <div style="display: flex; align-items: center; gap: 12px; padding: 13px 0; border-top: 1px solid oklch(1 0 0 / 0.072)">
-          <span style="width: 16px; height: 16px; border-radius: 9999px; border: 1px solid oklch(1 0 0 / 0.25); flex-shrink: 0"></span>
+      <div class="osw" style="font-size: 16px; line-height: 1; letter-spacing: 0.025em; color: oklch(0.72 0 0)">How this progresses</div>
+      <div class="cap" style="font-size: 10px; margin-top: 20px">The weight moves</div>
+      <div style="margin-top: 6px; border-bottom: 1px solid oklch(1 0 0 / 0.072)">
+        <div style="display: flex; align-items: flex-start; gap: 12px; padding: 13px 0; border-top: 1px solid oklch(1 0 0 / 0.072)">
+          <span style="width: 16px; height: 16px; border-radius: 9999px; border: 1px solid oklch(1 0 0 / 0.25); flex-shrink: 0; margin-top: 1px"></span>
           <div style="flex: 1; min-width: 0">
             <div style="font-size: 15px; font-weight: 500">Linear</div>
-            <div style="font-size: 12px; color: oklch(0.72 0 0); margin-top: 1px">Add weight every week</div>
+            <div style="font-size: 12px; line-height: 17px; color: oklch(0.72 0 0); margin-top: 2px">Add weight every session you complete all sets.</div>
           </div>
         </div>
-        <div style="display: flex; align-items: center; gap: 12px; padding: 13px 0; border-top: 1px solid oklch(1 0 0 / 0.072)">
-          <span style="width: 16px; height: 16px; border-radius: 9999px; border: 5px solid oklch(0.86 0.19 128); flex-shrink: 0"></span>
+        <div style="display: flex; align-items: flex-start; gap: 12px; padding: 13px 0; border-top: 1px solid oklch(1 0 0 / 0.072)">
+          <span style="width: 16px; height: 16px; border-radius: 9999px; border: 5px solid oklch(0.86 0.19 128); flex-shrink: 0; margin-top: 1px"></span>
           <div style="flex: 1; min-width: 0">
             <div style="font-size: 15px; font-weight: 500">Double progression</div>
-            <div style="font-size: 12px; color: oklch(0.72 0 0); margin-top: 1px">Add reps to the top of the range, then add weight</div>
+            <div style="font-size: 12px; line-height: 17px; color: oklch(0.72 0 0); margin-top: 2px">Work up to the top of your rep range, then the weight goes up and reps start over.</div>
           </div>
         </div>
-        <div style="display: flex; align-items: center; gap: 12px; padding: 13px 0; border-top: 1px solid oklch(1 0 0 / 0.072)">
-          <span style="width: 16px; height: 16px; border-radius: 9999px; border: 1px solid oklch(1 0 0 / 0.25); flex-shrink: 0"></span>
+        <div style="display: flex; align-items: flex-start; gap: 12px; padding: 13px 0; border-top: 1px solid oklch(1 0 0 / 0.072)">
+          <span style="width: 16px; height: 16px; border-radius: 9999px; border: 1px solid oklch(1 0 0 / 0.25); flex-shrink: 0; margin-top: 1px"></span>
           <div style="flex: 1; min-width: 0">
-            <div style="font-size: 15px; font-weight: 500">Percent of 1RM</div>
-            <div style="font-size: 12px; color: oklch(0.72 0 0); margin-top: 1px">Waves off a training max</div>
+            <div style="font-size: 15px; font-weight: 500">Rep progression</div>
+            <div style="font-size: 12px; line-height: 17px; color: oklch(0.72 0 0); margin-top: 2px">Same weight, more reps each session.</div>
           </div>
-        </div>
-        <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 13px 0; border-top: 1px solid oklch(1 0 0 / 0.072)">
-          <span style="font-size: 14px; color: oklch(0.72 0 0)">4 more schemes</span>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="oklch(0.72 0 0)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"></path></svg>
         </div>
       </div>
-    </div>
+      <div class="cap" style="font-size: 10px; margin-top: 20px">A training max drives it</div>
+      <div style="margin-top: 6px; border-bottom: 1px solid oklch(1 0 0 / 0.072)">
+        <div style="display: flex; align-items: flex-start; gap: 12px; padding: 13px 0; border-top: 1px solid oklch(1 0 0 / 0.072)">
+          <span style="width: 16px; height: 16px; border-radius: 9999px; border: 1px solid oklch(1 0 0 / 0.25); flex-shrink: 0; margin-top: 1px"></span>
+          <div style="flex: 1; min-width: 0">
+            <div style="font-size: 15px; font-weight: 500">Percent of 1RM</div>
+            <div style="font-size: 12px; line-height: 17px; color: oklch(0.72 0 0); margin-top: 2px">Weights are percentages of your training max, which bumps a small fixed amount each cycle.</div>
+          </div>
+        </div>
+        <div style="display: flex; align-items: flex-start; gap: 12px; padding: 13px 0; border-top: 1px solid oklch(1 0 0 / 0.072)">
+          <span style="width: 16px; height: 16px; border-radius: 9999px; border: 1px solid oklch(1 0 0 / 0.25); flex-shrink: 0; margin-top: 1px"></span>
+          <div style="flex: 1; min-width: 0">
+            <div style="font-size: 15px; font-weight: 500">AMRAP cycle</div>
+            <div style="font-size: 12px; line-height: 17px; color: oklch(0.72 0 0); margin-top: 2px">Each week ends with an as-many-reps-as-possible set; beat your record to earn the next training-max bump.</div>
+          </div>
+        </div>
+      </div>
+      <div class="cap" style="font-size: 10px; margin-top: 20px">Effort and volume decide</div>
+      <div style="margin-top: 6px; border-bottom: 1px solid oklch(1 0 0 / 0.072)">
+        <div style="display: flex; align-items: flex-start; gap: 12px; padding: 13px 0; border-top: 1px solid oklch(1 0 0 / 0.072)">
+          <span style="width: 16px; height: 16px; border-radius: 9999px; border: 1px solid oklch(1 0 0 / 0.25); flex-shrink: 0; margin-top: 1px"></span>
+          <div style="flex: 1; min-width: 0">
+            <div style="font-size: 15px; font-weight: 500">RPE target</div>
+            <div style="font-size: 12px; line-height: 17px; color: oklch(0.72 0 0); margin-top: 2px">Loads are picked from your estimated max to hit a target effort &mdash; heavier on good days, lighter on bad.</div>
+          </div>
+        </div>
+        <div style="display: flex; align-items: flex-start; gap: 12px; padding: 13px 0; border-top: 1px solid oklch(1 0 0 / 0.072)">
+          <span style="width: 16px; height: 16px; border-radius: 9999px; border: 1px solid oklch(1 0 0 / 0.25); flex-shrink: 0; margin-top: 1px"></span>
+          <div style="flex: 1; min-width: 0">
+            <div style="font-size: 15px; font-weight: 500">Weekly volume</div>
+            <div style="font-size: 12px; line-height: 17px; color: oklch(0.72 0 0); margin-top: 2px">Start at minimum growth volume, add sets weekly until recovery caps, then deload.</div>
+          </div>
+        </div>
+      </div>
+      <div style="margin-top: 6px; border-bottom: 1px solid oklch(1 0 0 / 0.072)">
+        <div style="display: flex; align-items: flex-start; gap: 12px; padding: 13px 0; border-top: 1px solid oklch(1 0 0 / 0.072)">
+          <span style="width: 16px; height: 16px; border-radius: 9999px; border: 1px solid oklch(1 0 0 / 0.25); flex-shrink: 0; margin-top: 1px"></span>
+          <div style="flex: 1; min-width: 0">
+            <div style="font-size: 15px; font-weight: 500">No progression</div>
+            <div style="font-size: 12px; line-height: 17px; color: oklch(0.72 0 0); margin-top: 2px">Targets stay exactly as written.</div>
+          </div>
+        </div>
+      </div>
 
     <div style="margin-top: 26px">
       <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 12px">

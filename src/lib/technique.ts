@@ -1,5 +1,7 @@
 import type { DerivedSet } from '@/lib/progression'
 import type { Technique } from '@/lib/program-input'
+import { quantizeLoadKg } from '@/lib/load-quantize'
+import type { WeightUnit } from '@/lib/units'
 
 /**
  * Intensity techniques (drop-set / rest-pause / myo-reps / cluster) as a fact
@@ -109,7 +111,10 @@ export type StagedSet = DerivedSet & { techniqueStage?: TechniqueStage }
  * captured at the rack, not planned, and a null there means "the lifter types
  * it", never a phantom prescription.
  */
-export function expandTechniqueStages(sets: readonly DerivedSet[]): StagedSet[] {
+export function expandTechniqueStages(
+  sets: readonly DerivedSet[],
+  unit: WeightUnit,
+): StagedSet[] {
   const rows: StagedSet[] = []
   // Keyed by the group's ORDER of appearance, never by sourceIndex: a
   // weekly-volume resize CLONES its last working set (progression.ts
@@ -138,7 +143,7 @@ export function expandTechniqueStages(sets: readonly DerivedSet[]): StagedSet[] 
       const last = i === technique.stages.length - 1
       rows.push({
         ...set,
-        loadKg: stage.loadKg ?? null,
+        loadKg: stageLoadKg(stage, set, unit),
         repMin: stage.reps ?? null,
         repMax: stage.reps ?? null,
         restSec: last ? set.restSec : intraRestSec(technique, i + 1),
@@ -147,6 +152,41 @@ export function expandTechniqueStages(sets: readonly DerivedSet[]): StagedSet[] 
     })
   }
   return rows.map((row, i) => ({ ...row, setNumber: i + 1 }))
+}
+
+/**
+ * One stage's prescribed load, from the three states a stage may be in.
+ *
+ * - `loadKg` — absolute, taken verbatim. Right when the number IS the point
+ *   (a fixed dumbbell, a machine's pin).
+ * - `loadPct` — relative to the top set's DERIVED load, so the drop keeps its
+ *   shape as the top set progresses. Quantized to the loadable grid (#226) for
+ *   the same reason every other derived load is: the lifter has to be able to
+ *   load it. Resolves to null when the top set has no load — a percentage of
+ *   nothing is nothing, and inventing a number here would be the phantom
+ *   prescription an absent stage load exists to avoid.
+ * - neither — null: the lifter types what they actually dropped to. NEVER
+ *   inherited from the top set.
+ *
+ * The schema refuses a stage carrying both, so this is a total function over
+ * what can actually be stored. See docs/specs/technique-authoring.md §03.
+ */
+function stageLoadKg(
+  stage: Technique['stages'][number],
+  top: Pick<DerivedSet, 'loadKg' | 'metricMode'>,
+  unit: WeightUnit,
+): number | null {
+  if (stage.loadKg != null) return stage.loadKg
+  if (stage.loadPct == null) return null
+  // Metric-mode guard, stated rather than inferred. A timed row derives with a
+  // null load today, so trusting that would work — but `applyOverride` makes
+  // exactly this check for exactly this reason ("a stray/legacy per-week
+  // suggestedLoadKg must not resurrect a load onto a duration set"), and a
+  // percentage is the same hazard from a different direction. Duration is never
+  // multiplied by a load factor.
+  if (top.metricMode !== 'reps_weight') return null
+  if (top.loadKg == null) return null
+  return quantizeLoadKg(top.loadKg * stage.loadPct, unit)
 }
 
 /** The pause AFTER stage `index`, seconds: what the stage authored, else 0

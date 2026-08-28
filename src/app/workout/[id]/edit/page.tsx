@@ -83,7 +83,7 @@ async function loadPlanTargets(
   // must offer 3 targets or every later set would wear the wrong ghosts,
   // rest countdown and effort target.
   const toTargets = (sets: readonly DerivedSet[]): PlanSetTarget[] =>
-    expandTechniqueStages(sets).map((s) => ({
+    expandTechniqueStages(sets, unit).map((s) => ({
       repMin: s.repMin,
       repMax: s.repMax,
       loadKg: s.loadKg,

@@ -1782,6 +1782,8 @@
     "settledInProgress": "This session is already under way. Its sets were written when it started, so editing the plan won't reach them.",
     "surfaceLabel": "Program editor",
     "techniqueEmpty": "No intensity techniques on these sets.",
+    "techniqueNoDerivation": "No plan for this week yet",
+    "techniqueNone": "None",
     "techniqueTitle": "Technique",
     "viewByDay": "By day",
     "viewByExercise": "By exercise",
@@ -2955,5 +2957,43 @@
     "revokeError": "Could not revoke the link. Try again.",
     "shareAction": "Share workout",
     "shareActionPending": "Creating link…"
+  },
+  "EditorTechniqueForm": {
+    "kindTitle": "Kind",
+    "straightSet": "Straight set",
+    "straightSetDescription": "One set, one result. No stages.",
+    "kind": {
+      "dropSet": "Drop set",
+      "restPause": "Rest-pause",
+      "myoReps": "Myo-reps",
+      "cluster": "Cluster"
+    },
+    "kindDescription": {
+      "dropSet": "Strip weight and keep going, no real rest.",
+      "restPause": "Push to failure, rest seconds, go again.",
+      "myoReps": "One hard set, then short-rest mini-sets.",
+      "cluster": "Break the set into blocks with rest between, to keep every rep fast."
+    },
+    "stagesTitle": "Stages",
+    "stageLabel": "Stage {number}",
+    "addStage": "Add stage",
+    "removeStage": "Remove",
+    "reps": "reps",
+    "load": "Load",
+    "loadMode": "Load unit",
+    "rack": "Typed at the rack",
+    "previewTitle": "The set becomes",
+    "previewTop": "Set {number}",
+    "previewStage": "{number}{letter}",
+    "previewRow": "{reps} @ {load} {unit}",
+    "previewNoLoad": "{reps} reps, weight typed at the rack",
+    "volumeNote": "{rows} rows in the logger, {volume} sets for volume — later stages count half.",
+    "autoregNote": "Sets with a technique don't drive automatic weight changes. These methods are meant to reach failure, so a missed rep target here means the technique worked, not that you stalled."
+  },
+  "EditorTechniquePanel": {
+    "planScopeNote": "Saving changes this set's plan, not just this week. Weeks you've already trained keep what they were.",
+    "saveDirty": "Save technique",
+    "saved": "Saved",
+    "discard": "Discard"
   }
 }
