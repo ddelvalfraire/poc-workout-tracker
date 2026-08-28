@@ -819,6 +819,8 @@
       "cardioWeek": "Conditioning minutes this week, against last.",
       "momentum": "This week’s sets, activity, and goal progress.",
       "paceRecord": "Best pace, longest distance and longest session.",
+      "planAdherence": "Prescribed sets met over the last four weeks.",
+      "strengthRetention": "How much strength survived the current diet phase.",
       "todayRecap": "Celebration cards for sessions you finished today.",
       "unfinished": "Stalled sessions waiting to be resumed or finished."
     },
@@ -827,6 +829,8 @@
       "cardioWeek": "Cardio",
       "momentum": "Momentum",
       "paceRecord": "Records",
+      "planAdherence": "On target",
+      "strengthRetention": "Holding",
       "todayRecap": "Today",
       "unfinished": "Unfinished"
     }
@@ -1309,6 +1313,13 @@
     },
     "title": "Plan",
     "unavailableNotice": "Upgrading is not open yet. Nothing here can be bought, and nothing will be charged."
+  },
+  "PlanAdherence": {
+    "allHit": "every prescribed set met",
+    "missed": "{count, plural, one {# set short of plan} other {# sets short of plan}}",
+    "of": "of {total}",
+    "title": "On target",
+    "window": "last 4 weeks"
   },
   "PlanBulletList": {
     "noTarget": "{current} sets · no target",
@@ -2333,6 +2344,24 @@
   "StreakChip": {
     "countLabel": "{weeks} wk",
     "srOnly": "{weeks, plural, one {week} other {weeks}} training streak"
+  },
+  "StrengthRetention": {
+    "caption": {
+      "cutting": "of your bests since the cut began",
+      "phase": "of your bests since this phase began"
+    },
+    "dir": {
+      "down": "down",
+      "level": "level",
+      "up": "up"
+    },
+    "lift": {
+      "bench": "Bench",
+      "deadlift": "Dead",
+      "ohp": "Press",
+      "squat": "Squat"
+    },
+    "title": "Holding"
   },
   "SwipeToDelete": {
     "label": "Remove"

@@ -9,6 +9,8 @@ import { DividerList } from '@/components/ui/divider-list'
 import { BigThree } from './big-three'
 import { CardioWeek } from './cardio-week'
 import { PaceRecord } from './pace-record'
+import { PlanAdherence } from './plan-adherence'
+import { StrengthRetention } from './strength-retention'
 import { MomentumPanel } from './momentum-panel'
 import { TodayRecap } from './today-recap'
 import { useTranslations } from 'next-intl'
@@ -63,6 +65,10 @@ const HOME_SECTION_RENDERERS: Record<HomeSectionKind, HomeSectionRenderer> = {
   'cardio-week': (ctx, shape) => <CardioWeek userId={ctx.userId} shape={shape} />,
   'big-three': (ctx, shape) => <BigThree userId={ctx.userId} shape={shape} />,
   'pace-record': (ctx, shape) => <PaceRecord userId={ctx.userId} shape={shape} />,
+  'strength-retention': (ctx, shape) => (
+    <StrengthRetention userId={ctx.userId} shape={shape} />
+  ),
+  'plan-adherence': (ctx, shape) => <PlanAdherence userId={ctx.userId} shape={shape} />,
 }
 
 /**

@@ -55,6 +55,8 @@ export type HomeSectionTitleKey =
   | 'title.cardioWeek'
   | 'title.bigThree'
   | 'title.paceRecord'
+  | 'title.strengthRetention'
+  | 'title.planAdherence'
 
 export type HomeSectionDescriptionKey =
   | 'description.momentum'
@@ -63,6 +65,8 @@ export type HomeSectionDescriptionKey =
   | 'description.cardioWeek'
   | 'description.bigThree'
   | 'description.paceRecord'
+  | 'description.strengthRetention'
+  | 'description.planAdherence'
 
 /** The registry's copy is CATALOG KEYS, not sentences: entries are data
  *  shared by the editor grid, the tile sheet and (later) native clients, none
@@ -130,6 +134,20 @@ export const HOME_SECTION_REGISTRY = [
     titleKey: 'title.paceRecord',
     descriptionKey: 'description.paceRecord',
     allowedShapes: ['micro', 'tall'],
+    defaultShape: 'micro',
+  },
+  {
+    kind: 'strength-retention',
+    titleKey: 'title.strengthRetention',
+    descriptionKey: 'description.strengthRetention',
+    allowedShapes: ['micro', 'tall'],
+    defaultShape: 'tall',
+  },
+  {
+    kind: 'plan-adherence',
+    titleKey: 'title.planAdherence',
+    descriptionKey: 'description.planAdherence',
+    allowedShapes: ['micro', 'wide'],
     defaultShape: 'micro',
   },
 ] as const satisfies readonly HomeSectionMeta[]
