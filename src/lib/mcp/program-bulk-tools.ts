@@ -13,7 +13,7 @@ import {
   applyProgressionToScope,
   type SchemeSetRow,
 } from '@/db/program-bulk'
-import { ProgramPatchError } from '@/db/program-patches'
+import { ProgramPatchError } from '@/db/program-ownership'
 import { parseSetScheme, MAX_SCHEME_SETS, type SchemeSet } from '@/lib/set-scheme'
 import { displayToKg } from '@/lib/units'
 import { MAX_WEIGHT as MAX_WEIGHT_KG } from '@/lib/workout-input'

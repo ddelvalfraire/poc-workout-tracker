@@ -4,8 +4,8 @@ import { resolveUserId, resolveActor } from './resolve-user'
 import { jsonResult, errorResult } from './result'
 import { ToolError } from './errors'
 import { assertProgramIdShape } from './program-id'
+import { ProgramPatchError } from '@/db/program-patches'
 import {
-  ProgramPatchError,
   setProgramSetOverride,
   removeProgramSetOverride,
   setProgramAutoregulation,

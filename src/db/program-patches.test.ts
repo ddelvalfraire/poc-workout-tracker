@@ -113,8 +113,8 @@ vi.mock('./entitlements', async (importOriginal) => ({
 }))
 
 import { FeatureRequiredError } from './entitlements'
+import { ProgramPatchError } from './program-ownership'
 import {
-  ProgramPatchError,
   setProgramAutoregulation,
   setProgramDeloadPolicy,
   setProgramDietPhase,
