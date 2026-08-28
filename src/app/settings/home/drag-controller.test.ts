@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { resolveHomeLayout, type ResolvedHomeSection } from '@/lib/home/layout'
+import { HOME_SECTION_REGISTRY } from '@/lib/home/registry'
 import { createDragController } from './drag-controller'
 
 /**
@@ -27,14 +28,16 @@ function harness() {
   return { controller, setSections, persist, kinds: () => state.map((s) => s.kind) }
 }
 
+const DEFAULT_KINDS = HOME_SECTION_REGISTRY.map((s) => s.kind)
+
 describe('createDragController', () => {
   it('preview reorders state live WITHOUT persisting (no action call per move)', () => {
     const { controller, persist, kinds } = harness()
     controller.onDragStart()
     controller.onDragPreview('momentum', 'today-recap')
-    expect(kinds()).toEqual(['today-recap', 'momentum', 'unfinished'])
+    expect(kinds().slice(0, 3)).toEqual(['today-recap', 'momentum', 'unfinished'])
     controller.onDragPreview('momentum', 'unfinished')
-    expect(kinds()).toEqual(['today-recap', 'unfinished', 'momentum'])
+    expect(kinds().slice(0, 3)).toEqual(['today-recap', 'unfinished', 'momentum'])
     expect(persist).not.toHaveBeenCalled()
   })
 
@@ -53,7 +56,7 @@ describe('createDragController', () => {
 
   it('commit hands persist the pre-DRAG order as rollbackTo — not the pre-move one (a failed write undoes the whole drag)', () => {
     const { controller, persist } = harness()
-    const before = ['momentum', 'today-recap', 'unfinished']
+    const before = DEFAULT_KINDS
     controller.onDragStart()
     controller.onDragPreview('momentum', 'today-recap')
     controller.onDragPreview('momentum', 'unfinished')
@@ -67,9 +70,9 @@ describe('createDragController', () => {
     const { controller, persist, kinds } = harness()
     controller.onDragStart()
     controller.onDragPreview('unfinished', 'momentum')
-    expect(kinds()).toEqual(['unfinished', 'momentum', 'today-recap'])
+    expect(kinds().slice(0, 3)).toEqual(['unfinished', 'momentum', 'today-recap'])
     controller.onDragCancel()
-    expect(kinds()).toEqual(['momentum', 'today-recap', 'unfinished'])
+    expect(kinds()).toEqual(DEFAULT_KINDS)
     expect(persist).not.toHaveBeenCalled()
   })
 
@@ -79,7 +82,7 @@ describe('createDragController', () => {
     controller.onDragPreview('momentum', 'today-recap')
     controller.onDragPreview('today-recap', 'momentum') // dragged back home
     controller.onDragCommit()
-    expect(kinds()).toEqual(['momentum', 'today-recap', 'unfinished'])
+    expect(kinds()).toEqual(DEFAULT_KINDS)
     expect(persist).not.toHaveBeenCalled()
   })
 

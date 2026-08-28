@@ -14,6 +14,14 @@ import {
 
 const REGISTRY_KINDS = HOME_SECTION_REGISTRY.map((s) => s.kind)
 
+/** Registry order with two neighbours swapped — lets the move tests state
+ *  what a move DOES without hard-coding how many kinds ship today. */
+function swapped(a: number, b: number): string[] {
+  const kinds = [...REGISTRY_KINDS]
+  ;[kinds[a], kinds[b]] = [kinds[b], kinds[a]]
+  return kinds
+}
+
 describe('resolveHomeLayout', () => {
   it('degrades to the code-defined default when nothing is stored', () => {
     const resolved = resolveHomeLayout(null)
@@ -49,7 +57,13 @@ describe('resolveHomeLayout', () => {
         { kind: 'today-recap' },
       ],
     })
-    expect(resolved.map((s) => s.kind)).toEqual(['unfinished', 'momentum', 'today-recap'])
+    // Stored order leads; kinds the document didn't mention are appended.
+    expect(resolved.map((s) => s.kind).slice(0, 3)).toEqual([
+      'unfinished',
+      'momentum',
+      'today-recap',
+    ])
+    expect(resolved.map((s) => s.kind).sort()).toEqual([...REGISTRY_KINDS].sort())
     expect(resolved.find((s) => s.kind === 'momentum')?.hidden).toBe(true)
     expect(resolved.find((s) => s.kind === 'unfinished')?.hidden).toBe(false)
   })
@@ -67,7 +81,11 @@ describe('resolveHomeLayout', () => {
       version: 3,
       sections: [{ kind: 'unfinished', hidden: true }],
     })
-    expect(resolved.map((s) => s.kind)).toEqual(['unfinished', 'momentum', 'today-recap'])
+    expect(resolved[0].kind).toBe('unfinished')
+    // Everything else in the registry follows, visible, in registry order.
+    expect(resolved.slice(1).map((s) => s.kind)).toEqual(
+      REGISTRY_KINDS.filter((k) => k !== 'unfinished'),
+    )
     expect(resolved.slice(1).every((s) => !s.hidden)).toBe(true)
   })
 
@@ -95,7 +113,7 @@ describe('resolveHomeLayout', () => {
         { kind: 'unfinished' },
       ],
     })
-    expect(resolved.map((s) => s.shape)).toEqual(['block', 'micro', 'wide'])
+    expect(resolved.map((s) => s.shape).slice(0, 3)).toEqual(['block', 'micro', 'wide'])
   })
 
   it('normalizes an unknown, missing, or not-allowed shape to the kind default', () => {
@@ -109,7 +127,7 @@ describe('resolveHomeLayout', () => {
     })
     // Every surviving kind defaults to md, so normalization lands there in
     // all three cases; the per-kind lookup is still what produced it.
-    expect(resolved.map((s) => s.shape)).toEqual(['wide', 'wide', 'wide'])
+    expect(resolved.map((s) => s.shape).slice(0, 3)).toEqual(['wide', 'wide', 'wide'])
   })
 
   it('auto-upgrades a v1 document in memory: order and hidden survive, shapes are registry defaults', () => {
@@ -121,7 +139,7 @@ describe('resolveHomeLayout', () => {
         { kind: 'today-recap' },
       ],
     })
-    expect(resolved).toEqual([
+    expect(resolved.slice(0, 3)).toEqual([
       { id: 'unfinished', kind: 'unfinished', shape: 'wide', hidden: false },
       { id: 'momentum', kind: 'momentum', shape: 'wide', hidden: true },
       { id: 'today-recap', kind: 'today-recap', shape: 'wide', hidden: false },
@@ -133,7 +151,11 @@ describe('resolveHomeLayout', () => {
       version: 1,
       sections: [{ kind: 'unfinished', hidden: true }, { kind: 'unfinished' }],
     })
-    expect(resolved.map((s) => s.kind)).toEqual(['unfinished', 'momentum', 'today-recap'])
+    expect(resolved.map((s) => s.kind).slice(0, 3)).toEqual([
+      'unfinished',
+      'momentum',
+      'today-recap',
+    ])
     expect(resolved[0]).toEqual({ id: 'unfinished', kind: 'unfinished', shape: 'wide', hidden: true })
   })
 })
@@ -144,11 +166,13 @@ describe('resolveHomeLayout identity (v3)', () => {
       version: 2,
       sections: [{ kind: 'unfinished' }, { kind: 'momentum', hidden: true }],
     })
-    expect(resolved.map((s) => [s.id, s.kind])).toEqual([
+    expect(resolved.map((s) => [s.id, s.kind]).slice(0, 3)).toEqual([
       ['unfinished', 'unfinished'],
       ['momentum', 'momentum'],
       ['today-recap', 'today-recap'],
     ])
+    // Every appended kind takes its id from its kind too.
+    expect(resolved.every((s) => s.id === s.kind)).toBe(true)
   })
 
   it('honors a stored id that differs from the kind', () => {
@@ -205,23 +229,21 @@ describe('resolveHomeLayout identity (v3)', () => {
 })
 
 describe('parseHomeLayoutInput', () => {
+  // Derived from the registry, not written out: a write must name every kind,
+  // so a hand-listed fixture breaks every time a widget ships.
   const valid = {
     version: 3,
-    sections: [
-      { kind: 'unfinished' },
-      { kind: 'momentum', hidden: true },
-      { kind: 'today-recap' },
-    ],
+    sections: REGISTRY_KINDS.map((kind) =>
+      kind === 'momentum' ? { kind, hidden: true } : { kind },
+    ),
   }
 
   it('accepts a complete valid document and normalizes hidden flags', () => {
     const doc = parseHomeLayoutInput(valid)
     expect(doc.version).toBe(3)
-    expect(doc.sections).toEqual([
-      { kind: 'unfinished' },
-      { kind: 'momentum', hidden: true },
-      { kind: 'today-recap' },
-    ])
+    expect(doc.sections).toEqual(
+      REGISTRY_KINDS.map((kind) => (kind === 'momentum' ? { kind, hidden: true } : { kind })),
+    )
   })
 
   it('rejects a malformed document', () => {
@@ -250,7 +272,7 @@ describe('parseHomeLayoutInput', () => {
     expect(() =>
       parseHomeLayoutInput({
         ...valid,
-        sections: [...valid.sections.slice(0, 2), { kind: 'unfinished' }],
+        sections: [...valid.sections, { kind: 'unfinished' }],
       }),
     ).toThrow('duplicate home section id')
   })
@@ -269,19 +291,11 @@ describe('parseHomeLayoutInput', () => {
   it('keeps an id that differs from the kind, and omits one that matches', () => {
     const doc = parseHomeLayoutInput({
       version: 3,
-      sections: [
-        { kind: 'momentum', id: 'momentum' },
-        { kind: 'today-recap' },
-        { kind: 'unfinished' },
-      ],
+      sections: REGISTRY_KINDS.map((kind) => ({ kind, id: kind })),
     })
     // Every id here equals its kind, so the stored document carries none —
     // byte-identical to what v2 stored.
-    expect(doc.sections).toEqual([
-      { kind: 'momentum' },
-      { kind: 'today-recap' },
-      { kind: 'unfinished' },
-    ])
+    expect(doc.sections).toEqual(REGISTRY_KINDS.map((kind) => ({ kind })))
   })
 
   it('rejects a document missing registry kinds', () => {
@@ -293,17 +307,15 @@ describe('parseHomeLayoutInput', () => {
   it('accepts sizes the kind allows and omits a size equal to the default', () => {
     const doc = parseHomeLayoutInput({
       version: 3,
-      sections: [
-        { kind: 'momentum', shape: 'micro' },
-        { kind: 'today-recap', shape: 'wide' }, // default — serialized away
-        { kind: 'unfinished', shape: 'wide' }, // default — serialized away
-      ],
+      sections: valid.sections.map((s) =>
+        s.kind === 'momentum' ? { kind: 'momentum', shape: 'micro' } : { kind: s.kind },
+      ),
     })
-    expect(doc.sections).toEqual([
-      { kind: 'momentum', shape: 'micro' },
-      { kind: 'today-recap' },
-      { kind: 'unfinished' },
-    ])
+    expect(doc.sections).toEqual(
+      REGISTRY_KINDS.map((kind) =>
+        kind === 'momentum' ? { kind, shape: 'micro' } : { kind },
+      ),
+    )
   })
 
   it('rejects a shape outside the kind allowedShapes (strict, unlike the read guard)', () => {
@@ -328,18 +340,18 @@ describe('moveSection', () => {
 
   it('swaps a section with its neighbor without mutating the input', () => {
     const next = moveSection(sections, 'today-recap', 'up')
-    expect(next.map((s) => s.kind)).toEqual(['today-recap', 'momentum', 'unfinished'])
+    expect(next.map((s) => s.kind)).toEqual(swapped(0, 1))
     expect(sections.map((s) => s.kind)).toEqual(REGISTRY_KINDS) // untouched
   })
 
   it('moves down past a neighbor', () => {
     const next = moveSection(sections, 'momentum', 'down')
-    expect(next.map((s) => s.kind)).toEqual(['today-recap', 'momentum', 'unfinished'])
+    expect(next.map((s) => s.kind)).toEqual(swapped(0, 1))
   })
 
   it('is a no-op at the edges and for unknown kinds', () => {
     expect(moveSection(sections, 'momentum', 'up')).toBe(sections)
-    expect(moveSection(sections, 'unfinished', 'down')).toBe(sections)
+    expect(moveSection(sections, REGISTRY_KINDS[REGISTRY_KINDS.length - 1], 'down')).toBe(sections)
     expect(moveSection(sections, 'nope', 'up')).toBe(sections)
   })
 })
@@ -349,7 +361,10 @@ describe('moveSectionToTop', () => {
 
   it('moves a section to the front, preserving relative order, without mutating', () => {
     const next = moveSectionToTop(sections, 'unfinished')
-    expect(next.map((s) => s.kind)).toEqual(['unfinished', 'momentum', 'today-recap'])
+    expect(next.map((s) => s.kind)).toEqual([
+      'unfinished',
+      ...REGISTRY_KINDS.filter((k) => k !== 'unfinished'),
+    ])
     expect(sections.map((s) => s.kind)).toEqual(REGISTRY_KINDS) // untouched
   })
 
@@ -370,13 +385,21 @@ describe('reorderSection', () => {
 
   it("moves the active section to the over section's slot, downward, without mutating", () => {
     const next = reorderSection(sections, 'momentum', 'unfinished')
-    expect(next.map((s) => s.kind)).toEqual(['today-recap', 'unfinished', 'momentum'])
+    expect(next.map((s) => s.kind).slice(0, 3)).toEqual([
+      'today-recap',
+      'unfinished',
+      'momentum',
+    ])
     expect(sections.map((s) => s.kind)).toEqual(REGISTRY_KINDS) // untouched
   })
 
   it("moves the active section to the over section's slot, upward", () => {
     const next = reorderSection(sections, 'unfinished', 'today-recap')
-    expect(next.map((s) => s.kind)).toEqual(['momentum', 'unfinished', 'today-recap'])
+    expect(next.map((s) => s.kind).slice(0, 3)).toEqual([
+      'momentum',
+      'unfinished',
+      'today-recap',
+    ])
   })
 
   it('is a no-op (same reference) for unknown kinds and self-targets', () => {
@@ -421,17 +444,17 @@ describe('setSectionShape', () => {
 })
 
 describe('toLayoutDoc', () => {
-  it('serializes resolved sections into a version-2 document, omitting hidden:false and default sizes', () => {
+  it('serializes resolved sections into a current-version document, omitting hidden:false and default shapes', () => {
     const doc = toLayoutDoc(
       setSectionShape(toggleSection(resolveHomeLayout(null), 'momentum'), 'today-recap', 'micro'),
     )
     expect(doc).toEqual({
       version: 3,
-      sections: [
-        { kind: 'momentum', hidden: true },
-        { kind: 'today-recap', shape: 'micro' },
-        { kind: 'unfinished' },
-      ],
+      sections: REGISTRY_KINDS.map((kind) => {
+        if (kind === 'momentum') return { kind, hidden: true }
+        if (kind === 'today-recap') return { kind, shape: 'micro' }
+        return { kind }
+      }),
     })
   })
 

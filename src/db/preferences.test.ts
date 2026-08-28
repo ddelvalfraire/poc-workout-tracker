@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { HOME_SECTION_REGISTRY } from '@/lib/home/registry'
 
 /**
  * Recording stubs for the Drizzle query builders, mirroring save-workout.test.ts.
@@ -178,7 +179,7 @@ describe('setDefaultRestSec', () => {
 })
 
 describe('getHomeLayout', () => {
-  const DEFAULT_KINDS = ['momentum', 'today-recap', 'unfinished']
+  const DEFAULT_KINDS = HOME_SECTION_REGISTRY.map((s) => s.kind)
 
   it('resolves to the default order when no row exists', async () => {
     selectRows = []
@@ -204,7 +205,7 @@ describe('getHomeLayout', () => {
       },
     ]
     const resolved = await getHomeLayout(USER)
-    expect(resolved.map((s) => s.kind)).toEqual(['unfinished', 'momentum', 'today-recap'])
+    expect(resolved.map((s) => s.kind).slice(0, 3)).toEqual(['unfinished', 'momentum', 'today-recap'])
     expect(resolved[1].hidden).toBe(true)
   })
 })

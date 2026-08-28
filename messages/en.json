@@ -110,6 +110,12 @@
     "saveError": "Didn’t save. Check the value and try again.",
     "validation": "Enter a weight above 0 {unit}."
   },
+  "CardioWeek": {
+    "delta": "{direction, select, up {+{count} vs last week} down {-{count} vs last week} other {}}",
+    "firstWeek": "first week logged",
+    "title": "Cardio",
+    "unit": "min"
+  },
   "CheckInCard": {
     "action": "Check in",
     "dismiss": "Not today",
@@ -799,11 +805,13 @@
   },
   "HomeSection": {
     "description": {
+      "cardioWeek": "Conditioning minutes this week, against last.",
       "momentum": "This week’s sets, activity, and goal progress.",
       "todayRecap": "Celebration cards for sessions you finished today.",
       "unfinished": "Stalled sessions waiting to be resumed or finished."
     },
     "title": {
+      "cardioWeek": "Cardio",
       "momentum": "Momentum",
       "todayRecap": "Today",
       "unfinished": "Unfinished"

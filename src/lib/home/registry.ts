@@ -52,11 +52,13 @@ export type HomeSectionTitleKey =
   | 'title.momentum'
   | 'title.todayRecap'
   | 'title.unfinished'
+  | 'title.cardioWeek'
 
 export type HomeSectionDescriptionKey =
   | 'description.momentum'
   | 'description.todayRecap'
   | 'description.unfinished'
+  | 'description.cardioWeek'
 
 /** The registry's copy is CATALOG KEYS, not sentences: entries are data
  *  shared by the editor grid, the tile sheet and (later) native clients, none
@@ -104,6 +106,13 @@ export const HOME_SECTION_REGISTRY = [
     descriptionKey: 'description.unfinished',
     allowedShapes: ['wide'],
     defaultShape: 'wide',
+  },
+  {
+    kind: 'cardio-week',
+    titleKey: 'title.cardioWeek',
+    descriptionKey: 'description.cardioWeek',
+    allowedShapes: ['micro', 'wide'],
+    defaultShape: 'micro',
   },
 ] as const satisfies readonly HomeSectionMeta[]
 

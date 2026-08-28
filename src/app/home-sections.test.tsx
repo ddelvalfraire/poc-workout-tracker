@@ -1,5 +1,5 @@
 import { describe, it, expect, test, vi } from 'vitest'
-import { HOME_SECTION_REGISTRY, type HomeSectionShape } from '@/lib/home/registry'
+import { HOME_SECTION_REGISTRY, SHAPE_UNITS, type HomeSectionShape } from '@/lib/home/registry'
 import { renderStaticIntl } from '../../vitest.intl'
 import type { WorkoutSummary } from '@/db/workouts'
 import { renderHomeSections, type HomeSectionContext } from './home-sections'
@@ -36,17 +36,17 @@ describe('renderHomeSections', () => {
   it('invokes every visible renderer in layout order', () => {
     const renderers = stubRenderers()
     renderHomeSections(
-      [
-        { id: 'momentum', kind: 'momentum', shape: 'wide', hidden: false },
-        { id: 'today-recap', kind: 'today-recap', shape: 'wide', hidden: false },
-        { id: 'unfinished', kind: 'unfinished', shape: 'wide', hidden: false },
-      ],
+      HOME_SECTION_REGISTRY.map((s) => ({
+        id: s.kind,
+        kind: s.kind,
+        shape: s.defaultShape,
+        hidden: false,
+      })),
       ctx,
       renderers,
     )
     for (const kind of Object.keys(renderers)) {
       expect(renderers[kind]).toHaveBeenCalledTimes(1)
-      expect(renderers[kind]).toHaveBeenCalledWith(ctx, 'wide')
     }
   })
 
@@ -101,10 +101,11 @@ describe('renderHomeSections', () => {
     expect(wrappers).toHaveLength(HOME_SECTION_REGISTRY.length)
   })
 
-  it('DEFAULT-layout parity: every default section is a full-width wide cell', () => {
-    // Every kind shipped today defaults to `wide` (2 of the phone's 2
-    // columns), so the default home is still a full-width stack — the bento
-    // only appears once someone picks a narrower shape.
+  it('places every default section at its own registry shape', () => {
+    // The default layout is the registry in order at each kind's default
+    // shape. It is no longer a uniform full-width stack: a `micro` default
+    // (cardio) is half-width, which is the bento appearing without anyone
+    // having customised anything.
     const sections = HOME_SECTION_REGISTRY.map((s) => ({
       id: s.kind,
       kind: s.kind,
@@ -112,11 +113,11 @@ describe('renderHomeSections', () => {
       hidden: false,
     }))
     const { wrappers } = wrappersOf(renderHomeSections(sections, ctx, stubRenderers()))
-    wrappers.forEach((wrapper, i) => {
-      // wide is 2 of 2 phone columns, 2 of 4, 2 of 6 — so it stacks on the
-      // phone and pairs up on the wider grids.
-      expect(wrapper.props.style['--r2']).toBe(`${i + 1} / span 1`)
-      expect(wrapper.props.style['--c2']).toBe('1 / span 2')
+    const spans = wrappers.map((w) => w.props.style['--c2'])
+    HOME_SECTION_REGISTRY.forEach((meta, i) => {
+      // Column count comes from SHAPE_UNITS, the single source — restating
+      // which shapes are narrow would be a second copy to drift.
+      expect(spans[i]).toContain(`span ${SHAPE_UNITS[meta.defaultShape].cols}`)
     })
   })
 

@@ -1,3 +1,4 @@
+import { HOME_SECTION_REGISTRY } from '@/lib/home/registry'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 /**
@@ -301,11 +302,11 @@ describe('setRestTimerEnabledAction', () => {
 describe('setHomeLayoutAction', () => {
   const validLayout = {
     version: 3,
-    sections: [
-      { kind: 'unfinished' },
-      { kind: 'momentum', hidden: true },
-      { kind: 'today-recap' },
-    ],
+    // Derived: a write must name every registry kind, so a hand-listed
+    // fixture breaks each time a widget ships.
+    sections: HOME_SECTION_REGISTRY.map((s) =>
+      s.kind === 'momentum' ? { kind: s.kind, hidden: true } : { kind: s.kind },
+    ),
   }
 
   it('persists a valid full layout document and revalidates the layout', async () => {
@@ -340,7 +341,7 @@ describe('setHomeLayoutAction', () => {
     await expect(
       setHomeLayoutAction({
         version: 3,
-        sections: [...validLayout.sections.slice(0, 2), { kind: 'unfinished' }],
+        sections: [...validLayout.sections, { kind: 'unfinished' }],
       }),
     ).rejects.toThrow('duplicate home section id')
     expect(setHomeLayout).not.toHaveBeenCalled()
