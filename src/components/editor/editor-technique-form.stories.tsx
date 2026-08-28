@@ -36,14 +36,22 @@ const topSet: DerivedSet = {
 };
 
 /** Controlled in the story, as it is in the app — the parent owns the value. */
-function Harness({ initial, top }: { initial: Technique | null; top?: DerivedSet }) {
+function Harness({
+  initial,
+  top,
+  unit = "kg",
+}: {
+  initial: Technique | null;
+  top?: DerivedSet;
+  unit?: "kg" | "lb";
+}) {
   const [value, setValue] = useState<Technique | null>(initial);
   return (
     <EditorTechniqueForm
       value={value}
       onChange={setValue}
       topSet={top ?? topSet}
-      unit="kg"
+      unit={unit}
       setNumber={3}
       scope="Cable Face Pull · set 3 of 3"
     />
@@ -170,5 +178,31 @@ export const PercentageOfNoLoad: Story = {
     const rows = await canvas.findAllByText(/weight typed at the rack/);
 
     expect(rows).toHaveLength(2);
+  },
+};
+
+/**
+ * The same stack for a pounds account — the default unit, so this is the
+ * common case rather than the exotic one.
+ *
+ * Loads are STORED in kilograms (`loadKg` is kg by name and by schema) and
+ * converted only for display, so a 100 kg top set reads 220.5 lb. Before this
+ * story existed the component rendered the kilogram numbers under an lb label.
+ *
+ * The drop is 177.5 lb, not the 176.4 a raw conversion of 80 kg gives: the
+ * resolution quantizes to the grid of the unit being READ, so a pounds lifter
+ * gets a weight they can actually put on the bar.
+ */
+export const PoundsAccount: Story = {
+  args: {
+    initial: { version: 1, kind: "drop-set", stages: [{ reps: 6, loadPct: 0.8 }] },
+    top: { ...topSet, loadKg: 100 },
+    unit: "lb",
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+
+    await expect(await canvas.findByText("15 @ 220.5 lb")).toBeVisible();
+    await expect(await canvas.findByText("6 @ 177.5 lb")).toBeVisible();
   },
 };

@@ -13,7 +13,7 @@ import {
   expandTechniqueStages,
   plannedTechniqueWeight,
 } from '@/lib/technique'
-import type { WeightUnit } from '@/lib/units'
+import { kgToDisplay, displayToKg, type WeightUnit } from '@/lib/units'
 import { cn } from '@/lib/utils'
 
 /**
@@ -190,8 +190,10 @@ export function EditorTechniqueForm({
                     <span className="text-sm text-muted-foreground">{t('reps')}</span>
                     <LoadCell
                       stage={stage}
+                      unit={unit}
                       label={t('stageLabel', { number: index + 1 })}
                       loadLabel={t('load')}
+                      modeLabel={t('loadMode')}
                       modeLabels={{ kg: unit, pct: '%', rack: t('rack') }}
                       onMode={(mode) => setMode(index, mode)}
                       onValue={(next) =>
@@ -232,7 +234,11 @@ export function EditorTechniqueForm({
                   <span className="text-sm tnum">
                     {row.loadKg == null
                       ? t('previewNoLoad', { reps: row.repMin ?? 0 })
-                      : t('previewRow', { reps: row.repMin ?? 0, load: row.loadKg, unit })}
+                      : t('previewRow', {
+                          reps: row.repMin ?? 0,
+                          load: round1(kgToDisplay(row.loadKg, unit)),
+                          unit,
+                        })}
                   </span>
                 </li>
               ))}
@@ -295,22 +301,37 @@ function KindRow({
  */
 function LoadCell({
   stage,
+  unit,
   label,
   loadLabel,
+  modeLabel,
   modeLabels,
   onMode,
   onValue,
 }: {
   stage: Technique['stages'][number]
+  unit: WeightUnit
   label: string
   loadLabel: string
+  modeLabel: string
   modeLabels: Record<StageLoadMode, string>
   onMode: (mode: StageLoadMode) => void
   onValue: (next: number | null) => void
 }) {
   const mode = stageLoadMode(stage)
   const nextMode: Record<StageLoadMode, StageLoadMode> = { kg: 'pct', pct: 'rack', rack: 'kg' }
-  const shown = mode === 'kg' ? stage.loadKg : mode === 'pct' ? pctToWhole(stage.loadPct) : null
+  // `loadKg` is kilograms by name and by schema, so the stored value stays
+  // canonical and only the DISPLAY converts. Most accounts read lb
+  // (DEFAULT_WEIGHT_UNIT), so rendering the stored number under an lb label
+  // would be wrong for the common case, not the edge one.
+  const shown =
+    mode === 'kg'
+      ? stage.loadKg == null
+        ? null
+        : round1(kgToDisplay(stage.loadKg, unit))
+      : mode === 'pct'
+        ? pctToWhole(stage.loadPct)
+        : null
 
   return (
     <span className="flex items-center gap-2">
@@ -326,7 +347,8 @@ function LoadCell({
           value={shown ?? ''}
           onChange={(e) => {
             const parsed = numberOrNull(e.currentTarget.value)
-            onValue(mode === 'pct' && parsed != null ? parsed / 100 : parsed)
+            if (parsed == null) return onValue(null)
+            onValue(mode === 'pct' ? parsed / 100 : displayToKg(parsed, unit))
           }}
         />
       )}
@@ -335,7 +357,7 @@ function LoadCell({
         variant="outline"
         size="sm"
         className="tnum"
-        aria-label={`${label} · ${loadLabel}`}
+        aria-label={`${label} · ${modeLabel}`}
         onClick={() => onMode(nextMode[mode])}
       >
         {modeLabels[mode]}
@@ -350,6 +372,11 @@ function numberOrNull(raw: string): number | null {
   if (trimmed === '') return null
   const parsed = Number(trimmed)
   return Number.isFinite(parsed) ? parsed : null
+}
+
+/** One decimal is enough for a load, and stops 45.359237 lb reaching a field. */
+function round1(value: number): number {
+  return Math.round(value * 10) / 10
 }
 
 /** Stored as a fraction, shown as a whole number: 0.8 reads as 80. */

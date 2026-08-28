@@ -2978,6 +2978,7 @@
     "removeStage": "Remove",
     "reps": "reps",
     "load": "Load",
+    "loadMode": "Load unit",
     "rack": "Typed at the rack",
     "previewTitle": "The set becomes",
     "previewTop": "Set {number}",
