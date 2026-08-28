@@ -873,6 +873,11 @@
       "weightTrend": "Weight trend"
     }
   },
+  "HomeCellError": {
+    "errorRef": "Ref {digest}",
+    "retry": "Try again",
+    "title": "Didn't load"
+  },
   "HomeSections": {
     "resumeLabel": "Resume",
     "startedSummary": "started · {sets, plural, one {# set} other {# sets}} logged",
