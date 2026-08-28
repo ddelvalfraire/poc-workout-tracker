@@ -27,6 +27,7 @@ import {
   applyAutoregToSets,
   applyDietPhaseToAdjustment,
   stampAppliedLoad,
+  stampVolumeCut,
   AUTOREG_DEFAULT_STEP_KG,
   type AutoregAdjustment,
   type AutoregRangeRow,
@@ -237,6 +238,25 @@ function quantizeAdjustedSet(set: DerivedSet, unit: WeightUnit): DerivedSet {
   const loadKg = quantizeAdjustedLoadKg(set.loadKg, set.schemeLoadKg, unit)
   // schemeLoadKg was quantized before the adjustment ran — idempotent here.
   return loadKg === set.loadKg ? set : { ...set, loadKg }
+}
+
+/**
+ * The after-the-fact stamps: a verdict's reason line must speak from the
+ * prescription that actually landed, never from what the engine intended.
+ * A decrement names its applied landing load (#228 review); a cutting stall
+ * answers in SETS, so it names the working sets that survived the trim.
+ */
+function stampApplication(
+  adjustment: AutoregAdjustment,
+  scheme: readonly DerivedSet[],
+  adjusted: readonly DerivedSet[],
+  unit: WeightUnit,
+): AutoregAdjustment {
+  if (adjustment.action === 'decrement') return stampAppliedLoad(adjustment, adjusted, unit)
+  if (adjustment.volumeKeepFraction !== undefined) {
+    return stampVolumeCut(adjustment, scheme, adjusted)
+  }
+  return adjustment
 }
 
 /**
@@ -484,14 +504,10 @@ export async function deriveDayPrescription(
           exercise.sets[s.sourceIndex]?.overrides.find((o) => o.week === week),
         ),
       ),
-      // A decrement's reason must name the load the application actually
-      // produced (#228 review): stamp the EVIDENCE bucket's applied working
-      // load onto the verdict (lib/autoregulate.ts `stampAppliedLoad`) — per
-      // exercise instance, never back into the shared cache.
-      autoreg:
-        adjustment !== null && adjustment.action === 'decrement'
-          ? stampAppliedLoad(adjustment, adjusted, unit)
-          : adjustment,
+      // The reason line must speak from what the application actually
+      // produced (`stampApplication`) — per exercise instance, never back
+      // into the shared cache.
+      autoreg: adjustment === null ? null : stampApplication(adjustment, scheme, adjusted, unit),
       effortStepLoadKg: effortStepByKey.get(key) ?? null,
     })
   }

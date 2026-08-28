@@ -203,7 +203,7 @@ describe('deriveDayPrescription auto-regulation', () => {
     expect(exercise.autoreg).toMatchObject({ action: 'decrement', suggestEarlyDeload: true })
   })
 
-  it("diet phase 'cutting' HOLDS the three-stall backoff (repeat at the stalled load, cut carried)", async () => {
+  it("diet phase 'cutting' answers the three-stall backoff with a VOLUME cut, load held", async () => {
     // Arrange — the exact decrement fixture above, on a cutting program
     trainedSessions.mockResolvedValue([
       trained('w3', 3, [6, 6, 5], 100),
@@ -214,15 +214,18 @@ describe('deriveDayPrescription auto-regulation', () => {
     // Act
     const [exercise] = await deriveDayPrescription(USER, day({ dietPhase: 'cutting' }), 4)
 
-    // Assert — the load HOLDS at the stalled 100 (never 90): the backoff is
-    // held behind the reactive-proposal confirm, and the verdict says so.
-    expect(exercise.sets[0].loadKg).toBe(100)
+    // Assert — the load HOLDS at the stalled 100 (never 90) and the stall is
+    // answered in SETS instead: 3 working sets become 2, renumbered, with the
+    // load backoff still carried for the reactive-proposal confirm.
+    expect(exercise.sets.map((s) => s.loadKg)).toEqual([100, 100])
+    expect(exercise.sets.map((s) => s.setNumber)).toEqual([1, 2])
     expect(exercise.autoreg).toMatchObject({
       action: 'repeat',
       deltaKg: 0,
       suggestEarlyDeload: true,
       phaseContext: 'cutting',
       heldBackoffKg: 10,
+      volumeCut: { fromSets: 3, toSets: 2 },
     })
   })
 

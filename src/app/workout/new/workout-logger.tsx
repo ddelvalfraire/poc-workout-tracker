@@ -1964,10 +1964,10 @@ export function WorkoutLogger({
                       {t('autoregRevertAction')}
                     </button>
                   </p>
-                  {/* While cutting, the reason line above already carries the
-                      holding-is-the-win framing — repeating the deload nudge
-                      here would contradict it (stalls are expected under a
-                      deficit; deload only if sessions feel grindy). */}
+                  {/* While cutting, the reason line above already says what
+                      happened (volume trimmed, load held) AND carries the
+                      grindy clause — repeating the generic deload nudge here
+                      would push the load cut the deficit response avoids. */}
                   {autoregInfo.suggestEarlyDeload &&
                     autoregInfo.phaseContext !== 'cutting' && (
                       <p className="text-xs text-muted-foreground">

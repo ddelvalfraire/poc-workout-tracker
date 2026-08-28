@@ -91,7 +91,10 @@ describe('ProgramBuilder form copy', () => {
       ['Reactive', 'Only backs off when stalls suggest one.'],
       ['Scheduled', 'Backs off on the deload week, every block.'],
       ['None', 'No phase — the engine behaves exactly as it always has.'],
-      ['Cutting', 'Stalls are expected; hold the load instead of auto-backing-off.'],
+      [
+        'Cutting',
+        'On a stall we trim volume and hold the load — in a deficit the load is the thing worth protecting.',
+      ],
       ['Maintaining', 'Normal progression.'],
       ['Bulking', 'Normal progression.'],
     ]) {

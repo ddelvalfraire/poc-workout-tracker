@@ -8,6 +8,8 @@ import {
   applyAutoregToSets,
   applyDietPhaseToAdjustment,
   backoffKg,
+  stampVolumeCut,
+  CUTTING_VOLUME_KEEP_FRACTION,
   sessionBeatsTop,
   sessionOvershoot,
   sessionStall,
@@ -569,6 +571,26 @@ describe('applyDietPhaseToAdjustment (diet-phase gate)', () => {
   const threeStalls = () =>
     autoregulate(2.5, seq(session([6, 5, 8]), session([6, 6, 6]), session([5, 6, 6])), 'all-sets')!
 
+  /** A scheme-derived working set at the stalled load (102.5 → capped to 100). */
+  const cuttingSet = (overrides: Partial<DerivedSet> = {}): DerivedSet => ({
+    setNumber: 1,
+    setType: 'working',
+    metricMode: 'reps_weight',
+    repMin: 8,
+    repMax: null,
+    rir: null,
+    rpe: null,
+    loadKg: 102.5,
+    tempo: null,
+    durationSec: null,
+    distanceM: null,
+    restSec: null,
+    technique: null,
+    derivedFrom: 'scheme',
+    sourceIndex: 0,
+    ...overrides,
+  })
+
   it('is the IDENTITY for null / maintaining / bulking (byte-identity guarantee)', () => {
     const adjustment = threeStalls()
     expect(applyDietPhaseToAdjustment(adjustment, null)).toBe(adjustment)
@@ -577,7 +599,7 @@ describe('applyDietPhaseToAdjustment (diet-phase gate)', () => {
     expect(applyDietPhaseToAdjustment(null, 'cutting')).toBeNull()
   })
 
-  it('cutting HOLDS the H2 auto-backoff: repeat at the stalled load, backoff carried', () => {
+  it('cutting answers the H2 auto-backoff with a VOLUME cut, never a load cut', () => {
     // Arrange — the third-stall decrement (−10 kg off 100)
     const decrement = threeStalls()
     expect(decrement.action).toBe('decrement')
@@ -585,13 +607,15 @@ describe('applyDietPhaseToAdjustment (diet-phase gate)', () => {
     // Act
     const held = applyDietPhaseToAdjustment(decrement, 'cutting')!
 
-    // Assert — annotate-never-suppress: the flag stays, the cut is held
+    // Assert — the load holds, the response moves onto volume; the backoff
+    // the engine declined to apply still rides along for the proposal path.
     expect(held).toMatchObject({
       action: 'repeat',
       deltaKg: 0,
       suggestEarlyDeload: true,
       phaseContext: 'cutting',
       heldBackoffKg: 10,
+      volumeKeepFraction: CUTTING_VOLUME_KEEP_FRACTION,
     })
     // The applied prescription HOLDS (caps at the stalled 100), never cuts.
     const sets: DerivedSet[] = [
@@ -614,6 +638,52 @@ describe('applyDietPhaseToAdjustment (diet-phase gate)', () => {
       },
     ]
     expect(applyAutoregToSets(sets, held)[0].loadKg).toBe(100)
+  })
+
+  it('the volume cut drops loaded working sets from the end and renumbers', () => {
+    // Arrange — a warmup plus three working sets at the stalled load
+    const held = applyDietPhaseToAdjustment(threeStalls(), 'cutting')!
+    const sets: DerivedSet[] = [
+      cuttingSet({ setNumber: 1, setType: 'warmup', loadKg: 60 }),
+      cuttingSet({ setNumber: 2, sourceIndex: 1 }),
+      cuttingSet({ setNumber: 3, sourceIndex: 2 }),
+      cuttingSet({ setNumber: 4, sourceIndex: 3 }),
+    ]
+
+    // Act
+    const applied = applyAutoregToSets(sets, held)
+
+    // Assert — 3 working sets → 2 (the LAST one goes), warmup untouched,
+    // loads held at the stalled load, setNumbers contiguous again.
+    expect(applied.map((s) => s.setNumber)).toEqual([1, 2, 3])
+    expect(applied.filter((s) => s.setType === 'working')).toHaveLength(2)
+    expect(applied.map((s) => s.sourceIndex)).toEqual([0, 1, 2])
+    expect(applied.every((s) => s.loadKg === (s.setType === 'warmup' ? 60 : 100))).toBe(true)
+  })
+
+  it('never cuts below the one-working-set maintenance floor', () => {
+    const held = applyDietPhaseToAdjustment(threeStalls(), 'cutting')!
+    expect(applyAutoregToSets([cuttingSet()], held)).toHaveLength(1)
+    // Two sets keep two (ceil(2 × 2/3) = 2) — the trim is one set per stall,
+    // not a halving.
+    expect(applyAutoregToSets([cuttingSet(), cuttingSet({ setNumber: 2 })], held)).toHaveLength(2)
+  })
+
+  it('leaves timed working rows alone — a loaded stall may only spend loaded volume', () => {
+    const held = applyDietPhaseToAdjustment(threeStalls(), 'cutting')!
+    const timed = Array.from({ length: 3 }, (_, i) =>
+      cuttingSet({ setNumber: i + 1, metricMode: 'duration', loadKg: null, durationSec: 60 }),
+    )
+    expect(applyAutoregToSets(timed, held)).toHaveLength(3)
+  })
+
+  it('stampVolumeCut records what the application removed — and nothing when it removed nothing', () => {
+    const held = applyDietPhaseToAdjustment(threeStalls(), 'cutting')!
+    const before = [cuttingSet(), cuttingSet({ setNumber: 2 }), cuttingSet({ setNumber: 3 })]
+    const after = applyAutoregToSets(before, held)
+    expect(stampVolumeCut(held, before, after).volumeCut).toEqual({ fromSets: 3, toSets: 2 })
+    const single = [cuttingSet()]
+    expect(stampVolumeCut(held, single, applyAutoregToSets(single, held)).volumeCut).toBeUndefined()
   })
 
   it('cutting ANNOTATES the M4 flag without suppressing it (loads untouched either way)', () => {
@@ -643,11 +713,15 @@ describe('applyDietPhaseToAdjustment (diet-phase gate)', () => {
     expect(applyDietPhaseToAdjustment(step, 'cutting')).toBe(step)
   })
 
-  it('reason lines: holding-is-the-win framing, never a strength-impairment claim', () => {
+  it('reason lines: state the mechanism (volume spent to protect load), never the physiology', () => {
+    // The stamped trim names the sets the lifter will actually see.
+    const before = [cuttingSet(), cuttingSet({ setNumber: 2 }), cuttingSet({ setNumber: 3 })]
     const held = applyDietPhaseToAdjustment(threeStalls(), 'cutting')!
-    expect(autoregReason(held, 'kg')).toBe(
-      'Hold 100 kg — 3 stalls is expected while cutting and holding is the win. Deload only if sessions feel grindy',
+    const stamped = stampVolumeCut(held, before, applyAutoregToSets(before, held))
+    expect(autoregReason(stamped, 'kg')).toBe(
+      "Hold 100 kg — 2 sets instead of 3 while you're cutting; we trim volume, not load. Deload only if sessions feel grindy",
     )
+    // No claim of a trim that did not happen (M4's flag adjusts nothing).
     const flag = applyDietPhaseToAdjustment(
       autoregulateEarlyDeload(
         seq(session([6, 5, 8]), session([6, 6, 6]), session([5, 6, 6])),
@@ -656,8 +730,13 @@ describe('applyDietPhaseToAdjustment (diet-phase gate)', () => {
       'cutting',
     )!
     expect(autoregReason(flag, 'kg')).toBe(
-      'Hold 100 kg — 3 stalls is expected while cutting and holding is the win. Deload only if sessions feel grindy',
+      "Hold 100 kg — while you're cutting we protect the load and trim volume instead. Deload only if sessions feel grindy",
     )
+    // The unsupported physiology claim is gone from every cutting line.
+    for (const line of [autoregReason(stamped, 'kg'), autoregReason(flag, 'kg')]) {
+      expect(line).not.toContain('expected')
+      expect(line).toContain('Deload only if sessions feel grindy')
+    }
     const repeat = applyDietPhaseToAdjustment(
       autoregulate(2.5, [session([6, 5, 8])], 'all-sets'),
       'cutting',
