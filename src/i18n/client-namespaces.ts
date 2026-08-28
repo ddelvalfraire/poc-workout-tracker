@@ -15,6 +15,7 @@
  * the test helpers deliberately provide the whole catalog.
  */
 export const CLIENT_NAMESPACES = [
+  'EditorTechniqueForm',
   'Account',
   'ActivityLog',
   'AnalyticsConsentToggle',
