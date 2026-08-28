@@ -380,6 +380,86 @@ export function reorderSection(
   return next
 }
 
+/**
+ * Adds a section from the gallery, appended at the end where the packer will
+ * place it last — a new tile appearing in the middle of a layout you arranged
+ * would be the app rearranging your home for you.
+ *
+ * Two ways to "add", decided by the registry rather than by the caller:
+ * a once-only kind is UNHIDDEN (it is already in the document, because every
+ * document holds every kind), while a repeatable kind gains a NEW INSTANCE
+ * with its own id. Returns the input unchanged (same reference) for an
+ * unknown kind, and for a once-only kind that is already visible.
+ */
+export function addSection(
+  sections: readonly ResolvedHomeSection[],
+  kind: string,
+): readonly ResolvedHomeSection[] {
+  const meta = REGISTRY_BY_KIND.get(kind)
+  if (meta === undefined) return sections
+  // A hidden instance is reused before a new one is minted, for repeatable
+  // kinds too: "add this widget" means make one visible, and appending a
+  // second while the first sits hidden would strand the hidden one.
+  const hidden = sections.find((s) => s.kind === kind && s.hidden)
+  if (hidden !== undefined) {
+    // Unhide AND move to the end, so the tile lands where you just asked for
+    // it rather than back in a slot you had forgotten about.
+    return [...sections.filter((s) => s.id !== hidden.id), { ...hidden, hidden: false }]
+  }
+  if (!isRepeatable(kind)) return sections
+  return [
+    ...sections,
+    { id: nextInstanceId(sections, kind), kind, shape: meta.defaultShape, hidden: false },
+  ]
+}
+
+/** The lowest `kind:n` not already taken. Deterministic on purpose — a random
+ *  id would differ between the server render and the client's, and ids are
+ *  what the editor addresses every section by. */
+function nextInstanceId(sections: readonly ResolvedHomeSection[], kind: string): string {
+  const taken = new Set(sections.map((s) => s.id))
+  if (!taken.has(kind)) return kind
+  for (let n = 2; ; n++) {
+    const candidate = `${kind}:${n}`
+    if (!taken.has(candidate)) return candidate
+  }
+}
+
+/**
+ * Removes a section from the layout.
+ *
+ * An EXTRA instance of a repeatable kind is deleted outright — it exists only
+ * because someone added it, so there is nothing to keep. Anything else is
+ * hidden instead, because every document must still name every registry kind;
+ * hiding IS removal for those, and it is what lets the gallery offer them
+ * back. Returns the input unchanged (same reference) for unknown ids and for
+ * a section that is already hidden.
+ */
+export function removeSection(
+  sections: readonly ResolvedHomeSection[],
+  id: string,
+): readonly ResolvedHomeSection[] {
+  const target = sections.find((s) => s.id === id)
+  if (target === undefined) return sections
+  if (isExtraInstance(sections, id)) return sections.filter((s) => s.id !== id)
+  if (target.hidden) return sections
+  return sections.map((s) => (s.id === id ? { ...s, hidden: true } : s))
+}
+
+/**
+ * Whether removing this section would DELETE it rather than hide it — true
+ * only for a section beyond the first of a repeatable kind.
+ *
+ * Exported because the editor has to label the button before the button is
+ * pressed, and "Remove" and "Hide" are not the same promise to make. Both the
+ * label and the act read this one predicate, so they cannot drift apart.
+ */
+export function isExtraInstance(sections: readonly ResolvedHomeSection[], id: string): boolean {
+  const target = sections.find((s) => s.id === id)
+  if (target === undefined || !isRepeatable(target.kind)) return false
+  return sections.filter((s) => s.kind === target.kind).length > 1
+}
+
 /** Flips a section's visibility. Returns the input unchanged for unknown ids. */
 export function toggleSection(
   sections: readonly ResolvedHomeSection[],

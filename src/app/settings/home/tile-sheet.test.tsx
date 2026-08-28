@@ -21,6 +21,7 @@ const handlers = {
   onToggle: noop,
   onMove: noop as (direction: 'up' | 'down') => void,
   onMoveToTop: noop,
+  onRemove: noop,
 }
 
 function render(overrides: {
@@ -29,6 +30,8 @@ function render(overrides: {
   hidden?: boolean
   index: number
   count: number
+  /** Extra instances of a repeatable kind are the only ones Remove deletes. */
+  removesPermanently?: boolean
 }) {
   const meta = metaOf(overrides.kind)
   const section: ResolvedHomeSection = {
@@ -43,6 +46,7 @@ function render(overrides: {
       section={section}
       index={overrides.index}
       count={overrides.count}
+      removesPermanently={overrides.removesPermanently ?? false}
       {...handlers}
     />,
   )
@@ -70,21 +74,40 @@ describe('TileSheet', () => {
     }
   })
 
-  test('shape control gating: only allowedShapes are enabled (unfinished is wide-only)', () => {
+  test('shape control OMITS shapes the kind disallows (unfinished is wide-only)', () => {
     const html = render({ kind: 'unfinished', index: 1, count: 4 })
     expect(html).toContain('role="radiogroup"')
-    // S and L exist but are disabled; M is enabled and checked.
-    expect(html).toContain('aria-checked="false" aria-label="Small Unfinished" disabled=""')
-    expect(html).toContain('aria-checked="false" aria-label="Block Unfinished" disabled=""')
+    // A one-shape widget offers one chip. The rest never appear, rather than
+    // appearing as controls that do nothing when pressed.
     expect(html).toContain('aria-checked="true" aria-label="Wide Unfinished"')
-    expect(html).not.toContain('aria-label="Wide Unfinished" disabled=""')
+    expect(html).not.toContain('aria-label="Small Unfinished"')
+    expect(html).not.toContain('aria-label="Block Unfinished"')
+    expect(html).not.toContain('disabled=""')
   })
 
-  test('shape control reflects the current shape for a full-range kind', () => {
+  test('offers every shape a full-range kind allows, and only those', () => {
     const html = render({ kind: 'momentum', shape: 'micro', index: 0, count: 4 })
     expect(html).toContain('aria-checked="true" aria-label="Small Momentum"')
-    expect(html).not.toContain('aria-label="Small Momentum" disabled=""')
-    expect(html).not.toContain('aria-label="Block Momentum" disabled=""')
+    for (const label of ['Small Momentum', 'Wide Momentum', 'Block Momentum']) {
+      expect(html).toContain(`aria-label="${label}"`)
+    }
+    // Momentum allows micro/wide/block — never tall or hero.
+    expect(html).not.toContain('aria-label="Tall Momentum"')
+    expect(html).not.toContain('aria-label="Hero Momentum"')
+  })
+
+  test('offers Remove only for a section that removing would DELETE', () => {
+    const hideable = render({ kind: 'momentum', index: 0, count: 4 })
+    expect(hideable).not.toContain('aria-label="Remove Momentum from your home"')
+    // An extra instance of a repeatable kind is the one case where removing
+    // is not the same as hiding, so it is the one case that says "Remove".
+    const deletable = render({
+      kind: 'lift-trend',
+      index: 0,
+      count: 4,
+      removesPermanently: true,
+    })
+    expect(deletable).toContain('aria-label="Remove Lift trend from your home"')
   })
 
   test('move gating at the top edge: Up and To top disable, Down stays live', () => {

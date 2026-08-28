@@ -10,7 +10,11 @@ import {
   toggleSection,
   setSectionShape,
   setSectionConfig,
+  addSection,
+  removeSection,
+  isExtraInstance,
   toLayoutDoc,
+  type ResolvedHomeSection,
 } from './layout'
 
 const REGISTRY_KINDS = HOME_SECTION_REGISTRY.map((s) => s.kind)
@@ -474,6 +478,152 @@ describe('toLayoutDoc', () => {
     const doc = toLayoutDoc(setSectionShape(resolveHomeLayout(null), 'momentum', 'block'))
     const resolved = resolveHomeLayout(parseHomeLayoutInput(doc))
     expect(resolved.find((s) => s.kind === 'momentum')?.shape).toBe('block')
+  })
+})
+
+describe('addSection', () => {
+  const REPEATABLE = REGISTRY.filter((m) => m.repeatable === true)
+  const ONCE_ONLY = REGISTRY.filter((m) => m.repeatable !== true)
+
+  it('unhides a once-only kind and moves it to the end', () => {
+    for (const meta of ONCE_ONLY) {
+      const hidden = toggleSection(resolveHomeLayout(null), meta.kind)
+      const added = addSection(hidden, meta.kind)
+      expect(added[added.length - 1].kind).toBe(meta.kind)
+      expect(added[added.length - 1].hidden).toBe(false)
+      // Adding must not duplicate a kind that may only appear once.
+      expect(added.filter((s) => s.kind === meta.kind)).toHaveLength(1)
+      expect(added).toHaveLength(hidden.length)
+    }
+  })
+
+  it('leaves a once-only kind alone when it is already visible', () => {
+    const sections = resolveHomeLayout(null)
+    for (const meta of ONCE_ONLY) {
+      expect(addSection(sections, meta.kind)).toBe(sections)
+    }
+  })
+
+  it('reuses a HIDDEN instance of a repeatable kind rather than stranding it', () => {
+    for (const meta of REPEATABLE) {
+      const hidden = toggleSection(resolveHomeLayout(null), meta.kind)
+      const added = addSection(hidden, meta.kind)
+      // "Add this widget" means make one visible. Minting a second while the
+      // first sat hidden would leave an invisible orphan behind.
+      expect(added.filter((s) => s.kind === meta.kind)).toHaveLength(1)
+      expect(added[added.length - 1].kind).toBe(meta.kind)
+      expect(added[added.length - 1].hidden).toBe(false)
+    }
+  })
+
+  it('gives a repeatable kind a new instance with its own id', () => {
+    for (const meta of REPEATABLE) {
+      const sections = resolveHomeLayout(null)
+      const added = addSection(sections, meta.kind)
+      const instances = added.filter((s) => s.kind === meta.kind)
+      expect(instances).toHaveLength(2)
+      expect(new Set(instances.map((s) => s.id)).size).toBe(2)
+      expect(added[added.length - 1].kind).toBe(meta.kind)
+      expect(added[added.length - 1].shape).toBe(meta.defaultShape)
+    }
+  })
+
+  it('keeps handing out unused ids as instances pile up', () => {
+    for (const meta of REPEATABLE) {
+      let sections: readonly ResolvedHomeSection[] = resolveHomeLayout(null)
+      for (let i = 0; i < 4; i++) sections = addSection(sections, meta.kind)
+      const ids = sections.map((s) => s.id)
+      expect(new Set(ids).size).toBe(ids.length)
+      // Deterministic, so a server render and its hydration agree.
+      expect(sections.filter((s) => s.kind === meta.kind).map((s) => s.id)).toEqual([
+        meta.kind,
+        `${meta.kind}:2`,
+        `${meta.kind}:3`,
+        `${meta.kind}:4`,
+        `${meta.kind}:5`,
+      ])
+    }
+  })
+
+  it('ignores a kind the registry has never heard of', () => {
+    const sections = resolveHomeLayout(null)
+    expect(addSection(sections, 'from-the-future')).toBe(sections)
+  })
+
+  it('produces a layout the write boundary still accepts', () => {
+    for (const meta of REPEATABLE) {
+      const added = addSection(addSection(resolveHomeLayout(null), meta.kind), meta.kind)
+      expect(() => parseHomeLayoutInput(toLayoutDoc(added))).not.toThrow()
+      // And the extra instances survive the round trip, since a bare {kind}
+      // row would collapse them back into one.
+      expect(
+        resolveHomeLayout(parseHomeLayoutInput(toLayoutDoc(added))).filter(
+          (s) => s.kind === meta.kind,
+        ),
+      ).toHaveLength(3)
+    }
+  })
+})
+
+describe('removeSection', () => {
+  const REPEATABLE = REGISTRY.filter((m) => m.repeatable === true)
+
+  it('hides a kind that must stay in the document', () => {
+    for (const meta of REGISTRY.filter((m) => m.repeatable !== true)) {
+      const removed = removeSection(resolveHomeLayout(null), meta.kind)
+      expect(removed.find((s) => s.id === meta.kind)?.hidden).toBe(true)
+      // Hidden, never dropped: every document must still name every kind.
+      expect(removed).toHaveLength(REGISTRY_KINDS.length)
+      expect(() => parseHomeLayoutInput(toLayoutDoc(removed))).not.toThrow()
+    }
+  })
+
+  it('deletes an EXTRA instance outright — it exists only because it was added', () => {
+    for (const meta of REPEATABLE) {
+      const added = addSection(resolveHomeLayout(null), meta.kind)
+      const extra = added[added.length - 1]
+      const removed = removeSection(added, extra.id)
+      expect(removed.some((s) => s.id === extra.id)).toBe(false)
+      expect(removed.filter((s) => s.kind === meta.kind)).toHaveLength(1)
+    }
+  })
+
+  it('hides — never deletes — the LAST instance of a repeatable kind', () => {
+    for (const meta of REPEATABLE) {
+      const removed = removeSection(resolveHomeLayout(null), meta.kind)
+      expect(removed.find((s) => s.id === meta.kind)?.hidden).toBe(true)
+      expect(() => parseHomeLayoutInput(toLayoutDoc(removed))).not.toThrow()
+    }
+  })
+
+  it('leaves unknown ids and already-hidden sections untouched, by reference', () => {
+    const sections = resolveHomeLayout(null)
+    expect(removeSection(sections, 'no-such-id')).toBe(sections)
+    const hidden = removeSection(sections, REGISTRY_KINDS[0])
+    expect(removeSection(hidden, REGISTRY_KINDS[0])).toBe(hidden)
+  })
+
+  it('agrees with isExtraInstance about what it is going to do', () => {
+    // The editor labels the button from the predicate and the act reads the
+    // same one, so a drift between "Remove" and "Hide" is impossible.
+    for (const meta of REPEATABLE) {
+      const one = resolveHomeLayout(null)
+      expect(isExtraInstance(one, meta.kind)).toBe(false)
+      expect(removeSection(one, meta.kind)).toHaveLength(one.length)
+
+      const two = addSection(one, meta.kind)
+      const extra = two[two.length - 1]
+      expect(isExtraInstance(two, extra.id)).toBe(true)
+      expect(removeSection(two, extra.id)).toHaveLength(two.length - 1)
+    }
+  })
+
+  it('never calls a once-only kind an extra instance', () => {
+    const sections = resolveHomeLayout(null)
+    for (const meta of REGISTRY.filter((m) => m.repeatable !== true)) {
+      expect(isExtraInstance(sections, meta.kind)).toBe(false)
+    }
+    expect(isExtraInstance(sections, 'no-such-id')).toBe(false)
   })
 })
 

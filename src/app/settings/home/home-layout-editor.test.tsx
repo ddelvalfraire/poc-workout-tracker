@@ -126,6 +126,12 @@ describe('HomeLayoutEditor (grid preview)', () => {
     expect(html).not.toContain('What we read from your training')
   })
 
+  test('offers the gallery, but does not open it until asked', () => {
+    const html = renderStaticIntl(<HomeLayoutEditor initialSections={sections} />)
+    expect(html).toContain('Add a widget')
+    expect(html).not.toContain('<dialog')
+  })
+
   test('server render is the STATIC grid — no drag attributes before the dnd chunk loads', () => {
     // The dnd grid arrives via a post-hydration dynamic import (effects never
     // run in a static render): no-JS users and the loading window get the

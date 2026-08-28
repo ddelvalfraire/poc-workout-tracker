@@ -644,6 +644,15 @@
     "summaryTopLoad": "{count, plural, one {# set} other {# sets}} · top {kind, select, added {BW+{load}} assisted {BW−{load}} other {{load}}}",
     "summaryTopReps": "{count, plural, one {# set} other {# sets}} · top ×{reps}"
   },
+  "GallerySheet": {
+    "addAnotherAriaLabel": "Add another {section}",
+    "addAriaLabel": "Add {section}",
+    "anotherLabel": "Another {section}",
+    "dialogLabel": "Add a widget",
+    "empty": "Every widget is already on your home.",
+    "hint": "Anything not on your home right now.",
+    "title": "Add a widget"
+  },
   "GoalCardActions": {
     "archiveAction": "Archive",
     "archiveError": "Could not archive the goal.",
@@ -810,6 +819,7 @@
     "settingsLink": "Settings"
   },
   "HomeLayoutEditor": {
+    "addAction": "Add a widget",
     "hint": "Tap a tile to resize, reorder, or hide it — or press and hold to drag it. Hidden sections keep tracking — they just don’t show on Home.",
     "lockedTileAriaLabel": "Status — always shown, always first",
     "lockedTileLabel": "Status",
@@ -2517,6 +2527,11 @@
       "toTopLabel": "Move {section} to top",
       "up": "Up",
       "upLabel": "Move {section} up"
+    },
+    "remove": {
+      "ariaLabel": "Remove {section} from your home",
+      "hint": "This one was added, so removing it deletes it. The rest can be hidden and brought back.",
+      "label": "Remove"
     },
     "shapeGroupLabel": "{section} shape",
     "shapeLabel": {

@@ -38,6 +38,11 @@ interface TileSheetProps {
   onToggle: () => void
   onMove: (direction: 'up' | 'down') => void
   onMoveToTop: () => void
+  onRemove: () => void
+  /** True when removing DELETES this section rather than hiding it — an extra
+   *  instance of a repeatable kind. Gates the Remove button, because "remove"
+   *  and "hide" are not the same promise to make. */
+  removesPermanently: boolean
 }
 
 export function TileSheet({
@@ -50,6 +55,8 @@ export function TileSheet({
   onToggle,
   onMove,
   onMoveToTop,
+  onRemove,
+  removesPermanently,
 }: TileSheetProps) {
   const t = useTranslations('TileSheet')
   const tCommon = useTranslations('Common')
@@ -130,38 +137,34 @@ export function TileSheet({
         </Button>
       </div>
 
-      {/* S/M/L segmented control — the goal-kind picker's radio vocabulary.
-          Shapes outside allowedShapes stay visible but disabled: the control
-          keeps its shape, the gating stays legible. */}
+      {/* The chips show only what this widget ALLOWS. A one-number widget
+          cannot be a block, so the option never appears rather than appearing
+          and looking broken — a disabled chip teaches the shape vocabulary at
+          the price of a control that does nothing when pressed. */}
       <div
         role="radiogroup"
         aria-label={t('shapeGroupLabel', { section: sectionName })}
         className="mt-3 flex gap-1.5"
       >
-        {HOME_SECTION_SHAPES.map((shape) => {
-          const isAllowed = meta.allowedShapes.includes(shape)
-          return (
-            <button
-              key={shape}
-              type="button"
-              role="radio"
-              aria-checked={section.shape === shape}
-              aria-label={t('shapeOptionLabel', { section: sectionName, shape })}
-              disabled={!isAllowed}
-              onClick={() => onShape(shape)}
-              className={cn(
-                'relative w-11 rounded-lg border py-1.5 text-xs font-semibold uppercase tracking-wide transition-colors before:absolute before:-inset-1',
-                'outline-none focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-hidden',
-                section.shape === shape
-                  ? 'border-primary bg-primary/10 text-primary'
-                  : 'border-border text-muted-foreground',
-                !isAllowed && 'opacity-30',
-              )}
-            >
-              {t(`shapeLabel.${shape}`)}
-            </button>
-          )
-        })}
+        {HOME_SECTION_SHAPES.filter((shape) => meta.allowedShapes.includes(shape)).map((shape) => (
+          <button
+            key={shape}
+            type="button"
+            role="radio"
+            aria-checked={section.shape === shape}
+            aria-label={t('shapeOptionLabel', { section: sectionName, shape })}
+            onClick={() => onShape(shape)}
+            className={cn(
+              'relative w-11 rounded-lg border py-1.5 text-xs font-semibold uppercase tracking-wide transition-colors before:absolute before:-inset-1',
+              'outline-none focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-hidden',
+              section.shape === shape
+                ? 'border-primary bg-primary/10 text-primary'
+                : 'border-border text-muted-foreground',
+            )}
+          >
+            {t(`shapeLabel.${shape}`)}
+          </button>
+        ))}
       </div>
 
       {/* Visibility — the settings switch vocabulary. A hidden section keeps
@@ -208,6 +211,24 @@ export function TileSheet({
           {t('move.toTop')}
         </MoveButton>
       </div>
+
+      {/* Remove. Only shown for an EXTRA instance of a repeatable kind, which
+          is the only section that can truly be deleted — for everything else
+          the visibility switch above IS removal, and offering both would be
+          two controls for one outcome. */}
+      {removesPermanently && (
+        <div className="border-t border-border/60 pt-4 pb-4">
+          <button
+            type="button"
+            onClick={onRemove}
+            aria-label={t('remove.ariaLabel', { section: sectionName })}
+            className="relative w-full rounded-lg border border-destructive/40 py-2 text-sm font-medium text-destructive transition-colors outline-none hover:bg-destructive/10 focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-hidden"
+          >
+            {t('remove.label')}
+          </button>
+          <p className="mt-1.5 text-xs text-muted-foreground">{t('remove.hint')}</p>
+        </div>
+      )}
     </dialog>
   )
 }

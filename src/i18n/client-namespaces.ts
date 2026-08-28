@@ -50,6 +50,7 @@ export const CLIENT_NAMESPACES = [
   'GoalCreate',
   'Goals',
   'GrantForm',
+  'GallerySheet',
   'GrantLedger',
   'HeaderClock',
   'HomeLayoutEditor',
