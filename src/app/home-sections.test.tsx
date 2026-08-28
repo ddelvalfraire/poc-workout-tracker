@@ -291,6 +291,7 @@ describe('renderHomeSections', () => {
    * inside its own cell, where the boundary renders it as a failed tile.
    */
   it('keeps the cell when the emptiness read itself fails, so the failure can surface in it', async () => {
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {})
     const widgets = {
       ...stubWidgets(),
       'trophy-case': {
@@ -308,6 +309,15 @@ describe('renderHomeSections', () => {
       ),
     )
     expect(items.map((i) => i.id)).toEqual(['trophy-case'])
+    // Kept is not the same as unnoticed. When the failure was the shared read,
+    // the widget re-throws it into its own boundary — but a predicate that
+    // breaks on its own leaves a working widget and a `hasContent` that has
+    // quietly stopped answering, so the failure is logged rather than trusted
+    // to resurface.
+    expect(logged).toHaveBeenCalledOnce()
+    expect(logged.mock.calls[0][0]).toContain('trophy-case')
+    expect(logged.mock.calls[0][1]).toBeInstanceOf(Error)
+    logged.mockRestore()
   })
 
   /** One failing widget must cost ONE tile, not the home screen. Without a

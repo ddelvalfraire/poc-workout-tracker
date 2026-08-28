@@ -215,15 +215,26 @@ export const HOME_SECTION_WIDGETS: Record<HomeSectionKind, HomeSectionWidget> = 
  * yet": the tile would simply not be there, and nobody — user or log — would
  * ever learn a read had failed. The `catch` moves WHERE the error surfaces,
  * never whether it does.
+ *
+ * It is also LOGGED here, and that is not belt-and-braces. The re-throw story
+ * above only holds when the thing that failed was the shared memoized read —
+ * the component then awaits the same rejected promise and lands in its cell's
+ * boundary. A predicate that fails for its OWN reasons has no such second
+ * chance: the widget renders perfectly well, the section keeps its cell, and a
+ * broken `hasContent` quietly stops answering — which reintroduces the very
+ * reserved-hole bug this function exists to prevent, invisibly. So the one
+ * path that can genuinely go unnoticed says so out loud.
  */
 async function sectionHasContent(
   widget: HomeSectionWidget,
   ctx: HomeSectionContext,
   config: HomeSectionConfig | undefined,
+  kind: string,
 ): Promise<boolean> {
   try {
     return await widget.hasContent(ctx, config)
-  } catch {
+  } catch (error: unknown) {
+    console.error(`[home] emptiness check failed for ${kind}; keeping its cell`, error)
     return true
   }
 }
@@ -271,7 +282,9 @@ export async function renderHomeSections(
   // In PARALLEL: these are a dozen independent reads, and awaiting them in the
   // loop below would turn one round trip into a dozen in series.
   const kept = await Promise.all(
-    candidates.map(({ section, widget }) => sectionHasContent(widget, ctx, section.config)),
+    candidates.map(({ section, widget }) =>
+      sectionHasContent(widget, ctx, section.config, section.kind),
+    ),
   )
 
   const items: HomeBentoItem[] = []
