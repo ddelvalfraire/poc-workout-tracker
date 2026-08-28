@@ -1385,7 +1385,10 @@ export function applyDietPhaseToAdjustment(
  * composing on top for confirmed-outperform buckets. A `'flag'` verdict
  * (M4) adjusts nothing. A verdict carrying `volumeKeepFraction` (the cutting
  * stall response) DROPS loaded working sets from the end before any of the
- * above — the one path here that changes the set COUNT. Adjusted sets keep
+ * above — the one path here that changes the set COUNT, and the one case
+ * where the override-outranks-autoreg rule cannot hold: a set that is gone
+ * has nothing left to override (a deload's `setFactor` resize drops
+ * overridden sets the same way). Adjusted sets keep
  * their pre-autoreg value in `schemeLoadKg` (null for load-less sets) so surfaces can offer "use plan
  * as written". Scoring (the verdict) remains working-sets-only —
  * backoff/amrap sets are only FROZEN here (or stepped uniformly) so volume
@@ -1455,7 +1458,10 @@ export function applyAutoregToSets(
  * exercise's LOADED, scheme-derived working sets (floor
  * `MIN_CUTTING_WORKING_SETS`), dropping from the END — the same shape and
  * direction as a deload's `setFactor` resize, so one vocabulary of "less
- * volume" exists in the app. Warmups, backoff/amrap rows, timed rows and
+ * volume" exists in the app. Dropping from the END is load-bearing beyond
+ * taste: every surviving working set keeps its original `setNumber`, which
+ * is what lets `reactiveDeloadProposalContent` address per-week overrides by
+ * the post-trim number. Warmups, backoff/amrap rows, timed rows and
  * template/override rows are never eligible: the stall evidence comes from
  * loaded working sets, so that is the only volume it may spend. Identity
  * (===) when no fraction is asked for or nothing is droppable, which keeps

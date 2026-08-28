@@ -138,6 +138,10 @@ export function reactiveDeloadProposalContent(
     kind === 'cutting-hold' && evidenceLoadKg > 0
       ? (evidenceLoadKg - heldBackoffKg) / evidenceLoadKg
       : shape.loadFactor
+  // `setNumber` here is the POST-trim derived number, and it addresses the
+  // program's set rows: safe because the cutting trim drops working sets from
+  // the END, so every surviving working set keeps the number it derived with
+  // (lib/autoregulate.ts `cutWorkingVolume`).
   const patches: ProposalPatch[] = candidate.workingSets.flatMap((set) =>
     set.loadKg === null
       ? []

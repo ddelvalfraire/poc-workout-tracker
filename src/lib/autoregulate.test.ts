@@ -661,6 +661,30 @@ describe('applyDietPhaseToAdjustment (diet-phase gate)', () => {
     expect(applied.every((s) => s.loadKg === (s.setType === 'warmup' ? 60 : 100))).toBe(true)
   })
 
+  it('leaves the set COUNT alone in every other phase (the trim is cutting-only)', () => {
+    // The same three-stall decrement, unphased: loads drop, sets do not.
+    const decrement = threeStalls()
+    const sets = [cuttingSet(), cuttingSet({ setNumber: 2 }), cuttingSet({ setNumber: 3 })]
+    expect(applyAutoregToSets(sets, decrement)).toHaveLength(3)
+    expect(applyAutoregToSets(sets, applyDietPhaseToAdjustment(decrement, 'bulking')!)).toHaveLength(
+      3,
+    )
+  })
+
+  it('keeps every surviving working setNumber — the proposal path addresses by it', () => {
+    // reactiveDeloadProposalContent patches per-week overrides by the POST-trim
+    // number, which only works while the trim drops from the END.
+    const held = applyDietPhaseToAdjustment(threeStalls(), 'cutting')!
+    const sets = [
+      cuttingSet({ setNumber: 1 }),
+      cuttingSet({ setNumber: 2, sourceIndex: 1 }),
+      cuttingSet({ setNumber: 3, sourceIndex: 2 }),
+    ]
+    const applied = applyAutoregToSets(sets, held)
+    expect(applied.map((s) => s.setNumber)).toEqual([1, 2])
+    expect(applied.map((s) => s.sourceIndex)).toEqual([0, 1])
+  })
+
   it('never cuts below the one-working-set maintenance floor', () => {
     const held = applyDietPhaseToAdjustment(threeStalls(), 'cutting')!
     expect(applyAutoregToSets([cuttingSet()], held)).toHaveLength(1)
