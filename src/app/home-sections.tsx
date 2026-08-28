@@ -125,12 +125,19 @@ const HOME_SECTION_RENDERERS: Record<HomeSectionKind, HomeSectionRenderer> = {
  *      a hidden Momentum panel's queries never happen.
  *   2. UNKNOWN kinds — a future client's sections — are dropped just as
  *      silently, and never error.
- *   3. EMPTY bodies are dropped AFTER rendering, because emptiness is
- *      something only the renderer knows (nothing unfinished, no goals yet).
+ *   3. EMPTY bodies are dropped, so the section reserves no space — the cell
+ *      shell paints a closing hairline, and an empty one leaves a stray rule
+ *      in a gap every later cell was routed around.
  *
- * All three happen before packing, so a dropped section reserves no space:
- * the cell shell paints a closing hairline, which would otherwise leave a
- * stray rule floating in a gap every later cell was routed around.
+ * WHAT (3) DOES NOT COVER, because it is easy to read it as more than it is.
+ * A renderer returns an ELEMENT, not rendered output. Most kinds here return
+ * `<SomeWidget …/>` for an async RSC that decides its own emptiness inside
+ * its body (`if (rows.length === 0) return null`), and that decision has not
+ * happened yet — the element is truthy either way, so those sections are
+ * still packed a cell they may not fill. Only a renderer that can answer
+ * from `ctx` alone, synchronously, benefits; `unfinished` is the one that
+ * does today. Closing the rest means resolving the widget subtrees before
+ * packing, which is a change to how home renders, not to this filter.
  *
  * Geometry lives in the shell (components/home/home-bento.tsx). This file
  * owns only the kind → renderer map — the WEB half of the customization

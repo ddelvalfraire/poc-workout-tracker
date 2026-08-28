@@ -28,8 +28,11 @@ export interface HomeBentoItem {
   /** Stable key — the section's layout-document id. */
   id: string
   shape: HomeSectionShape
-  /** The rendered widget. Callers drop empty bodies BEFORE handing them over:
-   *  an empty cell is not invisible, it is a reserved hole with a hairline. */
+  /** The rendered widget. Callers should drop bodies they KNOW are empty
+   *  before handing them over — an empty cell is not invisible, it is a
+   *  reserved hole with a hairline. A caller cannot always know: a body that
+   *  is an async component decides its own emptiness after this point, and
+   *  such a cell is still reserved. See renderHomeSections. */
   body: ReactNode
 }
 
@@ -50,7 +53,12 @@ export function HomeBento({ items }: { items: readonly HomeBentoItem[] }) {
   return (
     <div className="home-bento">
       {items.map((item) => (
-        <div key={item.id} style={placements.get(item.id) as CSSProperties}>
+        // `?? {}` rather than a bare cast: the cast is for the custom
+        // properties (csstype has no index signature for `--*`), and must not
+        // also swallow a Map miss. Every item IS placed at every tier today,
+        // so a miss means the two loops above have drifted apart — which
+        // should render unplaced, not silently typecheck.
+        <div key={item.id} style={(placements.get(item.id) ?? {}) as CSSProperties}>
           <HomeCell>{item.body}</HomeCell>
         </div>
       ))}
