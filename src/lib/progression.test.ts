@@ -3,6 +3,7 @@ import {
   percentOf1RM,
   deriveWeekSets,
   applyOverride,
+  applyWeekOverrides,
   amrapCompletedWaves,
   amrapBankableWaves,
   resolveDeloadPolicy,
@@ -653,6 +654,250 @@ describe('restSec passthrough', () => {
     // Assert — grown sets are clones of the LAST working set, rest included
     expect(derived.map((s) => s.restSec)).toEqual([60, 180, 180, 180])
   })
+
+  /**
+   * An intensity technique is NOT part of the chassis a ramp clone inherits.
+   * Coaching practice puts a drop set / rest-pause / myo-rep set on the FINAL
+   * set of an exercise — "one or two applications per session" — so a volume
+   * ramp must add STRAIGHT sets, not copies of the intensifier. Before this,
+   * a 3→6 ramp at MRV week turned one authored drop set into four (14 logged
+   * rows, 10 hard sets), and it did so exactly in the late-block weeks where
+   * techniques are most likely to be authored.
+   * Source: RP Strength, "Intensity Techniques for Maximum Mass".
+   */
+  const DROP_SET = {
+    version: 1 as const,
+    kind: 'drop-set' as const,
+    stages: [{ loadPct: 0.8 }, { loadPct: 0.6 }],
+  }
+
+  it('a weekly-volume ramp adds STRAIGHT sets — it never multiplies an intensity technique', () => {
+    // Arrange — 3 working sets ramping to 6, the last one a drop set.
+    const sets = [
+      workingSet({ setNumber: 1, suggestedLoadKg: 100 }),
+      workingSet({ setNumber: 2, suggestedLoadKg: 100 }),
+      workingSet({ setNumber: 3, suggestedLoadKg: 100, technique: DROP_SET }),
+    ]
+
+    // Act — the final week, where the ramp is widest
+    const derived = deriveWeekSets({
+      sets,
+      progression: { scheme: 'weekly-volume', mevSets: 3, mrvSets: 6 },
+      week: 4,
+      mesocycleWeeks: 4,
+      deloadWeek: null,
+      history: NO_HISTORY,
+    })
+
+    // Assert — six sets, exactly ONE of them a drop set, and it is the LAST
+    // (the exercise still ends on its intensifier, where it belongs).
+    expect(derived).toHaveLength(6)
+    expect(derived.filter((s) => s.technique !== null)).toHaveLength(1)
+    expect(derived.at(-1)!.technique).toEqual(DROP_SET)
+  })
+
+  it('leaves an un-ramped technique set exactly where it was authored', () => {
+    // No growth — nothing to move, nothing to strip.
+    const sets = [
+      workingSet({ setNumber: 1, suggestedLoadKg: 100, technique: DROP_SET }),
+      workingSet({ setNumber: 2, suggestedLoadKg: 100 }),
+    ]
+
+    const derived = deriveWeekSets({
+      sets,
+      progression: null,
+      week: 1,
+      mesocycleWeeks: 4,
+      deloadWeek: null,
+      history: NO_HISTORY,
+    })
+
+    expect(derived[0].technique).toEqual(DROP_SET)
+    expect(derived[1].technique).toBeNull()
+  })
+
+  /**
+   * A deload sheds fatigue. Every deload protocol says to remove the
+   * intensifiers — drop sets, rest-pause, forced reps — because their whole
+   * purpose is pushing a set past failure. Backing the LOAD off 15% while
+   * still prescribing a drop set to failure is a deload in name only. This
+   * was reachable in practice: the shrink drops sets from the END, so a
+   * technique authored anywhere else survived into the deload untouched.
+   */
+  it('a SCHEDULED deload strips intensity techniques from the rows it deloads', () => {
+    // Arrange — the technique is on the FIRST set, so the shrink cannot
+    // remove it by luck.
+    const sets = [
+      workingSet({ setNumber: 1, suggestedLoadKg: 100, technique: DROP_SET }),
+      workingSet({ setNumber: 2, suggestedLoadKg: 100 }),
+      workingSet({ setNumber: 3, suggestedLoadKg: 100 }),
+      workingSet({ setNumber: 4, suggestedLoadKg: 100 }),
+    ]
+
+    // Act
+    const derived = deriveWeekSets({
+      sets,
+      progression: null,
+      week: 4,
+      mesocycleWeeks: 4,
+      deloadWeek: 4,
+      history: NO_HISTORY,
+      deloadPolicy: {
+        mode: 'scheduled',
+        shape: { loadFactor: 0.85, setFactor: 0.5, rpeCap: null, timedExercises: 'untouched' },
+      },
+    })
+
+    // Assert — deloaded rows carry no intensifier at all.
+    expect(derived.every((s) => s.technique === null)).toBe(true)
+    expect(derived.every((s) => s.derivedFrom === 'deload')).toBe(true)
+  })
+
+  it("keeps the technique on a 'none'-policy deload week — that week is a NORMAL week by contract", () => {
+    const sets = [
+      workingSet({ setNumber: 1, suggestedLoadKg: 100, technique: DROP_SET }),
+      workingSet({ setNumber: 2, suggestedLoadKg: 100 }),
+    ]
+
+    const derived = deriveWeekSets({
+      sets,
+      progression: null,
+      week: 4,
+      mesocycleWeeks: 4,
+      deloadWeek: 4,
+      history: NO_HISTORY,
+      deloadPolicy: { mode: 'none' },
+    })
+
+    // The policy's own contract: no modifier, no stamp — and so no strip.
+    expect(derived[0].technique).toEqual(DROP_SET)
+  })
+})
+
+describe('applyWeekOverrides (the shared per-week merge)', () => {
+  const DROP_SET = {
+    version: 1 as const,
+    kind: 'drop-set' as const,
+    stages: [{ loadPct: 0.8 }, { loadPct: 0.6 }],
+  }
+  const EMPTY_OVERRIDE = {
+    repMin: null,
+    repMax: null,
+    rir: null,
+    rpe: null,
+    suggestedLoadKg: null,
+    tempo: null,
+    durationSec: null,
+    distanceM: null,
+    restSec: null,
+    technique: null,
+  }
+
+  /** A ramped week: 3 authored sets grown to 6, so the last source index
+   *  owns four rows — the shape that made an override fan out. */
+  function rampedWeek() {
+    return deriveWeekSets({
+      sets: [1, 2, 3].map((n) => workingSet({ setNumber: n, suggestedLoadKg: 100 })),
+      progression: { scheme: 'weekly-volume', mevSets: 3, mrvSets: 6 },
+      week: 4,
+      mesocycleWeeks: 4,
+      deloadWeek: null,
+      history: NO_HISTORY,
+    })
+  }
+
+  it('lands a technique override on the LAST row of its source group only', () => {
+    // Arrange — the ramp gives source index 2 four rows.
+    const derived = rampedWeek()
+    expect(derived.filter((s) => s.sourceIndex === 2)).toHaveLength(4)
+
+    // Act — one authored week override, on that source set.
+    const merged = applyWeekOverrides(derived, (sourceIndex) =>
+      sourceIndex === 2 ? { ...EMPTY_OVERRIDE, technique: DROP_SET } : null,
+    )
+
+    // Assert — ONE drop set, and it is the exercise's final set. Before this
+    // every clone became its own drop set: 14 logged rows, 10 hard sets.
+    expect(merged.filter((s) => s.technique !== null)).toHaveLength(1)
+    expect(merged.at(-1)!.technique).toEqual(DROP_SET)
+  })
+
+  it('still lands every OTHER overridden field on every clone', () => {
+    // A clone is "more of the same set", so the targets do propagate — it is
+    // only the intensifier that is once-per-exercise.
+    const merged = applyWeekOverrides(rampedWeek(), (sourceIndex) =>
+      sourceIndex === 2 ? { ...EMPTY_OVERRIDE, repMin: 5, rir: 1, technique: DROP_SET } : null,
+    )
+
+    const cloned = merged.filter((s) => s.sourceIndex === 2)
+    expect(cloned).toHaveLength(4)
+    expect(cloned.every((s) => s.repMin === 5 && s.rir === 1)).toBe(true)
+    expect(cloned.filter((s) => s.technique !== null)).toHaveLength(1)
+  })
+
+  it('leaves an un-ramped set with its override applied in full', () => {
+    const derived = deriveWeekSets({
+      sets: [workingSet({ setNumber: 1, suggestedLoadKg: 100 })],
+      progression: null,
+      week: 2,
+      mesocycleWeeks: 4,
+      deloadWeek: null,
+      history: NO_HISTORY,
+    })
+
+    const merged = applyWeekOverrides(derived, () => ({
+      ...EMPTY_OVERRIDE,
+      technique: DROP_SET,
+    }))
+
+    expect(merged).toHaveLength(1)
+    expect(merged[0].technique).toEqual(DROP_SET)
+  })
+
+  it('never overrides a set whose source index has no override', () => {
+    const merged = applyWeekOverrides(rampedWeek(), () => null)
+
+    expect(merged.every((s) => s.technique === null)).toBe(true)
+  })
+
+  it('decides the authoritative row over the WHOLE week, not the subset it is given', () => {
+    // Arrange — the ramped week, then split the way a cutting volume cut
+    // splits it: the last two rows removed, the rest prescribed. Both halves
+    // still contain rows sharing source index 2.
+    const whole = rampedWeek()
+    const prescribed = whole.slice(0, -2)
+    const removed = whole.slice(-2)
+    expect(prescribed.some((s) => s.sourceIndex === 2)).toBe(true)
+    expect(removed.some((s) => s.sourceIndex === 2)).toBe(true)
+
+    // Act — each half merged separately, both judged against the whole week.
+    const overrideFor = (sourceIndex: number) =>
+      sourceIndex === 2 ? { ...EMPTY_OVERRIDE, technique: DROP_SET } : null
+    const a = applyWeekOverrides(prescribed, overrideFor, whole)
+    const b = applyWeekOverrides(removed, overrideFor, whole)
+
+    // Assert — exactly ONE intensifier across the union. Judged per half, each
+    // half picked its own last row and the exercise got two.
+    const total = [...a, ...b].filter((s) => s.technique !== null)
+    expect(total).toHaveLength(1)
+    // It lands on the whole week's last row, which the cut removed — so the
+    // prescription sheds it (a cut reduces the dose) and "plan as written"
+    // keeps it.
+    expect(a.every((s) => s.technique === null)).toBe(true)
+    expect(b.at(-1)!.technique).toEqual(DROP_SET)
+  })
+
+  it('a technique-only override leaves the withheld clones un-stamped', () => {
+    // The intensifier is withheld BEFORE the merge, so a clone that gets
+    // nothing is not labelled as carrying the owner's week-specific number.
+    const merged = applyWeekOverrides(rampedWeek(), (sourceIndex) =>
+      sourceIndex === 2 ? { ...EMPTY_OVERRIDE, technique: DROP_SET } : null,
+    )
+
+    const cloned = merged.filter((s) => s.sourceIndex === 2)
+    expect(cloned.filter((s) => s.derivedFrom === 'override')).toHaveLength(1)
+    expect(merged.at(-1)!.derivedFrom).toBe('override')
+  })
 })
 
 describe('applyOverride', () => {
@@ -891,6 +1136,45 @@ describe('deriveWeekSets under a deload policy', () => {
       expect(derived.map((s) => s.loadKg)).toEqual([40, 50, 60]) // TM 100, not 102.5
       expect(derived.map((s) => s.repMin)).toEqual([5, 5, 5])
       derived.forEach((s) => expect(s.derivedFrom).toBe('deload'))
+    })
+
+    /**
+     * The deload's technique strip has TWO arms and both must strip. The
+     * scale-shape arm is covered above; this is the deloadRow EMIT arm, which
+     * builds its rows by spreading a chassis row — and a chassis row can carry
+     * an authored intensifier. Without the strip, an amrap-cycle exercise with
+     * a deloadRow and a drop set on its last working set walked into the
+     * deload week still prescribing a drop set to failure.
+     */
+    it('deloadRow emit strips an intensity technique off the chassis it borrows', () => {
+      // Arrange — a drop set authored on the last of the three working sets.
+      const sets = [
+        workingSet({ setNumber: 1 }),
+        workingSet({ setNumber: 2 }),
+        workingSet({
+          setNumber: 3,
+          technique: { version: 1, kind: 'drop-set', stages: [{ loadPct: 0.8 }] },
+        }),
+      ]
+
+      // Act — the deload week, on the emit arm.
+      const derived = deriveWeekSets({
+        sets,
+        progression: {
+          ...bench,
+          tmBumpTiming: 'after-deload',
+          deloadRow: { percents: [0.4, 0.5, 0.6], reps: 5 },
+        } as never,
+        week: 4,
+        history: NO_HISTORY,
+        ...geometry,
+        deloadPolicy: scheduled,
+      })
+
+      // Assert — the emitted rows are plain deload work, no intensifier.
+      expect(derived).toHaveLength(3)
+      expect(derived.every((s) => s.technique === null)).toBe(true)
+      expect(derived.every((s) => s.derivedFrom === 'deload')).toBe(true)
     })
 
     it("'before-deload' + deloadRow emits the row off the BUMPED TM (legacy timing)", () => {

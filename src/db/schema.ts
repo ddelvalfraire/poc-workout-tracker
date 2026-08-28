@@ -196,17 +196,23 @@ export const sets = pgTable(
     prescribedRpe: numeric('prescribed_rpe', { precision: 3, scale: 1, mode: 'number' }),
     // Metric model (timed exercises). Additive + defaulted so existing rows and
     // the reps_weight logging path are unaffected; e1RM applies only to reps_weight.
-    metricMode: text('metric_mode').notNull().default('reps_weight'),
+    // $type'd like `program_sets.metric_mode`: the column held the same union
+    // all along, and leaving it bare `string` here forced every reader to
+    // re-narrow DB text it had already constrained on write.
+    metricMode: text('metric_mode').$type<MetricMode>().notNull().default('reps_weight'),
     durationSec: integer('duration_sec'),
     distanceM: numeric('distance_m', { precision: 9, scale: 2, mode: 'number' }), // meters
     // Intensity-technique grouping (lib/technique.ts, "Model A"): a drop-set /
-    // rest-pause / myo-reps / cluster set is N ROWS, not nested JSON, so every
-    // row-reading consumer (e1RM, best-set, plan-sync, the autoreg stall
-    // rules) keeps working untouched. All three columns are nullable and
-    // absent on an ordinary set — a technique row is the exception, never the
-    // default. `technique_group` is equal across one technique set's rows and
-    // unique within the exercise; `stage_index` is 0-based (0 = the top /
-    // activation set). Text + app-level union like `set_type`.
+    // rest-pause / myo-reps / cluster set is N ROWS, not nested JSON, so most
+    // row-reading consumers (e1RM, best-set, plan-sync) keep working
+    // untouched; the two that must NOT treat a stage as an ordinary set say
+    // so explicitly — the autoreg stall rules exclude the whole group
+    // (db/autoreg-history.ts) and weekly volume weights it (db/muscle-volume.ts).
+    // All three columns are nullable and absent on an ordinary set — a
+    // technique row is the exception, never the default. `technique_group` is
+    // equal across one technique set's rows and unique within the exercise;
+    // `stage_index` is 0-based (0 = the top / activation set). Text +
+    // app-level union like `set_type`.
     techniqueKind: text('technique_kind').$type<Technique['kind']>(),
     techniqueGroup: text('technique_group'),
     stageIndex: integer('stage_index'),
@@ -215,7 +221,22 @@ export const sets = pgTable(
   // add_set calls from both inserting the same number (the read-max/insert race).
   // The migration makes it DEFERRABLE INITIALLY DEFERRED so removeSet's in-place
   // decrement-renumber — which transiently collides mid-statement — still commits.
-  (t) => [unique('sets_exercise_set_number_unique').on(t.workoutExerciseId, t.setNumber)],
+  (t) => [
+    unique('sets_exercise_set_number_unique').on(t.workoutExerciseId, t.setNumber),
+    // The technique triple is all-or-nothing. Every WRITE path already treats
+    // it that way (updateWorkout spreads all three or none; instantiation
+    // stamps all three from one `techniqueStage`), but without the constraint
+    // a partial row was legal — and its two readers disagreed about it:
+    // `rowTechnique` (db/muscle-volume.ts) needs only kind+stageIndex and
+    // would weight a group-less row 0.5, while `detailToDraft` requires all
+    // three and degrades the same row to an ordinary set worth 1.0. Same row,
+    // two answers. The constraint makes the shape the DB's guarantee, the way
+    // `notes_exactly_one_anchor` does for the note anchors.
+    check(
+      'sets_technique_all_or_none',
+      sql`num_nonnulls(${t.techniqueKind}, ${t.techniqueGroup}, ${t.stageIndex}) in (0, 3)`,
+    ),
+  ],
 )
 
 export const userPreferences = pgTable('user_preferences', {
@@ -943,7 +964,19 @@ export const programExerciseMuscles = pgTable(
  * undulating models the derived-progression engine can't express. A non-null
  * column here WINS over the engine (and the deload modifier) for that week;
  * null means "not overridden". `setType`/`metricMode` are deliberately absent:
- * changing a set's shape is an edit, not a week override. Set COUNT is absent
+ * changing a set's shape is an edit, not a week override.
+ *
+ * `technique` is the ONE apparent exception, and it is deliberate rather than
+ * an inconsistency: a per-week intensifier is the canonical way these methods
+ * are programmed. Coaching practice adds drop sets / rest-pause / myo-reps
+ * LATE in a block, once straight-set progression slows — "early mesocycles
+ * are generally better served by accumulating volume" — which is precisely a
+ * statement about weeks, not about the set's identity. Removing one for a
+ * week needs no override: a scheduled deload strips intensifiers itself
+ * (lib/progression.ts), which is the case that actually matters.
+ * Source: RP Strength, "Intensity Techniques for Maximum Mass".
+ *
+ * Set COUNT is absent
  * for the same reason and stays that way — per-week count is owned by the RULE
  * layer (the deload policy's setFactor, the weekly-volume ramp) through the one
  * resize step in lib/progression.ts. See docs/specs/per-week-set-count.md for

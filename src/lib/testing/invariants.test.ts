@@ -476,23 +476,51 @@ describe('plan-sync properties', () => {
         'stallAtLoad',
       ),
       fc.integer({ min: 1, max: 4 }),
+      // How many TRAILING rows form an intensity-technique group. Non-zero
+      // cases are the ones that matter: such rows must testify on neither
+      // side, so the generator has to be able to produce them or the
+      // exclusion is never exercised by this invariant at all.
+      fc.integer({ min: 0, max: 2 }),
     )
-    .map(([loadKg, cls, count]) => {
+    .map(([loadKg, cls, count, techniqueTail]) => {
       const session = evidenceSession({ cls, loadKg, sets: count, startedAtMs: 86_400_000 })
+      const firstStage = session.prescribed.length - techniqueTail
       return {
         wgerExerciseId: 1,
         source: 'wger',
         loggingType: 'weight_reps',
         skipped: false,
-        sets: session.prescribed.map((p, i) => ({
-          setNumber: p.setNumber,
-          reps: session.actual[i].reps,
-          weight: session.actual[i].weightKg,
-          completed: session.actual[i].completed,
-          setType: p.setType ?? 'working',
-          prescribedLoadKg: p.loadKg,
-          prescribedRepMin: p.repMin,
-        })),
+        sets: session.prescribed.map((p, i) => {
+          const isStage = i >= firstStage
+          if (!isStage) {
+            return {
+              setNumber: p.setNumber,
+              reps: session.actual[i].reps,
+              weight: session.actual[i].weightKg,
+              completed: session.actual[i].completed,
+              setType: p.setType ?? 'working',
+              prescribedLoadKg: p.loadKg,
+              prescribedRepMin: p.repMin,
+              techniqueKind: null,
+            }
+          }
+          // A drop stage as one actually looks: a distinctly LOWER prescribed
+          // load, beaten on the day. That is what makes the exclusion
+          // observable — such a row opens an anchor bucket of its own, at a
+          // load a plan set may well sit on, so a scorer that forgets to drop
+          // it proposes a drop's performance as a plan load.
+          const stageLoad = p.loadKg === null ? null : Math.round(p.loadKg * 0.6 * 100) / 100
+          return {
+            setNumber: p.setNumber,
+            reps: p.repMin,
+            weight: stageLoad === null ? null : stageLoad * 1.5,
+            completed: true,
+            setType: p.setType ?? 'working',
+            prescribedLoadKg: stageLoad,
+            prescribedRepMin: p.repMin,
+            techniqueKind: 'drop-set',
+          }
+        }),
       }
     })
 
@@ -520,13 +548,18 @@ describe('plan-sync properties', () => {
     // qualifies iff it outperformed — the same rule detectPlanSyncCandidates
     // applies via sessionAnchorLoads).
     const candidates = detectPlanSyncCandidates([workout], [plan], confirmed ? [workout] : [])
-    const workoutOutperformed = workout.sets.every(
-      (s) => s.weight !== null && s.prescribedLoadKg !== null && s.weight > s.prescribedLoadKg,
-    )
+    // Technique rows testify on neither side, so they cannot make (or break)
+    // the M2 confirmation either — the same population the scorer sees.
+    const scorable = workout.sets.filter((s) => s.techniqueKind == null)
+    const workoutOutperformed =
+      scorable.length > 0 &&
+      scorable.every(
+        (s) => s.weight !== null && s.prescribedLoadKg !== null && s.weight > s.prescribedLoadKg,
+      )
     const upConfirmed = confirmed && workoutOutperformed
     expect(planSyncAgreesWithEngine(workout, plan, upConfirmed, candidates[0])).toBe(true)
     // And every proposed load is a weight the lifter actually moved.
-    const performed = new Set(workout.sets.map((s) => s.weight))
+    const performed = new Set(scorable.map((s) => s.weight))
     for (const candidate of candidates) {
       for (const change of candidate.changes) {
         expect(performed.has(change.proposedLoadKg)).toBe(true)

@@ -3,7 +3,7 @@ import type { DeloadPolicy, DietPhase, Progression } from '@/lib/program-input'
 import type { ExerciseSource } from '@/lib/custom-exercise-input'
 import {
   deriveWeekSets,
-  applyOverride,
+  applyWeekOverrides,
   amrapBankableWaves,
   isExplicitNoDeloadPolicy,
   resolveDeloadPolicy,
@@ -71,7 +71,7 @@ import { workouts, workoutExercises, sets } from './schema'
  *                            a load change of their own. Applied via
  *                            applyAutoregToSets, then the anti-fixed-point
  *                            re-quantization (quantizeAdjustedSet).
- *   4. per-week OVERRIDE   — applyOverride LAST: the owner's explicit number
+ *   4. per-week OVERRIDE   — applyWeekOverrides LAST: the owner's explicit number
  *                            outranks every adjustment and is never rounded.
  *
  * Plan writers (mutate the STORED plan between derivations — they surface as
@@ -512,11 +512,23 @@ export async function deriveDayPrescription(
           quantizeSetLoads(s, unit),
         )
       : []
-    const withOverride = (s: DerivedSet) =>
-      applyOverride(s, exercise.sets[s.sourceIndex]?.overrides.find((o) => o.week === week))
+    // The shared merge (applyWeekOverrides) rather than a per-row
+    // applyOverride: it carries the rule that a technique override lands on
+    // the LAST row of its source group, so a volume ramp's clones don't each
+    // become their own drop set.
+    //
+    // `scheme` is passed as the whole-week reference to BOTH calls on purpose:
+    // `adjusted` and `trimmed` are the two halves of one derived week, and
+    // letting each half pick its own last row put the intensifier on a row of
+    // each. Judged against the whole week there is exactly one authoritative
+    // row — so when a cutting volume cut removes it, the prescription loses
+    // the intensifier (correct: a cut is reducing the dose, the same reasoning
+    // a deload strips it) and "use plan as written" still restores it.
+    const overrideFor = (sourceIndex: number) =>
+      exercise.sets[sourceIndex]?.overrides.find((o) => o.week === week)
     results.push({
-      sets: adjusted.map(withOverride),
-      trimmedSets: trimmed.map(withOverride),
+      sets: applyWeekOverrides(adjusted, overrideFor, scheme),
+      trimmedSets: applyWeekOverrides(trimmed, overrideFor, scheme),
       // The reason line must speak from what the application actually
       // produced (`stampApplication`) — per exercise instance, never back
       // into the shared cache.
