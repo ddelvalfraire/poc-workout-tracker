@@ -816,6 +816,17 @@
     "resetAction": "Reset to default",
     "saveError": "Couldn’t save. Try again."
   },
+  "HomePreset": {
+    "label": {
+      "bulk": "Bulk",
+      "conditioning": "Conditioning",
+      "consistency": "Consistency",
+      "cut": "Cut",
+      "hypertrophy": "Hypertrophy",
+      "powerlifting": "Powerlifting",
+      "volume": "Volume"
+    }
+  },
   "HomeSection": {
     "description": {
       "bigThree": "Squat, bench and deadlift e1RM, and the total.",
