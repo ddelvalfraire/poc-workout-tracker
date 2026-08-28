@@ -14,7 +14,10 @@ import {
   resolveHomeLayout,
   type ResolvedHomeSection,
 } from '@/lib/home/layout'
+import { applyPreset, matchPreset, type HomePresetId } from '@/lib/home/presets'
+import type { TrainingSignal } from '@/lib/home/signal'
 import { EditorGrid } from './editor-grid'
+import { PresetRow } from './preset-row'
 import { TileSheet } from './tile-sheet'
 import { createDragController } from './drag-controller'
 import type { DndGridProps } from './editor-grid-dnd'
@@ -40,8 +43,12 @@ import { useTranslations } from 'next-intl'
  */
 export function HomeLayoutEditor({
   initialSections,
+  signal = null,
 }: {
   initialSections: ResolvedHomeSection[]
+  /** The app's read of how this person trains — passive, never rendered on
+   *  home, and null when it reads nothing. */
+  signal?: TrainingSignal | null
 }) {
   const t = useTranslations('HomeLayoutEditor')
   const [sections, setSections] = useState<readonly ResolvedHomeSection[]>(initialSections)
@@ -142,6 +149,15 @@ export function HomeLayoutEditor({
     persist(resolveHomeLayout(null), { reset: true })
   }
 
+  /** Applying a preset REPLACES the whole document — that is what makes it a
+   *  shortcut rather than a merge with rules of its own. Any open sheet is
+   *  closed first: it was showing a section whose shape and position have
+   *  just changed underneath it. */
+  function onApplyPreset(id: HomePresetId) {
+    setActiveId(null)
+    persist(applyPreset(id))
+  }
+
   const activeIndex = sections.findIndex((s) => s.id === activeId)
   const activeSection = activeIndex === -1 ? null : sections[activeIndex]
   const activeMeta =
@@ -151,6 +167,12 @@ export function HomeLayoutEditor({
 
   return (
     <>
+      <PresetRow
+        activePreset={matchPreset(sections)}
+        signal={signal}
+        onApply={onApplyPreset}
+      />
+
       {/* The locked bar: Status always renders, always first. Present but
           non-interactive — its stillness above the live tiles teaches the
           model faster than any explanation. */}

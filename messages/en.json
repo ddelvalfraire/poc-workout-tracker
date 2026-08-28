@@ -1415,6 +1415,17 @@
     "ariaLabel": "Personal record",
     "label": "PR"
   },
+  "PresetRow": {
+    "derived": {
+      "evidence": "Median {reps} reps · {groups, plural, one {# muscle group} other {# muscle groups}} · last {weeks} weeks",
+      "evidenceWithoutReps": "{groups, plural, one {# muscle group} other {# muscle groups}} · last {weeks} weeks",
+      "firewall": "Read from your logged sets only — never from what you tap on this screen.",
+      "heading": "What we read from your training",
+      "useAction": "Use"
+    },
+    "heading": "Layouts",
+    "hint": "A layout is a starting point. Change anything below and it becomes yours."
+  },
   "ProgramAbout": {
     "eyebrow": "About",
     "meta": "{weeks, plural, one {# week} other {# weeks}} · {days, plural, one {# day} other {# days}} / wk",

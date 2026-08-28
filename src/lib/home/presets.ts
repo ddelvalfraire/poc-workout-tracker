@@ -62,7 +62,7 @@ export interface HomePreset {
  * ships micro and wide. Those presets take the widest shape that exists
  * today rather than naming one the registry would silently normalize away.
  */
-export const HOME_PRESETS = [
+export const HOME_PRESETS: readonly HomePreset[] = [
   {
     id: 'cut',
     labelKey: 'label.cut',
@@ -150,7 +150,7 @@ export const HOME_PRESETS = [
       { kind: 'closest-goal', shape: 'wide' },
     ],
   },
-] as const satisfies readonly HomePreset[]
+]
 
 /** The preset a home falls back to when nothing else is known — a fresh
  *  account, or a signal that reads nothing. Named here so the derive step and
@@ -159,15 +159,44 @@ export const GENERAL_PRESET_ID: HomePresetId = 'volume'
 
 const PRESETS_BY_ID: ReadonlyMap<string, HomePreset> = new Map(HOME_PRESETS.map((p) => [p.id, p]))
 
+const DEFAULT_SHAPE_BY_KIND: ReadonlyMap<string, HomeSectionShape> = new Map(
+  HOME_SECTION_REGISTRY.map((meta) => [meta.kind, meta.defaultShape]),
+)
+
 /** Looks a preset up by an untrusted id — a stored label, a URL fragment.
  *  Undefined for anything unknown; callers fall back rather than throw. */
 export function findPreset(id: string): HomePreset | undefined {
   return PRESETS_BY_ID.get(id)
 }
 
-const DEFAULT_SHAPE_BY_KIND: ReadonlyMap<string, HomeSectionShape> = new Map(
-  HOME_SECTION_REGISTRY.map((meta) => [meta.kind, meta.defaultShape]),
-)
+/**
+ * The preset a layout currently IS, or null once it stops being one.
+ *
+ * Derived by comparison rather than stored, which is what keeps the "zero new
+ * state" promise honest: there is no second record of your intent to drift
+ * out of step with the document, and no migration for layouts saved before
+ * presets existed. The cost is that provenance ends at the first edit — a
+ * layout is "Cut" until you change something, and then it is simply yours.
+ *
+ * Compares what a preset actually determines: the visible sections, their
+ * order, and their shapes. Hidden sections are the complement of that set by
+ * construction, so comparing them too would only restate it.
+ */
+export function matchPreset(sections: readonly ResolvedHomeSection[]): HomePresetId | null {
+  const visible = sections.filter((s) => !s.hidden)
+  for (const preset of HOME_PRESETS) {
+    if (visible.length !== preset.sections.length) continue
+    const same = preset.sections.every((wanted, i) => {
+      const actual = visible[i]
+      return (
+        actual.kind === wanted.kind &&
+        actual.shape === (wanted.shape ?? DEFAULT_SHAPE_BY_KIND.get(wanted.kind))
+      )
+    })
+    if (same) return preset.id
+  }
+  return null
+}
 
 /**
  * The preset, as a section list ready to persist.

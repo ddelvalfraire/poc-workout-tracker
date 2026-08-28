@@ -1,21 +1,10 @@
 import { describe, it, expect } from 'vitest'
 import { HOME_SECTION_REGISTRY, type HomeSectionMeta } from './registry'
 import { parseHomeLayoutInput, resolveHomeLayout, toLayoutDoc } from './layout'
-import {
-  applyPreset,
-  findPreset,
-  HOME_PRESETS as PRESET_TABLE,
-  GENERAL_PRESET_ID,
-  type HomePreset,
-} from './presets'
+import { applyPreset, findPreset, HOME_PRESETS, GENERAL_PRESET_ID, matchPreset } from './presets'
 
-/** Both tables widened to their declared interfaces. The `as const satisfies`
- *  literal types drop optional fields and narrow every union to the values
- *  that happen to be in use today — which would make an assertion about a
- *  shape no preset currently names ("no two anchors", "never a hero") a
- *  compile error instead of the guard against a future edit it is meant to
- *  be. */
-const HOME_PRESETS: readonly HomePreset[] = PRESET_TABLE
+/** Widened to the declared interface — the registry's `as const satisfies`
+ *  literal type drops optional fields from the entries that omit them. */
 const REGISTRY: readonly HomeSectionMeta[] = HOME_SECTION_REGISTRY
 const REGISTRY_KINDS = REGISTRY.map((m) => m.kind)
 const META = new Map(REGISTRY.map((m) => [m.kind, m]))
@@ -153,6 +142,56 @@ describe('applyPreset', () => {
     expect(first).toEqual(second)
     expect(first).not.toBe(second)
     expect(first[0]).not.toBe(second[0])
+  })
+})
+
+describe('matchPreset', () => {
+  it('recognizes every preset from the layout it produces', () => {
+    for (const preset of HOME_PRESETS) {
+      expect(matchPreset(applyPreset(preset.id))).toBe(preset.id)
+    }
+  })
+
+  it('survives a round trip through storage', () => {
+    for (const preset of HOME_PRESETS) {
+      const stored = resolveHomeLayout(parseHomeLayoutInput(toLayoutDoc(applyPreset(preset.id))))
+      expect(matchPreset(stored)).toBe(preset.id)
+    }
+  })
+
+  it('stops recognizing a preset once a shape changes', () => {
+    const applied = applyPreset('cut')
+    const target = applied.find((s) => !s.hidden && s.shape !== 'micro')
+    expect(target).toBeDefined()
+    const edited = applied.map((s) => (s.id === target!.id ? { ...s, shape: 'micro' as const } : s))
+    expect(matchPreset(edited)).toBeNull()
+  })
+
+  it('stops recognizing a preset once a section is hidden', () => {
+    const applied = applyPreset('cut')
+    const first = applied.find((s) => !s.hidden)!
+    const edited = applied.map((s) => (s.id === first.id ? { ...s, hidden: true } : s))
+    expect(matchPreset(edited)).toBeNull()
+  })
+
+  it('stops recognizing a preset once the order changes', () => {
+    const applied = applyPreset('powerlifting')
+    const visible = applied.filter((s) => !s.hidden)
+    expect(visible.length).toBeGreaterThan(1)
+    const swapped = [visible[1], visible[0], ...visible.slice(2), ...applied.filter((s) => s.hidden)]
+    expect(matchPreset(swapped)).toBeNull()
+  })
+
+  it('calls the plain default what it is — not a preset', () => {
+    expect(matchPreset(resolveHomeLayout(null))).toBeNull()
+  })
+
+  it('never mistakes one preset for another', () => {
+    for (const preset of HOME_PRESETS) {
+      const matched = matchPreset(applyPreset(preset.id))
+      expect(matched).not.toBeNull()
+      expect(matched).toBe(preset.id)
+    }
   })
 })
 

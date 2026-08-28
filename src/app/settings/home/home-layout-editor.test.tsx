@@ -1,6 +1,19 @@
 import { describe, expect, test, vi } from 'vitest'
 import { renderStaticIntl } from '../../../../vitest.intl'
 import type { ResolvedHomeSection } from '@/lib/home/layout'
+import { applyPreset, HOME_PRESETS, type HomePresetId } from '@/lib/home/presets'
+
+/** The chip copy, derived from the preset table rather than hand-listed, so a
+ *  new preset fails here instead of being silently untested. */
+const LABELS: Record<HomePresetId, string> = {
+  cut: 'Cut',
+  bulk: 'Bulk',
+  powerlifting: 'Powerlifting',
+  hypertrophy: 'Hypertrophy',
+  conditioning: 'Conditioning',
+  consistency: 'Consistency',
+  volume: 'Volume',
+}
 
 // The editor only touches the router and the server action inside handlers,
 // so a static server render with both stubbed covers the markup contract —
@@ -23,7 +36,9 @@ const sections: ResolvedHomeSection[] = [
 describe('HomeLayoutEditor (grid preview)', () => {
   test('leads with the locked Status bar — labeled, lock icon, no button', () => {
     const html = renderStaticIntl(<HomeLayoutEditor initialSections={sections} />)
-    const statusBar = html.slice(0, html.indexOf('grid-cols-2'))
+    // Scoped to the bar itself rather than to everything above the grid: the
+    // preset chips legitimately sit above it, and they are very much buttons.
+    const statusBar = html.slice(html.indexOf('aria-label="Status'), html.indexOf('grid-cols-2'))
     expect(statusBar).toContain('aria-label="Status — always shown, always first"')
     expect(statusBar).toContain('<svg') // the Lock icon
     expect(statusBar).not.toContain('<button') // present but non-interactive
@@ -57,6 +72,58 @@ describe('HomeLayoutEditor (grid preview)', () => {
     const html = renderStaticIntl(<HomeLayoutEditor initialSections={sections} />)
     expect(html).not.toContain('<dialog')
     expect(html).toContain('Reset to default')
+  })
+
+  test('offers every named layout as a chip', () => {
+    const html = renderStaticIntl(<HomeLayoutEditor initialSections={sections} />)
+    for (const preset of HOME_PRESETS) {
+      expect(html).toContain(`>${LABELS[preset.id]}</button>`)
+    }
+  })
+
+  test('marks the chip pressed only while the layout still IS that preset', () => {
+    const applied = applyPreset('cut')
+    const onCut = renderStaticIntl(<HomeLayoutEditor initialSections={applied} />)
+    expect(onCut).toContain('aria-pressed="true"')
+    // An arbitrary layout is nobody's preset, so no chip claims it.
+    const custom = renderStaticIntl(<HomeLayoutEditor initialSections={sections} />)
+    expect(custom).not.toContain('aria-pressed="true"')
+  })
+
+  test('says nothing about the derived read when there is none', () => {
+    const html = renderStaticIntl(<HomeLayoutEditor initialSections={sections} signal={null} />)
+    expect(html).not.toContain('What we read from your training')
+    expect(html).not.toContain('>Use</button>')
+  })
+
+  test('reports the derived read passively, with its evidence and a Use action', () => {
+    const html = renderStaticIntl(
+      <HomeLayoutEditor
+        initialSections={sections}
+        signal={{
+          preset: 'hypertrophy',
+          medianWorkingReps: 11,
+          muscleGroupCount: 7,
+          windowWeeks: 8,
+        }}
+      />,
+    )
+    expect(html).toContain('What we read from your training')
+    expect(html).toContain('Median 11 reps')
+    expect(html).toContain('7 muscle groups')
+    // It offers; it never applies itself. And it says where it did NOT look.
+    expect(html).toContain('>Use</button>')
+    expect(html).toContain('never from what you tap on this screen')
+  })
+
+  test('does not suggest the layout you are already on', () => {
+    const html = renderStaticIntl(
+      <HomeLayoutEditor
+        initialSections={applyPreset('cut')}
+        signal={{ preset: 'cut', medianWorkingReps: 8, muscleGroupCount: 6, windowWeeks: 8 }}
+      />,
+    )
+    expect(html).not.toContain('What we read from your training')
   })
 
   test('server render is the STATIC grid — no drag attributes before the dnd chunk loads', () => {
