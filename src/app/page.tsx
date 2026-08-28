@@ -8,7 +8,8 @@ import { ConsentIdentity } from "@/components/consent-identity";
 import { listWorkoutSummaries } from "@/db/workouts";
 import { listWorkoutDrafts } from "@/db/workout-drafts";
 import { getNextProgramDay } from "@/db/programs";
-import { getWeightUnit, getHomeLayout } from "@/db/preferences";
+import { getWeightUnit } from "@/db/preferences";
+import { getSeededHomeLayout } from "@/db/home-signal";
 import { resolveActiveSession } from "@/lib/active-session";
 import { getCheckInStatus } from "@/lib/check-in";
 import { getGoalsHomeSummary } from "@/lib/goals";
@@ -39,12 +40,16 @@ export default async function HomePage() {
   // props need; MomentumPanel self-fetches the rest. Every reader here is
   // request-memoized (React cache), so overlap with the panel (summaries,
   // unit, goals) still costs one query per request.
+  // One instant for the whole request: the layout seed's eight-week window
+  // and the trained-today gate below must not straddle a tick.
+  const now = new Date();
   const [summaries, unit, layout, nextDay, drafts, checkIn, goalsSummary] = await Promise.all([
     listWorkoutSummaries(userId),
     getWeightUnit(userId),
-    // The section layout rides the SAME memoized preferences row as the unit
-    // read above — resolving it adds zero queries to the default render.
-    getHomeLayout(userId),
+    // Rides the SAME memoized preferences row as the unit read above, so a
+    // saved layout still resolves with zero extra queries. Only a home nobody
+    // has customized goes on to ask the derived read what to show.
+    getSeededHomeLayout(userId, now.getTime()),
     getNextProgramDay(userId),
     listWorkoutDrafts(userId),
     // Null when the active program suggests no cadence — the card is gated on
@@ -59,7 +64,6 @@ export default async function HomePage() {
   // every change; saving deletes it) — and a started-but-unfinished workout
   // is one too, even before its first edit (starting a program day creates
   // the row immediately). Drafts win: they carry unsaved sets.
-  const now = new Date();
   const activeSession = resolveActiveSession(drafts, summaries, now);
   // Single-active-session guard: every "start something new" tap below gets
   // the live session (as the dialog's slim summary) so it can ask

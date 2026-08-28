@@ -10,6 +10,7 @@ import {
   type StatedFacts,
 } from './signal'
 import { applyPreset, GENERAL_PRESET_ID, HOME_PRESETS } from './presets'
+import { resolveHomeLayout } from './layout'
 
 /** A blank slate with enough volume to be readable, so each test states only
  *  the fact it is actually about. */
@@ -165,6 +166,12 @@ describe('defaultLayoutFor', () => {
 
   it('lands on the general preset when the signal reads nothing', () => {
     expect(defaultLayoutFor(null)).toEqual(applyPreset(GENERAL_PRESET_ID))
+  })
+
+  it('seeds a DIFFERENT home than the bare default — the seed has to be worth reading', () => {
+    // If the seed matched resolveHomeLayout(null) there would be no point
+    // computing a signal at all.
+    expect(defaultLayoutFor(null)).not.toEqual(resolveHomeLayout(null))
   })
 
   it('produces a complete, storable layout for every archetype it can name', () => {

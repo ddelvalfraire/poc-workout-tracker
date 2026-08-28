@@ -4,10 +4,13 @@ import { and, desc, eq, gte, isNotNull, isNull, ne } from 'drizzle-orm'
 import { db } from '@/db'
 import { goals, programs, sets, workoutExercises, workouts } from '@/db/schema'
 import { buildMuscleResolver } from '@/db/muscle-volume'
+import { getHomeLayout, hasStoredHomeLayout } from '@/db/preferences'
+import type { ResolvedHomeSection } from '@/lib/home/layout'
 import type { BodyweightTarget } from '@/lib/goal-input'
 import {
   aggregateTrainingFacts,
   classifyTrainingSignal,
+  defaultLayoutFor,
   SIGNAL_WINDOW_WEEKS,
   type SignalSetRow,
   type StatedFacts,
@@ -108,6 +111,32 @@ const fetchSignalRows = cache(async (userId: string, nowMs: number) => {
 
   return rows
 })
+
+/**
+ * The layout home should render — the order of authority, in one place.
+ *
+ *   saved layout  >  derived read  >  general default
+ *
+ * A layout you saved wins forever and short-circuits before the signal is
+ * ever computed, so someone who has customized their home pays nothing for a
+ * read that could not change anything. Only a home nobody has touched asks
+ * what the training data suggests, and a signal that reads nothing lands on
+ * the general preset.
+ *
+ * The seed is NEVER written back. Tomorrow's read may suggest something else
+ * and should be free to; persisting it here would silently manufacture the
+ * "saved layout" that outranks it.
+ */
+export const getSeededHomeLayout = cache(
+  async (userId: string, nowMs: number): Promise<ResolvedHomeSection[]> => {
+    const [layout, isSaved] = await Promise.all([
+      getHomeLayout(userId),
+      hasStoredHomeLayout(userId),
+    ])
+    if (isSaved) return layout
+    return defaultLayoutFor(await getTrainingSignal(userId, nowMs))
+  },
+)
 
 /**
  * The app's read of how this person trains, or null when the facts describe
