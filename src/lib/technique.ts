@@ -143,7 +143,7 @@ export function expandTechniqueStages(
       const last = i === technique.stages.length - 1
       rows.push({
         ...set,
-        loadKg: stageLoadKg(stage, set.loadKg, unit),
+        loadKg: stageLoadKg(stage, set, unit),
         repMin: stage.reps ?? null,
         repMax: stage.reps ?? null,
         restSec: last ? set.restSec : intraRestSec(technique, i + 1),
@@ -173,12 +173,20 @@ export function expandTechniqueStages(
  */
 function stageLoadKg(
   stage: Technique['stages'][number],
-  topLoadKg: number | null,
+  top: Pick<DerivedSet, 'loadKg' | 'metricMode'>,
   unit: WeightUnit,
 ): number | null {
   if (stage.loadKg != null) return stage.loadKg
-  if (stage.loadPct == null || topLoadKg == null) return null
-  return quantizeLoadKg(topLoadKg * stage.loadPct, unit)
+  if (stage.loadPct == null) return null
+  // Metric-mode guard, stated rather than inferred. A timed row derives with a
+  // null load today, so trusting that would work — but `applyOverride` makes
+  // exactly this check for exactly this reason ("a stray/legacy per-week
+  // suggestedLoadKg must not resurrect a load onto a duration set"), and a
+  // percentage is the same hazard from a different direction. Duration is never
+  // multiplied by a load factor.
+  if (top.metricMode !== 'reps_weight') return null
+  if (top.loadKg == null) return null
+  return quantizeLoadKg(top.loadKg * stage.loadPct, unit)
 }
 
 /** The pause AFTER stage `index`, seconds: what the stage authored, else 0

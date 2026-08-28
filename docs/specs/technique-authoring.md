@@ -98,7 +98,7 @@ The engine's contract, stated once and obeyed by the preview:
 | Both `loadKg` and `loadPct` present | **Parse error.** Not a precedence rule — a stage means one thing |
 | `loadPct` present, top set's derived load is a number | `quantizeLoadKg(top × pct, unit)` (`src/lib/load-quantize.ts`) |
 | `loadPct` present, top set's derived load is `null` | Resolves to `null` — the captured case. A percentage of nothing is nothing, and inventing a number here is the phantom prescription the doc already banned |
-| `loadPct` on a timed set (`duration` / `duration_distance`) | Resolves to `null`. `durationSec` is never multiplied by a load factor — the same rule the deload shape follows |
+| `loadPct` on a timed set (`duration` / `duration_distance`) | Resolves to `null`, checked on `metricMode` rather than inferred from a null load — the guard `applyOverride` already makes. `durationSec` is never multiplied by a load factor |
 | Range | `0 < loadPct ≤ 2`. Above 1.0 is legal — an ascending cluster is a real thing |
 
 Quantization matters for the same reason it does at derivation (#226): the drop

@@ -171,6 +171,24 @@ describe('expandTechniqueStages', () => {
       expect(rows[1].loadKg).toBeNull()
     })
 
+    it('resolves to null on a timed set — duration is never scaled by a load', () => {
+      // The spec's rule is metric-mode based, and so is the code. A timed row
+      // derives with a null load today, so this would pass either way; the
+      // guard exists so a legacy or mixed row cannot put a weight on a
+      // duration set, which is the hazard applyOverride already guards.
+      const timed = derivedSet({
+        metricMode: 'duration',
+        loadKg: 60,
+        durationSec: 45,
+        technique: pctDrop,
+      })
+
+      const rows = expandTechniqueStages([timed], 'kg')
+
+      expect(rows[1].loadKg).toBeNull()
+      expect(rows[1].durationSec).toBe(45)
+    })
+
     it('resolves on the reader\'s grid, not always the kg one', () => {
       const rows = expandTechniqueStages([derivedSet({ loadKg: 100, technique: pctDrop })], 'lb')
 
