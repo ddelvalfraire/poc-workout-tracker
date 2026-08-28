@@ -4,7 +4,6 @@ import Link from 'next/link'
 import { Check, ChevronRight } from 'lucide-react'
 import { isSameLocalDay } from '@/lib/local-day'
 import { useMounted } from '@/lib/use-mounted'
-import type { HomeSectionSize } from '@/lib/home/registry'
 import { DividerList } from '@/components/ui/divider-list'
 import { formatVolume, formatWorkoutDuration } from '@/lib/format'
 import type { WeightUnit } from '@/lib/units'
@@ -43,7 +42,7 @@ export function TodayRecap({
   workouts: RecapWorkout[]
   unit: WeightUnit
   /** Layout size class: sm renders one compact line; md the full cards. */
-  size?: Extract<HomeSectionSize, 'sm' | 'md'>
+  size?: Extract<'sm' | 'md', 'sm' | 'md'>
 }) {
   const t = useTranslations('TodayRecap')
   const tFormat = useTranslations('Format')

@@ -15,9 +15,9 @@ vi.mock('@/app/actions', () => ({
 import { HomeLayoutEditor } from './home-layout-editor'
 
 const sections: ResolvedHomeSection[] = [
-  { id: 'momentum', kind: 'momentum', size: 'sm', hidden: false },
-  { id: 'today-recap', kind: 'today-recap', size: 'md', hidden: true },
-  { id: 'unfinished', kind: 'unfinished', size: 'md', hidden: false },
+  { id: 'momentum', kind: 'momentum', shape: 'micro', hidden: false },
+  { id: 'today-recap', kind: 'today-recap', shape: 'wide', hidden: true },
+  { id: 'unfinished', kind: 'unfinished', shape: 'wide', hidden: false },
 ]
 
 describe('HomeLayoutEditor (grid preview)', () => {
@@ -37,10 +37,10 @@ describe('HomeLayoutEditor (grid preview)', () => {
     expect(html.match(/col-span-2/g)).toHaveLength(2)
   })
 
-  test('every tile is a schematic button (title + bg-muted bars, aria size state)', () => {
+  test('every tile is a schematic button (title + bg-muted bars, aria shape state)', () => {
     const html = renderStaticIntl(<HomeLayoutEditor initialSections={sections} />)
     expect(html).toContain('aria-label="Momentum — Small. Edit section"')
-    expect(html).toContain('aria-label="Unfinished — Medium. Edit section"')
+    expect(html).toContain('aria-label="Unfinished — Wide. Edit section"')
     expect(html).toContain('bg-muted')
   })
 

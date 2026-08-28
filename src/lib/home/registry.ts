@@ -16,11 +16,33 @@
  * Array order IS the default home order.
  */
 
-/** Abstract size classes over a 4-unit row: sm=1, md=2, lg=4. Each platform
- *  maps them to its own grid (web: home-sections.tsx). */
-export type HomeSectionSize = 'sm' | 'md' | 'lg'
+/**
+ * Abstract TILE SHAPES, two-dimensional by construction. A one-dimensional
+ * size ('sm' | 'md' | 'lg') could only ever vary a tile's width, which is a
+ * responsive card list rather than a bento — the vertical break is what stops
+ * a grid reading as a stack. Each platform maps these to its own grid (web:
+ * home-sections.tsx); the units below are columns x rows on the phone's
+ * 2-column grid, and wider breakpoints re-map them.
+ */
+export type HomeSectionShape = 'micro' | 'wide' | 'tall' | 'block' | 'hero'
 
-export const HOME_SECTION_SIZES = ['sm', 'md', 'lg'] as const satisfies readonly HomeSectionSize[]
+export const HOME_SECTION_SHAPES = [
+  'micro',
+  'wide',
+  'tall',
+  'block',
+  'hero',
+] as const satisfies readonly HomeSectionShape[]
+
+/** Columns x rows per shape on the phone grid. The single source for spans —
+ *  every platform reads these rather than hard-coding its own. */
+export const SHAPE_UNITS: Record<HomeSectionShape, { cols: number; rows: number }> = {
+  micro: { cols: 1, rows: 1 },
+  wide: { cols: 2, rows: 1 },
+  tall: { cols: 1, rows: 2 },
+  block: { cols: 2, rows: 2 },
+  hero: { cols: 2, rows: 3 },
+}
 
 /** The `HomeSection` catalog keys, written out rather than derived from
  *  `kind` — a template-literal type would type-check against nothing, and the
@@ -48,12 +70,12 @@ export interface HomeSectionMeta {
   titleKey: HomeSectionTitleKey
   /** One benefit-first clause for the editor row's hint. */
   descriptionKey: HomeSectionDescriptionKey
-  /** Sizes this section knows how to render — the write boundary rejects
-   *  anything else; reads normalize to `defaultSize`. */
-  allowedSizes: readonly HomeSectionSize[]
-  /** The size a section gets when the document doesn't say (and what
-   *  serialization omits) — each kind's pre-bento rendering. */
-  defaultSize: HomeSectionSize
+  /** Shapes this section knows how to render — the write boundary rejects
+   *  anything else; reads normalize to `defaultShape`. */
+  allowedShapes: readonly HomeSectionShape[]
+  /** The shape a section gets when the document doesn't say (and what
+   *  serialization omits). */
+  defaultShape: HomeSectionShape
   /** Whether a layout may hold MORE THAN ONE instance of this kind. Only
    *  meaningful for sections that carry per-instance config — a pinned lift
    *  trend is the motivating case (two charts, two different lifts). Absent
@@ -66,22 +88,22 @@ export const HOME_SECTION_REGISTRY = [
     kind: 'momentum',
     titleKey: 'title.momentum',
     descriptionKey: 'description.momentum',
-    allowedSizes: ['sm', 'md', 'lg'],
-    defaultSize: 'md',
+    allowedShapes: ['micro', 'wide', 'block'],
+    defaultShape: 'wide',
   },
   {
     kind: 'today-recap',
     titleKey: 'title.todayRecap',
     descriptionKey: 'description.todayRecap',
-    allowedSizes: ['sm', 'md'],
-    defaultSize: 'md',
+    allowedShapes: ['micro', 'wide'],
+    defaultShape: 'wide',
   },
   {
     kind: 'unfinished',
     titleKey: 'title.unfinished',
     descriptionKey: 'description.unfinished',
-    allowedSizes: ['md'],
-    defaultSize: 'md',
+    allowedShapes: ['wide'],
+    defaultShape: 'wide',
   },
 ] as const satisfies readonly HomeSectionMeta[]
 

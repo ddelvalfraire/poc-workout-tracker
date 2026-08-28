@@ -1389,16 +1389,16 @@
     "deloadPolicy": {
       "legend": "Deload",
       "none": {
-        "label": "None",
-        "hint": "Every week is a working week."
+        "hint": "Every week is a working week.",
+        "label": "None"
       },
       "reactive": {
-        "label": "Reactive",
-        "hint": "Only backs off when stalls suggest one."
+        "hint": "Only backs off when stalls suggest one.",
+        "label": "Reactive"
       },
       "scheduled": {
-        "label": "Scheduled",
-        "hint": "Backs off on the deload week, every block."
+        "hint": "Backs off on the deload week, every block.",
+        "label": "Scheduled"
       },
       "shape": "{load}% of the load · {sets}% of the sets",
       "shapeWithCap": "{load}% of the load · {sets}% of the sets · effort capped at RPE {rpeCap}"
@@ -1406,22 +1406,22 @@
     "deloadWeekAriaLabel": "Deload week",
     "deloadWeekPlaceholder": "Deload week (optional)",
     "dietPhase": {
-      "legend": "Diet phase",
-      "none": {
-        "label": "None",
-        "hint": "No phase — the engine behaves exactly as it always has."
+      "bulking": {
+        "hint": "Normal progression.",
+        "label": "Bulking"
       },
       "cutting": {
-        "label": "Cutting",
-        "hint": "On a stall we trim volume and hold the load — in a deficit the load is the thing worth protecting."
+        "hint": "On a stall we trim volume and hold the load — in a deficit the load is the thing worth protecting.",
+        "label": "Cutting"
       },
+      "legend": "Diet phase",
       "maintaining": {
-        "label": "Maintaining",
-        "hint": "Normal progression."
+        "hint": "Normal progression.",
+        "label": "Maintaining"
       },
-      "bulking": {
-        "label": "Bulking",
-        "hint": "Normal progression."
+      "none": {
+        "hint": "No phase — the engine behaves exactly as it always has.",
+        "label": "None"
       }
     },
     "discardAction": "Discard",
@@ -1991,7 +1991,7 @@
     "separator": "—"
   },
   "SectionTile": {
-    "ariaLabel": "{state, select, hidden {{section} — hidden. Edit section} sm {{section} — Small. Edit section} md {{section} — Medium. Edit section} lg {{section} — Large. Edit section} other {{section}. Edit section}}"
+    "ariaLabel": "{state, select, hidden {{section} — hidden. Edit section} micro {{section} — Small. Edit section} wide {{section} — Wide. Edit section} tall {{section} — Tall. Edit section} block {{section} — Block. Edit section} hero {{section} — Hero. Edit section} other {{section}. Edit section}}"
   },
   "SessionConflictDialog": {
     "continueAction": "Continue workout",
@@ -2392,13 +2392,15 @@
       "up": "Up",
       "upLabel": "Move {section} up"
     },
-    "sizeGroupLabel": "{section} size",
-    "sizeLabel": {
-      "lg": "L",
-      "md": "M",
-      "sm": "S"
+    "shapeGroupLabel": "{section} shape",
+    "shapeLabel": {
+      "block": "B",
+      "hero": "H",
+      "micro": "S",
+      "tall": "T",
+      "wide": "W"
     },
-    "sizeOptionLabel": "{size, select, sm {Small {section}} md {Medium {section}} lg {Large {section}} other {{section}}}",
+    "shapeOptionLabel": "{shape, select, micro {Small {section}} wide {Wide {section}} tall {Tall {section}} block {Block {section}} hero {Hero {section}} other {{section}}}",
     "visibility": {
       "ariaLabel": "Show {section} on Home",
       "hint": "Hidden sections keep tracking — they just don’t show.",

@@ -6,7 +6,7 @@ import { TileSheet } from './tile-sheet'
 
 /**
  * Static-render tests for the tile sheet's GATING: which size radios are
- * enabled (allowedSizes only), which move buttons disable at the edges, and
+ * enabled (allowedShapes only), which move buttons disable at the edges, and
  * the switch's checked state. Dialog behavior (showModal, backdrop dismiss)
  * lives in effects a static render never runs — that recipe is shared with
  * rest-sheet and exercised there/in e2e.
@@ -17,7 +17,7 @@ const metaOf = (kind: string) => HOME_SECTION_REGISTRY.find((s) => s.kind === ki
 const noop = () => {}
 const handlers = {
   onClose: noop,
-  onSize: noop as (size: ResolvedHomeSection['size']) => void,
+  onShape: noop as (shape: ResolvedHomeSection['shape']) => void,
   onToggle: noop,
   onMove: noop as (direction: 'up' | 'down') => void,
   onMoveToTop: noop,
@@ -25,7 +25,7 @@ const handlers = {
 
 function render(overrides: {
   kind: string
-  size?: ResolvedHomeSection['size']
+  shape?: ResolvedHomeSection['shape']
   hidden?: boolean
   index: number
   count: number
@@ -34,7 +34,7 @@ function render(overrides: {
   const section: ResolvedHomeSection = {
     id: overrides.kind,
     kind: overrides.kind,
-    size: overrides.size ?? meta.defaultSize,
+    shape: overrides.shape ?? meta.defaultShape,
     hidden: overrides.hidden ?? false,
   }
   return renderStaticIntl(
@@ -70,21 +70,21 @@ describe('TileSheet', () => {
     }
   })
 
-  test('size control gating: only allowedSizes are enabled (unfinished is md-only)', () => {
+  test('shape control gating: only allowedShapes are enabled (unfinished is wide-only)', () => {
     const html = render({ kind: 'unfinished', index: 1, count: 4 })
     expect(html).toContain('role="radiogroup"')
     // S and L exist but are disabled; M is enabled and checked.
     expect(html).toContain('aria-checked="false" aria-label="Small Unfinished" disabled=""')
-    expect(html).toContain('aria-checked="false" aria-label="Large Unfinished" disabled=""')
-    expect(html).toContain('aria-checked="true" aria-label="Medium Unfinished"')
-    expect(html).not.toContain('aria-label="Medium Unfinished" disabled=""')
+    expect(html).toContain('aria-checked="false" aria-label="Block Unfinished" disabled=""')
+    expect(html).toContain('aria-checked="true" aria-label="Wide Unfinished"')
+    expect(html).not.toContain('aria-label="Wide Unfinished" disabled=""')
   })
 
-  test('size control reflects the current size for a full-range kind', () => {
-    const html = render({ kind: 'momentum', size: 'sm', index: 0, count: 4 })
+  test('shape control reflects the current shape for a full-range kind', () => {
+    const html = render({ kind: 'momentum', shape: 'micro', index: 0, count: 4 })
     expect(html).toContain('aria-checked="true" aria-label="Small Momentum"')
     expect(html).not.toContain('aria-label="Small Momentum" disabled=""')
-    expect(html).not.toContain('aria-label="Large Momentum" disabled=""')
+    expect(html).not.toContain('aria-label="Block Momentum" disabled=""')
   })
 
   test('move gating at the top edge: Up and To top disable, Down stays live', () => {

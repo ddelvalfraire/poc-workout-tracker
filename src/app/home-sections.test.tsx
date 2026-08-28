@@ -1,5 +1,5 @@
 import { describe, it, expect, test, vi } from 'vitest'
-import { HOME_SECTION_REGISTRY } from '@/lib/home/registry'
+import { HOME_SECTION_REGISTRY, type HomeSectionShape } from '@/lib/home/registry'
 import { renderStaticIntl } from '../../vitest.intl'
 import type { WorkoutSummary } from '@/db/workouts'
 import { renderHomeSections, type HomeSectionContext } from './home-sections'
@@ -24,7 +24,7 @@ function stubRenderers() {
 function wrappersOf(rendered: ReturnType<typeof renderHomeSections>) {
   const container = rendered as React.ReactElement<{
     className: string
-    children: (React.ReactElement<{ className: string }> | null)[]
+    children: (React.ReactElement<{ style: Record<string, string> }> | null)[]
   }>
   return {
     container,
@@ -37,16 +37,16 @@ describe('renderHomeSections', () => {
     const renderers = stubRenderers()
     renderHomeSections(
       [
-        { id: 'momentum', kind: 'momentum', size: 'md', hidden: false },
-        { id: 'today-recap', kind: 'today-recap', size: 'md', hidden: false },
-        { id: 'unfinished', kind: 'unfinished', size: 'md', hidden: false },
+        { id: 'momentum', kind: 'momentum', shape: 'wide', hidden: false },
+        { id: 'today-recap', kind: 'today-recap', shape: 'wide', hidden: false },
+        { id: 'unfinished', kind: 'unfinished', shape: 'wide', hidden: false },
       ],
       ctx,
       renderers,
     )
     for (const kind of Object.keys(renderers)) {
       expect(renderers[kind]).toHaveBeenCalledTimes(1)
-      expect(renderers[kind]).toHaveBeenCalledWith(ctx, 'md')
+      expect(renderers[kind]).toHaveBeenCalledWith(ctx, 'wide')
     }
   })
 
@@ -54,8 +54,8 @@ describe('renderHomeSections', () => {
     const renderers = stubRenderers()
     renderHomeSections(
       [
-        { id: 'momentum', kind: 'momentum', size: 'md', hidden: true },
-        { id: 'today-recap', kind: 'today-recap', size: 'md', hidden: false },
+        { id: 'momentum', kind: 'momentum', shape: 'wide', hidden: true },
+        { id: 'today-recap', kind: 'today-recap', shape: 'wide', hidden: false },
       ],
       ctx,
       renderers,
@@ -69,8 +69,8 @@ describe('renderHomeSections', () => {
     expect(() =>
       renderHomeSections(
         [
-          { id: 'from-the-future', kind: 'from-the-future', size: 'md', hidden: false },
-          { id: 'momentum', kind: 'momentum', size: 'md', hidden: false },
+          { id: 'from-the-future', kind: 'from-the-future', shape: 'wide', hidden: false },
+          { id: 'momentum', kind: 'momentum', shape: 'wide', hidden: false },
         ],
         ctx,
         renderers,
@@ -86,7 +86,7 @@ describe('renderHomeSections', () => {
     const sections = HOME_SECTION_REGISTRY.map((s) => ({
       id: s.kind,
       kind: s.kind,
-      size: s.defaultSize,
+      shape: s.defaultShape,
       hidden: false,
     }))
     const { wrappers } = wrappersOf(
@@ -101,47 +101,70 @@ describe('renderHomeSections', () => {
     expect(wrappers).toHaveLength(HOME_SECTION_REGISTRY.length)
   })
 
-  it('DEFAULT-layout parity: every default section spans the full phone row and the grid adds no vertical spacing', () => {
-    // The parity contract holds on the PHONE column: a user with no stored
-    // doc gets sections that each span the full 2-col base grid — full-width
-    // stacked, exactly the pre-bento home. The md: classes are desktop-only
-    // additions and never touch the base rendering. gap-x only: vertical
-    // rhythm stays owned by each section's own mt-* margins.
+  it('DEFAULT-layout parity: every default section is a full-width wide cell', () => {
+    // Every kind shipped today defaults to `wide` (2 of the phone's 2
+    // columns), so the default home is still a full-width stack — the bento
+    // only appears once someone picks a narrower shape.
     const sections = HOME_SECTION_REGISTRY.map((s) => ({
       id: s.kind,
       kind: s.kind,
-      size: s.defaultSize,
+      shape: s.defaultShape,
       hidden: false,
     }))
-    const { container, wrappers } = wrappersOf(
-      renderHomeSections(sections, ctx, stubRenderers()),
-    )
-    expect(container.props.className).toBe('grid grid-cols-2 gap-x-3 md:grid-cols-4 md:gap-x-6')
-    for (const wrapper of wrappers) {
-      // Base span first, then (only) md: desktop modifiers — the phone
-      // rendering is always the plain col-span-2 full row.
-      expect(wrapper.props.className).toMatch(/^col-span-2( md:col-span-4)?$/)
-    }
+    const { wrappers } = wrappersOf(renderHomeSections(sections, ctx, stubRenderers()))
+    wrappers.forEach((wrapper, i) => {
+      // wide is 2 of 2 phone columns, 2 of 4, 2 of 6 — so it stacks on the
+      // phone and pairs up on the wider grids.
+      expect(wrapper.props.style['--r2']).toBe(`${i + 1} / span 1`)
+      expect(wrapper.props.style['--c2']).toBe('1 / span 2')
+    })
   })
 
-  it('maps sizes to spans: phone 2-col base plus the literal 4-unit desktop row (sm=1, md=2, lg=4)', () => {
+  it('packs shapes two-dimensionally: a tall cell keeps its column while the next fills beside it', () => {
     const { wrappers } = wrappersOf(
       renderHomeSections(
         [
-          { id: 'today-recap', kind: 'today-recap', size: 'sm', hidden: false },
-          { id: 'unfinished', kind: 'unfinished', size: 'md', hidden: false },
-          { id: 'momentum', kind: 'momentum', size: 'lg', hidden: false },
+          { id: 'momentum', kind: 'momentum', shape: 'block', hidden: false },
+          { id: 'today-recap', kind: 'today-recap', shape: 'micro', hidden: false },
+          { id: 'unfinished', kind: 'unfinished', shape: 'wide', hidden: false },
         ],
         ctx,
         stubRenderers(),
       ),
     )
-    expect(wrappers.map((w) => w.props.className)).toEqual([
-      'col-span-1',
-      'col-span-2',
-      'col-span-2 md:col-span-4',
+    expect(wrappers.map((w) => [w.props.style['--r2'], w.props.style['--c2']])).toEqual([
+      // block: both phone columns, two rows
+      ['1 / span 2', '1 / span 2'],
+      // micro: first free cell after it — row 3, column 1
+      ['3 / span 1', '1 / span 1'],
+      // wide needs both columns, so it starts a new row rather than
+      // squeezing into the gap beside the micro
+      ['4 / span 1', '1 / span 2'],
+    ])
+    // The same list packs tighter on the 4-column grid: the micro sits
+    // beside the block instead of below it.
+    expect(wrappers.map((w) => w.props.style['--c4'])).toEqual([
+      '1 / span 2',
+      '3 / span 1',
+      '3 / span 2',
     ])
   })
+
+  it('a hidden section reserves no space in the grid', () => {
+    const { wrappers } = wrappersOf(
+      renderHomeSections(
+        [
+          { id: 'momentum', kind: 'momentum', shape: 'wide', hidden: true },
+          { id: 'unfinished', kind: 'unfinished', shape: 'wide', hidden: false },
+        ],
+        ctx,
+        stubRenderers(),
+      ),
+    )
+    expect(wrappers).toHaveLength(1)
+    expect(wrappers[0].props.style['--r2']).toBe('1 / span 1')
+  })
+
 })
 
 /**
@@ -170,11 +193,11 @@ function workout(over: Partial<WorkoutSummary> = {}): WorkoutSummary {
 
 function renderSection(
   kind: 'unfinished',
-  size: 'sm' | 'md' | 'lg',
+  shape: HomeSectionShape,
   workouts: WorkoutSummary[],
 ): string {
   return renderStaticIntl(
-    renderHomeSections([{ id: kind, kind, size, hidden: false }], {
+    renderHomeSections([{ id: kind, kind, shape, hidden: false }], {
       userId: 'user_123',
       nowMs: Date.parse('2026-03-05T09:00:00Z'),
       unit: 'kg',
@@ -186,7 +209,7 @@ function renderSection(
 
 describe('HomeSections copy', () => {
   test('names the unfinished section and its resume affordance', () => {
-    const html = renderSection('unfinished', 'md', [workout({ completedAt: null })])
+    const html = renderSection('unfinished', 'wide', [workout({ completedAt: null })])
 
     expect(html).toContain('Unfinished')
     expect(html).toContain('Resume')
@@ -194,7 +217,7 @@ describe('HomeSections copy', () => {
   })
 
   test('reads the singular set form on a session with one set logged', () => {
-    const html = renderSection('unfinished', 'md', [
+    const html = renderSection('unfinished', 'wide', [
       workout({ completedAt: null, completedSetCount: 1 }),
     ])
 
@@ -203,7 +226,7 @@ describe('HomeSections copy', () => {
   })
 
   test('reads the plural set form on a session with several sets logged', () => {
-    const html = renderSection('unfinished', 'md', [
+    const html = renderSection('unfinished', 'wide', [
       workout({ completedAt: null, completedSetCount: 4 }),
     ])
 
@@ -211,13 +234,13 @@ describe('HomeSections copy', () => {
   })
 
   test('falls back to the untitled-workout name', () => {
-    const html = renderSection('unfinished', 'md', [workout({ completedAt: null, name: null })])
+    const html = renderSection('unfinished', 'wide', [workout({ completedAt: null, name: null })])
 
     expect(html).toContain('Workout')
   })
 
   test('resolves every key it references', () => {
-    const unfinished = renderSection('unfinished', 'md', [workout({ completedAt: null })])
+    const unfinished = renderSection('unfinished', 'wide', [workout({ completedAt: null })])
 
     expect(unfinished).not.toMatch(/HomeSections\.[a-zA-Z.]+/)
   })

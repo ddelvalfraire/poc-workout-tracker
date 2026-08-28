@@ -33,10 +33,10 @@ export function EditorGrid({ sections, onOpen }: EditorGridProps) {
         const meta = HOME_SECTION_REGISTRY.find((s) => s.kind === section.kind)
         if (!meta) return null // unknown kind (future client): not editable here
         return (
-          <div key={section.id} className={TILE_SPAN[section.size]}>
+          <div key={section.id} className={TILE_SPAN[section.shape]}>
             <SectionTile
               title={t(meta.titleKey)}
-              size={section.size}
+              shape={section.shape}
               hidden={section.hidden}
               onOpen={() => onOpen(section.id)}
             />

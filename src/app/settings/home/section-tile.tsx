@@ -1,5 +1,5 @@
 import { useTranslations } from 'next-intl'
-import type { HomeSectionSize } from '@/lib/home/registry'
+import type { HomeSectionShape } from '@/lib/home/registry'
 import { cn } from '@/lib/utils'
 
 /**
@@ -12,53 +12,61 @@ import { cn } from '@/lib/utils'
  * in place, dimmed — hiding is not removing.
  */
 
-/** The editor's copy of home's span mapping (home-sections.tsx SIZE_SPAN):
- *  the preview must flow exactly like the real 2-col grid. Kept separate on
- *  purpose — the home render path stays untouched by the editor. */
-export const TILE_SPAN: Record<HomeSectionSize, string> = {
-  sm: 'col-span-1',
-  md: 'col-span-2',
-  lg: 'col-span-2',
+/** The editor's copy of home's column spans: the preview must flow exactly
+ *  like the real 2-col grid. Kept separate on purpose — the home render path
+ *  stays untouched by the editor. Row spans come from TILE_HEIGHT below,
+ *  which keeps the schematic readable without a fixed-row grid. */
+export const TILE_SPAN: Record<HomeSectionShape, string> = {
+  micro: 'col-span-1',
+  wide: 'col-span-2',
+  tall: 'col-span-1',
+  block: 'col-span-2',
+  hero: 'col-span-2',
 }
 
-/** Shape-true footprints: sm is a compact half-width stat, md a full row,
- *  lg a taller stack of rows. Explicit heights so a size change animates
- *  (motion-safe) instead of snapping. */
-const TILE_HEIGHT: Record<HomeSectionSize, string> = {
-  sm: 'h-24',
-  md: 'h-24',
-  lg: 'h-40',
+/** Shape-true footprints, proportional to each shape's row count so the
+ *  schematic reads like the grid it stands for. Explicit heights so a shape
+ *  change animates (motion-safe) instead of snapping. */
+const TILE_HEIGHT: Record<HomeSectionShape, string> = {
+  micro: 'h-24',
+  wide: 'h-24',
+  tall: 'h-52',
+  block: 'h-52',
+  hero: 'h-80',
 }
 
-/** Skeleton bars per size — a numeral-ish block for sm, list rows for md/lg. */
-const TILE_BARS: Record<HomeSectionSize, readonly string[]> = {
-  sm: ['h-5 w-1/2', 'h-2 w-3/4'],
-  md: ['h-2 w-full', 'h-2 w-full', 'h-2 w-2/3'],
-  lg: ['h-2 w-full', 'h-2 w-full', 'h-2 w-full', 'h-2 w-full', 'h-2 w-2/3'],
+/** Skeleton bars per shape — a numeral-ish block for the one-number shapes,
+ *  list rows for the taller ones. */
+const TILE_BARS: Record<HomeSectionShape, readonly string[]> = {
+  micro: ['h-5 w-1/2', 'h-2 w-3/4'],
+  wide: ['h-2 w-full', 'h-2 w-full', 'h-2 w-2/3'],
+  tall: ['h-5 w-1/2', 'h-2 w-full', 'h-2 w-full', 'h-2 w-2/3'],
+  block: ['h-5 w-1/3', 'h-2 w-full', 'h-2 w-full', 'h-2 w-2/3'],
+  hero: ['h-6 w-1/3', 'h-2 w-full', 'h-2 w-full', 'h-2 w-full', 'h-2 w-2/3'],
 }
 
 export interface SectionTileProps {
   title: string
-  size: HomeSectionSize
+  shape: HomeSectionShape
   hidden: boolean
   onOpen: () => void
 }
 
-export function SectionTile({ title, size, hidden, onOpen }: SectionTileProps) {
+export function SectionTile({ title, shape, hidden, onOpen }: SectionTileProps) {
   const t = useTranslations('SectionTile')
   return (
     <button
       type="button"
       onClick={onOpen}
-      // One ICU message with a select, not a sentence assembled from a size
-      // word and a template literal: the size noun and the section name sit
+      // One ICU message with a select, not a sentence assembled from a shape
+      // word and a template literal: the shape noun and the section name sit
       // in different places once the sentence is translated.
-      aria-label={t('ariaLabel', { section: title, state: hidden ? 'hidden' : size })}
+      aria-label={t('ariaLabel', { section: title, state: hidden ? 'hidden' : shape })}
       className={cn(
         'flex w-full flex-col items-start gap-2.5 overflow-hidden rounded-lg border border-border/60 p-3 text-left',
         'transition-colors outline-none hover:bg-muted/50 focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-hidden',
         'motion-safe:transition-all motion-safe:duration-200',
-        TILE_HEIGHT[size],
+        TILE_HEIGHT[shape],
         hidden && 'opacity-40',
       )}
     >
@@ -66,7 +74,7 @@ export function SectionTile({ title, size, hidden, onOpen }: SectionTileProps) {
         {title}
       </span>
       <span aria-hidden="true" className="flex w-full flex-1 flex-col justify-between gap-1.5">
-        {TILE_BARS[size].map((bar, i) => (
+        {TILE_BARS[shape].map((bar, i) => (
           <span key={i} className={cn('block rounded bg-muted', bar)} />
         ))}
       </span>

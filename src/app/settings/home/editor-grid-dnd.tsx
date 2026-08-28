@@ -134,7 +134,7 @@ export function DndGrid({
         {active !== undefined && activeMeta !== undefined ? (
           <SectionTile
             title={t(activeMeta.titleKey)}
-            size={active.size}
+            shape={active.shape}
             hidden={active.hidden}
             onOpen={() => {}}
           />
@@ -163,7 +163,7 @@ function SortableTile({
       {...attributes}
       {...listeners}
       className={cn(
-        TILE_SPAN[section.size],
+        TILE_SPAN[section.shape],
         'rounded-lg touch-manipulation outline-none focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-hidden',
         // The original stays in the grid as the drop slot while the
         // DragOverlay carries the visual.
@@ -172,7 +172,7 @@ function SortableTile({
     >
       <SectionTile
         title={t(meta.titleKey)}
-        size={section.size}
+        shape={section.shape}
         hidden={section.hidden}
         onOpen={onOpen}
       />

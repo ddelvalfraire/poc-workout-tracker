@@ -122,7 +122,7 @@ export default async function HomePage() {
         granted={Boolean(consent.analytics_identity?.granted)}
       />
       <header className="sticky top-0 z-10 border-b border-border bg-background/80 px-safe pt-safe backdrop-blur-md">
-        <div className="mx-auto flex w-full max-w-md items-center justify-between px-5 pb-3 md:max-w-2xl">
+        <div className="mx-auto flex w-full max-w-md items-center justify-between px-5 pb-3 md:max-w-3xl xl:max-w-6xl">
           <div className="flex min-w-0 items-center gap-2">
             {/* The drawer trigger leads — home is the shell's root surface,
                 and the drawer is now the app's navigation (spike §7). */}
@@ -147,9 +147,11 @@ export default async function HomePage() {
         </div>
       </header>
 
-      {/* Wider on desktop (md:max-w-2xl) so the 4-unit bento row renders
-          literally; the phone column stays max-w-md, byte-identical. */}
-      <main className="mx-auto w-full max-w-md flex-1 px-5 pb-safe md:max-w-2xl">
+      {/* Three container tiers matching the bento's column counts: the phone
+          column is unchanged, md gets the 4-column grid, xl the 6-column one.
+          Widening is home's single exception to the one-column reading rule
+          (DESIGN.md); every other reading surface stays the phone column. */}
+      <main className="mx-auto w-full max-w-md flex-1 px-5 pb-safe md:max-w-3xl xl:max-w-6xl">
         {/* STATUS zone — always rendered, digesting state into words (the
             Gentler Streak move). Every fork it owns is local-calendar, so it
             selects its state client-side from the facts below. */}

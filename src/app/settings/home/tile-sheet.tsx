@@ -5,9 +5,9 @@ import { ArrowDown, ArrowUp, ArrowUpToLine, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useAnimatedSheetClose } from '@/components/use-animated-sheet-close'
 import {
-  HOME_SECTION_SIZES,
+  HOME_SECTION_SHAPES,
   type HomeSectionMeta,
-  type HomeSectionSize,
+  type HomeSectionShape,
 } from '@/lib/home/registry'
 import type { ResolvedHomeSection } from '@/lib/home/layout'
 import { cn } from '@/lib/utils'
@@ -34,7 +34,7 @@ interface TileSheetProps {
   index: number
   count: number
   onClose: () => void
-  onSize: (size: HomeSectionSize) => void
+  onShape: (size: HomeSectionShape) => void
   onToggle: () => void
   onMove: (direction: 'up' | 'down') => void
   onMoveToTop: () => void
@@ -46,7 +46,7 @@ export function TileSheet({
   index,
   count,
   onClose,
-  onSize,
+  onShape,
   onToggle,
   onMove,
   onMoveToTop,
@@ -131,34 +131,34 @@ export function TileSheet({
       </div>
 
       {/* S/M/L segmented control — the goal-kind picker's radio vocabulary.
-          Sizes outside allowedSizes stay visible but disabled: the control
+          Shapes outside allowedShapes stay visible but disabled: the control
           keeps its shape, the gating stays legible. */}
       <div
         role="radiogroup"
-        aria-label={t('sizeGroupLabel', { section: sectionName })}
+        aria-label={t('shapeGroupLabel', { section: sectionName })}
         className="mt-3 flex gap-1.5"
       >
-        {HOME_SECTION_SIZES.map((size) => {
-          const isAllowed = meta.allowedSizes.includes(size)
+        {HOME_SECTION_SHAPES.map((shape) => {
+          const isAllowed = meta.allowedShapes.includes(shape)
           return (
             <button
-              key={size}
+              key={shape}
               type="button"
               role="radio"
-              aria-checked={section.size === size}
-              aria-label={t('sizeOptionLabel', { section: sectionName, size })}
+              aria-checked={section.shape === shape}
+              aria-label={t('shapeOptionLabel', { section: sectionName, shape })}
               disabled={!isAllowed}
-              onClick={() => onSize(size)}
+              onClick={() => onShape(shape)}
               className={cn(
                 'relative w-11 rounded-lg border py-1.5 text-xs font-semibold uppercase tracking-wide transition-colors before:absolute before:-inset-1',
                 'outline-none focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-hidden',
-                section.size === size
+                section.shape === shape
                   ? 'border-primary bg-primary/10 text-primary'
                   : 'border-border text-muted-foreground',
                 !isAllowed && 'opacity-30',
               )}
             >
-              {t(`sizeLabel.${size}`)}
+              {t(`shapeLabel.${shape}`)}
             </button>
           )
         })}

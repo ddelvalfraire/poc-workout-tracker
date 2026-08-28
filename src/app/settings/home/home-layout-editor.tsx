@@ -4,12 +4,12 @@ import { useEffect, useRef, useState, useTransition, type ComponentType } from '
 import { useRouter } from 'next/navigation'
 import { Lock } from 'lucide-react'
 import { setHomeLayoutAction } from '@/app/actions'
-import { HOME_SECTION_REGISTRY, type HomeSectionSize } from '@/lib/home/registry'
+import { HOME_SECTION_REGISTRY, type HomeSectionShape } from '@/lib/home/registry'
 import {
   moveSection,
   moveSectionToTop,
   toggleSection,
-  setSectionSize,
+  setSectionShape,
   toLayoutDoc,
   resolveHomeLayout,
   type ResolvedHomeSection,
@@ -132,8 +132,8 @@ export function HomeLayoutEditor({
     if (next !== sections) persist(next)
   }
 
-  function onSize(kind: string, size: HomeSectionSize) {
-    const next = setSectionSize(sections, kind, size)
+  function onShape(kind: string, size: HomeSectionShape) {
+    const next = setSectionShape(sections, kind, size)
     if (next !== sections) persist(next)
   }
 
@@ -202,7 +202,7 @@ export function HomeLayoutEditor({
           index={activeIndex}
           count={sections.length}
           onClose={() => setActiveId(null)}
-          onSize={(size) => onSize(activeSection.id, size)}
+          onShape={(size) => onShape(activeSection.id, size)}
           onToggle={() => onToggle(activeSection.id)}
           onMove={(direction) => onMove(activeSection.id, direction)}
           onMoveToTop={() => onMoveToTop(activeSection.id)}
