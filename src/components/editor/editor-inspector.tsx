@@ -4,6 +4,10 @@ import { useTranslations } from 'next-intl'
 
 import { EmptyWords } from '@/components/ui/empty-words'
 import { cn } from '@/lib/utils'
+import type { Technique } from '@/lib/program-input'
+import type { DerivedSet } from '@/lib/progression'
+import type { WeightUnit } from '@/lib/units'
+import { EditorTechniquePanel } from './editor-technique-panel'
 
 /**
  * Pane 3 — the inspector for the selected exercise: how it progresses, and any
@@ -29,18 +33,40 @@ export interface EditorInspectorExercise {
    *  exercise has no progression — the section says so rather than inventing
    *  copy. */
   progressionSentence: string | null
-  /** Already-localized technique labels, one entry per set that carries one. */
-  techniques: readonly { setNumber: number; label: string }[]
+  /**
+   * Every set of the exercise, authorable. `topSet` is the DERIVED row a
+   * percentage stage resolves against — null when the week has no derivation
+   * for it, in which case the set is listed but not editable, since a preview
+   * with nothing to resolve against would be a guess.
+   */
+  editableSets: readonly {
+    setNumber: number
+    technique: Technique | null
+    topSet: DerivedSet | null
+  }[]
 }
 
 interface EditorInspectorProps {
   exercise: EditorInspectorExercise
   /** The same address with the inspector cleared. */
   closeHref: string
+  programId: string
+  /** 0-based day position — the addressing `updateProgramSet` takes. */
+  day: number
+  unit: WeightUnit
+  saveTechnique: (formData: FormData) => void | Promise<void>
   className?: string
 }
 
-function EditorInspector({ exercise, closeHref, className }: EditorInspectorProps) {
+function EditorInspector({
+  exercise,
+  closeHref,
+  programId,
+  day,
+  unit,
+  saveTechnique,
+  className,
+}: EditorInspectorProps) {
   const t = useTranslations('ProgramEditor')
 
   return (
@@ -77,23 +103,44 @@ function EditorInspector({ exercise, closeHref, className }: EditorInspectorProp
         )}
       </section>
 
+      {/* The technique section is now the WRITE path. It was a list of
+          already-localized labels — correct, and unactionable: the only thing
+          in the app that could author a technique was an MCP tool. Each set
+          gets its stack, because a technique is per set, not per exercise.
+
+          A set whose week has no derivation is listed and not editable: a
+          percentage stage resolves against the derived top set, so a form
+          without one could only guess at the weight it would prescribe. */}
       <section aria-label={t('techniqueTitle')} className="mt-6">
         <h3 className="font-display text-base uppercase leading-none tracking-wide text-muted-foreground">
           {t('techniqueTitle')}
         </h3>
-        {exercise.techniques.length === 0 ? (
+        {exercise.editableSets.length === 0 ? (
           <EmptyWords>{t('techniqueEmpty')}</EmptyWords>
         ) : (
-          <ul className="mt-2 divide-y divide-border/60 border-b border-b-border/60">
-            {exercise.techniques.map((entry) => (
-              <li
-                key={entry.setNumber}
-                className="flex items-baseline justify-between gap-3 py-2 text-sm"
-              >
-                <span className="text-xs uppercase tracking-widest text-muted-foreground tnum">
-                  {t('setNumber', { number: entry.setNumber })}
-                </span>
-                <span className="min-w-0 truncate">{entry.label}</span>
+          <ul className="mt-2 flex flex-col gap-8">
+            {exercise.editableSets.map((entry) => (
+              <li key={entry.setNumber}>
+                {entry.topSet === null ? (
+                  <div className="flex items-baseline justify-between gap-3 border-b border-b-border/60 py-2 text-sm">
+                    <span className="text-xs uppercase tracking-widest text-muted-foreground tnum">
+                      {t('setNumber', { number: entry.setNumber })}
+                    </span>
+                    <EmptyWords>{t('techniqueNoDerivation')}</EmptyWords>
+                  </div>
+                ) : (
+                  <EditorTechniquePanel
+                    programId={programId}
+                    day={day}
+                    exercise={exercise.position}
+                    setNumber={entry.setNumber}
+                    saved={entry.technique}
+                    topSet={entry.topSet}
+                    unit={unit}
+                    scope={`${exercise.name} · ${t('setNumber', { number: entry.setNumber })}`}
+                    action={saveTechnique}
+                  />
+                )}
               </li>
             ))}
           </ul>

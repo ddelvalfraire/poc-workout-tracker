@@ -125,7 +125,7 @@ export function EditorTechniqueForm({
 
   return (
     <div className={cn('flex flex-col gap-8', className)}>
-      <section aria-label={t('kindTitle')}>
+      <div role="group" aria-label={t('kindTitle')}>
         <Section>{t('kindTitle')}</Section>
         <p className="mt-1 text-sm text-muted-foreground">{scope}</p>
         <ul className="mt-2 divide-y divide-border/60 border-b border-b-border/60">
@@ -151,11 +151,11 @@ export function EditorTechniqueForm({
             />
           ))}
         </ul>
-      </section>
+      </div>
 
       {value !== null && (
         <>
-          <section aria-label={t('stagesTitle')}>
+          <div role="group" aria-label={t('stagesTitle')}>
             <Section>{t('stagesTitle')}</Section>
             <ul className="mt-2 divide-y divide-border/60 border-b border-b-border/60">
               {stages.map((stage, index) => (
@@ -216,9 +216,9 @@ export function EditorTechniqueForm({
             >
               {t('addStage')}
             </Button>
-          </section>
+          </div>
 
-          <section aria-label={t('previewTitle')}>
+          <div role="group" aria-label={t('previewTitle')}>
             <Section>{t('previewTitle')}</Section>
             <ul className="mt-2 divide-y divide-border/60 border-b border-b-border/60">
               {previewRows.map((row, index) => (
@@ -252,7 +252,7 @@ export function EditorTechniqueForm({
                 technique working as a missed target. Stated where the choice is
                 made, not in a help sheet. */}
             <p className="mt-2 text-sm text-muted-foreground">{t('autoregNote')}</p>
-          </section>
+          </div>
         </>
       )}
     </div>

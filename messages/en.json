@@ -1782,6 +1782,7 @@
     "settledInProgress": "This session is already under way. Its sets were written when it started, so editing the plan won't reach them.",
     "surfaceLabel": "Program editor",
     "techniqueEmpty": "No intensity techniques on these sets.",
+    "techniqueNoDerivation": "No plan for this week yet",
     "techniqueTitle": "Technique",
     "viewByDay": "By day",
     "viewByExercise": "By exercise",
