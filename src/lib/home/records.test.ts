@@ -61,15 +61,20 @@ describe('aggregateBigThree', () => {
       [
         row({ wgerExerciseId: 615, exerciseName: 'Squats' }),
         row({ wgerExerciseId: 73, exerciseName: 'Bench Press' }),
-        row({ wgerExerciseId: 105, exerciseName: 'Deadlift' }),
+        row({ wgerExerciseId: 184, exerciseName: 'Deadlift' }),
       ],
       null,
     )
-    if (all.totalKg !== null) {
-      const sum =
-        all.bests.squat!.e1rmKg + all.bests.bench!.e1rmKg + all.bests.deadlift!.e1rmKg
-      expect(all.totalKg).toBeCloseTo(sum, 6)
-    }
+    // Unguarded on purpose: wrapping this in `if (totalKg !== null)` let the
+    // assertion pass vacuously when a wger id stopped matching a lift, which
+    // is exactly the regression it exists to catch.
+    expect(all.bests.squat).toBeDefined()
+    expect(all.bests.bench).toBeDefined()
+    expect(all.bests.deadlift).toBeDefined()
+    expect(all.totalKg).toBeCloseTo(
+      all.bests.squat!.e1rmKg + all.bests.bench!.e1rmKg + all.bests.deadlift!.e1rmKg,
+      6,
+    )
   })
 
   it('skips sets that cannot be scored at all', () => {
@@ -121,7 +126,11 @@ describe('aggregateCardioRecords', () => {
 
   it('ignores zero and negative measurements', () => {
     const out = aggregateCardioRecords([cardio({ durationSec: 0, distanceM: 0 })])
-    expect(out).toEqual({ bestPace: null, longestDistanceM: null, longestDurationSec: null })
+    expect(out).toEqual({
+      bestPace: null,
+      longestDistanceM: null,
+      longestDurationSec: null,
+    })
   })
 
   it('returns three nulls for a history with no cardio at all', () => {
@@ -135,11 +144,17 @@ describe('aggregateCardioRecords', () => {
 
 describe('aggregateDistanceWeek', () => {
   it('reports the current total and the delta', () => {
-    expect(aggregateDistanceWeek(18400, 15300)).toEqual({ currentM: 18400, deltaM: 3100 })
+    expect(aggregateDistanceWeek(18400, 15300)).toEqual({
+      currentM: 18400,
+      deltaM: 3100,
+    })
   })
 
   it('refuses a hollow comparison against an empty previous window', () => {
-    expect(aggregateDistanceWeek(18400, 0)).toEqual({ currentM: 18400, deltaM: null })
+    expect(aggregateDistanceWeek(18400, 0)).toEqual({
+      currentM: 18400,
+      deltaM: null,
+    })
   })
 
   it('renders nothing when the week holds no distance', () => {
