@@ -82,3 +82,24 @@ describe('the unfinished entry', () => {
     expect(meta.defaultShape).toBe('wide')
   })
 })
+
+/**
+ * Row spans are the same at every tier — only WIDTH is a fraction of the
+ * grid, because a row is a fixed height and scaling it would make a tall cell
+ * taller on a desktop rather than proportionally so.
+ *
+ * Pinned because something else already depends on it: `bodySizeForShape`
+ * (app/home-sections.tsx) picks a widget's body from the PHONE table's row
+ * count and applies that choice at every breakpoint. If rows ever varied by
+ * tier, it would silently hand a one-row tile the multi-row body again —
+ * which is the exact bug it was written to fix.
+ */
+describe('row spans across tiers', () => {
+  it('gives every shape the same height at every column count', () => {
+    for (const shape of HOME_SECTION_SHAPES) {
+      const rows = HOME_COLUMN_TIERS.map((columns) => unitsForColumns(columns)(shape).rows)
+      expect({ shape, rows: new Set(rows).size }).toEqual({ shape, rows: 1 })
+      expect(rows[0]).toBe(SHAPE_UNITS[shape].rows)
+    }
+  })
+})

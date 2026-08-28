@@ -172,6 +172,11 @@ function byNewestStart(workouts: readonly WorkoutSummary[]): WorkoutSummary[] {
 function UnfinishedTile({ workouts }: { workouts: WorkoutSummary[] }) {
   const t = useTranslations('HomeSections')
   const newest = byNewestStart(workouts)[0]
+  // Same guard as the list body below. The renderer already drops the empty
+  // case, so this is unreachable today — but the two bodies are picked apart
+  // by shape and must not disagree about their own precondition, and an
+  // unguarded [0] is a crash rather than a blank tile.
+  if (newest === undefined) return null
   return (
     <Link
       href={`/workout/${newest.id}/edit`}
