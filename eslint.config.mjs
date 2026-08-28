@@ -123,6 +123,7 @@ const I18N_MIGRATED = [
   "src/app/programs/\\[id\\]/stats/page.tsx",
   "src/app/programs/\\[id\\]/tm-reset-button.tsx",
   "src/components/editor/editor-technique-form.tsx",
+  "src/components/editor/editor-technique-panel.tsx",
   "src/app/programs/new/day-editor.tsx",
   "src/app/programs/new/page.tsx",
   "src/app/programs/new/program-builder.tsx",

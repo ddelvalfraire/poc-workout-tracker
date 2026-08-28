@@ -16,6 +16,7 @@
  */
 export const CLIENT_NAMESPACES = [
   'EditorTechniqueForm',
+  'EditorTechniquePanel',
   'Account',
   'ActivityLog',
   'AnalyticsConsentToggle',

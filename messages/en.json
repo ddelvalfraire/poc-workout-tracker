@@ -2987,5 +2987,11 @@
     "previewNoLoad": "{reps} reps, weight typed at the rack",
     "volumeNote": "{rows} rows in the logger, {volume} sets for volume — later stages count half.",
     "autoregNote": "Sets with a technique don't drive automatic weight changes. These methods are meant to reach failure, so a missed rep target here means the technique worked, not that you stalled."
+  },
+  "EditorTechniquePanel": {
+    "planScopeNote": "Saving changes this set's plan, not just this week. Weeks you've already trained keep what they were.",
+    "saveDirty": "Save technique",
+    "saved": "Saved",
+    "discard": "Discard"
   }
 }

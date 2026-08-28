@@ -8,6 +8,7 @@ import { getWeightUnit } from '@/db/preferences'
 import { getProgramDetail } from '@/db/programs'
 import { setProgramSetOverride, updateProgramSet } from '@/db/program-patches'
 import { requireUserId } from '@/lib/auth'
+import { techniqueSchema as programTechniqueSchema } from '@/lib/program-input'
 import { displayToKg } from '@/lib/units'
 import { editorHref } from './editor-address'
 
@@ -149,6 +150,59 @@ export async function applyReachToPlanAction(formData: FormData): Promise<void> 
     input.exercise,
     input.setNumber,
     { suggestedLoadKg: pinned },
+    'ui',
+  )
+  if (!result) throw new Error('set not found')
+
+  revalidatePath(`/programs/${input.programId}/editor`, 'layout')
+  revalidatePath(`/programs/${input.programId}`)
+}
+
+/**
+ * The technique stack's write: the set's PLAN, not this week.
+ *
+ * Every other write on this surface is a per-week override, and this one is
+ * deliberately not. A technique is a property of how the set is performed
+ * rather than a number that moves week to week, and `program_set_overrides`
+ * can only hold a WHOLE replacement technique — there is no partial per-week
+ * stage edit in the schema (`lib/progression.ts` swaps the entire object). A
+ * per-week technique editor is a second surface, scoped out of v1 in
+ * docs/specs/technique-authoring.md §08. So this writes the template and every
+ * underived week follows it.
+ *
+ * Weeks already instantiated are untouched by construction, as everywhere else
+ * here: their set rows were copied at start time.
+ *
+ * The payload arrives as JSON because a technique is a TREE — an ordered list
+ * of stages, each with three optional fields — and flattening it into
+ * `stages[0][loadPct]` form-field names would invent a wire format that
+ * nothing else in the app speaks. It is re-parsed through the real
+ * `techniqueSchema` here, so the client cannot post a shape the database would
+ * refuse, and `updateProgramSet` parses it a second time at the db boundary.
+ */
+const techniqueSchema_ = z.object({
+  programId: z.string().uuid(),
+  day: z.coerce.number().int().min(0),
+  exercise: z.coerce.number().int().min(0),
+  setNumber: z.coerce.number().int().min(1),
+  /** '' clears the technique — a straight set is the absence of one. */
+  technique: z.string(),
+})
+
+export async function saveTechniqueAction(formData: FormData): Promise<void> {
+  const userId = await requireUserId()
+  const input = techniqueSchema_.parse(Object.fromEntries(formData))
+
+  const technique =
+    input.technique === '' ? null : programTechniqueSchema.parse(JSON.parse(input.technique))
+
+  const result = await updateProgramSet(
+    userId,
+    input.programId,
+    input.day,
+    input.exercise,
+    input.setNumber,
+    { technique },
     'ui',
   )
   if (!result) throw new Error('set not found')
