@@ -3,13 +3,14 @@ import type { CSSProperties, ReactNode } from 'react'
 import type { WorkoutSummary } from '@/db/workouts'
 import type { WeightUnit } from '@/lib/units'
 import type { HomeSectionKind, HomeSectionShape } from '@/lib/home/registry'
-import type { ResolvedHomeSection } from '@/lib/home/layout'
+import type { HomeSectionConfig, ResolvedHomeSection } from '@/lib/home/layout'
 import { packSections } from '@/lib/home/pack'
 import { DividerList } from '@/components/ui/divider-list'
 import { BigThree } from './big-three'
 import { CardioWeek } from './cardio-week'
 import { ClosestGoal } from './closest-goal'
 import { LaggingGroup } from './lagging-group'
+import { LiftTrend } from './lift-trend'
 import { MuscleBalance } from './muscle-balance'
 import { PaceRecord } from './pace-record'
 import { StreakCard } from './streak-card'
@@ -48,7 +49,14 @@ export interface HomeSectionContext {
   unfinished: WorkoutSummary[]
 }
 
-type HomeSectionRenderer = (ctx: HomeSectionContext, shape: HomeSectionShape) => ReactNode
+/** `config` is the section's own pinned subject — only kinds the registry
+ *  marks with a `configKind` ever receive one, and they treat its absence as
+ *  "derive a default" rather than as an error. */
+type HomeSectionRenderer = (
+  ctx: HomeSectionContext,
+  shape: HomeSectionShape,
+  config: HomeSectionConfig | undefined,
+) => ReactNode
 
 const HOME_SECTION_RENDERERS: Record<HomeSectionKind, HomeSectionRenderer> = {
   momentum: (ctx, shape) => (
@@ -79,6 +87,14 @@ const HOME_SECTION_RENDERERS: Record<HomeSectionKind, HomeSectionRenderer> = {
   streak: (ctx) => <StreakCard userId={ctx.userId} />,
   'closest-goal': (ctx) => <ClosestGoal userId={ctx.userId} />,
   'trophy-case': (ctx, shape) => <TrophyCase userId={ctx.userId} shape={shape} />,
+  'lift-trend': (ctx, shape, config) => (
+    <LiftTrend
+      userId={ctx.userId}
+      nowMs={ctx.nowMs}
+      shape={shape}
+      pinned={config?.exercise}
+    />
+  ),
 }
 
 /**
@@ -133,7 +149,7 @@ export function renderHomeSections(
         const render = renderers[section.kind]!
         return (
           <div key={section.id} style={placements.get(section.id) as CSSProperties}>
-            <HomeCell>{render(ctx, section.shape)}</HomeCell>
+            <HomeCell>{render(ctx, section.shape, section.config)}</HomeCell>
           </div>
         )
       })}

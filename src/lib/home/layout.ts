@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { exerciseSourceSchema, type ExerciseSource } from '@/lib/custom-exercise-input'
 import {
   HOME_SECTION_REGISTRY,
   HOME_SECTION_SHAPES,
@@ -30,6 +31,16 @@ import {
  * allowedShapes). Serialization omits a shape equal to the kind's default, so
  * the default document stays byte-minimal.
  *
+ * CONFIG (v3): a section may carry per-instance `config` — the SUBJECT it is
+ * pinned to, which is what makes two instances of one repeatable kind differ.
+ * It is declarative data like everything else here, so a native client reads
+ * the same field. Only kinds declaring a `configKind` may carry one; config on
+ * any other kind is a client bug the write boundary rejects, and stored config
+ * that no longer validates is dropped on read exactly as an invalid shape is.
+ * A section whose config is absent is not broken — the widget falls back to
+ * its own derived default (lift-trend picks the most-trained lift), which is
+ * what lets a pinnable widget ship before its picker does.
+ *
  * IDENTITY (v3): a section is addressed by `id`, not by `kind`. Kinds marked
  * `repeatable` may appear more than once — a layout can hold two lift-trend
  * charts pinned to different lifts — so `kind` stopped being a unique key and
@@ -39,6 +50,28 @@ import {
  */
 
 export const HOME_LAYOUT_VERSION = 3
+
+/** An exercise reference, the one subject a section can be pinned to today.
+ *  The same (source, wgerExerciseId) pair every other exercise read uses. */
+export interface HomeSectionExerciseRef {
+  source: ExerciseSource
+  wgerExerciseId: number
+}
+
+/** Per-instance configuration. Keyed by subject rather than by kind so two
+ *  kinds pinning an exercise share one shape — and one picker. */
+export interface HomeSectionConfig {
+  exercise?: HomeSectionExerciseRef
+}
+
+const sectionConfigSchema = z.object({
+  exercise: z
+    .object({
+      source: exerciseSourceSchema,
+      wgerExerciseId: z.number().int().nonnegative(),
+    })
+    .optional(),
+})
 
 const homeLayoutSchema = z.object({
   version: z.literal(HOME_LAYOUT_VERSION),
@@ -50,6 +83,9 @@ const homeLayoutSchema = z.object({
       id: z.string().optional(),
       // Loose on read — normalization (not the schema) owns shape validity.
       shape: z.string().optional(),
+      // Loose for the same reason: an unreadable config must degrade the one
+      // section to its default subject, never fail the whole document.
+      config: z.unknown().optional(),
       hidden: z.boolean().optional(),
     }),
   ),
@@ -91,6 +127,9 @@ export interface ResolvedHomeSection {
   kind: string
   shape: HomeSectionShape
   hidden: boolean
+  /** The pinned subject, when the document names one AND the kind accepts
+   *  one. Absent is the normal case: the widget derives its own default. */
+  config?: HomeSectionConfig
 }
 
 const REGISTRY_BY_KIND: ReadonlyMap<string, HomeSectionMeta> = new Map(
@@ -116,6 +155,32 @@ function normalizeShape(kind: string, shape: string | undefined): HomeSectionSha
   // Unknown kind: any valid shape class round-trips (its client knows better).
   if (allowed === undefined) return shape
   return allowed.includes(shape) ? shape : defaultShapeFor(kind)
+}
+
+function configKindFor(kind: string): HomeSectionMeta['configKind'] {
+  return REGISTRY_BY_KIND.get(kind)?.configKind
+}
+
+/**
+ * Read-side config normalization. Three ways to end up with nothing, all of
+ * them silent by design: the kind takes no config, the stored value does not
+ * validate, or it validates to an empty object. Returning `undefined` rather
+ * than `{}` is what keeps the resolved row and the stored document agreeing
+ * about what "no config" looks like.
+ *
+ * An UNKNOWN kind — a newer client's section — keeps a config this one can
+ * still READ, so a pinned exercise survives a round trip through an older
+ * build, the same forward-compatibility rule `shape` follows. It is not a
+ * verbatim passthrough: fields this version has no schema for are dropped,
+ * which is the accepted limit of forward compatibility here.
+ */
+function normalizeConfig(kind: string, config: unknown): HomeSectionConfig | undefined {
+  if (config === undefined) return undefined
+  const known = REGISTRY_BY_KIND.has(kind)
+  if (known && configKindFor(kind) === undefined) return undefined
+  const parsed = sectionConfigSchema.safeParse(config)
+  if (!parsed.success) return undefined
+  return parsed.data.exercise === undefined ? undefined : { exercise: parsed.data.exercise }
 }
 
 /** The code-defined default: registry order, everything visible, every shape
@@ -170,11 +235,13 @@ export function resolveHomeLayout(stored: unknown): ResolvedHomeSection[] {
     if (seenKinds.has(s.kind) && !isRepeatable(s.kind)) continue
     seenIds.add(id)
     seenKinds.add(s.kind)
+    const config = normalizeConfig(s.kind, s.config)
     sections.push({
       id,
       kind: s.kind,
       shape: normalizeShape(s.kind, s.shape),
       hidden: s.hidden === true,
+      ...(config !== undefined ? { config } : {}),
     })
   }
   for (const { kind, defaultShape } of HOME_SECTION_REGISTRY) {
@@ -196,6 +263,7 @@ export function parseHomeLayoutInput(input: unknown): HomeLayout {
         kind: z.string(),
         id: z.string().min(1).optional(),
         shape: z.enum(HOME_SECTION_SHAPES).optional(),
+        config: sectionConfigSchema.optional(),
         hidden: z.boolean().optional(),
       }),
     ),
@@ -229,27 +297,36 @@ export function parseHomeLayoutInput(input: unknown): HomeLayout {
     if (s.shape !== undefined && !REGISTRY_BY_KIND.get(s.kind)!.allowedShapes.includes(s.shape)) {
       throw new Error('invalid home section shape')
     }
+    // Config on a kind that pins nothing is a client bug, not a preference to
+    // store — rejected loudly here for the same reason an out-of-range shape
+    // is, while the READ path quietly drops it.
+    if (s.config !== undefined && configKindFor(s.kind) === undefined) {
+      throw new Error('unexpected home section config')
+    }
   }
   return {
     version: HOME_LAYOUT_VERSION,
     sections: parsed.data.sections.map((s) =>
-      toStoredSection(s.kind, s.id ?? s.kind, s.shape, s.hidden),
+      toStoredSection(s.kind, s.id ?? s.kind, s.shape, s.hidden, s.config),
     ),
   }
 }
 
 /** One stored row, byte-minimal: id omitted when it equals the kind, shape
- *  omitted when it equals the kind's default, hidden omitted when false. */
+ *  omitted when it equals the kind's default, hidden omitted when false, and
+ *  config omitted when there is no pinned subject to record. */
 function toStoredSection(
   kind: string,
   id: string,
   shape: HomeSectionShape | undefined,
   hidden: boolean | undefined,
+  config: HomeSectionConfig | undefined,
 ): HomeLayout['sections'][number] {
   return {
     kind,
     ...(id !== kind ? { id } : {}),
     ...(shape !== undefined && shape !== defaultShapeFor(kind) ? { shape } : {}),
+    ...(config !== undefined && config.exercise !== undefined ? { config } : {}),
     ...(hidden === true ? { hidden: true } : {}),
   }
 }
@@ -328,11 +405,41 @@ export function setSectionShape(
   return sections.map((s) => (s.id === id ? { ...s, shape } : s))
 }
 
+/** Pins a section's subject — the picker's write. Returns the input unchanged
+ *  (same reference) for unknown ids, for kinds that pin nothing, and for a
+ *  no-op set, exactly as `setSectionShape` does — the editor persists only
+ *  when the reference changes, so a redundant write depends on this. Passing
+ *  `undefined` unpins, returning the section to its derived default. */
+export function setSectionConfig(
+  sections: readonly ResolvedHomeSection[],
+  id: string,
+  config: HomeSectionConfig | undefined,
+): readonly ResolvedHomeSection[] {
+  const current = sections.find((s) => s.id === id)
+  if (current === undefined || configKindFor(current.kind) === undefined) return sections
+  const next = config?.exercise === undefined ? undefined : { exercise: config.exercise }
+  const currentRef = current.config?.exercise
+  if (
+    next?.exercise?.source === currentRef?.source &&
+    next?.exercise?.wgerExerciseId === currentRef?.wgerExerciseId
+  ) {
+    return sections
+  }
+  return sections.map((s) => {
+    if (s.id !== id) return s
+    // Unpinning REBUILDS the row without `config` rather than setting it to
+    // undefined: the key has to be gone, or the default document stops
+    // round-tripping byte-equal through toLayoutDoc.
+    const base: ResolvedHomeSection = { id: s.id, kind: s.kind, shape: s.shape, hidden: s.hidden }
+    return next === undefined ? base : { ...base, config: next }
+  })
+}
+
 /** Serializes resolved sections back into the stored document shape, omitting
  *  `hidden: false` and default shapes so the default round-trips byte-equal. */
 export function toLayoutDoc(sections: readonly ResolvedHomeSection[]): HomeLayout {
   return {
     version: HOME_LAYOUT_VERSION,
-    sections: sections.map((s) => toStoredSection(s.kind, s.id, s.shape, s.hidden)),
+    sections: sections.map((s) => toStoredSection(s.kind, s.id, s.shape, s.hidden, s.config)),
   }
 }

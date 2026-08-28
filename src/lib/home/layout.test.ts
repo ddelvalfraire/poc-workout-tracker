@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { HOME_SECTION_REGISTRY } from './registry'
+import { HOME_SECTION_REGISTRY, type HomeSectionMeta } from './registry'
 import {
   DEFAULT_HOME_LAYOUT,
   resolveHomeLayout,
@@ -9,10 +9,17 @@ import {
   reorderSection,
   toggleSection,
   setSectionShape,
+  setSectionConfig,
   toLayoutDoc,
 } from './layout'
 
 const REGISTRY_KINDS = HOME_SECTION_REGISTRY.map((s) => s.kind)
+
+/** The registry widened to its own interface. The `as const satisfies` literal
+ *  type drops OPTIONAL fields from the entries that omit them, so reading
+ *  `configKind` across every entry needs the declared shape — the same
+ *  widening `REGISTRY_BY_KIND` does inside the module. */
+const REGISTRY: readonly HomeSectionMeta[] = HOME_SECTION_REGISTRY
 
 /** Registry order with two neighbours swapped — lets the move tests state
  *  what a move DOES without hard-coding how many kinds ship today. */
@@ -467,5 +474,105 @@ describe('toLayoutDoc', () => {
     const doc = toLayoutDoc(setSectionShape(resolveHomeLayout(null), 'momentum', 'block'))
     const resolved = resolveHomeLayout(parseHomeLayoutInput(doc))
     expect(resolved.find((s) => s.kind === 'momentum')?.shape).toBe('block')
+  })
+})
+
+describe('per-instance config', () => {
+  // Derived, never hand-listed: every rule below is stated in terms of what
+  // the registry says a kind pins, so they keep holding as kinds are added.
+  const PINNING = REGISTRY.filter((s) => s.configKind !== undefined)
+  const NON_PINNING = REGISTRY.filter((s) => s.configKind === undefined)
+  const EXERCISE = { source: 'wger', wgerExerciseId: 615 } as const
+
+  /** A complete document — every registry kind present, as the write boundary
+   *  demands — with one kind carrying the given config. */
+  function docWith(kind: string, config: unknown) {
+    return {
+      version: 3,
+      sections: REGISTRY_KINDS.map((k) => (k === kind ? { kind: k, config } : { kind: k })),
+    }
+  }
+
+  it('drops config on kinds the registry says pin nothing', () => {
+    for (const meta of NON_PINNING) {
+      const resolved = resolveHomeLayout(docWith(meta.kind, { exercise: EXERCISE }))
+      expect(resolved.find((s) => s.kind === meta.kind)?.config).toBeUndefined()
+    }
+  })
+
+  it('rejects config on a non-pinning kind at the write boundary', () => {
+    for (const meta of NON_PINNING) {
+      expect(() => parseHomeLayoutInput(docWith(meta.kind, { exercise: EXERCISE }))).toThrow(
+        /unexpected home section config/,
+      )
+    }
+  })
+
+  it('keeps a config the registry does accept, through resolve and serialize', () => {
+    for (const meta of PINNING) {
+      const resolved = resolveHomeLayout(docWith(meta.kind, { exercise: EXERCISE }))
+      expect(resolved.find((s) => s.kind === meta.kind)?.config).toEqual({ exercise: EXERCISE })
+      expect(toLayoutDoc(resolved).sections).toContainEqual({
+        kind: meta.kind,
+        config: { exercise: EXERCISE },
+      })
+    }
+  })
+
+  it("round-trips an unknown client's pinned section rather than stripping it", () => {
+    const resolved = resolveHomeLayout({
+      version: 3,
+      sections: [{ kind: 'from-the-future', config: { exercise: EXERCISE } }],
+    })
+    expect(resolved.find((s) => s.kind === 'from-the-future')?.config).toEqual({
+      exercise: EXERCISE,
+    })
+  })
+
+  it('drops a malformed config instead of failing the document', () => {
+    for (const bad of ['nope', 42, { exercise: { source: 'wger' } }, { exercise: null }]) {
+      const resolved = resolveHomeLayout({
+        version: 3,
+        sections: [{ kind: 'from-the-future', config: bad }],
+      })
+      // The section survives; only its unreadable config is dropped.
+      expect(resolved.map((s) => s.kind)).toContain('from-the-future')
+      expect(resolved.find((s) => s.kind === 'from-the-future')?.config).toBeUndefined()
+    }
+  })
+
+  it('keeps the default document byte-identical — config adds nothing when nothing is pinned', () => {
+    expect(toLayoutDoc(resolveHomeLayout(null))).toEqual(DEFAULT_HOME_LAYOUT)
+    expect(JSON.stringify(DEFAULT_HOME_LAYOUT)).not.toContain('config')
+  })
+})
+
+describe('setSectionConfig', () => {
+  const EXERCISE = { source: 'wger', wgerExerciseId: 73 } as const
+
+  it('leaves kinds that pin nothing untouched, by reference', () => {
+    const sections = resolveHomeLayout(null)
+    for (const meta of REGISTRY) {
+      if (meta.configKind !== undefined) continue
+      expect(setSectionConfig(sections, meta.kind, { exercise: EXERCISE })).toBe(sections)
+    }
+  })
+
+  it('leaves an unknown id untouched, by reference', () => {
+    const sections = resolveHomeLayout(null)
+    expect(setSectionConfig(sections, 'no-such-id', { exercise: EXERCISE })).toBe(sections)
+  })
+
+  it('pins and unpins a kind that accepts config', () => {
+    for (const meta of REGISTRY) {
+      if (meta.configKind === undefined) continue
+      const sections = resolveHomeLayout(null)
+      const pinned = setSectionConfig(sections, meta.kind, { exercise: EXERCISE })
+      expect(pinned.find((s) => s.id === meta.kind)?.config).toEqual({ exercise: EXERCISE })
+      const unpinned = setSectionConfig(pinned, meta.kind, undefined)
+      // Unpinning must ERASE the key, not leave an empty object behind, or the
+      // default document stops round-tripping byte-equal.
+      expect(Object.hasOwn(unpinned.find((s) => s.id === meta.kind)!, 'config')).toBe(false)
+    }
   })
 })

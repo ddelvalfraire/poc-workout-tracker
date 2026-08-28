@@ -63,6 +63,7 @@ export type HomeSectionTitleKey =
   | 'title.closestGoal'
   | 'title.trophyCase'
   | 'title.weightTrend'
+  | 'title.liftTrend'
 
 export type HomeSectionDescriptionKey =
   | 'description.momentum'
@@ -79,6 +80,7 @@ export type HomeSectionDescriptionKey =
   | 'description.closestGoal'
   | 'description.trophyCase'
   | 'description.weightTrend'
+  | 'description.liftTrend'
 
 /** The registry's copy is CATALOG KEYS, not sentences: entries are data
  *  shared by the editor grid, the tile sheet and (later) native clients, none
@@ -103,6 +105,11 @@ export interface HomeSectionMeta {
    *  trend is the motivating case (two charts, two different lifts). Absent
    *  means once-only, which is every kind shipped today. */
   repeatable?: boolean
+  /** The SUBJECT this kind pins per instance, when it pins one. Declarative
+   *  like everything else here, so a native client reads the same field and
+   *  offers the same picker. Absent means the kind takes no config at all,
+   *  and the write boundary rejects a document that gives it one. */
+  configKind?: 'exercise'
 }
 
 export const HOME_SECTION_REGISTRY = [
@@ -203,6 +210,18 @@ export const HOME_SECTION_REGISTRY = [
     descriptionKey: 'description.trophyCase',
     allowedShapes: ['micro', 'tall'],
     defaultShape: 'micro',
+  },
+  {
+    // The one repeatable kind: two instances pinned to two lifts is the whole
+    // reason sections carry ids. `configKind` is what the picker reads to know
+    // it has an exercise to offer.
+    kind: 'lift-trend',
+    titleKey: 'title.liftTrend',
+    descriptionKey: 'description.liftTrend',
+    allowedShapes: ['tall', 'wide', 'block'],
+    defaultShape: 'tall',
+    repeatable: true,
+    configKind: 'exercise',
   },
 ] as const satisfies readonly HomeSectionMeta[]
 

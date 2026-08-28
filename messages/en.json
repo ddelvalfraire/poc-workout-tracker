@@ -822,6 +822,7 @@
       "cardioWeek": "Conditioning minutes this week, against last.",
       "closestGoal": "The goal you are working toward.",
       "laggingGroup": "The muscle group furthest behind its plan.",
+      "liftTrend": "One lift’s estimated 1RM curve, with PR marks.",
       "momentum": "This week’s sets, activity, and goal progress.",
       "muscleBalance": "Weekly sets per muscle group against your program.",
       "paceRecord": "Best pace, longest distance and longest session.",
@@ -838,6 +839,7 @@
       "cardioWeek": "Cardio",
       "closestGoal": "Top goal",
       "laggingGroup": "Lagging",
+      "liftTrend": "Lift trend",
       "momentum": "Momentum",
       "muscleBalance": "Volume vs plan",
       "paceRecord": "Records",
@@ -950,6 +952,14 @@
       "moving": "Moving",
       "training": "Training"
     }
+  },
+  "LiftTrend": {
+    "caption": "{name} · est. 1RM",
+    "chartLabel": "{name} estimated 1RM over the last {count} sessions",
+    "newBest": "new best",
+    "since": "{delta} {unit} this block",
+    "steady": "holding steady",
+    "title": "Lift trend"
   },
   "Loading": {
     "label": "Loading"
