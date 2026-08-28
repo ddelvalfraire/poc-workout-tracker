@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   HOME_COLUMN_TIERS,
+  HOME_SECTION_REGISTRY,
   HOME_SECTION_SHAPES,
   SHAPE_UNITS,
   unitsForColumns,
@@ -60,5 +61,24 @@ describe('unitsForColumns', () => {
     for (const shape of HOME_SECTION_SHAPES) {
       expect(unitsForColumns(3)(shape)).toEqual(SHAPE_UNITS[shape])
     }
+  })
+})
+
+/**
+ * A section whose body is a LIST needs a tile it can be a list in. `unfinished`
+ * shipped as `wide`-only — one row — so its rows had nowhere to go. The
+ * two-row shape is offered ALONGSIDE `wide`, not instead of it: `defaultShape`
+ * is what a stored document resolves to when it omits one, so changing that
+ * would silently re-shape every saved layout.
+ */
+describe('the unfinished entry', () => {
+  const meta = HOME_SECTION_REGISTRY.find((m) => m.kind === 'unfinished')!
+
+  it('offers a two-row shape for its list body', () => {
+    expect(meta.allowedShapes).toContain('block')
+  })
+
+  it('still defaults to the one-row shape saved layouts already resolve to', () => {
+    expect(meta.defaultShape).toBe('wide')
   })
 })

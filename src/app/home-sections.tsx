@@ -90,8 +90,12 @@ const HOME_SECTION_RENDERERS: Record<HomeSectionKind, HomeSectionRenderer> = {
   ),
   // Returns NOTHING rather than an empty section: a cell that renders nothing
   // is not invisible, it is a reserved hole with a closing hairline in it.
-  unfinished: (ctx) =>
-    ctx.unfinished.length === 0 ? null : <UnfinishedSection workouts={ctx.unfinished} />,
+  unfinished: (ctx, shape) =>
+    ctx.unfinished.length === 0 ? null : bodySizeForShape(shape) === 'sm' ? (
+      <UnfinishedTile workouts={ctx.unfinished} />
+    ) : (
+      <UnfinishedSection workouts={ctx.unfinished} />
+    ),
   'cardio-week': (ctx, shape) => <CardioWeek userId={ctx.userId} shape={shape} />,
   'big-three': (ctx, shape) => <BigThree userId={ctx.userId} shape={shape} />,
   'pace-record': (ctx, shape) => <PaceRecord userId={ctx.userId} shape={shape} />,
@@ -149,7 +153,54 @@ export function renderHomeSections(
   return <HomeBento items={items} />
 }
 
-/** Unfinished: rows that still need an action (resume or finish).
+/** Newest first — the session you most recently walked away from. */
+function byNewestStart(workouts: readonly WorkoutSummary[]): WorkoutSummary[] {
+  return [...workouts].sort((a, b) => b.startedAt.getTime() - a.startedAt.getTime())
+}
+
+/**
+ * Unfinished in a ONE-ROW tile: the queue head.
+ *
+ * A one-row cell has room for a heading and a list of nothing, so the list
+ * body below could only ever be clipped there. This names the session you
+ * stalled on, says how far in you got, and IS the resume — the tile is the
+ * link, not a pointer to one. Showing a single session is therefore not a
+ * teaser row (banned grammar: home never describes an action that lives
+ * somewhere else). Handle this one and the next stalled session takes its
+ * place, so there is no dead end. The full log lives at /history.
+ */
+function UnfinishedTile({ workouts }: { workouts: WorkoutSummary[] }) {
+  const t = useTranslations('HomeSections')
+  const newest = byNewestStart(workouts)[0]
+  return (
+    <Link
+      href={`/workout/${newest.id}/edit`}
+      className="flex h-full flex-col transition-colors active:bg-muted/60"
+    >
+      <span className="font-display text-[0.66rem] font-medium uppercase leading-none tracking-[0.15em] text-muted-foreground">
+        {t('unfinishedTitle')}
+      </span>
+      <span className="mt-auto flex flex-col justify-end">
+        <span className="flex items-baseline gap-1">
+          {/* Sets logged, not a count of stalled sessions: how far in you got
+              is what decides whether you pick it back up. */}
+          <span className="font-display text-[2.1rem] font-semibold leading-[0.82] tnum">
+            {newest.completedSetCount}
+          </span>
+          <span className="text-[0.68rem] font-medium text-muted-foreground">
+            {t('unfinishedSetsUnit', { sets: newest.completedSetCount })}
+          </span>
+        </span>
+        <span className="mt-1.5 block truncate text-[0.7rem] text-muted-foreground">
+          {newest.name ?? t('untitledWorkout')}
+        </span>
+      </span>
+    </Link>
+  )
+}
+
+/** Unfinished with room for its rows (a two-row tile): every stalled session,
+ *  each with its own action (resume or finish).
  *  Deliberately quiet — the live session owns the hero;
  *  anything here is a stale abandonment. Rows reopen the logger, never the
  *  read-only summary (which would present them as completed). */
@@ -158,9 +209,13 @@ function UnfinishedSection({ workouts }: { workouts: WorkoutSummary[] }) {
   if (workouts.length === 0) return null
   return (
     <>
-      <h2 className="mb-3 text-lg">{t('unfinishedTitle')}</h2>
+      {/* A tile heading in the shell's label voice, not the old page-section
+          h2 — the bento's compartments come from the type-scale jump. */}
+      <h2 className="mb-3 font-display text-[0.66rem] font-medium uppercase leading-none tracking-[0.15em] text-muted-foreground">
+        {t('unfinishedTitle')}
+      </h2>
       <DividerList>
-        {workouts.map((w) => (
+        {byNewestStart(workouts).map((w) => (
           <li key={w.id}>
             <Link
               href={`/workout/${w.id}/edit`}

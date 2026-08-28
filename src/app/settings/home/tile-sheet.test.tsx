@@ -74,15 +74,25 @@ describe('TileSheet', () => {
     }
   })
 
-  test('shape control OMITS shapes the kind disallows (unfinished is wide-only)', () => {
-    const html = render({ kind: 'unfinished', index: 1, count: 4 })
+  test('shape control OMITS shapes the kind disallows (streak is micro-only)', () => {
+    const html = render({ kind: 'streak', index: 1, count: 4 })
     expect(html).toContain('role="radiogroup"')
     // A one-shape widget offers one chip. The rest never appear, rather than
     // appearing as controls that do nothing when pressed.
-    expect(html).toContain('aria-checked="true" aria-label="Wide Unfinished"')
-    expect(html).not.toContain('aria-label="Small Unfinished"')
-    expect(html).not.toContain('aria-label="Block Unfinished"')
+    expect(html).toContain('aria-checked="true" aria-label="Small Streak"')
+    expect(html).not.toContain('aria-label="Wide Streak"')
+    expect(html).not.toContain('aria-label="Block Streak"')
     expect(html).not.toContain('disabled=""')
+  })
+
+  /** Unfinished carries a LIST, and a list needs the two-row shape as well as
+   *  the one-row default — so the sheet has to offer both, and stop there. */
+  test('offers Unfinished both of its shapes, and no others', () => {
+    const html = render({ kind: 'unfinished', index: 1, count: 4 })
+    expect(html).toContain('aria-checked="true" aria-label="Wide Unfinished"')
+    expect(html).toContain('aria-label="Block Unfinished"')
+    expect(html).not.toContain('aria-label="Small Unfinished"')
+    expect(html).not.toContain('aria-label="Tall Unfinished"')
   })
 
   test('offers every shape a full-range kind allows, and only those', () => {

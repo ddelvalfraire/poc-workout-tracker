@@ -280,7 +280,7 @@ function renderSection(
 
 describe('HomeSections copy', () => {
   test('names the unfinished section and its resume affordance', () => {
-    const html = renderSection('unfinished', 'wide', [workout({ completedAt: null })])
+    const html = renderSection('unfinished', 'block', [workout({ completedAt: null })])
 
     expect(html).toContain('Unfinished')
     expect(html).toContain('Resume')
@@ -288,7 +288,7 @@ describe('HomeSections copy', () => {
   })
 
   test('reads the singular set form on a session with one set logged', () => {
-    const html = renderSection('unfinished', 'wide', [
+    const html = renderSection('unfinished', 'block', [
       workout({ completedAt: null, completedSetCount: 1 }),
     ])
 
@@ -297,11 +297,77 @@ describe('HomeSections copy', () => {
   })
 
   test('reads the plural set form on a session with several sets logged', () => {
-    const html = renderSection('unfinished', 'wide', [
+    const html = renderSection('unfinished', 'block', [
       workout({ completedAt: null, completedSetCount: 4 }),
     ])
 
     expect(html).toContain('started · 4 sets logged')
+  })
+
+  test('falls back to the untitled-workout name', () => {
+    const html = renderSection('unfinished', 'block', [workout({ completedAt: null, name: null })])
+
+    expect(html).toContain('Workout')
+  })
+
+  test('resolves every key it references', () => {
+    const unfinished = renderSection('unfinished', 'block', [workout({ completedAt: null })])
+
+    expect(unfinished).not.toMatch(/HomeSections\.[a-zA-Z.]+/)
+  })
+})
+
+/**
+ * The one-row form.
+ *
+ * `wide` is Unfinished's default and, at one row tall, has room for a heading
+ * and a list of nothing — the list body could only ever be clipped there. The
+ * compact form is a QUEUE HEAD instead: it names the session you stalled on,
+ * says how far in you got, and resuming is the tile itself. Handle it and the
+ * next one takes its place, which is why showing only one is not a teaser row
+ * ([[home-status-design]] bans those) — there is no dead end and nothing to
+ * tap through to. The full log lives at /history.
+ */
+describe('Unfinished, in a one-row tile', () => {
+  test('names the stalled session and how far in it stopped', () => {
+    const html = renderSection('unfinished', 'wide', [
+      workout({ completedAt: null, completedSetCount: 12 }),
+    ])
+
+    expect(html).toContain('Unfinished')
+    expect(html).toContain('12')
+    expect(html).toContain('sets in')
+    expect(html).toContain('Push A')
+  })
+
+  test('reads the singular unit on a session with one set logged', () => {
+    const html = renderSection('unfinished', 'wide', [
+      workout({ completedAt: null, completedSetCount: 1 }),
+    ])
+
+    expect(html).toContain('set in')
+    expect(html).not.toContain('sets in')
+  })
+
+  /** The whole tile resumes it. A compact tile that only DESCRIBES the stalled
+   *  session, leaving the action somewhere else, is the teaser row. */
+  test('is itself the resume link, not a pointer to one', () => {
+    const html = renderSection('unfinished', 'wide', [workout({ completedAt: null, id: 'w9' })])
+
+    expect(html).toContain('href="/workout/w9/edit"')
+  })
+
+  /** Newest first: the queue head is the session you most recently walked away
+   *  from, not the oldest one still lying around. */
+  test('shows the most recently started session when several are stalled', () => {
+    const html = renderSection('unfinished', 'wide', [
+      workout({ completedAt: null, id: 'old', name: 'Legs A', startedAt: new Date('2026-03-01T10:00:00Z') }),
+      workout({ completedAt: null, id: 'new', name: 'Pull B', startedAt: new Date('2026-03-04T10:00:00Z') }),
+    ])
+
+    expect(html).toContain('Pull B')
+    expect(html).toContain('href="/workout/new/edit"')
+    expect(html).not.toContain('Legs A')
   })
 
   test('falls back to the untitled-workout name', () => {
@@ -311,8 +377,8 @@ describe('HomeSections copy', () => {
   })
 
   test('resolves every key it references', () => {
-    const unfinished = renderSection('unfinished', 'wide', [workout({ completedAt: null })])
+    const html = renderSection('unfinished', 'wide', [workout({ completedAt: null })])
 
-    expect(unfinished).not.toMatch(/HomeSections\.[a-zA-Z.]+/)
+    expect(html).not.toMatch(/HomeSections\.[a-zA-Z.]+/)
   })
 })
