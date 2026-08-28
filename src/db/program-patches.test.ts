@@ -236,6 +236,34 @@ describe('setTrainingMax (TM lifecycle §1)', () => {
     expect(exerciseUpdate().progression).toEqual({ ...AMRAP, trainingMaxKg: 142.5, bankedWaves: 1 })
   })
 
+  it('leaves an absent tmBumpTiming absent — a TM change must not move the deload max', async () => {
+    // Arrange — a row migration 0037 never saw: no tmBumpTiming at all, which
+    // the engine reads as 'before-deload'. Reads: owned-exercise → progression.
+    const { tmBumpTiming: fixtureTiming, ...untimed } = AMRAP
+    expect(fixtureTiming).toBe('before-deload') // the field this row predates
+    selectQueue = [OWNED_EXERCISE, [{ progression: untimed }]]
+
+    // Act
+    await setTrainingMax(USER, PID, 0, 0, 145, 'manual', 'ui')
+
+    // Assert — the schema's 'after-deload' transform must not reach a stored
+    // row. Stamping it would silently re-point which training max the deload
+    // week derives off, and log nothing: tmBumpTiming is in no event payload.
+    expect(exerciseUpdate().progression).toEqual({ ...untimed, trainingMaxKg: 145 })
+    expect(exerciseUpdate().progression).not.toHaveProperty('tmBumpTiming')
+  })
+
+  it('still preserves an explicit tmBumpTiming through the same merge', async () => {
+    // Arrange
+    selectQueue = [OWNED_EXERCISE, [{ progression: AMRAP }]]
+
+    // Act
+    await setTrainingMax(USER, PID, 0, 0, 145, 'manual', 'ui')
+
+    // Assert
+    expect(exerciseUpdate().progression).toHaveProperty('tmBumpTiming', 'before-deload')
+  })
+
   it('works for percent-1rm and preserves the week percents', async () => {
     // Arrange
     const percent = { scheme: 'percent-1rm', trainingMaxKg: 100, weekPercents: [0.7, 0.8, 0.9] }

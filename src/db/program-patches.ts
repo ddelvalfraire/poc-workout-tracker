@@ -134,6 +134,31 @@ function parseProgression(value: Progression): Progression {
 }
 
 /**
+ * Re-parses a progression that came OUT of storage, preserving an absent
+ * `tmBumpTiming`.
+ *
+ * `progressionSchema` ends in a transform that stamps 'after-deload' onto any
+ * amrap-cycle config arriving without the field. That is the right backstop for
+ * an incoming WRITE — a new config has to mean something — and the wrong one for
+ * a row we are only merging into: the engine reads an absent field as
+ * 'before-deload' (`?? 'before-deload'` in progression.ts's `usesOldTmOnDeload`
+ * and `amrapBankableWaves`), so stamping it would silently move which training
+ * max the deload week derives off. The lifter's deload weights change and
+ * nothing explains it, because `tmBumpTiming` appears in no event payload.
+ *
+ * Absent stays absent; every other field goes through the schema as normal.
+ * See docs/specs/progression-authoring.md §03.
+ */
+function reparseStoredProgression(stored: Progression, merged: Progression): Progression {
+  const parsed = parseProgression(merged)
+  const wasAbsent = stored.scheme === 'amrap-cycle' && stored.tmBumpTiming === undefined
+  if (!wasAbsent || parsed.scheme !== 'amrap-cycle') return parsed
+  const preserved = { ...parsed }
+  delete preserved.tmBumpTiming
+  return preserved
+}
+
+/**
  * Cross-field integrity for a (merged) program-set row — the same shared rules
  * as `programSetSchema`, applied here because a partial edit merges against the
  * stored row, outside Zod's reach.
@@ -818,7 +843,7 @@ export async function setTrainingMax(
     }
     await tx
       .update(programExercises)
-      .set({ progression: parseProgression(next) })
+      .set({ progression: reparseStoredProgression(progression, next) })
       .where(eq(programExercises.id, found.exerciseId))
     await bumpUpdatedAt(tx, programId)
     await recordProgramEvent(tx, {
