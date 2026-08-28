@@ -3,12 +3,23 @@ import { listTrophies } from '@/db/trophies'
 import { trophyLabel } from '@/lib/trophies'
 import type { HomeSectionShape } from '@/lib/home/registry'
 import { getTranslations } from 'next-intl/server'
+import { cache } from 'react'
 
 /** Rows the tall form shows — a fact wall, not a scrolling ledger. */
 const MAX_ROWS = 3
 
 /** en-US matches formatWorkoutDate — one locale for all date display. */
 const dayFormat = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' })
+
+/** This widget's content, or null when it has nothing to say — the ONE
+ *  emptiness decision, read by the grid before it packs a cell and again by
+ *  the component below, so the two can never disagree. Every reader inside is
+ *  request-memoized, so the second read costs no query. See
+ *  renderHomeSections. */
+export const trophyCaseContent = cache(async (userId: string) => {
+  const rows = await listTrophies(userId)
+  return rows.length === 0 ? null : rows
+})
 
 /**
  * Recently stamped milestones. A fact wall, not a badge shop: every entry is a
@@ -20,8 +31,8 @@ const dayFormat = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numer
 export async function TrophyCase({ userId, shape }: { userId: string; shape: HomeSectionShape }) {
   const t = await getTranslations('TrophyCase')
   const tTrophies = await getTranslations('Trophies')
-  const rows = await listTrophies(userId)
-  if (rows.length === 0) return null
+  const rows = await trophyCaseContent(userId)
+  if (rows === null) return null
   const newest = trophyLabel(rows[0].kind)
 
   return (

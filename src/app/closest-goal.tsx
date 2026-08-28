@@ -3,6 +3,18 @@ import { getGoalsHomeSummary } from '@/lib/goals'
 import { getWeightUnit } from '@/db/preferences'
 import { goalLabel } from '@/lib/goal-progress'
 import { getTranslations } from 'next-intl/server'
+import { cache } from 'react'
+
+/** This widget's content, or null when it has nothing to say — the ONE
+ *  emptiness decision, read by the grid before it packs a cell and again by
+ *  the component below, so the two can never disagree. Every reader inside is
+ *  request-memoized, so the second read costs no query. See
+ *  renderHomeSections. */
+export const closestGoalContent = cache(async (userId: string) => {
+  const [summary, unit] = await Promise.all([getGoalsHomeSummary(userId), getWeightUnit(userId)])
+  if (summary?.topGoal == null) return null
+  return { topGoal: summary.topGoal, activeCount: summary.activeCount, unit }
+})
 
 /**
  * The goal currently being worked toward.
@@ -19,14 +31,14 @@ import { getTranslations } from 'next-intl/server'
 export async function ClosestGoal({ userId }: { userId: string }) {
   const t = await getTranslations('ClosestGoal')
   const tGoals = await getTranslations('Goals')
-  const [summary, unit] = await Promise.all([getGoalsHomeSummary(userId), getWeightUnit(userId)])
-  if (summary?.topGoal == null) return null
-  const label = goalLabel(summary.topGoal, unit)
+  const content = await closestGoalContent(userId)
+  if (content === null) return null
+  const label = goalLabel(content.topGoal, content.unit)
 
   return (
     <Link href="/goals" className="flex h-full flex-col transition-colors active:bg-muted/60">
       <span className="font-display text-[0.66rem] font-medium uppercase leading-none tracking-[0.15em] text-muted-foreground">
-        {t('title', { count: summary.activeCount })}
+        {t('title', { count: content.activeCount })}
       </span>
       <span className="mt-auto flex flex-col justify-end">
         {/* Rendered from the GOALS namespace, not this widget's: the label is

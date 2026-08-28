@@ -4,6 +4,7 @@ import { getPlannedWeeklyVolume } from '@/db/planned-volume'
 import { aggregateVolumeBalance, type GroupBalance } from '@/lib/home/balance'
 import type { HomeSectionShape } from '@/lib/home/registry'
 import { getTranslations } from 'next-intl/server'
+import { cache } from 'react'
 
 /** How many groups the block form shows. More than five turns a glanceable
  *  bar chart into a table nobody reads on a phone. */
@@ -14,6 +15,20 @@ const MAX_ROWS = 5
 function byShortfall(a: GroupBalance, b: GroupBalance) {
   return b.plannedSets - b.doneSets - (a.plannedSets - a.doneSets)
 }
+
+/** This widget's content, or null when it has nothing to say — the ONE
+ *  emptiness decision, read by the grid before it packs a cell and again by
+ *  the component below, so the two can never disagree. Every reader inside is
+ *  request-memoized, so the second read costs no query. See
+ *  renderHomeSections. */
+export const muscleBalanceContent = cache(async (userId: string) => {
+  const [performed, planned] = await Promise.all([
+    getRollingMuscleVolume(userId),
+    getPlannedWeeklyVolume(userId),
+  ])
+  if (planned === null) return null
+  return aggregateVolumeBalance(performed.groups, planned.groups)
+})
 
 /**
  * Weekly volume per muscle group against what the program planned — the
@@ -30,12 +45,7 @@ export async function MuscleBalance({
   shape: HomeSectionShape
 }) {
   const t = await getTranslations('MuscleBalance')
-  const [performed, planned] = await Promise.all([
-    getRollingMuscleVolume(userId),
-    getPlannedWeeklyVolume(userId),
-  ])
-  if (planned === null) return null
-  const balance = aggregateVolumeBalance(performed.groups, planned.groups)
+  const balance = await muscleBalanceContent(userId)
   if (balance === null) return null
 
   const rows = [...balance.groups].sort(byShortfall).slice(0, MAX_ROWS)

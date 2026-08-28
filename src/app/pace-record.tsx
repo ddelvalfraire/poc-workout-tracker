@@ -5,8 +5,23 @@ import { formatPace, secPerMile, M_PER_MILE } from '@/lib/home/pace'
 import type { HomeSectionShape } from '@/lib/home/registry'
 import { formatDurationInput } from '@/lib/duration'
 import { getTranslations } from 'next-intl/server'
+import { cache } from 'react'
 
 const M_PER_KM = 1000
+
+/** This widget's content, or null when it has nothing to say — the ONE
+ *  emptiness decision, read by the grid before it packs a cell and again by
+ *  the component below, so the two can never disagree. Every reader inside is
+ *  request-memoized, so the second read costs no query. See
+ *  renderHomeSections. */
+export const paceRecordContent = cache(async (userId: string) => {
+  const [records, unit] = await Promise.all([getCardioRecords(userId), getWeightUnit(userId)])
+  const { bestPace, longestDistanceM, longestDurationSec } = records
+  // All three are independently nullable; the widget exists only if at least
+  // one of them does.
+  if (bestPace === null && longestDistanceM === null && longestDurationSec === null) return null
+  return { records, unit }
+})
 
 /**
  * All-time conditioning records: best pace, longest distance, longest
@@ -19,9 +34,10 @@ const M_PER_KM = 1000
  */
 export async function PaceRecord({ userId, shape }: { userId: string; shape: HomeSectionShape }) {
   const t = await getTranslations('PaceRecord')
-  const [records, unit] = await Promise.all([getCardioRecords(userId), getWeightUnit(userId)])
+  const content = await paceRecordContent(userId)
+  if (content === null) return null
+  const { records, unit } = content
   const { bestPace, longestDistanceM, longestDurationSec } = records
-  if (bestPace === null && longestDistanceM === null && longestDurationSec === null) return null
 
   // Distance follows the weight preference: someone who logs in pounds is
   // not expecting kilometres back.

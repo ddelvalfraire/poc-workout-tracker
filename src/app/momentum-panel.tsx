@@ -11,6 +11,7 @@ import { renderLine } from '@/lib/message'
 import { Sparkbar } from '@/components/sparkbar'
 import { StreakChip } from '@/components/streak-chip'
 import { getTranslations } from 'next-intl/server'
+import { cache } from 'react'
 
 /**
  * The MOMENTUM panel — ONE designed surface replacing the goals + this-week
@@ -39,21 +40,35 @@ export interface MomentumPanelProps {
   size?: 'sm' | 'md' | 'lg'
 }
 
+/** This widget's content, or null when it has nothing to say — the ONE
+ *  emptiness decision, read by the grid before it packs a cell and again by
+ *  the component below, so the two can never disagree. Every reader inside is
+ *  request-memoized, so the second read costs no query. See
+ *  renderHomeSections. */
+export const momentumContent = cache(async (userId: string) => {
+  const [summaries, goalsSummary] = await Promise.all([
+    listWorkoutSummaries(userId),
+    getGoalsHomeSummary(userId),
+  ])
+  // True day one — nothing completed and no goals. The fresh StatusHero
+  // already invites, and two stacked invitations would compete.
+  const completed = summaries.filter((w) => w.completedAt !== null)
+  return completed.length === 0 && goalsSummary === null ? null : { summaries, goalsSummary }
+})
+
 export async function MomentumPanel({ userId, nowMs, size = 'md' }: MomentumPanelProps) {
   const t = await getTranslations('MomentumPanel')
   const tGoals = await getTranslations('Goals')
-  const [summaries, unit, goalsSummary, weekTotals] = await Promise.all([
-    listWorkoutSummaries(userId),
+  // ONE parallel round, as before: gating the other two reads behind the
+  // content await would serialise them for no gain — and on true day one the
+  // grid has already dropped this section, so the component never runs at all.
+  const [content, unit, weekTotals] = await Promise.all([
+    momentumContent(userId),
     getWeightUnit(userId),
-    getGoalsHomeSummary(userId),
     getRollingVolumeTotals(userId),
   ])
-
-  // True day one — nothing completed and no goals: skip the panel entirely
-  // (moved verbatim from the page). The fresh StatusHero already invites, and
-  // two stacked invitations would compete.
-  const completed = summaries.filter((w) => w.completedAt !== null)
-  if (completed.length === 0 && goalsSummary === null) return null
+  if (content === null) return null
+  const { summaries, goalsSummary } = content
 
   const weekSets = weekTotals.currentSets
   const weekSessions = weekTotals.currentSessions
