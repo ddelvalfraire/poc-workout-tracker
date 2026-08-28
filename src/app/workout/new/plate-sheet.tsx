@@ -241,41 +241,51 @@ export function PlateSheet({
           </Button>
         </div>
 
-        {/* Bar picker — ephemeral, per open */}
-        <div className="mt-3 flex flex-wrap gap-2">
-          {equipment.bars.map((weight) => (
+        {/* Bar picker — ephemeral, per open. The legend carries the word
+            "bar" and the unit ONCE; the pills stay bare numbers, exactly like
+            the gear editor below. Repeating "20 kg bar" on every pill wrapped
+            each one onto two lines on a phone for no added meaning — the
+            spoken label still says it in full. */}
+        <fieldset className="mt-3">
+          <legend className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+            {t('barLegend', { unit })}
+          </legend>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {equipment.bars.map((weight) => (
+              <button
+                key={weight}
+                type="button"
+                onClick={() => setBar(weight)}
+                aria-pressed={bar === weight}
+                aria-label={t('barOption', { weight: fmt(weight), unit })}
+                className={cn(
+                  // Same compact pill as the gear editor below — one vocabulary.
+                  // 36px visual + invisible inset = full HIG target without the
+                  // chunk (same trick as the history Repeat button).
+                  'relative h-9 rounded-full border px-3.5 text-sm font-semibold tnum transition-colors before:absolute before:-inset-1',
+                  bar === weight
+                    ? 'border-primary bg-primary text-primary-foreground'
+                    : 'border-border bg-muted text-muted-foreground',
+                )}
+              >
+                {fmt(weight)}
+              </button>
+            ))}
             <button
-              key={weight}
               type="button"
-              onClick={() => setBar(weight)}
-              aria-pressed={bar === weight}
+              onClick={() => setBar(0)}
+              aria-pressed={bar === 0}
               className={cn(
-                // Same compact pill as the gear editor below — one vocabulary.
-                // 36px visual + invisible inset = full HIG target without the
-                // chunk (same trick as the history Repeat button).
-                'relative h-9 rounded-full border px-3.5 text-sm font-semibold tnum transition-colors before:absolute before:-inset-1',
-                bar === weight
+                'relative h-9 whitespace-nowrap rounded-full border px-3.5 text-sm font-semibold transition-colors before:absolute before:-inset-1',
+                bar === 0
                   ? 'border-primary bg-primary text-primary-foreground'
                   : 'border-border bg-muted text-muted-foreground',
               )}
             >
-              {t('barOption', { weight: fmt(weight), unit })}
+              {t('noBar')}
             </button>
-          ))}
-          <button
-            type="button"
-            onClick={() => setBar(0)}
-            aria-pressed={bar === 0}
-            className={cn(
-              'relative h-9 rounded-full border px-3.5 text-sm font-semibold transition-colors before:absolute before:-inset-1',
-              bar === 0
-                ? 'border-primary bg-primary text-primary-foreground'
-                : 'border-border bg-muted text-muted-foreground',
-            )}
-          >
-            {t('noBar')}
-          </button>
-        </div>
+          </div>
+        </fieldset>
 
         {/* Direction toggle: same pill vocabulary as everything else here. */}
         <div className="mt-4 flex gap-2">

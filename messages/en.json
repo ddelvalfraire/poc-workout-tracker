@@ -1386,6 +1386,7 @@
     "add": "Add",
     "addPlateAriaLabel": "Add a {weight} {unit} plate",
     "ariaLabel": "Bar and plates for {name}",
+    "barLegend": "Bar ({unit})",
     "barOption": "{weight} {unit} bar",
     "barsLegend": "Bars ({unit})",
     "belowBar": "below the bar",
@@ -2389,7 +2390,7 @@
       "drifting": "{days, plural, one {# day} other {# days}} since {session}.",
       "due": "{day} day.",
       "dueSelfNamed": "{day}.",
-      "live": "In the middle of it.",
+      "live": "Pick up where you left off.",
       "ready": "Ready when you are.",
       "rest": "Rest day."
     },
