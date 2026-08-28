@@ -18,10 +18,9 @@ import {
   removeSection,
   isExtraInstance,
   toLayoutDoc,
-  resolveHomeLayout,
   type ResolvedHomeSection,
 } from '@/lib/home/layout'
-import { applyPreset, matchPreset, type HomePresetId } from '@/lib/home/presets'
+import { applyPreset, layoutForPreset, matchPreset, type HomePresetId } from '@/lib/home/presets'
 import type { TrainingSignal } from '@/lib/home/signal'
 import { EditorGrid } from './editor-grid'
 import { GallerySheet } from './gallery-sheet'
@@ -158,9 +157,14 @@ export function HomeLayoutEditor({
     if (next !== sections) persist(next)
   }
 
+  /** Reset stores NULL — the read path's degrade-to-default IS the reset. The
+   *  optimistic state must therefore be what an unsaved home RENDERS, which is
+   *  the seeded layout and not the bare registry order: showing fifteen tiles
+   *  here while home falls back to a six-tile preset would be the editor lying
+   *  about the thing it is a miniature of. */
   function onReset() {
     setActiveId(null)
-    persist(resolveHomeLayout(null), { reset: true })
+    persist(layoutForPreset(signal?.preset ?? null), { reset: true })
   }
 
   function onAdd(kind: string) {

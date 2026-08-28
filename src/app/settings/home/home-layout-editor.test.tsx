@@ -1,6 +1,7 @@
 import { describe, expect, test, vi } from 'vitest'
 import { renderStaticIntl } from '../../../../vitest.intl'
-import type { ResolvedHomeSection } from '@/lib/home/layout'
+import { resolveHomeLayout, type ResolvedHomeSection } from '@/lib/home/layout'
+import { defaultLayoutFor } from '@/lib/home/signal'
 import { applyPreset, HOME_PRESETS, type HomePresetId } from '@/lib/home/presets'
 
 /** The chip copy, derived from the preset table rather than hand-listed, so a
@@ -124,6 +125,18 @@ describe('HomeLayoutEditor (grid preview)', () => {
       />,
     )
     expect(html).not.toContain('What we read from your training')
+  })
+
+  test('Reset falls back to what an unsaved home RENDERS, not the bare registry order', () => {
+    // The editor is a miniature of home. Reset stores NULL, so what it shows
+    // afterwards must be the SEEDED layout — every widget here while home
+    // falls back to a preset is the editor lying about the thing it mirrors.
+    const seeded = defaultLayoutFor(null)
+    expect(seeded).not.toEqual(resolveHomeLayout(null))
+    const html = renderStaticIntl(<HomeLayoutEditor initialSections={[...seeded]} />)
+    // A seeded layout hides most of the catalog, and the miniature labels
+    // hidden tiles as such.
+    expect(html).toContain('— hidden')
   })
 
   test('offers the gallery, but does not open it until asked', () => {

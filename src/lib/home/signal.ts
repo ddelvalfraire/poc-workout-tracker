@@ -3,7 +3,7 @@ import { canonicalLiftFor } from '@/lib/trophies'
 import type { CanonicalLift } from '@/lib/trophy-kinds'
 import type { ExerciseSource } from '@/lib/custom-exercise-input'
 import type { ResolvedHomeSection } from './layout'
-import { applyPreset, GENERAL_PRESET_ID, type HomePresetId } from './presets'
+import { layoutForPreset, type HomePresetId } from './presets'
 
 /**
  * What the app reads about how you train — and the layout that read would
@@ -150,7 +150,7 @@ export function classifyTrainingSignal(facts: TrainingFacts): TrainingSignal | n
  * rather than a placeholder.
  */
 export function defaultLayoutFor(signal: TrainingSignal | null): ResolvedHomeSection[] {
-  return applyPreset(signal?.preset ?? GENERAL_PRESET_ID)
+  return layoutForPreset(signal?.preset ?? null)
 }
 
 /** The median of a list of reps. Exported because the read builds it from a

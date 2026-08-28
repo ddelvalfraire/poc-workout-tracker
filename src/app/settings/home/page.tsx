@@ -1,6 +1,5 @@
 import { requireUserId } from '@/lib/auth'
-import { getHomeLayout } from '@/db/preferences'
-import { getTrainingSignal } from '@/db/home-signal'
+import { getSeededHomeLayout, getTrainingSignal } from '@/db/home-signal'
 import { AppHeader } from '@/components/app-header'
 import { BackLink } from '@/components/back-link'
 import { HomeLayoutEditor } from './home-layout-editor'
@@ -24,10 +23,13 @@ export default async function CustomizeHomePage() {
   // One instant for the request, so the signal's eight-week window cannot
   // shift mid-render — the same `new Date()` shape home uses.
   const now = new Date()
-  // The derived read lives HERE and nowhere else — home must never carry a
+  // The SEEDED layout, not the bare registry default: this editor is a
+  // miniature of home, so it must start from what home actually renders —
+  // otherwise an uncustomized user sees fifteen tiles here and six there.
+  // The derived read is shown HERE and nowhere else: home must never carry a
   // line asking you to confirm how you train.
   const [sections, signal] = await Promise.all([
-    getHomeLayout(userId),
+    getSeededHomeLayout(userId, now.getTime()),
     getTrainingSignal(userId, now.getTime()),
   ])
 

@@ -157,6 +157,20 @@ export const HOME_PRESETS: readonly HomePreset[] = [
  *  the editor cannot disagree about what "general" means. */
 export const GENERAL_PRESET_ID: HomePresetId = 'volume'
 
+/**
+ * The layout for a preset, or the general one when there is no preset.
+ *
+ * Takes the ID rather than a `TrainingSignal` on purpose. The editor is a
+ * client component and needs exactly this answer for its Reset button, but
+ * `lib/home/signal` reaches `canonicalLiftFor` → `lib/trophies` → the db
+ * modules; importing it from the client drags the postgres driver into the
+ * browser bundle and fails the build. A preset id carries everything this
+ * decision needs, so the client never has to touch the classifier.
+ */
+export function layoutForPreset(id: HomePresetId | null): ResolvedHomeSection[] {
+  return applyPreset(id ?? GENERAL_PRESET_ID)
+}
+
 const PRESETS_BY_ID: ReadonlyMap<string, HomePreset> = new Map(HOME_PRESETS.map((p) => [p.id, p]))
 
 const DEFAULT_SHAPE_BY_KIND: ReadonlyMap<string, HomeSectionShape> = new Map(
