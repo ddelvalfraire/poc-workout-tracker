@@ -56,6 +56,13 @@ export interface HomePreset {
  *   failure mode that turns a bento back into a wall of cards.
  * - AT LEAST ONE `tall` cell. The vertical break is what stops the grid
  *   reading as rows; without it the shapes may as well be one-dimensional.
+ * - THE ANCHOR LEADS. Order is reading order, so a preset with a block or
+ *   hero names it first; an anchor further down is just a large tile.
+ * - ORDER IS PACKING. The packer is deliberately sparse (order beats
+ *   density), so the sequence below is not merely a priority list — it is
+ *   what decides whether the grid closes over a hole mid-page. Each list is
+ *   the order that packs cleanest at all three tiers while keeping the rules
+ *   above; changing one means re-checking the invariants in presets.test.ts.
  *
  * Some archetypes want an anchor the catalog cannot draw yet — a cut's real
  * anchor is a weight-trend BLOCK carrying its own chart, and weight-trend
@@ -68,8 +75,8 @@ export const HOME_PRESETS: readonly HomePreset[] = [
     labelKey: 'label.cut',
     sections: [
       { kind: 'weight-trend', shape: 'wide' },
-      { kind: 'strength-retention', shape: 'tall' },
       { kind: 'momentum', shape: 'wide' },
+      { kind: 'strength-retention', shape: 'tall' },
       { kind: 'cardio-week', shape: 'micro' },
       { kind: 'streak', shape: 'micro' },
       { kind: 'closest-goal', shape: 'wide' },
@@ -79,11 +86,11 @@ export const HOME_PRESETS: readonly HomePreset[] = [
     id: 'bulk',
     labelKey: 'label.bulk',
     sections: [
-      { kind: 'weight-trend', shape: 'wide' },
       { kind: 'momentum', shape: 'block' },
+      { kind: 'weight-trend', shape: 'wide' },
+      { kind: 'streak', shape: 'micro' },
       { kind: 'lift-trend', shape: 'tall' },
       { kind: 'muscle-balance', shape: 'wide' },
-      { kind: 'streak', shape: 'micro' },
     ],
   },
   {
@@ -91,9 +98,9 @@ export const HOME_PRESETS: readonly HomePreset[] = [
     labelKey: 'label.powerlifting',
     sections: [
       { kind: 'big-three', shape: 'block' },
-      { kind: 'lift-trend', shape: 'tall' },
-      { kind: 'plan-adherence', shape: 'micro' },
       { kind: 'closest-goal', shape: 'wide' },
+      { kind: 'plan-adherence', shape: 'micro' },
+      { kind: 'lift-trend', shape: 'tall' },
       { kind: 'streak', shape: 'micro' },
       { kind: 'weight-trend', shape: 'micro' },
       { kind: 'trophy-case', shape: 'micro' },
@@ -104,11 +111,11 @@ export const HOME_PRESETS: readonly HomePreset[] = [
     labelKey: 'label.hypertrophy',
     sections: [
       { kind: 'muscle-balance', shape: 'block' },
+      { kind: 'momentum', shape: 'wide' },
+      { kind: 'today-recap', shape: 'wide' },
       { kind: 'lagging-group', shape: 'micro' },
       { kind: 'lift-trend', shape: 'tall' },
-      { kind: 'momentum', shape: 'wide' },
       { kind: 'streak', shape: 'micro' },
-      { kind: 'today-recap', shape: 'wide' },
     ],
   },
   {
@@ -116,10 +123,10 @@ export const HOME_PRESETS: readonly HomePreset[] = [
     labelKey: 'label.conditioning',
     sections: [
       { kind: 'cardio-week', shape: 'wide' },
-      { kind: 'pace-record', shape: 'tall' },
       { kind: 'momentum', shape: 'wide' },
-      { kind: 'streak', shape: 'micro' },
       { kind: 'closest-goal', shape: 'wide' },
+      { kind: 'streak', shape: 'micro' },
+      { kind: 'pace-record', shape: 'tall' },
       { kind: 'today-recap', shape: 'wide' },
     ],
   },
@@ -128,11 +135,11 @@ export const HOME_PRESETS: readonly HomePreset[] = [
     labelKey: 'label.consistency',
     sections: [
       { kind: 'momentum', shape: 'block' },
-      { kind: 'trophy-case', shape: 'tall' },
-      { kind: 'streak', shape: 'micro' },
       { kind: 'today-recap', shape: 'wide' },
       { kind: 'closest-goal', shape: 'wide' },
       { kind: 'unfinished', shape: 'wide' },
+      { kind: 'trophy-case', shape: 'tall' },
+      { kind: 'streak', shape: 'micro' },
     ],
   },
   {
@@ -143,11 +150,11 @@ export const HOME_PRESETS: readonly HomePreset[] = [
     labelKey: 'label.volume',
     sections: [
       { kind: 'momentum', shape: 'block' },
-      { kind: 'trophy-case', shape: 'tall' },
       { kind: 'muscle-balance', shape: 'wide' },
       { kind: 'today-recap', shape: 'wide' },
-      { kind: 'streak', shape: 'micro' },
       { kind: 'closest-goal', shape: 'wide' },
+      { kind: 'trophy-case', shape: 'tall' },
+      { kind: 'streak', shape: 'micro' },
     ],
   },
 ]
