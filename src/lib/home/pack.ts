@@ -34,7 +34,11 @@ export interface Packable {
   shape: HomeSectionShape
 }
 
-export interface PackedSection<T extends Packable = Packable> {
+/** Generic with NO default: `ReturnType<typeof packSections>` would resolve
+ *  `T` to the bare constraint and silently drop every field but `shape`, so
+ *  a caller reaching for that idiom loses `id` with no error at the call
+ *  site. Naming the type is required, which makes that mistake impossible. */
+export interface PackedSection<T extends Packable> {
   section: T
   /** Zero-based. Add 1 for CSS `grid-row` / `grid-column`, which are 1-based. */
   row: number
@@ -45,7 +49,7 @@ export interface PackedSection<T extends Packable = Packable> {
   clamped: boolean
 }
 
-export interface PackedGrid<T extends Packable = Packable> {
+export interface PackedGrid<T extends Packable> {
   cells: PackedSection<T>[]
   /** Total rows occupied — what a fixed-height container needs to size itself. */
   rows: number

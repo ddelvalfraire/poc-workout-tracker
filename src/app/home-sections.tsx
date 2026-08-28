@@ -90,8 +90,12 @@ const HOME_SECTION_RENDERERS: Record<HomeSectionKind, HomeSectionRenderer> = {
   ),
   // Returns NOTHING rather than an empty section: a cell that renders nothing
   // is not invisible, it is a reserved hole with a closing hairline in it.
-  unfinished: (ctx) =>
-    ctx.unfinished.length === 0 ? null : <UnfinishedSection workouts={ctx.unfinished} />,
+  unfinished: (ctx, shape) =>
+    ctx.unfinished.length === 0 ? null : bodySizeForShape(shape) === 'sm' ? (
+      <UnfinishedTile workouts={ctx.unfinished} />
+    ) : (
+      <UnfinishedSection workouts={ctx.unfinished} />
+    ),
   'cardio-week': (ctx, shape) => <CardioWeek userId={ctx.userId} shape={shape} />,
   'big-three': (ctx, shape) => <BigThree userId={ctx.userId} shape={shape} />,
   'pace-record': (ctx, shape) => <PaceRecord userId={ctx.userId} shape={shape} />,
@@ -121,12 +125,19 @@ const HOME_SECTION_RENDERERS: Record<HomeSectionKind, HomeSectionRenderer> = {
  *      a hidden Momentum panel's queries never happen.
  *   2. UNKNOWN kinds — a future client's sections — are dropped just as
  *      silently, and never error.
- *   3. EMPTY bodies are dropped AFTER rendering, because emptiness is
- *      something only the renderer knows (nothing unfinished, no goals yet).
+ *   3. EMPTY bodies are dropped, so the section reserves no space — the cell
+ *      shell paints a closing hairline, and an empty one leaves a stray rule
+ *      in a gap every later cell was routed around.
  *
- * All three happen before packing, so a dropped section reserves no space:
- * the cell shell paints a closing hairline, which would otherwise leave a
- * stray rule floating in a gap every later cell was routed around.
+ * WHAT (3) DOES NOT COVER, because it is easy to read it as more than it is.
+ * A renderer returns an ELEMENT, not rendered output. Most kinds here return
+ * `<SomeWidget …/>` for an async RSC that decides its own emptiness inside
+ * its body (`if (rows.length === 0) return null`), and that decision has not
+ * happened yet — the element is truthy either way, so those sections are
+ * still packed a cell they may not fill. Only a renderer that can answer
+ * from `ctx` alone, synchronously, benefits; `unfinished` is the one that
+ * does today. Closing the rest means resolving the widget subtrees before
+ * packing, which is a change to how home renders, not to this filter.
  *
  * Geometry lives in the shell (components/home/home-bento.tsx). This file
  * owns only the kind → renderer map — the WEB half of the customization
@@ -149,7 +160,59 @@ export function renderHomeSections(
   return <HomeBento items={items} />
 }
 
-/** Unfinished: rows that still need an action (resume or finish).
+/** Newest first — the session you most recently walked away from. */
+function byNewestStart(workouts: readonly WorkoutSummary[]): WorkoutSummary[] {
+  return [...workouts].sort((a, b) => b.startedAt.getTime() - a.startedAt.getTime())
+}
+
+/**
+ * Unfinished in a ONE-ROW tile: the queue head.
+ *
+ * A one-row cell has room for a heading and a list of nothing, so the list
+ * body below could only ever be clipped there. This names the session you
+ * stalled on, says how far in you got, and IS the resume — the tile is the
+ * link, not a pointer to one. Showing a single session is therefore not a
+ * teaser row (banned grammar: home never describes an action that lives
+ * somewhere else). Handle this one and the next stalled session takes its
+ * place, so there is no dead end. The full log lives at /history.
+ */
+function UnfinishedTile({ workouts }: { workouts: WorkoutSummary[] }) {
+  const t = useTranslations('HomeSections')
+  const newest = byNewestStart(workouts)[0]
+  // Same guard as the list body below. The renderer already drops the empty
+  // case, so this is unreachable today — but the two bodies are picked apart
+  // by shape and must not disagree about their own precondition, and an
+  // unguarded [0] is a crash rather than a blank tile.
+  if (newest === undefined) return null
+  return (
+    <Link
+      href={`/workout/${newest.id}/edit`}
+      className="flex h-full flex-col transition-colors active:bg-muted/60"
+    >
+      <span className="font-display text-[0.66rem] font-medium uppercase leading-none tracking-[0.15em] text-muted-foreground">
+        {t('unfinishedTitle')}
+      </span>
+      <span className="mt-auto flex flex-col justify-end">
+        <span className="flex items-baseline gap-1">
+          {/* Sets logged, not a count of stalled sessions: how far in you got
+              is what decides whether you pick it back up. */}
+          <span className="font-display text-[2.1rem] font-semibold leading-[0.82] tnum">
+            {newest.completedSetCount}
+          </span>
+          <span className="text-[0.68rem] font-medium text-muted-foreground">
+            {t('unfinishedSetsUnit', { sets: newest.completedSetCount })}
+          </span>
+        </span>
+        <span className="mt-1.5 block truncate text-[0.7rem] text-muted-foreground">
+          {newest.name ?? t('untitledWorkout')}
+        </span>
+      </span>
+    </Link>
+  )
+}
+
+/** Unfinished with room for its rows (a two-row tile): every stalled session,
+ *  each with its own action (resume or finish).
  *  Deliberately quiet — the live session owns the hero;
  *  anything here is a stale abandonment. Rows reopen the logger, never the
  *  read-only summary (which would present them as completed). */
@@ -158,9 +221,13 @@ function UnfinishedSection({ workouts }: { workouts: WorkoutSummary[] }) {
   if (workouts.length === 0) return null
   return (
     <>
-      <h2 className="mb-3 text-lg">{t('unfinishedTitle')}</h2>
+      {/* A tile heading in the shell's label voice, not the old page-section
+          h2 — the bento's compartments come from the type-scale jump. */}
+      <h2 className="mb-3 font-display text-[0.66rem] font-medium uppercase leading-none tracking-[0.15em] text-muted-foreground">
+        {t('unfinishedTitle')}
+      </h2>
       <DividerList>
-        {workouts.map((w) => (
+        {byNewestStart(workouts).map((w) => (
           <li key={w.id}>
             <Link
               href={`/workout/${w.id}/edit`}

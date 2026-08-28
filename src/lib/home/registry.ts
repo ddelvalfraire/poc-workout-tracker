@@ -191,7 +191,10 @@ export const HOME_SECTION_REGISTRY = [
     kind: 'unfinished',
     titleKey: 'title.unfinished',
     descriptionKey: 'description.unfinished',
-    allowedShapes: ['wide'],
+    // Two rows is what the LIST body needs; `wide` stays the default because
+    // defaultShape is what a stored document resolves to when it omits one,
+    // and changing it would silently re-shape every saved layout.
+    allowedShapes: ['wide', 'block'],
     defaultShape: 'wide',
   },
   {

@@ -876,6 +876,7 @@
   "HomeSections": {
     "resumeLabel": "Resume",
     "startedSummary": "started · {sets, plural, one {# set} other {# sets}} logged",
+    "unfinishedSetsUnit": "{sets, plural, one {set in} other {sets in}}",
     "unfinishedTitle": "Unfinished",
     "untitledWorkout": "Workout"
   },

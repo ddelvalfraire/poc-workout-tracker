@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest'
-import { HOME_SECTION_REGISTRY, type HomeSectionMeta } from './registry'
+import {
+  HOME_COLUMN_TIERS,
+  HOME_SECTION_REGISTRY,
+  unitsForColumns,
+  type HomeSectionMeta,
+} from './registry'
+import { packSections } from './pack'
 import { parseHomeLayoutInput, resolveHomeLayout, toLayoutDoc } from './layout'
 import { applyPreset, findPreset, HOME_PRESETS, GENERAL_PRESET_ID, matchPreset } from './presets'
 
@@ -59,6 +65,61 @@ describe('the preset table', () => {
   it('gives every preset AT LEAST ONE tall cell — the vertical break', () => {
     for (const preset of HOME_PRESETS) {
       expect(preset.sections.some((s) => s.shape === 'tall')).toBe(true)
+    }
+  })
+
+  /**
+   * A HOLE the grid closes over is what makes a bento read as broken rather
+   * than as composed. The packer is deliberately sparse (order beats density
+   * — see pack.ts), so a clean layout is not something it can give you: it
+   * has to come from the ORDER each preset names its sections in.
+   *
+   * The budget is INTERIOR waste only — empty cells in a row that has more
+   * content below it. A partial LAST row is the ragged bottom edge a bento
+   * wants and is not counted.
+   *
+   * A third of a row is the bound, not zero. Zero is not reachable: the same
+   * fixed section list has to tile three different column counts at once,
+   * while keeping one anchor and one tall cell, and a search over every
+   * ordering of every preset finds nothing better than 1 interior cell on the
+   * phone and 2 at `xl`. Demanding zero would only be satisfiable by
+   * flattening every shape to `micro`, which trades a visible gap for no
+   * bento at all.
+   */
+  it('wastes less than a third of a row inside the grid, at every tier', () => {
+    for (const preset of HOME_PRESETS) {
+      const visible = applyPreset(preset.id).filter((s) => !s.hidden)
+      for (const columns of HOME_COLUMN_TIERS) {
+        const { cells, rows } = packSections(visible, columns, unitsForColumns(columns))
+        const filled = Array.from({ length: rows }, () => 0)
+        for (const c of cells) {
+          for (let r = c.row; r < c.row + c.rowSpan; r++) filled[r] += c.colSpan
+        }
+        // Rows above the last one; the last may trail off.
+        const interior = filled.slice(0, -1).reduce((n, f) => n + (columns - f), 0)
+        const budget = Math.ceil(columns / 3)
+        // Reported with the preset and tier because "expected 3 to be <= 1"
+        // says nothing about which layout regressed.
+        expect({ preset: preset.id, columns, withinBudget: interior <= budget }).toEqual({
+          preset: preset.id,
+          columns,
+          withinBudget: true,
+        })
+      }
+    }
+  })
+
+  /** Order is reading order: a preset that opens with a micro tile and buries
+   *  its anchor halfway down has a large tile, not a focal point. */
+  it('leads with its anchor, when it has one', () => {
+    for (const preset of HOME_PRESETS) {
+      const anchorAt = preset.sections.findIndex(
+        (s) => s.shape === 'block' || s.shape === 'hero',
+      )
+      expect({ preset: preset.id, leads: anchorAt <= 0 }).toEqual({
+        preset: preset.id,
+        leads: true,
+      })
     }
   })
 
