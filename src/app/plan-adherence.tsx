@@ -2,6 +2,14 @@ import Link from 'next/link'
 import { getPlanAdherence } from '@/db/home-adherence'
 import type { HomeSectionShape } from '@/lib/home/registry'
 import { getTranslations } from 'next-intl/server'
+import { cache } from 'react'
+
+/** This widget's content, or null when it has nothing to say — the ONE
+ *  emptiness decision, read by the grid before it packs a cell and again by
+ *  the component below, so the two can never disagree. Every reader inside is
+ *  request-memoized, so the second read costs no query. See
+ *  renderHomeSections. */
+export const planAdherenceContent = cache(async (userId: string) => getPlanAdherence(userId))
 
 /**
  * Prescribed sets met over the last four weeks.
@@ -22,7 +30,7 @@ export async function PlanAdherence({
   shape: HomeSectionShape
 }) {
   const t = await getTranslations('PlanAdherence')
-  const adherence = await getPlanAdherence(userId)
+  const adherence = await planAdherenceContent(userId)
   if (adherence === null) return null
   const missed = adherence.total - adherence.hit
 

@@ -5,8 +5,19 @@ import { formatVolumeParts } from '@/lib/format'
 import type { HomeSectionShape } from '@/lib/home/registry'
 import type { CanonicalLift } from '@/lib/trophy-kinds'
 import { getTranslations } from 'next-intl/server'
+import { cache } from 'react'
 
 const LIFT_ORDER: readonly CanonicalLift[] = ['squat', 'bench', 'deadlift', 'ohp']
+
+/** This widget's content, or null when it has nothing to say — the ONE
+ *  emptiness decision, read by the grid before it packs a cell and again by
+ *  the component below, so the two can never disagree. Every reader inside is
+ *  request-memoized, so the second read costs no query. See
+ *  renderHomeSections. */
+export const strengthRetentionContent = cache(async (userId: string) => {
+  const [retention, unit] = await Promise.all([getStrengthRetention(userId), getWeightUnit(userId)])
+  return retention === null ? null : { retention, unit }
+})
 
 /**
  * How much strength survived the current diet phase — the reassurance a cut
@@ -24,8 +35,9 @@ export async function StrengthRetention({
   shape: HomeSectionShape
 }) {
   const t = await getTranslations('StrengthRetention')
-  const [retention, unit] = await Promise.all([getStrengthRetention(userId), getWeightUnit(userId)])
-  if (retention === null) return null
+  const content = await strengthRetentionContent(userId)
+  if (content === null) return null
+  const { retention, unit } = content
 
   const rows = LIFT_ORDER.flatMap((lift) => {
     const held = retention.lifts[lift]

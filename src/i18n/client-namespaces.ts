@@ -55,6 +55,7 @@ export const CLIENT_NAMESPACES = [
   'GallerySheet',
   'GrantLedger',
   'HeaderClock',
+  'HomeCellError',
   'HomeLayoutEditor',
   'HomePreset',
   'HomeSection',

@@ -4,6 +4,7 @@ import { getWeightUnit } from '@/db/preferences'
 import { bodyweightDeltaKg, trendWeightSeries } from '@/lib/bodyweight-trend'
 import { kgToDisplay } from '@/lib/units'
 import { getTranslations } from 'next-intl/server'
+import { cache } from 'react'
 
 /** The window the rate is measured over. Seven days matches the drawer's
  *  bodyweight delta, so the two surfaces never disagree. */
@@ -11,6 +12,22 @@ const RATE_DAYS = 7
 
 /** Below this much movement per week the sign is noise, not a direction. */
 const HOLDING_THRESHOLD = 0.05
+
+/** This widget's content, or null when it has nothing to say — the ONE
+ *  emptiness decision, read by the grid before it packs a cell and again by
+ *  the component below, so the two can never disagree. Every reader inside is
+ *  request-memoized, so the second read costs no query. See
+ *  renderHomeSections. */
+export const weightTrendContent = cache(async (userId: string) => {
+  const [logs, unit] = await Promise.all([listBodyweightLogs(userId), getWeightUnit(userId)])
+  if (logs.length === 0) return null
+  // BOTH guards belong here, not just the first: a single weigh-in gives a
+  // series with no rate, and a cell packed on "has logs" would still render
+  // nothing.
+  const trend = trendWeightSeries(logs)
+  const rateKg = bodyweightDeltaKg(trend, RATE_DAYS)
+  return rateKg === null ? null : { trend, rateKg, unit }
+})
 
 /**
  * Bodyweight as a RATE, not a number.
@@ -26,12 +43,9 @@ const HOLDING_THRESHOLD = 0.05
  */
 export async function WeightTrend({ userId }: { userId: string }) {
   const t = await getTranslations('WeightTrend')
-  const [logs, unit] = await Promise.all([listBodyweightLogs(userId), getWeightUnit(userId)])
-  if (logs.length === 0) return null
-
-  const trend = trendWeightSeries(logs)
-  const rateKg = bodyweightDeltaKg(trend, RATE_DAYS)
-  if (rateKg === null) return null
+  const content = await weightTrendContent(userId)
+  if (content === null) return null
+  const { trend, rateKg, unit } = content
 
   const rate = kgToDisplay(rateKg, unit)
   const latest = kgToDisplay(trend[0].weightKg, unit)

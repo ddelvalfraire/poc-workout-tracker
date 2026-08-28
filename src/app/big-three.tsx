@@ -5,9 +5,20 @@ import { formatVolumeParts } from '@/lib/format'
 import type { HomeSectionShape } from '@/lib/home/registry'
 import type { CanonicalLift } from '@/lib/trophy-kinds'
 import { getTranslations } from 'next-intl/server'
+import { cache } from 'react'
 
 /** The order the total is read in, and the order the rows are listed in. */
 const LIFTS: readonly CanonicalLift[] = ['squat', 'bench', 'deadlift']
+
+/** This widget's content, or null when it has nothing to say — the ONE
+ *  emptiness decision, read by the grid before it packs a cell and again by
+ *  the component below, so the two can never disagree. Every reader inside is
+ *  request-memoized, so the second read costs no query. See
+ *  renderHomeSections. */
+export const bigThreeContent = cache(async (userId: string) => {
+  const [{ bests, totalKg }, unit] = await Promise.all([getBigThree(userId), getWeightUnit(userId)])
+  return totalKg === null ? null : { bests, totalKg, unit }
+})
 
 /**
  * Estimated squat + bench + deadlift total — the powerlifting anchor, and the
@@ -20,8 +31,9 @@ const LIFTS: readonly CanonicalLift[] = ['squat', 'bench', 'deadlift']
  */
 export async function BigThree({ userId, shape }: { userId: string; shape: HomeSectionShape }) {
   const t = await getTranslations('BigThree')
-  const [{ bests, totalKg }, unit] = await Promise.all([getBigThree(userId), getWeightUnit(userId)])
-  if (totalKg === null) return null
+  const content = await bigThreeContent(userId)
+  if (content === null) return null
+  const { bests, totalKg, unit } = content
   const total = formatVolumeParts(totalKg, unit)
 
   return (

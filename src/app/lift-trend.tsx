@@ -6,11 +6,38 @@ import { liftTrendPolyline } from '@/lib/home/lift-trend'
 import type { HomeSectionExerciseRef } from '@/lib/home/layout'
 import type { HomeSectionShape } from '@/lib/home/registry'
 import { getTranslations } from 'next-intl/server'
+import { cache } from 'react'
 
 /** The curve's own coordinate space — a viewBox, not pixels, so one drawing
  *  stretches to whatever width the shape gives it. */
 const VIEW_W = 100
 const VIEW_H = 34
+
+/** This widget's content, or null when it has nothing to say — the ONE
+ *  emptiness decision, read by the grid before it packs a cell and again by
+ *  the component below, so the two can never disagree. Every reader inside is
+ *  request-memoized, so the second read costs no query. See
+ *  renderHomeSections.
+ *
+ *  Keyed on the PINNED REF'S PARTS rather than the ref object: `cache` keys by
+ *  argument identity, and two equal `{source, wgerExerciseId}` objects are two
+ *  different keys — which would read the trend twice and, worse, let the grid
+ *  and the component disagree.
+ */
+export const liftTrendContent = cache(
+  async (
+    userId: string,
+    nowMs: number,
+    source: HomeSectionExerciseRef['source'] | null,
+    wgerExerciseId: number | null,
+  ) => {
+    const [trend, unit] = await Promise.all([
+      getLiftTrend(userId, nowMs, source, wgerExerciseId),
+      getWeightUnit(userId),
+    ])
+    return trend === null ? null : { trend, unit }
+  },
+)
 
 /**
  * One lift's estimated-1RM curve, with a dot on every session that beat
@@ -40,11 +67,14 @@ export async function LiftTrend({
   pinned?: HomeSectionExerciseRef
 }) {
   const t = await getTranslations('LiftTrend')
-  const [trend, unit] = await Promise.all([
-    getLiftTrend(userId, nowMs, pinned?.source ?? null, pinned?.wgerExerciseId ?? null),
-    getWeightUnit(userId),
-  ])
-  if (trend === null) return null
+  const content = await liftTrendContent(
+    userId,
+    nowMs,
+    pinned?.source ?? null,
+    pinned?.wgerExerciseId ?? null,
+  )
+  if (content === null) return null
+  const { trend, unit } = content
 
   const latest = kgToDisplay(trend.latestE1rmKg, unit)
   const delta = trend.deltaKg === null ? null : kgToDisplay(trend.deltaKg, unit)

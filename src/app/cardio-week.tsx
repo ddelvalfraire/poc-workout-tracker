@@ -3,6 +3,17 @@ import { getRollingVolumeTotals } from '@/db/muscle-volume'
 import { cardioWeek } from '@/lib/home/cardio-week'
 import type { HomeSectionShape } from '@/lib/home/registry'
 import { getTranslations } from 'next-intl/server'
+import { cache } from 'react'
+
+/** This widget's content, or null when it has nothing to say — the ONE
+ *  emptiness decision, read by the grid before it packs a cell and again by
+ *  the component below, so the two can never disagree. Every reader inside is
+ *  request-memoized, so the second read costs no query. See
+ *  renderHomeSections. */
+export const cardioWeekContent = cache(async (userId: string) => {
+  const totals = await getRollingVolumeTotals(userId)
+  return cardioWeek(totals.currentCardioSec, totals.previousCardioSec)
+})
 
 /**
  * Conditioning minutes for the rolling week, with the week-over-week delta.
@@ -17,8 +28,7 @@ import { getTranslations } from 'next-intl/server'
  */
 export async function CardioWeek({ userId, shape }: { userId: string; shape: HomeSectionShape }) {
   const t = await getTranslations('CardioWeek')
-  const totals = await getRollingVolumeTotals(userId)
-  const week = cardioWeek(totals.currentCardioSec, totals.previousCardioSec)
+  const week = await cardioWeekContent(userId)
   if (week === null) return null
 
   return (
