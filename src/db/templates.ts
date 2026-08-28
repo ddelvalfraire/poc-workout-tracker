@@ -5,7 +5,12 @@ import { db } from './index'
 import { hasFeature } from './entitlements'
 import { programs } from './schema'
 import { recordProgramEvent } from './program-events'
-import { copyProgramTree, getProgramDetail, type ProgramDetail } from './programs'
+import {
+  carriedProgramColumns,
+  copyProgramTree,
+  getProgramDetail,
+  type ProgramDetail,
+} from './programs'
 
 /**
  * Template-library data access — the read-only window onto the system
@@ -104,25 +109,17 @@ export async function adoptTemplate(
     const [program] = await tx
       .insert(programs)
       .values({
+        // The shared carry list (db/programs.ts carriedProgramColumns) — one
+        // place, so a new policy column joins every copy path at once instead
+        // of by memory. visibility and dietPhase/dietPhaseSetAt are the
+        // documented omissions there: a copy is private and phase-less.
+        ...carriedProgramColumns(source),
         userId, // the adopter's account — ownership root of the copy
         name: source.name,
         status: 'draft', // user-initiated pull: no forced confirm
         authorActor: TEMPLATE_OWNER_USER_ID,
-        mesocycleWeeks: source.mesocycleWeeks,
-        deloadWeek: source.deloadWeek,
+        // Overrides the carried value with the adopter-entitlement clamp above.
         autoregulation,
-        autoregStallPolicy: source.autoregStallPolicy,
-        deloadPolicy: source.deloadPolicy,
-        planSync: source.planSync,
-        checkInEveryDays: source.checkInEveryDays,
-        notes: source.notes,
-        description: source.description,
-        icon: source.icon,
-        heroImageUrl: source.heroImageUrl,
-        sourceUrl: source.sourceUrl,
-        // visibility omitted → the 'private' column default: the reset.
-        // dietPhase/dietPhaseSetAt omitted → null: a phase is a fact about
-        // the lifter's current diet, never a property a template carries.
       })
       .returning({ id: programs.id })
     await copyProgramTree(tx, source.days, program.id)

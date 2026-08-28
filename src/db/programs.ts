@@ -565,6 +565,23 @@ export async function updateProgram(
   const status = isCoach ? 'proposed' : input.status
   const catalog = await getExerciseCatalog(userId) // network read stays outside the tx
   return db.transaction(async (tx) => {
+    // The PRE-write visibility, read only when this replace actually carries
+    // the field (the common replace omits it, so the common path stays one
+    // write). Sharing reach is the one thing a full replace can change that
+    // is a privacy decision rather than plan content, and setProgramVisibility
+    // — the granular owner of that decision — logs every change. Without this
+    // the same change made through the builder or upsert_program left no row
+    // in the log that claims to hold the program's history.
+    const before =
+      input.visibility !== undefined
+        ? (
+            await tx
+              .select({ visibility: programs.visibility })
+              .from(programs)
+              .where(and(eq(programs.id, id), eq(programs.userId, userId)))
+          )[0]
+        : undefined
+
     const [owned] = await tx
       .update(programs)
       .set({
@@ -674,6 +691,27 @@ export async function updateProgram(
       // input can't know.
       payload: { after: { name: input.name, status: owned.status } },
     })
+    // A visibility CHANGE gets its own row, with the same action and payload
+    // shape setProgramVisibility writes — the log reads identically whichever
+    // surface made the change. An unchanged round-trip logs nothing (the same
+    // no-op short-circuit setProgramVisibility applies).
+    if (
+      input.visibility !== undefined &&
+      before !== undefined &&
+      before.visibility !== input.visibility
+    ) {
+      await recordProgramEvent(tx, {
+        programId: id,
+        userId,
+        actor,
+        action: 'set_program_visibility',
+        summary: `Visibility → ${input.visibility}`,
+        payload: {
+          before: { visibility: before.visibility },
+          after: { visibility: input.visibility },
+        },
+      })
+    }
     return { id, status: owned.status }
   })
 }
@@ -915,40 +953,20 @@ export async function cloneProgram(
     const [program] = await tx
       .insert(programs)
       .values({
+        // The shared carry list (carriedProgramColumns) — including the
+        // deliberate omissions (visibility, dietPhase) documented there.
+        ...carriedProgramColumns(source),
         userId,
         name: nextBlockName(source.name),
         status: 'draft',
-        mesocycleWeeks: source.mesocycleWeeks,
-        deloadWeek: source.deloadWeek,
-        // Deliberately NOT clamped to the adopter-entitlement check that
-        // adoptTemplate/adoptShared apply: a block restart CONTINUES the
-        // owner's own stored flag rather than ACQUIRING a new one, and
-        // clamping here would flip live prescriptions for a lifter mid-block
-        // after a lapse — worse than carrying the stored value forward.
-        autoregulation: source.autoregulation,
-        autoregStallPolicy: source.autoregStallPolicy,
-        deloadPolicy: source.deloadPolicy,
-        // The overshoot policy encodes the program's GOAL (like deloadPolicy),
-        // so it travels with the block. Per-exercise overrides copy with the
-        // tree (copyProgramTree copies exercise rows verbatim).
-        overshootPolicy: source.overshootPolicy,
-        // dietPhase / dietPhaseSetAt deliberately do NOT travel: a phase is a
-        // fact about the lifter's CURRENT diet, not about the plan — a new
-        // block starts phase-less until the owner says otherwise (same
-        // rationale in adoptTemplate/adoptShared).
-        planSync: source.planSync,
-        checkInEveryDays: source.checkInEveryDays,
-        notes: source.notes,
-        // Article metadata travels with the block; authorActor deliberately
-        // does NOT — the owner initiated the clone, so the copy is
-        // owner-authored (column default). `visibility` deliberately does NOT
-        // travel either (a deliberate divergence from the metadata carry): a
-        // clone is a NEW private thing, so omitting the column lands it on
-        // the 'private' default instead of inheriting a shared source's reach.
-        description: source.description,
-        icon: source.icon,
-        heroImageUrl: source.heroImageUrl,
-        sourceUrl: source.sourceUrl,
+        // `autoregulation` rides the carry UNCLAMPED here, unlike
+        // adoptTemplate/adoptShared: a block restart CONTINUES the owner's own
+        // stored flag rather than ACQUIRING a new one, and clamping would flip
+        // live prescriptions for a lifter mid-block after a lapse — worse than
+        // carrying the stored value forward.
+        //
+        // `authorActor` is also left to the column default: the owner
+        // initiated the clone, so the copy is owner-authored.
       })
       .returning({ id: programs.id })
 
@@ -990,6 +1008,70 @@ export async function cloneProgram(
 
     return { id: program.id }
   })
+}
+
+/**
+ * The `programs` columns that TRAVEL with a copy — the one place the carry
+ * list is written, shared by every path that mints a program from another one
+ * (cloneProgram here, adoptTemplate in db/templates.ts, adoptShared in
+ * db/program-shares.ts). `programs` is wide and always read whole, so its
+ * width costs nothing at read time; what it DID cost was three hand-enumerated
+ * insert sites that had to stay in step by memory, and they had already
+ * drifted — `overshoot_policy` travelled with a block restart and was silently
+ * dropped by both adopt paths, so an adopted program kept its per-exercise
+ * overshoot overrides (they ride copyProgramTree) but lost the program-level
+ * default those overrides inherit from. A new policy column now joins the
+ * carry by being added here once.
+ *
+ * Callers supply what is NOT a property of the source: `userId` (the new
+ * owner), `name`, `status`, `authorActor`, and any clamp (the adopt paths
+ * gate `autoregulation` on the ADOPTER's entitlement).
+ *
+ * Deliberately EXCLUDED, and the reasons they must stay excluded:
+ *  - `visibility` — a copy is a NEW private thing; omitting the column lands
+ *    it on the 'private' default instead of inheriting the source's reach.
+ *  - `dietPhase` / `dietPhaseSetAt` — a fact about the lifter's CURRENT diet,
+ *    not about the plan. Phases don't cross training blocks or accounts.
+ *  - `authorActor` — each caller states who authored the copy.
+ *  - `id` / `userId` / `createdAt` / `updatedAt` — identity, not content.
+ */
+export function carriedProgramColumns(
+  source: ProgramDetail,
+): Pick<
+  typeof programs.$inferInsert,
+  | 'mesocycleWeeks'
+  | 'deloadWeek'
+  | 'autoregulation'
+  | 'autoregStallPolicy'
+  | 'deloadPolicy'
+  | 'overshootPolicy'
+  | 'planSync'
+  | 'checkInEveryDays'
+  | 'notes'
+  | 'description'
+  | 'icon'
+  | 'heroImageUrl'
+  | 'sourceUrl'
+> {
+  return {
+    mesocycleWeeks: source.mesocycleWeeks,
+    deloadWeek: source.deloadWeek,
+    autoregulation: source.autoregulation,
+    autoregStallPolicy: source.autoregStallPolicy,
+    // The deload and overshoot policies both encode the program's GOAL, so
+    // they travel with it — a copy that scored its targets differently from
+    // the plan it was made from would not be the same program.
+    deloadPolicy: source.deloadPolicy,
+    overshootPolicy: source.overshootPolicy,
+    planSync: source.planSync,
+    checkInEveryDays: source.checkInEveryDays,
+    notes: source.notes,
+    // Article metadata is part of what the plan IS, so it travels too.
+    description: source.description,
+    icon: source.icon,
+    heroImageUrl: source.heroImageUrl,
+    sourceUrl: source.sourceUrl,
+  }
 }
 
 /**

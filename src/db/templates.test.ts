@@ -57,7 +57,15 @@ const { getProgramDetail, copyProgramTree } = vi.hoisted(() => ({
   getProgramDetail: vi.fn(),
   copyProgramTree: vi.fn(),
 }))
-vi.mock('./programs', () => ({ getProgramDetail, copyProgramTree }))
+vi.mock('./programs', async (importOriginal) => ({
+  // `carriedProgramColumns` is the REAL pure function on purpose: it IS the
+  // carry contract these tests assert, so mocking it would let the two adopt
+  // paths drift from it again without a failure. Only the IO neighbours are
+  // stubbed.
+  ...(await importOriginal<typeof import('./programs')>()),
+  getProgramDetail,
+  copyProgramTree,
+}))
 
 // The adopter-entitlement clamp on the copied autoregulation flag; entitled by
 // default so the pre-clamp row-fact assertions stay untouched. Mocked rather
@@ -87,6 +95,9 @@ function sourceDetail(over: Record<string, unknown> = {}) {
     autoregulation: true,
     autoregStallPolicy: 'all-sets',
     deloadPolicy: null,
+    // The goal-encoding policies must reach the copy: an adopted template has
+    // to score "beat the target" the way the template does.
+    overshootPolicy: 'any-metric',
     planSync: true,
     checkInEveryDays: null,
     notes: null,
@@ -138,6 +149,11 @@ describe('adoptTemplate (the library pull — copy, never link)', () => {
       description: 'Two alternating full-body workouts.',
       icon: '🏋️',
       sourceUrl: 'https://stronglifts.com/stronglifts-5x5/',
+      // Travels via the shared carry list (db/programs.ts
+      // carriedProgramColumns) — it used to be dropped here while the
+      // per-exercise overshoot overrides rode copyProgramTree, leaving the
+      // copy's overrides inheriting from a default the author never chose.
+      overshootPolicy: 'any-metric',
     })
     expect(inserts[0].values).not.toHaveProperty('visibility')
     // The diet phase never travels: a template can't know the adopter's diet.

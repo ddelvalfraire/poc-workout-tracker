@@ -1037,6 +1037,61 @@ describe('visibility threading integrity (shared programs tier 1)', () => {
     // Assert
     expect(updateSets[0]).toMatchObject({ visibility: 'public' })
   })
+
+  /**
+   * A full replace can change sharing REACH, which is a privacy decision, not
+   * plan content. setProgramVisibility (db/program-shares.ts) logs every such
+   * change; the builder and upsert_program reached the same column through
+   * here and logged nothing, so the change log that claims to hold the
+   * program's history had a hole in exactly the decision most worth auditing.
+   */
+  it('updateProgram logs a set_program_visibility event when the reach actually changes', async () => {
+    // Arrange — the stored program is private; the replace shares it by link.
+    // The pre-write read is the FIRST select in the transaction.
+    selectQueue.push([{ visibility: 'private' }])
+
+    // Act
+    await updateProgram(USER, 'p1', parseProgramInput({ ...MINIMAL, visibility: 'link' }), 'ui')
+
+    // Assert — one event, in setProgramVisibility's own action + payload
+    // shape, so the log reads identically whichever surface made the change.
+    const events = records
+      .map((r) => r.values as Record<string, unknown>)
+      .filter((v) => v.action === 'set_program_visibility')
+    expect(events).toHaveLength(1)
+    expect(events[0]).toMatchObject({
+      programId: 'p1',
+      userId: USER,
+      actor: 'ui',
+      action: 'set_program_visibility',
+      payload: { before: { visibility: 'private' }, after: { visibility: 'link' } },
+    })
+  })
+
+  it('updateProgram logs NO visibility event when the replace round-trips the same value', async () => {
+    // Arrange — an already-shared program re-saved with the same reach. A
+    // no-op is not a change (the same short-circuit setProgramVisibility uses).
+    selectQueue.push([{ visibility: 'link' }])
+
+    // Act
+    await updateProgram(USER, 'p1', parseProgramInput({ ...MINIMAL, visibility: 'link' }), 'ui')
+
+    // Assert
+    expect(
+      records.filter((r) => (r.values as Record<string, unknown>).action === 'set_program_visibility'),
+    ).toHaveLength(0)
+  })
+
+  it('updateProgram makes no pre-write read at all when the replace omits visibility', async () => {
+    // The common replace never mentions the field, so the audit read must not
+    // cost it a query.
+    // Act
+    await updateProgram(USER, 'p1', parseProgramInput(MINIMAL), 'ui')
+
+    // Assert — exactly the two snapshots the replace already made (overrides,
+    // then day slots); no visibility read among them.
+    expect(selectCalls).toBe(2)
+  })
 })
 
 describe('saveProgram muscle tagging (Phase 5)', () => {

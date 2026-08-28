@@ -74,7 +74,15 @@ const { getProgramDetail, copyProgramTree } = vi.hoisted(() => ({
   getProgramDetail: vi.fn(),
   copyProgramTree: vi.fn(),
 }))
-vi.mock('./programs', () => ({ getProgramDetail, copyProgramTree }))
+vi.mock('./programs', async (importOriginal) => ({
+  // `carriedProgramColumns` is the REAL pure function on purpose: it IS the
+  // carry contract these tests assert, so mocking it would let the two adopt
+  // paths drift from it again without a failure. Only the IO neighbours are
+  // stubbed.
+  ...(await importOriginal<typeof import('./programs')>()),
+  getProgramDetail,
+  copyProgramTree,
+}))
 
 // The adopter-entitlement clamp on the cloned autoregulation flag (the
 // templates.test.ts idiom); entitled by default so the pre-clamp row-fact
@@ -135,6 +143,11 @@ function sourceDetail(over: Record<string, unknown> = {}) {
     mesocycleWeeks: 4,
     deloadWeek: 4,
     autoregulation: true,
+    autoregStallPolicy: 'first-set',
+    deloadPolicy: { mode: 'reactive' },
+    // The goal-encoding policies must reach the clone: the copy has to score
+    // "beat the target" the way the plan it came from does.
+    overshootPolicy: 'any-metric',
     planSync: false,
     checkInEveryDays: 14,
     visibility: 'link',
@@ -418,6 +431,13 @@ describe('adoptShared (cross-account clone)', () => {
       planSync: false,
       checkInEveryDays: 14,
       sourceUrl: 'https://example.com/src',
+      // The goal-encoding policies travel (db/programs.ts
+      // carriedProgramColumns) — they used to be dropped here while the
+      // per-exercise overshoot overrides rode copyProgramTree, leaving the
+      // clone's overrides inheriting from a default the sharer never chose.
+      autoregStallPolicy: 'first-set',
+      deloadPolicy: { mode: 'reactive' },
+      overshootPolicy: 'any-metric',
     })
     expect('visibility' in values).toBe(false)
     // The sharer's diet phase never travels — it is about THEIR body.

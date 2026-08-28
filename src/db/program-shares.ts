@@ -11,7 +11,12 @@ import {
   ProposedProgramError,
 } from './program-errors'
 import { recordProgramEvent } from './program-events'
-import { copyProgramTree, getProgramDetail, type ProgramDetail } from './programs'
+import {
+  carriedProgramColumns,
+  copyProgramTree,
+  getProgramDetail,
+  type ProgramDetail,
+} from './programs'
 
 /**
  * Sharing data access — visibility flips, share-link lifecycle, and the two
@@ -237,25 +242,18 @@ export async function adoptShared(userId: string, token: string): Promise<{ id: 
     const [program] = await tx
       .insert(programs)
       .values({
+        // The shared carry list (db/programs.ts carriedProgramColumns) — one
+        // place, so a new policy column joins every copy path at once instead
+        // of by memory. visibility and dietPhase/dietPhaseSetAt are the
+        // documented omissions there: the copy is private, and the sharer's
+        // diet phase is about THEIR body.
+        ...carriedProgramColumns(source),
         userId, // the visitor's account — ownership root of the copy
         name: source.name,
         status: 'proposed', // the forced confirm gates it into the account
         authorActor: row.ownerUserId,
-        mesocycleWeeks: source.mesocycleWeeks,
-        deloadWeek: source.deloadWeek,
+        // Overrides the carried value with the adopter-entitlement clamp above.
         autoregulation,
-        autoregStallPolicy: source.autoregStallPolicy,
-        deloadPolicy: source.deloadPolicy,
-        planSync: source.planSync,
-        checkInEveryDays: source.checkInEveryDays,
-        notes: source.notes,
-        description: source.description,
-        icon: source.icon,
-        heroImageUrl: source.heroImageUrl,
-        sourceUrl: source.sourceUrl,
-        // visibility omitted → the 'private' column default: the reset.
-        // dietPhase/dietPhaseSetAt omitted → null: the sharer's diet phase is
-        // about THEIR body, never something an adopted copy inherits.
       })
       .returning({ id: programs.id })
     await copyProgramTree(tx, source.days, program.id)
