@@ -253,6 +253,21 @@ export async function getMuscleVolume(
 }
 
 /**
+ * Rolling-window muscle volume, request-memoized by userId ALONE.
+ *
+ * CONSTRAINT, same one getRollingVolumeTotals carries: `getMuscleVolume`
+ * takes a VolumeWindows OBJECT, and React cache keys arguments by Object.is —
+ * so every caller building its own `volumeWindows('rolling', new Date())`
+ * would miss the cache and re-run the query. The windows are derived INSIDE
+ * here, on cache miss, which is what lets two home widgets read per-group
+ * volume for the price of one.
+ */
+export const getRollingMuscleVolume = cache(
+  async (userId: string): Promise<MuscleVolume> =>
+    getMuscleVolume(userId, volumeWindows('rolling', new Date())),
+)
+
+/**
  * Totals only — no muscle resolution, so no catalog/Redis dependency. The
  * home teaser's read: it must never put the wger catalog on the home page's
  * critical path (the /stats page owns the full per-group picture).

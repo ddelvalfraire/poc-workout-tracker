@@ -132,6 +132,9 @@
     "lede": "Weight, tape, or a progress photo — {detail}.",
     "title": "Body check-in due"
   },
+  "ClosestGoal": {
+    "title": "{count, plural, one {Goal} other {Top goal}}"
+  },
   "CoachChart": {
     "ariaLabel": "Coach traces and cost per day, last {days, plural, one {# day} other {# days}}",
     "series": {
@@ -817,22 +820,34 @@
     "description": {
       "bigThree": "Squat, bench and deadlift e1RM, and the total.",
       "cardioWeek": "Conditioning minutes this week, against last.",
+      "closestGoal": "The goal you are working toward.",
+      "laggingGroup": "The muscle group furthest behind its plan.",
       "momentum": "This week’s sets, activity, and goal progress.",
+      "muscleBalance": "Weekly sets per muscle group against your program.",
       "paceRecord": "Best pace, longest distance and longest session.",
       "planAdherence": "Prescribed sets met over the last four weeks.",
+      "streak": "Scheduled-day consistency, with your grace setting.",
       "strengthRetention": "How much strength survived the current diet phase.",
       "todayRecap": "Celebration cards for sessions you finished today.",
-      "unfinished": "Stalled sessions waiting to be resumed or finished."
+      "trophyCase": "Recently stamped milestones.",
+      "unfinished": "Stalled sessions waiting to be resumed or finished.",
+      "weightTrend": "Bodyweight as a rate, over a 7-day average."
     },
     "title": {
       "bigThree": "Estimated total",
       "cardioWeek": "Cardio",
+      "closestGoal": "Top goal",
+      "laggingGroup": "Lagging",
       "momentum": "Momentum",
+      "muscleBalance": "Volume vs plan",
       "paceRecord": "Records",
       "planAdherence": "On target",
+      "streak": "Streak",
       "strengthRetention": "Holding",
       "todayRecap": "Today",
-      "unfinished": "Unfinished"
+      "trophyCase": "Trophies",
+      "unfinished": "Unfinished",
+      "weightTrend": "Weight trend"
     }
   },
   "HomeSections": {
@@ -920,6 +935,11 @@
     "importError": "Could not import this template. Please try again.",
     "pending": "Adding…"
   },
+  "LaggingGroup": {
+    "caption": "{done} of {planned} planned",
+    "title": "Lagging",
+    "unit": "{group} sets"
+  },
   "LibraryFilter": {
     "empty": "Nothing here yet — finish a workout and your exercises show up with their stats.",
     "emptyQuery": "No exercise matches “{query}”.",
@@ -1003,6 +1023,12 @@
     "weekDeltaDown": "Down {delta} on last week",
     "weekDeltaLevel": "Level with last week",
     "weekDeltaUp": "Up {delta} on last week"
+  },
+  "MuscleBalance": {
+    "behind": "{group} {count, plural, one {# set behind} other {# sets behind}}",
+    "more": "Stats",
+    "ofPlanned": "of {total} sets",
+    "title": "Volume vs plan"
   },
   "NavDrawer": {
     "anchor": "{anchor, select, today {today} tomorrow {tomorrow} sunday {sunday} monday {monday} tuesday {tuesday} wednesday {wednesday} thursday {thursday} friday {friday} saturday {saturday} other {{anchor}}}",
@@ -2341,6 +2367,9 @@
   "StatusStrip": {
     "navLabel": "System status"
   },
+  "StreakCard": {
+    "title": "Streak"
+  },
   "StreakChip": {
     "countLabel": "{weeks} wk",
     "srOnly": "{weeks, plural, one {week} other {weeks}} training streak"
@@ -2540,6 +2569,10 @@
     },
     "title": "Trophies"
   },
+  "TrophyCase": {
+    "title": "Trophies",
+    "unit": "earned"
+  },
   "UncompleteSession": {
     "action": "Mark not finished",
     "pending": "Checking…",
@@ -2613,6 +2646,13 @@
     "plateChipAriaLabel": "Plates for this weight: {chip}. Open plate calculator",
     "stepDecrease": "−{step}",
     "stepIncrease": "+{step}"
+  },
+  "WeightTrend": {
+    "caption": "{weight} {unit} · 7-day average",
+    "holding": "Holding",
+    "perWeek": "{unit} / week",
+    "title": "Weight trend",
+    "window": "7 d"
   },
   "Welcome": {
     "lede": "Your training data is health data, and you get real choices about it — each one in plain English.",

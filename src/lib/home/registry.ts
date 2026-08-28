@@ -57,6 +57,12 @@ export type HomeSectionTitleKey =
   | 'title.paceRecord'
   | 'title.strengthRetention'
   | 'title.planAdherence'
+  | 'title.muscleBalance'
+  | 'title.laggingGroup'
+  | 'title.streak'
+  | 'title.closestGoal'
+  | 'title.trophyCase'
+  | 'title.weightTrend'
 
 export type HomeSectionDescriptionKey =
   | 'description.momentum'
@@ -67,6 +73,12 @@ export type HomeSectionDescriptionKey =
   | 'description.paceRecord'
   | 'description.strengthRetention'
   | 'description.planAdherence'
+  | 'description.muscleBalance'
+  | 'description.laggingGroup'
+  | 'description.streak'
+  | 'description.closestGoal'
+  | 'description.trophyCase'
+  | 'description.weightTrend'
 
 /** The registry's copy is CATALOG KEYS, not sentences: entries are data
  *  shared by the editor grid, the tile sheet and (later) native clients, none
@@ -148,6 +160,48 @@ export const HOME_SECTION_REGISTRY = [
     titleKey: 'title.planAdherence',
     descriptionKey: 'description.planAdherence',
     allowedShapes: ['micro', 'wide'],
+    defaultShape: 'micro',
+  },
+  {
+    kind: 'muscle-balance',
+    titleKey: 'title.muscleBalance',
+    descriptionKey: 'description.muscleBalance',
+    allowedShapes: ['wide', 'block', 'hero'],
+    defaultShape: 'block',
+  },
+  {
+    kind: 'lagging-group',
+    titleKey: 'title.laggingGroup',
+    descriptionKey: 'description.laggingGroup',
+    allowedShapes: ['micro'],
+    defaultShape: 'micro',
+  },
+  {
+    kind: 'weight-trend',
+    titleKey: 'title.weightTrend',
+    descriptionKey: 'description.weightTrend',
+    allowedShapes: ['micro', 'wide'],
+    defaultShape: 'micro',
+  },
+  {
+    kind: 'streak',
+    titleKey: 'title.streak',
+    descriptionKey: 'description.streak',
+    allowedShapes: ['micro'],
+    defaultShape: 'micro',
+  },
+  {
+    kind: 'closest-goal',
+    titleKey: 'title.closestGoal',
+    descriptionKey: 'description.closestGoal',
+    allowedShapes: ['micro', 'wide'],
+    defaultShape: 'wide',
+  },
+  {
+    kind: 'trophy-case',
+    titleKey: 'title.trophyCase',
+    descriptionKey: 'description.trophyCase',
+    allowedShapes: ['micro', 'tall'],
     defaultShape: 'micro',
   },
 ] as const satisfies readonly HomeSectionMeta[]
