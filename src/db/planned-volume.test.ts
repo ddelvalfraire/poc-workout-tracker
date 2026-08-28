@@ -32,9 +32,18 @@ vi.mock('./index', () => ({
   db: { select: () => makeBuilder() },
 }))
 
+// The program's current week — a workout-history read this aggregate has no
+// business re-deriving. Stubbed so the select queue stays the module's own.
+const { programWeekState } = vi.hoisted(() => ({ programWeekState: vi.fn() }))
+vi.mock('./programs', () => ({ programWeekState }))
+
+import type { ProgramSetRowLike } from '@/lib/progression'
+import type { Progression } from '@/lib/program-input'
 import {
   aggregatePlannedVolume,
+  derivePlannedSetRows,
   getPlannedWeeklyVolume,
+  type PlannedExercisePlan,
   type PlannedMuscleRow,
   type PlannedSetRow,
 } from './planned-volume'
@@ -44,6 +53,35 @@ const USER = 'user_123'
 /** One planned set; overrides on top of a reps_weight working-set default. */
 function set(over: Partial<PlannedSetRow> = {}): PlannedSetRow {
   return { programExerciseId: 'pe1', setType: 'working', metricMode: 'reps_weight', ...over }
+}
+
+/** One STORED plan row, as `getPlannedWeeklyVolume`'s query projects it.
+ *  Typed against the real row shape (not `Record<string, unknown>`) so the
+ *  literal set/metric modes stay literal — a widened `string` here is what
+ *  used to force a bridge cast at the call sites, which would have swallowed
+ *  any future required field on `ProgramSetRowLike`. */
+function planRow(
+  over: Partial<ProgramSetRowLike & { programExerciseId: string; progression: Progression | null; id: string }> = {},
+): ProgramSetRowLike & { programExerciseId: string; progression: Progression | null; id: string } {
+  return {
+    programExerciseId: 'pe1',
+    progression: null,
+    id: 'ps1',
+    setNumber: 1,
+    setType: 'working',
+    metricMode: 'reps_weight',
+    repMin: 8,
+    repMax: 12,
+    rir: null,
+    rpe: null,
+    suggestedLoadKg: 100,
+    tempo: null,
+    durationSec: null,
+    distanceM: null,
+    restSec: null,
+    technique: null,
+    ...over,
+  }
 }
 
 /** Bench-like tags for pe1: Chest primary, Triceps+Shoulders secondary. */
@@ -60,6 +98,8 @@ function byGroup(volume: ReturnType<typeof aggregatePlannedVolume>): Record<stri
 beforeEach(() => {
   selectResults = []
   whereArgs.length = 0
+  programWeekState.mockReset()
+  programWeekState.mockResolvedValue({ currentWeek: 1, blockComplete: false })
 })
 
 describe('aggregatePlannedVolume', () => {
@@ -186,8 +226,9 @@ describe('getPlannedWeeklyVolume', () => {
 
   it("scopes the lookup to the user's active programs and the children to the program", async () => {
     selectResults = [
-      [{ id: 'prog-1', name: 'PPL' }],
-      [set(), set({ setType: 'warmup' })],
+      [{ id: 'prog-1', name: 'PPL', mesocycleWeeks: 4, deloadWeek: null, deloadPolicy: null }],
+      [planRow(), planRow({ id: 'ps2', setNumber: 2, setType: 'warmup' })],
+      [], // no per-week overrides
       BENCH_TAGS as unknown[],
     ]
 
@@ -203,8 +244,183 @@ describe('getPlannedWeeklyVolume', () => {
     const programWhere = dialect.sqlToQuery(whereArgs[0] as SQL)
     expect(programWhere.params).toContain(USER)
     expect(programWhere.params).toContain('active')
-    // Both child queries are scoped to the found program's id.
+    // Every child query is scoped to the found program's id.
     expect(dialect.sqlToQuery(whereArgs[1] as SQL).params).toContain('prog-1')
     expect(dialect.sqlToQuery(whereArgs[2] as SQL).params).toContain('prog-1')
+    expect(dialect.sqlToQuery(whereArgs[3] as SQL).params).toContain('prog-1')
+  })
+
+  /**
+   * The regression this rewrite exists for. The target used to be a count of
+   * the stored `program_sets` rows, so a scheduled deload halved what the
+   * lifter performed while the target it was compared against stayed at full
+   * volume — a shortfall on /stats that nobody earned.
+   */
+  it('counts the DELOAD week at the policy setFactor, not the stored row count', async () => {
+    // Arrange — 4 working sets, week 4 is a scheduled deload at setFactor 0.5.
+    selectResults = [
+      [
+        {
+          id: 'prog-1',
+          name: 'PPL',
+          mesocycleWeeks: 4,
+          deloadWeek: 4,
+          deloadPolicy: {
+            mode: 'scheduled',
+            shape: { loadFactor: 0.85, setFactor: 0.5, rpeCap: null, timedExercises: 'untouched' },
+          },
+        },
+      ],
+      [1, 2, 3, 4].map((n) => planRow({ id: `ps${n}`, setNumber: n })),
+      [],
+      BENCH_TAGS as unknown[],
+    ]
+    programWeekState.mockResolvedValue({ currentWeek: 4, blockComplete: false })
+
+    // Act
+    const planned = await getPlannedWeeklyVolume(USER)
+
+    // Assert — the deload week prescribes 2 sets, so 2 is the target.
+    expect(planned!.totalSets).toBe(2)
+    expect(planned!.groups.find((g) => g.group === 'Chest')!.plannedSets).toBe(2)
+  })
+
+  it('counts a non-deload week at full volume under the same policy', async () => {
+    selectResults = [
+      [
+        {
+          id: 'prog-1',
+          name: 'PPL',
+          mesocycleWeeks: 4,
+          deloadWeek: 4,
+          deloadPolicy: {
+            mode: 'scheduled',
+            shape: { loadFactor: 0.85, setFactor: 0.5, rpeCap: null, timedExercises: 'untouched' },
+          },
+        },
+      ],
+      [1, 2, 3, 4].map((n) => planRow({ id: `ps${n}`, setNumber: n })),
+      [],
+      BENCH_TAGS as unknown[],
+    ]
+    programWeekState.mockResolvedValue({ currentWeek: 3, blockComplete: false })
+
+    expect((await getPlannedWeeklyVolume(USER))!.totalSets).toBe(4)
+  })
+
+  it("honors a per-week technique override — the week's dose, not the template's", async () => {
+    // Arrange — a plain set the owner turned into a 2-stage drop set for
+    // week 2 only. Hard-set weight 1 + 0.5×2 = 2.
+    selectResults = [
+      [{ id: 'prog-1', name: 'PPL', mesocycleWeeks: 4, deloadWeek: null, deloadPolicy: null }],
+      [planRow()],
+      [
+        {
+          programSetId: 'ps1',
+          week: 2,
+          repMin: null,
+          repMax: null,
+          rir: null,
+          rpe: null,
+          suggestedLoadKg: null,
+          tempo: null,
+          durationSec: null,
+          distanceM: null,
+          restSec: null,
+          technique: {
+            version: 1,
+            kind: 'drop-set',
+            stages: [{ loadPct: 0.8 }, { loadPct: 0.6 }],
+          },
+        },
+      ],
+      BENCH_TAGS as unknown[],
+    ]
+    programWeekState.mockResolvedValue({ currentWeek: 2, blockComplete: false })
+
+    // Act
+    const planned = await getPlannedWeeklyVolume(USER)
+
+    // Assert
+    expect(planned!.totalSets).toBe(2)
+  })
+
+  it('ignores an override addressed to a different week', async () => {
+    selectResults = [
+      [{ id: 'prog-1', name: 'PPL', mesocycleWeeks: 4, deloadWeek: null, deloadPolicy: null }],
+      [planRow()],
+      [
+        {
+          programSetId: 'ps1',
+          week: 3, // not the current week
+          repMin: null,
+          repMax: null,
+          rir: null,
+          rpe: null,
+          suggestedLoadKg: null,
+          tempo: null,
+          durationSec: null,
+          distanceM: null,
+          restSec: null,
+          technique: {
+            version: 1,
+            kind: 'drop-set',
+            stages: [{ loadPct: 0.8 }, { loadPct: 0.6 }],
+          },
+        },
+      ],
+      BENCH_TAGS as unknown[],
+    ]
+    programWeekState.mockResolvedValue({ currentWeek: 2, blockComplete: false })
+
+    expect((await getPlannedWeeklyVolume(USER))!.totalSets).toBe(1)
+  })
+})
+
+describe('derivePlannedSetRows (the shared week derivation)', () => {
+  function plan(over: Partial<PlannedExercisePlan> = {}): PlannedExercisePlan {
+    return {
+      programExerciseId: 'pe1',
+      progression: null,
+      sets: [{ ...planRow(), overrides: [] }],
+      ...over,
+    }
+  }
+
+  it('counts the weekly-volume ramp at the week it is actually on', () => {
+    // Arrange — a ramp from MEV 3 to MRV 6 working sets across a 4-week block.
+    const sets = [1, 2, 3].map((n) => ({ ...planRow({ id: `ps${n}`, setNumber: n }), overrides: [] }))
+    const ramped = plan({
+      progression: { scheme: 'weekly-volume', mevSets: 3, mrvSets: 6 },
+      sets,
+    })
+    const context = {
+      mesocycleWeeks: 4,
+      deloadWeek: null,
+      deloadPolicy: { mode: 'none' } as const,
+    }
+
+    // Act
+    const week1 = derivePlannedSetRows([ramped], { ...context, week: 1 })
+    const week4 = derivePlannedSetRows([ramped], { ...context, week: 4 })
+
+    // Assert — the target grows with the plan instead of sitting at the
+    // stored row count for the whole block.
+    expect(week1).toHaveLength(3)
+    expect(week4.length).toBeGreaterThan(week1.length)
+  })
+
+  it('is pure — it never mutates the plans it is given', () => {
+    const plans = [plan()]
+    const snapshot = structuredClone(plans)
+
+    derivePlannedSetRows(plans, {
+      week: 1,
+      mesocycleWeeks: 4,
+      deloadWeek: null,
+      deloadPolicy: { mode: 'none' },
+    })
+
+    expect(plans).toEqual(snapshot)
   })
 })
