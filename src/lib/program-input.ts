@@ -104,11 +104,26 @@ export const techniqueSchema = z
     kind: z.enum(['drop-set', 'rest-pause', 'myo-reps', 'cluster']),
     stages: z
       .array(
-        z.object({
-          loadKg: z.number().min(0).max(MAX_WEIGHT).nullable().optional(),
-          reps: z.number().int().min(0).max(MAX_REPS).nullable().optional(),
-          restSec: z.number().int().min(0).optional(),
-        }),
+        z
+          .object({
+            loadKg: z.number().min(0).max(MAX_WEIGHT).nullable().optional(),
+            // A stage load stated RELATIVE to the set it drops from: 0.8 is
+            // "80% of whatever the top set derives to this week". Absolute
+            // loads decay against a progressing top set — 80 kg is −20% off
+            // 100 and −30% off 115 — so a technique authored once silently
+            // becomes a different technique by week 6. Resolved (and
+            // quantized) in lib/technique.ts; never stored expanded.
+            // Above 1.0 is legal: an ascending cluster is a real thing.
+            loadPct: z.number().gt(0).max(2).nullable().optional(),
+            reps: z.number().int().min(0).max(MAX_REPS).nullable().optional(),
+            restSec: z.number().int().min(0).optional(),
+          })
+          // Not a precedence rule — a stage means ONE thing. Silently
+          // preferring one would make the other a lie the preview repeats.
+          .refine((s) => s.loadKg == null || s.loadPct == null, {
+            message: 'a stage carries loadKg or loadPct, never both',
+            path: ['loadPct'],
+          }),
       )
       .min(1),
   })

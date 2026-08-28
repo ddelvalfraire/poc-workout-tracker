@@ -107,9 +107,11 @@ has to land on a weight the lifter can actually load, in the unit they read.
 resolved stage load compares like-with-like against its top set.
 
 **Signature change.** `expandTechniqueStages(sets)` has no unit today. It gains
-one — `expandTechniqueStages(sets, unit)` — and both call sites in
-`db/prescriptions.ts` already hold the resolved unit (`options?.unit ?? await
-getWeightUnit(userId)`). No caller has to go find it.
+one — `expandTechniqueStages(sets, unit)`. There are two production call sites,
+not both in `db/prescriptions.ts` as first scoped: `prescriptions.ts:659`
+(inside `instantiateProgramDay`, which reads the request-memoized
+`getWeightUnit`) and `app/workout/[id]/edit/page.tsx:94`, which already takes
+`unit: WeightUnit` as a parameter and uses it for `autoregReason`.
 
 ## 04 · What the built logger imposes on this surface
 

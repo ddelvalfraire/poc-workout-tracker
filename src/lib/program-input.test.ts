@@ -359,6 +359,55 @@ describe('parseProgramInput', () => {
     ).toThrow()
   })
 
+  it('accepts a percentage stage load and keeps it relative', () => {
+    // Act
+    const result = parseProgramInput({
+      name: 'P',
+      days: [
+        {
+          name: 'Arms',
+          exercises: [
+            {
+              wgerExerciseId: 1,
+              name: 'Curl',
+              sets: [{ technique: { kind: 'drop-set', stages: [{ loadPct: 0.8, reps: 10 }] } }],
+            },
+          ],
+        },
+      ],
+    })
+
+    // Assert — stored relative; resolution happens at derivation, not here
+    expect(result.days[0].exercises[0].sets[0].technique).toMatchObject({
+      kind: 'drop-set',
+      stages: [{ loadPct: 0.8, reps: 10 }],
+    })
+  })
+
+  it('throws on a stage carrying BOTH loadKg and loadPct', () => {
+    // A stage means one thing. Preferring one silently would make the other a
+    // lie the authoring preview repeats back to the author.
+    expect(() =>
+      parseProgramInput({
+        name: 'P',
+        days: [
+          {
+            name: 'Arms',
+            exercises: [
+              {
+                wgerExerciseId: 1,
+                name: 'Curl',
+                sets: [
+                  { technique: { kind: 'drop-set', stages: [{ loadKg: 20, loadPct: 0.8 }] } },
+                ],
+              },
+            ],
+          },
+        ],
+      }),
+    ).toThrow()
+  })
+
   it('throws on an unknown technique kind', () => {
     expect(() =>
       parseProgramInput({
