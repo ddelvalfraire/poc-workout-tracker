@@ -12,11 +12,10 @@ import {
   removeProgramSetOverride,
   setTrainingMax,
   setProgramDietPhase,
-  withTx,
-  type PatchRunner,
   type ProgramSetPatch,
   type ProgramSetOverridePatch,
 } from './program-patches'
+import { withTx, type PatchRunner } from './program-ownership'
 import {
   proposalPatchesSchema,
   MAX_PROPOSAL_SUMMARY,

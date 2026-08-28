@@ -78,13 +78,20 @@ function makeTx() {
   }
 }
 
+/** How many times an op opened its OWN transaction on the root `db` — the
+ *  counter the `runIn` cases below assert stays at zero. */
+let ownTransactions = 0
+
 vi.mock('./index', () => ({
   db: {
-    transaction: (cb: (tx: ReturnType<typeof makeTx>) => unknown) => cb(makeTx()),
+    transaction: (cb: (tx: ReturnType<typeof makeTx>) => unknown) => {
+      ownTransactions += 1
+      return cb(makeTx())
+    },
   },
 }))
 
-import { ProgramPatchError } from './program-patches'
+import { ProgramPatchError } from './program-ownership'
 import {
   duplicateProgramDay,
   duplicateProgramWeek,
@@ -150,6 +157,7 @@ beforeEach(() => {
   records.length = 0
   selectQueue = []
   returningQueue = []
+  ownTransactions = 0
 })
 
 describe('duplicateProgramDay', () => {
@@ -677,5 +685,154 @@ describe('applyProgressionToScope', () => {
     selectQueue = [NOT_OWNED]
     expect(await applyProgressionToScope(USER, PID, 0, 1, 'day', 'ui')).toBeNull()
     expect(records).toHaveLength(0)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// The module boundary
+// ---------------------------------------------------------------------------
+
+/**
+ * What the per-op suites above assert is each op's BEHAVIOUR. What they never
+ * assert is the boundary the module presents: which names it hands out, that
+ * every op stamps the program it edited onto its event, and that an op handed a
+ * runner joins THAT transaction instead of opening its own. Those three are
+ * exactly what a file split can break without failing anything above, so they
+ * are pinned here in their own right.
+ */
+describe('the module boundary', () => {
+  it('hands out exactly the six bulk ops', async () => {
+    // Arrange / Act — the runtime surface (types erase, so these are the ops).
+    const surface = await import('./program-bulk')
+
+    // Assert
+    expect(Object.keys(surface).sort()).toEqual([
+      'applyProgramSetScheme',
+      'applyProgressionToScope',
+      'duplicateProgramDay',
+      'duplicateProgramWeek',
+      'fillProgramSetsDown',
+      'fillProgramWeeksRight',
+    ])
+  })
+
+  /** A PatchRunner-shaped stand-in that counts how often the op used it. */
+  function countingRunner() {
+    let used = 0
+    return {
+      used: () => used,
+      runner: {
+        transaction: (cb: (tx: ReturnType<typeof makeTx>) => unknown) => {
+          used += 1
+          return cb(makeTx())
+        },
+      },
+    }
+  }
+
+  const LINEAR = { scheme: 'linear', incrementKg: 2.5 }
+  const ONE_SET_SCHEME = [{ repMin: 5, repMax: 5, rir: null, rpe: null, suggestedLoadKg: null }]
+
+  /** One committing happy path per op, with the reads it needs in call order. */
+  const OPS: Record<
+    string,
+    { selects: unknown[][]; returning?: { id: string }[][]; run: (runIn: never) => Promise<unknown> }
+  > = {
+    duplicateProgramDay: {
+      // An empty day: owned-day → day row → exercises. No exercises means no
+      // set / override / muscle reads at all.
+      selects: [OWNED_DAY, [{ name: 'Push', notes: null, weekdays: [] }], []],
+      returning: [[{ id: 'pd-new' }]],
+      run: (runIn) => duplicateProgramDay(USER, PID, 0, 'ui', { runIn }),
+    },
+    fillProgramSetsDown: {
+      selects: [OWNED_EXERCISE, [storedSet(1), storedSet(2)]],
+      run: (runIn) => fillProgramSetsDown(USER, PID, 0, 1, 1, 'ui', { runIn }),
+    },
+    duplicateProgramWeek: {
+      selects: [OWNED_PROGRAM, [{ mesocycleWeeks: 6 }], [{ id: 'ps1' }], [storedOverride('o1', 'ps1', 2)]],
+      run: (runIn) => duplicateProgramWeek(USER, PID, 2, 3, 'ui', { runIn }),
+    },
+    fillProgramWeeksRight: {
+      selects: [OWNED_EXERCISE, [{ mesocycleWeeks: 6 }], [{ id: 'ps1' }], [storedOverride('o1', 'ps1', 2)]],
+      run: (runIn) => fillProgramWeeksRight(USER, PID, 0, 1, 2, 3, 'ui', { runIn }),
+    },
+    applyProgramSetScheme: {
+      selects: [OWNED_EXERCISE, [storedSet(1)]],
+      run: (runIn) => applyProgramSetScheme(USER, PID, 0, 1, ONE_SET_SCHEME, 'ui', { runIn }),
+    },
+    applyProgressionToScope: {
+      selects: [OWNED_EXERCISE, [{ progression: LINEAR }], [{ id: 'pe1' }, { id: 'pe2' }]],
+      run: (runIn) => applyProgressionToScope(USER, PID, 0, 1, 'day', 'ui', { runIn }),
+    },
+  }
+
+  it.each(Object.entries(OPS))(
+    '%s runs on a supplied runner instead of opening its own transaction',
+    async (_name, { selects, returning, run }) => {
+      // Arrange
+      selectQueue = selects.map((rows) => [...rows])
+      returningQueue = returning ?? []
+      const { runner, used } = countingRunner()
+
+      // Act
+      const result = await run(runner as never)
+
+      // Assert — the op committed on the caller's transaction, and never on db.
+      expect(result).not.toBeNull()
+      expect(used()).toBe(1)
+      expect(ownTransactions).toBe(0)
+      expect(writes('insert:program_events')).toHaveLength(1)
+    },
+  )
+
+  it.each(Object.entries(OPS))('%s stamps the edited program onto its event', async (_name, { selects, returning, run }) => {
+    // Arrange
+    selectQueue = selects.map((rows) => [...rows])
+    returningQueue = returning ?? []
+    const { runner } = countingRunner()
+
+    // Act
+    await run(runner as never)
+
+    // Assert
+    expect(event()).toMatchObject({ programId: PID, userId: USER, actor: 'ui' })
+  })
+})
+
+describe('bulk op options the affordances depend on', () => {
+  it('fillProgramSetsDown refuses an EMPTY field list — a fill of nothing is a caller bug', async () => {
+    // Act / Assert — the throw beats the ownership read, so nothing is even read.
+    await expect(
+      fillProgramSetsDown(USER, PID, 0, 1, 1, 'ui', { fields: [] }),
+    ).rejects.toThrow(new ProgramPatchError('fill needs at least one field'))
+    expect(records).toHaveLength(0)
+  })
+
+  it('applyProgramSetScheme logs a caller-supplied summary verbatim', async () => {
+    // Arrange — the quick-entry surface passes the scheme text the lifter typed.
+    selectQueue = [OWNED_EXERCISE, [storedSet(1)]]
+
+    // Act
+    await applyProgramSetScheme(USER, PID, 0, 1, [{ repMin: 5, repMax: 5, rir: null, rpe: null, suggestedLoadKg: null }], 'ui', {
+      summary: 'Bench: 5,5,3 (Day 1)',
+    })
+
+    // Assert
+    expect(event()).toMatchObject({ summary: 'Bench: 5,5,3 (Day 1)' })
+  })
+
+  it('duplicateProgramDay names an unnamed copy after its source', async () => {
+    // Arrange — an empty day is enough to reach the day insert.
+    selectQueue = [OWNED_DAY, [{ name: 'Upper A', notes: null, weekdays: [] }], []]
+    returningQueue = [[{ id: 'pd-new' }]]
+
+    // Act
+    await duplicateProgramDay(USER, PID, 0, 'ui')
+
+    // Assert
+    expect((writes('insert:program_days')[0].values as Record<string, unknown>).name).toBe(
+      'Upper A (copy)',
+    )
   })
 })

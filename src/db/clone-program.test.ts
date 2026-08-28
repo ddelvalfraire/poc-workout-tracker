@@ -57,17 +57,24 @@ vi.mock('@/lib/wger', () => ({ getAllExercises }))
 // behavior is program-patches.test.ts territory). The mock's ProgramPatchError
 // is the identity cloneProgram's skip-on-mismatch catch sees.
 const { setTrainingMaxMock } = vi.hoisted(() => ({ setTrainingMaxMock: vi.fn() }))
-vi.mock('./program-patches', () => {
+// `withTx` and the error class live in program-ownership now; only the TM
+// setter is still program-patches. Both halves are mocked because cloneProgram
+// reaches for all three, and the error identity has to be the one its
+// skip-on-mismatch catch compares against.
+const { ProgramPatchError } = vi.hoisted(() => {
   class ProgramPatchError extends Error {}
-  return {
-    ProgramPatchError,
-    setTrainingMax: setTrainingMaxMock,
-    withTx: (tx: unknown) => ({ transaction: (cb: (t: unknown) => unknown) => cb(tx) }),
-  }
+  return { ProgramPatchError }
 })
+vi.mock('./program-ownership', () => ({
+  ProgramPatchError,
+  withTx: (tx: unknown) => ({ transaction: (cb: (t: unknown) => unknown) => cb(tx) }),
+}))
+vi.mock('./program-patches', () => ({
+  ProgramPatchError,
+  setTrainingMax: setTrainingMaxMock,
+}))
 
 import { cloneProgram } from './programs'
-import { ProgramPatchError } from './program-patches'
 
 const USER = 'user_123'
 

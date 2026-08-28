@@ -21,7 +21,6 @@ import {
   deloadPolicySchema,
   dietPhaseSchema,
   programMetaPatchSchema,
-  programSetIntegrityViolation,
   programMesocycleViolation,
   type Technique,
   type Progression,
@@ -36,6 +35,20 @@ import { TM_BASED_SCHEMES } from '@/lib/substitute-slot'
 import { db } from './index'
 import { requireFeature } from './entitlements'
 import { recordProgramEvent, type ProgramEventActor } from './program-events'
+import {
+  ProgramPatchError,
+  assertSetRowIntegrity,
+  bumpUpdatedAt,
+  findOwnedDayId,
+  findOwnedExercise,
+  findOwnedProgramId,
+  type PatchRunner,
+  type Tx,
+} from './program-ownership'
+// Re-exported rather than moved out of the public surface: this error is part
+// of the patch API that callers already catch, and the split is meant to be
+// invisible from outside. See program-ownership.ts for where it now lives.
+export { ProgramPatchError } from './program-ownership'
 import { muscleRowsFor } from './programs'
 import type { ExerciseCatalog } from '@/lib/exercise-catalog'
 import { getExerciseCatalog } from './exercise-catalog'
@@ -73,37 +86,15 @@ import {
  * carry a per-parent unique on their ordering column; the splice-renumbers
  * transiently collide with it — safe because the migrations made each one
  * DEFERRABLE INITIALLY DEFERRED (checked at commit).
+ *
+ * The ownership gates, the transaction plumbing and `ProgramPatchError` itself
+ * live one floor down in db/program-ownership.ts, shared with the bulk ops. This
+ * module therefore exports OPS AND ONLY OPS — which is what lets the change-log
+ * ratchet in program-events-completeness.test.ts run without exceptions.
  */
-
-/** An invalid edit (vs. `null` = not-found). The tool layer surfaces the message verbatim. */
-export class ProgramPatchError extends Error {}
 
 type SetType = z.infer<typeof setTypeSchema>
 type MetricMode = z.infer<typeof metricModeSchema>
-
-/** The transaction handle, lifted from the callback signature (no internal import).
- *  Exported for the sibling bulk ops in db/program-bulk.ts, which run on the
- *  same handles and reuse the ownership finders below. */
-export type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0]
-
-/**
- * Where a patch op runs: the root `db` (the default — each op owns its own
- * transaction, unchanged behavior) or a caller-supplied runner that executes
- * the op's body inside an ALREADY-OPEN transaction. The two callers that need
- * the latter are the batch-proposal confirm (db/patch-proposals.ts — all
- * patches commit or none do) and the block-restart TM carry-forward
- * (cloneProgram — increments ride the clone's transaction). Ops stay
- * event-logged and actor-attributed identically either way.
- */
-export interface PatchRunner {
-  transaction<T>(cb: (tx: Tx) => Promise<T>): Promise<T>
-}
-
-/** Wraps an open transaction as a PatchRunner (the op's body just runs on it —
- *  a throw aborts the caller's whole transaction, which is the point). */
-export function withTx(tx: Tx): PatchRunner {
-  return { transaction: (cb) => cb(tx) }
-}
 
 /** A ZodError → a concise ProgramPatchError (first issue, path-prefixed). */
 function patchErrorFromZod(error: unknown, fallback: string): ProgramPatchError {
@@ -163,108 +154,6 @@ function reparseStoredProgression(stored: Progression, merged: Progression): Pro
  * as `programSetSchema`, applied here because a partial edit merges against the
  * stored row, outside Zod's reach.
  */
-export function assertSetRowIntegrity(row: {
-  metricMode: string
-  durationSec: number | null
-  repMin: number | null
-  repMax: number | null
-}): void {
-  const violation = programSetIntegrityViolation(row)
-  if (violation) throw new ProgramPatchError(violation.message)
-}
-
-/** Marks the program as just-edited; ownership was already verified by the finder. */
-export async function bumpUpdatedAt(tx: Tx, programId: string): Promise<void> {
-  await tx.update(programs).set({ updatedAt: new Date() }).where(eq(programs.id, programId))
-}
-
-/**
- * Resolves the program's own id only when owned by the user — the ownership gate
- * for the day-level ops that don't address an existing day (add).
- */
-export async function findOwnedProgramId(
-  tx: Tx,
-  userId: string,
-  programId: string,
-): Promise<string | null> {
-  const [p] = await tx
-    .select({ id: programs.id })
-    .from(programs)
-    .where(and(eq(programs.id, programId), eq(programs.userId, userId)))
-    .limit(1)
-  return p?.id ?? null
-}
-
-/**
- * Resolves a program-day id only when the program is owned by the user. The join
- * to `programs.userId` is the ownership gate for every day-level edit. Returns
- * null when the program isn't owned or no day sits at that 0-based position.
- */
-export async function findOwnedDayId(
-  tx: Tx,
-  userId: string,
-  programId: string,
-  dayPosition: number,
-): Promise<string | null> {
-  const [pd] = await tx
-    .select({ id: programDays.id })
-    .from(programDays)
-    .innerJoin(programs, eq(programs.id, programDays.programId))
-    .where(
-      and(
-        eq(programDays.programId, programId),
-        eq(programDays.position, dayPosition),
-        eq(programs.userId, userId),
-      ),
-    )
-    .limit(1)
-  return pd?.id ?? null
-}
-
-/**
- * Resolves a program-exercise id (and its day id, for sibling renumbering) only
- * when the program is owned by the user — one join deeper than the workout twin:
- * program_exercises → program_days → programs.user_id.
- */
-export async function findOwnedExercise(
-  tx: Tx,
-  userId: string,
-  programId: string,
-  dayPosition: number,
-  exercisePosition: number,
-): Promise<{
-  exerciseId: string
-  dayId: string
-  wgerExerciseId: number
-  source: ExerciseSource
-  name: string
-} | null> {
-  const [pe] = await tx
-    .select({
-      exerciseId: programExercises.id,
-      dayId: programDays.id,
-      // Current identity halves, so a partial identity patch can retag with
-      // the effective (source, id) — patch value ?? stored value.
-      wgerExerciseId: programExercises.wgerExerciseId,
-      source: programExercises.source,
-      // Current name, so event summaries can say WHAT changed without a re-read.
-      name: programExercises.name,
-    })
-    .from(programExercises)
-    .innerJoin(programDays, eq(programDays.id, programExercises.programDayId))
-    .innerJoin(programs, eq(programs.id, programDays.programId))
-    .where(
-      and(
-        eq(programDays.programId, programId),
-        eq(programDays.position, dayPosition),
-        eq(programExercises.position, exercisePosition),
-        eq(programs.userId, userId),
-      ),
-    )
-    .limit(1)
-  return pe ?? null
-}
-
 /** Strips `undefined` entries so an omitted key never overwrites a stored value. */
 function definedFields<T extends object>(patch: T): Partial<T> {
   return Object.fromEntries(

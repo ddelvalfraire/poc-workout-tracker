@@ -6,7 +6,8 @@ import type { ExerciseSource } from '@/lib/custom-exercise-input'
 // we call its TM setter in cloneProgram's block-restart carry-forward) — safe
 // because both directions are used strictly inside function bodies, never at
 // module init.
-import { setTrainingMax, withTx, ProgramPatchError } from './program-patches'
+import { setTrainingMax } from './program-patches'
+import { withTx, ProgramPatchError } from './program-ownership'
 import type { TmIncrement } from '@/lib/tm-restart'
 import { hasFeature, requireFeature } from './entitlements'
 import { pickNextProgramDay } from '@/lib/next-program-day'
