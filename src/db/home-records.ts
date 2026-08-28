@@ -1,11 +1,11 @@
-import "server-only";
-import { cache } from "react";
-import { and, asc, eq, gte, inArray, isNotNull, or } from "drizzle-orm";
-import { db } from "@/db";
-import { sets, workoutExercises, workouts } from "@/db/schema";
-import { getBodyweightKg } from "@/db/preferences";
-import { inWindow, volumeWindows } from "@/lib/volume-window";
-import { CANONICAL_LIFTS } from "@/lib/trophy-kinds";
+import 'server-only'
+import { cache } from 'react'
+import { and, asc, eq, gte, inArray, isNotNull, or } from 'drizzle-orm'
+import { db } from '@/db'
+import { sets, workoutExercises, workouts } from '@/db/schema'
+import { getBodyweightKg } from '@/db/preferences'
+import { inWindow, volumeWindows } from '@/lib/volume-window'
+import { CANONICAL_LIFTS } from '@/lib/trophy-kinds'
 import {
   aggregateBigThree,
   aggregateCardioRecords,
@@ -14,7 +14,7 @@ import {
   type CardioRecords,
   type DistanceWeek,
   type RecordSetRow,
-} from "@/lib/home/records";
+} from '@/lib/home/records'
 
 /**
  * The home record widgets' reads. Each is ONE flat query plus a pure
@@ -30,9 +30,9 @@ import {
 /** Every wger id that maps to a canonical lift, flattened once at module
  *  load. Custom exercises match by NAME, which SQL cannot do, so they are
  *  admitted wholesale and filtered in the aggregator. */
-const CANONICAL_WGER_IDS: readonly number[] = Object.values(
-  CANONICAL_LIFTS,
-).flatMap((def) => def.wgerIds);
+const CANONICAL_WGER_IDS: readonly number[] = Object.values(CANONICAL_LIFTS).flatMap(
+  (def) => def.wgerIds,
+)
 
 /**
  * Completed sets with the columns any record needs.
@@ -45,22 +45,18 @@ const CANONICAL_WGER_IDS: readonly number[] = Object.values(
  *   'cardio' — only sets carrying a duration or a distance
  * `since` bounds it by time on top, for the windowed caller.
  */
-type RecordScope = "lifts" | "cardio";
+type RecordScope = 'lifts' | 'cardio'
 
 const fetchRecordRows = cache(
-  async (
-    userId: string,
-    scope: RecordScope,
-    since?: Date,
-  ): Promise<RecordSetRow[]> => {
+  async (userId: string, scope: RecordScope, since?: Date): Promise<RecordSetRow[]> => {
     const scopeFilter =
-      scope === "lifts"
+      scope === 'lifts'
         ? // Canonical wger ids, or any custom exercise (name-matched later).
           or(
             inArray(workoutExercises.wgerExerciseId, [...CANONICAL_WGER_IDS]),
-            eq(workoutExercises.source, "custom"),
+            eq(workoutExercises.source, 'custom'),
           )
-        : or(isNotNull(sets.durationSec), isNotNull(sets.distanceM));
+        : or(isNotNull(sets.durationSec), isNotNull(sets.distanceM))
     const rows = await db
       .select({
         workoutId: workouts.id,
@@ -75,10 +71,7 @@ const fetchRecordRows = cache(
         distanceM: sets.distanceM,
       })
       .from(sets)
-      .innerJoin(
-        workoutExercises,
-        eq(workoutExercises.id, sets.workoutExerciseId),
-      )
+      .innerJoin(workoutExercises, eq(workoutExercises.id, sets.workoutExerciseId))
       .innerJoin(workouts, eq(workouts.id, workoutExercises.workoutId))
       .where(
         and(
@@ -91,58 +84,49 @@ const fetchRecordRows = cache(
       )
       // Ascending so strictly-greater comparisons keep a tie on the earliest
       // set — the record belongs to whoever got there first.
-      .orderBy(
-        asc(workouts.startedAt),
-        asc(workoutExercises.position),
-        asc(sets.setNumber),
-      );
+      .orderBy(asc(workouts.startedAt), asc(workoutExercises.position), asc(sets.setNumber))
 
     return rows.map((r) => ({
       ...r,
       // The denormalized name is nullable in the schema; canonical-lift
       // matching needs a string, and '' simply matches no lift.
-      exerciseName: r.exerciseName ?? "",
-      loggingType: r.loggingType ?? "weight_reps",
-    }));
+      exerciseName: r.exerciseName ?? '',
+      loggingType: r.loggingType ?? 'weight_reps',
+    }))
   },
-);
+)
+
+/** The lifts row scan, shared with the strength-retention read so a home
+ *  showing both widgets pays for one query. */
+export const fetchLiftRows = (userId: string) => fetchRecordRows(userId, 'lifts')
 
 /** Best e1RM per canonical lift, plus the three-lift total. */
 export const getBigThree = cache(async (userId: string): Promise<BigThree> => {
   const [rows, bodyweightKg] = await Promise.all([
-    fetchRecordRows(userId, "lifts"),
+    fetchRecordRows(userId, 'lifts'),
     getBodyweightKg(userId),
-  ]);
-  return aggregateBigThree(rows, bodyweightKg);
-});
+  ])
+  return aggregateBigThree(rows, bodyweightKg)
+})
 
 /** All-time conditioning records across every exercise. */
-export const getCardioRecords = cache(
-  async (userId: string): Promise<CardioRecords> => {
-    return aggregateCardioRecords(await fetchRecordRows(userId, "cardio"));
-  },
-);
+export const getCardioRecords = cache(async (userId: string): Promise<CardioRecords> => {
+  return aggregateCardioRecords(await fetchRecordRows(userId, 'cardio'))
+})
 
 /**
  * Rolling-window distance totals. Shares the windowing helper the volume
  * totals use, so "this week" means the same thing in both widgets.
  */
-export const getDistanceWeek = cache(
-  async (userId: string): Promise<DistanceWeek | null> => {
-    const windows = volumeWindows("rolling", new Date());
-    const rows = await fetchRecordRows(
-      userId,
-      "cardio",
-      windows.previous.start,
-    );
-    let currentM = 0;
-    let previousM = 0;
-    for (const row of rows) {
-      if (row.distanceM === null || row.distanceM <= 0) continue;
-      if (inWindow(row.performedAt, windows.current)) currentM += row.distanceM;
-      else if (inWindow(row.performedAt, windows.previous))
-        previousM += row.distanceM;
-    }
-    return aggregateDistanceWeek(currentM, previousM);
-  },
-);
+export const getDistanceWeek = cache(async (userId: string): Promise<DistanceWeek | null> => {
+  const windows = volumeWindows('rolling', new Date())
+  const rows = await fetchRecordRows(userId, 'cardio', windows.previous.start)
+  let currentM = 0
+  let previousM = 0
+  for (const row of rows) {
+    if (row.distanceM === null || row.distanceM <= 0) continue
+    if (inWindow(row.performedAt, windows.current)) currentM += row.distanceM
+    else if (inWindow(row.performedAt, windows.previous)) previousM += row.distanceM
+  }
+  return aggregateDistanceWeek(currentM, previousM)
+})
