@@ -181,8 +181,18 @@ describe('reactiveDeloadProposalContent — cutting-hold flavor (Part A)', () =>
     expect('rpe' in content.patches[0].args).toBe(false)
     // Hold-first phrasing: declining is the recommendation, in the display unit.
     expect(content.summary).toBe(
-      'Squat stalled 3× at 100 kg while cutting — hold rather than back off? Holding is the win; confirm only to back off week 5 (~90% load). Declining holds.',
+      'Squat stalled 3× at 100 kg while cutting — we held the load. Load is the variable worth protecting in a deficit; confirm only if you also want week 5 at ~90% load. Declining keeps the load.',
     )
+  })
+
+  it('leads with the volume cut the engine already applied, when it applied one', () => {
+    const content = reactiveDeloadProposalContent(
+      candidate({ adjustment: { ...held, volumeCut: { fromSets: 3, toSets: 2 } } }),
+      'cutting-hold',
+      REACTIVE_DEFAULT_SHAPE,
+      'kg',
+    )!
+    expect(content.summary).toContain('we cut the volume to 2 sets and held the load')
   })
 
   it('speaks the display unit in the summary while patches stay kg-canonical', () => {

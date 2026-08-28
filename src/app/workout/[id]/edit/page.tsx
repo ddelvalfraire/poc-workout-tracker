@@ -15,6 +15,7 @@ import { deriveDayPrescription } from '@/db/prescriptions'
 import { expandTechniqueStages } from '@/lib/technique'
 import { getWorkoutDraft } from '@/db/workout-drafts'
 import type { PlanSetTarget } from '@/lib/format'
+import type { DerivedSet } from '@/lib/progression'
 import type { WeightUnit } from '@/lib/units'
 import { autoregReason } from '@/lib/autoregulate'
 import { detailToDraft } from '@/app/workout/new/workout-draft'
@@ -43,7 +44,12 @@ async function loadPlanTargets(
       dayName: string
       autoreg: Record<
         string,
-        { reason: string; suggestEarlyDeload: boolean; phaseContext?: 'cutting' }
+        {
+          reason: string
+          suggestEarlyDeload: boolean
+          phaseContext?: 'cutting'
+          trimmedTargets?: PlanSetTarget[]
+        }
       >
     }
   | undefined
@@ -62,36 +68,22 @@ async function loadPlanTargets(
   // layer), same first-slot-wins keying as the targets.
   const autoreg: Record<
     string,
-    { reason: string; suggestEarlyDeload: boolean; phaseContext?: 'cutting' }
+    {
+      reason: string
+      suggestEarlyDeload: boolean
+      phaseContext?: 'cutting'
+      trimmedTargets?: PlanSetTarget[]
+    }
   > = {}
   // Plan-declared superset pairings (display-only in the logger): same
   // first-slot-wins keying as the targets so the two maps stay congruent.
   const supersets: Record<string, number> = {}
-  day.exercises.forEach((exercise, i) => {
-    const key = `${exercise.source}:${exercise.wgerExerciseId}`
-    if (key in targets) {
-      // A repeated exercise whose LATER slot carries a different grouping is
-      // ambiguous under identity keying — drop the pairing entirely rather
-      // than paint one slot's group onto both cards.
-      if ((supersets[key] ?? null) !== exercise.supersetGroup) delete supersets[key]
-      return
-    }
-    if (exercise.supersetGroup !== null) supersets[key] = exercise.supersetGroup
-    const adjustment = derived[i].autoreg
-    if (adjustment) {
-      autoreg[key] = {
-        reason: autoregReason(adjustment, unit),
-        suggestEarlyDeload: adjustment.suggestEarlyDeload,
-        // Cutting annotation rides along so the logger swaps the deload
-        // nudge for the holding-is-the-win framing (Part A copy rule).
-        ...(adjustment.phaseContext === 'cutting' ? { phaseContext: 'cutting' as const } : {}),
-      }
-    }
-    // Expanded through the SAME function instantiation used (lib/technique.ts)
-    // — plan targets are positional, so a technique set that seeded 3 rows
-    // must offer 3 targets or every later set would wear the wrong ghosts,
-    // rest countdown and effort target.
-    targets[key] = expandTechniqueStages(derived[i].sets).map((s) => ({
+  // Expanded through the SAME function instantiation used (lib/technique.ts)
+  // — plan targets are positional, so a technique set that seeded 3 rows
+  // must offer 3 targets or every later set would wear the wrong ghosts,
+  // rest countdown and effort target.
+  const toTargets = (sets: readonly DerivedSet[]): PlanSetTarget[] =>
+    expandTechniqueStages(sets).map((s) => ({
       repMin: s.repMin,
       repMax: s.repMax,
       loadKg: s.loadKg,
@@ -112,6 +104,34 @@ async function loadPlanTargets(
       durationSec: s.durationSec,
       distanceM: s.distanceM,
     }))
+  day.exercises.forEach((exercise, i) => {
+    const key = `${exercise.source}:${exercise.wgerExerciseId}`
+    if (key in targets) {
+      // A repeated exercise whose LATER slot carries a different grouping is
+      // ambiguous under identity keying — drop the pairing entirely rather
+      // than paint one slot's group onto both cards.
+      if ((supersets[key] ?? null) !== exercise.supersetGroup) delete supersets[key]
+      return
+    }
+    if (exercise.supersetGroup !== null) supersets[key] = exercise.supersetGroup
+    const adjustment = derived[i].autoreg
+    if (adjustment) {
+      autoreg[key] = {
+        reason: autoregReason(adjustment, unit),
+        suggestEarlyDeload: adjustment.suggestEarlyDeload,
+        // Cutting annotation rides along so the logger swaps the deload
+        // nudge for the holding-is-the-win framing (Part A copy rule).
+        ...(adjustment.phaseContext === 'cutting' ? { phaseContext: 'cutting' as const } : {}),
+        // The rows a cutting volume cut removed. They ride with the REASON
+        // because they are what the escape beside it restores — without them
+        // "Use plan as written" would revert ghosts while the plan's own set
+        // stayed missing, which is the label lying (#313 review, M1).
+        ...(derived[i].trimmedSets.length > 0
+          ? { trimmedTargets: toTargets(derived[i].trimmedSets) }
+          : {}),
+      }
+    }
+    targets[key] = toTargets(derived[i].sets)
   })
   // The day name rides along so the logger can say which (day, week) this
   // session is stamped to — provenance is fixed at start, so it must be

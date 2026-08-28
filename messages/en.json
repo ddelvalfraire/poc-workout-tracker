@@ -1417,7 +1417,7 @@
       },
       "cutting": {
         "label": "Cutting",
-        "hint": "Stalls are expected; hold the load instead of auto-backing-off."
+        "hint": "On a stall we trim volume and hold the load — in a deficit the load is the thing worth protecting."
       },
       "maintaining": {
         "label": "Maintaining",

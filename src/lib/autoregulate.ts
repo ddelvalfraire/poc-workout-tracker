@@ -176,10 +176,13 @@ export interface AutoregAdjustment {
   }
   /** Diet-phase annotation (applyDietPhaseToAdjustment): present ONLY when
    *  the program is CUTTING and the verdict is stall-shaped (repeat /
-   *  decrement-held / flag). Copy-side framing only — stalls are EXPECTED
-   *  under a deficit and holding is the win; the phase never changes a load
-   *  (Murphy & Koehler: lean mass is what a cut impairs, strength stays
-   *  comparable — so the copy never claims otherwise). */
+   *  decrement-held / flag). The phase never cuts a LOAD: under a deficit
+   *  load is the protected variable (Spiering 2021, Bickel 2011, Mujika &
+   *  Padilla 2000 — strength and size hold on minimal volume *provided
+   *  relative load is maintained*), and a deficit is not what stops strength
+   *  progressing (Murphy & Koehler 2022: lean-mass gains impaired, strength
+   *  gains not). Volume is the disposable variable, so a stall in a deficit
+   *  trims volume instead — `volumeKeepFraction`. */
   phaseContext?: 'cutting'
   /** The auto-backoff a cutting phase HELD (kg, positive): the H2 3-stall
    *  decrement fires as usual, but under 'cutting' the application is gated
@@ -187,6 +190,20 @@ export interface AutoregAdjustment {
    *  proposal can offer the backoff as the confirmable action (decline =
    *  hold). Absent everywhere else. */
   heldBackoffKg?: number
+  /** The VOLUME response to a stall in a deficit (docs/specs/
+   *  diet-phase-as-an-episode.md §08): the fraction of this exercise's
+   *  loaded working sets to KEEP. Present ONLY on a cutting-held H2
+   *  decrement — the verdict that would otherwise have cut the load.
+   *  Plan-agnostic on purpose (the engine never sees today's set list): the
+   *  count is resolved by `applyAutoregToSets`, floored at one working set. */
+  volumeKeepFraction?: number
+  /** What the volume cut actually removed — stamped by the derive layer
+   *  AFTER application (`stampVolumeCut`), same contract as
+   *  `appliedLoadKg`: the reason line names the sets the lifter will really
+   *  see. Absent when nothing was dropped (a single-set exercise is already
+   *  at the maintenance floor), so the copy can never claim a trim that did
+   *  not happen. */
+  volumeCut?: { fromSets: number; toSets: number }
   /** The landing load a decrement was actually APPLIED at (kg) — stamped by
    *  the derive layer AFTER per-set quantization (`stampAppliedLoad`: the
    *  adjusted working set of the EVIDENCE bucket — the set whose scheme load
@@ -244,6 +261,21 @@ const STALLS_BEFORE_DECREMENT = 3
 /** Consecutive qualifying sessions required before an up-anchor (outperform)
  *  is proposed (M2) — no methodology chases one good day. */
 const OUTPERFORM_SESSIONS_REQUIRED = 2
+
+/** The volume a stall keeps while the lifter is in a deficit: two thirds of
+ *  the exercise's loaded working sets (ceil), never below
+ *  `MIN_CUTTING_WORKING_SETS`. Three sets → two, four → three. The
+ *  maintenance literature is strong that volume is the disposable variable
+ *  and load the protected one; it is not precise about how much volume, so
+ *  this is a deliberate one-set-per-stall step rather than a derived number
+ *  (docs/specs/diet-phase-as-an-episode.md §09 — the weakest link in §08 is
+ *  volume; do not defend the magnitude as evidence). */
+export const CUTTING_VOLUME_KEEP_FRACTION = 2 / 3
+
+/** The floor a cutting volume cut never crosses: one working set maintains
+ *  strength and size at maintained relative load (Bickel 2011, Mujika &
+ *  Padilla 2000). Below this the response would be deletion, not a trim. */
+export const MIN_CUTTING_WORKING_SETS = 1
 
 /** How many prior sessions the FIXED-mode rules consult — the escalation
  *  window. */
@@ -1298,18 +1330,22 @@ export function autoregulateEarlyDeload(
  * 'cutting' does anything; null / 'maintaining' / 'bulking' return the input
  * IDENTITY (===), which is the byte-identity guarantee for phase-less
  * programs. Under 'cutting':
- * - a 'decrement' (H2's third-stall auto-backoff, fixed or range) is HELD:
- *   the applied action becomes a repeat at the stalled load, the would-be
- *   backoff rides along as `heldBackoffKg` so the reactive-proposal path can
- *   offer it as the confirmable action (decline = hold), and
+ * - a 'decrement' (H2's third-stall auto-backoff, fixed or range) becomes a
+ *   VOLUME cut instead of a load cut (§08): the applied action is a repeat at
+ *   the stalled load carrying `volumeKeepFraction`, so the stall gets a real
+ *   response on the variable a deficit can spare. The would-be load backoff
+ *   rides along as `heldBackoffKg` so the reactive-proposal path can still
+ *   offer it as the owner's explicit confirm (decline = hold), and
  *   `suggestEarlyDeload` stays true — annotate, never suppress;
  * - 'repeat' and 'flag' verdicts keep their action and gain the
- *   `phaseContext` annotation (the copy reframes: stalls are expected while
- *   cutting, holding is the win);
+ *   `phaseContext` annotation (a flag adjusts nothing in any phase, so it
+ *   trims no volume either — it is advice, and under a deficit that advice
+ *   is not "lower the training max");
  * - 'step' / 'anchor' verdicts pass through untouched — progress is progress
  *   in any phase, and an anchor mirrors what the lifter already did.
- * Loads never change BECAUSE of a phase; only the auto-application of a cut
- * gates. Null in, null out.
+ * Loads never change BECAUSE of a phase — the deficit response moves onto
+ * volume, which is what the maintenance literature says is disposable. Null
+ * in, null out.
  */
 export function applyDietPhaseToAdjustment(
   adjustment: AutoregAdjustment | null,
@@ -1323,6 +1359,7 @@ export function applyDietPhaseToAdjustment(
       deltaKg: 0,
       phaseContext: 'cutting',
       heldBackoffKg: -adjustment.deltaKg,
+      volumeKeepFraction: CUTTING_VOLUME_KEEP_FRACTION,
     }
   }
   if (adjustment.action === 'repeat' || adjustment.action === 'flag') {
@@ -1346,8 +1383,13 @@ export function applyDietPhaseToAdjustment(
  * Anchored buckets are prescribed exactly their anchor load — the one path
  * that may write a load onto a load-less scheme set — with a fill's step
  * composing on top for confirmed-outperform buckets. A `'flag'` verdict
- * (M4) adjusts nothing. Adjusted sets keep their pre-autoreg value in
- * `schemeLoadKg` (null for load-less sets) so surfaces can offer "use plan
+ * (M4) adjusts nothing. A verdict carrying `volumeKeepFraction` (the cutting
+ * stall response) DROPS loaded working sets from the end before any of the
+ * above — the one path here that changes the set COUNT, and the one case
+ * where the override-outranks-autoreg rule cannot hold: a set that is gone
+ * has nothing left to override (a deload's `setFactor` resize drops
+ * overridden sets the same way). Adjusted sets keep
+ * their pre-autoreg value in `schemeLoadKg` (null for load-less sets) so surfaces can offer "use plan
  * as written". Scoring (the verdict) remains working-sets-only —
  * backoff/amrap sets are only FROZEN here (or stepped uniformly) so volume
  * work can't climb past a frozen top set.
@@ -1362,7 +1404,10 @@ export function applyAutoregToSets(
     adjustment.evidence.loadKg > 0
       ? (adjustment.evidence.loadKg + adjustment.deltaKg) / adjustment.evidence.loadKg
       : 1
-  return sets.map((set) => {
+  // The deficit response (§08): trim volume, never the load. Runs BEFORE the
+  // per-set caps below so the surviving sets are capped exactly as a hold.
+  const { kept } = partitionVolumeCut(sets, adjustment.volumeKeepFraction)
+  const adjusted: DerivedSet[] = kept.map((set) => {
     if (set.setType === 'warmup' || set.derivedFrom !== 'scheme') return set
     const anchorKg = anchorLoadFor(adjustment.anchorLoads, set.loadKg, unit)
     if (anchorKg !== undefined) {
@@ -1401,6 +1446,70 @@ export function applyAutoregToSets(
       schemeLoadKg: set.loadKg,
     }
   })
+  // `deriveWeekSets` hands over contiguous 1-based setNumbers; a trim must
+  // hand them back that way (a gap is a renumbering bug waiting to happen).
+  return kept.length === sets.length
+    ? adjusted
+    : adjusted.map((set, i) => ({ ...set, setNumber: i + 1 }))
+}
+
+/**
+ * The cutting volume trim, as a PARTITION: keeps `ceil(count × keepFraction)` of the
+ * exercise's LOADED, scheme-derived working sets (floor
+ * `MIN_CUTTING_WORKING_SETS`), dropping from the END — the same shape and
+ * direction as a deload's `setFactor` resize, so one vocabulary of "less
+ * volume" exists in the app. Dropping from the END is load-bearing beyond
+ * taste: every surviving working set keeps its original `setNumber`, which
+ * is what lets `reactiveDeloadProposalContent` address per-week overrides by
+ * the post-trim number. Warmups, backoff/amrap rows, timed rows and
+ * template/override rows are never eligible: the stall evidence comes from
+ * loaded working sets, so that is the only volume it may spend. Identity
+ * (===) when no fraction is asked for or nothing is droppable, which keeps
+ * every non-cutting verdict byte-identical. The DROPPED rows come back too:
+ * the logger's "use plan as written" escape restores them, and an escape
+ * that cannot undo the adjustment it labels is a lie (PR #313 review, M1).
+ */
+export function partitionVolumeCut(
+  sets: readonly DerivedSet[],
+  keepFraction: number | undefined,
+): { kept: readonly DerivedSet[]; dropped: readonly DerivedSet[] } {
+  if (keepFraction === undefined) return { kept: sets, dropped: [] }
+  const eligible = (set: DerivedSet) =>
+    set.setType === 'working' && set.derivedFrom === 'scheme' && set.metricMode === 'reps_weight'
+  const count = sets.filter(eligible).length
+  const target = Math.max(MIN_CUTTING_WORKING_SETS, Math.ceil(count * keepFraction))
+  let toDrop = count - target
+  if (toDrop <= 0) return { kept: sets, dropped: [] }
+  const kept: DerivedSet[] = []
+  const dropped: DerivedSet[] = []
+  for (let i = sets.length - 1; i >= 0; i--) {
+    if (toDrop > 0 && eligible(sets[i])) {
+      toDrop--
+      dropped.unshift(sets[i])
+      continue
+    }
+    kept.unshift(sets[i])
+  }
+  return { kept, dropped }
+}
+
+/**
+ * Stamps a cutting-held verdict with the volume its application ACTUALLY
+ * removed, so the reason line names sets the lifter will really see — the
+ * same after-the-fact contract as `stampAppliedLoad`. Absent when nothing
+ * was dropped (an exercise already at the one-set maintenance floor), which
+ * is what keeps the copy from claiming a trim that did not happen.
+ */
+export function stampVolumeCut(
+  adjustment: AutoregAdjustment,
+  before: readonly DerivedSet[],
+  after: readonly DerivedSet[],
+): AutoregAdjustment {
+  const working = (sets: readonly DerivedSet[]) =>
+    sets.filter((s) => s.setType === 'working' && s.metricMode === 'reps_weight').length
+  const fromSets = working(before)
+  const toSets = working(after)
+  return toSets < fromSets ? { ...adjustment, volumeCut: { fromSets, toSets } } : adjustment
 }
 
 /**
@@ -1481,12 +1590,18 @@ export function autoregReason(adjustment: AutoregAdjustment, unit: WeightUnit): 
   const pinnedAtFloor = () =>
     quantizeDisplayLoad(droppedKg(), unit) ===
     quantizeDisplayLoad(adjustment.evidence.loadKg, unit)
-  // Cutting framing (honest copy rule: stalls are EXPECTED under a deficit
-  // and holding is the win — never a claim that cutting impairs strength).
-  // One sentence owns every cutting-annotated 3-stall verdict: the M4 flag
-  // and the held H2 backoff alike.
+  // Cutting framing (§08): the copy states the MECHANISM — we spend volume to
+  // protect load — and asserts no physiology. It never claims stalls are
+  // "expected" in a deficit (nobody has measured stall frequency under
+  // restriction, and the one trial reporting session-level loads found both
+  // groups still adding weight), and it never claims a cut impairs strength.
+  // The grindy clause is verbatim from the old line: it re-routes the
+  // decision from a progression signal to a fatigue one.
   if (adjustment.phaseContext === 'cutting' && adjustment.suggestEarlyDeload) {
-    return `Hold ${load} — 3 stalls is expected while cutting and holding is the win. Deload only if sessions feel grindy`
+    const { volumeCut } = adjustment
+    return volumeCut
+      ? `Hold ${load} — ${volumeCut.toSets} sets instead of ${volumeCut.fromSets} while you're cutting; we trim volume, not load. Deload only if sessions feel grindy`
+      : `Hold ${load} — while you're cutting we protect the load and trim volume instead. Deload only if sessions feel grindy`
   }
   // Effort-gate sentences (one each — the annotation IS the story).
   if (adjustment.effortContext === 'overshoot') {

@@ -208,10 +208,17 @@ interface WorkoutLoggerProps {
   planSupersets?: Record<string, number>
   /** Per-exercise auto-regulation reasons keyed `source:id` (reason already in
    *  the display unit). Display-only + one optional escape: the ghosts arrive
-   *  pre-adjusted in planTargets; "Use plan as written" reverts them. */
+   *  pre-adjusted in planTargets; "Use plan as written" reverts them — and
+   *  re-adds `trimmedTargets`, the rows a cutting volume cut removed, so the
+   *  escape can undo every adjustment it labels, not just the load ones. */
   planAutoreg?: Record<
     string,
-    { reason: string; suggestEarlyDeload: boolean; phaseContext?: 'cutting' }
+    {
+      reason: string
+      suggestEarlyDeload: boolean
+      phaseContext?: 'cutting'
+      trimmedTargets?: PlanSetTarget[]
+    }
   >
   /** Which program (day · week) this session is stamped to, e.g. "Legs ·
    *  Week 1". Provenance is fixed at start and can't be edited — surfacing
@@ -751,10 +758,21 @@ export function WorkoutLogger({
   const planFor = (source: ExerciseSource, id: number) => {
     const key = `${source}:${id}`
     const targets = planOverrides[key] ?? planTargets?.[key]
-    if (!targets || !autoregReverted.has(key)) return targets
-    return targets.map((t) =>
-      t.planLoadKg !== undefined ? { ...t, loadKg: t.planLoadKg } : t,
-    )
+    if (!targets) return targets
+    // The rows a cutting volume cut removed, as the plan wrote them. They
+    // ride on the END, unconditionally — targets are POSITIONAL, so an entry
+    // past the last row is inert, and the moment a row exists at that index
+    // it is the plan's own set coming back (the revert handler adds them;
+    // so does + Add set; so does a reload, which keeps the ROWS while the
+    // in-memory revert flag is gone). Gating this on the flag is what left a
+    // restored row ghost-less after a reload. A substituted exercise keeps
+    // its overlay untouched — those targets aren't this plan's.
+    const trimmed = planOverrides[key] ? undefined : planAutoreg?.[key]?.trimmedTargets
+    const withTrimmed = trimmed && trimmed.length > 0 ? [...targets, ...trimmed] : targets
+    if (!autoregReverted.has(key)) return withTrimmed
+    // "Use plan as written": the ghosts go back to the plan's loads. The
+    // trimmed rows already carry theirs (autoreg never touched them).
+    return withTrimmed.map((t) => (t.planLoadKg !== undefined ? { ...t, loadKg: t.planLoadKg } : t))
   }
 
   /**
@@ -1956,18 +1974,31 @@ export function WorkoutLogger({
                     {autoregInfo.reason}
                     <button
                       type="button"
-                      onClick={() =>
+                      onClick={() => {
                         setAutoregReverted((prev) => new Set(prev).add(autoregKey))
-                      }
+                        // "As written" means the plan's SET COUNT too: a
+                        // cutting stall trims volume, so reverting must put
+                        // those rows back or the label overstates what it
+                        // did. Blank rows, like + Add set — the restored
+                        // ghosts come from `planFor`.
+                        const restored = autoregInfo.trimmedTargets?.length ?? 0
+                        for (let i = 0; i < restored; i++) {
+                          dispatch({
+                            type: 'ADD_SET',
+                            exerciseIndex,
+                            set: newDraftSet(nextSetMetricMode(exercise)),
+                          })
+                        }
+                      }}
                       className="ml-2 underline underline-offset-2"
                     >
                       {t('autoregRevertAction')}
                     </button>
                   </p>
-                  {/* While cutting, the reason line above already carries the
-                      holding-is-the-win framing — repeating the deload nudge
-                      here would contradict it (stalls are expected under a
-                      deficit; deload only if sessions feel grindy). */}
+                  {/* While cutting, the reason line above already says what
+                      happened (volume trimmed, load held) AND carries the
+                      grindy clause — repeating the generic deload nudge here
+                      would push the load cut the deficit response avoids. */}
                   {autoregInfo.suggestEarlyDeload &&
                     autoregInfo.phaseContext !== 'cutting' && (
                       <p className="text-xs text-muted-foreground">

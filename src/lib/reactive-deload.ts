@@ -7,10 +7,11 @@ import { kgToDisplay, type WeightUnit } from './units'
 /**
  * Pure logic for REACTIVE DELOAD proposals — the piece deloadPolicy mode
  * 'reactive' deferred at #176. When M4 fires (a three-stall streak) for an
- * exercise on a reactive program — or a CUTTING program holds an H2
- * auto-backoff (Part A) — the derive-time trigger (db/reactive-deload.ts)
- * raises ONE batch-patch proposal per exercise offering the back-off as the
- * owner's explicit confirm. Decline = normal silence = hold. Never
+ * exercise on a reactive program — or a CUTTING program answers an H2
+ * auto-backoff with a volume cut and holds the load (Part A) — the
+ * derive-time trigger (db/reactive-deload.ts) raises ONE batch-patch
+ * proposal per exercise offering the back-off as the owner's explicit
+ * confirm. Decline = normal silence = hold. Never
  * auto-applied; dedup is the pending-source partial unique index
  * (schema.ts), keyed here by the composite exercise identity.
  *
@@ -68,9 +69,11 @@ export const REACTIVE_DEFAULT_SHAPE: DeloadShape = {
  * Whether a derived verdict should raise a reactive-deload proposal, and
  * which flavor. Mode 'none' is silence for BOTH flavors — opting out of
  * deloads means no backoff offers of any kind (owner's call, 2026-08-10;
- * the engine still HOLDS the cutting backoff, it just never asks about it).
- * 'cutting-hold': the phase gate held an H2 auto-backoff — the proposal
- * offers THAT backoff, with hold as the default (Part A phrasing).
+ * the engine still trims the cutting volume and holds the load, it just
+ * never asks about the load backoff).
+ * 'cutting-hold': the phase gate answered an H2 auto-backoff with a volume
+ * cut and held the load — the proposal offers the LOAD backoff the engine
+ * declined to apply, hold as the default (Part A phrasing).
  * 'reactive': the policy is mode 'reactive' and M4 fired — the proposal
  * offers the program's deload shape (Part B). Null = silence (a 'scheduled'
  * program's non-cutting stalls keep their planned deload week).
@@ -110,9 +113,10 @@ const round2 = (kg: number) => Math.round(kg * 100) / 100
  * working set of the target week, plus the one-line summary the approval
  * card leads with. 'reactive' applies the shape's loadFactor (+ rpeCap when
  * set); 'cutting-hold' applies the HELD backoff fraction — exactly what the
- * engine would have cut — phrased hold-first (declining holds; that IS the
- * recommendation). Null when nothing is patchable (no loaded working sets —
- * a proposal must carry at least one patch).
+ * engine declined to cut — phrased hold-first (declining holds; that IS the
+ * recommendation, and the volume cut has already answered the stall). Null
+ * when nothing is patchable (no loaded working sets — a proposal must carry
+ * at least one patch).
  */
 export function reactiveDeloadProposalContent(
   candidate: ReactiveDeloadCandidate,
@@ -121,12 +125,23 @@ export function reactiveDeloadProposalContent(
   unit: WeightUnit,
 ): { summary: string; patches: ProposalPatch[] } | null {
   const { adjustment } = candidate
+  // What the engine already DID about this stall, so the ask never reads as
+  // "we ignored it" (§08: the volume cut is the response; the load backoff is
+  // the owner's optional extra). A single-set exercise has no volume to
+  // spend — say that instead of claiming a trim.
+  const trimmed = adjustment.volumeCut
+    ? `we cut the volume to ${adjustment.volumeCut.toSets} sets and held the load`
+    : 'we held the load'
   const heldBackoffKg = adjustment.heldBackoffKg ?? 0
   const evidenceLoadKg = adjustment.evidence.loadKg
   const factor =
     kind === 'cutting-hold' && evidenceLoadKg > 0
       ? (evidenceLoadKg - heldBackoffKg) / evidenceLoadKg
       : shape.loadFactor
+  // `setNumber` here is the POST-trim derived number, and it addresses the
+  // program's set rows: safe because the cutting trim drops working sets from
+  // the END, so every surviving working set keeps the number it derived with
+  // (lib/autoregulate.ts `cutWorkingVolume`).
   const patches: ProposalPatch[] = candidate.workingSets.flatMap((set) =>
     set.loadKg === null
       ? []
@@ -149,7 +164,7 @@ export function reactiveDeloadProposalContent(
   const load = `${kgToDisplay(evidenceLoadKg, unit)} ${unit}`
   const summary =
     kind === 'cutting-hold'
-      ? `${candidate.name} stalled 3× at ${load} while cutting — hold rather than back off? Holding is the win; confirm only to back off week ${candidate.week} (~${Math.round(factor * 100)}% load). Declining holds.`
+      ? `${candidate.name} stalled 3× at ${load} while cutting — ${trimmed}. Load is the variable worth protecting in a deficit; confirm only if you also want week ${candidate.week} at ~${Math.round(factor * 100)}% load. Declining keeps the load.`
       : `${candidate.name} stalled 3 sessions — deload next week (week ${candidate.week})? ${Math.round(shape.loadFactor * 100)}% load${
           shape.rpeCap !== null ? `, RPE cap ${shape.rpeCap}` : ''
         }.`

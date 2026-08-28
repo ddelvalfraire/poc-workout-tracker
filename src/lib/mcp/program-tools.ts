@@ -852,7 +852,7 @@ export function registerProgramTools(server: McpServer): void {
     {
       title: 'Preview Program Week',
       description:
-        "Dry-run: the exact targets instantiate_program_day would seed for every day of a program at week N — engine-derived (progression scheme, deload, per-week overrides; each set's `derivedFrom` says which won: override > deload > autoreg > scheme > template) — plus working-set volume per primary muscle. Auto-regulated exercises carry `autoreg: { reason, suggestEarlyDeload, phaseContext, heldBackoff }` explaining the adjustment (`phaseContext: 'cutting'` when the program's diet phase reframed a stall; `heldBackoff` is the auto-backoff the cut held, in the display unit). Nothing is written. Omit `week` to preview the auto-detected current week. Loads in the user's unit (or the `unit` arg).",
+        "Dry-run: the exact targets instantiate_program_day would seed for every day of a program at week N — engine-derived (progression scheme, deload, per-week overrides; each set's `derivedFrom` says which won: override > deload > autoreg > scheme > template) — plus working-set volume per primary muscle. Auto-regulated exercises carry `autoreg: { reason, suggestEarlyDeload, phaseContext, heldBackoff }` explaining the adjustment (`phaseContext: 'cutting'` when the program's diet phase reshaped a stall — in a deficit a stall trims VOLUME and holds the load, so `volumeCut` says how many working sets survived; `heldBackoff` is the load backoff the engine declined to apply, in the display unit, offered only as an explicit confirm). Nothing is written. Omit `week` to preview the auto-detected current week. Loads in the user's unit (or the `unit` arg).",
       inputSchema: {
         programId: z.string(),
         week: z.number().int().positive().optional(),
@@ -912,12 +912,15 @@ export function registerProgramTools(server: McpServer): void {
                       // Diet-phase context rides as data, not just prose, so
                       // callers can branch on it without parsing the reason.
                       phaseContext: adjustment.phaseContext ?? null,
-                      // The backoff a cutting phase held, in the display unit
-                      // like every load in this payload.
+                      // The backoff a cutting phase declined to apply, in the
+                      // display unit like every load in this payload.
                       heldBackoff:
                         adjustment.heldBackoffKg === undefined
                           ? null
                           : kgToDisplay(adjustment.heldBackoffKg, displayUnit),
+                      // What the cutting stall response actually removed —
+                      // sets, not kilos (the deficit spends volume).
+                      volumeCut: adjustment.volumeCut ?? null,
                     }
                   : null,
                 sets: derived.map((s) => ({

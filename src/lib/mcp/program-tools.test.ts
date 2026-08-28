@@ -1243,11 +1243,12 @@ describe('registerProgramTools', () => {
         suggestEarlyDeload: false,
         phaseContext: null,
         heldBackoff: null,
+        volumeCut: null,
       })
       expect(exercise.sets[0]!.derivedFrom).toBe('autoreg')
     })
 
-    it('surfaces the cutting phase and held backoff structurally, in display units', async () => {
+    it('surfaces the cutting phase, volume cut and held backoff structurally, in display units', async () => {
       // Arrange — a cutting program held the H2 backoff (2.5 kg; unit is lb)
       const tools = setup()
       mockedDetail.mockResolvedValue(programDetail() as unknown as Detail)
@@ -1260,6 +1261,7 @@ describe('registerProgramTools', () => {
             evidence: { missedSets: 2, scorableSets: 3, repFloor: 8, loadKg: 100 },
             phaseContext: 'cutting',
             heldBackoffKg: 2.5,
+            volumeCut: { fromSets: 3, toSets: 2 },
           },
           sets: [{ ...DERIVED[0].sets[0], loadKg: 100, derivedFrom: 'autoreg' }],
         },
@@ -1279,6 +1281,7 @@ describe('registerProgramTools', () => {
               suggestEarlyDeload: boolean
               phaseContext: string | null
               heldBackoff: number | null
+              volumeCut: { fromSets: number; toSets: number } | null
             } | null
           }[]
         }[]
@@ -1288,6 +1291,9 @@ describe('registerProgramTools', () => {
         suggestEarlyDeload: false,
         phaseContext: 'cutting',
         heldBackoff: kgToDisplay(2.5, 'lb'),
+        // The deficit response rides as data too: the stall was answered in
+        // sets, and the held backoff is only the optional confirm.
+        volumeCut: { fromSets: 3, toSets: 2 },
       })
     })
 

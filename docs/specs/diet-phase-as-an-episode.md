@@ -4,7 +4,9 @@ The suppression rests on a premise the evidence does not support; the flag is
 also in the wrong place and cannot fire for the lifter it was built for. Both
 are fixable, and the first one matters more.
 
-- Status: design decision / pending implementation
+- Status: §08 implemented (the deficit stall response is a volume cut, and
+  the copy no longer asserts "3 stalls is expected"); §01–§07 pending — the
+  episode table, its backfill and the card rebuild are the separate change.
 - Date: 2026-08-27
 - Depends on: autoregulation (`lib/autoregulate.ts`), the program detail page,
   `lib/diet-phase-staleness.ts`
