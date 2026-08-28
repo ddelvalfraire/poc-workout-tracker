@@ -6,7 +6,9 @@ import type { HomeSectionKind, HomeSectionShape } from '@/lib/home/registry'
 import type { ResolvedHomeSection } from '@/lib/home/layout'
 import { packSections } from '@/lib/home/pack'
 import { DividerList } from '@/components/ui/divider-list'
+import { BigThree } from './big-three'
 import { CardioWeek } from './cardio-week'
+import { PaceRecord } from './pace-record'
 import { MomentumPanel } from './momentum-panel'
 import { TodayRecap } from './today-recap'
 import { useTranslations } from 'next-intl'
@@ -59,6 +61,8 @@ const HOME_SECTION_RENDERERS: Record<HomeSectionKind, HomeSectionRenderer> = {
   ),
   unfinished: (ctx) => <UnfinishedSection workouts={ctx.unfinished} />,
   'cardio-week': (ctx, shape) => <CardioWeek userId={ctx.userId} shape={shape} />,
+  'big-three': (ctx, shape) => <BigThree userId={ctx.userId} shape={shape} />,
+  'pace-record': (ctx, shape) => <PaceRecord userId={ctx.userId} shape={shape} />,
 }
 
 /**

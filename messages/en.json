@@ -45,6 +45,16 @@
   "BackLink": {
     "ariaLabel": "Back"
   },
+  "BigThree": {
+    "lift": {
+      "bench": "Bench",
+      "deadlift": "Deadlift",
+      "ohp": "Overhead press",
+      "squat": "Squat"
+    },
+    "more": "Records",
+    "title": "Estimated total"
+  },
   "BlockMap": {
     "deloadBadge": "DL",
     "segmentLabel": "Week {week}{days, select, yes {, {daysDone} of {daysTotal} days done} other {}}{deload, select, yes {, deload} other {}}{current, select, yes {, current week} other {}}{selected, select, yes {, selected} other {}}"
@@ -805,14 +815,18 @@
   },
   "HomeSection": {
     "description": {
+      "bigThree": "Squat, bench and deadlift e1RM, and the total.",
       "cardioWeek": "Conditioning minutes this week, against last.",
       "momentum": "This week’s sets, activity, and goal progress.",
+      "paceRecord": "Best pace, longest distance and longest session.",
       "todayRecap": "Celebration cards for sessions you finished today.",
       "unfinished": "Stalled sessions waiting to be resumed or finished."
     },
     "title": {
+      "bigThree": "Estimated total",
       "cardioWeek": "Cardio",
       "momentum": "Momentum",
+      "paceRecord": "Records",
       "todayRecap": "Today",
       "unfinished": "Unfinished"
     }
@@ -1182,6 +1196,20 @@
       "strictLoad": "Only more than {load} counts — extra reps at {load} do not.",
       "e1rmEquivalent": "Extra reps at {load} count, and so does more than {load}.",
       "anyMetric": "Anything past {reps} × {load} counts."
+    }
+  },
+  "PaceRecord": {
+    "longest": "longest session",
+    "perDistance": "per {unit}",
+    "row": {
+      "distance": "Distance",
+      "duration": "Duration"
+    },
+    "title": "Best pace",
+    "titleRecords": "Records",
+    "unit": {
+      "km": "km",
+      "miles": "mi"
     }
   },
   "PatchProposalCard": {
