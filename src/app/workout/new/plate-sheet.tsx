@@ -241,14 +241,16 @@ export function PlateSheet({
           </Button>
         </div>
 
-        {/* Bar picker — ephemeral, per open. The legend carries the word
+        {/* Bar picker — ephemeral, per open. Its legend is SINGULAR ("Bar")
+            because you pick one; the gear editor's plural "Bars" below asks
+            which you own. The legend carries the word
             "bar" and the unit ONCE; the pills stay bare numbers, exactly like
             the gear editor below. Repeating "20 kg bar" on every pill wrapped
             each one onto two lines on a phone for no added meaning — the
             spoken label still says it in full. */}
         <fieldset className="mt-3">
           <legend className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-            {t('barLegend', { unit })}
+            {t('barPickerLegend', { unit })}
           </legend>
           <div className="mt-2 flex flex-wrap gap-2">
             {equipment.bars.map((weight) => (

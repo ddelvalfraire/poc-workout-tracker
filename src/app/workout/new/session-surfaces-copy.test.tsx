@@ -8,6 +8,7 @@ import { NoteSheet } from './note-sheet'
 import { SwipeToDelete } from './swipe-to-delete'
 import { SessionToast } from './session-toast'
 import { ReplaceConfirmDialog } from './replace-confirm-dialog'
+import { PlateSheet } from './plate-sheet'
 
 /**
  * Copy contract for the in-session surfaces the logger opens: chips, the row
@@ -306,5 +307,44 @@ describe('ExercisePicker create row', () => {
     expect(html).toContain('+ Create “zercher”')
     expect(html).toContain('+ Create custom exercise')
     expect(html).not.toMatch(/ExercisePicker\.[a-zA-Z.]+/)
+  })
+})
+
+// The bar picker's own markup, not just its messages: the fix that put "bar"
+// in the legend instead of on every pill is a fact about the RENDERED sheet,
+// and a message-only assertion would still pass if the pill went back to
+// printing the whole phrase.
+describe('PlateSheet bar picker', () => {
+  const renderSheet = () =>
+    renderStaticIntl(
+      <PlateSheet
+        exerciseName="Back Squat"
+        weights={[100]}
+        unit="kg"
+        equipment={{ bars: [20, 15], plates: [25, 20, 10, 5, 2.5, 1.25] }}
+        onClose={noop}
+        onEquipmentSaved={noop}
+      />,
+    )
+
+  it('says "bar" once, in the legend — never on a pill', () => {
+    const html = renderSheet()
+
+    expect(html).toContain('Bar (kg)')
+    // The seen copy is the bare denomination. Were the pill to print the whole
+    // phrase again, every pill would wrap to two lines on a phone.
+    expect(html).toContain('>20</button>')
+    expect(html).not.toContain('>20 kg bar<')
+  })
+
+  it('still names each pill in full for a screen reader', () => {
+    const html = renderSheet()
+
+    expect(html).toContain('aria-label="20 kg bar"')
+    expect(html).toContain('aria-label="15 kg bar"')
+  })
+
+  it('keeps the plate-loaded escape hatch', () => {
+    expect(renderSheet()).toContain('No bar')
   })
 })
