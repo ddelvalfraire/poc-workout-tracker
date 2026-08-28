@@ -6,6 +6,7 @@ import { AppHeader } from '@/components/app-header'
 import { EditorDayPane } from '@/components/editor/editor-day-pane'
 import { EditorInspector, type EditorInspectorExercise } from '@/components/editor/editor-inspector'
 import { deriveDayPrescription } from '@/db/prescriptions'
+import { TECHNIQUE_LABEL_KEY } from '@/lib/technique'
 import { saveTechniqueAction } from './actions'
 import { EditorPanes } from '@/components/editor/editor-panes'
 import { EditorPivotGrid } from '@/components/editor/editor-pivot-grid'
@@ -229,6 +230,13 @@ export async function EditorSurface({ programId, daySegment, searchParams }: Edi
       editableSets: sourceExercise.sets.map((set) => ({
         setNumber: set.setNumber,
         technique: set.technique,
+        // The collapsed summary borrows the detail page's shipped vocabulary
+        // rather than minting a second set of words for the same four
+        // techniques — the same reason the label list did before it collapsed.
+        label:
+          set.technique === null
+            ? null
+            : tDetail(`day.technique.${TECHNIQUE_LABEL_KEY[set.technique.kind]}`),
         topSet: derived.find((row) => row.sourceIndex === set.setNumber - 1) ?? null,
       })),
     }

@@ -67,8 +67,8 @@ const base = {
     setCount: 3,
     progressionSentence: "Add 2.5 kg when you hit the top of the rep range.",
     editableSets: [
-      { setNumber: 1, technique: null, topSet: derivedSet(1, 100) },
-      { setNumber: 2, technique: null, topSet: derivedSet(2, 100) },
+      { setNumber: 1, technique: null, label: null, topSet: derivedSet(1, 100) },
+      { setNumber: 2, technique: null, label: null, topSet: derivedSet(2, 100) },
     ],
   },
 };
@@ -87,11 +87,13 @@ export const WithTechniques: Story = {
         {
           setNumber: 1,
           technique: { version: 1, kind: "drop-set", stages: [{ reps: 6, loadPct: 0.8 }] },
+          label: "Drop set",
           topSet: derivedSet(1, 100),
         },
         {
           setNumber: 2,
           technique: { version: 1, kind: "myo-reps", stages: [{ reps: 5, restSec: 15 }] },
+          label: "Myo-reps",
           topSet: derivedSet(2, 100),
         },
       ],
@@ -110,7 +112,7 @@ export const NoDerivationForTheWeek: Story = {
     exercise: {
       ...base.exercise,
       setCount: 1,
-      editableSets: [{ setNumber: 1, technique: null, topSet: null }],
+      editableSets: [{ setNumber: 1, technique: null, label: null, topSet: null }],
     },
   },
 };

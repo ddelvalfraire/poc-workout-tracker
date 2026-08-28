@@ -42,6 +42,10 @@ export interface EditorInspectorExercise {
   editableSets: readonly {
     setNumber: number
     technique: Technique | null
+    /** The stored technique's name, already localized; null = a straight set.
+     *  This is the whole of the COLLAPSED state, so the label list this section
+     *  used to be survives as the summary rather than being lost to the form. */
+    label: string | null
     topSet: DerivedSet | null
   }[]
 }
@@ -118,28 +122,48 @@ function EditorInspector({
         {exercise.editableSets.length === 0 ? (
           <EmptyWords>{t('techniqueEmpty')}</EmptyWords>
         ) : (
-          <ul className="mt-2 flex flex-col gap-8">
+          <ul className="mt-2 divide-y divide-border/60 border-b border-b-border/60">
             {exercise.editableSets.map((entry) => (
               <li key={entry.setNumber}>
                 {entry.topSet === null ? (
-                  <div className="flex items-baseline justify-between gap-3 border-b border-b-border/60 py-2 text-sm">
+                  <div className="flex items-baseline justify-between gap-3 py-3 text-sm">
                     <span className="text-xs uppercase tracking-widest text-muted-foreground tnum">
                       {t('setNumber', { number: entry.setNumber })}
                     </span>
                     <EmptyWords>{t('techniqueNoDerivation')}</EmptyWords>
                   </div>
                 ) : (
-                  <EditorTechniquePanel
-                    programId={programId}
-                    day={day}
-                    exercise={exercise.position}
-                    setNumber={entry.setNumber}
-                    saved={entry.technique}
-                    topSet={entry.topSet}
-                    unit={unit}
-                    scope={`${exercise.name} · ${t('setNumber', { number: entry.setNumber })}`}
-                    action={saveTechnique}
-                  />
+                  /* Collapsed by default, and the summary carries exactly what
+                     the old label list did. Expanding every set would put a
+                     kind picker per set into a 316px column — five rows each,
+                     four sets, before a single stage row is shown — which is
+                     not a surface anyone can read. <details> keeps that native:
+                     no address change, no JS, and the disclosure is
+                     keyboard-reachable for free. */
+                  <details className="py-1">
+                    <summary className="flex cursor-pointer items-baseline justify-between gap-3 py-2 text-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-hidden">
+                      <span className="text-xs uppercase tracking-widest text-muted-foreground tnum">
+                        {t('setNumber', { number: entry.setNumber })}
+                      </span>
+                      <span className="min-w-0 truncate">
+                        {entry.label ?? (
+                          <span className="text-muted-foreground">{t('techniqueNone')}</span>
+                        )}
+                      </span>
+                    </summary>
+                    <EditorTechniquePanel
+                      className="pt-4 pb-6"
+                      programId={programId}
+                      day={day}
+                      exercise={exercise.position}
+                      setNumber={entry.setNumber}
+                      saved={entry.technique}
+                      topSet={entry.topSet}
+                      unit={unit}
+                      scope={`${exercise.name} · ${t('setNumber', { number: entry.setNumber })}`}
+                      action={saveTechnique}
+                    />
+                  </details>
                 )}
               </li>
             ))}
