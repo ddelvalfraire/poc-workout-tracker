@@ -202,6 +202,54 @@ export function applyOverride(
   return { ...set, ...overridden, derivedFrom: 'override' }
 }
 
+/**
+ * Applies each set's per-week override across a DERIVED list, matched by
+ * `sourceIndex` — the shared merge step, so instantiation (db/prescriptions.ts)
+ * and the planned-volume target (db/planned-volume.ts) can never disagree
+ * about what a week prescribes.
+ *
+ * The one rule this adds over calling `applyOverride` per row: a technique
+ * override lands on the LAST row of its source group only. A weekly-volume
+ * ramp clones its last working set and the clones inherit `sourceIndex`, so a
+ * per-row merge gave every clone the same intensifier — one authored drop set
+ * became four (14 logged rows, 10 hard sets) in exactly the late-block weeks
+ * where techniques are actually programmed. Intensifiers belong on the FINAL
+ * set of an exercise, one or two per session; `resizeWorkingSets` already
+ * applies that rule to a technique authored on the base set, and this applies
+ * it to one authored for a single week. Every other override field still
+ * lands on every clone — more of the same set is exactly what a clone is.
+ * Source: RP Strength, "Intensity Techniques for Maximum Mass".
+ */
+export function applyWeekOverrides(
+  sets: readonly DerivedSet[],
+  overrideFor: (sourceIndex: number) => SetOverrideLike | undefined | null,
+  /**
+   * The FULL derived week to decide "last row of the group" against, when
+   * `sets` is only part of one. A cutting volume cut splits the week into the
+   * rows that are prescribed and the rows it removed (`partitionVolumeCut`),
+   * and this function is called on each half; deciding independently per half
+   * put the intensifier on a row of EACH, which is the once-per-exercise
+   * guarantee broken across the split. Rows keep their `setNumber` through the
+   * cut and through autoreg, so it is the identity that survives the split.
+   * Defaults to `sets` — the whole week is its own reference when it is whole.
+   */
+  wholeWeek: readonly DerivedSet[] = sets,
+): DerivedSet[] {
+  const lastRowOfSource = new Map<number, number>()
+  wholeWeek.forEach((set) => lastRowOfSource.set(set.sourceIndex, set.setNumber))
+  return sets.map((set) => {
+    const override = overrideFor(set.sourceIndex)
+    if (override?.technique == null || lastRowOfSource.get(set.sourceIndex) === set.setNumber) {
+      return applyOverride(set, override)
+    }
+    // A clone that is not the last of its group takes the override with the
+    // intensifier withheld — withheld BEFORE the merge, not stripped after,
+    // so a technique-only override leaves such a row untouched rather than
+    // stamping it `derivedFrom: 'override'` with nothing overridden on it.
+    return applyOverride(set, { ...override, technique: null })
+  })
+}
+
 /** Weeks 1..mesocycleWeeks with the deload week removed, in order. */
 function nonDeloadWeeks(mesocycleWeeks: number, deloadWeek: number | null): number[] {
   const weeks: number[] = []
@@ -451,10 +499,33 @@ function resizeWorkingSets(
     return kept
   }
   const lastWorkingIdx = sets.reduce((acc, s, i) => (isResizable(s) ? i : acc), -1)
-  const clones = Array.from({ length: target - workingCount }, () => ({
-    ...sets[lastWorkingIdx],
-  }))
-  return [...sets.slice(0, lastWorkingIdx + 1), ...clones, ...sets.slice(lastWorkingIdx + 1)]
+  const source = sets[lastWorkingIdx]
+  const clones = Array.from({ length: target - workingCount }, () => ({ ...source }))
+  // An INTENSITY TECHNIQUE is not part of the chassis a clone inherits. A
+  // ramp adds volume; a drop set / rest-pause / myo-rep set is a stimulus
+  // method that coaching practice applies to the FINAL set of an exercise,
+  // "one or two applications per session" — not to every set. Cloning it
+  // multiplied the dose the author never asked for: at MRV week a 3→6 ramp
+  // turned ONE authored drop set into four (14 logged rows, 10 hard sets),
+  // and it did so precisely in the late-block weeks where techniques are
+  // most likely to be authored in the first place.
+  //
+  // So the clones are straight sets and the technique MOVES to the last of
+  // them: the exercise still ends on its technique set (where it belongs),
+  // and it is still exactly one. `sourceIndex` is untouched, so per-week
+  // override matching is unaffected.
+  // Sources: RP Strength, "Intensity Techniques for Maximum Mass".
+  const carriesTechnique = source.technique !== null && clones.length > 0
+  const grown = carriesTechnique
+    ? [
+        ...sets.slice(0, lastWorkingIdx),
+        { ...source, technique: null },
+        ...clones.map((clone, i) =>
+          i === clones.length - 1 ? clone : { ...clone, technique: null },
+        ),
+      ]
+    : [...sets.slice(0, lastWorkingIdx + 1), ...clones]
+  return [...grown, ...sets.slice(lastWorkingIdx + 1)]
 }
 
 /**
@@ -465,6 +536,8 @@ function resizeWorkingSets(
  * (ceil, min 1; the historical DELOAD_LOAD_FACTOR/DELOAD_SET_FACTOR are the
  * shape defaults), clamps derived RPE stamps to `rpeCap`, and — for an
  * exercise carrying timed rows — honors the shape's `timedExercises` arm
+ * (and STRIPS intensity techniques from the deloaded rows: a deload sheds
+ * fatigue, and a drop set to failure under a 15% lighter load is not that)
  * ('untouched' default: timed rows never resize or stamp, so a fully-timed
  * exercise deloads as a normal week; 'scaled' opts into the legacy
  * whole-exercise treatment). For an amrap-cycle with a `deloadRow` it
@@ -604,6 +677,12 @@ export function deriveWeekSets(args: {
           loadKg: clampLoad(trainingMax * percent),
           durationSec: null,
           distanceM: null,
+          // Same strip as the scale-shape arm below, and for the same reason:
+          // a deload sheds fatigue. The chassis row this borrows from can
+          // carry an authored (or overridden) intensifier, and a bare spread
+          // would carry it into the deload week — the exact "drop set to
+          // failure at a lighter load" this policy exists to prevent.
+          technique: null,
           derivedFrom: 'deload' as const,
         }
       })
@@ -631,6 +710,21 @@ export function deriveWeekSets(args: {
               // The cap clamps derived effort stamps only — a null RPE stays
               // an un-prescribed effort, never an invented one.
               rpe: shape.rpeCap !== null && s.rpe !== null ? Math.min(s.rpe, shape.rpeCap) : s.rpe,
+              // A deload STRIPS intensifiers. The whole point of the week is
+              // to shed fatigue while keeping the movement pattern, and every
+              // deload protocol says the same thing: remove drop sets,
+              // rest-pause, forced reps — the methods whose entire purpose is
+              // to push a set past failure. Backing the LOAD off 15% while
+              // still prescribing a drop set to failure is a deload in name
+              // only, and it is not a hypothetical: the shrink drops sets from
+              // the end, so a technique authored anywhere but the last set
+              // survived into the deload week untouched.
+              //
+              // Only the 'scheduled' arm reaches here. Under 'none'/'reactive'
+              // the week derives as a NORMAL week by definition, so the
+              // technique stays — that is the policy's own contract, not an
+              // oversight.
+              technique: null,
               derivedFrom: 'deload' as const,
             }
           : s,
