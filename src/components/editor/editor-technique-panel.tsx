@@ -46,6 +46,24 @@ interface EditorTechniquePanelProps {
   className?: string
 }
 
+/**
+ * Value equality for the dirty check, independent of key ORDER.
+ *
+ * A plain `JSON.stringify` comparison looked right and was not: switching a
+ * stage's load mode rebuilds the object (`{...rest, loadKg}`), so cycling
+ * kg → % → kg restores the same numbers with `reps` now ahead of `loadKg`. The
+ * panel would report unsaved changes for a no-op, and saving it would write an
+ * empty edit into the change log.
+ */
+function canonical(technique: Technique | null): string {
+  if (technique === null) return 'null'
+  return JSON.stringify(technique, (_key, value: unknown) =>
+    value !== null && typeof value === 'object' && !Array.isArray(value)
+      ? Object.fromEntries(Object.entries(value as Record<string, unknown>).sort(([a], [b]) => (a < b ? -1 : 1)))
+      : value,
+  )
+}
+
 export function EditorTechniquePanel({
   programId,
   day,
@@ -61,7 +79,7 @@ export function EditorTechniquePanel({
   const t = useTranslations('EditorTechniquePanel')
   const [draft, setDraft] = useState<Technique | null>(saved)
 
-  const dirty = JSON.stringify(draft ?? null) !== JSON.stringify(saved ?? null)
+  const dirty = canonical(draft) !== canonical(saved)
 
   return (
     <form action={action} className={cn('flex flex-col gap-6', className)}>

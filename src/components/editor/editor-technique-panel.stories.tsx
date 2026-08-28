@@ -135,3 +135,28 @@ export const StatesItsScope: Story = {
     ).toBeVisible();
   },
 };
+
+/**
+ * The case the kind-toggle story above did NOT cover, and the one that was
+ * broken: cycling a stage's load mode kg → % → kg restores the same numbers,
+ * but rebuilds the stage object, so a key-order-sensitive comparison called it
+ * dirty. Saving that would have written an empty edit to the change log.
+ */
+export const LoadModeRoundTripIsClean: Story = {
+  args: {
+    saved: { version: 1, kind: "drop-set", stages: [{ loadKg: 20, reps: 6 }] },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const mode = await canvas.findByRole("button", { name: /Load unit/ });
+
+    await userEvent.click(mode); // kg -> %
+    await expect(await canvas.findByRole("button", { name: "Save technique" })).toBeEnabled();
+
+    await userEvent.click(await canvas.findByRole("button", { name: /Load unit/ })); // % -> rack
+    await userEvent.click(await canvas.findByRole("button", { name: /Load unit/ })); // rack -> kg
+    await userEvent.type(await canvas.findByLabelText(/Stage 1 · Load$/), "20");
+
+    await expect(await canvas.findByRole("button", { name: "Saved" })).toBeDisabled();
+  },
+};

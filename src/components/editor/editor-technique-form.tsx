@@ -60,9 +60,19 @@ interface EditorTechniqueFormProps {
 
 const MAX_STAGES = 12
 
+/**
+ * The mode is which KEY the stage carries, not whether it holds a number.
+ *
+ * `loadKg: null` and no `loadKg` at all mean the same thing at derivation — no
+ * prescribed load — but they are different states to author in: the first is
+ * "kilograms, not typed yet", the second is "typed at the rack". Reading the
+ * VALUE instead of the key made the cycle absorbing: once a stage reached the
+ * rack state there was nothing left to convert, so the control could never get
+ * back to a field you could type in.
+ */
 function stageLoadMode(stage: Technique['stages'][number]): StageLoadMode {
-  if (stage.loadKg != null) return 'kg'
-  if (stage.loadPct != null) return 'pct'
+  if (stage.loadKg !== undefined) return 'kg'
+  if (stage.loadPct !== undefined) return 'pct'
   return 'rack'
 }
 
@@ -81,11 +91,11 @@ function withLoadMode(
   if (mode === 'rack') return rest
   if (mode === 'kg') {
     const converted = loadPct != null && topLoadKg != null ? topLoadKg * loadPct : loadKg
-    return converted != null ? { ...rest, loadKg: converted } : rest
+    return { ...rest, loadKg: converted ?? null }
   }
   const converted =
     loadKg != null && topLoadKg != null && topLoadKg > 0 ? loadKg / topLoadKg : loadPct
-  return converted != null ? { ...rest, loadPct: converted } : rest
+  return { ...rest, loadPct: converted ?? null }
 }
 
 export function EditorTechniqueForm({
