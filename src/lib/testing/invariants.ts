@@ -305,16 +305,22 @@ export function planSyncAgreesWithEngine(
   upAnchorsConfirmed: boolean,
   candidate: PlanSyncCandidate | undefined,
 ): boolean {
-  // The same session shape plan-sync builds: both sides from the logged rows.
+  // The same session shape plan-sync builds: both sides from the logged rows,
+  // and — like plan-sync's own `withoutTechniqueRows` — with every row of an
+  // intensity-technique group dropped. This mirror has to apply the exclusion
+  // too, or the invariant would assert agreement between a scorer that skips
+  // those rows and a reference that does not, and fail on exactly the input
+  // the exclusion exists for.
+  const scorable = workout.sets.filter((s) => s.techniqueKind == null)
   const session: AutoregSession = {
     startedAtMs: 0,
-    prescribed: workout.sets.map((s) => ({
+    prescribed: scorable.map((s) => ({
       setNumber: s.setNumber,
       repMin: s.prescribedRepMin,
       loadKg: s.prescribedLoadKg,
       setType: s.setType,
     })),
-    actual: workout.sets.map((s) => ({
+    actual: scorable.map((s) => ({
       setNumber: s.setNumber,
       reps: s.reps,
       weightKg: s.weight,

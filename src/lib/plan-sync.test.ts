@@ -34,6 +34,8 @@ function wSet(
     // against; mirrors the default plan fixture (80 kg × 12 floor).
     prescribedLoadKg: 80,
     prescribedRepMin: 12,
+    // Ordinary set by default; the technique cases set this explicitly.
+    techniqueKind: null,
     ...over,
   }
 }
@@ -241,6 +243,71 @@ describe('detectPlanSyncCandidates', () => {
 
     expect(detectPlanSyncCandidates([], plan)).toEqual([])
   })
+
+  /**
+   * Intensity-technique rows never testify — the exclusion db/autoreg-history.ts
+   * already applies before handing rows to the same scorer. Both consumers must
+   * score the same population, or the plan chases numbers the stall rules were
+   * deliberately blind to.
+   */
+  it('a technique stage never opens an anchor bucket a plan set at the stage load can adopt', () => {
+    // Arrange — an ordinary working set at the 80 kg snapshot, outperformed
+    // (120), plus a drop stage snapshotted at 60 kg and also outperformed
+    // (90). The plan carries a 60 kg backoff-ish set. Every row clears the
+    // margin, so the engine's all-or-nothing rule does not mask anything:
+    // without the exclusion the 60 kg bucket opens at 90 and the plan's
+    // 60 kg set adopts a DROP's performance as its own prescription.
+    const workout = [
+      wEx([
+        wSet(1, 12, 120),
+        wSet(2, 12, 120, { techniqueKind: 'drop-set' }),
+        wSet(3, 12, 90, {
+          techniqueKind: 'drop-set',
+          prescribedLoadKg: 60,
+          prescribedRepMin: 8,
+        }),
+      ]),
+    ]
+    const plan = [pEx([pSet(1, 12, 80), pSet(2, 8, 60)])]
+
+    // Act
+    const candidates = detectPlanSyncCandidates(workout, plan, confirmingPrevious())
+
+    // Assert — only the plain set testifies. The 60 kg plan set finds no
+    // bucket at or below its load and keeps what the plan says.
+    expect(candidates).toEqual([
+      {
+        exercisePosition: 0,
+        name: 'Leg Extension',
+        changes: [{ setNumber: 1, currentLoadKg: 80, proposedLoadKg: 120 }],
+      },
+    ])
+  })
+
+  it('an unauthored technique stage never anchors a load-less plan set (the phantom prescription)', () => {
+    // Arrange — the drop stage carries NO snapshot load (a null there means
+    // "the lifter types what they dropped to"). Before the exclusion it fell
+    // into the null bucket and handed the rpe-target plan set 40 kg.
+    const workout = [
+      wEx([
+        wSet(1, 12, 100, { techniqueKind: 'drop-set' }),
+        wSet(2, 10, 40, {
+          techniqueKind: 'drop-set',
+          prescribedLoadKg: null,
+          prescribedRepMin: null,
+        }),
+      ]),
+    ]
+    const plan = [pEx([pSet(1, 12, null)])]
+
+    // Act
+    const candidates = detectPlanSyncCandidates(workout, plan, confirmingPrevious())
+
+    // Assert
+    expect(candidates).toEqual([])
+  })
+
+
 })
 
 describe('planSyncEventSummary', () => {

@@ -40,6 +40,10 @@ import { kgToDisplay, type WeightUnit } from './units'
  * - skipped exercises and non-`weight_reps` slots never contribute
  *   (`sets.weight` is a total load only for that logging type);
  * - warm-ups (and backoff/amrap sets) never contribute — working sets only;
+ * - INTENSITY-TECHNIQUE rows never contribute, top set included — the same
+ *   exclusion db/autoreg-history.ts applies for the same reason (see
+ *   `withoutTechniqueRows` below): both feed the same scorer, so they must
+ *   score the same population;
  * - plan sets with NO suggested load anchor at the null bucket (the
  *   rpe-target case: syncing writes them a first real anchor);
  * - values already equal propose nothing, so a re-run after syncing is empty.
@@ -56,6 +60,18 @@ export interface PlanSyncWorkoutSet {
    *  scored against (never today's editable plan). */
   prescribedLoadKg: number | null
   prescribedRepMin: number | null
+  /**
+   * Non-null when this row is one stage of an intensity-technique group
+   * (`sets.technique_kind`). Such rows are dropped before scoring.
+   *
+   * REQUIRED, not optional, deliberately: `withoutTechniqueRows` treats
+   * "absent" and "null" alike, so an optional field would let a future caller
+   * — a narrower `columns:` projection added for performance, another
+   * get-workout adapter — silently reintroduce the bug this exclusion fixes,
+   * with no compile error anywhere. Making it required means such a caller
+   * fails to build instead.
+   */
+  techniqueKind: string | null
 }
 
 export interface PlanSyncWorkoutExercise {
@@ -113,20 +129,48 @@ function firstByIdentity<T extends { source: string; wgerExerciseId: number }>(
   return map
 }
 
+/**
+ * The exercise's sets minus every row belonging to an intensity-technique
+ * group — the top set included, exactly the predicate db/autoreg-history.ts
+ * applies (`isNull(sets.techniqueKind)`) before handing rows to this same
+ * scorer. These sets are taken to failure BY DESIGN, so a per-set rep floor
+ * is the wrong yardstick for them, and the numbers they produce are not
+ * evidence about what the PLAN's loads should be:
+ *
+ *  - a stage's snapshot load is a fraction of the top set's, so it opens an
+ *    anchor bucket at a load the plan may also use for a backoff set — which
+ *    would then adopt a drop's performance;
+ *  - an UNAUTHORED stage carries no snapshot load at all (a null there means
+ *    "the lifter types what they dropped to", never a prescription), so it
+ *    landed in `firstAnchorKg`'s null bucket and handed a load-less plan set
+ *    its first real anchor off a drop weight — the phantom prescription the
+ *    null stage load exists to prevent.
+ *
+ * Ordinary sets in the same exercise still testify, and the group's own
+ * signal (total reps across the stages) is the seam total-reps scoring lands
+ * on, in both consumers at once.
+ */
+function withoutTechniqueRows(
+  sets: readonly PlanSyncWorkoutSet[],
+): readonly PlanSyncWorkoutSet[] {
+  return sets.filter((s) => s.techniqueKind == null)
+}
+
 /** One workout exercise as an engine session, scored against its OWN
  *  prescribed-at-instantiation snapshots — both sides come from the same
  *  logged rows, so setNumber pairing is internally consistent. Ordering is
  *  irrelevant for single-session scoring (startedAtMs 0). */
 function snapshotSession(exercise: PlanSyncWorkoutExercise): AutoregSession {
+  const sets = withoutTechniqueRows(exercise.sets)
   return {
     startedAtMs: 0,
-    prescribed: exercise.sets.map((s) => ({
+    prescribed: sets.map((s) => ({
       setNumber: s.setNumber,
       repMin: s.prescribedRepMin,
       loadKg: s.prescribedLoadKg,
       setType: s.setType,
     })),
-    actual: exercise.sets.map((s) => ({
+    actual: sets.map((s) => ({
       setNumber: s.setNumber,
       reps: s.reps,
       weightKg: s.weight,
@@ -144,7 +188,7 @@ function snapshotSession(exercise: PlanSyncWorkoutExercise): AutoregSession {
  *  prescribed no load. Minimum performed — the engine's conservative
  *  null-bucket convention. */
 function firstAnchorKg(exercise: PlanSyncWorkoutExercise): number | undefined {
-  const loads = exercise.sets
+  const loads = withoutTechniqueRows(exercise.sets)
     .filter(
       (s) =>
         s.completed &&
