@@ -1,6 +1,6 @@
 # PR Review: #313 — Answer a stall in a deficit with a volume cut, not a load cut
 
-**Reviewed**: 2026-08-27
+**Reviewed**: 2026-08-27 (round 1: commit 237d54a; round 2: the escape-hatch work, 1f4904e)
 **Author**: ddelvalfraire
 **Branch**: claude/diet-phase-episode-8e962e → main
 **Decision**: APPROVE with comments
@@ -114,3 +114,84 @@ checkout's `.env.local` points at LIVE PRODUCTION, so it must not be borrowed fo
 | `src/app/workout/new/workout-logger.tsx` | Modified — comment only |
 | `messages/en.json` | Modified — builder hint |
 | `docs/specs/diet-phase-as-an-episode.md` | Modified — status |
+
+
+---
+
+# Round 2 — the escape-hatch work (1f4904e, 04a44f4)
+
+**Decision**: APPROVE with comments. One MEDIUM found and fixed (8f39c2b); the rest are
+recorded as accepted trade-offs.
+
+## Findings
+
+### CRITICAL / HIGH
+None.
+
+### MEDIUM
+
+**M3 — A restored set lost its ghost across a reload. FIXED (8f39c2b).**
+`trimmedTargets` were appended to the plan overlay only while `autoregReverted` held the
+key — but the flag and the rows it adds have different lifetimes. The rows land in the
+PERSISTED draft; the flag is component state (in-memory by design, documented at
+`workout-logger.tsx:730`). So: revert, reload, and you had three rows with two ghosts —
+the restored set came back blank. Fixed by appending the trimmed targets
+unconditionally: targets are positional, so an entry past the last row is inert, and the
+ghost is there the moment a row exists at that index. Bonus, and correct: a plain
+`+ Add set` after a trim now gets the plan's own number for that set, which is exactly
+what the lifter is re-adding.
+
+### LOW
+
+**L4 — Restored rows append to the END of the exercise.**
+If an exercise carries backoff/amrap rows after its working block, a restored working set
+lands after them rather than back in the working block. Ghost alignment stays correct
+(row and target are both appended), only the visual order differs. Accepted: splicing
+into position would need the plan's row roles in the logger, which it does not carry.
+
+**L5 — `partitionVolumeCut` runs twice per exercise per derivation** — once inside
+`applyAutoregToSets` for the survivors, once in `deriveDayPrescription` for the dropped
+rows. Pure, cheap (one filter and one loop over a handful of sets), and the two calls
+cannot disagree given identical inputs. Accepted over threading a second return value
+through `applyAutoregToSets`, whose signature is used by every rule-set test.
+
+**L6 — `trimmedSets` is not exposed in `preview_program_week`,** while `volumeCut` is: a
+coach reading the MCP preview can see "3 sets → 2" but not what the third set was.
+Completeness nit; the reason line carries the numbers that matter.
+
+## Verified, not issues
+
+- **The trim never reaches the seeded workout twice.** `instantiateProgramDay` seeds from
+  `prescription[position].sets` only (`prescriptions.ts:688`) — `trimmedSets` is a
+  read-side ride-along and cannot resurrect a dropped set into a logged session.
+- **Technique rows restore correctly.** `toTargets` runs the dropped rows through the same
+  `expandTechniqueStages` as the kept ones, so a trimmed drop-set restores one row per
+  STAGE — matching what instantiation would have seeded.
+- **Substituted exercises never inherit this plan's trimmed rows** — the overlay short
+  circuits the append, so a swapped-in lift that happens to share an id with a trimmed
+  plan slot keeps its own targets.
+- **"As written" really means the plan's numbers.** `trimmedSets` carries unadjusted loads
+  with per-week overrides merged on top, so the owner's explicit number wins on a restored
+  row exactly as it would have on the original.
+- **Repeated dispatches are safe** — the reducer applies each `ADD_SET` in order, so N
+  trimmed targets restore N rows under React's batching.
+
+## Validation Results (round 2, full suite)
+
+| Check | Result |
+|---|---|
+| Type check (`tsc --noEmit`) | Pass |
+| Lint (`eslint .`) | Pass |
+| Tests (`vitest run`) | Pass — 472 files, 5769 tests |
+| Build (`next build`) | Pass — compiled, TypeScript clean, 47 static pages, SW precache |
+
+## Files Reviewed (round 2)
+
+| File | Change |
+|---|---|
+| `src/lib/autoregulate.ts` | Modified — `cutWorkingVolume` → `partitionVolumeCut` |
+| `src/db/prescriptions.ts` | Modified — `ExercisePrescription.trimmedSets` |
+| `src/app/workout/[id]/edit/page.tsx` | Modified — `toTargets` extraction, `trimmedTargets` |
+| `src/app/workout/new/workout-logger.tsx` | Modified — overlay append + revert restores rows |
+| `src/app/workout/new/workout-logger-autoreg-revert.component.test.tsx` | Added |
+| `src/db/derive-autoreg.test.ts` | Modified — `trimmedSets` assertions |
