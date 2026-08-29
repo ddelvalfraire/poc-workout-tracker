@@ -33,7 +33,7 @@ export async function CardioWeek({ userId, shape }: { userId: string; shape: Hom
 
   return (
     <Link href="/stats" className="flex h-full flex-col transition-colors active:bg-muted/60">
-      <span className="font-display text-[0.66rem] font-medium uppercase leading-none tracking-[0.15em] text-muted-foreground">
+      <span className="min-w-0 truncate font-display text-[0.66rem] font-medium uppercase leading-none tracking-[0.15em] text-muted-foreground">
         {t('title')}
       </span>
       <span className="mt-auto flex flex-col justify-end">

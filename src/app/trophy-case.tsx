@@ -37,7 +37,7 @@ export async function TrophyCase({ userId, shape }: { userId: string; shape: Hom
 
   return (
     <Link href="/trophies" className="flex h-full flex-col transition-colors active:bg-muted/60">
-      <span className="font-display text-[0.66rem] font-medium uppercase leading-none tracking-[0.15em] text-muted-foreground">
+      <span className="min-w-0 truncate font-display text-[0.66rem] font-medium uppercase leading-none tracking-[0.15em] text-muted-foreground">
         {t('title')}
       </span>
 

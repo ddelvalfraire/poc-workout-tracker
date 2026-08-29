@@ -41,7 +41,7 @@ function HomeCellFallback(_props: Record<never, never>, { error, retry }: ErrorI
           should read as one of the grid's compartments, not as an alarm
           dropped into it. Muted, never the accent: DESIGN.md spends the one
           volt on what you can act on, and this is a tile that is missing. */}
-      <span className="font-display text-[0.66rem] font-medium uppercase leading-none tracking-[0.15em] text-muted-foreground">
+      <span className="min-w-0 truncate font-display text-[0.66rem] font-medium uppercase leading-none tracking-[0.15em] text-muted-foreground">
         {t('title')}
       </span>
       <span className="mt-auto flex flex-col justify-end">

@@ -100,7 +100,7 @@ export async function MomentumPanel({ userId, nowMs, size = 'md' }: MomentumPane
     return (
       <Link href="/stats" className="flex h-full flex-col transition-colors active:bg-muted/60">
         <span className="flex items-center justify-between gap-2">
-          <span className="font-display text-[0.66rem] font-medium uppercase leading-none tracking-[0.15em] text-muted-foreground">
+          <span className="min-w-0 truncate font-display text-[0.66rem] font-medium uppercase leading-none tracking-[0.15em] text-muted-foreground">
             {t('title')}
           </span>
           {goal?.streak && (
@@ -130,7 +130,7 @@ export async function MomentumPanel({ userId, nowMs, size = 'md' }: MomentumPane
         className="flex min-h-0 flex-1 flex-col transition-colors active:bg-muted/60"
       >
         <span className="flex items-center justify-between gap-3">
-          <span className="font-display text-[0.66rem] font-medium uppercase leading-none tracking-[0.15em] text-muted-foreground">
+          <span className="min-w-0 truncate font-display text-[0.66rem] font-medium uppercase leading-none tracking-[0.15em] text-muted-foreground">
             {t('title')}
           </span>
           <ChevronRight aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
