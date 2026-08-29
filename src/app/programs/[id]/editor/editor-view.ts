@@ -8,7 +8,7 @@ import type {
   EditorWeek,
 } from '@/components/editor/editor-model'
 import type { LoggingType } from '@/lib/workout/workout-input'
-import type { SetType } from '@/lib/program-input'
+import type { SetType } from '@/lib/programs/program-input'
 import { kgToDisplay, type WeightUnit } from '@/lib/units'
 import type { TrainedDayState } from './trained-view'
 

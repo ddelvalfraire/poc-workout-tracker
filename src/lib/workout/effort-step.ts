@@ -1,5 +1,5 @@
-import type { ProposalPatch } from '../patch-proposal'
-import type { PendingProposalRef } from '../reactive-deload'
+import type { ProposalPatch } from '../programs/patch-proposal'
+import type { PendingProposalRef } from '../programs/reactive-deload'
 import { kgToDisplay, type WeightUnit } from '../units'
 
 /**

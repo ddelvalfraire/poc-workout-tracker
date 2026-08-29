@@ -10,7 +10,7 @@ import {
   type StatusHeroLine,
 } from '@/lib/home-status'
 import { renderLine } from '@/lib/message'
-import { weeklyStreak } from '@/lib/goal-progress'
+import { weeklyStreak } from '@/lib/goals/goal-progress'
 import { useMounted } from '@/lib/use-mounted'
 import type { WeightUnit } from '@/lib/units'
 import { StartDayButton } from '@/app/programs/[id]/start-day-button'

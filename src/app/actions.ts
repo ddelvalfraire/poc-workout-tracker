@@ -16,12 +16,12 @@ import {
 import { parseHomeLayoutInput } from '@/lib/home/layout'
 import { WEIGHT_STEP_CHOICES } from '@/lib/format'
 import { logBodyweight, deleteBodyweightLog } from '@/db/bodyweight'
-import { checkGoalAchievements } from '@/lib/goals'
+import { checkGoalAchievements } from '@/lib/goals/goals'
 import { logMeasurement, deleteMeasurement } from '@/db/body-measurements'
 import { isMeasurementSite } from '@/lib/measurement-sites'
 import { isWeightUnit, displayToKg, displayToCm, lengthUnitFor } from '@/lib/units'
 import { parseEquipmentInput } from '@/lib/exercises/equipment'
-import { MAX_REST_SEC } from '@/lib/program-input'
+import { MAX_REST_SEC } from '@/lib/programs/program-input'
 
 // Sanity bounds for a stored bodyweight, in canonical kg. The ceiling sits
 // well under the numeric(5,2) column max (999.99) so a typo'd extra digit

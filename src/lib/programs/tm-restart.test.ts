@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { collectTmRestartFlags, collectTmIncrements } from './tm-restart'
-import type { Progression } from '@/lib/program-input'
-import type { AutoregAdjustment } from '@/lib/autoregulate'
+import type { Progression } from '@/lib/programs/program-input'
+import type { AutoregAdjustment } from '@/lib/programs/autoregulate'
 
 const amrap = (trainingMaxKg: number, incrementKg: number): Progression =>
   ({

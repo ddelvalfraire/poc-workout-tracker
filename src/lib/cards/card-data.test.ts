@@ -29,7 +29,7 @@ import type { ExerciseAllTimeStats, ExerciseTrendPoint } from '@/db/exercise-sta
 import type { TrophyRow } from '@/db/trophies'
 import { createTranslator } from 'next-intl'
 import en from '../../../messages/en.json'
-import { TROPHY_KINDS } from '@/lib/trophy-kinds'
+import { TROPHY_KINDS } from '@/lib/goals/trophy-kinds'
 import {
   formatCardMonthYear,
   isTrophyKind,

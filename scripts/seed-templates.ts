@@ -28,9 +28,9 @@ async function main(): Promise<void> {
   // DATABASE_URL at module init.
   const [{ parseProgramInput }, { TEMPLATE_CANON }, { TEMPLATE_OWNER_USER_ID }] = await Promise.all(
     [
-      import('../src/lib/program-input'),
-      import('../src/lib/template-canon'),
-      import('../src/lib/template-owner'),
+      import('../src/lib/programs/program-input'),
+      import('../src/lib/templates/template-canon'),
+      import('../src/lib/templates/template-owner'),
     ],
   )
   const { listPrograms, saveProgram, updateProgram } = await import('../src/db/programs')

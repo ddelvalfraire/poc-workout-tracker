@@ -8,7 +8,7 @@ import {
   progressionSchema,
   type Technique,
   type Progression,
-} from '@/lib/program-input'
+} from '@/lib/programs/program-input'
 
 import {
   ProgramPatchError,

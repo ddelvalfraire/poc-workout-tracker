@@ -10,14 +10,14 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
  * call it after their save has already committed.
  */
 
-vi.mock('@/lib/auto-plan-sync', () => ({ autoSyncPlanToPerformance: vi.fn() }))
-vi.mock('@/lib/goals', () => ({ checkGoalAchievements: vi.fn() }))
-vi.mock('@/lib/trophies', () => ({ checkTrophies: vi.fn(async () => []) }))
+vi.mock('@/lib/programs/auto-plan-sync', () => ({ autoSyncPlanToPerformance: vi.fn() }))
+vi.mock('@/lib/goals/goals', () => ({ checkGoalAchievements: vi.fn() }))
+vi.mock('@/lib/goals/trophies', () => ({ checkTrophies: vi.fn(async () => []) }))
 
 import { completeWorkoutSideEffects } from './workout-completion'
-import { autoSyncPlanToPerformance } from '@/lib/auto-plan-sync'
-import { checkGoalAchievements } from '@/lib/goals'
-import { checkTrophies } from '@/lib/trophies'
+import { autoSyncPlanToPerformance } from '@/lib/programs/auto-plan-sync'
+import { checkGoalAchievements } from '@/lib/goals/goals'
+import { checkTrophies } from '@/lib/goals/trophies'
 
 const mockedAutoSync = vi.mocked(autoSyncPlanToPerformance)
 const mockedCheckGoals = vi.mocked(checkGoalAchievements)

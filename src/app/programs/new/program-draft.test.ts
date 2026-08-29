@@ -15,7 +15,7 @@ import {
   type ProgramDraft,
 } from './program-draft'
 import type { ProgramDetail } from '@/db/programs'
-import type { Progression } from '@/lib/program-input'
+import type { Progression } from '@/lib/programs/program-input'
 
 /** A minimal editable set: targets only, all pass-through fields at defaults. */
 function draftSet(id: string, overrides: Partial<DraftProgramSet> = {}): DraftProgramSet {

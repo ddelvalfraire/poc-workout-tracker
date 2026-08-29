@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 import { expect, fn, userEvent, within } from "storybook/test";
 
 import { EditorTechniquePanel } from "./editor-technique-panel";
-import type { DerivedSet } from "@/lib/progression";
+import type { DerivedSet } from "@/lib/programs/progression";
 
 /**
  * The draft boundary. The form beside this one has no opinion about saving;

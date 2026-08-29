@@ -1,6 +1,6 @@
 import { and, asc, eq, ne } from 'drizzle-orm'
 import { can } from '@/lib/authz'
-import { TEMPLATE_OWNER_USER_ID } from '@/lib/template-owner'
+import { TEMPLATE_OWNER_USER_ID } from '@/lib/templates/template-owner'
 import { db } from './index'
 import { hasFeature } from './entitlements'
 import { programs } from './schema'

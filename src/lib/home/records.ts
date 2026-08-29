@@ -1,6 +1,6 @@
 import { estimate1RM, effectiveLoadKg } from '@/lib/exercises/one-rep-max'
-import { canonicalLiftFor } from '@/lib/trophies'
-import type { CanonicalLift } from '@/lib/trophy-kinds'
+import { canonicalLiftFor } from '@/lib/goals/trophies'
+import type { CanonicalLift } from '@/lib/goals/trophy-kinds'
 import type { ExerciseSource } from '@/lib/exercises/custom-exercise-input'
 import type { LoggingType } from '@/lib/workout/workout-input'
 

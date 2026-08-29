@@ -8,8 +8,8 @@
  * A template's set plan is deliberately compact (plannedSets + rep range +
  * rest), so the bounds here are tight sanity caps, not column ceilings.
  */
-import { isLoggingType, parseNotes, LOGGING_TYPES, type LoggingType } from './workout/workout-input'
-import type { ExerciseSource } from './exercises/custom-exercise-input'
+import { isLoggingType, parseNotes, LOGGING_TYPES, type LoggingType } from '../workout/workout-input'
+import type { ExerciseSource } from '../exercises/custom-exercise-input'
 
 const MAX_NAME = 200 // same ceiling as workout/exercise names
 const MAX_DESCRIPTION = 2000 // same free-text ceiling as notes

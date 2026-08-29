@@ -1,6 +1,6 @@
-import { autoSyncPlanToPerformance } from '@/lib/auto-plan-sync'
-import { checkGoalAchievements } from '@/lib/goals'
-import { checkTrophies } from '@/lib/trophies'
+import { autoSyncPlanToPerformance } from '@/lib/programs/auto-plan-sync'
+import { checkGoalAchievements } from '@/lib/goals/goals'
+import { checkTrophies } from '@/lib/goals/trophies'
 
 /**
  * The post-completion domain pipeline — everything that must react to a just-

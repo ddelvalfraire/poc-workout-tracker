@@ -36,7 +36,7 @@ import { getExerciseStats, listLoggedExercises } from '@/db/exercise-stats'
 import { activeScheduledWeekdays, completedWorkoutTimes } from '@/db/goals'
 import { programWeekState } from '@/db/programs'
 import { sendPushToUser } from '@/lib/push'
-import { TROPHY_KINDS, thresholdKg, type TrophyKind } from '@/lib/trophy-kinds'
+import { TROPHY_KINDS, thresholdKg, type TrophyKind } from '@/lib/goals/trophy-kinds'
 import { displayToKg } from '@/lib/units'
 import {
   canonicalLiftFor,

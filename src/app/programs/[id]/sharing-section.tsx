@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useSyncExternalStore, useTransition } from 'react'
 import { Check, Copy } from 'lucide-react'
-import type { ProgramVisibility } from '@/lib/program-input'
+import type { ProgramVisibility } from '@/lib/programs/program-input'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { cn } from '@/lib/utils'
 import { setProgramVisibilityAction, rotateProgramShareAction } from '../actions'

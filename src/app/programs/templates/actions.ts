@@ -2,10 +2,10 @@
 
 import { revalidatePath } from 'next/cache'
 import { requireUserId } from '@/lib/auth'
-import { parseProgramInput } from '@/lib/program-input'
+import { parseProgramInput } from '@/lib/programs/program-input'
 import { getAllExercises } from '@/lib/exercises/wger'
-import { getRoutineStructure } from '@/lib/wger-templates'
-import { mapWgerRoutineToProgram } from '@/lib/wger-template-map'
+import { getRoutineStructure } from '@/lib/templates/wger-templates'
+import { mapWgerRoutineToProgram } from '@/lib/templates/wger-template-map'
 import { saveProgram } from '@/db/programs'
 import { adoptTemplate } from '@/db/templates'
 

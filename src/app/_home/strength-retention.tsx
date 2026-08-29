@@ -3,7 +3,7 @@ import { getStrengthRetention } from '@/db/home-adherence'
 import { getWeightUnit } from '@/db/preferences'
 import { formatVolumeParts } from '@/lib/format'
 import type { HomeSectionShape } from '@/lib/home/registry'
-import type { CanonicalLift } from '@/lib/trophy-kinds'
+import type { CanonicalLift } from '@/lib/goals/trophy-kinds'
 import { getTranslations } from 'next-intl/server'
 import { cache } from 'react'
 

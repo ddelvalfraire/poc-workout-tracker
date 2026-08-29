@@ -1,4 +1,4 @@
-import type { WeightUnit } from './units'
+import type { WeightUnit } from '../units'
 // Reason strings print loads through the #226 quantizer — a lifter must
 // never read an unloadable number like 66.6 lb in the transparency copy.
 // `loadsMatch` widens the C2 evidence identity across the quantization
@@ -8,13 +8,13 @@ import {
   loadsMatch,
   quantizeAdjustedLoadKg,
   quantizeDisplayLoad,
-} from './workout/load-quantize'
-import { kgToDisplay } from './units'
+} from '../workout/load-quantize'
+import { kgToDisplay } from '../units'
 // Reason lines share the double-progression hold clause with the scheme-copy
 // module (#228) — one voice for "hit N reps, then the weight goes up".
 import { repFillHoldReason } from './scheme-copy'
-import { estimate1RM } from './exercises/one-rep-max'
-import type { OvershootPolicy } from './programs/overshoot-policy'
+import { estimate1RM } from '../exercises/one-rep-max'
+import type { OvershootPolicy } from './overshoot-policy'
 import type { DerivedSet } from './progression'
 import type { DietPhase } from './program-input'
 

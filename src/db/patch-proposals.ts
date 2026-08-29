@@ -20,7 +20,7 @@ import {
   proposalPatchesSchema,
   MAX_PROPOSAL_SUMMARY,
   type ProposalPatch,
-} from '@/lib/patch-proposal'
+} from '@/lib/programs/patch-proposal'
 
 /**
  * Batch-patch proposals (proposals plan §3): ONE `program_patch_proposals`

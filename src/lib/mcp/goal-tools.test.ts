@@ -1,11 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 
-vi.mock('@/lib/goals', () => ({ evaluateGoalProgress: vi.fn(async () => []) }))
+vi.mock('@/lib/goals/goals', () => ({ evaluateGoalProgress: vi.fn(async () => []) }))
 vi.mock('@/db/preferences', () => ({ getWeightUnit: vi.fn(async () => 'lb') }))
 vi.mock('./resolve-user', () => ({ resolveUserId: vi.fn(() => 'user_123') }))
 
-import { evaluateGoalProgress, type GoalWithProgress } from '@/lib/goals'
+import { evaluateGoalProgress, type GoalWithProgress } from '@/lib/goals/goals'
 import { resolveUserId } from './resolve-user'
 import { registerGoalTools } from './goal-tools'
 

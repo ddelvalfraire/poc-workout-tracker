@@ -1,4 +1,4 @@
-import type { DietPhase } from '@/lib/program-input'
+import type { DietPhase } from '@/lib/programs/program-input'
 
 /**
  * The "still cutting?" staleness brain — pure, fed by the program page.

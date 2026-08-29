@@ -5,15 +5,15 @@ import {
   deriveWeekSets,
   type ExerciseHistoryInput,
   type ProgramSetRowLike,
-} from '@/lib/progression'
+} from '@/lib/programs/progression'
 import {
   applyAutoregToSets,
   autoregReason,
   autoregulate,
   autoregulateEarlyDeload,
   type AutoregSession,
-} from '@/lib/autoregulate'
-import type { Progression } from '@/lib/program-input'
+} from '@/lib/programs/autoregulate'
+import type { Progression } from '@/lib/programs/program-input'
 
 /**
  * Layer 3 of the progression test harness (progression-test-harness.prd.md):

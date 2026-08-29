@@ -3,7 +3,7 @@ import { createTranslator } from 'next-intl'
 
 import en from '../../../messages/en.json'
 import { renderStaticIntl } from '../../../vitest.intl'
-import { templateStatusLine, type TemplateStatusMessage } from '@/lib/template-usage'
+import { templateStatusLine, type TemplateStatusMessage } from '@/lib/templates/template-usage'
 import { TemplateActions } from './[id]/template-actions'
 
 /**

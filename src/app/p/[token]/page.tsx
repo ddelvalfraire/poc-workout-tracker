@@ -10,7 +10,7 @@ import {
   groupPlannedSets,
   plannedSetChips,
   type PlannedSetShape,
-} from '@/lib/planned-set-format'
+} from '@/lib/programs/planned-set-format'
 import { AppHeader } from '@/components/nav/app-header'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { cn } from '@/lib/utils'

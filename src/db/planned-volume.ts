@@ -10,9 +10,9 @@ import {
   type ProgramSetRowLike,
   type ResolvedDeloadPolicy,
   type SetOverrideLike,
-} from '@/lib/progression'
+} from '@/lib/programs/progression'
 import { programWeekState } from './programs'
-import type { Progression, Technique } from '@/lib/program-input'
+import type { Progression, Technique } from '@/lib/programs/program-input'
 import {
   programs,
   programDays,

@@ -1,5 +1,5 @@
 import type { BodyweightTarget, ConsistencyTarget, GoalKind, GoalTarget } from './goal-input'
-import { kgToDisplay, type WeightUnit } from './units'
+import { kgToDisplay, type WeightUnit } from '../units'
 
 /**
  * Pure goal-progress math — no I/O, no db. Everything here derives from

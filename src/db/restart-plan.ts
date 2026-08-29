@@ -5,7 +5,7 @@ import {
   collectTmIncrements,
   type TmRestartFlag,
   type TmIncrement,
-} from '@/lib/tm-restart'
+} from '@/lib/programs/tm-restart'
 
 /**
  * Block-restart TM carry-forward — the io half (pure collectors live in

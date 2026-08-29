@@ -6,7 +6,7 @@ import { Choice, ChoiceList } from '@/components/ui/choice-list'
 import type { OvershootPolicy } from '@/lib/programs/overshoot-policy'
 import { Input } from '@/components/ui/input'
 import { SwitchRow } from '@/components/ui/switch-row'
-import { type DeloadPolicy } from '@/lib/program-input'
+import { type DeloadPolicy } from '@/lib/programs/program-input'
 import { type ProgramDraft, type ProgramDraftAction } from './program-draft'
 
 /** Option VALUES for the four choice lists; every label is a catalog lookup at

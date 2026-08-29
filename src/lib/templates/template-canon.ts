@@ -1,4 +1,4 @@
-import type { ProgramInputUnparsed } from './program-input'
+import type { ProgramInputUnparsed } from '../programs/program-input'
 
 /**
  * The template library's canonical seed content: five published-canon

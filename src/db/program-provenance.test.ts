@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { getTableName } from 'drizzle-orm'
 import { getTableConfig } from 'drizzle-orm/pg-core'
-import { parseProgramInput } from '@/lib/program-input'
+import { parseProgramInput } from '@/lib/programs/program-input'
 import { workouts, programDays } from './schema'
 
 /**

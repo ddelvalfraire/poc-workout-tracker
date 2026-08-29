@@ -16,9 +16,9 @@
  * — is Phase 5.
  */
 import { z } from 'zod'
-import { MAX_WEIGHT } from './workout/workout-input'
-import { exerciseSourceSchema } from './exercises/custom-exercise-input'
-import { overshootPolicySchema } from './programs/overshoot-policy'
+import { MAX_WEIGHT } from '../workout/workout-input'
+import { exerciseSourceSchema } from '../exercises/custom-exercise-input'
+import { overshootPolicySchema } from './overshoot-policy'
 
 // Mirror the bounds in `workout-input.ts` (they aren't exported there).
 const MAX_NAME = 200

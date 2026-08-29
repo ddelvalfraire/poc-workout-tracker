@@ -1,6 +1,6 @@
 import type { Progression } from './program-input'
-import { kgToDisplay, type WeightUnit } from './units'
-import { LOAD_INCREMENT_KG, LOAD_INCREMENT_LB, quantizeDisplayLoad } from './workout/load-quantize'
+import { kgToDisplay, type WeightUnit } from '../units'
+import { LOAD_INCREMENT_KG, LOAD_INCREMENT_LB, quantizeDisplayLoad } from '../workout/load-quantize'
 
 /**
  * The voice for every progression scheme (#228) — ONE module decides which

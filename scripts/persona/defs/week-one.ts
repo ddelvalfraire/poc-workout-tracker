@@ -2,7 +2,7 @@ import { adoptTemplate } from '@/db/templates'
 import { setProgramStatus, getProgramDetail, listPrograms } from '@/db/programs'
 import { instantiateProgramDay } from '@/db/prescriptions'
 import { getWorkoutDetail, updateWorkout } from '@/db/workouts'
-import { TEMPLATE_OWNER_USER_ID } from '@/lib/template-owner'
+import { TEMPLATE_OWNER_USER_ID } from '@/lib/templates/template-owner'
 import { consentAll, setUnit } from '../actions'
 import type { PersonaDefinition } from './types'
 

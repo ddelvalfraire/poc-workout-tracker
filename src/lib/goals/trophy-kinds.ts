@@ -1,4 +1,4 @@
-import { displayToKg } from './units'
+import { displayToKg } from '../units'
 
 /**
  * Trophy kind identities + their fact definitions — the boundary module the

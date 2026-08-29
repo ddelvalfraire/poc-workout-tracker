@@ -13,7 +13,7 @@ import {
 
 import {
   type Progression,
-} from '@/lib/program-input'
+} from '@/lib/programs/program-input'
 import type {
   ExerciseSource,
 } from '@/lib/exercises/custom-exercise-input'

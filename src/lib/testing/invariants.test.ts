@@ -1,6 +1,6 @@
 import { describe, expect } from 'vitest'
 import { test, fc } from '@fast-check/vitest'
-import { applyOverride, deriveWeekSets, DELOAD_LOAD_FACTOR } from '@/lib/progression'
+import { applyOverride, deriveWeekSets, DELOAD_LOAD_FACTOR } from '@/lib/programs/progression'
 import {
   applyAutoregToSets,
   autoregulate,
@@ -9,8 +9,8 @@ import {
   autoregulateRange,
   AUTOREG_SESSION_WINDOW,
   type AutoregStallPolicy,
-} from '@/lib/autoregulate'
-import { detectPlanSyncCandidates, type PlanSyncWorkoutExercise } from '@/lib/plan-sync'
+} from '@/lib/programs/autoregulate'
+import { detectPlanSyncCandidates, type PlanSyncWorkoutExercise } from '@/lib/programs/plan-sync'
 import {
   bankedWaveEquivalenceHolds,
   c2CapsAreLoadKeyedNotPositional,

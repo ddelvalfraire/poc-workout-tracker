@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import type { TrophyContext, TrophyKind } from '@/lib/trophy-kinds'
+import type { TrophyContext, TrophyKind } from '@/lib/goals/trophy-kinds'
 
 /**
  * Recording stubs for the Drizzle builders, mirroring goals.test.ts. Selects

@@ -6,7 +6,7 @@ import {
   type AutoregAdjustment,
   type AutoregSession,
   type AutoregStallPolicy,
-} from '@/lib/autoregulate'
+} from '@/lib/programs/autoregulate'
 import { reasonNonEmptyOnAdjustment } from './invariants'
 import { evidenceLoadArb, evidenceSession, sessionClassArb, type SessionClass } from './arbitraries'
 

@@ -3,9 +3,9 @@ import type {
   ExerciseHistoryInput,
   ProgramSetRowLike,
   SetOverrideLike,
-} from '@/lib/progression'
-import type { AutoregSession } from '@/lib/autoregulate'
-import type { Progression } from '@/lib/program-input'
+} from '@/lib/programs/progression'
+import type { AutoregSession } from '@/lib/programs/autoregulate'
+import type { Progression } from '@/lib/programs/program-input'
 
 /**
  * Layer 2 arbitraries (progression-test-harness.prd.md): one arbitrary per

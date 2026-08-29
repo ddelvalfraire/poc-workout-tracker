@@ -13,7 +13,7 @@ import {
 
 import {
   type Technique,
-} from '@/lib/program-input'
+} from '@/lib/programs/program-input'
 
 import {
   db,

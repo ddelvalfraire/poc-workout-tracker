@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import type { SQL } from 'drizzle-orm'
 import { PgDialect } from 'drizzle-orm/pg-core'
-import { DELOAD_LOAD_FACTOR } from '@/lib/progression'
+import { DELOAD_LOAD_FACTOR } from '@/lib/programs/progression'
 
 /**
  * Recording stub for the engine-driven instantiateProgramDay.

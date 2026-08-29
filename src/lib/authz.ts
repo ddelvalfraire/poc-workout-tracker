@@ -6,8 +6,8 @@ import {
   type MongoAbility,
   type MongoQuery,
 } from '@casl/ability'
-import type { ProgramVisibility } from './program-input'
-import { TEMPLATE_OWNER_USER_ID } from './template-owner'
+import type { ProgramVisibility } from './programs/program-input'
+import { TEMPLATE_OWNER_USER_ID } from './templates/template-owner'
 
 /**
  * Sharing/visibility authorization — the ONE place a cross-account access

@@ -1,5 +1,5 @@
 import { inArray } from 'drizzle-orm'
-import type { Technique } from '@/lib/program-input'
+import type { Technique } from '@/lib/programs/program-input'
 import { ProgramPatchError, type Tx } from './program-ownership'
 import { programSetOverrides } from './schema'
 

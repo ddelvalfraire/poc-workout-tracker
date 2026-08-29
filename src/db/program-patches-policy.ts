@@ -8,11 +8,11 @@ import {
   dietPhaseSchema,
   type DeloadPolicy,
   type DietPhase,
-} from '@/lib/program-input'
+} from '@/lib/programs/program-input'
 
 import type {
   AutoregStallPolicy,
-} from '@/lib/autoregulate'
+} from '@/lib/programs/autoregulate'
 import {
   overshootPolicySchema,
   type OvershootPolicy,

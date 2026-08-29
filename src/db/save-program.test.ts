@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { parseProgramInput } from '@/lib/program-input'
+import { parseProgramInput } from '@/lib/programs/program-input'
 
 /**
  * Recording stub for the Drizzle insert builder (mirrors save-workout.test.ts).

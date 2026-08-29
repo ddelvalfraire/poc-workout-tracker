@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import type { AutoregAdjustment } from '@/lib/autoregulate'
+import type { AutoregAdjustment } from '@/lib/programs/autoregulate'
 import { renderMessageIn } from '../../../../vitest.intl'
 import {
   programStatusLine,

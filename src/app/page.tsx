@@ -12,7 +12,7 @@ import { getWeightUnit } from "@/db/preferences";
 import { getSeededHomeLayout } from "@/db/home-signal";
 import { resolveActiveSession } from "@/lib/workout/active-session";
 import { getCheckInStatus } from "@/lib/check-in";
-import { getGoalsHomeSummary } from "@/lib/goals";
+import { getGoalsHomeSummary } from "@/lib/goals/goals";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { NavDrawer } from "@/components/nav/nav-drawer";

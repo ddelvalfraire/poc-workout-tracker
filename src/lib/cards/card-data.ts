@@ -9,8 +9,8 @@ import {
   trophyLabel,
   type TrophyContextMessage,
   type TrophyLabelMessage,
-} from '@/lib/trophies'
-import { TROPHY_KINDS, type TrophyKind } from '@/lib/trophy-kinds'
+} from '@/lib/goals/trophies'
+import { TROPHY_KINDS, type TrophyKind } from '@/lib/goals/trophy-kinds'
 import { kgToDisplay, type WeightUnit } from '@/lib/units'
 
 /**

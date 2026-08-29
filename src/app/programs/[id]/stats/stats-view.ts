@@ -8,7 +8,7 @@ import type {
 } from '@/db/program-stats'
 import type { VolumeWeek } from '@/db/volume-progression'
 import type { VolumeGroup } from '@/db/muscle-volume'
-import type { MuscleVerdict } from '@/lib/volume-progression'
+import type { MuscleVerdict } from '@/lib/programs/volume-progression'
 import type { Message } from '@/lib/message'
 import { DEFAULT_LOCALE, type Locale } from '@/i18n/config'
 

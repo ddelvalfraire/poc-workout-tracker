@@ -1,6 +1,6 @@
 import { and, asc, count, countDistinct, desc, eq, isNotNull, max, ne, sql } from 'drizzle-orm'
 import { cache } from 'react'
-import type { ProgramInput, ProgramStatus } from '@/lib/program-input'
+import type { ProgramInput, ProgramStatus } from '@/lib/programs/program-input'
 import type { ExerciseSource } from '@/lib/exercises/custom-exercise-input'
 // Runtime-only cycle with ./program-patches (it imports our catalog helpers,
 // we call its TM setter in cloneProgram's block-restart carry-forward) — safe
@@ -8,10 +8,10 @@ import type { ExerciseSource } from '@/lib/exercises/custom-exercise-input'
 // module init.
 import { setTrainingMax } from './program-patches'
 import { withTx, ProgramPatchError } from './program-ownership'
-import type { TmIncrement } from '@/lib/tm-restart'
+import type { TmIncrement } from '@/lib/programs/tm-restart'
 import { hasFeature, requireFeature } from './entitlements'
-import { pickNextProgramDay } from '@/lib/next-program-day'
-import { nextBlockName } from '@/lib/block-name'
+import { pickNextProgramDay } from '@/lib/programs/next-program-day'
+import { nextBlockName } from '@/lib/programs/block-name'
 import { db } from './index'
 import { catalogMuscles, type ExerciseCatalog } from '@/lib/exercises/exercise-catalog'
 import { getExerciseCatalog } from './exercise-catalog'

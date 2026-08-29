@@ -1,6 +1,6 @@
-import { backoffKg, AUTOREG_DEFAULT_STEP_KG, type AutoregAdjustment } from '@/lib/autoregulate'
-import type { Progression } from '@/lib/program-input'
-import { schemeSentence, type SchemeSentenceMessage } from '@/lib/scheme-copy'
+import { backoffKg, AUTOREG_DEFAULT_STEP_KG, type AutoregAdjustment } from '@/lib/programs/autoregulate'
+import type { Progression } from '@/lib/programs/program-input'
+import { schemeSentence, type SchemeSentenceMessage } from '@/lib/programs/scheme-copy'
 import type { WeightUnit } from '@/lib/units'
 import type { Message } from '@/lib/message'
 

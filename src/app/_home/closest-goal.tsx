@@ -1,7 +1,7 @@
 import Link from 'next/link'
-import { getGoalsHomeSummary } from '@/lib/goals'
+import { getGoalsHomeSummary } from '@/lib/goals/goals'
 import { getWeightUnit } from '@/db/preferences'
-import { goalLabel } from '@/lib/goal-progress'
+import { goalLabel } from '@/lib/goals/goal-progress'
 import { getTranslations } from 'next-intl/server'
 import { cache } from 'react'
 

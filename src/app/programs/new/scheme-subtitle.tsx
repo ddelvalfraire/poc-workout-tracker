@@ -1,4 +1,4 @@
-import { schemeName, schemeSubtitle, type ProgressionScheme } from '@/lib/scheme-copy'
+import { schemeName, schemeSubtitle, type ProgressionScheme } from '@/lib/programs/scheme-copy'
 import { useTranslations } from 'next-intl'
 
 /**

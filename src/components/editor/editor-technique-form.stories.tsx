@@ -3,8 +3,8 @@ import { expect, userEvent, within } from "storybook/test";
 import { useState } from "react";
 
 import { EditorTechniqueForm } from "./editor-technique-form";
-import type { Technique } from "@/lib/program-input";
-import type { DerivedSet } from "@/lib/progression";
+import type { Technique } from "@/lib/programs/program-input";
+import type { DerivedSet } from "@/lib/programs/progression";
 
 /**
  * The technique stack. Read the preview, not the fields: "The set becomes"

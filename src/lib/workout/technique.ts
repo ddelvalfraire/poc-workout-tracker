@@ -1,5 +1,5 @@
-import type { DerivedSet } from '@/lib/progression'
-import type { Technique } from '@/lib/program-input'
+import type { DerivedSet } from '@/lib/programs/progression'
+import type { Technique } from '@/lib/programs/program-input'
 import { quantizeLoadKg } from '@/lib/workout/load-quantize'
 import type { WeightUnit } from '@/lib/units'
 

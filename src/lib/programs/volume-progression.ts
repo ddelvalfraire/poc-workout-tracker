@@ -1,4 +1,4 @@
-import { MUSCLE_GROUPS, type MuscleGroup } from './exercises/muscle-groups'
+import { MUSCLE_GROUPS, type MuscleGroup } from '../exercises/muscle-groups'
 import {
   sessionBeatsTop,
   sessionStall,

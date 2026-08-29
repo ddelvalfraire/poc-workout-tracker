@@ -1,4 +1,4 @@
-import type { MappedTemplate } from '@/lib/wger-template-map'
+import type { MappedTemplate } from '@/lib/templates/wger-template-map'
 
 /**
  * Shelf logic for the wger template library page — grouping, day chips, and

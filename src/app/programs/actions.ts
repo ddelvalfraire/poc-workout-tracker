@@ -9,7 +9,7 @@ import {
   dietPhaseSchema,
   MAX_DESCRIPTION,
   type ProgramVisibility,
-} from '@/lib/program-input'
+} from '@/lib/programs/program-input'
 import {
   saveProgram,
   updateProgram,
@@ -29,7 +29,7 @@ import { confirmPatchProposal, declinePatchProposal } from '@/db/patch-proposals
 import { restartTmPlan } from '@/db/restart-plan'
 import { getWeightUnit } from '@/db/preferences'
 import { kgToDisplay } from '@/lib/units'
-import type { TmIncrement } from '@/lib/tm-restart'
+import type { TmIncrement } from '@/lib/programs/tm-restart'
 import { proposedTrainingMaxKg } from './[id]/detail-view'
 import type { RestartPreview } from './[id]/restart-view'
 

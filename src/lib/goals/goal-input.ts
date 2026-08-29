@@ -1,4 +1,4 @@
-import type { ExerciseSource } from './exercises/custom-exercise-input'
+import type { ExerciseSource } from '../exercises/custom-exercise-input'
 
 /**
  * Validation boundary for goal writes ("goal tracking we can create our own

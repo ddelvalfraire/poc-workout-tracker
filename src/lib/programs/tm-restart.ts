@@ -1,5 +1,5 @@
-import type { Progression } from '@/lib/program-input'
-import type { AutoregAdjustment } from '@/lib/autoregulate'
+import type { Progression } from '@/lib/programs/program-input'
+import type { AutoregAdjustment } from '@/lib/programs/autoregulate'
 
 /**
  * Block-restart TM carry-forward (block sequencing plan §5) — the pure half.

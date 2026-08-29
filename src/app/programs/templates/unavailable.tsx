@@ -1,4 +1,4 @@
-import type { TemplatesUnavailableReason } from '@/lib/wger-templates'
+import type { TemplatesUnavailableReason } from '@/lib/templates/wger-templates'
 import { useTranslations } from 'next-intl'
 
 /** The graceful empty state for an unreachable template catalog — plain

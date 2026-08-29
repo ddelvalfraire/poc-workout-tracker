@@ -1,5 +1,5 @@
 import { kgToDisplay, type WeightUnit } from '@/lib/units'
-import type { DerivedSet } from '@/lib/progression'
+import type { DerivedSet } from '@/lib/programs/progression'
 import { DEFAULT_LOCALE, type Locale } from '@/i18n/config'
 
 /**
