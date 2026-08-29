@@ -3,7 +3,7 @@
 import { useSyncExternalStore } from 'react'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
-import type { VolumeWindowMode } from '@/lib/volume-window'
+import type { VolumeWindowMode } from '@/lib/stats/volume-window'
 import { useTranslations } from 'next-intl'
 
 /**

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { bytesToBase64 } from '@/lib/photo-input'
+import { bytesToBase64 } from '@/lib/body/photo-input'
 
 /**
  * Recording stubs for the Drizzle builders, mirroring body-measurements.test.ts:

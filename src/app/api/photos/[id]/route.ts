@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { getUserId } from '@/lib/auth'
+import { getUserId } from '@/lib/auth/auth'
 import { deleteProgressPhoto } from '@/db/progress-photos'
 import { deleteObjects } from '@/lib/supabase-storage'
 

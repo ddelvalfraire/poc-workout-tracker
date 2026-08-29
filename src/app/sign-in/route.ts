@@ -1,7 +1,7 @@
 import { getSignInUrl } from '@workos-inc/authkit-nextjs'
 import { redirect } from 'next/navigation'
 import type { NextRequest } from 'next/server'
-import { safeReturnPath } from '@/lib/safe-return-path'
+import { safeReturnPath } from '@/lib/auth/safe-return-path'
 
 /**
  * Hands sign-in to the hosted AuthKit page. Keeps /sign-in as the app's

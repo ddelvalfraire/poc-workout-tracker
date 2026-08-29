@@ -2,13 +2,13 @@
 
 import { headers } from 'next/headers'
 import { revalidatePath } from 'next/cache'
-import { requireUserId } from '@/lib/auth'
+import { requireUserId } from '@/lib/auth/auth'
 import {
   getActiveConsentDocument,
   markDownstreamAction,
   recordConsent,
 } from '@/db/consent'
-import { deletePosthogPerson } from '@/lib/posthog-person-deletion'
+import { deletePosthogPerson } from '@/lib/account/posthog-person-deletion'
 
 /**
  * The Settings withdrawal/grant path for analytics identity — the MHMDA

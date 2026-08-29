@@ -4,7 +4,7 @@
  * adding a site is a code change, not user config.
  */
 
-import type { Message } from './message'
+import type { Message } from '../message'
 
 export type MeasurementSite =
   | 'neck'

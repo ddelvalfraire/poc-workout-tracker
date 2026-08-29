@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { catalogTranslator } from '../../vitest.intl'
-import { renderLine, renderLines } from './message'
+import { catalogTranslator } from '../../../vitest.intl'
+import { renderLine, renderLines } from '../message'
 import {
   bodyStatusLine,
   bucketDaySets,

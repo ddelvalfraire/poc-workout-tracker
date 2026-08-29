@@ -8,13 +8,13 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { TrendChart } from '@/components/charts/trend-chart'
 import { logMeasurementAction } from '@/app/actions'
-import { seriesDeltaAt } from '@/lib/bodyweight-trend'
+import { seriesDeltaAt } from '@/lib/body/bodyweight-trend'
 import type { LengthUnit } from '@/lib/units'
 import {
   MEASUREMENT_SITES,
   measurementSiteLabel,
   type MeasurementSite,
-} from '@/lib/measurement-sites'
+} from '@/lib/body/measurement-sites'
 import { cn } from '@/lib/utils'
 import { MeasurementEntryRow } from './measurement-entry-row'
 import { useLocale, useTranslations } from 'next-intl'

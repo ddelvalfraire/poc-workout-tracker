@@ -1,11 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { getUserId } from '@/lib/auth'
-import { bytesToBase64 } from '@/lib/photo-input'
+import { getUserId } from '@/lib/auth/auth'
+import { bytesToBase64 } from '@/lib/body/photo-input'
 import { countProgressPhotos, insertProgressPhoto } from '@/db/progress-photos'
 import { uploadObject, deleteObjects } from '@/lib/supabase-storage'
 import { POST } from './route'
 
-vi.mock('@/lib/auth', () => ({ getUserId: vi.fn() }))
+vi.mock('@/lib/auth/auth', () => ({ getUserId: vi.fn() }))
 vi.mock('@/db/progress-photos', () => ({
   countProgressPhotos: vi.fn(),
   insertProgressPhoto: vi.fn(),

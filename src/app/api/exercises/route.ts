@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { getUserId } from '@/lib/auth'
+import { getUserId } from '@/lib/auth/auth'
 import { searchExercises, getAllExercises } from '@/lib/exercises/wger'
 import { listCustomExercises } from '@/db/custom-exercises'
 

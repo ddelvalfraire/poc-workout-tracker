@@ -3,8 +3,8 @@ import { NextResponse } from 'next/server'
 import { getNextProgramDay } from '@/db/programs'
 import { listPushSubscribedUserIds } from '@/db/push-subscriptions'
 import { reconcileRevenueCat } from '@/lib/billing/revenuecat/reconcile'
-import { getCheckInStatus } from '@/lib/check-in'
-import { sendPushToUser } from '@/lib/push'
+import { getCheckInStatus } from '@/lib/body/check-in'
+import { sendPushToUser } from '@/lib/push/push'
 import { getRedis } from '@/lib/redis'
 
 // The cron must always execute — never a cached response.

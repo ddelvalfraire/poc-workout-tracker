@@ -3,7 +3,7 @@ import { getTranslations } from 'next-intl/server'
 import { AppHeader } from '@/components/nav/app-header'
 import { BackLink } from '@/components/nav/back-link'
 import { MfaFlow } from '@/components/account/mfa-flow'
-import { requireUserId } from '@/lib/auth'
+import { requireUserId } from '@/lib/auth/auth'
 import { getAccountOverview } from '@/lib/workos/account'
 import { readPendingEnrollment, MfaStateUnavailableError } from '@/lib/workos/mfa'
 

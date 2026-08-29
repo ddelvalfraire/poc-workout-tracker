@@ -1,7 +1,7 @@
 import { and, desc, eq } from 'drizzle-orm'
 import { db } from './index'
 import { bodyMeasurements } from './schema'
-import { isMeasurementSite, type MeasurementSite } from '@/lib/measurement-sites'
+import { isMeasurementSite, type MeasurementSite } from '@/lib/body/measurement-sites'
 
 /**
  * Data access for tape measurements, always scoped to a WorkOS userId — the

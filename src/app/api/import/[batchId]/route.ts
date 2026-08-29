@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { getUserId } from '@/lib/auth'
+import { getUserId } from '@/lib/auth/auth'
 import { undoImport } from '@/db/import'
 
 // Guarding the uuid shape keeps a garbage id as a clean 404 instead of a

@@ -2,7 +2,7 @@ import { getTranslations } from 'next-intl/server'
 import { AppHeader } from '@/components/nav/app-header'
 import { BackLink } from '@/components/nav/back-link'
 import { NameEditor } from '@/components/account/name-editor'
-import { requireUserId } from '@/lib/auth'
+import { requireUserId } from '@/lib/auth/auth'
 import { getAccountOverview } from '@/lib/workos/account'
 
 /** Cold-entry destination for the back chevron — a route, not copy. */

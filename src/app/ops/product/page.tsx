@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation'
-import { requireUserId } from '@/lib/auth'
+import { requireUserId } from '@/lib/auth/auth'
 import { isOpsUser } from '@/lib/ops/access'
 import { getProductAnalytics, type ProductAnalytics } from '@/lib/ops/product-analytics'
 import type { OpsResult } from '@/lib/ops/types'

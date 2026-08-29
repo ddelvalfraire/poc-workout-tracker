@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import type { MeasurementSite } from '@/lib/measurement-sites'
+import type { MeasurementSite } from '@/lib/body/measurement-sites'
 
 /**
  * Recording stubs for the Drizzle builders, mirroring bodyweight.test.ts —

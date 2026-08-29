@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { getUserId } from '@/lib/auth'
+import { getUserId } from '@/lib/auth/auth'
 import { commitImport, ImportPlanError, planImport } from '@/db/import'
 import { deletePreview, loadPreview } from '@/lib/import/preview-cache'
 

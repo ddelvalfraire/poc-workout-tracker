@@ -14,7 +14,7 @@ import { programWeekState } from '@/db/programs'
 import type { ExerciseSource } from '@/lib/exercises/custom-exercise-input'
 import { normalizeExerciseKey } from '@/lib/import/match'
 import { weeklyStreak } from '@/lib/goals/goal-progress'
-import { sendPushToUser } from '@/lib/push'
+import { sendPushToUser } from '@/lib/push/push'
 import {
   CANONICAL_LIFTS,
   LIFT_NAMES,

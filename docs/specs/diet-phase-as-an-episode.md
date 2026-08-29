@@ -8,8 +8,8 @@ are fixable, and the first one matters more.
   the copy no longer asserts "3 stalls is expected"); §01–§07 pending — the
   episode table, its backfill and the card rebuild are the separate change.
 - Date: 2026-08-27
-- Depends on: autoregulation (`lib/autoregulate.ts`), the program detail page,
-  `lib/diet-phase-staleness.ts`
+- Depends on: autoregulation (`lib/programs/autoregulate.ts`), the program detail page,
+  `lib/programs/diet-phase-staleness.ts`
 - Extends: `docs/specs/program-policy-surfaces.md` — that doc's `dietPhase` row
   records where the control lives; this one argues its scope is wrong.
 
@@ -24,7 +24,7 @@ HELD rather than applied. The verdict becomes a hold instead of a load cut.
 So the flag does not annotate the plan. It **disables a safety rule**, silently
 and indefinitely, for as long as it is set.
 
-`lib/diet-phase-staleness.ts` exists to bound that: after `CUT_STALE_WEEKS = 8`
+`lib/programs/diet-phase-staleness.ts` exists to bound that: after `CUT_STALE_WEEKS = 8`
 the detail page shows a card asking "Still cutting?", with two writes and no
 dismiss — because a dismiss would leave the stale flag in place, which is the
 bug.

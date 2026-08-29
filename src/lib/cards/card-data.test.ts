@@ -21,7 +21,7 @@ vi.mock('@/db/goals', () => ({
 vi.mock('@/db/programs', () => ({
   programWeekState: vi.fn(async () => ({ currentWeek: 1, blockComplete: false })),
 }))
-vi.mock('@/lib/push', () => ({
+vi.mock('@/lib/push/push', () => ({
   sendPushToUser: vi.fn(async () => ({ configured: true, sent: 1, pruned: 0, failed: 0 })),
 }))
 

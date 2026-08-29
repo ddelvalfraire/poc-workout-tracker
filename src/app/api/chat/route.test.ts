@@ -9,7 +9,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
  */
 
 const getUserId = vi.fn()
-vi.mock('@/lib/auth', () => ({ getUserId: () => getUserId() }))
+vi.mock('@/lib/auth/auth', () => ({ getUserId: () => getUserId() }))
 
 const coachAccess = vi.fn()
 vi.mock('@/lib/coach/access', () => ({ coachAccess: () => coachAccess() }))

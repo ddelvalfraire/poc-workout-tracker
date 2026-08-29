@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { renderMessageIn } from '../../vitest.intl'
+import { renderMessageIn } from '../../../vitest.intl'
 import {
   base64ToBytes,
   bytesToBase64,

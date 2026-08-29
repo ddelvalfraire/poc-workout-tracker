@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
-import { requireUserId } from '@/lib/auth'
+import { requireUserId } from '@/lib/auth/auth'
 import { getExerciseStats, getExerciseSessions } from '@/db/exercise-stats'
 import { activeStrengthGoalForExercise } from '@/db/goals'
 import { getWeightUnit } from '@/db/preferences'

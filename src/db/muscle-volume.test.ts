@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import type { SQL } from 'drizzle-orm'
 import { PgDialect } from 'drizzle-orm/pg-core'
-import { volumeWindows } from '@/lib/volume-window'
+import { volumeWindows } from '@/lib/stats/volume-window'
 
 /**
  * Mocked-db harness (program-stats.test.ts recipe): each `db.select()`

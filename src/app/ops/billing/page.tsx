@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation'
 import { getTranslations } from 'next-intl/server'
-import { requireUserId } from '@/lib/auth'
+import { requireUserId } from '@/lib/auth/auth'
 import { isOpsUser } from '@/lib/ops/access'
 import { getBillingSnapshot, getPaidRoster } from '@/lib/ops/entitlements'
 import { OpsHeader } from '@/components/ops/ops-header'

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { getUserId } from '@/lib/auth'
+import { getUserId } from '@/lib/auth/auth'
 import { getExerciseStats } from '@/db/exercise-stats'
 import { getWeightUnit } from '@/db/preferences'
 import { parseExerciseRef } from '@/app/exercises/exercise-ref'

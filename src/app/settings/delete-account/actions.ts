@@ -1,7 +1,7 @@
 'use server'
 
-import { requireUserId } from '@/lib/auth'
-import { deleteAccount, checkAccountDeletionRateLimit } from '@/lib/account-deletion'
+import { requireUserId } from '@/lib/auth/auth'
+import { deleteAccount, checkAccountDeletionRateLimit } from '@/lib/account/account-deletion'
 import { DELETE_CONFIRM_PHRASE } from './confirm-phrase'
 
 /**

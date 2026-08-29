@@ -1,11 +1,11 @@
-import { requireUserId } from '@/lib/auth'
+import { requireUserId } from '@/lib/auth/auth'
 import { getMuscleVolume } from '@/db/muscle-volume'
 import { getPlannedWeeklyVolume } from '@/db/planned-volume'
 import {
   daysLeftInCalendarWeek,
   volumeWindows,
   type VolumeWindowMode,
-} from '@/lib/volume-window'
+} from '@/lib/stats/volume-window'
 import { AppHeader } from '@/components/nav/app-header'
 import { StatTile, type StatDelta } from '@/components/charts/stat-tile'
 import { VolumeBarChart } from '@/components/charts/volume-bar-chart'

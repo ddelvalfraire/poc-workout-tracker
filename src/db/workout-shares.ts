@@ -1,5 +1,5 @@
 import { and, desc, eq, isNull } from 'drizzle-orm'
-import { can } from '@/lib/authz'
+import { can } from '@/lib/auth/authz'
 import type { LoggingType } from '@/lib/workout/workout-input'
 import { bestScoredSet } from '@/lib/exercises/one-rep-max'
 import { db } from './index'

@@ -23,7 +23,7 @@ import {
 import { startProgramDayAction } from '@/app/programs/actions'
 import { useHistoryDismissable } from '@/lib/use-history-dismissable'
 import { activeSessionHref } from '@/lib/workout/active-session'
-import { scheduleAnchor } from '@/lib/schedule-anchor'
+import { scheduleAnchor } from '@/lib/home/schedule-anchor'
 import {
   bodyStatusLine,
   exercisesStatusLine,
@@ -37,7 +37,7 @@ import {
   type DrawerData,
   type NavDrawerKey,
   type NavDrawerLine,
-} from '@/lib/drawer-status'
+} from '@/lib/home/drawer-status'
 import { renderLine, renderLines } from '@/lib/message'
 import { buttonVariants } from '@/components/ui/button'
 import { Ghost } from '@/components/ui/ghost'

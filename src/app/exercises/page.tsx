@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { requireUserId } from '@/lib/auth'
+import { requireUserId } from '@/lib/auth/auth'
 import { listLoggedExercises } from '@/db/exercise-stats'
 import { buildMuscleResolver } from '@/db/muscle-volume'
 import { getWeightUnit } from '@/db/preferences'

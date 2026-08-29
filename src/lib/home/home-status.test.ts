@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { catalogTranslator } from '../../vitest.intl'
-import { renderLine } from './message'
+import { catalogTranslator } from '../../../vitest.intl'
+import { renderLine } from '../message'
 import {
   DRIFT_THRESHOLD_DAYS,
   dueHeadline,

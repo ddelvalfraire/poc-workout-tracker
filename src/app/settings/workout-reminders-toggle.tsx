@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { urlBase64ToUint8Array } from '@/lib/push-client'
+import { urlBase64ToUint8Array } from '@/lib/push/push-client'
 import { cn } from '@/lib/utils'
 import { useTranslations } from 'next-intl'
 

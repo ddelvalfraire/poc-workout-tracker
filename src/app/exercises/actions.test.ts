@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { createCustomExerciseAction, updateCustomExerciseAction } from './actions'
-import { requireUserId } from '@/lib/auth'
+import { requireUserId } from '@/lib/auth/auth'
 import { createCustomExercise, updateCustomExercise } from '@/db/custom-exercises'
 
 /**
@@ -9,7 +9,7 @@ import { createCustomExercise, updateCustomExercise } from '@/db/custom-exercise
  * ownership translation, and the duplicate-name mapping.
  */
 
-vi.mock('@/lib/auth', () => ({ requireUserId: vi.fn() }))
+vi.mock('@/lib/auth/auth', () => ({ requireUserId: vi.fn() }))
 vi.mock('@/db/custom-exercises', () => ({
   createCustomExercise: vi.fn(),
   updateCustomExercise: vi.fn(),

@@ -7,7 +7,7 @@ import {
   deleteNoteAction,
   listNotesAction,
 } from './actions'
-import { requireUserId } from '@/lib/auth'
+import { requireUserId } from '@/lib/auth/auth'
 import {
   createNote,
   createPositionalSetNote,
@@ -24,7 +24,7 @@ import {
  * throw translation, and that NOTHING revalidates (the #214 live-session rule).
  */
 
-vi.mock('@/lib/auth', () => ({ requireUserId: vi.fn() }))
+vi.mock('@/lib/auth/auth', () => ({ requireUserId: vi.fn() }))
 vi.mock('@/db/notes', () => ({
   createNote: vi.fn(),
   createPositionalSetNote: vi.fn(),

@@ -3,7 +3,7 @@ import {
   deletePushSubscriptionByEndpoint,
   listPushSubscriptions,
 } from '@/db/push-subscriptions'
-import type { PushPayload } from '@/lib/push-payload'
+import type { PushPayload } from '@/lib/push/push-payload'
 
 /**
  * Server-side web-push sender. VAPID config is resolved lazily from env on

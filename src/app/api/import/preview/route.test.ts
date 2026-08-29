@@ -1,11 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { getUserId } from '@/lib/auth'
+import { getUserId } from '@/lib/auth/auth'
 import { getWeightUnit } from '@/db/preferences'
 import { planImport, ImportPlanError, type ImportPlan } from '@/db/import'
 import { storePreview } from '@/lib/import/preview-cache'
 import { POST } from './route'
 
-vi.mock('@/lib/auth', () => ({ getUserId: vi.fn() }))
+vi.mock('@/lib/auth/auth', () => ({ getUserId: vi.fn() }))
 vi.mock('@/db/preferences', () => ({ getWeightUnit: vi.fn() }))
 vi.mock('@/db/import', async (importOriginal) => {
   const original = await importOriginal<typeof import('@/db/import')>()

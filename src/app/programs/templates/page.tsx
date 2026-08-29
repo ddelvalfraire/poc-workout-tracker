@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { ArrowRight, ChevronRight } from 'lucide-react'
-import { requireUserId } from '@/lib/auth'
+import { requireUserId } from '@/lib/auth/auth'
 import { getAllExercises } from '@/lib/exercises/wger'
 import { listPublicTemplates } from '@/lib/templates/wger-templates'
 import { mapWgerRoutineToProgram } from '@/lib/templates/wger-template-map'

@@ -1,10 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-vi.mock('@/lib/auth', () => ({ getUserId: vi.fn() }))
+vi.mock('@/lib/auth/auth', () => ({ getUserId: vi.fn() }))
 vi.mock('@/db/push-subscriptions', () => ({ deletePushSubscription: vi.fn() }))
 
 import { POST } from './route'
-import { getUserId } from '@/lib/auth'
+import { getUserId } from '@/lib/auth/auth'
 import { deletePushSubscription } from '@/db/push-subscriptions'
 
 const mockedGetUserId = vi.mocked(getUserId)

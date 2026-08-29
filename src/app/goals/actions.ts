@@ -1,7 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { requireUserId } from '@/lib/auth'
+import { requireUserId } from '@/lib/auth/auth'
 import { getWeightUnit } from '@/db/preferences'
 import { archiveGoal, createGoal, deleteGoal } from '@/db/goals'
 import { parseGoalInput } from '@/lib/goals/goal-input'

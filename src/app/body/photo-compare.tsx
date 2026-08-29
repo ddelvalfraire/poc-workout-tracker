@@ -1,8 +1,8 @@
 'use client'
 
 import { useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
-import { thumbHashToPlaceholderUrl } from '@/lib/photo-pipeline'
-import { photoPoseLabel } from '@/lib/photo-input'
+import { thumbHashToPlaceholderUrl } from '@/lib/body/photo-pipeline'
+import { photoPoseLabel } from '@/lib/body/photo-input'
 import { cn } from '@/lib/utils'
 import type { PhotoEntry } from './photo-cell'
 import { useTranslations } from 'next-intl'

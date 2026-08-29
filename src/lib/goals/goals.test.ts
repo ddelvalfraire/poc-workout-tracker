@@ -11,7 +11,7 @@ vi.mock('@/db/preferences', () => ({
   getBodyweightKg: vi.fn(async () => null),
   getWeightUnit: vi.fn(async () => 'kg'),
 }))
-vi.mock('@/lib/push', () => ({
+vi.mock('@/lib/push/push', () => ({
   sendPushToUser: vi.fn(async () => ({ configured: true, sent: 1, pruned: 0, failed: 0 })),
 }))
 
@@ -24,7 +24,7 @@ import {
 } from '@/db/goals'
 import { getExerciseStats } from '@/db/exercise-stats'
 import { getBodyweightKg } from '@/db/preferences'
-import { sendPushToUser } from '@/lib/push'
+import { sendPushToUser } from '@/lib/push/push'
 import { checkGoalAchievements, evaluateGoalProgress } from './goals'
 
 const mockedList = vi.mocked(listActiveGoals)

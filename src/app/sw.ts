@@ -2,7 +2,7 @@
 /// <reference lib="webworker" />
 import type { PrecacheEntry, SerwistGlobalConfig } from 'serwist'
 import { Serwist } from 'serwist'
-import { parsePushPayload } from '@/lib/push-payload'
+import { parsePushPayload } from '@/lib/push/push-payload'
 
 /**
  * The Serwist worker source (compiled + manifest-injected by the

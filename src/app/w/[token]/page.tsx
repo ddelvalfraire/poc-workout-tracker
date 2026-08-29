@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { getUserId } from '@/lib/auth'
+import { getUserId } from '@/lib/auth/auth'
 import { resolveWorkoutShare } from '@/db/workout-shares'
 import { getWeightUnit } from '@/db/preferences'
 import { DEFAULT_WEIGHT_UNIT } from '@/lib/units'

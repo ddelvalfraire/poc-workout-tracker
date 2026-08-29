@@ -1,7 +1,7 @@
 'use server'
 
 import { headers } from 'next/headers'
-import { requireUserId } from '@/lib/auth'
+import { requireUserId } from '@/lib/auth/auth'
 import { getActiveConsentDocument, recordConsent } from '@/db/consent'
 import { getTranslations } from 'next-intl/server'
 

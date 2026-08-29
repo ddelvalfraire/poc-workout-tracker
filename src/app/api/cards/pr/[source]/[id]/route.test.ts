@@ -7,7 +7,7 @@ vi.mock('next/og', () => ({
     }
   },
 }))
-vi.mock('@/lib/auth', () => ({ getUserId: vi.fn() }))
+vi.mock('@/lib/auth/auth', () => ({ getUserId: vi.fn() }))
 vi.mock('@/db/preferences', () => ({ getWeightUnit: vi.fn(async () => 'lb') }))
 vi.mock('@/db/exercise-stats', () => ({
   getExerciseStats: vi.fn(async () => null),
@@ -30,11 +30,11 @@ vi.mock('@/db/goals', () => ({
 vi.mock('@/db/programs', () => ({
   programWeekState: vi.fn(async () => ({ currentWeek: 1, blockComplete: false })),
 }))
-vi.mock('@/lib/push', () => ({
+vi.mock('@/lib/push/push', () => ({
   sendPushToUser: vi.fn(async () => ({ configured: true, sent: 0, pruned: 0, failed: 0 })),
 }))
 
-import { getUserId } from '@/lib/auth'
+import { getUserId } from '@/lib/auth/auth'
 import { getExerciseStats, type ExerciseAllTimeStats } from '@/db/exercise-stats'
 import { GET } from './route'
 

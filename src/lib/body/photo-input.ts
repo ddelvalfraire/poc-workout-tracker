@@ -5,7 +5,7 @@
  * of these constants, so they live in one file both sides import.
  */
 
-import type { Message } from './message'
+import type { Message } from '../message'
 
 export const PHOTO_POSES = ['front', 'side', 'back'] as const
 export type PhotoPose = (typeof PHOTO_POSES)[number]

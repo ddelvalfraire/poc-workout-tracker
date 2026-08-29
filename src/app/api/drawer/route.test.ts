@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-vi.mock('@/lib/auth', () => ({ getUserId: vi.fn() }))
+vi.mock('@/lib/auth/auth', () => ({ getUserId: vi.fn() }))
 vi.mock('@/db/workout-drafts', () => ({ listWorkoutDrafts: vi.fn(async () => []) }))
 vi.mock('@/db/workouts', () => ({ listWorkoutSummaries: vi.fn(async () => []) }))
 vi.mock('@/db/programs', () => ({ getNextProgramDay: vi.fn(async () => null) }))
@@ -17,7 +17,7 @@ vi.mock('@/db/exercise-stats', () => ({
 // Composition modules whose graphs reach the db — mocked at the same seams
 // the route imports (their pure siblings, e.g. bodyweight-trend, stay real).
 vi.mock('@/lib/goals/goals', () => ({ getGoalsHomeSummary: vi.fn(async () => null) }))
-vi.mock('@/lib/check-in', () => ({ getCheckInStatus: vi.fn(async () => null) }))
+vi.mock('@/lib/body/check-in', () => ({ getCheckInStatus: vi.fn(async () => null) }))
 // The label is a DESCRIPTOR now; the route resolves it against the real
 // en.json, so this stub proves the key and its arguments reach the catalog
 // intact rather than asserting a sentence the route no longer builds.
@@ -26,17 +26,17 @@ vi.mock('@/lib/goals/trophies', () => ({
 }))
 vi.mock('@/lib/workout/active-session', () => ({ resolveActiveSession: vi.fn(() => null) }))
 
-import { getUserId } from '@/lib/auth'
+import { getUserId } from '@/lib/auth/auth'
 import { listWorkoutSummaries, type WorkoutSummary } from '@/db/workouts'
 import { getNextProgramDay, type NextProgramDay } from '@/db/programs'
 import { listBodyweightLogs } from '@/db/bodyweight'
 import { listTrophies, type TrophyRow } from '@/db/trophies'
 import { getExerciseStats, type ExerciseAllTimeStats } from '@/db/exercise-stats'
 import { getGoalsHomeSummary } from '@/lib/goals/goals'
-import { getCheckInStatus } from '@/lib/check-in'
+import { getCheckInStatus } from '@/lib/body/check-in'
 import { resolveActiveSession } from '@/lib/workout/active-session'
 import type { GoalRow } from '@/db/goals'
-import type { DrawerData } from '@/lib/drawer-status'
+import type { DrawerData } from '@/lib/home/drawer-status'
 import { GET } from './route'
 
 const mockedGetUserId = vi.mocked(getUserId)

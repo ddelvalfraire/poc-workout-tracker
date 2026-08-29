@@ -1,7 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { requireUserId } from '@/lib/auth'
+import { requireUserId } from '@/lib/auth/auth'
 import { parseTemplateInput, parseTemplateMeta } from '@/lib/templates/template-input'
 import { deriveTemplateFromWorkout } from '@/lib/templates/workout-template'
 import { getWorkoutDetail } from '@/db/workouts'

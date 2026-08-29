@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
-import { requireUserId } from '@/lib/auth'
+import { requireUserId } from '@/lib/auth/auth'
 import { getConsentState } from '@/db/consent'
 import { ConsentForm } from './consent-form'
 import { getTranslations } from 'next-intl/server'

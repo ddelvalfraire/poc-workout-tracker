@@ -2,8 +2,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 vi.mock('@/db/programs', () => ({ getNextProgramDay: vi.fn() }))
 vi.mock('@/db/push-subscriptions', () => ({ listPushSubscribedUserIds: vi.fn() }))
-vi.mock('@/lib/check-in', () => ({ getCheckInStatus: vi.fn() }))
-vi.mock('@/lib/push', () => ({ sendPushToUser: vi.fn() }))
+vi.mock('@/lib/body/check-in', () => ({ getCheckInStatus: vi.fn() }))
+vi.mock('@/lib/push/push', () => ({ sendPushToUser: vi.fn() }))
 vi.mock('@/lib/redis', () => ({ getRedis: vi.fn() }))
 // The RC rider is its own unit (reconcile.test.ts); here it must never run
 // for real regardless of what env leaks in — unconfigured resolves to null,
@@ -15,8 +15,8 @@ vi.mock('@/lib/billing/revenuecat/reconcile', () => ({
 import { GET, checkInMarkerKey, reminderMarkerKey } from './route'
 import { getNextProgramDay } from '@/db/programs'
 import { listPushSubscribedUserIds } from '@/db/push-subscriptions'
-import { getCheckInStatus } from '@/lib/check-in'
-import { sendPushToUser } from '@/lib/push'
+import { getCheckInStatus } from '@/lib/body/check-in'
+import { sendPushToUser } from '@/lib/push/push'
 import { getRedis } from '@/lib/redis'
 import type { Redis } from '@upstash/redis'
 

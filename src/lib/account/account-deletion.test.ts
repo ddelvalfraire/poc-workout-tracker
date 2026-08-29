@@ -54,7 +54,7 @@ const deletePosthogPerson = vi.fn(async () => {
   calls.push('posthog')
   return 'deleted' as const
 })
-vi.mock('@/lib/posthog-person-deletion', () => ({
+vi.mock('@/lib/account/posthog-person-deletion', () => ({
   deletePosthogPerson: (...a: unknown[]) => deletePosthogPerson(...(a as [])),
 }))
 

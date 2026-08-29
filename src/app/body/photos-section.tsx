@@ -6,13 +6,13 @@ import { useRouter } from 'next/navigation'
 import { Camera, Columns2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { preparePhoto } from '@/lib/photo-pipeline'
+import { preparePhoto } from '@/lib/body/photo-pipeline'
 import {
   PHOTO_NOTE_MAX_LENGTH,
   PHOTO_POSES,
   photoPoseLabel,
   type PhotoPose,
-} from '@/lib/photo-input'
+} from '@/lib/body/photo-input'
 import { cn } from '@/lib/utils'
 import { PhotoCell, type PhotoEntry } from './photo-cell'
 import { PhotoOverlay } from './photo-overlay'

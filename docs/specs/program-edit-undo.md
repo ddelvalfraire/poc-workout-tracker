@@ -2,7 +2,7 @@
 
 Taking back a granular program edit. Establishes that undo is built (not killed), fixes the vocabulary an inverse is expressed in, and settles the two things that would otherwise make it unsafe: `program_events` cannot invert an op, and position-addressed ops cannot be inverted numerically.
 
-- Status: decided / contract landed (`src/lib/program-undo.ts`) / db + UI wiring outstanding
+- Status: decided / contract landed (`src/lib/programs/program-undo.ts`) / db + UI wiring outstanding
 - Date: 2026-08-22
 
 ## 01 · The question
@@ -62,7 +62,7 @@ Every patch op addresses by `programId` + 0-based `dayPosition` / `exercisePosit
 
 > Undoing "move day 3 → 1" is **not** "move day 1 → 3". If anything else moved in between, replaying the numeric mirror silently reorders the wrong rows. Positions describe a moment; they cannot survive one.
 
-Two independent defences, both in `src/lib/program-undo.ts`:
+Two independent defences, both in `src/lib/programs/program-undo.ts`:
 
 **1. Anchor by id, never by position.** Every row already has a stable uuid. An inverse names the uuid it acts on and, for order restoration, the uuid of the sibling it *used to follow* (`after`, with `null` meaning "was first"). `anchorBefore()` computes it from the pre-op sibling order; `indexForAnchor()` resolves it back to a splice point at apply time, returning `null` — refuse — when the anchor has vanished. This is well-defined because moving one node never changes the relative order of the others.
 
@@ -88,7 +88,7 @@ It obliges callers, so it is a rule:
 
 ### Not reusing the proposal vocabulary
 
-`src/lib/patch-proposal.ts` already models a patch as `{ tool, args }`, and `src/db/patch-proposals.ts` already applies batches. Reusing it would be wrong: that vocabulary is position-addressed by construction (`positionField`), so it would inherit the exact bug above. Proposals describe an edit nobody has made yet; inverses describe an edit that already happened to specific rows.
+`src/lib/programs/patch-proposal.ts` already models a patch as `{ tool, args }`, and `src/db/patch-proposals.ts` already applies batches. Reusing it would be wrong: that vocabulary is position-addressed by construction (`positionField`), so it would inherit the exact bug above. Proposals describe an edit nobody has made yet; inverses describe an edit that already happened to specific rows.
 
 ### Security
 
@@ -96,7 +96,7 @@ A ticket travels through the client, so **every uuid inside it is attacker-contr
 
 ## 05 · The guard split
 
-`EDIT_GUARDS` in `src/lib/program-undo.ts` is the **single source of truth**. A surface derives its affordance from `guardFor()` and never decides locally.
+`EDIT_GUARDS` in `src/lib/programs/program-undo.ts` is the **single source of truth**. A surface derives its affordance from `guardFor()` and never decides locally.
 
 | Guard | Meaning | Actions |
 |---|---|---|
@@ -167,7 +167,7 @@ Only the `move_*` family is classified `undo` today. Remaining ops move there as
 
 ## 07 · What is landed
 
-- `src/lib/program-undo.ts` — the guard table, the id-anchoring translation, the CAS freshness gate, ticket minting, and the refusal vocabulary. Pure; 27 tests in `src/lib/program-undo.test.ts`.
+- `src/lib/programs/program-undo.ts` — the guard table, the id-anchoring translation, the CAS freshness gate, ticket minting, and the refusal vocabulary. Pure; 27 tests in `src/lib/programs/program-undo.test.ts`.
 
 Outstanding, in order:
 

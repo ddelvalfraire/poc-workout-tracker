@@ -1,7 +1,7 @@
 'use client'
 
 import { useTranslations } from 'next-intl'
-import { scheduleAnchor, scheduleAnchorToken } from '@/lib/schedule-anchor'
+import { scheduleAnchor, scheduleAnchorToken } from '@/lib/home/schedule-anchor'
 import { useMounted } from '@/lib/use-mounted'
 
 /**

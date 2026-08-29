@@ -9,7 +9,7 @@ shipped and how the three open questions were settled.
 
 ## The gap we found
 
-`techniqueSchema` (lib/program-input.ts) has existed since Phase 1: a versioned
+`techniqueSchema` (lib/programs/program-input.ts) has existed since Phase 1: a versioned
 `{ kind, stages[] }` tail on `program_sets`, where each stage carries
 `{ loadKg?, reps?, restSec? }`. It round-trips through every write path —
 upsert, patch, clone, adopt, share.
@@ -128,7 +128,7 @@ Five commits on `claude/technique-logging-255118`, in the order the sketch
 proposed:
 
 1. **i18n** — `ProgramDetail.day.technique.*` plus a shared kind → key map
-   (`lib/technique.ts`). The standing bug, fixed first.
+   (`lib/workout/technique.ts`). The standing bug, fixed first.
 2. **Expansion** — `expandTechniqueStages` turns a prescription into stage
    rows; `sets` gains `technique_kind` / `technique_group` / `stage_index`
    (migration `0050_sets_technique_grouping`), all nullable. Instantiation

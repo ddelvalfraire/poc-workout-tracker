@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 const requireUserId = vi.fn(async () => 'user_1')
-vi.mock('@/lib/auth', () => ({ requireUserId: () => requireUserId() }))
+vi.mock('@/lib/auth/auth', () => ({ requireUserId: () => requireUserId() }))
 
 const deleteAccount = vi.fn(async () => ({
   pseudonym: 'deleted:abc',
@@ -9,7 +9,7 @@ const deleteAccount = vi.fn(async () => ({
   posthog: 'deleted' as const,
 }))
 const checkAccountDeletionRateLimit = vi.fn(async () => ({ allowed: true }) as const)
-vi.mock('@/lib/account-deletion', () => ({
+vi.mock('@/lib/account/account-deletion', () => ({
   deleteAccount: (...a: unknown[]) => deleteAccount(...(a as [])),
   checkAccountDeletionRateLimit: (...a: unknown[]) =>
     checkAccountDeletionRateLimit(...(a as [])),

@@ -6,7 +6,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
  * Next's cache all mocked — so the test asserts the action's own guard + wiring
  * (validate → persist → revalidate) without a real user, database, or request.
  */
-vi.mock('@/lib/auth', () => ({ requireUserId: vi.fn(async () => 'user_123') }))
+vi.mock('@/lib/auth/auth', () => ({ requireUserId: vi.fn(async () => 'user_123') }))
 vi.mock('@/db/preferences', () => ({
   setWeightUnit: vi.fn(async () => {}),
   setEquipment: vi.fn(async () => {}),

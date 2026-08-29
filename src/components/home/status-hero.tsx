@@ -8,7 +8,7 @@ import {
   type HomeStatusFacts,
   type StatusHeroKey,
   type StatusHeroLine,
-} from '@/lib/home-status'
+} from '@/lib/home/home-status'
 import { renderLine } from '@/lib/message'
 import { weeklyStreak } from '@/lib/goals/goal-progress'
 import { useMounted } from '@/lib/use-mounted'

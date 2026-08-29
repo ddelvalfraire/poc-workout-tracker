@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation'
-import { requireUserId } from '@/lib/auth'
+import { requireUserId } from '@/lib/auth/auth'
 import { getProgramStats, type ProgramExercisePR } from '@/db/program-stats'
 import { getWeightUnit } from '@/db/preferences'
 import { formatSet, formatVolume, formatE1RM } from '@/lib/format'

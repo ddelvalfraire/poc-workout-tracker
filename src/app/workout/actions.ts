@@ -1,7 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { requireUserId } from '@/lib/auth'
+import { requireUserId } from '@/lib/auth/auth'
 import { parseWorkoutInput } from '@/lib/workout/workout-input'
 import {
   saveWorkout,
