@@ -91,13 +91,14 @@ export async function MomentumPanel({ userId, nowMs, size = 'md' }: MomentumPane
   // `overflow: hidden`, so the body must fit the track: no outer margins, no
   // own hairline (the cell shell paints the closing rule), label and number
   // at the shared tile scale.
+  //
+  // No aria-label on the Link: an explicit label REPLACES the accessible
+  // name, which would silently drop the set count and streak text for
+  // assistive tech. Like CardioWeek/BigThree, the name derives from the
+  // visible content.
   if (size === 'sm') {
     return (
-      <Link
-        href="/stats"
-        aria-label={t('title')}
-        className="flex h-full flex-col transition-colors active:bg-muted/60"
-      >
+      <Link href="/stats" className="flex h-full flex-col transition-colors active:bg-muted/60">
         <span className="flex items-center justify-between gap-2">
           <span className="font-display text-[0.66rem] font-medium uppercase leading-none tracking-[0.15em] text-muted-foreground">
             {t('title')}
