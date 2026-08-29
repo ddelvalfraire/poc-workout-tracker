@@ -16,9 +16,9 @@ import { getGoalsHomeSummary } from "@/lib/goals";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { NavDrawer } from "@/components/nav/nav-drawer";
-import { CheckInCard } from "./check-in-card";
-import { renderHomeSections } from "./home-sections";
-import { StatusHero } from "./status-hero";
+import { CheckInCard } from "@/components/home/check-in-card";
+import { renderHomeSections } from "./_home/home-sections";
+import { StatusHero } from "@/components/home/status-hero";
 import { getTranslations } from 'next-intl/server';
 
 export default async function HomePage() {

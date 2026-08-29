@@ -1,9 +1,9 @@
 import { describe, it, expect, test, vi } from 'vitest'
 import { HOME_SECTION_REGISTRY, SHAPE_UNITS, type HomeSectionShape } from '@/lib/home/registry'
-import { renderStaticIntl } from '../../vitest.intl'
+import { renderStaticIntl } from '../../../vitest.intl'
 import type { WorkoutSummary } from '@/db/workouts'
 import { HomeBento, type HomeBentoItem } from '@/components/home/home-bento'
-import { HomeCellBoundary } from './home-cell-boundary'
+import { HomeCellBoundary } from '@/components/home/home-cell-boundary'
 import {
   bodySizeForShape,
   renderHomeSections,

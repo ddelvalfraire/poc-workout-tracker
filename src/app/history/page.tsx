@@ -9,7 +9,7 @@ import { BackLink } from '@/components/back-link'
 import { GuardedStartLink } from '@/components/guarded-start-link'
 import { buttonVariants } from '@/components/ui/button'
 import { EmptyWords } from '@/components/ui/empty-words'
-import { HistoryList } from '../history-list'
+import { HistoryList } from './history-list'
 import { historyStatusLine, monthBuckets } from './history-view'
 import { getTranslations } from 'next-intl/server'
 

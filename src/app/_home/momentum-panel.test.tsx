@@ -1,7 +1,7 @@
 import { describe, expect, test, vi } from 'vitest'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { createTranslator } from 'next-intl'
-import messages from '../../messages/en.json'
+import messages from '../../../messages/en.json'
 import { MomentumPanel, type MomentumPanelProps } from './momentum-panel'
 
 /**
