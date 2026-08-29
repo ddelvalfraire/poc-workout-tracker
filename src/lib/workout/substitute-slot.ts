@@ -1,6 +1,6 @@
-import type { Progression } from './program-input'
-import type { ExerciseSource } from './custom-exercise-input'
-import type { ProgramSetRowLike, SetOverrideLike } from './progression'
+import type { Progression } from '../program-input'
+import type { ExerciseSource } from '../exercises/custom-exercise-input'
+import type { ProgramSetRowLike, SetOverrideLike } from '../progression'
 
 /**
  * Sanitizes a program-exercise slot for MID-SESSION substitution — the piece

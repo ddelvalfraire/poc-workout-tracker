@@ -1,4 +1,4 @@
-import { bestScoredSet } from './one-rep-max'
+import { bestScoredSet } from '../exercises/one-rep-max'
 import type { LoggingType } from './workout-input'
 
 /**

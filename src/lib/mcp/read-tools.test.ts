@@ -11,7 +11,7 @@ vi.mock('@/db/programs', () => ({ getProgramDayDetail: vi.fn() }))
 vi.mock('@/db/program-stats', () => ({ getProgramStats: vi.fn() }))
 vi.mock('@/db/volume-progression', () => ({ getVolumeStatus: vi.fn() }))
 vi.mock('@/db/preferences', () => ({ getWeightUnit: vi.fn(), getBodyweightKg: vi.fn() }))
-vi.mock('@/lib/wger', () => ({ searchExercises: vi.fn() }))
+vi.mock('@/lib/exercises/wger', () => ({ searchExercises: vi.fn() }))
 vi.mock('@/db/custom-exercises', () => ({ listCustomExercises: vi.fn(async () => []) }))
 vi.mock('@/db/exercise-notes', () => ({ listExerciseNotesFor: vi.fn(async () => []) }))
 import { listExerciseNotesFor } from '@/db/exercise-notes'
@@ -32,10 +32,10 @@ import { getProgramDayDetail } from '@/db/programs'
 import { getProgramStats, type ProgramStats } from '@/db/program-stats'
 import { getVolumeStatus, type VolumeStatus } from '@/db/volume-progression'
 import { getWeightUnit, getBodyweightKg } from '@/db/preferences'
-import { searchExercises } from '@/lib/wger'
+import { searchExercises } from '@/lib/exercises/wger'
 import { listProgramEvents } from '@/db/program-events'
 import { kgToDisplay } from '@/lib/units'
-import { estimate1RM } from '@/lib/one-rep-max'
+import { estimate1RM } from '@/lib/exercises/one-rep-max'
 
 const mockedList = vi.mocked(listWorkoutSummaries)
 const mockedDetail = vi.mocked(getWorkoutDetail)

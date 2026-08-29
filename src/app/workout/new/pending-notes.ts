@@ -1,4 +1,4 @@
-import { isNoteAnchorKind, type NoteAnchor } from '@/lib/note-input'
+import { isNoteAnchorKind, type NoteAnchor } from '@/lib/notes/note-input'
 
 /**
  * Offline resilience for in-session note creation (notes v2, PWA rules): a

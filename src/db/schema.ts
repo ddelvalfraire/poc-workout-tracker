@@ -25,14 +25,14 @@ import type {
   DietPhase,
 } from '@/lib/program-input'
 import type { AutoregStallPolicy } from '@/lib/autoregulate'
-import type { OvershootPolicy } from '@/lib/overshoot-policy'
-import type { ExerciseSource, ExerciseCategory } from '@/lib/custom-exercise-input'
-import type { LoggingType } from '@/lib/workout-input'
+import type { OvershootPolicy } from '@/lib/programs/overshoot-policy'
+import type { ExerciseSource, ExerciseCategory } from '@/lib/exercises/custom-exercise-input'
+import type { LoggingType } from '@/lib/workout/workout-input'
 import type { MeasurementSite } from '@/lib/measurement-sites'
 import type { PhotoPose } from '@/lib/photo-input'
 import type { GoalKind, GoalTarget } from '@/lib/goal-input'
 import type { TrophyKind, TrophyContext } from '@/lib/trophy-kinds'
-import type { NoteAuthor, NoteAnchorSnapshot } from '@/lib/note-input'
+import type { NoteAuthor, NoteAnchorSnapshot } from '@/lib/notes/note-input'
 import type { Tier, GrantSource, GrantStatus } from '@/lib/entitlements/tiers'
 
 export const workouts = pgTable(

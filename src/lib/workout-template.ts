@@ -15,7 +15,7 @@
 import type { WorkoutDetail } from '@/db/workouts'
 import type { WorkoutTemplateDetail } from '@/db/workout-templates'
 import type { WorkoutDraft } from '@/app/workout/new/workout-draft'
-import { catalogCategory, type ExerciseCatalog } from '@/lib/exercise-catalog'
+import { catalogCategory, type ExerciseCatalog } from '@/lib/exercises/exercise-catalog'
 import {
   MIN_PLANNED_SETS,
   MAX_PLANNED_SETS,

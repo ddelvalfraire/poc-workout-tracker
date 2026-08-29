@@ -24,7 +24,7 @@ import {
 import { captureServerEvent } from '@/lib/analytics'
 import { getProgramDayDetail } from '@/db/programs'
 import { substituteProgramExercise } from '@/db/program-patches'
-import { completeWorkoutSideEffects } from '@/lib/workout-completion'
+import { completeWorkoutSideEffects } from '@/lib/workout/workout-completion'
 import { getExerciseStats, getExerciseSessions } from '@/db/exercise-stats'
 import { getWorkoutDraft, putWorkoutDraft, deleteWorkoutDraft } from '@/db/workout-drafts'
 import { DRAFT_TTL_MS } from '@/app/workout/new/draft-payload'
@@ -66,7 +66,7 @@ vi.mock('@/db/program-patches', () => ({
 // The shared post-save pipeline (plan sync → goals → trophies) is unit-tested
 // in lib/workout-completion.test.ts; here we only assert the actions invoke it
 // at the right seam.
-vi.mock('@/lib/workout-completion', () => ({ completeWorkoutSideEffects: vi.fn() }))
+vi.mock('@/lib/workout/workout-completion', () => ({ completeWorkoutSideEffects: vi.fn() }))
 vi.mock('@/db/exercise-stats', () => ({
   getExerciseStats: vi.fn(),
   getExerciseSessions: vi.fn(),

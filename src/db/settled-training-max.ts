@@ -2,8 +2,8 @@ import { and, countDistinct, desc, eq, gt, isNotNull, sql } from 'drizzle-orm'
 import { db } from './index'
 import { programDays, programEvents, sets, workoutExercises, workouts } from './schema'
 import { getProgramDayDetail } from './programs'
-import type { ExerciseSource } from '@/lib/custom-exercise-input'
-import type { SettledDecision } from '@/lib/record-reach'
+import type { ExerciseSource } from '@/lib/exercises/custom-exercise-input'
+import type { SettledDecision } from '@/lib/workout/record-reach'
 
 /**
  * The training max an exercise is CURRENTLY working from, when it was

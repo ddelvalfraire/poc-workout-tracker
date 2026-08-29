@@ -24,7 +24,7 @@ vi.mock('@/lib/check-in', () => ({ getCheckInStatus: vi.fn(async () => null) }))
 vi.mock('@/lib/trophies', () => ({
   trophyLabel: vi.fn(() => ({ key: 'label.club', values: { lb: 315, lift: 'Squat' } })),
 }))
-vi.mock('@/lib/active-session', () => ({ resolveActiveSession: vi.fn(() => null) }))
+vi.mock('@/lib/workout/active-session', () => ({ resolveActiveSession: vi.fn(() => null) }))
 
 import { getUserId } from '@/lib/auth'
 import { listWorkoutSummaries, type WorkoutSummary } from '@/db/workouts'
@@ -34,7 +34,7 @@ import { listTrophies, type TrophyRow } from '@/db/trophies'
 import { getExerciseStats, type ExerciseAllTimeStats } from '@/db/exercise-stats'
 import { getGoalsHomeSummary } from '@/lib/goals'
 import { getCheckInStatus } from '@/lib/check-in'
-import { resolveActiveSession } from '@/lib/active-session'
+import { resolveActiveSession } from '@/lib/workout/active-session'
 import type { GoalRow } from '@/db/goals'
 import type { DrawerData } from '@/lib/drawer-status'
 import { GET } from './route'

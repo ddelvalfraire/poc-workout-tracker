@@ -14,7 +14,7 @@ import { metricModeSchema, type MetricMode } from '@/lib/program-input'
 import { type WeightUnit } from '@/lib/units'
 import { DEFAULT_LOCALE, type Locale } from '@/i18n/config'
 import { cn } from '@/lib/utils'
-import { resolveOvershootPolicy, type OvershootPolicy } from '@/lib/overshoot-policy'
+import { resolveOvershootPolicy, type OvershootPolicy } from '@/lib/programs/overshoot-policy'
 import { OvershootField, type OvershootPreview } from '@/components/program-form/overshoot-field'
 import { SchemeSubtitle } from './scheme-subtitle'
 import {

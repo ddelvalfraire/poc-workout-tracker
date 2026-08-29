@@ -9,7 +9,7 @@ vi.mock('@/db/workouts', () => ({
 // The shared post-save pipeline (plan sync → goals → trophies) is unit-tested
 // in lib/workout-completion.test.ts; here we assert the MCP writes ride the
 // same seam the web actions do — the cross-client parity contract.
-vi.mock('@/lib/workout-completion', () => ({ completeWorkoutSideEffects: vi.fn() }))
+vi.mock('@/lib/workout/workout-completion', () => ({ completeWorkoutSideEffects: vi.fn() }))
 vi.mock('@/db/preferences', () => ({ getWeightUnit: vi.fn(), setWeightUnit: vi.fn() }))
 vi.mock('@/db/exercise-notes', () => ({
   getExerciseNote: vi.fn(),
@@ -19,11 +19,11 @@ vi.mock('@/db/exercise-notes', () => ({
 
 import { registerWriteTools } from './write-tools'
 import { saveWorkout, updateWorkout, deleteWorkout } from '@/db/workouts'
-import { completeWorkoutSideEffects } from '@/lib/workout-completion'
+import { completeWorkoutSideEffects } from '@/lib/workout/workout-completion'
 import { getWeightUnit, setWeightUnit } from '@/db/preferences'
 import { getExerciseNote, upsertExerciseNote, deleteExerciseNote } from '@/db/exercise-notes'
 import { displayToKg, kgToDisplay } from '@/lib/units'
-import { MAX_WEIGHT as MAX_WEIGHT_KG } from '@/lib/workout-input'
+import { MAX_WEIGHT as MAX_WEIGHT_KG } from '@/lib/workout/workout-input'
 
 const mockedSave = vi.mocked(saveWorkout)
 const mockedUpdate = vi.mocked(updateWorkout)

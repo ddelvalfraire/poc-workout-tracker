@@ -8,13 +8,13 @@ import {
   loadsMatch,
   quantizeAdjustedLoadKg,
   quantizeDisplayLoad,
-} from './load-quantize'
+} from './workout/load-quantize'
 import { kgToDisplay } from './units'
 // Reason lines share the double-progression hold clause with the scheme-copy
 // module (#228) — one voice for "hit N reps, then the weight goes up".
 import { repFillHoldReason } from './scheme-copy'
-import { estimate1RM } from './one-rep-max'
-import type { OvershootPolicy } from './overshoot-policy'
+import { estimate1RM } from './exercises/one-rep-max'
+import type { OvershootPolicy } from './programs/overshoot-policy'
 import type { DerivedSet } from './progression'
 import type { DietPhase } from './program-input'
 

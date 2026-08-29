@@ -1,6 +1,6 @@
 import { and, desc, eq, isNull } from 'drizzle-orm'
 import type { DeloadPolicy, DietPhase, Progression } from '@/lib/program-input'
-import type { ExerciseSource } from '@/lib/custom-exercise-input'
+import type { ExerciseSource } from '@/lib/exercises/custom-exercise-input'
 import {
   deriveWeekSets,
   applyWeekOverrides,
@@ -13,12 +13,12 @@ import {
   type SetOverrideLike,
 } from '@/lib/progression'
 import { setTrainingMax } from './program-patches'
-import { rollingE1rm } from '@/lib/rolling-e1rm'
-import { expandTechniqueStages } from '@/lib/technique'
-import { quantizeAdjustedLoadKg, quantizeSetLoads } from '@/lib/load-quantize'
+import { rollingE1rm } from '@/lib/exercises/rolling-e1rm'
+import { expandTechniqueStages } from '@/lib/workout/technique'
+import { quantizeAdjustedLoadKg, quantizeSetLoads } from '@/lib/workout/load-quantize'
 import type { WeightUnit } from '@/lib/units'
 import { getWeightUnit } from './preferences'
-import { applyEffortToAdjustment, sustainedUndershoot } from '@/lib/effort-gate'
+import { applyEffortToAdjustment, sustainedUndershoot } from '@/lib/workout/effort-gate'
 import {
   autoregulate,
   autoregulateRange,
@@ -35,14 +35,14 @@ import {
   type AutoregSession,
   type AutoregStallPolicy,
 } from '@/lib/autoregulate'
-import { resolveOvershootPolicy, type OvershootPolicy } from '@/lib/overshoot-policy'
+import { resolveOvershootPolicy, type OvershootPolicy } from '@/lib/programs/overshoot-policy'
 import { getRecentTrainedSessions } from './autoreg-history'
 import { db } from './index'
 import { ProposedProgramError } from './program-errors'
 import type { ProgramEventActor } from './program-events'
 import { getLastPerformance, getExerciseHistoryBefore } from './workouts'
 import { getProgramDayDetail, nextProgramWeek } from './programs'
-import { catalogKey } from '@/lib/exercise-catalog'
+import { catalogKey } from '@/lib/exercises/exercise-catalog'
 import { workouts, workoutExercises, sets } from './schema'
 
 /**

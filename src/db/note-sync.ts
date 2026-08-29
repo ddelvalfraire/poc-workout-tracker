@@ -1,6 +1,6 @@
 import { and, desc, eq, inArray, isNull, sql } from 'drizzle-orm'
-import type { NoteAnchorSnapshot } from '@/lib/note-input'
-import { LOAD_EPSILON_KG, loadsMatch } from '@/lib/load-quantize'
+import type { NoteAnchorSnapshot } from '@/lib/notes/note-input'
+import { LOAD_EPSILON_KG, loadsMatch } from '@/lib/workout/load-quantize'
 import { db } from './index'
 import { notes, sets, workoutExercises } from './schema'
 

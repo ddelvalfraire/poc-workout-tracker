@@ -4,10 +4,10 @@ import { useState } from 'react'
 import { Input } from '@/components/ui/input'
 import { DividerList, DividerRow } from '@/components/ui/divider-list'
 import { EmptyWords } from '@/components/ui/empty-words'
-import { ZONE_ORDER, type ExerciseZone } from '@/lib/exercise-library'
+import { ZONE_ORDER, type ExerciseZone } from '@/lib/exercises/exercise-library'
 import { cn } from '@/lib/utils'
 import { exerciseHref } from './exercise-ref'
-import type { ExerciseSource } from '@/lib/custom-exercise-input'
+import type { ExerciseSource } from '@/lib/exercises/custom-exercise-input'
 import { useTranslations } from 'next-intl'
 
 /**

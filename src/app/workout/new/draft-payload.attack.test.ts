@@ -14,7 +14,7 @@ import {
   parseDraftPayload,
   resolveDraftSeed,
 } from './draft-payload'
-import { isLoggingType, isWorkoutSetType } from '@/lib/workout-input'
+import { isLoggingType, isWorkoutSetType } from '@/lib/workout/workout-input'
 
 const NOW = new Date('2026-08-15T12:00:00.000Z')
 

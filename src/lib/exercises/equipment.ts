@@ -1,4 +1,4 @@
-import { isWeightUnit, type WeightUnit } from './units'
+import { isWeightUnit, type WeightUnit } from '../units'
 
 /**
  * The user's physical loading equipment for the plate calculator: which bars

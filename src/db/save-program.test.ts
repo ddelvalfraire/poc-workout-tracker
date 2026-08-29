@@ -77,7 +77,7 @@ vi.mock('./index', () => ({
 // The wger catalog backs author-time muscle tagging; default = empty catalog
 // (no tag inserts) so the pre-Phase-5 write-order assertions stay untouched.
 const { getAllExercises } = vi.hoisted(() => ({ getAllExercises: vi.fn() }))
-vi.mock('@/lib/wger', () => ({ getAllExercises }))
+vi.mock('@/lib/exercises/wger', () => ({ getAllExercises }))
 
 // The user's customs feed the merged catalog's 'custom:' side.
 const { listCustomExercises } = vi.hoisted(() => ({ listCustomExercises: vi.fn() }))

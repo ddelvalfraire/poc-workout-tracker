@@ -1,4 +1,4 @@
-import type { LoggingType } from './workout-input'
+import type { LoggingType } from '../workout/workout-input'
 
 /** Reps above this make the estimate unreliable; callers always label output "Est." */
 export const MAX_RELIABLE_REPS = 12

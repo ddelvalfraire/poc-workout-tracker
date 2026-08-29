@@ -1,7 +1,7 @@
 import { kgToDisplay, type WeightUnit } from './units'
-import { quantizeDisplayLoad } from './load-quantize'
+import { quantizeDisplayLoad } from './workout/load-quantize'
 import { formatDistanceInput, formatDurationInput } from './duration'
-import { classOrdinal, type LoggingType } from './workout-input'
+import { classOrdinal, type LoggingType } from './workout/workout-input'
 import { DEFAULT_LOCALE, type Locale } from '@/i18n/config'
 import type { Message } from './message'
 

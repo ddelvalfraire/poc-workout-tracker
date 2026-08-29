@@ -40,7 +40,7 @@ import {
 } from '@/lib/patch-proposal'
 import { getWeightUnit } from '@/db/preferences'
 import { displayToKg, kgToDisplay, type WeightUnit } from '@/lib/units'
-import { MAX_WEIGHT as MAX_WEIGHT_KG } from '@/lib/workout-input'
+import { MAX_WEIGHT as MAX_WEIGHT_KG } from '@/lib/workout/workout-input'
 import {
   setTypeSchema,
   metricModeSchema,
@@ -54,7 +54,7 @@ import {
   MIN_CHECK_IN_DAYS,
   MAX_CHECK_IN_DAYS,
 } from '@/lib/program-input'
-import { overshootPolicySchema } from '@/lib/overshoot-policy'
+import { overshootPolicySchema } from '@/lib/programs/overshoot-policy'
 
 /** The five program behavior policies, as one discriminated union: every arm
  *  is `name` + `value`, so the model picks a policy the same way it would

@@ -1,4 +1,4 @@
-import { MAX_RELIABLE_REPS } from '@/lib/one-rep-max'
+import { MAX_RELIABLE_REPS } from '@/lib/exercises/one-rep-max'
 import type {
   ExerciseWeekPoint,
   ProgramWeekStats,

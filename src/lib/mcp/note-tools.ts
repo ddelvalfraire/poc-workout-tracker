@@ -13,7 +13,7 @@ import {
   type NoteWithContext,
 } from '@/db/notes'
 import { workoutDetailQuery } from '@/db/workouts'
-import { parseNoteBody, NOTE_ANCHOR_KINDS } from '@/lib/note-input'
+import { parseNoteBody, NOTE_ANCHOR_KINDS } from '@/lib/notes/note-input'
 import { resolveUserId } from './resolve-user'
 import { errorResult, jsonResult } from './result'
 import { ToolError } from './errors'

@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { requireUserId } from '@/lib/auth'
-import { parseWorkoutInput } from '@/lib/workout-input'
+import { parseWorkoutInput } from '@/lib/workout/workout-input'
 import {
   saveWorkout,
   updateWorkout,
@@ -19,8 +19,8 @@ import { captureServerEvent, durationMin, workoutInputCounts } from '@/lib/analy
 import { getProgramDayDetail } from '@/db/programs'
 import { deriveDayPrescription } from '@/db/prescriptions'
 import { substituteProgramExercise } from '@/db/program-patches'
-import { completeWorkoutSideEffects } from '@/lib/workout-completion'
-import { substituteSlot } from '@/lib/substitute-slot'
+import { completeWorkoutSideEffects } from '@/lib/workout/workout-completion'
+import { substituteSlot } from '@/lib/workout/substitute-slot'
 import type { PlanSetTarget } from '@/lib/format'
 import {
   getExerciseStats,
@@ -35,7 +35,7 @@ import type { WorkoutEventKind } from '@/db/workout-events'
 import { uncompleteCascade, type UncompleteCascade } from '@/db/uncomplete-cascade'
 import { correctionReachFor, type SetCorrection } from '@/db/correction-reach'
 import { settledTrainingMax } from '@/db/settled-training-max'
-import type { CorrectionReach } from '@/lib/record-reach'
+import type { CorrectionReach } from '@/lib/workout/record-reach'
 
 /**
  * Validates and persists a workout for the signed-in user, returning the new id.

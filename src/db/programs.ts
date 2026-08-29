@@ -1,7 +1,7 @@
 import { and, asc, count, countDistinct, desc, eq, isNotNull, max, ne, sql } from 'drizzle-orm'
 import { cache } from 'react'
 import type { ProgramInput, ProgramStatus } from '@/lib/program-input'
-import type { ExerciseSource } from '@/lib/custom-exercise-input'
+import type { ExerciseSource } from '@/lib/exercises/custom-exercise-input'
 // Runtime-only cycle with ./program-patches (it imports our catalog helpers,
 // we call its TM setter in cloneProgram's block-restart carry-forward) — safe
 // because both directions are used strictly inside function bodies, never at
@@ -13,7 +13,7 @@ import { hasFeature, requireFeature } from './entitlements'
 import { pickNextProgramDay } from '@/lib/next-program-day'
 import { nextBlockName } from '@/lib/block-name'
 import { db } from './index'
-import { catalogMuscles, type ExerciseCatalog } from '@/lib/exercise-catalog'
+import { catalogMuscles, type ExerciseCatalog } from '@/lib/exercises/exercise-catalog'
 import { getExerciseCatalog } from './exercise-catalog'
 import { NotCoachProposalError, ProposedProgramError } from './program-errors'
 import { recordProgramEvent, type ProgramEventActor } from './program-events'

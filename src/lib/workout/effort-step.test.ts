@@ -4,7 +4,7 @@ import {
   effortStepProposalContent,
   hasPendingEffortStepProposal,
 } from './effort-step'
-import { proposalPatchesSchema } from './patch-proposal'
+import { proposalPatchesSchema } from '../patch-proposal'
 
 const candidate = {
   name: 'Squat',

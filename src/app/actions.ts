@@ -20,7 +20,7 @@ import { checkGoalAchievements } from '@/lib/goals'
 import { logMeasurement, deleteMeasurement } from '@/db/body-measurements'
 import { isMeasurementSite } from '@/lib/measurement-sites'
 import { isWeightUnit, displayToKg, displayToCm, lengthUnitFor } from '@/lib/units'
-import { parseEquipmentInput } from '@/lib/equipment'
+import { parseEquipmentInput } from '@/lib/exercises/equipment'
 import { MAX_REST_SEC } from '@/lib/program-input'
 
 // Sanity bounds for a stored bodyweight, in canonical kg. The ceiling sits

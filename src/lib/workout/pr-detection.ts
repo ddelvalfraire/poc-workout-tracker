@@ -1,5 +1,5 @@
-import { estimate1RM } from './one-rep-max'
-import { displayToKg, type WeightUnit } from './units'
+import { estimate1RM } from '../exercises/one-rep-max'
+import { displayToKg, type WeightUnit } from '../units'
 import type { LoggingType, WorkoutSetType } from './workout-input'
 
 /**

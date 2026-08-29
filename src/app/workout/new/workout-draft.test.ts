@@ -16,7 +16,7 @@ import {
   type WorkoutDraft,
 } from './workout-draft'
 import type { WorkoutDetail } from '@/db/workouts'
-import { parseWorkoutInput } from '@/lib/workout-input'
+import { parseWorkoutInput } from '@/lib/workout/workout-input'
 
 const SQUAT = {
   wgerExerciseId: 73,

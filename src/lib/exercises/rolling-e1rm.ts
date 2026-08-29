@@ -1,4 +1,4 @@
-import { estimate1RM, MAX_RELIABLE_REPS } from '@/lib/one-rep-max'
+import { estimate1RM, MAX_RELIABLE_REPS } from '@/lib/exercises/one-rep-max'
 import type { SetType } from '@/lib/program-input'
 
 /**

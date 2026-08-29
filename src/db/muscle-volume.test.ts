@@ -30,7 +30,7 @@ function makeBuilder() {
 vi.mock('./index', () => ({
   db: { select: () => makeBuilder() },
 }))
-vi.mock('@/lib/wger', () => ({
+vi.mock('@/lib/exercises/wger', () => ({
   getAllExercises: vi.fn(async () => [
     {
       id: 1,
@@ -58,7 +58,7 @@ import {
   getVolumeTotals,
   type MuscleVolumeRow,
 } from './muscle-volume'
-import { getAllExercises } from '@/lib/wger'
+import { getAllExercises } from '@/lib/exercises/wger'
 
 const USER = 'user_123'
 const NOW = new Date('2026-07-15T18:00:00Z')

@@ -4,7 +4,7 @@ import {
   type Progression,
   type Technique,
 } from './program-input'
-import { MAX_RELIABLE_REPS } from './one-rep-max'
+import { MAX_RELIABLE_REPS } from './exercises/one-rep-max'
 
 /**
  * The Phase 5 progression engine — pure functions only (no IO, no db imports).

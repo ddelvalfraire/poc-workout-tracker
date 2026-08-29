@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { REST_OVER_VIBRATION } from '@/lib/rest-alert'
+import { REST_OVER_VIBRATION } from '@/lib/workout/rest-alert'
 import { clearRestOverNotification, fireRestOverAlert } from './rest-over-alert'
 
 /**

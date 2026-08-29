@@ -1,7 +1,7 @@
 import { and, desc, eq } from 'drizzle-orm'
 import type { WeightUnit } from '@/lib/units'
-import type { ExerciseSource } from '@/lib/custom-exercise-input'
-import { getAllExercises } from '@/lib/wger'
+import type { ExerciseSource } from '@/lib/exercises/custom-exercise-input'
+import { getAllExercises } from '@/lib/exercises/wger'
 import {
   guessCategory,
   matchExercises,

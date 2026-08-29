@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { ChevronRight } from 'lucide-react'
 import type { NextProgramDay } from '@/db/programs'
-import type { FinishUpNext } from '@/lib/finish-up-next'
+import type { FinishUpNext } from '@/lib/workout/finish-up-next'
 import { UpNextAnchor } from '@/components/home/up-next-anchor'
 import { buttonVariants } from '@/components/ui/button'
 import { cn } from '@/lib/utils'

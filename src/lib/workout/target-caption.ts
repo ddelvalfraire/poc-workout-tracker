@@ -1,4 +1,4 @@
-import { adoptableGhostValue } from './format'
+import { adoptableGhostValue } from '../format'
 
 /**
  * The set row's persistent micro target caption — "▸ 8–12 × 100" under a row

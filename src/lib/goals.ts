@@ -9,7 +9,7 @@ import {
 import { getExerciseStats } from '@/db/exercise-stats'
 import { getBodyweightKg, getWeightUnit } from '@/db/preferences'
 import { getMessages } from '@/i18n/translate'
-import type { ExerciseSource } from '@/lib/custom-exercise-input'
+import type { ExerciseSource } from '@/lib/exercises/custom-exercise-input'
 import type { GoalKind } from '@/lib/goal-input'
 import {
   bodyweightRemainingKg,

@@ -1,9 +1,9 @@
-import type { AutoregAdjustment, AutoregSession } from './autoregulate'
-import type { WeightUnit } from './units'
+import type { AutoregAdjustment, AutoregSession } from '../autoregulate'
+import type { WeightUnit } from '../units'
 // ε-or-increment identity so a pre-quantization snapshot still matches its
 // quantized re-derivation (#226 transitional bridge).
 import { LOAD_EPSILON_KG, loadsMatch } from './load-quantize'
-import { estimate1RM } from './one-rep-max'
+import { estimate1RM } from '../exercises/one-rep-max'
 
 /**
  * The EFFORT GATE (RPE plan slice 3) — a pure post-hoc layer over the rep

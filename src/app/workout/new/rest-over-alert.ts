@@ -1,4 +1,4 @@
-import { REST_OVER_VIBRATION } from '@/lib/rest-alert'
+import { REST_OVER_VIBRATION } from '@/lib/workout/rest-alert'
 import { vibrate } from './haptics'
 import { playRestChime } from './rest-chime'
 

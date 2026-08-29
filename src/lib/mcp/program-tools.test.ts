@@ -44,7 +44,7 @@ import { NotCoachProposalError, ProposedProgramError } from '@/db/program-errors
 // Real class too (errorResult's instanceof must see the db layer's identity).
 import { FeatureRequiredError } from '@/db/entitlements'
 import { displayToKg, kgToDisplay } from '@/lib/units'
-import { MAX_WEIGHT as MAX_WEIGHT_KG } from '@/lib/workout-input'
+import { MAX_WEIGHT as MAX_WEIGHT_KG } from '@/lib/workout/workout-input'
 
 const mockedSave = vi.mocked(saveProgram)
 const mockedUpdate = vi.mocked(updateProgram)

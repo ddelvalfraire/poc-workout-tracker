@@ -22,7 +22,7 @@ import {
 } from 'lucide-react'
 import { startProgramDayAction } from '@/app/programs/actions'
 import { useHistoryDismissable } from '@/lib/use-history-dismissable'
-import { activeSessionHref } from '@/lib/active-session'
+import { activeSessionHref } from '@/lib/workout/active-session'
 import { scheduleAnchor } from '@/lib/schedule-anchor'
 import {
   bodyStatusLine,

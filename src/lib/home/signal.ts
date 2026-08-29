@@ -1,7 +1,7 @@
-import { muscleGroupFor } from '@/lib/muscle-groups'
+import { muscleGroupFor } from '@/lib/exercises/muscle-groups'
 import { canonicalLiftFor } from '@/lib/trophies'
 import type { CanonicalLift } from '@/lib/trophy-kinds'
-import type { ExerciseSource } from '@/lib/custom-exercise-input'
+import type { ExerciseSource } from '@/lib/exercises/custom-exercise-input'
 import type { ResolvedHomeSection } from './layout'
 import { layoutForPreset, type HomePresetId } from './presets'
 

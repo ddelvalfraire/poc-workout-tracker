@@ -5,7 +5,7 @@ import { listWorkoutTemplates } from '@/db/workout-templates'
 import { listWorkoutSummaries } from '@/db/workouts'
 import { listWorkoutDrafts } from '@/db/workout-drafts'
 import { getWeightUnit } from '@/db/preferences'
-import { resolveActiveSession } from '@/lib/active-session'
+import { resolveActiveSession } from '@/lib/workout/active-session'
 import {
   sortTemplatesByUsage,
   templateStatusLine,

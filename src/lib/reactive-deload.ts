@@ -1,7 +1,7 @@
 import type { AutoregAdjustment } from './autoregulate'
 import type { DeloadShape, DietPhase } from './program-input'
 import type { ProposalPatch } from './patch-proposal'
-import type { ExerciseSource } from './custom-exercise-input'
+import type { ExerciseSource } from './exercises/custom-exercise-input'
 import { kgToDisplay, type WeightUnit } from './units'
 
 /**

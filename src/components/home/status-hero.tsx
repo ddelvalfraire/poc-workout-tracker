@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { ChevronRight } from 'lucide-react'
-import { activeSessionHref } from '@/lib/active-session'
+import { activeSessionHref } from '@/lib/workout/active-session'
 import {
   statusForHome,
   type HomeStatusFacts,

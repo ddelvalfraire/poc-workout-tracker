@@ -136,7 +136,7 @@ vi.mock('./index', () => ({
 }))
 
 const { getAllExercises } = vi.hoisted(() => ({ getAllExercises: vi.fn() }))
-vi.mock('@/lib/wger', () => ({ getAllExercises }))
+vi.mock('@/lib/exercises/wger', () => ({ getAllExercises }))
 
 const { listCustomExercises } = vi.hoisted(() => ({ listCustomExercises: vi.fn() }))
 vi.mock('./custom-exercises', () => ({ listCustomExercises }))

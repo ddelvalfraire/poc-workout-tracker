@@ -1,9 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { GET } from './route'
-import { searchExercises, getAllExercises } from '@/lib/wger'
+import { searchExercises, getAllExercises } from '@/lib/exercises/wger'
 import { getUserId } from '@/lib/auth'
 
-vi.mock('@/lib/wger', () => ({ searchExercises: vi.fn(), getAllExercises: vi.fn() }))
+vi.mock('@/lib/exercises/wger', () => ({ searchExercises: vi.fn(), getAllExercises: vi.fn() }))
 vi.mock('@/lib/auth', () => ({ getUserId: vi.fn() }))
 
 const mockedSearch = vi.mocked(searchExercises)

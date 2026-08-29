@@ -1,8 +1,8 @@
 import { and, asc, desc, eq } from 'drizzle-orm'
-import { MUSCLE_GROUPS } from '@/lib/muscle-groups'
+import { MUSCLE_GROUPS } from '@/lib/exercises/muscle-groups'
 import { db } from './index'
 import { creditSetMuscles, type VolumeGroup } from './muscle-volume'
-import { plannedTechniqueWeight } from '@/lib/technique'
+import { plannedTechniqueWeight } from '@/lib/workout/technique'
 import {
   applyWeekOverrides,
   deriveWeekSets,

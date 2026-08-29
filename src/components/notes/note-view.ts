@@ -1,6 +1,6 @@
 import type { NoteWithContext } from '@/db/notes'
-import type { NoteAnchorKind, NoteAnchorSnapshot, NoteAuthor } from '@/lib/note-input'
-import { quantizeDisplayLoad } from '@/lib/load-quantize'
+import type { NoteAnchorKind, NoteAnchorSnapshot, NoteAuthor } from '@/lib/notes/note-input'
+import { quantizeDisplayLoad } from '@/lib/workout/load-quantize'
 import type { WeightUnit } from '@/lib/units'
 import { formatDurationInput } from '@/lib/duration'
 import { relativeDayLabel } from '@/lib/drawer-status'

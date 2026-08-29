@@ -7,7 +7,7 @@ import {
   sessionSummary,
   type TrendLike,
 } from './detail-view'
-import type { SessionSetLike } from '@/lib/session-best-set'
+import type { SessionSetLike } from '@/lib/workout/session-best-set'
 
 /** Trend fixture builder: sessions a week apart ending at `end`. */
 function trendOf(e1rms: number[], end = new Date('2026-08-01T10:00:00Z')): TrendLike[] {

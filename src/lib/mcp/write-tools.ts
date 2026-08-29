@@ -4,13 +4,13 @@ import { resolveUserId, resolveWorkoutActor } from './resolve-user'
 import { jsonResult, errorResult } from './result'
 import { ToolError } from './errors'
 import { assertWorkoutIdShape } from './workout-id'
-import { parseWorkoutInput, MAX_WEIGHT as MAX_WEIGHT_KG, MAX_DURATION_SEC, MAX_DISTANCE_M, METRIC_MODES, type WorkoutInput } from '@/lib/workout-input'
+import { parseWorkoutInput, MAX_WEIGHT as MAX_WEIGHT_KG, MAX_DURATION_SEC, MAX_DISTANCE_M, METRIC_MODES, type WorkoutInput } from '@/lib/workout/workout-input'
 import { displayToKg, kgToDisplay, type WeightUnit } from '@/lib/units'
 import { saveWorkout, updateWorkout, deleteWorkout } from '@/db/workouts'
-import { completeWorkoutSideEffects } from '@/lib/workout-completion'
+import { completeWorkoutSideEffects } from '@/lib/workout/workout-completion'
 import { getWeightUnit, setWeightUnit } from '@/db/preferences'
 import { getExerciseNote, upsertExerciseNote, deleteExerciseNote } from '@/db/exercise-notes'
-import { parseExerciseNoteInput } from '@/lib/exercise-note-input'
+import { parseExerciseNoteInput } from '@/lib/notes/exercise-note-input'
 
 /** Workout body shape the create/update tools accept (weights in display unit). */
 const exercisesSchema = z.array(

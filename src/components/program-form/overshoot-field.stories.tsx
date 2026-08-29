@@ -3,7 +3,7 @@ import { expect, userEvent, within } from "storybook/test";
 import { useState } from "react";
 
 import { OvershootField } from "./overshoot-field";
-import type { OvershootPolicy } from "@/lib/overshoot-policy";
+import type { OvershootPolicy } from "@/lib/programs/overshoot-policy";
 
 /**
  * "What counts as beating the target" — a row that opens a sheet.

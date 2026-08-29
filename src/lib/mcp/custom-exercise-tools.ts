@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { resolveUserId } from './resolve-user'
 import { jsonResult, errorResult } from './result'
 import { ToolError } from './errors'
-import { customExerciseInputSchema } from '@/lib/custom-exercise-input'
+import { customExerciseInputSchema } from '@/lib/exercises/custom-exercise-input'
 import {
   createCustomExercise,
   listCustomExercises,

@@ -8,8 +8,8 @@ import { updateSet, addSet, removeSet, updateWorkoutMeta, updateExerciseMeta } f
 import { SetCompletionError } from '@/db/workout-errors'
 import { getWeightUnit } from '@/db/preferences'
 import { displayToKg, kgToDisplay, type WeightUnit } from '@/lib/units'
-import { MAX_WEIGHT as MAX_WEIGHT_KG, MAX_DURATION_SEC, MAX_DISTANCE_M, METRIC_MODES, parseStartedAt, parseNotes } from '@/lib/workout-input'
-import { isValidRir, isValidRpe, RIR_MIN, RIR_MAX, RPE_MIN, RPE_MAX } from '@/lib/effort'
+import { MAX_WEIGHT as MAX_WEIGHT_KG, MAX_DURATION_SEC, MAX_DISTANCE_M, METRIC_MODES, parseStartedAt, parseNotes } from '@/lib/workout/workout-input'
+import { isValidRir, isValidRpe, RIR_MIN, RIR_MAX, RPE_MIN, RPE_MAX } from '@/lib/workout/effort'
 
 /** Optional explicit unit override; absent → the user's stored unit. */
 const unitArg = z.enum(['kg', 'lb']).optional()

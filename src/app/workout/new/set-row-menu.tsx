@@ -4,7 +4,7 @@ import { useEffect, useRef } from 'react'
 import { NotebookPen, Trash2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useTranslations } from 'next-intl'
-import { TECHNIQUE_KINDS, TECHNIQUE_LABEL_KEY, type TechniqueKind } from '@/lib/technique'
+import { TECHNIQUE_KINDS, TECHNIQUE_LABEL_KEY, type TechniqueKind } from '@/lib/workout/technique'
 
 /**
  * The set-row long-press context menu (notes v2 grammar): a small anchored

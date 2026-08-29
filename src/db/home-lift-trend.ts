@@ -5,7 +5,7 @@ import { db } from '@/db'
 import { sets, workoutExercises, workouts } from '@/db/schema'
 import { getExerciseStats } from '@/db/exercise-stats'
 import { CANONICAL_LIFTS } from '@/lib/trophy-kinds'
-import type { ExerciseSource } from '@/lib/custom-exercise-input'
+import type { ExerciseSource } from '@/lib/exercises/custom-exercise-input'
 import { buildLiftTrend, type LiftTrend } from '@/lib/home/lift-trend'
 
 /**

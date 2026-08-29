@@ -5,7 +5,7 @@ import {
   type ExerciseStatsRow,
   type LoggedExerciseRow,
 } from './exercise-stats'
-import { sessionBestSet } from '@/lib/session-best-set'
+import { sessionBestSet } from '@/lib/workout/session-best-set'
 
 /**
  * ADVERSARIAL VERIFICATION of cardio v1 slice 3 (#219 / PR #242) — the stats
