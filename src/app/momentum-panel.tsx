@@ -86,55 +86,68 @@ export async function MomentumPanel({ userId, nowMs, size = 'md' }: MomentumPane
         }
       : null
 
-  // sm: the one big number + streak flame ONLY — same card, same type
-  // styles, everything else (sparkbar, sessions line, goal line) dropped.
+  // sm: a one-row tile (micro/wide) — the one big number + streak flame ONLY,
+  // in the bento tile voice. The cell is a single fixed grid row with
+  // `overflow: hidden`, so the body must fit the track: no outer margins, no
+  // own hairline (the cell shell paints the closing rule), label and number
+  // at the shared tile scale.
+  //
+  // No aria-label on the Link: an explicit label REPLACES the accessible
+  // name, which would silently drop the set count and streak text for
+  // assistive tech. Like CardioWeek/BigThree, the name derives from the
+  // visible content.
   if (size === 'sm') {
     return (
-      <section aria-label={t('title')} className="mt-6 border-b border-b-border/60 md:mt-10">
-        <Link href="/stats" className="block py-5 transition-colors active:bg-muted/60">
-          <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+      <Link href="/stats" className="flex h-full flex-col transition-colors active:bg-muted/60">
+        <span className="flex items-center justify-between gap-2">
+          <span className="font-display text-[0.66rem] font-medium uppercase leading-none tracking-[0.15em] text-muted-foreground">
             {t('title')}
           </span>
-          <span className="mt-3 flex items-baseline gap-2">
-            <span className="font-display text-6xl leading-none tnum">{weekSets}</span>
-            <span className="text-sm font-medium text-muted-foreground">
-              {t('setsUnit', { count: weekSets })}
-            </span>
-          </span>
           {goal?.streak && (
-            <span className="mt-3 block">
-              <StreakChip
-                completedAtTimes={goal.streak.completedAtTimes}
-                scheduledWeekdays={goal.streak.scheduledWeekdays}
-                allowedMissesPerWeek={goal.streak.allowedMissesPerWeek}
-              />
-            </span>
+            <StreakChip
+              completedAtTimes={goal.streak.completedAtTimes}
+              scheduledWeekdays={goal.streak.scheduledWeekdays}
+              allowedMissesPerWeek={goal.streak.allowedMissesPerWeek}
+            />
           )}
-        </Link>
-      </section>
+        </span>
+        <span className="mt-auto flex items-baseline gap-1">
+          <span className="font-display text-[2.1rem] font-semibold leading-[0.82] tnum">
+            {weekSets}
+          </span>
+          <span className="text-[0.68rem] font-medium text-muted-foreground">
+            {t('setsUnit', { count: weekSets })}
+          </span>
+        </span>
+      </Link>
     )
   }
 
   return (
-    <section aria-label={t('title')} className="mt-6 border-b border-b-border/60 md:mt-10">
-      <Link href="/stats" className="block py-5 transition-colors active:bg-muted/60">
+    <section aria-label={t('title')} className="flex h-full flex-col">
+      <Link
+        href="/stats"
+        className="flex min-h-0 flex-1 flex-col transition-colors active:bg-muted/60"
+      >
         <span className="flex items-center justify-between gap-3">
-          <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+          <span className="font-display text-[0.66rem] font-medium uppercase leading-none tracking-[0.15em] text-muted-foreground">
             {t('title')}
           </span>
-          <ChevronRight aria-hidden="true" className="size-5 shrink-0 text-muted-foreground" />
+          <ChevronRight aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
         </span>
-        <span className="mt-3 flex items-end justify-between gap-4">
+        <span className="mt-2 flex items-end justify-between gap-4">
           <span className="min-w-0">
-            <span className="flex items-baseline gap-2">
+            <span className="flex items-baseline gap-1">
               {/* The one big number — arm's-length legible (WHOOP's ~72pt
-                  move, scaled to a phone card). tnum keeps it steady. */}
-              <span className="font-display text-6xl leading-none tnum">{weekSets}</span>
-              <span className="text-sm font-medium text-muted-foreground">
+                  move, scaled to the block tile). tnum keeps it steady. */}
+              <span className="font-display text-[3.9rem] font-bold leading-[0.82] tnum">
+                {weekSets}
+              </span>
+              <span className="text-[0.68rem] font-medium text-muted-foreground">
                 {t('setsUnit', { count: weekSets })}
               </span>
             </span>
-            <span className="mt-1.5 block text-sm text-muted-foreground tnum">
+            <span className="mt-1.5 block text-[0.73rem] text-muted-foreground tnum">
               {weekSets > 0
                 ? renderLine<MomentumKey>(t, momentumSessionsLine(weekSessions))
                 : t('emptyWeek')}
@@ -143,13 +156,13 @@ export async function MomentumPanel({ userId, nowMs, size = 'md' }: MomentumPane
                 totals read already fetched (zero new queries). Null (empty
                 last week) renders nothing — silence over a hollow compare. */}
             {size === 'lg' && weekDelta !== null && (
-              <span className="mt-0.5 block text-sm text-muted-foreground tnum">
+              <span className="mt-0.5 block text-[0.73rem] text-muted-foreground tnum">
                 {renderLine<MomentumKey>(t, weekDelta)}
               </span>
             )}
           </span>
           {daySets.length > 0 && (
-            <Sparkbar daySets={daySets} className="h-10 shrink-0 gap-1.5" barClassName="w-2.5" />
+            <Sparkbar daySets={daySets} className="h-9 shrink-0 gap-1" barClassName="w-2" />
           )}
         </span>
       </Link>
@@ -157,13 +170,13 @@ export async function MomentumPanel({ userId, nowMs, size = 'md' }: MomentumPane
       {goal !== null && (
         <Link
           href="/goals"
-          className="flex items-center justify-between gap-3 border-t border-border/60 py-3.5 transition-colors active:bg-muted/60"
+          className="mt-auto flex items-center justify-between gap-3 border-t border-t-border/60 pt-2.5 transition-colors active:bg-muted/60"
         >
           <span className="min-w-0">
-            <span className="block text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+            <span className="block font-display text-[0.6rem] font-medium uppercase leading-none tracking-[0.15em] text-muted-foreground">
               {t('goalLabel', { count: goal.activeCount })}
             </span>
-            <span className="mt-0.5 block truncate text-sm">{goal.label}</span>
+            <span className="mt-1 block truncate text-[0.73rem]">{goal.label}</span>
           </span>
           <span className="flex shrink-0 items-center gap-2">
             {goal.streak && (
@@ -173,7 +186,7 @@ export async function MomentumPanel({ userId, nowMs, size = 'md' }: MomentumPane
                 allowedMissesPerWeek={goal.streak.allowedMissesPerWeek}
               />
             )}
-            <ChevronRight aria-hidden="true" className="size-5 text-muted-foreground" />
+            <ChevronRight aria-hidden="true" className="size-4 text-muted-foreground" />
           </span>
         </Link>
       )}
