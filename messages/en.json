@@ -1056,10 +1056,7 @@
     "goalLabel": "{count, plural, one {Goal} other {Goals · #}}",
     "sessionsLine": "{count, plural, one {# session} other {# sessions}} this week",
     "setsUnit": "{count, plural, one {set} other {sets}}",
-    "title": "This week",
-    "weekDeltaDown": "Down {delta} on last week",
-    "weekDeltaLevel": "Level with last week",
-    "weekDeltaUp": "Up {delta} on last week"
+    "title": "This week"
   },
   "MuscleBalance": {
     "behind": "{group} {count, plural, one {# set behind} other {# sets behind}}",
