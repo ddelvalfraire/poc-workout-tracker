@@ -29,11 +29,6 @@
     "offline:check": "tsx scripts/build-offline.ts --check",
     "i18n:report": "tsx scripts/i18n-extract.ts report",
     "i18n:extract": "tsx scripts/i18n-extract.ts apply",
-    "pentest:up": "docker compose -f docker/pentest/compose.yml up -d && npm run pentest:migrate",
-    "pentest:migrate": "DATABASE_URL_DIRECT=postgres://pentest:pentest@127.0.0.1:55432/wt_pentest drizzle-kit migrate",
-    "pentest:isolation": "DATABASE_URL=postgres://pentest:pentest@127.0.0.1:55432/wt_pentest UPSTASH_REDIS_REST_URL=http://127.0.0.1:58079 UPSTASH_REDIS_REST_TOKEN=pentest-redis-token tsx scripts/pentest/tenant-isolation.ts",
-    "pentest:lifecycle": "DATABASE_URL=postgres://pentest:pentest@127.0.0.1:55432/wt_pentest UPSTASH_REDIS_REST_URL=http://127.0.0.1:58079 UPSTASH_REDIS_REST_TOKEN=pentest-redis-token tsx scripts/pentest/data-lifecycle.ts",
-    "pentest:down": "docker compose -f docker/pentest/compose.yml down -v",
     "db:seed-consent-docs": "tsx scripts/seed-consent-docs.ts",
     "db:migrate-user": "tsx scripts/migrate-user-id.ts",
     "test:storybook": "vitest run --project=storybook"
