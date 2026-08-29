@@ -40,9 +40,9 @@ import {
 } from '@/lib/drawer-status'
 import { renderLine, renderLines } from '@/lib/message'
 import { buttonVariants } from '@/components/ui/button'
-import { Ghost } from '@/components/ghost'
-import { Sparkbar } from '@/components/sparkbar'
-import { StreakChip } from '@/components/streak-chip'
+import { Ghost } from '@/components/ui/ghost'
+import { Sparkbar } from '@/components/charts/sparkbar'
+import { StreakChip } from '@/components/home/streak-chip'
 import { cn } from '@/lib/utils'
 import { useTranslations } from 'next-intl'
 

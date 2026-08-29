@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { deleteWorkoutDraftAction, deleteWorkoutAction } from '@/app/workout/actions'
 import { activeSessionHref } from '@/lib/active-session'
 import { discardSession } from '@/lib/discard-session'
-import { useAnimatedSheetClose } from '@/components/use-animated-sheet-close'
+import { useAnimatedSheetClose } from '@/components/ui/use-animated-sheet-close'
 import { useTranslations } from 'next-intl'
 
 /**

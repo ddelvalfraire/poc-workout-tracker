@@ -13,7 +13,7 @@ import {
 import { formatWorkoutDate } from '@/lib/format'
 import { kgToDisplay, type WeightUnit } from '@/lib/units'
 import { TrendChart, type TrendPoint } from '@/components/charts/trend-chart'
-import { AppHeader } from '@/components/app-header'
+import { AppHeader } from '@/components/nav/app-header'
 import { NavDrawer } from '@/components/nav/nav-drawer'
 import { DividerList, DividerRow } from '@/components/ui/divider-list'
 import { EmptyWords } from '@/components/ui/empty-words'

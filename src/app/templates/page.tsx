@@ -12,8 +12,8 @@ import {
   templateUsageByName,
   type TemplateStatusMessage,
 } from '@/lib/template-usage'
-import { AppHeader } from '@/components/app-header'
-import { GuardedStartLink } from '@/components/guarded-start-link'
+import { AppHeader } from '@/components/nav/app-header'
+import { GuardedStartLink } from '@/components/workout/guarded-start-link'
 import { NavDrawer } from '@/components/nav/nav-drawer'
 import { DividerList } from '@/components/ui/divider-list'
 import { EmptyWords } from '@/components/ui/empty-words'

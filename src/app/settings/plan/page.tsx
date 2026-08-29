@@ -1,5 +1,5 @@
-import { AppHeader } from '@/components/app-header'
-import { BackLink } from '@/components/back-link'
+import { AppHeader } from '@/components/nav/app-header'
+import { BackLink } from '@/components/nav/back-link'
 import { getTranslations } from 'next-intl/server'
 import { requireUserId } from '@/lib/auth'
 import { getEntitlement } from '@/db/entitlements'

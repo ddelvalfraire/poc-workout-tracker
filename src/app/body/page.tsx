@@ -10,7 +10,7 @@ import { kgToDisplay, cmToDisplay, lengthUnitFor, type WeightUnit } from '@/lib/
 import { bodyweightDeltaKg, trendWeightSeries } from '@/lib/bodyweight-trend'
 import { TrendChart, type TrendPoint } from '@/components/charts/trend-chart'
 import { formatWorkoutDate } from '@/lib/format'
-import { AppHeader } from '@/components/app-header'
+import { AppHeader } from '@/components/nav/app-header'
 import { NavDrawer } from '@/components/nav/nav-drawer'
 import { BodyweightLogForm } from './log-form'
 import { BodyweightEntryRow } from './entry-row'

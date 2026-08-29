@@ -6,8 +6,8 @@ import {
   volumeWindows,
   type VolumeWindowMode,
 } from '@/lib/volume-window'
-import { AppHeader } from '@/components/app-header'
-import { StatTile, type StatDelta } from '@/components/stat-tile'
+import { AppHeader } from '@/components/nav/app-header'
+import { StatTile, type StatDelta } from '@/components/charts/stat-tile'
 import { VolumeBarChart } from '@/components/charts/volume-bar-chart'
 import { NavDrawer } from '@/components/nav/nav-drawer'
 import { WindowToggle } from './window-toggle'

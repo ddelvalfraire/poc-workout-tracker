@@ -8,7 +8,7 @@ import { setEquipmentAction } from '@/app/actions'
 import { loadBar, totalFromPlates, warmupRamp } from '@/lib/plate-math'
 import type { Equipment } from '@/lib/equipment'
 import type { WeightUnit } from '@/lib/units'
-import { useAnimatedSheetClose } from '@/components/use-animated-sheet-close'
+import { useAnimatedSheetClose } from '@/components/ui/use-animated-sheet-close'
 import { cn } from '@/lib/utils'
 import { useTranslations } from 'next-intl'
 

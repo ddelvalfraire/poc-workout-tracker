@@ -1,6 +1,6 @@
 import { requireUserId } from '@/lib/auth'
-import { AppHeader } from '@/components/app-header'
-import { BackLink } from '@/components/back-link'
+import { AppHeader } from '@/components/nav/app-header'
+import { BackLink } from '@/components/nav/back-link'
 import { DeleteAccountForm } from './delete-account-form'
 import { getTranslations } from 'next-intl/server'
 

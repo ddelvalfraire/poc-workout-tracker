@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input'
 import { setDefaultRestSecAction } from '@/app/actions'
 import { MAX_REST_SEC } from '@/lib/program-input'
 import { isRestChimeEnabled, setRestChimeEnabled, unlockRestChime } from './rest-chime'
-import { useAnimatedSheetClose } from '@/components/use-animated-sheet-close'
+import { useAnimatedSheetClose } from '@/components/ui/use-animated-sheet-close'
 import { cn } from '@/lib/utils'
 import { useTranslations } from 'next-intl'
 

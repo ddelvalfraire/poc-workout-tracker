@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 import { Repeat } from "lucide-react";
 
 import { GuardedStartLink } from "./guarded-start-link";
-import { buttonVariants } from "./ui/button";
+import { buttonVariants } from "../ui/button";
 
 /**
  * A "start a new workout" affordance that respects the single-active-session

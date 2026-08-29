@@ -1,7 +1,7 @@
 import { requireUserId } from '@/lib/auth'
 import { getSeededHomeLayout, getTrainingSignal } from '@/db/home-signal'
-import { AppHeader } from '@/components/app-header'
-import { BackLink } from '@/components/back-link'
+import { AppHeader } from '@/components/nav/app-header'
+import { BackLink } from '@/components/nav/back-link'
 import { HomeLayoutEditor } from './home-layout-editor'
 import { getTranslations } from 'next-intl/server'
 

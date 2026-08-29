@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useSyncExternalStore, useTransition } from 'react'
 import { Check, Copy, Link2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { ConfirmDialog } from '@/components/confirm-dialog'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { createWorkoutShareAction, revokeWorkoutShareAction } from '@/app/workout/actions'
 import { useTranslations } from 'next-intl'
 

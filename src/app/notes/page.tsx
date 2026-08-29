@@ -9,7 +9,7 @@ import {
   notesHref,
   parseNotesFilterParams,
 } from '@/components/notes/note-view'
-import { AppHeader } from '@/components/app-header'
+import { AppHeader } from '@/components/nav/app-header'
 import { NavDrawer } from '@/components/nav/nav-drawer'
 import { cn } from '@/lib/utils'
 import { FacetSelect } from './facet-select'

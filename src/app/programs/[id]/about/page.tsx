@@ -5,9 +5,9 @@ import { getTranslations } from 'next-intl/server'
 
 import { requireUserId } from '@/lib/auth'
 import { getProgramDetail, programWeekState } from '@/db/programs'
-import { AppHeader } from '@/components/app-header'
-import { BackLink } from '@/components/back-link'
-import { MarkdownView } from '@/components/markdown-view'
+import { AppHeader } from '@/components/nav/app-header'
+import { BackLink } from '@/components/nav/back-link'
+import { MarkdownView } from '@/components/ui/markdown-view'
 import { EmptyWords } from '@/components/ui/empty-words'
 import { DescriptionEdit } from '../description-edit'
 

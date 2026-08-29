@@ -37,10 +37,10 @@ import {
   prHighlights,
   volumeVsLastLabel,
 } from "./summary-view";
-import { AppHeader } from "@/components/app-header";
-import { BackLink } from "@/components/back-link";
-import { PrBadge } from "@/components/pr-badge";
-import { ShareCardButton } from "@/components/share-card-button";
+import { AppHeader } from "@/components/nav/app-header";
+import { BackLink } from "@/components/nav/back-link";
+import { PrBadge } from "@/components/workout/pr-badge";
+import { ShareCardButton } from "@/components/ui/share-card-button";
 import { cn } from "@/lib/utils";
 import { getActiveWorkoutShare } from "@/db/workout-shares";
 import { WorkoutActions } from "./workout-actions";

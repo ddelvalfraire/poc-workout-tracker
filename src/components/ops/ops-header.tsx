@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { BackLink } from '@/components/back-link'
+import { BackLink } from '@/components/nav/back-link'
 import { cn } from '@/lib/utils'
 import { AutoRefreshToggle } from './auto-refresh-toggle'
 import { OpsRefreshButton } from './refresh-button'
