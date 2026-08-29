@@ -1,24 +1,50 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+A workout tracking PWA: programs, logging, autoregulation, progress photos,
+stats, and an AI coach — plus an MCP server so agents can log and query
+training directly. Built on Next.js (App Router), Postgres via Drizzle,
+and WorkOS AuthKit.
+
+## Tech stack
+
+- **Framework**: Next.js (App Router) + React, TypeScript
+- **Auth**: WorkOS AuthKit
+- **Database**: Postgres (Supabase) via Drizzle ORM
+- **Cache**: Upstash Redis (optional — exercise catalog)
+- **Storage**: Supabase Storage (progress photos)
+- **Billing**: RevenueCat
+- **AI coach**: Vercel AI SDK, OpenRouter or Vercel AI Gateway
+- **MCP server**: `@modelcontextprotocol/sdk` (`/api/mcp`)
+- **Testing**: Vitest (unit), Playwright (e2e), Stryker (mutation)
+- **PWA**: Serwist service worker
 
 ## Getting Started
 
-First, run the development server:
+1. Copy `.env.example` to `.env.local` and fill in the variables you need.
+   Every variable is documented inline — most integrations (Redis, Sentry,
+   PostHog, the AI coach, `/ops`) are optional and degrade gracefully when
+   unset. WorkOS and `DATABASE_URL`/`DATABASE_URL_DIRECT` are required.
+2. Push the schema to your database:
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+   ```bash
+   npm run db:push
+   ```
+
+3. Run the development server:
+
+   ```bash
+   npm run dev
+   ```
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load its type pairing (Oswald + Inter), declared once in `src/app/fonts.ts`.
+
+## Testing
+
+```bash
+npm run test        # unit tests (Vitest)
+npm run test:e2e     # end-to-end tests (Playwright)
+npm run lint         # ESLint
+```
 
 ## Design system
 
