@@ -886,6 +886,26 @@ export function completeFilledSets(draft: WorkoutDraft): {
 }
 
 /**
+ * The number a set row DISPLAYS (1-based): its ordinal within its own class —
+ * warm-ups count among warm-ups, every other set among non-warm-ups. Tagging
+ * a warm-up therefore renumbers the working sets below it instead of leaving
+ * a gap ("W, 1, 2", never "W, 2, 3"), matching how the engine scores: a
+ * warm-up is preparation, not a set. Display-only — persistence keys
+ * (setNumber, note addressing) stay raw-positional.
+ */
+export function setDisplayNumber(
+  sets: readonly Pick<DraftSet, 'tag'>[],
+  setIndex: number,
+): number {
+  const isWarmup = sets[setIndex]?.tag === 'warmup'
+  let ordinal = 0
+  for (let i = 0; i <= setIndex && i < sets.length; i++) {
+    if ((sets[i].tag === 'warmup') === isWarmup) ordinal++
+  }
+  return ordinal
+}
+
+/**
  * The set an out-of-band weight (the plate sheet's counted total) should land
  * on: the first incomplete set — the one being worked — else the last set
  * (everything checked = the lifter is correcting the top). −1 for no sets;

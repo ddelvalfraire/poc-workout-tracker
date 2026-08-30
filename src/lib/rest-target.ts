@@ -1,7 +1,7 @@
 /**
  * Rest-target resolution for the logger's countdown — pure, IO-free, so the
  * precedence chain unit-tests as a plain function (mirroring `format.ts`'s
- * placeholder helpers, which own the same plan-slot indexing rules).
+ * placeholder helpers).
  *
  * Precedence: the just-completed set's PLAN restSec (per-set granularity — the
  * finest grain the program tree offers) > the user's session default > null
@@ -14,19 +14,20 @@ export interface RestTargetSource {
 }
 
 /**
- * The rest target (seconds) to count down after completing set `setIndex`, or
- * null for a plain count-up.
+ * The rest target (seconds) to count down after completing the set whose plan
+ * slot is `target`, or null for a plain count-up.
  *
- * Index overflow mirrors `placeholderForSet` exactly: a set index beyond the
- * plan (more sets logged than planned) has NO plan slot — it does not clamp to
- * the last planned set — so extra sets fall through to the session default,
- * the same way their ghosts fall through to nothing. A plan slot whose restSec
- * is null (set exists, rest unprescribed) falls through the same way.
+ * The caller resolves the slot itself — `resolvePlanTarget` in format.ts is
+ * the ONE pairing definition (role-aware: warm-ups never consume a working
+ * slot), and this module must not grow a second, positional copy of it. A set
+ * with no plan slot (extra sets beyond the plan, ad-hoc exercises) passes
+ * undefined and falls through to the session default, the same way its ghosts
+ * fall through to nothing. A slot whose restSec is null (set exists, rest
+ * unprescribed) falls through the same way.
  */
 export function resolveRestTarget(
-  planTargets: readonly RestTargetSource[] | undefined,
-  setIndex: number,
+  target: RestTargetSource | undefined,
   sessionDefault: number | null,
 ): number | null {
-  return planTargets?.[setIndex]?.restSec ?? sessionDefault ?? null
+  return target?.restSec ?? sessionDefault ?? null
 }

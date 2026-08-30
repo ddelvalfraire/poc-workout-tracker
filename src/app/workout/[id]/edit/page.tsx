@@ -103,6 +103,10 @@ async function loadPlanTargets(
       // the logger's timed rows read (plan targets only, per ghost-vs-prev).
       durationSec: s.durationSec,
       distanceM: s.distanceM,
+      // Role stamp (warmup only — minimal shape, see PlanSetTarget): lets
+      // resolvePlanTarget pair warm-up rows with warm-up targets so a
+      // mid-session warm-up never consumes a working prescription.
+      ...(s.setType === 'warmup' ? { setType: 'warmup' as const } : {}),
     }))
   day.exercises.forEach((exercise, i) => {
     const key = `${exercise.source}:${exercise.wgerExerciseId}`

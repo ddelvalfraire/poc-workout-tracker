@@ -124,6 +124,73 @@ describe('WorkoutLogger effort-row parity', () => {
   })
 })
 
+describe('WorkoutLogger warm-up rows (class-ordinal numbering + plan pairing)', () => {
+  /** One exercise whose FIRST row was retagged warm-up mid-session. */
+  const warmupFirstDraft = (workingCount: number): WorkoutDraft => ({
+    notes: '',
+    exercises: [
+      {
+        id: 'ex1',
+        wgerExerciseId: 73,
+        source: 'wger',
+        name: 'Squat',
+        category: 'Legs',
+        loggingType: 'weight_reps',
+        notes: '',
+        skipped: false,
+        sets: [
+          { id: 'w1', reps: '', weight: '', completed: false, tag: 'warmup' },
+          ...Array.from({ length: workingCount }, (_, i) => ({
+            id: `s${i + 1}`,
+            reps: '',
+            weight: '',
+            completed: false,
+            tag: 'working' as const,
+          })),
+        ],
+      },
+    ],
+  })
+
+  it('renumbers working sets past a warm-up (W, 1 — never W, 2)', () => {
+    const html = render({ initialDraft: warmupFirstDraft(1) })
+    // The one working row is set 1 of its class; nothing may say "set 2".
+    expect(html).toContain('Set 1 reps')
+    expect(html).not.toContain('Set 2 reps')
+    expect(html).toContain('Mark set 1 complete')
+    expect(html).not.toContain('Mark set 2 complete')
+    expect(html).toContain('Mark warm-up set 1 complete')
+  })
+
+  it('keeps working sets on their own plan targets when a warm-up leads (engine pairing)', () => {
+    // 2 prescribed working sets; the lifter's warm-up row must not consume
+    // target 1 — both working rows keep their ghosts, none shift off the end.
+    const html = render({
+      initialDraft: warmupFirstDraft(2),
+      planTargets: {
+        'wger:73': [
+          // Grid-exact loads (1.25 kg increments) so the ghost strings match verbatim.
+          { repMin: 5, repMax: 5, loadKg: 110, restSec: null },
+          { repMin: 5, repMax: 5, loadKg: 122.5, restSec: null },
+        ],
+      },
+    })
+    expect(html).toContain('placeholder="110"')
+    expect(html).toContain('placeholder="122.5"')
+  })
+
+  it('gives an unprescribed warm-up row no plan ghost (it has no slot)', () => {
+    const html = render({
+      initialDraft: warmupFirstDraft(1),
+      planTargets: {
+        'wger:73': [{ repMin: 5, repMax: 5, loadKg: 110, restSec: null }],
+      },
+    })
+    // The single working target ghosts exactly one row's weight input.
+    expect(html.split('placeholder="110"').length - 1).toBe(1)
+  })
+})
+
 describe('WorkoutLogger name block (#207)', () => {
   it('live session renders NO name block — no label, no input, no fallback line', () => {
     // Mid-session the name is a fact the app bar and summary already carry;

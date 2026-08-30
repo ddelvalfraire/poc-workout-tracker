@@ -500,6 +500,11 @@ export interface PlanSetTarget {
    *  pre-cardio call sites and fixtures keep their shape. */
   durationSec?: number | null
   distanceM?: number | null
+  /** Set role of the prescribed row. Stamped ONLY for 'warmup' (absent =
+   *  non-warm-up), mirroring the wire's minimal-shape convention so every
+   *  pre-existing target fixture stays valid. `resolvePlanTarget` reads it
+   *  to keep warm-up rows from consuming working prescriptions. */
+  setType?: 'warmup' | 'working' | 'backoff' | 'amrap'
 }
 
 /**
@@ -514,7 +519,18 @@ export function planPlaceholderForSet(
   index: number,
   unit: WeightUnit = 'kg',
 ): SetGhost {
-  const target = targets?.[index]
+  return planTargetPlaceholder(targets?.[index], unit)
+}
+
+/**
+ * The ghost for ONE resolved plan target — the body planPlaceholderForSet
+ * always had, exported so callers that resolve their target role-aware
+ * (`resolvePlanTarget`) can format it without re-implementing the dialect.
+ */
+export function planTargetPlaceholder(
+  target: PlanSetTarget | undefined,
+  unit: WeightUnit = 'kg',
+): SetGhost {
   if (!target) return {}
   let reps: string | undefined
   if (target.repMin !== null && target.repMax !== null) {
@@ -534,4 +550,38 @@ export function planPlaceholderForSet(
     duration: target.durationSec != null ? formatDurationInput(target.durationSec) : undefined,
     distance: target.distanceM != null ? formatDistanceInput(target.distanceM) : undefined,
   }
+}
+
+/**
+ * The plan target for the draft set at `setIndex`, paired by ROLE rather than
+ * raw position: warm-up rows pair with warm-up targets and every other row
+ * with non-warm-up targets, each by ordinal within its class. This is what
+ * keeps a warm-up from counting as a set against the plan — tagging (or
+ * adding) a warm-up mid-session no longer shifts every later working set onto
+ * the wrong ghost, rest prescription, and effort target. A seeded session is
+ * unchanged: its rows and targets carry the same roles in the same order, so
+ * role-ordinal pairing degenerates to the old positional lookup.
+ *
+ * Overflow mirrors `planPlaceholderForSet`: a row beyond its class's targets
+ * (extra sets, extra warm-ups) has NO plan slot and resolves to undefined.
+ */
+export function resolvePlanTarget(
+  targets: readonly PlanSetTarget[] | undefined,
+  sets: readonly { tag: string }[],
+  setIndex: number,
+): PlanSetTarget | undefined {
+  if (!targets) return undefined
+  const set = sets[setIndex]
+  if (!set) return undefined
+  const wantsWarmup = set.tag === 'warmup'
+  let ordinal = 0
+  for (let i = 0; i < setIndex; i++) {
+    if ((sets[i].tag === 'warmup') === wantsWarmup) ordinal++
+  }
+  for (const target of targets) {
+    if ((target.setType === 'warmup') !== wantsWarmup) continue
+    if (ordinal === 0) return target
+    ordinal--
+  }
+  return undefined
 }

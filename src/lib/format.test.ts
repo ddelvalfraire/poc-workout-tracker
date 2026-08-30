@@ -11,6 +11,7 @@ import {
   formatElapsed,
   placeholderForSet,
   planPlaceholderForSet,
+  resolvePlanTarget,
   adoptableGhostValue,
   planSetGhost,
   previousChipLabel,
@@ -680,5 +681,67 @@ describe('stepWeightValue with a custom step', () => {
     expect(stepWeightValue('60', undefined, 1, 'kg')).toBe(
       stepWeightValue('60', undefined, 1, 'kg', WEIGHT_STEP.kg),
     )
+  })
+})
+
+describe('resolvePlanTarget', () => {
+  const target = (loadKg: number, setType?: 'warmup') => ({
+    repMin: 5,
+    repMax: 5,
+    loadKg,
+    restSec: null,
+    ...(setType ? { setType } : {}),
+  })
+  const working = { tag: 'working' }
+  const warmup = { tag: 'warmup' }
+
+  it('degenerates to positional lookup when roles line up (a seeded session)', () => {
+    // Arrange — prescribed warm-up + 2 working, seeded rows in the same order
+    const targets = [target(40, 'warmup'), target(100), target(100)]
+    const sets = [warmup, working, working]
+
+    // Act + Assert
+    expect(resolvePlanTarget(targets, sets, 0)).toBe(targets[0])
+    expect(resolvePlanTarget(targets, sets, 1)).toBe(targets[1])
+    expect(resolvePlanTarget(targets, sets, 2)).toBe(targets[2])
+  })
+
+  it('keeps a mid-session warm-up from consuming a working prescription', () => {
+    // Arrange — plan prescribes 3 working sets; the lifter retagged row 0 as
+    // a warm-up and added a row, so working rows sit at 1..3
+    const targets = [target(100), target(102.5), target(105)]
+    const sets = [warmup, working, working, working]
+
+    // Act + Assert — the warm-up gets NO slot; working sets keep 1:1 targets
+    expect(resolvePlanTarget(targets, sets, 0)).toBeUndefined()
+    expect(resolvePlanTarget(targets, sets, 1)).toBe(targets[0])
+    expect(resolvePlanTarget(targets, sets, 2)).toBe(targets[1])
+    expect(resolvePlanTarget(targets, sets, 3)).toBe(targets[2])
+  })
+
+  it('pairs warm-up rows with warm-up targets by ordinal, wherever they sit', () => {
+    // Arrange — two prescribed warm-ups, one working
+    const targets = [target(40, 'warmup'), target(60, 'warmup'), target(100)]
+    const sets = [warmup, warmup, working]
+
+    // Act + Assert
+    expect(resolvePlanTarget(targets, sets, 0)).toBe(targets[0])
+    expect(resolvePlanTarget(targets, sets, 1)).toBe(targets[1])
+    expect(resolvePlanTarget(targets, sets, 2)).toBe(targets[2])
+  })
+
+  it('resolves undefined past the class’s targets (no clamping, mirroring planPlaceholderForSet)', () => {
+    // Arrange — 1 working target, an extra working set and an extra warm-up
+    const targets = [target(100)]
+    const sets = [working, working, warmup]
+
+    // Act + Assert
+    expect(resolvePlanTarget(targets, sets, 1)).toBeUndefined()
+    expect(resolvePlanTarget(targets, sets, 2)).toBeUndefined()
+  })
+
+  it('returns undefined with no targets or an out-of-range set index', () => {
+    expect(resolvePlanTarget(undefined, [working], 0)).toBeUndefined()
+    expect(resolvePlanTarget([target(100)], [working], 5)).toBeUndefined()
   })
 })
