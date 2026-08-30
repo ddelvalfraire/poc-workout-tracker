@@ -71,6 +71,10 @@ const ACTOR_WORD_CLASSES: Record<WorkoutChangelogEntry['actor'], string> = {
   mcp: 'text-foreground',
   coach: 'text-foreground',
   system: '',
+  // Never rendered as a word (see the `!== 'seed'` guard below) — Persona
+  // Foundry's writes are dev-only tooling, in the same "no actor word" voice
+  // as 'system'. Present only so this Record stays exhaustive.
+  seed: '',
 }
 
 function ChangeRow({ entry, locale }: { entry: WorkoutChangelogEntry; locale: Locale }) {
@@ -103,7 +107,7 @@ function ChangeRow({ entry, locale }: { entry: WorkoutChangelogEntry; locale: Lo
           already carried by the subject line's ink above. */}
       <p className="mt-0.5 text-xs text-muted-foreground">
         <span>{t(`kind.${entry.kind}`)}</span>
-        {entry.actor !== 'system' && (
+        {entry.actor !== 'system' && entry.actor !== 'seed' && (
           <>
             <span aria-hidden="true">{' · '}</span>
             <span className={ACTOR_WORD_CLASSES[entry.actor]}>{t(`actor.${entry.actor}`)}</span>

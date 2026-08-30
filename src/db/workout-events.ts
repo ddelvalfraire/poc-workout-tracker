@@ -20,8 +20,9 @@ export type WorkoutEventKind = 'original' | 'late_entry' | 'amendment' | 'system
 
 /** WHO made the change. Same boundary derivation as ProgramEventActor: server
  *  actions pass 'ui', the MCP layer separates 'coach' (in-memory bridge) from
- *  'mcp' (HTTP), and 'system' marks the app's own writes. */
-export type WorkoutEventActor = 'ui' | 'mcp' | 'coach' | 'system'
+ *  'mcp' (HTTP), 'system' marks the app's own writes, and 'seed' marks
+ *  scripts/seed-persona.ts's writes — never reachable from a user request. */
+export type WorkoutEventActor = 'ui' | 'mcp' | 'coach' | 'system' | 'seed'
 
 /** What a caller declares about ITS OWN intent. Every mutating workout write
  *  takes one — an unlogged write path should not be expressible. */
