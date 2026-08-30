@@ -1204,6 +1204,13 @@ describe('setDisplayNumber', () => {
     expect(setDisplayNumber(sets, 0)).toBe(1)
     expect(setDisplayNumber(sets, 2)).toBe(3)
   })
+
+  it('yields 0 (an impossible display number) for an index with no set behind it', () => {
+    const sets = tags('warmup', 'working')
+
+    expect(setDisplayNumber(sets, 2)).toBe(0)
+    expect(setDisplayNumber([], 0)).toBe(0)
+  })
 })
 
 describe('SET_EFFORT', () => {

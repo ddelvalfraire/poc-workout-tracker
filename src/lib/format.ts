@@ -1,7 +1,7 @@
 import { kgToDisplay, type WeightUnit } from './units'
 import { quantizeDisplayLoad } from './load-quantize'
 import { formatDistanceInput, formatDurationInput } from './duration'
-import type { LoggingType } from './workout-input'
+import { classOrdinal, type LoggingType } from './workout-input'
 import { DEFAULT_LOCALE, type Locale } from '@/i18n/config'
 import type { Message } from './message'
 
@@ -604,10 +604,10 @@ export function resolveHistorySet(
   return resolveByRole(last?.sets, (row) => row.setType === 'warmup', sets, setIndex)
 }
 
-/** The one pairing rule both resolvers above share: the draft set's ordinal
- *  within its class (warm-up vs not) picks the same-ordinal item of the same
- *  class. Undefined past the class's items — no clamping, mirroring the
- *  positional helpers' overflow contract. */
+/** The one pairing rule both resolvers above share: the draft set's class
+ *  ordinal (classOrdinal — the same core display numbering uses) picks the
+ *  same-ordinal item of the same class. Undefined past the class's items —
+ *  no clamping, mirroring the positional helpers' overflow contract. */
 function resolveByRole<T>(
   items: readonly T[] | undefined,
   isWarmupItem: (item: T) => boolean,
@@ -615,13 +615,9 @@ function resolveByRole<T>(
   setIndex: number,
 ): T | undefined {
   if (!items) return undefined
-  const set = sets[setIndex]
-  if (!set) return undefined
-  const wantsWarmup = set.tag === 'warmup'
-  let ordinal = 0
-  for (let i = 0; i < setIndex; i++) {
-    if ((sets[i].tag === 'warmup') === wantsWarmup) ordinal++
-  }
+  let ordinal = classOrdinal(sets, setIndex)
+  if (ordinal === undefined) return undefined
+  const wantsWarmup = sets[setIndex].tag === 'warmup'
   for (const item of items) {
     if (isWarmupItem(item) !== wantsWarmup) continue
     if (ordinal === 0) return item
