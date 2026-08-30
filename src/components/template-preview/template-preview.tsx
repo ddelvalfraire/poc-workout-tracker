@@ -1,8 +1,8 @@
 import type { ReactNode } from 'react'
 import { useTranslations } from 'next-intl'
 import { ChevronRight } from 'lucide-react'
-import { BlockMap } from '@/components/block-map'
-import { buildBlockWeeks } from '@/components/block-weeks'
+import { BlockMap } from '@/components/programs/block-map'
+import { buildBlockWeeks } from '@/components/programs/block-weeks'
 import {
   formatPlannedScheme,
   groupPlannedSets,

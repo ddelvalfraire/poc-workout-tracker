@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { requireUserId } from '@/lib/auth'
 import { getWeightUnit } from '@/db/preferences'
-import { AppHeader } from '@/components/app-header'
+import { AppHeader } from '@/components/nav/app-header'
 import { buttonVariants } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { ProgramBuilder } from './program-builder'

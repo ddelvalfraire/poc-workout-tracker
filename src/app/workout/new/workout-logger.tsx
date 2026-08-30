@@ -19,9 +19,9 @@ import { declaredSaveKind } from '@/lib/workout-session-mode'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import { AppHeader } from '@/components/app-header'
-import { PrBadge } from '@/components/pr-badge'
-import { ConfirmDialog } from '@/components/confirm-dialog'
+import { AppHeader } from '@/components/nav/app-header'
+import { PrBadge } from '@/components/workout/pr-badge'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import {
   saveWorkoutAction,
   updateWorkoutAction,

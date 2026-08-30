@@ -3,7 +3,7 @@
 import { useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Ellipsis } from 'lucide-react'
-import { ConfirmDialog } from '@/components/confirm-dialog'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { archiveGoalAction, deleteGoalAction } from './actions'
 import { useTranslations } from 'next-intl'
 

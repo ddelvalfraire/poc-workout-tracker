@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest'
 
-import { renderStaticIntl } from '../../vitest.intl'
+import { renderStaticIntl } from '../../../vitest.intl'
 import { OvershootField } from './overshoot-field'
 
 /**

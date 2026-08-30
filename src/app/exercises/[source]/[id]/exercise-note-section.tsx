@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Pin } from 'lucide-react'
-import { MarkdownView } from '@/components/markdown-view'
+import { MarkdownView } from '@/components/ui/markdown-view'
 import { QuickCaptureSheet } from '@/components/editor/quick-capture-sheet'
 import { upsertExerciseNoteAction, deleteExerciseNoteAction } from '@/app/exercises/actions'
 import type { ExerciseSource } from '@/lib/custom-exercise-input'

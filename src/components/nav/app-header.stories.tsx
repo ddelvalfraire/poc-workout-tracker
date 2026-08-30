@@ -3,7 +3,7 @@ import { Plus } from "lucide-react";
 
 import { AppHeader } from "./app-header";
 import { BackLink } from "./back-link";
-import { Button } from "./ui/button";
+import { Button } from "../ui/button";
 
 /**
  * The sticky top app bar — the native nav-bar pattern (DESIGN.md § Components).

@@ -3,7 +3,7 @@
 import { useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Trash2 } from 'lucide-react'
-import { ConfirmDialog } from '@/components/confirm-dialog'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { deleteBodyweightLogAction } from '@/app/actions'
 import { useTranslations } from 'next-intl'
 

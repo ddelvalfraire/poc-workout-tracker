@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { renderStaticIntl } from '../../vitest.intl'
+import { renderStaticIntl } from '../../../vitest.intl'
 import { BlockMap } from './block-map'
 import type { BlockWeek } from './block-weeks'
 

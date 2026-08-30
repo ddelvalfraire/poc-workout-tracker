@@ -7,7 +7,7 @@ import { startProgramDayAction } from '@/app/programs/actions'
 import {
   SessionConflictDialog,
   type SessionSummary,
-} from '@/components/session-conflict-dialog'
+} from '@/components/workout/session-conflict-dialog'
 import { useTranslations } from 'next-intl'
 
 /**

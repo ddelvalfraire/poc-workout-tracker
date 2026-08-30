@@ -3,7 +3,7 @@
 import { useEffect, useRef } from 'react'
 import { ArrowDown, ArrowUp, ArrowUpToLine, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { useAnimatedSheetClose } from '@/components/use-animated-sheet-close'
+import { useAnimatedSheetClose } from '@/components/ui/use-animated-sheet-close'
 import {
   HOME_SECTION_SHAPES,
   type HomeSectionMeta,

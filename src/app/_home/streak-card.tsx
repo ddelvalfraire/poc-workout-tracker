@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { getGoalsHomeSummary } from '@/lib/goals'
-import { StreakChip } from '@/components/streak-chip'
+import { StreakChip } from '@/components/home/streak-chip'
 import { getTranslations } from 'next-intl/server'
 import { cache } from 'react'
 

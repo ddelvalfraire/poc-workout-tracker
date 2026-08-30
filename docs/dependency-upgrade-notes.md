@@ -39,7 +39,7 @@ check that compiles `globals.css`.
 The key no longer exists on `ExperimentalConfig`, so `next.config.ts` stopped
 type-checking. **The feature is not gone**: the App Router runs React's canary
 channel, which ships `<ViewTransition>` natively, so
-`src/components/page-transition.tsx` keeps working with no opt-in. 16.3 adds
+`src/components/nav/page-transition.tsx` keeps working with no opt-in. 16.3 adds
 `gestureTransition` and `transitionIndicator`, and neither is a rename of this
 one.
 

@@ -3,7 +3,7 @@
 import { useEffect, useRef } from 'react'
 import { Plus, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { useAnimatedSheetClose } from '@/components/use-animated-sheet-close'
+import { useAnimatedSheetClose } from '@/components/ui/use-animated-sheet-close'
 import type { HomeSectionMeta } from '@/lib/home/registry'
 import { useTranslations } from 'next-intl'
 

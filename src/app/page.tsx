@@ -4,7 +4,7 @@ import { SignOutButton } from "@/components/auth/sign-out-button";
 import { redirect } from "next/navigation";
 import { requireUserId } from "@/lib/auth";
 import { getConsentState } from "@/db/consent";
-import { ConsentIdentity } from "@/components/consent-identity";
+import { ConsentIdentity } from "@/components/account/consent-identity";
 import { listWorkoutSummaries } from "@/db/workouts";
 import { listWorkoutDrafts } from "@/db/workout-drafts";
 import { getNextProgramDay } from "@/db/programs";

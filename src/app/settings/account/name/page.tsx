@@ -1,6 +1,6 @@
 import { getTranslations } from 'next-intl/server'
-import { AppHeader } from '@/components/app-header'
-import { BackLink } from '@/components/back-link'
+import { AppHeader } from '@/components/nav/app-header'
+import { BackLink } from '@/components/nav/back-link'
 import { NameEditor } from '@/components/account/name-editor'
 import { requireUserId } from '@/lib/auth'
 import { getAccountOverview } from '@/lib/workos/account'

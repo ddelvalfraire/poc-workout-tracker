@@ -22,7 +22,7 @@ import {
 import Link from 'next/link'
 import { ArrowUp, RotateCcw } from 'lucide-react'
 import { CoachMarkdown } from './coach-markdown'
-import { AppHeader } from '@/components/app-header'
+import { AppHeader } from '@/components/nav/app-header'
 import { CoachDisclosure } from './coach-disclosure'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { cn } from '@/lib/utils'

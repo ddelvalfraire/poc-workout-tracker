@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 
-import { STAT_TILE_SHELL } from "./stat-tile";
+import { STAT_TILE_SHELL } from "../charts/stat-tile";
 
 import { Ghost } from "./ghost";
 

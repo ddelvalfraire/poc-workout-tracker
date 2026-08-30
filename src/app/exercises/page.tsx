@@ -15,7 +15,7 @@ import {
   sessionCountLine,
   type LibraryParams,
 } from '@/lib/exercise-library'
-import { AppHeader } from '@/components/app-header'
+import { AppHeader } from '@/components/nav/app-header'
 import { NavDrawer } from '@/components/nav/nav-drawer'
 import { cn } from '@/lib/utils'
 import { LibraryFilter, type LibraryEntry } from './library-filter'

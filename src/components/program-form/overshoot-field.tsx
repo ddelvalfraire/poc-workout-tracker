@@ -5,7 +5,7 @@ import { Check, ChevronRight, X } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 
 import { Button } from '@/components/ui/button'
-import { useAnimatedSheetClose } from '@/components/use-animated-sheet-close'
+import { useAnimatedSheetClose } from '@/components/ui/use-animated-sheet-close'
 import { cn } from '@/lib/utils'
 import type { OvershootPolicy } from '@/lib/overshoot-policy'
 

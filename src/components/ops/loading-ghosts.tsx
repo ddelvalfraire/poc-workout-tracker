@@ -1,5 +1,5 @@
 import { cn } from '@/lib/utils'
-import { Ghost } from '@/components/ghost'
+import { Ghost } from '@/components/ui/ghost'
 
 /**
  * Ghost frames for the ops segment's loading.tsx files (DESIGN.md § Pending

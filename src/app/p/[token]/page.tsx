@@ -11,7 +11,7 @@ import {
   plannedSetChips,
   type PlannedSetShape,
 } from '@/lib/planned-set-format'
-import { AppHeader } from '@/components/app-header'
+import { AppHeader } from '@/components/nav/app-header'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { adoptSharedProgramAction } from './actions'
