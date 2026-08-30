@@ -78,6 +78,28 @@ export function isWorkoutSetType(value: unknown): value is WorkoutSetType {
   return (SET_TYPES as readonly unknown[]).includes(value)
 }
 
+/**
+ * 0-based ordinal of `sets[setIndex]` within its own set-type CLASS —
+ * warm-ups count among warm-ups, everything else among non-warm-ups — or
+ * undefined when no set exists at `setIndex`. The ONE definition of the
+ * role-ordinal rule: display numbering (setDisplayNumber in the logger
+ * draft) and plan/history pairing (resolveByRole in lib/format) both build
+ * on it, so the two can never drift.
+ */
+export function classOrdinal(
+  sets: readonly { tag: string }[],
+  setIndex: number,
+): number | undefined {
+  const set = sets[setIndex]
+  if (set === undefined) return undefined
+  const isWarmup = set.tag === 'warmup'
+  let ordinal = 0
+  for (let i = 0; i < setIndex; i++) {
+    if ((sets[i].tag === 'warmup') === isWarmup) ordinal++
+  }
+  return ordinal
+}
+
 /** A single logged set. `null` means the field was left blank. */
 export interface SetInput {
   reps: number | null

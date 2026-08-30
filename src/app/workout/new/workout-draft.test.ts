@@ -11,6 +11,7 @@ import {
   newDraftSet,
   replacementDraftExercise,
   resolveTargetSetIndex,
+  setDisplayNumber,
   type DraftSet,
   type WorkoutDraft,
 } from './workout-draft'
@@ -1175,6 +1176,40 @@ describe('resolveTargetSetIndex', () => {
 
   it('returns -1 for no sets so callers can no-op', () => {
     expect(resolveTargetSetIndex([])).toBe(-1)
+  })
+})
+
+describe('setDisplayNumber', () => {
+  const tags = (...values: ('working' | 'warmup')[]) => values.map((tag) => ({ tag }))
+
+  it('numbers working sets past a leading warm-up without a gap (W, 1, 2)', () => {
+    const sets = tags('warmup', 'working', 'working')
+
+    expect(setDisplayNumber(sets, 1)).toBe(1)
+    expect(setDisplayNumber(sets, 2)).toBe(2)
+  })
+
+  it('numbers warm-ups among warm-ups and working among working, interleaved', () => {
+    const sets = tags('warmup', 'working', 'warmup', 'working')
+
+    expect(setDisplayNumber(sets, 0)).toBe(1) // warm-up 1
+    expect(setDisplayNumber(sets, 1)).toBe(1) // working 1
+    expect(setDisplayNumber(sets, 2)).toBe(2) // warm-up 2
+    expect(setDisplayNumber(sets, 3)).toBe(2) // working 2
+  })
+
+  it('matches the raw position when no warm-ups exist', () => {
+    const sets = tags('working', 'working', 'working')
+
+    expect(setDisplayNumber(sets, 0)).toBe(1)
+    expect(setDisplayNumber(sets, 2)).toBe(3)
+  })
+
+  it('yields 0 (an impossible display number) for an index with no set behind it', () => {
+    const sets = tags('warmup', 'working')
+
+    expect(setDisplayNumber(sets, 2)).toBe(0)
+    expect(setDisplayNumber([], 0)).toBe(0)
   })
 })
 

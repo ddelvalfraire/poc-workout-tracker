@@ -48,6 +48,7 @@ import {
   nextSetMetricMode,
   replacementDraftExercise,
   resolveTargetSetIndex,
+  setDisplayNumber,
   setMetricMode,
   type DraftExercise,
   type DraftSet,
@@ -125,8 +126,10 @@ import {
   planSetGhost,
   stepWeightValue,
   resolveWeightStep,
-  placeholderForSet,
-  planPlaceholderForSet,
+  historySetPlaceholder,
+  resolveHistorySet,
+  planTargetPlaceholder,
+  resolvePlanTarget,
   adoptableGhostValue,
   previousChipLabel,
   completedSetsSummary,
@@ -178,7 +181,17 @@ function warmupHintSessionsSeen(): number {
  *  undone back) before the user taps Undo. */
 type RemovedEntry =
   | { kind: 'exercise'; exercise: DraftExercise; index: number }
-  | { kind: 'set'; exerciseId: string; exerciseName: string; setIndex: number; set: DraftSet }
+  /** `displayNumber` is the class-ordinal the row SHOWED when removed (see
+   *  setDisplayNumber) — captured here because it can't be recomputed once
+   *  the row is gone; `setIndex` stays raw for the INSERT_SET restore. */
+  | {
+      kind: 'set'
+      exerciseId: string
+      exerciseName: string
+      setIndex: number
+      displayNumber: number
+      set: DraftSet
+    }
   /** Undo for REPLACE_EXERCISE: restores the ORIGINAL exercise (logged
    *  values included) over the replacement, resolved by the replacement's
    *  stable id — the list can shift before Undo. */
@@ -674,7 +687,7 @@ export function WorkoutLogger({
   // default instead of pre-merged so the two stay independently live: editing
   // the default mid-rest retargets a default-driven countdown instantly but
   // never overwrites a plan prescription. The effective target below is the
-  // same value resolveRestTarget(plan, setIndex, sessionRestSec) yields.
+  // same value resolveRestTarget(planTargetForSet(…), sessionRestSec) yields.
   const [restPlanSec, setRestPlanSec] = useState<number | null>(null)
   // The session's fallback rest target — server-seeded, sheet-editable
   // (optimistic local state; the server persist is best-effort). Same
@@ -786,9 +799,16 @@ export function WorkoutLogger({
    * target while the rail steps from another. `.weight` is undefined for
    * BW-relative types by design (a total-load ghost would be a phantom).
    */
+  /** The plan slot for one draft set — role-aware (resolvePlanTarget): a
+   *  warm-up row pairs only with a warm-up target, so tagging a warm-up
+   *  mid-session never shifts the working sets onto the wrong prescription.
+   *  Every plan read below (ghosts, effort target, rest) goes through this. */
+  const planTargetForSet = (exercise: DraftExercise, setIndex: number) =>
+    resolvePlanTarget(planFor(exercise.source, exercise.wgerExerciseId), exercise.sets, setIndex)
+
   const ghostForSet = (exercise: DraftExercise, setIndex: number) =>
     planSetGhost(
-      planPlaceholderForSet(planFor(exercise.source, exercise.wgerExerciseId), setIndex, unit),
+      planTargetPlaceholder(planTargetForSet(exercise, setIndex), unit),
       exercise.loggingType,
     )
 
@@ -1015,6 +1035,7 @@ export function WorkoutLogger({
       exerciseId: exercise.id,
       exerciseName: exercise.name,
       setIndex,
+      displayNumber: setDisplayNumber(exercise.sets, setIndex),
       set,
     })
   }
@@ -1356,7 +1377,7 @@ export function WorkoutLogger({
       return t.rich('undoReplaced', { subject: last.previous.name, ...emphasis })
     }
     return t.rich('undoRemoved', {
-      subject: t('undoSetSubject', { number: last.setIndex + 1, name: last.exerciseName }),
+      subject: t('undoSetSubject', { number: last.displayNumber, name: last.exerciseName }),
       ...emphasis,
     })
   }
@@ -2060,16 +2081,22 @@ export function WorkoutLogger({
                 // Two surfaces, two meanings: the grey input ghost is the
                 // PLAN's week-N target; the Prev chip is last performance.
                 // Neither borrows from the other.
-                const history = placeholderForSet(
-                  lastByExercise[`${exercise.source}:${exercise.wgerExerciseId}`] ?? null,
-                  setIndex,
+                // History pairs by ROLE too (resolveHistorySet): a working
+                // row reads last session's same-ordinal working set, never a
+                // warm-up — the two sessions may have warmed up differently.
+                const history = historySetPlaceholder(
+                  resolveHistorySet(
+                    lastByExercise[`${exercise.source}:${exercise.wgerExerciseId}`] ?? null,
+                    exercise.sets,
+                    setIndex,
+                  ),
                   unit,
                 )
                 const ghost = ghostForSet(exercise, setIndex)
                 // Effort show rule (spec-exact): prescribed target on THIS
                 // set, or the opt-in preference. False = zero effort UI and
                 // zero new state writes — the fast path stays byte-identical.
-                const effortTarget = planFor(exercise.source, exercise.wgerExerciseId)?.[setIndex]
+                const effortTarget = planTargetForSet(exercise, setIndex)
                 const effortEnabled = shouldShowEffortRow(effortTarget, rpeLoggingEnabled)
                 // Prev is previous PERFORMANCE only: plan targets ghost the
                 // inputs above but never masquerade as history in this column.
@@ -2105,16 +2132,20 @@ export function WorkoutLogger({
                 // The glyph in the circle is visual-only.
                 const stage = set.technique
                 const isStage = stage !== undefined && stage.stageIndex > 0
+                // Class-ordinal, not raw index: warm-ups number among
+                // warm-ups, everything else among non-warm-ups, so a warm-up
+                // never bumps the working numbers below it ("W, 1, 2").
+                const displayNumber = setDisplayNumber(exercise.sets, setIndex)
                 const setLabel = isStage
                   ? t('setLabelStage', {
                       // Sentence-position name ('drop set'), not the picker's title case.
                       technique: t(`technique.${TECHNIQUE_LABEL_KEY[stage.kind]}`),
                       stage: stage.stageIndex + 1,
-                      number: setIndex + 1,
+                      number: displayNumber,
                     })
                   : set.tag === 'warmup'
-                    ? t('setLabelWarmup', { number: setIndex + 1 })
-                    : t('setLabel', { number: setIndex + 1 })
+                    ? t('setLabelWarmup', { number: displayNumber })
+                    : t('setLabel', { number: displayNumber })
                 // A technique group reads as ONE set: its rows sit under a
                 // shared hairline (the superset vocabulary), so three
                 // rest-pause rows never look like three straight sets.
@@ -2318,8 +2349,7 @@ export function WorkoutLogger({
                       // rest state ever starts, so the readout/sheet never
                       // render — the surface disappears, not just the target.
                       const planRestSec = resolveRestTarget(
-                        planFor(exercise.source, exercise.wgerExerciseId),
-                        setIndex,
+                        planTargetForSet(exercise, setIndex),
                         null,
                       )
                       // Between the stages of ONE technique set there is no
@@ -2385,7 +2415,7 @@ export function WorkoutLogger({
                     ) : set.tag === 'warmup' ? (
                       t('warmupGlyph')
                     ) : (
-                      setIndex + 1
+                      displayNumber
                     )}
                     {/* Notes-v2 indicator: a 4px volt dot beside the set
                         number — the note's WHOLE in-logger footprint (the
@@ -2459,7 +2489,7 @@ export function WorkoutLogger({
                           }
                           document.getElementById(`distance-input-${set.id}`)?.focus()
                         }}
-                        aria-label={t('durationAriaLabel', { set: setIndex + 1 })}
+                        aria-label={t('durationAriaLabel', { set: displayNumber })}
                         className={cn(
                           'flex-1 rounded-none border-0 border-b-2 bg-transparent px-1 text-center tnum',
                           rowState === 'active' && 'border-input text-lg font-medium',
@@ -2498,7 +2528,7 @@ export function WorkoutLogger({
                             e.preventDefault()
                             e.currentTarget.blur()
                           }}
-                          aria-label={t('distanceAriaLabel', { set: setIndex + 1 })}
+                          aria-label={t('distanceAriaLabel', { set: displayNumber })}
                           className={cn(
                             'flex-1 rounded-none border-0 border-b-2 bg-transparent px-1 text-center tnum',
                             rowState === 'active' && 'border-input text-lg font-medium',
@@ -2552,7 +2582,7 @@ export function WorkoutLogger({
                       }
                       document.getElementById(`weight-input-${set.id}`)?.focus()
                     }}
-                    aria-label={t('repsAriaLabel', { set: setIndex + 1 })}
+                    aria-label={t('repsAriaLabel', { set: displayNumber })}
                     className={cn(
                       // Underline-field skin: same input, same handlers, same
                       // h-11 hit area — the box collapses to a baseline. px-1
@@ -2575,7 +2605,7 @@ export function WorkoutLogger({
                     // The lifter IS the load: a non-editable pill holds the
                     // weight input's footprint so rows never jump on switch.
                     <span
-                      aria-label={t('bodyweightAriaLabel', { set: setIndex + 1 })}
+                      aria-label={t('bodyweightAriaLabel', { set: displayNumber })}
                       className={cn(
                         // Chips → words: "BW" as quiet text, same footprint so
                         // rows never jump on a logging-type switch.
@@ -2670,10 +2700,10 @@ export function WorkoutLogger({
                         onBlur={() => setStepperSetId(null)}
                         aria-label={
                           exercise.loggingType === 'weighted_bodyweight'
-                            ? t('addedWeightAriaLabel', { set: setIndex + 1, unit })
+                            ? t('addedWeightAriaLabel', { set: displayNumber, unit })
                             : exercise.loggingType === 'assisted_bodyweight'
-                              ? t('assistanceAriaLabel', { set: setIndex + 1, unit })
-                              : t('weightAriaLabel', { set: setIndex + 1, unit })
+                              ? t('assistanceAriaLabel', { set: displayNumber, unit })
+                              : t('weightAriaLabel', { set: displayNumber, unit })
                         }
                         className={cn(
                           // Same underline skin as the reps input (see its
@@ -2951,7 +2981,7 @@ export function WorkoutLogger({
             <span className="min-w-0 truncate text-sm text-muted-foreground">
               {t.rich('nextUp', {
                 name: nextUp.exercise.name,
-                set: nextUp.setIndex + 1,
+                set: setDisplayNumber(nextUp.exercise.sets, nextUp.setIndex),
                 exercise: (chunks) => <span className="text-foreground">{chunks}</span>,
               })}
             </span>
@@ -3039,7 +3069,7 @@ export function WorkoutLogger({
             above. Pinned by e2e/sticky-cta.spec.ts. */}
         {stepperTarget && (
           <WeightStepper
-            setIndex={stepperTarget.setIndex}
+            displayNumber={setDisplayNumber(stepperTarget.exercise.sets, stepperTarget.setIndex)}
             inputId={`weight-input-${stepperTarget.set.id}`}
             weight={stepperTarget.set.weight}
             ghostWeight={stepperTarget.ghost.weight}
@@ -3279,8 +3309,9 @@ export function WorkoutLogger({
         (() => {
           const exercise = draft.exercises[rowMenu.exerciseIndex]
           const set = exercise.sets[rowMenu.setIndex]
+          const menuNumber = setDisplayNumber(exercise.sets, rowMenu.setIndex)
           const menuSetLabel =
-            set.tag === 'warmup' ? `warm-up set ${rowMenu.setIndex + 1}` : `set ${rowMenu.setIndex + 1}`
+            set.tag === 'warmup' ? `warm-up set ${menuNumber}` : `set ${menuNumber}`
           return (
             <SetRowMenu
               x={rowMenu.x}
@@ -3387,7 +3418,7 @@ export function WorkoutLogger({
                   ? null
                   : {
                       exerciseName: anchored.exercise.name,
-                      setNumber: anchored.setIndex + 1,
+                      setNumber: setDisplayNumber(anchored.exercise.sets, anchored.setIndex),
                       snapshot: setSnapshotLabel(
                         anchored.set,
                         anchored.exercise.loggingType,

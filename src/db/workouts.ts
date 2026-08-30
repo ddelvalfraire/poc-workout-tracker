@@ -167,6 +167,11 @@ export interface LastPerformance {
     weight: number | null
     durationSec?: number | null
     distanceM?: number | null
+    /** Set role, so the Prev column can pair by CLASS (a warm-up last time
+     *  never ghosts a working row today — resolveHistorySet). Optional like
+     *  the cardio fields: pre-existing fixtures keep their shape, and an
+     *  absent value reads as non-warm-up. */
+    setType?: SetType
   }[]
   /**
    * The user's exercise-IDENTITY note (exercise_notes LEFT JOIN), riding the
@@ -259,6 +264,7 @@ export async function getLastPerformance(
       weight: sets.weight,
       durationSec: sets.durationSec,
       distanceM: sets.distanceM,
+      setType: sets.setType,
     })
     .from(sets)
     .where(eq(sets.workoutExerciseId, recent.exerciseId))

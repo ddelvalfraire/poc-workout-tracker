@@ -395,6 +395,9 @@ export async function substitutePlanTargetsAction(
     // Cardio targets — same dialect as loadPlanTargets (the comment above).
     durationSec: s.durationSec,
     distanceM: s.distanceM,
+    // Role stamp, same rule as loadPlanTargets: warm-up targets pair only
+    // with warm-up rows (resolvePlanTarget).
+    ...(s.setType === 'warmup' ? { setType: 'warmup' as const } : {}),
   }))
 }
 

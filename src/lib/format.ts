@@ -1,7 +1,7 @@
 import { kgToDisplay, type WeightUnit } from './units'
 import { quantizeDisplayLoad } from './load-quantize'
 import { formatDistanceInput, formatDurationInput } from './duration'
-import type { LoggingType } from './workout-input'
+import { classOrdinal, type LoggingType } from './workout-input'
 import { DEFAULT_LOCALE, type Locale } from '@/i18n/config'
 import type { Message } from './message'
 
@@ -311,21 +311,36 @@ export function formatE1RM(
  * last time — so the caller can spread the result onto the inputs and any unset
  * field renders no ghost (an `undefined` `placeholder` is omitted by React).
  */
+/** A prior-performance set row as the placeholder helpers read it
+ *  (LastPerformance.sets — every field beyond reps/weight optional so
+ *  pre-existing fixtures and callers keep their shape). */
+export interface HistorySetRow {
+  reps: number | null
+  weight: number | null
+  /** Cardio ride-alongs — optional so pre-cardio fixtures keep their shape. */
+  durationSec?: number | null
+  distanceM?: number | null
+  /** Set role — optional (absent = non-warm-up); read by resolveHistorySet. */
+  setType?: string
+}
+
 export function placeholderForSet(
-  last: {
-    sets: {
-      reps: number | null
-      weight: number | null
-      /** Cardio ride-alongs (LastPerformance) — optional so pre-cardio
-       *  fixtures and callers keep their shape. */
-      durationSec?: number | null
-      distanceM?: number | null
-    }[]
-  } | null,
+  last: { sets: HistorySetRow[] } | null,
   index: number,
   unit: WeightUnit = 'kg',
 ): SetGhost {
-  const prior = last?.sets[index]
+  return historySetPlaceholder(last?.sets[index], unit)
+}
+
+/**
+ * The ghost for ONE prior set — the body placeholderForSet always had,
+ * exported so callers that resolve their history row role-aware
+ * (`resolveHistorySet`) can format it without re-implementing the dialect.
+ */
+export function historySetPlaceholder(
+  prior: HistorySetRow | undefined,
+  unit: WeightUnit = 'kg',
+): SetGhost {
   if (!prior) return {}
   return {
     reps: prior.reps !== null ? String(prior.reps) : undefined,
@@ -500,6 +515,11 @@ export interface PlanSetTarget {
    *  pre-cardio call sites and fixtures keep their shape. */
   durationSec?: number | null
   distanceM?: number | null
+  /** Set role of the prescribed row. Stamped ONLY for 'warmup' (absent =
+   *  non-warm-up), mirroring the wire's minimal-shape convention so every
+   *  pre-existing target fixture stays valid. `resolvePlanTarget` reads it
+   *  to keep warm-up rows from consuming working prescriptions. */
+  setType?: 'warmup' | 'working' | 'backoff' | 'amrap'
 }
 
 /**
@@ -514,7 +534,18 @@ export function planPlaceholderForSet(
   index: number,
   unit: WeightUnit = 'kg',
 ): SetGhost {
-  const target = targets?.[index]
+  return planTargetPlaceholder(targets?.[index], unit)
+}
+
+/**
+ * The ghost for ONE resolved plan target — the body planPlaceholderForSet
+ * always had, exported so callers that resolve their target role-aware
+ * (`resolvePlanTarget`) can format it without re-implementing the dialect.
+ */
+export function planTargetPlaceholder(
+  target: PlanSetTarget | undefined,
+  unit: WeightUnit = 'kg',
+): SetGhost {
   if (!target) return {}
   let reps: string | undefined
   if (target.repMin !== null && target.repMax !== null) {
@@ -534,4 +565,63 @@ export function planPlaceholderForSet(
     duration: target.durationSec != null ? formatDurationInput(target.durationSec) : undefined,
     distance: target.distanceM != null ? formatDistanceInput(target.distanceM) : undefined,
   }
+}
+
+/**
+ * The plan target for the draft set at `setIndex`, paired by ROLE rather than
+ * raw position: warm-up rows pair with warm-up targets and every other row
+ * with non-warm-up targets, each by ordinal within its class. This is what
+ * keeps a warm-up from counting as a set against the plan — tagging (or
+ * adding) a warm-up mid-session no longer shifts every later working set onto
+ * the wrong ghost, rest prescription, and effort target. A seeded session is
+ * unchanged: its rows and targets carry the same roles in the same order, so
+ * role-ordinal pairing degenerates to the old positional lookup.
+ *
+ * Overflow mirrors `planPlaceholderForSet`: a row beyond its class's targets
+ * (extra sets, extra warm-ups) has NO plan slot and resolves to undefined.
+ */
+export function resolvePlanTarget(
+  targets: readonly PlanSetTarget[] | undefined,
+  sets: readonly { tag: string }[],
+  setIndex: number,
+): PlanSetTarget | undefined {
+  return resolveByRole(targets, (t) => t.setType === 'warmup', sets, setIndex)
+}
+
+/**
+ * The prior-performance row for the draft set at `setIndex`, paired by ROLE
+ * exactly like resolvePlanTarget: a warm-up row only reads last session's
+ * warm-ups, a working row only last session's working sets, each by ordinal
+ * within its class. This keeps the Prev chip honest when the two sessions
+ * warmed up differently — without it, a session with no warm-ups today wore
+ * last time's warm-up loads as "previous performance" on its working sets.
+ */
+export function resolveHistorySet(
+  last: { sets: readonly HistorySetRow[] } | null,
+  sets: readonly { tag: string }[],
+  setIndex: number,
+): HistorySetRow | undefined {
+  return resolveByRole(last?.sets, (row) => row.setType === 'warmup', sets, setIndex)
+}
+
+/** The one pairing rule both resolvers above share: the draft set's class
+ *  ordinal (classOrdinal — the same core display numbering uses) picks the
+ *  same-ordinal item of the same class. Undefined past the class's items —
+ *  no clamping, mirroring the positional helpers' overflow contract. */
+function resolveByRole<T>(
+  items: readonly T[] | undefined,
+  isWarmupItem: (item: T) => boolean,
+  sets: readonly { tag: string }[],
+  setIndex: number,
+): T | undefined {
+  if (!items) return undefined
+  let ordinal = classOrdinal(sets, setIndex)
+  if (ordinal === undefined) return undefined
+  const wantsWarmup = sets[setIndex].tag === 'warmup'
+  for (const item of items) {
+    if (isWarmupItem(item) !== wantsWarmup) continue
+    if (ordinal === 0) return item
+    ordinal--
+  }
+  return undefined
 }
