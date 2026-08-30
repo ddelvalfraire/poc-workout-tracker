@@ -2059,7 +2059,13 @@ export function WorkoutLogger({
                 ) : (
                   <>
                     <span className="flex-1 text-center">{t('column.reps')}</span>
-                    <span className="flex-1 text-center">{unit}</span>
+                    {/* A bodyweight exercise has no weight column to head —
+                        its rows carry the BW glyph — so the unit label goes
+                        blank (same footprint-holding trick as duration-only
+                        cardio above). */}
+                    <span className="flex-1 text-center">
+                      {exercise.loggingType === 'bodyweight_reps' ? '' : unit}
+                    </span>
                   </>
                 )}
                 <span className="size-9 shrink-0" aria-hidden="true" />
