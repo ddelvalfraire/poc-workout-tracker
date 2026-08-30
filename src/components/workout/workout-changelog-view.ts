@@ -1,4 +1,4 @@
-import type { WorkoutEventKind } from '@/db/workout-events'
+import type { WorkoutEventActor, WorkoutEventKind } from '@/db/workout-events'
 
 /**
  * Pure view logic for the session change log — kept free of JSX so it unit
@@ -16,7 +16,7 @@ import type { WorkoutEventKind } from '@/db/workout-events'
 export interface WorkoutChangelogEntry {
   id: string
   kind: WorkoutEventKind
-  actor: 'ui' | 'mcp' | 'coach' | 'system'
+  actor: WorkoutEventActor
   occurredAt: Date
   summary: string
 }

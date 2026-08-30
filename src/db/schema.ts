@@ -1092,7 +1092,7 @@ export const workoutEvents = pgTable(
     userId: text('user_id').notNull(), // WorkOS user id — ownership root, like `workouts`
     occurredAt: timestamp('occurred_at', { withTimezone: true }).defaultNow().notNull(),
     kind: text('kind').$type<'original' | 'late_entry' | 'amendment' | 'system'>().notNull(),
-    actor: text('actor').$type<'ui' | 'mcp' | 'coach' | 'system'>().notNull(),
+    actor: text('actor').$type<'ui' | 'mcp' | 'coach' | 'system' | 'seed'>().notNull(),
     action: text('action').notNull(),
     summary: text('summary').notNull(),
     /** Column names the intent touched — empty for a creation or a removal,
