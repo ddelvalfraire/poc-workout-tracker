@@ -17,13 +17,13 @@ first.
 
 | Fact | Where | Consequence |
 |---|---|---|
-| `techniqueSchema` is `{version, kind, stages[{loadKg?, reps?, restSec?}]}`, `.strict()` | `src/lib/program-input.ts:101` | The stored shape is small and already round-trips every write path |
+| `techniqueSchema` is `{version, kind, stages[{loadKg?, reps?, restSec?}]}`, `.strict()` | `src/lib/programs/program-input.ts:101` | The stored shape is small and already round-trips every write path |
 | `technique` is a column on `program_sets` AND `program_set_overrides` | `src/db/schema.ts:909`, `:971` | A technique can be authored per plan and replaced per week |
-| A per-week override replaces the WHOLE technique object | `src/lib/progression.ts:200` | There is no partial per-week edit of a stage |
+| A per-week override replaces the WHOLE technique object | `src/lib/programs/progression.ts:200` | There is no partial per-week edit of a stage |
 | `ProgramSetPatch.technique` is written by `addProgramSet` / `updateProgramSet` / `setProgramSetOverride`, each re-parsed via `parseTechnique` | `src/db/program-patches.ts:1444`, `:1480`, `:1525`, `:1848` | **The write path is complete.** This spec adds no patch helper |
 | Reachable over MCP as `update_program_set` | `src/lib/mcp/program-patch-tools.ts` | The agent can author a technique; the owner cannot |
-| Stage rows are expanded at derivation, inheriting the top set's chassis | `src/lib/technique.ts:112` (`expandTechniqueStages`) | Stage authoring is a plan-time act with a derive-time consequence |
-| Group volume weight: top 1.0, later stages 0.5; cluster 1.0 whole | `src/lib/technique.ts:184` (`stageVolumeWeight`) | Authoring changes weekly volume, so the surface owes the number |
+| Stage rows are expanded at derivation, inheriting the top set's chassis | `src/lib/workout/technique.ts:112` (`expandTechniqueStages`) | Stage authoring is a plan-time act with a derive-time consequence |
+| Group volume weight: top 1.0, later stages 0.5; cluster 1.0 whole | `src/lib/workout/technique.ts:184` (`stageVolumeWeight`) | Authoring changes weekly volume, so the surface owes the number |
 | No row of a technique group testifies to auto-regulation | `db/autoreg-history.ts`, settled in TECHNIQUE-LOGGING.md | Adding a technique SILENCES autoreg for that exercise |
 
 **Position.** This spec adds a representation (`loadPct`), the derive-time
@@ -35,7 +35,7 @@ no migration.
 `expandTechniqueStages` takes each stage's load verbatim:
 
 ```ts
-loadKg: stage.loadKg ?? null,     // src/lib/technique.ts:141
+loadKg: stage.loadKg ?? null,     // src/lib/workout/technique.ts:141
 ```
 
 Nothing scales it. Meanwhile the set it drops from is derived per week —
@@ -96,7 +96,7 @@ The engine's contract, stated once and obeyed by the preview:
 | Rule | Behaviour |
 |---|---|
 | Both `loadKg` and `loadPct` present | **Parse error.** Not a precedence rule — a stage means one thing |
-| `loadPct` present, top set's derived load is a number | `quantizeLoadKg(top × pct, unit)` (`src/lib/load-quantize.ts`) |
+| `loadPct` present, top set's derived load is a number | `quantizeLoadKg(top × pct, unit)` (`src/lib/workout/load-quantize.ts`) |
 | `loadPct` present, top set's derived load is `null` | Resolves to `null` — the captured case. A percentage of nothing is nothing, and inventing a number here is the phantom prescription the doc already banned |
 | `loadPct` on a timed set (`duration` / `duration_distance`) | Resolves to `null`, checked on `metricMode` rather than inferred from a null load — the guard `applyOverride` already makes. `durationSec` is never multiplied by a load factor |
 | Range | `0 < loadPct ≤ 2`. Above 1.0 is legal — an ascending cluster is a real thing |
@@ -181,7 +181,7 @@ actually prescribe — and the volume line states the weighted number
 ## 06 · i18n
 
 Namespace per component; kind names come from the existing `TECHNIQUE_LABEL_KEY`
-map (`src/lib/technique.ts:38`) and are **not** re-written here. New leaves are
+map (`src/lib/workout/technique.ts:38`) and are **not** re-written here. New leaves are
 the mode words, the consequence sentences and the preview's labels. The file
 joins `I18N_MIGRATED` in the PR that creates it.
 

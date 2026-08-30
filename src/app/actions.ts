@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { signOut } from '@workos-inc/authkit-nextjs'
-import { requireUserId } from '@/lib/auth'
+import { requireUserId } from '@/lib/auth/auth'
 import {
   setWeightUnit,
   setEquipment,
@@ -18,7 +18,7 @@ import { WEIGHT_STEP_CHOICES } from '@/lib/format'
 import { logBodyweight, deleteBodyweightLog } from '@/db/bodyweight'
 import { checkGoalAchievements } from '@/lib/goals/goals'
 import { logMeasurement, deleteMeasurement } from '@/db/body-measurements'
-import { isMeasurementSite } from '@/lib/measurement-sites'
+import { isMeasurementSite } from '@/lib/body/measurement-sites'
 import { isWeightUnit, displayToKg, displayToCm, lengthUnitFor } from '@/lib/units'
 import { parseEquipmentInput } from '@/lib/exercises/equipment'
 import { MAX_REST_SEC } from '@/lib/programs/program-input'

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { getUserId } from '@/lib/auth'
+import { getUserId } from '@/lib/auth/auth'
 import { countProgressPhotos, insertProgressPhoto } from '@/db/progress-photos'
 import { deleteObjects, uploadObject } from '@/lib/supabase-storage'
 import {
@@ -11,7 +11,7 @@ import {
   PHOTO_NOTE_MAX_LENGTH,
   sniffImageContentType,
   type PhotoPose,
-} from '@/lib/photo-input'
+} from '@/lib/body/photo-input'
 
 // Backdating is allowed (a photo from last month is real data); a future
 // takenAt is not. The slack absorbs client-clock skew, nothing more.

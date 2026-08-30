@@ -31,7 +31,7 @@ vi.mock('vaul', () => {
   }
 })
 
-import type { DrawerData } from '@/lib/drawer-status'
+import type { DrawerData } from '@/lib/home/drawer-status'
 import { NavDrawer, planDrawerOpen, statusArrival } from './nav-drawer'
 
 /** Static render with the Query provider NavDrawer's useQuery now requires;

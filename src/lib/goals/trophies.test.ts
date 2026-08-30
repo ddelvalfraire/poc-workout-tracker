@@ -19,7 +19,7 @@ vi.mock('@/db/goals', () => ({
 vi.mock('@/db/programs', () => ({
   programWeekState: vi.fn(async () => ({ currentWeek: 1, blockComplete: false })),
 }))
-vi.mock('@/lib/push', () => ({
+vi.mock('@/lib/push/push', () => ({
   sendPushToUser: vi.fn(async () => ({ configured: true, sent: 1, pruned: 0, failed: 0 })),
 }))
 
@@ -35,7 +35,7 @@ import {
 import { getExerciseStats, listLoggedExercises } from '@/db/exercise-stats'
 import { activeScheduledWeekdays, completedWorkoutTimes } from '@/db/goals'
 import { programWeekState } from '@/db/programs'
-import { sendPushToUser } from '@/lib/push'
+import { sendPushToUser } from '@/lib/push/push'
 import { TROPHY_KINDS, thresholdKg, type TrophyKind } from '@/lib/goals/trophy-kinds'
 import { displayToKg } from '@/lib/units'
 import {

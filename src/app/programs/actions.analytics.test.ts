@@ -6,7 +6,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
  * pure libs (program-input schemas, units) stay real.
  */
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
-vi.mock('@/lib/auth', () => ({ requireUserId: vi.fn() }))
+vi.mock('@/lib/auth/auth', () => ({ requireUserId: vi.fn() }))
 vi.mock('@/db/programs', () => ({
   saveProgram: vi.fn(),
   updateProgram: vi.fn(),
@@ -43,7 +43,7 @@ import {
   adoptProgramAction,
   startProgramDayAction,
 } from './actions'
-import { requireUserId } from '@/lib/auth'
+import { requireUserId } from '@/lib/auth/auth'
 import { setProgramStatus, adoptProgram } from '@/db/programs'
 import { instantiateProgramDay } from '@/db/prescriptions'
 import { captureServerEvent } from '@/lib/analytics'

@@ -1,4 +1,4 @@
-import { requireUserId } from '@/lib/auth'
+import { requireUserId } from '@/lib/auth/auth'
 import { AppHeader } from '@/components/nav/app-header'
 import { BackLink } from '@/components/nav/back-link'
 import { CreateExerciseForm, type ReturnMode } from './create-exercise-form'

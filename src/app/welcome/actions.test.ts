@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-vi.mock('@/lib/auth', () => ({ requireUserId: vi.fn(async () => 'user_1') }))
+vi.mock('@/lib/auth/auth', () => ({ requireUserId: vi.fn(async () => 'user_1') }))
 vi.mock('next/headers', () => ({
   headers: vi.fn(async () => new Headers({ 'x-forwarded-for': '203.0.113.9', 'user-agent': 'ua' })),
 }))

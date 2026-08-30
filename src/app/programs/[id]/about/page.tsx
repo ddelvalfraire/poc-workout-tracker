@@ -3,7 +3,7 @@ import { ChevronLeft } from 'lucide-react'
 import { notFound } from 'next/navigation'
 import { getTranslations } from 'next-intl/server'
 
-import { requireUserId } from '@/lib/auth'
+import { requireUserId } from '@/lib/auth/auth'
 import { getProgramDetail, programWeekState } from '@/db/programs'
 import { AppHeader } from '@/components/nav/app-header'
 import { BackLink } from '@/components/nav/back-link'

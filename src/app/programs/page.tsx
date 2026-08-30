@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { Check, ChevronRight } from 'lucide-react'
-import { requireUserId } from '@/lib/auth'
+import { requireUserId } from '@/lib/auth/auth'
 import {
   listPrograms,
   getProgramDetail,

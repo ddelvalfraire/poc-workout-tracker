@@ -1,7 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { requireUserId } from '@/lib/auth'
+import { requireUserId } from '@/lib/auth/auth'
 import { projectFromVendor } from '@/db/billing'
 import { getEntitlement } from '@/db/entitlements'
 import { fetchCustomerSnapshot } from '@/lib/billing/revenuecat/client'

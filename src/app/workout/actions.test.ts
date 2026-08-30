@@ -11,7 +11,7 @@ import {
   deleteWorkoutDraftAction,
   rememberSwapAction,
 } from './actions'
-import { requireUserId } from '@/lib/auth'
+import { requireUserId } from '@/lib/auth/auth'
 import {
   saveWorkout,
   updateWorkout,
@@ -38,7 +38,7 @@ import { revalidatePath } from 'next/cache'
  * `parseWorkoutInput` runs for real (it's pure) with a minimal valid payload.
  */
 
-vi.mock('@/lib/auth', () => ({ requireUserId: vi.fn() }))
+vi.mock('@/lib/auth/auth', () => ({ requireUserId: vi.fn() }))
 vi.mock('@/db/workouts', () => ({
   saveWorkout: vi.fn(),
   updateWorkout: vi.fn(),

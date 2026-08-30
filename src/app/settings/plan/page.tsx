@@ -1,7 +1,7 @@
 import { AppHeader } from '@/components/nav/app-header'
 import { BackLink } from '@/components/nav/back-link'
 import { getTranslations } from 'next-intl/server'
-import { requireUserId } from '@/lib/auth'
+import { requireUserId } from '@/lib/auth/auth'
 import { getEntitlement } from '@/db/entitlements'
 import { PlanSurface } from '@/components/plan/plan-surface'
 import { UpgradePanel } from '@/components/plan/upgrade-panel'

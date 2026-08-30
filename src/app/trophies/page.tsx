@@ -8,7 +8,7 @@ import {
   Weight,
   type LucideIcon,
 } from 'lucide-react'
-import { requireUserId } from '@/lib/auth'
+import { requireUserId } from '@/lib/auth/auth'
 import { getWeightUnit } from '@/db/preferences'
 import type { TrophyRow } from '@/db/trophies'
 import {

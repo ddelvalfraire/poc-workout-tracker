@@ -7,7 +7,7 @@ import {
   PHOTO_CAP,
   PHOTO_NOTE_MAX_LENGTH,
   type PhotoPose,
-} from '@/lib/photo-input'
+} from '@/lib/body/photo-input'
 
 /**
  * Data access for progress-photo rows, always scoped to a WorkOS userId — the

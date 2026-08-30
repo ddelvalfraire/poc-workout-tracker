@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { requireUserId } from '@/lib/auth'
+import { requireUserId } from '@/lib/auth/auth'
 import { getProgramDetail } from '@/db/programs'
 import { getWeightUnit } from '@/db/preferences'
 import { getExerciseHistoryBefore } from '@/db/workouts'

@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation'
-import { requireUserId } from '@/lib/auth'
+import { requireUserId } from '@/lib/auth/auth'
 import { isOpsUser } from '@/lib/ops/access'
 import { getSentryIssues, type SentrySnapshot } from '@/lib/ops/sentry'
 import { getHealthchecks, type HealthchecksSnapshot } from '@/lib/ops/healthchecks'

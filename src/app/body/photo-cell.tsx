@@ -1,8 +1,8 @@
 'use client'
 
 import { useMemo } from 'react'
-import { thumbHashToPlaceholderUrl } from '@/lib/photo-pipeline'
-import { photoPoseLabel, type PhotoPose } from '@/lib/photo-input'
+import { thumbHashToPlaceholderUrl } from '@/lib/body/photo-pipeline'
+import { photoPoseLabel, type PhotoPose } from '@/lib/body/photo-input'
 import { cn } from '@/lib/utils'
 import { useTranslations } from 'next-intl'
 import { renderMessage } from '@/lib/message'

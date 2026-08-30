@@ -1,4 +1,4 @@
-import { requireUserId } from '@/lib/auth'
+import { requireUserId } from '@/lib/auth/auth'
 import {
   getWeightUnit,
   getEquipment,

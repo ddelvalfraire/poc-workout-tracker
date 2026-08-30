@@ -1,5 +1,5 @@
 import { isSameLocalDay } from '@/lib/local-day'
-import { scheduleAnchor, scheduleAnchorToken, type ScheduleAnchor } from '@/lib/schedule-anchor'
+import { scheduleAnchor, scheduleAnchorToken, type ScheduleAnchor } from '@/lib/home/schedule-anchor'
 import { formatVolume } from '@/lib/format'
 import type { Line, Message } from '@/lib/message'
 import type { WeightUnit } from '@/lib/units'

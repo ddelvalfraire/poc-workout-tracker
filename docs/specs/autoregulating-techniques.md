@@ -55,7 +55,7 @@ That is the scope.
 the group's total across every stage, `load` = the top set's prescribed load.
 That virtual set goes through the EXISTING rules unchanged. This is not a new
 engine — RANGE mode already scores total-rep-gain over comparable sessions
-rather than floor misses (`src/lib/autoregulate.ts:49`), and DC's 11–15 band is
+rather than floor misses (`src/lib/programs/autoregulate.ts:49`), and DC's 11–15 band is
 literally a rep range. A rest-pause group is double progression whose unit is a
 group.
 
@@ -83,7 +83,7 @@ exercise. That is a substitution, and we have the machinery: a patch proposal
 the owner confirms, never an automatic write.
 
 **This is not free.** `substitute_program_exercise` is absent from
-`PROPOSABLE_PATCH_TOOLS` (`src/lib/patch-proposal.ts:26`) — today only set ops,
+`PROPOSABLE_PATCH_TOOLS` (`src/lib/programs/patch-proposal.ts:26`) — today only set ops,
 the training max and the diet phase are proposable. Adding it widens what the
 engine may propose, and it should land as its own change with its own review,
 not folded into a scoring PR.

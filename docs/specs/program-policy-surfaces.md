@@ -40,7 +40,7 @@ The builder's policy block is correct on the two points the brief worried about:
 
 ## 2. Gap A — overshoot precedence is never stated
 
-`resolveOvershootPolicy` (`src/lib/overshoot-policy.ts:54-64`) is
+`resolveOvershootPolicy` (`src/lib/programs/overshoot-policy.ts:54-64`) is
 **exercise override > program policy > per-scheme default**. Both controls
 implement it and neither says it.
 
@@ -202,7 +202,7 @@ already separate and each sits at its correct scope:
   `SchemeSubtitle` — "Linear — Add weight every session you complete all sets."
   (`src/app/programs/new/scheme-subtitle.tsx:12-27`, from `SchemeCopy.name.*` /
   `SchemeCopy.subtitle.*` via the message descriptors in
-  `src/lib/scheme-copy.ts`), and as the how-line on an expanded exercise row on
+  `src/lib/programs/scheme-copy.ts`), and as the how-line on an expanded exercise row on
   the detail page.
 
 ### What is true, and is how the conflation would get built

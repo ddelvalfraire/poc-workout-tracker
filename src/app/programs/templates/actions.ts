@@ -1,7 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { requireUserId } from '@/lib/auth'
+import { requireUserId } from '@/lib/auth/auth'
 import { parseProgramInput } from '@/lib/programs/program-input'
 import { getAllExercises } from '@/lib/exercises/wger'
 import { getRoutineStructure } from '@/lib/templates/wger-templates'

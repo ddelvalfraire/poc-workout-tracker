@@ -1,7 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { requireUserId } from '@/lib/auth'
+import { requireUserId } from '@/lib/auth/auth'
 import { isOpsUser } from '@/lib/ops/access'
 import { applyGrant, revokeGrant } from '@/db/entitlements'
 import { projectFromVendor } from '@/db/billing'

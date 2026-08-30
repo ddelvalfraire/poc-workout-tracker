@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation'
-import { requireUserId } from '@/lib/auth'
+import { requireUserId } from '@/lib/auth/auth'
 import { NavDrawer } from '@/components/nav/nav-drawer'
 import { getProgramName } from '@/db/programs'
 import { coachAccess } from '@/lib/coach/access'

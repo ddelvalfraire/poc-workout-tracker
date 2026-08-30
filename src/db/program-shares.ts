@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto'
 import { and, desc, eq, isNull } from 'drizzle-orm'
 import type { ProgramVisibility } from '@/lib/programs/program-input'
-import { can } from '@/lib/authz'
+import { can } from '@/lib/auth/authz'
 import { db } from './index'
 import { hasFeature } from './entitlements'
 import { programs, programShares } from './schema'

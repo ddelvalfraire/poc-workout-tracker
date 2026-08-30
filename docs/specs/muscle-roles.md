@@ -21,7 +21,7 @@ Roles do three things: (1) show the author, at authoring time, whether the plan 
 
 ## 02 · Roles & volume bands
 
-Bands are weekly *credited* working sets per muscle group (primary 1.0 / secondary 0.5, per `creditSetMuscles`), over the ten display buckets in `src/lib/muscle-groups.ts`. The `Other` bucket is not role-assignable.
+Bands are weekly *credited* working sets per muscle group (primary 1.0 / secondary 0.5, per `creditSetMuscles`), over the ten display buckets in `src/lib/exercises/muscle-groups.ts`. The `Other` bucket is not role-assignable.
 
 | Role | Start band (wk 1) | End band (final acc. week) | Ramp | Evidence anchor |
 |---|---|---|---|---|
@@ -60,7 +60,7 @@ Following the house pattern (text + app-level union, no `pgEnum`; nullable-with-
 ### Input boundary
 
 ```ts
-// src/lib/program-input.ts
+// src/lib/programs/program-input.ts
 muscleRoles: z.record(
     z.enum(MUSCLE_GROUPS),          // 'Other' excluded from the enum
     z.enum(['specialize', 'grow', 'maintain'])
@@ -100,7 +100,7 @@ The derivation chain does not change:
 override > deload > autoreg > scheme > template     (roles: not in this chain)
 ```
 
-Roles influence prescriptions through exactly one channel that already exists: the **volume-proposal generator**. `ensureVolumeProposals` / `muscleVerdicts` (`src/db/volume-progression.ts`, `src/lib/volume-progression.ts`) emit `set_program_set_override` patch proposals for the next untrained week — never auto-applied. One correction from the feasibility audit: today's verdict engine is *purely performance-relative* (beat-two-weeks-running / stall counters) and deliberately "knows nothing about volume tables" — there are no default per-muscle targets to swap out. Roles therefore *add* an absolute dimension rather than replace one: an optional `bands` parameter on `muscleVerdicts` / `proposalsToCreate` (both pure functions that already iterate `MUSCLE_GROUPS`), gating and contextualizing proposals. Cards can then say *why*: "Chest is Specialize — week 3 target is 14–18 sets, you're at 11."
+Roles influence prescriptions through exactly one channel that already exists: the **volume-proposal generator**. `ensureVolumeProposals` / `muscleVerdicts` (`src/db/volume-progression.ts`, `src/lib/programs/volume-progression.ts`) emit `set_program_set_override` patch proposals for the next untrained week — never auto-applied. One correction from the feasibility audit: today's verdict engine is *purely performance-relative* (beat-two-weeks-running / stall counters) and deliberately "knows nothing about volume tables" — there are no default per-muscle targets to swap out. Roles therefore *add* an absolute dimension rather than replace one: an optional `bands` parameter on `muscleVerdicts` / `proposalsToCreate` (both pure functions that already iterate `MUSCLE_GROUPS`), gating and contextualizing proposals. Cards can then say *why*: "Chest is Specialize — week 3 target is 14–18 sets, you're at 11."
 
 ### Per-week overrides
 
@@ -170,4 +170,4 @@ Cross-field logic that doesn't fit Zod's tree follows the `programSetIntegrityVi
 
 ---
 
-Grounded in: `src/db/schema.ts` · `src/lib/progression.ts` · `src/lib/muscle-groups.ts` · `src/db/planned-volume.ts` · `src/lib/volume-progression.ts` · `src/app/programs/new/program-builder.tsx` · `DESIGN.md`
+Grounded in: `src/db/schema.ts` · `src/lib/programs/progression.ts` · `src/lib/exercises/muscle-groups.ts` · `src/db/planned-volume.ts` · `src/lib/programs/volume-progression.ts` · `src/app/programs/new/program-builder.tsx` · `DESIGN.md`

@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { ExternalLink } from 'lucide-react'
-import { getUserId } from '@/lib/auth'
+import { getUserId } from '@/lib/auth/auth'
 import { resolveShare } from '@/db/program-shares'
 import { getWeightUnit } from '@/db/preferences'
 import { DEFAULT_WEIGHT_UNIT } from '@/lib/units'

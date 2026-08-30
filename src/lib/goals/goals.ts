@@ -21,7 +21,7 @@ import {
   strengthPercent,
   weeklyStreak,
 } from '@/lib/goals/goal-progress'
-import { sendPushToUser } from '@/lib/push'
+import { sendPushToUser } from '@/lib/push/push'
 
 /**
  * Goal composition over the db reads: progress evaluation for the surfaces

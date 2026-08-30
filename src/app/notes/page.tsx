@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { requireUserId } from '@/lib/auth'
+import { requireUserId } from '@/lib/auth/auth'
 import { listNotes } from '@/db/notes'
 import { getWeightUnit } from '@/db/preferences'
 import {

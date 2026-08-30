@@ -11,7 +11,7 @@ import { deleteObjects } from '@/lib/supabase-storage'
 import { getRedis } from '@/lib/redis'
 import { coachChatKey } from '@/lib/coach/chat-store'
 import { coachRateLimitKey } from '@/lib/coach/rate-limit'
-import { deletePosthogPerson, type PosthogPersonDeletion } from '@/lib/posthog-person-deletion'
+import { deletePosthogPerson, type PosthogPersonDeletion } from '@/lib/account/posthog-person-deletion'
 
 /**
  * The account-deletion orchestration — the app-store prerequisite and the

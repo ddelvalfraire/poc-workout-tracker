@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { listBodyweightLogs } from '@/db/bodyweight'
 import { getWeightUnit } from '@/db/preferences'
-import { bodyweightDeltaKg, trendWeightSeries } from '@/lib/bodyweight-trend'
+import { bodyweightDeltaKg, trendWeightSeries } from '@/lib/body/bodyweight-trend'
 import { kgToDisplay } from '@/lib/units'
 import { getTranslations } from 'next-intl/server'
 import { cache } from 'react'

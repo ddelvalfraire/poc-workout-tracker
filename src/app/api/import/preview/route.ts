@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { getUserId } from '@/lib/auth'
+import { getUserId } from '@/lib/auth/auth'
 import { getWeightUnit } from '@/db/preferences'
 import { ImportPlanError, planImport, type ImportPlan } from '@/db/import'
 import { detectImportSource } from '@/lib/import/detect'

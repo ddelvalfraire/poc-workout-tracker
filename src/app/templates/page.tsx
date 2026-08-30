@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { Play } from 'lucide-react'
-import { requireUserId } from '@/lib/auth'
+import { requireUserId } from '@/lib/auth/auth'
 import { listWorkoutTemplates } from '@/db/workout-templates'
 import { listWorkoutSummaries } from '@/db/workouts'
 import { listWorkoutDrafts } from '@/db/workout-drafts'

@@ -7,7 +7,7 @@ Per-program (with per-exercise override) policy for how the first working weight
 
 ## 01 · Product framing
 
-Today week-1 loads are either author-typed (`suggestedLoadKg`, `trainingMaxKg`) or blank-until-performed: the lifter logs a weight with no ghost, and autoregulation anchors off it from week 2 (`nullLoadAnchor()` in `src/lib/autoregulate.ts`). The one computed seed in the codebase is the TM prefill on the program **edit** page — `e1RM × 0.85` via `seedTrainingMax()` (`src/app/programs/new/program-draft.ts`) — a one-shot client draft heuristic, not a stored policy, absent from program create.
+Today week-1 loads are either author-typed (`suggestedLoadKg`, `trainingMaxKg`) or blank-until-performed: the lifter logs a weight with no ghost, and autoregulation anchors off it from week 2 (`nullLoadAnchor()` in `src/lib/programs/autoregulate.ts`). The one computed seed in the codebase is the TM prefill on the program **edit** page — `e1RM × 0.85` via `seedTrainingMax()` (`src/app/programs/new/program-draft.ts`) — a one-shot client draft heuristic, not a stored policy, absent from program create.
 
 This spec makes initial-load selection a **stored, per-program policy**: an ordered fallback chain of strategies, resolved per exercise at derivation time. Every strategy observed in production apps and established methodologies (RP, JuggernautAI, Boostcamp, 5/3/1, GZCLP, StrongLifts/Starting Strength, RTS, Fitbod, TrainHeroic) is expressible; the default resolves byte-identical to today's behavior.
 
@@ -37,7 +37,7 @@ Cross-cutting rules every source independently converges on:
 
 ## 03 · Data model
 
-Follows the `deloadPolicy` / `overshootPolicy` pattern exactly: nullable JSONB on `programs`, optional per-exercise override, zod discriminated union in `src/lib/program-input.ts`, pure resolver in `src/lib/progression.ts`.
+Follows the `deloadPolicy` / `overshootPolicy` pattern exactly: nullable JSONB on `programs`, optional per-exercise override, zod discriminated union in `src/lib/programs/program-input.ts`, pure resolver in `src/lib/programs/progression.ts`.
 
 ```ts
 // programs.initial_load_policy   jsonb, nullable — null resolves to today's behavior
@@ -80,8 +80,8 @@ Committed scope, not a later phase. Calibration is the highest-quality strategy 
 
 All located seams; no new query patterns.
 
-1. **Resolver** — `resolveInitialLoadPolicy()` in `src/lib/progression.ts` beside `resolveDeloadPolicy`; per-exercise override beats program beats legacy default. Threaded through `DayForDerivation.program` (`src/db/programs.ts`).
-2. **Seeding point** — the `base === null` branches of `schemeLoad()` (`src/lib/progression.ts:235`): when week 1 has no base, run the chain instead of returning `{loadKg: null}`. History inputs reuse the already-batched `getExerciseHistoryBefore` / `rollingE1rm` / `bestSet` reads inside `deriveDayPrescription()`.
+1. **Resolver** — `resolveInitialLoadPolicy()` in `src/lib/programs/progression.ts` beside `resolveDeloadPolicy`; per-exercise override beats program beats legacy default. Threaded through `DayForDerivation.program` (`src/db/programs.ts`).
+2. **Seeding point** — the `base === null` branches of `schemeLoad()` (`src/lib/programs/progression.ts:235`): when week 1 has no base, run the chain instead of returning `{loadKg: null}`. History inputs reuse the already-batched `getExerciseHistoryBefore` / `rollingE1rm` / `bestSet` reads inside `deriveDayPrescription()`.
 3. **Calibration shape** — emitted from `deriveDayPrescription()` when §04 applies, before quantization and snapshotting, so instantiation, `preview_program_week`, and logger ghosts all agree for free.
 4. **Quantization** — every computed seed passes `quantizeLoadKg` before surfacing.
 

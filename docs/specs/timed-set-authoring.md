@@ -9,7 +9,7 @@ Authoring surface for the non-`reps_weight` logging modalities — `duration` an
 
 The premise "this modality has no authoring surface" is **half true**, and the half that is false matters.
 
-Cardio v1 (`332b362`) already shipped a working authoring path in `src/app/programs/new/program-builder.tsx`: a per-exercise metric-mode `<select>`, a Time/Km/RPE/Rest column swap, `mm:ss` and km codecs (`src/lib/duration.ts`), draft round-tripping (`program-draft.ts`), and a derivation-layer metric-mode guard (`src/lib/progression.ts`). What is missing is not the modality — it is **the vocabulary around it**:
+Cardio v1 (`332b362`) already shipped a working authoring path in `src/app/programs/new/program-builder.tsx`: a per-exercise metric-mode `<select>`, a Time/Km/RPE/Rest column swap, `mm:ss` and km codecs (`src/lib/duration.ts`), draft round-tripping (`program-draft.ts`), and a derivation-layer metric-mode guard (`src/lib/programs/progression.ts`). What is missing is not the modality — it is **the vocabulary around it**:
 
 | Gap | Today | § |
 |---|---|---|
@@ -147,7 +147,7 @@ RPE stays; RIR does not appear. The builder's effort column has always been RPE 
 
 Two formatters over one grammar disagree about a loaded timed set:
 
-- `src/lib/planned-set-format.ts` appends `@ 40 kg` to a timed core (the append runs unconditionally after the mode branch).
+- `src/lib/programs/planned-set-format.ts` appends `@ 40 kg` to a timed core (the append runs unconditionally after the mode branch).
 - `src/app/programs/[id]/derived-format.ts` builds `target.timed` from `count`/`duration`/`distance` only — **the load is dropped**.
 
 So a 40 kg farmer's walk prints its load on the template surface and loses it on the program detail page. Once carry load is authorable this is a visible lie. Fix by giving `target.timed` an optional load slot; the key does not change (it still names the slot), only the ICU value:
@@ -235,7 +235,7 @@ Namespaces follow I18N-KEYS §7 — the component that owns the literal. Flat ca
 | `maxSec.label` | `Stop at` |
 | `maxSec.placeholder` | `No cap` |
 
-Scheme names and one-liners reuse the shipped `SchemeCopy.name.*`, `SchemeCopy.subtitle.*` and `SchemeCopy.sentence.secProgression` / `.secProgressionCapped` through `src/lib/scheme-copy.ts`'s descriptors — the direction doc's "one copy module, three consumers, so they can't drift" contract. The picker is consumer (a); nothing new is written here.
+Scheme names and one-liners reuse the shipped `SchemeCopy.name.*`, `SchemeCopy.subtitle.*` and `SchemeCopy.sentence.secProgression` / `.secProgressionCapped` through `src/lib/programs/scheme-copy.ts`'s descriptors — the direction doc's "one copy module, three consumers, so they can't drift" contract. The picker is consumer (a); nothing new is written here.
 
 ### `WeekGrid` — new namespace (§09)
 

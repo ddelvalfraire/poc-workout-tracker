@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { getWorkOS } from '@workos-inc/authkit-nextjs'
-import { requireUserId } from '@/lib/auth'
+import { requireUserId } from '@/lib/auth/auth'
 
 /**
  * Profile edits the user makes about themselves.

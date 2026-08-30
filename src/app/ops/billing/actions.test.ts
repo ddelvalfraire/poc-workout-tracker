@@ -9,7 +9,7 @@ import { describe, expect, test, vi, beforeEach } from 'vitest'
 let sessionUserId = 'user_ops'
 let opsMembers = new Set(['user_ops'])
 
-vi.mock('@/lib/auth', () => ({ requireUserId: async () => sessionUserId }))
+vi.mock('@/lib/auth/auth', () => ({ requireUserId: async () => sessionUserId }))
 vi.mock('@/lib/ops/access', () => ({ isOpsUser: (id: string) => opsMembers.has(id) }))
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
 

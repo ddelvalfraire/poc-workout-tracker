@@ -7,7 +7,7 @@ import { describe, expect, test, vi, beforeEach, afterEach } from 'vitest'
  * env-gated exactly like the rest of the RC adapter.
  */
 let sessionUserId = 'user_01SELF'
-vi.mock('@/lib/auth', () => ({ requireUserId: async () => sessionUserId }))
+vi.mock('@/lib/auth/auth', () => ({ requireUserId: async () => sessionUserId }))
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
 
 const projected: unknown[] = []

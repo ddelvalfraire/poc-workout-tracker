@@ -1,6 +1,6 @@
 import { withAuth } from '@workos-inc/authkit-nextjs'
 import { SignOutButton } from '@/components/auth/sign-out-button'
-import { requireUserId } from '@/lib/auth'
+import { requireUserId } from '@/lib/auth/auth'
 import {
   getWeightUnit,
   getBodyweightKg,

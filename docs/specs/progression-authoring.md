@@ -15,11 +15,11 @@ seven schemes are dead ends.
 
 | Fact | Where | Consequence |
 |---|---|---|
-| `progression` is a 7-arm discriminated union | `src/lib/program-input.ts:169` | 7 schemes are storable; 2 are unauthorable |
+| `progression` is a 7-arm discriminated union | `src/lib/programs/program-input.ts:169` | 7 schemes are storable; 2 are unauthorable |
 | `setTrainingMax` is "THE single call site for every training-max change" | `src/db/program-patches.ts:496` | …except the builder, which does not use it |
 | The builder's TM field writes `progression.trainingMaxKg` through the draft | `src/app/programs/new/program-builder.tsx:660`, `program-draft.ts:642` (`withDraftTrainingMax`) | A TM edit in the UI produces **no `adjust_training_max` event and no reason** — the change log has a hole exactly where the audited setter promised it wouldn't |
 | `TmResetButton` is the only UI that calls the setter | `src/app/programs/[id]/tm-reset-button.tsx` → `adjustTrainingMaxAction` | Reason `'reset'` only; hardcoded, not chosen |
-| `SchemeCopy` owns the name + one-liner for all 7 schemes | `src/lib/scheme-copy.ts`, `messages/en.json:1822` | The picker's copy already exists and must be reused, not re-written |
+| `SchemeCopy` owns the name + one-liner for all 7 schemes | `src/lib/programs/scheme-copy.ts`, `messages/en.json:1822` | The picker's copy already exists and must be reused, not re-written |
 | `SchemeSubtitle` says "The builder has no scheme picker" | `src/app/programs/new/scheme-subtitle.tsx:7` | Scheme choice is agent-only today |
 | The editor is the phone column (`max-w-md`) | `src/app/programs/[id]/edit/page.tsx:76` | A 12×20 matrix has nowhere to live |
 
@@ -31,7 +31,7 @@ builder's silent full-replace TM write.
 
 ## 02 · The engine semantics the UI must not lie about
 
-Everything below is read out of `src/lib/progression.ts` and
+Everything below is read out of `src/lib/programs/progression.ts` and
 `src/db/prescriptions.ts`. Each row is a sentence the surface owes the user,
 because getting it wrong makes the preview disagree with the prescription.
 
@@ -421,7 +421,7 @@ Rules:
   pressable, and the *row* is the control here).
 - **Copy is `SchemeCopy`, verbatim.** `schemeName()` and `schemeSubtitle()`
   already exist and are already the shared voice across the builder line, the
-  detail sentence and the autoreg reasons (`src/lib/scheme-copy.ts`). The
+  detail sentence and the autoreg reasons (`src/lib/programs/scheme-copy.ts`). The
   picker adds zero scheme sentences; it adds only its group headers and the
   "No progression" row.
 - **Group order is deliberate**: the three schemes most lifters want are first,

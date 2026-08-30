@@ -1,7 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { requireUserId } from '@/lib/auth'
+import { requireUserId } from '@/lib/auth/auth'
 import { checkRecentAuth } from '@workos-inc/authkit-nextjs'
 import { getAccountOverview } from '@/lib/workos/account'
 import {

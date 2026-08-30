@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
-import { getUserId } from '@/lib/auth'
-import { parsePushEndpoint } from '@/lib/push-input'
+import { getUserId } from '@/lib/auth/auth'
+import { parsePushEndpoint } from '@/lib/push/push-input'
 import { deletePushSubscription } from '@/db/push-subscriptions'
 
 /**

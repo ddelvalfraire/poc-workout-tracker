@@ -4,7 +4,7 @@ import {
   type MuscleVolumeRow,
   type MuscleResolver,
 } from './muscle-volume'
-import { volumeWindows } from '@/lib/volume-window'
+import { volumeWindows } from '@/lib/stats/volume-window'
 
 /**
  * ADVERSARIAL VERIFICATION of cardio v1 slice 3 (#219 / PR #242) — weekly

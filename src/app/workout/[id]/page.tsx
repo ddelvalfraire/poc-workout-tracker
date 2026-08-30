@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Pencil } from "lucide-react";
 import { notFound, redirect } from "next/navigation";
-import { requireUserId } from "@/lib/auth";
+import { requireUserId } from "@/lib/auth/auth";
 import {
   getWorkoutDetail,
   getExerciseHistoryBefore,

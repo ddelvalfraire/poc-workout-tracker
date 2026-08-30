@@ -1,4 +1,4 @@
-import { requireUserId } from '@/lib/auth'
+import { requireUserId } from '@/lib/auth/auth'
 import { getWeightUnit } from '@/db/preferences'
 import { listImportBatches } from '@/db/import'
 import { formatWorkoutDate } from '@/lib/format'

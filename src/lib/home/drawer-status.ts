@@ -2,7 +2,7 @@ import { kgToDisplay, type WeightUnit } from '@/lib/units'
 import { formatVolume } from '@/lib/format'
 import { isSameLocalDay } from '@/lib/local-day'
 import type { Line, Message } from '@/lib/message'
-import { scheduleAnchorToken, type ScheduleAnchor } from '@/lib/schedule-anchor'
+import { scheduleAnchorToken, type ScheduleAnchor } from '@/lib/home/schedule-anchor'
 
 /**
  * The nav drawer's status-line language — every drawer row carries a one-line

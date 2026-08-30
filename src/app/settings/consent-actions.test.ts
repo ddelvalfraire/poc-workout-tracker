@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-vi.mock('@/lib/auth', () => ({ requireUserId: vi.fn(async () => 'user_1') }))
+vi.mock('@/lib/auth/auth', () => ({ requireUserId: vi.fn(async () => 'user_1') }))
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
 vi.mock('next/headers', () => ({
   headers: vi.fn(async () => new Headers({ 'x-forwarded-for': '203.0.113.9', 'user-agent': 'ua' })),
@@ -10,13 +10,13 @@ vi.mock('@/db/consent', () => ({
   recordConsent: vi.fn(async () => ({ eventId: 'ev-1' })),
   markDownstreamAction: vi.fn(async () => {}),
 }))
-vi.mock('@/lib/posthog-person-deletion', () => ({
+vi.mock('@/lib/account/posthog-person-deletion', () => ({
   deletePosthogPerson: vi.fn(async () => 'deleted'),
 }))
 
 import { setAnalyticsConsentAction } from './consent-actions'
 import { recordConsent, markDownstreamAction } from '@/db/consent'
-import { deletePosthogPerson } from '@/lib/posthog-person-deletion'
+import { deletePosthogPerson } from '@/lib/account/posthog-person-deletion'
 import { headers } from 'next/headers'
 
 beforeEach(() => {

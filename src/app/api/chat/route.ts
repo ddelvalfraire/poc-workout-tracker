@@ -1,5 +1,5 @@
 import { NextResponse, after } from 'next/server'
-import { getUserId } from '@/lib/auth'
+import { getUserId } from '@/lib/auth/auth'
 import { convertToModelMessages, stepCountIs, streamText, type UIMessage } from 'ai'
 import { getWeightUnit } from '@/db/preferences'
 import { coachAccess } from '@/lib/coach/access'

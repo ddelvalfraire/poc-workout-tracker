@@ -3,7 +3,7 @@ import type { NoteAnchorKind, NoteAnchorSnapshot, NoteAuthor } from '@/lib/notes
 import { quantizeDisplayLoad } from '@/lib/workout/load-quantize'
 import type { WeightUnit } from '@/lib/units'
 import { formatDurationInput } from '@/lib/duration'
-import { relativeDayLabel } from '@/lib/drawer-status'
+import { relativeDayLabel } from '@/lib/home/drawer-status'
 
 /**
  * Pure view logic for notes-v2 read surfaces (the /notes browser, the

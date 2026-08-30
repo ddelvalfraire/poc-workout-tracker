@@ -1,10 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { getUserId } from '@/lib/auth'
+import { getUserId } from '@/lib/auth/auth'
 import { deleteProgressPhoto } from '@/db/progress-photos'
 import { deleteObjects } from '@/lib/supabase-storage'
 import { DELETE } from './route'
 
-vi.mock('@/lib/auth', () => ({ getUserId: vi.fn() }))
+vi.mock('@/lib/auth/auth', () => ({ getUserId: vi.fn() }))
 vi.mock('@/db/progress-photos', () => ({ deleteProgressPhoto: vi.fn() }))
 vi.mock('@/lib/supabase-storage', () => ({ deleteObjects: vi.fn() }))
 

@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { requireUserId } from '@/lib/auth'
+import { requireUserId } from '@/lib/auth/auth'
 import { getWeightUnit } from '@/db/preferences'
 import { AppHeader } from '@/components/nav/app-header'
 import { buttonVariants } from '@/components/ui/button'

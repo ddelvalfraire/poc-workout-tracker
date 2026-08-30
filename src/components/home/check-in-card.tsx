@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { checkInCardDetail, checkInDismissKey, shouldShowCheckInCard } from '@/lib/check-in-card'
+import { checkInCardDetail, checkInDismissKey, shouldShowCheckInCard } from '@/lib/body/check-in-card'
 import { buttonVariants } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { useMounted } from '@/lib/use-mounted'

@@ -16,7 +16,7 @@ Program mocks show per-week **set count** varying — "Lat Pulldown is 4×10 in 
 
 **Set count stays out of the override table. It is a rule or an edit, never a per-week pin.** No schema change, no new column, no `omitted` flag.
 
-The engine already varies set count per week — in exactly one place, `resizeWorkingSets` in `src/lib/progression.ts` — driven by two RULES:
+The engine already varies set count per week — in exactly one place, `resizeWorkingSets` in `src/lib/programs/progression.ts` — driven by two RULES:
 
 | Rule | Where | Shape of the variation |
 |---|---|---|

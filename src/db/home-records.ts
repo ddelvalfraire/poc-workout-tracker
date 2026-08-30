@@ -4,7 +4,7 @@ import { and, asc, eq, gte, inArray, isNotNull, or } from 'drizzle-orm'
 import { db } from '@/db'
 import { sets, workoutExercises, workouts } from '@/db/schema'
 import { getBodyweightKg } from '@/db/preferences'
-import { inWindow, volumeWindows } from '@/lib/volume-window'
+import { inWindow, volumeWindows } from '@/lib/stats/volume-window'
 import { CANONICAL_LIFTS } from '@/lib/goals/trophy-kinds'
 import {
   aggregateBigThree,

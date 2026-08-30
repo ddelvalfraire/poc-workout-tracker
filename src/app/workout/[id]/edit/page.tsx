@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation'
-import { requireUserId } from '@/lib/auth'
+import { requireUserId } from '@/lib/auth/auth'
 import { getWorkoutDetail, hasAnyCompletedWorkout, type WorkoutDetail } from '@/db/workouts'
 import {
   getWeightUnit,

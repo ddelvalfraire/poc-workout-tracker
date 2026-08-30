@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 import { expect, userEvent, within } from "storybook/test";
 import { useEffect } from "react";
 
-import type { DrawerData } from "@/lib/drawer-status";
+import type { DrawerData } from "@/lib/home/drawer-status";
 
 import { NavDrawer } from "./nav-drawer";
 

@@ -1,7 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { requireUserId } from '@/lib/auth'
+import { requireUserId } from '@/lib/auth/auth'
 import { clearCoachChat } from '@/lib/coach/chat-store'
 
 /** "New chat": drops the persisted thread. The client resets its own message

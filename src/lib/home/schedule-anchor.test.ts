@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { catalogTranslator } from '../../vitest.intl'
+import { catalogTranslator } from '../../../vitest.intl'
 import { scheduleAnchor, scheduleAnchorToken } from './schedule-anchor'
 
 /**

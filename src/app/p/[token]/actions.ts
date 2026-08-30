@@ -2,7 +2,7 @@
 
 import { notFound, redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
-import { requireUserId } from '@/lib/auth'
+import { requireUserId } from '@/lib/auth/auth'
 import { adoptShared } from '@/db/program-shares'
 import { OwnSharedProgramError } from '@/db/program-errors'
 
