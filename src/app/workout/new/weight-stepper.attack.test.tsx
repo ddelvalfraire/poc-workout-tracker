@@ -69,7 +69,7 @@ function renderStepper({ weight = '60', ghostWeight = undefined }: RenderProps =
       root!.render(
         withIntl(
         <WeightStepper
-          setIndex={0}
+          displayNumber={1}
           inputId="weight-input-attack"
           weight={w}
           ghostWeight={ghostWeight}

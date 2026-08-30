@@ -162,8 +162,10 @@ function dipWeightValue(inputId: string): void {
 }
 
 interface WeightStepperProps {
-  /** 0-based set position, for the controls' aria labels. */
-  setIndex: number
+  /** 1-based DISPLAY number for the controls' aria labels — the class
+   *  ordinal the row's circle shows (setDisplayNumber), so the rail and the
+   *  row it steps announce the same set. */
+  displayNumber: number
   /** The weight `<input>`'s DOM id — the value-dip target. */
   inputId: string
   /** The set's current typed weight (may be empty — ghost seeds the step). */
@@ -183,7 +185,7 @@ interface WeightStepperProps {
 }
 
 export function WeightStepper({
-  setIndex,
+  displayNumber,
   inputId,
   weight,
   ghostWeight,
@@ -339,13 +341,13 @@ export function WeightStepper({
               aria-label={
                 direction === 1
                   ? t('increaseAriaLabel', {
-                      set: setIndex + 1,
+                      set: displayNumber,
                       noun: weightNoun,
                       step: step,
                       unit,
                     })
                   : t('decreaseAriaLabel', {
-                      set: setIndex + 1,
+                      set: displayNumber,
                       noun: weightNoun,
                       step: step,
                       unit,

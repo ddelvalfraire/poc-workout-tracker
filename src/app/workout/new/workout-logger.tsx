@@ -3069,7 +3069,7 @@ export function WorkoutLogger({
             above. Pinned by e2e/sticky-cta.spec.ts. */}
         {stepperTarget && (
           <WeightStepper
-            setIndex={stepperTarget.setIndex}
+            displayNumber={setDisplayNumber(stepperTarget.exercise.sets, stepperTarget.setIndex)}
             inputId={`weight-input-${stepperTarget.set.id}`}
             weight={stepperTarget.set.weight}
             ghostWeight={stepperTarget.ghost.weight}
