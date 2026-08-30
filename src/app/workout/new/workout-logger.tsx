@@ -126,7 +126,8 @@ import {
   planSetGhost,
   stepWeightValue,
   resolveWeightStep,
-  placeholderForSet,
+  historySetPlaceholder,
+  resolveHistorySet,
   planTargetPlaceholder,
   resolvePlanTarget,
   adoptableGhostValue,
@@ -2080,9 +2081,15 @@ export function WorkoutLogger({
                 // Two surfaces, two meanings: the grey input ghost is the
                 // PLAN's week-N target; the Prev chip is last performance.
                 // Neither borrows from the other.
-                const history = placeholderForSet(
-                  lastByExercise[`${exercise.source}:${exercise.wgerExerciseId}`] ?? null,
-                  setIndex,
+                // History pairs by ROLE too (resolveHistorySet): a working
+                // row reads last session's same-ordinal working set, never a
+                // warm-up — the two sessions may have warmed up differently.
+                const history = historySetPlaceholder(
+                  resolveHistorySet(
+                    lastByExercise[`${exercise.source}:${exercise.wgerExerciseId}`] ?? null,
+                    exercise.sets,
+                    setIndex,
+                  ),
                   unit,
                 )
                 const ghost = ghostForSet(exercise, setIndex)

@@ -239,6 +239,26 @@ describe('WorkoutLogger PREV column gate', () => {
     expect(html).toContain('100×12')
   })
 
+  it('pairs Prev chips by role: working rows skip last session’s warm-ups', () => {
+    // Last time: warm-up 60×10, then working 100×12 and 105×10. Today's two
+    // working rows must read the WORKING history — the warm-up load never
+    // masquerades as previous performance (and with no warm-up row today,
+    // 60×10 appears nowhere).
+    const html = render(
+      { hasWorkoutHistory: true },
+      lastPerformance({
+        sets: [
+          { reps: 10, weight: 60, setType: 'warmup' },
+          { reps: 12, weight: 100, setType: 'working' },
+          { reps: 10, weight: 105, setType: 'working' },
+        ],
+      }),
+    )
+    expect(html).toContain('100×12')
+    expect(html).toContain('105×10')
+    expect(html).not.toContain('60×10')
+  })
+
   it('never renders the column for a user with no completed workout', () => {
     // The strong form: even with per-exercise data sitting resolved in the
     // cache (an abandoned session can leave some), the first-ever cohort

@@ -12,6 +12,7 @@ import {
   placeholderForSet,
   planPlaceholderForSet,
   resolvePlanTarget,
+  resolveHistorySet,
   adoptableGhostValue,
   planSetGhost,
   previousChipLabel,
@@ -743,5 +744,49 @@ describe('resolvePlanTarget', () => {
   it('returns undefined with no targets or an out-of-range set index', () => {
     expect(resolvePlanTarget(undefined, [working], 0)).toBeUndefined()
     expect(resolvePlanTarget([target(100)], [working], 5)).toBeUndefined()
+  })
+})
+
+describe('resolveHistorySet', () => {
+  const row = (weight: number, setType?: 'warmup') => ({
+    reps: 5,
+    weight,
+    ...(setType ? { setType } : {}),
+  })
+  const working = { tag: 'working' }
+  const warmup = { tag: 'warmup' }
+
+  it('skips last session’s warm-ups for today’s working rows (no warm-up today)', () => {
+    // Arrange — last time: warm-up 60, working 100/105; today: working only
+    const last = { sets: [row(60, 'warmup'), row(100), row(105)] }
+    const sets = [working, working]
+
+    // Act + Assert — working rows read the working history, never the 60
+    expect(resolveHistorySet(last, sets, 0)).toBe(last.sets[1])
+    expect(resolveHistorySet(last, sets, 1)).toBe(last.sets[2])
+  })
+
+  it('pairs warm-up rows with last session’s warm-ups by ordinal', () => {
+    const last = { sets: [row(60, 'warmup'), row(100)] }
+    const sets = [warmup, working]
+
+    expect(resolveHistorySet(last, sets, 0)).toBe(last.sets[0])
+    expect(resolveHistorySet(last, sets, 1)).toBe(last.sets[1])
+  })
+
+  it('reads rows without a setType as non-warm-up (pre-column history, old positional behavior)', () => {
+    const last = { sets: [row(100), row(105)] }
+    const sets = [working, working]
+
+    expect(resolveHistorySet(last, sets, 0)).toBe(last.sets[0])
+    expect(resolveHistorySet(last, sets, 1)).toBe(last.sets[1])
+  })
+
+  it('resolves undefined past the class’s history (no clamping) and with no history', () => {
+    const last = { sets: [row(100)] }
+
+    expect(resolveHistorySet(last, [working, working], 1)).toBeUndefined()
+    expect(resolveHistorySet(last, [warmup], 0)).toBeUndefined()
+    expect(resolveHistorySet(null, [working], 0)).toBeUndefined()
   })
 })

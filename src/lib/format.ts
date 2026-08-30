@@ -311,21 +311,36 @@ export function formatE1RM(
  * last time — so the caller can spread the result onto the inputs and any unset
  * field renders no ghost (an `undefined` `placeholder` is omitted by React).
  */
+/** A prior-performance set row as the placeholder helpers read it
+ *  (LastPerformance.sets — every field beyond reps/weight optional so
+ *  pre-existing fixtures and callers keep their shape). */
+export interface HistorySetRow {
+  reps: number | null
+  weight: number | null
+  /** Cardio ride-alongs — optional so pre-cardio fixtures keep their shape. */
+  durationSec?: number | null
+  distanceM?: number | null
+  /** Set role — optional (absent = non-warm-up); read by resolveHistorySet. */
+  setType?: string
+}
+
 export function placeholderForSet(
-  last: {
-    sets: {
-      reps: number | null
-      weight: number | null
-      /** Cardio ride-alongs (LastPerformance) — optional so pre-cardio
-       *  fixtures and callers keep their shape. */
-      durationSec?: number | null
-      distanceM?: number | null
-    }[]
-  } | null,
+  last: { sets: HistorySetRow[] } | null,
   index: number,
   unit: WeightUnit = 'kg',
 ): SetGhost {
-  const prior = last?.sets[index]
+  return historySetPlaceholder(last?.sets[index], unit)
+}
+
+/**
+ * The ghost for ONE prior set — the body placeholderForSet always had,
+ * exported so callers that resolve their history row role-aware
+ * (`resolveHistorySet`) can format it without re-implementing the dialect.
+ */
+export function historySetPlaceholder(
+  prior: HistorySetRow | undefined,
+  unit: WeightUnit = 'kg',
+): SetGhost {
   if (!prior) return {}
   return {
     reps: prior.reps !== null ? String(prior.reps) : undefined,
@@ -570,7 +585,36 @@ export function resolvePlanTarget(
   sets: readonly { tag: string }[],
   setIndex: number,
 ): PlanSetTarget | undefined {
-  if (!targets) return undefined
+  return resolveByRole(targets, (t) => t.setType === 'warmup', sets, setIndex)
+}
+
+/**
+ * The prior-performance row for the draft set at `setIndex`, paired by ROLE
+ * exactly like resolvePlanTarget: a warm-up row only reads last session's
+ * warm-ups, a working row only last session's working sets, each by ordinal
+ * within its class. This keeps the Prev chip honest when the two sessions
+ * warmed up differently — without it, a session with no warm-ups today wore
+ * last time's warm-up loads as "previous performance" on its working sets.
+ */
+export function resolveHistorySet(
+  last: { sets: readonly HistorySetRow[] } | null,
+  sets: readonly { tag: string }[],
+  setIndex: number,
+): HistorySetRow | undefined {
+  return resolveByRole(last?.sets, (row) => row.setType === 'warmup', sets, setIndex)
+}
+
+/** The one pairing rule both resolvers above share: the draft set's ordinal
+ *  within its class (warm-up vs not) picks the same-ordinal item of the same
+ *  class. Undefined past the class's items — no clamping, mirroring the
+ *  positional helpers' overflow contract. */
+function resolveByRole<T>(
+  items: readonly T[] | undefined,
+  isWarmupItem: (item: T) => boolean,
+  sets: readonly { tag: string }[],
+  setIndex: number,
+): T | undefined {
+  if (!items) return undefined
   const set = sets[setIndex]
   if (!set) return undefined
   const wantsWarmup = set.tag === 'warmup'
@@ -578,9 +622,9 @@ export function resolvePlanTarget(
   for (let i = 0; i < setIndex; i++) {
     if ((sets[i].tag === 'warmup') === wantsWarmup) ordinal++
   }
-  for (const target of targets) {
-    if ((target.setType === 'warmup') !== wantsWarmup) continue
-    if (ordinal === 0) return target
+  for (const item of items) {
+    if (isWarmupItem(item) !== wantsWarmup) continue
+    if (ordinal === 0) return item
     ordinal--
   }
   return undefined
