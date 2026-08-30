@@ -191,6 +191,38 @@ describe('WorkoutLogger warm-up rows (class-ordinal numbering + plan pairing)', 
   })
 })
 
+describe('WorkoutLogger bodyweight column', () => {
+  /** Same draft, logging type swapped to bodyweight — the weight column must
+      trade its inputs for BW glyphs and its unit header for a blank cell. */
+  function bodyweightDraft(): WorkoutDraft {
+    const draft = draftWithCompletedSet()
+    return {
+      ...draft,
+      exercises: draft.exercises.map((exercise) => ({
+        ...exercise,
+        loggingType: 'bodyweight_reps',
+      })),
+    }
+  }
+
+  it('renders BW glyphs instead of weight inputs', () => {
+    const html = render({ initialDraft: bodyweightDraft() })
+    expect(html).toContain('Set 1 uses bodyweight')
+    expect(html).not.toContain('weight in kg')
+  })
+
+  it('renders no unit column header — the column holds no weights', () => {
+    // Control first: the weight_reps draft DOES render the unit header, so
+    // the negative assertion below cannot pass vacuously if the header
+    // markup ever changes shape.
+    expect(render()).toContain('>kg<')
+    const html = render({ initialDraft: bodyweightDraft() })
+    expect(html).not.toContain('>kg<')
+    // The reps header survives; only the unit cell goes blank.
+    expect(html).toContain('Reps')
+  })
+})
+
 describe('WorkoutLogger name block (#207)', () => {
   it('live session renders NO name block — no label, no input, no fallback line', () => {
     // Mid-session the name is a fact the app bar and summary already carry;

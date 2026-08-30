@@ -1509,9 +1509,9 @@ export function WorkoutLogger({
               placeholder={t('namePlaceholder')}
               value={name}
               onChange={(e) => setName(e.target.value)}
-              // De-boxed to an underline field (keep-list allows): same input,
-              // same h-11 hit area, px-1 keeps horizontal hit padding.
-              className="mt-1.5 rounded-none border-0 border-b-2 border-input bg-transparent px-1"
+              // Standard boxed field: form fields keep their enclosure
+              // (DESIGN.md keep-list), so no underline override here.
+              className="mt-1.5"
             />
           </div>
         )}
@@ -2059,7 +2059,13 @@ export function WorkoutLogger({
                 ) : (
                   <>
                     <span className="flex-1 text-center">{t('column.reps')}</span>
-                    <span className="flex-1 text-center">{unit}</span>
+                    {/* A bodyweight exercise has no weight column to head —
+                        its rows carry the BW glyph — so the unit label goes
+                        blank (same footprint-holding trick as duration-only
+                        cardio above). */}
+                    <span className="flex-1 text-center">
+                      {exercise.loggingType === 'bodyweight_reps' ? '' : unit}
+                    </span>
                   </>
                 )}
                 <span className="size-9 shrink-0" aria-hidden="true" />
@@ -2459,7 +2465,7 @@ export function WorkoutLogger({
                   {isCardioSet ? (
                     <>
                       {/* Cardio row: mm:ss + km replace reps/weight. Same
-                          underline skin, same row states, same select-all
+                          boxed skin, same row states, same select-all
                           focus dance as the lifting inputs. */}
                       <Input
                         type="text"
@@ -2491,11 +2497,12 @@ export function WorkoutLogger({
                         }}
                         aria-label={t('durationAriaLabel', { set: displayNumber })}
                         className={cn(
-                          'flex-1 rounded-none border-0 border-b-2 bg-transparent px-1 text-center tnum',
-                          rowState === 'active' && 'border-input text-lg font-medium',
-                          rowState === 'done' && 'border-transparent text-muted-foreground',
+                          'flex-1 px-1 text-center tnum',
+                          rowState === 'active' && 'text-lg font-medium',
+                          rowState === 'done' &&
+                            'border-transparent bg-transparent text-muted-foreground',
                           rowState === 'waiting' &&
-                            'border-transparent opacity-80 group-focus-within/setrow:border-input group-focus-within/setrow:opacity-100',
+                            'border-transparent bg-transparent opacity-80 group-focus-within/setrow:border-input group-focus-within/setrow:bg-card group-focus-within/setrow:opacity-100',
                           flashSetId === set.id && 'fill-flash',
                           // The refused-check-off nudge lands on the duration
                           // input — cardio's required metric (#206 mirror).
@@ -2530,11 +2537,12 @@ export function WorkoutLogger({
                           }}
                           aria-label={t('distanceAriaLabel', { set: displayNumber })}
                           className={cn(
-                            'flex-1 rounded-none border-0 border-b-2 bg-transparent px-1 text-center tnum',
-                            rowState === 'active' && 'border-input text-lg font-medium',
-                            rowState === 'done' && 'border-transparent text-muted-foreground',
+                            'flex-1 px-1 text-center tnum',
+                            rowState === 'active' && 'text-lg font-medium',
+                            rowState === 'done' &&
+                              'border-transparent bg-transparent text-muted-foreground',
                             rowState === 'waiting' &&
-                              'border-transparent opacity-80 group-focus-within/setrow:border-input group-focus-within/setrow:opacity-100',
+                              'border-transparent bg-transparent opacity-80 group-focus-within/setrow:border-input group-focus-within/setrow:bg-card group-focus-within/setrow:opacity-100',
                             flashSetId === set.id && 'fill-flash',
                           )}
                         />
@@ -2584,20 +2592,21 @@ export function WorkoutLogger({
                     }}
                     aria-label={t('repsAriaLabel', { set: displayNumber })}
                     className={cn(
-                      // Underline-field skin: same input, same handlers, same
-                      // h-11 hit area — the box collapses to a baseline. px-1
-                      // keeps a sliver of horizontal hit padding.
-                      'flex-1 rounded-none border-0 border-b-2 bg-transparent px-1 text-center tnum',
+                      // Standard boxed field (DESIGN.md keep-list: fields keep
+                      // their enclosure). px-1 narrows the default padding for
+                      // the tight set-row columns; centering + tnum stay.
+                      'flex-1 px-1 text-center tnum',
                       // Active row: the one full-affordance row (bigger
-                      // numerals, visible underline).
-                      rowState === 'active' && 'border-input text-lg font-medium',
+                      // numerals, the default enclosed box).
+                      rowState === 'active' && 'text-lg font-medium',
                       // Done row: flattened to quiet text; tap-to-edit still
-                      // works and focus restores a visible underline + ring.
-                      rowState === 'done' && 'border-transparent text-muted-foreground',
+                      // works and focus restores the box + ring.
+                      rowState === 'done' &&
+                        'border-transparent bg-transparent text-muted-foreground',
                       // Waiting row: visually quiet until anything in the row
                       // takes focus, then full affordance (CSS-only).
                       rowState === 'waiting' &&
-                        'border-transparent opacity-80 group-focus-within/setrow:border-input group-focus-within/setrow:opacity-100',
+                        'border-transparent bg-transparent opacity-80 group-focus-within/setrow:border-input group-focus-within/setrow:bg-card group-focus-within/setrow:opacity-100',
                       flashSetId === set.id && 'fill-flash',
                     )}
                   />
@@ -2706,13 +2715,14 @@ export function WorkoutLogger({
                               : t('weightAriaLabel', { set: displayNumber, unit })
                         }
                         className={cn(
-                          // Same underline skin as the reps input (see its
+                          // Same boxed skin as the reps input (see its
                           // per-state comments).
-                          'w-full rounded-none border-0 border-b-2 bg-transparent px-1 text-center tnum',
-                          rowState === 'active' && 'border-input text-lg font-medium',
-                          rowState === 'done' && 'border-transparent text-muted-foreground',
+                          'w-full px-1 text-center tnum',
+                          rowState === 'active' && 'text-lg font-medium',
+                          rowState === 'done' &&
+                            'border-transparent bg-transparent text-muted-foreground',
                           rowState === 'waiting' &&
-                            'border-transparent opacity-80 group-focus-within/setrow:border-input group-focus-within/setrow:opacity-100',
+                            'border-transparent bg-transparent opacity-80 group-focus-within/setrow:border-input group-focus-within/setrow:bg-card group-focus-within/setrow:opacity-100',
                           flashSetId === set.id && 'fill-flash',
                           weightNudgeSetId === set.id && 'weight-required-flash',
                         )}
