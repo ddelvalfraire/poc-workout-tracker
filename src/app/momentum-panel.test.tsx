@@ -30,14 +30,13 @@ vi.mock('@/lib/goal-progress', () => ({
 }))
 
 let weekSets = 1
-let previousWeekSets = 0
 let weekSessions = 1
 let activeGoalCount = 0
 
 vi.mock('@/db/muscle-volume', () => ({
   getRollingVolumeTotals: async () => ({
     currentSets: weekSets,
-    previousSets: previousWeekSets,
+    previousSets: 0,
     currentSessions: weekSessions,
     currentCardioSec: 0,
     previousCardioSec: 0,
@@ -53,13 +52,11 @@ vi.mock('@/lib/goals', () => ({
 
 async function render(over: {
   sets: number
-  previous?: number
   sessions?: number
   goals?: number
   size?: MomentumPanelProps['size']
 }) {
   weekSets = over.sets
-  previousWeekSets = over.previous ?? 0
   weekSessions = over.sessions ?? 1
   activeGoalCount = over.goals ?? 1
   const element = await MomentumPanel({ userId: 'user_123', nowMs: 0, size: over.size ?? 'md' })
@@ -93,27 +90,14 @@ describe('MomentumPanel copy', () => {
     expect(await render({ sets: 0 })).toContain('The week is wide open — log a session.')
   })
 
-  // The sessions subline and the week-over-week line are DECIDED in
-  // lib/home-status.ts as descriptors and rendered here.
+  // The sessions subline is DECIDED in lib/home-status.ts as a descriptor
+  // and rendered here.
   test('counts the sessions in the week at one and at many', async () => {
     expect(await render({ sets: 12 })).toContain('1 session this week')
     expect(await render({ sets: 12, sessions: 3 })).toContain('3 sessions this week')
   })
 
-  test('states the week-over-week direction on the large panel', async () => {
-    expect(await render({ sets: 20, previous: 12, size: 'lg' })).toContain('Up 8 on last week')
-    expect(await render({ sets: 9, previous: 12, size: 'lg' })).toContain('Down 3 on last week')
-    expect(await render({ sets: 12, previous: 12, size: 'lg' })).toContain('Level with last week')
-  })
-
-  test('stays silent about last week when last week logged nothing', async () => {
-    expect(await render({ sets: 20, previous: 0, size: 'lg' })).not.toContain('on last week')
-  })
-
   test('resolves every key it references', async () => {
     expect(await render({ sets: 12, goals: 2 })).not.toMatch(/MomentumPanel\.[a-zA-Z.]+/)
-    expect(await render({ sets: 20, previous: 12, size: 'lg' })).not.toMatch(
-      /MomentumPanel\.[a-zA-Z.]+/,
-    )
   })
 })

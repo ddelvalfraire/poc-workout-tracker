@@ -6,7 +6,7 @@ import { getRollingVolumeTotals } from '@/db/muscle-volume'
 import { getGoalsHomeSummary } from '@/lib/goals'
 import { goalLabel } from '@/lib/goal-progress'
 import { bucketDaySets } from '@/lib/drawer-status'
-import { momentumSessionsLine, momentumWeekDeltaLine, type MomentumKey } from '@/lib/home-status'
+import { momentumSessionsLine, type MomentumKey } from '@/lib/home-status'
 import { renderLine } from '@/lib/message'
 import { Sparkbar } from '@/components/sparkbar'
 import { StreakChip } from '@/components/streak-chip'
@@ -32,12 +32,10 @@ export interface MomentumPanelProps {
   /** The page's request "now" (epoch ms — serializable, and one instant for
    *  the whole surface) so the sparkbar buckets match the history sections. */
   nowMs: number
-  /** Layout size class: sm renders only the one big number + streak flame;
-   *  md (default) renders the full panel; lg adds the week-over-week line
-   *  (from the previous rolling window the totals read already carries). */
   /** Presentational density, chosen by the renderer from the cell's
-   *  shape — not the layout vocabulary itself. */
-  size?: 'sm' | 'md' | 'lg'
+   *  shape — not the layout vocabulary itself: sm renders only the one big
+   *  number + streak flame; md (default) renders the full panel. */
+  size?: 'sm' | 'md'
 }
 
 /** This widget's content, or null when it has nothing to say — the ONE
@@ -72,7 +70,6 @@ export async function MomentumPanel({ userId, nowMs, size = 'md' }: MomentumPane
 
   const weekSets = weekTotals.currentSets
   const weekSessions = weekTotals.currentSessions
-  const weekDelta = momentumWeekDeltaLine(weekTotals.currentSets, weekTotals.previousSets)
   const daySets = bucketDaySets(summaries, new Date(nowMs))
   const topGoal = goalsSummary?.topGoal ? goalLabel(goalsSummary.topGoal, unit) : null
   const goal =
@@ -152,14 +149,6 @@ export async function MomentumPanel({ userId, nowMs, size = 'md' }: MomentumPane
                 ? renderLine<MomentumKey>(t, momentumSessionsLine(weekSessions))
                 : t('emptyWeek')}
             </span>
-            {/* lg only: the week-over-week fact, from the previous window the
-                totals read already fetched (zero new queries). Null (empty
-                last week) renders nothing — silence over a hollow compare. */}
-            {size === 'lg' && weekDelta !== null && (
-              <span className="mt-0.5 block text-[0.73rem] text-muted-foreground tnum">
-                {renderLine<MomentumKey>(t, weekDelta)}
-              </span>
-            )}
           </span>
           {daySets.length > 0 && (
             <Sparkbar daySets={daySets} className="h-9 shrink-0 gap-1" barClassName="w-2" />

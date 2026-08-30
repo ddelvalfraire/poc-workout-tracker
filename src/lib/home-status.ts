@@ -125,28 +125,11 @@ export function dueHeadline(dayName: string): Message<StatusHeroKey> {
 
 /** Catalog keys for the momentum panel's sublines — rendered by
  *  `MomentumPanel`, so they resolve against that namespace. */
-export type MomentumKey = 'sessionsLine' | 'weekDeltaLevel' | 'weekDeltaUp' | 'weekDeltaDown'
+export type MomentumKey = 'sessionsLine'
 
 /** The momentum panel's sessions subline: "3 sessions this week". */
 export function momentumSessionsLine(count: number): Message<MomentumKey> {
   return { key: 'sessionsLine', values: { count } }
-}
-
-/** The lg momentum panel's week-over-week line ("Up 8 on last week").
- *  Null when last week logged nothing — a comparison against an empty
- *  window reads as noise (a brand-new user's first week isn't "up"),
- *  so silence over a hollow number. Counts are working sets, both from
- *  the rolling-window totals already fetched for the panel. */
-export function momentumWeekDeltaLine(
-  currentSets: number,
-  previousSets: number,
-): Message<MomentumKey> | null {
-  if (previousSets === 0) return null
-  const delta = currentSets - previousSets
-  if (delta === 0) return { key: 'weekDeltaLevel' }
-  return delta > 0
-    ? { key: 'weekDeltaUp', values: { delta } }
-    : { key: 'weekDeltaDown', values: { delta: -delta } }
 }
 
 /** The anchor's WORDS, as a nested descriptor. The hero owns its own copy of
