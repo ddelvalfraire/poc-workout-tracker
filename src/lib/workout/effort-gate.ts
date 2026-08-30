@@ -1,4 +1,4 @@
-import type { AutoregAdjustment, AutoregSession } from '../autoregulate'
+import type { AutoregAdjustment, AutoregSession } from '../programs/autoregulate'
 import type { WeightUnit } from '../units'
 // ε-or-increment identity so a pre-quantization snapshot still matches its
 // quantized re-derivation (#226 transitional bridge).

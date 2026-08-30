@@ -7,9 +7,9 @@ import type {
   Progression,
   SetType,
   Technique,
-} from '@/lib/program-input'
+} from '@/lib/programs/program-input'
 import type { ProgramDetail } from '@/db/programs'
-import type { AutoregStallPolicy } from '@/lib/autoregulate'
+import type { AutoregStallPolicy } from '@/lib/programs/autoregulate'
 import type { OvershootPolicy } from '@/lib/programs/overshoot-policy'
 import type { ExerciseSource } from '@/lib/exercises/custom-exercise-input'
 import { displayToKg, kgToDisplay, type WeightUnit } from '@/lib/units'

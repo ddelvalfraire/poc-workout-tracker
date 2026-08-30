@@ -5,7 +5,7 @@ import {
   pickTemplateIcon,
   type WgerRoutineStructure,
 } from './wger-template-map'
-import { parseProgramInput } from './program-input'
+import { parseProgramInput } from '../programs/program-input'
 
 /** Synthetic catalog: wger exercise id → English name. */
 const CATALOG = new Map<number, string>([

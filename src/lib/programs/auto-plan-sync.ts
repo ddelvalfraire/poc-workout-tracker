@@ -3,7 +3,7 @@ import { getWorkoutDetail, latestCompletedWorkoutForDay } from '@/db/workouts'
 import { getProgramDayDetail } from '@/db/programs'
 import { syncProgramExerciseLoads } from '@/db/program-patches'
 import { getWeightUnit } from '@/db/preferences'
-import { detectPlanSyncCandidates, planSyncEventSummary } from '@/lib/plan-sync'
+import { detectPlanSyncCandidates, planSyncEventSummary } from '@/lib/programs/plan-sync'
 
 /**
  * Automatic plan-sync after a workout save: when a completed

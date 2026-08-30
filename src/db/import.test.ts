@@ -79,10 +79,10 @@ vi.mock('@/lib/exercises/wger', () => ({ getAllExercises: vi.fn() }))
 vi.mock('./custom-exercises', () => ({ listCustomExercises: vi.fn() }))
 // The trophy seam is unit-tested in lib/trophies.test.ts; here we assert only
 // that commit fires it with the RETROACTIVE-QUIET 'import' trigger.
-vi.mock('@/lib/trophies', () => ({ checkTrophies: vi.fn(async () => []) }))
+vi.mock('@/lib/goals/trophies', () => ({ checkTrophies: vi.fn(async () => []) }))
 
 import { getAllExercises } from '@/lib/exercises/wger'
-import { checkTrophies } from '@/lib/trophies'
+import { checkTrophies } from '@/lib/goals/trophies'
 import { listCustomExercises } from './custom-exercises'
 import { customExercises, importBatches, notes, sets, workoutExercises, workouts } from './schema'
 import { commitImport, ImportPlanError, planImport, undoImport, type ImportPlan } from './import'

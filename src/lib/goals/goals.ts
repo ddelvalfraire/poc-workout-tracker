@@ -10,7 +10,7 @@ import { getExerciseStats } from '@/db/exercise-stats'
 import { getBodyweightKg, getWeightUnit } from '@/db/preferences'
 import { getMessages } from '@/i18n/translate'
 import type { ExerciseSource } from '@/lib/exercises/custom-exercise-input'
-import type { GoalKind } from '@/lib/goal-input'
+import type { GoalKind } from '@/lib/goals/goal-input'
 import {
   bodyweightRemainingKg,
   goalLabel,
@@ -20,7 +20,7 @@ import {
   paceProjection,
   strengthPercent,
   weeklyStreak,
-} from '@/lib/goal-progress'
+} from '@/lib/goals/goal-progress'
 import { sendPushToUser } from '@/lib/push'
 
 /**

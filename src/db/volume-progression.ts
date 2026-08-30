@@ -1,7 +1,7 @@
 import { and, asc, eq, inArray, isNotNull } from 'drizzle-orm'
 import type { ExerciseSource } from '@/lib/exercises/custom-exercise-input'
 import { MUSCLE_GROUPS, muscleGroupFor, type MuscleGroup } from '@/lib/exercises/muscle-groups'
-import type { AutoregSession, AutoregStallPolicy } from '@/lib/autoregulate'
+import type { AutoregSession, AutoregStallPolicy } from '@/lib/programs/autoregulate'
 import { getRedis } from '@/lib/redis'
 import {
   combineWeekResults,
@@ -15,7 +15,7 @@ import {
   type MovementWeekResult,
   type MuscleVerdict,
   type SetTemplate,
-} from '@/lib/volume-progression'
+} from '@/lib/programs/volume-progression'
 import { db } from './index'
 import { creditSetMuscles, type VolumeGroup } from './muscle-volume'
 import { createPatchProposal, listPatchProposals } from './patch-proposals'

@@ -6,7 +6,7 @@ import { goals, programs, sets, workoutExercises, workouts } from '@/db/schema'
 import { buildMuscleResolver } from '@/db/muscle-volume'
 import { getHomeLayout, hasStoredHomeLayout } from '@/db/preferences'
 import type { ResolvedHomeSection } from '@/lib/home/layout'
-import type { BodyweightTarget } from '@/lib/goal-input'
+import type { BodyweightTarget } from '@/lib/goals/goal-input'
 import {
   aggregateTrainingFacts,
   classifyTrainingSignal,

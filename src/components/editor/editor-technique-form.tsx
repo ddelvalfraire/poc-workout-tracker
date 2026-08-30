@@ -5,8 +5,8 @@ import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Section } from '@/components/ui/section'
-import type { Technique } from '@/lib/program-input'
-import type { DerivedSet } from '@/lib/progression'
+import type { Technique } from '@/lib/programs/program-input'
+import type { DerivedSet } from '@/lib/programs/progression'
 import {
   TECHNIQUE_KINDS,
   TECHNIQUE_LABEL_KEY,

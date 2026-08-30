@@ -37,8 +37,8 @@ vi.mock('./index', () => ({
 const { programWeekState } = vi.hoisted(() => ({ programWeekState: vi.fn() }))
 vi.mock('./programs', () => ({ programWeekState }))
 
-import type { ProgramSetRowLike } from '@/lib/progression'
-import type { Progression } from '@/lib/program-input'
+import type { ProgramSetRowLike } from '@/lib/programs/progression'
+import type { Progression } from '@/lib/programs/program-input'
 import {
   aggregatePlannedVolume,
   derivePlannedSetRows,

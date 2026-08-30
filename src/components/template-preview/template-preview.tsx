@@ -8,7 +8,7 @@ import {
   groupPlannedSets,
   plannedSetChips,
   type PlannedSetShape,
-} from '@/lib/planned-set-format'
+} from '@/lib/programs/planned-set-format'
 import type { WeightUnit } from '@/lib/units'
 import { cn } from '@/lib/utils'
 

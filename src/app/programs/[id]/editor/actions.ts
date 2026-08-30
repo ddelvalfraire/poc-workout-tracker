@@ -8,7 +8,7 @@ import { getWeightUnit } from '@/db/preferences'
 import { getProgramDetail } from '@/db/programs'
 import { setProgramSetOverride, updateProgramSet } from '@/db/program-patches'
 import { requireUserId } from '@/lib/auth'
-import { techniqueSchema as programTechniqueSchema } from '@/lib/program-input'
+import { techniqueSchema as programTechniqueSchema } from '@/lib/programs/program-input'
 import { displayToKg } from '@/lib/units'
 import { editorHref } from './editor-address'
 

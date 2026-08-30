@@ -7,7 +7,7 @@ import type {
   ProgramExercisePRPoint,
   ProgramExerciseProgression,
 } from '@/db/program-stats'
-import type { MuscleVerdict } from '@/lib/volume-progression'
+import type { MuscleVerdict } from '@/lib/programs/volume-progression'
 import {
   blockAdherencePct,
   blockAttendance,

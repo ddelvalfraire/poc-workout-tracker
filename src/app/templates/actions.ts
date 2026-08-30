@@ -2,8 +2,8 @@
 
 import { revalidatePath } from 'next/cache'
 import { requireUserId } from '@/lib/auth'
-import { parseTemplateInput, parseTemplateMeta } from '@/lib/template-input'
-import { deriveTemplateFromWorkout } from '@/lib/workout-template'
+import { parseTemplateInput, parseTemplateMeta } from '@/lib/templates/template-input'
+import { deriveTemplateFromWorkout } from '@/lib/templates/workout-template'
 import { getWorkoutDetail } from '@/db/workouts'
 import {
   createWorkoutTemplate,

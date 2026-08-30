@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { listTrophies } from '@/db/trophies'
-import { trophyLabel } from '@/lib/trophies'
+import { trophyLabel } from '@/lib/goals/trophies'
 import type { HomeSectionShape } from '@/lib/home/registry'
 import { getTranslations } from 'next-intl/server'
 import { cache } from 'react'

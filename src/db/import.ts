@@ -10,7 +10,7 @@ import {
   type ExerciseResolution,
 } from '@/lib/import/match'
 import type { ImportSource, ParsedImport, ParsedSet, SkippedRow } from '@/lib/import/types'
-import { checkTrophies } from '@/lib/trophies'
+import { checkTrophies } from '@/lib/goals/trophies'
 import { db } from './index'
 import { customExercises, importBatches, notes, sets, workoutExercises, workouts } from './schema'
 import { listCustomExercises } from './custom-exercises'

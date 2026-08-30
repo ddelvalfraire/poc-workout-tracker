@@ -29,7 +29,7 @@ vi.mock('./autoreg-history', () => ({
 }))
 
 import { deriveDayPrescription, type DayForDerivation } from './prescriptions'
-import { autoregReason, type AutoregStallPolicy } from '@/lib/autoregulate'
+import { autoregReason, type AutoregStallPolicy } from '@/lib/programs/autoregulate'
 import { kgToDisplay } from '@/lib/units'
 
 const USER = 'user_123'

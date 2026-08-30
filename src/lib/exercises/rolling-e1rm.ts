@@ -1,5 +1,5 @@
 import { estimate1RM, MAX_RELIABLE_REPS } from '@/lib/exercises/one-rep-max'
-import type { SetType } from '@/lib/program-input'
+import type { SetType } from '@/lib/programs/program-input'
 
 /**
  * The ROLLING e1RM — the control signal of RPE-aware autoregulation

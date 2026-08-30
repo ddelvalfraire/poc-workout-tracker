@@ -4,8 +4,8 @@ import { revalidatePath } from 'next/cache'
 import { requireUserId } from '@/lib/auth'
 import { getWeightUnit } from '@/db/preferences'
 import { archiveGoal, createGoal, deleteGoal } from '@/db/goals'
-import { parseGoalInput } from '@/lib/goal-input'
-import { checkGoalAchievements } from '@/lib/goals'
+import { parseGoalInput } from '@/lib/goals/goal-input'
+import { checkGoalAchievements } from '@/lib/goals/goals'
 import { displayToKg } from '@/lib/units'
 
 /**

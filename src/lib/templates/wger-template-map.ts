@@ -13,8 +13,8 @@
  * only at the top level by the fetch layer, so every field read is narrowed
  * before use (mirroring `wger.ts`'s per-record policy).
  */
-import type { ProgramInputUnparsed } from './program-input'
-import { MAX_REST_SEC } from './program-input'
+import type { ProgramInputUnparsed } from '../programs/program-input'
+import { MAX_REST_SEC } from '../programs/program-input'
 
 /** Our schema's mesocycle ceiling (`programInputSchema.mesocycleWeeks` max). */
 const MAX_WEEKS = 52

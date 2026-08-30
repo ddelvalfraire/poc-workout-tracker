@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parseProgramInput, type ProgramInput } from './program-input'
+import { parseProgramInput, type ProgramInput } from '../programs/program-input'
 import { TEMPLATE_CANON, WGER } from './template-canon'
 
 /**

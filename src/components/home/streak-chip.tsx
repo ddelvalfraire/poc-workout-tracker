@@ -1,7 +1,7 @@
 'use client'
 
 import { Flame } from 'lucide-react'
-import { weeklyStreak } from '@/lib/goal-progress'
+import { weeklyStreak } from '@/lib/goals/goal-progress'
 import { useMounted } from '@/lib/use-mounted'
 import { useTranslations } from 'next-intl'
 

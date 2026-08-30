@@ -1,7 +1,7 @@
 'use client'
 
 import { Flame } from 'lucide-react'
-import { streakWeekTicks, weeklyStreak, type WeekTickState } from '@/lib/goal-progress'
+import { streakWeekTicks, weeklyStreak, type WeekTickState } from '@/lib/goals/goal-progress'
 import { useMounted } from '@/lib/use-mounted'
 import { cn } from '@/lib/utils'
 import { useTranslations } from 'next-intl'

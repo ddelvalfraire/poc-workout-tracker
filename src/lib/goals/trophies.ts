@@ -13,7 +13,7 @@ import { activeScheduledWeekdays, completedWorkoutTimes } from '@/db/goals'
 import { programWeekState } from '@/db/programs'
 import type { ExerciseSource } from '@/lib/exercises/custom-exercise-input'
 import { normalizeExerciseKey } from '@/lib/import/match'
-import { weeklyStreak } from '@/lib/goal-progress'
+import { weeklyStreak } from '@/lib/goals/goal-progress'
 import { sendPushToUser } from '@/lib/push'
 import {
   CANONICAL_LIFTS,
@@ -25,7 +25,7 @@ import {
   type TrophyContext,
   type TrophyDef,
   type TrophyKind,
-} from '@/lib/trophy-kinds'
+} from '@/lib/goals/trophy-kinds'
 import { kgToDisplay, type WeightUnit } from '@/lib/units'
 
 /**

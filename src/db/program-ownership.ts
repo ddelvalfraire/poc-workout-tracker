@@ -1,5 +1,5 @@
 import { and, eq } from 'drizzle-orm'
-import { programSetIntegrityViolation } from '@/lib/program-input'
+import { programSetIntegrityViolation } from '@/lib/programs/program-input'
 import type { ExerciseSource } from '@/lib/exercises/custom-exercise-input'
 import type { db } from './index'
 import { programs, programDays, programExercises } from './schema'

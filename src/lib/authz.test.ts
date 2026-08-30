@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { can, type AuthzAction, type ProgramResource, type WorkoutResource } from './authz'
-import { TEMPLATE_OWNER_USER_ID } from './template-owner'
+import { TEMPLATE_OWNER_USER_ID } from './templates/template-owner'
 
 /**
  * The full truth table for the v1 authorization seam. Every row names the

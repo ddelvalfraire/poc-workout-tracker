@@ -5,7 +5,7 @@ import { db } from '@/db'
 import { sets, workoutExercises, workouts } from '@/db/schema'
 import { getBodyweightKg } from '@/db/preferences'
 import { inWindow, volumeWindows } from '@/lib/volume-window'
-import { CANONICAL_LIFTS } from '@/lib/trophy-kinds'
+import { CANONICAL_LIFTS } from '@/lib/goals/trophy-kinds'
 import {
   aggregateBigThree,
   aggregateCardioRecords,

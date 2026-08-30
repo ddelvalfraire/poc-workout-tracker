@@ -3,7 +3,7 @@ import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 import { fn } from "storybook/test";
 
 import { EditorInspector } from "./editor-inspector";
-import type { DerivedSet } from "@/lib/progression";
+import type { DerivedSet } from "@/lib/programs/progression";
 
 /**
  * Pane 3 — the inspector for the selected exercise.

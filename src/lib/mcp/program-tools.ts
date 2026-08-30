@@ -15,10 +15,10 @@ import {
   visibilitySchema,
   parseProgramInput,
   type ProgramInput,
-} from '@/lib/program-input'
+} from '@/lib/programs/program-input'
 import { MAX_WEIGHT as MAX_WEIGHT_KG } from '@/lib/workout/workout-input'
 import { displayToKg, kgToDisplay, type WeightUnit } from '@/lib/units'
-import { autoregReason } from '@/lib/autoregulate'
+import { autoregReason } from '@/lib/programs/autoregulate'
 import {
   saveProgram,
   updateProgram,
@@ -37,7 +37,7 @@ import { NotCoachProposalError, ProposedProgramError } from '@/db/program-errors
 import { listPatchProposals } from '@/db/patch-proposals'
 import { listTemplates, adoptTemplate } from '@/db/templates'
 import { restartTmPlan } from '@/db/restart-plan'
-import type { TmIncrement } from '@/lib/tm-restart'
+import type { TmIncrement } from '@/lib/programs/tm-restart'
 import { getWeightUnit } from '@/db/preferences'
 
 /** Optional explicit unit override; absent → the user's stored unit. */

@@ -27,11 +27,11 @@ import {
   stampAppliedLoad,
   type AutoregRangeRow,
   type AutoregSession,
-} from '../autoregulate'
+} from '../programs/autoregulate'
 import { estimate1RM } from '../exercises/one-rep-max'
-import { schemeSentence, schemeSubtitle, repFillHoldReason } from '../scheme-copy'
-import type { Progression } from '../program-input'
-import type { DerivedSet } from '../progression'
+import { schemeSentence, schemeSubtitle, repFillHoldReason } from '../programs/scheme-copy'
+import type { Progression } from '../programs/program-input'
+import type { DerivedSet } from '../programs/progression'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 const BASE_MS = Date.UTC(2026, 7, 1)

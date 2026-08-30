@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { renderMessageIn } from '../../../../vitest.intl'
 import { targetCells, targetMarks, groupDerivedSets } from './derived-format'
-import type { DerivedSet } from '@/lib/progression'
+import type { DerivedSet } from '@/lib/programs/progression'
 
 /** A derived working set with every optional target nulled, for overriding. */
 function derivedSet(overrides: Partial<DerivedSet> = {}): DerivedSet {

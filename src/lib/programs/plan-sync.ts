@@ -4,7 +4,7 @@ import {
   type AutoregAnchor,
   type AutoregSession,
 } from './autoregulate'
-import { kgToDisplay, type WeightUnit } from './units'
+import { kgToDisplay, type WeightUnit } from '../units'
 
 /**
  * Plan-sync detection: after a COMPLETED program-provenance workout, which of

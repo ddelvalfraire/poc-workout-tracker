@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import type { Progression } from '../program-input'
+import type { Progression } from './program-input'
 
 /**
  * Overshoot / goal-met policy (#227) — HOW a completed set is credited against

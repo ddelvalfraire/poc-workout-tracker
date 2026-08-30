@@ -5,8 +5,8 @@ import {
   isTechniqueKind,
   startsRestPeriod,
 } from './technique'
-import type { DerivedSet } from '../progression'
-import type { Technique } from '../program-input'
+import type { DerivedSet } from '../programs/progression'
+import type { Technique } from '../programs/program-input'
 
 /** A derived working set with every optional target nulled, for overriding. */
 function derivedSet(overrides: Partial<DerivedSet> = {}): DerivedSet {

@@ -74,7 +74,7 @@ const { hasFeature } = vi.hoisted(() => ({ hasFeature: vi.fn() }))
 vi.mock('./entitlements', () => ({ hasFeature }))
 
 import { adoptTemplate, getTemplate } from './templates'
-import { TEMPLATE_OWNER_USER_ID } from '@/lib/template-owner'
+import { TEMPLATE_OWNER_USER_ID } from '@/lib/templates/template-owner'
 import { programs, programEvents } from './schema'
 
 const VISITOR = 'user_visitor'

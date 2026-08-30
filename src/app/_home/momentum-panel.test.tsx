@@ -24,7 +24,7 @@ vi.mock('next-intl/server', () => ({
 
 vi.mock('@/db/workouts', () => ({ listWorkoutSummaries: async () => [] }))
 vi.mock('@/db/preferences', () => ({ getWeightUnit: async () => 'kg' }))
-vi.mock('@/lib/goal-progress', () => ({
+vi.mock('@/lib/goals/goal-progress', () => ({
   goalLabel: () => 'Squat 140 kg',
   weeklyStreak: () => 0,
 }))
@@ -43,7 +43,7 @@ vi.mock('@/db/muscle-volume', () => ({
   }),
 }))
 
-vi.mock('@/lib/goals', () => ({
+vi.mock('@/lib/goals/goals', () => ({
   getGoalsHomeSummary: async () =>
     activeGoalCount === 0
       ? null

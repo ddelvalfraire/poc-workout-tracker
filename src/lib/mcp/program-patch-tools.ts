@@ -37,7 +37,7 @@ import {
   PROPOSABLE_PATCH_TOOLS,
   MAX_PROPOSAL_PATCHES,
   MAX_PROPOSAL_SUMMARY,
-} from '@/lib/patch-proposal'
+} from '@/lib/programs/patch-proposal'
 import { getWeightUnit } from '@/db/preferences'
 import { displayToKg, kgToDisplay, type WeightUnit } from '@/lib/units'
 import { MAX_WEIGHT as MAX_WEIGHT_KG } from '@/lib/workout/workout-input'
@@ -53,7 +53,7 @@ import {
   MAX_MESOCYCLE_WEEKS,
   MIN_CHECK_IN_DAYS,
   MAX_CHECK_IN_DAYS,
-} from '@/lib/program-input'
+} from '@/lib/programs/program-input'
 import { overshootPolicySchema } from '@/lib/programs/overshoot-policy'
 
 /** The five program behavior policies, as one discriminated union: every arm

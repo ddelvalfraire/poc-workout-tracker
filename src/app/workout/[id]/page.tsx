@@ -15,8 +15,8 @@ import { DividerList } from "@/components/ui/divider-list";
 import { getWeightUnit, getBodyweightKg } from "@/db/preferences";
 import { goalsAchievedSince, listActiveGoals, type GoalRow } from "@/db/goals";
 import { trophiesAchievedSince } from "@/db/trophies";
-import { goalLabel, strengthPercent } from "@/lib/goal-progress";
-import { trophyLabel } from "@/lib/trophies";
+import { goalLabel, strengthPercent } from "@/lib/goals/goal-progress";
+import { trophyLabel } from "@/lib/goals/trophies";
 import { resolveFinishUpNext } from "@/lib/workout/finish-up-next";
 import {
   formatWorkoutDate,

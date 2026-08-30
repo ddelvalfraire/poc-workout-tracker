@@ -1,5 +1,5 @@
 import { and, desc, eq, isNull } from 'drizzle-orm'
-import type { DeloadPolicy, DietPhase, Progression } from '@/lib/program-input'
+import type { DeloadPolicy, DietPhase, Progression } from '@/lib/programs/program-input'
 import type { ExerciseSource } from '@/lib/exercises/custom-exercise-input'
 import {
   deriveWeekSets,
@@ -11,7 +11,7 @@ import {
   type ExerciseHistoryInput,
   type ProgramSetRowLike,
   type SetOverrideLike,
-} from '@/lib/progression'
+} from '@/lib/programs/progression'
 import { setTrainingMax } from './program-patches'
 import { rollingE1rm } from '@/lib/exercises/rolling-e1rm'
 import { expandTechniqueStages } from '@/lib/workout/technique'
@@ -34,7 +34,7 @@ import {
   type AutoregRangeRow,
   type AutoregSession,
   type AutoregStallPolicy,
-} from '@/lib/autoregulate'
+} from '@/lib/programs/autoregulate'
 import { resolveOvershootPolicy, type OvershootPolicy } from '@/lib/programs/overshoot-policy'
 import { getRecentTrainedSessions } from './autoreg-history'
 import { db } from './index'

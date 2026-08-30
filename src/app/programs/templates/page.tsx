@@ -2,14 +2,14 @@ import Link from 'next/link'
 import { ArrowRight, ChevronRight } from 'lucide-react'
 import { requireUserId } from '@/lib/auth'
 import { getAllExercises } from '@/lib/exercises/wger'
-import { listPublicTemplates } from '@/lib/wger-templates'
-import { mapWgerRoutineToProgram } from '@/lib/wger-template-map'
+import { listPublicTemplates } from '@/lib/templates/wger-templates'
+import { mapWgerRoutineToProgram } from '@/lib/templates/wger-template-map'
 import {
   dayNameChips,
   findAdoptedProgram,
   groupByDaysPerWeek,
   type ShelfCard,
-} from '@/lib/wger-template-shelf'
+} from '@/lib/templates/wger-template-shelf'
 import { listPrograms } from '@/db/programs'
 import { listTemplates } from '@/db/templates'
 import { AppHeader } from '@/components/nav/app-header'

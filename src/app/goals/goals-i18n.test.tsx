@@ -2,7 +2,7 @@ import { describe, expect, test } from 'vitest'
 import { createTranslator } from 'next-intl'
 
 import en from '../../../messages/en.json'
-import { goalLabel, paceVsDeadline, type GoalLabelMessage } from '@/lib/goal-progress'
+import { goalLabel, paceVsDeadline, type GoalLabelMessage } from '@/lib/goals/goal-progress'
 
 /**
  * The goals surface's words, now that lib/goal-progress returns DESCRIPTORS.

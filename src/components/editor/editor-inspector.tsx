@@ -4,8 +4,8 @@ import { useTranslations } from 'next-intl'
 
 import { EmptyWords } from '@/components/ui/empty-words'
 import { cn } from '@/lib/utils'
-import type { Technique } from '@/lib/program-input'
-import type { DerivedSet } from '@/lib/progression'
+import type { Technique } from '@/lib/programs/program-input'
+import type { DerivedSet } from '@/lib/programs/progression'
 import type { WeightUnit } from '@/lib/units'
 import { EditorTechniquePanel } from './editor-technique-panel'
 

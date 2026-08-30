@@ -21,8 +21,8 @@ import {
   trophyHint,
   trophyLabel,
   type TrophyEvidence,
-} from '@/lib/trophies'
-import { TROPHY_DEFS, type TrophyDef, type TrophyKind } from '@/lib/trophy-kinds'
+} from '@/lib/goals/trophies'
+import { TROPHY_DEFS, type TrophyDef, type TrophyKind } from '@/lib/goals/trophy-kinds'
 import { formatWorkoutDate } from '@/lib/format'
 import type { WeightUnit } from '@/lib/units'
 import { AppHeader } from '@/components/nav/app-header'

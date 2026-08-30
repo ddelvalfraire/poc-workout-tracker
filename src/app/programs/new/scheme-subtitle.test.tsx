@@ -3,12 +3,12 @@ import { createTranslator } from 'next-intl'
 
 import en from '../../../../messages/en.json'
 import { renderStaticIntl } from '../../../../vitest.intl'
-import type { Progression } from '@/lib/program-input'
+import type { Progression } from '@/lib/programs/program-input'
 import {
   schemeSentence,
   type ProgressionScheme,
   type SchemeSentenceContext,
-} from '@/lib/scheme-copy'
+} from '@/lib/programs/scheme-copy'
 
 import { SchemeSubtitle } from './scheme-subtitle'
 

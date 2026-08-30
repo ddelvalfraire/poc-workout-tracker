@@ -1,4 +1,4 @@
-import type { MetricMode, SetType } from '@/lib/program-input'
+import type { MetricMode, SetType } from '@/lib/programs/program-input'
 import type { LoggingType } from '@/lib/workout/workout-input'
 import type { TrainedDayState } from '@/app/programs/[id]/editor/trained-view'
 

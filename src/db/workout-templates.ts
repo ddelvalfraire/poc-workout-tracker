@@ -1,5 +1,5 @@
 import { and, asc, countDistinct, desc, eq } from 'drizzle-orm'
-import type { WorkoutTemplateInput, TemplateMetaInput } from '@/lib/template-input'
+import type { WorkoutTemplateInput, TemplateMetaInput } from '@/lib/templates/template-input'
 import { db } from './index'
 import { workoutTemplates, workoutTemplateExercises } from './schema'
 

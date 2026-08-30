@@ -1,5 +1,5 @@
 import { and, eq, gte, isNotNull } from 'drizzle-orm'
-import { resolveDeloadPolicy } from '@/lib/progression'
+import { resolveDeloadPolicy } from '@/lib/programs/progression'
 import { getRedis } from '@/lib/redis'
 import {
   REACTIVE_DELOAD_SOURCE,
@@ -9,7 +9,7 @@ import {
   reactiveDeloadProposalContent,
   reactiveDeloadSubject,
   type ReactiveDeloadCandidate,
-} from '@/lib/reactive-deload'
+} from '@/lib/programs/reactive-deload'
 import {
   EFFORT_STEP_SOURCE,
   effortStepProposalContent,

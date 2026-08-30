@@ -5,7 +5,7 @@ import {
   type DerivedSet,
   type ProgramSetRowLike,
   type SetOverrideLike,
-} from './progression'
+} from './programs/progression'
 
 /**
  * THE PER-WEEK SET-COUNT CONTRACT (docs/specs/per-week-set-count.md).

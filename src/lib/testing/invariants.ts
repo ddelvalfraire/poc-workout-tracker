@@ -7,20 +7,20 @@ import {
   type ExerciseHistoryInput,
   type ProgramSetRowLike,
   type SetOverrideLike,
-} from '@/lib/progression'
+} from '@/lib/programs/progression'
 import {
   autoregReason,
   anchorLoadFor,
   sessionAnchorLoads,
   type AutoregAdjustment,
   type AutoregSession,
-} from '@/lib/autoregulate'
+} from '@/lib/programs/autoregulate'
 import type {
   PlanSyncCandidate,
   PlanSyncPlanExercise,
   PlanSyncWorkoutExercise,
-} from '@/lib/plan-sync'
-import type { Progression } from '@/lib/program-input'
+} from '@/lib/programs/plan-sync'
+import type { Progression } from '@/lib/programs/program-input'
 
 /**
  * Layer 1 of the progression test harness (progression-test-harness.prd.md):

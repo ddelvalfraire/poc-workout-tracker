@@ -3,13 +3,13 @@ import { requireUserId } from '@/lib/auth'
 import { getWeightUnit } from '@/db/preferences'
 import { listArchivedGoals } from '@/db/goals'
 import { listBodyweightLogs } from '@/db/bodyweight'
-import { goalLabel, paceVsDeadline, sortGoalsByTension } from '@/lib/goal-progress'
+import { goalLabel, paceVsDeadline, sortGoalsByTension } from '@/lib/goals/goal-progress'
 import {
   evaluateGoalProgress,
   getStreakEvidence,
   type GoalWithProgress,
   type StreakEvidence,
-} from '@/lib/goals'
+} from '@/lib/goals/goals'
 import { formatWorkoutDate } from '@/lib/format'
 import { kgToDisplay, type WeightUnit } from '@/lib/units'
 import { TrendChart, type TrendPoint } from '@/components/charts/trend-chart'

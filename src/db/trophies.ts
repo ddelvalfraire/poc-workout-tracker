@@ -1,5 +1,5 @@
 import { and, desc, eq, gte, ne, sql } from 'drizzle-orm'
-import type { TrophyContext, TrophyKind } from '@/lib/trophy-kinds'
+import type { TrophyContext, TrophyKind } from '@/lib/goals/trophy-kinds'
 import { db } from './index'
 import { programs, sets, trophies, workoutExercises, workouts } from './schema'
 

@@ -11,7 +11,7 @@ import {
   templateStatusLine,
   templateUsageByName,
   type TemplateStatusMessage,
-} from '@/lib/template-usage'
+} from '@/lib/templates/template-usage'
 import { AppHeader } from '@/components/nav/app-header'
 import { GuardedStartLink } from '@/components/workout/guarded-start-link'
 import { NavDrawer } from '@/components/nav/nav-drawer'

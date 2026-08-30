@@ -8,8 +8,8 @@
  * "2×60s", "@ 100 kg"). Kept free of JSX so it unit-tests as plain functions
  * (repo convention for pure modules).
  */
-import type { WeightUnit } from './units'
-import { quantizeDisplayLoad } from './workout/load-quantize'
+import type { WeightUnit } from '../units'
+import { quantizeDisplayLoad } from '../workout/load-quantize'
 import type { ProgramInputUnparsed } from './program-input'
 
 /** One planned set as a lenient mapper emits it (defaults not yet applied). */
