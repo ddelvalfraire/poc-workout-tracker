@@ -19,8 +19,8 @@ import { WeightTrend, weightTrendContent } from './weight-trend'
 import { PlanAdherence, planAdherenceContent } from './plan-adherence'
 import { StrengthRetention, strengthRetentionContent } from './strength-retention'
 import { MomentumPanel, momentumContent } from './momentum-panel'
-import { TodayRecap } from './today-recap'
-import { HomeCellBoundary } from './home-cell-boundary'
+import { TodayRecap } from '@/components/home/today-recap'
+import { HomeCellBoundary } from '@/components/home/home-cell-boundary'
 import { useTranslations } from 'next-intl'
 
 /**

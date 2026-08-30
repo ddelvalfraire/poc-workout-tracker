@@ -1,5 +1,5 @@
 import { describe, expect, test, vi } from 'vitest'
-import { renderStaticIntl } from '../../vitest.intl'
+import { renderStaticIntl } from '../../../vitest.intl'
 import type { WorkoutSummary } from '@/db/workouts'
 import { HistoryList } from './history-list'
 
