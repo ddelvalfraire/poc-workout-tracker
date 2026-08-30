@@ -6,7 +6,7 @@ import { Pin } from 'lucide-react'
 import { MarkdownView } from '@/components/ui/markdown-view'
 import { QuickCaptureSheet } from '@/components/editor/quick-capture-sheet'
 import { upsertExerciseNoteAction, deleteExerciseNoteAction } from '@/app/exercises/actions'
-import type { ExerciseSource } from '@/lib/custom-exercise-input'
+import type { ExerciseSource } from '@/lib/exercises/custom-exercise-input'
 import { useTranslations } from 'next-intl'
 
 /**

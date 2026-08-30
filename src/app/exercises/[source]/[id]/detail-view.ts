@@ -1,7 +1,7 @@
 import { kgToDisplay, type WeightUnit } from '@/lib/units'
 import { formatWorkoutDate } from '@/lib/format'
-import { sessionBestSet, type SessionBestSet, type SessionSetLike } from '@/lib/session-best-set'
-import type { LoggingType } from '@/lib/workout-input'
+import { sessionBestSet, type SessionBestSet, type SessionSetLike } from '@/lib/workout/session-best-set'
+import type { LoggingType } from '@/lib/workout/workout-input'
 import type { TrendPoint } from '@/components/charts/trend-chart'
 
 /**

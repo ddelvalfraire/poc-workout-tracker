@@ -4,7 +4,7 @@ import {
   sustainedUndershoot,
   EFFORT_GATE_MIN_SESSIONS,
 } from './effort-gate'
-import type { AutoregAdjustment, AutoregSession } from './autoregulate'
+import type { AutoregAdjustment, AutoregSession } from '../autoregulate'
 
 /**
  * The effort gate (RPE plan slice 3): overshoot-hold + trend veto ONLY.

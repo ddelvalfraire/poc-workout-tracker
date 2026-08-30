@@ -1,6 +1,6 @@
 import { cache } from 'react'
-import { catalogKey, type ExerciseCatalog } from '@/lib/exercise-catalog'
-import { getAllExercises, type Exercise } from '@/lib/wger'
+import { catalogKey, type ExerciseCatalog } from '@/lib/exercises/exercise-catalog'
+import { getAllExercises, type Exercise } from '@/lib/exercises/wger'
 import { listCustomExercises } from './custom-exercises'
 
 /**

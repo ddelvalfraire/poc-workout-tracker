@@ -1,14 +1,14 @@
-import type { ExerciseSource } from '@/lib/custom-exercise-input'
+import type { ExerciseSource } from '@/lib/exercises/custom-exercise-input'
 import { getBodyweightKg } from './preferences'
 import {
   aggregateExerciseStats,
   exerciseStatsRows,
   type ExerciseStatsQueryRow,
 } from './exercise-stats'
-import { correctionReach, type CorrectionReach, type SettledDecision } from '@/lib/record-reach'
+import { correctionReach, type CorrectionReach, type SettledDecision } from '@/lib/workout/record-reach'
 
-export { correctionReach } from '@/lib/record-reach'
-export type { CorrectionReach, RecordReachItem, SettledDecision } from '@/lib/record-reach'
+export { correctionReach } from '@/lib/workout/record-reach'
+export type { CorrectionReach, RecordReachItem, SettledDecision } from '@/lib/workout/record-reach'
 
 /**
  * GUARD 2, the io half — what a proposed correction would reach.

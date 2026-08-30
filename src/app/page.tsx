@@ -10,7 +10,7 @@ import { listWorkoutDrafts } from "@/db/workout-drafts";
 import { getNextProgramDay } from "@/db/programs";
 import { getWeightUnit } from "@/db/preferences";
 import { getSeededHomeLayout } from "@/db/home-signal";
-import { resolveActiveSession } from "@/lib/active-session";
+import { resolveActiveSession } from "@/lib/workout/active-session";
 import { getCheckInStatus } from "@/lib/check-in";
 import { getGoalsHomeSummary } from "@/lib/goals";
 import { buttonVariants } from "@/components/ui/button";

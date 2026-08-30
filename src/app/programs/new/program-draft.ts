@@ -10,11 +10,11 @@ import type {
 } from '@/lib/program-input'
 import type { ProgramDetail } from '@/db/programs'
 import type { AutoregStallPolicy } from '@/lib/autoregulate'
-import type { OvershootPolicy } from '@/lib/overshoot-policy'
-import type { ExerciseSource } from '@/lib/custom-exercise-input'
+import type { OvershootPolicy } from '@/lib/programs/overshoot-policy'
+import type { ExerciseSource } from '@/lib/exercises/custom-exercise-input'
 import { displayToKg, kgToDisplay, type WeightUnit } from '@/lib/units'
-import { trainingMaxFromE1rm } from '@/lib/one-rep-max'
-import { defaultMetricModeForCategory } from '@/lib/workout-input'
+import { trainingMaxFromE1rm } from '@/lib/exercises/one-rep-max'
+import { defaultMetricModeForCategory } from '@/lib/workout/workout-input'
 import {
   formatDistanceInput,
   formatDurationInput,

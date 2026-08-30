@@ -1,7 +1,7 @@
 import { and, asc, count, eq } from 'drizzle-orm'
-import type { ExerciseSource } from '@/lib/custom-exercise-input'
-import { bestScoredSet, type ScoredBestSet } from '@/lib/one-rep-max'
-import type { LoggingType } from '@/lib/workout-input'
+import type { ExerciseSource } from '@/lib/exercises/custom-exercise-input'
+import { bestScoredSet, type ScoredBestSet } from '@/lib/exercises/one-rep-max'
+import type { LoggingType } from '@/lib/workout/workout-input'
 import { db } from './index'
 import { getBodyweightKg } from './preferences'
 import { nextProgramWeek } from './programs'
@@ -24,7 +24,7 @@ import { programs, programDays, workouts, workoutExercises, sets } from './schem
  * weights stay canonical kg — display converts, this module never does.
  */
 
-export type { ScoredBestSet } from '@/lib/one-rep-max'
+export type { ScoredBestSet } from '@/lib/exercises/one-rep-max'
 
 /** One week's adherence and volume within the block. */
 export interface ProgramWeekStats {

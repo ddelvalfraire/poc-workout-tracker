@@ -1,5 +1,5 @@
 import { and, asc, eq } from 'drizzle-orm'
-import type { CustomExerciseInput } from '@/lib/custom-exercise-input'
+import type { CustomExerciseInput } from '@/lib/exercises/custom-exercise-input'
 import { db } from './index'
 import { customExercises } from './schema'
 

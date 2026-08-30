@@ -1,6 +1,6 @@
 import { and, asc, eq, inArray, isNotNull } from 'drizzle-orm'
-import type { ExerciseSource } from '@/lib/custom-exercise-input'
-import { MUSCLE_GROUPS, muscleGroupFor, type MuscleGroup } from '@/lib/muscle-groups'
+import type { ExerciseSource } from '@/lib/exercises/custom-exercise-input'
+import { MUSCLE_GROUPS, muscleGroupFor, type MuscleGroup } from '@/lib/exercises/muscle-groups'
 import type { AutoregSession, AutoregStallPolicy } from '@/lib/autoregulate'
 import { getRedis } from '@/lib/redis'
 import {

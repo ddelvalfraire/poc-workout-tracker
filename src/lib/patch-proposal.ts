@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { setTypeSchema, metricModeSchema, techniqueSchema, dietPhaseSchema } from '@/lib/program-input'
-import { MAX_WEIGHT } from '@/lib/workout-input'
+import { MAX_WEIGHT } from '@/lib/workout/workout-input'
 import { kgToDisplay, type WeightUnit } from '@/lib/units'
 
 /**

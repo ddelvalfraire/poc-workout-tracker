@@ -1,5 +1,5 @@
 import { and, asc, desc, eq, gte, isNotNull, isNull } from 'drizzle-orm'
-import type { ExerciseSource } from '@/lib/custom-exercise-input'
+import type { ExerciseSource } from '@/lib/exercises/custom-exercise-input'
 import type { GoalKind, GoalTarget, ParsedGoalInput } from '@/lib/goal-input'
 import { db } from './index'
 import { goals, programDays, programs, workouts } from './schema'

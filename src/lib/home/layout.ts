@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { exerciseSourceSchema, type ExerciseSource } from '@/lib/custom-exercise-input'
+import { exerciseSourceSchema, type ExerciseSource } from '@/lib/exercises/custom-exercise-input'
 import {
   HOME_SECTION_REGISTRY,
   HOME_SECTION_SHAPES,

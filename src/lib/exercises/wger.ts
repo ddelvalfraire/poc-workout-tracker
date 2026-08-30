@@ -18,7 +18,7 @@
  * `/api/exercises` over HTTP, not import this directly.
  */
 
-import { getRedis } from './redis'
+import { getRedis } from '../redis'
 
 const WGER_BASE_URL = process.env.WGER_API_BASE_URL ?? 'https://wger.de/api/v2'
 const WGER_ENGLISH_LANGUAGE_ID = 2

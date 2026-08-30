@@ -7,7 +7,7 @@ import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 import { useAnimatedSheetClose } from '@/components/ui/use-animated-sheet-close'
 import { cn } from '@/lib/utils'
-import type { OvershootPolicy } from '@/lib/overshoot-policy'
+import type { OvershootPolicy } from '@/lib/programs/overshoot-policy'
 
 /**
  * "What counts as beating the target", as a row that opens a sheet.

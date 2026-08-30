@@ -11,7 +11,7 @@ import {
   formatVolume,
   formatWorkoutDuration,
 } from '@/lib/format'
-import { bestScoredSet } from '@/lib/one-rep-max'
+import { bestScoredSet } from '@/lib/exercises/one-rep-max'
 import { AppHeader } from '@/components/nav/app-header'
 import { PrBadge } from '@/components/workout/pr-badge'
 import { buttonVariants } from '@/components/ui/button'

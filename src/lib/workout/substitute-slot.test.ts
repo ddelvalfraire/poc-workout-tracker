@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { substituteSlot, type SlotForSubstitution } from './substitute-slot'
-import type { Progression } from './program-input'
+import type { Progression } from '../program-input'
 
 type SlotSet = SlotForSubstitution['sets'][number]
 type SlotOverride = SlotSet['overrides'][number]

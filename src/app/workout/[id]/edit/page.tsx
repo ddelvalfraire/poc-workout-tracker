@@ -12,7 +12,7 @@ import {
 import { getProgramDayDetail } from '@/db/programs'
 import { getExerciseCatalog } from '@/db/exercise-catalog'
 import { deriveDayPrescription } from '@/db/prescriptions'
-import { expandTechniqueStages } from '@/lib/technique'
+import { expandTechniqueStages } from '@/lib/workout/technique'
 import { getWorkoutDraft } from '@/db/workout-drafts'
 import type { PlanSetTarget } from '@/lib/format'
 import type { DerivedSet } from '@/lib/progression'
@@ -21,7 +21,7 @@ import { autoregReason } from '@/lib/autoregulate'
 import { detailToDraft } from '@/app/workout/new/workout-draft'
 import { WorkoutLogger } from '@/app/workout/new/workout-logger'
 import { resolveDraftSeed } from '@/app/workout/new/draft-payload'
-import { isLiveSession } from '@/lib/workout-session-mode'
+import { isLiveSession } from '@/lib/workout/workout-session-mode'
 import { getTranslations } from 'next-intl/server'
 
 /**

@@ -16,7 +16,7 @@ import type {
 import {
   overshootPolicySchema,
   type OvershootPolicy,
-} from '@/lib/overshoot-policy'
+} from '@/lib/programs/overshoot-policy'
 
 import {
   db,

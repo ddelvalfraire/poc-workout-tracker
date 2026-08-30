@@ -1,7 +1,7 @@
-import type { ExerciseSource } from '@/lib/custom-exercise-input'
-import { bestScoredSet, type ScoredBestSet } from '@/lib/one-rep-max'
+import type { ExerciseSource } from '@/lib/exercises/custom-exercise-input'
+import { bestScoredSet, type ScoredBestSet } from '@/lib/exercises/one-rep-max'
 import { kgToDisplay, type WeightUnit } from '@/lib/units'
-import type { LoggingType } from '@/lib/workout-input'
+import type { LoggingType } from '@/lib/workout/workout-input'
 
 /**
  * Pure view logic for the workout summary page — the PR comparisons the page

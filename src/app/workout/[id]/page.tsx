@@ -17,7 +17,7 @@ import { goalsAchievedSince, listActiveGoals, type GoalRow } from "@/db/goals";
 import { trophiesAchievedSince } from "@/db/trophies";
 import { goalLabel, strengthPercent } from "@/lib/goal-progress";
 import { trophyLabel } from "@/lib/trophies";
-import { resolveFinishUpNext } from "@/lib/finish-up-next";
+import { resolveFinishUpNext } from "@/lib/workout/finish-up-next";
 import {
   formatWorkoutDate,
   formatLoggedSet,
@@ -26,8 +26,8 @@ import {
   formatWorkoutDuration,
   workoutDurationMinutes,
 } from "@/lib/format";
-import { bestScoredSet } from "@/lib/one-rep-max";
-import { effortLabel } from "@/lib/effort";
+import { bestScoredSet } from "@/lib/exercises/one-rep-max";
+import { effortLabel } from "@/lib/workout/effort";
 import {
   compareExercises,
   durationVsLastLabel,

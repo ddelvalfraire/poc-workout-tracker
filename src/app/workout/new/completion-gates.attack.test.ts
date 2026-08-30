@@ -18,7 +18,7 @@ import {
   type DraftSet,
   type WorkoutDraft,
 } from './workout-draft'
-import { parseWorkoutInput } from '@/lib/workout-input'
+import { parseWorkoutInput } from '@/lib/workout/workout-input'
 import type { WorkoutDetail } from '@/db/workouts'
 
 function set(overrides: Partial<DraftSet> = {}): DraftSet {

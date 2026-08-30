@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation'
 import { ExternalLink } from 'lucide-react'
 import { requireUserId } from '@/lib/auth'
-import { getAllExercises } from '@/lib/wger'
+import { getAllExercises } from '@/lib/exercises/wger'
 import { listPublicTemplates } from '@/lib/wger-templates'
 import { mapWgerRoutineToProgram } from '@/lib/wger-template-map'
 import { getWeightUnit } from '@/db/preferences'

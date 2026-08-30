@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { ButtonGroup } from '@/components/ui/button-group'
 import { formatElapsed } from '@/lib/format'
-import { createRestEdgeDetector, REST_ADJUST_STEP_SEC } from '@/lib/rest-alert'
+import { createRestEdgeDetector, REST_ADJUST_STEP_SEC } from '@/lib/workout/rest-alert'
 import { cn } from '@/lib/utils'
 import { useTranslations } from 'next-intl'
 

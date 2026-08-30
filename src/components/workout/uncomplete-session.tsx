@@ -11,7 +11,7 @@ import {
   uncompleteWorkoutAction,
   recompleteWorkoutAction,
 } from '@/app/workout/actions'
-import { hasCascade, type UncompleteCascade } from '@/lib/uncomplete-cascade'
+import { hasCascade, type UncompleteCascade } from '@/lib/workout/uncomplete-cascade'
 
 /**
  * GUARD 1 — un-completing a session, and the cascade it drags with it.

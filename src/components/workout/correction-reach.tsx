@@ -5,7 +5,7 @@ import { cn } from '@/lib/utils'
 import { formatE1RM, formatWorkoutDate } from '@/lib/format'
 import type { WeightUnit } from '@/lib/units'
 import type { Locale } from '@/i18n/config'
-import type { CorrectionReach as Reach, RecordReachItem } from '@/lib/record-reach'
+import type { CorrectionReach as Reach, RecordReachItem } from '@/lib/workout/record-reach'
 
 /**
  * GUARD 2 — how far this correction reaches, said at the edit surface.

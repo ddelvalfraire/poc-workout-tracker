@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { allTimePRIndex, type PRCandidateSet } from './pr-detection'
-import { displayToKg, kgToDisplay } from './units'
+import { displayToKg, kgToDisplay } from '../units'
 
 /** One candidate set; overrides on top of a completed 5×100 default. */
 function set(over: Partial<PRCandidateSet> = {}): PRCandidateSet {

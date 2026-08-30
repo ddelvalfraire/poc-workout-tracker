@@ -1,4 +1,4 @@
-import type { ExerciseSource } from '@/lib/custom-exercise-input'
+import type { ExerciseSource } from '@/lib/exercises/custom-exercise-input'
 
 /**
  * The create-from-swap return leg (#218): `/exercises/new` finishes by writing

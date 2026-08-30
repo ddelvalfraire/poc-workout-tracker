@@ -1,4 +1,4 @@
-import { parseNotes } from './workout-input'
+import { parseNotes } from '../workout/workout-input'
 
 /**
  * Validation boundary for notes-v2 rows (the `notes` table): author whitelist,

@@ -7,7 +7,7 @@ import { searchExercises, clearExerciseCache, type Exercise } from './wger'
 const { redisRef } = vi.hoisted(() => ({
   redisRef: { current: null as { get: ReturnType<typeof vi.fn>; set: ReturnType<typeof vi.fn> } | null },
 }))
-vi.mock('./redis', () => ({ getRedis: () => redisRef.current }))
+vi.mock('../redis', () => ({ getRedis: () => redisRef.current }))
 
 const ENGLISH = 2
 const GERMAN = 1

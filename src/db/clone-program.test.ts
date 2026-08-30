@@ -51,7 +51,7 @@ vi.mock('./index', () => ({
   },
 }))
 
-vi.mock('@/lib/wger', () => ({ getAllExercises }))
+vi.mock('@/lib/exercises/wger', () => ({ getAllExercises }))
 
 // The TM setter is mocked so carry-forward is observable as calls (its own
 // behavior is program-patches.test.ts territory). The mock's ProgramPatchError

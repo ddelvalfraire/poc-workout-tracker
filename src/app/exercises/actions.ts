@@ -7,9 +7,9 @@ import {
   customExerciseInputSchema,
   type CustomExerciseInput,
   type ExerciseSource,
-} from '@/lib/custom-exercise-input'
+} from '@/lib/exercises/custom-exercise-input'
 import { createCustomExercise, updateCustomExercise } from '@/db/custom-exercises'
-import { parseExerciseNoteInput } from '@/lib/exercise-note-input'
+import { parseExerciseNoteInput } from '@/lib/notes/exercise-note-input'
 import { upsertExerciseNote, deleteExerciseNote } from '@/db/exercise-notes'
 
 /**

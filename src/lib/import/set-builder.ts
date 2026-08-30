@@ -1,4 +1,4 @@
-import { MAX_WEIGHT } from '@/lib/workout-input'
+import { MAX_WEIGHT } from '@/lib/workout/workout-input'
 import type { ParsedSet } from './types'
 
 /**

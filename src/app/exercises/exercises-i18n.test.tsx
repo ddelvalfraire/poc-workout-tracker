@@ -8,7 +8,7 @@ import {
   e1rmStatusBase,
   recencyLabel,
   sessionCountLine,
-} from '@/lib/exercise-library'
+} from '@/lib/exercises/exercise-library'
 import { LibraryFilter, type LibraryEntry } from './library-filter'
 import { CustomExerciseEditor } from './custom-exercise-editor'
 import { ExerciseNoteSection } from './[source]/[id]/exercise-note-section'

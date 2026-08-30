@@ -1,6 +1,6 @@
 import { and, eq, or } from 'drizzle-orm'
-import type { ExerciseSource } from '@/lib/custom-exercise-input'
-import type { ExerciseNoteInput } from '@/lib/exercise-note-input'
+import type { ExerciseSource } from '@/lib/exercises/custom-exercise-input'
+import type { ExerciseNoteInput } from '@/lib/notes/exercise-note-input'
 import { db } from './index'
 import { exerciseNotes } from './schema'
 

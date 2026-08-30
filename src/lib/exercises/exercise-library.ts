@@ -1,5 +1,5 @@
 import { kgToDisplay, type WeightUnit } from '@/lib/units'
-import { MUSCLE_GROUPS, type MuscleGroup } from '@/lib/muscle-groups'
+import { MUSCLE_GROUPS, type MuscleGroup } from '@/lib/exercises/muscle-groups'
 
 /**
  * The /exercises library's alive-row language — zoning, status lines,

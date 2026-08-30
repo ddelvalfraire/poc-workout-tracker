@@ -1,4 +1,4 @@
-import { displayToKg, kgToDisplay, type WeightUnit } from './units'
+import { displayToKg, kgToDisplay, type WeightUnit } from '../units'
 
 /**
  * Load quantization (#226): every SUGGESTED or DISPLAYED load must be a

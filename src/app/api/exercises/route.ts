@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getUserId } from '@/lib/auth'
-import { searchExercises, getAllExercises } from '@/lib/wger'
+import { searchExercises, getAllExercises } from '@/lib/exercises/wger'
 import { listCustomExercises } from '@/db/custom-exercises'
 
 // Exercise data is public reference data that changes rarely, so the browser

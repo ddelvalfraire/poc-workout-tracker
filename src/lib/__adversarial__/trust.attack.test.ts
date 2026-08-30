@@ -15,9 +15,9 @@ import {
   quantizeDisplayLoad,
   quantizeLoadKg,
   quantizeSetLoads,
-} from '../load-quantize'
+} from '../workout/load-quantize'
 import { displayToKg, kgToDisplay, type WeightUnit } from '../units'
-import { defaultOvershootPolicy, resolveOvershootPolicy } from '../overshoot-policy'
+import { defaultOvershootPolicy, resolveOvershootPolicy } from '../programs/overshoot-policy'
 import {
   autoregulate,
   autoregulateRange,
@@ -28,7 +28,7 @@ import {
   type AutoregRangeRow,
   type AutoregSession,
 } from '../autoregulate'
-import { estimate1RM } from '../one-rep-max'
+import { estimate1RM } from '../exercises/one-rep-max'
 import { schemeSentence, schemeSubtitle, repFillHoldReason } from '../scheme-copy'
 import type { Progression } from '../program-input'
 import type { DerivedSet } from '../progression'

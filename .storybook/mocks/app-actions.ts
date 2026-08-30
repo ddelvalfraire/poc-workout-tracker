@@ -22,7 +22,7 @@ import type { NoteRow } from "@/db/notes";
 import type * as ProgramActions from "@/app/programs/actions";
 import type * as WorkoutActions from "@/app/workout/actions";
 // Type-only, erased at build: the cascade shape the un-complete guard reads.
-import type { UncompleteCascade } from "@/lib/uncomplete-cascade";
+import type { UncompleteCascade } from "@/lib/workout/uncomplete-cascade";
 import type * as MfaActions from "@/app/settings/account/mfa/actions";
 import type * as AccountActions from "@/app/settings/account/actions";
 import type * as OpsBillingActions from "@/app/ops/billing/actions";

@@ -12,7 +12,7 @@ import {
   TECHNIQUE_LABEL_KEY,
   expandTechniqueStages,
   plannedTechniqueWeight,
-} from '@/lib/technique'
+} from '@/lib/workout/technique'
 import { kgToDisplay, displayToKg, type WeightUnit } from '@/lib/units'
 import { cn } from '@/lib/utils'
 

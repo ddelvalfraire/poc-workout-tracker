@@ -4,17 +4,17 @@ import type {
   WorkoutInput,
   WorkoutMetricMode,
   WorkoutSetType,
-} from '@/lib/workout-input'
-import type { ExerciseSource } from '@/lib/custom-exercise-input'
+} from '@/lib/workout/workout-input'
+import type { ExerciseSource } from '@/lib/exercises/custom-exercise-input'
 // lib/, never db/: this module is bundled with the client logger, and the
 // loader's Postgres import would ride along into the browser.
-import { catalogCategory, type ExerciseCatalog } from '@/lib/exercise-catalog'
+import { catalogCategory, type ExerciseCatalog } from '@/lib/exercises/exercise-catalog'
 import type { WorkoutDetail } from '@/db/workouts'
 import { displayToKg, kgToDisplay, type WeightUnit } from '@/lib/units'
-import { classOrdinal, defaultMetricModeForCategory, isMetricMode } from '@/lib/workout-input'
+import { classOrdinal, defaultMetricModeForCategory, isMetricMode } from '@/lib/workout/workout-input'
 export { defaultMetricModeForCategory }
-import { isValidRir, isValidRpe } from '@/lib/effort'
-import { isTechniqueKind, type TechniqueKind } from '@/lib/technique'
+import { isValidRir, isValidRpe } from '@/lib/workout/effort'
+import { isTechniqueKind, type TechniqueKind } from '@/lib/workout/technique'
 import {
   formatDistanceInput,
   formatDurationInput,

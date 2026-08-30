@@ -1,6 +1,6 @@
-import type { ProposalPatch } from './patch-proposal'
-import type { PendingProposalRef } from './reactive-deload'
-import { kgToDisplay, type WeightUnit } from './units'
+import type { ProposalPatch } from '../patch-proposal'
+import type { PendingProposalRef } from '../reactive-deload'
+import { kgToDisplay, type WeightUnit } from '../units'
 
 /**
  * EFFORT-STEP proposals (RPE plan slice 4): two consecutive easy sessions

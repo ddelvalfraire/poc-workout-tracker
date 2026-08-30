@@ -1,4 +1,4 @@
-import { estimate1RM, effectiveLoadKg } from '@/lib/one-rep-max'
+import { estimate1RM, effectiveLoadKg } from '@/lib/exercises/one-rep-max'
 import { canonicalLiftFor } from '@/lib/trophies'
 import type { CanonicalLift } from '@/lib/trophy-kinds'
 import type { RecordSetRow } from './records'

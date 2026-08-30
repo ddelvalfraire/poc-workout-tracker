@@ -4,8 +4,8 @@ import type {
   NoteAnchorKind,
   NoteAnchorSnapshot,
   NoteAuthor,
-} from '@/lib/note-input'
-import type { ExerciseSource } from '@/lib/custom-exercise-input'
+} from '@/lib/notes/note-input'
+import type { ExerciseSource } from '@/lib/exercises/custom-exercise-input'
 import { db } from './index'
 import { notes, programs, sets, workoutExercises, workouts } from './schema'
 

@@ -34,7 +34,7 @@ async function main(): Promise<void> {
     ],
   )
   const { listPrograms, saveProgram, updateProgram } = await import('../src/db/programs')
-  const { getAllExercises } = await import('../src/lib/wger')
+  const { getAllExercises } = await import('../src/lib/exercises/wger')
 
   // Validate every payload through the boundary FIRST — nothing writes if
   // any template is malformed (all-or-nothing at the content level).

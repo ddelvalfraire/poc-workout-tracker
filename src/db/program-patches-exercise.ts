@@ -16,15 +16,15 @@ import {
 } from '@/lib/program-input'
 import type {
   ExerciseSource,
-} from '@/lib/custom-exercise-input'
+} from '@/lib/exercises/custom-exercise-input'
 
 import {
   overshootPolicySchema,
   type OvershootPolicy,
-} from '@/lib/overshoot-policy'
+} from '@/lib/programs/overshoot-policy'
 import {
   TM_BASED_SCHEMES,
-} from '@/lib/substitute-slot'
+} from '@/lib/workout/substitute-slot'
 import {
   db,
 } from './index'
@@ -44,7 +44,7 @@ import {
 } from './programs'
 import type {
   ExerciseCatalog,
-} from '@/lib/exercise-catalog'
+} from '@/lib/exercises/exercise-catalog'
 import {
   getExerciseCatalog,
 } from './exercise-catalog'

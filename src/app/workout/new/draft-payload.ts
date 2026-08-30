@@ -1,6 +1,6 @@
 import type { WorkoutDraft, DraftExercise, DraftSet } from './workout-draft'
 import { isWeightUnit, type WeightUnit } from '@/lib/units'
-import { isLoggingType, isMetricMode, isWorkoutSetType } from '@/lib/workout-input'
+import { isLoggingType, isMetricMode, isWorkoutSetType } from '@/lib/workout/workout-input'
 
 /**
  * Pure build/parse for the cross-device draft snapshot the logger autosaves to

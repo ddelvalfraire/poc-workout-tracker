@@ -3,7 +3,7 @@ import { cache } from 'react'
 import { db } from './index'
 import { userPreferences } from './schema'
 import { DEFAULT_WEIGHT_UNIT, isWeightUnit, type WeightUnit } from '@/lib/units'
-import { equipmentForUnit, type Equipment, type StoredEquipment } from '@/lib/equipment'
+import { equipmentForUnit, type Equipment, type StoredEquipment } from '@/lib/exercises/equipment'
 import { resolveHomeLayout, type HomeLayout, type ResolvedHomeSection } from '@/lib/home/layout'
 
 /**

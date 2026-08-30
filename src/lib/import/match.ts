@@ -1,4 +1,4 @@
-import type { ExerciseCategory, ExerciseSource } from '@/lib/custom-exercise-input'
+import type { ExerciseCategory, ExerciseSource } from '@/lib/exercises/custom-exercise-input'
 
 /**
  * Exercise-name matching — the hard part of import. Pipeline, per the PRD:

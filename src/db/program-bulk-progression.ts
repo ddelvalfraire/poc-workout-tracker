@@ -1,6 +1,6 @@
 import { eq, inArray } from 'drizzle-orm'
 import type { Progression } from '@/lib/program-input'
-import { TM_BASED_SCHEMES } from '@/lib/substitute-slot'
+import { TM_BASED_SCHEMES } from '@/lib/workout/substitute-slot'
 import { db } from './index'
 import { recordProgramEvent, type ProgramEventActor } from './program-events'
 import {

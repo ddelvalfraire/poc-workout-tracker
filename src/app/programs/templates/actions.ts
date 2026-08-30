@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { requireUserId } from '@/lib/auth'
 import { parseProgramInput } from '@/lib/program-input'
-import { getAllExercises } from '@/lib/wger'
+import { getAllExercises } from '@/lib/exercises/wger'
 import { getRoutineStructure } from '@/lib/wger-templates'
 import { mapWgerRoutineToProgram } from '@/lib/wger-template-map'
 import { saveProgram } from '@/db/programs'

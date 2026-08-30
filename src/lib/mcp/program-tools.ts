@@ -16,7 +16,7 @@ import {
   parseProgramInput,
   type ProgramInput,
 } from '@/lib/program-input'
-import { MAX_WEIGHT as MAX_WEIGHT_KG } from '@/lib/workout-input'
+import { MAX_WEIGHT as MAX_WEIGHT_KG } from '@/lib/workout/workout-input'
 import { displayToKg, kgToDisplay, type WeightUnit } from '@/lib/units'
 import { autoregReason } from '@/lib/autoregulate'
 import {

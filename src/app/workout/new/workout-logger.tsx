@@ -15,7 +15,7 @@ import {
   Trash2,
   X,
 } from 'lucide-react'
-import { declaredSaveKind } from '@/lib/workout-session-mode'
+import { declaredSaveKind } from '@/lib/workout/workout-session-mode'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -104,24 +104,24 @@ import {
   SET_COMPLETE_VIBRATION,
   vibrate,
 } from './haptics'
-import { resolveRestTarget } from '@/lib/rest-target'
+import { resolveRestTarget } from '@/lib/workout/rest-target'
 import {
   continuesTechniqueGroup,
   startsRestPeriod,
   TECHNIQUE_LABEL_KEY,
-} from '@/lib/technique'
-import { adjustedRestTarget } from '@/lib/rest-alert'
-import { sessionPulse, shouldShowNextUp } from '@/lib/session-pulse'
-import { targetCaption } from '@/lib/target-caption'
-import { allTimePRIndex } from '@/lib/pr-detection'
-import { DEFAULT_EQUIPMENT, type Equipment } from '@/lib/equipment'
-import { LOGGING_TYPES, isLoggingType } from '@/lib/workout-input'
-import type { ExerciseSource } from '@/lib/custom-exercise-input'
+} from '@/lib/workout/technique'
+import { adjustedRestTarget } from '@/lib/workout/rest-alert'
+import { sessionPulse, shouldShowNextUp } from '@/lib/workout/session-pulse'
+import { targetCaption } from '@/lib/workout/target-caption'
+import { allTimePRIndex } from '@/lib/workout/pr-detection'
+import { DEFAULT_EQUIPMENT, type Equipment } from '@/lib/exercises/equipment'
+import { LOGGING_TYPES, isLoggingType } from '@/lib/workout/workout-input'
+import type { ExerciseSource } from '@/lib/exercises/custom-exercise-input'
 import { type WeightUnit } from '@/lib/units'
 import { cn } from '@/lib/utils'
 import { markReplace, navigateBack } from '@/lib/back-navigation'
-import { discardSession } from '@/lib/discard-session'
-import { effortLabel, shouldShowEffortRow } from '@/lib/effort'
+import { discardSession } from '@/lib/workout/discard-session'
+import { effortLabel, shouldShowEffortRow } from '@/lib/workout/effort'
 import {
   planSetGhost,
   stepWeightValue,

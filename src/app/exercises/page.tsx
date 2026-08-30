@@ -3,7 +3,7 @@ import { requireUserId } from '@/lib/auth'
 import { listLoggedExercises } from '@/db/exercise-stats'
 import { buildMuscleResolver } from '@/db/muscle-volume'
 import { getWeightUnit } from '@/db/preferences'
-import { MUSCLE_GROUPS, muscleGroupFor, type MuscleGroup } from '@/lib/muscle-groups'
+import { MUSCLE_GROUPS, muscleGroupFor, type MuscleGroup } from '@/lib/exercises/muscle-groups'
 import {
   compareLibraryEntries,
   e1rmDeltaChip,
@@ -14,7 +14,7 @@ import {
   recencyLabel,
   sessionCountLine,
   type LibraryParams,
-} from '@/lib/exercise-library'
+} from '@/lib/exercises/exercise-library'
 import { AppHeader } from '@/components/nav/app-header'
 import { NavDrawer } from '@/components/nav/nav-drawer'
 import { cn } from '@/lib/utils'

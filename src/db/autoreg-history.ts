@@ -1,5 +1,5 @@
 import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, ne, sql } from 'drizzle-orm'
-import type { ExerciseSource } from '@/lib/custom-exercise-input'
+import type { ExerciseSource } from '@/lib/exercises/custom-exercise-input'
 import { AUTOREG_RANGE_SESSION_WINDOW } from '@/lib/autoregulate'
 import { db } from './index'
 import { workouts, workoutExercises, sets, programDays } from './schema'

@@ -1,4 +1,4 @@
-import type { ExerciseSource } from '@/lib/custom-exercise-input'
+import type { ExerciseSource } from '@/lib/exercises/custom-exercise-input'
 
 /**
  * URL-boundary codec for the composite exercise identity — /exercises routes

@@ -2,13 +2,13 @@ import { and, eq } from 'drizzle-orm'
 import { db } from './index'
 import { programDays, programs, workouts } from './schema'
 import { programWeekState } from './programs'
-import { NO_CASCADE, type UncompleteCascade } from '@/lib/uncomplete-cascade'
+import { NO_CASCADE, type UncompleteCascade } from '@/lib/workout/uncomplete-cascade'
 
 export {
   NO_CASCADE,
   hasCascade,
   type UncompleteCascade,
-} from '@/lib/uncomplete-cascade'
+} from '@/lib/workout/uncomplete-cascade'
 
 /**
  * What un-completing one session would DRAG WITH IT.

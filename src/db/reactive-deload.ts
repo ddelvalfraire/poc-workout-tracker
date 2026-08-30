@@ -14,7 +14,7 @@ import {
   EFFORT_STEP_SOURCE,
   effortStepProposalContent,
   hasPendingEffortStepProposal,
-} from '@/lib/effort-step'
+} from '@/lib/workout/effort-step'
 import { db } from './index'
 import { createPatchProposal, listPatchProposals } from './patch-proposals'
 import { getProgramDetail, nextProgramWeek } from './programs'

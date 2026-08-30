@@ -1,7 +1,7 @@
 'use server'
 
 import { requireUserId } from '@/lib/auth'
-import { isNoteAnchorKind, parseNoteAnchor, parseNoteBody } from '@/lib/note-input'
+import { isNoteAnchorKind, parseNoteAnchor, parseNoteBody } from '@/lib/notes/note-input'
 import {
   createNote,
   createPositionalSetNote,

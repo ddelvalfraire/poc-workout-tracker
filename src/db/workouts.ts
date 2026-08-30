@@ -16,9 +16,9 @@ import {
   sql,
 } from 'drizzle-orm'
 import { cache } from 'react'
-import type { WorkoutInput, LoggingType, WorkoutMetricMode } from '@/lib/workout-input'
+import type { WorkoutInput, LoggingType, WorkoutMetricMode } from '@/lib/workout/workout-input'
 import type { SetType } from '@/lib/program-input'
-import type { ExerciseSource } from '@/lib/custom-exercise-input'
+import type { ExerciseSource } from '@/lib/exercises/custom-exercise-input'
 import { db } from './index'
 import { workouts, workoutExercises, sets, exerciseNotes, notes } from './schema'
 import { SetCompletionError } from './workout-errors'
