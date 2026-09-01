@@ -17,6 +17,17 @@ const nextConfig: NextConfig = {
   env: {
     NEXT_PUBLIC_BUILD_ID: buildId,
   },
+  experimental: {
+    // Every signed-in route is dynamic (it reads the session), and Next's
+    // client cache holds dynamic pages for 0s by default — so home → Programs
+    // → home paid a full server round trip on the way back. 30s of reuse for
+    // a page the user just left, matching the TanStack staleTime the client
+    // islands already use. Correctness: every in-app write is a server
+    // action that calls revalidatePath('/', 'layout'), which purges this
+    // cache; only writes made outside the app (the MCP server) can show up
+    // to 30s late, the same window the drawer already accepts.
+    staleTimes: { dynamic: 30 },
+  },
   // PostHog ingest reverse proxy: first-party /_i/* so ad blockers (which eat
   // 25-35% of direct third-party analytics requests) don't blind the funnel.
   // Path is deliberately short and non-obvious — blockers pattern-match

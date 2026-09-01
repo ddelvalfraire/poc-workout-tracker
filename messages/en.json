@@ -988,9 +988,6 @@
     "steady": "holding steady",
     "title": "Lift trend"
   },
-  "Loading": {
-    "label": "Loading"
-  },
   "MeasurementEntryRow": {
     "confirm": {
       "body": "It disappears from the history and the trend.",

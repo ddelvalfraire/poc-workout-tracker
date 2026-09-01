@@ -32,7 +32,7 @@ vi.mock('vaul', () => {
 })
 
 import type { DrawerData } from '@/lib/home/drawer-status'
-import { NavDrawer, planDrawerOpen, statusArrival } from './nav-drawer'
+import { NavDrawer, planDrawerOpen, planLinkTap, statusArrival } from './nav-drawer'
 
 /** Static render with the Query provider NavDrawer's useQuery now requires;
  *  queries stay disabled — this suite asserts the pending markup contract. */
@@ -341,6 +341,39 @@ describe('planDrawerOpen (open/reopen contract — the drawer wires this verbati
       openedPending: false,
       refetchInBackground: false,
     })
+  })
+})
+
+describe('planLinkTap (what a drawer link tap does — the keep-open contract)', () => {
+  test('a tap on the current page closes the drawer and blocks the duplicate push', () => {
+    expect(planLinkTap({ targetPathname: '/programs', pathname: '/programs' })).toEqual({
+      preventDefault: true,
+      close: true,
+      stripHistoryEntry: false,
+    })
+  })
+
+  test('a cross-page tap strips the drawer’s history entry and leaves it OPEN', () => {
+    // No root loading.tsx: the current page (drawer included) stays until
+    // the next page is ready, whose own drawer instance replaces this one.
+    expect(planLinkTap({ targetPathname: '/history', pathname: '/' })).toEqual({
+      preventDefault: false,
+      close: false,
+      stripHistoryEntry: true,
+    })
+  })
+})
+
+describe('DrawerLink (the only pending signal on a route change)', () => {
+  test('every navigating link carries the delayed pending dim, nothing else does', () => {
+    const html = renderDrawerFull()
+    const dims = html.match(/has-data-nav-pending:animate-pending-dim/g) ?? []
+    // Wordmark, 9 rows, 1 recent, Settings — the program-due hero is a
+    // <button> (server action + push), not a link, so it is not counted.
+    expect(dims).toHaveLength(12)
+    // Idle: no marker element rendered, so nothing is dimmed (the class name
+    // carries the same words, hence the attribute form).
+    expect(html).not.toContain('data-nav-pending=""')
   })
 })
 

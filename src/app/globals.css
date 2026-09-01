@@ -221,10 +221,10 @@
     opacity: 0.6;
   }
 }
-@layer utilities {
-  .animate-pending-dim {
-    animation: pending-dim 180ms ease-out 150ms forwards;
-  }
+/* @utility (not a plain layer class) so variant prefixes can target it — the
+   nav drawer applies it as has-data-nav-pending:animate-pending-dim. */
+@utility animate-pending-dim {
+  animation: pending-dim 180ms ease-out 150ms forwards;
 }
 
 /* The nav drawer's slide/fade comes from vaul's runtime-injected stylesheet,

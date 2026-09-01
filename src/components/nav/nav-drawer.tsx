@@ -1,7 +1,13 @@
 'use client'
 
-import Link from 'next/link'
-import { useEffect, useState, type ComponentType, type ReactNode } from 'react'
+import Link, { useLinkStatus } from 'next/link'
+import {
+  useEffect,
+  useState,
+  type ComponentProps,
+  type ComponentType,
+  type ReactNode,
+} from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { useQuery } from '@tanstack/react-query'
 import { Drawer } from 'vaul'
@@ -151,6 +157,43 @@ function ThinBar({ percent }: { percent: number }) {
   )
 }
 
+/** What a tap on a drawer link must do — pure, so the keep-open contract is
+ *  unit-testable. A tap on the CURRENT page closes the drawer without
+ *  minting a duplicate history entry; a cross-page tap strips the drawer's
+ *  own entry BEFORE the Link's push lands and leaves the drawer OPEN — the
+ *  current page (drawer included) stays on screen until the next page is
+ *  ready, whose own NavDrawer instance replaces this one. The tapped link
+ *  is therefore where the wait shows (see DrawerLink), not a spinner. */
+export function planLinkTap(args: { targetPathname: string; pathname: string }): {
+  preventDefault: boolean
+  close: boolean
+  stripHistoryEntry: boolean
+} {
+  const sameRoute = args.targetPathname === args.pathname
+  return { preventDefault: sameRoute, close: sameRoute, stripHistoryEntry: !sameRoute }
+}
+
+/** Renders a marker while the navigation its parent Link started is still
+ *  pending; the parent's has-data-nav-pending: variant does the dimming.
+ *  Nothing renders at all for a navigation that beats the 150ms delay. */
+function PendingMark() {
+  const { pending } = useLinkStatus()
+  return pending ? <span data-nav-pending="" aria-hidden="true" hidden /> : null
+}
+
+/** Every navigating link in the drawer: a plain <Link> (prefetch, long-press
+ *  previews keep working) that dims after 150ms while its navigation is
+ *  pending — the app's ONLY pending signal on a route change (DESIGN.md
+ *  § Pending states), shown only when the wait is real. */
+function DrawerLink({ className, children, ...props }: ComponentProps<typeof Link>) {
+  return (
+    <Link {...props} className={cn(className, 'has-data-nav-pending:animate-pending-dim')}>
+      {children}
+      <PendingMark />
+    </Link>
+  )
+}
+
 /** The hero's one box geometry, shared by every variant: min-h-17 (68px) is
  *  the volt button's own height — py-3 + text-base line + gap-0.5 + text-xs
  *  line + border — so pending → quiet → volt swaps never move the rows. */
@@ -176,14 +219,14 @@ function QuietHero({ title, context, href, linkLabel, onNavigate }: QuietHeroPro
       {context !== null && (
         <p className="mt-0.5 truncate text-xs text-muted-foreground tnum">{context}</p>
       )}
-      <Link
+      <DrawerLink
         href={href}
         onClick={onNavigate}
         className="mt-1.5 flex w-fit items-center gap-0.5 text-xs font-medium text-muted-foreground transition-colors active:text-foreground"
       >
         {linkLabel}
         <ChevronRight aria-hidden="true" className="size-3.5" />
-      </Link>
+      </DrawerLink>
     </div>
   )
 }
@@ -247,9 +290,11 @@ export function NavDrawer({ userId }: NavDrawerProps) {
   const { dismissForNavigation } = useHistoryDismissable(isOpen, () => setIsOpen(false))
 
   // Navigation to a NEW route unmounts this instance (each page renders its
-  // own header trigger); the eager close covers same-route taps and makes
-  // cross-route exits feel immediate. Links stay plain <Link>s so prefetch
-  // and long-press previews keep working.
+  // own header trigger) — and only then. There is no root loading.tsx, so
+  // the current page stays on screen until the next one is ready; closing
+  // the drawer eagerly would leave the user staring at the page they just
+  // left with nothing happening. It stays open, and the tapped DrawerLink
+  // dims after 150ms if the wait is real (planLinkTap has the contract).
   //
   // Two history duties on the way out (spike §3d): a tap on the CURRENT
   // page must close the drawer WITHOUT minting a duplicate entry, and a
@@ -260,13 +305,10 @@ export function NavDrawer({ userId }: NavDrawerProps) {
     // The anchor's own resolved URL, so every call site stays a plain
     // onClick={closeOnNavigate} — no per-link href plumbing to drift.
     const targetPathname = new URL(event.currentTarget.href, window.location.href).pathname
-    if (targetPathname === pathname) {
-      event.preventDefault() // duplicate same-page entry: the one push the drawer must block
-      setIsOpen(false) // programmatic close → the hook pops the drawer's own entry
-      return
-    }
-    dismissForNavigation()
-    setIsOpen(false)
+    const plan = planLinkTap({ targetPathname, pathname })
+    if (plan.preventDefault) event.preventDefault() // duplicate same-page entry: the one push the drawer must block
+    if (plan.stripHistoryEntry) dismissForNavigation()
+    if (plan.close) setIsOpen(false) // programmatic close → the hook pops the drawer's own entry
   }
 
   function handleOpenChange(open: boolean): void {
@@ -337,12 +379,12 @@ export function NavDrawer({ userId }: NavDrawerProps) {
     }
     if (heroState === 'session-live' && data.resume) {
       return (
-        <Link href={activeSessionHref(data.resume.key)} onClick={closeOnNavigate} className={voltHero}>
+        <DrawerLink href={activeSessionHref(data.resume.key)} onClick={closeOnNavigate} className={voltHero}>
           <span className="text-base font-semibold uppercase tracking-wide">{t('resumeAction')}</span>
           <span className="text-xs font-medium normal-case opacity-80">
             {data.resume.name ?? t('resumeContext')}
           </span>
-        </Link>
+        </DrawerLink>
       )
     }
     // Drifting with a program mirrors home: the way back in is the next day.
@@ -406,10 +448,10 @@ export function NavDrawer({ userId }: NavDrawerProps) {
     }
     // fresh, or drifting with no program: the open door (home's volt too).
     return (
-      <Link href="/workout/new" onClick={closeOnNavigate} className={voltHero}>
+      <DrawerLink href="/workout/new" onClick={closeOnNavigate} className={voltHero}>
         <span className="text-base font-semibold uppercase tracking-wide">{t('quickStartAction')}</span>
         <span className="text-xs font-medium normal-case opacity-80">{t('quickLogContext')}</span>
-      </Link>
+      </DrawerLink>
     )
   }
 
@@ -547,7 +589,7 @@ export function NavDrawer({ userId }: NavDrawerProps) {
             {/* Wordmark = the Home row (Claude-style drawer header): with the
                 top-level back chevrons gone, this is the path home. */}
             <div className="border-b border-border px-5 py-4">
-              <Link
+              <DrawerLink
                 href="/"
                 onClick={closeOnNavigate}
                 aria-current={pathname === '/' ? 'page' : undefined}
@@ -557,7 +599,7 @@ export function NavDrawer({ userId }: NavDrawerProps) {
                 )}
               >
                 {tCommon('appName')}
-              </Link>
+              </DrawerLink>
             </div>
 
             {/* Zone ACT — the hero, keyed by its STATE so a change remounts
@@ -593,7 +635,7 @@ export function NavDrawer({ userId }: NavDrawerProps) {
                         animationFillMode: 'backwards',
                       }}
                     >
-                      <Link
+                      <DrawerLink
                         href={row.href}
                         onClick={closeOnNavigate}
                         aria-current={active ? 'page' : undefined}
@@ -643,7 +685,7 @@ export function NavDrawer({ userId }: NavDrawerProps) {
                             </span>
                           )}
                         </span>
-                      </Link>
+                      </DrawerLink>
                     </li>
                   )
                 })}
@@ -668,7 +710,7 @@ export function NavDrawer({ userId }: NavDrawerProps) {
                 <ul>
                   {data.recents.map((recent) => (
                     <li key={recent.id}>
-                      <Link
+                      <DrawerLink
                         href={`/workout/${recent.id}`}
                         onClick={closeOnNavigate}
                         className="flex items-baseline justify-between gap-3 rounded-xl px-3 py-2 transition-colors active:bg-muted/60"
@@ -677,7 +719,7 @@ export function NavDrawer({ userId }: NavDrawerProps) {
                         <span className="shrink-0 text-xs text-muted-foreground tnum">
                           {lines(recentWorkoutLine(recent, data.unit, now))}
                         </span>
-                      </Link>
+                      </DrawerLink>
                     </li>
                   ))}
                 </ul>
@@ -687,7 +729,7 @@ export function NavDrawer({ userId }: NavDrawerProps) {
 
           {/* Zone IDENTITY — pinned bottom, Claude-style. */}
           <div className="flex items-center justify-between gap-2 border-t border-border px-4 py-3 pb-safe">
-            <Link
+            <DrawerLink
               href="/settings"
               onClick={closeOnNavigate}
               aria-current={settingsActive ? 'page' : undefined}
@@ -698,7 +740,7 @@ export function NavDrawer({ userId }: NavDrawerProps) {
             >
               <Settings aria-hidden="true" className="size-5" />
               {t('settingsLink')}
-            </Link>
+            </DrawerLink>
             <SignOutButton />
           </div>
         </Drawer.Content>
