@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useState, type ComponentType, type ReactNode } from 'react'
+import { useEffect, useState, type ComponentType, type ReactNode } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { useQuery } from '@tanstack/react-query'
 import { Drawer } from 'vaul'
@@ -23,6 +23,7 @@ import {
 } from 'lucide-react'
 import { startProgramDayAction } from '@/app/programs/actions'
 import { useHistoryDismissable } from '@/lib/use-history-dismissable'
+import { drawerPersister, pruneForeignDrawerSnapshots } from '@/lib/query-persister'
 import { activeSessionHref } from '@/lib/workout/active-session'
 import { scheduleAnchor } from '@/lib/home/schedule-anchor'
 import {
@@ -187,7 +188,14 @@ function QuietHero({ title, context, href, linkLabel, onNavigate }: QuietHeroPro
   )
 }
 
-export function NavDrawer() {
+export interface NavDrawerProps {
+  /** The signed-in user — the persisted snapshot's key (lib/query-persister):
+   *  a second account on the same device must never open on the first
+   *  account's rows. Pages already hold it from requireUserId. */
+  userId: string
+}
+
+export function NavDrawer({ userId }: NavDrawerProps) {
   const t = useTranslations('NavDrawer')
   // Same product name as the home heading and the document title.
   const tCommon = useTranslations('Common')
@@ -207,16 +215,26 @@ export function NavDrawer() {
   // the open-triggered plan below revalidates a stale snapshot. An error
   // leaves data undefined → the label-only degrade, and the next open (or
   // Query's focus revalidation) quietly recovers it.
+  //
+  // Persisted across launches (lib/query-persister): the first use restores
+  // the last snapshot from localStorage — a cold launch opens on yesterday's
+  // rows, and a snapshot past staleTime revalidates in the background while
+  // they stay rendered. Any other account's snapshot on this device is
+  // dropped before the query can restore it.
+  useEffect(() => {
+    pruneForeignDrawerSnapshots(userId)
+  }, [userId])
   const {
     data: drawerData,
     isStale,
     isFetching,
     refetch,
   } = useQuery({
-    queryKey: ['drawer'],
+    queryKey: ['drawer', userId],
     queryFn: ({ signal }) => fetchDrawerData(signal),
     staleTime: DRAWER_STALE_MS,
     refetchOnMount: false,
+    persister: drawerPersister.persisterFn,
   })
   // data === null IS the pending state — the ghost/arrival contract below
   // (and the static-render test) key off it exactly as the useState days.

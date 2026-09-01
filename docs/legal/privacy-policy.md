@@ -95,6 +95,11 @@ under contract:
 - Deleting your account deletes your personal data on the same schedule,
   except records we must keep for legal or accounting reasons.
 - You can export your training data at any time from the Service.
+- To open instantly, the app keeps a short summary of your recent training
+  (workout names and dates, program week, bodyweight trend, goal progress)
+  in your browser's local storage on your own device. It is never sent
+  anywhere, expires within 24 hours, and is removed when you sign out or
+  delete your account.
 
 ## 6. Your rights
 

@@ -49,7 +49,7 @@ export default async function CoachPage({
           slot (it needs the client-side message state to clear). */}
       <CoachChat
         context={context}
-        leading={<NavDrawer />}
+        leading={<NavDrawer userId={userId} />}
         programName={programName}
         initialMessages={initialMessages}
         clearAction={clearCoachChatAction}

@@ -40,7 +40,7 @@ function renderDrawer(): string {
   const client = new QueryClient({ defaultOptions: { queries: { enabled: false } } })
   return renderToStaticMarkup(
     <QueryClientProvider client={client}>
-      <NavDrawer />
+      <NavDrawer userId="user_1" />
     </QueryClientProvider>,
   )
 }
@@ -68,10 +68,10 @@ const warmDrawerData: DrawerData = {
  *  synchronously — no fetch, no ghosts. */
 function renderDrawerWarm(): string {
   const client = new QueryClient()
-  client.setQueryData(['drawer'], warmDrawerData)
+  client.setQueryData(['drawer', 'user_1'], warmDrawerData)
   return renderToStaticMarkup(
     <QueryClientProvider client={client}>
-      <NavDrawer />
+      <NavDrawer userId="user_1" />
     </QueryClientProvider>,
   )
 }
@@ -164,10 +164,10 @@ const fullDrawerData: DrawerData = {
 
 function renderDrawerWith(data: DrawerData): string {
   const client = new QueryClient()
-  client.setQueryData(['drawer'], data)
+  client.setQueryData(['drawer', 'user_1'], data)
   return renderToStaticMarkup(
     <QueryClientProvider client={client}>
-      <NavDrawer />
+      <NavDrawer userId="user_1" />
     </QueryClientProvider>,
   )
 }

@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { deleteAccountAction } from './actions'
+import { clearPersistedDrawer } from '@/lib/query-persister'
 import { DELETE_CONFIRM_PHRASE } from './confirm-phrase'
 import { useTranslations } from 'next-intl'
 
@@ -38,6 +39,9 @@ export function DeleteAccountForm() {
         // router.push() would soft-navigate a dead session's in-memory state
         // onto /sign-in. No basePath here, so the rule's relative-resolution
         // hazard doesn't apply.
+        // localStorage outlives the document, so the drawer's persisted
+        // snapshot (lib/query-persister) is cleared explicitly first.
+        clearPersistedDrawer()
         // eslint-disable-next-line @next/next/no-location-assign-relative-destination
         window.location.assign('/sign-in')
         return

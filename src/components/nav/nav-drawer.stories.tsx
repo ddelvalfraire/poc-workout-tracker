@@ -3,6 +3,7 @@ import { expect, userEvent, within } from "storybook/test";
 import { useEffect, useState } from "react";
 
 import type { DrawerData } from "@/lib/home/drawer-status";
+import { clearPersistedDrawer } from "@/lib/query-persister";
 
 import { NavDrawer } from "./nav-drawer";
 
@@ -108,6 +109,10 @@ function stubDrawer(
 ): (Story: React.ComponentType) => React.ReactElement {
   return function WithStubbedDrawer(Story) {
     useState(() => {
+      // Each story stubs a DIFFERENT payload for the same story user, and the
+      // drawer persists its snapshot across launches — a story must never
+      // open on the previous story's rows.
+      clearPersistedDrawer();
       window.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
         const url = typeof input === "string" ? input : input.toString();
         if (url.includes("/api/drawer")) return respond();
@@ -139,6 +144,7 @@ const json = (data: DrawerData, delayMs = 400) => async () => {
 const meta = {
   title: "Navigation/NavDrawer",
   component: NavDrawer,
+  args: { userId: "user_story" },
   parameters: { layout: "fullscreen" },
   decorators: [
     (Story) => (
