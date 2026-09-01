@@ -3,6 +3,7 @@ import { formatVolume } from '@/lib/format'
 import { isSameLocalDay } from '@/lib/local-day'
 import type { Line, Message } from '@/lib/message'
 import { scheduleAnchorToken, type ScheduleAnchor } from '@/lib/home/schedule-anchor'
+import { statusForHome, type HomeState } from '@/lib/home/home-status'
 
 /**
  * The nav drawer's status-line language — every drawer row carries a one-line
@@ -23,7 +24,21 @@ export interface DrawerData {
   /** The up-next program day the hero starts; null when a session is live,
    *  no program is active, or the block just finished. */
   upNext: { dayId: string; dayName: string; week: number; weekdays: number[] } | null
-  program: { name: string; week: number; mesocycleWeeks: number } | null
+  /** The active program, kept even while a session is live or the block just
+   *  finished — the Programs row and the hero's block-complete state read it. */
+  program: {
+    id: string
+    name: string
+    week: number
+    mesocycleWeeks: number
+    blockComplete: boolean
+  } | null
+  /** Completion instants from the last 48h (epoch ms) — the trained-today
+   *  evidence, forked on the LOCAL day client-side like home's StatusHero. */
+  recentCompletedAtTimes: number[]
+  /** Newest completed session overall — the hero's trained-today receipt and
+   *  the drift clock; null on true day one. */
+  lastCompleted: { id: string; name: string | null; completedAtMs: number; volumeKg: number } | null
   stats: {
     /** Raw completed sets in the rolling 7×24h window (getVolumeTotals). */
     weekSets: number
@@ -105,8 +120,79 @@ export type NavDrawerKey =
   | 'day.today'
   | 'day.yesterday'
   | 'day.date'
+  | 'hero.contextRest'
+  | 'hero.contextBlockComplete'
+  | 'untitledWorkout'
 
 export type NavDrawerLine = Line<NavDrawerKey>
+
+/**
+ * Which hero the drawer shows — the SAME seven-state brain as home's
+ * StatusHero (lib/home-status.ts), fed from the drawer payload, so the two
+ * surfaces can never disagree about whether there is a workout to do. Volt
+ * belongs only to states with something to start or resume; done-for-today,
+ * rest-day and block-complete are quiet. Local-calendar forks inside
+ * (trained today? scheduled today?) mean callers run this client-side with
+ * the user's clock. The home-only context facts (last-time volume, streak
+ * weeks) never change the STATE, so they are passed as unknown.
+ */
+export function drawerHeroState(data: DrawerData, now: Date): HomeState {
+  return statusForHome(
+    {
+      session: data.resume !== null ? { name: data.resume.name, completedSetCount: 0 } : null,
+      nextDay:
+        data.program !== null
+          ? {
+              dayName: data.upNext?.dayName ?? '',
+              programName: data.program.name,
+              week: data.upNext?.week ?? data.program.week,
+              mesocycleWeeks: data.program.mesocycleWeeks,
+              weekdays: data.upNext?.weekdays ?? [],
+              blockComplete: data.program.blockComplete,
+            }
+          : null,
+      recentCompletedAtTimes: data.recentCompletedAtTimes,
+      lastCompleted: data.lastCompleted,
+      lastTimeVolumeKg: null,
+      streakWeeks: null,
+    },
+    data.unit,
+    now,
+  ).state
+}
+
+/** Trained-today hero context: "Push A · 8,076 lb" as segments — the session
+ *  name (or the untitled fallback) and, when there was load, its volume. */
+export function doneContextLine(
+  lastCompleted: { name: string | null; volumeKg: number },
+  unit: WeightUnit,
+): NavDrawerLine[] {
+  const segments: NavDrawerLine[] = [
+    lastCompleted.name !== null ? { literal: lastCompleted.name } : { key: 'untitledWorkout' },
+  ]
+  if (lastCompleted.volumeKg > 0) segments.push({ literal: formatVolume(lastCompleted.volumeKg, unit) })
+  return segments
+}
+
+/** Rest-day hero context: "Next: Legs · tomorrow" — the anchor rides in as a
+ *  nested descriptor so the drawer's lowercase anchor words apply. */
+export function restContextLine(dayName: string, anchor: ScheduleAnchor): Message<NavDrawerKey> {
+  return {
+    key: 'hero.contextRest',
+    values: {
+      day: dayName,
+      anchor: { key: 'anchor', values: { anchor: scheduleAnchorToken(anchor) } },
+    },
+  }
+}
+
+/** Block-complete hero context: "Upper/Lower Hybrid · 7 weeks". */
+export function blockCompleteContextLine(
+  programName: string,
+  mesocycleWeeks: number,
+): Message<NavDrawerKey> {
+  return { key: 'hero.contextBlockComplete', values: { name: programName, weeks: mesocycleWeeks } }
+}
 
 /** Hero CTA second line: "Legs · Week 3 · today". The anchor is
  *  scheduleAnchor() computed CLIENT-side (local calendar); null (unscheduled)

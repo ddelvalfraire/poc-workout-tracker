@@ -2,10 +2,15 @@ import { describe, it, expect } from 'vitest'
 import { catalogTranslator } from '../../../vitest.intl'
 import { renderLine, renderLines } from '../message'
 import {
+  blockCompleteContextLine,
   bodyStatusLine,
   bucketDaySets,
+  doneContextLine,
+  drawerHeroState,
   exercisesStatusLine,
   isActiveRoute,
+  restContextLine,
+  type DrawerData,
   programProgressPercent,
   programStatusLine,
   recentWorkoutLine,
@@ -277,5 +282,117 @@ describe('bucketDaySets', () => {
     expect(bucketDaySets([summary(1, 8, false), summary(8 * 24, 5), summary(-2, 4)], now)).toEqual([
       0, 0, 0, 0, 0, 0, 0,
     ])
+  })
+})
+
+/** The resolved-empty payload — every hero test overrides only the facts it
+ *  is about. */
+const emptyDrawer: DrawerData = {
+  resume: null,
+  upNext: null,
+  program: null,
+  recentCompletedAtTimes: [],
+  lastCompleted: null,
+  stats: null,
+  goals: null,
+  trophies: null,
+  body: null,
+  exercises: null,
+  coach: false,
+  recents: [],
+  unit: 'kg',
+}
+
+describe('drawerHeroState (home’s seven-state brain over the drawer payload)', () => {
+  const DAY_MS = 24 * 60 * 60 * 1000
+  const program = { id: 'p1', name: 'Upper/Lower Hybrid', week: 3, mesocycleWeeks: 7, blockComplete: false }
+  const finished = (msAgo: number) => ({
+    id: 'w1',
+    name: 'Push A',
+    completedAtMs: now.getTime() - msAgo,
+    volumeKg: 3663,
+  })
+
+  it('is fresh on day one', () => {
+    expect(drawerHeroState(emptyDrawer, now)).toBe('fresh')
+  })
+
+  it('a live session wins over everything, even a due program day', () => {
+    const data: DrawerData = {
+      ...emptyDrawer,
+      resume: { key: 'new', name: 'Push A' },
+      program,
+      recentCompletedAtTimes: [now.getTime()],
+    }
+    expect(drawerHeroState(data, now)).toBe('session-live')
+  })
+
+  it('a completion on the LOCAL day is trained-today, before the program gets a say', () => {
+    const data: DrawerData = {
+      ...emptyDrawer,
+      program,
+      upNext: { dayId: 'd1', dayName: 'Legs', week: 3, weekdays: [] },
+      recentCompletedAtTimes: [now.getTime() - 2 * 60 * 60 * 1000],
+      lastCompleted: finished(2 * 60 * 60 * 1000),
+    }
+    expect(drawerHeroState(data, now)).toBe('trained-today')
+  })
+
+  it('an unscheduled program day is always due', () => {
+    const data: DrawerData = {
+      ...emptyDrawer,
+      program,
+      upNext: { dayId: 'd1', dayName: 'Legs', week: 3, weekdays: [] },
+    }
+    expect(drawerHeroState(data, now)).toBe('program-due')
+  })
+
+  it('a day scheduled for later in the week is a rest day', () => {
+    const data: DrawerData = {
+      ...emptyDrawer,
+      program,
+      upNext: { dayId: 'd1', dayName: 'Legs', week: 3, weekdays: [(now.getDay() + 2) % 7] },
+      lastCompleted: finished(DAY_MS),
+    }
+    expect(drawerHeroState(data, now)).toBe('rest-day')
+  })
+
+  it('a finished block is block-complete even with no up-next day in the payload', () => {
+    const data: DrawerData = {
+      ...emptyDrawer,
+      program: { ...program, blockComplete: true },
+      lastCompleted: finished(DAY_MS),
+    }
+    expect(drawerHeroState(data, now)).toBe('block-complete')
+  })
+
+  it('four days off with a scheduled day ahead is drifting', () => {
+    const data: DrawerData = {
+      ...emptyDrawer,
+      program,
+      upNext: { dayId: 'd1', dayName: 'Legs', week: 3, weekdays: [(now.getDay() + 2) % 7] },
+      lastCompleted: finished(5 * DAY_MS),
+    }
+    expect(drawerHeroState(data, now)).toBe('drifting')
+  })
+})
+
+describe('hero context lines', () => {
+  it('doneContextLine: the session name and its volume as segments', () => {
+    expect(readAll(doneContextLine({ name: 'Push A', volumeKg: 3663 }, 'lb'))).toBe('Push A · 8,076 lb')
+  })
+
+  it('doneContextLine: an untitled session falls back to the catalog word, zero volume drops out', () => {
+    expect(doneContextLine({ name: null, volumeKg: 0 }, 'kg')).toEqual([{ key: 'untitledWorkout' }])
+    expect(readAll(doneContextLine({ name: null, volumeKg: 0 }, 'kg'))).toBe('Workout')
+  })
+
+  it('restContextLine: names the next day with the drawer’s lowercase anchor', () => {
+    expect(read(restContextLine('Legs', { kind: 'tomorrow' }))).toBe('Next: Legs · tomorrow')
+  })
+
+  it('blockCompleteContextLine: the program and its length, pluralized', () => {
+    expect(read(blockCompleteContextLine('Upper/Lower Hybrid', 7))).toBe('Upper/Lower Hybrid · 7 weeks')
+    expect(read(blockCompleteContextLine('Intro', 1))).toBe('Intro · 1 week')
   })
 })

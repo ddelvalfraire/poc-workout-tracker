@@ -8,6 +8,7 @@ import { Drawer } from 'vaul'
 import { SignOutButton } from '@/components/auth/sign-out-button'
 import {
   BarChart3,
+  ChevronRight,
   ClipboardList,
   Dumbbell,
   History,
@@ -25,12 +26,16 @@ import { useHistoryDismissable } from '@/lib/use-history-dismissable'
 import { activeSessionHref } from '@/lib/workout/active-session'
 import { scheduleAnchor } from '@/lib/home/schedule-anchor'
 import {
+  blockCompleteContextLine,
   bodyStatusLine,
+  doneContextLine,
+  drawerHeroState,
   exercisesStatusLine,
   isActiveRoute,
   programProgressPercent,
   programStatusLine,
   recentWorkoutLine,
+  restContextLine,
   startContextLine,
   trophyStatusLine,
   volumeStatusLine,
@@ -49,9 +54,10 @@ import { useTranslations } from 'next-intl'
 /**
  * The app's navigation drawer — the Claude-sidebar anatomy with the spike-§7
  * verdict applied: the drawer is a DASHBOARD, not a menu. Zones with distinct
- * jobs (the Arc principle): ACT (volt hero whose copy IS the context) /
- * SURFACES (every row carries a live status line — Gentler Streak's
- * translate-stats-into-status) / RECENT / IDENTITY (pinned bottom).
+ * jobs (the Arc principle): ACT (the hero — volt only when there is a workout
+ * to resume or start, a quiet status otherwise; its second line IS the
+ * context) / SURFACES (every row carries a live status line — Gentler
+ * Streak's translate-stats-into-status) / RECENT / IDENTITY (pinned bottom).
  *
  * Vaul (Radix Dialog under the hood) owns the mechanics: focus trap, scrim,
  * esc, swipe-to-dismiss, left-edge slide. Status data arrives via TanStack
@@ -139,6 +145,43 @@ function ThinBar({ percent }: { percent: number }) {
     <span aria-hidden="true" className="mt-1.5 block h-1 overflow-hidden rounded-full bg-muted">
       <span className="block h-full rounded-full bg-primary" style={{ width: `${percent}%` }} />
     </span>
+  )
+}
+
+/** The hero's one box geometry, shared by every variant: min-h-17 (68px) is
+ *  the volt button's own height — py-3 + text-base line + gap-0.5 + text-xs
+ *  line + border — so pending → quiet → volt swaps never move the rows. */
+const HERO_BOX = 'flex min-h-17 flex-col justify-center'
+
+interface QuietHeroProps {
+  title: string
+  context: string | null
+  href: string
+  linkLabel: string
+  onNavigate: (event: React.MouseEvent<HTMLAnchorElement>) => void
+}
+
+/** The hero when there is NOTHING to start — done for today, a rest day, a
+ *  finished block: a status pair plus one muted door, home's own quiet
+ *  vocabulary (StatusHero's trained-today / rest-day / block-complete). No
+ *  volt, no button skin: the day's work is done or not due, and a green CTA
+ *  here would be a promise the data does not back. */
+function QuietHero({ title, context, href, linkLabel, onNavigate }: QuietHeroProps) {
+  return (
+    <div className={HERO_BOX}>
+      <p className="text-base font-semibold uppercase tracking-wide">{title}</p>
+      {context !== null && (
+        <p className="mt-0.5 truncate text-xs text-muted-foreground tnum">{context}</p>
+      )}
+      <Link
+        href={href}
+        onClick={onNavigate}
+        className="mt-1.5 flex w-fit items-center gap-0.5 text-xs font-medium text-muted-foreground transition-colors active:text-foreground"
+      >
+        {linkLabel}
+        <ChevronRight aria-hidden="true" className="size-3.5" />
+      </Link>
+    </div>
   )
 }
 
@@ -248,6 +291,102 @@ export function NavDrawer() {
   // translator lives. `lines` joins a segment list with the row's " · ".
   const line = (l: NavDrawerLine | null) => (l === null ? null : renderLine<NavDrawerKey>(t, l))
   const lines = (l: NavDrawerLine[]) => (l.length > 0 ? renderLines<NavDrawerKey>(t, l) : null)
+
+  // The hero's state — home's seven-state brain over the drawer payload, so
+  // the two surfaces never disagree about whether there is a workout to do.
+  // Null while pending: the hero shows NO CTA copy until the data has earned
+  // one (a "Start Workout" before the facts arrive is a false promise to a
+  // user who already trained today).
+  const heroState = data === null ? null : drawerHeroState(data, now)
+  // min-h-17 is the button's own natural height (see HERO_BOX) — stated so
+  // the volt and quiet variants are provably the same box.
+  const voltHero = cn(buttonVariants({ size: 'lg' }), 'h-auto min-h-17 w-full flex-col gap-0.5 py-3')
+
+  function renderHero(): ReactNode {
+    if (data === null || heroState === null) {
+      // Ghost of the hero: two bars in the box's exact geometry, copy withheld.
+      return (
+        <div className={cn(HERO_BOX, 'items-center gap-2')}>
+          <Ghost className="h-3 w-32" />
+          <Ghost className="h-2 w-24" />
+        </div>
+      )
+    }
+    if (heroState === 'session-live' && data.resume) {
+      return (
+        <Link href={activeSessionHref(data.resume.key)} onClick={closeOnNavigate} className={voltHero}>
+          <span className="text-base font-semibold uppercase tracking-wide">{t('resumeAction')}</span>
+          <span className="text-xs font-medium normal-case opacity-80">
+            {data.resume.name ?? t('resumeContext')}
+          </span>
+        </Link>
+      )
+    }
+    // Drifting with a program mirrors home: the way back in is the next day.
+    if ((heroState === 'program-due' || heroState === 'drifting') && data.upNext) {
+      const upNext = data.upNext
+      return (
+        <button
+          type="button"
+          disabled={isStarting}
+          onClick={() => void handleStartUpNext(upNext.dayId)}
+          className={voltHero}
+        >
+          <span className="text-base font-semibold uppercase tracking-wide">
+            {isStarting ? t('startingAction') : t('startAction')}
+          </span>
+          <span className="text-xs font-medium normal-case opacity-80">
+            {line(startContextLine(upNext.dayName, upNext.week, scheduleAnchor(upNext.weekdays, now)))}
+          </span>
+        </button>
+      )
+    }
+    if (heroState === 'trained-today' && data.lastCompleted) {
+      return (
+        <QuietHero
+          title={t('hero.titleDone')}
+          context={lines(doneContextLine(data.lastCompleted, data.unit))}
+          href="/workout/new"
+          linkLabel={t('hero.logMoreLink')}
+          onNavigate={closeOnNavigate}
+        />
+      )
+    }
+    if (heroState === 'rest-day' && data.upNext) {
+      // rest-day only exists for a scheduled day that is not today, so the
+      // anchor is never null here; the guard keeps the type honest.
+      const anchor = scheduleAnchor(data.upNext.weekdays, now)
+      if (anchor !== null) {
+        return (
+          <QuietHero
+            title={t('hero.titleRest')}
+            context={line(restContextLine(data.upNext.dayName, anchor))}
+            href="/workout/new"
+            linkLabel={t('hero.quickLogLink')}
+            onNavigate={closeOnNavigate}
+          />
+        )
+      }
+    }
+    if (heroState === 'block-complete' && data.program) {
+      return (
+        <QuietHero
+          title={t('hero.titleBlockComplete')}
+          context={line(blockCompleteContextLine(data.program.name, data.program.mesocycleWeeks))}
+          href={`/programs/${data.program.id}/stats`}
+          linkLabel={t('hero.resultsLink')}
+          onNavigate={closeOnNavigate}
+        />
+      )
+    }
+    // fresh, or drifting with no program: the open door (home's volt too).
+    return (
+      <Link href="/workout/new" onClick={closeOnNavigate} className={voltHero}>
+        <span className="text-base font-semibold uppercase tracking-wide">{t('quickStartAction')}</span>
+        <span className="text-xs font-medium normal-case opacity-80">{t('quickLogContext')}</span>
+      </Link>
+    )
+  }
 
   const surfaces: SurfaceRow[] = [
     {
@@ -396,85 +535,17 @@ export function NavDrawer() {
               </Link>
             </div>
 
-            {/* Zone ACT — the volt hero; its second line IS the context. The
-                key swaps only when the VARIANT changes (pending → resume /
-                up-next / quick), remounting the hero through animate-fade-in:
-                a single 180ms opacity crossfade in place, instant under
-                reduced motion. While data is pending the quick-log hero shows
-                with its context line ghosted — same h-4 line box as the
-                text-xs copy, so the swap never moves a pixel. */}
+            {/* Zone ACT — the hero, keyed by its STATE so a change remounts
+                it through animate-fade-in (a single 180ms opacity crossfade
+                in place, instant under reduced motion). Volt only for
+                resume/start; done-for-today, rest-day and block-complete are
+                quiet. Every variant, the pending ghost included, fills the
+                same HERO_BOX so the swap never moves a pixel. */}
             <div
-              key={
-                data === null
-                  ? 'pending'
-                  : data.resume
-                    ? 'resume'
-                    : data.upNext
-                      ? 'up-next'
-                      : 'quick'
-              }
+              key={heroState ?? 'pending'}
               className="border-b border-border p-4 motion-safe:animate-fade-in"
             >
-              {data?.resume ? (
-                <Link
-                  href={activeSessionHref(data.resume.key)}
-                  onClick={closeOnNavigate}
-                  className={cn(
-                    buttonVariants({ size: 'lg' }),
-                    'h-auto w-full flex-col gap-0.5 py-3',
-                  )}
-                >
-                  <span className="text-base font-semibold uppercase tracking-wide">{t('resumeAction')}</span>
-                  <span className="text-xs font-medium normal-case opacity-80">
-                    {data.resume.name ?? t('resumeContext')}
-                  </span>
-                </Link>
-              ) : data?.upNext ? (
-                <button
-                  type="button"
-                  disabled={isStarting}
-                  onClick={() => data.upNext && void handleStartUpNext(data.upNext.dayId)}
-                  className={cn(
-                    buttonVariants({ size: 'lg' }),
-                    'h-auto w-full flex-col gap-0.5 py-3',
-                  )}
-                >
-                  <span className="text-base font-semibold uppercase tracking-wide">
-                    {isStarting ? t('startingAction') : t('startAction')}
-                  </span>
-                  <span className="text-xs font-medium normal-case opacity-80">
-                    {line(
-                      startContextLine(
-                        data.upNext.dayName,
-                        data.upNext.week,
-                        scheduleAnchor(data.upNext.weekdays, now),
-                      ),
-                    )}
-                  </span>
-                </button>
-              ) : (
-                <Link
-                  href="/workout/new"
-                  onClick={closeOnNavigate}
-                  className={cn(
-                    buttonVariants({ size: 'lg' }),
-                    'h-auto w-full flex-col gap-0.5 py-3',
-                  )}
-                >
-                  <span className="text-base font-semibold uppercase tracking-wide">
-                    {t('quickStartAction')}
-                  </span>
-                  {data === null ? (
-                    // Ghost of the context line: h-4 = the text-xs line box,
-                    // so pending and resolved heroes are pixel-identical.
-                    <span className="flex h-4 items-center justify-center">
-                      <Ghost className="h-2 w-20" />
-                    </span>
-                  ) : (
-                    <span className="text-xs font-medium normal-case opacity-80">{t('quickLogContext')}</span>
-                  )}
-                </Link>
-              )}
+              {renderHero()}
               {startError && (
                 <p role="alert" className="mt-2 text-xs text-destructive">
                   {startError}

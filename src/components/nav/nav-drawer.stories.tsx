@@ -28,8 +28,24 @@ import { NavDrawer } from "./nav-drawer";
 
 const FULL: DrawerData = {
   resume: null,
-  upNext: { dayId: "d1", dayName: "Push A", week: 3, weekdays: [1, 3, 5] },
-  program: { name: "Push / Pull / Legs", week: 3, mesocycleWeeks: 4 },
+  // Scheduled for TODAY (whatever day the story runs): the hero is program-due
+  // and shows its volt Start. A fixed weekday list would flip this story to a
+  // rest day on every other day of the week — see RestDay for that state.
+  upNext: { dayId: "d1", dayName: "Push A", week: 3, weekdays: [new Date().getDay()] },
+  program: {
+    id: "p1",
+    name: "Push / Pull / Legs",
+    week: 3,
+    mesocycleWeeks: 4,
+    blockComplete: false,
+  },
+  recentCompletedAtTimes: [],
+  lastCompleted: {
+    id: "w1",
+    name: "Pull B",
+    completedAtMs: Date.now() - 86_400_000,
+    volumeKg: 9820,
+  },
   stats: { weekSets: 26, daySets: [4, 0, 6, 3, 0, 8, 5] },
   goals: {
     activeCount: 2,
@@ -60,6 +76,8 @@ const EMPTY: DrawerData = {
   resume: null,
   upNext: null,
   program: null,
+  recentCompletedAtTimes: [],
+  lastCompleted: null,
   stats: null,
   goals: null,
   trophies: null,
@@ -121,6 +139,12 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
+/** Opens the drawer — the hero stories need the portal mounted to show. */
+const openDrawer: Story["play"] = async ({ canvasElement }) => {
+  const canvas = within(canvasElement);
+  await userEvent.click(await canvas.findByLabelText("Open navigation"));
+};
+
 /** A full dashboard: active program, goals, trophies, body, recents. */
 export const Populated: Story = { decorators: [stubDrawer(json(FULL))] }
 
@@ -138,7 +162,7 @@ export const Opened: Story = {
     await userEvent.click(await canvas.findByLabelText("Open navigation"));
     // The portal renders outside canvasElement, so query the document body.
     const drawer = within(document.body);
-    // Substring match: the hero reads "Push A · Week 3 · tomorrow" in one node.
+    // Substring match: the hero reads "Push A · Week 3 · today" in one node.
     await expect(await drawer.findByText(/Push A/)).toBeInTheDocument();
     // The identity row is the part the closed stories could never reach — it
     // holds the account widget that used to throw here.
@@ -156,6 +180,64 @@ export const LiveSession: Story = {
   decorators: [
     stubDrawer(json({ ...FULL, resume: { key: "new", name: "Push A" }, upNext: null })),
   ],
+}
+
+/**
+ * Trained today: the hero goes QUIET — "Done for today." with the session's
+ * receipt and a muted Log more door. No volt: the day's work is done, and a
+ * green Start here would be a promise the data does not back.
+ */
+export const TrainedToday: Story = {
+  decorators: [
+    stubDrawer(
+      json({
+        ...FULL,
+        recentCompletedAtTimes: [Date.now() - 3_600_000],
+        lastCompleted: {
+          id: "w1",
+          name: "Push A",
+          completedAtMs: Date.now() - 3_600_000,
+          volumeKg: 9820,
+        },
+      }),
+    ),
+  ],
+  play: openDrawer,
+}
+
+/**
+ * A scheduled program whose next day is not today: "Rest day." naming the
+ * next session, with the quick-log door kept quiet.
+ */
+export const RestDay: Story = {
+  decorators: [
+    stubDrawer(
+      json({
+        ...FULL,
+        upNext: {
+          dayId: "d1",
+          dayName: "Push A",
+          week: 3,
+          weekdays: [(new Date().getDay() + 2) % 7],
+        },
+      }),
+    ),
+  ],
+  play: openDrawer,
+}
+
+/** The block just finished: "Block complete." and the door to its results. */
+export const BlockComplete: Story = {
+  decorators: [
+    stubDrawer(
+      json({
+        ...FULL,
+        upNext: null,
+        program: { ...FULL.program!, blockComplete: true },
+      }),
+    ),
+  ],
+  play: openDrawer,
 }
 
 /** A brand-new account: every row is an invitation, not a teaser. */

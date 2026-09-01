@@ -21,6 +21,8 @@ import { bucketDaySets, SPARKBAR_DAYS, type DrawerData } from '@/lib/home/drawer
 import { getMessages } from '@/i18n/translate'
 
 const RECENTS_LIMIT = 3
+/** Trained-today evidence window — wide enough for any timezone's "today". */
+const HERO_MEMORY_WINDOW_MS = 48 * 60 * 60 * 1000
 // Fresh enough for a nav surface, cheap enough to reopen: the drawer also
 // caches in client state per mount, so this only shields rapid remounts.
 const DRAWER_CACHE_CONTROL = 'private, max-age=30'
@@ -70,6 +72,22 @@ export async function GET(): Promise<NextResponse> {
   const unit = unitRead ?? DEFAULT_WEIGHT_UNIT
   const activeSession =
     drafts !== null && summaries !== null ? resolveActiveSession(drafts, summaries, now) : null
+
+  // The hero's memory, from summaries already in hand (the same facts home
+  // feeds its StatusHero — src/app/page.tsx): completions from the last 48h
+  // cover any timezone's "today" without a row cap (the local-day fork is the
+  // client's), and the newest completion overall is the receipt/drift fact.
+  // Filtered on COMPLETION time, not start: an old session finished today
+  // still counts.
+  const completed =
+    summaries?.filter((w): w is typeof w & { completedAt: Date } => w.completedAt !== null) ?? []
+  const recentCompletedAtTimes = completed
+    .map((w) => w.completedAt.getTime())
+    .filter((completedAt) => now.getTime() - completedAt <= HERO_MEMORY_WINDOW_MS)
+  const newest = completed.reduce<(typeof completed)[number] | null>(
+    (best, w) => (best === null || w.completedAt > best.completedAt ? w : best),
+    null,
+  )
 
   // Strength top goals earn a % bar — one extra aggregate read, only when the
   // top goal actually is one (bodyweight/consistency have no single percent).
@@ -124,7 +142,23 @@ export async function GET(): Promise<NextResponse> {
         : null,
     program:
       nextDay !== null
-        ? { name: nextDay.programName, week: nextDay.week, mesocycleWeeks: nextDay.mesocycleWeeks }
+        ? {
+            id: nextDay.programId,
+            name: nextDay.programName,
+            week: nextDay.week,
+            mesocycleWeeks: nextDay.mesocycleWeeks,
+            blockComplete: nextDay.blockComplete,
+          }
+        : null,
+    recentCompletedAtTimes,
+    lastCompleted:
+      newest !== null
+        ? {
+            id: newest.id,
+            name: newest.name,
+            completedAtMs: newest.completedAt.getTime(),
+            volumeKg: newest.volumeKg,
+          }
         : null,
     stats:
       weekTotals !== null

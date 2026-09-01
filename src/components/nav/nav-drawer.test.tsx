@@ -51,6 +51,8 @@ const warmDrawerData: DrawerData = {
   resume: null,
   upNext: null,
   program: null,
+  recentCompletedAtTimes: [],
+  lastCompleted: null,
   stats: null,
   goals: null,
   trophies: null,
@@ -90,12 +92,12 @@ afterEach(() => {
 })
 
 describe('NavDrawer pending state (data === null)', () => {
-  test('renders one ghost per status slot: 9 surface rows + the hero context line', () => {
+  test('renders one ghost per status slot: 9 surface rows + the hero’s two lines', () => {
     const html = renderDrawer()
     const ghosts = html.match(/animate-ghost-in/g) ?? []
     // Programs, Templates, Stats, History, Goals, Trophies, Body, Exercises,
-    // Notes (no Coach row before data), plus the ACT hero's context line.
-    expect(ghosts).toHaveLength(10)
+    // Notes (no Coach row before data), plus the ACT hero's title + context.
+    expect(ghosts).toHaveLength(11)
   })
 
   test('ghosts sit in the status line’s exact h-4 line box (zero-shift contract)', () => {
@@ -103,8 +105,19 @@ describe('NavDrawer pending state (data === null)', () => {
     // Surface rows: mt-0.5 + h-4 mirrors the real status span's mt-0.5 +
     // text-xs line height, so arrival never changes row height.
     expect(html).toContain('mt-0.5 flex h-4 items-center')
-    // Hero context ghost holds the text-xs line box inside the volt button.
-    expect(html).toContain('flex h-4 items-center justify-center')
+    // The hero ghost fills the same min-h-17 box every resolved variant does.
+    expect(html).toContain('min-h-17')
+  })
+
+  test('withholds every CTA until the data has earned one', () => {
+    const html = renderDrawer()
+    // A "Start Workout" shown before the facts arrive is a false promise to a
+    // user who already trained today or has nothing scheduled.
+    expect(html).not.toContain('Start Workout')
+    expect(html).not.toContain('Resume')
+    expect(html).not.toContain('Quick log')
+    expect(html).not.toContain('Done for today')
+    expect(html).not.toContain('bg-primary text-primary-foreground')
   })
 
   test('no invitation copy, no Recent section, and no arrival motion while pending', () => {
@@ -117,12 +130,6 @@ describe('NavDrawer pending state (data === null)', () => {
     expect(html.match(/animate-rise-in/g) ?? []).toHaveLength(9)
   })
 
-  test('hero pending variant still renders the quick-log CTA label (no copy change)', () => {
-    const html = renderDrawer()
-    expect(html).toContain('Start Workout')
-    // The "Quick log" context is withheld until data confirms the variant.
-    expect(html).not.toContain('Quick log')
-  })
 })
 
 describe('NavDrawer warm cache (real QueryClient, preseeded [drawer] data)', () => {
@@ -146,7 +153,7 @@ describe('NavDrawer warm cache (real QueryClient, preseeded [drawer] data)', () 
 const fullDrawerData: DrawerData = {
   ...warmDrawerData,
   upNext: { dayId: 'd1', dayName: 'Legs', week: 3, weekdays: [] },
-  program: { name: 'Upper/Lower Hybrid', week: 3, mesocycleWeeks: 7 },
+  program: { id: 'p1', name: 'Upper/Lower Hybrid', week: 3, mesocycleWeeks: 7, blockComplete: false },
   stats: { weekSets: 42, daySets: [1, 2, 3, 4, 5, 6, 7] },
   trophies: { earned: 12, newestLabel: '315 Squat Club' },
   body: { weightKg: 83.9, deltaKg: -0.9, checkInDue: true, daysSinceLast: 8 },
@@ -155,15 +162,115 @@ const fullDrawerData: DrawerData = {
   unit: 'lb',
 }
 
-function renderDrawerFull(): string {
+function renderDrawerWith(data: DrawerData): string {
   const client = new QueryClient()
-  client.setQueryData(['drawer'], fullDrawerData)
+  client.setQueryData(['drawer'], data)
   return renderToStaticMarkup(
     <QueryClientProvider client={client}>
       <NavDrawer />
     </QueryClientProvider>,
   )
 }
+
+function renderDrawerFull(): string {
+  return renderDrawerWith(fullDrawerData)
+}
+
+/** The volt skin — the one class pair every primary button carries. Its
+ *  presence IS the "bright green CTA" the hero may only show when there is
+ *  a workout to resume or start. */
+const VOLT = 'bg-primary text-primary-foreground'
+
+describe('NavDrawer hero (home’s seven-state brain over the drawer payload)', () => {
+  const DAY_MS = 24 * 60 * 60 * 1000
+
+  test('program due (unscheduled = always due): the volt Start with its context', () => {
+    const html = renderDrawerFull()
+    expect(html).toContain(VOLT)
+    expect(html).toContain('Start Workout')
+    expect(html).toContain('Legs · Week 3')
+  })
+
+  test('live session: the volt Resume, even with a program day pending', () => {
+    const html = renderDrawerWith({
+      ...fullDrawerData,
+      resume: { key: 'new', name: 'Push A' },
+      upNext: null,
+    })
+    expect(html).toContain(VOLT)
+    expect(html).toContain('Resume')
+    expect(html).not.toContain('Start Workout')
+  })
+
+  test('trained today: quiet "Done for today." with the receipt and a muted Log more door', () => {
+    const html = renderDrawerWith({
+      ...fullDrawerData,
+      recentCompletedAtTimes: [Date.now()],
+      lastCompleted: { id: 'w1', name: 'Push A', completedAtMs: Date.now(), volumeKg: 3663 },
+    })
+    expect(html).toContain('Done for today.')
+    expect(html).toContain('Push A · 8,076 lb')
+    expect(html).toContain('Log more')
+    expect(html).toContain('href="/workout/new"')
+    // The day's work is done: no volt, no Start — a green CTA here would be a
+    // promise the data does not back.
+    expect(html).not.toContain(VOLT)
+    expect(html).not.toContain('Start Workout')
+  })
+
+  test('rest day (scheduled for another day): quiet "Rest day." naming the next day', () => {
+    const notToday = (new Date().getDay() + 2) % 7
+    const html = renderDrawerWith({
+      ...fullDrawerData,
+      upNext: { dayId: 'd1', dayName: 'Legs', week: 3, weekdays: [notToday] },
+      lastCompleted: { id: 'w0', name: 'Push A', completedAtMs: Date.now() - DAY_MS, volumeKg: 3663 },
+    })
+    expect(html).toContain('Rest day.')
+    expect(html).toContain('Next: Legs · ')
+    expect(html).toContain('Quick log')
+    expect(html).not.toContain(VOLT)
+    expect(html).not.toContain('Start Workout')
+  })
+
+  test('block complete: quiet "Block complete." with the block length and a See results door', () => {
+    const html = renderDrawerWith({
+      ...fullDrawerData,
+      upNext: null,
+      program: { ...fullDrawerData.program!, blockComplete: true },
+      lastCompleted: { id: 'w0', name: 'Legs', completedAtMs: Date.now() - DAY_MS, volumeKg: 3663 },
+    })
+    expect(html).toContain('Block complete.')
+    expect(html).toContain('Upper/Lower Hybrid · 7 weeks')
+    expect(html).toContain('See results')
+    expect(html).toContain('href="/programs/p1/stats"')
+    expect(html).not.toContain(VOLT)
+  })
+
+  test('drifting with a program: the volt Start is the way back in (home parity)', () => {
+    const notToday = (new Date().getDay() + 2) % 7
+    const html = renderDrawerWith({
+      ...fullDrawerData,
+      upNext: { dayId: 'd1', dayName: 'Legs', week: 3, weekdays: [notToday] },
+      lastCompleted: { id: 'w0', name: 'Push A', completedAtMs: Date.now() - 6 * DAY_MS, volumeKg: 3663 },
+    })
+    expect(html).toContain(VOLT)
+    expect(html).toContain('Start Workout')
+  })
+
+  test('every hero variant renders inside the same box geometry (zero-shift contract)', () => {
+    for (const html of [
+      renderDrawer(),
+      renderDrawerFull(),
+      renderDrawerWith({
+        ...fullDrawerData,
+        recentCompletedAtTimes: [Date.now()],
+        lastCompleted: { id: 'w1', name: 'Push A', completedAtMs: Date.now(), volumeKg: 3663 },
+      }),
+    ]) {
+      expect(html).toContain('min-h-17')
+    }
+  })
+})
 
 describe('NavDrawer history row', () => {
   // Home no longer renders a history section, so this row is the only way to
