@@ -98,7 +98,7 @@ export async function deleteTestUser(id: string): Promise<void> {
  * from the emulator's actual markup (`<label for="email">`, a submit button
  * reading "Continue"), not guessed.
  */
-export async function signIn(page: Page, user: TestUser): Promise<void> {
+export async function signIn(page: Page, user: Pick<TestUser, 'email'>): Promise<void> {
   await page.goto('/sign-in')
 
   const emailField = page

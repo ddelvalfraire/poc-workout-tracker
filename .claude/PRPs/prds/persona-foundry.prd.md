@@ -195,7 +195,7 @@ metrics once the phases land.
 | # | Phase | Description | Status | Parallel | Depends | PRP Plan |
 |---|-------|-------------|--------|----------|---------|----------|
 | 1 | Engine core | Guard, RNG, clock, action API foundation (user/consent/prefs/grant), manifest, defs: day-one + week-one | complete | - | - | `.claude/PRPs/plans/completed/persona-foundry-phase-1-engine-core.plan.md` — report: `.claude/PRPs/reports/persona-foundry-phase-1-engine-core-report.md` |
-| 2 | Screens rig | storageState per persona, route manifest, `npm run screens`, report-as-gallery, `--user` | pending | with 3, 5 | 1 | - |
+| 2 | Screens rig | storageState per persona, route manifest, `npm run screens`, report-as-gallery, `--user` | in-progress | with 3, 5 | 1 | `.claude/PRPs/plans/persona-foundry-phase-2-screens-rig.plan.md` |
 | 3 | Freestyle actions | Day-loop scheduler, logging actions, `'seed'` actor; defs: freestyle-lifer, drifting, mid-session | pending | with 2, 5 | 1 | - |
 | 4 | Program actions | Adopt/play-through actions, blocks/deloads/TM bumps, invariant post-assertion; defs: veteran, edge-kitchen-sink | pending | - | 3 | - |
 | 5 | Clone-to-local | Dump → restore → id-rewrite orchestration, `app_user_id` fix, privacy rule | pending | with 2, 3 | 1 | - |
