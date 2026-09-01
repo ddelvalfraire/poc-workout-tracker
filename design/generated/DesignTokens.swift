@@ -143,32 +143,32 @@ public enum DesignTokens {
     }
 
     public enum TypeScale {
-        /// Captions, chip labels, metadata.
+        /// Caption 1. Captions, chip labels, metadata.
         public static let sizexs: (size: CGFloat, lineHeight: CGFloat) = (12, 16)
 
-        /// Body default, button labels.
-        public static let sizesm: (size: CGFloat, lineHeight: CGFloat) = (14, 20)
+        /// Footnote. Body default, button labels, list secondary lines.
+        public static let sizesm: (size: CGFloat, lineHeight: CGFloat) = (13, 18)
 
-        /// Inputs — 16px is what stops iOS tap-zoom. Never go smaller in a field.
-        public static let sizebase: (size: CGFloat, lineHeight: CGFloat) = (16, 24)
+        /// Callout. Inputs — 16px is what stops iOS tap-zoom. Never go smaller in a field.
+        public static let sizebase: (size: CGFloat, lineHeight: CGFloat) = (16, 21)
 
-        /// Section leads.
-        public static let sizelg: (size: CGFloat, lineHeight: CGFloat) = (18, 28)
+        /// Body. Section leads.
+        public static let sizelg: (size: CGFloat, lineHeight: CGFloat) = (17, 22)
 
-        /// App bar title.
-        public static let sizexl: (size: CGFloat, lineHeight: CGFloat) = (20, 28)
+        /// Title 3. App bar title.
+        public static let sizexl: (size: CGFloat, lineHeight: CGFloat) = (20, 25)
 
-        /// StatTile value.
-        public static let size2xl: (size: CGFloat, lineHeight: CGFloat) = (24, 32)
+        /// Title 2. StatTile value.
+        public static let size2xl: (size: CGFloat, lineHeight: CGFloat) = (22, 28)
 
-        /// Logger numerals — sized for glanceability mid-set.
-        public static let size3xl: (size: CGFloat, lineHeight: CGFloat) = (30, 36)
+        /// Title 1. Logger numerals — sized for glanceability mid-set.
+        public static let size3xl: (size: CGFloat, lineHeight: CGFloat) = (28, 34)
 
-        /// Display headlines — next-up day name on the program detail.
-        public static let size4xl: (size: CGFloat, lineHeight: CGFloat) = (36, 40)
+        /// Large Title. Display headlines — next-up day name on the program detail.
+        public static let size4xl: (size: CGFloat, lineHeight: CGFloat) = (34, 41)
 
-        /// Hero numerals — programs-hero week count, fact-strip figures, empty-state headline. Display face, uppercase, one per screen.
-        public static let size5xl: (size: CGFloat, lineHeight: CGFloat) = (48, 48)
+        /// Hero numerals — programs-hero week count, fact-strip figures, empty-state headline. Display face, uppercase, one per screen. The single step above Apple's ladder: Large Title plus one optical notch, the way Fitness and Weather size their one hero figure.
+        public static let size5xl: (size: CGFloat, lineHeight: CGFloat) = (40, 44)
     }
 
     // MARK: - Layout (points)

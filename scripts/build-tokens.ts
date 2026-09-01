@@ -138,7 +138,20 @@ ${banner.split("\n").slice(1).join("\n")}
 ${COLORS.map(decl).join("\n")}
   --radius: ${baseRadius() / 16}rem;
 }
+
+/* The type ramp (DESIGN.md § Typography). Tailwind's text-* utilities read
+   these theme variables, so the sizes in tokens.ts ARE the web's scale — not
+   a mirror of Tailwind's stock ramp. Line heights are the unitless ratio
+   Tailwind expects. */
+@theme {
+${TYPE_SCALE.map(typeDecl).join("\n")}
+}
 `;
+}
+
+/** `text-sm` (13/18) -> `--text-sm: 0.8125rem;` + `--text-sm--line-height: calc(18 / 13);` */
+function typeDecl(t: (typeof TYPE_SCALE)[number]): string {
+  return `  --${t.name}: ${t.size / 16}rem;\n  --${t.name}--line-height: calc(${t.lineHeight} / ${t.size});`;
 }
 
 /**

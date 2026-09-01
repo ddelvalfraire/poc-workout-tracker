@@ -334,19 +334,26 @@ export interface TypeScaleToken {
 }
 
 /**
- * The fixed rem scale (product register — no fluid clamp in UI), resolved from
- * the Tailwind steps the components actually use, at a 16px root.
+ * The fixed rem scale (product register — no fluid clamp in UI). Each step is
+ * keyed to an Apple text style at the default Dynamic Type size, so the web
+ * reads at the sizes a native iOS app would — Tailwind's stock ramp runs a
+ * notch or two larger at every step above the caption, which is why buttons,
+ * fields and headlines read "huge" next to Apple's own apps. `text-5xl` is
+ * the one deliberate step above Apple's ladder (see its doc).
+ *
+ * These are the web's sizes, not a mirror of them: `npm run tokens` emits
+ * them into Tailwind's `@theme`, so `text-sm` IS this row.
  */
 export const TYPE_SCALE: readonly TypeScaleToken[] = [
-  { name: "text-xs", size: 12, lineHeight: 16, doc: "Captions, chip labels, metadata." },
-  { name: "text-sm", size: 14, lineHeight: 20, doc: "Body default, button labels." },
-  { name: "text-base", size: 16, lineHeight: 24, doc: "Inputs — 16px is what stops iOS tap-zoom. Never go smaller in a field." },
-  { name: "text-lg", size: 18, lineHeight: 28, doc: "Section leads." },
-  { name: "text-xl", size: 20, lineHeight: 28, doc: "App bar title." },
-  { name: "text-2xl", size: 24, lineHeight: 32, doc: "StatTile value." },
-  { name: "text-3xl", size: 30, lineHeight: 36, doc: "Logger numerals — sized for glanceability mid-set." },
-  { name: "text-4xl", size: 36, lineHeight: 40, doc: "Display headlines — next-up day name on the program detail." },
-  { name: "text-5xl", size: 48, lineHeight: 48, doc: "Hero numerals — programs-hero week count, fact-strip figures, empty-state headline. Display face, uppercase, one per screen." },
+  { name: "text-xs", size: 12, lineHeight: 16, doc: "Caption 1. Captions, chip labels, metadata." },
+  { name: "text-sm", size: 13, lineHeight: 18, doc: "Footnote. Body default, button labels, list secondary lines." },
+  { name: "text-base", size: 16, lineHeight: 21, doc: "Callout. Inputs — 16px is what stops iOS tap-zoom. Never go smaller in a field." },
+  { name: "text-lg", size: 17, lineHeight: 22, doc: "Body. Section leads." },
+  { name: "text-xl", size: 20, lineHeight: 25, doc: "Title 3. App bar title." },
+  { name: "text-2xl", size: 22, lineHeight: 28, doc: "Title 2. StatTile value." },
+  { name: "text-3xl", size: 28, lineHeight: 34, doc: "Title 1. Logger numerals — sized for glanceability mid-set." },
+  { name: "text-4xl", size: 34, lineHeight: 41, doc: "Large Title. Display headlines — next-up day name on the program detail." },
+  { name: "text-5xl", size: 40, lineHeight: 44, doc: "Hero numerals — programs-hero week count, fact-strip figures, empty-state headline. Display face, uppercase, one per screen. The single step above Apple's ladder: Large Title plus one optical notch, the way Fitness and Weather size their one hero figure." },
 ];
 
 export interface LayoutToken {

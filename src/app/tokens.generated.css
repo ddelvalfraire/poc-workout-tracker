@@ -43,3 +43,28 @@
   --sidebar-ring: oklch(0.86 0.19 128); /* #ade74e */
   --radius: 0.75rem;
 }
+
+/* The type ramp (DESIGN.md § Typography). Tailwind's text-* utilities read
+   these theme variables, so the sizes in tokens.ts ARE the web's scale — not
+   a mirror of Tailwind's stock ramp. Line heights are the unitless ratio
+   Tailwind expects. */
+@theme {
+  --text-xs: 0.75rem;
+  --text-xs--line-height: calc(16 / 12);
+  --text-sm: 0.8125rem;
+  --text-sm--line-height: calc(18 / 13);
+  --text-base: 1rem;
+  --text-base--line-height: calc(21 / 16);
+  --text-lg: 1.0625rem;
+  --text-lg--line-height: calc(22 / 17);
+  --text-xl: 1.25rem;
+  --text-xl--line-height: calc(25 / 20);
+  --text-2xl: 1.375rem;
+  --text-2xl--line-height: calc(28 / 22);
+  --text-3xl: 1.75rem;
+  --text-3xl--line-height: calc(34 / 28);
+  --text-4xl: 2.125rem;
+  --text-4xl--line-height: calc(41 / 34);
+  --text-5xl: 2.5rem;
+  --text-5xl--line-height: calc(44 / 40);
+}
