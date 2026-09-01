@@ -18,6 +18,7 @@
 /playwright-report/
 /blob-report/
 /playwright/.cache/
+/playwright/.auth/
 /e2e/.state/
 
 # next.js

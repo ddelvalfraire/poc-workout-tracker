@@ -33,12 +33,14 @@ export default defineConfig({
           // Inlining hands it to Vite's resolver instead, so any module that
           // merely reaches the auth seam stays unit-testable.
           server: { deps: { inline: [/@workos-inc\/authkit-nextjs/] } },
-          // e2e/ is Playwright's; .claude/ holds tooling artifacts (incl. stale
-          // git worktrees whose copied tests break). Keep both out of the
-          // Vitest unit run — and stories, which belong to the project below.
+          // e2e/**/*.spec.ts is Playwright's; .claude/ holds tooling artifacts
+          // (incl. stale git worktrees whose copied tests break). Keep both out
+          // of the Vitest unit run — and stories, which belong to the project
+          // below. e2e/**/*.test.ts (e.g. e2e/screens/build-path.test.ts) is a
+          // real Vitest unit test and stays included.
           exclude: [
             ...configDefaults.exclude,
-            'e2e/**',
+            'e2e/**/*.spec.ts',
             '.claude/**',
             '**/*.stories.tsx',
           ],
