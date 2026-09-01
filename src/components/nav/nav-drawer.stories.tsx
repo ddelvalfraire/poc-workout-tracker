@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 import { expect, userEvent, within } from "storybook/test";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 import type { DrawerData } from "@/lib/home/drawer-status";
 
@@ -13,9 +13,11 @@ import { NavDrawer } from "./nav-drawer";
  * / RECENT / IDENTITY, pinned bottom.
  *
  * Vaul owns the mechanics — focus trap, scrim, escape, swipe-to-dismiss,
- * left-edge slide. Status data arrives through TanStack Query, enabled on the
- * drawer's FIRST open, so a warm cache renders instantly on later opens with
- * no ghosts and no arrival replay.
+ * left-edge slide. Status data arrives through TanStack Query, fetched once
+ * per session when the first drawer MOUNTS (before any tap), so the first
+ * open usually lands on data and every later open renders the warm cache
+ * instantly — no ghosts, no arrival replay. `Loading` is the slow-network
+ * case where the tap beats the fetch.
  *
  * The degradation rule is the important one: **a failed fetch degrades every
  * row to its label**. The nav never breaks because a status read did — see
@@ -88,26 +90,37 @@ const EMPTY: DrawerData = {
   unit: "kg",
 };
 
+/** The browser's own fetch, captured once at module load so a double-invoked
+ *  initializer (StrictMode) can never mistake the stub for the original. */
+const realFetch = window.fetch;
+
 /**
  * Stubs `/api/drawer` for the lifetime of a story. Patching `fetch` is
  * deliberate over a network-mock addon: the drawer makes exactly one request,
  * and an explicit stub keeps each story's state readable at a glance.
+ *
+ * Patched DURING render, not in an effect: the drawer's query fires on mount,
+ * and a child's effects run before this decorator's would — an effect here
+ * patches too late and the first request escapes to the real server.
  */
 function stubDrawer(
   respond: () => Promise<Response>,
 ): (Story: React.ComponentType) => React.ReactElement {
   return function WithStubbedDrawer(Story) {
-    useEffect(() => {
-      const real = window.fetch;
+    useState(() => {
       window.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
         const url = typeof input === "string" ? input : input.toString();
         if (url.includes("/api/drawer")) return respond();
-        return real(input, init);
+        return realFetch(input, init);
       }) as typeof window.fetch;
-      return () => {
-        window.fetch = real;
-      };
-    }, []);
+      return null;
+    });
+    useEffect(
+      () => () => {
+        window.fetch = realFetch;
+      },
+      [],
+    );
     return <Story />;
   };
 }

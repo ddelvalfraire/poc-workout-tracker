@@ -61,11 +61,13 @@ import { useTranslations } from 'next-intl'
  *
  * Vaul (Radix Dialog under the hood) owns the mechanics: focus trap, scrim,
  * esc, swipe-to-dismiss, left-edge slide. Status data arrives via TanStack
- * Query, enabled on the drawer's first open — a warm cache renders instantly
- * on later opens/pages (no ghosts, no arrival replay), and a reopen past
- * staleTime revalidates in the background while the cached rows stay put.
- * A failed fetch degrades every row to its label: the nav never breaks
- * because a status read did.
+ * Query, fetched ONCE per session on the first mount (not on the first
+ * open): the request races a tap the user almost never makes within the
+ * first second, so the first open lands on data — the 150ms ghost delay
+ * means a warm cache never shows a ghost at all. Later mounts serve the
+ * cache (refetchOnMount off), and a reopen past staleTime revalidates in
+ * the background while the cached rows stay put. A failed fetch degrades
+ * every row to its label: the nav never breaks because a status read did.
  */
 
 /** How long a fetched drawer snapshot counts as fresh on reopen. Mirrors the
@@ -78,22 +80,22 @@ const DRAWER_STALE_MS = 30_000
 export interface DrawerOpenPlan {
   /** This open began without data → ghosts now, arrival animation on load. */
   openedPending: boolean
-  /** First open ever: enable the query (the open-triggered cold fetch). */
-  enableQuery: boolean
-  /** Reopen past staleTime: revalidate in the background — the cached rows
-   *  stay rendered (openedPending false → no ghosts, no arrival replay). */
+  /** Stale (or missing) snapshot with no request in flight: revalidate in
+   *  the background — cached rows stay rendered (openedPending false → no
+   *  ghosts, no arrival replay); a failed cold fetch gets its retry here. */
   refetchInBackground: boolean
 }
 
 export function planDrawerOpen(args: {
-  hasOpened: boolean
   hasData: boolean
   isStale: boolean
+  /** The mount-time fetch (or a revalidation) is already running — never
+   *  stack a second request on top of it. */
+  isFetching: boolean
 }): DrawerOpenPlan {
   return {
     openedPending: !args.hasData,
-    enableQuery: !args.hasOpened,
-    refetchInBackground: args.hasOpened && args.isStale,
+    refetchInBackground: args.isStale && !args.isFetching,
   }
 }
 
@@ -190,7 +192,6 @@ export function NavDrawer() {
   // Same product name as the home heading and the document title.
   const tCommon = useTranslations('Common')
   const [isOpen, setIsOpen] = useState(false)
-  const [hasOpened, setHasOpened] = useState(false)
   const [isStarting, setIsStarting] = useState(false)
   const [startError, setStartError] = useState<string | null>(null)
   // True while the CURRENT open began without data — the arrival animation
@@ -200,18 +201,22 @@ export function NavDrawer() {
   const pathname = usePathname()
   const router = useRouter()
 
-  // Open-triggered (enabled flips on first open, as the raw fetch did); an
-  // error leaves data undefined → the same label-only degrade as before, and
-  // Query's focus/reopen revalidation quietly recovers it later.
+  // Mount-triggered, once per session: the first NavDrawer instance to mount
+  // fetches; every page's instance after it serves the cache (refetchOnMount
+  // off — a request per navigation is not a nav-open cost worth paying) and
+  // the open-triggered plan below revalidates a stale snapshot. An error
+  // leaves data undefined → the label-only degrade, and the next open (or
+  // Query's focus revalidation) quietly recovers it.
   const {
     data: drawerData,
     isStale,
+    isFetching,
     refetch,
   } = useQuery({
     queryKey: ['drawer'],
     queryFn: ({ signal }) => fetchDrawerData(signal),
     staleTime: DRAWER_STALE_MS,
-    enabled: hasOpened,
+    refetchOnMount: false,
   })
   // data === null IS the pending state — the ghost/arrival contract below
   // (and the static-render test) key off it exactly as the useState days.
@@ -249,12 +254,12 @@ export function NavDrawer() {
   function handleOpenChange(open: boolean): void {
     setIsOpen(open)
     if (!open) return
-    const plan = planDrawerOpen({ hasOpened, hasData: data !== null, isStale })
+    const plan = planDrawerOpen({ hasData: data !== null, isStale, isFetching })
     // Snapshot whether THIS open starts pending — the arrival animation's key.
     setOpenedPending(plan.openedPending)
-    if (plan.enableQuery) setHasOpened(true) // first open: cold fetch → ghosts
-    // Reopen: serve the cache instantly; only a stale snapshot revalidates,
-    // in the background, with the rendered rows staying put.
+    // Serve the cache instantly; only a stale snapshot (or a failed cold
+    // fetch) revalidates, in the background, with the rendered rows staying
+    // put. A fetch already in flight is left alone.
     if (plan.refetchInBackground) void refetch()
   }
 

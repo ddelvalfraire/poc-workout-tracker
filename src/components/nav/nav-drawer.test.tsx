@@ -308,35 +308,38 @@ describe('NavDrawer status lines (descriptors rendered through the real catalog)
 })
 
 describe('planDrawerOpen (open/reopen contract — the drawer wires this verbatim)', () => {
-  test('first open with a cold cache: enable the query, ghosts + arrival for this open', () => {
-    expect(planDrawerOpen({ hasOpened: false, hasData: false, isStale: false })).toEqual({
+  test('open while the mount-time fetch is still in flight: ghosts, and NO second request', () => {
+    expect(planDrawerOpen({ hasData: false, isStale: true, isFetching: true })).toEqual({
       openedPending: true,
-      enableQuery: true,
       refetchInBackground: false,
     })
   })
 
-  test('reopen with a fresh warm cache: serve it as-is — no refetch, no arrival replay', () => {
-    expect(planDrawerOpen({ hasOpened: true, hasData: true, isStale: false })).toEqual({
+  test('open with a fresh warm cache: serve it as-is — no refetch, no arrival replay', () => {
+    expect(planDrawerOpen({ hasData: true, isStale: false, isFetching: false })).toEqual({
       openedPending: false,
-      enableQuery: false,
       refetchInBackground: false,
     })
   })
 
-  test('reopen past staleTime: background refetch while cached rows stay rendered', () => {
-    expect(planDrawerOpen({ hasOpened: true, hasData: true, isStale: true })).toEqual({
+  test('open past staleTime: background refetch while cached rows stay rendered', () => {
+    expect(planDrawerOpen({ hasData: true, isStale: true, isFetching: false })).toEqual({
       openedPending: false, // data still rendered → no ghosts, no arrival replay
-      enableQuery: false,
       refetchInBackground: true,
     })
   })
 
-  test('reopen after a failed first load: ghosts again and a recovery refetch', () => {
-    expect(planDrawerOpen({ hasOpened: true, hasData: false, isStale: true })).toEqual({
+  test('open after a failed cold fetch: ghosts again and a recovery refetch', () => {
+    expect(planDrawerOpen({ hasData: false, isStale: true, isFetching: false })).toEqual({
       openedPending: true,
-      enableQuery: false,
       refetchInBackground: true,
+    })
+  })
+
+  test('a revalidation already running past staleTime is left alone', () => {
+    expect(planDrawerOpen({ hasData: true, isStale: true, isFetching: true })).toEqual({
+      openedPending: false,
+      refetchInBackground: false,
     })
   })
 })
