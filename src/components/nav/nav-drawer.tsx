@@ -357,21 +357,23 @@ export function NavDrawer() {
         />
       )
     }
-    if (heroState === 'rest-day' && data.upNext) {
+    if (heroState === 'rest-day') {
       // rest-day only exists for a scheduled day that is not today, so the
-      // anchor is never null here; the guard keeps the type honest.
-      const anchor = scheduleAnchor(data.upNext.weekdays, now)
-      if (anchor !== null) {
-        return (
-          <QuietHero
-            title={t('hero.titleRest')}
-            context={line(restContextLine(data.upNext.dayName, anchor))}
-            href="/workout/new"
-            linkLabel={t('hero.quickLogLink')}
-            onNavigate={closeOnNavigate}
-          />
-        )
-      }
+      // anchor is never null here; if that invariant ever breaks the hero
+      // stays QUIET (title, no context) rather than falling through to a
+      // volt Start the state does not back.
+      const anchor = data.upNext ? scheduleAnchor(data.upNext.weekdays, now) : null
+      return (
+        <QuietHero
+          title={t('hero.titleRest')}
+          context={
+            anchor !== null && data.upNext ? line(restContextLine(data.upNext.dayName, anchor)) : null
+          }
+          href="/workout/new"
+          linkLabel={t('hero.quickLogLink')}
+          onNavigate={closeOnNavigate}
+        />
+      )
     }
     if (heroState === 'block-complete' && data.program) {
       return (
