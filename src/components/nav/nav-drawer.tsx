@@ -1,13 +1,20 @@
 'use client'
 
-import Link from 'next/link'
-import { useState, type ComponentType, type ReactNode } from 'react'
+import Link, { useLinkStatus } from 'next/link'
+import {
+  useEffect,
+  useState,
+  type ComponentProps,
+  type ComponentType,
+  type ReactNode,
+} from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { useQuery } from '@tanstack/react-query'
 import { Drawer } from 'vaul'
 import { SignOutButton } from '@/components/auth/sign-out-button'
 import {
   BarChart3,
+  ChevronRight,
   ClipboardList,
   Dumbbell,
   History,
@@ -22,15 +29,20 @@ import {
 } from 'lucide-react'
 import { startProgramDayAction } from '@/app/programs/actions'
 import { useHistoryDismissable } from '@/lib/use-history-dismissable'
+import { drawerPersister, pruneForeignDrawerSnapshots } from '@/lib/query-persister'
 import { activeSessionHref } from '@/lib/workout/active-session'
 import { scheduleAnchor } from '@/lib/home/schedule-anchor'
 import {
+  blockCompleteContextLine,
   bodyStatusLine,
+  doneContextLine,
+  drawerHeroState,
   exercisesStatusLine,
   isActiveRoute,
   programProgressPercent,
   programStatusLine,
   recentWorkoutLine,
+  restContextLine,
   startContextLine,
   trophyStatusLine,
   volumeStatusLine,
@@ -49,17 +61,20 @@ import { useTranslations } from 'next-intl'
 /**
  * The app's navigation drawer — the Claude-sidebar anatomy with the spike-§7
  * verdict applied: the drawer is a DASHBOARD, not a menu. Zones with distinct
- * jobs (the Arc principle): ACT (volt hero whose copy IS the context) /
- * SURFACES (every row carries a live status line — Gentler Streak's
- * translate-stats-into-status) / RECENT / IDENTITY (pinned bottom).
+ * jobs (the Arc principle): ACT (the hero — volt only when there is a workout
+ * to resume or start, a quiet status otherwise; its second line IS the
+ * context) / SURFACES (every row carries a live status line — Gentler
+ * Streak's translate-stats-into-status) / RECENT / IDENTITY (pinned bottom).
  *
  * Vaul (Radix Dialog under the hood) owns the mechanics: focus trap, scrim,
  * esc, swipe-to-dismiss, left-edge slide. Status data arrives via TanStack
- * Query, enabled on the drawer's first open — a warm cache renders instantly
- * on later opens/pages (no ghosts, no arrival replay), and a reopen past
- * staleTime revalidates in the background while the cached rows stay put.
- * A failed fetch degrades every row to its label: the nav never breaks
- * because a status read did.
+ * Query, fetched ONCE per session on the first mount (not on the first
+ * open): the request races a tap the user almost never makes within the
+ * first second, so the first open lands on data — the 150ms ghost delay
+ * means a warm cache never shows a ghost at all. Later mounts serve the
+ * cache (refetchOnMount off), and a reopen past staleTime revalidates in
+ * the background while the cached rows stay put. A failed fetch degrades
+ * every row to its label: the nav never breaks because a status read did.
  */
 
 /** How long a fetched drawer snapshot counts as fresh on reopen. Mirrors the
@@ -72,22 +87,22 @@ const DRAWER_STALE_MS = 30_000
 export interface DrawerOpenPlan {
   /** This open began without data → ghosts now, arrival animation on load. */
   openedPending: boolean
-  /** First open ever: enable the query (the open-triggered cold fetch). */
-  enableQuery: boolean
-  /** Reopen past staleTime: revalidate in the background — the cached rows
-   *  stay rendered (openedPending false → no ghosts, no arrival replay). */
+  /** Stale (or missing) snapshot with no request in flight: revalidate in
+   *  the background — cached rows stay rendered (openedPending false → no
+   *  ghosts, no arrival replay); a failed cold fetch gets its retry here. */
   refetchInBackground: boolean
 }
 
 export function planDrawerOpen(args: {
-  hasOpened: boolean
   hasData: boolean
   isStale: boolean
+  /** The mount-time fetch (or a revalidation) is already running — never
+   *  stack a second request on top of it. */
+  isFetching: boolean
 }): DrawerOpenPlan {
   return {
     openedPending: !args.hasData,
-    enableQuery: !args.hasOpened,
-    refetchInBackground: args.hasOpened && args.isStale,
+    refetchInBackground: args.isStale && !args.isFetching,
   }
 }
 
@@ -142,12 +157,92 @@ function ThinBar({ percent }: { percent: number }) {
   )
 }
 
-export function NavDrawer() {
+/** What a tap on a drawer link must do — pure, so the keep-open contract is
+ *  unit-testable. A tap on the CURRENT page closes the drawer without
+ *  minting a duplicate history entry; a cross-page tap strips the drawer's
+ *  own entry BEFORE the Link's push lands and leaves the drawer OPEN — the
+ *  current page (drawer included) stays on screen until the next page is
+ *  ready, whose own NavDrawer instance replaces this one. The tapped link
+ *  is therefore where the wait shows (see DrawerLink), not a spinner. */
+export function planLinkTap(args: { targetPathname: string; pathname: string }): {
+  preventDefault: boolean
+  close: boolean
+  stripHistoryEntry: boolean
+} {
+  const sameRoute = args.targetPathname === args.pathname
+  return { preventDefault: sameRoute, close: sameRoute, stripHistoryEntry: !sameRoute }
+}
+
+/** Renders a marker while the navigation its parent Link started is still
+ *  pending; the parent's has-data-nav-pending: variant does the dimming.
+ *  Nothing renders at all for a navigation that beats the 150ms delay. */
+function PendingMark() {
+  const { pending } = useLinkStatus()
+  return pending ? <span data-nav-pending="" aria-hidden="true" hidden /> : null
+}
+
+/** Every navigating link in the drawer: a plain <Link> (prefetch, long-press
+ *  previews keep working) that dims after 150ms while its navigation is
+ *  pending — the app's ONLY pending signal on a route change (DESIGN.md
+ *  § Pending states), shown only when the wait is real. */
+function DrawerLink({ className, children, ...props }: ComponentProps<typeof Link>) {
+  return (
+    <Link {...props} className={cn(className, 'has-data-nav-pending:animate-pending-dim')}>
+      {children}
+      <PendingMark />
+    </Link>
+  )
+}
+
+/** The hero's one box geometry, shared by every variant: min-h-17 is the
+ *  `nav-hero-height` token (src/design/tokens.ts, 68px — the volt button's
+ *  own height), so pending → quiet → volt swaps never move the rows. */
+const HERO_BOX = 'flex min-h-17 flex-col justify-center'
+
+interface QuietHeroProps {
+  title: string
+  context: string | null
+  href: string
+  linkLabel: string
+  onNavigate: (event: React.MouseEvent<HTMLAnchorElement>) => void
+}
+
+/** The hero when there is NOTHING to start — done for today, a rest day, a
+ *  finished block: a status pair plus one muted door, home's own quiet
+ *  vocabulary (StatusHero's trained-today / rest-day / block-complete). No
+ *  volt, no button skin: the day's work is done or not due, and a green CTA
+ *  here would be a promise the data does not back. */
+function QuietHero({ title, context, href, linkLabel, onNavigate }: QuietHeroProps) {
+  return (
+    <div className={HERO_BOX}>
+      <p className="text-base font-semibold uppercase tracking-wide">{title}</p>
+      {context !== null && (
+        <p className="mt-0.5 truncate text-xs text-muted-foreground tnum">{context}</p>
+      )}
+      <DrawerLink
+        href={href}
+        onClick={onNavigate}
+        className="mt-1.5 flex w-fit items-center gap-0.5 text-xs font-medium text-muted-foreground transition-colors active:text-foreground"
+      >
+        {linkLabel}
+        <ChevronRight aria-hidden="true" className="size-3.5" />
+      </DrawerLink>
+    </div>
+  )
+}
+
+export interface NavDrawerProps {
+  /** The signed-in user — the persisted snapshot's key (lib/query-persister):
+   *  a second account on the same device must never open on the first
+   *  account's rows. Pages already hold it from requireUserId. */
+  userId: string
+}
+
+export function NavDrawer({ userId }: NavDrawerProps) {
   const t = useTranslations('NavDrawer')
   // Same product name as the home heading and the document title.
   const tCommon = useTranslations('Common')
   const [isOpen, setIsOpen] = useState(false)
-  const [hasOpened, setHasOpened] = useState(false)
   const [isStarting, setIsStarting] = useState(false)
   const [startError, setStartError] = useState<string | null>(null)
   // True while the CURRENT open began without data — the arrival animation
@@ -157,18 +252,32 @@ export function NavDrawer() {
   const pathname = usePathname()
   const router = useRouter()
 
-  // Open-triggered (enabled flips on first open, as the raw fetch did); an
-  // error leaves data undefined → the same label-only degrade as before, and
-  // Query's focus/reopen revalidation quietly recovers it later.
+  // Mount-triggered, once per session: the first NavDrawer instance to mount
+  // fetches; every page's instance after it serves the cache (refetchOnMount
+  // off — a request per navigation is not a nav-open cost worth paying) and
+  // the open-triggered plan below revalidates a stale snapshot. An error
+  // leaves data undefined → the label-only degrade, and the next open (or
+  // Query's focus revalidation) quietly recovers it.
+  //
+  // Persisted across launches (lib/query-persister): the first use restores
+  // the last snapshot from localStorage — a cold launch opens on yesterday's
+  // rows, and a snapshot past staleTime revalidates in the background while
+  // they stay rendered. Any other account's snapshot on this device is
+  // dropped before the query can restore it.
+  useEffect(() => {
+    pruneForeignDrawerSnapshots(userId)
+  }, [userId])
   const {
     data: drawerData,
     isStale,
+    isFetching,
     refetch,
   } = useQuery({
-    queryKey: ['drawer'],
+    queryKey: ['drawer', userId],
     queryFn: ({ signal }) => fetchDrawerData(signal),
     staleTime: DRAWER_STALE_MS,
-    enabled: hasOpened,
+    refetchOnMount: false,
+    persister: drawerPersister.persisterFn,
   })
   // data === null IS the pending state — the ghost/arrival contract below
   // (and the static-render test) key off it exactly as the useState days.
@@ -181,9 +290,11 @@ export function NavDrawer() {
   const { dismissForNavigation } = useHistoryDismissable(isOpen, () => setIsOpen(false))
 
   // Navigation to a NEW route unmounts this instance (each page renders its
-  // own header trigger); the eager close covers same-route taps and makes
-  // cross-route exits feel immediate. Links stay plain <Link>s so prefetch
-  // and long-press previews keep working.
+  // own header trigger) — and only then. There is no root loading.tsx, so
+  // the current page stays on screen until the next one is ready; closing
+  // the drawer eagerly would leave the user staring at the page they just
+  // left with nothing happening. It stays open, and the tapped DrawerLink
+  // dims after 150ms if the wait is real (planLinkTap has the contract).
   //
   // Two history duties on the way out (spike §3d): a tap on the CURRENT
   // page must close the drawer WITHOUT minting a duplicate entry, and a
@@ -194,24 +305,21 @@ export function NavDrawer() {
     // The anchor's own resolved URL, so every call site stays a plain
     // onClick={closeOnNavigate} — no per-link href plumbing to drift.
     const targetPathname = new URL(event.currentTarget.href, window.location.href).pathname
-    if (targetPathname === pathname) {
-      event.preventDefault() // duplicate same-page entry: the one push the drawer must block
-      setIsOpen(false) // programmatic close → the hook pops the drawer's own entry
-      return
-    }
-    dismissForNavigation()
-    setIsOpen(false)
+    const plan = planLinkTap({ targetPathname, pathname })
+    if (plan.preventDefault) event.preventDefault() // duplicate same-page entry: the one push the drawer must block
+    if (plan.stripHistoryEntry) dismissForNavigation()
+    if (plan.close) setIsOpen(false) // programmatic close → the hook pops the drawer's own entry
   }
 
   function handleOpenChange(open: boolean): void {
     setIsOpen(open)
     if (!open) return
-    const plan = planDrawerOpen({ hasOpened, hasData: data !== null, isStale })
+    const plan = planDrawerOpen({ hasData: data !== null, isStale, isFetching })
     // Snapshot whether THIS open starts pending — the arrival animation's key.
     setOpenedPending(plan.openedPending)
-    if (plan.enableQuery) setHasOpened(true) // first open: cold fetch → ghosts
-    // Reopen: serve the cache instantly; only a stale snapshot revalidates,
-    // in the background, with the rendered rows staying put.
+    // Serve the cache instantly; only a stale snapshot (or a failed cold
+    // fetch) revalidates, in the background, with the rendered rows staying
+    // put. A fetch already in flight is left alone.
     if (plan.refetchInBackground) void refetch()
   }
 
@@ -248,6 +356,104 @@ export function NavDrawer() {
   // translator lives. `lines` joins a segment list with the row's " · ".
   const line = (l: NavDrawerLine | null) => (l === null ? null : renderLine<NavDrawerKey>(t, l))
   const lines = (l: NavDrawerLine[]) => (l.length > 0 ? renderLines<NavDrawerKey>(t, l) : null)
+
+  // The hero's state — home's seven-state brain over the drawer payload, so
+  // the two surfaces never disagree about whether there is a workout to do.
+  // Null while pending: the hero shows NO CTA copy until the data has earned
+  // one (a "Start Workout" before the facts arrive is a false promise to a
+  // user who already trained today).
+  const heroState = data === null ? null : drawerHeroState(data, now)
+  // min-h-17 is the button's own natural height (see HERO_BOX) — stated so
+  // the volt and quiet variants are provably the same box.
+  const voltHero = cn(buttonVariants({ size: 'lg' }), 'h-auto min-h-17 w-full flex-col gap-0.5 py-3')
+
+  function renderHero(): ReactNode {
+    if (data === null || heroState === null) {
+      // Ghost of the hero: two bars in the box's exact geometry, copy withheld.
+      return (
+        <div className={cn(HERO_BOX, 'items-center gap-2')}>
+          <Ghost className="h-3 w-32" />
+          <Ghost className="h-2 w-24" />
+        </div>
+      )
+    }
+    if (heroState === 'session-live' && data.resume) {
+      return (
+        <DrawerLink href={activeSessionHref(data.resume.key)} onClick={closeOnNavigate} className={voltHero}>
+          <span className="text-base font-semibold uppercase tracking-wide">{t('resumeAction')}</span>
+          <span className="text-xs font-medium normal-case opacity-80">
+            {data.resume.name ?? t('resumeContext')}
+          </span>
+        </DrawerLink>
+      )
+    }
+    // Drifting with a program mirrors home: the way back in is the next day.
+    if ((heroState === 'program-due' || heroState === 'drifting') && data.upNext) {
+      const upNext = data.upNext
+      return (
+        <button
+          type="button"
+          disabled={isStarting}
+          onClick={() => void handleStartUpNext(upNext.dayId)}
+          className={voltHero}
+        >
+          <span className="text-base font-semibold uppercase tracking-wide">
+            {isStarting ? t('startingAction') : t('startAction')}
+          </span>
+          <span className="text-xs font-medium normal-case opacity-80">
+            {line(startContextLine(upNext.dayName, upNext.week, scheduleAnchor(upNext.weekdays, now)))}
+          </span>
+        </button>
+      )
+    }
+    if (heroState === 'trained-today' && data.lastCompleted) {
+      return (
+        <QuietHero
+          title={t('hero.titleDone')}
+          context={lines(doneContextLine(data.lastCompleted, data.unit))}
+          href="/workout/new"
+          linkLabel={t('hero.logMoreLink')}
+          onNavigate={closeOnNavigate}
+        />
+      )
+    }
+    if (heroState === 'rest-day') {
+      // rest-day only exists for a scheduled day that is not today, so the
+      // anchor is never null here; if that invariant ever breaks the hero
+      // stays QUIET (title, no context) rather than falling through to a
+      // volt Start the state does not back.
+      const anchor = data.upNext ? scheduleAnchor(data.upNext.weekdays, now) : null
+      return (
+        <QuietHero
+          title={t('hero.titleRest')}
+          context={
+            anchor !== null && data.upNext ? line(restContextLine(data.upNext.dayName, anchor)) : null
+          }
+          href="/workout/new"
+          linkLabel={t('hero.quickLogLink')}
+          onNavigate={closeOnNavigate}
+        />
+      )
+    }
+    if (heroState === 'block-complete' && data.program) {
+      return (
+        <QuietHero
+          title={t('hero.titleBlockComplete')}
+          context={line(blockCompleteContextLine(data.program.name, data.program.mesocycleWeeks))}
+          href={`/programs/${data.program.id}/stats`}
+          linkLabel={t('hero.resultsLink')}
+          onNavigate={closeOnNavigate}
+        />
+      )
+    }
+    // fresh, or drifting with no program: the open door (home's volt too).
+    return (
+      <DrawerLink href="/workout/new" onClick={closeOnNavigate} className={voltHero}>
+        <span className="text-base font-semibold uppercase tracking-wide">{t('quickStartAction')}</span>
+        <span className="text-xs font-medium normal-case opacity-80">{t('quickLogContext')}</span>
+      </DrawerLink>
+    )
+  }
 
   const surfaces: SurfaceRow[] = [
     {
@@ -383,7 +589,7 @@ export function NavDrawer() {
             {/* Wordmark = the Home row (Claude-style drawer header): with the
                 top-level back chevrons gone, this is the path home. */}
             <div className="border-b border-border px-5 py-4">
-              <Link
+              <DrawerLink
                 href="/"
                 onClick={closeOnNavigate}
                 aria-current={pathname === '/' ? 'page' : undefined}
@@ -393,88 +599,20 @@ export function NavDrawer() {
                 )}
               >
                 {tCommon('appName')}
-              </Link>
+              </DrawerLink>
             </div>
 
-            {/* Zone ACT — the volt hero; its second line IS the context. The
-                key swaps only when the VARIANT changes (pending → resume /
-                up-next / quick), remounting the hero through animate-fade-in:
-                a single 180ms opacity crossfade in place, instant under
-                reduced motion. While data is pending the quick-log hero shows
-                with its context line ghosted — same h-4 line box as the
-                text-xs copy, so the swap never moves a pixel. */}
+            {/* Zone ACT — the hero, keyed by its STATE so a change remounts
+                it through animate-fade-in (a single 180ms opacity crossfade
+                in place, instant under reduced motion). Volt only for
+                resume/start; done-for-today, rest-day and block-complete are
+                quiet. Every variant, the pending ghost included, fills the
+                same HERO_BOX so the swap never moves a pixel. */}
             <div
-              key={
-                data === null
-                  ? 'pending'
-                  : data.resume
-                    ? 'resume'
-                    : data.upNext
-                      ? 'up-next'
-                      : 'quick'
-              }
+              key={heroState ?? 'pending'}
               className="border-b border-border p-4 motion-safe:animate-fade-in"
             >
-              {data?.resume ? (
-                <Link
-                  href={activeSessionHref(data.resume.key)}
-                  onClick={closeOnNavigate}
-                  className={cn(
-                    buttonVariants({ size: 'lg' }),
-                    'h-auto w-full flex-col gap-0.5 py-3',
-                  )}
-                >
-                  <span className="text-base font-semibold uppercase tracking-wide">{t('resumeAction')}</span>
-                  <span className="text-xs font-medium normal-case opacity-80">
-                    {data.resume.name ?? t('resumeContext')}
-                  </span>
-                </Link>
-              ) : data?.upNext ? (
-                <button
-                  type="button"
-                  disabled={isStarting}
-                  onClick={() => data.upNext && void handleStartUpNext(data.upNext.dayId)}
-                  className={cn(
-                    buttonVariants({ size: 'lg' }),
-                    'h-auto w-full flex-col gap-0.5 py-3',
-                  )}
-                >
-                  <span className="text-base font-semibold uppercase tracking-wide">
-                    {isStarting ? t('startingAction') : t('startAction')}
-                  </span>
-                  <span className="text-xs font-medium normal-case opacity-80">
-                    {line(
-                      startContextLine(
-                        data.upNext.dayName,
-                        data.upNext.week,
-                        scheduleAnchor(data.upNext.weekdays, now),
-                      ),
-                    )}
-                  </span>
-                </button>
-              ) : (
-                <Link
-                  href="/workout/new"
-                  onClick={closeOnNavigate}
-                  className={cn(
-                    buttonVariants({ size: 'lg' }),
-                    'h-auto w-full flex-col gap-0.5 py-3',
-                  )}
-                >
-                  <span className="text-base font-semibold uppercase tracking-wide">
-                    {t('quickStartAction')}
-                  </span>
-                  {data === null ? (
-                    // Ghost of the context line: h-4 = the text-xs line box,
-                    // so pending and resolved heroes are pixel-identical.
-                    <span className="flex h-4 items-center justify-center">
-                      <Ghost className="h-2 w-20" />
-                    </span>
-                  ) : (
-                    <span className="text-xs font-medium normal-case opacity-80">{t('quickLogContext')}</span>
-                  )}
-                </Link>
-              )}
+              {renderHero()}
               {startError && (
                 <p role="alert" className="mt-2 text-xs text-destructive">
                   {startError}
@@ -497,7 +635,7 @@ export function NavDrawer() {
                         animationFillMode: 'backwards',
                       }}
                     >
-                      <Link
+                      <DrawerLink
                         href={row.href}
                         onClick={closeOnNavigate}
                         aria-current={active ? 'page' : undefined}
@@ -547,7 +685,7 @@ export function NavDrawer() {
                             </span>
                           )}
                         </span>
-                      </Link>
+                      </DrawerLink>
                     </li>
                   )
                 })}
@@ -572,7 +710,7 @@ export function NavDrawer() {
                 <ul>
                   {data.recents.map((recent) => (
                     <li key={recent.id}>
-                      <Link
+                      <DrawerLink
                         href={`/workout/${recent.id}`}
                         onClick={closeOnNavigate}
                         className="flex items-baseline justify-between gap-3 rounded-xl px-3 py-2 transition-colors active:bg-muted/60"
@@ -581,7 +719,7 @@ export function NavDrawer() {
                         <span className="shrink-0 text-xs text-muted-foreground tnum">
                           {lines(recentWorkoutLine(recent, data.unit, now))}
                         </span>
-                      </Link>
+                      </DrawerLink>
                     </li>
                   ))}
                 </ul>
@@ -591,7 +729,7 @@ export function NavDrawer() {
 
           {/* Zone IDENTITY — pinned bottom, Claude-style. */}
           <div className="flex items-center justify-between gap-2 border-t border-border px-4 py-3 pb-safe">
-            <Link
+            <DrawerLink
               href="/settings"
               onClick={closeOnNavigate}
               aria-current={settingsActive ? 'page' : undefined}
@@ -602,7 +740,7 @@ export function NavDrawer() {
             >
               <Settings aria-hidden="true" className="size-5" />
               {t('settingsLink')}
-            </Link>
+            </DrawerLink>
             <SignOutButton />
           </div>
         </Drawer.Content>

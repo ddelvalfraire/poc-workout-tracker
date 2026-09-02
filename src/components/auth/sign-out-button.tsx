@@ -6,6 +6,7 @@ import { LogOut } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { signOutAction } from '@/app/actions'
+import { clearPersistedDrawer } from '@/lib/query-persister'
 
 interface SignOutButtonProps {
   /**
@@ -37,6 +38,12 @@ export function SignOutButton({ variant = 'icon', className }: SignOutButtonProp
   const [isPending, startTransition] = useTransition()
 
   function signOut() {
+    // The device keeps nothing of the user after they leave: the drawer's
+    // persisted snapshot (lib/query-persister) goes before the session does.
+    // Before, not after, on purpose: if the action fails the user is still
+    // signed in and merely gets one cold drawer open — the failure mode that
+    // errs toward privacy, not away from it.
+    clearPersistedDrawer()
     startTransition(async () => {
       await signOutAction()
     })

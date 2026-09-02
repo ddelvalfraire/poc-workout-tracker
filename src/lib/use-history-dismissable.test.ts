@@ -98,6 +98,20 @@ describe('HistoryDismissableController', () => {
     expect(history.backCalls).toBe(0)
   })
 
+  test('destroy after dismissForNavigation is a no-op — the drawer stays open across the route change', () => {
+    // The production sequence since the drawer stopped closing eagerly on a
+    // cross-route tap: dismissForNavigation (flag stripped in place), the
+    // router pushes, and the OLD page's drawer unmounts still "open" when the
+    // new page commits. That unmount must not pop anything.
+    const { history, controller } = make()
+    controller.setOpen(true)
+    controller.dismissForNavigation()
+    controller.destroy()
+    expect(history.backCalls).toBe(0)
+    expect(history.index).toBe(1)
+    expect(hasFlag(history.state)).toBe(false)
+  })
+
   test('unmount-while-open (destroy) consumes the entry', () => {
     const { history, controller } = make()
     controller.setOpen(true)

@@ -186,5 +186,8 @@ object DesignTokens {
 
         /** Sticky top app bar, excluding the status-bar safe area. */
         val AppBarHeight = 56.dp
+
+        /** The nav drawer's hero box — the volt button's own height (12 padding + 21 text-base line + 2 gap + 16 text-xs line + 12 padding + 2 border, rounded to the spacing grid). Every hero variant, the pending ghost included, fills it (web: min-h-17), so pending → quiet → volt swaps never move the rows below. */
+        val NavHeroHeight = 68.dp
     }
 }

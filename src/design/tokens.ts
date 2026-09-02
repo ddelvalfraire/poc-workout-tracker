@@ -382,4 +382,9 @@ export const LAYOUT: readonly LayoutToken[] = [
     doc: "Editor pane 3 — the inspector for whatever is selected (Apple: beside the content, never a popover). Fixed, and collapses to nothing when the selection is empty so it never costs width for silence.",
   },
   { name: "app-bar-height", value: 56, doc: "Sticky top app bar, excluding the status-bar safe area." },
+  {
+    name: "nav-hero-height",
+    value: 68,
+    doc: "The nav drawer's hero box — the volt button's own height (12 padding + 21 text-base line + 2 gap + 16 text-xs line + 12 padding + 2 border, rounded to the spacing grid). Every hero variant, the pending ghost included, fills it (web: min-h-17), so pending → quiet → volt swaps never move the rows below.",
+  },
 ];

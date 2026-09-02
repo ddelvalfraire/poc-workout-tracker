@@ -88,7 +88,7 @@ export default async function BodyPage() {
     <div className="flex min-h-[100dvh] flex-col">
       <AppHeader
         title={t('title')}
-        leading={<NavDrawer />}
+        leading={<NavDrawer userId={userId} />}
       />
 
       <main className="mx-auto w-full max-w-md flex-1 px-5 pb-safe">

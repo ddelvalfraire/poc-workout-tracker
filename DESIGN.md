@@ -220,7 +220,7 @@ list — it only ever shrinks, never grows, and new surfaces never join it.
 - **Ghosts** (`<Ghost />`, `animate-ghost-in`): a rounded `bg-muted` bar holding the EXACT final dimensions of the content it stands in for (same wrappers/margins, bar boxed to the text's line height) — zero layout shift on resolve. 1.8s opacity pulse via `motion-safe:` only; static bar under reduced motion. Never a shimmer sweep, never a new color.
 - **150ms delayed appearance**: ghosts start at `opacity: 0` with a 150ms `animation-delay` — data that beats the delay means no ghost is ever seen. The ops tabs' pending dim (`animate-pending-dim`) follows the same rule.
 - **Arrival**: resolved content replaces its ghost in place through the existing `rise-in`/`fade-in` vocabulary (180ms ease-out, row stagger where rows already stagger); reduced motion gets the instant swap.
-- The root `loading.tsx` spinner stays the app's ONLY naked spinner — every other pending surface is a ghost of its resolved self.
+- **No naked spinner anywhere.** There is no root `loading.tsx`: a route change keeps the current page on screen until the next one is ready (React keeps the old tree through the transition). The only pending signal is on the control the user tapped — the nav drawer row dims (`animate-pending-dim`, 150ms delayed) via `useLinkStatus` — so a navigation that beats the delay shows nothing at all. Segment-level `loading.tsx` files (the ops area) stay ghosts of their resolved selves.
 
 ## Client data
 - Server state renders on the server (RSC); client components that must fetch use TanStack Query (`useQuery`) — no hand-rolled `fetch`+`useState`.

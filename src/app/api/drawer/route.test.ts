@@ -161,7 +161,13 @@ describe('GET /api/drawer', () => {
     expect(res.headers.get('cache-control')).toBe('private, max-age=30')
     expect(data.resume).toBeNull()
     expect(data.upNext).toEqual({ dayId: 'd1', dayName: 'Legs', week: 3, weekdays: [1, 4] })
-    expect(data.program).toEqual({ name: 'Upper/Lower Hybrid', week: 3, mesocycleWeeks: 7 })
+    expect(data.program).toEqual({
+      id: 'p1',
+      name: 'Upper/Lower Hybrid',
+      week: 3,
+      mesocycleWeeks: 7,
+      blockComplete: false,
+    })
     // Both completed workouts land in the rolling sparkbar buckets.
     expect(data.stats?.daySets).toHaveLength(7)
     expect(data.stats?.daySets[6]).toBe(9) // the 1h-old session
@@ -211,7 +217,39 @@ describe('GET /api/drawer', () => {
     const { data } = await getData()
 
     expect(data.upNext).toBeNull()
-    expect(data.program).toEqual({ name: 'Upper/Lower Hybrid', week: 3, mesocycleWeeks: 7 })
+    expect(data.program).toEqual({
+      id: 'p1',
+      name: 'Upper/Lower Hybrid',
+      week: 3,
+      mesocycleWeeks: 7,
+      blockComplete: true, // the hero's block-complete state reads this
+    })
+  })
+
+  it('carries the hero memory: 48h completions and the newest completed session', async () => {
+    vi.mocked(listWorkoutSummaries).mockResolvedValue([
+      // Started days ago but FINISHED an hour ago: counts (completion time).
+      summary({ id: 'old-finished-today', startedAt: new Date(now - 3 * DAY_MS), completedAt: new Date(now - HOUR_MS) }),
+      summary({ id: 'newest', name: 'Legs', completedAt: new Date(now - HOUR_MS / 4), volumeKg: 5000 }),
+      summary({ id: 'last-week', completedAt: new Date(now - 6 * DAY_MS) }),
+      summary({ id: 'unfinished', completedAt: null }),
+    ])
+
+    const { data } = await getData()
+
+    expect(data.recentCompletedAtTimes).toEqual([now - HOUR_MS, now - HOUR_MS / 4])
+    expect(data.lastCompleted).toEqual({
+      id: 'newest',
+      name: 'Legs',
+      completedAtMs: now - HOUR_MS / 4,
+      volumeKg: 5000,
+    })
+  })
+
+  it('has no hero memory on day one', async () => {
+    const { data } = await getData()
+    expect(data.recentCompletedAtTimes).toEqual([])
+    expect(data.lastCompleted).toBeNull()
   })
 
   it('computes a strength top goal percent via one stats read', async () => {

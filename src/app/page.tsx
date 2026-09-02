@@ -130,7 +130,7 @@ export default async function HomePage() {
           <div className="flex min-w-0 items-center gap-2">
             {/* The drawer trigger leads — home is the shell's root surface,
                 and the drawer is now the app's navigation (spike §7). */}
-            <NavDrawer />
+            <NavDrawer userId={userId} />
             <h1 className="truncate text-2xl font-bold uppercase tracking-tight">{tCommon('appName')}</h1>
           </div>
           <div className="flex items-center gap-2">

@@ -988,9 +988,6 @@
     "steady": "holding steady",
     "title": "Lift trend"
   },
-  "Loading": {
-    "label": "Loading"
-  },
   "MeasurementEntryRow": {
     "confirm": {
       "body": "It disappears from the history and the trend.",
@@ -1070,6 +1067,16 @@
       "date": "{date, date, ::MMMd}",
       "today": "Today",
       "yesterday": "Yesterday"
+    },
+    "hero": {
+      "contextBlockComplete": "{name} · {weeks, plural, one {# week} other {# weeks}}",
+      "contextRest": "Next: {day} · {anchor}",
+      "logMoreLink": "Log more",
+      "quickLogLink": "Quick log",
+      "resultsLink": "See results",
+      "titleBlockComplete": "Block complete.",
+      "titleDone": "Done for today.",
+      "titleRest": "Rest day."
     },
     "invitation": {
       "body": "Log a weigh-in",
