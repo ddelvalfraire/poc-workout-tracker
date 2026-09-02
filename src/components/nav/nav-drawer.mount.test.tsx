@@ -162,6 +162,26 @@ describe('NavDrawer persisted snapshot (the launch-to-launch contract)', () => {
     expect(window.localStorage.getItem(persistedKeyFor(USER))).not.toBeNull()
   })
 
+  test('a snapshot with a stale shape is discarded: cold open, then overwritten', async () => {
+    // What a long-lived dev server (one build id) leaves behind after a
+    // DrawerData edit — the buster cannot catch it, the shape guard must.
+    const stale = JSON.stringify({
+      state: { data: { resume: null, upNext: null, program: null, unit: 'kg' }, dataUpdatedAt: Date.now() },
+      queryKey: ['drawer', USER],
+      queryHash: JSON.stringify(['drawer', USER]),
+      buster: '',
+    })
+    window.localStorage.setItem(persistedKeyFor(USER), stale)
+    const fetchSpy = stubDrawerFetch()
+
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    await mountDrawer(client)
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1)
+    expect(client.getQueryData(['drawer', USER])).toEqual(emptyDrawer)
+    expect(JSON.parse(window.localStorage.getItem(persistedKeyFor(USER))!).state.data).toEqual(emptyDrawer)
+  })
+
   test('clearPersistedDrawer (sign-out / deletion) leaves nothing behind', async () => {
     stubDrawerFetch()
     await mountDrawer(new QueryClient({ defaultOptions: { queries: { retry: false } } }))

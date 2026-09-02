@@ -79,6 +79,43 @@ export interface DrawerData {
 
 const DAY_MS = 24 * 60 * 60 * 1000
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
+}
+
+/**
+ * Structural guard for a DrawerData that did NOT come from this build's
+ * /api/drawer — the persisted snapshot restored from localStorage
+ * (lib/query-persister). The build-id buster discards snapshots across
+ * deploys, but a dev server keeps one build id for its whole life, so a
+ * shape edit mid-session would otherwise hand the state brain an object
+ * missing the fields it dereferences unconditionally. Checks exactly those:
+ * the arrays, the nullable slices the hero reads, and the unit. A failed
+ * check means "cold open", never a crash.
+ */
+export function isDrawerData(value: unknown): value is DrawerData {
+  if (!isRecord(value)) return false
+  if (!Array.isArray(value.recentCompletedAtTimes) || !Array.isArray(value.recents)) return false
+  if (value.unit !== 'kg' && value.unit !== 'lb') return false
+  if (value.resume !== null && !isRecord(value.resume)) return false
+  if (value.upNext !== null && !(isRecord(value.upNext) && Array.isArray(value.upNext.weekdays))) {
+    return false
+  }
+  if (
+    value.program !== null &&
+    !(isRecord(value.program) && typeof value.program.blockComplete === 'boolean')
+  ) {
+    return false
+  }
+  if (
+    value.lastCompleted !== null &&
+    !(isRecord(value.lastCompleted) && typeof value.lastCompleted.completedAtMs === 'number')
+  ) {
+    return false
+  }
+  return true
+}
+
 /** Sparkbar width — seven rolling 24h blocks (also the bodyweight-delta
  *  window in /api/drawer). */
 export const SPARKBAR_DAYS = 7

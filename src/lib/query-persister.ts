@@ -1,4 +1,8 @@
-import { experimental_createQueryPersister } from '@tanstack/query-persist-client-core'
+import {
+  experimental_createQueryPersister,
+  type PersistedQuery,
+} from '@tanstack/query-persist-client-core'
+import { isDrawerData } from '@/lib/home/drawer-status'
 
 /**
  * Per-query persistence for the nav drawer's status snapshot (the ONE query
@@ -69,10 +73,30 @@ const lazyBrowserStorage = {
   },
 }
 
+/**
+ * The persister's entry envelope: `{ state: { data, ... }, queryKey, queryHash,
+ * buster }`. Deserialize validates the DATA's shape and throws on a miss —
+ * the persister treats a throwing deserialize as a corrupt entry (removes
+ * it, restores nothing), which is exactly the cold open we want for a
+ * snapshot written by an older DrawerData shape. The buster covers
+ * deploys; this covers everything the buster cannot (a long-lived dev
+ * server, a hand-edited entry).
+ */
+function deserializeDrawerSnapshot(raw: string): PersistedQuery {
+  const parsed: unknown = JSON.parse(raw)
+  const data =
+    typeof parsed === 'object' && parsed !== null && 'state' in parsed
+      ? (parsed as { state?: { data?: unknown } }).state?.data
+      : undefined
+  if (!isDrawerData(data)) throw new Error('persisted drawer snapshot has a stale shape')
+  return parsed as PersistedQuery
+}
+
 export const drawerPersister = experimental_createQueryPersister({
   storage: lazyBrowserStorage,
   maxAge: DRAWER_PERSIST_MAX_AGE_MS,
   prefix: DRAWER_PERSIST_PREFIX,
+  deserialize: deserializeDrawerSnapshot,
   // A deploy may change the payload shape; the build id busts every entry
   // written by the previous build (one cold open per deploy, never a crash
   // on a stale shape).

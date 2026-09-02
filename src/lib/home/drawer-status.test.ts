@@ -7,6 +7,7 @@ import {
   bucketDaySets,
   doneContextLine,
   drawerHeroState,
+  isDrawerData,
   exercisesStatusLine,
   isActiveRoute,
   restContextLine,
@@ -394,5 +395,35 @@ describe('hero context lines', () => {
   it('blockCompleteContextLine: the program and its length, pluralized', () => {
     expect(read(blockCompleteContextLine('Upper/Lower Hybrid', 7))).toBe('Upper/Lower Hybrid · 7 weeks')
     expect(read(blockCompleteContextLine('Intro', 1))).toBe('Intro · 1 week')
+  })
+})
+
+describe('isDrawerData (the restored-snapshot guard)', () => {
+  it('accepts this build’s payload, empty or full', () => {
+    expect(isDrawerData(emptyDrawer)).toBe(true)
+    expect(
+      isDrawerData({
+        ...emptyDrawer,
+        resume: { key: 'new', name: null },
+        upNext: { dayId: 'd1', dayName: 'Legs', week: 3, weekdays: [1] },
+        program: { id: 'p1', name: 'X', week: 3, mesocycleWeeks: 7, blockComplete: false },
+        lastCompleted: { id: 'w1', name: null, completedAtMs: 1, volumeKg: 0 },
+      }),
+    ).toBe(true)
+  })
+
+  it('rejects a snapshot written by the pre-hero shape (no memory fields, old program slice)', () => {
+    const old: Record<string, unknown> = { ...emptyDrawer }
+    delete old.recentCompletedAtTimes
+    delete old.lastCompleted
+    expect(isDrawerData({ ...old, program: { name: 'X', week: 1, mesocycleWeeks: 4 } })).toBe(false)
+    expect(isDrawerData(old)).toBe(false)
+  })
+
+  it('rejects garbage', () => {
+    expect(isDrawerData(null)).toBe(false)
+    expect(isDrawerData('{}')).toBe(false)
+    expect(isDrawerData({ ...emptyDrawer, unit: 'st' })).toBe(false)
+    expect(isDrawerData({ ...emptyDrawer, upNext: { dayName: 'Legs' } })).toBe(false)
   })
 })

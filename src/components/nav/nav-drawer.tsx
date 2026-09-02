@@ -194,9 +194,9 @@ function DrawerLink({ className, children, ...props }: ComponentProps<typeof Lin
   )
 }
 
-/** The hero's one box geometry, shared by every variant: min-h-17 (68px) is
- *  the volt button's own height — py-3 + text-base line + gap-0.5 + text-xs
- *  line + border — so pending → quiet → volt swaps never move the rows. */
+/** The hero's one box geometry, shared by every variant: min-h-17 is the
+ *  `nav-hero-height` token (src/design/tokens.ts, 68px — the volt button's
+ *  own height), so pending → quiet → volt swaps never move the rows. */
 const HERO_BOX = 'flex min-h-17 flex-col justify-center'
 
 interface QuietHeroProps {
