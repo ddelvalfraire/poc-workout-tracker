@@ -133,6 +133,25 @@ describe('getAccountOverview', () => {
 
     await expect(getAccountOverview('user_1')).rejects.toThrow('boom')
   })
+
+  it('treats a failed identities read as no linked accounts, not a crash', async () => {
+    // Some WorkOS-compatible backends (the local emulator, notably) don't
+    // implement this endpoint. Losing sign-in-method visibility here is not a
+    // security field, so it degrades gracefully instead of failing the page.
+    getUserIdentities.mockRejectedValue(new Error('not implemented'))
+
+    const result = await getAccountOverview('user_1')
+
+    expect(result.connectedAccounts).toEqual([])
+  })
+
+  it('treats a non-array identities response as no linked accounts', async () => {
+    getUserIdentities.mockResolvedValue({ unexpected: 'shape' })
+
+    const result = await getAccountOverview('user_1')
+
+    expect(result.connectedAccounts).toEqual([])
+  })
 })
 
 describe('countSignInMethods', () => {

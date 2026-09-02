@@ -38,7 +38,11 @@ export async function getAccountOverview(userId: string): Promise<AccountOvervie
   // round-trip on every settings render.
   const [user, identities, factors] = await Promise.all([
     workos.userManagement.getUser(userId),
-    workos.userManagement.getUserIdentities(userId),
+    // Falls back to no linked identities rather than hard-failing the
+    // settings page: some WorkOS-compatible backends (the local emulator,
+    // notably) don't implement this endpoint and return a non-array body,
+    // which the SDK's own deserializer then throws trying to `.map()`.
+    workos.userManagement.getUserIdentities(userId).catch(() => []),
     mode === 'off'
       ? Promise.resolve([])
       : workos.multiFactorAuth
@@ -52,7 +56,7 @@ export async function getAccountOverview(userId: string): Promise<AccountOvervie
     firstName: user.firstName ?? null,
     lastName: user.lastName ?? null,
     profilePictureUrl: user.profilePictureUrl ?? null,
-    connectedAccounts: identities.map(
+    connectedAccounts: (Array.isArray(identities) ? identities : []).map(
       (identity) => identity.provider as ConnectedAccountProvider,
     ),
     mfaAvailable: mode !== 'off',
