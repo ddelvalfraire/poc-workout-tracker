@@ -23,9 +23,14 @@ const nextConfig: NextConfig = {
     // → home paid a full server round trip on the way back. 30s of reuse for
     // a page the user just left, matching the TanStack staleTime the client
     // islands already use. Correctness: every in-app write is a server
-    // action that calls revalidatePath('/', 'layout'), which purges this
-    // cache; only writes made outside the app (the MCP server) can show up
-    // to 30s late, the same window the drawer already accepts.
+    // action that calls revalidatePath (any path, any scope — Next treats a
+    // revalidated path as a tag and the client then evicts its ENTIRE
+    // prefetch cache: action-handler.js "paths are treated as tags" →
+    // ActionDidRevalidateStaticAndDynamic → invalidateEntirePrefetchCache).
+    // Only writes made outside the app (the MCP server) can show up to 30s
+    // late, the same window the drawer already accepts. The three actions
+    // without a revalidate call (welcome consent, account deletion, the
+    // entitlement grant) all end in a redirect or hard navigation.
     staleTimes: { dynamic: 30 },
   },
   // PostHog ingest reverse proxy: first-party /_i/* so ad blockers (which eat

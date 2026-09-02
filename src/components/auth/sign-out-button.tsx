@@ -40,6 +40,9 @@ export function SignOutButton({ variant = 'icon', className }: SignOutButtonProp
   function signOut() {
     // The device keeps nothing of the user after they leave: the drawer's
     // persisted snapshot (lib/query-persister) goes before the session does.
+    // Before, not after, on purpose: if the action fails the user is still
+    // signed in and merely gets one cold drawer open — the failure mode that
+    // errs toward privacy, not away from it.
     clearPersistedDrawer()
     startTransition(async () => {
       await signOutAction()
