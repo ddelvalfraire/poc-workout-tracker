@@ -140,32 +140,32 @@ object DesignTokens {
     }
 
     object TypeScale {
-        /** Captions, chip labels, metadata. */
+        /** Caption 1. Captions, chip labels, metadata. */
         val Sizexs = 12.sp to 16.sp
 
-        /** Body default, button labels. */
-        val Sizesm = 14.sp to 20.sp
+        /** Footnote. Body default, button labels, list secondary lines. */
+        val Sizesm = 13.sp to 18.sp
 
-        /** Inputs — 16px is what stops iOS tap-zoom. Never go smaller in a field. */
-        val Sizebase = 16.sp to 24.sp
+        /** Callout. Inputs — 16px is what stops iOS tap-zoom. Never go smaller in a field. */
+        val Sizebase = 16.sp to 21.sp
 
-        /** Section leads. */
-        val Sizelg = 18.sp to 28.sp
+        /** Body. Section leads. */
+        val Sizelg = 17.sp to 22.sp
 
-        /** App bar title. */
-        val Sizexl = 20.sp to 28.sp
+        /** Title 3. App bar title. */
+        val Sizexl = 20.sp to 25.sp
 
-        /** StatTile value. */
-        val Size2xl = 24.sp to 32.sp
+        /** Title 2. StatTile value. */
+        val Size2xl = 22.sp to 28.sp
 
-        /** Logger numerals — sized for glanceability mid-set. */
-        val Size3xl = 30.sp to 36.sp
+        /** Title 1. Logger numerals — sized for glanceability mid-set. */
+        val Size3xl = 28.sp to 34.sp
 
-        /** Display headlines — next-up day name on the program detail. */
-        val Size4xl = 36.sp to 40.sp
+        /** Large Title. Display headlines — next-up day name on the program detail. */
+        val Size4xl = 34.sp to 41.sp
 
-        /** Hero numerals — programs-hero week count, fact-strip figures, empty-state headline. Display face, uppercase, one per screen. */
-        val Size5xl = 48.sp to 48.sp
+        /** Hero numerals — programs-hero week count, fact-strip figures, empty-state headline. Display face, uppercase, one per screen. The single step above Apple's ladder: Large Title plus one optical notch, the way Fitness and Weather size their one hero figure. */
+        val Size5xl = 40.sp to 44.sp
     }
 
     object Layout {

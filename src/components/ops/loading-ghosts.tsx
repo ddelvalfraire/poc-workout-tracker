@@ -25,9 +25,9 @@ export function OpsGhostPanel({ className, lines = 4 }: { className?: string; li
     >
       <header className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
-          {/* Status dot + text-sm title line (h-5 line box). */}
+          {/* Status dot + text-sm title line (h-4.5 = the 18px footnote line box). */}
           <Ghost className="size-2 shrink-0 rounded-full" />
-          <span className="flex h-5 items-center">
+          <span className="flex h-4.5 items-center">
             <Ghost className="h-2.5 w-20" />
           </span>
         </div>
@@ -38,7 +38,7 @@ export function OpsGhostPanel({ className, lines = 4 }: { className?: string; li
       </header>
       <div className="mt-4 flex-1 space-y-3">
         {Array.from({ length: lines }, (_, index) => (
-          <span key={index} className="flex h-5 items-center">
+          <span key={index} className="flex h-4.5 items-center">
             <Ghost className={cn('h-2.5', index % 2 ? 'w-3/5' : 'w-4/5')} />
           </span>
         ))}
@@ -59,11 +59,11 @@ export function OpsGhostStrip() {
           className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-3.5 py-1.5"
         >
           <Ghost className="size-2 shrink-0 rounded-full" />
-          {/* text-xs label (h-4) + text-sm value (h-5) line boxes. */}
+          {/* text-xs label (h-4) + text-sm value (h-4.5) line boxes. */}
           <span className="flex h-4 items-center">
             <Ghost className="h-2 w-12" />
           </span>
-          <span className="flex h-5 items-center">
+          <span className="flex h-4.5 items-center">
             <Ghost className="h-2.5 w-6" />
           </span>
         </span>

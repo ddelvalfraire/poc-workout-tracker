@@ -82,7 +82,7 @@ Accent is Restrained: it appears on the primary CTA and the active state, never 
 Contrast-axis pairing (condensed display + neutral UI sans), not two similar sans.
 - **Display / headings — Oswald** (condensed grotesque, athletic gym-poster). Used for page titles and section headers, often uppercase with slight positive tracking. Var: `--font-display`.
 - **Body / UI / data — Inter** (humanist sans, product-grade workhorse, permitted in product register). Labels, buttons, inputs, numerals. Var: `--font-sans`.
-- Fixed rem scale (product register — no fluid clamp in UI). Numerals in the logger run large for glanceability.
+- Fixed rem scale (product register — no fluid clamp in UI), keyed to Apple's text styles at the default Dynamic Type size so the web reads like a native app: `text-xs` Caption 1 (12), `text-sm` Footnote (13 — body default, button labels), `text-base` Callout (16 — inputs, the iOS zoom floor), `text-lg` Body (17), `text-xl` Title 3 (20), `text-2xl` Title 2 (22), `text-3xl` Title 1 (28), `text-4xl` Large Title (34), `text-5xl` 40 (the hero numeral, one per screen — the single step above Apple's ladder). The sizes live in `src/design/tokens.ts` and reach Tailwind through the generated `@theme`; never restate one in a component. Numerals in the logger still run large for glanceability.
 - Fixes the prior broken self-referential `--font-sans` mapping.
 
 ## Components

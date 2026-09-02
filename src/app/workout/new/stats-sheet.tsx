@@ -134,7 +134,7 @@ export function StatsSheet({ wgerExerciseId, source, name, unit, onClose }: Stat
         // 3-up glance row): every wrapper/margin class copies the real
         // markup below, and each bar sits in a flex box sized to its text's
         // line height (text-[10px] → 15px at the inherited 1.5 leading,
-        // text-5xl leading-none → h-12, text-xs → h-4, text-sm → h-5), so
+        // text-5xl leading-none → h-10, text-xs → h-4, text-sm → h-4.5), so
         // data arriving replaces the ghosts without anything moving. The
         // ghosts themselves appear only after 150ms (Ghost's delay) — a
         // warm cache never shows them at all.
@@ -143,7 +143,7 @@ export function StatsSheet({ wgerExerciseId, source, name, unit, onClose }: Stat
             <span className="flex h-[15px] items-center">
               <Ghost className="h-2 w-24" />
             </span>
-            <span className="mt-1 flex h-12 items-center">
+            <span className="mt-1 flex h-10 items-center">
               <Ghost className="h-8 w-40" />
             </span>
             <span className="mt-1.5 flex h-4 items-center">
@@ -156,7 +156,7 @@ export function StatsSheet({ wgerExerciseId, source, name, unit, onClose }: Stat
                 <span className="flex h-[15px] items-center">
                   <Ghost className="h-2 w-12" />
                 </span>
-                <span className="mt-0.5 flex h-5 items-center">
+                <span className="mt-0.5 flex h-4.5 items-center">
                   <Ghost className="h-3 w-14" />
                 </span>
               </div>

@@ -65,6 +65,27 @@ describe("design tokens", () => {
     }
   });
 
+  it("keys every step to an Apple text style, so the web reads at native sizes", () => {
+    // iOS text styles at the default Dynamic Type size, ascending: caption 1,
+    // footnote, callout, body, title 3, title 2, title 1, large title. The
+    // hero step is the one deliberate exception above the ladder (its doc
+    // says why), so it is asserted separately.
+    const appleLadder = [12, 13, 16, 17, 20, 22, 28, 34];
+    const sizes = TYPE_SCALE.map((t) => t.size);
+    expect(sizes.slice(0, appleLadder.length)).toEqual(appleLadder);
+    expect(sizes.length).toBe(appleLadder.length + 1);
+  });
+
+  it("keeps the ramp strictly ascending in size and line height", () => {
+    for (let i = 1; i < TYPE_SCALE.length; i++) {
+      const prev = TYPE_SCALE[i - 1];
+      const step = TYPE_SCALE[i];
+      expect(step.size, step.name).toBeGreaterThan(prev.size);
+      expect(step.lineHeight, step.name).toBeGreaterThanOrEqual(prev.lineHeight);
+      expect(step.lineHeight, step.name).toBeGreaterThanOrEqual(step.size);
+    }
+  });
+
   it("keeps the input type size at 16px — smaller makes iOS zoom on focus", () => {
     const base = TYPE_SCALE.find((t) => t.name === "text-base");
     expect(base?.size).toBe(16);

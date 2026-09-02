@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { COLORS } from "../src/design/tokens";
+import { COLORS, TYPE_SCALE } from "../src/design/tokens";
 import { css, kotlin, swift, tsTokens } from "./build-tokens";
 
 /**
@@ -33,6 +33,15 @@ describe("token emitters", () => {
       expect(swiftOut, token.name).not.toContain(`let ${token.name}`);
       // Kotlin identifiers are PascalCase, so check the doc text instead.
       expect(kotlinOut, token.name).not.toContain(token.doc);
+    }
+  });
+
+  it("emits the type ramp into Tailwind's theme, so tokens.ts owns the web's sizes", () => {
+    const cssOut = css();
+    expect(cssOut).toContain("@theme {");
+    for (const step of TYPE_SCALE) {
+      expect(cssOut).toContain(`--${step.name}: ${step.size / 16}rem;`);
+      expect(cssOut).toContain(`--${step.name}--line-height: calc(${step.lineHeight} / ${step.size});`);
     }
   });
 
