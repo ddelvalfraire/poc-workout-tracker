@@ -390,6 +390,26 @@ describe('resolveDraftSeed', () => {
   it('returns null for a malformed workout-keyed payload too (age is not the only guard)', () => {
     expect(resolveDraftSeed(row(60_000, { junk: true }), asWorkout)).toBeNull()
   })
+
+  // The page passes the workout's own completedAt as `recordedAt`; these
+  // assert the seed honours it, not just the predicate underneath.
+  it('skips a draft older than the record the page would otherwise overwrite', () => {
+    const seed = resolveDraftSeed(row(60 * 60_000), {
+      ...asWorkout,
+      recordedAt: new Date(NOW.getTime() - 30 * 60_000),
+    })
+
+    expect(seed).toBeNull()
+  })
+
+  it('seeds a draft touched after the record (an unsaved correction)', () => {
+    const seed = resolveDraftSeed(row(30 * 60_000), {
+      ...asWorkout,
+      recordedAt: new Date(NOW.getTime() - 60 * 60_000),
+    })
+
+    expect(seed?.name).toBe('Leg Day')
+  })
 })
 
 describe('cardio fields in the codec (optional-forever, no version bump)', () => {
