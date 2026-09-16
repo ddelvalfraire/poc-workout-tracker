@@ -47,10 +47,27 @@ export async function getWorkoutDraft(
   return row
 }
 
-// A user legitimately has at most a handful of surfaces (one 'new' + open
-// edits); the cap only exists to stop a hostile client from minting unbounded
-// rows under arbitrary uuid keys.
-const MAX_DRAFTS_PER_USER = 20
+/**
+ * Hard ceiling on a user's draft rows — an abuse stop, NOT a retention policy,
+ * and the distance between 20 and 100 is the whole point.
+ *
+ * A user legitimately has a handful of surfaces (one 'new' + open edits), so
+ * any value above ~10 already stops a hostile client minting unbounded rows
+ * under arbitrary uuid keys. But nothing expires a draft on age any more, so
+ * rows accumulate until a save or an explicit clear, and this prune became the
+ * only thing that ever deletes one on its own — while evicting OLDEST-FIRST,
+ * with no idea whether the row it drops holds sets that were never recorded.
+ *
+ * At 20 that made this the next incarnation of the bug the age-expiry was
+ * removed to fix, needing 20 abandoned sessions instead of one overnight gap.
+ * It now sits far above legitimate use so the eviction is unreachable in
+ * practice; the storage that buys is bounded by the action's 32KB payload
+ * limit at ~3MB per user in the worst case.
+ *
+ * The real fix is a recovery surface where a lifter clears abandoned sessions
+ * deliberately. Until that exists, prefer a ceiling nobody reaches.
+ */
+export const MAX_DRAFTS_PER_USER = 100
 
 /**
  * Upserts the draft for a logging surface (last writer wins across devices),

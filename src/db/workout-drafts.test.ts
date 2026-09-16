@@ -51,7 +51,13 @@ vi.mock('./index', () => ({
   },
 }))
 
-import { getWorkoutDraft, putWorkoutDraft, deleteWorkoutDraft, listWorkoutDrafts } from './workout-drafts'
+import {
+  getWorkoutDraft,
+  putWorkoutDraft,
+  deleteWorkoutDraft,
+  listWorkoutDrafts,
+  MAX_DRAFTS_PER_USER,
+} from './workout-drafts'
 
 const USER = 'user_123'
 const PAYLOAD = { v: 1, unit: 'kg', name: '', openedAt: '2026-07-05T11:40:00.000Z', draft: { exercises: [] } }
@@ -96,9 +102,24 @@ describe('putWorkoutDraft', () => {
     expect(deletes).toBe(0)
   })
 
+  it('keeps rows exactly AT the per-user cap without pruning', async () => {
+    // Arrange — the boundary. Every draft is a session that may hold sets
+    // nothing else recorded, so the cap must not evict one row early.
+    selectKeyRows = Array.from({ length: MAX_DRAFTS_PER_USER }, (_, i) => ({ key: `key-${i}` }))
+
+    // Act
+    await putWorkoutDraft(USER, 'new', PAYLOAD)
+
+    // Assert
+    expect(deletes).toBe(0)
+  })
+
   it('prunes the oldest drafts beyond the per-user cap', async () => {
-    // Arrange — 21 rows, newest first (the prune query orders by updated_at desc)
-    selectKeyRows = Array.from({ length: 21 }, (_, i) => ({ key: `key-${i}` }))
+    // Arrange — one past the cap, newest first (the prune query orders by
+    // updated_at desc). Derived from the constant, never hardcoded: this
+    // eviction is the only thing that deletes a draft on its own, so the test
+    // must follow the cap rather than quietly stop exercising it.
+    selectKeyRows = Array.from({ length: MAX_DRAFTS_PER_USER + 1 }, (_, i) => ({ key: `key-${i}` }))
 
     // Act
     await putWorkoutDraft(USER, 'new', PAYLOAD)

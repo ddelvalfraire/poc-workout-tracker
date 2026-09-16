@@ -233,6 +233,15 @@ export function resolveDraftSeed(
   opts: { unit: WeightUnit; now: Date; key: string; recordedAt?: Date | null },
 ): { draft: WorkoutDraft; name: string; openedAt: Date } | null {
   if (!row) return null
-  if (!isAutoResumable({ ...opts, updatedAt: row.updatedAt })) return null
+  if (
+    !isAutoResumable({
+      key: opts.key,
+      updatedAt: row.updatedAt,
+      now: opts.now,
+      recordedAt: opts.recordedAt,
+    })
+  ) {
+    return null
+  }
   return parseDraftPayload(row.payload, opts)
 }
