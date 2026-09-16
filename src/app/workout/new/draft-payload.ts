@@ -19,12 +19,63 @@ import { isLoggingType, isMetricMode, isWorkoutSetType } from '@/lib/workout/wor
 
 export const DRAFT_PAYLOAD_VERSION = 1
 
-/** Longest plausible gap within one session; older drafts are abandoned workouts. */
-export const DRAFT_TTL_MS = 12 * 60 * 60_000
+/**
+ * Longest gap since a draft's last touch that still reads as the session the
+ * lifter is CURRENTLY in.
+ *
+ * Deliberately NOT a TTL: nothing is deleted when it passes. A draft past this
+ * window is an abandoned session, not a forfeited one — it stops auto-seeding
+ * the shared 'new' surface and stops claiming the home banner, and that is
+ * all. It WAS a TTL once, enforced with a hard delete on read: a session
+ * logged in the evening and reopened the next morning was destroyed by the
+ * act of opening the app, while the workout row it belonged to lived on
+ * presenting an empty logger as an active session.
+ */
+export const LIVE_SESSION_MAX_AGE_MS = 12 * 60 * 60_000
+
+/** The shared ad-hoc logging surface — one row for every /workout/new session. */
+export const DRAFT_KEY_NEW = 'new'
 
 /** One draft row per logging surface: 'new' for /workout/new, the workout id for edit mode. */
 export function draftKey(workoutId?: string): string {
-  return workoutId ?? 'new'
+  return workoutId ?? DRAFT_KEY_NEW
+}
+
+/**
+ * May this stored draft seed its surface WITHOUT the user asking for it?
+ *
+ * Two independent ways the answer is no, and nothing else:
+ *
+ * 1. HIJACK. Only 'new' can be hijacked — it is one row shared by every ad-hoc
+ *    session, so yesterday's abandoned draft seeding it would put stale sets in
+ *    front of a lifter who asked for a fresh one. That is the risk the age
+ *    check was added for. A draft keyed by a workout id addresses exactly ONE
+ *    session, the one it was written for, so it has nothing to hijack and no
+ *    honest reason to age out: the workout row it belongs to never ages out
+ *    either.
+ *
+ * 2. SUPERSESSION. A draft last touched BEFORE its workout's record was
+ *    written is older evidence than the rows it would overwrite — a leftover
+ *    from a save whose draft delete didn't land. `recordedAt` is the workout's
+ *    `completedAt`, used here purely as WHEN THE RECORD WAS LAST WRITTEN, not
+ *    as a mode signal (the schema is explicit that it cannot answer "is this
+ *    session live" — see workout-session-mode.ts). A draft touched AFTER it is
+ *    a correction in progress and still wins, which is what keeps unsaved
+ *    edits to a finished workout alive.
+ *
+ * One predicate, so the page seed (resolveDraftSeed) and the client restore
+ * (getWorkoutDraftAction) can never disagree about what resumes by itself.
+ */
+export function isAutoResumable(opts: {
+  key: string
+  updatedAt: Date
+  now: Date
+  /** The workout's `completedAt`; omitted/null when no record exists yet. */
+  recordedAt?: Date | null
+}): boolean {
+  if (opts.recordedAt && opts.updatedAt.getTime() < opts.recordedAt.getTime()) return false
+  if (opts.key !== DRAFT_KEY_NEW) return true
+  return opts.now.getTime() - opts.updatedAt.getTime() <= LIVE_SESSION_MAX_AGE_MS
 }
 
 /** The JSON shape stored in `workout_drafts.payload`. `openedAt` is ISO. */
@@ -128,8 +179,9 @@ export function isDraftPayload(value: unknown): value is DraftPayload {
 
 /**
  * Parses a stored payload into restorable state, or `null` when it can't be
- * trusted or doesn't match the active weight unit. TTL is NOT checked here —
- * the server enforces it against the row's authoritative `updated_at`.
+ * trusted or doesn't match the active weight unit. Freshness is NOT checked
+ * here — `isAutoResumable` weighs the row's authoritative `updated_at`, and
+ * this function only decodes whatever it is handed.
  *
  * `openedAt` is clamped to `now`: a draft written by a device with a fast
  * clock would otherwise restore a future session start, which the eventual
@@ -168,16 +220,19 @@ export function parseDraftPayload(
 
 /**
  * Server-side draft seeding, shared by both logger pages: a stored draft row
- * projected into logger seed values, or null when there is nothing usable.
- * TTL mirrors getWorkoutDraftAction (inclusive <=) but only SKIPS a stale
- * row — a page render is a GET and must not mutate; the client action still
- * lazily deletes expired rows.
+ * projected into logger seed values, or null when there is nothing this
+ * surface may resume on its own.
+ *
+ * Skipping is ALL that happens here — a page render is a GET and must not
+ * mutate. Nothing deletes the row it skipped either: a draft this surface
+ * won't auto-resume is still the lifter's session, waiting for an explicit
+ * recovery rather than for garbage collection.
  */
 export function resolveDraftSeed(
   row: { payload: unknown; updatedAt: Date } | undefined | null,
-  opts: { unit: WeightUnit; now: Date },
+  opts: { unit: WeightUnit; now: Date; key: string; recordedAt?: Date | null },
 ): { draft: WorkoutDraft; name: string; openedAt: Date } | null {
   if (!row) return null
-  if (opts.now.getTime() - row.updatedAt.getTime() > DRAFT_TTL_MS) return null
+  if (!isAutoResumable({ ...opts, updatedAt: row.updatedAt })) return null
   return parseDraftPayload(row.payload, opts)
 }

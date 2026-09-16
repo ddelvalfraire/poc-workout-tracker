@@ -11,8 +11,10 @@ import { workoutDrafts } from './schema'
  *
  * `payload` is stored as opaque jsonb — the Server Action validates its
  * structure on write and the client codec re-validates on read, so this layer
- * never interprets it. TTL is enforced by the read action against
- * `updated_at`, not here.
+ * never interprets it. Whether a stored draft may resume unasked is judged by
+ * the read action against `updated_at` (`isAutoResumable`), not here — and
+ * nothing in this module expires a row on age. Drafts are deleted only by an
+ * explicit act: a save, a clear, or the per-user cap below.
  */
 
 /**
@@ -76,7 +78,8 @@ export async function putWorkoutDraft(userId: string, key: string, payload: unkn
   }
 }
 
-/** Deletes the draft for a logging surface (after save, on clear, or TTL expiry). */
+/** Deletes the draft for a logging surface (after a save, or on an explicit
+ *  clear — never on age; an abandoned session is still the lifter's data). */
 export async function deleteWorkoutDraft(userId: string, key: string): Promise<void> {
   await db
     .delete(workoutDrafts)

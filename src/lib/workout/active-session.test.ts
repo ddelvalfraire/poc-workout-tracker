@@ -6,7 +6,7 @@ import {
   activeSessionHref,
   type WorkoutSessionRow,
 } from './active-session'
-import { DRAFT_TTL_MS } from '@/app/workout/new/draft-payload'
+import { LIVE_SESSION_MAX_AGE_MS } from '@/app/workout/new/draft-payload'
 
 const NOW = new Date('2026-07-05T12:00:00.000Z')
 
@@ -67,7 +67,7 @@ describe('pickActiveSession', () => {
   })
 
   it('ignores drafts older than the TTL (abandoned sessions)', () => {
-    expect(pickActiveSession([row('new', DRAFT_TTL_MS + 1_000)], NOW)).toBeNull()
+    expect(pickActiveSession([row('new', LIVE_SESSION_MAX_AGE_MS + 1_000)], NOW)).toBeNull()
   })
 
   it('ignores malformed payloads (storage is untrusted)', () => {
@@ -138,7 +138,7 @@ describe('activeSessionFromWorkouts', () => {
   })
 
   it('ignores stale starts past the session window', () => {
-    expect(activeSessionFromWorkouts([workoutRow(DRAFT_TTL_MS + 1_000)], NOW)).toBeNull()
+    expect(activeSessionFromWorkouts([workoutRow(LIVE_SESSION_MAX_AGE_MS + 1_000)], NOW)).toBeNull()
   })
 
   it('picks the freshest of several in-progress workouts', () => {

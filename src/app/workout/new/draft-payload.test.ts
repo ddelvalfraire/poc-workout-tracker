@@ -1,8 +1,10 @@
 import { describe, it, expect } from 'vitest'
 import {
   DRAFT_PAYLOAD_VERSION,
-  DRAFT_TTL_MS,
+  LIVE_SESSION_MAX_AGE_MS,
+  DRAFT_KEY_NEW,
   draftKey,
+  isAutoResumable,
   buildDraftPayload,
   isDraftPayload,
   parseDraftPayload,
@@ -265,33 +267,128 @@ describe('effort fields in the payload', () => {
   })
 })
 
+/** A workout-id draft key — one session's own row, unlike shared 'new'. */
+const WORKOUT_KEY = '3f2a9c11-4b6d-4f2e-9a1c-8d5e7c0fb7e4'
+
+describe('isAutoResumable', () => {
+  const at = (ageMs: number) => new Date(NOW.getTime() - ageMs)
+
+  it("auto-resumes a fresh 'new' draft", () => {
+    expect(isAutoResumable({ key: DRAFT_KEY_NEW, updatedAt: at(60_000), now: NOW })).toBe(true)
+  })
+
+  it("keeps a 'new' draft exactly at the boundary (<= is inclusive)", () => {
+    const updatedAt = at(LIVE_SESSION_MAX_AGE_MS)
+    expect(isAutoResumable({ key: DRAFT_KEY_NEW, updatedAt, now: NOW })).toBe(true)
+  })
+
+  it("declines a 'new' draft 1ms past the boundary", () => {
+    const updatedAt = at(LIVE_SESSION_MAX_AGE_MS + 1)
+    expect(isAutoResumable({ key: DRAFT_KEY_NEW, updatedAt, now: NOW })).toBe(false)
+  })
+
+  it('auto-resumes a workout-keyed draft regardless of age', () => {
+    // The shared surface can be hijacked by a stale draft; a workout's own
+    // row cannot — it addresses the one session it was written for.
+    expect(
+      isAutoResumable({ key: WORKOUT_KEY, updatedAt: at(LIVE_SESSION_MAX_AGE_MS + 1), now: NOW }),
+    ).toBe(true)
+    expect(
+      isAutoResumable({ key: WORKOUT_KEY, updatedAt: at(30 * 24 * 60 * 60_000), now: NOW }),
+    ).toBe(true)
+  })
+
+  describe('supersession by the workout record', () => {
+    it('declines a draft last touched BEFORE the record was written', () => {
+      // A leftover from a save whose draft delete didn't land: restoring it
+      // would overwrite the rows that save committed.
+      expect(
+        isAutoResumable({
+          key: WORKOUT_KEY,
+          updatedAt: at(60 * 60_000),
+          now: NOW,
+          recordedAt: at(30 * 60_000),
+        }),
+      ).toBe(false)
+    })
+
+    it('keeps a draft touched AFTER the record — a correction in progress', () => {
+      expect(
+        isAutoResumable({
+          key: WORKOUT_KEY,
+          updatedAt: at(30 * 60_000),
+          now: NOW,
+          recordedAt: at(60 * 60_000),
+        }),
+      ).toBe(true)
+    })
+
+    it('keeps an ancient draft when no record exists yet (a live session)', () => {
+      expect(
+        isAutoResumable({
+          key: WORKOUT_KEY,
+          updatedAt: at(30 * 24 * 60 * 60_000),
+          now: NOW,
+          recordedAt: null,
+        }),
+      ).toBe(true)
+    })
+
+    it("supersedes the 'new' surface too, when somehow recorded", () => {
+      expect(
+        isAutoResumable({
+          key: DRAFT_KEY_NEW,
+          updatedAt: at(60_000),
+          now: NOW,
+          recordedAt: at(30_000),
+        }),
+      ).toBe(false)
+    })
+  })
+})
+
 describe('resolveDraftSeed', () => {
   const row = (ageMs: number, p: unknown = payload()) => ({
     payload: p,
     updatedAt: new Date(NOW.getTime() - ageMs),
   })
+  const asNew = { unit: 'kg', now: NOW, key: DRAFT_KEY_NEW } as const
+  const asWorkout = { unit: 'kg', now: NOW, key: WORKOUT_KEY } as const
 
   it('parses a fresh row', () => {
-    const seed = resolveDraftSeed(row(60_000), { unit: 'kg', now: NOW })
+    const seed = resolveDraftSeed(row(60_000), asNew)
 
     expect(seed?.name).toBe('Leg Day')
     expect(seed?.openedAt).toEqual(OPENED)
   })
 
-  it('keeps a row exactly at the TTL boundary (<= is inclusive)', () => {
-    expect(resolveDraftSeed(row(DRAFT_TTL_MS), { unit: 'kg', now: NOW })).not.toBeNull()
+  it("keeps a 'new' row exactly at the auto-resume boundary (<= is inclusive)", () => {
+    expect(resolveDraftSeed(row(LIVE_SESSION_MAX_AGE_MS), asNew)).not.toBeNull()
   })
 
-  it('skips a row just past the TTL', () => {
-    expect(resolveDraftSeed(row(DRAFT_TTL_MS + 1), { unit: 'kg', now: NOW })).toBeNull()
+  it("skips a 'new' row just past the auto-resume boundary", () => {
+    expect(resolveDraftSeed(row(LIVE_SESSION_MAX_AGE_MS + 1), asNew)).toBeNull()
+  })
+
+  it('seeds a day-old workout-keyed row — the session survives the night', () => {
+    // The reported bug: an evening session reopened the next morning showed
+    // an active workout with every input gone.
+    const overnight = resolveDraftSeed(row(14 * 60 * 60_000), asWorkout)
+
+    expect(overnight?.name).toBe('Leg Day')
+    expect(overnight?.draft.exercises[0].sets[0]).toMatchObject({ reps: '5', weight: '100' })
   })
 
   it('returns null for a missing row', () => {
-    expect(resolveDraftSeed(undefined, { unit: 'kg', now: NOW })).toBeNull()
+    expect(resolveDraftSeed(undefined, asNew)).toBeNull()
   })
 
   it('returns null for a malformed payload (storage is untrusted)', () => {
-    expect(resolveDraftSeed(row(60_000, { junk: true }), { unit: 'kg', now: NOW })).toBeNull()
+    expect(resolveDraftSeed(row(60_000, { junk: true }), asNew)).toBeNull()
+  })
+
+  it('returns null for a malformed workout-keyed payload too (age is not the only guard)', () => {
+    expect(resolveDraftSeed(row(60_000, { junk: true }), asWorkout)).toBeNull()
   })
 })
 
