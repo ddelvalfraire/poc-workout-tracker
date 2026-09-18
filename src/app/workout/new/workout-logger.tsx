@@ -40,6 +40,7 @@ import { ReplaceConfirmDialog } from './replace-confirm-dialog'
 import {
   workoutDraftReducer,
   completeFilledSets,
+  hasLoggedWork,
   draftToInput,
   emptyDraft,
   isMissingRequiredMetric,
@@ -335,6 +336,11 @@ export function WorkoutLogger({
   // stays the page-level save surface.
   const [isDiscarding, setIsDiscarding] = useState(false)
   const [isDiscardModalOpen, setIsDiscardModalOpen] = useState(false)
+  // Which question that dialog is asking. 'manual' is the Discard button;
+  // 'empty-finish' is a Finish that found nothing logged. Same destructive
+  // action and the same (tested) imperative-close path, different copy —
+  // cheaper and safer than a second dialog with its own ::backdrop race.
+  const [discardReason, setDiscardReason] = useState<'manual' | 'empty-finish'>('manual')
   const [discardError, setDiscardError] = useState<string | null>(null)
   // Finish flow (live sessions): the completion pass runs first — sets with
   // reps logged get checked off (typing the reps IS "I did it"); if anything
@@ -1184,6 +1190,18 @@ export function WorkoutLogger({
       return
     }
     const result = completeFilledSets(draft)
+    // ABANDONMENT, not a finish. An instantiated program day is a complete
+    // workout row from the moment it starts: every set pre-seeded with its
+    // prescribed load and no reps. Finishing one nobody logged into persists
+    // that prefill as performance — plan weights that score nothing, against
+    // a session that reads as done. The honest outcome is to discard it, so
+    // that is what the dialog offers; "log your sets" is the way back.
+    if (!hasLoggedWork(result.draft)) {
+      setDiscardError(null)
+      setDiscardReason('empty-finish')
+      setIsDiscardModalOpen(true)
+      return
+    }
     if (result.skipped > 0) {
       setPendingFinish(result)
       return
@@ -1306,6 +1324,15 @@ export function WorkoutLogger({
     }
   }
 
+  /** Opens the discard dialog from the explicit Discard button. A NAMED
+   *  handler rather than an inline arrow: the reason is an enum value, and a
+   *  bare string literal written inside JSX reads to the i18n gate as copy. */
+  function openDiscardDialog() {
+    setDiscardError(null) // a stale failure must not reopen with the dialog
+    setDiscardReason('manual')
+    setIsDiscardModalOpen(true)
+  }
+
   // Discard a LIVE session: the draft goes, and (for a program session
   // started from home) so does the already-created workout row — otherwise
   // the abandoned row lingers in Unfinished forever. Same shape as
@@ -1359,6 +1386,26 @@ export function WorkoutLogger({
       setDiscardError(t('discardError'))
     }
   }
+
+  /** The discard dialog's two faces. Built outside JSX for the same reason as
+   *  undoMessage: a message-key ternary written inline reads to the i18n gate
+   *  as copy. */
+  const discardCopy =
+    discardReason === 'empty-finish'
+      ? {
+          title: t('emptyFinishDialog.title'),
+          body: t('emptyFinishDialog.body'),
+          confirm: t('emptyFinishDialog.confirm'),
+          pending: t('emptyFinishDialog.pending'),
+          cancel: t('emptyFinishDialog.cancel'),
+        }
+      : {
+          title: t('discardDialog.title'),
+          body: t('discardDialog.body'),
+          confirm: t('discardDialog.confirm'),
+          pending: t('discardDialog.pending'),
+          cancel: undefined,
+        }
 
   /** Per-row affordance skin. Declared here, not inline in the set map: an
    *  enum ternary written inside JSX reads to the i18n gate as copy. */
@@ -2895,10 +2942,7 @@ export function WorkoutLogger({
               variant="destructive-outline"
               className="w-full"
               disabled={isSaving || isDiscarding}
-              onClick={() => {
-                setDiscardError(null) // a stale failure must not reopen with the dialog
-                setIsDiscardModalOpen(true)
-              }}
+              onClick={openDiscardDialog}
             >
               <Trash2 aria-hidden="true" className="size-4" />
               {t('discardAction')}
@@ -3446,10 +3490,11 @@ export function WorkoutLogger({
 
       {isDiscardModalOpen && (
         <ConfirmDialog
-          title={t('discardDialog.title')}
-          body={t('discardDialog.body')}
-          confirmLabel={t('discardDialog.confirm')}
-          pendingLabel={t('discardDialog.pending')}
+          title={discardCopy.title}
+          body={discardCopy.body}
+          confirmLabel={discardCopy.confirm}
+          pendingLabel={discardCopy.pending}
+          cancelLabel={discardCopy.cancel}
           error={discardError}
           isPending={isDiscarding}
           onConfirm={handleDiscard}
