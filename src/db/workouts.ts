@@ -434,6 +434,30 @@ export function createWorkout(userId: string, name?: string) {
 }
 
 /**
+ * WHEN an owned workout's record was last written, or null when no record
+ * exists yet — the supersession marker `isAutoResumable` weighs a stored
+ * draft against, so a leftover draft from a save whose delete didn't land
+ * cannot overwrite the rows that save committed.
+ *
+ * `completedAt` is read here strictly as a WRITE INSTANT, never as "is this
+ * session live" — the schema comment on that column is explicit that it
+ * cannot answer the second question (the MCP patch tools stamp it on the
+ * first set they touch). `workouts` carries no `updatedAt`, and this is the
+ * closest honest answer to "when was the record last written".
+ *
+ * An absent or unowned row answers null: nothing recorded, nothing to
+ * supersede. Ownership is filtered here like every other read in this module.
+ */
+export async function getWorkoutRecordedAt(userId: string, id: string): Promise<Date | null> {
+  const [row] = await db
+    .select({ completedAt: workouts.completedAt })
+    .from(workouts)
+    .where(and(eq(workouts.id, id), eq(workouts.userId, userId)))
+    .limit(1)
+  return row?.completedAt ?? null
+}
+
+/**
  * Whether the user has EVER completed a workout — the `is_first` bit on the
  * workout_completed analytics event (activation metric). Called before the
  * write so the workout being saved doesn't count itself.

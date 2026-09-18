@@ -74,9 +74,11 @@ export default async function NewWorkoutPage({
       : undefined
   // Server-side draft seeding: resolving the interrupted session HERE kills
   // the mount-time content swap (empty logger flashes, then the restore
-  // effect replaces it). Shared TTL+codec helper — same rules as the client
+  // effect replaces it). Shared auto-resume+codec helper — same rules as the client
   // restore, which stays as the cross-device race net.
-  const restored = seed ? null : resolveDraftSeed(draftRow, { unit, now: new Date() })
+  const restored = seed
+    ? null
+    : resolveDraftSeed(draftRow, { unit, now: new Date(), key: draftKey() })
 
   return (
     <div className="flex min-h-[100dvh] flex-col">

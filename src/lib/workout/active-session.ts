@@ -1,4 +1,4 @@
-import { isDraftPayload, DRAFT_TTL_MS } from '@/app/workout/new/draft-payload'
+import { isDraftPayload, LIVE_SESSION_MAX_AGE_MS } from '@/app/workout/new/draft-payload'
 
 /**
  * Derives the home screen's "workout in progress" banner from the user's
@@ -21,16 +21,20 @@ export interface ActiveSession {
 
 /**
  * The freshest restorable draft projected into banner data, or null when
- * nothing is in progress. Rows past the TTL are abandoned sessions, and
- * malformed payloads are untrusted storage — both are skipped rather than
- * risking a banner that leads nowhere.
+ * nothing is in progress. Rows past the live-session window are abandoned
+ * sessions, and malformed payloads are untrusted storage — both are skipped
+ * rather than risking a banner that leads nowhere.
+ *
+ * Skipped, NOT forgotten: an abandoned draft is still the lifter's session and
+ * still restores on its own surface. This banner answers the narrower question
+ * of what is live RIGHT NOW, which is the only reason it has a window at all.
  */
 export function pickActiveSession(
   rows: { key: string; payload: unknown; updatedAt: Date }[],
   now: Date,
 ): ActiveSession | null {
   const candidates = rows
-    .filter((row) => now.getTime() - row.updatedAt.getTime() <= DRAFT_TTL_MS)
+    .filter((row) => now.getTime() - row.updatedAt.getTime() <= LIVE_SESSION_MAX_AGE_MS)
     .filter((row) => isDraftPayload(row.payload))
     .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())
 
@@ -76,8 +80,9 @@ export interface WorkoutSessionRow {
  * null. Covers the draft blind spot: starting a program day creates a real
  * workout row immediately, but the logger only autosaves a draft on the first
  * EDIT — an untouched session has no draft and would otherwise be invisible
- * to the banner (while wrongly reading as done elsewhere). Shares the draft
- * TTL so an abandoned start ages out of the banner on the same clock.
+ * to the banner (while wrongly reading as done elsewhere). Shares the draft's
+ * live-session window so an abandoned start leaves the banner on the same
+ * clock; the row itself lives on, and home's Unfinished section still owns it.
  */
 export function activeSessionFromWorkouts(
   rows: WorkoutSessionRow[],
@@ -85,7 +90,7 @@ export function activeSessionFromWorkouts(
 ): ActiveSession | null {
   const freshest = rows
     .filter((row) => row.completedAt === null)
-    .filter((row) => now.getTime() - row.startedAt.getTime() <= DRAFT_TTL_MS)
+    .filter((row) => now.getTime() - row.startedAt.getTime() <= LIVE_SESSION_MAX_AGE_MS)
     .sort((a, b) => b.startedAt.getTime() - a.startedAt.getTime())[0]
   if (!freshest) return null
 

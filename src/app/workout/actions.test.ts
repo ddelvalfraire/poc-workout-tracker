@@ -20,6 +20,7 @@ import {
   getWorkoutDetail,
   hasAnyCompletedWorkout,
   getWorkoutAnalyticsState,
+  getWorkoutRecordedAt,
 } from '@/db/workouts'
 import { captureServerEvent } from '@/lib/analytics'
 import { getProgramDayDetail } from '@/db/programs'
@@ -27,7 +28,7 @@ import { substituteProgramExercise } from '@/db/program-patches'
 import { completeWorkoutSideEffects } from '@/lib/workout/workout-completion'
 import { getExerciseStats, getExerciseSessions } from '@/db/exercise-stats'
 import { getWorkoutDraft, putWorkoutDraft, deleteWorkoutDraft } from '@/db/workout-drafts'
-import { DRAFT_TTL_MS } from '@/app/workout/new/draft-payload'
+import { LIVE_SESSION_MAX_AGE_MS } from '@/app/workout/new/draft-payload'
 import { revalidatePath } from 'next/cache'
 
 /**
@@ -49,6 +50,8 @@ vi.mock('@/db/workouts', () => ({
   // no event fires unless a test arranges otherwise.
   hasAnyCompletedWorkout: vi.fn(async () => true),
   getWorkoutAnalyticsState: vi.fn(async () => null),
+  // No record written yet — the common case for a live session's draft.
+  getWorkoutRecordedAt: vi.fn(async (): Promise<Date | null> => null),
 }))
 vi.mock('@/lib/analytics', async (importOriginal) => ({
   // Keep the pure prop builders real; only the transport is stubbed.
@@ -464,16 +467,78 @@ describe('getWorkoutDraftAction', () => {
     expect(await getWorkoutDraftAction(ID)).toBeNull()
   })
 
-  it('lazily deletes and nulls an expired draft (TTL vs updated_at)', async () => {
-    // Arrange — last touched just past the TTL
+  it("declines to auto-resume a stale 'new' draft, but never deletes it", async () => {
+    // Arrange — the shared ad-hoc surface, last touched past the live window.
+    // 'new' is one row for every quick-log session, so auto-seeding it would
+    // put yesterday's sets in front of a fresh start.
     mockedGetDraft.mockResolvedValue({
       payload: DRAFT_PAYLOAD,
-      updatedAt: new Date(Date.now() - DRAFT_TTL_MS - 1_000),
+      updatedAt: new Date(Date.now() - LIVE_SESSION_MAX_AGE_MS - 1_000),
+    })
+
+    // Act
+    const payload = await getWorkoutDraftAction('new')
+
+    // Assert — declined, and the row SURVIVES. This read used to delete it,
+    // which is how opening the app the next day destroyed the session.
+    expect(payload).toBeNull()
+    expect(mockedDeleteDraft).not.toHaveBeenCalled()
+  })
+
+  it('resumes a workout-keyed draft at any age (nothing to hijack)', async () => {
+    // Arrange — the reported bug: an evening session reopened the next day.
+    // A draft keyed by a workout id addresses that one session, so age is
+    // irrelevant; the workout row it belongs to never ages out either.
+    mockedGetDraft.mockResolvedValue({
+      payload: DRAFT_PAYLOAD,
+      updatedAt: new Date(Date.now() - LIVE_SESSION_MAX_AGE_MS - 1_000),
     })
 
     // Act + Assert
-    expect(await getWorkoutDraftAction('new')).toBeNull()
-    expect(mockedDeleteDraft).toHaveBeenCalledWith(USER, 'new')
+    expect(await getWorkoutDraftAction(ID)).toEqual(DRAFT_PAYLOAD)
+    expect(mockedDeleteDraft).not.toHaveBeenCalled()
+  })
+
+  it('still resumes a workout-keyed draft abandoned for a week', async () => {
+    mockedGetDraft.mockResolvedValue({
+      payload: DRAFT_PAYLOAD,
+      updatedAt: new Date(Date.now() - 7 * 24 * 60 * 60_000),
+    })
+
+    expect(await getWorkoutDraftAction(ID)).toEqual(DRAFT_PAYLOAD)
+    expect(mockedDeleteDraft).not.toHaveBeenCalled()
+  })
+
+  it('declines a draft older than the record it would overwrite', async () => {
+    // Arrange — a leftover from a save whose draft delete didn't land. It is
+    // older evidence than the rows that save committed.
+    mockedGetDraft.mockResolvedValue({
+      payload: DRAFT_PAYLOAD,
+      updatedAt: new Date(Date.now() - 60 * 60_000),
+    })
+    vi.mocked(getWorkoutRecordedAt).mockResolvedValue(new Date(Date.now() - 30 * 60_000))
+
+    // Act + Assert — declined, and still never deleted.
+    expect(await getWorkoutDraftAction(ID)).toBeNull()
+    expect(mockedDeleteDraft).not.toHaveBeenCalled()
+  })
+
+  it('resumes a draft touched after the record — a correction in progress', async () => {
+    mockedGetDraft.mockResolvedValue({
+      payload: DRAFT_PAYLOAD,
+      updatedAt: new Date(Date.now() - 30 * 60_000),
+    })
+    vi.mocked(getWorkoutRecordedAt).mockResolvedValue(new Date(Date.now() - 60 * 60_000))
+
+    expect(await getWorkoutDraftAction(ID)).toEqual(DRAFT_PAYLOAD)
+  })
+
+  it("never reads a record for the 'new' surface (it has no workout row)", async () => {
+    mockedGetDraft.mockResolvedValue({ payload: DRAFT_PAYLOAD, updatedAt: new Date() })
+
+    await getWorkoutDraftAction('new')
+
+    expect(getWorkoutRecordedAt).not.toHaveBeenCalled()
   })
 
   it('rejects a malformed key before touching the database', async () => {

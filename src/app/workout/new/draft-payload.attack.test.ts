@@ -8,7 +8,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   DRAFT_PAYLOAD_VERSION,
-  DRAFT_TTL_MS,
+  LIVE_SESSION_MAX_AGE_MS,
   buildDraftPayload,
   isDraftPayload,
   parseDraftPayload,
@@ -17,6 +17,8 @@ import {
 import { isLoggingType, isWorkoutSetType } from '@/lib/workout/workout-input'
 
 const NOW = new Date('2026-08-15T12:00:00.000Z')
+/** A workout-id draft key — addresses one session, so it never ages out. */
+const WORKOUT_KEY = '3f2a9c11-4b6d-4f2e-9a1c-8d5e7c0fb7e4'
 
 /** Byte-for-byte the shape a 6c8837e-era (pre-cardio) client persisted. */
 function preCardioPayload(): Record<string, unknown> {
@@ -209,15 +211,26 @@ describe('hostile payloads', () => {
   })
 })
 
-describe('TTL boundary (resolveDraftSeed)', () => {
-  it('keeps a row exactly DRAFT_TTL_MS old (inclusive), drops one 1ms older', () => {
-    const row = { payload: preCardioPayload(), updatedAt: new Date(NOW.getTime() - DRAFT_TTL_MS) }
-    expect(resolveDraftSeed(row, { unit: 'kg', now: NOW })).not.toBeNull()
+describe("auto-resume boundary on the shared 'new' surface (resolveDraftSeed)", () => {
+  it('keeps a row exactly LIVE_SESSION_MAX_AGE_MS old (inclusive), drops one 1ms older', () => {
+    const row = {
+      payload: preCardioPayload(),
+      updatedAt: new Date(NOW.getTime() - LIVE_SESSION_MAX_AGE_MS),
+    }
+    expect(resolveDraftSeed(row, { unit: 'kg', now: NOW, key: 'new' })).not.toBeNull()
     const stale = {
       payload: preCardioPayload(),
-      updatedAt: new Date(NOW.getTime() - DRAFT_TTL_MS - 1),
+      updatedAt: new Date(NOW.getTime() - LIVE_SESSION_MAX_AGE_MS - 1),
     }
-    expect(resolveDraftSeed(stale, { unit: 'kg', now: NOW })).toBeNull()
+    expect(resolveDraftSeed(stale, { unit: 'kg', now: NOW, key: 'new' })).toBeNull()
+  })
+
+  it('applies no boundary at all to a workout-keyed draft', () => {
+    const ancient = {
+      payload: preCardioPayload(),
+      updatedAt: new Date(NOW.getTime() - 30 * 24 * 60 * 60_000),
+    }
+    expect(resolveDraftSeed(ancient, { unit: 'kg', now: NOW, key: WORKOUT_KEY })).not.toBeNull()
   })
 })
 

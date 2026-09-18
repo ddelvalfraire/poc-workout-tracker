@@ -13,6 +13,7 @@ import {
   getWorkoutDetail,
   hasAnyCompletedWorkout,
   getWorkoutAnalyticsState,
+  getWorkoutRecordedAt,
   type LastPerformance,
 } from '@/db/workouts'
 import { captureServerEvent, durationMin, workoutInputCounts } from '@/lib/analytics'
@@ -30,7 +31,12 @@ import {
 } from '@/db/exercise-stats'
 import { getWorkoutDraft, putWorkoutDraft, deleteWorkoutDraft } from '@/db/workout-drafts'
 import { createWorkoutShare, revokeWorkoutShare } from '@/db/workout-shares'
-import { isDraftPayload, DRAFT_TTL_MS, draftKey } from '@/app/workout/new/draft-payload'
+import {
+  isDraftPayload,
+  isAutoResumable,
+  draftKey,
+  DRAFT_KEY_NEW,
+} from '@/app/workout/new/draft-payload'
 import type { WorkoutEventKind } from '@/db/workout-events'
 import { uncompleteCascade, type UncompleteCascade } from '@/db/uncomplete-cascade'
 import { correctionReachFor, type SetCorrection } from '@/db/correction-reach'
@@ -496,17 +502,28 @@ function parseDraftKey(raw: unknown): string {
 }
 
 /**
- * The stored draft payload for a logging surface, or null. Enforces the TTL
- * against the row's authoritative `updated_at`, lazily deleting expired rows —
- * an abandoned draft from last week should not hijack today's session.
+ * The stored draft payload for a logging surface, or null when that surface
+ * may not resume it unasked — judged against the row's authoritative
+ * `updated_at` by the shared `isAutoResumable` rule, so this and the pages'
+ * `resolveDraftSeed` can never disagree.
+ *
+ * This read NEVER deletes. It used to: a draft past the window was destroyed
+ * here, on a GET, by the logger's own mount-time restore — so merely opening
+ * the app the next day was the act that lost the session. A draft we decline
+ * to auto-resume is still the lifter's data, and waits for an explicit
+ * recovery. Unbounded growth is not the risk it looks like: `putWorkoutDraft`
+ * caps rows per user, and a surface's next save overwrites its own row.
  */
 export async function getWorkoutDraftAction(key: unknown): Promise<unknown | null> {
   const userId = await requireUserId()
   const parsedKey = parseDraftKey(key)
   const row = await getWorkoutDraft(userId, parsedKey)
   if (!row) return null
-  if (Date.now() - row.updatedAt.getTime() > DRAFT_TTL_MS) {
-    await deleteWorkoutDraft(userId, parsedKey)
+  // Only a workout-keyed surface HAS a record that could supersede its draft;
+  // 'new' has no workout row yet, so it skips the read entirely.
+  const recordedAt =
+    parsedKey === DRAFT_KEY_NEW ? null : await getWorkoutRecordedAt(userId, parsedKey)
+  if (!isAutoResumable({ key: parsedKey, updatedAt: row.updatedAt, now: new Date(), recordedAt })) {
     return null
   }
   return row.payload

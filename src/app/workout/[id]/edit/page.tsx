@@ -183,9 +183,17 @@ export default async function EditWorkoutPage({
   // Server-side draft seeding: a live draft is newer than the workout rows it
   // was seeded from, so it wins over detailToDraft — resolved HERE to kill the
   // mount-time content swap (rows render, then the restore effect swaps in the
-  // draft). Shared TTL+codec helper; the client restore effect stays as the
+  // draft). Shared auto-resume+codec helper; the client restore effect stays as the
   // cross-device race net.
-  const restored = resolveDraftSeed(draftRow, { unit, now: new Date() })
+  const restored = resolveDraftSeed(draftRow, {
+    unit,
+    now: new Date(),
+    key: id.toLowerCase(),
+    // A draft older than this session's own record is a leftover from a save
+    // whose draft delete didn't land — it must not overwrite what that save
+    // committed. A draft NEWER than the record is a correction in progress.
+    recordedAt: workout.completedAt,
+  })
   const { draft, name } = restored ?? detailToDraft(workout, unit, { catalog })
   // Which of this surface's two modes is on screen — one decision, read from
   // the session's original-record stamp rather than inferred from a timestamp
