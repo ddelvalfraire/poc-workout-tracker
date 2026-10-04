@@ -13,6 +13,7 @@ import './demo'
 // Last, so a call an earlier suite already made stays recorded where it was.
 import './hardening.test'
 import './coverage.test'
+import './semfix.test'
 
 declare const process: { env: Record<string, string | undefined>; exitCode?: number }
 const out = process.env['KIT_OUT']

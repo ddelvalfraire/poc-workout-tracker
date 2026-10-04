@@ -435,6 +435,7 @@ const TypeErrorS = union<TypeError, 'code'>('TypeError', 'code', {
 })
 const IngestRefusalS = union<IngestRefusal, 'code'>('IngestRefusal', 'code', {
   emptySession: { workoutId: str },
+  notALocalDay: { stamped: str },
   dayStampOutOfRange: { stamped: day, utc: str },
   programComplete: {},
   floorNotConfirmed: { floorDays: int },
@@ -537,15 +538,15 @@ const StampS = def(
   }),
 )
 const DueS = union<Due, 'k'>('Due', 'k', { due: {}, early: { dueOn: day, rule: int }, notBefore: { day, rule: int } })
-const IssuedSessionS = def(
-  'IssuedSession',
-  shape<IssuedSession>()({ issueKey: str, day: str, defaultDay: str, slots: arr(IssuedSlotS), stamp: StampS, due: DueS }),
-)
+const AssumeK = strs<Assume['k']>('AssumeKind', { asPrescribed: true, allMiss: true, repeatLast: true, asScheduled: true, script: true })
+const issuedSessionFields = shape<IssuedSession>()({ issueKey: str, day: str, defaultDay: str, slots: arr(IssuedSlotS), stamp: StampS, due: DueS }) as { properties: Record<string, S> }
+/** An issued session; one a projection produced carries its tag (L9, F23) wherever it is passed on. */
+const IssuedSessionS = def('IssuedSession', obj({ ...issuedSessionFields.properties, projected: opt(lit(true)), assume: opt(AssumeK) }))
 const ResolutionS = def(
   'Resolution',
-  shape<Resolution>()({ key: str, issueKey: str, slot: str, step: str, index: int, metric: str, value: ClosedField, trace: TraceS }),
+  shape<Resolution>()({ key: str, seq: int, issueKey: str, slot: str, step: str, index: int, metric: str, value: ClosedField, trace: TraceS }),
 )
-const PerformedSetS = def('PerformedSet', shape<PerformedSet>()({ values: rec(num), completed: bool, stages: nullable(arr(obj({ reps: num }))) }))
+const PerformedSetS = def('PerformedSet', shape<PerformedSet>()({ values: rec(num), stages: nullable(arr(obj({ reps: num }))) }))
 const LoggedS = def('Logged', rec(rec(arr(PerformedSetS))))
 const ClosedFactsS = def(
   'ClosedFacts',
@@ -657,7 +658,10 @@ const IngestResultS = union<IngestResult, 'k'>('IngestResult', 'k', {
   refused: { refusal: IngestRefusalS },
 })
 const StepResultS = union<StepResult, 'k'>('StepResult', 'k', { applied: { head: HeadS, transition: TransitionS }, refused: { refusal: IngestRefusalS } })
-const LedgerS = def('Ledger', obj({ head: HeadS, keys: setOf(str), events: arr(EventS), transitions: arr(TransitionS) }))
+const ledgerFields = { head: HeadS, keys: setOf(str), events: arr(EventS), transitions: arr(TransitionS) }
+/** A ledger; one that came out of a projection is tagged (L9, F23), and may be fed back in. */
+const LedgerS = def('Ledger', obj({ ...ledgerFields, projected: opt(lit(true)), assume: opt(AssumeK) }))
+const ProjectedLedgerS = def('ProjectedLedger', obj({ ...ledgerFields, projected: lit(true), assume: AssumeK }))
 const AssumeS = union<Assume, 'k'>('Assume', 'k', {
   asPrescribed: {},
   allMiss: {},
@@ -665,10 +669,11 @@ const AssumeS = union<Assume, 'k'>('Assume', 'k', {
   asScheduled: {},
   script: { outcomes: arr(obj({ week: int, day: str, hit: bool, amrapReps: opt(num) })) },
 })
-const ProjectionWeeks = arr(obj({ week: int, role: WeekRole, sessions: arr(IssuedSessionS), endsOn: nullable(day), projected: lit(true) }))
+const ProjectedSessionS = def('ProjectedIssuedSession', obj({ ...issuedSessionFields.properties, projected: lit(true), assume: AssumeK }))
+const ProjectionWeeks = arr(obj({ week: int, role: WeekRole, sessions: arr(ProjectedSessionS), endsOn: nullable(day), projected: lit(true) }))
 const ProjectionS = def(
   'Projection',
-  shape<Projection & { ledger: unknown }>()({ assume: AssumeS, weeks: ProjectionWeeks, changes: arr(TransitionS), fallbacks: arr(str), ledger: LedgerS }),
+  shape<Projection & { ledger: unknown }>()({ assume: AssumeS, weeks: ProjectionWeeks, changes: arr(TransitionS), fallbacks: arr(str), ledger: ProjectedLedgerS }),
 )
 const PhaseRunS = def(
   'PhaseRun',
@@ -678,8 +683,8 @@ const PhaseRunS = def(
     weeks: int,
     startsOn: day,
     ended: { enum: ['completed', 'criteria', 'max', 'askedAtMax', 'open'] },
-    params: rec(V),
-    final: LedgerS,
+    handoff: obj({ values: rec(V), projected: lit(true), assume: AssumeK }),
+    final: ProjectedLedgerS,
     projection: ProjectionWeeks,
   }),
 )
@@ -718,6 +723,8 @@ const CtxS = def(
     frame: opt(FrameS),
     display: opt(rec(Unit)),
     logs: opt(nullable(arr(str))),
+    logging: opt(nullable(LoggingType)),
+    record: opt(FnTok),
   }),
 )
 const CxS = def(
@@ -768,6 +775,7 @@ const ScopeS = def(
     steps: obj({ earlier: arr(str), all: anyOf(arr(str), lit('any')), own: nullable(str) }),
     writer: nullable(anyOf(Writer, AggEvent)),
     vars: mapOf(str, Ty_),
+    live: opt(setOf(str)),
     reg: RegistryTok,
   }),
 )
@@ -779,12 +787,12 @@ const strings = arr(str)
 const TypeErrors = arr(TypeErrorS)
 export const OP_SIGS: { [K in Op]: Sig } = {
   'evaluate.evaluate': { args: [T, CtxS], ret: TraceS },
-  'issue.sinkField': { args: [FieldS, str, GridsS], ret: FieldS },
+  'issue.sinkField': { args: [FieldS, str, rec(num)], ret: FieldS },
   'issue.applyUse': { args: [UseS, SessionValueS, CtxS], ret: SessionValueS },
   'issue.currentView': { args: [IssuedSessionS, arr(ResolutionS)], ret: arr(IssuedSlotS) },
   'issue.resolveLive': { args: [anyOf(RegOnly, RuntimeS), IssuedSessionS, LoggedS, arr(ResolutionS)], ret: arr(ResolutionS) },
   'issue.setsDue': { args: [anyOf(RegOnly, RuntimeS), IssuedSlotS, IssuedStepS, rec(arr(PerformedSetS))], ret: num },
-  'xform.applyXform': { args: [XformOpS, SessionValueS, nullable(V), nullable(str), nullable(strings)], ret: SessionValueS },
+  'xform.applyXform': { args: [XformOpS, SessionValueS, nullable(V), nullable(str), nullable(strings), opt(nullable(strings))], ret: SessionValueS },
   'judge.verdictOf': { args: [EventSourceS, anyOf(strings, lit('working')), Edge], ret: VerdictTag },
   'step.activate': { args: [RuntimeS, rec(V), FactSourceS], ret: HeadS },
   'step.step': { args: [RuntimeS, HeadS, EventS], ret: StepResultS },

@@ -11,6 +11,7 @@
  * corpus definition in fixtures/defs, and `{"$ref": "#i/ret/..."}` names the
  * stored output of an earlier fixture in the same file.
  */
+import { canonicalJson } from './canonical'
 import type { Registry } from './checker'
 import { publish } from './checkdefs'
 import { describe, phrase } from './describe'
@@ -302,10 +303,10 @@ export function refTarget(r: string, outputs: readonly (J | undefined)[]): J {
 
 const EPS = 1e-9
 const sameNum = (a: number, b: number) => Math.abs(a - b) <= EPS * Math.max(1, Math.abs(a), Math.abs(b))
-/** Fields whose exact value the conformance protocol does not require
- *  (hashing is open, refusal and error messages are informative). The TS
- *  replay compares them too (`strict`). */
-const HASHED = /@[0-9a-f]{8}$/
+/** Fields whose exact value the conformance protocol does not require:
+ *  refusal and error messages are informative. The TS replay compares them
+ *  too (`strict`). Digests (`programHash`, a resolution key's `@xxxxxxxx`)
+ *  are compared in both modes: they are pinned (canonical.ts, SPEC 7). */
 export function diff(a: J, b: J, strict: boolean, at = '$'): string | null {
   if (typeof a === 'number' && typeof b === 'number') return sameNum(a, b) ? null : `${at}: ${a} ≠ ${b}`
   if (a === null || b === null || typeof a !== 'object' || typeof b !== 'object') return a === b ? null : `${at}: ${JSON.stringify(a)?.slice(0, 120)} ≠ ${JSON.stringify(b)?.slice(0, 120)}`
@@ -321,8 +322,8 @@ export function diff(a: J, b: J, strict: boolean, at = '$'): string | null {
   const oa = a as { [k: string]: J }
   const ob = b as { [k: string]: J }
   if (wrapper(oa) === '$set' && wrapper(ob) === '$set') {
-    const sa = (oa['$set'] as J[]).map((x) => JSON.stringify(x)).sort()
-    const sb = (ob['$set'] as J[]).map((x) => JSON.stringify(x)).sort()
+    const sa = (oa['$set'] as J[]).map((x) => canonicalJson(x)).sort()
+    const sb = (ob['$set'] as J[]).map((x) => canonicalJson(x)).sort()
     return sa.join('\n') === sb.join('\n') ? null : `${at}: sets differ`
   }
   const ka = Object.keys(oa).sort()
@@ -331,11 +332,7 @@ export function diff(a: J, b: J, strict: boolean, at = '$'): string | null {
   for (const k of ka) {
     const x = oa[k]!
     const y = ob[k]!
-    if (!strict && (k === 'programHash' || k === 'message')) continue
-    if (!strict && typeof x === 'string' && typeof y === 'string' && HASHED.test(x) && HASHED.test(y)) {
-      if (x.slice(0, -9) !== y.slice(0, -9)) return `${at}.${k}: ${x} ≠ ${y}`
-      continue
-    }
+    if (!strict && k === 'message') continue
     const d = diff(x, y, strict, `${at}.${k}`)
     if (d) return d
   }

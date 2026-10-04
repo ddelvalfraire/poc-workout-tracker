@@ -87,6 +87,8 @@ export interface Scope {
   steps: { earlier: readonly string[]; all: readonly string[] | 'any'; own: string | null }
   writer: Writer | AggEventKind | null
   vars: ReadonlyMap<string, Ty>
+  /** Binder variables (live positions) whose value depends on a logged set. */
+  live?: ReadonlySet<string>
   reg: Registry
 }
 
@@ -218,7 +220,16 @@ export function infer(t: Term, sc: Scope, path: Path, out: TypeError[]): Res | n
     return sink ? !!err(sink, at) : true
   }
   const with_ = (s: Partial<Scope>): Scope => ({ ...sc, ...s })
-  const bindVar = (name: string, ty: Ty): Scope => with_({ vars: new Map([...sc.vars, [name, ty]]) })
+  /** A term that depends on a logged set: a performed or prescribed read, or
+   *  a binder variable bound to one. */
+  const isLive = (x: Term): boolean => [...termNodes(x)].some((n) => n.k === 'performed' || n.k === 'prescribed' || (n.k === 'var' && !!sc.live?.has(n.name)))
+  /** Bind a variable; in a live position it is live when its source is. */
+  const bindVar = (name: string, ty: Ty, src: readonly Term[] = []): Scope => {
+    const live = new Set(sc.live ?? [])
+    if (sc.position === 'live' && src.some(isLive)) live.add(name)
+    else live.delete(name)
+    return with_({ vars: new Map([...sc.vars, [name, ty]]), live })
+  }
   const boundary = (k: { r: Res | null; path: Path }) => {
     if (k.r && k.r.cost > BUDGET)
       err({ code: 'overBudget', cost: k.r.cost, budget: BUDGET, fix: OVER_BUDGET_FIX, message: `${k.r.cost} operators in one phrase (budget ${BUDGET}); ${OVER_BUDGET_FIX}` }, k.path)
@@ -307,7 +318,7 @@ export function infer(t: Term, sc: Scope, path: Path, out: TypeError[]): Res | n
       const v = sub(t.value, ['value'])
       if (!v) return null
       boundary(lastKid())
-      const b = sub(t.body, ['body'], bindVar(t.name, v.ty))
+      const b = sub(t.body, ['body'], bindVar(t.name, v.ty, [t.value]))
       return b && done(b.ty, 0)
     }
     case 'named': {
@@ -413,7 +424,7 @@ export function infer(t: Term, sc: Scope, path: Path, out: TypeError[]): Res | n
       const a = sub(t.a, ['a'])
       if (!a) return null
       if (a.ty.t !== 'opt') return err({ code: 'unitMismatch', expected: { t: 'opt', of: a.ty }, got: a.ty, message: `known needs an optional value, got ${showTy(a.ty)}` })
-      const b = sub(t.body, ['body'], bindVar(t.as, a.ty.of))
+      const b = sub(t.body, ['body'], bindVar(t.as, a.ty.of, [t.a]))
       if (!b) return null
       if (t.then && b.ty.t !== 'opt') return err({ code: 'unitMismatch', expected: { t: 'opt', of: b.ty }, got: b.ty, message: 'knownThen body must be optional' })
       return done(t.then ? b.ty : opt(b.ty), 0)
@@ -457,20 +468,23 @@ export function infer(t: Term, sc: Scope, path: Path, out: TypeError[]): Res | n
       if (!xs || !init) return null
       if (xs.ty.t !== 'list') return err({ code: 'unitMismatch', expected: { t: 'list', of: ONE, nonEmpty: false }, got: xs.ty, message: 'fold needs a list' })
       if (init.ty.t === 'upd') return err({ code: 'nonGroundAccumulator', got: init.ty, message: 'a fold accumulator must be ground data' })
-      const s = sub(t.step, ['step'], with_({ vars: new Map([...sc.vars, [t.acc, init.ty], [t.x, xs.ty.of]]) }))
+      const foldLive = sc.position === 'live' && [t.xs, t.init, t.step].some(isLive)
+      const live = new Set([...(sc.live ?? [])].filter((n) => n !== t.acc && n !== t.x))
+      if (foldLive) [t.acc, t.x].forEach((n) => live.add(n))
+      const s = sub(t.step, ['step'], with_({ vars: new Map([...sc.vars, [t.acc, init.ty], [t.x, xs.ty.of]]), live }))
       return expect(s, init.ty, [...path, 'step']) ? done(init.ty, 1) : null
     }
     case 'tabulate': {
       const ks = sub(t.keys, ['keys'])
       if (!ks) return null
       if (ks.ty.t === 'list' && ks.ty.of.t === 'q' && dimEq(ks.ty.of.dim, DIMS.one)) {
-        const b = sub(t.body, ['body'], bindVar(t.as, ks.ty.of))
+        const b = sub(t.body, ['body'], bindVar(t.as, ks.ty.of, [t.keys]))
         return b && done({ t: 'list', of: b.ty, nonEmpty: ks.ty.nonEmpty }, 1)
       }
       if (ks.ty.t !== 'list' || (ks.ty.of.t !== 'ref' && ks.ty.of.t !== 'enum'))
         return err({ code: 'unitMismatch', expected: { t: 'list', of: ref('slot'), nonEmpty: false }, got: ks.ty, message: 'tabulate needs a list of refs, enum tags or a range' })
       const key: MapKey = ks.ty.of.t === 'ref' ? ks.ty.of.kind : `enum:${ks.ty.of.name}`
-      const b = sub(t.body, ['body'], bindVar(t.as, ks.ty.of))
+      const b = sub(t.body, ['body'], bindVar(t.as, ks.ty.of, [t.keys]))
       return b && done({ t: 'map', key, of: b.ty }, 1)
     }
     case 'at': {
@@ -494,7 +508,7 @@ export function infer(t: Term, sc: Scope, path: Path, out: TypeError[]): Res | n
     case 'count': {
       const xs = sub(t.xs, ['xs'])
       if (!xs || xs.ty.t !== 'list') return xs && err({ code: 'unitMismatch', expected: { t: 'list', of: ONE, nonEmpty: false }, got: xs.ty, message: `${t.k} needs a list` })
-      const b = sub(t.k === 'sum' ? t.body : t.where, [t.k === 'sum' ? 'body' : 'where'], bindVar(t.as, xs.ty.of))
+      const b = sub(t.k === 'sum' ? t.body : t.where, [t.k === 'sum' ? 'body' : 'where'], bindVar(t.as, xs.ty.of, [t.xs]))
       if (!b) return null
       if (t.k === 'count') return expect(b, BOOL, [...path, 'where']) ? done(ONE, 1) : null
       return b.ty.t === 'q' ? done(b.ty, 1) : err({ code: 'unitMismatch', expected: ONE, got: b.ty, message: 'sum needs a quantity body' })
@@ -502,7 +516,7 @@ export function infer(t: Term, sc: Scope, path: Path, out: TypeError[]): Res | n
     case 'pick': {
       const xs = sub(t.xs, ['xs'])
       if (!xs || xs.ty.t !== 'list') return xs && err({ code: 'unitMismatch', expected: { t: 'list', of: ONE, nonEmpty: false }, got: xs.ty, message: 'pick needs a list' })
-      const inner = bindVar(t.as, xs.ty.of)
+      const inner = bindVar(t.as, xs.ty.of, [t.xs])
       if (t.where) expect(sub(t.where, ['where'], inner), BOOL, [...path, 'where'])
       const s = sub(t.score, ['score'], inner)
       if (s && s.ty.t !== 'q' && s.ty.t !== 'ord') return err({ code: 'notComparable', got: s.ty, message: 'pick scores by a quantity or rating' })
@@ -516,7 +530,7 @@ export function infer(t: Term, sc: Scope, path: Path, out: TypeError[]): Res | n
       const n = sub(t.n, ['n'])
       const into = sub(t.into, ['into'])
       const among = sub(t.among, ['among'])
-      const inner = bindVar(t.as, ref('slot'))
+      const inner = bindVar(t.as, ref('slot'), [t.among])
       const score = sub(t.score, ['score'], inner)
       const cap = sub(t.cap, ['cap'], inner)
       const ok =
@@ -574,6 +588,11 @@ export function infer(t: Term, sc: Scope, path: Path, out: TypeError[]): Res | n
       if (!d) return err({ code: 'unknownName', name: t.fact, message: `no fact ${t.fact}` })
       if (!need(d.observed === 'duringSession' || d.observed === 'postSession' ? 'event' : 'fact')) return null
       if (!sc.facts.includes(t.fact)) return err({ code: 'undeclaredFact', fact: t.fact, message: `reads ${t.fact}, which the definition does not declare` })
+      // A live field is resolved from its frame and the logged sets; a fact
+      // whose KEY depends on a logged set was never read at issue, so it
+      // cannot be served there (F2).
+      if (sc.position === 'live' && t.key && isLive(t.key))
+        return err({ code: 'capabilityEscape', cap: 'fact', position: 'live', message: `${t.fact} keyed by a logged value cannot be read once the set is logged: a live target reads facts only as they were at issue` }, [...path, 'key'])
       if (d.key === 'none') {
         // expected/got are ONE placeholders by spec: there is no key sort to name, the code tells the author to drop the key.
         if (t.key) return err({ code: 'unitMismatch', expected: ONE, got: ONE, message: `${t.fact} is not keyed` })
@@ -696,6 +715,7 @@ export function infer(t: Term, sc: Scope, path: Path, out: TypeError[]): Res | n
         const own = { earlier: [...earlier], all, own: s.id as string }
         const c = s.count
         if (c.k === 'n') ok = expect(sub(c.n, [...at, 'count', 'n'], with_({ position: countPos, steps })), SETS, [...path, ...at, 'count', 'n']) && ok
+        else if (c.k === 'range' && invertedLiterals(c.min, c.max)) ok = !!err({ code: 'literalDomain', former: 'step', field: 'count', value: litNum(c.min)!, message: `a set-count range from ${litNum(c.min)} down to ${litNum(c.max)} is empty: its min is above its max` }, [...path, ...at, 'count'])
         else if (c.k === 'range')
           ok = expect(sub(c.min, [...at, 'count', 'min'], with_({ position: countPos, steps })), SETS, [...path, ...at, 'count', 'min']) && expect(sub(c.max, [...at, 'count', 'max'], with_({ position: countPos, steps })), SETS, [...path, ...at, 'count', 'max']) && ok
         else {
@@ -834,6 +854,8 @@ export function infer(t: Term, sc: Scope, path: Path, out: TypeError[]): Res | n
     if (!t.arg) return err({ code: 'missingArg', param: 'arg', message: `${t.op} needs an argument` })
     const a = sub(t.arg, ['arg'])
     if (!expect(a, want, [...path, 'arg'])) return null
+    if (t.op === 'scaleSets' && t.arg.k === 'lit' && t.arg.lit.k === 'q' && t.arg.lit.v > 1)
+      return err({ code: 'literalDomain', former: 'xform', field: 'arg', value: t.arg.lit.v, message: `scaleSets shrinks a session (a deload); a factor of ${t.arg.lit.v} would add sets it has no targets for: add sets with addSets` }, [...path, 'arg'])
     if (t.op === 'reshape' && logs && st.logging && a!.ty.t === 'dom')
       for (const m of a!.ty.metrics ?? []) if (!logs.includes(m)) return (notLogged(m, st.logging, logs, [...path, 'arg']), null)
     if (t.op === 'swapExercise' && a!.ty.t === 'ref') {
@@ -861,11 +883,26 @@ export function infer(t: Term, sc: Scope, path: Path, out: TypeError[]): Res | n
       case 'atLeast':
         return v(b.v, 'v', false)
       case 'range':
+        if (invertedLiterals(b.min, b.max)) return !!err({ code: 'literalDomain', former: 'set', field: 'range', value: litNum(b.min)!, message: `a range from ${litNum(b.min)} down to ${litNum(b.max)} is empty: its min is above its max` }, at)
         return v(b.min, 'min', true) && v(b.max, 'max', true)
       case 'open':
         return true
     }
   }
+}
+
+/** Every node of a term, depth first. */
+function* termNodes(t: unknown): Generator<Term> {
+  if (!t || typeof t !== 'object') return
+  const n = t as Term
+  if (typeof n.k === 'string') yield n
+  for (const v of Object.values(n)) if (v && typeof v === 'object') yield* termNodes(v)
+}
+const litNum = (t: Term): number | null => (t.k === 'lit' && t.lit.k === 'q' ? t.lit.v : null)
+/** Two literal edges in the wrong order (F13). */
+const invertedLiterals = (min: Term, max: Term) => {
+  const [a, b] = [litNum(min), litNum(max)]
+  return a !== null && b !== null && a > b
 }
 
 // ── shared helpers for the definition checks ────────────────────────────────

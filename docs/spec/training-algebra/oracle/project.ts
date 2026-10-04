@@ -26,6 +26,7 @@ import { asPrescribedSet, ctxOf, evaluate, none, sameValue } from './evaluate'
 import { currentView, resolveLive, setsDue } from './issue'
 import { calPort, entriesPerWeek, factPort, newReads, nextDay, roleOf, runtimeOf, type Runtime } from './ports'
 import { activate, ingest, ledgerOf, prescribe, type Ledger } from './step'
+import { reconcile } from './time'
 import type { MacroDef, ProgramDef, SchemeDef, SchemeExample } from './structure'
 import { addDays, localDay, type LocalDay } from './time'
 import { isJudged } from './xform'
@@ -81,15 +82,26 @@ const loggedSets = (l: Logged) => Object.values(l).reduce((a, s) => a + Object.v
  *  the week from the projection's first day. */
 const nominal = (rt: Runtime, start: LocalDay, j: number) => addDays(start, Math.floor((j * 7) / entriesPerWeek(rt.def.rotation)))
 
-export function project(rt: Runtime, l: Ledger, untilWeek: number, assume: Assume, facts: FactSource, start: LocalDay, maxSessions = 400, sessionFacts: readonly FactReading[] = []): Projection & { ledger: Ledger } {
+/** L9 in the types (F23): a projected value carries the assumption that
+ *  produced it, so it cannot be mistaken for an issued fact or the live ledger. */
+export type Projected<T> = T & { readonly projected: true; readonly assume: Assume['k'] }
+const tag = <T extends object>(x: T, assume: Assume): Projected<T> => ({ ...x, projected: true, assume: assume.k })
+
+export function project(rt: Runtime, l: Ledger, untilWeek: number, assume: Assume, facts: FactSource, start: LocalDay, maxSessions = 400, sessionFacts: readonly FactReading[] = []): Omit<Projection, 'weeks'> & { weeks: (Omit<Projection['weeks'][number], 'sessions'> & { sessions: Projected<IssuedSession>[] })[]; ledger: Projected<Ledger> } {
   let ledger = l
   const weeks = new Map<number, Projection['weeks'][number]>()
   const changes: Transition[] = []
   const fallbacks: string[] = []
   let last: Logged = {}
   for (let j = 0; j < maxSessions && ledger.head.status === 'active' && ledger.head.progress.week < untilWeek; j++) {
+    const day0 = nominal(rt, start, j)
+    // Reconcile first, as prescribe does, and re-check the bounds: under
+    // anchored drift the calendar alone can close the last week asked for
+    // (F10), and then nothing more is issued.
+    for (const e of reconcile(rt.spec, ledger.head.calendar, day0)) ledger = ingest(rt, ledger, e).ledger
+    if (ledger.head.status !== 'active' || ledger.head.progress.week >= untilWeek) break
     const day = nextDay(rt.def.rotation, ledger.head.progress.sessions, ledger.head.progress.weekEntries)
-    const today = nominal(rt, start, j)
+    const today = day0
     const r = prescribe(rt, ledger, day, facts, today)
     ledger = r.ledger
     if ('code' in r.issued) break
@@ -115,7 +127,7 @@ export function project(rt: Runtime, l: Ledger, untilWeek: number, assume: Assum
     }
     changes.push(...ledger.transitions.slice(before).filter((t) => t.fired.length))
   }
-  return { assume, weeks: [...weeks.values()], changes, fallbacks, ledger }
+  return { assume, weeks: [...weeks.values()].map((w) => ({ ...w, sessions: w.sessions.map((x) => tag(x, assume)) })), changes, fallbacks, ledger: tag(ledger, assume) }
 }
 
 // ── macros: phases in sequence, each seeded only by its handoff ──────────────
@@ -128,8 +140,10 @@ export interface PhaseRun {
   /** How the phase ended: its once calendar ran out, its gate held, it hit
    *  its max (advancing, or asking the owner), or it is open and still going. */
   ended: 'completed' | 'criteria' | 'max' | 'askedAtMax' | 'open'
-  params: Record<string, Value>
-  final: Ledger
+  /** The values this phase was seeded with, evaluated from the previous
+   *  phase's PROJECTED terminal state. */
+  handoff: Projected<{ values: Record<string, Value> }>
+  final: Projected<Ledger>
   projection: Projection['weeks']
 }
 
@@ -181,7 +195,7 @@ export function projectMacro(reg: Registry, m: MacroDef, assume: Assume, facts: 
       }
     }
     const ran = projected.length
-    runs.push({ label: ph.label, program: prog.ref.id, weeks: ran, startsOn: start, ended, params, final: ledger, projection: projected })
+    runs.push({ label: ph.label, program: prog.ref.id, weeks: ran, startsOn: start, ended, handoff: tag({ values: params }, assume), final: tag(ledger, assume), projection: projected })
     weeks += ran
     start = addDays(start, 7 * ran)
     prev = ledger.head.state

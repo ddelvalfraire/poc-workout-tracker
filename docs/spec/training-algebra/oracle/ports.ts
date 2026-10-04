@@ -9,12 +9,14 @@
  * fact and the transition carry their reads (L12, amendment C).
  */
 import type { Term } from './algebra'
+import { digest } from './canonical'
 import { enumsWith, keyOf, type Registry } from './checker'
 import type { FactReading, FactSource, Head, IssuedStep, Trace, Value } from './engine'
 import { ctxOf, evaluate, nodesOf, none, qv, type AggRead, type Ctx, type Ports } from './evaluate'
 import type { ProgramDef, SchemeDef, Use, WeekRole } from './structure'
 import { calendarSpecOf, dayNum, matches, selKey, type CalQuery, type CalendarSpec, type CalendarState, type LocalDay, type Rotation, type Selector } from './time'
-import { DIMS } from './units'
+import { issueSlot, firedPolicies } from './issue'
+import { DIMS, unitFor, type Unit } from './units'
 import { isJudged } from './xform'
 
 /** Every term a program evaluates: its slots' schemes, policies, aggregate. */
@@ -40,16 +42,9 @@ export function runtimeOf(reg: Registry, def: ProgramDef, inst: { id: string; an
   return { reg, def, spec: calendarSpecOf(def, calReads(def, reg), inst.id, inst.anchor, inst.activatedOn), phaseTransform: phase?.transform ?? null, phase: phase?.label ?? null }
 }
 
-/** FNV-1a over the definition's JSON: the stamp's program hash until the
- *  content-addressed elaboration lands. */
-export function hashOf(x: unknown): string {
-  let h = 0x811c9dc5
-  for (const ch of JSON.stringify(x)) {
-    h ^= ch.charCodeAt(0)
-    h = Math.imul(h, 0x01000193) >>> 0
-  }
-  return h.toString(16).padStart(8, '0')
-}
+/** FNV-1a over the canonical JSON (canonical.ts): the stamp's program hash
+ *  until the content-addressed elaboration lands, and every resolution digest. */
+export const hashOf = digest
 
 // ── the progress clock ──────────────────────────────────────────────────────
 
@@ -116,8 +111,16 @@ export interface Reads {
 }
 export const newReads = (): Reads => ({ facts: [], cal: [] })
 
+/** Of several readings of one (fact, key), the latest observation wins: the
+ *  largest observedOn, then the one ingested last (a post-session reading
+ *  supersedes the issue-time one, F19). */
+export function latestReading(readings: readonly FactReading[], fact: string, key: string | null): FactReading | null {
+  let best: FactReading | null = null
+  for (const r of readings) if (r.fact === fact && r.key === key && (!best || dayNum(r.observedOn) >= dayNum(best.observedOn))) best = r
+  return best
+}
 export const snapshotSource = (readings: readonly FactReading[]): FactSource => ({
-  get: (fact, key) => readings.find((r) => r.fact === fact && r.key === key) ?? null,
+  get: (fact, key) => latestReading(readings, fact, key),
 })
 export const noFacts: FactSource = { get: () => null }
 
@@ -145,9 +148,13 @@ export function calPort(spec: CalendarSpec, st: CalendarState, today: LocalDay, 
         case 'earlierToday':
           return qv(earlierToday, {}, 'x', { clock: 'calendar' })
         case 'gap': {
+          // The tracked last day answers only when it is on or before the
+          // stamped day; a later one (a session stamped after a late-logged
+          // one) falls back to the occurrences on or before it, so a gap is
+          // never negative (F8).
           const tracked = st.lastOn[selKey(q.of)]
           const occ = st.occurrences.filter((o) => matches(o, q.of, spec) && dayNum(o.localDay) <= dayNum(today)).map((o) => dayNum(o.localDay))
-          const last = tracked ? dayNum(tracked) : occ.length ? Math.max(...occ) : null
+          const last = tracked && dayNum(tracked) <= dayNum(today) ? dayNum(tracked) : occ.length ? Math.max(...occ) : null
           return last === null ? none({ k: 'noPriorSession' }) : qv(dayNum(today) - last, DIMS.days, 'd', { clock: 'calendar' })
         }
         case 'recent': {
@@ -212,6 +219,14 @@ export function slotParams(rt: Runtime, head: Head, slot: string, inp: Inputs): 
 }
 
 /** The plan / handler context of one slot. */
+/** The unit each gridded metric displays in: its grid literal's unit. Plans,
+ *  handlers and resolutions read quantities in it (F11). */
+export function displayOf(rt: Pick<Runtime, 'def'>): Partial<Record<string, Unit>> {
+  const out: Partial<Record<string, Unit>> = {}
+  for (const [m, t] of Object.entries(rt.def.grids)) if (t && t.k === 'lit' && t.lit.k === 'q') out[m] = t.lit.unit
+  return out
+}
+
 export function slotCtx(rt: Runtime, head: Head, slot: string, inp: Inputs, params = slotParams(rt, head, slot, inp)): Ctx {
   const s = schemeOf(rt, head, slot)
   const ports: Partial<Ports> = {
@@ -228,7 +243,7 @@ export function slotCtx(rt: Runtime, head: Head, slot: string, inp: Inputs, para
     cal: calPort(rt.spec, head.calendar, inp.today, inp.earlierToday, inp.reads),
     keys: keysPort(rt),
   }
-  return ctxOf(rt.reg, { params, ports, enums: enumsWith(s.enums) })
+  return ctxOf(rt.reg, { params, ports, enums: enumsWith(s.enums), display: displayOf(rt) })
 }
 
 /** The program-scope context: policies, frequency gaps and the aggregate
@@ -243,7 +258,7 @@ export function programCtx(rt: Runtime, head: Head, inp: Inputs): Ctx {
     keys: keysPort(rt),
     agg: aggPort(rt, head, inp),
   }
-  return ctxOf(rt.reg, { params: head.params, ports, enums: enumsWith(rt.def.enums) })
+  return ctxOf(rt.reg, { params: head.params, ports, enums: enumsWith(rt.def.enums), display: displayOf(rt) })
 }
 
 /** Evaluate a slot's plan under the head: the session it would issue now. */
@@ -258,26 +273,42 @@ const primaryOf = (def: ProgramDef, slot: string) => Object.entries(def.slots[sl
 /** Working sets one session of a step list plans, technique-weighted: an
  *  intensifier's stages count 0.5 each (the final set is already a set). */
 export function plannedSets(steps: IssuedStep[], intensifierStages: number): number {
-  const sets = steps.reduce((a, st) => a + st.sets.slice(0, st.count.k === 'n' ? st.count.n : st.count.k === 'range' ? st.count.min : st.count.planned).filter(isJudged).length, 0)
-  return sets + 0.5 * intensifierStages
+  return steps.reduce((a, st) => a + plannedTargets(st).filter(isJudged).length, 0) + 0.5 * intensifierStages
 }
+/** The targets a step plans: its count, a range's floor, an until/while
+ *  step's planned count. */
+const plannedTargets = (st: IssuedStep) => st.sets.slice(0, st.count.k === 'n' ? st.count.n : st.count.k === 'range' ? st.count.min : st.count.planned)
 
+/**
+ * Planned volume per week, under the pre-state, of what WOULD BE ISSUED: each
+ * slot's session after the plan policies firing now, the phase transform, L10
+ * and the sink (F20), times its sessions a week under the rotation.
+ * `sets` counts judged planned sets plus 0.5 per intensifier stage. Any other
+ * metric sums the judged planned sets' floors of that metric: a silent field
+ * is no value (it adds nothing, it is not a 0), and a slot whose sets carry no
+ * present value of the metric contributes nothing; when nothing contributes
+ * the total is the empty sum, 0, which is then a true zero of the metric's
+ * dimension (the read is typed as the metric, never absent).
+ */
 export function aggPort(rt: Runtime, head: Head, inp: Inputs): Ports['agg'] {
   const memo = new Map<string, Value>()
+  let fired: number[] | null = null
   const weeklyOf = (slot: string, metric: string): number => {
-    const t = planSlot(rt, head, slot, { ...inp, reads: newReads() })
-    if (t.value.v !== 'session') return 0
-    const s = t.value.s
+    const quiet = { ...inp, reads: newReads() }
+    fired ??= firedPolicies(rt, head, quiet)
+    const s = issueSlot(rt, head, slot, quiet, fired)
+    const targets = s.steps.flatMap((st) => plannedTargets(st).filter(isJudged))
     const perSession =
       metric === 'sets'
         ? plannedSets(s.steps, s.intensifier?.stages.length ?? 0)
-        : s.steps.flatMap((st) => st.sets.filter(isJudged)).reduce((a, x) => {
+        : targets.reduce((a, x) => {
             const f = x.metrics[metric]
             const fx = f?.k === 'open' ? f.planned : f
             return a + (fx?.k === 'fixed' && fx.v.b !== 'open' ? (fx.v.b === 'range' ? fx.v.min : fx.v.v) : 0)
           }, 0)
     return perSession * sessionsPerWeek(rt.def, slot)
   }
+  const display = displayOf(rt)
   return (q: AggRead) => {
     const k = JSON.stringify(q)
     const hit = memo.get(k)
@@ -286,8 +317,9 @@ export function aggPort(rt: Runtime, head: Head, inp: Inputs): Ports['agg'] {
     let v: Value
     if (q.q === 'slotsFor') v = { v: 'list', items: slots.filter((s) => primaryOf(rt.def, s) === q.muscle).map((id) => ({ v: 'ref', kind: 'slot', id })) }
     else {
-      const unit = q.metric === 'sets' ? 'set' : null
-      const dim = q.metric === 'sets' ? DIMS.sets : {}
+      const decl = rt.reg.vocab.metrics[q.metric]
+      const dim = q.metric === 'sets' ? DIMS.sets : decl ? DIMS[decl.dim] : {}
+      const unit: Unit | null = q.metric === 'sets' ? 'set' : (display[q.metric] ?? unitFor(dim) ?? null)
       const by = q.by
       const total =
         by.k === 'slot'

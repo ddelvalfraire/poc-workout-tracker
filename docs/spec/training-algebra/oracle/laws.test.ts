@@ -155,7 +155,7 @@ t('EC-106', 'warm-up and recovery sets are not judged: a short C25K walk is not 
 t('EC-149 EC-150 EC-153', 'event reads: last/best/worst/count over logged sets; e1RM by Epley on the best set; trained(muscle)', () => {
   const x = issue(lin(), D0, F)
   const loads = [100, 110, 105]
-  const l = logWith(x.issued, (s, _st, i, tg) => (s === 'squat' ? { values: { reps: 5, load: loads[i]! }, completed: true, stages: null } : asPrescribedSet(tg)))
+  const l = logWith(x.issued, (s, _st, i, tg) => (s === 'squat' ? { values: { reps: 5, load: loads[i]! }, stages: null } : asPrescribedSet(tg)))
   const port = eventPort({ reg, slots: x.issued.slots.filter((s) => s.slot === 'squat'), performed: l, facts: [], groupScores: {}, week: 0, primary: (s) => (s === 'squat' ? 'quads' : undefined) })
   eq(['last', 'best', 'worst', 'count'].map((p) => nOf(port({ q: 'metric', step: 'work' as never, metric: 'load', pick: p as 'last' }))), [105, 110, 100, 3], 'picks')
   near(nOf(port({ q: 'e1rm', step: 'work' as never })), 110 * (1 + 5 / 30), 'Epley')
@@ -376,7 +376,7 @@ t('EC-183 EC-184 EC-185 EC-187', 'resolution: nothing until the top set is logge
   const x = issue(apre(), D0, F)
   eq(resolveLive({ reg }, x.issued, {}, []).length, 0, 'not logged: stays open')
   const top = nOf(q(185, 'lb'))
-  const logged: Logged = { x: { top: [{ values: { reps: 9, load: top }, completed: true, stages: null }] } }
+  const logged: Logged = { x: { top: [{ values: { reps: 9, load: top }, stages: null }] } }
   const rows = resolveLive({ reg }, x.issued, logged, [])
   eq(rows.length, 2, 'two back-off sets')
   eq(resolveLive({ reg }, x.issued, logged, rows).length, 0, 'idempotent')
@@ -387,7 +387,7 @@ t('EC-183 EC-184 EC-185 EC-187', 'resolution: nothing until the top set is logge
 })
 t('EC-186', 'an EDITED dependency yields a new, superseding resolution; the old row stays', () => {
   const x = issue(apre(), D0, F)
-  const lg = (r: number): Logged => ({ x: { top: [{ values: { reps: r, load: nOf(q(185, 'lb')) }, completed: true, stages: null }] } })
+  const lg = (r: number): Logged => ({ x: { top: [{ values: { reps: r, load: nOf(q(185, 'lb')) }, stages: null }] } })
   const first = resolveLive({ reg }, x.issued, lg(9), [])
   const second = resolveLive({ reg }, x.issued, lg(3), first)
   eq(second.length, 2, 'superseding rows')
@@ -401,11 +401,11 @@ t('BV-42 BV-43 BV-44 BV-45 EC-112', 'Jokers (pre-tested while): none unless the 
   const jk = x.issued.slots[0]!.steps.find((s) => s.id === 'joker')!
   eq(jk.count, { k: 'while', max: 3, planned: 3 }, 'planned: 3 jokers when the top set goes as prescribed')
   const view = currentView(x.issued, [])[0]!
-  const made: Logged['x'] = { s3: [{ values: { reps: 5, load: 85 }, completed: true, stages: null }] }
-  const missed: Logged['x'] = { s3: [{ values: { reps: 4, load: 85 }, completed: true, stages: null }] }
+  const made: Logged['x'] = { s3: [{ values: { reps: 5, load: 85 }, stages: null }] }
+  const missed: Logged['x'] = { s3: [{ values: { reps: 4, load: 85 }, stages: null }] }
   eq(setsDue({ reg }, view, jk, missed), 0, 'top set short: no jokers')
   eq(setsDue({ reg }, view, jk, made), 1, 'top set made: one joker due')
-  const res = resolveLive({ reg }, x.issued, { x: { ...made, joker: [{ values: { reps: 1, load: 90 }, completed: true, stages: null }] } }, [])
+  const res = resolveLive({ reg }, x.issued, { x: { ...made, joker: [{ values: { reps: 1, load: 90 }, stages: null }] } }, [])
   const j1 = res.find((r) => r.step === 'joker' && r.index === 1)!
   near(j1.value.k === 'fixed' && j1.value.v.b === 'exact' ? j1.value.v.v : NaN, 95, '90 × 105% = 94.5 → 95 (nearest)')
   eq(x.issued.slots[0]!.steps.find((s) => s.id === 'fsl')!.count, { k: 'range', min: 3, max: 5 }, 'FSL range')
@@ -431,7 +431,7 @@ t('L6', 'issued facts are immutable: a frozen prescription survives closing, res
   }
   const x = issue(apre(), D0, F)
   const frozen = deepFreeze(x.issued)
-  const logged: Logged = { x: { top: [{ values: { reps: 9, load: 80 }, completed: true, stages: null }] } }
+  const logged: Logged = { x: { top: [{ values: { reps: 9, load: 80 }, stages: null }] } }
   const y = close(x.run, frozen, { ...logged, x: { ...logged.x, ramp1: [asPrescribedSet(frozen.slots[0]!.steps[0]!.sets[0]!)] } }, D0)
   assert(y.result.k === 'applied', 'applied over a frozen fact')
 })
@@ -483,7 +483,7 @@ t('EC-195 EC-225 EC-227 EC-228 EC-233 EC-238 BV-73 BV-74', 'a macro: the bounded
   const runs = projectMacro(reg, P.optMacro, { k: 'asPrescribed' }, corpusFacts(D), 40, readings({ formQuality: { v: 'ord', scale: 'formQuality', level: 2 } }, D))
   eq(runs[0]!.ended, 'criteria', 'stabilization ended by its gate')
   eq(runs[0]!.weeks, 4, 'at min (the rungs topped out by week 2: BV-73 stays, BV-74 advances)')
-  near(nOf(runs[1]!.params['rung']!), 2, 'handoff: the rung reached')
+  near(nOf(runs[1]!.handoff.values['rung']!), 2, 'handoff: the rung reached')
   eq(Object.keys(runs[1]!.final.head.state).sort(), ['bench', 'pushStab'], 'only its own slots: nothing crosses but the handoff')
 })
 t('BV-75 D12', 'a criteria-gated phase whose gate never holds stops at max and ASKS (atMax propose): the Achilles isometrics never time out into loading', () => {
@@ -492,7 +492,7 @@ t('BV-75 D12', 'a criteria-gated phase whose gate never holds stops at max and A
 })
 t('EC-234', 'a handoff whose source is absent flows as absence: benchStart none → the next phase seeds from the e1RM', () => {
   const runs = projectMacro(reg, P.optMacro, { k: 'asPrescribed' }, corpusFacts(day('2026-11-02')), 40, readings({ formQuality: { v: 'ord', scale: 'formQuality', level: 2 } }, day('2026-11-02')))
-  eq(runs[1]!.params['benchStart']!.v, 'none', 'absent handoff')
+  eq(runs[1]!.handoff.values['benchStart']!.v, 'none', 'absent handoff')
   assert(runs[1]!.final.head.state['bench']!['load']!.v === 'q', 'seeded from the e1RM instead')
 })
 
@@ -503,7 +503,7 @@ t('EC-117', 'a transformer over an OPEN field wraps its term: a 90% load deload 
   const f = fieldOf(x.issued, 'x', 'load', 3)!
   assert(f.k === 'open' && JSON.stringify(f.bound).includes('"op":"*"'), 'the open term is wrapped')
   const top = nOf(q(185, 'lb'))
-  const rows = resolveLive({ reg }, x.issued, { x: { top: [{ values: { reps: 9, load: top }, completed: true, stages: null }] } }, [])
+  const rows = resolveLive({ reg }, x.issued, { x: { top: [{ values: { reps: 9, load: top }, stages: null }] } }, [])
   const v = rows.find((r) => r.step === 'backoff' && r.index === 0)!.value
   near(v.k === 'fixed' && v.v.b === 'exact' ? v.v.v / nOf(q(1, 'lb')) : NaN, 155, '(185 + 5) × 90% × 90% = 153.9 → 155 lb')
 })
@@ -531,7 +531,7 @@ t('BV-72', 'GZCLP at the retest stage with no test load logged keeps everything,
   r = { ...r, ledger: ingest(r.rt, r.ledger, { k: 'ownerEdit', causeKey: 'edit:stage', scope: 'squat', patch: { stage: { k: 'enum', name: 'gzT1', tag: 'retest' } } }).ledger }
   const x = issue(r, D0, F, 'A1')
   eq(x.issued.slots[0]!.steps[0]!.id, 'test', 'the retest is issued')
-  const y = close(x.run, x.issued, logWith(x.issued, () => ({ values: { reps: 5 }, completed: true, stages: null })), D0)
+  const y = close(x.run, x.issued, logWith(x.issued, () => ({ values: { reps: 5 }, stages: null })), D0)
   eq(stateOf(y.run, 'squat', 'stage'), { v: 'enum', name: 'gzT1', tag: 'retest' }, 'kept')
   eq(issue(y.run, day('2026-10-07'), F, 'A1').issued.slots[0]!.steps[0]!.id, 'test', 'retest again')
 })

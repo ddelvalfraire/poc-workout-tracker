@@ -6,7 +6,7 @@
 import type { Term } from './algebra'
 import { publish } from './checkdefs'
 import type { Registry } from './checker'
-import type { ClosedFacts, Event, FactReading, FactSource, IssuedSession, IssuedStep, IssuedTarget, Logged, PerformedSet, Value } from './engine'
+import type { ClosedFacts, Event, FactReading, FactSource, IssuedSession, IssuedStep, IssuedTarget, Logged, PerformedSet, Resolution, Value } from './engine'
 import { asPrescribedSet, ctxOf, evaluate, qv } from './evaluate'
 import * as ER from './endurance-rehab'
 import { resolveLive } from './issue'
@@ -135,10 +135,28 @@ export const repsShort = (issued: IssuedSession, by = 1) =>
     return 'reps' in p.values ? { ...p, values: { ...p.values, reps: Math.max(0, p.values['reps']! - by) } } : p
   })
 
+/** Live logging of one issued session, as the logger does it: each log of
+ *  the sets so far resolves against EVERY row resolved before it, so a
+ *  supersession, a revert and an intra-pass dependency are what the suites
+ *  see (H1). `rows` is the issue's resolution log so far. */
+export function liveLog(issued: IssuedSession, r: Pick<Runtime, 'reg'> = { reg }) {
+  let rows: Resolution[] = []
+  return {
+    log(logged: Logged): Resolution[] {
+      const add = resolveLive(r, issued, logged, rows)
+      rows = [...rows, ...add]
+      return add
+    },
+    rows: () => rows,
+  }
+}
+
 let wid = 0
-export function closeOf(issued: IssuedSession, logged: Logged, today: LocalDay, facts: FactReading[] = [], workoutId = `w${++wid}`): Event {
-  const resolutions = resolveLive({ reg }, issued, logged, [])
-  const cf: ClosedFacts = { workoutId, issued, resolutions, performed: logged, facts: [...issued.stamp.factsRead, ...facts], groupScores: {}, localDay: today, earlierToday: 0, startedEarly: false }
+/** A sessionClosed for an issued session. `resolutions` is the live log so
+ *  far (liveLog); the close resolves the final logged sets against it. */
+export function closeOf(issued: IssuedSession, logged: Logged, today: LocalDay, facts: FactReading[] = [], workoutId = `w${++wid}`, resolutions: readonly Resolution[] = []): Event {
+  const all = [...resolutions, ...resolveLive({ reg }, issued, logged, resolutions)]
+  const cf: ClosedFacts = { workoutId, issued, resolutions: all, performed: logged, facts: [...issued.stamp.factsRead, ...facts], groupScores: {}, localDay: today, earlierToday: 0, startedEarly: false }
   return { k: 'sessionClosed', causeKey: `session:${workoutId}`, facts: cf }
 }
 export function close(run: Run, issued: IssuedSession, logged: Logged, today: LocalDay, facts: FactReading[] = []) {

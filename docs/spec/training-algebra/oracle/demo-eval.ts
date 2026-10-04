@@ -66,7 +66,7 @@ export function evaluatorSection(reg: Registry, h: (s: string) => void, say: (pr
     const issued = r.issued
     console.log('  APRE on bench, issued (the back-offs are OPEN: they read the top set):')
     for (const l of sessionText(issued, reg)) say('    ', l)
-    const logged: Logged = { x: { top: [{ values: { reps: 9, load: issued.slots[0]!.steps[2]!.sets[0]!.metrics['load']!.k === 'fixed' ? (issued.slots[0]!.steps[2]!.sets[0]!.metrics['load'] as { v: { v: number } }).v.v : 0 }, completed: true, stages: null }] } }
+    const logged: Logged = { x: { top: [{ values: { reps: 9, load: issued.slots[0]!.steps[2]!.sets[0]!.metrics['load']!.k === 'fixed' ? (issued.slots[0]!.steps[2]!.sets[0]!.metrics['load'] as { v: { v: number } }).v.v : 0 }, stages: null }] } }
     const rows = resolveLive({ reg }, issued, logged, [])
     console.log(`  The top set logged at 9 reps resolves ${rows.length} back-off loads (the issued fact is untouched):`)
     say('    ', sessionText({ ...issued, slots: currentView(issued, rows) }, reg).slice(1).join('\n'))
@@ -79,7 +79,7 @@ export function evaluatorSection(reg: Registry, h: (s: string) => void, say: (pr
     console.log(`\n  ${m.ref.id}, asPrescribed${post.length ? ', form rated solid after each session' : ', no morning-pain check-ins'}:`)
     for (const ph of projectMacro(reg, m, { k: 'asPrescribed' }, facts(m.anchor.date), 40, post)) {
       const ended = { completed: 'its calendar ran out', criteria: 'its gate held', max: 'it reached its maximum', askedAtMax: 'it reached its maximum and ASKS you before moving on', open: 'it is open-ended' }[ph.ended]
-      const params = Object.entries(ph.params).map(([k, v]) => `${k} = ${valueText(v, reg)}`).join('; ')
+      const params = Object.entries(ph.handoff.values).map(([k, v]) => `${k} = ${valueText(v, reg)}`).join('; ')
       console.log(`    ${ph.label}: ${ph.weeks} block weeks from ${dayText(ph.startsOn)}; ended because ${ended}${params ? `; handed ${params}` : ''}.`)
     }
   }

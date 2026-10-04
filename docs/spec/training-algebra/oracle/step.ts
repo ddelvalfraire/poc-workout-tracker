@@ -24,20 +24,30 @@
 import type { Lit, Term } from './algebra'
 import { keyOf } from './checker'
 import type { Event, FactSource, Fired, Head, IngestRefusal, IngestResult, IssuedSession, Logged, Proposal, Transition, Value } from './engine'
+import { canonicalJson } from './canonical'
 import { evaluate, none, qv, sameValue } from './evaluate'
 import { issueSession, currentView } from './issue'
 import { eventPort, type EventSource } from './judge'
 import { entriesPerWeek, newReads, noFacts, programCtx, roleOf, schemeOf, slotCtx, slotParams, snapshotSource, type Inputs, type Reads, type Runtime } from './ports'
 import { kindOf, type SlotEventKind, type StateDecl } from './structure'
-import { activate as activateCalendar, addDays, completedFraction, dayNum, derivedAdherence, occurrenceOf, reconcile, stepCalendar, type LocalDay } from './time'
+import { activate as activateCalendar, addDays, completedFraction, dayNum, dayOf, derivedAdherence, occurrenceOf, parseLocalDay, pauseStatus, reconcile, stepCalendar, type LocalDay } from './time'
 import { DIMS } from './units'
 
 // ── activation ──────────────────────────────────────────────────────────────
 
 /** A new instance: every slot's state from its init (params and facts read
  *  at activation), the aggregate's from the program params, the calendar
- *  opened on the activation day. A `none` init is `stateUnset` for that field. */
+ *  opened on the activation day. A `none` init is `stateUnset` for that field.
+ *  The boundary refuses an empty list for a non-empty list parameter (F1).
+ *  Slot inits are order-independent (P5): a binding argument may read a
+ *  peer's state, so every slot is initialized against the state of the
+ *  previous pass, all at once, until a pass changes nothing (at most one
+ *  pass per slot, plus one). */
 export function activate(rt: Runtime, params: Record<string, Value>, facts: FactSource): Head {
+  for (const [name, ty] of Object.entries(rt.def.params)) {
+    const v = params[name]
+    if (ty.t === 'list' && ty.nonEmpty && v?.v === 'list' && !v.items.length) throw new Error(`activate: parameter ${name} must be a non-empty list (the boundary refuses an empty one)`)
+  }
   const today = rt.spec.activatedOn
   const unset = (field: string, v: Value, noun: string): Value => (v.v === 'none' && v.cause.k === 'declaredNone' ? none({ k: 'stateUnset', field, noun }) : v)
   let head: Head = {
@@ -52,11 +62,18 @@ export function activate(rt: Runtime, params: Record<string, Value>, facts: Fact
     instance: { id: rt.spec.instance, anchor: rt.spec.anchor, activatedOn: rt.spec.activatedOn, predecessor: null },
   }
   const inp: Inputs = { facts, today, earlierToday: 0, reads: newReads() }
-  for (const slot of Object.keys(rt.def.slots)) {
-    const s = schemeOf(rt, head, slot)
-    const cx = slotCtx(rt, head, slot, inp, slotParams(rt, head, slot, inp))
-    const init = Object.fromEntries(Object.entries(s.state).map(([f, d]) => [f, unset(f, evaluate(d.init, cx).value, d.noun)]))
-    head = { ...head, state: { ...head.state, [slot]: init } }
+  const slots = Object.keys(rt.def.slots)
+  for (let pass = 0; pass <= slots.length; pass++) {
+    const prev = head
+    const state = Object.fromEntries(
+      slots.map((slot) => {
+        const s = schemeOf(rt, prev, slot)
+        const cx = slotCtx(rt, prev, slot, inp, slotParams(rt, prev, slot, inp))
+        return [slot, Object.fromEntries(Object.entries(s.state).map(([f, d]) => [f, unset(f, evaluate(d.init, cx).value, d.noun)]))]
+      }),
+    )
+    head = { ...head, state }
+    if (pass > 0 && canonicalJson(state) === canonicalJson(prev.state)) break
   }
   if (rt.def.aggregate) {
     const cx = programCtx(rt, head, inp)
@@ -91,14 +108,17 @@ const nums = (v: Value | undefined): Map<string, number> => {
   if (v.v === 'map') return new Map(v.entries.flatMap(([k, x]) => (x.v === 'q' ? [[k, x.n] as [string, number]] : [])))
   return new Map()
 }
-/** Which way a field moved: per entry for a map. */
-function moved(before: Value | undefined, after: Value): { up: boolean; down: boolean; any: boolean } {
+/** Which way a field moved: per entry for a map. An increase or decrease is
+ *  between two PRESENT numbers (F18): unset → value and value → absent (or a
+ *  map entry appearing or disappearing) move neither way, though they are a
+ *  change (`any`). */
+export function moved(before: Value | undefined, after: Value): { up: boolean; down: boolean; any: boolean } {
   const [a, b] = [nums(before), nums(after)]
   let up = false
   let down = false
-  for (const k of new Set([...a.keys(), ...b.keys()])) {
-    const x = a.get(k) ?? 0
-    const y = b.get(k) ?? 0
+  for (const [k, x] of a) {
+    const y = b.get(k)
+    if (y === undefined) continue
     if (y > x + 1e-9) up = true
     if (y < x - 1e-9) down = true
   }
@@ -227,6 +247,14 @@ function entryClosed(rt: Runtime, head: Head, slots: string[], inp: Inputs, fire
 
 // ── step ────────────────────────────────────────────────────────────────────
 
+const eventDays = (e: Event): string[] =>
+  e.k === 'dayClosed' ? [e.day] : e.k === 'pause' ? [e.from, ...(e.until ? [e.until] : [])] : e.k === 'resume' || e.k === 'abandon' ? [e.on] : e.k === 'sessionClosed' ? [e.facts.localDay] : []
+
+/** The head mirrors the calendar's pause (F16): `paused` while a pause covers
+ *  the open day. Completed and abandoned are terminal and never change here. */
+const withStatus = (h: Head): Head =>
+  h.status === 'active' && h.calendar.status === 'paused' ? { ...h, status: 'paused' } : h.status === 'paused' && h.calendar.status !== 'paused' ? { ...h, status: 'active' } : h
+
 const loggedCount = (l: Logged) => Object.values(l).reduce((a, s) => a + Object.values(s).reduce((b, x) => b + x.length, 0), 0)
 
 export type StepResult = { k: 'applied'; head: Head; transition: Transition } | { k: 'refused'; refusal: IngestRefusal }
@@ -241,6 +269,11 @@ export function step(rt: Runtime, head: Head, e: Event): StepResult {
   }
   const refuse = (refusal: IngestRefusal): StepResult => ({ k: 'refused', refusal })
   if (head.status === 'abandoned' && e.k !== 'proposalDecided') return refuse({ code: 'instanceClosed', status: 'abandoned' })
+  // The boundary's day law (P3): every day an event carries is a real date.
+  for (const d of eventDays(e)) {
+    const p = parseLocalDay(d)
+    if (typeof p !== 'string') return refuse(p)
+  }
 
   switch (e.k) {
     case 'sessionClosed': {
@@ -250,8 +283,15 @@ export function step(rt: Runtime, head: Head, e: Event): StepResult {
       const inp: Inputs = { facts: snapshotSource(cf.facts), today: cf.localDay, earlierToday: cf.earlierToday, reads }
       const views = currentView(cf.issued, cf.resolutions)
       const src = (slots: typeof views): EventSource => ({ ...boundarySource(rt, head), slots, performed: cf.performed, facts: cf.facts, groupScores: cf.groupScores })
+      // A slot with no logged set in this session was not trained (F15): its
+      // handler records keep(untrained), and it does not advance (L11).
+      const trained = (slot: string) => Object.values(cf.performed[slot] ?? {}).some((x) => x.length > 0)
       const batch: Fired[] = []
       for (const v of views) {
+        if (!trained(v.slot)) {
+          if (schemeOf(rt, head, v.slot).on.session) batch.push({ scope: v.slot, on: 'session', causeKey: e.causeKey, patch: {}, reason: null, skipped: 'untrained' })
+          continue
+        }
         const f = runHandler(rt, head, v.slot, 'session', src([v]), inp, e.causeKey)
         if (f) batch.push(f)
       }
@@ -262,7 +302,7 @@ export function step(rt: Runtime, head: Head, e: Event): StepResult {
       demote(rt, head, batch, inp)
       fired.push(...batch)
       let h = land(head, batch, emitted)
-      const slots = views.map((v) => v.slot)
+      const slots = views.map((v) => v.slot).filter(trained)
       const totals: Record<string, { sum: number; max: number }> = {}
       for (const s of Object.values(cf.performed))
         for (const sets of Object.values(s))
@@ -279,12 +319,14 @@ export function step(rt: Runtime, head: Head, e: Event): StepResult {
       return done(entryClosed(rt, h, slots, inp, fired, emitted))
     }
     case 'skip': {
+      if (head.status === 'completed') return refuse({ code: 'programComplete' })
       const inp: Inputs = { facts: noFacts, today: head.calendar.reconciledThrough, earlierToday: 0, reads }
       return done(entryClosed(rt, head, [], inp, fired, emitted))
     }
     case 'dayClosed': {
       const before = head.calendar.adherence.length
-      let h: Head = { ...head, calendar: stepCalendar(rt.spec, head.calendar, e) }
+      const from = dayNum(head.calendar.reconciledThrough) + 1
+      let h: Head = withStatus({ ...head, calendar: stepCalendar(rt.spec, head.calendar, e) })
       const inp: Inputs = { facts: noFacts, today: addDays(e.day, 1), earlierToday: 0, reads }
       for (const a of h.calendar.adherence.slice(before)) {
         const causeKey = `period:${a.key.slice('adhere:'.length)}`
@@ -295,16 +337,27 @@ export function step(rt: Runtime, head: Head, e: Event): StepResult {
         fired.push(...batch)
         h = land(h, batch, emitted)
       }
-      if (rt.def.calendar.drift === 'anchored' && (dayNum(e.day) - dayNum(rt.spec.anchor) + 1) % 7 === 0 && h.status === 'active') h = closeWeek(rt, h, inp, fired, emitted)
+      // Anchored drift (F10): the day `anchor + 7k + 6` (k ≥ 0) closes block
+      // week k; a day before the anchor closes nothing. Every day this event
+      // closed is checked, in order.
+      if (rt.def.calendar.drift === 'anchored')
+        for (let n = from; n <= dayNum(e.day); n++) {
+          const k = n - dayNum(rt.spec.anchor)
+          if (k >= 0 && (k + 1) % 7 === 0 && h.status === 'active') h = closeWeek(rt, h, { ...inp, today: addDays(dayOf(n), 1) }, fired, emitted)
+        }
       return done(h)
     }
     case 'pause':
-      return done({ ...head, calendar: stepCalendar(rt.spec, head.calendar, e) })
+      if (head.status === 'completed') return refuse({ code: 'programComplete' })
+      return done(withStatus({ ...head, calendar: stepCalendar(rt.spec, head.calendar, e) }))
     case 'resume': {
+      if (head.status === 'completed') return refuse({ code: 'programComplete' })
       const pauses = head.calendar.pauses.map((p) => (p.until === null ? { ...p, until: addDays(e.on, -1) } : p))
-      return done({ ...head, calendar: { ...head.calendar, pauses } })
+      const calendar = { ...head.calendar, pauses }
+      return done(withStatus({ ...head, calendar: { ...calendar, status: pauseStatus(calendar, addDays(head.calendar.reconciledThrough, 1)) } }))
     }
     case 'abandon':
+      if (head.status === 'completed') return refuse({ code: 'programComplete' })
       return done({ ...head, status: 'abandoned', calendar: { ...head.calendar, status: 'abandoned' } })
     case 'ownerEdit': {
       const patch: Fired['patch'] = {}

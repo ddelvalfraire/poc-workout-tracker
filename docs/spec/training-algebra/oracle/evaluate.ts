@@ -10,7 +10,8 @@
  *   - round with an evaluated step ≤ 0 returns its operand unrounded (noted in
  *     the trace); a literal one is refused at check (literalDomain);
  *   - nth floors its index; hold clamps into [0, len−1], cycle takes the true
- *     modulus, so −1 cycles to the last element;
+ *     modulus, so −1 cycles to the last element; over an empty list (which
+ *     no checked definition can reach) it is none(emptyPick);
  *   - a set count is floored and never negative; allocate hands out
  *     floor(max(n, 0)) units, at most `max`, and traces what it dropped.
  * PURE. Every world read goes through the context's ports, which the caller
@@ -19,10 +20,12 @@
  * Absence is flattened at runtime (engine.ts Value): `some x` is x.
  */
 import type { BoundIR, DefRef, FnDef, StepIR, Term } from './algebra'
+import { canonicalJson } from './canonical'
 import { enumsWith, keyOf, type Registry } from './checker'
 import type { Absence, Field, Frame, IssuedBound, IssuedStep, IssuedTarget, PerformedSet, SessionValue, Trace, Value } from './engine'
+import type { LoggingType } from './registry'
 import type { CalQuery } from './time'
-import { DIMS, dimEq, dimOp, litDim, nearestStep, unitFor, type DimVec, type Unit } from './units'
+import { DIMS, dimEq, dimOp, litDim, nearestStep, stepDown, stepUp, unitFor, type DimVec, type Unit } from './units'
 import { applyXform, floorQ, tempoOf } from './xform'
 
 // ── values ───────────────────────────────────────────────────────────────────
@@ -37,8 +40,16 @@ export function asQ(v: Value, what = 'a quantity'): QV {
   return v
 }
 const EPS = 1e-9
-/** Canonical numbers compare with a relative tolerance, so 0.1 + 0.2 = 0.3. */
-export const cmpNum = (a: number, b: number) => (Math.abs(a - b) <= EPS * Math.max(1, Math.abs(a), Math.abs(b)) ? 0 : a < b ? -1 : 1)
+/** Canonical numbers compare with a relative tolerance, so 0.1 + 0.2 = 0.3.
+ *  Identical numbers (equal infinities included) are equal. The tolerance is
+ *  not transitive (a ≈ b and b ≈ c do not give a ≈ c); every caller compares
+ *  two operands once, so evaluation stays a function of its inputs (L2). */
+export const cmpNum = (a: number, b: number) =>
+  a === b ? 0 : !Number.isFinite(a) || !Number.isFinite(b) ? (a < b ? -1 : 1) : Math.abs(a - b) <= EPS * Math.max(1, Math.abs(a), Math.abs(b)) ? 0 : a < b ? -1 : 1
+/** Assisted bodyweight logs the ASSISTANCE as its load, so less is better:
+ *  the one rule the verdict, the event reads, the performed former and live
+ *  resolution share (F7). */
+export const assistedLoad = (metric: string, logging: LoggingType | null | undefined) => metric === 'load' && logging === 'assisted_bodyweight'
 const fromLit = (l: Extract<Extract<Term, { k: 'lit' }>['lit'], { k: 'q' }>): QV => qv(l.v, litDim(l.unit, l.per), l.unit, { ...(l.per ? { per: l.per } : {}), ...(l.notation ? { notation: l.notation } : {}) })
 
 /** Structural equality of values, numbers to the canonical tolerance. Map and
@@ -109,6 +120,10 @@ export interface Ctx {
   display?: Readonly<Partial<Record<string, Unit>>>
   /** The metrics the enclosing session's exercise logs, when known. */
   logs?: readonly string[] | null
+  /** The enclosing session's exercise logging type, when known. */
+  logging?: LoggingType | null
+  /** Issue-time capture: told every non-live read with its closed key. */
+  record?: (key: string, value: Value) => void
 }
 
 export function ctxOf(reg: Registry, over: Partial<Ctx> = {}): Ctx {
@@ -120,9 +135,27 @@ const port = <K extends keyof Ports>(cx: Ctx, k: K): Ports[K] => {
   return p as Ports[K]
 }
 
-/** Read nodes, captured into a frame by their JSON. */
-const READS = new Set(['param', 'self', 'peer', 'program', 'fact', 'pos', 'cal'])
-export const readKey = (t: Term) => JSON.stringify(t)
+/** The non-live reads: served by a port at issue, and from the field's frame
+ *  at resolution (the live context grants only performed and prescribed). */
+const READS = new Set(['param', 'self', 'peer', 'program', 'fact', 'pos', 'cal', 'keys'])
+/** A read node CLOSED over its variables: each `var` replaced by the value it
+ *  has where the read runs, as canonical JSON. The key a frame stores the
+ *  read under, so the same node under a different binding (a shadowing let,
+ *  an iteration) is a different read (F2). */
+export function closedKey(t: Term, lookup: (name: string) => Value | undefined): string {
+  const close = (x: unknown): unknown => {
+    if (!x || typeof x !== 'object') return x
+    if (Array.isArray(x)) return x.map(close)
+    const n = x as Record<string, unknown>
+    if (n['k'] === 'var' && typeof n['name'] === 'string') {
+      const v = lookup(n['name'])
+      return v ? { k: 'val', v } : n
+    }
+    return Object.fromEntries(Object.entries(n).map(([k, v]) => [k, close(v)]))
+  }
+  return canonicalJson(close(t))
+}
+const lookupIn = (cx: Ctx) => (name: string) => cx.vars.get(name) ?? cx.frame?.vars[name]
 
 export function fnOf(cx: Ctx, d: DefRef): FnDef {
   const k = keyOf(d)
@@ -154,17 +187,133 @@ function liveDeps(terms: Term[], cx: Ctx): string[] {
   return [...out]
 }
 
-/** Capture every non-live read a term makes, and the variables it uses. */
+/** The direct subterms of a node (binders' bodies included), for the walk below. */
+function childTerms(t: Term): Term[] {
+  const terms = (xs: readonly (Term | null | undefined)[]) => xs.filter((x): x is Term => !!x)
+  switch (t.k) {
+    case 'set':
+      return terms([...Object.values(t.target).flatMap(boundTerms), t.rest, t.tempo, t.cluster?.per, t.cluster?.intraRest])
+    case 'session':
+      return terms([t.exercise, t.intensifier, ...t.steps.flatMap((s) => (s.k === 'repeat' ? s.body : [s])).flatMap((s) => [s.target, ...(s.count.k === 'n' ? [s.count.n] : s.count.k === 'range' ? [s.count.min, s.count.max] : [s.count.k === 'until' ? s.count.stop : s.count.go])])])
+    case 'table':
+      return terms([t.key, ...t.rows.map((r) => r.then), t.otherwise])
+    case 'app':
+      return Object.values(t.args)
+    case 'patch':
+      return Object.values(t.set).map((f) => f.to)
+    case 'list':
+      return t.items
+    case 'match':
+      return [t.on, ...Object.values(t.cases)]
+    case 'technique':
+      return t.stages
+    case 'fact':
+      return terms([t.key])
+    case 'event':
+      return t.q.q === 'trained' ? [t.q.muscle] : []
+    case 'agg':
+      return t.q.q === 'slotsFor' ? [t.q.muscle] : t.q.by.k === 'tag' ? [] : [t.q.by.of]
+    case 'named':
+      return [t.e]
+    case 'xform':
+      return terms([t.s, t.arg])
+    default:
+      return Object.values(t).filter((v): v is Term => !!v && typeof v === 'object' && typeof (v as { k?: unknown }).k === 'string')
+  }
+}
+
+/**
+ * Capture what an open field's terms read that the live context cannot
+ * serve (F2). Resolution re-evaluates the SAME terms against the logged sets,
+ * so the frame must hold every non-live read any evaluation of them can make.
+ * The walk carries the binders in scope, each with its value when it does not
+ * depend on a logged set (null when it does):
+ *  - a subterm that reads no logged set and no live binder evaluates the same
+ *    at issue and at resolution, so it is evaluated now and every read it
+ *    makes is recorded under its closed key (canonical JSON of the read node
+ *    with its variables replaced by their values);
+ *  - otherwise its children are walked: a binder over a static value binds
+ *    that value, an iteration over a static list walks its body once per item,
+ *    and a static condition (`if`, `match`, `logic`, `orElse`, `known`) walks
+ *    only the branch resolution will take; a live condition walks both.
+ * The one read this cannot capture is a fact whose KEY depends on a logged
+ * set; the checker refuses that in a live position (capabilityEscape), so no
+ * checkable program can make resolution reach for a port it lacks.
+ */
 export function captureFrame(terms: Term[], cx: Ctx): Frame {
   const reads: Record<string, Value> = {}
   const vars: Record<string, Value> = {}
-  for (const t of terms)
-    for (const n of nodesOf(t)) {
-      if (n.k === 'var' && cx.vars.has(n.name)) vars[n.name] = cx.vars.get(n.name)!
-      if (!READS.has(n.k)) continue
-      const free = [...nodesOf(n)].filter((x) => x.k === 'var').every((x) => x.k === 'var' && cx.vars.has(x.name))
-      if (free) reads[readKey(n)] = evaluate(n, cx).value
+  for (const t of terms) for (const n of nodesOf(t)) if (n.k === 'var' && cx.vars.has(n.name)) vars[n.name] = cx.vars.get(n.name)!
+  type Env = ReadonlyMap<string, Value | null>
+  const record = (key: string, v: Value) => void (reads[key] = v)
+  const isStatic = (t: Term, env: Env) => [...nodesOf(t)].every((n) => n.k !== 'performed' && n.k !== 'prescribed' && !(n.k === 'var' && env.get(n.name) === null))
+  const run = (t: Term, env: Env): Value => evaluate(t, { ...cx, vars: new Map([...cx.vars, ...([...env].filter(([, v]) => v !== null) as [string, Value][])]), record }).value
+  const bind = (env: Env, name: string, src: Term): Env => new Map([...env, [name, isStatic(src, env) ? run(src, env) : null]])
+  const each = (xs: Term, env: Env, names: string[], body: Term[]) => {
+    const items = isStatic(xs, env) ? run(xs, env) : null
+    if (items?.v === 'list') for (const x of items.items) for (const b of body) walk(b, new Map([...env, ...names.map((n, i) => [n, i === 0 ? x : null] as const)]))
+    else for (const b of body) walk(b, new Map([...env, ...names.map((n) => [n, null] as const)]))
+  }
+  const walk = (t: Term, env: Env): void => {
+    if (isStatic(t, env)) return void run(t, env)
+    const decided = (c: Term) => (isStatic(c, env) ? run(c, env) : null)
+    switch (t.k) {
+      case 'let':
+        walk(t.value, env)
+        return walk(t.body, bind(env, t.name, t.value))
+      case 'known': {
+        walk(t.a, env)
+        const a = decided(t.a)
+        if (a && isNone(a)) return
+        return walk(t.body, bind(env, t.as, t.a))
+      }
+      case 'if': {
+        const c = decided(t.c)
+        if (c) return walk(c.v === 'bool' && c.b ? t.a : t.b, env)
+        return [t.c, t.a, t.b].forEach((x) => walk(x, env))
+      }
+      case 'match': {
+        const on = decided(t.on)
+        const arm = on?.v === 'enum' ? t.cases[on.tag] : undefined
+        if (arm) return walk(arm, env)
+        return [t.on, ...Object.values(t.cases)].forEach((x) => walk(x, env))
+      }
+      case 'logic': {
+        const a = decided(t.a)
+        walk(t.a, env)
+        if (a && a.v === 'bool' && a.b === (t.op === 'or')) return
+        return walk(t.b, env)
+      }
+      case 'orElse': {
+        const a = decided(t.a)
+        walk(t.a, env)
+        if (a && !isNone(a)) return
+        return walk(t.b, env)
+      }
+      case 'fold':
+        walk(t.init, env)
+        walk(t.xs, env)
+        return each(t.xs, env, [t.x, t.acc], [t.step])
+      case 'tabulate':
+        walk(t.keys, env)
+        return each(t.keys, env, [t.as], [t.body])
+      case 'sum':
+        walk(t.xs, env)
+        return each(t.xs, env, [t.as], [t.body])
+      case 'count':
+        walk(t.xs, env)
+        return each(t.xs, env, [t.as], [t.where])
+      case 'pick':
+        walk(t.xs, env)
+        return each(t.xs, env, [t.as], t.where ? [t.where, t.score] : [t.score])
+      case 'allocate':
+        ;[t.n, t.into, t.among].forEach((x) => walk(x, env))
+        return each(t.among, env, [t.as], [t.score, t.cap])
+      default:
+        return childTerms(t).forEach((x) => walk(x, env))
     }
+  }
+  for (const t of terms) walk(t, new Map())
   return { vars, reads }
 }
 
@@ -201,14 +350,22 @@ export function boundField(b: BoundIR, cx: Ctx, kids: Trace[]): Field {
   return deps.length ? { k: 'open', bound: b, frame: captureFrame(boundTerms(b), cx), planned, dependsOn: deps } : planned
 }
 
-/** A field's edge as a value: what `prescribed` reads. */
-export function edgeOf(fd: Field | undefined, edgeK: 'floor' | 'top', step: string, metric: string, live: boolean): Value {
+/** A metric's dimension and the unit it reads in: the display unit where
+ *  the program has one (its grid's unit), else the first unit of its dimension. */
+export function metricQ(n: number, metric: string, cx: Pick<Ctx, 'reg' | 'display'>): QV {
+  const d = cx.reg.vocab.metrics[metric]
+  const dim = d ? DIMS[d.dim] : {}
+  return qv(n, dim, cx.display?.[metric] ?? (d ? (unitFor(dim) ?? null) : null))
+}
+/** A field's edge as a value: what `prescribed` reads, in the metric's
+ *  dimension and display unit (F11). */
+export function edgeOf(fd: Field | undefined, edgeK: 'floor' | 'top', step: string, metric: string, live: boolean, cx: Pick<Ctx, 'reg' | 'display'>): Value {
   if (!fd) return none({ k: 'notTargeted', step, metric })
   if (fd.k === 'silent') return none(fd.cause)
-  if (fd.k === 'open') return live ? none({ k: 'notPerformed', step: fd.dependsOn[0] ?? step }) : edgeOf(fd.planned, edgeK, step, metric, live)
+  if (fd.k === 'open') return live ? none({ k: 'notPerformed', step: fd.dependsOn[0] ?? step }) : edgeOf(fd.planned, edgeK, step, metric, live, cx)
   const b = fd.v
   const n = b.b === 'open' ? null : b.b === 'range' ? (edgeK === 'floor' ? b.min : b.max) : b.v
-  return n === null ? none({ k: 'notTargeted', step, metric }) : qv(n, {}, null)
+  return n === null ? none({ k: 'notTargeted', step, metric }) : metricQ(n, metric, cx)
 }
 /** The value a set would be logged at if it went exactly as prescribed: the
  *  floor of every fixed bound (an open field's planned floor). */
@@ -219,7 +376,7 @@ export function asPrescribedSet(t: IssuedTarget): PerformedSet {
     if (f?.k !== 'fixed' || f.v.b === 'open') continue
     values[m] = f.v.b === 'range' ? f.v.min : f.v.v
   }
-  return { values, completed: true, stages: null }
+  return { values, stages: null }
 }
 
 // ── the evaluator ────────────────────────────────────────────────────────────
@@ -239,8 +396,13 @@ export function evaluate(t: Term, cx: Ctx): Trace {
   const idOf = (v: Value): string => (v.v === 'ref' ? v.id : v.v === 'enum' ? v.tag : v.v === 'q' ? String(v.n) : JSON.stringify(v))
 
   if (cx.frame && READS.has(t.k)) {
-    const hit = cx.frame.reads[readKey(t)]
+    const hit = cx.frame.reads[closedKey(t, lookupIn(cx))]
     if (hit) return out(hit)
+  }
+  /** A non-live read's value, told to an issue-time capture. */
+  const read = (value: Value): Trace => {
+    cx.record?.(closedKey(t, lookupIn(cx)), value)
+    return out(value)
   }
 
   switch (t.k) {
@@ -298,7 +460,10 @@ export function evaluate(t: Term, cx: Ctx): Trace {
       }
       const n = t.op === '+' ? a.n + b.n : t.op === '-' ? a.n - b.n : t.op === 'min' ? Math.min(a.n, b.n) : Math.max(a.n, b.n)
       const shown = a.unit ? a : b
-      return out(qv(n, a.dim, shown.unit, { ...(shown.per ? { per: shown.per } : {}), ...keepClock }))
+      // The checker makes both sides one dimension; only the empty sum's
+      // dimensionless zero differs, and it takes its partner's (P5).
+      const dim = dimEq(a.dim, {}) ? b.dim : a.dim
+      return out(qv(n, dim, shown.unit, { ...(shown.per ? { per: shown.per } : {}), ...keepClock }))
     }
     case 'cmp': {
       const a = sub(t.a)
@@ -328,9 +493,7 @@ export function evaluate(t: Term, cx: Ctx): Trace {
       const a = asQ(sub(t.a))
       const s = asQ(sub(t.step)).n
       if (!(s > 0)) return out(a, { note: `step ${s} is not positive: left unrounded` })
-      if (t.mode === 'nearest') return out({ ...a, n: nearestStep(a.n, s) })
-      const k = a.n / s
-      return out({ ...a, n: (t.mode === 'down' ? Math.floor(k + EPS) : Math.ceil(k - EPS)) * s })
+      return out({ ...a, n: (t.mode === 'nearest' ? nearestStep : t.mode === 'down' ? stepDown : stepUp)(a.n, s) })
     }
     case 'ratio': {
       const a = asQ(sub(t.a))
@@ -364,6 +527,9 @@ export function evaluate(t: Term, cx: Ctx): Trace {
       const xs = listItems(sub(t.xs))
       const i = floorQ(asQ(sub(t.i)).n)
       const len = xs.length
+      // Unreachable from a checked definition (nth needs a non-empty list);
+      // typed absence, never an undefined value, if a boundary lets one in (F1).
+      if (!len) return out(none({ k: 'emptyPick' }), { note: 'the list is empty' })
       const j = t.overflow === 'hold' ? Math.min(Math.max(i, 0), len - 1) : ((i % len) + len) % len
       return out(xs[j]!, i !== j ? { note: `index ${i} ${t.overflow === 'hold' ? 'held' : 'cycled'} to ${j}` } : {})
     }
@@ -386,9 +552,9 @@ export function evaluate(t: Term, cx: Ctx): Trace {
     case 'keys': {
       if (t.of.startsWith('enum:')) {
         const name = t.of.slice(5)
-        return out({ v: 'list', items: (cx.enums[name] ?? []).map((tag) => ({ v: 'enum', name, tag })) })
+        return read({ v: 'list', items: (cx.enums[name] ?? []).map((tag) => ({ v: 'enum', name, tag })) })
       }
-      return out({ v: 'list', items: port(cx, 'keys')(t.of as 'slots' | 'muscles') })
+      return read({ v: 'list', items: port(cx, 'keys')(t.of as 'slots' | 'muscles') })
     }
     case 'range':
       return out({ v: 'list', items: Array.from({ length: t.n }, (_, i) => qv(i, {}, 'x')) })
@@ -413,7 +579,9 @@ export function evaluate(t: Term, cx: Ctx): Trace {
           if (!(w.v === 'bool' && w.b)) continue
         }
         const sv = sub(t.score, inner)
-        const s = sv.v === 'q' ? sv.n : sv.v === 'ord' ? sv.level : NaN
+        // An absent score never ranks (unreachable from a checked definition).
+        if (sv.v !== 'q' && sv.v !== 'ord') continue
+        const s = sv.v === 'q' ? sv.n : sv.level
         // Ties keep the earlier element (declaration order, L2).
         if (!best || (t.mode === 'max' ? cmpNum(s, best.s) > 0 : cmpNum(s, best.s) < 0)) best = { x, s }
       }
@@ -425,7 +593,7 @@ export function evaluate(t: Term, cx: Ctx): Trace {
     case 'table': {
       const key = sub(t.key)
       const pick = (): Term | null => {
-        if (t.rows.length && t.rows.every((r) => r.when === null)) {
+        if (t.rows.every((r) => r.when === null)) {
           const i = floorQ(asQ(key).n)
           const len = t.rows.length
           const j = t.overflow === 'cycle' ? ((i % len) + len) % len : Math.min(Math.max(i, 0), len - 1)
@@ -437,6 +605,7 @@ export function evaluate(t: Term, cx: Ctx): Trace {
         const n = asQ(key).n
         return t.rows.find((r) => typeof r.when === 'object' && r.when && r.when.k === 'q' && cmpNum(n, r.when.v) <= 0)?.then ?? t.otherwise
       }
+      if (!t.rows.length) return out(none({ k: 'emptyPick' }), { note: 'the table has no rows' })
       const arm = pick()
       if (!arm) throw new Error('evaluate: table has no row for its key')
       return out(sub(arm))
@@ -455,25 +624,25 @@ export function evaluate(t: Term, cx: Ctx): Trace {
     case 'param': {
       const v = cx.params[t.name]
       if (!v) throw new Error(`evaluate: no parameter ${t.name}`)
-      return out(v)
+      return read(v)
     }
     case 'self':
-      return out(port(cx, 'self')(t.field))
+      return read(port(cx, 'self')(t.field))
     case 'peer':
-      return out(port(cx, 'peer')(t.slot, t.field, t.of))
+      return read(port(cx, 'peer')(t.slot, t.field, t.of))
     case 'program':
-      return out(port(cx, 'program')(t.field))
+      return read(port(cx, 'program')(t.field))
     case 'fact':
-      return out(port(cx, 'fact')(t.fact, t.key ? idOf(sub(t.key)) : null))
+      return read(port(cx, 'fact')(t.fact, t.key ? idOf(sub(t.key)) : null))
     case 'pos':
-      return out(port(cx, 'pos')(t.field))
+      return read(port(cx, 'pos')(t.field))
     case 'cal':
-      return out(port(cx, 'cal')(t.q))
+      return read(port(cx, 'cal')(t.q))
     case 'performed':
-      return out(performedRead(port(cx, 'performed')(t.step), t.step, t.metric, t.pick, cx))
+      return out(performedRead(port(cx, 'performed')(t.step), t.step, t.metric, t.pick, cx, assistedLoad(t.metric, cx.logging)))
     case 'prescribed': {
       const sets = port(cx, 'prescribed')(t.step)
-      return out(sets?.length ? edgeOf(sets[0]!.metrics[t.metric], t.edge, t.step, t.metric, !!cx.frame) : none({ k: 'notPerformed', step: t.step }))
+      return out(sets?.length ? edgeOf(sets[0]!.metrics[t.metric], t.edge, t.step, t.metric, !!cx.frame, cx) : none({ k: 'notPerformed', step: t.step }))
     }
     case 'event': {
       const q = t.q
@@ -503,7 +672,9 @@ export function evaluate(t: Term, cx: Ctx): Trace {
       const arg = t.arg ? sub(t.arg) : null
       const ex = s.s.exercise
       const logs = ex.v === 'ref' ? loggedBy(cx, ex.id) : null
-      return out({ v: 'session', s: applyXform(t.op, s.s, arg, t.metric, logs) })
+      const argLogs = arg?.v === 'ref' && arg.kind === 'exercise' ? loggedBy(cx, arg.id) : null
+      const grow = t.op === 'scaleSets' && arg?.v === 'q' && arg.n > 1 ? { note: `a factor of ${arg.n} above 1 leaves the sets as they are: a count never grows past its targets (growth is addSets)` } : {}
+      return out({ v: 'session', s: applyXform(t.op, s.s, arg, t.metric, logs, argLogs) }, grow)
     }
     case 'technique':
       return out({ v: 'technique', t: { kind: t.kind, stages: t.stages.map((x) => (sub(x) as Extract<Value, { v: 'set' }>).t) } })
@@ -525,7 +696,8 @@ export function evaluate(t: Term, cx: Ctx): Trace {
     const given = new Map<string, number>()
     const scored = among.map((x) => {
       const inner = bindV(a.as, x)
-      return { id: idOf(x), score: asQ(sub(a.score, inner)).n, cap: asQ(sub(a.cap, inner)).n }
+      // A cap is a whole number of units, floored with the floor tolerance (P4).
+      return { id: idOf(x), score: asQ(sub(a.score, inner)).n, cap: floorQ(asQ(sub(a.cap, inner)).n) }
     })
     let placed = 0
     for (let u = 0; u < Math.min(units, a.max); u++) {
@@ -556,11 +728,13 @@ export function evaluate(t: Term, cx: Ctx): Trace {
   function session(s: Extract<Term, { k: 'session' }>): Trace {
     const exercise = sub(s.exercise)
     const logs = exercise.v === 'ref' ? loggedBy(cx, exercise.id) : null
+    const logging = exercise.v === 'ref' ? (cx.reg.vocab.exercises[exercise.id]?.logging ?? null) : null
     const steps: IssuedStep[] = []
     const latest = (id: string) => [...steps].reverse().find((x) => x.id === id)
     const inner = (own: { id: string; sets: IssuedTarget[] } | null): Ctx => ({
       ...cx,
       logs,
+      logging,
       ports: {
         ...cx.ports,
         prescribed: (id) => (own && own.id === id ? own.sets : (latest(id)?.sets ?? null)),
@@ -573,7 +747,13 @@ export function evaluate(t: Term, cx: Ctx): Trace {
     })
     const count = (c: Extract<StepIR, { k: 'step' }>['count']): number[] => {
       if (c.k === 'n') return [Math.max(0, floorQ(asQ(sub(c.n, inner(null))).n))]
-      if (c.k === 'range') return [Math.max(0, floorQ(asQ(sub(c.min, inner(null))).n)), Math.max(0, floorQ(asQ(sub(c.max, inner(null))).n))]
+      if (c.k === 'range') {
+        // An evaluated range whose min is above its max issues its max as
+        // both edges, so the count, its slots and volume agree (F13); a
+        // literal one is refused at check (literalDomain).
+        const [lo, hi] = [Math.max(0, floorQ(asQ(sub(c.min, inner(null))).n)), Math.max(0, floorQ(asQ(sub(c.max, inner(null))).n))]
+        return [Math.min(lo, hi), hi]
+      }
       return [c.max]
     }
     const issue = (st: Extract<StepIR, { k: 'step' }>, block: IssuedStep['block']) => {

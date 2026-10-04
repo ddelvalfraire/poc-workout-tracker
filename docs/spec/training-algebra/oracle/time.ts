@@ -26,11 +26,20 @@ import type { ProgramDef } from './structure'
  *  it. The boundary refuses a stamp more than one day from the instant's UTC
  *  date, because UTC offsets span −12 to +14 hours. */
 export type LocalDay = string & { readonly __localDay: true }
-export function localDay(s: string): LocalDay {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(s) || Number.isNaN(Date.parse(`${s}T00:00:00Z`))) throw new Error(`not a local day: ${s}`)
+const DAY_MS = 86_400_000
+/** The boundary's parse of a day stamp: a real proleptic-Gregorian date
+ *  written YYYY-MM-DD (P3). 2026-02-30 is not normalized to 2 March; it is
+ *  refused. */
+export function parseLocalDay(s: string): LocalDay | { code: 'notALocalDay'; stamped: string } {
+  const ms = /^\d{4}-\d{2}-\d{2}$/.test(s) ? Date.parse(`${s}T00:00:00Z`) : NaN
+  if (Number.isNaN(ms) || new Date(ms).toISOString().slice(0, 10) !== s) return { code: 'notALocalDay', stamped: s }
   return s as LocalDay
 }
-const DAY_MS = 86_400_000
+export function localDay(s: string): LocalDay {
+  const d = parseLocalDay(s)
+  if (typeof d !== 'string') throw new Error(`not a local day: ${s} (notALocalDay)`)
+  return d
+}
 export const dayNum = (d: LocalDay) => Math.round(Date.parse(`${d}T00:00:00Z`) / DAY_MS)
 export const dayOf = (n: number) => new Date(n * DAY_MS).toISOString().slice(0, 10) as LocalDay
 export const addDays = (d: LocalDay, n: number) => dayOf(dayNum(d) + n)
@@ -307,8 +316,27 @@ const windowOf = (spec: CalendarSpec, per: Period, day: LocalDay) => {
   const from = dayNum(spec.anchor) + w * L
   return { w, from: dayOf(from), through: dayOf(from + L - 1) }
 }
+/** A pause covers the days from..until; a resume on its first day leaves it
+ *  covering none (zero length), which voids and stops nothing (F16). */
+const covers = (p: CalendarState['pauses'][number], day: number) => dayNum(p.from) <= day && (p.until === null || dayNum(p.until) >= day)
 const paused = (st: Pick<CalendarState, 'pauses'>, from: LocalDay, through: LocalDay) =>
-  st.pauses.some((p) => dayNum(p.from) <= dayNum(through) && (p.until === null || dayNum(p.until) >= dayNum(from)))
+  st.pauses.some((p) => (p.until === null || dayNum(p.until) >= dayNum(p.from)) && dayNum(p.from) <= dayNum(through) && (p.until === null || dayNum(p.until) >= dayNum(from)))
+/** Days in (after, through] not covered by a pause: what the lapse clock counts. */
+const unpausedDays = (st: Pick<CalendarState, 'pauses'>, after: number, through: number) => {
+  let n = 0
+  for (let x = after + 1; x <= through; x++) if (!st.pauses.some((p) => covers(p, x))) n++
+  return n
+}
+/** Is the instance paused on this day? */
+export const pausedOn = (st: Pick<CalendarState, 'pauses'>, day: LocalDay) => st.pauses.some((p) => covers(p, dayNum(day)))
+/** The status the pauses give an instance on its open day (the day after
+ *  reconciledThrough): paused while a pause covers it, so a pause from today
+ *  takes effect at its event, a future one on its first day, and a bounded
+ *  one ends by itself; a resume (which bounds the open pause) makes it active
+ *  again (F16). A paused instance never lapses; completed and abandoned are
+ *  terminal. */
+export const pauseStatus = (st: Pick<CalendarState, 'pauses' | 'status'>, day: LocalDay): InstanceStatus =>
+  (st.status === 'active' || st.status === 'lapsed') && pausedOn(st, day) ? 'paused' : st.status === 'paused' && !pausedOn(st, day) ? 'active' : st.status
 
 /** Issue the expectations of every window that starts on `day`. Never for a
  *  window starting before activation: starting a program back-fills nothing. */
@@ -355,8 +383,10 @@ export function stepCalendar(spec: CalendarSpec, st: CalendarState, e: CalEvent)
   if (st.seen.has(e.causeKey)) return st
   const seen = new Set([...st.seen, e.causeKey])
   switch (e.k) {
-    case 'pause':
-      return { ...st, seen, pauses: [...st.pauses, { from: e.from, until: e.until }] }
+    case 'pause': {
+      const next = { ...st, seen, pauses: [...st.pauses, { from: e.from, until: e.until }] }
+      return { ...next, status: pauseStatus(next, addDays(st.reconciledThrough, 1)) }
+    }
     case 'sessionClosed': {
       const o = e.occurrence
       const lastOn = { ...st.lastOn }
@@ -376,23 +406,38 @@ export function stepCalendar(spec: CalendarSpec, st: CalendarState, e: CalEvent)
       return { ...st, seen, lastOn, status: st.status === 'lapsed' ? 'active' : st.status, occurrences: [...st.occurrences, o], amendments }
     }
     case 'dayClosed': {
-      // 1. close every window ending today; 2. (periodClosed handlers: propose|keep only, L13);
-      // 3. open the windows starting tomorrow; then apply lapse.
-      const closing = st.expectations.filter((x) => x.window.through === e.day)
-      const adherence = [...st.adherence]
-      for (const x of closing) {
-        const met = st.occurrences
-          .filter((o) => dayNum(o.localDay) >= dayNum(x.window.from) && dayNum(o.localDay) <= dayNum(x.window.through) && matches(o, x.of, spec))
-          .map((o) => ({ workoutId: o.workoutId, localDay: o.localDay }))
-        const isVoid = x.status === 'void' || paused(st, x.window.from, x.window.through)
-        adherence.push({ key: `adhere:${x.key.slice('expect:'.length)}` as Adherence['key'], expectation: x.key, met, missed: isVoid ? 0 : Math.max(0, x.n - met.length), void: isVoid })
-      }
-      const last = st.occurrences.length ? st.occurrences[st.occurrences.length - 1]!.localDay : spec.activatedOn
-      const status = st.status === 'active' && dayNum(e.day) - dayNum(last) >= spec.lapseAfterDays ? 'lapsed' : st.status
-      const next = { ...st, seen, adherence, status, reconciledThrough: e.day }
-      return { ...next, expectations: [...st.expectations, ...open(spec, next, addDays(e.day, 1))] }
+      // Monotonic (F8): a day at or before reconciledThrough closes nothing
+      // again; a day past the next one closes every day up to it in order, so
+      // a skipped day cannot orphan a window. The ledger keeps one causeKey per
+      // day, so the skipped day's own event, arriving later, is a no-op.
+      let next: CalendarState = { ...st, seen }
+      for (let n = dayNum(st.reconciledThrough) + 1; n <= dayNum(e.day); n++) next = closeDay(spec, next, dayOf(n))
+      return next
     }
   }
+}
+
+/** Close one day: 1. close every window ending that day (adherence);
+ *  2. (periodClosed handlers run in step.ts: propose|keep only, L13);
+ *  3. open the windows starting the next day; 4. lapse. The lapse clock does
+ *  not run while paused, and counts the UNPAUSED days since the latest
+ *  session on or before the day (never the latest ingested, F8), or since
+ *  activation. */
+function closeDay(spec: CalendarSpec, st: CalendarState, day: LocalDay): CalendarState {
+  const closing = st.expectations.filter((x) => x.window.through === day)
+  const adherence = [...st.adherence]
+  for (const x of closing) {
+    const met = st.occurrences
+      .filter((o) => dayNum(o.localDay) >= dayNum(x.window.from) && dayNum(o.localDay) <= dayNum(x.window.through) && matches(o, x.of, spec))
+      .map((o) => ({ workoutId: o.workoutId, localDay: o.localDay }))
+    const isVoid = x.status === 'void' || paused(st, x.window.from, x.window.through)
+    adherence.push({ key: `adhere:${x.key.slice('expect:'.length)}` as Adherence['key'], expectation: x.key, met, missed: isVoid ? 0 : Math.max(0, x.n - met.length), void: isVoid })
+  }
+  const d = dayNum(day)
+  const last = st.occurrences.reduce((a, o) => (dayNum(o.localDay) <= d ? Math.max(a, dayNum(o.localDay)) : a), dayNum(spec.activatedOn))
+  const lapsed = st.status === 'active' && unpausedDays(st, last, d) >= spec.lapseAfterDays
+  const next: CalendarState = { ...st, adherence, reconciledThrough: day, status: pauseStatus({ ...st, status: lapsed ? 'lapsed' : st.status }, addDays(day, 1)) }
+  return { ...next, expectations: [...st.expectations, ...open(spec, next, addDays(day, 1))] }
 }
 
 /** Derived adherence = the fact folded with its amendments. Never a

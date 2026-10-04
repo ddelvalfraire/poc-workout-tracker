@@ -103,11 +103,12 @@ export const CLOCK_UNITS: readonly string[] = ['d', 'wk']
 
 const trim = (n: number) => String(Number(n.toFixed(3)))
 const plural = (n: number, w: string) => `${trim(n)} ${w}${n === 1 ? '' : 's'}`
-/** mm:ss, for pace and long durations ("5:30"). */
+/** mm:ss, for pace and long durations ("5:30"). Whole seconds first, so
+ *  119.6 s is "2:00", never "1:60". */
 export const clock = (secs: number) => {
-  const m = Math.floor(secs / 60)
-  const s = Math.round(secs - m * 60)
-  return `${m}:${String(s).padStart(2, '0')}`
+  const total = Math.round(secs)
+  const m = Math.floor(total / 60)
+  return `${m}:${String(total - m * 60).padStart(2, '0')}`
 }
 
 export interface UnitDecl {
@@ -173,6 +174,12 @@ export function nearestStep(x: number, step: number): number {
   const r = a % QUANTA_PER_STEP
   return ((a - r) / QUANTA_PER_STEP + (r > 0 ? 1 : 0)) * step
 }
+/** Directed quantization: the step multiple at or below x (`round` down, a
+ *  ceiling at the sink) and at or above x (`round` up, a floor at the sink),
+ *  forgiving float noise of 1e-9 of a step: floor(x/s + 1e-9)·s and
+ *  ceil(x/s − 1e-9)·s, in that operation order. */
+export const stepDown = (x: number, s: number) => Math.floor(x / s + 1e-9) * s
+export const stepUp = (x: number, s: number) => Math.ceil(x / s - 1e-9) * s
 export const dimEq = (a: DimVec, b: DimVec) => BASE_DIMS.every((d) => (a[d] ?? 0) === (b[d] ?? 0))
 export const dimOp = (a: DimVec, b: DimVec, sign: 1 | -1): DimVec => {
   const out: Partial<Record<BaseDim, number>> = {}

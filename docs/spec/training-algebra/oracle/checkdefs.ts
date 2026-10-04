@@ -72,6 +72,22 @@ function calendarDecls(decls: [Path, Ty][], out: TypeError[]) {
   for (const [at, t] of decls)
     if (onCalendar(t)) out.push({ code: 'clockMix', path: at, message: `${showTy(t)} is declared on the calendar clock: a calendar value may only be compared, never stored or passed on` })
 }
+/** An enum with no tags (F1): `keys enum:NAME` is typed a NON-EMPTY list, so
+ *  an empty enum is the one way a checked definition could hand nth an empty
+ *  list. Refused at the declaration. */
+function enumDecls(enums: Readonly<Record<string, readonly string[]>>, out: TypeError[]) {
+  for (const [name, tags] of Object.entries(enums))
+    if (!tags.length) out.push({ code: 'literalDomain', former: 'enums', field: name, value: 0, path: ['enums', name], message: `enum ${name} declares no tags; an enum needs at least one` })
+}
+/** A slot, day or state field named like an array index (P2): a JSON object
+ *  read by a JavaScript engine lists such keys first, in numeric order, so
+ *  declaration order (which slot comes first in `keys slots`, which boundary
+ *  handler runs first, which state field initializes first) would silently
+ *  differ between implementations. Refused at the declaration. */
+function nameDecls(names: readonly string[], at: Path, former: string, out: TypeError[]) {
+  for (const n of names)
+    if (/^(0|[1-9]\d*)$/.test(n)) out.push({ code: 'literalDomain', former, field: at.join('.'), value: n, path: [...at, n], message: `${n} is a number, not a name: name it (a number-like key would be reordered)` })
+}
 const paramDecls = (params: Record<string, Ty>): [Path, Ty][] => Object.entries(params).map(([k, t]) => [['params', k], t])
 const stateDecls = (state: Record<string, StateDecl>, at: Path): [Path, Ty][] => Object.entries(state).map(([k, d]) => [[...at, k, 'ty'], d.ty])
 
@@ -90,6 +106,7 @@ function templateHoles(says: string, params: Record<string, Ty>, out: TypeError[
 export function checkFn(f: FnDef, reg: Registry): TypeError[] {
   const out: TypeError[] = []
   calendarDecls([...paramDecls(f.params), [['result'], f.result]], out)
+  enumDecls(f.enums, out)
   // A template renders only on a library definition (D5); only there must its holes equal the params.
   if (f.ref.id.startsWith('lib/')) templateHoles(f.says, f.params, out)
   const def = defOf(reg, f.ref)
@@ -135,6 +152,8 @@ export interface SlotContext {
 export function checkScheme(d: SchemeDef, reg: Registry, ctx: SlotContext = { peers: null, programFields: null, program: null }): TypeError[] {
   const out: TypeError[] = []
   calendarDecls([...paramDecls(d.params), ...stateDecls(d.state, ['state'])], out)
+  enumDecls(d.enums, out)
+  nameDecls(Object.keys(d.state), ['state'], 'scheme', out)
   const all = planStepIds(d.plan)
   const sc = (position: Scope['position'], writer: Scope['writer'] = null): Scope => ({
     ...baseScope(reg, position, d.params, defOf(reg, d.ref)),
@@ -240,6 +259,10 @@ export function checkProgram(p: ProgramDef, reg: Registry): { at: string; errors
   })
 
   calendarDecls([...paramDecls(p.params), ...stateDecls(agState, ['aggregate', 'state'])], out)
+  enumDecls(p.enums, out)
+  nameDecls(Object.keys(p.slots), ['slots'], 'program', out)
+  nameDecls(Object.keys(p.days), ['days'], 'program', out)
+  nameDecls(Object.keys(agState), ['aggregate', 'state'], 'program', out)
 
   // Slots: bindings, muscles, exactly one primary.
   const checked = new Set<string>()

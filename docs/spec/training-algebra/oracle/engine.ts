@@ -153,6 +153,8 @@ export type IngestRefusal =
    *  confirmation the warning asks for. Never a hard lock: confirming advances. */
   | { code: 'floorNotConfirmed'; floorDays: number }
   // new in R2
+  /** A day stamp that is not a real calendar date (2026-02-30). */
+  | { code: 'notALocalDay'; stamped: string }
   /** Prescribing or logging into an abandoned instance. */
   | { code: 'instanceClosed'; status: InstanceStatus }
   /** An owner edit of a field whose writableBy does not list 'owner', or an
@@ -309,9 +311,14 @@ export interface IssuedStep {
 }
 
 export interface Resolution {
-  /** issueKey:slot:stepKey:index:metric@digest of the dependencies' values:
-   *  an edited dependency gets a NEW row that supersedes (EC-186). */
+  /** issueKey:slot:stepKey:index:metric@digest of the dependencies' values
+   *  (canonical JSON, canonical.ts). A cell's LATEST row (by seq) decides:
+   *  any other dependency values get a NEW row that supersedes (EC-186),
+   *  including a revert to values an older row saw, so a key may recur. */
   readonly key: string
+  /** Position in the issue's append-only resolution log: 1 + the largest seq
+   *  before it. The view is the latest row per cell by seq (F3). */
+  readonly seq: number
   readonly issueKey: string
   readonly slot: string
   readonly step: string
@@ -370,11 +377,12 @@ export interface IssuedSession {
 // §4 Transitions: events, ledger, head
 // ═══════════════════════════════════════════════════════════════════════════
 
-/** A logged set, metric-keyed, as the logger recorded it. `values.load` is the
- *  RAW logged mass; effective load is derived from the exercise's logging type. */
+/** A performed set, metric-keyed. `values.load` is the RAW logged mass;
+ *  effective load is derived from the exercise's logging type. There is no
+ *  completion flag: the boundary drops a set the athlete did not complete
+ *  before it becomes a PerformedSet (issue.ts `boundaryLogged`, F14). */
 export interface PerformedSet {
   values: Partial<Record<MetricId | string, number>>
-  completed: boolean
   /** Intensifier mini-set outcomes on the final set (D11). */
   stages: { reps: number }[] | null
 }

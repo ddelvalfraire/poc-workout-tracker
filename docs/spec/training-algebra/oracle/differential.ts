@@ -74,6 +74,18 @@ function proseOf(def: ProgramDef): string[] {
   return lines
 }
 const litNumbers = (l: Lit) => tokens(litText(l, cx))
+/** The plan's own trace inside an issued slot's trace (issue.ts issueSlot):
+ *  past the sink's note node, and down each policy or phase transform to the
+ *  trace of the session it was given. The policies' numbers are theirs, not
+ *  the plan's. */
+function planTrace(t: Trace): Trace {
+  if (t.note && t.kids.length === 1 && t.kids[0]!.node === t.node) return planTrace(t.kids[0]!)
+  if (t.node.k === 'app') {
+    const at = Object.values(t.node.args).findIndex((a) => a.k === 'var' && a.name === '__session')
+    if (at >= 0) return planTrace(t.kids[at]!)
+  }
+  return t
+}
 /** Every number the definition itself carries: its literals as displayed,
  *  and its literal structural fields (a loop bound, a window, a tempo). */
 function ownNumbers(def: ProgramDef): Set<string> {
@@ -173,7 +185,7 @@ for (const run of RUNS)
         const sch = reg.schemes.get(keyOf(run.def.slots[sl.slot]!.scheme))!
         const said = new Set(tokens(describeTerm(sl.slot, 'plan', sch.plan)))
         const read: string[] = []
-        termNumbersRead(sl.trace, read, run.def.slots[sl.slot]!.args)
+        termNumbersRead(planTrace(sl.trace), read, run.def.slots[sl.slot]!.args)
         for (const x of read) if (!said.has(x)) bad.push(`${sl.slot} plan read ${x}`)
       }
     for (const f of run.fired) {

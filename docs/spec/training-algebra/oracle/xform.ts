@@ -7,8 +7,8 @@
  *  - A transformer over an OPEN field wraps its term and scales its planned
  *    value, so the live resolution and the ghost both see it (EC-117).
  *  - A transformer over a SILENT field leaves it silent with its cause (EC-118).
- *  - scaleSets rounds down and never below 1, except that an empty line stays
- *    empty (a deload never adds a set). Repeated scaling rounds at each
+ *  - scaleSets rounds down, never below 1 and never above the count it had,
+ *    and an empty line stays empty (a deload never adds a set; F12). Repeated scaling rounds at each
  *    application: 6 sets × 60% × 60% is 3 then 1, not 36% of 6 = 2.
  *  - capEffort, reshape and addSets act on JUDGED sets (every role but warm-up
  *    and recovery); scaleMetric, scaleSets and setTempo act on every set.
@@ -66,7 +66,10 @@ const mapSets = (s: SessionValue, f: (t: IssuedTarget, step: IssuedStep) => Issu
   steps: s.steps.map((st) => ({ ...st, sets: st.sets.map((t) => f(t, st)) })),
 })
 
-const scaleCount = (n: number, f: number) => (n === 0 ? 0 : Math.max(1, floorQ(n * f)))
+/** A deload count: rounded down, never below 1 on a non-empty line, and never
+ *  above n, so the count and the issued targets always agree (F12; a literal
+ *  factor above 1 is refused at check, growth is addSets). */
+const scaleCount = (n: number, f: number) => (n === 0 ? 0 : Math.min(n, Math.max(1, floorQ(n * f))))
 
 function scaleSets(s: SessionValue, f: number): SessionValue {
   return {
@@ -95,7 +98,9 @@ function capField(fd: Field | undefined, c: number): Field {
   if (fd.k === 'fixed') {
     const b = fd.v
     if (b.b === 'open') return { k: 'fixed', v: { b: 'atLeast', v: c } }
-    if (b.b === 'atMost') return { k: 'fixed', v: b.v < c ? { b: 'exact', v: c } : b }
+    // At most v in reserve, capped at c: the honest range [c, v], so a deload
+    // cap actually eases the set (F17); below the cap it is exactly c.
+    if (b.b === 'atMost') return { k: 'fixed', v: b.v < c ? { b: 'exact', v: c } : { b: 'range', min: c, max: b.v } }
     return { k: 'fixed', v: mapBound(b, (n) => Math.max(n, c)) }
   }
   return mapField(fd, (n) => Math.max(n, c), atLeastC)
@@ -114,10 +119,13 @@ function addSets(s: SessionValue, k: number): SessionValue {
 }
 
 /** Apply one transformer. `arg` is the evaluated argument; `logs` the metrics
- *  the session's exercise logs (null when unknown), so a transformer never
- *  writes a metric the exercise does not log (the checker refuses it where the
- *  logging is known statically; this is the runtime twin for a Use hole). */
-export function applyXform(op: Extract<Term, { k: 'xform' }>['op'], s: SessionValue, arg: Value | null, metric: string | null, logs: readonly string[] | null): SessionValue {
+ *  the session's exercise logs and `argLogs` those a swapped-in exercise logs
+ *  (null when unknown). The checker refuses a scaled, capped or reshaped
+ *  metric the exercise does not log, and a swap to an exercise that does not
+ *  log every targeted metric (loggingMismatch), where the logging is known
+ *  statically; these are the runtime twins for a Use hole: the transformer
+ *  leaves the session unchanged. */
+export function applyXform(op: Extract<Term, { k: 'xform' }>['op'], s: SessionValue, arg: Value | null, metric: string | null, logs: readonly string[] | null, argLogs: readonly string[] | null = null): SessionValue {
   const num = () => (arg && arg.v === 'q' ? arg.n : NaN)
   switch (op) {
     case 'scaleMetric': {
@@ -139,13 +147,16 @@ export function applyXform(op: Extract<Term, { k: 'xform' }>['op'], s: SessionVa
       return mapSets(s, (t) => ({ ...t, tempo: arg && arg.v === 'tempo' ? arg.t : t.tempo }))
     case 'reshape': {
       const shape = arg && arg.v === 'set' ? arg.t : null
-      if (!shape) return s
+      if (!shape || (logs && Object.keys(shape.metrics).some((m) => !logs.includes(m)))) return s
       return mapSets(s, (t) => (isJudged(t) ? { ...t, metrics: { ...t.metrics, ...shape.metrics } } : t))
     }
     case 'stripIntensifier':
       return { ...s, intensifier: null }
-    case 'swapExercise':
-      return arg ? { ...s, exercise: arg } : s
+    case 'swapExercise': {
+      const targeted = new Set(s.steps.flatMap((st) => st.sets.flatMap((t) => Object.keys(t.metrics))))
+      if (!arg || (argLogs && [...targeted].some((m) => !argLogs.includes(m)))) return s
+      return { ...s, exercise: arg }
+    }
     case 'addSets':
       return addSets(s, floorQ(num()))
   }

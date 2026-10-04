@@ -5,8 +5,9 @@
 #   3. the demo runs and matches the shipped transcript
 #   4. the construct counts the rationale cites, recomputed
 #   5. the property suites: the formers (semantics.test.ts), the laws L1–L13
-#      (laws.test.ts), the typing-observation fixes (hardening.test.ts) and the
-#      fixture-coverage gaps (coverage.test.ts)
+#      (laws.test.ts), the typing-observation fixes (hardening.test.ts), the
+#      fixture-coverage gaps (coverage.test.ts) and the semantics review
+#      round's regressions (semfix.test.ts)
 #   6. conformance: publication with examples evaluated, the capability matrix,
 #      the checker suite, and the prose-versus-evaluation differential
 #   7. the test-plan disposition is complete and matches what ran
@@ -43,7 +44,8 @@ sem=$(QUIET=1 "$BIN/tsx" semantics.test.ts) || { echo "$sem"; exit 1; }
 law=$(QUIET=1 "$BIN/tsx" laws.test.ts) || { echo "$law"; exit 1; }
 hard=$(QUIET=1 "$BIN/tsx" hardening.test.ts) || { echo "$hard"; exit 1; }
 cov=$(QUIET=1 "$BIN/tsx" coverage.test.ts) || { echo "$cov"; exit 1; }
-echo "5. properties: $(grep -c "^t('" semantics.test.ts) former tests, $(grep -c "^t('" laws.test.ts) law tests, $(grep -c "^t('" hardening.test.ts) oracle-hardening tests and $(grep -c "^t('" coverage.test.ts) fixture-coverage tests pass (semantics, laws, hardening, coverage)"
+semf=$(QUIET=1 "$BIN/tsx" semfix.test.ts) || { echo "$semf"; exit 1; }
+echo "5. properties: $(grep -c "^t('" semantics.test.ts) former tests, $(grep -c "^t('" laws.test.ts) law tests, $(grep -c "^t('" hardening.test.ts) oracle-hardening tests, $(grep -c "^t('" coverage.test.ts) fixture-coverage tests and $(grep -c "^t('" semfix.test.ts) semantics-review regressions pass (semantics, laws, hardening, coverage, semfix)"
 
 conf=$(QUIET=1 "$BIN/tsx" conformance.ts) || { echo "$conf"; exit 1; }
 echo "6. conformance: $(grep -c "^t('" conformance.ts) publication/matrix/checker tests and $(QUIET=1 "$BIN/tsx" -e "import { RESULTS } from './testkit'; import('./differential').then(() => console.log(RESULTS.filter((r) => r.suite === 'differential').length))") prose-vs-evaluation checks pass (conformance.ts, differential.ts)"

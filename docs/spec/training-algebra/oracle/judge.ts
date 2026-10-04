@@ -26,7 +26,8 @@
  */
 import type { MetricDecl } from './registry'
 import type { FactReading, IssuedBound, IssuedSlot, IssuedStep, Logged, PerformedSet, Value } from './engine'
-import { cmpNum, edgeOf, none, performedRead, qv, type EventRead, type Ports } from './evaluate'
+import { assistedLoad, cmpNum, edgeOf, none, performedRead, qv, type EventRead, type Ports } from './evaluate'
+import { latestReading } from './ports'
 import type { Registry } from './checker'
 import { isJudged } from './xform'
 import { DIMS } from './units'
@@ -64,7 +65,7 @@ function judgeValue(x: number, b: IssuedBound, decl: MetricDecl | undefined, edg
   }
 }
 
-const isAssisted = (src: EventSource, slot: IssuedSlot) => 'id' in slot.exercise && slot.exercise.logging === 'assisted_bodyweight'
+const loggingOf = (slot: IssuedSlot) => ('id' in slot.exercise ? slot.exercise.logging : null)
 
 export function verdictOf(src: EventSource, steps: string[] | 'working', edge: 'floor' | 'top'): Verdict {
   let missed = false
@@ -91,15 +92,16 @@ export function verdictOf(src: EventSource, steps: string[] | 'working', edge: '
           const decl = src.reg.vocab.metrics[m]
           const x = set.values[m] ?? (decl?.measuredBy ? factNumber(src, decl.measuredBy) : undefined)
           if (x === undefined) unknown = true
-          else if (!judgeValue(x, f.v, decl, edge, m === 'load' && isAssisted(src, slot))) missed = true
+          else if (!judgeValue(x, f.v, decl, edge, assistedLoad(m, loggingOf(slot)))) missed = true
         }
       }
     }
   return missed ? 'missed' : unknown || judged === 0 ? 'unknown' : 'hit'
 }
 
+/** The snapshot's reading of an unkeyed fact: the latest observation (F19). */
 const factNumber = (src: EventSource, fact: string): number | undefined => {
-  const r = src.facts.find((x) => x.fact === fact && x.key === null)
+  const r = latestReading(src.facts, fact, null)
   return r && r.value.v === 'q' ? r.value.n : undefined
 }
 
@@ -113,17 +115,24 @@ function stepOf(src: EventSource, id: string): { slot: IssuedSlot; st: IssuedSte
 }
 
 /** Epley over the best set, on EFFECTIVE load: an added load counts with
- *  bodyweight, an assisted one against it (bodyweight from the snapshot). */
+ *  bodyweight, an assisted one against it (bodyweight from the snapshot).
+ *  Where the logged load IS the lifted load (weight_reps), a set without one
+ *  is skipped, and no qualifying set is absent (F6): an unlogged load is not
+ *  a load of 0. Only where 0 genuinely means none (added load on a weighted
+ *  bodyweight set, assistance on an assisted one) does a missing load read 0;
+ *  a bodyweight set has no load. */
 function e1rm(src: EventSource, id: string): Value {
   const hit = stepOf(src, id)
   if (!hit) return none({ k: 'notPerformed', step: id })
-  const logging = 'id' in hit.slot.exercise ? hit.slot.exercise.logging : null
+  const logging = loggingOf(hit.slot)
   const bw = factNumber(src, 'bodyweight')
+  const loadIsLifted = logging !== 'weighted_bodyweight' && logging !== 'assisted_bodyweight' && logging !== 'bodyweight_reps'
   let best: number | null = null
   for (const s of loggedOf(src, hit.slot.slot, hit.st)) {
     const r = s.values['reps']
-    const l = s.values['load'] ?? 0
     if (r === undefined || r <= 0) continue
+    if (loadIsLifted && s.values['load'] === undefined) continue
+    const l = s.values['load'] ?? 0
     if ((logging === 'weighted_bodyweight' || logging === 'assisted_bodyweight' || logging === 'bodyweight_reps') && bw === undefined) return none({ k: 'factUnknown', fact: 'bodyweight', key: null })
     const w = logging === 'weighted_bodyweight' ? bw! + l : logging === 'assisted_bodyweight' ? bw! - l : logging === 'bodyweight_reps' ? bw! : l
     const e = w * (1 + r / 30)
@@ -140,13 +149,13 @@ export function eventPort(src: EventSource): Ports['event'] {
       case 'metric': {
         const hit = stepOf(src, q.step)
         const logged = hit ? loggedOf(src, hit.slot.slot, hit.st) : []
-        return performedRead(logged, q.step, q.metric, q.pick, src, q.metric === 'load' && !!hit && isAssisted(src, hit.slot))
+        return performedRead(logged, q.step, q.metric, q.pick, src, !!hit && assistedLoad(q.metric, loggingOf(hit.slot)))
       }
       case 'e1rm':
         return e1rm(src, q.step)
       case 'prescribed': {
         const hit = stepOf(src, q.step)
-        return hit && hit.st.sets.length ? edgeOf(hit.st.sets[0]!.metrics[q.metric], q.edge, q.step, q.metric, true) : none({ k: 'notPerformed', step: q.step })
+        return hit && hit.st.sets.length ? edgeOf(hit.st.sets[0]!.metrics[q.metric], q.edge, q.step, q.metric, true, src) : none({ k: 'notPerformed', step: q.step })
       }
       case 'stages': {
         const hit = stepOf(src, q.step)
