@@ -1,0 +1,77 @@
+{
+ "kind": "scheme",
+ "ref": {
+  "id": "lib/fixed-work",
+  "version": 1
+ },
+ "says": "{sets} of {reps} of {lift}, unloaded, as explosively as possible",
+ "params": {
+  "lift": {
+   "t": "ref",
+   "kind": "exercise",
+   "logging": [
+    "bodyweight_reps"
+   ]
+  },
+  "sets": {
+   "t": "q",
+   "dim": {
+    "set": 1
+   }
+  },
+  "reps": {
+   "t": "q",
+   "dim": {
+    "rep": 1
+   }
+  }
+ },
+ "facts": [],
+ "enums": {},
+ "state": {},
+ "plan": {
+  "k": "session",
+  "exercise": {
+   "k": "param",
+   "name": "lift"
+  },
+  "steps": [
+   {
+    "k": "step",
+    "id": "work",
+    "count": {
+     "k": "n",
+     "n": {
+      "k": "param",
+      "name": "sets"
+     }
+    },
+    "target": {
+     "k": "set",
+     "role": "working",
+     "target": {
+      "reps": {
+       "b": "exact",
+       "v": {
+        "k": "param",
+        "name": "reps"
+       }
+      }
+     },
+     "rest": null,
+     "tempo": {
+      "k": "tempo",
+      "ecc": 0,
+      "pause": 0,
+      "con": 0,
+      "top": 0
+     },
+     "cluster": null
+    }
+   }
+  ],
+  "intensifier": null
+ },
+ "on": {},
+ "examples": []
+}

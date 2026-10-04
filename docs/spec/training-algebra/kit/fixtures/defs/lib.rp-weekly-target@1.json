@@ -1,0 +1,253 @@
+{
+ "kind": "fn",
+ "ref": {
+  "id": "lib/rp-weekly-target",
+  "version": 1
+ },
+ "params": {
+  "now": {
+   "t": "q",
+   "dim": {
+    "set": 1
+   }
+  },
+  "soreness": {
+   "t": "opt",
+   "of": {
+    "t": "ord",
+    "scale": "soreness"
+   }
+  },
+  "pump": {
+   "t": "opt",
+   "of": {
+    "t": "ord",
+    "scale": "pump"
+   }
+  },
+  "mrv": {
+   "t": "q",
+   "dim": {
+    "set": 1
+   }
+  }
+ },
+ "result": {
+  "t": "q",
+  "dim": {
+   "set": 1
+  }
+ },
+ "says": "{now} plus the sets earned given {soreness} and {pump}, capped at {mrv}",
+ "enums": {},
+ "examples": [
+  {
+   "args": {
+    "now": {
+     "k": "lit",
+     "lit": {
+      "k": "q",
+      "v": 10,
+      "unit": "set"
+     }
+    },
+    "soreness": {
+     "k": "some",
+     "a": {
+      "k": "lit",
+      "lit": {
+       "k": "ord",
+       "scale": "soreness",
+       "level": 0
+      }
+     }
+    },
+    "pump": {
+     "k": "some",
+     "a": {
+      "k": "lit",
+      "lit": {
+       "k": "ord",
+       "scale": "pump",
+       "level": 1
+      }
+     }
+    },
+    "mrv": {
+     "k": "lit",
+     "lit": {
+      "k": "q",
+      "v": 22,
+      "unit": "set"
+     }
+    }
+   },
+   "gives": {
+    "k": "lit",
+    "lit": {
+     "k": "q",
+     "v": 12,
+     "unit": "set"
+    }
+   }
+  },
+  {
+   "args": {
+    "now": {
+     "k": "lit",
+     "lit": {
+      "k": "q",
+      "v": 21,
+      "unit": "set"
+     }
+    },
+    "soreness": {
+     "k": "some",
+     "a": {
+      "k": "lit",
+      "lit": {
+       "k": "ord",
+       "scale": "soreness",
+       "level": 0
+      }
+     }
+    },
+    "pump": {
+     "k": "some",
+     "a": {
+      "k": "lit",
+      "lit": {
+       "k": "ord",
+       "scale": "pump",
+       "level": 0
+      }
+     }
+    },
+    "mrv": {
+     "k": "lit",
+     "lit": {
+      "k": "q",
+      "v": 22,
+      "unit": "set"
+     }
+    }
+   },
+   "gives": {
+    "k": "lit",
+    "lit": {
+     "k": "q",
+     "v": 22,
+     "unit": "set"
+    }
+   }
+  },
+  {
+   "args": {
+    "now": {
+     "k": "lit",
+     "lit": {
+      "k": "q",
+      "v": 10,
+      "unit": "set"
+     }
+    },
+    "soreness": {
+     "k": "none",
+     "of": {
+      "t": "ord",
+      "scale": "soreness"
+     }
+    },
+    "pump": {
+     "k": "some",
+     "a": {
+      "k": "lit",
+      "lit": {
+       "k": "ord",
+       "scale": "pump",
+       "level": 0
+      }
+     }
+    },
+    "mrv": {
+     "k": "lit",
+     "lit": {
+      "k": "q",
+      "v": 22,
+      "unit": "set"
+     }
+    }
+   },
+   "gives": {
+    "k": "lit",
+    "lit": {
+     "k": "q",
+     "v": 10,
+     "unit": "set"
+    }
+   }
+  }
+ ],
+ "body": {
+  "k": "arith",
+  "op": "min",
+  "a": {
+   "k": "arith",
+   "op": "+",
+   "a": {
+    "k": "param",
+    "name": "now"
+   },
+   "b": {
+    "k": "orElse",
+    "a": {
+     "k": "known",
+     "a": {
+      "k": "param",
+      "name": "soreness"
+     },
+     "as": "v48",
+     "body": {
+      "k": "known",
+      "a": {
+       "k": "param",
+       "name": "pump"
+      },
+      "as": "v49",
+      "body": {
+       "k": "app",
+       "def": {
+        "id": "lib/rp-set-delta",
+        "version": 1
+       },
+       "args": {
+        "soreness": {
+         "k": "var",
+         "name": "v48"
+        },
+        "pump": {
+         "k": "var",
+         "name": "v49"
+        }
+       }
+      },
+      "then": false
+     },
+     "then": true
+    },
+    "b": {
+     "k": "lit",
+     "lit": {
+      "k": "q",
+      "v": 0,
+      "unit": "set"
+     }
+    }
+   }
+  },
+  "b": {
+   "k": "param",
+   "name": "mrv"
+  }
+ }
+}

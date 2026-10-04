@@ -1,0 +1,227 @@
+{
+ "kind": "program",
+ "ref": {
+  "id": "prog/opt-strength-endurance",
+  "version": 1
+ },
+ "says": "OPT Phase 2: a strength lift supersetted with its stabilization partner",
+ "params": {
+  "benchStart": {
+   "t": "opt",
+   "of": {
+    "t": "q",
+    "dim": {
+     "mass": 1
+    }
+   }
+  },
+  "rung": {
+   "t": "q",
+   "dim": {}
+  }
+ },
+ "facts": [],
+ "enums": {},
+ "calendar": {
+  "weeks": [
+   "train",
+   "train",
+   "train",
+   "train"
+  ],
+  "repeat": "once",
+  "drift": "slide"
+ },
+ "grids": {
+  "load": {
+   "k": "lit",
+   "lit": {
+    "k": "q",
+    "v": 2.5,
+    "unit": "kg"
+   }
+  }
+ },
+ "muscles": [
+  "chest"
+ ],
+ "slots": {
+  "bench": {
+   "scheme": {
+    "id": "lib/double-progression",
+    "version": 1
+   },
+   "args": {
+    "lift": {
+     "k": "lit",
+     "lit": {
+      "k": "ref",
+      "kind": "exercise",
+      "id": "wger:192"
+     }
+    },
+    "sets": {
+     "k": "lit",
+     "lit": {
+      "k": "q",
+      "v": 3,
+      "unit": "set"
+     }
+    },
+    "inc": {
+     "k": "lit",
+     "lit": {
+      "k": "q",
+      "v": 2.5,
+      "unit": "kg"
+     }
+    },
+    "start": {
+     "k": "param",
+     "name": "benchStart"
+    }
+   },
+   "meta": {
+    "muscles": {
+     "chest": 1
+    }
+   }
+  },
+  "pushStab": {
+   "scheme": {
+    "id": "lib/stab-ladder",
+    "version": 1
+   },
+   "args": {
+    "ladder": {
+     "k": "list",
+     "of": {
+      "t": "ref",
+      "kind": "exercise",
+      "logging": [
+       "bodyweight_reps",
+       "weight_reps"
+      ]
+     },
+     "items": [
+      {
+       "k": "lit",
+       "lit": {
+        "k": "ref",
+        "kind": "exercise",
+        "id": "wger:ball-push-up"
+       }
+      },
+      {
+       "k": "lit",
+       "lit": {
+        "k": "ref",
+        "kind": "exercise",
+        "id": "wger:sa-ball-db-press"
+       }
+      },
+      {
+       "k": "lit",
+       "lit": {
+        "k": "ref",
+        "kind": "exercise",
+        "id": "wger:sl-cable-press"
+       }
+      }
+     ]
+    },
+    "start": {
+     "k": "param",
+     "name": "rung"
+    },
+    "top": {
+     "k": "lit",
+     "lit": {
+      "k": "q",
+      "v": 2,
+      "unit": "x"
+     }
+    },
+    "need": {
+     "k": "lit",
+     "lit": {
+      "k": "q",
+      "v": 2,
+      "unit": "x"
+     }
+    },
+    "sets": {
+     "k": "lit",
+     "lit": {
+      "k": "q",
+      "v": 2,
+      "unit": "set"
+     }
+    },
+    "lo": {
+     "k": "lit",
+     "lit": {
+      "k": "q",
+      "v": 12,
+      "unit": "rep"
+     }
+    },
+    "hi": {
+     "k": "lit",
+     "lit": {
+      "k": "q",
+      "v": 20,
+      "unit": "rep"
+     }
+    }
+   },
+   "meta": {
+    "muscles": {
+     "chest": 1
+    }
+   }
+  }
+ },
+ "days": {
+  "A": [
+   {
+    "k": "superset",
+    "slots": [
+     "bench",
+     "pushStab"
+    ],
+    "between": {
+     "k": "lit",
+     "lit": {
+      "k": "q",
+      "v": 0,
+      "unit": "s"
+     }
+    },
+    "after": {
+     "k": "lit",
+     "lit": {
+      "k": "q",
+      "v": 60,
+      "unit": "s"
+     }
+    }
+   }
+  ]
+ },
+ "rotation": {
+  "k": "weekly",
+  "days": [
+   "A",
+   "A",
+   "A"
+  ]
+ },
+ "frequency": [],
+ "lapseAfterDays": 21,
+ "hitPolicy": "allInOrder",
+ "policies": [],
+ "aggregate": null,
+ "exports": {},
+ "imports": {}
+}

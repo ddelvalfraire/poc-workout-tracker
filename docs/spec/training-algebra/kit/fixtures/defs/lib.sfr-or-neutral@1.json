@@ -1,0 +1,107 @@
+{
+ "kind": "fn",
+ "ref": {
+  "id": "lib/sfr-or-neutral",
+  "version": 1
+ },
+ "params": {
+  "pump": {
+   "t": "opt",
+   "of": {
+    "t": "ord",
+    "scale": "pump"
+   }
+  },
+  "joint": {
+   "t": "opt",
+   "of": {
+    "t": "ord",
+    "scale": "jointPain"
+   }
+  }
+ },
+ "result": {
+  "t": "q",
+  "dim": {}
+ },
+ "says": "the stimulus-to-fatigue score from {pump} and {joint} (0 if either is unrated)",
+ "enums": {},
+ "examples": [
+  {
+   "args": {
+    "pump": {
+     "k": "some",
+     "a": {
+      "k": "lit",
+      "lit": {
+       "k": "ord",
+       "scale": "pump",
+       "level": 3
+      }
+     }
+    },
+    "joint": {
+     "k": "none",
+     "of": {
+      "t": "ord",
+      "scale": "jointPain"
+     }
+    }
+   },
+   "gives": {
+    "k": "lit",
+    "lit": {
+     "k": "q",
+     "v": 0,
+     "unit": "x"
+    }
+   }
+  }
+ ],
+ "body": {
+  "k": "orElse",
+  "a": {
+   "k": "known",
+   "a": {
+    "k": "param",
+    "name": "pump"
+   },
+   "as": "v50",
+   "body": {
+    "k": "known",
+    "a": {
+     "k": "param",
+     "name": "joint"
+    },
+    "as": "v51",
+    "body": {
+     "k": "app",
+     "def": {
+      "id": "lib/sfr-score",
+      "version": 1
+     },
+     "args": {
+      "pump": {
+       "k": "var",
+       "name": "v50"
+      },
+      "joint": {
+       "k": "var",
+       "name": "v51"
+      }
+     }
+    },
+    "then": false
+   },
+   "then": true
+  },
+  "b": {
+   "k": "lit",
+   "lit": {
+    "k": "q",
+    "v": 0,
+    "unit": "x"
+   }
+  }
+ }
+}

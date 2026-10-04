@@ -1,0 +1,4 @@
+{"source": {"suite":"demo","test":"4. ANALYSIS: writeSet against writableBy (\"when does the TM change?\")","ids":[]}, "fixtures": [
+{"op":"checkdefs.writeSet","args":[{"$def":"lib/531@1"}],"world":{},"expected":{"ret":[{"scope":"slot","field":"missed","on":"session","mode":"commit"},{"scope":"slot","field":"tm","on":"cycleEnd","mode":"propose"},{"scope":"slot","field":"missed","on":"cycleEnd","mode":"commit"},{"scope":"slot","field":"tm","on":"cycleEnd","mode":"commit"}]}},
+{"op":"checkdefs.writeSet","args":[{"$def":"prog/rp-upper-meso@1"}],"world":{},"expected":{"ret":[{"scope":"program","field":"target","on":"weekEnd","mode":"commit"},{"scope":"program","field":"extra","on":"weekEnd","mode":"commit"}]}}
+]}

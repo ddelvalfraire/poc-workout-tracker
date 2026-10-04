@@ -1,0 +1,78 @@
+{
+ "kind": "scheme",
+ "ref": {
+  "id": "lib/iso-hold",
+  "version": 1
+ },
+ "says": "{sets} of {hold} holds on {lift}, resting 2 min between holds, for pain relief",
+ "params": {
+  "lift": {
+   "t": "ref",
+   "kind": "exercise",
+   "logging": [
+    "timed"
+   ]
+  },
+  "sets": {
+   "t": "q",
+   "dim": {
+    "set": 1
+   }
+  },
+  "hold": {
+   "t": "q",
+   "dim": {
+    "time": 1
+   }
+  }
+ },
+ "facts": [],
+ "enums": {},
+ "state": {},
+ "plan": {
+  "k": "session",
+  "exercise": {
+   "k": "param",
+   "name": "lift"
+  },
+  "steps": [
+   {
+    "k": "step",
+    "id": "hold",
+    "count": {
+     "k": "n",
+     "n": {
+      "k": "param",
+      "name": "sets"
+     }
+    },
+    "target": {
+     "k": "set",
+     "role": "working",
+     "target": {
+      "duration": {
+       "b": "exact",
+       "v": {
+        "k": "param",
+        "name": "hold"
+       }
+      }
+     },
+     "rest": {
+      "k": "lit",
+      "lit": {
+       "k": "q",
+       "v": 120,
+       "unit": "min"
+      }
+     },
+     "tempo": null,
+     "cluster": null
+    }
+   }
+  ],
+  "intensifier": null
+ },
+ "on": {},
+ "examples": []
+}

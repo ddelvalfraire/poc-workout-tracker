@@ -1,0 +1,230 @@
+{
+ "kind": "scheme",
+ "ref": {
+  "id": "lib/double-progression",
+  "version": 1
+ },
+ "says": "{sets} of {lift} in the phase rep range, starting at {start}; add {inc} once every set reaches the top of the range",
+ "params": {
+  "lift": {
+   "t": "ref",
+   "kind": "exercise",
+   "logging": [
+    "weight_reps"
+   ]
+  },
+  "sets": {
+   "t": "q",
+   "dim": {
+    "set": 1
+   }
+  },
+  "inc": {
+   "t": "q",
+   "dim": {
+    "mass": 1
+   }
+  },
+  "start": {
+   "t": "opt",
+   "of": {
+    "t": "q",
+    "dim": {
+     "mass": 1
+    }
+   }
+  }
+ },
+ "facts": [
+  "e1rm"
+ ],
+ "enums": {},
+ "state": {
+  "load": {
+   "ty": {
+    "t": "opt",
+    "of": {
+     "t": "q",
+     "dim": {
+      "mass": 1
+     }
+    }
+   },
+   "init": {
+    "k": "orElse",
+    "a": {
+     "k": "param",
+     "name": "start"
+    },
+    "b": {
+     "k": "known",
+     "a": {
+      "k": "fact",
+      "fact": "e1rm",
+      "key": {
+       "k": "param",
+       "name": "lift"
+      }
+     },
+     "as": "v60",
+     "body": {
+      "k": "app",
+      "def": {
+       "id": "lib/load-for",
+       "version": 1
+      },
+      "args": {
+       "e1rm": {
+        "k": "var",
+        "name": "v60"
+       },
+       "reps": {
+        "k": "lit",
+        "lit": {
+         "k": "q",
+         "v": 12,
+         "unit": "rep"
+        }
+       },
+       "rir": {
+        "k": "lit",
+        "lit": {
+         "k": "q",
+         "v": 2,
+         "unit": "rir"
+        }
+       }
+      }
+     },
+     "then": true
+    }
+   },
+   "writableBy": [
+    "session",
+    "owner"
+   ],
+   "noun": "working weight"
+  }
+ },
+ "plan": {
+  "k": "session",
+  "exercise": {
+   "k": "param",
+   "name": "lift"
+  },
+  "steps": [
+   {
+    "k": "step",
+    "id": "work",
+    "count": {
+     "k": "n",
+     "n": {
+      "k": "param",
+      "name": "sets"
+     }
+    },
+    "target": {
+     "k": "set",
+     "role": "working",
+     "target": {
+      "reps": {
+       "b": "range",
+       "min": {
+        "k": "lit",
+        "lit": {
+         "k": "q",
+         "v": 8,
+         "unit": "rep"
+        }
+       },
+       "max": {
+        "k": "lit",
+        "lit": {
+         "k": "q",
+         "v": 12,
+         "unit": "rep"
+        }
+       }
+      },
+      "load": {
+       "b": "exact",
+       "v": {
+        "k": "self",
+        "field": "load"
+       }
+      }
+     },
+     "rest": null,
+     "tempo": null,
+     "cluster": null
+    }
+   }
+  ],
+  "intensifier": null
+ },
+ "on": {
+  "session": {
+   "k": "patch",
+   "set": {
+    "load": {
+     "to": {
+      "k": "orElse",
+      "a": {
+       "k": "known",
+       "a": {
+        "k": "self",
+        "field": "load"
+       },
+       "as": "v61",
+       "body": {
+        "k": "match",
+        "on": {
+         "k": "event",
+         "q": {
+          "q": "verdict",
+          "steps": "working",
+          "bound": "top"
+         }
+        },
+        "cases": {
+         "hit": {
+          "k": "arith",
+          "op": "+",
+          "a": {
+           "k": "var",
+           "name": "v61"
+          },
+          "b": {
+           "k": "param",
+           "name": "inc"
+          }
+         },
+         "missed": {
+          "k": "var",
+          "name": "v61"
+         },
+         "unknown": {
+          "k": "var",
+          "name": "v61"
+         }
+        }
+       },
+       "then": false
+      },
+      "b": {
+       "k": "event",
+       "q": {
+        "q": "metric",
+        "step": "work",
+        "metric": "load",
+        "pick": "best"
+       }
+      }
+     },
+     "mode": "commit"
+    }
+   }
+  }
+ },
+ "examples": []
+}

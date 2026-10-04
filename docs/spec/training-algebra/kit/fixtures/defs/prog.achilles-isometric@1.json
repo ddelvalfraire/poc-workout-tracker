@@ -1,0 +1,85 @@
+{
+ "kind": "program",
+ "ref": {
+  "id": "prog/achilles-isometric",
+  "version": 1
+ },
+ "says": "Achilles pain modulation: daily isometric calf holds",
+ "params": {},
+ "facts": [
+  "morningPain"
+ ],
+ "enums": {},
+ "calendar": {
+  "weeks": [
+   "train"
+  ],
+  "repeat": "cycle",
+  "drift": "slide"
+ },
+ "grids": {},
+ "muscles": [
+  "calves"
+ ],
+ "slots": {
+  "iso": {
+   "scheme": {
+    "id": "lib/iso-hold",
+    "version": 1
+   },
+   "args": {
+    "lift": {
+     "k": "lit",
+     "lit": {
+      "k": "ref",
+      "kind": "exercise",
+      "id": "calf-iso"
+     }
+    },
+    "sets": {
+     "k": "lit",
+     "lit": {
+      "k": "q",
+      "v": 5,
+      "unit": "set"
+     }
+    },
+    "hold": {
+     "k": "lit",
+     "lit": {
+      "k": "q",
+      "v": 45,
+      "unit": "s"
+     }
+    }
+   },
+   "meta": {
+    "muscles": {
+     "calves": 1
+    }
+   }
+  }
+ },
+ "days": {
+  "I": [
+   {
+    "k": "single",
+    "slot": "iso"
+   }
+  ]
+ },
+ "rotation": {
+  "k": "daily",
+  "days": [
+   "I"
+  ],
+  "perDay": 1
+ },
+ "frequency": [],
+ "lapseAfterDays": 21,
+ "hitPolicy": "allInOrder",
+ "policies": [],
+ "aggregate": null,
+ "exports": {},
+ "imports": {}
+}

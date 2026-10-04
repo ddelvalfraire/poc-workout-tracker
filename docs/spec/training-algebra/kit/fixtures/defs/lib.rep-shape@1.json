@@ -1,0 +1,222 @@
+{
+ "kind": "fn",
+ "ref": {
+  "id": "lib/rep-shape",
+  "version": 1
+ },
+ "params": {
+  "s": {
+   "t": "dom",
+   "sort": "session"
+  },
+  "lo": {
+   "t": "q",
+   "dim": {
+    "rep": 1
+   }
+  },
+  "hi": {
+   "t": "q",
+   "dim": {
+    "rep": 1
+   }
+  },
+  "t": {
+   "t": "dom",
+   "sort": "tempo"
+  }
+ },
+ "result": {
+  "t": "dom",
+  "sort": "session"
+ },
+ "says": "{s}, reshaped to {lo} to {hi} at tempo {t}",
+ "enums": {},
+ "examples": [
+  {
+   "args": {
+    "s": {
+     "k": "session",
+     "exercise": {
+      "k": "lit",
+      "lit": {
+       "k": "ref",
+       "kind": "exercise",
+       "id": "wger:192"
+      }
+     },
+     "steps": [
+      {
+       "k": "step",
+       "id": "w",
+       "count": {
+        "k": "n",
+        "n": {
+         "k": "lit",
+         "lit": {
+          "k": "q",
+          "v": 3,
+          "unit": "set"
+         }
+        }
+       },
+       "target": {
+        "k": "set",
+        "role": "working",
+        "target": {
+         "reps": {
+          "b": "range",
+          "min": {
+           "k": "lit",
+           "lit": {
+            "k": "q",
+            "v": 8,
+            "unit": "rep"
+           }
+          },
+          "max": {
+           "k": "lit",
+           "lit": {
+            "k": "q",
+            "v": 12,
+            "unit": "rep"
+           }
+          }
+         }
+        },
+        "rest": null,
+        "tempo": null,
+        "cluster": null
+       }
+      }
+     ],
+     "intensifier": null
+    },
+    "lo": {
+     "k": "lit",
+     "lit": {
+      "k": "q",
+      "v": 1,
+      "unit": "rep"
+     }
+    },
+    "hi": {
+     "k": "lit",
+     "lit": {
+      "k": "q",
+      "v": 5,
+      "unit": "rep"
+     }
+    },
+    "t": {
+     "k": "tempo",
+     "ecc": 1,
+     "pause": 0,
+     "con": 1,
+     "top": 0
+    }
+   },
+   "gives": {
+    "k": "session",
+    "exercise": {
+     "k": "lit",
+     "lit": {
+      "k": "ref",
+      "kind": "exercise",
+      "id": "wger:192"
+     }
+    },
+    "steps": [
+     {
+      "k": "step",
+      "id": "w",
+      "count": {
+       "k": "n",
+       "n": {
+        "k": "lit",
+        "lit": {
+         "k": "q",
+         "v": 3,
+         "unit": "set"
+        }
+       }
+      },
+      "target": {
+       "k": "set",
+       "role": "working",
+       "target": {
+        "reps": {
+         "b": "range",
+         "min": {
+          "k": "lit",
+          "lit": {
+           "k": "q",
+           "v": 1,
+           "unit": "rep"
+          }
+         },
+         "max": {
+          "k": "lit",
+          "lit": {
+           "k": "q",
+           "v": 5,
+           "unit": "rep"
+          }
+         }
+        }
+       },
+       "rest": null,
+       "tempo": {
+        "k": "tempo",
+        "ecc": 1,
+        "pause": 0,
+        "con": 1,
+        "top": 0
+       },
+       "cluster": null
+      }
+     }
+    ],
+    "intensifier": null
+   }
+  }
+ ],
+ "body": {
+  "k": "xform",
+  "op": "setTempo",
+  "s": {
+   "k": "xform",
+   "op": "reshape",
+   "s": {
+    "k": "param",
+    "name": "s"
+   },
+   "arg": {
+    "k": "set",
+    "role": "working",
+    "target": {
+     "reps": {
+      "b": "range",
+      "min": {
+       "k": "param",
+       "name": "lo"
+      },
+      "max": {
+       "k": "param",
+       "name": "hi"
+      }
+     }
+    },
+    "rest": null,
+    "tempo": null,
+    "cluster": null
+   },
+   "metric": null
+  },
+  "arg": {
+   "k": "param",
+   "name": "t"
+  },
+  "metric": null
+ }
+}

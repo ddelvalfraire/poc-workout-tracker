@@ -1,0 +1,3 @@
+{"source": {"suite":"semantics","test":"kg + lb is one canonical sum that displays in the first operand’s unit","ids":["EC-01","EC-19"]}, "fixtures": [
+{"op":"describe-run.valueText","args":[{"v":"q","n":102.26796185,"dim":{"mass":1},"unit":"kg"},{"$registry":"reg-3a98473c"}],"world":{},"expected":{"ret":"102.268 kg"},"locale":"en-GB (oracle)"}
+]}

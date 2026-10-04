@@ -1,0 +1,522 @@
+{
+ "kind": "scheme",
+ "ref": {
+  "id": "lib/pain-gated-loading",
+  "version": 1
+ },
+ "says": "3×15 straight-knee and 3×15 bent-knee {lift}s; add {inc} after a session done in full with pain at 2/10 or less; above 5/10, propose taking {inc} off; a bad morning cuts each exercise to two sets",
+ "params": {
+  "lift": {
+   "t": "ref",
+   "kind": "exercise",
+   "logging": [
+    "weighted_bodyweight"
+   ]
+  },
+  "inc": {
+   "t": "q",
+   "dim": {
+    "mass": 1
+   }
+  }
+ },
+ "facts": [
+  "pain",
+  "morningPain"
+ ],
+ "enums": {},
+ "state": {
+  "added": {
+   "ty": {
+    "t": "q",
+    "dim": {
+     "mass": 1
+    }
+   },
+   "init": {
+    "k": "lit",
+    "lit": {
+     "k": "q",
+     "v": 0,
+     "unit": "kg"
+    }
+   },
+   "writableBy": [
+    "session",
+    "owner"
+   ],
+   "noun": "added load"
+  },
+  "flares": {
+   "ty": {
+    "t": "q",
+    "dim": {}
+   },
+   "init": {
+    "k": "lit",
+    "lit": {
+     "k": "q",
+     "v": 0,
+     "unit": "x"
+    }
+   },
+   "writableBy": [
+    "session"
+   ],
+   "noun": "flare-ups in a row"
+  }
+ },
+ "plan": {
+  "k": "if",
+  "c": {
+   "k": "orElse",
+   "a": {
+    "k": "known",
+    "a": {
+     "k": "fact",
+     "fact": "morningPain",
+     "key": null
+    },
+    "as": "v5",
+    "body": {
+     "k": "cmp",
+     "op": ">",
+     "a": {
+      "k": "var",
+      "name": "v5"
+     },
+     "b": {
+      "k": "lit",
+      "lit": {
+       "k": "ord",
+       "scale": "pain",
+       "level": 4
+      }
+     }
+    },
+    "then": false
+   },
+   "b": {
+    "k": "lit",
+    "lit": {
+     "k": "bool",
+     "v": false
+    }
+   }
+  },
+  "a": {
+   "k": "xform",
+   "op": "scaleSets",
+   "s": {
+    "k": "session",
+    "exercise": {
+     "k": "param",
+     "name": "lift"
+    },
+    "steps": [
+     {
+      "k": "step",
+      "id": "straight",
+      "count": {
+       "k": "n",
+       "n": {
+        "k": "lit",
+        "lit": {
+         "k": "q",
+         "v": 3,
+         "unit": "set"
+        }
+       }
+      },
+      "target": {
+       "k": "set",
+       "role": "working",
+       "target": {
+        "reps": {
+         "b": "exact",
+         "v": {
+          "k": "lit",
+          "lit": {
+           "k": "q",
+           "v": 15,
+           "unit": "rep"
+          }
+         }
+        },
+        "load": {
+         "b": "exact",
+         "v": {
+          "k": "self",
+          "field": "added"
+         }
+        }
+       },
+       "rest": null,
+       "tempo": {
+        "k": "tempo",
+        "ecc": 3,
+        "pause": 0,
+        "con": 1,
+        "top": 0
+       },
+       "cluster": null
+      }
+     },
+     {
+      "k": "step",
+      "id": "bent",
+      "count": {
+       "k": "n",
+       "n": {
+        "k": "lit",
+        "lit": {
+         "k": "q",
+         "v": 3,
+         "unit": "set"
+        }
+       }
+      },
+      "target": {
+       "k": "set",
+       "role": "working",
+       "target": {
+        "reps": {
+         "b": "exact",
+         "v": {
+          "k": "lit",
+          "lit": {
+           "k": "q",
+           "v": 15,
+           "unit": "rep"
+          }
+         }
+        },
+        "load": {
+         "b": "exact",
+         "v": {
+          "k": "self",
+          "field": "added"
+         }
+        }
+       },
+       "rest": null,
+       "tempo": {
+        "k": "tempo",
+        "ecc": 3,
+        "pause": 0,
+        "con": 1,
+        "top": 0
+       },
+       "cluster": null
+      }
+     }
+    ],
+    "intensifier": null
+   },
+   "arg": {
+    "k": "lit",
+    "lit": {
+     "k": "q",
+     "v": 0.67,
+     "unit": "pct"
+    }
+   },
+   "metric": null
+  },
+  "b": {
+   "k": "session",
+   "exercise": {
+    "k": "param",
+    "name": "lift"
+   },
+   "steps": [
+    {
+     "k": "step",
+     "id": "straight",
+     "count": {
+      "k": "n",
+      "n": {
+       "k": "lit",
+       "lit": {
+        "k": "q",
+        "v": 3,
+        "unit": "set"
+       }
+      }
+     },
+     "target": {
+      "k": "set",
+      "role": "working",
+      "target": {
+       "reps": {
+        "b": "exact",
+        "v": {
+         "k": "lit",
+         "lit": {
+          "k": "q",
+          "v": 15,
+          "unit": "rep"
+         }
+        }
+       },
+       "load": {
+        "b": "exact",
+        "v": {
+         "k": "self",
+         "field": "added"
+        }
+       }
+      },
+      "rest": null,
+      "tempo": {
+       "k": "tempo",
+       "ecc": 3,
+       "pause": 0,
+       "con": 1,
+       "top": 0
+      },
+      "cluster": null
+     }
+    },
+    {
+     "k": "step",
+     "id": "bent",
+     "count": {
+      "k": "n",
+      "n": {
+       "k": "lit",
+       "lit": {
+        "k": "q",
+        "v": 3,
+        "unit": "set"
+       }
+      }
+     },
+     "target": {
+      "k": "set",
+      "role": "working",
+      "target": {
+       "reps": {
+        "b": "exact",
+        "v": {
+         "k": "lit",
+         "lit": {
+          "k": "q",
+          "v": 15,
+          "unit": "rep"
+         }
+        }
+       },
+       "load": {
+        "b": "exact",
+        "v": {
+         "k": "self",
+         "field": "added"
+        }
+       }
+      },
+      "rest": null,
+      "tempo": {
+       "k": "tempo",
+       "ecc": 3,
+       "pause": 0,
+       "con": 1,
+       "top": 0
+      },
+      "cluster": null
+     }
+    }
+   ],
+   "intensifier": null
+  }
+ },
+ "on": {
+  "session": {
+   "k": "orElse",
+   "a": {
+    "k": "known",
+    "a": {
+     "k": "fact",
+     "fact": "pain",
+     "key": null
+    },
+    "as": "v6",
+    "body": {
+     "k": "if",
+     "c": {
+      "k": "cmp",
+      "op": ">",
+      "a": {
+       "k": "var",
+       "name": "v6"
+      },
+      "b": {
+       "k": "lit",
+       "lit": {
+        "k": "ord",
+        "scale": "pain",
+        "level": 5
+       }
+      }
+     },
+     "a": {
+      "k": "patch",
+      "set": {
+       "added": {
+        "to": {
+         "k": "arith",
+         "op": "max",
+         "a": {
+          "k": "lit",
+          "lit": {
+           "k": "q",
+           "v": 0,
+           "unit": "kg"
+          }
+         },
+         "b": {
+          "k": "arith",
+          "op": "-",
+          "a": {
+           "k": "self",
+           "field": "added"
+          },
+          "b": {
+           "k": "param",
+           "name": "inc"
+          }
+         }
+        },
+        "mode": "propose"
+       },
+       "flares": {
+        "to": {
+         "k": "arith",
+         "op": "+",
+         "a": {
+          "k": "self",
+          "field": "flares"
+         },
+         "b": {
+          "k": "lit",
+          "lit": {
+           "k": "q",
+           "v": 1,
+           "unit": "x"
+          }
+         }
+        },
+        "mode": "propose"
+       }
+      }
+     },
+     "b": {
+      "k": "match",
+      "on": {
+       "k": "event",
+       "q": {
+        "q": "verdict",
+        "steps": "working",
+        "bound": "floor"
+       }
+      },
+      "cases": {
+       "hit": {
+        "k": "if",
+        "c": {
+         "k": "cmp",
+         "op": "<=",
+         "a": {
+          "k": "var",
+          "name": "v6"
+         },
+         "b": {
+          "k": "lit",
+          "lit": {
+           "k": "ord",
+           "scale": "pain",
+           "level": 2
+          }
+         }
+        },
+        "a": {
+         "k": "patch",
+         "set": {
+          "added": {
+           "to": {
+            "k": "arith",
+            "op": "+",
+            "a": {
+             "k": "self",
+             "field": "added"
+            },
+            "b": {
+             "k": "param",
+             "name": "inc"
+            }
+           },
+           "mode": "commit"
+          },
+          "flares": {
+           "to": {
+            "k": "lit",
+            "lit": {
+             "k": "q",
+             "v": 0,
+             "unit": "x"
+            }
+           },
+           "mode": "commit"
+          }
+         }
+        },
+        "b": {
+         "k": "patch",
+         "set": {
+          "flares": {
+           "to": {
+            "k": "lit",
+            "lit": {
+             "k": "q",
+             "v": 0,
+             "unit": "x"
+            }
+           },
+           "mode": "commit"
+          }
+         }
+        }
+       },
+       "missed": {
+        "k": "patch",
+        "set": {
+         "flares": {
+          "to": {
+           "k": "lit",
+           "lit": {
+            "k": "q",
+            "v": 0,
+            "unit": "x"
+           }
+          },
+          "mode": "commit"
+         }
+        }
+       },
+       "unknown": {
+        "k": "patch",
+        "set": {}
+       }
+      }
+     }
+    },
+    "then": false
+   },
+   "b": {
+    "k": "patch",
+    "set": {}
+   }
+  }
+ },
+ "examples": []
+}

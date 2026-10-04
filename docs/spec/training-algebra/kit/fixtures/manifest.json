@@ -1,0 +1,20 @@
+{
+ "generatedBy": "synthesis/kit-gen.ts (verify.sh step 8)",
+ "corpusDefs": 44,
+ "registries": 12,
+ "fixtures": {
+  "eval": 918,
+  "prose": 442,
+  "refusals": 275
+ },
+ "capPerTestAndOp": {
+  "evaluate.evaluate": 24,
+  "issue.applyUse": 16
+ },
+ "sampledOut": {
+  "evaluate.evaluate": 1496,
+  "issue.applyUse": 87
+ },
+ "duplicatesDropped": 1221,
+ "notExported": {}
+}

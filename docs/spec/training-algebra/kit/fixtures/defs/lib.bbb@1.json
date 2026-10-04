@@ -1,0 +1,205 @@
+{
+ "kind": "scheme",
+ "ref": {
+  "id": "lib/bbb",
+  "version": 1
+ },
+ "says": "Boring But Big: 5×10 on {lift} at {frac} of {tm}; three sets in deload weeks",
+ "params": {
+  "lift": {
+   "t": "ref",
+   "kind": "exercise",
+   "logging": [
+    "weight_reps"
+   ]
+  },
+  "tm": {
+   "t": "opt",
+   "of": {
+    "t": "q",
+    "dim": {
+     "mass": 1
+    }
+   }
+  },
+  "frac": {
+   "t": "q",
+   "dim": {}
+  }
+ },
+ "facts": [],
+ "enums": {},
+ "state": {},
+ "plan": {
+  "k": "if",
+  "c": {
+   "k": "cmp",
+   "op": "==",
+   "a": {
+    "k": "pos",
+    "field": "role"
+   },
+   "b": {
+    "k": "lit",
+    "lit": {
+     "k": "enum",
+     "name": "weekRole",
+     "tag": "deload"
+    }
+   }
+  },
+  "a": {
+   "k": "xform",
+   "op": "scaleSets",
+   "s": {
+    "k": "session",
+    "exercise": {
+     "k": "param",
+     "name": "lift"
+    },
+    "steps": [
+     {
+      "k": "step",
+      "id": "bbb",
+      "count": {
+       "k": "n",
+       "n": {
+        "k": "lit",
+        "lit": {
+         "k": "q",
+         "v": 5,
+         "unit": "set"
+        }
+       }
+      },
+      "target": {
+       "k": "set",
+       "role": "backoff",
+       "target": {
+        "reps": {
+         "b": "exact",
+         "v": {
+          "k": "lit",
+          "lit": {
+           "k": "q",
+           "v": 10,
+           "unit": "rep"
+          }
+         }
+        },
+        "load": {
+         "b": "exact",
+         "v": {
+          "k": "known",
+          "a": {
+           "k": "param",
+           "name": "tm"
+          },
+          "as": "v40",
+          "body": {
+           "k": "arith",
+           "op": "*",
+           "a": {
+            "k": "var",
+            "name": "v40"
+           },
+           "b": {
+            "k": "param",
+            "name": "frac"
+           }
+          },
+          "then": false
+         }
+        }
+       },
+       "rest": null,
+       "tempo": null,
+       "cluster": null
+      }
+     }
+    ],
+    "intensifier": null
+   },
+   "arg": {
+    "k": "lit",
+    "lit": {
+     "k": "q",
+     "v": 0.6,
+     "unit": "pct"
+    }
+   },
+   "metric": null
+  },
+  "b": {
+   "k": "session",
+   "exercise": {
+    "k": "param",
+    "name": "lift"
+   },
+   "steps": [
+    {
+     "k": "step",
+     "id": "bbb",
+     "count": {
+      "k": "n",
+      "n": {
+       "k": "lit",
+       "lit": {
+        "k": "q",
+        "v": 5,
+        "unit": "set"
+       }
+      }
+     },
+     "target": {
+      "k": "set",
+      "role": "backoff",
+      "target": {
+       "reps": {
+        "b": "exact",
+        "v": {
+         "k": "lit",
+         "lit": {
+          "k": "q",
+          "v": 10,
+          "unit": "rep"
+         }
+        }
+       },
+       "load": {
+        "b": "exact",
+        "v": {
+         "k": "known",
+         "a": {
+          "k": "param",
+          "name": "tm"
+         },
+         "as": "v40",
+         "body": {
+          "k": "arith",
+          "op": "*",
+          "a": {
+           "k": "var",
+           "name": "v40"
+          },
+          "b": {
+           "k": "param",
+           "name": "frac"
+          }
+         },
+         "then": false
+        }
+       }
+      },
+      "rest": null,
+      "tempo": null,
+      "cluster": null
+     }
+    }
+   ],
+   "intensifier": null
+  }
+ },
+ "on": {},
+ "examples": []
+}

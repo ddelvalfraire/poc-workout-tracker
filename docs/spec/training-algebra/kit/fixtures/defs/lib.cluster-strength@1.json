@@ -1,0 +1,188 @@
+{
+ "kind": "scheme",
+ "ref": {
+  "id": "lib/cluster-strength",
+  "version": 1
+ },
+ "says": "{sets} of 6 on {lift} in clusters of 2 with short rests; add {inc} once every set is done",
+ "params": {
+  "lift": {
+   "t": "ref",
+   "kind": "exercise",
+   "logging": [
+    "weight_reps"
+   ]
+  },
+  "sets": {
+   "t": "q",
+   "dim": {
+    "set": 1
+   }
+  },
+  "inc": {
+   "t": "q",
+   "dim": {
+    "mass": 1
+   }
+  }
+ },
+ "facts": [],
+ "enums": {},
+ "state": {
+  "load": {
+   "ty": {
+    "t": "opt",
+    "of": {
+     "t": "q",
+     "dim": {
+      "mass": 1
+     }
+    }
+   },
+   "init": {
+    "k": "none",
+    "of": {
+     "t": "q",
+     "dim": {
+      "mass": 1
+     }
+    }
+   },
+   "writableBy": [
+    "session",
+    "owner"
+   ],
+   "noun": "working weight"
+  }
+ },
+ "plan": {
+  "k": "session",
+  "exercise": {
+   "k": "param",
+   "name": "lift"
+  },
+  "steps": [
+   {
+    "k": "step",
+    "id": "work",
+    "count": {
+     "k": "n",
+     "n": {
+      "k": "param",
+      "name": "sets"
+     }
+    },
+    "target": {
+     "k": "set",
+     "role": "working",
+     "target": {
+      "reps": {
+       "b": "exact",
+       "v": {
+        "k": "lit",
+        "lit": {
+         "k": "q",
+         "v": 6,
+         "unit": "rep"
+        }
+       }
+      },
+      "load": {
+       "b": "exact",
+       "v": {
+        "k": "self",
+        "field": "load"
+       }
+      }
+     },
+     "rest": null,
+     "tempo": null,
+     "cluster": {
+      "per": {
+       "k": "lit",
+       "lit": {
+        "k": "q",
+        "v": 2,
+        "unit": "rep"
+       }
+      },
+      "intraRest": {
+       "k": "lit",
+       "lit": {
+        "k": "q",
+        "v": 20,
+        "unit": "s"
+       }
+      }
+     }
+    }
+   }
+  ],
+  "intensifier": null
+ },
+ "on": {
+  "session": {
+   "k": "patch",
+   "set": {
+    "load": {
+     "to": {
+      "k": "orElse",
+      "a": {
+       "k": "known",
+       "a": {
+        "k": "self",
+        "field": "load"
+       },
+       "as": "v65",
+       "body": {
+        "k": "match",
+        "on": {
+         "k": "event",
+         "q": {
+          "q": "verdict",
+          "steps": "working",
+          "bound": "floor"
+         }
+        },
+        "cases": {
+         "hit": {
+          "k": "arith",
+          "op": "+",
+          "a": {
+           "k": "var",
+           "name": "v65"
+          },
+          "b": {
+           "k": "param",
+           "name": "inc"
+          }
+         },
+         "missed": {
+          "k": "var",
+          "name": "v65"
+         },
+         "unknown": {
+          "k": "var",
+          "name": "v65"
+         }
+        }
+       },
+       "then": false
+      },
+      "b": {
+       "k": "event",
+       "q": {
+        "q": "metric",
+        "step": "work",
+        "metric": "load",
+        "pick": "best"
+       }
+      }
+     },
+     "mode": "commit"
+    }
+   }
+  }
+ },
+ "examples": []
+}

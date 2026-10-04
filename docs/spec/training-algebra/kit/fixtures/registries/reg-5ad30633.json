@@ -1,0 +1,62 @@
+{
+ "entries": [
+  {
+   "kind": "fn",
+   "ref": {
+    "id": "demo/zone-minutes",
+    "version": 1
+   },
+   "params": {},
+   "result": {
+    "t": "map",
+    "key": "enum:hrZone",
+    "of": {
+     "t": "q",
+     "dim": {
+      "time": 1
+     }
+    }
+   },
+   "says": "x",
+   "enums": {},
+   "examples": [
+    {
+     "args": {},
+     "gives": {
+      "k": "tabulate",
+      "keys": {
+       "k": "keys",
+       "of": "enum:hrZone"
+      },
+      "as": "z",
+      "body": {
+       "k": "lit",
+       "lit": {
+        "k": "q",
+        "v": 600,
+        "unit": "min"
+       }
+      }
+     }
+    }
+   ],
+   "body": {
+    "k": "tabulate",
+    "keys": {
+     "k": "keys",
+     "of": "enum:hrZone"
+    },
+    "as": "z",
+    "body": {
+     "k": "lit",
+     "lit": {
+      "k": "q",
+      "v": 600,
+      "unit": "min"
+     }
+    }
+   }
+  }
+ ],
+ "vocab": "base"
+}

@@ -1,0 +1,167 @@
+{
+ "kind": "program",
+ "ref": {
+  "id": "prog/opt-power",
+  "version": 1
+ },
+ "says": "OPT Phase 5: heavy strength set supersetted with an explosive partner",
+ "params": {
+  "benchStart": {
+   "t": "opt",
+   "of": {
+    "t": "q",
+    "dim": {
+     "mass": 1
+    }
+   }
+  }
+ },
+ "facts": [],
+ "enums": {},
+ "calendar": {
+  "weeks": [
+   "train",
+   "train",
+   "train",
+   "train"
+  ],
+  "repeat": "once",
+  "drift": "slide"
+ },
+ "grids": {
+  "load": {
+   "k": "lit",
+   "lit": {
+    "k": "q",
+    "v": 2.5,
+    "unit": "kg"
+   }
+  }
+ },
+ "muscles": [
+  "chest",
+  "shoulders"
+ ],
+ "slots": {
+  "bench": {
+   "scheme": {
+    "id": "lib/double-progression",
+    "version": 1
+   },
+   "args": {
+    "lift": {
+     "k": "lit",
+     "lit": {
+      "k": "ref",
+      "kind": "exercise",
+      "id": "wger:192"
+     }
+    },
+    "sets": {
+     "k": "lit",
+     "lit": {
+      "k": "q",
+      "v": 4,
+      "unit": "set"
+     }
+    },
+    "inc": {
+     "k": "lit",
+     "lit": {
+      "k": "q",
+      "v": 2.5,
+      "unit": "kg"
+     }
+    },
+    "start": {
+     "k": "param",
+     "name": "benchStart"
+    }
+   },
+   "meta": {
+    "muscles": {
+     "chest": 1
+    }
+   }
+  },
+  "pass": {
+   "scheme": {
+    "id": "lib/fixed-work",
+    "version": 1
+   },
+   "args": {
+    "lift": {
+     "k": "lit",
+     "lit": {
+      "k": "ref",
+      "kind": "exercise",
+      "id": "wger:mb-chest-pass"
+     }
+    },
+    "sets": {
+     "k": "lit",
+     "lit": {
+      "k": "q",
+      "v": 4,
+      "unit": "set"
+     }
+    },
+    "reps": {
+     "k": "lit",
+     "lit": {
+      "k": "q",
+      "v": 10,
+      "unit": "rep"
+     }
+    }
+   },
+   "meta": {
+    "muscles": {
+     "chest": 1,
+     "shoulders": 0.5
+    }
+   }
+  }
+ },
+ "days": {
+  "A": [
+   {
+    "k": "superset",
+    "slots": [
+     "bench",
+     "pass"
+    ],
+    "between": {
+     "k": "lit",
+     "lit": {
+      "k": "q",
+      "v": 0,
+      "unit": "s"
+     }
+    },
+    "after": {
+     "k": "lit",
+     "lit": {
+      "k": "q",
+      "v": 120,
+      "unit": "s"
+     }
+    }
+   }
+  ]
+ },
+ "rotation": {
+  "k": "weekly",
+  "days": [
+   "A",
+   "A"
+  ]
+ },
+ "frequency": [],
+ "lapseAfterDays": 21,
+ "hitPolicy": "allInOrder",
+ "policies": [],
+ "aggregate": null,
+ "exports": {},
+ "imports": {}
+}

@@ -1,0 +1,134 @@
+{
+ "kind": "fn",
+ "ref": {
+  "id": "lib/load-for",
+  "version": 1
+ },
+ "params": {
+  "e1rm": {
+   "t": "q",
+   "dim": {
+    "mass": 1
+   }
+  },
+  "reps": {
+   "t": "q",
+   "dim": {
+    "rep": 1
+   }
+  },
+  "rir": {
+   "t": "q",
+   "dim": {
+    "effort": 1
+   }
+  }
+ },
+ "result": {
+  "t": "opt",
+  "of": {
+   "t": "q",
+   "dim": {
+    "mass": 1
+   }
+  }
+ },
+ "says": "the load you could lift for {reps} with {rir}, given an estimated max of {e1rm}",
+ "enums": {},
+ "examples": [
+  {
+   "args": {
+    "e1rm": {
+     "k": "lit",
+     "lit": {
+      "k": "q",
+      "v": 120,
+      "unit": "kg"
+     }
+    },
+    "reps": {
+     "k": "lit",
+     "lit": {
+      "k": "q",
+      "v": 5,
+      "unit": "rep"
+     }
+    },
+    "rir": {
+     "k": "lit",
+     "lit": {
+      "k": "q",
+      "v": 1,
+      "unit": "rir"
+     }
+    }
+   },
+   "gives": {
+    "k": "some",
+    "a": {
+     "k": "lit",
+     "lit": {
+      "k": "q",
+      "v": 100,
+      "unit": "kg"
+     }
+    }
+   }
+  }
+ ],
+ "body": {
+  "k": "known",
+  "a": {
+   "k": "ratio",
+   "a": {
+    "k": "lit",
+    "lit": {
+     "k": "q",
+     "v": 30,
+     "unit": "rep"
+    }
+   },
+   "b": {
+    "k": "arith",
+    "op": "+",
+    "a": {
+     "k": "lit",
+     "lit": {
+      "k": "q",
+      "v": 30,
+      "unit": "rep"
+     }
+    },
+    "b": {
+     "k": "arith",
+     "op": "+",
+     "a": {
+      "k": "param",
+      "name": "reps"
+     },
+     "b": {
+      "k": "asReps",
+      "a": {
+       "k": "param",
+       "name": "rir"
+      }
+     }
+    }
+   }
+  },
+  "as": "v8",
+  "body": {
+   "k": "arith",
+   "op": "*",
+   "a": {
+    "k": "param",
+    "name": "e1rm"
+   },
+   "b": {
+    "k": "var",
+    "name": "v8"
+   }
+  },
+  "then": false
+ }
+}

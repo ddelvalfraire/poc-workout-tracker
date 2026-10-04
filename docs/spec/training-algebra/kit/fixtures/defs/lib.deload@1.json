@@ -1,0 +1,252 @@
+{
+ "kind": "fn",
+ "ref": {
+  "id": "lib/deload",
+  "version": 1
+ },
+ "params": {
+  "s": {
+   "t": "dom",
+   "sort": "session"
+  },
+  "load": {
+   "t": "q",
+   "dim": {}
+  },
+  "timed": {
+   "t": "q",
+   "dim": {}
+  },
+  "volume": {
+   "t": "q",
+   "dim": {}
+  },
+  "rir": {
+   "t": "q",
+   "dim": {
+    "effort": 1
+   }
+  }
+ },
+ "result": {
+  "t": "dom",
+  "sort": "session"
+ },
+ "says": "deload {s}: {load} of the load, {timed} of any timed work, {volume} of the sets, at least {rir}, and no intensifier",
+ "enums": {},
+ "examples": [
+  {
+   "args": {
+    "s": {
+     "k": "session",
+     "exercise": {
+      "k": "lit",
+      "lit": {
+       "k": "ref",
+       "kind": "exercise",
+       "id": "ex:demo"
+      }
+     },
+     "steps": [
+      {
+       "k": "step",
+       "id": "w",
+       "count": {
+        "k": "n",
+        "n": {
+         "k": "lit",
+         "lit": {
+          "k": "q",
+          "v": 4,
+          "unit": "set"
+         }
+        }
+       },
+       "target": {
+        "k": "set",
+        "role": "working",
+        "target": {
+         "reps": {
+          "b": "exact",
+          "v": {
+           "k": "lit",
+           "lit": {
+            "k": "q",
+            "v": 8,
+            "unit": "rep"
+           }
+          }
+         },
+         "load": {
+          "b": "exact",
+          "v": {
+           "k": "lit",
+           "lit": {
+            "k": "q",
+            "v": 100,
+            "unit": "kg"
+           }
+          }
+         }
+        },
+        "rest": null,
+        "tempo": null,
+        "cluster": null
+       }
+      }
+     ],
+     "intensifier": null
+    },
+    "load": {
+     "k": "lit",
+     "lit": {
+      "k": "q",
+      "v": 0.9,
+      "unit": "pct"
+     }
+    },
+    "timed": {
+     "k": "lit",
+     "lit": {
+      "k": "q",
+      "v": 1,
+      "unit": "pct"
+     }
+    },
+    "volume": {
+     "k": "lit",
+     "lit": {
+      "k": "q",
+      "v": 0.5,
+      "unit": "pct"
+     }
+    },
+    "rir": {
+     "k": "lit",
+     "lit": {
+      "k": "q",
+      "v": 3,
+      "unit": "rir"
+     }
+    }
+   },
+   "gives": {
+    "k": "session",
+    "exercise": {
+     "k": "lit",
+     "lit": {
+      "k": "ref",
+      "kind": "exercise",
+      "id": "ex:demo"
+     }
+    },
+    "steps": [
+     {
+      "k": "step",
+      "id": "w",
+      "count": {
+       "k": "n",
+       "n": {
+        "k": "lit",
+        "lit": {
+         "k": "q",
+         "v": 2,
+         "unit": "set"
+        }
+       }
+      },
+      "target": {
+       "k": "set",
+       "role": "working",
+       "target": {
+        "reps": {
+         "b": "exact",
+         "v": {
+          "k": "lit",
+          "lit": {
+           "k": "q",
+           "v": 8,
+           "unit": "rep"
+          }
+         }
+        },
+        "load": {
+         "b": "exact",
+         "v": {
+          "k": "lit",
+          "lit": {
+           "k": "q",
+           "v": 90,
+           "unit": "kg"
+          }
+         }
+        },
+        "effort": {
+         "b": "exact",
+         "v": {
+          "k": "lit",
+          "lit": {
+           "k": "q",
+           "v": 3,
+           "unit": "rir"
+          }
+         }
+        }
+       },
+       "rest": null,
+       "tempo": null,
+       "cluster": null
+      }
+     }
+    ],
+    "intensifier": null
+   }
+  }
+ ],
+ "body": {
+  "k": "xform",
+  "op": "stripIntensifier",
+  "s": {
+   "k": "xform",
+   "op": "capEffort",
+   "s": {
+    "k": "xform",
+    "op": "scaleSets",
+    "s": {
+     "k": "xform",
+     "op": "scaleMetric",
+     "s": {
+      "k": "xform",
+      "op": "scaleMetric",
+      "s": {
+       "k": "param",
+       "name": "s"
+      },
+      "arg": {
+       "k": "param",
+       "name": "load"
+      },
+      "metric": "load"
+     },
+     "arg": {
+      "k": "param",
+      "name": "timed"
+     },
+     "metric": "duration"
+    },
+    "arg": {
+     "k": "param",
+     "name": "volume"
+    },
+    "metric": null
+   },
+   "arg": {
+    "k": "param",
+    "name": "rir"
+   },
+   "metric": null
+  },
+  "arg": null,
+  "metric": null
+ }
+}

@@ -1,0 +1,417 @@
+{
+ "kind": "program",
+ "ref": {
+  "id": "prog/531-bbb",
+  "version": 1
+ },
+ "says": "5/3/1 Boring But Big: four days, a main lift then 5×10 at 50% of that lift’s TM",
+ "params": {},
+ "facts": [],
+ "enums": {},
+ "calendar": {
+  "weeks": [
+   "train",
+   "train",
+   "train",
+   "deload"
+  ],
+  "repeat": "cycle",
+  "drift": "slide"
+ },
+ "grids": {
+  "load": {
+   "k": "lit",
+   "lit": {
+    "k": "q",
+    "v": 2.2679618500000003,
+    "unit": "lb"
+   }
+  }
+ },
+ "muscles": [
+  "quads",
+  "chest",
+  "back",
+  "shoulders"
+ ],
+ "slots": {
+  "press": {
+   "scheme": {
+    "id": "lib/531",
+    "version": 1
+   },
+   "args": {
+    "lift": {
+     "k": "lit",
+     "lit": {
+      "k": "ref",
+      "kind": "exercise",
+      "id": "wger:119"
+     }
+    },
+    "inc": {
+     "k": "lit",
+     "lit": {
+      "k": "q",
+      "v": 2.2679618500000003,
+      "unit": "lb"
+     }
+    },
+    "tmPct": {
+     "k": "lit",
+     "lit": {
+      "k": "q",
+      "v": 0.9,
+      "unit": "pct"
+     }
+    },
+    "reset": {
+     "k": "lit",
+     "lit": {
+      "k": "q",
+      "v": 0.9,
+      "unit": "pct"
+     }
+    }
+   },
+   "meta": {
+    "muscles": {
+     "shoulders": 1
+    }
+   }
+  },
+  "dead": {
+   "scheme": {
+    "id": "lib/531",
+    "version": 1
+   },
+   "args": {
+    "lift": {
+     "k": "lit",
+     "lit": {
+      "k": "ref",
+      "kind": "exercise",
+      "id": "wger:105"
+     }
+    },
+    "inc": {
+     "k": "lit",
+     "lit": {
+      "k": "q",
+      "v": 4.535923700000001,
+      "unit": "lb"
+     }
+    },
+    "tmPct": {
+     "k": "lit",
+     "lit": {
+      "k": "q",
+      "v": 0.9,
+      "unit": "pct"
+     }
+    },
+    "reset": {
+     "k": "lit",
+     "lit": {
+      "k": "q",
+      "v": 0.9,
+      "unit": "pct"
+     }
+    }
+   },
+   "meta": {
+    "muscles": {
+     "back": 1
+    }
+   }
+  },
+  "bench": {
+   "scheme": {
+    "id": "lib/531",
+    "version": 1
+   },
+   "args": {
+    "lift": {
+     "k": "lit",
+     "lit": {
+      "k": "ref",
+      "kind": "exercise",
+      "id": "wger:192"
+     }
+    },
+    "inc": {
+     "k": "lit",
+     "lit": {
+      "k": "q",
+      "v": 2.2679618500000003,
+      "unit": "lb"
+     }
+    },
+    "tmPct": {
+     "k": "lit",
+     "lit": {
+      "k": "q",
+      "v": 0.9,
+      "unit": "pct"
+     }
+    },
+    "reset": {
+     "k": "lit",
+     "lit": {
+      "k": "q",
+      "v": 0.9,
+      "unit": "pct"
+     }
+    }
+   },
+   "meta": {
+    "muscles": {
+     "chest": 1
+    }
+   }
+  },
+  "squat": {
+   "scheme": {
+    "id": "lib/531",
+    "version": 1
+   },
+   "args": {
+    "lift": {
+     "k": "lit",
+     "lit": {
+      "k": "ref",
+      "kind": "exercise",
+      "id": "wger:111"
+     }
+    },
+    "inc": {
+     "k": "lit",
+     "lit": {
+      "k": "q",
+      "v": 4.535923700000001,
+      "unit": "lb"
+     }
+    },
+    "tmPct": {
+     "k": "lit",
+     "lit": {
+      "k": "q",
+      "v": 0.9,
+      "unit": "pct"
+     }
+    },
+    "reset": {
+     "k": "lit",
+     "lit": {
+      "k": "q",
+      "v": 0.9,
+      "unit": "pct"
+     }
+    }
+   },
+   "meta": {
+    "muscles": {
+     "quads": 1
+    }
+   }
+  },
+  "pressBbb": {
+   "scheme": {
+    "id": "lib/bbb",
+    "version": 1
+   },
+   "args": {
+    "lift": {
+     "k": "lit",
+     "lit": {
+      "k": "ref",
+      "kind": "exercise",
+      "id": "wger:119"
+     }
+    },
+    "tm": {
+     "k": "peer",
+     "slot": "press",
+     "field": "tm",
+     "of": "current"
+    },
+    "frac": {
+     "k": "lit",
+     "lit": {
+      "k": "q",
+      "v": 0.5,
+      "unit": "pct"
+     }
+    }
+   },
+   "meta": {
+    "muscles": {
+     "shoulders": 1
+    }
+   }
+  },
+  "deadBbb": {
+   "scheme": {
+    "id": "lib/bbb",
+    "version": 1
+   },
+   "args": {
+    "lift": {
+     "k": "lit",
+     "lit": {
+      "k": "ref",
+      "kind": "exercise",
+      "id": "wger:105"
+     }
+    },
+    "tm": {
+     "k": "peer",
+     "slot": "dead",
+     "field": "tm",
+     "of": "current"
+    },
+    "frac": {
+     "k": "lit",
+     "lit": {
+      "k": "q",
+      "v": 0.5,
+      "unit": "pct"
+     }
+    }
+   },
+   "meta": {
+    "muscles": {
+     "back": 1
+    }
+   }
+  },
+  "benchBbb": {
+   "scheme": {
+    "id": "lib/bbb",
+    "version": 1
+   },
+   "args": {
+    "lift": {
+     "k": "lit",
+     "lit": {
+      "k": "ref",
+      "kind": "exercise",
+      "id": "wger:192"
+     }
+    },
+    "tm": {
+     "k": "peer",
+     "slot": "bench",
+     "field": "tm",
+     "of": "current"
+    },
+    "frac": {
+     "k": "lit",
+     "lit": {
+      "k": "q",
+      "v": 0.5,
+      "unit": "pct"
+     }
+    }
+   },
+   "meta": {
+    "muscles": {
+     "chest": 1
+    }
+   }
+  },
+  "squatBbb": {
+   "scheme": {
+    "id": "lib/bbb",
+    "version": 1
+   },
+   "args": {
+    "lift": {
+     "k": "lit",
+     "lit": {
+      "k": "ref",
+      "kind": "exercise",
+      "id": "wger:111"
+     }
+    },
+    "tm": {
+     "k": "peer",
+     "slot": "squat",
+     "field": "tm",
+     "of": "current"
+    },
+    "frac": {
+     "k": "lit",
+     "lit": {
+      "k": "q",
+      "v": 0.5,
+      "unit": "pct"
+     }
+    }
+   },
+   "meta": {
+    "muscles": {
+     "quads": 1
+    }
+   }
+  }
+ },
+ "days": {
+  "press": [
+   {
+    "k": "single",
+    "slot": "press"
+   },
+   {
+    "k": "single",
+    "slot": "pressBbb"
+   }
+  ],
+  "dead": [
+   {
+    "k": "single",
+    "slot": "dead"
+   },
+   {
+    "k": "single",
+    "slot": "deadBbb"
+   }
+  ],
+  "bench": [
+   {
+    "k": "single",
+    "slot": "bench"
+   },
+   {
+    "k": "single",
+    "slot": "benchBbb"
+   }
+  ],
+  "squat": [
+   {
+    "k": "single",
+    "slot": "squat"
+   },
+   {
+    "k": "single",
+    "slot": "squatBbb"
+   }
+  ]
+ },
+ "rotation": {
+  "k": "weekly",
+  "days": [
+   "press",
+   "dead",
+   "bench",
+   "squat"
+  ]
+ },
+ "frequency": [],
+ "lapseAfterDays": 21,
+ "hitPolicy": "allInOrder",
+ "policies": [],
+ "aggregate": null,
+ "exports": {},
+ "imports": {}
+}

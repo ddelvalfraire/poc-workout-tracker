@@ -1,0 +1,202 @@
+{
+ "kind": "fn",
+ "ref": {
+  "id": "lib/sfr-score",
+  "version": 1
+ },
+ "params": {
+  "pump": {
+   "t": "ord",
+   "scale": "pump"
+  },
+  "joint": {
+   "t": "ord",
+   "scale": "jointPain"
+  }
+ },
+ "result": {
+  "t": "q",
+  "dim": {}
+ },
+ "says": "the stimulus-to-fatigue score from {pump} and {joint}",
+ "enums": {},
+ "examples": [
+  {
+   "args": {
+    "pump": {
+     "k": "lit",
+     "lit": {
+      "k": "ord",
+      "scale": "pump",
+      "level": 3
+     }
+    },
+    "joint": {
+     "k": "lit",
+     "lit": {
+      "k": "ord",
+      "scale": "jointPain",
+      "level": 0
+     }
+    }
+   },
+   "gives": {
+    "k": "lit",
+    "lit": {
+     "k": "q",
+     "v": 3,
+     "unit": "x"
+    }
+   }
+  }
+ ],
+ "body": {
+  "k": "table",
+  "key": {
+   "k": "param",
+   "name": "joint"
+  },
+  "rows": [
+   {
+    "when": 0,
+    "then": {
+     "k": "table",
+     "key": {
+      "k": "param",
+      "name": "pump"
+     },
+     "rows": [
+      {
+       "when": 0,
+       "then": {
+        "k": "lit",
+        "lit": {
+         "k": "q",
+         "v": 0,
+         "unit": "x"
+        }
+       }
+      },
+      {
+       "when": 1,
+       "then": {
+        "k": "lit",
+        "lit": {
+         "k": "q",
+         "v": 1,
+         "unit": "x"
+        }
+       }
+      },
+      {
+       "when": 2,
+       "then": {
+        "k": "lit",
+        "lit": {
+         "k": "q",
+         "v": 2,
+         "unit": "x"
+        }
+       }
+      },
+      {
+       "when": 3,
+       "then": {
+        "k": "lit",
+        "lit": {
+         "k": "q",
+         "v": 3,
+         "unit": "x"
+        }
+       }
+      }
+     ],
+     "otherwise": null,
+     "overflow": null
+    }
+   },
+   {
+    "when": 1,
+    "then": {
+     "k": "table",
+     "key": {
+      "k": "param",
+      "name": "pump"
+     },
+     "rows": [
+      {
+       "when": 0,
+       "then": {
+        "k": "lit",
+        "lit": {
+         "k": "q",
+         "v": -1,
+         "unit": "x"
+        }
+       }
+      },
+      {
+       "when": 1,
+       "then": {
+        "k": "lit",
+        "lit": {
+         "k": "q",
+         "v": 0,
+         "unit": "x"
+        }
+       }
+      },
+      {
+       "when": 2,
+       "then": {
+        "k": "lit",
+        "lit": {
+         "k": "q",
+         "v": 1,
+         "unit": "x"
+        }
+       }
+      },
+      {
+       "when": 3,
+       "then": {
+        "k": "lit",
+        "lit": {
+         "k": "q",
+         "v": 2,
+         "unit": "x"
+        }
+       }
+      }
+     ],
+     "otherwise": null,
+     "overflow": null
+    }
+   },
+   {
+    "when": 2,
+    "then": {
+     "k": "lit",
+     "lit": {
+      "k": "q",
+      "v": -5,
+      "unit": "x"
+     }
+    }
+   },
+   {
+    "when": 3,
+    "then": {
+     "k": "lit",
+     "lit": {
+      "k": "q",
+      "v": -9,
+      "unit": "x"
+     }
+    }
+   }
+  ],
+  "otherwise": null,
+  "overflow": null
+ }
+}
