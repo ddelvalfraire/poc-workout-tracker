@@ -1,0 +1,81 @@
+/**
+ * dispositions.ts — the rows no R2 test names: where each was re-homed (a
+ * construct the v3 grammar replaced, or a suite that already covers it), or
+ * why it is waived; and the decision for every SPEC? row. dispose.ts reads
+ * both. The SPEC decisions are stated as one-line laws in rationale.md.
+ */
+export type Manual = { d: 're-homed' | 'waived' | 'covered'; why: string }
+
+export const MANUAL: Record<string, Manual> = {
+  'EC-53': { d: 're-homed', why: 'mapLit is gone (v3 S4): an empty map is `tabulate(allSlots, () => sets(0))`, evaluated in semantics “tabulate over the program’s slots” (EC-49).' },
+  'EC-59': { d: 're-homed', why: '`iterate` is cut (v3 S4): fold over `range(n)` is the same loop with a visible bound; semantics “fold, sum and count” and demo §5l.' },
+  'EC-60': { d: 're-homed', why: '`iterate` is cut: a literal `range(n)` cannot run past n (EC-59).' },
+  'EC-61': { d: 'covered', why: 'existing: demo §3 refuses an `iterate` node outright (unknownName: “iterate is fold over range”).' },
+  'EC-75': { d: 're-homed', why: 'bands became the threshold reading of `table` (v3 S4): thresholds are literal and strictly ascending, refused otherwise (thresholdOrder, boundNotLiteral), demo §3.' },
+  'EC-140': { d: 're-homed', why: '`both` is gone (v3 S2): one patch is a record, so one handler cannot write a field twice; demo §3 refuses the v2 pair; laws “one event, many handlers … no two writes touch one field” (L4).' },
+  'EC-148': { d: 're-homed', why: 'missedAny became the three-valued verdict (v3 S1): laws “the verdict judges the ISSUED bounds” (EC-147) and “a partly logged session is UNKNOWN” (EC-155).' },
+  'EC-198': { d: 'waived', why: 'WIDGETS (generated param forms) belongs to the authoring surfaces (R7); engine.ts keeps its mapped type, unimplemented.' },
+  'EC-202': { d: 're-homed', why: 'v3 D5/S7: a non-library template never renders, so there is no “author’s wording” marker to test; demo §5k prints a user program described by its generated headline.' },
+  'EC-204': { d: 'waived', why: 'The exact zoom is not implemented; intent and mechanism are (demo §5a). Carried to R7 with the explain surfaces.' },
+  'EC-210': { d: 'waived', why: 'describeDiff belongs to the proposal flow of the authoring surfaces (R7); engine.ts keeps the signature.' },
+  'EC-211': { d: 'waived', why: 'irSchema (the MCP JSON schema) is generated at R3/R7 from the registry; engine.ts keeps the signature.' },
+  'EC-212': { d: 'waived', why: 'Content hashing with de Bruijn elaboration is not implemented (R2 stamps an FNV hash of the definition JSON); carried to R3 with the persisted defs table.' },
+  'EC-221': { d: 'covered', why: 'existing: demo §3 “an EMOM member with a variable set count” (emomNeedsFixedCount), and its death-by twin accepted.' },
+  'EC-223': { d: 'covered', why: 'existing: demo §3 “a deload policy missing an argument and mistyping another” (missingArg, unitMismatch).' },
+  'EC-226': { d: 'covered', why: 'existing: demo §3 “a fixed phase over a cycling calendar” (fixedNeedsOnce).' },
+  'EC-229': { d: 'covered', why: 'existing: demo §3 “a bounded phase with min 7 > max 6” (boundsInverted).' },
+  'EC-230': { d: 'covered', why: 'existing: demo §3 “an open phase that is not last” (openNotLast).' },
+  'EC-C01': { d: 're-homed', why: 'Pace is a unit (min/km, min/mi) of the pace dimension and a registry metric (v2 F); the HR tempo block targets it, and differential B checks its prose (4:45 per km).' },
+  'EC-C02': { d: 're-homed', why: 'Distance is a registry metric with an open bound shape (v2 A); semantics “bounds issue as fields of their kind” issues an open distance.' },
+  'EC-C05': { d: 're-homed', why: 'Pain-gated regression is lib/pain-gated-loading: laws “post-session facts reach a handler only through the closing event’s snapshot” (a flare proposes the drop).' },
+  'EC-C06': { d: 're-homed', why: 'The pre-session gate is the morningPain fact (preSession), read by the plan; checked in demo §1 and projected in the differential corpus run.' },
+  'EC-C07': { d: 're-homed', why: 'swapExercise is evaluated in semantics “every transformer” and logging-checked in demo §3 (loggingMismatch).' },
+  'EC-C08': { d: 're-homed', why: 'Advance gates read facts and the calendar (HandoffCap = peer, cal, fact, v2 H); laws “a criteria-gated phase whose gate never holds stops at max and ASKS” runs the Achilles gate.' },
+  'EC-C10': { d: 're-homed', why: 'A gate never met at max proposes instead of advancing for criteria gates (D12, atMax propose); laws BV-75.' },
+  'EC-C12': { d: 'waived', why: 'No session-duration fact is registered; density progression waits for a boundary-derived fact (one registry entry when a program needs it, as demo §7 shows for hrv).' },
+  'EC-C13': { d: 'covered', why: 'existing: demo §3 (emomNeedsFixedCount), the same rule as EC-221.' },
+}
+
+/** Every SPEC? row of the test plan, decided. "Ratified" marks the decisions
+ *  the owner already made (decisions-memo, time-model); the rest are R2's. */
+export const SPEC_DECISIONS: Record<string, string> = {
+  'EC-06': 'there is no division; a ratio over zero is absent (zeroDenominator).',
+  'EC-30': 'a set count is never absent (Opt refused at check); an evaluated count is floored and never negative.',
+  'EC-69': 'allocate: a candidate missing from `into` starts at 0.',
+  'EC-70': 'allocate: a negative score still ranks; a cap gates (a program excludes a candidate with a cap of 0).',
+  'EC-71': 'allocate floors n; the fraction is dropped and traced.',
+  'EC-75': 'thresholds are literal and strictly ascending, refused otherwise (v3 thresholdOrder).',
+  'EC-79': 'a row past the scale is refused (unknownName).',
+  'EC-106': '`working` judges every role but warm-up and recovery.',
+  'EC-117': 'a transformer over an open field wraps its term and scales its planned value.',
+  'EC-131': 'an owner edit may clear an optional field (null, recorded ownerCleared); clearing a required one is refused.',
+  'EC-140': 'one patch record per handler, so a field is written once (v3 S2).',
+  'EC-143': '(ratified) a proposal is void once a field it proposes has moved since it was made.',
+  'EC-144': 'a newer proposal on a pending field supersedes the older one, recorded.',
+  'EC-146': 'the writer of record is the proposing handler; acceptance re-checks that it or the owner may still write every proposed field, else the proposal is void (unwritable:key).',
+  'EC-151': 'an event `prescribed` read of an open field reads its resolution; unresolved, it is absent (notPerformed of its dependency).',
+  'EC-155': '(ratified, v3 S1) the verdict is three-valued: an unlogged set is unknown, never a miss.',
+  'EC-158': 'trainWeek counts earlier non-deload, non-taper weeks; in a deload it is the next train index.',
+  'EC-161': '(ratified) a once calendar ends in blockEnd (no cycleEnd); prescribing past it refuses programComplete.',
+  'EC-166': '(ratified, L11) the progress clock advances only on training, an owner skip or an anchored week end.',
+  'EC-172': 'the head is always derivable: replaying the ledger reproduces it exactly; persistence appends and updates atomically.',
+  'EC-175': 'a rebind to a different state schema is refused (rebindNeedsMigration): there is no record sort to write a migration in.',
+  'EC-176': 'the current binding’s handler runs against the issued snapshot; a step the snapshot lacks reads as absent.',
+  'EC-186': 'an edited dependency yields a new, superseding Resolution; the old row stays.',
+  'EC-192': 'repeatLast with no history falls back to asPrescribed and says so in the projection.',
+  'EC-193': 'an unscripted session of a script projection is asPrescribed.',
+  'EC-201': 'a library scheme’s template holes equal its params (templateHoles); a non-library `says` never renders.',
+  'EC-214': 'an extra binding argument is refused (unknownName).',
+  'EC-218': '(v3) a slot has exactly one primary muscle (primaryMuscle).',
+  'EC-226': '(v3) a fixed phase needs a once calendar (fixedNeedsOnce).',
+  'BV-12': 'allocate with n ≤ 0 places nothing and removes nothing.',
+  'BV-14': 'allocate floors n (1.5 places 1) and traces the dropped half.',
+  'BV-18': 'a lone candidate scored −9 still receives sets; exclusion is a cap of 0.',
+  'BV-23': 'a literal round step ≤ 0 is refused (literalDomain); an evaluated one leaves the value unrounded, traced.',
+  'BV-24': 'as BV-23 for a negative step.',
+  'BV-25': 'round to nearest: ties go DOWN, the one quantization law (101.25 on 2.5 → 100; 7.5 reps on 1 → 7).',
+  'BV-26': 'the sink quantizes to the nearest grid step, ties DOWN, by the same law as round (101.25 on 2.5 → 100).',
+  'BV-40': 'nth floors its index; hold clamps into range, cycle takes the true modulus; a literal negative or fractional index is refused (literalDomain).',
+  'BV-46': 'zero judged sets is unknown, never a vacuous hit.',
+  'BV-47': 'a session with no steps is refused (literalDomain).',
+}
