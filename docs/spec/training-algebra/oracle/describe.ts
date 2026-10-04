@@ -19,7 +19,8 @@
  * Only LIBRARY definitions render their templates and bare nouns; a user
  * definition's `named` noun renders with its expansion beside it (D5).
  */
-import { weeklyIsOpt, type BoundIR, type Lit, type PatchField, type RefKind, type StepIR, type Term } from './algebra'
+import { weeklyIsOpt, type BoundIR, type Lit, type PatchField, type RefKind, type StepIR, type SuccessRule, type Term } from './algebra'
+import { canonicalJson } from './canonical'
 import { isLib, type Registry } from './checker'
 import type { MetricDecl } from './registry'
 import type { Selector } from './time'
@@ -39,6 +40,12 @@ export interface Cx {
   flags: ReadonlySet<string>
   peer: (slot: string, field: string) => string
   programNouns: Record<string, string>
+  /** The slot's declared verdict success rule (C1), for verdict reads that
+   *  do not carry their own. */
+  slotSuccess?: SuccessRule
+  /** The program's calendar-aligned adherence week start (C3), for the
+   *  frequency prose; absent under the anchor-tumbling default. */
+  alignedWeeks?: string
 }
 
 export function cxOf(reg: Registry, over: Partial<Cx> = {}): Cx {
@@ -151,11 +158,28 @@ function block(arms: [string, string][]): string {
   return arms.map(([h, b]) => `\n- ${h}:${b.startsWith('\n') ? pad(b, '  ') : ` ${b}`}`).join('')
 }
 const isVerdict = (t: Term) => t.k === 'event' && t.q.q === 'verdict'
-function verdictArms(on: Term): Record<string, string> {
+/** The declared success rule's phrase (C1); empty for the allSets default. */
+export const successText = (su: SuccessRule | undefined): string =>
+  su === undefined ? '' : su === 'totalReps' ? ' (counting total reps across all sets)' : ` (at least ${su.atLeastSets} sets must fully hit)`
+function verdictArms(on: Term, cx: Cx): Record<string, string> {
   const q = on.k === 'event' && on.q.q === 'verdict' ? on.q : null
   const what = !q || q.steps === 'working' ? 'working set' : `set of ${q.steps.map((s) => `“${s}”`).join(' and ')}`
+  const su = q?.success ?? (q ? cx.slotSuccess : undefined)
+  const edge = q?.bound === 'top' ? 'the top of its range' : 'its target'
+  if (su === 'totalReps')
+    return {
+      hit: `the ${what}s totalled their target reps (and every other bound was met)`,
+      missed: `the total reps fell short with every set logged, or a set missed another bound`,
+      unknown: 'nothing decided it: something went unlogged',
+    }
+  if (su && typeof su === 'object')
+    return {
+      hit: `at least ${su.atLeastSets} ${what}s fully reached ${edge}`,
+      missed: `too few ${what}s could still reach it`,
+      unknown: 'nothing decided it: something went unlogged',
+    }
   return {
-    hit: `every ${what} reached ${q?.bound === 'top' ? 'the top of its range' : 'its target'}`,
+    hit: `every ${what} reached ${edge}`,
     missed: `a ${what} fell short`,
     unknown: 'nothing fell short but something went unlogged',
   }
@@ -248,14 +272,14 @@ function stepText(s: Extract<StepIR, { k: 'step' }>, cx: Cx): string {
 }
 
 const EVENT: { [Q in Extract<Term, { k: 'event' }>['q']['q']]: (q: Extract<Extract<Term, { k: 'event' }>['q'], { q: Q }>, cx: Cx) => string } = {
-  verdict: (q) => `how ${q.steps === 'working' ? 'the working sets' : q.steps.map((s) => `“${s}”`).join(' and ')} went`,
+  verdict: (q, cx) => `how ${q.steps === 'working' ? 'the working sets' : q.steps.map((s) => `“${s}”`).join(' and ')} went${successText(q.success ?? cx.slotSuccess)}`,
   metric: (q, cx) =>
     q.pick === 'count'
       ? `how many sets you logged on “${q.step}”`
       : q.pick === 'sum'
         ? `the total ${mNoun(cx, q.metric)} you logged on “${q.step}”`
         : `the ${q.pick === 'last' ? '' : `${q.pick} `}${mNoun(cx, q.metric)} you logged on “${q.step}”`,
-  e1rm: (q) => `the max estimated from “${q.step}”`,
+  e1rm: (q) => `the max estimated from “${q.step}”${q.formula && q.formula !== 'epley' ? ` (${q.formula.charAt(0).toUpperCase()}${q.formula.slice(1)})` : ''}`,
   prescribed: (q, cx) => `the ${q.edge === 'top' ? 'top of the ' : ''}${mNoun(cx, q.metric)} prescribed for “${q.step}”`,
   stages: (q) => (q.pick === 'count' ? `how many mini-sets you did on “${q.step}”` : q.pick === 'sum' ? `the reps across every mini-set of “${q.step}”` : `the reps on the last mini-set of “${q.step}”`),
   trained: (q, cx) => `this session trained ${d(q.muscle, cx)}`,
@@ -320,7 +344,7 @@ export const DESCRIBERS: { [K in Term['k']]: (n: Extract<Term, { k: K }>, cx: Cx
   },
   match: (t, cx) => {
     const verdict = isVerdict(t.on)
-    const head = verdict ? verdictArms(t.on) : null
+    const head = verdict ? verdictArms(t.on, cx) : null
     const arms = Object.entries(t.cases).map(([k, v]): [string, string] => [head ? `if ${head[k] ?? k}` : `if ${d(t.on, cx)} is “${k}”`, d(v, cx)])
     if (isStmt(t, cx)) return block(arms)
     return `(${arms.map(([h, v]) => `${h}: ${v}`).join('; ')})`
@@ -426,11 +450,13 @@ export const DESCRIBERS: { [K in Term['k']]: (n: Extract<Term, { k: K }>, cx: Cx
     const f = cx.reg.fns.get(`${t.def.id}@${t.def.version}`)
     if (!f) return `‹unpublished ${t.def.id}›`
     const args = Object.fromEntries(Object.entries(t.args).map(([k, v]) => [k, d(v, cx)]))
+    // A defaulted parameter the call omits reads as its default (C10).
+    for (const [k, dt] of Object.entries(f.defaults ?? {})) if (!(k in args)) args[k] = d(dt, cx)
     const lib = isLib(t.def.id)
     const body = () => d(f.body, { ...cx, zoom: 'intent', lib, params: args, names: new Map(cx.names) })
     // D5: a user definition's template does not render; its mechanism does.
     if (!lib) return body()
-    const filled = f.says.replace(/\{(\w+)\}/g, (_, k: string) => args[k] ?? `{${k}}`)
+    const filled = fillTemplate(f.says, args, overrideKeys(f.says, f.defaults ?? {}, t.args))
     return cx.zoom === 'intent' ? filled : `${filled} [= ${body()}]`
   },
   param: (t, cx) => cx.params[t.name] ?? `{${t.name}}`,
@@ -455,14 +481,16 @@ export const DESCRIBERS: { [K in Term['k']]: (n: Extract<Term, { k: K }>, cx: Cx
       if (q.by.k === 'tag') return `the weekly ${mNoun(cx, q.metric)} planned for ${q.by.tag} sessions`
       return q.by.k === 'muscle' ? `the sets ${d(q.by.of, cx)} already gets each week` : `the sets planned for ${d(q.by.of, cx)}`
     }
-    const up = q.basis === 'upcoming'
-    const when = up ? 'in the coming week' : 'in the week just ended'
+    // Honest prose (D1, D2): both bases re-plan under TODAY'S state ("now
+    // planned"), so the closing read never claims to be what the week got,
+    // and the upcoming read never claims to see a pending boundary bump.
+    const when = q.basis === 'upcoming' ? 'in the coming week' : 'in the week just closing'
     const what =
       q.by.k === 'tag'
-        ? `the ${mNoun(cx, q.metric)} planned for ${q.by.tag} sessions ${when}`
+        ? `the ${mNoun(cx, q.metric)} now planned for ${q.by.tag} sessions ${when}`
         : q.by.k === 'muscle'
-          ? `the sets ${d(q.by.of, cx)} ${up ? 'is planned to get' : 'got'} ${when}`
-          : `the sets planned for ${d(q.by.of, cx)} ${when}`
+          ? `the sets ${d(q.by.of, cx)} is now planned to get ${when}`
+          : `the sets now planned for ${d(q.by.of, cx)} ${when}`
     return Array.isArray(q.roles) ? `${what}, ${q.roles.join(' and ')} weeks only` : what
   },
   set: (t, cx) => {
@@ -482,7 +510,7 @@ export const DESCRIBERS: { [K in Term['k']]: (n: Extract<Term, { k: K }>, cx: Cx
     const a = t.arg ? d(t.arg, cx) : ''
     return {
       scaleMetric: `${s}, at ${a} of the ${t.metric ? mNoun(cx, t.metric) : 'target'}`,
-      scaleSets: `${s}, with ${a} of the sets`,
+      scaleSets: `${s}, with ${a} of the sets${t.allowZero ? ' (a line may drop to no sets)' : ''}`,
       capEffort: `${s}, keeping at least ${a}`,
       setTempo: `${s}, at tempo ${a}`,
       reshape: `${s}, reshaped to ${a}`,
@@ -499,6 +527,19 @@ export const DESCRIBERS: { [K in Term['k']]: (n: Extract<Term, { k: K }>, cx: Cx
 /** A term as a phrase to embed (a template hole, an argument). */
 export function phrase(t: Term, cx: Cx): string {
   return finish(d(t, cx))
+}
+
+/** Fill a library template's holes and append the non-default arguments for
+ *  hole-less defaulted params, so a declared override is never mute (C10). */
+export function fillTemplate(says: string, args: Record<string, string>, overrides: readonly string[]): string {
+  const filled = says.replace(/\{(\w+)\}/g, (_, k: string) => args[k] ?? `{${k}}`)
+  return overrides.length ? `${filled} (with ${overrides.map((k) => `${k} = ${args[k]}`).join(', ')})` : filled
+}
+/** The defaulted, hole-less params a call overrides with a NON-default term;
+ *  an argument spelling the default renders nothing, one prose form. */
+export function overrideKeys(says: string, defaults: Record<string, Term>, args: Record<string, Term>): string[] {
+  const holes = new Set([...says.matchAll(/\{(\w+)\}/g)].map((m) => m[1]!))
+  return Object.keys(defaults).filter((k) => !holes.has(k) && k in args && canonicalJson(args[k]) !== canonicalJson(defaults[k]))
 }
 
 /** A whole term as finished prose. A conditional statement is a list: each

@@ -68,24 +68,26 @@ const mapSets = (s: SessionValue, f: (t: IssuedTarget, step: IssuedStep) => Issu
 
 /** A deload count: rounded down, never below 1 on a non-empty line, and never
  *  above n, so the count and the issued targets always agree (F12; a literal
- *  factor above 1 is refused at check, growth is addSets). */
-const scaleCount = (n: number, f: number) => (n === 0 ? 0 : Math.min(n, Math.max(1, floorQ(n * f))))
+ *  factor above 1 is refused at check, growth is addSets). Under `allowZero`
+ *  (C9) a line whose scaled count rounds to zero issues no sets: a planned
+ *  zero-set line is judged on nothing and counts no volume. */
+const scaleCount = (n: number, f: number, allowZero: boolean) => (n === 0 ? 0 : Math.min(n, Math.max(allowZero ? 0 : 1, floorQ(n * f))))
 
-function scaleSets(s: SessionValue, f: number): SessionValue {
+function scaleSets(s: SessionValue, f: number, allowZero: boolean): SessionValue {
   return {
     ...s,
     steps: s.steps.map((st): IssuedStep => {
       const c = st.count
       if (c.k === 'n') {
-        const n = scaleCount(c.n, f)
+        const n = scaleCount(c.n, f, allowZero)
         return { ...st, count: { k: 'n', n }, sets: st.sets.slice(0, n) }
       }
       if (c.k === 'range') {
-        const min = scaleCount(c.min, f)
-        const max = Math.max(min, scaleCount(c.max, f))
+        const min = scaleCount(c.min, f, allowZero)
+        const max = Math.max(min, scaleCount(c.max, f, allowZero))
         return { ...st, count: { k: 'range', min, max }, sets: st.sets.slice(0, max) }
       }
-      const max = scaleCount(c.max, f)
+      const max = scaleCount(c.max, f, allowZero)
       return { ...st, count: { k: c.k, max, planned: Math.min(c.planned, max) }, sets: st.sets.slice(0, max) }
     }),
   }
@@ -125,7 +127,7 @@ function addSets(s: SessionValue, k: number): SessionValue {
  *  log every targeted metric (loggingMismatch), where the logging is known
  *  statically; these are the runtime twins for a Use hole: the transformer
  *  leaves the session unchanged. */
-export function applyXform(op: Extract<Term, { k: 'xform' }>['op'], s: SessionValue, arg: Value | null, metric: string | null, logs: readonly string[] | null, argLogs: readonly string[] | null = null): SessionValue {
+export function applyXform(op: Extract<Term, { k: 'xform' }>['op'], s: SessionValue, arg: Value | null, metric: string | null, logs: readonly string[] | null, argLogs: readonly string[] | null = null, allowZero = false): SessionValue {
   const num = () => (arg && arg.v === 'q' ? arg.n : NaN)
   switch (op) {
     case 'scaleMetric': {
@@ -137,7 +139,7 @@ export function applyXform(op: Extract<Term, { k: 'xform' }>['op'], s: SessionVa
       })
     }
     case 'scaleSets':
-      return scaleSets(s, num())
+      return scaleSets(s, num(), allowZero)
     case 'capEffort': {
       if (logs && !logs.includes('effort')) return s
       const c = num()

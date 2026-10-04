@@ -306,6 +306,102 @@
     "anchored"
    ]
   },
+  "SuccessRule": {
+   "anyOf": [
+    {
+     "const": "totalReps"
+    },
+    {
+     "type": "object",
+     "properties": {
+      "atLeastSets": {
+       "type": "integer"
+      }
+     },
+     "required": [
+      "atLeastSets"
+     ],
+     "additionalProperties": false
+    }
+   ]
+  },
+  "E1rmFormula": {
+   "x-enum": "E1rmFormula",
+   "enum": [
+    "epley",
+    "brzycki",
+    "lombardi",
+    "mayhew"
+   ]
+  },
+  "E1rmDecl": {
+   "type": "object",
+   "properties": {
+    "formula": {
+     "$ref": "#/$defs/E1rmFormula"
+    },
+    "maxReps": {
+     "type": "integer"
+    }
+   },
+   "required": [
+    "formula"
+   ],
+   "additionalProperties": false
+  },
+  "Weekday": {
+   "x-enum": "Weekday",
+   "enum": [
+    "Monday",
+    "Tuesday",
+    "Wednesday",
+    "Thursday",
+    "Friday",
+    "Saturday",
+    "Sunday"
+   ]
+  },
+  "AdherenceWeeksAligned": {
+   "type": "object",
+   "properties": {
+    "calendarAligned": {
+     "type": "object",
+     "properties": {
+      "weekStart": {
+       "$ref": "#/$defs/Weekday"
+      }
+     },
+     "required": [
+      "weekStart"
+     ],
+     "additionalProperties": false
+    }
+   },
+   "required": [
+    "calendarAligned"
+   ],
+   "additionalProperties": false
+  },
+  "VolumeWeights": {
+   "type": "object",
+   "properties": {
+    "stage": {
+     "$ref": "#/$defs/Number"
+    },
+    "cluster": {
+     "$ref": "#/$defs/Number"
+    }
+   },
+   "required": [],
+   "additionalProperties": false
+  },
+  "Ties": {
+   "x-enum": "Ties",
+   "enum": [
+    "down",
+    "up"
+   ]
+  },
   "HitPolicy": {
    "x-enum": "HitPolicy",
    "enum": [
@@ -1118,6 +1214,9 @@
       },
       "bound": {
        "$ref": "#/$defs/Edge"
+      },
+      "success": {
+       "$ref": "#/$defs/SuccessRule"
       }
      },
      "required": [
@@ -1159,6 +1258,9 @@
       },
       "step": {
        "type": "string"
+      },
+      "formula": {
+       "$ref": "#/$defs/E1rmFormula"
       }
      },
      "required": [
@@ -2531,6 +2633,9 @@
          "type": "null"
         }
        ]
+      },
+      "allowZero": {
+       "const": true
       }
      },
      "required": [
@@ -2650,6 +2755,12 @@
      "type": "object",
      "additionalProperties": {
       "$ref": "#/$defs/Ty"
+     }
+    },
+    "defaults": {
+     "type": "object",
+     "additionalProperties": {
+      "$ref": "#/$defs/Term"
      }
     },
     "result": {
@@ -2785,6 +2896,12 @@
       "$ref": "#/$defs/Ty"
      }
     },
+    "defaults": {
+     "type": "object",
+     "additionalProperties": {
+      "$ref": "#/$defs/Term"
+     }
+    },
     "facts": {
      "type": "array",
      "items": {
@@ -2853,6 +2970,9 @@
      "items": {
       "type": "string"
      }
+    },
+    "success": {
+     "$ref": "#/$defs/SuccessRule"
     }
    },
    "required": [
@@ -3565,6 +3685,30 @@
     },
     "hitPolicy": {
      "$ref": "#/$defs/HitPolicy"
+    },
+    "e1rm": {
+     "$ref": "#/$defs/E1rmDecl"
+    },
+    "adherenceWeeks": {
+     "$ref": "#/$defs/AdherenceWeeksAligned"
+    },
+    "volumeWeights": {
+     "$ref": "#/$defs/VolumeWeights"
+    },
+    "stripIntensifierOn": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/WeekRole"
+     }
+    },
+    "ties": {
+     "const": "up"
+    },
+    "staleness": {
+     "type": "object",
+     "additionalProperties": {
+      "type": "integer"
+     }
     },
     "policies": {
      "type": "array",
@@ -5573,6 +5717,26 @@
       "k"
      ],
      "additionalProperties": false
+    },
+    {
+     "type": "object",
+     "properties": {
+      "k": {
+       "const": "outsideFormulaDomain"
+      },
+      "formula": {
+       "type": "string"
+      },
+      "reps": {
+       "$ref": "#/$defs/Number"
+      }
+     },
+     "required": [
+      "k",
+      "formula",
+      "reps"
+     ],
+     "additionalProperties": false
     }
    ]
   },
@@ -6568,6 +6732,9 @@
      },
      "required": [],
      "additionalProperties": false
+    },
+    "ties": {
+     "const": "up"
     },
     "display": {
      "type": "object",
@@ -8254,6 +8421,9 @@
     "lapseAfterDays": {
      "type": "integer"
     },
+    "adherenceWeeks": {
+     "$ref": "#/$defs/AdherenceWeeksAligned"
+    },
     "tracked": {
      "type": "array",
      "items": {
@@ -8589,6 +8759,9 @@
       }
      ]
     },
+    "ties": {
+     "const": "up"
+    },
     "logging": {
      "anyOf": [
       {
@@ -8721,6 +8894,12 @@
      "additionalProperties": {
       "type": "string"
      }
+    },
+    "slotSuccess": {
+     "$ref": "#/$defs/SuccessRule"
+    },
+    "alignedWeeks": {
+     "type": "string"
     }
    },
    "required": [
@@ -8854,6 +9033,15 @@
     },
     "primary": {
      "$ref": "#/$defs/FnToken"
+    },
+    "success": {
+     "type": "object",
+     "additionalProperties": {
+      "$ref": "#/$defs/SuccessRule"
+     }
+    },
+    "e1rm": {
+     "$ref": "#/$defs/E1rmDecl"
     }
    },
    "required": [
@@ -8974,13 +9162,27 @@
          "items": {
           "type": "string"
          }
+        },
+        "roles": {
+         "anyOf": [
+          {
+           "type": "array",
+           "items": {
+            "type": "string"
+           }
+          },
+          {
+           "type": "null"
+          }
+         ]
         }
        },
        "required": [
         "slots",
         "days",
         "muscles",
-        "tags"
+        "tags",
+        "roles"
        ],
        "additionalProperties": false
       },
@@ -9264,10 +9466,13 @@
          "additionalProperties": {
           "$ref": "#/$defs/Number"
          }
+        },
+        {
+         "$ref": "#/$defs/Ties"
         }
        ],
        "minItems": 3,
-       "maxItems": 3,
+       "maxItems": 4,
        "items": false
       },
       "world": {
@@ -9295,6 +9500,9 @@
              "additionalProperties": {
               "$ref": "#/$defs/Number"
              }
+            },
+            "3": {
+             "$ref": "#/$defs/Ties"
             }
            },
            "required": [],
@@ -9880,10 +10088,13 @@
            "type": "null"
           }
          ]
+        },
+        {
+         "type": "boolean"
         }
        ],
        "minItems": 5,
-       "maxItems": 6,
+       "maxItems": 7,
        "items": false
       },
       "world": {
@@ -9951,6 +10162,9 @@
                "type": "null"
               }
              ]
+            },
+            "6": {
+             "type": "boolean"
             }
            },
            "required": [],
@@ -10027,10 +10241,13 @@
         },
         {
          "$ref": "#/$defs/Edge"
+        },
+        {
+         "$ref": "#/$defs/SuccessRule"
         }
        ],
        "minItems": 3,
-       "maxItems": 3,
+       "maxItems": 4,
        "items": false
       },
       "world": {
@@ -10065,6 +10282,9 @@
             },
             "2": {
              "$ref": "#/$defs/Edge"
+            },
+            "3": {
+             "$ref": "#/$defs/SuccessRule"
             }
            },
            "required": [],
@@ -11789,10 +12009,30 @@
         },
         {
          "$ref": "#/$defs/LocalDay"
+        },
+        {
+         "type": "object",
+         "properties": {
+          "lapseAfterDays": {
+           "type": "integer"
+          },
+          "adherenceWeeks": {
+           "anyOf": [
+            {
+             "const": "fromAnchor"
+            },
+            {
+             "$ref": "#/$defs/AdherenceWeeksAligned"
+            }
+           ]
+          }
+         },
+         "required": [],
+         "additionalProperties": false
         }
        ],
        "minItems": 5,
-       "maxItems": 5,
+       "maxItems": 6,
        "items": false
       },
       "world": {
@@ -11826,6 +12066,26 @@
             },
             "4": {
              "$ref": "#/$defs/LocalDay"
+            },
+            "5": {
+             "type": "object",
+             "properties": {
+              "lapseAfterDays": {
+               "type": "integer"
+              },
+              "adherenceWeeks": {
+               "anyOf": [
+                {
+                 "const": "fromAnchor"
+                },
+                {
+                 "$ref": "#/$defs/AdherenceWeeksAligned"
+                }
+               ]
+              }
+             },
+             "required": [],
+             "additionalProperties": false
             }
            },
            "required": [],
@@ -13543,10 +13803,23 @@
         },
         {
          "$ref": "#/$defs/RegistryToken"
+        },
+        {
+         "type": "object",
+         "properties": {
+          "mass": {
+           "enum": [
+            "kg",
+            "lb"
+           ]
+          }
+         },
+         "required": [],
+         "additionalProperties": false
         }
        ],
        "minItems": 2,
-       "maxItems": 2,
+       "maxItems": 3,
        "items": false
       },
       "world": {
@@ -13571,6 +13844,19 @@
             },
             "1": {
              "$ref": "#/$defs/RegistryToken"
+            },
+            "2": {
+             "type": "object",
+             "properties": {
+              "mass": {
+               "enum": [
+                "kg",
+                "lb"
+               ]
+              }
+             },
+             "required": [],
+             "additionalProperties": false
             }
            },
            "required": [],
@@ -14102,10 +14388,13 @@
          "additionalProperties": {
           "$ref": "#/$defs/Number"
          }
+        },
+        {
+         "$ref": "#/$defs/Ties"
         }
        ],
        "minItems": 3,
-       "maxItems": 3,
+       "maxItems": 4,
        "items": false
       },
       "world": {
@@ -14133,6 +14422,9 @@
              "additionalProperties": {
               "$ref": "#/$defs/Number"
              }
+            },
+            "3": {
+             "$ref": "#/$defs/Ties"
             }
            },
            "required": [],
@@ -14748,10 +15040,13 @@
            "type": "null"
           }
          ]
+        },
+        {
+         "type": "boolean"
         }
        ],
        "minItems": 5,
-       "maxItems": 6,
+       "maxItems": 7,
        "items": false
       },
       "world": {
@@ -14819,6 +15114,9 @@
                "type": "null"
               }
              ]
+            },
+            "6": {
+             "type": "boolean"
             }
            },
            "required": [],
@@ -14901,10 +15199,13 @@
         },
         {
          "$ref": "#/$defs/Edge"
+        },
+        {
+         "$ref": "#/$defs/SuccessRule"
         }
        ],
        "minItems": 3,
-       "maxItems": 3,
+       "maxItems": 4,
        "items": false
       },
       "world": {
@@ -14939,6 +15240,9 @@
             },
             "2": {
              "$ref": "#/$defs/Edge"
+            },
+            "3": {
+             "$ref": "#/$defs/SuccessRule"
             }
            },
            "required": [],
@@ -16759,10 +17063,30 @@
         },
         {
          "$ref": "#/$defs/LocalDay"
+        },
+        {
+         "type": "object",
+         "properties": {
+          "lapseAfterDays": {
+           "type": "integer"
+          },
+          "adherenceWeeks": {
+           "anyOf": [
+            {
+             "const": "fromAnchor"
+            },
+            {
+             "$ref": "#/$defs/AdherenceWeeksAligned"
+            }
+           ]
+          }
+         },
+         "required": [],
+         "additionalProperties": false
         }
        ],
        "minItems": 5,
-       "maxItems": 5,
+       "maxItems": 6,
        "items": false
       },
       "world": {
@@ -16796,6 +17120,26 @@
             },
             "4": {
              "$ref": "#/$defs/LocalDay"
+            },
+            "5": {
+             "type": "object",
+             "properties": {
+              "lapseAfterDays": {
+               "type": "integer"
+              },
+              "adherenceWeeks": {
+               "anyOf": [
+                {
+                 "const": "fromAnchor"
+                },
+                {
+                 "$ref": "#/$defs/AdherenceWeeksAligned"
+                }
+               ]
+              }
+             },
+             "required": [],
+             "additionalProperties": false
             }
            },
            "required": [],
@@ -18621,10 +18965,23 @@
         },
         {
          "$ref": "#/$defs/RegistryToken"
+        },
+        {
+         "type": "object",
+         "properties": {
+          "mass": {
+           "enum": [
+            "kg",
+            "lb"
+           ]
+          }
+         },
+         "required": [],
+         "additionalProperties": false
         }
        ],
        "minItems": 2,
-       "maxItems": 2,
+       "maxItems": 3,
        "items": false
       },
       "world": {
@@ -18649,6 +19006,19 @@
             },
             "1": {
              "$ref": "#/$defs/RegistryToken"
+            },
+            "2": {
+             "type": "object",
+             "properties": {
+              "mass": {
+               "enum": [
+                "kg",
+                "lb"
+               ]
+              }
+             },
+             "required": [],
+             "additionalProperties": false
             }
            },
            "required": [],

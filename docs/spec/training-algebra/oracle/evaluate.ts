@@ -122,6 +122,9 @@ export interface Ctx {
   display?: Readonly<Partial<Record<string, Unit>>>
   /** The metrics the enclosing session's exercise logs, when known. */
   logs?: readonly string[] | null
+  /** The program's declared grid-tie direction (C6): `round nearest` follows
+   *  it; present only when 'up'. */
+  ties?: 'up'
   /** The enclosing session's exercise logging type, when known. */
   logging?: LoggingType | null
   /** Issue-time capture: told every non-live read with its closed key. */
@@ -250,9 +253,12 @@ export function captureFrame(terms: Term[], cx: Ctx): Frame {
   const record = (key: string, v: Value) => void (reads[key] = v)
   const isStatic = (t: Term, env: Env) => [...nodesOf(t)].every((n) => n.k !== 'performed' && n.k !== 'prescribed' && !(n.k === 'var' && env.get(n.name) === null))
   const run = (t: Term, env: Env): Value => evaluate(t, { ...cx, vars: new Map([...cx.vars, ...([...env].filter(([, v]) => v !== null) as [string, Value][])]), record }).value
-  const bind = (env: Env, name: string, src: Term): Env => new Map([...env, [name, isStatic(src, env) ? run(src, env) : null]])
+  // A static subterm is evaluated ONCE and its value reused for the decision,
+  // the binding or the iteration, so the capture never records a world read's
+  // source call twice (B N3).
+  const once = (t: Term, env: Env): Value | null => (isStatic(t, env) ? run(t, env) : (walk(t, env), null))
   const each = (xs: Term, env: Env, names: string[], body: Term[]) => {
-    const items = isStatic(xs, env) ? run(xs, env) : null
+    const items = once(xs, env)
     if (items?.v === 'list') for (const x of items.items) for (const b of body) walk(b, new Map([...env, ...names.map((n, i) => [n, i === 0 ? x : null] as const)]))
     else for (const b of body) walk(b, new Map([...env, ...names.map((n) => [n, null] as const)]))
   }
@@ -261,13 +267,11 @@ export function captureFrame(terms: Term[], cx: Ctx): Frame {
     const decided = (c: Term) => (isStatic(c, env) ? run(c, env) : null)
     switch (t.k) {
       case 'let':
-        walk(t.value, env)
-        return walk(t.body, bind(env, t.name, t.value))
+        return walk(t.body, new Map([...env, [t.name, once(t.value, env)]]))
       case 'known': {
-        walk(t.a, env)
-        const a = decided(t.a)
+        const a = once(t.a, env)
         if (a && isNone(a)) return
-        return walk(t.body, bind(env, t.as, t.a))
+        return walk(t.body, new Map([...env, [t.as, a]]))
       }
       case 'if': {
         const c = decided(t.c)
@@ -281,35 +285,28 @@ export function captureFrame(terms: Term[], cx: Ctx): Frame {
         return [t.on, ...Object.values(t.cases)].forEach((x) => walk(x, env))
       }
       case 'logic': {
-        const a = decided(t.a)
-        walk(t.a, env)
+        const a = once(t.a, env)
         if (a && a.v === 'bool' && a.b === (t.op === 'or')) return
         return walk(t.b, env)
       }
       case 'orElse': {
-        const a = decided(t.a)
-        walk(t.a, env)
+        const a = once(t.a, env)
         if (a && !isNone(a)) return
         return walk(t.b, env)
       }
       case 'fold':
         walk(t.init, env)
-        walk(t.xs, env)
         return each(t.xs, env, [t.x, t.acc], [t.step])
       case 'tabulate':
-        walk(t.keys, env)
         return each(t.keys, env, [t.as], [t.body])
       case 'sum':
-        walk(t.xs, env)
         return each(t.xs, env, [t.as], [t.body])
       case 'count':
-        walk(t.xs, env)
         return each(t.xs, env, [t.as], [t.where])
       case 'pick':
-        walk(t.xs, env)
         return each(t.xs, env, [t.as], t.where ? [t.where, t.score] : [t.score])
       case 'allocate':
-        ;[t.n, t.into, t.among].forEach((x) => walk(x, env))
+        ;[t.n, t.into].forEach((x) => walk(x, env))
         return each(t.among, env, [t.as], [t.score, t.cap])
       default:
         return childTerms(t).forEach((x) => walk(x, env))
@@ -495,7 +492,7 @@ export function evaluate(t: Term, cx: Ctx): Trace {
       const a = asQ(sub(t.a))
       const s = asQ(sub(t.step)).n
       if (!(s > 0)) return out(a, { note: `step ${s} is not positive: left unrounded` })
-      return out({ ...a, n: (t.mode === 'nearest' ? nearestStep : t.mode === 'down' ? stepDown : stepUp)(a.n, s) })
+      return out({ ...a, n: t.mode === 'nearest' ? nearestStep(a.n, s, cx.ties ?? 'down') : (t.mode === 'down' ? stepDown : stepUp)(a.n, s) })
     }
     case 'ratio': {
       const a = asQ(sub(t.a))
@@ -617,8 +614,12 @@ export function evaluate(t: Term, cx: Ctx): Trace {
       const f = fnOf(cx, t.def)
       const seq = cx.reg.seq.get(keyOf(t.def)) ?? cx.reg.seq.size
       if (cx.seq !== undefined && seq >= cx.seq) throw new Error(`evaluate: ${keyOf(t.def)} is not published before its caller (L1: no recursion)`)
+      const callee: Ctx = { reg: cx.reg, params: {}, ports: {}, vars: new Map(), enums: enumsWith(f.enums), seq, ...(cx.extraFns ? { extraFns: cx.extraFns } : {}) }
       const params = Object.fromEntries(Object.entries(t.args).map(([k, x]) => [k, sub(x)]))
-      const body = evaluate(f.body, { reg: cx.reg, params, ports: {}, vars: new Map(), enums: enumsWith(f.enums), seq, ...(cx.extraFns ? { extraFns: cx.extraFns } : {}) })
+      // A defaulted parameter the call omits takes its declared closed value,
+      // evaluated in the callee's own context (it reads nothing, C10).
+      for (const [k, d] of Object.entries(f.defaults ?? {})) if (!(k in params)) params[k] = evaluate(d, callee).value
+      const body = evaluate(f.body, { ...callee, params })
       kids.push(body)
       return out(body.value, { def: t.def })
     }
@@ -676,7 +677,7 @@ export function evaluate(t: Term, cx: Ctx): Trace {
       const logs = ex.v === 'ref' ? loggedBy(cx, ex.id) : null
       const argLogs = arg?.v === 'ref' && arg.kind === 'exercise' ? loggedBy(cx, arg.id) : null
       const grow = t.op === 'scaleSets' && arg?.v === 'q' && arg.n > 1 ? { note: `a factor of ${arg.n} above 1 leaves the sets as they are: a count never grows past its targets (growth is addSets)` } : {}
-      return out({ v: 'session', s: applyXform(t.op, s.s, arg, t.metric, logs, argLogs) }, grow)
+      return out({ v: 'session', s: t.allowZero === true ? applyXform(t.op, s.s, arg, t.metric, logs, argLogs, true) : applyXform(t.op, s.s, arg, t.metric, logs, argLogs) }, grow)
     }
     case 'technique':
       return out({ v: 'technique', t: { kind: t.kind, stages: t.stages.map((x) => (sub(x) as Extract<Value, { v: 'set' }>).t) } })

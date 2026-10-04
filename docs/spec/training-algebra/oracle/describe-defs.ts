@@ -13,10 +13,10 @@
  */
 import type { Term } from './algebra'
 import { isLib, keyOf } from './checker'
-import { cxOf, d, describe, finish, pad, phrase, selText, sentence, type Cx } from './describe'
+import { cxOf, d, describe, fillTemplate, finish, overrideKeys, pad, phrase, selText, sentence, successText, type Cx } from './describe'
 import type { FactDecl } from './registry'
 import type { Calendar, Group, MacroDef, Policy, ProgramDef, SchemeDef, SlotBinding, Use } from './structure'
-import { addDays, dayNum, dayText, defaultFrequency, type Adherence, type CalendarSpec, type CalendarState, type Drift, type Due, type Frequency, type Rotation, derivedAdherence } from './time'
+import { WEEKDAYS, addDays, dayNum, dayText, defaultFrequency, type Adherence, type CalendarSpec, type CalendarState, type Drift, type Due, type Frequency, type Rotation, derivedAdherence } from './time'
 import { trimNumber as trim } from './units'
 
 type Decl<K extends string, T extends { k: K }> = { [X in K]: (t: Extract<T, { k: X }>, cx: Cx) => string }
@@ -27,8 +27,15 @@ export interface DeclDescribers {
   drift: Record<Drift, string>
 }
 
-const per = (f: Extract<Frequency, { k: 'atLeast' }>) =>
-  f.per.k === 'day' ? 'each day' : f.per.k === 'week' ? 'in each 7-day window (from your start day)' : `in each ${f.per.n}-day window (from your start day)`
+const weekSpan = (start: string) => `${start} to ${WEEKDAYS[(WEEKDAYS.indexOf(start as (typeof WEEKDAYS)[number]) + 6) % 7]}`
+const per = (f: Extract<Frequency, { k: 'atLeast' }>, cx: Cx) =>
+  f.per.k === 'day'
+    ? 'each day'
+    : f.per.k === 'week'
+      ? cx.alignedWeeks
+        ? `in each calendar week (${weekSpan(cx.alignedWeeks)})`
+        : 'in each 7-day window (from your start day)'
+      : `in each ${f.per.n}-day window (from your start day)`
 const lower = (t: string) => `${t.charAt(0).toLowerCase()}${t.slice(1)}`
 const list = (xs: readonly string[]) => (xs.length > 1 ? `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}` : (xs[0] ?? ''))
 const pctText = (x: number) => `${trim(x * 100)}%`
@@ -37,7 +44,7 @@ const labelled = (label: string, text: string, by: string) => (text.startsWith('
 
 export const DECL_DESCRIBERS: DeclDescribers = {
   frequency: {
-    atLeast: (f) => (f.of.s === 'any' ? `Train at least ${f.n} ${f.n === 1 ? 'time' : 'times'} ${per(f)}` : `Do at least ${f.n} ${selText(f.of, f.n !== 1)} ${per(f)}`),
+    atLeast: (f, cx) => (f.of.s === 'any' ? `Train at least ${f.n} ${f.n === 1 ? 'time' : 'times'} ${per(f, cx)}` : `Do at least ${f.n} ${selText(f.of, f.n !== 1)} ${per(f, cx)}`),
     atMost: (f) => `Do no more than ${f.n} ${selText(f.of, f.n !== 1)} in any ${f.withinDays} days`,
     // The ceiling bounds a TERM gap (state-driven spacing); a literal gap needs no clause.
     minGap: (f, cx) => `Leave at least ${d(f.gap, cx)} between ${selText(f.of, true)}${f.gap.k === 'lit' ? '' : ` (never more than ${f.ceiling} days)`}`,
@@ -68,10 +75,12 @@ const groupText = (g: Group, cx: Cx) => (DECL_DESCRIBERS.group[g.k] as (x: Group
 
 /** A fact as the slot description lists it: its noun, how it is observed, and
  *  when it goes stale. */
-export function factLine(f: FactDecl): string {
+export function factLine(f: FactDecl, staleOverride?: number): string {
   const when = { standing: 'kept on file', preSession: 'checked in before the session', duringSession: 'recorded during the session', postSession: 'rated after the session' }[f.observed]
   const reducer = f.grain.g === 'reducer' ? `, ${f.grain.reducer}` : ''
-  return `${f.noun} (${when}${reducer}${f.maxAgeDays ? `; ignored once older than ${f.maxAgeDays === 1 ? 'a day' : `${f.maxAgeDays} days`}` : ''})`
+  const max = staleOverride ?? f.maxAgeDays
+  const declared = staleOverride !== undefined && staleOverride !== f.maxAgeDays ? ', by this program' : ''
+  return `${f.noun} (${when}${reducer}${max ? `; ignored once older than ${max === 1 ? 'a day' : `${max} days`}${declared}` : ''})`
 }
 
 /** When each handler fires. The cycle-end clause is read off the calendar
@@ -92,8 +101,13 @@ function whenText(ev: string, calendar: Calendar | null): string {
 export function describeSlot(s: SchemeDef, args: Record<string, string>, cx: Cx, calendar: Calendar | null = null): string[] {
   const nouns = Object.fromEntries(Object.entries(s.state).map(([k, v]) => [k, v.noun]))
   const flags = new Set(Object.entries(s.state).filter(([, v]) => v.ty.t === 'bool').map(([k]) => k))
-  const c: Cx = { ...cx, lib: isLib(s.ref.id), params: args, nouns, flags }
-  const lines = isLib(s.ref.id) ? [s.says.replace(/\{(\w+)\}/g, (_, k: string) => args[k] ?? `{${k}}`)] : []
+  const filled = { ...args }
+  for (const [k, dt] of Object.entries(s.defaults ?? {})) if (!(k in filled)) filled[k] = phrase(dt, cx)
+  // No override append here: this surface has only phrases, and the plan and
+  // handler lines below state the bound values; describeProgram's slot line
+  // carries the (with …) append from the binding's terms.
+  const c: Cx = { ...cx, lib: isLib(s.ref.id), params: filled, nouns, flags }
+  const lines = isLib(s.ref.id) ? [fillTemplate(s.says, filled, [])] : []
   if (s.facts.length) lines.push(`  Reads ${s.facts.map((f) => factLine(cx.reg.vocab.facts[f]!)).join('; ')}.`)
   for (const v of Object.values(s.state)) lines.push(`  Starts with ${v.ty.t === 'bool' ? `“${v.noun}”` : v.noun} = ${phrase(v.init, c)}; written by ${v.writableBy.join(', ') || 'nothing'}.`)
   lines.push(`  ${labelled('Plan', describe(s.plan, c), '    ')}`)
@@ -118,7 +132,12 @@ export function programCx(p: ProgramDef, cx: Cx): Cx {
   }
 }
 export function bindingArgs(p: ProgramDef, b: SlotBinding, cx: Cx): Record<string, string> {
-  return Object.fromEntries(Object.entries(b.args).map(([k, v]) => [k, phrase(v, programCx(p, cx))]))
+  const pc = programCx(p, cx)
+  const out = Object.fromEntries(Object.entries(b.args).map(([k, v]) => [k, phrase(v, pc)]))
+  // A defaulted param the binding omits reads as its default (C10), so every
+  // consumer of the args map gets a complete phrase table.
+  for (const [k, dt] of Object.entries(cx.reg.schemes.get(keyOf(b.scheme))?.defaults ?? {})) if (!(k in out)) out[k] = phrase(dt, pc)
+  return out
 }
 
 // ── policies: each rule, then what co-firing rules do TOGETHER ──────────────
@@ -146,11 +165,13 @@ export function normal(u: Use, cx: Cx): XNorm | null {
   if (!f) return null
   const n: XNorm = { scale: {}, sets: [], effort: null, strip: false }
   const num = (t: Term | null): number | null => {
-    const x = t?.k === 'param' ? u.args[t.name] : t
+    const x = t?.k === 'param' ? (u.args[t.name] ?? f.defaults?.[t.name]) : t
     return x?.k === 'lit' && x.lit.k === 'q' ? x.lit.v : null
   }
   let t: Term = f.body
   while (t.k === 'xform') {
+    // An allowZero scaleSets does not compose by the shared count rule (C9).
+    if (t.allowZero) return null
     const v = num(t.arg)
     if (t.op === 'stripIntensifier') n.strip = true
     else if (v === null) return null
@@ -196,7 +217,8 @@ function normText(n: XNorm, cx: Cx): string {
 function useText(u: Use, cx: Cx): string {
   const f = cx.reg.fns.get(keyOf(u.def))
   const args: Record<string, string> = { ...Object.fromEntries(Object.entries(u.args).map(([k, v]) => [k, phrase(v, cx)])), [u.hole]: 'each session' }
-  return f && isLib(f.ref.id) ? f.says.replace(/\{(\w+)\}/g, (_, k: string) => args[k] ?? `{${k}}`) : f ? phrase(f.body, { ...cx, params: args }) : u.def.id
+  for (const [k, dt] of Object.entries(f?.defaults ?? {})) if (!(k in args)) args[k] = phrase(dt, cx)
+  return f && isLib(f.ref.id) ? fillTemplate(f.says, args, overrideKeys(f.says, f.defaults ?? {}, u.args)) : f ? phrase(f.body, { ...cx, params: args }) : u.def.id
 }
 const outcomeText = (o: NonNullable<Policy['outcome']>) =>
   `${o.demote.direction === 'any' ? 'any change to' : `any ${o.demote.direction} in`} your ${list(o.demote.kinds.map((k) => (k === 'load' ? 'working loads' : k === 'volume' ? 'set counts' : 'other fields')))} is proposed for your OK instead of applied${o.volumeKeep ? ', and set counts are not cut' : ''}`
@@ -263,8 +285,9 @@ export function macroHeadline(m: MacroDef): string {
 }
 
 export function describeProgram(p: ProgramDef, cx: Cx): string[] {
-  const pc = programCx(p, cx)
-  const grids = Object.entries(p.grids).map(([m, g]) => `${m === 'load' ? 'loads' : 'distances'} on a ${phrase(g as Term, pc)} grid`)
+  const pc0 = programCx(p, cx)
+  const pc: Cx = p.adherenceWeeks ? { ...pc0, alignedWeeks: p.adherenceWeeks.calendarAligned.weekStart } : pc0
+  const grids = Object.entries(p.grids).map(([m, g]) => `${m === 'load' ? 'loads' : 'distances'} on a ${phrase(g as Term, pc)} grid${p.ties === 'up' ? ' (a target exactly between two grid steps rounds up)' : ''}`)
   const lines = [
     headline(p),
     `  Block weeks: ${p.calendar.weeks.join(', ')}${p.calendar.repeat === 'cycle' ? ', repeating' : ', once'}. ${DECL_DESCRIBERS.drift[p.calendar.drift]}${grids.length ? ` ${sentence(grids.join('; '))}` : ''}`,
@@ -272,7 +295,26 @@ export function describeProgram(p: ProgramDef, cx: Cx): string[] {
   ]
   const freqs = p.frequency.length ? p.frequency : defaultFrequency(p.rotation)
   lines.push(`  Attendance${p.frequency.length ? '' : ' (from the rotation)'}: ${freqs.map((f, i) => (i ? lower(freqText(f, pc)) : freqText(f, pc))).join('; ')}. If you don't train for ${p.lapseAfterDays} days, attendance stops counting until your next session.`)
-  if (p.facts.length) lines.push(`  Reads ${p.facts.map((f) => factLine(cx.reg.vocab.facts[f]!)).join('; ')}.`)
+  if (p.facts.length) lines.push(`  Reads ${p.facts.map((f) => factLine(cx.reg.vocab.facts[f]!, p.staleness?.[f])).join('; ')}.`)
+  // The declared options (configurability round): a declared choice is
+  // stated; a default says nothing.
+  if (p.e1rm) {
+    const name = `${p.e1rm.formula.charAt(0).toUpperCase()}${p.e1rm.formula.slice(1)}`
+    lines.push(`  Estimated one-rep maxes use the ${name} formula${p.e1rm.maxReps !== undefined ? `, from sets of at most ${p.e1rm.maxReps} effective reps` : ''}.`)
+  }
+  if (p.volumeWeights) {
+    const parts = [
+      ...(p.volumeWeights.stage !== undefined ? [`an intensifier stage counts as ${pctText(p.volumeWeights.stage)} of a set`] : []),
+      ...(p.volumeWeights.cluster !== undefined ? [`a clustered set counts as ${pctText(p.volumeWeights.cluster)} of a set`] : []),
+    ]
+    lines.push(`  Volume counting: ${parts.join('; ')}.`)
+  }
+  if (p.stripIntensifierOn) lines.push(`  ${p.stripIntensifierOn.length ? `Intensifiers are dropped in ${list(p.stripIntensifierOn.map((r) => `${r}`))} weeks` : 'No week role drops the intensifier'}.`)
+  // A staleness override for a fact only a bound scheme reads is stated on
+  // its own line, so the declared rule is never mute (C8).
+  const extraStale = Object.entries(p.staleness ?? {}).filter(([f]) => !p.facts.includes(f))
+  if (extraStale.length)
+    lines.push(`  Freshness: ${extraStale.map(([f, days]) => `${cx.reg.vocab.facts[f]?.noun ?? f} is ignored once older than ${days === 1 ? 'a day' : `${days} days`}`).join('; ')} (this program's rule).`)
   for (const pol of p.policies) lines.push(`  ${policyText(pol, pc)}`)
   const stack = stackingText(p, pc)
   if (stack.length) lines.push(`  Together (${p.hitPolicy === 'first' ? 'only the first matching rule applies' : 'every matching rule applies, in the order listed'}):`, ...stack.map((x) => `    ${x}`))
@@ -281,8 +323,10 @@ export function describeProgram(p: ProgramDef, cx: Cx): string[] {
     const s = cx.reg.schemes.get(keyOf(b.scheme))
     if (!s) continue
     const args = bindingArgs(p, b, cx)
-    if (isLib(s.ref.id)) lines.push(`  ${slot}: ${s.says.replace(/\{(\w+)\}/g, (_, k: string) => args[k] ?? `{${k}}`)}.`)
-    else lines.push(`  ${labelled(slot, describe(s.plan, { ...pc, params: args }), '    ')}`)
+    const over = overrideKeys(s.says, s.defaults ?? {}, b.args)
+    const su = b.meta.success ? ` Success: ${successText(b.meta.success).replace(/^ \(|\)$/g, '')}.` : ''
+    if (isLib(s.ref.id)) lines.push(`  ${slot}: ${fillTemplate(s.says, args, over)}.${su}`)
+    else lines.push(`  ${labelled(slot, describe(s.plan, { ...pc, params: args, ...(b.meta.success ? { slotSuccess: b.meta.success } : {}) }), '    ')}${su}`)
   }
   for (const [ev, h] of Object.entries(p.aggregate?.on ?? {})) if (h) lines.push(`  ${labelled(`${whenText(ev, p.calendar)} (muscle plan)`, describe(h, pc), '    ')}`)
   for (const [name, e] of Object.entries(p.exports)) lines.push(`  Hands on ${name}: ${pc.peer(e.slot, e.field)} when the program ends.`)
@@ -322,7 +366,13 @@ export function adherenceText(st: CalendarState, a: Adherence, spec: CalendarSpe
   const r = derivedAdherence(st, a.key)
   const f = spec.frequency[x.rule] as Extract<Frequency, { k: 'atLeast' }>
   const len = dayNum(x.window.through) - dayNum(x.window.from) + 1
-  const unit = f.per.k === 'day' ? dayText(x.window.from) : `${len}-day window ${Math.floor((dayNum(x.window.from) - dayNum(spec.anchor)) / len) + 1} (${dayText(x.window.from)} to ${dayText(x.window.through)})`
+  const aligned = f.per.k === 'week' && spec.adherenceWeeks
+  const unit =
+    f.per.k === 'day'
+      ? dayText(x.window.from)
+      : aligned
+        ? `Calendar week (${dayText(x.window.from)} to ${dayText(x.window.through)})`
+        : `${len}-day window ${Math.floor((dayNum(x.window.from) - dayNum(spec.anchor)) / len) + 1} (${dayText(x.window.from)} to ${dayText(x.window.through)})`
   if (r.void) return `${unit}: paused or lapsed, so it does not count.`
   const amended = st.amendments.filter((m) => m.adherence === a.key)
   const late = amended.length ? ` ${amended.map((m) => `The workout on ${dayText(m.localDay)} was logged late and now counts.`).join(' ')}` : ''

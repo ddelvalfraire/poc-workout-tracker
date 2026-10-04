@@ -320,7 +320,7 @@ t('R2-consider', 'allocate-as-fold is NOT expressible in the frozen grammar: the
     b: v('acc'),
   }
   const fold: Term = { k: 'fold', xs: { k: 'range', n: 8 }, init: into, acc: 'acc' as never, x: 'i' as never, step }
-  const agg = sc('aggregate', { state: { extra: { ty: { t: 'map', key: 'slot', of: { t: 'q', dim: { set: 1 } } }, init: L(0), writableBy: ['weekEnd'], noun: 'extra sets' } }, program: { slots: ['flatDb'], days: [], muscles: ['chest'], tags: [] } })
+  const agg = sc('aggregate', { state: { extra: { ty: { t: 'map', key: 'slot', of: { t: 'q', dim: { set: 1 } } }, init: L(0), writableBy: ['weekEnd'], noun: 'extra sets' } }, program: { slots: ['flatDb'], days: [], muscles: ['chest'], tags: [], roles: null } })
   const out: TypeError[] = []
   top(fold, agg, [], null, out)
   eq(out.map((e) => `${e.code}: ${e.message}`), ['notComparable: cannot compare slot == slot'], 'the only refusal is the ref comparison')

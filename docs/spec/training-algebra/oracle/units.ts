@@ -166,10 +166,19 @@ export const shown = (v: number, unit: Unit, per?: Unit) => Number(((v / UNITS[u
  *  billionth of a step of a half-integer. Past |m| > 2⁵² the operand is
  *  returned as is. */
 export const QUANTA_PER_STEP = 1_000_000_000
-export function nearestStep(x: number, step: number): number {
+export type Ties = 'down' | 'up'
+/** `ties: 'up'` is the program-declared alternative (the `ties` option): the
+ *  same integer formulation with n = ⌊(m + Q/2) ÷ Q⌋, so a tie is sent toward
+ *  +∞ and every non-tie is unchanged. */
+export function nearestStep(x: number, step: number, ties: Ties = 'down'): number {
   const v = (x / step) * QUANTA_PER_STEP
   const m = Math.sign(v) * Math.round(Math.abs(v))
   if (!(Math.abs(m) <= 2 ** 52)) return x
+  if (ties === 'up') {
+    const a = m + QUANTA_PER_STEP / 2
+    const r = ((a % QUANTA_PER_STEP) + QUANTA_PER_STEP) % QUANTA_PER_STEP
+    return ((a - r) / QUANTA_PER_STEP) * step
+  }
   const a = m - QUANTA_PER_STEP / 2
   const r = a % QUANTA_PER_STEP
   return ((a - r) / QUANTA_PER_STEP + (r > 0 ? 1 : 0)) * step

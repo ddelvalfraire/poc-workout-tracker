@@ -33,9 +33,11 @@ import { canonicalJson } from './canonical'
 import { displayOf, evalProgram, hashOf, nextDay, planSlot, programCtx, roleOf, trainWeekOf, type Inputs, type Runtime } from './ports'
 import type { Use } from './structure'
 import { dueVerdict } from './time'
-import { DIMS, dimEq, nearestStep, stepDown, stepUp } from './units'
+import { DIMS, dimEq, nearestStep, stepDown, stepUp, type Ties } from './units'
 
-const STRIP_ROLES = new Set(['deload', 'taper', 'test'])
+/** L10's default role list; a program's stripIntensifierOn replaces it (C5). */
+const STRIP_ROLES: readonly string[] = ['deload', 'taper', 'test']
+const stripRolesOf = (def: Pick<Runtime['def'], 'stripIntensifierOn'>): readonly string[] => def.stripIntensifierOn ?? STRIP_ROLES
 
 // ── the sink ────────────────────────────────────────────────────────────────
 
@@ -51,9 +53,9 @@ export function sinkGrids(reg: Pick<Registry, 'vocab'>, grids: Grids): Grids {
   return { ...Object.fromEntries(whole), ...grids }
 }
 
-export function sinkField(fd: Field, metric: string, grids: Grids): Field {
+export function sinkField(fd: Field, metric: string, grids: Grids, ties: Ties = 'down'): Field {
   if (fd.k === 'silent') return fd
-  if (fd.k === 'open') return { ...fd, planned: sinkField(fd.planned, metric, grids) as Extract<Field, { k: 'fixed' | 'silent' }> }
+  if (fd.k === 'open') return { ...fd, planned: sinkField(fd.planned, metric, grids, ties) as Extract<Field, { k: 'fixed' | 'silent' }> }
   const b = fd.v
   const outOf = (value: number): Field => ({ k: 'silent', cause: { k: 'outOfDomain', field: metric, value } })
   const nums = b.b === 'open' ? [] : b.b === 'range' ? [b.min, b.max] : [b.v]
@@ -62,7 +64,9 @@ export function sinkField(fd: Field, metric: string, grids: Grids): Field {
   if (b.b === 'range' && cmpNum(b.min, b.max) > 0) return outOf(b.min)
   const g = grids[metric]
   const by = (f: (x: number, s: number) => number) => (x: number) => Math.max(0, g !== undefined && g > 0 ? f(x, g) : x)
-  const [near, up, down] = [by(nearestStep), by(stepUp), by(stepDown)]
+  // The ties direction applies to exact bounds only (C6): floors and
+  // ceilings are already directional.
+  const [near, up, down] = [by((x, st) => nearestStep(x, st, ties)), by(stepUp), by(stepDown)]
   switch (b.b) {
     case 'open':
       return fd
@@ -78,19 +82,22 @@ export function sinkField(fd: Field, metric: string, grids: Grids): Field {
     }
   }
 }
-const sinkTarget = (t: IssuedTarget, grids: Grids): IssuedTarget => ({
+// The default direction is OMITTED at the call, so a recorded default call
+// keeps its pre-round shape (the fixtures are the contract).
+const sink1 = (fd: Field, m: string, grids: Grids, ties: Ties): Field => (ties === 'up' ? sinkField(fd, m, grids, ties) : sinkField(fd, m, grids))
+const sinkTarget = (t: IssuedTarget, grids: Grids, ties: Ties): IssuedTarget => ({
   ...t,
-  metrics: Object.fromEntries(Object.entries(t.metrics).map(([m, fd]) => [m, sinkField(fd!, m, grids)])),
+  metrics: Object.fromEntries(Object.entries(t.metrics).map(([m, fd]) => [m, sink1(fd!, m, grids, ties)])),
 })
 
-export function sinkSlot(rt: Pick<Runtime, 'reg'>, slot: string, s: SessionValue, grids: Grids, trace: Trace): IssuedSlot {
+export function sinkSlot(rt: Pick<Runtime, 'reg'>, slot: string, s: SessionValue, grids: Grids, trace: Trace, ties: Ties = 'down'): IssuedSlot {
   const ex = s.exercise
   const decl = ex.v === 'ref' ? rt.reg.vocab.exercises[ex.id] : undefined
   const exercise: IssuedSlot['exercise'] =
     ex.v === 'ref' && decl ? { id: ex.id, label: decl.label, logging: decl.logging } : { silent: ex.v === 'none' ? ex.cause : { k: 'missingKey', key: ex.v === 'ref' ? ex.id : 'exercise' } }
   const g = sinkGrids(rt.reg, grids)
-  const steps = s.steps.map((st): IssuedStep => ({ ...st, sets: st.sets.map((t) => sinkTarget(t, g)) }))
-  const intensifier = s.intensifier ? { ...s.intensifier, stages: s.intensifier.stages.map((t) => sinkTarget(t, g)) } : null
+  const steps = s.steps.map((st): IssuedStep => ({ ...st, sets: st.sets.map((t) => sinkTarget(t, g, ties)) }))
+  const intensifier = s.intensifier ? { ...s.intensifier, stages: s.intensifier.stages.map((t) => sinkTarget(t, g, ties)) } : null
   return { slot, exercise, steps, intensifier, trace }
 }
 
@@ -145,8 +152,8 @@ export function issueSlot(rt: Runtime, head: Head, slot: string, inp: Inputs, fi
   for (const i of fired) trace = applyUseTraced(rt.def.policies[i]!.plan!, trace, pcx)
   if (rt.phaseTransform) trace = applyUseTraced(rt.phaseTransform, trace, pcx)
   const s = (trace.value as Extract<Value, { v: 'session' }>).s
-  const strip = STRIP_ROLES.has(role) && s.intensifier !== null
-  const out = sinkSlot(rt, slot, strip ? { ...s, intensifier: null } : s, gridsOf(rt), trace)
+  const strip = stripRolesOf(rt.def).includes(role) && s.intensifier !== null
+  const out = sinkSlot(rt, slot, strip ? { ...s, intensifier: null } : s, gridsOf(rt), trace, rt.def.ties ?? 'down')
   const issued: SessionValue = { exercise: s.exercise, steps: out.steps, intensifier: out.intensifier }
   const changed = sinkChanges(s, issued)
   if (!strip && !changed.length) return out
@@ -203,6 +210,7 @@ export function issueSession(rt: Runtime, head: Head, day: string, inp: Inputs):
       policies: fired,
       phaseTransform: rt.phaseTransform?.def ?? null,
       grids: gridsOf(rt),
+      ...(rt.def.ties === 'up' ? { ties: 'up' as const } : {}),
       display: displayOf(rt),
     },
   }
@@ -267,10 +275,11 @@ export function currentView(issued: IssuedSession, resolutions: readonly Resolut
 /** A live context for one step of a slot: the logged sets and current
  *  targets of the steps it can see. `own.before` limits a step's self-read to
  *  the sets before index i. */
-function liveCtx(rt: Pick<Runtime, 'reg'>, view: IssuedSlot, at: number, logged: Record<string, PerformedSet[]>, frame: import('./engine').Frame, own: { id: string; key: string; before: number } | null, display: IssuedSession['stamp']['display'] = {}): Ctx {
+function liveCtx(rt: Pick<Runtime, 'reg'>, view: IssuedSlot, at: number, logged: Record<string, PerformedSet[]>, frame: import('./engine').Frame, own: { id: string; key: string; before: number } | null, display: IssuedSession['stamp']['display'] = {}, ties: Ties = 'down'): Ctx {
   return ctxOf(rt.reg, {
     frame,
     display,
+    ...(ties === 'up' ? { ties: 'up' as const } : {}),
     logging: 'id' in view.exercise ? view.exercise.logging : null,
     ports: {
       performed: (id) => (own && own.id === id ? (logged[own.key] ?? []).slice(0, own.before) : (logged[visibleStep(view, at, id)?.key ?? id] ?? [])),
@@ -290,6 +299,8 @@ export function resolveLive(rt: Pick<Runtime, 'reg'>, issued: IssuedSession, log
   const latest = latestRows(issued.issueKey, already)
   let seq = already.reduce((a, r) => Math.max(a, r.seq), 0)
   const grids = sinkGrids(rt.reg, issued.stamp.grids)
+  // Resolution quantizes against the STAMPED ties, never re-deriving (C6).
+  const ties: Ties = issued.stamp.ties ?? 'down'
   for (const sl of issued.slots) {
     const mine = logged[sl.slot] ?? {}
     sl.steps.forEach((st, at) =>
@@ -303,9 +314,9 @@ export function resolveLive(rt: Pick<Runtime, 'reg'>, issued: IssuedSession, log
           const key = `${issued.issueKey}:${sl.slot}:${st.key}:${i}:${m}@${hashOf(fd.dependsOn.map(depSets))}`
           const cell = `${sl.slot}:${st.key}:${i}:${m}`
           if (latest.get(cell)?.key === key) continue
-          const cx = liveCtx(rt, view, at, mine, fd.frame, { id: st.id, key: st.key, before: i }, issued.stamp.display)
+          const cx = liveCtx(rt, view, at, mine, fd.frame, { id: st.id, key: st.key, before: i }, issued.stamp.display, ties)
           const kids: Trace[] = []
-          const value = sinkField(boundField(fd.bound, cx, kids), m, grids) as Extract<Field, { k: 'fixed' | 'silent' }>
+          const value = sink1(boundField(fd.bound, cx, kids), m, grids, ties) as Extract<Field, { k: 'fixed' | 'silent' }>
           const trace: Trace = { node: { k: 'set', role: t.role, target: { [m]: fd.bound }, rest: null, tempo: null, cluster: null } as Term, value: { v: 'set', t: { ...t, metrics: { [m]: value } } }, kids }
           const row: Resolution = { key, seq: ++seq, issueKey: issued.issueKey, slot: sl.slot, step: st.key, index: i, metric: m, value, trace }
           latest.set(cell, row)

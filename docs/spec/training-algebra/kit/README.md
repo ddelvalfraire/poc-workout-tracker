@@ -25,14 +25,20 @@ The generator source lives beside the oracle so it is type-checked with it (step
 |---|---|---|
 | fixtures/defs | 44 | 44 |
 | fixtures/registries | 12 | 12 |
-| fixtures/eval | 178 | 1317 |
-| fixtures/refusals | 298 | 298 |
-| fixtures/prose | 68 | 456 |
+| fixtures/eval | 206 | 1790 |
+| fixtures/refusals | 319 | 319 |
+| fixtures/prose | 79 | 475 |
 
 Compile-time and ingest refusal codes with at least one refusal fixture: 49 of 50. Codes with none: `dayStampOutOfRange`, `floorNotConfirmed`.
 
 Refusal fixtures whose input is authoring JSON that does not parse as IR (tagged `inputSchemaErrors`; the checker still answers them, and the schema is stricter than the checker there): 
 
+- unknownName: config.unknownname.2.json
+- unknownName: config.unknownname.3.json
+- unknownName: config.unknownname.4.json
+- unknownName: config.unknownname.5.json
+- unknownName: config.unknownname.6.json
+- unknownName: config.unknownname.json
 - boundNotLiteral: conformance.boundnotliteral.2.json
 - boundNotLiteral: conformance.boundnotliteral.4.json
 - boundNotLiteral: a threshold given as a term
@@ -68,7 +74,7 @@ Sampling and what was not exported:
   "evaluate.evaluate": 1496,
   "issue.applyUse": 87
  },
- "duplicatesDropped": 2020,
+ "duplicatesDropped": 2306,
  "notExported": {
   "step.activate: codec: a registry whose definitions and publication order disagree": 6,
   "step.prescribe: codec: a registry whose definitions and publication order disagree": 4,

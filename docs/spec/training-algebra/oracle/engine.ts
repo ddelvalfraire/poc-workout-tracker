@@ -52,8 +52,10 @@
  *  L9 Honest projection. Every projected value is tagged with its assumption
  *                   model; `asScheduled` lays sessions on nominal days ("at 3
  *                   a week this block ends 20 Dec"); projection never writes.
- *  L10 Dose.        At the set sink, deload/taper/test weeks drop the
- *                   session's intensifier.
+ *  L10 Dose.        At the set sink, the weeks of the program's declared
+ *                   stripIntensifierOn roles (default deload/taper/test) drop
+ *                   the session's intensifier. The one-intensifier dose law
+ *                   itself is not configurable.
  *  L11 Training causes progress. The progress clock advances only on closed
  *                   training, an owner skip, or an `anchored` week end. A slot
  *                   boundary handler with no completed session of that slot
@@ -242,6 +244,7 @@ export type Absence =
   | { k: 'ownerCleared'; field: string }
   | { k: 'roleExcluded'; role: WeekRole } // a weekly read whose roles filter leaves this week out
   | { k: 'noUpcomingWeek' } //       an upcoming weekly read in a once calendar's final week
+  | { k: 'outsideFormulaDomain'; formula: string; reps: number } // an e1RM read whose effective reps the declared formula cannot estimate
 
 /** An evaluation, node by node. `def` marks a named-definition boundary (the
  *  trace is cut there at intent zoom); `note` records a decision the value
@@ -353,6 +356,9 @@ export interface Stamp {
   phaseTransform: DefRef | null
   /** The quantization grids, canonical; resolution quantizes with them too. */
   grids: { load?: number; distance?: number }
+  /** The program's declared tie direction for exact bounds (present only when
+   *  'up'); resolution quantizes with it too, never re-deriving (C6). */
+  ties?: 'up'
   /** The unit each metric displays in: the grid's unit where there is one. */
   display: Partial<Record<string, Unit>>
 }

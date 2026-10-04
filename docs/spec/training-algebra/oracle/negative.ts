@@ -59,7 +59,8 @@ import {
   muscle,
   sub,
 } from './algebra'
-import { aggQ, amrap, cal, ev, fact, macro, phase, pos, program, scheme, session, set, single } from './structure'
+import { aggQ, amrap, cal, ev, fact, macro, phase, pos, program, scaleSets, scheme, session, set, single } from './structure'
+import { sessionText } from './describe-run'
 import { GZ_T1, optLoaded, optStabilization } from './programs'
 import { localDay } from './time'
 
@@ -280,6 +281,12 @@ host(() =>
 aggQ.setsFor(muscle('chest'), 'muscle', { roles: ['delaod'] })
 // @ts-expect-error a role-filtered weekly read is absent on other weeks: arithmetic must handle that first
 sub(sets(10), aggQ.setsFor(muscle('chest'), 'muscle', { roles: ['accumulation'] }))
+// A WIDENED options value may carry upcoming or a roles list, so the read types Opt
+// as the IR would (X3): arithmetic over it is refused, and known(...) handles it.
+const widenedOpts: import('./structure').WeeklyOpts = { basis: 'upcoming' }
+known(aggQ.setsFor(muscle('chest'), 'muscle', widenedOpts), (x) => sub(sets(10), x))
+// @ts-expect-error a weekly read under widened (not provably default) options is Opt: handle the absence first
+sub(sets(10), aggQ.setsFor(muscle('chest'), 'muscle', widenedOpts))
 // @ts-expect-error an exercise is its registry id: an author-supplied label (that could lie) does not exist
 exercise('wger:105', 'Barbell Back Squat')
 // @ts-expect-error an exercise id the registry does not know
@@ -302,3 +309,17 @@ asReps(null! as Expr<Q<'effort'>, 'state'>)
 macro({ id: 'macro/bad-drift', version: 1, says: 'x', anchor: { k: 'peakOn', date: localDay('2027-03-01') }, drift: 'slide', phases: [phase('Block', optLoaded, { k: 'fixed' }, () => ({ benchStart: none(ty.q('mass')) }))] })
 // @ts-expect-error recursion is unrepresentable in the embedding: a definition cannot name itself in its own body
 const selfRef = fn<{ x: Q<'one'> }, Q<'one'>>({ id: 'neg/self', version: 1, params: { x: ty.q('one') }, result: ty.q('one'), says: '{x}', examples: [{ args: { x: num(1) }, gives: num(1) }], body: (p) => selfRef({ x: p.x }) })
+
+// ── the configurability round (C1–C11) ──────────────────────────────────────
+// Rules only the IR carries, added this round: atLeastSets ≥ 1, a program
+// option's domain (e1rm formula and maxReps, adherence weekday, volume
+// weights in (0, 1], stripIntensifierOn ⊆ the calendar's roles, ties,
+// staleness keys and days), and a default's sort against its parameter.
+// @ts-expect-error no such verdict success rule: allSets (or omit it), totalReps, or { atLeastSets: n }
+ev.verdict(undefined, 'floor', 'mostReps')
+// @ts-expect-error allowZero is an opt-in: it is true or left out, never false
+scaleSets(session({ exercise: exercise('wger:111'), steps: (b) => void b.step('w', sets(1), set({ target: { reps: reps(5) } })) }), pct(50), { allowZero: false })
+// @ts-expect-error no such e1RM formula
+ev.e1rm('work', 'brzyycki')
+// @ts-expect-error a viewer display unit for mass is kg or lb
+sessionText(null! as import('./engine').IssuedSession, null! as import('./checker').Registry, { mass: 'stone' })

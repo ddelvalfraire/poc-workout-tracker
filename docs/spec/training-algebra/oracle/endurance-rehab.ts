@@ -107,12 +107,14 @@ export const hrTempo = scheme({
   id: 'lib/hr-tempo',
   version: 1,
   says: 'A tempo run on {run}: easy warm-up, then a tempo block at no slower than {pace} with heart rate held at 85–89% of threshold, growing by {grow} each time you hold it without a very hard Borg rating, up to {cap}',
-  params: { run: ty.exercise('cardio'), pace: ty.q('pace'), grow: ty.q('time'), cap: ty.q('time') },
+  params: { run: ty.exercise('cardio'), pace: ty.q('pace'), grow: ty.q('time'), cap: ty.q('time'), start: ty.q('time') },
+  // C10: the starting tempo-block length is a coaching default.
+  defaults: { start: mins(20) },
   facts: ['lthr', 'avgHr', 'borg'],
   state: { block: ty.q('time') },
   writableBy: { block: ['session', 'owner'] },
   nouns: { block: 'tempo block' },
-  init: () => ({ block: mins(20) }),
+  init: (c) => ({ block: c.p.start }),
   plan: (c) =>
     session({
       exercise: c.p.run,
@@ -188,7 +190,10 @@ export const painGated = scheme({
   id: 'lib/pain-gated-loading',
   version: 1,
   says: '3×15 straight-knee and 3×15 bent-knee {lift}s; add {inc} after a session done in full with pain at 2/10 or less; above 5/10, propose taking {inc} off; a bad morning cuts each exercise to two sets',
-  params: { lift: ty.exercise('weighted_bodyweight'), inc: ty.q('mass') },
+  params: { lift: ty.exercise('weighted_bodyweight'), inc: ty.q('mass'), morningGate: ty.ord('pain') },
+  // C10: the “bad morning” cutoff is a coaching default; the in-session
+  // 2/10 and 5/10 gates are the method's published numbers and stay literal.
+  defaults: { morningGate: lvl('pain', 4) },
   facts: ['pain', 'morningPain'],
   state: { added: ty.q('mass'), flares: ty.q('one') },
   writableBy: { added: ['session', 'owner'], flares: ['session'] },
@@ -202,7 +207,7 @@ export const painGated = scheme({
         b.step('bent', sets(3), set({ target: { reps: reps(15), load: c.s.added }, tempo: tempo(3, 0, 1, 0) }))
       },
     })
-    return iff(orElse(known(c.fact('morningPain'), (p) => gt(p, lvl('pain', 4))), no), scaleSets(drops, pct(67)), drops)
+    return iff(orElse(known(c.fact('morningPain'), (p) => gt(p, c.p.morningGate)), no), scaleSets(drops, pct(67)), drops)
   },
   on: {
     session: (c) =>

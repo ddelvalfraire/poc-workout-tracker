@@ -68,6 +68,7 @@ export const ABSENCE_TEXT: { [K in Absence['k']]: (a: Extract<Absence, { k: K }>
   ownerCleared: (a) => `you cleared ${a.field}`,
   roleExcluded: (a) => `this is ${/^[aeiou]/.test(a.role) ? 'an' : 'a'} ${a.role} week, which the weekly read leaves out`,
   noUpcomingWeek: () => 'the program has no week after this one',
+  outsideFormulaDomain: (a) => `${trim(a.reps)} effective reps is more than the ${a.formula.charAt(0).toUpperCase()}${a.formula.slice(1)} estimate covers`,
 }
 export const absenceText = (a: Absence, reg: Registry) => (ABSENCE_TEXT[a.k] as (x: Absence, r: Registry) => string)(a, reg)
 
@@ -118,10 +119,24 @@ export function slotText(sl: IssuedSlot, reg: Registry, d: Display): string {
   return `${head}: ${parts.join('; ')}${fin}`
 }
 
-export function sessionText(s: IssuedSession, reg: Registry): string[] {
+/** The viewer's display units (C11), a PROJECTION-layer choice: every
+ *  mass-dimension metric renders in the viewer's unit, converted
+ *  display-exactly from the canonical value (the locale's at-most-three-
+ *  decimals rule states the rounding). The issued numbers and the grids stay
+ *  program facts in the grid's declared unit; nothing is re-quantized. */
+export interface ViewerUnits {
+  mass?: 'kg' | 'lb'
+}
+export function viewerDisplay(reg: Registry, display: Display, viewer: ViewerUnits | undefined): Display {
+  if (!viewer?.mass) return display
+  const massMetrics = Object.entries(reg.vocab.metrics).filter(([, d]) => d.dim === 'mass').map(([m]) => m)
+  return { ...display, ...Object.fromEntries(massMetrics.map((m) => [m, viewer.mass])) }
+}
+export function sessionText(s: IssuedSession, reg: Registry, viewer?: ViewerUnits): string[] {
   const p = s.stamp.position
   const moved = s.day !== s.defaultDay ? ` (the rotation suggested Day ${s.defaultDay})` : ''
-  return [`Day ${s.day}, ${dayText(s.stamp.issuedOn)}, block week ${p.week} (${p.role})${moved}:`, ...s.slots.map((sl) => `  ${slotText(sl, reg, s.stamp.display)}`)]
+  const display = viewerDisplay(reg, s.stamp.display, viewer)
+  return [`Day ${s.day}, ${dayText(s.stamp.issuedOn)}, block week ${p.week} (${p.role})${moved}:`, ...s.slots.map((sl) => `  ${slotText(sl, reg, display)}`)]
 }
 
 // ── values and traces ───────────────────────────────────────────────────────

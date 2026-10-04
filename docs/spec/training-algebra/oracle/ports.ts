@@ -14,7 +14,7 @@ import { enumsWith, keyOf, type Registry } from './checker'
 import type { Absence, FactReading, FactSource, Head, IssuedStep, Trace, Value } from './engine'
 import { ctxOf, evaluate, nodesOf, none, qv, type AggRead, type Ctx, type Ports } from './evaluate'
 import type { ProgramDef, SchemeDef, Use, WeekRole } from './structure'
-import { calendarSpecOf, dayNum, matches, selKey, type CalQuery, type CalendarSpec, type CalendarState, type LocalDay, type Rotation, type Selector } from './time'
+import { calendarSpecOf, dayNum, matches, selKey, type CalQuery, type CalendarSpec, type CalendarState, type LocalDay, type Rotation, type Selector, type SpecOverrides } from './time'
 import { issueSlot, firedPolicies } from './issue'
 import { DIMS, unitFor, type Unit } from './units'
 import { isJudged } from './xform'
@@ -38,8 +38,11 @@ export interface Runtime {
   phaseTransform: Use | null
   phase: string | null
 }
-export function runtimeOf(reg: Registry, def: ProgramDef, inst: { id: string; anchor: LocalDay; activatedOn: LocalDay }, phase: { label: string; transform: Use | null } | null = null): Runtime {
-  return { reg, def, spec: calendarSpecOf(def, calReads(def, reg), inst.id, inst.anchor, inst.activatedOn), phaseTransform: phase?.transform ?? null, phase: phase?.label ?? null }
+export function runtimeOf(reg: Registry, def: ProgramDef, inst: { id: string; anchor: LocalDay; activatedOn: LocalDay; overrides?: SpecOverrides }, phase: { label: string; transform: Use | null } | null = null): Runtime {
+  // The overrides argument is omitted when none were given, so a recorded
+  // default call keeps its pre-round shape.
+  const spec = inst.overrides ? calendarSpecOf(def, calReads(def, reg), inst.id, inst.anchor, inst.activatedOn, inst.overrides) : calendarSpecOf(def, calReads(def, reg), inst.id, inst.anchor, inst.activatedOn)
+  return { reg, def, spec, phaseTransform: phase?.transform ?? null, phase: phase?.label ?? null }
 }
 
 /** FNV-1a over the canonical JSON (canonical.ts): the stamp's program hash
@@ -125,13 +128,15 @@ export const snapshotSource = (readings: readonly FactReading[]): FactSource => 
 export const noFacts: FactSource = { get: () => null }
 
 /** A fact read: unknown is silence; older than its maxAgeDays is silence
- *  too (never the last known value); either way the read is recorded. */
-export function factPort(reg: Registry, src: FactSource, today: LocalDay, reads: Reads): Ports['fact'] {
+ *  too (never the last known value); either way the read is recorded. A
+ *  program's `staleness` declaration (C8) replaces the registry's maxAgeDays
+ *  for the fact keys it names. */
+export function factPort(reg: Registry, src: FactSource, today: LocalDay, reads: Reads, staleness?: Readonly<Record<string, number>>): Ports['fact'] {
   return (fact, key) => {
     const r = src.get(fact, key)
     if (!r) return none({ k: 'factUnknown', fact, key })
     if (!reads.facts.some((x) => x.fact === r.fact && x.key === r.key)) reads.facts.push(r)
-    const max = reg.vocab.facts[fact]?.maxAgeDays
+    const max = staleness?.[fact] ?? reg.vocab.facts[fact]?.maxAgeDays
     if (max !== null && max !== undefined && dayNum(today) - dayNum(r.observedOn) > max) return none({ k: 'factStale', fact, observedOn: r.observedOn, maxAgeDays: max })
     return r.value
   }
@@ -215,7 +220,11 @@ const keysPort = (rt: Runtime): Ports['keys'] => (of) =>
 export function slotParams(rt: Runtime, head: Head, slot: string, inp: Inputs): Record<string, Value> {
   const b = head.bindings[slot]!
   const cx = ctxOf(rt.reg, { params: head.params, ports: { peer: peerPort(head, inp.prevPhase) } })
-  return Object.fromEntries(Object.entries(b.args).map(([k, t]) => [k, evaluate(t, cx).value]))
+  const out = Object.fromEntries(Object.entries(b.args).map(([k, t]) => [k, evaluate(t, cx).value]))
+  // A defaulted scheme parameter the binding omits takes its declared closed
+  // value (C10), evaluated with no ports: it reads nothing.
+  for (const [k, d] of Object.entries(schemeOf(rt, head, slot).defaults ?? {})) if (!(k in out)) out[k] = evaluate(d, ctxOf(rt.reg)).value
+  return out
 }
 
 /** The plan / handler context of one slot. */
@@ -238,12 +247,12 @@ export function slotCtx(rt: Runtime, head: Head, slot: string, inp: Inputs, para
       if (v.v !== 'map') return v
       return v.entries.find(([k]) => k === slot)?.[1] ?? none({ k: 'missingKey', key: slot })
     },
-    fact: factPort(rt.reg, inp.facts, inp.today, inp.reads),
+    fact: factPort(rt.reg, inp.facts, inp.today, inp.reads, rt.def.staleness),
     pos: posPort(rt, head, slot),
     cal: calPort(rt.spec, head.calendar, inp.today, inp.earlierToday, inp.reads),
     keys: keysPort(rt),
   }
-  return ctxOf(rt.reg, { params, ports, enums: enumsWith(s.enums), display: displayOf(rt) })
+  return ctxOf(rt.reg, { params, ports, enums: enumsWith(s.enums), display: displayOf(rt), ...(rt.def.ties === 'up' ? { ties: 'up' as const } : {}) })
 }
 
 /** The program-scope context: policies, frequency gaps and the aggregate
@@ -252,13 +261,13 @@ export function programCtx(rt: Runtime, head: Head, inp: Inputs): Ctx {
   const ports: Partial<Ports> = {
     self: (f) => head.state['program']?.[f] ?? none({ k: 'stateUnset', field: f }),
     peer: peerPort(head, inp.prevPhase),
-    fact: factPort(rt.reg, inp.facts, inp.today, inp.reads),
+    fact: factPort(rt.reg, inp.facts, inp.today, inp.reads, rt.def.staleness),
     pos: posPort(rt, head, null),
     cal: calPort(rt.spec, head.calendar, inp.today, inp.earlierToday, inp.reads),
     keys: keysPort(rt),
     agg: aggPort(rt, head, inp),
   }
-  return ctxOf(rt.reg, { params: head.params, ports, enums: enumsWith(rt.def.enums), display: displayOf(rt) })
+  return ctxOf(rt.reg, { params: head.params, ports, enums: enumsWith(rt.def.enums), display: displayOf(rt), ...(rt.def.ties === 'up' ? { ties: 'up' as const } : {}) })
 }
 
 /** Evaluate a slot's plan under the head: the session it would issue now. */
@@ -271,9 +280,17 @@ export function planSlot(rt: Runtime, head: Head, slot: string, inp: Inputs): Tr
 const primaryOf = (def: ProgramDef, slot: string) => Object.entries(def.slots[slot]?.meta.muscles ?? {}).find(([, c]) => c === 1)?.[0]
 
 /** Working sets one session of a step list plans, technique-weighted: an
- *  intensifier's stages count 0.5 each (the final set is already a set). */
-export function plannedSets(steps: IssuedStep[], intensifierStages: number): number {
-  return steps.reduce((a, st) => a + plannedTargets(st).filter(isJudged).length, 0) + 0.5 * intensifierStages
+ *  intensifier's stages count `stage` each (default 0.5: the final set is
+ *  already a set) and a clustered set counts `cluster` (default 1, the whole
+ *  set), both per the program's volumeWeights declaration (C4). */
+export interface VolumeWeights {
+  stage?: number
+  cluster?: number
+}
+export function plannedSets(steps: IssuedStep[], intensifierStages: number, weights: VolumeWeights = {}): number {
+  const cluster = weights.cluster ?? 1
+  const stage = weights.stage ?? 0.5
+  return steps.reduce((a, st) => a + plannedTargets(st).filter(isJudged).reduce((b, t) => b + (t.cluster ? cluster : 1), 0), 0) + stage * intensifierStages
 }
 /** The targets a step plans: its count, a range's floor, an until/while
  *  step's planned count. */
@@ -308,7 +325,7 @@ export function aggPort(rt: Runtime, head: Head, inp: Inputs): Ports['agg'] {
     const targets = s.steps.flatMap((st) => plannedTargets(st).filter(isJudged))
     const perSession =
       metric === 'sets'
-        ? plannedSets(s.steps, s.intensifier?.stages.length ?? 0)
+        ? plannedSets(s.steps, s.intensifier?.stages.length ?? 0, rt.def.volumeWeights ?? {})
         : targets.reduce((a, x) => {
             const f = x.metrics[metric]
             const fx = f?.k === 'open' ? f.planned : f
@@ -320,8 +337,11 @@ export function aggPort(rt: Runtime, head: Head, inp: Inputs): Ports['agg'] {
   const measured = (q: Extract<AggRead, { q: 'weekly' }>): Head | Absence => {
     const week = head.progress.week + (q.basis === 'upcoming' ? 1 : 0)
     const role = roleOf(rt.def, week)
-    if (role === null) return { k: 'noUpcomingWeek' }
-    if (Array.isArray(q.roles) && !q.roles.includes(role)) return { k: 'roleExcluded', role }
+    // Only `upcoming` has a "no such week" to report. A closing read past the
+    // end of a `once` calendar keeps the position's `?? 'train'` role: a
+    // default weekly read is typed plain and must never produce a none (X1).
+    if (role === null && q.basis === 'upcoming') return { k: 'noUpcomingWeek' }
+    if (Array.isArray(q.roles) && !q.roles.includes(role ?? 'train')) return { k: 'roleExcluded', role: role ?? 'train' }
     return week === head.progress.week ? head : { ...head, progress: { ...head.progress, week } }
   }
   return (q: AggRead) => {

@@ -179,15 +179,22 @@ function land(head: Head, fired: Fired[], emitted: string[]): Head {
 
 // ── the progress clock ──────────────────────────────────────────────────────
 
-const boundarySource = (rt: Runtime, head: Head): EventSource => ({
-  reg: rt.reg,
-  slots: [],
-  performed: {},
-  facts: [],
-  groupScores: {},
-  week: head.progress.week,
-  primary: (s) => Object.entries(rt.def.slots[s]?.meta.muscles ?? {}).find(([, c]) => c === 1)?.[0],
-})
+const boundarySource = (rt: Runtime, head: Head): EventSource => {
+  // The declared judgment options (C1, C2) ride on the source only when a
+  // program declares them, so a default source is byte-identical.
+  const success = Object.fromEntries(Object.entries(rt.def.slots).flatMap(([k, b]) => (b.meta.success ? [[k, b.meta.success] as const] : [])))
+  return {
+    reg: rt.reg,
+    slots: [],
+    performed: {},
+    facts: [],
+    groupScores: {},
+    week: head.progress.week,
+    primary: (s) => Object.entries(rt.def.slots[s]?.meta.muscles ?? {}).find(([, c]) => c === 1)?.[0],
+    ...(Object.keys(success).length ? { success } : {}),
+    ...(rt.def.e1rm ? { e1rm: rt.def.e1rm } : {}),
+  }
+}
 
 /** Close the current block week: weekEnd, then cycleEnd (a cycling
  *  calendar's last week) or blockEnd (a once calendar's last week). */
@@ -324,27 +331,32 @@ export function step(rt: Runtime, head: Head, e: Event): StepResult {
       return done(entryClosed(rt, head, [], inp, fired, emitted))
     }
     case 'dayClosed': {
-      const before = head.calendar.adherence.length
-      const from = dayNum(head.calendar.reconciledThrough) + 1
-      let h: Head = withStatus({ ...head, calendar: stepCalendar(rt.spec, head.calendar, e) })
-      const inp: Inputs = { facts: noFacts, today: addDays(e.day, 1), earlierToday: 0, reads }
-      for (const a of h.calendar.adherence.slice(before)) {
-        const causeKey = `period:${a.key.slice('adhere:'.length)}`
-        emitted.push(causeKey)
-        const src = boundarySource(rt, h)
-        const batch = [...Object.keys(rt.def.slots).map((s) => runHandler(rt, h, s, 'periodClosed', src, inp, causeKey)), rt.def.aggregate?.on.periodClosed ? runHandler(rt, h, 'program', 'periodClosed', src, inp, causeKey) : null].filter((f): f is Fired => !!f)
-        for (const f of batch) for (const p of Object.values(f.patch)) if (p.mode === 'commit') throw new Error('step: a periodClosed handler committed (L13; the checker refuses this)')
-        fired.push(...batch)
-        h = land(h, batch, emitted)
-      }
-      // Anchored drift (F10): the day `anchor + 7k + 6` (k ≥ 0) closes block
-      // week k; a day before the anchor closes nothing. Every day this event
-      // closed is checked, in order.
-      if (rt.def.calendar.drift === 'anchored')
-        for (let n = from; n <= dayNum(e.day); n++) {
-          const k = n - dayNum(rt.spec.anchor)
-          if (k >= 0 && (k + 1) % 7 === 0 && h.status === 'active') h = closeWeek(rt, h, { ...inp, today: addDays(dayOf(n), 1) }, fired, emitted)
+      // One per-day loop, so a batched catch-up is indistinguishable from
+      // day-by-day delivery (L5, X2): each newly closed day in order closes
+      // the day, fires THAT day's periodClosed handlers against its post-close
+      // state, then runs the anchored week-close check against the same state.
+      let h: Head = head
+      for (let n = dayNum(head.calendar.reconciledThrough) + 1; n <= dayNum(e.day); n++) {
+        const day = dayOf(n)
+        const inp: Inputs = { facts: noFacts, today: addDays(day, 1), earlierToday: 0, reads }
+        const before = h.calendar.adherence.length
+        h = withStatus({ ...h, calendar: stepCalendar(rt.spec, h.calendar, { k: 'dayClosed', causeKey: `day:${rt.spec.instance}:${day}`, day }) })
+        for (const a of h.calendar.adherence.slice(before)) {
+          const causeKey = `period:${a.key.slice('adhere:'.length)}`
+          emitted.push(causeKey)
+          const src = boundarySource(rt, h)
+          const batch = [...Object.keys(rt.def.slots).map((s) => runHandler(rt, h, s, 'periodClosed', src, inp, causeKey)), rt.def.aggregate?.on.periodClosed ? runHandler(rt, h, 'program', 'periodClosed', src, inp, causeKey) : null].filter((f): f is Fired => !!f)
+          for (const f of batch) for (const p of Object.values(f.patch)) if (p.mode === 'commit') throw new Error('step: a periodClosed handler committed (L13; the checker refuses this)')
+          fired.push(...batch)
+          h = land(h, batch, emitted)
         }
+        // Anchored drift (F10): the day `anchor + 7k + 6` (k ≥ 0) closes block
+        // week k; a day before the anchor closes nothing.
+        if (rt.def.calendar.drift === 'anchored') {
+          const k = n - dayNum(rt.spec.anchor)
+          if (k >= 0 && (k + 1) % 7 === 0 && h.status === 'active') h = closeWeek(rt, h, inp, fired, emitted)
+        }
+      }
       return done(h)
     }
     case 'pause':

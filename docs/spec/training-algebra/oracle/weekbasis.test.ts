@@ -117,9 +117,9 @@ t('', 'the describer states a declared choice and says nothing for the defaults'
   const cx = DS.cxOf(reg)
   eq(DS.describe(agg({}), cx), 'The sets chest already gets each week.', 'default, unchanged')
   eq(DS.describe(agg({ basis: 'closing', roles: 'all' }), cx), 'The sets chest already gets each week.', 'explicit defaults, no clutter')
-  eq(DS.describe(agg({ roles: ['accumulation'] }), cx), 'The sets chest got in the week just ended, accumulation weeks only.', 'closing, filtered')
-  eq(DS.describe(agg({ basis: 'upcoming' }), cx), 'The sets chest is planned to get in the coming week.', 'upcoming')
-  assert(DS.describe(RP.aggregate!.on.weekEnd!, cx).includes('got in the week just ended, accumulation weeks only'), 'RP’s weekEnd prose states its declaration')
+  eq(DS.describe(agg({ roles: ['accumulation'] }), cx), 'The sets chest is now planned to get in the week just closing, accumulation weeks only.', 'closing, filtered (honest: a re-plan under today’s state, not what the week got)')
+  eq(DS.describe(agg({ basis: 'upcoming' }), cx), 'The sets chest is now planned to get in the coming week.', 'upcoming (honest: today’s values, no pending boundary bump)')
+  assert(DS.describe(RP.aggregate!.on.weekEnd!, cx).includes('now planned to get in the week just closing, accumulation weeks only'), 'RP’s weekEnd prose states its declaration')
 })
 
 done()

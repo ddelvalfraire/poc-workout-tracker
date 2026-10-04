@@ -386,7 +386,9 @@ export type Term =
       cluster: { per: Term; intraRest: Term } | null
     }
   | { k: 'session'; exercise: Term; steps: StepIR[]; intensifier: Term | null }
-  | { k: 'xform'; op: XformOp; s: Term; arg: Term | null; metric: string | null }
+  /** `allowZero` is a scaleSets-only option: a line whose scaled count rounds
+   *  to zero issues no sets (the default keeps the never-below-1 floor). */
+  | { k: 'xform'; op: XformOp; s: Term; arg: Term | null; metric: string | null; allowZero?: true }
   | { k: 'technique'; kind: 'drop-set' | 'rest-pause' | 'myo-reps'; stages: Term[] }
   | { k: 'tempo'; ecc: number; pause: number; con: number; top: number }
   // ── the transition outcome (handler positions) ──────────────────────────
@@ -426,15 +428,28 @@ export type XformOp =
   | 'swapExercise' //    arg ref[exercise]
   | 'addSets' //         arg q[sets] on the last working step
 
+/** The verdict's success rule, a declared option (omitted = allSets, every
+ *  bound of every judged set): `totalReps` judges the summed logged reps of
+ *  the judged sets against the summed reps floor (other metrics stay
+ *  per-set); `atLeastSets` hits when at least n judged sets fully hit. */
+export type SuccessRule = 'totalReps' | { atLeastSets: number }
+/** The e1RM estimator family. The default is Epley; the X6 RIR rule (logged
+ *  reps in reserve count as reps) applies to every formula. */
+export type E1rmFormula = 'epley' | 'brzycki' | 'lombardi' | 'mayhew'
+
 export type EventQuery =
   /** THREE-VALUED, against the ISSUED bounds, metric by metric: `hit` when
    *  every bound was logged and met, `missed` when some logged value violates
    *  its bound, `unknown` otherwise (something unlogged, nothing violated).
-   *  Its sort is the verdict, consumed only by an exhaustive match. */
-  | { q: 'verdict'; steps: StepId[] | 'working'; bound: 'floor' | 'top' }
+   *  Its sort is the verdict, consumed only by an exhaustive match.
+   *  `success` (an option; omitted = allSets) changes what "met" aggregates:
+   *  see SuccessRule. */
+  | { q: 'verdict'; steps: StepId[] | 'working'; bound: 'floor' | 'top'; success?: SuccessRule }
   | { q: 'metric'; step: StepId; metric: string; pick: ReadPick }
-  /** Epley over the best set, on EFFECTIVE load (the logging type's mass semantics). */
-  | { q: 'e1rm'; step: StepId }
+  /** The declared estimator (the program's `e1rm` declaration, Epley when
+   *  none; `formula` overrides per read) over the best set, on EFFECTIVE load
+   *  (the logging type's mass semantics). */
+  | { q: 'e1rm'; step: StepId; formula?: E1rmFormula }
   | { q: 'prescribed'; step: StepId; metric: string; edge: 'floor' | 'top' }
   /** The intensifier's stage outcomes on the final set (rest-pause mini-sets). */
   | { q: 'stages'; step: StepId; pick: 'sum' | 'last' | 'count' }
@@ -723,6 +738,12 @@ export interface FnDef {
   kind: 'fn'
   ref: DefRef
   params: Record<string, Ty>
+  /** CONFIGURABILITY ROUND (declaration field, no new former): a param with a
+   *  default (a closed literal term) may be omitted by a call, a Use or an
+   *  example, and the template need not name it; a non-default argument for a
+   *  hole-less defaulted param is appended to the rendered template. Omitted
+   *  when empty, so a definition without defaults is byte-identical. */
+  defaults?: Record<string, Term>
   result: Ty
   says: Template
   enums: EnumDecls
@@ -731,36 +752,44 @@ export interface FnDef {
   body: Term
 }
 
-export interface Fn<P, R> {
-  <C extends Cap = never>(args: ExprsC<P, C>): Expr<R, NoInfer<C>>
+/** A call may omit any defaulted parameter. */
+export type ArgsWith<P, D, C extends Cap> = ExprsC<Omit<P, D & keyof P>, C> & Partial<ExprsC<Pick<P, D & keyof P>, C>>
+/** The value a default for K must have: P[K], once K is known to be a param. */
+export type DefaultOf<P, K> = K extends keyof P ? Expr<P[K]> : never
+export interface Fn<P, R, D = never> {
+  <C extends Cap = never>(args: ArgsWith<P, D, C>): Expr<R, NoInfer<C>>
   readonly def: FnDef
 }
 
-export function fn<P, R>(spec: {
+export function fn<P, R, const D extends string = never>(spec: {
   id: string
   version: number
   params: TyWs<P>
+  /** Closed literal values; a call, Use or example may then omit the param. */
+  defaults?: { [K in D]: DefaultOf<NoInfer<P>, K> }
   result: TyW<R>
   says: Template
   enums?: readonly EnumDecl<string>[]
   examples: [{ args: ExprsC<P, Cap>; gives: Expr<R, Cap> }, ...{ args: ExprsC<P, Cap>; gives: Expr<R, Cap> }[]]
   body: (p: ExprsC<P, 'param'>) => Expr<R, FnCap>
-}): Fn<P, R> {
+}): Fn<P, R, D> {
   const ref: DefRef = { id: spec.id as DefId, version: spec.version }
   const names = Object.keys(spec.params) as (keyof P & string)[]
   const paramExprs = Object.fromEntries(names.map((n) => [n, E({ k: 'param', name: n })])) as unknown as ExprsC<P, 'param'>
-  const lower = (args: ExprsC<P, Cap>) => Object.fromEntries(names.map((n) => [n, (args[n] as Expr<unknown, Cap>).term]))
+  const lower = (args: Partial<Record<string, Expr<unknown, Cap>>>) => Object.fromEntries(names.flatMap((n) => (args[n] ? [[n, args[n]!.term] as const] : [])))
+  const defaults = spec.defaults && Object.keys(spec.defaults).length ? { defaults: lower(spec.defaults as Record<string, Expr<unknown, Cap>>) } : {}
   const def: FnDef = {
     kind: 'fn',
     ref,
     params: Object.fromEntries(names.map((n) => [n, (spec.params[n] as TyW<unknown>).ty])),
+    ...defaults,
     result: spec.result.ty,
     says: spec.says,
     enums: enumDecls(spec.enums),
-    examples: spec.examples.map((ex) => ({ args: lower(ex.args), gives: ex.gives.term })) as FnDef['examples'],
+    examples: spec.examples.map((ex) => ({ args: lower(ex.args as Record<string, Expr<unknown, Cap>>), gives: ex.gives.term })) as FnDef['examples'],
     body: spec.body(paramExprs).term,
   }
-  const call = <C extends Cap = never>(args: ExprsC<P, C>): Expr<R, NoInfer<C>> => E({ k: 'app', def: ref, args: lower(args) })
+  const call = <C extends Cap = never>(args: ArgsWith<P, D, C>): Expr<R, NoInfer<C>> => E({ k: 'app', def: ref, args: lower(args as Record<string, Expr<unknown, Cap>>) })
   return Object.assign(call, { def })
 }
 

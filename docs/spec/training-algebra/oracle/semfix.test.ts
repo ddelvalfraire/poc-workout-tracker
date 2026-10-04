@@ -96,7 +96,7 @@ t('', 'F1 (semrev-b p2, semrev-c p1): nth over an empty list is none(emptyPick),
 })
 
 t('', 'F1 adjudication (reachability): slotsFor is possibly-empty, so nth over it is refused; an EMPTY declared enum was the reachable hole and is now refused (literalDomain)', () => {
-  const sc: CK.Scope = { ...CK.baseScope(reg, 'aggregate', {}, { id: 'demo/semfix', seq: reg.seq.size }), program: { slots: ['a'], days: ['A'], muscles: ['chest', 'calves'], tags: [] } }
+  const sc: CK.Scope = { ...CK.baseScope(reg, 'aggregate', {}, { id: 'demo/semfix', seq: reg.seq.size }), program: { slots: ['a'], days: ['A'], muscles: ['chest', 'calves'], tags: [], roles: null } }
   const out: TypeError[] = []
   CK.top({ k: 'nth', xs: { k: 'agg', q: { q: 'slotsFor', muscle: ref('muscle', 'calves') } }, i: lit(0, 'x'), overflow: 'hold' }, sc, [], null, out)
   eq(codes(out), ['unitMismatch@'], 'nth over slotsFor of a primary-less muscle is refused (needs a non-empty list)')

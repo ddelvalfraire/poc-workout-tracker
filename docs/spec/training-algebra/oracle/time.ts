@@ -106,6 +106,14 @@ export type Drift = 'slide' | 'anchored'
 export type InstanceStatus = 'active' | 'paused' | 'lapsed' | 'completed' | 'abandoned'
 export const DEFAULT_LAPSE_DAYS = 21
 
+export type Weekday = 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday' | 'Sunday'
+export const WEEKDAYS: readonly Weekday[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+/** How `per week` adherence windows lie on the calendar (C3). The default
+ *  tumbles 7-day windows from the instance's anchor; `calendarAligned` uses
+ *  calendar weeks starting on the declared weekday. It never touches the
+ *  progress clock, `per day`/`per days(n)` windows, or any `cal.*` read. */
+export type AdherenceWeeks = 'fromAnchor' | { calendarAligned: { weekStart: Weekday } }
+
 /** An empty `frequency` list derives from the rotation, so every program has
  *  adherence with no authoring. */
 export function defaultFrequency(r: Rotation): Frequency[] {
@@ -208,9 +216,20 @@ export interface CalendarSpec {
   frequency: Frequency[]
   slots: Readonly<Record<string, SlotView>>
   lapseAfterDays: number
+  /** Present only when weekly windows are calendar-aligned (C3); omitted is
+   *  the anchor-tumbling default, so a default spec is byte-identical. */
+  adherenceWeeks?: Extract<AdherenceWeeks, { calendarAligned: unknown }>
   /** Every selector whose last day is kept: `any`, each frequency's, and
    *  every one a term of the program reads through `cal.gap`/`cal.recent`. */
   tracked: readonly Selector[]
+}
+
+/** Instance-level overrides at activation (the CalendarSpec seam): a lapse
+ *  threshold and the week alignment may be set per instance; everything else
+ *  stays the program's declaration. */
+export interface SpecOverrides {
+  lapseAfterDays?: number
+  adherenceWeeks?: AdherenceWeeks
 }
 
 /** The calendar view of a program instance: its effective frequency, what
@@ -218,14 +237,18 @@ export interface CalendarSpec {
  *  the selectors to track. `reads` is the program's elaborated calendar reads
  *  (checkdefs.ts `calReads`), so a read of an untracked selector cannot be
  *  built. */
-export function calendarSpecOf(p: ProgramDef, reads: readonly Selector[], instance: string, anchor: LocalDay, activatedOn: LocalDay): CalendarSpec {
+export function calendarSpecOf(p: ProgramDef, reads: readonly Selector[], instance: string, anchor: LocalDay, activatedOn: LocalDay, overrides: SpecOverrides = {}): CalendarSpec {
   const slots = Object.fromEntries(
     Object.entries(p.slots).map(([k, b]) => [k, { primary: Object.entries(b.meta.muscles).find(([, c]) => c === 1)?.[0] ?? '', tags: b.meta.tags ?? [] }]),
   )
   const frequency = effectiveFrequency(p.frequency, p.rotation)
   const all: Selector[] = [{ s: 'any' }, ...frequency.map((f) => f.of), ...reads]
   const tracked = [...new Map(all.map((x) => [selKey(x), x])).values()]
-  return { instance, anchor, activatedOn, frequency, slots, lapseAfterDays: p.lapseAfterDays, tracked }
+  const lapse = overrides.lapseAfterDays ?? p.lapseAfterDays
+  if (!(Number.isInteger(lapse) && lapse >= 1)) throw new Error(`calendarSpecOf: lapseAfterDays must be a whole number of days from 1, got ${lapse} (the boundary refuses it)`)
+  const aw = overrides.adherenceWeeks ?? p.adherenceWeeks ?? 'fromAnchor'
+  if (aw !== 'fromAnchor' && !WEEKDAYS.includes(aw.calendarAligned?.weekStart)) throw new Error(`calendarSpecOf: no weekday ${String(aw.calendarAligned?.weekStart)} (the boundary refuses it)`)
+  return { instance, anchor, activatedOn, frequency, slots, lapseAfterDays: lapse, ...(aw === 'fromAnchor' ? {} : { adherenceWeeks: aw }), tracked }
 }
 
 /** A session that closed with at least one logged set. Only sessions
@@ -310,8 +333,24 @@ export interface CalendarState {
   amendments: readonly AdherenceAmendment[]
 }
 
+/** The day a calendar-aligned week containing `n` starts: the latest day at
+ *  or before it whose weekday is the declared week start. dayNum 0 is a
+ *  Thursday (1970-01-01), so Monday ≡ 4 (mod 7). */
+const alignedStart = (n: number, weekStart: Weekday) => {
+  const idx = (WEEKDAYS.indexOf(weekStart) + 4) % 7
+  return n - ((((n - idx) % 7) + 7) % 7)
+}
+/** A frequency window: tumbling from the anchor, except that `per week`
+ *  windows under a calendarAligned declaration (C3) are calendar weeks from
+ *  the declared week start; `w` then counts aligned weeks from the anchor's. */
 const windowOf = (spec: CalendarSpec, per: Period, day: LocalDay) => {
   const L = periodDays(per)
+  if (per.k === 'week' && spec.adherenceWeeks) {
+    const start = spec.adherenceWeeks.calendarAligned.weekStart
+    const from = alignedStart(dayNum(day), start)
+    const w = (from - alignedStart(dayNum(spec.anchor), start)) / 7
+    return { w, from: dayOf(from), through: dayOf(from + 6) }
+  }
   const w = Math.floor((dayNum(day) - dayNum(spec.anchor)) / L)
   const from = dayNum(spec.anchor) + w * L
   return { w, from: dayOf(from), through: dayOf(from + L - 1) }
@@ -435,8 +474,12 @@ function closeDay(spec: CalendarSpec, st: CalendarState, day: LocalDay): Calenda
   }
   const d = dayNum(day)
   const last = st.occurrences.reduce((a, o) => (dayNum(o.localDay) <= d ? Math.max(a, dayNum(o.localDay)) : a), dayNum(spec.activatedOn))
-  const lapsed = st.status === 'active' && unpausedDays(st, last, d) >= spec.lapseAfterDays
-  const next: CalendarState = { ...st, adherence, reconciledThrough: day, status: pauseStatus({ ...st, status: lapsed ? 'lapsed' : st.status }, addDays(day, 1)) }
+  // The pause is resolved for the open day FIRST, then the lapse clock is
+  // read, so the day a pause ends the status is already consistent: a pause
+  // cannot launder a lapsed instance into one `active` day (X5).
+  const base = pauseStatus(st, addDays(day, 1))
+  const lapsed = base === 'active' && unpausedDays(st, last, d) >= spec.lapseAfterDays
+  const next: CalendarState = { ...st, adherence, reconciledThrough: day, status: lapsed ? 'lapsed' : base }
   return { ...next, expectations: [...st.expectations, ...open(spec, next, addDays(day, 1))] }
 }
 

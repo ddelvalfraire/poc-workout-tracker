@@ -71,6 +71,8 @@ export interface ProgramView {
   days: readonly string[]
   muscles: readonly string[]
   tags: readonly string[]
+  /** The calendar's week-role set, or null when no calendar is in view. */
+  roles: readonly string[] | null
 }
 
 export interface Scope {
@@ -550,7 +552,7 @@ export function infer(t: Term, sc: Scope, path: Path, out: TypeError[]): Res | n
       const at = sc.reg.seq.get(k)
       if (!f || at === undefined || at >= sc.def.seq)
         return err({ code: 'futureRef', ref: t.def, message: `${k} is not published before ${sc.def.id}: a definition may call only earlier publications (no recursion)` })
-      for (const p of Object.keys(f.params)) if (!(p in t.args)) err({ code: 'missingArg', param: p, message: `${t.def.id} needs ${p}` })
+      for (const p of Object.keys(f.params)) if (!(p in t.args) && !(p in (f.defaults ?? {}))) err({ code: 'missingArg', param: p, message: `${t.def.id} needs ${p}` })
       for (const [a, x] of Object.entries(t.args)) {
         const want = f.params[a]
         if (!want) {
@@ -645,9 +647,17 @@ export function infer(t: Term, sc: Scope, path: Path, out: TypeError[]): Res | n
       const q = t.q
       const stepOk = (s: string) => sc.steps.all === 'any' || sc.steps.all.includes(s) || !!err({ code: 'unknownName', name: s, message: `the event has no step ${s}` })
       switch (q.q) {
-        case 'verdict':
+        case 'verdict': {
           if (q.steps !== 'working' && !q.steps.every(stepOk)) return null
+          const su = q.success
+          if (su !== undefined && su !== 'totalReps') {
+            if (!su || typeof su !== 'object' || !('atLeastSets' in su))
+              return err({ code: 'unknownName', name: String(su), message: `no verdict success rule ${String(su)} (totalReps, or {atLeastSets: n}; omit it for allSets)` }, [...path, 'q', 'success'])
+            if (!(Number.isInteger(su.atLeastSets) && su.atLeastSets >= 1))
+              return err({ code: 'literalDomain', former: 'event', field: 'success', value: su.atLeastSets, message: `atLeastSets is a whole number of sets from 1, got ${su.atLeastSets}` }, [...path, 'q', 'success'])
+          }
           return done(VERDICT, 0)
+        }
         case 'metric':
         case 'prescribed': {
           if (!stepOk(q.step)) return null
@@ -657,6 +667,8 @@ export function infer(t: Term, sc: Scope, path: Path, out: TypeError[]): Res | n
           return done(q.q === 'metric' ? pickTy(mt, q.pick) : opt(mt), 0)
         }
         case 'e1rm':
+          if (q.formula !== undefined && !['epley', 'brzycki', 'lombardi', 'mayhew'].includes(q.formula))
+            return err({ code: 'unknownName', name: String(q.formula), message: `no e1RM formula ${String(q.formula)} (epley, brzycki, lombardi, mayhew)` }, [...path, 'q', 'formula'])
           return stepOk(q.step) ? done(opt(MASS), 0) : null
         case 'stages':
           return stepOk(q.step) ? done(q.pick === 'count' ? ONE : opt(REPS), 0) : null
@@ -682,6 +694,9 @@ export function infer(t: Term, sc: Scope, path: Path, out: TypeError[]): Res | n
         if (!q.roles.length) return err({ code: 'literalDomain', former: 'agg', field: 'roles', value: 0, message: 'a weekly roles filter with no roles is absent every week' }, [...path, 'q', 'roles'])
         const bad = q.roles.findIndex((r) => !(ENUM_VALUES.weekRole as readonly string[]).includes(r))
         if (bad >= 0) return err({ code: 'unknownName', name: String(q.roles[bad]), message: `no week role ${q.roles[bad]}` }, [...path, 'q', 'roles', bad])
+        const cal = sc.program?.roles
+        if (cal && !q.roles.some((r) => cal.includes(r)))
+          return err({ code: 'literalDomain', former: 'agg', field: 'roles', value: 0, message: `the roles filter (${q.roles.join(', ')}) names no week of this program's calendar (${[...new Set(cal)].join(', ')}): the read would be absent every week` }, [...path, 'q', 'roles'])
       }
       const mt = weeklyIsOpt(q) ? opt(m0) : m0
       if (q.by.k === 'tag') return !sc.program || sc.program.tags.includes(q.by.tag) ? done(mt, 0) : err({ code: 'unknownName', name: q.by.tag, message: `the program tags no slot ${q.by.tag}` })
@@ -862,6 +877,8 @@ export function infer(t: Term, sc: Scope, path: Path, out: TypeError[]): Res | n
     if (!t.arg) return err({ code: 'missingArg', param: 'arg', message: `${t.op} needs an argument` })
     const a = sub(t.arg, ['arg'])
     if (!expect(a, want, [...path, 'arg'])) return null
+    if (t.allowZero !== undefined && (t.op !== 'scaleSets' || t.allowZero !== true))
+      return err({ code: 'literalDomain', former: 'xform', field: 'allowZero', value: String(t.allowZero), message: `allowZero is scaleSets's option and is written as true or omitted` }, [...path, 'allowZero'])
     if (t.op === 'scaleSets' && t.arg.k === 'lit' && t.arg.lit.k === 'q' && t.arg.lit.v > 1)
       return err({ code: 'literalDomain', former: 'xform', field: 'arg', value: t.arg.lit.v, message: `scaleSets shrinks a session (a deload); a factor of ${t.arg.lit.v} would add sets it has no targets for: add sets with addSets` }, [...path, 'arg'])
     if (t.op === 'reshape' && logs && st.logging && a!.ty.t === 'dom')

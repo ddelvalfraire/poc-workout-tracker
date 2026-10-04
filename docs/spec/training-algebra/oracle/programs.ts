@@ -401,7 +401,9 @@ export const w531Jokers = scheme({
   id: 'lib/531-jokers',
   version: 1,
   says: '5/3/1 on {lift} off {tm}, with up to three jokers when the top set makes its reps, then 3–5 sets of 5 at the first-set weight',
-  params: { lift: ty.exercise('weight_reps'), tm: ty.opt(ty.q('mass')) },
+  params: { lift: ty.exercise('weight_reps'), tm: ty.opt(ty.q('mass')), jokerStep: ty.q('one') },
+  // C10: each joker's jump over the last single is a coaching default.
+  defaults: { jokerStep: pct(105) },
   state: {},
   writableBy: {},
   init: () => ({}),
@@ -416,7 +418,7 @@ export const w531Jokers = scheme({
           'joker',
           () => orElse(known2(top.read('reps'), top.prescribed('reps'), (r, want) => ge(r, want)), no),
           3,
-          (self) => set({ target: { reps: reps(1), load: orElse(known(self.read('load'), (l) => mul(l, pct(105))), known(top.read('load'), (l) => mul(l, pct(105)))) } }),
+          (self) => set({ target: { reps: reps(1), load: orElse(known(self.read('load'), (l) => mul(l, c.p.jokerStep)), known(top.read('load'), (l) => mul(l, c.p.jokerStep))) } }),
         )
         b.step('fsl', setsBetween(sets(3), sets(5)), set({ role: 'backoff', target: { reps: reps(5), load: first.prescribed('load') } }))
       },
@@ -479,7 +481,7 @@ export const GZ_T1 = declareEnum('gzT1', ['5x3', '6x2', '10x1', 'retest'])
 export const gzclpT1 = scheme({
   id: 'lib/gzclp-t1',
   version: 1,
-  says: 'GZCLP T1 on {lift}: 5×3+, then 6×2+, then 10×1+ on failure, adding {inc} on success; after failing 10×1, test a 5RM and restart 5×3+ at {resetPct} of it; starts at {start} when a previous program hands one on',
+  says: 'GZCLP T1 on {lift}: 5×3+, then 6×2+, then 10×1+ on failure, adding {inc} on success, counting total reps across all sets; after failing 10×1, test a 5RM and restart 5×3+ at {resetPct} of it; starts at {start} when a previous program hands one on',
   params: { lift: ty.exercise('weight_reps'), inc: ty.q('mass'), resetPct: ty.q('one'), start: ty.opt(ty.q('mass')) },
   facts: ['e1rm'],
   enums: [GZ_T1],
@@ -508,8 +510,10 @@ export const gzclpT1 = scheme({
   },
   on: {
     session: (c) => {
+      // The method's published success rule: the base volume as TOTAL reps
+      // across the sets (15 for 5×3+), not every set at its own floor (C1).
       const progress = (next: '6x2' | '10x1' | 'retest') =>
-        byVerdict(c.ev.verdict(), { hit: c.commit({ load: known(c.s.load, (l) => add(l, c.p.inc)) }), missed: c.commit({ stage: GZ_T1.tag(next) }), unknown: c.keep })
+        byVerdict(c.ev.verdict(undefined, 'floor', 'totalReps'), { hit: c.commit({ load: known(c.s.load, (l) => add(l, c.p.inc)) }), missed: c.commit({ stage: GZ_T1.tag(next) }), unknown: c.keep })
       return match(c.s.stage, {
         '5x3': progress('6x2'),
         '6x2': progress('10x1'),
@@ -598,10 +602,11 @@ export const sfrOrNeutral = fn<{ pump: Opt<Ord<'pump'>>; joint: Opt<Ord<'jointPa
 
 const MEV = { chest: 10, back: 12 }
 const MRV = { chest: 22, back: 25 }
-/** RP's volume read, declared: the week just ended, counted only when it was
- *  a progressing week. A deload week's halved sets are not a measure of what
- *  the muscle gets, so that weekEnd reads absence and keeps (no allocation,
- *  no new targets) instead of allocating against the deload's numbers. */
+/** RP's volume read, declared: the week just closing (as now planned under
+ *  the handler's pre-state), counted only when it is a progressing week. A
+ *  deload week's halved sets are not a measure of what the muscle gets, so
+ *  that weekEnd reads absence and keeps (no allocation, no new targets)
+ *  instead of allocating against the deload's numbers. */
 export const RP_VOLUME_READ = { basis: 'closing', roles: ['accumulation'] } as const satisfies WeeklyOpts
 
 export const rpMeso = program({
@@ -702,13 +707,15 @@ export const doubleProg = scheme({
   id: 'lib/double-progression',
   version: 1,
   says: '{sets} of {lift} in the phase rep range, starting at {start}; add {inc} once every set reaches the top of the range',
-  params: { lift: ty.exercise('weight_reps'), sets: ty.q('sets'), inc: ty.q('mass'), start: ty.opt(ty.q('mass')) },
+  params: { lift: ty.exercise('weight_reps'), sets: ty.q('sets'), inc: ty.q('mass'), start: ty.opt(ty.q('mass')), lo: ty.q('reps'), hi: ty.q('reps') },
+  // C10: the base 8-12 range is a coaching choice, now a declared default.
+  defaults: { lo: reps(8), hi: reps(12) },
   facts: ['e1rm'],
   state: { load: ty.opt(ty.q('mass')) },
   writableBy: { load: ['session', 'owner'] },
   nouns: { load: 'working weight' },
-  init: (c) => ({ load: orElse(c.p.start, knownThen(c.fact('e1rm', c.p.lift), (e) => loadFor({ e1rm: e, reps: reps(12), rir: rir(2) }))) }),
-  plan: (c) => session({ exercise: c.p.lift, steps: (b) => void b.step('work', c.p.sets, set({ target: { reps: range(reps(8), reps(12)), load: c.s.load } })) }),
+  init: (c) => ({ load: orElse(c.p.start, knownThen(c.fact('e1rm', c.p.lift), (e) => loadFor({ e1rm: e, reps: c.p.hi, rir: rir(2) }))) }),
+  plan: (c) => session({ exercise: c.p.lift, steps: (b) => void b.step('work', c.p.sets, set({ target: { reps: range(c.p.lo, c.p.hi), load: c.s.load } })) }),
   on: {
     session: (c) => c.commit({ load: orElse(known(c.s.load, (l) => byVerdict(c.ev.verdict(undefined, 'top'), { hit: add(l, c.p.inc), missed: l, unknown: l })), c.ev.metric('work', 'load', 'best')) }),
   },

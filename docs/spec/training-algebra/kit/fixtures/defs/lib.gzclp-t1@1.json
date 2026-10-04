@@ -4,7 +4,7 @@
   "id": "lib/gzclp-t1",
   "version": 1
  },
- "says": "GZCLP T1 on {lift}: 5×3+, then 6×2+, then 10×1+ on failure, adding {inc} on success; after failing 10×1, test a 5RM and restart 5×3+ at {resetPct} of it; starts at {start} when a previous program hands one on",
+ "says": "GZCLP T1 on {lift}: 5×3+, then 6×2+, then 10×1+ on failure, adding {inc} on success, counting total reps across all sets; after failing 10×1, test a 5RM and restart 5×3+ at {resetPct} of it; starts at {start} when a previous program hands one on",
  "params": {
   "lift": {
    "t": "ref",
@@ -509,7 +509,8 @@
       "q": {
        "q": "verdict",
        "steps": "working",
-       "bound": "floor"
+       "bound": "floor",
+       "success": "totalReps"
       }
      },
      "cases": {
@@ -571,7 +572,8 @@
       "q": {
        "q": "verdict",
        "steps": "working",
-       "bound": "floor"
+       "bound": "floor",
+       "success": "totalReps"
       }
      },
      "cases": {
@@ -633,7 +635,8 @@
       "q": {
        "q": "verdict",
        "steps": "working",
-       "bound": "floor"
+       "bound": "floor",
+       "success": "totalReps"
       }
      },
      "cases": {

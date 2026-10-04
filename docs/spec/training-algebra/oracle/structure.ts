@@ -68,11 +68,15 @@ import {
   type ReadPick,
   type XformOp,
   type WeeklyBasis,
+  type SuccessRule,
+  type E1rmFormula,
+  type ArgsWith,
+  type DefaultOf,
   enumDecls,
   exprOfTerm as E,
 } from './algebra'
 import { METRIC_DECLS, type Enums, type FactId, type Facts, type LoggingType, type MetricId, type Metrics } from './registry'
-import { DEFAULT_LAPSE_DAYS, type CalQuery, type Drift, type Frequency, type LocalDay, type Measure, type Period, type Rotation, type Selector } from './time'
+import { DEFAULT_LAPSE_DAYS, type AdherenceWeeks, type CalQuery, type Drift, type Frequency, type LocalDay, type Measure, type Period, type Rotation, type Selector } from './time'
 
 // ═══════════════════════════════════════════════════════════════════════════
 // §1 Set and session formers
@@ -246,11 +250,13 @@ export function session<C extends Cap = PlanCap, L extends LoggingType = Logging
   return E({ k: 'session', exercise: spec.exercise.term, steps: out, intensifier: spec.intensifier?.term ?? null })
 }
 
-const xf = <C extends Cap>(op: XformOp, s: Expr<SessionT, C>, arg: Expr<unknown, C> | null, metric: MetricId | null = null): Expr<SessionT, C> =>
-  E({ k: 'xform', op, s: s.term, arg: arg?.term ?? null, metric })
+const xf = <C extends Cap>(op: XformOp, s: Expr<SessionT, C>, arg: Expr<unknown, C> | null, metric: MetricId | null = null, allowZero = false): Expr<SessionT, C> =>
+  E({ k: 'xform', op, s: s.term, arg: arg?.term ?? null, metric, ...(allowZero ? { allowZero: true as const } : {}) })
 export const scaleMetric = <C1 extends Cap = never, C2 extends Cap = never>(s: Expr<SessionT, C1>, metric: MetricId, by: Expr<Q<'one'>, C2>) =>
   xf<C1 | C2>('scaleMetric', s, by, metric)
-export const scaleSets = <C1 extends Cap = never, C2 extends Cap = never>(s: Expr<SessionT, C1>, by: Expr<Q<'one'>, C2>) => xf<C1 | C2>('scaleSets', s, by)
+/** `allowZero` (C9): a line whose scaled count rounds to zero issues no sets
+ *  for that line (the default keeps the never-below-1 floor, F12). */
+export const scaleSets = <C1 extends Cap = never, C2 extends Cap = never>(s: Expr<SessionT, C1>, by: Expr<Q<'one'>, C2>, opts?: { allowZero?: true }) => xf<C1 | C2>('scaleSets', s, by, null, !!opts?.allowZero)
 export const capEffort = <C1 extends Cap = never, C2 extends Cap = never>(s: Expr<SessionT, C1>, atLeastRir: Expr<Q<'effort'>, C2>) =>
   xf<C1 | C2>('capEffort', s, atLeastRir)
 export const setTempo = <C1 extends Cap = never, C2 extends Cap = never>(s: Expr<SessionT, C1>, t: Expr<TempoT, C2>) => xf<C1 | C2>('setTempo', s, t)
@@ -318,10 +324,12 @@ export function fact<F extends FactId, A extends FactKeyArg<F>>(f: F, ...key: A)
 type StepRef = { id: StepId } | string
 export interface EventView {
   /** hit | missed | unknown against the issued bounds; consumed by byVerdict. */
-  verdict(steps?: StepRef[], bound?: 'floor' | 'top'): Expr<Verdict, 'event'>
+  /** `success` (C1): the slot's declared rule, this read's override, or the
+   *  allSets default when neither says otherwise. */
+  verdict(steps?: StepRef[], bound?: 'floor' | 'top', success?: 'allSets' | SuccessRule): Expr<Verdict, 'event'>
   metric<K extends MetricId>(step: StepRef, m: K, pick?: 'last' | 'best' | 'worst'): Expr<Opt<Metrics[K]>, 'event'>
   total<K extends MetricId>(step: StepRef, m: K): Expr<Metrics[K], 'event'>
-  e1rm(step: StepRef): Expr<Opt<Q<'mass'>>, 'event'>
+  e1rm(step: StepRef, formula?: E1rmFormula): Expr<Opt<Q<'mass'>>, 'event'>
   prescribed<K extends MetricId>(step: StepRef, m: K, edge?: 'floor' | 'top'): Expr<Opt<Metrics[K]>, 'event'>
   /** The intensifier's mini-set outcomes on the final set (D11). */
   stageReps(step: StepRef, pick: 'sum' | 'last'): Expr<Opt<Q<'reps'>>, 'event'>
@@ -331,10 +339,10 @@ export interface EventView {
 const sid = (s: StepRef) => (typeof s === 'string' ? (s as StepId) : s.id)
 const ids = (steps?: StepRef[]) => (steps ? steps.map(sid) : 'working')
 export const ev: EventView = {
-  verdict: (steps, bound = 'floor') => E({ k: 'event', q: { q: 'verdict', steps: ids(steps), bound } }),
+  verdict: (steps, bound = 'floor', success) => E({ k: 'event', q: { q: 'verdict', steps: ids(steps), bound, ...(success && success !== 'allSets' ? { success } : {}) } }),
   metric: (step, m, pick = 'last') => E({ k: 'event', q: { q: 'metric', step: sid(step), metric: m, pick } }),
   total: (step, m) => E({ k: 'event', q: { q: 'metric', step: sid(step), metric: m, pick: 'sum' } }),
-  e1rm: (step) => E({ k: 'event', q: { q: 'e1rm', step: sid(step) } }),
+  e1rm: (step, formula) => E({ k: 'event', q: { q: 'e1rm', step: sid(step), ...(formula ? { formula } : {}) } }),
   prescribed: (step, m, edge = 'floor') => E({ k: 'event', q: { q: 'prescribed', step: sid(step), metric: m, edge } }),
   stageReps: (step, pick) => E({ k: 'event', q: { q: 'stages', step: sid(step), pick } }),
   trained: (m) => E({ k: 'event', q: { q: 'trained', muscle: m.term } }),
@@ -348,8 +356,10 @@ export interface WeeklyOpts {
   readonly basis?: WeeklyBasis
   readonly roles?: 'all' | readonly [WeekRole, ...WeekRole[]]
 }
-/** The read is `Opt` exactly when an option can make it absent (algebra weeklyIsOpt). */
-type WeeklyOf<T, O> = O extends { basis: 'upcoming' } | { roles: readonly unknown[] } ? Opt<T> : T
+/** The read is `Opt` unless the options are PROVABLY default (algebra
+ *  weeklyIsOpt): a widened or unknown options type may carry `upcoming` or a
+ *  roles list, so it must type as the IR would, Opt (X3). */
+type WeeklyOf<T, O extends WeeklyOpts> = [O] extends [{ basis?: 'closing'; roles?: 'all' }] ? T : Opt<T>
 /** Defaults are not written, so a default read has one IR form. */
 const weeklyOpts = (o: WeeklyOpts | undefined) => ({
   ...(o?.basis === 'upcoming' ? { basis: o.basis } : {}),
@@ -505,6 +515,9 @@ export interface SchemeDef {
   ref: DefRef
   says: Template
   params: Record<string, Ty>
+  /** As FnDef.defaults (C10): closed literal defaults a binding or example
+   *  may rely on; omitted when empty. */
+  defaults?: Record<string, Term>
   /** The facts it may read; the checker refuses any other. */
   facts: string[]
   enums: EnumDecls
@@ -514,9 +527,9 @@ export interface SchemeDef {
   examples: SchemeExample[]
 }
 
-export interface Scheme<P, S> {
+export interface Scheme<P, S, D = never> {
   readonly def: SchemeDef
-  bind(args: ExprsC<P, BindCap>, meta: SlotMeta): SlotBinding
+  bind(args: ArgsWith<P, D, BindCap>, meta: SlotMeta): SlotBinding
   readonly __s?: S
 }
 
@@ -525,6 +538,9 @@ export interface SlotMeta {
   muscles: Record<string, number>
   /** Static tags for selectors ("hard"). Never computed from performance. */
   tags?: string[]
+  /** The slot's verdict success rule (C1): the default for every verdict
+   *  read of this slot that does not declare its own. Omitted = allSets. */
+  success?: SuccessRule
 }
 export interface SlotBinding {
   scheme: DefRef
@@ -536,11 +552,13 @@ type SlotHandlers<P, S, W> = {
   [Ev in Exclude<SlotEventKind, 'periodClosed'>]?: (c: HandlerCtx<P, S, WritableAt<W, Ev> & keyof S>) => Expr<Upd<S>, HandlerCap>
 } & { periodClosed?: (c: PeriodCtx<P, S, WritableAt<W, 'periodClosed'> & keyof S>) => Expr<Upd<S>, HandlerCap> }
 
-export function scheme<P, S, const W extends WritableSpec<S, Writer>>(spec: {
+export function scheme<P, S, const W extends WritableSpec<S, Writer>, const D extends string = never>(spec: {
   id: string
   version: number
   says: Template
   params: TyWs<P>
+  /** Closed literal values; a binding or example may then omit the param. */
+  defaults?: { [K in D]: DefaultOf<NoInfer<P>, K> }
   facts?: FactId[]
   enums?: readonly EnumDecl<string>[]
   state: TyWs<S>
@@ -556,15 +574,17 @@ export function scheme<P, S, const W extends WritableSpec<S, Writer>>(spec: {
     afterSessions: number
     expect: Partial<ExprsC<S, Cap>>
   }[]
-}): Scheme<P, S> {
+}): Scheme<P, S, D> {
   const c = contexts(spec.params, spec.state)
   const ref: DefRef = { id: spec.id as DefId, version: spec.version }
   const lower = (r: object) => Object.fromEntries(Object.entries(r).map(([k, v]) => [k, (v as Expr<unknown, Cap>).term]))
+  const defaults = spec.defaults && Object.keys(spec.defaults).length ? { defaults: lower(spec.defaults) } : {}
   const def: SchemeDef = {
     kind: 'scheme',
     ref,
     says: spec.says,
     params: tys(spec.params),
+    ...defaults,
     facts: spec.facts ?? [],
     enums: enumDecls(spec.enums),
     state: stateDecls(spec.state, spec.init(c.init), spec.writableBy, spec.nouns ?? {}),
@@ -629,8 +649,8 @@ export interface Use {
   hole: string
   args: Record<string, Term>
 }
-export function use<P extends { s: SessionT }>(f: Fn<P, SessionT>, args: ExprsC<Omit<P, 's'>, 'param'>): Use {
-  return { def: f.def.ref, hole: 's', args: Object.fromEntries(Object.entries(args as object).map(([k, v]) => [k, (v as Expr<unknown, Cap>).term])) }
+export function use<P extends { s: SessionT }, D = never>(f: Fn<P, SessionT, D>, args: ArgsWith<Omit<P, 's'>, Exclude<D, 's'>, 'param'>): Use {
+  return { def: f.def.ref, hole: 's', args: Object.fromEntries(Object.entries(args as object).flatMap(([k, v]) => (v ? [[k, (v as Expr<unknown, Cap>).term]] : []))) }
 }
 
 /** What an outcome policy does to a transition at the sink. Verdict math
@@ -712,6 +732,28 @@ export interface ProgramDef {
   frequency: Frequency[]
   lapseAfterDays: number
   hitPolicy: HitPolicy
+  /** Declared options (configurability round). Each is OMITTED at its
+   *  default, so a program that declares nothing is byte-identical, and each
+   *  is a fact of the program hash like everything else here. */
+  /** C2: the e1RM estimator every `ev.e1rm` read of this program uses (a
+   *  read-level `formula` still wins); `maxReps` caps the effective reps any
+   *  formula will estimate from. Omitted = Epley, uncapped. */
+  e1rm?: { formula: E1rmFormula; maxReps?: number }
+  /** C3: how `per week` adherence windows lie on the calendar. */
+  adherenceWeeks?: Extract<AdherenceWeeks, { calendarAligned: unknown }>
+  /** C4: technique-stage and cluster-set weights in planned-volume counting.
+   *  Domain (0, 1]; omitted fields mean stage 0.5, cluster 1. */
+  volumeWeights?: { stage?: number; cluster?: number }
+  /** C5: the week roles whose sink drops the intensifier (L10). Omitted =
+   *  deload, taper, test; [] = never by role. */
+  stripIntensifierOn?: WeekRole[]
+  /** C6: where an exact bound lands on a grid tie (and `round nearest`).
+   *  Omitted = down. Per program, never per viewer: the issued number is a
+   *  shared fact. */
+  ties?: 'up'
+  /** C8: per-fact staleness overrides (days), replacing the registry's
+   *  maxAgeDays for reads under this program. */
+  staleness?: Record<string, number>
   policies: Policy[]
   aggregate: AggregateDef | null
   exports: Record<string, ExportDecl>
@@ -741,6 +783,33 @@ export const freq = {
   minGap: (of: Selector, gap: Expr<Q<'days'>, CadenceCap>, ceiling: number): Frequency => ({ k: 'minGap', of, gap: gap.term, ceiling }),
 }
 
+/** The declared options, each dropped at its language default so a program
+ *  that writes a default has the same one IR form as one that writes nothing
+ *  (the weekbasis precedent). */
+function declaredOptions(spec: {
+  e1rm?: { formula: E1rmFormula; maxReps?: number }
+  adherenceWeeks?: AdherenceWeeks
+  volumeWeights?: { stage?: number; cluster?: number }
+  stripIntensifierOn?: WeekRole[]
+  ties?: 'down' | 'up'
+  staleness?: Partial<Record<string, number>>
+}): Pick<ProgramDef, 'e1rm' | 'adherenceWeeks' | 'volumeWeights' | 'stripIntensifierOn' | 'ties' | 'staleness'> {
+  const out: ReturnType<typeof declaredOptions> = {}
+  if (spec.e1rm && !(spec.e1rm.formula === 'epley' && spec.e1rm.maxReps === undefined))
+    out.e1rm = { formula: spec.e1rm.formula, ...(spec.e1rm.maxReps !== undefined ? { maxReps: spec.e1rm.maxReps } : {}) }
+  if (spec.adherenceWeeks && spec.adherenceWeeks !== 'fromAnchor') out.adherenceWeeks = spec.adherenceWeeks
+  const vw = {
+    ...(spec.volumeWeights?.stage !== undefined && spec.volumeWeights.stage !== 0.5 ? { stage: spec.volumeWeights.stage } : {}),
+    ...(spec.volumeWeights?.cluster !== undefined && spec.volumeWeights.cluster !== 1 ? { cluster: spec.volumeWeights.cluster } : {}),
+  }
+  if (Object.keys(vw).length) out.volumeWeights = vw
+  const strip = spec.stripIntensifierOn
+  if (strip && [...strip].sort().join() !== ['deload', 'taper', 'test'].join()) out.stripIntensifierOn = [...strip]
+  if (spec.ties === 'up') out.ties = 'up'
+  if (spec.staleness && Object.keys(spec.staleness).length) out.staleness = Object.fromEntries(Object.entries(spec.staleness).filter(([, v]) => v !== undefined)) as Record<string, number>
+  return out
+}
+
 export function program<P, A = Record<never, never>, const WA extends WritableSpec<A, AggEventKind | 'owner'> = WritableSpec<A, AggEventKind | 'owner'>>(spec: {
   id: string
   version: number
@@ -756,6 +825,12 @@ export function program<P, A = Record<never, never>, const WA extends WritableSp
   rotation: Rotation
   frequency?: (c: { p: ExprsC<P, 'param'>; s: ExprsC<A, 'state'> }) => Frequency[]
   lapseAfterDays?: number
+  e1rm?: { formula: E1rmFormula; maxReps?: number }
+  adherenceWeeks?: AdherenceWeeks
+  volumeWeights?: { stage?: number; cluster?: number }
+  stripIntensifierOn?: WeekRole[]
+  ties?: 'down' | 'up'
+  staleness?: Partial<Record<FactId, number>>
   /** Sugar: a role maps to a session transformer (when: pos.role == role). */
   roles?: Partial<Record<WeekRole, Use>>
   policies?: (c: PolicyCtx<P, A>) => Policy[]
@@ -821,6 +896,7 @@ export function program<P, A = Record<never, never>, const WA extends WritableSp
       frequency: spec.frequency?.({ p: pE, s: sE }) ?? [],
       lapseAfterDays: spec.lapseAfterDays ?? DEFAULT_LAPSE_DAYS,
       hitPolicy: spec.hitPolicy ?? 'allInOrder',
+      ...declaredOptions(spec),
       policies: [...rolePolicies, ...allocationPolicy, ...(spec.policies?.({ p: pE, s: sE, pos, cal, fact }) ?? [])],
       aggregate,
       exports: spec.exports ?? {},

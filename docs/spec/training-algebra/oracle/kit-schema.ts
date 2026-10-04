@@ -27,6 +27,7 @@ import { GRANTS } from './checker'
 import { DESCRIBERS } from './describe'
 import { ENUM_VALUES, LOGGING_TYPES, SCALE_LEVELS, VERDICT_TAGS } from './registry'
 import { BASE_DIMS, UNITS } from './units'
+import { WEEKDAYS } from './time'
 import { OPS, type J, type Op } from './kit'
 
 // ── builders ────────────────────────────────────────────────────────────────
@@ -118,6 +119,13 @@ const Writer = strs<'session' | 'weekEnd' | 'cycleEnd' | 'blockEnd' | 'periodClo
 const InstanceStatus = strs<Head['status']>('InstanceStatus', { active: true, paused: true, lapsed: true, completed: true, abandoned: true })
 const Mode = strs<'commit' | 'propose'>('PatchMode', { commit: true, propose: true })
 const Drift = strs<Calendar['drift']>('Drift', { slide: true, anchored: true })
+const SuccessRuleS = def('SuccessRule', anyOf(lit('totalReps'), obj({ atLeastSets: int })))
+const E1rmFormulaS = enumOf('E1rmFormula', ['epley', 'brzycki', 'lombardi', 'mayhew'])
+const E1rmDeclS = def('E1rmDecl', obj({ formula: E1rmFormulaS, maxReps: opt(int) }))
+const WeekdayS = enumOf('Weekday', WEEKDAYS)
+const AdherenceWeeksS = def('AdherenceWeeksAligned', obj({ calendarAligned: obj({ weekStart: WeekdayS }) }))
+const VolumeWeightsS = def('VolumeWeights', obj({ stage: opt(num), cluster: opt(num) }))
+const TiesS = enumOf('Ties', ['down', 'up'])
 const HitPolicy = strs<ProgramDef['hitPolicy']>('HitPolicy', { allInOrder: true, first: true })
 const StateKind = strs<OutcomeRule['demote']['kinds'][number]>('StateKind', { load: true, volume: true, plain: true })
 
@@ -179,9 +187,9 @@ const CalQueryS = union<CalQuery, 'q'>('CalQuery', 'q', {
   recent: { of: SelectorS, days: int, measure: MeasureS },
 })
 const EventQueryS = union<EventQuery, 'q'>('EventQuery', 'q', {
-  verdict: { steps: anyOf(arr(str), lit('working')), bound: Edge },
+  verdict: { steps: anyOf(arr(str), lit('working')), bound: Edge, success: opt(SuccessRuleS) },
   metric: { step: str, metric: str, pick: ReadPick },
-  e1rm: { step: str },
+  e1rm: { step: str, formula: opt(E1rmFormulaS) },
   prescribed: { step: str, metric: str, edge: Edge },
   stages: { step: str, pick: { enum: ['sum', 'last', 'count'] } },
   trained: { muscle: T },
@@ -240,7 +248,7 @@ union<Term, 'k'>('Term', 'k', {
   agg: { q: AggQueryS },
   set: { role: SetRole, target: rec(BoundS), rest: nullable(T), tempo: nullable(T), cluster: nullable(obj({ per: T, intraRest: T })) },
   session: { exercise: T, steps: arr(ref('StepIR')), intensifier: nullable(T) },
-  xform: { op: XformOpS, s: T, arg: nullable(T), metric: nullable(str) },
+  xform: { op: XformOpS, s: T, arg: nullable(T), metric: nullable(str), allowZero: opt(lit(true)) },
   technique: { kind: { enum: ['drop-set', 'rest-pause', 'myo-reps'] }, stages: arr(T) },
   tempo: { ecc: num, pause: num, con: num, top: num },
   patch: { set: rec(PatchField) },
@@ -251,7 +259,7 @@ union<Term, 'k'>('Term', 'k', {
 const Templ = str
 const EnumDecls = rec(arr(str))
 const ExampleS = def('Example', shape<Example>()({ args: rec(T), gives: T }))
-const FnDefS = def('FnDef', shape<FnDef>()({ kind: lit('fn'), ref: DefRefS, params: rec(Ty_), result: Ty_, says: Templ, enums: EnumDecls, examples: arr(ExampleS, 1), body: T }))
+const FnDefS = def('FnDef', shape<FnDef>()({ kind: lit('fn'), ref: DefRefS, params: rec(Ty_), defaults: opt(rec(T)), result: Ty_, says: Templ, enums: EnumDecls, examples: arr(ExampleS, 1), body: T }))
 const StateDeclS = def('StateDecl', shape<StateDecl>()({ ty: Ty_, init: T, writableBy: arr(Writer), noun: str }))
 const SchemeExampleS = def(
   'SchemeExample',
@@ -265,6 +273,7 @@ const SchemeDefS = def(
     ref: DefRefS,
     says: Templ,
     params: rec(Ty_),
+    defaults: opt(rec(T)),
     facts: arr(str),
     enums: EnumDecls,
     state: rec(StateDeclS),
@@ -274,7 +283,7 @@ const SchemeDefS = def(
   }),
 )
 void SlotEvent
-const SlotMetaS = def('SlotMeta', shape<SlotMeta>()({ muscles: rec(num), tags: opt(arr(str)) }))
+const SlotMetaS = def('SlotMeta', shape<SlotMeta>()({ muscles: rec(num), tags: opt(arr(str)), success: opt(SuccessRuleS) }))
 const SlotBindingS = def('SlotBinding', shape<SlotBinding>()({ scheme: DefRefS, args: rec(T), meta: SlotMetaS }))
 const GroupS = union<Group, 'k'>('Group', 'k', {
   single: { slot: str },
@@ -327,6 +336,12 @@ const ProgramDefS = def(
     frequency: arr(FrequencyS),
     lapseAfterDays: int,
     hitPolicy: HitPolicy,
+    e1rm: opt(E1rmDeclS),
+    adherenceWeeks: opt(AdherenceWeeksS),
+    volumeWeights: opt(VolumeWeightsS),
+    stripIntensifierOn: opt(arr(WeekRole)),
+    ties: opt(lit('up')),
+    staleness: opt(rec(int)),
     policies: arr(PolicyS),
     aggregate: nullable(AggregateS),
     exports: rec(ExportS),
@@ -462,6 +477,7 @@ const AbsenceS = union<Absence, 'k'>('Absence', 'k', {
   ownerCleared: { field: str },
   roleExcluded: { role: WeekRole },
   noUpcomingWeek: {},
+  outsideFormulaDomain: { formula: str, reps: num },
 })
 const IssuedBoundS = union<IssuedBound, 'b'>('IssuedBound', 'b', {
   exact: { v: num },
@@ -536,6 +552,7 @@ const StampS = def(
     policies: arr(int),
     phaseTransform: nullable(DefRefS),
     grids: obj({ load: opt(num), distance: opt(num) }),
+    ties: opt(lit('up')),
     display: rec(Unit),
   }),
 )
@@ -693,7 +710,7 @@ const PhaseRunS = def(
 const SlotViewS = def('SlotView', shape<SlotView>()({ primary: str, tags: arr(str) }))
 const CalendarSpecS = def(
   'CalendarSpec',
-  shape<CalendarSpec>()({ instance: str, anchor: day, activatedOn: day, frequency: arr(FrequencyS), slots: rec(SlotViewS), lapseAfterDays: int, tracked: arr(SelectorS) }),
+  shape<CalendarSpec>()({ instance: str, anchor: day, activatedOn: day, frequency: arr(FrequencyS), slots: rec(SlotViewS), lapseAfterDays: int, adherenceWeeks: opt(AdherenceWeeksS), tracked: arr(SelectorS) }),
 )
 const CalEventS = union<CalEvent, 'k'>('CalEvent', 'k', {
   dayClosed: { causeKey: pattern('^day:'), day },
@@ -725,6 +742,7 @@ const CtxS = def(
     frame: opt(FrameS),
     display: opt(rec(Unit)),
     logs: opt(nullable(arr(str))),
+    ties: opt(lit('up')),
     logging: opt(nullable(LoggingType)),
     record: opt(FnTok),
   }),
@@ -742,6 +760,8 @@ const CxS = def(
     flags: setOf(str),
     peer: FnTok,
     programNouns: rec(str),
+    slotSuccess: opt(SuccessRuleS),
+    alignedWeeks: opt(str),
   }),
 )
 const RuntimeS = def('Runtime', shape<Runtime>()({ reg: RegistryTok, def: ProgramDefS, spec: CalendarSpecS, phaseTransform: nullable(UseS), phase: nullable(str) }))
@@ -759,6 +779,8 @@ const EventSourceS = def(
     groupScores: rec(obj({ time: opt(num), rounds: opt(num) })),
     week: int,
     primary: FnTok,
+    success: opt(rec(SuccessRuleS)),
+    e1rm: opt(E1rmDeclS),
   }),
 )
 const RegOnly = obj({ reg: RegistryTok })
@@ -773,7 +795,7 @@ const ScopeS = def(
     enums: rec(arr(str)),
     peers: nullable(FnTok),
     programFields: nullable(rec(Ty_)),
-    program: nullable(obj({ slots: arr(str), days: arr(str), muscles: arr(str), tags: arr(str) })),
+    program: nullable(obj({ slots: arr(str), days: arr(str), muscles: arr(str), tags: arr(str), roles: nullable(arr(str)) })),
     steps: obj({ earlier: arr(str), all: anyOf(arr(str), lit('any')), own: nullable(str) }),
     writer: nullable(anyOf(Writer, AggEvent)),
     vars: mapOf(str, Ty_),
@@ -789,13 +811,13 @@ const strings = arr(str)
 const TypeErrors = arr(TypeErrorS)
 export const OP_SIGS: { [K in Op]: Sig } = {
   'evaluate.evaluate': { args: [T, CtxS], ret: TraceS },
-  'issue.sinkField': { args: [FieldS, str, rec(num)], ret: FieldS },
+  'issue.sinkField': { args: [FieldS, str, rec(num), opt(TiesS)], ret: FieldS },
   'issue.applyUse': { args: [UseS, SessionValueS, CtxS], ret: SessionValueS },
   'issue.currentView': { args: [IssuedSessionS, arr(ResolutionS)], ret: arr(IssuedSlotS) },
   'issue.resolveLive': { args: [anyOf(RegOnly, RuntimeS), IssuedSessionS, LoggedS, arr(ResolutionS)], ret: arr(ResolutionS) },
   'issue.setsDue': { args: [anyOf(RegOnly, RuntimeS), IssuedSlotS, IssuedStepS, rec(arr(PerformedSetS))], ret: num },
-  'xform.applyXform': { args: [XformOpS, SessionValueS, nullable(V), nullable(str), nullable(strings), opt(nullable(strings))], ret: SessionValueS },
-  'judge.verdictOf': { args: [EventSourceS, anyOf(strings, lit('working')), Edge], ret: VerdictTag },
+  'xform.applyXform': { args: [XformOpS, SessionValueS, nullable(V), nullable(str), nullable(strings), opt(nullable(strings)), opt(bool)], ret: SessionValueS },
+  'judge.verdictOf': { args: [EventSourceS, anyOf(strings, lit('working')), Edge, opt(SuccessRuleS)], ret: VerdictTag },
   'step.activate': { args: [RuntimeS, rec(V), FactSourceS], ret: HeadS },
   'step.step': { args: [RuntimeS, HeadS, EventS], ret: StepResultS },
   'step.ingest': { args: [RuntimeS, LedgerS, EventS], ret: obj({ ledger: LedgerS, result: IngestResultS }) },
@@ -814,7 +836,7 @@ export const OP_SIGS: { [K in Op]: Sig } = {
     ret: anyOf(OccurrenceS, obj({ refused: lit('emptySession'), workoutId: str })),
   },
   'time.completedFraction': { args: [CalendarStateS], ret: num },
-  'time.calendarSpecOf': { args: [ProgramDefS, arr(SelectorS), str, day, day], ret: CalendarSpecS },
+  'time.calendarSpecOf': { args: [ProgramDefS, arr(SelectorS), str, day, day, opt(obj({ lapseAfterDays: opt(int), adherenceWeeks: opt(anyOf(lit('fromAnchor'), AdherenceWeeksS)) }))], ret: CalendarSpecS },
   'checker.top': { args: [T, ScopeS, Path, nullable(Ty_), TypeErrors], ret: nullable(obj({ ty: Ty_, cost: int })) },
   'checkdefs.checkFn': { args: [FnDefS, RegistryTok], ret: TypeErrors },
   'checkdefs.checkScheme': { args: [SchemeDefS, RegistryTok, opt(any)], ret: TypeErrors },
@@ -832,7 +854,7 @@ export const OP_SIGS: { [K in Op]: Sig } = {
   'describe-defs.dueText': { args: [DueS, CalendarSpecS, FnTok, CxS], ret: str },
   'describe-defs.adherenceText': { args: [CalendarStateS, AdherenceS, CalendarSpecS], ret: str },
   'describe-defs.bindingArgs': { args: [ProgramDefS, SlotBindingS, CxS], ret: rec(str) },
-  'describe-run.sessionText': { args: [IssuedSessionS, RegistryTok], ret: strings },
+  'describe-run.sessionText': { args: [IssuedSessionS, RegistryTok, opt(obj({ mass: opt({ enum: ['kg', 'lb'] }) }))], ret: strings },
   'describe-run.valueText': { args: [V, RegistryTok], ret: str },
   'describe-run.explain': { args: [TraceS, RegistryTok], ret: str },
   'describe-run.transitionText': { args: [TransitionS, RegistryTok, FnTok], ret: strings },

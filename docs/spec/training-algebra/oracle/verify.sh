@@ -7,8 +7,10 @@
 #   5. the property suites: the formers (semantics.test.ts), the laws L1–L13
 #      (laws.test.ts), the typing-observation fixes (hardening.test.ts), the
 #      fixture-coverage gaps (coverage.test.ts), the semantics review
-#      round's regressions (semfix.test.ts) and the weekly basis options
-#      (weekbasis.test.ts)
+#      round's regressions (semfix.test.ts), the weekly basis options
+#      (weekbasis.test.ts), the correctness interrogation round's
+#      regressions (patfix.test.ts) and the configurability round's
+#      declared options (config.test.ts)
 #   6. conformance: publication with examples evaluated, the capability matrix,
 #      the checker suite, and the prose-versus-evaluation differential
 #   7. the test-plan disposition is complete and matches what ran
@@ -47,7 +49,9 @@ hard=$(QUIET=1 "$BIN/tsx" hardening.test.ts) || { echo "$hard"; exit 1; }
 cov=$(QUIET=1 "$BIN/tsx" coverage.test.ts) || { echo "$cov"; exit 1; }
 semf=$(QUIET=1 "$BIN/tsx" semfix.test.ts) || { echo "$semf"; exit 1; }
 wkb=$(QUIET=1 "$BIN/tsx" weekbasis.test.ts) || { echo "$wkb"; exit 1; }
-echo "5. properties: $(grep -c "^t('" semantics.test.ts) former tests, $(grep -c "^t('" laws.test.ts) law tests, $(grep -c "^t('" hardening.test.ts) oracle-hardening tests, $(grep -c "^t('" coverage.test.ts) fixture-coverage tests, $(grep -c "^t('" semfix.test.ts) semantics-review regressions and $(grep -c "^t('" weekbasis.test.ts) weekly-basis tests pass (semantics, laws, hardening, coverage, semfix, weekbasis)"
+pat=$(QUIET=1 "$BIN/tsx" patfix.test.ts) || { echo "$pat"; exit 1; }
+cfg=$(QUIET=1 "$BIN/tsx" config.test.ts) || { echo "$cfg"; exit 1; }
+echo "5. properties: $(grep -c "^t('" semantics.test.ts) former tests, $(grep -c "^t('" laws.test.ts) law tests, $(grep -c "^t('" hardening.test.ts) oracle-hardening tests, $(grep -c "^t('" coverage.test.ts) fixture-coverage tests, $(grep -c "^t('" semfix.test.ts) semantics-review regressions, $(grep -c "^t('" weekbasis.test.ts) weekly-basis tests, $(grep -c "^t('" patfix.test.ts) correctness-round regressions and $(grep -c "^t('" config.test.ts) configurability-round tests pass (semantics, laws, hardening, coverage, semfix, weekbasis, patfix, config)"
 
 conf=$(QUIET=1 "$BIN/tsx" conformance.ts) || { echo "$conf"; exit 1; }
 echo "6. conformance: $(grep -c "^t('" conformance.ts) publication/matrix/checker tests and $(QUIET=1 "$BIN/tsx" -e "import { RESULTS } from './testkit'; import('./differential').then(() => console.log(RESULTS.filter((r) => r.suite === 'differential').length))") prose-vs-evaluation checks pass (conformance.ts, differential.ts)"

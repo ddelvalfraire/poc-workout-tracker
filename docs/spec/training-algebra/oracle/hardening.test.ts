@@ -22,7 +22,7 @@ const B = (v: boolean): Term => ({ k: 'lit', lit: { k: 'bool', v } })
 const ref = (kind: 'slot' | 'muscle' | 'day' | 'exercise', id: string): Term => ({ k: 'lit', lit: { k: 'ref', kind, id } })
 const none = (of: Ty): Term => ({ k: 'none', of })
 const calCount: Term = { k: 'cal', q: { q: 'recent', of: { s: 'any' }, days: 7, measure: { m: 'count' } } }
-const VIEW = { slots: ['a', 'b'], days: ['A'], muscles: ['chest'], tags: ['hard'] }
+const VIEW = { slots: ['a', 'b'], days: ['A'], muscles: ['chest'], tags: ['hard'], roles: null }
 
 const scope = (position: Position, over: Partial<Scope> = {}): Scope => ({
   ...baseScope(reg, position, { p: ONE }, { id: 'demo/hardening', seq: reg.seq.size }),

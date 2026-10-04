@@ -20,14 +20,15 @@
  *   macros                 peakOn needs anchored drift and fixed phases;
  *                          bounded min ≤ max; open only last; fixed ⇒ once
  */
-import type { FnDef, StepIR, Term, Ty } from './algebra'
+import type { FnDef, StepIR, SuccessRule, Term, Ty } from './algebra'
+import { ENUM_VALUES } from './registry'
 import { BASE_VOCAB, type Vocab } from './registry'
 import { baseScope, BOOL, DAYS, dom, enumsWith, eqTy, infer, isLib, keyOf, ONE, showTy, stepIds, top, type Path, type ProgramView, type Registry, type Scope } from './checker'
 import { valueText } from './describe-run'
 import { runFnExample } from './evaluate'
 import { runSchemeExample } from './project'
 import type { TypeError, WriteEntry } from './engine'
-import { effectiveFrequency, feasibility, MAX_PERIOD_DAYS, type Selector } from './time'
+import { effectiveFrequency, feasibility, MAX_PERIOD_DAYS, WEEKDAYS, type Selector } from './time'
 import { calReads } from './ports'
 export { calReads }
 import { kindOf, LIFECYCLE_EXPORTS, type AggEventKind, type AnyDef, type MacroDef, type Policy, type ProgramDef, type SchemeDef, type SlotEventKind, type StateDecl, type Use, type Writer } from './structure'
@@ -94,13 +95,29 @@ const stateDecls = (state: Record<string, StateDecl>, at: Path): [Path, Ty][] =>
 // ── fns ─────────────────────────────────────────────────────────────────────
 
 /** A library template renders in place of the mechanism, so it must name
- *  every parameter and nothing else (D5). */
-function templateHoles(says: string, params: Record<string, Ty>, out: TypeError[]) {
+ *  every parameter and nothing else (D5). A DEFAULTED parameter (C10) may be
+ *  left out: by default it renders nothing, and a non-default argument for a
+ *  hole-less defaulted param is appended to the rendered template, so the
+ *  prose never goes mute. */
+function templateHoles(says: string, params: Record<string, Ty>, out: TypeError[], defaults: Record<string, Term> = {}) {
   const holes = [...says.matchAll(/\{(\w+)\}/g)].map((m) => m[1]!)
   const names = Object.keys(params)
   const extra = holes.filter((h) => !names.includes(h))
-  const missing = names.filter((p) => !holes.includes(p))
-  if (extra.length || missing.length) out.push({ code: 'templateHoles', extra, missing, path: ['says'], message: `template holes must equal params (extra: ${extra.join(', ') || 'none'}; missing: ${missing.join(', ') || 'none'})` })
+  const missing = names.filter((p) => !holes.includes(p) && !(p in defaults))
+  if (extra.length || missing.length) out.push({ code: 'templateHoles', extra, missing, path: ['says'], message: `template holes must equal params without defaults (extra: ${extra.join(', ') || 'none'}; missing: ${missing.join(', ') || 'none'})` })
+}
+
+/** Defaults (C10): each names a parameter and typechecks as a closed value
+ *  (the example position grants nothing, so a default can read nothing). */
+function checkDefaults(defaults: Record<string, Term> | undefined, params: Record<string, Ty>, sc: (position: Scope['position']) => Scope, out: TypeError[]) {
+  for (const [k, d] of Object.entries(defaults ?? {})) {
+    const want = params[k]
+    if (!want) {
+      out.push({ code: 'unknownName', name: k, path: ['defaults', k], message: `a default for ${k}, which is not a parameter` })
+      continue
+    }
+    top(d, sc('example'), ['defaults', k], want, out)
+  }
 }
 
 export function checkFn(f: FnDef, reg: Registry): TypeError[] {
@@ -108,9 +125,10 @@ export function checkFn(f: FnDef, reg: Registry): TypeError[] {
   calendarDecls([...paramDecls(f.params), [['result'], f.result]], out)
   enumDecls(f.enums, out)
   // A template renders only on a library definition (D5); only there must its holes equal the params.
-  if (f.ref.id.startsWith('lib/')) templateHoles(f.says, f.params, out)
+  if (f.ref.id.startsWith('lib/')) templateHoles(f.says, f.params, out, f.defaults ?? {})
   const def = defOf(reg, f.ref)
   const sc = (position: Scope['position'], params: Record<string, Ty>): Scope => ({ ...baseScope(reg, position, params, def), enums: enumsWith(f.enums) })
+  checkDefaults(f.defaults, f.params, (pos) => sc(pos, {}), out)
   top(f.body, sc('fnBody', f.params), ['body'], f.result, out)
   f.examples.forEach((ex, i) => {
     for (const [a, x] of Object.entries(ex.args))
@@ -166,12 +184,13 @@ export function checkScheme(d: SchemeDef, reg: Registry, ctx: SlotContext = { pe
     steps: { earlier: [], all, own: null },
     writer,
   })
+  checkDefaults(d.defaults, d.params, (pos) => ({ ...sc(pos), params: {} }), out)
   for (const [k, s] of Object.entries(d.state)) top(s.init, sc('init'), ['state', k, 'init'], s.ty, out)
   top(d.plan, sc('plan'), ['plan'], dom('session'), out)
   for (const [ev, h] of Object.entries(d.on)) if (h && !unknownEvent(ev, SLOT_EVENTS, ['on', ev], out)) top(h, sc('handler', ev as Writer), ['on', ev], { t: 'upd', scope: 'slot' }, out)
   // A library scheme's template renders, so its holes must be its params (as for a fn). It is checked
   // after the handlers here and before the body in checkFn: each order is fixed by the spec.
-  if (isLib(d.ref.id)) templateHoles(d.says, d.params, out)
+  if (isLib(d.ref.id)) templateHoles(d.says, d.params, out, d.defaults ?? {})
   // Publication projects every scheme example and compares the state it reaches.
   if (!out.length)
     d.examples.forEach((ex, i) => {
@@ -212,7 +231,7 @@ function checkUse(u: Use, at: Path, sc: Scope, out: TypeError[]) {
   }
   if (!eqTy(f.params[u.hole] ?? ONE, dom('session')) || !eqTy(f.result, dom('session')))
     out.push({ code: 'unitMismatch', expected: dom('session'), got: f.result, path: at, message: `${u.def.id} is not a session→session definition` })
-  for (const p of Object.keys(f.params)) if (p !== u.hole && !(p in u.args)) out.push({ code: 'missingArg', param: p, path: [...at, 'args'], message: `${u.def.id} needs ${p}` })
+  for (const p of Object.keys(f.params)) if (p !== u.hole && !(p in u.args) && !(p in (f.defaults ?? {}))) out.push({ code: 'missingArg', param: p, path: [...at, 'args'], message: `${u.def.id} needs ${p}` })
   for (const [a, x] of Object.entries(u.args)) {
     const want = f.params[a]
     if (!want || a === u.hole) out.push({ code: 'unknownName', name: a, path: [...at, 'args', a], message: `${u.def.id} has no parameter ${a} to bind` })
@@ -249,6 +268,7 @@ export function checkProgram(p: ProgramDef, reg: Registry): { at: string; errors
     days: Object.keys(p.days),
     muscles: p.muscles,
     tags: [...new Set(Object.values(p.slots).flatMap((b) => b.meta.tags ?? []))],
+    roles: [...new Set(p.calendar.weeks)],
   }
   const scope = (position: Scope['position'], extra: Partial<Scope> = {}): Scope => ({
     ...baseScope(reg, position, p.params, def),
@@ -264,6 +284,52 @@ export function checkProgram(p: ProgramDef, reg: Registry): { at: string; errors
   nameDecls(Object.keys(p.days), ['days'], 'program', out)
   nameDecls(Object.keys(agState), ['aggregate', 'state'], 'program', out)
 
+  // Declared options (configurability round): each checked where it is
+  // declared, so a bad value is a typed refusal, never silent behavior.
+  if (p.e1rm) {
+    if (!['epley', 'brzycki', 'lombardi', 'mayhew'].includes(p.e1rm.formula))
+      out.push({ code: 'unknownName', name: String(p.e1rm.formula), path: ['e1rm', 'formula'], message: `no e1RM formula ${String(p.e1rm.formula)} (epley, brzycki, lombardi, mayhew)` })
+    if (p.e1rm.maxReps !== undefined && !(Number.isInteger(p.e1rm.maxReps) && p.e1rm.maxReps >= 1))
+      out.push({ code: 'literalDomain', former: 'program', field: 'e1rm.maxReps', value: p.e1rm.maxReps, path: ['e1rm', 'maxReps'], message: `maxReps is a whole number of reps from 1, got ${p.e1rm.maxReps}` })
+  }
+  if (p.adherenceWeeks) {
+    const ws = p.adherenceWeeks.calendarAligned?.weekStart
+    if (!WEEKDAYS.includes(ws))
+      out.push({ code: 'unknownName', name: String(ws), path: ['adherenceWeeks', 'calendarAligned', 'weekStart'], message: `no weekday ${String(ws)}` })
+  }
+  for (const [k, v] of Object.entries(p.volumeWeights ?? {}))
+    if (!['stage', 'cluster'].includes(k)) out.push({ code: 'unknownName', name: k, path: ['volumeWeights', k], message: `no volume weight ${k} (stage, cluster)` })
+    else if (!(typeof v === 'number' && v > 0 && v <= 1))
+      out.push({ code: 'literalDomain', former: 'program', field: `volumeWeights.${k}`, value: v as number, path: ['volumeWeights', k], message: `a volume weight lies in (0, 1], got ${v}` })
+  if (p.stripIntensifierOn) {
+    const cal = [...new Set(p.calendar.weeks)]
+    p.stripIntensifierOn.forEach((r, i) => {
+      if (!(ENUM_VALUES.weekRole as readonly string[]).includes(r)) out.push({ code: 'unknownName', name: String(r), path: ['stripIntensifierOn', i], message: `no week role ${String(r)}` })
+      else if (!cal.includes(r))
+        out.push({ code: 'literalDomain', former: 'program', field: 'stripIntensifierOn', value: r, path: ['stripIntensifierOn', i], message: `${r} is not a week of this program's calendar (${cal.join(', ')}): the rule could never fire` })
+    })
+  }
+  if (p.ties !== undefined && p.ties !== 'up')
+    out.push({ code: 'unknownName', name: String(p.ties), path: ['ties'], message: `no tie direction ${String(p.ties)} (the IR writes 'up'; down is the default and is omitted)` })
+  if (p.staleness) {
+    const readable = new Set([...p.facts, ...Object.values(p.slots).flatMap((b) => reg.schemes.get(keyOf(b.scheme))?.facts ?? [])])
+    for (const [fact, days] of Object.entries(p.staleness)) {
+      if (!reg.vocab.facts[fact]) out.push({ code: 'unknownName', name: fact, path: ['staleness', fact], message: `no fact ${fact}` })
+      else if (!readable.has(fact))
+        out.push({ code: 'undeclaredFact', fact, path: ['staleness', fact], message: `a staleness override for ${fact}, which neither the program nor any bound scheme reads` })
+      if (!(Number.isInteger(days) && days >= 1))
+        out.push({ code: 'literalDomain', former: 'program', field: 'staleness', value: days, path: ['staleness', fact], message: `staleness is a whole number of days from 1, got ${days}` })
+    }
+  }
+  const checkSuccess = (su: SuccessRule | undefined, at: Path) => {
+    if (su === undefined || su === 'totalReps') return
+    if (!su || typeof su !== 'object' || !('atLeastSets' in su))
+      out.push({ code: 'unknownName', name: String(su), path: at, message: `no verdict success rule ${String(su)} (totalReps, or {atLeastSets: n}; omit it for allSets)` })
+    else if (!(Number.isInteger(su.atLeastSets) && su.atLeastSets >= 1))
+      out.push({ code: 'literalDomain', former: 'program', field: 'success', value: su.atLeastSets, path: at, message: `atLeastSets is a whole number of sets from 1, got ${su.atLeastSets}` })
+  }
+  for (const [slot, b] of Object.entries(p.slots)) checkSuccess(b.meta.success, ['slots', slot, 'meta', 'success'])
+
   // Slots: bindings, muscles, exactly one primary.
   const checked = new Set<string>()
   for (const [slot, b] of Object.entries(p.slots)) {
@@ -272,7 +338,7 @@ export function checkProgram(p: ProgramDef, reg: Registry): { at: string; errors
       out.push({ code: 'futureRef', ref: b.scheme, path: ['slots', slot, 'scheme'], message: `${keyOf(b.scheme)} is not published before ${p.ref.id}` })
       continue
     }
-    for (const prm of Object.keys(s.params)) if (!(prm in b.args)) out.push({ code: 'missingArg', param: prm, path: ['slots', slot, 'args'], message: `${slot} must bind ${prm}` })
+    for (const prm of Object.keys(s.params)) if (!(prm in b.args) && !(prm in (s.defaults ?? {}))) out.push({ code: 'missingArg', param: prm, path: ['slots', slot, 'args'], message: `${slot} must bind ${prm}` })
     for (const [a, x] of Object.entries(b.args))
       if (!(a in s.params)) out.push({ code: 'unknownName', name: a, path: ['slots', slot, 'args', a], message: `${s.ref.id} has no parameter ${a} to bind` })
       else top(x, scope('bind', { peers }), ['slots', slot, 'args', a], s.params[a]!, out)
