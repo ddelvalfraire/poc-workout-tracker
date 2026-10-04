@@ -445,10 +445,19 @@ export type EventQuery =
 
 /** Aggregates over the program's structure and plans under the pre-state.
  *  `weekly` counts working sets ('sets', technique-weighted: a stage after the
- *  first counts 0.5, a cluster set counts 1) or sums a metric's planned values. */
+ *  first counts 0.5, a cluster set counts 1) or sums a metric's planned values.
+ *  Its two options are the one coaching judgment the read makes, declared:
+ *  `basis` measures the week just closing (the default) or the coming week's
+ *  plan; `roles` limits the read to weeks of the listed roles, any other week
+ *  reading as absence. A read with a non-default option is `Opt`. */
 export type AggQuery =
   | { q: 'slotsFor'; muscle: Term }
-  | { q: 'weekly'; metric: string; by: { k: 'slot'; of: Term } | { k: 'muscle'; of: Term } | { k: 'tag'; tag: string } }
+  | { q: 'weekly'; metric: string; by: { k: 'slot'; of: Term } | { k: 'muscle'; of: Term } | { k: 'tag'; tag: string }; basis?: WeeklyBasis; roles?: WeeklyRoles }
+
+export type WeeklyBasis = 'closing' | 'upcoming'
+export type WeeklyRoles = 'all' | Enums['weekRole'][]
+/** Whether a weekly read can be absent: only a non-default option makes it so. */
+export const weeklyIsOpt = (q: { basis?: WeeklyBasis; roles?: WeeklyRoles }): boolean => q.basis === 'upcoming' || Array.isArray(q.roles)
 
 // ═══════════════════════════════════════════════════════════════════════════
 // §4 The typed embedding: Expr<T, C> and builders

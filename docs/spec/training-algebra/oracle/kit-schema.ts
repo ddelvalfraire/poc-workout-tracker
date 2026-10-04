@@ -190,7 +190,7 @@ const EventQueryS = union<EventQuery, 'q'>('EventQuery', 'q', {
 })
 const AggQueryS = union<AggQuery, 'q'>('AggQuery', 'q', {
   slotsFor: { muscle: T },
-  weekly: { metric: str, by: { anyOf: [obj({ k: lit('slot'), of: T }), obj({ k: lit('muscle'), of: T }), obj({ k: lit('tag'), tag: str })] } },
+  weekly: { metric: str, by: { anyOf: [obj({ k: lit('slot'), of: T }), obj({ k: lit('muscle'), of: T }), obj({ k: lit('tag'), tag: str })] }, basis: opt({ enum: ['closing', 'upcoming'] }), roles: opt({ anyOf: [lit('all'), arr(WeekRole, 1)] }) },
 })
 const RowKey = def('RowKey', anyOf({ type: 'number' }, str, LitS, nul))
 const PatchField = def('PatchField', obj({ to: T, mode: Mode }))
@@ -460,6 +460,8 @@ const AbsenceS = union<Absence, 'k'>('Absence', 'k', {
   noPriorSession: {},
   outOfDomain: { field: str, value: num },
   ownerCleared: { field: str },
+  roleExcluded: { role: WeekRole },
+  noUpcomingWeek: {},
 })
 const IssuedBoundS = union<IssuedBound, 'b'>('IssuedBound', 'b', {
   exact: { v: num },

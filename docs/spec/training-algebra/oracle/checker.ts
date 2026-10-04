@@ -22,7 +22,7 @@
  */
 import { CLOCK_UNITS, DIMS, dimEq, dimName, dimOp, litDim, UNITS, type DimVec } from './units'
 import { ENUM_VALUES, SCALE_LEVELS, VERDICT_TAGS, type LoggingType, type Scale, type Vocab } from './registry'
-import type { BoundIR, Cap, Clock, FnDef, MapKey, RefKind, StepIR, Term, Ty } from './algebra'
+import { weeklyIsOpt, type BoundIR, type Cap, type Clock, type FnDef, type MapKey, type RefKind, type StepIR, type Term, type Ty } from './algebra'
 import { BUDGET, OVER_BUDGET_FIX, type Position, type TypeError } from './engine'
 import { MAX_WINDOW_DAYS, type Selector } from './time'
 import type { AggEventKind, MacroDef, ProgramDef, SchemeDef, StateDecl, Writer } from './structure'
@@ -674,8 +674,16 @@ export function infer(t: Term, sc: Scope, path: Path, out: TypeError[]): Res | n
       if (!need('agg')) return null
       const q = t.q
       if (q.q === 'slotsFor') return expect(sub(q.muscle, ['q', 'muscle']), ref('muscle'), [...path, 'q', 'muscle']) ? done({ t: 'list', of: ref('slot'), nonEmpty: false }, 0) : null
-      const mt = q.metric === 'sets' ? SETS : metricTy(sc, q.metric)
-      if (!mt) return err({ code: 'unknownName', name: q.metric, message: `no metric ${q.metric}` })
+      const m0 = q.metric === 'sets' ? SETS : metricTy(sc, q.metric)
+      if (!m0) return err({ code: 'unknownName', name: q.metric, message: `no metric ${q.metric}` })
+      if (q.basis !== undefined && q.basis !== 'closing' && q.basis !== 'upcoming') return err({ code: 'unknownName', name: String(q.basis), message: `no weekly basis ${q.basis} (closing or upcoming)` }, [...path, 'q', 'basis'])
+      if (q.roles !== undefined && q.roles !== 'all') {
+        if (!Array.isArray(q.roles)) return err({ code: 'unknownName', name: String(q.roles), message: `a weekly roles filter is 'all' or a list of week roles` }, [...path, 'q', 'roles'])
+        if (!q.roles.length) return err({ code: 'literalDomain', former: 'agg', field: 'roles', value: 0, message: 'a weekly roles filter with no roles is absent every week' }, [...path, 'q', 'roles'])
+        const bad = q.roles.findIndex((r) => !(ENUM_VALUES.weekRole as readonly string[]).includes(r))
+        if (bad >= 0) return err({ code: 'unknownName', name: String(q.roles[bad]), message: `no week role ${q.roles[bad]}` }, [...path, 'q', 'roles', bad])
+      }
+      const mt = weeklyIsOpt(q) ? opt(m0) : m0
       if (q.by.k === 'tag') return !sc.program || sc.program.tags.includes(q.by.tag) ? done(mt, 0) : err({ code: 'unknownName', name: q.by.tag, message: `the program tags no slot ${q.by.tag}` })
       return expect(sub(q.by.of, ['q', 'by', 'of']), ref(q.by.k), [...path, 'q', 'by', 'of']) ? done(mt, 0) : null
     }

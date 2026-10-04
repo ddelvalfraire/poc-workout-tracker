@@ -14,6 +14,7 @@ import './demo'
 import './hardening.test'
 import './coverage.test'
 import './semfix.test'
+import './weekbasis.test'
 
 declare const process: { env: Record<string, string | undefined>; exitCode?: number }
 const out = process.env['KIT_OUT']

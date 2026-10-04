@@ -66,6 +66,8 @@ export const ABSENCE_TEXT: { [K in Absence['k']]: (a: Extract<Absence, { k: K }>
   noPriorSession: () => 'there is no earlier session',
   outOfDomain: (a) => `it came out at ${trim(a.value)}, which is not a usable ${a.field}`,
   ownerCleared: (a) => `you cleared ${a.field}`,
+  roleExcluded: (a) => `this is ${/^[aeiou]/.test(a.role) ? 'an' : 'a'} ${a.role} week, which the weekly read leaves out`,
+  noUpcomingWeek: () => 'the program has no week after this one',
 }
 export const absenceText = (a: Absence, reg: Registry) => (ABSENCE_TEXT[a.k] as (x: Absence, r: Registry) => string)(a, reg)
 

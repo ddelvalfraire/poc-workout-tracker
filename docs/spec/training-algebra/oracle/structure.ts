@@ -67,6 +67,7 @@ import {
   type BoundIR,
   type ReadPick,
   type XformOp,
+  type WeeklyBasis,
   enumDecls,
   exprOfTerm as E,
 } from './algebra'
@@ -340,14 +341,33 @@ export const ev: EventView = {
   groupScore: (score) => E({ k: 'event', q: { q: 'groupScore', score } }),
 }
 
+/** A weekly read's declared coaching choice. Omitted, it measures the week
+ *  just closing, every week; `basis: 'upcoming'` measures the coming week's
+ *  plan, and a `roles` list leaves other weeks absent. */
+export interface WeeklyOpts {
+  readonly basis?: WeeklyBasis
+  readonly roles?: 'all' | readonly [WeekRole, ...WeekRole[]]
+}
+/** The read is `Opt` exactly when an option can make it absent (algebra weeklyIsOpt). */
+type WeeklyOf<T, O> = O extends { basis: 'upcoming' } | { roles: readonly unknown[] } ? Opt<T> : T
+/** Defaults are not written, so a default read has one IR form. */
+const weeklyOpts = (o: WeeklyOpts | undefined) => ({
+  ...(o?.basis === 'upcoming' ? { basis: o.basis } : {}),
+  ...(o?.roles && o.roles !== 'all' ? { roles: [...o.roles] } : {}),
+})
+
 /** Aggregate reads: program structure and plans under the pre-state. */
 export const aggQ = {
   slotsFor: <C extends Cap = never>(m: Expr<Ref<'muscle'>, C>): Expr<List<Ref<'slot'>>, NoInfer<'agg' | C>> => E({ k: 'agg', q: { q: 'slotsFor', muscle: m.term } }),
   /** Working sets per week (technique-weighted), by slot or by muscle. */
-  setsFor: <C extends Cap = never>(of: Expr<Ref<'slot'>, C> | Expr<Ref<'muscle'>, C>, by: 'slot' | 'muscle'): Expr<Q<'sets'>, NoInfer<'agg' | C>> =>
-    E({ k: 'agg', q: { q: 'weekly', metric: 'sets', by: { k: by, of: of.term } } }),
+  setsFor: <C extends Cap = never, const O extends WeeklyOpts = {}>(
+    of: Expr<Ref<'slot'>, C> | Expr<Ref<'muscle'>, C>,
+    by: 'slot' | 'muscle',
+    opts?: O,
+  ): Expr<WeeklyOf<Q<'sets'>, O>, NoInfer<'agg' | C>> => E({ k: 'agg', q: { q: 'weekly', metric: 'sets', by: { k: by, of: of.term }, ...weeklyOpts(opts) } }),
   /** A metric's planned weekly total ("weekly km of hard runs"). */
-  weekly: <K extends MetricId>(metric: K, tagged: string): Expr<Metrics[K], 'agg'> => E({ k: 'agg', q: { q: 'weekly', metric, by: { k: 'tag', tag: tagged } } }),
+  weekly: <K extends MetricId, const O extends WeeklyOpts = {}>(metric: K, tagged: string, opts?: O): Expr<WeeklyOf<Metrics[K], O>, 'agg'> =>
+    E({ k: 'agg', q: { q: 'weekly', metric, by: { k: 'tag', tag: tagged }, ...weeklyOpts(opts) } }),
 }
 
 /** A live read of another slot's state, for a binding ARGUMENT (BBB's TM). */

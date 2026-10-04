@@ -240,6 +240,8 @@ export type Absence =
   | { k: 'noPriorSession' } //       cal.gap before the first matching occurrence
   | { k: 'outOfDomain'; field: string; value: number }
   | { k: 'ownerCleared'; field: string }
+  | { k: 'roleExcluded'; role: WeekRole } // a weekly read whose roles filter leaves this week out
+  | { k: 'noUpcomingWeek' } //       an upcoming weekly read in a once calendar's final week
 
 /** An evaluation, node by node. `def` marks a named-definition boundary (the
  *  trace is cut there at intent zoom); `note` records a decision the value

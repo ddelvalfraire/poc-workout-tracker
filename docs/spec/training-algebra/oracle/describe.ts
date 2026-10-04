@@ -19,7 +19,7 @@
  * Only LIBRARY definitions render their templates and bare nouns; a user
  * definition's `named` noun renders with its expansion beside it (D5).
  */
-import type { BoundIR, Lit, PatchField, RefKind, StepIR, Term } from './algebra'
+import { weeklyIsOpt, type BoundIR, type Lit, type PatchField, type RefKind, type StepIR, type Term } from './algebra'
 import { isLib, type Registry } from './checker'
 import type { MetricDecl } from './registry'
 import type { Selector } from './time'
@@ -451,8 +451,19 @@ export const DESCRIBERS: { [K in Term['k']]: (n: Extract<Term, { k: K }>, cx: Cx
   agg: (t, cx) => {
     const q = t.q
     if (q.q === 'slotsFor') return `the exercises that train ${d(q.muscle, cx)} directly`
-    if (q.by.k === 'tag') return `the weekly ${mNoun(cx, q.metric)} planned for ${q.by.tag} sessions`
-    return q.by.k === 'muscle' ? `the sets ${d(q.by.of, cx)} already gets each week` : `the sets planned for ${d(q.by.of, cx)}`
+    if (!weeklyIsOpt(q)) {
+      if (q.by.k === 'tag') return `the weekly ${mNoun(cx, q.metric)} planned for ${q.by.tag} sessions`
+      return q.by.k === 'muscle' ? `the sets ${d(q.by.of, cx)} already gets each week` : `the sets planned for ${d(q.by.of, cx)}`
+    }
+    const up = q.basis === 'upcoming'
+    const when = up ? 'in the coming week' : 'in the week just ended'
+    const what =
+      q.by.k === 'tag'
+        ? `the ${mNoun(cx, q.metric)} planned for ${q.by.tag} sessions ${when}`
+        : q.by.k === 'muscle'
+          ? `the sets ${d(q.by.of, cx)} ${up ? 'is planned to get' : 'got'} ${when}`
+          : `the sets planned for ${d(q.by.of, cx)} ${when}`
+    return Array.isArray(q.roles) ? `${what}, ${q.roles.join(' and ')} weeks only` : what
   },
   set: (t, cx) => {
     const parts = Object.entries(t.target).map(([m, b]) => boundText(m, b, cx))

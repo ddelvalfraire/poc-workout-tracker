@@ -5,18 +5,19 @@
  * two macros run forward. Every number printed here is one the differential
  * (differential.ts) holds to the issued facts and the definitions' prose.
  */
-import { exercise, kg, lb, pct, reps, rir, sets, type Term } from './algebra'
+import { exercise, kg, known, lb, max, muscle, named, pct, reps, rir, sets, sub, type Cap, type Expr, type Q, type Term } from './algebra'
 import type { Registry } from './checker'
+import { cxOf, describe } from './describe'
 import { explain, sessionText, transitionText, valueText } from './describe-run'
 import type { Logged, Value } from './engine'
 import { ctxOf, evaluate } from './evaluate'
 import * as ER from './endurance-rehab'
 import { currentView, resolveLive } from './issue'
-import { runtimeOf } from './ports'
+import { evalProgram, newReads, runtimeOf } from './ports'
 import * as P from './programs'
 import { exampleProgram, project, projectMacro } from './project'
 import { activate, ledgerOf, prescribe } from './step'
-import type { ProgramDef } from './structure'
+import { aggQ, type ProgramDef } from './structure'
 import { dayText, localDay, type LocalDay } from './time'
 import { canon, litDim, type Unit } from './units'
 
@@ -82,5 +83,29 @@ export function evaluatorSection(reg: Registry, h: (s: string) => void, say: (pr
       const params = Object.entries(ph.handoff.values).map(([k, v]) => `${k} = ${valueText(v, reg)}`).join('; ')
       console.log(`    ${ph.label}: ${ph.weeks} block weeks from ${dayText(ph.startsOn)}; ended because ${ended}${params ? `; handed ${params}` : ''}.`)
     }
+  }
+
+  h("8c. EVALUATOR: the weekly read's declared basis, across RP's deload weekEnd")
+  const rp = runtimeOf(reg, P.rpMeso.def, { id: P.rpMeso.def.ref.id, anchor: D0, activatedOn: D0 })
+  const start = ledgerOf(activate(rp, {}, facts(D0)))
+  const deload = project(rp, start, 4, { k: 'asPrescribed' }, facts(D0), D0).ledger.head
+  console.log(`  RP after four accumulation weeks, asPrescribed: block week ${deload.progress.week} (${P.rpMeso.def.calendar.weeks[deload.progress.week]}) is the one its next weekEnd closes.`)
+  console.log('  One rule, "a 12-set chest target minus the weekly chest sets", under the two option sets:')
+  const gap = <C extends Cap>(planned: Expr<Q<'sets'>, C>) => named('the sets still to place', max(sets(0), sub(sets(12), planned)))
+  const rules: [string, Term][] = [
+    ['default options (closing, all roles)', gap(aggQ.setsFor(muscle('chest'), 'muscle')).term],
+    ["RP's declaration (closing, accumulation only)", known(aggQ.setsFor(muscle('chest'), 'muscle', P.RP_VOLUME_READ), gap).term],
+  ]
+  for (const [label, rule] of rules) {
+    const tr = evalProgram(rp, deload, rule, { facts: facts(D0), today: D0, earlierToday: 0, reads: newReads() })
+    console.log(`    ${label}: ${describe(rule, cxOf(reg))}`)
+    console.log(`      at the deload weekEnd: ${explain(tr, reg)}`)
+  }
+  const done = project(rp, start, 5, { k: 'asPrescribed' }, facts(D0), D0)
+  const plan = done.changes.flatMap((t) => t.fired).filter((f) => f.scope === 'program' && f.on === 'weekEnd')
+  console.log("  RP's own muscle plan at each weekEnd, as recorded (the default read would have allocated out of the deload's halved sets):")
+  for (const f of plan) {
+    const fields = Object.entries(f.patch).map(([k, p]) => `${p.mode === 'propose' ? 'proposed' : 'set'} ${P.rpMeso.def.aggregate?.state[k]?.noun ?? k} = ${valueText(p.value, reg)}`)
+    console.log(`    ${f.causeKey.split(':').pop() === '4' ? 'block week 4 (deload)' : `block week ${f.causeKey.split(':').pop()}`}: ${fields.length ? fields.join('; ') : 'kept everything (a recorded keep: the weekly read was absent)'}`)
   }
 }

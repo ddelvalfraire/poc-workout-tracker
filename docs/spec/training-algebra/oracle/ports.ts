@@ -11,7 +11,7 @@
 import type { Term } from './algebra'
 import { digest } from './canonical'
 import { enumsWith, keyOf, type Registry } from './checker'
-import type { FactReading, FactSource, Head, IssuedStep, Trace, Value } from './engine'
+import type { Absence, FactReading, FactSource, Head, IssuedStep, Trace, Value } from './engine'
 import { ctxOf, evaluate, nodesOf, none, qv, type AggRead, type Ctx, type Ports } from './evaluate'
 import type { ProgramDef, SchemeDef, Use, WeekRole } from './structure'
 import { calendarSpecOf, dayNum, matches, selKey, type CalQuery, type CalendarSpec, type CalendarState, type LocalDay, type Rotation, type Selector } from './time'
@@ -288,15 +288,23 @@ const plannedTargets = (st: IssuedStep) => st.sets.slice(0, st.count.k === 'n' ?
  * is no value (it adds nothing, it is not a 0), and a slot whose sets carry no
  * present value of the metric contributes nothing; when nothing contributes
  * the total is the empty sum, 0, which is then a true zero of the metric's
- * dimension (the read is typed as the metric, never absent).
+ * dimension.
+ *
+ * The measured week is the current one (`basis: 'closing'`, the week a
+ * weekEnd closes) or the next (`'upcoming'`: the same pipeline with the
+ * position moved one block week on, state and facts unchanged; past the end
+ * of a `once` calendar it is absent, noUpcomingWeek). A `roles` list makes
+ * the measured week's role a gate: any other role is absent (roleExcluded),
+ * never a zero.
  */
 export function aggPort(rt: Runtime, head: Head, inp: Inputs): Ports['agg'] {
   const memo = new Map<string, Value>()
-  let fired: number[] | null = null
-  const weeklyOf = (slot: string, metric: string): number => {
+  const fired = new Map<number, number[]>()
+  const weeklyOf = (h: Head, slot: string, metric: string): number => {
     const quiet = { ...inp, reads: newReads() }
-    fired ??= firedPolicies(rt, head, quiet)
-    const s = issueSlot(rt, head, slot, quiet, fired)
+    const pols = fired.get(h.progress.week) ?? firedPolicies(rt, h, quiet)
+    fired.set(h.progress.week, pols)
+    const s = issueSlot(rt, h, slot, quiet, pols)
     const targets = s.steps.flatMap((st) => plannedTargets(st).filter(isJudged))
     const perSession =
       metric === 'sets'
@@ -309,6 +317,13 @@ export function aggPort(rt: Runtime, head: Head, inp: Inputs): Ports['agg'] {
     return perSession * sessionsPerWeek(rt.def, slot)
   }
   const display = displayOf(rt)
+  const measured = (q: Extract<AggRead, { q: 'weekly' }>): Head | Absence => {
+    const week = head.progress.week + (q.basis === 'upcoming' ? 1 : 0)
+    const role = roleOf(rt.def, week)
+    if (role === null) return { k: 'noUpcomingWeek' }
+    if (Array.isArray(q.roles) && !q.roles.includes(role)) return { k: 'roleExcluded', role }
+    return week === head.progress.week ? head : { ...head, progress: { ...head.progress, week } }
+  }
   return (q: AggRead) => {
     const k = JSON.stringify(q)
     const hit = memo.get(k)
@@ -317,17 +332,21 @@ export function aggPort(rt: Runtime, head: Head, inp: Inputs): Ports['agg'] {
     let v: Value
     if (q.q === 'slotsFor') v = { v: 'list', items: slots.filter((s) => primaryOf(rt.def, s) === q.muscle).map((id) => ({ v: 'ref', kind: 'slot', id })) }
     else {
-      const decl = rt.reg.vocab.metrics[q.metric]
-      const dim = q.metric === 'sets' ? DIMS.sets : decl ? DIMS[decl.dim] : {}
-      const unit: Unit | null = q.metric === 'sets' ? 'set' : (display[q.metric] ?? unitFor(dim) ?? null)
-      const by = q.by
-      const total =
-        by.k === 'slot'
-          ? weeklyOf(by.id, q.metric)
-          : by.k === 'muscle'
-            ? slots.reduce((a, s) => a + (rt.def.slots[s]!.meta.muscles[by.id] ?? 0) * weeklyOf(s, q.metric), 0)
-            : slots.filter((s) => rt.def.slots[s]!.meta.tags?.includes((by as { tag: string }).tag)).reduce((a, s) => a + weeklyOf(s, q.metric), 0)
-      v = qv(total, dim, unit)
+      const h = measured(q)
+      if ('k' in h) v = none(h)
+      else {
+        const decl = rt.reg.vocab.metrics[q.metric]
+        const dim = q.metric === 'sets' ? DIMS.sets : decl ? DIMS[decl.dim] : {}
+        const unit: Unit | null = q.metric === 'sets' ? 'set' : (display[q.metric] ?? unitFor(dim) ?? null)
+        const by = q.by
+        const total =
+          by.k === 'slot'
+            ? weeklyOf(h, by.id, q.metric)
+            : by.k === 'muscle'
+              ? slots.reduce((a, s) => a + (rt.def.slots[s]!.meta.muscles[by.id] ?? 0) * weeklyOf(h, s, q.metric), 0)
+              : slots.filter((s) => rt.def.slots[s]!.meta.tags?.includes((by as { tag: string }).tag)).reduce((a, s) => a + weeklyOf(h, s, q.metric), 0)
+        v = qv(total, dim, unit)
+      }
     }
     memo.set(k, v)
     return v

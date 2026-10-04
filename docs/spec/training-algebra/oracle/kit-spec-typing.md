@@ -379,7 +379,7 @@ Notation: `p` is the node path; `p/x/y` is `[...p, 'x', 'y']`. "Sub x" means inf
 
 **agg** (`agg`, cost 0; child costs count)
 - `slotsFor`: sub `q/muscle`, `expect(ref muscle)` at `p/q/muscle`; result `list ref slot` (possibly empty).
-- `weekly`: metric `sets` gives `SETS`; else registry lookup (`unknownName`). `by.k === 'tag'`: when `scope.program` is non-null and lacks the tag, `unknownName { name: tag }` at `p`; else the metric sort. Else sub `q/by/of`, `expect(ref by.k)` at `p/q/by/of`.
+- `weekly`: metric `sets` gives `SETS`; else registry lookup (`unknownName`). Options, in this order: `basis` other than `closing`/`upcoming` is `unknownName { name: basis }` at `p/q/basis`; `roles` neither `all` nor an array is `unknownName` at `p/q/roles`; an empty array is `literalDomain { former: 'agg', field: 'roles', value: 0 }` at `p/q/roles`; the first entry that is not a week role (`registry.ts` `ENUM_VALUES.weekRole`) is `unknownName { name }` at `p/q/roles/i`. The result sort is `opt(metric sort)` when `basis === 'upcoming'` or `roles` is an array, else the metric sort (an explicit default is the same as an omitted one). `by.k === 'tag'`: when `scope.program` is non-null and lacks the tag, `unknownName { name: tag }` at `p`; else the metric sort. Else sub `q/by/of`, `expect(ref by.k)` at `p/q/by/of`.
 
 #### Domain
 

@@ -61,7 +61,7 @@
 
   The two calibration cases, with their names removed:
   REFUSED RP allocation gap: program prog/rp-upper-meso@1
-          overBudget at aggregate.on.weekEnd.body.set.extra.to: 5 operators in one phrase (budget 4); name an intermediate quantity: wrap a subterm in named(noun, …) or bind it with a labeled let
+          overBudget at aggregate.on.weekEnd.body.value: 5 operators in one phrase (budget 4); name an intermediate quantity: wrap a subterm in named(noun, …) or bind it with a labeled let
   REFUSED rest-pause bump, unnamed (scheme lib/rest-pause-dc)
           overBudget at on.session.set.load.to: 5 operators in one phrase (budget 4); name an intermediate quantity: wrap a subterm in named(noun, …) or bind it with a labeled let
 
@@ -80,7 +80,7 @@
   REFUSED kg/rep + reps in a definition body
           unitMismatch at body.b: expected massPerRep, got reps
   REFUSED allocate bound given as a term
-          boundNotLiteral at aggregate.on.weekEnd.body.set.extra.to.step.max: a loop bound must be a literal positive integer
+          boundNotLiteral at aggregate.on.weekEnd.body.value.step.body.body.max: a loop bound must be a literal positive integer
 
   Metrics and facts:
   REFUSED a load on a timed hold (metric not logged by its exercise)
@@ -96,7 +96,7 @@
   REFUSED capEffort on a run (it logs no effort)
           metricNotLogged at plan: effort is not logged for a cardio exercise (it logs duration, distance, pace, hr)
   REFUSED a slot-keyed fact (joint pain) read by a muscle
-          unitMismatch at aggregate.on.weekEnd.body.set.extra.to.step.score.args.joint.key: expected slot, got muscle
+          unitMismatch at aggregate.on.weekEnd.body.value.step.body.body.score.args.joint.key: expected slot, got muscle
   REFUSED a comparison on a fact that may be unknown
           absenceUnhandled at policies.3.when.a: optional readiness rating compared; say what happens when it is unknown with known/orElse
 
@@ -203,7 +203,11 @@
   REFUSED a let with no label
           unlabeledLet at aggregate.on.weekEnd: a let needs a label: it is a name boundary, and the label is what prose calls the value
   REFUSED allocate 12 sets with a bound of 8
-          nExceedsMax at aggregate.on.weekEnd.body.set.extra.to.step.n: allocate hands out 12 units but its bound is 8: the rest could never be placed
+          nExceedsMax at aggregate.on.weekEnd.body.value.step.body.body.n: allocate hands out 12 units but its bound is 8: the rest could never be placed
+  REFUSED a weekly read filtered to a misspelt week role
+          unknownName at aggregate.on.weekEnd.body.value.step.body.a.q.roles.0: no week role delaod
+  REFUSED RP's filtered weekly read used without handling its absence
+          absenceUnhandled at aggregate.on.weekEnd.body.value.step.body.n.e.b.b: optional sets in arithmetic; handle absence with known/orElse
 
   Policies and kinds (S3, S6, S9):
   REFUSED 5/3/1 squat + BBB under a program that ALSO deloads deload weeks
@@ -250,7 +254,9 @@
 ══════════════════════════════════════════════════════════════════════════════
 5b. PROSE: RP allocation, the muscle-scope weekEnd handler
 ══════════════════════════════════════════════════════════════════════════════
-  intent:    Next week's target is for each muscle, your weekly set target for that muscle (0 sets if unknown) plus the sets earned given your soreness check-in for that muscle and your pump rating for that muscle, capped at (by that muscle: chest → 22 sets; back → 25 sets; any other → 0 sets). Set weekly set target to next week's target; set weekly extra sets to starting from your weekly extra sets, for each muscle in turn: hand out the sets still to place [(next week's target for the muscle (0 sets if unknown) minus the sets the muscle already gets each week), never below 0 sets], one set at a time and at most 8 in all, each to whichever of the exercises that train the muscle directly ranks highest by the stimulus-to-fatigue score from your pump rating for the muscle and your joint-pain rating for that exercise (0 if either is unrated), at most 4 sets extra per exercise.
+  intent:    Next week's target is for each muscle, your weekly set target for that muscle (0 sets if unknown) plus the sets earned given your soreness check-in for that muscle and your pump rating for that muscle, capped at (by that muscle: chest → 22 sets; back → 25 sets; any other → 0 sets). The reallocation is starting from your weekly extra sets, for each muscle in turn: hand out the sets still to place [(next week's target for the muscle (0 sets if unknown) minus the sets the muscle got in the week just ended, accumulation weeks only), never below 0 sets], one set at a time and at most 8 in all, each to whichever of the exercises that train the muscle directly ranks highest by the stimulus-to-fatigue score from your pump rating for the muscle and your joint-pain rating for that exercise (0 if either is unrated), at most 4 sets extra per exercise. Then:
+- if the reallocation is unknown: Leave everything as is.
+- otherwise: Set weekly set target to next week's target; set weekly extra sets to the reallocation.
 
 ══════════════════════════════════════════════════════════════════════════════
 5c. PROSE: the 5/3/1 scheme as bound to the squat slot (its waves are one positional table)
@@ -323,7 +329,9 @@
     cableFlyB: 1 set of Cable Fly for 12 reps to 20 reps plus any sets the muscle plan adds, reps in reserve stepping 3→0 across the block; add 2.5 kg once every set reaches 20 reps.
     row: 3 sets of Chest-Supported Row for 8 reps to 12 reps plus any sets the muscle plan adds, reps in reserve stepping 3→0 across the block; add 2.5 kg once every set reaches 12 reps.
     pulldown: 3 sets of Lat Pulldown for 10 reps to 15 reps plus any sets the muscle plan adds, reps in reserve stepping 3→0 across the block; add 2.5 kg once every set reaches 15 reps.
-    At the end of each block week (muscle plan): Next week's target is for each muscle, your weekly set target for that muscle (0 sets if unknown) plus the sets earned given your soreness check-in for that muscle and your pump rating for that muscle, capped at (by that muscle: chest → 22 sets; back → 25 sets; any other → 0 sets). Set weekly set target to next week's target; set weekly extra sets to starting from your weekly extra sets, for each muscle in turn: hand out the sets still to place [(next week's target for the muscle (0 sets if unknown) minus the sets the muscle already gets each week), never below 0 sets], one set at a time and at most 8 in all, each to whichever of the exercises that train the muscle directly ranks highest by the stimulus-to-fatigue score from your pump rating for the muscle and your joint-pain rating for that exercise (0 if either is unrated), at most 4 sets extra per exercise.
+    At the end of each block week (muscle plan): Next week's target is for each muscle, your weekly set target for that muscle (0 sets if unknown) plus the sets earned given your soreness check-in for that muscle and your pump rating for that muscle, capped at (by that muscle: chest → 22 sets; back → 25 sets; any other → 0 sets). The reallocation is starting from your weekly extra sets, for each muscle in turn: hand out the sets still to place [(next week's target for the muscle (0 sets if unknown) minus the sets the muscle got in the week just ended, accumulation weeks only), never below 0 sets], one set at a time and at most 8 in all, each to whichever of the exercises that train the muscle directly ranks highest by the stimulus-to-fatigue score from your pump rating for the muscle and your joint-pain rating for that exercise (0 if either is unrated), at most 4 sets extra per exercise. Then:
+      - if the reallocation is unknown: Leave everything as is.
+      - otherwise: Set weekly set target to next week's target; set weekly extra sets to the reallocation.
 
   1 training day (A) holding 2 exercises, over block weeks train, repeating.
     Block weeks: train, repeating. If you miss a session the plan waits: the next session is still the one you missed.
@@ -772,3 +780,19 @@
 
   macro/achilles-return, asPrescribed, no morning-pain check-ins:
     Pain modulation: 6 block weeks from Monday 14 September; ended because it reached its maximum and ASKS you before moving on.
+
+══════════════════════════════════════════════════════════════════════════════
+8c. EVALUATOR: the weekly read's declared basis, across RP's deload weekEnd
+══════════════════════════════════════════════════════════════════════════════
+  RP after four accumulation weeks, asPrescribed: block week 4 (deload) is the one its next weekEnd closes.
+  One rule, "a 12-set chest target minus the weekly chest sets", under the two option sets:
+    default options (closing, all roles): The sets still to place [(12 sets minus the sets chest already gets each week), never below 0 sets].
+      at the deload weekEnd: 8 sets (max(0 sets, 8 sets (12 sets − 4 sets)))
+    RP's declaration (closing, accumulation only): The sets still to place [(12 sets minus the sets chest got in the week just ended, accumulation weeks only), never below 0 sets].
+      at the deload weekEnd: unknown (this is a deload week, which the weekly read leaves out)
+  RP's own muscle plan at each weekEnd, as recorded (the default read would have allocated out of the deload's halved sets):
+    block week 0: set weekly set target = {chest: 10 sets, back: 12 sets}; proposed weekly extra sets = {flatDb: 4 sets, inclineDb: 0 sets, cableFlyA: 0 sets, cableFlyB: 0 sets, row: 4 sets, pulldown: 2 sets}
+    block week 1: set weekly set target = {chest: 10 sets, back: 12 sets}; proposed weekly extra sets = {flatDb: 4 sets, inclineDb: 0 sets, cableFlyA: 0 sets, cableFlyB: 0 sets, row: 4 sets, pulldown: 2 sets}
+    block week 2: set weekly set target = {chest: 10 sets, back: 12 sets}; proposed weekly extra sets = {flatDb: 4 sets, inclineDb: 0 sets, cableFlyA: 0 sets, cableFlyB: 0 sets, row: 4 sets, pulldown: 2 sets}
+    block week 3: set weekly set target = {chest: 10 sets, back: 12 sets}; proposed weekly extra sets = {flatDb: 4 sets, inclineDb: 0 sets, cableFlyA: 0 sets, cableFlyB: 0 sets, row: 4 sets, pulldown: 2 sets}
+    block week 4 (deload): kept everything (a recorded keep: the weekly read was absent)

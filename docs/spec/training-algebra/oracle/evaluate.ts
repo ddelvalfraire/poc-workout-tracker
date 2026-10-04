@@ -19,7 +19,7 @@
  *
  * Absence is flattened at runtime (engine.ts Value): `some x` is x.
  */
-import type { BoundIR, DefRef, FnDef, StepIR, Term } from './algebra'
+import type { BoundIR, DefRef, FnDef, StepIR, Term, WeeklyBasis, WeeklyRoles } from './algebra'
 import { canonicalJson } from './canonical'
 import { enumsWith, keyOf, type Registry } from './checker'
 import type { Absence, Field, Frame, IssuedBound, IssuedStep, IssuedTarget, PerformedSet, SessionValue, Trace, Value } from './engine'
@@ -80,7 +80,9 @@ export function sameValue(a: Value, b: Value): boolean {
 export type EventRead =
   | Exclude<Extract<Term, { k: 'event' }>['q'], { q: 'trained' }>
   | { q: 'trained'; muscle: string }
-export type AggRead = { q: 'slotsFor'; muscle: string } | { q: 'weekly'; metric: string; by: { k: 'slot' | 'muscle'; id: string } | { k: 'tag'; tag: string } }
+export type AggRead =
+  | { q: 'slotsFor'; muscle: string }
+  | { q: 'weekly'; metric: string; by: { k: 'slot' | 'muscle'; id: string } | { k: 'tag'; tag: string }; basis?: WeeklyBasis; roles?: WeeklyRoles }
 
 /** World reads. A port absent from a context means its capability is not
  *  granted there; the checker guarantees no term reaches for it. */
@@ -652,7 +654,7 @@ export function evaluate(t: Term, cx: Ctx): Trace {
       const q = t.q
       if (q.q === 'slotsFor') return out(port(cx, 'agg')({ q: 'slotsFor', muscle: idOf(sub(q.muscle)) }))
       const by = q.by.k === 'tag' ? q.by : { k: q.by.k, id: idOf(sub(q.by.of)) }
-      return out(port(cx, 'agg')({ q: 'weekly', metric: q.metric, by }))
+      return out(port(cx, 'agg')({ q: 'weekly', metric: q.metric, by, ...(q.basis ? { basis: q.basis } : {}), ...(q.roles ? { roles: q.roles } : {}) }))
     }
     // ── domain formers ──────────────────────────────────────────────────────
     case 'set': {

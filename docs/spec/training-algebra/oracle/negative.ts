@@ -57,6 +57,7 @@ import {
   type Q,
   type Ref,
   muscle,
+  sub,
 } from './algebra'
 import { aggQ, amrap, cal, ev, fact, macro, phase, pos, program, scheme, session, set, single } from './structure'
 import { GZ_T1, optLoaded, optStabilization } from './programs'
@@ -275,6 +276,10 @@ host(() =>
     steps: (b) => void b.step('w', sets(1), set({ target: { reps: reps(8), load: kg(20) } })),
   }),
 )
+// @ts-expect-error a weekly read's roles are week roles: a misspelt role does not exist
+aggQ.setsFor(muscle('chest'), 'muscle', { roles: ['delaod'] })
+// @ts-expect-error a role-filtered weekly read is absent on other weeks: arithmetic must handle that first
+sub(sets(10), aggQ.setsFor(muscle('chest'), 'muscle', { roles: ['accumulation'] }))
 // @ts-expect-error an exercise is its registry id: an author-supplied label (that could lie) does not exist
 exercise('wger:105', 'Barbell Back Squat')
 // @ts-expect-error an exercise id the registry does not know

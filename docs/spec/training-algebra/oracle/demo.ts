@@ -342,6 +342,14 @@ const unlabeled = edit(clone(P.rpMeso.def), (t) => t.k === 'let', (t) => ({ ...(
 reportProgram('a let with no label', unlabeled)
 const overAsk = edit(clone(P.rpMeso.def), (t) => t.k === 'allocate', (t) => ({ ...(t as Extract<Term, { k: 'allocate' }>), n: T(sets(12)) }))
 reportProgram('allocate 12 sets with a bound of 8', overAsk)
+const isWeekly = (t: Term) => t.k === 'agg' && t.q.q === 'weekly'
+const misspelt = edit(clone(P.rpMeso.def), isWeekly, (t) => ({ ...t, q: { ...(t as Extract<Term, { k: 'agg' }>).q, roles: ['delaod'] } }) as unknown as Term)
+reportProgram('a weekly read filtered to a misspelt week role', misspelt)
+const unguarded = edit(clone(P.rpMeso.def), (t) => t.k === 'known' && isWeekly(t.a), (t) => {
+  const k = t as Extract<Term, { k: 'known' }>
+  return edit(k.body, (x) => x.k === 'var' && x.name === k.as, () => k.a)
+})
+reportProgram("RP's filtered weekly read used without handling its absence", unguarded)
 
 console.log('\n  Policies and kinds (S3, S6, S9):')
 const bbbDeload = clone(P.fiveThreeOneBBB.def)

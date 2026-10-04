@@ -96,6 +96,7 @@ import {
   use,
   peerState,
   type PrevView,
+  type WeeklyOpts,
 } from './structure'
 import { localDay } from './time'
 
@@ -597,6 +598,11 @@ export const sfrOrNeutral = fn<{ pump: Opt<Ord<'pump'>>; joint: Opt<Ord<'jointPa
 
 const MEV = { chest: 10, back: 12 }
 const MRV = { chest: 22, back: 25 }
+/** RP's volume read, declared: the week just ended, counted only when it was
+ *  a progressing week. A deload week's halved sets are not a measure of what
+ *  the muscle gets, so that weekEnd reads absence and keeps (no allocation,
+ *  no new targets) instead of allocating against the deload's numbers. */
+export const RP_VOLUME_READ = { basis: 'closing', roles: ['accumulation'] } as const satisfies WeeklyOpts
 
 export const rpMeso = program({
   id: 'prog/rp-upper-meso',
@@ -635,21 +641,26 @@ export const rpMeso = program({
             "next week's target",
             tabulate(allMuscles, (m) => rpWeeklyTarget({ now: orElse(at(c.s.target, m), sets(0)), soreness: c.fact('soreness', m), pump: c.fact('pump', m), mrv: table(m, { chest: sets(MRV.chest), back: sets(MRV.back) }, sets(0)) })),
             (target) =>
-              c.commit({
-                target,
+              letv(
+                'the reallocation',
                 // Derived, not synced: the gap is target − what the plans already
                 // issue, so a set the allocator could not place is retried next week.
-                extra: foldOver(allMuscles, c.s.extra, (acc, m) =>
-                  allocate({
-                    n: named('the sets still to place', max(sets(0), sub(orElse(at(target, m), sets(0)), c.setsFor(m, 'muscle')))),
-                    into: acc,
-                    among: c.slotsFor(m),
-                    score: (s) => sfrOrNeutral({ pump: c.fact('pump', m), joint: c.fact('jointPain', s) }),
-                    cap: () => sets(4),
-                    max: 8,
-                  }),
+                foldOver(allMuscles, some(c.s.extra), (acc, m) =>
+                  knownThen(acc, (into) =>
+                    known(c.setsFor(m, 'muscle', RP_VOLUME_READ), (planned) =>
+                      allocate({
+                        n: named('the sets still to place', max(sets(0), sub(orElse(at(target, m), sets(0)), planned))),
+                        into,
+                        among: c.slotsFor(m),
+                        score: (s) => sfrOrNeutral({ pump: c.fact('pump', m), joint: c.fact('jointPain', s) }),
+                        cap: () => sets(4),
+                        max: 8,
+                      }),
+                    ),
+                  ),
                 ),
-              }),
+                (extra) => orElse(known(extra, (e) => c.commit({ target, extra: e })), c.keep),
+              ),
           ),
     },
   },
