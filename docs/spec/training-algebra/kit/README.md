@@ -25,11 +25,11 @@ The generator source lives beside the oracle so it is type-checked with it (step
 |---|---|---|
 | fixtures/defs | 44 | 44 |
 | fixtures/registries | 12 | 12 |
-| fixtures/eval | 131 | 918 |
-| fixtures/refusals | 275 | 275 |
-| fixtures/prose | 65 | 442 |
+| fixtures/eval | 171 | 1167 |
+| fixtures/refusals | 291 | 291 |
+| fixtures/prose | 66 | 445 |
 
-Compile-time and ingest refusal codes with at least one refusal fixture: 48 of 50. Codes with none: `dayStampOutOfRange`, `floorNotConfirmed`.
+Compile-time and ingest refusal codes with at least one refusal fixture: 49 of 50. Codes with none: `dayStampOutOfRange`, `floorNotConfirmed`.
 
 Refusal fixtures whose input is authoring JSON that does not parse as IR (tagged `inputSchemaErrors`; the checker still answers them, and the schema is stricter than the checker there): 
 
@@ -64,8 +64,13 @@ Sampling and what was not exported:
   "evaluate.evaluate": 1496,
   "issue.applyUse": 87
  },
- "duplicatesDropped": 1221,
- "notExported": {}
+ "duplicatesDropped": 1309,
+ "notExported": {
+  "step.activate: codec: a registry whose definitions and publication order disagree": 6,
+  "step.prescribe: codec: a registry whose definitions and publication order disagree": 4,
+  "issue.resolveLive: codec: a registry whose definitions and publication order disagree": 7,
+  "evaluate.evaluate: a call of arg1.record cannot be encoded: codec: undefined at $": 5
+ }
 }
 ```
 
@@ -97,7 +102,7 @@ A branch is exercised when some fixture file's data takes it (definitions, regis
 | ExportDecl | 1 | — | — |
 | XformOp | 8 | — | swapExercise, addSets |
 | TypeError | 43 | — | unitMismatch, notComparable, absenceUnhandled, unknownName, missingArg, forwardStepRef, capabilityEscape, notOwner, notWritableHere, undeclaredFact, nonGroundAccumulator, nonExhaustive, boundNotLiteral, templateHoles, exampleFailed, futureRef, peakNeedsFixed, overBudget, metricNotLogged, shapeNotAllowed, scopedFormer, infeasibleFrequency, timeCommit, anchoredRequired, restOwnedByGroup, windowTooLong, primaryMuscle, boundsInverted, openNotLast, fixedNeedsOnce, emomNeedsFixedCount, importMismatch, clockMix, clockRate, loggingMismatch, nExceedsMax, unlabeledLet, thresholdOrder, tableShape, roleDoubleEncoding, noSuchKind, policyOrder, literalDomain |
-| IngestRefusal | 7 | dayStampOutOfRange, floorNotConfirmed | emptySession, dayStampOutOfRange, programComplete, floorNotConfirmed, instanceClosed, notOwnerWritable, rebindNeedsMigration |
+| IngestRefusal | 8 | dayStampOutOfRange, floorNotConfirmed | emptySession, notALocalDay, dayStampOutOfRange, programComplete, floorNotConfirmed, instanceClosed, notOwnerWritable, rebindNeedsMigration |
 
 Term formers that no evaluation fixture's trace shows being evaluated: none.
 

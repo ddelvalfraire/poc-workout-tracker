@@ -1,0 +1,7 @@
+{"source": {"suite":"semfix","test":"F13 (semrev-c p16, semrev-b p1): a ceiling quantizes down, a floor up, exact to nearest; an inverted or emptied range is outOfDomain","ids":[]}, "fixtures": [
+{"op":"issue.sinkField","args":[{"k":"fixed","v":{"b":"atMost","v":101.3}},"load",{"load":2.5}],"world":{},"expected":{"ret":{"k":"fixed","v":{"b":"atMost","v":100}}}},
+{"op":"issue.sinkField","args":[{"k":"fixed","v":{"b":"atLeast","v":101.2}},"load",{"load":2.5}],"world":{},"expected":{"ret":{"k":"fixed","v":{"b":"atLeast","v":102.5}}}},
+{"op":"issue.sinkField","args":[{"k":"fixed","v":{"b":"range","min":101.3,"max":108.7}},"load",{"load":2.5}],"world":{},"expected":{"ret":{"k":"fixed","v":{"b":"range","min":102.5,"max":107.5}}}},
+{"op":"issue.sinkField","args":[{"k":"fixed","v":{"b":"range","min":3,"max":1}},"load",{"load":2.5}],"world":{},"expected":{"ret":{"k":"silent","cause":{"k":"outOfDomain","field":"load","value":3}}}},
+{"op":"issue.sinkField","args":[{"k":"fixed","v":{"b":"range","min":101.3,"max":101.9}},"load",{"load":2.5}],"world":{},"expected":{"ret":{"k":"silent","cause":{"k":"outOfDomain","field":"load","value":101.3}}}}
+]}

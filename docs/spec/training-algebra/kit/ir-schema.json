@@ -5195,6 +5195,22 @@
      "type": "object",
      "properties": {
       "code": {
+       "const": "notALocalDay"
+      },
+      "stamped": {
+       "type": "string"
+      }
+     },
+     "required": [
+      "code",
+      "stamped"
+     ],
+     "additionalProperties": false
+    },
+    {
+     "type": "object",
+     "properties": {
+      "code": {
        "const": "dayStampOutOfRange"
       },
       "stamped": {
@@ -6585,6 +6601,16 @@
     }
    ]
   },
+  "AssumeKind": {
+   "x-enum": "AssumeKind",
+   "enum": [
+    "asPrescribed",
+    "allMiss",
+    "repeatLast",
+    "asScheduled",
+    "script"
+   ]
+  },
   "IssuedSession": {
    "type": "object",
    "properties": {
@@ -6608,6 +6634,12 @@
     },
     "due": {
      "$ref": "#/$defs/Due"
+    },
+    "projected": {
+     "const": true
+    },
+    "assume": {
+     "$ref": "#/$defs/AssumeKind"
     }
    },
    "required": [
@@ -6625,6 +6657,9 @@
    "properties": {
     "key": {
      "type": "string"
+    },
+    "seq": {
+     "type": "integer"
     },
     "issueKey": {
      "type": "string"
@@ -6650,6 +6685,7 @@
    },
    "required": [
     "key",
+    "seq",
     "issueKey",
     "slot",
     "step",
@@ -6668,9 +6704,6 @@
      "additionalProperties": {
       "$ref": "#/$defs/Number"
      }
-    },
-    "completed": {
-     "type": "boolean"
     },
     "stages": {
      "anyOf": [
@@ -6697,7 +6730,6 @@
    },
    "required": [
     "values",
-    "completed",
     "stages"
    ],
    "additionalProperties": false
@@ -7750,6 +7782,12 @@
      "items": {
       "$ref": "#/$defs/Transition"
      }
+    },
+    "projected": {
+     "const": true
+    },
+    "assume": {
+     "$ref": "#/$defs/AssumeKind"
     }
    },
    "required": [
@@ -7757,6 +7795,56 @@
     "keys",
     "events",
     "transitions"
+   ],
+   "additionalProperties": false
+  },
+  "ProjectedLedger": {
+   "type": "object",
+   "properties": {
+    "head": {
+     "$ref": "#/$defs/Head"
+    },
+    "keys": {
+     "type": "object",
+     "properties": {
+      "$set": {
+       "type": "array",
+       "items": {
+        "type": "string"
+       }
+      }
+     },
+     "required": [
+      "$set"
+     ],
+     "additionalProperties": false
+    },
+    "events": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/Event"
+     }
+    },
+    "transitions": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/Transition"
+     }
+    },
+    "projected": {
+     "const": true
+    },
+    "assume": {
+     "$ref": "#/$defs/AssumeKind"
+    }
+   },
+   "required": [
+    "head",
+    "keys",
+    "events",
+    "transitions",
+    "projected",
+    "assume"
    ],
    "additionalProperties": false
   },
@@ -7853,6 +7941,49 @@
     }
    ]
   },
+  "ProjectedIssuedSession": {
+   "type": "object",
+   "properties": {
+    "issueKey": {
+     "type": "string"
+    },
+    "day": {
+     "type": "string"
+    },
+    "defaultDay": {
+     "type": "string"
+    },
+    "slots": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/IssuedSlot"
+     }
+    },
+    "stamp": {
+     "$ref": "#/$defs/Stamp"
+    },
+    "due": {
+     "$ref": "#/$defs/Due"
+    },
+    "projected": {
+     "const": true
+    },
+    "assume": {
+     "$ref": "#/$defs/AssumeKind"
+    }
+   },
+   "required": [
+    "issueKey",
+    "day",
+    "defaultDay",
+    "slots",
+    "stamp",
+    "due",
+    "projected",
+    "assume"
+   ],
+   "additionalProperties": false
+  },
   "Projection": {
    "type": "object",
    "properties": {
@@ -7873,7 +8004,7 @@
        "sessions": {
         "type": "array",
         "items": {
-         "$ref": "#/$defs/IssuedSession"
+         "$ref": "#/$defs/ProjectedIssuedSession"
         }
        },
        "endsOn": {
@@ -7913,7 +8044,7 @@
      }
     },
     "ledger": {
-     "$ref": "#/$defs/Ledger"
+     "$ref": "#/$defs/ProjectedLedger"
     }
    },
    "required": [
@@ -7949,14 +8080,31 @@
       "open"
      ]
     },
-    "params": {
+    "handoff": {
      "type": "object",
-     "additionalProperties": {
-      "$ref": "#/$defs/Value"
-     }
+     "properties": {
+      "values": {
+       "type": "object",
+       "additionalProperties": {
+        "$ref": "#/$defs/Value"
+       }
+      },
+      "projected": {
+       "const": true
+      },
+      "assume": {
+       "$ref": "#/$defs/AssumeKind"
+      }
+     },
+     "required": [
+      "values",
+      "projected",
+      "assume"
+     ],
+     "additionalProperties": false
     },
     "final": {
-     "$ref": "#/$defs/Ledger"
+     "$ref": "#/$defs/ProjectedLedger"
     },
     "projection": {
      "type": "array",
@@ -7972,7 +8120,7 @@
        "sessions": {
         "type": "array",
         "items": {
-         "$ref": "#/$defs/IssuedSession"
+         "$ref": "#/$defs/ProjectedIssuedSession"
         }
        },
        "endsOn": {
@@ -8006,7 +8154,7 @@
     "weeks",
     "startsOn",
     "ended",
-    "params",
+    "handoff",
     "final",
     "projection"
    ],
@@ -8392,6 +8540,19 @@
        "type": "null"
       }
      ]
+    },
+    "logging": {
+     "anyOf": [
+      {
+       "$ref": "#/$defs/LoggingType"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "record": {
+     "$ref": "#/$defs/FnToken"
     }
    },
    "required": [
@@ -8863,6 +9024,21 @@
      ],
      "additionalProperties": false
     },
+    "live": {
+     "type": "object",
+     "properties": {
+      "$set": {
+       "type": "array",
+       "items": {
+        "type": "string"
+       }
+      }
+     },
+     "required": [
+      "$set"
+     ],
+     "additionalProperties": false
+    },
     "reg": {
      "$ref": "#/$defs/RegistryToken"
     }
@@ -9037,16 +9213,9 @@
         },
         {
          "type": "object",
-         "properties": {
-          "load": {
-           "$ref": "#/$defs/Number"
-          },
-          "distance": {
-           "$ref": "#/$defs/Number"
-          }
-         },
-         "required": [],
-         "additionalProperties": false
+         "additionalProperties": {
+          "$ref": "#/$defs/Number"
+         }
         }
        ],
        "minItems": 3,
@@ -9075,16 +9244,9 @@
             },
             "2": {
              "type": "object",
-             "properties": {
-              "load": {
-               "$ref": "#/$defs/Number"
-              },
-              "distance": {
-               "$ref": "#/$defs/Number"
-              }
-             },
-             "required": [],
-             "additionalProperties": false
+             "additionalProperties": {
+              "$ref": "#/$defs/Number"
+             }
             }
            },
            "required": [],
@@ -9657,10 +9819,23 @@
            "type": "null"
           }
          ]
+        },
+        {
+         "anyOf": [
+          {
+           "type": "array",
+           "items": {
+            "type": "string"
+           }
+          },
+          {
+           "type": "null"
+          }
+         ]
         }
        ],
        "minItems": 5,
-       "maxItems": 5,
+       "maxItems": 6,
        "items": false
       },
       "world": {
@@ -9704,6 +9879,19 @@
              ]
             },
             "4": {
+             "anyOf": [
+              {
+               "type": "array",
+               "items": {
+                "type": "string"
+               }
+              },
+              {
+               "type": "null"
+              }
+             ]
+            },
+            "5": {
              "anyOf": [
               {
                "type": "array",
@@ -13863,16 +14051,9 @@
         },
         {
          "type": "object",
-         "properties": {
-          "load": {
-           "$ref": "#/$defs/Number"
-          },
-          "distance": {
-           "$ref": "#/$defs/Number"
-          }
-         },
-         "required": [],
-         "additionalProperties": false
+         "additionalProperties": {
+          "$ref": "#/$defs/Number"
+         }
         }
        ],
        "minItems": 3,
@@ -13901,16 +14082,9 @@
             },
             "2": {
              "type": "object",
-             "properties": {
-              "load": {
-               "$ref": "#/$defs/Number"
-              },
-              "distance": {
-               "$ref": "#/$defs/Number"
-              }
-             },
-             "required": [],
-             "additionalProperties": false
+             "additionalProperties": {
+              "$ref": "#/$defs/Number"
+             }
             }
            },
            "required": [],
@@ -14513,10 +14687,23 @@
            "type": "null"
           }
          ]
+        },
+        {
+         "anyOf": [
+          {
+           "type": "array",
+           "items": {
+            "type": "string"
+           }
+          },
+          {
+           "type": "null"
+          }
+         ]
         }
        ],
        "minItems": 5,
-       "maxItems": 5,
+       "maxItems": 6,
        "items": false
       },
       "world": {
@@ -14560,6 +14747,19 @@
              ]
             },
             "4": {
+             "anyOf": [
+              {
+               "type": "array",
+               "items": {
+                "type": "string"
+               }
+              },
+              {
+               "type": "null"
+              }
+             ]
+            },
+            "5": {
              "anyOf": [
               {
                "type": "array",

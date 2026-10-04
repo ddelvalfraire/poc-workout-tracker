@@ -1,0 +1,5 @@
+{"source": {"suite":"semfix","test":"F13: reps quantize to whole numbers at the sink, in the bound’s direction","ids":[]}, "fixtures": [
+{"op":"issue.sinkField","args":[{"k":"fixed","v":{"b":"exact","v":3.75}},"reps",{"reps":1}],"world":{},"expected":{"ret":{"k":"fixed","v":{"b":"exact","v":4}}}},
+{"op":"issue.sinkField","args":[{"k":"fixed","v":{"b":"atLeast","v":7.2}},"reps",{"reps":1}],"world":{},"expected":{"ret":{"k":"fixed","v":{"b":"atLeast","v":8}}}},
+{"op":"issue.sinkField","args":[{"k":"fixed","v":{"b":"atMost","v":7.8}},"reps",{"reps":1}],"world":{},"expected":{"ret":{"k":"fixed","v":{"b":"atMost","v":7}}}}
+]}
