@@ -439,7 +439,7 @@ Notation: `p` is the node path; `p/x/y` is `[...p, 'x', 'y']`. "Sub x" means inf
 
 **agg** (`agg`, cost 0; child costs count)
 - `slotsFor`: sub `q/muscle`, `expect(ref muscle)` at `p/q/muscle`; result `list ref slot` (possibly empty).
-- `weekly`: metric `sets` gives `SETS`; else registry lookup (`unknownName`). `by.k === 'tag'`: when `scope.program` is non-null and lacks the tag, `unknownName { name: tag }` at `p`; else the metric sort. Else sub `q/by/of`, `expect(ref by.k)` at `p/q/by/of`.
+- `weekly`: metric `sets` gives `SETS`; else registry lookup (`unknownName`). Options, in this order: `basis` other than `closing`/`upcoming` is `unknownName { name: basis }` at `p/q/basis`; `roles` neither `all` nor an array is `unknownName` at `p/q/roles`; an empty array is `literalDomain { former: 'agg', field: 'roles', value: 0 }` at `p/q/roles`; the first entry that is not a week role (`registry.ts` `ENUM_VALUES.weekRole`) is `unknownName { name }` at `p/q/roles/i`. The result sort is `opt(metric sort)` when `basis === 'upcoming'` or `roles` is an array, else the metric sort (an explicit default is the same as an omitted one). `by.k === 'tag'`: when `scope.program` is non-null and lacks the tag, `unknownName { name: tag }` at `p`; else the metric sort. Else sub `q/by/of`, `expect(ref by.k)` at `p/q/by/of`.
 
 #### Domain
 
@@ -831,7 +831,7 @@ Every port is a pure function of the head and stamped inputs, and the fact and c
 - **cal(q)**, at the stamped `today`, all values carrying `clock: "calendar"`: `day` = days since the anchor (`unit d`); `earlierToday` = this instance's sessions already closed today; `gap(sel)` = `today − last` where `last` is the tracked last day for the selector's key when that day is on or before today, else the latest matching occurrence on or before today, `none(noPriorSession)` when there is none (a gap is never negative); `recent(sel, days, measure)` over occurrences with `0 ≤ today − day < days`: `count`, `sum` of the metric totals (`dim {}`, `unit null`), `max` (`none(noPriorSession)` when empty).
 - **pos(field)**: `week` (block weeks closed since activation, 0-based, `unit wk`, progress clock), `trainWeek` (earlier block weeks whose role is not `deload` or `taper`, across cycles), `role` (the calendar role of the week; past the end of a `once` calendar it reads `train`), `slotSession` (sessions of this slot closed so far; 0 at program scope).
 - **self / peer / program**: the head's state; an unset field is `none(stateUnset{field})`. `program` at slot scope reads a slot-keyed map at this slot's key (`none(missingKey)`) or a scalar as itself. `peer(slot, field, prevPhase)` reads the previous macro phase's terminal state.
-- **agg** (aggregate positions): `slotsFor(muscle)` = the slots whose primary muscle it is; `weekly(metric, by)` = planned volume per week under the pre-state, of what WOULD BE ISSUED: each slot's session after the plan policies firing now, the phase transform, L10 and the sink (4.1). Per session, over each step's planned targets (its count, a range's floor, an until/while step's planned count), `sets` counts the judged ones plus 0.5 per intensifier stage; any other metric sums the judged targets' fixed (or planned) floors of that metric: a silent field and a target without the metric add nothing (absence is not 0), and when nothing contributes the result is the empty sum, a true 0. Multiplied by the slot's sessions per week under the rotation; `by muscle` weights each slot by its contribution (primary 1, secondary 0.5), `by tag` sums tagged slots. The value has the metric's dimension (`set` for `sets`) and its display unit.
+- **agg** (aggregate positions): `slotsFor(muscle)` = the slots whose primary muscle it is; `weekly(metric, by)` = planned volume per week under the pre-state, of what WOULD BE ISSUED: each slot's session after the plan policies firing now, the phase transform, L10 and the sink (4.1). Per session, over each step's planned targets (its count, a range's floor, an until/while step's planned count), `sets` counts the judged ones plus 0.5 per intensifier stage; any other metric sums the judged targets' fixed (or planned) floors of that metric: a silent field and a target without the metric add nothing (absence is not 0), and when nothing contributes the result is the empty sum, a true 0. Multiplied by the slot's sessions per week under the rotation; `by muscle` weights each slot by its contribution (primary 1, secondary 0.5), `by tag` sums tagged slots. The value has the metric's dimension (`set` for `sets`) and its display unit. **Options** (the one coaching judgment the read makes, declared on the read; both optional, defaults written or omitted mean the same): `basis` `closing` (default) measures the current block week, the week a `weekEnd` closes; `upcoming` measures block week `pos.week + 1` through the same pipeline (plan, firing policies, phase transform, L10, sink) with the head's position moved one week on and nothing else changed (state, `slotSessions` and facts are the pre-state's; the handler's own writes are not seen), and is `none(noUpcomingWeek)` when the calendar is `once` and the current week is its last. `roles` `all` (default) or a non-empty list of week roles: when the measured week's role (the current or the coming week's, per `basis`) is not listed the value is `none(roleExcluded{role})`, never 0. A read with `basis: upcoming` or a roles list is `Opt` (2, `agg`); with neither it is the plain metric sort.
 - **event(q)** (handlers), against the issued fact merged with its resolutions and the logged sets: `verdict` (3.4); `metric` as `performed`; `e1rm` = Epley `w × (1 + reps/30)`, the best over the step's logged sets with reps above 0, on **effective load**, per logging type: `weight_reps` (and any type whose load is the lifted load): the logged load, and a set with no logged load is SKIPPED (an unlogged load is not 0); `weighted_bodyweight`: bodyweight + load, a missing load reading 0 (no added load); `assisted_bodyweight`: bodyweight − load, a missing load reading 0 (no assistance); `bodyweight_reps`: bodyweight. Bodyweight is the snapshot's latest reading, `none(factUnknown bodyweight)` when it is needed and absent; `none(notPerformed)` when no set qualifies; `prescribed` as above with live semantics; `stages` over the final logged set's intensifier stages; `trained(muscle)`; `week` (the progress week at the event); `groupScore`.
 
 ### 3.4 The verdict
@@ -871,6 +871,7 @@ Three-valued, against the ISSUED bounds merged with resolutions. For each step j
 - **dayClosed.** Monotonic: a day at or before `reconciledThrough` closes nothing; a later day closes, in order, every day from `reconciledThrough + 1` through it (so a skipped day never orphans a window, and reconciliation never moves back). For each such day the calendar closes windows ending that day (adherence), opens windows starting the next day (expectations), applies lapse and the pause status, and under anchored drift closes a block week as above. Each new adherence row emits `period:…` and runs every `periodClosed` handler, which may only propose or keep (L13).
 - **pause** records `{from, until}`; **resume** closes the open pause the day before its day. The status is `paused` while a pause covers the open day (`reconciledThrough + 1`): a pause from today takes effect at its event, a future one on its first day, a bounded one ends by itself, a resume ends it; a pause whose `until` is before its `from` (a resume on its first day) covers nothing and voids nothing. The head's status mirrors it. **abandon** sets status `abandoned` (everything except `proposalDecided` is then refused `instanceClosed`).
 - **Day stamps.** Every day an event carries (a `dayClosed` day, a pause's days, a resume's or abandon's day, a session's `localDay`) MUST be a real date; otherwise the event is refused `notALocalDay{stamped}` (P3).
+- **A weekly read inside a boundary handler** (4.1's `agg`, options in 3.3) runs against the handler's pre-state at the closing week's position. A handler that gates on a role-filtered read records `keep` (the empty patch, with its trace) on a week the filter leaves out: `prog/rp-upper-meso` declares `basis: closing, roles: [accumulation]`, so its deload `weekEnd` neither sets targets nor proposes extra sets.
 - **ownerEdit** commits literal values to fields whose `writableBy` lists `owner`; `null` clears an optional field (`none(ownerCleared)`); anything else refuses `notOwnerWritable`.
 - **proposalDecided.** An unknown key is a recorded no-op. Rejected → mode `keep`. Accepted → `commit`, unless (checked in this order) some proposed field's current declaration lists neither the proposal's handler `on` nor `owner` → `void` and `unwritable:key` emitted (EC-146), or some proposed field has moved since (`sameValue` against the snapshot base) → `void` and `stale:key` emitted. The writer of record is the proposing handler.
 - **rebind** to a scheme whose state declaration differs refuses `rebindNeedsMigration`; otherwise the binding changes.
@@ -907,6 +908,8 @@ The absence causes (*generated*):
 | `noPriorSession` | — |
 | `outOfDomain` | `field`, `value` |
 | `ownerCleared` | `field` |
+| `roleExcluded` | `role` |
+| `noUpcomingWeek` | — |
 
 Rules (typed absence: no former ever yields an undefined value; `nth` over an empty list and a table with no rows are `none(emptyPick)`): a `none` carries its cause unchanged through `known` (which does not run its body) and is replaced only by `orElse`; arithmetic, comparison, indices and counts never meet a `none` (the checker's `absenceUnhandled`); at the sink an absent edge makes the field silent with that cause; a transformer leaves a silent field silent; the verdict skips a silent field (no load could be computed, so the athlete chose one); a stale fact is absent; a `none` initial state is `stateUnset` with the field's noun.
 
@@ -1058,8 +1061,8 @@ No identity surface depends on a JavaScript artifact (P1, P2).
 
 | operation | directory | arguments | returns | fixtures |
 |---|---|---|---|---|
-| `evaluate.evaluate` | eval | Term, Ctx | Trace | 217 |
-| `issue.sinkField` | eval | Field, string, record of Number | Field | 27 |
+| `evaluate.evaluate` | eval | Term, Ctx | Trace | 253 |
+| `issue.sinkField` | eval | Field, string, record of Number | Field | 35 |
 | `issue.applyUse` | eval | Use, SessionValue, Ctx | SessionValue | 16 |
 | `issue.currentView` | eval | IssuedSession, Resolution[] | IssuedSlot[] | 10 |
 | `issue.resolveLive` | eval | {reg} \| Runtime, IssuedSession, Logged, Resolution[] | Resolution[] | 114 |
@@ -1068,11 +1071,11 @@ No identity surface depends on a JavaScript artifact (P1, P2).
 | `judge.verdictOf` | eval | EventSource, string[] \| "working", Edge | VerdictTag | 4 |
 | `step.activate` | eval | Runtime, record of Value, FactSource | Head | 27 |
 | `step.step` | eval | Runtime, Head, Event | StepResult | 2 |
-| `step.ingest` | eval | Runtime, Ledger, Event | {ledger, result} | 284 |
+| `step.ingest` | eval | Runtime, Ledger, Event | {ledger, result} | 338 |
 | `step.replay` | eval | Runtime, Head, Event[] | Ledger | 2 |
-| `step.prescribe` | eval | Runtime, Ledger, string, FactSource, LocalDay | {ledger, issued} | 161 |
+| `step.prescribe` | eval | Runtime, Ledger, string, FactSource, LocalDay | {ledger, issued} | 207 |
 | `step.exportsOf` | eval | Runtime, Head | record of Value | 1 |
-| `project.project` | eval | Runtime, Ledger, integer, Assume, FactSource, LocalDay, integer?, FactReading[]? | Projection | 42 |
+| `project.project` | eval | Runtime, Ledger, integer, Assume, FactSource, LocalDay, integer?, FactReading[]? | Projection | 44 |
 | `project.projectMacro` | eval | RegistryToken, MacroDef, Assume, FactSource, integer, FactReading[]? | PhaseRun[] | 7 |
 | `time.activate` | eval | CalendarSpec | CalendarState | 3 |
 | `time.reconcile` | eval | CalendarSpec, CalendarState, LocalDay | CalEvent[] | 7 |
@@ -1082,13 +1085,13 @@ No identity surface depends on a JavaScript artifact (P1, P2).
 | `time.occurrenceOf` | eval | {workoutId, localDay, day, slots, startedEarly, totals, loggedSets}, CalendarSpec | Occurrence \| {refused, workoutId} | 8 |
 | `time.completedFraction` | eval | CalendarState | Number | 1 |
 | `time.calendarSpecOf` | eval | ProgramDef, Selector[], string, LocalDay, LocalDay | CalendarSpec | 34 |
-| `checker.top` | check | Term, Scope, Path, Ty \| null, TypeError[] | {ty, cost} \| null | 59 |
+| `checker.top` | check | Term, Scope, Path, Ty \| null, TypeError[] | {ty, cost} \| null | 63 |
 | `checkdefs.checkFn` | check | FnDef, RegistryToken | TypeError[] | 11 (+ refusals) |
 | `checkdefs.checkScheme` | check | SchemeDef, RegistryToken, any? | TypeError[] | 10 (+ refusals) |
 | `checkdefs.checkProgram` | check | ProgramDef, RegistryToken | {at, errors}[] | 16 (+ refusals) |
 | `checkdefs.checkMacro` | check | MacroDef, RegistryToken | TypeError[] | 2 (+ refusals) |
 | `checkdefs.writeSet` | eval | SchemeDef \| ProgramDef | WriteEntry[] | 2 |
-| `describe.describe` | prose | Term, Cx | string | 97 |
+| `describe.describe` | prose | Term, Cx | string | 104 |
 | `describe.phrase` | prose | Term, Cx | string | 1 |
 | `describe-defs.describeProgram` | prose | ProgramDef, Cx | string[] | 16 |
 | `describe-defs.describeSlot` | prose | SchemeDef, record of string, Cx, Calendar \| null? | string[] | 48 |
@@ -1100,8 +1103,8 @@ No identity surface depends on a JavaScript artifact (P1, P2).
 | `describe-defs.adherenceText` | prose | CalendarState, Adherence, CalendarSpec | string | 10 |
 | `describe-defs.bindingArgs` | prose | ProgramDef, SlotBinding, Cx | record of string | 41 |
 | `describe-run.sessionText` | prose | IssuedSession, RegistryToken | string[] | 146 |
-| `describe-run.valueText` | prose | Value, RegistryToken | string | 33 |
-| `describe-run.explain` | prose | Trace, RegistryToken | string | 9 |
+| `describe-run.valueText` | prose | Value, RegistryToken | string | 35 |
+| `describe-run.explain` | prose | Trace, RegistryToken | string | 11 |
 | `describe-run.transitionText` | prose | Transition, RegistryToken, FnToken | string[] | 34 |
 
 ## 9. Constants

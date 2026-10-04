@@ -1344,6 +1344,26 @@
          "additionalProperties": false
         }
        ]
+      },
+      "basis": {
+       "enum": [
+        "closing",
+        "upcoming"
+       ]
+      },
+      "roles": {
+       "anyOf": [
+        {
+         "const": "all"
+        },
+        {
+         "type": "array",
+         "items": {
+          "$ref": "#/$defs/WeekRole"
+         },
+         "minItems": 1
+        }
+       ]
       }
      },
      "required": [
@@ -5523,6 +5543,34 @@
      "required": [
       "k",
       "field"
+     ],
+     "additionalProperties": false
+    },
+    {
+     "type": "object",
+     "properties": {
+      "k": {
+       "const": "roleExcluded"
+      },
+      "role": {
+       "$ref": "#/$defs/WeekRole"
+      }
+     },
+     "required": [
+      "k",
+      "role"
+     ],
+     "additionalProperties": false
+    },
+    {
+     "type": "object",
+     "properties": {
+      "k": {
+       "const": "noUpcomingWeek"
+      }
+     },
+     "required": [
+      "k"
      ],
      "additionalProperties": false
     }

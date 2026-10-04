@@ -681,29 +681,52 @@
      }
     },
     "body": {
-     "k": "patch",
-     "set": {
-      "target": {
-       "to": {
-        "k": "var",
-        "name": "v55"
-       },
-       "mode": "commit"
+     "k": "let",
+     "name": "v61",
+     "label": "the reallocation",
+     "value": {
+      "k": "fold",
+      "xs": {
+       "k": "keys",
+       "of": "muscles"
       },
-      "extra": {
-       "to": {
-        "k": "fold",
-        "xs": {
-         "k": "keys",
-         "of": "muscles"
+      "init": {
+       "k": "some",
+       "a": {
+        "k": "self",
+        "field": "extra"
+       }
+      },
+      "acc": "v56",
+      "x": "v57",
+      "step": {
+       "k": "known",
+       "a": {
+        "k": "var",
+        "name": "v56"
+       },
+       "as": "v58",
+       "body": {
+        "k": "known",
+        "a": {
+         "k": "agg",
+         "q": {
+          "q": "weekly",
+          "metric": "sets",
+          "by": {
+           "k": "muscle",
+           "of": {
+            "k": "var",
+            "name": "v57"
+           }
+          },
+          "roles": [
+           "accumulation"
+          ]
+         }
         },
-        "init": {
-         "k": "self",
-         "field": "extra"
-        },
-        "acc": "v56",
-        "x": "v57",
-        "step": {
+        "as": "v59",
+        "body": {
          "k": "allocate",
          "n": {
           "k": "named",
@@ -745,25 +768,15 @@
              }
             },
             "b": {
-             "k": "agg",
-             "q": {
-              "q": "weekly",
-              "metric": "sets",
-              "by": {
-               "k": "muscle",
-               "of": {
-                "k": "var",
-                "name": "v57"
-               }
-              }
-             }
+             "k": "var",
+             "name": "v59"
             }
            }
           }
          },
          "into": {
           "k": "var",
-          "name": "v56"
+          "name": "v58"
          },
          "among": {
           "k": "agg",
@@ -775,7 +788,7 @@
            }
           }
          },
-         "as": "v58",
+         "as": "v60",
          "score": {
           "k": "app",
           "def": {
@@ -796,7 +809,7 @@
             "fact": "jointPain",
             "key": {
              "k": "var",
-             "name": "v58"
+             "name": "v60"
             }
            }
           }
@@ -810,9 +823,45 @@
           }
          },
          "max": 8
+        },
+        "then": false
+       },
+       "then": true
+      }
+     },
+     "body": {
+      "k": "orElse",
+      "a": {
+       "k": "known",
+       "a": {
+        "k": "var",
+        "name": "v61"
+       },
+       "as": "v62",
+       "body": {
+        "k": "patch",
+        "set": {
+         "target": {
+          "to": {
+           "k": "var",
+           "name": "v55"
+          },
+          "mode": "commit"
+         },
+         "extra": {
+          "to": {
+           "k": "var",
+           "name": "v62"
+          },
+          "mode": "commit"
+         }
         }
        },
-       "mode": "commit"
+       "then": false
+      },
+      "b": {
+       "k": "patch",
+       "set": {}
       }
      }
     }

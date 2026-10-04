@@ -195,7 +195,7 @@
          "k": "self",
          "field": "load"
         },
-        "as": "v63",
+        "as": "v67",
         "body": {
          "k": "known",
          "a": {
@@ -206,7 +206,7 @@
            "pick": "sum"
           }
          },
-         "as": "v64",
+         "as": "v68",
          "body": {
           "k": "named",
           "noun": "the earned weight",
@@ -217,7 +217,7 @@
             "op": ">=",
             "a": {
              "k": "var",
-             "name": "v64"
+             "name": "v68"
             },
             "b": {
              "k": "param",
@@ -229,7 +229,7 @@
             "op": "+",
             "a": {
              "k": "var",
-             "name": "v63"
+             "name": "v67"
             },
             "b": {
              "k": "param",
@@ -238,7 +238,7 @@
            },
            "b": {
             "k": "var",
-            "name": "v63"
+            "name": "v67"
            }
           }
          },

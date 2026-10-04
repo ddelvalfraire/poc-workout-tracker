@@ -15,7 +15,7 @@ This kit lets a second implementation (the target is Rust) be built and proven a
 
 ## Regenerating
 
-Run `./verify.sh` in `../oracle/`. Step 8 copies the package to a scratch directory, rewrites every operation in `OPS` (`kit.ts`) there to call the recorder (`kit-verify.ts tap`), and runs the six suites (`semantics.test.ts`, `laws.test.ts`, `conformance.ts` with `differential.ts`, `demo.ts`, then `hardening.test.ts` and `coverage.test.ts`) unchanged under it (`kit-gen.ts`, `kit-record.ts`). Each top-level call a test makes becomes a fixture; calls the oracle makes inside another are part of that fixture's behavior, not fixtures of their own. Then `kit-verify.ts check` writes `ir-schema.json` (`kit-schema.ts`), validates every file against it, replays every fixture on the untouched oracle and diffs the result with the stored output, renders this file and `SPEC.md` from `kit-readme.md` and `kit-spec.md`, and fails on any invalid file or mismatch.
+Run `./verify.sh` in `../oracle/`. Step 8 copies the package to a scratch directory, rewrites every operation in `OPS` (`kit.ts`) there to call the recorder (`kit-verify.ts tap`), and runs the suites (`semantics.test.ts`, `laws.test.ts`, `conformance.ts` with `differential.ts`, `demo.ts`, then `hardening.test.ts`, `coverage.test.ts`, `semfix.test.ts` and `weekbasis.test.ts`) unchanged under it (`kit-gen.ts`, `kit-record.ts`). Each top-level call a test makes becomes a fixture; calls the oracle makes inside another are part of that fixture's behavior, not fixtures of their own. Then `kit-verify.ts check` writes `ir-schema.json` (`kit-schema.ts`), validates every file against it, replays every fixture on the untouched oracle and diffs the result with the stored output, renders this file and `SPEC.md` from `kit-readme.md` and `kit-spec.md`, and fails on any invalid file or mismatch.
 
 The generator source lives beside the oracle so it is type-checked with it (step 1): `kit.ts` (the codec, the comparator, the operation table), `kit-schema.ts` (the schema, built from the TS declarations and runtime mirrors, and the validator), `kit-record.ts` and `kit-gen.ts` (the recorder), `kit-verify.ts` (the tap and the check), `kit-spec.md`, `kit-spec-typing.md` and `kit-readme.md` (the document templates), `kit-shim.d.ts`.
 
@@ -25,9 +25,9 @@ The generator source lives beside the oracle so it is type-checked with it (step
 |---|---|---|
 | fixtures/defs | 44 | 44 |
 | fixtures/registries | 12 | 12 |
-| fixtures/eval | 171 | 1167 |
-| fixtures/refusals | 291 | 291 |
-| fixtures/prose | 66 | 445 |
+| fixtures/eval | 178 | 1317 |
+| fixtures/refusals | 298 | 298 |
+| fixtures/prose | 68 | 456 |
 
 Compile-time and ingest refusal codes with at least one refusal fixture: 49 of 50. Codes with none: `dayStampOutOfRange`, `floorNotConfirmed`.
 
@@ -36,6 +36,7 @@ Refusal fixtures whose input is authoring JSON that does not parse as IR (tagged
 - boundNotLiteral: conformance.boundnotliteral.2.json
 - boundNotLiteral: conformance.boundnotliteral.4.json
 - boundNotLiteral: a threshold given as a term
+- unknownName: a weekly read filtered to a misspelt week role
 - boundNotLiteral: allocate bound given as a term
 - unknownName: both(commit tm, commit tm = 50 kg): the v2 outcome pair
 - unknownName: division (not a former in v1)
@@ -51,6 +52,9 @@ Refusal fixtures whose input is authoring JSON that does not parse as IR (tagged
 - unknownName: hardening.unknownname.3.json
 - unknownName: hardening.unknownname.4.json
 - unknownName: hardening.unknownname.json
+- literalDomain: weekbasis.literaldomain.json
+- unknownName: weekbasis.unknownname.2.json
+- unknownName: weekbasis.unknownname.json
 
 Sampling and what was not exported:
 
@@ -64,7 +68,7 @@ Sampling and what was not exported:
   "evaluate.evaluate": 1496,
   "issue.applyUse": 87
  },
- "duplicatesDropped": 1309,
+ "duplicatesDropped": 2020,
  "notExported": {
   "step.activate: codec: a registry whose definitions and publication order disagree": 6,
   "step.prescribe: codec: a registry whose definitions and publication order disagree": 4,
